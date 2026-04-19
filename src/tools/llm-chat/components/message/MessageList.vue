@@ -56,9 +56,9 @@ const compressedNodeIds = computed(() => {
   return ids;
 });
 
-// 计算实际显示的消息列表（不再隐藏被压缩的节点，而是全量显示）
+// 计算实际显示的消息列表（倒序排列，以便配合 column-reverse 实现从底部加载）
 const displayMessages = computed(() => {
-  return props.messages;
+  return [...props.messages].reverse();
 });
 
 // 为每条消息计算兄弟节点信息
@@ -121,24 +121,15 @@ const currentVisibleIndex = computed(() => {
   if (items.length === 0 || !messagesContainer.value) return 0;
 
   // 如果已经滚动到底部，直接返回总数，确保显示 N/N
+  // 在 column-reverse 中，scrollTop 接近 0 即为底部
   if (isNearBottom.value) {
     return props.messages.length;
   }
 
-  const container = messagesContainer.value;
-  const scrollTop = container.scrollTop;
-  const clientHeight = container.clientHeight;
-  const scrollBottom = scrollTop + clientHeight;
-
-  // 找到视口内最底部的消息
-  // 过滤掉那些起始位置在视口下方的元素（overscan）
-  // 然后取最后一个，即为当前视口中最下面一条可见的消息
-  const visibleItems = items.filter((item) => item.start < scrollBottom);
-
-  if (visibleItems.length === 0) return 0;
-
-  const lastVisibleItem = visibleItems[visibleItems.length - 1];
-  return lastVisibleItem.index + 1; // 转换为 1-based 索引
+  // 在倒序列表中，index 0 是最新的。
+  // 我们通常希望显示的是视口中最下面（最新）的消息在原始列表中的位置。
+  // items[0] 是当前可见项中 index 最小的，即最新的。
+  return props.messages.length - items[0].index;
 });
 
 // 总高度
@@ -146,24 +137,23 @@ const totalSize = computed(() => virtualizer.value.getTotalSize());
 
 // 自动滚动到底部
 const scrollToBottom = useThrottleFn(() => {
-  // 直接使用原生滚动，强制滚到真正的底部
-  // 不依赖虚拟列表的高度计算，确保流式输出时能及时跟随
+  // 在 column-reverse 模式下，scrollTop 为 0 即为底部
   nextTick(() => {
     if (messagesContainer.value) {
       const container = messagesContainer.value;
       if (settings.value.uiPreferences.smoothAutoScroll) {
         // 平滑滚动
         container.scrollTo({
-          top: container.scrollHeight,
+          top: 0,
           behavior: "smooth",
         });
       } else {
         // 瞬时滚动
-        container.scrollTop = container.scrollHeight;
+        container.scrollTop = 0;
       }
     }
   });
-}, 50); // 50ms 节流，配合内容高度过渡（150ms）实现更流畅的追踪
+}, 50); // 50ms 节流
 
 // 记录用户是否接近底部
 const isNearBottom = ref(true);
@@ -171,9 +161,10 @@ const isNearBottom = ref(true);
 // 滚动事件处理
 const onScroll = () => {
   if (!messagesContainer.value) return;
-  const { scrollTop, scrollHeight, clientHeight } = messagesContainer.value;
-  // 使用用户配置的阈值，在这个范围内认为用户想看最新消息
-  isNearBottom.value = scrollHeight - clientHeight - scrollTop < settings.value.uiPreferences.autoScrollThreshold;
+  const { scrollTop } = messagesContainer.value;
+  // 在 column-reverse 模式下，scrollTop 越小越接近底部（最新消息）
+  // 注意：某些浏览器或环境下 scrollTop 可能是负值，取绝对值以增强鲁棒性
+  isNearBottom.value = Math.abs(scrollTop) < settings.value.uiPreferences.autoScrollThreshold;
 };
 
 // 渐进式加载逻辑：使用 RAF 逐步增加 overscan（仅用于会话切换）
@@ -193,30 +184,26 @@ const { pause: pauseProgressive, resume: resumeProgressive } = useRafFn(
       isSessionSwitching.value = false;
       pauseProgressive();
 
-      // 渐进加载完成后，如果启用了自动滚动，则滚动到底部
-      // 这样可以处理初始加载多消息会话的场景
+      // 渐进加载完成后，如果启用了自动滚动，则滚动到底部（最新消息）
       if (settings.value.uiPreferences.autoScroll && props.messages.length > 0) {
-        // 多次重试确保滚到底部，因为虚拟列表在测量完成后可能还会异步调整 totalSize
         const ensureScrollToBottom = (retries: number) => {
           if (retries <= 0) return;
           nextTick(() => {
-            virtualizer.value.scrollToIndex(messageCount.value - 1, { align: "end" });
-            nextTick(() => {
-              if (messagesContainer.value) {
-                messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
-              }
-              // 如果还没到底，继续重试
-              if (retries > 1) {
-                requestAnimationFrame(() => ensureScrollToBottom(retries - 1));
-              }
-            });
+            // 在倒序模式下，index 0 是最新消息
+            virtualizer.value.scrollToIndex(0, { align: "start" });
+            if (messagesContainer.value) {
+              messagesContainer.value.scrollTop = 0;
+            }
+            if (retries > 1) {
+              requestAnimationFrame(() => ensureScrollToBottom(retries - 1));
+            }
           });
         };
         ensureScrollToBottom(3);
       }
     }
   },
-  { immediate: false }
+  { immediate: false },
 );
 
 // 监听会话切换，启用渐进式加载
@@ -229,14 +216,14 @@ watch(
       progressiveOverscan.value = 2;
       measuredElements = new WeakSet<HTMLElement>(); // 重新创建 WeakSet 以清空缓存
 
-      // 如果是多消息会话（>5条），先滚动到底部，实现倒序加载效果
-      // 这样可以优先渲染最新的消息，提升用户体验
-      if (props.messages.length > 5) {
-        nextTick(() => {
-          // 使用虚拟列表的 scrollToIndex，比直接设置 scrollTop 更能引导虚拟列表从底部开始渲染
-          virtualizer.value.scrollToIndex(messageCount.value - 1, { align: "end" });
-        });
-      }
+      // 切换会话时，确保滚动到最新消息（底部）
+      nextTick(() => {
+        // 在倒序列表中，index 0 是最新消息，align: 'start' 会将其置于 scrollTop: 0 处
+        virtualizer.value.scrollToIndex(0, { align: "start" });
+        if (messagesContainer.value) {
+          messagesContainer.value.scrollTop = 0;
+        }
+      });
 
       // 延迟启动渐进式加载，给初始渲染留出时间
       nextTick(() => {
@@ -245,7 +232,7 @@ watch(
         }, 150);
       });
     }
-  }
+  },
 );
 
 // 监听消息列表引用变化（关键：覆盖切换智能体但 session.id 不变的场景）
@@ -279,7 +266,7 @@ watch(
         }
       }
     }
-  }
+  },
 );
 
 // 监听消息数量、总高度变化以及最后一条消息的内容变化
@@ -320,14 +307,23 @@ watch(
         scrollToBottom();
       }
     }
-  }
+  },
 );
 
-// 滚动到顶部
+// 滚动到顶部（最旧的消息）
 const scrollToTop = () => {
   if (messagesContainer.value) {
+    // 在倒序列表中，最后一条是旧消息
+    virtualizer.value.scrollToIndex(messageCount.value - 1, { align: "start" });
+  }
+};
+
+/**
+ * 精确跳转到最后一条消息（最新消息，底部）
+ */
+const scrollToEnd = () => {
+  if (messageCount.value > 0) {
     virtualizer.value.scrollToIndex(0, { align: "start" });
-    // 兜底：确保在虚拟列表重置后真正回到最顶部
     nextTick(() => {
       if (messagesContainer.value) {
         messagesContainer.value.scrollTop = 0;
@@ -336,58 +332,32 @@ const scrollToTop = () => {
   }
 };
 
-/**
- * 精确跳转到最后一条消息（供 Navigator 使用）
- * 解决虚拟滚动估算高度不准导致直接 scrollTo scrollHeight 到不了底的问题
- */
-const scrollToEnd = () => {
-  if (messageCount.value > 0) {
-    virtualizer.value.scrollToIndex(messageCount.value - 1, { align: "end" });
-    // 兜底：等虚拟列表渲染完成后，再用原生滚动确保到底
-    nextTick(() => {
-      if (messagesContainer.value) {
-        messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
-      }
-    });
-  }
-};
-
-// 滚动到下一条消息
+// 滚动到下一条消息（向旧消息滚动）
 const scrollToNext = () => {
   const items = virtualizer.value.getVirtualItems();
   if (items.length === 0 || !messagesContainer.value) return;
 
-  const scrollTop = messagesContainer.value.scrollTop;
-
-  // 找到第一个真正可见的消息（底部位置大于当前滚动位置）
-  // items 包含 overscan 的元素，所以 items[0] 可能是视口上方的元素
+  const scrollTop = Math.abs(messagesContainer.value.scrollTop);
   const firstVisibleItem = items.find((item) => item.end > scrollTop);
-
-  // 如果没找到（理论上不可能），就回退到第一个 item
   const currentIndex = firstVisibleItem ? firstVisibleItem.index : items[0].index;
-  const nextIndex = currentIndex + 1;
+  const nextIndex = currentIndex + 1; // 索引变大是旧消息
 
   if (nextIndex < props.messages.length) {
-    // 注意：动态高度的虚拟列表不支持 smooth 滚动，必须使用 auto
     virtualizer.value.scrollToIndex(nextIndex, { align: "start", behavior: "auto" });
   }
 };
 
-// 滚动到上一条消息
+// 滚动到上一条消息（向新消息滚动）
 const scrollToPrev = () => {
   const items = virtualizer.value.getVirtualItems();
   if (items.length === 0 || !messagesContainer.value) return;
 
-  const scrollTop = messagesContainer.value.scrollTop;
-
-  // 找到第一个真正可见的消息
+  const scrollTop = Math.abs(messagesContainer.value.scrollTop);
   const firstVisibleItem = items.find((item) => item.end > scrollTop);
-
   const currentIndex = firstVisibleItem ? firstVisibleItem.index : items[0].index;
-  const prevIndex = currentIndex - 1;
+  const prevIndex = currentIndex - 1; // 索引变小是新消息
 
   if (prevIndex >= 0) {
-    // 注意：动态高度的虚拟列表不支持 smooth 滚动，必须使用 auto
     virtualizer.value.scrollToIndex(prevIndex, { align: "start", behavior: "auto" });
   }
 };
@@ -491,7 +461,7 @@ defineExpose({
           "
           :style="{
             position: 'absolute',
-            top: `${virtualItem.start}px`,
+            bottom: `${virtualItem.start}px`,
             left: 0,
             width: '100%',
           }"
@@ -503,7 +473,7 @@ defineExpose({
               :session-index="props.sessionIndex"
               :session-detail="props.sessionDetail"
               :message="displayMessages[virtualItem.index]"
-              :message-depth="displayMessages.length - 1 - virtualItem.index"
+              :message-depth="virtualItem.index"
               @toggle-enabled="emit('toggle-enabled', displayMessages[virtualItem.index].id)"
               @delete="emit('delete-message', displayMessages[virtualItem.index].id)"
               @update-content="(content: string) => store.editMessage(displayMessages[virtualItem.index].id, content)"
@@ -517,7 +487,7 @@ defineExpose({
               :session-index="props.sessionIndex"
               :session-detail="props.sessionDetail"
               :message="displayMessages[virtualItem.index]"
-              :message-depth="displayMessages.length - 1 - virtualItem.index"
+              :message-depth="virtualItem.index"
               :is-sending="isSending"
               :siblings="getMessageSiblings(displayMessages[virtualItem.index].id).siblings"
               :current-sibling-index="getMessageSiblings(displayMessages[virtualItem.index].id).currentIndex"
@@ -550,7 +520,7 @@ defineExpose({
               :session-detail="props.sessionDetail"
               :message="displayMessages[virtualItem.index]"
               :is-compressed="compressedNodeIds.has(displayMessages[virtualItem.index].id)"
-              :message-depth="displayMessages.length - 1 - virtualItem.index"
+              :message-depth="virtualItem.index"
               :is-sending="isSending"
               :siblings="getMessageSiblings(displayMessages[virtualItem.index].id).siblings"
               :current-sibling-index="getMessageSiblings(displayMessages[virtualItem.index].id).currentIndex"
@@ -603,6 +573,8 @@ defineExpose({
 .message-list {
   flex: 1;
   overflow-y: auto; /* 使用 auto 以支持虚拟滚动 */
+  display: flex;
+  flex-direction: column-reverse;
   padding: 84px 20px 20px 28px; /* 左右各增加8px间距 */
 }
 

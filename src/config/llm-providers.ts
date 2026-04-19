@@ -139,7 +139,7 @@ export const providerTypes: ProviderTypeInfo[] = [
     description: "硅基流动 - 极速推理平台，支持聊天、绘图、视频生成",
     defaultBaseUrl: "https://api.siliconflow.cn/v1",
     supportsModelList: true,
-    modelListEndpoint: "models",
+    modelListEndpoint: "https://aiping.cn/api/v1/models",
     supportedParameters: {
       temperature: true,
       maxTokens: true,

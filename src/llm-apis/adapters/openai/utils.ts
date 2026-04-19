@@ -55,6 +55,11 @@ export const openAiUrlHandler = {
       }
     }
 
+    // 如果 endpoint 是完整的 URL，直接返回
+    if (endpoint?.startsWith("http")) {
+      return endpoint;
+    }
+
     // 确保 baseUrl 以 / 结尾
     const host = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
     // 智能添加 v1 版本路径（如果没加的话）

@@ -2,7 +2,7 @@
  * LLM 服务商预设模板配置
  */
 
-import type { ProviderType, LlmModelInfo, LlmLink } from "../types/llm-profiles";
+import type { ProviderType, LlmModelInfo, LlmLink, LlmProfile } from "../types/llm-profiles";
 
 /**
  * 预设模板接口
@@ -15,6 +15,8 @@ export interface LlmPreset {
   logoUrl?: string;
   defaultModels?: LlmModelInfo[];
   links?: LlmLink[];
+  /** 高级端点配置预设 */
+  customEndpoints?: LlmProfile["customEndpoints"];
 }
 
 /**
@@ -1441,6 +1443,9 @@ export const llmPresets: LlmPreset[] = [
       { label: "API 文档", url: "https://docs.siliconflow.cn" },
       { label: "价格页", url: "https://siliconflow.cn/zh-cn/pricing" },
     ],
+    customEndpoints: {
+      models: "https://aiping.cn/api/v1/models",
+    },
     defaultModels: [
       {
         id: "deepseek-ai/DeepSeek-V3.2-Exp",

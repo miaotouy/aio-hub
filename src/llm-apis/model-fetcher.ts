@@ -14,6 +14,7 @@ import { parseGeminiModelsResponse } from "./adapters/gemini/utils";
 import { parseAnthropicModelsResponse } from "./adapters/anthropic/utils";
 import { parseVertexAiModelsResponse } from "./adapters/vertexai/utils";
 import { parseCohereModelsResponse } from "./adapters/cohere/utils";
+import { parseSiliconFlowModelsResponse } from "./adapters/siliconflow/utils";
 
 const logger = createModuleLogger("ModelFetcher");
 const errorHandler = createModuleErrorHandler("ModelFetcher");
@@ -45,7 +46,7 @@ export async function fetchModelsFromApi(profile: LlmProfile): Promise<ModelFetc
   const url = buildLlmApiUrl(
     profile.baseUrl,
     profile.type,
-    providerInfo.modelListEndpoint,
+    "models",
     profile
   );
   const apiKey = profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
@@ -152,12 +153,13 @@ function parseModelsResponse(data: any, providerType: ProviderType): LlmModelInf
     case "openai":
     case "openai-compatible":
     case "deepseek":
-    case "siliconflow":
     case "groq":
     case "xai":
     case "openrouter":
     case "openai-responses":
       return parseOpenAiModelsResponse(data);
+    case "siliconflow":
+      return parseSiliconFlowModelsResponse(data);
     case "claude":
       return parseAnthropicModelsResponse(data);
     case "gemini":

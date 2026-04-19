@@ -289,6 +289,8 @@ export interface LlmModelInfo {
     output?: number;
     /** 上下文窗口大小 */
     contextLength?: number;
+    /** 上下文窗口大小范围 [min, max] */
+    contextLengthRange?: [number, number];
   };
   /**
    * 架构和模态信息（可选）
@@ -331,6 +333,10 @@ export interface LlmModelInfo {
     request?: string;
     /** 图片价格 */
     image?: string;
+    /** 输入价格范围 [min, max] */
+    inputPriceRange?: [number, number];
+    /** 输出价格范围 [min, max] */
+    outputPriceRange?: [number, number];
   };
   /**
    * 模型版本（可选）

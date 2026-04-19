@@ -23,7 +23,7 @@ import ViewModeSwitcher from "./message/ViewModeSwitcher.vue";
 import FlowTreeGraph from "./conversation-tree-graph/flow/FlowTreeGraph.vue";
 import ChatSearchPanel from "./search/ChatSearchPanel.vue";
 const QuickActionManagerDialog = defineAsyncComponent(() => import("./quick-action/QuickActionManagerDialog.vue"));
-import { Settings2, Search } from "lucide-vue-next";
+import { Settings2, Search, AlertCircle } from "lucide-vue-next";
 // import { Setting } from "@element-plus/icons-vue";
 
 const logger = createModuleLogger("ChatArea");
@@ -743,17 +743,21 @@ onMounted(async () => {
           @close="isAgentSwitchVisible = false"
         />
         <el-tooltip
-          v-if="currentModel && settings.uiPreferences.showModelSelector"
-          content="点击选择模型"
+          v-if="currentAgent && settings.uiPreferences.showModelSelector"
+          :content="currentModel ? '点击选择模型' : '模型未选择或已失效，点击重新选择'"
           placement="bottom"
         >
-          <div class="model-info clickable" @click="handleSelectModel">
+          <div :class="['model-info', 'clickable', { 'model-invalid': !currentModel }]" @click="handleSelectModel">
             <DynamicIcon
+              v-if="currentModel"
               :src="modelIcon || ''"
               class="model-icon"
               :alt="currentModel?.name || currentModel?.id || ''"
             />
-            <span v-if="showModelName" class="model-name">{{ currentModel.name || currentModel.id }}</span>
+            <el-icon v-else class="model-icon-fallback" :size="16"><AlertCircle /></el-icon>
+            <span v-if="showModelName" class="model-name">
+              {{ currentModel ? currentModel.name || currentModel.id : "未选择模型" }}
+            </span>
           </div>
         </el-tooltip>
       </div>
@@ -1055,6 +1059,23 @@ onMounted(async () => {
 .user-profile-info:active {
   background-color: var(--el-fill-color);
   transform: translateY(0);
+}
+
+/* 模型失效状态样式 */
+.model-info.model-invalid {
+  color: var(--el-color-warning);
+  border: 1px dashed var(--el-color-warning-light-5);
+  background-color: rgba(var(--el-color-warning-rgb), 0.05);
+}
+
+.model-info.model-invalid:hover {
+  border-color: var(--el-color-warning);
+  background-color: rgba(var(--el-color-warning-rgb), 0.1);
+}
+
+.model-icon-fallback {
+  color: var(--el-color-warning);
+  flex-shrink: 0;
 }
 
 /* 头部功能按钮通用样式 */

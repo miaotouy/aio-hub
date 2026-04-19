@@ -62,9 +62,18 @@ export function useExportManager() {
       "",
     ];
 
+    // 收集活动路径中被压缩隐藏的节点 ID
+    const hiddenNodeIds = new Set<string>();
+    currentActivePath.forEach(node => {
+      if (node.metadata?.isCompressionNode && node.metadata.compressedNodeIds && node.isEnabled !== false) {
+        node.metadata.compressedNodeIds.forEach(id => hiddenNodeIds.add(id));
+      }
+    });
+
     // 使用传入的活动路径（包括禁用节点，以便用户看到完整历史）
     currentActivePath.forEach((node: ChatMessageNode) => {
       if (node.role === "system") return; // 跳过系统根节点
+      if (hiddenNodeIds.has(node.id)) return; // 跳过被压缩隐藏的节点
 
       const role = node.role === "user" ? "用户" : "助手";
       const nameStr = node.name ? ` - ${node.name}` : "";
@@ -135,8 +144,18 @@ export function useExportManager() {
       currentId = node.parentId;
     }
 
-    // 过滤掉系统根节点
-    const messagePath = path.filter((node) => node.id !== detail.rootNodeId);
+    // 收集所有被压缩隐藏的节点 ID
+    const hiddenNodeIds = new Set<string>();
+    path.forEach(node => {
+      if (node.metadata?.isCompressionNode && node.metadata.compressedNodeIds && node.isEnabled !== false) {
+        node.metadata.compressedNodeIds.forEach(id => hiddenNodeIds.add(id));
+      }
+    });
+
+    // 过滤掉系统根节点和被压缩隐藏的节点
+    const messagePath = path.filter((node) =>
+      node.id !== detail.rootNodeId && !hiddenNodeIds.has(node.id)
+    );
 
     const lines: string[] = [
       `# 对话记录: ${index.name}`,
@@ -384,8 +403,18 @@ export function useExportManager() {
       currentId = node.parentId;
     }
 
-    // 过滤掉系统根节点
-    const messagePath = path.filter((node) => node.id !== detail.rootNodeId);
+    // 收集所有被压缩隐藏的节点 ID
+    const hiddenNodeIds = new Set<string>();
+    path.forEach(node => {
+      if (node.metadata?.isCompressionNode && node.metadata.compressedNodeIds && node.isEnabled !== false) {
+        node.metadata.compressedNodeIds.forEach(id => hiddenNodeIds.add(id));
+      }
+    });
+
+    // 过滤掉系统根节点和被压缩隐藏的节点
+    const messagePath = path.filter((node) =>
+      node.id !== detail.rootNodeId && !hiddenNodeIds.has(node.id)
+    );
 
     interface ExportMessage {
       role: string;
@@ -574,6 +603,14 @@ export function useExportManager() {
     lines.push("---");
     lines.push("");
 
+    // 收集全树中所有被压缩隐藏的节点 ID
+    const allHiddenNodeIds = new Set<string>();
+    Object.values(detail.nodes || {}).forEach(node => {
+      if (node.metadata?.isCompressionNode && node.metadata.compressedNodeIds && node.isEnabled !== false) {
+        node.metadata.compressedNodeIds.forEach(id => allHiddenNodeIds.add(id));
+      }
+    });
+
     /**
      * 递归遍历节点树，生成 Markdown 列表
      * @param nodeId 当前节点 ID
@@ -583,12 +620,24 @@ export function useExportManager() {
       const node = detail.nodes?.[nodeId];
       if (!node) return;
 
+      const isHidden = allHiddenNodeIds.has(nodeId);
+
       // 跳过系统根节点（不显示）
       if (node.id === detail.rootNodeId) {
         // 直接遍历根节点的子节点
         node.childrenIds.forEach((childId) => {
           traverseNode(childId, depth);
         });
+        return;
+      }
+
+      // 如果节点被隐藏，我们不渲染它，但需要继续遍历它的子节点
+      if (isHidden) {
+        if (node.childrenIds && node.childrenIds.length > 0) {
+          node.childrenIds.forEach((childId) => {
+            traverseNode(childId, depth);
+          });
+        }
         return;
       }
 

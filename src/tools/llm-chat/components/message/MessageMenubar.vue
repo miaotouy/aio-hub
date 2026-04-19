@@ -27,18 +27,13 @@ import {
   Variable,
   Wand2,
 } from "lucide-vue-next";
-import type {
-  ChatMessageNode,
-  ButtonVisibility,
-  TranslationDisplayMode,
-} from "../../types";
+import type { ChatMessageNode, ButtonVisibility, TranslationDisplayMode } from "../../types";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
 import { useAgentStore } from "../../stores/agentStore";
 import { useChatInputManager } from "../../composables/input/useChatInputManager";
 import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
-import { useSessionManager } from "../../composables/session/useSessionManager";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { createModuleLogger } from "@/utils/logger";
@@ -48,6 +43,7 @@ import { sanitizeFilename } from "@/utils/fileUtils";
 import ExportBranchDialog from "../export/ExportBranchDialog.vue";
 import MessageDataEditor from "./MessageDataEditor.vue";
 import MessageVariableSnapshot from "./MessageVariableSnapshot.vue";
+import { useExportManager } from "../../composables/features/useExportManager";
 
 interface Props {
   message: ChatMessageNode;
@@ -361,7 +357,7 @@ const handleExportBranch = async (options: ExportOptions) => {
     }
 
     // 导出分支
-    const { exportBranchAsMarkdown, exportBranchAsJson } = useSessionManager();
+    const { exportBranchAsMarkdown, exportBranchAsJson } = useExportManager();
 
     let content: string;
     let fileExtension: string;
@@ -392,40 +388,26 @@ const handleExportBranch = async (options: ExportOptions) => {
       fileExtension = "json";
       filterName = "JSON";
     } else if (options.format === "json") {
-      const jsonData = exportBranchAsJson(
-        index,
-        detail,
-        props.message.id,
-        options.includePreset,
-        presetMessages,
-        {
-          includeUserProfile: options.includeUserProfile,
-          includeAgentInfo: options.includeAgentInfo,
-          includeModelInfo: options.includeModelInfo,
-          includeTokenUsage: options.includeTokenUsage,
-          includeAttachments: options.includeAttachments,
-          includeErrors: options.includeErrors,
-        },
-      );
+      const jsonData = exportBranchAsJson(index, detail, props.message.id, options.includePreset, presetMessages, {
+        includeUserProfile: options.includeUserProfile,
+        includeAgentInfo: options.includeAgentInfo,
+        includeModelInfo: options.includeModelInfo,
+        includeTokenUsage: options.includeTokenUsage,
+        includeAttachments: options.includeAttachments,
+        includeErrors: options.includeErrors,
+      });
       content = JSON.stringify(jsonData, null, 2);
       fileExtension = "json";
       filterName = "JSON";
     } else {
-      content = exportBranchAsMarkdown(
-        index,
-        detail,
-        props.message.id,
-        options.includePreset,
-        presetMessages,
-        {
-          includeUserProfile: options.includeUserProfile,
-          includeAgentInfo: options.includeAgentInfo,
-          includeModelInfo: options.includeModelInfo,
-          includeTokenUsage: options.includeTokenUsage,
-          includeAttachments: options.includeAttachments,
-          includeErrors: options.includeErrors,
-        },
-      );
+      content = exportBranchAsMarkdown(index, detail, props.message.id, options.includePreset, presetMessages, {
+        includeUserProfile: options.includeUserProfile,
+        includeAgentInfo: options.includeAgentInfo,
+        includeModelInfo: options.includeModelInfo,
+        includeTokenUsage: options.includeTokenUsage,
+        includeAttachments: options.includeAttachments,
+        includeErrors: options.includeErrors,
+      });
       fileExtension = "md";
       filterName = "Markdown";
     }
@@ -605,10 +587,7 @@ const handleTranslateClick = (e: MouseEvent) => {
                 <span>重新计算 Token</span>
               </div>
             </el-dropdown-item>
-            <el-dropdown-item
-              v-if="isAssistantMessage && !isGenerating"
-              @click="handleReparseTools"
-            >
+            <el-dropdown-item v-if="isAssistantMessage && !isGenerating" @click="handleReparseTools">
               <div class="dropdown-item-content">
                 <Wand2 :size="16" />
                 <span>重新解析工具</span>
@@ -841,6 +820,7 @@ const handleTranslateClick = (e: MouseEvent) => {
       v-model:visible="showExportDialog"
       :preset-count="presetCount"
       :session="store.currentSessionDetail"
+      :session-index="store.currentSession"
       :message-id="props.message.id"
       :preset-messages="currentPresetMessages"
       @export="handleExportBranch"

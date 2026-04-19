@@ -228,8 +228,9 @@ const participatingModels = computed(() => {
 const branchMessageCount = computed(() => pathNodes.value.length);
 
 // 生成预览内容
+// 生成预览内容
 const previewContent = computed(() => {
-  if (!props.session || !props.messageId) {
+  if (!props.session || !props.messageId || !props.sessionIndex) {
     return "暂无会话数据";
   }
 
@@ -244,54 +245,50 @@ const previewContent = computed(() => {
     includeAttachments: includeAttachments.value,
     includeErrors: includeErrors.value,
   };
-if (exportFormat.value === "raw") {
-  const branchNodes: Record<string, ChatMessageNode> = {};
-  let currentId: string | null = props.messageId;
-  const sessionNodes = props.session.nodes;
 
-  while (currentId !== null && sessionNodes) {
-    const node: ChatMessageNode | undefined = sessionNodes[currentId];
-    if (node) {
-      branchNodes[currentId] = node;
+  if (exportFormat.value === "raw") {
+    const branchNodes: Record<string, ChatMessageNode> = {};
+    let currentId: string | null = props.messageId;
+    const sessionNodes = props.session.nodes;
+
+    while (currentId !== null && sessionNodes) {
+      const node: ChatMessageNode | undefined = sessionNodes[currentId];
+      if (node) {
+        branchNodes[currentId] = node;
+      }
+      currentId = node ? node.parentId : null;
     }
-    currentId = node ? node.parentId : null;
+
+    const rawBranchData = {
+      index: props.sessionIndex,
+      detail: {
+        ...props.session,
+        nodes: branchNodes,
+      },
+    };
+    return JSON.stringify(rawBranchData, null, 2);
+  } else if (exportFormat.value === "json") {
+    const jsonData = exportBranchAsJson(
+      props.sessionIndex,
+      props.session,
+      props.messageId,
+      includePreset.value,
+      props.presetMessages,
+      options
+    );
+    return JSON.stringify(jsonData, null, 2);
+  } else {
+    // Markdown 导出保持原始协议，不做字符串替换
+    return exportBranchAsMarkdown(
+      props.sessionIndex,
+      props.session,
+      props.messageId,
+      includePreset.value,
+      props.presetMessages,
+      options
+    );
   }
-
-  const rawBranchData = {
-    index: props.sessionIndex,
-    detail: {
-      ...props.session,
-      nodes: branchNodes,
-    },
-  };
-  return JSON.stringify(rawBranchData, null, 2);
-} else if (exportFormat.value === "json") {
-  if (!props.sessionIndex || !props.session) return "";
-
-  const jsonData = exportBranchAsJson(
-    props.sessionIndex,
-    props.session,
-    props.messageId,
-    includePreset.value,
-    props.presetMessages,
-    options
-  );
-  return JSON.stringify(jsonData, null, 2);
-} else {
-  if (!props.sessionIndex || !props.session) return "";
-
-  // Markdown 导出保持原始协议，不做字符串替换
-  return exportBranchAsMarkdown(
-    props.sessionIndex,
-    props.session,
-    props.messageId,
-    includePreset.value,
-    props.presetMessages,
-    options
-  );
-}
 });
-
 // 资产路径解析钩子：在预览渲染时动态解析 agent-asset://
 const resolveAsset = (content: string) => {
   let processed = content;

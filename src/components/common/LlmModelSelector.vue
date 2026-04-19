@@ -31,7 +31,7 @@ const emit = defineEmits<Emits>();
 
 const router = useRouter();
 const { enabledProfiles } = useLlmProfiles();
-const { getModelIcon, getModelGroup } = useModelMetadata();
+const { getModelIcon } = useModelMetadata();
 
 const goToLlmSettings = () => {
   router.push({ path: "/settings", query: { section: "llm-service" } });
@@ -45,9 +45,10 @@ const availableModels = computed(() => {
     group: string;
     profile: LlmProfile;
     model: LlmModelInfo;
+    profileIndex: number;
   }> = [];
 
-  enabledProfiles.value.forEach((profile) => {
+  enabledProfiles.value.forEach((profile, profileIndex) => {
     profile.models.forEach((model) => {
       // 根据能力要求进行筛选
       const capabilities = props.capabilities ?? {};
@@ -78,18 +79,16 @@ const availableModels = computed(() => {
           group: `${profile.name} (${profile.type})`,
           profile,
           model,
+          profileIndex,
         });
       }
     });
   });
 
-  // 排序：先按分组排序，分组相同按 ID 排序
+  // 排序：优先按用户配置的渠道顺序排序，同一渠道内按 ID 排序
   return models.sort((a, b) => {
-    const groupA = getModelGroup(a.model);
-    const groupB = getModelGroup(b.model);
-
-    if (groupA !== groupB) {
-      return groupA.localeCompare(groupB, "zh-CN");
+    if (a.profileIndex !== b.profileIndex) {
+      return a.profileIndex - b.profileIndex;
     }
 
     return a.model.id.localeCompare(b.model.id);
@@ -112,7 +111,14 @@ const selectedModelInfo = computed(() => {
 
 // 分组
 const modelGroups = computed(() => {
-  return [...new Set(availableModels.value.map((m) => m.group))];
+  // 保持 availableModels 的顺序提取分组
+  const groups: string[] = [];
+  availableModels.value.forEach((m) => {
+    if (!groups.includes(m.group)) {
+      groups.push(m.group);
+    }
+  });
+  return groups;
 });
 </script>
 

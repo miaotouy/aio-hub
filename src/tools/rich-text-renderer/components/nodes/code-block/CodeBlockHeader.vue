@@ -139,6 +139,7 @@ defineEmits<{
   background-color: var(--code-block-bg, var(--card-bg));
   backdrop-filter: blur(var(--ui-blur, 10px));
   flex-shrink: 0;
+  border-radius: 6px 6px 0 0;
 }
 
 /* 悬浮 Header 模式 */
@@ -154,6 +155,7 @@ defineEmits<{
   z-index: 10;
   justify-content: flex-end;
   align-items: flex-end;
+  border-radius: 0;
 }
 
 .code-header.floating .language-info {

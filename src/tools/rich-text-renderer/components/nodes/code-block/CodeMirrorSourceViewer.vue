@@ -173,14 +173,12 @@ onUnmounted(() => {
   max-height: 500px;
   min-height: 20px;
   position: relative;
+  background-color: var(--container-bg);
+  border-radius: 0 0 6px 6px;
   transition: max-height 0.3s ease-in-out;
   display: flex;
   flex-direction: column;
   overflow: hidden; /* 必须裁剪，配合 flex 内部滚动 */
-}
-
-.cm-viewer-container.expanded {
-  max-height: 20000px; /* 给一个足够大的值以支持动画过渡，或者用 none */
 }
 
 .cm-viewer-container.is-streaming {

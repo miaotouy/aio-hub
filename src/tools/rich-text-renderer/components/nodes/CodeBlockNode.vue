@@ -363,7 +363,8 @@ onMounted(() => {
 }
 
 .code-preview-block {
-  backdrop-filter: blur(var(--ui-blur, 10px));
+  /* backdrop-filter: blur(var(--ui-blur, 10px)); */
+  border-radius: 0 0 6px 6px;
 }
 
 .html-preview-container {

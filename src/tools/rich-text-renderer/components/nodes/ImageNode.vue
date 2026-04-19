@@ -50,6 +50,7 @@ import { customMessage } from "@/utils/customMessage";
 import { resolveAgentAssetUrlSync } from "@/tools/llm-chat/utils/agentAssetUtils";
 import type { ChatAgent } from "@/tools/llm-chat/types";
 import { resolveLocalPath } from "../../utils/path-utils";
+import { fixVcpEmoticonUrl } from "@/tools/vcp-connector/utils/emoticonFixer";
 
 const props = defineProps<{
   nodeId: string;
@@ -70,6 +71,7 @@ const hasError = ref(false);
 const isRetrying = ref(false);
 const isHovered = ref(false);
 const isCopying = ref(false);
+const vcpFixAttempted = ref(false);
 let basePath: string | null = null;
 
 const resolveUrl = async () => {
@@ -92,7 +94,10 @@ const resolveUrl = async () => {
       }
     }
 
-    // 2. 处理特殊协议或本地路径
+    // 2. 针对 VCP 表情包进行 URL 预修复 (防止触发封禁)
+    src = fixVcpEmoticonUrl(src);
+
+    // 3. 处理特殊协议或本地路径
     if (src.startsWith("appdata://")) {
       if (!basePath) {
         basePath = await assetManagerEngine.getAssetBasePath();
@@ -119,6 +124,24 @@ const resolveUrl = async () => {
  * 处理图片加载失败：尝试使用 fetch 代理（绕过 Referer 限制）
  */
 const handleImageError = async () => {
+  // === 新增：VCP 表情包 URL 修复 ===
+  // 如果 URL 含"表情包"字样且尚未尝试修复，先走 resolveAsset 修复路径
+  if (
+    (!vcpFixAttempted.value && resolvedSrc.value.includes("%E8%A1%A8%E6%83%85%E5%8C%85")) || // URL 编码的"表情包"
+    resolvedSrc.value.includes("表情包")
+  ) {
+    vcpFixAttempted.value = true; // 标记已尝试，防止死循环
+    if (context?.resolveAsset) {
+      const fixed = context.resolveAsset(resolvedSrc.value);
+      if (fixed !== resolvedSrc.value) {
+        resolvedSrc.value = fixed;
+        isLoading.value = false;
+        return; // 让 <img> 用新 URL 重试，如果还失败会再进来但 vcpFixAttempted 已为 true
+      }
+    }
+  }
+
+  // === 原有逻辑 ===
   // 只有 http/https 链接且未重试过才尝试
   if (isRetrying.value || !resolvedSrc.value.startsWith("http")) {
     hasError.value = true;
@@ -172,6 +195,8 @@ watch(
     if (!isActive) return; // 组件已停用，跳过
     if (newSrc !== lastSrc) {
       lastSrc = newSrc;
+      vcpFixAttempted.value = false; // 新 src 时重置修复标记
+      isRetrying.value = false; // 同时重置重试标记
       resolveUrl();
     }
   },

@@ -107,6 +107,12 @@ export interface VcpConfig {
   autoConnect: boolean;
   maxHistory: number;
   mode?: VcpConnectionMode;
+  /** VCP 聊天 API 鉴权 Key (对应后端 Key) */
+  vcpChatKey: string;
+  /** VCP 图片服务鉴权 Key (对应后端 Image_Key，用于表情包 pw=) */
+  vcpImageKey: string;
+  /** VCP 文档服务鉴权 Key (对应后端 File_Key) */
+  vcpFileKey: string;
 }
 
 export interface ConnectionState {

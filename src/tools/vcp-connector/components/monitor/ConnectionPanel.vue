@@ -67,12 +67,51 @@
       </div>
 
       <div class="form-item">
-        <label class="form-label">VCP Key</label>
+        <label class="form-label">VCP Key (WS 鉴权)</label>
         <el-input
           :model-value="store.config.vcpKey"
           @update:model-value="store.updateConfig({ vcpKey: $event })"
           type="password"
           placeholder="请输入 VCP Key"
+          size="small"
+          clearable
+          show-password
+        />
+      </div>
+
+      <div class="form-item">
+        <label class="form-label">Chat Key (聊天 API)</label>
+        <el-input
+          :model-value="store.config.vcpChatKey"
+          @update:model-value="store.updateConfig({ vcpChatKey: $event })"
+          type="password"
+          placeholder="请输入 Chat Key"
+          size="small"
+          clearable
+          show-password
+        />
+      </div>
+
+      <div class="form-item">
+        <label class="form-label">Image Key (表情包/图片)</label>
+        <el-input
+          :model-value="store.config.vcpImageKey"
+          @update:model-value="store.updateConfig({ vcpImageKey: $event })"
+          type="password"
+          placeholder="请输入 Image Key"
+          size="small"
+          clearable
+          show-password
+        />
+      </div>
+
+      <div class="form-item">
+        <label class="form-label">File Key (文件服务)</label>
+        <el-input
+          :model-value="store.config.vcpFileKey"
+          @update:model-value="store.updateConfig({ vcpFileKey: $event })"
+          type="password"
+          placeholder="请输入 File Key"
           size="small"
           clearable
           show-password
@@ -201,20 +240,28 @@ async function detectLocalVcp() {
       throw new Error("Empty config.env file");
     }
 
-    // 解析 PORT 和 VCP_Key
+    // 解析端口和各类 Key
     const portMatch = envContent.match(/PORT\s*=\s*(\d+)/);
     const keyMatch = envContent.match(/VCP_Key\s*=\s*([^\s#]+)/);
+    const chatKeyMatch = envContent.match(/Chat_Key\s*=\s*([^\s#]+)/);
+    const imageKeyMatch = envContent.match(/Image_Key\s*=\s*([^\s#]+)/);
+    const fileKeyMatch = envContent.match(/File_Key\s*=\s*([^\s#]+)/);
 
-    if (portMatch && keyMatch) {
+    if (portMatch) {
       const port = portMatch[1];
-      const key = keyMatch[1];
-      store.updateConfig({
+      const updates: any = {
         wsUrl: `ws://127.0.0.1:${port}`,
-        vcpKey: key,
-      });
+      };
+
+      if (keyMatch) updates.vcpKey = keyMatch[1];
+      if (chatKeyMatch) updates.vcpChatKey = chatKeyMatch[1];
+      if (imageKeyMatch) updates.vcpImageKey = imageKeyMatch[1];
+      if (fileKeyMatch) updates.vcpFileKey = fileKeyMatch[1];
+
+      store.updateConfig(updates);
       customMessage.success("成功探测到本地 VCP 配置");
     } else {
-      customMessage.warning("在 config.env 中未找到 PORT 或 VCP_Key");
+      customMessage.warning("在 config.env 中未找到 PORT 配置");
     }
   } catch (e) {
     console.error("Detect local VCP failed:", e);
@@ -225,9 +272,11 @@ async function detectLocalVcp() {
 /** 将当前 VCP 配置一键添加为 LLM 渠道 */
 async function addAsLlmProfile() {
   const wsUrl = store.config.wsUrl;
-  const vcpKey = store.config.vcpKey;
-  if (!wsUrl || !vcpKey) {
-    customMessage.warning("请先解析 VCP 配置");
+  // 优先使用 Chat Key 作为 LLM 渠道的 API Key
+  const apiKey = store.config.vcpChatKey || store.config.vcpKey;
+
+  if (!wsUrl || !apiKey) {
+    customMessage.warning("请先解析 VCP 配置 (至少需要 WebSocket 地址和 Key)");
     return;
   }
   const portMatch = wsUrl.match(/:(\d+)/);
@@ -241,7 +290,7 @@ async function addAsLlmProfile() {
     name: "VCP",
     type: "openai",
     baseUrl: `http://localhost:${port}`,
-    apiKeys: [vcpKey],
+    apiKeys: [apiKey],
     enabled: true,
     models: [],
     icon: "/model-icons/vcpchat.png",

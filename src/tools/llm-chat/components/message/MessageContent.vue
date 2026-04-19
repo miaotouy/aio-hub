@@ -24,6 +24,7 @@ import {
 import { createMacroContext } from "../../macro-engine/MacroContext";
 import type { ChatRegexRule } from "../../types/chatRegex";
 import { processMessageAssetsSync } from "../../utils/agentAssetUtils";
+import { fixVcpEmoticonUrl } from "@/tools/vcp-connector/utils/emoticonFixer";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import LlmThinkNode from "@/tools/rich-text-renderer/components/nodes/LlmThinkNode.vue";
 import AttachmentCard from "../AttachmentCard.vue";
@@ -79,7 +80,7 @@ const userProfileStore = useUserProfileStore();
  */
 function getAgentAndUserProfileIds(
   metadata: any,
-  bindingMode: "message" | "session" = "message"
+  bindingMode: "message" | "session" = "message",
 ): { agentId: string | undefined; userProfileId: string | undefined } {
   let agentId: string | undefined;
   let userProfileId: string | undefined;
@@ -116,7 +117,7 @@ const currentAgent = computed(() => {
 // 提供 Agent 交互配置给后代组件
 provide(
   "agentInteractionConfig",
-  computed(() => currentAgent.value?.interactionConfig)
+  computed(() => currentAgent.value?.interactionConfig),
 );
 
 // 提供当前 Agent 给后代组件（用于解析 agent-asset:// URL）
@@ -273,7 +274,7 @@ watch(
 
     processedRules.value = await processRulesWithMacros(rules, macroContext);
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 // 编辑区域引用
@@ -428,7 +429,7 @@ watch(
       displayedContent.value = content || "";
     }
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 // 监听编辑模式变化
@@ -441,7 +442,7 @@ watch(
       // 退出编辑模式时清空附件管理器
       attachmentManager.clearAttachments();
     }
-  }
+  },
 );
 
 // 翻译显示逻辑
@@ -504,6 +505,9 @@ const resolveAsset = (content: string) => {
       return match;
     });
   }
+
+  // 3. 修复 VCP 表情包 URL（注入 pw= 鉴权参数）
+  processed = fixVcpEmoticonUrl(processed);
 
   return processed;
 };
@@ -719,7 +723,7 @@ const errorMessage = computed(() => messageMetadata.value?.error);
               resolveAsset(
                 isTranslating || !message.metadata?.translation
                   ? translationContent
-                  : message.metadata.translation.content
+                  : message.metadata.translation.content,
               )
             "
             :regex-rules="processedRules"

@@ -24,6 +24,11 @@ import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { useToolCallingStore } from "@/tools/llm-chat/stores/toolCallingStore";
 import { useNotification } from "@/composables/useNotification";
 import { customMessage } from "@/utils/customMessage";
+import {
+  loadFromDisk as loadEmoticonFromDisk,
+  refresh as refreshEmoticonLibrary,
+  clearLibrary as clearEmoticonLibrary,
+} from "../services/vcpEmoticonService";
 
 const logger = createModuleLogger("vcp-connector/store");
 
@@ -43,6 +48,9 @@ const configManager = createConfigManager<VcpConfig>({
     autoConnect: false,
     maxHistory: DEFAULT_MAX_HISTORY,
     mode: "both",
+    vcpChatKey: "",
+    vcpImageKey: "",
+    vcpFileKey: "",
   }),
 });
 
@@ -86,6 +94,9 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     autoConnect: false,
     maxHistory: DEFAULT_MAX_HISTORY,
     mode: "both",
+    vcpChatKey: "",
+    vcpImageKey: "",
+    vcpFileKey: "",
   });
 
   const connection = ref<ConnectionState>({
@@ -236,6 +247,18 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     config.value = { ...config.value, ...newConfig };
     configManager.saveDebounced(config.value);
 
+    // 如果 vcpPath 或 vcpImageKey 变化，重新刷新表情包清单
+    if (
+      (newConfig.vcpPath !== undefined && newConfig.vcpPath !== config.value.vcpPath) ||
+      (newConfig.vcpImageKey !== undefined && newConfig.vcpImageKey !== config.value.vcpImageKey) ||
+      (newConfig.wsUrl !== undefined && newConfig.wsUrl !== config.value.wsUrl)
+    ) {
+      clearEmoticonLibrary();
+      if (config.value.vcpPath && config.value.vcpImageKey && config.value.wsUrl) {
+        refreshEmoticonLibrary(config.value).catch(() => {});
+      }
+    }
+
     // 如果 maxHistory 变小，立即裁剪现有消息
     if (newConfig.maxHistory !== undefined && newConfig.maxHistory < oldMaxHistory) {
       if (messages.value.length > newConfig.maxHistory) {
@@ -369,6 +392,9 @@ export const useVcpStore = defineStore("vcp-connector", () => {
         setConnectionStatus("connected");
         reconnectDelay = INITIAL_RECONNECT_DELAY;
         startPingTimer();
+
+        // 连接成功后重扫表情包清单（保证与当前 VCP 一致）
+        refreshEmoticonLibrary(config.value).catch(() => {});
       };
 
       ws.value.onclose = (event) => {
@@ -754,6 +780,11 @@ export const useVcpStore = defineStore("vcp-connector", () => {
         // 同步配置
         if (syncedConfig) {
           config.value = { ...config.value, ...syncedConfig };
+
+          // 分离窗口收到配置同步后，从磁盘加载表情包清单
+          if (isDetachedMonitor) {
+            loadEmoticonFromDisk(config.value).catch(() => {});
+          }
         }
 
         // 如果是分离窗口，且收到主窗口已连接的消息，且自己还没连，则自动连接
@@ -791,6 +822,16 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     // 加载配置
     const loadedConfig = await configManager.load();
     config.value = loadedConfig;
+
+    // --- 表情包清单初始化 ---
+    // 1. 从磁盘加载旧清单（快速恢复，让 resolveAsset 立即有数据）
+    await loadEmoticonFromDisk(config.value);
+    // 2. 如果 vcpPath/vcpImageKey 有值，后台异步重扫（不阻塞 init）
+    if (config.value.vcpPath && config.value.vcpImageKey && config.value.wsUrl) {
+      refreshEmoticonLibrary(config.value).catch(() => {
+        // 错误已在 service 内部处理
+      });
+    }
 
     // 加载消息
     const loadedMessages = await messagesManager.load();

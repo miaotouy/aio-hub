@@ -133,18 +133,21 @@ const getSessionMatches = (sessionId: string) => {
     }));
 };
 
+// 获取单项高度逻辑提取
+const getItemHeight = (index: number) => {
+  const session = displaySessions.value[index];
+  if (!session) return 50;
+  const matches = getSessionMatches(session.id);
+  // 如果有搜索匹配详情，增加高度
+  if (matches && matches.length > 0) {
+    return 50 + Math.min(matches.length, 2) * 16 + 4;
+  }
+  return 50;
+};
+
 // 虚拟滚动列表
 const { list, containerProps, wrapperProps, scrollTo } = useVirtualList(displaySessions, {
-  itemHeight: (index) => {
-    const session = displaySessions.value[index];
-    if (!session) return 50;
-    const matches = getSessionMatches(session.id);
-    // 如果有搜索匹配详情，增加高度
-    if (matches && matches.length > 0) {
-      return 50 + Math.min(matches.length, 2) * 16 + 4;
-    }
-    return 50;
-  },
+  itemHeight: getItemHeight,
 });
 
 // 获取会话当前显示的智能体信息
@@ -176,10 +179,35 @@ const getMessageCount = (session: ChatSessionIndex) => {
 // 自动定位到当前会话
 const scrollToCurrentSession = () => {
   const index = displaySessions.value.findIndex((s) => s.id === chatStore.currentSessionId);
-  if (index !== -1) {
-    // 使用 offset 稍微往上一点，看起来更舒服
+  if (index === -1) return;
+
+  const container = containerProps.ref.value;
+  if (!container) {
+    // 如果容器还没准备好，回退到基础 scrollTo
     scrollTo(index);
+    return;
   }
+
+  const containerHeight = container.clientHeight;
+  if (containerHeight <= 0) {
+    scrollTo(index);
+    return;
+  }
+
+  // 计算到目标项之前的总高度
+  let offset = 0;
+  for (let i = 0; i < index; i++) {
+    offset += getItemHeight(i);
+  }
+
+  const targetHeight = getItemHeight(index);
+
+  // 目标位置：让项的中心点位于容器中心点
+  // scrollToY = (项的顶部位置) - (容器高度 / 2) + (项高度 / 2)
+  const scrollToY = offset - containerHeight / 2 + targetHeight / 2;
+
+  // 执行滚动，确保不小于 0
+  container.scrollTop = Math.max(0, scrollToY);
 };
 
 watch(
@@ -190,7 +218,7 @@ watch(
       setTimeout(scrollToCurrentSession, 0);
     }
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 defineExpose({
@@ -238,11 +266,7 @@ defineExpose({
 
             <!-- 搜索匹配详情 -->
             <div v-if="getSessionMatches(session.id)?.length" class="match-details">
-              <div
-                v-for="(match, index) in getSessionMatches(session.id)!.slice(0, 2)"
-                :key="index"
-                class="match-item"
-              >
+              <div v-for="(match, index) in getSessionMatches(session.id)!.slice(0, 2)" :key="index" class="match-item">
                 <span class="match-field">
                   {{ getFieldLabel(match.field) }}{{ match.role ? `(${getRoleLabel(match.role)})` : "" }}:
                 </span>
@@ -282,7 +306,11 @@ defineExpose({
       </el-input>
       <el-dropdown trigger="click" @command="handleMatchModeChange" placement="top-end">
         <div>
-          <el-tooltip :content="`搜索模式: ${matchModeOptions.find(o => o.value === matchMode)?.desc}`" placement="top" :show-after="400">
+          <el-tooltip
+            :content="`搜索模式: ${matchModeOptions.find((o) => o.value === matchMode)?.desc}`"
+            placement="top"
+            :show-after="400"
+          >
             <el-button size="small" :type="matchMode !== 'exact' ? 'primary' : ''" plain class="match-mode-btn">
               {{ currentModeLabel }}
             </el-button>

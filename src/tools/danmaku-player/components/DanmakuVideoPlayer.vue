@@ -9,9 +9,9 @@
       @pause="handlePause"
       @seeked="handleSeeked"
     >
-      <!-- 弹幕层 -->
+      <!-- 弹幕层：无弹幕时彻底卸载 canvas，减少一个 GPU 合成层 -->
       <template #overlay>
-        <DanmakuCanvas ref="canvasComponentRef" />
+        <DanmakuCanvas v-if="hasDanmakus" ref="canvasComponentRef" />
       </template>
 
       <!-- 控制栏扩展：弹幕开关与设置 -->
@@ -48,7 +48,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onBeforeUnmount } from "vue";
+import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
 import { Tv, Settings2, Check } from "lucide-vue-next";
 import VideoPlayer from "@/components/common/VideoPlayer.vue";
 import DanmakuCanvas from "./DanmakuCanvas.vue";
@@ -67,6 +67,7 @@ const props = defineProps<{
 
 const playerRef = ref<any>(null);
 const canvasComponentRef = ref<any>(null);
+const hasDanmakus = computed(() => props.danmakus.length > 0);
 
 const { initEngine, setDanmakus, updateConfig, updateScriptInfo, startRender, stopRender, clearCanvas } =
   useDanmakuRenderer();
@@ -95,7 +96,10 @@ function handleGlobalKeydown(e: KeyboardEvent) {
 
 function tryInitEngine() {
   const canvas = canvasComponentRef.value?.canvasRef;
-  if (!canvas) return;
+  if (!canvas) {
+    // 如果 canvas 还没挂载，可能是 v-if 延迟，尝试在 nextTick 后再试一次
+    return;
+  }
   initEngine(canvas, props.config, props.scriptInfo);
   setDanmakus(props.danmakus);
 
@@ -113,6 +117,14 @@ watch(
   },
   { deep: true },
 );
+
+// 当弹幕数据从无到有时，canvas 刚挂载，需要重新初始化引擎
+watch(hasDanmakus, (val) => {
+  if (val) {
+    // canvas 通过 v-if 刚挂载，nextTick 后才能拿到 DOM
+    setTimeout(() => tryInitEngine(), 0);
+  }
+});
 
 watch(
   () => props.config,

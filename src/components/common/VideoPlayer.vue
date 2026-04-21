@@ -23,6 +23,8 @@
           ref="videoRef"
           class="video-element"
           crossorigin="anonymous"
+          playsinline
+          preload="auto"
           :src="src"
           :poster="poster"
           :loop="isLoop"
@@ -94,10 +96,9 @@
             </div>
 
             <div class="progress-background"></div>
-            <div class="progress-buffered" :style="{ width: bufferedPercentage + '%' }"></div>
-            <div class="progress-current" :style="{ width: progressPercentage + '%' }">
-              <div class="progress-handle"></div>
-            </div>
+            <div class="progress-buffered" :style="{ transform: `scaleX(${bufferedPercentage / 100})` }"></div>
+            <div class="progress-current" :style="{ transform: `scaleX(${progressPercentage / 100})` }"></div>
+            <div class="progress-handle" :style="{ left: progressPercentage + '%' }"></div>
           </div>
 
           <div class="controls-row">
@@ -307,6 +308,9 @@ const isPlaying = ref(false);
 const currentTime = ref(0);
 const duration = ref(0);
 
+// timeupdate 节流：使用 rAF 避免过于频繁的响应式更新
+let pendingTimeUpdate = false;
+
 const STORAGE_KEY_VOLUME = "video-player-volume";
 const STORAGE_KEY_MUTED = "video-player-muted";
 const STORAGE_KEY_SHOW_PLAY_ICON = "video-player-show-play-icon";
@@ -395,8 +399,12 @@ const videoName = computed(() => {
 // 方法
 function formatTime(seconds: number): string {
   if (!seconds || isNaN(seconds)) return "00:00";
-  const m = Math.floor(seconds / 60);
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
   const s = Math.floor(seconds % 60);
+  if (h > 0) {
+    return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  }
   return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
 
@@ -431,8 +439,19 @@ function handleContainerClick(e: MouseEvent) {
 
 function handleTimeUpdate(payload: Event) {
   if (!videoRef.value || isDragging.value) return; // 拖拽时不更新时间
-  currentTime.value = videoRef.value.currentTime;
-  updateBuffered();
+
+  // 使用 rAF 节流 timeupdate，减少响应式更新导致的重排
+  // video 的 timeupdate 约 250ms 一次，但高负载下每次更新 ref 都会触发模板重渲染
+  if (!pendingTimeUpdate) {
+    pendingTimeUpdate = true;
+    requestAnimationFrame(() => {
+      if (videoRef.value && !isDragging.value) {
+        currentTime.value = videoRef.value.currentTime;
+        updateBuffered();
+      }
+      pendingTimeUpdate = false;
+    });
+  }
   emit("timeupdate", payload);
 }
 
@@ -848,6 +867,14 @@ defineExpose({
   width: 100%;
   height: 100%;
   object-fit: contain;
+  /* 强制 GPU 合成层，减轻 H.265 解码时的合成开销 */
+  will-change: transform;
+  transform: translateZ(0);
+  /*
+   * 注意：此处不使用 contain: strict
+   * 浏览器对 <video> 有特殊的合成优化路径（硬件 overlay / zero-copy texture），
+   * strict containment 会阻止这些优化，反而降低 4K 解码性能
+   */
 }
 
 /* 覆盖层样式 */
@@ -965,6 +992,8 @@ defineExpose({
   display: flex;
   flex-direction: column;
   gap: 8px;
+  /* 隔离控制栏的布局与绘制，避免进度条更新波及视频层 */
+  contain: layout style;
 }
 
 .controls-visible .controls-bar {
@@ -1000,9 +1029,13 @@ defineExpose({
   top: 0;
   left: 0;
   bottom: 0;
+  width: 100%;
   background: rgba(255, 255, 255, 0.4);
   border-radius: 2px;
   pointer-events: none;
+  /* 仅走 Composite 通道，不触发 Layout/Paint */
+  transform-origin: left center;
+  will-change: transform;
 }
 
 .progress-current {
@@ -1010,25 +1043,32 @@ defineExpose({
   top: 0;
   left: 0;
   bottom: 0;
+  width: 100%;
   background: var(--el-color-primary, #409eff);
   border-radius: 2px;
   pointer-events: none;
+  /* 仅走 Composite 通道，不触发 Layout/Paint */
+  transform-origin: left center;
+  will-change: transform;
 }
 
 .progress-handle {
   position: absolute;
-  right: -6px;
   top: 50%;
-  transform: translateY(-50%) scale(0);
+  transform: translate(-50%, -50%) scale(0);
   width: 12px;
   height: 12px;
   background: white;
   border-radius: 50%;
   transition: transform 0.1s;
+  pointer-events: none;
+  z-index: 2;
+  /* 跟随 left 值做 GPU 合成 */
+  will-change: left;
 }
 
 .progress-bar-container:hover .progress-handle {
-  transform: translateY(-50%) scale(1);
+  transform: translate(-50%, -50%) scale(1);
 }
 
 /* 控制按钮行 */

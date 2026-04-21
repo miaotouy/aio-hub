@@ -32,5 +32,9 @@ defineExpose({
   height: 100%;
   pointer-events: none;
   z-index: 15; /* 位于视频之上，控制栏之下 */
+  /* 独立 GPU 合成层，避免与视频解码争抢主线程合成 */
+  will-change: transform;
+  transform: translateZ(0);
+  contain: strict;
 }
 </style>

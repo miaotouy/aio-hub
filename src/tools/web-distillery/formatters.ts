@@ -12,7 +12,7 @@ export function formatFetchResult(result: FetchResult | ExtractResult): string {
   lines.push("");
   lines.push(`- **URL**: ${result.url || "未知"}`);
   lines.push(`- **标题**: ${result.title || "无标题"}`);
-  lines.push(`- **提取级别**: L${result.level ?? 0}`);
+  lines.push(`- **提取模式**: ${result.mode}`);
   lines.push(`- **内容长度**: ${result.contentLength ?? 0} 字符`);
   lines.push(`- **质量评分**: ${result.quality ?? 0}`);
   lines.push(`- **获取时间**: ${result.fetchedAt || getLocalISOString()}`);
@@ -29,7 +29,7 @@ export function formatFetchResult(result: FetchResult | ExtractResult): string {
     result.warnings.forEach((w) => lines.push(`- ${w}`));
   }
 
-  // 检查是否是 ExtractResult (Level 1)
+  // 检查是否是 ExtractResult (Smart Mode)
   const extractResult = result as ExtractResult;
   if (extractResult.discoveredApis && extractResult.discoveredApis.length > 0) {
     lines.push("");

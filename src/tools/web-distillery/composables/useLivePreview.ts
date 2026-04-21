@@ -16,7 +16,7 @@ export function useLivePreview() {
    * @param forceRefresh 是否强制重新从 Iframe 提取 DOM
    */
   const triggerLivePreview = async (forceRefresh = false) => {
-    if (!store.isInteractiveMode) return;
+    if (store.activeTab !== "interactive") return;
 
     logger.debug("Triggering live preview", { forceRefresh });
     store.setLivePreviewLoading(true);
@@ -47,6 +47,7 @@ export function useLivePreview() {
           extractSelectors: recipe?.extractSelectors || [],
         },
         recipe,
+        "interactive",
       );
 
       store.setLivePreview(result.content, result.quality);

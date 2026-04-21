@@ -15,7 +15,6 @@ interface WebDistilleryState {
   url: string;
   result: FetchResult | null;
   isLoading: boolean;
-  isInteractiveMode: boolean; // 是否处于 Level 2 交互模式
   activeTab: string; // 当前活跃的标签页
   currentRecipe: Partial<SiteRecipe> | null; // 当前编辑中的配方
 
@@ -63,7 +62,6 @@ export const useWebDistilleryStore = defineStore("web-distillery", {
     url: "",
     result: null,
     isLoading: false,
-    isInteractiveMode: false,
     activeTab: "workbench",
     currentRecipe: null,
 
@@ -104,15 +102,11 @@ export const useWebDistilleryStore = defineStore("web-distillery", {
       });
     },
 
-    setInteractiveMode(active: boolean) {
-      this.isInteractiveMode = active;
-      if (active) {
-        this.activeTab = "interactive";
-        if (!this.recipeDraft) {
-          this.initRecipeDraft();
-        }
-      } else {
-        this.activeTab = "workbench";
+    /** 切换到交互模式 */
+    switchToInteractive() {
+      this.activeTab = "interactive";
+      if (!this.recipeDraft) {
+        this.initRecipeDraft();
       }
     },
 

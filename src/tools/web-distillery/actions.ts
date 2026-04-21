@@ -17,7 +17,7 @@ const logger = createModuleLogger("web-distillery/actions");
 import type { ToolContext } from "@/services/types";
 
 /**
- * Level 0: 快速获取并蒸馏（基于 HTTP 请求，无浏览器）
+ * 快速获取并蒸馏（基于 HTTP 请求，无浏览器）
  */
 export async function quickFetch(options: QuickFetchOptions, context?: ToolContext): Promise<FetchResult> {
   logger.info("Starting quickFetch", { url: options.url });
@@ -43,6 +43,7 @@ export async function quickFetch(options: QuickFetchOptions, context?: ToolConte
           cleanMode: options.cleanMode,
         },
         matchedRecipe || undefined,
+        "fast",
       );
 
       // 保存原始 HTML 用于源码查看
@@ -58,7 +59,7 @@ export async function quickFetch(options: QuickFetchOptions, context?: ToolConte
 }
 
 /**
- * Level 1: 智能提取（使用隐藏 Iframe 渲染 JS，支持动态内容）
+ * 智能提取（使用隐藏 Iframe 渲染 JS，支持动态内容）
  */
 export async function smartExtract(options: SmartExtractOptions, context?: ToolContext): Promise<ExtractResult> {
   logger.info("Starting smartExtract", { url: options.url, waitFor: options.waitFor });
@@ -137,7 +138,7 @@ export async function smartExtract(options: SmartExtractOptions, context?: ToolC
 
       return {
         ...result,
-        level: 1,
+        mode: "smart",
         url: extracted.url || options.url,
         title: extracted.title || result.title,
         domSnapshot: extracted.html,
@@ -155,7 +156,7 @@ export async function smartExtract(options: SmartExtractOptions, context?: ToolC
 }
 
 /**
- * Level 0.5: 处理本地内容（手动上传的文件）
+ * 处理本地内容（手动上传的文件）
  */
 export async function processLocalContent(
   content: string,
@@ -190,7 +191,7 @@ export async function processLocalContent(
 }
 
 /**
- * Level 2: 打开交互式 UI
+ * 打开交互式 UI
  */
 export async function openDistillery(url?: string): Promise<void> {
   logger.info("Opening interactive UI", { url });

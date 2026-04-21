@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
 import { ArrowLeft, ArrowRight, RotateCw, Globe, Zap, Scan, Settings2, Trash2, FileUp } from "lucide-vue-next";
+import type { DistillMode } from "../types";
 import { iframeBridge } from "../core/iframe-bridge";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
@@ -10,21 +11,21 @@ const logger = createModuleLogger("web-distillery/toolbar");
 interface Props {
   modelValue: string;
   loading?: boolean;
-  activeLevel?: 0 | 1 | 2;
+  activeMode?: DistillMode;
   canGoBack?: boolean;
   canGoForward?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   loading: false,
-  activeLevel: 0,
+  activeMode: "fast",
   canGoBack: false,
   canGoForward: false,
 });
 
 const emit = defineEmits<{
   "update:modelValue": [url: string];
-  fetch: [level: 0 | 1];
+  fetch: [mode: "fast" | "smart"];
   navigate: [direction: "back" | "forward"];
   refresh: [];
   "open-interactive": [];
@@ -36,20 +37,20 @@ const fileInputRef = ref<HTMLInputElement | null>(null);
 const isEditing = ref(false);
 const localUrl = ref(props.modelValue);
 
-const levelOptions = [
-  { label: "快速模式", value: 0, icon: Zap, desc: "纯 HTTP 请求，毫秒级响应" },
-  { label: "渲染模式", value: 1, icon: Scan, desc: "隐藏 Iframe 渲染 JS，支持动态内容" },
-  { label: "交互模式", value: 2, icon: Settings2, desc: "可见 Iframe + 元素选择，配置持久化配方" },
+const modeOptions = [
+  { label: "快速模式", value: "fast", icon: Zap, desc: "纯 HTTP 请求，毫秒级响应" },
+  { label: "智能模式", value: "smart", icon: Scan, desc: "隐藏 Iframe 渲染 JS，支持动态内容" },
+  { label: "交互模式", value: "interactive", icon: Settings2, desc: "可见 Iframe + 元素选择，配置持久化配方" },
 ];
 
-const selectedLevel = ref<0 | 1 | 2>(props.activeLevel ?? 0);
-const currentLevelOption = computed(() => levelOptions.find((o) => o.value === selectedLevel.value) || levelOptions[0]);
+const selectedMode = ref<DistillMode>(props.activeMode ?? "fast");
+const currentModeOption = computed(() => modeOptions.find((o) => o.value === selectedMode.value) || modeOptions[0]);
 
 watch(
-  () => props.activeLevel,
-  (newLevel: 0 | 1 | 2 | undefined) => {
-    if (newLevel !== undefined) {
-      selectedLevel.value = newLevel;
+  () => props.activeMode,
+  (newMode: DistillMode | undefined) => {
+    if (newMode !== undefined) {
+      selectedMode.value = newMode;
     }
   },
 );
@@ -87,21 +88,21 @@ function triggerFetch() {
   }
 
   localUrl.value = finalUrl;
-  logger.debug("Triggering fetch", { url: finalUrl, level: selectedLevel.value });
+  logger.debug("Triggering fetch", { url: finalUrl, mode: selectedMode.value });
   emit("update:modelValue", finalUrl);
 
-  if (selectedLevel.value === 2) {
+  if (selectedMode.value === "interactive") {
     emit("open-interactive");
   } else {
-    emit("fetch", selectedLevel.value as 0 | 1);
+    emit("fetch", selectedMode.value as "fast" | "smart");
   }
 
   urlInputRef.value?.blur();
 }
 
-function handleLevelCommand(level: 0 | 1 | 2) {
-  selectedLevel.value = level;
-  if (level === 2) {
+function handleModeCommand(mode: DistillMode) {
+  selectedMode.value = mode;
+  if (mode === "interactive") {
     emit("open-interactive");
   }
 }
@@ -186,28 +187,28 @@ async function handleFileChange(event: Event) {
       />
     </div>
 
-    <!-- Level 选择器 -->
-    <el-dropdown trigger="click" @command="handleLevelCommand">
-      <div class="level-selector-wrap">
-        <button class="toolbar-btn level-btn" :disabled="loading">
-          <component :is="currentLevelOption.icon" :size="14" />
-          <span>{{ currentLevelOption.label }}</span>
-          <i-ep-arrow-down class="level-arrow" />
+    <!-- 模式选择器 -->
+    <el-dropdown trigger="click" @command="handleModeCommand">
+      <div class="mode-selector-wrap">
+        <button class="toolbar-btn mode-btn" :disabled="loading">
+          <component :is="currentModeOption.icon" :size="14" />
+          <span>{{ currentModeOption.label }}</span>
+          <i-ep-arrow-down class="mode-arrow" />
         </button>
       </div>
       <template #dropdown>
         <el-dropdown-menu>
           <el-dropdown-item
-            v-for="opt in levelOptions"
+            v-for="opt in modeOptions"
             :key="opt.value"
             :command="opt.value"
-            :class="{ 'level-item-active': selectedLevel === opt.value }"
+            :class="{ 'mode-item-active': selectedMode === opt.value }"
           >
-            <div class="level-item" :class="{ 'is-active': selectedLevel === opt.value }">
-              <component :is="opt.icon" :size="15" class="level-item-icon" />
-              <div class="level-item-info">
-                <span class="level-item-name">{{ opt.label }}</span>
-                <span class="level-item-desc">{{ opt.desc }}</span>
+            <div class="mode-item" :class="{ 'is-active': selectedMode === opt.value }">
+              <component :is="opt.icon" :size="15" class="mode-item-icon" />
+              <div class="mode-item-info">
+                <span class="mode-item-name">{{ opt.label }}</span>
+                <span class="mode-item-desc">{{ opt.desc }}</span>
               </div>
             </div>
           </el-dropdown-item>
@@ -215,7 +216,7 @@ async function handleFileChange(event: Event) {
       </template>
     </el-dropdown>
 
-    <!-- 终极清理 (仅在 L1/L2 模式或加载中显示) -->
+    <!-- 终极清理 (仅在加载中显示) -->
     <el-tooltip content="终极强制清理 (终止并销毁所有后台进程)" placement="top">
       <button class="toolbar-btn cleanup-btn" @click="handleForceCleanup">
         <Trash2 :size="15" />
@@ -325,64 +326,64 @@ async function handleFileChange(event: Event) {
   color: var(--text-color-light);
 }
 
-/* Level 选择器 */
-.level-selector-wrap {
+/* 模式选择器 */
+.mode-selector-wrap {
   flex-shrink: 0;
   outline: none;
 }
 
-.level-btn {
+.mode-btn {
   min-width: 110px;
 }
 
-.level-arrow {
+.mode-arrow {
   font-size: 12px;
   transition: transform 0.2s;
   margin-left: 2px;
 }
 
-.level-item {
+.mode-item {
   display: flex;
   align-items: center;
   gap: 10px;
   min-width: 200px;
 }
 
-:deep(.el-dropdown-menu__item.level-item-active) {
+:deep(.el-dropdown-menu__item.mode-item-active) {
   background: color-mix(in srgb, var(--primary-color) 12%, transparent);
 }
 
-.level-item.is-active {
+.mode-item.is-active {
   color: var(--primary-color);
 }
 
-.level-item-icon {
+.mode-item-icon {
   flex-shrink: 0;
   color: var(--text-color-light);
 }
 
-.level-item.is-active .level-item-icon {
+.mode-item.is-active .mode-item-icon {
   color: var(--primary-color);
 }
 
-.level-item-info {
+.mode-item-info {
   display: flex;
   flex-direction: column;
   gap: 2px;
   line-height: 1.2;
 }
 
-.level-item-name {
+.mode-item-name {
   font-size: 13px;
   font-weight: 500;
   color: var(--text-color);
 }
 
-.level-item.is-active .level-item-name {
+.mode-item.is-active .mode-item-name {
   color: var(--primary-color);
 }
 
-.level-item-desc {
+.mode-item-desc {
   font-size: 11px;
   color: var(--text-color-light);
   white-space: normal;

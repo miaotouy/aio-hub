@@ -1,32 +1,32 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, onErrorCaptured } from "vue";
+import { Search, Trash2, Edit, ExternalLink, ShieldCheck, ShieldAlert, BookOpen } from "lucide-vue-next";
 import { recipeStore } from "../core/recipe-store";
 import type { SiteRecipe } from "../types";
-import { Search, Trash, Edit, Globe, Calendar, Activity, ChevronRight } from "lucide-vue-next";
-import { customMessage } from "@/utils/customMessage";
 import { useWebDistilleryStore } from "../stores/store";
+import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import InfoCard from "@/components/common/InfoCard.vue";
 
 const errorHandler = createModuleErrorHandler("web-distillery/recipe-manager");
 const store = useWebDistilleryStore();
+
 const recipes = ref<SiteRecipe[]>([]);
-const searchText = ref("");
 const isLoading = ref(false);
+const searchText = ref("");
 
 async function loadRecipes() {
   isLoading.value = true;
   try {
     recipes.value = await recipeStore.getAll();
-  } catch (err) {
-    errorHandler.error(err, "加载配方失败");
   } finally {
     isLoading.value = false;
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   try {
-    loadRecipes();
+    await loadRecipes();
   } catch (err) {
     errorHandler.error(err, "初始化失败");
   }
@@ -65,15 +65,12 @@ async function toggleRecipeStatus(recipe: SiteRecipe) {
 
 function editRecipe(recipe: SiteRecipe) {
   store.setCurrentRecipe(recipe);
-  // 如果当前已经在 Workbench 页面，且有 URL，可以考虑开启 L2
-  // 但这里我们解绑强制 L2，只做状态同步
-  if (store.url && store.url.includes(recipe.domain)) {
-    store.setInteractiveMode(true);
-  } else {
-    // 仅仅是进入编辑状态，不强制开启浏览器
-    store.setInteractiveMode(true);
-    customMessage.info(`正在加载配方: ${recipe.name}`);
-  }
+  store.switchToInteractive();
+  customMessage.info(`正在加载配方: ${recipe.name}`);
+}
+
+function openExternal(url: string) {
+  window.open(url, "_blank");
 }
 
 function formatDate(dateStr: string) {
@@ -111,88 +108,64 @@ onErrorCaptured((err) => {
       <div v-if="filteredRecipes.length === 0" class="empty-state">
         <div class="empty-icon">📂</div>
         <h3>暂无配方</h3>
-        <p>在"蒸馏工作台"开启 Level 2 交互模式即可创建配方</p>
+        <p>在"交互配方"页面即可创建配方</p>
       </div>
 
       <div v-else class="recipe-grid">
-        <div
-          v-for="recipe in filteredRecipes"
-          :key="recipe.id"
-          class="recipe-card"
-          :class="{ disabled: recipe.disabled }"
-        >
-          <div class="card-header">
-            <div class="recipe-info">
-              <div class="name-row">
-                <h3 class="recipe-name">{{ recipe.name }}</h3>
-                <el-tag
-                  v-if="recipe.id.startsWith('builtin-')"
-                  size="small"
-                  type="info"
-                  effect="plain"
-                  class="builtin-tag"
-                  >内置</el-tag
-                >
+        <InfoCard v-for="recipe in filteredRecipes" :key="recipe.id" class="recipe-card" :class="{ 'is-disabled': recipe.disabled }">
+          <template #header>
+            <div class="card-header">
+              <div class="header-left">
+                <BookOpen :size="16" class="recipe-icon" />
+                <span class="recipe-name">{{ recipe.name }}</span>
               </div>
-              <div class="recipe-domain">
-                <Globe :size="12" />
-                <span>{{ recipe.domain }}</span>
-                <span v-if="recipe.pathPattern" class="path-pattern">{{ recipe.pathPattern }}</span>
+              <div class="header-right">
+                <el-tag v-if="recipe.id.startsWith('builtin-')" size="small" effect="dark" type="info">内置</el-tag>
+                <el-tag v-else size="small" effect="plain" type="success">用户</el-tag>
               </div>
             </div>
+          </template>
+
+          <div class="recipe-info">
+            <div class="info-row">
+              <span class="info-label">域名</span>
+              <span class="info-value">{{ recipe.domain }}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">动作数</span>
+              <span class="info-value">{{ recipe.actions?.length || 0 }}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">更新时间</span>
+              <span class="info-value">{{ formatDate(recipe.updatedAt) }}</span>
+            </div>
+          </div>
+
+          <template #footer>
             <div class="card-actions">
-              <el-tooltip :content="recipe.disabled ? '启用配方' : '禁用配方'" placement="top">
-                <el-switch
-                  :model-value="!recipe.disabled"
-                  size="small"
-                  class="status-switch"
-                  @change="toggleRecipeStatus(recipe)"
-                />
-              </el-tooltip>
-              <el-button size="small" circle @click="editRecipe(recipe)">
-                <Edit :size="14" />
-              </el-button>
-              <el-popconfirm
-                v-if="!recipe.id.startsWith('builtin-')"
-                title="确定删除此配方吗？"
-                @confirm="deleteRecipe(recipe.id)"
-              >
-                <template #reference>
-                  <el-button size="small" type="danger" circle>
-                    <Trash :size="14" />
+              <el-button-group>
+                <el-tooltip :content="recipe.disabled ? '启用' : '禁用'" placement="top">
+                  <el-button size="small" @click="toggleRecipeStatus(recipe)">
+                    <component :is="recipe.disabled ? ShieldAlert : ShieldCheck" :size="14" />
                   </el-button>
-                </template>
-              </el-popconfirm>
+                </el-tooltip>
+                <el-tooltip content="编辑配方" placement="top">
+                  <el-button size="small" @click="editRecipe(recipe)">
+                    <Edit :size="14" />
+                  </el-button>
+                </el-tooltip>
+                <el-tooltip v-if="!recipe.id.startsWith('builtin-')" content="删除配方" placement="top">
+                  <el-button size="small" type="danger" @click="deleteRecipe(recipe.id)">
+                    <Trash2 :size="14" />
+                  </el-button>
+                </el-tooltip>
+              </el-button-group>
+              <el-button size="small" text @click="openExternal(`https://${recipe.domain}`)">
+                <ExternalLink :size="14" />
+              </el-button>
             </div>
-          </div>
-
-          <div class="card-body">
-            <div class="stats-row">
-              <div class="stat-item">
-                <Activity :size="12" />
-                <span>{{ recipe.actions?.length || 0 }} 个动作</span>
-              </div>
-              <div class="stat-item">
-                <Calendar :size="12" />
-                <span>{{ formatDate(recipe.updatedAt) }}</span>
-              </div>
-            </div>
-
-            <div class="preview-tags">
-              <el-tag v-for="s in recipe.extractSelectors?.slice(0, 3)" :key="s" size="small" class="selector-tag">
-                {{ s }}
-              </el-tag>
-              <span v-if="(recipe.extractSelectors?.length || 0) > 3" class="more-count">
-                +{{ recipe.extractSelectors!.length - 3 }}
-              </span>
-            </div>
-          </div>
-
-          <div class="card-footer" @click="editRecipe(recipe)">
-            <span>去编辑</span>
-            <ChevronRight :size="14" />
-          </div>
-        </div>
+          </template>
+        </InfoCard>
       </div>
     </div>
   </div>
@@ -200,26 +173,24 @@ onErrorCaptured((err) => {
 
 <style scoped>
 .recipe-manager {
+  height: 100%;
   display: flex;
   flex-direction: column;
-  height: 100%;
-  background-color: var(--bg-color-page);
 }
 
 .manager-header {
-  padding: 24px;
-  background-color: var(--card-bg);
-  border-bottom: var(--border-width) solid var(--border-color);
   display: flex;
   justify-content: space-between;
-  align-items: flex-end;
-  gap: 20px;
+  align-items: center;
+  padding: 20px;
+  background: var(--card-bg);
+  border-bottom: var(--border-width) solid var(--border-color);
 }
 
 .header-content h2 {
-  margin: 0 0 8px 0;
-  font-size: 20px;
-  font-weight: 600;
+  margin: 0 0 4px 0;
+  font-size: 18px;
+  color: var(--text-color);
 }
 
 .header-content p {
@@ -234,8 +205,23 @@ onErrorCaptured((err) => {
 
 .manager-body {
   flex: 1;
-  padding: 24px;
+  padding: 20px;
   overflow-y: auto;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 300px;
+  color: var(--text-color-light);
+}
+
+.empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.5;
 }
 
 .recipe-grid {
@@ -245,153 +231,67 @@ onErrorCaptured((err) => {
 }
 
 .recipe-card {
-  background-color: var(--card-bg);
-  border: var(--border-width) solid var(--border-color);
-  border-radius: 10px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  transition: all 0.2s;
-  position: relative;
-}
-
-.recipe-card.disabled {
-  opacity: 0.6;
-  filter: grayscale(0.5);
+  transition: transform 0.2s, box-shadow 0.2s;
 }
 
 .recipe-card:hover {
   transform: translateY(-2px);
-  box-shadow: var(--el-box-shadow-light);
-  border-color: var(--primary-color);
+}
+
+.recipe-card.is-disabled {
+  opacity: 0.6;
+  filter: grayscale(0.5);
 }
 
 .card-header {
-  padding: 16px;
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  border-bottom: 1px solid var(--border-color-light);
+  align-items: center;
 }
 
-.name-row {
+.header-left {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 6px;
+  overflow: hidden;
+}
+
+.recipe-icon {
+  color: var(--primary-color);
+  flex-shrink: 0;
 }
 
 .recipe-name {
-  margin: 0;
-  font-size: 15px;
   font-weight: 600;
-  color: var(--text-color);
-}
-
-.builtin-tag {
-  font-size: 10px;
-  padding: 0 4px;
-  height: 18px;
-  line-height: 16px;
-}
-
-.recipe-domain {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--text-color-light);
-}
-
-.path-pattern {
-  background: var(--bg-color-page);
-  padding: 1px 4px;
-  border-radius: 3px;
-  font-family: var(--font-mono);
-  font-size: 10px;
-}
-
-.card-body {
-  padding: 16px;
-  flex: 1;
-}
-
-.stats-row {
-  display: flex;
-  gap: 16px;
-  margin-bottom: 12px;
-}
-
-.stat-item {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  color: var(--text-color-light);
-}
-
-.preview-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.selector-tag {
-  max-width: 80px;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.more-count {
-  font-size: 11px;
+.recipe-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+
+.info-label {
   color: var(--text-color-light);
 }
 
-.card-footer {
-  padding: 10px 16px;
-  background-color: var(--bg-color-page);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--primary-color);
-  cursor: pointer;
-  border-top: 1px solid var(--border-color-light);
+.info-value {
+  color: var(--text-color);
+  font-family: var(--font-family-mono);
 }
 
 .card-actions {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 8px;
-}
-
-.status-switch {
-  margin-right: 4px;
-}
-
-.card-footer:hover {
-  background-color: color-mix(in srgb, var(--primary-color) 5%, transparent);
-}
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 100px 0;
-  color: var(--text-color-light);
-}
-
-.empty-icon {
-  font-size: 64px;
-  margin-bottom: 16px;
-  opacity: 0.5;
-}
-
-.empty-state h3 {
-  margin-bottom: 8px;
-  color: var(--text-color);
 }
 </style>

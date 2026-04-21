@@ -111,7 +111,7 @@ export class ActionRunner {
         await this.executeStep(step);
       } catch (e) {
         logger.error("Step execution failed", { step, error: e });
-        // 是否继续执行取决于需求，Level 2 建议继续或报错
+        // 是否继续执行取决于需求，交互模式建议继续或报错
       }
     }
     logger.info("Sequence completed");

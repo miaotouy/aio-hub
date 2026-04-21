@@ -8,7 +8,7 @@ import { Denoiser } from "./stages/denoiser";
 import { Extractor } from "./stages/extractor";
 import { Converter } from "./stages/converter";
 import { Postprocessor } from "./stages/postprocessor";
-import type { FetchResult, QuickFetchOptions, FetchFormat, SiteRecipe } from "../types";
+import type { FetchResult, QuickFetchOptions, FetchFormat, SiteRecipe, DistillMode } from "../types";
 import { createModuleLogger } from "@/utils/logger";
 import { inferMimeTypeFromHint, isTextMimeType } from "@/utils/fileTypeDetector";
 import { mapMimeToLanguage } from "@/utils/mimeToLanguage";
@@ -26,7 +26,12 @@ export class Transformer {
   /**
    * 执行完整的蒸馏过程
    */
-  public async transform(html: string, options: QuickFetchOptions, recipe?: SiteRecipe): Promise<FetchResult> {
+  public async transform(
+    html: string,
+    options: QuickFetchOptions,
+    recipe?: SiteRecipe,
+    mode: DistillMode = "fast",
+  ): Promise<FetchResult> {
     const format: FetchFormat = options.format || "markdown";
     const url = options.url;
     const startTime = performance.now();
@@ -96,7 +101,7 @@ export class Transformer {
 
     // 后处理 (Postprocessor)
     const postStart = performance.now();
-    const result = await this.postprocessor.process(convertedContent, title, url, format, metadata);
+    const result = await this.postprocessor.process(convertedContent, title, url, format, metadata, mode);
 
     // 注入配方信息
     if (recipe) {
@@ -178,7 +183,7 @@ export class Transformer {
     }
 
     // 交给后处理器进行空白清理与组装
-    const result = await this.postprocessor.process(content, title, url, format, metadata);
+    const result = await this.postprocessor.process(content, title, url, format, metadata, "fast");
     // RSS 结构极为明确，将提取质量设定为最高
     result.quality = 1.0;
     return result;
@@ -225,7 +230,7 @@ export class Transformer {
     }
 
     // 交给后处理器进行组装
-    const result = await this.postprocessor.process(processedContent, title, url, format, {});
+    const result = await this.postprocessor.process(processedContent, title, url, format, {}, "fast");
     // 文件内容是原始的，质量设为最高
     result.quality = 1.0;
     return result;

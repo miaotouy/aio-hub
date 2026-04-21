@@ -42,7 +42,7 @@ type ViewMode = "preview" | "raw" | "source";
 // 默认切换到 raw (Markdown 源码) 模式，以测试渲染性能并对比内容质量
 const viewMode = ref<ViewMode>("raw");
 
-/** 是否有 DOM 快照（Level 0/1 都支持） */
+/** 是否有 DOM 快照 */
 const hasDomSnapshot = computed(() => !!props.result?.domSnapshot);
 
 /** 格式化后的 HTML 源码 */
@@ -201,7 +201,7 @@ function downloadContent() {
         <div class="header-left">
           <div class="result-title" :title="result.title">{{ result.title || "(无标题)" }}</div>
           <div class="meta-tags">
-            <el-tag size="small">Level {{ result.level }}</el-tag>
+            <el-tag size="small">{{ result.mode }}</el-tag>
             <el-tag :type="qualityType" size="small">
               {{ qualityType === "success" ? "高质量" : qualityType === "warning" ? "中等" : "低质量" }}
               {{ Math.round((result.quality ?? 0) * 100) }}%

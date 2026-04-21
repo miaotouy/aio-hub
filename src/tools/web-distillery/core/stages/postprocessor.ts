@@ -2,14 +2,21 @@
  * 环节：后处理 (Postprocessor)
  * 职责：质量评估、格式微调、链接修复
  */
-import type { FetchResult } from "../../types";
+import type { FetchResult, DistillMode } from "../../types";
 import { getLocalISOString } from "@/utils/time";
 
 export class Postprocessor {
   /**
    * 最后加工并封装结果
    */
-  public process(content: string, title: string, url: string, format: any, metadata: any): FetchResult {
+  public process(
+    content: string,
+    title: string,
+    url: string,
+    format: any,
+    metadata: any,
+    mode: DistillMode = "fast",
+  ): FetchResult {
     // 1. 简单的质量评估
     const quality = this.calculateQuality(content, metadata);
     const warnings: string[] = [];
@@ -28,7 +35,7 @@ export class Postprocessor {
       contentLength: content.length,
       format,
       quality,
-      level: 0, // Level 0 结果
+      mode,
       fetchedAt: getLocalISOString(),
       metadata,
       warnings,

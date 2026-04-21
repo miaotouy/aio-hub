@@ -4,6 +4,14 @@
 
 export type FetchFormat = "markdown" | "text" | "html" | "json";
 
+/**
+ * 蒸馏模式
+ * - fast: 快速模式 (纯 HTTP 请求)
+ * - smart: 智能模式 (Iframe 渲染)
+ * - interactive: 交互模式 (可视化配方编辑)
+ */
+export type DistillMode = "fast" | "smart" | "interactive";
+
 export interface QuickFetchOptions {
   url: string;
   format?: FetchFormat;
@@ -29,9 +37,9 @@ export interface FetchResult {
   contentLength: number;
   format: FetchFormat;
   quality: number;
-  level: 0 | 1;
+  mode: DistillMode;
   fetchedAt: string;
-  domSnapshot?: string; // Level 0/1 都可以有原始 HTML
+  domSnapshot?: string; // 原始 HTML 快照
   metadata?: {
     description?: string;
     author?: string;

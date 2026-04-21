@@ -10,6 +10,7 @@ import { createModuleLogger } from "@/utils/logger";
 import { readTextFile } from "@tauri-apps/plugin-fs";
 import InfoCard from "@/components/common/InfoCard.vue";
 import DropZone from "@/components/common/DropZone.vue";
+import type { DistillMode } from "../types";
 
 // 组件导入
 import BrowserToolbar from "./BrowserToolbar.vue";
@@ -24,11 +25,9 @@ const store = useWebDistilleryStore();
 const currentUrl = ref(store.url);
 const isLoading = ref(false);
 const errorMsg = ref<string | null>(null);
-const isInteractive = computed(() => store.isInteractiveMode);
 
-const activeLevel = computed(() => {
-  if (store.isInteractiveMode) return 2;
-  return store.result ? (store.result.level as 0 | 1) : 0;
+const activeMode = computed(() => {
+  return store.result ? store.result.mode : "fast";
 });
 
 const qualityPercent = computed(() => Math.round((store.result?.quality ?? 0) * 100));
@@ -50,20 +49,21 @@ onUnmounted(async () => {
     logger.debug("Cleanup on unmount failed", err);
   }
 });
-async function handleFetch(level: 0 | 1 | 2) {
+
+async function handleFetch(mode: DistillMode) {
   const url = currentUrl.value.trim();
   if (!url) {
     customMessage.warning("请输入目标 URL");
     return;
   }
 
-  logger.info("Fetch triggered", { url, level });
+  logger.info("Fetch triggered", { url, mode });
   isLoading.value = true;
   errorMsg.value = null;
   store.setLoading(true);
 
   try {
-    // 处理本地路径 (Windows: C:\... 或 Unix: /... 或 file://)
+    // 处理本地路径 (Windows: C:\... 或 Unix: /...)
     const isLocalPath = /^[a-zA-Z]:[\\/]/.test(url) || url.startsWith("/") || url.startsWith("file://");
     if (isLocalPath) {
       const path = url.startsWith("file://") ? url.slice(7) : url;
@@ -71,16 +71,16 @@ async function handleFetch(level: 0 | 1 | 2) {
       return;
     }
 
-    if (level === 0) {
-      logger.info("Executing quickFetch (Level 0)");
+    if (mode === "fast") {
+      logger.info("Executing quickFetch (Fast Mode)");
       const result = await quickFetch({ url, format: "markdown" });
       if (!result) {
         throw new Error("获取内容失败");
       }
 
       store.setResult(result);
-    } else if (level === 1) {
-      logger.info("Executing smartExtract (Level 1)");
+    } else if (mode === "smart") {
+      logger.info("Executing smartExtract (Smart Mode)");
       await iframeBridge.init();
       logger.debug("Bridge initialized for smartExtract");
       const result = await smartExtract({ url, format: "markdown", waitTimeout: 12000 });
@@ -92,7 +92,7 @@ async function handleFetch(level: 0 | 1 | 2) {
     }
     customMessage.success("蒸馏完成");
   } catch (err: any) {
-    errorHandler.error(err, "操作失败", { url, level });
+    errorHandler.error(err, "操作失败", { url, mode });
     errorMsg.value = err?.message || "未知错误";
     store.setError(errorMsg.value || "未知错误");
 
@@ -109,11 +109,11 @@ async function handleFetch(level: 0 | 1 | 2) {
 }
 
 async function handleRefresh() {
-  if (currentUrl.value) await handleFetch(activeLevel.value as any);
+  if (currentUrl.value) await handleFetch(activeMode.value);
 }
 
 function openInteractive() {
-  store.activeTab = "interactive";
+  store.switchToInteractive();
 }
 
 async function handleFileUpload(payload: { content: string; fileName: string }) {
@@ -188,7 +188,7 @@ function handleSendToChat() {
     <BrowserToolbar
       v-model="currentUrl"
       :loading="isLoading"
-      :active-level="activeLevel"
+      :active-mode="activeMode"
       @fetch="handleFetch"
       @refresh="handleRefresh"
       @open-interactive="openInteractive"
@@ -206,91 +206,89 @@ function handleSendToChat() {
         @drop="handleFileDrop"
       />
 
-      <!-- Level 0/1: 结果预览区 -->
-      <template v-if="!isInteractive">
-        <div class="preview-container">
-          <PreviewPanel
-            :result="store.result"
-            :loading="isLoading"
-            :error="errorMsg"
-            @refresh="handleRefresh"
-            @send-to-chat="handleSendToChat"
-          />
-        </div>
+      <!-- 结果预览区 -->
+      <div class="preview-container">
+        <PreviewPanel
+          :result="store.result"
+          :loading="isLoading"
+          :error="errorMsg"
+          @refresh="handleRefresh"
+          @send-to-chat="handleSendToChat"
+        />
+      </div>
 
-        <!-- 右侧基础信息侧栏 (始终显示) -->
-        <aside class="side-panel">
-          <template v-if="store.result">
-            <div class="quality-section">
-              <div class="section-title">提取质量</div>
-              <div class="quality-card">
-                <div class="quality-header">
-                  <span class="quality-label">Level {{ store.result.level }}</span>
-                  <el-tag size="small" :type="qualityStatus">{{ qualityPercent }}%</el-tag>
-                </div>
-                <el-progress
-                  :percentage="qualityPercent"
-                  :status="qualityStatus"
-                  :stroke-width="4"
-                  :show-text="false"
-                />
+      <!-- 右侧基础信息侧栏 (始终显示) -->
+      <aside class="side-panel">
+        <template v-if="store.result">
+          <div class="quality-section">
+            <div class="section-title">提取质量</div>
+            <div class="quality-card">
+              <div class="quality-header">
+                <span class="quality-label">模式: {{ store.result.mode }}</span>
+                <el-tag size="small" :type="qualityStatus">{{ qualityPercent }}%</el-tag>
               </div>
+              <el-progress
+                :percentage="qualityPercent"
+                :status="qualityStatus"
+                :stroke-width="4"
+                :show-text="false"
+              />
             </div>
+          </div>
 
-            <InfoCard>
-              <template #header>
-                <div class="section-title">页面信息</div>
-              </template>
-              <div class="info-grid">
-                <div class="info-item">
-                  <span class="info-label">字数</span>
-                  <span class="info-value">{{ store.result.contentLength?.toLocaleString() }}</span>
-                </div>
-                <div class="info-item">
-                  <span class="info-label">格式</span>
-                  <span class="info-value">{{ store.result.format?.toUpperCase() }}</span>
-                </div>
-                <div v-if="store.result.metadata?.language" class="info-item">
-                  <span class="info-label">语言</span>
-                  <span class="info-value">{{ store.result.metadata.language }}</span>
-                </div>
-                <div v-if="store.result.recipeName" class="info-item">
-                  <span class="info-label">匹配配方</span>
-                  <el-tag size="small" effect="plain" type="primary">{{ store.result.recipeName }}</el-tag>
-                </div>
-                <div class="info-item">
-                  <span class="info-label">提取时间</span>
-                  <span class="info-value">{{ new Date(store.result.fetchedAt).toLocaleTimeString() }}</span>
-                </div>
-              </div>
-            </InfoCard>
-
-            <InfoCard v-if="store.result.warnings?.length">
-              <template #header>
-                <div class="section-title warning">提取警告</div>
-              </template>
-              <div class="warning-box">
-                <div v-for="(w, i) in store.result.warnings" :key="i" class="warning-item">{{ w }}</div>
-              </div>
-            </InfoCard>
-          </template>
-
-          <!-- 空状态提示 -->
-          <InfoCard v-if="!store.result">
+          <InfoCard>
             <template #header>
-              <div class="section-title">使用提示</div>
+              <div class="section-title">页面信息</div>
             </template>
-            <div class="empty-hint">
-              <p>在上方输入 URL 并选择提取级别：</p>
-              <ul>
-                <li><strong>Level 0</strong>: 快速提取</li>
-                <li><strong>Level 1</strong>: 智能提取</li>
-                <li><strong>Level 2</strong>: 交互模式</li>
-              </ul>
+            <div class="info-grid">
+              <div class="info-item">
+                <span class="info-label">字数</span>
+                <span class="info-value">{{ store.result.contentLength?.toLocaleString() }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">格式</span>
+                <span class="info-value">{{ store.result.format?.toUpperCase() }}</span>
+              </div>
+              <div v-if="store.result.metadata?.language" class="info-item">
+                <span class="info-label">语言</span>
+                <span class="info-value">{{ store.result.metadata.language }}</span>
+              </div>
+              <div v-if="store.result.recipeName" class="info-item">
+                <span class="info-label">匹配配方</span>
+                <el-tag size="small" effect="plain" type="primary">{{ store.result.recipeName }}</el-tag>
+              </div>
+              <div class="info-item">
+                <span class="info-label">提取时间</span>
+                <span class="info-value">{{ new Date(store.result.fetchedAt).toLocaleTimeString() }}</span>
+              </div>
             </div>
           </InfoCard>
-        </aside>
-      </template>
+
+          <InfoCard v-if="store.result.warnings?.length">
+            <template #header>
+              <div class="section-title warning">提取警告</div>
+            </template>
+            <div class="warning-box">
+              <div v-for="(w, i) in store.result.warnings" :key="i" class="warning-item">{{ w }}</div>
+            </div>
+          </InfoCard>
+        </template>
+
+        <!-- 空状态提示 -->
+        <InfoCard v-if="!store.result">
+          <template #header>
+            <div class="section-title">使用提示</div>
+          </template>
+          <div class="empty-hint">
+            <p>在上方输入 URL 并选择提取模式：</p>
+            <ul>
+              <li><strong>快速模式</strong>: 纯 HTTP 请求，毫秒级响应</li>
+              <li><strong>智能模式</strong>: 隐藏 Iframe 渲染，支持动态内容</li>
+              <li><strong>交互模式</strong>: 可视化配置持久化配方</li>
+            </ul>
+          </div>
+        </InfoCard>
+      </aside>
     </div>
   </div>
 </template>
@@ -316,60 +314,6 @@ function handleSendToChat() {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-}
-
-/* Level 2 交互模式容器 */
-.interactive-container {
-  flex: 1;
-  display: flex;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  background-color: var(--bg-color-page);
-}
-
-.webview-viewport {
-  flex: 1;
-  min-width: 400px;
-  background-color: #000;
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-right: var(--border-width) solid var(--border-color);
-}
-
-.webview-mask {
-  position: absolute;
-  inset: 0;
-  z-index: 10;
-  background-color: rgba(0, 0, 0, 0.7);
-  color: #fff;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  font-size: 14px;
-}
-
-.webview-tip {
-  text-align: center;
-  color: #666;
-  pointer-events: none;
-}
-
-.webview-tip h3 {
-  margin-bottom: 8px;
-  color: #888;
-}
-
-.recipe-panel {
-  width: 400px;
-  background-color: var(--sidebar-bg);
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
 }
 
 /* 右侧边栏 */

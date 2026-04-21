@@ -43,7 +43,11 @@
           @error="handleError"
           @enterpictureinpicture="handlePiPChange"
           @leavepictureinpicture="handlePiPChange"
+          @seeked="$emit('seeked', $event)"
         ></video>
+
+        <!-- 弹幕/覆盖层插槽 -->
+        <slot name="overlay"></slot>
 
         <!-- 加载状态 -->
         <div v-if="isLoading" class="loading-overlay">
@@ -137,6 +141,9 @@
 
             <!-- 右侧：高级功能 -->
             <div class="controls-right">
+              <!-- 弹幕/扩展控制插槽 -->
+              <slot name="controls-extra"></slot>
+
               <!-- 倍速控制 -->
               <div class="menu-container" @mouseleave="showPlaybackRateMenu = false">
                 <button
@@ -262,6 +269,13 @@ import {
   Shrink,
 } from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
+
+const emit = defineEmits<{
+  (e: "play", event: Event): void;
+  (e: "pause", event: Event): void;
+  (e: "timeupdate", event: Event): void;
+  (e: "seeked", event: Event): void;
+}>();
 
 const props = withDefaults(
   defineProps<{
@@ -398,13 +412,15 @@ function togglePlay() {
   }
 }
 
-function onPlay() {
+function onPlay(payload: Event) {
   isPlaying.value = true;
   isLoading.value = false;
+  emit("play", payload);
 }
 
-function onPause() {
+function onPause(payload: Event) {
   isPlaying.value = false;
+  emit("pause", payload);
 }
 
 function handleContainerClick(e: MouseEvent) {
@@ -413,10 +429,11 @@ function handleContainerClick(e: MouseEvent) {
   togglePlay();
 }
 
-function handleTimeUpdate() {
+function handleTimeUpdate(payload: Event) {
   if (!videoRef.value || isDragging.value) return; // 拖拽时不更新时间
   currentTime.value = videoRef.value.currentTime;
   updateBuffered();
+  emit("timeupdate", payload);
 }
 
 function updateBuffered() {
@@ -794,6 +811,15 @@ onBeforeUnmount(() => {
   if (controlsTimer) clearTimeout(controlsTimer);
   document.removeEventListener("mousemove", handleDrag);
   document.removeEventListener("mouseup", stopDragging);
+});
+
+defineExpose({
+  videoRef,
+  isPlaying,
+  currentTime,
+  duration,
+  playerContainer,
+  playbackRate,
 });
 </script>
 

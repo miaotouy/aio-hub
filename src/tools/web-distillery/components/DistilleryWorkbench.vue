@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onUnmounted, watch, onMounted } from "vue";
+import { ref, computed, onUnmounted, onMounted } from "vue";
 import { useWebDistilleryStore } from "../stores/store";
 import { quickFetch, smartExtract, processLocalContent } from "../actions";
 import { iframeBridge } from "../core/iframe-bridge";
@@ -8,14 +8,12 @@ import { useSendToChat } from "@/composables/useSendToChat";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
 import { readTextFile } from "@tauri-apps/plugin-fs";
-import { Loading } from "@element-plus/icons-vue";
 import InfoCard from "@/components/common/InfoCard.vue";
 import DropZone from "@/components/common/DropZone.vue";
 
 // 组件导入
 import BrowserToolbar from "./BrowserToolbar.vue";
 import PreviewPanel from "./PreviewPanel.vue";
-import RecipeEditor from "./RecipeEditor.vue";
 
 const errorHandler = createModuleErrorHandler("web-distillery/workbench");
 const logger = createModuleLogger("web-distillery/workbench");
@@ -26,7 +24,6 @@ const store = useWebDistilleryStore();
 const currentUrl = ref(store.url);
 const isLoading = ref(false);
 const errorMsg = ref<string | null>(null);
-const iframeContainer = ref<HTMLElement | null>(null);
 const isInteractive = computed(() => store.isInteractiveMode);
 
 const activeLevel = computed(() => {
@@ -41,20 +38,6 @@ const qualityStatus = computed(() => {
   if (q >= 0.45) return "warning";
   return "exception";
 });
-
-// --- Webview 坐标同步逻辑 ---
-watch(
-  () => store.isInteractiveMode,
-  async (val) => {
-    if (val) {
-      if (currentUrl.value) {
-        await handleFetch(2);
-      }
-    } else {
-      await iframeBridge.destroy().catch(() => {});
-    }
-  },
-);
 
 onMounted(() => {
   currentUrl.value = store.url;
@@ -106,21 +89,8 @@ async function handleFetch(level: 0 | 1 | 2) {
       }
 
       store.setResult(result);
-    } else if (level === 2) {
-      await iframeBridge.init();
-      await new Promise((resolve) => setTimeout(resolve, 100)); // 给 DOM 渲染留出时间
-
-      if (!iframeContainer.value) {
-        throw new Error("找不到浏览器挂载点");
-      }
-
-      await iframeBridge.create({
-        url,
-        container: iframeContainer.value,
-        hidden: false,
-      });
     }
-    customMessage.success(level === 2 ? "浏览器已就绪" : "蒸馏完成");
+    customMessage.success("蒸馏完成");
   } catch (err: any) {
     errorHandler.error(err, "操作失败", { url, level });
     errorMsg.value = err?.message || "未知错误";
@@ -143,7 +113,7 @@ async function handleRefresh() {
 }
 
 function openInteractive() {
-  store.setInteractiveMode(!store.isInteractiveMode);
+  store.activeTab = "interactive";
 }
 
 async function handleFileUpload(payload: { content: string; fileName: string }) {
@@ -236,30 +206,8 @@ function handleSendToChat() {
         @drop="handleFileDrop"
       />
 
-      <!-- Level 2: 交互模式双面板 -->
-      <template v-if="isInteractive">
-        <div class="interactive-container">
-          <!-- 左侧：浏览器占位符 -->
-          <div ref="iframeContainer" class="webview-viewport">
-            <div v-if="isLoading" class="webview-mask">
-              <el-icon class="is-loading"><Loading /></el-icon>
-              <span>正在初始化浏览器...</span>
-            </div>
-            <div v-if="!store.isWebviewCreated" class="webview-tip">
-              <h3>在上方输入 URL 开始交互式蒸馏</h3>
-              <p>网页将在此区域内加载，右侧可配置提取规则</p>
-            </div>
-          </div>
-
-          <!-- 右侧：配方编辑器 -->
-          <div class="recipe-panel">
-            <RecipeEditor />
-          </div>
-        </div>
-      </template>
-
       <!-- Level 0/1: 结果预览区 -->
-      <template v-else>
+      <template v-if="!isInteractive">
         <div class="preview-container">
           <PreviewPanel
             :result="store.result"

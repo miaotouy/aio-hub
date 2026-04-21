@@ -8,6 +8,15 @@ import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("web-distillery/action-runner");
 
+export interface StepResult {
+  index: number;
+  status: "success" | "error" | "skipped";
+  duration: number;
+  error?: string;
+}
+
+export type StepProgressCallback = (index: number, status: "running" | "success" | "error", error?: string) => void;
+
 export class ActionRunner {
   /** 执行单步动作 */
   public async executeStep(step: ActionStep): Promise<void> {
@@ -106,6 +115,31 @@ export class ActionRunner {
       }
     }
     logger.info("Sequence completed");
+  }
+
+  /** 执行整个动作序列（带逐步进度反馈） */
+  public async runSequenceWithProgress(steps: ActionStep[], onProgress: StepProgressCallback): Promise<StepResult[]> {
+    const results: StepResult[] = [];
+
+    for (let i = 0; i < steps.length; i++) {
+      onProgress(i, "running");
+      const startTime = performance.now();
+
+      try {
+        await this.executeStep(steps[i]);
+        const duration = performance.now() - startTime;
+        results.push({ index: i, status: "success", duration });
+        onProgress(i, "success");
+      } catch (e) {
+        const duration = performance.now() - startTime;
+        const errorMsg = e instanceof Error ? e.message : String(e);
+        results.push({ index: i, status: "error", duration, error: errorMsg });
+        onProgress(i, "error", errorMsg);
+        // 继续执行后续步骤
+      }
+    }
+
+    return results;
   }
 }
 

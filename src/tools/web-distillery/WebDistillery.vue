@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted, onErrorCaptured, onUnmounted } from "vue";
-import { LayoutDashboard, Cookie, Network, BookOpen } from "lucide-vue-next";
+import { onMounted, onErrorCaptured, onUnmounted } from "vue";
+import { LayoutDashboard, Cookie, Network, BookOpen, Crosshair } from "lucide-vue-next";
 import { useWebDistilleryStore } from "./stores/store";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
@@ -8,6 +8,7 @@ import { iframeBridge } from "./core/iframe-bridge";
 
 // 组件导入
 import DistilleryWorkbench from "./components/DistilleryWorkbench.vue";
+import InteractiveWorkbench from "./components/interactive/InteractiveWorkbench.vue";
 import ApiSniffer from "./components/ApiSniffer.vue";
 import CookieLab from "./components/CookieLab.vue";
 import RecipeManager from "./components/RecipeManager.vue";
@@ -15,7 +16,6 @@ import RecipeManager from "./components/RecipeManager.vue";
 const errorHandler = createModuleErrorHandler("web-distillery");
 const logger = createModuleLogger("web-distillery");
 const store = useWebDistilleryStore();
-const activeTab = ref("workbench");
 
 onMounted(async () => {
   try {
@@ -48,7 +48,7 @@ onErrorCaptured((err, instance, info) => {
 
 <template>
   <div class="web-distillery-container">
-    <el-tabs v-model="activeTab" class="main-tabs">
+    <el-tabs v-model="store.activeTab" class="main-tabs">
       <!-- 蒸馏工作台 -->
       <el-tab-pane name="workbench">
         <template #label>
@@ -58,6 +58,17 @@ onErrorCaptured((err, instance, info) => {
           </div>
         </template>
         <DistilleryWorkbench />
+      </el-tab-pane>
+
+      <!-- 交互配方 (Interactive Editor) -->
+      <el-tab-pane name="interactive">
+        <template #label>
+          <div class="tab-label">
+            <el-icon><Crosshair /></el-icon>
+            <span>交互配方</span>
+          </div>
+        </template>
+        <InteractiveWorkbench />
       </el-tab-pane>
 
       <!-- 站点配方 -->
@@ -121,6 +132,7 @@ onErrorCaptured((err, instance, info) => {
   padding: 0 16px;
   background-color: var(--sidebar-bg);
   border-bottom: var(--border-width) solid var(--border-color);
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 :deep(.el-tabs__content) {

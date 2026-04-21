@@ -87,17 +87,19 @@
     const el = document.elementFromPoint(e.clientX, e.clientY);
     if (el) {
       const selector = getSelector(el);
-      // 发送消息到主窗口
-      window.__TAURI_INTERNALS__.invoke("distillery_message", {
-        payload: JSON.stringify({
+      // 发送消息到主窗口 (使用统一的 Bridge 方案)
+      if (window.__DISTILLERY_BRIDGE__) {
+        window.__DISTILLERY_BRIDGE__.send({
           type: 'element-selected',
           data: {
             selector: selector,
             tagName: el.tagName,
             innerText: el.innerText.substring(0, 100)
           }
-        })
-      });
+        });
+      } else {
+        console.warn('Distillery Bridge not found, cannot send selector');
+      }
     }
   }
 

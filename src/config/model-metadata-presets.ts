@@ -156,6 +156,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       capabilities: {
         imageGeneration: true,
+        vision: true, // 现代图像生成模型通常支持视觉输入（图生图/参考图）
       },
     },
     priority: 5,
@@ -172,6 +173,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       capabilities: {
         videoGeneration: true,
+        vision: true, // 视频生成模型通常需要视觉输入作为起始帧或参考
       },
     },
     priority: 5,
@@ -2212,6 +2214,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       group: "Qwen",
       capabilities: {
         videoGeneration: true,
+        vision: true,
       },
     },
     priority: 25,
@@ -2230,6 +2233,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       group: "Qwen",
       capabilities: {
         imageGeneration: true,
+        vision: true,
       },
     },
     priority: 25,
@@ -2428,6 +2432,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       group: "OpenAI",
       capabilities: {
         imageGeneration: true,
+        vision: true,
         iterativeRefinement: false, // DALL-E 原生 API 不支持多轮对话上下文
       },
     },
@@ -2686,6 +2691,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       group: "Midjourney",
       capabilities: {
         imageGeneration: true,
+        vision: true,
         iterativeRefinement: true,
       },
     },

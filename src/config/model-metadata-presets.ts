@@ -1275,7 +1275,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       deprecated: true,
     },
-    priority: 50,
+    priority: 20,
     enabled: true,
     description: "标注已废弃的特定 OpenAI 模型",
   },

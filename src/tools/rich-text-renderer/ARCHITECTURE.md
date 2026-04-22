@@ -240,6 +240,7 @@ src/tools/rich-text-renderer/
 ├── components/                   # 视图层组件
 │   ├── nodes/                    # 具体 AST 节点的 Vue 组件实现
 │   │   ├── ActionButtonNode.vue  # 可交互按钮节点
+│   │   ├── SvarNode.vue          # 会话变量徽章（<svar> 标签）
 │   │   ├── AlertNode.vue         # GitHub 风格警告块
 │   │   ├── BlockquoteNode.vue    # 引用块
 │   │   ├── CodeBlockNode.vue     # 代码块（Monaco Editor + HTML 沙箱）
@@ -382,6 +383,7 @@ src/tools/rich-text-renderer/
 | `html_inline`   | HTML 内联标签（原始） |
 | `generic_html`  | 结构化 HTML 标签      |
 | `action_button` | 可交互按钮            |
+| `session_variable` | 会话变量徽章 (`<svar>`) |
 
 **块级节点：**
 

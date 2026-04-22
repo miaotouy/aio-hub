@@ -4,9 +4,7 @@
       <div class="settings-stats">
         <span>总配置: {{ configs.length }}</span>
         <span>已启用: {{ enabledCount }}</span>
-        <span v-if="searchText || filterEnabled !== 'all'">
-          当前显示: {{ filteredConfigs.length }}
-        </span>
+        <span v-if="searchText || filterEnabled !== 'all'"> 当前显示: {{ filteredConfigs.length }} </span>
       </div>
       <div class="header-actions">
         <el-button @click="showPresets = true">查看预设</el-button>
@@ -49,12 +47,7 @@
       <div class="toolbar-controls">
         <!-- 测试模式开关 -->
         <el-tooltip content="测试模式：输入模型ID查看匹配结果" placement="top">
-          <el-switch
-            v-model="testMode"
-            active-text="测试"
-            inactive-text=""
-            class="test-mode-switch"
-          />
+          <el-switch v-model="testMode" active-text="测试" inactive-text="" class="test-mode-switch" />
         </el-tooltip>
         <el-select v-model="sortBy" placeholder="排序方式">
           <el-option label="按优先级排序" value="priority" />
@@ -193,10 +186,7 @@
     <!-- 配置列表 -->
     <div v-if="paginatedConfigs.length > 0" class="configs-container">
       <div class="configs-scroll-area">
-        <div
-          class="configs-list"
-          :class="{ 'grid-view': viewMode === 'grid', 'list-view': viewMode === 'list' }"
-        >
+        <div class="configs-list" :class="{ 'grid-view': viewMode === 'grid', 'list-view': viewMode === 'list' }">
           <div
             v-for="config in paginatedConfigs"
             :key="config.id"
@@ -214,17 +204,11 @@
                 <el-tag :type="getMatchTypeTagType(config.matchType)" effect="plain">{{
                   getMatchTypeLabel(config.matchType)
                 }}</el-tag>
-                <el-tag v-if="config.useRegex" type="success" effect="plain" title="使用正则表达式"
-                  >RegEx</el-tag
-                >
+                <el-tag v-if="config.useRegex" type="success" effect="plain" title="使用正则表达式">RegEx</el-tag>
                 <span class="config-value">{{ config.matchValue }}</span>
               </div>
-              <div v-if="config.properties?.group" class="config-group">
-                分组: {{ config.properties.group }}
-              </div>
-              <div v-if="config.priority" class="config-priority">
-                优先级: {{ config.priority }}
-              </div>
+              <div v-if="config.properties?.group" class="config-group">分组: {{ config.properties.group }}</div>
+              <div v-if="config.priority" class="config-priority">优先级: {{ config.priority }}</div>
               <div v-if="config.description" class="config-description">
                 {{ config.description }}
               </div>
@@ -401,7 +385,7 @@ const filteredConfigs = computed(() => {
         config.matchValue.toLowerCase().includes(search) ||
         config.matchType.toLowerCase().includes(search) ||
         config.description?.toLowerCase().includes(search) ||
-        config.properties?.group?.toLowerCase().includes(search)
+        config.properties?.group?.toLowerCase().includes(search),
     );
   }
 
@@ -460,9 +444,7 @@ function getMatchTypeLabel(type: MetadataMatchType): string {
 }
 
 // 获取匹配类型的标签类型
-function getMatchTypeTagType(
-  type: MetadataMatchType
-): "" | "success" | "info" | "warning" | "danger" {
+function getMatchTypeTagType(type: MetadataMatchType): "" | "success" | "info" | "warning" | "danger" {
   const types: Record<MetadataMatchType, "" | "success" | "info" | "warning" | "danger"> = {
     provider: "",
     model: "info",
@@ -511,8 +493,8 @@ async function handleSave() {
   const config = editingConfig.value;
 
   // 验证必填字段
-  if (!config.matchValue || !config.properties?.icon) {
-    alert("请填写匹配值和图标路径");
+  if (!config.matchValue) {
+    customMessage.warning("请填写匹配值");
     return;
   }
 
@@ -524,9 +506,10 @@ async function handleSave() {
   }
 
   if (success) {
+    customMessage.success(isNewConfig.value ? "添加成功" : "保存成功");
     closeEditor();
   } else {
-    alert("保存失败，请检查配置");
+    customMessage.error("保存失败，请检查配置");
   }
 }
 
@@ -571,7 +554,7 @@ async function handleMerge() {
         confirmButtonText: "确定",
         cancelButtonText: "取消",
         type: "info",
-      }
+      },
     );
     const result = await mergeWithDefaults();
     if (result.added > 0) {

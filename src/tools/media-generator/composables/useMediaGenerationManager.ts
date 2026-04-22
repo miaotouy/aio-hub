@@ -6,6 +6,8 @@ import { useMediaGenStore } from "../stores/mediaGenStore";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { useAssetManager } from "@/composables/useAssetManager";
 import { useModelMetadata } from "@/composables/useModelMetadata";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { useMediaGenParamRules } from "./useMediaGenParamRules";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { embedMetadata } from "@/utils/mediaMetadataManager";
@@ -20,6 +22,8 @@ export function useMediaGenerationManager() {
   const { sendRequest } = useLlmRequest();
   const { importAssetFromBytes, importAssetFromPath, getAssetBasePath } = useAssetManager();
   const { getMatchedProperties } = useModelMetadata();
+  const { profiles: allProfiles } = useLlmProfiles();
+  const { getParamRules, sanitizeParams, usesAspectRatioMode, buildXaiSizeParams } = useMediaGenParamRules();
   const isGenerating = ref(false);
 
   /**
@@ -27,7 +31,7 @@ export function useMediaGenerationManager() {
    */
   const startGeneration = async (
     options: MediaGenerationOptions & { contextMessageIds?: string[]; includeContext?: boolean },
-    type: MediaTaskType
+    type: MediaTaskType,
   ) => {
     const taskId = uuidv4();
 
@@ -89,24 +93,35 @@ export function useMediaGenerationManager() {
       // 构造多轮会话上下文
       let finalOptions = { ...options, prompt: finalPrompt };
 
+      // 应用参数规则清洁 (OpenAI 兼容接口)
+      const selectedProfile = allProfiles.value.find((p) => p.id === options.profileId);
+      const rules = getParamRules(options.modelId, selectedProfile?.type);
+      if (rules) {
+        // 处理 xAI 的特殊参数映射
+        if (usesAspectRatioMode(rules)) {
+          const ext = finalOptions as any;
+          const xaiParams = buildXaiSizeParams(
+            ext.aspectRatio || rules.aspectRatioMode?.defaultRatio || "1:1",
+            ext.resolution || rules.aspectRatioMode?.defaultResolution || "1k",
+          );
+          finalOptions = { ...finalOptions, ...xaiParams };
+          delete (finalOptions as any).size; // 移除 size，改用 aspect_ratio
+        }
+        // 通用参数清洁
+        finalOptions = { ...finalOptions, ...sanitizeParams(finalOptions, rules) };
+      }
+
       // 如果开启了上下文包含，或者手动选择了上下文消息
-      if (
-        shouldIncludeContext ||
-        (options.contextMessageIds && options.contextMessageIds.length > 0)
-      ) {
+      if (shouldIncludeContext || (options.contextMessageIds && options.contextMessageIds.length > 0)) {
         let contextMessages: MediaMessage[] = [];
 
         if (shouldIncludeContext) {
           // 自动提取当前路径上的所有消息 (排除当前正在生成的任务节点本身)
           // mediaStore.messages 已经包含了当前路径，最后一个通常是刚添加的任务节点
-          contextMessages = mediaStore.messages.filter(
-            (m: MediaMessage) => m.id !== taskId && m.role !== "system"
-          );
+          contextMessages = mediaStore.messages.filter((m: MediaMessage) => m.id !== taskId && m.role !== "system");
         } else if (options.contextMessageIds && options.contextMessageIds.length > 0) {
           // 仅包含选中的消息
-          contextMessages = mediaStore.messages.filter((m: MediaMessage) =>
-            options.contextMessageIds?.includes(m.id)
-          );
+          contextMessages = mediaStore.messages.filter((m: MediaMessage) => options.contextMessageIds?.includes(m.id));
         }
 
         if (contextMessages.length > 0) {
@@ -117,9 +132,7 @@ export function useMediaGenerationManager() {
             // 如果是助手的生成结果，把生成的资产作为上下文 (VLM 逻辑)
             attachments:
               m.attachments ||
-              (m.metadata?.taskSnapshot?.resultAsset
-                ? [m.metadata.taskSnapshot.resultAsset]
-                : undefined),
+              (m.metadata?.taskSnapshot?.resultAsset ? [m.metadata.taskSnapshot.resultAsset] : undefined),
           }));
 
           finalOptions = {
@@ -161,11 +174,7 @@ export function useMediaGenerationManager() {
   /**
    * 处理响应中的资产并导入系统
    */
-  const handleResponseAssets = async (
-    taskId: string,
-    response: LlmResponse,
-    type: MediaTaskType
-  ) => {
+  const handleResponseAssets = async (taskId: string, response: LlmResponse, type: MediaTaskType) => {
     const task = mediaStore.getTask(taskId);
     if (!task) return;
 
@@ -252,9 +261,7 @@ export function useMediaGenerationManager() {
           });
         } else if (
           item.url &&
-          (item.url.startsWith("file://") ||
-            item.url.startsWith("/") ||
-            item.url.startsWith("appdata://"))
+          (item.url.startsWith("file://") || item.url.startsWith("/") || item.url.startsWith("appdata://"))
         ) {
           // 如果是本地路径且无法获取 bytes，尝试直接导入
           asset = await importAssetFromPath(item.url, {

@@ -3,6 +3,7 @@ import { computed, watch } from "vue";
 import { useMediaGenStore } from "../stores/mediaGenStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
+import { useMediaGenParamRules } from "../composables/useMediaGenParamRules";
 import { parseModelCombo } from "@/utils/modelIdUtils";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import { Settings, Image, Video, Music, Sparkles, Info, ArrowLeftRight } from "lucide-vue-next";
@@ -10,6 +11,7 @@ import { Settings, Image, Video, Music, Sparkles, Info, ArrowLeftRight } from "l
 const store = useMediaGenStore();
 const { getProfileById, saveProfile } = useLlmProfiles();
 const { getMatchedProperties } = useModelMetadata();
+const { getParamRules, usesAspectRatioMode } = useMediaGenParamRules();
 
 // 选中的模型组合值 (profileId:modelId) - 绑定到当前选中的媒体类型配置
 const selectedModelCombo = computed({
@@ -86,92 +88,87 @@ const includeContext = computed({
     }
   },
 });
+// 从当前选中模型获取规则
+const paramRules = computed(() => {
+  if (!selectedModelInfo.value) return undefined;
+  return getParamRules(selectedModelInfo.value.modelId, selectedModelInfo.value.provider);
+});
+
+// 尺寸模式判断
+const sizeMode = computed(() => {
+  const rules = paramRules.value;
+  if (!rules) return "preset"; // 无规则时保持现有行为
+  if (usesAspectRatioMode(rules)) return "aspectRatio"; // xAI
+  return rules.size?.mode || "preset";
+});
 
 // 动态生成分辨率选项
 const sizeOptions = computed(() => {
-  const modelId = selectedModelInfo.value?.modelId || "";
-  const provider = selectedModelInfo.value?.provider;
-
-  // 硅基流动模型
-  if (provider === "openai" && selectedModelInfo.value?.profile.baseUrl.includes("siliconflow")) {
-    if (modelId.toLowerCase().includes("kolors")) {
-      return [
-        { label: "1:1 (1024x1024)", value: "1024x1024" },
-        { label: "3:4 (960x1280)", value: "960x1280" },
-        { label: "3:4 (768x1024)", value: "768x1024" },
-        { label: "1:2 (720x1440)", value: "720x1440" },
-        { label: "9:16 (720x1280)", value: "720x1280" },
-      ];
-    }
-    if (modelId.toLowerCase().includes("qwen-image")) {
-      return [
-        { label: "1:1 (1328x1328)", value: "1328x1328" },
-        { label: "16:9 (1664x928)", value: "1664x928" },
-        { label: "9:16 (928x1664)", value: "928x1664" },
-        { label: "4:3 (1472x1140)", value: "1472x1140" },
-        { label: "3:4 (1140x1472)", value: "1140x1472" },
-        { label: "3:2 (1584x1056)", value: "1584x1056" },
-        { label: "2:3 (1056x1584)", value: "1056x1584" },
-      ];
-    }
-  }
-
-  // OpenAI / DALL-E 标准
-  if (provider === "openai") {
-    return [
+  return (
+    paramRules.value?.size?.presets || [
       { label: "1:1 (1024x1024)", value: "1024x1024" },
       { label: "16:9 (1792x1024)", value: "1792x1024" },
       { label: "9:16 (1024x1792)", value: "1024x1792" },
-    ];
-  }
-
-  // 默认选项
-  return [
-    { label: "1:1 (1024x1024)", value: "1024x1024" },
-    { label: "16:9 (1792x1024)", value: "1792x1024" },
-    { label: "9:16 (1024x1792)", value: "1024x1792" },
-  ];
-});
-
-// 特性支持判断
-const supportsQuality = computed(() => {
-  const provider = selectedModelInfo.value?.provider;
-  const modelId = selectedModelInfo.value?.modelId || "";
-  // 目前主要是 OpenAI 的 DALL-E 3 和 GPT Image 支持
-  return (
-    provider === "openai" &&
-    (modelId.includes("dall-e-3") || modelId.includes("gpt-image") || modelId.includes("dall-e"))
+    ]
   );
 });
 
-const supportsStyle = computed(() => {
-  const provider = selectedModelInfo.value?.provider;
-  const modelId = selectedModelInfo.value?.modelId || "";
-  return provider === "openai" && (modelId.includes("dall-e-3") || modelId.includes("gpt-image"));
+// xAI 宽高比选项
+const aspectRatioOptions = computed(() => paramRules.value?.aspectRatioMode?.ratios || []);
+const resolutionOptions = computed(() => paramRules.value?.aspectRatioMode?.resolutions || []);
+const freeConstraints = computed(() => paramRules.value?.size?.constraints);
+
+// free 尺寸模式的实时校验
+const sizeValidationError = computed(() => {
+  if (sizeMode.value !== "free" || !freeConstraints.value) return null;
+  const c = freeConstraints.value;
+  const [w, h] = (params.value.size || "").split("x").map(Number);
+  if (!w || !h) return null;
+
+  if (c.maxWidth && w > c.maxWidth) return `宽度不能超过 ${c.maxWidth}px`;
+  if (c.maxHeight && h > c.maxHeight) return `高度不能超过 ${c.maxHeight}px`;
+  if (c.stepSize && (w % c.stepSize !== 0 || h % c.stepSize !== 0)) return `宽高必须是 ${c.stepSize}px 的整数倍`;
+  if (c.maxAspectRatio) {
+    const ratio = Math.max(w, h) / Math.min(w, h);
+    if (ratio > c.maxAspectRatio) return `长边:短边 不能超过 ${c.maxAspectRatio}:1`;
+  }
+  if (c.minPixels && w * h < c.minPixels) return `总像素数不能小于 ${c.minPixels.toLocaleString()}`;
+  if (c.maxPixels && w * h > c.maxPixels) return `总像素数不能超过 ${c.maxPixels.toLocaleString()}`;
+  return null;
 });
 
-// GPT Image 特有特性
-const supportsTransparency = computed(() => {
-  const modelId = selectedModelInfo.value?.modelId || "";
-  return modelId.includes("gpt-image") || modelId.includes("gpt-5");
-});
+// 特性支持判断
+const supportsQuality = computed(
+  () => paramRules.value?.quality !== undefined && (paramRules.value.quality as any).supported !== false,
+);
+const qualityOptions = computed(() => (paramRules.value?.quality as any)?.options || []);
 
-const supportsInputFidelity = computed(() => {
-  const modelId = selectedModelInfo.value?.modelId || "";
-  return modelId.includes("gpt-image") || modelId.includes("gpt-5");
-});
+const supportsStyle = computed(
+  () => paramRules.value?.style !== undefined && (paramRules.value.style as any).supported !== false,
+);
+const styleOptions = computed(() => (paramRules.value?.style as any)?.options || []);
 
-const supportsSteps = computed(() => {
-  const baseUrl = selectedModelInfo.value?.profile.baseUrl || "";
-  const provider = selectedModelInfo.value?.provider;
-  return provider === "openai" && baseUrl.includes("siliconflow");
-});
+const supportsNegativePrompt = computed(() => paramRules.value?.negativePrompt?.supported !== false);
+const supportsSeed = computed(() => paramRules.value?.seed?.supported !== false);
 
-const supportsCfg = computed(() => {
-  const baseUrl = selectedModelInfo.value?.profile.baseUrl || "";
-  const provider = selectedModelInfo.value?.provider;
-  return provider === "openai" && baseUrl.includes("siliconflow");
-});
+const supportsTransparency = computed(() => paramRules.value?.background?.supported !== false);
+const backgroundOptions = computed(() => paramRules.value?.background?.options || []);
+
+const supportsInputFidelity = computed(() => paramRules.value?.inputFidelity?.supported === true);
+
+const supportsSteps = computed(() => paramRules.value?.steps?.supported === true);
+const supportsCfg = computed(() => paramRules.value?.guidanceScale?.supported === true);
+
+const supportsModeration = computed(() => paramRules.value?.moderation?.supported === true);
+const moderationOptions = computed(() => paramRules.value?.moderation?.options || []);
+
+const supportsOutputFormat = computed(() => paramRules.value?.outputFormat?.supported !== false);
+const outputFormatOptions = computed(() => paramRules.value?.outputFormat?.options || []);
+
+const supportsOutputCompression = computed(() => paramRules.value?.outputCompression?.supported === true);
+
+const supportsBatch = computed(() => paramRules.value?.batchSize?.supported !== false);
+const maxBatchSize = computed(() => paramRules.value?.batchSize?.max || 4);
 
 const isSuno = computed(() => {
   return selectedModelInfo.value?.provider === "suno-newapi";
@@ -271,64 +268,86 @@ watch(
 
       <!-- 图片特定参数 -->
       <template v-if="mediaType === 'image'">
-        <div class="section">
-          <div class="section-title">
-            <span>分辨率</span>
-            <el-dropdown trigger="click" @command="(val: string) => (params.size = val)">
-              <span class="preset-link">
-                预设 <el-icon><Sparkles /></el-icon>
-              </span>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item v-for="opt in sizeOptions" :key="opt.value" :command="opt.value">
-                    {{ opt.label }}
-                  </el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
+        <!-- xAI 宽高比模式 -->
+        <template v-if="sizeMode === 'aspectRatio'">
+          <div class="section">
+            <div class="section-title">宽高比 (Aspect Ratio)</div>
+            <el-select v-model="params.aspectRatio" size="small" style="width: 100%">
+              <el-option v-for="opt in aspectRatioOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
+            </el-select>
           </div>
-          <div class="size-control-row">
-            <el-input-number
-              v-model="sizeWidth"
-              :min="64"
-              :max="4096"
-              :step="64"
-              size="small"
-              controls-position="right"
-              class="size-input"
-            />
-            <el-button size="small" circle class="swap-btn" @click="swapSize">
-              <el-icon><ArrowLeftRight /></el-icon>
-            </el-button>
-            <el-input-number
-              v-model="sizeHeight"
-              :min="64"
-              :max="4096"
-              :step="64"
-              size="small"
-              controls-position="right"
-              class="size-input"
-            />
+          <div v-if="resolutionOptions.length > 0" class="section">
+            <div class="section-title">分辨率 (Resolution)</div>
+            <el-radio-group v-model="params.resolution" size="small">
+              <el-radio-button v-for="opt in resolutionOptions" :key="opt.value" :value="opt.value">
+                {{ opt.label }}
+              </el-radio-button>
+            </el-radio-group>
           </div>
-        </div>
+        </template>
+
+        <!-- 标准尺寸模式 -->
+        <template v-else>
+          <div class="section">
+            <div class="section-title">
+              <span>分辨率</span>
+              <el-dropdown trigger="click" @command="(val: string) => (params.size = val)">
+                <span class="preset-link">
+                  预设 <el-icon><Sparkles /></el-icon>
+                </span>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item v-for="opt in sizeOptions" :key="opt.value" :command="opt.value">
+                      {{ opt.label }}
+                    </el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+            </div>
+            <div class="size-control-row">
+              <el-input-number
+                v-model="sizeWidth"
+                :min="64"
+                :max="4096"
+                :step="64"
+                size="small"
+                controls-position="right"
+                class="size-input"
+              />
+              <el-button size="small" circle class="swap-btn" @click="swapSize">
+                <el-icon><ArrowLeftRight /></el-icon>
+              </el-button>
+              <el-input-number
+                v-model="sizeHeight"
+                :min="64"
+                :max="4096"
+                :step="64"
+                size="small"
+                controls-position="right"
+                class="size-input"
+              />
+            </div>
+            <div v-if="sizeValidationError" class="validation-error">
+              {{ sizeValidationError }}
+            </div>
+          </div>
+        </template>
 
         <div v-if="supportsQuality" class="section">
           <div class="section-title">质量级别</div>
           <el-select v-model="params.quality" size="small" style="width: 100%">
-            <el-option label="标准 (Standard)" value="standard" />
-            <el-option label="高清 (HD)" value="hd" />
+            <el-option v-for="opt in qualityOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
           </el-select>
         </div>
 
         <div v-if="supportsStyle" class="section">
           <div class="section-title">生成风格</div>
           <el-select v-model="params.style" size="small" style="width: 100%">
-            <el-option label="生动 (Vivid)" value="vivid" />
-            <el-option label="自然 (Natural)" value="natural" />
+            <el-option v-for="opt in styleOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
           </el-select>
         </div>
 
-        <div class="section">
+        <div v-if="supportsNegativePrompt" class="section">
           <div class="section-title">负向提示词 (Negative Prompt)</div>
           <el-input
             v-model="params.negativePrompt"
@@ -342,8 +361,9 @@ watch(
         <div v-if="supportsTransparency" class="section">
           <div class="section-title">背景设置</div>
           <el-radio-group v-model="params.background" size="small">
-            <el-radio-button value="opaque">不透明</el-radio-button>
-            <el-radio-button value="transparent">透明 (PNG/WebP)</el-radio-button>
+            <el-radio-button v-for="opt in backgroundOptions" :key="opt.value" :value="opt.value">
+              {{ opt.label }}
+            </el-radio-button>
           </el-radio-group>
         </div>
 
@@ -353,6 +373,34 @@ watch(
             <el-radio-button value="low">标准</el-radio-button>
             <el-radio-button value="high">高保真 (保留面部/Logo)</el-radio-button>
           </el-radio-group>
+        </div>
+
+        <div v-if="supportsModeration" class="section">
+          <div class="section-title">内容审核 (Moderation)</div>
+          <el-radio-group v-model="params.moderation" size="small">
+            <el-radio-button v-for="opt in moderationOptions" :key="opt.value" :value="opt.value">
+              {{ opt.label }}
+            </el-radio-button>
+          </el-radio-group>
+        </div>
+
+        <div v-if="supportsOutputFormat" class="section">
+          <div class="section-title">输出格式</div>
+          <el-radio-group v-model="params.outputFormat" size="small">
+            <el-radio-button v-for="opt in outputFormatOptions" :key="opt.value" :value="opt.value">
+              {{ opt.label }}
+            </el-radio-button>
+          </el-radio-group>
+        </div>
+
+        <div v-if="supportsOutputCompression" class="section">
+          <div class="section-title">输出压缩 ({{ params.outputCompression }}%)</div>
+          <el-slider v-model="params.outputCompression" :min="0" :max="100" size="small" />
+        </div>
+
+        <div v-if="supportsBatch" class="section">
+          <div class="section-title">批量生成 (n)</div>
+          <el-slider v-model="params.n" :min="1" :max="maxBatchSize" :step="1" show-stops size="small" />
         </div>
       </template>
 
@@ -468,7 +516,7 @@ watch(
             </div>
           </template>
 
-          <div class="section">
+          <div v-if="supportsSeed" class="section">
             <div class="section-title">
               <span>种子 (Seed)</span>
               <el-tooltip content="-1 表示随机">
@@ -667,5 +715,11 @@ watch(
 .hint {
   font-size: 11px;
   color: var(--el-text-color-placeholder);
+}
+
+.validation-error {
+  color: var(--el-color-danger);
+  font-size: 11px;
+  margin-top: 4px;
 }
 </style>

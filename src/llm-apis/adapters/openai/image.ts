@@ -1,20 +1,12 @@
 import type { LlmProfile } from "@/types/llm-profiles";
-import {
-  type MediaGenerationOptions,
-  type LlmResponse,
-  fetchWithTimeout,
-  ensureResponseOk,
-} from "@/llm-apis/common";
+import { type MediaGenerationOptions, type LlmResponse, fetchWithTimeout, ensureResponseOk } from "@/llm-apis/common";
 import { asyncJsonStringify } from "@/utils/serialization";
 import { openAiUrlHandler, buildOpenAiHeaders } from "./utils";
 
 /**
  * 调用 OpenAI 兼容的图片生成 API
  */
-export async function callOpenAiImageApi(
-  profile: LlmProfile,
-  options: MediaGenerationOptions
-): Promise<LlmResponse> {
+export async function callOpenAiImageApi(profile: LlmProfile, options: MediaGenerationOptions): Promise<LlmResponse> {
   const {
     modelId,
     prompt,
@@ -33,7 +25,7 @@ export async function callOpenAiImageApi(
   const url = openAiUrlHandler.buildUrl(baseUrl, endpoint, profile);
 
   const headers = buildOpenAiHeaders(profile, options.requestId);
-  
+
   // 构建请求体
   let body: any;
   let finalHeaders = { ...headers };
@@ -47,17 +39,21 @@ export async function callOpenAiImageApi(
     formData.append("prompt", prompt || "");
     formData.append("n", n.toString());
     formData.append("size", size);
-    formData.append("response_format", typeof responseFormat === 'string' ? responseFormat : JSON.stringify(responseFormat));
-    
+    formData.append(
+      "response_format",
+      typeof responseFormat === "string" ? responseFormat : JSON.stringify(responseFormat),
+    );
+
     // 处理图片和蒙版 (假设 options.mask 和 options.inputAttachments 已经处理为 Blob/File)
     // 实际业务中可能需要先将 Base64 转换为 Blob
     // TODO: 实现 Base64 到 Blob 的转换逻辑，如果输入是字符串的话
-    
+
     body = formData;
     // 删除 Content-Type 让浏览器/插件自动设置 boundary
     delete (finalHeaders as any)["Content-Type"];
   } else {
-    body = await asyncJsonStringify({
+    // 构建原始 body 对象
+    const rawBody = {
       model: modelId,
       prompt: prompt || "",
       negative_prompt: options.negativePrompt,
@@ -78,7 +74,15 @@ export async function callOpenAiImageApi(
       partial_images: ext.partialImages,
       output_compression: ext.outputCompression,
       moderation: ext.moderation,
-    });
+      // xAI 参数
+      aspect_ratio: ext.aspect_ratio,
+      resolution: ext.resolution,
+    };
+
+    // 移除所有 undefined/null 值，避免发送 "null" 字符串
+    const cleanBody = Object.fromEntries(Object.entries(rawBody).filter(([_, v]) => v !== undefined && v !== null));
+
+    body = await asyncJsonStringify(cleanBody);
   }
 
   const response = await fetchWithTimeout(
@@ -92,7 +96,7 @@ export async function callOpenAiImageApi(
       http1Only: options.http1Only,
     },
     timeout,
-    signal
+    signal,
   );
 
   await ensureResponseOk(response);

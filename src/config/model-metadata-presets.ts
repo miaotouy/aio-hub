@@ -32,7 +32,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     },
     priority: 5,
     enabled: true,
-    description: "为包含视觉相关关键词的模型自动添加视觉能力",
+    description: "为包含视觉关键词的模型自动添加视觉能力",
   },
 
   // 工具调用能力
@@ -834,6 +834,37 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     description: "GPT-4o 系列模型（使用 o200k_base 编码，支持视觉、工具调用和文档处理）",
   },
   {
+    id: "model-prefix-gpt-5.4",
+    matchType: "modelPrefix",
+    matchValue: "gpt-5.4",
+    properties: {
+      icon: `/model-icons/openai.svg`,
+      group: "OpenAI",
+      tokenizer: "gpt4o", // GPT-5.4 使用 o200k_base 编码
+      capabilities: {
+        vision: true,
+        toolUse: true,
+        jsonOutput: true,
+        document: true,
+        documentFormat: "openai_file",
+        visionTokenCost: {
+          calculationMethod: "openai_tile",
+          parameters: {
+            baseCost: 85,
+            tileCost: 170,
+            tileSize: 512,
+          },
+        },
+        documentTokenCost: {
+          calculationMethod: "dynamic",
+        },
+      },
+    },
+    priority: 26, // 优先级高于 gpt-5
+    enabled: true,
+    description: "GPT-5.4 系列模型（最先进的智能模型，支持视觉、工具调用和文档处理）",
+  },
+  {
     id: "model-prefix-gpt-5",
     matchType: "modelPrefix",
     matchValue: "gpt-5",
@@ -862,7 +893,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     },
     priority: 25,
     enabled: true,
-    description: "GPT-5 系列模型（使用 o200k_base 编码，支持视觉、工具调用和文档处理）",
+    description: "GPT-5 系列模型（包括 mini/nano 等变体，支持视觉、工具调用和文档处理）",
   },
   {
     id: "model-prefix-gpt-image",
@@ -898,10 +929,13 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       icon: `/model-icons/openai.svg`,
       group: "OpenAI",
       tokenizer: "gpt4o", // 音频模型使用 o200k_base 编码
+      capabilities: {
+        audio: true,
+      },
     },
     priority: 25,
     enabled: true,
-    description: "GPT Audio 音频处理模型系列",
+    description: "GPT Audio 音频处理模型系列（包括 1.5 系列）",
   },
   {
     id: "model-prefix-gpt-realtime",
@@ -911,10 +945,44 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       icon: `/model-icons/openai.svg`,
       group: "OpenAI",
       tokenizer: "gpt4o", // 实时模型使用 o200k_base 编码
+      capabilities: {
+        audio: true,
+      },
     },
     priority: 25,
     enabled: true,
-    description: "GPT Realtime 实时模型系列",
+    description: "GPT Realtime 实时模型系列（包括 1.5 系列）",
+  },
+  {
+    id: "model-prefix-gpt-4.1",
+    matchType: "modelPrefix",
+    matchValue: "gpt-4.1",
+    properties: {
+      icon: `/model-icons/openai.svg`,
+      group: "OpenAI",
+      tokenizer: "gpt4o", // GPT-4.1 使用 o200k_base 编码
+      capabilities: {
+        vision: true,
+        toolUse: true,
+        jsonOutput: true,
+        document: true, // 支持文档（通过 OpenAI Responses API）
+        documentFormat: "openai_file", // 使用 OpenAI 的文件格式
+        visionTokenCost: {
+          calculationMethod: "openai_tile",
+          parameters: {
+            baseCost: 85,
+            tileCost: 170,
+            tileSize: 512,
+          },
+        },
+        documentTokenCost: {
+          calculationMethod: "dynamic", // OpenAI 根据页数和内容动态计算
+        },
+      },
+    },
+    priority: 25, // 更高优先级以优先匹配 gpt-4.1
+    enabled: true,
+    description: "GPT-4.1 系列模型（最智能的非推理模型，支持视觉、工具调用和文档处理）",
   },
   {
     id: "model-prefix-gpt-4.1",
@@ -1029,6 +1097,23 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     description: "o4-mini 快速经济推理模型",
   },
   {
+    id: "model-prefix-deep-research",
+    matchType: "modelPrefix",
+    matchValue: ".*deep-research",
+    useRegex: true,
+    properties: {
+      icon: `/model-icons/openai.svg`,
+      group: "OpenAI Deep Research",
+      capabilities: {
+        thinking: true,
+        webSearch: true,
+      },
+    },
+    priority: 30,
+    enabled: true,
+    description: "OpenAI Deep Research 系列模型（o3/o4-mini 等深度研究变体）",
+  },
+  {
     id: "model-prefix-o3-pro",
     matchType: "modelPrefix",
     matchValue: "o3-pro",
@@ -1131,6 +1216,18 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     priority: 25,
     enabled: true,
     description: "Claude 3.7 系列模型（已退役）",
+  },
+  {
+    id: "model-openai-deprecated-specific",
+    matchType: "model",
+    matchValue:
+      "o1-mini|o1-preview|sora-2|sora-2-pro|gpt-4.5-preview|chatgpt-4o-latest|babbage-002|davinci-002|text-moderation-latest|text-moderation-stable",
+    properties: {
+      deprecated: true,
+    },
+    priority: 50,
+    enabled: true,
+    description: "标注已废弃的特定 OpenAI 模型",
   },
   {
     id: "model-prefix-claude-3-5",
@@ -2267,15 +2364,19 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
   {
     id: "model-codex",
     matchType: "modelPrefix",
-    matchValue: "codex",
+    matchValue: "codex|gpt-5.*codex",
+    useRegex: true,
     properties: {
       icon: `/model-icons/openai.svg`,
-      group: "OpenAI",
+      group: "OpenAI Codex",
       tokenizer: "gpt4o",
+      capabilities: {
+        toolUse: true,
+      },
     },
     priority: 30,
     enabled: true,
-    description: "Codex 代码模型系列",
+    description: "Codex 代码模型系列（包括 GPT-5 Codex 变体）",
   },
   {
     id: "model-babbage",

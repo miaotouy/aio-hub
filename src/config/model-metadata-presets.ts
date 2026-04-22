@@ -167,7 +167,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
   {
     id: "capability-video-generation",
     matchType: "modelPrefix",
-    matchValue: "video-gen|txt2vid|sora|kling|video",
+    matchValue: "video-gen|txt2vid|sora|kling|video|happyhorse|seedance|vidu|skyreels|veo",
     useRegex: true,
     properties: {
       capabilities: {
@@ -423,6 +423,18 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     description: "通义千问提供商图标",
   },
   {
+    id: "provider-alibaba",
+    matchType: "provider",
+    matchValue: "alibaba",
+    properties: {
+      icon: `/model-icons/alibaba.svg`,
+      group: "Alibaba",
+    },
+    priority: 10,
+    enabled: true,
+    description: "阿里巴巴提供商图标",
+  },
+  {
     id: "provider-bytedance",
     matchType: "provider",
     matchValue: "bytedance",
@@ -469,6 +481,42 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     priority: 10,
     enabled: true,
     description: "MiniMax 提供商图标",
+  },
+  {
+    id: "provider-xiaomi",
+    matchType: "provider",
+    matchValue: "xiaomi",
+    properties: {
+      icon: `/model-icons/xiaomimimo.svg`,
+      group: "Xiaomi",
+    },
+    priority: 10,
+    enabled: true,
+    description: "小米提供商图标",
+  },
+  {
+    id: "provider-kunlun",
+    matchType: "provider",
+    matchValue: "kunlun",
+    properties: {
+      icon: `/model-icons/skyreels.svg`,
+      group: "Kunlun",
+    },
+    priority: 10,
+    enabled: true,
+    description: "昆仑万维提供商图标",
+  },
+  {
+    id: "provider-shengshu",
+    matchType: "provider",
+    matchValue: "shengshu",
+    properties: {
+      icon: `/model-icons/vidu.svg`,
+      group: "ShengShu",
+    },
+    priority: 10,
+    enabled: true,
+    description: "生数科技提供商图标",
   },
   {
     id: "provider-01ai",
@@ -1519,7 +1567,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         jsonOutput: true, // DeepSeek 支持 JSON 输出模式
       },
     },
-    priority: 20,
+    priority: 25, // 提升优先级
     enabled: true,
     description: "DeepSeek 系列模型（支持推理、FIM、续写和 JSON 输出）",
   },
@@ -2098,7 +2146,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
   {
     id: "model-prefix-inclusionai",
     matchType: "modelPrefix",
-    matchValue: "inclusionai|ling",
+    matchValue: "inclusionai|ling|elephant",
     useRegex: true,
     properties: {
       icon: `/model-icons/ling.png`,
@@ -2201,6 +2249,87 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     priority: 20,
     enabled: true,
     description: "StepFun 系列模型图标",
+  },
+  {
+    id: "model-prefix-happyhorse",
+    matchType: "modelPrefix",
+    matchValue: "happyhorse",
+    properties: {
+      icon: `/model-icons/qwen-color.svg`,
+      group: "Alibaba",
+      capabilities: {
+        videoGeneration: true,
+      },
+    },
+    priority: 30,
+    enabled: true,
+    description: "阿里 HappyHorse 视频生成模型",
+  },
+  {
+    id: "model-prefix-skyreels",
+    matchType: "modelPrefix",
+    matchValue: "skyreels",
+    properties: {
+      icon: `/model-icons/skyreels.svg`,
+      group: "Kunlun",
+      capabilities: {
+        videoGeneration: true,
+      },
+    },
+    priority: 30,
+    enabled: true,
+    description: "昆仑万维 SkyReels 视频生成模型",
+  },
+  {
+    id: "model-prefix-vidu",
+    matchType: "modelPrefix",
+    matchValue: "vidu",
+    properties: {
+      icon: `/model-icons/vidu.svg`,
+      group: "ShengShu",
+      capabilities: {
+        videoGeneration: true,
+      },
+    },
+    priority: 30,
+    enabled: true,
+    description: "生数科技 Vidu 视频生成模型",
+  },
+  {
+    id: "model-prefix-mimo",
+    matchType: "modelPrefix",
+    matchValue: "mimo",
+    properties: {
+      icon: `/model-icons/xiaomi.svg`,
+      group: "Xiaomi",
+    },
+    priority: 25,
+    enabled: true,
+    description: "小米 MiMo 系列模型",
+  },
+  {
+    id: "model-prefix-minimax-m2",
+    matchType: "modelPrefix",
+    matchValue: "minimax-m2",
+    properties: {
+      icon: `/model-icons/minimax-color.svg`,
+      group: "MiniMax",
+    },
+    priority: 25,
+    enabled: true,
+    description: "MiniMax M2 系列模型",
+  },
+  {
+    id: "model-prefix-hunter-alpha",
+    matchType: "modelPrefix",
+    matchValue: "hunter-alpha",
+    properties: {
+      icon: `/model-icons/bytedance-color.svg`,
+      group: "ByteDance",
+    },
+    priority: 25,
+    enabled: true,
+    description: "Hunter Alpha 模型",
   },
 
   // 盘古系列模型

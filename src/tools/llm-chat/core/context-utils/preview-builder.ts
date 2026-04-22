@@ -1,7 +1,7 @@
 import type { PipelineContext } from "../../types/pipeline";
 import type { ContextPreviewData, WorldbookEntryPreview } from "../../types/context";
 import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
-import { getMatchedModelProperties } from "@/config/model-metadata";
+import { getActiveModelProperties } from "@/config/model-metadata";
 import { tokenCalculatorEngine } from "@/tools/token-calculator/composables/useTokenCalculator";
 import { resolveAttachmentsBatch } from "./attachment-resolver";
 import { assetManagerEngine } from "@/composables/useAssetManager";
@@ -32,7 +32,7 @@ export async function buildPreviewDataFromContext(context: PipelineContext): Pro
   let tokenizerName: string | undefined = undefined;
 
   // 获取模型元数据，用于视觉 token 计算
-  const modelMetadata = agentConfig.modelId ? getMatchedModelProperties(agentConfig.modelId) : undefined;
+  const modelMetadata = agentConfig.modelId ? getActiveModelProperties(agentConfig.modelId) : undefined;
 
   // 从 sharedData 获取 Profile 信息（可能是实时对象，也可能是从元数据恢复的临时对象）
   const profile = context.sharedData.get("profile") as
@@ -181,7 +181,7 @@ export async function buildPreviewDataFromContext(context: PipelineContext): Pro
           sourceNode.attachments.map(async (asset: Asset) => {
             const latest = await assetManagerEngine.getAssetById(asset.id);
             return latest || asset;
-          })
+          }),
         );
 
         const resolvedResults = await resolveAttachmentsBatch(
@@ -190,7 +190,7 @@ export async function buildPreviewDataFromContext(context: PipelineContext): Pro
           agentConfig.profileId,
           {
             messageDepth: currentMessageDepth,
-          }
+          },
         );
 
         for (const result of resolvedResults) {
@@ -252,7 +252,7 @@ export async function buildPreviewDataFromContext(context: PipelineContext): Pro
                 tokenCount = tokenCalculatorEngine.calculateImageTokens(
                   asset.metadata.width,
                   asset.metadata.height,
-                  visionTokenCost
+                  visionTokenCost,
                 );
               } catch (e) {
                 error = e instanceof Error ? e.message : "图片 Token 计算异常";
@@ -371,7 +371,7 @@ export async function buildPreviewDataFromContext(context: PipelineContext): Pro
           agentConfig.profileId,
           {
             silent: true,
-          }
+          },
         );
 
         for (const result of resolvedResults) {
@@ -382,7 +382,7 @@ export async function buildPreviewDataFromContext(context: PipelineContext): Pro
                 tokenCount += tokenCalculatorEngine.calculateImageTokens(
                   asset.metadata.width,
                   asset.metadata.height,
-                  visionTokenCost
+                  visionTokenCost,
                 );
               } else {
                 // 如果没有元数据或不支持视觉Token，使用默认值
@@ -477,7 +477,7 @@ export async function buildPreviewDataFromContext(context: PipelineContext): Pro
     presetMessages,
     chatHistory,
     finalMessages: messages.filter(
-      (msg): msg is typeof msg & { role: "system" | "user" | "assistant" } => msg.role !== "tool"
+      (msg): msg is typeof msg & { role: "system" | "user" | "assistant" } => msg.role !== "tool",
     ),
     worldbookEntries: worldbookEntries.length > 0 ? worldbookEntries : undefined,
     statistics: {

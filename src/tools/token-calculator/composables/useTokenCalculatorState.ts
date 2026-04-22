@@ -10,12 +10,8 @@ import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
 import { useLlmProfiles } from "@composables/useLlmProfiles";
 import { tokenCalculatorEngine, type TokenCalculationResult } from "./useTokenCalculator";
 import { calculatorProxy } from "../worker/calculator.proxy";
-import { getMatchedModelProperties } from "@/config/model-metadata";
-import {
-  loadTokenCalculatorConfig,
-  debouncedSaveConfig,
-  type TokenCalculatorConfig,
-} from "../config";
+import { getActiveModelProperties } from "@/config/model-metadata";
+import { loadTokenCalculatorConfig, debouncedSaveConfig, type TokenCalculatorConfig } from "../config";
 
 const logger = createModuleLogger("composables/token-calculator");
 const errorHandler = createModuleErrorHandler("composables/token-calculator");
@@ -183,7 +179,7 @@ export function useTokenCalculator() {
       if (profile.enabled && profile.models) {
         profile.models.forEach((model) => {
           // 尝试从元数据获取分词器名称作为标识
-          const metadata = getMatchedModelProperties(model.id, model.provider);
+          const metadata = getActiveModelProperties(model.id, model.provider);
           const tokenizerName = metadata?.tokenizer;
 
           models.push({
@@ -220,13 +216,13 @@ export function useTokenCalculator() {
         tokenizerResult = await calculatorProxy.getTokenizedText(
           text,
           selectedModelId.value,
-          true // 使用分词器名称
+          true, // 使用分词器名称
         );
       } else {
         tokenizerResult = await calculatorProxy.getTokenizedText(
           text,
           selectedModelId.value,
-          false // 使用模型 ID
+          false, // 使用模型 ID
         );
       }
 
@@ -237,7 +233,7 @@ export function useTokenCalculator() {
             text: token.text,
             id: token.id,
             index,
-          })
+          }),
         );
 
         // 根据用户设置限制显示数量
@@ -310,10 +306,7 @@ export function useTokenCalculator() {
         let result: TokenCalculationResult;
         // 根据模式选择不同的计算方法 (使用 Worker 代理)
         if (calculationMode.value === "tokenizer") {
-          result = await calculatorProxy.calculateTokensByTokenizer(
-            inputText.value,
-            selectedModelId.value
-          );
+          result = await calculatorProxy.calculateTokensByTokenizer(inputText.value, selectedModelId.value);
         } else {
           result = await calculatorProxy.calculateTokens(inputText.value, selectedModelId.value);
         }
@@ -327,18 +320,14 @@ export function useTokenCalculator() {
         // 获取模型元数据以确定视觉计算规则
         // 如果是 tokenizer 模式，或者模型未定义视觉规则，我们默认使用 Gemini 2.0 规则作为参考
         // 这样用户添加了媒体至少能看到一个合理的数字，而不是 0
-        const metadata = getMatchedModelProperties(selectedModelId.value);
+        const metadata = getActiveModelProperties(selectedModelId.value);
         const defaultVisionCost = { calculationMethod: "gemini_2_0", parameters: {} } as const;
         const visionTokenCost = metadata?.capabilities?.visionTokenCost || defaultVisionCost;
 
         mediaItems.value.forEach((item) => {
           let count = 0;
           if (item.type === "image" && item.params.width && item.params.height) {
-            count = tokenCalculatorEngine.calculateImageTokens(
-              item.params.width,
-              item.params.height,
-              visionTokenCost
-            );
+            count = tokenCalculatorEngine.calculateImageTokens(item.params.width, item.params.height, visionTokenCost);
             imageTotal += count;
           } else if (item.type === "video" && item.params.duration) {
             count = tokenCalculatorEngine.calculateVideoTokens(item.params.duration);
@@ -385,7 +374,7 @@ export function useTokenCalculator() {
           mode: calculationMode.value,
           modelId: selectedModelId.value,
         },
-      }
+      },
     );
 
     isCalculating.value = false;
@@ -526,9 +515,7 @@ export function useTokenCalculator() {
 
     // 如果配置中有保存的模型ID，先尝试验证它是否仍然可用
     if (selectedModelId.value && availableModels.value.length > 0) {
-      const modelExists = availableModels.value.some(
-        (m: { id: string }) => m.id === selectedModelId.value
-      );
+      const modelExists = availableModels.value.some((m: { id: string }) => m.id === selectedModelId.value);
       if (modelExists) {
         logger.info("使用配置中保存的模型", { modelId: selectedModelId.value });
         return;
@@ -564,7 +551,7 @@ export function useTokenCalculator() {
         }
       }
     },
-    { immediate: true }
+    { immediate: true },
   );
 
   // ==================== 返回 ====================

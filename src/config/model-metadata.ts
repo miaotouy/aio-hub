@@ -10,6 +10,7 @@ import { createModuleLogger } from "@utils/logger";
 import { merge } from "lodash-es";
 import { PRESET_ICONS, AVAILABLE_ICONS } from "./preset-icons";
 import { DEFAULT_METADATA_RULES as PRESET_RULES } from "./model-metadata-presets";
+import { getActiveRules } from "../stores/modelMetadataStore";
 
 // 创建模块日志器
 const logger = createModuleLogger("model-metadata");
@@ -31,11 +32,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = PRESET_RULES;
  * @param provider 提供商（可选）
  * @returns 是否匹配
  */
-export function testRuleMatch(
-  rule: ModelMetadataRule,
-  modelId: string,
-  provider?: string
-): boolean {
+export function testRuleMatch(rule: ModelMetadataRule, modelId: string, provider?: string): boolean {
   let matched = false;
 
   switch (rule.matchType) {
@@ -90,15 +87,15 @@ export function testRuleMatch(
 
 /**
  * 获取匹配模型的元数据属性
+ * @param rules 元数据规则列表
  * @param modelId 模型 ID
  * @param provider 提供商
- * @param rules 元数据规则列表（可选，默认使用内置规则）
  * @returns 匹配的元数据属性对象或 undefined
  */
 export function getMatchedModelProperties(
+  rules: ModelMetadataRule[],
   modelId: string,
   provider?: string,
-  rules: ModelMetadataRule[] = DEFAULT_METADATA_RULES
 ): ModelMetadataProperties | undefined {
   // 1. 过滤启用的规则并按优先级排序
   const sortedEnabledRules = rules
@@ -130,19 +127,26 @@ export function getMatchedModelProperties(
 }
 
 /**
- * 获取模型图标路径（向后兼容函数）
+ * 便捷函数：获取当前活跃的模型元数据属性（从 Store 读取规则）
+ * 供主线程非 Vue 代码使用
  * @param modelId 模型 ID
  * @param provider 提供商
- * @param rules 元数据规则列表（可选，默认使用内置规则）
+ */
+export function getActiveModelProperties(modelId: string, provider?: string): ModelMetadataProperties | undefined {
+  const rules = getActiveRules();
+  return getMatchedModelProperties(rules, modelId, provider);
+}
+
+/**
+ * 获取模型图标路径（向后兼容函数）
+ * @param rules 元数据规则列表
+ * @param modelId 模型 ID
+ * @param provider 提供商
  * @returns 图标路径或 undefined
  */
-export function getModelIconPath(
-  modelId: string,
-  provider?: string,
-  rules: ModelMetadataRule[] = DEFAULT_METADATA_RULES
-): string | undefined {
+export function getModelIconPath(rules: ModelMetadataRule[], modelId: string, provider?: string): string | undefined {
   // 1. 尝试使用规则匹配
-  const properties = getMatchedModelProperties(modelId, provider, rules);
+  const properties = getMatchedModelProperties(rules, modelId, provider);
   if (properties?.icon) {
     return properties.icon;
   }
@@ -183,11 +187,6 @@ export function getModelIconPath(
 }
 
 /**
- * 验证图标路径是否有效
- * @param iconPath 图标路径
- * @returns 是否有效
- */
-/**
  * 规范化图标路径（向后兼容）
  * 确保预设图标路径都带有 /model-icons/ 前缀。
  * 如果输入是纯文件名，尝试补全前缀并检查是否存在。
@@ -209,6 +208,7 @@ export function normalizeIconPath(iconPath: string): string {
 
   return iconPath;
 }
+
 /**
  * 验证图标路径是否有效
  * @param iconPath 图标路径

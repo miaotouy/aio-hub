@@ -3,30 +3,30 @@
  * 服务层外壳，负责将 tokenCalculatorEngine 的功能注册为可跨模块调用的服务
  */
 
-import type { ToolRegistry, ToolConfig } from '@/services/types';
-import { tokenCalculatorEngine, type TokenCalculationResult } from './composables/useTokenCalculator';
-import { calculatorProxy } from './worker/calculator.proxy';
-import type { Asset } from '@/types/asset-management';
-import { getMatchedModelProperties } from '@/config/model-metadata';
-import { markRaw } from 'vue';
-import TokenCalculatorIcon from '@/components/icons/TokenCalculatorIcon.vue';
+import type { ToolRegistry, ToolConfig } from "@/services/types";
+import { tokenCalculatorEngine, type TokenCalculationResult } from "./composables/useTokenCalculator";
+import { calculatorProxy } from "./worker/calculator.proxy";
+import type { Asset } from "@/types/asset-management";
+import { getActiveModelProperties } from "@/config/model-metadata";
+import { markRaw } from "vue";
+import TokenCalculatorIcon from "@/components/icons/TokenCalculatorIcon.vue";
 
 /**
  * Token 计算器服务类
- * 
+ *
  * 这是一个轻量级的服务外壳，主要职责：
  * 1. 实现 ToolService 接口，使其能够被服务注册系统识别
  * 2. 将 tokenCalculatorEngine 的功能暴露给外部模块
  * 3. 提供服务元数据供监控和文档使用
- * 
+ *
  * 注意：内部 UI 逻辑应直接使用 composables/useTokenCalculator，
  * 而不是通过这个 registry 绕远路
  */
 class TokenCalculatorRegistry implements ToolRegistry {
-  public readonly id = 'token-calculator';
-  public readonly runMode = 'any';
-  public readonly name = 'Token 计算器';
-  public readonly description = '计算文本的 Token 数量，支持多种 LLM 分词器';
+  public readonly id = "token-calculator";
+  public readonly runMode = "any";
+  public readonly name = "Token 计算器";
+  public readonly description = "计算文本的 Token 数量，支持多种 LLM 分词器";
 
   /**
    * 计算文本的 Token 数量
@@ -66,7 +66,7 @@ class TokenCalculatorRegistry implements ToolRegistry {
   async getTokenizedText(
     text: string,
     identifier: string,
-    useTokenizerName: boolean = false
+    useTokenizerName: boolean = false,
   ): Promise<{ tokens: { text: string; id: number }[] } | null> {
     return calculatorProxy.getTokenizedText(text, identifier, useTokenizerName);
   }
@@ -92,11 +92,7 @@ class TokenCalculatorRegistry implements ToolRegistry {
    * @param attachments - 附件列表（可选）
    * @returns Token 计算结果
    */
-  async calculateMessageTokens(
-    text: string,
-    modelId: string,
-    attachments?: Asset[]
-  ): Promise<TokenCalculationResult> {
+  async calculateMessageTokens(text: string, modelId: string, attachments?: Asset[]): Promise<TokenCalculationResult> {
     // 1. 计算文本 Token (通过 Worker 代理)
     const textResult = await calculatorProxy.calculateTokens(text, modelId);
     let totalTokens = textResult.count;
@@ -109,30 +105,26 @@ class TokenCalculatorRegistry implements ToolRegistry {
     // 2. 如果有附件，计算附件 Token
     if (attachments && attachments.length > 0) {
       // 获取模型的视觉 token 计费规则
-      const metadata = getMatchedModelProperties(modelId);
+      const metadata = getActiveModelProperties(modelId);
 
       // 如果模型未定义视觉规则，默认使用 Gemini 2.0 规则作为参考
       // 这样即使在未配置的模型上也能得到一个估算值
-      const defaultVisionCost = { calculationMethod: 'gemini_2_0', parameters: {} } as const;
+      const defaultVisionCost = { calculationMethod: "gemini_2_0", parameters: {} } as const;
       const visionTokenCost = metadata?.capabilities?.visionTokenCost || defaultVisionCost;
 
       const mediaPromises = attachments.map(async (asset) => {
         // 处理图片
-        if (asset.type === 'image') {
+        if (asset.type === "image") {
           const width = asset.metadata?.width || 1024;
           const height = asset.metadata?.height || 1024;
 
-          const imageTokens = await calculatorProxy.calculateImageTokens(
-            width,
-            height,
-            visionTokenCost
-          );
+          const imageTokens = await calculatorProxy.calculateImageTokens(width, height, visionTokenCost);
           imageTokenCount += imageTokens;
           mediaTokenCount += imageTokens;
           totalTokens += imageTokens;
         }
         // 处理视频
-        else if (asset.type === 'video') {
+        else if (asset.type === "video") {
           if (asset.metadata?.duration) {
             const videoTokens = await calculatorProxy.calculateVideoTokens(asset.metadata.duration);
             videoTokenCount += videoTokens;
@@ -141,7 +133,7 @@ class TokenCalculatorRegistry implements ToolRegistry {
           }
         }
         // 处理音频
-        else if (asset.type === 'audio') {
+        else if (asset.type === "audio") {
           if (asset.metadata?.duration) {
             const audioTokens = await calculatorProxy.calculateAudioTokens(asset.metadata.duration);
             audioTokenCount += audioTokens;
@@ -156,10 +148,12 @@ class TokenCalculatorRegistry implements ToolRegistry {
 
     // 判断是否为估算值
     // 如果有附件且缺少元数据（如宽高或时长），则标记为估算值
-    const hasAttachmentsWithoutMetadata = attachments && attachments.length > 0 &&
-      attachments.some(a => {
-        if (a.type === 'image') return !a.metadata?.width || !a.metadata?.height;
-        if (a.type === 'video' || a.type === 'audio') return !a.metadata?.duration;
+    const hasAttachmentsWithoutMetadata =
+      attachments &&
+      attachments.length > 0 &&
+      attachments.some((a) => {
+        if (a.type === "image") return !a.metadata?.width || !a.metadata?.height;
+        if (a.type === "video" || a.type === "audio") return !a.metadata?.duration;
         return false;
       });
 
@@ -184,73 +178,73 @@ class TokenCalculatorRegistry implements ToolRegistry {
     return {
       methods: [
         {
-          name: 'calculateTokens',
-          description: '计算文本的 Token 数量',
+          name: "calculateTokens",
+          description: "计算文本的 Token 数量",
           parameters: [
             {
-              name: 'text',
-              type: 'string',
-              description: '要计算的文本',
+              name: "text",
+              type: "string",
+              description: "要计算的文本",
               required: true,
             },
             {
-              name: 'modelId',
-              type: 'string',
-              description: '模型 ID',
+              name: "modelId",
+              type: "string",
+              description: "模型 ID",
               required: true,
             },
           ],
-          returnType: 'Promise<TokenCalculationResult>',
+          returnType: "Promise<TokenCalculationResult>",
         },
         {
-          name: 'calculateTokensByTokenizer',
-          description: '使用指定分词器计算 Token 数量',
+          name: "calculateTokensByTokenizer",
+          description: "使用指定分词器计算 Token 数量",
           parameters: [
             {
-              name: 'text',
-              type: 'string',
-              description: '要计算的文本',
+              name: "text",
+              type: "string",
+              description: "要计算的文本",
               required: true,
             },
             {
-              name: 'tokenizerName',
-              type: 'string',
-              description: '分词器名称',
+              name: "tokenizerName",
+              type: "string",
+              description: "分词器名称",
               required: true,
             },
           ],
-          returnType: 'Promise<TokenCalculationResult>',
+          returnType: "Promise<TokenCalculationResult>",
         },
         {
-          name: 'getAvailableTokenizers',
-          description: '获取所有可用的分词器列表',
+          name: "getAvailableTokenizers",
+          description: "获取所有可用的分词器列表",
           parameters: [],
-          returnType: 'Array<{ name: string; description: string }>',
+          returnType: "Array<{ name: string; description: string }>",
         },
         {
-          name: 'calculateMessageTokens',
-          description: '计算包含文本和附件的完整消息的 Token 数量',
+          name: "calculateMessageTokens",
+          description: "计算包含文本和附件的完整消息的 Token 数量",
           parameters: [
             {
-              name: 'text',
-              type: 'string',
-              description: '文本内容',
+              name: "text",
+              type: "string",
+              description: "文本内容",
               required: true,
             },
             {
-              name: 'modelId',
-              type: 'string',
-              description: '模型 ID',
+              name: "modelId",
+              type: "string",
+              description: "模型 ID",
               required: true,
             },
             {
-              name: 'attachments',
-              type: 'Asset[]',
-              description: '附件列表（可选）',
+              name: "attachments",
+              type: "Asset[]",
+              description: "附件列表（可选）",
               required: false,
             },
           ],
-          returnType: 'Promise<TokenCalculationResult>',
+          returnType: "Promise<TokenCalculationResult>",
         },
       ],
     };
@@ -266,17 +260,17 @@ export const tokenCalculatorRegistry = new TokenCalculatorRegistry();
 export const tokenCalculatorService = tokenCalculatorRegistry;
 
 // 重新导出类型，方便外部模块导入
-export type { TokenCalculationResult } from './composables/useTokenCalculator';
+export type { TokenCalculationResult } from "./composables/useTokenCalculator";
 
 /**
  * UI 工具配置
  */
 export const toolConfig: ToolConfig = {
-  name: 'Token 计算器',
-  path: '/token-calculator',
-  runMode: 'any',
+  name: "Token 计算器",
+  path: "/token-calculator",
+  runMode: "any",
   icon: markRaw(TokenCalculatorIcon),
-  component: () => import('./TokenCalculator.vue'),
-  description: '计算文本的 Token 数量，支持多种 LLM 分词器',
-  category: '开发工具'
+  component: () => import("./TokenCalculator.vue"),
+  description: "计算文本的 Token 数量，支持多种 LLM 分词器",
+  category: "开发工具",
 };

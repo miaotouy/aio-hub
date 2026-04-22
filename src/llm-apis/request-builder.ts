@@ -13,7 +13,7 @@
 import type { LlmMessageContent, LlmRequestOptions, MediaGenerationOptions } from "./common";
 import type { LlmProfile, LlmModelInfo } from "../types/llm-profiles";
 import { getProviderTypeInfo } from "../config/llm-providers";
-import { getMatchedModelProperties } from "../config/model-metadata";
+import { getActiveModelProperties } from "../config/model-metadata";
 
 /**
  * 模型家族类型
@@ -273,7 +273,7 @@ export function mergeConversationHistory(
   conversationHistory?: Array<{
     role: "user" | "assistant";
     content: string | LlmMessageContent[];
-  }>
+  }>,
 ): Array<{
   role: "user" | "assistant";
   content: string | LlmMessageContent[];
@@ -408,7 +408,7 @@ export function inferMediaMimeType(base64Data?: string | ArrayBuffer | Uint8Arra
 export function buildBase64DataUrl(
   data: string | ArrayBuffer | Uint8Array,
   mimeType?: string,
-  options: { rawBase64?: boolean } = {}
+  options: { rawBase64?: boolean } = {},
 ): string {
   // 劫持检测：如果是本地文件协议，构建带 data URL 前缀的格式
   // 后端代理会在字符串中查找 local-file:// 并替换为实际的 base64 数据
@@ -483,7 +483,7 @@ export function buildBase64DataUrl(
  * @returns 模型家族类型
  */
 export function getModelFamily(modelId: string, provider?: string): ModelFamily {
-  const props = getMatchedModelProperties(modelId, provider);
+  const props = getActiveModelProperties(modelId, provider);
   const group = props?.group?.toLowerCase();
 
   if (!group) {
@@ -570,7 +570,7 @@ export function isOpenAIModel(modelId: string, provider?: string): boolean {
 export function filterParametersByCapabilities(
   options: LlmRequestOptions | MediaGenerationOptions,
   profile: LlmProfile,
-  model?: LlmModelInfo
+  model?: LlmModelInfo,
 ): Partial<LlmRequestOptions | MediaGenerationOptions> {
   const providerInfo = getProviderTypeInfo(profile.type);
   const supported = providerInfo?.supportedParameters;

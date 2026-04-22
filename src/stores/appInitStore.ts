@@ -11,6 +11,7 @@ import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { initMonacoShikiThemes } from "@/utils/monacoShikiSetup";
+import { useModelMetadataStore } from "./modelMetadataStore";
 
 const logger = createModuleLogger("stores/appInitStore");
 const errorHandler = createModuleErrorHandler("stores/appInitStore");
@@ -55,6 +56,11 @@ export const useAppInitStore = defineStore("appInit", () => {
       setProgress(15, "配置日志系统...");
       applyLogConfig(settings);
 
+      // 加载模型元数据
+      setProgress(20, "加载模型元数据...");
+      const modelMetadataStore = useModelMetadataStore();
+      await modelMetadataStore.loadRules();
+
       // 3. 初始化主题
       setProgress(25, "配置界面主题...");
       await initTheme();
@@ -67,10 +73,10 @@ export const useAppInitStore = defineStore("appInit", () => {
       setProgress(40, "正在扫描插件和工具...");
       // 主窗口不传 priorityToolId，内部会完成全量注册
       await autoRegisterServices();
-      
+
       // 插件加载后，立即刷新当前路由匹配状态，确保初始进入插件页面能正确加载
       refreshCurrentRoute();
-      
+
       setProgress(60, "插件加载完成");
 
       // 5. 加载用户档案
@@ -120,6 +126,11 @@ export const useAppInitStore = defineStore("appInit", () => {
       // 2. 应用日志配置
       setProgress(15, "配置日志...");
       applyLogConfig(settings);
+
+      // 加载模型元数据
+      setProgress(20, "同步模型配置...");
+      const modelMetadataStore = useModelMetadataStore();
+      await modelMetadataStore.loadRules();
 
       // 3. 初始化主题
       setProgress(25, "初始化主题...");

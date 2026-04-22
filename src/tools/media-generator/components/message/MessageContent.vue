@@ -211,6 +211,7 @@ const generationMetaForRenderer = computed(() => {
       :generation-meta="generationMetaForRenderer"
     />
     <RichTextRenderer
+      v-if="!isEditing"
       :content="message.content"
       :generation-meta="generationMetaForRenderer"
       :llm-think-rules="llmThinkRules"
@@ -264,10 +265,6 @@ const generationMetaForRenderer = computed(() => {
       </div>
     </div>
 
-    <!-- 用户 Prompt -->
-    <div v-else-if="message.role === 'user'" class="prompt-content">
-      {{ message.content }}
-    </div>
 
     <!-- 助手生成结果 -->
     <div v-else class="generation-content">

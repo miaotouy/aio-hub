@@ -65,7 +65,9 @@ export async function callOpenAiImageApi(
       size,
       quality,
       style,
-      response_format: responseFormat,
+      // 兼容性修复：如果 responseFormat 是默认的 'url'，则不发送该参数。
+      // 某些不完全兼容的代理商（如 CPA）会因为收到未知参数 'response_format' 而报错 400。
+      response_format: responseFormat === "url" ? undefined : responseFormat,
       seed: options.seed,
       guidance_scale: options.guidanceScale,
       num_inference_steps: options.numInferenceSteps,

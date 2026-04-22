@@ -206,18 +206,18 @@ export function useMediaGenerationManager() {
           mimeType = "image/png";
           extension = "png";
           if (mediaItem.b64_json) {
-            if (typeof mediaItem.b64_json === "string") {
-              const binaryString = atob(mediaItem.b64_json);
-              const uint8Array = new Uint8Array(binaryString.length);
-              for (let j = 0; j < binaryString.length; j++) {
-                uint8Array[j] = binaryString.charCodeAt(j);
-              }
-              bytes = uint8Array.buffer;
-            } else {
-              bytes = mediaItem.b64_json;
-            }
+            bytes = decodeBase64ToArrayBuffer(mediaItem.b64_json);
           } else if (mediaItem.url) {
-            bytes = await fetchAsArrayBuffer(mediaItem.url);
+            // 某些代理商会在 url 字段里返回内嵌的 data:image/... Base64 数据
+            const dataUrlMatch = parseDataUrl(mediaItem.url);
+            if (dataUrlMatch) {
+              // 从 Data URL 中提取 MIME 和 Base64，直接解码，不走 fetch
+              if (dataUrlMatch.mimeType) mimeType = dataUrlMatch.mimeType;
+              extension = mimeTypeToExtension(mimeType, "png");
+              bytes = decodeBase64ToArrayBuffer(dataUrlMatch.base64);
+            } else {
+              bytes = await fetchAsArrayBuffer(mediaItem.url);
+            }
           }
         } else if (itemType === "video") {
           mimeType = "video/mp4";
@@ -319,12 +319,57 @@ export function useMediaGenerationManager() {
   }
 
   /**
+   * 将 Base64 字符串（纯 Base64 或 ArrayBuffer）解码为 ArrayBuffer
+   */
+  function decodeBase64ToArrayBuffer(input: string | ArrayBuffer): ArrayBuffer {
+    if (typeof input !== "string") return input;
+    const binaryString = atob(input);
+    const uint8Array = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      uint8Array[i] = binaryString.charCodeAt(i);
+    }
+    return uint8Array.buffer;
+  }
+
+  /**
+   * 解析 Data URL，提取 MIME 类型和 Base64 数据
+   * @returns 解析结果，非 Data URL 返回 null
+   */
+  function parseDataUrl(url: string): { mimeType: string; base64: string } | null {
+    const match = url.match(/^data:([^;]+);base64,(.+)$/s);
+    if (!match) return null;
+    return { mimeType: match[1], base64: match[2] };
+  }
+
+  /**
+   * 根据 MIME 类型推导文件扩展名
+   */
+  function mimeTypeToExtension(mime: string, fallback: string): string {
+    const map: Record<string, string> = {
+      "image/png": "png",
+      "image/jpeg": "jpg",
+      "image/webp": "webp",
+      "image/gif": "gif",
+      "image/svg+xml": "svg",
+      "video/mp4": "mp4",
+      "audio/mpeg": "mp3",
+      "audio/wav": "wav",
+    };
+    return map[mime] || fallback;
+  }
+
+  /**
    * 将 URL 转换为 ArrayBuffer
    */
   async function fetchAsArrayBuffer(url: string): Promise<ArrayBuffer> {
+    // 处理内嵌的 Data URL（兜底，避免 CSP 拦截）
+    const dataUrlResult = parseDataUrl(url);
+    if (dataUrlResult) {
+      return decodeBase64ToArrayBuffer(dataUrlResult.base64);
+    }
+
     // 处理 tauri 协议或本地路径
     if (url.startsWith("appdata://") || url.startsWith("file://") || url.startsWith("/")) {
-      // 假设后端有读取文件的命令，或者我们可以通过 fetch(convertFileSrc(url))
       const { convertFileSrc } = await import("@tauri-apps/api/core");
       const response = await fetch(convertFileSrc(url));
       return await response.arrayBuffer();

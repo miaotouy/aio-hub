@@ -72,16 +72,19 @@ const handleRetry = async (useNewBranch = true, useNewModel = false) => {
 
   const params = store.getRetryParams(props.message.id, useNewBranch);
   if (params) {
+    // getRetryParams 返回 { isMediaTask, type, options: { ... } } 结构
+    // startGeneration 期望接收扁平的 MediaGenerationOptions，需要解包
+    const generationOptions = { ...(params.options || params) } as any;
+
     // 如果有临时模型，覆盖参数
-    const finalParams = { ...params } as any;
     if (temporaryModel) {
-      finalParams.profileId = temporaryModel.profileId;
-      finalParams.modelId = temporaryModel.modelId;
+      generationOptions.profileId = temporaryModel.profileId;
+      generationOptions.modelId = temporaryModel.modelId;
     }
 
-    // 确定媒体类型
-    const type = props.message.metadata?.taskSnapshot?.type || store.currentConfig.activeType;
-    mediaGenManager.startGeneration(finalParams, type);
+    // 确定媒体类型：优先用 getRetryParams 返回的 type
+    const type = params.type || props.message.metadata?.taskSnapshot?.type || store.currentConfig.activeType;
+    mediaGenManager.startGeneration(generationOptions, type);
   }
 };
 
@@ -185,8 +188,8 @@ defineExpose({
       />
     </div>
 
-    <!-- 悬浮操作栏 (批量模式下隐藏) -->
-    <div v-if="!isBatchMode" class="menubar-wrapper">
+    <!-- 悬浮操作栏 (批量模式或编辑模式下隐藏) -->
+    <div v-if="!isBatchMode && !isEditing" class="menubar-wrapper">
       <MessageMenubar
         :message="message"
         :siblings="siblings"

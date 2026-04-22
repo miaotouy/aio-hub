@@ -381,15 +381,23 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     getRetryParams(messageId: string, useNewBranch = false) {
       const node = nodes.value[messageId];
       if (!node) return null;
+
       if (useNewBranch && currentSession.value) {
-        const baseNodeId =
-          node.role === "assistant" && node.parentId ? node.parentId : node.parentId;
+        // 如果是助手消息，我们基于它的父节点（用户消息）创建分支
+        // 如果是用户消息，我们直接基于它自己创建分支（产生一个同级的新 Prompt 节点）
+        const baseNodeId = node.role === "assistant" ? node.parentId : messageId;
+
         if (baseNodeId) {
           const newNodeId = branchManager.createBranch(currentSession.value, baseNodeId);
           if (newNodeId) {
             activeLeafId.value = newNodeId;
-            nodes.value[newNodeId].content = node.content;
-            nodes.value[newNodeId].attachments = node.attachments ? [...node.attachments] : [];
+
+            // 如果是对现有的用户消息重试，且该消息有内容，确保新分支继承这些内容
+            if (node.role === "user") {
+              nodes.value[newNodeId].content = node.content;
+              nodes.value[newNodeId].attachments = node.attachments ? [...node.attachments] : [];
+            }
+
             persistence.persist();
             return taskActionManager.getRetryParams(newNodeId);
           }

@@ -94,7 +94,7 @@ const toggleViewMode = () => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: 300px;
+  min-height: 500px;
   border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   overflow: hidden;

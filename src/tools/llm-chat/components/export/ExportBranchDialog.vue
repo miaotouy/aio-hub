@@ -38,7 +38,7 @@
           </div>
           <div class="summary-item">
             <span class="summary-label">对话消息:</span>
-            <span class="summary-value">{{ branchMessageCount }} 条</span>
+            <span class="summary-value">{{ branchMessageCount }} 条 <span v-if="isRangeActive" class="range-hint">(已选 {{ exportRange[1] - exportRange[0] + 1 }} 条)</span></span>
           </div>
           <div class="summary-item" v-if="presetCount > 0">
             <span class="summary-label">预设消息:</span>
@@ -57,6 +57,8 @@
           v-model:include-attachments="includeAttachments"
           v-model:include-errors="includeErrors"
           :preset-count="presetCount"
+          v-model:range="exportRange"
+          :max-range="branchMessageCount"
         />
 
         <ExportPreviewSection
@@ -75,7 +77,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 import { ElButton } from "element-plus";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import ExportOptionsPanel from "./ExportOptionsPanel.vue";
@@ -107,6 +109,7 @@ interface ExportOptions {
   includeTokenUsage: boolean;
   includeAttachments: boolean;
   includeErrors: boolean;
+  range?: [number, number];
 }
 
 interface Emits {
@@ -138,6 +141,9 @@ const includeModelInfo = ref(true);
 const includeTokenUsage = ref(true);
 const includeAttachments = ref(true);
 const includeErrors = ref(true);
+
+// 导出范围 [开始, 结束] (1-based)
+const exportRange = ref<[number, number]>([1, 1]);
 
 const exporting = ref(false);
 
@@ -227,6 +233,22 @@ const participatingModels = computed(() => {
 // 计算分支路径中的消息数量
 const branchMessageCount = computed(() => pathNodes.value.length);
 
+// 是否设置了范围过滤
+const isRangeActive = computed(() => {
+  return exportRange.value[0] > 1 || exportRange.value[1] < branchMessageCount.value;
+});
+
+// 监听消息总数变化，重置范围
+watch(
+  branchMessageCount,
+  (newCount) => {
+    if (newCount > 0) {
+      exportRange.value = [1, newCount];
+    }
+  },
+  { immediate: true }
+);
+
 // 生成预览内容
 // 生成预览内容
 const previewContent = computed(() => {
@@ -244,6 +266,7 @@ const previewContent = computed(() => {
     includeTokenUsage: includeTokenUsage.value,
     includeAttachments: includeAttachments.value,
     includeErrors: includeErrors.value,
+    range: [...exportRange.value] as [number, number],
   };
 
   if (exportFormat.value === "raw") {
@@ -315,6 +338,7 @@ const handleExport = () => {
     includeTokenUsage: includeTokenUsage.value,
     includeAttachments: includeAttachments.value,
     includeErrors: includeErrors.value,
+    range: [...exportRange.value] as [number, number],
   };
   emit("export", options);
   localVisible.value = false;
@@ -381,4 +405,10 @@ const handleExport = () => {
   font-weight: 500;
 }
 
+.range-hint {
+  font-size: 12px;
+  color: var(--el-color-primary);
+  font-weight: normal;
+  margin-left: 4px;
+}
 </style>

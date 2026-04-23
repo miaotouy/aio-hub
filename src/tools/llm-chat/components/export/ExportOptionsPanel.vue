@@ -9,6 +9,39 @@
       </el-radio-group>
     </div>
 
+    <div v-if="!isSession" class="options-section">
+      <div class="section-title">导出范围</div>
+      <div class="range-selector">
+        <div class="range-inputs">
+          <el-input-number
+            v-model="range[0]"
+            :min="1"
+            :max="range[1]"
+            size="small"
+            controls-position="right"
+          />
+          <span class="range-separator">至</span>
+          <el-input-number
+            v-model="range[1]"
+            :min="range[0]"
+            :max="maxRange"
+            size="small"
+            controls-position="right"
+          />
+          <span class="range-total">/ 共 {{ maxRange }} 条</span>
+        </div>
+        <el-slider
+          v-model="range"
+          range
+          :min="1"
+          :max="maxRange"
+          :step="1"
+          :show-tooltip="true"
+          class="range-slider"
+        />
+      </div>
+    </div>
+
     <div class="options-section">
       <div class="section-title">包含内容</div>
       <div class="options-grid">
@@ -58,16 +91,18 @@
 </template>
 
 <script setup lang="ts">
-import { ElCheckbox, ElRadioGroup, ElRadioButton } from "element-plus";
+import { ElCheckbox, ElRadioGroup, ElRadioButton, ElSlider, ElInputNumber } from "element-plus";
 
 interface Props {
   isSession?: boolean;
   presetCount?: number;
+  maxRange?: number;
 }
 
 withDefaults(defineProps<Props>(), {
   isSession: false,
   presetCount: 0,
+  maxRange: 1,
 });
 
 const format = defineModel<"markdown" | "json" | "raw">("format", { required: true });
@@ -81,6 +116,7 @@ const includeErrors = defineModel<boolean>("includeErrors", { default: true });
 // 仅 Branch 模式使用的选项
 const includePreset = defineModel<boolean>("includePreset", { default: false });
 const mergePresetIntoMessages = defineModel<boolean>("mergePresetIntoMessages", { default: true });
+const range = defineModel<[number, number]>("range", { default: () => [1, 1] });
 </script>
 
 <style scoped>
@@ -155,5 +191,39 @@ const mergePresetIntoMessages = defineModel<boolean>("mergePresetIntoMessages", 
 .option-hint {
   color: var(--text-color-light);
   font-size: 12px;
+}
+
+.range-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 8px;
+}
+
+.range-inputs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.range-separator {
+  font-size: 13px;
+  color: var(--text-color-light);
+}
+
+.range-total {
+  font-size: 12px;
+  color: var(--text-color-light);
+  margin-left: 4px;
+}
+
+.range-slider {
+  padding: 0 12px;
+  margin-bottom: 8px;
+}
+
+:deep(.el-input-number--small) {
+  width: 100px;
 }
 </style>

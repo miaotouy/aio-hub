@@ -23,6 +23,7 @@ export interface ExportOptions {
   includeTokenUsage?: boolean;
   includeAttachments?: boolean;
   includeErrors?: boolean;
+  range?: [number, number];
 }
 
 /**
@@ -153,9 +154,15 @@ export function useExportManager() {
     });
 
     // 过滤掉系统根节点和被压缩隐藏的节点
-    const messagePath = path.filter((node) =>
+    let messagePath = path.filter((node) =>
       node.id !== detail.rootNodeId && !hiddenNodeIds.has(node.id)
     );
+
+    // 应用导出范围过滤
+    if (options.range) {
+      const [start, end] = options.range;
+      messagePath = messagePath.slice(start - 1, end);
+    }
 
     const lines: string[] = [
       `# 对话记录: ${index.name}`,
@@ -412,9 +419,15 @@ export function useExportManager() {
     });
 
     // 过滤掉系统根节点和被压缩隐藏的节点
-    const messagePath = path.filter((node) =>
+    let messagePath = path.filter((node) =>
       node.id !== detail.rootNodeId && !hiddenNodeIds.has(node.id)
     );
+
+    // 应用导出范围过滤
+    if (options.range) {
+      const [start, end] = options.range;
+      messagePath = messagePath.slice(start - 1, end);
+    }
 
     interface ExportMessage {
       role: string;

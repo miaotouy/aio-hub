@@ -334,6 +334,7 @@ interface ExportOptions {
   includeTokenUsage: boolean;
   includeAttachments: boolean;
   includeErrors: boolean;
+  range?: [number, number];
 }
 // 处理导出分支
 const handleExportBranch = async (options: ExportOptions) => {
@@ -377,11 +378,36 @@ const handleExportBranch = async (options: ExportOptions) => {
         currentId = node ? node.parentId : null;
       }
 
+      // 处理 Raw 格式的范围过滤
+      let finalNodes = branchNodes;
+      if (options.range) {
+        const [start, end] = options.range;
+        // 将节点按回溯顺序排列（从叶子到根），然后截取
+        const nodeIds = [];
+        let cid: string | null = props.message.id;
+        while (cid && detail.nodes[cid]) {
+          nodeIds.unshift(cid); // 从根到叶子的顺序
+          const node: ChatMessageNode = detail.nodes[cid];
+          cid = node.parentId;
+        }
+        
+        // 排除根节点（如果存在且是 rootNodeId）
+        const messageNodeIds = nodeIds.filter(id => id !== detail.rootNodeId);
+        const slicedIds = new Set(messageNodeIds.slice(start - 1, end));
+        
+        finalNodes = {};
+        Object.entries(branchNodes).forEach(([id, node]) => {
+          if (slicedIds.has(id)) {
+            finalNodes[id] = node;
+          }
+        });
+      }
+
       const rawBranchData = {
         index,
         detail: {
           ...detail,
-          nodes: branchNodes,
+          nodes: finalNodes,
         },
       };
       content = JSON.stringify(rawBranchData, null, 2);
@@ -395,6 +421,7 @@ const handleExportBranch = async (options: ExportOptions) => {
         includeTokenUsage: options.includeTokenUsage,
         includeAttachments: options.includeAttachments,
         includeErrors: options.includeErrors,
+        range: options.range,
       });
       content = JSON.stringify(jsonData, null, 2);
       fileExtension = "json";
@@ -407,6 +434,7 @@ const handleExportBranch = async (options: ExportOptions) => {
         includeTokenUsage: options.includeTokenUsage,
         includeAttachments: options.includeAttachments,
         includeErrors: options.includeErrors,
+        range: options.range,
       });
       fileExtension = "md";
       filterName = "Markdown";

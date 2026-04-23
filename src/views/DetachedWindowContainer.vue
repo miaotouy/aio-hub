@@ -102,6 +102,8 @@ onMounted(async () => {
     class="detached-container"
     :class="[`theme-${currentTheme}`, { 'preview-mode': isPreview, 'final-mode': !isPreview }]"
   >
+    <!-- 预览模式提示 -->
+    <DetachPreviewHint :visible="isPreview" />
     <GlobalProviders>
       <template v-if="appInitStore.isReady">
         <TitleBar v-if="showTitleBar" :title="toolTitle" :icon="toolIcon" />
@@ -120,9 +122,6 @@ onMounted(async () => {
             <p>加载中...</p>
           </div>
         </div>
-
-        <!-- 预览模式提示 -->
-        <DetachPreviewHint :visible="isPreview" />
       </template>
       <div v-else class="loading-message">
         <el-icon class="is-loading" :size="32"><Loading /></el-icon>

@@ -41,6 +41,11 @@
               :title="icon.path"
               @click="handleSelect(icon)"
             >
+              <!-- 复制按钮 -->
+              <button class="copy-btn" title="复制图标路径" @click.stop="handleCopy(icon.path)">
+                <Copy :size="14" />
+              </button>
+
               <div class="preset-icon">
                 <DynamicIcon :src="getIconPath(icon.path)" :alt="icon.name" lazy />
               </div>
@@ -75,8 +80,10 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
 import { useElementSize, useScroll } from "@vueuse/core";
+import { Copy } from "lucide-vue-next";
 import type { PresetIconInfo } from "../../types/model-metadata";
 import DynamicIcon from "./DynamicIcon.vue";
+import { customMessage } from "@/utils/customMessage";
 
 interface Props {
   icons: PresetIconInfo[];
@@ -151,7 +158,7 @@ const filteredIcons = computed(() => {
       (icon) =>
         icon.name.toLowerCase().includes(search) ||
         icon.path.toLowerCase().includes(search) ||
-        icon.suggestedFor?.some((tag) => tag.toLowerCase().includes(search))
+        icon.suggestedFor?.some((tag) => tag.toLowerCase().includes(search)),
     );
   }
 
@@ -198,6 +205,16 @@ const gridStyle = computed(() => ({
 // 处理选择
 function handleSelect(icon: PresetIconInfo) {
   emit("select", icon);
+}
+
+// 处理复制
+async function handleCopy(path: string) {
+  try {
+    await navigator.clipboard.writeText(path);
+    customMessage.success(`已复制: ${path}`);
+  } catch (err) {
+    customMessage.error("复制失败");
+  }
 }
 
 // 当搜索或分类变化时，重置滚动位置
@@ -304,12 +321,42 @@ watch([searchText, selectedCategory], () => {
   gap: 0.5rem;
   height: 144px; /* 固定高度，确保虚拟滚动计算准确 */
   box-sizing: border-box;
+  position: relative;
 }
 
 .preset-item:hover {
   border-color: var(--primary-color);
   transform: translateY(-2px);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.copy-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--card-bg);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-color-secondary);
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.2s;
+  z-index: 1;
+}
+
+.preset-item:hover .copy-btn {
+  opacity: 1;
+}
+
+.copy-btn:hover {
+  color: var(--primary-color);
+  border-color: var(--primary-color);
+  background: var(--input-bg);
 }
 
 .preset-item.placeholder {

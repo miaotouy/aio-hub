@@ -140,7 +140,7 @@ async fn handle_proxy_html(
     let status = StatusCode::from_u16(response.status().as_u16()).unwrap_or(StatusCode::OK);
     let mut resp_headers = AxumHeaderMap::new();
 
-    // 过滤安全头和 hop-by-hop 头
+    // 过滤安全头、hop-by-hop 头以及会导致 body 大小不匹配的头
     let unsafe_headers = [
         "x-frame-options",
         "content-security-policy",
@@ -154,6 +154,8 @@ async fn handle_proxy_html(
         "trailers",
         "transfer-encoding",
         "upgrade",
+        "content-length",
+        "content-encoding",
     ];
 
     for (name, value) in response.headers().iter() {
@@ -201,20 +203,27 @@ async fn handle_proxy_html(
     };
 
     // 注入脚本和 base 标签
-    let injections = format!(
-        r#"<base href="{}">
-<script src="/__distillery/anti-detection.js"></script>
-<script src="/__distillery/bridge.js"></script>
-<script src="/__distillery/sniffer.js"></script>"#,
+    // 1. anti-detection.js 必须在最前面同步执行，以确保在页面脚本运行前伪装环境
+    // 使用外链形式减少对 HTML 源码结构的直接破坏，有利于 React Hydration
+    let head_injections = format!(
+        r#"<base href="{}"><script src="/__distillery/anti-detection.js"></script>"#,
         base_href
     );
 
-    if let Some(head_pos) = html.find("<head>") {
-        html.insert_str(head_pos + 6, &format!("\n{}", injections));
-    } else if let Some(html_pos) = html.find("<html>") {
-        html.insert_str(html_pos + 6, &format!("\n<head>{}</head>", injections));
+    // 2. bridge.js 和 sniffer.js 移到 body 末尾，避免干扰 head hydration
+    let body_injections = r#"<script src="/__distillery/bridge.js" defer></script><script src="/__distillery/sniffer.js" defer></script>"#;
+
+    // 健壮的注入逻辑：避免引入多余的换行符，防止 Text Node Hydration 失败
+    if let Some(pos) = html.find("<head") {
+        if let Some(end_pos) = html[pos..].find('>').map(|i| i + pos + 1) {
+            html.insert_str(end_pos, &head_injections);
+        }
+    }
+
+    if let Some(pos) = html.rfind("</body>") {
+        html.insert_str(pos, body_injections);
     } else {
-        html.insert_str(0, &format!("{}\n", injections));
+        html.push_str(body_injections);
     }
 
     Ok((status, resp_headers, html))
@@ -243,7 +252,7 @@ async fn handle_proxy_resource(
     let status = StatusCode::from_u16(response.status().as_u16()).unwrap_or(StatusCode::OK);
     let mut resp_headers = AxumHeaderMap::new();
 
-    // 过滤安全头和 hop-by-hop 头
+    // 过滤安全头、hop-by-hop 头以及会导致 body 大小不匹配的头
     let unsafe_headers = [
         "x-frame-options",
         "content-security-policy",
@@ -257,6 +266,8 @@ async fn handle_proxy_resource(
         "trailers",
         "transfer-encoding",
         "upgrade",
+        "content-length",
+        "content-encoding",
     ];
 
     for (name, value) in response.headers().iter() {

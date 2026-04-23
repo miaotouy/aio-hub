@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
+import { Globe } from "lucide-vue-next";
 import { useWebDistilleryStore } from "../../stores/store";
 import { iframeBridge } from "../../core/iframe-bridge";
 import { useTheme } from "@/composables/useTheme";
@@ -77,7 +78,7 @@ watch(
       <el-empty description="请输入网址并点击加载" :image-size="200">
         <template #image>
           <div class="empty-icon-wrapper">
-            <lucide-icon name="Globe" :size="64" />
+            <Globe :size="64" />
           </div>
         </template>
       </el-empty>

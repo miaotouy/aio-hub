@@ -33,16 +33,20 @@ export class IframeBridge {
 
   public async init(): Promise<void> {
     try {
-      const existingPort = await invoke<number>("distillery_get_proxy_port");
+      // 1. 尝试获取现有端口
+      const existingPort = await invoke<number>("distillery_get_proxy_port").catch(() => 0);
+
       if (existingPort > 0) {
         this.proxyPort = existingPort;
       } else {
+        // 2. 如果没有运行，则启动它
         this.proxyPort = await invoke<number>("distillery_start_proxy");
       }
+
       logger.info("Proxy server initialized", { port: this.proxyPort });
     } catch (e) {
-      this.proxyPort = null; // Reset on failure to allow retry
-      logger.error("Failed to start proxy server", e);
+      this.proxyPort = null; // 失败时重置，允许重试
+      logger.error("Failed to initialize proxy server", e);
       throw e;
     }
 

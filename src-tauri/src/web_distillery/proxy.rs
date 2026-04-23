@@ -113,7 +113,7 @@ pub async fn distillery_get_proxy_port() -> Result<u16, String> {
     if state.is_running {
         Ok(state.port)
     } else {
-        Err("Proxy server is not running".to_string())
+        Ok(0)
     }
 }
 

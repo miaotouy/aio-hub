@@ -34,16 +34,11 @@ import { useAgentStore } from "../../stores/agentStore";
 import { useChatInputManager } from "../../composables/input/useChatInputManager";
 import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
-import { save } from "@tauri-apps/plugin-dialog";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { createModuleLogger } from "@/utils/logger";
 import { customMessage } from "@/utils/customMessage";
-import { formatDateTime } from "@/utils/time";
-import { sanitizeFilename } from "@/utils/fileUtils";
 import ExportBranchDialog from "../export/ExportBranchDialog.vue";
 import MessageDataEditor from "./MessageDataEditor.vue";
 import MessageVariableSnapshot from "./MessageVariableSnapshot.vue";
-import { useExportManager } from "../../composables/features/useExportManager";
 
 interface Props {
   message: ChatMessageNode;
@@ -321,149 +316,6 @@ const handleRecalculateTokens = async () => {
   } catch (error) {
     logger.error("重新计算 Token 失败", error, { nodeId: props.message.id });
     customMessage.error("重新计算失败");
-  }
-};
-
-// 定义导出选项接口
-interface ExportOptions {
-  format: "markdown" | "json" | "raw";
-  includePreset: boolean;
-  includeUserProfile: boolean;
-  includeAgentInfo: boolean;
-  includeModelInfo: boolean;
-  includeTokenUsage: boolean;
-  includeAttachments: boolean;
-  includeErrors: boolean;
-  range?: [number, number];
-}
-// 处理导出分支
-const handleExportBranch = async (options: ExportOptions) => {
-  try {
-    const detail = store.currentSessionDetail;
-    const index = store.currentSession;
-    if (!detail || !index) {
-      customMessage.error("没有活动会话");
-      return;
-    }
-
-    // 获取预设消息（如果需要）
-    let presetMessages: ChatMessageNode[] = [];
-    if (options.includePreset && agentStore.currentAgentId) {
-      const agent = agentStore.getAgentById(agentStore.currentAgentId);
-      if (agent?.presetMessages) {
-        presetMessages = agent.presetMessages.filter(
-          (msg: ChatMessageNode) => msg.isEnabled !== false && msg.type !== "chat_history",
-        );
-      }
-    }
-
-    // 导出分支
-    const { exportBranchAsMarkdown, exportBranchAsJson } = useExportManager();
-
-    let content: string;
-    let fileExtension: string;
-    let filterName: string;
-
-    if (options.format === "raw") {
-      // Raw 格式：导出原始节点数据
-      const branchNodes: Record<string, ChatMessageNode> = {};
-      let currentId: string | null = props.message.id;
-      const sessionNodes = detail.nodes;
-
-      while (currentId !== null && sessionNodes) {
-        const node: ChatMessageNode | undefined = sessionNodes[currentId];
-        if (node) {
-          branchNodes[currentId] = node;
-        }
-        currentId = node ? node.parentId : null;
-      }
-
-      // 处理 Raw 格式的范围过滤
-      let finalNodes = branchNodes;
-      if (options.range) {
-        const [start, end] = options.range;
-        // 将节点按回溯顺序排列（从叶子到根），然后截取
-        const nodeIds = [];
-        let cid: string | null = props.message.id;
-        while (cid && detail.nodes[cid]) {
-          nodeIds.unshift(cid); // 从根到叶子的顺序
-          const node: ChatMessageNode = detail.nodes[cid];
-          cid = node.parentId;
-        }
-        
-        // 排除根节点（如果存在且是 rootNodeId）
-        const messageNodeIds = nodeIds.filter(id => id !== detail.rootNodeId);
-        const slicedIds = new Set(messageNodeIds.slice(start - 1, end));
-        
-        finalNodes = {};
-        Object.entries(branchNodes).forEach(([id, node]) => {
-          if (slicedIds.has(id)) {
-            finalNodes[id] = node;
-          }
-        });
-      }
-
-      const rawBranchData = {
-        index,
-        detail: {
-          ...detail,
-          nodes: finalNodes,
-        },
-      };
-      content = JSON.stringify(rawBranchData, null, 2);
-      fileExtension = "json";
-      filterName = "JSON";
-    } else if (options.format === "json") {
-      const jsonData = exportBranchAsJson(index, detail, props.message.id, options.includePreset, presetMessages, {
-        includeUserProfile: options.includeUserProfile,
-        includeAgentInfo: options.includeAgentInfo,
-        includeModelInfo: options.includeModelInfo,
-        includeTokenUsage: options.includeTokenUsage,
-        includeAttachments: options.includeAttachments,
-        includeErrors: options.includeErrors,
-        range: options.range,
-      });
-      content = JSON.stringify(jsonData, null, 2);
-      fileExtension = "json";
-      filterName = "JSON";
-    } else {
-      content = exportBranchAsMarkdown(index, detail, props.message.id, options.includePreset, presetMessages, {
-        includeUserProfile: options.includeUserProfile,
-        includeAgentInfo: options.includeAgentInfo,
-        includeModelInfo: options.includeModelInfo,
-        includeTokenUsage: options.includeTokenUsage,
-        includeAttachments: options.includeAttachments,
-        includeErrors: options.includeErrors,
-        range: options.range,
-      });
-      fileExtension = "md";
-      filterName = "Markdown";
-    }
-
-    // 保存文件 (使用本地时间)
-    const timestamp = formatDateTime(new Date(), "yyyy-MM-dd");
-
-    // 清理文件名，确保 Windows 下可用
-    const safeSessionName = sanitizeFilename(index.name || "未命名会话");
-    const defaultName = `${safeSessionName}-分支-${timestamp}.${fileExtension}`;
-
-    const filePath = await save({
-      defaultPath: defaultName,
-      filters: [
-        {
-          name: filterName,
-          extensions: [fileExtension],
-        },
-      ],
-    });
-
-    if (filePath) {
-      await writeTextFile(filePath, content);
-      customMessage.success("分支导出成功");
-    }
-  } catch (error) {
-    logger.error("导出分支失败", error, { nodeId: props.message.id });
-    customMessage.error("导出失败：" + (error instanceof Error ? error.message : String(error)));
   }
 };
 
@@ -851,7 +703,6 @@ const handleTranslateClick = (e: MouseEvent) => {
       :session-index="store.currentSession"
       :message-id="props.message.id"
       :preset-messages="currentPresetMessages"
-      @export="handleExportBranch"
     />
 
     <!-- 数据编辑对话框 -->

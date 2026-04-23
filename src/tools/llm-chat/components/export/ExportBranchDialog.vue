@@ -1,11 +1,5 @@
 <template>
-  <BaseDialog
-    v-model="localVisible"
-    title="导出对话"
-    width="1000px"
-    height="80vh"
-    :close-on-backdrop-click="true"
-  >
+  <BaseDialog v-model="localVisible" title="导出对话" width="1000px" height="80vh" :close-on-backdrop-click="true">
     <template #content>
       <div class="export-container">
         <!-- 导出信息摘要 -->
@@ -13,11 +7,7 @@
           <div class="summary-item summary-item-full">
             <span class="summary-label">参与智能体:</span>
             <div class="summary-value agents-list">
-              <div
-                v-for="agent in participatingAgents"
-                :key="agent.id || agent.name"
-                class="agent-item"
-              >
+              <div v-for="agent in participatingAgents" :key="agent.id || agent.name" class="agent-item">
                 <Avatar
                   v-if="agent.icon"
                   :src="agent.avatarSrc || ''"
@@ -38,7 +28,12 @@
           </div>
           <div class="summary-item">
             <span class="summary-label">对话消息:</span>
-            <span class="summary-value">{{ branchMessageCount }} 条 <span v-if="isRangeActive" class="range-hint">(已选 {{ exportRange[1] - exportRange[0] + 1 }} 条)</span></span>
+            <span class="summary-value"
+              >{{ branchMessageCount }} 条
+              <span v-if="isRangeActive" class="range-hint"
+                >(已选 {{ exportRange[1] - exportRange[0] + 1 }} 条)</span
+              ></span
+            >
           </div>
           <div class="summary-item" v-if="presetCount > 0">
             <span class="summary-label">预设消息:</span>
@@ -61,11 +56,7 @@
           :max-range="branchMessageCount"
         />
 
-        <ExportPreviewSection
-          :content="previewContent"
-          :format="exportFormat"
-          :resolve-asset="resolveAsset"
-        />
+        <ExportPreviewSection :content="previewContent" :format="exportFormat" :resolve-asset="resolveAsset" />
       </div>
     </template>
 
@@ -85,10 +76,16 @@ import ExportPreviewSection from "./ExportPreviewSection.vue";
 import Avatar from "@/components/common/Avatar.vue";
 import type { ChatSessionDetail, ChatSessionIndex } from "../../types/session";
 import type { ChatMessageNode } from "../../types/message";
-import { useExportManager } from "../../composables/features/useExportManager";
+import { useExportManager, type ExportOptions } from "../../composables/features/useExportManager";
 import { useAgentStore } from "../../stores/agentStore";
 import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
 import { processMessageAssetsSync } from "../../utils/agentAssetUtils";
+import { save } from "@tauri-apps/plugin-dialog";
+import { writeTextFile } from "@tauri-apps/plugin-fs";
+import { customMessage } from "@/utils/customMessage";
+import { formatDateTime } from "@/utils/time";
+import { sanitizeFilename } from "@/utils/fileUtils";
+import { createModuleLogger } from "@/utils/logger";
 
 interface Props {
   visible: boolean;
@@ -99,22 +96,9 @@ interface Props {
   presetMessages?: ChatMessageNode[];
 }
 
-interface ExportOptions {
-  format: "markdown" | "json" | "raw";
-  includePreset: boolean;
-  mergePresetIntoMessages: boolean;
-  includeUserProfile: boolean;
-  includeAgentInfo: boolean;
-  includeModelInfo: boolean;
-  includeTokenUsage: boolean;
-  includeAttachments: boolean;
-  includeErrors: boolean;
-  range?: [number, number];
-}
-
 interface Emits {
   (e: "update:visible", value: boolean): void;
-  (e: "export", options: ExportOptions): void;
+  (e: "exported"): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -147,8 +131,9 @@ const exportRange = ref<[number, number]>([1, 1]);
 
 const exporting = ref(false);
 
+const logger = createModuleLogger("ExportBranchDialog");
 const agentStore = useAgentStore();
-const { exportBranchAsMarkdown, exportBranchAsJson } = useExportManager();
+const { exportBranchAsMarkdown, exportBranchAsJson, exportBranchAsRaw } = useExportManager();
 
 // 计算路径中的所有参与节点
 const pathNodes = computed(() => {
@@ -168,10 +153,7 @@ const pathNodes = computed(() => {
 
 // 获取所有参与的智能体信息
 const participatingAgents = computed(() => {
-  const agentsMap = new Map<
-    string,
-    { id?: string; name: string; icon?: string; avatarSrc: string | null }
-  >();
+  const agentsMap = new Map<string, { id?: string; name: string; icon?: string; avatarSrc: string | null }>();
 
   pathNodes.value.forEach((node) => {
     if (node.role === "assistant" && node.metadata) {
@@ -246,10 +228,9 @@ watch(
       exportRange.value = [1, newCount];
     }
   },
-  { immediate: true }
+  { immediate: true },
 );
 
-// 生成预览内容
 // 生成预览内容
 const previewContent = computed(() => {
   if (!props.session || !props.messageId || !props.sessionIndex) {
@@ -270,26 +251,7 @@ const previewContent = computed(() => {
   };
 
   if (exportFormat.value === "raw") {
-    const branchNodes: Record<string, ChatMessageNode> = {};
-    let currentId: string | null = props.messageId;
-    const sessionNodes = props.session.nodes;
-
-    while (currentId !== null && sessionNodes) {
-      const node: ChatMessageNode | undefined = sessionNodes[currentId];
-      if (node) {
-        branchNodes[currentId] = node;
-      }
-      currentId = node ? node.parentId : null;
-    }
-
-    const rawBranchData = {
-      index: props.sessionIndex,
-      detail: {
-        ...props.session,
-        nodes: branchNodes,
-      },
-    };
-    return JSON.stringify(rawBranchData, null, 2);
+    return exportBranchAsRaw(props.sessionIndex, props.session, props.messageId, options);
   } else if (exportFormat.value === "json") {
     const jsonData = exportBranchAsJson(
       props.sessionIndex,
@@ -297,7 +259,7 @@ const previewContent = computed(() => {
       props.messageId,
       includePreset.value,
       props.presetMessages,
-      options
+      options,
     );
     return JSON.stringify(jsonData, null, 2);
   } else {
@@ -308,7 +270,7 @@ const previewContent = computed(() => {
       props.messageId,
       includePreset.value,
       props.presetMessages,
-      options
+      options,
     );
   }
 });
@@ -327,21 +289,47 @@ const resolveAsset = (content: string) => {
   return processed;
 };
 
-const handleExport = () => {
-  const options: ExportOptions = {
-    format: exportFormat.value,
-    includePreset: includePreset.value,
-    mergePresetIntoMessages: mergePresetIntoMessages.value,
-    includeUserProfile: includeUserProfile.value,
-    includeAgentInfo: includeAgentInfo.value,
-    includeModelInfo: includeModelInfo.value,
-    includeTokenUsage: includeTokenUsage.value,
-    includeAttachments: includeAttachments.value,
-    includeErrors: includeErrors.value,
-    range: [...exportRange.value] as [number, number],
-  };
-  emit("export", options);
-  localVisible.value = false;
+const handleExport = async () => {
+  if (!props.session || !props.sessionIndex) {
+    customMessage.error("没有活动会话");
+    return;
+  }
+
+  exporting.value = true;
+  try {
+    const content = previewContent.value;
+    const fileExtension = exportFormat.value === "markdown" ? "md" : "json";
+    const filterName = exportFormat.value === "markdown" ? "Markdown" : "JSON";
+
+    // 保存文件 (使用本地时间)
+    const timestamp = formatDateTime(new Date(), "yyyy-MM-dd");
+
+    // 清理文件名，确保 Windows 下可用
+    const safeSessionName = sanitizeFilename(props.sessionIndex.name || "未命名会话");
+    const defaultName = `${safeSessionName}-分支-${timestamp}.${fileExtension}`;
+
+    const filePath = await save({
+      defaultPath: defaultName,
+      filters: [
+        {
+          name: filterName,
+          extensions: [fileExtension],
+        },
+      ],
+    });
+
+    if (filePath) {
+      await writeTextFile(filePath, content);
+      customMessage.success("分支导出成功");
+      emit("exported");
+      localVisible.value = false;
+    }
+  } catch (error) {
+    logger.error("导出分支失败", error, { nodeId: props.messageId });
+    customMessage.error("导出失败：" + (error instanceof Error ? error.message : String(error)));
+  } finally {
+    exporting.value = false;
+  }
 };
 </script>
 

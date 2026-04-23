@@ -151,6 +151,7 @@ defineEmits<{
   right: 0;
   padding: 0 8px 4px 8px;
   background-color: transparent;
+  backdrop-filter: none;
   pointer-events: none;
   z-index: 10;
   justify-content: flex-end;

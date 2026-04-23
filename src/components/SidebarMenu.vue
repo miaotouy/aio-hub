@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { ref, watch } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { Promotion, Close } from "@element-plus/icons-vue";
 import { Puzzle } from "lucide-vue-next";
-import { VueDraggableNext as draggable } from "vue-draggable-next";
+import { VueDraggableNext } from "vue-draggable-next";
 import type { ToolConfig } from "@/services/types";
 import { useToolsStore } from "@/stores/tools";
 import { useDetachable } from "../composables/useDetachable";
@@ -32,20 +32,27 @@ const getToolIdFromPath = (path: string): string => {
   return path.substring(1).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
 };
 
-// 计算可见的工具列表（标签页模式：只显示已打开的且未分离的工具）
-// 使用可写计算属性以支持拖拽排序
-const displayTools = computed({
-  get: () => {
-    return toolsStore.openedToolPaths
+// 使用 ref 管理拖拽列表，参考 PipelineConfig.vue 的模式
+const displayTools = ref<ToolConfig[]>([]);
+
+// 同步 store 数据到本地 ref
+watch(
+  [() => toolsStore.openedToolPaths, () => props.toolsVisible],
+  () => {
+    displayTools.value = toolsStore.openedToolPaths
       .map((path) => toolsStore.tools.find((t) => t.path === path))
       .filter((tool): tool is ToolConfig => !!tool && !props.isDetached(getToolIdFromPath(tool.path)));
   },
-  set: (newTools: ToolConfig[]) => {
-    // 拖拽排序后，更新 openedToolPaths 的顺序
-    const newPaths = newTools.map((t) => t.path);
-    toolsStore.setOpenedToolPaths(newPaths);
-  },
-});
+  { immediate: true, deep: true },
+);
+
+// 拖拽结束处理
+const onDragEnd = () => {
+  isDragging.value = false;
+  // 更新 store 中的顺序
+  const newPaths = displayTools.value.map((t) => t.path);
+  toolsStore.setOpenedToolPaths(newPaths);
+};
 
 const handleSelect = (key: string) => {
   router.push(key);
@@ -56,10 +63,6 @@ const isDragging = ref(false);
 
 const onDragStart = () => {
   isDragging.value = true;
-};
-
-const onDragEnd = () => {
-  isDragging.value = false;
 };
 
 const handleDragStart = (event: MouseEvent, tool: ToolConfig) => {
@@ -157,7 +160,7 @@ const handleCloseTool = async (event: MouseEvent, toolPath: string) => {
       </template>
     </el-menu-item>
 
-    <draggable
+    <VueDraggableNext
       v-model="displayTools"
       :animation="200"
       :force-fallback="true"
@@ -167,6 +170,7 @@ const handleCloseTool = async (event: MouseEvent, toolPath: string) => {
       ghost-class="ghost-item"
       chosen-class="chosen-item"
       drag-class="drag-item"
+      item-key="path"
       @start="onDragStart"
       @end="onDragEnd"
       class="draggable-container"
@@ -214,7 +218,7 @@ const handleCloseTool = async (event: MouseEvent, toolPath: string) => {
           </el-menu-item>
         </el-tooltip>
       </div>
-    </draggable>
+    </VueDraggableNext>
   </el-menu>
 </template>
 

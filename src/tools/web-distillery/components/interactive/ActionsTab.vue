@@ -20,7 +20,7 @@ import { useWebDistilleryStore } from "../../stores/store";
 import { useLivePreview } from "../../composables/useLivePreview";
 import { actionRunner } from "../../core/action-runner";
 import type { ActionStep } from "../../types";
-import Draggable from "vuedraggable";
+import { VueDraggableNext as Draggable } from "vue-draggable-next";
 
 const store = useWebDistilleryStore();
 const { triggerLivePreview } = useLivePreview();
@@ -202,112 +202,110 @@ const runTest = async () => {
         class="actions-list"
         ghost-class="ghost-step"
       >
-        <template #item="{ element: step, index }">
-          <div
-            class="action-item"
-            :class="{
-              'is-editing': editingIndex === index,
-              [`status-${stepStatuses[index] || 'idle'}`]: true,
-            }"
-          >
-            <!-- 正常展示模式 -->
-            <template v-if="editingIndex !== index">
-              <div class="drag-handle">
-                <GripVertical :size="16" />
-              </div>
+        <div
+          v-for="(step, index) in actions"
+          :key="index"
+          class="action-item"
+          :class="{
+            'is-editing': editingIndex === index,
+            [`status-${stepStatuses[index] || 'idle'}`]: true,
+          }"
+        >
+          <!-- 正常展示模式 -->
+          <template v-if="editingIndex !== index">
+            <div class="drag-handle">
+              <GripVertical :size="16" />
+            </div>
 
-              <div
-                class="action-icon"
-                :style="{ backgroundColor: getActionColor(step.type) + '20', color: getActionColor(step.type) }"
-              >
-                <component :is="getActionIcon(step.type)" :size="16" />
-              </div>
+            <div
+              class="action-icon"
+              :style="{ backgroundColor: getActionColor(step.type) + '20', color: getActionColor(step.type) }"
+            >
+              <component :is="getActionIcon(step.type)" :size="16" />
+            </div>
 
-              <div class="action-content">
-                <div class="action-title">
-                  {{ ACTION_TYPES.find((t) => t.type === step.type)?.label }}
+            <div class="action-content">
+              <div class="action-title">
+                {{ ACTION_TYPES.find((t) => t.type === step.type)?.label }}
+              </div>
+              <div class="action-desc" :title="getStepDescription(step)">
+                {{ getStepDescription(step) }}
+              </div>
+            </div>
+
+            <div class="action-status-icon">
+              <el-icon v-if="stepStatuses[index] === 'running'" class="is-loading"><Loader2 /></el-icon>
+              <el-icon v-else-if="stepStatuses[index] === 'success'" color="var(--el-color-success)"
+                ><CheckCircle2
+              /></el-icon>
+              <el-tooltip v-else-if="stepStatuses[index] === 'error'" :content="stepErrors[index]" placement="top">
+                <el-icon color="var(--el-color-danger)"><XCircle /></el-icon>
+              </el-tooltip>
+            </div>
+
+            <div class="action-ops">
+              <el-button link size="small" @click="handleEditAction(index)">编辑</el-button>
+              <el-button link type="danger" size="small" @click="handleRemoveAction(index)">
+                <Trash2 :size="14" />
+              </el-button>
+            </div>
+          </template>
+
+          <!-- 编辑模式 -->
+          <template v-else>
+            <div class="edit-panel" v-if="editForm">
+              <div class="edit-header">
+                <span class="edit-title">编辑步骤 {{ index + 1 }}</span>
+                <div class="edit-ops">
+                  <el-button size="small" @click="handleCancelEdit">取消</el-button>
+                  <el-button size="small" type="primary" @click="handleSaveEdit">保存</el-button>
                 </div>
-                <div class="action-desc" :title="getStepDescription(step)">
-                  {{ getStepDescription(step) }}
-                </div>
               </div>
 
-              <div class="action-status-icon">
-                <el-icon v-if="stepStatuses[index] === 'running'" class="is-loading"><Loader2 /></el-icon>
-                <el-icon v-else-if="stepStatuses[index] === 'success'" color="var(--el-color-success)"
-                  ><CheckCircle2
-                /></el-icon>
-                <el-tooltip v-else-if="stepStatuses[index] === 'error'" :content="stepErrors[index]" placement="top">
-                  <el-icon color="var(--el-color-danger)"><XCircle /></el-icon>
-                </el-tooltip>
-              </div>
-
-              <div class="action-ops">
-                <el-button link size="small" @click="handleEditAction(index)">编辑</el-button>
-                <el-button link type="danger" size="small" @click="handleRemoveAction(index)">
-                  <Trash2 :size="14" />
-                </el-button>
-              </div>
-            </template>
-
-            <!-- 编辑模式 -->
-            <template v-else>
-              <div class="edit-panel" v-if="editForm">
-                <div class="edit-header">
-                  <span class="edit-title">编辑步骤 {{ index + 1 }}</span>
-                  <div class="edit-ops">
-                    <el-button size="small" @click="handleCancelEdit">取消</el-button>
-                    <el-button size="small" type="primary" @click="handleSaveEdit">保存</el-button>
+              <el-form :model="editForm" label-position="top" size="small">
+                <!-- 选择器字段 -->
+                <el-form-item v-if="'selector' in editForm" label="选择器 (Selector)">
+                  <div class="selector-input">
+                    <el-input v-model="editForm.selector" placeholder="请输入 CSS 选择器" />
+                    <el-button
+                      :type="store.pickerMode === 'action' && store.pickerActionIndex === index ? 'primary' : 'default'"
+                      @click="startPick(index)"
+                    >
+                      <template #icon><Target :size="14" /></template>
+                      拾取
+                    </el-button>
                   </div>
-                </div>
+                </el-form-item>
+                <!-- 距离字段 (scroll) -->
+                <el-form-item
+                  v-if="editForm.type === 'scroll' && !('selector' in editForm && editForm.selector)"
+                  label="滚动距离 (px)"
+                >
+                  <el-input-number v-model="(editForm as any).distance" :min="0" :step="100" />
+                  <el-checkbox v-model="(editForm as any).toBottom" style="margin-left: 12px">到底部</el-checkbox>
+                </el-form-item>
 
-                <el-form :model="editForm" label-position="top" size="small">
-                  <!-- 选择器字段 -->
-                  <el-form-item v-if="'selector' in editForm" label="选择器 (Selector)">
-                    <div class="selector-input">
-                      <el-input v-model="editForm.selector" placeholder="请输入 CSS 选择器" />
-                      <el-button
-                        :type="
-                          store.pickerMode === 'action' && store.pickerActionIndex === index ? 'primary' : 'default'
-                        "
-                        @click="startPick(index)"
-                      >
-                        <template #icon><Target :size="14" /></template>
-                        拾取
-                      </el-button>
-                    </div>
-                  </el-form-item>
-                  <!-- 距离字段 (scroll) -->
-                  <el-form-item
-                    v-if="editForm.type === 'scroll' && !('selector' in editForm && editForm.selector)"
-                    label="滚动距离 (px)"
-                  >
-                    <el-input-number v-model="(editForm as any).distance" :min="0" :step="100" />
-                    <el-checkbox v-model="(editForm as any).toBottom" style="margin-left: 12px">到底部</el-checkbox>
-                  </el-form-item>
+                <!-- 等待时长 (wait) -->
+                <el-form-item
+                  v-if="editForm.type === 'wait' && !('selector' in editForm && editForm.selector)"
+                  label="等待时间 (ms)"
+                >
+                  <el-input-number v-model="(editForm as any).value" :min="0" :step="500" />
+                </el-form-item>
 
-                  <!-- 等待时长 (wait) -->
-                  <el-form-item
-                    v-if="editForm.type === 'wait' && !('selector' in editForm && editForm.selector)"
-                    label="等待时间 (ms)"
-                  >
-                    <el-input-number v-model="(editForm as any).value" :min="0" :step="500" />
-                  </el-form-item>
+                <!-- 超时时间 (wait/wait-idle) -->
+                <el-form-item v-if="['wait', 'wait-idle'].includes(editForm.type)" label="超时限制 (ms)">
+                  <el-input-number v-model="(editForm as any).timeout" :min="0" :step="1000" />
+                </el-form-item>
 
-                  <!-- 超时时间 (wait/wait-idle) -->
-                  <el-form-item v-if="['wait', 'wait-idle'].includes(editForm.type)" label="超时限制 (ms)">
-                    <el-input-number v-model="(editForm as any).timeout" :min="0" :step="1000" />
-                  </el-form-item>
-
-                  <!-- 输入内容 (input) -->
-                  <el-form-item v-if="editForm.type === 'input'" label="输入文本">
-                    <el-input v-model="(editForm as any).value" placeholder="请输入要输入的内容" />
-                  </el-form-item>
-                </el-form>
-              </div>
-            </template>
-          </div>
-        </template>
+                <!-- 输入内容 (input) -->
+                <el-form-item v-if="editForm.type === 'input'" label="输入文本">
+                  <el-input v-model="(editForm as any).value" placeholder="请输入要输入的内容" />
+                </el-form-item>
+              </el-form>
+            </div>
+          </template>
+        </div>
       </Draggable>
     </div>
   </div>

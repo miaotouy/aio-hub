@@ -4,6 +4,7 @@ import { useRouter } from "vue-router";
 import { ElSelect, ElOption, ElButton, ElDivider } from "element-plus";
 import { Brush, Plus, Eye, FolderOpen, X } from "lucide-vue-next";
 import { useCanvasStore } from "@/tools/canvas/stores/canvasStore";
+import { formatDateTime } from "@/utils/time";
 import { useToolsStore } from "@/stores/tools";
 import { useAgentStore } from "../../stores/agentStore";
 import { DEFAULT_TOOL_CALL_CONFIG } from "../../types/agent";
@@ -73,7 +74,8 @@ function bindCanvas(canvasId: string | null) {
  */
 async function handleCreateCanvas() {
   if (!canvasStore) return;
-  const metadata = await canvasStore.createCanvas("新画布");
+  const title = `canvas_${formatDateTime(new Date(), "yyyyMMdd_HHmmss")}`;
+  const metadata = await canvasStore.createCanvas(title);
   if (metadata) {
     bindCanvas(metadata.id);
   }

@@ -71,6 +71,9 @@ export class IframeBridge {
     this.iframe.style.border = "none";
     this.iframe.style.width = "100%";
     this.iframe.style.height = "100%";
+    // 注意：同时设置 allow-scripts 和 allow-same-origin 会使 iframe 能够绕过沙箱限制（沙箱逃逸）
+    // 但对于 web-distillery 这种需要代理注入脚本并与父窗口通信的场景，这是必须的。
+    // 我们通过 CSP 来限制 iframe 的行为。
     this.iframe.setAttribute("sandbox", "allow-scripts allow-same-origin allow-forms allow-popups");
 
     if (options.hidden) {

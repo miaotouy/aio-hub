@@ -120,11 +120,6 @@ onUnmounted(async () => {
   flex-direction: column;
   min-width: 50%;
   border-right: var(--border-width) solid var(--border-color);
-  background-color: #f5f7fa; /* 浏览器背景色，稍微区分一下 */
-}
-
-/* 适配暗色模式 */
-:deep(.dark) .main-viewport-container {
-  background-color: #1a1a1a;
+  background-color: var(--card-bg);
 }
 </style>

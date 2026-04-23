@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, watch } from "vue";
 import { RotateCw, Save, Cookie, Network, ExternalLink } from "lucide-vue-next";
 import { useWebDistilleryStore } from "../../stores/store";
+import { openUrl } from "@tauri-apps/plugin-opener";
 
 const emit = defineEmits(["save", "open-cookie", "open-api", "load-url"]);
 const store = useWebDistilleryStore();
@@ -20,6 +21,21 @@ const handleGo = () => {
     emit("load-url", url);
   }
 };
+
+const openInBrowser = async () => {
+  const url = urlInput.value.trim() || store.url;
+  if (url) {
+    await openUrl(url);
+  }
+};
+
+// 同步外部变更
+watch(
+  () => store.url,
+  (newUrl) => {
+    urlInput.value = newUrl;
+  },
+);
 </script>
 
 <template>
@@ -27,7 +43,11 @@ const handleGo = () => {
     <div class="toolbar-center">
       <el-input v-model="urlInput" placeholder="输入网址开始交互式提取..." @keyup.enter="handleGo">
         <template #prefix>
-          <el-icon><ExternalLink /></el-icon>
+          <el-tooltip content="在系统浏览器中打开" placement="top" :show-after="500">
+            <el-button link @click="openInBrowser" :disabled="!urlInput && !store.url">
+              <el-icon><ExternalLink /></el-icon>
+            </el-button>
+          </el-tooltip>
         </template>
         <template #suffix>
           <el-button link @click="handleRefresh">

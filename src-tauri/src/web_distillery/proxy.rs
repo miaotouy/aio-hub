@@ -140,12 +140,20 @@ async fn handle_proxy_html(
     let status = StatusCode::from_u16(response.status().as_u16()).unwrap_or(StatusCode::OK);
     let mut resp_headers = AxumHeaderMap::new();
 
-    // 过滤安全头
+    // 过滤安全头和 hop-by-hop 头
     let unsafe_headers = [
         "x-frame-options",
         "content-security-policy",
         "content-security-policy-report-only",
         "access-control-allow-origin",
+        "connection",
+        "keep-alive",
+        "proxy-authenticate",
+        "proxy-authorization",
+        "te",
+        "trailers",
+        "transfer-encoding",
+        "upgrade",
     ];
 
     for (name, value) in response.headers().iter() {
@@ -235,12 +243,20 @@ async fn handle_proxy_resource(
     let status = StatusCode::from_u16(response.status().as_u16()).unwrap_or(StatusCode::OK);
     let mut resp_headers = AxumHeaderMap::new();
 
-    // 过滤安全头
+    // 过滤安全头和 hop-by-hop 头
     let unsafe_headers = [
         "x-frame-options",
         "content-security-policy",
         "content-security-policy-report-only",
         "access-control-allow-origin",
+        "connection",
+        "keep-alive",
+        "proxy-authenticate",
+        "proxy-authorization",
+        "te",
+        "trailers",
+        "transfer-encoding",
+        "upgrade",
     ];
 
     for (name, value) in response.headers().iter() {

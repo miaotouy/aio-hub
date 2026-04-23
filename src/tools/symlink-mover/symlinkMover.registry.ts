@@ -54,5 +54,5 @@ export const toolConfig: ToolConfig = {
   icon: markRaw(SymlinkMoverIcon),
   component: () => import("./SymlinkMover.vue"),
   description: "支持拖拽的文件批量移动和符号链接创建工具",
-  category: "文件管理",
+  category: ["文件管理"],
 };

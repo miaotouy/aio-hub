@@ -34,5 +34,5 @@ export const toolConfig: ToolConfig = {
   icon: markRaw(Pipette),
   component: () => import("./ColorPicker.vue"),
   description: "从图片中提取颜色，支持多种算法分析主色调、调色板和平均色",
-  category: "AI 工具",
+  category: ["媒体工具"],
 };

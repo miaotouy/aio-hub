@@ -197,5 +197,5 @@ export const toolConfig: ToolConfig = {
   icon: markRaw(DirectoryTreeIcon),
   component: () => import("./DirectoryTree.vue"),
   description: "生成目录树结构，支持过滤规则和深度限制",
-  category: "文件管理",
+  category: ["文件管理"],
 };

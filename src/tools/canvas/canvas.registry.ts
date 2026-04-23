@@ -10,7 +10,7 @@ export const toolConfig: ToolConfig = {
   icon: markRaw(Brush),
   component: () => import("./CanvasWorkbench.vue"),
   description: "Agent 协作画布，支持多文件编辑与实时预览",
-  category: "AI 工具",
+  category: ["AI 工具"],
 };
 
 export class CanvasRegistry implements ToolRegistry {

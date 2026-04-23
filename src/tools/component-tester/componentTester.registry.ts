@@ -56,5 +56,5 @@ export const toolConfig: ToolConfig = {
   icon: markRaw(FlaskConical),
   component: () => import("./ComponentTester.vue"),
   description: "测试和展示各种 UI 组件、窗口分离同步体系、Element Plus 元素、消息提示和主题色板",
-  category: "开发工具",
+  category: ["开发工具"],
 };

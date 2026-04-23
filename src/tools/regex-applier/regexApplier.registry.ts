@@ -251,5 +251,5 @@ export const toolConfig: ToolConfig = {
   icon: markRaw(MagicStick),
   component: () => import("./RegexApplier.vue"),
   description: "使用正则表达式批量处理文本或文件",
-  category: "文本处理",
+  category: ["文本处理"],
 };

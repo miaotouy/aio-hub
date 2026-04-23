@@ -12,5 +12,5 @@ export const toolConfig: ToolConfig = {
   icon: markRaw(Setting),
   component: () => import("./CodeFormatter.vue"),
   description: "格式化各种编程语言代码",
-  category: "文本处理",
+  category: ["文本处理"],
 };

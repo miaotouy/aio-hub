@@ -23,5 +23,5 @@ export const toolConfig: ToolConfig = {
   icon: markRaw(Tv),
   component: () => import("./DanmakuPlayer.vue"),
   description: "支持 ASS 弹幕，丰富的显示调整选项",
-  category: "媒体工具",
+  category: ["媒体工具"],
 };

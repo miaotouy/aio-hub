@@ -11,5 +11,5 @@ export const toolConfig: ToolConfig = {
   icon: markRaw(BookMarked),
   component: () => import('./StWorldbookEditor.vue'),
   description: 'SillyTavern 格式世界书编辑器',
-  category: 'AI 工具'
+  category: ['AI 工具']
 };

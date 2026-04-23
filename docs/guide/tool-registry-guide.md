@@ -35,11 +35,9 @@ export const toolConfig: ToolConfig = {
   icon: markRaw(Braces), // 必须用 markRaw 包裹，避免 Vue 响应式代理
   component: () => import("./MyTool.vue"), // 动态导入，不要直接 import
   description: "工具的简短描述", // 可选，用于工具列表展示
-  category: "开发工具", // 可选，现有分类见下方说明
+  category: ["开发工具", "AI 工具"], // 可选，支持单一字符串或字符串数组（多分类）
 };
 ```
-
-**现有 `category` 分类**：`AI 工具` / `文本处理` / `文件管理` / `开发工具` / `媒体工具`
 
 ---
 
@@ -422,7 +420,7 @@ export const toolConfig: ToolConfig = {
   icon: markRaw(FileText),
   component: () => import("./FileReader.vue"),
   description: "读取本地文件内容，支持多种编码格式",
-  category: "文件管理",
+  category: ["文件管理", "开发工具"],
 };
 ```
 

@@ -400,5 +400,5 @@ export const toolConfig: ToolConfig = {
   icon: markRaw(GitBranchIcon),
   component: () => import("./GitAnalyzer.vue"),
   description: "Git提交记录分析和可视化处理工具",
-  category: "开发工具",
+  category: ["开发工具"],
 };

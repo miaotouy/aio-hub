@@ -73,5 +73,5 @@ export const toolConfig: ToolConfig = {
   icon: markRaw(Filter),
   component: () => import("./DataFilter.vue"),
   description: "针对 JSON/YAML 列表数据进行条件筛选，支持简单匹配和自定义脚本",
-  category: "文本处理",
+  category: ["文本处理"],
 };

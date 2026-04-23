@@ -7,28 +7,29 @@
 export const DEFAULT_TOOLS_ORDER = [
   // AI 工具
   "/llm-chat",
-  "/media-generator",
   "/canvas",
-  "/vcp-connector",
-  "/st-worldbook-editor",
-  "/media-info-reader",
+  "/media-generator",
   "/smart-ocr",
   "/transcription",
+  "/web-distillery",
+  "/knowledge-base",
+  "/st-worldbook-editor",
+
+  // 文本处理
+  "/code-formatter",
+  "/json-formatter",
+  "/regex-applier",
+  "/data-filter",
+  "/text-diff",
+
+  // 媒体工具
   "/ffmpeg-tools",
   "/danmaku-player",
   "/color-picker",
-  "/web-distillery",
-
-  // 文本处理
-  "/regex-applier",
-  "/text-diff",
-  "/json-formatter",
-  "/data-filter",
-  "/code-formatter",
+  "/media-info-reader",
 
   // 文件管理
   "/asset-manager",
-  "/knowledge-base",
   "/symlink-mover",
   "/directory-tree",
   "/directory-janitor",
@@ -38,9 +39,11 @@ export const DEFAULT_TOOLS_ORDER = [
   "/api-tester",
   "/llm-inspector",
   "/git-analyzer",
-  "/rich-text-renderer-tester",
-  "/service-monitor",
   "/token-calculator",
   "/embedding-playground",
+  "/vcp-connector",
+  "/service-monitor",
+  "/rich-text-renderer-tester",
   "/component-tester",
+  "/tool-calling-tester",
 ];

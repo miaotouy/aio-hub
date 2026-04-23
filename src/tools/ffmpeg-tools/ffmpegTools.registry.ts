@@ -23,5 +23,5 @@ export const toolConfig: ToolConfig = {
   icon: markRaw(Video),
   component: () => import("./FFmpegTool.vue"),
   description: "音视频压缩、提取音频、格式转换",
-  category: "媒体工具",
+  category: ["媒体工具"],
 };

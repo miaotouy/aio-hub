@@ -21,7 +21,7 @@ export const toolConfig: ToolConfig = {
   icon: markRaw(Sparkles),
   component: () => import("./views/MediaGeneratorView.vue"),
   description: "一站式媒体生成工作站，支持图片、视频和音频生成。",
-  category: "AI 创作",
+  category: ["AI 工具", "媒体工具"],
 };
 
 /**

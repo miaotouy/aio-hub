@@ -204,5 +204,5 @@ export const toolConfig: ToolConfig = {
   icon: markRaw(Database),
   component: () => import("./KnowledgeBase.vue"),
   description: "管理和检索结构化知识，支持 RAG 向量化",
-  category: "生产力",
+  category: ["AI 工具"],
 };

@@ -60,5 +60,5 @@ export const toolConfig: ToolConfig = {
   icon: markRaw(OcrIcon),
   component: () => import("./SmartOcr.vue"),
   description: "智能OCR文字识别工具，支持多引擎和智能切图",
-  category: "AI 工具",
+  category: ["AI 工具"],
 };

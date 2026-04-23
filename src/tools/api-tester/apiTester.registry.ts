@@ -11,5 +11,5 @@ export const toolConfig: ToolConfig = {
   icon: markRaw(ConnectorIcon),
   component: () => import('./ApiTester.vue'),
   description: '测试各类 API 接口，支持 OpenAI、Gemini、Claude 等预设',
-  category: '开发工具'
+  category: ['开发工具']
 };

@@ -404,7 +404,7 @@ export const toolConfig: ToolConfig = {
   icon: markRaw(ChatDotRound),
   component: () => import("./LlmChat.vue"),
   description: "树状分支对话工具，支持智能体管理、附件上传、多会话系统和上下文分析",
-  category: "AI 工具",
+  category: ["AI 工具"],
 };
 
 // 重导出工具函数供跨工具使用

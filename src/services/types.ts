@@ -80,7 +80,7 @@ export interface ToolConfig {
   icon: Component;
   component: () => Promise<any>; // 组件动态导入函数
   description?: string;
-  category?: string;
+  category?: string | string[];
   /**
    * 工具运行模式
    * - 'main-only': 仅在主窗口运行（默认，保守策略）

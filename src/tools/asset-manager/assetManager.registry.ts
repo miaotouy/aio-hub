@@ -55,5 +55,5 @@ export const toolConfig: ToolConfig = {
   icon: markRaw(FolderOpened),
   component: () => import("./AssetManager.vue"),
   description: "可视化管理应用内导入的所有资产，支持搜索、筛选和预览",
-  category: "文件管理",
+  category: ["文件管理"],
 };

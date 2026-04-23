@@ -120,5 +120,5 @@ export const toolConfig: ToolConfig = {
   icon: markRaw(Braces),
   component: () => import("./JsonFormatter.vue"),
   description: "格式化和美化JSON数据",
-  category: "文本处理",
+  category: ["文本处理"],
 };

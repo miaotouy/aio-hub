@@ -112,6 +112,6 @@ export const toolConfig: ToolConfig = {
   runMode: "any",
   icon: markRaw(GlassWater),
   component: () => import("./WebDistillery.vue"),
-  category: "AI 工具",
+  category: ["AI 工具"],
   description: "网页内容的高纯度提炼工具",
 };

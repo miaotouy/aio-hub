@@ -401,5 +401,5 @@ export const toolConfig: ToolConfig = {
   icon: markRaw(DirectoryJanitorIcon),
   component: () => import("./DirectoryJanitor.vue"),
   description: "智能清理过时的缓存和存档，支持按规则、日期和大小过滤",
-  category: "文件管理",
+  category: ["文件管理"],
 };

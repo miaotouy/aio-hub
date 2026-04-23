@@ -272,5 +272,5 @@ export const toolConfig: ToolConfig = {
   icon: markRaw(TokenCalculatorIcon),
   component: () => import("./TokenCalculator.vue"),
   description: "计算文本的 Token 数量，支持多种 LLM 分词器",
-  category: "开发工具",
+  category: ["开发工具", "AI 工具"],
 };

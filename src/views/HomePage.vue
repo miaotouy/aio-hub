@@ -108,7 +108,11 @@ const categories = computed(() => {
   const cats = new Set<string>(["全部"]);
   toolsStore.orderedTools.forEach((tool) => {
     if (tool.category) {
-      cats.add(tool.category);
+      if (Array.isArray(tool.category)) {
+        tool.category.forEach((cat) => cats.add(cat));
+      } else {
+        cats.add(tool.category);
+      }
     }
   });
   return Array.from(cats);
@@ -135,7 +139,13 @@ const filteredTools = computed(() => {
 
   // 分类过滤
   if (selectedCategory.value !== "全部") {
-    result = result.filter((tool) => tool.category === selectedCategory.value);
+    result = result.filter((tool) => {
+      if (!tool.category) return false;
+      if (Array.isArray(tool.category)) {
+        return tool.category.includes(selectedCategory.value);
+      }
+      return tool.category === selectedCategory.value;
+    });
   }
 
   // 搜索过滤

@@ -162,5 +162,5 @@ export const toolConfig: ToolConfig = {
   icon: markRaw(FileSearch),
   component: () => import("./ContentDeduplicator.vue"),
   description: "扫描目录中的重复文本文件，支持多种匹配模式和预设",
-  category: "文件管理",
+  category: ["文件管理"],
 };

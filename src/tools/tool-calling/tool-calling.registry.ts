@@ -17,6 +17,7 @@ export const toolConfig: ToolConfig = {
   path: "/tool-calling-tester",
   component: () => import("./ToolCallingTester.vue"),
   description: "内部工具调用系统的调试与验证矩阵",
+  category: ["开发工具"],
 };
 
 export class ToolCallingRegistry implements ToolRegistry {

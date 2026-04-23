@@ -208,5 +208,5 @@ export const toolConfig: ToolConfig = {
   icon: markRaw(FileAudio),
   component: () => import("./TranscriptionTool.vue"),
   description: "从图片、音频、视频和 PDF 中提取文本内容",
-  category: "AI 工具",
+  category: ["AI 工具", "媒体工具"],
 };

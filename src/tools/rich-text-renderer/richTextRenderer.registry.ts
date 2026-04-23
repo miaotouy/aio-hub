@@ -11,5 +11,5 @@ export const toolConfig: ToolConfig = {
   icon: markRaw(RichTextRendererIcon),
   component: () => import('./components/RichTextRendererTester.vue'),
   description: '测试 Markdown 富文本渲染，支持流式输出模拟',
-  category: '开发工具'
+  category: ['开发工具']
 };

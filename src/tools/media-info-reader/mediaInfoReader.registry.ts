@@ -133,5 +133,5 @@ export const toolConfig: ToolConfig = {
   icon: markRaw(PictureFilled),
   component: () => import("./MediaInfoReader.vue"),
   description: "深度解析 AI 图片元数据、SillyTavern 角色卡及 AioBundle (AIO 角色包) 信息",
-  category: "AI 工具",
+  category: ["媒体工具", "AI 工具"],
 };

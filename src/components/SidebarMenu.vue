@@ -164,7 +164,7 @@ const handleCloseTool = async (event: MouseEvent, toolPath: string) => {
       v-model="displayTools"
       :animation="200"
       :force-fallback="true"
-      :delay="220"
+      :delay="120"
       :delay-on-touch-only="false"
       :touch-start-threshold="5"
       ghost-class="ghost-item"

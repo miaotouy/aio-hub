@@ -263,7 +263,6 @@ const handleCloseTool = async (event: MouseEvent, toolPath: string) => {
   margin-left: 4px;
   transition: all 0.2s;
   color: var(--text-color-light);
-  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -322,19 +321,37 @@ const handleCloseTool = async (event: MouseEvent, toolPath: string) => {
   background-color: rgba(var(--primary-color-rgb), 0.08) !important;
   color: var(--primary-color) !important;
   font-weight: 500;
+}
+
+.sidebar-menu-component .el-menu-item {
   position: relative;
 }
 
-.sidebar-menu-component .el-menu-item.is-active::before {
+.sidebar-menu-component .el-menu-item::before {
   content: "";
   position: absolute;
   left: 0;
   top: 50%;
-  transform: translateY(-50%);
+  transform: translateY(-50%) scaleY(0);
+  transform-origin: center;
   height: 60%;
   width: 3px;
   background-color: var(--primary-color);
   border-radius: 0 2px 2px 0;
+  transition:
+    transform 0.2s ease,
+    opacity 0.2s ease;
+  opacity: 0;
+}
+
+.sidebar-menu-component .el-menu-item:hover::before {
+  transform: translateY(-50%) scaleY(0.4);
+  opacity: 0.5;
+}
+
+.sidebar-menu-component .el-menu-item.is-active::before {
+  transform: translateY(-50%) scaleY(1);
+  opacity: 1;
   box-shadow: 0 0 8px rgba(var(--primary-color-rgb), 0.4);
 }
 

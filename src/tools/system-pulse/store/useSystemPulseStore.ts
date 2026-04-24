@@ -43,14 +43,22 @@ export const useSystemPulseStore = defineStore("systemPulse", () => {
   // GPU 历史（按 index 存储）
   const gpuHistory = reactive<Map<number, RingBuffer<{ usage: number; temp: number }>>>(new Map());
 
+  // 完整快照历史（用于导出）
+  const fullHistory = new RingBuffer<SystemSnapshot | null>(HISTORY_SIZE, null);
+
   // 响应式历史数组（供组件直接绑定）
   const cpuHistoryArray = ref<number[]>(cpuHistory.toArray());
   const memHistoryArray = ref<number[]>(memHistory.toArray());
   const networkHistoryArray = ref<{ up: number; down: number }[]>(networkHistory.toArray());
   const gpuHistoryArrays = reactive<Map<number, { usage: number; temp: number }[]>>(new Map());
+  const fullHistoryArray = ref<SystemSnapshot[]>([]);
 
   function applySnapshot(snapshot: SystemSnapshot) {
     latest.value = snapshot;
+
+    // 更新完整历史
+    fullHistory.push(snapshot);
+    fullHistoryArray.value = fullHistory.toArray().filter((s): s is SystemSnapshot => s !== null);
 
     // 更新 CPU 历史
     cpuHistory.push(snapshot.cpu.globalUsage);
@@ -94,6 +102,7 @@ export const useSystemPulseStore = defineStore("systemPulse", () => {
     memHistoryArray,
     networkHistoryArray,
     gpuHistoryArrays,
+    fullHistoryArray,
     applySnapshot,
     reset,
   };

@@ -8,7 +8,23 @@
         <span class="toolbar-title">系统脉搏</span>
       </div>
       <div class="toolbar-right">
+        <div class="toolbar-actions">
+          <el-tooltip content="复制当前状态" placement="bottom">
+            <el-button circle @click="copyCurrentStats" :disabled="!store.latest">
+              <el-icon><Copy /></el-icon>
+            </el-button>
+          </el-tooltip>
+          <el-tooltip content="导出历史记录 (JSON)" placement="bottom">
+            <el-button circle @click="exportHistory" :disabled="store.fullHistoryArray.length === 0">
+              <el-icon><Download /></el-icon>
+            </el-button>
+          </el-tooltip>
+        </div>
+
+        <el-divider direction="vertical" />
+
         <span class="status-text">{{ isActive ? "正在监控" : "监控已暂停" }}</span>
+
         <el-switch
           :model-value="isActive"
           @change="handleToggle"
@@ -69,7 +85,7 @@
 
 <script setup lang="ts">
 import { Loading } from "@element-plus/icons-vue";
-import { Activity } from "lucide-vue-next";
+import { Activity, Copy, Download } from "lucide-vue-next";
 import { useSystemPulse } from "./composables/useSystemPulse";
 import CpuCard from "./components/CpuCard.vue";
 import MemoryCard from "./components/MemoryCard.vue";
@@ -78,7 +94,7 @@ import NetworkCard from "./components/NetworkCard.vue";
 import GpuCard from "./components/GpuCard.vue";
 import StatusBar from "./components/StatusBar.vue";
 
-const { store, isActive, start, handleToggle } = useSystemPulse();
+const { store, isActive, start, handleToggle, copyCurrentStats, exportHistory } = useSystemPulse();
 </script>
 
 <style scoped>
@@ -130,7 +146,12 @@ const { store, isActive, start, handleToggle } = useSystemPulse();
 .toolbar-right {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
+}
+
+.toolbar-actions {
+  display: flex;
+  gap: 8px;
 }
 
 .status-text {

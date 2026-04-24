@@ -8,7 +8,7 @@
       </span>
     </div>
 
-    <SparklineChart :data="cpuHistory" color="#4a9eff" :height="56" :max-value="100" unit="%" />
+    <SparklineChart :data="cpuHistory" color="#4a9eff" :height="64" :max-value="100" unit="%" />
 
     <div class="card-stats">
       <div class="stat-item">
@@ -68,6 +68,8 @@ function coreColor(usage: number): string {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .card-header {

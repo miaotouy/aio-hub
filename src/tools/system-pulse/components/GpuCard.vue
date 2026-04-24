@@ -8,7 +8,7 @@
       </span>
     </div>
 
-    <SparklineChart :data="gpuUsageHistory" color="#f87171" :height="48" :max-value="100" unit="%" />
+    <SparklineChart :data="gpuUsageHistory" color="#f87171" :height="64" :max-value="100" unit="%" />
 
     <div class="card-stats">
       <div class="stat-item" v-if="gpu.temperatureCelsius !== null">
@@ -69,6 +69,8 @@ const memPercent = computed(() =>
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .card-header {
@@ -126,6 +128,7 @@ const memPercent = computed(() =>
 .bar-track {
   flex: 1;
   height: 5px;
+  min-width: 40px;
   background: rgba(255, 255, 255, 0.08);
   border-radius: 3px;
   overflow: hidden;

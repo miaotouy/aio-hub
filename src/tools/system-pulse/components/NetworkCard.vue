@@ -12,11 +12,11 @@
     <div class="net-charts">
       <div class="chart-row">
         <span class="chart-label">↑</span>
-        <SparklineChart :data="upHistory" color="#4a9eff" :height="36" :fill-area="true" />
+        <SparklineChart :data="upHistory" color="#4a9eff" :height="48" :fill-area="true" />
       </div>
       <div class="chart-row">
         <span class="chart-label">↓</span>
-        <SparklineChart :data="downHistory" color="#fb923c" :height="36" :fill-area="true" />
+        <SparklineChart :data="downHistory" color="#fb923c" :height="48" :fill-area="true" />
       </div>
     </div>
 
@@ -52,11 +52,13 @@ const downHistory = computed(() => props.networkHistory.map((h) => h.down));
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
   border: var(--border-width) solid var(--border-color);
-  border-radius: 8px;
-  padding: 12px;
+  border-radius: 12px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .card-header {
@@ -66,7 +68,7 @@ const downHistory = computed(() => props.networkHistory.map((h) => h.down));
 }
 
 .card-title {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--el-text-color-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -74,9 +76,11 @@ const downHistory = computed(() => props.networkHistory.map((h) => h.down));
 
 .net-total {
   display: flex;
-  gap: 8px;
-  font-size: 11px;
+  gap: 12px;
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .up-label {
@@ -119,6 +123,7 @@ const downHistory = computed(() => props.networkHistory.map((h) => h.down));
   font-size: 10px;
   color: var(--el-text-color-secondary);
   font-variant-numeric: tabular-nums;
+  min-width: 0;
 }
 
 .iface-name {
@@ -130,8 +135,12 @@ const downHistory = computed(() => props.networkHistory.map((h) => h.down));
 
 .iface-up {
   color: #4a9eff;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .iface-down {
   color: #fb923c;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 </style>

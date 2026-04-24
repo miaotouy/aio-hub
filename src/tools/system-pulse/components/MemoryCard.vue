@@ -6,7 +6,7 @@
       <span class="card-value" :style="{ color: usageColor(memPercent) }"> {{ memPercent.toFixed(1) }}% </span>
     </div>
 
-    <SparklineChart :data="memHistory" color="#a78bfa" :height="48" :max-value="100" unit="%" />
+    <SparklineChart :data="memHistory" color="#a78bfa" :height="64" :max-value="100" unit="%" />
 
     <div class="mem-bars">
       <!-- 物理内存 -->
@@ -56,11 +56,13 @@ const swapPercent = computed(() =>
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
   border: var(--border-width) solid var(--border-color);
-  border-radius: 8px;
-  padding: 12px;
+  border-radius: 12px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .card-header {
@@ -70,14 +72,14 @@ const swapPercent = computed(() =>
 }
 
 .card-title {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--el-text-color-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .card-value {
-  font-size: 20px;
+  font-size: 24px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -85,33 +87,35 @@ const swapPercent = computed(() =>
 .mem-bars {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
 }
 
 .bar-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
+  min-width: 0;
 }
 
 .bar-label {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--el-text-color-secondary);
-  width: 28px;
+  width: 36px;
   flex-shrink: 0;
 }
 
 .bar-track {
   flex: 1;
-  height: 6px;
+  height: 10px;
+  min-width: 40px;
   background: rgba(255, 255, 255, 0.08);
-  border-radius: 3px;
+  border-radius: 5px;
   overflow: hidden;
 }
 
 .bar-fill {
   height: 100%;
-  border-radius: 3px;
+  border-radius: 5px;
   transition: width 0.5s ease;
 }
 
@@ -124,7 +128,7 @@ const swapPercent = computed(() =>
 }
 
 .bar-text {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--el-text-color-secondary);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;

@@ -30,7 +30,9 @@
 
       <!-- 3. 正常显示状态（只要有历史数据或当前正在运行就显示） -->
       <template v-else-if="store.latest">
-        <!-- 主监控网格 -->
+        <!-- 状态栏 -->
+        <StatusBar :latest="store.latest" />
+        <!-- 统一监控网格 -->
         <div class="monitor-grid" :class="{ 'is-paused': !isActive }">
           <CpuCard :cpu="store.latest.cpu" :cpu-history="store.cpuHistoryArray" class="grid-cpu" />
           <MemoryCard :memory="store.latest.memory" :mem-history="store.memHistoryArray" class="grid-mem" />
@@ -40,13 +42,15 @@
             :network-history="store.networkHistoryArray"
             class="grid-net"
           />
+          <!-- GPU 区域集成到网格中 -->
+          <GpuCard
+            v-for="gpu in store.latest.gpus"
+            :key="gpu.index"
+            :gpu="gpu"
+            :gpu-history="store.gpuHistoryArrays.get(gpu.index) ?? []"
+            class="grid-gpu"
+          />
         </div>
-
-        <!-- GPU 区域 -->
-        <GpuMonitor :gpus="store.latest.gpus" :gpu-history-arrays="store.gpuHistoryArrays" />
-
-        <!-- 底部状态栏 -->
-        <StatusBar :latest="store.latest" />
       </template>
     </div>
   </div>
@@ -60,7 +64,7 @@ import CpuCard from "./components/CpuCard.vue";
 import MemoryCard from "./components/MemoryCard.vue";
 import StorageGrid from "./components/StorageGrid.vue";
 import NetworkCard from "./components/NetworkCard.vue";
-import GpuMonitor from "./components/GpuMonitor.vue";
+import GpuCard from "./components/GpuCard.vue";
 import StatusBar from "./components/StatusBar.vue";
 
 const { store, isActive, start, handleToggle } = useSystemPulse();
@@ -70,8 +74,8 @@ const { store, isActive, start, handleToggle } = useSystemPulse();
 .system-pulse-root {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 12px;
+  gap: 12px;
+  padding: 16px;
   height: 100%;
   overflow-y: auto;
   box-sizing: border-box;
@@ -81,33 +85,33 @@ const { store, isActive, start, handleToggle } = useSystemPulse();
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 12px;
+  padding: 12px 16px;
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
   border: var(--border-width) solid var(--border-color);
-  border-radius: 8px;
+  border-radius: 12px;
   margin-bottom: 4px;
 }
 
 .toolbar-left {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
 .pulse-icon {
-  font-size: 18px;
+  font-size: 22px;
   color: var(--el-text-color-secondary);
   transition: color 0.3s;
 }
 
 .pulse-icon.is-active {
   color: var(--el-color-primary);
-  filter: drop-shadow(0 0 4px var(--el-color-primary-light-3));
+  filter: drop-shadow(0 0 6px var(--el-color-primary-light-3));
 }
 
 .toolbar-title {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
   letter-spacing: 0.5px;
 }
@@ -115,11 +119,11 @@ const { store, isActive, start, handleToggle } = useSystemPulse();
 .toolbar-right {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
 }
 
 .status-text {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--el-text-color-secondary);
 }
 
@@ -127,7 +131,7 @@ const { store, isActive, start, handleToggle } = useSystemPulse();
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
   min-height: 0;
 }
 
@@ -149,19 +153,37 @@ const { store, isActive, start, handleToggle } = useSystemPulse();
 
 .monitor-grid {
   display: grid;
-  grid-template-columns: 2fr 1fr 2fr 1fr;
-  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-auto-flow: dense; /* 开启紧凑填充，减少空隙 */
+  gap: 10px;
 }
 
-@media (max-width: 1200px) {
+/* 磁盘卡片通常比较长，尝试让它跨行以填补空间 */
+.grid-disk {
+  grid-row: span 2;
+}
+
+/* 宽屏（3列及以上）时的精细化控制 */
+@media (min-width: 1200px) {
   .monitor-grid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  /* 确保磁盘在右侧或跨行时不会导致左侧大面积空白 */
+  .grid-disk {
+    grid-column: 3;
+    grid-row: 1 / span 2;
   }
 }
 
-@media (max-width: 700px) {
+/* 特大屏幕（4列） */
+@media (min-width: 1600px) {
   .monitor-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(4, 1fr);
+  }
+  .grid-disk {
+    grid-column: 4;
+    grid-row: 1 / span 2;
   }
 }
 </style>

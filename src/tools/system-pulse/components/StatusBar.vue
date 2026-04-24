@@ -66,13 +66,13 @@ onUnmounted(() => {
 .status-bar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 8px 12px;
+  gap: 16px;
+  padding: 10px 16px;
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
   border: var(--border-width) solid var(--border-color);
-  border-radius: 8px;
-  font-size: 11px;
+  border-radius: 10px;
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
   flex-wrap: wrap;
 }
@@ -80,7 +80,7 @@ onUnmounted(() => {
 .status-item {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
 }
 
 .status-label {
@@ -101,7 +101,7 @@ onUnmounted(() => {
 
 .status-sep {
   width: 1px;
-  height: 14px;
+  height: 16px;
   background: var(--border-color);
 }
 

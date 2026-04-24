@@ -46,11 +46,13 @@ function diskColor(disk: DiskSnapshot): string {
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
   border: var(--border-width) solid var(--border-color);
-  border-radius: 8px;
-  padding: 12px;
+  border-radius: 12px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .card-header {
@@ -59,7 +61,7 @@ function diskColor(disk: DiskSnapshot): string {
 }
 
 .card-title {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--el-text-color-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -68,19 +70,19 @@ function diskColor(disk: DiskSnapshot): string {
 .disk-grid {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 
 .disk-item {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .disk-top {
   display: flex;
   justify-content: space-between;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--el-text-color-primary);
 }
 
@@ -94,6 +96,7 @@ function diskColor(disk: DiskSnapshot): string {
 
 .bar-track {
   height: 5px;
+  min-width: 40px;
   background: rgba(255, 255, 255, 0.08);
   border-radius: 3px;
   overflow: hidden;
@@ -107,9 +110,16 @@ function diskColor(disk: DiskSnapshot): string {
     background-color 0.3s;
 }
 
+.disk-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .disk-detail {
   font-size: 10px;
   color: var(--el-text-color-secondary);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 </style>

@@ -1,13 +1,7 @@
 <!-- src/tools/system-pulse/components/GpuMonitor.vue -->
 <template>
   <div v-if="gpus.length > 0" class="gpu-monitor">
-    <GpuCard
-      v-for="gpu in gpus"
-      :key="gpu.index"
-      :gpu="gpu"
-      :gpu-history="gpuHistoryArrays.get(gpu.index) ?? []"
-      :style="{ width: `calc(${100 / gpus.length}% - ${((gpus.length - 1) * 8) / gpus.length}px)` }"
-    />
+    <GpuCard v-for="gpu in gpus" :key="gpu.index" :gpu="gpu" :gpu-history="gpuHistoryArrays.get(gpu.index) ?? []" />
   </div>
   <div v-else class="gpu-empty pulse-card">
     <span class="empty-text">未检测到 GPU（或 NVML 不可用）</span>
@@ -26,7 +20,8 @@ defineProps<{
 
 <style scoped>
 .gpu-monitor {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 8px;
 }
 

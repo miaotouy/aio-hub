@@ -90,6 +90,10 @@ hnsw_rs = "0.3.3"
 blake3 = "1.8.3"
 local-ip-address = "0.6.10"
 unicode-segmentation = "1.13.2"
+# 系统脉搏：基础系统信息采集（锁定版本，0.30→0.33 有多次破坏性变更）
+sysinfo = "0.33"
+# 系统脉搏：NVIDIA GPU 监控（运行时动态链接 nvml.dll，无 NVIDIA 驱动时优雅降级）
+nvml-wrapper = "0.10"
 
 # OCR 依赖
 [target.'cfg(windows)'.dependencies]

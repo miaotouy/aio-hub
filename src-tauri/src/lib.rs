@@ -20,7 +20,6 @@ use tokio_util::sync::CancellationToken;
 
 // 导入命令模块
 use commands::{
-    open_url,
     add_asset_source,
     analyze_directory_for_cleanup,
     append_file_force,
@@ -32,13 +31,12 @@ use commands::{
     check_ffmpeg_availability,
     cleanup_items,
     clear_all_window_configs,
-    close_detached_window,
-    close_canvas_window,
     close_all_canvas_windows,
-    create_canvas_window,
-    get_canvas_windows,
+    close_canvas_window,
+    close_detached_window,
     copy_directory_in_app_data,
     copy_file_to_app_data,
+    create_canvas_window,
     create_dir_force,
     create_links_only,
     create_tool_window,
@@ -66,6 +64,7 @@ use commands::{
     get_asset_binary,
     get_asset_by_id,
     get_asset_stats,
+    get_canvas_windows,
     get_clipboard_content_type,
     get_file_metadata,
     get_file_mime_type,
@@ -106,6 +105,7 @@ use commands::{
     navigate_main_window_to_settings,
     open_file_directory,
     open_path_force,
+    open_url,
     path_exists,
     preflight_plugin_zip,
     process_files_with_regex,
@@ -127,19 +127,21 @@ use commands::{
     save_asset_thumbnail,
     save_uploaded_file,
     save_window_config,
-    set_window_shadow,
     scan_content_duplicates,
     search_llm_data,
     search_media_generator_data,
     set_window_position,
+    set_window_shadow,
     start_clipboard_monitor,
     start_llm_inspector,
     start_llm_proxy_server,
+    start_pulse,
     stop_clipboard_monitor,
     stop_dedup_scan,
     stop_directory_cleanup,
     stop_directory_scan,
     stop_llm_inspector,
+    stop_pulse,
     uninstall_plugin,
     update_asset_derived_data,
     update_detach_session_position,
@@ -297,20 +299,45 @@ pub fn run() {
         if settings_path.exists() {
             if let Ok(contents) = std::fs::read_to_string(&settings_path) {
                 if let Ok(json) = serde_json::from_str::<serde_json::Value>(&contents) {
-                    show = json.get("showTrayIcon").and_then(|v| v.as_bool()).unwrap_or(true);
-                    minimize = json.get("minimizeToTray").and_then(|v| v.as_bool()).unwrap_or(true);
-                    tz = json.get("timezone").and_then(|v| v.as_str()).unwrap_or("auto").to_string();
+                    show = json
+                        .get("showTrayIcon")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(true);
+                    minimize = json
+                        .get("minimizeToTray")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(true);
+                    tz = json
+                        .get("timezone")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("auto")
+                        .to_string();
 
                     // 读取外观设置
                     if let Some(appearance) = json.get("appearance") {
-                        enable_effects = appearance.get("enableWindowEffects").and_then(|v| v.as_bool()).unwrap_or(false);
-                        effect_type = appearance.get("windowEffect").and_then(|v| v.as_str()).unwrap_or("none").to_string();
-                        show_shadow = appearance.get("showWindowShadow").and_then(|v| v.as_bool()).unwrap_or(true);
+                        enable_effects = appearance
+                            .get("enableWindowEffects")
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(false);
+                        effect_type = appearance
+                            .get("windowEffect")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("none")
+                            .to_string();
+                        show_shadow = appearance
+                            .get("showWindowShadow")
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(true);
                     }
                 }
             }
         }
-        (show, minimize, tz, (enable_effects, effect_type, show_shadow))
+        (
+            show,
+            minimize,
+            tz,
+            (enable_effects, effect_type, show_shadow),
+        )
     };
     // 解析时区并计算偏移量
     let (timezone_strategy, now_formatted, date_filename) = {
@@ -407,6 +434,7 @@ pub fn run() {
         .manage(AssetCatalog::new())
         .manage(Arc::new(CancellationToken::new()))
         .manage(knowledge::KnowledgeState::new())
+        .manage(commands::system_pulse::PulseState::default())
         // 注册命令处理器
         .invoke_handler(tauri::generate_handler![
             greet,
@@ -614,6 +642,9 @@ pub fn run() {
             web_distillery::distillery_start_proxy,
             web_distillery::distillery_stop_proxy,
             web_distillery::distillery_get_proxy_port,
+            // 系统脉搏命令
+            start_pulse,
+            stop_pulse,
         ])
         // 设置应用
         .setup(move |app| {

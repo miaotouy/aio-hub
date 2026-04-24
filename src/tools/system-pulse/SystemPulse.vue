@@ -9,7 +9,13 @@
       </div>
       <div class="toolbar-right">
         <span class="status-text">{{ isActive ? "正在监控" : "监控已暂停" }}</span>
-        <el-switch v-model="isActive" @change="handleToggle" inline-prompt active-text="开启" inactive-text="暂停" />
+        <el-switch
+          :model-value="isActive"
+          @change="handleToggle"
+          inline-prompt
+          active-text="开启"
+          inactive-text="暂停"
+        />
       </div>
     </div>
 

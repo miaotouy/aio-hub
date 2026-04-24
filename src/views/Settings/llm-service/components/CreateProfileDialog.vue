@@ -84,7 +84,10 @@ const getCategoryLabel = (category: ProviderType | "all") => {
     <template #content>
       <div class="preset-options">
         <div class="preset-section">
-          <h4>从预设模板创建</h4>
+          <div class="section-header">
+            <h4>从预设模板创建</h4>
+            <el-button size="small" type="primary" @click="createFromBlank"> 从空白创建 </el-button>
+          </div>
           <p class="preset-section-desc">选择常用服务商快速创建配置</p>
 
           <!-- 分类标签 -->
@@ -124,13 +127,6 @@ const getCategoryLabel = (category: ProviderType | "all") => {
             </div>
           </div>
         </div>
-
-        <el-divider />
-
-        <div class="preset-section">
-          <h4>自定义配置</h4>
-          <el-button style="width: 100%" @click="createFromBlank"> 从空白创建 </el-button>
-        </div>
       </div>
     </template>
   </BaseDialog>
@@ -156,8 +152,15 @@ const getCategoryLabel = (category: ProviderType | "all") => {
   min-height: 0;
 }
 
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
 .preset-section h4 {
-  margin: 0 0 8px 0;
+  margin: 0;
   font-size: 14px;
   font-weight: 600;
   color: var(--text-color);
@@ -180,10 +183,10 @@ const getCategoryLabel = (category: ProviderType | "all") => {
 
 .category-tab {
   padding: 0.5rem 1rem;
-  background: var(--card-bg);
+  background: rgba(var(--primary-color-rgb), calc(var(--card-opacity) * 0.05));
   color: var(--text-color);
   border: var(--border-width) solid var(--border-color);
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
   font-size: 0.85rem;
   transition: all 0.2s;
@@ -191,13 +194,14 @@ const getCategoryLabel = (category: ProviderType | "all") => {
 
 .category-tab:hover {
   border-color: var(--primary-color);
-  background: var(--input-bg);
+  background: rgba(var(--primary-color-rgb), calc(var(--card-opacity) * 0.1));
 }
 
 .category-tab.active {
-  background: var(--primary-color);
-  color: white;
+  background: rgba(var(--primary-color-rgb), calc(var(--card-opacity) * 0.15));
+  color: var(--primary-color);
   border-color: var(--primary-color);
+  font-weight: 500;
 }
 
 /* 可滚动区域 */

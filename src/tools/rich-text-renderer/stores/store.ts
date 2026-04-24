@@ -1,9 +1,12 @@
 /**
  * 富文本渲染器测试工具的状态管理
+ *
+ * 使用单一 reactive 状态对象 + toRefs 导出，消除属性重复定义。
+ * 每个属性只在 createDefaultState() 中定义一次。
  */
 
 import { defineStore } from "pinia";
-import { ref, reactive, watch } from "vue";
+import { ref, reactive, watch, toRefs, toRaw } from "vue";
 import type {
   TesterConfig,
   RendererVersionMeta,
@@ -17,6 +20,7 @@ import { RendererVersion } from "../types";
 import { createConfigManager } from "@/utils/configManager";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { cloneDeep } from "lodash-es";
 
 const logger = createModuleLogger("rich-text-renderer/store");
 const errorHandler = createModuleErrorHandler("rich-text-renderer/store");
@@ -75,17 +79,18 @@ export const defaultLlmThinkRules: LlmThinkRule[] = [
   },
 ];
 
-// 创建配置管理器
-const configManager = createConfigManager<TesterConfig>({
-  moduleName: "rich-text-renderer",
-  fileName: "tester-config.json",
-  version: "1.0.0",
-  debounceDelay: 1000,
-  createDefault: () => ({
-    version: "1.0.0",
+// ===== 唯一的默认值定义源 =====
+
+/**
+ * 创建默认的 store 状态（不含 version 字段）
+ * 这是所有属性默认值的 **唯一定义源**，
+ * loadConfig / saveConfig / resetConfig / watch 全部基于此推导。
+ */
+function createDefaultState() {
+  return {
     isInputCollapsed: false,
     isConfigCollapsed: false,
-    layoutMode: "split",
+    layoutMode: "split" as "split" | "input-only" | "preview-only",
     selectedPreset: "",
     streamEnabled: true,
     syncInputProgress: false,
@@ -108,7 +113,7 @@ const configManager = createConfigManager<TesterConfig>({
     verboseLogging: false,
     autoScroll: true,
     visualizeBlockStatus: false,
-    rendererVersion: RendererVersion.V1_MARKDOWN_IT,
+    rendererVersion: RendererVersion.V1_MARKDOWN_IT as RendererVersion,
     defaultRenderHtml: false,
     defaultCodeBlockExpanded: false,
     defaultToolCallCollapsed: false,
@@ -118,12 +123,12 @@ const configManager = createConfigManager<TesterConfig>({
     enableEnterAnimation: true,
     simulateMeta: false,
     selectedTokenizer: "gpt4o",
-    profileType: "agent",
+    profileType: "agent" as "agent" | "user",
     selectedProfileId: "",
-    codeEditorEngine: "codemirror",
-    llmThinkRules: defaultLlmThinkRules,
-    richTextStyleOptions: {},
-    regexConfig: createDefaultChatRegexConfig(),
+    codeEditorEngine: "codemirror" as "monaco" | "codemirror",
+    llmThinkRules: [...defaultLlmThinkRules] as LlmThinkRule[],
+    richTextStyleOptions: {} as RichTextRendererStyleOptions,
+    regexConfig: createDefaultChatRegexConfig() as ChatRegexConfig,
     copyOptions: {
       includeConfig: true,
       includeOriginal: true,
@@ -133,66 +138,85 @@ const configManager = createConfigManager<TesterConfig>({
       includeComparison: true,
       includeStyleConfig: true,
       includeBlockInfo: false,
-    },
-  }),
+    } as CopyOptions,
+  };
+}
+
+/** Store 状态类型（由 createDefaultState 推导） */
+type StoreState = ReturnType<typeof createDefaultState>;
+
+/**
+ * 创建完整的 TesterConfig（含 version）
+ * 用于 configManager 的 createDefault
+ */
+function createDefaultConfig(): TesterConfig {
+  return {
+    version: "1.0.0",
+    ...createDefaultState(),
+  };
+}
+
+// 创建配置管理器
+const configManager = createConfigManager<TesterConfig>({
+  moduleName: "rich-text-renderer",
+  fileName: "tester-config.json",
+  version: "1.0.0",
+  debounceDelay: 1000,
+  createDefault: createDefaultConfig,
 });
 
 export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
-  // ===== 状态 =====
-  const isInputCollapsed = ref(false);
-  const isConfigCollapsed = ref(false);
-  const layoutMode = ref<"split" | "input-only" | "preview-only">("split");
-  const selectedPreset = ref("");
-  const inputContent = ref("");
-  const smoothingEnabled = ref(true);
-  const throttleEnabled = ref(true);
-  const verboseLogging = ref(false);
-  const streamEnabled = ref(true);
-  const syncInputProgress = ref(false);
-  const streamSpeed = ref(100);
-  const initialDelay = ref(500);
-  const throttleMs = ref(80);
-  const safetyGuardEnabled = ref(true);
-  const fluctuationEnabled = ref(false);
-  const delayFluctuation = reactive({
-    min: 50,
-    max: 200,
-  });
-  const charsFluctuation = reactive({
-    min: 1,
-    max: 10,
-  });
-  const autoScroll = ref(true);
-  const visualizeBlockStatus = ref(false);
-  const rendererVersion = ref<RendererVersion>(RendererVersion.V1_MARKDOWN_IT);
-  const defaultRenderHtml = ref(false);
-  const defaultCodeBlockExpanded = ref(false);
-  const defaultToolCallCollapsed = ref(false);
-  const allowDangerousHtml = ref(false);
-  const seamlessMode = ref(false);
-  const enableCdnLocalizer = ref(true);
-  const enableEnterAnimation = ref(true);
-  const simulateMeta = ref(false);
-  const selectedTokenizer = ref("gpt4o");
-  const profileType = ref<"agent" | "user">("agent");
-  const selectedProfileId = ref("");
-  const codeEditorEngine = ref<"monaco" | "codemirror">("codemirror");
-  const llmThinkRules = ref<LlmThinkRule[]>([...defaultLlmThinkRules]);
-  const richTextStyleOptions = ref<RichTextRendererStyleOptions>({});
-  const regexConfig = ref<ChatRegexConfig>(createDefaultChatRegexConfig());
-  const copyOptions = reactive<CopyOptions>({
-    includeConfig: true,
-    includeOriginal: true,
-    includeHtml: true,
-    includeNormalizedOriginal: true,
-    includeNormalizedRendered: true,
-    includeComparison: true,
-    includeStyleConfig: true,
-    includeBlockInfo: false,
-  });
+  // ===== 单一状态对象 =====
+  const state = reactive(createDefaultState());
 
   // 是否已加载配置
   const isConfigLoaded = ref(false);
+
+  // ===== 内部工具函数 =====
+
+  /**
+   * 将加载的配置应用到 state，缺失字段用默认值回退
+   */
+  function applyConfig(config: TesterConfig): void {
+    const defaults = createDefaultState();
+
+    // 逐键合并，optional 字段用 ?? 回退到默认值
+    for (const key of Object.keys(defaults) as (keyof StoreState)[]) {
+      const configValue = (config as unknown as Record<string, unknown>)[key];
+      const defaultValue = defaults[key];
+
+      if (key === "delayFluctuation" || key === "charsFluctuation" || key === "copyOptions") {
+        // 嵌套对象: 逐属性合并
+        const target = state[key] as Record<string, unknown>;
+        const source = (configValue ?? defaultValue) as Record<string, unknown>;
+        const fallback = defaultValue as Record<string, unknown>;
+        for (const subKey of Object.keys(fallback)) {
+          target[subKey] = source[subKey] ?? fallback[subKey];
+        }
+      } else {
+        // 简单值: 直接赋值
+        (state as Record<string, unknown>)[key] = configValue ?? defaultValue;
+      }
+    }
+
+    // 特殊校验: charsFluctuation 范围限制（token模式：1-20）
+    state.charsFluctuation.min = Math.max(1, Math.min(state.charsFluctuation.min, 20));
+    state.charsFluctuation.max = Math.max(1, Math.min(state.charsFluctuation.max, 20));
+    if (state.charsFluctuation.min > state.charsFluctuation.max) {
+      state.charsFluctuation.min = 1;
+      state.charsFluctuation.max = 10;
+    }
+  }
+
+  /**
+   * 将当前 state 序列化为 TesterConfig 快照
+   */
+  function toSnapshot(): TesterConfig {
+    return {
+      version: "1.0.0",
+      ...cloneDeep(toRaw(state)),
+    };
+  }
 
   // ===== 操作 =====
 
@@ -201,7 +225,6 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
    * @param force 是否强制重新加载
    */
   async function loadConfig(force = false): Promise<void> {
-    // 如果已经加载过且不是强制加载，直接返回
     if (isConfigLoaded.value && !force) {
       return;
     }
@@ -209,70 +232,12 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
     try {
       logger.info("开始加载配置");
       const config = await configManager.load();
-
-      // 应用配置到状态
-      isInputCollapsed.value = config.isInputCollapsed;
-      isConfigCollapsed.value = config.isConfigCollapsed ?? false;
-      layoutMode.value = config.layoutMode ?? "split";
-      selectedPreset.value = config.selectedPreset;
-      inputContent.value = config.inputContent;
-      smoothingEnabled.value = config.smoothingEnabled ?? true;
-      throttleEnabled.value = config.throttleEnabled ?? true;
-      verboseLogging.value = config.verboseLogging ?? false;
-      streamEnabled.value = config.streamEnabled;
-      syncInputProgress.value = config.syncInputProgress ?? false;
-      streamSpeed.value = config.streamSpeed;
-      initialDelay.value = config.initialDelay;
-      throttleMs.value = config.throttleMs ?? 80;
-      safetyGuardEnabled.value = config.safetyGuardEnabled ?? true;
-      fluctuationEnabled.value = config.fluctuationEnabled;
-      delayFluctuation.min = config.delayFluctuation.min;
-      delayFluctuation.max = config.delayFluctuation.max;
-
-      // 修正 charsFluctuation 的值，确保在有效范围内（token模式：1-20）
-      charsFluctuation.min = Math.max(1, Math.min(config.charsFluctuation.min, 20));
-      charsFluctuation.max = Math.max(1, Math.min(config.charsFluctuation.max, 20));
-
-      // 确保 min <= max
-      if (charsFluctuation.min > charsFluctuation.max) {
-        charsFluctuation.min = 1;
-        charsFluctuation.max = 10;
-      }
-
-      autoScroll.value = config.autoScroll;
-      visualizeBlockStatus.value = config.visualizeBlockStatus;
-      rendererVersion.value = config.rendererVersion;
-      defaultRenderHtml.value = config.defaultRenderHtml ?? false;
-      defaultCodeBlockExpanded.value = config.defaultCodeBlockExpanded ?? false;
-      defaultToolCallCollapsed.value = config.defaultToolCallCollapsed ?? false;
-      allowDangerousHtml.value = config.allowDangerousHtml ?? false;
-      seamlessMode.value = config.seamlessMode ?? false;
-      enableCdnLocalizer.value = config.enableCdnLocalizer ?? true;
-      enableEnterAnimation.value = config.enableEnterAnimation ?? true;
-      simulateMeta.value = config.simulateMeta ?? false;
-      selectedTokenizer.value = config.selectedTokenizer ?? "gpt4o";
-      profileType.value = config.profileType ?? "agent";
-      selectedProfileId.value = config.selectedProfileId ?? "";
-      codeEditorEngine.value = config.codeEditorEngine ?? "monaco";
-      llmThinkRules.value = config.llmThinkRules || [...defaultLlmThinkRules];
-      richTextStyleOptions.value = config.richTextStyleOptions || {};
-      regexConfig.value = config.regexConfig || createDefaultChatRegexConfig();
-      if (config.copyOptions) {
-        copyOptions.includeConfig = config.copyOptions.includeConfig;
-        copyOptions.includeOriginal = config.copyOptions.includeOriginal;
-        copyOptions.includeHtml = config.copyOptions.includeHtml;
-        copyOptions.includeNormalizedOriginal = config.copyOptions.includeNormalizedOriginal;
-        copyOptions.includeNormalizedRendered = config.copyOptions.includeNormalizedRendered;
-        copyOptions.includeComparison = config.copyOptions.includeComparison;
-        copyOptions.includeStyleConfig = config.copyOptions.includeStyleConfig ?? true; // 默认为 true
-        copyOptions.includeBlockInfo = config.copyOptions.includeBlockInfo ?? false;
-      }
-
+      applyConfig(config);
       isConfigLoaded.value = true;
       logger.info("配置加载成功");
     } catch (error) {
       errorHandler.handle(error, { userMessage: "加载配置失败", showToUser: false });
-      // 加载失败时使用默认值（已在 ref 初始化时设置）
+      // 加载失败时使用默认值（已在 reactive 初始化时设置）
       isConfigLoaded.value = true;
     }
   }
@@ -282,53 +247,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
    */
   async function saveConfig(): Promise<void> {
     try {
-      const config: TesterConfig = {
-        version: "1.0.0",
-        isInputCollapsed: isInputCollapsed.value,
-        isConfigCollapsed: isConfigCollapsed.value,
-        layoutMode: layoutMode.value,
-        selectedPreset: selectedPreset.value,
-        inputContent: inputContent.value,
-        smoothingEnabled: smoothingEnabled.value,
-        throttleEnabled: throttleEnabled.value,
-        verboseLogging: verboseLogging.value,
-        streamEnabled: streamEnabled.value,
-        syncInputProgress: syncInputProgress.value,
-        streamSpeed: streamSpeed.value,
-        initialDelay: initialDelay.value,
-        throttleMs: throttleMs.value,
-        safetyGuardEnabled: safetyGuardEnabled.value,
-        fluctuationEnabled: fluctuationEnabled.value,
-        delayFluctuation: {
-          min: delayFluctuation.min,
-          max: delayFluctuation.max,
-        },
-        charsFluctuation: {
-          min: charsFluctuation.min,
-          max: charsFluctuation.max,
-        },
-        autoScroll: autoScroll.value,
-        visualizeBlockStatus: visualizeBlockStatus.value,
-        rendererVersion: rendererVersion.value,
-        defaultRenderHtml: defaultRenderHtml.value,
-        defaultCodeBlockExpanded: defaultCodeBlockExpanded.value,
-        defaultToolCallCollapsed: defaultToolCallCollapsed.value,
-        allowDangerousHtml: allowDangerousHtml.value,
-        seamlessMode: seamlessMode.value,
-        enableCdnLocalizer: enableCdnLocalizer.value,
-        enableEnterAnimation: enableEnterAnimation.value,
-        simulateMeta: simulateMeta.value,
-        selectedTokenizer: selectedTokenizer.value,
-        profileType: profileType.value,
-        selectedProfileId: selectedProfileId.value,
-        codeEditorEngine: codeEditorEngine.value,
-        llmThinkRules: llmThinkRules.value,
-        richTextStyleOptions: richTextStyleOptions.value,
-        regexConfig: regexConfig.value,
-        copyOptions: { ...copyOptions },
-      };
-
-      await configManager.save(config);
+      await configManager.save(toSnapshot());
       logger.debug("配置保存成功");
     } catch (error) {
       errorHandler.handle(error, { userMessage: "保存配置失败", showToUser: false });
@@ -336,113 +255,31 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
   }
 
   /**
-   * 创建防抖保存函数
-   */
-  const debouncedSave = configManager.saveDebounced;
-
-  /**
    * 自动保存配置（防抖）
    */
   function autoSaveConfig(): void {
     if (!isConfigLoaded.value) return;
-
-    const config: TesterConfig = {
-      version: "1.0.0",
-      isInputCollapsed: isInputCollapsed.value,
-      isConfigCollapsed: isConfigCollapsed.value,
-      layoutMode: layoutMode.value,
-      selectedPreset: selectedPreset.value,
-      inputContent: inputContent.value,
-      smoothingEnabled: smoothingEnabled.value,
-      throttleEnabled: throttleEnabled.value,
-      verboseLogging: verboseLogging.value,
-      streamEnabled: streamEnabled.value,
-      syncInputProgress: syncInputProgress.value,
-      streamSpeed: streamSpeed.value,
-      initialDelay: initialDelay.value,
-      throttleMs: throttleMs.value,
-      safetyGuardEnabled: safetyGuardEnabled.value,
-      fluctuationEnabled: fluctuationEnabled.value,
-      delayFluctuation: {
-        min: delayFluctuation.min,
-        max: delayFluctuation.max,
-      },
-      charsFluctuation: {
-        min: charsFluctuation.min,
-        max: charsFluctuation.max,
-      },
-      autoScroll: autoScroll.value,
-      visualizeBlockStatus: visualizeBlockStatus.value,
-      rendererVersion: rendererVersion.value,
-      defaultRenderHtml: defaultRenderHtml.value,
-      defaultCodeBlockExpanded: defaultCodeBlockExpanded.value,
-      defaultToolCallCollapsed: defaultToolCallCollapsed.value,
-      allowDangerousHtml: allowDangerousHtml.value,
-      seamlessMode: seamlessMode.value,
-      enableCdnLocalizer: enableCdnLocalizer.value,
-      enableEnterAnimation: enableEnterAnimation.value,
-      simulateMeta: simulateMeta.value,
-      selectedTokenizer: selectedTokenizer.value,
-      profileType: profileType.value,
-      selectedProfileId: selectedProfileId.value,
-      codeEditorEngine: codeEditorEngine.value,
-      llmThinkRules: llmThinkRules.value,
-      richTextStyleOptions: richTextStyleOptions.value,
-      regexConfig: regexConfig.value,
-      copyOptions: { ...copyOptions },
-    };
-
-    debouncedSave(config);
+    configManager.saveDebounced(toSnapshot());
   }
 
   /**
    * 重置为默认配置
    */
   function resetConfig(): void {
-    isInputCollapsed.value = false;
-    isConfigCollapsed.value = false;
-    layoutMode.value = "split";
-    selectedPreset.value = "";
-    inputContent.value = "";
-    smoothingEnabled.value = true;
-    throttleEnabled.value = true;
-    verboseLogging.value = false;
-    streamEnabled.value = true;
-    syncInputProgress.value = false;
-    streamSpeed.value = 100;
-    initialDelay.value = 500;
-    throttleMs.value = 80;
-    safetyGuardEnabled.value = true;
-    fluctuationEnabled.value = false;
-    delayFluctuation.min = 50;
-    delayFluctuation.max = 200;
-    charsFluctuation.min = 1;
-    charsFluctuation.max = 10;
-    autoScroll.value = true;
-    visualizeBlockStatus.value = false;
-    rendererVersion.value = RendererVersion.V1_MARKDOWN_IT;
-    defaultRenderHtml.value = false;
-    defaultCodeBlockExpanded.value = false;
-    seamlessMode.value = false;
-    enableCdnLocalizer.value = true;
-    enableEnterAnimation.value = true;
-    simulateMeta.value = false;
-    selectedTokenizer.value = "gpt4o";
-    profileType.value = "agent";
-    selectedProfileId.value = "";
-    codeEditorEngine.value = "codemirror";
-    llmThinkRules.value = [...defaultLlmThinkRules];
-    richTextStyleOptions.value = {};
-    regexConfig.value = createDefaultChatRegexConfig();
-    copyOptions.includeConfig = true;
-    copyOptions.includeOriginal = true;
-    copyOptions.includeHtml = true;
-    copyOptions.includeNormalizedOriginal = true;
-    copyOptions.includeNormalizedRendered = true;
-    copyOptions.includeComparison = true;
-    copyOptions.includeStyleConfig = true;
-    copyOptions.includeBlockInfo = true;
-
+    const defaults = createDefaultState();
+    // 简单值直接赋值
+    for (const key of Object.keys(defaults) as (keyof StoreState)[]) {
+      if (key === "delayFluctuation" || key === "charsFluctuation" || key === "copyOptions") {
+        // 嵌套对象: 逐属性赋值保持 reactive 引用
+        const target = state[key] as Record<string, unknown>;
+        const source = defaults[key] as Record<string, unknown>;
+        for (const subKey of Object.keys(source)) {
+          target[subKey] = source[subKey];
+        }
+      } else {
+        (state as Record<string, unknown>)[key] = (defaults as Record<string, unknown>)[key];
+      }
+    }
     saveConfig();
   }
 
@@ -450,16 +287,16 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
    * 添加新的思考规则
    */
   function addLlmThinkRule(rule: LlmThinkRule): void {
-    llmThinkRules.value.push(rule);
+    state.llmThinkRules.push(rule);
   }
 
   /**
    * 更新思考规则
    */
   function updateLlmThinkRule(ruleId: string, updates: Partial<LlmThinkRule>): void {
-    const index = llmThinkRules.value.findIndex((r) => r.id === ruleId);
+    const index = state.llmThinkRules.findIndex((r) => r.id === ruleId);
     if (index !== -1) {
-      llmThinkRules.value[index] = { ...llmThinkRules.value[index], ...updates };
+      state.llmThinkRules[index] = { ...state.llmThinkRules[index], ...updates };
     }
   }
 
@@ -467,14 +304,14 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
    * 删除思考规则
    */
   function removeLlmThinkRule(ruleId: string): void {
-    llmThinkRules.value = llmThinkRules.value.filter((r) => r.id !== ruleId);
+    state.llmThinkRules = state.llmThinkRules.filter((r) => r.id !== ruleId);
   }
 
   /**
    * 重置思考规则为默认值
    */
   function resetLlmThinkRules(): void {
-    llmThinkRules.value = [...defaultLlmThinkRules];
+    state.llmThinkRules = [...defaultLlmThinkRules];
   }
 
   /**
@@ -482,109 +319,29 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
    * 仅包含已启用预设中的已启用规则，且按顺序排列
    */
   function getActiveRegexRules(): ChatRegexRule[] {
-    if (!regexConfig.value?.presets) return [];
+    if (!state.regexConfig?.presets) return [];
 
-    return regexConfig.value.presets
+    return state.regexConfig.presets
       .filter((preset) => preset.enabled)
       .flatMap((preset) => preset.rules)
       .filter((rule) => rule.enabled);
   }
 
   // ===== 监听状态变化自动保存 =====
-
-  // 在配置加载完成后，监听所有状态变化并自动保存
+  // 只需 deep watch 一个对象，而非逐个列出
   watch(
-    [
-      isInputCollapsed,
-      isConfigCollapsed,
-      layoutMode,
-      selectedPreset,
-      inputContent,
-      smoothingEnabled,
-      throttleEnabled,
-      verboseLogging,
-      streamEnabled,
-      syncInputProgress,
-      streamSpeed,
-      initialDelay,
-      throttleMs,
-      safetyGuardEnabled,
-      fluctuationEnabled,
-      () => delayFluctuation.min,
-      () => delayFluctuation.max,
-      () => charsFluctuation.min,
-      () => charsFluctuation.max,
-      autoScroll,
-      visualizeBlockStatus,
-      rendererVersion,
-      defaultRenderHtml,
-      defaultCodeBlockExpanded,
-      defaultToolCallCollapsed,
-      allowDangerousHtml,
-      seamlessMode,
-      enableCdnLocalizer,
-      enableEnterAnimation,
-      simulateMeta,
-      selectedTokenizer,
-      profileType,
-      selectedProfileId,
-      codeEditorEngine,
-      llmThinkRules,
-      richTextStyleOptions,
-      regexConfig,
-      () => copyOptions.includeConfig,
-      () => copyOptions.includeOriginal,
-      () => copyOptions.includeHtml,
-      () => copyOptions.includeNormalizedOriginal,
-      () => copyOptions.includeNormalizedRendered,
-      () => copyOptions.includeComparison,
-      () => copyOptions.includeStyleConfig,
-      () => copyOptions.includeBlockInfo,
-    ],
+    () => state,
     () => {
       autoSaveConfig();
     },
     { deep: true },
   );
 
+  // ===== 导出 =====
+  // 使用 toRefs 保持对外 API 完全兼容（store.xxx 的访问方式不变）
   return {
-    // 状态
-    isInputCollapsed,
-    isConfigCollapsed,
-    layoutMode,
-    selectedPreset,
-    inputContent,
-    smoothingEnabled,
-    throttleEnabled,
-    verboseLogging,
-    streamEnabled,
-    syncInputProgress,
-    streamSpeed,
-    initialDelay,
-    throttleMs,
-    safetyGuardEnabled,
-    fluctuationEnabled,
-    delayFluctuation,
-    charsFluctuation,
-    autoScroll,
-    visualizeBlockStatus,
-    rendererVersion,
-    defaultRenderHtml,
-    defaultCodeBlockExpanded,
-    defaultToolCallCollapsed,
-    allowDangerousHtml,
-    seamlessMode,
-    enableCdnLocalizer,
-    enableEnterAnimation,
-    simulateMeta,
-    selectedTokenizer,
-    profileType,
-    selectedProfileId,
-    codeEditorEngine,
-    llmThinkRules,
-    richTextStyleOptions,
-    regexConfig,
-    copyOptions,
+    // 状态（toRefs 解构，保持响应式）
+    ...toRefs(state),
     isConfigLoaded,
 
     // 操作

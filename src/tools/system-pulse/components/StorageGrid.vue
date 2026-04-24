@@ -5,16 +5,34 @@
       <span class="card-title">磁盘</span>
     </div>
     <div class="disk-grid">
-      <div v-for="disk in disks" :key="disk.name" class="disk-item">
-        <div class="disk-top">
-          <span class="disk-name">{{ disk.name }}</span>
-          <span class="disk-usage">{{ diskPercent(disk).toFixed(0) }}%</span>
+      <div v-for="disk in disks" :key="disk.mountPoint" class="disk-item">
+        <div class="disk-info-row">
+          <div class="disk-main-info">
+            <span class="disk-name" :title="disk.mountPoint">{{ disk.name || disk.mountPoint }}</span>
+            <span class="disk-detail">{{ formatBytes(disk.usedBytes) }} / {{ formatBytes(disk.totalBytes) }}</span>
+          </div>
+          <span class="disk-usage-pct">{{ diskPercent(disk).toFixed(0) }}%</span>
         </div>
+
         <div class="bar-track">
           <div class="bar-fill" :style="{ width: diskPercent(disk) + '%', backgroundColor: diskColor(disk) }" />
         </div>
-        <div class="disk-detail">
-          <span>{{ formatBytes(disk.usedBytes) }} / {{ formatBytes(disk.totalBytes) }}</span>
+
+        <!-- 读写速率与趋势图 -->
+        <div class="disk-io-row">
+          <div class="io-stats">
+            <div class="io-item read">
+              <span class="io-label">读</span>
+              <span class="io-value">{{ formatBytesPerSec(disk.readBytesPerSec) }}</span>
+            </div>
+            <div class="io-item write">
+              <span class="io-label">写</span>
+              <span class="io-value">{{ formatBytesPerSec(disk.writeBytesPerSec) }}</span>
+            </div>
+          </div>
+          <div class="io-chart">
+            <SparklineChart :data="getDiskHistory(disk.mountPoint)" :height="32" area />
+          </div>
         </div>
       </div>
     </div>
@@ -22,12 +40,32 @@
 </template>
 
 <script setup lang="ts">
-import { formatBytes } from "../utils/formatters";
+import { formatBytes, formatBytesPerSec } from "../utils/formatters";
 import type { DiskSnapshot } from "../types/snapshot";
+import { useSystemPulseStore } from "../store/useSystemPulseStore";
+import SparklineChart from "./SparklineChart.vue";
 
 defineProps<{
   disks: DiskSnapshot[];
 }>();
+
+const store = useSystemPulseStore();
+
+function getDiskHistory(mountPoint: string) {
+  const history = store.diskHistoryArrays.get(mountPoint) || [];
+  return [
+    {
+      name: "读取",
+      data: history.map((h: any) => h.read),
+      color: "#4ade80",
+    },
+    {
+      name: "写入",
+      data: history.map((h: any) => h.write),
+      color: "#fb923c",
+    },
+  ];
+}
 
 function diskPercent(disk: DiskSnapshot): number {
   return disk.totalBytes > 0 ? (disk.usedBytes / disk.totalBytes) * 100 : 0;
@@ -70,47 +108,41 @@ function diskColor(disk: DiskSnapshot): string {
 .disk-grid {
   display: flex;
   flex-direction: column;
-  gap: calc(var(--pulse-card-padding) * 0.75);
+  gap: 16px;
 }
 
 .disk-item {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.disk-top {
+.disk-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.disk-info-row {
   display: flex;
   justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.disk-main-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.disk-name {
   font-size: calc(var(--pulse-font-size-base) * 1);
+  font-weight: 600;
   color: var(--el-text-color-primary);
-}
-
-.disk-name {
-  font-weight: 500;
-}
-
-.disk-usage {
-  font-variant-numeric: tabular-nums;
-}
-
-.bar-track {
-  height: 5px;
-  min-width: 40px;
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 3px;
-  overflow: hidden;
-}
-
-.bar-fill {
-  height: 100%;
-  border-radius: 3px;
-  transition:
-    width 0.5s ease,
-    background-color 0.3s;
-}
-
-.disk-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -120,6 +152,81 @@ function diskColor(disk: DiskSnapshot): string {
   font-size: calc(var(--pulse-font-size-base) * 0.75);
   color: var(--el-text-color-secondary);
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+}
+
+.disk-usage-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  width: 100px;
+}
+
+.disk-usage-pct {
+  font-size: calc(var(--pulse-font-size-base) * 0.85);
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.bar-track {
+  height: 4px;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition:
+    width 0.5s ease,
+    background-color 0.3s;
+}
+
+.disk-io-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.io-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 85px;
+}
+
+.io-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: calc(var(--pulse-font-size-base) * 0.75);
+}
+
+.io-label {
+  color: var(--el-text-color-secondary);
+  width: 12px;
+}
+
+.io-value {
+  color: var(--el-text-color-primary);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.io-item.read .io-label {
+  color: #4ade80;
+}
+.io-item.write .io-label {
+  color: #fb923c;
+}
+
+.io-chart {
+  flex: 1;
+  height: 32px;
+  min-width: 0;
+  opacity: 0.8;
 }
 </style>

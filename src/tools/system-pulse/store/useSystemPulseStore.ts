@@ -50,6 +50,9 @@ export const useSystemPulseStore = defineStore("systemPulse", () => {
   // 网络总速率历史（取所有接口之和）
   const networkHistory = new RingBuffer<{ up: number; down: number }>(HISTORY_SIZE, { up: 0, down: 0 });
 
+  // 磁盘 I/O 历史（按 mountPoint 存储）
+  const diskHistory = reactive<Map<string, RingBuffer<{ read: number; write: number }>>>(new Map());
+
   // GPU 历史（按 index 存储）
   const gpuHistory = reactive<Map<number, RingBuffer<{ usage: number; temp: number }>>>(new Map());
 
@@ -60,6 +63,7 @@ export const useSystemPulseStore = defineStore("systemPulse", () => {
   const cpuHistoryArray = ref<number[]>(cpuHistory.toArray());
   const memHistoryArray = ref<number[]>(memHistory.toArray());
   const networkHistoryArray = ref<{ up: number; down: number }[]>(networkHistory.toArray());
+  const diskHistoryArrays = reactive<Map<string, { read: number; write: number }[]>>(new Map());
   const gpuHistoryArrays = reactive<Map<number, { usage: number; temp: number }[]>>(new Map());
   const fullHistoryArray = ref<SystemSnapshot[]>([]);
 
@@ -85,6 +89,21 @@ export const useSystemPulseStore = defineStore("systemPulse", () => {
     const totalDown = snapshot.networks.reduce((s, n) => s + n.downloadBytesPerSec, 0);
     networkHistory.push({ up: totalUp, down: totalDown });
     networkHistoryArray.value = networkHistory.toArray();
+
+    // 更新磁盘历史
+    snapshot.disks.forEach((disk) => {
+      if (!diskHistory.has(disk.mountPoint)) {
+        const buf = new RingBuffer<{ read: number; write: number }>(HISTORY_SIZE, { read: 0, write: 0 });
+        diskHistory.set(disk.mountPoint, buf);
+        diskHistoryArrays.set(disk.mountPoint, buf.toArray());
+      }
+      const buf = diskHistory.get(disk.mountPoint)!;
+      buf.push({
+        read: disk.readBytesPerSec,
+        write: disk.writeBytesPerSec,
+      });
+      diskHistoryArrays.set(disk.mountPoint, buf.toArray());
+    });
 
     // 更新 GPU 历史
     snapshot.gpus.forEach((gpu: GpuSnapshot) => {
@@ -113,6 +132,7 @@ export const useSystemPulseStore = defineStore("systemPulse", () => {
     cpuHistoryArray,
     memHistoryArray,
     networkHistoryArray,
+    diskHistoryArrays,
     gpuHistoryArrays,
     fullHistoryArray,
     applySnapshot,

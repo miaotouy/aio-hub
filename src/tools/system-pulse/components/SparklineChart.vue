@@ -13,9 +13,15 @@ import { CanvasRenderer } from "echarts/renderers";
 
 echarts.use([LineChart, GridComponent, TooltipComponent, CanvasRenderer]);
 
-interface Props {
+interface Dataset {
+  name?: string;
   data: number[];
   color?: string;
+}
+
+interface Props {
+  data: number[] | Dataset[];
+  color?: string | string[];
   height?: number | string;
   unit?: string;
   maxValue?: number;
@@ -37,6 +43,21 @@ const containerStyle = computed(() => {
 const container = ref<HTMLElement | null>(null);
 let chart: echarts.ECharts | null = null;
 
+const datasets = computed<Dataset[]>(() => {
+  if (Array.isArray(props.data) && props.data.length > 0 && typeof props.data[0] === "number") {
+    return [
+      {
+        data: props.data as number[],
+        color: typeof props.color === "string" ? props.color : props.color?.[0],
+      },
+    ];
+  }
+  return (props.data as Dataset[]).map((d, i) => ({
+    ...d,
+    color: d.color || (Array.isArray(props.color) ? props.color[i] : props.color),
+  }));
+});
+
 const option = computed(() => ({
   animation: false,
   grid: { top: 4, right: 4, bottom: 4, left: 4 },
@@ -44,7 +65,7 @@ const option = computed(() => ({
     type: "category" as const,
     show: false,
     boundaryGap: false,
-    data: props.data.map((_, i) => i),
+    data: datasets.value[0]?.data.map((_, i) => i) || [],
   },
   yAxis: {
     type: "value" as const,
@@ -52,23 +73,22 @@ const option = computed(() => ({
     min: 0,
     max: props.maxValue ?? undefined,
   },
-  series: [
-    {
-      type: "line" as const,
-      data: props.data,
-      smooth: true,
-      symbol: "none",
-      lineStyle: { color: props.color, width: 1.5 },
-      areaStyle: props.fillArea
-        ? {
-            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-              { offset: 0, color: props.color + "55" },
-              { offset: 1, color: props.color + "05" },
-            ]),
-          }
-        : undefined,
-    },
-  ],
+  series: datasets.value.map((d) => ({
+    type: "line" as const,
+    name: d.name,
+    data: d.data,
+    smooth: true,
+    symbol: "none",
+    lineStyle: { color: d.color, width: 1.5 },
+    areaStyle: props.fillArea
+      ? {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: (d.color || "#4a9eff") + "55" },
+            { offset: 1, color: (d.color || "#4a9eff") + "05" },
+          ]),
+        }
+      : undefined,
+  })),
 }));
 
 function initChart() {
@@ -80,9 +100,9 @@ function initChart() {
 watch(
   () => props.data,
   () => {
-    chart?.setOption({ series: [{ data: props.data }] }, false, true);
+    chart?.setOption(option.value, false, true);
   },
-  { deep: false },
+  { deep: true },
 );
 
 let resizeObserver: ResizeObserver | null = null;

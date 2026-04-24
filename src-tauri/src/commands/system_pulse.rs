@@ -177,6 +177,112 @@ mod win_cpu_freq {
         }
     }
 
+    /// 封装 PDH 查询句柄，持续采集磁盘 I/O 计数器。
+    pub struct DiskIoQuery {
+        fns: PdhFns,
+        query: isize,
+        read_counter: isize,
+        write_counter: isize,
+    }
+
+    unsafe impl Send for DiskIoQuery {}
+
+    impl DiskIoQuery {
+        pub fn new() -> Option<Self> {
+            let fns = PdhFns::load()?;
+            unsafe {
+                let mut query: isize = 0;
+                if (fns.open_query)(std::ptr::null(), 0, &mut query) != ERROR_SUCCESS {
+                    return None;
+                }
+
+                let read_path: Vec<u16> = OsStr::new("\\PhysicalDisk(_Total)\\Disk Read Bytes/sec")
+                    .encode_wide()
+                    .chain(std::iter::once(0u16))
+                    .collect();
+                let write_path: Vec<u16> =
+                    OsStr::new("\\PhysicalDisk(_Total)\\Disk Write Bytes/sec")
+                        .encode_wide()
+                        .chain(std::iter::once(0u16))
+                        .collect();
+
+                let mut read_counter: isize = 0;
+                if (fns.add_counter)(query, read_path.as_ptr(), 0, &mut read_counter)
+                    != ERROR_SUCCESS
+                {
+                    (fns.close_query)(query);
+                    return None;
+                }
+
+                let mut write_counter: isize = 0;
+                if (fns.add_counter)(query, write_path.as_ptr(), 0, &mut write_counter)
+                    != ERROR_SUCCESS
+                {
+                    (fns.close_query)(query);
+                    return None;
+                }
+
+                Some(Self {
+                    fns,
+                    query,
+                    read_counter,
+                    write_counter,
+                })
+            }
+        }
+
+        pub fn prime(&self) {
+            unsafe {
+                (self.fns.collect)(self.query);
+            }
+        }
+
+        /// 返回 (read_bytes_per_sec, write_bytes_per_sec)
+        pub fn collect_rates(&self) -> Option<(u64, u64)> {
+            unsafe {
+                if (self.fns.collect)(self.query) != ERROR_SUCCESS {
+                    return None;
+                }
+
+                let mut read_val = PdhFmtCountervalue {
+                    status: 0,
+                    value: 0.0,
+                };
+                let mut write_val = PdhFmtCountervalue {
+                    status: 0,
+                    value: 0.0,
+                };
+                let mut status: u32 = 0;
+
+                (self.fns.get_value)(
+                    self.read_counter,
+                    PDH_FMT_DOUBLE,
+                    &mut status,
+                    &mut read_val,
+                );
+                (self.fns.get_value)(
+                    self.write_counter,
+                    PDH_FMT_DOUBLE,
+                    &mut status,
+                    &mut write_val,
+                );
+
+                Some((
+                    read_val.value.max(0.0) as u64,
+                    write_val.value.max(0.0) as u64,
+                ))
+            }
+        }
+    }
+
+    impl Drop for DiskIoQuery {
+        fn drop(&mut self) {
+            unsafe {
+                (self.fns.close_query)(self.query);
+            }
+        }
+    }
+
     /// 获取 CPU 基准频率（仅初始化时调用一次）。
     /// 优先从注册表读取（极快），失败则通过 WMI 回退。
     pub fn get_base_freq_mhz() -> u64 {
@@ -362,19 +468,24 @@ async fn collection_loop(app: AppHandle, token: CancellationToken) {
     // get_base_freq_mhz() 仅调用一次（注册表读取），开销极小。
     // CpuFreqQuery 持有 PDH 句柄，每次 collect_mhz() 直接读内核计数器，无子进程开销。
     #[cfg(target_os = "windows")]
-    let pdh_query = {
+    let (pdh_query, disk_io_query) = {
         let base = win_cpu_freq::get_base_freq_mhz();
-        let q = win_cpu_freq::CpuFreqQuery::new(base);
-        if let Some(ref q) = q {
-            q.prime(); // 预热：差分计数器首次采样
+        let cpu_q = win_cpu_freq::CpuFreqQuery::new(base);
+        if let Some(ref q) = cpu_q {
+            q.prime();
             log::info!(
                 "[SystemPulse] PDH CPU 频率计数器初始化成功，基准频率 {} MHz",
                 base
             );
-        } else {
-            log::warn!("[SystemPulse] PDH CPU 频率计数器初始化失败，将回退到 sysinfo 频率");
         }
-        q
+
+        let disk_q = win_cpu_freq::DiskIoQuery::new();
+        if let Some(ref q) = disk_q {
+            q.prime();
+            log::info!("[SystemPulse] PDH 磁盘 I/O 计数器初始化成功");
+        }
+
+        (cpu_q, disk_q)
     };
 
     tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
@@ -467,6 +578,15 @@ async fn collection_loop(app: AppHandle, token: CancellationToken) {
         };
 
         // ── 磁盘快照 ──────────────────────────────────────────────────────────
+        #[cfg(target_os = "windows")]
+        let (total_read, total_write) = disk_io_query
+            .as_ref()
+            .and_then(|q| q.collect_rates())
+            .unwrap_or((0, 0));
+
+        #[cfg(not(target_os = "windows"))]
+        let (total_read, total_write) = (0, 0);
+
         let disk_snapshots: Vec<DiskSnapshot> = disks
             .iter()
             .map(|d| {
@@ -476,13 +596,17 @@ async fn collection_loop(app: AppHandle, token: CancellationToken) {
                 let available_bytes = d.available_space();
                 let used_bytes = total_bytes.saturating_sub(available_bytes);
 
+                // 目前 sysinfo 不支持单盘 I/O，且 PDH 的 _Total 也是汇总。
+                // 我们将汇总值放入系统盘，这在单盘环境下是准确的。
+                let is_primary = mount_point == "C:\\" || mount_point == "/";
+
                 DiskSnapshot {
                     name,
                     mount_point,
                     total_bytes,
                     used_bytes,
-                    read_bytes_per_sec: 0,
-                    write_bytes_per_sec: 0,
+                    read_bytes_per_sec: if is_primary { total_read } else { 0 },
+                    write_bytes_per_sec: if is_primary { total_write } else { 0 },
                 }
             })
             .collect();

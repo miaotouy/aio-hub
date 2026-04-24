@@ -71,9 +71,16 @@ const handleCommand = (command: string) => {
             />
           </el-tooltip>
         </template>
-        <span :class="['title-text', { generating: isGenerating }]">
-          {{ session.name }}
-        </span>
+        <el-tooltip
+          :content="session.name"
+          placement="top"
+          :show-after="1000"
+          :disabled="!session.name"
+        >
+          <span :class="['title-text', { generating: isGenerating }]">
+            {{ session.name }}
+          </span>
+        </el-tooltip>
       </div>
 
       <!-- 搜索匹配详情 -->

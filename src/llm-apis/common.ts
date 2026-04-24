@@ -110,6 +110,11 @@ export interface LlmMessage {
   role: "system" | "user" | "assistant";
   content: string | LlmMessageContent[];
   /**
+   * 推理内容（DeepSeek reasoning 等）
+   * 在多轮对话中，如果存在工具调用，必须回传此内容
+   */
+  reasoningContent?: string;
+  /**
    * 是否作为续写前缀 (DeepSeek / Claude Prefill)
    * 如果为 true，该消息必须是列表中的最后一条，且 role 通常为 assistant
    */
@@ -215,6 +220,8 @@ export interface LlmRequestOptions {
   thinkingBudget?: number;
   /** 元数据键值对 */
   metadata?: Record<string, string>;
+  /** 额外的请求体参数（透传给 API） */
+  extraBody?: Record<string, any>;
   /** 网络请求策略 */
   networkStrategy?: "auto" | "proxy" | "native";
   /** 是否包含本地文件协议 (local-file://)，若为 true 则强制走 Rust 代理以避免 IPC 阻塞 */

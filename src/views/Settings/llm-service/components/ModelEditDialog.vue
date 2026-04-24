@@ -413,6 +413,7 @@ const customParametersJsonString = computed({
               <el-option label="low" value="low" />
               <el-option label="medium" value="medium" />
               <el-option label="high" value="high" />
+              <el-option label="max" value="max" />
             </el-select>
             <div class="form-hint">当配置模式为“等级模式”时，在此处定义可用的等级选项。支持手动输入自定义等级。</div>
           </el-form-item>

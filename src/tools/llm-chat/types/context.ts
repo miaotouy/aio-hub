@@ -36,6 +36,8 @@ export const ANCHOR_IDS = {
 export interface ProcessableMessage {
   role: "system" | "user" | "assistant" | "tool";
   content: string | LlmMessageContent[];
+  /** 思考/推理内容（用于 DeepSeek 等模型的多轮对话回传） */
+  reasoningContent?: string;
   /** 消息来源类型 */
   sourceType?: "agent_preset" | "session_history" | "depth_injection" | "anchor_injection" | "unknown" | "merged";
   /** 来源标识（预设消息的 index 或会话历史的 nodeId） */

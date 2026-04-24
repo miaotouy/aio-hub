@@ -159,9 +159,20 @@ export const sessionLoader: ContextProcessor = {
         role = "user";
       }
 
+      // 优化：缩减上下文中不必要的推理内容以节约 token。
+      // 项目使用自定义文本工具调用（{{tools}} 宏 + 文本解析），而非官方 Function Calling。
+      // toolCallsRequested 标记了该助手节点是否发出了工具请求：
+      //   - 有 toolCallsRequested → 该节点是"思考→工具调用"的中间过程，后续需要继续推理，因此保留 reasoningContent 以便回传
+      //   - 无 toolCallsRequested → 该节点是最终回答，回传 reasoningContent 无意义且浪费 token
+      let reasoningContent = node.metadata?.reasoningContent;
+      if (role === "assistant" && !node.metadata?.toolCallsRequested?.length) {
+        reasoningContent = undefined;
+      }
+
       const processableMessage: ProcessableMessage = {
         role: role as any,
         content: finalContent,
+        reasoningContent,
         sourceType: "session_history",
         sourceId: node.id,
         _attachments: node.attachments,

@@ -35,6 +35,11 @@ export const callOpenAiChatApi = async (
         role: msg.role,
         content: msg.content,
       };
+      // 支持回传推理内容（DeepSeek 等模型多轮对话需要）
+      // ⚠️ 只有 DeepSeek 模型才支持 reasoning_content 回传，非 DS 模型传此字段可能会报错
+      if (msg.reasoningContent && options.modelId.toLowerCase().includes("deepseek")) {
+        messageObj.reasoning_content = msg.reasoningContent;
+      }
       // 支持 DeepSeek prefix 模式
       if (msg.prefix) {
         messageObj.prefix = true;
@@ -122,6 +127,10 @@ export const callOpenAiChatApi = async (
         role: msg.role,
         content: contentArray,
       };
+      // 支持回传推理内容
+      if (msg.reasoningContent && options.modelId.toLowerCase().includes("deepseek")) {
+        messageObj.reasoning_content = msg.reasoningContent;
+      }
       if (msg.prefix) {
         messageObj.prefix = true;
       }
@@ -169,6 +178,17 @@ export const callOpenAiChatApi = async (
   if (options.serviceTier !== undefined) body.service_tier = options.serviceTier;
   if (options.webSearchOptions !== undefined) body.web_search_options = options.webSearchOptions;
   if (options.streamOptions !== undefined) body.stream_options = options.streamOptions;
+
+  // 注入 extra_body (DeepSeek 思考模式等需要)
+  // 如果同时存在 options.extraBody 和 thinkingEnabled，进行合并
+  if (options.thinkingEnabled && options.modelId.toLowerCase().includes("deepseek")) {
+    body.extra_body = {
+      thinking: { type: "enabled" },
+      ...(options.extraBody || {}),
+    };
+  } else if (options.extraBody) {
+    body.extra_body = options.extraBody;
+  }
 
   const extendedOptions = options as any;
   if (extendedOptions.safetySettings) {

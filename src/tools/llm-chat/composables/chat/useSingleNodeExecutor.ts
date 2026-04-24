@@ -186,6 +186,7 @@ export function useSingleNodeExecutor() {
       return {
         role: msg.role as any,
         content: msg.content,
+        reasoningContent: msg.reasoningContent,
         prefix: isContinuation && isLast ? true : undefined,
       };
     });

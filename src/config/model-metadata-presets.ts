@@ -1609,6 +1609,8 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       tokenizer: "deepseek_v3", // DeepSeek 系列使用专用分词器
       capabilities: {
         thinking: true,
+        thinkingConfigType: "effort",
+        reasoningEffortOptions: ["high", "max"],
         fim: true, // DeepSeek 支持 FIM 补全（通过 /beta 端点）
         prefixCompletion: true, // DeepSeek 支持对话前缀续写（通过 /beta 端点）
         jsonOutput: true, // DeepSeek 支持 JSON 输出模式

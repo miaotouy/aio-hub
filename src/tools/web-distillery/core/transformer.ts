@@ -46,9 +46,18 @@ export class Transformer {
     }
 
     // 检测是否为已知的文件类型链接 (如 .md, .txt, .json, .js 等)
-    const mimeType = inferMimeTypeFromHint(url);
+    // 必须先提取文件名再推断 MIME，否则 inferMimeTypeFromHint 会把带 "/" 的完整 URL 直接当成 MIME 类型返回
+    let urlFileName = "";
+    try {
+      const urlObj = new URL(url);
+      const pathname = urlObj.pathname;
+      urlFileName = pathname.substring(pathname.lastIndexOf("/") + 1);
+    } catch {
+      urlFileName = url;
+    }
+    const mimeType = urlFileName ? inferMimeTypeFromHint(urlFileName) : null;
     if (mimeType && isTextMimeType(mimeType) && mimeType !== "text/html") {
-      logger.info("Detected file URL, skipping HTML extraction pipeline", { url, mimeType });
+      logger.info("Detected file URL, skipping HTML extraction pipeline", { url, mimeType, urlFileName });
       return await this.processFile(html, url, mimeType, format);
     }
 
@@ -213,18 +222,26 @@ export class Transformer {
 
     const lang = mapMimeToLanguage(mimeType);
 
-    // 根据语言类型进行包装
-    if (lang === "md" || lang === "markdown") {
-      // Markdown 文件直接输出
+    // 根据输出格式决定是否包装
+    if (format === "text") {
+      // text 格式：直接返回原始内容，不做任何包装
       processedContent = content;
-    } else if (lang !== "plaintext") {
-      // 已知的代码语言，包裹在代码块中
-      processedContent = `\`\`\`${lang}\n${content}\n\`\`\``;
+    } else if (format === "html") {
+      // html 格式：包裹在 <pre> 中
+      processedContent = `<pre>${content}</pre>`;
+    } else if (format === "json") {
+      // json 格式：由后处理器统一处理
+      processedContent = content;
     } else {
-      // 纯文本或其他文本文件，如果输出是 HTML，则包裹在 <pre> 中
-      if (format === "html") {
-        processedContent = `<pre>${content}</pre>`;
+      // markdown 格式（默认）：根据语言类型进行包装
+      if (lang === "md" || lang === "markdown") {
+        // Markdown 文件直接输出
+        processedContent = content;
+      } else if (lang !== "plaintext") {
+        // 已知的代码语言，包裹在代码块中
+        processedContent = `\`\`\`${lang}\n${content}\n\`\`\``;
       } else {
+        // 纯文本直接输出
         processedContent = content;
       }
     }

@@ -1856,6 +1856,18 @@ export const llmPresets: LlmPreset[] = [
       },
     ],
   },
+  // LM Studio
+  {
+    type: "openai",
+    name: "LM Studio",
+    description: "LM Studio 本地服务 (OpenAI 兼容 API)",
+    defaultBaseUrl: "http://localhost:1234/v1",
+    logoUrl: "/model-icons/lmstudio.svg",
+    links: [
+      { label: "官网", url: "https://lmstudio.ai/" },
+      { label: "文档", url: "https://lmstudio.ai/docs" },
+    ],
+  },
   // NewAPI / One API 聚合
   {
     type: "openai",

@@ -146,14 +146,14 @@ watch(
     // 使用浅拷贝数组 + 对象，避免和父级共享引用
     localRules.value = newVal.map((rule) => ({ ...rule }));
   },
-  { immediate: true, deep: true }
+  { immediate: true, deep: true },
 );
 
 // 将本地变更同步回父组件
 function emitRulesUpdate() {
   emit(
     "update:modelValue",
-    localRules.value.map((rule) => ({ ...rule }))
+    localRules.value.map((rule) => ({ ...rule })),
   );
 }
 
@@ -293,6 +293,8 @@ function deleteRule(index: number) {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
   padding: 16px;
   border-radius: 8px;
   background-color: var(--card-bg);
@@ -303,7 +305,9 @@ function deleteRule(index: number) {
 .header-left {
   display: flex;
   align-items: center;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  min-width: 0;
 }
 
 .header-actions {

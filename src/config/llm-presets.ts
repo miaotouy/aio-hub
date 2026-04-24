@@ -47,12 +47,28 @@ export const llmPresets: LlmPreset[] = [
     ],
     defaultModels: [
       {
+        id: "deepseek-v4-pro",
+        name: "DeepSeek V4 Pro",
+        group: "DeepSeek",
+        provider: "deepseek",
+        capabilities: { toolUse: true, thinking: true, thinkingConfigType: "switch" },
+        description: "DeepSeek 旗舰模型 (V4 Pro)",
+      },
+      {
+        id: "deepseek-v4-flash",
+        name: "DeepSeek V4 Flash",
+        group: "DeepSeek",
+        provider: "deepseek",
+        capabilities: { toolUse: true, thinking: true, thinkingConfigType: "switch" },
+        description: "DeepSeek 高速模型 (V4 Flash)",
+      },
+      {
         id: "deepseek-reasoner",
         name: "DeepSeek Reasoner",
         group: "DeepSeek",
         provider: "deepseek",
         capabilities: { toolUse: true, thinking: true, thinkingConfigType: "switch" },
-        description: "推理专用模型",
+        description: "推理专用模型 (即将弃用，请迁移至 V4 系列)",
       },
       {
         id: "deepseek-chat",
@@ -60,7 +76,7 @@ export const llmPresets: LlmPreset[] = [
         group: "DeepSeek",
         provider: "deepseek",
         capabilities: { toolUse: true, thinking: true, thinkingConfigType: "switch" },
-        description: "通用对话模型",
+        description: "通用对话模型 (即将弃用，请迁移至 V4 系列)",
       },
     ],
   },

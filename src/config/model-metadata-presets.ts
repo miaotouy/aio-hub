@@ -1555,6 +1555,51 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
 
   // DeepSeek 系列模型
   {
+    id: "model-deepseek-v4-pro",
+    matchType: "model",
+    matchValue: "deepseek-v4-pro",
+    properties: {
+      contextLength: 1024000,
+      maxOutputTokens: 384000,
+      pricing: {
+        input: 12.0,
+        output: 24.0,
+        cacheHitInput: 1.0,
+      },
+    },
+    priority: 30,
+    enabled: true,
+    description: "DeepSeek V4 Pro 模型详情",
+  },
+  {
+    id: "model-deepseek-v4-flash",
+    matchType: "model",
+    matchValue: "deepseek-v4-flash",
+    properties: {
+      contextLength: 1024000,
+      maxOutputTokens: 384000,
+      pricing: {
+        input: 1.0,
+        output: 2.0,
+        cacheHitInput: 0.2,
+      },
+    },
+    priority: 30,
+    enabled: true,
+    description: "DeepSeek V4 Flash 模型详情",
+  },
+  {
+    id: "model-deepseek-deprecated",
+    matchType: "model",
+    matchValue: "deepseek-chat|deepseek-reasoner",
+    properties: {
+      deprecated: true,
+    },
+    priority: 30,
+    enabled: true,
+    description: "标注已废弃的旧版 DeepSeek 模型名",
+  },
+  {
     id: "model-prefix-deepseek",
     matchType: "modelPrefix",
     matchValue: "deepseek-",
@@ -1567,6 +1612,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         fim: true, // DeepSeek 支持 FIM 补全（通过 /beta 端点）
         prefixCompletion: true, // DeepSeek 支持对话前缀续写（通过 /beta 端点）
         jsonOutput: true, // DeepSeek 支持 JSON 输出模式
+        toolUse: true,
       },
     },
     priority: 25, // 提升优先级

@@ -85,6 +85,8 @@ export const presets: ApiPreset[] = [
           'gpt-4-turbo',
           'chatgpt-4o-latest',
           'claude-opus-4-1-20250805',
+          'deepseek-v4-pro',
+          'deepseek-v4-flash',
           'deepseek-chat',
           'glm-4-plus',
         ],

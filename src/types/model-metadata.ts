@@ -38,6 +38,8 @@ export interface ModelMetadataProperties {
     input?: number;
     /** 输出价格（每百万 token） */
     output?: number;
+    /** 缓存命中时的输入价格（每百万 token） */
+    cacheHitInput?: number;
     /** 价格单位（如：'USD', 'CNY'） */
     unit?: string;
     /** 额外说明（如：'按需计费', '包月套餐'） */

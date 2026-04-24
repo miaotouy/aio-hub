@@ -14,12 +14,215 @@ use sysinfo::{Disks, Networks, System};
 use tauri::{AppHandle, Emitter, State};
 use tokio_util::sync::CancellationToken;
 
+// ─── Windows 实时 CPU 频率（PDH）───────────────────────────────────────────────
+//
+// Windows 上 sysinfo 的 Cpu::frequency() 和注册表 ~MHz 读取的都是启动时额定频率，
+// 不会随负载/睿频变化。任务管理器使用的是 PDH 计数器：
+//   "% Processor Performance" = 当前实际频率 / 基准频率 × 100
+// 乘以基准频率即得真正的实时频率。
+
+#[cfg(target_os = "windows")]
+mod win_cpu_freq {
+    //! PDH（Performance Data Helper）封装 — 通过 libloading 动态加载 pdh.dll
+    //!
+    //! 避免依赖 windows crate 的 PDH feature（需要额外链接 pdh.lib），
+    //! 改为运行时加载，在所有 Windows 版本上均可用。
+    //!
+    //! PDH_STATUS 0 = ERROR_SUCCESS（成功）。
+    //! 句柄类型在 PDH API 中均为 isize（HANDLE）。
+
+    use std::ffi::OsStr;
+    use std::os::windows::ffi::OsStrExt;
+
+    // PDH 函数签名（原始 FFI）
+    type PdhOpenQueryWFn = unsafe extern "system" fn(*const u16, usize, *mut isize) -> u32;
+    type PdhAddCounterWFn = unsafe extern "system" fn(isize, *const u16, usize, *mut isize) -> u32;
+    type PdhCollectQueryDataFn = unsafe extern "system" fn(isize) -> u32;
+    type PdhGetFormattedCounterValueFn =
+        unsafe extern "system" fn(isize, u32, *mut u32, *mut PdhFmtCountervalue) -> u32;
+    type PdhCloseQueryFn = unsafe extern "system" fn(isize) -> u32;
+
+    /// PDH_FMT_DOUBLE：以 f64 格式返回计数器值
+    const PDH_FMT_DOUBLE: u32 = 0x0000_0200;
+    const ERROR_SUCCESS: u32 = 0;
+
+    /// PDH_FMT_COUNTERVALUE（简化版，仅包含 double 联合体字段）
+    #[repr(C)]
+    struct PdhFmtCountervalue {
+        status: u32,
+        value: f64, // doubleValue（PDH_FMT_DOUBLE 时有效）
+    }
+
+    /// 动态加载的 PDH 函数表
+    struct PdhFns {
+        open_query: PdhOpenQueryWFn,
+        add_counter: PdhAddCounterWFn,
+        collect: PdhCollectQueryDataFn,
+        get_value: PdhGetFormattedCounterValueFn,
+        close_query: PdhCloseQueryFn,
+        // 持有 lib 防止提前卸载
+        _lib: libloading::Library,
+    }
+
+    impl PdhFns {
+        fn load() -> Option<Self> {
+            unsafe {
+                let lib = libloading::Library::new("pdh.dll").ok()?;
+                let open_query: PdhOpenQueryWFn = *lib.get(b"PdhOpenQueryW\0").ok()?;
+                let add_counter: PdhAddCounterWFn = *lib.get(b"PdhAddCounterW\0").ok()?;
+                let collect: PdhCollectQueryDataFn = *lib.get(b"PdhCollectQueryData\0").ok()?;
+                let get_value: PdhGetFormattedCounterValueFn =
+                    *lib.get(b"PdhGetFormattedCounterValue\0").ok()?;
+                let close_query: PdhCloseQueryFn = *lib.get(b"PdhCloseQuery\0").ok()?;
+                Some(Self {
+                    open_query,
+                    add_counter,
+                    collect,
+                    get_value,
+                    close_query,
+                    _lib: lib,
+                })
+            }
+        }
+    }
+
+    /// 封装 PDH 查询句柄，持续采集 "% Processor Performance" 计数器。
+    ///
+    /// # 安全性
+    /// 此结构体仅在单个 tokio 任务内顺序使用，
+    /// 所有 PDH 调用均发生在 .await 点之间的同步代码段。
+    pub struct CpuFreqQuery {
+        fns: PdhFns,
+        query: isize,
+        counter: isize,
+        pub base_freq_mhz: u64,
+    }
+
+    // SAFETY: 单任务顺序访问，无并发
+    unsafe impl Send for CpuFreqQuery {}
+
+    impl CpuFreqQuery {
+        /// 初始化 PDH 查询并添加 "% Processor Performance" 计数器。
+        pub fn new(base_freq_mhz: u64) -> Option<Self> {
+            if base_freq_mhz == 0 {
+                return None;
+            }
+            let fns = PdhFns::load()?;
+            unsafe {
+                let mut query: isize = 0;
+                if (fns.open_query)(std::ptr::null(), 0, &mut query) != ERROR_SUCCESS {
+                    return None;
+                }
+
+                let path: Vec<u16> =
+                    OsStr::new("\\Processor Information(_Total)\\% Processor Performance")
+                        .encode_wide()
+                        .chain(std::iter::once(0u16))
+                        .collect();
+
+                let mut counter: isize = 0;
+                if (fns.add_counter)(query, path.as_ptr(), 0, &mut counter) != ERROR_SUCCESS {
+                    (fns.close_query)(query);
+                    return None;
+                }
+
+                Some(Self {
+                    fns,
+                    query,
+                    counter,
+                    base_freq_mhz,
+                })
+            }
+        }
+
+        /// 预热：差分计数器需要至少两次采样才能给出有效值。
+        pub fn prime(&self) {
+            unsafe {
+                (self.fns.collect)(self.query);
+            }
+        }
+
+        /// 采集一次并返回实时频率（MHz）。
+        /// None 表示采集失败，调用方应回退到基准频率。
+        pub fn collect_mhz(&self) -> Option<u64> {
+            unsafe {
+                if (self.fns.collect)(self.query) != ERROR_SUCCESS {
+                    return None;
+                }
+                let mut value = PdhFmtCountervalue {
+                    status: 0,
+                    value: 0.0,
+                };
+                let mut status: u32 = 0;
+                if (self.fns.get_value)(self.counter, PDH_FMT_DOUBLE, &mut status, &mut value)
+                    != ERROR_SUCCESS
+                {
+                    return None;
+                }
+                // doubleValue = % Processor Performance（睿频时可超过 100）
+                let pct = value.value;
+                if pct <= 0.0 {
+                    return None;
+                }
+                Some((self.base_freq_mhz as f64 * pct / 100.0).round() as u64)
+            }
+        }
+    }
+
+    impl Drop for CpuFreqQuery {
+        fn drop(&mut self) {
+            unsafe {
+                (self.fns.close_query)(self.query);
+            }
+        }
+    }
+
+    /// 获取 CPU 基准频率（仅初始化时调用一次）。
+    /// 优先从注册表读取（极快），失败则通过 WMI 回退。
+    pub fn get_base_freq_mhz() -> u64 {
+        // 注册表 ~MHz：启动时由 BIOS 写入的额定频率，读取速度快
+        if let Ok(output) = std::process::Command::new("reg")
+            .args([
+                "query",
+                "HKLM\\HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0",
+                "/v",
+                "~MHz",
+            ])
+            .output()
+        {
+            let text = String::from_utf8_lossy(&output.stdout);
+            if let Some(hex_str) = text.split("0x").last() {
+                if let Ok(freq) = u64::from_str_radix(hex_str.trim(), 16) {
+                    if freq > 0 {
+                        return freq;
+                    }
+                }
+            }
+        }
+        if let Ok(output) = std::process::Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-Command",
+                "Get-CimInstance Win32_Processor | Select-Object -ExpandProperty MaxClockSpeed",
+            ])
+            .output()
+        {
+            let text = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if let Ok(freq) = text.parse::<u64>() {
+                return freq;
+            }
+        }
+        0
+    }
+}
+
 // ─── 数据结构 ────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemSnapshot {
     pub timestamp: u64,
+    pub uptime: u64,
     pub cpu: CpuSnapshot,
     pub memory: MemorySnapshot,
     pub disks: Vec<DiskSnapshot>,
@@ -30,9 +233,11 @@ pub struct SystemSnapshot {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CpuSnapshot {
+    pub brand: String,
     pub global_usage: f32,
     pub per_core_usage: Vec<f32>,
     pub frequency_mhz: u64,
+    pub base_frequency_mhz: u64,
     pub temperature_celsius: Option<f32>,
     pub process_count: u32,
     pub thread_count: Option<u32>,
@@ -152,11 +357,28 @@ async fn collection_loop(app: AppHandle, token: CancellationToken) {
     // 首次刷新后休眠，等待差值数据稳定
     sys.refresh_all();
     networks.refresh(true);
+
+    // ── Windows 实时 CPU 频率：PDH 初始化 ──────────────────────────────────────
+    // get_base_freq_mhz() 仅调用一次（注册表读取），开销极小。
+    // CpuFreqQuery 持有 PDH 句柄，每次 collect_mhz() 直接读内核计数器，无子进程开销。
+    #[cfg(target_os = "windows")]
+    let pdh_query = {
+        let base = win_cpu_freq::get_base_freq_mhz();
+        let q = win_cpu_freq::CpuFreqQuery::new(base);
+        if let Some(ref q) = q {
+            q.prime(); // 预热：差分计数器首次采样
+            log::info!(
+                "[SystemPulse] PDH CPU 频率计数器初始化成功，基准频率 {} MHz",
+                base
+            );
+        } else {
+            log::warn!("[SystemPulse] PDH CPU 频率计数器初始化失败，将回退到 sysinfo 频率");
+        }
+        q
+    };
+
     tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
 
-    // 磁盘 I/O 差值记录：name -> (last_total_read, last_total_written)
-    // 注意：sysinfo 的 Disk 不直接提供累计读写，但在 Windows 上可以通过其他方式
-    // 这里我们先预留结构，sysinfo 0.33 的 Disks 确实只提供容量信息
     let mut tick_count: u64 = 0;
 
     loop {
@@ -166,8 +388,8 @@ async fn collection_loop(app: AppHandle, token: CancellationToken) {
 
         tick_count += 1;
 
-        // 高频刷新：CPU、内存、网络
-        sys.refresh_cpu_usage();
+        // 高频刷新：CPU（含使用率和频率）、内存、网络
+        sys.refresh_cpu_all(); // 包含 usage 和 frequency
         sys.refresh_memory();
         networks.refresh(true);
 
@@ -179,12 +401,40 @@ async fn collection_loop(app: AppHandle, token: CancellationToken) {
         // ── CPU 快照 ──────────────────────────────────────────────────────────
         let global_usage = sys.global_cpu_usage();
         let per_core_usage: Vec<f32> = sys.cpus().iter().map(|c| c.cpu_usage()).collect();
-        let frequency_mhz = sys.cpus().first().map(|c| c.frequency()).unwrap_or(0);
 
-        // 进程数（低频更新也够用）
+        // ── CPU 频率采集 ──────────────────────────────────────────────────────
+        // sysinfo 在 Windows 上读取注册表 ~MHz（启动时额定值，静态不变），
+        // 仅作为非 Windows 平台或 PDH 失败时的兜底。
+        let sysinfo_freq = sys.cpus().iter().map(|c| c.frequency()).max().unwrap_or(0);
+
+        // Windows：使用 PDH "% Processor Performance" 获取真正的实时频率
+        #[cfg(target_os = "windows")]
+        let (frequency_mhz, base_frequency_mhz) = {
+            let base = pdh_query
+                .as_ref()
+                .map(|q| q.base_freq_mhz)
+                .unwrap_or(sysinfo_freq);
+            let live = pdh_query
+                .as_ref()
+                .and_then(|q| q.collect_mhz())
+                .unwrap_or(sysinfo_freq);
+            (live, base)
+        };
+
+        // 非 Windows：直接使用 sysinfo 数据
+        #[cfg(not(target_os = "windows"))]
+        let (frequency_mhz, base_frequency_mhz) = (sysinfo_freq, sysinfo_freq);
+
+        // CPU 品牌名（用于前端展示）
+        let brand = sys
+            .cpus()
+            .first()
+            .map(|c| c.brand().to_string())
+            .unwrap_or_default();
+
         let process_count = sys.processes().len() as u32;
 
-        // 温度（通过 sysinfo 的 Components，Windows 依赖 WMI，可能为空）
+        // 温度
         let temperature_celsius = {
             use sysinfo::Components;
             let components = Components::new_with_refreshed_list();
@@ -198,12 +448,14 @@ async fn collection_loop(app: AppHandle, token: CancellationToken) {
         };
 
         let cpu_snapshot = CpuSnapshot {
+            brand,
             global_usage,
             per_core_usage,
             frequency_mhz,
+            base_frequency_mhz,
             temperature_celsius,
             process_count,
-            thread_count: None, // 首期不采集（需遍历进程，开销较大）
+            thread_count: None,
         };
 
         // ── 内存快照 ──────────────────────────────────────────────────────────
@@ -214,7 +466,7 @@ async fn collection_loop(app: AppHandle, token: CancellationToken) {
             swap_used_bytes: sys.used_swap(),
         };
 
-        // ── 磁盘快照（含 I/O 差值计算）────────────────────────────────────────
+        // ── 磁盘快照 ──────────────────────────────────────────────────────────
         let disk_snapshots: Vec<DiskSnapshot> = disks
             .iter()
             .map(|d| {
@@ -229,7 +481,7 @@ async fn collection_loop(app: AppHandle, token: CancellationToken) {
                     mount_point,
                     total_bytes,
                     used_bytes,
-                    read_bytes_per_sec: 0, // sysinfo 0.33 的 Disks 对象不提供 I/O 统计
+                    read_bytes_per_sec: 0,
                     write_bytes_per_sec: 0,
                 }
             })
@@ -239,7 +491,6 @@ async fn collection_loop(app: AppHandle, token: CancellationToken) {
         let network_snapshots: Vec<NetworkInterfaceSnapshot> = networks
             .iter()
             .filter_map(|(name, data)| {
-                // 过滤掉速率均为 0 的无效接口
                 let up = data.transmitted();
                 let down = data.received();
                 if up == 0 && down == 0 && tick_count > 2 {
@@ -274,7 +525,6 @@ async fn collection_loop(app: AppHandle, token: CancellationToken) {
                         let memory_used_bytes = mem_info.as_ref().map(|m| m.used).unwrap_or(0);
                         let memory_total_bytes = mem_info.as_ref().map(|m| m.total).unwrap_or(0);
 
-                        // 编解码负载（NVIDIA 专属）
                         let encoder_usage = device
                             .encoder_utilization()
                             .ok()
@@ -284,7 +534,7 @@ async fn collection_loop(app: AppHandle, token: CancellationToken) {
                             .ok()
                             .map(|u| u.utilization as f32);
                         let compute_usage =
-                            device.utilization_rates().ok().map(|u| u.memory as f32); // compute 用显存带宽利用率近似
+                            device.utilization_rates().ok().map(|u| u.memory as f32);
 
                         Some(GpuSnapshot {
                             index: i as usize,
@@ -316,6 +566,7 @@ async fn collection_loop(app: AppHandle, token: CancellationToken) {
 
         let snapshot = SystemSnapshot {
             timestamp,
+            uptime: System::uptime(),
             cpu: cpu_snapshot,
             memory: memory_snapshot,
             disks: disk_snapshots,
@@ -327,7 +578,6 @@ async fn collection_loop(app: AppHandle, token: CancellationToken) {
             log::warn!("[SystemPulse] 事件推送失败: {}", e);
         }
 
-        // 等待 1 秒或取消信号
         tokio::select! {
             _ = tokio::time::sleep(tokio::time::Duration::from_millis(1000)) => {}
             _ = token.cancelled() => { break; }

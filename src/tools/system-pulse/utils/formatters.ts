@@ -33,6 +33,24 @@ export function formatFrequency(mhz: number): string {
 }
 
 /**
+ * 格式化运行时间（秒 -> D:HH:MM:SS）
+ */
+export function formatUptime(seconds: number): string {
+  const days = Math.floor(seconds / (24 * 3600));
+  const hrs = Math.floor((seconds % (24 * 3600)) / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+
+  const parts = [];
+  if (days > 0) parts.push(`${days}d`);
+  parts.push(hrs.toString().padStart(2, "0"));
+  parts.push(mins.toString().padStart(2, "0"));
+  parts.push(secs.toString().padStart(2, "0"));
+
+  return parts.join(":");
+}
+
+/**
  * 温度颜色（用于 CSS 动态类）
  */
 export function tempColor(celsius: number | null): string {

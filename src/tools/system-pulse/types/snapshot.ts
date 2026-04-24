@@ -2,6 +2,7 @@
 
 export interface SystemSnapshot {
   timestamp: number;
+  uptime: number;
   cpu: CpuSnapshot;
   memory: MemorySnapshot;
   disks: DiskSnapshot[];
@@ -10,9 +11,11 @@ export interface SystemSnapshot {
 }
 
 export interface CpuSnapshot {
+  brand: string;
   globalUsage: number;
   perCoreUsage: number[];
   frequencyMhz: number;
+  baseFrequencyMhz: number;
   temperatureCelsius: number | null;
   processCount: number;
   threadCount: number | null;

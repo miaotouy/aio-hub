@@ -12,8 +12,12 @@
 
     <div class="card-stats">
       <div class="stat-item">
-        <span class="stat-label">频率</span>
-        <span class="stat-val">{{ formatFrequency(cpu.frequencyMhz) }}</span>
+        <span class="stat-label">实时频率</span>
+        <span class="stat-val freq-live">{{ formatFrequency(cpu.frequencyMhz) }}</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">基准频率</span>
+        <span class="stat-val">{{ formatFrequency(cpu.baseFrequencyMhz) }}</span>
       </div>
       <div class="stat-item" v-if="cpu.temperatureCelsius !== null">
         <span class="stat-label">温度</span>
@@ -25,6 +29,13 @@
         <span class="stat-label">进程</span>
         <span class="stat-val">{{ cpu.processCount }}</span>
       </div>
+      <div class="stat-item">
+        <span class="stat-label">运行时间</span>
+        <span class="stat-val uptime-val">{{ formatUptime(uptime) }}</span>
+      </div>
+    </div>
+    <div class="card-brand" v-if="cpu.brand">
+      {{ cpu.brand }}
     </div>
 
     <!-- 多核热力矩阵 -->
@@ -42,12 +53,13 @@
 
 <script setup lang="ts">
 import SparklineChart from "./SparklineChart.vue";
-import { formatFrequency, tempColor, usageColor } from "../utils/formatters";
+import { formatFrequency, formatUptime, tempColor, usageColor } from "../utils/formatters";
 import type { CpuSnapshot } from "../types/snapshot";
 
 defineProps<{
   cpu: CpuSnapshot;
   cpuHistory: number[];
+  uptime: number;
 }>();
 
 function coreColor(usage: number): string {
@@ -93,7 +105,7 @@ function coreColor(usage: number): string {
 
 .card-stats {
   display: flex;
-  gap: 12px;
+  gap: 16px;
   flex-wrap: wrap;
 }
 
@@ -112,6 +124,18 @@ function coreColor(usage: number): string {
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   color: var(--el-text-color-primary);
+}
+
+.card-brand {
+  font-size: 10px;
+  color: var(--el-text-color-placeholder);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.uptime-val {
+  font-variant-numeric: tabular-nums;
 }
 
 .core-grid {

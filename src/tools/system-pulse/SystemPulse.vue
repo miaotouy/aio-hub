@@ -40,7 +40,12 @@
         <StatusBar :latest="store.latest" />
         <!-- 统一监控网格 -->
         <div class="monitor-grid" :class="{ 'is-paused': !isActive }">
-          <CpuCard :cpu="store.latest.cpu" :cpu-history="store.cpuHistoryArray" class="grid-cpu" />
+          <CpuCard
+            :cpu="store.latest.cpu"
+            :cpu-history="store.cpuHistoryArray"
+            :uptime="store.latest.uptime"
+            class="grid-cpu"
+          />
           <MemoryCard :memory="store.latest.memory" :mem-history="store.memHistoryArray" class="grid-mem" />
           <StorageGrid :disks="store.latest.disks" class="grid-disk" />
           <NetworkCard

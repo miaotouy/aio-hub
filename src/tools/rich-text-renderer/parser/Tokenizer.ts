@@ -28,8 +28,11 @@ const RE_KATEX_INLINE = /\$([^\n$]+?)\$/y;
 const RE_ATTR = /([a-zA-Z0-9_-]+)(?:=(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
 const RE_SPECIAL_CHARS = /[<`*_~^!\[\]()#>\n$“"”\\]/g;
 // VCP (Variable & Command Protocol) 协议相关正则: https://github.com/lioensky/VCPToolBox
+// 变体优先级: ESCAPE > exp > 标准，ESCAPE/exp 内容中可包含标准 VCP 协议字符（如 「始」/「末」）
+const RE_VCP_ARG_ESCAPE = /([a-zA-Z0-9_-]+):「始ESCAPE」([\s\S]*?)「末ESCAPE」/g;
+const RE_VCP_ARG_EXP = /([a-zA-Z0-9_-]+):「始exp」([\s\S]*?)「末exp」/g;
 const RE_VCP_ARG = /([a-zA-Z0-9_-]+):「始」([\s\S]*?)「末」/g;
-const RE_VCP_PENDING = /([a-zA-Z0-9_-]+):「始」([\s\S]*)$/;
+const RE_VCP_PENDING = /([a-zA-Z0-9_-]+):「始(?:ESCAPE|exp)?」([\s\S]*)$/;
 const RE_VCP_RESULT_FIELD =
   /-\s*(工具名称|执行状态|返回内容):\s*([\s\S]*?)(?=\n-\s*(?:工具名称|执行状态|返回内容):|\nVCP调用结果结束\]\]|$)/g;
 const RE_VCP_ROLE_OPEN = /<<<\[ROLE_DIVIDE_(USER|ASSISTANT|SYSTEM)\]>>>/y;
@@ -474,10 +477,12 @@ export class Tokenizer {
             }
           }
 
-          // VCP 工具请求块 <<<[TOOL_REQUEST]>>> (Protocol: https://github.com/lioensky/VCPToolBox)
-          if (text.startsWith("<<<[TOOL_REQUEST]>>>", posAfterIndent)) {
-            const startMarker = "<<<[TOOL_REQUEST]>>>";
-            const endMarker = "<<<[END_TOOL_REQUEST]>>>";
+          // VCP 工具请求块 <<<[TOOL_REQUEST]>>> / <<<[TOOL_REQUEST_ESCAPE]>>> (Protocol: https://github.com/lioensky/VCPToolBox)
+          // TOOL_REQUEST_ESCAPE 用于嵌套工具调用，其内容中的 <<<[TOOL_REQUEST]>>> 不会被再次解析
+          const isEscapeBlock = text.startsWith("<<<[TOOL_REQUEST_ESCAPE]>>>", posAfterIndent);
+          if (isEscapeBlock || text.startsWith("<<<[TOOL_REQUEST]>>>", posAfterIndent)) {
+            const startMarker = isEscapeBlock ? "<<<[TOOL_REQUEST_ESCAPE]>>>" : "<<<[TOOL_REQUEST]>>>";
+            const endMarker = isEscapeBlock ? "<<<[END_TOOL_REQUEST_ESCAPE]>>>" : "<<<[END_TOOL_REQUEST]>>>";
             let currentPos = posAfterIndent + startMarker.length;
 
             const endIdx = text.indexOf(endMarker, currentPos);
@@ -499,24 +504,62 @@ export class Tokenizer {
             let command = "";
             let maid = "";
 
+            // 第一步：优先解析 ESCAPE/exp 变体（内容可含标准 VCP 字符，必须先处理）
+            // 记录已匹配的字符范围，防止后续标准正则重复处理
+            const matchedRanges: Array<[number, number]> = [];
+
+            const parseEscapeVariant = (regex: RegExp) => {
+              let match;
+              regex.lastIndex = 0;
+              while ((match = regex.exec(vcpContent)) !== null) {
+                const key = match[1];
+                const value = match[2];
+                matchedRanges.push([match.index, regex.lastIndex]);
+                if (key === "tool_name") tool_name = value;
+                else if (key === "command") command = value;
+                else if (key === "maid") maid = value;
+                else args[key] = value;
+              }
+            };
+
+            parseEscapeVariant(RE_VCP_ARG_ESCAPE);
+            parseEscapeVariant(RE_VCP_ARG_EXP);
+
+            // 第二步：构建去除已匹配范围的内容，再用标准正则扫描
+            matchedRanges.sort((a, b) => a[0] - b[0]);
+            let maskedContent = vcpContent;
+            // 从后往前替换，避免偏移量变化
+            for (let ri = matchedRanges.length - 1; ri >= 0; ri--) {
+              const [start, end] = matchedRanges[ri];
+              maskedContent = maskedContent.slice(0, start) + " ".repeat(end - start) + maskedContent.slice(end);
+            }
+
             let match;
             RE_VCP_ARG.lastIndex = 0;
             let lastMatchEnd = 0;
-            while ((match = RE_VCP_ARG.exec(vcpContent)) !== null) {
+            while ((match = RE_VCP_ARG.exec(maskedContent)) !== null) {
               const key = match[1];
               const value = match[2];
-              if (key === "tool_name") tool_name = value;
-              else if (key === "command") command = value;
-              else if (key === "maid") maid = value;
-              else args[key] = value;
+              // 使用原始 vcpContent 中对应位置的真实值
+              const realValue = vcpContent
+                .slice(match.index, RE_VCP_ARG.lastIndex)
+                .match(/([a-zA-Z0-9_-]+):「始」([\s\S]*?)「末」/);
+              const actualValue = realValue ? realValue[2] : value;
+              if (key === "tool_name") tool_name = tool_name || actualValue;
+              else if (key === "command") command = command || actualValue;
+              else if (key === "maid") maid = maid || actualValue;
+              else if (!args[key]) args[key] = actualValue;
               lastMatchEnd = RE_VCP_ARG.lastIndex;
             }
 
-            const remainingVcp = vcpContent.slice(lastMatchEnd).trim();
+            const remainingVcp = maskedContent.slice(lastMatchEnd).trim();
             const pendingMatch = remainingVcp.match(RE_VCP_PENDING);
             if (pendingMatch) {
               const key = pendingMatch[1];
-              const value = pendingMatch[2];
+              // pending 情形取原始内容中对应的值
+              const pendingStart = maskedContent.lastIndexOf(pendingMatch[0].trim());
+              const rawPendingMatch = pendingStart >= 0 ? vcpContent.slice(pendingStart).match(RE_VCP_PENDING) : null;
+              const value = rawPendingMatch ? rawPendingMatch[2] : pendingMatch[2];
               if (key === "tool_name") tool_name = tool_name || value;
               else if (key === "command") command = command || value;
               else if (key === "maid") maid = maid || value;

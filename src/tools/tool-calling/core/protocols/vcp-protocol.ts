@@ -7,13 +7,18 @@ const logger = createModuleLogger("tool-calling/vcp-protocol");
 
 const TOOL_REQUEST_START = "<<<[TOOL_REQUEST]>>>";
 const TOOL_REQUEST_END = "<<<[END_TOOL_REQUEST]>>>";
+const TOOL_REQUEST_ESCAPE_START = "<<<[TOOL_REQUEST_ESCAPE]>>>";
+const TOOL_REQUEST_ESCAPE_END = "<<<[END_TOOL_REQUEST_ESCAPE]>>>";
 export const TOOL_DEFINITION_START = "<<<[TOOL_DEFINITION]>>>";
 export const TOOL_DEFINITION_END = "<<<[END_TOOL_DEFINITION]>>>";
 
 // 复用 Tokenizer 中 VCP 模式的语义，但在此创建非 sticky 的专用实例。
 // 允许冒号后有可选空格
+// 变体优先级: ESCAPE > exp > 标准
+const RE_VCP_ARG_ESCAPE = /([a-zA-Z0-9_-]+):\s*「始ESCAPE」([\s\S]*?)「末ESCAPE」/g;
+const RE_VCP_ARG_EXP = /([a-zA-Z0-9_-]+):\s*「始exp」([\s\S]*?)「末exp」/g;
 const RE_VCP_ARG = /([a-zA-Z0-9_-]+):\s*「始」([\s\S]*?)「末」/g;
-const RE_VCP_PENDING = /([a-zA-Z0-9_-]+):\s*「始」([\s\S]*)$/;
+const RE_VCP_PENDING = /([a-zA-Z0-9_-]+):\s*「始(?:ESCAPE|exp)?」([\s\S]*)$/;
 const RE_LINE_BREAKS = /\r\n/g;
 
 function normalizeLineBreaks(text: string): string {
@@ -81,24 +86,54 @@ export function buildMethodDescription(method: MethodMetadata, toolId: string): 
   return lines.join("\n");
 }
 
-function parseSingleToolRequest(rawBlock: string, requestIndex: number): ParsedToolRequest[] {
-  const content = rawBlock.slice(TOOL_REQUEST_START.length, rawBlock.length - TOOL_REQUEST_END.length);
-
+function parseSingleToolRequest(rawBlock: string, content: string, requestIndex: number): ParsedToolRequest[] {
   const allParams: Record<string, string> = {};
   const errors: string[] = [];
 
-  RE_VCP_ARG.lastIndex = 0;
-  let match: RegExpExecArray | null;
-  let lastMatchEnd = 0;
+  // 第一步：优先解析 ESCAPE/exp 变体（内容可含标准 VCP 字符，必须先处理）
+  const matchedRanges: Array<[number, number]> = [];
 
-  while ((match = RE_VCP_ARG.exec(content)) !== null) {
+  const parseEscapeVariant = (regex: RegExp) => {
+    let match: RegExpExecArray | null;
+    regex.lastIndex = 0;
+    while ((match = regex.exec(content)) !== null) {
+      const key = match[1];
+      const value = sanitizeValue(match[2]);
+      matchedRanges.push([match.index, regex.lastIndex]);
+      allParams[key] = value;
+    }
+  };
+
+  parseEscapeVariant(RE_VCP_ARG_ESCAPE);
+  parseEscapeVariant(RE_VCP_ARG_EXP);
+
+  // 第二步：屏蔽已匹配区域，解析标准参数
+  matchedRanges.sort((a, b) => a[0] - b[0]);
+  let maskedContent = content;
+  for (let ri = matchedRanges.length - 1; ri >= 0; ri--) {
+    const [start, end] = matchedRanges[ri];
+    maskedContent = maskedContent.slice(0, start) + " ".repeat(end - start) + maskedContent.slice(end);
+  }
+
+  RE_VCP_ARG.lastIndex = 0;
+  let lastMatchEnd = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = RE_VCP_ARG.exec(maskedContent)) !== null) {
     const key = match[1];
-    const value = sanitizeValue(match[2]);
-    allParams[key] = value;
+    // 从原始 content 中提取真实值
+    const realValueMatch = content
+      .slice(match.index, RE_VCP_ARG.lastIndex)
+      .match(/([a-zA-Z0-9_-]+):\s*「始」([\s\S]*?)「末」/);
+    const value = realValueMatch ? sanitizeValue(realValueMatch[2]) : sanitizeValue(match[2]);
+
+    if (!(key in allParams)) {
+      allParams[key] = value;
+    }
     lastMatchEnd = RE_VCP_ARG.lastIndex;
   }
 
-  const remaining = content.slice(lastMatchEnd).trim();
+  const remaining = maskedContent.slice(lastMatchEnd).trim();
   if (remaining) {
     // 检查是否有未闭合的标签
     const pendingMatch = remaining.match(RE_VCP_PENDING);
@@ -268,7 +303,9 @@ export class VcpToolCallingProtocol implements ToolCallingProtocol {
       "1. **围栏原则**：所有参数值必须被 :「始」和 「末」 完整包裹。",
       "2. **工具名**：必须提供正确的 tool_name。",
       "3. **指令名**：如果工具包含多个方法，必须通过 command 参数指定。批量调用时使用 command1, command2...",
-      "4. **转义说明**：如果内容本身包含「始」或「末」，请使用转义格式（如「始exp」和「末exp」）。",
+      "4. **内容保护 (重要)**：",
+      "   - 如果参数值本身包含 VCP 协议字符（如「始」、「末」），**必须**使用转义围栏：`参数:「始ESCAPE」内容「末ESCAPE」`。",
+      "   - 如果需要在一个工具调用中嵌套另一个完整的 VCP 块，**必须**使用块级转义围栏：`<<<[TOOL_REQUEST_ESCAPE]>>> ... <<<[END_TOOL_REQUEST_ESCAPE]>>>`。",
     ].join("\n");
   }
 
@@ -282,31 +319,38 @@ export class VcpToolCallingProtocol implements ToolCallingProtocol {
     let requestIndex = 0;
 
     // 使用复合正则：匹配代码块、行内代码，或者捕获工具请求标记
-    // 这样可以在一次遍历中自动跳过代码块内容，且不需要创建大字符串副本，内存效率更高
-    const scanner = /(?:^|\n) {0,3}```[\s\S]*?(?:\n {0,3}```|$)|`[^`\n\r]+`|(<<<\[TOOL_REQUEST\]>>>)/g;
+    // 捕获组 1: 标准请求, 捕获组 2: 转义请求
+    const scanner =
+      /(?:^|\n) {0,3}```[\s\S]*?(?:\n {0,3}```|$)|`[^`\n\r]+`|(<<<\[TOOL_REQUEST\]>>>)|(<<<\[TOOL_REQUEST_ESCAPE\]>>>)/g;
 
     let match: RegExpExecArray | null;
     while ((match = scanner.exec(text)) !== null) {
-      // 只有当捕获组 1 匹配到时，才说明找到了不在代码块内的工具标记
-      if (match[1]) {
+      const isEscape = !!match[2];
+      const foundMarker = match[1] || match[2];
+
+      if (foundMarker) {
+        const startMarker = isEscape ? TOOL_REQUEST_ESCAPE_START : TOOL_REQUEST_START;
+        const endMarker = isEscape ? TOOL_REQUEST_ESCAPE_END : TOOL_REQUEST_END;
+
         const blockStart = match.index + (match[0].startsWith("\n") ? 1 : 0);
-        const contentStart = blockStart + TOOL_REQUEST_START.length;
-        const blockEnd = text.indexOf(TOOL_REQUEST_END, contentStart);
+        const contentStart = blockStart + startMarker.length;
+        const blockEnd = text.indexOf(endMarker, contentStart);
 
         if (blockEnd === -1) {
-          logger.warn("发现未闭合的 TOOL_REQUEST 块，已丢弃", {
+          logger.warn(`发现未闭合的 ${startMarker} 块，已丢弃`, {
             blockStart,
             preview: text.slice(blockStart, Math.min(blockStart + 200, text.length)),
           });
           break;
         }
 
-        const rawBlock = text.slice(blockStart, blockEnd + TOOL_REQUEST_END.length);
-        const parsedList = parseSingleToolRequest(rawBlock, requestIndex);
+        const rawBlock = text.slice(blockStart, blockEnd + endMarker.length);
+        const content = text.slice(contentStart, blockEnd);
+        const parsedList = parseSingleToolRequest(rawBlock, content, requestIndex);
         requests.push(...parsedList);
 
         // 更新正则指针，跳过已处理的工具块
-        scanner.lastIndex = blockEnd + TOOL_REQUEST_END.length;
+        scanner.lastIndex = blockEnd + endMarker.length;
         requestIndex += 1;
       }
     }

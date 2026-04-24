@@ -8,7 +8,13 @@
       </span>
     </div>
 
-    <SparklineChart :data="cpuHistory" color="#4a9eff" :height="64" :max-value="100" unit="%" />
+    <SparklineChart
+      :data="cpuHistory"
+      color="#4a9eff"
+      :height="'var(--pulse-chart-height)'"
+      :max-value="100"
+      unit="%"
+    />
 
     <div class="card-stats">
       <div class="stat-item">
@@ -75,11 +81,11 @@ function coreColor(usage: number): string {
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
   border: var(--border-width) solid var(--border-color);
-  border-radius: 8px;
-  padding: 12px;
+  border-radius: 12px;
+  padding: var(--pulse-card-padding);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: calc(var(--pulse-card-padding) * 0.75);
   min-width: 0;
   overflow: hidden;
 }
@@ -91,21 +97,21 @@ function coreColor(usage: number): string {
 }
 
 .card-title {
-  font-size: 12px;
+  font-size: calc(var(--pulse-font-size-base) * 0.85);
   color: var(--el-text-color-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .card-value {
-  font-size: 20px;
+  font-size: calc(var(--pulse-font-size-base) * 1.6);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
 .card-stats {
   display: flex;
-  gap: 16px;
+  gap: var(--pulse-card-padding);
   flex-wrap: wrap;
 }
 
@@ -116,12 +122,12 @@ function coreColor(usage: number): string {
 }
 
 .stat-label {
-  font-size: 10px;
+  font-size: calc(var(--pulse-font-size-base) * 0.75);
   color: var(--el-text-color-secondary);
 }
 
 .stat-val {
-  font-size: 12px;
+  font-size: calc(var(--pulse-font-size-base) * 0.9);
   font-variant-numeric: tabular-nums;
   color: var(--el-text-color-primary);
 }
@@ -145,8 +151,8 @@ function coreColor(usage: number): string {
 }
 
 .core-cell {
-  width: 14px;
-  height: 14px;
+  width: calc(var(--pulse-font-size-base) * 1);
+  height: calc(var(--pulse-font-size-base) * 1);
   border-radius: 2px;
   transition: background-color 0.3s;
 }

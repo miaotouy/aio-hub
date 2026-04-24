@@ -67,12 +67,12 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 10px 16px;
+  padding: calc(var(--pulse-card-padding) * 0.6) var(--pulse-card-padding);
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
   border: var(--border-width) solid var(--border-color);
-  border-radius: 10px;
-  font-size: 13px;
+  border-radius: 12px;
+  font-size: calc(var(--pulse-font-size-base) * 0.9);
   font-variant-numeric: tabular-nums;
   flex-wrap: wrap;
 }

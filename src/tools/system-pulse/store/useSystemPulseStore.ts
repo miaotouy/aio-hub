@@ -27,7 +27,17 @@ class RingBuffer<T> {
   }
 }
 
+export type PulseUiSize = "small" | "medium" | "large";
+
 export const useSystemPulseStore = defineStore("systemPulse", () => {
+  // UI 尺寸/密度
+  const uiSize = ref<PulseUiSize>((localStorage.getItem("pulse-ui-size") as PulseUiSize) || "medium");
+
+  function setUiSize(size: PulseUiSize) {
+    uiSize.value = size;
+    localStorage.setItem("pulse-ui-size", size);
+  }
+
   // 最新快照
   const latest = ref<SystemSnapshot | null>(null);
 
@@ -97,6 +107,8 @@ export const useSystemPulseStore = defineStore("systemPulse", () => {
   }
 
   return {
+    uiSize,
+    setUiSize,
     latest,
     cpuHistoryArray,
     memHistoryArray,

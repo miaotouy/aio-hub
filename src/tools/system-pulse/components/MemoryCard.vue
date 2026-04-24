@@ -6,7 +6,13 @@
       <span class="card-value" :style="{ color: usageColor(memPercent) }"> {{ memPercent.toFixed(1) }}% </span>
     </div>
 
-    <SparklineChart :data="memHistory" color="#a78bfa" :height="64" :max-value="100" unit="%" />
+    <SparklineChart
+      :data="memHistory"
+      color="#a78bfa"
+      :height="'var(--pulse-chart-height)'"
+      :max-value="100"
+      unit="%"
+    />
 
     <div class="mem-bars">
       <!-- 物理内存 -->
@@ -57,10 +63,10 @@ const swapPercent = computed(() =>
   backdrop-filter: blur(var(--ui-blur));
   border: var(--border-width) solid var(--border-color);
   border-radius: 12px;
-  padding: 16px;
+  padding: var(--pulse-card-padding);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: calc(var(--pulse-card-padding) * 0.75);
   min-width: 0;
   overflow: hidden;
 }
@@ -72,14 +78,14 @@ const swapPercent = computed(() =>
 }
 
 .card-title {
-  font-size: 14px;
+  font-size: calc(var(--pulse-font-size-base) * 0.85);
   color: var(--el-text-color-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .card-value {
-  font-size: 24px;
+  font-size: calc(var(--pulse-font-size-base) * 1.6);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -87,7 +93,7 @@ const swapPercent = computed(() =>
 .mem-bars {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: calc(var(--pulse-card-padding) * 0.6);
 }
 
 .bar-row {
@@ -98,15 +104,15 @@ const swapPercent = computed(() =>
 }
 
 .bar-label {
-  font-size: 12px;
+  font-size: calc(var(--pulse-font-size-base) * 0.85);
   color: var(--el-text-color-secondary);
-  width: 36px;
+  width: calc(var(--pulse-font-size-base) * 2.5);
   flex-shrink: 0;
 }
 
 .bar-track {
   flex: 1;
-  height: 10px;
+  height: calc(var(--pulse-font-size-base) * 0.7);
   min-width: 40px;
   background: rgba(255, 255, 255, 0.08);
   border-radius: 5px;
@@ -128,7 +134,7 @@ const swapPercent = computed(() =>
 }
 
 .bar-text {
-  font-size: 12px;
+  font-size: calc(var(--pulse-font-size-base) * 0.85);
   color: var(--el-text-color-secondary);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;

@@ -1,7 +1,7 @@
 <!-- src/tools/system-pulse/components/SparklineChart.vue -->
 <!-- 通用迷你折线图，使用 ECharts Canvas 渲染，性能优先 -->
 <template>
-  <div ref="container" :style="{ height: `${height}px`, width: '100%' }" />
+  <div ref="container" :style="containerStyle" />
 </template>
 
 <script setup lang="ts">
@@ -16,7 +16,7 @@ echarts.use([LineChart, GridComponent, TooltipComponent, CanvasRenderer]);
 interface Props {
   data: number[];
   color?: string;
-  height?: number;
+  height?: number | string;
   unit?: string;
   maxValue?: number;
   fillArea?: boolean;
@@ -27,6 +27,11 @@ const props = withDefaults(defineProps<Props>(), {
   height: 60,
   unit: "%",
   fillArea: true,
+});
+
+const containerStyle = computed(() => {
+  const h = typeof props.height === "number" ? `${props.height}px` : props.height;
+  return { height: h, width: "100%" };
 });
 
 const container = ref<HTMLElement | null>(null);

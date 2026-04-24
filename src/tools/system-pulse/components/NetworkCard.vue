@@ -12,11 +12,21 @@
     <div class="net-charts">
       <div class="chart-row">
         <span class="chart-label">↑</span>
-        <SparklineChart :data="upHistory" color="#4a9eff" :height="48" :fill-area="true" />
+        <SparklineChart
+          :data="upHistory"
+          color="#4a9eff"
+          :height="'calc(var(--pulse-chart-height) * 0.6)'"
+          :fill-area="true"
+        />
       </div>
       <div class="chart-row">
         <span class="chart-label">↓</span>
-        <SparklineChart :data="downHistory" color="#fb923c" :height="48" :fill-area="true" />
+        <SparklineChart
+          :data="downHistory"
+          color="#fb923c"
+          :height="'calc(var(--pulse-chart-height) * 0.6)'"
+          :fill-area="true"
+        />
       </div>
     </div>
 
@@ -53,10 +63,10 @@ const downHistory = computed(() => props.networkHistory.map((h) => h.down));
   backdrop-filter: blur(var(--ui-blur));
   border: var(--border-width) solid var(--border-color);
   border-radius: 12px;
-  padding: 16px;
+  padding: var(--pulse-card-padding);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: calc(var(--pulse-card-padding) * 0.75);
   min-width: 0;
   overflow: hidden;
 }
@@ -68,7 +78,7 @@ const downHistory = computed(() => props.networkHistory.map((h) => h.down));
 }
 
 .card-title {
-  font-size: 14px;
+  font-size: calc(var(--pulse-font-size-base) * 0.85);
   color: var(--el-text-color-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -77,7 +87,7 @@ const downHistory = computed(() => props.networkHistory.map((h) => h.down));
 .net-total {
   display: flex;
   gap: 12px;
-  font-size: 13px;
+  font-size: calc(var(--pulse-font-size-base) * 0.9);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   flex-shrink: 0;
@@ -120,7 +130,7 @@ const downHistory = computed(() => props.networkHistory.map((h) => h.down));
 .iface-row {
   display: flex;
   gap: 8px;
-  font-size: 10px;
+  font-size: calc(var(--pulse-font-size-base) * 0.75);
   color: var(--el-text-color-secondary);
   font-variant-numeric: tabular-nums;
   min-width: 0;

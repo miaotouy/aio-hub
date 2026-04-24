@@ -8,7 +8,13 @@
       </span>
     </div>
 
-    <SparklineChart :data="gpuUsageHistory" color="#f87171" :height="64" :max-value="100" unit="%" />
+    <SparklineChart
+      :data="gpuUsageHistory"
+      color="#f87171"
+      :height="'var(--pulse-chart-height)'"
+      :max-value="100"
+      unit="%"
+    />
 
     <div class="card-stats">
       <div class="stat-item" v-if="gpu.temperatureCelsius !== null">
@@ -64,11 +70,11 @@ const memPercent = computed(() =>
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
   border: var(--border-width) solid var(--border-color);
-  border-radius: 8px;
-  padding: 12px;
+  border-radius: 12px;
+  padding: var(--pulse-card-padding);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: calc(var(--pulse-card-padding) * 0.75);
   min-width: 0;
   overflow: hidden;
 }
@@ -81,7 +87,7 @@ const memPercent = computed(() =>
 }
 
 .gpu-name {
-  font-size: 11px;
+  font-size: calc(var(--pulse-font-size-base) * 0.8);
   color: var(--el-text-color-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -90,7 +96,7 @@ const memPercent = computed(() =>
 }
 
 .card-value {
-  font-size: 20px;
+  font-size: calc(var(--pulse-font-size-base) * 1.5);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
@@ -98,7 +104,7 @@ const memPercent = computed(() =>
 
 .card-stats {
   display: flex;
-  gap: 12px;
+  gap: var(--pulse-card-padding);
   flex-wrap: wrap;
 }
 
@@ -109,12 +115,12 @@ const memPercent = computed(() =>
 }
 
 .stat-label {
-  font-size: 10px;
+  font-size: calc(var(--pulse-font-size-base) * 0.75);
   color: var(--el-text-color-secondary);
 }
 
 .stat-val {
-  font-size: 12px;
+  font-size: calc(var(--pulse-font-size-base) * 0.9);
   font-variant-numeric: tabular-nums;
   color: var(--el-text-color-primary);
 }

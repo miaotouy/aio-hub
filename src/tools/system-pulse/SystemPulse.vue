@@ -1,6 +1,6 @@
 <!-- src/tools/system-pulse/SystemPulse.vue -->
 <template>
-  <div class="system-pulse-root">
+  <div class="system-pulse-root" :class="[`size-${store.uiSize}`]">
     <!-- 顶部工具栏 -->
     <div class="pulse-toolbar">
       <div class="toolbar-left">
@@ -19,6 +19,25 @@
               <el-icon><Download /></el-icon>
             </el-button>
           </el-tooltip>
+
+          <el-dropdown trigger="click" @command="store.setUiSize">
+            <el-button circle>
+              <el-icon><Layout /></el-icon>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="small" :disabled="store.uiSize === 'small'">
+                  紧凑 (Small)
+                </el-dropdown-item>
+                <el-dropdown-item command="medium" :disabled="store.uiSize === 'medium'">
+                  标准 (Medium)
+                </el-dropdown-item>
+                <el-dropdown-item command="large" :disabled="store.uiSize === 'large'">
+                  宽大 (Large)
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
 
         <el-divider direction="vertical" />
@@ -85,7 +104,7 @@
 
 <script setup lang="ts">
 import { Loading } from "@element-plus/icons-vue";
-import { Activity, Copy, Download } from "lucide-vue-next";
+import { Activity, Copy, Download, Layout } from "lucide-vue-next";
 import { useSystemPulse } from "./composables/useSystemPulse";
 import CpuCard from "./components/CpuCard.vue";
 import MemoryCard from "./components/MemoryCard.vue";
@@ -106,6 +125,26 @@ const { store, isActive, start, handleToggle, copyCurrentStats, exportHistory } 
   height: 100%;
   overflow-y: auto;
   box-sizing: border-box;
+
+  /* 默认变量 (Medium) */
+  --pulse-grid-min-width: 340px;
+  --pulse-card-padding: 16px;
+  --pulse-chart-height: 80px;
+  --pulse-font-size-base: 14px;
+}
+
+.system-pulse-root.size-small {
+  --pulse-grid-min-width: 280px;
+  --pulse-card-padding: 12px;
+  --pulse-chart-height: 60px;
+  --pulse-font-size-base: 13px;
+}
+
+.system-pulse-root.size-large {
+  --pulse-grid-min-width: 460px;
+  --pulse-card-padding: 24px;
+  --pulse-chart-height: 120px;
+  --pulse-font-size-base: 16px;
 }
 
 .pulse-toolbar {
@@ -185,9 +224,9 @@ const { store, isActive, start, handleToggle, copyCurrentStats, exportHistory } 
 
 .monitor-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  grid-auto-flow: dense; /* 开启紧凑填充，减少空隙 */
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(var(--pulse-grid-min-width), 1fr));
+  grid-auto-flow: dense;
+  gap: 12px;
 }
 
 /* 磁盘卡片通常比较长，尝试让它跨行以填补空间 */
@@ -195,27 +234,10 @@ const { store, isActive, start, handleToggle, copyCurrentStats, exportHistory } 
   grid-row: span 2;
 }
 
-/* 宽屏（3列及以上）时的精细化控制 */
-@media (min-width: 1200px) {
-  .monitor-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-
-  /* 确保磁盘在右侧或跨行时不会导致左侧大面积空白 */
-  .grid-disk {
-    grid-column: 3;
-    grid-row: 1 / span 2;
-  }
-}
-
-/* 特大屏幕（4列） */
-@media (min-width: 1600px) {
-  .monitor-grid {
-    grid-template-columns: repeat(4, 1fr);
-  }
-  .grid-disk {
-    grid-column: 4;
-    grid-row: 1 / span 2;
+/* 只有在 Large 模式下且屏幕足够宽时，才强制一些跨行逻辑，否则让 auto-fill 自由发挥 */
+@media (min-width: 1400px) {
+  .size-large .grid-disk {
+    grid-column: span 2;
   }
 }
 </style>

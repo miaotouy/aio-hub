@@ -12,6 +12,15 @@
               </div>
             </template>
             <div class="config-scroll-area">
+              <!-- 预设管理 -->
+              <div class="preset-section">
+                <FFmpegPresetManager
+                  placeholder="选择预设…"
+                  @apply="handleApplyPreset"
+                  @save-as-preset="handleSaveAsPreset"
+                />
+              </div>
+
               <FFmpegParamsForm :params="params" :is-professional="isProfessional" />
 
               <div class="command-preview">
@@ -26,12 +35,7 @@
             </div>
 
             <div class="submit-area">
-              <el-button
-                type="primary"
-                size="large"
-                :disabled="!currentFilePath"
-                @click="submitTask"
-              >
+              <el-button type="primary" size="large" :disabled="!currentFilePath" @click="submitTask">
                 <el-icon><Play /></el-icon>
                 <span>开始处理任务</span>
               </el-button>
@@ -44,9 +48,7 @@
           <!-- 待处理文件卡片 -->
           <InfoCard title="待处理文件" :icon="Files" class="file-card">
             <template #headerExtra>
-              <el-button v-if="currentFilePath" link :icon="Delete" type="danger" @click="reset"
-                >清除</el-button
-              >
+              <el-button v-if="currentFilePath" link :icon="Delete" type="danger" @click="reset">清除</el-button>
             </template>
             <div class="file-selection-area">
               <DropZone
@@ -85,9 +87,7 @@
                       <span class="value">{{ formatSize(metadata.size) }}</span>
                     </div>
                     <div class="mini-item info-btn-item">
-                      <el-button type="primary" link :icon="Info" @click="showFullMediaInfo">
-                        详情
-                      </el-button>
+                      <el-button type="primary" link :icon="Info" @click="showFullMediaInfo"> 详情 </el-button>
                     </div>
                   </div>
                 </div>
@@ -140,6 +140,7 @@ import VideoPlayer from "@/components/common/VideoPlayer.vue";
 import AudioPlayer from "@/components/common/AudioPlayer.vue";
 import FileIcon from "@/components/common/FileIcon.vue";
 import FFmpegParamsForm from "./FFmpegParamsForm.vue";
+import FFmpegPresetManager from "./FFmpegPresetManager.vue";
 import FFmpegConsole from "./FFmpegConsole.vue";
 import MediaInfoDialog from "./MediaInfoDialog.vue";
 import { convertFileSrc } from "@tauri-apps/api/core";
@@ -404,6 +405,56 @@ onUnmounted(() => {
   if (unlisten) unlisten();
 });
 
+/**
+ * 应用预设：将预设参数合并到当前参数
+ */
+const handleApplyPreset = (preset: import("../types").FFmpegPreset) => {
+  const presetParams = preset.params;
+  // 跳过运行时字段，只覆盖配置参数
+  if (presetParams.mode !== undefined) params.mode = presetParams.mode;
+  if (presetParams.hwaccel !== undefined) params.hwaccel = presetParams.hwaccel;
+  if (presetParams.videoEncoder !== undefined) params.videoEncoder = presetParams.videoEncoder;
+  if (presetParams.preset !== undefined) params.preset = presetParams.preset;
+  if (presetParams.crf !== undefined) params.crf = presetParams.crf;
+  if (presetParams.videoBitrate !== undefined) params.videoBitrate = presetParams.videoBitrate;
+  if (presetParams.scale !== undefined) params.scale = presetParams.scale;
+  if (presetParams.fps !== undefined) params.fps = presetParams.fps;
+  if (presetParams.pixelFormat !== undefined) params.pixelFormat = presetParams.pixelFormat;
+  if (presetParams.audioEncoder !== undefined) params.audioEncoder = presetParams.audioEncoder;
+  if (presetParams.audioBitrate !== undefined) params.audioBitrate = presetParams.audioBitrate;
+  if (presetParams.sampleRate !== undefined) params.sampleRate = presetParams.sampleRate;
+  if (presetParams.audioChannels !== undefined) params.audioChannels = presetParams.audioChannels;
+  if (presetParams.customArgs !== undefined) params.customArgs = presetParams.customArgs;
+  if (presetParams.maxSizeMb !== undefined) params.maxSizeMb = presetParams.maxSizeMb;
+  if (presetParams.appendParamsToName !== undefined) params.appendParamsToName = presetParams.appendParamsToName;
+  customMessage.success(`已应用预设: ${preset.name}`);
+};
+
+/**
+ * 保存当前参数为预设
+ */
+const handleSaveAsPreset = (name: string, description: string) => {
+  const snapshot: Partial<import("../types").FFmpegParams> = {
+    mode: params.mode,
+    hwaccel: params.hwaccel,
+    videoEncoder: params.videoEncoder,
+    preset: params.preset,
+    crf: params.crf,
+    videoBitrate: params.videoBitrate,
+    scale: params.scale,
+    fps: params.fps,
+    pixelFormat: params.pixelFormat,
+    audioEncoder: params.audioEncoder,
+    audioBitrate: params.audioBitrate,
+    sampleRate: params.sampleRate,
+    audioChannels: params.audioChannels,
+    customArgs: params.customArgs,
+    maxSizeMb: params.maxSizeMb,
+    appendParamsToName: params.appendParamsToName,
+  };
+  store.saveAsPreset(name, description, snapshot);
+};
+
 // 自动更新输出文件名逻辑
 watch(
   [
@@ -435,7 +486,7 @@ watch(
       const baseSuffix = suffix || "_processed";
       outputName.value = `${nameWithoutExt}${baseSuffix}.${originalExt}`;
     }
-  }
+  },
 );
 </script>
 
@@ -721,6 +772,12 @@ watch(
 
 .clickable-dropzone {
   cursor: pointer;
+}
+
+.preset-section {
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: var(--border-width) solid var(--border-color);
 }
 
 .config-scroll-area::-webkit-scrollbar {

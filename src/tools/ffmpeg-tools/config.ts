@@ -1,4 +1,4 @@
-import type { FFmpegConfig } from "./types";
+import type { FFmpegConfig, FFmpegPreset } from "./types";
 
 export const DEFAULT_FFMPEG_CONFIG: FFmpegConfig = {
   ffmpegPath: "ffmpeg",
@@ -7,3 +7,140 @@ export const DEFAULT_FFMPEG_CONFIG: FFmpegConfig = {
   hardwareAcceleration: true,
   autoCleanup: false,
 };
+
+/**
+ * 系统内置预设列表 (不可删除)
+ */
+export const BUILTIN_PRESETS: FFmpegPreset[] = [
+  {
+    id: "builtin-wechat",
+    name: "微信视频号优化",
+    description: "H.264 + 1080p + CRF 23，兼容性最好的通用预设",
+    isSystem: true,
+    params: {
+      mode: "video",
+      hwaccel: true,
+      videoEncoder: "libx264",
+      preset: "fast",
+      crf: 23,
+      scale: "scale=1920:-2",
+      pixelFormat: "yuv420p",
+      audioEncoder: "aac",
+      audioBitrate: "128k",
+      appendParamsToName: true,
+    },
+  },
+  {
+    id: "builtin-douyin",
+    name: "抖音/快手上传",
+    description: "H.264 码率模式 4000k，适应短视频平台压缩",
+    isSystem: true,
+    params: {
+      mode: "video",
+      hwaccel: true,
+      videoEncoder: "libx264",
+      preset: "medium",
+      videoBitrate: "4000k",
+      scale: "scale=1920:-2",
+      pixelFormat: "yuv420p",
+      audioEncoder: "aac",
+      audioBitrate: "192k",
+      appendParamsToName: true,
+    },
+  },
+  {
+    id: "builtin-max-compress",
+    name: "极致压缩 (H.265)",
+    description: "H.265 + CRF 28，体积最小，适合存档",
+    isSystem: true,
+    params: {
+      mode: "video",
+      hwaccel: true,
+      videoEncoder: "libx265",
+      preset: "slow",
+      crf: 28,
+      scale: "scale=1280:-2",
+      pixelFormat: "yuv420p",
+      audioEncoder: "aac",
+      audioBitrate: "96k",
+      appendParamsToName: true,
+    },
+  },
+  {
+    id: "builtin-audio-high",
+    name: "高保真音频提取",
+    description: "提取最高品质音频 (AAC 320k)",
+    isSystem: true,
+    params: {
+      mode: "extract_audio",
+      hwaccel: false,
+      audioEncoder: "aac",
+      audioBitrate: "320k",
+      sampleRate: "48000",
+      audioChannels: 2,
+      appendParamsToName: true,
+    },
+  },
+  {
+    id: "builtin-audio-lossless",
+    name: "无损音频提取",
+    description: "提取 FLAC 无损音频",
+    isSystem: true,
+    params: {
+      mode: "extract_audio",
+      hwaccel: false,
+      audioEncoder: "flac",
+      sampleRate: "48000",
+      audioChannels: 2,
+      appendParamsToName: true,
+    },
+  },
+  {
+    id: "builtin-quick-convert",
+    name: "快速转换 (流拷贝)",
+    description: "不重编码，仅转换封装格式，速度最快",
+    isSystem: true,
+    params: {
+      mode: "convert",
+      hwaccel: false,
+      videoEncoder: "copy",
+      audioEncoder: "copy",
+      appendParamsToName: true,
+    },
+  },
+  {
+    id: "builtin-bilibili",
+    name: "B站投稿优化",
+    description: "H.264 + 1080p + CRF 20，满足B站二压标准",
+    isSystem: true,
+    params: {
+      mode: "video",
+      hwaccel: true,
+      videoEncoder: "libx264",
+      preset: "slow",
+      crf: 20,
+      scale: "scale=1920:-2",
+      pixelFormat: "yuv420p",
+      audioEncoder: "aac",
+      audioBitrate: "192k",
+      appendParamsToName: true,
+    },
+  },
+  {
+    id: "builtin-4k-hdr",
+    name: "4K HDR 保留",
+    description: "保留4K分辨率及HDR信息，适合高画质素材归档",
+    isSystem: true,
+    params: {
+      mode: "video",
+      hwaccel: true,
+      videoEncoder: "libx265",
+      preset: "medium",
+      crf: 22,
+      pixelFormat: "yuv420p10le",
+      audioEncoder: "aac",
+      audioBitrate: "256k",
+      appendParamsToName: true,
+    },
+  },
+];

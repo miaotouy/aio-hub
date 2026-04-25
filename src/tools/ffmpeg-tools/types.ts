@@ -1,5 +1,20 @@
 export type ProcessingMode = "video" | "extract_audio" | "convert" | "custom";
 
+/**
+ * FFmpeg 预设：一组参数快照，可保存和应用
+ */
+export interface FFmpegPreset {
+  id: string;
+  name: string;
+  description?: string;
+  /** 预设保存的参数快照 (不包含输入输出路径等运行时字段) */
+  params: Partial<FFmpegParams>;
+  /** 是否为系统内置预设 (内置不可删除/编辑) */
+  isSystem: boolean;
+  /** 创建时间 (仅自定义预设) */
+  createdAt?: number;
+}
+
 export interface FFmpegProgress {
   percent: number; // 0-100
   currentTime: number; // 处理进度(秒)

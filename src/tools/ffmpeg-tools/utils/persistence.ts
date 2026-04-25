@@ -1,5 +1,5 @@
 import { createConfigManager } from "@/utils/configManager";
-import type { FFmpegTask, FFmpegConfig } from "../types";
+import type { FFmpegTask, FFmpegConfig, FFmpegPreset } from "../types";
 import { DEFAULT_FFMPEG_CONFIG } from "../config";
 import { merge } from "lodash-es";
 
@@ -21,5 +21,15 @@ export const ffmpegConfigManager = createConfigManager<FFmpegConfig>({
 export const ffmpegTasksManager = createConfigManager<{ list: FFmpegTask[] }>({
   moduleName: "ffmpeg-tools",
   fileName: "tasks.json",
+  createDefault: () => ({ list: [] }),
+});
+
+/**
+ * FFmpeg 预设持久化管理器
+ * 存储用户自定义预设 (系统预设不会持久化)
+ */
+export const ffmpegPresetsManager = createConfigManager<{ list: FFmpegPreset[] }>({
+  moduleName: "ffmpeg-tools",
+  fileName: "presets.json",
   createDefault: () => ({ list: [] }),
 });

@@ -1,8 +1,8 @@
 import { defineStore } from "pinia";
 import { ref, watch, computed } from "vue";
-import type { FFmpegTask, FFmpegConfig } from "./types";
-import { DEFAULT_FFMPEG_CONFIG } from "./config";
-import { ffmpegConfigManager, ffmpegTasksManager } from "./utils/persistence";
+import type { FFmpegTask, FFmpegConfig, FFmpegPreset, FFmpegParams } from "./types";
+import { DEFAULT_FFMPEG_CONFIG, BUILTIN_PRESETS } from "./config";
+import { ffmpegConfigManager, ffmpegTasksManager, ffmpegPresetsManager } from "./utils/persistence";
 import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("ffmpegStore");
@@ -11,7 +11,11 @@ export const useFFmpegStore = defineStore("ffmpeg-tools", () => {
   // 状态
   const tasks = ref<FFmpegTask[]>([]);
   const config = ref<FFmpegConfig>({ ...DEFAULT_FFMPEG_CONFIG });
+  const presets = ref<FFmpegPreset[]>([]);
   const isInitialized = ref(false);
+
+  /** 合并后的预设列表：内置预设 + 用户自定义预设 */
+  const allPresets = computed(() => [...BUILTIN_PRESETS, ...presets.value]);
 
   // 加载配置
   const loadConfig = async () => {
@@ -43,6 +47,16 @@ export const useFFmpegStore = defineStore("ffmpeg-tools", () => {
     }
   };
 
+  /** 加载用户自定义预设 */
+  const loadPresets = async () => {
+    try {
+      const data = await ffmpegPresetsManager.load();
+      presets.value = data.list || [];
+    } catch (e) {
+      logger.warn("加载 FFmpeg 预设失败", e);
+    }
+  };
+
   // 保存配置
   const saveConfig = () => {
     ffmpegConfigManager.saveDebounced(config.value);
@@ -54,6 +68,11 @@ export const useFFmpegStore = defineStore("ffmpeg-tools", () => {
     ffmpegTasksManager.saveDebounced({ list: tasksToSave });
   };
 
+  /** 保存用户自定义预设 */
+  const savePresets = () => {
+    ffmpegPresetsManager.saveDebounced({ list: presets.value });
+  };
+
   // 监听配置变化
   watch(
     config,
@@ -61,7 +80,7 @@ export const useFFmpegStore = defineStore("ffmpeg-tools", () => {
       if (!isInitialized.value) return;
       saveConfig();
     },
-    { deep: true }
+    { deep: true },
   );
 
   // 监听任务变化
@@ -71,18 +90,28 @@ export const useFFmpegStore = defineStore("ffmpeg-tools", () => {
       if (!isInitialized.value) return;
       saveTasks();
     },
-    { deep: true }
+    { deep: true },
+  );
+
+  // 监听预设变化
+  watch(
+    presets,
+    () => {
+      if (!isInitialized.value) return;
+      savePresets();
+    },
+    { deep: true },
   );
 
   // Getters
-  const pendingTasks = computed(() => tasks.value.filter(t => t.status === "pending"));
-  const activeTasks = computed(() => tasks.value.filter(t => t.status === "processing"));
-  const completedTasks = computed(() => tasks.value.filter(t => t.status === "completed"));
+  const pendingTasks = computed(() => tasks.value.filter((t) => t.status === "pending"));
+  const activeTasks = computed(() => tasks.value.filter((t) => t.status === "processing"));
+  const completedTasks = computed(() => tasks.value.filter((t) => t.status === "completed"));
 
   // 初始化
   const init = async () => {
     if (isInitialized.value) return;
-    await Promise.all([loadConfig(), loadTasks()]);
+    await Promise.all([loadConfig(), loadTasks(), loadPresets()]);
     isInitialized.value = true;
     logger.info("FFmpeg Store 初始化完成");
   };
@@ -149,12 +178,50 @@ export const useFFmpegStore = defineStore("ffmpeg-tools", () => {
     config.value = { ...DEFAULT_FFMPEG_CONFIG };
   };
 
+  // --- 预设操作 ---
+
+  /** 将当前参数保存为新预设 */
+  const saveAsPreset = (name: string, description: string, params: Partial<FFmpegParams>) => {
+    const newPreset: FFmpegPreset = {
+      id: crypto.randomUUID(),
+      name,
+      description,
+      params,
+      isSystem: false,
+      createdAt: Date.now(),
+    };
+    presets.value.push(newPreset);
+    return newPreset;
+  };
+
+  /** 删除用户自定义预设 */
+  const deletePreset = (presetId: string) => {
+    const idx = presets.value.findIndex((p) => p.id === presetId);
+    if (idx !== -1) {
+      presets.value.splice(idx, 1);
+      return true;
+    }
+    return false;
+  };
+
+  /** 重命名预设 */
+  const renamePreset = (presetId: string, newName: string) => {
+    const preset = presets.value.find((p) => p.id === presetId);
+    if (preset) {
+      preset.name = newName;
+      return true;
+    }
+    return false;
+  };
+
   // 立即初始化
   init();
 
   return {
     tasks,
     config,
+    presets,
+    allPresets,
     isInitialized,
     pendingTasks,
     activeTasks,
@@ -167,5 +234,8 @@ export const useFFmpegStore = defineStore("ffmpeg-tools", () => {
     removeTask,
     clearCompletedTasks,
     resetConfig,
+    saveAsPreset,
+    deletePreset,
+    renamePreset,
   };
 });

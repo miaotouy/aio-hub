@@ -7,6 +7,8 @@ pub mod config_manager;
 pub mod content_deduplicator;
 pub mod directory_janitor;
 pub mod directory_tree;
+#[cfg(windows)]
+pub mod external_player;
 pub mod ffmpeg_processor;
 pub mod file_operations;
 pub mod git_analyzer;
@@ -32,6 +34,8 @@ pub use config_manager::*;
 pub use content_deduplicator::*;
 pub use directory_janitor::*;
 pub use directory_tree::*;
+#[cfg(windows)]
+pub use external_player::*;
 pub use ffmpeg_processor::*;
 pub use file_operations::*;
 pub use git_analyzer::*;

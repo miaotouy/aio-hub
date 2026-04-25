@@ -162,6 +162,10 @@ const viteConfig = defineConfig({
     // 优化代码分割,减少内存消耗
     // Vite 8 推荐使用 rolldownOptions，它提供了更好的性能
     rolldownOptions: {
+      input: {
+        main: 'index.html',
+        danmakuOverlay: 'danmaku-overlay.html',
+      },
       // 外部化 macOS 专用依赖和插件构建脚本
       external: [
         'fsevents',

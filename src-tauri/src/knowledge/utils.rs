@@ -43,9 +43,7 @@ pub fn extract_tags_from_content(content: &str) -> Vec<String> {
         if let Some(tags_str) = caps.get(1) {
             return tags_str
                 .as_str()
-                .split(|c: char| {
-                    c == ',' || c == '，' || c == ';' || c == '；'
-                })
+                .split([',', '，', ';', '；'])
                 .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty())
                 .collect();

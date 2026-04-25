@@ -1,10 +1,36 @@
 <template>
   <div class="danmaku-player-container">
-    <!-- 顶栏：文件路径选择器 -->
+    <!-- 顶栏：模式切换与文件路径选择器 -->
     <div class="file-toolbar">
+      <div class="mode-tabs" role="tablist" aria-label="播放器模式">
+        <button
+          class="mode-tab"
+          :class="{ active: activeMode === 'builtin' }"
+          type="button"
+          role="tab"
+          :aria-selected="activeMode === 'builtin'"
+          @click="activeMode = 'builtin'"
+        >
+          <Film :size="14" />
+          内置播放器
+        </button>
+        <button
+          class="mode-tab"
+          :class="{ active: activeMode === 'external' }"
+          type="button"
+          role="tab"
+          :aria-selected="activeMode === 'external'"
+          @click="activeMode = 'external'"
+        >
+          <Monitor :size="14" />
+          外部播放器
+        </button>
+      </div>
+
       <div class="file-input-group">
-        <!-- 视频文件选择 -->
+        <!-- 视频文件选择：仅内置播放器模式需要 -->
         <DropZone
+          v-if="activeMode === 'builtin'"
           variant="input"
           :accept="['video/*', '.mkv', '.mp4', '.webm', '.avi', '.mov']"
           :clickable="true"
@@ -30,7 +56,7 @@
           </template>
         </DropZone>
 
-        <!-- ASS 弹幕文件选择 -->
+        <!-- ASS 弹幕文件选择：两种模式共用 -->
         <DropZone
           variant="input"
           :accept="['.ass']"
@@ -61,33 +87,37 @@
     </div>
 
     <!-- 播放器区域 -->
-    <div class="player-area">
-      <template v-if="videoUrl">
-        <DanmakuVideoPlayer
-          :src="videoUrl"
-          :title="videoName"
-          :danmakus="danmakus"
-          :script-info="scriptInfo"
-          :config="config"
-          :autoplay="false"
-        />
+    <div class="player-area" :class="{ 'player-area--builtin': activeMode === 'builtin' }">
+      <template v-if="activeMode === 'builtin'">
+        <template v-if="videoUrl">
+          <DanmakuVideoPlayer
+            :src="videoUrl"
+            :title="videoName"
+            :danmakus="danmakus"
+            :script-info="scriptInfo"
+            :config="config"
+            :autoplay="false"
+          />
+        </template>
+        <template v-else>
+          <div class="player-placeholder">
+            <Tv :size="64" class="placeholder-icon" />
+            <p class="placeholder-text">拖入视频文件到上方开始播放</p>
+            <p class="placeholder-hint">支持 ASS 格式弹幕 · 专为 Bilibili Evolved 优化</p>
+          </div>
+        </template>
       </template>
-      <template v-else>
-        <div class="player-placeholder">
-          <Tv :size="64" class="placeholder-icon" />
-          <p class="placeholder-text">拖入视频文件到上方开始播放</p>
-          <p class="placeholder-hint">支持 ASS 格式弹幕 · 专为 Bilibili Evolved 优化</p>
-        </div>
-      </template>
+      <ExternalPlayerPanel v-else :danmakus="danmakus" :script-info="scriptInfo" :config="config" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref } from "vue";
-import { Film, MessageSquareText, X, Tv } from "lucide-vue-next";
+import { Film, MessageSquareText, Monitor, X, Tv } from "lucide-vue-next";
 import DropZone from "@/components/common/DropZone.vue";
 import DanmakuVideoPlayer from "./components/DanmakuVideoPlayer.vue";
+import ExternalPlayerPanel from "./components/ExternalPlayerPanel.vue";
 import { parseAss } from "./core/assParser";
 import { useDanmakuConfig } from "./composables/useDanmakuConfig";
 import { customMessage } from "@/utils/customMessage";
@@ -97,6 +127,7 @@ import type { ParsedDanmaku, AssScriptInfo } from "./types";
 
 const logger = createModuleLogger("danmaku-player");
 
+const activeMode = ref<"builtin" | "external">("builtin");
 const videoUrl = ref("");
 const videoName = ref("");
 const assFileName = ref("");
@@ -169,10 +200,51 @@ function resetAss() {
 /* ============ 顶栏工具条 ============ */
 .file-toolbar {
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   padding: 10px 16px;
   background: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
   border-bottom: var(--border-width) solid var(--border-color);
+}
+
+.mode-tabs {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--input-bg);
+}
+
+.mode-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    color 0.2s,
+    background-color 0.2s;
+}
+
+.mode-tab:hover {
+  color: var(--el-color-primary);
+  background: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.08));
+}
+
+.mode-tab.active {
+  color: var(--el-color-primary);
+  background: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.14));
 }
 
 .file-input-group {
@@ -287,6 +359,10 @@ function resetAss() {
   flex: 1;
   min-height: 0;
   position: relative;
+  background: var(--container-bg);
+}
+
+.player-area--builtin {
   background: #000;
 }
 

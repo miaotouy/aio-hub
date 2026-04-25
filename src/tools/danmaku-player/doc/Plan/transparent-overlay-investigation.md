@@ -1,8 +1,9 @@
 # 透明弹幕覆盖层 — 技术调查报告
 
-**状态**: `RFC` (征求意见稿)
+**状态**: `Implementing` (Phase 1 MVP 已实施)
 **日期**: 2025-04-26
 **作者**: 咕咕 (Architect Mode)
+**实施日期**: 2025-04-26
 
 ---
 
@@ -809,6 +810,34 @@ export class MpcBeClient {
 | 5   | MPC-BE 播放/暂停/拖动进度       | 弹幕同步播放/暂停/跳转，无明显延迟       |
 | 6   | 关闭 MPC-BE 窗口                | 覆盖层自动检测并清理                     |
 | 7   | 手动填写上/下边距 (策略 B)      | 覆盖区域按输入值裁切，实时生效           |
+
+#### Phase 1 实施记录 (2025-04-26)
+
+**已完成的文件变更**：
+
+| 层级 | 文件 | 状态 |
+|------|------|------|
+| Rust 后端 | `src-tauri/Cargo.toml` (windows crate features) | 修改 |
+| Rust 后端 | `src-tauri/src/commands/external_player.rs` | 新增 |
+| Rust 后端 | `src-tauri/src/commands.rs` (模块声明) | 修改 |
+| Rust 后端 | `src-tauri/src/lib.rs` (命令注册) | 修改 |
+| 构建配置 | `vite.config.ts` (多入口 input) | 修改 |
+| 构建配置 | `overlay.html` (覆盖层独立 HTML 入口) | 新增 |
+| 覆盖层应用 | `src/overlay/main.ts` | 新增 |
+| 覆盖层应用 | `src/overlay/OverlayApp.vue` | 新增 |
+| 前端核心 | `src/tools/danmaku-player/types.ts` (外部播放器类型) | 修改 |
+| 前端核心 | `src/tools/danmaku-player/core/mpcBeApi.ts` | 新增 |
+| 前端核心 | `src/tools/danmaku-player/composables/useVirtualClock.ts` | 新增 |
+| 主应用 | `src/tools/danmaku-player/composables/useExternalPlayer.ts` | 新增 |
+| 主应用 | `src/tools/danmaku-player/composables/useOverlayWindow.ts` | 新增 |
+| UI 集成 | `src/tools/danmaku-player/components/ExternalPlayerPanel.vue` | 新增 |
+| UI 集成 | `src/tools/danmaku-player/DanmakuPlayer.vue` (模式切换) | 修改 |
+
+**验证状态**：
+- ✅ 前端类型检查通过 (`check:frontend`)
+- ✅ 后端编译检查通过 (`check:backend`)
+- ✅ 代码 Lint 通过
+- ⏳ 待实机验收测试
 
 ### Phase 2：体验优化
 

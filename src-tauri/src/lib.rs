@@ -156,6 +156,11 @@ use commands::{
     AssetCatalog,
     ClipboardMonitorState,
 };
+#[cfg(windows)]
+use commands::{
+    close_danmaku_overlay_window, create_danmaku_overlay_window, find_player_windows,
+    get_mpc_be_status, get_player_window_rect, is_window_valid, set_danmaku_overlay_ignore_cursor,
+};
 // 导入全局鼠标监听器
 // 条件导入：仅在非 macOS 上导入
 #[cfg(not(target_os = "macos"))]
@@ -509,6 +514,21 @@ pub fn run() {
             git_cancel_load,
             // OCR命令
             native_ocr,
+            // 外部播放器透明弹幕覆盖层命令 (Windows)
+            #[cfg(windows)]
+            find_player_windows,
+            #[cfg(windows)]
+            get_player_window_rect,
+            #[cfg(windows)]
+            is_window_valid,
+            #[cfg(windows)]
+            create_danmaku_overlay_window,
+            #[cfg(windows)]
+            close_danmaku_overlay_window,
+            #[cfg(windows)]
+            set_danmaku_overlay_ignore_cursor,
+            #[cfg(windows)]
+            get_mpc_be_status,
             // 窗口管理命令
             create_tool_window,
             focus_window,

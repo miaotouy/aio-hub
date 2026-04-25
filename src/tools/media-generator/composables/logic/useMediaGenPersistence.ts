@@ -2,6 +2,8 @@ import { ref, watch } from "vue";
 import { debounce } from "lodash-es";
 import type {
   GenerationSession,
+  GenerationSessionDetail,
+  MediaSessionIndexItem,
   MediaMessage,
   MediaGeneratorSettings,
   MediaTask,
@@ -17,7 +19,8 @@ import { useNodeManager } from "../useNodeManager";
 const logger = createModuleLogger("media-generator/persistence");
 
 export function useMediaGenPersistence(options: {
-  sessions: { value: GenerationSession[] };
+  sessionIndexMap: { value: Map<string, MediaSessionIndexItem> };
+  sessionDetailMap: { value: Map<string, GenerationSessionDetail> };
   nodes: { value: Record<string, MediaMessage> };
   rootNodeId: { value: string };
   activeLeafId: { value: string };
@@ -28,7 +31,8 @@ export function useMediaGenPersistence(options: {
   tasks: { value: MediaTask[] };
 }) {
   const {
-    sessions,
+    sessionIndexMap,
+    sessionDetailMap,
     nodes,
     rootNodeId,
     activeLeafId,
@@ -57,24 +61,34 @@ export function useMediaGenPersistence(options: {
       const loadedSettings = await storage.loadSettings();
       settings.value = { ...DEFAULT_MEDIA_GENERATOR_SETTINGS, ...loadedSettings };
 
-      const { sessions: loadedSessions, currentSessionId: savedSessionId } =
-        await sessionManager.loadSessions();
-      sessions.value = loadedSessions as GenerationSession[];
+      const { sessions: loadedIndexItems, currentSessionId: savedSessionId } =
+        await sessionManager.loadSessionsIndex();
+
+      // 填充索引 Map
+      sessionIndexMap.value.clear();
+      loadedIndexItems.forEach((item) => {
+        sessionIndexMap.value.set(item.id, item);
+      });
 
       let session: GenerationSession | null = null;
 
       if (savedSessionId) {
-        session =
-          (loadedSessions.find((s) => s.id === savedSessionId) as GenerationSession) || null;
+        const fullSession = await storage.loadSession(savedSessionId);
+        if (fullSession) {
+          session = fullSession;
+        }
       }
 
       // 如果没有保存的会话，创建一个默认的
       if (!session) {
-        if (loadedSessions.length > 0) {
-          session = loadedSessions[0] as GenerationSession;
+        if (loadedIndexItems.length > 0) {
+          const firstId = loadedIndexItems[0].id;
+          session = await storage.loadSession(firstId);
         } else {
-          session = sessionManager.createSessionObject("默认生成会话");
-          sessions.value = [session];
+          const { index, detail } = sessionManager.createSessionObject("默认生成会话");
+          sessionIndexMap.value.set(index.id, index);
+          sessionDetailMap.value.set(detail.id, detail);
+          session = { ...index, ...detail };
           await sessionManager.persistSession(session);
         }
       }
@@ -83,6 +97,20 @@ export function useMediaGenPersistence(options: {
 
       // 应用加载的数据
       currentSessionId.value = session.id;
+
+      // 存入详情 Map
+      sessionDetailMap.value.set(session.id, {
+        id: session.id,
+        type: session.type,
+        generationConfig: session.generationConfig,
+        nodes: session.nodes,
+        rootNodeId: session.rootNodeId,
+        activeLeafId: session.activeLeafId,
+        updatedAt: session.updatedAt,
+        inputPrompt: session.inputPrompt,
+        history: session.history,
+        historyIndex: session.historyIndex,
+      });
 
       // 初始化全局任务管理器
       await taskManager.init();
@@ -162,26 +190,35 @@ export function useMediaGenPersistence(options: {
 
   /**
    * 持久化当前状态
+   * @param updateTime 是否更新会话的最后修改时间（默认不更新，由业务逻辑显式触发）
    */
-  const persist = async () => {
+  const persist = async (updateTime = false) => {
     if (!currentSessionId.value) return;
 
-    const session = sessions.value.find((s) => s.id === currentSessionId.value);
-    if (!session) return;
+    const index = sessionIndexMap.value.get(currentSessionId.value);
+    const detail = sessionDetailMap.value.get(currentSessionId.value);
+    if (!index || !detail) return;
 
     // 更新当前会话的状态
-    session.updatedAt = new Date().toISOString();
-    session.inputPrompt = inputPrompt.value;
-    session.generationConfig = {
+    if (updateTime) {
+      const now = new Date().toISOString();
+      index.updatedAt = now;
+      detail.updatedAt = now;
+    }
+    detail.inputPrompt = inputPrompt.value;
+    detail.generationConfig = {
       activeType: currentConfig.value.activeType,
       includeContext: currentConfig.value.includeContext,
       types: JSON.parse(JSON.stringify(currentConfig.value.types)),
     };
-    session.nodes = nodes.value;
-    session.rootNodeId = rootNodeId.value;
-    session.activeLeafId = activeLeafId.value;
+    detail.nodes = nodes.value;
+    detail.rootNodeId = rootNodeId.value;
+    detail.activeLeafId = activeLeafId.value;
 
-    await storage.persistSession(session, currentSessionId.value);
+    // 更新任务计数
+    sessionManager.updateTaskCount(currentSessionId.value, nodes.value, sessionIndexMap.value);
+
+    await storage.persistSession({ ...index, ...detail }, currentSessionId.value);
   };
 
   // 创建 Store 级防抖保存
@@ -195,25 +232,26 @@ export function useMediaGenPersistence(options: {
     () => {
       if (!isInitialized.value || !currentSessionId.value) return;
 
-      const session = sessions.value.find((s) => s.id === currentSessionId.value);
-      if (!session) return;
+      const index = sessionIndexMap.value.get(currentSessionId.value);
+      const detail = sessionDetailMap.value.get(currentSessionId.value);
+      if (!index || !detail) return;
 
-      // 更新内存中的 session 对象（用于即时 UI 反馈）
-      session.updatedAt = new Date().toISOString();
-      session.inputPrompt = inputPrompt.value;
-      session.generationConfig = {
+      // 更新内存中的对象（用于即时 UI 反馈）
+      // 注意：这里不更新 updatedAt，时间更新由业务 Action 显式触发
+      detail.inputPrompt = inputPrompt.value;
+      detail.generationConfig = {
         activeType: currentConfig.value.activeType,
         includeContext: currentConfig.value.includeContext,
         types: JSON.parse(JSON.stringify(currentConfig.value.types)),
       };
-      session.nodes = nodes.value;
-      session.rootNodeId = rootNodeId.value;
-      session.activeLeafId = activeLeafId.value;
+      detail.nodes = nodes.value;
+      detail.rootNodeId = rootNodeId.value;
+      detail.activeLeafId = activeLeafId.value;
 
       // 触发防抖持久化
       debouncedPersist();
     },
-    { deep: true }
+    { deep: true },
   );
 
   // 监听全局设置变化自动保存

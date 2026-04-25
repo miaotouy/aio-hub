@@ -1,5 +1,11 @@
 import { v4 as uuidv4 } from "uuid";
-import type { GenerationSession, MediaTypeConfig } from "../types";
+import type {
+  GenerationSession,
+  GenerationSessionDetail,
+  MediaMessage,
+  MediaSessionIndexItem,
+  MediaTypeConfig,
+} from "../types";
 import { useMediaStorage } from "./useMediaStorage";
 import { useNodeManager } from "./useNodeManager";
 import { createModuleLogger } from "@/utils/logger";
@@ -11,6 +17,23 @@ const errorHandler = createModuleErrorHandler("media-generator/session-manager")
 export function useSessionManager() {
   const storage = useMediaStorage();
   const nodeManager = useNodeManager();
+
+  /**
+   * 更新会话的任务数量统计
+   */
+  const updateTaskCount = (
+    sessionId: string,
+    nodes: Record<string, MediaMessage>,
+    sessionIndexMap: Map<string, MediaSessionIndexItem>,
+  ): void => {
+    const index = sessionIndexMap.get(sessionId);
+    if (index) {
+      // 增加 Math.max(0, ...) 保护
+      const taskCount = Object.values(nodes).filter((n) => n.metadata?.isMediaTask).length;
+      index.taskCount = Math.max(0, taskCount);
+      logger.debug("更新任务计数", { sessionId, taskCount: index.taskCount });
+    }
+  };
 
   /**
    * 创建默认的媒体类型配置模板
@@ -38,9 +61,11 @@ export function useSessionManager() {
   });
 
   /**
-   * 创建一个全新的会话对象
+   * 创建一个全新的会话对象（拆分为 index 和 detail）
    */
-  const createSessionObject = (name?: string): GenerationSession => {
+  const createSessionObject = (
+    name?: string,
+  ): { index: MediaSessionIndexItem; detail: GenerationSessionDetail } => {
     const newId = uuidv4();
     const now = new Date().toISOString();
 
@@ -52,13 +77,18 @@ export function useSessionManager() {
       name: "Root",
     });
 
-    const session: GenerationSession = {
+    const index: MediaSessionIndexItem = {
       id: newId,
       name: name || `新生成会话`,
-      type: "media-gen",
       createdAt: now,
       updatedAt: now,
-      messageCount: 0,
+      taskCount: 0,
+    };
+
+    const detail: GenerationSessionDetail = {
+      id: newId,
+      type: "media-gen",
+      updatedAt: now,
       generationConfig: {
         activeType: "image",
         includeContext: false,
@@ -78,19 +108,33 @@ export function useSessionManager() {
       historyIndex: -1,
     };
 
-    return session;
+    return { index, detail };
   };
 
   /**
-   * 加载所有会话
+   * 加载会话索引（轻量级）
+   */
+  const loadSessionsIndex = async () => {
+    try {
+      const result = await storage.loadSessionsIndex();
+      logger.info("加载会话索引成功", { sessionCount: result.sessions.length });
+      return result;
+    } catch (error) {
+      errorHandler.handle(error as Error, { userMessage: "加载会话索引失败" });
+      return { sessions: [], currentSessionId: null };
+    }
+  };
+
+  /**
+   * 加载所有会话（全量加载）
    */
   const loadSessions = async () => {
     try {
-      const result = await storage.loadSessions();
-      logger.info("加载会话成功", { sessionCount: result.sessions.length });
+      const result = await storage.loadSessionsAll();
+      logger.info("加载全量会话成功", { sessionCount: result.sessions.length });
       return result;
     } catch (error) {
-      errorHandler.handle(error as Error, { userMessage: "加载会话失败" });
+      errorHandler.handle(error as Error, { userMessage: "加载全量会话失败" });
       return { sessions: [], currentSessionId: null };
     }
   };
@@ -130,8 +174,10 @@ export function useSessionManager() {
   return {
     createSessionObject,
     createDefaultTypeConfig,
+    loadSessionsIndex,
     loadSessions,
     persistSession,
     deleteSession,
+    updateTaskCount,
   };
 }

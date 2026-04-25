@@ -1,4 +1,3 @@
-import type { ChatSessionIndex, ChatSessionDetail } from "@/tools/llm-chat/types/session";
 import type { ChatMessageNode } from "@/tools/llm-chat/types/message";
 import type { TranslationConfig } from "@/tools/llm-chat/types/settings";
 import type { Asset } from "@/types/asset-management";
@@ -190,25 +189,7 @@ export interface MediaGeneratorSettings {
 }
 
 /**
- * 媒体生成会话
- * 全面对齐 ChatSession 的树形结构，但标记为 media-gen 类型并携带生成配置
- */
-export interface GenerationSession extends ChatSessionIndex, Omit<ChatSessionDetail, "nodes"> {
-  /** 标记会话类型 */
-  type: "media-gen";
-  /** 媒体生成专属配置 */
-  generationConfig: MediaGenerationConfig;
-  /** 节点池 (MediaMessage 列表) */
-  nodes: Record<string, MediaMessage>;
-  /** 输入框内容草稿 */
-  inputPrompt?: string;
-
-  /** 兼容旧版字段 (可选，迁移后可移除) */
-  messages?: MediaMessage[];
-}
-
-/**
- * 媒体生成会话索引项
+ * 媒体生成会话索引项（轻量级，用于列表展示）
  */
 export interface MediaSessionIndexItem {
   id: string;
@@ -216,6 +197,39 @@ export interface MediaSessionIndexItem {
   updatedAt: string;
   createdAt: string;
   taskCount: number;
+}
+
+/**
+ * 媒体生成会话详情（重型数据，按需加载）
+ */
+export interface GenerationSessionDetail {
+  id: string;
+  /** 标记会话类型 */
+  type: "media-gen";
+  /** 媒体生成专属配置 */
+  generationConfig: MediaGenerationConfig;
+  /** 节点池 (MediaMessage 列表) */
+  nodes: Record<string, MediaMessage>;
+  /** 根节点 ID */
+  rootNodeId: string;
+  /** 当前活跃叶子节点 ID */
+  activeLeafId: string;
+  /** 更新时间 */
+  updatedAt: string;
+  /** 输入框内容草稿 */
+  inputPrompt?: string;
+  /** 历史记录（撤销/重做栈，通常不持久化） */
+  history?: any[];
+  /** 历史记录索引 */
+  historyIndex?: number;
+}
+
+/**
+ * 媒体生成会话（完整对象，兼容旧代码）
+ */
+export interface GenerationSession extends MediaSessionIndexItem, GenerationSessionDetail {
+  /** 兼容旧版字段 (可选，迁移后可移除) */
+  messages?: MediaMessage[];
 }
 
 /**

@@ -10,6 +10,7 @@ import { createConfigManager } from "@/utils/configManager";
 import { debounce } from "lodash-es";
 import type {
   GenerationSession,
+  GenerationSessionDetail,
   MediaSessionsIndex,
   MediaSessionIndexItem,
   MediaGeneratorSettings,
@@ -116,7 +117,7 @@ export function useMediaStorage() {
   }
 
   /**
-   * 加载单个会话
+   * 加载单个会话完整数据
    */
   async function loadSession(sessionId: string): Promise<GenerationSession | null> {
     try {
@@ -139,6 +140,27 @@ export function useMediaStorage() {
       });
       return null;
     }
+  }
+
+  /**
+   * 加载单个会话详情（重型数据）
+   */
+  async function loadSessionDetail(sessionId: string): Promise<GenerationSessionDetail | null> {
+    const fullSession = await loadSession(sessionId);
+    if (!fullSession) return null;
+
+    return {
+      id: fullSession.id,
+      type: fullSession.type,
+      generationConfig: fullSession.generationConfig,
+      nodes: fullSession.nodes,
+      rootNodeId: fullSession.rootNodeId,
+      activeLeafId: fullSession.activeLeafId,
+      updatedAt: fullSession.updatedAt,
+      inputPrompt: fullSession.inputPrompt,
+      history: fullSession.history,
+      historyIndex: fullSession.historyIndex,
+    };
   }
 
   /**
@@ -187,23 +209,23 @@ export function useMediaStorage() {
   }
 
   /**
-   * 从会话创建索引项
-   */
-  function createIndexItem(session: GenerationSession): MediaSessionIndexItem {
-    // 统计媒体任务数
-    const taskCount = Object.values(session.nodes || {}).filter(
-      (n) => n.metadata?.isMediaTask
-    ).length;
-
-    return {
-      id: session.id,
-      name: session.name,
-      updatedAt: session.updatedAt,
-      createdAt: session.createdAt,
-      taskCount,
-    };
-  }
-
+   /**
+    * 从会话创建索引项
+    */
+   function createIndexItem(session: GenerationSession): MediaSessionIndexItem {
+     // 统计媒体任务数
+     const taskCount = Object.values(session.nodes || {}).filter(
+       (n) => n.metadata?.isMediaTask
+     ).length;
+ 
+     return {
+       id: session.id,
+       name: session.name,
+       updatedAt: session.updatedAt,
+       createdAt: session.createdAt,
+       taskCount: Math.max(0, taskCount),
+     };
+   }
   /**
    * 扫描 sessions 目录，获取所有会话文件的 ID
    */
@@ -249,39 +271,75 @@ export function useMediaStorage() {
   }
 
   /**
-   * 加载所有会话
+   * 加载会话索引（轻量级）
    */
-  async function loadSessions(): Promise<{
-    sessions: GenerationSession[];
+  async function loadSessionsIndex(): Promise<{
+    sessions: MediaSessionIndexItem[];
     currentSessionId: string | null;
   }> {
     try {
       let index = await loadIndex();
-
       // 同步索引
       const syncedItems = await syncIndex(index);
 
-      // 加载所有会话完整数据
-      const sessionResults = await Promise.all(syncedItems.map((item) => loadSession(item.id)));
-      const sessions = sessionResults.filter((s): s is GenerationSession => s !== null);
-
       // 如果索引有变动，保存更新
-      if (syncedItems.length !== index.sessions.length) {
+      if (
+        syncedItems.length !== index.sessions.length ||
+        !syncedItems.every((item, i) => item.id === index.sessions[i]?.id)
+      ) {
         index.sessions = syncedItems;
         await saveIndex(index);
       }
 
       return {
-        sessions,
+        sessions: syncedItems,
         currentSessionId: index.currentSessionId,
       };
     } catch (error) {
       errorHandler.handle(error as Error, {
-        userMessage: "加载所有生成会话失败",
+        userMessage: "加载生成会话索引失败",
         showToUser: false,
       });
       return { sessions: [], currentSessionId: null };
     }
+  }
+
+  /**
+   * 加载所有会话（全量加载，标记为重型操作）
+   * @deprecated 请优先使用 loadSessionsIndex + loadSessionDetail 组合
+   */
+  async function loadSessionsAll(): Promise<{
+    sessions: GenerationSession[];
+    currentSessionId: string | null;
+  }> {
+    try {
+      const { sessions: indexItems, currentSessionId } = await loadSessionsIndex();
+
+      // 并行加载所有会话完整数据
+      const sessionResults = await Promise.all(indexItems.map((item) => loadSession(item.id)));
+      const sessions = sessionResults.filter((s): s is GenerationSession => s !== null);
+
+      return {
+        sessions,
+        currentSessionId,
+      };
+    } catch (error) {
+      errorHandler.handle(error as Error, {
+        userMessage: "全量加载生成会话失败",
+        showToUser: false,
+      });
+      return { sessions: [], currentSessionId: null };
+    }
+  }
+
+  /**
+   * 加载所有会话（兼容旧接口）
+   */
+  async function loadSessions(): Promise<{
+    sessions: GenerationSession[];
+    currentSessionId: string | null;
+  }> {
+    return await loadSessionsAll();
   }
 
   /**
@@ -397,11 +455,14 @@ export function useMediaStorage() {
 
   return {
     loadSessions,
+    loadSessionsIndex,
+    loadSessionsAll,
     persistSession,
     persistSessionDebounced: debouncedPersist,
     saveSessionDebounced: indexManager.saveDebounced.bind(indexManager),
     deleteSession,
     loadSession,
+    loadSessionDetail,
     saveSession,
     loadSettings,
     saveSettings,

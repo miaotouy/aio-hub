@@ -84,7 +84,7 @@ const showDialog = computed({
 });
 
 const handleExport = async () => {
-  if (!props.messageId || !store.currentSession) {
+  if (!props.messageId || !store.currentFullSession) {
     errorHandler.error("无法导出：缺少消息 ID 或会话数据");
     return;
   }
@@ -92,9 +92,9 @@ const handleExport = async () => {
   try {
     exporting.value = true;
     if (exportFormat.value === "markdown") {
-      await exportManager.exportBranchAsMarkdown(store.currentSession, props.messageId, options);
+      await exportManager.exportBranchAsMarkdown(store.currentFullSession, props.messageId, options);
     } else {
-      await exportManager.exportBranchAsJson(store.currentSession, props.messageId);
+      await exportManager.exportBranchAsJson(store.currentFullSession, props.messageId);
     }
     handleClose();
   } catch (error) {

@@ -32,11 +32,10 @@ const newName = ref("");
 const namingSessionId = ref<string | null>(null);
 
 /**
- * 获取会话中的任务数（基于节点统计）
+ * 获取会话中的任务数
  */
 const getSessionTaskCount = (session: any) => {
-  if (!session.nodes) return 0;
-  return Object.values(session.nodes).filter((n: any) => n.metadata?.isMediaTask).length;
+  return session.taskCount || 0;
 };
 
 const filteredSessions = computed(() => {

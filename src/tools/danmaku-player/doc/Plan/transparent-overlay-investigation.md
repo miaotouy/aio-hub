@@ -267,6 +267,53 @@ MPC-BE 的窗口结构：
 
 **策略**：默认 10Hz 轮询窗口位置。当检测到位置变化时，临时提升到 60Hz 并持续 1 秒后回落。
 
+#### DPI 缩放与多显示器坐标处理
+
+> **开发者环境**：双 4K 显示器 (3840×2160)，Windows 缩放 150%。这意味着逻辑分辨率为 2560×1440/屏，但 Win32 API 在 DPI-aware 进程中返回物理像素坐标。
+
+**核心矛盾**：Win32 的 `GetClientRect` / `ClientToScreen` 返回的是**物理像素**坐标，而 Tauri 的 `set_position()` / `set_size()` 默认接受**逻辑像素**。如果直接把 Win32 坐标传给 Tauri，在 150% 缩放下覆盖窗口会变成目标窗口的 1.5 倍大小并产生偏移。
+
+**处理方案**：
+
+```
+Win32 物理坐标                        Tauri 逻辑坐标
+┌────────────────┐                   ┌────────────────┐
+│ x=3840, y=0    │  ÷ scale_factor   │ x=2560, y=0    │
+│ w=1920, h=1080 │ ──────────────→   │ w=1280, h=720  │
+│ (物理像素)     │   (= 1.5)         │ (逻辑像素)     │
+└────────────────┘                   └────────────────┘
+```
+
+**实现步骤**：
+
+1. **获取目标窗口所在显示器**：根据播放器窗口中心点 (`x + w/2, y + h/2`) 匹配所在 monitor
+2. **获取该 monitor 的 scale factor**：通过 `MonitorFromWindow` + `GetDpiForMonitor` 获取（或 Tauri 的 `available_monitors()` + `scale_factor()`）
+3. **坐标转换**：将 Win32 物理坐标除以 scale factor 得到逻辑坐标
+4. **传递给 Tauri**：使用转换后的逻辑坐标设置覆盖窗口位置和大小
+
+**需要额外的 Win32 API**：
+
+```rust
+// 新增 features 需求
+// "Win32_Graphics_Gdi" — MonitorFromWindow (已在上方列出)
+// "Win32_UI_HiDpi" — GetDpiForMonitor
+
+use windows::Win32::UI::HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI};
+use windows::Win32::Graphics::Gdi::MonitorFromWindow;
+```
+
+**多显示器场景**：
+
+| 场景                  | 行为                                             |
+| --------------------- | ------------------------------------------------ |
+| 播放器在左屏 (主屏)   | 正常获取左屏 scale factor 并转换                 |
+| 播放器在右屏 (副屏)   | 正常获取右屏 scale factor 并转换                 |
+| 播放器跨屏拖动        | 实时重新匹配 monitor，更新 scale factor          |
+| 双屏同缩放比例 (150%) | 坐标偏移连续，转换系数不变                       |
+| 双屏不同缩放比例      | Phase 2 支持（需要处理跨屏时 scale factor 突变） |
+
+> **Phase 1 范围**：仅支持双屏同缩放比例（姐姐的实际环境）。不同缩放比例混用的场景延后处理。
+
 ### 3.3. 透明覆盖窗口创建
 
 基于项目已有的 [`window_manager.rs`](src-tauri/src/commands/window_manager.rs) 能力，创建覆盖窗口的关键配置：
@@ -289,7 +336,42 @@ WebviewWindowBuilder::new(&app, "danmaku-overlay", url)
 window.set_ignore_cursor_events(true)  // 鼠标穿透
 ```
 
-**前端页面**：路由 `/danmaku-overlay`，仅包含全屏 Canvas + 最小控制 UI（半透明悬浮按钮）。
+**前端页面：独立 HTML 入口（非主应用路由）**
+
+覆盖窗口**不走**主应用的 [`index.html`](index.html)，而是使用独立的 `overlay.html` 作为 Vite 入口点。
+
+**原因**：
+
+- 主应用 `index.html` 加载了完整的 Element Plus、全局 Store、主题系统等，这些都会给根节点或 `body` 设置背景色，干扰 WebView2 透明合成
+- 独立 HTML 入口可以完全控制 CSS 环境，确保根节点、`body`、`#app` 全部为 `background: transparent`
+- 无需加载任何 UI 框架，只引用 Canvas + `DanmakuEngine`，bundle 极小，启动快
+- 可以设置独立的 CSP meta tag（或不设 CSP），避免主应用 CSP 阻断 `localhost` 轮询请求
+
+```
+Vite 多入口配置（vite.config.ts）：
+  input: {
+    main:    'index.html',         // 主应用（已有）
+    overlay: 'overlay.html',       // 弹幕覆盖层（新增）
+  }
+
+overlay.html 极简结构：
+  <!DOCTYPE html>
+  <html style="background:transparent">
+  <body style="margin:0;background:transparent;overflow:hidden">
+    <div id="overlay-app"></div>
+    <script type="module" src="/src/overlay/main.ts"></script>
+  </body>
+  </html>
+```
+
+Rust 侧传入 URL 时指向 `overlay.html` 而非主应用路由：
+
+```rust
+// 开发模式
+let url = WebviewUrl::External("http://localhost:1420/overlay.html".parse()?);
+// 生产模式
+let url = WebviewUrl::App("overlay.html".into());
+```
 
 ### 3.4. 鼠标穿透与控制面板的矛盾
 
@@ -352,7 +434,7 @@ window.set_ignore_cursor_events(true)  // 鼠标穿透
 │              MPC-BE 播放器窗口               │
 │         (外部进程，不受我们控制)             │
 └──────────────────────────────────────────────┘
-```                                         
+```
 
 ### 4.1. 数据流
 
@@ -368,13 +450,20 @@ window.set_ignore_cursor_events(true)  // 鼠标穿透
   DanmakuEngine.render(currentTime) ──→ Canvas 绘制
 
 时间轴 (每 100ms):
-  Rust 命令: get_player_window_rect("MediaPlayerClassicW")
+  Rust 命令: get_player_window_rect(hwnd)
        │
        ▼
-  返回 {x, y, width, height} (客户区屏幕坐标)
+  返回 {x, y, width, height, scale_factor} (物理像素 + 缩放系数)
        │
        ▼
-  overlay 窗口: setPosition(x, y) + setSize(width, height)
+  前端坐标转换:
+       logical_x = x / scale_factor
+       logical_y = y / scale_factor
+       logical_w = width / scale_factor
+       logical_h = height / scale_factor
+       │
+       ▼
+  overlay 窗口: setPosition(logical_x, logical_y) + setSize(logical_w, logical_h)
 ```
 
 ### 4.2. 时间轴策略：虚拟时钟 + 偏差校准
@@ -511,6 +600,8 @@ windows = { version = "0.58", features = [
     "Win32_UI_WindowsAndMessaging",
     "Win32_Foundation",
     "Win32_Graphics_Gdi",
+    # 新增：DPI 感知 (多显示器缩放)
+    "Win32_UI_HiDpi",
 ] }
 ```
 
@@ -538,12 +629,19 @@ pub struct PlayerWindowInfo {
 
 #[derive(Serialize)]
 pub struct WindowRect {
-    pub x: i32,
-    pub y: i32,
-    pub width: u32,
-    pub height: u32,
-    pub is_fullscreen: bool,  // 窗口是否占满整个显示器
+    pub x: i32,              // 物理像素 X (屏幕坐标)
+    pub y: i32,              // 物理像素 Y (屏幕坐标)
+    pub width: u32,          // 物理像素宽度
+    pub height: u32,         // 物理像素高度
+    pub scale_factor: f64,   // 目标窗口所在显示器的缩放系数 (如 1.5 = 150%)
+    pub is_fullscreen: bool, // 窗口是否占满整个显示器
 }
+
+/// 前端使用时需要将物理坐标转换为逻辑坐标：
+/// logical_x = x as f64 / scale_factor
+/// logical_y = y as f64 / scale_factor
+/// logical_w = width as f64 / scale_factor
+/// logical_h = height as f64 / scale_factor
 
 #[derive(Deserialize)]
 pub struct OverlayConfig {
@@ -570,22 +668,29 @@ pub struct OverlayConfig {
 ### 6.1. 文件结构 (增量)
 
 ```
+// 覆盖层独立入口（Vite 多入口，不走主应用）
+overlay.html                                # [新增] 覆盖层 HTML 入口（极简，无 Element Plus）
+src/overlay/
+├── main.ts                                 # [新增] 覆盖层 Vue 应用挂载点
+└── OverlayApp.vue                          # [新增] 覆盖层根组件（纯 Canvas，无全局样式）
+
+// 主应用侧（弹幕播放器工具目录内）
 src/tools/danmaku-player/
 ├── composables/
 │   ├── useExternalPlayer.ts                # [新增] 外部播放器连接管理
 │   │   ├── 播放器发现 (findPlayerWindows)
 │   │   ├── Web API 轮询 (position, state)
-│   │   └── 进度插值 (getInterpolatedTime)
+│   │   └── 虚拟时钟校准 (useVirtualClock)
 │   ├── useOverlayWindow.ts                 # [新增] 覆盖窗口生命周期管理
 │   │   ├── 创建/销毁覆盖窗口
 │   │   ├── 窗口位置同步循环
-│   │   └── 配置同步 (Tauri events)
+│   │   └── 配置同步 (Tauri events → overlay)
+│   ├── useVirtualClock.ts                  # [新增] 虚拟时钟 + 偏差校准 (overlay 侧使用)
 │   ├── useDanmakuRenderer.ts               # [复用] 无需修改
 │   └── useDanmakuConfig.ts                 # [复用] 无需修改
 ├── components/
 │   ├── ExternalPlayerPanel.vue             # [新增] 外部播放器连接面板 (含覆盖区域配置)
-│   ├── DanmakuOverlayPage.vue              # [新增] 覆盖窗口的页面 (纯 Canvas + 调整模式)
-│   ├── OverlayAdjustLayer.vue              # [新增] 覆盖区域手动调整模式 (裁切手柄 + 预览)
+│   ├── OverlayAdjustLayer.vue              # [新增] 覆盖区域手动调整模式 (裁切手柄 + 预览，Phase 2)
 │   ├── DanmakuCanvas.vue                   # [复用]
 │   └── DanmakuSettingsPanel.vue            # [复用]
 ├── core/
@@ -616,8 +721,10 @@ export class MpcBeClient {
   }
 
   async getStatus(): Promise<MpcBeStatus> {
-    // GET /variables.html 并解析返回的 HTML/文本
-    // MPC-BE 返回的是简单的 key=value 格式
+    // GET /variables.html 并解析返回的纯文本
+    // 返回格式：按固定行序排列（见第 3.1 节），不是 key=value
+    // 第 6 行 = state_code，第 10 行 = position_ms，第 12 行 = duration_ms
+    // 解析时按行号取值，不依赖本地化的 state_text 文字
   }
 
   async sendCommand(command: string): Promise<void> {
@@ -656,14 +763,14 @@ export class MpcBeClient {
 
 ## 8. 技术风险与应对
 
-| 风险                      | 概率 | 影响                 | 应对                                   |
-| ------------------------- | ---- | -------------------- | -------------------------------------- |
-| MPC-BE Web 接口未启用     | 高   | 无法获取进度         | 提供引导教程，附截图说明如何开启       |
-| 全屏模式下覆盖窗口被遮挡  | 中   | 弹幕消失             | 使用 `WS_EX_TOPMOST` + 独占全屏检测    |
-| 窗口位置同步延迟          | 低   | 拖动时弹幕层跟随略慢 | 提升到 60Hz 同步 + 可接受的体验降级    |
-| DPI 缩放不一致            | 中   | 覆盖偏移             | 统一使用物理坐标，考虑 per-monitor DPI |
-| MPC-BE 退出后覆盖窗口残留 | 低   | 透明窗口卡住         | `IsWindow()` 检测 + 自动清理           |
-| CSP 阻止 localhost 请求   | 中   | 无法访问 Web API     | 检查 CSP 配置，必要时通过 Rust 代理    |
+| 风险                          | 概率 | 影响                           | 应对                                                           |
+| ----------------------------- | ---- | ------------------------------ | -------------------------------------------------------------- |
+| MPC-BE Web 接口未启用         | 高   | 无法获取进度                   | 提供引导教程，附截图说明如何开启                               |
+| 全屏模式下覆盖窗口被遮挡      | 中   | 弹幕消失                       | 使用 `WS_EX_TOPMOST` + 独占全屏检测                            |
+| 窗口位置同步延迟              | 低   | 拖动时弹幕层跟随略慢           | 提升到 60Hz 同步 + 可接受的体验降级                            |
+| DPI 缩放导致覆盖偏移/尺寸错误 | 高   | 覆盖层大小和位置与播放器不匹配 | Rust 侧获取 scale factor，前端做物理→逻辑坐标转换（见 3.2 节） |
+| MPC-BE 退出后覆盖窗口残留     | 低   | 透明窗口卡住                   | `IsWindow()` 检测 + 自动清理                                   |
+| CSP 阻止 localhost 请求       | 中   | 无法访问 Web API               | 检查 CSP 配置，必要时通过 Rust 代理                            |
 
 ### 8.1. CSP 问题详细分析
 
@@ -678,11 +785,30 @@ export class MpcBeClient {
 
 ### Phase 1：最小可用版本 (MVP)
 
-- 新增 Rust 命令：`find_player_windows` + `get_player_window_rect` + `create_overlay_window`
-- 新增前端：`MpcBeClient` (Web API) + `ExternalPlayerPanel` + `DanmakuOverlayPage`
+> **当前目标**：在开发者实际设备（双 4K 150% 缩放）上跑通完整链路，验证技术可行性。
+
+- 新增 Vite 多入口：`overlay.html` + `src/overlay/main.ts`（独立入口，不走主应用）
+- 新增 Rust 命令：`find_player_windows` + `get_player_window_rect`（含 scale_factor）+ `create_overlay_window`
+- 新增前端（主应用侧）：`ExternalPlayerPanel.vue` + `useExternalPlayer.ts` + `useOverlayWindow.ts`
+- 新增前端（覆盖层侧）：`OverlayApp.vue` + `useVirtualClock.ts` + `mpcBeApi.ts`
 - 复用已有弹幕引擎和配置系统
-- 支持基本的弹幕覆盖功能
-- 覆盖区域适配：**策略 B（数值配置裁切）** 作为 MVP 最简实现
+- 覆盖区域适配：**策略 B（数值配置裁切）** 作为 MVP 最简实现（上/下边距手动填写）
+- **DPI / 多显示器**：Phase 1 必须支持双 4K + 150% 缩放 + 双屏同缩放比例的场景（`get_player_window_rect` 返回 `scale_factor`，前端做物理→逻辑坐标转换）
+- **不在 Phase 1 做**：不同缩放比例混用的多显示器、全屏适配、手动调整模式（策略 C）、自动匹配 ASS、播放器预设（策略 A）
+
+#### Phase 1 验收标准
+
+在开发者设备（双 4K 3840×2160, 150% 缩放）上，以下场景必须通过：
+
+| #   | 场景                            | 预期结果                                 |
+| --- | ------------------------------- | ---------------------------------------- |
+| 1   | MPC-BE 在左屏 (主屏) 窗口化播放 | 覆盖层精准对齐播放器客户区，弹幕正常渲染 |
+| 2   | MPC-BE 在右屏 (副屏) 窗口化播放 | 覆盖层精准对齐，无偏移、无尺寸异常       |
+| 3   | MPC-BE 从左屏拖动到右屏         | 覆盖层实时跟随，过程中不闪烁、不跳屏     |
+| 4   | MPC-BE 窗口调整大小             | 覆盖层实时跟随缩放                       |
+| 5   | MPC-BE 播放/暂停/拖动进度       | 弹幕同步播放/暂停/跳转，无明显延迟       |
+| 6   | 关闭 MPC-BE 窗口                | 覆盖层自动检测并清理                     |
+| 7   | 手动填写上/下边距 (策略 B)      | 覆盖区域按输入值裁切，实时生效           |
 
 ### Phase 2：体验优化
 

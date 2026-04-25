@@ -118,7 +118,7 @@ export function useMediaGenPersistence(options: {
       nodes.value = session.nodes || {};
 
       // 自愈逻辑：处理加载时处于 generating 状态的节点
-      // 姐姐，媒体生成任务通常无法跨进程恢复，所以加载时如果是生成中，我会把它修成 error
+      // 媒体生成任务通常无法跨进程恢复，所以加载时如果是生成中，会把它修成 error
       Object.values(nodes.value).forEach((node) => {
         if (node.status === "generating") {
           // 检查是否有关联的任务且任务已完成

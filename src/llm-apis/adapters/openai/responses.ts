@@ -14,10 +14,7 @@ import { openAiResponsesUrlHandler } from "./utils";
 /**
  * 调用 OpenAI Responses API
  */
-export const callOpenAiResponsesApi = async (
-  profile: LlmProfile,
-  options: LlmRequestOptions
-): Promise<LlmResponse> => {
+export const callOpenAiResponsesApi = async (profile: LlmProfile, options: LlmRequestOptions): Promise<LlmResponse> => {
   const url = openAiResponsesUrlHandler.buildUrl(profile.baseUrl, "responses");
 
   const headers: Record<string, string> = {
@@ -32,12 +29,12 @@ export const callOpenAiResponsesApi = async (
     Object.assign(headers, profile.customHeaders);
   }
 
-  const systemMessages = (options.messages || []).filter(m => m.role === 'system');
-  const userAssistantMessages = (options.messages || []).filter(m => m.role !== 'system');
+  const systemMessages = (options.messages || []).filter((m) => m.role === "system");
+  const userAssistantMessages = (options.messages || []).filter((m) => m.role !== "system");
 
   const messages: any[] = [];
 
-  // 姐姐，如果提供了 prompt (MediaGenerationOptions)，我们将其视为 user 消息
+  // 如果提供了 prompt (MediaGenerationOptions)，我们将其视为 user 消息
   // 注意：useLlmRequest.ts 可能会先将 prompt 转为 messages，所以这里做个兜底判断
   const mediaOpts = options as any;
   if (mediaOpts.prompt && userAssistantMessages.length === 0 && (!options.messages || options.messages.length === 0)) {
@@ -103,11 +100,7 @@ export const callOpenAiResponsesApi = async (
     }
   }
 
-  const input =
-    messages.length === 1 &&
-      typeof messages[0].content === "string"
-      ? messages[0].content
-      : messages;
+  const input = messages.length === 1 && typeof messages[0].content === "string" ? messages[0].content : messages;
 
   const commonParams = extractCommonParameters(options);
 
@@ -123,8 +116,8 @@ export const callOpenAiResponsesApi = async (
 
   if (systemMessages.length > 0) {
     const systemContent = systemMessages
-      .map(m => typeof m.content === 'string' ? m.content : JSON.stringify(m.content))
-      .join('\n\n');
+      .map((m) => (typeof m.content === "string" ? m.content : JSON.stringify(m.content)))
+      .join("\n\n");
     body.instructions = systemContent;
   }
 
@@ -135,7 +128,7 @@ export const callOpenAiResponsesApi = async (
   if (options.tools !== undefined) {
     body.tools = options.tools;
   } else if (options.modelId.includes("image") || mediaOpts.prompt) {
-    // 姐姐，针对图像生成任务，如果没传 tools，我们自动补上 image_generation 工具
+    // 针对图像生成任务，如果没传 tools，我们自动补上 image_generation 工具
     // 这样在 openai-responses 渠道下就能正常触发图像生成了
     const imgTool: any = {
       type: "image_generation",
@@ -167,7 +160,7 @@ export const callOpenAiResponsesApi = async (
 
     body.tools = [imgTool];
   }
-  
+
   if (options.toolChoice !== undefined) {
     body.tool_choice = options.toolChoice;
   }
@@ -211,7 +204,7 @@ export const callOpenAiResponsesApi = async (
     body.include = options.include;
   }
 
-  // 姐姐，支持 store 参数，让用户决定是否在服务器端保留对话状态
+  // 支持 store 参数，让用户决定是否在服务器端保留对话状态
   // 优先使用规范化的 responsesStore 参数
   if (options.responsesStore !== undefined) {
     body.store = options.responsesStore;
@@ -237,7 +230,7 @@ export const callOpenAiResponsesApi = async (
         isStreaming: true,
       },
       options.timeout,
-      options.signal
+      options.signal,
     );
 
     await ensureResponseOk(response);
@@ -256,100 +249,102 @@ export const callOpenAiResponsesApi = async (
     const annotations: LlmResponse["annotations"] = [];
     const images: NonNullable<LlmResponse["images"]> = [];
 
-    await parseSSEStream(reader, (data) => {
-      try {
-        if (!data || data === "[DONE]") return;
-        const json = JSON.parse(data);
+    await parseSSEStream(
+      reader,
+      (data) => {
+        try {
+          if (!data || data === "[DONE]") return;
+          const json = JSON.parse(data);
 
-        if (json.type === "response.output_text.delta" && json.delta) {
-          const text = json.delta;
-          fullContent += text;
-          options.onStream!(text);
-        } else if (json.type === "response.reasoning_text.delta" && json.delta) {
-          // 姐姐，这是推理模型的思维链输出
-          fullReasoning += json.delta;
-          if (options.onReasoningStream) {
-            options.onReasoningStream(json.delta);
-          }
-        } else if (json.type === "error") {
-          // 姐姐，显式抛出 API 返回的错误，不再默默吞掉
-          throw new Error(`OpenAI Responses Error: ${json.error?.message || JSON.stringify(json.error)}`);
-        }
-
-        // 处理图像生成工具的流式预览 (Partial Image)
-        if (json.type === "response.image_generation_call.partial_image" && json.partial_image_b64) {
-          // 姐姐，这是 gpt-image-2 的特性，可以将预览图传给前端展示
-          const base64 = `data:image/png;base64,${json.partial_image_b64}`;
-          if (options.onPartialImage) {
-            options.onPartialImage(base64, json.partial_image_index || 0);
-          } else if (options.onStream) {
-            // 兜底：如果没传专门的回调，我们通过特殊的协议格式传给 onStream
-            // 前端 UI 需要识别这种格式
-            options.onStream(`__PARTIAL_IMAGE__:${base64}`);
-          }
-        }
-
-        if (json.type === "response.completed" && json.response) {
-          const resp = json.response;
-          if (resp.usage) {
-            usage = {
-              promptTokens: resp.usage.input_tokens,
-              completionTokens: resp.usage.output_tokens,
-              totalTokens: resp.usage.total_tokens,
-            };
+          if (json.type === "response.output_text.delta" && json.delta) {
+            const text = json.delta;
+            fullContent += text;
+            options.onStream!(text);
+          } else if (json.type === "response.reasoning_text.delta" && json.delta) {
+            // 这是推理模型的思维链输出
+            fullReasoning += json.delta;
+            if (options.onReasoningStream) {
+              options.onReasoningStream(json.delta);
+            }
+          } else if (json.type === "error") {
+            // 显式抛出 API 返回的错误，不再默默吞掉
+            throw new Error(`OpenAI Responses Error: ${json.error?.message || JSON.stringify(json.error)}`);
           }
 
-          if (resp.status === "completed") {
-            finishReason = "stop";
-          } else if (resp.status === "incomplete") {
-            finishReason = "length";
+          // 处理图像生成工具的流式预览 (Partial Image)
+          if (json.type === "response.image_generation_call.partial_image" && json.partial_image_b64) {
+            // 这是 gpt-image-2 的特性，可以将预览图传给前端展示
+            const base64 = `data:image/png;base64,${json.partial_image_b64}`;
+            if (options.onPartialImage) {
+              options.onPartialImage(base64, json.partial_image_index || 0);
+            } else if (options.onStream) {
+              // 兜底：如果没传专门的回调，我们通过特殊的协议格式传给 onStream
+              // 前端 UI 需要识别这种格式
+              options.onStream(`__PARTIAL_IMAGE__:${base64}`);
+            }
           }
 
-          if (resp.output && Array.isArray(resp.output)) {
-            for (const item of resp.output) {
-              if (item.type === "image_generation_call") {
-                // 姐姐，这是 Responses API 返回的图像生成结果
-                if (item.result) {
-                  images.push({
-                    b64_json: item.result,
-                    revisedPrompt: item.revised_prompt,
+          if (json.type === "response.completed" && json.response) {
+            const resp = json.response;
+            if (resp.usage) {
+              usage = {
+                promptTokens: resp.usage.input_tokens,
+                completionTokens: resp.usage.output_tokens,
+                totalTokens: resp.usage.total_tokens,
+              };
+            }
+
+            if (resp.status === "completed") {
+              finishReason = "stop";
+            } else if (resp.status === "incomplete") {
+              finishReason = "length";
+            }
+
+            if (resp.output && Array.isArray(resp.output)) {
+              for (const item of resp.output) {
+                if (item.type === "image_generation_call") {
+                  // 这是 Responses API 返回的图像生成结果
+                  if (item.result) {
+                    images.push({
+                      b64_json: item.result,
+                      revisedPrompt: item.revised_prompt,
+                    });
+                  }
+                } else if (item.type === "function_call") {
+                  toolCalls.push({
+                    id: item.call_id || item.id,
+                    type: "function",
+                    function: {
+                      name: item.name,
+                      arguments: item.arguments,
+                    },
                   });
-                }
-              } else if (item.type === "function_call") {
-                toolCalls.push({
-                  id: item.call_id || item.id,
-                  type: "function",
-                  function: {
-                    name: item.name,
-                    arguments: item.arguments,
-                  },
-                });
-                finishReason = "tool_calls";
-              }
-              else if (item.type === "message" && item.content) {
-                for (const contentItem of item.content) {
-                  if (contentItem.type === "output_text" && contentItem.annotations) {
-                    for (const annotation of contentItem.annotations) {
-                      if (annotation.type === "url_citation") {
-                        annotations.push({
-                          type: "url_citation",
-                          urlCitation: {
-                            startIndex: annotation.start_index,
-                            endIndex: annotation.end_index,
-                            url: annotation.url,
-                            title: annotation.title,
-                          },
-                        });
-                      } else if (annotation.type === "file_citation") {
-                        annotations.push({
-                          type: "file_citation",
-                          fileCitation: {
-                            startIndex: annotation.start_index,
-                            endIndex: annotation.end_index,
-                            fileId: annotation.file_id,
-                            quote: annotation.quote,
-                          },
-                        });
+                  finishReason = "tool_calls";
+                } else if (item.type === "message" && item.content) {
+                  for (const contentItem of item.content) {
+                    if (contentItem.type === "output_text" && contentItem.annotations) {
+                      for (const annotation of contentItem.annotations) {
+                        if (annotation.type === "url_citation") {
+                          annotations.push({
+                            type: "url_citation",
+                            urlCitation: {
+                              startIndex: annotation.start_index,
+                              endIndex: annotation.end_index,
+                              url: annotation.url,
+                              title: annotation.title,
+                            },
+                          });
+                        } else if (annotation.type === "file_citation") {
+                          annotations.push({
+                            type: "file_citation",
+                            fileCitation: {
+                              startIndex: annotation.start_index,
+                              endIndex: annotation.end_index,
+                              fileId: annotation.file_id,
+                              quote: annotation.quote,
+                            },
+                          });
+                        }
                       }
                     }
                   }
@@ -357,10 +352,11 @@ export const callOpenAiResponsesApi = async (
               }
             }
           }
-        }
-      } catch (e) {
-      }
-    }, undefined, options.signal);
+        } catch (e) {}
+      },
+      undefined,
+      options.signal,
+    );
 
     const finalResponse: LlmResponse = {
       content: fullContent,
@@ -391,7 +387,7 @@ export const callOpenAiResponsesApi = async (
       body: await asyncJsonStringify(body),
     },
     options.timeout,
-    options.signal
+    options.signal,
   );
 
   await ensureResponseOk(response);
@@ -409,7 +405,7 @@ export const callOpenAiResponsesApi = async (
   if (data.output && Array.isArray(data.output)) {
     for (const item of data.output) {
       if (item.type === "image_generation_call") {
-        // 姐姐，非流式响应也要解析图片
+        // 非流式响应也要解析图片
         if (item.result) {
           images.push({
             b64_json: item.result,
@@ -452,8 +448,7 @@ export const callOpenAiResponsesApi = async (
             refusal = contentItem.refusal;
           }
         }
-      }
-      else if (item.type === "function_call") {
+      } else if (item.type === "function_call") {
         toolCalls.push({
           id: item.call_id || item.id,
           type: "function",
@@ -486,10 +481,10 @@ export const callOpenAiResponsesApi = async (
     annotations: annotations.length > 0 ? annotations : undefined,
     usage: data.usage
       ? {
-        promptTokens: data.usage.input_tokens,
-        completionTokens: data.usage.output_tokens,
-        totalTokens: data.usage.total_tokens,
-      }
+          promptTokens: data.usage.input_tokens,
+          completionTokens: data.usage.output_tokens,
+          totalTokens: data.usage.total_tokens,
+        }
       : undefined,
   };
 };

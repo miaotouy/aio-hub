@@ -17,7 +17,7 @@ export function useBranchManager() {
    */
   const deleteMessage = (
     session: GenerationSession,
-    nodeId: string
+    nodeId: string,
   ): { success: boolean; deletedNodes: MediaMessage[] } => {
     const nodeManager = useNodeManager();
     const result = nodeManager.hardDeleteNode(session, nodeId);
@@ -50,11 +50,7 @@ export function useBranchManager() {
   /**
    * 切换到兄弟分支
    */
-  const switchToSiblingBranch = (
-    session: GenerationSession,
-    nodeId: string,
-    direction: "prev" | "next"
-  ): string => {
+  const switchToSiblingBranch = (session: GenerationSession, nodeId: string, direction: "prev" | "next"): string => {
     const nodeManager = useNodeManager();
     const newBranchRootId = BranchNavigator.switchToSibling(session as any, nodeId, direction);
 
@@ -85,7 +81,7 @@ export function useBranchManager() {
     session: GenerationSession,
     nodeId: string,
     newContent: string,
-    attachments?: Asset[]
+    attachments?: Asset[],
   ): boolean => {
     const node = session.nodes[nodeId];
     if (!node) {
@@ -120,7 +116,7 @@ export function useBranchManager() {
 
   /**
    * 创建分支（创建源节点的兄弟节点，复制内容）
-   * 姐姐，这里的语义现在纯粹是“复制”，不再自动触发重试逻辑。
+   * 这里的语义现在纯粹是“复制”，不再自动触发重试逻辑。
    * 特别注意：如果复制的是 Assistant 节点，状态应设为 complete，避免僵死。
    */
   const createBranch = (session: GenerationSession, sourceNodeId: string): string | null => {
@@ -172,10 +168,7 @@ export function useBranchManager() {
   /**
    * 获取当前节点在兄弟节点中的索引
    */
-  const getSiblingIndex = (
-    session: GenerationSession,
-    nodeId: string
-  ): { index: number; total: number } => {
+  const getSiblingIndex = (session: GenerationSession, nodeId: string): { index: number; total: number } => {
     return BranchNavigator.getSiblingIndex(session as any, nodeId);
   };
 

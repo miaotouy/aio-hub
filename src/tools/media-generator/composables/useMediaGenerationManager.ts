@@ -154,12 +154,12 @@ export function useMediaGenerationManager() {
       }
 
       // 为 openai-responses 渠道注入流式预览图回调（gpt-image-2 partial_image 特性）
-      if (selectedProfile?.type === 'openai-responses') {
+      if (selectedProfile?.type === "openai-responses") {
         (finalOptions as any).onPartialImage = (base64: string, index: number) => {
           const currentTask = mediaStore.getTask(taskId);
           const previews = [...(currentTask?.previewUrls || [])];
           previews[index] = base64;
-          mediaStore.updateTaskStatus(taskId, 'processing', {
+          mediaStore.updateTaskStatus(taskId, "processing", {
             statusText: `正在生成预览图 ${index + 1}...`,
             previewUrls: previews,
           });
@@ -310,7 +310,7 @@ export function useMediaGenerationManager() {
       mediaStore.updateTaskStatus(taskId, "processing", {
         resultAssetIds: resultAssets.map((a) => a.id),
         resultAssets: resultAssets,
-        // 姐姐，为了兼容旧代码渲染，暂时保留单数引用，但标记为迁移中
+        // 为了兼容旧代码渲染，暂时保留单数引用，但标记为迁移中
         resultAssetId: resultAssets[0].id,
         resultAsset: resultAssets[0],
       });

@@ -89,9 +89,10 @@ export function useNodeManager() {
     session.updatedAt = getLocalISOString();
 
     // 维护 activeLeafId 始终指向最新添加的节点
-    // 姐姐，如果是重试场景，activeLeafId 可能指向旧的兄弟节点，这里我们要强制“追”到新节点上
-    const isParentInActivePath = session.activeLeafId === node.parentId ||
-                               (node.parentId && BranchNavigator.isNodeInActivePath(session as any, node.parentId));
+    // 如果是重试场景，activeLeafId 可能指向旧的兄弟节点，这里我们要强制"追"到新节点上
+    const isParentInActivePath =
+      session.activeLeafId === node.parentId ||
+      (node.parentId && BranchNavigator.isNodeInActivePath(session as any, node.parentId));
 
     if (isParentInActivePath || !session.activeLeafId) {
       session.activeLeafId = node.id;
@@ -159,7 +160,7 @@ export function useNodeManager() {
    */
   const hardDeleteNode = (
     session: GenerationSession,
-    nodeId: string
+    nodeId: string,
   ): { success: boolean; deletedNodes: MediaMessage[] } => {
     logger.info("🗑️ [硬删除] 开始硬删除节点", { sessionId: session.id, nodeId });
 
@@ -187,7 +188,7 @@ export function useNodeManager() {
 
     if (session.activeLeafId && nodesToDeleteIds.has(session.activeLeafId)) {
       const siblings = node.parentId ? session.nodes[node.parentId]?.childrenIds || [] : [];
-      
+
       // 找到被删除节点在兄弟列表中的索引
       const deletedIndex = siblings.indexOf(nodeId);
       let targetSiblingId: string | null = null;
@@ -206,7 +207,7 @@ export function useNodeManager() {
       } else {
         session.activeLeafId = node.parentId || session.rootNodeId;
       }
-      
+
       BranchNavigator.updateSelectionMemory(session as any, session.activeLeafId || "");
     }
 
@@ -307,7 +308,7 @@ export function useNodeManager() {
    */
   const createRegenerateBranch = (
     session: GenerationSession,
-    targetNodeId: string
+    targetNodeId: string,
   ): { assistantNode: MediaMessage; userNode: MediaMessage } | null => {
     const targetNode = session.nodes[targetNodeId];
     if (!targetNode) return null;

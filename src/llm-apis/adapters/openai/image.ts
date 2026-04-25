@@ -21,7 +21,7 @@ export async function callOpenAiImageApi(profile: LlmProfile, options: MediaGene
 
   const ext = options as any;
   const baseUrl = profile.baseUrl || "https://api.openai.com/v1";
-  // 姐姐，根据 2026.04 文档，如果有参考图（inputAttachments）也要走 edits 端点
+  // 根据 2026.04 文档，如果有参考图（inputAttachments）也要走 edits 端点
   const hasReferences = options.inputAttachments && options.inputAttachments.length > 0;
   const isEditMode = options.mask || hasReferences;
   const endpoint = isEditMode ? "images/edits" : "images/generations";
@@ -44,8 +44,7 @@ export async function callOpenAiImageApi(profile: LlmProfile, options: MediaGene
     if (ext.moderation) formData.append("moderation", ext.moderation);
     if (ext.background) formData.append("background", ext.background);
     if (ext.partialImages !== undefined) formData.append("partial_images", ext.partialImages.toString());
-    if (ext.outputCompression !== undefined)
-      formData.append("output_compression", ext.outputCompression.toString());
+    if (ext.outputCompression !== undefined) formData.append("output_compression", ext.outputCompression.toString());
 
     formData.append(
       "response_format",

@@ -211,11 +211,11 @@ watch(
       }
     }
 
-    // 2. 姐姐，根据新模型的规则重置/清洁参数
+    // 2. 根据新模型的规则重置/清洁参数
     if (paramRules.value) {
       const currentParams = store.currentConfig.types[store.currentConfig.activeType].params;
       const cleaned = sanitizeParams(currentParams || {}, paramRules.value, { fillDefaults: true });
-      // 姐姐，使用 Object.assign 避免破坏原有的类型结构，同时应用清洁后的参数
+      // 使用 Object.assign 避免破坏原有的类型结构，同时应用清洁后的参数
       Object.assign(store.currentConfig.types[store.currentConfig.activeType].params, cleaned);
     }
   },

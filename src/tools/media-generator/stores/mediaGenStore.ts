@@ -221,7 +221,7 @@ export const useMediaGenStore = defineStore("media-generator", () => {
   };
 
   // --- 状态自愈 Watcher ---
-  // 姐姐，这个 Watch 负责监控“僵死节点”。
+  // 这个 Watch 负责监控"僵死节点"。
   // 如果任务池里的任务结束了，但节点还卡在 generating，我们会自动把它修好。
   watch(
     () => generatingNodes.value.size,

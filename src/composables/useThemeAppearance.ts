@@ -638,7 +638,7 @@ async function _extractColorFromWallpaper(wallpaperUrl: string): Promise<string 
 
           let selectedColorRgb: number[];
 
-          // 姐姐说得对，不能闪瞎眼。暗色模式用较暗的颜色，亮色模式用较亮的颜色。
+          // 暗色模式用较暗的颜色，亮色模式用较亮的颜色，避免视觉不适。
           if (isDark.value) {
             // 暗色模式：选择第二暗的颜色，如果只有一个颜色就选最暗的
             selectedColorRgb = sortedPalette[1]?.color ?? sortedPalette[0].color;

@@ -14,11 +14,7 @@
       @update:modified="(value: string) => emit('update:modified', value)"
     />
     <!-- CodeMirror 编辑器 -->
-    <div
-      v-else-if="props.editorType === 'codemirror'"
-      ref="editorContainerRef"
-      class="editor-container"
-    ></div>
+    <div v-else-if="props.editorType === 'codemirror'" ref="editorContainerRef" class="editor-container"></div>
     <!-- Monaco 编辑器 -->
     <vue-monaco-editor
       v-else-if="props.editorType === 'monaco'"
@@ -73,9 +69,7 @@ const props = withDefaults(
     readOnly?: boolean;
     lineNumbers?: boolean;
     editorType?: "codemirror" | "monaco";
-    options?:
-      | MonacoEditor.IStandaloneDiffEditorConstructionOptions
-      | MonacoEditor.IStandaloneEditorConstructionOptions;
+    options?: MonacoEditor.IStandaloneDiffEditorConstructionOptions | MonacoEditor.IStandaloneEditorConstructionOptions;
     /** 自定义补全源（仅 CodeMirror 支持） */
     completionSource?: CompletionSource | CompletionSource[];
     /** 是否禁用默认的语言补全（如 HTML 标签补全） */
@@ -91,17 +85,14 @@ const props = withDefaults(
     readOnly: false,
     options: () => ({}),
     disableDefaultCompletion: false,
-  }
+  },
 );
 
 const emit = defineEmits<{
   (e: "update:modelValue", value: string): void;
   (e: "update:original", value: string): void;
   (e: "update:modified", value: string): void;
-  (
-    e: "mount",
-    editor: MonacoEditor.IStandaloneCodeEditor | EditorView | MonacoEditor.IStandaloneDiffEditor
-  ): void;
+  (e: "mount", editor: MonacoEditor.IStandaloneCodeEditor | EditorView | MonacoEditor.IStandaloneDiffEditor): void;
 }>();
 
 const editorContainerRef = ref<HTMLDivElement | null>(null);
@@ -411,7 +402,7 @@ const initCodeMirror = async () => {
       contextmenu(_event, _view) {
         // 如果有选中文本，可以在这里处理
         // 目前为了解决“搜索出不来”的问题，我们允许默认右键，
-        // 但如果姐姐希望右键能触发搜索，可以取消注释下面代码
+        // 如果需要右键搜索，可以取消注释下面代码
         // _event.preventDefault();
         // openSearchPanel(_view);
       },
@@ -482,7 +473,7 @@ watch(
         monacoValue.value = newVal;
       }
     }
-  }
+  },
 );
 
 // 监听配置变化 - CodeMirror
@@ -496,7 +487,7 @@ watch(
       });
     }
     // Monaco 通过 computed options 自动响应
-  }
+  },
 );
 
 watch(
@@ -509,7 +500,7 @@ watch(
       });
     }
     // Monaco 通过 computed options 自动响应
-  }
+  },
 );
 
 // 监听编辑器类型切换
@@ -524,7 +515,7 @@ watch(
     } else if (newType === "monaco" && oldType === "codemirror") {
       destroyCodeMirror();
     }
-  }
+  },
 );
 
 watch(cmTheme, (newTheme) => {
@@ -544,7 +535,7 @@ watch(
         effects: languageCompartment.reconfigure(languageExt || []),
       });
     }
-  }
+  },
 );
 
 // 暴露一些有用的方法（统一 CodeMirror 和 Monaco 的 API）
@@ -558,9 +549,7 @@ const getContent = (): string => {
 
 const setContent = (newContent: string): void => {
   if (props.diff) {
-    console.warn(
-      "`setContent` is not supported in diff mode. Use `original` and `modified` props."
-    );
+    console.warn("`setContent` is not supported in diff mode. Use `original` and `modified` props.");
     return;
   }
   if (props.editorType === "codemirror") {

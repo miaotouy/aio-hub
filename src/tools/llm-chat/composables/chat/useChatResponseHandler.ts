@@ -257,7 +257,12 @@ export function useChatResponseHandler() {
   /**
    * 完成节点生成（更新最终状态和元数据）
    */
-  const finalizeNode = async (session: ChatSessionDetail, nodeId: string, response: any, agentId: string): Promise<void> => {
+  const finalizeNode = async (
+    session: ChatSessionDetail,
+    nodeId: string,
+    response: any,
+    agentId: string,
+  ): Promise<void> => {
     // 强制刷新所有缓冲区以确保最终状态正确
     const flushAllBuffers = () => {
       if (!session.nodes) return;
@@ -314,16 +319,16 @@ export function useChatResponseHandler() {
         finalNode.attachments = [...(finalNode.attachments || []), ...newAssets];
       }
 
-      // 姐姐，处理 openai-responses 等接口返回的独立图像数组
+      // 处理 openai-responses 等接口返回的独立图像数组
       if (response.images && response.images.length > 0) {
-        const { importAssetFromBytes } = await import("@/composables/useAssetManager").then(m => m.useAssetManager());
+        const { importAssetFromBytes } = await import("@/composables/useAssetManager").then((m) => m.useAssetManager());
         const imagesAssets = [];
 
         for (let i = 0; i < response.images.length; i++) {
           const img = response.images[i];
           if (img.b64_json) {
             try {
-              // 姐姐，将 Base64 转为 ArrayBuffer
+              // 将 Base64 转为 ArrayBuffer
               const binaryString = atob(img.b64_json);
               const bytes = new Uint8Array(binaryString.length);
               for (let j = 0; j < binaryString.length; j++) {

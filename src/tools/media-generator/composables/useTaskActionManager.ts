@@ -47,7 +47,7 @@ export function useTaskActionManager(context: {
 
   /**
    * 添加新任务（同时生成消息流节点）
-   * 姐姐，这里我重写了逻辑，它现在会自动识别是“追加新对话”还是“在现有节点上创建分支”
+   * 逻辑自动识别是"追加新对话"还是"在现有节点上创建分支"
    */
   const addTaskNode = (task: MediaTask, attachments: Asset[]) => {
     const { nodes, tasks, activeLeafId, rootNodeId } = context;
@@ -129,7 +129,7 @@ export function useTaskActionManager(context: {
 
   /**
    * 获取重试所需的任务参数
-   * 姐姐，这个函数现在是纯读取的，没有任何副作用
+   * 这个函数现在是纯读取的，没有任何副作用
    */
   const getRetryParams = (messageId: string) => {
     const { nodes, currentConfig } = context;
@@ -142,7 +142,9 @@ export function useTaskActionManager(context: {
       task = node.metadata.taskSnapshot;
     } else if (node.role === "user") {
       // 优先找关联了任务的助手子节点
-      const assistantId = node.childrenIds.find((id) => nodes.value[id]?.role === "assistant" && nodes.value[id]?.metadata?.isMediaTask);
+      const assistantId = node.childrenIds.find(
+        (id) => nodes.value[id]?.role === "assistant" && nodes.value[id]?.metadata?.isMediaTask,
+      );
       if (assistantId) {
         task = nodes.value[assistantId].metadata?.taskSnapshot;
       }

@@ -46,7 +46,7 @@ export function useMediaTaskManager() {
       if (!isInitialized.value) return;
       storage.saveTasksDebounced(newTasks);
     },
-    { deep: true }
+    { deep: true },
   );
 
   /**
@@ -63,7 +63,7 @@ export function useMediaTaskManager() {
 
   /**
    * 添加任务
-   * 姐姐，注意：现在推荐使用 useTaskActionManager 中的 addTaskNode
+   * 注意：现在推荐使用 useTaskActionManager 中的 addTaskNode
    * 它会处理树形结构的关联。这里的全局任务池仅负责存储和状态同步。
    */
   const addTask = (task: MediaTask) => {
@@ -77,11 +77,7 @@ export function useMediaTaskManager() {
   /**
    * 更新任务状态
    */
-  const updateTaskStatus = (
-    taskId: string,
-    status: MediaTaskStatus,
-    updates?: Partial<MediaTask>
-  ) => {
+  const updateTaskStatus = (taskId: string, status: MediaTaskStatus, updates?: Partial<MediaTask>) => {
     const task = globalTasks.value.find((t) => t.id === taskId);
     if (task) {
       task.status = status;

@@ -1,4 +1,11 @@
-import type { ChatSessionDetail, ChatMessageNode, LlmParameters, UserProfile, ChatAgent, ChatSessionIndex } from "../../types";
+import type {
+  ChatSessionDetail,
+  ChatMessageNode,
+  LlmParameters,
+  UserProfile,
+  ChatAgent,
+  ChatSessionIndex,
+} from "../../types";
 import type { Asset } from "@/types/asset-management";
 import { useAgentStore } from "../../stores/agentStore";
 import { useChatSettings } from "../settings/useChatSettings";
@@ -223,7 +230,7 @@ export function useSingleNodeExecutor() {
             : undefined,
           onPartialImage: settings.value.uiPreferences.isStreaming
             ? (base64: string, index: number) => {
-                // 姐姐，这是流式预览图，我们存入元数据供 UI 渲染，避免污染正文
+                // 这是流式预览图，我们存入元数据供 UI 渲染，避免污染正文
                 if (!session.nodes || !session.nodes[assistantNode.id]) return;
                 const node = session.nodes[assistantNode.id];
                 if (!node.metadata) node.metadata = {};

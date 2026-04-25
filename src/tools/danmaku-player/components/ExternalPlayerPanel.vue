@@ -156,6 +156,12 @@
           </span>
           <span v-if="overlayActive" class="status-line__muted">窗口位置同步中</span>
         </div>
+
+        <div class="status-line extra-options">
+          <el-checkbox v-model="playerConfig.enableFullscreenBoost" size="small">
+            全屏覆盖增强 (强制置顶)
+          </el-checkbox>
+        </div>
       </div>
 
       <p v-if="!canStartOverlay && !overlayState.overlayCreated" class="start-requirements">
@@ -381,7 +387,13 @@ watch(
 );
 
 watch(
-  () => [playerConfig.offsetTop, playerConfig.offsetBottom, playerConfig.fullscreenOffsetTop, playerConfig.fullscreenOffsetBottom],
+  () => [
+    playerConfig.offsetTop,
+    playerConfig.offsetBottom,
+    playerConfig.fullscreenOffsetTop,
+    playerConfig.fullscreenOffsetBottom,
+    playerConfig.enableFullscreenBoost,
+  ],
   () => {
     if (!overlayActive.value || overlayState.targetHwnd === null) {
       return;
@@ -621,6 +633,11 @@ onBeforeUnmount(() => {
 .status-line__time,
 .status-line__muted {
   color: var(--el-text-color-secondary);
+}
+
+.extra-options {
+  margin-top: 4px;
+  padding-left: 2px;
 }
 
 .status-success {

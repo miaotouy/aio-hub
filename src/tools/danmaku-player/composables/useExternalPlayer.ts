@@ -16,6 +16,7 @@ const DEFAULT_PLAYER_CONFIG: ExternalPlayerConfig = {
   offsetBottom: 0,
   fullscreenOffsetTop: 0,
   fullscreenOffsetBottom: 0,
+  enableFullscreenBoost: true,
 };
 
 const DEFAULT_OVERLAY_STATE: OverlayState = {

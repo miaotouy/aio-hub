@@ -14,7 +14,7 @@ use windows::Win32::{
         HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI},
         WindowsAndMessaging::{
             EnumWindows, GetClassNameW, GetClientRect, GetWindowTextLengthW, GetWindowTextW,
-            IsWindow, IsWindowVisible,
+            IsWindow, IsWindowVisible, SetWindowPos, HWND_TOPMOST, SWP_NOMOVE, SWP_NOSIZE,
         },
     },
 };
@@ -369,7 +369,38 @@ pub async fn create_danmaku_overlay_window(
         .map_err(|e| e.to_string())?;
     window.show().map_err(|e| e.to_string())?;
 
+    // 初始强制提升层级
+    let _ = bring_danmaku_overlay_to_top(app);
+
     Ok(OVERLAY_WINDOW_LABEL.to_string())
+}
+
+/// 强制将弹幕覆盖窗口提升到系统最顶层 (HWND_TOPMOST)。
+/// 用于解决播放器全屏时普通 always_on_top 窗口可能被遮挡的问题。
+#[cfg(windows)]
+#[tauri::command]
+pub fn bring_danmaku_overlay_to_top(app: AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window(OVERLAY_WINDOW_LABEL) {
+        // 获取原生窗口句柄
+        if let Ok(hwnd_ptr) = window.hwnd() {
+            let hwnd = HWND(hwnd_ptr.0 as *mut _);
+            unsafe {
+                // 使用 SetWindowPos 强制设置 HWND_TOPMOST
+                // SWP_NOMOVE | SWP_NOSIZE 表示不改变位置和大小
+                let _ = SetWindowPos(
+                    hwnd,
+                    HWND_TOPMOST,
+                    0,
+                    0,
+                    0,
+                    0,
+                    SWP_NOMOVE | SWP_NOSIZE,
+                );
+            }
+            log::debug!("[EXTERNAL_PLAYER] 已通过 Win32 API 强制提升覆盖层窗口层级");
+        }
+    }
+    Ok(())
 }
 
 /// MPC-BE 播放状态（对应前端 MpcBeStatus 类型）

@@ -94,6 +94,8 @@ export interface ExternalPlayerConfig {
   fullscreenOffsetTop: number;
   /** 全屏模式下边距（默认 0） */
   fullscreenOffsetBottom: number;
+  /** 是否开启全屏覆盖增强（强制置顶） */
+  enableFullscreenBoost: boolean;
 }
 
 /** 覆盖窗口同步状态 */

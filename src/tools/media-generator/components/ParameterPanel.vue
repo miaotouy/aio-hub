@@ -6,7 +6,7 @@ import { useModelMetadata } from "@/composables/useModelMetadata";
 import { useMediaGenParamRules } from "../composables/useMediaGenParamRules";
 import { parseModelCombo } from "@/utils/modelIdUtils";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
-import { Settings, Image, Video, Music, Sparkles, Info, ArrowLeftRight } from "lucide-vue-next";
+import { Image, Video, Music, Sparkles, Info, ArrowLeftRight } from "lucide-vue-next";
 
 const store = useMediaGenStore();
 const { getProfileById, saveProfile } = useLlmProfiles();
@@ -214,11 +214,6 @@ watch(
 
 <template>
   <div class="parameter-panel">
-    <div class="panel-header">
-      <el-icon><Settings /></el-icon>
-      <span class="title">生成配置</span>
-    </div>
-
     <el-scrollbar class="panel-body">
       <div class="section">
         <div class="section-title">媒体类型</div>
@@ -580,7 +575,7 @@ watch(
 }
 
 .section {
-  margin-bottom: 20px;
+  margin-bottom: 10px;
 }
 
 .section-title {

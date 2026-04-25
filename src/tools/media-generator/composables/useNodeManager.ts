@@ -88,9 +88,15 @@ export function useNodeManager() {
     // 更新会话更新时间
     session.updatedAt = getLocalISOString();
 
-    // 维护 activeLeafId 始终指向最新添加的节点（如果它挂在当前活跃路径上）
-    if (session.activeLeafId === node.parentId || !session.activeLeafId) {
+    // 维护 activeLeafId 始终指向最新添加的节点
+    // 姐姐，如果是重试场景，activeLeafId 可能指向旧的兄弟节点，这里我们要强制“追”到新节点上
+    const isParentInActivePath = session.activeLeafId === node.parentId ||
+                               (node.parentId && BranchNavigator.isNodeInActivePath(session as any, node.parentId));
+
+    if (isParentInActivePath || !session.activeLeafId) {
       session.activeLeafId = node.id;
+      // 必须同步更新整条路径的选择记忆，否则切换分支时会跳回旧节点
+      BranchNavigator.updateSelectionMemory(session as any, node.id);
     }
 
     logger.debug("节点已添加到会话", {

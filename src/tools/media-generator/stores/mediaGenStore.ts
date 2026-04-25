@@ -143,13 +143,6 @@ export const useMediaGenStore = defineStore("media-generator", () => {
 
     taskActionManager.addTaskNode(task, attachmentManager.attachments.value);
 
-    // 显式更新时间
-    if (currentSession.value && currentSessionDetail.value) {
-      const now = new Date().toISOString();
-      currentSession.value.updatedAt = now;
-      currentSessionDetail.value.updatedAt = now;
-    }
-
     // 自动命名逻辑
     const namingConfig = settings.value.topicNaming;
     const userMessageCount = messages.value.filter((m) => m.role === "user").length;
@@ -163,26 +156,20 @@ export const useMediaGenStore = defineStore("media-generator", () => {
       userMessageCount >= (namingConfig.autoTriggerThreshold || 1)
     ) {
       setTimeout(() => {
-        aiLogic
-          .generateSessionName(currentSessionId.value!, currentSession.value!.name)
-          .catch((err) => {
-            logger.error("自动命名失败", err);
-          });
+        aiLogic.generateSessionName(currentSessionId.value!, currentSession.value!.name).catch((err) => {
+          logger.error("自动命名失败", err);
+        });
       }, 1500);
     }
 
     attachmentManager.clearAttachments();
-    persistence.persist();
+    persistence.persist(true);
   };
 
   /**
    * 更新任务状态
    */
-  const updateTaskStatus = (
-    taskId: string,
-    status: MediaTaskStatus,
-    updates?: Partial<MediaTask>
-  ) => {
+  const updateTaskStatus = (taskId: string, status: MediaTaskStatus, updates?: Partial<MediaTask>) => {
     taskManager.updateTaskStatus(taskId, status, updates);
     const task = taskManager.getTask(taskId);
     if (task) {
@@ -217,11 +204,7 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     const result = branchManager.deleteMessage(fullSession, taskId);
     if (result.success) {
       activeLeafId.value = fullSession.activeLeafId || "";
-      // 显式更新时间
-      const now = new Date().toISOString();
-      if (currentSession.value) currentSession.value.updatedAt = now;
-      if (currentSessionDetail.value) currentSessionDetail.value.updatedAt = now;
-      persistence.persist();
+      persistence.persist(true);
     }
   };
 
@@ -233,11 +216,7 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     if (!fullSession) return;
     const success = branchManager.editMessage(fullSession, messageId, content, attachments);
     if (success) {
-      // 显式更新时间
-      const now = new Date().toISOString();
-      if (currentSession.value) currentSession.value.updatedAt = now;
-      if (currentSessionDetail.value) currentSessionDetail.value.updatedAt = now;
-      persistence.persist();
+      persistence.persist(true);
     }
   };
 
@@ -260,7 +239,7 @@ export const useMediaGenStore = defineStore("media-generator", () => {
         });
       }
     },
-    { flush: "post" }
+    { flush: "post" },
   );
 
   /**
@@ -268,8 +247,6 @@ export const useMediaGenStore = defineStore("media-generator", () => {
    */
   const switchSession = async (sessionId: string) => {
     if (sessionId === currentSessionId.value) return;
-    // 切换会话时的持久化不应该更新时间
-    await persistence.persist(false);
 
     const index = sessionIndexMap.value.get(sessionId);
     if (!index) return;
@@ -301,6 +278,9 @@ export const useMediaGenStore = defineStore("media-generator", () => {
           };
         }
       }
+
+      // 仅更新当前活跃 ID，不触发全量持久化，也不更新时间戳
+      await persistence.updateCurrentSessionIdInStorage(sessionId);
       logger.info("已切换会话", { sessionId });
     }
   };
@@ -310,9 +290,7 @@ export const useMediaGenStore = defineStore("media-generator", () => {
    */
   const createNewSession = async () => {
     await persistence.persist();
-    const { index, detail } = sessionManager.createSessionObject(
-      `新生成会话 ${sessionIndexMap.value.size + 1}`,
-    );
+    const { index, detail } = sessionManager.createSessionObject(`新生成会话 ${sessionIndexMap.value.size + 1}`);
 
     sessionIndexMap.value.set(index.id, index);
     sessionDetailMap.value.set(detail.id, detail);
@@ -372,7 +350,6 @@ export const useMediaGenStore = defineStore("media-generator", () => {
       }
     }
   };
-
   /**
    * 切换分支
    */
@@ -386,7 +363,8 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     const success = branchManager.switchBranch(fullSession, deepestLeafId);
     if (success) {
       activeLeafId.value = deepestLeafId;
-      persistence.persist();
+      // 切换分支属于明确的 UI 状态变更，需要持久化（但不一定更新时间，Chat 默认也不更新切换分支的时间）
+      persistence.persist(false);
     }
   };
 
@@ -437,11 +415,7 @@ export const useMediaGenStore = defineStore("media-generator", () => {
         }
 
         activeLeafId.value = newNodeId;
-        // 显式更新时间
-        const now = new Date().toISOString();
-        if (currentSession.value) currentSession.value.updatedAt = now;
-        if (currentSessionDetail.value) currentSessionDetail.value.updatedAt = now;
-        persistence.persist();
+        persistence.persist(true);
       }
     },
 
@@ -468,9 +442,7 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     getSiblings: (id: string) =>
       currentFullSession.value ? branchManager.getSiblings(currentFullSession.value, id) : [],
     isNodeInActivePath: (id: string) =>
-      currentFullSession.value
-        ? branchManager.isNodeInActivePath(currentFullSession.value, id)
-        : false,
+      currentFullSession.value ? branchManager.isNodeInActivePath(currentFullSession.value, id) : false,
 
     // 节点操作
     toggleMessageEnabled: (id: string) => {
@@ -478,11 +450,7 @@ export const useMediaGenStore = defineStore("media-generator", () => {
       const node = nodes.value[id];
       if (node) {
         node.isEnabled = !node.isEnabled;
-        // 显式更新时间
-        const now = new Date().toISOString();
-        if (currentSession.value) currentSession.value.updatedAt = now;
-        if (currentSessionDetail.value) currentSessionDetail.value.updatedAt = now;
-        persistence.persist();
+        persistence.persist(true);
       }
     },
     updateNodeData: async (id: string, newData: Partial<MediaMessage>) => {
@@ -495,18 +463,15 @@ export const useMediaGenStore = defineStore("media-generator", () => {
       delete (sanitizedData as any).childrenIds;
       const now = new Date().toISOString();
       nodes.value[id] = { ...node, ...sanitizedData, updatedAt: now };
-      // 显式更新会话时间
-      if (currentSession.value) currentSession.value.updatedAt = now;
-      if (currentSessionDetail.value) currentSessionDetail.value.updatedAt = now;
 
       if (sanitizedData.metadata?.taskSnapshot && sanitizedData.metadata.taskId) {
         taskManager.updateTaskStatus(
           sanitizedData.metadata.taskId,
           sanitizedData.metadata.taskSnapshot.status,
-          sanitizedData.metadata.taskSnapshot
+          sanitizedData.metadata.taskSnapshot,
         );
       }
-      persistence.persist();
+      persistence.persist(true);
     },
 
     // 附件方法委托

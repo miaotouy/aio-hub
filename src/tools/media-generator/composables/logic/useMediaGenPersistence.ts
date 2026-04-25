@@ -61,8 +61,7 @@ export function useMediaGenPersistence(options: {
       const loadedSettings = await storage.loadSettings();
       settings.value = { ...DEFAULT_MEDIA_GENERATOR_SETTINGS, ...loadedSettings };
 
-      const { sessions: loadedIndexItems, currentSessionId: savedSessionId } =
-        await sessionManager.loadSessionsIndex();
+      const { sessions: loadedIndexItems, currentSessionId: savedSessionId } = await sessionManager.loadSessionsIndex();
 
       // 填充索引 Map
       sessionIndexMap.value.clear();
@@ -226,29 +225,23 @@ export function useMediaGenPersistence(options: {
     await persist();
   }, 1000);
 
-  // 监听配置和输入变化自动保存
+  // 仅监听输入和配置的防抖保存（不更新 updatedAt）
   watch(
-    [currentConfig, inputPrompt, nodes, activeLeafId, tasks],
+    [inputPrompt, currentConfig],
     () => {
       if (!isInitialized.value || !currentSessionId.value) return;
 
-      const index = sessionIndexMap.value.get(currentSessionId.value);
       const detail = sessionDetailMap.value.get(currentSessionId.value);
-      if (!index || !detail) return;
+      if (!detail) return;
 
-      // 更新内存中的对象（用于即时 UI 反馈）
-      // 注意：这里不更新 updatedAt，时间更新由业务 Action 显式触发
+      // 仅同步配置类状态
       detail.inputPrompt = inputPrompt.value;
       detail.generationConfig = {
         activeType: currentConfig.value.activeType,
         includeContext: currentConfig.value.includeContext,
         types: JSON.parse(JSON.stringify(currentConfig.value.types)),
       };
-      detail.nodes = nodes.value;
-      detail.rootNodeId = rootNodeId.value;
-      detail.activeLeafId = activeLeafId.value;
 
-      // 触发防抖持久化
       debouncedPersist();
     },
     { deep: true },
@@ -261,13 +254,21 @@ export function useMediaGenPersistence(options: {
       if (!isInitialized.value) return;
       storage.saveSettingsDebounced(newSettings);
     },
-    { deep: true }
+    { deep: true },
   );
+
+  /**
+   * 更新当前活跃会话 ID（不触发全量保存）
+   */
+  const updateCurrentSessionIdInStorage = async (sessionId: string | null) => {
+    await storage.updateCurrentSessionId(sessionId);
+  };
 
   return {
     isInitialized,
     init,
     persist,
     debouncedPersist,
+    updateCurrentSessionIdInStorage,
   };
 }

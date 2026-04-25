@@ -166,10 +166,7 @@ export function useMediaStorage() {
   /**
    * 保存单个会话（仅在内容变化时写入）
    */
-  async function saveSession(
-    session: GenerationSession,
-    forceWrite: boolean = false
-  ): Promise<void> {
+  async function saveSession(session: GenerationSession, forceWrite: boolean = false): Promise<void> {
     try {
       await indexManager.ensureModuleDir();
       await ensureSessionsDir();
@@ -212,20 +209,18 @@ export function useMediaStorage() {
    /**
     * 从会话创建索引项
     */
-   function createIndexItem(session: GenerationSession): MediaSessionIndexItem {
-     // 统计媒体任务数
-     const taskCount = Object.values(session.nodes || {}).filter(
-       (n) => n.metadata?.isMediaTask
-     ).length;
- 
-     return {
-       id: session.id,
-       name: session.name,
-       updatedAt: session.updatedAt,
-       createdAt: session.createdAt,
-       taskCount: Math.max(0, taskCount),
-     };
-   }
+  function createIndexItem(session: GenerationSession): MediaSessionIndexItem {
+    // 统计媒体任务数
+    const taskCount = Object.values(session.nodes || {}).filter((n) => n.metadata?.isMediaTask).length;
+
+    return {
+      id: session.id,
+      name: session.name,
+      updatedAt: session.updatedAt,
+      createdAt: session.createdAt,
+      taskCount: Math.max(0, taskCount),
+    };
+  }
   /**
    * 扫描 sessions 目录，获取所有会话文件的 ID
    */
@@ -239,9 +234,7 @@ export function useMediaStorage() {
       if (!(await exists(sessionsDir))) return [];
 
       const entries = await readDir(sessionsDir);
-      return entries
-        .filter((entry) => entry.name?.endsWith(".json"))
-        .map((entry) => entry.name!.replace(".json", ""));
+      return entries.filter((entry) => entry.name?.endsWith(".json")).map((entry) => entry.name!.replace(".json", ""));
     } catch (error) {
       errorHandler.handle(error as Error, { userMessage: "扫描会话目录失败", showToUser: false });
       return [];
@@ -345,10 +338,7 @@ export function useMediaStorage() {
   /**
    * 持久化单个会话并更新索引
    */
-  async function persistSession(
-    session: GenerationSession,
-    currentSessionId: string | null
-  ): Promise<void> {
+  async function persistSession(session: GenerationSession, currentSessionId: string | null): Promise<void> {
     try {
       await saveSession(session);
 
@@ -406,16 +396,13 @@ export function useMediaStorage() {
   /**
    * 内部防抖保存会话
    */
-  const debouncedPersist = debounce(
-    async (session: GenerationSession, currentSessionId: string | null) => {
-      try {
-        await persistSession(session, currentSessionId);
-      } catch (error) {
-        logger.error("防抖保存会话失败", error);
-      }
-    },
-    2000
-  );
+  const debouncedPersist = debounce(async (session: GenerationSession, currentSessionId: string | null) => {
+    try {
+      await persistSession(session, currentSessionId);
+    } catch (error) {
+      logger.error("防抖保存会话失败", error);
+    }
+  }, 2000);
 
   /**
    * 加载全局设置
@@ -453,6 +440,26 @@ export function useMediaStorage() {
     tasksManager.saveDebounced({ tasks });
   };
 
+  /**
+   * 仅更新当前活跃会话 ID
+   */
+  async function updateCurrentSessionId(sessionId: string | null): Promise<void> {
+    try {
+      const index = await loadIndex();
+      if (index.currentSessionId === sessionId) return;
+
+      index.currentSessionId = sessionId;
+      await saveIndex(index);
+      logger.debug("当前活跃会话 ID 已更新", { sessionId });
+    } catch (error) {
+      errorHandler.handle(error as Error, {
+        userMessage: "更新当前会话 ID 失败",
+        showToUser: false,
+        context: { sessionId },
+      });
+    }
+  }
+
   return {
     loadSessions,
     loadSessionsIndex,
@@ -470,5 +477,6 @@ export function useMediaStorage() {
     loadTasks,
     saveTasks,
     saveTasksDebounced,
+    updateCurrentSessionId,
   };
 }

@@ -68,15 +68,29 @@ export function useNodeManager() {
    * 将节点添加到会话（更新父子关系）
    */
   const addNodeToSession = (session: GenerationSession, node: MediaMessage): void => {
+    if (!session.nodes) session.nodes = {};
+
     // 添加节点到会话
     session.nodes[node.id] = node;
 
     // 更新父节点的 childrenIds
     if (node.parentId) {
       const parentNode = session.nodes[node.parentId];
-      if (parentNode && !parentNode.childrenIds.includes(node.id)) {
-        parentNode.childrenIds.push(node.id);
+      if (parentNode) {
+        if (!parentNode.childrenIds.includes(node.id)) {
+          parentNode.childrenIds.push(node.id);
+        }
+        // 维护选择记忆
+        parentNode.lastSelectedChildId = node.id;
       }
+    }
+
+    // 更新会话更新时间
+    session.updatedAt = getLocalISOString();
+
+    // 维护 activeLeafId 始终指向最新添加的节点（如果它挂在当前活跃路径上）
+    if (session.activeLeafId === node.parentId || !session.activeLeafId) {
+      session.activeLeafId = node.id;
     }
 
     logger.debug("节点已添加到会话", {
@@ -85,6 +99,21 @@ export function useNodeManager() {
       role: node.role,
       parentId: node.parentId,
     });
+  };
+
+  /**
+   * 寻找指定节点下的最深叶子节点
+   * 优先遵循 lastSelectedChildId 记忆路径
+   */
+  const findDeepestLeaf = (session: GenerationSession, nodeId: string): string => {
+    const node = session.nodes[nodeId];
+    if (!node || node.childrenIds.length === 0) return nodeId;
+
+    // 优先走上次选中的子节点路径，否则走最后一个子节点
+    const nextId = node.lastSelectedChildId ?? node.childrenIds[node.childrenIds.length - 1];
+    const nextNode = session.nodes[nextId];
+
+    return nextNode ? findDeepestLeaf(session, nextId) : nodeId;
   };
 
   /**
@@ -100,17 +129,20 @@ export function useNodeManager() {
       return false;
     }
 
+    // 确保切换到的是最深叶子节点
+    const deepestLeafId = findDeepestLeaf(session, nodeId);
+
     const previousLeafId = session.activeLeafId;
-    session.activeLeafId = nodeId;
+    session.activeLeafId = deepestLeafId;
     session.updatedAt = getLocalISOString();
 
     // 更新路径上所有父节点的选择记忆 (复用 llm-chat 的 BranchNavigator)
-    BranchNavigator.updateSelectionMemory(session as any, nodeId);
+    BranchNavigator.updateSelectionMemory(session as any, deepestLeafId);
 
     logger.debug("活跃叶节点已更新", {
       sessionId: session.id,
       previousLeafId,
-      newLeafId: nodeId,
+      newLeafId: deepestLeafId,
     });
 
     return true;
@@ -147,26 +179,29 @@ export function useNodeManager() {
     };
     collectDescendants(nodeId);
 
-    if (nodesToDeleteIds.has(session.activeLeafId || "")) {
+    if (session.activeLeafId && nodesToDeleteIds.has(session.activeLeafId)) {
       const siblings = node.parentId ? session.nodes[node.parentId]?.childrenIds || [] : [];
-      const siblingNodes = siblings
-        .filter((id) => id !== nodeId)
-        .map((id) => session.nodes[id])
-        .filter((n): n is MediaMessage => !!n);
+      
+      // 找到被删除节点在兄弟列表中的索引
+      const deletedIndex = siblings.indexOf(nodeId);
+      let targetSiblingId: string | null = null;
 
-      if (siblingNodes.length > 0) {
-        const findDeepestLeaf = (n: MediaMessage): string => {
-          if (n.childrenIds.length === 0) return n.id;
-          const lastChildId = n.childrenIds[n.childrenIds.length - 1];
-          const lastChild = session.nodes[lastChildId];
-          return lastChild ? findDeepestLeaf(lastChild) : n.id;
-        };
-        session.activeLeafId = findDeepestLeaf(siblingNodes[0]);
-        BranchNavigator.updateSelectionMemory(session as any, session.activeLeafId);
+      // 优先选择相邻的兄弟节点（优先下一个，然后上一个）
+      if (deletedIndex !== -1) {
+        if (deletedIndex + 1 < siblings.length) {
+          targetSiblingId = siblings[deletedIndex + 1];
+        } else if (deletedIndex - 1 >= 0) {
+          targetSiblingId = siblings[deletedIndex - 1];
+        }
+      }
+
+      if (targetSiblingId && session.nodes[targetSiblingId]) {
+        session.activeLeafId = findDeepestLeaf(session, targetSiblingId);
       } else {
         session.activeLeafId = node.parentId || session.rootNodeId;
-        BranchNavigator.updateSelectionMemory(session as any, session.activeLeafId || "");
       }
+      
+      BranchNavigator.updateSelectionMemory(session as any, session.activeLeafId || "");
     }
 
     if (node.parentId) {
@@ -261,14 +296,55 @@ export function useNodeManager() {
     return ancestors;
   };
 
+  /**
+   * 创建重新生成分支
+   */
+  const createRegenerateBranch = (
+    session: GenerationSession,
+    targetNodeId: string
+  ): { assistantNode: MediaMessage; userNode: MediaMessage } | null => {
+    const targetNode = session.nodes[targetNodeId];
+    if (!targetNode) return null;
+
+    let userNode: MediaMessage;
+    let parentNodeId: string;
+
+    if (targetNode.role === "user") {
+      userNode = targetNode;
+      parentNodeId = targetNode.id;
+    } else if (targetNode.role === "assistant") {
+      if (!targetNode.parentId) return null;
+      const parentNode = session.nodes[targetNode.parentId];
+      if (!parentNode || parentNode.role !== "user") return null;
+      userNode = parentNode;
+      parentNodeId = parentNode.id;
+    } else {
+      return null;
+    }
+
+    // 创建新的助手消息节点
+    const newAssistantNode = createNode({
+      role: "assistant",
+      content: "",
+      parentId: parentNodeId,
+      status: "generating",
+    });
+
+    addNodeToSession(session, newAssistantNode);
+
+    return { assistantNode: newAssistantNode, userNode };
+  };
+
   return {
     generateNodeId,
     createNode,
     addNodeToSession,
+    findDeepestLeaf,
     updateActiveLeaf,
     hardDeleteNode,
     getNodePath,
     getAllDescendants,
     getAllAncestors,
+    createRegenerateBranch,
   };
 }

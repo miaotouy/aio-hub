@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 import type {
   MediaTask,
   MediaTaskStatus,
@@ -38,6 +38,7 @@ export const useMediaGenStore = defineStore("media-generator", () => {
   const rootNodeId = ref("");
   const activeLeafId = ref("");
   const { tasks } = taskManager; // 使用全局任务池
+  const generatingNodes = ref(new Set<string>()); // 正在生成的节点集合
   const activeTaskId = ref<string | null>(null);
   const currentSessionId = ref<string | null>(null);
   const inputPrompt = ref("");
@@ -116,6 +117,9 @@ export const useMediaGenStore = defineStore("media-generator", () => {
    * 添加新任务
    */
   const addTask = (task: MediaTask) => {
+    // 追踪生成状态
+    generatingNodes.value.add(task.id);
+    
     taskActionManager.addTaskNode(task, attachmentManager.attachments.value);
 
     // 自动命名逻辑
@@ -157,8 +161,10 @@ export const useMediaGenStore = defineStore("media-generator", () => {
         }
         if (status === "completed") {
           node.status = "complete";
+          generatingNodes.value.delete(taskId);
         } else if (status === "error") {
           node.status = "error";
+          generatingNodes.value.delete(taskId);
         }
         nodes.value[taskId] = { ...node }; // 强制触发响应式
       }
@@ -170,6 +176,10 @@ export const useMediaGenStore = defineStore("media-generator", () => {
    */
   const removeTask = (taskId: string) => {
     if (!currentSession.value) return;
+    
+    // 确保从生成追踪中移除
+    generatingNodes.value.delete(taskId);
+    
     taskManager.removeTask(taskId);
     const result = branchManager.deleteMessage(currentSession.value, taskId);
     if (result.success) {
@@ -191,6 +201,28 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     );
     if (success) persistence.persist();
   };
+
+  // --- 状态自愈 Watcher ---
+  // 姐姐，这个 Watch 负责监控“僵死节点”。
+  // 如果任务池里的任务结束了，但节点还卡在 generating，我们会自动把它修好。
+  watch(
+    () => generatingNodes.value.size,
+    (newSize, oldSize) => {
+      if (newSize < (oldSize || 0)) {
+        // 任务减少了，检查是否有漏网之鱼
+        Object.values(nodes.value).forEach((node) => {
+          if (node.status === "generating" && !generatingNodes.value.has(node.id)) {
+            const task = taskManager.getTask(node.id);
+            if (!task || task.status === "completed" || task.status === "error") {
+              logger.warn("检测到僵死节点，正在自动修复状态", { nodeId: node.id });
+              node.status = task?.status === "completed" ? "complete" : "error";
+            }
+          }
+        });
+      }
+    },
+    { flush: "post" }
+  );
 
   /**
    * 切换会话
@@ -268,9 +300,21 @@ export const useMediaGenStore = defineStore("media-generator", () => {
    */
   const switchToBranch = (nodeId: string) => {
     if (!currentSession.value) return;
-    const success = branchManager.switchBranch(currentSession.value, nodeId);
+
+    // 构建临时 session 对象供 nodeManager 使用
+    const tempSession = {
+      id: currentSession.value.id,
+      nodes: nodes.value,
+      rootNodeId: rootNodeId.value,
+      activeLeafId: activeLeafId.value,
+    } as GenerationSession;
+
+    // 寻找目标分支的最深叶子节点，确保 activeLeafId 不落在中间节点（如 User 节点）上
+    const deepestLeafId = nodeManager.findDeepestLeaf(tempSession, nodeId);
+
+    const success = branchManager.switchBranch(currentSession.value, deepestLeafId);
     if (success) {
-      activeLeafId.value = nodeId;
+      activeLeafId.value = deepestLeafId;
       persistence.persist();
     }
   };
@@ -311,7 +355,13 @@ export const useMediaGenStore = defineStore("media-generator", () => {
       if (!currentSession.value) return;
       const newNodeId = branchManager.createBranch(currentSession.value, messageId);
       if (newNodeId) {
-        branchManager.editMessage(currentSession.value, newNodeId, content, attachments);
+        // 如果是 User 节点另存，需要更新内容
+        // 如果是 Assistant 节点另存（内部已转为 createRegenerateBranch），内容为空，无需 editMessage
+        const node = nodes.value[newNodeId];
+        if (node && node.role === "user") {
+          branchManager.editMessage(currentSession.value, newNodeId, content, attachments);
+        }
+
         activeLeafId.value = newNodeId;
         persistence.persist();
       }
@@ -378,36 +428,10 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     allTasks: tasks,
 
     // 重试逻辑
-    getRetryParams(messageId: string, useNewBranch = false) {
-      const node = nodes.value[messageId];
-      if (!node) return null;
-
-      if (useNewBranch && currentSession.value) {
-        // 如果是助手消息，我们基于它的父节点（用户消息）创建分支
-        // 如果是用户消息，我们直接基于它自己创建分支（产生一个同级的新 Prompt 节点）
-        const baseNodeId = node.role === "assistant" ? node.parentId : messageId;
-
-        if (baseNodeId) {
-          const newNodeId = branchManager.createBranch(currentSession.value, baseNodeId);
-          if (newNodeId) {
-            activeLeafId.value = newNodeId;
-
-            // 如果是对现有的用户消息重试，且该消息有内容，确保新分支继承这些内容
-            if (node.role === "user") {
-              nodes.value[newNodeId].content = node.content;
-              nodes.value[newNodeId].attachments = node.attachments ? [...node.attachments] : [];
-            }
-
-            persistence.persist();
-            return taskActionManager.getRetryParams(newNodeId);
-          }
-        }
-      }
-      if (node.role === "assistant" && node.parentId) {
-        switchToBranch(node.parentId);
-      } else {
-        switchToBranch(node.id);
-      }
+    getRetryParams(messageId: string) {
+      // 纯读取：从节点中提取重试所需参数
+      // 不修改 activeLeafId，不创建分支
+      // addTaskNode 被调用时会根据当前 activeLeafId 自动判断挂载点
       return taskActionManager.getRetryParams(messageId);
     },
   };

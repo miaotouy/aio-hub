@@ -32,7 +32,7 @@ const emit = defineEmits<{
   (e: "edit"): void;
   (e: "delete", taskId: string): void;
   (e: "download", task: MediaTask): void;
-  (e: "retry", useNewBranch?: boolean, useNewModel?: boolean): void;
+  (e: "retry", useNewModel?: boolean): void;
   (e: "toggle-enabled"): void;
   (e: "edit-raw"): void;
   (e: "export"): void;
@@ -126,13 +126,13 @@ const handleSwitchToBranch = (nodeId: string) => {
     <!-- 重试 -->
     <div class="retry-group">
       <el-tooltip content="重试" placement="top" :show-after="500">
-        <button class="menu-btn" @click="emit('retry', true, false)">
+        <button class="menu-btn" @click="emit('retry', false)">
           <RotateCcw :size="16" />
         </button>
       </el-tooltip>
 
       <el-tooltip content="切换模型重试" placement="top" :show-after="500">
-        <button class="menu-btn" @click="emit('retry', true, true)">
+        <button class="menu-btn" @click="emit('retry', true)">
           <Settings2 :size="16" />
         </button>
       </el-tooltip>

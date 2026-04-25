@@ -56,7 +56,7 @@ const handleExport = () => {
   isExporting.value = true;
 };
 
-const handleRetry = async (useNewBranch = true, useNewModel = false) => {
+const handleRetry = async (useNewModel = false) => {
   let temporaryModel: { profileId: string; modelId: string } | undefined;
 
   if (useNewModel) {
@@ -70,7 +70,7 @@ const handleRetry = async (useNewBranch = true, useNewModel = false) => {
     };
   }
 
-  const params = store.getRetryParams(props.message.id, useNewBranch);
+  const params = store.getRetryParams(props.message.id);
   if (params) {
     // getRetryParams 返回 { isMediaTask, type, options: { ... } } 结构
     // startGeneration 期望接收扁平的 MediaGenerationOptions，需要解包

@@ -55,7 +55,11 @@ export function useBranchManager() {
     nodeId: string,
     direction: "prev" | "next"
   ): string => {
-    const newLeafId = BranchNavigator.switchToSibling(session as any, nodeId, direction);
+    const nodeManager = useNodeManager();
+    const newBranchRootId = BranchNavigator.switchToSibling(session as any, nodeId, direction);
+
+    // 寻找目标分支的最深叶子节点
+    const newLeafId = nodeManager.findDeepestLeaf(session, newBranchRootId);
 
     if (newLeafId !== session.activeLeafId) {
       session.activeLeafId = newLeafId;
@@ -116,6 +120,8 @@ export function useBranchManager() {
 
   /**
    * 创建分支（创建源节点的兄弟节点，复制内容）
+   * 姐姐，这里的语义现在纯粹是“复制”，不再自动触发重试逻辑。
+   * 特别注意：如果复制的是 Assistant 节点，状态应设为 complete，避免僵死。
    */
   const createBranch = (session: GenerationSession, sourceNodeId: string): string | null => {
     const sourceNode = session.nodes[sourceNodeId];
@@ -130,7 +136,7 @@ export function useBranchManager() {
       content: sourceNode.content,
       attachments: sourceNode.attachments ? [...sourceNode.attachments] : undefined,
       isEnabled: true,
-      status: "complete",
+      status: sourceNode.role === "assistant" ? "complete" : sourceNode.status,
       metadata: sourceNode.metadata ? { ...sourceNode.metadata } : undefined,
     });
 
@@ -138,12 +144,9 @@ export function useBranchManager() {
     nodeManager.addNodeToSession(session, newNode);
 
     // 切换到新分支
-    session.activeLeafId = newNode.id;
-    BranchNavigator.updateSelectionMemory(session as any, newNode.id);
+    nodeManager.updateActiveLeaf(session, newNode.id);
 
-    session.updatedAt = new Date().toISOString();
-
-    logger.info("分支已创建", {
+    logger.info("分支已创建 (复制语义)", {
       sessionId: session.id,
       sourceNodeId,
       newNodeId: newNode.id,

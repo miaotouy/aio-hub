@@ -89,8 +89,45 @@ export function useMediaGenPersistence(options: {
 
       // 初始化节点树
       nodes.value = session.nodes || {};
+
+      // 自愈逻辑：处理加载时处于 generating 状态的节点
+      // 姐姐，媒体生成任务通常无法跨进程恢复，所以加载时如果是生成中，我会把它修成 error
+      Object.values(nodes.value).forEach((node) => {
+        if (node.status === "generating") {
+          // 检查是否有关联的任务且任务已完成
+          const task = taskManager.getTask(node.id);
+          if (task && task.status === "completed") {
+            node.status = "complete";
+          } else {
+            node.status = "error";
+            if (!node.metadata) node.metadata = {};
+            node.metadata.error = "应用重启，生成中断";
+          }
+        }
+      });
+
       rootNodeId.value = session.rootNodeId || "";
       activeLeafId.value = session.activeLeafId || "";
+
+      // 自愈逻辑：确保 activeLeafId 指向最深叶子节点，且节点存在
+      if (activeLeafId.value && nodes.value[activeLeafId.value]) {
+        const activeNode = nodes.value[activeLeafId.value];
+        if (activeNode.childrenIds.length > 0) {
+          const tempSession = {
+            id: session.id,
+            nodes: nodes.value,
+            rootNodeId: rootNodeId.value,
+            activeLeafId: activeLeafId.value,
+          } as GenerationSession;
+          activeLeafId.value = nodeManager.findDeepestLeaf(tempSession, activeLeafId.value);
+          logger.warn("检测到 activeLeafId 指向中间节点，已自动修复", {
+            sessionId: session.id,
+            fixedId: activeLeafId.value,
+          });
+        }
+      } else if (rootNodeId.value) {
+        activeLeafId.value = rootNodeId.value;
+      }
 
       // 如果没有根节点，创建一个
       if (!rootNodeId.value) {

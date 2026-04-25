@@ -160,7 +160,7 @@ use commands::{
 use commands::{
     bring_danmaku_overlay_to_top, close_danmaku_overlay_window, create_danmaku_overlay_window,
     find_player_windows, get_mpc_be_status, get_player_window_rect, is_window_valid,
-    set_danmaku_overlay_ignore_cursor,
+    set_danmaku_overlay_ignore_cursor, set_danmaku_overlay_zorder,
 };
 // 导入全局鼠标监听器
 // 条件导入：仅在非 macOS 上导入
@@ -532,6 +532,8 @@ pub fn run() {
             get_mpc_be_status,
             #[cfg(windows)]
             bring_danmaku_overlay_to_top,
+            #[cfg(windows)]
+            set_danmaku_overlay_zorder,
             // 窗口管理命令
             create_tool_window,
             focus_window,

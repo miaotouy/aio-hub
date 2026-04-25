@@ -13,8 +13,9 @@ use windows::Win32::{
     UI::{
         HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI},
         WindowsAndMessaging::{
-            EnumWindows, GetClassNameW, GetClientRect, GetWindowTextLengthW, GetWindowTextW,
-            IsWindow, IsWindowVisible, SetWindowPos, HWND_TOPMOST, SWP_NOMOVE, SWP_NOSIZE,
+            EnumWindows, GetClassNameW, GetClientRect, GetWindow, GetWindowTextLengthW,
+            GetWindowTextW, IsWindow, IsWindowVisible, SetWindowPos, GW_HWNDPREV, HWND_NOTOPMOST,
+            HWND_TOP, HWND_TOPMOST, SWP_NOMOVE, SWP_NOSIZE,
         },
     },
 };
@@ -344,7 +345,6 @@ pub async fn create_danmaku_overlay_window(
         rect.y,
         rect.scale_factor
     );
-
     let window = WebviewWindowBuilder::new(&app, OVERLAY_WINDOW_LABEL, url)
         .title("Danmaku Overlay")
         .inner_size(logical_width, logical_height)
@@ -353,7 +353,7 @@ pub async fn create_danmaku_overlay_window(
         .transparent(true)
         .shadow(false)
         .skip_taskbar(true)
-        .always_on_top(true)
+        .always_on_top(false) // 初始不强制置顶，由同步逻辑动态控制
         .visible(false)
         .build()
         .map_err(|e| e.to_string())?;
@@ -369,10 +369,71 @@ pub async fn create_danmaku_overlay_window(
         .map_err(|e| e.to_string())?;
     window.show().map_err(|e| e.to_string())?;
 
-    // 初始强制提升层级
-    let _ = bring_danmaku_overlay_to_top(app);
+    // 初始根据全屏状态设置层级
+    let _ = set_danmaku_overlay_zorder(app, target_hwnd, rect.is_fullscreen);
 
     Ok(OVERLAY_WINDOW_LABEL.to_string())
+}
+
+/// 设置弹幕覆盖窗口的 Z-Order 层级。
+/// - topmost = true: 提升到系统最顶层 (HWND_TOPMOST)，用于全屏模式。
+/// - topmost = false: 移除最顶层属性，并将 overlay 吸附在播放器窗口正上方。
+#[cfg(windows)]
+#[tauri::command]
+pub fn set_danmaku_overlay_zorder(
+    app: AppHandle,
+    target_hwnd: i64,
+    topmost: bool,
+) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window(OVERLAY_WINDOW_LABEL) {
+        if let Ok(hwnd_ptr) = window.hwnd() {
+            let overlay_hwnd = HWND(hwnd_ptr.0 as *mut _);
+            let player_hwnd = hwnd_from_i64(target_hwnd);
+
+            unsafe {
+                if topmost {
+                    // 全屏模式：强制 HWND_TOPMOST
+                    let _ = SetWindowPos(
+                        overlay_hwnd,
+                        HWND_TOPMOST,
+                        0,
+                        0,
+                        0,
+                        0,
+                        SWP_NOMOVE | SWP_NOSIZE,
+                    );
+                } else {
+                    // 窗口模式：先确保不是 TOPMOST
+                    let _ = SetWindowPos(
+                        overlay_hwnd,
+                        HWND_NOTOPMOST,
+                        0,
+                        0,
+                        0,
+                        0,
+                        SWP_NOMOVE | SWP_NOSIZE,
+                    );
+                    // 将 overlay 放到 player 正上方：
+                    // GetWindow(player, GW_HWNDPREV) 返回 Z-order 中 player 上方的窗口，
+                    // 然后把 overlay 插到该窗口之下（即 player 之上）。
+                    let insert_after = match GetWindow(player_hwnd, GW_HWNDPREV) {
+                        Ok(prev) if prev != overlay_hwnd => prev, // 避免自引用导致无效操作
+                        _ => HWND_TOP,                            // player 已在最顶层，直接放到顶部
+                    };
+                    let _ = SetWindowPos(
+                        overlay_hwnd,
+                        insert_after,
+                        0,
+                        0,
+                        0,
+                        0,
+                        SWP_NOMOVE | SWP_NOSIZE,
+                    );
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 /// 强制将弹幕覆盖窗口提升到系统最顶层 (HWND_TOPMOST)。
@@ -386,16 +447,7 @@ pub fn bring_danmaku_overlay_to_top(app: AppHandle) -> Result<(), String> {
             let hwnd = HWND(hwnd_ptr.0 as *mut _);
             unsafe {
                 // 使用 SetWindowPos 强制设置 HWND_TOPMOST
-                // SWP_NOMOVE | SWP_NOSIZE 表示不改变位置和大小
-                let _ = SetWindowPos(
-                    hwnd,
-                    HWND_TOPMOST,
-                    0,
-                    0,
-                    0,
-                    0,
-                    SWP_NOMOVE | SWP_NOSIZE,
-                );
+                let _ = SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
             }
             log::debug!("[EXTERNAL_PLAYER] 已通过 Win32 API 强制提升覆盖层窗口层级");
         }
@@ -481,7 +533,10 @@ pub async fn get_mpc_be_status(port: u16) -> Result<Option<MpcBeStatusResult>, S
     let file = match extract_mpc_field(&html, "file") {
         Some(v) => v.to_string(),
         None => {
-            log::warn!("[EXTERNAL_PLAYER] MPC-BE 响应缺少 'file' 字段 (port={})", port);
+            log::warn!(
+                "[EXTERNAL_PLAYER] MPC-BE 响应缺少 'file' 字段 (port={})",
+                port
+            );
             return Ok(None);
         }
     };
@@ -511,7 +566,12 @@ pub async fn get_mpc_be_status(port: u16) -> Result<Option<MpcBeStatusResult>, S
 
     log::debug!(
         "[EXTERNAL_PLAYER] MPC-BE 状态 (port={}) file={:?} state={} pos={}ms dur={}ms vol={}",
-        port, file, state, position, duration, volume_level
+        port,
+        file,
+        state,
+        position,
+        duration,
+        volume_level
     );
 
     Ok(Some(MpcBeStatusResult {

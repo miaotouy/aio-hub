@@ -77,7 +77,12 @@ export function useDanmakuOverlay() {
     };
   }
 
-  async function applyOverlayRect(rect: LogicalOverlayRect, isFullscreen = false, enableBoost = true): Promise<void> {
+  async function applyOverlayRect(
+    rect: LogicalOverlayRect,
+    isFullscreen = false,
+    enableBoost = true,
+    targetHwnd: number | null = null,
+  ): Promise<void> {
     const overlay = await getOverlayWindow();
 
     if (!overlay) {
@@ -90,13 +95,17 @@ export function useDanmakuOverlay() {
     await overlay.setPosition(new LogicalPosition(rect.x, rect.y));
     await overlay.setSize(new LogicalSize(rect.width, rect.height));
 
-    // 仅在全屏状态下且开启了增强选项时强制提升层级，以解决播放器全屏遮挡问题
-    if (isFullscreen && enableBoost) {
+    // 维护窗口层级
+    if (targetHwnd !== null) {
+      const shouldTopmost = isFullscreen && enableBoost;
       try {
-        await invoke("bring_danmaku_overlay_to_top");
+        await invoke("set_danmaku_overlay_zorder", {
+          targetHwnd,
+          topmost: shouldTopmost,
+        });
       } catch (error) {
         // 忽略可能的错误
-        logger.debug("尝试提升覆盖层层级失败", error);
+        logger.debug("调整覆盖层 Z-order 失败", error);
       }
     }
   }
@@ -221,7 +230,12 @@ export function useDanmakuOverlay() {
       if (changed) {
         activeUntil = Date.now() + ACTIVE_SYNC_DURATION;
         const logicalRect = toLogicalOverlayRect(physicalRect, playerConfigForSync);
-        await applyOverlayRect(logicalRect, physicalRect.isFullscreen, playerConfigForSync.enableFullscreenBoost);
+        await applyOverlayRect(
+          logicalRect,
+          physicalRect.isFullscreen,
+          playerConfigForSync.enableFullscreenBoost,
+          targetHwndForSync,
+        );
         lastPhysicalRect = physicalRect;
       }
 

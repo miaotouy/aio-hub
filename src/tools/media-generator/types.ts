@@ -150,6 +150,10 @@ export interface LlmTaskConfig {
   temperature: number;
   /** 最大 token 数 */
   maxTokens: number;
+  /** 自动触发阈值 (仅用于话题命名) */
+  autoTriggerThreshold?: number;
+  /** 上下文消息数 (仅用于话题命名) */
+  contextMessageCount?: number;
 }
 
 /**

@@ -101,6 +101,7 @@ export const useMediaGenStore = defineStore("media-generator", () => {
   const aiLogic = useMediaGenAILogic({
     settings,
     nodes,
+    activeLeafId,
     updateSessionName: async (id, name) => {
       const session = sessions.value.find((s) => s.id === id);
       if (session) {
@@ -123,12 +124,16 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     taskActionManager.addTaskNode(task, attachmentManager.attachments.value);
 
     // 自动命名逻辑
+    const namingConfig = settings.value.topicNaming;
+    const userMessageCount = messages.value.filter((m) => m.role === "user").length;
+
     if (
       settings.value.enableAutoNaming &&
       !aiLogic.isNaming.value &&
       currentSession.value &&
       currentSession.value.name.startsWith("新生成会话") &&
-      settings.value.topicNaming.modelCombo
+      namingConfig.modelCombo &&
+      userMessageCount >= (namingConfig.autoTriggerThreshold || 1)
     ) {
       setTimeout(() => {
         aiLogic

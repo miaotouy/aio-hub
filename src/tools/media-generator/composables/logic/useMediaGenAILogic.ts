@@ -1,48 +1,68 @@
 import { ref } from "vue";
-import type { MediaMessage, MediaGeneratorSettings } from "../../types";
+import type { MediaMessage, MediaGeneratorSettings, GenerationSession } from "../../types";
 import { createModuleLogger } from "@/utils/logger";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { parseModelCombo } from "@/utils/modelIdUtils";
+import { useNodeManager } from "../useNodeManager";
 
 const logger = createModuleLogger("media-generator/ai-logic");
 
 export function useMediaGenAILogic(options: {
   settings: { value: MediaGeneratorSettings };
   nodes: { value: Record<string, MediaMessage> };
+  activeLeafId: { value: string };
   updateSessionName: (sessionId: string, name: string) => Promise<void>;
 }) {
-  const { settings, nodes, updateSessionName } = options;
+  const { settings, nodes, activeLeafId, updateSessionName } = options;
   const { sendRequest } = useLlmRequest();
+  const nodeManager = useNodeManager();
 
   const isNaming = ref(false);
   const isTranslating = ref(false);
+  const generatingSessionIds = ref<Set<string>>(new Set());
 
   /**
    * AI 自动命名会话
    */
   const generateSessionName = async (sessionId: string, currentName: string) => {
-    if (isNaming.value) return;
+    if (isNaming.value || generatingSessionIds.value.has(sessionId)) return;
 
     const namingConfig = settings.value.topicNaming;
     if (!namingConfig.modelCombo) {
-      throw new Error("请先在设置中配置命名模型");
+      logger.warn("未配置话题命名模型，跳过自动命名");
+      return;
     }
 
-    // 提取上下文：使用当前节点树中的任务内容
-    const context = Object.values(nodes.value)
-      .filter((n) => n.metadata?.isMediaTask)
-      .map((n) => n.metadata?.taskSnapshot?.input?.prompt)
-      .filter(Boolean)
-      .slice(0, 5) // 仅取前5个任务作为上下文，避免上下文过长
-      .join("\n");
+    // 提取当前活跃路径作为上下文
+    const tempSession = {
+      nodes: nodes.value,
+      activeLeafId: activeLeafId.value,
+    } as GenerationSession;
 
-    if (!context) return;
+    const activePath = nodeManager.getNodePath(tempSession, tempSession.activeLeafId);
+    
+    const context = activePath
+      .filter((n) => n.role === "user" || (n.role === "assistant" && n.metadata?.isMediaTask))
+      .map((n) => {
+        if (n.role === "user") return `用户输入: ${n.content}`;
+        return `生成任务: ${n.metadata?.taskSnapshot?.input?.prompt || n.content}`;
+      })
+      .filter(Boolean)
+      .slice(-(namingConfig.contextMessageCount || 5))
+      .join("\n\n");
+
+    if (!context) {
+      logger.warn("提取上下文为空，跳过命名", { sessionId });
+      return;
+    }
 
     // LlmModelSelector 返回的格式通常是 profileId:modelId
     const [profileId, modelId] = parseModelCombo(namingConfig.modelCombo);
 
     try {
       isNaming.value = true;
+      generatingSessionIds.value.add(sessionId);
+      
       const prompt = namingConfig.prompt.replace("{context}", context);
       const response = await sendRequest({
         profileId,
@@ -53,11 +73,18 @@ export function useMediaGenAILogic(options: {
       });
 
       // 提取名称：去掉引号、去掉“标题：”或“Title:”前缀、去掉 Markdown 粗体等格式
-      let newName = response.content
-        .trim()
-        .replace(/^["'「『]|["'」』]$/g, "")
+      let newName = response.content.trim();
+      
+      // 移除包围的引号
+      if ((newName.startsWith('"') && newName.endsWith('"')) || (newName.startsWith("'") && newName.endsWith("'"))) {
+        newName = newName.slice(1, -1).trim();
+      }
+      
+      // 移除常见的前缀和 Markdown 符号
+      newName = newName
         .replace(/^(标题|名称|Title|Name)[:：]\s*/i, "")
-        .replace(/[*#_~`>]/g, "") // 移除常见的 MD 符号
+        .replace(/[*#_~`>]/g, "")
+        .replace(/[。！？，、；：""''（）《》【】…—·\.,!?;:\(\)\[\]<>]$/g, "") // 移除末尾标点
         .trim();
 
       if (newName && newName !== currentName) {
@@ -66,9 +93,9 @@ export function useMediaGenAILogic(options: {
       }
     } catch (error) {
       logger.error("AI 命名失败", error);
-      throw error;
     } finally {
       isNaming.value = false;
+      generatingSessionIds.value.delete(sessionId);
     }
   };
 

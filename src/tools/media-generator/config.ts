@@ -1,11 +1,4 @@
-import {
-  Zap,
-  Bell,
-  LayoutDashboard,
-  Wand2,
-  PenTool,
-  Languages,
-} from "lucide-vue-next";
+import { Zap, Bell, LayoutDashboard, Wand2, PenTool, Languages } from "lucide-vue-next";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import type { SettingsSection } from "@/types/settings-renderer";
 import type { MediaGeneratorSettings } from "./types";
@@ -53,7 +46,8 @@ export const DEFAULT_MEDIA_GENERATOR_SETTINGS: MediaGeneratorSettings = {
   enableAutoNaming: true,
   promptOptimization: {
     modelCombo: "",
-    prompt: "## 任务\n将用户输入的简单描述扩展并优化为高质量的 AI 绘画提示词。\n\n## 要求\n1. 保持用户原意，增加细节、艺术风格、光效、构图等描述。\n2. 使用英文输出提示词。\n3. 仅输出优化后的提示词，禁止有任何解释。\n\n## 用户输入\n{text}",
+    prompt:
+      "## 任务\n将用户输入的简单描述扩展并优化为高质量的 AI 绘画提示词。\n\n## 要求\n1. 保持用户原意，增加细节、艺术风格、光效、构图等描述。\n2. 使用英文输出提示词。\n3. 仅输出优化后的提示词，禁止有任何解释。\n\n## 用户输入\n{text}",
     temperature: 0.8,
     maxTokens: 800,
   },
@@ -65,9 +59,14 @@ export const DEFAULT_MEDIA_GENERATOR_SETTINGS: MediaGeneratorSettings = {
     messageTargetLang: "Chinese",
     inputTargetLang: "English",
     targetLangList: ["Chinese", "English", "Japanese", "Korean", "French", "German"],
-    prompt: "## 任务\n将用户提示翻译为目标语言 {targetLang}。\n\n## 要求\n1. 保持原文含义和艺术风格。\n2. 保护特殊标签如 {thinkTags}，不翻译它们。\n3. 仅输出翻译后的文本，禁止有任何解释。\n\n## 用户提示\n{text}",
+    prompt:
+      "## 任务\n将用户提示翻译为目标语言 {targetLang}。\n\n## 要求\n1. 保持原文含义和艺术风格。\n2. 保护特殊标签如 {thinkTags}，不翻译它们。\n3. 仅输出翻译后的文本，禁止有任何解释。\n\n## 用户提示\n{text}",
     temperature: 0.3,
     maxTokens: 2000,
+  },
+  requestSettings: {
+    timeout: 600000, // 默认 10 分钟
+    maxRetries: 0, // 媒体生成通常不建议自动重试，因为很贵且慢
   },
 };
 
@@ -207,6 +206,34 @@ export const mediaGeneratorSettingsConfig: SettingsSection<MediaGeneratorSetting
         modelPath: "autoCleanCompleted",
         hint: "会话结束后或任务完成一段时间后自动从列表中移除",
         keywords: "auto clean 自动 清理",
+      },
+      {
+        id: "timeout",
+        label: "请求超时 ({{ (localSettings.requestSettings.timeout / 1000).toFixed(0) }}秒)",
+        component: "ElSlider",
+        props: {
+          min: 30000,
+          max: 1200000, // 最高 20 分钟
+          step: 30000,
+          "format-tooltip": (val: number) => `${(val / 1000).toFixed(0)}秒`,
+        },
+        modelPath: "requestSettings.timeout",
+        hint: "媒体生成请求的超时时间。图片/视频生成通常较慢，建议设置在 5 分钟以上。",
+        keywords: "request timeout 请求 超时",
+      },
+      {
+        id: "maxRetries",
+        label: "最大重试次数 ({{ localSettings.requestSettings.maxRetries }}次)",
+        component: "ElSlider",
+        props: {
+          min: 0,
+          max: 5,
+          step: 1,
+          "format-tooltip": (val: number) => `${val}次`,
+        },
+        modelPath: "requestSettings.maxRetries",
+        hint: "请求失败（超时或网络错误）时的最大重试次数。注意：媒体生成通常成本较高，请谨慎设置重试。",
+        keywords: "request retry 请求 重试",
       },
     ],
   },

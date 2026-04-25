@@ -8,6 +8,7 @@ import { useAssetManager } from "@/composables/useAssetManager";
 import { useModelMetadata } from "@/composables/useModelMetadata";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useMediaGenParamRules } from "./useMediaGenParamRules";
+import { DEFAULT_MEDIA_TIMEOUT } from "@/llm-apis/common";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { embedMetadata } from "@/utils/mediaMetadataManager";
@@ -89,9 +90,17 @@ export function useMediaGenerationManager() {
 
     try {
       mediaStore.updateTaskStatus(taskId, "processing", { statusText: "正在请求生成..." });
-
       // 构造多轮会话上下文
-      let finalOptions = { ...options, prompt: finalPrompt };
+      // 注入超时配置，优先使用用户设置，兜底使用媒体专用默认值
+      const requestTimeout = mediaStore.settings.requestSettings?.timeout ?? DEFAULT_MEDIA_TIMEOUT;
+      const maxRetries = mediaStore.settings.requestSettings?.maxRetries ?? 0;
+
+      let finalOptions = {
+        timeout: requestTimeout,
+        maxRetries: maxRetries,
+        ...options,
+        prompt: finalPrompt,
+      };
 
       // 应用参数规则清洁 (OpenAI 兼容接口)
       const selectedProfile = allProfiles.value.find((p) => p.id === options.profileId);

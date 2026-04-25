@@ -10,6 +10,11 @@ const logger = createModuleLogger("llm-apis/common");
 export const DEFAULT_TIMEOUT = 145000; // 145秒，不同于常规时间，用于排查是否是这里的超时
 
 /**
+ * 媒体生成默认超时时间（图片/视频/音频通常较慢）
+ */
+export const DEFAULT_MEDIA_TIMEOUT = 600000; // 600秒 (10分钟)
+
+/**
  * 视频元数据（Gemini 特有）
  * 用于控制视频输入的处理方式
  */

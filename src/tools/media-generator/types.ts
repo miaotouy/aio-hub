@@ -176,6 +176,13 @@ export interface MediaGeneratorSettings {
   rightCollapsed: boolean;
   /** 翻译设置 */
   translation: TranslationConfig;
+  /** 请求设置 */
+  requestSettings: {
+    /** 请求超时时间 (ms) */
+    timeout: number;
+    /** 最大重试次数 */
+    maxRetries: number;
+  };
 }
 
 /**

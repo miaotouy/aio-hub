@@ -395,12 +395,16 @@ watch(
 
         <div v-if="supportsOutputCompression" class="section">
           <div class="section-title">输出压缩 ({{ params.outputCompression }}%)</div>
-          <el-slider v-model="params.outputCompression" :min="0" :max="100" size="small" />
+          <div class="slider-wrapper">
+            <el-slider v-model="params.outputCompression" :min="0" :max="100" size="small" />
+          </div>
         </div>
 
         <div v-if="supportsBatch" class="section">
           <div class="section-title">批量生成 (n)</div>
-          <el-slider v-model="params.n" :min="1" :max="maxBatchSize" :step="1" show-stops size="small" />
+          <div class="slider-wrapper">
+            <el-slider v-model="params.n" :min="1" :max="maxBatchSize" :step="1" show-stops size="small" />
+          </div>
         </div>
       </template>
 
@@ -528,12 +532,16 @@ watch(
 
           <div v-if="supportsSteps" class="section">
             <div class="section-title">迭代步数 (Steps)</div>
-            <el-slider v-model="params.steps" :min="1" :max="100" size="small" />
+            <div class="slider-wrapper">
+              <el-slider v-model="params.steps" :min="1" :max="100" size="small" />
+            </div>
           </div>
 
           <div v-if="supportsCfg" class="section">
             <div class="section-title">引导系数 (CFG Scale)</div>
-            <el-slider v-model="params.cfgScale" :min="1" :max="20" :step="0.5" size="small" />
+            <div class="slider-wrapper">
+              <el-slider v-model="params.cfgScale" :min="1" :max="20" :step="0.5" size="small" />
+            </div>
           </div>
         </el-collapse-item>
       </el-collapse>
@@ -721,5 +729,9 @@ watch(
   color: var(--el-color-danger);
   font-size: 11px;
   margin-top: 4px;
+}
+
+.slider-wrapper {
+  padding: 0 12px;
 }
 </style>

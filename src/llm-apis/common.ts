@@ -144,6 +144,8 @@ export interface LlmRequestOptions {
   onStream?: (chunk: string) => void;
   /** 流式推理内容回调（DeepSeek reasoning 等） */
   onReasoningStream?: (chunk: string) => void;
+  /** 流式预览图回调 (OpenAI Responses gpt-image-2 特性) */
+  onPartialImage?: (base64: string, index: number) => void;
   /** 请求超时时间（毫秒），默认 60000 */
   timeout?: number;
   /** 用于中止请求的 AbortSignal */
@@ -215,6 +217,14 @@ export interface LlmRequestOptions {
   maxCompletionTokens?: number;
   /** 是否存储输出用于模型蒸馏 */
   store?: boolean;
+  /** OpenAI Responses: 是否在服务器端保留对话状态 */
+  responsesStore?: boolean;
+  /** OpenAI Responses: 期望的流式预览图数量 (0-3) */
+  partialImages?: number;
+  /** OpenAI Responses: 输入忠实度 (low | high) */
+  inputFidelity?: "low" | "high";
+  /** OpenAI Responses: 包含的响应内容类型 (如 ["reasoning.encrypted_content"]) */
+  include?: string[];
   /** o系列模型的推理工作约束 */
   reasoningEffort?: string;
   /** 是否启用思考模式 */

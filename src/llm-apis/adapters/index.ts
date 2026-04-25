@@ -1,7 +1,7 @@
 import type { LlmProfile } from "@/types/llm-profiles";
 import type { LlmRequestOptions, LlmResponse, MediaGenerationOptions } from "@/llm-apis/common";
 import type { EmbeddingRequestOptions, EmbeddingResponse } from "@/llm-apis/embedding-types";
-import { openAiAdapter } from "./openai";
+import { openAiAdapter, openAiResponsesAdapter } from "./openai";
 import { geminiAdapter } from "./gemini";
 import { anthropicAdapter } from "./anthropic";
 import { vertexAiAdapter } from "./vertexai";
@@ -47,7 +47,7 @@ export interface LlmAdapter {
 export const adapters: Record<string, LlmAdapter> = {
   openai: openAiAdapter,
   "openai-compatible": openAiAdapter,
-  "openai-responses": openAiAdapter,
+  "openai-responses": openAiResponsesAdapter,
   groq: openAiAdapter,
   mistral: openAiAdapter,
   perplexity: openAiAdapter,

@@ -9,17 +9,7 @@ import { useAssetManager } from "@/composables/useAssetManager";
 import MessageList from "./message/MessageList.vue";
 import SessionManager from "./SessionManager.vue";
 import MediaGenerationInput from "./MediaGenerationInput.vue";
-import {
-  Sparkles,
-  History,
-  Check,
-  X,
-  RefreshCw,
-  MessageSquarePlus,
-  Layers,
-  Download,
-  Trash2,
-} from "lucide-vue-next";
+import { Sparkles, History, Check, X, RefreshCw, MessageSquarePlus, Layers, Download, Trash2 } from "lucide-vue-next";
 import { SUGGESTED_PROMPTS } from "../config";
 import { sampleSize } from "lodash-es";
 
@@ -43,7 +33,7 @@ watch(
   () => store.messages.length,
   () => {
     scrollToBottom();
-  }
+  },
 );
 
 const currentSessionName = ref("");
@@ -57,7 +47,7 @@ watch(
     const session = store.sessions.find((s) => s.id === store.currentSessionId);
     currentSessionName.value = session?.name || "生成会话";
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 const startEdit = async () => {
@@ -162,7 +152,7 @@ watch(
       }
     }
   },
-  { deep: true, immediate: true }
+  { deep: true, immediate: true },
 );
 </script>
 
@@ -235,12 +225,7 @@ watch(
           </el-button>
         </el-tooltip>
 
-        <el-popover
-          placement="bottom-end"
-          :width="360"
-          trigger="click"
-          popper-class="session-popover"
-        >
+        <el-popover placement="bottom-end" :width="360" trigger="click" popper-class="session-popover">
           <template #reference>
             <el-button link class="history-btn">
               <span style="padding-right: 4px">切换会话</span>
@@ -425,17 +410,18 @@ watch(
 .stream-body {
   flex: 1;
   overflow-y: auto;
-  padding: 24px;
+  padding: 0; /* 移除容器内边距，由内部列表处理 */
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
-
 .empty-placeholder {
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--el-text-color-secondary);
+  padding: 24px;
 }
 
 .welcome-content {
@@ -519,14 +505,25 @@ watch(
   color: var(--el-color-primary);
   background-color: rgba(var(--el-color-primary-rgb), 0.1);
 }
-
-.task-list-wrapper {
+.message-list-wrapper {
   flex: 1;
   width: 100%;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
+  /* 左右边距比输入框(24px)稍大一些(32px)，使消息流滚入输入框圆角内侧 */
+  padding: 24px 32px 0;
 }
 
 .stream-footer {
-  padding: 16px 24px 24px;
+  padding: 0 24px 24px; /* 保持与输入框外层容器一致的 padding */
+  position: relative;
+  z-index: 10;
+  display: flex;
+  justify-content: center;
+}
+
+.stream-footer > * {
+  width: 100%;
 }
 </style>

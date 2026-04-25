@@ -38,8 +38,9 @@ export const callOpenAiResponsesApi = async (
   const messages: any[] = [];
 
   // 姐姐，如果提供了 prompt (MediaGenerationOptions)，我们将其视为 user 消息
+  // 注意：useLlmRequest.ts 可能会先将 prompt 转为 messages，所以这里做个兜底判断
   const mediaOpts = options as any;
-  if (mediaOpts.prompt && userAssistantMessages.length === 0) {
+  if (mediaOpts.prompt && userAssistantMessages.length === 0 && (!options.messages || options.messages.length === 0)) {
     messages.push({
       role: "user",
       content: mediaOpts.prompt,

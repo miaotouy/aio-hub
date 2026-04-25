@@ -11,7 +11,7 @@ import { Image, Video, Music, Sparkles, Info, ArrowLeftRight } from "lucide-vue-
 const store = useMediaGenStore();
 const { getProfileById, saveProfile } = useLlmProfiles();
 const { getMatchedProperties } = useModelMetadata();
-const { getParamRules, usesAspectRatioMode } = useMediaGenParamRules();
+const { getParamRules, usesAspectRatioMode, sanitizeParams } = useMediaGenParamRules();
 
 // 选中的模型组合值 (profileId:modelId) - 绑定到当前选中的媒体类型配置
 const selectedModelCombo = computed({
@@ -156,6 +156,9 @@ const backgroundOptions = computed(() => paramRules.value?.background?.options |
 
 const supportsInputFidelity = computed(() => paramRules.value?.inputFidelity?.supported === true);
 
+const supportsPartialImages = computed(() => paramRules.value?.partialImages?.supported === true);
+const maxPartialImages = computed(() => paramRules.value?.partialImages?.max ?? 3);
+
 const supportsSteps = computed(() => paramRules.value?.steps?.supported === true);
 const supportsCfg = computed(() => paramRules.value?.guidanceScale?.supported === true);
 
@@ -189,23 +192,31 @@ watch(mediaType, () => {
   console.log("切换媒体类型", mediaType.value);
 });
 
-// 监听模型变化，自动适配连续对话开关
+// 监听模型变化，自动适配连续对话开关并重置参数默认值
 watch(
   selectedModelCombo,
   (newCombo) => {
     if (!newCombo) return;
 
+    // 1. 自动适配连续对话开关
     // 优先从模型本身的配置中读取设置
     if (selectedModelInfo.value?.model?.capabilities?.iterativeRefinement !== undefined) {
       store.currentConfig.includeContext = selectedModelInfo.value.model.capabilities.iterativeRefinement;
-      return;
+    } else {
+      // 降级从元数据预设中读取
+      const [_, modelId] = parseModelCombo(newCombo);
+      const props = getMatchedProperties(modelId);
+      if (props?.capabilities?.iterativeRefinement !== undefined) {
+        store.currentConfig.includeContext = props.capabilities.iterativeRefinement;
+      }
     }
 
-    // 降级从元数据预设中读取
-    const [_, modelId] = parseModelCombo(newCombo);
-    const props = getMatchedProperties(modelId);
-    if (props?.capabilities?.iterativeRefinement !== undefined) {
-      store.currentConfig.includeContext = props.capabilities.iterativeRefinement;
+    // 2. 姐姐，根据新模型的规则重置/清洁参数
+    if (paramRules.value) {
+      const currentParams = store.currentConfig.types[store.currentConfig.activeType].params;
+      const cleaned = sanitizeParams(currentParams || {}, paramRules.value, { fillDefaults: true });
+      // 姐姐，使用 Object.assign 避免破坏原有的类型结构，同时应用清洁后的参数
+      Object.assign(store.currentConfig.types[store.currentConfig.activeType].params, cleaned);
     }
   },
   { immediate: true },
@@ -368,6 +379,25 @@ watch(
             <el-radio-button value="low">标准</el-radio-button>
             <el-radio-button value="high">高保真 (保留面部/Logo)</el-radio-button>
           </el-radio-group>
+        </div>
+
+        <div v-if="supportsPartialImages" class="section">
+          <div class="section-title">
+            <span>流式预览图 ({{ params.partialImages ?? 0 }} 张)</span>
+            <el-tooltip content="生成过程中展示的渐进预览图数量，0 表示关闭预览">
+              <el-icon class="info-icon"><Info /></el-icon>
+            </el-tooltip>
+          </div>
+          <div class="slider-wrapper">
+            <el-slider
+              v-model="params.partialImages"
+              :min="0"
+              :max="maxPartialImages"
+              :step="1"
+              show-stops
+              size="small"
+            />
+          </div>
         </div>
 
         <div v-if="supportsModeration" class="section">

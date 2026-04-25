@@ -38,9 +38,18 @@ export function useMediaGenParamRules() {
    *
    * 注意：只处理 OpenAI 兼容接口的参数。
    * Gemini 接口参数清洁应在专用 Adapter 中处理。
+   *
+   * @param params 待清洁参数
+   * @param rules 参数规则
+   * @param options.fillDefaults 是否填充默认值（通常用于模型切换时重置参数）
    */
-  function sanitizeParams(params: Record<string, any>, rules: MediaGenParamRules): Record<string, any> {
+  function sanitizeParams(
+    params: Record<string, any>,
+    rules: MediaGenParamRules,
+    options: { fillDefaults?: boolean } = {},
+  ): Record<string, any> {
     const clean = { ...params };
+    const { fillDefaults = false } = options;
 
     // negative_prompt
     if (rules.negativePrompt?.supported === false) {
@@ -54,7 +63,9 @@ export function useMediaGenParamRules() {
         delete clean.quality;
       } else if ("options" in rules.quality && rules.quality.options) {
         const validValues = rules.quality.options.map((o) => o.value);
-        if (clean.quality && !validValues.includes(clean.quality)) {
+        if (fillDefaults && rules.quality.default) {
+          clean.quality = rules.quality.default;
+        } else if (clean.quality && !validValues.includes(clean.quality)) {
           clean.quality = rules.quality.default || validValues[0];
         }
       }
@@ -65,7 +76,9 @@ export function useMediaGenParamRules() {
       delete clean.style;
     } else if ("options" in rules.style && rules.style.options) {
       const validValues = rules.style.options.map((o) => o.value);
-      if (clean.style && !validValues.includes(clean.style)) {
+      if (fillDefaults && rules.style.default) {
+        clean.style = rules.style.default;
+      } else if (clean.style && !validValues.includes(clean.style)) {
         clean.style = rules.style.default || validValues[0];
       }
     }
@@ -79,12 +92,16 @@ export function useMediaGenParamRules() {
     if (rules.steps?.supported === false) {
       delete clean.num_inference_steps;
       delete clean.numInferenceSteps;
+    } else if (fillDefaults && rules.steps?.default !== undefined) {
+      clean.num_inference_steps = rules.steps.default;
     }
 
     // guidanceScale / guidance_scale
     if (rules.guidanceScale?.supported === false) {
       delete clean.guidance_scale;
       delete clean.guidanceScale;
+    } else if (fillDefaults && rules.guidanceScale?.default !== undefined) {
+      clean.guidance_scale = rules.guidanceScale.default;
     }
 
     // background
@@ -93,7 +110,9 @@ export function useMediaGenParamRules() {
         delete clean.background;
       } else if (rules.background.options) {
         const validValues = rules.background.options.map((o) => o.value);
-        if (clean.background && !validValues.includes(clean.background)) {
+        if (fillDefaults && rules.background.options[0]) {
+          clean.background = rules.background.options[0].value;
+        } else if (clean.background && !validValues.includes(clean.background)) {
           // 用户选了不支持的值（如 transparent），重置为第一个有效选项
           clean.background = validValues[0];
         }
@@ -109,18 +128,24 @@ export function useMediaGenParamRules() {
     // moderation
     if (rules.moderation?.supported === false) {
       delete clean.moderation;
+    } else if (fillDefaults && rules.moderation?.default !== undefined) {
+      clean.moderation = rules.moderation.default;
     }
 
     // outputFormat
     if (rules.outputFormat?.supported === false) {
       delete clean.output_format;
       delete clean.outputFormat;
+    } else if (fillDefaults && rules.outputFormat?.default) {
+      clean.output_format = rules.outputFormat.default;
     }
 
     // outputCompression
     if (rules.outputCompression?.supported === false) {
       delete clean.output_compression;
       delete clean.outputCompression;
+    } else if (fillDefaults && rules.outputCompression?.default !== undefined) {
+      clean.output_compression = rules.outputCompression.default;
     }
 
     // batchSize / n
@@ -128,7 +153,9 @@ export function useMediaGenParamRules() {
       clean.n = 1; // 强制为 1
     } else if (rules.batchSize) {
       const { min = 1, max = 10 } = rules.batchSize;
-      if (clean.n !== undefined) {
+      if (fillDefaults && rules.batchSize.default !== undefined) {
+        clean.n = rules.batchSize.default;
+      } else if (clean.n !== undefined) {
         clean.n = Math.min(Math.max(Number(clean.n) || 1, min), max);
       }
     }
@@ -137,12 +164,16 @@ export function useMediaGenParamRules() {
     if (rules.partialImages?.supported === false) {
       delete clean.partial_images;
       delete clean.partialImages;
+    } else if (fillDefaults && rules.partialImages?.default !== undefined) {
+      clean.partial_images = rules.partialImages.default;
     }
 
     // size（preset 模式校验）
     if (rules.size?.mode === "preset" && rules.size.presets) {
       const validSizes = rules.size.presets.map((p) => p.value);
-      if (clean.size && !validSizes.includes(clean.size)) {
+      if (fillDefaults && rules.size.default) {
+        clean.size = rules.size.default;
+      } else if (clean.size && !validSizes.includes(clean.size)) {
         clean.size = rules.size.default || validSizes[0];
       }
     }

@@ -239,6 +239,8 @@ export interface ChatMessageNode {
     reasoningEndTime?: number;
     /** 是否为预设消息的显示副本（用于 UI 区分） */
     isPresetDisplay?: boolean;
+    /** 流式图像预览（Base64 数组） */
+    partialImagePreviews?: string[];
     /** 请求开始时间戳 */
     requestStartTime?: number;
     /** 请求结束时间戳 */

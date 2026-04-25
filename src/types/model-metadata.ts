@@ -221,6 +221,7 @@ export interface MediaGenParamRules {
   moderation?: {
     supported: boolean;
     options?: Array<{ label: string; value: string }>;
+    default?: string;
   };
 
   // ========== 输出格式 ==========
@@ -237,6 +238,7 @@ export interface MediaGenParamRules {
     supported: boolean;
     min?: number;
     max?: number;
+    default?: number;
   };
 
   // ========== 批量生成 ==========
@@ -254,6 +256,7 @@ export interface MediaGenParamRules {
     supported: boolean;
     min?: number;
     max?: number;
+    default?: number;
   };
 }
 

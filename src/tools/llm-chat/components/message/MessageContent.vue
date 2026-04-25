@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, provide, nextTick } from "vue";
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { Copy, Check, GitBranch, Languages, MessageSquareText } from "lucide-vue-next";
+import { Copy, Check, GitBranch, Languages, MessageSquareText, Loader2 } from "lucide-vue-next";
 import { useResizeObserver } from "@vueuse/core";
 import type { ChatMessageNode, ChatSessionIndex, ChatSessionDetail, TranslationDisplayMode } from "../../types";
 import type { Asset } from "@/types/asset-management";
@@ -11,6 +11,7 @@ import { useChatSettings } from "../../composables/settings/useChatSettings";
 import { useAgentStore } from "../../stores/agentStore";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useTranscriptionManager } from "../../composables/features/useTranscriptionManager";
+import { useImageViewer } from "@/composables/useImageViewer";
 import { useUserProfileStore } from "../../stores/userProfileStore";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { MacroProcessor } from "../../macro-engine";
@@ -38,6 +39,7 @@ import DocumentViewer from "@/components/common/DocumentViewer.vue";
 const logger = createModuleLogger("MessageContent");
 const { settings } = useChatSettings();
 const { computeWillUseTranscription } = useTranscriptionManager();
+const imageViewer = useImageViewer();
 const macroProcessor = new MacroProcessor();
 
 interface Props {
@@ -706,6 +708,19 @@ const errorMessage = computed(() => messageMetadata.value?.error);
           <span class="dot"></span>
           <span class="dot"></span>
         </div>
+
+        <!-- 流式预览图（gpt-image-2 partial_images 特性） -->
+        <div v-if="isGenerating && message.metadata?.partialImagePreviews?.length" class="partial-image-previews">
+          <div class="partial-image-grid">
+            <div v-for="(url, idx) in message.metadata.partialImagePreviews" :key="idx" class="partial-image-item">
+              <img :src="url" :alt="`预览图 ${idx + 1}`" class="partial-image" @click="imageViewer.show(url)" />
+              <div class="partial-image-badge">
+                <Loader2 class="animate-spin" :size="10" />
+                <span>渐进预览</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- 译文区域 -->
@@ -852,6 +867,69 @@ const errorMessage = computed(() => messageMetadata.value?.error);
 
 .streaming-indicator .dot:nth-child(2) {
   animation-delay: -0.16s;
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.partial-image-previews {
+  margin-top: 12px;
+  border-top: 1px solid var(--border-color);
+  padding-top: 12px;
+}
+
+.partial-image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 12px;
+}
+
+.partial-image-item {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  aspect-ratio: 1;
+  background: var(--input-bg);
+}
+
+.partial-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.partial-image:hover {
+  transform: scale(1.05);
+}
+
+.partial-image-badge {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background-color: var(--container-bg);
+  backdrop-filter: blur(var(--ui-blur));
+  color: var(--text-color);
+  padding: 4px 8px;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border-top: var(--border-width) solid var(--border-color);
 }
 
 @keyframes pulse {

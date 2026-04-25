@@ -313,6 +313,43 @@ export function useChatResponseHandler() {
         // 将新附件添加到节点
         finalNode.attachments = [...(finalNode.attachments || []), ...newAssets];
       }
+
+      // 姐姐，处理 openai-responses 等接口返回的独立图像数组
+      if (response.images && response.images.length > 0) {
+        const { importAssetFromBytes } = await import("@/composables/useAssetManager").then(m => m.useAssetManager());
+        const imagesAssets = [];
+
+        for (let i = 0; i < response.images.length; i++) {
+          const img = response.images[i];
+          if (img.b64_json) {
+            try {
+              // 姐姐，将 Base64 转为 ArrayBuffer
+              const binaryString = atob(img.b64_json);
+              const bytes = new Uint8Array(binaryString.length);
+              for (let j = 0; j < binaryString.length; j++) {
+                bytes[j] = binaryString.charCodeAt(j);
+              }
+
+              const asset = await importAssetFromBytes(bytes.buffer, `generated-${nodeId}-${i}.png`, {
+                sourceModule: "llm-chat",
+                origin: {
+                  type: "generated",
+                  source: img.revisedPrompt || `generated-by:${modelId}`,
+                  sourceModule: "llm-chat",
+                },
+              });
+              imagesAssets.push(asset);
+            } catch (e) {
+              logger.warn(`处理响应中的第 ${i} 张图像失败`, e);
+            }
+          }
+        }
+
+        if (imagesAssets.length > 0) {
+          logger.info(`✨ 已从响应图像数组中导入 ${imagesAssets.length} 个资产`, { nodeId });
+          finalNode.attachments = [...(finalNode.attachments || []), ...imagesAssets];
+        }
+      }
     } catch (error) {
       logger.warn("处理模型响应中的 Base64 数据失败，使用原始内容", {
         nodeId,

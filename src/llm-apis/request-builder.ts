@@ -851,6 +851,7 @@ export const KNOWN_NON_MODEL_OPTIONS_KEYS = new Set([
   "stream",
   "onStream",
   "onReasoningStream",
+  "onPartialImage",
   "signal",
   "timeout",
 
@@ -1006,6 +1007,7 @@ export function cleanPayload(body: any): any {
     "profileId",
     "onStream",
     "onReasoningStream",
+    "onPartialImage",
     "signal",
     "timeout",
     "custom",

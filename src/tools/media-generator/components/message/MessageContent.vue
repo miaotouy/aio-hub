@@ -97,7 +97,7 @@ watch(
     } else {
       attachmentManager.clearAttachments();
     }
-  }
+  },
 );
 
 const task = computed(() => {
@@ -167,7 +167,7 @@ watch(
       updateResultUrls();
     }
   },
-  { immediate: true, deep: true }
+  { immediate: true, deep: true },
 );
 
 // 推理状态计算
@@ -218,17 +218,9 @@ const generationMetaForRenderer = computed(() => {
     />
 
     <!-- 编辑模式 -->
-    <div
-      v-if="isEditing"
-      ref="editAreaRef"
-      class="edit-mode"
-      :class="{ 'is-dragging': isDraggingOver }"
-    >
+    <div v-if="isEditing" ref="editAreaRef" class="edit-mode" :class="{ 'is-dragging': isDraggingOver }">
       <!-- 编辑模式的附件展示 -->
-      <div
-        v-if="attachmentManager.hasAttachments.value"
-        class="attachments-section edit-attachments"
-      >
+      <div v-if="attachmentManager.hasAttachments.value" class="attachments-section edit-attachments">
         <div class="attachments-list">
           <AttachmentCard
             v-for="attachment in attachmentManager.attachments.value"
@@ -265,18 +257,33 @@ const generationMetaForRenderer = computed(() => {
       </div>
     </div>
 
-
     <!-- 助手生成结果 -->
     <div v-else class="generation-content">
       <!-- 任务状态展示 -->
       <div v-if="task && task.status !== 'completed'" class="task-status">
-        <div
-          v-if="task.status === 'processing' || task.status === 'pending'"
-          class="status-loading"
-        >
+        <div v-if="task.status === 'processing' || task.status === 'pending'" class="status-loading">
           <Loader2 class="animate-spin" :size="20" />
           <span>{{ task.statusText || "正在生成中..." }}</span>
           <span v-if="task.progress > 0" class="progress-text">{{ task.progress }}%</span>
+        </div>
+        <!-- 流式预览图（gpt-image-2 partial_images 特性） -->
+        <div
+          v-if="
+            (task.status === 'processing' || task.status === 'pending') &&
+            task.previewUrls &&
+            task.previewUrls.length > 0
+          "
+          class="partial-image-previews"
+        >
+          <div class="partial-image-grid">
+            <div v-for="(url, idx) in task.previewUrls" :key="idx" class="partial-image-item">
+              <img :src="url" :alt="`预览图 ${idx + 1}`" class="partial-image" @click="handleImageClick(url)" />
+              <div class="partial-image-badge">
+                <Loader2 class="animate-spin" :size="10" />
+                <span>渐进预览</span>
+              </div>
+            </div>
+          </div>
         </div>
         <div v-else-if="task.status === 'error'" class="status-error">
           <AlertCircle :size="20" />
@@ -300,12 +307,7 @@ const generationMetaForRenderer = computed(() => {
         <template v-if="task.type === 'image'">
           <div v-if="resultUrls.length > 0" class="image-grid">
             <div v-for="url in resultUrls" :key="url" class="media-item">
-              <img
-                :src="url"
-                :alt="task.input.prompt"
-                class="media-preview clickable"
-                @click="handleImageClick(url)"
-              />
+              <img :src="url" :alt="task.input.prompt" class="media-preview clickable" @click="handleImageClick(url)" />
             </div>
           </div>
           <div v-else-if="task.previewUrls?.length" class="image-grid">
@@ -447,8 +449,58 @@ const generationMetaForRenderer = computed(() => {
 .task-status {
   padding: 12px;
   border-radius: 8px;
-  background: var(--bg-color-soft);
+  background-color: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
   border: var(--border-width) solid var(--border-color);
+}
+.partial-image-previews {
+  margin-top: 12px;
+  border-top: 1px solid var(--border-color);
+  padding-top: 12px;
+}
+
+.partial-image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 12px;
+}
+
+.partial-image-item {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  aspect-ratio: 1;
+  background: var(--input-bg);
+}
+
+.partial-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.partial-image:hover {
+  transform: scale(1.05);
+}
+
+.partial-image-badge {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background-color: var(--container-bg);
+  backdrop-filter: blur(var(--ui-blur));
+  color: var(--text-color);
+  padding: 4px 8px;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border-top: var(--border-width) solid var(--border-color);
 }
 
 .status-loading,

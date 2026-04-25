@@ -153,6 +153,19 @@ export function useMediaGenerationManager() {
         }
       }
 
+      // 为 openai-responses 渠道注入流式预览图回调（gpt-image-2 partial_image 特性）
+      if (selectedProfile?.type === 'openai-responses') {
+        (finalOptions as any).onPartialImage = (base64: string, index: number) => {
+          const currentTask = mediaStore.getTask(taskId);
+          const previews = [...(currentTask?.previewUrls || [])];
+          previews[index] = base64;
+          mediaStore.updateTaskStatus(taskId, 'processing', {
+            statusText: `正在生成预览图 ${index + 1}...`,
+            previewUrls: previews,
+          });
+        };
+      }
+
       // 调用 LLM 请求
       const response = await sendRequest(finalOptions);
 

@@ -114,6 +114,8 @@ export interface MediaTypeConfig {
     cfgScale: number;
     background: string;
     inputFidelity: string;
+    /** 流式预览图数量 (gpt-image-1/2 partial_images 参数，0 表示不预览) */
+    partialImages?: number;
     duration: number; // 视频时长 (默认 5)
     // Suno (NewAPI) 专属
     suno_mode?: "simple" | "custom";

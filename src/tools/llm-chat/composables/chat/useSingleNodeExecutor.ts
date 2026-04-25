@@ -221,6 +221,17 @@ export function useSingleNodeExecutor() {
                 handleStreamUpdate(session, assistantNode.id, chunk, true);
               }
             : undefined,
+          onPartialImage: settings.value.uiPreferences.isStreaming
+            ? (base64: string, index: number) => {
+                // 姐姐，这是流式预览图，我们存入元数据供 UI 渲染，避免污染正文
+                if (!session.nodes || !session.nodes[assistantNode.id]) return;
+                const node = session.nodes[assistantNode.id];
+                if (!node.metadata) node.metadata = {};
+                const previews = [...(node.metadata.partialImagePreviews || [])];
+                previews[index] = base64;
+                node.metadata.partialImagePreviews = previews;
+              }
+            : undefined,
         });
         break;
       } catch (error) {

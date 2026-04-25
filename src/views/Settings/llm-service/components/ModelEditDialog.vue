@@ -134,6 +134,29 @@ const openModelIconSelector = () => {
 };
 
 // 应用预设配置
+// 格式化模型名称
+const formatModelName = (modelId: string): string => {
+  // 找到最后一个 / 的位置
+  const lastSlashIndex = modelId.lastIndexOf("/");
+
+  // 如果找到 /，取后面的部分，否则使用整个 ID
+  let name = lastSlashIndex !== -1 ? modelId.substring(lastSlashIndex + 1) : modelId;
+
+  // 将 - 替换为空格
+  name = name.replace(/-/g, " ");
+
+  // 将 gpt 替换为 GPT
+  name = name.replace(/\bgpt\b/gi, "GPT");
+
+  // 首字母大写
+  if (name.length > 0) {
+    name = name.charAt(0).toUpperCase() + name.slice(1);
+  }
+
+  return name;
+};
+
+// 应用预设配置
 const applyPreset = () => {
   const modelId = modelEditForm.value.id.trim();
   if (!modelId) {
@@ -145,7 +168,13 @@ const applyPreset = () => {
   const properties = getActiveModelProperties(modelId, modelEditForm.value.provider);
 
   if (!properties) {
-    customMessage.info("未找到匹配的预设配置");
+    // 如果没有预设，至少尝试格式化名称
+    if (!modelEditForm.value.name) {
+      modelEditForm.value.name = formatModelName(modelId);
+      customMessage.success("已根据 ID 生成模型名称");
+    } else {
+      customMessage.info("未找到匹配的预设配置");
+    }
     return;
   }
 
@@ -172,9 +201,9 @@ const applyPreset = () => {
     appliedCount++;
   }
 
-  // 如果没有名称，使用模型 ID 作为名称
+  // 如果没有名称，使用格式化后的模型 ID 作为名称
   if (!modelEditForm.value.name) {
-    modelEditForm.value.name = modelId;
+    modelEditForm.value.name = formatModelName(modelId);
     appliedCount++;
   }
 
@@ -184,7 +213,6 @@ const applyPreset = () => {
     customMessage.info("所有字段已有值，未覆盖");
   }
 };
-
 const dialogTitle = computed(() => {
   return props.isEditing ? "编辑模型" : "添加模型";
 });

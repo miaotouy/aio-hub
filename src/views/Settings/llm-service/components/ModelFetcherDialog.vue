@@ -222,6 +222,9 @@ const formatModelName = (modelId: string): string => {
   // 将 - 替换为空格
   name = name.replace(/-/g, " ");
 
+  // 将 gpt 替换为 GPT
+  name = name.replace(/\bgpt\b/gi, "GPT");
+
   // 首字母大写
   if (name.length > 0) {
     name = name.charAt(0).toUpperCase() + name.slice(1);

@@ -108,7 +108,7 @@ export function useMediaGenerationManager() {
           delete (finalOptions as any).size; // 移除 size，改用 aspect_ratio
         }
         // 通用参数清洁
-        finalOptions = { ...finalOptions, ...sanitizeParams(finalOptions, rules) };
+        finalOptions = sanitizeParams(finalOptions, rules) as any;
       }
 
       // 如果开启了上下文包含，或者手动选择了上下文消息

@@ -61,14 +61,12 @@ export function useMediaGenParamRules() {
     }
 
     // style
-    if (rules.style !== undefined) {
-      if (!rules.style.supported) {
-        delete clean.style;
-      } else if ("options" in rules.style && rules.style.options) {
-        const validValues = rules.style.options.map((o) => o.value);
-        if (clean.style && !validValues.includes(clean.style)) {
-          clean.style = rules.style.default || validValues[0];
-        }
+    if (rules.style === undefined || !rules.style.supported) {
+      delete clean.style;
+    } else if ("options" in rules.style && rules.style.options) {
+      const validValues = rules.style.options.map((o) => o.value);
+      if (clean.style && !validValues.includes(clean.style)) {
+        clean.style = rules.style.default || validValues[0];
       }
     }
 
@@ -80,11 +78,13 @@ export function useMediaGenParamRules() {
     // steps / num_inference_steps
     if (rules.steps?.supported === false) {
       delete clean.num_inference_steps;
+      delete clean.numInferenceSteps;
     }
 
     // guidanceScale / guidance_scale
     if (rules.guidanceScale?.supported === false) {
       delete clean.guidance_scale;
+      delete clean.guidanceScale;
     }
 
     // background
@@ -103,6 +103,7 @@ export function useMediaGenParamRules() {
     // inputFidelity
     if (rules.inputFidelity?.supported === false) {
       delete clean.input_fidelity;
+      delete clean.inputFidelity;
     }
 
     // moderation
@@ -113,11 +114,13 @@ export function useMediaGenParamRules() {
     // outputFormat
     if (rules.outputFormat?.supported === false) {
       delete clean.output_format;
+      delete clean.outputFormat;
     }
 
     // outputCompression
     if (rules.outputCompression?.supported === false) {
       delete clean.output_compression;
+      delete clean.outputCompression;
     }
 
     // batchSize / n
@@ -133,6 +136,7 @@ export function useMediaGenParamRules() {
     // partialImages
     if (rules.partialImages?.supported === false) {
       delete clean.partial_images;
+      delete clean.partialImages;
     }
 
     // size（preset 模式校验）

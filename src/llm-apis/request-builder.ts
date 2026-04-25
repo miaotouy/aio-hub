@@ -587,8 +587,6 @@ export function filterParametersByCapabilities(
   if (mediaOptions.prompt) (filtered as MediaGenerationOptions).prompt = mediaOptions.prompt;
   if (mediaOptions.negativePrompt) (filtered as MediaGenerationOptions).negativePrompt = mediaOptions.negativePrompt;
   if (mediaOptions.size) (filtered as MediaGenerationOptions).size = mediaOptions.size;
-  if (mediaOptions.quality) (filtered as MediaGenerationOptions).quality = mediaOptions.quality;
-  if (mediaOptions.style) (filtered as MediaGenerationOptions).style = mediaOptions.style;
   if (mediaOptions.aspectRatio) (filtered as MediaGenerationOptions).aspectRatio = mediaOptions.aspectRatio;
   if (mediaOptions.guidanceScale) (filtered as MediaGenerationOptions).guidanceScale = mediaOptions.guidanceScale;
   if (mediaOptions.numInferenceSteps)
@@ -832,6 +830,9 @@ export function filterParametersByCapabilities(
       }
     }
   }
+
+  // 调试日志：过滤后的最终参数
+  // console.log("[RequestBuilder] 过滤后结果:", filtered);
 
   return filtered;
 }

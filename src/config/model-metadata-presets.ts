@@ -2951,7 +2951,15 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         seed: { supported: false },
         steps: { supported: false },
         guidanceScale: { supported: false },
+        style: { supported: false },
         inputFidelity: { supported: false },
+        moderation: {
+          supported: true,
+          options: [
+            { label: "自动 (Auto)", value: "auto" },
+            { label: "宽松 (Low)", value: "low" },
+          ],
+        },
         batchSize: { supported: true, min: 1, max: 4, default: 1 },
         partialImages: { supported: true, min: 0, max: 3 },
       },
@@ -3030,6 +3038,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         negativePrompt: { supported: false },
         seed: { supported: false },
         steps: { supported: false },
+        style: { supported: false },
         guidanceScale: { supported: false },
         batchSize: { supported: true, min: 1, max: 4, default: 1 },
         partialImages: { supported: true, min: 0, max: 3 },

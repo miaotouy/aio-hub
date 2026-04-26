@@ -31,6 +31,15 @@
         <el-form-item>
           <template #label>
             <div class="slider-label">
+              <span>弹幕密度</span>
+              <span class="value-hint">{{ config.density }}%</span>
+            </div>
+          </template>
+          <el-slider v-model="config.density" :min="0" :max="100" :format-tooltip="(val: number) => val + '%'" />
+        </el-form-item>
+        <el-form-item>
+          <template #label>
+            <div class="slider-label">
               <span>不透明度</span>
               <span class="value-hint">{{ config.opacity }}%</span>
             </div>

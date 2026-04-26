@@ -39,6 +39,9 @@ export interface DanmakuConfig {
   fontScale: number; // 50-200
   speed: number; // 0.5-2.0
 
+  // 密度
+  density: number; // 0-100，100 为全量显示
+
   // 防挡
   preventSubtitleOverlap: boolean;
 

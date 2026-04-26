@@ -9,6 +9,19 @@ import type { ParsedDanmaku, DanmakuConfig, AssScriptInfo } from "../types";
  * 3. 预计算不变量，减少每帧重复计算
  * 4. 避免每条弹幕 save/restore，改用批量设置
  */
+/**
+ * 轻量稳定哈希：将字符串映射到 [0, 1) 区间
+ * 同一条弹幕的 hash 值永远不变，避免每帧随机导致的闪烁
+ */
+function stableHash(str: string): number {
+  let h = 2166136261; // FNV-1a 32-bit offset basis
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = (h * 16777619) >>> 0; // FNV prime，>>> 0 保持 uint32
+  }
+  return h / 0x100000000; // 归一化到 [0, 1)
+}
+
 export class DanmakuEngine {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
@@ -20,6 +33,8 @@ export class DanmakuEngine {
   private cachedFontScale = 1;
   private cachedOpacity = 0.84;
   private cachedMaxDisplayRatio = 0.5;
+  /** 预计算的密度哈希值，key 为弹幕 id */
+  private danmakuHashMap = new Map<string, number>();
 
   constructor(canvas: HTMLCanvasElement, config: DanmakuConfig, scriptInfo: AssScriptInfo) {
     this.canvas = canvas;
@@ -34,6 +49,11 @@ export class DanmakuEngine {
   public setDanmakus(danmakus: ParsedDanmaku[]) {
     // 按 startTime 排序，支持二分查找
     this.danmakus = [...danmakus].sort((a, b) => a.startTime - b.startTime);
+    // 预计算每条弹幕的稳定哈希，供密度过滤使用
+    this.danmakuHashMap.clear();
+    for (const dm of this.danmakus) {
+      this.danmakuHashMap.set(dm.id, stableHash(dm.id));
+    }
   }
 
   public setConfig(config: DanmakuConfig) {
@@ -90,6 +110,12 @@ export class DanmakuEngine {
 
       // 彩色弹幕过滤
       if (!this.config.showColored && dm.color !== "#FFFFFF") continue;
+
+      // 密度过滤：hash 值超出阈值的弹幕跳过（100% = 全量，0% = 全不显示）
+      if (this.config.density < 100) {
+        const hashVal = this.danmakuHashMap.get(dm.id) ?? stableHash(dm.id);
+        if (hashVal >= this.config.density / 100) continue;
+      }
 
       // 屏蔽词（仅在有屏蔽词时检查）
       if (this.config.blockKeywords.length > 0 && this.config.blockKeywords.some((kw) => dm.text.includes(kw)))

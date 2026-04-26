@@ -12,6 +12,7 @@ const DEFAULT_CONFIG: DanmakuConfig = {
   opacity: 84,
   fontScale: 100,
   speed: 1.0,
+  density: 100,
   preventSubtitleOverlap: false,
   fontFamily: "sans-serif",
   isBold: true,

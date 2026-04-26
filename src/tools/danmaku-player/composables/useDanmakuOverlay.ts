@@ -77,12 +77,20 @@ export function useDanmakuOverlay() {
     };
   }
 
-  async function applyOverlayRect(
-    rect: LogicalOverlayRect,
-    isFullscreen = false,
-    enableBoost = true,
-    targetHwnd: number | null = null,
-  ): Promise<void> {
+  async function refreshZOrder(isFullscreen: boolean, enableBoost: boolean, targetHwnd: number): Promise<void> {
+    const shouldTopmost = isFullscreen && enableBoost;
+    try {
+      await invoke("set_danmaku_overlay_zorder", {
+        targetHwnd,
+        topmost: shouldTopmost,
+      });
+    } catch (error) {
+      // 忽略可能的错误
+      logger.debug("调整覆盖层 Z-order 失败", error);
+    }
+  }
+
+  async function applyOverlayRect(rect: LogicalOverlayRect): Promise<void> {
     const overlay = await getOverlayWindow();
 
     if (!overlay) {
@@ -94,20 +102,6 @@ export function useDanmakuOverlay() {
 
     await overlay.setPosition(new LogicalPosition(rect.x, rect.y));
     await overlay.setSize(new LogicalSize(rect.width, rect.height));
-
-    // 维护窗口层级
-    if (targetHwnd !== null) {
-      const shouldTopmost = isFullscreen && enableBoost;
-      try {
-        await invoke("set_danmaku_overlay_zorder", {
-          targetHwnd,
-          topmost: shouldTopmost,
-        });
-      } catch (error) {
-        // 忽略可能的错误
-        logger.debug("调整覆盖层 Z-order 失败", error);
-      }
-    }
   }
 
   async function createOverlay(targetHwnd: number): Promise<string | null> {
@@ -230,14 +224,12 @@ export function useDanmakuOverlay() {
       if (changed) {
         activeUntil = Date.now() + ACTIVE_SYNC_DURATION;
         const logicalRect = toLogicalOverlayRect(physicalRect, playerConfigForSync);
-        await applyOverlayRect(
-          logicalRect,
-          physicalRect.isFullscreen,
-          playerConfigForSync.enableFullscreenBoost,
-          targetHwndForSync,
-        );
+        await applyOverlayRect(logicalRect);
         lastPhysicalRect = physicalRect;
       }
+
+      // 无论位置是否变化，都刷新 Z-order，确保播放器被激活时弹幕层能及时跟进
+      await refreshZOrder(physicalRect.isFullscreen, playerConfigForSync.enableFullscreenBoost, targetHwndForSync);
 
       const nextDelay = Date.now() < activeUntil ? ACTIVE_SYNC_INTERVAL : DEFAULT_SYNC_INTERVAL;
       scheduleNextPositionSync(nextDelay);

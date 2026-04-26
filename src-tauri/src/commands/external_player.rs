@@ -13,9 +13,10 @@ use windows::Win32::{
     UI::{
         HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI},
         WindowsAndMessaging::{
-            EnumWindows, GetClassNameW, GetClientRect, GetWindow, GetWindowTextLengthW,
-            GetWindowTextW, IsWindow, IsWindowVisible, SetWindowPos, GW_HWNDPREV, HWND_NOTOPMOST,
-            HWND_TOP, HWND_TOPMOST, SWP_NOMOVE, SWP_NOSIZE,
+            EnumWindows, GetClassNameW, GetClientRect, GetWindow, GetWindowLongW,
+            GetWindowTextLengthW, GetWindowTextW, IsWindow, IsWindowVisible, SetWindowPos,
+            GWL_EXSTYLE, GW_HWNDNEXT, GW_HWNDPREV, HWND_NOTOPMOST, HWND_TOP, HWND_TOPMOST,
+            SWP_NOMOVE, SWP_NOSIZE, WS_EX_TOPMOST,
         },
     },
 };
@@ -391,44 +392,67 @@ pub fn set_danmaku_overlay_zorder(
             let player_hwnd = hwnd_from_i64(target_hwnd);
 
             unsafe {
+                // 读取 overlay 当前的扩展样式，用于幂等判断
+                let ex_style = GetWindowLongW(overlay_hwnd, GWL_EXSTYLE) as u32;
+                let is_currently_topmost = (ex_style & WS_EX_TOPMOST.0) != 0;
+
                 if topmost {
-                    // 全屏模式：强制 HWND_TOPMOST
-                    let _ = SetWindowPos(
-                        overlay_hwnd,
-                        HWND_TOPMOST,
-                        0,
-                        0,
-                        0,
-                        0,
-                        SWP_NOMOVE | SWP_NOSIZE,
-                    );
+                    // 全屏模式：需要 HWND_TOPMOST。
+                    // 若已经是 TOPMOST 则跳过，避免无谓的 SetWindowPos 造成闪烁。
+                    if !is_currently_topmost {
+                        let _ = SetWindowPos(
+                            overlay_hwnd,
+                            HWND_TOPMOST,
+                            0,
+                            0,
+                            0,
+                            0,
+                            SWP_NOMOVE | SWP_NOSIZE,
+                        );
+                    }
                 } else {
-                    // 窗口模式：先确保不是 TOPMOST
-                    let _ = SetWindowPos(
-                        overlay_hwnd,
-                        HWND_NOTOPMOST,
-                        0,
-                        0,
-                        0,
-                        0,
-                        SWP_NOMOVE | SWP_NOSIZE,
-                    );
-                    // 将 overlay 放到 player 正上方：
-                    // GetWindow(player, GW_HWNDPREV) 返回 Z-order 中 player 上方的窗口，
-                    // 然后把 overlay 插到该窗口之下（即 player 之上）。
-                    let insert_after = match GetWindow(player_hwnd, GW_HWNDPREV) {
-                        Ok(prev) if prev != overlay_hwnd => prev, // 避免自引用导致无效操作
-                        _ => HWND_TOP,                            // player 已在最顶层，直接放到顶部
+                    // 窗口模式：overlay 应紧靠在 player 正上方（非 TOPMOST）。
+                    //
+                    // 先做幂等检查：若 overlay 的 GW_HWNDNEXT 已经是 player，
+                    // 说明 Z-order 正确，不需要任何 SetWindowPos，直接返回。
+                    // 这是关键优化：避免每个 sync cycle 都调用 SetWindowPos 导致
+                    // 弹幕层持续闪烁，以及把系统弹出菜单（托盘右键菜单等）从
+                    // Z-order 顶部挤掉。
+                    let already_correct = match GetWindow(overlay_hwnd, GW_HWNDNEXT) {
+                        Ok(next) => next == player_hwnd,
+                        Err(_) => false,
                     };
-                    let _ = SetWindowPos(
-                        overlay_hwnd,
-                        insert_after,
-                        0,
-                        0,
-                        0,
-                        0,
-                        SWP_NOMOVE | SWP_NOSIZE,
-                    );
+
+                    if !already_correct {
+                        // 若当前还带有 TOPMOST 标志，先摘除
+                        if is_currently_topmost {
+                            let _ = SetWindowPos(
+                                overlay_hwnd,
+                                HWND_NOTOPMOST,
+                                0,
+                                0,
+                                0,
+                                0,
+                                SWP_NOMOVE | SWP_NOSIZE,
+                            );
+                        }
+                        // 将 overlay 放到 player 正上方：
+                        // GetWindow(player, GW_HWNDPREV) 返回 Z-order 中 player 上方的窗口，
+                        // 然后把 overlay 插到该窗口之下（即 player 之上）。
+                        let insert_after = match GetWindow(player_hwnd, GW_HWNDPREV) {
+                            Ok(prev) if prev != overlay_hwnd => prev, // 避免自引用导致无效操作
+                            _ => HWND_TOP, // player 已在最顶层，直接放到顶部
+                        };
+                        let _ = SetWindowPos(
+                            overlay_hwnd,
+                            insert_after,
+                            0,
+                            0,
+                            0,
+                            0,
+                            SWP_NOMOVE | SWP_NOSIZE,
+                        );
+                    }
                 }
             }
         }

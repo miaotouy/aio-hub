@@ -432,6 +432,8 @@ watch(
 
 onMounted(() => {
   startStatusPreview();
+  // 挂载时自动扫描一次默认播放器窗口，提升用户体验
+  void handleScanPlayerWindows(true);
 });
 
 onBeforeUnmount(() => {

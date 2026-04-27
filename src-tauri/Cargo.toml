@@ -48,7 +48,7 @@ tower = { version = "0.4", features = ["full"] }
 tower-http = { version = "0.5", features = ["cors", "trace"] }
 hyper = { version = "1", features = ["full"] }
 hyper-util = { version = "0.1", features = ["client", "client-legacy", "http1", "http2", "tokio"] }
-reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls-native-roots", "gzip", "brotli", "deflate", "socks"] }
+reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls-native-roots", "gzip", "brotli", "deflate", "socks", "multipart"] }
 anyhow = "1"
 futures-util = "0.3"
 bytes = "1"

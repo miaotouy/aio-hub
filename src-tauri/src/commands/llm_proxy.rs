@@ -11,6 +11,7 @@ use futures_util::StreamExt;
 use log::{error, info};
 use once_cell::sync::Lazy;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
+use reqwest::multipart;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -278,8 +279,69 @@ async fn handle_proxy_request(
         );
     }
 
+    // 检测是否为图片编辑请求（需要转换为 multipart）
+    let is_image_edit = request.url.contains("/images/edits");
+
     if request.method.to_uppercase() != "GET" {
-        req = req.json(&request.body);
+        if is_image_edit {
+            // 将 JSON body 转换为 multipart/form-data
+            let mut form = multipart::Form::new();
+
+            if let Some(obj) = request.body.as_object() {
+                for (key, value) in obj {
+                    match key.as_str() {
+                        "image" => {
+                            // 处理图片数组
+                            if let Some(arr) = value.as_array() {
+                                for (idx, img) in arr.iter().enumerate() {
+                                    if let Some(data_url) = img.as_str() {
+                                        if let Some((blob, mime)) = decode_data_url(data_url) {
+                                            let ext = mime.split('/').nth(1).unwrap_or("png");
+                                            let filename = format!("image_{}.{}", idx, ext);
+                                            let part = multipart::Part::bytes(blob)
+                                                .file_name(filename)
+                                                .mime_str(&mime)
+                                                .unwrap();
+                                            form = form.part("image[]", part);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        "mask" => {
+                            // 处理蒙版
+                            if let Some(data_url) = value.as_str() {
+                                if let Some((blob, mime)) = decode_data_url(data_url) {
+                                    let ext = mime.split('/').nth(1).unwrap_or("png");
+                                    let filename = format!("mask.{}", ext);
+                                    let part = multipart::Part::bytes(blob)
+                                        .file_name(filename)
+                                        .mime_str(&mime)
+                                        .unwrap();
+                                    form = form.part("mask", part);
+                                }
+                            }
+                        }
+                        _ => {
+                            // 其他字段作为文本添加
+                            if let Some(s) = value.as_str() {
+                                form = form.text(key.clone(), s.to_string());
+                            } else if let Some(n) = value.as_i64() {
+                                form = form.text(key.clone(), n.to_string());
+                            } else if let Some(b) = value.as_bool() {
+                                form = form.text(key.clone(), b.to_string());
+                            } else {
+                                form = form.text(key.clone(), value.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+
+            req = req.multipart(form);
+        } else {
+            req = req.json(&request.body);
+        }
     }
 
     // 发送请求。
@@ -398,5 +460,39 @@ async fn handle_proxy_request(
             bytes.len() / 1024
         );
         Ok((status, resp_headers, Body::from(bytes)))
+    }
+}
+
+/// 解码 Data URL 为二进制数据，并提取 MIME 类型
+fn decode_data_url(data_url: &str) -> Option<(Vec<u8>, String)> {
+    // 格式: data:image/png;base64,iVBORw0KG...
+    if let Some(comma_pos) = data_url.find(',') {
+        let prefix = &data_url[..comma_pos];
+        let base64_data = &data_url[comma_pos + 1..];
+
+        // 提取 MIME 类型（跳过 "data:" 前缀）
+        let mime = if prefix.len() > 5 {
+            if let Some(semicolon_pos) = prefix.find(';') {
+                prefix[5..semicolon_pos].to_string()
+            } else {
+                prefix[5..].to_string()
+            }
+        } else {
+            "image/png".to_string()
+        };
+
+        // 验证 MIME 类型格式（必须包含 '/'）
+        let final_mime = if mime.contains('/') {
+            mime
+        } else {
+            "image/png".to_string()
+        };
+
+        STANDARD
+            .decode(base64_data)
+            .ok()
+            .map(|bytes| (bytes, final_mime))
+    } else {
+        None
     }
 }

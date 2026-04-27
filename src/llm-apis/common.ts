@@ -754,6 +754,13 @@ export const fetchWithTimeout = async (
         finalSizeKB: (proxyBodyStr.length / 1024).toFixed(1),
       });
 
+      if (proxyPayload.body && !proxyPayload.body.model) {
+        logger.warn("检测到代理请求体中缺失 model 字段!", {
+          url: proxyPayload.url,
+          bodyKeys: Object.keys(proxyPayload.body),
+        });
+      }
+
       return await window.fetch(`http://127.0.0.1:${PROXY_PORT}/proxy`, {
         method: "POST",
         headers: {

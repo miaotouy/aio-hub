@@ -10,15 +10,7 @@ import { useModelMetadata } from "@/composables/useModelMetadata";
 import AttachmentCard from "@/tools/llm-chat/components/AttachmentCard.vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import { parseModelCombo } from "@/utils/modelIdUtils";
-import {
-  Send,
-  Image as ImageIcon,
-  Info,
-  Sparkles,
-  Loader2,
-  MessageSquare,
-  Target,
-} from "lucide-vue-next";
+import { Send, Image as ImageIcon, Info, Sparkles, Loader2, MessageSquare, Target } from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
 import { open } from "@tauri-apps/plugin-dialog";
 import { createModuleLogger } from "@/utils/logger";
@@ -52,7 +44,7 @@ watch(
       }
     }
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 // 使用 store 中的状态，确保刷新保持
@@ -153,7 +145,7 @@ watch(
       optimizePrompt.value = "";
     }
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 const handleOptimizePrompt = async () => {
@@ -246,14 +238,13 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
   const currentAttachments = [...store.attachments];
 
   prompt.value = "";
-  store.clearAttachments();
 
   const options = {
     ...params,
     prompt: currentPrompt,
     modelId,
     profileId,
-    attachments: currentAttachments,
+    inputAttachments: currentAttachments,
     includeContext: store.currentConfig.includeContext,
     // 映射 UI 参数到 API 参数
     numInferenceSteps: params.steps,
@@ -261,6 +252,9 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
   };
 
   await startGeneration(options as any, mediaType);
+
+  // 等节点创建完成后才清空附件
+  store.clearAttachments();
 };
 </script>
 
@@ -313,12 +307,7 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
           </button>
         </el-tooltip>
         <div class="v-divider" />
-        <button
-          class="tool-btn"
-          :disabled="isDisabled"
-          @click="handleTriggerAttachment"
-          title="添加参考图"
-        >
+        <button class="tool-btn" :disabled="isDisabled" @click="handleTriggerAttachment" title="添加参考图">
           <el-icon><ImageIcon /></el-icon>
           <span>参考图</span>
         </button>
@@ -381,20 +370,13 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
             <div class="form-actions">
               <template v-if="!optimizedResult">
                 <el-button size="small" @click="cancelOptimize">取消</el-button>
-                <el-button
-                  size="small"
-                  type="primary"
-                  :loading="isOptimizing"
-                  @click="handleOptimizePrompt"
-                >
+                <el-button size="small" type="primary" :loading="isOptimizing" @click="handleOptimizePrompt">
                   开始优化
                 </el-button>
               </template>
               <template v-else>
                 <el-button size="small" @click="optimizedResult = ''">重新生成</el-button>
-                <el-button size="small" type="primary" @click="applyOptimizedPrompt">
-                  确认并应用
-                </el-button>
+                <el-button size="small" type="primary" @click="applyOptimizedPrompt"> 确认并应用 </el-button>
               </template>
             </div>
           </div>

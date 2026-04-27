@@ -10,6 +10,9 @@ import {
 } from "@/llm-apis/request-builder";
 import { asyncJsonStringify } from "@/utils/serialization";
 import { openAiResponsesUrlHandler } from "./utils";
+import { createModuleLogger } from "@/utils/logger";
+
+const logger = createModuleLogger("llm-apis/openai-responses");
 
 /**
  * 调用 OpenAI Responses API
@@ -38,10 +41,31 @@ export const callOpenAiResponsesApi = async (profile: LlmProfile, options: LlmRe
   // 注意：useLlmRequest.ts 可能会先将 prompt 转为 messages，所以这里做个兜底判断
   const mediaOpts = options as any;
   if (mediaOpts.prompt && userAssistantMessages.length === 0 && (!options.messages || options.messages.length === 0)) {
-    messages.push({
-      role: "user",
-      content: mediaOpts.prompt,
-    });
+    const hasAttachments = mediaOpts.inputAttachments && mediaOpts.inputAttachments.length > 0;
+
+    if (!hasAttachments) {
+      messages.push({
+        role: "user",
+        content: mediaOpts.prompt,
+      });
+    } else {
+      // 如果有附件，构造复合消息
+      const contentArray: any[] = [{ type: "input_text", text: mediaOpts.prompt }];
+
+      for (const attachment of mediaOpts.inputAttachments) {
+        if (attachment.type === "image") {
+          contentArray.push({
+            type: "input_image",
+            image_url: attachment.b64 || attachment.url,
+          });
+        }
+      }
+
+      messages.push({
+        role: "user",
+        content: contentArray,
+      });
+    }
   }
 
   for (const msg of userAssistantMessages) {
@@ -109,6 +133,12 @@ export const callOpenAiResponsesApi = async (profile: LlmProfile, options: LlmRe
     input,
     temperature: commonParams.temperature ?? 1.0,
   };
+
+  logger.debug("[ResponsesAPI] 构建请求体", {
+    model: body.model,
+    hasInput: !!body.input,
+    inputType: Array.isArray(body.input) ? "array" : typeof body.input,
+  });
 
   if (commonParams.maxTokens !== undefined) {
     body.max_output_tokens = commonParams.maxTokens;

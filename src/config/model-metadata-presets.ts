@@ -2976,6 +2976,9 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "gpt-image-2",
     properties: {
+      capabilities: {
+        vision: true,
+      },
       mediaGenParams: {
         size: {
           mode: "free",

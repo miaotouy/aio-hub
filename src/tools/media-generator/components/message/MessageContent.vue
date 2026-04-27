@@ -199,6 +199,20 @@ const generationMetaForRenderer = computed(() => {
 
 <template>
   <div class="message-content">
+    <!-- 附件展示区域 - 非编辑模式 -->
+    <div v-if="!isEditing && message.attachments?.length" class="attachments-section">
+      <div class="attachments-list">
+        <AttachmentCard
+          v-for="attachment in message.attachments"
+          :key="attachment.id"
+          :asset="attachment"
+          :all-assets="message.attachments"
+          :removable="false"
+          size="large"
+        />
+      </div>
+    </div>
+
     <!-- 推理内容 (DeepSeek / O1) -->
     <LlmThinkNode
       v-if="message.metadata?.reasoningContent"

@@ -34,8 +34,14 @@ export function useLlmRequest() {
   const sendRequest = async (options: LlmRequestOptions | MediaGenerationOptions): Promise<LlmResponse> => {
     let selectedApiKey: string | undefined;
 
-    // 自动包装 prompt 为 messages
-    if ((options as MediaGenerationOptions).prompt && !options.messages) {
+    // 自动包装 prompt 为 messages（仅对非媒体生成请求）
+    // 如果是媒体生成请求（带有 prompt 且目标模型有生成能力），我们保持 prompt 独立以便适配器处理
+    const isMediaRequest = !!(
+      (options as MediaGenerationOptions).prompt &&
+      ((options as any).inputAttachments || (options as any).mask || (options as any).attachments)
+    );
+
+    if ((options as MediaGenerationOptions).prompt && !options.messages && !isMediaRequest) {
       options.messages = [{ role: "user", content: (options as MediaGenerationOptions).prompt! }];
     }
 
@@ -128,8 +134,13 @@ export function useLlmRequest() {
         };
       }
 
-      // 补全请求检查：如果不是特种请求，必须有 messages
-      if (!options.messages) {
+      // 补全请求检查：如果不是特种请求，且不是媒体生成请求，必须有 messages
+      const isMediaGeneration =
+        model.capabilities?.imageGeneration ||
+        model.capabilities?.videoGeneration ||
+        model.capabilities?.audioGeneration;
+
+      if (!options.messages && !isMediaGeneration) {
         throw new Error("聊天请求缺少 messages 参数");
       }
 
@@ -148,8 +159,7 @@ export function useLlmRequest() {
           }
           return false;
         };
-
-        if (options.messages.some((m) => hasLocalFileProtocol(m.content))) {
+        if (options.messages?.some((m) => hasLocalFileProtocol(m.content))) {
           options.hasLocalFile = true;
           logger.debug("自动检测到本地文件协议，已开启 Rust 代理模式");
         }
@@ -229,6 +239,13 @@ export function useLlmRequest() {
 
       // 根据模型能力分发请求
       let response: LlmResponse;
+
+      logger.debug("准备分发请求", {
+        targetModelId: filteredOptions.modelId,
+        adapterType: effectiveProfile.type,
+        isMediaGeneration,
+        hasPrompt: !!(filteredOptions as any).prompt,
+      });
 
       // 检查是否为强制对话模式 (例如在媒体生成中心中，用户选择了“对话迭代”模式)
       // 或者模型能力中显式指定了偏好 Chat 接口 (如原生多模态生图模型)

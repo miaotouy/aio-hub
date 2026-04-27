@@ -2,16 +2,14 @@ use axum::{
     body::Body,
     extract::DefaultBodyLimit,
     http::{HeaderMap as AxumHeaderMap, StatusCode},
-    response::IntoResponse,
     routing::post,
-    Json, Router,
+    Router,
 };
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use futures_util::StreamExt;
 use log::{error, info};
 use once_cell::sync::Lazy;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
-use reqwest::multipart;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -148,7 +146,7 @@ pub async fn start_llm_proxy_server(port: u16) -> Result<String, String> {
     let state_clone = PROXY_STATE.clone();
     tokio::spawn(async move {
         let app = Router::new()
-            .route("/proxy", post(handle_proxy_request))
+            .route("/proxy", post(handle_proxy_request_router))
             .layer(DefaultBodyLimit::max(256 * 1024 * 1024)) // 限制 body 大小为 256MB，更加安全
             .layer(tower_http::cors::CorsLayer::permissive());
 
@@ -163,9 +161,67 @@ pub async fn start_llm_proxy_server(port: u16) -> Result<String, String> {
     Ok(format!("LLM Proxy Server started on port {}", port))
 }
 
-async fn handle_proxy_request(
-    Json(mut request): Json<ProxyRequest>,
-) -> Result<impl IntoResponse, (StatusCode, String)> {
+/// 路由入口：根据 Content-Type 分流
+async fn handle_proxy_request_router(
+    headers: AxumHeaderMap,
+    body: Body,
+) -> (StatusCode, AxumHeaderMap, Body) {
+    let content_type = headers
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+
+    match content_type.starts_with("application/json") {
+        true => {
+            // JSON 路径：读取 body → 反序列化 → 走现有业务逻辑
+            let max_body_size: usize = 256 * 1024 * 1024;
+            match axum::body::to_bytes(body, max_body_size).await {
+                Ok(bytes) => match serde_json::from_slice::<ProxyRequest>(&bytes) {
+                    Ok(request) => match handle_json_proxy(request).await {
+                        Ok(resp) => resp,
+                        Err((status, msg)) => {
+                            error!("JSON proxy error: {}", msg);
+                            (status, AxumHeaderMap::new(), Body::from(msg))
+                        }
+                    },
+                    Err(e) => {
+                        let msg = format!("Invalid JSON: {}", e);
+                        error!("{}", msg);
+                        (
+                            StatusCode::BAD_REQUEST,
+                            AxumHeaderMap::new(),
+                            Body::from(msg),
+                        )
+                    }
+                },
+                Err(e) => {
+                    let msg = format!("Failed to read body: {}", e);
+                    error!("{}", msg);
+                    (
+                        StatusCode::BAD_REQUEST,
+                        AxumHeaderMap::new(),
+                        Body::from(msg),
+                    )
+                }
+            }
+        }
+        false => {
+            // 透明转发路径（multipart/form-data、binary 等）
+            match handle_raw_proxy(headers, body).await {
+                Ok(resp) => resp,
+                Err((status, msg)) => {
+                    error!("Raw proxy error: {}", msg);
+                    (status, AxumHeaderMap::new(), Body::from(msg))
+                }
+            }
+        }
+    }
+}
+
+/// JSON 代理路径：保留所有现有业务逻辑（process_body_recursive、流式 SSE 等）
+async fn handle_json_proxy(
+    mut request: ProxyRequest,
+) -> Result<(StatusCode, AxumHeaderMap, Body), (StatusCode, String)> {
     let request_id = nanoid::nanoid!(8);
     let url_for_log = request.url.clone();
 
@@ -182,60 +238,22 @@ async fn handle_proxy_request(
         request_id, business_id, request.method, url_for_log
     );
 
-    // 检查是否是 IP 地址
-    let is_ip = if let Ok(u) = reqwest::Url::parse(&request.url) {
-        u.host_str()
-            .map(|h| h.parse::<std::net::IpAddr>().is_ok())
-            .unwrap_or(false)
-    } else {
-        false
-    };
-
-    let mut client_builder = reqwest::Client::builder()
-        .danger_accept_invalid_certs(request.relax_invalid_certs.unwrap_or(true))
-        .user_agent(format!("AIO-Hub/{}", env!("CARGO_PKG_VERSION")))
-        .connect_timeout(std::time::Duration::from_secs(15))
-        .tcp_keepalive(std::time::Duration::from_secs(60))
-        .no_gzip()
-        .no_brotli()
-        .no_deflate();
-
-    if request.http1_only.unwrap_or(true) {
-        client_builder = client_builder.http1_only();
-    }
-
-    // 处理代理设置
-    if is_ip {
-        client_builder = client_builder.no_proxy();
-    } else if let Some(proxy_settings) = &request.proxy_settings {
-        match proxy_settings.mode.as_str() {
-            "none" => {
-                client_builder = client_builder.no_proxy();
-            }
-            "custom" => {
-                if let Some(custom_url) = &proxy_settings.custom_url {
-                    if !custom_url.is_empty() {
-                        let proxy = reqwest::Proxy::all(custom_url).map_err(|e| {
-                            let err_msg = format!("Invalid custom proxy URL {}: {}", custom_url, e);
-                            error!("{}", err_msg);
-                            (StatusCode::BAD_REQUEST, err_msg)
-                        })?;
-                        client_builder = client_builder.proxy(proxy);
-                    }
-                }
-            }
-            _ => {
-                // 默认使用系统代理，reqwest 默认已启用
-            }
-        }
-    }
-
-    let client = client_builder.build().map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to create client: {}", e),
-        )
-    })?;
+    // 构建客户端（复用函数）
+    let client = build_proxy_client(
+        &request.url,
+        request
+            .proxy_settings
+            .as_ref()
+            .map(|s| s.mode.as_str())
+            .unwrap_or("system"),
+        request
+            .proxy_settings
+            .as_ref()
+            .and_then(|s| s.custom_url.as_deref()),
+        request.relax_invalid_certs.unwrap_or(true),
+        request.http1_only.unwrap_or(true),
+    )
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
 
     let mut headers = HeaderMap::new();
     for (k, v) in request.headers {
@@ -279,69 +297,9 @@ async fn handle_proxy_request(
         );
     }
 
-    // 检测是否为图片编辑请求（需要转换为 multipart）
-    let is_image_edit = request.url.contains("/images/edits");
-
+    // 非 GET 请求附加 JSON body
     if request.method.to_uppercase() != "GET" {
-        if is_image_edit {
-            // 将 JSON body 转换为 multipart/form-data
-            let mut form = multipart::Form::new();
-
-            if let Some(obj) = request.body.as_object() {
-                for (key, value) in obj {
-                    match key.as_str() {
-                        "image" => {
-                            // 处理图片数组
-                            if let Some(arr) = value.as_array() {
-                                for (idx, img) in arr.iter().enumerate() {
-                                    if let Some(data_url) = img.as_str() {
-                                        if let Some((blob, mime)) = decode_data_url(data_url) {
-                                            let ext = mime.split('/').nth(1).unwrap_or("png");
-                                            let filename = format!("image_{}.{}", idx, ext);
-                                            let part = multipart::Part::bytes(blob)
-                                                .file_name(filename)
-                                                .mime_str(&mime)
-                                                .unwrap();
-                                            form = form.part("image[]", part);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        "mask" => {
-                            // 处理蒙版
-                            if let Some(data_url) = value.as_str() {
-                                if let Some((blob, mime)) = decode_data_url(data_url) {
-                                    let ext = mime.split('/').nth(1).unwrap_or("png");
-                                    let filename = format!("mask.{}", ext);
-                                    let part = multipart::Part::bytes(blob)
-                                        .file_name(filename)
-                                        .mime_str(&mime)
-                                        .unwrap();
-                                    form = form.part("mask", part);
-                                }
-                            }
-                        }
-                        _ => {
-                            // 其他字段作为文本添加
-                            if let Some(s) = value.as_str() {
-                                form = form.text(key.clone(), s.to_string());
-                            } else if let Some(n) = value.as_i64() {
-                                form = form.text(key.clone(), n.to_string());
-                            } else if let Some(b) = value.as_bool() {
-                                form = form.text(key.clone(), b.to_string());
-                            } else {
-                                form = form.text(key.clone(), value.to_string());
-                            }
-                        }
-                    }
-                }
-            }
-
-            req = req.multipart(form);
-        } else {
-            req = req.json(&request.body);
-        }
+        req = req.json(&request.body);
     }
 
     // 发送请求。
@@ -356,8 +314,6 @@ async fn handle_proxy_request(
     let mut resp_headers = AxumHeaderMap::new();
 
     // 定义需要过滤的逐跳头部和敏感头部
-    // 移除了 content-encoding，因为我们现在允许 reqwest 处理解压（如果不是流式）
-    // 或者将原始编码透传（如果是流式且前端能处理）
     let hop_by_hop = [
         "connection",
         "keep-alive",
@@ -463,36 +419,167 @@ async fn handle_proxy_request(
     }
 }
 
-/// 解码 Data URL 为二进制数据，并提取 MIME 类型
-fn decode_data_url(data_url: &str) -> Option<(Vec<u8>, String)> {
-    // 格式: data:image/png;base64,iVBORw0KG...
-    if let Some(comma_pos) = data_url.find(',') {
-        let prefix = &data_url[..comma_pos];
-        let base64_data = &data_url[comma_pos + 1..];
+/// 透明代理：直接转发任意 Content-Type 的请求体，不解析、不修改
+/// 仅用于附件已在前端预处理为 Blob 的场景（如图片编辑 multipart/form-data）
+async fn handle_raw_proxy(
+    headers: AxumHeaderMap,
+    body: Body,
+) -> Result<(StatusCode, AxumHeaderMap, Body), (StatusCode, String)> {
+    let request_id = nanoid::nanoid!(8);
 
-        // 提取 MIME 类型（跳过 "data:" 前缀）
-        let mime = if prefix.len() > 5 {
-            if let Some(semicolon_pos) = prefix.find(';') {
-                prefix[5..semicolon_pos].to_string()
-            } else {
-                prefix[5..].to_string()
-            }
-        } else {
-            "image/png".to_string()
-        };
+    // 从 Header 提取目标 URL（必填）
+    let target_url = get_header_str(&headers, "x-target-url").ok_or((
+        StatusCode::BAD_REQUEST,
+        "Missing X-Target-URL header".into(),
+    ))?;
 
-        // 验证 MIME 类型格式（必须包含 '/'）
-        let final_mime = if mime.contains('/') {
-            mime
-        } else {
-            "image/png".to_string()
-        };
+    let business_id = get_header_str(&headers, "x-request-id").unwrap_or("none");
+    let proxy_mode = get_header_str(&headers, "x-proxy-mode").unwrap_or("system");
+    let proxy_url = get_header_str(&headers, "x-proxy-url");
+    let relax_certs = get_header_str(&headers, "x-relax-certs")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(true);
+    let http1_only = get_header_str(&headers, "x-http1-only")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(true);
 
-        STANDARD
-            .decode(base64_data)
-            .ok()
-            .map(|bytes| (bytes, final_mime))
-    } else {
-        None
+    info!("[Proxy-{request_id}] Raw proxy (BizID: {business_id}): POST {target_url}");
+
+    // 构建客户端（复用 build_proxy_client）
+    let client = build_proxy_client(target_url, proxy_mode, proxy_url, relax_certs, http1_only)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+
+    // 转发 Header：保留业务 Header，过滤元信息 Header
+    let meta_headers = [
+        "x-target-url",
+        "x-request-id",
+        "x-proxy-mode",
+        "x-proxy-url",
+        "x-relax-certs",
+        "x-http1-only",
+        "host",
+        "accept-encoding",
+    ];
+    let mut forward_headers = HeaderMap::new();
+    for (name, value) in headers.iter() {
+        let lower = name.as_str().to_lowercase();
+        if meta_headers.contains(&lower.as_str()) {
+            continue;
+        }
+        if let (Ok(n), Ok(v)) = (
+            HeaderName::from_bytes(name.as_str().as_bytes()),
+            HeaderValue::from_bytes(value.as_bytes()),
+        ) {
+            forward_headers.insert(n, v);
+        }
     }
+
+    // 管道转发 Body（零拷贝流）
+    let body_stream = body
+        .into_data_stream()
+        .map(|result| result.map_err(std::io::Error::other));
+
+    let upstream_response = client
+        .post(target_url)
+        .headers(forward_headers)
+        .body(reqwest::Body::wrap_stream(body_stream))
+        .send()
+        .await
+        .map_err(|e| {
+            error!("[Proxy-{request_id}] Request failed: {e}");
+            (StatusCode::BAD_GATEWAY, format!("Request failed: {e}"))
+        })?;
+
+    // 先提取状态码和响应头
+    let status =
+        StatusCode::from_u16(upstream_response.status().as_u16()).unwrap_or(StatusCode::OK);
+    let mut resp_headers = AxumHeaderMap::new();
+    let hop_by_hop = [
+        "connection",
+        "keep-alive",
+        "proxy-authenticate",
+        "proxy-authorization",
+        "te",
+        "trailers",
+        "transfer-encoding",
+        "upgrade",
+        "content-length",
+        "host",
+        "access-control-allow-origin",
+        "access-control-allow-methods",
+        "access-control-allow-headers",
+    ];
+    for (name, value) in upstream_response.headers().iter() {
+        if hop_by_hop.contains(&name.as_str().to_lowercase().as_str()) {
+            continue;
+        }
+        if let (Ok(n), Ok(v)) = (
+            axum::http::HeaderName::from_bytes(name.as_str().as_bytes()),
+            axum::http::HeaderValue::from_bytes(value.as_bytes()),
+        ) {
+            resp_headers.insert(n, v);
+        }
+    }
+
+    // 流式返回响应体，实现端到端透明转发
+    let stream = upstream_response
+        .bytes_stream()
+        .map(|item| item.map_err(std::io::Error::other));
+
+    info!("[Proxy-{request_id}] Raw proxy relaying response stream");
+    Ok((status, resp_headers, Body::from_stream(stream)))
+}
+
+/// 构建 reqwest Client，供 JSON 代理路径和透明转发路径复用
+fn build_proxy_client(
+    target_url: &str,
+    proxy_mode: &str,
+    proxy_url: Option<&str>,
+    relax_certs: bool,
+    http1_only: bool,
+) -> Result<reqwest::Client, String> {
+    let is_ip = reqwest::Url::parse(target_url)
+        .ok()
+        .and_then(|u| u.host_str().map(|h| h.parse::<std::net::IpAddr>().is_ok()))
+        .unwrap_or(false);
+
+    let mut builder = reqwest::Client::builder()
+        .danger_accept_invalid_certs(relax_certs)
+        .user_agent(format!("AIO-Hub/{}", env!("CARGO_PKG_VERSION")))
+        .connect_timeout(std::time::Duration::from_secs(15))
+        .tcp_keepalive(std::time::Duration::from_secs(60))
+        .no_gzip()
+        .no_brotli()
+        .no_deflate();
+
+    if http1_only {
+        builder = builder.http1_only();
+    }
+
+    if is_ip {
+        builder = builder.no_proxy();
+    } else {
+        match proxy_mode {
+            "none" => {
+                builder = builder.no_proxy();
+            }
+            "custom" => {
+                if let Some(url) = proxy_url.filter(|u| !u.is_empty()) {
+                    builder = builder.proxy(
+                        reqwest::Proxy::all(url).map_err(|e| format!("Invalid proxy URL: {e}"))?,
+                    );
+                }
+            }
+            _ => {} // 系统代理（默认）
+        }
+    }
+
+    builder
+        .build()
+        .map_err(|e| format!("Failed to build client: {e}"))
+}
+
+/// 从 Axum HeaderMap 中提取字符串值
+fn get_header_str<'a>(headers: &'a AxumHeaderMap, name: &str) -> Option<&'a str> {
+    headers.get(name).and_then(|v| v.to_str().ok())
 }

@@ -8,6 +8,7 @@ import { useAssetManager } from "@/composables/useAssetManager";
 import { useModelMetadata } from "@/composables/useModelMetadata";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useMediaGenParamRules } from "./useMediaGenParamRules";
+import { convertArrayBufferToBase64 } from "@/utils/base64";
 import { DEFAULT_MEDIA_TIMEOUT } from "@/llm-apis/common";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -21,7 +22,7 @@ const errorHandler = createModuleErrorHandler("media-generator/manager");
 export function useMediaGenerationManager() {
   const mediaStore = useMediaGenStore();
   const { sendRequest } = useLlmRequest();
-  const { importAssetFromBytes, importAssetFromPath, getAssetBasePath } = useAssetManager();
+  const { importAssetFromBytes, importAssetFromPath, getAssetBasePath, getAssetBinary } = useAssetManager();
   const { getMatchedProperties } = useModelMetadata();
   const { profiles: allProfiles } = useLlmProfiles();
   const { getParamRules, sanitizeParams, usesAspectRatioMode, buildXaiSizeParams } = useMediaGenParamRules();
@@ -68,7 +69,7 @@ export function useMediaGenerationManager() {
           ...options,
           ...options.params, // 透传参数优先级更高，覆盖顶层同名字段
         },
-        referenceAssetIds: options.inputAttachments?.map((a) => a.url).filter(Boolean) as string[],
+        referenceAssetIds: (options.inputAttachments as any[])?.map((a) => a.path || a.url).filter(Boolean) as string[],
         contextMessageIds: options.contextMessageIds,
         includeContext: shouldIncludeContext,
       },
@@ -89,16 +90,43 @@ export function useMediaGenerationManager() {
     isGenerating.value = true;
 
     try {
-      mediaStore.updateTaskStatus(taskId, "processing", { statusText: "正在请求生成..." });
+      mediaStore.updateTaskStatus(taskId, "processing", { statusText: "正在处理附件..." });
       // 构造多轮会话上下文
       // 注入超时配置，优先使用用户设置，兜底使用媒体专用默认值
       const requestTimeout = mediaStore.settings.requestSettings?.timeout ?? DEFAULT_MEDIA_TIMEOUT;
       const maxRetries = mediaStore.settings.requestSettings?.maxRetries ?? 0;
 
+      // 处理参考图：将本地 Asset (含 path) 转换为 Base64
+      let processedAttachments = options.inputAttachments;
+      if (options.inputAttachments && options.inputAttachments.length > 0) {
+        processedAttachments = await Promise.all(
+          options.inputAttachments.map(async (att: any) => {
+            // 如果有 path 且没有 b64，则读取文件
+            if (att.path && !att.b64) {
+              try {
+                const buffer = await getAssetBinary(att.path);
+                const base64 = await convertArrayBufferToBase64(buffer);
+                const mimeType = att.mimeType || "image/png";
+                return {
+                  ...att,
+                  path: undefined, // 移除 path
+                  b64: `data:${mimeType};base64,${base64}`,
+                };
+              } catch (e) {
+                logger.error("读取参考图失败", e, { path: att.path });
+                return att;
+              }
+            }
+            return att;
+          }),
+        );
+      }
+
       let finalOptions = {
         timeout: requestTimeout,
         maxRetries: maxRetries,
         ...options,
+        inputAttachments: processedAttachments,
         prompt: finalPrompt,
       };
 

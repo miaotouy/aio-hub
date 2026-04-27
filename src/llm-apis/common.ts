@@ -331,7 +331,9 @@ export interface MediaGenerationOptions extends Omit<LlmRequestOptions, "respons
   mask?: string;
   /** 参考附件 (用于以图生图、参考图引导) */
   inputAttachments?: Array<{
+    /** 远程 URL (如果模型支持) */
     url?: string;
+    /** Base64 Data URL (由前端预处理) */
     b64?: string;
     type: "image" | "video" | "mask";
     role?: "reference" | "first_frame" | "last_frame";
@@ -657,6 +659,46 @@ export const fetchWithTimeout = async (
     const hasLocalFileInBody = bodyString.includes("local-file://");
 
     if (useProxy) {
+      // ── FormData 分支（透明转发）：检测 body 是否为 FormData，直接转发到 /proxy ──
+      if (options.body instanceof FormData) {
+        const PROXY_PORT = parseInt(import.meta.env.VITE_AIO_PROXY_PORT || "16655");
+        try {
+          await invoke("start_llm_proxy_server", { port: PROXY_PORT });
+        } catch {
+          // 已启动
+        }
+
+        const appSettingsStore = useAppSettingsStore();
+        const settings = appSettingsStore.settings;
+
+        // 提取需要转发的原始 Header (如 Authorization)
+        const forwardHeaders: Record<string, string> = {};
+        if (options.headers) {
+          for (const [k, v] of Object.entries(options.headers)) {
+            const lowerK = k.toLowerCase();
+            // 过滤掉我们自己生成的元 Header 和 Content-Type (由 fetch 自动生成 boundary)
+            if (!lowerK.startsWith("x-") && lowerK !== "content-type") {
+              forwardHeaders[k] = v as string;
+            }
+          }
+        }
+
+        return await window.fetch(`http://127.0.0.1:${PROXY_PORT}/proxy`, {
+          method: "POST",
+          headers: {
+            ...forwardHeaders,
+            "X-Target-URL": url,
+            "X-Request-ID": (options.headers as Record<string, string>)?.["X-Request-ID"] || "",
+            "X-Proxy-Mode": settings.proxy?.mode || "system",
+            "X-Proxy-URL": settings.proxy?.customUrl || "",
+            "X-Relax-Certs": String(options.relaxIdCerts ?? true),
+            "X-HTTP1-Only": String(options.http1Only ?? true),
+          },
+          body: options.body, // FormData 原样传递
+          signal: controller.signal,
+        });
+      }
+
       logger.debug("触发代理模式", {
         hasLocalFile: options.hasLocalFile,
         hasLocalFileInBody,

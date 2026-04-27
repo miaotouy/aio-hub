@@ -362,6 +362,10 @@ const generationMetaForRenderer = computed(() => {
 .message-content {
   position: relative;
   padding: 4px 0;
+  box-sizing: border-box;
+  width: 100%;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .prompt-content {
@@ -466,6 +470,10 @@ const generationMetaForRenderer = computed(() => {
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
   border: var(--border-width) solid var(--border-color);
+  box-sizing: border-box;
+  width: 100%;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 .partial-image-previews {
   margin-top: 12px;
@@ -523,6 +531,13 @@ const generationMetaForRenderer = computed(() => {
   align-items: center;
   gap: 8px;
   font-size: 14px;
+  min-width: 0;
+}
+
+.status-error span {
+  overflow-wrap: break-word;
+  word-break: break-word;
+  min-width: 0;
 }
 
 .status-loading {
@@ -544,6 +559,9 @@ const generationMetaForRenderer = computed(() => {
 
 .media-result {
   margin-top: 8px;
+  box-sizing: border-box;
+  width: 100%;
+  overflow: hidden;
 }
 
 .media-result.is-multi .image-grid {
@@ -555,6 +573,7 @@ const generationMetaForRenderer = computed(() => {
 .media-item {
   position: relative;
   width: 100%;
+  box-sizing: border-box;
 }
 
 .video-list,
@@ -569,6 +588,7 @@ const generationMetaForRenderer = computed(() => {
   border-radius: 8px;
   box-shadow: var(--el-box-shadow-light);
   display: block;
+  box-sizing: border-box;
 }
 
 .media-preview.clickable {

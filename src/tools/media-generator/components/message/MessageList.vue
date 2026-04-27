@@ -139,9 +139,7 @@ defineExpose({
             <ChatMessage
               :message="messages[virtualItem.index]"
               :siblings="getMessageSiblings(messages[virtualItem.index].id).siblings"
-              :current-sibling-index="
-                getMessageSiblings(messages[virtualItem.index].id).currentIndex
-              "
+              :current-sibling-index="getMessageSiblings(messages[virtualItem.index].id).currentIndex"
               :is-selected="messages[virtualItem.index].isSelected"
               :is-batch-mode="isBatchMode"
               @remove="handleRemove"
@@ -173,6 +171,7 @@ defineExpose({
   flex: 1;
   overflow-y: auto;
   padding: 20px;
+  box-sizing: border-box;
 }
 
 .message-wrapper {
@@ -180,6 +179,9 @@ defineExpose({
   flex-direction: column;
   gap: 8px;
   padding: 8px 0;
+  box-sizing: border-box;
+  width: 100%;
+  overflow: hidden;
 }
 
 .empty-state {

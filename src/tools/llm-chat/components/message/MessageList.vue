@@ -368,7 +368,9 @@ const restoreSwitchingMessagePosition = () => {
   const scrollDelta = currentOffset - switchingMessageViewportOffset.value;
 
   if (Math.abs(scrollDelta) > 1) {
-    container.scrollTop += scrollDelta;
+    const targetScrollTop = container.scrollTop + scrollDelta;
+    const maxScroll = container.scrollHeight - container.clientHeight;
+    container.scrollTop = Math.max(0, Math.min(targetScrollTop, maxScroll));
   }
 
   // 清除追踪状态

@@ -181,6 +181,10 @@ onUnmounted(() => {
   overflow: hidden; /* 必须裁剪，配合 flex 内部滚动 */
 }
 
+.cm-viewer-container.expanded {
+  max-height: 10000px;
+}
+
 .cm-viewer-container.is-streaming {
   transition: none !important;
 }

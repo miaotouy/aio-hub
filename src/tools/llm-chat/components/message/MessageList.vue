@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, computed } from "vue";
-import { useThrottleFn, useRafFn } from "@vueuse/core";
-import { useVirtualizer } from "@tanstack/vue-virtual";
+import { useThrottleFn } from "@vueuse/core";
 import type { ChatMessageNode, ChatSessionIndex, ChatSessionDetail } from "../../types";
 import type { Asset } from "@/types/asset-management";
 import { useLlmChatStore } from "../../stores/llmChatStore";
@@ -16,9 +15,10 @@ interface Props {
   messages: ChatMessageNode[];
   isSending: boolean;
   llmThinkRules?: import("@/tools/rich-text-renderer/types").LlmThinkRule[];
-  richTextStyleOptions?: import("@/tools/rich-text-renderer/types").RichTextRendererStyleOptions; // 智能体样式（默认）
-  userRichTextStyleOptions?: import("@/tools/rich-text-renderer/types").RichTextRendererStyleOptions; // 用户样式
+  richTextStyleOptions?: import("@/tools/rich-text-renderer/types").RichTextRendererStyleOptions;
+  userRichTextStyleOptions?: import("@/tools/rich-text-renderer/types").RichTextRendererStyleOptions;
 }
+
 interface Emits {
   (e: "delete-message", messageId: string): void;
   (e: "regenerate", messageId: string, options?: { modelId?: string; profileId?: string }): void;
@@ -42,7 +42,6 @@ const { settings } = useChatSettings();
 
 /**
  * 被压缩的节点 ID 集合
- * 逻辑：如果路径上存在启用的压缩节点，则其管辖的节点 ID 属于此集合
  */
 const compressedNodeIds = computed(() => {
   const ids = new Set<string>();
@@ -56,17 +55,10 @@ const compressedNodeIds = computed(() => {
   return ids;
 });
 
-// 计算实际显示的消息列表（不再隐藏被压缩的节点，而是全量显示）
-const displayMessages = computed(() => {
-  return props.messages;
-});
-
 // 为每条消息计算兄弟节点信息
 const getMessageSiblings = (messageId: string) => {
-  // 注意：这里仍然在原始 messages 中查找，因为兄弟节点关系是基于原始树结构的
   const message = props.messages.find((m) => m.id === messageId);
 
-  // 预设消息不在会话节点树中，返回只包含自己的特殊结构（不显示分支导航）
   if (message?.metadata?.isPresetDisplay) {
     return {
       siblings: [message],
@@ -75,7 +67,6 @@ const getMessageSiblings = (messageId: string) => {
   }
 
   const siblings = store.getSiblings(messageId);
-  // 找到在当前活动路径上的兄弟节点（而不是传入的 messageId 自己）
   const currentIndex = siblings.findIndex((s: ChatMessageNode) => store.isNodeInActivePath(s.id));
   return {
     siblings,
@@ -83,240 +74,179 @@ const getMessageSiblings = (messageId: string) => {
   };
 };
 
-// 虚拟滚动容器引用
+// 容器引用
 const messagesContainer = ref<HTMLElement | null>(null);
 
-// 暴露滚动容器供外部使用（如 MessageNavigator）
+// 暴露滚动容器供外部使用
 const getScrollElement = () => messagesContainer.value;
 
-// 消息数量（响应式）- 使用 displayMessages 的长度，因为虚拟列表渲染的是过滤后的消息
-const messageCount = computed(() => displayMessages.value.length);
+// 记录用户是否接近底部
+const isNearBottom = ref(true);
+// 当前可见的消息索引 (1-based)
+const currentVisibleIndex = ref(0);
 
-// 渐进式加载控制（仅用于会话切换）
-const isSessionSwitching = ref(false);
-const progressiveOverscan = ref(2); // 初始只预渲染2条
-// 会话初始化保护期：渐进加载结束后仍需一段时间等内容稳定，期间强制瞬时滚动
-const isSessionInitializing = ref(false);
-
-// 创建虚拟化器
-const virtualizer = useVirtualizer({
-  get count() {
-    return messageCount.value;
-  },
-  getScrollElement: () => messagesContainer.value,
-  estimateSize: () => 400, // 提高预估高度以更好地处理长消息
-  get overscan() {
-    // 仅在会话切换时使用渐进式加载，正常使用时保持用户设置的 overscan
-    return isSessionSwitching.value ? progressiveOverscan.value : settings.value.uiPreferences.virtualListOverscan;
-  },
-});
-
-// 虚拟项列表
-const virtualItems = computed(() => virtualizer.value.getVirtualItems());
-
-// 已测量的元素集合（避免重复测量）
-let measuredElements = new WeakSet<HTMLElement>();
-
-// 计算当前视口中最主要显示的消息索引
-const currentVisibleIndex = computed(() => {
-  const items = virtualItems.value;
-  if (items.length === 0 || !messagesContainer.value) return 0;
-
-  // 如果已经滚动到底部，直接返回总数，确保显示 N/N
-  if (isNearBottom.value) {
-    return props.messages.length;
-  }
-
-  const container = messagesContainer.value;
-  const scrollTop = container.scrollTop;
-  const clientHeight = container.clientHeight;
-  const scrollBottom = scrollTop + clientHeight;
-
-  // 找到视口内最底部的消息
-  // 过滤掉那些起始位置在视口下方的元素（overscan）
-  // 然后取最后一个，即为当前视口中最下面一条可见的消息
-  const visibleItems = items.filter((item) => item.start < scrollBottom);
-
-  if (visibleItems.length === 0) return 0;
-
-  const lastVisibleItem = visibleItems[visibleItems.length - 1];
-  return lastVisibleItem.index + 1; // 转换为 1-based 索引
-});
-
-// 总高度
-const totalSize = computed(() => virtualizer.value.getTotalSize());
-
-// 自动滚动到底部
+// 滚动到底部
 const scrollToBottom = useThrottleFn(() => {
-  // 直接使用原生滚动，强制滚到真正的底部
-  // 不依赖虚拟列表的高度计算，确保流式输出时能及时跟随
   nextTick(() => {
     if (messagesContainer.value) {
       const container = messagesContainer.value;
-      // 初始化保护期内强制使用瞬时滚动：
-      // smooth 动画会在内容高度频繁变化时中途停止，导致永远追不到底部
-      if (!isSessionInitializing.value && settings.value.uiPreferences.smoothAutoScroll) {
-        // 平滑滚动（仅在非初始化保护期内）
-        container.scrollTo({
-          top: container.scrollHeight,
-          behavior: "smooth",
-        });
+      if (settings.value.uiPreferences.smoothAutoScroll) {
+        container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
       } else {
-        // 瞬时滚动
         container.scrollTop = container.scrollHeight;
       }
     }
   });
-}, 50); // 50ms 节流，配合内容高度过渡（150ms）实现更流畅的追踪
+}, 50);
 
-// 记录用户是否接近底部
-const isNearBottom = ref(true);
+// 滚动到底部（供 Navigator 使用）
+const scrollToEnd = () => {
+  if (messagesContainer.value) {
+    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
+  }
+};
+
+// 滚动到顶部
+const scrollToTop = () => {
+  if (messagesContainer.value) {
+    messagesContainer.value.scrollTo({ top: 0, behavior: "smooth" });
+  }
+};
+// 滚动到指定消息
+const scrollToMessageId = (id: string) => {
+  const container = messagesContainer.value;
+  if (!container) return;
+  const messageEl = container.querySelector(`[data-message-id="${id}"]`) as HTMLElement;
+  if (messageEl) {
+    const containerRect = container.getBoundingClientRect();
+    const messageRect = messageEl.getBoundingClientRect();
+    const targetScrollTop = container.scrollTop + (messageRect.top - containerRect.top) - 84; // 84是padding-top
+    container.scrollTo({ top: targetScrollTop, behavior: "smooth" });
+  }
+};
+
+// 滚动到下一条消息
+const scrollToNext = () => {
+  if (!messagesContainer.value) return;
+
+  const container = messagesContainer.value;
+  const messageEls = Array.from(container.querySelectorAll(".chat-message"));
+  const containerRect = container.getBoundingClientRect();
+
+  const nextMsg = messageEls.find((el) => {
+    const rect = el.getBoundingClientRect();
+    // 寻找第一个顶部在视口中心下方的消息，或者底部在视口下方的消息
+    return rect.top > containerRect.top + containerRect.height / 2 || rect.bottom > containerRect.bottom + 10;
+  }) as HTMLElement;
+
+  if (nextMsg) {
+    const rect = nextMsg.getBoundingClientRect();
+    const targetScrollTop = container.scrollTop + (rect.top - containerRect.top) - 84;
+    container.scrollTo({ top: targetScrollTop, behavior: "smooth" });
+  }
+};
+
+// 滚动到上一条消息
+const scrollToPrev = () => {
+  if (!messagesContainer.value) return;
+
+  const container = messagesContainer.value;
+  const messageEls = Array.from(container.querySelectorAll(".chat-message"));
+  const containerRect = container.getBoundingClientRect();
+
+  const prevMsg = [...messageEls].reverse().find((el) => {
+    const rect = el.getBoundingClientRect();
+    // 寻找上一个顶部在视口上方的消息
+    return rect.top < containerRect.top - 10;
+  }) as HTMLElement;
+
+  if (prevMsg) {
+    const rect = prevMsg.getBoundingClientRect();
+    const targetScrollTop = container.scrollTop + (rect.top - containerRect.top) - 84;
+    container.scrollTo({ top: targetScrollTop, behavior: "smooth" });
+  }
+};
+
+// 更新当前可见索引
+const updateVisibleIndex = () => {
+  if (!messagesContainer.value || props.messages.length === 0) {
+    currentVisibleIndex.value = 0;
+    return;
+  }
+  if (isNearBottom.value) {
+    currentVisibleIndex.value = props.messages.length;
+    return;
+  }
+
+  const container = messagesContainer.value;
+  const containerRect = container.getBoundingClientRect();
+  const messageEls = Array.from(container.querySelectorAll(".chat-message"));
+  const centerY = containerRect.top + containerRect.height / 2;
+
+  let found = false;
+  for (let i = 0; i < messageEls.length; i++) {
+    const rect = messageEls[i].getBoundingClientRect();
+    if (rect.top <= centerY && rect.bottom >= centerY) {
+      currentVisibleIndex.value = i + 1;
+      found = true;
+      break;
+    }
+  }
+  if (!found) currentVisibleIndex.value = 1;
+};
 
 // 滚动事件处理
 const onScroll = () => {
   if (!messagesContainer.value) return;
   const { scrollTop, scrollHeight, clientHeight } = messagesContainer.value;
-  // 使用用户配置的阈值，在这个范围内认为用户想看最新消息
   isNearBottom.value = scrollHeight - clientHeight - scrollTop < settings.value.uiPreferences.autoScrollThreshold;
+  updateVisibleIndex();
 };
 
-// 渐进式加载逻辑：使用 RAF 逐步增加 overscan（仅用于会话切换）
-const { pause: pauseProgressive, resume: resumeProgressive } = useRafFn(
-  () => {
-    if (!isSessionSwitching.value) {
-      pauseProgressive();
-      return;
-    }
-
-    // 每帧增加 overscan，直到达到目标值
-    const targetOverscan = settings.value.uiPreferences.virtualListOverscan;
-    if (progressiveOverscan.value < targetOverscan) {
-      progressiveOverscan.value = Math.min(progressiveOverscan.value + 5, targetOverscan);
-    } else {
-      // 渐进加载完成，恢复正常状态
-      isSessionSwitching.value = false;
-      pauseProgressive();
-
-      // 渐进加载完成后，再做一次最终定位到底部
-      // 此时虚拟列表已经测量了大部分元素，高度更准确
-      if (settings.value.uiPreferences.autoScroll && props.messages.length > 0) {
-        nextTick(() => {
-          if (messagesContainer.value) {
-            messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
-          }
-          // 延迟关闭保护期，给 Markdown 渲染留出稳定时间
-          // 保护期内 scrollToBottom 强制使用瞬时滚动，防止 smooth 动画中途停止
-          setTimeout(() => {
-            isSessionInitializing.value = false;
-          }, 800);
-        });
-      } else {
-        isSessionInitializing.value = false;
-      }
-    }
-  },
-  { immediate: false },
-);
-
-// 监听会话切换，启用渐进式加载
+// 监听会话切换
 watch(
   () => props.sessionIndex?.id,
   (newId, oldId) => {
     if (newId !== oldId && newId) {
-      // 会话切换时启用渐进式加载，同时激活初始化保护期
-      isSessionSwitching.value = true;
-      isSessionInitializing.value = true;
-      progressiveOverscan.value = 2;
-      measuredElements = new WeakSet<HTMLElement>(); // 重新创建 WeakSet 以清空缓存
-
-      // 核心优化：同步设置 scrollTop 到估算底部位置
-      // 虚拟列表基于 scrollTop 决定渲染哪些 items，
-      // 因此第一帧就会渲染底部消息，无需等待内容加载完再滚动
-      if (messagesContainer.value && props.messages.length > 0) {
-        // 使用 estimateSize(400) * 消息数量作为估算总高度
-        const estimatedTotal = props.messages.length * 400;
-        messagesContainer.value.scrollTop = estimatedTotal;
-        isNearBottom.value = true; // 标记当前在底部，触发后续自动跟随逻辑
-      }
-
-      // 延迟启动渐进式加载，给初始渲染留出时间
+      // 第一次 nextTick 等待 DOM 结构生成
       nextTick(() => {
-        setTimeout(() => {
-          resumeProgressive();
-        }, 150);
+        if (messagesContainer.value && props.messages.length > 0) {
+          messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
+          isNearBottom.value = true;
+          updateVisibleIndex();
+
+          // 第二次 nextTick 应对重型渲染器导致的布局变化
+          setTimeout(() => {
+            if (messagesContainer.value) {
+              messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
+            }
+          }, 50);
+          setTimeout(() => {
+            if (messagesContainer.value) {
+              messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
+            }
+          }, 150);
+        }
       });
     }
-  },{ flush: 'pre' }
-);
-
-// 监听消息列表引用变化（关键：覆盖切换智能体但 session.id 不变的场景）
-watch(
-  () => props.messages,
-  (newMsgs, oldMsgs) => {
-    if (newMsgs !== oldMsgs) {
-      // 记录当前滚动位置，防止 measure 导致的偏移
-      const container = messagesContainer.value;
-      const prevScrollTop = container ? container.scrollTop : 0;
-      const isAtBottom = isNearBottom.value;
-
-      // 只有在消息数量发生变化，或者从无到有时，才强制重置测量缓存
-      // 如果只是保存到分支（数量不变或仅增加），全量重测会导致滚动条大幅跳动
-      if (newMsgs.length !== oldMsgs?.length) {
-        measuredElements = new WeakSet<HTMLElement>();
-        virtualizer.value.measure();
-      }
-
-      // 如果是保存到分支等操作导致引用变化但位置应该保持的情况
-      if (container) {
-        if (isAtBottom) {
-          // 如果之前在底部，确保更新后仍然滚到底部
-          // 解决切换分支时，由于渲染延迟导致的滚动位置偏移问题
-          scrollToBottom();
-        } else {
-          nextTick(() => {
-            // 恢复之前的滚动位置
-            container.scrollTop = prevScrollTop;
-          });
-        }
-      }
-    }
   },
+  { flush: "post" },
 );
 
-// 监听消息数量、总高度变化以及最后一条消息的内容变化
+// 监听消息变化，自动滚动
 watch(
-  [
-    () => props.messages.length,
-    totalSize,
-    // 监听最后一条消息的内容，以便在流式输出时更及时地触发滚动
-    () => {
-      const lastMsg = props.messages[props.messages.length - 1];
-      return lastMsg ? lastMsg.content : "";
-    },
-  ],
-  ([newLength, newTotalSize, newLastContent], [oldLength, oldTotalSize, oldLastContent]) => {
+  [() => props.messages.length, () => props.messages[props.messages.length - 1]?.content],
+  ([newLength, newLastContent], [oldLength, oldLastContent]) => {
     if (!settings.value.uiPreferences.autoScroll) return;
-
-    // 如果正在进行会话切换的渐进加载，跳过自动滚动逻辑
-    // 避免在渐进加载过程中触发滚动，干扰性能优化
-    if (isSessionSwitching.value) return;
 
     const isNewMessage = newLength !== oldLength;
     const isContentChanged = newLastContent !== oldLastContent;
 
-    // 策略：
-    // 1. 如果是新消息出现，且用户之前就在底部附近，或者这是第一条消息，则滚动
-    // 2. 如果仅仅是内容变长(流式输出)，且用户在底部附近，则跟随滚动
-    // 3. 如果用户已经手动向上滚动查看历史(isNearBottom 为 false)，则不打扰
-
     if (isNewMessage) {
-      // 对于新消息，我们稍微放宽一点条件，只要不是离得太远，通常都希望看到新消息
-      // 或者是用户自己发送的消息（这里简化处理，假设新消息都滚动，除非用户特意翻上去）
       if (isNearBottom.value || newLength === 1) {
         scrollToBottom();
       }
-    } else if (isContentChanged || newTotalSize !== oldTotalSize) {
-      // 内容变化（流式输出）或总高度变化
+    } else if (isContentChanged) {
       if (isNearBottom.value) {
         scrollToBottom();
       }
@@ -324,98 +254,48 @@ watch(
   },
 );
 
-// 滚动到顶部
-const scrollToTop = () => {
-  if (messagesContainer.value) {
-    virtualizer.value.scrollToIndex(0, { align: "start" });
-    // 兜底：确保在虚拟列表重置后真正回到最顶部
-    nextTick(() => {
-      if (messagesContainer.value) {
-        messagesContainer.value.scrollTop = 0;
-      }
-    });
-  }
-};
+// 监听消息列表引用变化，处理分支切换等场景的位置保持
+watch(
+  () => props.messages,
+  (newMsgs, oldMsgs) => {
+    if (newMsgs === oldMsgs) return;
 
-/**
- * 精确跳转到最后一条消息（供 Navigator 使用）
- * 解决虚拟滚动估算高度不准导致直接 scrollTo scrollHeight 到不了底的问题
- */
-const scrollToEnd = () => {
-  if (messageCount.value > 0) {
-    // 强制使用瞬时滚动，避免动画过程中触发大量消息加载/卸载
-    virtualizer.value.scrollToIndex(messageCount.value - 1, { align: "end", behavior: "auto" });
-    // 兜底：等虚拟列表渲染完成后，再用原生滚动确保到底
-    nextTick(() => {
-      if (messagesContainer.value) {
-        messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
-      }
-    });
-  }
-};
+    const container = messagesContainer.value;
+    if (!container) return;
 
-// 滚动到下一条消息
-const scrollToNext = () => {
-  const items = virtualizer.value.getVirtualItems();
-  if (items.length === 0 || !messagesContainer.value) return;
+    const isAtBottom = isNearBottom.value;
 
-  const scrollTop = messagesContainer.value.scrollTop;
+    if (isAtBottom) {
+      scrollToBottom();
+    } else {
+      const messageEls = Array.from(container.querySelectorAll(".chat-message"));
+      const containerRect = container.getBoundingClientRect();
+      const firstVisibleEl = messageEls.find((el) => {
+        const rect = el.getBoundingClientRect();
+        return rect.bottom > containerRect.top;
+      });
+      const anchorId = firstVisibleEl?.getAttribute("data-message-id");
 
-  // 找到第一个真正可见的消息（底部位置大于当前滚动位置）
-  // items 包含 overscan 的元素，所以 items[0] 可能是视口上方的元素
-  const firstVisibleItem = items.find((item) => item.end > scrollTop);
+      nextTick(() => {
+        if (anchorId) {
+          const targetEl = container.querySelector(`[data-message-id="${anchorId}"]`);
+          targetEl?.scrollIntoView({ block: "start" });
+        }
+      });
+    }
+  },
+);
 
-  // 如果没找到（理论上不可能），就回退到第一个 item
-  const currentIndex = firstVisibleItem ? firstVisibleItem.index : items[0].index;
-  const nextIndex = currentIndex + 1;
-
-  if (nextIndex < props.messages.length) {
-    // 注意：动态高度的虚拟列表不支持 smooth 滚动，必须使用 auto
-    virtualizer.value.scrollToIndex(nextIndex, { align: "start", behavior: "auto" });
-  }
-};
-
-// 滚动到上一条消息
-const scrollToPrev = () => {
-  const items = virtualizer.value.getVirtualItems();
-  if (items.length === 0 || !messagesContainer.value) return;
-
-  const scrollTop = messagesContainer.value.scrollTop;
-
-  // 找到第一个真正可见的消息
-  const firstVisibleItem = items.find((item) => item.end > scrollTop);
-
-  const currentIndex = firstVisibleItem ? firstVisibleItem.index : items[0].index;
-  const prevIndex = currentIndex - 1;
-
-  if (prevIndex >= 0) {
-    // 注意：动态高度的虚拟列表不支持 smooth 滚动，必须使用 auto
-    virtualizer.value.scrollToIndex(prevIndex, { align: "start", behavior: "auto" });
-  }
-};
-
-/**
- * 滚动到指定消息 ID
- */
-const scrollToMessageId = (id: string) => {
-  const index = displayMessages.value.findIndex((m) => m.id === id);
-  if (index !== -1) {
-    virtualizer.value.scrollToIndex(index, { align: "start", behavior: "auto" });
-  }
-};
-
-// 事件处理函数
-// 注意：将 payload 放在前面，messageId 放在后面，以便在模板中利用 $event 直接传参
-// 从而避免在模板中编写箭头函数，解决 VSCode 隐式 any 报错和 vue-tsc 解析错误
-const handleRegenerate = (options: { modelId?: string; profileId?: string } | undefined, messageId: string) => {
+// 事件处理
+const handleRegenerate = (messageId: string, options?: { modelId?: string; profileId?: string }) => {
   emit("regenerate", messageId, options);
 };
 
-const handleContinue = (options: { modelId?: string; profileId?: string } | undefined, messageId: string) => {
+const handleContinue = (messageId: string, options?: { modelId?: string; profileId?: string }) => {
   emit("continue", messageId, options);
 };
 
-const handleSwitchSibling = (direction: "prev" | "next", messageId: string) => {
+const handleSwitchSibling = (messageId: string, direction: "prev" | "next") => {
   emit("switch-sibling", messageId, direction);
 };
 
@@ -423,36 +303,14 @@ const handleSwitchBranch = (nodeId: string) => {
   emit("switch-branch", nodeId);
 };
 
-// 编辑消息涉及多个参数，模板中只能用箭头函数，这里保持参数顺序不变
 const handleEditMessage = (nodeId: string, newContent: string, attachments?: Asset[]) => {
   emit("edit-message", nodeId, newContent, attachments);
 };
 
-// 处理保存到分支事件
 const handleSaveToBranch = (nodeId: string, newContent: string, attachments?: Asset[]) => {
   emit("save-to-branch", nodeId, newContent, attachments);
 };
 
-// 处理组件高度调整请求
-// 使用具体元素的测量而非全量 measure，避免滚动条跳动
-const handleResize = (dom: HTMLElement | null) => {
-  if (!dom) return;
-  // ChatMessage 传来的是内部 messageRef，需要向上查找设置了 data-index 的虚拟列表项渲染容器
-  const wrapper = dom.closest("[data-index]") as HTMLElement | null;
-  if (wrapper) {
-    virtualizer.value.measureElement(wrapper);
-  }
-};
-
-// 优化的测量函数：避免重复测量已经测量过的元素
-const measureElementOnce = (el: HTMLElement) => {
-  if (!measuredElements.has(el)) {
-    virtualizer.value.measureElement(el);
-    measuredElements.add(el);
-  }
-};
-
-// 暴露滚动方法和容器引用供外部调用
 defineExpose({
   scrollToBottom,
   scrollToEnd,
@@ -468,126 +326,82 @@ defineExpose({
 <template>
   <div class="message-list-container">
     <div ref="messagesContainer" class="message-list" @scroll="onScroll">
-      <div v-if="displayMessages.length === 0" class="empty-state">
+      <div v-if="messages.length === 0" class="empty-state">
         <p>👋 开始新的对话吧！</p>
       </div>
 
-      <!-- 虚拟滚动容器 -->
-      <div
-        v-else
-        :style="{
-          height: `${totalSize}px`,
-          width: '100%',
-          position: 'relative',
-        }"
-      >
-        <!-- 仅渲染可见的虚拟项 -->
-        <div
-          v-for="virtualItem in virtualItems"
-          :key="displayMessages[virtualItem.index].id"
-          :data-index="virtualItem.index"
-          :ref="
-            (el) => {
-              if (el) measureElementOnce(el as HTMLElement);
-            }
-          "
-          :style="{
-            position: 'absolute',
-            top: `${virtualItem.start}px`,
-            left: 0,
-            width: '100%',
-          }"
-        >
-          <div class="message-wrapper">
-            <!-- 压缩节点渲染 -->
-            <CompressionMessage
-              v-if="displayMessages[virtualItem.index].metadata?.isCompressionNode"
-              :session-index="props.sessionIndex"
-              :session-detail="props.sessionDetail"
-              :message="displayMessages[virtualItem.index]"
-              :message-depth="displayMessages.length - 1 - virtualItem.index"
-              @toggle-enabled="emit('toggle-enabled', displayMessages[virtualItem.index].id)"
-              @delete="emit('delete-message', displayMessages[virtualItem.index].id)"
-              @update-content="(content: string) => store.editMessage(displayMessages[virtualItem.index].id, content)"
-              @update-role="(role: any) => store.updateNodeData(displayMessages[virtualItem.index].id, { role })"
-              @resize="handleResize"
-            />
+      <div v-else class="messages-container">
+        <template v-for="msg in messages" :key="msg.id">
+          <!-- 压缩节点渲染 -->
+          <CompressionMessage
+            v-if="msg.metadata?.isCompressionNode"
+            :session-index="props.sessionIndex"
+            :session-detail="props.sessionDetail"
+            :message="msg"
+            :message-depth="messages.length - 1 - messages.indexOf(msg)"
+            @toggle-enabled="emit('toggle-enabled', msg.id)"
+            @delete="emit('delete-message', msg.id)"
+            @update-content="(content: string) => store.editMessage(msg.id, content)"
+            @update-role="(role: any) => store.updateNodeData(msg.id, { role })"
+          />
 
-            <!-- 工具调用结果渲染 -->
-            <ToolCallMessage
-              v-else-if="displayMessages[virtualItem.index].role === 'tool'"
-              :session-index="props.sessionIndex"
-              :session-detail="props.sessionDetail"
-              :message="displayMessages[virtualItem.index]"
-              :message-depth="displayMessages.length - 1 - virtualItem.index"
-              :is-sending="isSending"
-              :siblings="getMessageSiblings(displayMessages[virtualItem.index].id).siblings"
-              :current-sibling-index="getMessageSiblings(displayMessages[virtualItem.index].id).currentIndex"
-              @delete="emit('delete-message', displayMessages[virtualItem.index].id)"
-              @regenerate="handleRegenerate($event, displayMessages[virtualItem.index].id)"
-              @switch-sibling="handleSwitchSibling($event, displayMessages[virtualItem.index].id)"
-              @switch-branch="handleSwitchBranch"
-              @toggle-enabled="emit('toggle-enabled', displayMessages[virtualItem.index].id)"
-              @edit="
-                (newContent: any, attachments: any) =>
-                  handleEditMessage(displayMessages[virtualItem.index].id, newContent, attachments)
-              "
-              @copy="() => {}"
-              @abort="emit('abort-node', displayMessages[virtualItem.index].id)"
-              @continue="handleContinue($event, displayMessages[virtualItem.index].id)"
-              @create-branch="emit('create-branch', displayMessages[virtualItem.index].id)"
-              @analyze-context="emit('analyze-context', displayMessages[virtualItem.index].id)"
-              @reparse-tools="emit('reparse-tools', displayMessages[virtualItem.index].id)"
-              @save-to-branch="handleSaveToBranch(displayMessages[virtualItem.index].id, $event)"
-              @update-translation="
-                (translation: any) => store.updateMessageTranslation(displayMessages[virtualItem.index].id, translation)
-              "
-              @resize="handleResize"
-            />
+          <!-- 工具调用结果渲染 -->
+          <ToolCallMessage
+            v-else-if="msg.role === 'tool'"
+            :session-index="props.sessionIndex"
+            :session-detail="props.sessionDetail"
+            :message="msg"
+            :message-depth="messages.length - 1 - messages.indexOf(msg)"
+            :is-sending="isSending"
+            :siblings="getMessageSiblings(msg.id).siblings"
+            :current-sibling-index="getMessageSiblings(msg.id).currentIndex"
+            @delete="emit('delete-message', msg.id)"
+            @regenerate="handleRegenerate(msg.id, $event)"
+            @switch-sibling="handleSwitchSibling(msg.id, $event)"
+            @switch-branch="handleSwitchBranch"
+            @toggle-enabled="emit('toggle-enabled', msg.id)"
+            @edit="(newContent: any, attachments: any) => handleEditMessage(msg.id, newContent, attachments)"
+            @copy="() => {}"
+            @abort="emit('abort-node', msg.id)"
+            @continue="handleContinue(msg.id, $event)"
+            @create-branch="emit('create-branch', msg.id)"
+            @analyze-context="emit('analyze-context', msg.id)"
+            @reparse-tools="emit('reparse-tools', msg.id)"
+            @save-to-branch="handleSaveToBranch(msg.id, $event)"
+            @update-translation="(translation: any) => store.updateMessageTranslation(msg.id, translation)"
+          />
 
-            <!-- 普通消息渲染 -->
-            <ChatMessage
-              v-else
-              :session-index="props.sessionIndex"
-              :session-detail="props.sessionDetail"
-              :message="displayMessages[virtualItem.index]"
-              :is-compressed="compressedNodeIds.has(displayMessages[virtualItem.index].id)"
-              :message-depth="displayMessages.length - 1 - virtualItem.index"
-              :is-sending="isSending"
-              :siblings="getMessageSiblings(displayMessages[virtualItem.index].id).siblings"
-              :current-sibling-index="getMessageSiblings(displayMessages[virtualItem.index].id).currentIndex"
-              :llm-think-rules="llmThinkRules"
-              :rich-text-style-options="
-                displayMessages[virtualItem.index].role === 'user'
-                  ? userRichTextStyleOptions || richTextStyleOptions
-                  : richTextStyleOptions
-              "
-              @delete="emit('delete-message', displayMessages[virtualItem.index].id)"
-              @regenerate="handleRegenerate($event, displayMessages[virtualItem.index].id)"
-              @switch-sibling="handleSwitchSibling($event, displayMessages[virtualItem.index].id)"
-              @switch-branch="handleSwitchBranch"
-              @toggle-enabled="emit('toggle-enabled', displayMessages[virtualItem.index].id)"
-              @edit="
-                (newContent: any, attachments: any) =>
-                  handleEditMessage(displayMessages[virtualItem.index].id, newContent, attachments)
-              "
-              @save-to-branch="
-                (newContent: any, attachments: any) =>
-                  handleSaveToBranch(displayMessages[virtualItem.index].id, newContent, attachments)
-              "
-              @copy="() => {}"
-              @abort="emit('abort-node', displayMessages[virtualItem.index].id)"
-              @continue="handleContinue($event, displayMessages[virtualItem.index].id)"
-              @create-branch="emit('create-branch', displayMessages[virtualItem.index].id)"
-              @analyze-context="emit('analyze-context', displayMessages[virtualItem.index].id)"
-              @reparse-tools="emit('reparse-tools', displayMessages[virtualItem.index].id)"
-              @update-translation="
-                (translation: any) => store.updateMessageTranslation(displayMessages[virtualItem.index].id, translation)
-              "
-              @resize="handleResize"
-            />
-          </div>
-        </div>
+          <!-- 普通消息渲染 -->
+          <ChatMessage
+            v-else
+            :session-index="props.sessionIndex"
+            :session-detail="props.sessionDetail"
+            :message="msg"
+            :is-compressed="compressedNodeIds.has(msg.id)"
+            :message-depth="messages.length - 1 - messages.indexOf(msg)"
+            :is-sending="isSending"
+            :siblings="getMessageSiblings(msg.id).siblings"
+            :current-sibling-index="getMessageSiblings(msg.id).currentIndex"
+            :llm-think-rules="llmThinkRules"
+            :rich-text-style-options="
+              msg.role === 'user' ? userRichTextStyleOptions || richTextStyleOptions : richTextStyleOptions
+            "
+            @delete="emit('delete-message', msg.id)"
+            @regenerate="handleRegenerate(msg.id, $event)"
+            @switch-sibling="handleSwitchSibling(msg.id, $event)"
+            @switch-branch="handleSwitchBranch"
+            @toggle-enabled="emit('toggle-enabled', msg.id)"
+            @edit="(newContent: any, attachments: any) => handleEditMessage(msg.id, newContent, attachments)"
+            @save-to-branch="(newContent: any, attachments: any) => handleSaveToBranch(msg.id, newContent, attachments)"
+            @copy="() => {}"
+            @abort="emit('abort-node', msg.id)"
+            @continue="handleContinue(msg.id, $event)"
+            @create-branch="emit('create-branch', msg.id)"
+            @analyze-context="emit('analyze-context', msg.id)"
+            @reparse-tools="emit('reparse-tools', msg.id)"
+            @update-translation="(translation: any) => store.updateMessageTranslation(msg.id, translation)"
+          />
+        </template>
       </div>
     </div>
   </div>
@@ -604,15 +418,20 @@ defineExpose({
 
 .message-list {
   flex: 1;
-  overflow-y: auto; /* 使用 auto 以支持虚拟滚动 */
-  padding: 84px 20px 20px 28px; /* 左右各增加8px间距 */
+  overflow-y: auto;
+  overflow-anchor: auto;
+  padding: 84px 20px 20px 28px;
 }
 
-.message-wrapper {
+.messages-container {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 8px 0; /* 消息间距 */
+}
+
+.messages-container :deep(.chat-message) {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 600px;
 }
 
 .empty-state {
@@ -624,7 +443,6 @@ defineExpose({
   font-size: 16px;
 }
 
-/* 自定义滚动条 */
 .message-list::-webkit-scrollbar {
   width: 8px;
 }

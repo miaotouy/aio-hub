@@ -194,6 +194,7 @@ onUnmounted(() => {
 .main-content {
   background-color: var(--bg-color);
   overflow-y: auto;
+  overscroll-behavior: contain;
   flex-grow: 1;
   height: 100%;
   box-sizing: border-box;

@@ -1179,6 +1179,9 @@ onMounted(async () => {
   flex: 1; /* 关键：弹性增长，占据所有剩余空间 */
   min-height: 0;
   overflow: hidden; /* 防止内容溢出 */
+  /* 布局隔离：防止内部滚动传播到上层容器 */
+  overscroll-behavior: contain;
+  contain: layout style;
 }
 
 /* 使用伪元素叠加层实现顶部渐隐，避免 mask 与 backdrop-filter 冲突 */

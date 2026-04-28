@@ -42,6 +42,8 @@ body {
   width: 100%;
   height: 100%;
   overflow: hidden;
+  /* 彻底阻断滚动链传播，防止内部滚动影响窗口定位 */
+  overscroll-behavior: none;
 }
 
 #app {

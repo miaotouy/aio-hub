@@ -34,7 +34,7 @@ const { arrivedState } = useScroll(
   computed(() => props.scrollElement),
   {
     offset: { top: 50, bottom: 50 },
-  }
+  },
 );
 
 // 当前可见的消息索引
@@ -85,7 +85,7 @@ watch(
     if (isAtBottom && props.hasNewMessages) {
       emit("seen-new-messages");
     }
-  }
+  },
 );
 </script>
 
@@ -99,16 +99,8 @@ watch(
       @mouseleave="handleMouseLeave"
     >
       <!-- 到顶按钮 -->
-      <el-tooltip
-        :content="canScrollUp ? '跳转到顶部' : '已在顶部'"
-        placement="right"
-        :show-after="300"
-      >
-        <div
-          class="nav-button nav-button-jump"
-          :class="{ disabled: !canScrollUp }"
-          @click="handleScrollToTop"
-        >
+      <el-tooltip :content="canScrollUp ? '跳转到顶部' : '已在顶部'" placement="right" :show-after="300">
+        <div class="nav-button nav-button-jump" :class="{ disabled: !canScrollUp }" @click="handleScrollToTop">
           <el-icon :size="14" style="transform: rotate(90deg)">
             <DArrowLeft />
           </el-icon>
@@ -116,11 +108,7 @@ watch(
       </el-tooltip>
 
       <!-- 向上按钮 -->
-      <el-tooltip
-        :content="canScrollUp ? '上一条消息 (↑)' : '已在顶部'"
-        placement="right"
-        :show-after="300"
-      >
+      <el-tooltip :content="canScrollUp ? '上一条消息 (↑)' : '已在顶部'" placement="right" :show-after="300">
         <div class="nav-button" :class="{ disabled: !canScrollUp }" @click="handleScrollToPrev">
           <el-icon :size="14">
             <ArrowUp />
@@ -136,11 +124,7 @@ watch(
       </div>
 
       <!-- 向下按钮 -->
-      <el-tooltip
-        :content="canScrollDown ? '下一条消息 (↓)' : '已在底部'"
-        placement="right"
-        :show-after="300"
-      >
+      <el-tooltip :content="canScrollDown ? '下一条消息 (↓)' : '已在底部'" placement="right" :show-after="300">
         <div
           class="nav-button"
           :class="{ disabled: !canScrollDown, 'has-new-badge': hasNewMessages && canScrollDown }"
@@ -154,11 +138,7 @@ watch(
       </el-tooltip>
 
       <!-- 到底按钮 -->
-      <el-tooltip
-        :content="canScrollDown ? '跳转到底部' : '已在底部'"
-        placement="right"
-        :show-after="300"
-      >
+      <el-tooltip :content="canScrollDown ? '跳转到底部' : '已在底部'" placement="right" :show-after="300">
         <div
           class="nav-button nav-button-jump"
           :class="{ disabled: !canScrollDown, 'has-new-badge': hasNewMessages && canScrollDown }"
@@ -202,6 +182,10 @@ watch(
 
   /* 收起状态半透明 */
   opacity: 0.5;
+
+  /* 防止滚动时布局抖动 */
+  will-change: left, opacity;
+  contain: layout style;
 }
 
 /* 触发范围的伪元素 */

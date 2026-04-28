@@ -106,7 +106,8 @@ const scrollToBottom = useThrottleFn(() => {
 // 滚动到底部（供 Navigator 使用）
 const scrollToEnd = () => {
   if (messagesContainer.value) {
-    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
+    const maxScroll = messagesContainer.value.scrollHeight - messagesContainer.value.clientHeight;
+    messagesContainer.value.scrollTop = Math.max(0, maxScroll);
   }
 };
 
@@ -125,7 +126,9 @@ const scrollToMessageId = (id: string) => {
     const containerRect = container.getBoundingClientRect();
     const messageRect = messageEl.getBoundingClientRect();
     const targetScrollTop = container.scrollTop + (messageRect.top - containerRect.top) - 84; // 84是padding-top
-    container.scrollTo({ top: targetScrollTop, behavior: "smooth" });
+    const maxScroll = container.scrollHeight - container.clientHeight;
+    const clampedScrollTop = Math.max(0, Math.min(targetScrollTop, maxScroll));
+    container.scrollTo({ top: clampedScrollTop, behavior: "smooth" });
   }
 };
 
@@ -146,7 +149,9 @@ const scrollToNext = () => {
   if (nextMsg) {
     const rect = nextMsg.getBoundingClientRect();
     const targetScrollTop = container.scrollTop + (rect.top - containerRect.top) - 84;
-    container.scrollTo({ top: targetScrollTop, behavior: "smooth" });
+    const maxScroll = container.scrollHeight - container.clientHeight;
+    const clampedScrollTop = Math.max(0, Math.min(targetScrollTop, maxScroll));
+    container.scrollTo({ top: clampedScrollTop, behavior: "smooth" });
   }
 };
 
@@ -167,7 +172,9 @@ const scrollToPrev = () => {
   if (prevMsg) {
     const rect = prevMsg.getBoundingClientRect();
     const targetScrollTop = container.scrollTop + (rect.top - containerRect.top) - 84;
-    container.scrollTo({ top: targetScrollTop, behavior: "smooth" });
+    const maxScroll = container.scrollHeight - container.clientHeight;
+    const clampedScrollTop = Math.max(0, Math.min(targetScrollTop, maxScroll));
+    container.scrollTo({ top: clampedScrollTop, behavior: "smooth" });
   }
 };
 
@@ -485,7 +492,11 @@ defineExpose({
 .message-list {
   flex: 1;
   overflow-y: auto;
-  overflow-anchor: auto;
+  /* 禁用浏览器自动滚动锚定，避免与程序化 scrollTo 产生对抗导致布局抖动 */
+  overflow-anchor: none;
+  overscroll-behavior: contain;
+  /* 渲染隔离：防止内部布局变化影响外部容器 */
+  contain: layout style;
   padding: 84px 20px 20px 28px;
 }
 

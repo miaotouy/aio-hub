@@ -88,6 +88,8 @@ const currentVisibleIndex = ref(0);
 // 追踪正在切换的消息 ID 和其在视口中的相对位置
 const switchingMessageId = ref<string | null>(null);
 const switchingMessageViewportOffset = ref<number>(0);
+// 记录捕获时的原始滚动位置，用于检测浏览器强制修正
+const switchingOriginalScrollTop = ref<number>(0);
 
 // 滚动到底部
 const scrollToBottom = useThrottleFn(() => {
@@ -278,9 +280,10 @@ watch(
 
     // 如果正在追踪切换的消息，优先恢复其位置
     if (switchingMessageId.value) {
-      nextTick(() => {
-        restoreSwitchingMessagePosition();
-      });
+      // 增加多次尝试，应对异步渲染
+      nextTick(() => restoreSwitchingMessagePosition());
+      setTimeout(() => restoreSwitchingMessagePosition(), 50);
+      setTimeout(() => restoreSwitchingMessagePosition(), 150);
       return;
     }
 
@@ -326,6 +329,12 @@ const handleSwitchBranch = (nodeId: string) => {
   emit("switch-branch", nodeId);
 };
 
+const handleCreateBranch = (nodeId: string) => {
+  // 记录创建分支前的消息位置，防止下方内容消失导致跳动
+  captureSwitchingMessagePosition(nodeId);
+  emit("create-branch", nodeId);
+};
+
 /**
  * 捕获正在切换的消息在视口中的位置
  */
@@ -342,6 +351,7 @@ const captureSwitchingMessagePosition = (messageId: string) => {
   // 记录消息顶部相对于容器顶部的偏移量
   switchingMessageId.value = messageId;
   switchingMessageViewportOffset.value = messageRect.top - containerRect.top;
+  switchingOriginalScrollTop.value = container.scrollTop;
 };
 
 /**
@@ -354,26 +364,26 @@ const restoreSwitchingMessagePosition = () => {
   if (!container) return;
 
   const messageEl = container.querySelector(`[data-message-id="${switchingMessageId.value}"]`) as HTMLElement;
-  if (!messageEl) {
-    // 如果找不到消息元素，清除追踪状态
-    switchingMessageId.value = null;
-    return;
-  }
+
+  if (!messageEl) return;
 
   const containerRect = container.getBoundingClientRect();
   const messageRect = messageEl.getBoundingClientRect();
 
-  // 计算需要滚动的距离，使消息保持在相同的视口位置
+  // 计算当前偏移量
   const currentOffset = messageRect.top - containerRect.top;
+  // 我们希望 currentOffset 等于 switchingMessageViewportOffset
   const scrollDelta = currentOffset - switchingMessageViewportOffset.value;
 
-  if (Math.abs(scrollDelta) > 1) {
+  if (Math.abs(scrollDelta) > 0.5) {
     const targetScrollTop = container.scrollTop + scrollDelta;
     const maxScroll = container.scrollHeight - container.clientHeight;
-    container.scrollTop = Math.max(0, Math.min(targetScrollTop, maxScroll));
+    const finalScrollTop = Math.max(0, Math.min(targetScrollTop, maxScroll));
+
+    container.scrollTop = finalScrollTop;
   }
 
-  // 清除追踪状态
+  // 只要尝试恢复了（不管有没有 delta），就清除状态，避免反复触发
   switchingMessageId.value = null;
   switchingMessageViewportOffset.value = 0;
 };
@@ -439,7 +449,7 @@ defineExpose({
             @copy="() => {}"
             @abort="emit('abort-node', msg.id)"
             @continue="handleContinue(msg.id, $event)"
-            @create-branch="emit('create-branch', msg.id)"
+            @create-branch="handleCreateBranch(msg.id)"
             @analyze-context="emit('analyze-context', msg.id)"
             @reparse-tools="emit('reparse-tools', msg.id)"
             @save-to-branch="handleSaveToBranch(msg.id, $event)"
@@ -471,7 +481,7 @@ defineExpose({
             @copy="() => {}"
             @abort="emit('abort-node', msg.id)"
             @continue="handleContinue(msg.id, $event)"
-            @create-branch="emit('create-branch', msg.id)"
+            @create-branch="handleCreateBranch(msg.id)"
             @analyze-context="emit('analyze-context', msg.id)"
             @reparse-tools="emit('reparse-tools', msg.id)"
             @update-translation="(translation: any) => store.updateMessageTranslation(msg.id, translation)"

@@ -1,35 +1,46 @@
 ---
 name: context7
-description: Automatically fetch latest documentation using Context7 CLI when encountering unfamiliar libraries, frameworks, or APIs. Use this skill to get real-time, version-specific docs and code examples.
+description: Automatically fetch latest documentation for any library using Context7 CLI. Use this when user asks about any library, framework, or API (e.g., "how to use Next.js 15 App Router", "React 19 hooks", "Tailwind CSS v4").
 ---
 
-# Context7 Documentation Query Skill
+# Context7 Documentation Fetcher
 
-When the user asks about a library, framework, or tool (e.g., "How to use Next.js 15 App Router", "React 19 hooks", "Tailwind CSS v4 dark mode"), follow this process:
+This skill ensures you always provide correct, up-to-date answers by querying official documentation via Context7 CLI.
 
-## Step 1: Identify the library and query
+## When to use
 
-Extract the library name and the specific topic/question from the user's message.
+- User asks about a library/framework/tool (e.g., Vue, Svelte, FastAPI, Spring Boot, etc.)
+- User wants code examples or best practices
+- User mentions a version (e.g., "Next.js 15", "React 19")
 
-## Step 2: Run Context7 CLI
+## How to use
 
-Execute the following command in the user's project directory:
+1. **Identify the library ID**
+   - Try common names: `nextjs`, `react`, `vue`, `tailwindcss`, `fastapi`, `spring-boot`, etc.
+   - If uncertain, run: `npx ctx7 library <partial-name>`
+   - Example: `npx ctx7 library "next"` → returns `/vercel/next.js`
 
-```bash
-bunx ctx7 docs <library-name> "<query>"
+2. **Fetch documentation**
+   - Run: `npx ctx7 docs <libraryId> "<user's query>"`
+   - Example: `npx ctx7 docs /vercel/next.js "app router middleware"`
+
+3. **Read the output** – it returns markdown with examples and version info.
+
+4. **Answer the user** citing the retrieved documentation.
+
+## Example flow
+
+User: "How do I use `useActionState` in React 19?"
+
+You run:
+
+```
+npx ctx7 docs /facebook/react "useActionState hook"
 ```
 
-Replace `<library-name>` with the library identifier (e.g., `nextjs`, `react`, `tailwindcss`).  
-If unsure about the exact library name, first run:
+Use the returned content to write your answer.
 
-```bash
-bunx ctx7 resolve <partial-name>
-```
+## If the command fails
 
-## Step 3: Read and incorporate the output
-
-Capture the output of the `ctx7 docs` command. It will contain markdown-formatted documentation and code examples. Use that information to answer the user's question accurately, citing the source (version, date).
-
-## Step 4: Fallback
-
-If `ctx7 docs` fails (network error, library not found), inform the user and fall back to your built-in knowledge with a warning that it might be outdated.
+- If network error, inform user and fall back to your built-in knowledge with a warning that info may be outdated.
+- If library not found, suggest user to check the library name on [Context7](https://context7.com).

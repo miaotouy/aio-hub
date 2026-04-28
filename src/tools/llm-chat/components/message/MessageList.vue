@@ -85,6 +85,10 @@ const isNearBottom = ref(true);
 // 当前可见的消息索引 (1-based)
 const currentVisibleIndex = ref(0);
 
+// 追踪正在切换的消息 ID 和其在视口中的相对位置
+const switchingMessageId = ref<string | null>(null);
+const switchingMessageViewportOffset = ref<number>(0);
+
 // 滚动到底部
 const scrollToBottom = useThrottleFn(() => {
   nextTick(() => {
@@ -265,6 +269,14 @@ watch(
 
     const isAtBottom = isNearBottom.value;
 
+    // 如果正在追踪切换的消息，优先恢复其位置
+    if (switchingMessageId.value) {
+      nextTick(() => {
+        restoreSwitchingMessagePosition();
+      });
+      return;
+    }
+
     if (isAtBottom) {
       scrollToBottom();
     } else {
@@ -296,11 +308,65 @@ const handleContinue = (messageId: string, options?: { modelId?: string; profile
 };
 
 const handleSwitchSibling = (messageId: string, direction: "prev" | "next") => {
+  // 记录切换前的消息位置
+  captureSwitchingMessagePosition(messageId);
   emit("switch-sibling", messageId, direction);
 };
 
 const handleSwitchBranch = (nodeId: string) => {
+  // 记录切换前的消息位置
+  captureSwitchingMessagePosition(nodeId);
   emit("switch-branch", nodeId);
+};
+
+/**
+ * 捕获正在切换的消息在视口中的位置
+ */
+const captureSwitchingMessagePosition = (messageId: string) => {
+  const container = messagesContainer.value;
+  if (!container) return;
+
+  const messageEl = container.querySelector(`[data-message-id="${messageId}"]`) as HTMLElement;
+  if (!messageEl) return;
+
+  const containerRect = container.getBoundingClientRect();
+  const messageRect = messageEl.getBoundingClientRect();
+
+  // 记录消息顶部相对于容器顶部的偏移量
+  switchingMessageId.value = messageId;
+  switchingMessageViewportOffset.value = messageRect.top - containerRect.top;
+};
+
+/**
+ * 恢复切换后的消息位置
+ */
+const restoreSwitchingMessagePosition = () => {
+  if (!switchingMessageId.value) return;
+
+  const container = messagesContainer.value;
+  if (!container) return;
+
+  const messageEl = container.querySelector(`[data-message-id="${switchingMessageId.value}"]`) as HTMLElement;
+  if (!messageEl) {
+    // 如果找不到消息元素，清除追踪状态
+    switchingMessageId.value = null;
+    return;
+  }
+
+  const containerRect = container.getBoundingClientRect();
+  const messageRect = messageEl.getBoundingClientRect();
+
+  // 计算需要滚动的距离，使消息保持在相同的视口位置
+  const currentOffset = messageRect.top - containerRect.top;
+  const scrollDelta = currentOffset - switchingMessageViewportOffset.value;
+
+  if (Math.abs(scrollDelta) > 1) {
+    container.scrollTop += scrollDelta;
+  }
+
+  // 清除追踪状态
+  switchingMessageId.value = null;
+  switchingMessageViewportOffset.value = 0;
 };
 
 const handleEditMessage = (nodeId: string, newContent: string, attachments?: Asset[]) => {

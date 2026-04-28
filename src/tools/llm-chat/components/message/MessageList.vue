@@ -343,7 +343,8 @@ const scrollToTop = () => {
  */
 const scrollToEnd = () => {
   if (messageCount.value > 0) {
-    virtualizer.value.scrollToIndex(messageCount.value - 1, { align: "end" });
+    // 强制使用瞬时滚动，避免动画过程中触发大量消息加载/卸载
+    virtualizer.value.scrollToIndex(messageCount.value - 1, { align: "end", behavior: "auto" });
     // 兜底：等虚拟列表渲染完成后，再用原生滚动确保到底
     nextTick(() => {
       if (messagesContainer.value) {

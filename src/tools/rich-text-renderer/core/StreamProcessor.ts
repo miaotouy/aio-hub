@@ -8,9 +8,9 @@
  * 4. 这种策略确保了流式解析的正确性，避免了对不完整语法的错误固化。
  */
 
-import MarkdownIt from 'markdown-it';
-import texmath from 'markdown-it-texmath';
-import katex from 'katex';
+import MarkdownIt from "markdown-it";
+import texmath from "markdown-it-texmath";
+import katex from "katex";
 import type {
   AstNode,
   Patch,
@@ -39,7 +39,7 @@ import type {
   StrikethroughNode,
   KatexInlineNode,
   KatexBlockNode,
-} from '../types';
+} from "../types";
 
 /**
  * Markdown 语义边界检测器
@@ -58,7 +58,7 @@ class MarkdownBoundaryDetector {
    * 安全点意味着不存在未闭合的块级结构。
    */
   isSafeParsePoint(text: string): boolean {
-    const lines = text.split('\n');
+    const lines = text.split("\n");
     const lastLines = lines.slice(-3); // 检查最后几行
 
     // 不安全情况：
@@ -89,12 +89,12 @@ class MarkdownBoundaryDetector {
    * 主要检查最后一行是否是表格的分隔符
    */
   private isIncompleteTable(lastLines: string[]): boolean {
-    const lastLine = lastLines[lastLines.length - 1]?.trim() || '';
+    const lastLine = lastLines[lastLines.length - 1]?.trim() || "";
     if (/^\|[\s:-]+\|/.test(lastLine)) {
       // 检查前一行是否是表头
       if (lastLines.length > 1) {
-        const prevLine = lastLines[lastLines.length - 2]?.trim() || '';
-        return prevLine.includes('|');
+        const prevLine = lastLines[lastLines.length - 2]?.trim() || "";
+        return prevLine.includes("|");
       }
     }
     return false;
@@ -136,14 +136,14 @@ class MarkdownBoundaryDetector {
    * 找到安全的块边界，将文本分割为稳定区和待定区
    */
   splitByBlockBoundary(text: string): { stable: string; pending: string } {
-    const lines = text.split('\n');
+    const lines = text.split("\n");
     let stableEndLineIndex = -1;
 
     // 从后向前查找最后一个安全的块边界（通常是双换行符）
     for (let i = lines.length - 1; i >= 0; i--) {
       // 检查当前行是否为空行，且前面的内容是安全的
-      if (lines[i].trim() === '') {
-        const testText = lines.slice(0, i).join('\n');
+      if (lines[i].trim() === "") {
+        const testText = lines.slice(0, i).join("\n");
         if (this.isSafeParsePoint(testText)) {
           stableEndLineIndex = i;
           break;
@@ -156,24 +156,23 @@ class MarkdownBoundaryDetector {
       const stableLines = lines.slice(0, stableEndLineIndex + 1);
       const pendingLines = lines.slice(stableEndLineIndex + 1);
       return {
-        stable: stableLines.join('\n'),
-        pending: pendingLines.join('\n'),
+        stable: stableLines.join("\n"),
+        pending: pendingLines.join("\n"),
       };
     } else {
       // 没有找到明确的边界，检查整个文本是否安全
       if (this.isSafeParsePoint(text)) {
-        return { stable: text, pending: '' };
+        return { stable: text, pending: "" };
       } else {
-        return { stable: '', pending: text };
+        return { stable: "", pending: text };
       }
     }
   }
 }
 
-
 export class StreamProcessor {
   private nodeIdCounter = 1;
-  private buffer = '';
+  private buffer = "";
   private onPatch: (patches: Patch[]) => void;
   private md: MarkdownIt;
   private boundaryDetector: MarkdownBoundaryDetector;
@@ -182,9 +181,9 @@ export class StreamProcessor {
   private defaultToolCallCollapsed: boolean;
 
   // 状态
-  private stableAst: AstNode[] = [];      // 已稳定的节点
-  private pendingAst: AstNode[] = [];     // 上次解析的待定区 AST
-  private stableTextLength = 0;          // 已稳定文本的长度
+  private stableAst: AstNode[] = []; // 已稳定的节点
+  private pendingAst: AstNode[] = []; // 上次解析的待定区 AST
+  private stableTextLength = 0; // 已稳定文本的长度
   private isProcessing = false;
   private pendingBuffer: string | null = null;
   private resolveProcessing: (() => void) | null = null;
@@ -206,8 +205,8 @@ export class StreamProcessor {
     // 使用 texmath 插件添加 KaTeX 数学公式支持
     this.md.use(texmath, {
       engine: katex,
-      delimiters: 'dollars', // 使用 $...$ 和 $$...$$ 语法
-      macros: {}
+      delimiters: "dollars", // 使用 $...$ 和 $$...$$ 语法
+      macros: {},
     });
   }
 
@@ -230,6 +229,14 @@ export class StreamProcessor {
   }
 
   /**
+   * 设置静态完整内容（优化非流式路径）
+   */
+  public async setStaticContent(content: string): Promise<void> {
+    this.buffer = content;
+    await this.processComplete();
+  }
+
+  /**
    * 结束流式处理。
    * 这会处理缓冲区中剩余的任何内容，并确保所有节点都处于稳定状态。
    */
@@ -243,10 +250,7 @@ export class StreamProcessor {
         const processingPromise = new Promise<void>((resolve) => {
           this.resolveProcessing = resolve;
         });
-        await Promise.race([
-          processingPromise,
-          new Promise((resolve) => setTimeout(resolve, 1000)),
-        ]);
+        await Promise.race([processingPromise, new Promise((resolve) => setTimeout(resolve, 1000))]);
       }
     }
 
@@ -254,7 +258,7 @@ export class StreamProcessor {
     try {
       const finalAst = this.parseMarkdown(this.buffer);
       this.assignIds(finalAst);
-      this.markNodesStatus(finalAst, 'stable');
+      this.markNodesStatus(finalAst, "stable");
 
       // 强制结束所有思考节点的思考状态（流已结束，即使标签未闭合也不应再显示思考中）
       this.forceStopThinking(finalAst);
@@ -268,7 +272,7 @@ export class StreamProcessor {
         this.onPatch(patches);
       } else if (currentAst.length === 0 && finalAst.length > 0) {
         // 首次解析，直接替换根
-        this.onPatch([{ op: 'replace-root', newRoot: finalAst }]);
+        this.onPatch([{ op: "replace-root", newRoot: finalAst }]);
       }
 
       // 标记所有为稳定
@@ -292,8 +296,7 @@ export class StreamProcessor {
         const allPatches: Patch[] = [];
 
         // 1. 划分稳定区和待定区
-        const { stable: stableText, pending: pendingText } =
-          this.boundaryDetector.splitByBlockBoundary(this.buffer);
+        const { stable: stableText, pending: pendingText } = this.boundaryDetector.splitByBlockBoundary(this.buffer);
 
         // 2. 处理稳定区 (如果有新的稳定内容)
         if (stableText.length > this.stableTextLength) {
@@ -351,8 +354,10 @@ export class StreamProcessor {
 
     // 1. 优化：代码块流式更新
     if (
-      oldPending.length === 1 && newPending.length === 1 &&
-      oldPending[0].type === 'code_block' && newPending[0].type === 'code_block'
+      oldPending.length === 1 &&
+      newPending.length === 1 &&
+      oldPending[0].type === "code_block" &&
+      newPending[0].type === "code_block"
     ) {
       const oldNode = oldPending[0] as CodeBlockNode;
       const newNode = newPending[0] as CodeBlockNode;
@@ -366,8 +371,10 @@ export class StreamProcessor {
 
     // 1.1 优化：Mermaid 图表流式更新
     if (
-      oldPending.length === 1 && newPending.length === 1 &&
-      oldPending[0].type === 'mermaid' && newPending[0].type === 'mermaid'
+      oldPending.length === 1 &&
+      newPending.length === 1 &&
+      oldPending[0].type === "mermaid" &&
+      newPending[0].type === "mermaid"
     ) {
       const oldNode = oldPending[0] as MermaidNode;
       const newNode = newPending[0] as MermaidNode;
@@ -377,8 +384,10 @@ export class StreamProcessor {
 
     // 2. 优化：段落流式更新 (打字机效果)
     if (
-      oldPending.length === 1 && newPending.length === 1 &&
-      oldPending[0].type === 'paragraph' && newPending[0].type === 'paragraph'
+      oldPending.length === 1 &&
+      newPending.length === 1 &&
+      oldPending[0].type === "paragraph" &&
+      newPending[0].type === "paragraph"
     ) {
       const oldText = this.getNodeTextContent(oldPending[0]);
       const newText = this.getNodeTextContent(newPending[0]);
@@ -393,25 +402,23 @@ export class StreamProcessor {
     // 3. 否则，执行完全替换
     // 移除所有旧的待定节点
     for (const oldNode of oldPending) {
-      patches.push({ op: 'remove-node', id: oldNode.id });
+      patches.push({ op: "remove-node", id: oldNode.id });
     }
 
     // 插入所有新的待定节点
     if (newPending.length > 0) {
       // 锚点是最后一个稳定节点
-      let anchorId = this.stableAst.length > 0
-        ? this.stableAst[this.stableAst.length - 1].id
-        : undefined;
+      let anchorId = this.stableAst.length > 0 ? this.stableAst[this.stableAst.length - 1].id : undefined;
 
       if (anchorId) {
         // 在最后一个稳定节点后插入
         for (const newNode of newPending) {
-          patches.push({ op: 'insert-after', id: anchorId, newNode });
+          patches.push({ op: "insert-after", id: anchorId, newNode });
           anchorId = newNode.id;
         }
       } else {
         // 如果没有稳定节点，说明整个文档都是待定区，直接替换根
-        patches.push({ op: 'replace-root', newRoot: newPending });
+        patches.push({ op: "replace-root", newRoot: newPending });
       }
     }
 
@@ -419,23 +426,23 @@ export class StreamProcessor {
   }
 
   private getNodeTextContent(node: AstNode): string {
-    if (node.type === 'text') {
+    if (node.type === "text") {
       return (node as TextNode).props.content;
     }
-    if (node.type === 'code_block') {
+    if (node.type === "code_block") {
       return (node as CodeBlockNode).props.content;
     }
-    if (node.type === 'mermaid') {
+    if (node.type === "mermaid") {
       return (node as MermaidNode).props.content;
     }
-    if (node.type === 'inline_code') {
+    if (node.type === "inline_code") {
       return (node as InlineCodeNode).props.content;
     }
-    if (node.type === 'html_inline' || node.type === 'html_block') {
+    if (node.type === "html_inline" || node.type === "html_block") {
       return (node as HtmlInlineNode | HtmlBlockNode).props.content;
     }
-    if (!node.children) return '';
-    return node.children.map(child => this.getNodeTextContent(child)).join('');
+    if (!node.children) return "";
+    return node.children.map((child) => this.getNodeTextContent(child)).join("");
   }
 
   private preserveExistingIds(newNodes: AstNode[], oldNodes: AstNode[]): void {
@@ -472,13 +479,14 @@ export class StreamProcessor {
 
     // 2. 处理新增节点
     if (newNodes.length > oldNodes.length) {
-      let anchorId = oldNodes.length > 0 ? oldNodes[oldNodes.length - 1].id : this.stableAst[this.stableAst.length - 1]?.id;
+      let anchorId =
+        oldNodes.length > 0 ? oldNodes[oldNodes.length - 1].id : this.stableAst[this.stableAst.length - 1]?.id;
       if (!anchorId) {
         // 如果没有锚点，说明是首次创建，应使用 replace-root
-        return [{ op: 'replace-root', newRoot: newNodes }];
+        return [{ op: "replace-root", newRoot: newNodes }];
       }
       for (let i = minLen; i < newNodes.length; i++) {
-        patches.push({ op: 'insert-after', id: anchorId, newNode: newNodes[i] });
+        patches.push({ op: "insert-after", id: anchorId, newNode: newNodes[i] });
         anchorId = newNodes[i].id;
       }
     }
@@ -486,7 +494,7 @@ export class StreamProcessor {
     // 3. 处理删除节点
     if (oldNodes.length > newNodes.length) {
       for (let i = minLen; i < oldNodes.length; i++) {
-        patches.push({ op: 'remove-node', id: oldNodes[i].id });
+        patches.push({ op: "remove-node", id: oldNodes[i].id });
       }
     }
 
@@ -508,7 +516,7 @@ export class StreamProcessor {
       if (oldNode.children && newNode.children) {
         this.preserveExistingIds(newNode.children, oldNode.children);
       }
-      return [{ op: 'replace-node', id: oldNode.id, newNode }];
+      return [{ op: "replace-node", id: oldNode.id, newNode }];
     }
 
     // 类型、内容和状态都相同，递归比较子节点
@@ -530,7 +538,7 @@ export class StreamProcessor {
     }
   }
 
-  private markNodesStatus(nodes: AstNode[], status: 'stable' | 'pending'): void {
+  private markNodesStatus(nodes: AstNode[], status: "stable" | "pending"): void {
     for (const node of nodes) {
       node.meta.status = status;
       if (node.children) {
@@ -545,7 +553,7 @@ export class StreamProcessor {
    */
   private forceStopThinking(nodes: AstNode[]): void {
     for (const node of nodes) {
-      if (node.type === 'llm_think' && node.props.isThinking) {
+      if (node.type === "llm_think" && node.props.isThinking) {
         node.props.isThinking = false;
       }
       if (node.children) {
@@ -588,10 +596,13 @@ export class StreamProcessor {
       const token = tokens[i];
 
       // 组合连续的 text 和 html_inline 令牌
-      if (token.type === 'text' || token.type === 'html_inline') {
-        let buffer = '';
+      if (token.type === "text" || token.type === "html_inline") {
+        let buffer = "";
         let currentPos = i;
-        while (currentPos < tokens.length && (tokens[currentPos].type === 'text' || tokens[currentPos].type === 'html_inline')) {
+        while (
+          currentPos < tokens.length &&
+          (tokens[currentPos].type === "text" || tokens[currentPos].type === "html_inline")
+        ) {
           buffer += tokens[currentPos].content;
           currentPos++;
         }
@@ -599,9 +610,19 @@ export class StreamProcessor {
         // 如果组合后的内容包含 HTML 标签，则创建 HtmlInlineNode，否则创建 TextNode
         // 这样可以避免将纯文本错误地用 v-html 渲染
         if (/<[a-z][\s\S]*>/i.test(buffer)) {
-          nodes.push({ id: this.generateNodeId(), type: 'html_inline', props: { content: buffer }, meta: { range: { start: 0, end: 0 } } } as HtmlInlineNode);
+          nodes.push({
+            id: this.generateNodeId(),
+            type: "html_inline",
+            props: { content: buffer },
+            meta: { range: { start: 0, end: 0 } },
+          } as HtmlInlineNode);
         } else {
-          nodes.push({ id: this.generateNodeId(), type: 'text', props: { content: buffer }, meta: { range: { start: 0, end: 0 } } } as TextNode);
+          nodes.push({
+            id: this.generateNodeId(),
+            type: "text",
+            props: { content: buffer },
+            meta: { range: { start: 0, end: 0 } },
+          } as TextNode);
         }
 
         i = currentPos; // 快进索引
@@ -610,43 +631,72 @@ export class StreamProcessor {
 
       // 处理其他非文本/html的令牌
       switch (token.type) {
-        case 'strong_open': {
-          const { innerTokens, nextIndex } = this.extractInnerTokens(tokens, i, 'strong_close');
-          nodes.push({ id: this.generateNodeId(), type: 'strong', props: {}, children: this.parseInlineTokens(innerTokens), meta: { range: { start: 0, end: 0 } } } as StrongNode);
+        case "strong_open": {
+          const { innerTokens, nextIndex } = this.extractInnerTokens(tokens, i, "strong_close");
+          nodes.push({
+            id: this.generateNodeId(),
+            type: "strong",
+            props: {},
+            children: this.parseInlineTokens(innerTokens),
+            meta: { range: { start: 0, end: 0 } },
+          } as StrongNode);
           i = nextIndex;
           break;
         }
-        case 'em_open': {
-          const { innerTokens, nextIndex } = this.extractInnerTokens(tokens, i, 'em_close');
-          nodes.push({ id: this.generateNodeId(), type: 'em', props: {}, children: this.parseInlineTokens(innerTokens), meta: { range: { start: 0, end: 0 } } } as EmNode);
+        case "em_open": {
+          const { innerTokens, nextIndex } = this.extractInnerTokens(tokens, i, "em_close");
+          nodes.push({
+            id: this.generateNodeId(),
+            type: "em",
+            props: {},
+            children: this.parseInlineTokens(innerTokens),
+            meta: { range: { start: 0, end: 0 } },
+          } as EmNode);
           i = nextIndex;
           break;
         }
-        case 's_open': {
-          const { innerTokens, nextIndex } = this.extractInnerTokens(tokens, i, 's_close');
-          nodes.push({ id: this.generateNodeId(), type: 'strikethrough', props: {}, children: this.parseInlineTokens(innerTokens), meta: { range: { start: 0, end: 0 } } } as StrikethroughNode);
+        case "s_open": {
+          const { innerTokens, nextIndex } = this.extractInnerTokens(tokens, i, "s_close");
+          nodes.push({
+            id: this.generateNodeId(),
+            type: "strikethrough",
+            props: {},
+            children: this.parseInlineTokens(innerTokens),
+            meta: { range: { start: 0, end: 0 } },
+          } as StrikethroughNode);
           i = nextIndex;
           break;
         }
-        case 'code_inline':
-          nodes.push({ id: this.generateNodeId(), type: 'inline_code', props: { content: token.content }, meta: { range: { start: 0, end: 0 } } } as InlineCodeNode);
+        case "code_inline":
+          nodes.push({
+            id: this.generateNodeId(),
+            type: "inline_code",
+            props: { content: token.content },
+            meta: { range: { start: 0, end: 0 } },
+          } as InlineCodeNode);
           break;
-        case 'math_inline':
-        case 'math_inline_double': {
+        case "math_inline":
+        case "math_inline_double": {
           // KaTeX 行内公式
           nodes.push({
             id: this.generateNodeId(),
-            type: 'katex_inline',
+            type: "katex_inline",
             props: { content: token.content },
-            meta: { range: { start: 0, end: 0 } }
+            meta: { range: { start: 0, end: 0 } },
           } as KatexInlineNode);
           break;
         }
-        case 'link_open': {
-          const { innerTokens, nextIndex } = this.extractInnerTokens(tokens, i, 'link_close');
-          const href = token.attrGet('href') || '';
-          const title = token.attrGet('title') || undefined;
-          nodes.push({ id: this.generateNodeId(), type: 'link', props: { href, title }, children: this.parseInlineTokens(innerTokens), meta: { range: { start: 0, end: 0 } } } as LinkNode);
+        case "link_open": {
+          const { innerTokens, nextIndex } = this.extractInnerTokens(tokens, i, "link_close");
+          const href = token.attrGet("href") || "";
+          const title = token.attrGet("title") || undefined;
+          nodes.push({
+            id: this.generateNodeId(),
+            type: "link",
+            props: { href, title },
+            children: this.parseInlineTokens(innerTokens),
+            meta: { range: { start: 0, end: 0 } },
+          } as LinkNode);
           i = nextIndex;
           break;
         }
@@ -656,7 +706,11 @@ export class StreamProcessor {
     return nodes;
   }
 
-  private extractInnerTokens(tokens: any[], startIndex: number, closingType: string): { innerTokens: any[], nextIndex: number } {
+  private extractInnerTokens(
+    tokens: any[],
+    startIndex: number,
+    closingType: string,
+  ): { innerTokens: any[]; nextIndex: number } {
     const innerTokens: any[] = [];
     let i = startIndex + 1;
     while (i < tokens.length && tokens[i].type !== closingType) {
@@ -669,58 +723,74 @@ export class StreamProcessor {
   private tokenToNode(token: any, tokens: any[], index: number): AstNode | null {
     const meta: NodeMeta = { range: { start: 0, end: 0 } };
     switch (token.type) {
-      case 'paragraph_open': {
+      case "paragraph_open": {
         const contentToken = tokens[index + 1];
         const children = contentToken?.children ? this.parseInlineTokens(contentToken.children) : [];
-        return { id: this.generateNodeId(), type: 'paragraph', props: {}, children, meta } as ParagraphNode;
+        return { id: this.generateNodeId(), type: "paragraph", props: {}, children, meta } as ParagraphNode;
       }
-      case 'heading_open': {
+      case "heading_open": {
         const level = parseInt(token.tag.substring(1));
         const contentToken = tokens[index + 1];
         const children = contentToken?.children ? this.parseInlineTokens(contentToken.children) : [];
-        return { id: this.generateNodeId(), type: 'heading', props: { level }, children, meta } as HeadingNode;
+        return { id: this.generateNodeId(), type: "heading", props: { level }, children, meta } as HeadingNode;
       }
-      case 'code_block':
-      case 'fence': {
+      case "code_block":
+      case "fence": {
         const language = token.info || undefined;
         // 如果语言标记为 mermaid，则生成 MermaidNode
-        if (language === 'mermaid') {
-          return { id: this.generateNodeId(), type: 'mermaid', props: { content: token.content }, meta } as MermaidNode;
+        if (language === "mermaid") {
+          return { id: this.generateNodeId(), type: "mermaid", props: { content: token.content }, meta } as MermaidNode;
         }
-        return { id: this.generateNodeId(), type: 'code_block', props: { language, content: token.content }, meta } as CodeBlockNode;
+        return {
+          id: this.generateNodeId(),
+          type: "code_block",
+          props: { language, content: token.content },
+          meta,
+        } as CodeBlockNode;
       }
-      case 'bullet_list_open':
-      case 'ordered_list_open': {
-        const ordered = token.type === 'ordered_list_open';
+      case "bullet_list_open":
+      case "ordered_list_open": {
+        const ordered = token.type === "ordered_list_open";
         const children = this.extractListItems(tokens, index);
-        return { id: this.generateNodeId(), type: 'list', props: { ordered, start: token.attrGet('start') || undefined }, children, meta } as ListNode;
+        return {
+          id: this.generateNodeId(),
+          type: "list",
+          props: { ordered, start: token.attrGet("start") || undefined },
+          children,
+          meta,
+        } as ListNode;
       }
-      case 'blockquote_open': {
-        const children = this.extractContainerContent(tokens, index, 'blockquote_close');
-        return { id: this.generateNodeId(), type: 'blockquote', props: {}, children, meta } as BlockquoteNode;
+      case "blockquote_open": {
+        const children = this.extractContainerContent(tokens, index, "blockquote_close");
+        return { id: this.generateNodeId(), type: "blockquote", props: {}, children, meta } as BlockquoteNode;
       }
-      case 'hr':
-        return { id: this.generateNodeId(), type: 'hr', props: {}, meta } as HrNode;
-      case 'table_open': {
+      case "hr":
+        return { id: this.generateNodeId(), type: "hr", props: {}, meta } as HrNode;
+      case "table_open": {
         const children = this.extractTableContent(tokens, index);
-        return { id: this.generateNodeId(), type: 'table', props: {}, children, meta } as TableNode;
+        return { id: this.generateNodeId(), type: "table", props: {}, children, meta } as TableNode;
       }
-      case 'html_block': {
+      case "html_block": {
         // 检查是否是 LLM 思考块
         const llmThinkNode = this.tryParseLlmThinkBlock(token.content);
         if (llmThinkNode) {
           return llmThinkNode;
         }
-        return { id: this.generateNodeId(), type: 'html_block', props: { content: token.content }, meta } as HtmlBlockNode;
+        return {
+          id: this.generateNodeId(),
+          type: "html_block",
+          props: { content: token.content },
+          meta,
+        } as HtmlBlockNode;
       }
-      case 'math_block':
-      case 'math_block_eqno': {
+      case "math_block":
+      case "math_block_eqno": {
         // KaTeX 块级公式
         return {
           id: this.generateNodeId(),
-          type: 'katex_block',
+          type: "katex_block",
           props: { content: token.content },
-          meta
+          meta,
         } as KatexBlockNode;
       }
       default:
@@ -750,8 +820,8 @@ export class StreamProcessor {
     const collapsedByDefault = rule?.collapsedByDefault ?? true;
 
     // 提取内容（去除开始和结束标签）
-    const closeTagRegex = new RegExp(`</${tagName}\\s*>`, 'i');
-    let content = htmlContent.replace(openTagRegex, '').replace(closeTagRegex, '').trim();
+    const closeTagRegex = new RegExp(`</${tagName}\\s*>`, "i");
+    let content = htmlContent.replace(openTagRegex, "").replace(closeTagRegex, "").trim();
 
     // 检查标签是否闭合
     const isThinking = !closeTagRegex.test(htmlContent);
@@ -762,7 +832,7 @@ export class StreamProcessor {
 
     return {
       id: this.generateNodeId(),
-      type: 'llm_think',
+      type: "llm_think",
       props: {
         rawTagName: tagName,
         ruleId,
@@ -783,8 +853,8 @@ export class StreamProcessor {
       const node = this.tokenToNode(tokens[i], tokens, i);
       if (node) {
         content.push(node);
-        if (tokens[i].type.endsWith('_open')) {
-          i = this.skipToClosingToken(tokens, i, tokens[i].type.replace('_open', ''));
+        if (tokens[i].type.endsWith("_open")) {
+          i = this.skipToClosingToken(tokens, i, tokens[i].type.replace("_open", ""));
         }
       }
       i++;
@@ -795,12 +865,18 @@ export class StreamProcessor {
   private extractListItems(tokens: any[], startIndex: number): AstNode[] {
     const items: AstNode[] = [];
     let i = startIndex + 1;
-    const closingType = tokens[startIndex].type === 'bullet_list_open' ? 'bullet_list_close' : 'ordered_list_close';
+    const closingType = tokens[startIndex].type === "bullet_list_open" ? "bullet_list_close" : "ordered_list_close";
     while (i < tokens.length && tokens[i].type !== closingType) {
-      if (tokens[i].type === 'list_item_open') {
-        const children = this.extractContainerContent(tokens, i, 'list_item_close');
-        items.push({ id: this.generateNodeId(), type: 'list_item', props: {}, children, meta: { range: { start: 0, end: 0 } } } as ListItemNode);
-        i = this.skipToClosingToken(tokens, i, 'list_item');
+      if (tokens[i].type === "list_item_open") {
+        const children = this.extractContainerContent(tokens, i, "list_item_close");
+        items.push({
+          id: this.generateNodeId(),
+          type: "list_item",
+          props: {},
+          children,
+          meta: { range: { start: 0, end: 0 } },
+        } as ListItemNode);
+        i = this.skipToClosingToken(tokens, i, "list_item");
       }
       i++;
     }
@@ -810,20 +886,32 @@ export class StreamProcessor {
   private extractTableContent(tokens: any[], startIndex: number): AstNode[] {
     const rows: AstNode[] = [];
     let i = startIndex + 1;
-    while (i < tokens.length && tokens[i].type !== 'table_close') {
-      if (tokens[i].type === 'tr_open') {
+    while (i < tokens.length && tokens[i].type !== "table_close") {
+      if (tokens[i].type === "tr_open") {
         const cells: AstNode[] = [];
-        const isHeader = tokens[i - 1]?.type === 'thead_open';
+        const isHeader = tokens[i - 1]?.type === "thead_open";
         let j = i + 1;
-        while (j < tokens.length && tokens[j].type !== 'tr_close') {
-          if (tokens[j].type === 'th_open' || tokens[j].type === 'td_open') {
+        while (j < tokens.length && tokens[j].type !== "tr_close") {
+          if (tokens[j].type === "th_open" || tokens[j].type === "td_open") {
             const contentToken = tokens[j + 1];
             const children = contentToken?.children ? this.parseInlineTokens(contentToken.children) : [];
-            cells.push({ id: this.generateNodeId(), type: 'table_cell', props: { isHeader }, children, meta: { range: { start: 0, end: 0 } } } as TableCellNode);
+            cells.push({
+              id: this.generateNodeId(),
+              type: "table_cell",
+              props: { isHeader },
+              children,
+              meta: { range: { start: 0, end: 0 } },
+            } as TableCellNode);
           }
           j++;
         }
-        rows.push({ id: this.generateNodeId(), type: 'table_row', props: { isHeader }, children: cells, meta: { range: { start: 0, end: 0 } } } as TableRowNode);
+        rows.push({
+          id: this.generateNodeId(),
+          type: "table_row",
+          props: { isHeader },
+          children: cells,
+          meta: { range: { start: 0, end: 0 } },
+        } as TableRowNode);
         i = j;
       }
       i++;
@@ -846,7 +934,7 @@ export class StreamProcessor {
   }
 
   reset(): void {
-    this.buffer = '';
+    this.buffer = "";
     this.nodeIdCounter = 1;
     this.stableAst = [];
     this.pendingAst = [];

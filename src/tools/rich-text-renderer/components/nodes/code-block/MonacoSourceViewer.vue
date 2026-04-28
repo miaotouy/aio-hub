@@ -11,20 +11,27 @@
     <div class="code-editor-layer">
       <!-- Monaco 准备好之前（或后台初始化时）显示 PreCodeNode -->
       <PreCodeNode
-        v-if="!isEditorReady"
+        v-show="!displayEditorReady"
         class="pre-fallback"
         :content="content"
         :line-numbers="true"
         :style="preFallbackStyle"
+        theme="monaco"
       />
-      <!-- Monaco 容器：用 opacity 隐藏而不是 v-if，允许其在后台完成初始化 -->
-      <div ref="editorEl" class="monaco-wrapper" :class="{ visible: isEditorReady, 'is-hidden': !isEditorReady }"></div>
+      <!-- Monaco 容器：用 opacity 隐藏而不是 v-if，允许其高后台完成初始化 -->
+      <div
+        ref="editorEl"
+        class="monaco-wrapper"
+        :class="{ visible: displayEditorReady, 'is-hidden': !displayEditorReady }"
+      ></div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
+import { storeToRefs } from "pinia";
+import { useRichTextRendererStore } from "../../../stores/store";
 import { useIntersectionObserver } from "@vueuse/core";
 import { useTheme } from "@composables/useTheme";
 import { getMonacoLanguageId } from "@/utils/codeLanguages";
@@ -34,6 +41,9 @@ import PreCodeNode from "./PreCodeNode.vue";
 
 // 动态导入，避免类型检查时就报错
 type StreamMonacoModule = typeof import("stream-monaco");
+
+const store = useRichTextRendererStore();
+const { debugPreFallback } = storeToRefs(store);
 
 const props = defineProps<{
   content: string;
@@ -55,6 +65,12 @@ const logger = createModuleLogger("code-block/MonacoSourceViewer.vue");
 const errorHandler = createModuleErrorHandler("code-block/MonacoSourceViewer.vue");
 
 const isEditorReady = ref(false);
+
+// 最终的准备就绪状态：如果开启了调试锁定，则永远保持未就绪状态（显示预览）
+const displayEditorReady = computed(() => {
+  if (debugPreFallback.value) return false;
+  return isEditorReady.value;
+});
 const isInitializing = ref(false);
 const isIntersected = ref(false);
 const lastContent = ref(""); // 已经同步给 Monaco 的内容
@@ -315,6 +331,7 @@ const initEditor = async () => {
       lineNumbers: "on" as const,
       renderLineHighlight: "none" as const,
       renderValidationDecorations: "off" as const,
+      fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
       scrollbar: {
         vertical: "auto" as const,
         horizontal: "auto" as const,
@@ -400,7 +417,7 @@ onMounted(() => {
           }
         }
       },
-      { rootMargin: "400px" },
+      { rootMargin: "800px" }, // 提前 800px 开始初始化，确保用户滚动到时已完成
     );
     stopIntersectionObserver = stop;
   }
@@ -542,7 +559,7 @@ defineExpose({
 
 .monaco-wrapper {
   opacity: 0;
-  transition: opacity 0.3s ease-in-out;
+  transition: opacity 0.25s ease-in-out;
   height: 0;
   overflow: hidden !important; /* 强制 wrapper 不产生任何滚动条 */
 }
@@ -555,6 +572,10 @@ defineExpose({
 .monaco-wrapper.is-hidden {
   opacity: 0;
   pointer-events: none;
+}
+
+.pre-fallback {
+  transition: opacity 0.25s ease-in-out;
 }
 
 :deep(.monaco-editor) {

@@ -6,11 +6,32 @@
       'is-streaming': !closed,
     }"
     ref="containerRef"
-  ></div>
+  >
+    <!-- 初始状态显示轻量级的 PreCodeNode，尽量模拟 CodeMirror 的字号、行高、行号和内边距 -->
+    <PreCodeNode
+      v-show="!displayInitialized"
+      :content="content"
+      :line-numbers="true"
+      :style="preFallbackStyle"
+      :gutter-width="gutterWidth"
+      theme="codemirror"
+      class="pre-fallback"
+    />
+    <!-- 初始化后显示 CodeMirror 编辑器 -->
+    <div
+      v-show="displayInitialized"
+      ref="editorRef"
+      class="cm-editor-inner"
+      :class="{ 'fade-in': displayInitialized }"
+    ></div>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, shallowRef, computed } from "vue";
+import { storeToRefs } from "pinia";
+import { useRichTextRendererStore } from "../../../stores/store";
+import { useIntersectionObserver } from "@vueuse/core";
 import { EditorState, Compartment } from "@codemirror/state";
 import { EditorView, lineNumbers, highlightActiveLineGutter, keymap } from "@codemirror/view";
 import { foldGutter, foldKeymap } from "@codemirror/language";
@@ -18,6 +39,10 @@ import { defaultKeymap } from "@codemirror/commands";
 import { useTheme } from "@composables/useTheme";
 import { getCodeMirrorLanguage } from "@/utils/codeLanguages";
 import { vscodeLight, vscodeDark } from "@uiw/codemirror-theme-vscode";
+import PreCodeNode from "./PreCodeNode.vue";
+
+const store = useRichTextRendererStore();
+const { debugPreFallback } = storeToRefs(store);
 
 const props = defineProps<{
   content: string;
@@ -33,8 +58,29 @@ const emit = defineEmits<{
 }>();
 
 const containerRef = ref<HTMLDivElement | null>(null);
+const editorRef = ref<HTMLDivElement | null>(null);
 const editorView = shallowRef<EditorView | null>(null);
+const isInitialized = ref(false);
+
+// 最终的初始化状态：如果开启了调试锁定，则永远保持未初始化状态
+const displayInitialized = computed(() => {
+  if (debugPreFallback.value) return false;
+  return isInitialized.value;
+});
 let isDestroyed = false;
+
+// 性能优化：使用 IntersectionObserver 延迟初始化编辑器
+// 只有当代码块进入视口（或接近视口）时才创建重型的 CodeMirror 实例
+useIntersectionObserver(
+  containerRef,
+  ([entry]) => {
+    if (entry.isIntersecting && !isInitialized.value) {
+      initEditor();
+    }
+  },
+  { rootMargin: "600px" }, // 提前 600px 开始初始化，确保用户滚动到时已完成
+);
+
 const languageCompartment = new Compartment();
 const themeCompartment = new Compartment();
 const fontSizeCompartment = new Compartment();
@@ -43,8 +89,41 @@ const wordWrapCompartment = new Compartment();
 const { isDark } = useTheme();
 const cmTheme = computed(() => (isDark.value ? vscodeDark : vscodeLight));
 
+const preFallbackStyle = computed(() => {
+  const fontSize = props.codeFontSize > 0 ? props.codeFontSize : 14;
+  return {
+    "--pre-font-size": `${fontSize}px`,
+    "--pre-line-height": `${fontSize * 1.5}px`,
+  };
+});
+
+// 计算行号区域宽度，尝试匹配 CodeMirror 的逻辑
+const gutterWidth = computed(() => {
+  const lineCount = props.content.split("\n").length || 1;
+  const digits = Math.max(1, lineCount.toString().length);
+  const fontSize = props.codeFontSize > 0 ? props.codeFontSize : 14;
+
+  // CodeMirror 的行号渲染逻辑：
+  // 1. 行号列 (.cm-lineNumbers):
+  //    注意：行号字体通常是代码字体的 0.9 倍 (见 PreCodeNode.vue)
+  const gutterFontSize = fontSize * 0.9;
+  const charWidth = gutterFontSize * 0.65; // 稍微增加一点系数以防万一
+  const lineNumberPadding = 12 + 8; // 左 12px, 右 8px
+
+  // CodeMirror 的 .cm-gutterElement 设置了 min-width: 40px
+  const lineNumberWidth = Math.max(40, charWidth * digits + lineNumberPadding);
+
+  // 2. 折叠列 (.cm-foldGutter):
+  //    .cm-foldGutter .cm-gutterElement { padding: 0 4px; }
+  //    图标宽度大约 12px，总计约 16px-18px
+  const foldGutterWidth = 16;
+
+  return lineNumberWidth + foldGutterWidth;
+});
+
 const initEditor = async () => {
-  if (!containerRef.value) return;
+  if (isInitialized.value || !containerRef.value || !editorRef.value) return;
+  isInitialized.value = true;
 
   const extensions = [
     EditorView.editable.of(false), // 只读
@@ -61,10 +140,14 @@ const initEditor = async () => {
         backgroundColor: "transparent !important",
       },
       ".cm-scroller": {
-        fontFamily: "'Consolas', 'Monaco', 'Courier New', monospace",
+        fontFamily:
+          "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
       },
       ".cm-content": {
         padding: "12px 0",
+      },
+      ".cm-line": {
+        padding: "0 12px 0 4px",
       },
     }),
     fontSizeCompartment.of(
@@ -83,29 +166,29 @@ const initEditor = async () => {
 
   editorView.value = new EditorView({
     state,
-    parent: containerRef.value,
+    parent: editorRef.value,
   });
 
   emit("ready", props.codeFontSize);
-// 加载语言
-if (props.language) {
-  const langExt = await getCodeMirrorLanguage(props.language);
+  // 加载语言
+  if (props.language) {
+    const langExt = await getCodeMirrorLanguage(props.language);
 
-  // 如果在异步加载期间组件已卸载，则清理并退出
-  if (isDestroyed) {
-    if (editorView.value) {
-      editorView.value.destroy();
-      editorView.value = null;
+    // 如果在异步加载期间组件已卸载，则清理并退出
+    if (isDestroyed) {
+      if (editorView.value) {
+        editorView.value.destroy();
+        editorView.value = null;
+      }
+      return;
     }
-    return;
-  }
 
-  if (langExt && editorView.value) {
-    editorView.value.dispatch({
-      effects: languageCompartment.reconfigure(langExt),
-    });
+    if (langExt && editorView.value) {
+      editorView.value.dispatch({
+        effects: languageCompartment.reconfigure(langExt),
+      });
+    }
   }
-}
 };
 
 watch(
@@ -154,7 +237,8 @@ watch(
 );
 
 onMounted(() => {
-  initEditor();
+  // 移除立即初始化，改由 IntersectionObserver 触发
+  // initEditor();
 });
 
 onUnmounted(() => {
@@ -187,6 +271,23 @@ onUnmounted(() => {
 
 .cm-viewer-container.is-streaming {
   transition: none !important;
+}
+
+.cm-editor-inner {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  transition: opacity 0.25s ease-in-out;
+}
+
+.cm-editor-inner.fade-in {
+  opacity: 1;
+}
+
+.pre-fallback {
+  transition: opacity 0.25s ease-in-out;
 }
 
 :deep(.cm-editor) {

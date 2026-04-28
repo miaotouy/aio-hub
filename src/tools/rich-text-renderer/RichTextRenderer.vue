@@ -335,12 +335,17 @@ watch(
       if (!streamProcessor.value) {
         streamProcessor.value = createProcessor(props.version);
       }
-      streamProcessor.value.setContent(newContent).then(() => {
-        // 只有在非流式状态下才 finalize（finalize 会强制结束思考状态）
-        if (!props.isStreaming) {
-          streamProcessor.value?.finalize();
-        }
-      });
+      if (!props.isStreaming && typeof streamProcessor.value.setStaticContent === "function") {
+        // 非流式状态下，使用优化的静态内容设置接口，避免重复解析
+        streamProcessor.value.setStaticContent(newContent);
+      } else {
+        streamProcessor.value.setContent(newContent).then(() => {
+          // 只有在非流式状态下才 finalize（finalize 会强制结束思考状态）
+          if (!props.isStreaming) {
+            streamProcessor.value?.finalize();
+          }
+        });
+      }
     } else {
       // 纯 markdown-it：直接全量渲染
       htmlContent.value = md.render(newContent);
@@ -371,9 +376,13 @@ watch(
       // AST 模式
       const processor = createProcessor(newVersion);
       streamProcessor.value = processor;
-      processor.setContent(props.content).then(() => {
-        processor.finalize();
-      });
+      if (typeof processor.setStaticContent === "function") {
+        processor.setStaticContent(props.content);
+      } else {
+        processor.setContent(props.content).then(() => {
+          processor.finalize();
+        });
+      }
     } else {
       // 纯渲染模式
       streamProcessor.value = null;
@@ -583,17 +592,17 @@ defineExpose({
 
 /* 块级节点渲染优化：出视口不渲染 */
 /* :deep(.rich-text-block:not(.no-cv)) { */
-  /*
+/*
     使用 content-visibility: auto 让浏览器跳过不在视口内的节点渲染。
     这能极大提升长消息列表的滚动性能。
     但是会导致跳动
   */
-  /* content-visibility: auto; */ 
-  /*
+/* content-visibility: auto; */
+/*
     配合 contain-intrinsic-size 防止滚动条因高度塌陷而跳动。
     这里给一个通用的预估高度。
   */
-  /* contain-intrinsic-size: auto 40px; */
+/* contain-intrinsic-size: auto 40px; */
 /* } */
 
 /* 节点进入动画：淡入+轻微下移 */

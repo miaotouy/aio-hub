@@ -547,6 +547,57 @@ export class StreamProcessorV2 {
   }
 
   /**
+   * 设置静态完整内容（优化非流式路径）
+   * 直接进行单次全量解析，跳过增量划分和重复解析逻辑。
+   * 适用于切换会话、切换分支等非流式重载场景。
+   */
+  public async setStaticContent(content: string): Promise<void> {
+    if (this.isDestroyed) return;
+
+    // 静态设置具有最高优先级，直接覆盖当前 buffer
+    this.buffer = content;
+    this.pendingBuffer = null;
+
+    try {
+      this.isProcessing = true;
+      // 将整个内容作为最终内容解析
+      this.parser.reset();
+      const finalAst = await this.parser.parseAsync(this.buffer);
+
+      if (this.isDestroyed) return;
+
+      // 分配 ID 并标记状态
+      this.assignIds(finalAst);
+      this.markNodesStatus(finalAst, "stable");
+
+      // 强制结束所有思考节点的思考状态
+      this.forceStopThinking(finalAst);
+
+      // 计算 diff 以保持节点 ID 复用（对编辑场景友好）
+      const currentFullAst = [...this.stableAst, ...this.pendingAst];
+      const patches = this.diffAst(currentFullAst, finalAst, true);
+
+      // 更新内部状态
+      this.stableAst = finalAst;
+      this.pendingAst = [];
+      this.lastStableText = this.buffer;
+      this.lastStableLength = this.buffer.length;
+      this.stallCount = 0;
+
+      // 发送变更
+      if (patches.length > 0) {
+        this.onPatch(patches);
+      }
+    } finally {
+      this.isProcessing = false;
+      if (this.resolveProcessing) {
+        this.resolveProcessing();
+        this.resolveProcessing = null;
+      }
+    }
+  }
+
+  /**
    * 结束流式处理
    */
   async finalize(): Promise<void> {

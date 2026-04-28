@@ -126,6 +126,7 @@ function createDefaultState() {
     profileType: "agent" as "agent" | "user",
     selectedProfileId: "",
     codeEditorEngine: "codemirror" as "monaco" | "codemirror",
+    debugPreFallback: false, // 调试模式：强制保持在 PreCodeNode 预览状态
     llmThinkRules: [...defaultLlmThinkRules] as LlmThinkRule[],
     richTextStyleOptions: {} as RichTextRendererStyleOptions,
     regexConfig: createDefaultChatRegexConfig() as ChatRegexConfig,

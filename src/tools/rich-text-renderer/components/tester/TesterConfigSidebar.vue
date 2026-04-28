@@ -113,6 +113,16 @@
           <el-option label="Monaco (专业/重)" value="monaco" />
           <el-option label="CodeMirror (轻量/快)" value="codemirror" />
         </el-select>
+
+        <!-- 调试：强制预览模式 -->
+        <div class="control-item" style="margin-top: 4px">
+          <div class="control-header">
+            <el-tooltip content="开启后将强制保持在 PreCodeNode 预览状态，不初始化正式编辑器，方便调试样式" placement="right">
+              <label style="color: var(--el-color-warning)">调试：锁定预览模式</label>
+            </el-tooltip>
+            <el-switch v-model="debugPreFallback" size="small" />
+          </div>
+        </div>
       </div>
 
       <!-- HTML 渲染控制 -->
@@ -487,6 +497,7 @@ const {
   profileType,
   selectedProfileId,
   codeEditorEngine,
+  debugPreFallback,
 } = storeToRefs(store);
 
 // Computed

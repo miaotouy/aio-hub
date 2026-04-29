@@ -483,9 +483,13 @@ defineExpose({
   gap: 8px;
 }
 
+/*
+ * 性能优化：使用 content-visibility 开启虚拟渲染
+ * 在 Vite 8 / Lightning CSS 环境下，确保这些现代属性不被误删或优化掉
+ */
 .messages-container :deep(.chat-message) {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 600px;
+  content-visibility: auto !important;
+  contain-intrinsic-size: auto 600px !important;
 }
 
 .empty-state {

@@ -53,6 +53,11 @@ const viteConfig = defineConfig({
   // 将 .gz 文件标记为资源文件
   assetsInclude: ['**/*.gz'],
 
+  css: {
+    // 禁用 Lightning CSS，回退到 PostCSS 以确保 CSS 优化的稳定性
+    transformer: 'postcss',
+  },
+
   define: {
     // 修复 Prettier 3.x 在 Rolldown 环境下内部依赖 regexp-tree 的 RegExpParser 报错
     'process.env.PRETTIER_DEBUG': 'false',
@@ -150,7 +155,8 @@ const viteConfig = defineConfig({
     // 禁用 source map 以减少内存消耗
     sourcemap: false,
     
-    // Vite 8 默认使用 Lightning CSS 和 Rolldown，性能更好
+    // 禁用 Lightning CSS 压缩，使用 esbuild 确保 content-visibility 等属性不被误删
+    cssMinify: 'esbuild',
     // 如果需要保留 terser 的某些特定行为，可以重新开启
     // minify: 'terser',
     

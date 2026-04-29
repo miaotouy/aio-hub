@@ -138,7 +138,6 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   background: transparent;
-  overflow: visible;
   color: var(--text-color);
   overflow: hidden;
 }
@@ -146,7 +145,7 @@ onMounted(async () => {
 .tool-content {
   flex: 1;
   overflow: auto;
-  padding-top: var(--titlebar-height);
+  min-height: 0;
 }
 
 .tool-content.no-titlebar {

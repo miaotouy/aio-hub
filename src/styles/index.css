@@ -194,7 +194,7 @@ body.transparent-window #app {
 }
 
 .el-message-box {
-  margin-top: var(--titlebar-height); /* 给标题栏留出空间 */
+  margin-top: var(--titlebar-height); /* 虽然标题栏入流，但 MessageBox 挂载在 body，仍需偏移以避开标题栏 */
 }
 
 /* Element Plus 全局主题适配 - 输入组件 */
@@ -674,7 +674,16 @@ body.transparent-window #app {
 }
 
 .el-drawer {
-  padding-top: 36px;
+  padding-top: var(--titlebar-height); /* 即使标题栏是非 fixed 布局，挂载在 body 的抽屉仍需避开标题栏区域 */
+}
+
+/* 强制锁定 body 滚动，防止 Element Plus 弹窗引起布局抖动和意外滚动条 */
+html.el-popup-parent--hidden,
+body.el-popup-parent--hidden {
+  overflow: hidden !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  padding-right: 0 !important;
 }
 
 .el-slider__runway,
@@ -725,8 +734,8 @@ body.transparent-window #app {
 
 /* viewerjs 图片查看器避开标题栏 */
 .viewer-container {
-  top: var(--titlebar-height) !important;
-  height: calc(100vh - var(--titlebar-height)) !important;
+  top: 0 !important;
+  height: 100vh !important;
 }
 
 /* 确保 viewer 的 canvas 和工具栏位置正确 */

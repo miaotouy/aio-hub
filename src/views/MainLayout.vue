@@ -182,13 +182,15 @@ onUnmounted(() => {
   height: 100vh;
   width: 100vw;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .common-layout {
-  height: calc(100vh - var(--titlebar-height));
+  flex: 1;
   width: 100vw;
   overflow: hidden;
-  margin-top: var(--titlebar-height);
+  min-height: 0;
 }
 
 .main-content {

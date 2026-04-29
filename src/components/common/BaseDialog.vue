@@ -150,17 +150,15 @@ const backdropStyles = computed(() => {
     zIndex: dynamicZIndex.value,
   };
 
-  // 始终添加顶部内边距以避开标题栏
-  // 这样无论是居中还是自定义 top，都能保证不被遮挡
-  // 且在居中模式下，视觉重心会稍微下移，更符合桌面应用体验
+  // 对话框通常挂载在 body 下，而标题栏占据了顶部文档流空间 (36px)。
+  // 为了让对话框在“剩余可视区域”内居中，或者从标题栏下方开始偏移，我们需要添加补偿。
   if (props.top) {
     styles.alignItems = "flex-start";
-    // 使用 calc 叠加标题栏高度
+    // 如果指定了 top，则从标题栏下方开始计算
     styles.paddingTop = `calc(var(--titlebar-height) + ${props.top})`;
   } else {
     styles.alignItems = "center";
-    // 只添加顶部内边距，不添加底部内边距
-    // 这样内容区域的垂直中心会下移 (titlebar-height / 2)，即在"除去标题栏后的剩余空间"内居中
+    // 垂直居中模式下，添加顶部 padding 使内容重心下移，避开被标题栏压住的感觉
     styles.paddingTop = "var(--titlebar-height)";
   }
   return styles;

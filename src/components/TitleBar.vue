@@ -355,8 +355,9 @@ watch(
         </div>
       </div>
     </el-drawer>
+  </Teleport>
 
-    <div
+  <div
       class="title-bar"
       :class="{
         macos: isMacOS,
@@ -551,7 +552,6 @@ watch(
         </div>
       </div>
     </div>
-  </Teleport>
 </template>
 
 <style scoped>
@@ -561,10 +561,8 @@ watch(
   user-select: none;
   display: flex;
   align-items: center;
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
+  position: relative;
+  flex-shrink: 0;
   z-index: var(--z-index-title-bar);
   border-bottom: var(--border-width) solid var(--border-color);
   /* 允许拖动窗口 */

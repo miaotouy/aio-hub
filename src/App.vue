@@ -44,6 +44,8 @@ body {
   overflow: hidden;
   /* 彻底阻断滚动链传播，防止内部滚动影响窗口定位 */
   overscroll-behavior: none;
+  /* 渲染隔离：确保内容永远在视口内绘制，防止意外的滚动位移 */
+  contain: paint;
 }
 
 #app {

@@ -131,8 +131,24 @@ html.dark {
   --el-color-info: var(--info-color);
 }
 
+html,
 body {
   margin: 0;
+  padding: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden !important;
+  /* 彻底阻断滚动链传播，防止内部滚动影响窗口定位 */
+  overscroll-behavior: none;
+  /* 渲染隔离：确保内容永远在视口内绘制，防止意外的滚动位移 */
+  contain: paint;
+  /* 强制定位在原点，防止被脚本滚动 */
+  position: fixed;
+  top: 0;
+  left: 0;
+}
+
+body {
   font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Source Han Sans CN", sans-serif;
   line-height: 1.6;
   background-color: var(--bg-color);

@@ -22,6 +22,21 @@ const appInitStore = useAppInitStore();
 onMounted(async () => {
   // 触发主应用初始化序列
   await appInitStore.initMainApp();
+
+  // 强制复位补丁：防止任何意外的滚动位移（如 scrollIntoView 导致的 body 偏移）
+  const resetScroll = () => {
+    if (document.documentElement.scrollTop !== 0) document.documentElement.scrollTop = 0;
+    if (document.body.scrollTop !== 0) document.body.scrollTop = 0;
+  };
+
+  window.addEventListener("scroll", resetScroll, { passive: true });
+  // 某些情况下聚焦输入框也会触发位移，定期检查
+  const interval = setInterval(resetScroll, 1000);
+
+  return () => {
+    window.removeEventListener("scroll", resetScroll);
+    clearInterval(interval);
+  };
 });
 </script>
 

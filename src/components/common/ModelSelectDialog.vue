@@ -161,9 +161,25 @@ watch(isDialogVisible, async (visible) => {
     if (currentSelection.value) {
       await nextTick();
       const currentKey = getModelKey(currentSelection.value.profile, currentSelection.value.model);
-      const currentElement = document.querySelector(`[data-model-key="${currentKey}"]`);
-      if (currentElement && modelListWrapperRef.value) {
-        currentElement.scrollIntoView({ behavior: "smooth", block: "center" });
+      const currentElement = document.querySelector(`[data-model-key="${currentKey}"]`) as HTMLElement;
+      const container = modelListWrapperRef.value;
+
+      if (currentElement && container) {
+        // 使用更安全的手动滚动方式，避免触发全局 scrollIntoView 导致的 body 偏移
+        const containerRect = container.getBoundingClientRect();
+        const elementRect = currentElement.getBoundingClientRect();
+
+        // 计算目标位置：让元素在容器中心
+        const targetScrollTop =
+          container.scrollTop +
+          (elementRect.top - containerRect.top) -
+          containerRect.height / 2 +
+          elementRect.height / 2;
+
+        container.scrollTo({
+          top: targetScrollTop,
+          behavior: "smooth",
+        });
       }
     }
   }

@@ -42,6 +42,7 @@ export const DEFAULT_VISUAL_GUIDELINE = `
 - MD 表格内嵌 HTML 时只用行内元素（\`<span>\`），避免破坏表格结构
 - 纯代码阅读用标准代码块触发语法高亮（已内置复制按钮）
 - Mermaid: \` \`\`\`mermaid \`；公式: \`$$...$$\` (块) / \`$...$\` (行内)
+- **3D / Canvas 场景强制高度声明**：应用模式下使用 Canvas/WebGL 绘制全屏场景（如 Three.js 甜甜圈、粒子系统、3D 可视化等）时，Canvas 通常使用 \`position: fixed\` 脱离文档流，会导致预览窗口高度塌陷。**必须**为 \`<html>\` 或 \`<body>\` 显式设置 \`min-height: 500px\`（或 \`height: 100vh\`），并在 Canvas 上使用 \`position: fixed; inset: 0;\` 正确铺满预览视口。
 
 #### \`<Button>\` 交互组件
 

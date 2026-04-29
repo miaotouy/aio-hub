@@ -71,7 +71,11 @@ const filteredGroups = computed(() => {
 
   // 3. 工厂过滤
   if (filterFactoryId.value) {
-    result = result.filter((g) => g.factoryId === filterFactoryId.value);
+    if (filterFactoryId.value === "__none__") {
+      result = result.filter((g) => !g.factoryId);
+    } else {
+      result = result.filter((g) => g.factoryId === filterFactoryId.value);
+    }
   }
 
   // 4. 执行模式过滤 (过滤方法，如果组内无方法则过滤组)
@@ -180,6 +184,7 @@ const toggleSort = () => {
               <template #prefix>
                 <Factory :size="14" />
               </template>
+              <el-option label="非工厂类" value="__none__" />
               <el-option v-for="fid in factories" :key="fid" :label="fid" :value="fid" />
             </el-select>
           </div>

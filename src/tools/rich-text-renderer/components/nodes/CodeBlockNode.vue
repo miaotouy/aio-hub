@@ -77,8 +77,9 @@
       />
       <div v-else class="html-preview-frozen">
         <div class="frozen-tip">
-          <span class="tip-text">HTML 预览已冻结以节流性能</span>
-          <el-button size="small" type="primary" @click="manualActive = true"> 恢复预览 </el-button>
+          <span class="tip-text">{{ freezeReason }}</span>
+          <el-button v-if="!showDialog" size="small" type="primary" @click="manualActive = true"> 恢复预览 </el-button>
+          <el-button v-else size="small" type="primary" @click="showDialog = false"> 关闭弹窗以恢复 </el-button>
         </div>
       </div>
     </div>
@@ -141,8 +142,14 @@ const manualActive = ref(false);
 
 // 冻结状态
 const shouldFreeze = computed(() => {
+  if (showDialog.value) return true;
   if (manualActive.value) return false;
   return context?.shouldFreeze?.value ?? false;
+});
+
+const freezeReason = computed(() => {
+  if (showDialog.value) return "HTML 预览已在独立窗口中运行";
+  return "HTML 预览已冻结以节流性能";
 });
 
 // 经过资产转换后的内容（用于 HTML 预览）

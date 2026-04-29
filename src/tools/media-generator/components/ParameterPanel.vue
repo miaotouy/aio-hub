@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, watch } from "vue";
+import { useRouter } from "vue-router";
 import { useMediaGenStore } from "../stores/mediaGenStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
@@ -9,6 +10,7 @@ import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import { Image, Video, Music, Sparkles, Info, ArrowLeftRight } from "lucide-vue-next";
 
 const store = useMediaGenStore();
+const router = useRouter();
 const { getProfileById, saveProfile } = useLlmProfiles();
 const { getMatchedProperties } = useModelMetadata();
 const { getParamRules, usesAspectRatioMode, sanitizeParams } = useMediaGenParamRules();
@@ -177,6 +179,10 @@ const isSuno = computed(() => {
   return selectedModelInfo.value?.provider === "suno-newapi";
 });
 
+const goToMetadataSettings = () => {
+  router.push({ path: "/settings", query: { section: "model-metadata" } });
+};
+
 // 根据媒体类型筛选模型能力
 const modelCapabilities = computed(() => {
   const baseCaps = { embedding: false, rerank: false };
@@ -253,6 +259,10 @@ watch(
       <div class="section">
         <div class="section-title">生成模型</div>
         <LlmModelSelector v-model="selectedModelCombo" :capabilities="modelCapabilities" placeholder="选择生成引擎" />
+        <div class="metadata-hint" @click="goToMetadataSettings">
+          <el-icon><Info /></el-icon>
+          <span>界面参数由模型元数据驱动，点击前往配置</span>
+        </div>
       </div>
 
       <div class="section context-toggle-section">
@@ -644,6 +654,27 @@ watch(
 .capability-tag {
   margin-left: auto;
   font-size: 10px;
+}
+
+.metadata-hint {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--el-text-color-placeholder);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: color 0.2s;
+  padding: 2px 4px;
+  width: fit-content;
+}
+
+.metadata-hint:hover {
+  color: var(--el-color-primary);
+}
+
+.metadata-hint .el-icon {
+  font-size: 13px;
 }
 
 .type-selector {

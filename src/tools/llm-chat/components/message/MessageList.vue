@@ -2,7 +2,6 @@
 import { ref, watch, nextTick, computed } from "vue";
 import { useThrottleFn } from "@vueuse/core";
 import type { ChatMessageNode, ChatSessionIndex, ChatSessionDetail } from "../../types";
-import type { Asset } from "@/types/asset-management";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
 import ChatMessage from "./ChatMessage.vue";
@@ -19,23 +18,7 @@ interface Props {
   userRichTextStyleOptions?: import("@/tools/rich-text-renderer/types").RichTextRendererStyleOptions;
 }
 
-interface Emits {
-  (e: "delete-message", messageId: string): void;
-  (e: "regenerate", messageId: string, options?: { modelId?: string; profileId?: string }): void;
-  (e: "switch-sibling", nodeId: string, direction: "prev" | "next"): void;
-  (e: "switch-branch", nodeId: string): void;
-  (e: "toggle-enabled", nodeId: string): void;
-  (e: "edit-message", nodeId: string, newContent: string, attachments?: Asset[]): void;
-  (e: "abort-node", nodeId: string): void;
-  (e: "continue", nodeId: string, options?: { modelId?: string; profileId?: string }): void;
-  (e: "create-branch", nodeId: string): void;
-  (e: "analyze-context", nodeId: string): void;
-  (e: "reparse-tools", nodeId: string): void;
-  (e: "save-to-branch", nodeId: string, newContent: string, attachments?: Asset[]): void;
-}
-
 const props = defineProps<Props>();
-const emit = defineEmits<Emits>();
 
 const store = useLlmChatStore();
 const { settings } = useChatSettings();
@@ -309,30 +292,19 @@ watch(
 );
 
 // 事件处理
-const handleRegenerate = (messageId: string, options?: { modelId?: string; profileId?: string }) => {
-  emit("regenerate", messageId, options);
-};
-
-const handleContinue = (messageId: string, options?: { modelId?: string; profileId?: string }) => {
-  emit("continue", messageId, options);
-};
-
-const handleSwitchSibling = (messageId: string, direction: "prev" | "next") => {
-  // 记录切换前的消息位置
-  captureSwitchingMessagePosition(messageId);
-  emit("switch-sibling", messageId, direction);
-};
-
-const handleSwitchBranch = (nodeId: string) => {
-  // 记录切换前的消息位置
-  captureSwitchingMessagePosition(nodeId);
-  emit("switch-branch", nodeId);
-};
-
-const handleCreateBranch = (nodeId: string) => {
-  // 记录创建分支前的消息位置，防止下方内容消失导致跳动
-  captureSwitchingMessagePosition(nodeId);
-  emit("create-branch", nodeId);
+const handleReparseTools = async (nodeId: string) => {
+  try {
+    const { customMessage } = await import("@/utils/customMessage");
+    customMessage.info("正在重新解析工具...");
+    await store.reparseNodeTools(nodeId);
+    customMessage.success("工具重新解析完成");
+  } catch (error) {
+    const { createModuleLogger } = await import("@utils/logger");
+    const logger = createModuleLogger("MessageList");
+    logger.error("重新解析工具失败", error);
+    const { customMessage } = await import("@/utils/customMessage");
+    customMessage.error("重新解析失败");
+  }
 };
 
 /**
@@ -388,13 +360,6 @@ const restoreSwitchingMessagePosition = () => {
   switchingMessageViewportOffset.value = 0;
 };
 
-const handleEditMessage = (nodeId: string, newContent: string, attachments?: Asset[]) => {
-  emit("edit-message", nodeId, newContent, attachments);
-};
-
-const handleSaveToBranch = (nodeId: string, newContent: string, attachments?: Asset[]) => {
-  emit("save-to-branch", nodeId, newContent, attachments);
-};
 
 defineExpose({
   scrollToBottom,
@@ -424,8 +389,8 @@ defineExpose({
             :session-detail="props.sessionDetail"
             :message="msg"
             :message-depth="messages.length - 1 - messages.indexOf(msg)"
-            @toggle-enabled="emit('toggle-enabled', msg.id)"
-            @delete="emit('delete-message', msg.id)"
+            @toggle-enabled="store.toggleNodeEnabled(msg.id)"
+            @delete="store.deleteMessage(msg.id)"
             @update-content="(content: string) => store.editMessage(msg.id, content)"
             @update-role="(role: any) => store.updateNodeData(msg.id, { role })"
           />
@@ -440,19 +405,19 @@ defineExpose({
             :is-sending="isSending"
             :siblings="getMessageSiblings(msg.id).siblings"
             :current-sibling-index="getMessageSiblings(msg.id).currentIndex"
-            @delete="emit('delete-message', msg.id)"
-            @regenerate="handleRegenerate(msg.id, $event)"
-            @switch-sibling="handleSwitchSibling(msg.id, $event)"
-            @switch-branch="handleSwitchBranch"
-            @toggle-enabled="emit('toggle-enabled', msg.id)"
-            @edit="(newContent: any, attachments: any) => handleEditMessage(msg.id, newContent, attachments)"
+            @delete="store.deleteMessage(msg.id)"
+            @regenerate="store.regenerateFromNode(msg.id, $event)"
+            @switch-sibling="(dir: any) => { captureSwitchingMessagePosition(msg.id); store.switchToSiblingBranch(msg.id, dir) }"
+            @switch-branch="(nodeId: any) => { captureSwitchingMessagePosition(msg.id); store.switchBranch(nodeId) }"
+            @toggle-enabled="store.toggleNodeEnabled(msg.id)"
+            @edit="(newContent: any, attachments: any) => store.editMessage(msg.id, newContent, attachments)"
             @copy="() => {}"
-            @abort="emit('abort-node', msg.id)"
-            @continue="handleContinue(msg.id, $event)"
-            @create-branch="handleCreateBranch(msg.id)"
-            @analyze-context="emit('analyze-context', msg.id)"
-            @reparse-tools="emit('reparse-tools', msg.id)"
-            @save-to-branch="handleSaveToBranch(msg.id, $event)"
+            @abort="store.abortNodeGeneration(msg.id)"
+            @continue="store.continueGeneration(msg.id, $event)"
+            @create-branch="() => { captureSwitchingMessagePosition(msg.id); store.createBranch(msg.id) }"
+            @analyze-context="() => { store.contextAnalyzerNodeId = msg.id; store.contextAnalyzerVisible = true }"
+            @reparse-tools="handleReparseTools(msg.id)"
+            @save-to-branch="(newContent: any, attachments: any) => store.createBranchFromEdit(msg.id, newContent, attachments)"
             @update-translation="(translation: any) => store.updateMessageTranslation(msg.id, translation)"
           />
 
@@ -471,19 +436,19 @@ defineExpose({
             :rich-text-style-options="
               msg.role === 'user' ? userRichTextStyleOptions || richTextStyleOptions : richTextStyleOptions
             "
-            @delete="emit('delete-message', msg.id)"
-            @regenerate="handleRegenerate(msg.id, $event)"
-            @switch-sibling="handleSwitchSibling(msg.id, $event)"
-            @switch-branch="handleSwitchBranch"
-            @toggle-enabled="emit('toggle-enabled', msg.id)"
-            @edit="(newContent: any, attachments: any) => handleEditMessage(msg.id, newContent, attachments)"
-            @save-to-branch="(newContent: any, attachments: any) => handleSaveToBranch(msg.id, newContent, attachments)"
+            @delete="store.deleteMessage(msg.id)"
+            @regenerate="store.regenerateFromNode(msg.id, $event)"
+            @switch-sibling="(dir: any) => { captureSwitchingMessagePosition(msg.id); store.switchToSiblingBranch(msg.id, dir) }"
+            @switch-branch="(nodeId: any) => { captureSwitchingMessagePosition(msg.id); store.switchBranch(nodeId) }"
+            @toggle-enabled="store.toggleNodeEnabled(msg.id)"
+            @edit="(newContent: any, attachments: any) => store.editMessage(msg.id, newContent, attachments)"
+            @save-to-branch="(newContent: any, attachments: any) => store.createBranchFromEdit(msg.id, newContent, attachments)"
             @copy="() => {}"
-            @abort="emit('abort-node', msg.id)"
-            @continue="handleContinue(msg.id, $event)"
-            @create-branch="handleCreateBranch(msg.id)"
-            @analyze-context="emit('analyze-context', msg.id)"
-            @reparse-tools="emit('reparse-tools', msg.id)"
+            @abort="store.abortNodeGeneration(msg.id)"
+            @continue="store.continueGeneration(msg.id, $event)"
+            @create-branch="() => { captureSwitchingMessagePosition(msg.id); store.createBranch(msg.id) }"
+            @analyze-context="() => { store.contextAnalyzerNodeId = msg.id; store.contextAnalyzerVisible = true }"
+            @reparse-tools="handleReparseTools(msg.id)"
             @update-translation="(translation: any) => store.updateMessageTranslation(msg.id, translation)"
           />
         </template>

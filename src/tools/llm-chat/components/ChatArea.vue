@@ -49,21 +49,9 @@ interface Emits {
     },
   ): void;
   (e: "abort"): void;
-  (e: "delete-message", messageId: string): void;
-  (e: "regenerate", messageId: string, options?: { modelId?: string; profileId?: string }): void;
-  (e: "switch-sibling", nodeId: string, direction: "prev" | "next"): void;
-  (e: "switch-branch", nodeId: string): void;
-  (e: "toggle-enabled", nodeId: string): void;
-  (e: "edit-message", nodeId: string, newContent: string, attachments?: Asset[]): void;
-  (e: "abort-node", nodeId: string): void;
-  (e: "continue", nodeId: string, options?: { modelId?: string; profileId?: string }): void;
   (e: "complete-input", content: string, options?: { modelId?: string; profileId?: string }): void;
   (e: "select-continuation-model"): void;
   (e: "clear-continuation-model"): void;
-  (e: "create-branch", nodeId: string): void;
-  (e: "analyze-context", nodeId: string): void;
-  (e: "save-to-branch", nodeId: string, newContent: string, attachments?: Asset[]): void;
-  (e: "reparse-tools", nodeId: string): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -480,24 +468,8 @@ const handleSendMessage = (payload: {
   disableMacroParsing?: boolean;
 }) => emit("send", payload);
 const handleAbort = () => emit("abort");
-const handleDeleteMessage = (messageId: string) => emit("delete-message", messageId);
-const handleRegenerate = (messageId: string, options?: { modelId?: string; profileId?: string }) =>
-  emit("regenerate", messageId, options);
-const handleSwitchSibling = (nodeId: string, direction: "prev" | "next") => emit("switch-sibling", nodeId, direction);
-const handleSwitchBranch = (nodeId: string) => emit("switch-branch", nodeId);
-const handleToggleEnabled = (nodeId: string) => emit("toggle-enabled", nodeId);
-const handleEditMessage = (nodeId: string, newContent: string, attachments?: Asset[]) =>
-  emit("edit-message", nodeId, newContent, attachments);
-const handleAbortNode = (nodeId: string) => emit("abort-node", nodeId);
-const handleContinue = (nodeId: string, options?: { modelId?: string; profileId?: string }) =>
-  emit("continue", nodeId, options);
 const handleCompleteInput = (content: string, options?: { modelId?: string; profileId?: string }) =>
   emit("complete-input", content, options);
-const handleCreateBranch = (nodeId: string) => emit("create-branch", nodeId);
-const handleAnalyzeContext = (nodeId: string) => emit("analyze-context", nodeId);
-const handleSaveToBranch = (nodeId: string, newContent: string, attachments?: Asset[]) =>
-  emit("save-to-branch", nodeId, newContent, attachments);
-const handleReparseTools = (nodeId: string) => emit("reparse-tools", nodeId);
 
 // ===== 响应式显示控制 =====
 // 阈值设定原则：空间不足时优先去掉文字显示，保住图标和关键操作
@@ -821,18 +793,6 @@ onMounted(async () => {
               :llm-think-rules="currentAgent?.llmThinkRules"
               :rich-text-style-options="finalMessageStyleOptions"
               :user-rich-text-style-options="userRichTextStyleOptions"
-              @delete-message="handleDeleteMessage"
-              @regenerate="handleRegenerate"
-              @switch-sibling="handleSwitchSibling"
-              @switch-branch="handleSwitchBranch"
-              @toggle-enabled="handleToggleEnabled"
-              @edit-message="handleEditMessage"
-              @abort-node="handleAbortNode"
-              @continue="handleContinue"
-              @create-branch="handleCreateBranch"
-              @analyze-context="handleAnalyzeContext"
-              @save-to-branch="handleSaveToBranch"
-              @reparse-tools="handleReparseTools"
               :style="contentWidthStyle"
             />
 

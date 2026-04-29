@@ -22,7 +22,6 @@ const ContextAnalyzerDialog = defineAsyncComponent(
 );
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@utils/errorHandler";
-import { customMessage } from "@/utils/customMessage";
 import { initializeMacroEngine } from "./macro-engine";
 import { initAgentAssetCache } from "./utils/agentAssetUtils";
 import { useChatInputManager } from "./composables/input/useChatInputManager";
@@ -236,53 +235,6 @@ const handleAbortSending = () => {
   store.abortSending();
 };
 
-// 处理重新生成
-const handleRegenerate = async (
-  messageId: string,
-  options?: { modelId?: string; profileId?: string }
-) => {
-  await store.regenerateFromNode(messageId, options);
-};
-
-// 处理删除消息
-const handleDeleteMessage = (messageId: string) => {
-  store.deleteMessage(messageId);
-};
-
-// 处理切换兄弟分支
-const handleSwitchSibling = (nodeId: string, direction: "prev" | "next") => {
-  store.switchToSiblingBranch(nodeId, direction);
-};
-
-// 处理切换到指定分支
-const handleSwitchBranch = (nodeId: string) => {
-  store.switchBranch(nodeId);
-};
-
-// 处理切换节点启用状态
-const handleToggleEnabled = (nodeId: string) => {
-  store.toggleNodeEnabled(nodeId);
-};
-
-// 处理编辑消息（使用统一方法）
-const handleEditMessage = (nodeId: string, newContent: string, attachments?: any[]) => {
-  store.editMessage(nodeId, newContent, attachments);
-};
-
-// 处理从编辑内容创建新分支
-const handleSaveToBranch = (nodeId: string, newContent: string, attachments?: any[]) => {
-  store.createBranchFromEdit(nodeId, newContent, attachments);
-};
-
-// 处理创建分支
-const handleCreateBranch = (nodeId: string) => {
-  store.createBranch(nodeId);
-};
-
-// 处理续写
-const handleContinue = (nodeId: string, options?: { modelId?: string; profileId?: string }) => {
-  store.continueGeneration(nodeId, options);
-};
 
 // 处理输入补全
 const handleCompleteInput = (
@@ -320,32 +272,6 @@ const handleSelectContinuationModel = async () => {
   }
 };
 
-// 处理中止单个节点的生成
-const handleAbortNode = (nodeId: string) => {
-  store.abortNodeGeneration(nodeId);
-};
-
-// 处理重新解析工具
-const handleReparseTools = async (nodeId: string) => {
-  try {
-    customMessage.info("正在重新解析工具...");
-    await store.reparseNodeTools(nodeId, {
-      temporaryModel: inputManager.temporaryModel.value,
-    });
-    customMessage.success("工具重新解析完成");
-  } catch (error) {
-    logger.error("重新解析工具失败", error);
-    customMessage.error("重新解析失败");
-  }
-};
-
-// 处理打开上下文分析器
-const handleAnalyzeContext = (nodeId: string) => {
-  logger.info("打开上下文分析器", { nodeId });
-  store.contextAnalyzerNodeId = nodeId;
-  store.contextAnalyzerPendingInput = undefined; // 历史节点分析不需要 pendingInput
-  store.contextAnalyzerVisible = true;
-};
 
 // 处理新建会话
 const handleNewSession = (data: { agentId: string; name?: string }) => {
@@ -461,18 +387,6 @@ useStateSyncEngine(parametersToSync, {
             "
             @send="handleSendMessage"
             @abort="handleAbortSending"
-            @delete-message="handleDeleteMessage"
-            @regenerate="handleRegenerate"
-            @switch-sibling="handleSwitchSibling"
-            @switch-branch="handleSwitchBranch"
-            @toggle-enabled="handleToggleEnabled"
-            @edit-message="handleEditMessage"
-            @abort-node="handleAbortNode"
-            @create-branch="handleCreateBranch"
-            @analyze-context="handleAnalyzeContext"
-            @save-to-branch="handleSaveToBranch"
-            @reparse-tools="handleReparseTools"
-            @continue="handleContinue"
             @complete-input="handleCompleteInput"
             @select-continuation-model="handleSelectContinuationModel"
             @clear-continuation-model="inputManager.clearContinuationModel"

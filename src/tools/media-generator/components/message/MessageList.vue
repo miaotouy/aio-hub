@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { ref, watch, nextTick, computed } from "vue";
+import { ref, watch, nextTick } from "vue";
 import { useThrottleFn } from "@vueuse/core";
-import { useVirtualizer } from "@tanstack/vue-virtual";
 import type { MediaMessage, MediaTask } from "../../types";
 import { useMediaGenStore } from "../../stores/mediaGenStore";
 import ChatMessage from "./ChatMessage.vue";
@@ -31,24 +30,8 @@ const getMessageSiblings = (messageId: string) => {
   };
 };
 
-// 虚拟滚动容器引用
+// 容器引用
 const messagesContainer = ref<HTMLElement | null>(null);
-
-// 消息数量
-const messageCount = computed(() => props.messages.length);
-
-// 创建虚拟化器
-const virtualizer = useVirtualizer({
-  get count() {
-    return messageCount.value;
-  },
-  getScrollElement: () => messagesContainer.value,
-  estimateSize: () => 200, // 媒体生成的卡片通常比文字高
-  overscan: 5,
-});
-
-const virtualItems = computed(() => virtualizer.value.getVirtualItems());
-const totalSize = computed(() => virtualizer.value.getTotalSize());
 
 // 自动滚动到底部
 const scrollToBottom = useThrottleFn(() => {
@@ -68,20 +51,17 @@ const onScroll = () => {
 };
 
 // 监听消息变化，自动滚动
-watch([() => props.messages.length, totalSize], ([newLength], [oldLength]) => {
-  const isNewMessage = newLength !== oldLength;
-  if (isNewMessage && (isNearBottom.value || newLength === 1)) {
-    scrollToBottom();
-  } else if (isNearBottom.value) {
-    scrollToBottom();
-  }
-});
-
-const handleResize = (dom: HTMLElement | null) => {
-  if (dom) {
-    virtualizer.value.measureElement(dom);
-  }
-};
+watch(
+  () => props.messages.length,
+  (newLength, oldLength) => {
+    const isNewMessage = newLength !== oldLength;
+    if (isNewMessage && (isNearBottom.value || newLength === 1)) {
+      scrollToBottom();
+    } else if (isNearBottom.value) {
+      scrollToBottom();
+    }
+  },
+);
 
 const handleSwitchSibling = (messageId: string, direction: "prev" | "next") => {
   const { siblings, currentIndex } = getMessageSiblings(messageId);
@@ -111,47 +91,22 @@ defineExpose({
         <p>👋 开始新的创作吧！</p>
       </div>
 
-      <div
-        v-else
-        :style="{
-          height: `${totalSize}px`,
-          width: '100%',
-          position: 'relative',
-        }"
-      >
-        <div
-          v-for="virtualItem in virtualItems"
-          :key="messages[virtualItem.index].id"
-          :data-index="virtualItem.index"
-          :ref="
-            (el) => {
-              if (el) virtualizer.measureElement(el as HTMLElement);
-            }
-          "
-          :style="{
-            position: 'absolute',
-            top: `${virtualItem.start}px`,
-            left: 0,
-            width: '100%',
-          }"
-        >
-          <div class="message-wrapper">
-            <ChatMessage
-              :message="messages[virtualItem.index]"
-              :siblings="getMessageSiblings(messages[virtualItem.index].id).siblings"
-              :current-sibling-index="getMessageSiblings(messages[virtualItem.index].id).currentIndex"
-              :is-selected="messages[virtualItem.index].isSelected"
-              :is-batch-mode="isBatchMode"
-              @remove="handleRemove"
-              @download="emit('download-task', $event)"
-              @retry="emit('retry', messages[virtualItem.index].id)"
-              @select="store.toggleMessageSelection(messages[virtualItem.index].id)"
-              @switch-sibling="(dir) => handleSwitchSibling(messages[virtualItem.index].id, dir)"
-              @switch-branch="handleSwitchBranch"
-              @resize="handleResize"
-            />
-          </div>
-        </div>
+      <div v-else class="messages-container">
+        <template v-for="msg in messages" :key="msg.id">
+          <ChatMessage
+            :message="msg"
+            :siblings="getMessageSiblings(msg.id).siblings"
+            :current-sibling-index="getMessageSiblings(msg.id).currentIndex"
+            :is-selected="msg.isSelected"
+            :is-batch-mode="isBatchMode"
+            @remove="handleRemove"
+            @download="emit('download-task', $event)"
+            @retry="emit('retry', msg.id)"
+            @select="store.toggleMessageSelection(msg.id)"
+            @switch-sibling="(dir) => handleSwitchSibling(msg.id, dir)"
+            @switch-branch="handleSwitchBranch"
+          />
+        </template>
       </div>
     </div>
   </div>
@@ -170,18 +125,24 @@ defineExpose({
 .message-list {
   flex: 1;
   overflow-y: auto;
+  /* 禁用浏览器自动滚动锚定，避免与程序化 scrollTo 产生对抗导致布局抖动 */
+  overflow-anchor: none;
+  overscroll-behavior: contain;
+  /* 渲染隔离：防止内部布局变化影响外部容器 */
+  contain: layout style;
   padding: 20px;
   box-sizing: border-box;
 }
 
-.message-wrapper {
+.messages-container {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 8px 0;
-  box-sizing: border-box;
-  width: 100%;
-  overflow: hidden;
+}
+
+.messages-container :deep(.chat-message) {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 600px;
 }
 
 .empty-state {
@@ -194,21 +155,22 @@ defineExpose({
   height: 100%;
 }
 
-/* 自定义滚动条 */
 .message-list::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
 }
 
 .message-list::-webkit-scrollbar-track {
   background: transparent;
+  border-radius: 4px;
 }
 
 .message-list::-webkit-scrollbar-thumb {
   background: transparent;
-  border-radius: 3px;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
 }
 
 .message-list:hover::-webkit-scrollbar-thumb {
-  background: var(--el-border-color-darker);
+  background: var(--scrollbar-thumb-color);
 }
 </style>

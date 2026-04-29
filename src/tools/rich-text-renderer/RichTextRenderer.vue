@@ -141,7 +141,7 @@ const useAstRenderer = computed(
 );
 
 // AST 状态
-const { ast, enqueuePatch, emergencyShutdown } = useMarkdownAst({
+const { ast, enqueuePatch, emergencyShutdown, dispose: disposeMarkdownAst } = useMarkdownAst({
   throttleMs: props.throttleMs,
   throttleEnabled: props.throttleEnabled,
   verboseLogging: props.verboseLogging,
@@ -549,7 +549,9 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   unsubscribe?.();
+  unsubscribe = null;
   unsubscribeComplete?.();
+  unsubscribeComplete = null;
   // 停止 rAF 循环，防止卸载后继续触发 onContent 回调导致内存泄漏
   streamController?.stop();
   streamController = null;
@@ -560,7 +562,14 @@ onBeforeUnmount(() => {
     } else {
       streamProcessor.value.reset?.();
     }
+    streamProcessor.value = null;
   }
+
+  // 主动释放大对象引用，降低长会话切换/卸载后的 WebView2 常驻内存压力
+  disposeMarkdownAst();
+  imageList.value = [];
+  buffer.value = "";
+  htmlContent.value = "";
 });
 
 // 暴露 AST 给父组件（用于测试和调试）

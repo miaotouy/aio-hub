@@ -91,7 +91,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, inject } from "vue";
+import { ref, computed, watch, onMounted, onBeforeUnmount, inject } from "vue";
 import { useThrottleFn } from "@vueuse/core";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -213,7 +213,8 @@ watch(
 
 // 悬停状态管理
 const isHovered = ref(false);
-let hoverTimer: any = null;
+let hoverTimer: ReturnType<typeof setTimeout> | null = null;
+let copiedTimer: ReturnType<typeof setTimeout> | null = null;
 
 const handleMouseEnter = () => {
   if (hoverTimer) clearTimeout(hoverTimer);
@@ -307,8 +308,10 @@ const copyCode = async () => {
     await navigator.clipboard.writeText(props.content);
     copied.value = true;
     customMessage.success("代码已复制");
-    setTimeout(() => {
+    if (copiedTimer) clearTimeout(copiedTimer);
+    copiedTimer = setTimeout(() => {
       copied.value = false;
+      copiedTimer = null;
     }, 2000);
   } catch (error) {
     errorHandler.error(error, "复制失败");
@@ -335,6 +338,17 @@ const resetCodeFont = () => {
 
 onMounted(() => {
   // 初始化逻辑（目前 watch 已覆盖自动预览逻辑）
+});
+
+onBeforeUnmount(() => {
+  if (hoverTimer) {
+    clearTimeout(hoverTimer);
+    hoverTimer = null;
+  }
+  if (copiedTimer) {
+    clearTimeout(copiedTimer);
+    copiedTimer = null;
+  }
 });
 </script>
 

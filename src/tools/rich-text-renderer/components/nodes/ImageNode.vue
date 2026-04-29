@@ -41,7 +41,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, inject, type ComputedRef } from "vue";
+import { ref, watch, inject, onBeforeUnmount, type ComputedRef } from "vue";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { ZoomIn, Copy, Download, Check } from "lucide-vue-next";
@@ -73,8 +73,23 @@ const isHovered = ref(false);
 const isCopying = ref(false);
 const vcpFixAttempted = ref(false);
 let basePath: string | null = null;
+let ownedObjectUrl: string | null = null;
+let currentAbortController: AbortController | null = null;
+
+const releaseOwnedObjectUrl = () => {
+  if (ownedObjectUrl) {
+    URL.revokeObjectURL(ownedObjectUrl);
+    ownedObjectUrl = null;
+  }
+};
 
 const resolveUrl = async () => {
+  if (!isActive) return;
+
+  currentAbortController?.abort();
+  currentAbortController = null;
+  releaseOwnedObjectUrl();
+
   isLoading.value = true;
   hasError.value = false;
 
@@ -113,10 +128,14 @@ const resolveUrl = async () => {
       resolvedSrc.value = resolveLocalPath(src);
     }
   } catch (error) {
-    console.error(`[ImageNode] Failed to resolve image source: ${props.src}`, error);
-    hasError.value = true;
+    if (isActive) {
+      console.error(`[ImageNode] Failed to resolve image source: ${props.src}`, error);
+      hasError.value = true;
+    }
   } finally {
-    isLoading.value = false;
+    if (isActive) {
+      isLoading.value = false;
+    }
   }
 };
 
@@ -124,6 +143,8 @@ const resolveUrl = async () => {
  * 处理图片加载失败：尝试使用 fetch 代理（绕过 Referer 限制）
  */
 const handleImageError = async () => {
+  if (!isActive) return;
+
   // === 新增：VCP 表情包 URL 修复 ===
   // 如果 URL 含"表情包"字样且尚未尝试修复，先走 resolveAsset 修复路径
   if (
@@ -151,6 +172,9 @@ const handleImageError = async () => {
   isRetrying.value = true;
   isLoading.value = true;
 
+  const abortController = new AbortController();
+  currentAbortController = abortController;
+
   try {
     // 使用 fetch 获取图片，显式设置不带 referrer 并伪装 User-Agent
     const response = await fetch(resolvedSrc.value, {
@@ -162,6 +186,7 @@ const handleImageError = async () => {
       referrerPolicy: "no-referrer",
       credentials: "omit",
       mode: "cors",
+      signal: abortController.signal,
     });
 
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -170,18 +195,29 @@ const handleImageError = async () => {
     // 检查是否真的是图片
     if (!blob.type.startsWith("image/")) throw new Error("Not an image");
 
-    // 释放旧的 URL (如果是我们自己生成的)
-    if (resolvedSrc.value.startsWith("blob:")) {
-      URL.revokeObjectURL(resolvedSrc.value);
+    const objectUrl = URL.createObjectURL(blob);
+    if (!isActive) {
+      URL.revokeObjectURL(objectUrl);
+      return;
     }
 
-    resolvedSrc.value = URL.createObjectURL(blob);
+    // 释放旧的 URL（仅释放本组件创建的 blob URL，避免误撤销外部传入资源）
+    releaseOwnedObjectUrl();
+    ownedObjectUrl = objectUrl;
+    resolvedSrc.value = objectUrl;
     hasError.value = false;
   } catch (error) {
-    console.warn(`[ImageNode] Proxy fetch failed for ${props.src}:`, error);
-    hasError.value = true;
+    if (!abortController.signal.aborted && isActive) {
+      console.warn(`[ImageNode] Proxy fetch failed for ${props.src}:`, error);
+      hasError.value = true;
+    }
   } finally {
-    isLoading.value = false;
+    if (currentAbortController === abortController) {
+      currentAbortController = null;
+    }
+    if (isActive) {
+      isLoading.value = false;
+    }
   }
 };
 // 性能优化：使用 watchEffect 替代 watch，避免不必要的重复触发
@@ -359,6 +395,13 @@ const handleDownload = async () => {
     customMessage.error("下载图片失败");
   }
 };
+
+onBeforeUnmount(() => {
+  isActive = false;
+  currentAbortController?.abort();
+  currentAbortController = null;
+  releaseOwnedObjectUrl();
+});
 </script>
 
 <style scoped>

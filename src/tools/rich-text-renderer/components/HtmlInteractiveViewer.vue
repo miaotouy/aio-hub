@@ -205,6 +205,8 @@ interface IframeError {
   time: string;
 }
 const iframeErrors = ref<IframeError[]>([]);
+const MAX_IFRAME_ERRORS = 200;
+let openInBrowserRevokeTimer: ReturnType<typeof setTimeout> | null = null;
 
 // 检查 HTML 内容是否足够稳定以进行渲染
 const isContentStable = (html: string): boolean => {
@@ -457,8 +459,11 @@ const handleIframeMessage = (event: MessageEvent) => {
         logger.warn(message, extraData);
         break;
       case "error":
-        // 记录到内部错误列表
+        // 记录到内部错误列表，并限制数量，避免高频 console/error 页面撑爆宿主内存
         const stack = event.data.stack || (extraData?.length ? extraData.join(" ") : "");
+        if (iframeErrors.value.length >= MAX_IFRAME_ERRORS) {
+          iframeErrors.value = iframeErrors.value.slice(-(MAX_IFRAME_ERRORS - 1));
+        }
         iframeErrors.value.push({
           message,
           stack: stack,
@@ -487,6 +492,18 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener("message", handleIframeMessage);
+  if (openInBrowserRevokeTimer) {
+    clearTimeout(openInBrowserRevokeTimer);
+    openInBrowserRevokeTimer = null;
+  }
+
+  // 主动卸载 iframe 文档，释放其中脚本、观察器、图片解码缓存和 WebGL/Canvas 等资源
+  if (iframeRef.value) {
+    iframeRef.value.srcdoc = "";
+    iframeRef.value.src = "about:blank";
+  }
+  renderContent.value = "";
+  iframeErrors.value = [];
 });
 
 const onLoad = () => {
@@ -522,7 +539,11 @@ const openInBrowser = () => {
     const blob = new Blob([srcDoc.value], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     window.open(url, "_blank");
-    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    if (openInBrowserRevokeTimer) clearTimeout(openInBrowserRevokeTimer);
+    openInBrowserRevokeTimer = setTimeout(() => {
+      URL.revokeObjectURL(url);
+      openInBrowserRevokeTimer = null;
+    }, 10000);
   } catch (error) {
     errorHandler.error(error, "在浏览器打开失败");
   }

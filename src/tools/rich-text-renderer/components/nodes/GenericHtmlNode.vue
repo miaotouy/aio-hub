@@ -20,11 +20,7 @@
       v-bind="filteredAttributes"
       :class="computedClass"
       :data-node-id="nodeId"
-      :ref="
-        (el: any) => {
-          if (isAudio) audioRef = el;
-        }
-      "
+      :ref="setAudioRef"
     >
       <slot />
     </component>
@@ -71,7 +67,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject, ref, onMounted, watch } from "vue";
+import { computed, inject, ref, onMounted, onBeforeUnmount, watch, type ComponentPublicInstance } from "vue";
 import { RICH_TEXT_CONTEXT_KEY, type RichTextContext } from "../../types";
 import { Play, Pause, Square, Volume2 } from "lucide-vue-next";
 import { resolveLocalPath } from "../../utils/path-utils";
@@ -95,10 +91,15 @@ const chatSettings = inject<any>("chatSettings", null);
 const currentAgent = inject<any>("currentAgent", null);
 
 const audioRef = ref<HTMLAudioElement | null>(null);
+const setAudioRef = (el: Element | ComponentPublicInstance | null) => {
+  audioRef.value = isAudio.value && el instanceof HTMLAudioElement ? el : null;
+};
 const isPlaying = ref(false);
 const isMuted = ref(false);
 const currentTime = ref(0);
 const duration = ref(0);
+
+let cleanupAudioListeners: (() => void) | null = null;
 
 // 音频显示名称
 const audioDisplayName = computed(() => {
@@ -191,13 +192,35 @@ onMounted(() => {
     isPlaying.value = !el.paused;
     isMuted.value = el.muted;
 
+    const handlePlay = () => (isPlaying.value = true);
+    const handlePause = () => (isPlaying.value = false);
+    const handleVolumeChange = () => (isMuted.value = el.muted);
+    const handleTimeUpdate = () => (currentTime.value = el.currentTime);
+    const handleLoadedMetadata = () => (duration.value = el.duration);
+
     // 事件监听
-    el.addEventListener("play", () => (isPlaying.value = true));
-    el.addEventListener("pause", () => (isPlaying.value = false));
-    el.addEventListener("volumechange", () => (isMuted.value = el.muted));
-    el.addEventListener("timeupdate", () => (currentTime.value = el.currentTime));
-    el.addEventListener("loadedmetadata", () => (duration.value = el.duration));
+    el.addEventListener("play", handlePlay);
+    el.addEventListener("pause", handlePause);
+    el.addEventListener("volumechange", handleVolumeChange);
+    el.addEventListener("timeupdate", handleTimeUpdate);
+    el.addEventListener("loadedmetadata", handleLoadedMetadata);
+
+    cleanupAudioListeners = () => {
+      el.removeEventListener("play", handlePlay);
+      el.removeEventListener("pause", handlePause);
+      el.removeEventListener("volumechange", handleVolumeChange);
+      el.removeEventListener("timeupdate", handleTimeUpdate);
+      el.removeEventListener("loadedmetadata", handleLoadedMetadata);
+      el.pause();
+      el.removeAttribute("src");
+      el.load();
+    };
   }
+});
+
+onBeforeUnmount(() => {
+  cleanupAudioListeners?.();
+  cleanupAudioListeners = null;
 });
 
 // 监听全局音量变化

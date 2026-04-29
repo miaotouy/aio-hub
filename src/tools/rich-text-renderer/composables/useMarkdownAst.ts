@@ -438,10 +438,25 @@ export function useMarkdownAst(
     rafRetryCount = 0;
   }
 
+  /**
+   * 主动释放 AST 状态。
+   *
+   * 组件卸载时调用，避免长消息 AST、节点索引和待处理 patch 队列
+   * 被闭包继续持有到下一次 GC 周期。
+   */
+  function dispose() {
+    emergencyShutdown();
+    ast.value = [];
+    nodeMap.clear();
+    lastFlushTime = 0;
+    flushCount = 0;
+  }
+
   return {
     ast,
     enqueuePatch,
     nodeMap,
     emergencyShutdown,
+    dispose,
   };
 }

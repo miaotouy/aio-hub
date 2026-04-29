@@ -169,7 +169,9 @@ const seamless = computed(() => {
 
 // 悬停状态管理
 const isHovered = ref(false);
-let hoverTimer: any = null;
+let hoverTimer: ReturnType<typeof setTimeout> | null = null;
+let copiedTimer: ReturnType<typeof setTimeout> | null = null;
+let isUnmounted = false;
 
 const handleMouseEnter = () => {
   if (hoverTimer) clearTimeout(hoverTimer);
@@ -286,8 +288,10 @@ const copyCode = async () => {
     await navigator.clipboard.writeText(activeContent.value);
     copied.value = true;
     customMessage.success(showOriginal.value ? "已复制原始代码" : "已复制修复后的代码");
-    setTimeout(() => {
+    if (copiedTimer) clearTimeout(copiedTimer);
+    copiedTimer = setTimeout(() => {
       copied.value = false;
+      copiedTimer = null;
     }, 2000);
   } catch (err) {
     errorHandler.error(err, "复制失败");
@@ -372,7 +376,7 @@ const openViewer = () => {
 const renderDiagramWithContent = async (
   content: string
 ): Promise<{ success: boolean; error?: any }> => {
-  if (!mermaid || !mermaidRef.value) return { success: false };
+  if (isUnmounted || !mermaid || !mermaidRef.value) return { success: false };
 
   const currentRenderId = lastRenderId.value;
   const id = `mermaid-${props.nodeId}-${currentRenderId}`;
@@ -381,7 +385,7 @@ const renderDiagramWithContent = async (
     const { svg } = await mermaid.render(id, content);
 
     // 检查并发
-    if (currentRenderId !== lastRenderId.value) return { success: false };
+    if (isUnmounted || currentRenderId !== lastRenderId.value) return { success: false };
 
     // 渲染成功，清理之前的状态
     if (renderCleanup) {
@@ -417,7 +421,7 @@ const renderDiagramWithContent = async (
 
 // 渲染图表（带自动修复机制）
 const renderDiagram = async () => {
-  if (!mermaid) return;
+  if (isUnmounted || !mermaid) return;
 
   // 记录当前的渲染 ID，用于并发控制
   const currentRenderId = Date.now();
@@ -572,6 +576,7 @@ const initMermaid = async () => {
   try {
     // 动态导入 Mermaid
     const mermaidModule = await import("mermaid");
+    if (isUnmounted) return;
     mermaid = mermaidModule.default;
 
     // 初始化配置
@@ -644,10 +649,25 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  isUnmounted = true;
+  lastRenderId.value = Date.now();
+
+  if (hoverTimer) {
+    clearTimeout(hoverTimer);
+    hoverTimer = null;
+  }
+  if (copiedTimer) {
+    clearTimeout(copiedTimer);
+    copiedTimer = null;
+  }
   if (renderCleanup) {
     renderCleanup();
     renderCleanup = null;
   }
+  if (mermaidRef.value) {
+    mermaidRef.value.innerHTML = "";
+  }
+  mermaid = null;
 });
 </script>
 

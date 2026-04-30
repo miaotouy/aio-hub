@@ -62,13 +62,13 @@ export function useTaskActionManager(context: {
     const currentNode = nodes.value[activeLeafId.value];
 
     // 2. 挂载点判断
+    // 移除复杂的重试挂载逻辑，新消息始终挂在当前活跃节点下
     if (currentNode?.role === "user" && currentNode.content === task.input.prompt) {
       // 情况 A: 当前活跃节点就是同一个 Prompt 的 User 节点，直接挂在它下面
       parentUserNodeId = currentNode.id;
       logger.debug("在现有 User 节点下直接追加生成", { parentUserNodeId });
     } else {
       // 情况 B: 创建新的 User 节点，挂在当前 activeLeafId 后面
-      // 如果 activeLeafId 为空，则挂在 rootNodeId 下
       const userNode = nodeManager.createNode({
         role: "user",
         content: task.input.prompt,

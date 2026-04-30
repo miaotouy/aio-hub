@@ -4,7 +4,6 @@ import { ElMessageBox as elMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import { useMediaGenStore } from "../stores/mediaGenStore";
 import { useMediaGenInputManager } from "../composables/useMediaGenInputManager";
-import { useMediaGenerationManager } from "../composables/useMediaGenerationManager";
 import { useAssetManager } from "@/composables/useAssetManager";
 import MessageList from "./message/MessageList.vue";
 import SessionManager from "./SessionManager.vue";
@@ -15,7 +14,6 @@ import { sampleSize } from "lodash-es";
 
 const store = useMediaGenStore();
 const inputManager = useMediaGenInputManager();
-const { startGeneration } = useMediaGenerationManager();
 const { getAssetUrl } = useAssetManager();
 
 const scrollContainer = ref<HTMLElement | null>(null);
@@ -95,16 +93,7 @@ onUnmounted(() => {
 
 // 处理重试
 const handleRetry = async (messageId: string) => {
-  const params = store.getRetryParams(messageId);
-  if (!params) return;
-
-  if (params.isMediaTask && params.type) {
-    // 触发媒体生成重试
-    await startGeneration(params.options as any, params.type);
-  } else {
-    // TODO: 处理纯对话重试 (目前 MediaGenerator 暂未开放纯对话流)
-    console.log("对话重试:", params);
-  }
+  await store.regenerateFromNode(messageId);
 };
 
 const handleBatchDelete = async () => {
@@ -263,7 +252,7 @@ watch(
 
       <div v-else class="message-list-wrapper">
         <MessageList
-          :messages="store.messages.filter((m) => m.role !== 'system')"
+          :messages="store.messages.filter((m: any) => m.role !== 'system')"
           :is-batch-mode="store.isBatchMode"
           @remove-task="(taskId) => store.removeTask(taskId)"
           @retry="handleRetry"

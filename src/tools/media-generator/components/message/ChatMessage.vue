@@ -6,7 +6,6 @@ import type { MediaMessage, MediaTask } from "../../types";
 import type { Asset } from "@/types/asset-management";
 import { useMediaGenStore } from "../../stores/mediaGenStore";
 import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
-import { useMediaGenerationManager } from "../../composables/useMediaGenerationManager";
 import MessageHeader from "./MessageHeader.vue";
 import MessageContent from "./MessageContent.vue";
 import MessageMenubar from "./MessageMenubar.vue";
@@ -34,7 +33,6 @@ const emit = defineEmits<{
 
 const store = useMediaGenStore();
 const modelSelectDialog = useModelSelectDialog();
-const mediaGenManager = useMediaGenerationManager();
 // 弹窗状态管理
 const isEditing = ref(false);
 const isRawEditing = ref(false);
@@ -64,9 +62,7 @@ const handleRetry = async (useNewModel = false) => {
   let temporaryModel: { profileId: string; modelId: string } | undefined;
 
   if (useNewModel) {
-    // 如果需要切换模型重试
     const result = await modelSelectDialog.open();
-
     if (!result) return;
     temporaryModel = {
       profileId: result.profile.id,
@@ -74,22 +70,7 @@ const handleRetry = async (useNewModel = false) => {
     };
   }
 
-  const params = store.getRetryParams(props.message.id);
-  if (params) {
-    // getRetryParams 返回 { isMediaTask, type, options: { ... } } 结构
-    // startGeneration 期望接收扁平的 MediaGenerationOptions，需要解包
-    const generationOptions = { ...(params.options || params) } as any;
-
-    // 如果有临时模型，覆盖参数
-    if (temporaryModel) {
-      generationOptions.profileId = temporaryModel.profileId;
-      generationOptions.modelId = temporaryModel.modelId;
-    }
-
-    // 确定媒体类型：优先用 getRetryParams 返回的 type
-    const type = params.type || props.message.metadata?.taskSnapshot?.type || store.currentConfig.activeType;
-    mediaGenManager.startGeneration(generationOptions, type);
-  }
+  store.regenerateFromNode(props.message.id, temporaryModel);
 };
 
 const handleSaveEdit = (newContent: string, attachments?: Asset[]) => {

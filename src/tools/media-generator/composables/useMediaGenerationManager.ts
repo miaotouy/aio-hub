@@ -43,22 +43,193 @@ export function useMediaGenerationManager() {
   };
 
   /**
-   * 创建并启动媒体生成任务
+   * 执行媒体生成任务 (核心逻辑)
+   */
+  const executeGeneration = async (task: MediaTask) => {
+    const taskId = task.id;
+    const options = task.input.params as any;
+    const type = task.type;
+
+    isGenerating.value = true;
+    abortController.value = new AbortController();
+
+    try {
+      if (task.input.params.inputAttachments && (task.input.params.inputAttachments as any[]).length > 0) {
+        mediaStore.updateTaskStatus(taskId, "processing", { statusText: "正在处理附件..." });
+      } else {
+        mediaStore.updateTaskStatus(taskId, "processing", { statusText: "正在准备生成..." });
+      }
+
+      // 构造多轮会话上下文
+      const requestTimeout = mediaStore.settings.requestSettings?.timeout ?? DEFAULT_MEDIA_TIMEOUT;
+      const maxRetries = mediaStore.settings.requestSettings?.maxRetries ?? 0;
+
+      // 处理参考图：将本地 Asset (含 path) 转换为 Base64
+      let processedAttachments = task.input.params.inputAttachments;
+      if (processedAttachments && (processedAttachments as any[]).length > 0) {
+        processedAttachments = await Promise.all(
+          (processedAttachments as any[]).map(async (att: any) => {
+            if (att.path && !att.b64) {
+              try {
+                const buffer = await getAssetBinary(att.path);
+                const base64 = await convertArrayBufferToBase64(buffer);
+                const mimeType = att.mimeType || "image/png";
+                return {
+                  ...att,
+                  path: undefined,
+                  b64: `data:${mimeType};base64,${base64}`,
+                };
+              } catch (e) {
+                logger.error("读取参考图失败", e, { path: att.path });
+                return att;
+              }
+            }
+            return att;
+          }),
+        );
+      }
+
+      let finalOptions = {
+        timeout: requestTimeout,
+        maxRetries: maxRetries,
+        ...options,
+        inputAttachments: processedAttachments,
+        prompt: task.input.params.prompt, // 使用 task 中的 prompt
+      };
+
+      // 应用参数规则清洁
+      const selectedProfile = allProfiles.value.find((p) => p.id === task.input.profileId);
+      const rules = getParamRules(task.input.modelId, selectedProfile?.type);
+      if (rules) {
+        if (usesAspectRatioMode(rules)) {
+          const ext = finalOptions as any;
+          const xaiParams = buildXaiSizeParams(
+            ext.aspectRatio || rules.aspectRatioMode?.defaultRatio || "1:1",
+            ext.resolution || rules.aspectRatioMode?.defaultResolution || "1k",
+          );
+          finalOptions = { ...finalOptions, ...xaiParams };
+          delete (finalOptions as any).size;
+        }
+        finalOptions = sanitizeParams(finalOptions, rules) as any;
+      }
+
+      // 构造多轮会话上下文 (请求侧裁切逻辑)
+      let contextMessages: MediaMessage[] = mediaStore.messages.filter(
+        (m: MediaMessage) => m.id !== taskId && m.role !== "system",
+      );
+
+      const shouldIncludeContext = task.input.includeContext;
+      const isManualContext = task.input.contextMessageIds && task.input.contextMessageIds.length > 0;
+
+      if (isManualContext) {
+        contextMessages = contextMessages.filter((m) => task.input.contextMessageIds?.includes(m.id));
+      } else if (!shouldIncludeContext) {
+        const lastUserIndex = findLastIndex(contextMessages, (m: MediaMessage) => m.role === "user");
+        if (lastUserIndex !== -1) {
+          const lastUser = contextMessages[lastUserIndex];
+          const modelProps = getMatchedProperties(task.input.modelId);
+          const hasVisualInput = modelProps?.visualInput === true;
+          const shouldAutoInclude = mediaStore.settings.autoIncludeLastResult;
+
+          if (shouldAutoInclude && hasVisualInput && lastUserIndex > 0) {
+            const prevAssistant = contextMessages[lastUserIndex - 1];
+            if (prevAssistant.role === "assistant") {
+              const resultAsset = prevAssistant.metadata?.taskSnapshot?.resultAsset;
+              if (resultAsset) {
+                const augmentedUser = {
+                  ...lastUser,
+                  attachments: [...(lastUser.attachments || []), resultAsset],
+                };
+                contextMessages = [augmentedUser];
+              } else {
+                contextMessages = [lastUser];
+              }
+            } else {
+              contextMessages = [lastUser];
+            }
+          } else {
+            contextMessages = [lastUser];
+          }
+        }
+      }
+
+      if (contextMessages.length > 0) {
+        const messages = contextMessages.map((m) => ({
+          role: m.role,
+          content: m.content,
+          attachments:
+            m.attachments ||
+            (m.metadata?.taskSnapshot?.resultAsset ? [m.metadata.taskSnapshot.resultAsset] : undefined),
+        }));
+
+        finalOptions = {
+          ...finalOptions,
+          messages: messages as any,
+        };
+      }
+
+      if (selectedProfile?.type === "openai-responses") {
+        (finalOptions as any).onPartialImage = (base64: string, index: number) => {
+          const currentTask = mediaStore.getTask(taskId);
+          const previews = [...(currentTask?.previewUrls || [])];
+          previews[index] = base64;
+          mediaStore.updateTaskStatus(taskId, "processing", {
+            statusText: `正在生成预览图 ${index + 1}...`,
+            previewUrls: previews,
+          });
+        };
+      }
+
+      const response = await sendRequest({
+        ...finalOptions,
+        signal: abortController.value?.signal,
+      });
+
+      mediaStore.updateTaskStatus(taskId, "processing", {
+        statusText: "生成成功，正在入库资产...",
+        progress: 90,
+      });
+
+      await handleResponseAssets(taskId, response, type);
+
+      mediaStore.updateTaskStatus(taskId, "completed", {
+        statusText: "生成完成",
+        progress: 100,
+      });
+    } catch (error: any) {
+      if (error.name === "AbortError") {
+        mediaStore.updateTaskStatus(taskId, "error", {
+          error: "已中止",
+          statusText: "任务已中止",
+        });
+        return;
+      }
+      mediaStore.updateTaskStatus(taskId, "error", {
+        error: error.message || String(error),
+        statusText: "生成失败",
+      });
+      errorHandler.handle(error, {
+        userMessage: "媒体生成失败",
+        showToUser: false,
+      });
+    } finally {
+      isGenerating.value = false;
+      abortController.value = null;
+    }
+  };
+
+  /**
+   * 创建并启动媒体生成任务 (新消息专用)
    */
   const startGeneration = async (
     options: MediaGenerationOptions & { contextMessageIds?: string[]; includeContext?: boolean },
     type: MediaTaskType,
   ) => {
     const taskId = uuidv4();
-
-    // 1. 能力感知：检查模型是否支持迭代微调
     const modelProps = getMatchedProperties(options.modelId);
     const supportsIterative = modelProps?.iterativeRefinement === true;
-
-    // 决定是否包含上下文 (优先使用传入的，其次基于能力)
     const shouldIncludeContext = options.includeContext ?? supportsIterative;
 
-    // 2. 翻译拦截 (实验性)
     let finalPrompt = options.prompt || "";
     let translatedPrompt: string | undefined;
 
@@ -81,7 +252,8 @@ export function useMediaGenerationManager() {
         profileId: options.profileId,
         params: {
           ...options,
-          ...options.params, // 透传参数优先级更高，覆盖顶层同名字段
+          ...options.params,
+          prompt: finalPrompt, // 确保使用最终提示词
         },
         referenceAssetIds: (options.inputAttachments as any[])?.map((a) => a.path || a.url).filter(Boolean) as string[],
         contextMessageIds: options.contextMessageIds,
@@ -93,7 +265,6 @@ export function useMediaGenerationManager() {
 
     mediaStore.addTask(task);
 
-    // 记录翻译结果到消息节点
     if (translatedPrompt) {
       const node = mediaStore.nodes[taskId];
       if (node && node.metadata) {
@@ -101,196 +272,14 @@ export function useMediaGenerationManager() {
       }
     }
 
-    isGenerating.value = true;
-    abortController.value = new AbortController();
+    await executeGeneration(task);
+  };
 
-    try {
-      if (options.inputAttachments && options.inputAttachments.length > 0) {
-        mediaStore.updateTaskStatus(taskId, "processing", { statusText: "正在处理附件..." });
-      } else {
-        mediaStore.updateTaskStatus(taskId, "processing", { statusText: "正在准备生成..." });
-      }
-
-      // 构造多轮会话上下文
-      // 注入超时配置，优先使用用户设置，兜底使用媒体专用默认值
-      const requestTimeout = mediaStore.settings.requestSettings?.timeout ?? DEFAULT_MEDIA_TIMEOUT;
-      const maxRetries = mediaStore.settings.requestSettings?.maxRetries ?? 0;
-
-      // 处理参考图：将本地 Asset (含 path) 转换为 Base64
-      let processedAttachments = options.inputAttachments;
-      if (options.inputAttachments && options.inputAttachments.length > 0) {
-        processedAttachments = await Promise.all(
-          options.inputAttachments.map(async (att: any) => {
-            // 如果有 path 且没有 b64，则读取文件
-            if (att.path && !att.b64) {
-              try {
-                const buffer = await getAssetBinary(att.path);
-                const base64 = await convertArrayBufferToBase64(buffer);
-                const mimeType = att.mimeType || "image/png";
-                return {
-                  ...att,
-                  path: undefined, // 移除 path
-                  b64: `data:${mimeType};base64,${base64}`,
-                };
-              } catch (e) {
-                logger.error("读取参考图失败", e, { path: att.path });
-                return att;
-              }
-            }
-            return att;
-          }),
-        );
-      }
-
-      let finalOptions = {
-        timeout: requestTimeout,
-        maxRetries: maxRetries,
-        ...options,
-        inputAttachments: processedAttachments,
-        prompt: finalPrompt,
-      };
-
-      // 应用参数规则清洁 (OpenAI 兼容接口)
-      const selectedProfile = allProfiles.value.find((p) => p.id === options.profileId);
-      const rules = getParamRules(options.modelId, selectedProfile?.type);
-      if (rules) {
-        // 处理 xAI 的特殊参数映射
-        if (usesAspectRatioMode(rules)) {
-          const ext = finalOptions as any;
-          const xaiParams = buildXaiSizeParams(
-            ext.aspectRatio || rules.aspectRatioMode?.defaultRatio || "1:1",
-            ext.resolution || rules.aspectRatioMode?.defaultResolution || "1k",
-          );
-          finalOptions = { ...finalOptions, ...xaiParams };
-          delete (finalOptions as any).size; // 移除 size，改用 aspect_ratio
-        }
-        // 通用参数清洁
-        finalOptions = sanitizeParams(finalOptions, rules) as any;
-      }
-
-      // 构造多轮会话上下文 (请求侧裁切逻辑)
-      // 1. 全量提取当前路径上的所有消息 (排除当前正在生成的任务节点本身和系统消息)
-      let contextMessages: MediaMessage[] = mediaStore.messages.filter(
-        (m: MediaMessage) => m.id !== taskId && m.role !== "system",
-      );
-
-      // 2. 根据模型能力和设置进行裁切
-      const isManualContext = options.contextMessageIds && options.contextMessageIds.length > 0;
-      if (isManualContext) {
-        // 如果是手动选择上下文，则只保留选中的
-        contextMessages = contextMessages.filter((m) => options.contextMessageIds?.includes(m.id));
-      } else if (!shouldIncludeContext) {
-        // 如果不支持多轮或未开启多轮，执行裁切：仅保留最后一条 User 消息
-        const lastUserIndex = findLastIndex(contextMessages, (m: MediaMessage) => m.role === "user");
-        if (lastUserIndex !== -1) {
-          const lastUser = contextMessages[lastUserIndex];
-
-          // 智能增强：如果开启了设置且模型支持视觉输入，尝试将上一轮 Assistant 的结果作为参考图带入
-          const hasVisualInput = modelProps?.visualInput === true;
-          const shouldAutoInclude = mediaStore.settings.autoIncludeLastResult;
-
-          if (shouldAutoInclude && hasVisualInput && lastUserIndex > 0) {
-            const prevAssistant = contextMessages[lastUserIndex - 1];
-            if (prevAssistant.role === "assistant") {
-              const resultAsset = prevAssistant.metadata?.taskSnapshot?.resultAsset;
-              if (resultAsset) {
-                // 将结果资产临时注入到最后一条 user 的附件中（仅用于请求）
-                const augmentedUser = {
-                  ...lastUser,
-                  attachments: [...(lastUser.attachments || []), resultAsset],
-                };
-                contextMessages = [augmentedUser];
-                logger.info("单轮模式：已自动关联上一轮生成结果作为参考图", { assetId: resultAsset.id });
-              } else {
-                contextMessages = [lastUser];
-              }
-            } else {
-              contextMessages = [lastUser];
-            }
-          } else {
-            contextMessages = [lastUser];
-          }
-        }
-      }
-
-      if (contextMessages.length > 0) {
-        // 映射为 LlmRequest 所需的消息格式
-        const messages = contextMessages.map((m) => ({
-          role: m.role,
-          content: m.content,
-          // 优先使用节点自带附件，其次尝试从任务快照中提取结果资产 (VLM 逻辑)
-          attachments:
-            m.attachments ||
-            (m.metadata?.taskSnapshot?.resultAsset ? [m.metadata.taskSnapshot.resultAsset] : undefined),
-        }));
-
-        finalOptions = {
-          ...finalOptions,
-          messages: messages as any,
-        };
-
-        logger.info("构造生成上下文", {
-          messageCount: messages.length,
-          isIterative: shouldIncludeContext,
-          isManual: isManualContext,
-        });
-      }
-
-      // 为 openai-responses 渠道注入流式预览图回调（gpt-image-2 partial_image 特性）
-      if (selectedProfile?.type === "openai-responses") {
-        (finalOptions as any).onPartialImage = (base64: string, index: number) => {
-          const currentTask = mediaStore.getTask(taskId);
-          const previews = [...(currentTask?.previewUrls || [])];
-          previews[index] = base64;
-          mediaStore.updateTaskStatus(taskId, "processing", {
-            statusText: `正在生成预览图 ${index + 1}...`,
-            previewUrls: previews,
-          });
-        };
-      }
-
-      // 调用 LLM 请求
-      const response = await sendRequest({
-        ...finalOptions,
-        signal: abortController.value?.signal,
-      });
-
-      mediaStore.updateTaskStatus(taskId, "processing", {
-        statusText: "生成成功，正在入库资产...",
-        progress: 90,
-      });
-
-      // 处理结果并入库
-      await handleResponseAssets(taskId, response, type);
-
-      mediaStore.updateTaskStatus(taskId, "completed", {
-        statusText: "生成完成",
-        progress: 100,
-      });
-    } catch (error: any) {
-      if (error.name === "AbortError") {
-        mediaStore.updateTaskStatus(taskId, "error", {
-          error: "已中止",
-          statusText: "任务已中止",
-        });
-        return;
-      }
-      // 仅在非中止错误时记录业务异常
-      // 底层 useLlmRequest 已经记录过详细的 API 错误日志，此处仅更新任务状态
-      mediaStore.updateTaskStatus(taskId, "error", {
-        error: error.message || String(error),
-        statusText: "生成失败",
-      });
-
-      // 如果错误尚未被处理（可能不是来自 useLlmRequest），则进行静默处理以记录日志
-      errorHandler.handle(error, {
-        userMessage: "媒体生成失败",
-        showToUser: false,
-      });
-    } finally {
-      isGenerating.value = false;
-      abortController.value = null;
-    }
+  /**
+   * 直接通过 Task 启动生成 (重试/外部调用专用)
+   */
+  const startGenerationWithTask = async (task: MediaTask) => {
+    await executeGeneration(task);
   };
 
   /**
@@ -512,6 +501,7 @@ export function useMediaGenerationManager() {
   return {
     isGenerating,
     startGeneration,
+    startGenerationWithTask,
     abort,
   };
 }

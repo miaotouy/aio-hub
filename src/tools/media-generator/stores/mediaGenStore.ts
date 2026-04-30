@@ -376,6 +376,82 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     }
   };
 
+  /**
+   * 从指定节点重新生成 (重试/分支)
+   */
+  const regenerateFromNode = async (messageId: string, temporaryModel?: { profileId: string; modelId: string }) => {
+    const fullSession = currentFullSession.value;
+    if (!fullSession) return;
+
+    // 1. 调用 nodeManager 创建兄弟分支
+    const branch = nodeManager.createRegenerateBranch(fullSession, messageId);
+    if (!branch) {
+      logger.warn("创建重试分支失败");
+      return;
+    }
+
+    const { assistantNode } = branch;
+
+    // 2. 获取重试参数
+    const params = taskActionManager.getRetryParams(messageId);
+    if (!params || !params.isMediaTask) {
+      logger.warn("无法获取重试参数");
+      return;
+    }
+
+    // 3. 构造新 Task
+    const generationOptions = { ...params.options } as any;
+    if (temporaryModel) {
+      generationOptions.profileId = temporaryModel.profileId;
+      generationOptions.modelId = temporaryModel.modelId;
+    }
+
+    const taskId = assistantNode.id;
+    const type = params.type || assistantNode.metadata?.taskSnapshot?.type || currentConfig.value.activeType;
+
+    const task: MediaTask = {
+      id: taskId,
+      type,
+      status: "pending",
+      input: {
+        prompt: generationOptions.prompt || "",
+        negativePrompt: generationOptions.negativePrompt,
+        modelId: generationOptions.modelId,
+        profileId: generationOptions.profileId,
+        params: {
+          ...generationOptions,
+        },
+        referenceAssetIds: (generationOptions.inputAttachments as any[])
+          ?.map((a: any) => a.path || a.url)
+          .filter(Boolean) as string[],
+        includeContext: generationOptions.includeContext,
+      },
+      progress: 0,
+      createdAt: Date.now(),
+    };
+
+    // 4. 写入节点元数据
+    assistantNode.metadata = {
+      ...assistantNode.metadata,
+      taskId: task.id,
+      isMediaTask: true,
+      includeContext: task.input.includeContext,
+      taskSnapshot: JSON.parse(JSON.stringify(task)),
+    };
+
+    // 5. 加入任务池并追踪
+    tasks.value.unshift(task);
+    generatingNodes.value.add(task.id);
+    activeLeafId.value = task.id;
+
+    persistence.persist(true);
+
+    // 6. 启动生成
+    const { useMediaGenerationManager } = await import("../composables/useMediaGenerationManager");
+    const mediaGenManager = useMediaGenerationManager();
+    await mediaGenManager.startGenerationWithTask(task);
+  };
+
   return {
     // 状态
     sessions,
@@ -495,11 +571,7 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     allTasks: tasks,
 
     // 重试逻辑
-    getRetryParams(messageId: string) {
-      // 纯读取：从节点中提取重试所需参数
-      // 不修改 activeLeafId，不创建分支
-      // addTaskNode 被调用时会根据当前 activeLeafId 自动判断挂载点
-      return taskActionManager.getRetryParams(messageId);
-    },
+    regenerateFromNode,
+    getRetryParams: taskActionManager.getRetryParams,
   };
 });

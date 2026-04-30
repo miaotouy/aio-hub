@@ -566,7 +566,7 @@ const generationMetaForRenderer = computed(() => {
 
 .media-result.is-multi .image-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 12px;
 }
 
@@ -585,6 +585,8 @@ const generationMetaForRenderer = computed(() => {
 
 .media-preview {
   max-width: 100%;
+  max-height: 480px;
+  object-fit: contain;
   border-radius: 8px;
   box-shadow: var(--el-box-shadow-light);
   display: block;

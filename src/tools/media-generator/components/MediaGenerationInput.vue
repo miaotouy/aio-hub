@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, watch, computed, toRef, nextTick } from "vue";
+import { ref, watch, computed, toRef } from "vue";
+import { useElementSize } from "@vueuse/core";
 import { useMediaGenStore } from "../stores/mediaGenStore";
 import { useMediaGenInputManager } from "../composables/useMediaGenInputManager";
 import { useMediaGenerationManager } from "../composables/useMediaGenerationManager";
@@ -7,6 +8,7 @@ import { useLlmRequest } from "@/composables/useLlmRequest";
 import { useFileInteraction } from "@/composables/useFileInteraction";
 import { useAssetManager } from "@/composables/useAssetManager";
 import { useModelMetadata } from "@/composables/useModelMetadata";
+import { useInputResize } from "../composables/useInputResize";
 import AttachmentCard from "@/tools/llm-chat/components/AttachmentCard.vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import { parseModelCombo } from "@/utils/modelIdUtils";
@@ -27,6 +29,16 @@ const { startGeneration, isGenerating } = useMediaGenerationManager();
 const { sendRequest } = useLlmRequest();
 const assetManager = useAssetManager();
 const { getMatchedProperties } = useModelMetadata();
+
+const containerRef = ref<HTMLElement>();
+const textareaRef = ref<HTMLTextAreaElement>();
+const attachmentsContainerRef = ref<HTMLDivElement>();
+const { height: attachmentsHeight } = useElementSize(attachmentsContainerRef);
+
+const { editorHeight, editorMaxHeight, handleInputResizeStart, handleResizeDoubleClick } = useInputResize({
+  textareaRef,
+  extraHeight: attachmentsHeight,
+});
 
 // 监听模型切换，自动更新上下文开关
 watch(
@@ -49,16 +61,8 @@ watch(
 
 // 使用 store 中的状态，确保刷新保持
 const prompt = toRef(store, "inputPrompt");
-const containerRef = ref<HTMLElement>();
-const textareaRef = ref<HTMLTextAreaElement>();
 
 const isDisabled = computed(() => isGenerating.value || props.disabled);
-
-const adjustHeight = () => {
-  if (!textareaRef.value) return;
-  textareaRef.value.style.height = "auto";
-  textareaRef.value.style.height = textareaRef.value.scrollHeight + "px";
-};
 
 // 统一的文件交互处理（拖放 + 粘贴）
 const { isDraggingOver } = useFileInteraction({
@@ -245,10 +249,6 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
   const currentAttachments = [...store.attachments];
 
   prompt.value = "";
-  // 发送后重置高度
-  nextTick(() => {
-    adjustHeight();
-  });
 
   const options = {
     ...params,
@@ -271,133 +271,142 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
 
 <template>
   <div ref="containerRef" :class="['input-container', { 'dragging-over': isDraggingOver }]">
-    <!-- 附件展示区 -->
-    <div v-if="store.hasAttachments" class="attachments-area">
-      <div class="attachments-list">
-        <AttachmentCard
-          v-for="asset in store.attachments"
-          :key="asset.id"
-          :asset="asset"
-          :all-assets="store.attachments"
-          :removable="true"
-          size="small"
-          @remove="store.removeAttachment(asset.id)"
-        />
+    <!-- 调整高度手柄 - 在顶部 -->
+    <div
+      class="resize-handle"
+      @mousedown="handleInputResizeStart"
+      @dblclick="handleResizeDoubleClick"
+      title="拖拽调整高度（双击重置）"
+    ></div>
+
+    <div class="input-main-area">
+      <!-- 附件展示区 -->
+      <div v-if="store.hasAttachments" ref="attachmentsContainerRef" class="attachments-area">
+        <div class="attachments-list">
+          <AttachmentCard
+            v-for="asset in store.attachments"
+            :key="asset.id"
+            :asset="asset"
+            :all-assets="store.attachments"
+            :removable="true"
+            size="small"
+            @remove="store.removeAttachment(asset.id)"
+          />
+        </div>
       </div>
-    </div>
 
-    <div class="input-main">
-      <textarea
-        ref="textareaRef"
-        v-model="prompt"
-        class="native-textarea"
-        placeholder="描述你想要生成的画面..."
-        rows="1"
-        :disabled="isDisabled"
-        @keydown.enter.prevent="handleSend($event)"
-        @input="adjustHeight"
-      ></textarea>
-    </div>
+      <div class="input-main">
+        <textarea
+          ref="textareaRef"
+          v-model="prompt"
+          class="native-textarea"
+          placeholder="描述你想要生成的画面..."
+          :style="{ height: editorHeight === 'auto' ? 'auto' : editorHeight + 'px', maxHeight: editorMaxHeight }"
+          :disabled="isDisabled"
+          @keydown.enter.prevent="handleSend($event)"
+        ></textarea>
+      </div>
 
-    <div class="input-toolbar">
-      <div class="toolbar-left">
-        <el-tooltip content="开启后将携带历史对话上下文，支持多轮迭代生成" placement="top">
-          <button
-            class="tool-btn"
-            :class="{ 'is-active': store.currentConfig.includeContext }"
-            @click="store.currentConfig.includeContext = !store.currentConfig.includeContext"
-          >
-            <el-icon v-if="store.currentConfig.includeContext"><MessageSquare /></el-icon>
-            <el-icon v-else><Target /></el-icon>
-            <span>多轮消息</span>
-          </button>
-        </el-tooltip>
-        <div class="v-divider" />
-        <button class="tool-btn" :disabled="isDisabled" @click="handleTriggerAttachment" title="添加参考图">
-          <el-icon><ImageIcon /></el-icon>
-          <span>参考图</span>
-        </button>
-        <div class="v-divider" />
-        <el-popover
-          v-model:visible="showOptimizePopover"
-          placement="top-start"
-          :width="460"
-          trigger="click"
-          popper-class="optimize-popover"
-        >
-          <template #reference>
-            <button class="tool-btn" :disabled="isDisabled" title="提示词优化">
-              <el-icon :class="{ 'is-loading': isOptimizing }"><Sparkles /></el-icon>
-              <span>提示词优化</span>
+      <div class="input-toolbar">
+        <div class="toolbar-left">
+          <el-tooltip content="开启后将携带历史对话上下文，支持多轮迭代生成" placement="top">
+            <button
+              class="tool-btn"
+              :class="{ 'is-active': store.currentConfig.includeContext }"
+              @click="store.currentConfig.includeContext = !store.currentConfig.includeContext"
+            >
+              <el-icon v-if="store.currentConfig.includeContext"><MessageSquare /></el-icon>
+              <el-icon v-else><Target /></el-icon>
+              <span>多轮消息</span>
             </button>
-          </template>
+          </el-tooltip>
+          <div class="v-divider" />
+          <button class="tool-btn" :disabled="isDisabled" @click="handleTriggerAttachment" title="添加参考图">
+            <el-icon><ImageIcon /></el-icon>
+            <span>参考图</span>
+          </button>
+          <div class="v-divider" />
+          <el-popover
+            v-model:visible="showOptimizePopover"
+            placement="top-start"
+            :width="460"
+            trigger="click"
+            popper-class="optimize-popover"
+          >
+            <template #reference>
+              <button class="tool-btn" :disabled="isDisabled" title="提示词优化">
+                <el-icon :class="{ 'is-loading': isOptimizing }"><Sparkles /></el-icon>
+                <span>提示词优化</span>
+              </button>
+            </template>
 
-          <div class="optimize-form">
-            <div class="form-header">
-              <el-icon><Sparkles /></el-icon>
-              <span>提示词优化助手</span>
-            </div>
+            <div class="optimize-form">
+              <div class="form-header">
+                <el-icon><Sparkles /></el-icon>
+                <span>提示词优化助手</span>
+              </div>
 
-            <div class="form-item">
-              <label>优化模型</label>
-              <LlmModelSelector
-                v-model="optimizeModelId"
-                placeholder="选择优化模型"
-                :capabilities="{ embedding: false, rerank: false }"
-                :teleported="true"
-                popper-class="optimize-model-popper"
-              />
-            </div>
+              <div class="form-item">
+                <label>优化模型</label>
+                <LlmModelSelector
+                  v-model="optimizeModelId"
+                  placeholder="选择优化模型"
+                  :capabilities="{ embedding: false, rerank: false }"
+                  :teleported="true"
+                  popper-class="optimize-model-popper"
+                />
+              </div>
 
-            <div class="form-item">
-              <label>附加要求 (可选)</label>
-              <el-input
-                v-model="optimizePrompt"
-                type="textarea"
-                :rows="3"
-                placeholder="输入额外的指令，例如：'增加赛博朋克风格' 或 '强调光影对比'..."
-              />
-            </div>
+              <div class="form-item">
+                <label>附加要求 (可选)</label>
+                <el-input
+                  v-model="optimizePrompt"
+                  type="textarea"
+                  :rows="3"
+                  placeholder="输入额外的指令，例如：'增加赛博朋克风格' 或 '强调光影对比'..."
+                />
+              </div>
 
-            <div v-if="optimizedResult" class="optimize-result">
-              <label>优化结果</label>
-              <div class="result-content">
-                {{ optimizedResult }}
+              <div v-if="optimizedResult" class="optimize-result">
+                <label>优化结果</label>
+                <div class="result-content">
+                  {{ optimizedResult }}
+                </div>
+              </div>
+
+              <div class="form-tip">
+                <el-icon><Info /></el-icon>
+                <div class="tip-content">
+                  <p>优化将基于当前输入框中的内容进行扩展。</p>
+                </div>
+              </div>
+
+              <div class="form-actions">
+                <template v-if="!optimizedResult">
+                  <el-button size="small" @click="cancelOptimize">取消</el-button>
+                  <el-button size="small" type="primary" :loading="isOptimizing" @click="handleOptimizePrompt">
+                    开始优化
+                  </el-button>
+                </template>
+                <template v-else>
+                  <el-button size="small" @click="optimizedResult = ''">重新生成</el-button>
+                  <el-button size="small" type="primary" @click="applyOptimizedPrompt"> 确认并应用 </el-button>
+                </template>
               </div>
             </div>
+          </el-popover>
+        </div>
 
-            <div class="form-tip">
-              <el-icon><Info /></el-icon>
-              <div class="tip-content">
-                <p>优化将基于当前输入框中的内容进行扩展。</p>
-              </div>
-            </div>
-
-            <div class="form-actions">
-              <template v-if="!optimizedResult">
-                <el-button size="small" @click="cancelOptimize">取消</el-button>
-                <el-button size="small" type="primary" :loading="isOptimizing" @click="handleOptimizePrompt">
-                  开始优化
-                </el-button>
-              </template>
-              <template v-else>
-                <el-button size="small" @click="optimizedResult = ''">重新生成</el-button>
-                <el-button size="small" type="primary" @click="applyOptimizedPrompt"> 确认并应用 </el-button>
-              </template>
-            </div>
-          </div>
-        </el-popover>
-      </div>
-
-      <div class="toolbar-right">
-        <button
-          class="native-send-btn"
-          :disabled="isDisabled || (!prompt.trim() && !store.hasAttachments)"
-          @click="() => handleSend()"
-        >
-          <el-icon v-if="!isGenerating"><Send /></el-icon>
-          <el-icon v-else class="is-loading"><Loader2 /></el-icon>
-        </button>
+        <div class="toolbar-right">
+          <button
+            class="native-send-btn"
+            :disabled="isDisabled || (!prompt.trim() && !store.hasAttachments)"
+            @click="() => handleSend()"
+          >
+            <el-icon v-if="!isGenerating"><Send /></el-icon>
+            <el-icon v-else class="is-loading"><Loader2 /></el-icon>
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -405,18 +414,30 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
 
 <style scoped>
 .input-container {
+  position: relative;
   background-color: var(--container-bg);
   backdrop-filter: blur(var(--ui-blur));
   border: var(--border-width) solid var(--border-color);
   border-radius: 24px;
   padding: 12px;
   padding-top: 8px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition:
+    border-color 0.2s,
+    background-color 0.2s,
+    box-shadow 0.3s;
   overflow: visible;
   box-shadow: 0 4px 16px -4px rgba(0, 0, 0, 0.1);
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.input-main-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
 }
 
 .input-container.dragging-over {
@@ -545,8 +566,8 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
   padding: 4px 8px;
   resize: none;
   min-height: 36px;
-  max-height: 200px;
   box-shadow: none;
+  overflow-y: auto;
 }
 
 .native-textarea:disabled {
@@ -583,6 +604,24 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
   opacity: 0.5;
   cursor: not-allowed;
   background-color: var(--el-text-color-disabled);
+}
+
+/* 拖拽调整大小手柄 - 位于顶部 */
+.resize-handle {
+  position: absolute;
+  top: -3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 94%;
+  height: 6px;
+  cursor: row-resize;
+  z-index: 10;
+  border-radius: 3px;
+  transition: background-color 0.2s;
+}
+
+.resize-handle:hover {
+  background-color: rgba(var(--el-color-primary-rgb), 0.3);
 }
 
 @keyframes spin {

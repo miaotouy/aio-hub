@@ -90,7 +90,12 @@ export function useMediaGenerationManager() {
     isGenerating.value = true;
 
     try {
-      mediaStore.updateTaskStatus(taskId, "processing", { statusText: "正在处理附件..." });
+      if (options.inputAttachments && options.inputAttachments.length > 0) {
+        mediaStore.updateTaskStatus(taskId, "processing", { statusText: "正在处理附件..." });
+      } else {
+        mediaStore.updateTaskStatus(taskId, "processing", { statusText: "正在准备生成..." });
+      }
+
       // 构造多轮会话上下文
       // 注入超时配置，优先使用用户设置，兜底使用媒体专用默认值
       const requestTimeout = mediaStore.settings.requestSettings?.timeout ?? DEFAULT_MEDIA_TIMEOUT;

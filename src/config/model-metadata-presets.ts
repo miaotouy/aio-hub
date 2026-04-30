@@ -2913,6 +2913,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
           mode: "preset",
           presets: [
             { label: "1:1 (1024×1024)", value: "1024x1024" },
+            { label: "16:9 (1344×768)", value: "1344x768" },
             { label: "横屏 (1536×1024)", value: "1536x1024" },
             { label: "竖屏 (1024×1536)", value: "1024x1536" },
             { label: "Auto", value: "auto" },
@@ -2984,12 +2985,14 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
           mode: "free",
           presets: [
             { label: "1:1 (1024×1024)", value: "1024x1024" },
+            { label: "16:9 (1344×768)", value: "1344x768" },
+            { label: "9:16 (768×1344)", value: "768x1344" },
             { label: "3:2 (1536×1024)", value: "1536x1024" },
             { label: "2:3 (1024×1536)", value: "1024x1536" },
             { label: "2K 方形 (2048×2048)", value: "2048x2048" },
             { label: "2K 横屏 (2048×1152)", value: "2048x1152" },
             { label: "4K 横屏 (3840×2160)", value: "3840x2160" },
-            { label: "4K 竖屏 (2160×3840)", value: "2160x3840" },
+            { label: "4K 竖屏 (2160×3840)", value: "2160×3840" },
             { label: "Auto", value: "auto" },
           ],
           constraints: {
@@ -3065,6 +3068,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
           mode: "preset",
           presets: [
             { label: "1:1 (1024×1024)", value: "1024x1024" },
+            { label: "16:9 (1344×768)", value: "1344x768" },
             { label: "横屏 (1792×1024)", value: "1792x1024" },
             { label: "竖屏 (1024×1792)", value: "1024x1792" },
             { label: "宽横屏 (2048×1024)", value: "2048x1024" },
@@ -3098,6 +3102,8 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
           mode: "preset",
           presets: [
             { label: "1:1 (1024×1024)", value: "1024x1024" },
+            { label: "16:9 (1344×768)", value: "1344x768" },
+            { label: "3:2 (1216×832)", value: "1216x832" },
             { label: "3:4 (960×1280)", value: "960x1280" },
             { label: "3:4 (768×1024)", value: "768x1024" },
             { label: "1:2 (720×1440)", value: "720x1440" },

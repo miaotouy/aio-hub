@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, computed, toRef } from "vue";
+import { ref, watch, computed, toRef, nextTick } from "vue";
 import { useMediaGenStore } from "../stores/mediaGenStore";
 import { useMediaGenInputManager } from "../composables/useMediaGenInputManager";
 import { useMediaGenerationManager } from "../composables/useMediaGenerationManager";
@@ -50,8 +50,15 @@ watch(
 // 使用 store 中的状态，确保刷新保持
 const prompt = toRef(store, "inputPrompt");
 const containerRef = ref<HTMLElement>();
+const textareaRef = ref<HTMLTextAreaElement>();
 
 const isDisabled = computed(() => isGenerating.value || props.disabled);
+
+const adjustHeight = () => {
+  if (!textareaRef.value) return;
+  textareaRef.value.style.height = "auto";
+  textareaRef.value.style.height = textareaRef.value.scrollHeight + "px";
+};
 
 // 统一的文件交互处理（拖放 + 粘贴）
 const { isDraggingOver } = useFileInteraction({
@@ -238,6 +245,10 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
   const currentAttachments = [...store.attachments];
 
   prompt.value = "";
+  // 发送后重置高度
+  nextTick(() => {
+    adjustHeight();
+  });
 
   const options = {
     ...params,
@@ -277,19 +288,14 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
 
     <div class="input-main">
       <textarea
+        ref="textareaRef"
         v-model="prompt"
         class="native-textarea"
         placeholder="描述你想要生成的画面..."
         rows="1"
         :disabled="isDisabled"
         @keydown.enter.prevent="handleSend($event)"
-        @input="
-          (e) => {
-            const el = e.target as HTMLTextAreaElement;
-            el.style.height = 'auto';
-            el.style.height = el.scrollHeight + 'px';
-          }
-        "
+        @input="adjustHeight"
       ></textarea>
     </div>
 

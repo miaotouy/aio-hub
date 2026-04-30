@@ -27,6 +27,19 @@ export function useMediaGenerationManager() {
   const { profiles: allProfiles } = useLlmProfiles();
   const { getParamRules, sanitizeParams, usesAspectRatioMode, buildXaiSizeParams } = useMediaGenParamRules();
   const isGenerating = ref(false);
+  const abortController = ref<AbortController | null>(null);
+
+  /**
+   * 中止生成
+   */
+  const abort = () => {
+    if (abortController.value) {
+      abortController.value.abort();
+      abortController.value = null;
+      isGenerating.value = false;
+      logger.info("用户中止了生成任务");
+    }
+  };
 
   /**
    * 创建并启动媒体生成任务
@@ -88,6 +101,7 @@ export function useMediaGenerationManager() {
     }
 
     isGenerating.value = true;
+    abortController.value = new AbortController();
 
     try {
       if (options.inputAttachments && options.inputAttachments.length > 0) {
@@ -200,7 +214,10 @@ export function useMediaGenerationManager() {
       }
 
       // 调用 LLM 请求
-      const response = await sendRequest(finalOptions);
+      const response = await sendRequest({
+        ...finalOptions,
+        signal: abortController.value?.signal,
+      });
 
       mediaStore.updateTaskStatus(taskId, "processing", {
         statusText: "生成成功，正在入库资产...",
@@ -215,6 +232,13 @@ export function useMediaGenerationManager() {
         progress: 100,
       });
     } catch (error: any) {
+      if (error.name === "AbortError") {
+        mediaStore.updateTaskStatus(taskId, "error", {
+          error: "已中止",
+          statusText: "任务已中止",
+        });
+        return;
+      }
       logger.error("媒体生成失败", error, { taskId });
       mediaStore.updateTaskStatus(taskId, "error", {
         error: error.message || String(error),
@@ -223,6 +247,7 @@ export function useMediaGenerationManager() {
       errorHandler.error(error, "媒体生成失败");
     } finally {
       isGenerating.value = false;
+      abortController.value = null;
     }
   };
 
@@ -445,5 +470,6 @@ export function useMediaGenerationManager() {
   return {
     isGenerating,
     startGeneration,
+    abort,
   };
 }

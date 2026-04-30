@@ -25,6 +25,52 @@ import type { StreamSource, LlmThinkRule, RichTextRendererStyleOptions, Markdown
 import { RendererVersion, RICH_TEXT_CONTEXT_KEY } from "./types";
 import { applyRegexRules } from "@/tools/llm-chat/utils/chatRegexUtils";
 import type { ChatRegexRule } from "@/tools/llm-chat/types/chatRegex";
+
+/**
+ * 防御性处理：检测裸 HTML 页面并自动包裹在代码块中
+ * 解决模型不规范输出导致的 UI 爆破问题
+ */
+function wrapBareHtmlPage(text: string): string {
+  if (!text) return text;
+
+  // 1. 查找 <!DOCTYPE html 的位置
+  const lowerText = text.toLowerCase();
+  const doctypeIndex = lowerText.indexOf("<!doctype html");
+  if (doctypeIndex === -1) {
+    return text;
+  }
+
+  // 2. 检查是否已经处于代码块中
+  // 简单启发式：检查 doctypeIndex 之前 ``` 的数量，如果是奇数则认为已在代码块内
+  const textBefore = text.slice(0, doctypeIndex);
+  const fenceMatches = textBefore.match(/```/g);
+  if (fenceMatches && fenceMatches.length % 2 !== 0) {
+    return text;
+  }
+
+  // 3. 执行包裹逻辑 (不再强制要求 <html> 标签，只要看到 DOCTYPE 就认为是裸页面)
+  const htmlCloseIndex = lowerText.lastIndexOf("</html>");
+
+  if (htmlCloseIndex !== -1 && htmlCloseIndex > doctypeIndex) {
+    const beforeDoctype = text.slice(0, doctypeIndex);
+    const htmlContent = text.slice(doctypeIndex, htmlCloseIndex + 7);
+    const afterHtml = text.slice(htmlCloseIndex + 7);
+
+    // 仅当 </html> 后面没有被包裹时才处理
+    if (!afterHtml.trim().startsWith("```")) {
+      return beforeDoctype + "```html\n" + htmlContent + "\n```" + afterHtml;
+    }
+  } else {
+    // </html> 尚未出现，说明正在流式输出中
+    // 我们在 DOCTYPE 前插入开启围栏
+    const beforeDoctype = text.slice(0, doctypeIndex);
+    const htmlContent = text.slice(doctypeIndex);
+    return beforeDoctype + "```html\n" + htmlContent;
+  }
+
+  return text;
+}
+
 const props = withDefaults(
   defineProps<{
     content?: string;
@@ -141,7 +187,12 @@ const useAstRenderer = computed(
 );
 
 // AST 状态
-const { ast, enqueuePatch, emergencyShutdown, dispose: disposeMarkdownAst } = useMarkdownAst({
+const {
+  ast,
+  enqueuePatch,
+  emergencyShutdown,
+  dispose: disposeMarkdownAst,
+} = useMarkdownAst({
   throttleMs: props.throttleMs,
   throttleEnabled: props.throttleEnabled,
   verboseLogging: props.verboseLogging,
@@ -297,7 +348,10 @@ const processedContent = computed(() => {
     text = applyRegexRules(text, props.regexRules, props.isStreaming);
   }
 
-  // 2. 解析资产路径
+  // 2. 自动包裹裸 HTML 页面 (在正则之后，资产解析之前)
+  text = wrapBareHtmlPage(text);
+
+  // 3. 解析资产路径
   // 注意：在 AST 模式下，我们不再全局替换智能体资产链接 (agent-asset://)，而是交给具体的节点组件（如 ImageNode）处理
   // 这样可以避免 Markdown 解析器对转换后的本地 URL 进行二次编码导致 Tauri 无法识别路径。
   // 对于纯渲染模式 (markdown-it)，我们依然允许 resolveAsset 进行全量替换。
@@ -457,6 +511,9 @@ onMounted(() => {
           bufferToProcess = applyRegexRules(bufferToProcess, props.regexRules, true);
         }
 
+        // 2. 自动包裹裸 HTML 页面
+        bufferToProcess = wrapBareHtmlPage(bufferToProcess);
+
         // 解析资产路径 (仅在纯渲染模式下全局应用)
         if (props.resolveAsset && !useAstRenderer.value) {
           bufferToProcess = props.resolveAsset(bufferToProcess);
@@ -508,12 +565,15 @@ onMounted(() => {
         bufferToProcess = applyRegexRules(bufferToProcess, props.regexRules, true);
       }
 
-      // 2. 解析资产路径 (仅在纯渲染模式下全局应用)
+      // 2. 自动包裹裸 HTML 页面
+      bufferToProcess = wrapBareHtmlPage(bufferToProcess);
+
+      // 3. 解析资产路径 (仅在纯渲染模式下全局应用)
       if (props.resolveAsset && !useAstRenderer.value) {
         bufferToProcess = props.resolveAsset(bufferToProcess);
       }
 
-      // 3. 补全末尾换行：辅助解析器闭合末尾的块节点
+      // 4. 补全末尾换行：辅助解析器闭合末尾的块节点
       if (bufferToProcess && !bufferToProcess.endsWith("\n")) {
         bufferToProcess += "\n";
       }

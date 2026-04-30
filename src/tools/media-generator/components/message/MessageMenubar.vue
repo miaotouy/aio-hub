@@ -121,13 +121,13 @@ const handleSwitchToBranch = (nodeId: string) => {
     <!-- 重试 -->
     <div class="retry-group">
       <el-tooltip content="重试" placement="top" :show-after="500">
-        <button class="menu-btn" @click="emit('retry', false)">
+        <button class="menu-btn" @click.stop="emit('retry', false)">
           <RefreshCw :size="16" />
         </button>
       </el-tooltip>
 
       <el-tooltip content="切换模型重试" placement="top" :show-after="500">
-        <button class="menu-btn" @click="emit('retry', true)">
+        <button class="menu-btn" @click.stop="emit('retry', true)">
           <AtSign :size="16" />
         </button>
       </el-tooltip>
@@ -142,7 +142,7 @@ const handleSwitchToBranch = (nodeId: string) => {
       <button
         class="menu-btn"
         :class="{ 'menu-btn-highlight': message.isEnabled === false }"
-        @click="emit('toggle-enabled')"
+        @click.stop="emit('toggle-enabled')"
       >
         <Eye v-if="message.isEnabled !== false" :size="16" />
         <EyeOff v-else :size="16" />
@@ -151,7 +151,7 @@ const handleSwitchToBranch = (nodeId: string) => {
 
     <!-- 复制 -->
     <el-tooltip content="复制提示词" placement="top" :show-after="500">
-      <button class="menu-btn" :class="{ 'menu-btn-active': copied }" @click="copyMessage">
+      <button class="menu-btn" :class="{ 'menu-btn-active': copied }" @click.stop="copyMessage">
         <Check v-if="copied" :size="16" />
         <Copy v-else :size="16" />
       </button>
@@ -160,19 +160,19 @@ const handleSwitchToBranch = (nodeId: string) => {
     <!-- 编辑 -->
     <div class="edit-group">
       <el-tooltip content="编辑" placement="top" :show-after="500">
-        <button class="menu-btn" @click="emit('edit')">
+        <button class="menu-btn" @click.stop="emit('edit')">
           <Edit :size="16" />
         </button>
       </el-tooltip>
 
       <el-tooltip content="创建分支" placement="top" :show-after="500">
-        <button class="menu-btn" @click="emit('create-branch')">
+        <button class="menu-btn" @click.stop="emit('create-branch')">
           <GitFork :size="16" />
         </button>
       </el-tooltip>
 
       <el-tooltip content="查看/编辑 Raw 数据" placement="top" :show-after="500">
-        <button class="menu-btn" @click="emit('edit-raw')">
+        <button class="menu-btn" @click.stop="emit('edit-raw')">
           <Code :size="16" />
         </button>
       </el-tooltip>
@@ -192,7 +192,7 @@ const handleSwitchToBranch = (nodeId: string) => {
 
     <!-- 导出 -->
     <el-tooltip content="导出分支" placement="top" :show-after="500">
-      <button class="menu-btn" @click="emit('export')">
+      <button class="menu-btn" @click.stop="emit('export')">
         <Share :size="16" />
       </button>
     </el-tooltip>

@@ -4,7 +4,6 @@ import { useMediaGenStore } from "../stores/mediaGenStore";
 import ParameterPanel from "./ParameterPanel.vue";
 import GenerationStream from "./GenerationStream.vue";
 import AssetGallery from "./AssetGallery.vue";
-import ModelSelectDialog from "@/components/common/ModelSelectDialog.vue";
 import { ChevronLeft, ChevronRight } from "lucide-vue-next";
 import { useLocalStorage } from "@vueuse/core";
 
@@ -23,7 +22,7 @@ watch(
       store.settings.rightCollapsed = rightCollapsed.value;
     }
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 // 监听 store 变化同步回 localStorage (确保设置页面修改也能同步)
@@ -31,13 +30,13 @@ watch(
   () => store.settings.leftCollapsed,
   (val) => {
     leftCollapsed.value = val;
-  }
+  },
 );
 watch(
   () => store.settings.rightCollapsed,
   (val) => {
     rightCollapsed.value = val;
-  }
+  },
 );
 </script>
 
@@ -79,9 +78,6 @@ watch(
         <el-icon><ChevronRight v-if="!rightCollapsed" /><ChevronLeft v-else /></el-icon>
       </div>
     </div>
-
-    <!-- 全局弹窗提供者 -->
-    <ModelSelectDialog />
   </div>
 </template>
 

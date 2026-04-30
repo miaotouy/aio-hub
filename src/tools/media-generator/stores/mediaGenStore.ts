@@ -413,15 +413,18 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     saveToBranch: (messageId: string, content: string, attachments?: Asset[]) => {
       const fullSession = currentFullSession.value;
       if (!fullSession) return;
+
+      const node = nodes.value[messageId];
+      if (!node) return;
+
+      // 对齐 Chat 逻辑：创建新分支并应用新内容
       const newNodeId = branchManager.createBranch(fullSession, messageId);
       if (newNodeId) {
-        // 如果是 User 节点另存，需要更新内容
-        // 如果是 Assistant 节点另存（内部已转为 createRegenerateBranch），内容为空，无需 editMessage
-        const node = nodes.value[newNodeId];
-        if (node && node.role === "user") {
+        // 如果是 User 节点，应用新内容
+        if (node.role === "user") {
           branchManager.editMessage(fullSession, newNodeId, content, attachments);
         }
-
+        // Assistant 节点的 createBranch 已经复制了内容，无需额外操作
         activeLeafId.value = newNodeId;
         persistence.persist(true);
       }

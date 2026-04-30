@@ -89,10 +89,11 @@ export function useNodeManager() {
     session.updatedAt = getLocalISOString();
 
     // 维护 activeLeafId 始终指向最新添加的节点
-    // 如果是重试场景，activeLeafId 可能指向旧的兄弟节点，这里我们要强制"追"到新节点上
+    // 如果父节点在当前活跃路径上，或者还没有活跃叶节点，则自动追随到新节点
     const isParentInActivePath =
+      !node.parentId ||
       session.activeLeafId === node.parentId ||
-      (node.parentId && BranchNavigator.isNodeInActivePath(session as any, node.parentId));
+      BranchNavigator.isNodeInActivePath(session as any, node.parentId!);
 
     if (isParentInActivePath || !session.activeLeafId) {
       session.activeLeafId = node.id;

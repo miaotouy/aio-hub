@@ -46,9 +46,11 @@ export function useTaskActionManager(context: {
   };
 
   /**
-   * 添加新任务（同时生成消息流节点）
-   * 逻辑自动识别是"追加新对话"还是"在现有节点上创建分支"
-   */
+   /**
+    * 添加新任务（同时生成消息流节点）
+    * 对齐 Chat 逻辑：新消息永远挂在当前活跃节点下。
+    * 如果当前活跃节点是同内容的 User 节点，则合并。
+    */
   const addTaskNode = (task: MediaTask, attachments: Asset[]) => {
     const { nodes, tasks, activeLeafId, rootNodeId } = context;
     const sessionContext = getSessionContext();
@@ -59,45 +61,25 @@ export function useTaskActionManager(context: {
     let parentUserNodeId: string;
     const currentNode = nodes.value[activeLeafId.value];
 
-    // 2. 状态机判断挂载点
-    if (currentNode?.role === "assistant") {
-      // 情况 A: 当前是在助手节点上发起的（通常是重试或同一 Prompt 的多次尝试）
-      // 挂载点是它的父 User 节点
-      parentUserNodeId = currentNode.parentId!;
-      logger.debug("在现有 Assistant 的父 User 下创建新分支", { parentUserNodeId });
-    } else if (currentNode?.role === "user") {
-      // 情况 B: 当前是在 User 节点上发起的
-      if (currentNode.content === task.input.prompt) {
-        // 同 Prompt 生成（如并行生成多张图）
-        parentUserNodeId = currentNode.id;
-        logger.debug("在现有 User 节点下直接追加生成", { parentUserNodeId });
-      } else {
-        // Prompt 变了，在当前 User 节点后开新分支
-        const userNode = nodeManager.createNode({
-          role: "user",
-          content: task.input.prompt,
-          parentId: currentNode.id,
-          attachments: attachments.length > 0 ? [...attachments] : undefined,
-        }) as MediaMessage;
-
-        nodeManager.addNodeToSession(sessionContext, userNode);
-        syncActiveLeaf(sessionContext);
-        parentUserNodeId = userNode.id;
-        logger.debug("创建了新的 User 节点挂在旧 User 后", { userNodeId: userNode.id });
-      }
+    // 2. 挂载点判断
+    if (currentNode?.role === "user" && currentNode.content === task.input.prompt) {
+      // 情况 A: 当前活跃节点就是同一个 Prompt 的 User 节点，直接挂在它下面
+      parentUserNodeId = currentNode.id;
+      logger.debug("在现有 User 节点下直接追加生成", { parentUserNodeId });
     } else {
-      // 情况 C: 在 Root 或其他位置发起
+      // 情况 B: 创建新的 User 节点，挂在当前 activeLeafId 后面
+      // 如果 activeLeafId 为空，则挂在 rootNodeId 下
       const userNode = nodeManager.createNode({
         role: "user",
         content: task.input.prompt,
-        parentId: activeLeafId.value || rootNodeId.value,
+        parentId: activeLeafId.value || rootNodeId.value || null,
         attachments: attachments.length > 0 ? [...attachments] : undefined,
       }) as MediaMessage;
 
       nodeManager.addNodeToSession(sessionContext, userNode);
       syncActiveLeaf(sessionContext);
       parentUserNodeId = userNode.id;
-      logger.debug("创建了全新的 User 节点", { userNodeId: userNode.id });
+      logger.debug("创建了新的 User 节点", { userNodeId: userNode.id, parentId: userNode.parentId });
     }
 
     // 3. 创建助手消息节点（绑定任务）
@@ -126,7 +108,6 @@ export function useTaskActionManager(context: {
 
     return { userNode: nodes.value[parentUserNodeId], assistantNode };
   };
-
   /**
    * 获取重试所需的任务参数
    * 这个函数现在是纯读取的，没有任何副作用

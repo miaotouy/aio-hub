@@ -1,5 +1,6 @@
 import { ref } from "vue";
 import { v4 as uuidv4 } from "uuid";
+import { findLastIndex } from "lodash-es";
 import { invoke } from "@tauri-apps/api/core";
 import { writeTextFile, mkdir } from "@tauri-apps/plugin-fs";
 import { useMediaGenStore } from "../stores/mediaGenStore";
@@ -167,37 +168,72 @@ export function useMediaGenerationManager() {
         finalOptions = sanitizeParams(finalOptions, rules) as any;
       }
 
-      // 如果开启了上下文包含，或者手动选择了上下文消息
-      if (shouldIncludeContext || (options.contextMessageIds && options.contextMessageIds.length > 0)) {
-        let contextMessages: MediaMessage[] = [];
+      // 构造多轮会话上下文 (请求侧裁切逻辑)
+      // 1. 全量提取当前路径上的所有消息 (排除当前正在生成的任务节点本身和系统消息)
+      let contextMessages: MediaMessage[] = mediaStore.messages.filter(
+        (m: MediaMessage) => m.id !== taskId && m.role !== "system",
+      );
 
-        if (shouldIncludeContext) {
-          // 自动提取当前路径上的所有消息 (排除当前正在生成的任务节点本身)
-          // mediaStore.messages 已经包含了当前路径，最后一个通常是刚添加的任务节点
-          contextMessages = mediaStore.messages.filter((m: MediaMessage) => m.id !== taskId && m.role !== "system");
-        } else if (options.contextMessageIds && options.contextMessageIds.length > 0) {
-          // 仅包含选中的消息
-          contextMessages = mediaStore.messages.filter((m: MediaMessage) => options.contextMessageIds?.includes(m.id));
+      // 2. 根据模型能力和设置进行裁切
+      const isManualContext = options.contextMessageIds && options.contextMessageIds.length > 0;
+      if (isManualContext) {
+        // 如果是手动选择上下文，则只保留选中的
+        contextMessages = contextMessages.filter((m) => options.contextMessageIds?.includes(m.id));
+      } else if (!shouldIncludeContext) {
+        // 如果不支持多轮或未开启多轮，执行裁切：仅保留最后一条 User 消息
+        const lastUserIndex = findLastIndex(contextMessages, (m: MediaMessage) => m.role === "user");
+        if (lastUserIndex !== -1) {
+          const lastUser = contextMessages[lastUserIndex];
+
+          // 智能增强：如果开启了设置且模型支持视觉输入，尝试将上一轮 Assistant 的结果作为参考图带入
+          const hasVisualInput = modelProps?.visualInput === true;
+          const shouldAutoInclude = mediaStore.settings.autoIncludeLastResult;
+
+          if (shouldAutoInclude && hasVisualInput && lastUserIndex > 0) {
+            const prevAssistant = contextMessages[lastUserIndex - 1];
+            if (prevAssistant.role === "assistant") {
+              const resultAsset = prevAssistant.metadata?.taskSnapshot?.resultAsset;
+              if (resultAsset) {
+                // 将结果资产临时注入到最后一条 user 的附件中（仅用于请求）
+                const augmentedUser = {
+                  ...lastUser,
+                  attachments: [...(lastUser.attachments || []), resultAsset],
+                };
+                contextMessages = [augmentedUser];
+                logger.info("单轮模式：已自动关联上一轮生成结果作为参考图", { assetId: resultAsset.id });
+              } else {
+                contextMessages = [lastUser];
+              }
+            } else {
+              contextMessages = [lastUser];
+            }
+          } else {
+            contextMessages = [lastUser];
+          }
         }
+      }
 
-        if (contextMessages.length > 0) {
-          // 映射为 LlmRequest 所需的消息格式
-          const messages = contextMessages.map((m) => ({
-            role: m.role,
-            content: m.content,
-            // 如果是助手的生成结果，把生成的资产作为上下文 (VLM 逻辑)
-            attachments:
-              m.attachments ||
-              (m.metadata?.taskSnapshot?.resultAsset ? [m.metadata.taskSnapshot.resultAsset] : undefined),
-          }));
+      if (contextMessages.length > 0) {
+        // 映射为 LlmRequest 所需的消息格式
+        const messages = contextMessages.map((m) => ({
+          role: m.role,
+          content: m.content,
+          // 优先使用节点自带附件，其次尝试从任务快照中提取结果资产 (VLM 逻辑)
+          attachments:
+            m.attachments ||
+            (m.metadata?.taskSnapshot?.resultAsset ? [m.metadata.taskSnapshot.resultAsset] : undefined),
+        }));
 
-          finalOptions = {
-            ...finalOptions,
-            messages: messages as any,
-          };
+        finalOptions = {
+          ...finalOptions,
+          messages: messages as any,
+        };
 
-          logger.info("构造多轮生成上下文", { messageCount: messages.length });
-        }
+        logger.info("构造生成上下文", {
+          messageCount: messages.length,
+          isIterative: shouldIncludeContext,
+          isManual: isManualContext,
+        });
       }
 
       // 为 openai-responses 渠道注入流式预览图回调（gpt-image-2 partial_image 特性）

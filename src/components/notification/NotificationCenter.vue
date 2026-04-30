@@ -65,6 +65,7 @@ const handleClearAll = async () => {
       confirmButtonText: "清空",
       cancelButtonText: "取消",
       type: "warning",
+      lockScroll: false,
     });
     store.clearAll();
   } catch {

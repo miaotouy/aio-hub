@@ -159,3 +159,26 @@
 ```
 
 **原因**: Element Plus 的 `el-dropdown` 组件会尝试直接操作其第一个子元素来绑定事件和引用，如果直接使用 `el-tooltip` 会导致事件绑定失败或触发异常。添加包裹层可以确保 `el-dropdown` 正确识别触发器元素。
+
+### 3.2. MessageBox (弹窗) 滚动锁定处理
+
+在 Tauri 环境下，Element Plus 默认的滚动锁定机制（`lockScroll: true`）会导致应用布局抖动并产生意外的全局滚动条。
+
+**核心规范**: 所有 `ElMessageBox` 的调用（包括 `confirm`, `alert`, `prompt`）都**必须**显式设置 `lockScroll: false`。
+
+**示例**:
+
+```typescript
+import { ElMessageBox } from "element-plus";
+
+// 正确做法
+await ElMessageBox.confirm("确定要执行此操作吗？", "提示", {
+  confirmButtonText: "确定",
+  cancelButtonText: "取消",
+  type: "warning",
+  lockScroll: false, // 必须设置
+});
+
+// 错误做法：未设置 lockScroll，会导致 Tauri 窗口出现滚动条
+await ElMessageBox.confirm("...");
+```

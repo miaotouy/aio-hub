@@ -118,6 +118,7 @@ const handleUninstallPlugin = async () => {
       confirmButtonText: "确定卸载",
       cancelButtonText: "取消",
       type: "warning",
+      lockScroll: false,
     });
 
     // 调用插件管理器执行卸载

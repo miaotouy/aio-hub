@@ -102,6 +102,7 @@ onMounted(async () => {
         confirmButtonText: "确定",
         cancelButtonText: "取消",
         type: "warning",
+        lockScroll: false,
       });
       await invoke("exit_app");
     } catch {

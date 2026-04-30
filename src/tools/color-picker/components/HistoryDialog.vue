@@ -205,6 +205,7 @@ async function handleDelete(record: ColorHistoryIndexItem) {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
         type: 'warning',
+        lockScroll: false,
       }
     );
     await deleteRecord(record.id);

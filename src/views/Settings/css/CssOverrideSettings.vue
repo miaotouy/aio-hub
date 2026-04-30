@@ -70,6 +70,7 @@ function handleDeletePreset(presetId: string) {
       type: 'warning',
       confirmButtonText: '删除',
       cancelButtonText: '取消',
+      lockScroll: false,
     }
   ).then(() => {
     deleteUserPreset(presetId);

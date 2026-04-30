@@ -160,7 +160,8 @@ const handleDelete = async () => {
         confirmButtonText: "确定",
         cancelButtonText: "取消",
         type: "warning",
-      }
+        lockScroll: false,
+      },
     );
     deleteProfile(selectedProfile.value.id);
     selectedProfileId.value = profiles.value[0]?.id || null;

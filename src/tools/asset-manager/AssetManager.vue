@@ -439,10 +439,11 @@ const handleDeleteSelected = async () => {
       `确定要删除选中的 ${selectedCount.value} 个资产吗？文件将被移动到回收站。`,
       "确认删除",
       {
-        confirmButtonText: "确定",
+        confirmButtonText: "删除",
         cancelButtonText: "取消",
         type: "warning",
-      }
+        lockScroll: false,
+      },
     );
 
     // 使用新的批量完全删除命令

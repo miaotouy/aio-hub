@@ -514,9 +514,18 @@ async function handleSave() {
 }
 
 // 处理删除
-function handleDelete(id: string) {
-  if (confirm("确定要删除这个配置吗？")) {
+async function handleDelete(id: string) {
+  try {
+    await ElMessageBox.confirm("确定要删除这个配置吗？", "提示", {
+      confirmButtonText: "确定",
+      cancelButtonText: "取消",
+      type: "warning",
+      lockScroll: false,
+    });
     deleteConfig(id);
+    customMessage.success("已删除配置");
+  } catch (error) {
+    // 取消删除
   }
 }
 
@@ -533,6 +542,7 @@ async function handleReset() {
       confirmButtonText: "确定",
       cancelButtonText: "取消",
       type: "warning",
+      lockScroll: false,
     });
     if (await resetToDefaults()) {
       customMessage.success("已重置为默认配置");
@@ -554,6 +564,7 @@ async function handleMerge() {
         confirmButtonText: "确定",
         cancelButtonText: "取消",
         type: "info",
+        lockScroll: false,
       },
     );
     const result = await mergeWithDefaults();

@@ -244,7 +244,7 @@ export function useMediaGenerationManager() {
         error: error.message || String(error),
         statusText: "生成失败",
       });
-      errorHandler.error(error, "媒体生成失败");
+      errorHandler.error(error, "媒体生成失败", { showToUser: false });
     } finally {
       isGenerating.value = false;
       abortController.value = null;

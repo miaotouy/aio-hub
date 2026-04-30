@@ -351,6 +351,7 @@ export function useLlmRequest() {
         }
 
         errorHandler.error(error, "LLM 请求失败", {
+          showToUser: false,
           context: {
             profileId: options.profileId,
             modelId: options.modelId,

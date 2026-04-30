@@ -49,7 +49,9 @@
 项目使用 Bun 作为包管理器。由于本项目包含桌面端和移动端，不同的端有各自的开发和检查命令。
 
 #### 1.3.1. 桌面端 (Desktop)
+
 在根目录下执行：
+
 - **`dev`** – 启动 Vite 开发服务器，用于前端开发。
 - **`build`** – 执行类型检查（`vue-tsc`）并构建前端生产包。
 - **`preview`** – 预览生产构建结果。
@@ -60,9 +62,11 @@
 - **`check:backend`** – 仅运行 Rust 代码的 Clippy 检查。
 
 #### 1.3.2. 移动端 (Mobile)
+
 移动端位于 `mobile/` 目录，有独立的 `package.json` 和命令。
 
 **在根目录下执行（推荐，使用快捷命令）：**
+
 - **`mtad`** – `cd mobile ; bun run tauri android dev` (Android 开发模式)。
 - **`mtab`** – `cd mobile ; bun run tauri android build` (Android 构建)。
 - **`mtid`** – `cd mobile ; bun run tauri ios dev` (iOS 开发模式)。
@@ -72,6 +76,7 @@
 - **`check:mobile:backend`** – 仅运行移动端 Rust 代码检查。
 
 **或在 `mobile/` 目录下直接执行：**
+
 - **`mtad`** / **`mtab`** / **`mtid`** / **`mtib`** – Tauri 移动端开发/构建命令。
 - **`check`** – 移动端全量检查。
 - **`check:frontend`** – 仅前端类型检查。
@@ -128,6 +133,8 @@
 - **禁止乱放**: 严禁将重构计划或临时文档直接丢在 `docs/architecture/` 或根目录下。
 - **区分状态**: 在文件名或文档开头明确标注文档状态（如：`RFC`, `Draft`, `Implementing`, `Archived`）。
 - **同步更新**: 当计划实施完毕且架构发生变更时，应及时更新 `docs/architecture/` 下的相关文档，并将原计划文档移至 `Archived` 或进行标注。
+
+#### 还有，任何输入带发送的设计，默认使用ctrl+回车，禁止单回车发送，我老是在想换行的时候消息发出去了我草泥马的
 
 ## 4. 工具注册规范 (Tool Registration)
 

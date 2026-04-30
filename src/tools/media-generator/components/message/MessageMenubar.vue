@@ -10,11 +10,12 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
-  RotateCcw,
+  RefreshCw,
+  GitFork,
   Eye,
   EyeOff,
   Code,
-  Settings2,
+  AtSign,
   Share,
 } from "lucide-vue-next";
 import type { MediaMessage, MediaTask } from "../../types";
@@ -30,6 +31,7 @@ const props = defineProps<Props>();
 const emit = defineEmits<{
   (e: "copy"): void;
   (e: "edit"): void;
+  (e: "create-branch"): void;
   (e: "delete", taskId: string): void;
   (e: "download", task: MediaTask): void;
   (e: "retry", useNewModel?: boolean): void;
@@ -74,11 +76,7 @@ const handleSwitchToBranch = (nodeId: string) => {
     <!-- Branch control -->
     <div v-if="siblings.length > 1" class="branch-control">
       <el-tooltip content="上一个版本" placement="top" :show-after="500">
-        <button
-          class="menu-btn"
-          :disabled="currentSiblingIndex === 0"
-          @click="emit('switch', 'prev')"
-        >
+        <button class="menu-btn" :disabled="currentSiblingIndex === 0" @click="emit('switch', 'prev')">
           <ChevronLeft :size="16" />
         </button>
       </el-tooltip>
@@ -94,10 +92,7 @@ const handleSwitchToBranch = (nodeId: string) => {
         <template #reference>
           <div class="branch-indicator-wrapper">
             <el-tooltip content="点击查看分支列表" placement="top" :show-after="500">
-              <div
-                class="branch-indicator clickable"
-                :class="{ 'popover-active': showBranchPopover }"
-              >
+              <div class="branch-indicator clickable" :class="{ 'popover-active': showBranchPopover }">
                 {{ currentSiblingIndex + 1 }} / {{ siblings.length }}
               </div>
             </el-tooltip>
@@ -127,20 +122,28 @@ const handleSwitchToBranch = (nodeId: string) => {
     <div class="retry-group">
       <el-tooltip content="重试" placement="top" :show-after="500">
         <button class="menu-btn" @click="emit('retry', false)">
-          <RotateCcw :size="16" />
+          <RefreshCw :size="16" />
         </button>
       </el-tooltip>
 
       <el-tooltip content="切换模型重试" placement="top" :show-after="500">
         <button class="menu-btn" @click="emit('retry', true)">
-          <Settings2 :size="16" />
+          <AtSign :size="16" />
         </button>
       </el-tooltip>
     </div>
 
     <!-- 启用/禁用 -->
-    <el-tooltip :content="message.isEnabled !== false ? '禁用 (不参与上下文)' : '启用'" placement="top" :show-after="500">
-      <button class="menu-btn" @click="emit('toggle-enabled')">
+    <el-tooltip
+      :content="message.isEnabled !== false ? '禁用 (不参与上下文)' : '启用'"
+      placement="top"
+      :show-after="500"
+    >
+      <button
+        class="menu-btn"
+        :class="{ 'menu-btn-highlight': message.isEnabled === false }"
+        @click="emit('toggle-enabled')"
+      >
         <Eye v-if="message.isEnabled !== false" :size="16" />
         <EyeOff v-else :size="16" />
       </button>
@@ -159,6 +162,12 @@ const handleSwitchToBranch = (nodeId: string) => {
       <el-tooltip content="编辑" placement="top" :show-after="500">
         <button class="menu-btn" @click="emit('edit')">
           <Edit :size="16" />
+        </button>
+      </el-tooltip>
+
+      <el-tooltip content="创建分支" placement="top" :show-after="500">
+        <button class="menu-btn" @click="emit('create-branch')">
+          <GitFork :size="16" />
         </button>
       </el-tooltip>
 

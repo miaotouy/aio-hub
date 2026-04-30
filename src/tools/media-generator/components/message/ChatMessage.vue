@@ -56,6 +56,10 @@ const handleExport = () => {
   isExporting.value = true;
 };
 
+const handleCreateBranch = () => {
+  store.saveToBranch(props.message.id, props.message.content, props.message.attachments);
+};
+
 const handleRetry = async (useNewModel = false) => {
   let temporaryModel: { profileId: string; modelId: string } | undefined;
 
@@ -195,6 +199,7 @@ defineExpose({
         :siblings="siblings"
         :current-sibling-index="currentSiblingIndex"
         @edit="handleEdit"
+        @create-branch="handleCreateBranch"
         @edit-raw="handleEditRaw"
         @toggle-enabled="handleToggleEnabled"
         @export="handleExport"

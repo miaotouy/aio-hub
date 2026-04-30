@@ -490,7 +490,6 @@ const generationMetaForRenderer = computed(() => {
 .partial-image-item {
   position: relative;
   border-radius: 8px;
-  overflow: hidden;
   border: 1px solid var(--border-color);
   aspect-ratio: 1;
   background: var(--input-bg);
@@ -561,7 +560,6 @@ const generationMetaForRenderer = computed(() => {
   margin-top: 8px;
   box-sizing: border-box;
   width: 100%;
-  overflow: hidden;
 }
 
 .media-result.is-multi .image-grid {

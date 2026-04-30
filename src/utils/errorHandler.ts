@@ -168,6 +168,26 @@ class GlobalErrorHandler {
    * 处理错误
    */
   handle(error: any, options: ErrorHandlerOptions = {}): StandardError {
+    // 防重处理：如果错误对象已经被处理过，且没有显式要求再次显示，则静默处理
+    let alreadyHandled = false;
+    if (error && typeof error === "object") {
+      if (error.__handled) {
+        alreadyHandled = true;
+      } else {
+        // 标记为已处理
+        try {
+          Object.defineProperty(error, "__handled", {
+            value: true,
+            writable: true,
+            enumerable: false,
+            configurable: true,
+          });
+        } catch (e) {
+          // 忽略不可扩展对象的错误
+        }
+      }
+    }
+
     // 特殊处理：AbortError 是用户主动取消操作，不应该作为错误处理
     if (error instanceof Error && error.name === "AbortError") {
       const standardError = this.standardizeError(error, {
@@ -196,7 +216,10 @@ class GlobalErrorHandler {
     this.logError(standardError);
 
     // 显示给用户（如果需要）
-    if (options.showToUser !== false) {
+    // 如果已经处理过且没有显式要求显示，则不再重复弹窗
+    const shouldShow = options.showToUser !== false && !alreadyHandled;
+
+    if (shouldShow) {
       this.showToUser(standardError, options.userMessage);
     }
 

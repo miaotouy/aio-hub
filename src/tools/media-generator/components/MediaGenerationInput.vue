@@ -35,16 +35,12 @@ const textareaRef = ref<HTMLTextAreaElement>();
 const attachmentsContainerRef = ref<HTMLDivElement>();
 const { height: attachmentsHeight } = useElementSize(attachmentsContainerRef);
 
-const {
-  editorHeight,
-  editorMaxHeight,
-  handleInputResizeStart,
-  handleResizeDoubleClick,
-  adjustHeight,
-} = useInputResize({
-  textareaRef,
-  extraHeight: attachmentsHeight,
-});
+const { editorHeight, editorMaxHeight, handleInputResizeStart, handleResizeDoubleClick, adjustHeight } = useInputResize(
+  {
+    textareaRef,
+    extraHeight: attachmentsHeight,
+  },
+);
 
 // 监听模型切换，自动更新上下文开关
 watch(
@@ -234,7 +230,10 @@ const cancelOptimize = () => {
 };
 
 const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
-  if (e instanceof KeyboardEvent && e.shiftKey) return; // Shift + Enter 换行
+  if (e instanceof KeyboardEvent) {
+    // 强制使用 Ctrl + Enter 发送，单 Enter 换行
+    if (!e.ctrlKey) return;
+  }
 
   if (!prompt.value.trim() && !store.hasAttachments) return;
   if (isGenerating.value) {
@@ -315,7 +314,14 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
             maxHeight: editorMaxHeight,
           }"
           :disabled="isDisabled"
-          @keydown.enter.prevent="handleSend($event)"
+          @keydown.enter.stop="
+            (e) => {
+              if (e.ctrlKey) {
+                e.preventDefault();
+                handleSend(e);
+              }
+            }
+          "
           @input="adjustHeight"
         ></textarea>
       </div>

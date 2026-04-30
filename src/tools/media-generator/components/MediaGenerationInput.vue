@@ -35,7 +35,13 @@ const textareaRef = ref<HTMLTextAreaElement>();
 const attachmentsContainerRef = ref<HTMLDivElement>();
 const { height: attachmentsHeight } = useElementSize(attachmentsContainerRef);
 
-const { editorHeight, editorMaxHeight, handleInputResizeStart, handleResizeDoubleClick } = useInputResize({
+const {
+  editorHeight,
+  editorMaxHeight,
+  handleInputResizeStart,
+  handleResizeDoubleClick,
+  adjustHeight,
+} = useInputResize({
   textareaRef,
   extraHeight: attachmentsHeight,
 });
@@ -266,6 +272,9 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
 
   // 等节点创建完成后才清空附件
   store.clearAttachments();
+
+  // 重置高度
+  adjustHeight();
 };
 </script>
 
@@ -301,9 +310,13 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
           v-model="prompt"
           class="native-textarea"
           placeholder="描述你想要生成的画面..."
-          :style="{ height: editorHeight === 'auto' ? 'auto' : editorHeight + 'px', maxHeight: editorMaxHeight }"
+          :style="{
+            height: editorHeight === 'auto' ? 'auto' : editorHeight + 'px',
+            maxHeight: editorMaxHeight,
+          }"
           :disabled="isDisabled"
           @keydown.enter.prevent="handleSend($event)"
+          @input="adjustHeight"
         ></textarea>
       </div>
 

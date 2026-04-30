@@ -213,11 +213,16 @@ class GlobalErrorHandler {
     }
 
     // 记录到日志
-    this.logError(standardError);
+    // 如果已经处理过，且没有显式要求再次显示，则不再重复记录日志，避免日志洪泛
+    const shouldLog = !alreadyHandled || options.showToUser === true;
+    if (shouldLog) {
+      this.logError(standardError);
+    }
 
     // 显示给用户（如果需要）
-    // 如果已经处理过且没有显式要求显示，则不再重复弹窗
-    const shouldShow = options.showToUser !== false && !alreadyHandled;
+    // 1. 显式要求显示 (showToUser === true)
+    // 2. 默认要求显示 (showToUser !== false) 且 之前未处理过 (!alreadyHandled)
+    const shouldShow = options.showToUser === true || (options.showToUser !== false && !alreadyHandled);
 
     if (shouldShow) {
       this.showToUser(standardError, options.userMessage);

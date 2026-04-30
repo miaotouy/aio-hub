@@ -239,12 +239,18 @@ export function useMediaGenerationManager() {
         });
         return;
       }
-      logger.error("媒体生成失败", error, { taskId });
+      // 仅在非中止错误时记录业务异常
+      // 底层 useLlmRequest 已经记录过详细的 API 错误日志，此处仅更新任务状态
       mediaStore.updateTaskStatus(taskId, "error", {
         error: error.message || String(error),
         statusText: "生成失败",
       });
-      errorHandler.error(error, "媒体生成失败", { showToUser: false });
+
+      // 如果错误尚未被处理（可能不是来自 useLlmRequest），则进行静默处理以记录日志
+      errorHandler.handle(error, {
+        userMessage: "媒体生成失败",
+        showToUser: false,
+      });
     } finally {
       isGenerating.value = false;
       abortController.value = null;

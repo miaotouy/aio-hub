@@ -127,6 +127,10 @@ export const useMediaGenStore = defineStore("media-generator", () => {
         index.name = name;
         index.updatedAt = new Date().toISOString();
         detail.updatedAt = index.updatedAt;
+        // 重新 set 以触发 Map 的响应式更新
+        sessionIndexMap.value.set(id, { ...index });
+        if (detail) sessionDetailMap.value.set(id, { ...detail });
+
         await sessionManager.persistSession({ ...index, ...detail });
       }
     },
@@ -313,8 +317,12 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     if (index) {
       index.name = name;
       index.updatedAt = new Date().toISOString();
+      // 重新 set 以触发 Map 的响应式更新
+      sessionIndexMap.value.set(sessionId, { ...index });
+
       if (detail) {
         detail.updatedAt = index.updatedAt;
+        sessionDetailMap.value.set(sessionId, { ...detail });
         await sessionManager.persistSession({ ...index, ...detail });
       } else {
         // 如果详情没加载，可能需要特殊的持久化逻辑，或者先加载详情

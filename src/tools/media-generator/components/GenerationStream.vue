@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick, watch } from "vue";
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from "vue";
 import { ElMessageBox as elMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import { useMediaGenStore } from "../stores/mediaGenStore";
@@ -36,19 +36,14 @@ watch(
   },
 );
 
-const currentSessionName = ref("");
 const isEditingName = ref(false);
 const editingName = ref("");
 const titleInputRef = ref<any>(null);
 
-watch(
-  () => store.currentSessionId,
-  () => {
-    const session = store.sessions.find((s) => s.id === store.currentSessionId);
-    currentSessionName.value = session?.name || "生成会话";
-  },
-  { immediate: true },
-);
+// 使用计算属性替代本地 ref，确保名称变更能实时反映
+const currentSessionName = computed(() => {
+  return store.currentSession?.name || "生成会话";
+});
 
 const startEdit = async () => {
   editingName.value = currentSessionName.value;
@@ -62,7 +57,6 @@ const saveEdit = async () => {
   const newName = editingName.value.trim();
   if (newName && newName !== currentSessionName.value && store.currentSessionId) {
     await store.updateSessionName(store.currentSessionId, newName);
-    currentSessionName.value = newName;
   }
   isEditingName.value = false;
 };

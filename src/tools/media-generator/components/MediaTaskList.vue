@@ -5,6 +5,7 @@ import { useMediaTaskManager } from "../composables/useMediaTaskManager";
 import { useMediaGenerationManager } from "../composables/useMediaGenerationManager";
 import { createModuleLogger } from "@/utils/logger";
 import { useAssetManager } from "@/composables/useAssetManager";
+import { customMessage } from "@/utils/customMessage";
 import { format } from "date-fns";
 import {
   Image as ImageIcon,
@@ -18,6 +19,7 @@ import {
   AlertCircle,
   Loader2,
   Search,
+  Copy,
   Trash2 as TrashIcon,
 } from "lucide-vue-next";
 import type { MediaTask, MediaTaskStatus, MediaTaskType } from "../types";
@@ -145,22 +147,72 @@ const handleRetryTask = (task: MediaTask) => {
 };
 
 const handleDownloadTask = (task: MediaTask) => {
-  if (task.resultAsset) {
+  const asset = task.resultAssets?.[0];
+  if (asset) {
     // 触发下载逻辑，通常是通过 assetManager 或直接打开
-    logger.info("触发下载", { taskId: task.id, asset: task.resultAsset });
+    logger.info("触发下载", { taskId: task.id, asset });
   }
 };
 
+const handleCopyPrompt = (prompt: string) => {
+  navigator.clipboard.writeText(prompt);
+  customMessage.success("提示词已复制到剪贴板");
+};
+
+const handleCopyResult = async (task: MediaTask) => {
+  const asset = task.resultAssets?.[0];
+  if (!asset) return;
+
+  const url = assetUrls.value[task.id];
+  if (!url) return;
+
+  try {
+    if (task.type === "image") {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          [blob.type]: blob,
+        }),
+      ]);
+      customMessage.success("图片已复制到剪贴板");
+    } else {
+      // 视频和音频复制链接
+      await navigator.clipboard.writeText(url);
+      customMessage.success(`${task.type === "video" ? "视频" : "音频"}链接已复制`);
+    }
+  } catch (err) {
+    logger.error("复制失败", err);
+    // 回退到复制链接
+    await navigator.clipboard.writeText(url);
+    customMessage.success("已复制媒体链接");
+  }
+};
+
+const getTaskResolution = (task: MediaTask) => {
+  const asset = task.resultAssets?.[0];
+  // 优先从资产元数据获取实际尺寸
+  if (asset?.metadata?.width && asset?.metadata?.height) {
+    return `${asset.metadata.width}x${asset.metadata.height}`;
+  }
+  // 其次从输入参数获取请求尺寸
+  if (task.input.params?.size) {
+    return task.input.params.size;
+  }
+  return "";
+};
+
 const handleOpenAsset = (task: MediaTask) => {
-  if (!task.resultAsset) return;
+  const asset = task.resultAssets?.[0];
+  if (!asset) return;
 
   const url = assetUrls.value[task.id];
   if (task.type === "image") {
     imageViewer.show(url);
   } else if (task.type === "video") {
-    videoViewer.previewVideo(task.resultAsset);
+    videoViewer.previewVideo(asset);
   } else if (task.type === "audio") {
-    audioViewer.previewAudio(task.resultAsset);
+    audioViewer.previewAudio(asset);
   }
 };
 
@@ -173,8 +225,9 @@ watch(
   async (newTasks) => {
     if (!Array.isArray(newTasks)) return;
     for (const task of newTasks) {
-      if (task?.resultAsset && !assetUrls.value[task.id]) {
-        assetUrls.value[task.id] = await getAssetUrl(task.resultAsset);
+      const asset = task?.resultAssets?.[0];
+      if (asset && !assetUrls.value[task.id]) {
+        assetUrls.value[task.id] = await getAssetUrl(asset);
       }
     }
   },
@@ -262,8 +315,13 @@ watch(
 
           <!-- 任务内容预览 -->
           <div class="task-content">
-            <div class="prompt-preview" :title="task.input.prompt">
-              {{ task.input.prompt }}
+            <div class="prompt-wrapper">
+              <div class="prompt-preview" :title="task.input.prompt">
+                {{ task.input.prompt }}
+              </div>
+              <el-tooltip content="复制提示词" placement="top">
+                <el-button :icon="Copy" link class="copy-prompt-btn" @click="handleCopyPrompt(task.input.prompt)" />
+              </el-tooltip>
             </div>
 
             <!-- 结果展示区域 -->
@@ -282,6 +340,9 @@ watch(
                   </div>
                   <div class="overlay">
                     <el-icon><ExternalLink /></el-icon>
+                  </div>
+                  <div v-if="getTaskResolution(task)" class="media-info-tag">
+                    {{ getTaskResolution(task) }}
                   </div>
                 </div>
               </template>
@@ -342,6 +403,9 @@ watch(
               >
                 <el-button :icon="RefreshCcw" circle size="small" @click="handleRetryTask(task)" />
               </el-tooltip>
+              <el-tooltip v-if="task.status === 'completed'" content="复制结果" placement="top">
+                <el-button :icon="Copy" circle size="small" @click="handleCopyResult(task)" />
+              </el-tooltip>
               <el-tooltip v-if="task.status === 'completed'" content="下载" placement="top">
                 <el-button :icon="Download" circle size="small" @click="handleDownloadTask(task)" />
               </el-tooltip>
@@ -378,6 +442,7 @@ watch(
   flex: 1;
   overflow-y: auto;
   padding-bottom: 80px; /* 底部余量 */
+  padding-top: 12px;
   margin: 0 -16px; /* 抵消父级左右 padding 以便滚动条靠边 */
   padding-left: 16px;
   padding-right: 16px;
@@ -541,6 +606,13 @@ watch(
   gap: 10px;
 }
 
+.prompt-wrapper {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  position: relative;
+}
+
 .prompt-preview {
   font-size: 12px;
   line-height: 1.5;
@@ -551,6 +623,24 @@ watch(
   -webkit-box-orient: vertical;
   overflow: hidden;
   min-height: 36px;
+  flex: 1;
+}
+
+.copy-prompt-btn {
+  padding: 2px;
+  height: auto;
+  opacity: 0;
+  transition: opacity 0.2s;
+  color: var(--el-text-color-secondary);
+}
+
+.copy-prompt-btn:hover {
+  color: var(--el-color-primary);
+  background-color: transparent;
+}
+
+.prompt-wrapper:hover .copy-prompt-btn {
+  opacity: 1;
 }
 
 .result-area {
@@ -606,6 +696,21 @@ watch(
 
 .media-preview:hover .overlay {
   opacity: 1;
+}
+
+.media-info-tag {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  color: white;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 1;
+  font-family: monospace;
 }
 
 .status-container {

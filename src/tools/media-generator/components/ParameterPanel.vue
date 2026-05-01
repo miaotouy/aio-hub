@@ -613,6 +613,7 @@ watch(
 .panel-body {
   flex: 1;
   padding: 16px;
+  overflow-x: hidden;
 }
 
 .section {
@@ -790,5 +791,8 @@ watch(
 
 .slider-wrapper {
   padding: 0 12px;
+  /* 确保滑块不会撑开容器导致横向滚动条 */
+  width: 100%;
+  overflow: hidden;
 }
 </style>

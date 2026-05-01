@@ -16,6 +16,7 @@ const props = defineProps<{
   hasAttachments: boolean;
   promptText: string;
   includeContext: boolean;
+  showContextToggle?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -119,18 +120,20 @@ const cancelOptimize = () => {
 <template>
   <div class="input-toolbar">
     <div class="toolbar-left">
-      <el-tooltip content="开启后将携带历史对话上下文，支持多轮迭代生成" placement="top">
-        <button
-          class="tool-btn"
-          :class="{ 'is-active': props.includeContext }"
-          @click="emit('update:includeContext', !props.includeContext)"
-        >
-          <el-icon v-if="props.includeContext"><MessageSquare /></el-icon>
-          <el-icon v-else><Target /></el-icon>
-          <span>多轮消息</span>
-        </button>
-      </el-tooltip>
-      <div class="v-divider" />
+      <template v-if="props.showContextToggle !== false">
+        <el-tooltip content="开启后将携带历史对话上下文，支持多轮迭代生成" placement="top">
+          <button
+            class="tool-btn"
+            :class="{ 'is-active': props.includeContext }"
+            @click="emit('update:includeContext', !props.includeContext)"
+          >
+            <el-icon v-if="props.includeContext"><MessageSquare /></el-icon>
+            <el-icon v-else><Target /></el-icon>
+            <span>多轮消息</span>
+          </button>
+        </el-tooltip>
+        <div class="v-divider" />
+      </template>
       <button class="tool-btn" :disabled="props.disabled" @click="emit('trigger-attachment')" title="添加参考图">
         <el-icon><ImageIcon /></el-icon>
         <span>参考图</span>

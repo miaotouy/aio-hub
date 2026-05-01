@@ -1,14 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick, watch } from "vue";
-import { ElMessageBox as elMessageBox } from "element-plus";
-import { customMessage } from "@/utils/customMessage";
+import { ref, onMounted, onUnmounted, nextTick, watch } from "vue";
 import { useMediaGenStore } from "../stores/mediaGenStore";
 import { useMediaGenInputManager } from "../composables/useMediaGenInputManager";
 import { useAssetManager } from "@/composables/useAssetManager";
 import MessageList from "./message/MessageList.vue";
-import SessionManager from "./SessionManager.vue";
-import MediaGenerationInput from "./MediaGenerationInput.vue";
-import { Sparkles, History, Check, X, RefreshCw, MessageSquarePlus, Layers, Download, Trash2 } from "lucide-vue-next";
+import { Sparkles, RefreshCw } from "lucide-vue-next";
 import { SUGGESTED_PROMPTS } from "../config";
 import { sampleSize } from "lodash-es";
 
@@ -33,35 +29,6 @@ watch(
     scrollToBottom();
   },
 );
-
-const isEditingName = ref(false);
-const editingName = ref("");
-const titleInputRef = ref<any>(null);
-
-// 使用计算属性替代本地 ref，确保名称变更能实时反映
-const currentSessionName = computed(() => {
-  return store.currentSession?.name || "生成会话";
-});
-
-const startEdit = async () => {
-  editingName.value = currentSessionName.value;
-  isEditingName.value = true;
-  await nextTick();
-  titleInputRef.value?.focus();
-};
-
-const saveEdit = async () => {
-  if (!isEditingName.value) return;
-  const newName = editingName.value.trim();
-  if (newName && newName !== currentSessionName.value && store.currentSessionId) {
-    await store.updateSessionName(store.currentSessionId, newName);
-  }
-  isEditingName.value = false;
-};
-
-const cancelEdit = () => {
-  isEditingName.value = false;
-};
 
 const displayPrompts = ref<string[]>([]);
 const isRefreshing = ref(false);
@@ -96,31 +63,6 @@ const handleRetry = async (messageId: string) => {
   await store.regenerateFromNode(messageId);
 };
 
-const handleBatchDelete = async () => {
-  const selectedCount = store.selectedMessages.length;
-  if (selectedCount === 0) return;
-
-  try {
-    await elMessageBox.confirm(`确定要删除选中的 ${selectedCount} 条消息吗？`, "批量删除", {
-      confirmButtonText: "确定",
-      cancelButtonText: "取消",
-      type: "warning",
-    });
-
-    for (const msg of store.selectedMessages) {
-      store.deleteMessage(msg.id);
-    }
-    store.exitBatchMode();
-  } catch {
-    // 用户取消
-  }
-};
-
-const handleBatchDownload = async () => {
-  // TODO: 实现批量下载逻辑
-  customMessage.info("批量下载功能开发中...");
-};
-
 // 资产 URL 映射缓存
 const assetUrls = ref<Record<string, string>>({});
 
@@ -141,85 +83,6 @@ watch(
 
 <template>
   <div class="generation-stream">
-    <!-- 顶部导航栏 -->
-    <div class="stream-header" :class="{ 'batch-mode-active': store.isBatchMode }">
-      <div v-if="store.isBatchMode" class="batch-header-content">
-        <div class="batch-info">
-          <span class="selected-count">已选中 {{ store.selectedMessages.length }} 项</span>
-        </div>
-        <div class="batch-actions">
-          <el-button
-            type="primary"
-            plain
-            size="small"
-            :disabled="store.selectedMessages.length === 0"
-            @click="handleBatchDownload"
-          >
-            <el-icon><Download /></el-icon>
-            <span>下载</span>
-          </el-button>
-          <el-button
-            type="danger"
-            plain
-            size="small"
-            :disabled="store.selectedMessages.length === 0"
-            @click="handleBatchDelete"
-          >
-            <el-icon><Trash2 /></el-icon>
-            <span>删除</span>
-          </el-button>
-          <el-divider direction="vertical" />
-          <el-button size="small" @click="store.exitBatchMode">取消</el-button>
-        </div>
-      </div>
-
-      <div v-else class="header-left">
-        <div v-if="isEditingName" class="title-edit-wrapper">
-          <el-input
-            ref="titleInputRef"
-            v-model="editingName"
-            size="small"
-            placeholder="输入会话名称..."
-            @keyup.enter="saveEdit"
-            @keyup.esc="cancelEdit"
-          />
-          <div class="edit-actions">
-            <el-button link size="small" type="primary" @click="saveEdit">
-              <el-icon><Check /></el-icon>
-            </el-button>
-            <el-button link size="small" @click="cancelEdit">
-              <el-icon><X /></el-icon>
-            </el-button>
-          </div>
-        </div>
-        <span v-else class="session-display-name" @click="startEdit">{{ currentSessionName }}</span>
-      </div>
-
-      <div v-if="!store.isBatchMode" class="header-actions">
-        <el-tooltip content="批量操作" placement="bottom">
-          <el-button link class="action-btn" @click="store.enterBatchMode">
-            <el-icon><Layers /></el-icon>
-          </el-button>
-        </el-tooltip>
-
-        <el-tooltip content="开启新会话" placement="bottom">
-          <el-button link class="action-btn" @click="store.createNewSession()">
-            <el-icon><MessageSquarePlus /></el-icon>
-          </el-button>
-        </el-tooltip>
-
-        <el-popover placement="bottom-end" :width="360" trigger="click" popper-class="session-popover">
-          <template #reference>
-            <el-button link class="history-btn">
-              <span style="padding-right: 4px">切换会话</span>
-              <el-icon><History /></el-icon>
-            </el-button>
-          </template>
-          <SessionManager />
-        </el-popover>
-      </div>
-    </div>
-
     <!-- 任务列表滚动区 -->
     <div class="stream-body" ref="scrollContainer">
       <div v-if="store.messages.length <= 1" class="empty-placeholder">
@@ -259,11 +122,6 @@ watch(
         />
       </div>
     </div>
-
-    <!-- 底部输入区 -->
-    <div class="stream-footer">
-      <MediaGenerationInput />
-    </div>
   </div>
 </template>
 
@@ -279,115 +137,6 @@ watch(
 
 .generation-stream * {
   box-sizing: border-box;
-}
-
-.stream-header {
-  height: 48px;
-  padding: 0 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  border-bottom: 1px solid transparent;
-}
-
-.stream-header.batch-mode-active {
-  background-color: color-mix(in srgb, var(--el-color-primary), transparent 92%);
-  border-bottom: 1px solid color-mix(in srgb, var(--el-color-primary), transparent 80%);
-  backdrop-filter: blur(var(--ui-blur));
-}
-
-.batch-header-content {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-}
-
-.batch-info {
-  display: flex;
-  align-items: center;
-}
-
-.selected-count {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--el-color-primary);
-}
-
-.batch-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  flex: 1;
-}
-
-.title-icon {
-  font-size: 18px;
-  color: var(--el-color-primary);
-}
-.session-display-name {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  cursor: pointer;
-  padding: 2px 6px;
-  border-radius: 4px;
-  transition: background-color 0.2s;
-}
-
-.session-display-name:hover {
-  background-color: var(--el-fill-color-light);
-}
-
-.title-edit-wrapper {
-  flex: 1;
-  max-width: 300px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.edit-actions {
-  display: flex;
-  align-items: center;
-}
-
-.edit-actions .el-button {
-  padding: 4px;
-  margin: 0;
-}
-
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.action-btn,
-.history-btn {
-  height: 32px;
-  padding: 0 8px;
-  color: var(--el-text-color-regular);
-  font-size: 13px;
-  transition: all 0.2s;
-}
-
-.action-btn:hover,
-.history-btn:hover {
-  color: var(--el-color-primary);
-  background-color: var(--el-fill-color-light);
 }
 
 .stream-body {
@@ -495,18 +244,6 @@ watch(
   display: flex;
   flex-direction: column;
   /* 左右边距比输入框(24px)稍大一些(32px)，使消息流滚入输入框圆角内侧 */
-  padding: 24px 32px 0;
-}
-
-.stream-footer {
-  padding: 0 24px 24px; /* 保持与输入框外层容器一致的 padding */
-  position: relative;
-  z-index: 10;
-  display: flex;
-  justify-content: center;
-}
-
-.stream-footer > * {
-  width: 100%;
+  padding: 0px 32px;
 }
 </style>

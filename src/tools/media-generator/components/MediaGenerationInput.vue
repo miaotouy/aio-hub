@@ -15,15 +15,25 @@ import { customMessage } from "@/utils/customMessage";
 import { open } from "@tauri-apps/plugin-dialog";
 import { createModuleLogger } from "@/utils/logger";
 
-const props = defineProps<{
-  disabled?: boolean;
+const props = withDefaults(
+  defineProps<{
+    disabled?: boolean;
+    mode?: "session" | "quick";
+  }>(),
+  {
+    mode: "session",
+  },
+);
+
+const emit = defineEmits<{
+  (e: "send", options: any, mediaType: string): void;
 }>();
 
 const logger = createModuleLogger("media-generator/MediaGenerationInput");
 
 const store = useMediaGenStore();
 const inputManager = useMediaGenInputManager();
-const { startGeneration, isGenerating, abort } = useMediaGenerationManager();
+const { isGenerating, abort } = useMediaGenerationManager();
 const assetManager = useAssetManager();
 const { getMatchedProperties } = useModelMetadata();
 
@@ -182,9 +192,13 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
     guidanceScale: params.cfgScale,
   };
 
-  await startGeneration(options as any, mediaType);
+  if (props.mode === "quick") {
+    emit("send", options, mediaType);
+  } else {
+    await store.submitTaskInSession(options, mediaType);
+  }
 
-  // 等节点创建完成后才清空附件
+  // 清空附件
   store.clearAttachments();
 
   // 重置高度
@@ -246,7 +260,8 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
         :is-generating="isGenerating"
         :has-attachments="store.hasAttachments"
         :prompt-text="prompt"
-        :include-context="store.currentConfig.includeContext"
+        :include-context="props.mode === 'session' ? store.currentConfig.includeContext : false"
+        :show-context-toggle="props.mode === 'session'"
         @update:include-context="store.currentConfig.includeContext = $event"
         @send="handleSend"
         @abort="handleAbort"
@@ -270,7 +285,7 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
     background-color 0.2s,
     box-shadow 0.3s;
   overflow: visible;
-  box-shadow: 0 4px 16px -4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
   display: flex;
   flex-direction: column;
   gap: 8px;

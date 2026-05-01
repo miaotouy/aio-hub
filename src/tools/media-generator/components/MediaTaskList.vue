@@ -2,6 +2,7 @@
 import { computed, ref, watch } from "vue";
 import { useMediaGenStore } from "../stores/mediaGenStore";
 import { useMediaTaskManager } from "../composables/useMediaTaskManager";
+import { useMediaGenerationManager } from "../composables/useMediaGenerationManager";
 import { createModuleLogger } from "@/utils/logger";
 import { useAssetManager } from "@/composables/useAssetManager";
 import { format } from "date-fns";
@@ -26,6 +27,7 @@ import { useAudioViewer } from "@/composables/useAudioViewer";
 
 const store = useMediaGenStore();
 const taskManager = useMediaTaskManager();
+const { abortTask } = useMediaGenerationManager();
 const logger = createModuleLogger("media-generator/task-list");
 const { getAssetUrl } = useAssetManager();
 const imageViewer = useImageViewer();
@@ -47,10 +49,7 @@ const filteredTasks = computed(() => {
   // 搜索过滤
   if (searchQuery.value) {
     const q = searchQuery.value.toLowerCase();
-    list = list.filter(
-      (t) =>
-        t.input.prompt.toLowerCase().includes(q) || t.input.modelId.toLowerCase().includes(q)
-    );
+    list = list.filter((t) => t.input.prompt.toLowerCase().includes(q) || t.input.modelId.toLowerCase().includes(q));
   }
 
   // 类型过滤
@@ -114,6 +113,11 @@ const handleRemoveTask = (taskId: string) => {
   logger.info("任务已移除", { taskId });
 };
 
+const handleCancelTask = (taskId: string) => {
+  abortTask(taskId);
+  logger.info("任务已取消", { taskId });
+};
+
 const clearFinishedTasks = () => {
   const finishedIds = taskManager.tasks.value
     .filter((t) => ["completed", "error", "cancelled"].includes(t.status))
@@ -174,7 +178,7 @@ watch(
       }
     }
   },
-  { deep: true, immediate: true }
+  { deep: true, immediate: true },
 );
 </script>
 
@@ -241,104 +245,117 @@ watch(
       <el-empty description="没有找到匹配的任务" />
     </div>
 
-    <div v-else class="task-grid">
-      <div v-for="task in filteredTasks" :key="task.id" class="task-card" :class="task.status">
-        <!-- 卡片头部 -->
-        <div class="task-header">
-          <div class="task-type">
-            <el-icon><component :is="getTaskIcon(task.type)" /></el-icon>
-            <span class="model-name">{{ task.input.modelId }}</span>
-          </div>
-          <div class="task-time">
-            <el-icon><Clock /></el-icon>
-            <span>{{ format(task.createdAt, "HH:mm:ss") }}</span>
-          </div>
-        </div>
-
-        <!-- 任务内容预览 -->
-        <div class="task-content">
-          <div class="prompt-preview" :title="task.input.prompt">
-            {{ task.input.prompt }}
+    <div v-else class="task-list-container">
+      <div class="task-grid">
+        <div v-for="task in filteredTasks" :key="task.id" class="task-card" :class="task.status">
+          <!-- 卡片头部 -->
+          <div class="task-header">
+            <div class="task-type">
+              <el-icon><component :is="getTaskIcon(task.type)" /></el-icon>
+              <span class="model-name">{{ task.input.modelId }}</span>
+            </div>
+            <div class="task-time">
+              <el-icon><Clock /></el-icon>
+              <span>{{ format(task.createdAt, "HH:mm:ss") }}</span>
+            </div>
           </div>
 
-          <!-- 结果展示区域 -->
-          <div class="result-area">
-            <!-- 完成状态：显示缩略图/视频 -->
-            <template v-if="task.status === 'completed'">
-              <div class="media-preview" @click="handleOpenAsset(task)">
-                <img v-if="task.type === 'image'" :src="assetUrls[task.id]" alt="result" />
-                <div v-else-if="task.type === 'video'" class="video-placeholder">
-                  <el-icon><Film /></el-icon>
-                  <span>点击查看视频</span>
-                </div>
-                <div v-else class="audio-placeholder">
-                  <el-icon><Music /></el-icon>
-                  <span>点击播放音频</span>
-                </div>
-                <div class="overlay">
-                  <el-icon><ExternalLink /></el-icon>
-                </div>
-              </div>
-            </template>
+          <!-- 任务内容预览 -->
+          <div class="task-content">
+            <div class="prompt-preview" :title="task.input.prompt">
+              {{ task.input.prompt }}
+            </div>
 
-            <!-- 处理中状态 -->
-            <template v-else-if="task.status === 'processing'">
-              <div class="status-container processing">
-                <el-icon class="is-loading"><Loader2 /></el-icon>
-                <div class="progress-info">
-                  <el-progress
-                    :percentage="task.progress"
-                    :stroke-width="4"
-                    striped
-                    striped-flow
-                    :show-text="false"
-                  />
-                  <span class="status-text">{{ task.statusText || "正在生成中..." }}</span>
+            <!-- 结果展示区域 -->
+            <div class="result-area">
+              <!-- 完成状态：显示缩略图/视频 -->
+              <template v-if="task.status === 'completed'">
+                <div class="media-preview" @click="handleOpenAsset(task)">
+                  <img v-if="task.type === 'image'" :src="assetUrls[task.id]" alt="result" />
+                  <div v-else-if="task.type === 'video'" class="video-placeholder">
+                    <el-icon><Film /></el-icon>
+                    <span>点击查看视频</span>
+                  </div>
+                  <div v-else class="audio-placeholder">
+                    <el-icon><Music /></el-icon>
+                    <span>点击播放音频</span>
+                  </div>
+                  <div class="overlay">
+                    <el-icon><ExternalLink /></el-icon>
+                  </div>
                 </div>
-              </div>
-            </template>
+              </template>
 
-            <!-- 错误状态 -->
-            <template v-else-if="task.status === 'error'">
-              <div class="status-container error">
-                <el-icon><AlertCircle /></el-icon>
-                <span class="error-msg">{{ task.error || "生成失败" }}</span>
-              </div>
-            </template>
+              <!-- 处理中状态 -->
+              <template v-else-if="task.status === 'processing'">
+                <div class="status-container processing">
+                  <el-icon class="is-loading"><Loader2 /></el-icon>
+                  <div class="progress-info">
+                    <el-progress
+                      :percentage="task.progress"
+                      :stroke-width="4"
+                      striped
+                      striped-flow
+                      :show-text="false"
+                    />
+                    <span class="status-text">{{ task.statusText || "正在生成中..." }}</span>
+                  </div>
+                </div>
+              </template>
 
-            <!-- 等待状态 -->
-            <template v-else>
-              <div class="status-container pending">
-                <el-icon><Clock /></el-icon>
-                <span>排队等待中...</span>
-              </div>
-            </template>
+              <!-- 错误状态 -->
+              <template v-else-if="task.status === 'error'">
+                <div class="status-container error">
+                  <el-icon><AlertCircle /></el-icon>
+                  <span class="error-msg">{{ task.error || "生成失败" }}</span>
+                </div>
+              </template>
+
+              <!-- 等待状态 -->
+              <template v-else>
+                <div class="status-container pending">
+                  <el-icon><Clock /></el-icon>
+                  <span>排队等待中...</span>
+                </div>
+              </template>
+            </div>
           </div>
-        </div>
 
-        <!-- 卡片底部操作栏 -->
-        <div class="task-footer">
-          <el-tag :type="getStatusType(task.status)" size="small" class="status-tag">
-            {{ getStatusLabel(task.status) }}
-          </el-tag>
+          <!-- 卡片底部操作栏 -->
+          <div class="task-footer">
+            <el-tag :type="getStatusType(task.status)" size="small" class="status-tag">
+              {{ getStatusLabel(task.status) }}
+            </el-tag>
 
-          <div class="actions">
-            <el-tooltip content="重新生成" placement="top">
-              <el-button :icon="RefreshCcw" circle size="small" @click="handleRetryTask(task)" />
-            </el-tooltip>
-            <el-tooltip v-if="task.status === 'completed'" content="下载" placement="top">
-              <el-button :icon="Download" circle size="small" @click="handleDownloadTask(task)" />
-            </el-tooltip>
-            <el-tooltip content="删除" placement="top">
-              <el-button
-                :icon="Trash2"
-                circle
-                size="small"
-                type="danger"
-                plain
-                @click="handleRemoveTask(task.id)"
-              />
-            </el-tooltip>
+            <div class="actions">
+              <el-tooltip
+                v-if="task.status === 'processing' || task.status === 'pending'"
+                content="取消任务"
+                placement="top"
+              >
+                <el-button :icon="Trash2" circle size="small" type="warning" plain @click="handleCancelTask(task.id)" />
+              </el-tooltip>
+              <el-tooltip
+                v-if="task.status !== 'processing' && task.status !== 'pending'"
+                content="重新生成"
+                placement="top"
+              >
+                <el-button :icon="RefreshCcw" circle size="small" @click="handleRetryTask(task)" />
+              </el-tooltip>
+              <el-tooltip v-if="task.status === 'completed'" content="下载" placement="top">
+                <el-button :icon="Download" circle size="small" @click="handleDownloadTask(task)" />
+              </el-tooltip>
+              <el-tooltip content="删除" placement="top">
+                <el-button
+                  :icon="TrashIcon"
+                  circle
+                  size="small"
+                  type="danger"
+                  plain
+                  @click="handleRemoveTask(task.id)"
+                />
+              </el-tooltip>
+            </div>
           </div>
         </div>
       </div>
@@ -350,11 +367,34 @@ watch(
 .media-task-list {
   box-sizing: border-box;
   height: 100%;
-  padding: 16px;
-  overflow-y: auto;
+  padding: 16px 16px 0 16px;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  overflow: hidden;
+}
+
+.task-list-container {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: 80px; /* 底部余量 */
+  margin: 0 -16px; /* 抵消父级左右 padding 以便滚动条靠边 */
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+/* 滚动条美化移至容器 */
+.task-list-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.task-list-container::-webkit-scrollbar-thumb {
+  background-color: var(--el-border-color-lighter);
+  border-radius: 3px;
+}
+
+.task-list-container:hover::-webkit-scrollbar-thumb {
+  background-color: var(--el-border-color-darker);
 }
 
 .stats-overview {
@@ -433,8 +473,9 @@ watch(
 
 .task-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
   gap: 16px;
+  width: 100%;
   max-width: 1400px;
   margin: 0 auto;
 }
@@ -446,8 +487,9 @@ watch(
   border-radius: 12px;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: hidden; /* 确保内部内容不溢出产生滚动条 */
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  min-width: 0; /* 防止 flex 子元素溢出 */
 }
 
 .task-card:hover {
@@ -607,6 +649,13 @@ watch(
   font-size: 12px;
   text-align: center;
   line-height: 1.4;
+  word-break: break-all;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
 }
 
 .task-footer {
@@ -634,19 +683,5 @@ watch(
   to {
     transform: rotate(360deg);
   }
-}
-
-/* 滚动条美化 */
-.media-task-list::-webkit-scrollbar {
-  width: 6px;
-}
-
-.media-task-list::-webkit-scrollbar-thumb {
-  background-color: var(--el-border-color-lighter);
-  border-radius: 3px;
-}
-
-.media-task-list:hover::-webkit-scrollbar-thumb {
-  background-color: var(--el-border-color-darker);
 }
 </style>

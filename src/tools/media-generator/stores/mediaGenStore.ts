@@ -139,15 +139,40 @@ export const useMediaGenStore = defineStore("media-generator", () => {
   // --- Actions ---
 
   /**
-   * 添加新任务
+   * 会话模式下提交任务
+   * 职责：编排任务构造、翻译、节点创建、执行启动
    */
-  const addTask = (task: MediaTask) => {
-    // 追踪生成状态
+  const submitTaskInSession = async (options: any, type: MediaTaskType) => {
+    const { useMediaGenerationManager } = await import("../composables/useMediaGenerationManager");
+    const genManager = useMediaGenerationManager();
+
+    // 1. 翻译逻辑
+    let translatedPrompt: string | undefined;
+    if (settings.value.translation.enabled && options.prompt) {
+      translatedPrompt = await aiLogic.translatePrompt(options.prompt);
+    }
+
+    // 2. 构造任务
+    const task = genManager.buildTask(options, type, translatedPrompt);
+
+    // 3. 注册到任务池
+    taskManager.addTask(task);
+
+    // 4. 追踪生成状态
     generatingNodes.value.add(task.id);
 
+    // 5. 在会话树中创建节点
     taskActionManager.addTaskNode(task, attachmentManager.attachments.value);
 
-    // 自动命名逻辑
+    // 6. 如果有译文，更新节点元数据
+    if (translatedPrompt) {
+      const node = nodes.value[task.id];
+      if (node && node.metadata) {
+        node.metadata.translatedContent = translatedPrompt;
+      }
+    }
+
+    // 7. 自动命名逻辑
     const namingConfig = settings.value.topicNaming;
     const userMessageCount = messages.value.filter((m) => m.role === "user").length;
 
@@ -166,8 +191,26 @@ export const useMediaGenStore = defineStore("media-generator", () => {
       }, 1500);
     }
 
+    // 8. 清理输入状态
     attachmentManager.clearAttachments();
     persistence.persist(true);
+
+    // 9. 启动执行
+    const config = {
+      timeout: settings.value.requestSettings?.timeout,
+      maxRetries: settings.value.requestSettings?.maxRetries,
+      autoIncludeLastResult: settings.value.autoIncludeLastResult,
+    };
+
+    await genManager.executeGeneration(task, messages.value, config);
+  };
+
+  /**
+   * 添加新任务 (仅用于节点追踪，不再负责创建节点)
+   * @deprecated 推荐使用 submitTaskInSession 或直接操作 TaskManager
+   */
+  const addTask = (task: MediaTask) => {
+    generatingNodes.value.add(task.id);
   };
 
   /**
@@ -175,22 +218,10 @@ export const useMediaGenStore = defineStore("media-generator", () => {
    */
   const updateTaskStatus = (taskId: string, status: MediaTaskStatus, updates?: Partial<MediaTask>) => {
     taskManager.updateTaskStatus(taskId, status, updates);
-    const task = taskManager.getTask(taskId);
-    if (task) {
-      const node = nodes.value[taskId];
-      if (node) {
-        if (node.metadata) {
-          node.metadata.taskSnapshot = { ...task };
-        }
-        if (status === "completed") {
-          node.status = "complete";
-          generatingNodes.value.delete(taskId);
-        } else if (status === "error") {
-          node.status = "error";
-          generatingNodes.value.delete(taskId);
-        }
-        nodes.value[taskId] = { ...node }; // 强制触发响应式
-      }
+
+    // 仅处理生成追踪状态
+    if (status === "completed" || status === "error" || status === "cancelled") {
+      generatingNodes.value.delete(taskId);
     }
   };
 
@@ -198,17 +229,18 @@ export const useMediaGenStore = defineStore("media-generator", () => {
    * 删除任务/消息
    */
   const removeTask = (taskId: string) => {
-    const fullSession = currentFullSession.value;
-    if (!fullSession) return;
-
-    // 确保从生成追踪中移除
+    // 1. 始终从任务池移除 (修复 bug)
+    taskManager.removeTask(taskId);
     generatingNodes.value.delete(taskId);
 
-    taskManager.removeTask(taskId);
-    const result = branchManager.deleteMessage(fullSession, taskId);
-    if (result.success) {
-      activeLeafId.value = fullSession.activeLeafId || "";
-      persistence.persist(true);
+    // 2. 如果有会话上下文，同步清理节点
+    const fullSession = currentFullSession.value;
+    if (fullSession) {
+      const result = branchManager.deleteMessage(fullSession, taskId);
+      if (result.success) {
+        activeLeafId.value = fullSession.activeLeafId || "";
+        persistence.persist(true);
+      }
     }
   };
 
@@ -406,29 +438,14 @@ export const useMediaGenStore = defineStore("media-generator", () => {
       generationOptions.modelId = temporaryModel.modelId;
     }
 
-    const taskId = assistantNode.id;
     const type = params.type || assistantNode.metadata?.taskSnapshot?.type || currentConfig.value.activeType;
 
-    const task: MediaTask = {
-      id: taskId,
-      type,
-      status: "pending",
-      input: {
-        prompt: generationOptions.prompt || "",
-        negativePrompt: generationOptions.negativePrompt,
-        modelId: generationOptions.modelId,
-        profileId: generationOptions.profileId,
-        params: {
-          ...generationOptions,
-        },
-        referenceAssetIds: (generationOptions.inputAttachments as any[])
-          ?.map((a: any) => a.path || a.url)
-          .filter(Boolean) as string[],
-        includeContext: generationOptions.includeContext,
-      },
-      progress: 0,
-      createdAt: Date.now(),
-    };
+    const { useMediaGenerationManager } = await import("../composables/useMediaGenerationManager");
+    const mediaGenManager = useMediaGenerationManager();
+
+    // 复用 buildTask，但强制使用 assistantNode.id 作为 taskId
+    const task = mediaGenManager.buildTask(generationOptions, type);
+    task.id = assistantNode.id; // 强制关联到节点 ID
 
     // 4. 写入节点元数据
     assistantNode.metadata = {
@@ -447,8 +464,6 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     persistence.persist(true);
 
     // 6. 启动生成
-    const { useMediaGenerationManager } = await import("../composables/useMediaGenerationManager");
-    const mediaGenManager = useMediaGenerationManager();
     await mediaGenManager.startGenerationWithTask(task);
   };
 
@@ -480,6 +495,7 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     // 核心 Actions
     init: persistence.init,
     persist: persistence.persist,
+    submitTaskInSession,
     addTask,
     updateTaskStatus,
     getTask: taskManager.getTask,

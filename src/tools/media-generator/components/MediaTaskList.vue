@@ -6,6 +6,9 @@ import { useMediaGenerationManager } from "../composables/useMediaGenerationMana
 import { createModuleLogger } from "@/utils/logger";
 import { useAssetManager } from "@/composables/useAssetManager";
 import { customMessage } from "@/utils/customMessage";
+import { save } from "@tauri-apps/plugin-dialog";
+import { copyFile } from "@tauri-apps/plugin-fs";
+import { join } from "@tauri-apps/api/path";
 import { format } from "date-fns";
 import {
   Image as ImageIcon,
@@ -31,7 +34,7 @@ const store = useMediaGenStore();
 const taskManager = useMediaTaskManager();
 const { abortTask } = useMediaGenerationManager();
 const logger = createModuleLogger("media-generator/task-list");
-const { getAssetUrl } = useAssetManager();
+const { getAssetUrl, getAssetBasePath } = useAssetManager();
 const imageViewer = useImageViewer();
 const videoViewer = useVideoViewer();
 const audioViewer = useAudioViewer();
@@ -146,11 +149,37 @@ const handleRetryTask = (task: MediaTask) => {
   logger.info("已恢复任务参数，准备重试", { taskId: task.id });
 };
 
-const handleDownloadTask = (task: MediaTask) => {
+const handleDownloadTask = async (task: MediaTask) => {
   const asset = task.resultAssets?.[0];
-  if (asset) {
-    // 触发下载逻辑，通常是通过 assetManager 或直接打开
-    logger.info("触发下载", { taskId: task.id, asset });
+  if (!asset) return;
+
+  try {
+    // 获取资产存储的根目录
+    const basePath = await getAssetBasePath();
+    // 拼接源文件的完整路径
+    const sourcePath = await join(basePath, asset.path);
+
+    // 弹出保存对话框
+    const targetPath = await save({
+      title: "下载媒体文件",
+      defaultPath: asset.name,
+      filters: [
+        {
+          name: task.type === "image" ? "图片" : task.type === "video" ? "视频" : "音频",
+          extensions: [asset.path.split(".").pop() || "*"],
+        },
+      ],
+    });
+
+    if (targetPath) {
+      // 执行文件拷贝到用户指定的路径
+      await copyFile(sourcePath, targetPath);
+      customMessage.success("文件已下载成功");
+      logger.info("文件下载成功", { taskId: task.id, targetPath });
+    }
+  } catch (err) {
+    logger.error("下载失败", err);
+    customMessage.error("下载失败，请重试");
   }
 };
 

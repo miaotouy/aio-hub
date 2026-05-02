@@ -453,11 +453,12 @@ graph TD
 
 消息列表是会话的核心展示组件，集成了高性能渲染和富文本处理能力。
 
-- **虚拟滚动 (Virtual Scrolling)**:
-  - 采用 `@tanstack/vue-virtual` 实现。
-  - 即使在包含数千条消息的会话中，也能保持流畅的滚动和渲染性能。
-  - 支持动态高度计算，适应不同长度的消息内容。
-  - **滚动位置保持**: 优化了列表更新逻辑。在保存分支或编辑内容（消息数量不变）时，能够精确恢复之前的滚动位置，避免因渲染重测导致的视觉跳动。
+- **CSS 原生虚拟渲染 (CSS Native Virtual Rendering)**:
+  - 采用 CSS `content-visibility: auto` + `contain-intrinsic-size` 实现，利用浏览器原生能力跳过屏外元素的渲染。
+  - 即使在包含数千条消息的会话中，也能保持流畅的滚动和渲染性能，无需引入第三方虚拟滚动库。
+  - 通过 `contain-intrinsic-size: auto 600px` 提供估算高度，浏览器自动根据实际渲染结果调整预留空间。
+  - **滚动位置保持**: 在分支切换时，通过 `captureSwitchingMessagePosition` 捕获目标消息在视口中的相对位置，`restoreSwitchingMessagePosition` 在 DOM 更新后执行多次重试恢复（nextTick + 50ms + 150ms），确保切换不发生视觉跳动。
+  - **滚动锚定控制**: 设置 `overflow-anchor: none` 禁用浏览器默认的滚动锚定，配合 `contain: layout style` 渲染隔离，避免程序化 `scrollTo` 与浏览器自动锚定产生对抗导致布局抖动。
 
 - **消息导航器 (MessageNavigator)**:
   - 悬浮于列表右下角的控件。

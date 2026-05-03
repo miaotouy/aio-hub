@@ -358,200 +358,212 @@ watch(
   </Teleport>
 
   <div
-      class="title-bar"
-      :class="{
-        macos: isMacOS,
-        'has-glass-effect': appearanceSettings?.enableUiEffects && appearanceSettings?.enableUiBlur,
-      }"
-      data-tauri-drag-region
-    >
-      <div class="title-bar-content">
-        <!-- 左侧控制区域 -->
-        <div class="left-controls" :class="{ macos: isMacOS }">
-          <!-- 菜单按钮（仅在非 sidebar 模式下显示） -->
-          <template v-if="isMainWindow && settings?.sidebarMode && settings.sidebarMode !== 'sidebar'">
-            <!-- 下拉菜单模式 -->
-            <el-dropdown
-              v-if="settings.sidebarMode === 'dropdown'"
-              ref="dropdownRef"
-              trigger="click"
-              placement="bottom-start"
-              popper-class="sidebar-dropdown-popper"
-              class="menu-dropdown"
-            >
-              <button class="control-btn menu-btn">
-                <el-icon><MenuIcon /></el-icon>
-              </button>
-              <template #dropdown>
-                <div class="dropdown-menu-container">
-                  <SidebarMenu
-                    :tools-visible="settings?.toolsVisible || {}"
-                    :is-detached="detachedManager.isDetached"
-                    @select="handleDropdownSelect"
-                  />
-                </div>
-              </template>
-            </el-dropdown>
+    class="title-bar"
+    :class="{
+      macos: isMacOS,
+      'has-glass-effect': appearanceSettings?.enableUiEffects && appearanceSettings?.enableUiBlur,
+    }"
+    data-tauri-drag-region
+  >
+    <div class="title-bar-content">
+      <!-- 左侧控制区域 -->
+      <div class="left-controls" :class="{ macos: isMacOS }">
+        <!-- 品牌标识（仅在主窗口显示） -->
+        <div v-if="isMainWindow" class="brand-area" data-tauri-drag-region>
+          <img :src="logoSrc" alt="Logo" class="brand-logo" />
+          <span class="brand-title">AIO Hub</span>
+        </div>
 
-            <!-- 抽屉模式 -->
-            <button v-else class="control-btn menu-btn" style="padding: 0 16px" @click="drawerVisible = true">
+        <!-- 菜单按钮（仅在非 sidebar 模式下显示） -->
+        <template v-if="isMainWindow && settings?.sidebarMode && settings.sidebarMode !== 'sidebar'">
+          <!-- 下拉菜单模式 -->
+          <el-dropdown
+            v-if="settings.sidebarMode === 'dropdown'"
+            ref="dropdownRef"
+            trigger="click"
+            placement="bottom-start"
+            popper-class="sidebar-dropdown-popper"
+            class="menu-dropdown"
+          >
+            <button class="control-btn menu-btn">
               <el-icon><MenuIcon /></el-icon>
             </button>
+            <template #dropdown>
+              <div class="dropdown-menu-container">
+                <SidebarMenu
+                  :tools-visible="settings?.toolsVisible || {}"
+                  :is-detached="detachedManager.isDetached"
+                  @select="handleDropdownSelect"
+                />
+              </div>
+            </template>
+          </el-dropdown>
+
+          <!-- 抽屉模式 -->
+          <button v-else class="control-btn menu-btn" style="padding: 0 16px" @click="drawerVisible = true">
+            <el-icon><MenuIcon /></el-icon>
+          </button>
+        </template>
+      </div>
+
+      <!-- 中间标题区域 -->
+      <div class="title-area">
+        <!-- 默认图标用于主页，其他页面显示对应工具图标（在主窗口且为主页时隐藏，因为左侧已有 Logo） -->
+        <img
+          v-if="useDefaultIcon && !(isMainWindow && route.path === '/')"
+          :src="logoSrc"
+          alt="Logo"
+          class="app-logo"
+          data-tauri-drag-region
+        />
+        <!-- 统一的图标容器 -->
+        <span v-else-if="!useDefaultIcon" class="icon-wrapper">
+          <component :is="currentIcon" />
+        </span>
+        <span v-if="!(isMainWindow && route.path === '/')" class="app-title">{{ currentToolName }}</span>
+      </div>
+
+      <!-- 右侧控制区域 -->
+      <div class="right-controls">
+        <!-- 返回主窗口按钮（仅在分离窗口显示，所有平台通用） -->
+        <el-tooltip v-if="!isMainWindow" content="回归主窗口" placement="bottom">
+          <button class="control-btn reattach-btn" @click="handleReattach">
+            <el-icon><CornerDownLeft /></el-icon>
+          </button>
+        </el-tooltip>
+
+        <!-- 用户档案选择下拉菜单（仅主窗口显示） -->
+        <el-dropdown v-if="isMainWindow" trigger="hover" @command="handleProfileSelect" placement="bottom">
+          <button
+            class="control-btn profile-btn"
+            :title="
+              userProfileStore.globalProfile
+                ? `用户档案: ${userProfileStore.globalProfile.displayName || userProfileStore.globalProfile.name}`
+                : '选择用户档案'
+            "
+          >
+            <!-- 如果有选中档案，使用 Avatar（有头像显示头像，无头像显示首字母） -->
+            <Avatar
+              v-if="userProfileStore.globalProfile"
+              :src="globalProfileAvatarSrc || ''"
+              :alt="userProfileStore.globalProfile.displayName || userProfileStore.globalProfile.name"
+              :size="20"
+              shape="square"
+              :radius="4"
+            />
+            <!-- 完全没有档案时显示 User 图标 -->
+            <el-icon v-else><User /></el-icon>
+          </button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item :command="null" :class="{ 'is-active': !userProfileStore.globalProfileId }">
+                <span>无（不使用）</span>
+              </el-dropdown-item>
+              <el-dropdown-item
+                v-for="profile in userProfileStore.enabledProfiles"
+                :key="profile.id"
+                :command="profile.id"
+                :class="{ 'is-active': userProfileStore.globalProfileId === profile.id }"
+              >
+                <!-- 始终使用 Avatar，有头像显示头像，无头像显示首字母 -->
+                <Avatar
+                  :src="getProfileAvatarSrc(profile) || ''"
+                  :alt="profile.displayName || profile.name"
+                  :size="20"
+                  shape="square"
+                  :radius="4"
+                  style="margin-right: 8px"
+                />
+                <span>{{ profile.displayName || profile.name }}</span>
+              </el-dropdown-item>
+              <el-dropdown-item divided command="manage_profiles">
+                <el-icon><Setting /></el-icon>
+                <span>管理用户档案</span>
+              </el-dropdown-item>
+            </el-dropdown-menu>
           </template>
-        </div>
+        </el-dropdown>
 
-        <!-- 中间标题区域 -->
-        <div class="title-area">
-          <!-- 默认图标用于主页，其他页面显示对应工具图标 -->
-          <img v-if="useDefaultIcon" :src="logoSrc" alt="Logo" class="app-logo" data-tauri-drag-region />
-          <!-- 统一的图标容器 -->
-          <span v-else class="icon-wrapper">
-            <component :is="currentIcon" />
-          </span>
-          <span class="app-title">{{ currentToolName }}</span>
-        </div>
+        <!-- 主题切换下拉菜单（仅主窗口显示） -->
+        <el-dropdown v-if="isMainWindow" trigger="hover" @command="handleThemeChange" placement="bottom">
+          <button class="control-btn theme-btn" :title="getThemeTooltip">
+            <el-icon><component :is="getThemeIcon" /></el-icon>
+          </button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="auto" :class="{ 'is-active': currentTheme === 'auto' }">
+                <el-icon><SystemThemeIcon /></el-icon>
+                <span>跟随系统</span>
+              </el-dropdown-item>
+              <el-dropdown-item command="light" :class="{ 'is-active': currentTheme === 'light' }">
+                <el-icon><Sunny /></el-icon>
+                <span>浅色</span>
+              </el-dropdown-item>
+              <el-dropdown-item command="dark" :class="{ 'is-active': currentTheme === 'dark' }">
+                <el-icon><Moon /></el-icon>
+                <span>深色</span>
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
 
-        <!-- 右侧控制区域 -->
-        <div class="right-controls">
-          <!-- 返回主窗口按钮（仅在分离窗口显示，所有平台通用） -->
-          <el-tooltip v-if="!isMainWindow" content="回归主窗口" placement="bottom">
-            <button class="control-btn reattach-btn" @click="handleReattach">
-              <el-icon><CornerDownLeft /></el-icon>
+        <!-- 下载管理入口（仅主窗口显示） -->
+        <el-popover
+          v-if="isMainWindow && settings?.download?.showDownloadButtonInTitleBar"
+          placement="bottom-end"
+          :width="350"
+          trigger="click"
+          popper-class="download-manager-popper"
+        >
+          <template #reference>
+            <button
+              class="control-btn download-btn"
+              :class="{ 'is-animating': downloadButtonAnimating }"
+              title="下载记录"
+            >
+              <el-icon><Download /></el-icon>
+            </button>
+          </template>
+          <DownloadManager />
+        </el-popover>
+
+        <!-- 消息通知入口（仅主窗口显示） -->
+        <NotificationBell v-if="isMainWindow" />
+
+        <!-- 设置按钮（仅主窗口显示） -->
+        <template v-if="isMainWindow">
+          <el-tooltip content="设置" placement="bottom">
+            <button class="control-btn settings-btn" @click="goToSettings">
+              <el-icon><Setting /></el-icon>
+            </button>
+          </el-tooltip>
+        </template>
+
+        <!-- 窗口控制按钮（macOS 上隐藏，因为系统提供原生控件） -->
+        <template v-if="!isMacOS">
+          <el-tooltip content="最小化" placement="bottom">
+            <button class="control-btn minimize-btn" @click="minimizeWindow">
+              <el-icon><Minus /></el-icon>
             </button>
           </el-tooltip>
 
-          <!-- 用户档案选择下拉菜单（仅主窗口显示） -->
-          <el-dropdown v-if="isMainWindow" trigger="hover" @command="handleProfileSelect" placement="bottom">
-            <button
-              class="control-btn profile-btn"
-              :title="
-                userProfileStore.globalProfile
-                  ? `用户档案: ${userProfileStore.globalProfile.displayName || userProfileStore.globalProfile.name}`
-                  : '选择用户档案'
-              "
-            >
-              <!-- 如果有选中档案，使用 Avatar（有头像显示头像，无头像显示首字母） -->
-              <Avatar
-                v-if="userProfileStore.globalProfile"
-                :src="globalProfileAvatarSrc || ''"
-                :alt="userProfileStore.globalProfile.displayName || userProfileStore.globalProfile.name"
-                :size="20"
-                shape="square"
-                :radius="4"
-              />
-              <!-- 完全没有档案时显示 User 图标 -->
-              <el-icon v-else><User /></el-icon>
+          <el-tooltip :content="isMaximized ? '还原' : '最大化'" placement="bottom">
+            <button class="control-btn maximize-btn" @click="toggleMaximize">
+              <el-icon>
+                <CopyDocument :style="{ transform: isMaximized ? 'rotate(180deg)' : 'none' }" />
+              </el-icon>
             </button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item :command="null" :class="{ 'is-active': !userProfileStore.globalProfileId }">
-                  <span>无（不使用）</span>
-                </el-dropdown-item>
-                <el-dropdown-item
-                  v-for="profile in userProfileStore.enabledProfiles"
-                  :key="profile.id"
-                  :command="profile.id"
-                  :class="{ 'is-active': userProfileStore.globalProfileId === profile.id }"
-                >
-                  <!-- 始终使用 Avatar，有头像显示头像，无头像显示首字母 -->
-                  <Avatar
-                    :src="getProfileAvatarSrc(profile) || ''"
-                    :alt="profile.displayName || profile.name"
-                    :size="20"
-                    shape="square"
-                    :radius="4"
-                    style="margin-right: 8px"
-                  />
-                  <span>{{ profile.displayName || profile.name }}</span>
-                </el-dropdown-item>
-                <el-dropdown-item divided command="manage_profiles">
-                  <el-icon><Setting /></el-icon>
-                  <span>管理用户档案</span>
-                </el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
+          </el-tooltip>
 
-          <!-- 主题切换下拉菜单（仅主窗口显示） -->
-          <el-dropdown v-if="isMainWindow" trigger="hover" @command="handleThemeChange" placement="bottom">
-            <button class="control-btn theme-btn" :title="getThemeTooltip">
-              <el-icon><component :is="getThemeIcon" /></el-icon>
+          <el-tooltip :content="isMainWindow && settings?.minimizeToTray ? '隐藏到托盘' : '关闭'" placement="bottom">
+            <button class="control-btn close-btn" @click="closeWindow">
+              <el-icon><Close /></el-icon>
             </button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="auto" :class="{ 'is-active': currentTheme === 'auto' }">
-                  <el-icon><SystemThemeIcon /></el-icon>
-                  <span>跟随系统</span>
-                </el-dropdown-item>
-                <el-dropdown-item command="light" :class="{ 'is-active': currentTheme === 'light' }">
-                  <el-icon><Sunny /></el-icon>
-                  <span>浅色</span>
-                </el-dropdown-item>
-                <el-dropdown-item command="dark" :class="{ 'is-active': currentTheme === 'dark' }">
-                  <el-icon><Moon /></el-icon>
-                  <span>深色</span>
-                </el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-
-          <!-- 下载管理入口（仅主窗口显示） -->
-          <el-popover
-            v-if="isMainWindow && settings?.download?.showDownloadButtonInTitleBar"
-            placement="bottom-end"
-            :width="350"
-            trigger="click"
-            popper-class="download-manager-popper"
-          >
-            <template #reference>
-              <button
-                class="control-btn download-btn"
-                :class="{ 'is-animating': downloadButtonAnimating }"
-                title="下载记录"
-              >
-                <el-icon><Download /></el-icon>
-              </button>
-            </template>
-            <DownloadManager />
-          </el-popover>
-
-          <!-- 消息通知入口（仅主窗口显示） -->
-          <NotificationBell v-if="isMainWindow" />
-
-          <!-- 设置按钮（仅主窗口显示） -->
-          <template v-if="isMainWindow">
-            <el-tooltip content="设置" placement="bottom">
-              <button class="control-btn settings-btn" @click="goToSettings">
-                <el-icon><Setting /></el-icon>
-              </button>
-            </el-tooltip>
-          </template>
-
-          <!-- 窗口控制按钮（macOS 上隐藏，因为系统提供原生控件） -->
-          <template v-if="!isMacOS">
-            <el-tooltip content="最小化" placement="bottom">
-              <button class="control-btn minimize-btn" @click="minimizeWindow">
-                <el-icon><Minus /></el-icon>
-              </button>
-            </el-tooltip>
-
-            <el-tooltip :content="isMaximized ? '还原' : '最大化'" placement="bottom">
-              <button class="control-btn maximize-btn" @click="toggleMaximize">
-                <el-icon>
-                  <CopyDocument :style="{ transform: isMaximized ? 'rotate(180deg)' : 'none' }" />
-                </el-icon>
-              </button>
-            </el-tooltip>
-
-            <el-tooltip :content="isMainWindow && settings?.minimizeToTray ? '隐藏到托盘' : '关闭'" placement="bottom">
-              <button class="control-btn close-btn" @click="closeWindow">
-                <el-icon><Close /></el-icon>
-              </button>
-            </el-tooltip>
-          </template>
-        </div>
+          </el-tooltip>
+        </template>
       </div>
     </div>
+  </div>
 </template>
 
 <style scoped>
@@ -585,8 +597,35 @@ watch(
 /* 左侧占位区域 */
 .left-controls {
   display: flex;
-  width: 0;
+  align-items: center;
+  width: auto;
   flex-shrink: 0;
+}
+
+.brand-area {
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  margin-top: 4px;
+  height: 100%;
+  flex-shrink: 0;
+  cursor: default;
+  -webkit-app-region: drag;
+}
+
+.brand-logo {
+  width: 24px;
+  height: 24px;
+  margin-right: 8px;
+  object-fit: contain;
+}
+
+.brand-title {
+  font-size: 16px;
+  font-weight: bold;
+  color: var(--sidebar-text);
+  white-space: nowrap;
+  letter-spacing: 0.5px;
 }
 
 /* macOS 上为左侧控制区域添加额外的 padding，避免与原生红绿灯按钮冲突 */
@@ -613,6 +652,11 @@ watch(
     flex: 1;
     padding-left: 12px;
     overflow: hidden;
+  }
+
+  /* 窄屏时隐藏品牌区域，为模块标题腾出空间 */
+  .left-controls .brand-area {
+    display: none;
   }
 }
 

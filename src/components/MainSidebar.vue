@@ -1,11 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, nextTick } from "vue";
 import { Expand, Fold } from "@element-plus/icons-vue";
-import { useTheme } from "../composables/useTheme";
 import { useThemeAppearance } from "@/composables/useThemeAppearance";
 import SidebarMenu from "./SidebarMenu.vue";
-import iconBlack from "../assets/aio-icon-black.svg";
-import iconWhite from "../assets/aio-icon-white.svg";
 
 // 属性
 interface Props {
@@ -21,9 +18,7 @@ const emit = defineEmits<{
   "update:collapsed": [value: boolean];
 }>();
 
-const { isDark } = useTheme();
 const { appearanceSettings } = useThemeAppearance();
-const logoSrc = computed(() => (isDark.value ? iconWhite : iconBlack));
 
 // 内部状态与 props 同步
 const isCollapsed = computed({
@@ -87,18 +82,9 @@ onUnmounted(() => {
   >
     <!-- 上部分：标题和导航 -->
     <div class="sidebar-top">
-      <div class="sidebar-header" :class="{ 'is-collapsed': isCollapsed }">
-        <img :src="logoSrc" alt="Logo" class="sidebar-logo" />
-        <h2 v-if="!isCollapsed" class="sidebar-title">AIO Hub</h2>
-      </div>
-
       <div class="menu-wrapper">
         <div class="menu-container" ref="menuContainerRef">
-          <SidebarMenu
-            :collapsed="isCollapsed"
-            :tools-visible="toolsVisible"
-            :is-detached="isDetached"
-          />
+          <SidebarMenu :collapsed="isCollapsed" :tools-visible="toolsVisible" :is-detached="isDetached" />
         </div>
       </div>
     </div>
@@ -155,42 +141,6 @@ onUnmounted(() => {
   display: flex;
   justify-content: center;
   overflow-x: hidden;
-}
-
-.sidebar-header {
-  margin-bottom: 30px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  user-select: none;
-  padding: 0 20px;
-  box-sizing: border-box;
-  overflow-x: hidden;
-}
-
-.sidebar-logo {
-  width: 32px;
-  height: 32px;
-  transition: all 0.3s ease;
-}
-
-.sidebar-header:not(.is-collapsed) .sidebar-logo {
-  margin-right: 12px;
-}
-
-.sidebar-title {
-  color: var(--sidebar-text);
-  font-size: 24px;
-  font-weight: bold;
-  margin: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  transition: opacity 0.3s ease;
-}
-
-.sidebar-header.is-collapsed {
-  justify-content: center;
 }
 
 .menu-wrapper {

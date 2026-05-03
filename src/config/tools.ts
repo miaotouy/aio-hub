@@ -14,6 +14,7 @@ export const DEFAULT_TOOLS_ORDER = [
   "/web-distillery",
   "/knowledge-base",
   "/st-worldbook-editor",
+  "/skill-manager",
 
   // 文本处理
   "/code-formatter",

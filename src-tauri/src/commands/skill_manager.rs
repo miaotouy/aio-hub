@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::{Duration, Instant};
 use tauri::AppHandle;
+use tauri::Manager;
 use tokio::process::Command;
 use tokio::time::timeout;
 
@@ -98,18 +99,23 @@ pub async fn get_all_skill_manifests(
     let mut manifests = Vec::new();
     let app_data_dir = crate::get_app_data_dir(app.config());
 
-    // 1. AIO 自身路径（始终扫描）
+    // 1. 用户安装的 Skill（优先，可覆盖内置 skill）
     let user_skills_dir = app_data_dir.join("skills");
     if user_skills_dir.exists() {
         scan_skills_in_dir(&user_skills_dir, "user", &mut manifests).await;
     }
 
-    let builtin_skills_dir = app_data_dir.join("builtin_skills");
-    if builtin_skills_dir.exists() {
-        scan_skills_in_dir(&builtin_skills_dir, "builtin", &mut manifests).await;
+    // 2. 内置 Skill（从 Tauri 资源目录加载）
+    //    在打包后，resources 中配置的 ../public/skills 会被复制到资源目录下的 skills/
+    //    开发模式下也可以生效（tauri dev 会自动映射资源路径）
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        let builtin_dir = resource_dir.join("skills");
+        if builtin_dir.exists() {
+            scan_skills_in_dir(&builtin_dir, "builtin", &mut manifests).await;
+        }
     }
 
-    // 2. 外部路径（仅 enabled 且目录存在）
+    // 3. 外部路径（仅 enabled 且目录存在）
     if let Some(paths) = external_paths {
         for ep in paths {
             if !ep.enabled {

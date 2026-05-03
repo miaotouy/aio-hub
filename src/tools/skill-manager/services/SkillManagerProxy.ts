@@ -26,24 +26,24 @@ export class SkillManagerProxy implements ToolRegistry {
           name: "skill_run_script",
           displayName: "执行 Skill 私有脚本",
           description:
-            "执行指定 Skill 内部 scripts/ 目录下的预定义脚本。严禁执行系统命令或外部程序。安全校验在 Rust 侧完成。",
+            "执行指定 Skill 内部 scripts/ 目录下的预定义脚本。当你在 Skill 文档中看到类似 `npx <name> <command> --flag` 的命令时，请使用此工具进行转换调用。",
           parameters: [
             {
               name: "skill_id",
               type: "string",
-              description: "Skill 名称（如 gpt-image-2）",
+              description: "Skill 的唯一标识符。对应 CLI 命令中的包名/工具名（如 `npx gitnexus` 中的 `gitnexus`）",
               required: true,
             },
             {
               name: "script_name",
               type: "string",
-              description: "脚本相对路径（如 sync.js），必须位于该 Skill 的 scripts/ 目录下",
+              description: "脚本名称。对应 CLI 中的子命令或脚本文件名（如 `analyze` 或 `hello.js`）",
               required: true,
             },
             {
               name: "args",
               type: "string",
-              description: "传递给脚本的命令行参数",
+              description: "命令行参数。对应 CLI 中的所有后续 Flag 和参数（如 `--force --embeddings`）",
               required: false,
             },
           ],
@@ -54,13 +54,18 @@ export class SkillManagerProxy implements ToolRegistry {
           name: "skill_read_file",
           displayName: "读取 Skill 文件",
           description:
-            "读取 Skill 目录内的文本文件（SKILL.md、references/、assets/ 等），路径限定在对应 Skill 目录内以防越权访问。",
+            "读取 Skill 目录内的文本文件（如 SKILL.md、references/guide.md 等）。用于获取 Skill 的详细文档或参考资料。",
           parameters: [
-            { name: "skill_id", type: "string", description: "Skill 名称", required: true },
+            {
+              name: "skill_id",
+              type: "string",
+              description: "Skill 的唯一标识符",
+              required: true,
+            },
             {
               name: "path",
               type: "string",
-              description: "相对于 Skill 根目录的文件路径（如 references/prompt-writing.md 、 SKILL.md 等）",
+              description: "文件相对路径。如果文档提到 `README.md` 或 `guide.md`，请尝试在此处读取",
               required: true,
             },
           ],

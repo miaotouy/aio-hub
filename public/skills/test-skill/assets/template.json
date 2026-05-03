@@ -1,0 +1,11 @@
+{
+  "name": "test-skill-asset",
+  "version": "1.0.0",
+  "description": "Test Skill 的示例资源文件，用于验证 asset 扫描功能",
+  "type": "template",
+  "fields": [
+    { "key": "prompt", "type": "string", "description": "提示词内容" },
+    { "key": "style", "type": "string", "description": "风格类型" },
+    { "key": "count", "type": "number", "description": "生成数量" }
+  ]
+}

@@ -60,7 +60,7 @@ export class SkillManagerProxy implements ToolRegistry {
             {
               name: "path",
               type: "string",
-              description: "相对于 Skill 根目录的文件路径（如 references/prompt-writing.md）",
+              description: "相对于 Skill 根目录的文件路径（如 references/prompt-writing.md 、 SKILL.md 等）",
               required: true,
             },
           ],
@@ -70,7 +70,7 @@ export class SkillManagerProxy implements ToolRegistry {
         {
           name: "skill_list_dir",
           displayName: "列出 Skill 目录",
-          description: "列出 Skill 目录下的文件和子目录结构，用于静态知识库型 Skill 的文件发现。",
+          description: "列出 Skill 目录下的文件和子目录结构。",
           parameters: [
             { name: "skill_id", type: "string", description: "Skill 名称", required: true },
             {

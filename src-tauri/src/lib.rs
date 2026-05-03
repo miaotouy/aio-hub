@@ -95,6 +95,8 @@ use commands::{
     import_asset_from_path,
     install_plugin_from_zip,
     install_skill_from_dir,
+    install_skill_from_git,
+    install_skill_from_zip,
     is_directory,
     kill_ffmpeg_process,
     list_agent_assets,
@@ -507,6 +509,8 @@ pub fn run() {
             read_skill_resource,
             list_skill_directory,
             install_skill_from_dir,
+            install_skill_from_git,
+            install_skill_from_zip,
             // LLM检查器命令
             start_llm_inspector,
             stop_llm_inspector,

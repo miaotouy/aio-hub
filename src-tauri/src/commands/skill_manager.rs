@@ -468,6 +468,203 @@ pub async fn install_skill_from_dir(
     Ok(manifest)
 }
 
+/// 安装 Skill（从 Git 仓库克隆到 appData/skills/）
+///
+/// 支持带 `.git` 后缀和不带 `.git` 后缀的 URL。
+/// 示例: `https://github.com/user/skill-repo.git` 或 `https://github.com/user/skill-repo`
+#[tauri::command]
+pub async fn install_skill_from_git(
+    app: AppHandle,
+    repo_url: String,
+) -> Result<SkillManifest, String> {
+    let url = repo_url.trim().to_string();
+    if url.is_empty() {
+        return Err("仓库 URL 不能为空".to_string());
+    }
+
+    // 自动补全 .git 后缀（如果 URL 没有的话）
+    let normalized_url = if !url.ends_with(".git") {
+        // 确保 URL 有效且不以 .git 结尾，追加 .git
+        // 但避免给裸路径或本地路径追加
+        if url.starts_with("http://")
+            || url.starts_with("https://")
+            || url.starts_with("git@")
+            || url.starts_with("ssh://")
+        {
+            format!("{}.git", url)
+        } else {
+            url.clone()
+        }
+    } else {
+        url.clone()
+    };
+
+    // 从 URL 中提取仓库名作为技能目录名
+    let repo_name = extract_repo_name(&normalized_url)?;
+
+    let app_data_dir = crate::get_app_data_dir(app.config());
+    let skills_dir = app_data_dir.join("skills");
+    let target_dir = skills_dir.join(&repo_name);
+
+    if target_dir.exists() {
+        return Err(format!("技能目录 {} 已存在", repo_name));
+    }
+
+    // 确保 skills 目录存在
+    fs::create_dir_all(&skills_dir).map_err(|e| format!("创建 skills 目录失败: {}", e))?;
+
+    // 使用 git2 克隆仓库（浅克隆，depth=1，节省时间和空间）
+    let target_dir_clone = target_dir.clone();
+    tokio::task::spawn_blocking(move || {
+        let mut fetch_options = git2::FetchOptions::new();
+        fetch_options.download_tags(git2::AutotagOption::None);
+
+        // 浅克隆：只拉取最新的 commit
+        let mut builder = git2::build::RepoBuilder::new();
+        builder.fetch_options(fetch_options);
+
+        // 设置克隆深度为 1（浅克隆）
+        builder.branch("master"); // 默认分支，之后 checkout 会自动处理
+
+        // 执行克隆
+        match builder.clone(&normalized_url, &target_dir_clone) {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                // 如果克隆失败，清理残留目录
+                let _ = fs::remove_dir_all(&target_dir_clone);
+                Err(format!("Git 克隆失败: {}", e))
+            }
+        }
+    })
+    .await
+    .map_err(|e| format!("克隆任务出错: {}", e))??;
+
+    // 克隆成功后，解析 SKILL.md 验证并获取清单
+    parse_skill_directory(&target_dir, "user")
+        .await
+        .ok_or_else(|| {
+            // 克隆成功但没有 SKILL.md，清理并报错
+            let _ = std::fs::remove_dir_all(&target_dir);
+            "克隆成功但仓库根目录未找到有效的 SKILL.md，已清理".to_string()
+        })
+}
+
+/// 从 Git URL 中提取仓库名称（去掉 .git 后缀）
+fn extract_repo_name(url: &str) -> Result<String, String> {
+    // 去掉末尾的 .git
+    let without_git = url.strip_suffix(".git").unwrap_or(url);
+
+    // 从 URL 中提取最后一段路径作为仓库名
+    let name = without_git
+        .split('/')
+        .next_back()
+        .ok_or_else(|| "无法从 URL 中提取仓库名称".to_string())?;
+
+    if name.is_empty() {
+        return Err("提取的仓库名称为空".to_string());
+    }
+
+    Ok(name.to_string())
+}
+
+/// 安装 Skill（从 ZIP 包下载并解压到 appData/skills/）
+#[tauri::command]
+pub async fn install_skill_from_zip(
+    app: AppHandle,
+    zip_url: String,
+) -> Result<SkillManifest, String> {
+    let url = zip_url.trim().to_string();
+    if url.is_empty() {
+        return Err("下载链接不能为空".to_string());
+    }
+
+    let app_data_dir = crate::get_app_data_dir(app.config());
+    let skills_dir = app_data_dir.join("skills");
+    fs::create_dir_all(&skills_dir).map_err(|e| format!("创建 skills 目录失败: {}", e))?;
+
+    // 创建临时目录用于下载和解压
+    let temp_dir = tempfile::tempdir().map_err(|e| format!("创建临时目录失败: {}", e))?;
+    let temp_path = temp_dir.path().to_path_buf();
+
+    // 下载 ZIP 文件
+    let zip_path = temp_path.join("skill.zip");
+
+    let response = reqwest::get(&url)
+        .await
+        .map_err(|e| format!("下载失败: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("下载失败，HTTP 状态码: {}", response.status()));
+    }
+
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|e| format!("读取下载数据失败: {}", e))?;
+
+    fs::write(&zip_path, &bytes).map_err(|e| format!("保存临时文件失败: {}", e))?;
+
+    // 解压 ZIP
+    let extract_dir = temp_path.join("extracted");
+    fs::create_dir_all(&extract_dir).map_err(|e| format!("创建解压目录失败: {}", e))?;
+
+    let zip_file = fs::File::open(&zip_path).map_err(|e| format!("打开 ZIP 文件失败: {}", e))?;
+    let mut archive =
+        zip::ZipArchive::new(zip_file).map_err(|e| format!("读取 ZIP 文件失败: {}", e))?;
+
+    archive
+        .extract(&extract_dir)
+        .map_err(|e| format!("解压 ZIP 文件失败: {}", e))?;
+
+    // 查找包含 SKILL.md 的目录
+    let skill_dir = find_skill_directory(&extract_dir)
+        .ok_or_else(|| "解压后未找到包含 SKILL.md 的目录".to_string())?;
+
+    // 预检
+    let manifest = parse_skill_directory(&skill_dir, "user")
+        .await
+        .ok_or("解压后的目录不是有效的 Skill 目录（缺少 SKILL.md 或格式错误）")?;
+
+    let target_skills_dir = skills_dir.join(&manifest.name);
+
+    if target_skills_dir.exists() {
+        return Err(format!("技能 {} 已存在", manifest.name));
+    }
+
+    // 复制到目标目录
+    fs::create_dir_all(target_skills_dir.parent().unwrap()).map_err(|e| e.to_string())?;
+
+    let mut options = fs_extra::dir::CopyOptions::new();
+    options.copy_inside = true;
+    fs_extra::dir::copy(&skill_dir, target_skills_dir.parent().unwrap(), &options)
+        .map_err(|e| format!("复制到技能目录失败: {}", e))?;
+
+    // 清理临时目录（drop 时会自动清理）
+    drop(temp_dir);
+
+    Ok(manifest)
+}
+
+/// 递归查找包含 SKILL.md 的目录
+fn find_skill_directory(base: &Path) -> Option<PathBuf> {
+    // 先检查 base 目录本身
+    if base.join("SKILL.md").exists() {
+        return Some(base.to_path_buf());
+    }
+
+    // 检查 base 下的第一级子目录
+    if let Ok(entries) = fs::read_dir(base) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() && path.join("SKILL.md").exists() {
+                return Some(path);
+            }
+        }
+    }
+
+    None
+}
+
 /// 获取已知工具的默认全局路径列表（跨平台解析后）
 #[tauri::command]
 pub fn get_well_known_skill_paths() -> Vec<WellKnownPath> {

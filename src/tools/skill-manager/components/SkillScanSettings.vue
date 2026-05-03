@@ -61,6 +61,31 @@
       </div>
     </div>
 
+    <!-- 运行环境配置 -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title-row">
+          <h3>脚本执行环境</h3>
+        </div>
+        <p class="section-desc">
+          配置 Skill 脚本的执行引擎。留空 = 自动检测（JS/TS 自动检测
+          <code>bun</code> > <code>node</code>，其余按默认命令）
+        </p>
+      </div>
+      <div class="runtime-grid">
+        <div v-for="rt in runtimeList" :key="rt.key" class="runtime-item">
+          <label class="runtime-label">{{ rt.label }}</label>
+          <el-input
+            :model-value="store.config.runtimeSettings[rt.key].command"
+            @update:model-value="(val: string | number) => handleRuntimeChange(rt.key, String(val))"
+            :placeholder="rt.placeholder"
+            size="small"
+            clearable
+          />
+        </div>
+      </div>
+    </div>
+
     <!-- 首次加载时同步已知路径 -->
     <div v-if="loading" class="loading-overlay">
       <LoaderCircle class="spinner-icon" :size="16" />
@@ -74,11 +99,18 @@ import { ref, computed, onMounted } from "vue";
 import { Plus, Trash2, LoaderCircle } from "lucide-vue-next";
 import { useSkillManagerStore } from "../stores/skillManagerStore";
 import { skillLoader } from "../services/SkillLoader";
-import type { ExternalScanPath, WellKnownPath } from "../types";
+import type { ExternalScanPath, WellKnownPath, RuntimeSettings } from "../types";
 
 const store = useSkillManagerStore();
 const loading = ref(false);
 const knownPaths = ref<WellKnownPath[]>([]);
+
+const runtimeList: { key: keyof RuntimeSettings; label: string; placeholder: string }[] = [
+  { key: "javascript", label: "JavaScript / TypeScript", placeholder: "留空自动检测（bun > node）" },
+  { key: "python", label: "Python", placeholder: "留空自动检测（python）" },
+  { key: "shell", label: "Shell / Bash", placeholder: "留空自动检测（bash）" },
+  { key: "powershell", label: "PowerShell", placeholder: "留空自动检测（powershell）" },
+];
 
 const externalScanEnabled = computed({
   get: () => store.config.externalScanEnabled,
@@ -96,6 +128,14 @@ const customPaths = computed(() => {
 function getPathEnabled(id: string): boolean {
   const found = store.config.externalScanPaths.find((p) => p.id === id);
   return found?.enabled ?? false;
+}
+
+async function handleRuntimeChange(key: keyof RuntimeSettings, value: string) {
+  const settings = store.config.runtimeSettings;
+  if (settings[key]) {
+    settings[key].command = value;
+    await store.saveConfig();
+  }
 }
 
 async function handleKnownPathToggle(id: string, enabled: boolean) {
@@ -208,6 +248,13 @@ onMounted(async () => {
   line-height: 1.5;
 }
 
+.section-desc code {
+  font-size: 11px;
+  background-color: var(--sidebar-bg);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
 .path-list {
   display: flex;
   flex-direction: column;
@@ -288,5 +335,27 @@ onMounted(async () => {
   to {
     transform: rotate(360deg);
   }
+}
+
+.runtime-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.runtime-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background-color: var(--card-bg);
+  border: var(--border-width) solid var(--border-color);
+}
+
+.runtime-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-color-secondary);
 }
 </style>

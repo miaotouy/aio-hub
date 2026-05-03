@@ -6,7 +6,8 @@
  */
 import { invoke } from "@tauri-apps/api/core";
 import type { ToolRegistry, ServiceMetadata } from "@/services/types";
-import type { SkillScriptResult } from "../types";
+import type { SkillScriptResult, RuntimeSettings } from "../types";
+import { useSkillManagerStore } from "../stores/skillManagerStore";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 
@@ -98,9 +99,21 @@ export class SkillManagerProxy implements ToolRegistry {
 
   // ---- 方法实现（全部委托给 Rust 命令） ----
 
+  /** 从 Store 获取运行时配置 */
+  private getRuntimeSettings(): RuntimeSettings {
+    const store = useSkillManagerStore();
+    return store.config.runtimeSettings;
+  }
+
   async skill_run_script(args: Record<string, string>): Promise<string> {
     const { skill_id, script_name, args: scriptArgs } = args;
     logger.info(`正在执行技能脚本: ${skill_id}/${script_name}`, { args: scriptArgs });
+
+    const runtimeSettings = this.getRuntimeSettings();
+    logger.debug("运行时配置已加载", {
+      js: runtimeSettings.javascript.command || "(自动检测)",
+      py: runtimeSettings.python.command || "(自动检测)",
+    });
 
     return (
       (await errorHandler.wrapAsync(async () => {
@@ -108,6 +121,7 @@ export class SkillManagerProxy implements ToolRegistry {
           skillId: skill_id,
           scriptName: script_name,
           args: scriptArgs ?? "",
+          runtimeSettings,
         });
         if (!result.success) {
           return `脚本执行失败（exit code: ${result.exitCode}）\nstderr: ${result.stderr}`;

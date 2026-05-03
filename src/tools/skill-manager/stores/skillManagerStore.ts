@@ -7,7 +7,7 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { createConfigManager, type ConfigManager } from "@/utils/configManager";
-import type { SkillManifest, ExternalScanPath } from "../types";
+import type { SkillManifest, ExternalScanPath, RuntimeSettings } from "../types";
 
 export interface SkillManagerConfig {
   /** 总开关 */
@@ -20,7 +20,16 @@ export interface SkillManagerConfig {
   externalScanEnabled: boolean;
   /** 外部扫描路径列表（每个带 id/path/enabled） */
   externalScanPaths: ExternalScanPath[];
+  /** 运行环境配置 */
+  runtimeSettings: RuntimeSettings;
 }
+
+const defaultRuntimeSettings: RuntimeSettings = {
+  javascript: { command: "" }, // 空 = 自动检测：bun > node
+  python: { command: "" },     // 空 = 自动检测：python
+  shell: { command: "" },      // 空 = 自动检测：bash/sh
+  powershell: { command: "" },  // 空 = 自动检测：powershell
+};
 
 const defaultConfig: SkillManagerConfig = {
   enabled: true,
@@ -28,6 +37,7 @@ const defaultConfig: SkillManagerConfig = {
   autoActivate: false,
   externalScanEnabled: false,
   externalScanPaths: [],
+  runtimeSettings: { ...defaultRuntimeSettings },
 };
 
 const configManager: ConfigManager<SkillManagerConfig> = createConfigManager({

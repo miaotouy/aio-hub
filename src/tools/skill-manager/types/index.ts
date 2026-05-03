@@ -48,6 +48,24 @@ export interface SkillFile {
 }
 
 /**
+ * 运行时配置（每种语言）
+ */
+export interface LanguageRuntime {
+  /** 可执行命令路径（如 "bun"、"node"、"python3"、"C:/python/python.exe"） */
+  command: string;
+}
+
+/**
+ * 运行环境配置
+ */
+export interface RuntimeSettings {
+  javascript: LanguageRuntime;
+  python: LanguageRuntime;
+  shell: LanguageRuntime;
+  powershell: LanguageRuntime;
+}
+
+/**
  * 外部扫描路径配置
  */
 export interface ExternalScanPath {

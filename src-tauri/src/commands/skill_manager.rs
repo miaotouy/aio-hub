@@ -40,6 +40,23 @@ pub struct ExternalScanPath {
     pub enabled: bool,
 }
 
+/// 语言运行时配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LanguageRuntime {
+    pub command: String,
+}
+
+/// 运行环境配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeSettings {
+    pub javascript: LanguageRuntime,
+    pub python: LanguageRuntime,
+    pub shell: LanguageRuntime,
+    pub powershell: LanguageRuntime,
+}
+
 /// 已知工具预设路径（跨平台）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WellKnownPath {
@@ -250,6 +267,76 @@ fn scan_files_recursive(dir: &Path, base: &Path, target: &mut Vec<SkillFile>) {
     }
 }
 
+/// 解析运行时配置，返回实际要执行的命令和参数
+fn resolve_runtime(
+    ext: &str,
+    script_path: &Path,
+    settings: &RuntimeSettings,
+) -> Result<(String, Vec<String>), String> {
+    match ext {
+        "js" | "ts" => {
+            // 如果用户配置了自定义命令，优先使用
+            let configured = settings.javascript.command.trim();
+            if !configured.is_empty() {
+                Ok((
+                    configured.to_string(),
+                    vec![script_path.to_string_lossy().to_string()],
+                ))
+            } else {
+                // 默认逻辑：检测 bun > node
+                if check_command_exists("bun") {
+                    Ok(("bun".to_string(), vec![script_path.to_string_lossy().to_string()]))
+                } else {
+                    Ok(("node".to_string(), vec![script_path.to_string_lossy().to_string()]))
+                }
+            }
+        }
+        "py" => {
+            let configured = settings.python.command.trim();
+            if !configured.is_empty() {
+                Ok((
+                    configured.to_string(),
+                    vec![script_path.to_string_lossy().to_string()],
+                ))
+            } else {
+                Ok(("python".to_string(), vec![script_path.to_string_lossy().to_string()]))
+            }
+        }
+        "sh" | "bash" => {
+            let configured = settings.shell.command.trim();
+            if !configured.is_empty() {
+                Ok((
+                    configured.to_string(),
+                    vec![script_path.to_string_lossy().to_string()],
+                ))
+            } else {
+                Ok(("bash".to_string(), vec![script_path.to_string_lossy().to_string()]))
+            }
+        }
+        "ps1" => {
+            let configured = settings.powershell.command.trim();
+            if !configured.is_empty() {
+                Ok((
+                    configured.to_string(),
+                    vec![
+                        "-File".to_string(),
+                        script_path.to_string_lossy().to_string(),
+                    ],
+                ))
+            } else {
+                Ok((
+                    "powershell".to_string(),
+                    vec![
+                        "-File".to_string(),
+                        script_path.to_string_lossy().to_string(),
+                    ],
+                ))
+            }
+        }
+        _ => Err(format!("不支持的脚本类型: .{}", ext)),
+    }
+}
+
 /// 安全执行指定 Skill 的脚本
 #[tauri::command]
 pub async fn run_skill_script(
@@ -258,9 +345,16 @@ pub async fn run_skill_script(
     script_name: String,
     args: Option<String>,
     timeout_secs: Option<u64>,
+    runtime_settings: Option<RuntimeSettings>,
 ) -> Result<SkillScriptResult, String> {
     let start_time = Instant::now();
     let timeout_duration = Duration::from_secs(timeout_secs.unwrap_or(60));
+    let settings = runtime_settings.unwrap_or(RuntimeSettings {
+        javascript: LanguageRuntime { command: String::new() },
+        python: LanguageRuntime { command: String::new() },
+        shell: LanguageRuntime { command: String::new() },
+        powershell: LanguageRuntime { command: String::new() },
+    });
 
     // 查找 Skill 目录
     let manifests = get_all_skill_manifests(app, None).await?;
@@ -283,26 +377,8 @@ pub async fn run_skill_script(
         .unwrap_or_default()
         .to_lowercase();
 
-    // 探测执行引擎
-    let (cmd_name, mut cmd_args) = match ext.as_str() {
-        "js" | "ts" => {
-            if check_command_exists("bun") {
-                ("bun", vec![script_path.to_string_lossy().to_string()])
-            } else {
-                ("node", vec![script_path.to_string_lossy().to_string()])
-            }
-        }
-        "py" => ("python", vec![script_path.to_string_lossy().to_string()]),
-        "sh" | "bash" => ("bash", vec![script_path.to_string_lossy().to_string()]),
-        "ps1" => (
-            "powershell",
-            vec![
-                "-File".to_string(),
-                script_path.to_string_lossy().to_string(),
-            ],
-        ),
-        _ => return Err(format!("不支持的脚本类型: .{}", ext)),
-    };
+    // 根据用户配置解析执行引擎
+    let (cmd_name, mut cmd_args) = resolve_runtime(&ext, &script_path, &settings)?;
 
     // 附加参数（使用引号感知分割，避免 split_whitespace 破坏引号内参数）
     if let Some(a) = args {
@@ -328,7 +404,7 @@ pub async fn run_skill_script(
     }
 
     let output_result = timeout(timeout_duration, async {
-        Command::new(cmd_name)
+        Command::new(&cmd_name)
             .args(&cmd_args)
             .current_dir(&base_path)
             .stdout(Stdio::piped())

@@ -179,7 +179,7 @@ const handleCloseTool = async (event: MouseEvent, toolPath: string) => {
         <el-tooltip
           :key="tool.path"
           effect="dark"
-          :content="tool.name"
+          :content="tool.name + '【长按可上下拖动调整顺序，右键可分离或关闭】'"
           placement="right"
           :disabled="!collapsed"
           :hide-after="0"

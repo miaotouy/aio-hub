@@ -360,7 +360,6 @@ const restoreSwitchingMessagePosition = () => {
   switchingMessageViewportOffset.value = 0;
 };
 
-
 defineExpose({
   scrollToBottom,
   scrollToEnd,
@@ -407,17 +406,39 @@ defineExpose({
             :current-sibling-index="getMessageSiblings(msg.id).currentIndex"
             @delete="store.deleteMessage(msg.id)"
             @regenerate="store.regenerateFromNode(msg.id, $event)"
-            @switch-sibling="(dir: any) => { captureSwitchingMessagePosition(msg.id); store.switchToSiblingBranch(msg.id, dir) }"
-            @switch-branch="(nodeId: any) => { captureSwitchingMessagePosition(msg.id); store.switchBranch(nodeId) }"
+            @switch-sibling="
+              (dir: any) => {
+                captureSwitchingMessagePosition(msg.id);
+                store.switchToSiblingBranch(msg.id, dir);
+              }
+            "
+            @switch-branch="
+              (nodeId: any) => {
+                captureSwitchingMessagePosition(msg.id);
+                store.switchBranch(nodeId);
+              }
+            "
             @toggle-enabled="store.toggleNodeEnabled(msg.id)"
             @edit="(newContent: any, attachments: any) => store.editMessage(msg.id, newContent, attachments)"
             @copy="() => {}"
             @abort="store.abortNodeGeneration(msg.id)"
             @continue="store.continueGeneration(msg.id, $event)"
-            @create-branch="() => { captureSwitchingMessagePosition(msg.id); store.createBranch(msg.id) }"
-            @analyze-context="() => { store.contextAnalyzerNodeId = msg.id; store.contextAnalyzerVisible = true }"
+            @create-branch="
+              () => {
+                captureSwitchingMessagePosition(msg.id);
+                store.createBranch(msg.id);
+              }
+            "
+            @analyze-context="
+              () => {
+                store.contextAnalyzerNodeId = msg.id;
+                store.contextAnalyzerVisible = true;
+              }
+            "
             @reparse-tools="handleReparseTools(msg.id)"
-            @save-to-branch="(newContent: any, attachments: any) => store.createBranchFromEdit(msg.id, newContent, attachments)"
+            @save-to-branch="
+              (newContent: any, attachments: any) => store.createBranchFromEdit(msg.id, newContent, attachments)
+            "
             @update-translation="(translation: any) => store.updateMessageTranslation(msg.id, translation)"
           />
 
@@ -438,16 +459,38 @@ defineExpose({
             "
             @delete="store.deleteMessage(msg.id)"
             @regenerate="store.regenerateFromNode(msg.id, $event)"
-            @switch-sibling="(dir: any) => { captureSwitchingMessagePosition(msg.id); store.switchToSiblingBranch(msg.id, dir) }"
-            @switch-branch="(nodeId: any) => { captureSwitchingMessagePosition(msg.id); store.switchBranch(nodeId) }"
+            @switch-sibling="
+              (dir: any) => {
+                captureSwitchingMessagePosition(msg.id);
+                store.switchToSiblingBranch(msg.id, dir);
+              }
+            "
+            @switch-branch="
+              (nodeId: any) => {
+                captureSwitchingMessagePosition(msg.id);
+                store.switchBranch(nodeId);
+              }
+            "
             @toggle-enabled="store.toggleNodeEnabled(msg.id)"
             @edit="(newContent: any, attachments: any) => store.editMessage(msg.id, newContent, attachments)"
-            @save-to-branch="(newContent: any, attachments: any) => store.createBranchFromEdit(msg.id, newContent, attachments)"
+            @save-to-branch="
+              (newContent: any, attachments: any) => store.createBranchFromEdit(msg.id, newContent, attachments)
+            "
             @copy="() => {}"
             @abort="store.abortNodeGeneration(msg.id)"
             @continue="store.continueGeneration(msg.id, $event)"
-            @create-branch="() => { captureSwitchingMessagePosition(msg.id); store.createBranch(msg.id) }"
-            @analyze-context="() => { store.contextAnalyzerNodeId = msg.id; store.contextAnalyzerVisible = true }"
+            @create-branch="
+              () => {
+                captureSwitchingMessagePosition(msg.id);
+                store.createBranch(msg.id);
+              }
+            "
+            @analyze-context="
+              () => {
+                store.contextAnalyzerNodeId = msg.id;
+                store.contextAnalyzerVisible = true;
+              }
+            "
             @reparse-tools="handleReparseTools(msg.id)"
             @update-translation="(translation: any) => store.updateMessageTranslation(msg.id, translation)"
           />
@@ -467,13 +510,15 @@ defineExpose({
 }
 
 .message-list {
-  flex: 1;
+  flex: 1 1 0%; /* 强制 flex-basis 为 0，防止内容反向撑开 */
+  height: 0; /* 配合 flex: 1，确保高度完全受父级支配 */
   overflow-y: auto;
   /* 禁用浏览器自动滚动锚定，避免与程序化 scrollTo 产生对抗导致布局抖动 */
   overflow-anchor: none;
+  /* 彻底阻断滚动链传播，防止滚动溢出到 App 容器 */
   overscroll-behavior: contain;
-  /* 渲染隔离：防止内部布局变化影响外部容器 */
-  contain: layout style;
+  /* 渲染隔离：size 确保内容高度变化不触发父级重排，layout 和 paint 提升渲染性能 */
+  contain: size layout paint;
   padding: 84px 20px 20px 28px;
 }
 

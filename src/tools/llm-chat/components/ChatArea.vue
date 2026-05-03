@@ -1136,12 +1136,13 @@ onMounted(async () => {
   position: relative;
   display: flex;
   flex-direction: column;
-  flex: 1; /* 关键：弹性增长，占据所有剩余空间 */
+  flex: 1 1 0%; /* 强制 flex-basis 为 0 */
   min-height: 0;
+  height: 0; /* 确保在 flex 布局中高度被严格限制 */
   overflow: hidden; /* 防止内容溢出 */
   /* 布局隔离：防止内部滚动传播到上层容器 */
   overscroll-behavior: contain;
-  contain: layout style;
+  contain: size layout style;
 }
 
 /* 使用伪元素叠加层实现顶部渐隐，避免 mask 与 backdrop-filter 冲突 */

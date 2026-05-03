@@ -7,7 +7,7 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { createConfigManager, type ConfigManager } from "@/utils/configManager";
-import type { SkillManifest, ExternalScanPath, RuntimeSettings } from "../types";
+import type { SkillManifest, ExternalScanPath, RuntimeSettings, TerminalPreferences } from "../types";
 
 export interface SkillManagerConfig {
   /** 总开关 */
@@ -22,13 +22,20 @@ export interface SkillManagerConfig {
   externalScanPaths: ExternalScanPath[];
   /** 运行环境配置 */
   runtimeSettings: RuntimeSettings;
+  /** 终端/Shell 偏好 */
+  terminalPreferences: TerminalPreferences;
 }
 
 const defaultRuntimeSettings: RuntimeSettings = {
   javascript: { command: "" }, // 空 = 自动检测：bun > node
-  python: { command: "" },     // 空 = 自动检测：python
-  shell: { command: "" },      // 空 = 自动检测：bash/sh
-  powershell: { command: "" },  // 空 = 自动检测：powershell
+  python: { command: "" }, // 空 = 自动检测：python
+  shell: { command: "" }, // 空 = 自动检测：bash/sh
+  powershell: { command: "" }, // 空 = 自动检测：powershell
+};
+
+const defaultTerminalPreferences: TerminalPreferences = {
+  defaultShell: "auto-detect",
+  commandChainStyle: "auto",
 };
 
 const defaultConfig: SkillManagerConfig = {
@@ -38,6 +45,7 @@ const defaultConfig: SkillManagerConfig = {
   externalScanEnabled: false,
   externalScanPaths: [],
   runtimeSettings: { ...defaultRuntimeSettings },
+  terminalPreferences: { ...defaultTerminalPreferences },
 };
 
 const configManager: ConfigManager<SkillManagerConfig> = createConfigManager({
@@ -61,9 +69,23 @@ export const useSkillManagerStore = defineStore("skill-manager", () => {
   /** 已安装的 Skill 名称列表 */
   const installedSkillNames = computed(() => manifests.value.map((m) => m.name));
 
-  /** 加载配置 */
+  /** 加载配置（含深度合并默认值，确保新字段有默认值） */
   async function loadConfig() {
-    config.value = await configManager.load();
+    const loaded = await configManager.load();
+    // 深度合并：确保新增字段有默认值
+    config.value = {
+      ...loaded,
+      runtimeSettings: {
+        javascript: { command: loaded.runtimeSettings?.javascript?.command ?? "" },
+        python: { command: loaded.runtimeSettings?.python?.command ?? "" },
+        shell: { command: loaded.runtimeSettings?.shell?.command ?? "" },
+        powershell: { command: loaded.runtimeSettings?.powershell?.command ?? "" },
+      },
+      terminalPreferences: {
+        defaultShell: loaded.terminalPreferences?.defaultShell ?? "auto-detect",
+        commandChainStyle: loaded.terminalPreferences?.commandChainStyle ?? "auto",
+      },
+    };
   }
 
   /** 保存配置 */

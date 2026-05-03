@@ -66,6 +66,26 @@ export interface RuntimeSettings {
 }
 
 /**
+ * Shell 类型
+ */
+export type ShellType = "auto-detect" | "powershell" | "cmd" | "bash" | "zsh";
+
+/**
+ * 命令链接风格
+ */
+export type CommandChainStyle = "auto" | "semicolon" | "ampersand";
+
+/**
+ * 终端偏好配置
+ */
+export interface TerminalPreferences {
+  /** 默认 Shell */
+  defaultShell: ShellType;
+  /** 命令链接风格 */
+  commandChainStyle: CommandChainStyle;
+}
+
+/**
  * 外部扫描路径配置
  */
 export interface ExternalScanPath {

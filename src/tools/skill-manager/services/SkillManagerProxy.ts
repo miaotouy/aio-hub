@@ -5,6 +5,7 @@
  * 所有方法委托给 Rust 命令执行。
  */
 import { invoke } from "@tauri-apps/api/core";
+import { type, platform, arch, version } from "@tauri-apps/plugin-os";
 import type { ToolRegistry, ServiceMetadata } from "@/services/types";
 import type { SkillScriptResult, RuntimeSettings } from "../types";
 import { useSkillManagerStore } from "../stores/skillManagerStore";
@@ -94,7 +95,65 @@ export class SkillManagerProxy implements ToolRegistry {
   }
 
   getExtraPromptContext(): string {
-    return "";
+    try {
+      const store = useSkillManagerStore();
+
+      // OS 信息
+      const osType = type();
+      const osPlatform = platform();
+      const osArch = arch();
+      const osVersion = version();
+
+      // 终端偏好
+      const prefs = store.config.terminalPreferences;
+
+      // 可用运行时
+      const rt = store.config.runtimeSettings;
+      const jsCmd = rt.javascript.command || "bun / node (自动检测)";
+      const pyCmd = rt.python.command || "python (自动检测)";
+      const shellCmd = rt.shell.command || "bash (自动检测)";
+      const psCmd = rt.powershell.command || "powershell";
+
+      // 确定默认终端描述和命令链接风格
+      let shellDesc = "PowerShell";
+      let chainStyle = "使用 `;` 串联命令（PowerShell 语义）";
+      let pathStyle = "`\\`（反斜杠）";
+
+      if (prefs.defaultShell === "cmd") {
+        shellDesc = "cmd.exe";
+        chainStyle = "使用 `&&` 串联命令";
+      } else if (prefs.defaultShell === "bash") {
+        shellDesc = "bash";
+        chainStyle = "使用 `&&` 串联命令";
+        pathStyle = "`/`（正斜杠）";
+      } else if (prefs.defaultShell === "zsh") {
+        shellDesc = "zsh";
+        chainStyle = "使用 `&&` 串联命令";
+        pathStyle = "`/`（正斜杠）";
+      }
+
+      // 用户手动覆盖命令链偏好
+      if (prefs.commandChainStyle === "semicolon") {
+        chainStyle = "使用 `;` 串联命令";
+      } else if (prefs.commandChainStyle === "ampersand") {
+        chainStyle = "使用 `&&` 串联命令";
+      }
+
+      return `[Skill 宿主环境]
+- 操作系统: ${osType} ${osVersion} (${osPlatform})
+- 系统架构: ${osArch}
+- 默认 Shell: ${shellDesc}
+- 命令链接: ${chainStyle}
+- 路径风格: ${pathStyle}
+- 可用运行时: ${jsCmd}, ${pyCmd}, ${shellCmd}, ${psCmd}
+- 执行说明:
+  - 调用脚本请使用 skill:system.skill_run_script
+  - 原生 Shell 命令（mkdir, ls 等）请使用工具集提供的对应能力
+  - Skill 中的 \`npx\` 示例在 AIO 中应根据提供的工具协议格式转译`;
+    } catch (error) {
+      logger.warn("获取宿主环境信息失败", { error });
+      return "";
+    }
   }
 
   // ---- 方法实现（全部委托给 Rust 命令） ----

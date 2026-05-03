@@ -61,6 +61,46 @@
       </div>
     </div>
 
+    <!-- 终端/Shell 偏好 -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title-row">
+          <h3>终端 / Shell 偏好</h3>
+        </div>
+        <p class="section-desc">
+          配置默认终端和命令链接风格。这些信息会自动注入到 Agent 的环境上下文中，让 AI 正确生成宿主兼容的命令。
+        </p>
+      </div>
+      <div class="terminal-prefs-grid">
+        <div class="pref-item">
+          <label class="pref-label">默认 Shell</label>
+          <el-select
+            :model-value="store.config.terminalPreferences.defaultShell"
+            @update:model-value="(val: string) => handleTerminalPrefChange('defaultShell', val)"
+            size="small"
+          >
+            <el-option label="自动检测" value="auto-detect" />
+            <el-option label="PowerShell" value="powershell" />
+            <el-option label="cmd.exe" value="cmd" />
+            <el-option label="bash" value="bash" />
+            <el-option label="zsh" value="zsh" />
+          </el-select>
+        </div>
+        <div class="pref-item">
+          <label class="pref-label">命令链接风格</label>
+          <el-select
+            :model-value="store.config.terminalPreferences.commandChainStyle"
+            @update:model-value="(val: string) => handleTerminalPrefChange('commandChainStyle', val)"
+            size="small"
+          >
+            <el-option label="自动 (根据 Shell 类型推断)" value="auto" />
+            <el-option label="分号 `;` (PowerShell 风格)" value="semicolon" />
+            <el-option label="双与 `&&` (cmd/bash/zsh 风格)" value="ampersand" />
+          </el-select>
+        </div>
+      </div>
+    </div>
+
     <!-- 运行环境配置 -->
     <div class="section">
       <div class="section-header">
@@ -99,7 +139,7 @@ import { ref, computed, onMounted } from "vue";
 import { Plus, Trash2, LoaderCircle } from "lucide-vue-next";
 import { useSkillManagerStore } from "../stores/skillManagerStore";
 import { skillLoader } from "../services/SkillLoader";
-import type { ExternalScanPath, WellKnownPath, RuntimeSettings } from "../types";
+import type { ExternalScanPath, WellKnownPath, RuntimeSettings, TerminalPreferences } from "../types";
 
 const store = useSkillManagerStore();
 const loading = ref(false);
@@ -193,6 +233,16 @@ async function handleRemoveCustomPath(index: number) {
 }
 
 async function handleCustomPathChange() {
+  await store.saveConfig();
+}
+
+async function handleTerminalPrefChange(key: keyof TerminalPreferences, value: string) {
+  const prefs = store.config.terminalPreferences;
+  if (key === "defaultShell") {
+    prefs.defaultShell = value as TerminalPreferences["defaultShell"];
+  } else if (key === "commandChainStyle") {
+    prefs.commandChainStyle = value as TerminalPreferences["commandChainStyle"];
+  }
   await store.saveConfig();
 }
 
@@ -335,6 +385,28 @@ onMounted(async () => {
   to {
     transform: rotate(360deg);
   }
+}
+
+.terminal-prefs-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.pref-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background-color: var(--card-bg);
+  border: var(--border-width) solid var(--border-color);
+}
+
+.pref-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-color-secondary);
 }
 
 .runtime-grid {

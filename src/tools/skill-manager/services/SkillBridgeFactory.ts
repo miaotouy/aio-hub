@@ -67,8 +67,13 @@ export class SkillBridgeFactory implements ToolRegistryFactory {
     this.isInitializing = true;
 
     try {
-      this.skillManifests = await skillLoader.scanAll();
       const store = useSkillManagerStore();
+      // 从 store 获取启用的外部路径
+      const externalPaths = store.config.externalScanEnabled
+        ? store.config.externalScanPaths.filter((p) => p.enabled)
+        : [];
+
+      this.skillManifests = await skillLoader.scanAll(externalPaths);
       store.setManifests(this.skillManifests);
       logger.info(`扫描到 ${this.skillManifests.length} 个技能`);
     } finally {

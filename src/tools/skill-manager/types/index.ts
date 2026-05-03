@@ -24,8 +24,8 @@ export interface SkillManifest {
   references: SkillFile[];
   /** 资源文件列表 */
   assets: SkillFile[];
-  /** 来源类型 */
-  source: "user" | "builtin";
+  /** 来源类型 (user | builtin | external:{id}) */
+  source: string;
 }
 
 /**
@@ -45,6 +45,25 @@ export interface SkillFile {
   name: string;
   relativePath: string;
   size: number;
+}
+
+/**
+ * 外部扫描路径配置
+ */
+export interface ExternalScanPath {
+  id: string;
+  path: string;
+  enabled: boolean;
+  label?: string;
+}
+
+/**
+ * 已知工具预设路径（跨平台）
+ */
+export interface WellKnownPath {
+  id: string;
+  label: string;
+  defaultPath: string;
 }
 
 /**

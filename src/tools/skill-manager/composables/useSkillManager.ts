@@ -15,7 +15,12 @@ export function useSkillManager() {
     await store.loadConfig();
     store.setScanStatus("scanning");
     try {
-      const manifests = await skillLoader.scanAll();
+      // 从 store 获取启用的外部路径
+      const externalPaths = store.config.externalScanEnabled
+        ? store.config.externalScanPaths.filter((p) => p.enabled)
+        : [];
+
+      const manifests = await skillLoader.scanAll(externalPaths);
       store.setManifests(manifests);
       store.setScanStatus("ready");
     } catch (error) {

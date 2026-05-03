@@ -7,24 +7,27 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { createConfigManager, type ConfigManager } from "@/utils/configManager";
-import type { SkillManifest } from "../types";
+import type { SkillManifest, ExternalScanPath } from "../types";
 
 export interface SkillManagerConfig {
   /** 总开关 */
   enabled: boolean;
   /** 禁用的 Skill ID 列表（skillName） */
   disabledSkillIds: string[];
-  /** 用户安装的 Skill 目录列表 */
-  customSkillDirs: string[];
   /** 是否自动激活匹配的 Skill */
   autoActivate: boolean;
+  /** 外部扫描总开关 */
+  externalScanEnabled: boolean;
+  /** 外部扫描路径列表（每个带 id/path/enabled） */
+  externalScanPaths: ExternalScanPath[];
 }
 
 const defaultConfig: SkillManagerConfig = {
   enabled: true,
   disabledSkillIds: [],
-  customSkillDirs: [],
   autoActivate: false,
+  externalScanEnabled: false,
+  externalScanPaths: [],
 };
 
 const configManager: ConfigManager<SkillManagerConfig> = createConfigManager({

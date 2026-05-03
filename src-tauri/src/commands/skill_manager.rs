@@ -2,15 +2,16 @@
 //!
 //! 负责 Skill 的扫描、YAML frontmatter 解析、安全执行脚本和资源访问。
 
+use dirs_next;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Stdio;
 use std::time::{Duration, Instant};
 use tauri::AppHandle;
 use tokio::process::Command;
 use tokio::time::timeout;
-use std::process::Stdio;
 
 /// Skill 清单（与前端 SkillManifest 结构对齐）
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -28,6 +29,22 @@ pub struct SkillManifest {
     pub references: Vec<SkillFile>,
     pub assets: Vec<SkillFile>,
     pub source: String, // "user" | "builtin"
+}
+
+/// 外部扫描路径配置（前端通过参数传入）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExternalScanPath {
+    pub id: String,
+    pub path: String,
+    pub enabled: bool,
+}
+
+/// 已知工具预设路径（跨平台）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WellKnownPath {
+    pub id: String,
+    pub label: String,
+    pub default_path: String,
 }
 
 /// Skill 脚本信息
@@ -76,20 +93,34 @@ struct SkillFrontmatter {
 #[tauri::command]
 pub async fn get_all_skill_manifests(
     app: AppHandle,
+    external_paths: Option<Vec<ExternalScanPath>>,
 ) -> Result<Vec<SkillManifest>, String> {
     let mut manifests = Vec::new();
     let app_data_dir = crate::get_app_data_dir(app.config());
-    
-    // 1. 用户目录: {appDataDir}/skills/
+
+    // 1. AIO 自身路径（始终扫描）
     let user_skills_dir = app_data_dir.join("skills");
     if user_skills_dir.exists() {
         scan_skills_in_dir(&user_skills_dir, "user", &mut manifests).await;
     }
 
-    // 2. 内置目录: {resources}/skills/
     let builtin_skills_dir = app_data_dir.join("builtin_skills");
     if builtin_skills_dir.exists() {
         scan_skills_in_dir(&builtin_skills_dir, "builtin", &mut manifests).await;
+    }
+
+    // 2. 外部路径（仅 enabled 且目录存在）
+    if let Some(paths) = external_paths {
+        for ep in paths {
+            if !ep.enabled {
+                continue;
+            }
+            let path = std::path::PathBuf::from(&ep.path);
+            if path.exists() {
+                let source = format!("external:{}", ep.id);
+                scan_skills_in_dir(&path, &source, &mut manifests).await;
+            }
+        }
     }
 
     Ok(manifests)
@@ -120,7 +151,7 @@ async fn parse_skill_directory(path: &Path, source: &str) -> Option<SkillManifes
     }
 
     let content = fs::read_to_string(&skill_md_path).ok()?;
-    
+
     // 提取 Frontmatter (--- 分隔)
     let parts: Vec<&str> = content.split("---").collect();
     if parts.len() < 3 {
@@ -197,7 +228,11 @@ fn scan_files_recursive(dir: &Path, base: &Path, target: &mut Vec<SkillFile>) {
             if path.is_file() {
                 if let Ok(rel) = path.strip_prefix(base) {
                     target.push(SkillFile {
-                        name: path.file_name().unwrap_or_default().to_string_lossy().to_string(),
+                        name: path
+                            .file_name()
+                            .unwrap_or_default()
+                            .to_string_lossy()
+                            .to_string(),
                         relative_path: rel.to_string_lossy().to_string(),
                         size: fs::metadata(&path).map(|m| m.len()).unwrap_or(0),
                     });
@@ -222,8 +257,10 @@ pub async fn run_skill_script(
     let timeout_duration = Duration::from_secs(timeout_secs.unwrap_or(60));
 
     // 查找 Skill 目录
-    let manifests = get_all_skill_manifests(app).await?;
-    let manifest = manifests.iter().find(|m| m.name == skill_id)
+    let manifests = get_all_skill_manifests(app, None).await?;
+    let manifest = manifests
+        .iter()
+        .find(|m| m.name == skill_id)
         .ok_or_else(|| format!("未找到技能: {}", skill_id))?;
 
     let base_path = PathBuf::from(&manifest.base_path);
@@ -234,7 +271,8 @@ pub async fn run_skill_script(
         return Err(format!("非法的脚本路径: {}", script_name));
     }
 
-    let ext = script_path.extension()
+    let ext = script_path
+        .extension()
         .and_then(|e| e.to_str())
         .unwrap_or_default()
         .to_lowercase();
@@ -247,10 +285,16 @@ pub async fn run_skill_script(
             } else {
                 ("node", vec![script_path.to_string_lossy().to_string()])
             }
-        },
+        }
         "py" => ("python", vec![script_path.to_string_lossy().to_string()]),
         "sh" | "bash" => ("bash", vec![script_path.to_string_lossy().to_string()]),
-        "ps1" => ("powershell", vec!["-File".to_string(), script_path.to_string_lossy().to_string()]),
+        "ps1" => (
+            "powershell",
+            vec![
+                "-File".to_string(),
+                script_path.to_string_lossy().to_string(),
+            ],
+        ),
         _ => return Err(format!("不支持的脚本类型: .{}", ext)),
     };
 
@@ -332,10 +376,12 @@ pub async fn read_skill_resource(
     skill_id: String,
     relative_path: String,
 ) -> Result<String, String> {
-    let manifests = get_all_skill_manifests(app).await?;
-    let manifest = manifests.iter().find(|m| m.name == skill_id)
+    let manifests = get_all_skill_manifests(app, None).await?;
+    let manifest = manifests
+        .iter()
+        .find(|m| m.name == skill_id)
         .ok_or_else(|| format!("未找到技能: {}", skill_id))?;
-    
+
     let base_path = PathBuf::from(&manifest.base_path);
     let target_path = base_path.join(&relative_path);
 
@@ -358,10 +404,12 @@ pub async fn list_skill_directory(
     skill_id: String,
     sub_dir: Option<String>,
 ) -> Result<Vec<String>, String> {
-    let manifests = get_all_skill_manifests(app).await?;
-    let manifest = manifests.iter().find(|m| m.name == skill_id)
+    let manifests = get_all_skill_manifests(app, None).await?;
+    let manifest = manifests
+        .iter()
+        .find(|m| m.name == skill_id)
         .ok_or_else(|| format!("未找到技能: {}", skill_id))?;
-    
+
     let base_path = PathBuf::from(&manifest.base_path);
     let target_dir = if let Some(sd) = sub_dir {
         base_path.join(sd)
@@ -398,7 +446,8 @@ pub async fn install_skill_from_dir(
     }
 
     // 预检
-    let manifest = parse_skill_directory(&source_path, "user").await
+    let manifest = parse_skill_directory(&source_path, "user")
+        .await
         .ok_or("源目录不是有效的 Skill 目录（缺少 SKILL.md 或格式错误）")?;
 
     let app_data_dir = crate::get_app_data_dir(app.config());
@@ -410,11 +459,64 @@ pub async fn install_skill_from_dir(
 
     // 执行复制
     fs::create_dir_all(target_skills_dir.parent().unwrap()).map_err(|e| e.to_string())?;
-    
+
     let mut options = fs_extra::dir::CopyOptions::new();
     options.copy_inside = true;
     fs_extra::dir::copy(&source_path, target_skills_dir.parent().unwrap(), &options)
         .map_err(|e| format!("复制失败: {}", e))?;
 
     Ok(manifest)
+}
+
+/// 获取已知工具的默认全局路径列表（跨平台解析后）
+#[tauri::command]
+pub fn get_well_known_skill_paths() -> Vec<WellKnownPath> {
+    let home = dirs_next::home_dir().unwrap_or_default();
+    vec![
+        WellKnownPath {
+            id: "agents".to_string(),
+            label: "通用跨平台标准 (Agents)".to_string(),
+            default_path: home
+                .join(".agents")
+                .join("skills")
+                .to_string_lossy()
+                .to_string(),
+        },
+        WellKnownPath {
+            id: "claude".to_string(),
+            label: "Claude Code".to_string(),
+            default_path: home
+                .join(".claude")
+                .join("skills")
+                .to_string_lossy()
+                .to_string(),
+        },
+        WellKnownPath {
+            id: "cursor".to_string(),
+            label: "Cursor".to_string(),
+            default_path: home
+                .join(".cursor")
+                .join("skills")
+                .to_string_lossy()
+                .to_string(),
+        },
+        WellKnownPath {
+            id: "gemini".to_string(),
+            label: "Gemini CLI".to_string(),
+            default_path: home
+                .join(".gemini")
+                .join("skills")
+                .to_string_lossy()
+                .to_string(),
+        },
+        WellKnownPath {
+            id: "copilot".to_string(),
+            label: "GitHub Copilot".to_string(),
+            default_path: home
+                .join(".copilot")
+                .join("skills")
+                .to_string_lossy()
+                .to_string(),
+        },
+    ]
 }

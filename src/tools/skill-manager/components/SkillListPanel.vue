@@ -27,7 +27,9 @@
         v-for="manifest in filteredManifests"
         :key="manifest.name"
         class="skill-item"
-        :class="{ selected: selectedName === manifest.name }"
+        :class="{
+          selected: selectedName === manifest.name,
+        }"
         @click="$emit('select', manifest)"
       >
         <div class="skill-item-header">
@@ -40,6 +42,7 @@
         <div class="skill-meta">
           <span v-if="manifest.scripts.length > 0" class="meta-item"> {{ manifest.scripts.length }} 个脚本 </span>
           <span v-if="isActive(manifest.name)" class="meta-item active">已激活</span>
+          <span v-if="!isSkillEnabled(manifest.name)" class="meta-item disabled-tag">已禁用</span>
         </div>
       </div>
     </div>
@@ -87,6 +90,10 @@ const filteredManifests = computed(() => {
 
 function isActive(name: string): boolean {
   return props.activeSkillNames.has(name);
+}
+
+function isSkillEnabled(name: string): boolean {
+  return !props.disabledIds.includes(name);
 }
 </script>
 
@@ -235,5 +242,10 @@ function isActive(name: string): boolean {
 
 .meta-item.active {
   color: var(--el-color-success);
+}
+
+.meta-item.disabled-tag {
+  color: var(--el-color-danger);
+  font-weight: 500;
 }
 </style>

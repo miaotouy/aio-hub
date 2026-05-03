@@ -6,6 +6,9 @@
 import { useSkillManagerStore } from "../stores/skillManagerStore";
 import { skillLoader } from "../services/SkillLoader";
 import { skillBridgeFactory } from "../services/SkillBridgeFactory";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
+
+const errorHandler = createModuleErrorHandler("skill-manager/composable");
 
 export function useSkillManager() {
   const store = useSkillManagerStore();
@@ -39,10 +42,30 @@ export function useSkillManager() {
     store.toggleSkill(name);
   }
 
+  /** 卸载技能（仅 user 来源） */
+  async function uninstallSkill(name: string): Promise<boolean> {
+    const manifest = store.manifests.find((m) => m.name === name);
+    if (!manifest || manifest.source !== "user") return false;
+
+    const result = await errorHandler.wrapAsync(
+      async () => {
+        await skillLoader.uninstallSkill(name);
+      },
+      { userMessage: `卸载技能 "${name}" 失败`, showToUser: false },
+    );
+
+    if (result === null) return false;
+
+    // 从 store 中移除
+    store.removeSkill(name);
+    return true;
+  }
+
   return {
     store,
     initialize,
     refresh,
     toggleSkill,
+    uninstallSkill,
   };
 }

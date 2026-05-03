@@ -3,6 +3,9 @@
     <div class="detail-header">
       <h3>{{ manifest.name }}</h3>
       <div class="detail-actions">
+        <el-tooltip v-if="manifest.source === 'user'" content="卸载技能" placement="top">
+          <el-button size="small" :icon="Trash2" circle text @click="handleUninstall" />
+        </el-tooltip>
         <el-switch
           :model-value="isEnabled"
           @update:model-value="$emit('toggle', manifest.name)"
@@ -77,18 +80,34 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
-import { FileText } from "lucide-vue-next";
+import { FileText, Trash2 } from "lucide-vue-next";
+import { ElMessageBox } from "element-plus";
 import type { SkillManifest } from "../types";
 
-defineProps<{
+const props = defineProps<{
   manifest: SkillManifest;
   isActive: boolean;
   isEnabled: boolean;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   toggle: [name: string];
+  uninstall: [name: string];
 }>();
+
+async function handleUninstall() {
+  try {
+    await ElMessageBox.confirm(`确定要卸载技能 "${props.manifest.name}" 吗？此操作将删除其目录。`, "卸载确认", {
+      confirmButtonText: "卸载",
+      cancelButtonText: "取消",
+      type: "warning",
+      lockScroll: false,
+    });
+    emit("uninstall", props.manifest.name);
+  } catch {
+    // 用户取消
+  }
+}
 
 const activeTab = ref("description");
 </script>

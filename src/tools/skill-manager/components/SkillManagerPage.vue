@@ -11,9 +11,7 @@
       </div>
       <div class="header-actions">
         <el-button size="small" @click="handleRefresh" :loading="loading">刷新</el-button>
-        <el-button size="small" type="primary" :disabled="!store.config.enabled" @click="showInstallDialog = true"
-          >安装技能</el-button
-        >
+        <el-button size="small" type="primary" @click="showInstallDialog = true">安装技能</el-button>
       </div>
     </div>
 
@@ -41,9 +39,9 @@
         </div>
 
         <!-- 主内容区：左右分栏 -->
-        <div class="page-content" v-if="store.config.enabled" :key="'skills-content'">
+        <div class="page-content" :key="'skills-content'">
           <SkillListPanel
-            :manifests="store.enabledManifests"
+            :manifests="store.manifests"
             :active-skill-names="store.activeSkillNames"
             :disabled-ids="store.config.disabledSkillIds"
             :selected-name="selectedManifest?.name"
@@ -57,6 +55,7 @@
             :is-active="store.isSkillActive(selectedManifest.name)"
             :is-enabled="store.isSkillEnabled(selectedManifest.name)"
             @toggle="handleToggleSkill"
+            @uninstall="handleUninstallSkill"
           />
           <div v-else class="empty-detail">
             <el-empty description="请选择一个技能查看详情" />
@@ -89,7 +88,7 @@ import SkillDetailPanel from "./SkillDetailPanel.vue";
 import SkillInstallDialog from "./SkillInstallDialog.vue";
 import SkillScanSettings from "./SkillScanSettings.vue";
 
-const { store, initialize, refresh, toggleSkill } = useSkillManager();
+const { store, initialize, refresh, toggleSkill, uninstallSkill } = useSkillManager();
 const loading = ref(false);
 const selectedManifest = ref<SkillManifest | null>(null);
 const showInstallDialog = ref(false);
@@ -118,6 +117,20 @@ function handleSkillSelect(manifest: SkillManifest) {
 
 function handleToggleSkill(name: string) {
   toggleSkill(name);
+}
+
+async function handleUninstallSkill(name: string) {
+  loading.value = true;
+  try {
+    const success = await uninstallSkill(name);
+    if (success) {
+      if (selectedManifest.value?.name === name) {
+        selectedManifest.value = null;
+      }
+    }
+  } finally {
+    loading.value = false;
+  }
 }
 
 async function handleRefresh() {

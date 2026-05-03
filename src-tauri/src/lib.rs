@@ -151,6 +151,7 @@ use commands::{
     stop_llm_inspector,
     stop_pulse,
     uninstall_plugin,
+    uninstall_skill,
     update_asset_derived_data,
     update_detach_session_position,
     update_detach_session_status,
@@ -616,6 +617,7 @@ pub fn run() {
             get_agent_asset_path,
             // 插件管理命令
             uninstall_plugin,
+            uninstall_skill,
             install_plugin_from_zip,
             preflight_plugin_zip,
             // Sidecar 插件命令

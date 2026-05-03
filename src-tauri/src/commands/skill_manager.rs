@@ -665,6 +665,38 @@ fn find_skill_directory(base: &Path) -> Option<PathBuf> {
     None
 }
 
+/// 卸载 Skill（删除技能目录）
+#[tauri::command]
+pub async fn uninstall_skill(app: AppHandle, skill_id: String) -> Result<(), String> {
+    // 1. 获取所有清单以定位路径
+    let manifests = get_all_skill_manifests(app.clone(), None).await?;
+    let manifest = manifests
+        .iter()
+        .find(|m| m.name == skill_id)
+        .ok_or_else(|| format!("未找到技能: {}", skill_id))?;
+
+    // 2. 权限检查：只允许删除 "user" 来源的技能
+    if manifest.source != "user" {
+        return Err("只能卸载用户安装的技能".to_string());
+    }
+
+    let base_path = PathBuf::from(&manifest.base_path);
+    let app_data_dir = crate::get_app_data_dir(app.config());
+    let user_skills_dir = app_data_dir.join("skills");
+
+    // 3. 路径安全校验：确保在用户技能目录下
+    if !base_path.starts_with(&user_skills_dir) {
+        return Err("不支持的操作：试图删除系统或外部技能目录".to_string());
+    }
+
+    // 4. 执行删除
+    if base_path.exists() {
+        fs::remove_dir_all(&base_path).map_err(|e| format!("删除目录失败: {}", e))?;
+    }
+
+    Ok(())
+}
+
 /// 获取已知工具的默认全局路径列表（跨平台解析后）
 #[tauri::command]
 pub fn get_well_known_skill_paths() -> Vec<WellKnownPath> {

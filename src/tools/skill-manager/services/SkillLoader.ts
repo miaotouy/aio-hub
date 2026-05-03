@@ -51,6 +51,15 @@ export class SkillLoader {
   }
 
   /**
+   * 调用 Rust 命令卸载 Skill
+   */
+  async uninstallSkill(skillId: string): Promise<void> {
+    await invoke("uninstall_skill", { skillId });
+    // 清除缓存，下次扫描重新加载
+    this.cachedManifests = null;
+  }
+
+  /**
    * 获取缓存（若存在）
    */
   getCachedManifests(): SkillManifest[] | null {

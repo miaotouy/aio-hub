@@ -36,6 +36,7 @@ const viteConfig = defineConfig({
       "@styles": fileURLToPath(new URL("./src/styles", import.meta.url)),
       "@assets": fileURLToPath(new URL("./src/assets", import.meta.url)),
       "@lobe-icons": fileURLToPath(new URL("./node_modules/@lobehub/icons-static-svg/icons", import.meta.url)),
+      "@vscode-material-icons": fileURLToPath(new URL("./node_modules/vscode-material-icons/generated/icons", import.meta.url)),
       // 插件 SDK 别名 - 用于开发模式下 Vite 解析插件源码
       "aiohub-sdk": fileURLToPath(new URL("./public/plugins/shims/aiohub-sdk-shim.js", import.meta.url)),
       "aiohub-ui": fileURLToPath(new URL("./public/plugins/shims/aiohub-ui-shim.js", import.meta.url)),
@@ -106,8 +107,8 @@ const viteConfig = defineConfig({
       resolvers: [
         IconsResolver({
           prefix: "i",
-          enabledCollections: ["ep", "lobe"],
-          customCollections: ["lobe"],
+          enabledCollections: ["ep", "lobe", "vscode-material"],
+          customCollections: ["lobe", "vscode-material"],
         }),
       ],
       dts: "src/components.d.ts",
@@ -119,6 +120,7 @@ const viteConfig = defineConfig({
         lobe: FileSystemIconLoader("./node_modules/@lobehub/icons-static-svg/icons", (svg) =>
           svg.replace(/^<svg /, '<svg fill="currentColor" ')
         ),
+        "vscode-material": FileSystemIconLoader("./node_modules/vscode-material-icons/generated/icons"),
       },
     }),
   ].filter(Boolean),

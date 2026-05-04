@@ -1,13 +1,13 @@
-import { ref, watch, computed } from 'vue';
-import { useAssetManager } from '@/composables/useAssetManager';
-import { detectMimeTypeFromBuffer } from '@/utils/fileTypeDetector';
-import { smartDecode } from '@/utils/encoding';
-import { mapMimeToLanguage } from '@/utils/mimeToLanguage';
-import { createModuleLogger } from '@/utils/logger';
-import { createModuleErrorHandler } from '@/utils/errorHandler';
+import { ref, watch, computed } from "vue";
+import { useAssetManager } from "@/composables/useAssetManager";
+import { detectMimeTypeFromBuffer } from "@/utils/fileTypeDetector";
+import { smartDecode } from "@/utils/encoding";
+import { mapMimeToLanguage } from "@/utils/mimeToLanguage";
+import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 
-const logger = createModuleLogger('useDocumentViewer');
-const errorHandler = createModuleErrorHandler('useDocumentViewer');
+const logger = createModuleLogger("useDocumentViewer");
+const errorHandler = createModuleErrorHandler("useDocumentViewer");
 
 export interface UseDocumentViewerOptions {
   content?: string | Uint8Array;
@@ -29,20 +29,22 @@ export function useDocumentViewer(options: UseDocumentViewerOptions) {
   const isTextContent = computed(() => {
     if (!mimeType.value) return false;
     // 对基于文本的内容进行更健壮的检查
-    return mimeType.value.startsWith('text/') 
-      || mimeType.value.includes('json') 
-      || mimeType.value.includes('xml')
-      || mimeType.value.includes('javascript')
-      || mimeType.value.includes('typescript')
-      || mimeType.value.includes('x-vue')
-      || mimeType.value.includes('x-yaml');
+    return (
+      mimeType.value.startsWith("text/") ||
+      mimeType.value.includes("json") ||
+      mimeType.value.includes("xml") ||
+      mimeType.value.includes("javascript") ||
+      mimeType.value.includes("typescript") ||
+      mimeType.value.includes("x-vue") ||
+      mimeType.value.includes("x-yaml")
+    );
   });
 
-  const isMarkdown = computed(() => mimeType.value === 'text/markdown');
+  const isMarkdown = computed(() => mimeType.value === "text/markdown");
 
-  const isHtml = computed(() => mimeType.value === 'text/html');
+  const isHtml = computed(() => mimeType.value === "text/html");
 
-  const isPdf = computed(() => mimeType.value === 'application/pdf');
+  const isPdf = computed(() => mimeType.value === "application/pdf");
 
   /**
    * 检查 HTML 内容是否可能是一个简单的、可渲染的 HTML 文件，
@@ -56,11 +58,11 @@ export function useDocumentViewer(options: UseDocumentViewerOptions) {
     // 这避免了因规则过于宽泛而导致对纯 HTML（如生成的报告）的错误拦截。
     const nonRenderablePattern = new RegExp(
       [
-        '<script\\s+setup', // 明确的 Vue 3 <script setup>
-        '\\s(v-[\\w-]+|@[\\w-]+)=', // 明确的 Vue 指令 (v-if, @click)，确保是作为属性
-        '\\{\\{', // Vue 插值语法的起始部分
-        '<script[^>]*src\\s*=\\s*["\'][^"\']+\\.tsx?', // 加载 TypeScript 的脚本
-      ].join('|')
+        "<script\\s+setup", // 明确的 Vue 3 <script setup>
+        "\\s(v-[\\w-]+|@[\\w-]+)=", // 明确的 Vue 指令 (v-if, @click)，确保是作为属性
+        "\\{\\{", // Vue 插值语法的起始部分
+        "<script[^>]*src\\s*=\\s*[\"'][^\"']+\\.tsx?", // 加载 TypeScript 的脚本
+      ].join("|"),
     );
     return !nonRenderablePattern.test(decodedContent.value);
   });
@@ -77,20 +79,20 @@ export function useDocumentViewer(options: UseDocumentViewerOptions) {
       const hint = options.fileTypeHint || options.fileName;
       let buffer: Uint8Array | null = null;
 
-      if (typeof options.content === 'string') {
+      if (typeof options.content === "string") {
         // 如果内容是字符串，直接使用，并编码以获取原始数据和MIME类型
-        decodedContent.value = options.content;
+        // 规范化换行符：Windows CRLF → LF，避免 \r 残留破坏 Markdown 解析器
+        decodedContent.value = options.content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
         buffer = new TextEncoder().encode(options.content);
         rawContent.value = buffer;
-        
+
         mimeType.value = await detectMimeTypeFromBuffer(buffer, hint);
-        language.value = mapMimeToLanguage(mimeType.value) || 'plaintext';
-        
+        language.value = mapMimeToLanguage(mimeType.value) || "plaintext";
+
         if (buffer.length === 0) {
           error.value = null;
           return;
         }
-
       } else if (options.content instanceof Uint8Array) {
         // 如果内容是二进制数组
         buffer = options.content;
@@ -102,48 +104,50 @@ export function useDocumentViewer(options: UseDocumentViewerOptions) {
 
       if (!buffer) {
         // 检查是否在字符串路径中已处理
-        if (typeof options.content !== 'string') {
-          decodedContent.value = '';
+        if (typeof options.content !== "string") {
+          decodedContent.value = "";
         }
         return;
       }
-      
+
       rawContent.value = buffer;
 
       // 优雅地处理空文件
       if (buffer.length === 0) {
-        mimeType.value = 'text/plain';
-        language.value = 'plaintext';
-        decodedContent.value = '';
+        mimeType.value = "text/plain";
+        language.value = "plaintext";
+        decodedContent.value = "";
         error.value = null;
         return;
       }
-      
+
       let detectedMime: string;
       // 优先基于文件扩展名判断 Markdown，避免内容嗅探误判
-      if (options.fileName?.toLowerCase().endsWith('.md') || options.fileName?.toLowerCase().endsWith('.markdown')) {
-        detectedMime = 'text/markdown';
-        logger.debug('Forced markdown mode', { fileName: options.fileName });
+      if (options.fileName?.toLowerCase().endsWith(".md") || options.fileName?.toLowerCase().endsWith(".markdown")) {
+        detectedMime = "text/markdown";
+        logger.debug("Forced markdown mode", { fileName: options.fileName });
       } else {
         detectedMime = await detectMimeTypeFromBuffer(buffer, hint);
       }
       mimeType.value = detectedMime;
-      
-      const detectedLanguage = mapMimeToLanguage(detectedMime) || 'plaintext';
+
+      const detectedLanguage = mapMimeToLanguage(detectedMime) || "plaintext";
       language.value = detectedLanguage;
 
-      logger.debug('Document details', {
+      logger.debug("Document details", {
         mime: detectedMime,
         lang: detectedLanguage,
-        hint
+        hint,
       });
-      
+
       // 只有在 decodedContent 尚未被设置时才解码
-      if (decodedContent.value === null && (isTextContent.value || detectedMime === 'application/octet-stream')) {
-        decodedContent.value = smartDecode(buffer);
+      if (decodedContent.value === null && (isTextContent.value || detectedMime === "application/octet-stream")) {
+        // 规范化换行符：Windows CRLF → LF，避免 \r 残留破坏 Markdown 解析器
+        const decoded = smartDecode(buffer);
+        decodedContent.value = decoded.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
       }
     } catch (e: any) {
-      logger.debug('Error details', {
+      logger.debug("Error details", {
         type: typeof e,
         isError: e instanceof Error,
         raw: e,
@@ -153,37 +157,33 @@ export function useDocumentViewer(options: UseDocumentViewerOptions) {
       if (e instanceof Error) {
         // 对于标准的 Error 对象，优先使用 message
         // 对于 EndOfStreamError 这类自定义错误，e.message 可能是 "End-Of-Stream"，这是有用的信息
-        errorMessage = e.message || '发生未知错误。';
-      } else if (typeof e === 'string' && e) {
+        errorMessage = e.message || "发生未知错误。";
+      } else if (typeof e === "string" && e) {
         errorMessage = e;
-      } else if (e && typeof e === 'object' && 'message' in e) {
+      } else if (e && typeof e === "object" && "message" in e) {
         // 捕获一些非标准 Error 对象，但包含 message 属性的情况
         errorMessage = String(e.message);
       } else {
         // 对于其他未知类型，尝试转换为字符串
         const rawString = String(e);
         // 避免显示无意义的 "[object Object]"
-        errorMessage = rawString === '[object Object]' ? '发生未知错误。' : rawString;
+        errorMessage = rawString === "[object Object]" ? "发生未知错误。" : rawString;
       }
 
       // 避免显示空的 "{}", "[]" 或 "null"
-      if (!errorMessage || ['{}', '[]', 'null'].includes(errorMessage.trim())) {
-        errorMessage = '发生未知错误。';
+      if (!errorMessage || ["{}", "[]", "null"].includes(errorMessage.trim())) {
+        errorMessage = "发生未知错误。";
       }
 
       error.value = errorMessage;
       // 由于已经手动设置了 error.value，这里可以选择静默处理
-      errorHandler.handle(e, { userMessage: '加载文档失败', showToUser: false });
+      errorHandler.handle(e, { userMessage: "加载文档失败", showToUser: false });
     } finally {
       isLoading.value = false;
     }
   }
 
-  watch(
-    () => [options.content, options.filePath],
-    loadDocument,
-    { immediate: true, deep: true }
-  );
+  watch(() => [options.content, options.filePath], loadDocument, { immediate: true, deep: true });
 
   return {
     isLoading,

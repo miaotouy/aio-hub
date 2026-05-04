@@ -120,23 +120,21 @@ const activeTab = ref("details");
 
 /**
  * 剥离 YAML frontmatter 后的指令内容
+ * 换行符规范化已由 DocumentViewer (useDocumentViewer) 统一处理
  */
 const strippedInstructions = computed(() => {
   const content = props.manifest.instructions || "";
-  // ⚠️ 关键修复：Rust 后端在 Windows 返回 \r\n，而 V2 解析器期望 \n。
-  // 不规范化会导致 \r 残留为正文、\n 被单独解析为 hard_break，破坏表格/代码块间距。
-  const normalized = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 
-  if (!normalized.trim().startsWith("---")) return normalized;
+  if (!content.trim().startsWith("---")) return content;
 
   // 使用正则剥离 frontmatter
-  const match = normalized.match(/^---\s*\n[\s\S]*?\n---\s*/m);
+  const match = content.match(/^---\s*\n[\s\S]*?\n---\s*/m);
   if (match) {
-    const stripped = normalized.slice(match[0].length);
-    return stripped.trim() ? stripped : normalized;
+    const stripped = content.slice(match[0].length);
+    return stripped.trim() ? stripped : content;
   }
 
-  return normalized;
+  return content;
 });
 </script>
 

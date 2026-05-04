@@ -85,6 +85,9 @@ export const useSkillManagerStore = defineStore("skill-manager", () => {
         defaultShell: loaded.terminalPreferences?.defaultShell ?? "auto-detect",
         commandChainStyle: loaded.terminalPreferences?.commandChainStyle ?? "auto",
       },
+      // 清洗 externalScanPaths：剔除缺少 path 的无效旧数据
+      externalScanPaths: (loaded.externalScanPaths ?? [])
+        .filter((p) => typeof p.path === "string" && p.path.trim().length > 0),
     };
   }
 

@@ -34,10 +34,14 @@ pub struct SkillManifest {
 
 /// 外部扫描路径配置（前端通过参数传入）
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ExternalScanPath {
     pub id: String,
+    #[serde(default)]
     pub path: String,
     pub enabled: bool,
+    #[serde(default)]
+    pub label: Option<String>,
 }
 
 /// 语言运行时配置
@@ -136,7 +140,7 @@ pub async fn get_all_skill_manifests(
     // 3. 外部路径（仅 enabled 且目录存在）
     if let Some(paths) = external_paths {
         for ep in paths {
-            if !ep.enabled {
+            if !ep.enabled || ep.path.is_empty() {
                 continue;
             }
             let path = std::path::PathBuf::from(&ep.path);

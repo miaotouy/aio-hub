@@ -45,9 +45,9 @@ export class SkillLoader {
   /**
    * 刷新清单（重新调用 Rust 命令扫描）
    */
-  async refreshManifests(): Promise<SkillManifest[]> {
+  async refreshManifests(externalPaths?: ExternalScanPath[]): Promise<SkillManifest[]> {
     this.cachedManifests = null;
-    return await this.scanAll();
+    return await this.scanAll(externalPaths);
   }
 
   /**

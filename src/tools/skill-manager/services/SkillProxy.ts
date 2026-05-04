@@ -75,8 +75,8 @@ export class SkillProxy implements ToolRegistry {
     if (this.manifest.scripts.length > 0) {
       parts.push(`  scripts: ${this.manifest.scripts.map((s) => s.name).join(", ")}`);
     }
-    if (this.manifest.references.length > 0) {
-      parts.push(`  references: ${this.manifest.references.length} 个文档（激活后查看完整索引）`);
+    if (this.manifest.files.length > 0) {
+      parts.push(`  files: ${this.manifest.files.length} 个文件（激活后查看完整索引）`);
     }
     parts.push(`  activation: 调用 activate() 方法以加载完整指令`);
     parts.push(`</skill_summary>`);
@@ -91,14 +91,14 @@ export class SkillProxy implements ToolRegistry {
     parts.push(`## ${this.manifest.name}`);
     parts.push(this.manifest.instructions);
 
-    // 引用文件索引
-    if (this.manifest.references.length > 0) {
-      parts.push(`\n### 可用引用文件`);
-      parts.push(`> 读取文件请调用 \`skill:system.skill_read_file\`（skill_id="${skillId}"，path="引用文件相对路径"）`);
-      for (const ref of this.manifest.references) {
-        parts.push(`- \`${ref.relativePath}\` (${(ref.size / 1024).toFixed(1)} KB)`);
+    // 文件索引
+    if (this.manifest.files.length > 0) {
+      parts.push(`\n### 可用文件`);
+      parts.push(`> 读取文件请调用 \`skill:system.skill_read_file\`（skill_id="${skillId}"，path="文件相对路径"）`);
+      for (const file of this.manifest.files) {
+        parts.push(`- \`${file.relativePath}\` (${(file.size / 1024).toFixed(1)} KB)`);
       }
-      if (this.manifest.references.length > 5) {
+      if (this.manifest.files.length > 5) {
         parts.push(`> 可使用 \`skill:system.skill_list_dir\` 浏览子目录（skill_id="${skillId}"）`);
       }
     }

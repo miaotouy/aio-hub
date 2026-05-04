@@ -2,6 +2,7 @@
 //!
 //! 负责 Skill 的扫描、YAML frontmatter 解析、安全执行脚本和资源访问。
 
+use crate::utils::mime::guess_mime_type;
 use dirs_next;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -27,8 +28,7 @@ pub struct SkillManifest {
     pub instructions: String,
     pub base_path: String,
     pub scripts: Vec<SkillScript>,
-    pub references: Vec<SkillFile>,
-    pub assets: Vec<SkillFile>,
+    pub files: Vec<SkillFile>,
     pub source: String, // "user" | "builtin"
 }
 
@@ -87,6 +87,7 @@ pub struct SkillFile {
     pub name: String,
     pub relative_path: String,
     pub size: u64,
+    pub mime_type: String,
 }
 
 /// 脚本执行结果
@@ -192,7 +193,7 @@ async fn parse_skill_directory(path: &Path, source: &str) -> Option<SkillManifes
 
     let frontmatter: SkillFrontmatter = serde_yaml::from_str(yaml_str).ok()?;
 
-    // 扫描 scripts/
+    // 扫描 scripts/ (特殊处理，识别语言)
     let mut scripts = Vec::new();
     let scripts_dir = path.join("scripts");
     if scripts_dir.exists() {
@@ -207,6 +208,16 @@ async fn parse_skill_directory(path: &Path, source: &str) -> Option<SkillManifes
                         "js" | "ts" => "javascript",
                         "sh" | "bash" => "bash",
                         "ps1" => "powershell",
+                        "bat" | "cmd" => "batch",
+                        "rs" => "rust",
+                        "go" => "go",
+                        "c" => "c",
+                        "cpp" => "cpp",
+                        "cs" => "csharp",
+                        "java" => "java",
+                        "rb" => "ruby",
+                        "php" => "php",
+                        "swift" => "swift",
                         _ => "unknown",
                     };
                     scripts.push(SkillScript {
@@ -220,18 +231,30 @@ async fn parse_skill_directory(path: &Path, source: &str) -> Option<SkillManifes
         }
     }
 
-    // 扫描 references/
-    let mut references = Vec::new();
-    let refs_dir = path.join("references");
-    if refs_dir.exists() {
-        scan_files_recursive(&refs_dir, path, &mut references);
-    }
+    // 扫描除 scripts 之外的所有文件
+    let mut files = Vec::new();
+    if let Ok(entries) = fs::read_dir(path) {
+        for entry in entries.flatten() {
+            let p = entry.path();
+            let name = p.file_name().unwrap_or_default().to_string_lossy();
 
-    // 扫描 assets/
-    let mut assets = Vec::new();
-    let assets_dir = path.join("assets");
-    if assets_dir.exists() {
-        scan_files_recursive(&assets_dir, path, &mut assets);
+            // 排除 scripts 目录（已单独处理）、SKILL.md 和隐藏文件
+            if name == "scripts" || name == "SKILL.md" || name.starts_with('.') {
+                continue;
+            }
+
+            if p.is_dir() {
+                scan_files_recursive(&p, path, &mut files);
+            } else if let Ok(rel) = p.strip_prefix(path) {
+                let mime_type = guess_mime_type(&p);
+                files.push(SkillFile {
+                    name: name.to_string(),
+                    relative_path: rel.to_string_lossy().to_string(),
+                    size: fs::metadata(&p).map(|m| m.len()).unwrap_or(0),
+                    mime_type,
+                });
+            }
+        }
     }
 
     Some(SkillManifest {
@@ -244,18 +267,17 @@ async fn parse_skill_directory(path: &Path, source: &str) -> Option<SkillManifes
         instructions,
         base_path: path.to_string_lossy().to_string(),
         scripts,
-        references,
-        assets,
+        files,
         source: source.to_string(),
     })
 }
-
 fn scan_files_recursive(dir: &Path, base: &Path, target: &mut Vec<SkillFile>) {
     if let Ok(entries) = fs::read_dir(dir) {
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_file() {
                 if let Ok(rel) = path.strip_prefix(base) {
+                    let mime_type = guess_mime_type(&path);
                     target.push(SkillFile {
                         name: path
                             .file_name()
@@ -264,6 +286,7 @@ fn scan_files_recursive(dir: &Path, base: &Path, target: &mut Vec<SkillFile>) {
                             .to_string(),
                         relative_path: rel.to_string_lossy().to_string(),
                         size: fs::metadata(&path).map(|m| m.len()).unwrap_or(0),
+                        mime_type,
                     });
                 }
             } else if path.is_dir() {

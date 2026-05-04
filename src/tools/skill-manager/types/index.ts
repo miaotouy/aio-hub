@@ -20,10 +20,8 @@ export interface SkillManifest {
   basePath: string;
   /** 可执行脚本列表 */
   scripts: SkillScript[];
-  /** 引用文件列表 */
-  references: SkillFile[];
-  /** 资源文件列表 */
-  assets: SkillFile[];
+  /** 所有非脚本文件列表 */
+  files: SkillFile[];
   /** 来源类型 (user | builtin | external:{id}) */
   source: string;
 }
@@ -45,6 +43,7 @@ export interface SkillFile {
   name: string;
   relativePath: string;
   size: number;
+  mimeType: string;
 }
 
 /**

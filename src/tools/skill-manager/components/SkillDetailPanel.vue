@@ -104,11 +104,11 @@
           <div class="file-tree">
             <!-- 根文件 -->
             <div class="tree-item file">
-              <FileText :size="14" class="icon" />
+              <FileIcon file-name="SKILL.md" file-type="document" :size="14" class="icon" />
               <span class="name">SKILL.md</span>
             </div>
 
-            <!-- 目录节点: scripts -->
+            <!-- 目录节点: scripts (特殊处理) -->
             <div class="tree-group" v-if="manifest.scripts.length > 0">
               <div class="tree-item dir">
                 <Folder :size="14" class="icon" />
@@ -116,64 +116,30 @@
               </div>
               <div class="tree-children">
                 <div v-for="s in manifest.scripts" :key="s.relativePath" class="tree-item file">
-                  <FileCode2 :size="14" class="icon" />
+                  <FileIcon :file-name="s.name" :size="14" class="icon" />
                   <span class="name">{{ s.name }}</span>
                   <span class="badge">{{ s.language }}</span>
                 </div>
               </div>
             </div>
 
-            <!-- 目录节点: references -->
-            <div class="tree-group" v-if="manifest.references.length > 0">
-              <div class="tree-item dir">
-                <Folder :size="14" class="icon" />
-                <span class="name">references</span>
-              </div>
-              <div class="tree-children">
-                <div v-for="r in manifest.references" :key="r.relativePath" class="tree-item file">
-                  <FileText :size="14" class="icon" />
-                  <span class="name">{{ r.name }}</span>
-                  <span class="size">{{ formatSize(r.size) }}</span>
+            <!-- 动态目录节点: 所有其他文件 -->
+            <template v-for="(group, dirName) in fileGroups" :key="dirName">
+              <div class="tree-group">
+                <div class="tree-item dir">
+                  <Folder :size="14" class="icon" />
+                  <span class="name">{{ dirName || "root" }}</span>
+                </div>
+                <div class="tree-children">
+                  <div v-for="f in group" :key="f.relativePath" class="tree-item file">
+                    <FileIcon :file-name="f.name" :file-type="determineAssetType(f.mimeType)" :size="14" class="icon" />
+                    <span class="name">{{ f.name }}</span>
+                    <span class="size">{{ formatSize(f.size) }}</span>
+                  </div>
                 </div>
               </div>
-            </div>
-
-            <!-- 目录节点: assets -->
-            <div class="tree-group" v-if="manifest.assets.length > 0">
-              <div class="tree-item dir">
-                <Folder :size="14" class="icon" />
-                <span class="name">assets</span>
-              </div>
-              <div class="tree-children">
-                <div v-for="a in manifest.assets" :key="a.relativePath" class="tree-item file">
-                  <Image :size="14" class="icon" />
-                  <span class="name">{{ a.name }}</span>
-                  <span class="size">{{ formatSize(a.size) }}</span>
-                </div>
-              </div>
-            </div>
+            </template>
           </div>
-        </div>
-      </el-tab-pane>
-
-      <!-- 引用文件标签 -->
-      <el-tab-pane label="参考资料" name="references">
-        <div class="tab-scroll-container">
-          <div v-if="manifest.references.length > 0" class="ref-list">
-            <div v-for="ref in manifest.references" :key="ref.relativePath" class="ref-item">
-              <div class="ref-icon">
-                <FileText :size="18" />
-              </div>
-              <div class="ref-info">
-                <div class="ref-name">{{ ref.name }}</div>
-                <div class="ref-path">{{ ref.relativePath }}</div>
-              </div>
-              <div class="ref-meta">
-                <span class="ref-size">{{ formatSize(ref.size) }}</span>
-              </div>
-            </div>
-          </div>
-          <el-empty v-else description="无引用文件" :image-size="80" />
         </div>
       </el-tab-pane>
     </el-tabs>
@@ -182,20 +148,12 @@
 
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import {
-  FileText,
-  Trash2,
-  ShieldCheck,
-  Cpu,
-  Terminal,
-  Database,
-  Wrench,
-  Folder,
-  FileCode2,
-  Image,
-} from "lucide-vue-next";
+import { groupBy } from "lodash-es";
+import { Trash2, ShieldCheck, Cpu, Terminal, Database, Wrench, Folder } from "lucide-vue-next";
 import { ElMessageBox } from "element-plus";
 import DocumentViewer from "@/components/common/DocumentViewer.vue";
+import FileIcon from "@/components/common/FileIcon.vue";
+import { determineAssetType } from "@/utils/fileTypeDetector";
 import type { SkillManifest } from "../types";
 
 const props = defineProps<{
@@ -257,6 +215,17 @@ const strippedInstructions = computed(() => {
     return stripped.trim() ? stripped : content;
   }
   return content;
+});
+
+/**
+ * 将 files 按一级目录分组
+ */
+const fileGroups = computed(() => {
+  const files = props.manifest.files || [];
+  return groupBy(files, (f) => {
+    const parts = f.relativePath.split(/[\\/]/);
+    return parts.length > 1 ? parts[0] : "";
+  });
 });
 </script>
 
@@ -492,6 +461,18 @@ const strippedInstructions = computed(() => {
 .lang-badge.powershell {
   color: #012456;
   background: rgba(1, 36, 86, 0.1);
+}
+.lang-badge.batch {
+  color: #4d4d4d;
+  background: rgba(77, 77, 77, 0.1);
+}
+.lang-badge.rust {
+  color: #dea584;
+  background: rgba(222, 165, 132, 0.1);
+}
+.lang-badge.go {
+  color: #00add8;
+  background: rgba(0, 173, 216, 0.1);
 }
 
 .script-path {

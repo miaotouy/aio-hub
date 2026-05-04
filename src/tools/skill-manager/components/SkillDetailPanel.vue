@@ -52,7 +52,7 @@
 
           <!-- 指令正文部分 -->
           <div v-if="manifest.instructions" class="instructions-content">
-            <DocumentViewer :content="manifest.instructions" file-name="SKILL.md" file-type-hint="markdown" />
+            <DocumentViewer :content="strippedInstructions" file-name="SKILL.md" file-type-hint="markdown" />
           </div>
         </div>
       </el-tab-pane>
@@ -85,9 +85,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import { FileText, Trash2 } from "lucide-vue-next";
 import { ElMessageBox } from "element-plus";
+import DocumentViewer from "@/components/common/DocumentViewer.vue";
 import type { SkillManifest } from "../types";
 
 const props = defineProps<{
@@ -116,6 +117,27 @@ async function handleUninstall() {
 }
 
 const activeTab = ref("details");
+
+/**
+ * 剥离 YAML frontmatter 后的指令内容
+ */
+const strippedInstructions = computed(() => {
+  const content = props.manifest.instructions || "";
+  // ⚠️ 关键修复：Rust 后端在 Windows 返回 \r\n，而 V2 解析器期望 \n。
+  // 不规范化会导致 \r 残留为正文、\n 被单独解析为 hard_break，破坏表格/代码块间距。
+  const normalized = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+
+  if (!normalized.trim().startsWith("---")) return normalized;
+
+  // 使用正则剥离 frontmatter
+  const match = normalized.match(/^---\s*\n[\s\S]*?\n---\s*/m);
+  if (match) {
+    const stripped = normalized.slice(match[0].length);
+    return stripped.trim() ? stripped : normalized;
+  }
+
+  return normalized;
+});
 </script>
 
 <style scoped>
@@ -270,7 +292,7 @@ const activeTab = ref("details");
 
 .instructions-content {
   padding: 0;
-  margin-top: -8px; /* 抵消 el-divider 的一些间距 */
+  margin-top: 4px;
 }
 
 :deep(.el-divider--horizontal) {

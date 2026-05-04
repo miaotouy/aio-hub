@@ -183,7 +183,8 @@ async fn parse_skill_directory(path: &Path, source: &str) -> Option<SkillManifes
     }
 
     let yaml_str = parts[1];
-    let instructions = parts[2..].join("---").trim().to_string();
+    // 保留原始指令内容，不要 trim() 掉可能存在的换行符，这对 Markdown 块解析至关重要
+    let instructions = parts[2..].join("---");
 
     let frontmatter: SkillFrontmatter = serde_yaml::from_str(yaml_str).ok()?;
 

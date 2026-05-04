@@ -16,37 +16,43 @@
     </div>
 
     <el-tabs v-model="activeTab" class="detail-tabs">
-      <!-- 指令标签 -->
-      <el-tab-pane label="指令" name="instructions">
-        <div class="instructions-content">
-          <DocumentViewer :content="manifest.instructions" file-name="SKILL.md" file-type-hint="markdown" />
-        </div>
-      </el-tab-pane>
-
-      <!-- 描述标签 -->
-      <el-tab-pane label="描述" name="description">
-        <div class="detail-section">
-          <div class="section-label">描述</div>
-          <p class="description-text">{{ manifest.description }}</p>
-        </div>
-
-        <div class="detail-section" v-if="manifest.license">
-          <div class="section-label">许可证</div>
-          <p class="detail-value">{{ manifest.license }}</p>
-        </div>
-
-        <div class="detail-section" v-if="manifest.compatibility">
-          <div class="section-label">兼容性</div>
-          <p class="detail-value">{{ manifest.compatibility }}</p>
-        </div>
-
-        <div class="detail-section" v-if="manifest.metadata">
-          <div class="section-label">元数据</div>
-          <div class="metadata-grid">
-            <div v-for="(value, key) in manifest.metadata" :key="key" class="metadata-item">
-              <span class="metadata-key">{{ key }}:</span>
-              <span class="metadata-value">{{ value }}</span>
+      <!-- 详情标签 -->
+      <el-tab-pane label="详情" name="details">
+        <div class="details-container">
+          <!-- 元数据部分 -->
+          <div class="metadata-section">
+            <div class="detail-section">
+              <div class="section-label">描述</div>
+              <p class="description-text">{{ manifest.description }}</p>
             </div>
+
+            <div class="metadata-row" v-if="manifest.license || manifest.compatibility">
+              <div class="detail-section" v-if="manifest.license">
+                <div class="section-label">许可证</div>
+                <p class="detail-value">{{ manifest.license }}</p>
+              </div>
+              <div class="detail-section" v-if="manifest.compatibility">
+                <div class="section-label">兼容性</div>
+                <p class="detail-value">{{ manifest.compatibility }}</p>
+              </div>
+            </div>
+
+            <div class="detail-section" v-if="manifest.metadata && Object.keys(manifest.metadata).length > 0">
+              <div class="section-label">元数据</div>
+              <div class="metadata-grid">
+                <div v-for="(value, key) in manifest.metadata" :key="key" class="metadata-item">
+                  <span class="metadata-key">{{ key }}:</span>
+                  <span class="metadata-value">{{ value }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <el-divider v-if="manifest.instructions">指令正文</el-divider>
+
+          <!-- 指令正文部分 -->
+          <div v-if="manifest.instructions" class="instructions-content">
+            <DocumentViewer :content="manifest.instructions" file-name="SKILL.md" file-type-hint="markdown" />
           </div>
         </div>
       </el-tab-pane>
@@ -109,7 +115,7 @@ async function handleUninstall() {
   }
 }
 
-const activeTab = ref("description");
+const activeTab = ref("details");
 </script>
 
 <style scoped>
@@ -203,29 +209,53 @@ const activeTab = ref("description");
   margin-bottom: 6px;
 }
 
+.details-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.metadata-section {
+  padding: 4px 0;
+}
+
+.metadata-row {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.metadata-row .detail-section {
+  flex: 1;
+  min-width: 150px;
+}
+
 .description-text {
   line-height: 1.6;
   color: var(--text-color);
+  margin: 0;
 }
 
 .detail-value {
   color: var(--text-color);
   line-height: 1.5;
+  margin: 0;
 }
 
 .metadata-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 8px;
 }
 
 .metadata-item {
   display: flex;
   gap: 4px;
-  font-size: 13px;
-  padding: 6px 10px;
+  font-size: 12px;
+  padding: 4px 10px;
   background-color: var(--input-bg);
   border-radius: 6px;
+  border: var(--border-width) solid var(--border-color);
 }
 
 .metadata-key {
@@ -235,10 +265,25 @@ const activeTab = ref("description");
 
 .metadata-value {
   color: var(--text-color);
+  word-break: break-all;
 }
 
 .instructions-content {
-  padding: 4px 0;
+  padding: 0;
+  margin-top: -8px; /* 抵消 el-divider 的一些间距 */
+}
+
+:deep(.el-divider--horizontal) {
+  margin: 24px 0 16px 0;
+}
+
+:deep(.el-divider__text) {
+  background-color: var(--card-bg);
+  color: var(--text-color-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 
 .script-list {

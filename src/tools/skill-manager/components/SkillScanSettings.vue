@@ -1,68 +1,5 @@
 <template>
   <div class="skill-scan-settings">
-    <!-- 外部扫描总开关 -->
-    <div class="section">
-      <div class="section-header">
-        <div class="section-title-row">
-          <h3>外部兼容扫描</h3>
-          <el-switch v-model="externalScanEnabled" @change="handleExternalScanToggle" />
-        </div>
-        <p class="section-desc">扫描其他 AI 工具（Claude Code、Cursor 等）安装的 Skill，实现跨工具兼容</p>
-      </div>
-    </div>
-
-    <!-- 已知工具路径 -->
-    <div class="section" v-if="externalScanEnabled">
-      <h3 class="subsection-title">已知工具路径</h3>
-      <div class="path-list">
-        <div v-for="pathItem in knownPaths" :key="pathItem.id" class="path-item">
-          <div class="path-info">
-            <div class="path-header">
-              <span class="path-label">{{ pathItem.label }}</span>
-            </div>
-            <code class="path-value" :title="pathItem.defaultPath">{{ pathItem.defaultPath || "未检测到路径" }}</code>
-          </div>
-          <el-switch
-            :model-value="getPathEnabled(pathItem.id)"
-            @change="(val: boolean) => handleKnownPathToggle(pathItem.id, val)"
-            size="small"
-          />
-        </div>
-      </div>
-    </div>
-
-    <!-- 自定义路径 -->
-    <div class="section" v-if="externalScanEnabled">
-      <div class="section-title-row">
-        <h3 class="subsection-title">自定义路径</h3>
-        <el-button size="small" @click="handleAddCustomPath">
-          <Plus :size="14" style="margin-right: 4px" />
-          添加自定义路径
-        </el-button>
-      </div>
-
-      <div v-if="customPaths.length === 0" class="empty-hint">
-        <p>暂无自定义路径，点击上方按钮添加</p>
-      </div>
-
-      <div class="path-list" v-else>
-        <div v-for="(pathItem, index) in customPaths" :key="pathItem.id" class="path-item">
-          <div class="path-info">
-            <el-input
-              v-model="pathItem.path"
-              placeholder="输入 Skill 目录的完整路径"
-              size="small"
-              @change="handleCustomPathChange"
-            />
-          </div>
-          <div class="path-actions">
-            <el-switch v-model="pathItem.enabled" @change="handleCustomPathChange" size="small" />
-            <el-button size="small" type="danger" :icon="Trash2" circle @click="handleRemoveCustomPath(index)" />
-          </div>
-        </div>
-      </div>
-    </div>
-
     <!-- 终端/Shell 偏好 -->
     <div class="section">
       <div class="section-header">
@@ -124,6 +61,69 @@
             size="small"
             clearable
           />
+        </div>
+      </div>
+    </div>
+
+    <!-- 外部扫描总开关 -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title-row">
+          <h3>外部兼容扫描</h3>
+          <el-switch v-model="externalScanEnabled" @change="handleExternalScanToggle" />
+        </div>
+        <p class="section-desc">扫描其他 AI 工具（Claude Code、Cursor 等）安装的 Skill，实现跨工具兼容</p>
+      </div>
+    </div>
+
+    <!-- 已知工具路径 -->
+    <div class="section" v-if="externalScanEnabled">
+      <h3 class="subsection-title">已知工具路径</h3>
+      <div class="path-list">
+        <div v-for="pathItem in knownPaths" :key="pathItem.id" class="path-item">
+          <div class="path-info">
+            <div class="path-header">
+              <span class="path-label">{{ pathItem.label }}</span>
+            </div>
+            <code class="path-value" :title="pathItem.defaultPath">{{ pathItem.defaultPath || "未检测到路径" }}</code>
+          </div>
+          <el-switch
+            :model-value="getPathEnabled(pathItem.id)"
+            @change="(val: boolean) => handleKnownPathToggle(pathItem.id, val)"
+            size="small"
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- 自定义路径 -->
+    <div class="section" v-if="externalScanEnabled">
+      <div class="section-title-row">
+        <h3 class="subsection-title">自定义路径</h3>
+        <el-button size="small" @click="handleAddCustomPath">
+          <Plus :size="14" style="margin-right: 4px" />
+          添加自定义路径
+        </el-button>
+      </div>
+
+      <div v-if="customPaths.length === 0" class="empty-hint">
+        <p>暂无自定义路径，点击上方按钮添加</p>
+      </div>
+
+      <div class="path-list" v-else>
+        <div v-for="(pathItem, index) in customPaths" :key="pathItem.id" class="path-item">
+          <div class="path-info">
+            <el-input
+              v-model="pathItem.path"
+              placeholder="输入 Skill 目录的完整路径"
+              size="small"
+              @change="handleCustomPathChange"
+            />
+          </div>
+          <div class="path-actions">
+            <el-switch v-model="pathItem.enabled" @change="handleCustomPathChange" size="small" />
+            <el-button size="small" type="danger" :icon="Trash2" circle @click="handleRemoveCustomPath(index)" />
+          </div>
         </div>
       </div>
     </div>
@@ -260,8 +260,11 @@ onMounted(async () => {
 
 <style scoped>
 .skill-scan-settings {
-  padding: 16px 0;
+  height: 100%;
+  overflow-y: auto;
+  padding: 0 16px 16px 16px;
   position: relative;
+  scrollbar-gutter: stable;
 }
 
 .section {

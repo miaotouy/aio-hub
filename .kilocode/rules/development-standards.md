@@ -114,7 +114,7 @@
         /* ... */
       },
     },
-    true
+    true,
   ); // 折叠显示
 
   // 不推荐的做法
@@ -182,3 +182,19 @@ await ElMessageBox.confirm("确定要执行此操作吗？", "提示", {
 // 错误做法：未设置 lockScroll，会导致 Tauri 窗口出现滚动条
 await ElMessageBox.confirm("...");
 ```
+
+## 4. Tauri 与前后端通信规范
+
+### 4.1. 字段命名对齐
+
+- **核心规范**: 在 Rust 后端定义的结构体，如果通过 Tauri Command 返回给前端，**必须**添加 `#[serde(rename_all = "camelCase")]` 属性。
+- **原因**: Rust 习惯使用 `snake_case`，而 TypeScript/JavaScript 习惯使用 `camelCase`。如果不进行重命名，前端接收到的对象属性名将与 TS 类型定义不匹配，导致数据读取失败。
+- **示例**:
+  ```rust
+  #[derive(Debug, Serialize, Deserialize)]
+  #[serde(rename_all = "camelCase")] // 必须添加
+  pub struct WellKnownPath {
+      pub name: String,
+      pub default_path: Option<String>, // 前端将收到 defaultPath
+  }
+  ```

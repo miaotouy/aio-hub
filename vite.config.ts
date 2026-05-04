@@ -6,7 +6,7 @@ import { FileSystemIconLoader } from "unplugin-icons/loaders";
 import IconsResolver from "unplugin-icons/resolver";
 import Components from "unplugin-vue-components/vite";
 import VueDevTools from "vite-plugin-vue-devtools";
-import monaco from '@tomjs/vite-plugin-monaco-editor';
+import monaco from "@tomjs/vite-plugin-monaco-editor";
 import { fileURLToPath, URL } from "node:url";
 
 const host = process.env.TAURI_DEV_HOST;
@@ -22,9 +22,9 @@ const viteConfig = defineConfig({
     // Vite 8 内置支持 tsconfig 路径别名
     tsconfigPaths: true,
     alias: {
-      "fs": "node:fs",
-      "path": "node:path",
-      "buffer": "buffer/",
+      fs: "node:fs",
+      path: "node:path",
+      buffer: "buffer/",
       "@": fileURLToPath(new URL("./src", import.meta.url)),
       "@types": fileURLToPath(new URL("./src/types", import.meta.url)),
       "@components": fileURLToPath(new URL("./src/components", import.meta.url)),
@@ -36,7 +36,9 @@ const viteConfig = defineConfig({
       "@styles": fileURLToPath(new URL("./src/styles", import.meta.url)),
       "@assets": fileURLToPath(new URL("./src/assets", import.meta.url)),
       "@lobe-icons": fileURLToPath(new URL("./node_modules/@lobehub/icons-static-svg/icons", import.meta.url)),
-      "@vscode-material-icons": fileURLToPath(new URL("./node_modules/vscode-material-icons/generated/icons", import.meta.url)),
+      "@vscode-material-icons": fileURLToPath(
+        new URL("./node_modules/vscode-material-icons/generated/icons", import.meta.url),
+      ),
       // 插件 SDK 别名 - 用于开发模式下 Vite 解析插件源码
       "aiohub-sdk": fileURLToPath(new URL("./public/plugins/shims/aiohub-sdk-shim.js", import.meta.url)),
       "aiohub-ui": fileURLToPath(new URL("./public/plugins/shims/aiohub-ui-shim.js", import.meta.url)),
@@ -46,61 +48,73 @@ const viteConfig = defineConfig({
       "monaco-editor/dev/vs/nls.js": fileURLToPath(new URL("./src/utils/monaco-i18n/nls.js", import.meta.url)),
       "monaco-editor/dev/vs/nls": fileURLToPath(new URL("./src/utils/monaco-i18n/nls.js", import.meta.url)),
       // 针对绝对路径请求的额外劫持
-      "/node_modules/monaco-editor/esm/vs/nls.js": fileURLToPath(new URL("./src/utils/monaco-i18n/nls.js", import.meta.url)),
-      "/node_modules/monaco-editor/esm/vs/editor/editor.main.nls.js": fileURLToPath(new URL("./src/utils/monaco-i18n/nls.js", import.meta.url)),
+      "/node_modules/monaco-editor/esm/vs/nls.js": fileURLToPath(
+        new URL("./src/utils/monaco-i18n/nls.js", import.meta.url),
+      ),
+      "/node_modules/monaco-editor/esm/vs/editor/editor.main.nls.js": fileURLToPath(
+        new URL("./src/utils/monaco-i18n/nls.js", import.meta.url),
+      ),
     },
   },
 
   // 将 .gz 文件标记为资源文件
-  assetsInclude: ['**/*.gz'],
+  assetsInclude: ["**/*.gz"],
 
   css: {
     // 禁用 Lightning CSS，回退到 PostCSS 以确保 CSS 优化的稳定性
-    transformer: 'postcss',
+    transformer: "postcss",
   },
 
   define: {
     // 修复 Prettier 3.x 在 Rolldown 环境下内部依赖 regexp-tree 的 RegExpParser 报错
-    'process.env.PRETTIER_DEBUG': 'false',
+    "process.env.PRETTIER_DEBUG": "false",
   },
 
   // 使用绝对路径作为 base，确保分离窗口（如 /detached-component/xxx）中的资源能正确加载
   // 如果使用相对路径 './'，当路由是 /detached-component/chat-area 时，
   // 资源会被错误地请求为 /detached-component/loader.js 而不是 /loader.js
-  base: '/',
+  base: "/",
 
   plugins: [
     // 生产环境禁用 VueDevTools
-    process.env.NODE_ENV !== 'production' && VueDevTools(),
+    process.env.NODE_ENV !== "production" && VueDevTools(),
     vue(),
     // 拦截 Monaco NLS 请求的中间件
     {
-      name: 'monaco-nls-middleware',
+      name: "monaco-nls-middleware",
       configureServer(server) {
         server.middlewares.use(async (req, res, next) => {
           // 拦截所有对 nls.js 的请求
-          if (req.url && req.url.includes('nls.js') && (req.url.includes('monaco-editor') || req.url.includes('monaco-i18n'))) {
-            const fs = await import('node:fs');
-            let nlsContent = fs.readFileSync(fileURLToPath(new URL("./src/utils/monaco-i18n/nls.js", import.meta.url)), 'utf-8');
-            
+          if (
+            req.url &&
+            req.url.includes("nls.js") &&
+            (req.url.includes("monaco-editor") || req.url.includes("monaco-i18n"))
+          ) {
+            const fs = await import("node:fs");
+            let nlsContent = fs.readFileSync(
+              fileURLToPath(new URL("./src/utils/monaco-i18n/nls.js", import.meta.url)),
+              "utf-8",
+            );
+
             // 默认文件是不含 export 的纯脚本 (AMD 友好)
             // 如果是 Vite 的 ESM 导入请求 (?import)，我们需要动态补上 export 语句
-            if (req.url.includes('import') || req.headers['sec-fetch-mode'] === 'cors') {
+            if (req.url.includes("import") || req.headers["sec-fetch-mode"] === "cors") {
               nlsContent += `\nexport { localize, localize2, getConfiguredDefaultLocale, getNLSLanguage, getNLSMessages };\nexport default { localize, localize2, getConfiguredDefaultLocale, getNLSLanguage, getNLSMessages };`;
               // console.log(`[Monaco NLS] Serving ESM-compatible NLS: ${req.url}`);
             } else {
               // console.log(`[Monaco NLS] Serving AMD-compatible NLS: ${req.url}`);
             }
-            
-            res.setHeader('Content-Type', 'application/javascript');
+
+            res.setHeader("Content-Type", "application/javascript");
             res.end(nlsContent);
             return;
           }
           next();
         });
-      }
+      },
     },
-    monaco({  // 替换旧的 monacoEditorPlugin，直接用 local: true 强制本地打包，避免 CDN
+    monaco({
+      // 替换旧的 monacoEditorPlugin，直接用 local: true 强制本地打包，避免 CDN
       local: true,
     }),
     Components({
@@ -118,7 +132,7 @@ const viteConfig = defineConfig({
       compiler: "vue3",
       customCollections: {
         lobe: FileSystemIconLoader("./node_modules/@lobehub/icons-static-svg/icons", (svg) =>
-          svg.replace(/^<svg /, '<svg fill="currentColor" ')
+          svg.replace(/^<svg /, '<svg fill="currentColor" '),
         ),
         "vscode-material": FileSystemIconLoader("./node_modules/vscode-material-icons/generated/icons"),
       },
@@ -137,12 +151,12 @@ const viteConfig = defineConfig({
 
   // Worker 配置
   worker: {
-    format: 'es',
+    format: "es",
     plugins: () => [
       // 可以在这里添加需要的插件
     ],
     rollupOptions: {
-      external: ['fsevents'],
+      external: ["fsevents"],
     },
   },
 
@@ -153,49 +167,46 @@ const viteConfig = defineConfig({
 
     // 增加 chunk 大小警告阈值到 1000 KiB
     chunkSizeWarningLimit: 1000,
-    
+
     // 禁用 source map 以减少内存消耗
     sourcemap: false,
-    
+
     // 禁用 Lightning CSS 压缩，使用 esbuild 确保 content-visibility 等属性不被误删
-    cssMinify: 'esbuild',
+    cssMinify: "esbuild",
     // 如果需要保留 terser 的某些特定行为，可以重新开启
     // minify: 'terser',
-    
+
     commonjsOptions: {
       include: [/node_modules/],
       transformMixedEsModules: true,
     },
-    
+
     // 优化代码分割,减少内存消耗
     // Vite 8 推荐使用 rolldownOptions，它提供了更好的性能
     rolldownOptions: {
       input: {
-        main: 'index.html',
-        danmakuOverlay: 'danmaku-overlay.html',
+        main: "index.html",
+        danmakuOverlay: "danmaku-overlay.html",
       },
       // 外部化 macOS 专用依赖和插件构建脚本
-      external: [
-        'fsevents',
-        /^.*\/plugins\/.*\/(build\.js|vite\.config\.js|package\.json|Cargo\.toml|.*\.rs)$/,
-      ],
+      external: ["fsevents", /^.*\/plugins\/.*\/(build\.js|vite\.config\.js|package\.json|Cargo\.toml|.*\.rs)$/],
       output: {
         manualChunks(id) {
-          if (id.includes('node_modules')) {
-            if (id.includes('vue') || id.includes('vue-router') || id.includes('pinia')) {
-              return 'vendor-vue';
+          if (id.includes("node_modules")) {
+            if (id.includes("vue") || id.includes("vue-router") || id.includes("pinia")) {
+              return "vendor-vue";
             }
-            if (id.includes('element-plus')) {
-              return 'vendor-element';
+            if (id.includes("element-plus")) {
+              return "vendor-element";
             }
-            if (id.includes('codemirror') || id.includes('@guolao/vue-monaco-editor')) {
-              return 'vendor-editor';
+            if (id.includes("codemirror") || id.includes("@guolao/vue-monaco-editor")) {
+              return "vendor-editor";
             }
             // if (id.includes('prettier')) {
             //   return 'vendor-prettier';
             // }
-            if (id.includes('@lenml/tokenizers') || id.includes('@lenml/tokenizer-')) {
-              return 'vendor-tokenizers';
+            if (id.includes("@lenml/tokenizers") || id.includes("@lenml/tokenizer-")) {
+              return "vendor-tokenizers";
             }
           }
         },
@@ -248,12 +259,7 @@ export default mergeConfig(
         ],
       },
       // 排除 Tauri 后端和构建产物
-      exclude: [
-        ...configDefaults.exclude,
-        "src-tauri/**",
-        "dist/**",
-        "mobile/**",
-      ],
+      exclude: [...configDefaults.exclude, "src-tauri/**", "dist/**", "mobile/**"],
     },
-  })
+  }),
 );

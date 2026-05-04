@@ -2,7 +2,7 @@
   <BaseDialog
     v-model="visible"
     title="安装技能"
-    width="500px"
+    width="600px"
     height="auto"
     :close-on-backdrop-click="false"
     @update:model-value="!$event && $emit('close')"
@@ -10,13 +10,16 @@
     <el-tabs v-model="installMode" class="install-tabs">
       <el-tab-pane label="从本地目录" name="local">
         <p class="install-hint">选择包含 SKILL.md 的技能目录进行安装。</p>
-        <div class="install-action">
-          <el-button @click="handleSelectDir" :loading="checking">
-            <FolderOpen :size="14" />
-            选择目录
-          </el-button>
-          <span v-if="selectedDir" class="selected-path">{{ selectedDir }}</span>
-        </div>
+        <DropZone
+          v-loading="checking"
+          clickable
+          click-zone
+          :accept="['.zip', '.md']"
+          :placeholder="selectedDir || '拖放技能目录、SKILL.md 或 ZIP 包到此处'"
+          :icon="FolderOpen"
+          :icon-size="32"
+          @drop="handleDrop"
+        />
         <div v-if="previewName" class="preview">
           <p class="preview-text">
             <strong>{{ previewName }}</strong
@@ -40,12 +43,7 @@
 
     <template #footer>
       <el-button @click="$emit('close')">取消</el-button>
-      <el-button
-        type="primary"
-        :loading="installing"
-        :disabled="installDisabled"
-        @click="handleInstall"
-      >
+      <el-button type="primary" :loading="installing" :disabled="installDisabled" @click="handleInstall">
         安装
       </el-button>
     </template>
@@ -56,8 +54,8 @@
 import { ref, computed } from "vue";
 import { FolderOpen } from "lucide-vue-next";
 import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
 import BaseDialog from "@/components/common/BaseDialog.vue";
+import DropZone from "@/components/common/DropZone.vue";
 import { customMessage } from "@/utils/customMessage";
 import type { SkillManifest } from "../types";
 
@@ -79,34 +77,50 @@ const previewDesc = ref("");
 /** 根据当前模式判断安装按钮是否可用 */
 const installDisabled = computed(() => {
   if (installing.value) return true;
-  if (installMode.value === "local") return !selectedDir.value;
+  if (installMode.value === "local") return !selectedDir.value || !previewName.value;
   if (installMode.value === "git") return !gitUrl.value.trim();
   if (installMode.value === "url") return !zipUrl.value.trim();
   return true;
 });
 
-async function handleSelectDir() {
-  const dir = await open({ directory: true, title: "选择技能目录" });
-  if (!dir) return;
-
-  selectedDir.value = dir;
+async function processSelectedPath(path: string) {
+  selectedDir.value = path;
+  previewName.value = "";
+  previewDesc.value = "";
   checking.value = true;
+
   try {
-    // 调用 Rust 预检该目录的 SKILL.md
-    const result = await invoke<SkillManifest[] | null>("get_all_skill_manifests");
-    // 从 manifests 中查找匹配该目录的
-    if (Array.isArray(result)) {
-      const matched = result.find((m) => dir.includes(m.name));
-      if (matched) {
-        previewName.value = matched.name;
-        previewDesc.value = matched.description;
-      }
+    // 如果是 zip 文件，简单显示文件名
+    if (path.toLowerCase().endsWith(".zip")) {
+      const fileName = path.split(/[\\/]/).pop() || "";
+      previewName.value = fileName;
+      previewDesc.value = "准备从本地 ZIP 包安装";
+      return;
     }
-  } catch (err) {
-    previewName.value = "";
-    previewDesc.value = "";
+
+    // 调用 Rust 预览该目录或文件的 SKILL.md
+    const manifest = await invoke<SkillManifest>("preview_skill_manifest", { path });
+    previewName.value = manifest.name;
+    previewDesc.value = manifest.description;
+
+    // 如果选的是 SKILL.md，我们要把 selectedDir 更新为其父目录，方便后续安装
+    if (path.toLowerCase().endsWith(".md")) {
+      // 简单的路径处理，后端其实已经处理了，但为了前端显示一致性
+      const parts = path.split(/[\\/]/);
+      parts.pop();
+      selectedDir.value = parts.join("/");
+    }
+  } catch (err: any) {
+    customMessage.error(`识别失败: ${err}`);
+    selectedDir.value = "";
   } finally {
     checking.value = false;
+  }
+}
+
+function handleDrop(paths: string[]) {
+  if (paths.length > 0) {
+    processSelectedPath(paths[0]);
   }
 }
 
@@ -114,7 +128,12 @@ async function handleInstall() {
   installing.value = true;
   try {
     if (installMode.value === "local" && selectedDir.value) {
-      await invoke("install_skill_from_dir", { sourceDir: selectedDir.value });
+      const path = selectedDir.value;
+      if (path.toLowerCase().endsWith(".zip")) {
+        await invoke("install_skill_from_zip_file", { zipPath: path });
+      } else {
+        await invoke("install_skill_from_dir", { sourceDir: path });
+      }
     } else if (installMode.value === "git") {
       const url = gitUrl.value.trim();
       if (!url) {
@@ -177,21 +196,6 @@ async function handleInstall() {
   border-radius: 3px;
   background-color: var(--input-bg);
   border: var(--border-width) solid var(--border-color);
-}
-
-.install-action {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.selected-path {
-  font-size: 12px;
-  color: var(--text-color-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 300px;
 }
 
 .preview {

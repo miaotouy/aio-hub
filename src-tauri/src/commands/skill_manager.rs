@@ -675,6 +675,89 @@ fn extract_repo_name(url: &str) -> Result<String, String> {
     Ok(name.to_string())
 }
 
+/// 安装 Skill（从本地 ZIP 文件解压到 appData/skills/）
+#[tauri::command]
+pub async fn install_skill_from_zip_file(
+    app: AppHandle,
+    zip_path: String,
+) -> Result<SkillManifest, String> {
+    let source_zip_path = PathBuf::from(&zip_path);
+    if !source_zip_path.exists() || !source_zip_path.is_file() {
+        return Err("ZIP 文件不存在".to_string());
+    }
+
+    let app_data_dir = crate::get_app_data_dir(app.config());
+    let skills_dir = app_data_dir.join("skills");
+    fs::create_dir_all(&skills_dir).map_err(|e| format!("创建 skills 目录失败: {}", e))?;
+
+    // 创建临时目录用于解压
+    let temp_dir = tempfile::tempdir().map_err(|e| format!("创建临时目录失败: {}", e))?;
+    let temp_path = temp_dir.path().to_path_buf();
+
+    // 解压 ZIP
+    let extract_dir = temp_path.join("extracted");
+    fs::create_dir_all(&extract_dir).map_err(|e| format!("创建解压目录失败: {}", e))?;
+
+    let zip_file =
+        fs::File::open(&source_zip_path).map_err(|e| format!("打开 ZIP 文件失败: {}", e))?;
+    let mut archive =
+        zip::ZipArchive::new(zip_file).map_err(|e| format!("读取 ZIP 文件失败: {}", e))?;
+
+    archive
+        .extract(&extract_dir)
+        .map_err(|e| format!("解压 ZIP 文件失败: {}", e))?;
+
+    // 查找包含 SKILL.md 的目录
+    let skill_dir = find_skill_directory(&extract_dir)
+        .ok_or_else(|| "解压后未找到包含 SKILL.md 的目录".to_string())?;
+
+    // 预检
+    let manifest = parse_skill_directory(&skill_dir, "user")
+        .await
+        .ok_or("解压后的目录不是有效的 Skill 目录（缺少 SKILL.md 或格式错误）")?;
+
+    let target_skills_dir = skills_dir.join(&manifest.name);
+
+    if target_skills_dir.exists() {
+        return Err(format!("技能 {} 已存在", manifest.name));
+    }
+
+    // 复制到目标目录
+    let mut options = fs_extra::dir::CopyOptions::new();
+    options.copy_inside = true;
+    fs_extra::dir::copy(&skill_dir, target_skills_dir.parent().unwrap(), &options)
+        .map_err(|e| format!("复制到技能目录失败: {}", e))?;
+
+    // 清理临时目录（drop 时会自动清理）
+    drop(temp_dir);
+
+    Ok(manifest)
+}
+
+/// 预览技能清单（从本地目录或 SKILL.md 文件）
+#[tauri::command]
+pub async fn preview_skill_manifest(path: String) -> Result<SkillManifest, String> {
+    let p = PathBuf::from(&path);
+    if !p.exists() {
+        return Err("路径不存在".to_string());
+    }
+
+    let dir = if p.is_file() {
+        let file_name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        if file_name.to_uppercase() == "SKILL.MD" {
+            p.parent().ok_or("无法获取父目录")?.to_path_buf()
+        } else {
+            return Err("请选择 SKILL.md 文件或技能目录".to_string());
+        }
+    } else {
+        p
+    };
+
+    parse_skill_directory(&dir, "preview")
+        .await
+        .ok_or_else(|| "不是有效的技能目录（缺少 SKILL.md 或格式错误）".to_string())
+}
+
 /// 安装 Skill（从 ZIP 包下载并解压到 appData/skills/）
 #[tauri::command]
 pub async fn install_skill_from_zip(

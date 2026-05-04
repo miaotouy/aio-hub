@@ -102,6 +102,8 @@ const getIconByExtension = (fileName: string): string => {
     
     // 配置文件
     'json': 'vscode-icons:file-type-json',
+    'jsonl': 'vscode-icons:file-type-json',
+    'jsonc': 'vscode-icons:file-type-json',
     'xml': 'vscode-icons:file-type-xml',
     'yaml': 'vscode-icons:file-type-yaml',
     'yml': 'vscode-icons:file-type-yaml',

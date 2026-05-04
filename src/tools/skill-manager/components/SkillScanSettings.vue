@@ -17,8 +17,10 @@
       <div class="path-list">
         <div v-for="pathItem in knownPaths" :key="pathItem.id" class="path-item">
           <div class="path-info">
-            <span class="path-label">{{ pathItem.label }}</span>
-            <code class="path-value">{{ pathItem.defaultPath }}</code>
+            <div class="path-header">
+              <span class="path-label">{{ pathItem.label }}</span>
+            </div>
+            <code class="path-value" :title="pathItem.defaultPath">{{ pathItem.defaultPath || "未检测到路径" }}</code>
           </div>
           <el-switch
             :model-value="getPathEnabled(pathItem.id)"
@@ -327,12 +329,18 @@ onMounted(async () => {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 6px;
+}
+
+.path-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .path-label {
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-color);
 }
 
@@ -345,6 +353,9 @@ onMounted(async () => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-height: 1.2em;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .path-actions {

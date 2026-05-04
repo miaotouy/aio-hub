@@ -59,6 +59,7 @@ pub struct RuntimeSettings {
 
 /// 已知工具预设路径（跨平台）
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct WellKnownPath {
     pub id: String,
     pub label: String,
@@ -285,9 +286,15 @@ fn resolve_runtime(
             } else {
                 // 默认逻辑：检测 bun > node
                 if check_command_exists("bun") {
-                    Ok(("bun".to_string(), vec![script_path.to_string_lossy().to_string()]))
+                    Ok((
+                        "bun".to_string(),
+                        vec![script_path.to_string_lossy().to_string()],
+                    ))
                 } else {
-                    Ok(("node".to_string(), vec![script_path.to_string_lossy().to_string()]))
+                    Ok((
+                        "node".to_string(),
+                        vec![script_path.to_string_lossy().to_string()],
+                    ))
                 }
             }
         }
@@ -299,7 +306,10 @@ fn resolve_runtime(
                     vec![script_path.to_string_lossy().to_string()],
                 ))
             } else {
-                Ok(("python".to_string(), vec![script_path.to_string_lossy().to_string()]))
+                Ok((
+                    "python".to_string(),
+                    vec![script_path.to_string_lossy().to_string()],
+                ))
             }
         }
         "sh" | "bash" => {
@@ -310,7 +320,10 @@ fn resolve_runtime(
                     vec![script_path.to_string_lossy().to_string()],
                 ))
             } else {
-                Ok(("bash".to_string(), vec![script_path.to_string_lossy().to_string()]))
+                Ok((
+                    "bash".to_string(),
+                    vec![script_path.to_string_lossy().to_string()],
+                ))
             }
         }
         "ps1" => {
@@ -350,10 +363,18 @@ pub async fn run_skill_script(
     let start_time = Instant::now();
     let timeout_duration = Duration::from_secs(timeout_secs.unwrap_or(60));
     let settings = runtime_settings.unwrap_or(RuntimeSettings {
-        javascript: LanguageRuntime { command: String::new() },
-        python: LanguageRuntime { command: String::new() },
-        shell: LanguageRuntime { command: String::new() },
-        powershell: LanguageRuntime { command: String::new() },
+        javascript: LanguageRuntime {
+            command: String::new(),
+        },
+        python: LanguageRuntime {
+            command: String::new(),
+        },
+        shell: LanguageRuntime {
+            command: String::new(),
+        },
+        powershell: LanguageRuntime {
+            command: String::new(),
+        },
     });
 
     // 查找 Skill 目录

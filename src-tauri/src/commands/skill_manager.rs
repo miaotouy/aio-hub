@@ -4,6 +4,7 @@
 
 use crate::utils::mime::guess_mime_type;
 use dirs_next;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -102,7 +103,7 @@ pub struct SkillScriptResult {
     pub duration_ms: u128,
 }
 
-/// SKILL.md Frontmatter 结构
+/// SKILL.md Frontmatter 结构（严格遵循 Agent Skills 规范）
 #[derive(Debug, Deserialize)]
 struct SkillFrontmatter {
     name: String,
@@ -111,7 +112,7 @@ struct SkillFrontmatter {
     compatibility: Option<String>,
     metadata: Option<HashMap<String, String>>,
     #[serde(rename = "allowed-tools")]
-    allowed_tools: Option<Vec<String>>,
+    allowed_tools: Option<serde_yaml::Value>, // 兼容字符串和数组
 }
 
 /// 扫描所有搜索路径，返回 Skill 清单列表
@@ -120,61 +121,72 @@ pub async fn get_all_skill_manifests(
     app: AppHandle,
     external_paths: Option<Vec<ExternalScanPath>>,
 ) -> Result<Vec<SkillManifest>, String> {
-    let mut manifests = Vec::new();
     let app_data_dir = crate::get_app_data_dir(app.config());
+    let resource_dir = app.path().resource_dir().ok();
 
-    // 1. 用户安装的 Skill（优先，可覆盖内置 skill）
-    let user_skills_dir = app_data_dir.join("skills");
-    if user_skills_dir.exists() {
-        scan_skills_in_dir(&user_skills_dir, "user", &mut manifests).await;
-    }
+    // 在阻塞线程中执行密集型 IO 和并行扫描
+    tokio::task::spawn_blocking(move || {
+        let mut manifests = Vec::new();
 
-    // 2. 内置 Skill（从 Tauri 资源目录加载）
-    //    在打包后，resources 中配置的 ../public/skills 会被复制到资源目录下的 skills/
-    //    开发模式下也可以生效（tauri dev 会自动映射资源路径）
-    if let Ok(resource_dir) = app.path().resource_dir() {
-        let builtin_dir = resource_dir.join("skills");
-        if builtin_dir.exists() {
-            scan_skills_in_dir(&builtin_dir, "builtin", &mut manifests).await;
+        // 1. 用户安装的 Skill
+        let user_skills_dir = app_data_dir.join("skills");
+        if user_skills_dir.exists() {
+            manifests.extend(scan_skills_in_dir_parallel(&user_skills_dir, "user"));
         }
-    }
 
-    // 3. 外部路径（仅 enabled 且目录存在）
-    if let Some(paths) = external_paths {
-        for ep in paths {
-            if !ep.enabled || ep.path.is_empty() {
-                continue;
-            }
-            let path = std::path::PathBuf::from(&ep.path);
-            if path.exists() {
-                let source = format!("external:{}", ep.id);
-                scan_skills_in_dir(&path, &source, &mut manifests).await;
+        // 2. 内置 Skill
+        if let Some(res_dir) = resource_dir {
+            let builtin_dir = res_dir.join("skills");
+            if builtin_dir.exists() {
+                manifests.extend(scan_skills_in_dir_parallel(&builtin_dir, "builtin"));
             }
         }
-    }
 
-    Ok(manifests)
+        // 3. 外部路径
+        if let Some(paths) = external_paths {
+            for ep in paths {
+                if !ep.enabled || ep.path.is_empty() {
+                    continue;
+                }
+                let path = PathBuf::from(&ep.path);
+                if path.exists() {
+                    let source = format!("external:{}", ep.id);
+                    manifests.extend(scan_skills_in_dir_parallel(&path, &source));
+                }
+            }
+        }
+
+        Ok(manifests)
+    })
+    .await
+    .map_err(|e| format!("扫描任务失败: {}", e))?
 }
 
-/// 扫描指定目录下的所有 Skill
-async fn scan_skills_in_dir(dir: &Path, source: &str, manifests: &mut Vec<SkillManifest>) {
-    let entries = match fs::read_dir(dir) {
-        Ok(e) => e,
-        Err(_) => return,
-    };
+/// 并行扫描指定目录下的所有 Skill
+fn scan_skills_in_dir_parallel(dir: &Path, source: &str) -> Vec<SkillManifest> {
+    let entries: Vec<PathBuf> = fs::read_dir(dir)
+        .map(|e| e.flatten().map(|entry| entry.path()).collect())
+        .unwrap_or_default();
 
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            if let Some(manifest) = parse_skill_directory(&path, source).await {
-                manifests.push(manifest);
+    // 使用 rayon 并行处理目录解析
+    entries
+        .into_par_iter()
+        .filter(|path| path.is_dir())
+        .filter_map(|path| {
+            let res = parse_skill_directory_sync(&path, source);
+            if res.is_none() {
+                // 如果该目录下有 SKILL.md 但解析失败，打印日志
+                if path.join("SKILL.md").exists() {
+                    println!("Skill 解析失败: {:?}", path);
+                }
             }
-        }
-    }
+            res
+        })
+        .collect()
 }
 
-/// 解析单个 Skill 目录
-async fn parse_skill_directory(path: &Path, source: &str) -> Option<SkillManifest> {
+/// 同步解析单个 Skill 目录（内部由并行扫描调用）
+fn parse_skill_directory_sync(path: &Path, source: &str) -> Option<SkillManifest> {
     let skill_md_path = path.join("SKILL.md");
     if !skill_md_path.exists() {
         return None;
@@ -182,101 +194,121 @@ async fn parse_skill_directory(path: &Path, source: &str) -> Option<SkillManifes
 
     let content = fs::read_to_string(&skill_md_path).ok()?;
 
-    // 提取 Frontmatter (--- 分隔)
+    // 提取 Frontmatter
     let parts: Vec<&str> = content.split("---").collect();
     if parts.len() < 3 {
         return None;
     }
 
     let yaml_str = parts[1];
-    // 保留原始指令内容，不要 trim() 掉可能存在的换行符，这对 Markdown 块解析至关重要
     let instructions = parts[2..].join("---");
-
     let frontmatter: SkillFrontmatter = serde_yaml::from_str(yaml_str).ok()?;
 
-    // 1. 扫描脚本 (仅识别已知的可执行脚本语言)
-    let mut scripts = Vec::new();
-    let scripts_dir = path.join("scripts");
-    if scripts_dir.exists() {
-        if let Ok(entries) = fs::read_dir(scripts_dir) {
-            for entry in entries.flatten() {
-                let p = entry.path();
-                if p.is_file() {
-                    let name = p
-                        .file_name()
-                        .map(|n| n.to_string_lossy().to_string())
-                        .unwrap_or_default();
-                    let ext = p
-                        .extension()
-                        .map(|e| e.to_string_lossy().to_lowercase())
-                        .unwrap_or_default();
-                    let language = match ext.as_str() {
-                        "py" => "python",
-                        "js" | "ts" => "javascript",
-                        "sh" | "bash" => "bash",
-                        "ps1" => "powershell",
-                        "bat" | "cmd" => "batch",
-                        "rs" => "rust",
-                        "go" => "go",
-                        "c" => "c",
-                        "cpp" => "cpp",
-                        "cs" => "csharp",
-                        "java" => "java",
-                        "rb" => "ruby",
-                        "php" => "php",
-                        "swift" => "swift",
-                        _ => "", // 非已知脚本语言，不放入 scripts 列表
-                    };
-
-                    if !language.is_empty() {
-                        scripts.push(SkillScript {
-                            name,
-                            relative_path: format!(
-                                "scripts/{}",
-                                p.file_name().unwrap_or_default().to_string_lossy()
-                            ),
-                            language: language.to_string(),
-                            description: None,
-                            size: fs::metadata(&p).map(|m| m.len()).unwrap_or(0),
-                        });
-                    }
-                }
-            }
-        }
+    // 规范校验
+    if !is_valid_skill_name(&frontmatter.name) {
+        println!(
+            "Skill 校验失败: 名称 '{}' 不符合规范 (路径: {:?})",
+            frontmatter.name, path
+        );
+        return None;
     }
 
-    // 2. 扫描所有文件 (用于目录树展示，包含 scripts 内的所有文件)
-    let mut files = Vec::new();
-    if let Ok(entries) = fs::read_dir(path) {
-        for entry in entries.flatten() {
-            let p = entry.path();
-            let name = p.file_name().unwrap_or_default().to_string_lossy();
+    let allowed_tools = match frontmatter.allowed_tools {
+        Some(serde_yaml::Value::String(s)) => {
+            Some(s.split_whitespace().map(|s| s.to_string()).collect())
+        }
+        Some(serde_yaml::Value::Sequence(seq)) => Some(
+            seq.into_iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect(),
+        ),
+        _ => None,
+    };
 
-            // 排除隐藏文件和 SKILL.md 本身
-            if name == "SKILL.md" || name.starts_with('.') {
+    let mut scripts = Vec::new();
+    let mut files = Vec::new();
+
+    // 使用 ignore 库进行高性能遍历，自动处理 .gitignore 并忽略隐藏文件和依赖目录
+    let walker = ignore::WalkBuilder::new(path)
+        .hidden(true)
+        .git_ignore(true)
+        .require_git(false)
+        .filter_entry(|e| {
+            let name = e.file_name().to_string_lossy();
+            // 额外手动忽略常见的重依赖/构建目录，以防 Skill 目录内没有 .gitignore
+            !matches!(
+                name.as_ref(),
+                "node_modules" | "venv" | ".venv" | "target" | "dist" | "build" | "__pycache__"
+            )
+        })
+        .build();
+
+    for entry in walker.flatten() {
+        let p = entry.path();
+        let name = p.file_name().unwrap_or_default().to_string_lossy();
+
+        if p.is_file() {
+            if name == "SKILL.md" {
                 continue;
             }
 
-            if p.is_dir() {
-                scan_files_recursive(&p, path, &mut files);
-            } else if let Ok(rel) = p.strip_prefix(path) {
-                let mime_type = guess_mime_type(&p);
-                files.push(SkillFile {
-                    name: name.to_string(),
-                    relative_path: rel.to_string_lossy().to_string(),
-                    size: fs::metadata(&p).map(|m| m.len()).unwrap_or(0),
-                    mime_type,
-                });
+            let rel_path = p.strip_prefix(path).ok()?;
+            let rel_path_str = rel_path.to_string_lossy().to_string();
+            let metadata = entry.metadata().ok();
+            let size = metadata.map(|m| m.len()).unwrap_or(0);
+
+            // 识别脚本 (必须在 scripts/ 目录下)
+            if rel_path.starts_with("scripts") {
+                let ext = p
+                    .extension()
+                    .map(|e| e.to_string_lossy().to_lowercase())
+                    .unwrap_or_default();
+                let language = match ext.as_str() {
+                    "py" => "python",
+                    "js" | "ts" => "javascript",
+                    "sh" | "bash" => "bash",
+                    "ps1" => "powershell",
+                    "bat" | "cmd" => "batch",
+                    "rs" => "rust",
+                    "go" => "go",
+                    "c" => "c",
+                    "cpp" => "cpp",
+                    "cs" => "csharp",
+                    "java" => "java",
+                    "rb" => "ruby",
+                    "php" => "php",
+                    "swift" => "swift",
+                    _ => "",
+                };
+
+                if !language.is_empty() {
+                    scripts.push(SkillScript {
+                        name: name.to_string(),
+                        relative_path: rel_path_str.clone(),
+                        language: language.to_string(),
+                        description: None,
+                        size,
+                    });
+                }
             }
+
+            // 添加到文件列表
+            files.push(SkillFile {
+                name: name.to_string(),
+                relative_path: rel_path_str,
+                size,
+                mime_type: guess_mime_type(p),
+            });
         }
     }
+
     Some(SkillManifest {
         name: frontmatter.name,
         description: frontmatter.description,
         license: frontmatter.license,
         compatibility: frontmatter.compatibility,
         metadata: frontmatter.metadata,
-        allowed_tools: frontmatter.allowed_tools,
+        allowed_tools,
         instructions,
         base_path: path.to_string_lossy().to_string(),
         scripts,
@@ -284,29 +316,28 @@ async fn parse_skill_directory(path: &Path, source: &str) -> Option<SkillManifes
         source: source.to_string(),
     })
 }
-fn scan_files_recursive(dir: &Path, base: &Path, target: &mut Vec<SkillFile>) {
-    if let Ok(entries) = fs::read_dir(dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_file() {
-                if let Ok(rel) = path.strip_prefix(base) {
-                    let mime_type = guess_mime_type(&path);
-                    target.push(SkillFile {
-                        name: path
-                            .file_name()
-                            .unwrap_or_default()
-                            .to_string_lossy()
-                            .to_string(),
-                        relative_path: rel.to_string_lossy().to_string(),
-                        size: fs::metadata(&path).map(|m| m.len()).unwrap_or(0),
-                        mime_type,
-                    });
-                }
-            } else if path.is_dir() {
-                scan_files_recursive(&path, base, target);
-            }
+
+/// 解析单个 Skill 目录（异步包装器，用于兼容旧代码）
+async fn parse_skill_directory(path: &Path, source: &str) -> Option<SkillManifest> {
+    let path = path.to_path_buf();
+    let source = source.to_string();
+    tokio::task::spawn_blocking(move || parse_skill_directory_sync(&path, &source))
+        .await
+        .ok()?
+}
+
+/// 校验技能名称是否符合规范
+/// 规范：1-64字符，允许字母、数字、连字符、下划线
+fn is_valid_skill_name(name: &str) -> bool {
+    if name.is_empty() || name.len() > 64 {
+        return false;
+    }
+    for c in name.chars() {
+        if !c.is_ascii_alphanumeric() && c != '-' && c != '_' {
+            return false;
         }
     }
+    true
 }
 
 /// 解析运行时配置，返回实际要执行的命令和参数
@@ -315,79 +346,42 @@ fn resolve_runtime(
     script_path: &Path,
     settings: &RuntimeSettings,
 ) -> Result<(String, Vec<String>), String> {
+    let script_path_str = script_path.to_string_lossy().to_string();
+
     match ext {
         "js" | "ts" => {
-            // 如果用户配置了自定义命令，优先使用
             let configured = settings.javascript.command.trim();
-            if !configured.is_empty() {
-                Ok((
-                    configured.to_string(),
-                    vec![script_path.to_string_lossy().to_string()],
-                ))
+            let cmd = if !configured.is_empty() {
+                configured.to_string()
+            } else if check_command_exists("bun") {
+                "bun".to_string()
             } else {
-                // 默认逻辑：检测 bun > node
-                if check_command_exists("bun") {
-                    Ok((
-                        "bun".to_string(),
-                        vec![script_path.to_string_lossy().to_string()],
-                    ))
-                } else {
-                    Ok((
-                        "node".to_string(),
-                        vec![script_path.to_string_lossy().to_string()],
-                    ))
-                }
-            }
+                "node".to_string()
+            };
+            Ok((cmd, vec![script_path_str]))
         }
         "py" => {
-            let configured = settings.python.command.trim();
-            if !configured.is_empty() {
-                Ok((
-                    configured.to_string(),
-                    vec![script_path.to_string_lossy().to_string()],
-                ))
-            } else {
-                Ok((
-                    "python".to_string(),
-                    vec![script_path.to_string_lossy().to_string()],
-                ))
-            }
+            let cmd = pick_runtime(&settings.python.command, "python");
+            Ok((cmd, vec![script_path_str]))
         }
         "sh" | "bash" => {
-            let configured = settings.shell.command.trim();
-            if !configured.is_empty() {
-                Ok((
-                    configured.to_string(),
-                    vec![script_path.to_string_lossy().to_string()],
-                ))
-            } else {
-                Ok((
-                    "bash".to_string(),
-                    vec![script_path.to_string_lossy().to_string()],
-                ))
-            }
+            let cmd = pick_runtime(&settings.shell.command, "bash");
+            Ok((cmd, vec![script_path_str]))
         }
         "ps1" => {
-            let configured = settings.powershell.command.trim();
-            if !configured.is_empty() {
-                Ok((
-                    configured.to_string(),
-                    vec![
-                        "-File".to_string(),
-                        script_path.to_string_lossy().to_string(),
-                    ],
-                ))
-            } else {
-                Ok((
-                    "powershell".to_string(),
-                    vec![
-                        "-File".to_string(),
-                        script_path.to_string_lossy().to_string(),
-                    ],
-                ))
-            }
+            let cmd = pick_runtime(&settings.powershell.command, "powershell");
+            Ok((cmd, vec!["-File".to_string(), script_path_str]))
         }
         _ => Err(format!("不支持的脚本类型: .{}", ext)),
+    }
+}
+
+fn pick_runtime(configured: &str, fallback: &str) -> String {
+    let trimmed = configured.trim();
+    if trimmed.is_empty() {
+        fallback.to_string()
+    } else {
+        trimmed.to_string()
     }
 }
 
@@ -577,39 +571,55 @@ pub async fn list_skill_directory(
     Ok(files)
 }
 
-/// 安装 Skill（从目录复制到 appData/skills/）
-#[tauri::command]
-pub async fn install_skill_from_dir(
-    app: AppHandle,
-    source_dir: String,
-    _skill_name: Option<String>,
+/// 内部函数：将已准备好的技能目录安装到用户技能库
+async fn install_skill_internal(
+    app_handle: &AppHandle,
+    source_path: &Path,
 ) -> Result<SkillManifest, String> {
-    let source_path = PathBuf::from(&source_dir);
-    if !source_path.exists() || !source_path.is_dir() {
-        return Err("源目录不存在或不是目录".to_string());
-    }
-
     // 预检
-    let manifest = parse_skill_directory(&source_path, "user")
+    let manifest = parse_skill_directory(source_path, "user")
         .await
-        .ok_or("源目录不是有效的 Skill 目录（缺少 SKILL.md 或格式错误）")?;
+        .ok_or("该目录不是有效的 Skill 目录（缺少 SKILL.md 或格式错误）")?;
 
-    let app_data_dir = crate::get_app_data_dir(app.config());
-    let target_skills_dir = app_data_dir.join("skills").join(&manifest.name);
+    let app_data_dir = crate::get_app_data_dir(app_handle.config());
+    let skills_dir = app_data_dir.join("skills");
+    let target_skills_dir = skills_dir.join(&manifest.name);
 
     if target_skills_dir.exists() {
         return Err(format!("技能 {} 已存在", manifest.name));
     }
 
     // 执行复制
-    fs::create_dir_all(target_skills_dir.parent().unwrap()).map_err(|e| e.to_string())?;
+    fs::create_dir_all(&skills_dir).map_err(|e| format!("无法创建技能目录: {}", e))?;
 
     let mut options = fs_extra::dir::CopyOptions::new();
     options.copy_inside = true;
-    fs_extra::dir::copy(&source_path, target_skills_dir.parent().unwrap(), &options)
+    // 确保复制后的目录名与 manifest.name 严格一致
+    fs_extra::dir::copy(source_path, &skills_dir, &options)
         .map_err(|e| format!("复制失败: {}", e))?;
 
+    // 如果源目录名不等于 manifest.name，fs_extra 会按原名复制，我们需要重命名
+    let actual_copied_dir = skills_dir.join(source_path.file_name().unwrap());
+    if actual_copied_dir != target_skills_dir {
+        fs::rename(actual_copied_dir, &target_skills_dir)
+            .map_err(|e| format!("重命名失败: {}", e))?;
+    }
+
     Ok(manifest)
+}
+
+/// 安装 Skill（从目录复制到 appData/skills/）
+#[tauri::command]
+pub async fn install_skill_from_dir(
+    app: AppHandle,
+    source_dir: String,
+) -> Result<SkillManifest, String> {
+    let source_path = PathBuf::from(&source_dir);
+    if !source_path.exists() || !source_path.is_dir() {
+        return Err("源目录不存在或不是目录".to_string());
+    }
+
+    install_skill_internal(&app, &source_path).await
 }
 
 /// 安装 Skill（从 Git 仓库克隆到 appData/skills/）
@@ -668,7 +678,7 @@ pub async fn install_skill_from_git(
         builder.fetch_options(fetch_options);
 
         // 设置克隆深度为 1（浅克隆）
-        builder.branch("master"); // 默认分支，之后 checkout 会自动处理
+        // 移除硬编码的 builder.branch("master")，让 git2 自动处理默认分支
 
         // 执行克隆
         match builder.clone(&normalized_url, &target_dir_clone) {
@@ -722,10 +732,6 @@ pub async fn install_skill_from_zip_file(
         return Err("ZIP 文件不存在".to_string());
     }
 
-    let app_data_dir = crate::get_app_data_dir(app.config());
-    let skills_dir = app_data_dir.join("skills");
-    fs::create_dir_all(&skills_dir).map_err(|e| format!("创建 skills 目录失败: {}", e))?;
-
     // 创建临时目录用于解压
     let temp_dir = tempfile::tempdir().map_err(|e| format!("创建临时目录失败: {}", e))?;
     let temp_path = temp_dir.path().to_path_buf();
@@ -747,22 +753,7 @@ pub async fn install_skill_from_zip_file(
     let skill_dir = find_skill_directory(&extract_dir)
         .ok_or_else(|| "解压后未找到包含 SKILL.md 的目录".to_string())?;
 
-    // 预检
-    let manifest = parse_skill_directory(&skill_dir, "user")
-        .await
-        .ok_or("解压后的目录不是有效的 Skill 目录（缺少 SKILL.md 或格式错误）")?;
-
-    let target_skills_dir = skills_dir.join(&manifest.name);
-
-    if target_skills_dir.exists() {
-        return Err(format!("技能 {} 已存在", manifest.name));
-    }
-
-    // 复制到目标目录
-    let mut options = fs_extra::dir::CopyOptions::new();
-    options.copy_inside = true;
-    fs_extra::dir::copy(&skill_dir, target_skills_dir.parent().unwrap(), &options)
-        .map_err(|e| format!("复制到技能目录失败: {}", e))?;
+    let manifest = install_skill_internal(&app, &skill_dir).await?;
 
     // 清理临时目录（drop 时会自动清理）
     drop(temp_dir);
@@ -847,24 +838,7 @@ pub async fn install_skill_from_zip(
     let skill_dir = find_skill_directory(&extract_dir)
         .ok_or_else(|| "解压后未找到包含 SKILL.md 的目录".to_string())?;
 
-    // 预检
-    let manifest = parse_skill_directory(&skill_dir, "user")
-        .await
-        .ok_or("解压后的目录不是有效的 Skill 目录（缺少 SKILL.md 或格式错误）")?;
-
-    let target_skills_dir = skills_dir.join(&manifest.name);
-
-    if target_skills_dir.exists() {
-        return Err(format!("技能 {} 已存在", manifest.name));
-    }
-
-    // 复制到目标目录
-    fs::create_dir_all(target_skills_dir.parent().unwrap()).map_err(|e| e.to_string())?;
-
-    let mut options = fs_extra::dir::CopyOptions::new();
-    options.copy_inside = true;
-    fs_extra::dir::copy(&skill_dir, target_skills_dir.parent().unwrap(), &options)
-        .map_err(|e| format!("复制到技能目录失败: {}", e))?;
+    let manifest = install_skill_internal(&app, &skill_dir).await?;
 
     // 清理临时目录（drop 时会自动清理）
     drop(temp_dir);

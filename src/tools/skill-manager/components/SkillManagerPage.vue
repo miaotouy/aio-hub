@@ -10,15 +10,16 @@
         </div>
       </div>
       <div class="header-actions">
-        <el-button size="small" @click="handleRefresh" :loading="loading">刷新</el-button>
+        <!-- 加载状态提示 -->
+        <transition name="fade">
+          <div class="header-status" v-if="loading">
+            <LoaderCircle class="spinner-icon" :size="14" />
+            <span>正在扫描...</span>
+          </div>
+        </transition>
+        <el-button size="small" @click="handleRefresh" :disabled="loading">刷新</el-button>
         <el-button size="small" type="primary" @click="showInstallDialog = true">安装技能</el-button>
       </div>
-    </div>
-
-    <!-- 状态栏 -->
-    <div class="status-bar" v-if="loading">
-      <LoaderCircle class="spinner-icon" :size="16" />
-      <span>正在扫描技能目录...</span>
     </div>
 
     <!-- 标签页切换 -->
@@ -81,6 +82,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { LoaderCircle, AlertTriangle } from "lucide-vue-next";
+import { customMessage } from "@/utils/customMessage";
 import { useSkillManager } from "../composables/useSkillManager";
 import type { SkillManifest } from "../types";
 import SkillListPanel from "./SkillListPanel.vue";
@@ -137,6 +139,8 @@ async function handleRefresh() {
   loading.value = true;
   try {
     await refresh();
+    const count = store.manifests.length;
+    customMessage.success(`技能列表已刷新，共扫描到 ${count} 个技能`);
   } finally {
     loading.value = false;
   }
@@ -192,15 +196,19 @@ function handleInstalled() {
 
 .header-actions {
   display: flex;
+  align-items: center;
   gap: 8px;
 }
 
-.status-bar {
+.header-status {
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: var(--text-color-secondary);
-  font-size: 13px;
+  gap: 6px;
+  color: var(--el-color-primary);
+  font-size: 12px;
+  padding-right: 8px;
+  border-right: 1px solid var(--border-color);
+  margin-right: 4px;
 }
 
 .spinner-icon {
@@ -214,6 +222,16 @@ function handleInstalled() {
   to {
     transform: rotate(360deg);
   }
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 
 /* 标签页样式 */

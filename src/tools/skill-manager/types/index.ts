@@ -32,8 +32,9 @@ export interface SkillManifest {
 export interface SkillScript {
   name: string;
   relativePath: string;
-  language: "python" | "bash" | "javascript" | "powershell" | "unknown";
+  language: string;
   description?: string;
+  size: number;
 }
 
 /**

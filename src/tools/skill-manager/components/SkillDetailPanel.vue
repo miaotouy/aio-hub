@@ -102,33 +102,25 @@
       <el-tab-pane label="文件目录" name="files">
         <div class="tab-scroll-container">
           <div class="file-tree">
-            <!-- 根文件 -->
+            <!-- 根文件 (SKILL.md 始终置顶) -->
             <div class="tree-item file">
               <FileIcon file-name="SKILL.md" file-type="document" :size="14" class="icon" />
               <span class="name">SKILL.md</span>
             </div>
 
-            <!-- 目录节点: scripts (特殊处理) -->
-            <div class="tree-group" v-if="manifest.scripts.length > 0">
-              <div class="tree-item dir">
-                <Folder :size="14" class="icon" />
-                <span class="name">scripts</span>
-              </div>
-              <div class="tree-children">
-                <div v-for="s in manifest.scripts" :key="s.relativePath" class="tree-item file">
-                  <FileIcon :file-name="s.name" :size="14" class="icon" />
-                  <span class="name">{{ s.name }}</span>
-                  <span class="badge">{{ s.language }}</span>
-                </div>
-              </div>
+            <!-- 其他根目录文件 -->
+            <div v-for="f in rootFiles" :key="f.relativePath" class="tree-item file">
+              <FileIcon :file-name="f.name" :file-type="determineAssetType(f.mimeType)" :size="14" class="icon" />
+              <span class="name">{{ f.name }}</span>
+              <span class="size">{{ formatSize(f.size) }}</span>
             </div>
 
-            <!-- 动态目录节点: 所有其他文件 -->
+            <!-- 动态目录节点: 子目录文件 -->
             <template v-for="(group, dirName) in fileGroups" :key="dirName">
               <div class="tree-group">
                 <div class="tree-item dir">
                   <Folder :size="14" class="icon" />
-                  <span class="name">{{ dirName || "root" }}</span>
+                  <span class="name">{{ dirName }}</span>
                 </div>
                 <div class="tree-children">
                   <div v-for="f in group" :key="f.relativePath" class="tree-item file">
@@ -218,13 +210,25 @@ const strippedInstructions = computed(() => {
 });
 
 /**
- * 将 files 按一级目录分组
+ * 根目录下的文件 (排除已置顶的 SKILL.md)
+ */
+const rootFiles = computed(() => {
+  const files = props.manifest.files || [];
+  return files.filter((f) => {
+    const isRoot = !f.relativePath.includes("/") && !f.relativePath.includes("\\");
+    return isRoot && f.name.toLowerCase() !== "skill.md";
+  });
+});
+
+/**
+ * 将 files 按一级目录分组 (仅处理子目录中的文件)
  */
 const fileGroups = computed(() => {
   const files = props.manifest.files || [];
-  return groupBy(files, (f) => {
+  const subDirFiles = files.filter((f) => f.relativePath.includes("/") || f.relativePath.includes("\\"));
+  return groupBy(subDirFiles, (f) => {
     const parts = f.relativePath.split(/[\\/]/);
-    return parts.length > 1 ? parts[0] : "";
+    return parts[0];
   });
 });
 </script>

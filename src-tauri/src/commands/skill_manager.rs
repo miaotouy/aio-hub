@@ -78,6 +78,7 @@ pub struct SkillScript {
     pub relative_path: String,
     pub language: String,
     pub description: Option<String>,
+    pub size: u64,
 }
 
 /// Skill 资源文件信息
@@ -193,7 +194,7 @@ async fn parse_skill_directory(path: &Path, source: &str) -> Option<SkillManifes
 
     let frontmatter: SkillFrontmatter = serde_yaml::from_str(yaml_str).ok()?;
 
-    // 扫描 scripts/ (特殊处理，识别语言)
+    // 1. 扫描脚本 (仅识别已知的可执行脚本语言)
     let mut scripts = Vec::new();
     let scripts_dir = path.join("scripts");
     if scripts_dir.exists() {
@@ -201,8 +202,14 @@ async fn parse_skill_directory(path: &Path, source: &str) -> Option<SkillManifes
             for entry in entries.flatten() {
                 let p = entry.path();
                 if p.is_file() {
-                    let name = p.file_name()?.to_string_lossy().to_string();
-                    let ext = p.extension()?.to_string_lossy().to_lowercase();
+                    let name = p
+                        .file_name()
+                        .map(|n| n.to_string_lossy().to_string())
+                        .unwrap_or_default();
+                    let ext = p
+                        .extension()
+                        .map(|e| e.to_string_lossy().to_lowercase())
+                        .unwrap_or_default();
                     let language = match ext.as_str() {
                         "py" => "python",
                         "js" | "ts" => "javascript",
@@ -218,28 +225,35 @@ async fn parse_skill_directory(path: &Path, source: &str) -> Option<SkillManifes
                         "rb" => "ruby",
                         "php" => "php",
                         "swift" => "swift",
-                        _ => "unknown",
+                        _ => "", // 非已知脚本语言，不放入 scripts 列表
                     };
-                    scripts.push(SkillScript {
-                        name,
-                        relative_path: format!("scripts/{}", p.file_name()?.to_string_lossy()),
-                        language: language.to_string(),
-                        description: None,
-                    });
+
+                    if !language.is_empty() {
+                        scripts.push(SkillScript {
+                            name,
+                            relative_path: format!(
+                                "scripts/{}",
+                                p.file_name().unwrap_or_default().to_string_lossy()
+                            ),
+                            language: language.to_string(),
+                            description: None,
+                            size: fs::metadata(&p).map(|m| m.len()).unwrap_or(0),
+                        });
+                    }
                 }
             }
         }
     }
 
-    // 扫描除 scripts 之外的所有文件
+    // 2. 扫描所有文件 (用于目录树展示，包含 scripts 内的所有文件)
     let mut files = Vec::new();
     if let Ok(entries) = fs::read_dir(path) {
         for entry in entries.flatten() {
             let p = entry.path();
             let name = p.file_name().unwrap_or_default().to_string_lossy();
 
-            // 排除 scripts 目录（已单独处理）、SKILL.md 和隐藏文件
-            if name == "scripts" || name == "SKILL.md" || name.starts_with('.') {
+            // 排除隐藏文件和 SKILL.md 本身
+            if name == "SKILL.md" || name.starts_with('.') {
                 continue;
             }
 
@@ -256,7 +270,6 @@ async fn parse_skill_directory(path: &Path, source: &str) -> Option<SkillManifes
             }
         }
     }
-
     Some(SkillManifest {
         name: frontmatter.name,
         description: frontmatter.description,

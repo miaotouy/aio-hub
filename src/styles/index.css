@@ -37,10 +37,11 @@
   --sidebar-text: #303133;
   --header-bg: #f9f9f9;
   --header-bg-rgb: 249, 249, 249;
-  --card-bg: #ffffff; /* 新增卡片背景色 */
+  --card-bg: #ffffff; /* 卡片背景色 */
   --card-bg-rgb: 255, 255, 255;
   --backdrop-bg-rgb: 0, 0, 0; /* 遮罩层背景 */
-  --border-color-light: #eee; /* 新增浅色边框 */
+  --border-color-light-rgb: 238, 238, 238; /* 浅色边框 RGB (#eee) */
+  --border-color-light: rgba(var(--border-color-light-rgb), var(--border-opacity));
   --scrollbar-thumb-color-rgb: 193, 193, 193;
   --scrollbar-thumb-hover-color-rgb: 168, 168, 168;
   --scrollbar-thumb-opacity: 0.5;
@@ -91,7 +92,8 @@ html.dark {
   --text-color-light: #a8a8a8; /* 次要文字颜色 */
   --border-color-rgb: 58, 58, 58;
   --border-color: rgba(var(--border-color-rgb), var(--border-opacity));
-  --border-color-light: #2f2f2f; /* 浅边框颜色 */
+  --border-color-light-rgb: 47, 47, 47; /* 浅边框颜色 RGB (#2f2f2f) */
+  --border-color-light: rgba(var(--border-color-light-rgb), var(--border-opacity));
   --primary-color: #409eff; /* 主色调 - 保持 Element Plus 蓝色 */
   --primary-hover-color: #66b1ff; /* 主色调悬停色 */
   --error-color: #ff6b6b; /* 错误色 */

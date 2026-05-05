@@ -15,8 +15,8 @@
 
   --bg-color: #f4f4f4;
   --bg-color-rgb: 244, 244, 244;
-  --container-bg: #fff;
-  --container-bg-rgb: 255, 255, 255;
+  --container-bg: #f9f9f9;
+  --container-bg-rgb: 249, 249, 249;
   --text-color: #333;
   --text-color-rgb: 51, 51, 51;
   --text-color-light: #666;
@@ -35,8 +35,8 @@
   --sidebar-bg: #f0f2f5;
   --sidebar-bg-rgb: 240, 242, 245; /* RGB值用于透明度 */
   --sidebar-text: #303133;
-  --header-bg: #ffffff;
-  --header-bg-rgb: 255, 255, 255;
+  --header-bg: #f9f9f9;
+  --header-bg-rgb: 249, 249, 249;
   --card-bg: #ffffff; /* 新增卡片背景色 */
   --card-bg-rgb: 255, 255, 255;
   --backdrop-bg-rgb: 0, 0, 0; /* 遮罩层背景 */

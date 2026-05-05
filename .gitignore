@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Git diff temp files
+temp_gitdiff_*.txt
+
 # Auto-generated type definitions
 components.d.ts
 src/components.d.ts

@@ -568,9 +568,12 @@ async function _startSlideshow(settings: AppearanceSettings) {
     }
 
     if (wallpaperList.value.length > 0) {
-      shuffledList.value = shuffle(wallpaperList.value); // 总是预先生成随机列表
+      // 仅在洗牌列表为空或列表长度发生变化时才重新洗牌，避免进入设置页时重新洗牌
+      if (shuffledList.value.length !== wallpaperList.value.length) {
+        shuffledList.value = shuffle(wallpaperList.value);
+      }
 
-      logger.info("幻灯片已启动", {
+      logger.info("幻灯片已启动/刷新", {
         imageCount: wallpaperList.value.length,
         interval: wallpaperSlideshowInterval,
         shuffle: wallpaperSlideshowShuffle,
@@ -580,30 +583,46 @@ async function _startSlideshow(settings: AppearanceSettings) {
         if (isSlideshowPaused.value) return;
         const list = appearanceSettings.value.wallpaperSlideshowShuffle ? shuffledList.value : wallpaperList.value;
         const currentIndex = appearanceSettings.value.wallpaperSlideshowCurrentIndex ?? 0;
+        if (list.length === 0) return;
         const nextIndex = (currentIndex + 1) % list.length;
         _switchToWallpaper(nextIndex, appearanceSettings.value);
       };
 
-      // 恢复到上次的索引 (根据来源读取对应的记忆索引)
-      let initialIndex = 0;
-      if (source === "builtin") {
-        initialIndex = settings.builtinWallpaperSlideshowIndex ?? 0;
-      } else {
-        initialIndex = settings.customWallpaperSlideshowIndex ?? 0;
-      }
+      // 尝试维持当前壁纸，而不是强制切换
+      // 我们通过当前正在显示的 URL 来反找它在列表中的位置
+      const currentUrl = currentWallpaper.value;
+      const isShuffle = settings.wallpaperSlideshowShuffle;
+      const list = isShuffle ? shuffledList.value : wallpaperList.value;
 
-      // 越界检查 (防止列表变动导致索引无效)
-      const list = settings.wallpaperSlideshowShuffle ? shuffledList.value : wallpaperList.value;
-      if (initialIndex >= list.length) {
-        logger.warn("保存的轮播索引越界，已重置为 0", {
-          source,
-          savedIndex: initialIndex,
-          listLength: list.length,
+      let targetIndex = -1;
+
+      if (currentUrl) {
+        // 尝试在当前列表中找到对应的路径
+        targetIndex = list.findIndex((path) => {
+          const url = path.startsWith("/wallpapers/") ? path : convertFileSrc(path);
+          return url === currentUrl;
         });
-        initialIndex = 0;
       }
 
-      _switchToWallpaper(initialIndex, settings);
+      // 如果没找到（说明是首次启动或文件已丢失），则尝试恢复保存的索引
+      if (targetIndex === -1) {
+        if (source === "builtin") {
+          targetIndex = settings.builtinWallpaperSlideshowIndex ?? 0;
+        } else {
+          targetIndex = settings.customWallpaperSlideshowIndex ?? 0;
+        }
+      }
+
+      // 越界检查
+      if (targetIndex >= list.length || targetIndex < 0) {
+        targetIndex = 0;
+      }
+
+      // 关键修改：只有当当前没有壁纸，或者索引确实发生了变化时，才执行切换
+      // 这样在进入设置页刷新列表时，如果壁纸没变，就不会触发 _switchToWallpaper 里的逻辑（如提取颜色）
+      if (!currentUrl || appearanceSettings.value.wallpaperSlideshowCurrentIndex !== targetIndex) {
+        _switchToWallpaper(targetIndex, settings);
+      }
 
       // 启动定时器
       if (settings.enableWallpaper && wallpaperSlideshowInterval > 0) {

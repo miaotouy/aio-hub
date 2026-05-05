@@ -73,13 +73,21 @@ body {
   overflow: hidden;
 }
 
-/* 安全区域适配辅助类 */
+/* 安全区域与键盘避让辅助类 */
 .safe-area-bottom {
-  padding-bottom: env(safe-area-inset-bottom);
+  padding-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+}
+
+/* 键盘避让类：
+   注意：在 Edge-to-Edge 模式下，App 主容器由原生层处理避让。
+   此辅助类仅用于那些不受主容器 Padding 影响的绝对定位元素。 */
+.keyboard-avoidance {
+  margin-bottom: var(--keyboard-height, 0px);
+  transition: margin-bottom 0.1s ease-out;
 }
 
 .safe-area-top {
-  padding-top: var(--app-safe-area-top);
+  padding-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
 }
 
 /* Varlet 组件覆盖适配 */

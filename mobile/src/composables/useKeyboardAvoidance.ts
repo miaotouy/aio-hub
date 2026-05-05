@@ -1,5 +1,6 @@
 import { ref } from "vue";
 import { createModuleLogger } from "@/utils/logger";
+import { listen } from "@tauri-apps/api/event";
 
 const logger = createModuleLogger("KeyboardAvoidance");
 
@@ -36,11 +37,15 @@ const updateHeight = () => {
   }
 
   // 核心公式：
-  // 截图显示 vv.height 可能会失效（保持不变），此时尝试对比 window.innerHeight
-  // 在 adjustResize 模式下，window.innerHeight 应该会变小
-  const docHeight = document.documentElement.clientHeight;
-  const currentHeight = Math.min(vv.height, window.innerHeight, docHeight);
-  const rawHeight = maxWindowHeight - currentHeight - vv.offsetTop;
+  // 在 enableEdgeToEdge 模式下，window.innerHeight 可能会被系统锁死在全屏高度。
+  // 我们使用初始化时捕获的 maxWindowHeight 作为绝对基准。
+  // 键盘高度 = 基准高度 - 当前可见高度 - 偏移量
+  // 注意：减去 vv.offsetTop 是为了排除状态栏/沉浸式区域的干扰
+  const currentVVHeight = vv.height;
+  const currentVVOffset = vv.offsetTop;
+
+  // 计算逻辑：即使窗口没被压缩，vv.height 也会因为键盘弹出而缩减
+  const rawHeight = maxWindowHeight - currentVVHeight - currentVVOffset;
 
   // 阈值过滤：小于 40px 视为 viewport 抖动（如地址栏伸缩），忽略处理
   const height = rawHeight < 40 ? 0 : rawHeight;
@@ -67,7 +72,7 @@ const updateHeight = () => {
     vvOffset: vv.offsetTop,
     docClientHeight: document.documentElement.clientHeight,
     docOffsetHeight: document.documentElement.offsetHeight,
-    bodyClientHeight: document.body.clientHeight
+    bodyClientHeight: document.body.clientHeight,
   });
 };
 
@@ -142,10 +147,78 @@ export function useKeyboardAvoidance() {
     window.addEventListener("focusin", handleFocusIn);
     window.addEventListener("focusout", handleFocusOut);
 
+    // 初始化时尝试从 CSS 获取初始安全区（兜底）
+    const detector = document.createElement("div");
+    detector.style.paddingTop = "env(safe-area-inset-top, 0px)";
+    detector.style.paddingBottom = "env(safe-area-inset-bottom, 0px)";
+    detector.style.visibility = "hidden";
+    detector.style.position = "absolute";
+    document.body.appendChild(detector);
+    const s = getComputedStyle(detector);
+    document.documentElement.style.setProperty("--safe-area-inset-top", s.paddingTop);
+    document.documentElement.style.setProperty("--safe-area-inset-bottom", s.paddingBottom);
+    document.body.removeChild(detector);
+
+    // 统一处理 Insets 变化
+    const handleInsetsChange = (payload: {
+      top: number;
+      bottom: number;
+      imeVisible: boolean;
+      imeHeight: number;
+      density: number;
+    }) => {
+      const { imeHeight, imeVisible, top, bottom, density } = payload;
+
+      // 原生层传过来的是 px (像素)，转换为 CSS 像素
+      const height = imeHeight / density;
+      const safeTop = top / density;
+      const safeBottom = bottom / density;
+
+      // 同步安全区到 CSS 变量
+      // 注意：由于原生端已经对 WebView 容器应用了 padding-bottom，
+      // 这里的 safeBottom 仅作为元数据同步，前端不应再次将其加在 App 容器上。
+      document.documentElement.style.setProperty("--safe-area-inset-top", `${safeTop}px`);
+      document.documentElement.style.setProperty("--safe-area-inset-bottom", `${safeBottom}px`);
+
+      // 实时键盘高度（仅供某些特殊 UI 偏移使用，App 主容器不再依赖此变量避让）
+      const currentKeyboardHeight = imeVisible ? height : 0;
+
+      if (keyboardHeight.value === currentKeyboardHeight && isKeyboardVisible.value === imeVisible) return;
+
+      keyboardHeight.value = currentKeyboardHeight;
+      isKeyboardVisible.value = imeVisible;
+
+      document.documentElement.style.setProperty("--keyboard-height", `${currentKeyboardHeight}px`);
+      document.documentElement.classList.toggle("keyboard-visible", imeVisible);
+
+      logger.debug("Keyboard state updated from Android Insets", {
+        height: currentKeyboardHeight,
+        visible: imeVisible,
+        safeTop,
+        safeBottom,
+      });
+    };
+
+    // 监听来自 Android 原生层的 Insets 变化事件 (Tauri Event)
+    listen<any>("android-insets-changed", (event) => {
+      handleInsetsChange(event.payload);
+    });
+
+    // 监听来自 Android 原生层的 Insets 变化事件 (Window CustomEvent - 兜底)
+    window.addEventListener("android-insets-changed", (event: any) => {
+      handleInsetsChange(event.detail);
+    });
+
     // 初始化时立即计算一次
     updateHeight();
 
-    logger.info("Keyboard avoidance initialized (VisualViewport + RAF)", { maxWindowHeight });
+    // 尝试从全局变量读取初始 Insets (由原生端注入)
+    if ((window as any).__ANDROID_INSETS__) {
+      logger.info("Initial Insets found in window.__ANDROID_INSETS__");
+      handleInsetsChange((window as any).__ANDROID_INSETS__);
+    }
+
+    logger.info("Keyboard avoidance initialized (VisualViewport + Android Insets)", { maxWindowHeight });
   }
 
   return {

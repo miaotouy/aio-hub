@@ -3,7 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
     <title>AIO Hub mobile</title>
     <style>
       :root {
@@ -19,14 +22,28 @@
         padding: 0;
         width: 100%;
         height: 100%;
+        /* 确保在 EdgeToEdge 模式下内容不会溢出，且支持安全区 */
+        overflow: hidden;
+      }
+
+      #app {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        /* 核心：利用安全区变量避让状态栏。
+           注意：底部避让由 Android 原生层通过 padding WebView 容器实现，
+           前端不再设置 padding-bottom，否则会导致键盘弹出时出现双重避让。 */
+        padding-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
+        padding-bottom: 0;
+        box-sizing: border-box;
       }
     </style>
     <script>
       (function () {
         const cache = localStorage.getItem("aio_hub_theme_cache") || "auto";
         const isDark =
-          cache === "dark" ||
-          (cache === "auto" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          cache === "dark" || (cache === "auto" && window.matchMedia("(prefers-color-scheme: dark)").matches);
         if (isDark) {
           document.documentElement.classList.add("dark");
         }

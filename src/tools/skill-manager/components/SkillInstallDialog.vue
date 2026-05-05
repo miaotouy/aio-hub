@@ -28,13 +28,20 @@
 
           <div class="install-name-field">
             <span class="field-label">安装名称:</span>
-            <el-input v-model="installName" size="small" placeholder="输入安装后的技能名称" @input="validateInstallName" />
+            <el-input
+              v-model="installName"
+              size="small"
+              placeholder="输入安装后的技能名称"
+              @input="validateInstallName"
+            />
           </div>
 
           <!-- 警告信息 -->
           <div v-if="isDuplicate" class="preview-warning">
             <component :is="AlertTriangle" :size="14" />
-            <span>技能 <strong>{{ installName }}</strong> 已安装，请更换名称。</span>
+            <span
+              >技能 <strong>{{ installName }}</strong> 已安装，请更换名称。</span
+            >
           </div>
 
           <div v-if="isNameMismatch && !isDuplicate" class="preview-info">
@@ -52,7 +59,12 @@
           <el-input v-model="gitUrl" placeholder="https://github.com/user/skill-repo.git" />
           <div v-if="gitUrl" class="install-name-field mt-8">
             <span class="field-label">安装名称 (可选):</span>
-            <el-input v-model="installName" size="small" placeholder="不填则使用仓库默认名称" @input="validateInstallName" />
+            <el-input
+              v-model="installName"
+              size="small"
+              placeholder="不填则使用仓库默认名称"
+              @input="validateInstallName"
+            />
           </div>
         </div>
       </el-tab-pane>
@@ -63,7 +75,12 @@
           <el-input v-model="zipUrl" placeholder="https://example.com/skill.zip" />
           <div v-if="zipUrl" class="install-name-field mt-8">
             <span class="field-label">安装名称 (可选):</span>
-            <el-input v-model="installName" size="small" placeholder="不填则使用 ZIP 内默认名称" @input="validateInstallName" />
+            <el-input
+              v-model="installName"
+              size="small"
+              placeholder="不填则使用 ZIP 内默认名称"
+              @input="validateInstallName"
+            />
           </div>
         </div>
       </el-tab-pane>
@@ -120,6 +137,17 @@ const installDisabled = computed(() => {
   return true;
 });
 
+/** 自动寻找不冲突的名称 */
+function suggestNonConflictingName(baseName: string) {
+  let name = baseName;
+  let counter = 1;
+  while (store.manifests.some((m) => m.name === name)) {
+    name = `${baseName}_${counter}`;
+    counter++;
+  }
+  return name;
+}
+
 function validateInstallName() {
   if (!installName.value) {
     isDuplicate.value = false;
@@ -155,7 +183,7 @@ async function processSelectedPath(path: string) {
     // 调用 Rust 预览该目录或文件的 SKILL.md
     const manifest = await invoke<SkillManifest>("preview_skill_manifest", { path });
     previewName.value = manifest.name;
-    installName.value = manifest.name;
+    installName.value = suggestNonConflictingName(manifest.name);
     previewDesc.value = manifest.description;
 
     // 如果选的是 SKILL.md，我们要把 selectedDir 更新为其父目录，方便后续安装
@@ -190,12 +218,14 @@ function handleDrop(paths: string[]) {
 async function handleInstall() {
   installing.value = true;
   try {
+    const customName = installName.value || null;
+
     if (installMode.value === "local" && selectedDir.value) {
       const path = selectedDir.value;
       if (path.toLowerCase().endsWith(".zip")) {
-        await invoke("install_skill_from_zip_file", { zipPath: path });
+        await invoke("install_skill_from_zip_file", { zipPath: path, customName });
       } else {
-        await invoke("install_skill_from_dir", { sourceDir: path });
+        await invoke("install_skill_from_dir", { sourceDir: path, customName });
       }
     } else if (installMode.value === "git") {
       const url = gitUrl.value.trim();
@@ -203,14 +233,14 @@ async function handleInstall() {
         customMessage.warning("请输入 Git 仓库 URL");
         return;
       }
-      await invoke("install_skill_from_git", { repoUrl: url });
+      await invoke("install_skill_from_git", { repoUrl: url, customName });
     } else if (installMode.value === "url") {
       const url = zipUrl.value.trim();
       if (!url) {
         customMessage.warning("请输入 ZIP 包下载链接");
         return;
       }
-      await invoke("install_skill_from_zip", { zipUrl: url });
+      await invoke("install_skill_from_zip", { zipUrl: url, customName });
     }
     customMessage.success("技能安装成功");
     emit("installed");

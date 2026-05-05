@@ -15,8 +15,6 @@ import {
   Sun,
   Monitor,
   RefreshCw,
-  ArrowUpToLine,
-  Keyboard,
   Type,
   Globe,
   Bug,
@@ -66,14 +64,6 @@ const handleLanguageChange = async (value: any) => {
 
 const handleHapticChange = async (value: any) => {
   await settingsStore.updateAppearance({ hapticFeedback: value });
-};
-
-const handleSafeTopChange = async (value: any) => {
-  await settingsStore.updateAppearance({ safeTopDistance: Number(value) || 0 });
-};
-
-const handleKeyboardAvoidanceChange = async (value: any) => {
-  await settingsStore.updateAppearance({ keyboardAvoidanceDistance: Number(value) || 0 });
 };
 
 const handleFontSizeScaleChange = async (value: any) => {
@@ -126,7 +116,7 @@ const handleRefresh = async () => {
 </script>
 
 <template>
-  <div class="app-view app-view--safe-top settings-container">
+  <div class="app-view settings-container">
     <div class="header">
       <h1 class="title">{{ t("settings.标题") }}</h1>
     </div>
@@ -230,55 +220,6 @@ const handleRefresh = async () => {
           </template>
         </var-cell>
 
-        <!-- 顶部避让 -->
-        <var-cell ripple>
-          <template #icon>
-            <div class="group-icon">
-              <ArrowUpToLine :size="20" />
-            </div>
-          </template>
-          <div class="cell-content">
-            <div class="cell-label">{{ t("settings.顶部避让距离") }}</div>
-            <div class="cell-desc">{{ t("settings.顶部避让距离描述") }}</div>
-          </div>
-          <template #extra>
-            <var-input
-              :model-value="String(settingsStore.settings.appearance.safeTopDistance)"
-              @update:model-value="(v) => handleSafeTopChange(v)"
-              type="number"
-              variant="standard"
-              :hint="false"
-              :line="false"
-              placeholder="0"
-              class="distance-input"
-            />
-          </template>
-        </var-cell>
-
-        <!-- 键盘避让 -->
-        <var-cell ripple>
-          <template #icon>
-            <div class="group-icon">
-              <Keyboard :size="20" />
-            </div>
-          </template>
-          <div class="cell-content">
-            <div class="cell-label">{{ t("settings.键盘避让距离") }}</div>
-            <div class="cell-desc">{{ t("settings.键盘避让距离描述") }}</div>
-          </div>
-          <template #extra>
-            <var-input
-              :model-value="String(settingsStore.settings.appearance.keyboardAvoidanceDistance)"
-              @update:model-value="(v) => handleKeyboardAvoidanceChange(v)"
-              type="number"
-              variant="standard"
-              :hint="false"
-              :line="false"
-              placeholder="0"
-              class="distance-input"
-            />
-          </template>
-        </var-cell>
       </var-paper>
 
       <!-- 3. 系统与网络 -->
@@ -539,16 +480,5 @@ const handleRefresh = async () => {
 :deep(.var-select) {
   width: auto;
   min-width: 140px;
-}
-
-.distance-input {
-  width: 80px;
-  --input-placeholder-size: 1rem;
-}
-
-:deep(.distance-input .var-input__input) {
-  text-align: right;
-  color: var(--primary-color);
-  font-weight: 600;
 }
 </style>

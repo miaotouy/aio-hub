@@ -18,7 +18,8 @@ const logger = createModuleLogger("KeyboardAvoidance");
 // 单例状态
 const keyboardHeight = ref(0);
 const isKeyboardVisible = ref(false);
-let initialInnerHeight = window.innerHeight;
+// 记录最大高度，用于在各种模式下准确计算键盘高度
+let maxWindowHeight = window.innerHeight;
 
 let rafId: number | null = null;
 let isInitialized = false;
@@ -28,10 +29,18 @@ const updateHeight = () => {
   const vv = window.visualViewport;
   if (!vv) return;
 
-  // 核心公式：初始窗口高度 - 可见视口高度 - 视口偏移
-  // 使用 initialInnerHeight 而不是当前的 window.innerHeight，
-  // 以便在 adjustResize 模式下也能准确计算键盘占用的物理高度。
-  const rawHeight = initialInnerHeight - vv.height - vv.offsetTop;
+  // 动态更新最大高度，防止初始化时高度捕获不准（比如在有工具栏的情况下加载）
+  // 只有当 vv.height 明显大于当前记录的最大高度时才更新，确保记录的是无键盘状态
+  if (vv.height > maxWindowHeight) {
+    maxWindowHeight = vv.height;
+  }
+
+  // 核心公式：
+  // 截图显示 vv.height 可能会失效（保持不变），此时尝试对比 window.innerHeight
+  // 在 adjustResize 模式下，window.innerHeight 应该会变小
+  const docHeight = document.documentElement.clientHeight;
+  const currentHeight = Math.min(vv.height, window.innerHeight, docHeight);
+  const rawHeight = maxWindowHeight - currentHeight - vv.offsetTop;
 
   // 阈值过滤：小于 40px 视为 viewport 抖动（如地址栏伸缩），忽略处理
   const height = rawHeight < 40 ? 0 : rawHeight;
@@ -52,9 +61,13 @@ const updateHeight = () => {
   logger.debug("Keyboard state updated", {
     height,
     visible,
-    innerHeight: window.innerHeight,
+    windowInnerHeight: window.innerHeight,
+    maxWindowHeight,
     vvHeight: vv.height,
     vvOffset: vv.offsetTop,
+    docClientHeight: document.documentElement.clientHeight,
+    docOffsetHeight: document.documentElement.offsetHeight,
+    bodyClientHeight: document.body.clientHeight
   });
 };
 
@@ -130,12 +143,9 @@ export function useKeyboardAvoidance() {
     window.addEventListener("focusout", handleFocusOut);
 
     // 初始化时立即计算一次
-    if (window.innerHeight > initialInnerHeight) {
-      initialInnerHeight = window.innerHeight;
-    }
     updateHeight();
 
-    logger.info("Keyboard avoidance initialized (VisualViewport + RAF)", { initialInnerHeight });
+    logger.info("Keyboard avoidance initialized (VisualViewport + RAF)", { maxWindowHeight });
   }
 
   return {

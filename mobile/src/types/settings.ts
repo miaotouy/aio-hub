@@ -13,10 +13,6 @@ export interface AppearanceSettings {
   hapticFeedback: boolean;
   /** 字体大小缩放 (1.0 为正常) */
   fontSizeScale: number;
-  /** 顶部通知栏避让距离 (px) */
-  safeTopDistance: number;
-  /** 软键盘避让距离 (px) */
-  keyboardAvoidanceDistance: number;
 }
 
 export interface NetworkSettings {
@@ -48,8 +44,6 @@ export const DEFAULT_APP_SETTINGS: MobileAppSettings = {
     themeColor: "#409EFF",
     hapticFeedback: true,
     fontSizeScale: 1.0,
-    safeTopDistance: 16,
-    keyboardAvoidanceDistance: 120,
   },
   network: {
     proxyMode: "system",

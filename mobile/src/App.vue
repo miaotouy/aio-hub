@@ -20,17 +20,9 @@ syncWithSettings();
 
 // 同步外观设置到 CSS 变量和根元素
 watchEffect(() => {
-  const { safeTopDistance, keyboardAvoidanceDistance, fontSizeScale } =
-    settingsStore.settings.appearance;
+  const { fontSizeScale } = settingsStore.settings.appearance;
 
-  // 1. 避让距离
-  document.documentElement.style.setProperty("--app-safe-area-top-offset", `${safeTopDistance}px`);
-  document.documentElement.style.setProperty(
-    "--keyboard-avoidance-distance",
-    `${keyboardAvoidanceDistance}px`
-  );
-
-  // 2. 字体缩放
+  // 1. 字体缩放
   // 我们将 fontSizeScale 应用于根元素的 font-size (影响 rem)
   // 默认基础 14px * scale
   const baseSize = 14 * fontSizeScale;
@@ -79,7 +71,16 @@ onMounted(() => {
 </template>
 
 <style>
-/* 全局样式移入 App.vue 或保持在 theme.css */
+/* 全局样式确保视口压缩正常工作 */
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
 :root {
   --var-bottom-navigation-height: 66px;
 }
@@ -124,11 +125,13 @@ onMounted(() => {
 }
 
 .app-container {
-  height: 100dvh;
+  height: 100%;
   display: flex;
   flex-direction: column;
   background-color: var(--bg-color);
   overflow: hidden;
+  /* 确保容器在键盘弹出时能被压缩 */
+  position: relative;
 }
 
 .app-style-provider {
@@ -136,17 +139,19 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-height: 0; /* 关键：允许 flex 项目缩小 */
   overflow: hidden;
 }
 
 .main-content {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   /* 只有当内容超出时才需要 padding 给 fixed 的导航栏留位置 */
-  /* 但为了保证滚动到底部时内容不被遮挡，padding 还是需要的 */
   padding-bottom: calc(var(--var-bottom-navigation-height) + env(safe-area-inset-bottom));
   box-sizing: border-box;
-  transition: padding-bottom 0.3s ease;
+  /* 移除 transition，键盘避让需要即时反馈 */
 }
 
 /* 键盘弹出时，容器高度已经缩小了，不需要再保留底部导航栏和安全区的 padding */
@@ -163,7 +168,13 @@ onMounted(() => {
 .keyboard-visible input:focus,
 .keyboard-visible textarea:focus,
 .keyboard-visible .var-input:focus-within {
-  scroll-margin-bottom: calc(var(--keyboard-height) + 120px);
+  /* 视口已经能正确压缩，这里保留一个基础留白即可 */
+  scroll-margin-bottom: 20px;
+}
+
+/* 键盘弹出时强制隐藏底部导航栏，防止被顶起 */
+.keyboard-visible .var-bottom-navigation {
+  display: none !important;
 }
 
 </style>

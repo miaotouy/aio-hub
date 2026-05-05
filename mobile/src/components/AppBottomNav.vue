@@ -3,11 +3,13 @@ import { ref, watch, computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "@/i18n";
 import { toolManager } from "@/utils/toolManager";
+import { useKeyboardAvoidance } from "@/composables/useKeyboardAvoidance";
 import ToolIcon from "@/components/ToolIcon.vue";
 
 const route = useRoute();
 const router = useRouter();
 const { t } = useI18n();
+const { isKeyboardVisible } = useKeyboardAvoidance();
 const active = ref("home");
 
 // 记录最后访问的工具路径
@@ -57,6 +59,7 @@ const handleChange = (value: string | number) => {
 
 <template>
   <var-bottom-navigation
+    v-show="!isKeyboardVisible"
     v-model:active="active"
     @change="handleChange"
     fixed

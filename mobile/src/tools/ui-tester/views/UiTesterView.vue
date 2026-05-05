@@ -6,6 +6,7 @@ import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useSettingsStore } from "@/stores/settings";
 import { useThemeStore } from "@/stores/theme";
+import { useKeyboardAvoidance } from "@/composables/useKeyboardAvoidance";
 import { generateUuid } from "@/utils/uuid";
 
 const router = useRouter();
@@ -13,6 +14,7 @@ const logger = createModuleLogger("UiTester");
 const errorHandler = createModuleErrorHandler("UiTester");
 const settingsStore = useSettingsStore();
 const themeStore = useThemeStore();
+const { keyboardHeight: kbH, isKeyboardVisible } = useKeyboardAvoidance();
 
 // --- Settings Store 测试 ---
 const debugMode = ref(settingsStore.debugMode);
@@ -49,8 +51,6 @@ const viewportInfo = ref({
   windowInnerHeight: 0,
   visualViewportHeight: 0,
   visualViewportOffsetTop: 0,
-  keyboardHeight: 0,
-  cssKeyboardHeight: 0,
   resizeCount: 0,
   viewportEventCount: 0,
 });
@@ -60,14 +60,7 @@ const updateViewportInfo = (event?: Event) => {
   if (window.visualViewport) {
     viewportInfo.value.visualViewportHeight = window.visualViewport.height;
     viewportInfo.value.visualViewportOffsetTop = window.visualViewport.offsetTop;
-    viewportInfo.value.keyboardHeight = window.innerHeight - window.visualViewport.height;
   }
-
-  // 从 CSS 变量读取实际生效的值
-  const cssHeight = getComputedStyle(document.documentElement).getPropertyValue(
-    "--keyboard-height"
-  );
-  viewportInfo.value.cssKeyboardHeight = parseInt(cssHeight) || 0;
 
   if (event?.type === "resize") viewportInfo.value.resizeCount++;
   if (event?.type === "scroll" || !event) viewportInfo.value.viewportEventCount++;
@@ -420,13 +413,16 @@ onMounted(() => {
               </div>
               <div class="p-2 bg-secondary rounded">
                 <div class="text-hint">Real Keyboard H</div>
-                <div class="text-danger font-bold">
-                  {{ viewportInfo.keyboardHeight.toFixed(1) }}px
-                </div>
+                <div class="text-danger font-bold">{{ kbH }}px</div>
               </div>
               <div class="p-2 bg-secondary rounded">
-                <div class="text-hint">Applied (CSS) H</div>
-                <div class="text-warning font-bold">{{ viewportInfo.cssKeyboardHeight }}px</div>
+                <div class="text-hint">Keyboard Visible</div>
+                <div
+                  class="font-bold"
+                  :class="isKeyboardVisible ? 'text-warning' : 'text-hint'"
+                >
+                  {{ isKeyboardVisible ? "YES" : "NO" }}
+                </div>
               </div>
               <div class="p-2 bg-secondary rounded">
                 <div class="text-hint">Viewport OffsetTop</div>

@@ -44,3 +44,6 @@ src-tauri/tauri.conf.dev.json
 plugins/*
 !plugins/README.md
 .gitnexus
+
+
+.claude

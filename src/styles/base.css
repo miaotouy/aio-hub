@@ -1,0 +1,152 @@
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden !important;
+  /* 彻底阻断滚动链传播，防止内部滚动影响窗口定位 */
+  overscroll-behavior: none;
+  /* 渲染隔离：确保内容永远在视口内绘制，防止意外的滚动位移 */
+  contain: paint;
+  /* 强制定位在原点，防止被脚本滚动 */
+  position: fixed;
+  top: 0;
+  left: 0;
+}
+
+body {
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Source Han Sans CN", sans-serif;
+  line-height: 1.6;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  transition:
+    background-color 0.1s,
+    color 0.1s;
+}
+
+/* 分离组件窗口需要完全透明的背景 */
+html.transparent-window,
+body.transparent-window {
+  background-color: transparent;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+}
+
+body.transparent-window #app {
+  background: transparent;
+  height: 100%;
+  width: 100%;
+}
+
+/* Global Scrollbar Styles */
+::-webkit-scrollbar {
+  width: 8px; /* 滚动条宽度 */
+  height: 8px; /* 水平滚动条高度 */
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track-color, var(--bg-color)); /* 轨道颜色, 可由 JS 控制 */
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb-color); /* 滑块颜色 */
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover-color); /* 悬停时滑块颜色 */
+}
+
+/* ========================================================================== */
+/* 原生 HTML 元素主题适配
+/* ========================================================================== */
+
+/* --- 代码块和引用 --- */
+pre,
+blockquote {
+  background-color: var(--card-bg);
+  border-radius: 4px;
+  border: var(--border-width) solid var(--border-color);
+}
+
+blockquote {
+  border-left: 4px solid var(--primary-color);
+}
+
+code {
+  background-color: rgba(var(--text-color-rgb), 0.1);
+  border-radius: 3px;
+}
+
+pre code {
+  background-color: transparent;
+}
+
+/* --- 范围滑块 (Range Input) --- */
+input[type="range"] {
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  background: rgb(var(--border-color-rgb)); /* 使用实色轨道以确保在模糊背景下可见 */
+  border-radius: 5px;
+  outline: none;
+  padding: 0;
+  margin: 10px 0;
+  border: none;
+  /* 清除继承的背景效果 */
+  backdrop-filter: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  background: var(--primary-color);
+  cursor: pointer;
+  border-radius: 50%;
+  border: 3px solid var(--card-bg);
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.3);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  background: var(--primary-color);
+  cursor: pointer;
+  border-radius: 50%;
+  border: 3px solid var(--card-bg);
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.3);
+}
+
+/* --- 文件选择按钮 --- */
+input[type="file"] {
+  background-color: transparent;
+  border: none;
+  padding: 0;
+}
+
+input[type="file"]::file-selector-button {
+  padding: 8px 16px;
+  margin-right: 12px;
+  border: 1px solid var(--primary-color);
+  border-radius: 4px;
+  background-color: color-mix(in srgb, var(--primary-color) 10%, transparent);
+  color: var(--primary-color);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+input[type="file"]::file-selector-button:hover {
+  background-color: color-mix(in srgb, var(--primary-color) 20%, transparent);
+}
+
+html.dark input[type="file"]::file-selector-button {
+  background-color: color-mix(in srgb, var(--primary-color) 15%, transparent);
+}
+
+html.dark input[type="file"]::file-selector-button:hover {
+  background-color: color-mix(in srgb, var(--primary-color) 25%, transparent);
+}

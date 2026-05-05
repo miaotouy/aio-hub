@@ -1,0 +1,114 @@
+/* Custom global button styles */
+.btn-primary,
+.btn-secondary,
+.btn-warning,
+.btn-danger,
+.btn-info {
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+  border: 1px solid;
+  background-color: transparent;
+}
+
+.btn-primary {
+  background-color: color-mix(in srgb, var(--primary-color) 10%, transparent);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+.btn-primary:hover {
+  background-color: color-mix(in srgb, var(--primary-color) 20%, transparent);
+}
+
+.btn-secondary {
+  background-color: var(--card-bg);
+  border-color: var(--border-color);
+  color: var(--text-color);
+}
+.btn-secondary:hover {
+  background-color: var(--border-color-light);
+  border-color: var(--primary-color);
+}
+
+.btn-warning {
+  background-color: color-mix(in srgb, var(--warning-color) 10%, transparent);
+  border-color: var(--warning-color);
+  color: var(--warning-color);
+}
+.btn-warning:hover {
+  background-color: color-mix(in srgb, var(--warning-color) 20%, transparent);
+}
+
+.btn-danger {
+  background-color: color-mix(in srgb, var(--danger-color) 10%, transparent);
+  border-color: var(--danger-color);
+  color: var(--danger-color);
+}
+.btn-danger:hover {
+  background-color: color-mix(in srgb, var(--danger-color) 20%, transparent);
+}
+
+.btn-info {
+  background-color: color-mix(in srgb, var(--info-color) 10%, transparent);
+  border-color: var(--info-color);
+  color: var(--info-color);
+}
+.btn-info:hover {
+  background-color: color-mix(in srgb, var(--info-color) 20%, transparent);
+}
+
+/* Custom global button styles - dark mode */
+html.dark .btn-primary {
+  background-color: color-mix(in srgb, var(--primary-color) 15%, transparent);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+html.dark .btn-primary:hover {
+  background-color: color-mix(in srgb, var(--primary-color) 25%, transparent);
+  color: var(--primary-hover-color);
+  border-color: var(--primary-hover-color);
+}
+
+html.dark .btn-secondary {
+  background-color: var(--card-bg);
+  border-color: var(--border-color);
+  color: var(--text-color);
+}
+html.dark .btn-secondary:hover {
+  background-color: var(--border-color-light);
+  border-color: var(--primary-color);
+}
+
+html.dark .btn-warning {
+  background-color: color-mix(in srgb, var(--el-color-warning) 15%, transparent);
+  border-color: var(--el-color-warning);
+  color: var(--el-color-warning);
+}
+html.dark .btn-warning:hover {
+  background-color: color-mix(in srgb, var(--el-color-warning) 25%, transparent);
+}
+
+html.dark .btn-danger {
+  background-color: color-mix(in srgb, var(--el-color-danger) 15%, transparent);
+  border-color: var(--el-color-danger);
+  color: var(--el-color-danger);
+}
+html.dark .btn-danger:hover {
+  background-color: color-mix(in srgb, var(--el-color-danger) 25%, transparent);
+}
+
+html.dark .btn-info {
+  background-color: color-mix(in srgb, var(--el-color-info) 15%, transparent);
+  border-color: var(--el-color-info);
+  color: var(--el-color-info);
+}
+html.dark .btn-info:hover {
+  background-color: color-mix(in srgb, var(--el-color-info) 25%, transparent);
+}
+
+/* 单色图标在暗色模式下反色 */
+.invert-on-dark {
+  filter: invert(1);
+}

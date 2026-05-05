@@ -1,0 +1,783 @@
+/* 调整 Element Plus 组件的位置，避免被自定义标题栏遮挡 */
+/* 只对顶部通知设置 top 偏移 */
+.el-notification.top-right,
+.el-notification.top-left {
+  top: calc(var(--titlebar-height) + 20px) !important;
+}
+
+/* 底部通知保持默认 bottom 定位 */
+.el-notification.bottom-right,
+.el-notification.bottom-left {
+  bottom: 20px !important;
+}
+
+.el-message {
+  top: calc(var(--titlebar-height) + 20px);
+}
+
+.el-message-box {
+  margin-top: var(--titlebar-height); /* 虽然标题栏入流，但 MessageBox 挂载在 body，仍需偏移以避开标题栏 */
+}
+
+/* Element Plus 全局主题适配 - 输入组件 */
+.el-input,
+.el-textarea {
+  --el-input-bg-color: var(--input-bg);
+  --el-input-text-color: var(--text-color);
+  --el-input-border-color: var(--border-color);
+  --el-input-hover-border-color: var(--primary-color);
+  --el-input-focus-border-color: var(--primary-color);
+  --el-input-placeholder-color: var(--text-color-light);
+}
+
+.el-input__inner,
+.el-textarea__inner {
+  background-color: transparent;
+  color: var(--text-color);
+}
+
+/* Element Plus 全局主题适配 - 卡片组件 */
+.el-card {
+  border: var(--border-width) solid var(--border-color);
+  background-color: var(--card-bg);
+  color: var(--text-color);
+}
+
+.el-card__header {
+  background-color: var(--card-bg);
+  border-bottom-color: var(--border-color);
+  color: var(--text-color);
+}
+
+/* Element Plus 全局主题适配 - 选择器 */
+.el-select {
+  --el-select-input-color: var(--text-color);
+  --el-select-border-color-hover: var(--primary-color);
+}
+
+/* Element Plus 全局主题适配 - 图标 */
+.el-icon {
+  color: var(--text-color);
+}
+
+/* Element Plus 全局主题适配 - 单选按钮组 */
+.el-radio-group {
+  --el-radio-text-color: var(--text-color);
+  --el-radio-input-border-color: var(--border-color);
+  --el-radio-input-border-color-hover: var(--primary-color);
+}
+
+.el-radio {
+  --el-radio-text-color: var(--text-color);
+  --el-radio-input-border-color: var(--border-color);
+  --el-radio-input-border-color-hover: var(--primary-color);
+}
+
+.el-radio__input.is-checked .el-radio__inner {
+  background-color: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+.el-radio__label {
+  color: var(--text-color);
+}
+
+/* Element Plus 单选按钮禁用状态 */
+.el-radio.is-disabled .el-radio__inner {
+  background-color: var(--border-color-light);
+  border-color: var(--border-color);
+}
+
+.el-radio.is-disabled .el-radio__label {
+  color: var(--text-color-light);
+  cursor: not-allowed;
+}
+
+.el-radio.is-disabled.is-checked .el-radio__inner {
+  background-color: var(--border-color);
+  border-color: var(--border-color);
+}
+
+/* Element Plus 全局主题适配 - 单选按钮按钮样式 */
+.el-radio-button {
+  --el-radio-button-checked-bg-color: color-mix(in srgb, var(--primary-color) 10%, transparent);
+  --el-radio-button-checked-text-color: var(--primary-color);
+  --el-radio-button-checked-border-color: var(--primary-color);
+}
+
+.el-radio-button__inner {
+  background-color: var(--card-bg);
+  border-color: var(--border-color);
+  color: var(--text-color);
+}
+
+.el-radio-button__inner:hover {
+  color: var(--primary-color);
+}
+
+.el-radio-button.is-active .el-radio-button__original-radio:not(:disabled) + .el-radio-button__inner,
+.el-radio-button__original-radio:checked + .el-radio-button__inner {
+  background-color: color-mix(in srgb, var(--primary-color) 10%, transparent);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  /* 强制将 Element Plus 用来模拟左边框的投影对接到我们的主题边框变量 */
+  box-shadow: -1px 0 0 0 var(--border-color) !important;
+}
+
+.el-radio-button__original-radio:checked + .el-radio-button__inner:hover {
+  background-color: color-mix(in srgb, var(--primary-color) 30%, transparent);
+}
+
+.el-radio-button.is-disabled .el-radio-button__inner {
+  background-color: var(--border-color-light);
+  border-color: var(--border-color);
+  color: var(--text-color-light);
+  cursor: not-allowed;
+}
+
+.el-radio-button.is-disabled .el-radio-button__original-radio:checked + .el-radio-button__inner {
+  background-color: var(--border-color-light);
+  border-color: var(--border-color);
+  color: var(--text-color-light);
+}
+
+/* Element Plus 全局主题适配 - 复选按钮样式 */
+.el-checkbox-button {
+  --el-checkbox-button-checked-bg-color: color-mix(in srgb, var(--primary-color) 10%, transparent);
+  --el-checkbox-button-checked-text-color: var(--primary-color);
+  --el-checkbox-button-checked-border-color: var(--primary-color);
+}
+
+.el-checkbox-button__inner {
+  background-color: var(--card-bg);
+  border-color: var(--border-color);
+  color: var(--text-color);
+}
+
+.el-checkbox-button__inner:hover {
+  color: var(--primary-color);
+}
+
+.el-checkbox-button.is-checked .el-checkbox-button__inner {
+  background-color: color-mix(in srgb, var(--primary-color) 10%, transparent);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  box-shadow: -1px 0 0 0 var(--border-color) !important;
+}
+
+.el-checkbox-button.is-checked .el-checkbox-button__inner:hover {
+  background-color: color-mix(in srgb, var(--primary-color) 30%, transparent);
+}
+
+.el-checkbox-button.is-disabled .el-checkbox-button__inner {
+  background-color: var(--border-color-light);
+  border-color: var(--border-color);
+  color: var(--text-color-light);
+  cursor: not-allowed;
+}
+
+.el-checkbox-button.is-disabled.is-checked .el-checkbox-button__inner {
+  background-color: var(--border-color-light);
+  border-color: var(--border-color);
+  color: var(--text-color-light);
+}
+
+/* Element Plus 全局主题适配 - 按钮半透明高亮样式（使用动态颜色变量） */
+.el-button--primary {
+  --el-button-bg-color: color-mix(in srgb, var(--el-color-primary) 10%, transparent);
+  --el-button-border-color: var(--el-color-primary);
+  --el-button-text-color: var(--el-color-primary);
+  --el-button-hover-bg-color: color-mix(in srgb, var(--el-color-primary) 20%, transparent);
+  --el-button-hover-border-color: var(--el-color-primary);
+  --el-button-hover-text-color: var(--el-color-primary);
+  --el-button-active-bg-color: color-mix(in srgb, var(--el-color-primary) 30%, transparent);
+  --el-button-active-border-color: var(--el-color-primary);
+}
+
+.el-button--success {
+  --el-button-bg-color: color-mix(in srgb, var(--el-color-success) 10%, transparent);
+  --el-button-border-color: var(--el-color-success);
+  --el-button-text-color: var(--el-color-success);
+  --el-button-hover-bg-color: color-mix(in srgb, var(--el-color-success) 20%, transparent);
+  --el-button-hover-border-color: var(--el-color-success);
+  --el-button-hover-text-color: var(--el-color-success);
+  --el-button-active-bg-color: color-mix(in srgb, var(--el-color-success) 30%, transparent);
+  --el-button-active-border-color: var(--el-color-success);
+}
+
+.el-button--warning {
+  --el-button-bg-color: color-mix(in srgb, var(--el-color-warning) 10%, transparent);
+  --el-button-border-color: var(--el-color-warning);
+  --el-button-text-color: var(--el-color-warning);
+  --el-button-hover-bg-color: color-mix(in srgb, var(--el-color-warning) 20%, transparent);
+  --el-button-hover-border-color: var(--el-color-warning);
+  --el-button-hover-text-color: var(--el-color-warning);
+  --el-button-active-bg-color: color-mix(in srgb, var(--el-color-warning) 30%, transparent);
+  --el-button-active-border-color: var(--el-color-warning);
+}
+
+.el-button--danger {
+  --el-button-bg-color: color-mix(in srgb, var(--el-color-danger) 10%, transparent);
+  --el-button-border-color: var(--el-color-danger);
+  --el-button-text-color: var(--el-color-danger);
+  --el-button-hover-bg-color: color-mix(in srgb, var(--el-color-danger) 20%, transparent);
+  --el-button-hover-border-color: var(--el-color-danger);
+  --el-button-hover-text-color: var(--el-color-danger);
+  --el-button-active-bg-color: color-mix(in srgb, var(--el-color-danger) 30%, transparent);
+  --el-button-active-border-color: var(--el-color-danger);
+}
+
+.el-button--info {
+  --el-button-bg-color: color-mix(in srgb, var(--el-color-info) 10%, transparent);
+  --el-button-border-color: var(--el-color-info);
+  --el-button-text-color: var(--el-color-info);
+  --el-button-hover-bg-color: color-mix(in srgb, var(--el-color-info) 20%, transparent);
+  --el-button-hover-border-color: var(--el-color-info);
+  --el-button-hover-text-color: var(--el-color-info);
+  --el-button-active-bg-color: color-mix(in srgb, var(--el-color-info) 30%, transparent);
+  --el-button-active-border-color: var(--el-color-info);
+}
+
+/* Element Plus 按钮禁用状态 */
+.el-button.is-disabled,
+.el-button.is-disabled:hover,
+.el-button.is-disabled:focus,
+.el-button.is-disabled:active {
+  background-color: var(--border-color-light);
+  border-color: var(--border-color);
+  color: var(--text-color-light);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.el-button--primary.is-disabled,
+.el-button--primary.is-disabled:hover {
+  --el-button-bg-color: var(--border-color-light);
+  --el-button-border-color: var(--border-color);
+  --el-button-text-color: var(--text-color-light);
+}
+
+.el-button--success.is-disabled,
+.el-button--success.is-disabled:hover {
+  --el-button-bg-color: var(--border-color-light);
+  --el-button-border-color: var(--border-color);
+  --el-button-text-color: var(--text-color-light);
+}
+
+.el-button--warning.is-disabled,
+.el-button--warning.is-disabled:hover {
+  --el-button-bg-color: var(--border-color-light);
+  --el-button-border-color: var(--border-color);
+  --el-button-text-color: var(--text-color-light);
+}
+
+.el-button--danger.is-disabled,
+.el-button--danger.is-disabled:hover {
+  --el-button-bg-color: var(--border-color-light);
+  --el-button-border-color: var(--border-color);
+  --el-button-text-color: var(--text-color-light);
+}
+
+.el-button--info.is-disabled,
+.el-button--info.is-disabled:hover {
+  --el-button-bg-color: var(--border-color-light);
+  --el-button-border-color: var(--border-color);
+  --el-button-text-color: var(--text-color-light);
+}
+
+/* el-message 样式修复 - 确保亮色模式下文字清晰 */
+.el-message--success {
+  --el-message-bg-color: #f0f9eb;
+  --el-message-text-color: var(--el-color-success);
+  --el-message-close-color: var(--el-color-success);
+}
+
+.el-message--warning {
+  --el-message-bg-color: #fdf6ec;
+  --el-message-text-color: var(--el-color-warning);
+  --el-message-close-color: var(--el-color-warning);
+}
+
+.el-message--error {
+  --el-message-bg-color: #fef0f0;
+  --el-message-text-color: var(--el-color-danger);
+  --el-message-close-color: var(--el-color-danger);
+}
+
+.el-message--info {
+  --el-message-bg-color: #f4f4f5;
+  --el-message-text-color: var(--el-color-info);
+  --el-message-close-color: var(--el-color-info);
+}
+
+/* 覆盖 el-tag 的样式 - 确保浅色主题下对比度足够 */
+.el-tag.el-tag--light.el-tag--primary {
+  background-color: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
+  border-color: var(--el-color-primary-light-7);
+}
+
+.el-tag.el-tag--light.el-tag--success {
+  background-color: var(--el-color-success-light-9);
+  color: var(--el-color-success);
+  border-color: var(--el-color-success-light-7);
+}
+
+.el-tag.el-tag--light.el-tag--warning {
+  background-color: var(--el-color-warning-light-9);
+  color: var(--el-color-warning);
+  border-color: var(--el-color-warning-light-7);
+}
+
+.el-tag.el-tag--light.el-tag--danger {
+  background-color: var(--el-color-danger-light-9);
+  color: var(--el-color-danger);
+  border-color: var(--el-color-danger-light-7);
+}
+
+.el-tag.el-tag--light.el-tag--info {
+  background-color: var(--el-color-info-light-9);
+  color: var(--el-color-info);
+  border-color: var(--el-color-info-light-7);
+}
+
+/* 修复 el-dropdown 悬停时的样式 - 使用半透明背景,亮色模式下文字保持主题色 */
+.el-dropdown-menu__item:focus,
+.el-dropdown-menu__item:not(.is-disabled):hover {
+  background-color: color-mix(in srgb, var(--el-color-primary) 20%, transparent);
+  color: var(--el-color-primary);
+}
+
+/* Element Plus Tooltip 主题适配 - 亮色模式 */
+/* 使用 .el-popper 选择器覆盖 Element Plus 默认样式 */
+.el-popper.is-dark {
+  background-color: var(--container-bg);
+  color: var(--text-color);
+  border: var(--border-width) solid var(--border-color);
+}
+
+.el-popper.is-dark > .el-popper__arrow::before {
+  background: var(--container-bg);
+  border: var(--border-width) solid var(--border-color);
+}
+
+.el-popper.is-light {
+  background-color: var(--container-bg);
+  color: var(--text-color);
+  border: var(--border-width) solid var(--border-color);
+}
+
+.el-popper.is-light > .el-popper__arrow::before {
+  background: var(--container-bg);
+  border: var(--border-width) solid var(--border-color);
+}
+
+/* 箭头方向颜色 - dark 模式 */
+.el-popper.is-dark[data-popper-placement^="top"] .el-popper__arrow::before {
+  border-top-color: var(--container-bg);
+}
+
+.el-popper.is-dark[data-popper-placement^="bottom"] .el-popper__arrow::before {
+  border-bottom-color: var(--container-bg);
+}
+
+.el-popper.is-dark[data-popper-placement^="left"] .el-popper__arrow::before {
+  border-left-color: var(--container-bg);
+}
+
+.el-popper.is-dark[data-popper-placement^="right"] .el-popper__arrow::before {
+  border-right-color: var(--container-bg);
+}
+
+/* 箭头方向颜色 - light 模式 */
+.el-popper.is-light[data-popper-placement^="top"] .el-popper__arrow::before {
+  border-top-color: var(--container-bg);
+}
+
+.el-popper.is-light[data-popper-placement^="bottom"] .el-popper__arrow::before {
+  border-bottom-color: var(--container-bg);
+}
+
+.el-popper.is-light[data-popper-placement^="left"] .el-popper__arrow::before {
+  border-left-color: var(--container-bg);
+}
+
+.el-popper.is-light[data-popper-placement^="right"] .el-popper__arrow::before {
+  border-right-color: var(--container-bg);
+}
+
+/* ========================================================================== */
+/* 全局悬浮组件毛玻璃效果适配
+/* ========================================================================== */
+.el-select-dropdown,
+.el-dropdown__popper,
+.el-message-box,
+.el-popover,
+.el-popper,
+.el-popconfirm__popper,
+.el-picker-panel,
+.el-cascader-panel,
+.el-autocomplete-suggestion,
+.el-color-dropdown,
+.el-notification,
+.el-dialog,
+.el-drawer {
+  background-color: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: var(--el-box-shadow-lighter);
+}
+
+.el-drawer {
+  padding-top: var(--titlebar-height); /* 即使标题栏是非 fixed 布局，挂载在 body 的抽屉仍需避开标题栏区域 */
+}
+
+/* 强制锁定 body 滚动，防止 Element Plus 弹窗引起布局抖动和意外滚动条 */
+html.el-popup-parent--hidden,
+body.el-popup-parent--hidden {
+  overflow: hidden !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  padding-right: 0 !important;
+}
+
+.el-slider__runway,
+.el-progress-bar__outer,
+.el-card,
+.el-table,
+.el-tag,
+.el-step__icon {
+  background-color: var(--container-bg);
+  backdrop-filter: blur(var(--ui-blur));
+}
+.el-message,
+.el-button,
+.el-input,
+.el-textarea,
+.el-select,
+.el-date-editor,
+.el-radio__inner,
+.el-checkbox__inner {
+  border-radius: 4px;
+  backdrop-filter: blur(var(--ui-blur));
+}
+
+/*
+  为 el-radio-group (按钮模式) 应用统一的毛玻璃效果
+  - 将 backdrop-filter 应用于父级，以实现连续的毛玻璃效果
+  - 使用 border-radius 和 overflow: hidden 来裁剪子元素的边角
+*/
+.el-radio-group:has(.el-radio-button),
+.el-checkbox-group:has(.el-checkbox-button) {
+  backdrop-filter: blur(var(--ui-blur));
+  border-radius: var(--el-border-radius-base, 4px);
+  border: var(--border-width) solid var(--border-color);
+  overflow: hidden;
+  display: inline-flex; /* 保持原有的布局行为 */
+}
+
+/* 处理按钮组内部的分割线 */
+.el-radio-button:not(:first-child) .el-radio-button__inner {
+  border-left: var(--border-width) solid var(--border-color) !important;
+}
+
+/* 修复在毛玻璃效果下，select下拉菜单选项的悬停样式，使其也为半透明 */
+.el-select-dropdown__item.hover,
+.el-select-dropdown__item:hover {
+  background-color: color-mix(in srgb, var(--el-color-primary) 20%, transparent);
+}
+
+/* Element Plus el-tag 通用样式 */
+.el-tag {
+  border-color: transparent;
+}
+
+/* Element Plus el-alert 关闭按钮通用样式 */
+.el-alert__close-btn {
+  color: var(--text-color);
+}
+
+.el-alert__close-btn:hover {
+  opacity: 0.7;
+}
+
+/* ==================== 暗色模式特有样式覆盖 ==================== */
+
+/* 覆盖默认 el-button (无 type) 的样式变量 - 使用中性色 */
+html.dark .el-button {
+  --el-button-hover-bg-color: var(--el-fill-color-light);
+  --el-button-hover-border-color: var(--el-border-color-hover);
+  --el-button-hover-text-color: var(--text-color);
+}
+
+/* 覆盖 el-tag 的样式 - 使用半透明背景使其在暗色模式下更暗 */
+html.dark .el-tag.el-tag--primary {
+  background-color: color-mix(in srgb, var(--el-color-primary) 20%, transparent);
+  color: var(--el-color-primary);
+  border-color: color-mix(in srgb, var(--el-color-primary) 40%, transparent);
+}
+
+html.dark .el-tag.el-tag--success {
+  background-color: color-mix(in srgb, var(--el-color-success) 20%, transparent);
+  color: var(--el-color-success);
+  border-color: color-mix(in srgb, var(--el-color-success) 40%, transparent);
+}
+
+html.dark .el-tag.el-tag--warning {
+  background-color: color-mix(in srgb, var(--el-color-warning) 20%, transparent);
+  color: var(--el-color-warning);
+  border-color: color-mix(in srgb, var(--el-color-warning) 40%, transparent);
+}
+
+html.dark .el-tag.el-tag--danger {
+  background-color: color-mix(in srgb, var(--el-color-danger) 20%, transparent);
+  color: var(--el-color-danger);
+  border-color: color-mix(in srgb, var(--el-color-danger) 40%, transparent);
+}
+
+html.dark .el-tag.el-tag--info {
+  background-color: color-mix(in srgb, var(--el-color-info) 20%, transparent);
+  color: var(--el-color-info);
+  border-color: color-mix(in srgb, var(--el-color-info) 40%, transparent);
+}
+
+/* el-tag 关闭按钮样式 */
+html.dark .el-tag .el-tag__close {
+  color: currentColor;
+  opacity: 0.8;
+}
+
+html.dark .el-tag .el-tag__close:hover {
+  opacity: 1;
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+/* 按钮半透明高亮样式 - 暗色主题（使用动态颜色变量） */
+html.dark .el-button--primary {
+  --el-button-bg-color: color-mix(in srgb, var(--el-color-primary) 15%, transparent);
+  --el-button-border-color: var(--el-color-primary);
+  --el-button-text-color: var(--el-color-primary);
+  --el-button-hover-bg-color: color-mix(in srgb, var(--el-color-primary) 25%, transparent);
+  --el-button-hover-border-color: var(--el-color-primary-light-3);
+  --el-button-hover-text-color: var(--el-color-primary-light-3);
+  --el-button-active-bg-color: color-mix(in srgb, var(--el-color-primary) 35%, transparent);
+  --el-button-active-border-color: var(--el-color-primary);
+}
+
+html.dark .el-button--success {
+  --el-button-bg-color: color-mix(in srgb, var(--el-color-success) 15%, transparent);
+  --el-button-border-color: var(--el-color-success);
+  --el-button-text-color: var(--el-color-success);
+  --el-button-hover-bg-color: color-mix(in srgb, var(--el-color-success) 25%, transparent);
+  --el-button-hover-border-color: var(--el-color-success-light-3);
+  --el-button-hover-text-color: var(--el-color-success-light-3);
+  --el-button-active-bg-color: color-mix(in srgb, var(--el-color-success) 35%, transparent);
+  --el-button-active-border-color: var(--el-color-success);
+}
+
+html.dark .el-button--warning {
+  --el-button-bg-color: color-mix(in srgb, var(--el-color-warning) 15%, transparent);
+  --el-button-border-color: var(--el-color-warning);
+  --el-button-text-color: var(--el-color-warning);
+  --el-button-hover-bg-color: color-mix(in srgb, var(--el-color-warning) 25%, transparent);
+  --el-button-hover-border-color: var(--el-color-warning-light-3);
+  --el-button-hover-text-color: var(--el-color-warning-light-3);
+  --el-button-active-bg-color: color-mix(in srgb, var(--el-color-warning) 35%, transparent);
+  --el-button-active-border-color: var(--el-color-warning);
+}
+
+html.dark .el-button--danger {
+  --el-button-bg-color: color-mix(in srgb, var(--el-color-danger) 15%, transparent);
+  --el-button-border-color: var(--el-color-danger);
+  --el-button-text-color: var(--el-color-danger);
+  --el-button-hover-bg-color: color-mix(in srgb, var(--el-color-danger) 25%, transparent);
+  --el-button-hover-border-color: var(--el-color-danger-light-3);
+  --el-button-hover-text-color: var(--el-color-danger-light-3);
+  --el-button-active-bg-color: color-mix(in srgb, var(--el-color-danger) 35%, transparent);
+  --el-button-active-border-color: var(--el-color-danger);
+}
+
+html.dark .el-button--info {
+  --el-button-bg-color: color-mix(in srgb, var(--el-color-info) 15%, transparent);
+  --el-button-border-color: var(--el-color-info);
+  --el-button-text-color: var(--el-color-info);
+  --el-button-hover-bg-color: color-mix(in srgb, var(--el-color-info) 25%, transparent);
+  --el-button-hover-border-color: var(--el-color-info-light-3);
+  --el-button-hover-text-color: var(--el-color-info-light-3);
+  --el-button-active-bg-color: color-mix(in srgb, var(--el-color-info) 35%, transparent);
+  --el-button-active-border-color: var(--el-color-info);
+}
+
+/* el-message 样式修复 - 半透明样式 */
+html.dark .el-message--success {
+  --el-message-bg-color: color-mix(in srgb, var(--el-color-success) 15%, transparent);
+  --el-message-text-color: var(--el-color-success);
+  --el-message-border-color: color-mix(in srgb, var(--el-color-success) 40%, transparent);
+  --el-message-close-color: var(--el-color-success);
+}
+
+html.dark .el-message--warning {
+  --el-message-bg-color: color-mix(in srgb, var(--el-color-warning) 15%, transparent);
+  --el-message-text-color: var(--el-color-warning);
+  --el-message-border-color: color-mix(in srgb, var(--el-color-warning) 40%, transparent);
+  --el-message-close-color: var(--el-color-warning);
+}
+
+html.dark .el-message--error {
+  --el-message-bg-color: color-mix(in srgb, var(--el-color-danger) 15%, transparent);
+  --el-message-text-color: var(--el-color-danger);
+  --el-message-border-color: color-mix(in srgb, var(--el-color-danger) 40%, transparent);
+  --el-message-close-color: var(--el-color-danger);
+}
+
+html.dark .el-message--info {
+  --el-message-bg-color: color-mix(in srgb, var(--el-color-info) 15%, transparent);
+  --el-message-text-color: var(--el-color-info);
+  --el-message-border-color: color-mix(in srgb, var(--el-color-info) 40%, transparent);
+  --el-message-close-color: var(--el-color-info);
+}
+
+/* el-alert 样式修复 - 半透明样式 */
+html.dark .el-alert--success {
+  --el-alert-bg-color: color-mix(in srgb, var(--el-color-success) 15%, transparent);
+  --el-alert-text-color: var(--el-color-success);
+  --el-alert-border-color: color-mix(in srgb, var(--el-color-success) 40%, transparent);
+}
+
+html.dark .el-alert--success .el-alert__description,
+html.dark .el-alert--success .el-alert__title {
+  color: var(--el-color-success);
+}
+
+html.dark .el-alert--warning {
+  --el-alert-bg-color: color-mix(in srgb, var(--el-color-warning) 15%, transparent);
+  --el-alert-text-color: var(--el-color-warning);
+  --el-alert-border-color: color-mix(in srgb, var(--el-color-warning) 40%, transparent);
+}
+
+html.dark .el-alert--warning .el-alert__description,
+html.dark .el-alert--warning .el-alert__title {
+  color: var(--el-color-warning);
+}
+
+html.dark .el-alert--error {
+  --el-alert-bg-color: color-mix(in srgb, var(--el-color-danger) 15%, transparent);
+  --el-alert-text-color: var(--el-color-danger);
+  --el-alert-border-color: color-mix(in srgb, var(--el-color-danger) 40%, transparent);
+}
+
+html.dark .el-alert--error .el-alert__description,
+html.dark .el-alert--error .el-alert__title {
+  color: var(--el-color-danger);
+}
+
+html.dark .el-alert--info {
+  --el-alert-bg-color: color-mix(in srgb, var(--el-color-info) 15%, transparent);
+  --el-alert-text-color: var(--el-color-info);
+  --el-alert-border-color: color-mix(in srgb, var(--el-color-info) 40%, transparent);
+}
+
+html.dark .el-alert--info .el-alert__description,
+html.dark .el-alert--info .el-alert__title {
+  color: var(--el-color-info);
+}
+
+/* Element Plus 单选按钮按钮样式 - 暗色主题 */
+html.dark .el-radio-button {
+  --el-radio-button-checked-bg-color: color-mix(in srgb, var(--primary-color) 15%, transparent);
+  --el-radio-button-checked-text-color: var(--primary-color);
+  --el-radio-button-checked-border-color: var(--primary-color);
+}
+
+html.dark .el-radio-button__inner {
+  background-color: var(--card-bg);
+  border-color: var(--border-color);
+  color: var(--text-color);
+}
+
+html.dark .el-radio-button__inner:hover {
+  color: var(--primary-color);
+}
+
+html.dark .el-radio-button.is-active .el-radio-button__original-radio:not(:disabled) + .el-radio-button__inner,
+html.dark .el-radio-button__original-radio:checked + .el-radio-button__inner {
+  background-color: color-mix(in srgb, var(--primary-color) 15%, transparent);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  /* 强制将 Element Plus 用来模拟左边框的投影对接到我们的主题边框变量 */
+  box-shadow: -1px 0 0 0 var(--border-color) !important;
+}
+
+html.dark .el-radio-button__original-radio:checked + .el-radio-button__inner:hover {
+  background-color: color-mix(in srgb, var(--primary-color) 35%, transparent);
+}
+
+html.dark .el-radio-button.is-disabled .el-radio-button__inner {
+  background-color: var(--border-color-light);
+  border-color: var(--border-color);
+  color: var(--text-color-light);
+  cursor: not-allowed;
+}
+
+html.dark
+  .el-radio-button.is-disabled
+  .el-radio-button__original-radio:checked
+  + .el-radio-button__inner {
+  background-color: var(--border-color-light);
+  border-color: var(--border-color);
+  color: var(--text-color-light);
+}
+
+/* Element Plus 复选按钮样式 - 暗色主题 */
+html.dark .el-checkbox-button {
+  --el-checkbox-button-checked-bg-color: color-mix(in srgb, var(--primary-color) 15%, transparent);
+  --el-checkbox-button-checked-text-color: var(--primary-color);
+  --el-checkbox-button-checked-border-color: var(--primary-color);
+}
+
+html.dark .el-checkbox-button__inner {
+  background-color: var(--card-bg);
+  border-color: var(--border-color);
+  color: var(--text-color);
+}
+
+html.dark .el-checkbox-button__inner:hover {
+  color: var(--primary-color);
+}
+
+html.dark .el-checkbox-button.is-checked .el-checkbox-button__inner {
+  background-color: color-mix(in srgb, var(--primary-color) 15%, transparent);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  box-shadow: -1px 0 0 0 var(--border-color) !important;
+}
+
+html.dark .el-checkbox-button.is-checked .el-checkbox-button__inner:hover {
+  background-color: color-mix(in srgb, var(--primary-color) 35%, transparent);
+}
+
+html.dark .el-checkbox-button.is-disabled .el-checkbox-button__inner {
+  background-color: var(--border-color-light);
+  border-color: var(--border-color);
+  color: var(--text-color-light);
+  cursor: not-allowed;
+}
+
+html.dark .el-checkbox-button.is-disabled.is-checked .el-checkbox-button__inner {
+  background-color: var(--border-color-light);
+  border-color: var(--border-color);
+  color: var(--text-color-light);
+}
+
+/* 修复 el-dropdown 在暗色模式下悬停时的样式 - 使用半透明背景和白色文字 */
+html.dark .el-dropdown-menu__item:focus,
+html.dark .el-dropdown-menu__item:not(.is-disabled):hover {
+  background-color: color-mix(in srgb, var(--el-color-primary) 25%, transparent);
+  color: #ffffff;
+}
+
+/* 去除el-button自带的间距，修复按钮布局无法对齐的问题 */
+:deep(.el-button) {
+  margin-left: 0px;
+}

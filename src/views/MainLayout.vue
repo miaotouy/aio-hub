@@ -5,7 +5,6 @@ import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { ElMessageBox } from "element-plus";
 import { Loading } from "@element-plus/icons-vue";
-import { useDark } from "@vueuse/core";
 import { createModuleLogger } from "@/utils/logger";
 import TitleBar from "@/components/TitleBar.vue";
 import MainSidebar from "@/components/MainSidebar.vue";
@@ -13,7 +12,6 @@ import LlmDeepLinkConfirmDialog from "./Settings/llm-service/components/LlmDeepL
 import { useDetachedManager } from "@/composables/useDetachedManager";
 import { useToolsStore } from "@/stores/tools";
 import { useAppSettingsStore } from "@/stores/appSettingsStore";
-import { applyThemeColors } from "@/utils/themeColors";
 
 const logger = createModuleLogger("MainLayout");
 const route = useRoute();
@@ -21,23 +19,8 @@ const router = useRouter();
 const detachedManager = useDetachedManager();
 const toolsStore = useToolsStore();
 const appSettingsStore = useAppSettingsStore();
-const isDark = useDark();
 
 const isCollapsed = ref(appSettingsStore.settings.sidebarCollapsed);
-
-// 监听主题模式切换，重新应用颜色变体
-watch(isDark, () => {
-  logger.info("主题模式切换，重新应用颜色");
-  if (appSettingsStore.settings.themeColor) {
-    applyThemeColors({
-      primary: appSettingsStore.settings.themeColor,
-      success: appSettingsStore.settings.successColor,
-      warning: appSettingsStore.settings.warningColor,
-      danger: appSettingsStore.settings.dangerColor,
-      info: appSettingsStore.settings.infoColor,
-    });
-  }
-});
 
 // 监听 isCollapsed 变化并保存
 watch(isCollapsed, (newVal) => {

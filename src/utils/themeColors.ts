@@ -49,17 +49,23 @@ export const darkenColor = (hex: string, percent: number) => {
 /**
  * 应用主题色系统到 DOM
  */
-export const applyThemeColors = (colors: {
-  primary?: string;
-  success?: string;
-  warning?: string;
-  danger?: string;
-  info?: string;
-}) => {
+export const applyThemeColors = (
+  colors: {
+    primary?: string;
+    success?: string;
+    warning?: string;
+    danger?: string;
+    info?: string;
+  },
+  darkOverride?: boolean,
+) => {
+  // 优先使用传入的 darkOverride，否则使用 useDark 的实时值
+  const activeIsDark = darkOverride !== undefined ? darkOverride : isDark.value;
+
   const root = document.documentElement;
-  
+
   // 派生颜色根据主题模式调整：亮色模式变亮，暗色模式变暗
-  const adjustColor = isDark.value ? darkenColor : lightenColor;
+  const adjustColor = activeIsDark ? darkenColor : lightenColor;
 
   // 应用主色调
   if (colors.primary && /^#[0-9A-F]{6}$/i.test(colors.primary)) {
@@ -70,14 +76,11 @@ export const applyThemeColors = (colors: {
     }
     root.style.setProperty("--el-color-primary", colors.primary);
     for (let i = 1; i <= 9; i++) {
-      root.style.setProperty(
-        `--el-color-primary-light-${i}`,
-        adjustColor(colors.primary, i * 10)
-      );
+      root.style.setProperty(`--el-color-primary-light-${i}`, adjustColor(colors.primary, i * 10));
     }
 
     // hover 颜色根据当前主题模式调整
-    const hoverAdjustFn = isDark.value ? lightenColor : darkenColor;
+    const hoverAdjustFn = activeIsDark ? lightenColor : darkenColor;
     const hoverColor = hoverAdjustFn(colors.primary, 20);
     root.style.setProperty("--primary-hover-color", hoverColor);
   }
@@ -86,10 +89,7 @@ export const applyThemeColors = (colors: {
   if (colors.success && /^#[0-9A-F]{6}$/i.test(colors.success)) {
     root.style.setProperty("--el-color-success", colors.success);
     for (let i = 1; i <= 9; i++) {
-      root.style.setProperty(
-        `--el-color-success-light-${i}`,
-        adjustColor(colors.success, i * 10)
-      );
+      root.style.setProperty(`--el-color-success-light-${i}`, adjustColor(colors.success, i * 10));
     }
   }
 
@@ -97,10 +97,7 @@ export const applyThemeColors = (colors: {
   if (colors.warning && /^#[0-9A-F]{6}$/i.test(colors.warning)) {
     root.style.setProperty("--el-color-warning", colors.warning);
     for (let i = 1; i <= 9; i++) {
-      root.style.setProperty(
-        `--el-color-warning-light-${i}`,
-        adjustColor(colors.warning, i * 10)
-      );
+      root.style.setProperty(`--el-color-warning-light-${i}`, adjustColor(colors.warning, i * 10));
     }
   }
 
@@ -108,10 +105,7 @@ export const applyThemeColors = (colors: {
   if (colors.danger && /^#[0-9A-F]{6}$/i.test(colors.danger)) {
     root.style.setProperty("--el-color-danger", colors.danger);
     for (let i = 1; i <= 9; i++) {
-      root.style.setProperty(
-        `--el-color-danger-light-${i}`,
-        adjustColor(colors.danger, i * 10)
-      );
+      root.style.setProperty(`--el-color-danger-light-${i}`, adjustColor(colors.danger, i * 10));
     }
   }
 
@@ -119,10 +113,7 @@ export const applyThemeColors = (colors: {
   if (colors.info && /^#[0-9A-F]{6}$/i.test(colors.info)) {
     root.style.setProperty("--el-color-info", colors.info);
     for (let i = 1; i <= 9; i++) {
-      root.style.setProperty(
-        `--el-color-info-light-${i}`,
-        adjustColor(colors.info, i * 10)
-      );
+      root.style.setProperty(`--el-color-info-light-${i}`, adjustColor(colors.info, i * 10));
     }
   }
 

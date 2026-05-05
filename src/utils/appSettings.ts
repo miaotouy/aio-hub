@@ -114,6 +114,11 @@ export interface AppearanceSettings {
   backgroundColorOverlayBlendMode?: BlendMode; // 混合模式
   autoExtractColorFromWallpaper?: boolean; // 是否自动从壁纸提取颜色
   wallpaperExtractedColor?: string; // 从壁纸提取的颜色
+
+  // --- 主题色提取 ---
+  autoExtractThemeColorFromWallpaper?: boolean; // 是否自动从壁纸提取主题色
+  wallpaperExtractedThemeColor?: string; // 从壁纸提取的主题色
+  themeColorExtractionStrategy?: "vibrant" | "light-vibrant" | "dark-vibrant" | "muted"; // 提取策略
 }
 
 export interface AppSettings {
@@ -230,6 +235,11 @@ export const defaultAppearanceSettings: AppearanceSettings = {
   backgroundColorOverlayBlendMode: "overlay",
   autoExtractColorFromWallpaper: false, // 默认不自动取色
   wallpaperExtractedColor: "", // 默认无提取颜色
+
+  // 主题色提取
+  autoExtractThemeColorFromWallpaper: false, // 默认不自动提取主题色
+  wallpaperExtractedThemeColor: "", // 默认无提取主题色
+  themeColorExtractionStrategy: "vibrant", // 默认使用 vibrant 策略
 };
 
 // 侧边栏模式类型

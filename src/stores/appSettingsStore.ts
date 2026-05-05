@@ -67,6 +67,13 @@ export const useAppSettingsStore = defineStore("appSettings", () => {
   /** 侧边栏模式 */
   const sidebarMode = computed(() => settings.value.sidebarMode ?? "sidebar");
 
+  /** 生效的主题色（如果开启了自动提取且有提取值，则使用提取值，否则使用设置的主题色） */
+  const effectiveThemeColor = computed(() => {
+    const app = appearance.value;
+    const isExtracted = !!(app.autoExtractThemeColorFromWallpaper && app.wallpaperExtractedThemeColor);
+    return isExtracted ? app.wallpaperExtractedThemeColor! : (settings.value.themeColor ?? "#409eff");
+  });
+
   return {
     settings,
     isLoaded,
@@ -78,5 +85,6 @@ export const useAppSettingsStore = defineStore("appSettings", () => {
     toolsVisible,
     toolsOrder,
     sidebarMode,
+    effectiveThemeColor,
   };
 });

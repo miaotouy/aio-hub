@@ -5,7 +5,6 @@ import { ArrowLeft, RefreshRight } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import { useWindowSize } from "@vueuse/core";
 import { customMessage } from "@/utils/customMessage";
-import { applyThemeColors } from "@utils/themeColors";
 import { settingsModules } from "../config/settings";
 import { invoke } from "@tauri-apps/api/core";
 import { createModuleErrorHandler } from "@utils/errorHandler";
@@ -199,13 +198,6 @@ const onConfigImported = async (resultMessage: string) => {
 
     // 应用主题
     applyThemeFromComposable(settings.value.theme || "auto");
-    applyThemeColors({
-      primary: settings.value.themeColor,
-      success: settings.value.successColor,
-      warning: settings.value.warningColor,
-      danger: settings.value.dangerColor,
-      info: settings.value.infoColor,
-    });
 
     customMessage.success(resultMessage);
   } catch (error) {
@@ -254,56 +246,6 @@ watch(
   },
 );
 
-// 监听主题色变化
-watch(
-  () => settings.value.themeColor,
-  (newColor) => {
-    if (newColor) {
-      applyThemeColors({ primary: newColor });
-    }
-  },
-);
-
-// 监听成功色变化
-watch(
-  () => settings.value.successColor,
-  (newColor) => {
-    if (newColor) {
-      applyThemeColors({ success: newColor });
-    }
-  },
-);
-
-// 监听警告色变化
-watch(
-  () => settings.value.warningColor,
-  (newColor) => {
-    if (newColor) {
-      applyThemeColors({ warning: newColor });
-    }
-  },
-);
-
-// 监听危险色变化
-watch(
-  () => settings.value.dangerColor,
-  (newColor) => {
-    if (newColor) {
-      applyThemeColors({ danger: newColor });
-    }
-  },
-);
-
-// 监听信息色变化
-watch(
-  () => settings.value.infoColor,
-  (newColor) => {
-    if (newColor) {
-      applyThemeColors({ info: newColor });
-    }
-  },
-);
-
 // 监听设置变化，自动应用（Store 内部处理保存）
 watch(
   () => settings.value,
@@ -312,15 +254,7 @@ watch(
     if (newSettings.theme) {
       applyThemeFromComposable(newSettings.theme);
     }
-
-    // 应用主题色系统
-    applyThemeColors({
-      primary: newSettings.themeColor,
-      success: newSettings.successColor,
-      warning: newSettings.warningColor,
-      danger: newSettings.dangerColor,
-      info: newSettings.infoColor,
-    });
+    // 注意：主题色应用已移至 useRootInit.ts 的全局监听中统一处理
   },
   { deep: true },
 );
@@ -355,15 +289,6 @@ onMounted(async () => {
 
     // 应用主题（使用统一的主题管理）
     applyThemeFromComposable(appSettingsStore.settings.theme || "auto");
-
-    // 应用主题色系统
-    applyThemeColors({
-      primary: appSettingsStore.settings.themeColor,
-      success: appSettingsStore.settings.successColor,
-      warning: appSettingsStore.settings.warningColor,
-      danger: appSettingsStore.settings.dangerColor,
-      info: appSettingsStore.settings.infoColor,
-    });
 
     // 同步托盘设置到后端
     try {

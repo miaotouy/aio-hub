@@ -1,5 +1,6 @@
-import { onMounted, onUnmounted } from "vue";
+import { onMounted, onUnmounted, watch } from "vue";
 import { useTheme } from "./useTheme";
+import { useDark } from "@vueuse/core";
 import { initThemeAppearance, cleanupThemeAppearance } from "./useThemeAppearance";
 import { useAppSettingsStore } from "@/stores/appSettingsStore";
 import { applyThemeColors } from "@/utils/themeColors";
@@ -20,6 +21,45 @@ export function useRootInit(options?: RootInitOptions) {
 
   const appSettingsStore = useAppSettingsStore();
 
+  const isDark = useDark();
+
+  /**
+   * 应用当前所有主题颜色到 DOM
+   */
+  const applyCurrentColors = () => {
+    const color = appSettingsStore.effectiveThemeColor;
+
+    if (color) {
+      applyThemeColors(
+        {
+          primary: color,
+          success: appSettingsStore.settings.successColor,
+          warning: appSettingsStore.settings.warningColor,
+          danger: appSettingsStore.settings.dangerColor,
+          info: appSettingsStore.settings.infoColor,
+        },
+        isDark.value,
+      );
+    }
+  };
+
+  // 监听颜色或主题模式变化并实时应用
+  // 处理壁纸提取色、手动设置颜色的实时反馈，以及亮暗模式切换时的派生颜色重新计算
+  watch(
+    () => [
+      appSettingsStore.effectiveThemeColor,
+      appSettingsStore.settings.successColor,
+      appSettingsStore.settings.warningColor,
+      appSettingsStore.settings.dangerColor,
+      appSettingsStore.settings.infoColor,
+      isDark.value,
+    ],
+    () => {
+      applyCurrentColors();
+    },
+    { immediate: false }, // initCommon 会手动调用一次
+  );
+
   // === onMounted 阶段（异步） ===
   async function initCommon() {
     try {
@@ -29,15 +69,7 @@ export function useRootInit(options?: RootInitOptions) {
       await initThemeAppearance(options?.isDetachedComponent ?? false);
 
       // 3. 应用主题颜色
-      if (appSettingsStore.settings.themeColor) {
-        applyThemeColors({
-          primary: appSettingsStore.settings.themeColor,
-          success: appSettingsStore.settings.successColor,
-          warning: appSettingsStore.settings.warningColor,
-          danger: appSettingsStore.settings.dangerColor,
-          info: appSettingsStore.settings.infoColor,
-        });
-      }
+      applyCurrentColors();
 
       logger.info("根组件公共初始化完成");
     } catch (error) {

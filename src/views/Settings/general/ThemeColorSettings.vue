@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import { InfoFilled, Refresh } from "@element-plus/icons-vue";
 import { customMessage } from "@/utils/customMessage";
+import { useAppSettingsStore } from "@/stores/appSettingsStore";
 
 // 颜色类型定义
 type ColorType = "primary" | "success" | "warning" | "danger" | "info";
@@ -164,7 +165,7 @@ const showColorPickers = ref<Record<ColorType, boolean>>({
   info: false,
 });
 
-// 获取当前颜色值，提供默认值
+// 获取当前设置的颜色值（用户选中的值），提供默认值
 const getCurrentColor = (type: ColorType): string => {
   switch (type) {
     case "primary":
@@ -248,6 +249,29 @@ const getSelectedPresetColor = (type: ColorType) => {
   const presets = getPresetColors(type);
   return presets.find((p) => p.color === currentColor);
 };
+
+const appSettingsStore = useAppSettingsStore();
+
+/**
+ * 是否处于壁纸主题色提取模式
+ */
+const isThemeColorExtracted = computed(() => {
+  return (
+    appSettingsStore.appearance.autoExtractThemeColorFromWallpaper &&
+    !!appSettingsStore.appearance.wallpaperExtractedThemeColor
+  );
+});
+
+/**
+ * 获取界面展示用的“当前颜色”
+ * 如果开启了提取，则显示提取色；否则显示用户设置的颜色
+ */
+const getDisplayColor = (type: ColorType): string => {
+  if (type === "primary" && isThemeColorExtracted.value) {
+    return appSettingsStore.effectiveThemeColor;
+  }
+  return getCurrentColor(type);
+};
 </script>
 
 <template>
@@ -263,8 +287,11 @@ const getSelectedPresetColor = (type: ColorType) => {
           </el-tooltip>
         </div>
         <div class="current-color-info">
+          <template v-if="config.type === 'primary' && isThemeColorExtracted">
+            <el-tag size="small" type="info" effect="plain" class="extracted-tag">壁纸提取中</el-tag>
+          </template>
           <span class="color-label">当前：</span>
-          <span class="color-value">{{ getCurrentColor(config.type) }}</span>
+          <span class="color-value">{{ getDisplayColor(config.type) }}</span>
         </div>
       </div>
 

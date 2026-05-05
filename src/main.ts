@@ -21,7 +21,6 @@ import { extname } from "@tauri-apps/api/path"; // 导入 path 模块用于获�
 import { createPinia } from "pinia"; // 导入 Pinia
 import { errorHandler, ErrorLevel } from "./utils/errorHandler";
 import { createModuleLogger } from "./utils/logger";
-import { applyThemeColors } from "./utils/themeColors";
 import packageJson from "../package.json";
 // 导入 Monaco 汉化模块，确保 globalThis._VSCODE_NLS_MESSAGES 被初始化
 import "@/utils/monaco-i18n/nls";
@@ -63,19 +62,6 @@ if (needsTransparentBackground) {
   document.body.classList.add("transparent-window");
   logger.info(`透明窗口 (${window.location.pathname})：已添加透明背景类`);
 }
-
-// 早期主题色应用：在 Vue 应用创建前从 localStorage 读取并应用主题色
-// 这样可以避免应用启动时的颜色闪烁
-(() => {
-  try {
-    const cachedThemeColor = localStorage.getItem("app-theme-color");
-    if (cachedThemeColor && /^#[0-9A-F]{6}$/i.test(cachedThemeColor)) {
-      applyThemeColors({ primary: cachedThemeColor });
-    }
-  } catch (error) {
-    logger.warn("应用缓存主题颜色失败", { error });
-  }
-})();
 
 // 根据窗口类型选择根组件
 const rootComponent = (() => {

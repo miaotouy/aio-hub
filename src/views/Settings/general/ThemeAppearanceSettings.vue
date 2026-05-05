@@ -264,6 +264,51 @@
               </el-form-item>
             </div>
 
+            <!-- 主题色提取 -->
+            <div class="setting-group-divider">
+              <el-divider>
+                <div class="divider-content" style="background-color: transparent">
+                  <el-switch v-model="autoExtractThemeColorFromWallpaper" size="small" />
+                  <span>主题色提取</span>
+                </div>
+              </el-divider>
+            </div>
+
+            <div class="color-overlay-group" :class="{ 'is-disabled': !autoExtractThemeColorFromWallpaper }">
+              <el-form-item label="提取策略">
+                <el-select
+                  v-model="themeColorExtractionStrategy"
+                  class="full-width"
+                  :disabled="!autoExtractThemeColorFromWallpaper"
+                >
+                  <el-option value="vibrant" label="鲜艳 (Vibrant) — 推荐" />
+                  <el-option value="light-vibrant" label="亮部鲜艳 (Light Vibrant)" />
+                  <el-option value="dark-vibrant" label="暗部鲜艳 (Dark Vibrant)" />
+                  <el-option value="muted" label="柔和 (Muted)" />
+                </el-select>
+                <p class="form-item-description">
+                  启用后，切换壁纸时会自动从中提取亮眼的颜色并应用到全局主题色（按钮、链接等）。
+                  亮/暗模式切换也会自动重新提取适配的颜色。
+                </p>
+              </el-form-item>
+              <el-form-item v-if="appearanceSettings.wallpaperExtractedThemeColor" label="当前提取的主题色">
+                <div class="color-picker-with-input">
+                  <el-color-picker
+                    :model-value="appearanceSettings.wallpaperExtractedThemeColor"
+                    disabled
+                    size="small"
+                  />
+                  <span
+                    class="extracted-color-preview"
+                    :style="{ backgroundColor: appearanceSettings.wallpaperExtractedThemeColor }"
+                  />
+                  <span style="font-size: 12px; color: var(--text-color-light); font-family: monospace">
+                    {{ appearanceSettings.wallpaperExtractedThemeColor }}
+                  </span>
+                </div>
+              </el-form-item>
+            </div>
+
             <el-divider />
 
             <el-form-item label="壁纸不透明度">
@@ -787,6 +832,18 @@ const autoExtractColorFromWallpaper = computed({
   set: (val) => updateAppearanceSetting({ autoExtractColorFromWallpaper: val }),
 });
 
+// --- 主题色提取 ---
+const autoExtractThemeColorFromWallpaper = computed({
+  get: () => appearanceSettings.value.autoExtractThemeColorFromWallpaper ?? false,
+  set: (val) => updateAppearanceSetting({ autoExtractThemeColorFromWallpaper: val }),
+});
+
+const themeColorExtractionStrategy = computed({
+  get: () => appearanceSettings.value.themeColorExtractionStrategy ?? "vibrant",
+  set: (val: "vibrant" | "light-vibrant" | "dark-vibrant" | "muted") =>
+    updateAppearanceSetting({ themeColorExtractionStrategy: val }),
+});
+
 const wallpaperPreviewStyle = computed(() => {
   // currentWallpaper 已经是一个转换后的 asset URL 或空字符串
   const imageUrl = currentWallpaper.value;
@@ -1072,6 +1129,14 @@ const wallpaperPreviewStyle = computed(() => {
 .color-picker-with-input .el-input {
   /* 让输入字段占据剩余空间 */
   flex: 1;
+}
+
+.extracted-color-preview {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  border: var(--border-width) solid var(--border-color);
+  flex-shrink: 0;
 }
 
 .builtin-wallpaper-grid {

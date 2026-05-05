@@ -14,6 +14,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import ColorThief from "color-thief-ts";
+import { Vibrant } from "node-vibrant/browser";
 
 /**
  * 获取内置壁纸的完整 URL
@@ -510,13 +511,24 @@ async function _switchToWallpaper(index: number, settings: AppearanceSettings) {
     }
     logger.debug("幻灯片切换", { index, path: imagePath });
 
-    // 如果开启了自动取色，从新壁纸提取颜色
+    // 如果开启了自动取色（背景色），从新壁纸提取颜色
     if (settings.autoExtractColorFromWallpaper && currentWallpaper.value) {
       const extractedColor = await _extractColorFromWallpaper(currentWallpaper.value);
       if (extractedColor) {
         updateAppearanceSetting({
           wallpaperExtractedColor: extractedColor,
           backgroundColorOverlayEnabled: true,
+        });
+      }
+    }
+
+    // 如果开启了自动提取主题色，从新壁纸提取主题色并应用
+    if (settings.autoExtractThemeColorFromWallpaper && currentWallpaper.value) {
+      const extractedThemeColor = await _extractThemeColorFromWallpaper(currentWallpaper.value);
+      logger.info("[_switchToWallpaper] 提取到主题色", { extractedThemeColor });
+      if (extractedThemeColor) {
+        updateAppearanceSetting({
+          wallpaperExtractedThemeColor: extractedThemeColor,
         });
       }
     }
@@ -682,6 +694,93 @@ async function _extractColorFromWallpaper(wallpaperUrl: string): Promise<string 
   }
 }
 
+/**
+ * 加载图片并返回 Image 对象的工具函数（复用逻辑）
+ */
+function loadImage(url: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "Anonymous";
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error(`图片加载失败: ${url}`));
+    img.src = url;
+  });
+}
+
+/**
+ * 从壁纸提取亮眼的主题色（使用 node-vibrant）
+ * 根据当前主题（亮/暗）选择合适的颜色
+ */
+async function _extractThemeColorFromWallpaper(wallpaperUrl: string): Promise<string | null> {
+  const { isDark } = useTheme();
+
+  try {
+    const img = await loadImage(wallpaperUrl);
+    const palette = await Vibrant.from(img).getPalette();
+
+    // 根据配置的策略选择颜色优先级
+    const strategy = appearanceSettings.value.themeColorExtractionStrategy ?? "vibrant";
+
+    // 定义优先级顺序：每种策略先尝试首选，再回退
+    // 注意：为了让策略更有区分度，我们尽量避免交叉回退，或者在日志中体现差异
+    const priorityOrder: string[] = (() => {
+      switch (strategy) {
+        case "light-vibrant":
+          return ["LightVibrant", "Vibrant", "LightMuted", "Muted"];
+        case "dark-vibrant":
+          return ["DarkVibrant", "Vibrant", "DarkMuted", "Muted"];
+        case "muted":
+          return ["Muted", "LightMuted", "DarkMuted", "Vibrant"];
+        case "vibrant":
+        default:
+          // 亮色模式偏好 LightVibrant，暗色模式偏好 Vibrant
+          if (isDark.value) {
+            return ["Vibrant", "DarkVibrant", "LightVibrant", "Muted"];
+          } else {
+            return ["LightVibrant", "Vibrant", "DarkVibrant", "Muted"];
+          }
+      }
+    })();
+
+    // 按优先级查找第一个存在的颜色
+    let selectedHex: string | null = null;
+    let selectedKey: string | null = null;
+    for (const key of priorityOrder) {
+      const swatch = (palette as any)[key];
+      if (swatch?.hex) {
+        selectedHex = swatch.hex;
+        selectedKey = key;
+        break;
+      }
+    }
+
+    if (!selectedHex) {
+      logger.warn("Vibrant 未能提取到任何颜色", { strategy });
+      return null;
+    }
+
+    logger.info("从壁纸提取主题色成功", {
+      color: selectedHex,
+      key: selectedKey,
+      strategy,
+      theme: isDark.value ? "dark" : "light",
+      palette: Object.fromEntries(
+        Object.entries(palette)
+          .filter(([, s]) => s?.hex)
+          .map(([k, s]) => [k, (s as any).hex]),
+      ),
+    });
+
+    return selectedHex;
+  } catch (error) {
+    errorHandler.warn(error, "提取壁纸主题色失败", {
+      operation: "提取壁纸主题色",
+      strategy: appearanceSettings.value.themeColorExtractionStrategy,
+    });
+    return null;
+  }
+}
+
 async function _updateWallpaper(settings: AppearanceSettings, oldSettings?: AppearanceSettings) {
   _stopSlideshow(); // 默认先停止旧的轮播
 
@@ -710,13 +809,23 @@ async function _updateWallpaper(settings: AppearanceSettings, oldSettings?: Appe
         currentWallpaper.value = wallpaperUrl;
         logger.info("静态壁纸加载成功");
 
-        // 如果开启了自动取色，从壁纸提取颜色
+        // 如果开启了自动取色（背景色），从壁纸提取颜色
         if (settings.autoExtractColorFromWallpaper && currentWallpaper.value) {
           const extractedColor = await _extractColorFromWallpaper(currentWallpaper.value);
           if (extractedColor) {
             updateAppearanceSetting({
               wallpaperExtractedColor: extractedColor,
               backgroundColorOverlayEnabled: true, // 自动启用颜色叠加
+            });
+          }
+        }
+
+        // 如果开启了自动提取主题色，从壁纸提取主题色并应用
+        if (settings.autoExtractThemeColorFromWallpaper && currentWallpaper.value) {
+          const extractedThemeColor = await _extractThemeColorFromWallpaper(currentWallpaper.value);
+          if (extractedThemeColor) {
+            updateAppearanceSetting({
+              wallpaperExtractedThemeColor: extractedThemeColor,
             });
           }
         }
@@ -814,12 +923,27 @@ export async function initThemeAppearance(isDetached = false) {
     // 监听主题变化（亮/暗模式切换），如果开启了自动取色，则重新提取适合当前主题的颜色
     watch(isDark, async () => {
       const settings = appearanceSettings.value;
-      if (settings.autoExtractColorFromWallpaper && currentWallpaper.value) {
+      if (!currentWallpaper.value) return;
+
+      // 重新提取背景色
+      if (settings.autoExtractColorFromWallpaper) {
         logger.info("主题已切换，重新提取适合当前主题的壁纸颜色...");
         const extractedColor = await _extractColorFromWallpaper(currentWallpaper.value);
         if (extractedColor) {
           updateAppearanceSetting({
             wallpaperExtractedColor: extractedColor,
+          });
+        }
+      }
+
+      // 重新提取主题色（亮/暗模式切换可能会影响 Vibrant 的选取策略）
+      if (settings.autoExtractThemeColorFromWallpaper) {
+        logger.info("主题已切换，重新提取适合当前主题的主题色...");
+        const extractedThemeColor = await _extractThemeColorFromWallpaper(currentWallpaper.value);
+        logger.info("[watch isDark] 重新提取到主题色", { extractedThemeColor });
+        if (extractedThemeColor) {
+          updateAppearanceSetting({
+            wallpaperExtractedThemeColor: extractedThemeColor,
           });
         }
       }
@@ -855,7 +979,7 @@ export async function initThemeAppearance(isDetached = false) {
           await _switchToWallpaper(newSettings.wallpaperSlideshowCurrentIndex ?? 0, newSettings);
         }
 
-        // 如果自动取色开关发生变化，且当前有壁纸，则重新提取颜色
+        // 如果自动背景取色开关发生变化，且当前有壁纸，则重新提取颜色
         if (
           newSettings.autoExtractColorFromWallpaper !== old.autoExtractColorFromWallpaper &&
           newSettings.autoExtractColorFromWallpaper &&
@@ -866,6 +990,24 @@ export async function initThemeAppearance(isDetached = false) {
             updateAppearanceSetting({
               wallpaperExtractedColor: extractedColor,
               backgroundColorOverlayEnabled: true,
+            });
+          }
+        }
+
+        // 如果自动主题色提取开关或策略发生变化，且当前有壁纸，则重新提取
+        const strategyChanged = newSettings.themeColorExtractionStrategy !== old.themeColorExtractionStrategy;
+        const toggleChanged = newSettings.autoExtractThemeColorFromWallpaper !== old.autoExtractThemeColorFromWallpaper;
+
+        if (
+          (toggleChanged || strategyChanged) &&
+          newSettings.autoExtractThemeColorFromWallpaper &&
+          currentWallpaper.value
+        ) {
+          const extractedThemeColor = await _extractThemeColorFromWallpaper(currentWallpaper.value);
+          logger.info("[watch settings] 提取状态或策略变化，提取到主题色", { extractedThemeColor });
+          if (extractedThemeColor) {
+            updateAppearanceSetting({
+              wallpaperExtractedThemeColor: extractedThemeColor,
             });
           }
         }

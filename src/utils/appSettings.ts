@@ -239,7 +239,7 @@ export const defaultAppearanceSettings: AppearanceSettings = {
   // 主题色提取
   autoExtractThemeColorFromWallpaper: false, // 默认不自动提取主题色
   wallpaperExtractedThemeColor: "", // 默认无提取主题色
-  themeColorExtractionStrategy: "vibrant", // 默认使用 vibrant 策略
+  themeColorExtractionStrategy: "muted", // 默认使用 muted 策略
 };
 
 // 侧边栏模式类型

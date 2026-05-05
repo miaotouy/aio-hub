@@ -575,34 +575,63 @@ pub async fn list_skill_directory(
 async fn install_skill_internal(
     app_handle: &AppHandle,
     source_path: &Path,
+    custom_name: Option<String>,
 ) -> Result<SkillManifest, String> {
-    // 预检
-    let manifest = parse_skill_directory(source_path, "user")
+    // 预检并获取当前清单
+    let mut manifest = parse_skill_directory(source_path, "user")
         .await
         .ok_or("该目录不是有效的 Skill 目录（缺少 SKILL.md 或格式错误）")?;
+
+    // 如果提供了自定义名称，则更新 SKILL.md
+    if let Some(name) = custom_name {
+        if !is_valid_skill_name(&name) {
+            return Err(format!("自定义名称 '{}' 不符合规范", name));
+        }
+
+        // 更新文件内容（直接在源目录修改，因为通常源目录是临时的或即将被复制）
+        let skill_md_path = source_path.join("SKILL.md");
+        let content = fs::read_to_string(&skill_md_path).map_err(|e| e.to_string())?;
+
+        // 简单的 YAML 替换
+        let re = regex::Regex::new(r#"(?m)^name:\s*['"]?([^'"]+)['"]?$"#).unwrap();
+        let new_content = re.replace(&content, format!("name: {}", name)).to_string();
+
+        fs::write(&skill_md_path, new_content).map_err(|e| e.to_string())?;
+
+        // 更新内存中的 manifest
+        manifest.name = name;
+    }
 
     let app_data_dir = crate::get_app_data_dir(app_handle.config());
     let skills_dir = app_data_dir.join("skills");
     let target_skills_dir = skills_dir.join(&manifest.name);
 
     if target_skills_dir.exists() {
-        return Err(format!("技能 {} 已存在", manifest.name));
+        return Err(format!("安装失败：目标目录 '{}' 已存在，请尝试更换技能名称", manifest.name));
     }
 
     // 执行复制
-    fs::create_dir_all(&skills_dir).map_err(|e| format!("无法创建技能目录: {}", e))?;
+    fs::create_dir_all(&skills_dir).map_err(|e| format!("无法创建技能库目录: {}", e))?;
 
     let mut options = fs_extra::dir::CopyOptions::new();
     options.copy_inside = true;
     // 确保复制后的目录名与 manifest.name 严格一致
     fs_extra::dir::copy(source_path, &skills_dir, &options)
-        .map_err(|e| format!("复制失败: {}", e))?;
+        .map_err(|e| format!("安装复制失败: {}", e))?;
 
     // 如果源目录名不等于 manifest.name，fs_extra 会按原名复制，我们需要重命名
-    let actual_copied_dir = skills_dir.join(source_path.file_name().unwrap());
+    let source_dir_name = source_path.file_name().unwrap();
+    let actual_copied_dir = skills_dir.join(source_dir_name);
+
     if actual_copied_dir != target_skills_dir {
+        // 重命名前再次确认目标不存在
+        if target_skills_dir.exists() {
+            let _ = fs::remove_dir_all(&actual_copied_dir);
+            return Err(format!("安装重命名失败：目标目录 '{}' 已存在", manifest.name));
+        }
+
         fs::rename(actual_copied_dir, &target_skills_dir)
-            .map_err(|e| format!("重命名失败: {}", e))?;
+            .map_err(|e| format!("安装重命名失败: {}", e))?;
     }
 
     Ok(manifest)
@@ -613,33 +642,29 @@ async fn install_skill_internal(
 pub async fn install_skill_from_dir(
     app: AppHandle,
     source_dir: String,
+    custom_name: Option<String>,
 ) -> Result<SkillManifest, String> {
     let source_path = PathBuf::from(&source_dir);
     if !source_path.exists() || !source_path.is_dir() {
         return Err("源目录不存在或不是目录".to_string());
     }
 
-    install_skill_internal(&app, &source_path).await
+    install_skill_internal(&app, &source_path, custom_name).await
 }
 
 /// 安装 Skill（从 Git 仓库克隆到 appData/skills/）
-///
-/// 支持带 `.git` 后缀和不带 `.git` 后缀的 URL。
-/// 示例: `https://github.com/user/skill-repo.git` 或 `https://github.com/user/skill-repo`
 #[tauri::command]
 pub async fn install_skill_from_git(
     app: AppHandle,
     repo_url: String,
+    custom_name: Option<String>,
 ) -> Result<SkillManifest, String> {
     let url = repo_url.trim().to_string();
     if url.is_empty() {
         return Err("仓库 URL 不能为空".to_string());
     }
 
-    // 自动补全 .git 后缀（如果 URL 没有的话）
     let normalized_url = if !url.ends_with(".git") {
-        // 确保 URL 有效且不以 .git 结尾，追加 .git
-        // 但避免给裸路径或本地路径追加
         if url.starts_with("http://")
             || url.starts_with("https://")
             || url.starts_with("git@")
@@ -653,72 +678,29 @@ pub async fn install_skill_from_git(
         url.clone()
     };
 
-    // 从 URL 中提取仓库名作为技能目录名
-    let repo_name = extract_repo_name(&normalized_url)?;
+    let temp_dir = tempfile::tempdir().map_err(|e| format!("创建临时目录失败: {}", e))?;
+    let temp_path = temp_dir.path().to_path_buf();
+    let clone_dir = temp_path.join("repo");
 
-    let app_data_dir = crate::get_app_data_dir(app.config());
-    let skills_dir = app_data_dir.join("skills");
-    let target_dir = skills_dir.join(&repo_name);
-
-    if target_dir.exists() {
-        return Err(format!("技能目录 {} 已存在", repo_name));
-    }
-
-    // 确保 skills 目录存在
-    fs::create_dir_all(&skills_dir).map_err(|e| format!("创建 skills 目录失败: {}", e))?;
-
-    // 使用 git2 克隆仓库（浅克隆，depth=1，节省时间和空间）
-    let target_dir_clone = target_dir.clone();
+    let clone_dir_clone = clone_dir.clone();
     tokio::task::spawn_blocking(move || {
         let mut fetch_options = git2::FetchOptions::new();
         fetch_options.download_tags(git2::AutotagOption::None);
 
-        // 浅克隆：只拉取最新的 commit
         let mut builder = git2::build::RepoBuilder::new();
         builder.fetch_options(fetch_options);
 
-        // 设置克隆深度为 1（浅克隆）
-        // 移除硬编码的 builder.branch("master")，让 git2 自动处理默认分支
-
-        // 执行克隆
-        match builder.clone(&normalized_url, &target_dir_clone) {
+        match builder.clone(&normalized_url, &clone_dir_clone) {
             Ok(_) => Ok(()),
-            Err(e) => {
-                // 如果克隆失败，清理残留目录
-                let _ = fs::remove_dir_all(&target_dir_clone);
-                Err(format!("Git 克隆失败: {}", e))
-            }
+            Err(e) => Err(format!("Git 克隆失败: {}", e)),
         }
     })
     .await
     .map_err(|e| format!("克隆任务出错: {}", e))??;
 
-    // 克隆成功后，解析 SKILL.md 验证并获取清单
-    parse_skill_directory(&target_dir, "user")
-        .await
-        .ok_or_else(|| {
-            // 克隆成功但没有 SKILL.md，清理并报错
-            let _ = std::fs::remove_dir_all(&target_dir);
-            "克隆成功但仓库根目录未找到有效的 SKILL.md，已清理".to_string()
-        })
-}
-
-/// 从 Git URL 中提取仓库名称（去掉 .git 后缀）
-fn extract_repo_name(url: &str) -> Result<String, String> {
-    // 去掉末尾的 .git
-    let without_git = url.strip_suffix(".git").unwrap_or(url);
-
-    // 从 URL 中提取最后一段路径作为仓库名
-    let name = without_git
-        .split('/')
-        .next_back()
-        .ok_or_else(|| "无法从 URL 中提取仓库名称".to_string())?;
-
-    if name.is_empty() {
-        return Err("提取的仓库名称为空".to_string());
-    }
-
-    Ok(name.to_string())
+    let manifest = install_skill_internal(&app, &clone_dir, custom_name).await?;
+    drop(temp_dir);
+    Ok(manifest)
 }
 
 /// 安装 Skill（从本地 ZIP 文件解压到 appData/skills/）
@@ -726,42 +708,33 @@ fn extract_repo_name(url: &str) -> Result<String, String> {
 pub async fn install_skill_from_zip_file(
     app: AppHandle,
     zip_path: String,
+    custom_name: Option<String>,
 ) -> Result<SkillManifest, String> {
     let source_zip_path = PathBuf::from(&zip_path);
     if !source_zip_path.exists() || !source_zip_path.is_file() {
         return Err("ZIP 文件不存在".to_string());
     }
 
-    // 创建临时目录用于解压
     let temp_dir = tempfile::tempdir().map_err(|e| format!("创建临时目录失败: {}", e))?;
     let temp_path = temp_dir.path().to_path_buf();
 
-    // 解压 ZIP
     let extract_dir = temp_path.join("extracted");
     fs::create_dir_all(&extract_dir).map_err(|e| format!("创建解压目录失败: {}", e))?;
 
-    let zip_file =
-        fs::File::open(&source_zip_path).map_err(|e| format!("打开 ZIP 文件失败: {}", e))?;
-    let mut archive =
-        zip::ZipArchive::new(zip_file).map_err(|e| format!("读取 ZIP 文件失败: {}", e))?;
+    let zip_file = fs::File::open(&source_zip_path).map_err(|e| format!("打开 ZIP 文件失败: {}", e))?;
+    let mut archive = zip::ZipArchive::new(zip_file).map_err(|e| format!("读取 ZIP 文件失败: {}", e))?;
 
-    archive
-        .extract(&extract_dir)
-        .map_err(|e| format!("解压 ZIP 文件失败: {}", e))?;
+    archive.extract(&extract_dir).map_err(|e| format!("解压 ZIP 文件失败: {}", e))?;
 
-    // 查找包含 SKILL.md 的目录
     let skill_dir = find_skill_directory(&extract_dir)
         .ok_or_else(|| "解压后未找到包含 SKILL.md 的目录".to_string())?;
 
-    let manifest = install_skill_internal(&app, &skill_dir).await?;
-
-    // 清理临时目录（drop 时会自动清理）
+    let manifest = install_skill_internal(&app, &skill_dir, custom_name).await?;
     drop(temp_dir);
-
     Ok(manifest)
 }
 
-/// 预览技能清单（从本地目录或 SKILL.md 文件）
+/// 预览技能清单
 #[tauri::command]
 pub async fn preview_skill_manifest(path: String) -> Result<SkillManifest, String> {
     let p = PathBuf::from(&path);
@@ -790,6 +763,7 @@ pub async fn preview_skill_manifest(path: String) -> Result<SkillManifest, Strin
 pub async fn install_skill_from_zip(
     app: AppHandle,
     zip_url: String,
+    custom_name: Option<String>,
 ) -> Result<SkillManifest, String> {
     let url = zip_url.trim().to_string();
     if url.is_empty() {
@@ -800,60 +774,41 @@ pub async fn install_skill_from_zip(
     let skills_dir = app_data_dir.join("skills");
     fs::create_dir_all(&skills_dir).map_err(|e| format!("创建 skills 目录失败: {}", e))?;
 
-    // 创建临时目录用于下载和解压
     let temp_dir = tempfile::tempdir().map_err(|e| format!("创建临时目录失败: {}", e))?;
     let temp_path = temp_dir.path().to_path_buf();
 
-    // 下载 ZIP 文件
     let zip_path = temp_path.join("skill.zip");
-
-    let response = reqwest::get(&url)
-        .await
-        .map_err(|e| format!("下载失败: {}", e))?;
+    let response = reqwest::get(&url).await.map_err(|e| format!("下载失败: {}", e))?;
 
     if !response.status().is_success() {
         return Err(format!("下载失败，HTTP 状态码: {}", response.status()));
     }
 
-    let bytes = response
-        .bytes()
-        .await
-        .map_err(|e| format!("读取下载数据失败: {}", e))?;
-
+    let bytes = response.bytes().await.map_err(|e| format!("读取下载数据失败: {}", e))?;
     fs::write(&zip_path, &bytes).map_err(|e| format!("保存临时文件失败: {}", e))?;
 
-    // 解压 ZIP
     let extract_dir = temp_path.join("extracted");
     fs::create_dir_all(&extract_dir).map_err(|e| format!("创建解压目录失败: {}", e))?;
 
     let zip_file = fs::File::open(&zip_path).map_err(|e| format!("打开 ZIP 文件失败: {}", e))?;
-    let mut archive =
-        zip::ZipArchive::new(zip_file).map_err(|e| format!("读取 ZIP 文件失败: {}", e))?;
+    let mut archive = zip::ZipArchive::new(zip_file).map_err(|e| format!("读取 ZIP 文件失败: {}", e))?;
 
-    archive
-        .extract(&extract_dir)
-        .map_err(|e| format!("解压 ZIP 文件失败: {}", e))?;
+    archive.extract(&extract_dir).map_err(|e| format!("解压 ZIP 文件失败: {}", e))?;
 
-    // 查找包含 SKILL.md 的目录
     let skill_dir = find_skill_directory(&extract_dir)
         .ok_or_else(|| "解压后未找到包含 SKILL.md 的目录".to_string())?;
 
-    let manifest = install_skill_internal(&app, &skill_dir).await?;
-
-    // 清理临时目录（drop 时会自动清理）
+    let manifest = install_skill_internal(&app, &skill_dir, custom_name).await?;
     drop(temp_dir);
-
     Ok(manifest)
 }
 
 /// 递归查找包含 SKILL.md 的目录
 fn find_skill_directory(base: &Path) -> Option<PathBuf> {
-    // 先检查 base 目录本身
     if base.join("SKILL.md").exists() {
         return Some(base.to_path_buf());
     }
 
-    // 检查 base 下的第一级子目录
     if let Ok(entries) = fs::read_dir(base) {
         for entry in entries.flatten() {
             let path = entry.path();
@@ -866,17 +821,15 @@ fn find_skill_directory(base: &Path) -> Option<PathBuf> {
     None
 }
 
-/// 卸载 Skill（删除技能目录）
+/// 卸载 Skill
 #[tauri::command]
 pub async fn uninstall_skill(app: AppHandle, skill_id: String) -> Result<(), String> {
-    // 1. 获取所有清单以定位路径
     let manifests = get_all_skill_manifests(app.clone(), None).await?;
     let manifest = manifests
         .iter()
         .find(|m| m.name == skill_id)
         .ok_or_else(|| format!("未找到技能: {}", skill_id))?;
 
-    // 2. 权限检查：只允许删除 "user" 来源的技能
     if manifest.source != "user" {
         return Err("只能卸载用户安装的技能".to_string());
     }
@@ -885,12 +838,10 @@ pub async fn uninstall_skill(app: AppHandle, skill_id: String) -> Result<(), Str
     let app_data_dir = crate::get_app_data_dir(app.config());
     let user_skills_dir = app_data_dir.join("skills");
 
-    // 3. 路径安全校验：确保在用户技能目录下
     if !base_path.starts_with(&user_skills_dir) {
         return Err("不支持的操作：试图删除系统或外部技能目录".to_string());
     }
 
-    // 4. 执行删除
     if base_path.exists() {
         fs::remove_dir_all(&base_path).map_err(|e| format!("删除目录失败: {}", e))?;
     }
@@ -898,7 +849,7 @@ pub async fn uninstall_skill(app: AppHandle, skill_id: String) -> Result<(), Str
     Ok(())
 }
 
-/// 获取已知工具的默认全局路径列表（跨平台解析后）
+/// 获取已知工具的默认全局路径列表
 #[tauri::command]
 pub fn get_well_known_skill_paths() -> Vec<WellKnownPath> {
     let home = dirs_next::home_dir().unwrap_or_default();
@@ -906,47 +857,27 @@ pub fn get_well_known_skill_paths() -> Vec<WellKnownPath> {
         WellKnownPath {
             id: "agents".to_string(),
             label: "通用跨平台标准 (Agents)".to_string(),
-            default_path: home
-                .join(".agents")
-                .join("skills")
-                .to_string_lossy()
-                .to_string(),
+            default_path: home.join(".agents").join("skills").to_string_lossy().to_string(),
         },
         WellKnownPath {
             id: "claude".to_string(),
             label: "Claude Code".to_string(),
-            default_path: home
-                .join(".claude")
-                .join("skills")
-                .to_string_lossy()
-                .to_string(),
+            default_path: home.join(".claude").join("skills").to_string_lossy().to_string(),
         },
         WellKnownPath {
             id: "cursor".to_string(),
             label: "Cursor".to_string(),
-            default_path: home
-                .join(".cursor")
-                .join("skills")
-                .to_string_lossy()
-                .to_string(),
+            default_path: home.join(".cursor").join("skills").to_string_lossy().to_string(),
         },
         WellKnownPath {
             id: "gemini".to_string(),
             label: "Gemini CLI".to_string(),
-            default_path: home
-                .join(".gemini")
-                .join("skills")
-                .to_string_lossy()
-                .to_string(),
+            default_path: home.join(".gemini").join("skills").to_string_lossy().to_string(),
         },
         WellKnownPath {
             id: "copilot".to_string(),
             label: "GitHub Copilot".to_string(),
-            default_path: home
-                .join(".copilot")
-                .join("skills")
-                .to_string_lossy()
-                .to_string(),
+            default_path: home.join(".copilot").join("skills").to_string_lossy().to_string(),
         },
     ]
 }

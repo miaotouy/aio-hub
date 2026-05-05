@@ -1108,6 +1108,12 @@ const wallpaperPreviewStyle = computed(() => {
   width: 100%;
 }
 
+/* 防止 el-slider 手柄在两端时溢出导致滚动条 */
+:deep(.el-slider) {
+  padding: 0 8px;
+  box-sizing: border-box;
+}
+
 :deep(.el-card__header) {
   padding: 12px 20px;
   font-size: 16px;

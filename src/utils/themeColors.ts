@@ -46,6 +46,126 @@ export const darkenColor = (hex: string, percent: number) => {
   return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
 };
 
+// --- OKLCH 色彩空间处理 ---
+
+/**
+ * OKLCH 颜色对象
+ */
+export interface OKLCH {
+  l: number; // Lightness (0-1)
+  c: number; // Chroma (0-0.4)
+  h: number; // Hue (0-360)
+}
+
+/**
+ * 将 HEX 转换为 OKLCH
+ * 算法参考: https://bottosson.github.io/posts/oklab/
+ */
+export const hexToOklch = (hex: string): OKLCH | null => {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return null;
+
+  // 1. sRGB to Linear sRGB
+  const r = rgb.r / 255;
+  const g = rgb.g / 255;
+  const b = rgb.b / 255;
+
+  const toLinear = (c: number) => (c > 0.04045 ? Math.pow((c + 0.055) / 1.055, 2.4) : c / 12.92);
+  const lr = toLinear(r);
+  const lg = toLinear(g);
+  const lb = toLinear(b);
+
+  // 2. Linear sRGB to LMS
+  const l_ = 0.4122214708 * lr + 0.5363325363 * lg + 0.0514459929 * lb;
+  const m_ = 0.2119034982 * lr + 0.6806995451 * lg + 0.1073969566 * lb;
+  const s_ = 0.0883024619 * lr + 0.2817188376 * lg + 0.6299787005 * lb;
+
+  // 3. LMS to Oklab
+  const l_root = Math.cbrt(l_);
+  const m_root = Math.cbrt(m_);
+  const s_root = Math.cbrt(s_);
+
+  const lab_l = 0.2104542553 * l_root + 0.793617785 * m_root - 0.0040720401 * s_root;
+  const lab_a = 1.9779984951 * l_root - 2.428592205 * m_root + 0.4505937099 * s_root;
+  const lab_b = 0.0259040371 * l_root + 0.7827717662 * m_root - 0.808675766 * s_root;
+
+  // 4. Oklab to OKLCH
+  const chroma = Math.sqrt(lab_a * lab_a + lab_b * lab_b);
+  let hue = (Math.atan2(lab_b, lab_a) * 180) / Math.PI;
+  if (hue < 0) hue += 360;
+
+  return { l: lab_l, c: chroma, h: hue };
+};
+
+/**
+ * 将 OKLCH 转换为 HEX
+ */
+export const oklchToHex = (oklch: OKLCH): string => {
+  const { l, c, h } = oklch;
+  const h_rad = (h * Math.PI) / 180;
+  const lab_a = c * Math.cos(h_rad);
+  const lab_b = c * Math.sin(h_rad);
+
+  // 1. Oklab to LMS
+  const l_ = Math.pow(l + 0.3963377774 * lab_a + 0.2158037573 * lab_b, 3);
+  const m_ = Math.pow(l - 0.1055613458 * lab_a - 0.0638541728 * lab_b, 3);
+  const s_ = Math.pow(l - 0.0894841775 * lab_a - 1.291485548 * lab_b, 3);
+
+  // 2. LMS to Linear sRGB
+  const lr = +4.0767416621 * l_ - 3.3077115913 * m_ + 0.2309699292 * s_;
+  const lg = -1.2684380046 * l_ + 2.6097574011 * m_ - 0.3413193965 * s_;
+  const lb = -0.0041960863 * l_ - 0.7034186147 * m_ + 1.707614701 * s_;
+
+  // 3. Linear sRGB to sRGB
+  const toSRGB = (comp: number) =>
+    Math.max(
+      0,
+      Math.min(255, Math.round(255 * (comp <= 0.0031308 ? 12.92 * comp : 1.055 * Math.pow(comp, 1 / 2.4) - 0.055))),
+    );
+
+  const resR = toSRGB(lr);
+  const resG = toSRGB(lg);
+  const resB = toSRGB(lb);
+
+  return `#${((1 << 24) + (resR << 16) + (resG << 8) + resB).toString(16).slice(1)}`;
+};
+
+/**
+ * 使用 OKLCH 算法修正颜色，使其符合感知亮度和彩度的安全范围
+ * @param hex 原始 HEX 颜色
+ * @param isDark 是否为暗色模式
+ */
+export const harmonizeColorOKLCH = (hex: string, isDark: boolean): string => {
+  const oklch = hexToOklch(hex);
+  if (!oklch) return hex;
+
+  // 1. 修正感知亮度 (L)
+  // 亮色模式：0.45 - 0.60 (保证在白底上的对比度)
+  // 暗色模式：0.70 - 0.85 (保证在黑底上的发光感)
+  const minL = isDark ? 0.7 : 0.45;
+  const maxL = isDark ? 0.85 : 0.6;
+  const harmonizedL = Math.max(minL, Math.min(maxL, oklch.l));
+
+  // 2. 修正彩度 (C)
+  // 0.10 - 0.25 (保证颜色不脏且不刺眼)
+  const harmonizedC = Math.max(0.1, Math.min(0.25, oklch.c));
+
+  const result = oklchToHex({
+    l: harmonizedL,
+    c: harmonizedC,
+    h: oklch.h,
+  });
+
+  logger.debug("OKLCH 颜色修正", {
+    before: hex,
+    after: result,
+    beforeLCH: oklch,
+    isDark,
+  });
+
+  return result;
+};
+
 /**
  * 应用主题色系统到 DOM
  */

@@ -57,6 +57,7 @@
             :is-enabled="store.isSkillEnabled(selectedManifest.name)"
             @toggle="handleToggleSkill"
             @uninstall="handleUninstallSkill"
+            @rename="handleRenameSkill"
           />
           <div v-else class="empty-detail">
             <el-empty description="请选择一个技能查看详情" />
@@ -90,7 +91,7 @@ import SkillDetailPanel from "./SkillDetailPanel.vue";
 import SkillInstallDialog from "./SkillInstallDialog.vue";
 import SkillScanSettings from "./SkillScanSettings.vue";
 
-const { store, initialize, refresh, toggleSkill, uninstallSkill } = useSkillManager();
+const { store, initialize, refresh, toggleSkill, uninstallSkill, renameSkill } = useSkillManager();
 const loading = ref(false);
 const selectedManifest = ref<SkillManifest | null>(null);
 const showInstallDialog = ref(false);
@@ -128,6 +129,23 @@ async function handleUninstallSkill(name: string) {
     if (success) {
       if (selectedManifest.value?.name === name) {
         selectedManifest.value = null;
+      }
+    }
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function handleRenameSkill(oldName: string, newName: string) {
+  loading.value = true;
+  try {
+    const success = await renameSkill(oldName, newName);
+    if (success) {
+      customMessage.success(`技能已重命名为 "${newName}"`);
+      // 更新当前选中的 manifest
+      const newManifest = store.manifests.find((m) => m.name === newName);
+      if (newManifest) {
+        selectedManifest.value = newManifest;
       }
     }
   } finally {

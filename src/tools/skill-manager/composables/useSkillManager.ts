@@ -61,11 +61,34 @@ export function useSkillManager() {
     return true;
   }
 
+  /** 重命名技能（仅 user 来源） */
+  async function renameSkill(oldName: string, newName: string): Promise<boolean> {
+    const manifest = store.manifests.find((m) => m.name === oldName);
+    if (!manifest || manifest.source !== "user") return false;
+
+    const result = await errorHandler.wrapAsync(
+      async () => {
+        await skillLoader.renameSkill(oldName, newName);
+      },
+      { userMessage: `重命名技能 "${oldName}" 失败`, showToUser: false },
+    );
+
+    if (result === null) return false;
+
+    // 同步 Store 中的配置（如禁用状态）
+    store.renameSkill(oldName, newName);
+
+    // 刷新列表以同步状态
+    await initialize();
+    return true;
+  }
+
   return {
     store,
     initialize,
     refresh,
     toggleSkill,
     uninstallSkill,
+    renameSkill,
   };
 }

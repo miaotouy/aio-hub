@@ -592,8 +592,8 @@ async fn install_skill_internal(
         let skill_md_path = source_path.join("SKILL.md");
         let content = fs::read_to_string(&skill_md_path).map_err(|e| e.to_string())?;
 
-        // 简单的 YAML 替换
-        let re = regex::Regex::new(r#"(?m)^name:\s*['"]?([^'"]+)['"]?$"#).unwrap();
+        // 简单的 YAML 替换，使用 [^\n]* 避免跨行匹配导致内容被截断
+        let re = regex::Regex::new(r"(?m)^name:[ \t]*[^\n]*$").unwrap();
         let new_content = re.replace(&content, format!("name: {}", name)).to_string();
 
         fs::write(&skill_md_path, new_content).map_err(|e| e.to_string())?;
@@ -607,7 +607,10 @@ async fn install_skill_internal(
     let target_skills_dir = skills_dir.join(&manifest.name);
 
     if target_skills_dir.exists() {
-        return Err(format!("安装失败：目标目录 '{}' 已存在，请尝试更换技能名称", manifest.name));
+        return Err(format!(
+            "安装失败：目标目录 '{}' 已存在，请尝试更换技能名称",
+            manifest.name
+        ));
     }
 
     // 执行复制
@@ -627,7 +630,10 @@ async fn install_skill_internal(
         // 重命名前再次确认目标不存在
         if target_skills_dir.exists() {
             let _ = fs::remove_dir_all(&actual_copied_dir);
-            return Err(format!("安装重命名失败：目标目录 '{}' 已存在", manifest.name));
+            return Err(format!(
+                "安装重命名失败：目标目录 '{}' 已存在",
+                manifest.name
+            ));
         }
 
         fs::rename(actual_copied_dir, &target_skills_dir)
@@ -721,10 +727,14 @@ pub async fn install_skill_from_zip_file(
     let extract_dir = temp_path.join("extracted");
     fs::create_dir_all(&extract_dir).map_err(|e| format!("创建解压目录失败: {}", e))?;
 
-    let zip_file = fs::File::open(&source_zip_path).map_err(|e| format!("打开 ZIP 文件失败: {}", e))?;
-    let mut archive = zip::ZipArchive::new(zip_file).map_err(|e| format!("读取 ZIP 文件失败: {}", e))?;
+    let zip_file =
+        fs::File::open(&source_zip_path).map_err(|e| format!("打开 ZIP 文件失败: {}", e))?;
+    let mut archive =
+        zip::ZipArchive::new(zip_file).map_err(|e| format!("读取 ZIP 文件失败: {}", e))?;
 
-    archive.extract(&extract_dir).map_err(|e| format!("解压 ZIP 文件失败: {}", e))?;
+    archive
+        .extract(&extract_dir)
+        .map_err(|e| format!("解压 ZIP 文件失败: {}", e))?;
 
     let skill_dir = find_skill_directory(&extract_dir)
         .ok_or_else(|| "解压后未找到包含 SKILL.md 的目录".to_string())?;
@@ -778,22 +788,30 @@ pub async fn install_skill_from_zip(
     let temp_path = temp_dir.path().to_path_buf();
 
     let zip_path = temp_path.join("skill.zip");
-    let response = reqwest::get(&url).await.map_err(|e| format!("下载失败: {}", e))?;
+    let response = reqwest::get(&url)
+        .await
+        .map_err(|e| format!("下载失败: {}", e))?;
 
     if !response.status().is_success() {
         return Err(format!("下载失败，HTTP 状态码: {}", response.status()));
     }
 
-    let bytes = response.bytes().await.map_err(|e| format!("读取下载数据失败: {}", e))?;
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|e| format!("读取下载数据失败: {}", e))?;
     fs::write(&zip_path, &bytes).map_err(|e| format!("保存临时文件失败: {}", e))?;
 
     let extract_dir = temp_path.join("extracted");
     fs::create_dir_all(&extract_dir).map_err(|e| format!("创建解压目录失败: {}", e))?;
 
     let zip_file = fs::File::open(&zip_path).map_err(|e| format!("打开 ZIP 文件失败: {}", e))?;
-    let mut archive = zip::ZipArchive::new(zip_file).map_err(|e| format!("读取 ZIP 文件失败: {}", e))?;
+    let mut archive =
+        zip::ZipArchive::new(zip_file).map_err(|e| format!("读取 ZIP 文件失败: {}", e))?;
 
-    archive.extract(&extract_dir).map_err(|e| format!("解压 ZIP 文件失败: {}", e))?;
+    archive
+        .extract(&extract_dir)
+        .map_err(|e| format!("解压 ZIP 文件失败: {}", e))?;
 
     let skill_dir = find_skill_directory(&extract_dir)
         .ok_or_else(|| "解压后未找到包含 SKILL.md 的目录".to_string())?;
@@ -849,6 +867,61 @@ pub async fn uninstall_skill(app: AppHandle, skill_id: String) -> Result<(), Str
     Ok(())
 }
 
+/// 重命名已安装的 Skill
+#[tauri::command]
+pub async fn rename_skill(
+    app: AppHandle,
+    skill_id: String,
+    new_name: String,
+) -> Result<(), String> {
+    if !is_valid_skill_name(&new_name) {
+        return Err(format!("新名称 '{}' 不符合规范", new_name));
+    }
+
+    let manifests = get_all_skill_manifests(app.clone(), None).await?;
+    let manifest = manifests
+        .iter()
+        .find(|m| m.name == skill_id)
+        .ok_or_else(|| format!("未找到技能: {}", skill_id))?;
+
+    if manifest.source != "user" {
+        return Err("只能重命名用户安装的技能".to_string());
+    }
+
+    let old_base_path = PathBuf::from(&manifest.base_path);
+    let app_data_dir = crate::get_app_data_dir(app.config());
+    let user_skills_dir = app_data_dir.join("skills");
+    let new_base_path = user_skills_dir.join(&new_name);
+
+    if !old_base_path.starts_with(&user_skills_dir) {
+        return Err("不支持的操作：试图修改非用户技能目录".to_string());
+    }
+
+    if new_base_path.exists() {
+        return Err(format!("重命名失败：目标名称 '{}' 已存在", new_name));
+    }
+
+    // 1. 修改 SKILL.md 内容
+    let skill_md_path = old_base_path.join("SKILL.md");
+    if !skill_md_path.exists() {
+        return Err("未找到 SKILL.md 文件".to_string());
+    }
+
+    let content =
+        fs::read_to_string(&skill_md_path).map_err(|e| format!("读取 SKILL.md 失败: {}", e))?;
+    // 只替换第一个 name: 行，使用 [^\n]* 避免跨行匹配导致内容被截断
+    let re = regex::Regex::new(r"(?m)^name:[ \t]*[^\n]*$").unwrap();
+    let new_content = re
+        .replace(&content, format!("name: {}", new_name))
+        .to_string();
+    fs::write(&skill_md_path, new_content).map_err(|e| format!("写入 SKILL.md 失败: {}", e))?;
+
+    // 2. 重命名目录
+    fs::rename(&old_base_path, &new_base_path).map_err(|e| format!("重命名目录失败: {}", e))?;
+
+    Ok(())
+}
+
 /// 获取已知工具的默认全局路径列表
 #[tauri::command]
 pub fn get_well_known_skill_paths() -> Vec<WellKnownPath> {
@@ -857,27 +930,47 @@ pub fn get_well_known_skill_paths() -> Vec<WellKnownPath> {
         WellKnownPath {
             id: "agents".to_string(),
             label: "通用跨平台标准 (Agents)".to_string(),
-            default_path: home.join(".agents").join("skills").to_string_lossy().to_string(),
+            default_path: home
+                .join(".agents")
+                .join("skills")
+                .to_string_lossy()
+                .to_string(),
         },
         WellKnownPath {
             id: "claude".to_string(),
             label: "Claude Code".to_string(),
-            default_path: home.join(".claude").join("skills").to_string_lossy().to_string(),
+            default_path: home
+                .join(".claude")
+                .join("skills")
+                .to_string_lossy()
+                .to_string(),
         },
         WellKnownPath {
             id: "cursor".to_string(),
             label: "Cursor".to_string(),
-            default_path: home.join(".cursor").join("skills").to_string_lossy().to_string(),
+            default_path: home
+                .join(".cursor")
+                .join("skills")
+                .to_string_lossy()
+                .to_string(),
         },
         WellKnownPath {
             id: "gemini".to_string(),
             label: "Gemini CLI".to_string(),
-            default_path: home.join(".gemini").join("skills").to_string_lossy().to_string(),
+            default_path: home
+                .join(".gemini")
+                .join("skills")
+                .to_string_lossy()
+                .to_string(),
         },
         WellKnownPath {
             id: "copilot".to_string(),
             label: "GitHub Copilot".to_string(),
-            default_path: home.join(".copilot").join("skills").to_string_lossy().to_string(),
+            default_path: home
+                .join(".copilot")
+                .join("skills")
+                .to_string_lossy()
+                .to_string(),
         },
     ]
 }

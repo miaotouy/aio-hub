@@ -60,6 +60,15 @@ export class SkillLoader {
   }
 
   /**
+   * 调用 Rust 命令重命名 Skill
+   */
+  async renameSkill(skillId: string, newName: string): Promise<void> {
+    await invoke("rename_skill", { skillId, newName });
+    // 清除缓存
+    this.cachedManifests = null;
+  }
+
+  /**
    * 获取缓存（若存在）
    */
   getCachedManifests(): SkillManifest[] | null {

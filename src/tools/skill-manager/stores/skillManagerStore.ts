@@ -86,8 +86,9 @@ export const useSkillManagerStore = defineStore("skill-manager", () => {
         commandChainStyle: loaded.terminalPreferences?.commandChainStyle ?? "auto",
       },
       // 清洗 externalScanPaths：剔除缺少 path 的无效旧数据
-      externalScanPaths: (loaded.externalScanPaths ?? [])
-        .filter((p) => typeof p.path === "string" && p.path.trim().length > 0),
+      externalScanPaths: (loaded.externalScanPaths ?? []).filter(
+        (p) => typeof p.path === "string" && p.path.trim().length > 0,
+      ),
     };
   }
 
@@ -145,6 +146,23 @@ export const useSkillManagerStore = defineStore("skill-manager", () => {
     saveConfig();
   }
 
+  /** 重命名技能（更新配置中的 ID） */
+  function renameSkill(oldName: string, newName: string) {
+    // 1. 更新禁用列表中的 ID
+    const idx = config.value.disabledSkillIds.indexOf(oldName);
+    if (idx >= 0) {
+      config.value.disabledSkillIds[idx] = newName;
+    }
+
+    // 2. 更新激活状态中的 ID
+    if (activeSkillNames.value.has(oldName)) {
+      activeSkillNames.value.delete(oldName);
+      activeSkillNames.value.add(newName);
+    }
+
+    saveConfig();
+  }
+
   /** 判断技能是否启用 */
   function isSkillEnabled(name: string): boolean {
     return !config.value.disabledSkillIds.includes(name);
@@ -175,6 +193,7 @@ export const useSkillManagerStore = defineStore("skill-manager", () => {
     setSkillActive,
     toggleSkill,
     removeSkill,
+    renameSkill,
     isSkillEnabled,
     isSkillActive,
     resetActivation,

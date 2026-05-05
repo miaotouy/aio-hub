@@ -5,7 +5,26 @@
       <div class="header-main">
         <div class="title-row">
           <div class="skill-badge" :class="sourceInfo.class">{{ sourceInfo.label }}</div>
-          <h3 class="skill-title">{{ manifest.name }}</h3>
+          <div v-if="isEditingName" class="name-edit-box">
+            <el-input
+              v-model="editingName"
+              size="small"
+              placeholder="输入新技能名称"
+              @keyup.enter="submitRename"
+              @keyup.esc="cancelRename"
+              ref="nameInputRef"
+            />
+            <div class="edit-actions">
+              <el-button size="small" :icon="Check" circle type="primary" @click="submitRename" />
+              <el-button size="small" :icon="X" circle @click="cancelRename" />
+            </div>
+          </div>
+          <template v-else>
+            <h3 class="skill-title">{{ manifest.name }}</h3>
+            <el-tooltip v-if="manifest.source === 'user'" content="重命名技能" placement="top">
+              <el-button size="small" :icon="PencilLine" link class="edit-btn" @click="startRename" />
+            </el-tooltip>
+          </template>
         </div>
         <p class="skill-description" :title="manifest.description">{{ manifest.description }}</p>
       </div>
@@ -139,9 +158,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, nextTick, watch } from "vue";
 import { groupBy } from "lodash-es";
-import { Trash2, ShieldCheck, Cpu, Terminal, Database, Wrench, Folder } from "lucide-vue-next";
+import { Trash2, ShieldCheck, Cpu, Terminal, Database, Wrench, Folder, PencilLine, Check, X } from "lucide-vue-next";
 import { ElMessageBox } from "element-plus";
 import DocumentViewer from "@/components/common/DocumentViewer.vue";
 import FileIcon from "@/components/common/FileIcon.vue";
@@ -157,9 +176,46 @@ const props = defineProps<{
 const emit = defineEmits<{
   toggle: [name: string];
   uninstall: [name: string];
+  rename: [oldName: string, newName: string];
 }>();
 
 const activeTab = ref("overview");
+
+// 重命名相关逻辑
+const isEditingName = ref(false);
+const editingName = ref("");
+const nameInputRef = ref<any>(null);
+
+function startRename() {
+  editingName.value = props.manifest.name;
+  isEditingName.value = true;
+  nextTick(() => {
+    nameInputRef.value?.focus();
+  });
+}
+
+function cancelRename() {
+  isEditingName.value = false;
+  editingName.value = "";
+}
+
+function submitRename() {
+  const newName = editingName.value.trim();
+  if (!newName || newName === props.manifest.name) {
+    cancelRename();
+    return;
+  }
+  emit("rename", props.manifest.name, newName);
+  isEditingName.value = false;
+}
+
+// 当选中的技能改变时，退出编辑模式
+watch(
+  () => props.manifest.name,
+  () => {
+    isEditingName.value = false;
+  },
+);
 
 const sourceInfo = computed(() => {
   const source = props.manifest.source;
@@ -299,6 +355,34 @@ const fileGroups = computed(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.name-edit-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.edit-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.edit-btn {
+  opacity: 0;
+  transition: opacity 0.2s;
+  padding: 0;
+  height: auto;
+}
+
+.title-row:hover .edit-btn {
+  opacity: 0.6;
+}
+
+.edit-btn:hover {
+  opacity: 1 !important;
+  color: var(--el-color-primary);
 }
 
 .skill-description {

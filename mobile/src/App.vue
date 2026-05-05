@@ -124,13 +124,11 @@ onMounted(() => {
 }
 
 .app-container {
-  /* 关键：键盘弹出时缩小容器高度 */
-  height: var(--viewport-height, 100dvh);
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   background-color: var(--bg-color);
   overflow: hidden;
-  transition: height 0.3s ease-out;
 }
 
 .app-style-provider {
@@ -159,27 +157,13 @@ onMounted(() => {
 /* 全局键盘避让样式 */
 :root {
   --keyboard-height: 0px;
-  --viewport-height: 100vh;
 }
 
-/* 当键盘可见时，调整 popup 等浮层的高度 */
-.keyboard-visible .var-popup__content {
-  max-height: var(--viewport-height) !important;
-}
-
-/* 聚焦的输入框自动滚动到可见区域 */
+/* 键盘可见时，给输入框增加滚动留白，确保内容不被键盘遮挡 */
 .keyboard-visible input:focus,
 .keyboard-visible textarea:focus,
 .keyboard-visible .var-input:focus-within {
-  /* 增加巨大的滚动边距，强行让它滚上去 */
   scroll-margin-bottom: calc(var(--keyboard-height) + 120px);
 }
 
-/* 强制增加底部占位 - 只有在模拟模式（容器高度没变）时才需要 */
-.keyboard-simulated .main-content::after {
-  content: "";
-  display: block;
-  height: var(--keyboard-height);
-  width: 100%;
-}
 </style>

@@ -51,7 +51,6 @@ const viewportInfo = ref({
   visualViewportOffsetTop: 0,
   keyboardHeight: 0,
   cssKeyboardHeight: 0,
-  isSimulated: false,
   resizeCount: 0,
   viewportEventCount: 0,
 });
@@ -69,8 +68,6 @@ const updateViewportInfo = (event?: Event) => {
     "--keyboard-height"
   );
   viewportInfo.value.cssKeyboardHeight = parseInt(cssHeight) || 0;
-  viewportInfo.value.isSimulated =
-    document.documentElement.classList.contains("keyboard-simulated");
 
   if (event?.type === "resize") viewportInfo.value.resizeCount++;
   if (event?.type === "scroll" || !event) viewportInfo.value.viewportEventCount++;
@@ -430,15 +427,6 @@ onMounted(() => {
               <div class="p-2 bg-secondary rounded">
                 <div class="text-hint">Applied (CSS) H</div>
                 <div class="text-warning font-bold">{{ viewportInfo.cssKeyboardHeight }}px</div>
-              </div>
-              <div class="p-2 bg-secondary rounded">
-                <div class="text-hint">Simulated Mode</div>
-                <div
-                  class="font-bold"
-                  :class="viewportInfo.isSimulated ? 'text-primary' : 'text-hint'"
-                >
-                  {{ viewportInfo.isSimulated ? "YES" : "NO" }}
-                </div>
               </div>
               <div class="p-2 bg-secondary rounded">
                 <div class="text-hint">Viewport OffsetTop</div>

@@ -53,17 +53,16 @@ const scrollIntoViewOnFocus = (event: Event) => {
   if (!scrollContainer) return;
 
   const tryScroll = (retryCount = 0) => {
-    const keyboardHeight =
+    const kbHeight =
       parseInt(getComputedStyle(document.documentElement).getPropertyValue("--keyboard-height")) ||
       0;
 
-    if (keyboardHeight === 0 && retryCount < 3) {
+    if (kbHeight === 0 && retryCount < 3) {
       setTimeout(() => tryScroll(retryCount + 1), 100);
       return;
     }
 
-    const viewportHeight = window.innerHeight;
-    const availableHeight = viewportHeight - keyboardHeight;
+    const availableHeight = window.visualViewport?.height || window.innerHeight;
 
     const groupRect = group.getBoundingClientRect();
     const containerRect = scrollContainer.getBoundingClientRect();
@@ -74,16 +73,12 @@ const scrollIntoViewOnFocus = (event: Event) => {
     const targetScrollTop = groupCenterInContainer - availableHeight * 0.4;
 
     logger.debug("Auto-scrolling calculation", {
-      keyboardHeight,
-      viewportHeight,
+      keyboardHeight: kbHeight,
       availableHeight,
       targetScrollTop,
     });
 
-    const isSimulated = document.documentElement.classList.contains("keyboard-simulated");
-    const threshold = isSimulated ? availableHeight - 20 : availableHeight - 40;
-
-    if (groupRect.bottom > threshold || groupRect.top < 100) {
+    if (groupRect.bottom > availableHeight - 40 || groupRect.top < 100) {
       scrollContainer.scrollTo({
         top: Math.max(0, targetScrollTop),
         behavior: "smooth",

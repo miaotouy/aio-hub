@@ -511,7 +511,7 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
 
               <!-- 分析当前上下文 -->
               <el-dropdown-item
-                :disabled="disabled || (!props.inputText.trim() && !props.hasAttachments)"
+                :disabled="disabled"
                 @click="emit('analyze-context-with-input')"
               >
                 <div class="dropdown-item-content">

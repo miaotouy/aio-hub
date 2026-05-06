@@ -216,7 +216,6 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
   // 处理分析当前上下文
   const handleAnalyzeContextWithInput = () => {
     const detail = chatStore.currentSessionDetail;
-    if (!detail) return;
 
     // 直接从 inputManager 获取当前状态
     const pendingInput: PendingInputData = {
@@ -226,8 +225,8 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
       enableMacroParsing: options.inputSettings.value.enableMacroParsing,
     };
 
-    // 通过 store 开启分析器
-    chatStore.contextAnalyzerNodeId = detail.activeLeafId || null;
+    // 通过 store 开启分析器（即使没有活跃会话也能打开，用于查看预设构建效果）
+    chatStore.contextAnalyzerNodeId = detail?.activeLeafId ?? null;
     chatStore.contextAnalyzerPendingInput = pendingInput;
     chatStore.contextAnalyzerVisible = true;
   };

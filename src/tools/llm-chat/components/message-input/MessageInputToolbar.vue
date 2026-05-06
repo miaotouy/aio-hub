@@ -426,13 +426,6 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
           </button>
         </el-tooltip>
 
-        <!-- 快捷操作管理按钮 -->
-        <el-tooltip content="管理快捷操作" placement="top" :show-after="500">
-          <button class="tool-btn" @click="handleOpenQuickActionManager">
-            <Grip :size="16" />
-          </button>
-        </el-tooltip>
-
         <!-- 更多工具菜单 -->
         <el-dropdown
           trigger="click"
@@ -524,6 +517,16 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
                 <div class="dropdown-item-content">
                   <ScanSearch :size="16" />
                   <span>分析当前上下文</span>
+                </div>
+              </el-dropdown-item>
+
+              <div class="dropdown-divider"></div>
+
+              <!-- 管理快捷操作 -->
+              <el-dropdown-item @click="handleOpenQuickActionManager">
+                <div class="dropdown-item-content">
+                  <Grip :size="16" />
+                  <span>管理快捷操作</span>
                 </div>
               </el-dropdown-item>
             </el-dropdown-menu>

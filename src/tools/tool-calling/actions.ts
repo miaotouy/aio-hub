@@ -175,10 +175,11 @@ export async function testAsyncTask(
 }
 
 /**
- * 测试同步耗时任务（CPU 密集型操作）
+ * 测试同步耗时任务（非阻塞延时操作）
  *
- * 与 testAsyncTask 不同，此方法同步阻塞执行，
- * 用于测试 Agent 同步调用的超时机制和 UI 响应性。
+ * 与 testAsyncTask 不同，此方法在 Agent 会话层面表现为同步等待，
+ * 但内部使用异步延时以避免阻塞 UI 主线程。
+ * 用于测试 Agent 同步调用的超时机制。
  * duration 默认 5 秒，shouldFail 默认 false
  */
 export async function testSyncTask(
@@ -195,12 +196,9 @@ export async function testSyncTask(
     const startTime = Date.now();
     context?.reportStatus(`同步任务开始，预计耗时 ${duration}秒...`);
 
-    // 通过 CPU 密集计算（质数计数）模拟同步阻塞
-    let calcResult = 0;
-    const endTime = startTime + duration * 1000;
-    let iteration = 0;
+    const totalSteps = duration * 10; // 每秒 10 步
 
-    while (Date.now() < endTime) {
+    for (let i = 0; i <= totalSteps; i++) {
       // 检查取消信号
       if (context?.signal?.aborted) {
         const abortError = new Error("任务已取消");
@@ -208,36 +206,32 @@ export async function testSyncTask(
         throw abortError;
       }
 
-      // 中段模拟失败
-      if (shouldFail && iteration > 500 && iteration < 510) {
-        throw new Error("模拟的同步任务失败");
+      const progress = Math.floor((i / totalSteps) * 100);
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+
+      // 每 5 步上报一次进度，避免过于频繁
+      if (i % 5 === 0 || i === totalSteps) {
+        context?.reportStatus(`同步执行中... 已用时 ${elapsed}秒 (${i}/${totalSteps})`, progress);
       }
 
-      // CPU 密集: 计算质数
-      const n = 100000 + (iteration % 10000);
-      calcResult += countPrimes(n);
+      // 异步延时，释放 Event Loop
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
-      iteration++;
-
-      // 每 500 次迭代上报进度
-      if (iteration % 500 === 0) {
-        const elapsedMs = Date.now() - startTime;
-        const elapsedStr = (elapsedMs / 1000).toFixed(1);
-        const pct = Math.min(100, Math.floor((elapsedMs / 1000 / duration) * 100));
-        context?.reportStatus(`同步执行中... 已用时 ${elapsedStr}秒 (迭代 ${iteration} 次)`, pct);
+      // 中段模拟失败
+      if (shouldFail && i === Math.floor(totalSteps / 2)) {
+        throw new Error("模拟的同步任务失败");
       }
     }
 
     const totalTime = ((Date.now() - startTime) / 1000).toFixed(2);
-    logger.info("测试同步任务完成", { taskId, totalTime, iterations: iteration });
+    logger.info("测试同步任务完成", { taskId, totalTime });
 
     return JSON.stringify(
       {
         success: true,
         message: "同步耗时任务完成",
         duration: `${totalTime}秒`,
-        iterations: iteration,
-        result: calcResult % 1000,
+        steps: totalSteps,
         taskId,
       },
       null,
@@ -251,23 +245,4 @@ export async function testSyncTask(
     logger.error("同步测试任务失败", error, { taskId });
     throw error;
   }
-}
-
-/**
- * 辅助: 计算 ≤n 的质数个数
- */
-function countPrimes(n: number): number {
-  if (n < 2) return 0;
-  let count = 0;
-  for (let i = 2; i <= n; i++) {
-    let isPrime = true;
-    for (let j = 2; j * j <= i; j++) {
-      if (i % j === 0) {
-        isPrime = false;
-        break;
-      }
-    }
-    if (isPrime) count++;
-  }
-  return count;
 }

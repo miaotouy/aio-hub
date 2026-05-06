@@ -94,7 +94,7 @@ export class ToolCallingRegistry implements ToolRegistry {
             {
               name: "shouldFail",
               type: "boolean",
-              description: "是否模拟失败，默认 false",
+              description: "是否模拟失败，默认 false 为成功，true 则抛出错误",
               required: false,
             },
           ],
@@ -122,7 +122,7 @@ export class ToolCallingRegistry implements ToolRegistry {
             {
               name: "shouldFail",
               type: "boolean",
-              description: "是否模拟失败，默认 false",
+              description: "是否模拟失败，默认 false 为成功，true 则抛出错误",
               required: false,
             },
           ],

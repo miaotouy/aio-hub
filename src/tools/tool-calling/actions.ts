@@ -120,8 +120,8 @@ export async function testAsyncTask(
   args: { duration?: number; shouldFail?: boolean },
   context?: ToolContext,
 ): Promise<string> {
-  const duration = args.duration || 5;
-  const shouldFail = args.shouldFail || false;
+  const duration = args.duration ?? 5;
+  const shouldFail = !!args.shouldFail;
 
   if (!context?.isAsync) {
     return buildError("此方法必须作为异步任务执行");
@@ -186,8 +186,8 @@ export async function testSyncTask(
   args: { duration?: number; shouldFail?: boolean },
   context?: ToolContext,
 ): Promise<string> {
-  const duration = args.duration || 5;
-  const shouldFail = args.shouldFail || false;
+  const duration = args.duration ?? 5;
+  const shouldFail = !!args.shouldFail;
   const taskId = context?.taskId || "sync";
 
   logger.info("开始测试同步耗时任务", { duration, shouldFail, taskId });

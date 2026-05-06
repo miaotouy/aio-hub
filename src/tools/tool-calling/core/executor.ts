@@ -142,14 +142,24 @@ async function executeSingleRequest(
     typeof (
       toolInstance as {
         getMetadata?: () => {
-          methods?: Array<{ name: string; agentCallable?: boolean; executionMode?: "sync" | "async" }>;
+          methods?: Array<{
+            name: string;
+            agentCallable?: boolean;
+            executionMode?: "sync" | "async";
+            parameters?: Array<{ name: string; type: string }>;
+          }>;
         };
       }
     ).getMetadata === "function"
       ? (
           toolInstance as {
             getMetadata: () => {
-              methods?: Array<{ name: string; agentCallable?: boolean; executionMode?: "sync" | "async" }>;
+              methods?: Array<{
+                name: string;
+                agentCallable?: boolean;
+                executionMode?: "sync" | "async";
+                parameters?: Array<{ name: string; type: string }>;
+              }>;
             };
           }
         ).getMetadata()
@@ -180,6 +190,21 @@ async function executeSingleRequest(
   // 从 request.args 中移除 command 字段（如果存在），因为它已经被用于路由
   const { command: _, ...cleanArgs } = request.args ?? {};
   const mergedArgs = { ...schemaDefaults, ...agentPreset, ...cleanArgs };
+
+  // 💡 修复：根据元数据进行参数类型适配 (Type Coercion)
+  if (methodMeta?.parameters) {
+    for (const param of methodMeta.parameters) {
+      const val = mergedArgs[param.name];
+      if (val !== undefined) {
+        if (param.type === "boolean") {
+          mergedArgs[param.name] = String(val).toLowerCase() === "true" || val === true;
+        } else if (param.type === "number") {
+          const num = Number(val);
+          if (!isNaN(num)) mergedArgs[param.name] = num;
+        }
+      }
+    }
+  }
 
   // 检查是否为异步方法
   if (methodMeta?.executionMode === "async") {

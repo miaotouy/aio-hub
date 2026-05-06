@@ -15,6 +15,7 @@ export interface GitAnalyzerConfig {
 
   // 筛选器设置
   searchQuery: string;
+  excludeQuery: string;
   dateRange: [string, string] | null;
   authorFilter: string;
   commitRange: [number, number];
@@ -60,6 +61,7 @@ function createDefaultConfig(): GitAnalyzerConfig {
 
     // 筛选器设置
     searchQuery: "",
+    excludeQuery: "",
     dateRange: null,
     authorFilter: "",
     commitRange: [0, 0],

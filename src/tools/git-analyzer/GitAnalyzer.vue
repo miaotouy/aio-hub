@@ -17,6 +17,7 @@
           v-model:batch-size="batchSize"
           v-model:commit-range="commitRange"
           v-model:search-query="searchQuery"
+          v-model:exclude-query="excludeQuery"
           v-model:date-range="dateRange"
           v-model:author-filter="authorFilter"
           v-model:reverse-order="reverseOrder"
@@ -123,6 +124,7 @@ const {
   batchSize,
   commitRange,
   searchQuery,
+  excludeQuery,
   dateRange,
   authorFilter,
   reverseOrder,
@@ -171,7 +173,7 @@ const { updateCharts, setupResizeObserver } = useCharts(
         }
       : undefined;
   },
-  isChartTabActive
+  isChartTabActive,
 );
 
 const { selectedCommit, showDetail, selectCommit, copyCommitHash, clearCache } = useCommitDetail(() => repoPath.value);
@@ -230,6 +232,7 @@ async function loadConfig() {
     activeTab.value = loadedConfig.activeTab;
     pageSize.value = loadedConfig.pageSize;
     searchQuery.value = loadedConfig.searchQuery;
+    excludeQuery.value = loadedConfig.excludeQuery;
     authorFilter.value = loadedConfig.authorFilter;
     reverseOrder.value = loadedConfig.reverseOrder;
     commitTypeFilter.value = loadedConfig.commitTypeFilter;
@@ -273,6 +276,7 @@ function saveCurrentConfig() {
     activeTab: activeTab.value,
     pageSize: pageSize.value,
     searchQuery: searchQuery.value,
+    excludeQuery: excludeQuery.value,
     dateRange: dateRange.value
       ? [new Date(dateRange.value[0]).toISOString(), new Date(dateRange.value[1]).toISOString()]
       : null,
@@ -300,6 +304,7 @@ watch(
     activeTab,
     pageSize,
     searchQuery,
+    excludeQuery,
     dateRange,
     authorFilter,
     commitRange,
@@ -310,7 +315,7 @@ watch(
   () => {
     saveCurrentConfig();
   },
-  { deep: true }
+  { deep: true },
 );
 
 // 监听筛选后的 commits 变化，如果图表可见则更新

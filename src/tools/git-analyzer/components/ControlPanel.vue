@@ -108,6 +108,19 @@
             </el-icon>
           </template>
         </el-input>
+        <el-input
+          v-model="excludeQuery"
+          placeholder="排除关键词..."
+          clearable
+          @input="$emit('filter-commits')"
+          class="exclude-input"
+        >
+          <template #prefix>
+            <el-icon>
+              <CircleClose />
+            </el-icon>
+          </template>
+        </el-input>
         <el-date-picker
           v-model="dateRange"
           type="daterange"
@@ -259,7 +272,15 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
-import { Search, Refresh, FolderOpened, InfoFilled, PriceTag, CollectionTag } from "@element-plus/icons-vue";
+import {
+  Search,
+  Refresh,
+  FolderOpened,
+  InfoFilled,
+  PriceTag,
+  CollectionTag,
+  CircleClose,
+} from "@element-plus/icons-vue";
 import DropZone from "@/components/common/DropZone.vue";
 import { customMessage } from "@/utils/customMessage";
 import type { GitCommit, GitBranch } from "../types";
@@ -276,6 +297,7 @@ interface Props {
   batchSize: number;
   commitRange: [number, number];
   searchQuery: string;
+  excludeQuery: string;
   dateRange: Date[] | null;
   authorFilter: string;
   reverseOrder: boolean;
@@ -302,6 +324,7 @@ const emit = defineEmits<{
   "update:batchSize": [value: number];
   "update:commitRange": [value: [number, number]];
   "update:searchQuery": [value: string];
+  "update:excludeQuery": [value: string];
   "update:dateRange": [value: Date[] | null];
   "update:authorFilter": [value: string];
   "update:reverseOrder": [value: boolean];
@@ -327,6 +350,7 @@ function loadAllCommits() {
 const batchSize = defineModel<number>("batchSize", { required: true });
 const commitRange = defineModel<[number, number]>("commitRange", { required: true });
 const searchQuery = defineModel<string>("searchQuery", { required: true });
+const excludeQuery = defineModel<string>("excludeQuery", { required: true });
 const dateRange = defineModel<Date[] | null>("dateRange", { required: true });
 const authorFilter = defineModel<string>("authorFilter", { required: true });
 const reverseOrder = defineModel<boolean>("reverseOrder", { required: true });
@@ -532,6 +556,11 @@ function locateTagInterval() {
 
 .author-input {
   width: 140px;
+  flex-shrink: 0;
+}
+
+.exclude-input {
+  width: 160px;
   flex-shrink: 0;
 }
 

@@ -10,8 +10,6 @@ import {
 import type { GitProgressEvent } from "./useGitLoader";
 import type { GitCommit } from "../types";
 
-
-
 import { filterCommits as processFilter } from "./useGitProcessor";
 import { useGitAnalyzerState } from "./useGitAnalyzerState";
 import { commitCache } from "./useCommitCache";
@@ -61,7 +59,7 @@ export function useGitAnalyzerRunner() {
 
     // 必须提供路径
     if (!currentRepoPath) {
-      customMessage.warning('请先输入或选择 Git 仓库路径');
+      customMessage.warning("请先输入或选择 Git 仓库路径");
       return false;
     }
 
@@ -103,7 +101,6 @@ export function useGitAnalyzerRunner() {
     return await loadRepository();
   }
 
-
   // ==================== 仓库加载 ====================
 
   /**
@@ -121,7 +118,7 @@ export function useGitAnalyzerRunner() {
           }
         }
         const loadType = state.batchSize.value === 0 ? "" : "流式";
-        logger.info(`开始${isIncremental ? '增量' : ''}${loadType}加载，目标总数 ${event.total}`);
+        logger.info(`开始${isIncremental ? "增量" : ""}${loadType}加载，目标总数 ${event.total}`);
         break;
       }
 
@@ -131,7 +128,6 @@ export function useGitAnalyzerRunner() {
 
           // 如果 commit 自带 files，直接存入缓存
           if (state.includeFiles.value && event.commits.some((c: GitCommit) => c.files)) {
-
             const repoPath = state.repoPath.value;
             const branch = state.selectedBranch.value;
             const existing = commitCache.getBatchCommits(repoPath, branch) || [];
@@ -162,7 +158,7 @@ export function useGitAnalyzerRunner() {
           state.lastLoadedLimit.value = state.limitCount.value;
           const newCount = state.commits.value.length - initialCount;
           customMessage.success(
-            `增量${loadType}加载完成，新增 ${newCount} 条记录，共 ${state.commits.value.length} 条`
+            `增量${loadType}加载完成，新增 ${newCount} 条记录，共 ${state.commits.value.length} 条`,
           );
         } else {
           state.lastLoadedRepo.value = state.repoPath.value;
@@ -196,8 +192,6 @@ export function useGitAnalyzerRunner() {
     }
   }
 
-
-
   /**
    * 加载仓库（支持增量加载）
    */
@@ -206,7 +200,7 @@ export function useGitAnalyzerRunner() {
 
     // 必须提供路径
     if (!currentRepoPath) {
-      customMessage.warning('请先输入或选择 Git 仓库路径');
+      customMessage.warning("请先输入或选择 Git 仓库路径");
       return false;
     }
 
@@ -226,8 +220,7 @@ export function useGitAnalyzerRunner() {
       // 增量加载
       const skip = state.lastLoadedLimit.value;
       // 如果 limitCount 为 0，则 newLimit 也设为 0（表示加载剩余全部）
-      const newLimit =
-        state.limitCount.value === 0 ? 0 : state.limitCount.value - state.lastLoadedLimit.value;
+      const newLimit = state.limitCount.value === 0 ? 0 : state.limitCount.value - state.lastLoadedLimit.value;
       const initialCommitCount = state.commits.value.length;
 
       state.loading.value = true;
@@ -247,7 +240,7 @@ export function useGitAnalyzerRunner() {
             batchSize: state.batchSize.value,
             includeFiles: state.includeFiles.value,
           },
-          (event) => handleProgressEvent(event, true, initialCommitCount)
+          (event) => handleProgressEvent(event, true, initialCommitCount),
         );
         return true;
       } catch (error) {
@@ -275,7 +268,7 @@ export function useGitAnalyzerRunner() {
           batchSize: state.batchSize.value,
           includeFiles: state.includeFiles.value,
         },
-        (event) => handleProgressEvent(event, false, 0)
+        (event) => handleProgressEvent(event, false, 0),
       );
       return true;
     } catch (error) {
@@ -303,7 +296,6 @@ export function useGitAnalyzerRunner() {
     // 状态更新将通过事件回调中的 "cancelled" 事件统一处理
   }
 
-
   // ==================== 筛选操作 ====================
 
   /**
@@ -315,14 +307,12 @@ export function useGitAnalyzerRunner() {
     }
     // 首先根据范围选择器从原始列表中切片
     // slice 的 end 参数不包含该索引，所以需要 +1 来包含结束位置的提交
-    const rangedCommits = state.commits.value.slice(
-      state.commitRange.value[0],
-      state.commitRange.value[1] + 1
-    );
+    const rangedCommits = state.commits.value.slice(state.commitRange.value[0], state.commitRange.value[1] + 1);
 
     // 应用筛选
     const filtered = processFilter(rangedCommits, {
       searchQuery: state.searchQuery.value,
+      excludeQuery: state.excludeQuery.value,
       authorFilter: state.authorFilter.value,
       dateRange: state.dateRange.value,
       commitTypeFilter: state.commitTypeFilter.value,
@@ -360,11 +350,11 @@ export function useGitAnalyzerRunner() {
       customMessage.success(result);
 
       // 更新本地状态中的提交记录
-      const commitIndex = state.commits.value.findIndex(c => c.hash === hash);
+      const commitIndex = state.commits.value.findIndex((c) => c.hash === hash);
       if (commitIndex !== -1) {
         const commit = state.commits.value[commitIndex];
         // 更新简短消息和完整消息
-        const lines = message.split('\n');
+        const lines = message.split("\n");
         commit.message = lines[0] || "";
         commit.full_message = message;
       }

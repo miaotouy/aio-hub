@@ -19,6 +19,7 @@ const includeFiles = ref(true);
 const commitRange = ref<[number, number]>([0, 0]);
 
 const searchQuery = ref("");
+const excludeQuery = ref("");
 const dateRange = ref<[Date, Date] | null>(null);
 const authorFilter = ref("");
 const reverseOrder = ref(false);
@@ -64,13 +65,22 @@ const progress = ref({
 // ==================== 计算属性 ====================
 
 const hasActiveFilters = computed(() => {
-  return !!(searchQuery.value || dateRange.value || authorFilter.value || commitTypeFilter.value.length > 0);
+  return !!(
+    searchQuery.value ||
+    excludeQuery.value ||
+    dateRange.value ||
+    authorFilter.value ||
+    commitTypeFilter.value.length > 0
+  );
 });
 
 const filterSummary = computed(() => {
   const parts: string[] = [];
   if (searchQuery.value) {
     parts.push(`搜索: "${searchQuery.value}"`);
+  }
+  if (excludeQuery.value) {
+    parts.push(`排除: "${excludeQuery.value}"`);
   }
   if (authorFilter.value) {
     parts.push(`作者: "${authorFilter.value}"`);
@@ -137,6 +147,7 @@ function resetProgress() {
 
 function resetFilters() {
   searchQuery.value = "";
+  excludeQuery.value = "";
   dateRange.value = null;
   authorFilter.value = "";
   reverseOrder.value = false;
@@ -172,6 +183,7 @@ export function useGitAnalyzerState() {
     includeFiles,
     commitRange,
     searchQuery,
+    excludeQuery,
     dateRange,
     authorFilter,
     reverseOrder,

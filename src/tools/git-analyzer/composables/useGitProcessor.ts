@@ -142,6 +142,7 @@ export function generateChartData(commits: GitCommit[]) {
  */
 export interface FilterOptions {
   searchQuery?: string;
+  excludeQuery?: string;
   authorFilter?: string;
   dateRange?: [Date, Date] | null;
   commitTypeFilter?: string[];
@@ -167,6 +168,26 @@ export function filterCommits(commits: GitCommit[], options: FilterOptions): Git
             const normalizedPath = f.path.toLowerCase().replace(/\\/g, "/");
             return normalizedPath.includes(pathQuery);
           })),
+    );
+  }
+
+  // 排除筛选：从当前结果中排除匹配关键词的提交
+  if (options.excludeQuery) {
+    const query = options.excludeQuery.toLowerCase();
+    const pathQuery = query.replace(/\\/g, "/");
+
+    filtered = filtered.filter(
+      (c) =>
+        !c.message.toLowerCase().includes(query) &&
+        !c.hash.toLowerCase().includes(query) &&
+        !(c.full_message && c.full_message.toLowerCase().includes(query)) &&
+        !(
+          c.files &&
+          c.files.some((f) => {
+            const normalizedPath = f.path.toLowerCase().replace(/\\/g, "/");
+            return normalizedPath.includes(pathQuery);
+          })
+        ),
     );
   }
 

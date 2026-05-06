@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted } from "vue";
 import { useAppInitStore } from "@/stores/appInitStore";
+import { createModuleLogger } from "@/utils/logger";
 import { useRootInit } from "@/composables/useRootInit";
 import { useDeepLinkHandler } from "@/composables/useDeepLinkHandler";
 import GlobalProviders from "./components/GlobalProviders.vue";
@@ -18,6 +19,7 @@ useRootInit();
 useDeepLinkHandler();
 
 const appInitStore = useAppInitStore();
+const logger = createModuleLogger("App");
 
 onMounted(async () => {
   // 触发主应用初始化序列
@@ -25,16 +27,26 @@ onMounted(async () => {
 
   // 强制复位补丁：防止任何意外的滚动位移（如 scrollIntoView 导致的 body 偏移）
   const resetScroll = () => {
-    if (document.documentElement.scrollTop !== 0) document.documentElement.scrollTop = 0;
-    if (document.body.scrollTop !== 0) document.body.scrollTop = 0;
+    const docTop = document.documentElement.scrollTop;
+    const bodyTop = document.body.scrollTop;
+
+    if (docTop !== 0 || bodyTop !== 0) {
+      logger.warn("检测到意外的滚动位移，已强制复位", {
+        documentElementScrollTop: docTop,
+        bodyScrollTop: bodyTop,
+      });
+      if (docTop !== 0) document.documentElement.scrollTop = 0;
+      if (bodyTop !== 0) document.body.scrollTop = 0;
+    }
   };
 
-  window.addEventListener("scroll", resetScroll, { passive: true });
+  // 使用 capture 阶段拦截，并尝试阻止默认行为
+  window.addEventListener("scroll", resetScroll, { capture: true, passive: false });
   // 某些情况下聚焦输入框也会触发位移，定期检查
-  const interval = setInterval(resetScroll, 1000);
+  const interval = setInterval(resetScroll, 500);
 
   return () => {
-    window.removeEventListener("scroll", resetScroll);
+    window.removeEventListener("scroll", resetScroll, { capture: true });
     clearInterval(interval);
   };
 });

@@ -395,6 +395,13 @@ const handleSaveUserProfile = async (updates: Partial<Omit<UserProfile, "id" | "
 const { createResizeHandler } = useWindowResize();
 const handleResizeStart = createResizeHandler("SouthEast");
 
+// 滚动阻断：防止任何意外的滚动位移（如内部 scrollIntoView 穿透）导致容器偏移
+const handleContainerScroll = (e: Event) => {
+  const el = e.currentTarget as HTMLElement;
+  if (el.scrollTop !== 0) el.scrollTop = 0;
+  if (el.scrollLeft !== 0) el.scrollLeft = 0;
+};
+
 const isInputVisible = computed(() => {
   // 只要输入框被独立分离出去，无论 ChatArea 在主窗口还是悬浮窗，都应隐藏内部的输入框。
   const isInputDetached = detachedComponents.value.includes("llm-chat:chat-input");
@@ -662,6 +669,7 @@ onMounted(async () => {
     :class="['chat-area-container', { 'detached-mode': isDetached }]"
     tabindex="0"
     @keydown="handleKeyDown"
+    @scroll="handleContainerScroll"
   >
     <!-- 分离模式下的壁纸层 -->
     <div v-if="isDetached && settings.uiPreferences.showWallpaperInDetachedMode" class="detached-wallpaper"></div>
@@ -894,6 +902,9 @@ onMounted(async () => {
   height: 100%;
   border: var(--border-width) solid var(--border-color);
   overflow: hidden;
+  /* 彻底阻断滚动链，并开启渲染隔离 */
+  overscroll-behavior: none;
+  contain: size layout style;
 }
 
 /* 分离模式下添加更强的阴影和圆角 */

@@ -194,7 +194,12 @@ const updateVisibleIndex = () => {
 // 滚动事件处理
 const onScroll = () => {
   if (!messagesContainer.value) return;
-  const { scrollTop, scrollHeight, clientHeight } = messagesContainer.value;
+  const container = messagesContainer.value;
+  const { scrollTop, scrollHeight, clientHeight } = container;
+
+  // 阻断水平滚动（如果有的话）
+  if (container.scrollLeft !== 0) container.scrollLeft = 0;
+
   isNearBottom.value = scrollHeight - clientHeight - scrollTop < settings.value.uiPreferences.autoScrollThreshold;
   updateVisibleIndex();
 };
@@ -283,8 +288,8 @@ watch(
 
       nextTick(() => {
         if (anchorId) {
-          const targetEl = container.querySelector(`[data-message-id="${anchorId}"]`);
-          targetEl?.scrollIntoView({ block: "start" });
+          // 替换 scrollIntoView 为手动的 scrollToMessageId，避免触发全局滚动链
+          scrollToMessageId(anchorId);
         }
       });
     }

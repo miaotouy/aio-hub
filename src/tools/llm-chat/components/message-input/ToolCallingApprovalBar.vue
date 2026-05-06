@@ -13,6 +13,10 @@ const llmChatStore = useLlmChatStore();
  */
 const isSilent = ref(false);
 
+const currentSessionPendingRequests = computed(() => {
+  return toolCallingStore.pendingRequests.filter((r) => r.sessionId === llmChatStore.currentSessionId);
+});
+
 // 当有新的请求进入时，尝试同步节点的静默状态到 UI
 watch(
   () => currentSessionPendingRequests.value[0]?.request.requestId,
@@ -58,10 +62,6 @@ watch(isSilent, (val) => {
       node.metadata.isSilent = val || undefined;
     }
   });
-});
-
-const currentSessionPendingRequests = computed(() => {
-  return toolCallingStore.pendingRequests.filter((r) => r.sessionId === llmChatStore.currentSessionId);
 });
 
 const hasRequests = computed(() => currentSessionPendingRequests.value.length > 0);

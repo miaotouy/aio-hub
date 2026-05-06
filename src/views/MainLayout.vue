@@ -179,11 +179,14 @@ onUnmounted(() => {
 
 .main-content {
   background-color: var(--bg-color);
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  /* 改为 hidden，防止成为任何内部 scrollIntoView 的滚动目标 */
+  overflow: hidden;
+  overscroll-behavior: none;
   flex-grow: 1;
   height: 100%;
   box-sizing: border-box;
+  /* 开启布局隔离 */
+  contain: size layout paint;
 }
 
 .loading-container {

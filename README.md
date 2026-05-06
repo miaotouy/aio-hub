@@ -152,20 +152,6 @@ _专为 LLM 流式输出打造的高性能渲染方案_
 - **MD 样式编辑器**: 针对每种 Markdown 元素提供独立的实时预览面板，支持字体/颜色/边距等 CSS 属性的精细调整，以及全局样式与 Agent/User 个性化样式的分层合并。
 - **稳定性保障**: 全套组件卸载清理机制防止内存泄漏；渲染安全护栏在极端场景下自动降级确保主线程不阻塞。
 
-### 🍶 网页蒸馏室 (Web Distillery)
-
-_AIO 唯一的网页内容获取入口：分层、高纯度的内容提炼方案_
-
-- **分层 Agent API**:
-  - **Level 0 (Quick Fetch)**: 不启动 Webview，Rust 端直接用 `reqwest` 发 HTTP 请求。适用于静态页面、REST API、RSS Feed。速度快（毫秒级）、资源消耗低。
-  - **Level 1 (Smart Extract)**: 启动子 Webview，等待 JS 渲染完成，自动提取正文。适用于 SPA/CSR 页面、需要登录态的内容。Agent 无需人工介入。
-  - **Level 2 (Interactive Distillation)**: 完整的交互式 UI。提供"DOM 手术刀"工具，用户手动选择元素、配置精确的提炼规则。支持 API Sniffer 发现隐藏接口。
-- **站点配方系统 (Site Recipe)**: 录制并持久化提取规则与动作序列（点击、滚动、等待、切除），实现特定站点的自动化蒸馏。Level 2 编辑的配方会反哺 Level 0/1，实现闭环。
-- **真实浏览器操控**: 基于 Tauri 2.0 的 WRY (WebView Rendering Library)，Windows 上是 WebView2 (Chromium)，macOS 上是 WKWebView，Linux 上是 WebKitGTK——不是模拟，是操控。
-- **API 嗅探器 (API Sniffer)**: 通过 `initialization_scripts` 在页面 JS 执行前注入 Hook，拦截 `XMLHttpRequest`、`fetch`、`WebSocket`，自动捕获网页背后的 JSON 接口。
-- **Cookie 实验室**: 支持身份卡片 (Profile) 的统一管理与注入，一键切换账号。计划通过平台特定 API 实现完整的底层 Cookie 控制（含 HttpOnly）。
-- **内容清洗管道**: 5 阶段处理流水线（预处理、去噪、正文提取、结构转换、后处理），采用启发式规则 + Readability 算法双轨策略，支持 HTML → Markdown 转换。
-
 ### 🛠️ 更多实用工具
 
 - **API 测试器**: 灵活、高效的 HTTP API 测试环境，预设驱动（URL 模板、变量、请求头/体），支持 SSE 流式响应处理。

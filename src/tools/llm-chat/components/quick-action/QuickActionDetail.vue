@@ -30,7 +30,7 @@ watch(
       initializeMacroEngine();
     }
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 /**
@@ -50,8 +50,7 @@ const macroCompletionSource = (context: CompletionContext): CompletionResult | n
   const allMacros = registry.getAllMacros().filter((m) => m.supported !== false);
 
   const matchedMacros = allMacros.filter(
-    (macro) =>
-      macro.name.toLowerCase().includes(prefix) || macro.description.toLowerCase().includes(prefix)
+    (macro) => macro.name.toLowerCase().includes(prefix) || macro.description.toLowerCase().includes(prefix),
   );
 
   if (matchedMacros.length === 0) return null;
@@ -119,12 +118,7 @@ const handleInsertMacro = (macro: MacroDefinition) => {
     if (position) {
       monacoInstance.executeEdits("", [
         {
-          range: new monaco.Range(
-            position.lineNumber,
-            position.column,
-            position.lineNumber,
-            position.column
-          ),
+          range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
           text: insertText,
           forceMoveMarkers: true,
         },
@@ -174,6 +168,14 @@ const handleAddAction = () => {
     content: "{{input}}",
     autoSend: false,
     icon: "Zap",
+    lineProcessing: {
+      enabled: false,
+      prefix: "",
+      suffix: "",
+      regexPattern: "",
+      regexReplace: "",
+      regexFlags: "g",
+    },
   };
   currentSet.value.actions.push(newAction);
   selectedActionId.value = newId;
@@ -186,8 +188,7 @@ const handleDeleteAction = (id: string) => {
   if (index !== -1) {
     currentSet.value.actions.splice(index, 1);
     if (selectedActionId.value === id) {
-      selectedActionId.value =
-        currentSet.value.actions.length > 0 ? currentSet.value.actions[0].id : null;
+      selectedActionId.value = currentSet.value.actions.length > 0 ? currentSet.value.actions[0].id : null;
     }
     saveChanges();
   }
@@ -217,7 +218,7 @@ watch(
   () => {
     saveChanges();
   },
-  { deep: true }
+  { deep: true },
 );
 
 const handleManualSave = async () => {
@@ -260,20 +261,11 @@ const handleManualSave = async () => {
     <main class="qa-editor-area" v-if="currentAction">
       <div class="editor-header">
         <div class="header-left">
-          <el-input
-            v-model="currentAction.label"
-            placeholder="操作名称"
-            class="action-name-input"
-          />
+          <el-input v-model="currentAction.label" placeholder="操作名称" class="action-name-input" />
         </div>
         <div class="header-actions">
           <el-button :icon="Save" circle @click="handleManualSave" title="手动保存" />
-          <el-button
-            :icon="Copy"
-            circle
-            @click="handleDuplicateAction(currentAction)"
-            title="克隆"
-          />
+          <el-button :icon="Copy" circle @click="handleDuplicateAction(currentAction)" title="克隆" />
           <el-popconfirm title="确定删除此操作吗？" @confirm="handleDeleteAction(currentAction.id)">
             <template #reference>
               <el-button :icon="Trash2" circle plain type="danger" title="删除" />
@@ -301,11 +293,7 @@ const handleManualSave = async () => {
                   popper-class="macro-selector-popover"
                 >
                   <template #reference>
-                    <el-button
-                      size="small"
-                      :type="macroSelectorVisible ? 'primary' : 'default'"
-                      plain
-                    >
+                    <el-button size="small" :type="macroSelectorVisible ? 'primary' : 'default'" plain>
                       <el-icon style="margin-right: 4px"><MagicStick /></el-icon>
                       插入宏
                     </el-button>
@@ -338,6 +326,74 @@ const handleManualSave = async () => {
                 :rows="2"
                 placeholder="简要说明此操作的作用..."
               />
+            </div>
+          </div>
+        </div>
+
+        <div class="section-line-processing" v-if="currentAction">
+          <div class="section-header">
+            <el-icon><MagicStick /></el-icon>
+            <span>文本后处理 (每一行)</span>
+            <el-switch
+              :model-value="currentAction.lineProcessing?.enabled ?? false"
+              @update:model-value="
+                (val: boolean) => {
+                  if (!currentAction) return;
+                  if (!currentAction.lineProcessing) {
+                    currentAction.lineProcessing = {
+                      enabled: val,
+                      prefix: '',
+                      suffix: '',
+                      regexPattern: '',
+                      regexReplace: '',
+                      regexFlags: 'g',
+                    };
+                  } else {
+                    currentAction.lineProcessing.enabled = val;
+                  }
+                }
+              "
+              size="small"
+              style="margin-left: auto"
+            />
+          </div>
+          <div class="advanced-grid" v-if="currentAction.lineProcessing?.enabled">
+            <div class="control-item">
+              <span class="label">行前缀</span>
+              <el-input v-model="currentAction.lineProcessing.prefix" placeholder="例如: > " />
+            </div>
+            <div class="control-item">
+              <span class="label">行后缀</span>
+              <el-input v-model="currentAction.lineProcessing.suffix" placeholder="结束符" />
+            </div>
+            <div class="control-item full-width">
+              <div class="label-row" style="display: flex; align-items: center; gap: 4px">
+                <span class="label">正则替换 (可选)</span>
+                <el-tooltip content="对生成的每一行内容进行正则替换">
+                  <el-icon class="info-icon"><Info /></el-icon>
+                </el-tooltip>
+              </div>
+              <div class="regex-inputs" style="display: flex; gap: 8px; margin-top: 4px">
+                <el-input
+                  v-model="currentAction.lineProcessing.regexPattern"
+                  placeholder="匹配模式 (如: ^)"
+                  class="regex-pattern"
+                >
+                  <template #prepend>/</template>
+                  <template #append>/</template>
+                </el-input>
+                <el-input
+                  v-model="currentAction.lineProcessing.regexFlags"
+                  placeholder="flags"
+                  class="regex-flags"
+                  style="width: 100px"
+                />
+                <el-input
+                  v-model="currentAction.lineProcessing.regexReplace"
+                  placeholder="替换为"
+                  class="regex-replace"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -549,9 +605,11 @@ const handleManualSave = async () => {
   color: var(--el-text-color-secondary);
 }
 
-.section-group-settings {
+.section-group-settings,
+.section-line-processing {
   border-top: var(--border-width) solid var(--border-color);
   padding-top: 20px;
+  margin-top: 20px;
 }
 
 .section-header {

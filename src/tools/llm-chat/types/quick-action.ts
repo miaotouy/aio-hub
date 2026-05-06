@@ -17,6 +17,21 @@ export interface QuickAction {
   description?: string;
   /** 绑定的快捷键 (可选) */
   hotkey?: string;
+  /** 行处理配置 (可选) */
+  lineProcessing?: {
+    /** 是否启用 */
+    enabled: boolean;
+    /** 每一行的前缀 */
+    prefix?: string;
+    /** 每一行的后缀 */
+    suffix?: string;
+    /** 正则模式 */
+    regexPattern?: string;
+    /** 正则替换内容 */
+    regexReplace?: string;
+    /** 正则修饰符 */
+    regexFlags?: string;
+  };
 }
 
 export interface QuickActionSet {

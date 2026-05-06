@@ -154,12 +154,33 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
       // 使用宏引擎处理模板
       const processor = new MacroProcessor();
       const result = await processor.process(action.content, context, { silent: true });
+      let outputText = result.output;
+
+      // 文本后处理 (每一行)
+      if (action.lineProcessing?.enabled) {
+        const { prefix = "", suffix = "", regexPattern, regexReplace = "", regexFlags = "g" } = action.lineProcessing;
+
+        const lines = outputText.split("\n");
+        const processedLines = lines.map((line) => {
+          let processedLine = line;
+          if (regexPattern) {
+            try {
+              const re = new RegExp(regexPattern, regexFlags);
+              processedLine = processedLine.replace(re, regexReplace);
+            } catch (e) {
+              logger.warn("正则替换失败", e);
+            }
+          }
+          return prefix + processedLine + suffix;
+        });
+        outputText = processedLines.join("\n");
+      }
 
       // 写回编辑器
       if (hasSelection) {
-        textarea.insertText(result.output, start, end);
+        textarea.insertText(outputText, start, end);
       } else {
-        options.inputText.value = result.output;
+        options.inputText.value = outputText;
       }
 
       // 自动发送

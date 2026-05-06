@@ -310,6 +310,8 @@ export interface ChatMessageNode {
     continuationPrefix?: string;
     /** 是否为重新解析工具产生的节点 */
     isReparse?: boolean;
+    /** 是否为静默模式（执行完后不继续循环） */
+    isSilent?: boolean;
     /** 工具执行是否被取消（静默取消或手动拒绝） */
     isCancelled?: boolean;
     /** 是否为压缩/摘要节点 */

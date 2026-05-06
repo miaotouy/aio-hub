@@ -173,22 +173,6 @@ export class ToolCallingRegistry implements ToolRegistry {
     useToolCallingStore().rejectAll(params.sessionId);
   }
 
-  silentApproveRequest(params: { requestId: string }): void {
-    useToolCallingStore().silentApproveRequest(params.requestId);
-  }
-
-  silentCancelRequest(params: { requestId: string }): void {
-    useToolCallingStore().silentCancelRequest(params.requestId);
-  }
-
-  silentApproveAll(params: { sessionId: string }): void {
-    useToolCallingStore().silentApproveAll(params.sessionId);
-  }
-
-  silentCancelAll(params: { sessionId: string }): void {
-    useToolCallingStore().silentCancelAll(params.sessionId);
-  }
-
   // ==================== 任务管理（供跨窗口转发使用） ====================
 
   async deleteTasks(params: { taskIds: string[] }): Promise<number> {

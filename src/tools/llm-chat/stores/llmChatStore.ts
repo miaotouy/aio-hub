@@ -19,13 +19,7 @@ import {
   recalculateNodeTokens as recalculateNodeTokensService,
   fillMissingTokenMetadata as fillMissingTokenMetadataService,
 } from "../utils/chatTokenUtils";
-import type {
-  ChatSessionIndex,
-  ChatSessionDetail,
-  ChatMessageNode,
-  LlmParameters,
-  ModelIdentifier,
-} from "../types";
+import type { ChatSessionIndex, ChatSessionDetail, ChatMessageNode, LlmParameters, ModelIdentifier } from "../types";
 import type { PendingInputData } from "../types/context";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { Asset } from "@/types/asset-management";
@@ -286,12 +280,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   }
 
   // ==================== 图操作 (委托给 useGraphActions) ====================
-  const graphActions = useGraphActions(
-    currentSessionDetail,
-    currentSessionId,
-    historyManager,
-    sessionIndexMap,
-  );
+  const graphActions = useGraphActions(currentSessionDetail, currentSessionId, historyManager, sessionIndexMap);
 
   // ==================== 会话操作 ====================
 
@@ -347,7 +336,10 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   /**
    * 更新会话信息
    */
-  async function updateSession(sessionId: string, updates: Partial<ChatSessionIndex & ChatSessionDetail>): Promise<void> {
+  async function updateSession(
+    sessionId: string,
+    updates: Partial<ChatSessionIndex & ChatSessionDetail>,
+  ): Promise<void> {
     return executeOrProxy("update-session", { sessionId, updates }, () => {
       const sessionManager = useSessionManager();
       sessionManager.updateSession(sessionId, updates, sessionIndexMap.value, sessionDetailMap.value);
@@ -434,42 +426,45 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   async function switchSession(sessionId: string): Promise<void> {
     return executeOrProxy("switch-session", { sessionId }, async () => {
       const index = sessionIndexMap.value.get(sessionId);
-    if (!index) {
-      logger.warn("切换会话失败：会话不存在", { sessionId });
-      return;
-    }
-
-    // ★ 按需加载详情
-    let detail = sessionDetailMap.value.get(sessionId);
-    if (!detail) {
-      const { useChatStorageSeparated } = await import("../composables/storage/useChatStorageSeparated");
-      const storage = useChatStorageSeparated();
-      const fullSession = await storage.loadSession(sessionId);
-      if (fullSession && fullSession.detail) {
-        const { nodes, rootNodeId, activeLeafId, history, historyIndex, updatedAt } = fullSession.detail;
-        detail = {
-          id: sessionId,
-          nodes: nodes!,
-          rootNodeId: rootNodeId!,
-          activeLeafId: activeLeafId!,
-          updatedAt: updatedAt || fullSession.index.updatedAt,
-          history: history && history.length > 0 ? (history as any) : [],
-          historyIndex: historyIndex !== undefined ? historyIndex : -1,
-        };
-        sessionDetailMap.value.set(sessionId, detail);
-        logger.info("会话详情按需加载完成", { sessionId });
+      if (!index) {
+        logger.warn("切换会话失败：会话不存在", { sessionId });
+        return;
       }
-    }
 
-    // ★ 确保切换到的会话有初始化的历史记录
-    if (detail && (detail.history === undefined || detail.historyIndex === undefined || detail.history.length === 0)) {
-      const originalSessionId = currentSessionId.value;
-      currentSessionId.value = sessionId;
-      // 强制触发一次 computed 更新（虽然由于响应式批处理不一定立即生效，但 historyManager.clearHistory 会检查 sessionRef.value）
-      historyManager.clearHistory();
-      currentSessionId.value = originalSessionId;
-      logger.info("为会话初始化了历史堆栈", { sessionId });
-    }
+      // ★ 按需加载详情
+      let detail = sessionDetailMap.value.get(sessionId);
+      if (!detail) {
+        const { useChatStorageSeparated } = await import("../composables/storage/useChatStorageSeparated");
+        const storage = useChatStorageSeparated();
+        const fullSession = await storage.loadSession(sessionId);
+        if (fullSession && fullSession.detail) {
+          const { nodes, rootNodeId, activeLeafId, history, historyIndex, updatedAt } = fullSession.detail;
+          detail = {
+            id: sessionId,
+            nodes: nodes!,
+            rootNodeId: rootNodeId!,
+            activeLeafId: activeLeafId!,
+            updatedAt: updatedAt || fullSession.index.updatedAt,
+            history: history && history.length > 0 ? (history as any) : [],
+            historyIndex: historyIndex !== undefined ? historyIndex : -1,
+          };
+          sessionDetailMap.value.set(sessionId, detail);
+          logger.info("会话详情按需加载完成", { sessionId });
+        }
+      }
+
+      // ★ 确保切换到的会话有初始化的历史记录
+      if (
+        detail &&
+        (detail.history === undefined || detail.historyIndex === undefined || detail.history.length === 0)
+      ) {
+        const originalSessionId = currentSessionId.value;
+        currentSessionId.value = sessionId;
+        // 强制触发一次 computed 更新（虽然由于响应式批处理不一定立即生效，但 historyManager.clearHistory 会检查 sessionRef.value）
+        historyManager.clearHistory();
+        currentSessionId.value = originalSessionId;
+        logger.info("为会话初始化了历史堆栈", { sessionId });
+      }
 
       currentSessionId.value = sessionId;
       const sessionManager = useSessionManager();
@@ -571,54 +566,54 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   ): Promise<void> {
     return executeOrProxy("send-message", { content, options }, async () => {
       const index = currentSession.value;
-    const detail = currentSessionDetail.value;
-    if (!index || !detail) throw new Error("请先创建或选择一个会话");
+      const detail = currentSessionDetail.value;
+      if (!index || !detail) throw new Error("请先创建或选择一个会话");
 
-    if (detail.activeLeafId && generatingNodes.value.has(detail.activeLeafId)) {
-      logger.warn("发送消息失败：当前分支正在生成中", {
-        sessionId: index.id,
-        nodeId: detail.activeLeafId,
-      });
-      return;
-    }
-
-    isSending.value = true;
-
-    try {
-      const chatHandler = useChatHandler();
-
-      const sendPromise = chatHandler.sendMessage(
-        detail,
-        content,
-        currentActivePath.value,
-        abortControllers.value,
-        generatingNodes.value,
-        options,
-        currentSessionId.value,
-      );
-
-      try {
-        const { useChatInputManager } = await import("../composables/input/useChatInputManager");
-        const inputManager = useChatInputManager();
-        inputManager.clear();
-        logger.info("消息已进入发送流程，已反向驱动清空输入框");
-      } catch (e) {
-        logger.warn("反向驱动清空输入框失败", e);
+      if (detail.activeLeafId && generatingNodes.value.has(detail.activeLeafId)) {
+        logger.warn("发送消息失败：当前分支正在生成中", {
+          sessionId: index.id,
+          nodeId: detail.activeLeafId,
+        });
+        return;
       }
 
-      await sendPromise;
+      isSending.value = true;
 
-      const sessionManager = useSessionManager();
-      sessionManager.updateMessageCount(index.id, detail.nodes, sessionIndexMap.value);
-      sessionManager.updateSessionDisplayAgent(index.id, detail, sessionIndexMap.value);
+      try {
+        const chatHandler = useChatHandler();
 
-      sessionManager.persistSession(index, detail, currentSessionId.value);
-      historyManager.clearHistory();
-    } catch (error) {
-      const sessionManager = useSessionManager();
-      sessionManager.persistSession(index, detail, currentSessionId.value);
-      throw error;
-    } finally {
+        const sendPromise = chatHandler.sendMessage(
+          detail,
+          content,
+          currentActivePath.value,
+          abortControllers.value,
+          generatingNodes.value,
+          options,
+          currentSessionId.value,
+        );
+
+        try {
+          const { useChatInputManager } = await import("../composables/input/useChatInputManager");
+          const inputManager = useChatInputManager();
+          inputManager.clear();
+          logger.info("消息已进入发送流程，已反向驱动清空输入框");
+        } catch (e) {
+          logger.warn("反向驱动清空输入框失败", e);
+        }
+
+        await sendPromise;
+
+        const sessionManager = useSessionManager();
+        sessionManager.updateMessageCount(index.id, detail.nodes, sessionIndexMap.value);
+        sessionManager.updateSessionDisplayAgent(index.id, detail, sessionIndexMap.value);
+
+        sessionManager.persistSession(index, detail, currentSessionId.value);
+        historyManager.clearHistory();
+      } catch (error) {
+        const sessionManager = useSessionManager();
+        sessionManager.persistSession(index, detail, currentSessionId.value);
+        throw error;
+      } finally {
         if (generatingNodes.value.size === 0) {
           isSending.value = false;
         }
@@ -681,31 +676,31 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   async function regenerateFromNode(nodeId: string, options?: { modelId?: string; profileId?: string }): Promise<void> {
     return executeOrProxy("regenerate-from-node", { nodeId, options }, async () => {
       const index = currentSession.value;
-    const detail = currentSessionDetail.value;
-    if (!index || !detail) return;
+      const detail = currentSessionDetail.value;
+      if (!index || !detail) return;
 
-    try {
-      const chatHandler = useChatHandler();
-      await chatHandler.regenerateFromNode(
-        detail,
-        nodeId,
-        currentActivePath.value,
-        abortControllers.value,
-        generatingNodes.value,
-        options,
-      );
+      try {
+        const chatHandler = useChatHandler();
+        await chatHandler.regenerateFromNode(
+          detail,
+          nodeId,
+          currentActivePath.value,
+          abortControllers.value,
+          generatingNodes.value,
+          options,
+        );
 
-      const sessionManager = useSessionManager();
-      sessionManager.updateMessageCount(index.id, detail.nodes, sessionIndexMap.value);
-      sessionManager.updateSessionDisplayAgent(index.id, detail, sessionIndexMap.value);
-      sessionManager.persistSession(index, detail, currentSessionId.value);
+        const sessionManager = useSessionManager();
+        sessionManager.updateMessageCount(index.id, detail.nodes, sessionIndexMap.value);
+        sessionManager.updateSessionDisplayAgent(index.id, detail, sessionIndexMap.value);
+        sessionManager.persistSession(index, detail, currentSessionId.value);
 
-      historyManager.clearHistory();
-    } catch (error) {
-      const sessionManager = useSessionManager();
-      sessionManager.persistSession(index, detail, currentSessionId.value);
-      throw error;
-    } finally {
+        historyManager.clearHistory();
+      } catch (error) {
+        const sessionManager = useSessionManager();
+        sessionManager.persistSession(index, detail, currentSessionId.value);
+        throw error;
+      } finally {
         if (generatingNodes.value.size === 0) {
           isSending.value = false;
         }
@@ -828,15 +823,10 @@ export const useLlmChatStore = defineStore("llmChat", () => {
 
     if (shouldAutoName(detail, sessionIndexMap.value)) {
       try {
-        await generateTopicName(
-          detail,
-          sessionIndexMap.value,
-          sessionDetailMap.value,
-          (index, detail, currentId) => {
-            const sessionManager = useSessionManager();
-            sessionManager.persistSession(index, detail, currentId);
-          },
-        );
+        await generateTopicName(detail, sessionIndexMap.value, sessionDetailMap.value, (index, detail, currentId) => {
+          const sessionManager = useSessionManager();
+          sessionManager.persistSession(index, detail, currentId);
+        });
       } catch (err) {
         logger.warn("自动生成标题失败", err);
       }
@@ -863,7 +853,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
       const newMap = new Map<string, ChatSessionIndex>();
       sessions.forEach((s) => newMap.set(s.id, s));
       sessionIndexMap.value = newMap;
-      
+
       logger.debug("已批量同步会话列表索引", { count: sessions.length });
     },
     isCurrentSessionGenerating,

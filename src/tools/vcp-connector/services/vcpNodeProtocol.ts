@@ -93,7 +93,7 @@ export class VcpNodeProtocol {
 
     // 4. 发送响应回 VCP
     // AIO 的结果有多种，映射为布尔值
-    const approved = result === "approved" || result === "silent_approved";
+    const approved = result === "approved";
     this.sendToolApprovalResponse(requestId, approved);
   }
 

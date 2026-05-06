@@ -1,12 +1,64 @@
 <script setup lang="ts">
-import { computed } from "vue";
-import { Play, X, ShieldCheck, Terminal, ChevronRight, AlertCircle, Ban, FastForward } from "lucide-vue-next";
+import { computed, ref, watch } from "vue";
+import { Play, X, ShieldCheck, Terminal, ChevronRight, AlertCircle, Volume2, VolumeX } from "lucide-vue-next";
 import { useToolCallingStore } from "../../stores/toolCallingStore";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { execute } from "@/services/executor";
 
 const toolCallingStore = useToolCallingStore();
 const llmChatStore = useLlmChatStore();
+
+/**
+ * 本次消息的静默执行开关 (单次状态)
+ */
+const isSilent = ref(false);
+
+// 当有新的请求进入时，尝试同步节点的静默状态到 UI
+watch(
+  () => currentSessionPendingRequests.value[0]?.request.requestId,
+  () => {
+    const detail = llmChatStore.currentSessionDetail;
+    if (!detail?.nodes) return;
+
+    // 查找当前正在等待审批的工具节点
+    const pendingNode = Object.values(detail.nodes).find(
+      (node) =>
+        node.role === "tool" &&
+        node.status === "generating" &&
+        node.metadata?.toolCalls?.some((tc) => tc.status === "awaiting_approval"),
+    );
+
+    if (pendingNode?.metadata?.isSilent !== undefined) {
+      isSilent.value = !!pendingNode.metadata.isSilent;
+    } else {
+      isSilent.value = false;
+    }
+  },
+  { immediate: true },
+);
+
+// 监听静默开关，同步到相关的工具节点元数据中
+watch(isSilent, (val) => {
+  const sessionId = llmChatStore.currentSessionId;
+  const detail = llmChatStore.currentSessionDetail;
+  if (!sessionId || !detail || !detail.nodes) return;
+
+  // 找到当前正在等待审批的工具节点 (通常是活动路径上的最后一个 role: 'tool' 节点)
+  const pendingNodeId = currentSessionPendingRequests.value[0]?.request.requestId;
+  if (!pendingNodeId) return;
+
+  // 遍历节点找到对应的工具消息节点
+  Object.values(detail.nodes).forEach((node) => {
+    if (
+      node.role === "tool" &&
+      node.status === "generating" &&
+      node.metadata?.toolCalls?.some((tc) => tc.status === "awaiting_approval")
+    ) {
+      if (!node.metadata) node.metadata = {};
+      node.metadata.isSilent = val || undefined;
+    }
+  });
+});
 
 const currentSessionPendingRequests = computed(() => {
   return toolCallingStore.pendingRequests.filter((r) => r.sessionId === llmChatStore.currentSessionId);
@@ -25,14 +77,6 @@ const handleReject = (id: string) => {
   execute({ service: "tool-calling", method: "rejectRequest", params: { requestId: id } });
 };
 
-const handleSilentCancel = (id: string) => {
-  execute({ service: "tool-calling", method: "silentCancelRequest", params: { requestId: id } });
-};
-
-const handleSilentApprove = (id: string) => {
-  execute({ service: "tool-calling", method: "silentApproveRequest", params: { requestId: id } });
-};
-
 const handleApproveAll = () => {
   if (llmChatStore.currentSessionId) {
     execute({ service: "tool-calling", method: "approveAll", params: { sessionId: llmChatStore.currentSessionId } });
@@ -42,26 +86,6 @@ const handleApproveAll = () => {
 const handleRejectAll = () => {
   if (llmChatStore.currentSessionId) {
     execute({ service: "tool-calling", method: "rejectAll", params: { sessionId: llmChatStore.currentSessionId } });
-  }
-};
-
-const handleSilentCancelAll = () => {
-  if (llmChatStore.currentSessionId) {
-    execute({
-      service: "tool-calling",
-      method: "silentCancelAll",
-      params: { sessionId: llmChatStore.currentSessionId },
-    });
-  }
-};
-
-const handleSilentApproveAll = () => {
-  if (llmChatStore.currentSessionId) {
-    execute({
-      service: "tool-calling",
-      method: "silentApproveAll",
-      params: { sessionId: llmChatStore.currentSessionId },
-    });
   }
 };
 </script>
@@ -76,22 +100,33 @@ const handleSilentApproveAll = () => {
           <span class="request-count">{{ currentSessionPendingRequests.length }} 个待处理</span>
         </div>
         <div class="header-actions">
-          <el-button size="small" type="primary" plain @click="handleApproveAll">
-            <template #icon><Play :size="14" /></template>
-            全部允许
-          </el-button>
-          <el-button v-if="hasLocalRequests" size="small" type="success" plain @click="handleSilentApproveAll">
-            <template #icon><FastForward :size="14" /></template>
-            全部静默允许
-          </el-button>
-          <el-button size="small" type="danger" plain @click="handleRejectAll">
-            <template #icon><X :size="14" /></template>
-            全部拒绝
-          </el-button>
-          <el-button v-if="hasLocalRequests" size="small" type="info" plain @click="handleSilentCancelAll">
-            <template #icon><Ban :size="14" /></template>
-            全部静默取消
-          </el-button>
+          <el-button-group size="small">
+            <el-button type="primary" plain @click="handleApproveAll">
+              <template #icon><Play :size="14" /></template>
+              全部允许
+            </el-button>
+            <el-button type="danger" plain @click="handleRejectAll">
+              <template #icon><X :size="14" /></template>
+              全部拒绝
+            </el-button>
+          </el-button-group>
+
+          <div class="divider"></div>
+
+          <el-tooltip :content="isSilent ? '静默模式：执行完后停止循环' : '常规模式：执行完后继续循环'" placement="top">
+            <el-button
+              size="small"
+              :type="isSilent ? 'warning' : 'info'"
+              :plain="!isSilent"
+              class="silent-toggle"
+              @click="isSilent = !isSilent"
+            >
+              <template #icon>
+                <component :is="isSilent ? VolumeX : Volume2" :size="14" />
+              </template>
+              {{ isSilent ? "静默执行" : "常规循环" }}
+            </el-button>
+          </el-tooltip>
         </div>
       </div>
 
@@ -135,21 +170,9 @@ const handleSilentApproveAll = () => {
               </el-button>
             </el-tooltip>
 
-            <el-tooltip v-if="!item.externalId" content="静默允许 (执行并不再继续循环)" placement="top">
-              <el-button size="small" circle type="success" @click="handleSilentApprove(item.id)">
-                <template #icon><FastForward :size="12" /></template>
-              </el-button>
-            </el-tooltip>
-
             <el-tooltip content="拒绝" placement="top">
               <el-button size="small" circle type="danger" @click="handleReject(item.id)">
                 <template #icon><X :size="12" /></template>
-              </el-button>
-            </el-tooltip>
-
-            <el-tooltip v-if="!item.externalId" content="静默取消 (拒绝并不再继续循环)" placement="top">
-              <el-button size="small" circle type="info" @click="handleSilentCancel(item.id)">
-                <template #icon><Ban :size="12" /></template>
               </el-button>
             </el-tooltip>
           </div>
@@ -194,9 +217,21 @@ const handleSilentApproveAll = () => {
 
 .header-actions {
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: 12px;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+.divider {
+  width: 1px;
+  height: 16px;
+  background-color: var(--border-color);
+  opacity: 0.5;
+}
+
+.silent-toggle {
+  transition: all 0.3s ease;
 }
 
 .header-left {

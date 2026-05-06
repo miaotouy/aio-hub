@@ -338,19 +338,6 @@ export function useLlmChatSync() {
       case "reject-all-tool-calls":
         toolCallingStore.rejectAll(params.sessionId);
         return Promise.resolve();
-      case "silent-approve-tool-call":
-        toolCallingStore.silentApproveRequest(params.requestId);
-        return Promise.resolve();
-      case "silent-cancel-tool-call":
-        toolCallingStore.silentCancelRequest(params.requestId);
-        return Promise.resolve();
-      case "silent-approve-all-tool-calls":
-        toolCallingStore.silentApproveAll(params.sessionId);
-        return Promise.resolve();
-      case "silent-cancel-all-tool-calls":
-        toolCallingStore.silentCancelAll(params.sessionId);
-        return Promise.resolve();
-
       default:
         logger.warn("未知的操作请求", { action });
         return Promise.reject(new Error(`Unknown action: ${action}`));

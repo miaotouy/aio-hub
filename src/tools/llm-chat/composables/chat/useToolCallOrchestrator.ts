@@ -61,6 +61,8 @@ export function useToolCallOrchestrator() {
       isReparse = false,
     } = params;
 
+    const llmChatStore = useLlmChatStore();
+
     // 1. 创建共享的 AbortController
     const abortController = new AbortController();
 
@@ -181,8 +183,7 @@ export function useToolCallOrchestrator() {
 
             // 4. 切换到新分支
             nodeManager.updateActiveLeaf(session, newNode.id);
-            const chatStore = useLlmChatStore();
-            const index = chatStore.sessionIndexMap.get(session.id);
+            const index = llmChatStore.sessionIndexMap.get(session.id);
             if (index) {
               sessionManager.persistSession(index, session, session.id);
             }
@@ -222,8 +223,7 @@ export function useToolCallOrchestrator() {
                     if (req) req.status = status;
 
                     // 持久化以触发 UI 更新
-                    const chatStore = useLlmChatStore();
-                    const index = chatStore.sessionIndexMap.get(session.id);
+                    const index = llmChatStore.sessionIndexMap.get(session.id);
                     if (index) {
                       sessionManager.persistSession(index, session, session.id);
                     }
@@ -234,70 +234,6 @@ export function useToolCallOrchestrator() {
           );
 
           if (cycleResult.hasToolRequests) {
-            const hasSilentCancel = cycleResult.executionResults.some((r) => r.result === "SILENT_CANCEL");
-            const hasSilentStop = cycleResult.executionResults.some((r) => r.silentStop);
-
-            if (hasSilentCancel || hasSilentStop) {
-              const toolResultText = formatCycleResults(
-                cycleResult.executionResults,
-                executionAgent.toolCallConfig.protocol,
-              );
-
-              if (toolNode) {
-                const node = toolNode as ChatMessageNode;
-                logger.info(`🛠️ 更新工具节点状态（静默取消/停止）`, {
-                  nodeId: node.id,
-                  hasSilentCancel,
-                  hasSilentStop,
-                  executionResultsCount: cycleResult.executionResults.length,
-                });
-
-                // 强制触发响应式更新：替换整个节点对象
-                const updatedNode: ChatMessageNode = {
-                  ...node,
-                  status: "complete",
-                  content: hasSilentCancel ? "已取消执行" : toolResultText,
-                  metadata: {
-                    ...node.metadata,
-                    isCancelled: hasSilentCancel || undefined,
-                    toolCalls: cycleResult.executionResults.map((res, idx) => ({
-                      requestId: res.requestId,
-                      toolName: res.toolName,
-                      status: res.status,
-                      durationMs: res.durationMs,
-                      rawArgs: cycleResult.parsedRequests[idx]?.args,
-                    })),
-                  },
-                };
-
-                // 替换 session.nodes 中的节点引用
-                if (session.nodes) {
-                  session.nodes[node.id] = updatedNode;
-                }
-                toolNode = updatedNode;
-
-                generatingNodes.delete(node.id);
-                const chatStore = useLlmChatStore();
-                const index = chatStore.sessionIndexMap.get(session.id);
-                if (index) {
-                  sessionManager.persistSession(index, session, session.id);
-                }
-              } else {
-                logger.warn(`🛠️ 静默取消/停止时工具节点为 null`, {
-                  hasSilentCancel,
-                  hasSilentStop,
-                });
-              }
-
-              if (currentAssistantNode.metadata?.toolCallsRequested) {
-                currentAssistantNode.metadata.toolCallsRequested.forEach((req) => {
-                  req.status = "completed";
-                });
-              }
-
-              break;
-            }
-
             const toolResultText = formatCycleResults(
               cycleResult.executionResults,
               executionAgent.toolCallConfig.protocol,
@@ -337,8 +273,7 @@ export function useToolCallOrchestrator() {
               generatingNodes.delete(node.id);
 
               // 确保更新被持久化并触发响应式
-              const chatStore = useLlmChatStore();
-              const index = chatStore.sessionIndexMap.get(session.id);
+              const index = llmChatStore.sessionIndexMap.get(session.id);
               if (index) {
                 sessionManager.persistSession(index, session, session.id);
               }
@@ -350,6 +285,16 @@ export function useToolCallOrchestrator() {
               currentAssistantNode.metadata.toolCallsRequested.forEach((req) => {
                 req.status = "completed";
               });
+            }
+
+            // 检查是否需要停止循环
+            // 如果节点元数据中标记了 isSilent (由 UI 层控制)，或者所有请求都被拒绝，则停止循环
+            const isSilent = toolNode?.metadata?.isSilent;
+            const isAllDenied = cycleResult.executionResults.every((r) => r.status === "denied");
+
+            if (isSilent || isAllDenied) {
+              logger.info(`🛠️ 停止工具调用循环`, { isSilent, isAllDenied });
+              break;
             }
 
             // 创建下一个助手节点
@@ -379,8 +324,7 @@ export function useToolCallOrchestrator() {
             abortControllers.set(nextAssistantNode.id, abortController);
 
             nodeManager.updateActiveLeaf(session, nextAssistantNode.id);
-            const chatStore = useLlmChatStore();
-            const index = chatStore.sessionIndexMap.get(session.id);
+            const index = llmChatStore.sessionIndexMap.get(session.id);
             if (index) {
               sessionManager.persistSession(index, session, session.id);
             }
@@ -394,7 +338,6 @@ export function useToolCallOrchestrator() {
       }
 
       // 4. 自动命名
-      const llmChatStore = await import("../../stores/llmChatStore").then((m) => m.useLlmChatStore());
       llmChatStore.generateSessionTopic(session.id);
     } catch (error) {
       handleNodeError(session, assistantNode.id, error, isReparse ? "重新解析执行" : "请求执行");

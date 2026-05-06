@@ -2,7 +2,7 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import type { ParsedToolRequest } from "@/tools/tool-calling/types";
 
-export type ToolApprovalResult = "approved" | "rejected" | "silent_cancelled" | "silent_approved";
+export type ToolApprovalResult = "approved" | "rejected";
 
 export interface PendingToolRequest {
   id: string;
@@ -60,30 +60,6 @@ export const useToolCallingStore = defineStore("toolCalling", () => {
   }
 
   /**
-   * 静默取消请求（拒绝并不再继续循环）
-   */
-  function silentCancelRequest(requestId: string) {
-    const index = pendingRequests.value.findIndex((r) => r.id === requestId);
-    if (index !== -1) {
-      const pending = pendingRequests.value[index];
-      pending.resolve("silent_cancelled");
-      pendingRequests.value.splice(index, 1);
-    }
-  }
-
-  /**
-   * 静默批准请求（允许并不再继续循环）
-   */
-  function silentApproveRequest(requestId: string) {
-    const index = pendingRequests.value.findIndex((r) => r.id === requestId);
-    if (index !== -1) {
-      const pending = pendingRequests.value[index];
-      pending.resolve("silent_approved");
-      pendingRequests.value.splice(index, 1);
-    }
-  }
-
-  /**
    * 批准所有（针对当前会话）
    */
   function approveAll(sessionId: string) {
@@ -106,28 +82,6 @@ export const useToolCallingStore = defineStore("toolCalling", () => {
   }
 
   /**
-   * 全部静默取消（针对当前会话）
-   */
-  function silentCancelAll(sessionId: string) {
-    const requestsToCancel = pendingRequests.value.filter((r) => r.sessionId === sessionId);
-    requestsToCancel.forEach((r) => {
-      r.resolve("silent_cancelled");
-    });
-    pendingRequests.value = pendingRequests.value.filter((r) => r.sessionId !== sessionId);
-  }
-
-  /**
-   * 全部静默批准（针对当前会话）
-   */
-  function silentApproveAll(sessionId: string) {
-    const requestsToApprove = pendingRequests.value.filter((r) => r.sessionId === sessionId);
-    requestsToApprove.forEach((r) => {
-      r.resolve("silent_approved");
-    });
-    pendingRequests.value = pendingRequests.value.filter((r) => r.sessionId !== sessionId);
-  }
-
-  /**
    * 处理外部响应（用于同步状态，例如 VCP 另一端已经批准了）
    */
   function handleExternalResponse(externalId: string, approved: boolean) {
@@ -135,7 +89,7 @@ export const useToolCallingStore = defineStore("toolCalling", () => {
     if (index !== -1) {
       const pending = pendingRequests.value[index];
       // 如果外部已经处理了，我们这边静默完成
-      pending.resolve(approved ? "silent_approved" : "silent_cancelled");
+      pending.resolve(approved ? "approved" : "rejected");
       pendingRequests.value.splice(index, 1);
     }
   }
@@ -145,12 +99,8 @@ export const useToolCallingStore = defineStore("toolCalling", () => {
     requestApproval,
     approveRequest,
     rejectRequest,
-    silentCancelRequest,
-    silentApproveRequest,
     approveAll,
     rejectAll,
-    silentCancelAll,
-    silentApproveAll,
     handleExternalResponse,
   };
 });

@@ -80,8 +80,6 @@ async function executeSingleRequest(
     );
   }
 
-  let silentStop = false;
-
   if (!shouldAutoApprove(request, options.config)) {
     // 方案 2.3：在进入审批挂起状态前，允许工具实例先接收到“预览数据”
     try {
@@ -117,18 +115,6 @@ async function executeSingleRequest(
         result: "工具调用被拒绝：用户未授权",
         durationMs: Date.now() - startedAt,
       };
-    }
-    if (approvalResult === "silent_cancelled") {
-      return {
-        requestId: request.requestId,
-        toolName: request.toolName,
-        status: "denied",
-        result: "SILENT_CANCEL",
-        durationMs: Date.now() - startedAt,
-      };
-    }
-    if (approvalResult === "silent_approved") {
-      silentStop = true;
     }
   }
 
@@ -216,7 +202,6 @@ async function executeSingleRequest(
         status: "success",
         result: JSON.stringify(asyncResult),
         durationMs,
-        silentStop,
       };
     } catch (error) {
       const durationMs = Date.now() - startedAt;
@@ -257,7 +242,6 @@ async function executeSingleRequest(
       status: "success",
       result,
       durationMs,
-      silentStop,
     };
   } catch (error) {
     const durationMs = Date.now() - startedAt;
@@ -339,10 +323,6 @@ export async function executeToolRequests(
   for (const request of requests) {
     const result = await executeSingleRequest(request, options, approvalCache);
     results.push(result);
-    if (result.result === "SILENT_CANCEL") {
-      logger.info("检测到静默取消，停止后续工具执行", { requestId: request.requestId });
-      break;
-    }
   }
   return results;
 }

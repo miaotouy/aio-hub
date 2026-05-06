@@ -6,6 +6,7 @@ import { useSessionManager } from "../session/useSessionManager";
 import { useNodeManager } from "../session/useNodeManager";
 import { useChatResponseHandler } from "./useChatResponseHandler";
 import { useLlmChatStore } from "../../stores/llmChatStore";
+import { parseToolRequests } from "@/tools/tool-calling/core/parser";
 import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("llm-chat/tool-call-orchestrator");
@@ -38,7 +39,7 @@ export interface OrchestrateParams {
 
 export function useToolCallOrchestrator() {
   const { execute: executeSingleNode } = useSingleNodeExecutor();
-  const { processCycle, formatCycleResults } = useToolCalling();
+  const { resolveProtocol, processCycle, formatCycleResults } = useToolCalling();
   const { handleNodeError } = useChatResponseHandler();
 
   const toolCallingStore = useToolCallingStore();
@@ -133,16 +134,11 @@ export function useToolCallOrchestrator() {
             // 💡 逻辑延迟：避开上一个助手节点结束时的 UI 测量高峰。
             // AI 消息结束瞬间立即插入工具节点会导致虚拟列表高度计算竞争，引起滚动位置跳动或列表错乱。
             // 这里延迟一些给 UI 留出足够的缓冲时间。
-            await new Promise((resolve) => setTimeout(resolve, 200));
+            await import("vue").then((m) => m.nextTick());
             if (toolNode) return;
 
             const logPrefix = isReparse ? "🛠️ 重新解析：" : "🛠️";
             logger.info(`${logPrefix}检测到 ${parsedRequests.length} 个工具请求，准备执行...`);
-
-            // 如果是重新解析模式，我们不修改原始助手节点的元数据，
-            // 而是将这些请求信息记录在即将创建的工具节点或新的元数据快照中？
-            // 不，为了保持逻辑一致，我们还是记录在当前助手节点上，
-            // 但因为是 push 到 childrenIds，它会产生新分支。
 
             // 1. 更新助手节点的元数据，记录请求
             currentAssistantNode.metadata = {
@@ -167,11 +163,11 @@ export function useToolCallOrchestrator() {
               metadata: {
                 agentId: executionAgent.id,
                 isReparse: isReparse || undefined,
-                // 提前注入工具调用信息，避免 UI 显示“未知工具”
+                // 提前注入工具调用信息，初始状态为等待审批
                 toolCalls: parsedRequests.map((req) => ({
                   requestId: req.requestId,
                   toolName: req.toolName,
-                  status: "executing",
+                  status: "awaiting_approval",
                   rawArgs: req.args,
                 })),
               },
@@ -185,28 +181,47 @@ export function useToolCallOrchestrator() {
 
             // 4. 切换到新分支
             nodeManager.updateActiveLeaf(session, newNode.id);
-            const chatStore = await import("../../stores/llmChatStore").then((m) => m.useLlmChatStore());
+            const chatStore = useLlmChatStore();
             const index = chatStore.sessionIndexMap.get(session.id);
             if (index) {
               sessionManager.persistSession(index, session, session.id);
             }
           };
 
+          // --- 提前解析并创建节点 ---
+          const protocol = resolveProtocol(executionAgent.toolCallConfig?.protocol || "vcp");
+          const preParsedRequests = parseToolRequests(responseContent, protocol);
+
+          if (preParsedRequests.length > 0) {
+            await ensureNodesCreated(
+              preParsedRequests.map((req) => ({
+                requestId: req.requestId,
+                toolName: req.toolName,
+                args: req.args,
+              })),
+            );
+          }
+
           const cycleResult = await processCycle(
             responseContent,
             executionAgent.toolCallConfig,
             async (request) => await toolCallingStore.requestApproval(session.id, request),
             async (requestId, status) => {
-              // 处理 executing 状态：确保节点已创建
-              if (status === "executing") {
-                const reqs = currentAssistantNode.metadata?.toolCallsRequested;
-                if (reqs) {
-                  const req = reqs.find((r) => r.requestId === requestId);
-                  if (req) {
-                    req.status = "executing";
-                    await ensureNodesCreated(
-                      reqs.map((r) => ({ requestId: r.requestId, toolName: r.toolName, args: r.args })),
+              // 简化回调：仅更新已有节点的元数据状态
+              if (toolNode && session.nodes?.[toolNode.id]) {
+                const node = session.nodes[toolNode.id];
+                if (node.metadata?.toolCalls) {
+                  const tc = node.metadata.toolCalls.find((t) => t.requestId === requestId);
+                  if (tc) {
+                    tc.status = status;
+
+                    // 同步更新助手节点的请求状态
+                    const req = currentAssistantNode.metadata?.toolCallsRequested?.find(
+                      (r) => r.requestId === requestId,
                     );
+                    if (req) req.status = status;
+
+                    // 持久化以触发 UI 更新
                     const chatStore = useLlmChatStore();
                     const index = chatStore.sessionIndexMap.get(session.id);
                     if (index) {
@@ -219,8 +234,6 @@ export function useToolCallOrchestrator() {
           );
 
           if (cycleResult.hasToolRequests) {
-            await ensureNodesCreated(cycleResult.parsedRequests);
-
             const hasSilentCancel = cycleResult.executionResults.some((r) => r.result === "SILENT_CANCEL");
             const hasSilentStop = cycleResult.executionResults.some((r) => r.silentStop);
 
@@ -229,11 +242,6 @@ export function useToolCallOrchestrator() {
                 cycleResult.executionResults,
                 executionAgent.toolCallConfig.protocol,
               );
-
-              // 如果是静默取消，必须确保工具节点已创建并标记为取消
-              if (hasSilentCancel) {
-                await ensureNodesCreated(cycleResult.parsedRequests);
-              }
 
               if (toolNode) {
                 const node = toolNode as ChatMessageNode;

@@ -55,6 +55,7 @@ export function useToolCalling() {
   const hasToolCallingEnabled = computed(() => (config: ToolCallConfig | undefined) => Boolean(config?.enabled));
 
   return {
+    resolveProtocol,
     processCycle,
     formatCycleResults,
     generateToolsPrompt,

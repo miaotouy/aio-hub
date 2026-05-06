@@ -282,7 +282,7 @@ export interface ChatMessageNode {
     toolCall?: {
       requestId: string;
       toolName: string;
-      status: "success" | "error" | "denied" | "pending" | "executing";
+      status: "success" | "error" | "denied" | "pending" | "executing" | "awaiting_approval" | "completed";
       durationMs?: number;
       rawArgs?: Record<string, any>;
     };
@@ -290,7 +290,7 @@ export interface ChatMessageNode {
     toolCalls?: Array<{
       requestId: string;
       toolName: string;
-      status: "success" | "error" | "denied" | "pending" | "executing";
+      status: "success" | "error" | "denied" | "pending" | "executing" | "awaiting_approval" | "completed";
       durationMs?: number;
       rawArgs?: Record<string, any>;
     }>;
@@ -299,7 +299,7 @@ export interface ChatMessageNode {
       requestId: string;
       toolName: string;
       args: Record<string, string>;
-      status: "pending" | "awaiting_approval" | "executing" | "completed" | "denied";
+      status: "pending" | "awaiting_approval" | "executing" | "completed" | "denied" | "error";
       error?: string;
     }>;
     /** 是否为续写的前缀消息 */

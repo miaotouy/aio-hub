@@ -284,9 +284,11 @@ const toolCalls = computed(() => {
 
 const mainStatus = computed(() => {
   if (props.message.metadata?.isCancelled) return "cancelled";
-  if (toolCalls.value.length === 0) return "pending";
+  // 优先识别等待审批状态
+  if (toolCalls.value.some((t) => t.status === "awaiting_approval")) return "pending";
   if (toolCalls.value.some((t) => t.status === "executing")) return "executing";
   if (toolCalls.value.some((t) => t.status === "error" || t.status === "denied")) return "error";
+  if (toolCalls.value.length === 0) return "pending";
   return "success";
 });
 
@@ -300,6 +302,8 @@ const statusIcon = computed(() => {
       return AlertCircle;
     case "cancelled":
       return XCircle;
+    case "pending":
+      return Clock;
     default:
       return Terminal;
   }
@@ -952,6 +956,9 @@ defineExpose({
 .tool-bar.status-cancelled {
   color: var(--el-color-info);
 }
+.tool-bar.status-pending {
+  color: var(--el-color-warning);
+}
 
 .bar-line {
   flex: 1;
@@ -1051,6 +1058,12 @@ defineExpose({
   background-color: color-mix(in srgb, var(--el-color-info) 10%, var(--card-bg));
   color: var(--el-color-info);
   border-color: color-mix(in srgb, var(--el-color-info) 30%, var(--border-color));
+}
+
+.role-badge.tool.status-pending {
+  background-color: color-mix(in srgb, var(--el-color-warning) 10%, var(--card-bg));
+  color: var(--el-color-warning);
+  border-color: color-mix(in srgb, var(--el-color-warning) 30%, var(--border-color));
 }
 
 .tool-name {
@@ -1202,6 +1215,11 @@ defineExpose({
 .item-status.status-denied {
   background: color-mix(in srgb, var(--el-color-danger) 15%, transparent);
   color: var(--el-color-danger);
+}
+
+.item-status.status-awaiting_approval {
+  background: color-mix(in srgb, var(--el-color-warning) 15%, transparent);
+  color: var(--el-color-warning);
 }
 
 /* 参数展示 */
@@ -1474,6 +1492,11 @@ defineExpose({
 .preview-status-tag.status-cancelled {
   background: color-mix(in srgb, var(--el-color-info) 15%, transparent);
   color: var(--el-color-info);
+}
+
+.preview-status-tag.status-pending {
+  background: color-mix(in srgb, var(--el-color-warning) 15%, transparent);
+  color: var(--el-color-warning);
 }
 
 /* 元数据 */

@@ -1,11 +1,13 @@
 <template>
-  <!-- 
+  <!--
     样式节点。
     为了实现样式隔离，我们渲染一个隐藏的 span 作为锚点。
     注意：这种隔离是“软隔离”，主要防止样式轻易逃逸到宿主 UI。
   -->
-  <span :id="scopeId" style="display: none" aria-hidden="true"></span>
-  <component :is="'style'" v-if="scopedCss">{{ scopedCss }}</component>
+  <div class="style-node-container" style="display: none" aria-hidden="true">
+    <span :id="scopeId"></span>
+    <component :is="'style'" v-if="scopedCss">{{ scopedCss }}</component>
+  </div>
 </template>
 
 <script setup lang="ts">

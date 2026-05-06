@@ -59,7 +59,7 @@ const routes: Array<RouteRecordRaw> = [
     // 动态路由：画布专用预览窗口 /canvas-window/{canvasId}
     path: "/canvas-window/:canvasId",
     name: "CanvasWindow",
-    component: () => import("../tools/canvas/components/window/CanvasWindowContainer.vue"),
+    component: () => import("../tools/web-canvas/components/window/CanvasWindowContainer.vue"),
   },
   {
     // 捕获所有未匹配路由，防止初始导航报错

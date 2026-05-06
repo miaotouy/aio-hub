@@ -3,7 +3,7 @@ import { createApp } from "vue";
 import App from "./App.vue";
 import DetachedWindowContainer from "./views/DetachedWindowContainer.vue";
 import DetachedComponentContainer from "./views/DetachedComponentContainer.vue";
-import CanvasWindowContainer from "./tools/canvas/components/window/CanvasWindowContainer.vue";
+import CanvasWindowContainer from "./tools/web-canvas/components/window/CanvasWindowContainer.vue";
 import * as ElementPlus from "element-plus";
 import * as ElementPlusIconsVue from "@element-plus/icons-vue";
 import * as PluginSDK from "@/services/plugin-sdk";

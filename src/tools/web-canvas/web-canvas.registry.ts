@@ -5,8 +5,8 @@ import { Brush } from "@element-plus/icons-vue";
 import { canvasAgentService } from "./services/CanvasAgentService";
 
 export const toolConfig: ToolConfig = {
-  name: "画布",
-  path: "/canvas",
+  name: "Web Canvas",
+  path: "/web-canvas",
   icon: markRaw(Brush),
   component: () => import("./CanvasWorkbench.vue"),
   description: "Agent 协作画布，支持多文件编辑与实时预览",
@@ -14,8 +14,8 @@ export const toolConfig: ToolConfig = {
 };
 
 export class CanvasRegistry implements ToolRegistry {
-  public readonly id = "canvas";
-  public readonly name = "画布";
+  public readonly id = "web-canvas";
+  public readonly name = "Web Canvas";
   public readonly description = "多文件协作与预览空间";
 
   public readonly settingsSchema: SettingItem[] = [

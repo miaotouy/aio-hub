@@ -38,7 +38,7 @@ import { useQuickActionStore } from "../../stores/quickActionStore";
 import { useAgentStore } from "../../stores/agentStore";
 import { DEFAULT_TOOL_CALL_CONFIG } from "../../types/agent";
 import { useUserProfileStore } from "../../stores/userProfileStore";
-import { useCanvasStore } from "@/tools/canvas/stores/canvasStore";
+import { useCanvasStore } from "@/tools/web-canvas/stores/canvasStore";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { customMessage } from "@/utils/customMessage";
 import { useChatSettings } from "../../composables/settings/useChatSettings";

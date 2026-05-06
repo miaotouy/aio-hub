@@ -7,7 +7,7 @@
 export const DEFAULT_TOOLS_ORDER = [
   // AI 工具
   "/llm-chat",
-  "/canvas",
+  "/web-canvas",
   "/media-generator",
   "/smart-ocr",
   "/transcription",

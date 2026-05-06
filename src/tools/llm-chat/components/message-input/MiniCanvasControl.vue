@@ -3,7 +3,7 @@ import { computed, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import { ElSelect, ElOption, ElButton, ElDivider } from "element-plus";
 import { Brush, Plus, Eye, FolderOpen, X } from "lucide-vue-next";
-import { useCanvasStore } from "@/tools/canvas/stores/canvasStore";
+import { useCanvasStore } from "@/tools/web-canvas/stores/canvasStore";
 import { formatDateTime } from "@/utils/time";
 import { useToolsStore } from "@/stores/tools";
 import { useAgentStore } from "../../stores/agentStore";
@@ -93,7 +93,7 @@ function handlePreview() {
  * 跳转到画布管理
  */
 function handleManage() {
-  const toolPath = "/canvas";
+  const toolPath = "/web-canvas";
   toolsStore.openTool(toolPath);
   router.push(toolPath);
 }

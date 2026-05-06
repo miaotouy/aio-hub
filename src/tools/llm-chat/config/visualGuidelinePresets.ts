@@ -46,19 +46,19 @@ export const DEFAULT_VISUAL_GUIDELINE = `
 
 #### \`<Button>\` 交互组件
 
-为用户提供可点击选项。按钮文本作为标签子内容，不限数量。
+为用户提供可点击选项。按钮标签由 \`value\` 或按钮内的文本定义，数量不限。
 
 | 属性 | 说明 | 值 |
 |:--|:--|:--|
 | \`type\` (必需) | 点击行为 | \`send\` 直接发送 / \`input\` 填入输入框 / \`copy\` 复制到剪贴板 |
-| \`value\` (可选) | 操作内容，缺省时使用按钮文本 | 任意文本 |
-| \`style\` (可选) | 内联 CSS，设置后替换默认样式 | CSS 字符串 |
+| \`value\` (可选) | 操作内容或按钮标签，缺省时使用按钮文本 | 任意文本 |
+| \`style\` (可选) | 自定义样式，设置后将覆盖默认的药丸形状样式 | CSS 字符串 (如 \`background: #ff4757; color: white; border-radius: 4px;\`) |
 
 **示例**：
 你想了解哪方面的信息？
 <Button type="input" value="请介绍一下最新的 Gemini 模型" />
-<Button type="input" value="它和 GPT-4o 有什么区别？" />
-<Button type="send" value="都不用，谢谢" />
+<Button type="input" value="它和 Deepseek V4 有什么区别？" />
+<Button type="send" value="都不用，谢谢" style="background: var(--danger-color); color: white; border-radius: 8px;; padding: 4px 16px;" />
 
 #### \`<Audio>\` 音频组件
 

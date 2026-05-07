@@ -75,14 +75,19 @@ const switchingMessageViewportOffset = ref<number>(0);
 const switchingOriginalScrollTop = ref<number>(0);
 
 // 滚动到底部
-const scrollToBottom = useThrottleFn(() => {
+const scrollToBottom = useThrottleFn((forceInstant = false) => {
   nextTick(() => {
     if (messagesContainer.value) {
       const container = messagesContainer.value;
-      if (settings.value.uiPreferences.smoothAutoScroll) {
-        container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+      const targetTop = container.scrollHeight;
+
+      // 如果已经非常接近底部，或者强制立即跳转，或者关闭了平滑滚动
+      const isAlreadyAtBottom = Math.abs(container.scrollTop + container.clientHeight - targetTop) < 12;
+
+      if (forceInstant || isAlreadyAtBottom || !settings.value.uiPreferences.smoothAutoScroll) {
+        container.scrollTop = targetTop;
       } else {
-        container.scrollTop = container.scrollHeight;
+        container.scrollTo({ top: targetTop, behavior: "smooth" });
       }
     }
   });
@@ -245,7 +250,8 @@ watch(
 
     if (isNewMessage) {
       if (isNearBottom.value || newLength === 1) {
-        scrollToBottom();
+        // 新消息加入时，如果原本就在底部，执行一次立即滚动以锁定位置
+        scrollToBottom(true);
       }
     } else if (isContentChanged) {
       if (isNearBottom.value) {
@@ -277,21 +283,6 @@ watch(
 
     if (isAtBottom) {
       scrollToBottom();
-    } else {
-      const messageEls = Array.from(container.querySelectorAll(".chat-message"));
-      const containerRect = container.getBoundingClientRect();
-      const firstVisibleEl = messageEls.find((el) => {
-        const rect = el.getBoundingClientRect();
-        return rect.bottom > containerRect.top;
-      });
-      const anchorId = firstVisibleEl?.getAttribute("data-message-id");
-
-      nextTick(() => {
-        if (anchorId) {
-          // 替换 scrollIntoView 为手动的 scrollToMessageId，避免触发全局滚动链
-          scrollToMessageId(anchorId);
-        }
-      });
     }
   },
 );
@@ -539,7 +530,12 @@ defineExpose({
  */
 .messages-container :deep(.chat-message) {
   content-visibility: auto !important;
-  contain-intrinsic-size: auto 600px !important;
+  contain-intrinsic-size: auto 500px !important;
+}
+
+/* 最后一项消息禁用虚拟渲染，确保底部锚定计算准确，防止滚动回弹 */
+.messages-container :deep(.chat-message:last-child) {
+  content-visibility: visible !important;
 }
 
 .empty-state {

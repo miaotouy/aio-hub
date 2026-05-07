@@ -698,17 +698,45 @@ class ChatInputManager {
     const text = this.inputText.value;
     if (!text) return { successCount: 0, failedCount: 0, totalCount: 0 };
 
-    // 匹配 file:// 协议或 Windows 路径 (如 D:\path\to\file 或 C:/path/to/file)
-    // 排除掉已经是占位符的内容 【file::...】
-    const pathRegex = /(?:file:\/\/\/?|[a-zA-Z]:[\\\/])(?:[^\s"<>|?*【】]+(?:\s[^\s"<>|?*【】]+)*)/g;
+    // 采用“锚点切割法”结合“行内贪婪匹配”来更准确地识别路径
+    // 1. 识别所有可能的路径起始位置 (file:// 协议或 Windows 盘符)
+    const anchors: { index: number; prefix: string }[] = [];
+    const anchorRegex = /file:\/\/\/?|[a-zA-Z]:[\\\/]/g;
+    let anchorMatch;
+    while ((anchorMatch = anchorRegex.exec(text)) !== null) {
+      anchors.push({ index: anchorMatch.index, prefix: anchorMatch[0] });
+    }
 
-    const matches = Array.from(text.matchAll(pathRegex));
-    if (matches.length === 0) return { successCount: 0, failedCount: 0, totalCount: 0 };
+    if (anchors.length === 0) return { successCount: 0, failedCount: 0, totalCount: 0 };
+
+    // 2. 从每个锚点向后提取候选路径
+    const candidates: string[] = [];
+    for (let i = 0; i < anchors.length; i++) {
+      const start = anchors[i].index;
+      // 截取到下一个锚点开始之前，或者文本结束
+      const nextAnchorStart = i < anchors.length - 1 ? anchors[i + 1].index : text.length;
+      let subText = text.substring(start, nextAnchorStart);
+
+      // 关键：绝对不跨行匹配，截断到第一个换行符
+      const lineEnd = subText.search(/\r?\n/);
+      if (lineEnd !== -1) subText = subText.substring(0, lineEnd);
+
+      // 3. 在当前行片段中，从头开始匹配最长的合法路径部分
+      // 排除掉常见的路径非法字符，允许空格但通常不以空格结尾
+      const pathPartMatch = subText.match(/^(?:[^\s"<>|?*【】]+(?:\s+[^\s"<>|?*【】]+)*)/);
+      if (pathPartMatch) {
+        const candidate = pathPartMatch[0].trim();
+        if (candidate) candidates.push(candidate);
+      }
+    }
+
+    if (candidates.length === 0) return { successCount: 0, failedCount: 0, totalCount: 0 };
 
     let successCount = 0;
     let failedCount = 0;
 
-    const uniquePaths = Array.from(new Set(matches.map((m) => m[0].trim())));
+    // 去重处理，避免重复转换同一路径
+    const uniquePaths = Array.from(new Set(candidates));
 
     for (const rawPath of uniquePaths) {
       try {

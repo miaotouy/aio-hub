@@ -1,5 +1,7 @@
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { useLlmRequest } from "@/composables/useLlmRequest";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { getImageDimensions, resizeImage } from "@/utils/imageProcessor";
 import { createModuleLogger } from "@/utils/logger";
 import { parseModelCombo } from "@/utils/modelIdUtils";
 import SmartOcrRegistry from "@/tools/smart-ocr/smartOcr.registry";
@@ -19,13 +21,21 @@ export class ImageTranscriptionEngine implements ITranscriptionEngine {
   async execute(ctx: EngineContext): Promise<EngineResult> {
     const { task, config } = ctx;
     const { sendRequest } = useLlmRequest();
+    const { getProfileById } = useLlmProfiles();
 
-    const { modelIdentifier, prompt, temperature, maxTokens, timeout, enableRepetitionDetection } = getModelParams(ctx, "image");
+    const { modelIdentifier, prompt, temperature, maxTokens, timeout, enableRepetitionDetection } = getModelParams(
+      ctx,
+      "image",
+    );
     const [profileId, modelId] = parseModelCombo(modelIdentifier);
 
     if (!profileId || !modelId) {
       throw new Error(`无效的模型标识符: ${modelIdentifier}`);
     }
+
+    const profile = getProfileById(profileId);
+    const model = profile?.models.find((m) => m.id === modelId);
+    const maxDim = model?.capabilities?.maxImageDimension;
 
     // 1. 处理图片切块
     let imageBatchData: { base64: string }[] | undefined;
@@ -50,7 +60,26 @@ export class ImageTranscriptionEngine implements ITranscriptionEngine {
 
         if (blocks.length > 1) {
           logger.info(`图片触发智能切图，共切分为 ${blocks.length} 块`, { assetId: task.assetId });
-          imageBatchData = blocks.map((b) => ({ base64: b.dataUrl.split(",")[1] }));
+
+          imageBatchData = await Promise.all(
+            blocks.map(async (b) => {
+              let buffer = await (await fetch(b.dataUrl)).arrayBuffer();
+
+              if (maxDim && maxDim > 0) {
+                try {
+                  const dims = await getImageDimensions(buffer);
+                  if (dims.width > maxDim || dims.height > maxDim) {
+                    buffer = await resizeImage(buffer, { maxWidth: maxDim, maxHeight: maxDim });
+                  }
+                } catch (e) {
+                  logger.warn("切片缩放失败", e);
+                }
+              }
+
+              const base64 = btoa(new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), ""));
+              return { base64 };
+            }),
+          );
         }
       } catch (e) {
         logger.warn("图片切图检查失败，将使用原图", e);
@@ -76,7 +105,7 @@ export class ImageTranscriptionEngine implements ITranscriptionEngine {
         // 在请求前增加基于索引的交错延迟，减少 429 概率
         if (i > 0) {
           const jitter = Math.random() * 200; // 增加随机抖动
-          await new Promise(resolve => setTimeout(resolve, delay + jitter));
+          await new Promise((resolve) => setTimeout(resolve, delay + jitter));
         }
 
         const start = i * MAX_IMAGE_PER_REQUEST;
@@ -111,13 +140,26 @@ export class ImageTranscriptionEngine implements ITranscriptionEngine {
         await processBatch(i);
       }
 
-      transcriptionText = batchTexts.filter(t => t).join("\n\n");
+      transcriptionText = batchTexts.filter((t) => t).join("\n\n");
     } else {
       // 单图模式
-      const buffer = await assetManagerEngine.getAssetBinary(task.path);
+      let buffer = await assetManagerEngine.getAssetBinary(task.path);
+
+      if (maxDim && maxDim > 0) {
+        try {
+          const dims = await getImageDimensions(buffer);
+          if (dims.width > maxDim || dims.height > maxDim) {
+            buffer = await resizeImage(buffer, { maxWidth: maxDim, maxHeight: maxDim });
+            logger.debug("转写单图已缩放", { original: `${dims.width}×${dims.height}`, maxDim });
+          }
+        } catch (e) {
+          logger.warn("单图缩放失败", e);
+        }
+      }
+
       const content: LlmMessageContent[] = [
         { type: "text", text: finalPrompt },
-        { type: "image", imageBase64: buffer }
+        { type: "image", imageBase64: buffer },
       ];
       const response = await sendRequest({
         profileId,
@@ -141,7 +183,7 @@ export class ImageTranscriptionEngine implements ITranscriptionEngine {
 
     return {
       text: cleanedText,
-      isEmpty: !cleanedText || cleanedText.trim().length === 0
+      isEmpty: !cleanedText || cleanedText.trim().length === 0,
     };
   }
 }

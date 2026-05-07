@@ -1,10 +1,12 @@
-import type { ImageBlock, OcrResult } from '../types';
-import { useLlmRequest } from '@/composables/useLlmRequest';
-import { createModuleLogger } from '@/utils/logger';
-import { createModuleErrorHandler } from '@/utils/errorHandler';
+import type { ImageBlock, OcrResult } from "../types";
+import { useLlmRequest } from "@/composables/useLlmRequest";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { getImageDimensions, resizeImage } from "@/utils/imageProcessor";
+import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 
-const logger = createModuleLogger('OCR/VlmEngine');
-const errorHandler = createModuleErrorHandler('OCR/VlmEngine');
+const logger = createModuleLogger("OCR/VlmEngine");
+const errorHandler = createModuleErrorHandler("OCR/VlmEngine");
 
 /**
  * VLM 引擎配置接口
@@ -27,14 +29,41 @@ export function useVlmEngine() {
   /**
    * 使用 VLM 识别单个图片
    */
-  const recognizeSingle = async (
-    canvas: HTMLCanvasElement,
-    config: VlmEngineConfig
-  ): Promise<string> => {
+  const recognizeSingle = async (canvas: HTMLCanvasElement, config: VlmEngineConfig): Promise<string> => {
     const { sendRequest } = useLlmRequest();
+    const { getProfileById } = useLlmProfiles();
 
-    // 将 canvas 转换为 base64
-    const imageBase64 = canvas.toDataURL('image/png').split(',')[1];
+    // 获取模型安全约束
+    const profile = getProfileById(config.profileId);
+    const model = profile?.models.find((m) => m.id === config.modelId);
+    const maxDim = model?.capabilities?.maxImageDimension;
+
+    // 将 canvas 转换为 ArrayBuffer 进行处理
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+    if (!blob) throw new Error("Canvas 转换为 Blob 失败");
+
+    let imageBuffer = await blob.arrayBuffer();
+
+    // 模型安全约束缩放
+    if (maxDim && maxDim > 0) {
+      try {
+        const dims = await getImageDimensions(imageBuffer);
+        if (dims.width > maxDim || dims.height > maxDim) {
+          imageBuffer = await resizeImage(imageBuffer, {
+            maxWidth: maxDim,
+            maxHeight: maxDim,
+          });
+          logger.debug("模型安全约束：图片已自动缩放", {
+            original: `${dims.width}×${dims.height}`,
+            maxDim,
+          });
+        }
+      } catch (e) {
+        logger.warn("模型安全约束缩放失败，保持原始图片", { error: e });
+      }
+    }
+
+    const imageBase64 = btoa(new Uint8Array(imageBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ""));
 
     // 调用通用 LLM 请求中间件
     const response = await sendRequest({
@@ -42,16 +71,16 @@ export function useVlmEngine() {
       modelId: config.modelId,
       messages: [
         {
-          role: 'user',
+          role: "user",
           content: [
             {
-              type: 'text',
+              type: "text",
               text:
                 config.prompt ||
-                '请识别图片中的所有文字内容，保持原有格式和换行。直接输出文字内容，不要添加任何解释或说明。',
+                "请识别图片中的所有文字内容，保持原有格式和换行。直接输出文字内容，不要添加任何解释或说明。",
             },
             {
-              type: 'image',
+              type: "image",
               imageBase64,
             },
           ],
@@ -70,13 +99,13 @@ export function useVlmEngine() {
   const recognizeBatch = async (
     blocks: ImageBlock[],
     config: VlmEngineConfig,
-    onProgress?: (results: OcrResult[]) => void
+    onProgress?: (results: OcrResult[]) => void,
   ): Promise<OcrResult[]> => {
     const results: OcrResult[] = blocks.map((block) => ({
       blockId: block.id,
       imageId: block.imageId,
-      text: '',
-      status: 'pending' as const,
+      text: "",
+      status: "pending" as const,
     }));
 
     // 通知初始状态
@@ -92,10 +121,10 @@ export function useVlmEngine() {
       delay: `${delay}ms`,
     });
 
-    logger.debug('VLM 引擎配置', {
+    logger.debug("VLM 引擎配置", {
       maxTokens: config.maxTokens ?? 2000,
       temperature: config.temperature ?? 0,
-      promptLength: (config.prompt || '').length,
+      promptLength: (config.prompt || "").length,
     });
 
     // 并发处理函数
@@ -103,7 +132,7 @@ export function useVlmEngine() {
       const block = blocks[index];
 
       // 更新状态为处理中
-      results[index].status = 'processing';
+      results[index].status = "processing";
       onProgress?.([...results]);
 
       try {
@@ -117,7 +146,7 @@ export function useVlmEngine() {
 
         logger.debug(`处理图片块 ${index + 1}/${blocks.length}`, {
           blockId: block.id,
-          engine: 'vlm',
+          engine: "vlm",
           modelId: config.modelId,
         });
 
@@ -125,7 +154,7 @@ export function useVlmEngine() {
 
         // 更新结果
         results[index].text = text;
-        results[index].status = 'success';
+        results[index].status = "success";
 
         logger.debug(`图片块识别完成 ${index + 1}/${blocks.length}`, {
           blockId: block.id,
@@ -141,7 +170,7 @@ export function useVlmEngine() {
           },
           showToUser: false,
         });
-        results[index].status = 'error';
+        results[index].status = "error";
         results[index].error = (error as Error).message;
       }
 

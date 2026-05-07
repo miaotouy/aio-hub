@@ -10,6 +10,7 @@ import { useModelMetadata } from "@/composables/useModelMetadata";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useMediaGenParamRules } from "./useMediaGenParamRules";
 import { convertArrayBufferToBase64 } from "@/utils/base64";
+import { getImageDimensions, resizeImage } from "@/utils/imageProcessor";
 import { DEFAULT_MEDIA_TIMEOUT } from "@/llm-apis/common";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -147,11 +148,32 @@ export function useMediaGenerationManager() {
       // 处理参考图：将本地 Asset (含 path) 转换为 Base64
       let processedAttachments = task.input.params.inputAttachments;
       if (processedAttachments && (processedAttachments as any[]).length > 0) {
+        const profile = allProfiles.value.find((p) => p.id === task.input.profileId);
+        const model = profile?.models.find((m) => m.id === task.input.modelId);
+        const maxDim = model?.capabilities?.maxImageDimension;
+
         processedAttachments = await Promise.all(
           (processedAttachments as any[]).map(async (att: any) => {
             if (att.path && !att.b64) {
               try {
-                const buffer = await getAssetBinary(att.path);
+                let buffer = await getAssetBinary(att.path);
+
+                // 模型安全约束缩放
+                if (maxDim && maxDim > 0) {
+                  try {
+                    const dims = await getImageDimensions(buffer);
+                    if (dims.width > maxDim || dims.height > maxDim) {
+                      buffer = await resizeImage(buffer, {
+                        maxWidth: maxDim,
+                        maxHeight: maxDim,
+                      });
+                      logger.debug("媒体生成参考图已缩放", { assetId: att.id, maxDim });
+                    }
+                  } catch (e) {
+                    logger.warn("参考图缩放失败", e);
+                  }
+                }
+
                 const base64 = await convertArrayBufferToBase64(buffer);
                 const mimeType = att.mimeType || "image/png";
                 return {

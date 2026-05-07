@@ -156,8 +156,20 @@ async function handleRenameSkill(oldName: string, newName: string) {
 async function handleRefresh() {
   loading.value = true;
   try {
+    const currentName = selectedManifest.value?.name;
     await refresh();
     const count = store.manifests.length;
+
+    // 刷新后重新同步选中的 manifest 对象，确保详情面板更新
+    if (currentName) {
+      const newManifest = store.manifests.find((m) => m.name === currentName);
+      if (newManifest) {
+        selectedManifest.value = newManifest;
+      } else {
+        selectedManifest.value = null;
+      }
+    }
+
     customMessage.success(`技能列表已刷新，共扫描到 ${count} 个技能`);
   } finally {
     loading.value = false;

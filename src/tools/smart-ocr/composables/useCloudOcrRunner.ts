@@ -155,16 +155,16 @@ async function callBaiduOcr(imageBase64: string, accessToken: string, endpoint: 
  * 调用腾讯云 OCR API (占位实现)
  */
 async function callTencentOcr(_imageBase64: string, _profile: OcrProfile): Promise<string> {
-  // TODO: 实现腾讯云 OCR
-  throw new Error("腾讯云 OCR 暂未实现，敬请期待");
+  // TODO: 暂不实现腾讯云 OCR
+  throw new Error("腾讯云 OCR 暂未实现，被VLM取代了，没有实现动力");
 }
 
 /**
  * 调用阿里云 OCR API (占位实现)
  */
 async function callAliyunOcr(_imageBase64: string, _profile: OcrProfile): Promise<string> {
-  // TODO: 实现阿里云 OCR
-  throw new Error("阿里云 OCR 暂未实现，敬请期待");
+  // TODO: 暂不实现阿里云 OCR
+  throw new Error("阿里云 OCR 暂未实现，被VLM取代了，没有实现动力");
 }
 
 /**

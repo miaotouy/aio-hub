@@ -167,6 +167,12 @@ const AstNodeRenderer = defineComponent({
   },
   setup(props) {
     return (): VNode[] => {
+      // 性能优化：在循环外预先判断当前层级是否包含 StyleNode
+      // 避免在 map 内部对 props.nodes 进行重复的 O(n) 扫描
+      const hasStyleNode = props.nodes.some(
+        (n) => n.type === "generic_html" && n.props?.tagName === "style",
+      );
+
       return props.nodes.map((node: AstNode): VNode => {
         let NodeComponent = componentMap[node.type] || FallbackNode;
 
@@ -242,9 +248,7 @@ const AstNodeRenderer = defineComponent({
           // 如果是 StyleNode，我们需要传递原始子节点以提取文本
           sourceNodes: NodeComponent === StyleNode ? node.children : undefined,
           // 传递父级容器 ID 给子节点，方便 StyleNode 进行样式隔离
-          parentContainerId: props.nodes.some((n) => n.type === "generic_html" && (n.props as any)?.tagName === "style")
-            ? containerId
-            : props.parentContainerId,
+          parentContainerId: hasStyleNode ? containerId : props.parentContainerId,
         };
 
         // 根据节点类型设置 displayMode

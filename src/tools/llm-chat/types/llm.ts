@@ -26,18 +26,18 @@ export interface ContextPostProcessRule {
  */
 export interface GeminiSafetySetting {
   category:
-  | "HARM_CATEGORY_HARASSMENT"
-  | "HARM_CATEGORY_HATE_SPEECH"
-  | "HARM_CATEGORY_SEXUALLY_EXPLICIT"
-  | "HARM_CATEGORY_DANGEROUS_CONTENT"
-  | "HARM_CATEGORY_CIVIC_INTEGRITY";
+    | "HARM_CATEGORY_HARASSMENT"
+    | "HARM_CATEGORY_HATE_SPEECH"
+    | "HARM_CATEGORY_SEXUALLY_EXPLICIT"
+    | "HARM_CATEGORY_DANGEROUS_CONTENT"
+    | "HARM_CATEGORY_CIVIC_INTEGRITY";
   threshold:
-  | "BLOCK_NONE"
-  | "BLOCK_ONLY_HIGH"
-  | "BLOCK_MEDIUM_AND_ABOVE"
-  | "BLOCK_LOW_AND_ABOVE"
-  | "HARM_BLOCK_THRESHOLD_UNSPECIFIED"
-  | "OFF";
+    | "BLOCK_NONE"
+    | "BLOCK_ONLY_HIGH"
+    | "BLOCK_MEDIUM_AND_ABOVE"
+    | "BLOCK_LOW_AND_ABOVE"
+    | "HARM_BLOCK_THRESHOLD_UNSPECIFIED"
+    | "OFF";
 }
 
 /**
@@ -114,11 +114,7 @@ export interface LlmParameters {
     };
   }>;
   /** 工具选择策略 */
-  toolChoice?:
-  | "none"
-  | "auto"
-  | "required"
-  | { type: "function"; function: { name: string } };
+  toolChoice?: "none" | "auto" | "required" | { type: "function"; function: { name: string } };
   /** 是否启用并行工具调用 */
   parallelToolCalls?: boolean;
 
@@ -127,28 +123,18 @@ export interface LlmParameters {
   modalities?: Array<"text" | "audio">;
   /** 音频输出参数 */
   audio?: {
-    voice:
-    | "alloy"
-    | "ash"
-    | "ballad"
-    | "coral"
-    | "echo"
-    | "fable"
-    | "nova"
-    | "onyx"
-    | "sage"
-    | "shimmer";
+    voice: "alloy" | "ash" | "ballad" | "coral" | "echo" | "fable" | "nova" | "onyx" | "sage" | "shimmer";
     format: "wav" | "mp3" | "flac" | "opus" | "pcm16";
   };
   /** 预测输出配置 */
   prediction?: {
     type: "content";
     content:
-    | string
-    | Array<{
-      type: "text";
-      text: string;
-    }>;
+      | string
+      | Array<{
+          type: "text";
+          text: string;
+        }>;
   };
 
   // ===== 特殊功能 =====
@@ -222,6 +208,21 @@ export interface LlmParameters {
    * 上下文压缩配置
    */
   contextCompression?: ContextCompressionConfig;
+
+  /**
+   * 图片压缩配置（Chat 层用户可选优化）
+   * 用于在发送前对图片进行格式转换和尺寸缩放，节省 Token 和带宽
+   */
+  imageCompression?: {
+    /** 是否启用用户侧压缩 */
+    enabled: boolean;
+    /** 目标最大尺寸（像素），未设置则不额外缩小 */
+    maxDimension?: number;
+    /** 输出格式：保持原格式、转 JPEG、转 WebP */
+    format: "original" | "jpeg" | "webp";
+    /** 有损格式的质量 (0.1-1.0)，对 original 无效 */
+    quality: number;
+  };
 }
 /**
  * 用于唯一标识一个模型的结构

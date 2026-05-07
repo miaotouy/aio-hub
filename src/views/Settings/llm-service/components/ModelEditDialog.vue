@@ -412,6 +412,49 @@ const customParametersJsonString = computed({
             </div>
           </div>
 
+          <!-- 图片输入限制 -->
+          <el-divider content-position="left">图片输入限制</el-divider>
+
+          <el-form-item label="最大输入尺寸">
+            <div class="token-input-group">
+              <el-select
+                :model-value="(modelEditForm.capabilities as any)?.maxImageDimension"
+                @update:model-value="
+                  (val: number) => {
+                    const c = modelEditForm.capabilities as any;
+                    if (!c.maxImageDimension && val) c.maxImageDimension = val;
+                  }
+                "
+                placeholder="选择预设"
+                clearable
+                class="preset-selector"
+              >
+                <el-option label="1024" :value="1024" />
+                <el-option label="2048（Qwen/OpenAI）" :value="2048" />
+                <el-option label="4096" :value="4096" />
+                <el-option label="8192（Gemini）" :value="8192" />
+                <el-option label="不限制" :value="0" />
+              </el-select>
+              <el-input-number
+                :model-value="(modelEditForm.capabilities as any)?.maxImageDimension"
+                @update:model-value="
+                  (val: number) => {
+                    (modelEditForm.capabilities as any).maxImageDimension = val;
+                  }
+                "
+                :min="0"
+                :max="32768"
+                :step="128"
+                controls-position="right"
+                class="token-input"
+              />
+            </div>
+            <div class="form-hint">
+              图片输入的最大像素尺寸（宽或高），超出将自动等比缩放。 0
+              或清空即不限制。常见值：Qwen/OpenAI=2048，Claude=8000，Gemini=8192
+            </div>
+          </el-form-item>
+
           <!-- 思考能力配置 -->
           <el-divider content-position="left">思考能力配置</el-divider>
 

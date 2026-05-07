@@ -5,6 +5,7 @@ import type { LlmMessageContent } from "@/llm-apis/common";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { convertArrayBufferToBase64 } from "@/utils/base64";
 import { convertPdfToImages } from "@/utils/pdfUtils";
+import { getImageDimensions, resizeImage } from "@/utils/imageProcessor";
 
 const logger = createModuleLogger("llm-chat/asset-resolver");
 const errorHandler = createModuleErrorHandler("llm-chat/asset-resolver");
@@ -43,29 +44,91 @@ export const assetResolver: ContextProcessor = {
       for (const asset of msg._attachments) {
         try {
           // 获取二进制数据并转换为 Base64
-          // 统一处理所有类型的 Base64 转换逻辑，减少重复代码
           if (["image", "document", "audio", "video"].includes(asset.type)) {
             const buffer = await assetManagerEngine.getAssetBinary(asset.path);
             const base64 = await convertArrayBufferToBase64(buffer);
 
             if (asset.type === "image") {
-              logger.debug("图片附件转换为 base64", {
+              // ---- 两层图片缩放处理 ----
+              let finalBase64 = base64;
+
+              // 第一层：模型安全约束缩放
+              const maxDim = context.capabilities?.maxImageDimension;
+              if (maxDim && maxDim > 0) {
+                try {
+                  const dims = await getImageDimensions(finalBase64);
+                  if (dims.width > maxDim || dims.height > maxDim) {
+                    const dataUrl = await resizeImage(finalBase64, {
+                      maxWidth: maxDim,
+                      maxHeight: maxDim,
+                    });
+                    const commaIdx = dataUrl.indexOf(",");
+                    finalBase64 = commaIdx !== -1 ? dataUrl.slice(commaIdx + 1) : dataUrl;
+
+                    logger.debug("模型安全约束：图片已自动缩放", {
+                      assetId: asset.id,
+                      original: `${dims.width}×${dims.height}`,
+                      maxDim,
+                    });
+                  }
+                } catch (e) {
+                  logger.warn("模型安全约束缩放失败，保持原始图片", {
+                    assetId: asset.id,
+                    error: e,
+                  });
+                }
+              }
+
+              // 第二层：用户压缩策略
+              const imgConfig = context.agentConfig?.parameters?.imageCompression;
+              if (imgConfig?.enabled) {
+                try {
+                  const resizeOpts: any = {};
+                  if (imgConfig.maxDimension && imgConfig.maxDimension > 0) {
+                    resizeOpts.maxWidth = imgConfig.maxDimension;
+                    resizeOpts.maxHeight = imgConfig.maxDimension;
+                  }
+                  if (imgConfig.format && imgConfig.format !== "original") {
+                    resizeOpts.format = imgConfig.format;
+                    resizeOpts.quality = imgConfig.quality ?? 0.85;
+                  }
+
+                  if (resizeOpts.maxWidth || resizeOpts.format) {
+                    if (!resizeOpts.maxWidth) {
+                      resizeOpts.maxWidth = 4096;
+                      resizeOpts.maxHeight = 4096;
+                    }
+                    const dataUrl = await resizeImage(finalBase64, resizeOpts);
+                    const commaIdx = dataUrl.indexOf(",");
+                    finalBase64 = commaIdx !== -1 ? dataUrl.slice(commaIdx + 1) : dataUrl;
+
+                    logger.debug("用户压缩策略已应用", {
+                      assetId: asset.id,
+                      format: imgConfig.format,
+                      quality: imgConfig.quality,
+                      maxDimension: imgConfig.maxDimension,
+                    });
+                  }
+                } catch (e) {
+                  logger.warn("用户压缩策略失败，保持当前图片", {
+                    assetId: asset.id,
+                    error: e,
+                  });
+                }
+              }
+
+              logger.debug("图片附件处理完成", {
                 assetId: asset.id,
                 assetName: asset.name,
-                base64Length: base64.length,
+                base64Length: finalBase64.length,
               });
               newContentParts.push({
                 type: "image",
-                imageBase64: base64,
+                imageBase64: finalBase64,
               });
             } else if (asset.type === "document") {
               // 核心改进：如果模型【完全不支持】原生文档，但支持视觉，才现场转图片序列
-              // 如果模型本身支持文档（如 Gemini），则保持原样发送，以保留文档结构和节省 Token
-              if (
-                asset.mimeType === "application/pdf" &&
-                !capabilities?.document &&
-                capabilities?.vision
-              ) {
+              if (asset.mimeType === "application/pdf" && !capabilities?.document && capabilities?.vision) {
                 logger.info("模型不支持原生 PDF 但支持视觉，正在现场将 PDF 转换为图片序列...", {
                   assetName: asset.name,
                 });

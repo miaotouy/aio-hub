@@ -240,6 +240,13 @@ export interface ModelCapabilities {
   documentFormat?: "base64" | "openai_file";
 
   /**
+   * 图片输入的最大尺寸（宽或高的像素上限），超出将被自动缩放
+   * 例如 qwen3-vl 为 2048，Claude 为 8000，Gemini 为 8192
+   * 未设置表示不限制
+   */
+  maxImageDimension?: number;
+
+  /**
    * 文档 Token 计费规则（仅当 document 为 true 时有效）
    * 用于计算 PDF 等文档的 token 消耗
    */

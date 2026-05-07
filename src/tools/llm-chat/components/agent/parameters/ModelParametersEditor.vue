@@ -21,7 +21,7 @@ import PostProcessingPanel from "./PostProcessingPanel.vue";
 import CustomParamsPanel from "./CustomParamsPanel.vue";
 import ContextStatsCard from "./ContextStatsCard.vue";
 import { Setting, Tools, Document, Files, Connection, MagicStick, CirclePlus } from "@element-plus/icons-vue";
-import { Shield } from "lucide-vue-next";
+import { Shield, Image } from "lucide-vue-next";
 
 /**
  * 模型参数编辑器组件
@@ -98,7 +98,7 @@ watch(
     // 使用相同的初始化逻辑，确保外部更新也能正确处理启用状态
     localParams.value = initLocalParams(newVal);
   },
-  { deep: true }
+  { deep: true },
 );
 
 // 更新参数的通用方法
@@ -153,18 +153,33 @@ const {
   customParamsExpanded,
 } = useLlmChatUiState();
 
+// 图片压缩配置的折叠状态（本地，不持久化）
+const imageCompressionExpanded = ref(false);
+
+// 图片压缩配置的帮助方法
+const updateImageCompression = (path: string, value: any) => {
+  const current = localParams.value.imageCompression || {
+    enabled: false,
+    format: "original" as const,
+    quality: 0.85,
+  };
+  const parts = path.split(".");
+  const updated = { ...current, [parts[parts.length - 1]]: value };
+  updateParameter("imageCompression", updated);
+};
+
 // --- 参数配置分组 ---
 
 const basicConfigs = computed(() =>
-  processedConfigs.value.filter((c) => c.group === "basic" && shouldShowParameter(c.key))
+  processedConfigs.value.filter((c) => c.group === "basic" && shouldShowParameter(c.key)),
 );
 
 const advancedConfigs = computed(() =>
-  processedConfigs.value.filter((c) => c.group === "advanced" && shouldShowParameter(c.key))
+  processedConfigs.value.filter((c) => c.group === "advanced" && shouldShowParameter(c.key)),
 );
 
 const specialConfigs = computed(() =>
-  processedConfigs.value.filter((c) => c.group === "special" && shouldShowParameter(c.key))
+  processedConfigs.value.filter((c) => c.group === "special" && shouldShowParameter(c.key)),
 );
 
 // --- 动态参数处理 ---
@@ -260,7 +275,7 @@ watch(
         maxContextTokens: newLimit,
       });
     }
-  }
+  },
 );
 
 // --- Thinking Budget 与 Max Tokens 联动逻辑 ---
@@ -289,7 +304,7 @@ watch(
         // 可选：显示轻量提示，但这可能会在拖动滑块时频繁触发，所以暂时不加
       }
     }
-  }
+  },
 );
 
 watch(
@@ -318,7 +333,7 @@ watch(
         updateParameter("thinkingBudget", targetBudget);
       }
     }
-  }
+  },
 );
 
 // 监听 thinkingEnabled 开启时，进行一次初始检查
@@ -338,7 +353,7 @@ watch(
         }
       }
     }
-  }
+  },
 );
 
 // --- Gemini 安全设置逻辑 ---
@@ -434,7 +449,7 @@ const loadContextStats = async () => {
       agentStore.currentAgentId ?? undefined,
       {
         parameterOverrides: localParams.value,
-      }
+      },
     );
 
     if (previewData) {
@@ -477,7 +492,7 @@ watch(
     if (JSON.stringify(newVal) === JSON.stringify(oldVal)) return;
     if (props.externalStats === undefined) setTimeout(loadContextStats, 300);
   },
-  { deep: true }
+  { deep: true },
 );
 // 注意：contextCompression 是运行时压缩配置，不影响预览结构，无需触发预览更新
 watch(
@@ -486,7 +501,7 @@ watch(
     if (JSON.stringify(newVal) === JSON.stringify(oldVal)) return;
     if (props.externalStats === undefined) setTimeout(loadContextStats, 300);
   },
-  { deep: true }
+  { deep: true },
 );
 watch(
   () => chatStore.generatingNodes.size,
@@ -495,7 +510,7 @@ watch(
       handleStateChange();
     }
     previousGeneratingCount = newSize;
-  }
+  },
 );
 watch(
   () => {
@@ -504,7 +519,7 @@ watch(
     return agent?.presetMessages;
   },
   handleStateChange,
-  { deep: true }
+  { deep: true },
 );
 watch(
   () => chatStore.currentSession?.updatedAt, // 索引中的 updatedAt 变化也触发
@@ -512,7 +527,7 @@ watch(
     if (chatStore.generatingNodes.size === 0 && newTime !== oldTime) {
       handleStateChange();
     }
-  }
+  },
 );
 
 // 计算是否有开启的后处理规则 (用于 ContextStatsCard 传递)
@@ -678,6 +693,93 @@ const hasActivePostProcessingRules = computed(() => {
       <div class="param-hint">其他高级功能（如 Response Format、Tools、Web Search）需要通过代码配置。</div>
     </ConfigSection>
 
+    <!-- 图片压缩分组 -->
+    <ConfigSection title="图片压缩" :icon="Image" v-model:expanded="imageCompressionExpanded">
+      <div class="param-group">
+        <label class="param-label">
+          <span>启用图片压缩</span>
+          <el-switch
+            :model-value="localParams.imageCompression?.enabled ?? false"
+            @update:model-value="updateImageCompression('.enabled', $event)"
+          />
+        </label>
+        <div class="param-desc">开启后，发送图片给 LLM 时自动进行压缩处理，节省 Token 和带宽。</div>
+      </div>
+
+      <template v-if="localParams.imageCompression?.enabled">
+        <!-- 目标最大尺寸 -->
+        <div class="param-group">
+          <label class="param-label">
+            <span>目标最大尺寸</span>
+            <span class="param-value">{{ localParams.imageCompression?.maxDimension || "不限" }}px</span>
+          </label>
+          <el-slider
+            :model-value="localParams.imageCompression?.maxDimension"
+            :min="256"
+            :max="8192"
+            :step="128"
+            :show-stops="false"
+            style="width: 100%"
+            @update:model-value="updateImageCompression('.maxDimension', $event || undefined)"
+          />
+          <div class="param-desc">图片宽高的最大像素值。超出将等比缩小。设为 0 或清空则不额外缩小。</div>
+          <div style="display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap">
+            <el-tag size="small" style="cursor: pointer" @click="updateImageCompression('.maxDimension', 1024)"
+              >1024</el-tag
+            >
+            <el-tag size="small" style="cursor: pointer" @click="updateImageCompression('.maxDimension', 2048)"
+              >2048</el-tag
+            >
+            <el-tag size="small" style="cursor: pointer" @click="updateImageCompression('.maxDimension', 4096)"
+              >4096</el-tag
+            >
+          </div>
+        </div>
+
+        <!-- 输出格式 -->
+        <div class="param-group">
+          <label class="param-label">
+            <span>输出格式</span>
+          </label>
+          <el-select
+            :model-value="localParams.imageCompression?.format || 'original'"
+            @update:model-value="updateImageCompression('.format', $event)"
+            style="width: 100%"
+          >
+            <el-option label="保持原格式" value="original" />
+            <el-option label="JPEG（有损，压缩率高）" value="jpeg" />
+            <el-option label="WebP（有损，支持透明）" value="webp" />
+          </el-select>
+          <div class="param-desc">
+            <template v-if="(localParams.imageCompression?.format || 'original') === 'jpeg'">
+              JPEG 不支持透明通道，会丢失透明度。
+            </template>
+            <template v-else-if="(localParams.imageCompression?.format || 'original') === 'webp'">
+              WebP 支持透明通道，兼容性良好。
+            </template>
+            <template v-else> 保持图片原有的格式不变，仅做尺寸缩放。 </template>
+          </div>
+        </div>
+
+        <!-- 质量（仅非 original 时显示） -->
+        <div v-if="(localParams.imageCompression?.format || 'original') !== 'original'" class="param-group">
+          <label class="param-label">
+            <span>图片质量</span>
+            <span class="param-value">{{ Math.round((localParams.imageCompression?.quality ?? 0.85) * 100) }}%</span>
+          </label>
+          <el-slider
+            :model-value="localParams.imageCompression?.quality ?? 0.85"
+            :min="0.1"
+            :max="1.0"
+            :step="0.05"
+            style="width: 100%"
+            @update:model-value="updateImageCompression('.quality', $event)"
+          />
+          <div class="param-desc">值越高画质越好，文件也越大。85% 是较好的平衡点。</div>
+        </div>
+      </template>
+    </ConfigSection>
+
     <!-- 自定义参数分组 -->
     <ConfigSection title="自定义参数" :icon="CirclePlus" v-model:expanded="customParamsExpanded">
       <CustomParamsPanel :model-value="localParams.custom" @update:model-value="updateParameter('custom', $event)" />
@@ -719,6 +821,12 @@ const hasActivePostProcessingRules = computed(() => {
   font-size: 13px;
   font-weight: 500;
   color: var(--text-color);
+}
+
+.param-value {
+  font-size: 12px;
+  color: var(--el-color-primary);
+  font-weight: 600;
 }
 
 .param-desc {

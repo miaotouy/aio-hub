@@ -206,9 +206,13 @@ bun run tauri build
 
 ### 📘 架构文档
 
-> 🤖 **对 AI / 爬虫 agents 的指引**：如需深入了解项目全部 33 个工具模块的架构设计、核心定位与技术亮点，请阅读 **[工具架构总集篇](https://raw.githubusercontent.com/miaotouy/aio-hub/main/docs/architecture/tools-architecture-overview.md)** `https://raw.githubusercontent.com/miaotouy/aio-hub/main/docs/architecture/tools-architecture-overview.md` （raw 原始文件，无页面渲染干扰）。
+> 🤖 **对 AI / 爬虫 agents 的指引**：如需深入了解项目全部 33 个工具模块的架构设计、核心定位与技术亮点，请阅读以下 raw 原始文件，无页面渲染干扰。
+> 
+> **[工具架构总集篇](https://raw.githubusercontent.com/miaotouy/aio-hub/main/docs/architecture/tools-architecture-overview.md)** `https://raw.githubusercontent.com/miaotouy/aio-hub/main/docs/architecture/tools-architecture-overview.md`
+> **[设置架构总集篇](https://raw.githubusercontent.com/miaotouy/aio-hub/main/docs/architecture/settings-architecture-overview.md)** `https://raw.githubusercontent.com/miaotouy/aio-hub/main/docs/architecture/tools-architecture-overview.md`
 
 - [**工具架构总集篇**](docs/architecture/tools-architecture-overview.md)
+- [**设置架构总集篇**](docs/architecture/settings-architecture-overview.md)
 - [**项目架构总览**](ARCHITECTURE.md)
 - [**服务与插件系统**](docs/architecture/services-architecture.md)
 - [**LLM API 适配层**](docs/architecture/llm-apis-architecture.md)

@@ -122,13 +122,18 @@
         <div class="tab-scroll-container">
           <div class="file-tree">
             <!-- 根文件 (SKILL.md 始终置顶) -->
-            <div class="tree-item file">
+            <div class="tree-item file clickable" @click="openFileEditor('SKILL.md')">
               <FileIcon file-name="SKILL.md" file-type="document" :size="14" class="icon" />
               <span class="name">SKILL.md</span>
             </div>
 
             <!-- 其他根目录文件 -->
-            <div v-for="f in rootFiles" :key="f.relativePath" class="tree-item file">
+            <div
+              v-for="f in rootFiles"
+              :key="f.relativePath"
+              class="tree-item file clickable"
+              @click="openFileEditor(f.relativePath)"
+            >
               <FileIcon :file-name="f.name" :file-type="determineAssetType(f.mimeType)" :size="14" class="icon" />
               <span class="name">{{ f.name }}</span>
               <span class="size">{{ formatSize(f.size) }}</span>
@@ -142,7 +147,12 @@
                   <span class="name">{{ dirName }}</span>
                 </div>
                 <div class="tree-children">
-                  <div v-for="f in group" :key="f.relativePath" class="tree-item file">
+                  <div
+                    v-for="f in group"
+                    :key="f.relativePath"
+                    class="tree-item file clickable"
+                    @click="openFileEditor(f.relativePath)"
+                  >
                     <FileIcon :file-name="f.name" :file-type="determineAssetType(f.mimeType)" :size="14" class="icon" />
                     <span class="name">{{ f.name }}</span>
                     <span class="size">{{ formatSize(f.size) }}</span>
@@ -154,6 +164,33 @@
         </div>
       </el-tab-pane>
     </el-tabs>
+
+    <!-- 文件编辑器弹窗 -->
+    <BaseDialog
+      v-model="editorDialogVisible"
+      :title="`编辑文件: ${editingFilePath}`"
+      width="90%"
+      height="85vh"
+      show-close-button
+    >
+      <div class="editor-container">
+        <RichCodeEditor
+          v-model="editingFileContent"
+          :language="getExtension(editingFilePath)"
+          :readonly="isBuiltin"
+          class="skill-editor"
+        />
+      </div>
+      <template #footer>
+        <div class="editor-footer">
+          <span v-if="isBuiltin" class="readonly-tip">内置技能文件为只读模式</span>
+          <el-button @click="editorDialogVisible = false">取消</el-button>
+          <el-button type="primary" :loading="isSaving" :disabled="isBuiltin" @click="handleSaveFile">
+            保存修改
+          </el-button>
+        </div>
+      </template>
+    </BaseDialog>
   </div>
 </template>
 
@@ -164,7 +201,11 @@ import { Trash2, ShieldCheck, Cpu, Terminal, Database, Wrench, Folder, PencilLin
 import { ElMessageBox } from "element-plus";
 import DocumentViewer from "@/components/common/DocumentViewer.vue";
 import FileIcon from "@/components/common/FileIcon.vue";
-import { determineAssetType } from "@/utils/fileTypeDetector";
+import BaseDialog from "@/components/common/BaseDialog.vue";
+import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
+import { determineAssetType, getExtension } from "@/utils/fileTypeDetector";
+import { SkillService } from "../services/SkillService";
+import { customMessage } from "@/utils/customMessage";
 import type { SkillManifest } from "../types";
 
 const props = defineProps<{
@@ -216,6 +257,8 @@ watch(
     isEditingName.value = false;
   },
 );
+
+const isBuiltin = computed(() => props.manifest.source === "builtin");
 
 const sourceInfo = computed(() => {
   const source = props.manifest.source;
@@ -287,6 +330,50 @@ const fileGroups = computed(() => {
     return parts[0];
   });
 });
+
+// 文件编辑逻辑
+const editorDialogVisible = ref(false);
+const editingFilePath = ref("");
+const editingFileContent = ref("");
+const isSaving = ref(false);
+
+async function openFileEditor(path: string) {
+  editingFilePath.value = path;
+  editingFileContent.value = "";
+  editorDialogVisible.value = true;
+
+  try {
+    const content = await SkillService.readResource(props.manifest.name, path);
+    editingFileContent.value = content;
+  } catch (error) {
+    customMessage.error("加载文件失败");
+  }
+}
+
+async function handleSaveFile() {
+  if (isBuiltin.value) return;
+
+  isSaving.value = true;
+  try {
+    const success = await SkillService.writeResource(
+      props.manifest.name,
+      editingFilePath.value,
+      editingFileContent.value,
+    );
+    if (success) {
+      customMessage.success("文件已保存");
+      // 如果编辑的是 SKILL.md，可能需要刷新 manifest（这里简单处理，实际可能需要通知父组件重扫）
+      if (editingFilePath.value.toLowerCase() === "skill.md") {
+        customMessage.info("清单文件已修改，建议重新扫描以更新信息");
+      }
+      editorDialogVisible.value = false;
+    }
+  } catch (error) {
+    customMessage.error("保存失败");
+  } finally {
+    isSaving.value = false;
+  }
+}
 </script>
 
 <style scoped>
@@ -651,6 +738,19 @@ const fileGroups = computed(() => {
   color: var(--text-color);
 }
 
+.tree-item.clickable {
+  cursor: pointer;
+}
+
+.tree-item.clickable:hover {
+  background: rgba(var(--el-color-primary-rgb), 0.08);
+  color: var(--el-color-primary);
+}
+
+.tree-item.clickable:hover .name {
+  color: var(--el-color-primary);
+}
+
 .tree-item .badge {
   font-size: 10px;
   padding: 0 5px;
@@ -734,6 +834,32 @@ const fileGroups = computed(() => {
 .ref-size {
   font-size: 12px;
   color: var(--text-color-secondary);
+}
+
+/* Editor Styles */
+.editor-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.skill-editor {
+  flex: 1;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 8px;
+}
+
+.editor-footer {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.readonly-tip {
+  font-size: 12px;
+  color: var(--el-color-warning);
+  margin-right: auto;
 }
 
 /* Scrollbar Customization */

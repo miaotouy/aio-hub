@@ -535,6 +535,42 @@ pub async fn read_skill_resource(
     fs::read_to_string(target_path).map_err(|e| format!("读取文件失败: {}", e))
 }
 
+/// 安全写入 Skill 目录内的文本文件
+#[tauri::command]
+pub async fn write_skill_resource(
+    app: AppHandle,
+    skill_id: String,
+    relative_path: String,
+    content: String,
+) -> Result<(), String> {
+    let manifests = get_all_skill_manifests(app, None).await?;
+    let manifest = manifests
+        .iter()
+        .find(|m| m.name == skill_id)
+        .ok_or_else(|| format!("未找到技能: {}", skill_id))?;
+
+    if manifest.source == "builtin" {
+        return Err("内置技能资源为只读，无法修改".to_string());
+    }
+
+    let base_path = PathBuf::from(&manifest.base_path);
+    let target_path = base_path.join(&relative_path);
+
+    // 路径安全校验：防止路径穿越
+    if !target_path.starts_with(&base_path) {
+        return Err("不允许越权访问技能目录之外的文件".to_string());
+    }
+
+    // 确保父目录存在
+    if let Some(parent) = target_path.parent() {
+        if !parent.exists() {
+            fs::create_dir_all(parent).map_err(|e| format!("创建目录失败: {}", e))?;
+        }
+    }
+
+    fs::write(target_path, content).map_err(|e| format!("写入文件失败: {}", e))
+}
+
 /// 列出 Skill 目录下的文件和子目录
 #[tauri::command]
 pub async fn list_skill_directory(

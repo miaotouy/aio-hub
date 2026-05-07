@@ -6,16 +6,14 @@
  * 2. 通用工具：向 Agent 暴露操作任意 Skill 资源的通用工具（脚本执行、文件读取）。
  * 所有核心操作均委托给 Rust 后端执行。
  */
-import { invoke } from "@tauri-apps/api/core";
 import { type, platform, arch, version } from "@tauri-apps/plugin-os";
 import type { ToolRegistry, ServiceMetadata } from "@/services/types";
-import type { SkillScriptResult, RuntimeSettings } from "../types";
+import type { RuntimeSettings } from "../types";
 import { useSkillManagerStore } from "../stores/skillManagerStore";
 import { createModuleLogger } from "@/utils/logger";
-import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { SkillService } from "./SkillService";
 
 const logger = createModuleLogger("skill-manager/system-proxy");
-const errorHandler = createModuleErrorHandler("skill-manager/system-proxy");
 
 export class SkillManagerProxy implements ToolRegistry {
   readonly id = "skill:system";
@@ -143,50 +141,25 @@ export class SkillManagerProxy implements ToolRegistry {
     logger.info(`正在执行技能脚本: ${skill_id}/${script_name}`, { args: scriptArgs });
 
     const runtimeSettings = this.getRuntimeSettings();
-    logger.debug("运行时配置已加载", {
-      js: runtimeSettings.javascript.command || "(自动检测)",
-      py: runtimeSettings.python.command || "(自动检测)",
-    });
+    const result = await SkillService.runScript(skill_id, script_name, scriptArgs ?? "", runtimeSettings);
 
-    return (
-      (await errorHandler.wrapAsync(async () => {
-        const result = await invoke<SkillScriptResult>("run_skill_script", {
-          skillId: skill_id,
-          scriptName: script_name,
-          args: scriptArgs ?? "",
-          runtimeSettings,
-        });
-        if (!result.success) {
-          return `脚本执行失败（exit code: ${result.exitCode}）\nstderr: ${result.stderr}`;
-        }
-        return result.stdout || "脚本执行完成（无输出）";
-      })) ?? "脚本执行出错，请查看日志。"
-    );
+    if (!result) return "脚本执行出错，请查看日志。";
+    if (!result.success) {
+      return `脚本执行失败（exit code: ${result.exitCode}）\nstderr: ${result.stderr}`;
+    }
+    return result.stdout || "脚本执行完成（无输出）";
   }
 
   async skill_read_file(args: Record<string, string>): Promise<string> {
     const { skill_id, path } = args;
-    return (
-      (await errorHandler.wrapAsync(async () => {
-        return await invoke<string>("read_skill_resource", {
-          skillId: skill_id,
-          relativePath: path,
-        });
-      })) ?? "读取文件失败。"
-    );
+    const content = await SkillService.readResource(skill_id, path);
+    return content || "读取文件失败或文件为空。";
   }
 
   async skill_list_dir(args: Record<string, string>): Promise<string> {
     const { skill_id, sub_dir = "" } = args;
-    return (
-      (await errorHandler.wrapAsync(async () => {
-        const entries = await invoke<string[]>("list_skill_directory", {
-          skillId: skill_id,
-          subDir: sub_dir || null,
-        });
-        return entries.length > 0 ? entries.map((e: string) => `- ${e}`).join("\n") : "目录为空";
-      })) ?? "列出目录失败。"
-    );
+    const entries = await SkillService.listDirectory(skill_id, sub_dir);
+    return entries.length > 0 ? entries.map((e: string) => `- ${e}`).join("\n") : "目录为空";
   }
 
   /**

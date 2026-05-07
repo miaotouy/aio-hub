@@ -17,7 +17,7 @@
 │  useSkillManager — UI ↔ Store/Service 粘合剂          │
 ├─────────────────────────────────────────────────────┤
 │  状态层 (Store)                                      │
-│  skillManagerStore — 配置 + 清单缓存 + 激活状态       │
+│  skillManagerStore — 配置 + 清单缓存                  │
 ├──────────────────────┬──────────────────────────────┤
 │  服务层 (Service) — TS│  Rust 后端层 (Backend)       │
 │                      │                              │
@@ -27,11 +27,9 @@
 │  SkillBridgeFactory  │  ├─ 脚本安全执行 (路径锁定)    │
 │  (ToolRegistryFactory)│  ├─ 文件安全读取 (防穿越)     │
 │                      │  └─ Skill 安装 (复制+校验)    │
-│  SkillProxy          │                              │
-│  (ToolRegistry, 每Skill一个)                         │
-│                      │                              │
 │  SkillManagerProxy   │                              │
-│  (ToolRegistry, 系统级单例)                          │
+│  (ToolRegistry, 单例) │                              │
+│  (承载所有 Skill 方法) │                              │
 ├──────────────────────┴──────────────────────────────┤
 │  外部集成                                           │
 │  toolRegistryManager · tool-calling · configManager │
@@ -53,6 +51,7 @@
 - 通过 `invoke` 调用 Tauri 命令（薄封装）
 - 协议适配（将 Rust 返回的 `SkillManifest` 映射为 TS 类型）
 - UI 呈现与管理交互
+- 工具注册与动态方法披露
 
 ## 3. 核心服务层
 
@@ -69,50 +68,44 @@
 
 ### 3.2. SkillBridgeFactory — 桥接工厂
 
-实现 `ToolRegistryFactory` 接口，参考 `VcpBridgeFactory` 的工厂模式。在 `createRegistries()` 中：
+实现 `ToolRegistryFactory` 接口。在 `createRegistries()` 中：
 
 1. 检查总开关 `config.enabled`，关闭时返回空数组
-2. 调用 `SkillLoader.scanAll()` 获取清单
-3. 为每个未禁用的 Skill 创建 `SkillProxy`
-4. 返回 `[skillManagerProxy, ...skillProxies]`
+2. 调用 `SkillLoader.scanAll()` 预加载清单
+3. 返回单例的 `[skillManagerProxy]`
 
 支持热加载：`refreshManifests()` → 清缓存 → 注销工厂 → 重新注册。
 
-### 3.3. SkillProxy — 技能代理
+### 3.3. SkillManagerProxy — 聚合代理
 
-实现 `ToolRegistry` 接口，每个 Skill 一个实例（ID: `skill:{name}`）。
+单例 `ToolRegistry`（ID: `skill:system`），是 Skill 能力向 Agent 披露的唯一入口。
 
 **核心职责**：
 
-- **`getMetadata()`**：暴露 `activate` 方法（agentCallable）
-- **`getExtraPromptContext()`**：渐进式披露
-  - 未激活：摘要（~100 tokens）
-  - 已激活：完整 SKILL.md + scripts/references 索引 + 通用工具调用指引
-- **`activate()`**：切换激活状态，更新 Store
+- **动态方法披露**：在 `getMetadata()` 中根据已启用的 Skill 动态生成 `activate_<name>` 方法。
+- **渐进式披露实现**：`activate_<name>` 方法的描述（Description）承载了 Skill 的摘要信息。调用该方法将返回 Skill 的完整指令。
+- **通用资源操作**：提供 `skill_run_script`、`skill_read_file` 和 `skill_list_dir` 三个通用工具。
 
-**设计原则**：SkillProxy **不注册脚本方法**。脚本执行和文件读取由系统级 `SkillManagerProxy` 提供。
+### 3.4. 工具定义概览
 
-### 3.4. SkillManagerProxy — 系统级通用工具
-
-**单例** `ToolRegistry`（ID: `skill:system`），暴露三个 `agentCallable` 方法：
-
-| 方法               | 用途                              | 安全机制               |
-| ------------------ | --------------------------------- | ---------------------- |
-| `skill_run_script` | 执行 Skill 内部 scripts/ 下的脚本 | Rust 侧路径锁定 + 超时 |
-| `skill_read_file`  | 读取 Skill 目录内的文本文件       | Rust 侧路径沙箱        |
-| `skill_list_dir`   | 列出 Skill 目录结构               | Rust 侧路径沙箱        |
-
-所有方法直接委托给 Rust 命令，前端不做任何安全判断。
+| 方法               | 类型 | 用途                                       |
+| ------------------ | ---- | ------------------------------------------ |
+| `activate_<name>`  | 动态 | 激活特定技能，返回其完整指令与宿主环境信息 |
+| `skill_run_script` | 通用 | 执行 Skill 内部 scripts/ 下的脚本          |
+| `skill_read_file`  | 通用 | 读取 Skill 目录内的文本文件                |
+| `skill_list_dir`   | 通用 | 列出 Skill 目录结构                        |
 
 ## 4. 渐进式披露策略
 
-遵循 Agent Skills 规范的 "Progressive Disclosure" 理念：
+遵循 Agent Skills 规范的 "Progressive Disclosure" 理念，通过方法调用实现：
 
 ```
-Level 1 (Metadata)     → 启动时注入所有 Skill 的 name + description (~100 tokens/skill)
-Level 2 (Instructions) → 激活后注入完整 SKILL.md + 资源索引
-Level 3 (Resources)    → LLM 按需调用 skill_read_file / skill_list_dir 获取
+Level 1 (Metadata)     → 启动时注入 SkillManagerProxy 的 activate_<name> 方法描述 (摘要)
+Level 2 (Instructions) → LLM 调用 activate_<name>，方法返回完整 SKILL.md + 资源索引 + 宿主环境信息
+Level 3 (Resources)    → LLM 按需调用 skill_read_file / skill_list_dir 获取具体文件内容
 ```
+
+这种模式对 LLM 的 **前缀缓存 (Prefix Caching)** 极其友好，因为完整指令只有在真正需要时才会作为工具执行结果注入对话流，而不是每轮对话都重复出现在 System Prompt 中。
 
 ## 5. 脚本安全执行
 
@@ -122,7 +115,6 @@ Level 3 (Resources)    → LLM 按需调用 skill_read_file / skill_list_dir 获
 2. **运行时探测**：按优先级 `bun → node → python` 探测可用引擎
 3. **进程隔离**：`current_dir` 锁定在 Skill 根目录
 4. **超时控制**：默认 60 秒超时
-5. **输出捕获**：同时捕获 stdout/stderr，通过事件通道推送
 
 ## 6. 数据流
 
@@ -132,36 +124,26 @@ Level 3 (Resources)    → LLM 按需调用 skill_read_file / skill_list_dir 获
 应用启动 → 加载配置 → toolRegistryManager.register(SkillBridgeFactory)
 → createRegistries() → SkillLoader.scanAll()
 → invoke("get_all_skill_manifests") → Rust 并行扫描 + YAML 解析
-→ 创建 SkillManagerProxy + N×SkillProxy → 注册完成
+→ 注册 SkillManagerProxy → 注册完成
 ```
 
 ### 6.2. Skill 激活流
 
 ```
-LLM 看到 Skill 摘要 → 调用 skill:{name}.activate()
-→ SkillProxy._activated = true → Store 更新 activeSkillNames
-→ 下一轮对话 → getExtraPromptContext() 返回完整指令
-```
-
-### 6.3. 脚本执行流
-
-```
-LLM 调用 skill:system.skill_run_script(skillId, scriptName, args)
-→ SkillManagerProxy → invoke("run_skill_script", ...)
-→ Rust 校验路径 → 探测运行时 → tokio::process::Command（cwd 锁定）
-→ stdout/stderr/exitCode → 返回 LLM
+LLM 在工具列表中看到 activate_<name> 方法描述 (摘要)
+→ LLM 调用 skill:system.activate_<name>()
+→ SkillManagerProxy 实时构造并返回该技能的完整上下文 (SKILL.md + 资源索引 + 宿主环境)
+→ LLM 获得操作该技能所需的全部知识
 ```
 
 ## 7. 关键设计决策
 
-| 决策            | 选择                            | 理由                                     |
-| --------------- | ------------------------------- | ---------------------------------------- |
-| 架构模式        | Backend-First（Rust 驱动）      | 安全性 + 性能 + 复用现有 Rust 基础设施   |
-| 工具注册模式    | 工厂模式（ToolRegistryFactory） | 与 VcpBridgeFactory 一致，支持热加载     |
-| ID 前缀         | `skill:`                        | 防止与 VCP（`vcp:`）及其他工具 ID 冲突   |
-| 脚本执行模式    | 封闭式（禁止通用 CLI）          | 安全优先，通用 CLI 由独立工具提供        |
-| Prompt 注入策略 | 渐进式披露                      | 遵循 Agent Skills 规范，避免 Prompt 膨胀 |
-| 配置持久化      | configManager + store           | 配置存 config.json，激活状态仅内存       |
+| 决策         | 选择                       | 理由                                   |
+| ------------ | -------------------------- | -------------------------------------- |
+| 架构模式     | Backend-First（Rust 驱动） | 安全性 + 性能 + 复用现有 Rust 基础设施 |
+| 工具注册模式 | 单代理聚合披露             | 界面清爽，支持精细的方法级开关控制     |
+| 注入策略     | 渐进式披露 (方法返回型)    | 遵循规范，且对 LLM 缓存更友好          |
+| 脚本执行模式 | 封闭式（禁止通用 CLI）     | 安全优先，通用 CLI 由独立工具提供      |
 
 ## 8. 文件结构
 
@@ -171,34 +153,17 @@ src/tools/skill-manager/
 ├── services/
 │   ├── SkillLoader.ts                # 薄封装层（调用 Rust 命令）
 │   ├── SkillBridgeFactory.ts         # 桥接工厂（ToolRegistryFactory）
-│   ├── SkillProxy.ts                 # 技能代理（ToolRegistry）
-│   └── SkillManagerProxy.ts          # 系统级代理（ToolRegistry）
-├── stores/skillManagerStore.ts       # 配置 + 清单 + 激活状态
+│   └── SkillManagerProxy.ts          # 聚合系统代理 (承载所有动态方法)
+├── stores/skillManagerStore.ts       # 配置 + 清单缓存
 ├── composables/useSkillManager.ts    # UI ↔ Store/Service 粘合
-├── components/
-│   ├── SkillManagerPage.vue          # 主页面
-│   ├── SkillListPanel.vue            # 列表（搜索/过滤/状态标签）
-│   ├── SkillDetailPanel.vue          # 详情（Markdown 渲染 + 开关）
-│   ├── SkillInstallDialog.vue        # 安装（本地/Git/URL）
-│   └── SkillScanSettings.vue         # 外部扫描路径设置
-├── skill-manager.registry.ts         # 工具 UI 注册 + SkillBridgeFactory 导出
+├── components/                       # UI 组件
+├── skill-manager.registry.ts         # 工具 UI 注册
 └── SkillManager.vue                  # 主容器
-
-src-tauri/src/commands/
-└── skill_manager.rs                  # Rust 引擎（扫描 + 解析 + 安全执行）
 ```
 
 ## 9. 与现有系统的集成点
 
-- **toolRegistryManager**：SkillBridgeFactory 注册为工厂，SkillProxy/SkillManagerProxy 作为 ToolRegistry 管理
-- **tool-calling**：所有 `agentCallable` 方法出现在 LLM 可用工具列表中；`getExtraPromptContext()` 由 `getToolContexts()` 聚合
-- **configManager**：Skill 管理配置（总开关、禁用列表、外部扫描路径）持久化
-- **Rust Backend**：5 个 Tauri 命令（`get_all_skill_manifests`, `run_skill_script`, `read_skill_resource`, `list_skill_directory`, `install_skill_from_dir`）
-
-## 10. 亮点
-
-- **Backend-First 安全架构**：Rust 侧路径沙箱 + 运行时探测 + 超时控制
-- **渐进式披露**：最小化 Prompt 占用，按需激活完整指令
-- **工厂桥接模式**：无缝接入 AIO 工具调用系统，支持热加载
-- **双代理设计**：SkillProxy（激活+上下文）与 SkillManagerProxy（脚本/文件操作）职责分离
-- **外部扫描**：支持从任意本地目录扫描 Skill，满足开发调试场景
+- **toolRegistryManager**：SkillBridgeFactory 注册为工厂，SkillManagerProxy 作为单例 ToolRegistry 管理。
+- **tool-calling**：所有 `agentCallable` 方法出现在 LLM 可用工具列表中。
+- **configManager**：Skill 管理配置（总开关、禁用列表、外部扫描路径）持久化。
+- **Rust Backend**：提供扫描、读取、执行等 5 个核心 Tauri 命令。

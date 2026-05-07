@@ -11,7 +11,6 @@ import type { ToolRegistry, ToolRegistryFactory } from "@/services/types";
 import { createModuleLogger } from "@/utils/logger";
 import type { SkillManifest } from "../types";
 import { skillLoader } from "./SkillLoader";
-import { SkillProxy } from "./SkillProxy";
 import { skillManagerProxy } from "./SkillManagerProxy";
 import { useSkillManagerStore } from "../stores/skillManagerStore";
 
@@ -44,18 +43,10 @@ export class SkillBridgeFactory implements ToolRegistryFactory {
       await this.refreshManifests();
     }
 
-    // 先返回系统级代理，再返回每个 Skill 的代理
+    // 仅返回系统级代理，所有 Skill 的能力将聚合在其中
     const registries: ToolRegistry[] = [skillManagerProxy];
 
-    const skillRegistries = this.skillManifests
-      .filter((m) => !store.config.disabledSkillIds.includes(m.name))
-      .map((manifest) => new SkillProxy(manifest));
-
-    registries.push(...skillRegistries);
-
-    logger.info(
-      `SkillBridgeFactory: 生成了 ${registries.length} 个工具（1 个系统代理 + ${skillRegistries.length} 个技能代理）`,
-    );
+    logger.info(`SkillBridgeFactory: 生成了 ${registries.length} 个工具（Skill 管理器）`);
     return registries;
   }
 

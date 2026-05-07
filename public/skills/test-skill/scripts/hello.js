@@ -15,7 +15,7 @@ const result = {
   detail: {
     skill: "test-skill",
     script: "hello.js",
-    runtime: process.execPath,
+    runtime: require("path").basename(process.execPath),
     platform: process.platform,
     nodeVersion: process.version,
     timestamp: new Date().toISOString(),

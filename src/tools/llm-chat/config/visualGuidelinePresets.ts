@@ -55,10 +55,24 @@ export const DEFAULT_VISUAL_GUIDELINE = `
 | \`style\` (可选) | 自定义样式，设置后将覆盖默认的药丸形状样式 | CSS 字符串 (如 \`background: #ff4757; color: white; border-radius: 4px;\`) |
 
 **示例**：
+
+*默认样式（药丸形）：*
 你想了解哪方面的信息？
-<Button type="input" value="请介绍一下最新的 Gemini 模型" />
-<Button type="input" value="它和 Deepseek V4 有什么区别？" />
-<Button type="send" value="都不用，谢谢" style="background: var(--danger-color); color: white; border-radius: 8px;; padding: 4px 16px;" />
+<div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px;">
+  <Button type="input" value="介绍一下最新的 Gemini 模型" />
+  <Button type="input" value="和 DeepSeek V4 有什么区别？" />
+  <Button type="send" value="都不用，谢谢" />
+</div>
+
+*自定义样式（使用容器组织）：*
+<div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px; margin-top: 8px;">
+  <div style="font-weight: bold; margin-bottom: 12px; color: var(--primary-text);">{{agent}}的建议</div>
+  <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+    <Button type="send" value="生成摘要" style="background: linear-gradient(135deg, var(--primary-color), var(--info-color)); color: white; border-radius: 8px; padding: 5px 20px; border: none; font-weight: 500;" />
+    <Button type="copy" value="复制代码" style="background: transparent; color: var(--primary-color); border: 1.5px solid var(--primary-color); border-radius: 6px; padding: 4px 14px; font-size: 12px;" />
+    <Button type="send" value="⚠️ 清除记录" style="background: var(--danger-color); color: white; border-radius: 6px; padding: 5px 16px; font-weight: 500; border: none;" />
+  </div>
+</div>
 
 #### \`<Audio>\` 音频组件
 

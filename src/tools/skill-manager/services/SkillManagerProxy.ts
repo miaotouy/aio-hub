@@ -234,6 +234,16 @@ export class SkillManagerProxy implements ToolRegistry {
   }
 
   /**
+   * 提取命令的文件名（脱敏）
+   */
+  private getCommandBasename(cmd: string, fallback: string): string {
+    if (!cmd) return fallback;
+    // 处理 Windows 和 Unix 路径
+    const parts = cmd.split(/[\\/]/);
+    return parts[parts.length - 1] || fallback;
+  }
+
+  /**
    * 获取宿主环境信息（原 getExtraPromptContext 逻辑）
    */
   private getHostEnvironmentInfo(): string {
@@ -246,10 +256,10 @@ export class SkillManagerProxy implements ToolRegistry {
       const prefs = store.config.terminalPreferences;
       const rt = store.config.runtimeSettings;
 
-      const jsCmd = rt.javascript.command || "bun / node (自动检测)";
-      const pyCmd = rt.python.command || "python (自动检测)";
-      const shellCmd = rt.shell.command || "bash (自动检测)";
-      const psCmd = rt.powershell.command || "powershell";
+      const jsCmd = this.getCommandBasename(rt.javascript.command, "bun / node (自动检测)");
+      const pyCmd = this.getCommandBasename(rt.python.command, "python (自动检测)");
+      const shellCmd = this.getCommandBasename(rt.shell.command, "bash (自动检测)");
+      const psCmd = this.getCommandBasename(rt.powershell.command, "powershell");
 
       let shellDesc = "PowerShell";
       let chainStyle = "使用 `;` 串联命令（PowerShell 语义）";

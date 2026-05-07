@@ -331,8 +331,11 @@ const resolveAsset = (content: string) => {
 
 // 处理工具调用结果内容：移除包围栏并格式化 JSON
 const processToolResultContent = (content: string): string => {
+  // 规范化换行符：Windows CRLF → LF，避免 \r 残留破坏 Markdown 解析器
+  let processed = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+
   // 移除头尾包围栏
-  let processed = content.replace(/^\[\[AIO工具调用结果信息汇总:\s*/i, "").replace(/\s*AIO工具调用结果结束\]\]$/i, "");
+  processed = processed.replace(/^\[\[AIO工具调用结果信息汇总:\s*/i, "").replace(/\s*AIO工具调用结果结束\]\]$/i, "");
 
   // 尝试检测并格式化 JSON（最多4层缩进）
   try {

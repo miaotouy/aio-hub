@@ -343,6 +343,9 @@ let unsubscribeComplete: (() => void) | null = null;
 const processedContent = computed(() => {
   let text = props.content || "";
 
+  // 0. 规范化换行符：Windows CRLF → LF，避免 \r 残留破坏 Markdown 解析器
+  text = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+
   // 1. 应用正则规则
   if (props.regexRules && props.regexRules.length > 0) {
     text = applyRegexRules(text, props.regexRules, props.isStreaming);

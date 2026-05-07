@@ -351,11 +351,6 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
 
     <div class="input-bottom-bar">
       <div class="tool-actions">
-        <span v-if="props.isProcessingAttachments" class="processing-hint"> 正在处理文件... </span>
-        <span v-if="props.isCompressing" class="processing-hint compressing">
-          <el-icon class="is-loading"><Package /></el-icon>
-          正在压缩上下文...
-        </span>
         <el-tooltip
           :content="props.isStreamingEnabled ? '流式输出：实时显示生成内容' : '非流式输出：等待完整响应'"
           placement="top"
@@ -510,10 +505,7 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
               </el-dropdown-item>
 
               <!-- 分析当前上下文 -->
-              <el-dropdown-item
-                :disabled="disabled"
-                @click="emit('analyze-context-with-input')"
-              >
+              <el-dropdown-item :disabled="disabled" @click="emit('analyze-context-with-input')">
                 <div class="dropdown-item-content">
                   <ScanSearch :size="16" />
                   <span>分析当前上下文</span>
@@ -684,6 +676,13 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
             </svg>
           </button>
         </el-tooltip>
+
+        <!-- 正在处理提示：移至图标后方，保持图标位置稳定 -->
+        <span v-if="props.isProcessingAttachments" class="processing-hint"> 正在处理文件... </span>
+        <span v-if="props.isCompressing" class="processing-hint compressing">
+          <el-icon class="is-loading"><Package /></el-icon>
+          正在压缩上下文...
+        </span>
       </div>
       <div class="input-actions">
         <!-- 续写模型显示 -->
@@ -903,6 +902,8 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
   display: flex;
   align-items: center;
   gap: 4px;
+  margin-left: 8px;
+  white-space: nowrap;
 }
 
 .token-count {

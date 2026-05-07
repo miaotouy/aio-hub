@@ -2,7 +2,10 @@
  * 图片处理器（纯 Canvas API，零依赖）
  * 用于前端图片尺寸获取、缩放和格式转换
  *
- * 所有操作均使用 try/catch 包裹，失败时安全回退到原始数据。
+ * 设计原则：二进制进，二进制出。
+ * 输入/输出均为 ArrayBuffer，不沾染 base64 或其他编码。
+ * 调用方需要什么编码自己转换——本模块只做图片像素处理。
+ *
  * 适合在 asset-resolver 中对图片进行发送前预处理。
  */
 
@@ -22,98 +25,59 @@ export interface ResizeOptions {
   maxWidth: number;
   /** 最大高度 */
   maxHeight: number;
-  /** 输出格式 */
+  /** 输出格式（默认保持原输入格式） */
   format?: "jpeg" | "webp" | "png";
   /** 质量 (0.1-1.0)，仅对有损格式有效 */
   quality?: number;
 }
 
 /**
- * 判断字符串是否为 base64 编码的图片数据
- * 支持带 data: 前缀和不带前缀的纯 base64
+ * 从 ArrayBuffer 加载 HTMLImageElement
  */
-function isBase64(str: string): boolean {
-  return /^(?:data:)?[A-Za-z0-9+/]*={0,2}$/.test(str.replace(/^data:image\/[^;]+;base64,/, ""));
-}
+function loadImageFromBuffer(buffer: ArrayBuffer): Promise<{ img: HTMLImageElement; cleanup: () => void }> {
+  const bytes = new Uint8Array(buffer);
+  const blob = new Blob([bytes]);
+  const url = URL.createObjectURL(blob);
 
-/**
- * 解析输入源，返回可用的 base64 字符串（不含 data: 前缀）
- */
-async function resolveSource(source: string | ArrayBuffer | Uint8Array): Promise<string> {
-  if (typeof source === "string") {
-    if (source.startsWith("data:")) {
-      return source;
-    }
-    if (isBase64(source)) {
-      return `data:image/png;base64,${source}`;
-    }
-    return source;
-  }
-
-  const bytes = source instanceof Uint8Array ? source : new Uint8Array(source);
-  const blob = new Blob([bytes], { type: "image/png" });
-  return URL.createObjectURL(blob);
-}
-
-/**
- * 从图片源获取尺寸信息
- * 使用 Image 对象解析，耗时通常 <10ms
- */
-export async function getImageDimensions(source: string | ArrayBuffer | Uint8Array): Promise<ImageDimensions> {
-  const url = await resolveSource(source);
-  const isBlob = url.startsWith("blob:");
-
-  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     const image = new Image();
-    image.onload = () => {
-      if (isBlob) URL.revokeObjectURL(url);
-      resolve(image);
-    };
+    image.onload = () => resolve({ img: image, cleanup: () => URL.revokeObjectURL(url) });
     image.onerror = () => {
-      if (isBlob) URL.revokeObjectURL(url);
+      URL.revokeObjectURL(url);
       reject(new Error("图片加载失败"));
     };
     image.src = url;
   });
-
-  const byteLength =
-    typeof source === "string"
-      ? Math.ceil((source.startsWith("data:") ? source.split(",")[1] || source : source).length * 0.75)
-      : source instanceof ArrayBuffer
-        ? source.byteLength
-        : source.length;
-
-  return { width: img.naturalWidth, height: img.naturalHeight, byteLength };
 }
 
 /**
- * 等比缩放图片到指定的最大尺寸
- * 支持格式转换（jpeg / webp / png）
- *
- * 如果原图尺寸已在限制内，且格式不变，不做处理直接返回原始 base64
+ * 从图片二进制获取尺寸信息
  */
-export async function resizeImage(source: string | ArrayBuffer | Uint8Array, options: ResizeOptions): Promise<string> {
+export async function getImageDimensions(buffer: ArrayBuffer): Promise<ImageDimensions> {
   try {
-    const url = await resolveSource(source);
-    const isBlob = url.startsWith("blob:");
+    const { img, cleanup } = await loadImageFromBuffer(buffer);
+    cleanup();
+    return { width: img.naturalWidth, height: img.naturalHeight, byteLength: buffer.byteLength };
+  } catch (error) {
+    logger.warn("获取图片尺寸失败", { error });
+    return { width: 0, height: 0, byteLength: buffer.byteLength };
+  }
+}
 
-    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const image = new Image();
-      image.onload = () => {
-        if (isBlob) URL.revokeObjectURL(url);
-        resolve(image);
-      };
-      image.onerror = () => {
-        if (isBlob) URL.revokeObjectURL(url);
-        reject(new Error("图片加载失败"));
-      };
-      image.src = url;
-    });
+/**
+ * 等比缩放图片到指定的最大尺寸，支持格式转换
+ *
+ * 输入 ArrayBuffer → 输出 ArrayBuffer（纯二进制流）
+ *
+ * 短路优化：若尺寸无需缩放且未指定格式转换，直接返回原 buffer。
+ */
+export async function resizeImage(buffer: ArrayBuffer, options: ResizeOptions): Promise<ArrayBuffer> {
+  try {
+    const { img, cleanup } = await loadImageFromBuffer(buffer);
 
     const { naturalWidth: originalW, naturalHeight: originalH } = img;
     const { maxWidth, maxHeight } = options;
 
-    // 计算缩放目标尺寸，始终保持宽高比
     let targetW = originalW;
     let targetH = originalH;
 
@@ -123,18 +87,17 @@ export async function resizeImage(source: string | ArrayBuffer | Uint8Array, opt
       targetH = Math.floor(originalH * scale);
     }
 
-    // 确定输出格式
-    const format = options.format || "png";
-    const mimeType = format === "jpeg" ? "image/jpeg" : format === "webp" ? "image/webp" : "image/png";
-    const quality = format !== "png" ? (options.quality ?? 0.85) : undefined;
-
-    // 零开销短路：不需要缩放且格式不变
-    if (targetW === originalW && targetH === originalH && mimeType === "image/png") {
-      if (typeof source === "string") {
-        return source.startsWith("data:") ? source : `data:image/png;base64,${source}`;
+    const format = options.format;
+    // 未指定格式且无需缩放 → 直接返回原始 buffer，零开销
+    if (!format || format === "png") {
+      if (targetW === originalW && targetH === originalH) {
+        cleanup();
+        return buffer;
       }
-      // 二进制源还是得画一遍
     }
+
+    const mimeType = format === "jpeg" ? "image/jpeg" : format === "webp" ? "image/webp" : "image/png";
+    const quality = format && format !== "png" ? (options.quality ?? 0.85) : undefined;
 
     const canvas = document.createElement("canvas");
     canvas.width = targetW;
@@ -142,28 +105,25 @@ export async function resizeImage(source: string | ArrayBuffer | Uint8Array, opt
 
     const ctx = canvas.getContext("2d");
     if (!ctx) {
+      cleanup();
       throw new Error("无法获取 Canvas 上下文");
     }
 
-    // JPEG 不支持透明通道，用白色背景填充
     if (format === "jpeg") {
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, targetW, targetH);
     }
 
     ctx.drawImage(img, 0, 0, targetW, targetH);
+    cleanup();
 
-    return canvas.toDataURL(mimeType, quality);
+    // Canvas → Blob → ArrayBuffer（纯二进制，不经过 base64）
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("toBlob 失败"))), mimeType, quality);
+    });
+    return await blob.arrayBuffer();
   } catch (error) {
-    logger.warn("图片缩放失败，返回原始数据", { error });
-    // 失败回退
-    if (typeof source === "string") {
-      return source.startsWith("data:") ? source : `data:image/png;base64,${source}`;
-    }
-    const bytes = source instanceof Uint8Array ? source : new Uint8Array(source);
-    const binary = Array.from(bytes)
-      .map((b) => String.fromCharCode(b))
-      .join("");
-    return `data:image/png;base64,${btoa(binary)}`;
+    logger.warn("图片缩放失败，回退到原始数据", { error });
+    return buffer;
   }
 }

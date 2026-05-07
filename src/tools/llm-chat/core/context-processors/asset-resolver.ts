@@ -6,6 +6,7 @@ import { assetManagerEngine } from "@/composables/useAssetManager";
 import { convertArrayBufferToBase64 } from "@/utils/base64";
 import { convertPdfToImages } from "@/utils/pdfUtils";
 import { getImageDimensions, resizeImage } from "@/utils/imageProcessor";
+import type { ResizeOptions } from "@/utils/imageProcessor";
 
 const logger = createModuleLogger("llm-chat/asset-resolver");
 const errorHandler = createModuleErrorHandler("llm-chat/asset-resolver");
@@ -43,27 +44,24 @@ export const assetResolver: ContextProcessor = {
       // 2. 处理附件
       for (const asset of msg._attachments) {
         try {
-          // 获取二进制数据并转换为 Base64
+          // 获取二进制数据
           if (["image", "document", "audio", "video"].includes(asset.type)) {
             const buffer = await assetManagerEngine.getAssetBinary(asset.path);
-            const base64 = await convertArrayBufferToBase64(buffer);
 
             if (asset.type === "image") {
-              // ---- 两层图片缩放处理 ----
-              let finalBase64 = base64;
+              // ---- 两层图片缩放处理（全程二进制，仅在最后编码为 base64）----
+              let imageBuffer: ArrayBuffer = buffer;
 
               // 第一层：模型安全约束缩放
               const maxDim = context.capabilities?.maxImageDimension;
               if (maxDim && maxDim > 0) {
                 try {
-                  const dims = await getImageDimensions(finalBase64);
+                  const dims = await getImageDimensions(imageBuffer);
                   if (dims.width > maxDim || dims.height > maxDim) {
-                    const dataUrl = await resizeImage(finalBase64, {
+                    imageBuffer = await resizeImage(imageBuffer, {
                       maxWidth: maxDim,
                       maxHeight: maxDim,
                     });
-                    const commaIdx = dataUrl.indexOf(",");
-                    finalBase64 = commaIdx !== -1 ? dataUrl.slice(commaIdx + 1) : dataUrl;
 
                     logger.debug("模型安全约束：图片已自动缩放", {
                       assetId: asset.id,
@@ -83,32 +81,22 @@ export const assetResolver: ContextProcessor = {
               const imgConfig = context.agentConfig?.parameters?.imageCompression;
               if (imgConfig?.enabled) {
                 try {
-                  const resizeOpts: any = {};
-                  if (imgConfig.maxDimension && imgConfig.maxDimension > 0) {
-                    resizeOpts.maxWidth = imgConfig.maxDimension;
-                    resizeOpts.maxHeight = imgConfig.maxDimension;
-                  }
+                  const resizeOpts: ResizeOptions = {
+                    maxWidth: imgConfig.maxDimension || 4096,
+                    maxHeight: imgConfig.maxDimension || 4096,
+                  };
                   if (imgConfig.format && imgConfig.format !== "original") {
                     resizeOpts.format = imgConfig.format;
                     resizeOpts.quality = imgConfig.quality ?? 0.85;
                   }
+                  imageBuffer = await resizeImage(imageBuffer, resizeOpts);
 
-                  if (resizeOpts.maxWidth || resizeOpts.format) {
-                    if (!resizeOpts.maxWidth) {
-                      resizeOpts.maxWidth = 4096;
-                      resizeOpts.maxHeight = 4096;
-                    }
-                    const dataUrl = await resizeImage(finalBase64, resizeOpts);
-                    const commaIdx = dataUrl.indexOf(",");
-                    finalBase64 = commaIdx !== -1 ? dataUrl.slice(commaIdx + 1) : dataUrl;
-
-                    logger.debug("用户压缩策略已应用", {
-                      assetId: asset.id,
-                      format: imgConfig.format,
-                      quality: imgConfig.quality,
-                      maxDimension: imgConfig.maxDimension,
-                    });
-                  }
+                  logger.debug("用户压缩策略已应用", {
+                    assetId: asset.id,
+                    format: imgConfig.format,
+                    quality: imgConfig.quality,
+                    maxDimension: imgConfig.maxDimension,
+                  });
                 } catch (e) {
                   logger.warn("用户压缩策略失败，保持当前图片", {
                     assetId: asset.id,
@@ -116,6 +104,9 @@ export const assetResolver: ContextProcessor = {
                   });
                 }
               }
+
+              // 最后一步：二进制 → base64（仅此一次编码）
+              const finalBase64 = await convertArrayBufferToBase64(imageBuffer);
 
               logger.debug("图片附件处理完成", {
                 assetId: asset.id,
@@ -127,6 +118,7 @@ export const assetResolver: ContextProcessor = {
                 imageBase64: finalBase64,
               });
             } else if (asset.type === "document") {
+              const docBase64 = await convertArrayBufferToBase64(buffer);
               // 核心改进：如果模型【完全不支持】原生文档，但支持视觉，才现场转图片序列
               if (asset.mimeType === "application/pdf" && !capabilities?.document && capabilities?.vision) {
                 logger.info("模型不支持原生 PDF 但支持视觉，正在现场将 PDF 转换为图片序列...", {
@@ -158,25 +150,27 @@ export const assetResolver: ContextProcessor = {
                 source: {
                   type: "base64",
                   media_type: asset.mimeType,
-                  data: base64,
+                  data: docBase64,
                 },
               });
             } else if (asset.type === "audio") {
+              const audioBase64 = await convertArrayBufferToBase64(buffer);
               newContentParts.push({
                 type: "audio",
                 source: {
                   type: "base64",
                   media_type: asset.mimeType,
-                  data: base64,
+                  data: audioBase64,
                 },
               });
             } else if (asset.type === "video") {
+              const videoBase64 = await convertArrayBufferToBase64(buffer);
               newContentParts.push({
                 type: "video",
                 source: {
                   type: "base64",
                   media_type: asset.mimeType,
-                  data: base64,
+                  data: videoBase64,
                 },
               });
             }

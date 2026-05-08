@@ -19,6 +19,7 @@ export default withMermaid({
     plugins: [
       Sitemap({
         hostname: "https://docs.aiohub-app.com",
+        outDir: "docs/.vitepress/dist",
       }),
     ],
     ssr: {

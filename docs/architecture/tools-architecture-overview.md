@@ -41,9 +41,9 @@
 
 ### 4. [knowledge-base](../src/tools/knowledge-base/ARCHITECTURE.md) — 知识库 / RAG 引擎
 
-高性能本地 RAG 引擎，支持 **Keyword / Vector / Lens / Blender** 四种可插拔检索引擎。基于 CAIU（原子知识单元）和标签池体系。
+高性能本地 RAG 引擎，支持关键词、向量、混合等多种检索引擎热切换。基于原子知识单元和标签池体系，提供不同风格的召回体验。 
 
-**亮点**：多引擎热切换、标签之海语义关联、Lens 光学透镜检索模型。
+**亮点**：多引擎热切换、标签之海语义关联。
 
 ---
 

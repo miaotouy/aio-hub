@@ -6,7 +6,7 @@ hero:
   text: "一站式桌面 AI 工具枢纽"
   tagline: "开发者的效率利器，隐私优先的智能助手平台"
   image:
-    src: /tauri.svg
+    src: /aio-icon-color.svg
     alt: AIO Hub Logo
   actions:
     - theme: brand

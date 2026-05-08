@@ -1,111 +1,290 @@
-import { defineConfig } from 'vitepress'
+import { defineConfig } from "vitepress";
 
 export default defineConfig({
   title: "AIO Hub",
   description: "一站式桌面 AI 工具枢纽",
   ignoreDeadLinks: true,
+  vite: {
+    server: {
+      watch: {
+        usePolling: true,
+        interval: 100,
+      },
+    },
+  },
   themeConfig: {
-    logo: '/tauri.svg',
+    logo: "/aio-icon-color.svg",
     nav: [
-      { text: '用户手册', link: '/user-guide/index' },
-      { text: '开发指南', link: '/guide/tool-registry-guide' },
-      { text: '架构文档', link: '/architecture/overview' },
-      { text: '关于项目', link: '/guide/contribution-guide' }
+      { text: "用户手册", link: "/user-guide/index" },
+      { text: "开发指南", link: "/guide/tool-registry-guide" },
+      { text: "架构文档", link: "/architecture/overview" },
+      { text: "关于项目", link: "/guide/contribution-guide" },
     ],
     sidebar: {
-      '/user-guide/': [
-        { text: '快速入门', items: [
-          { text: '快速开始', link: '/user-guide/index' },
-          { text: 'CSS 变量宏指南', link: '/user-guide/css-variables-guide' },
-          // ==== UG_BASICS 插入点 ====
-        ]},
-        { text: '⚙️ 设置指南', collapsed: true, items: [
-          // ==== UG_SETTINGS 插入点 ====
-        ]},
-        { text: '🛠️ 工具教程', collapsed: false, items: [
-          { text: '工具总览', link: '/user-guide/tools/index' },
-          // ==== UG_COMPLEX_TOOLS 插入点 ====
-          // ==== UG_MEDIUM_TOOLS 插入点 ====
-          // ==== UG_SINGLE_TOOLS 插入点 ====
-        ]},
-        { text: '高级功能', collapsed: true, items: [
-          // ==== UG_ADVANCED 插入点 ====
-        ]},
-        { text: '📱 移动端', collapsed: true, items: [
-          // ==== UG_MOBILE 插入点 ====
-        ]},
-        { text: '故障排除', link: '/user-guide/troubleshooting' },
+      "/user-guide/": [
+        {
+          text: "快速入门",
+          items: [
+            { text: "手册首页", link: "/user-guide/index" },
+            { text: "安装指南", link: "/user-guide/installation" },
+            { text: "快速开始", link: "/user-guide/getting-started" },
+            { text: "项目概览", link: "/user-guide/project-overview" },
+            { text: "工作区基础", link: "/user-guide/workspace-basics" },
+            { text: "故障排除", link: "/user-guide/troubleshooting" },
+            { text: "macOS Gatekeeper 修复", link: "/user-guide/faq/macos-gatekeeper-fix" },
+            // ==== UG_BASICS 插入点 ====
+          ],
+        },
+        {
+          text: "⚙️ 设置指南",
+          collapsed: true,
+          items: [
+            { text: "设置概览", link: "/user-guide/settings/index" },
+            { text: "外观与壁纸", link: "/user-guide/settings/appearance" },
+            { text: "工具管理", link: "/user-guide/settings/tool-management" },
+            { text: "AI 服务配置", link: "/user-guide/settings/llm-service" },
+            { text: "通用与启动项", link: "/user-guide/settings/general-startup" },
+            { text: "CSS 样式覆盖", link: "/user-guide/settings/custom-css" },
+            { text: "日志与资产管理", link: "/user-guide/settings/logs-assets" },
+            { text: "关于与许可", link: "/user-guide/settings/about" },
+            // ==== UG_SETTINGS 插入点 ====
+          ],
+        },
+        {
+          text: "🛠️ 工具教程",
+          collapsed: false,
+          items: [
+            { text: "工具总览", link: "/user-guide/tools/index" },
+            {
+              text: "智能体对话",
+              collapsed: false,
+              items: [
+                { text: "快速上手", link: "/user-guide/tools/llm-chat/index" },
+                { text: "会话管理", link: "/user-guide/tools/llm-chat/sessions" },
+                { text: "消息操作", link: "/user-guide/tools/llm-chat/messages" },
+                { text: "聊天参数", link: "/user-guide/tools/llm-chat/settings-chat" },
+                { text: "插件设置", link: "/user-guide/tools/llm-chat/settings-plugins" },
+                { text: "附件与资产", link: "/user-guide/tools/llm-chat/attachments" },
+                { text: "智能体", link: "/user-guide/tools/llm-chat/agents" },
+                { text: "上下文管道", link: "/user-guide/tools/llm-chat/context-pipeline" },
+                { text: "世界书", link: "/user-guide/tools/llm-chat/worldbook" },
+                { text: "用户档案", link: "/user-guide/tools/llm-chat/user-profiles" },
+                { text: "变量与宏", link: "/user-guide/tools/llm-chat/variables-macros" },
+                { text: "CSS 变量宏指南", link: "/user-guide/tools/llm-chat/css-variables-guide" },
+                { text: "导出与导入", link: "/user-guide/tools/llm-chat/export-import" },
+                { text: "快捷键与技巧", link: "/user-guide/tools/llm-chat/shortcuts-tips" },
+                { text: "常见问题", link: "/user-guide/tools/llm-chat/faq" },
+              ],
+            },
+            // ==== UG_COMPLEX_TOOLS 插入点 ====
+            {
+              text: "知识库",
+              collapsed: true,
+              items: [
+                { text: "快速上手", link: "/user-guide/tools/knowledge-base/index" },
+                { text: "索引引擎", link: "/user-guide/tools/knowledge-base/indexing" },
+                { text: "条目管理", link: "/user-guide/tools/knowledge-base/entry-management" },
+                { text: "Agent 集成", link: "/user-guide/tools/knowledge-base/agent-integration" },
+              ],
+            },
+            {
+              text: "资产管理器",
+              collapsed: true,
+              items: [
+                { text: "快速上手", link: "/user-guide/tools/asset-manager/index" },
+                { text: "来源追踪", link: "/user-guide/tools/asset-manager/source-tracking" },
+                { text: "缩略图管理", link: "/user-guide/tools/asset-manager/thumbnails-batch" },
+              ],
+            },
+            {
+              text: "智能 OCR",
+              collapsed: true,
+              items: [
+                { text: "快速上手", link: "/user-guide/tools/smart-ocr/index" },
+                { text: "进阶配置", link: "/user-guide/tools/smart-ocr/advanced" },
+              ],
+            },
+            {
+              text: "媒体生成中心",
+              collapsed: true,
+              items: [
+                { text: "快速上手", link: "/user-guide/tools/media-generator/index" },
+                { text: "资产管理", link: "/user-guide/tools/media-generator/asset-management" },
+              ],
+            },
+            {
+              text: "Web Canvas",
+              collapsed: true,
+              items: [
+                { text: "快速上手", link: "/user-guide/tools/web-canvas/index" },
+                { text: "进阶", link: "/user-guide/tools/web-canvas/advanced" },
+              ],
+            },
+            // ==== UG_MEDIUM_TOOLS 插入点 ====
+            { text: "多模态转写", link: "/user-guide/tools/transcription" },
+            { text: "JSON 格式化", link: "/user-guide/tools/json-formatter" },
+            { text: "正则批量替换", link: "/user-guide/tools/regex-applier" },
+            { text: "文本差异对比", link: "/user-guide/tools/text-diff" },
+            { text: "代码格式化", link: "/user-guide/tools/code-formatter" },
+            { text: "Token 计算器", link: "/user-guide/tools/token-calculator" },
+            { text: "富文本渲染测试", link: "/user-guide/tools/rich-text-renderer" },
+            { text: "组件测试器", link: "/user-guide/tools/component-tester" },
+            { text: "工具调用测试", link: "/user-guide/tools/tool-calling" },
+            { text: "API 测试工具", link: "/user-guide/tools/api-tester" },
+            { text: "Git 分析器", link: "/user-guide/tools/git-analyzer" },
+            { text: "服务注册表浏览器", link: "/user-guide/tools/service-monitor" },
+            { text: "VCP 连接器", link: "/user-guide/tools/vcp-connector" },
+            { text: "网页蒸馏室", link: "/user-guide/tools/web-distillery" },
+            { text: "内容查重", link: "/user-guide/tools/content-deduplicator" },
+            { text: "目录清洁工具", link: "/user-guide/tools/directory-janitor" },
+            { text: "目录结构浏览器", link: "/user-guide/tools/directory-tree" },
+            { text: "符号链接搬家工具", link: "/user-guide/tools/symlink-mover" },
+            { text: "数据筛选工具", link: "/user-guide/tools/data-filter" },
+            { text: "图片色彩分析", link: "/user-guide/tools/color-picker" },
+            { text: "FFmpeg 工具", link: "/user-guide/tools/ffmpeg-tools" },
+            { text: "弹幕播放器", link: "/user-guide/tools/danmaku-player" },
+            { text: "AI 信息解析", link: "/user-guide/tools/media-info-reader" },
+            { text: "系统脉搏", link: "/user-guide/tools/system-pulse" },
+            { text: "LLM 检查器", link: "/user-guide/tools/llm-inspector" },
+            { text: "Embedding 测试", link: "/user-guide/tools/embedding-playground" },
+            { text: "ST 世界书编辑器", link: "/user-guide/tools/st-worldbook-editor" },
+            // ==== UG_SINGLE_TOOLS 插入点 ====
+          ],
+        },
+        {
+          text: "高级功能",
+          collapsed: true,
+          items: [
+            // ==== UG_ADVANCED 插入点 ====
+          ],
+        },
+        {
+          text: "📱 移动端",
+          collapsed: true,
+          items: [
+            // ==== UG_MOBILE 插入点 ====
+          ],
+        },
       ],
-      '/guide/': [
-        { text: '开始', items: [
-          { text: '注册工具', link: '/guide/tool-registry-guide' },
-          { text: '添加新工具', link: '/guide/adding-new-tool' },
-          // ==== GUIDE_START 插入点 ====
-        ]},
-        { text: '核心系统', items: [
-          { text: '错误处理与日志', link: '/guide/logging-error-handling' },
-          // ==== GUIDE_CORE 插入点 ====
-        ]},
-        { text: '插件开发', items: [
-          { text: '插件开发总览', link: '/guide/plugin-development-guide' },
-          // ==== GUIDE_PLUGINS 插入点 ====
-        ]},
-        { text: '资产管理', items: [
-          // ==== GUIDE_ASSETS 插入点 ====
-        ]},
-        { text: 'LLM 集成', items: [
-          // ==== GUIDE_LLM 插入点 ====
-        ]},
-        { text: 'Rust 后端', items: [
-          // ==== GUIDE_RUST 插入点 ====
-        ]},
-        { text: '📱 移动端开发', items: [
-          // ==== GUIDE_MOBILE 插入点 ====
-        ]},
-        { text: '测试', items: [
-          // ==== GUIDE_TEST 插入点 ====
-        ]},
-        { text: '发布', items: [
-          // ==== GUIDE_RELEASE 插入点 ====
-        ]},
-        { text: '故障排除', items: [
-          // ==== GUIDE_TROUBLESHOOT 插入点 ====
-        ]},
+      "/guide/": [
+        {
+          text: "开始",
+          items: [
+            { text: "注册工具", link: "/guide/tool-registry-guide" },
+            { text: "添加新工具", link: "/guide/adding-new-tool" },
+            // ==== GUIDE_START 插入点 ====
+          ],
+        },
+        {
+          text: "核心系统",
+          items: [
+            { text: "错误处理与日志", link: "/guide/logging-error-handling" },
+            // ==== GUIDE_CORE 插入点 ====
+          ],
+        },
+        {
+          text: "插件开发",
+          items: [
+            { text: "插件开发总览", link: "/guide/plugin-development-guide" },
+            // ==== GUIDE_PLUGINS 插入点 ====
+          ],
+        },
+        {
+          text: "资产管理",
+          items: [
+            // ==== GUIDE_ASSETS 插入点 ====
+          ],
+        },
+        {
+          text: "LLM 集成",
+          items: [
+            // ==== GUIDE_LLM 插入点 ====
+          ],
+        },
+        {
+          text: "Rust 后端",
+          items: [
+            // ==== GUIDE_RUST 插入点 ====
+          ],
+        },
+        {
+          text: "📱 移动端开发",
+          items: [
+            // ==== GUIDE_MOBILE 插入点 ====
+          ],
+        },
+        {
+          text: "测试",
+          items: [
+            // ==== GUIDE_TEST 插入点 ====
+          ],
+        },
+        {
+          text: "发布",
+          items: [
+            // ==== GUIDE_RELEASE 插入点 ====
+          ],
+        },
+        {
+          text: "故障排除",
+          items: [
+            // ==== GUIDE_TROUBLESHOOT 插入点 ====
+          ],
+        },
       ],
-      '/architecture/': [
-        { text: '总览', items: [
-          { text: '架构概览', link: '/architecture/overview' },
-          // ==== ARCH_OVERVIEW 插入点 ====
-        ]},
-        { text: 'LLM 系统', items: [
-          { text: 'LLM 服务架构', link: '/architecture/llm-apis-architecture' },
-          // ==== ARCH_LLM 插入点 ====
-        ]},
-        { text: '基础设施', items: [
-          { text: '主题系统', link: '/architecture/theme-system-architecture' },
-          // ==== ARCH_INFRA 插入点 ====
-        ]},
-        { text: '窗口与通信', items: [
-          { text: '窗口同步', link: '/architecture/window-sync-architecture' },
-          // ==== ARCH_WINDOW 插入点 ====
-        ]},
-        { text: '扩展系统', items: [
-          // ==== ARCH_EXTEND 插入点 ====
-        ]},
-        { text: '知识库', items: [
-          // ==== ARCH_KB 插入点 ====
-        ]},
-        { text: 'Tauri 后端', items: [
-          // ==== ARCH_TAURI 插入点 ====
-        ]},
+      "/architecture/": [
+        {
+          text: "总览",
+          items: [
+            { text: "架构概览", link: "/architecture/overview" },
+            // ==== ARCH_OVERVIEW 插入点 ====
+          ],
+        },
+        {
+          text: "LLM 系统",
+          items: [
+            { text: "LLM 服务架构", link: "/architecture/llm-apis-architecture" },
+            // ==== ARCH_LLM 插入点 ====
+          ],
+        },
+        {
+          text: "基础设施",
+          items: [
+            { text: "主题系统", link: "/architecture/theme-system-architecture" },
+            // ==== ARCH_INFRA 插入点 ====
+          ],
+        },
+        {
+          text: "窗口与通信",
+          items: [
+            { text: "窗口同步", link: "/architecture/window-sync-architecture" },
+            // ==== ARCH_WINDOW 插入点 ====
+          ],
+        },
+        {
+          text: "扩展系统",
+          items: [
+            // ==== ARCH_EXTEND 插入点 ====
+          ],
+        },
+        {
+          text: "知识库",
+          items: [
+            // ==== ARCH_KB 插入点 ====
+          ],
+        },
+        {
+          text: "Tauri 后端",
+          items: [
+            // ==== ARCH_TAURI 插入点 ====
+          ],
+        },
       ],
     },
-    socialLinks: [
-      { icon: 'github', link: 'https://github.com/miaotouy/aio-hub' }
-    ],
+    socialLinks: [{ icon: "github", link: "https://github.com/miaotouy/aio-hub" }],
     footer: {
-      message: 'Released under the Apache-2.0 License.',
-      copyright: 'Copyright © 2024-present miaotouy'
-    }
-  }
-})
+      message: "Released under the Apache-2.0 License.",
+      copyright: "Copyright © 2024-present miaotouy",
+    },
+  },
+});

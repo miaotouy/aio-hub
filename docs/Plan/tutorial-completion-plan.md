@@ -52,6 +52,24 @@
 - **每个子任务只做一件事：** 一个工具模块的文档 + 该模块的侧边栏条目。
 - **如果某个文件已存在：** 跳过创建，只做侧边栏追加。不要覆盖已有内容。
 
+### ⛔ 命令白名单（严格执行）
+
+子任务中**仅允许**使用以下命令，禁止自造任何不在列表中的命令：
+
+| 允许的命令 | 用途 |
+|---|---|
+| `bun run docs:build` | 验证 VitePress 构建 |
+| `bun run docs:dev` | VitePress 开发服务器（不推荐在子任务中用） |
+| `bun run docs:preview` | 预览构建产物（不推荐在子任务中用） |
+| `bun run check` / `check:frontend` | 类型检查 |
+
+**禁止任何不在 package.json scripts 中的命令**，尤其禁止：
+- `npx vitepress build docs`（必须用 `bun run docs:build`）
+- 任何自造的 `vitepress` 命令变体
+- 任何 `npm` / `yarn` / `pnpm` 命令
+
+**原因**: 子任务运行在审批链中，自造命令会被系统拦截导致流程卡死。
+
 ### 子任务派发格式
 
 使用 `new_task` 工具，mode 设为 `code`，message 按[模板](#四任务单元模板)填充。

@@ -1,0 +1,9 @@
+:root {
+  /* 覆盖 VitePress 默认的等宽字体变量 */
+  --vp-font-family-mono: "Ubuntu Mono", "Cascadia Code", "Fira Code", "JetBrains Mono", source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
+}
+
+/* 确保代码块中的字体应用该变量 */
+code, kbd, samp, pre {
+  font-family: var(--vp-font-family-mono);
+}

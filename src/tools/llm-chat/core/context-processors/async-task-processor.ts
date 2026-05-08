@@ -125,7 +125,7 @@ export const asyncTaskProcessor: ContextProcessor = {
   id: "async-task-processor",
   name: "异步任务处理器",
   description: "检测工具调用节点中的异步任务，并注入最新状态到上下文中",
-  priority: 90, // 在 messageFormatter (500) 之前执行
+  priority: 110, // 在 sessionLoader (100) 之后，其他处理器之前执行
   isCore: true,
   defaultEnabled: true,
 

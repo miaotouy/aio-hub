@@ -1,3 +1,5 @@
+<div v-pre>
+
 # 虚拟时间线 (Virtual Timeline)
 
 虚拟时间线是为角色扮演（Roleplay）场景设计的核心功能，允许你为 Agent 设定一个独立于现实世界的“游戏时间”。
@@ -48,3 +50,5 @@
 
 - [宏系统参考](../macro-system/macro-reference)
 - [Agent 基础设定](./editor-guide)
+
+</div>

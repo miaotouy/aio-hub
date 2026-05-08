@@ -1,3 +1,5 @@
+<div v-pre>
+
 # 知识库处理器 (Knowledge Processor)
 
 知识库处理器负责实现 RAG (Retrieval-Augmented Generation，检索增强生成)。它能够根据当前对话内容，从关联的知识库中检索相关片段并注入到上下文。
@@ -43,3 +45,5 @@
 - [知识库管理工具指南](../../knowledge-base)
 - [Agent 参数配置](../agents/parameters#3-知识库-rag)
 - [上下文分析器](./analyzer)
+
+</div>

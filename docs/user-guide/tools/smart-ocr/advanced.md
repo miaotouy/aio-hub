@@ -104,9 +104,13 @@ Tesseract 使用 Worker 池实现并发识别：
 
 适合对接自有 OCR 服务的场景：
 
+<div v-pre>
+
 1. 设置请求 URL 模板（支持变量替换，如 `{{imageBase64}}`）
 2. 配置请求头和请求体模板
 3. 指定响应中提取文字结果的 JSONPath
+
+</div>
 
 ---
 

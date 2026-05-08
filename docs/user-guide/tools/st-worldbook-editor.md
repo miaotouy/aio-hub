@@ -1,3 +1,5 @@
+<div v-pre>
+
 # ST 世界书编辑器
 
 ## 概述
@@ -193,3 +195,5 @@ ST 世界书编辑器是专为 **SillyTavern 格式世界书**（Worldbook）设
 ### Q：可以从空白的 SillyTavern 世界书开始用吗？
 
 完全可以从零开始。这个工具内置了完整的新建世界书流程，不需要任何外部 SillyTavern 环境。生成的 JSON 格式与标准 SillyTavern 完全兼容，随时可以导出在其他 SillyTavern 前端中使用。
+
+</div>

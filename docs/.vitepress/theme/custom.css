@@ -1,9 +1,164 @@
 :root {
   /* 覆盖 VitePress 默认的等宽字体变量 */
   --vp-font-family-mono: "Ubuntu Mono", "Cascadia Code", "Fira Code", "JetBrains Mono", source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
+  
+  /* AIO Hub 风格的主题色 */
+  --vp-c-brand-1: #646cff;
+  --vp-c-brand-2: #535bf2;
+  --vp-c-brand-3: #747bff;
+  --vp-c-brand-soft: rgba(100, 108, 255, 0.1);
+
+  /* 现代圆角 */
+  --vp-button-brand-border: transparent;
+  --vp-button-brand-bg: var(--vp-c-brand-1);
+  --vp-button-brand-hover-bg: var(--vp-c-brand-2);
+  --vp-button-brand-active-bg: var(--vp-c-brand-3);
+  
+  /* 渐变背景 */
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: linear-gradient(135deg, #646cff 0%, #ff469f 100%);
+}
+
+/* 暗黑模式适配 */
+.dark {
+  --vp-c-brand-1: #9499ff;
+  --vp-c-brand-2: #7c82ff;
 }
 
 /* 确保代码块中的字体应用该变量 */
 code, kbd, samp, pre {
   font-family: var(--vp-font-family-mono);
+}
+
+/* 现代卡片效果 */
+.vp-doc .custom-block {
+  border-radius: 12px;
+  border-width: 1px;
+}
+
+/* 侧边栏玻璃质感 */
+@media (min-width: 960px) {
+  .VPSidebar {
+    background-color: rgba(var(--vp-c-bg-rgb), 0.8) !important;
+    backdrop-filter: blur(10px);
+  }
+}
+
+/* 顶部导航栏玻璃质感 */
+.VPNav {
+  background-color: rgba(var(--vp-c-bg-rgb), 0.8) !important;
+  backdrop-filter: blur(10px);
+}
+
+/* 首页 Hero 区域美化 */
+.VPHero .name {
+  font-weight: 800;
+}
+
+.VPHero .image-src {
+  filter: drop-shadow(0 0 50px rgba(100, 108, 255, 0.3));
+}
+
+/* 文章内容区域现代感 */
+.vp-doc h1, .vp-doc h2, .vp-doc h3 {
+  letter-spacing: -0.02em;
+}
+
+/* 文档操作按钮样式 */
+.doc-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  justify-content: flex-end;
+  position: relative;
+}
+
+.vp-button-action {
+  font-size: 12px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  background-color: var(--vp-c-brand-soft);
+  color: var(--vp-c-brand-1);
+  border: 1px solid var(--vp-c-brand-soft);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  font-weight: 500;
+  user-select: none;
+}
+
+.vp-button-action:hover {
+  background-color: var(--vp-c-brand-soft);
+  border-color: var(--vp-c-brand-1);
+  transform: translateY(-1px);
+}
+
+.vp-button-action.active {
+  background-color: var(--vp-c-brand-1);
+  color: white;
+}
+
+.vp-button-action .chevron {
+  transition: transform 0.2s;
+  opacity: 0.7;
+}
+
+.vp-button-action .chevron.open {
+  transform: rotate(180deg);
+}
+
+/* 下拉菜单样式 */
+.doc-action-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background-color: var(--vp-c-bg-elv);
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 12px;
+  padding: 6px;
+  min-width: 160px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  z-index: 100;
+  animation: menu-in 0.2s ease-out;
+}
+
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: 8px;
+  color: var(--vp-c-text-1);
+  transition: all 0.15s;
+}
+
+.menu-item:hover {
+  background-color: var(--vp-c-brand-soft);
+  color: var(--vp-c-brand-1);
+}
+
+.menu-divider {
+  height: 1px;
+  background-color: var(--vp-c-divider);
+  margin: 4px 0;
+}
+
+/* 搜索框美化 */
+.DocSearch-Button {
+  border-radius: 8px !important;
 }

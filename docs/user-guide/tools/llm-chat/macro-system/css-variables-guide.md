@@ -1,3 +1,5 @@
+<div v-pre>
+
 # CSS 变量与视觉化输出指南
 
 在 LLM Chat 中，智能体可以通过输出 HTML/CSS 内容来实现丰富的视觉交互。为了确保这些输出内容与当前应用的主题外观完美融合，系统提供了 `{{cssvar}}` 宏来获取实时样式信息。
@@ -59,3 +61,5 @@
 - [主题外观系统规范](../../../architecture/theme-system-architecture)
 - [宏参考手册](./macro-reference)
 - [Agent 视觉化输出设置](../agents/editor-guide#4-输出与显示-output)
+
+</div>

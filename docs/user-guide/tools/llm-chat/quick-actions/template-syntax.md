@@ -1,3 +1,5 @@
+<div v-pre>
+
 # 模板语法与宏联动
 
 快捷操作的核心在于其灵活的模板语法，允许你定义复杂的文本结构。
@@ -38,3 +40,5 @@
 - [快捷操作概览](./index.md)
 - [管理与导入导出](./management.md)
 - [宏系统参考](../macro-system/macro-reference.md)
+
+</div>

@@ -1,3 +1,5 @@
+<div v-pre>
+
 # 会话变量系统 (Session Variables)
 
 除了宏系统提供的临时变量外，LLM Chat 还支持一套持久化的**会话变量 (Session Variables)** 系统。它允许你定义复杂的数值或状态（如 RPG 游戏中的“生命值”、“金钱”、“好感度”），并自动追踪其变化历史。
@@ -55,3 +57,5 @@
 - [宏参考手册](./macro-reference)
 - [上下文分析器](../context-pipeline/analyzer)
 - [Agent 基础设定](../agents/editor-guide)
+
+</div>

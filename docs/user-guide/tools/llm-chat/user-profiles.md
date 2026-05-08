@@ -1,3 +1,4 @@
+<div v-pre>
 # 👤 用户档案 (User Profile)
 
 用户档案定义了你在对话中扮演的角色身份。当你与 AI 对话时，用户档案的内容会通过宏 `{{persona}}` 注入到上下文中，让 AI 知道正在与谁交谈。
@@ -96,3 +97,5 @@
 
 - [智能体](./agents) — Agent 绑定用户档案
 - [变量与宏](./variables-macros) — `{{user}}` 和 `{{persona}}` 宏的使用
+
+</div>

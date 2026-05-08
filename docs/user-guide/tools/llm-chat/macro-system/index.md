@@ -1,3 +1,5 @@
+<div v-pre>
+
 # 🔣 宏系统 (Macro System) 概览
 
 宏系统是 LLM Chat 中一个强大的动态内容生成引擎。它允许你在智能体的预设消息、用户输入、正则替换等任何支持文本的地方嵌入可执行的占位符，从而实现根据上下文动态调整提示词 (Prompt) 的能力。
@@ -37,3 +39,5 @@
 - [完整宏参考手册](./macro-reference)
 - [会话变量系统详解](./session-variables)
 - [CSS 变量与视觉化输出](./css-variables-guide)
+
+</div>

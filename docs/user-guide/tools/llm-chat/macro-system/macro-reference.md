@@ -1,3 +1,5 @@
+<div v-pre>
+
 # 宏参考手册 (Macro Reference)
 
 本页面列出了 LLM Chat 中所有可用的内置宏及其详细说明。
@@ -97,3 +99,5 @@
 - `{{platform}}`: 运行平台 (如 `win32`)
 - `{{arch}}`: CPU 架构 (如 `x86_64`)
 - `{{locale}}`: 系统语言环境 (如 `zh-CN`)
+
+</div>

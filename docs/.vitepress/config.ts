@@ -1,10 +1,32 @@
 import { defineConfig } from "vitepress";
+import { withMermaid } from "vitepress-plugin-mermaid";
+import Sitemap from "vite-plugin-sitemap";
 
-export default defineConfig({
+export default withMermaid({
   title: "AIO Hub",
   description: "一站式桌面 AI 工具枢纽",
   ignoreDeadLinks: true,
+  lastUpdated: true,
+  cleanUrls: true,
+  head: [
+    ["link", { rel: "icon", href: "/aio-icon-color.svg" }],
+    ["meta", { name: "author", content: "miaotouy" }],
+    ["meta", { name: "keywords", content: "AIO Hub, AI Tools, Tauri, Vue, Desktop App, LLM, OCR" }],
+    ["meta", { property: "og:title", content: "AIO Hub Documentation" }],
+    ["meta", { property: "og:description", content: "Documentation for AIO Hub - The all-in-one AI tool hub." }],
+  ],
   vite: {
+    plugins: [
+      Sitemap({
+        hostname: "https://docs.aiohub-app.com",
+      }),
+    ],
+    ssr: {
+      noExternal: ["mermaid", "dayjs", "lucide-vue-next"],
+    },
+    optimizeDeps: {
+      include: ["mermaid", "dayjs", "lucide-vue-next"],
+    },
     server: {
       watch: {
         usePolling: true,
@@ -14,6 +36,23 @@ export default defineConfig({
   },
   themeConfig: {
     logo: "/aio-icon-color.svg",
+    search: {
+      provider: "local",
+      options: {
+        locales: {
+          root: {
+            translations: {
+              button: { buttonText: "搜索文档", buttonAriaLabel: "搜索文档" },
+              modal: {
+                noResultsText: "无法找到相关结果",
+                resetButtonTitle: "清除查询条件",
+                footer: { selectText: "选择", navigateText: "切换", closeText: "关闭" },
+              },
+            },
+          },
+        },
+      },
+    },
     nav: [
       { text: "用户手册", link: "/user-guide/index" },
       { text: "开发指南", link: "/guide/tool-registry-guide" },

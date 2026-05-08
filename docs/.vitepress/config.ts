@@ -193,6 +193,17 @@ export default withMermaid({
                   ],
                 },
                 { text: "会话管理", link: "/user-guide/tools/llm-chat/sessions" },
+                { text: "附件管理", link: "/user-guide/tools/llm-chat/attachments" },
+                {
+                  text: "工具调用 (Tool Calling)",
+                  collapsed: true,
+                  items: [
+                    { text: "概览", link: "/user-guide/tools/llm-chat/tool-calling/index" },
+                    { text: "工具定义", link: "/user-guide/tools/llm-chat/tool-calling/tool-definition" },
+                    { text: "审批策略", link: "/user-guide/tools/llm-chat/tool-calling/approval-strategy" },
+                    { text: "执行与调试", link: "/user-guide/tools/llm-chat/tool-calling/execution-debug" },
+                  ],
+                },
                 { text: "导出与导入", link: "/user-guide/tools/llm-chat/export-import" },
                 { text: "快捷键与技巧", link: "/user-guide/tools/llm-chat/shortcuts-tips" },
                 { text: "常见问题", link: "/user-guide/tools/llm-chat/faq" },
@@ -292,8 +303,9 @@ export default withMermaid({
         {
           text: "开始",
           items: [
-            { text: "注册工具", link: "/guide/tool-registry-guide" },
             { text: "添加新工具", link: "/guide/adding-new-tool" },
+            { text: "注册工具", link: "/guide/tool-registry-guide" },
+            { text: "贡献指南", link: "/guide/contribution-guide" },
             // ==== GUIDE_START 插入点 ====
           ],
         },
@@ -301,6 +313,8 @@ export default withMermaid({
           text: "核心系统",
           items: [
             { text: "错误处理与日志", link: "/guide/logging-error-handling" },
+            { text: "状态管理", link: "/guide/state-management-guide" },
+            { text: "窗口配置系统", link: "/guide/window-config-system" },
             // ==== GUIDE_CORE 插入点 ====
           ],
         },
@@ -308,18 +322,21 @@ export default withMermaid({
           text: "插件开发",
           items: [
             { text: "插件开发总览", link: "/guide/plugin-development-guide" },
+            { text: "插件 UI 开发", link: "/guide/plugin-ui-development-guide" },
             // ==== GUIDE_PLUGINS 插入点 ====
           ],
         },
         {
           text: "资产管理",
           items: [
+            { text: "资产来源模块指南", link: "/guide/asset-source-module-guide" },
             // ==== GUIDE_ASSETS 插入点 ====
           ],
         },
         {
           text: "LLM 集成",
           items: [
+            { text: "LLM 聊天插件开发", link: "/guide/llm-chat-plugin-guide" },
             // ==== GUIDE_LLM 插入点 ====
           ],
         },
@@ -359,6 +376,11 @@ export default withMermaid({
           text: "总览",
           items: [
             { text: "架构概览", link: "/architecture/overview" },
+            { text: "工具架构总览", link: "/architecture/tools-architecture-overview" },
+            { text: "设置系统架构", link: "/architecture/settings-architecture-overview" },
+            { text: "服务层架构", link: "/architecture/services-architecture" },
+            { text: "Composables 概览", link: "/architecture/composables-overview" },
+            { text: "UI 结构图谱", link: "/architecture/ui-structure-diagram" },
             // ==== ARCH_OVERVIEW 插入点 ====
           ],
         },
@@ -366,6 +388,9 @@ export default withMermaid({
           text: "LLM 系统",
           items: [
             { text: "LLM 服务架构", link: "/architecture/llm-apis-architecture" },
+            { text: "聊天 UI 结构", link: "/architecture/llm-chat-ui-structure" },
+            { text: "多媒体基础设施", link: "/architecture/llm-media-infrastructure" },
+            { text: "模型元数据系统", link: "/architecture/model-metadata-system" },
             // ==== ARCH_LLM 插入点 ====
           ],
         },
@@ -373,6 +398,7 @@ export default withMermaid({
           text: "基础设施",
           items: [
             { text: "主题系统", link: "/architecture/theme-system-architecture" },
+            { text: "Embedding 基础设施", link: "/architecture/embedding-infrastructure" },
             // ==== ARCH_INFRA 插入点 ====
           ],
         },
@@ -386,7 +412,20 @@ export default withMermaid({
         {
           text: "扩展系统",
           items: [
+            { text: "插件异步任务支持", link: "/architecture/plugin-async-task-support" },
             // ==== ARCH_EXTEND 插入点 ====
+          ],
+        },
+        {
+          text: "设计方案",
+          collapsed: true,
+          items: [
+            { text: "浏览器连接器设计", link: "/design/Browser-Connector-design" },
+            { text: "动态壁纸设计", link: "/design/dynamic-wallpaper-design" },
+            { text: "插件配置系统", link: "/design/plugin-config-system" },
+            { text: "插件 Hook 系统", link: "/design/plugin-hook-system" },
+            { text: "代理上下文中间件", link: "/design/proxy-context-middleware-memo" },
+            { text: "翻译工作台设计", link: "/design/translation-workbench-design" },
           ],
         },
         {
@@ -398,6 +437,7 @@ export default withMermaid({
         {
           text: "Tauri 后端",
           items: [
+            { text: "转写系统架构", link: "/architecture/transcription-architecture" },
             // ==== ARCH_TAURI 插入点 ====
           ],
         },

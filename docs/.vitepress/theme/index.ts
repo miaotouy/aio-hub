@@ -5,6 +5,7 @@ import DefaultTheme from "vitepress/theme";
 import * as LucideIcons from "lucide-vue-next";
 import { useData } from "vitepress";
 import TurndownService from "turndown";
+// @ts-ignore
 import { gfm } from "turndown-plugin-gfm";
 import "./custom.css";
 

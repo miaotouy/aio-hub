@@ -3,7 +3,7 @@ import { withMermaid } from "vitepress-plugin-mermaid";
 import Sitemap from "vite-plugin-sitemap";
 
 export default withMermaid({
-  title: "AIO Hub",
+  title: "AIO Hub Documentation",
   description: "一站式桌面 AI 工具枢纽",
   ignoreDeadLinks: true,
   lastUpdated: true,

@@ -37,6 +37,8 @@ defineEmits<{
 const isHovered = ref(false);
 const isMenuOpen = ref(false);
 const upgradeDialogVisible = ref(false);
+const contextMenuRef = ref<any>(null);
+const clickMenuRef = ref<any>(null);
 
 const avatarSrc = computed(() => {
   return resolveAvatarPath(props.agent, "agent");
@@ -44,8 +46,16 @@ const avatarSrc = computed(() => {
 
 const { getFieldLabel, formatMatchContext } = useLlmSearch();
 
-const handleVisibleChange = (visible: boolean) => {
+const handleVisibleChange = (visible: boolean, source: "context" | "click") => {
   isMenuOpen.value = visible;
+  if (visible) {
+    // 如果一个菜单打开，确保另一个关闭
+    if (source === "context") {
+      clickMenuRef.value?.handleClose();
+    } else {
+      contextMenuRef.value?.handleClose();
+    }
+  }
 };
 
 // 只有在 hover 或菜单打开时才显示操作按钮区域
@@ -83,15 +93,11 @@ const handleOpenDirectory = async () => {
     @mouseenter="isHovered = true"
     @mouseleave="isHovered = false"
   >
-    <Avatar
-      :src="avatarSrc || ''"
-      :alt="agent.displayName || agent.name"
-      :class="['agent-icon', { selected }]"
-    />
-    
+    <Avatar :src="avatarSrc || ''" :alt="agent.displayName || agent.name" :class="['agent-icon', { selected }]" />
+
     <div class="agent-info">
       <div class="agent-name">{{ agent.displayName || agent.name }}</div>
-      
+
       <!-- 搜索匹配详情 -->
       <div v-if="filteredMatches.length > 0" class="match-details">
         <div v-for="(match, index) in filteredMatches" :key="index" class="match-item">
@@ -112,13 +118,62 @@ const handleOpenDirectory = async () => {
       </div>
     </div>
 
-    <!-- 三点菜单 -->
-    <!-- 性能优化：使用 v-if 延迟渲染 el-dropdown -->
+    <!-- 操作菜单（支持右键） -->
+    <el-dropdown
+      v-if="showActions"
+      ref="contextMenuRef"
+      trigger="contextmenu"
+      class="agent-context-menu"
+      @visible-change="(v: boolean) => handleVisibleChange(v, 'context')"
+    >
+      <!-- 整个列表项作为右键触发区域，绝对定位覆盖 -->
+      <div class="context-menu-trigger" />
+
+      <template #dropdown>
+        <el-dropdown-menu>
+          <el-dropdown-item @click="$emit('edit', agent)">
+            <el-icon><Edit /></el-icon>
+            编辑
+          </el-dropdown-item>
+          <el-dropdown-item @click="$emit('duplicate', agent)">
+            <el-icon><CopyDocument /></el-icon>
+            创建副本
+          </el-dropdown-item>
+          <el-dropdown-item @click="upgradeDialogVisible = true">
+            <el-icon><Refresh /></el-icon>
+            覆盖配置升级...
+          </el-dropdown-item>
+          <el-dropdown-item @click="$emit('copy-config', agent, 'json')" divided>
+            <el-icon><DocumentCopy /></el-icon>
+            复制为 JSON
+          </el-dropdown-item>
+          <el-dropdown-item @click="$emit('copy-config', agent, 'yaml')">
+            <el-icon><DocumentCopy /></el-icon>
+            复制为 YAML
+          </el-dropdown-item>
+          <el-dropdown-item @click="$emit('export', agent)" divided>
+            <el-icon><Download /></el-icon>
+            导出...
+          </el-dropdown-item>
+          <el-dropdown-item @click="handleOpenDirectory">
+            <el-icon><FolderOpened /></el-icon>
+            打开目录
+          </el-dropdown-item>
+          <el-dropdown-item @click="$emit('delete', agent)" divided>
+            <el-icon><Delete /></el-icon>
+            删除
+          </el-dropdown-item>
+        </el-dropdown-menu>
+      </template>
+    </el-dropdown>
+
+    <!-- 三点按钮菜单（支持点击） -->
     <div class="agent-actions" @click.stop>
-      <el-dropdown 
-        v-if="showActions" 
-        trigger="click" 
-        @visible-change="handleVisibleChange"
+      <el-dropdown
+        v-if="showActions"
+        ref="clickMenuRef"
+        trigger="click"
+        @visible-change="(v: boolean) => handleVisibleChange(v, 'click')"
       >
         <el-button text circle :icon="MoreFilled" class="action-btn" />
         <template #dropdown>
@@ -161,10 +216,7 @@ const handleOpenDirectory = async () => {
     </div>
 
     <!-- 升级对话框 -->
-    <AgentUpgradeDialog
-      v-model:visible="upgradeDialogVisible"
-      :agent="agent"
-    />
+    <AgentUpgradeDialog v-model:visible="upgradeDialogVisible" :agent="agent" />
   </div>
 </template>
 
@@ -280,13 +332,27 @@ const handleOpenDirectory = async () => {
 .agent-actions {
   display: flex;
   align-items: center;
-  min-width: 28px; /* 预留空间防止抖动 */
+  min-width: 28px;
   height: 28px;
+  position: relative;
+  z-index: 2; /* 确保在右键触发层之上 */
 }
 
 .action-btn {
   width: 28px;
   height: 28px;
   font-size: 16px;
+}
+
+/* 右键菜单触发器 */
+.agent-context-menu {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.context-menu-trigger {
+  width: 100%;
+  height: 100%;
 }
 </style>

@@ -95,7 +95,8 @@
 
 **LLM 服务渠道管理器**，涵盖以下独立配置模块：
 
-- **[LLM AI 服务配置](./llm-service.md)**：管理 API 提供商的渠道信息，支持多渠道 CRUD、拖拽排序、多 API Key 负载均衡、模型管理、连接测试。
+- **[LLM AI 服务配置](./llm-service.md)**：管理 API 提供商的渠道信息，支持多渠道创建、基本信息配置、API Key 填写和连接测试。
+- **[LLM 服务高级配置](./llm-service-advanced.md)**：网络微调、多密钥负载均衡（熔断/恢复）、深度模型配置（能力开关、Token 限制、自定义参数等）。
 - **[AI 模型元数据配置](./model-metadata.md)**：通过规则匹配为模型分配图标和分组，支持四种匹配类型（Provider/Model/Prefix/Group）和正则表达式。
 - **[云端 OCR 服务](./ocr-service.md)**：管理 OCR 服务渠道，支持标准 API 和自定义 API 请求配置。
 - **[用户档案管理](./user-profiles.md)**：管理 LLM 聊天的用户档案，包含头像上传、富文本样式行为配置。

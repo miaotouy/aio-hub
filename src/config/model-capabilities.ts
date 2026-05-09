@@ -212,7 +212,7 @@ export const MODEL_CAPABILITIES: readonly CapabilityConfig[] = [
     label: "FIM",
     description: "支持 Fill In the Middle 补全，用于代码补全等场景",
     icon: markRaw(Code2),
-    color: "#2c55e", // Green 500 - 代码补全的绿色
+    color: "#22c55e", // Green 500 - 代码补全的绿色
     className: "fim",
   },
   {

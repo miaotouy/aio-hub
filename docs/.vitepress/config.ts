@@ -83,6 +83,7 @@ export default withMermaid({
             { text: "外观与壁纸", link: "/user-guide/settings/appearance" },
             { text: "工具管理", link: "/user-guide/settings/tool-management" },
             { text: "LLM AI 服务配置", link: "/user-guide/settings/llm-service" },
+            { text: "LLM 服务高级配置", link: "/user-guide/settings/llm-service-advanced" },
             { text: "AI 模型元数据配置", link: "/user-guide/settings/model-metadata" },
             { text: "云端 OCR 服务", link: "/user-guide/settings/ocr-service" },
             { text: "用户档案管理", link: "/user-guide/settings/user-profiles" },

@@ -130,14 +130,19 @@ export const useUserProfileStore = defineStore("llmChatUserProfile", {
     /**
      * 更新用户档案
      */
-    updateProfile(
+    async updateProfile(
       profileId: string,
       updates: Partial<Omit<UserProfile, "id" | "createdAt">>,
-    ): void {
+    ): Promise<void> {
       const profile = this.profiles.find((p) => p.id === profileId);
       if (!profile) {
         logger.warn("更新用户档案失败：档案不存在", { profileId });
         return;
+      }
+
+      // 核心保护：确保详情已加载，否则 Object.assign 可能会丢失原本在磁盘上但未加载到内存的字段
+      if (profile.content === undefined) {
+        await this.ensureProfileLoaded(profileId);
       }
 
       Object.assign(profile, updates);

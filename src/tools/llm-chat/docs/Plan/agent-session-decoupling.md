@@ -1,7 +1,7 @@
 # Agent 与会话解耦实现方案
 
-> **文档状态 (Status)**: `Draft`
-> **版本 (Version)**: 1.0
+> **文档状态 (Status)**: `Implementing`
+> **版本 (Version)**: 2.0
 > **日期 (Date)**: 2026-05-09
 > **负责模块**: `llm-chat`
 
@@ -11,162 +11,504 @@
 
 ### 1.1 核心痛点
 
-目前 `llm-chat` 的底层逻辑将“智能体 (Agent)”与“会话 (Session)”进行了强绑定，导致了以下问题：
+目前 `llm-chat` 的底层逻辑将"智能体 (Agent)"与"会话 (Session)"进行了强绑定，导致了以下问题：
 
-1. **冷启动障碍**：新用户进入工具后，必须先经历“创建智能体”的繁琐流程，否则无法开启任何对话。
-2. **发送逻辑僵化**：发送消息的代码中强制检查 `currentAgentId`，若为空则拒绝发送，不支持“纯模型对话”场景。
-3. **状态无法重置**：用户一旦在侧边栏或切换器中选定了某个智能体，就无法再回到“无智能体”的基本助手模式，因为 UI 缺少“取消选择”的操作。
+1. **冷启动障碍**：新用户进入工具后，必须先经历"创建智能体"的繁琐流程，否则无法开启任何对话。
+2. **发送逻辑僵化**：发送消息的代码中强制检查 `currentAgentId`，若为空则拒绝发送，不支持"纯模型对话"场景。
+3. **状态无法重置**：用户一旦在侧边栏或切换器中选定了某个智能体，就无法再回到"无智能体"的基本助手模式，因为 UI 缺少"取消选择"的操作。
 4. **UI 逻辑分裂**：头部 UI 存在硬编码判断，导致在某些状态下（如临时会话）即便选中了智能体也不显示，而消息列表却在渲染智能体的预设内容，造成用户困惑。
 5. **配置隔离缺失**：基本助手模式需要一种比普通 Agent 更轻量、更直接的配置方式，用于控制基础开关和美化字段。
 
 ### 1.2 预期目标
 
 1. **支持基本助手模式**：会话创建和消息发送不再强制依赖智能体。
-2. **虚拟智能体回退**：当未选择智能体时，系统在内存中实时构建一个“虚拟智能体”，提供基础能力（如工具调用支持），确保功能不失效。
-3. **显式取消入口**：在智能体选择器中增加“取消选择（基本助手）”选项，允许用户随时重置状态。
+2. **虚拟智能体回退**：当未选择智能体时，系统通过空对象模式提供一个完整的 `ChatAgent` 实例，对下游消费者完全透明。
+3. **显式取消入口**：在智能体选择器中增加"取消选择（基本助手）"选项，允许用户随时重置状态。
 4. **轻量级配置化**：为基本助手模式提供独立的配置弹窗，仅包含功能开关和美化字段。
+5. **继承与转化**：支持将当前“基本助手”的配置（模型、参数、名称等）一键转化为正式的智能体。
+
+### 1.3 V1 方案教训（已撤销）
+
+V1 方案采用了"增量打补丁"策略，直接在 `ChatArea.vue`、`useChatHandler.ts` 等消费端散布 `if (!currentAgentId) { ... } else { ... }` 分支。问题：
+
+- **逻辑碎片化**：每个用到 Agent 的地方都需要 `|| assistantConfig.value.xxx` 回退
+- **违反开闭原则**：每增加一个 Agent 特性（如知识库），所有分支都要改
+- **领域逻辑外溢**：虚拟 Agent 的构造逻辑被暴露在 Handler 中
+- **维护成本高**：散弹式修改，改一处漏一处
 
 ---
 
-## 2. 技术方案
+## 2. 架构设计：空对象模式 (Null Object Pattern)
 
-### 2.1 存储层：支持取消选择 (`agentStore.ts`)
+### 2.1 核心原则
 
-修改 `selectAgent` 方法，允许传入 `null` 来显式清除当前的智能体绑定。
+**对于 AgentStore 的所有消费者来说，永远存在一个生效中的 Agent。**
+
+差异被封装在 AgentStore 内部，下游不感知。
+
+```mermaid
+graph LR
+    subgraph "消费层（零感知）"
+        CA[ChatArea.vue]
+        CH[useChatHandler.ts]
+        MH[MessageHeader.vue]
+    end
+
+    subgraph "AgentStore（统一出口）"
+        EA["effectiveAgent (getter)"]
+        GAC["getAgentConfig() 升级"]
+    end
+
+    subgraph "构造层（职责分离）"
+        VA["useVirtualAgent.ts<br/>(虚拟 Agent 工厂)"]
+        AS["useAgentStorageSeparated.ts<br/>(真实 Agent 存储)"]
+    end
+
+    CA --> EA
+    CH --> GAC
+    MH --> EA
+    EA -->|currentAgentId 有值| AS
+    EA -->|currentAgentId 为 null| VA
+    GAC -->|currentAgentId 有值| AS
+    GAC -->|currentAgentId 为 null| VA
+```
+
+### 2.2 职责分层
+
+| 层级       | 模块                                        | 职责                                                                                                                            |
+| :--------- | :------------------------------------------ | :------------------------------------------------------------------------------------------------------------------------------ |
+| **构造层** | `useVirtualAgent.ts`                        | 独立 composable。管理 `assistant.json` 持久化配置；实时构建符合 `ChatAgent` 接口的虚拟对象；提供虚拟 Agent 的 `getConfig()`     |
+| **协调层** | `agentStore.ts`                             | Pinia Store。暴露 `effectiveAgent` getter（真实 or 虚拟）；升级 `selectAgent` 支持 `null`；升级 `getAgentConfig` 支持虚拟 Agent |
+| **消费层** | `ChatArea.vue` / `useChatHandler.ts` / etc. | 只对接 `effectiveAgent` 和 `getAgentConfig`，**零分支判断**                                                                     |
+
+---
+
+## 3. 技术方案
+
+### 3.1 构造层：`useVirtualAgent.ts`
+
+> 路径：`src/tools/llm-chat/composables/agent/useVirtualAgent.ts`
+
+这是整个方案的核心——一个独立的 composable，负责"基本助手"的全部逻辑。
+类比 `useAgentStorageSeparated.ts` 负责真实 Agent 的存储，`useVirtualAgent` 负责虚拟 Agent 的构造与配置管理。
+
+#### 3.1.1 配置持久化
+
+使用 `createConfigManager` 管理 `assistant.json`：
 
 ```typescript
-// src/tools/llm-chat/stores/agentStore.ts
+export interface BasicAssistantConfig {
+  displayName: string; // 默认："助手"
+  icon: string; // 默认："✨"
+  toolCallEnabled: boolean; // 默认：false
 
+  // ---- 模型选择持久化（用户手动切换后存入，用于覆盖初始化阶段的全局默认值）----
+  profileId?: string; // 用户手动选中的服务商 ID（为空时回退到全局默认）
+  modelId?: string; // 用户手动选中的模型 ID（为空时回退到全局默认）
+
+  // ---- 参数配置持久化（可选，用户手动调整后存入）----
+  parameters?: {
+    temperature?: number;
+    maxTokens?: number;
+  };
+}
+```
+
+- **存储位置**: `appDataDir/llm-chat/assistant.json`
+- **加载时机**: 应用初始化时调用 `loadConfig()`
+- **保存方式**: 修改时调用 `saveDebounced()`
+- **与真实 Agent 的区别**: 真实 Agent 使用逐智能体文件持久化（`llm-chat/agents/{agentId}.json`）；基本助手使用单文件配置，结构更轻量，仅包含控制面板的开关与自定义选项
+
+#### 3.1.2 虚拟 Agent 构造
+
+暴露一个 `virtualAgent` 计算属性，实时构建符合 `ChatAgent` 接口的完整对象：
+
+```typescript
+const VIRTUAL_AGENT_ID = "__VIRTUAL_ASSISTANT__";
+
+const virtualAgent = computed<ChatAgent>(() => ({
+  // ---- 身份标识 ----
+  id: VIRTUAL_AGENT_ID,
+  name: config.value.displayName,
+  displayName: config.value.displayName,
+  icon: config.value.icon,
+  description: "无角色预设，使用全局默认模型",
+
+  // ---- 模型绑定 [持久化 > 全局默认 > 兜底] ----
+  // 优先级1：用户手动选择并持久化的模型（存入 assistant.json）
+  // 优先级2：全局默认模型（chatSettings.modelPreferences.defaultModel）
+  // 优先级3：第一个可用 Profile 的第一个模型（开箱兜底）
+  profileId: config.value.profileId || resolvedProfileId.value,
+  modelId: config.value.modelId || resolvedModelId.value,
+
+  // ---- 预设消息（仅包含历史记录锚点）----
+  presetMessages: [
+    {
+      id: "virtual-anchor-history",
+      parentId: null,
+      childrenIds: [],
+      role: "system",
+      content: "",
+      type: "chat_history",
+      status: "complete",
+      isEnabled: true,
+      timestamp: getLocalISOString(),
+    },
+  ],
+
+  // ---- 参数配置 ----
+  parameters: {
+    temperature: config.value.parameters?.temperature ?? 1,
+    maxTokens: config.value.parameters?.maxTokens ?? 4096,
+  },
+
+  // ---- 工具调用配置 ----
+  toolCallConfig: {
+    ...DEFAULT_TOOL_CALL_CONFIG,
+    enabled: config.value.toolCallEnabled,
+    autoInjectIfMacroMissing: true,
+  },
+
+  // ---- 系统字段 ----
+  createdAt: "1970-01-01T00:00:00.000Z", // 固定值，标记为虚拟
+  version: 2,
+}));
+```
+
+**模型解析优先级（三阶回退）**：
+
+| 优先级    | 来源                                                         | 触发条件                         |
+| :-------- | :----------------------------------------------------------- | :------------------------------- |
+| 1（最高） | `assistant.json` 中的 `profileId`/`modelId`                  | **用户手动切换模型后自动持久化** |
+| 2         | 全局默认模型（`chatSettings.modelPreferences.defaultModel`） | 持久化值为空或无效时             |
+| 3（兜底） | 第一个可用 Profile 的第一个模型                              | 全局默认模型未设置或无效时       |
+
+**重要区分**：优先级 2/3 仅在首次初始化或重置后生效，**一旦用户手动切换了模型**，优先级 1 就会接管并持久化到 `assistant.json`，后续打开工具时直接读取，不再走初始化流程。
+
+#### 3.1.3 虚拟 Agent 的 `getConfig()`
+
+提供与 `agentStore.getAgentConfig()` 签名一致的配置获取方法：
+
+```typescript
+function getVirtualAgentConfig(overrides?: { parameterOverrides?: Partial<LlmParameters> }): AgentConfigResult {
+  const base = virtualAgent.value;
+  return {
+    profileId: base.profileId,
+    modelId: base.modelId,
+    presetMessages: base.presetMessages ?? [],
+    parameters: mergeParameters(base.parameters, overrides?.parameterOverrides),
+  };
+}
+```
+
+#### 3.1.4 暴露接口
+
+```typescript
+export function useVirtualAgent() {
+  return {
+    // 配置管理
+    config, // Ref<BasicAssistantConfig>
+    isLoaded, // Ref<boolean>
+    loadConfig, // () => Promise<void>
+    updateConfig, // (updates: Partial<BasicAssistantConfig>) => void
+    /** 重置全部持久化配置到出厂默认值：
+     *  - displayName → "助手"
+     *  - icon → "✨"
+     *  - toolCallEnabled → false
+     *  - profileId → undefined（回退全局默认）
+     *  - modelId → undefined（回退全局默认）
+     *  - parameters → undefined（回退默认参数）
+     *  会触发 saveDebounced() 写入文件。
+     *  UI 层面应调用 useChatHandler 的 handleResetVirtualAgent（如存在）
+     *  或直接在配置弹窗中暴露重置按钮。 */
+    resetConfig, // () => Promise<void>
+
+    // 虚拟 Agent
+    VIRTUAL_AGENT_ID,
+    virtualAgent, // ComputedRef<ChatAgent>
+    getVirtualAgentConfig, // (overrides?) => AgentConfigResult
+
+    // 工具方法
+    isVirtualAgent, // (id: string | null) => boolean
+  };
+}
+```
+
+### 3.2 协调层：`agentStore.ts` 升级
+
+AgentStore 本身的改动**极小**，只需接入虚拟 Agent 的统一出口。
+
+#### 3.2.1 `selectAgent` 支持 `null`
+
+```typescript
 async selectAgent(agentId: string | null): Promise<void> {
   const { currentAgentId } = useLlmChatUiState();
 
   if (agentId === null) {
     currentAgentId.value = null;
-    logger.info("已进入基本助手模式（取消智能体选择）");
+    logger.info("已进入基本助手模式");
     return;
   }
 
-  // 原有加载逻辑...
-  currentAgentId.value = agentId;
+  // 原有逻辑不变...
 }
 ```
 
-### 2.2 逻辑层：发送逻辑解耦 (`useChatHandler.ts`)
-
-提取 `getEffectiveAgentConfig` 函数。当没有选中的智能体时，不再抛出错误，而是根据以下优先级构建配置：
-
-1. **会话级临时模型**（如果会话本身记录了当前想用的模型）。
-2. **全局默认模型**（设置中心配置的模型）。
-3. **兜底模型**（第一个可用的服务商模型）。
+#### 3.2.2 新增 `effectiveAgent` getter
 
 ```typescript
-// 虚拟 Agent 配置构建逻辑（伪代码）
-const agentConfig = agentStore.currentAgentId
-  ? agentStore.getAgentConfig(...)
-  : buildVirtualAgentConfig(session, settings);
-```
-
-### 2.3 UI 层：增加重置入口 (`QuickAgentSwitch.vue`)
-
-在智能体快速切换列表中，增加一个固定的“基本助手”选项。
-
-- **位置**：列表最上方或最下方。
-- **交互**：点击后调用 `selectAgent(null)`。
-- **视觉**：当 `currentAgentId` 为空时，此项呈现激活状态。
-
-### 2.4 核心配置：虚拟智能体结构设计 (`buildVirtualAgentConfig`)
-
-当进入基本助手模式时，系统需在内存中构造一个符合 `ChatAgent` 接口的虚拟对象。其核心目标是满足上下文管道对锚点的依赖。
-
-**预设消息骨架 (Preset Messages Skeleton)**:
-为了实现极致简洁，虚拟 Agent 默认仅保留历史记录锚点。这确保了即便不注入人设，工具调用（Tool Calling）等核心 Pipeline 逻辑仍能通过锚点定位正常工作。
-
-```typescript
-[
-  {
-    id: "virtual-anchor-history",
-    role: "system",
-    content: "",
-    type: "chat_history", // ANCHOR_IDS.CHAT_HISTORY
-  },
-];
-```
-
-_注：若用户在设置中关闭了所有增强功能，该列表甚至可以为空，此时上下文管道将仅包含原始历史记录。_
-
-**默认能力配置**:
-
-- `toolCallConfig`: 默认关闭 `enabled: false`，以保持初始状态干净。
-- `autoInjectIfMacroMissing`: 默认 `true`（一旦开启则自动注入）。
-- `parameters`: 继承自全局设置或会话覆盖。
-
-### 2.5 存储与持久化：基本助手配置管理
-
-为了确保基本助手的修改能够持久化，且不侵入现有的 `ChatSettings`（全局 UI 偏好）或 `Agent`（独立文件系统），将采用 `ConfigManager` 建立独立的配置管理。
-
-- **存储位置**: `appDataDir/llm-chat/assistant.json`
-- **配置结构 (`BasicAssistantConfig`)**:
-  ```typescript
-  export interface BasicAssistantConfig {
-    /** 显示名称（默认：助手） */
-    displayName: string;
-    /** 头像（Emoji 或图片路径） */
-    icon: string;
-    /** 是否开启工具调用（默认：false） */
-    toolCallEnabled: boolean;
+effectiveAgent(): ChatAgent | null {
+  const { currentAgentId } = useLlmChatUiState();
+  if (currentAgentId.value) {
+    return this.getAgentById(currentAgentId.value) ?? null;
   }
-  ```
-- **技术实现**:
-  - 在 `stores/` 或 `composables/` 中实例化 `createConfigManager`。
-  - 初始化时调用 `load()`，修改时调用 `saveDebounced()`。
+  // 回退到虚拟 Agent
+  const { virtualAgent } = useVirtualAgent();
+  return virtualAgent.value;
+}
+```
 
-### 2.6 UI 层：基本助手配置弹窗 (`BasicAssistantSettingsDialog.vue`)
+#### 3.2.3 升级 `getAgentConfig`
 
-为基本助手模式设计专属的轻量级配置界面。
+```typescript
+getAgentConfig(
+  agentId: string | null,
+  overrides?: { parameterOverrides?: Partial<LlmParameters> },
+) {
+  // 虚拟 Agent 路径
+  if (!agentId || agentId === VIRTUAL_AGENT_ID) {
+    const { getVirtualAgentConfig } = useVirtualAgent();
+    return getVirtualAgentConfig(overrides);
+  }
 
-- **配置项**: 对应上述 `BasicAssistantConfig` 字段。
-- **交互**: 点击弹窗“保存”后，同步更新内存状态并触发 `ConfigManager` 持久化。
-- **入口**: 在基本助手模式下的 `ChatArea.vue` 头部显示设置图标。
+  // 原有真实 Agent 路径（完全不变）...
+}
+```
 
-### 2.7 UI 层：头部状态一致性 (`ChatArea.vue`)
+#### 3.2.4 新增 `updateAgent` 虚拟 ID 适配
 
-修正 `currentAgent` 计算属性，移除不合理的过滤逻辑。
+让 `agentStore.updateAgent` 能够识别虚拟 Agent ID 并自动转发配置更新，消费层（如 `ChatArea.vue` 的 `handleSelectModel`）无需增加任何分支判断：
 
-- **逻辑**：只要 `agentStore.currentAgentId` 有值，头部就必须显示该智能体的信息。
-- **基本助手模式表现**：如果没有选中智能体，显示 `BasicAssistantConfig` 中的头像和名称，并提供配置入口。
+```typescript
+updateAgent(agentId: string | null, updates: Partial<ChatAgent>): void {
+  // 虚拟 Agent 路径：转发给 useVirtualAgent().updateConfig()
+  if (!agentId || agentId === VIRTUAL_AGENT_ID) {
+    const { updateConfig } = useVirtualAgent();
+    const configUpdates: Partial<BasicAssistantConfig> = {};
 
-### 2.8 UI 层：消息渲染适配 (`MessageHeader.vue`)
+    // 转发模型切换（核心新增：持久化 profileId/modelId）
+    if (updates.profileId !== undefined) configUpdates.profileId = updates.profileId;
+    if (updates.modelId !== undefined) configUpdates.modelId = updates.modelId;
 
-优化消息头部的解析逻辑，确保在无 Agent 绑定时依然能正确显示。
+    // 转发通用配置
+    if (updates.displayName !== undefined) configUpdates.displayName = updates.displayName;
+    if (updates.icon !== undefined) configUpdates.icon = updates.icon;
+    if (updates.parameters !== undefined) configUpdates.parameters = updates.parameters;
 
-- **逻辑**：优先使用元数据快照；若快照缺失且无 `agentId`，则回退到 `basicAssistantConfig`。
+    updateConfig(configUpdates);
+    return;
+  }
+
+  // 原有真实 Agent 更新逻辑（完全不变）...
+}
+```
+
+**转发规则**：仅转发 `BasicAssistantConfig` 接口中定义的字段，未定义的 Agent 专有字段（如 `presetMessages`、`toolCallConfig` 等）不会被错误地持久化到 `assistant.json` 中。
+
+### 3.3 消费层变更（极少改动）
+
+#### 3.3.1 `useChatHandler.ts`
+
+**移除所有 `if (!agentStore.currentAgentId)` 守卫逻辑**，统一调用升级后的 API：
+
+```typescript
+// 之前（3处重复）：
+if (!agentStore.currentAgentId) {
+  throw new Error("请先选择一个智能体");
+}
+const agentConfig = agentStore.getAgentConfig(agentStore.currentAgentId, ...);
+
+// 之后（统一为）：
+const agentConfig = agentStore.getAgentConfig(agentStore.currentAgentId, ...);
+if (!agentConfig) {
+  throw new Error("无法获取模型配置：请先在设置中配置 AI 服务");
+}
+```
+
+元数据快照也统一使用 `effectiveAgent`：
+
+```typescript
+const currentAgent = agentStore.effectiveAgent;
+// 直接使用 currentAgent.name, currentAgent.icon 等，不需要判断
+```
+
+#### 3.3.2 `ChatArea.vue`
+
+```typescript
+// 之前：
+const currentAgent = computed(() => {
+  if (!finalCurrentAgentId.value) return null;
+  return agentStore.getAgentById(finalCurrentAgentId.value);
+});
+
+// 之后：
+const currentAgent = computed(() => agentStore.effectiveAgent);
+// currentAgent 永远有值，模板中不再需要 v-if="currentAgent"
+```
+
+模板中保持 `v-if="currentAgent"` 作为安全防线即可（effectiveAgent 理论上永远非 null，但初始化阶段可能短暂为空）。
+
+#### 3.3.3 `QuickAgentSwitch.vue` / `AgentListItem.vue` / `AgentsSidebar.vue`
+
+在切换列表中增加"基本助手"选项，点击调用 `selectAgent(null)`。
+侧边栏右键菜单增加"取消选择"操作。
+
+### 3.4 基本助手配置弹窗
+
+> 路径：`src/tools/llm-chat/components/settings/BasicAssistantSettingsDialog.vue`
+
+轻量级配置界面，仅在基本助手模式下可见。
+
+- **入口**：`ChatArea.vue` 头部，当 `isVirtualAgent(currentAgentId)` 为 true 时显示配置入口
+- **配置项**：displayName、icon、toolCallEnabled
+- **保存**：调用 `useVirtualAgent().updateConfig()`
+- **重置按钮**：调用 `useVirtualAgent().resetConfig()`，一键清除所有持久化配置（包括模型选择、参数等）恢复到出厂默认状态。重置后模型选择会回退到三阶回退的优先级 2/3（全局默认模型 → 兜底），等效于全新安装后的体验
+
+### 3.5 从基本助手继承配置创建智能体
+
+> **功能追加**: 支持将当前基本助手的配置（模型、参数、名称等）一键转化为正式的智能体
+
+#### 3.5.1 功能定位
+
+用户可能在基本助手模式下已经完成了模型选择、参数调优、个性化命名等操作。如果用户觉得这个配置好用，想把它"固化"为一个真正的智能体以便后续添加 System Prompt 或知识库，需要一条平滑的升级路径。
+
+#### 3.5.2 UI 交互设计
+
+在 `CreateAgentDialog.vue` 的"自定义配置"区域增加"从当前助手继承"选项：
+
+1. **入口位置**：`el-divider` 之后，"自定义配置"区域中。
+2. **呈现方式**：一个带有当前虚拟 Agent 信息预览的卡片，显示当前的名称、图标、模型名称。
+3. **触发条件**：仅在基本助手模式下（即 `currentAgentId` 为 `null` 时）可见。如果当前已选中真实 Agent，则隐藏该选项。
+4. **交互流程**：
+   - 点击卡片 → 触发 `create-from-virtual` 事件 → `AgentsSidebar.vue` 处理 → 打开 `EditAgentDialog` 并预填数据。
+
+```vue
+<!-- 在 CreateAgentDialog.vue 的"自定义配置"区域增加 -->
+<template>
+  <!-- ... 原有预设和空白创建部分 ... -->
+  <el-divider />
+
+  <div class="preset-section" v-if="showInheritOption">
+    <h4>继承当前配置</h4>
+    <p class="preset-section-desc">将当前基本助手的配置（模型、参数、名称）转化为一个正式的智能体。</p>
+    <div class="inherit-card" @click="handleCreateFromVirtual">
+      <Avatar
+        :src="virtualAgentConfig.value?.icon || '✨'"
+        :alt="virtualAgentConfig.value?.name || '助手'"
+        :size="40"
+        shape="square"
+        :radius="6"
+      />
+      <div class="preset-info">
+        <div class="preset-name">{{ virtualAgentConfig.value?.displayName || "助手" }}</div>
+        <div class="preset-desc">继承当前模型和参数设置</div>
+      </div>
+      <el-icon class="arrow-icon"><ArrowRight /></el-icon>
+    </div>
+  </div>
+</template>
+```
+
+#### 3.5.3 数据继承逻辑
+
+在 `AgentsSidebar.vue` 中新增 `handleCreateFromVirtual` 方法：
+
+```typescript
+const handleCreateFromVirtual = () => {
+  const { virtualAgent } = useVirtualAgent();
+  const base = virtualAgent.value;
+
+  // 如果没有启用中的虚拟 Agent（理论上不会），回退到空白创建
+  if (base.id !== VIRTUAL_AGENT_ID) {
+    handleCreateFromBlank();
+    return;
+  }
+
+  editDialogMode.value = "create";
+  editingAgent.value = null;
+
+  // 继承虚拟 Agent 的核心可编辑字段
+  editDialogInitialData.value = {
+    name: base.name,
+    displayName: base.displayName,
+    icon: base.icon,
+    profileId: base.profileId,
+    modelId: base.modelId,
+    // 深拷贝参数，避免引用共享
+    parameters: base.parameters ? JSON.parse(JSON.stringify(base.parameters)) : { temperature: 1, maxTokens: 4096 },
+    // 继承工具调用配置（保留用户开启/关闭的选择）
+    toolCallConfig: base.toolCallConfig ? JSON.parse(JSON.stringify(base.toolCallConfig)) : undefined,
+    // 虚拟 Agent 的 presetMessages 仅包含 chat_history 锚点，
+    // 继承后可以让用户在编辑器中自由添加真正的 System Prompt
+    presetMessages: JSON.parse(JSON.stringify(base.presetMessages)),
+  };
+
+  editDialogVisible.value = true;
+};
+```
+
+**继承字段清单**：
+
+| 字段             | 来源                                | 说明                                |
+| :--------------- | :---------------------------------- | :---------------------------------- |
+| `name`           | `virtualAgent.value.name`           | 即 `config.displayName`，默认"助手" |
+| `displayName`    | `virtualAgent.value.displayName`    | 同上                                |
+| `icon`           | `virtualAgent.value.icon`           | 默认"✨"                            |
+| `profileId`      | `virtualAgent.value.profileId`      | 三阶回退后的最终值                  |
+| `modelId`        | `virtualAgent.value.modelId`        | 三阶回退后的最终值                  |
+| `parameters`     | `virtualAgent.value.parameters`     | Temperature/MaxTokens               |
+| `toolCallConfig` | `virtualAgent.value.toolCallConfig` | 工具启用开关及配置                  |
+| `presetMessages` | `virtualAgent.value.presetMessages` | 包含 chat_history 锚点              |
+
+**不继承的字段**：`description`（自动留空让用户填写）、`category`、`tags`、`knowledgeSettings` 等可由用户后续自由定制的字段。
+
+#### 3.5.4 使用场景示例
+
+1. **基础调优 → 固化**：用户在基本助手模式下调好了 Temperature 和 MaxTokens，并打开了工具调用 → 点击"继承当前配置" → 在新 Dialog 中添加 System Prompt 并保存。
+2. **模型选定 → 专业化**：用户选了特定的模型（如 Claude 3.5 Sonnet）并在基本助手模式下聊天 → 觉得不错 → 一键转化为正式智能体 → 后续添加知识库。
+3. **从零到专业**：用户完全不理解"智能体"概念时先用基本助手 → 熟悉后通过继承入口自然过渡到智能体管理。
 
 ---
 
-## 3. 执行计划
+## 4. 执行计划
 
-| 步骤 | 任务内容                                            | 涉及文件                            |
-| :--- | :-------------------------------------------------- | :---------------------------------- |
-| 1    | 修改 Store 状态，支持 `currentAgentId` 为 `null`    | `agentStore.ts`                     |
-| 2    | 实现基本助手配置持久化 (ConfigManager)              | `composables/useAssistantConfig.ts` |
-| 3    | 实现发送逻辑中的虚拟配置回退，移除强制 Agent 检查   | `useChatHandler.ts`                 |
-| 4    | 实现基本助手配置弹窗 `BasicAssistantSettingsDialog` | `BasicAssistantSettingsDialog.vue`  |
-| 5    | 在 `QuickAgentSwitch.vue` 中添加“取消选择”按钮      | `QuickAgentSwitch.vue`              |
-| 6    | 修正 `ChatArea.vue` 头部显示逻辑，增加设置入口      | `ChatArea.vue`                      |
-| 7    | 在智能体侧边栏右键菜单增加“取消选择”快捷操作        | `AgentsSidebar.vue`                 |
-
----
-
-## 4. 风险评估
-
-- **工具调用兼容性**：需要确保在"基本助手模式"下，基础工具（如文件读取）依然能通过虚拟配置正常工作。
-- **预设消息缺失**：基本助手模式没有 `presetMessages`。需确保在零预设场景下，上下文管道（Pipeline）依然能正确挂载历史记录，且工具调用所需的保底宏（如 `{{tools}}`）能通过虚拟配置正常注入。
+| 步骤  | 任务内容                             | 涉及文件                                                         | 改动量          |
+| :---- | :----------------------------------- | :--------------------------------------------------------------- | :-------------- |
+| **1** | 实现虚拟 Agent 构造 composable       | `composables/agent/useVirtualAgent.ts` (新建)                    | **核心新增**    |
+| **2** | AgentStore 接入虚拟 Agent            | `stores/agentStore.ts`                                           | 小改 (~30行)    |
+| **3** | Handler 移除守卫逻辑，统一使用新 API | `composables/chat/useChatHandler.ts`                             | 中改 (删减为主) |
+| **4** | ChatArea 统一使用 effectiveAgent     | `components/ChatArea.vue`                                        | 小改 (~10行)    |
+| **5** | 增加"基本助手"选择入口               | `QuickAgentSwitch.vue`, `AgentListItem.vue`, `AgentsSidebar.vue` | 小改            |
+| **6** | 实现配置弹窗                         | `components/settings/BasicAssistantSettingsDialog.vue` (新建)    | 新增            |
+| **7** | **实现从基本助手继承配置创建智能体** | `CreateAgentDialog.vue`, `AgentsSidebar.vue`                     | 小改            |
 
 ---
 
-## 5. 用户流程体验影响评估
+## 5. 风险评估
 
-### 5.1 当前流程 vs 解耦后流程对比
+| 风险项           | 描述                                                 | 缓解措施                                                                     |
+| :--------------- | :--------------------------------------------------- | :--------------------------------------------------------------------------- |
+| **工具调用兼容** | 虚拟 Agent 的 `presetMessages` 中没有 `{{tools}}` 宏 | `toolCallConfig.autoInjectIfMacroMissing = true` 确保自动注入                |
+| **上下文管道**   | 零预设场景下管道是否正常                             | 虚拟 Agent 保留 `chat_history` 锚点，管道不会空跑                            |
+| **响应式更新**   | 全局默认模型变更后虚拟 Agent 是否跟随                | `virtualAgent` 是计算属性，依赖 `enabledProfiles` 和 `settings` 的响应式 ref |
+| **持久化隔离**   | 虚拟 Agent 不应被"持久化"到文件系统                  | `VIRTUAL_AGENT_ID` 前缀明确标识，`persistAgent()` 中可加守卫                 |
+| **分离窗口同步** | 基本助手模式在分离窗口中是否正常                     | `effectiveAgent` 基于响应式状态，窗口同步机制无需改动                        |
+
+---
+
+## 6. 用户流程体验影响评估
+
+### 6.1 当前流程 vs 解耦后流程对比
 
 ```mermaid
 graph TD
@@ -192,110 +534,14 @@ graph TD
 | 首次交互时间 (TTI) | ~20秒（从预设中选取并创建或自己写） | ~5秒（打开即用）            | -92%     |
 | 状态灵活性         | 单向绑定（绑定后无法解除）          | 双向切换（可绑定 / 可重置） | 新增能力 |
 
-### 5.2 用户旅程场景分析
-
-#### 场景 A：纯新用户（从未用过 LLM 工具）
-
-| 阶段     | 当前体验                                                                     | 解耦后体验                                       |
-| :------- | :--------------------------------------------------------------------------- | :----------------------------------------------- |
-| 初见     | 看到空白界面，提示"请先创建智能体"。用户困惑："智能体是什么？我只想问个问题" | 看到输入框和欢迎提示，直接可以打字发送           |
-| 首次发送 | 被阻断。必须点侧边栏→添加智能体→选预设→配模型→确认→再发送                    | 直接按 Ctrl+Enter 发送，系统自动使用全局默认模型 |
-| 学习曲线 | 陡峭：必须先理解 Agent 概念才能完成第一次对话                                | 平缓：先体验对话，再逐步发现 Agent 增强          |
-
-**结论**：解耦方案将 LLM 聊天的**准入门槛从"配置驱动"降至"开箱即用"**，对新用户留存率有正向预期。
-
-#### 场景 B：轻度用户（偶尔问 AI 问题）
-
-- **当前**：每次想快速问个问题，都得先选 Agent 才能开口。
-- **解耦后**：基本助手模式就是他们的默认选择。打开→打字→走人，零认知开销。
-
-#### 场景 C：重度用户（多 Agent 场景管理）
-
-- **当前**：一旦绑定了某个 Agent，无法切回"干净"模式做快速验证。
-- **解耦后**：可随时在 QuickAgentSwitch 中选择"基本助手"重置到零配置状态，完成验证后再切回。
-
-### 5.3 对现有用户文档的具体影响
-
-#### 5.3.1 `docs/user-guide/getting-started.md` — 需要重写第3节
-
-**当前内容（第41-46行）**：
-
-```markdown
-## 3. 开始对话
-
-1. 回到主页，点击 LLM 聊天 卡片
-2. 左侧会看到智能体列表——点底部的添加智能体，选个预设或从空白创建...
-3. 选中智能体后，点右侧列表顶部的 + 新建一个对话
-4. 在底部输入框打字，按 Ctrl + Enter 发送
-```
-
-**解耦后建议改为**：
-
-```markdown
-## 3. 开始对话
-
-1. 回到主页，点击 LLM 聊天 卡片
-2. 在底部输入框打字，按 Ctrl + Enter 发送——就这么简单！
-
-> 💡 首次发送时，系统会自动使用你在步骤 2 中配好的 AI 服务。
-> 想要更个性化？试试左侧的「智能体」功能，预设角色和参数后一键切换。
-```
-
-**影响评估**：
-
-- 核心步骤从 4 步缩减为 2 步
-- "智能体"从**前置必须步骤**降级为**可选增强提示**
-- 新用户的心智模型变为：`聊天 = 打字就能用`，`Agent = 高级玩家的增强`
-
-#### 5.3.2 `docs/user-guide/tools/llm-chat/index.md` — 更新"开始第一次对话"
-
-**当前内容（第18-24行）**：
-
-```markdown
-## 开始第一次对话
-
-1. 打开 LLM 对话工具
-2. 确认已配置 AI 服务
-3. 选择或创建 Agent：首次使用会自动创建默认的「助手」Agent
-4. 在输入框打字，按 Ctrl + Enter 发送
-```
-
-**解耦后建议改为**：
-
-```markdown
-## 开始第一次对话
-
-1. **打开 LLM 对话工具**：从主页点击 LLM 聊天卡片
-2. **确认已配置 AI 服务**：如未配置，先去设置中添加
-3. **在输入框打字**：按 Ctrl + Enter 发送，系统以"基本助手"模式开始对话
-
-> 💡 基本助手模式零配置即可使用。需要角色扮演或参数调优？切换到左栏的「智能体」面板选择或创建 Agent。
-```
-
-#### 5.3.3 需要新增的文档
-
-| 文档                                                | 内容                                            |
-| :-------------------------------------------------- | :---------------------------------------------- |
-| `docs/user-guide/tools/llm-chat/basic-assistant.md` | 基本助手模式说明、配置弹窗介绍、与 Agent 的区别 |
-| 更新 `agents.md`                                    | 增加"取消选择"操作的说明                        |
-
-### 5.4 潜在 UX 风险与缓解措施
-
-| 风险         | 描述                                                      | 缓解措施                                                                             |
-| :----------- | :-------------------------------------------------------- | :----------------------------------------------------------------------------------- |
-| 概念混淆     | 用户不清楚"基本助手"和"Agent"的边界                       | 在 QuickAgentSwitch 的"基本助手"项下方添加灰色副标题：`无角色预设，使用全局默认模型` |
-| 模型选择盲区 | 基本助手模式下用户可能不知道当前用的是哪个模型            | 在 ChatArea 头部显示当前生效的模型名称，点击可跳转到模型参数设置                     |
-| 功能发现不足 | 新用户可能永远停留在基本助手，不知道 Agent 系统的强大能力 | 首次对话完成后，在消息区底部显示一次性引导卡片：`试试智能体功能，为 AI 赋予专业角色` |
-| 会话归属模糊 | 基本助手创建的会话后续切换到 Agent 时，上下文可能不一致   | 切换 Agent 时弹出确认：`切换后新消息将使用新角色的预设，是否继续？`                  |
-
-### 5.5 总体评估结论
+### 6.2 总体评估结论
 
 | 指标           | 评分                | 说明                                       |
 | :------------- | :------------------ | :----------------------------------------- |
 | 新用户上手体验 | ⭐⭐⭐⭐⭐          | 从"必须先学概念"到"开箱即用"，质变提升     |
 | 现有用户影响   | ⭐⭐⭐⭐            | 不破坏现有 Agent 工作流，增加灵活性        |
-| 文档维护成本   | ⭐⭐⭐              | 需更新 2 份文档 + 新增 1 份，工作量适中    |
-| 实现复杂度     | ⭐⭐⭐              | 技术方案清晰，主要是解绑 + 回退逻辑        |
+| 架构侵入性     | ⭐⭐⭐⭐⭐          | 消费层几乎零改动，所有新逻辑封装在构造层   |
+| 可维护性       | ⭐⭐⭐⭐⭐          | 未来新增 Agent 特性无需修改消费层          |
 | 综合推荐度     | ✅ **强烈推荐实施** | 低风险高收益，核心痛点直接命中用户流失原因 |
 
-**一句话总结**：此方案将 LLM 聊天工具从"配置驱动型"转变为"体验驱动型"——先让用户"用起来"，再让他们"用好了"。这是一个**对新用户留存率有决定性影响**的优化。
+**一句话总结**：V2 方案通过**空对象模式**将"基本助手"的全部复杂性封装在 `useVirtualAgent` 单一模块中，消费层（UI + Handler）实现零分支判断，是对 V1 散弹式修改的彻底否定。

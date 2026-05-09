@@ -107,8 +107,8 @@ export function useUserProfileStorage() {
   }
 
   /**
-    * 加载单个用户档案
-    */
+   * 加载单个用户档案
+   */
   async function loadProfile(profileId: string): Promise<UserProfile | null> {
     try {
       const profilePath = await getProfileConfigPath(profileId);
@@ -175,10 +175,13 @@ export function useUserProfileStorage() {
           const profileDir = await getProfileDirPath(profileId);
           if (await exists(profileDir)) {
             const entries = await readDir(profileDir);
-            const imageExts = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];
+            const imageExts = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"];
             profile.avatarHistory = entries
-              .filter(e => e.isFile && imageExts.some(ext => e.name.toLowerCase().endsWith(ext)) && e.name !== 'profile.json')
-              .map(e => e.name);
+              .filter(
+                (e) =>
+                  e.isFile && imageExts.some((ext) => e.name.toLowerCase().endsWith(ext)) && e.name !== "profile.json",
+              )
+              .map((e) => e.name);
             isDirty = true;
           }
         } catch (e) {
@@ -203,6 +206,25 @@ export function useUserProfileStorage() {
   }
 
   /**
+   * 校验用户档案是否完整，防止损坏的文件覆盖磁盘
+   */
+  function validateProfile(profile: UserProfile): { valid: boolean; reason?: string } {
+    if (!profile.id) return { valid: false, reason: "缺少 id" };
+    if (!profile.name) return { valid: false, reason: "缺少 name (档案名称)" };
+    if (!profile.createdAt) return { valid: false, reason: "缺少 createdAt" };
+
+    // 核心检查：如果 content 是 undefined，说明这只是一个索引项（元数据），绝不能作为完整档案保存
+    if (profile.content === undefined) {
+      return { valid: false, reason: "content 为 undefined (详情未加载)" };
+    }
+
+    // 结构检查：检查关键配置项是否存在（即使是空的）
+    if (!profile.regexConfig) return { valid: false, reason: "缺少 regexConfig 结构" };
+
+    return { valid: true };
+  }
+
+  /**
    * 确保用户档案目录存在
    */
   async function ensureProfileDir(profileId: string): Promise<void> {
@@ -219,6 +241,21 @@ export function useUserProfileStorage() {
    */
   async function saveProfile(profile: UserProfile, forceWrite: boolean = false): Promise<void> {
     try {
+      // 保存前的严格校验
+      const validation = validateProfile(profile);
+      if (!validation.valid) {
+        logger.error("拒绝保存不完整的用户档案，防止数据丢失", {
+          profileId: profile.id,
+          reason: validation.reason,
+          profileName: profile.name,
+        });
+        // 如果是强制写入但校验失败，我们不能继续，否则会破坏磁盘文件
+        if (forceWrite) {
+          throw new Error(`用户档案校验失败: ${validation.reason}`);
+        }
+        return;
+      }
+
       await ensureProfileDir(profile.id); // 确保用户档案目录存在
       const profilePath = await getProfileConfigPath(profile.id);
 
@@ -273,10 +310,7 @@ export function useUserProfileStorage() {
   async function deleteProfileDirectory(profileId: string): Promise<void> {
     try {
       const profileDir = await getProfileDirPath(profileId);
-      const relativePath = (await join(MODULE_NAME, PROFILES_SUBDIR, profileId)).replace(
-        /\\/g,
-        "/"
-      );
+      const relativePath = (await join(MODULE_NAME, PROFILES_SUBDIR, profileId)).replace(/\\/g, "/");
 
       const dirExists = await exists(profileDir);
       if (dirExists) {
@@ -312,9 +346,7 @@ export function useUserProfileStorage() {
 
       const entries = await readDir(profilesDir);
       // 过滤出目录项，目录名即为 profileId
-      const profileIds = entries
-        .filter((entry) => entry.isDirectory && entry.name)
-        .map((entry) => entry.name!);
+      const profileIds = entries.filter((entry) => entry.isDirectory && entry.name).map((entry) => entry.name!);
 
       logger.debug("扫描用户档案目录完成", { count: profileIds.length });
       return profileIds;
@@ -393,9 +425,7 @@ export function useUserProfileStorage() {
     }
 
     const entries = await readDir(profilesDir);
-    const oldJsonFiles = entries.filter(
-      (entry) => entry.name?.endsWith(".json") && !entry.isDirectory
-    );
+    const oldJsonFiles = entries.filter((entry) => entry.name?.endsWith(".json") && !entry.isDirectory);
 
     if (oldJsonFiles.length === 0) {
       return; // 没有旧格式文件，无需迁移
@@ -574,11 +604,11 @@ export function useUserProfileStorage() {
   const saveProfiles = async (profiles: UserProfile[]): Promise<void> => {
     try {
       // 过滤掉详情未加载的用户档案，防止空数据覆盖磁盘文件
-      const profilesWithDetails = profiles.filter(p => p.content !== undefined);
+      const profilesWithDetails = profiles.filter((p) => p.content !== undefined);
 
       logger.debug("开始批量保存用户档案", {
         total: profiles.length,
-        toSave: profilesWithDetails.length
+        toSave: profilesWithDetails.length,
       });
 
       // 1. 并行保存已加载详情的档案文件

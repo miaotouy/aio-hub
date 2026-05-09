@@ -21,7 +21,7 @@
           effect="plain"
           class="vcp-tag result-tag"
         >
-          {{ isSuccess ? "SUCCESS" : "ERROR" }}
+          {{ isSuccess ? "成功" : "失败" }}
         </el-tag>
         <el-tag v-else-if="command" size="small" type="success" effect="light" class="vcp-tag">{{ command }}</el-tag>
         <span v-if="maid" class="maid-info">{{ maid }}</span>
@@ -153,7 +153,17 @@ const hasArgs = computed(() => Object.keys(props.args).length > 0);
 
 const parsedJson = computed(() => {
   if (!props.resultContent) return null;
-  const trimmed = props.resultContent.trim();
+  let trimmed = props.resultContent.trim();
+
+  // 处理 "执行错误: " 或 "执行成功: " 等前缀的情况
+  const prefixes = ["执行错误:", "执行错误：", "执行成功:", "执行成功："];
+  for (const prefix of prefixes) {
+    if (trimmed.startsWith(prefix)) {
+      trimmed = trimmed.substring(prefix.length).trim();
+      break;
+    }
+  }
+
   if (!((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]")))) {
     return null;
   }
@@ -213,7 +223,7 @@ watch(
       updateTokenCount();
     }
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 // 监听开关变化
@@ -223,7 +233,7 @@ watch(
     if (show) {
       updateTokenCount();
     }
-  }
+  },
 );
 
 onMounted(() => {

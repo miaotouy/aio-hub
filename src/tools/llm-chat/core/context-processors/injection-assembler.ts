@@ -360,16 +360,18 @@ export const injectionAssembler: ContextProcessor = {
     // 过滤出有效的消息用于后续处理，但保留完整列表用于查找 sourceIndex
     const activePresetMessages = presetMessages.filter((msg) => msg.isEnabled !== false);
 
-    // 1. 检查是否需要保底注入工具定义宏
+    // 1. 检查是否需要保底注入工具相关宏 (tools, tool_usage, tool_context)，兼容带参数的宏调用
     const toolCallConfig = agentConfig.toolCallConfig;
     if (toolCallConfig?.enabled && toolCallConfig.autoInjectIfMacroMissing) {
-      const hasToolsMacro = activePresetMessages.some((msg) => msg.content.includes("{{tools}}"));
-      if (!hasToolsMacro) {
-        // 创建保底宏消息
+      const toolMacros = ["{{tools", "{{tool_usage", "{{tool_context"];
+      const hasToolMacros = activePresetMessages.some((msg) => toolMacros.some((macro) => msg.content.includes(macro)));
+
+      if (!hasToolMacros) {
+        // 创建保底宏消息，包含定义、用法说明和运行时上下文
         const autoMacroMsg: any = {
           id: "auto-tool-macro",
           role: "system",
-          content: "{{tools}}",
+          content: "{{tools}}\n{{tool_usage}}\n{{tool_context}}",
           isEnabled: true,
           injectionStrategy: {
             type: "anchor",
@@ -384,7 +386,7 @@ export const injectionAssembler: ContextProcessor = {
         // 同时也加入到 activePresetMessages 中，以便进行宏处理
         activePresetMessages.push(autoMacroMsg);
 
-        logger.info("已自动追加 {{tools}} 宏消息进行保底注入");
+        logger.info("已自动追加工具宏消息进行保底注入 (tools, tool_usage, tool_context)");
       }
     }
 

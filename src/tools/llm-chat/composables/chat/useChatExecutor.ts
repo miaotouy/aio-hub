@@ -3,7 +3,7 @@
  * 负责核心的 LLM 请求执行逻辑，消除重复代码
  */
 
-import type { ChatSessionDetail, ChatMessageNode, LlmParameters, UserProfile, ChatAgent } from "../../types";
+import type { ChatSessionDetail, ChatMessageNode, LlmParameters, ChatAgent } from "../../types";
 import type { Asset } from "@/types/asset-management";
 import type { LlmModelInfo } from "@/types/llm-profiles";
 import { useAgentStore } from "../../stores/agentStore";
@@ -96,14 +96,7 @@ export function useChatExecutor() {
     };
 
     const userProfileStore = useUserProfileStore();
-    let effectiveUserProfile: UserProfile | null = null;
-    if (currentAgent?.userProfileId) {
-      const profile = userProfileStore.getProfileById(currentAgent.userProfileId);
-      if (profile) effectiveUserProfile = profile;
-    } else if (userProfileStore.globalProfileId) {
-      const profile = userProfileStore.getProfileById(userProfileStore.globalProfileId);
-      if (profile) effectiveUserProfile = profile;
-    }
+    const effectiveUserProfile = userProfileStore.getEffectiveProfile(currentAgent?.userProfileId);
 
     const { getProfileById } = useLlmProfiles();
     const profile = getProfileById(agentConfigSnippet.profileId);
@@ -273,14 +266,7 @@ export function useChatExecutor() {
       modelId: effectiveModelId,
     };
 
-    let effectiveUserProfile: UserProfile | null = null;
-    if (currentAgentFromStore?.userProfileId) {
-      const profile = userProfileStore.getProfileById(currentAgentFromStore.userProfileId);
-      if (profile) effectiveUserProfile = profile;
-    } else if (userProfileStore.globalProfileId) {
-      const profile = userProfileStore.getProfileById(userProfileStore.globalProfileId);
-      if (profile) effectiveUserProfile = profile;
-    }
+    const effectiveUserProfile = userProfileStore.getEffectiveProfile(currentAgentFromStore?.userProfileId);
 
     const profile = getProfileById(effectiveProfileId);
     const model: LlmModelInfo | undefined = profile?.models.find((m) => m.id === effectiveModelId);

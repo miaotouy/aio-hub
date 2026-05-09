@@ -121,15 +121,7 @@ const modelIcon = computed(() => {
 
 // 当前生效的用户档案（智能体绑定 > 全局配置）
 const effectiveUserProfile = computed(() => {
-  if (!currentAgent.value) return null;
-
-  // 优先使用智能体绑定的档案
-  if (currentAgent.value.userProfileId) {
-    return userProfileStore.getProfileById(currentAgent.value.userProfileId);
-  }
-
-  // 否则使用全局档案
-  return userProfileStore.globalProfile;
+  return userProfileStore.getEffectiveProfile(currentAgent.value?.userProfileId);
 });
 
 const userProfileAvatarSrc = useResolvedAvatar(effectiveUserProfile, "user-profile");

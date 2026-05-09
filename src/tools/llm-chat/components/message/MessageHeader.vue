@@ -77,14 +77,7 @@ const agentProfileInfo = computed(() => {
 
 // 获取当前生效的用户档案（用于兼容旧消息）
 const effectiveUserProfile = computed(() => {
-  // 优先使用智能体绑定的用户档案
-  if (agent.value?.userProfileId) {
-    const profile = userProfileStore.getProfileById(agent.value.userProfileId);
-    if (profile) return profile;
-  }
-
-  // 回退到全局用户档案
-  return userProfileStore.globalProfile;
+  return userProfileStore.getEffectiveProfile(agent.value?.userProfileId);
 });
 
 // 根据角色决定显示的名称和图标

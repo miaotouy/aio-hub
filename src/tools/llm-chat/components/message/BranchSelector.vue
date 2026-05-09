@@ -85,10 +85,8 @@ const siblingsWithDisplayInfo = computed(() => {
       if (sibling.metadata?.userProfileName) {
         displayName = sibling.metadata.userProfileName;
       } else {
-        displayName =
-          userProfileStore.globalProfile?.displayName ||
-          userProfileStore.globalProfile?.name ||
-          "你";
+        const effectiveProfile = userProfileStore.getEffectiveProfile(sibling.metadata?.userProfileId);
+        displayName = effectiveProfile?.displayName || effectiveProfile?.name || "你";
       }
 
       // 解析头像
@@ -99,7 +97,7 @@ const siblingsWithDisplayInfo = computed(() => {
             icon: sibling.metadata.userProfileIcon,
           };
         }
-        return userProfileStore.globalProfile;
+        return userProfileStore.getEffectiveProfile(sibling.metadata?.userProfileId);
       });
       avatarSrc = useResolvedAvatar(avatarTarget, "user-profile").value;
     } else if (sibling.role === "assistant") {

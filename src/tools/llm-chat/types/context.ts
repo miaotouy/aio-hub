@@ -243,6 +243,7 @@ export interface ContextPreviewData {
     icon?: string;
     profileId: string;
     profileName?: string;
+    userProfileId?: string;
     providerType?: string;
     modelId: string;
     modelName?: string;

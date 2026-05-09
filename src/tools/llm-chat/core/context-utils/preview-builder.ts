@@ -505,6 +505,7 @@ export async function buildPreviewDataFromContext(context: PipelineContext): Pro
       icon: agentConfig.icon,
       profileId: agentConfig.profileId,
       profileName: profile?.name,
+      userProfileId: agentConfig.userProfileId || undefined,
       providerType: profile?.type,
       modelId: agentConfig.modelId,
       modelName: modelName,

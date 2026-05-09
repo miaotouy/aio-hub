@@ -534,9 +534,7 @@ export function useFlowTreeGraph(
     if (node.role === "user") {
       // 尝试获取最新名称作为回退
       const userProfileId = node.metadata?.userProfileId;
-      const currentProfile = userProfileId
-        ? userProfileStore.getProfileById(userProfileId)
-        : userProfileStore.globalProfile;
+      const currentProfile = userProfileStore.getEffectiveProfile(userProfileId);
 
       const name =
         node.metadata?.userProfileName ||
@@ -552,9 +550,7 @@ export function useFlowTreeGraph(
         };
       } else {
         const userProfileId = node.metadata?.userProfileId;
-        target = userProfileId
-          ? userProfileStore.getProfileById(userProfileId)
-          : userProfileStore.globalProfile;
+        target = userProfileStore.getEffectiveProfile(userProfileId);
       }
 
       let icon = target?.icon?.trim() || "👤";

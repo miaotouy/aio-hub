@@ -70,10 +70,7 @@ const assetsDialogVisible = ref(false);
 const virtualTimeEnabled = ref(!!props.modelValue.virtualTimeConfig);
 
 const effectiveUserProfile = computed(() => {
-  if (props.modelValue.userProfileId) {
-    return userProfileStore.getProfileById(props.modelValue.userProfileId) || null;
-  }
-  return userProfileStore.globalProfile;
+  return userProfileStore.getEffectiveProfile(props.modelValue.userProfileId);
 });
 
 watch(virtualTimeEnabled, (enabled) => {

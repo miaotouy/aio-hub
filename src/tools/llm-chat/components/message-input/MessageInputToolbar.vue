@@ -153,9 +153,8 @@ const activeActionSets = computed(() => {
   const agent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
   const agentIds = agent?.quickActionSetIds || [];
 
-  // 计算生效的用户档案（优先使用智能体绑定的档案，否则使用全局档案）
-  const effectiveProfile =
-    (agent?.userProfileId ? profileStore.getProfileById(agent.userProfileId) : null) || profileStore.globalProfile;
+  // 计算生效的用户档案
+  const effectiveProfile = profileStore.getEffectiveProfile(agent?.userProfileId);
   const profileIds = effectiveProfile?.quickActionSetIds || [];
 
   // 合并并去重

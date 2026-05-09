@@ -424,6 +424,14 @@ export class LlmChatService {
   }
 
   /**
+   * 获取当前生效的用户档案（优先使用智能体绑定的档案）
+   * @param agentUserProfileId 智能体绑定的档案 ID
+   */
+  public getEffectiveUserProfile(agentUserProfileId?: string | null): UserProfile | null {
+    return this.userProfileStore.getEffectiveProfile(agentUserProfileId);
+  }
+
+  /**
    * 获取全局选中的用户档案
    */
   public getGlobalUserProfile(): UserProfile | null {

@@ -482,13 +482,7 @@ watch(
     const agent = agentStore.getAgentById(agentId);
 
     // 确定生效的用户档案（智能体绑定 > 全局配置）
-    let effectiveUserProfile = null;
-    if (agent?.userProfileId) {
-      effectiveUserProfile = userProfileStore.getProfileById(agent.userProfileId);
-    }
-    if (!effectiveUserProfile && userProfileStore.globalProfileId) {
-      effectiveUserProfile = userProfileStore.getProfileById(userProfileStore.globalProfileId);
-    }
+    const effectiveUserProfile = userProfileStore.getEffectiveProfile(agent?.userProfileId);
 
     // 基础上下文，用于宏预览等
     // 注意：如果 contextData 中有 virtualTimeConfig，应该优先使用（这可能是从历史记录恢复的快照）

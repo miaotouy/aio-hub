@@ -90,21 +90,17 @@ function getAgentAndUserProfileIds(
   if (bindingMode === "message") {
     // 消息绑定模式：优先使用消息元数据，回退到当前激活的 Agent/User 配置
     agentId = metadata?.agentId ?? agentStore.currentAgentId ?? undefined;
-    const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
-
     // 确定 User Profile ID (Message-Bound 优先，Agent 绑定回退，Global 回退)
     userProfileId = metadata?.userProfileId;
     if (!userProfileId) {
-      userProfileId = agent?.userProfileId ?? undefined;
-    }
-    if (!userProfileId) {
-      userProfileId = userProfileStore.globalProfileId ?? undefined;
+      const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
+      userProfileId = userProfileStore.getEffectiveProfile(agent?.userProfileId)?.id;
     }
   } else {
     // 会话绑定模式：忽略消息元数据，使用当前激活的 Agent 和全局档案
     agentId = agentStore.currentAgentId ?? undefined;
     const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
-    userProfileId = agent?.userProfileId ?? userProfileStore.globalProfileId ?? undefined;
+    userProfileId = userProfileStore.getEffectiveProfile(agent?.userProfileId)?.id;
   }
 
   return { agentId, userProfileId };
@@ -229,7 +225,7 @@ const activeRules = computed(() => {
 
   // 获取配置源
   const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
-  const userProfile = userProfileId ? userProfileStore.getProfileById(userProfileId) : userProfileStore.globalProfile;
+  const userProfile = userProfileStore.getEffectiveProfile(userProfileId);
   const globalConfig = settings.value.regexConfig;
 
   // 1. 解析原始规则 (全局 -> Agent -> UserProfile)
@@ -265,7 +261,7 @@ watch(
     const { agentId, userProfileId } = getAgentAndUserProfileIds(metadata, mode);
 
     const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
-    let userProfile = userProfileId ? userProfileStore.getProfileById(userProfileId) : userProfileStore.globalProfile;
+    const userProfile = userProfileStore.getEffectiveProfile(userProfileId);
 
     const macroContext = createMacroContext({
       agent,

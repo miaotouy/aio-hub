@@ -63,6 +63,22 @@ export const useUserProfileStore = defineStore("llmChatUserProfile", {
     enabledProfiles(): UserProfile[] {
       return this.sortedProfiles.filter((p) => p.enabled !== false);
     },
+
+    /**
+     * 获取生效的用户档案（优先级：指定 ID > 全局默认）
+     * 封装了散落在各处的多级回退逻辑
+     */
+    getEffectiveProfile:
+      (state) =>
+      (agentUserProfileId?: string | null): UserProfile | null => {
+        if (agentUserProfileId) {
+          const profile = state.profiles.find((p) => p.id === agentUserProfileId);
+          if (profile) return profile;
+        }
+        // 回退到全局档案
+        if (!state.globalProfileId) return null;
+        return state.profiles.find((p) => p.id === state.globalProfileId) || null;
+      },
   },
 
   actions: {

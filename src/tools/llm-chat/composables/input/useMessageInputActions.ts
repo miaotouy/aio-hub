@@ -138,7 +138,7 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
       // 准备完整的宏上下文
       const session = chatStore.currentFullSession;
       const agent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
-      const userProfile = profileStore.globalProfile;
+      const userProfile = profileStore.getEffectiveProfile(agent?.userProfileId);
 
       const context = createMacroContext({
         userName: userProfile?.name,

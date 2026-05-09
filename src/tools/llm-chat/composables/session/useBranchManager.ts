@@ -178,18 +178,8 @@ export function useBranchManager() {
         const agentStore = useAgentStore();
         const userProfileStore = useUserProfileStore();
 
-        let effectiveProfile = userProfileStore.globalProfile;
-
-        // 尝试从当前 Agent 获取绑定的 Profile
-        if (agentStore.currentAgentId) {
-          const agent = agentStore.getAgentById(agentStore.currentAgentId);
-          if (agent?.userProfileId) {
-            const boundProfile = userProfileStore.getProfileById(agent.userProfileId);
-            if (boundProfile) {
-              effectiveProfile = boundProfile;
-            }
-          }
-        }
+        const agent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
+        const effectiveProfile = userProfileStore.getEffectiveProfile(agent?.userProfileId);
 
         if (effectiveProfile) {
           newNode.metadata = {

@@ -31,7 +31,6 @@ import { type ContextPreviewData, type GetContextPreviewOptions } from "../../ty
 import type { ModelIdentifier } from "../../types";
 import { useTranscriptionManager } from "../features/useTranscriptionManager";
 import { useChatSettings } from "../settings/useChatSettings";
-import type { UserProfile } from "../../types";
 
 const logger = createModuleLogger("llm-chat/chat-handler");
 const errorHandler = createModuleErrorHandler("llm-chat/chat-handler");
@@ -146,7 +145,7 @@ export function useChatHandler() {
         detail: session,
         agent: currentAgent ?? undefined,
         input: content,
-        userProfile: userProfileStore.globalProfile ?? undefined, // 传递 userProfile
+        userProfile: userProfileStore.getEffectiveProfile(currentAgent?.userProfileId) ?? undefined,
       });
       processedContent = await processMacros(macroProcessor, content, macroContext);
     }
@@ -177,25 +176,8 @@ export function useChatHandler() {
 
     // --- 核心优化：提前填充元数据快照，确保 UI 即时显示头像 ---
 
-    // 1. 确定生效的用户档案（智能体绑定 > 全局配置）
-    let effectiveUserProfile: {
-      id: string;
-      name: string;
-      displayName?: string;
-      icon?: string;
-      content?: string;
-    } | null = null;
-    if (currentAgent?.userProfileId) {
-      const profile = userProfileStore.getProfileById(currentAgent.userProfileId);
-      if (profile) {
-        effectiveUserProfile = profile;
-      }
-    } else if (userProfileStore.globalProfileId) {
-      const profile = userProfileStore.getProfileById(userProfileStore.globalProfileId);
-      if (profile) {
-        effectiveUserProfile = profile;
-      }
-    }
+    // 1. 确定生效的用户档案
+    const effectiveUserProfile = userProfileStore.getEffectiveProfile(currentAgent?.userProfileId);
 
     // 2. 保存用户档案快照到用户消息节点
     saveUserProfileSnapshot(userNode, effectiveUserProfile);
@@ -649,7 +631,7 @@ export function useChatHandler() {
           detail: session,
           agent: currentAgent ?? undefined,
           input: pendingInput.text,
-          userProfile: userProfileStore.globalProfile ?? undefined,
+          userProfile: userProfileStore.getEffectiveProfile(currentAgent?.userProfileId) ?? undefined,
         });
         processedContent = await processMacros(macroProcessor, pendingInput.text, macroContext);
       }
@@ -765,11 +747,7 @@ export function useChatHandler() {
     const executionAgent = { ...currentAgent, ...agentConfig };
 
     // 获取用户档案
-    let effectiveUserProfile: UserProfile | null = null;
-    const profileId = currentAgent.userProfileId || userProfileStore.globalProfileId;
-    if (profileId) {
-      effectiveUserProfile = userProfileStore.getProfileById(profileId) || null;
-    }
+    const effectiveUserProfile = userProfileStore.getEffectiveProfile(currentAgent.userProfileId);
 
     const profile = getProfileById(agentConfig.profileId);
     const vcpStore = (await import("@/tools/vcp-connector/stores/vcpConnectorStore")).useVcpStore();

@@ -78,21 +78,19 @@ function getAgentAndUserProfileIds(metadata: any): {
   userProfileId: string | undefined;
 } {
   const agentId = metadata?.agentId ?? agentStore.currentAgentId ?? undefined;
-  const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
-  let userProfileId =
-    metadata?.userProfileId ??
-    agent?.userProfileId ??
-    userProfileStore.globalProfileId ??
-    undefined;
+  // 确定 User Profile ID (Message-Bound 优先，Agent 绑定回退，Global 回退)
+  let userProfileId = metadata?.userProfileId;
+  if (!userProfileId) {
+    const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
+    userProfileId = userProfileStore.getEffectiveProfile(agent?.userProfileId)?.id;
+  }
   return { agentId, userProfileId };
 }
 
 const activeRules = computed(() => {
   const { agentId, userProfileId } = getAgentAndUserProfileIds(props.message.metadata);
   const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
-  const userProfile = userProfileId
-    ? userProfileStore.getProfileById(userProfileId)
-    : userProfileStore.globalProfile;
+  const userProfile = userProfileStore.getEffectiveProfile(userProfileId);
   const globalConfig = settings.value.regexConfig;
 
   const rawRules = resolveRawRules(
@@ -116,9 +114,7 @@ watch(
     }
     const { agentId, userProfileId } = getAgentAndUserProfileIds(metadata);
     const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
-    const userProfile = userProfileId
-      ? userProfileStore.getProfileById(userProfileId)
-      : userProfileStore.globalProfile;
+    const userProfile = userProfileStore.getEffectiveProfile(userProfileId);
 
     const macroContext = createMacroContext({
       agent,

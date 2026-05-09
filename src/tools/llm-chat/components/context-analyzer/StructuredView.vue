@@ -505,13 +505,13 @@ const fallbackUserInfo = computed(() => {
     };
   }
 
-  // 2. 尝试获取全局用户配置
-  const globalProfile = userProfileStore.globalProfile;
-  if (globalProfile) {
+  // 2. 尝试获取当前生效的用户配置（优先使用智能体绑定的档案）
+  const effectiveProfile = userProfileStore.getEffectiveProfile(props.contextData.agentInfo.userProfileId);
+  if (effectiveProfile) {
     // 适配：UserProfile 的 name 是内部ID，displayName 才是显示名
     return {
-      name: globalProfile.displayName || globalProfile.name,
-      icon: globalProfile.icon,
+      name: effectiveProfile.displayName || effectiveProfile.name,
+      icon: effectiveProfile.icon,
     };
   }
 

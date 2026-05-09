@@ -390,7 +390,7 @@ const activeRules = computed(() => {
   const userProfileId = props.message.metadata?.userProfileId ?? userProfileStore.globalProfileId ?? undefined;
 
   const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
-  const userProfile = userProfileId ? userProfileStore.getProfileById(userProfileId) : userProfileStore.globalProfile;
+  const userProfile = userProfileStore.getEffectiveProfile(userProfileId);
   const globalConfig = settings.value.regexConfig;
 
   const rawRules = resolveRawRules("render", globalConfig, agent?.regexConfig, userProfile?.regexConfig);
@@ -409,7 +409,7 @@ watch(
     }
     const macroContext = createMacroContext({
       agent: currentAgent.value,
-      userProfile: userProfileStore.globalProfile ?? undefined,
+      userProfile: userProfileStore.getEffectiveProfile(props.message.metadata?.userProfileId) ?? undefined,
       index: sessionIndex ?? undefined,
       detail: sessionDetail ?? undefined,
     });

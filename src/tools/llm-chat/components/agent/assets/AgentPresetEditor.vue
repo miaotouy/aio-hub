@@ -602,10 +602,7 @@ const isPurePlaceholderAnchorType = (type?: string): boolean => {
 
 // 当前生效的用户档案（智能体绑定 > 全局配置）
 const effectiveUserProfile = computed(() => {
-  if (props.agent?.userProfileId) {
-    return userProfileStore.getProfileById(props.agent.userProfileId) || null;
-  }
-  return userProfileStore.globalProfile;
+  return userProfileStore.getEffectiveProfile(props.agent?.userProfileId);
 });
 
 // 本地消息列表

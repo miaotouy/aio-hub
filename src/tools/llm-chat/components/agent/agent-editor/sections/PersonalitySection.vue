@@ -21,6 +21,9 @@ const kbStore = useKnowledgeBaseStore();
 const quickActionManagerVisible = ref(false);
 
 // 初始化设置
+if (!editForm.quickActionSetIds) {
+  editForm.quickActionSetIds = [];
+}
 if (!editForm.worldbookIds) {
   editForm.worldbookIds = [];
 }

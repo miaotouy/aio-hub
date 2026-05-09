@@ -152,8 +152,11 @@ const activeActionSets = computed(() => {
   const globalIds = chatSettings.value.quickActionSetIds || [];
   const agent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
   const agentIds = agent?.quickActionSetIds || [];
-  const profile = profileStore.globalProfile;
-  const profileIds = profile?.quickActionSetIds || [];
+
+  // 计算生效的用户档案（优先使用智能体绑定的档案，否则使用全局档案）
+  const effectiveProfile =
+    (agent?.userProfileId ? profileStore.getProfileById(agent.userProfileId) : null) || profileStore.globalProfile;
+  const profileIds = effectiveProfile?.quickActionSetIds || [];
 
   // 合并并去重
   const allIds = Array.from(new Set([...globalIds, ...agentIds, ...profileIds]));

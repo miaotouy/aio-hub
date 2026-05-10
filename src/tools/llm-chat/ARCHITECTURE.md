@@ -289,7 +289,15 @@ graph TD
 - **VCP 协议支持**: 支持 `vcp` 协议，纯文本结构适用于所有能输出文本的模型，不挑API支持度。
 - **角色兼容性**: 提供 `convertToolRoleToUser` 选项，将 `tool` 角色消息转换为 `user` 角色，以适配不支持原生工具角色的模型。
 
-### 1.22. 性能监控与指标 (Performance Metrics)
+### 1.22. 技能系统集成 (Skill System Integration)
+
+系统通过 `skill-manager` 模块引入了对 Agent Skills 规范的支持，将外部 Skill 包作为一种特殊的工具能力注入到对话中。
+
+- **渐进式披露 (Progressive Disclosure)**: 遵循 [Agent Skills 规范](https://agentskills.io/llms.txt)。初始仅向 LLM 展示 Skill 的摘要（通过 `activate_<name>` 方法描述），只有当模型决定调用该 Skill 时，才会返回完整的 `SKILL.md` 指令、资源索引和宿主环境信息。
+- **工具桥接**: `SkillManagerProxy` 充当了 Skill 能力与 `tool-calling` 系统之间的桥梁，动态生成工具定义并处理脚本执行请求。
+- **资源感知**: 模型可以通过通用工具（如 `skill_read_file`）按需读取 Skill 目录内的具体文档或代码，实现深度的上下文感知。
+
+### 1.23. 性能监控与指标 (Performance Metrics)
 
 系统实时收集并展示 LLM 请求的关键性能指标，帮助用户评估模型响应质量。
 
@@ -297,14 +305,14 @@ graph TD
 - **TPS (Tokens Per Second)**: 计算生成过程中的平均速度，衡量模型吞吐量。
 - **Token 统计**: 区分 `promptTokens` 和 `completionTokens`，并提供本地估算功能 (`contentTokens`)。
 
-### 1.23. 插件化设置系统 (Plugin Settings System)
+### 1.24. 插件化设置系统 (Plugin Settings System)
 
 为了保持核心逻辑的简洁并支持功能扩展，系统实现了一套声明式的设置注入机制。
 
-- **动态注册**: 外部模块（如转写工具、搜索增强）可以通过 `usePluginSettings` 动态向聊天设置对话框中注入新的配置分区或配置项。
+- **动态注册**: 外部模块（如转写工具、搜索增强、技能管理）可以通过 `usePluginSettings` 动态向聊天设置对话框中注入新的配置分区或配置项。
 - **解耦交互**: 核心设置 UI 不需要预知所有可能的配置项，而是通过遍历注册中心自动渲染，实现了 UI 与业务插件的解耦。
 
-### 1.24. 世界书系统 (Worldbook System)
+### 1.25. 世界书系统 (Worldbook System)
 
 世界书是一个基于关键词触发的动态背景知识库，专门用于增强角色扮演的连贯性。
 
@@ -312,7 +320,7 @@ graph TD
 - **精准触发**: 采用高性能的关键词扫描算法，在构建上下文时实时匹配消息内容并注入关联条目。
 - **管理界面**: 提供独立的世界书管理器，支持条目的分类、批量编辑和多格式导入。
 
-### 1.25. 文件路径转附件 (File Path to Attachment Conversion)
+### 1.26. 文件路径转附件 (File Path to Attachment Conversion)
 
 为了方便用户处理包含本地资源的外部内容（如从 QQ、微信等聊天软件粘贴的消息记录），系统提供了一套智能的路径转换与渲染映射机制。
 

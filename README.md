@@ -45,16 +45,17 @@ AIO Hub 的聊天功能是一个专为复杂任务和深度探索而设计的、
 
 ### ⚡ 交互增强与生态兼容 (Interactive AI & Compatibility)
 
-- **快捷动作系统 (Quick Actions)**: 位于输入栏的指令增强系统，支持自定义脚本与宏，并支持导入 SillyTavern 快捷动作，显著提升输入效率。
+- **快捷动作系统 (Quick Actions)**: 位于输入栏的指令增强系统，支持自定义脚本与宏，并支持导入 SillyTavern 快捷动作，显著提升输入效率。新增行级文本后处理功能，可对生成结果逐行添加前缀/后缀或进行正则替换。
 - **交互式 AI 按钮**: 支持 LLM 输出受控的可交互按钮（通过自定义标签），点击即可执行发送、填充或复制等安全操作，实现 AI 对 UI 的反向控制。
+- **Agent Skill 集成**: 基于 [Agent Skills 规范](https://agentskills.io/) 的渐进式披露策略，Skill 作为工具系统的一部分无缝融入对话流。初始仅注入技能摘要，LLM 按需激活后才获得完整指令与资源访问权，兼顾上下文效率与能力扩展。
 - **世界书兼容 (Worldbook)**: 深度兼容 SillyTavern 格式的世界书，支持基于关键词触发的动态上下文注入，便于挂载超大规模设定集。
 - **分段式智能体编辑器**: 模块化管理智能体人设、能力插件、模型参数及资产附件，支持 **PNG 角色卡 (V2/V3)** 导入导出。
 - **智能体资产系统**: 支持智能体携带专属的私有媒体资产（表情包、BGM、场景图），通过 `agent-asset://` 协议引用，配合 `{{assets}}` 宏让 LLM 主动在回复中使用这些资产。
 
 ### 🌳 深度对话管理 (Dual-View Management)
 
-- **非线性对话图谱**: 由 `Vue Flow` + `D3.js` 驱动，将对话历史呈现为可交互的树状网络，支持分支“嫁接”、物理模拟布局及无限画布导航。
-- **极致性能线性视图**: 基于虚拟滚动技术，轻松处理包含数千条消息的超长会话。
+- **非线性对话图谱**: 由 `Vue Flow` + `D3.js` 驱动，将对话历史呈现为可交互的树状网络，支持分支"嫁接"、物理模拟布局及无限画布导航。支持从当前消息直接创建分支。
+- **极致性能线性视图**: 基于浏览器原生 `content-visibility` 延迟渲染技术，轻松处理包含数千条消息的超长会话，滚动如丝般顺滑。
 - **动态智能体切换**: 对话与智能体解耦，在同一会话中可随时切换不同领域的 AI 专家。
 - **撤销/重做系统**: 会话级别的撤销/重做功能，采用快照与增量相结合的混合存储策略，支持编辑、删除、分支切换等操作的回滚。
 
@@ -79,7 +80,7 @@ AIO Hub 的聊天功能是一个专为复杂任务和深度探索而设计的、
 ### 🎨 极致视觉体验
 
 - **原生特效**: 支持 Windows Mica / Acrylic 和 macOS Vibrancy 毛玻璃特效。
-- **动态壁纸**: 支持视频/图片轮播壁纸，配合 CSS 混合模式 (Blend Modes)，打造沉浸式工作台。内置精选壁纸库，支持自定义壁纸轮播。
+- **动态壁纸**: 支持视频/图片轮播壁纸，配合 CSS 混合模式 (Blend Modes)，打造沉浸式工作台。内置精选壁纸库，支持自定义壁纸轮播。全新壁纸取色功能，基于 OKLCH 色彩空间算法自动提取并应用主题色。
 - **深度定制**: 内置 CSS 编辑器，支持实时修改应用样式的每一个细节。
 - **灵活布局**: 侧边栏支持三种模式（固定侧边栏/抽屉/下拉菜单），适配不同屏幕尺寸。
 
@@ -95,7 +96,7 @@ AIO Hub 的聊天功能是一个专为复杂任务和深度探索而设计的、
 
 ### 🎬 多媒体创作中心 (Media Workstation)
 
-- **媒体生成器 (Media Generator)**: 全功能生成工作站，支持图像/音频/视频任务流，具备独立的分支管理与任务队列。
+- **媒体生成器 (Media Generator)**: 全功能生成工作站，支持图像/音频/视频任务流，具备独立的分支管理与任务队列。内置快速生成模式（无需创建会话即可使用）、参考图上传（自动适配视觉模型）及 16:9 / 9:16 等常用比例预设。
 - **音视频转写中心 (Transcription)**: 基于多模型驱动的转写引擎，支持超长 PDF 分批视觉解析、视频内容描述及音频语音转文字。
 - **FFmpeg 高性能助手**: 基于 Rust 后端的高性能媒体处理工具，支持视频压缩、格式转换及批量处理。
 
@@ -201,13 +202,14 @@ bun run tauri build
 
 ## 📚 文档与支持
 
+- **📖 用户文档站**: [docs.aiohub-app.com](https://docs.aiohub-app.com) — 全新 VitePress 文档站点，涵盖快速入门、各工具模块详细配置指南，支持全文搜索。
 - **插件开发**: [插件开发指南](docs/guide/plugin-development-guide.md)
 - **常见问题**: [DeepWiki (AI 自动维护)](https://deepwiki.com/miaotouy/aio-hub)
 
 ### 📘 架构文档
 
 > 🤖 **对 AI / 爬虫 agents 的指引**：如需深入了解项目全部 33 个工具模块的架构设计、核心定位与技术亮点，请阅读以下 raw 原始文件，无页面渲染干扰。
-> 
+>
 > **[工具架构总集篇](https://raw.githubusercontent.com/miaotouy/aio-hub/main/docs/architecture/tools-architecture-overview.md)** `https://raw.githubusercontent.com/miaotouy/aio-hub/main/docs/architecture/tools-architecture-overview.md`
 > **[设置架构总集篇](https://raw.githubusercontent.com/miaotouy/aio-hub/main/docs/architecture/settings-architecture-overview.md)** `https://raw.githubusercontent.com/miaotouy/aio-hub/main/docs/architecture/tools-architecture-overview.md`
 

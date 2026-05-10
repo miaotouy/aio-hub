@@ -73,7 +73,7 @@ watch(
       loadGenerationInfo();
     }
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 // 监听显示状态
@@ -138,7 +138,7 @@ const handleRemix = async () => {
 </script>
 
 <template>
-  <BaseDialog v-model="visible" title="生成参数信息" width="600px" height="auto" max-height="80vh">
+  <BaseDialog v-model="visible" title="生成参数信息" maxWidth="800px" height="auto" max-height="80vh">
     <div class="generation-info-container">
       <div v-if="isLoading" class="loading-state">
         <el-icon class="is-loading"><Loader2 /></el-icon>
@@ -156,10 +156,7 @@ const handleRemix = async () => {
           <div class="content-box prompt-box negative">{{ displayData.negativePrompt }}</div>
         </div>
 
-        <div
-          class="info-section"
-          v-if="displayData.revisedPrompt && displayData.revisedPrompt !== displayData.prompt"
-        >
+        <div class="info-section" v-if="displayData.revisedPrompt && displayData.revisedPrompt !== displayData.prompt">
           <div class="section-title">优化后提示词 (Revised Prompt)</div>
           <div class="content-box prompt-box revised">{{ displayData.revisedPrompt }}</div>
         </div>
@@ -194,12 +191,7 @@ const handleRemix = async () => {
     <template #footer>
       <div class="dialog-footer">
         <el-button @click="visible = false">关闭</el-button>
-        <el-button
-          type="primary"
-          @click="handleRemix"
-          :icon="Sparkles"
-          :disabled="isLoading || !displayData.prompt"
-        >
+        <el-button type="primary" @click="handleRemix" :icon="Sparkles" :disabled="isLoading || !displayData.prompt">
           二次创作 (Remix)
         </el-button>
       </div>

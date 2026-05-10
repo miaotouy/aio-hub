@@ -135,16 +135,14 @@ const backdropStyles = computed(() => {
     zIndex: dynamicZIndex.value,
   };
 
-  // 对话框通常挂载在 body 下，而标题栏占据了顶部文档流空间 (36px)。
-  // 为了让对话框在“剩余可视区域”内居中，或者从标题栏下方开始偏移，我们需要添加补偿。
+  // 遮罩层现在从标题栏下方开始 (top: var(--titlebar-height))
+  // 因此 padding 补偿逻辑需要调整
   if (props.top) {
     styles.alignItems = "flex-start";
-    // 如果指定了 top，则从标题栏下方开始计算
-    styles.paddingTop = `calc(var(--titlebar-height) + ${props.top})`;
+    // 如果指定了 top，相对于遮罩层顶部（即标题栏底部）偏移
+    styles.paddingTop = formatSize(props.top);
   } else {
     styles.alignItems = "center";
-    // 垂直居中模式下，添加顶部 padding 使内容重心下移，避开被标题栏压住的感觉
-    styles.paddingTop = "var(--titlebar-height)";
   }
   return styles;
 });
@@ -250,7 +248,10 @@ onBeforeUnmount(() => {
 /* 遮罩层 */
 .base-dialog-backdrop {
   position: fixed;
-  inset: 0;
+  top: var(--titlebar-height);
+  left: 0;
+  right: 0;
+  bottom: 0;
   background-color: rgba(var(--backdrop-bg-rgb), 0.3);
   display: flex;
   align-items: center;

@@ -169,6 +169,25 @@ const activeActionSets = computed(() => {
   return allIds.map((id) => quickActionStore.loadedSets.get(id)).filter(Boolean) as QuickActionSet[];
 });
 
+/**
+ * 核心逻辑：确保生效的用户档案详情已加载
+ * 解决 Agent 绑定的档案在未手动点开前不加载详情，导致快捷操作不显示的问题
+ */
+const effectiveUserProfileId = computed(() => {
+  const agent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
+  return agent?.userProfileId || profileStore.globalProfileId;
+});
+
+watch(
+  effectiveUserProfileId,
+  (id) => {
+    if (id) {
+      profileStore.ensureProfileLoaded(id);
+    }
+  },
+  { immediate: true },
+);
+
 const continuationModelInfo = computed(() => {
   if (!props.continuationModel) return null;
   const profile = getProfileById(props.continuationModel.profileId);

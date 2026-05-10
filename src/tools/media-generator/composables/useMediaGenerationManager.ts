@@ -249,6 +249,11 @@ export function useMediaGenerationManager() {
         };
       }
 
+      taskManager.updateTaskStatus(taskId, "processing", {
+        statusText: "正在生成中...",
+        progress: 30,
+      });
+
       const response = await sendRequest({
         ...finalOptions,
         signal: controller.signal,

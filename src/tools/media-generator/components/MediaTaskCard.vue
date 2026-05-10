@@ -1,0 +1,459 @@
+<script setup lang="ts">
+import { ref, onMounted, watch } from "vue";
+import { format } from "date-fns";
+import {
+  Film,
+  Music,
+  Image as ImageIcon,
+  Clock,
+  Copy,
+  ExternalLink,
+  Loader2,
+  AlertCircle,
+  Trash2,
+  RefreshCcw,
+  Download,
+  Trash2 as TrashIcon,
+} from "lucide-vue-next";
+import type { MediaTask } from "../types";
+import { useAssetManager } from "@/composables/useAssetManager";
+
+const props = defineProps<{
+  task: MediaTask;
+}>();
+
+const emit = defineEmits<{
+  (e: "remove", id: string): void;
+  (e: "cancel", id: string): void;
+  (e: "retry", task: MediaTask): void;
+  (e: "download", task: MediaTask): void;
+  (e: "copyPrompt", prompt: string): void;
+  (e: "copyResult", task: MediaTask): void;
+  (e: "open", task: MediaTask): void;
+}>();
+
+const { getAssetUrl } = useAssetManager();
+const assetUrl = ref("");
+
+const loadUrl = async () => {
+  const asset = props.task.resultAssets?.[0];
+  if (asset) {
+    assetUrl.value = await getAssetUrl(asset);
+  }
+};
+
+onMounted(loadUrl);
+
+watch(
+  () => props.task.resultAssets,
+  () => {
+    loadUrl();
+  },
+  { deep: true },
+);
+
+const getTaskIcon = (type: string) => {
+  switch (type) {
+    case "video":
+      return Film;
+    case "audio":
+      return Music;
+    default:
+      return ImageIcon;
+  }
+};
+
+const getStatusType = (status: string) => {
+  switch (status) {
+    case "completed":
+      return "success";
+    case "processing":
+      return "primary";
+    case "error":
+      return "danger";
+    case "cancelled":
+      return "info";
+    default:
+      return "info";
+  }
+};
+
+const getStatusLabel = (status: string) => {
+  switch (status) {
+    case "completed":
+      return "已完成";
+    case "processing":
+      return "生成中";
+    case "error":
+      return "失败";
+    case "cancelled":
+      return "已取消";
+    case "pending":
+      return "排队中";
+    default:
+      return status;
+  }
+};
+
+const getTaskResolution = (task: MediaTask) => {
+  const asset = task.resultAssets?.[0];
+  if (asset?.metadata?.width && asset?.metadata?.height) {
+    return `${asset.metadata.width}x${asset.metadata.height}`;
+  }
+  if (task.input.params?.size) {
+    return task.input.params.size;
+  }
+  return "";
+};
+</script>
+
+<template>
+  <div class="task-card" :class="task.status">
+    <!-- 卡片头部 -->
+    <div class="task-header">
+      <div class="task-type">
+        <el-icon><component :is="getTaskIcon(task.type)" /></el-icon>
+        <span class="model-name">{{ task.input.modelId }}</span>
+      </div>
+      <div class="task-time">
+        <el-icon><Clock /></el-icon>
+        <span>{{ format(task.createdAt, "HH:mm:ss") }}</span>
+      </div>
+    </div>
+
+    <!-- 任务内容预览 -->
+    <div class="task-content">
+      <div class="prompt-wrapper">
+        <div class="prompt-preview" :title="task.input.prompt">
+          {{ task.input.prompt }}
+        </div>
+        <el-tooltip content="复制提示词" placement="top">
+          <el-button :icon="Copy" link class="copy-prompt-btn" @click="emit('copyPrompt', task.input.prompt)" />
+        </el-tooltip>
+      </div>
+
+      <!-- 结果展示区域 -->
+      <div class="result-area">
+        <!-- 完成状态：显示缩略图/视频 -->
+        <template v-if="task.status === 'completed'">
+          <div class="media-preview" @click="emit('open', task)">
+            <img v-if="task.type === 'image'" :src="assetUrl" alt="result" loading="lazy" />
+            <div v-else-if="task.type === 'video'" class="video-placeholder">
+              <el-icon><Film /></el-icon>
+              <span>点击查看视频</span>
+            </div>
+            <div v-else class="audio-placeholder">
+              <el-icon><Music /></el-icon>
+              <span>点击播放音频</span>
+            </div>
+            <div class="overlay">
+              <el-icon><ExternalLink /></el-icon>
+            </div>
+            <div v-if="getTaskResolution(task)" class="media-info-tag">
+              {{ getTaskResolution(task) }}
+            </div>
+          </div>
+        </template>
+
+        <!-- 处理中状态 -->
+        <template v-else-if="task.status === 'processing'">
+          <div class="status-container processing">
+            <el-icon class="is-loading"><Loader2 /></el-icon>
+            <div class="progress-info">
+              <el-progress :percentage="task.progress" :stroke-width="4" striped striped-flow :show-text="false" />
+              <span class="status-text">{{ task.statusText || "正在生成中..." }}</span>
+            </div>
+          </div>
+        </template>
+
+        <!-- 错误状态 -->
+        <template v-else-if="task.status === 'error'">
+          <div class="status-container error">
+            <el-icon><AlertCircle /></el-icon>
+            <span class="error-msg">{{ task.error || "生成失败" }}</span>
+          </div>
+        </template>
+
+        <!-- 等待状态 -->
+        <template v-else>
+          <div class="status-container pending">
+            <el-icon><Clock /></el-icon>
+            <span>排队等待中...</span>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <!-- 卡片底部操作栏 -->
+    <div class="task-footer">
+      <el-tag :type="getStatusType(task.status)" size="small" class="status-tag">
+        {{ getStatusLabel(task.status) }}
+      </el-tag>
+
+      <div class="actions">
+        <el-tooltip v-if="task.status === 'processing' || task.status === 'pending'" content="取消任务" placement="top">
+          <el-button :icon="Trash2" circle size="small" type="warning" plain @click="emit('cancel', task.id)" />
+        </el-tooltip>
+        <el-tooltip v-if="task.status !== 'processing' && task.status !== 'pending'" content="重新生成" placement="top">
+          <el-button :icon="RefreshCcw" circle size="small" @click="emit('retry', task)" />
+        </el-tooltip>
+        <el-tooltip v-if="task.status === 'completed'" content="复制结果" placement="top">
+          <el-button :icon="Copy" circle size="small" @click="emit('copyResult', task)" />
+        </el-tooltip>
+        <el-tooltip v-if="task.status === 'completed'" content="下载" placement="top">
+          <el-button :icon="Download" circle size="small" @click="emit('download', task)" />
+        </el-tooltip>
+        <el-tooltip content="删除" placement="top">
+          <el-button :icon="TrashIcon" circle size="small" type="danger" plain @click="emit('remove', task.id)" />
+        </el-tooltip>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.task-card {
+  background-color: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  min-width: 0;
+}
+
+.task-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--el-color-primary-light-5);
+  box-shadow: var(--el-box-shadow-light);
+}
+
+.task-header {
+  padding: 10px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: var(--border-width) solid var(--border-color);
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+.task-type {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--el-text-color-primary);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.model-name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.task-time {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+}
+
+.task-content {
+  padding: 12px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.prompt-wrapper {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  position: relative;
+}
+
+.prompt-preview {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--el-text-color-regular);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 36px;
+  flex: 1;
+}
+
+.copy-prompt-btn {
+  padding: 2px;
+  height: auto;
+  opacity: 0;
+  transition: opacity 0.2s;
+  color: var(--el-text-color-secondary);
+}
+
+.copy-prompt-btn:hover {
+  color: var(--el-color-primary);
+  background-color: transparent;
+}
+
+.prompt-wrapper:hover .copy-prompt-btn {
+  opacity: 1;
+}
+
+.result-area {
+  aspect-ratio: 16 / 9;
+  background-color: var(--el-fill-color-lighter);
+  border-radius: 8px;
+  overflow: hidden;
+  position: relative;
+  border: var(--border-width) solid var(--border-color);
+}
+
+.media-preview {
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  position: relative;
+}
+
+.media-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.video-placeholder,
+.audio-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
+.media-preview .overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s;
+  color: white;
+  font-size: 24px;
+}
+
+.media-preview:hover .overlay {
+  opacity: 1;
+}
+
+.media-info-tag {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  color: white;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 1;
+  font-family: monospace;
+}
+
+.status-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.status-container.processing {
+  color: var(--el-color-primary);
+}
+
+.status-container.error {
+  color: var(--el-color-danger);
+}
+
+.status-container.pending {
+  color: var(--el-text-color-placeholder);
+}
+
+.progress-info {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.status-text {
+  font-size: 11px;
+  text-align: center;
+  opacity: 0.8;
+}
+
+.error-msg {
+  font-size: 12px;
+  text-align: center;
+  line-height: 1.4;
+  word-break: break-all;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.task-footer {
+  padding: 10px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: var(--border-width) solid var(--border-color);
+}
+
+.actions {
+  display: flex;
+  gap: 6px;
+}
+
+.is-loading {
+  animation: rotating 2s linear infinite;
+  font-size: 24px;
+}
+
+@keyframes rotating {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+</style>

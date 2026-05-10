@@ -1,14 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from "vue";
-import {
-  Search,
-  Info,
-  Download,
-  Trash2,
-  Video as VideoIcon,
-  Music as AudioIcon,
-  RefreshCw,
-} from "lucide-vue-next";
+import { Search, Info, Download, Trash2, Video as VideoIcon, Music as AudioIcon, RefreshCw } from "lucide-vue-next";
 import { useAssetManager, type Asset } from "@/composables/useAssetManager";
 import { invoke } from "@tauri-apps/api/core";
 import { useImageViewer } from "@/composables/useImageViewer";
@@ -18,8 +10,7 @@ import { useGenerationInfoViewer } from "../composables/useGenerationInfoViewer"
 import type { MediaTaskType } from "../types";
 import { useInfiniteScroll } from "@vueuse/core";
 
-const { assets, isLoading, hasMore, loadAssetsPaginated, getAssetUrl, removeSourceFromAsset } =
-  useAssetManager();
+const { assets, isLoading, hasMore, loadAssetsPaginated, getAssetUrl, removeSourceFromAsset } = useAssetManager();
 const { show: showImageViewer } = useImageViewer();
 const { previewVideo } = useVideoViewer();
 const { previewAudio } = useAudioViewer();
@@ -52,14 +43,12 @@ const loadData = async (append = false) => {
       });
 
       // 提取所有关联的资产 ID
-      const assetIds = searchResults
-        .map((r) => r.asset_id)
-        .filter((id): id is string => !!id);
+      const assetIds = searchResults.map((r) => r.asset_id).filter((id): id is string => !!id);
 
       if (assetIds.length > 0) {
         // 去重
         const uniqueAssetIds = [...new Set(assetIds)];
-        
+
         // 根据 ID 获取资产对象
         const matchedAssets: Asset[] = [];
         for (const id of uniqueAssetIds) {
@@ -79,13 +68,15 @@ const loadData = async (append = false) => {
 
         assets.value = matchedAssets;
         hasMore.value = false; // 搜索模式暂不支持分页
-        
-        // 加载可见资产的 URL
-        for (const asset of assets.value) {
-          if (!assetUrls.value[asset.id]) {
-            assetUrls.value[asset.id] = await getAssetUrl(asset);
-          }
-        }
+
+        // 并行加载可见资产的 URL
+        await Promise.all(
+          assets.value.map(async (asset) => {
+            if (!assetUrls.value[asset.id]) {
+              assetUrls.value[asset.id] = await getAssetUrl(asset);
+            }
+          }),
+        );
         return;
       }
     } catch (e) {
@@ -106,15 +97,17 @@ const loadData = async (append = false) => {
       sortBy: "date",
       sortOrder: "desc",
     },
-    append
+    append,
   );
 
-  // 加载可见资产的 URL
-  for (const asset of assets.value) {
-    if (!assetUrls.value[asset.id]) {
-      assetUrls.value[asset.id] = await getAssetUrl(asset);
-    }
-  }
+  // 并行加载可见资产的 URL
+  await Promise.all(
+    assets.value.map(async (asset) => {
+      if (!assetUrls.value[asset.id]) {
+        assetUrls.value[asset.id] = await getAssetUrl(asset);
+      }
+    }),
+  );
 };
 
 // 初始加载
@@ -136,7 +129,7 @@ useInfiniteScroll(
       loadData(true);
     }
   },
-  { distance: 10 }
+  { distance: 10 },
 );
 
 const handlePreview = (asset: Asset) => {
@@ -207,25 +200,14 @@ const handleRefresh = () => {
 
         <div class="stats">
           <el-tag type="info" effect="plain"> 共 {{ assets.length }} 个结果 </el-tag>
-          <el-button
-            :icon="RefreshCw"
-            circle
-            size="small"
-            @click="handleRefresh"
-            :loading="isLoading"
-          />
+          <el-button :icon="RefreshCw" circle size="small" @click="handleRefresh" :loading="isLoading" />
         </div>
       </div>
     </div>
 
     <!-- 瀑布流/网格内容 -->
     <div v-if="assets.length > 0" ref="galleryContainer" class="gallery-grid">
-      <div
-        v-for="asset in assets"
-        :key="asset.id"
-        class="gallery-item"
-        @click="handlePreview(asset)"
-      >
+      <div v-for="asset in assets" :key="asset.id" class="gallery-item" @click="handlePreview(asset)">
         <!-- 预览图 -->
         <div class="item-preview">
           <template v-if="asset.type === 'image'">
@@ -236,6 +218,7 @@ const handleRefresh = () => {
               :src="assetUrls[asset.id]"
               muted
               loop
+              preload="none"
               onmouseover="this.play()"
               onmouseout="this.pause()"
             ></video>
@@ -257,11 +240,7 @@ const handleRefresh = () => {
           <div class="item-overlay">
             <div class="overlay-top">
               <p class="prompt-hint">
-                {{
-                  (asset.metadata as any)?.generation?.prompt ||
-                  (asset.metadata as any)?.prompt ||
-                  asset.name
-                }}
+                {{ (asset.metadata as any)?.generation?.prompt || (asset.metadata as any)?.prompt || asset.name }}
               </p>
             </div>
             <div class="overlay-bottom">

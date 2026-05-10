@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, ref, onMounted } from "vue";
 import { useMediaGenStore } from "../stores/mediaGenStore";
 import { useMediaTaskManager } from "../composables/useMediaTaskManager";
 import { useMediaGenerationManager } from "../composables/useMediaGenerationManager";
@@ -9,35 +9,25 @@ import { customMessage } from "@/utils/customMessage";
 import { save } from "@tauri-apps/plugin-dialog";
 import { copyFile } from "@tauri-apps/plugin-fs";
 import { join } from "@tauri-apps/api/path";
-import { format } from "date-fns";
-import {
-  Image as ImageIcon,
-  Film,
-  Music,
-  Trash2,
-  RefreshCcw,
-  Download,
-  ExternalLink,
-  Clock,
-  AlertCircle,
-  Loader2,
-  Search,
-  Copy,
-  Trash2 as TrashIcon,
-} from "lucide-vue-next";
+import { Search, Trash2 as TrashIcon } from "lucide-vue-next";
 import type { MediaTask, MediaTaskStatus, MediaTaskType } from "../types";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { useVideoViewer } from "@/composables/useVideoViewer";
 import { useAudioViewer } from "@/composables/useAudioViewer";
+import { useVirtualList } from "@vueuse/core";
+import MediaTaskCard from "./MediaTaskCard.vue";
 
 const store = useMediaGenStore();
 const taskManager = useMediaTaskManager();
 const { abortTask } = useMediaGenerationManager();
 const logger = createModuleLogger("media-generator/task-list");
-const { getAssetUrl, getAssetBasePath } = useAssetManager();
+const { getAssetBasePath, getAssetUrl } = useAssetManager();
 const imageViewer = useImageViewer();
 const videoViewer = useVideoViewer();
 const audioViewer = useAudioViewer();
+
+// 资产 URL 映射缓存 (供复制和打开使用)
+const assetUrls = ref<Record<string, string>>({});
 
 // 搜索和筛选状态
 const searchQuery = ref("");
@@ -70,48 +60,48 @@ const filteredTasks = computed(() => {
   return list.sort((a, b) => b.createdAt - a.createdAt);
 });
 
-const getTaskIcon = (type: string) => {
-  switch (type) {
-    case "video":
-      return Film;
-    case "audio":
-      return Music;
-    default:
-      return ImageIcon;
-  }
-};
+// 虚拟列表配置 - 考虑到网格布局，我们需要按行分组
+const COL_WIDTH = 300; // 估计每个卡片的最小宽度 + 间距
+const containerWidth = ref(1200); // 默认宽度
 
-const getStatusType = (status: string) => {
-  switch (status) {
-    case "completed":
-      return "success";
-    case "processing":
-      return "primary";
-    case "error":
-      return "danger";
-    case "cancelled":
-      return "info";
-    default:
-      return "info";
-  }
-};
+// 计算每行显示多少个
+const colsPerRow = computed(() => {
+  return Math.max(1, Math.floor(containerWidth.value / COL_WIDTH));
+});
 
-const getStatusLabel = (status: string) => {
-  switch (status) {
-    case "completed":
-      return "已完成";
-    case "processing":
-      return "生成中";
-    case "error":
-      return "失败";
-    case "cancelled":
-      return "已取消";
-    case "pending":
-      return "排队中";
-    default:
-      return status;
+// 将任务按行分组
+const taskRows = computed(() => {
+  const rows = [];
+  const tasks = filteredTasks.value;
+  const cols = colsPerRow.value;
+  for (let i = 0; i < tasks.length; i += cols) {
+    rows.push(tasks.slice(i, i + cols));
   }
-};
+  return rows;
+});
+
+const {
+  list: virtualRows,
+  containerProps,
+  wrapperProps,
+} = useVirtualList(taskRows, {
+  itemHeight: 360, // 行高度 (卡片高度 + 间距)
+  overscan: 10, // 增加预加载行数以减少快速滚动时的抖动
+});
+
+// 监听容器大小变化
+onMounted(() => {
+  const container = containerProps.ref.value;
+  if (container) {
+    containerWidth.value = container.clientWidth;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        containerWidth.value = entry.contentRect.width;
+      }
+    });
+    observer.observe(container);
+  }
+});
 
 const handleRemoveTask = (taskId: string) => {
   store.removeTask(taskId);
@@ -133,11 +123,9 @@ const clearFinishedTasks = () => {
 };
 
 const handleRetryTask = (task: MediaTask) => {
-  // 直接从任务对象中恢复参数，这样更直接且类型安全
   store.inputPrompt = task.input.prompt;
   store.currentConfig.activeType = task.type;
 
-  // 恢复对应类型的配置
   const typeConfig = store.currentConfig.types[task.type];
   if (typeConfig) {
     typeConfig.modelCombo = `${task.input.profileId}:${task.input.modelId}`;
@@ -149,17 +137,25 @@ const handleRetryTask = (task: MediaTask) => {
   logger.info("已恢复任务参数，准备重试", { taskId: task.id });
 };
 
+const getOrUpdateAssetUrl = async (task: MediaTask) => {
+  if (assetUrls.value[task.id]) return assetUrls.value[task.id];
+  const asset = task.resultAssets?.[0];
+  if (asset) {
+    const url = await getAssetUrl(asset);
+    assetUrls.value[task.id] = url;
+    return url;
+  }
+  return "";
+};
+
 const handleDownloadTask = async (task: MediaTask) => {
   const asset = task.resultAssets?.[0];
   if (!asset) return;
 
   try {
-    // 获取资产存储的根目录
     const basePath = await getAssetBasePath();
-    // 拼接源文件的完整路径
     const sourcePath = await join(basePath, asset.path);
 
-    // 弹出保存对话框
     const targetPath = await save({
       title: "下载媒体文件",
       defaultPath: asset.name,
@@ -172,7 +168,6 @@ const handleDownloadTask = async (task: MediaTask) => {
     });
 
     if (targetPath) {
-      // 执行文件拷贝到用户指定的路径
       await copyFile(sourcePath, targetPath);
       customMessage.success("文件已下载成功");
       logger.info("文件下载成功", { taskId: task.id, targetPath });
@@ -192,7 +187,7 @@ const handleCopyResult = async (task: MediaTask) => {
   const asset = task.resultAssets?.[0];
   if (!asset) return;
 
-  const url = assetUrls.value[task.id];
+  const url = await getOrUpdateAssetUrl(task);
   if (!url) return;
 
   try {
@@ -206,36 +201,21 @@ const handleCopyResult = async (task: MediaTask) => {
       ]);
       customMessage.success("图片已复制到剪贴板");
     } else {
-      // 视频和音频复制链接
       await navigator.clipboard.writeText(url);
       customMessage.success(`${task.type === "video" ? "视频" : "音频"}链接已复制`);
     }
   } catch (err) {
     logger.error("复制失败", err);
-    // 回退到复制链接
     await navigator.clipboard.writeText(url);
     customMessage.success("已复制媒体链接");
   }
 };
 
-const getTaskResolution = (task: MediaTask) => {
-  const asset = task.resultAssets?.[0];
-  // 优先从资产元数据获取实际尺寸
-  if (asset?.metadata?.width && asset?.metadata?.height) {
-    return `${asset.metadata.width}x${asset.metadata.height}`;
-  }
-  // 其次从输入参数获取请求尺寸
-  if (task.input.params?.size) {
-    return task.input.params.size;
-  }
-  return "";
-};
-
-const handleOpenAsset = (task: MediaTask) => {
+const handleOpenAsset = async (task: MediaTask) => {
   const asset = task.resultAssets?.[0];
   if (!asset) return;
 
-  const url = assetUrls.value[task.id];
+  const url = await getOrUpdateAssetUrl(task);
   if (task.type === "image") {
     imageViewer.show(url);
   } else if (task.type === "video") {
@@ -244,24 +224,6 @@ const handleOpenAsset = (task: MediaTask) => {
     audioViewer.previewAudio(asset);
   }
 };
-
-// 资产 URL 映射缓存
-const assetUrls = ref<Record<string, string>>({});
-
-// 监听任务变化，更新资产 URL
-watch(
-  () => store.tasks,
-  async (newTasks) => {
-    if (!Array.isArray(newTasks)) return;
-    for (const task of newTasks) {
-      const asset = task?.resultAssets?.[0];
-      if (asset && !assetUrls.value[task.id]) {
-        assetUrls.value[task.id] = await getAssetUrl(asset);
-      }
-    }
-  },
-  { deep: true, immediate: true },
-);
 </script>
 
 <template>
@@ -327,128 +289,20 @@ watch(
       <el-empty description="没有找到匹配的任务" />
     </div>
 
-    <div v-else class="task-list-container">
-      <div class="task-grid">
-        <div v-for="task in filteredTasks" :key="task.id" class="task-card" :class="task.status">
-          <!-- 卡片头部 -->
-          <div class="task-header">
-            <div class="task-type">
-              <el-icon><component :is="getTaskIcon(task.type)" /></el-icon>
-              <span class="model-name">{{ task.input.modelId }}</span>
-            </div>
-            <div class="task-time">
-              <el-icon><Clock /></el-icon>
-              <span>{{ format(task.createdAt, "HH:mm:ss") }}</span>
-            </div>
-          </div>
-
-          <!-- 任务内容预览 -->
-          <div class="task-content">
-            <div class="prompt-wrapper">
-              <div class="prompt-preview" :title="task.input.prompt">
-                {{ task.input.prompt }}
-              </div>
-              <el-tooltip content="复制提示词" placement="top">
-                <el-button :icon="Copy" link class="copy-prompt-btn" @click="handleCopyPrompt(task.input.prompt)" />
-              </el-tooltip>
-            </div>
-
-            <!-- 结果展示区域 -->
-            <div class="result-area">
-              <!-- 完成状态：显示缩略图/视频 -->
-              <template v-if="task.status === 'completed'">
-                <div class="media-preview" @click="handleOpenAsset(task)">
-                  <img v-if="task.type === 'image'" :src="assetUrls[task.id]" alt="result" />
-                  <div v-else-if="task.type === 'video'" class="video-placeholder">
-                    <el-icon><Film /></el-icon>
-                    <span>点击查看视频</span>
-                  </div>
-                  <div v-else class="audio-placeholder">
-                    <el-icon><Music /></el-icon>
-                    <span>点击播放音频</span>
-                  </div>
-                  <div class="overlay">
-                    <el-icon><ExternalLink /></el-icon>
-                  </div>
-                  <div v-if="getTaskResolution(task)" class="media-info-tag">
-                    {{ getTaskResolution(task) }}
-                  </div>
-                </div>
-              </template>
-
-              <!-- 处理中状态 -->
-              <template v-else-if="task.status === 'processing'">
-                <div class="status-container processing">
-                  <el-icon class="is-loading"><Loader2 /></el-icon>
-                  <div class="progress-info">
-                    <el-progress
-                      :percentage="task.progress"
-                      :stroke-width="4"
-                      striped
-                      striped-flow
-                      :show-text="false"
-                    />
-                    <span class="status-text">{{ task.statusText || "正在生成中..." }}</span>
-                  </div>
-                </div>
-              </template>
-
-              <!-- 错误状态 -->
-              <template v-else-if="task.status === 'error'">
-                <div class="status-container error">
-                  <el-icon><AlertCircle /></el-icon>
-                  <span class="error-msg">{{ task.error || "生成失败" }}</span>
-                </div>
-              </template>
-
-              <!-- 等待状态 -->
-              <template v-else>
-                <div class="status-container pending">
-                  <el-icon><Clock /></el-icon>
-                  <span>排队等待中...</span>
-                </div>
-              </template>
-            </div>
-          </div>
-
-          <!-- 卡片底部操作栏 -->
-          <div class="task-footer">
-            <el-tag :type="getStatusType(task.status)" size="small" class="status-tag">
-              {{ getStatusLabel(task.status) }}
-            </el-tag>
-
-            <div class="actions">
-              <el-tooltip
-                v-if="task.status === 'processing' || task.status === 'pending'"
-                content="取消任务"
-                placement="top"
-              >
-                <el-button :icon="Trash2" circle size="small" type="warning" plain @click="handleCancelTask(task.id)" />
-              </el-tooltip>
-              <el-tooltip
-                v-if="task.status !== 'processing' && task.status !== 'pending'"
-                content="重新生成"
-                placement="top"
-              >
-                <el-button :icon="RefreshCcw" circle size="small" @click="handleRetryTask(task)" />
-              </el-tooltip>
-              <el-tooltip v-if="task.status === 'completed'" content="复制结果" placement="top">
-                <el-button :icon="Copy" circle size="small" @click="handleCopyResult(task)" />
-              </el-tooltip>
-              <el-tooltip v-if="task.status === 'completed'" content="下载" placement="top">
-                <el-button :icon="Download" circle size="small" @click="handleDownloadTask(task)" />
-              </el-tooltip>
-              <el-tooltip content="删除" placement="top">
-                <el-button
-                  :icon="TrashIcon"
-                  circle
-                  size="small"
-                  type="danger"
-                  plain
-                  @click="handleRemoveTask(task.id)"
-                />
-              </el-tooltip>
-            </div>
+    <div v-else class="task-list-container" v-bind="containerProps">
+      <div class="task-grid-virtual" v-bind="wrapperProps">
+        <div v-for="row in virtualRows" :key="row.index" class="task-row">
+          <div v-for="task in row.data" :key="task.id" class="task-col">
+            <MediaTaskCard
+              :task="task"
+              @remove="handleRemoveTask"
+              @cancel="handleCancelTask"
+              @retry="handleRetryTask"
+              @download="handleDownloadTask"
+              @copy-prompt="handleCopyPrompt"
+              @copy-result="handleCopyResult"
+              @open="handleOpenAsset"
+            />
           </div>
         </div>
       </div>
@@ -565,257 +419,22 @@ watch(
   opacity: 0.6;
 }
 
-.task-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
-  gap: 16px;
+.task-grid-virtual {
   width: 100%;
   max-width: 1400px;
   margin: 0 auto;
-}
-
-.task-card {
-  background-color: var(--card-bg);
-  backdrop-filter: blur(var(--ui-blur));
-  border: var(--border-width) solid var(--border-color);
-  border-radius: 12px;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden; /* 确保内部内容不溢出产生滚动条 */
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  min-width: 0; /* 防止 flex 子元素溢出 */
-}
-
-.task-card:hover {
-  transform: translateY(-2px);
-  border-color: var(--el-color-primary-light-5);
-  box-shadow: var(--el-box-shadow-light);
-}
-
-.task-header {
-  padding: 10px 12px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: var(--border-width) solid var(--border-color);
-  background-color: rgba(0, 0, 0, 0.02);
-}
-
-.task-type {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--el-text-color-primary);
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.model-name {
-  max-width: 120px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
-  opacity: 0.8;
-}
-
-.task-time {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  color: var(--el-text-color-secondary);
-}
-
-.task-content {
-  padding: 12px;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.prompt-wrapper {
-  display: flex;
-  align-items: flex-start;
-  gap: 4px;
-  position: relative;
-}
-
-.prompt-preview {
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--el-text-color-regular);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  min-height: 36px;
-  flex: 1;
-}
-
-.copy-prompt-btn {
-  padding: 2px;
-  height: auto;
-  opacity: 0;
-  transition: opacity 0.2s;
-  color: var(--el-text-color-secondary);
-}
-
-.copy-prompt-btn:hover {
-  color: var(--el-color-primary);
-  background-color: transparent;
-}
-
-.prompt-wrapper:hover .copy-prompt-btn {
-  opacity: 1;
-}
-
-.result-area {
-  aspect-ratio: 16 / 9;
-  background-color: var(--el-fill-color-lighter);
-  border-radius: 8px;
-  overflow: hidden;
-  position: relative;
-  border: var(--border-width) solid var(--border-color);
-}
-
-.media-preview {
-  width: 100%;
-  height: 100%;
-  cursor: pointer;
-  position: relative;
-}
-
-.media-preview img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.video-placeholder,
-.audio-placeholder {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
-}
-
-.media-preview .overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.3);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0;
-  transition: opacity 0.2s;
-  color: white;
-  font-size: 24px;
-}
-
-.media-preview:hover .overlay {
-  opacity: 1;
-}
-
-.media-info-tag {
-  position: absolute;
-  bottom: 6px;
-  right: 6px;
-  background-color: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px);
-  color: white;
-  font-size: 10px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  pointer-events: none;
-  z-index: 1;
-  font-family: monospace;
-}
-
-.status-container {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 20px;
   box-sizing: border-box;
 }
 
-.status-container.processing {
-  color: var(--el-color-primary);
-}
-
-.status-container.error {
-  color: var(--el-color-danger);
-}
-
-.status-container.pending {
-  color: var(--el-text-color-placeholder);
-}
-
-.progress-info {
-  width: 100%;
+.task-row {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  gap: 16px;
+  padding: 8px 0;
+  box-sizing: border-box;
 }
 
-.status-text {
-  font-size: 11px;
-  text-align: center;
-  opacity: 0.8;
-}
-
-.error-msg {
-  font-size: 12px;
-  text-align: center;
-  line-height: 1.4;
-  word-break: break-all;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
-  -webkit-box-orient: vertical;
-}
-
-.task-footer {
-  padding: 10px 12px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-top: var(--border-width) solid var(--border-color);
-}
-
-.actions {
-  display: flex;
-  gap: 6px;
-}
-
-.is-loading {
-  animation: rotating 2s linear infinite;
-  font-size: 24px;
-}
-
-@keyframes rotating {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.task-col {
+  flex: 1;
+  min-width: 0;
 }
 </style>

@@ -17,7 +17,7 @@ onMounted(() => {
 
 <template>
   <div class="media-generator-container">
-    <el-tabs v-model="activeTab" class="main-tabs">
+    <el-tabs v-model="activeTab" class="main-tabs" lazy>
       <!-- 工作台标签页 -->
       <el-tab-pane name="workbench">
         <template #label>
@@ -47,10 +47,7 @@ onMounted(() => {
             <el-icon><Activity /></el-icon>
             <span>任务列表</span>
             <el-badge
-              v-if="
-                Array.isArray(store.tasks) &&
-                store.tasks.filter((t) => t.status === 'processing').length > 0
-              "
+              v-if="Array.isArray(store.tasks) && store.tasks.filter((t) => t.status === 'processing').length > 0"
               :value="store.tasks.filter((t) => t.status === 'processing').length"
               type="primary"
               is-dot

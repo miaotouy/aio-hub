@@ -5,6 +5,7 @@
 import { defineStore } from "pinia";
 import { useQuickActionStorage } from "../composables/storage/useQuickActionStorage";
 import type { QuickActionSet, QuickActionSetMetadata } from "../types/quick-action";
+import { DEFAULT_QUICK_ACTION_SETS } from "../config/defaultQuickActions";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { getLocalISOString } from "@/utils/time";
@@ -299,63 +300,7 @@ export const useQuickActionStore = defineStore("llmChatQuickAction", {
      * 初始化默认组
      */
     async initializeDefaultSets() {
-      const defaultSets: QuickActionSet[] = [
-        {
-          id: "qa-code-helper",
-          name: "代码助手",
-          description: "优化代码交流的快捷操作",
-          isEnabled: true,
-          updatedAt: getLocalISOString(),
-          actions: [
-            {
-              id: "wrap-hidden-code",
-              label: "包入隐藏代码块",
-              content: "<!--\n```\n{{input}}\n```\n-->\n\n\n",
-              autoSend: false,
-              icon: "Code",
-            },
-            {
-              id: "append-hidden-code",
-              label: "追加隐藏代码块",
-              content: "{{input}}\n\n<!--\n```\n\n```\n-->\n\n\n",
-              autoSend: false,
-              icon: "PlusCircle",
-            },
-            {
-              id: "full-code-update",
-              label: "完整代码",
-              content: "{{input}}\n\n合并更新刚才讨论的内容到对应的最新完整版本，让我一键复制。",
-              autoSend: true,
-              icon: "FileCode",
-            },
-          ],
-        },
-        {
-          id: "qa-common-tools",
-          name: "通用工具",
-          description: "常用文本包装工具",
-          isEnabled: true,
-          updatedAt: getLocalISOString(),
-          actions: [
-            {
-              id: "html-details",
-              label: "HTML 折叠",
-              content: "<details>\n<summary>点击展开内容</summary>\n\n{{input}}\n\n</details>",
-              autoSend: false,
-              icon: "ChevronDownSquare",
-            },
-            {
-              id: "quote-text",
-              label: "引用",
-              content: "> {{input}}",
-              autoSend: false,
-              icon: "Quote",
-            },
-          ],
-        },
-      ];
-
-      for (const set of defaultSets) {
+      for (const set of DEFAULT_QUICK_ACTION_SETS) {
         this.loadedSets.set(set.id, set);
         await this.saveSet(set.id);
       }

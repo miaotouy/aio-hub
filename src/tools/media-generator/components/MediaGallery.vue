@@ -329,17 +329,13 @@ const handleRefresh = () => {
   background-color: var(--card-bg);
   border: var(--border-width) solid var(--border-color);
   cursor: pointer;
-  transition:
-    transform 0.2s,
-    box-shadow 0.2s;
   /* 优化视口外渲染性能 */
   content-visibility: auto;
   contain-intrinsic-size: auto 200px;
 }
 
 .gallery-item:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--el-box-shadow);
+  border-color: var(--el-color-primary);
 }
 
 .item-preview {

@@ -31,12 +31,13 @@
 - **更新**: 当该请求的响应从目标服务器返回后，Rust 检查器会创建一个 `ResponseRecord`，并通过 `inspector-response` 事件发送给前端。前端根据 `id` 找到对应的 `CombinedRecord`，并填充其 `response` 字段。
 - **状态**: 通过检查 `response` 字段是否存在，UI 可以清晰地展示请求的状态（进行中或已完成）。
 
-### 1.4. 实时流式处理 (`StreamProcessor`)
+### 1.4. 实时流式处理与多格式提取 (`StreamProcessor`)
 
-现代 LLM API 广泛使用 Server-Sent Events (SSE) 进行流式响应。本工具内置了强大的流式处理能力。
+现代 LLM API 广泛使用 Server-Sent Events (SSE) 进行流式响应。本工具内置了强大的流式处理和智能内容提取能力。
 
 - **事件驱动**: Rust 后端在收到流式数据块 (`chunk`) 时，会通过 `inspector-stream-update` 事件将其发送给前端，而不是等待整个响应结束后再发送。
 - **前端缓冲**: `streamProcessor.ts` 模块负责接收这些数据块，并将它们追加到一个以 `recordId` 为键的缓冲区 (`StreamBuffer`) 中。
+- **智能内容提取**: 针对不同厂商的 API 格式（OpenAI, Anthropic, Gemini, Ollama 等），工具能够自动识别并提取出核心内容。不仅支持普通的文本，还支持 **Thinking (推理过程)** 和 **Tool Calls (工具调用)** 的解析与展示。
 - **实时解析与渲染**: UI 组件可以响应式地监听这个缓冲区。`streamProcessor` 提供了工具函数，能够从原始的 SSE 格式数据中提取出有意义的文本内容，或将原始数据格式化后进行显示，从而实现打字机般的实时渲染效果。
 
 ### 1.5. 模块化管理器 (Managers)
@@ -161,13 +162,17 @@ sequenceDiagram
 - 内置过滤和搜索逻辑 (`getFilteredRecords`)，将原始数据列表转换为 UI 需要展示的数据。
 - 管理当前选中的记录 (`selectedRecord`)。
 
-### 4.4. `streamProcessor.ts`
+### 4.4. `streamProcessor.ts` & `utils.ts`
 
-**职责**: 实时流式数据处理器。
+**职责**: 实时流式数据处理器与多格式内容提取引擎。
 
 - 维护一个流式数据缓冲区 `streamBuffer`，以 `recordId` 关联。
 - `processStreamUpdate` 方法是其核心入口，用于接收和累积数据块。
-- 提供一系列工具函数 (`getDisplayResponseBody`, `extractContent`)，用于将原始 SSE 数据转换为用户友好的显示格式。
+- **多格式提取引擎 (`utils.ts`)**:
+  - **格式检测**: 通过请求 URL 自动识别 API 格式（如检测 `/v1/chat/completions` 为 OpenAI 格式）。
+  - **专用提取器**: 为 OpenAI (Chat/Responses)、Anthropic、Gemini、Cohere 和 Ollama 提供专用提取逻辑。
+  - **深度解析**: 能够识别并提取 `reasoning_content` (o1/o3)、`thinking` (Claude) 以及各种格式的工具调用参数。
+- 提供一系列工具函数 (`getDisplayResponseBody`, `extractContent`)，用于将原始 SSE 数据或 JSON 响应转换为用户友好的显示格式。
 - 跟踪哪些记录当前正处于流式传输状态 (`activeStreamIds`)。
 
 ### 4.5. `configManager.ts`

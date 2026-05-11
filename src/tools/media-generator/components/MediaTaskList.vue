@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, onMounted } from "vue";
+import { computed, ref, watch, onBeforeUnmount } from "vue";
 import { useMediaGenStore } from "../stores/mediaGenStore";
 import { useMediaTaskManager } from "../composables/useMediaTaskManager";
 import { useMediaGenerationManager } from "../composables/useMediaGenerationManager";
@@ -90,18 +90,33 @@ const {
   overscan: 10, // 增加预加载行数以减少快速滚动时的抖动
 });
 
-// 监听容器大小变化
-onMounted(() => {
-  const container = containerProps.ref.value;
-  if (container) {
-    containerWidth.value = container.clientWidth;
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        containerWidth.value = entry.contentRect.width;
-      }
-    });
-    observer.observe(container);
-  }
+// 监听容器大小变化 - 使用 watch 而非 onMounted，因为容器在 v-else 条件渲染下
+// 冷启动时 store 异步加载数据，onMounted 时容器 DOM 可能还不存在
+let resizeObserver: ResizeObserver | null = null;
+
+watch(
+  () => containerProps.ref.value,
+  (container) => {
+    // 清理旧 observer
+    if (resizeObserver) {
+      resizeObserver.disconnect();
+      resizeObserver = null;
+    }
+    if (container) {
+      containerWidth.value = container.clientWidth;
+      resizeObserver = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          containerWidth.value = entry.contentRect.width;
+        }
+      });
+      resizeObserver.observe(container);
+    }
+  },
+  { immediate: true },
+);
+
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect();
 });
 
 const handleRemoveTask = (taskId: string) => {

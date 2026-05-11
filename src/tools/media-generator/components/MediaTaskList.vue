@@ -61,11 +61,12 @@ const filteredTasks = computed(() => {
 });
 
 // 虚拟列表配置 - 考虑到网格布局，我们需要按行分组
-const COL_WIDTH = 300; // 估计每个卡片的最小宽度 + 间距
-const containerWidth = ref(1200); // 默认宽度
+const COL_WIDTH = 260; // 每个卡片的最小宽度 + 间距
+const containerWidth = ref(0); // 初始为 0，等 ResizeObserver 同步真实宽度
 
-// 计算每行显示多少个
+// 计算每行显示多少个（容器未就绪时默认 1 列）
 const colsPerRow = computed(() => {
+  if (containerWidth.value <= 0) return 1;
   return Math.max(1, Math.floor(containerWidth.value / COL_WIDTH));
 });
 
@@ -435,6 +436,7 @@ const handleOpenAsset = async (task: MediaTask) => {
 
 .task-col {
   flex: 1;
-  min-width: 0;
+  min-width: 220px;
+  max-width: 100%;
 }
 </style>

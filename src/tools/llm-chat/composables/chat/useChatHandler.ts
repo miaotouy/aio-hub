@@ -533,8 +533,11 @@ export function useChatHandler() {
         agentIcon: currentAgent?.icon,
         profileId: agentConfig.profileId,
         profileName: profile?.name,
+        profileDisplayName: profile?.name,
         modelId: agentConfig.modelId,
         modelName: model?.name || model?.id,
+        modelDisplayName: model?.name || model?.id,
+        virtualTimeConfig: currentAgent?.virtualTimeConfig,
       };
     }
 
@@ -735,6 +738,17 @@ export function useChatHandler() {
           modelId: agentConfig.modelId,
           profileId: agentConfig.profileId,
         });
+
+        // 覆盖元数据快照，确保 UI 反映实际执行的模型
+        assistantNode.metadata = {
+          ...assistantNode.metadata,
+          profileId: agentConfig.profileId,
+          profileName: targetProfile.name,
+          profileDisplayName: targetProfile.name,
+          modelId: agentConfig.modelId,
+          modelName: targetModel.name || targetModel.id,
+          modelDisplayName: targetModel.name || targetModel.id,
+        };
       }
     }
 

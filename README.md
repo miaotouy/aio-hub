@@ -10,8 +10,9 @@
 
 [![License](https://img.shields.io/badge/license-Apache%202.0%20%2F%20Proprietary-blue.svg)](#-许可证)
 [![Documentation](https://img.shields.io/badge/Documentation-docs-brightgreen.svg)](https://docs.aiohub-app.com)
-[![Tauri](https://img.shields.io/badge/Tauri-2.0-blue.svg)](https://tauri.app/)
+[![Tauri](https://img.shields.io/badge/Tauri-2.10-blue.svg)](https://tauri.app/)
 [![Vue](https://img.shields.io/badge/Vue-3.5-green.svg)](https://vuejs.org/)
+[![Vite](https://img.shields.io/badge/Vite-8.0-purple.svg)](https://vite.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-blue.svg)](https://www.typescriptlang.org/)
 
 [![Stars](https://img.shields.io/github/stars/miaotouy/aio-hub?style=social)](https://github.com/miaotouy/aio-hub/stargazers)

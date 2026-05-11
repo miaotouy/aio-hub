@@ -1,12 +1,23 @@
 <div align="center">
+  <img src="docs/public/assets/产品概念图-1.jpg" alt="AIO Hub Banner" width="100%">
+</div>
 
-<img src="src/assets/aio-icon-color.png" alt="AIO Hub Logo" width="120" height="120">
+<br/>
 
-# AIO Hub
+<table align="center" border="0">
+  <tr>
+    <td align="center" width="160">
+      <img src="src/assets/aio-icon-color.png" alt="AIO Hub Logo" width="120" height="120">
+    </td>
+    <td align="left">
+      <h1>AIO Hub</h1>
+      <p><strong>一站式 AI 创作与开发工作站 | 专业级上下文工程引擎</strong></p>
+      <p>一个基于 Tauri + Vue 3 + TypeScript 构建的跨平台 AI 枢纽，旨在为开发者与创作者提供精准的 LLM 操控体验与高效工具链。</p>
+    </td>
+  </tr>
+</table>
 
-**一站式 AI 创作与开发工作站 | 专业级上下文工程引擎**
-
-一个基于 Tauri + Vue 3 + TypeScript 构建的跨平台 AI 枢纽，旨在为开发者与创作者提供精准的 LLM 操控体验与高效工具链。
+<div align="center">
 
 [![License](https://img.shields.io/badge/license-Apache%202.0%20%2F%20Proprietary-blue.svg)](#-许可证)
 [![Documentation](https://img.shields.io/badge/Documentation-docs-brightgreen.svg)](https://docs.aiohub-app.com)

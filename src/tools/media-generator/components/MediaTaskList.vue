@@ -61,7 +61,7 @@ const filteredTasks = computed(() => {
 });
 
 // 虚拟列表配置 - 考虑到网格布局，我们需要按行分组
-const COL_WIDTH = 260; // 每个卡片的最小宽度 + 间距
+const COL_WIDTH = 280; // 每个卡片的最小宽度 + 间距
 const containerWidth = ref(0); // 初始为 0，等 ResizeObserver 同步真实宽度
 
 // 计算每行显示多少个（容器未就绪时默认 1 列）
@@ -437,8 +437,6 @@ const handleOpenAsset = async (task: MediaTask) => {
 
 .task-grid-virtual {
   width: 100%;
-  max-width: 1400px;
-  margin: 0 auto;
   box-sizing: border-box;
 }
 
@@ -451,7 +449,7 @@ const handleOpenAsset = async (task: MediaTask) => {
 
 .task-col {
   flex: 1;
-  min-width: 220px;
-  max-width: 100%;
+  min-width: 240px;
+  max-width: 480px;
 }
 </style>

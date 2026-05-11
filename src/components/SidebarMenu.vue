@@ -258,6 +258,8 @@ const handleCloseTool = async (event: MouseEvent, toolPath: string) => {
   overflow: hidden;
   text-overflow: ellipsis;
   color: inherit;
+  line-height: 1.5;
+  padding-bottom: 2px;
 }
 
 .close-tab-btn {

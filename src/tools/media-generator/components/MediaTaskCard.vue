@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import { format } from "date-fns";
 import {
   Film,
@@ -14,9 +14,12 @@ import {
   RefreshCcw,
   Download,
   Trash2 as TrashIcon,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-vue-next";
 import type { MediaTask } from "../types";
 import { useAssetManager } from "@/composables/useAssetManager";
+import { useImageViewer } from "@/composables/useImageViewer";
 
 const props = defineProps<{
   task: MediaTask;
@@ -32,22 +35,84 @@ const emit = defineEmits<{
   (e: "open", task: MediaTask): void;
 }>();
 
-const { getAssetUrl } = useAssetManager();
-const assetUrl = ref("");
+const { getAssetUrl, getAssetBasePath, convertToAssetProtocol } = useAssetManager();
+const imageViewer = useImageViewer();
 
-const loadUrl = async () => {
-  const asset = props.task.resultAssets?.[0];
-  if (asset) {
-    assetUrl.value = await getAssetUrl(asset);
+// 结果多图支持
+const resultAssetUrls = ref<string[]>([]);
+const activeResultIndex = ref(0);
+const referenceAssetUrls = ref<string[]>([]);
+
+const hasReferenceImages = computed(() => referenceAssetUrls.value.length > 0);
+const hasMultipleResults = computed(() => resultAssetUrls.value.length > 1);
+
+const loadResultUrls = async () => {
+  const assets = props.task.resultAssets;
+  if (!assets || assets.length === 0) {
+    resultAssetUrls.value = [];
+    return;
+  }
+  const urls: string[] = [];
+  for (const asset of assets) {
+    const url = await getAssetUrl(asset);
+    if (url) urls.push(url);
+  }
+  resultAssetUrls.value = urls;
+  // 重置索引
+  if (activeResultIndex.value >= urls.length) {
+    activeResultIndex.value = 0;
   }
 };
 
-onMounted(loadUrl);
+const loadReferenceUrls = async () => {
+  const paths = props.task.input.referenceAssetIds;
+  if (!paths || paths.length === 0) {
+    referenceAssetUrls.value = [];
+    return;
+  }
+  const basePath = await getAssetBasePath();
+  const urls: string[] = [];
+  for (const path of paths) {
+    if (!path) continue;
+    // referenceAssetIds 实际存储的是资产相对路径，直接转换为协议 URL
+    const url = convertToAssetProtocol(path, basePath);
+    if (url) urls.push(url);
+  }
+  referenceAssetUrls.value = urls;
+};
+
+/** 点击参考图 → 打开预览，支持切换 */
+const openReferencePreview = (index: number) => {
+  if (referenceAssetUrls.value.length > 0) {
+    imageViewer.show(referenceAssetUrls.value, index);
+  }
+};
+
+/** 切换结果图索引 */
+const prevResult = () => {
+  if (activeResultIndex.value > 0) activeResultIndex.value--;
+};
+const nextResult = () => {
+  if (activeResultIndex.value < resultAssetUrls.value.length - 1) activeResultIndex.value++;
+};
+
+onMounted(() => {
+  loadResultUrls();
+  loadReferenceUrls();
+});
 
 watch(
   () => props.task.resultAssets,
   () => {
-    loadUrl();
+    loadResultUrls();
+  },
+  { deep: true },
+);
+
+watch(
+  () => props.task.input.referenceAssetIds,
+  () => {
+    loadReferenceUrls();
   },
   { deep: true },
 );
@@ -133,54 +198,94 @@ const getTaskResolution = (task: MediaTask) => {
       </div>
 
       <!-- 结果展示区域 -->
-      <div class="result-area">
-        <!-- 完成状态：显示缩略图/视频 -->
-        <template v-if="task.status === 'completed'">
-          <div class="media-preview" @click="emit('open', task)">
-            <img v-if="task.type === 'image'" :src="assetUrl" alt="result" loading="lazy" />
-            <div v-else-if="task.type === 'video'" class="video-placeholder">
-              <el-icon><Film /></el-icon>
-              <span>点击查看视频</span>
-            </div>
-            <div v-else class="audio-placeholder">
-              <el-icon><Music /></el-icon>
-              <span>点击播放音频</span>
-            </div>
-            <div class="overlay">
-              <el-icon><ExternalLink /></el-icon>
-            </div>
-            <div v-if="getTaskResolution(task)" class="media-info-tag">
-              {{ getTaskResolution(task) }}
+      <div class="result-row" :class="{ 'has-reference': hasReferenceImages }">
+        <!-- 参考图区域：竖向排列，超过3个可滚动 -->
+        <div v-if="hasReferenceImages" class="reference-panel">
+          <div class="reference-label">参考图 ({{ referenceAssetUrls.length }})</div>
+          <div class="reference-list">
+            <div
+              v-for="(url, idx) in referenceAssetUrls"
+              :key="idx"
+              class="reference-thumb"
+              @click="openReferencePreview(idx)"
+            >
+              <img :src="url" alt="reference" loading="lazy" />
+              <div class="reference-overlay">
+                <el-icon><ExternalLink /></el-icon>
+              </div>
             </div>
           </div>
-        </template>
+        </div>
 
-        <!-- 处理中状态 -->
-        <template v-else-if="task.status === 'processing'">
-          <div class="status-container processing">
-            <el-icon class="is-loading"><Loader2 /></el-icon>
-            <div class="progress-info">
-              <el-progress :percentage="task.progress" :stroke-width="4" striped striped-flow :show-text="false" />
-              <span class="status-text">{{ task.statusText || "正在生成中..." }}</span>
+        <!-- 结果区域 -->
+        <div class="result-area">
+          <!-- 完成状态：显示缩略图/视频 -->
+          <template v-if="task.status === 'completed'">
+            <div class="media-preview" @click="emit('open', task)">
+              <img
+                v-if="task.type === 'image'"
+                :src="resultAssetUrls[activeResultIndex] || ''"
+                alt="result"
+                loading="lazy"
+              />
+              <div v-else-if="task.type === 'video'" class="video-placeholder">
+                <el-icon><Film /></el-icon>
+                <span>点击查看视频</span>
+              </div>
+              <div v-else class="audio-placeholder">
+                <el-icon><Music /></el-icon>
+                <span>点击播放音频</span>
+              </div>
+              <div class="overlay">
+                <el-icon><ExternalLink /></el-icon>
+              </div>
+              <div v-if="getTaskResolution(task)" class="media-info-tag">
+                {{ getTaskResolution(task) }}
+              </div>
             </div>
-          </div>
-        </template>
+            <!-- 多图切换指示器 -->
+            <div v-if="hasMultipleResults" class="result-nav">
+              <button class="nav-btn" :disabled="activeResultIndex === 0" @click.stop="prevResult">
+                <el-icon><ChevronLeft /></el-icon>
+              </button>
+              <span class="nav-indicator">{{ activeResultIndex + 1 }} / {{ resultAssetUrls.length }}</span>
+              <button
+                class="nav-btn"
+                :disabled="activeResultIndex === resultAssetUrls.length - 1"
+                @click.stop="nextResult"
+              >
+                <el-icon><ChevronRight /></el-icon>
+              </button>
+            </div>
+          </template>
 
-        <!-- 错误状态 -->
-        <template v-else-if="task.status === 'error'">
-          <div class="status-container error">
-            <el-icon><AlertCircle /></el-icon>
-            <span class="error-msg">{{ task.error || "生成失败" }}</span>
-          </div>
-        </template>
+          <!-- 处理中状态 -->
+          <template v-else-if="task.status === 'processing'">
+            <div class="status-container processing">
+              <el-icon class="is-loading"><Loader2 /></el-icon>
+              <div class="progress-info">
+                <el-progress :percentage="task.progress" :stroke-width="4" striped striped-flow :show-text="false" />
+                <span class="status-text">{{ task.statusText || "正在生成中..." }}</span>
+              </div>
+            </div>
+          </template>
 
-        <!-- 等待状态 -->
-        <template v-else>
-          <div class="status-container pending">
-            <el-icon><Clock /></el-icon>
-            <span>排队等待中...</span>
-          </div>
-        </template>
+          <!-- 错误状态 -->
+          <template v-else-if="task.status === 'error'">
+            <div class="status-container error">
+              <el-icon><AlertCircle /></el-icon>
+              <span class="error-msg">{{ task.error || "生成失败" }}</span>
+            </div>
+          </template>
+
+          <!-- 等待状态 -->
+          <template v-else>
+            <div class="status-container pending">
+              <el-icon><Clock /></el-icon>
+              <span>排队等待中...</span>
+            </div>
+          </template>
+        </div>
       </div>
     </div>
 
@@ -222,6 +327,7 @@ const getTaskResolution = (task: MediaTask) => {
   overflow: hidden;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   min-width: 0;
+  height: 350px; /* 统一卡片高度 */
 }
 
 .task-card:hover {
@@ -309,6 +415,98 @@ const getTaskResolution = (task: MediaTask) => {
 .prompt-wrapper:hover .copy-prompt-btn {
   opacity: 1;
 }
+.result-row {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  min-height: 0;
+}
+
+.result-row:not(.has-reference) .result-area {
+  flex: 1;
+}
+
+.result-row.has-reference .reference-panel {
+  flex: 0 0 72px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.result-row.has-reference .result-area {
+  flex: 1;
+  min-width: 0;
+}
+
+.reference-label {
+  font-size: 10px;
+  color: var(--el-text-color-secondary);
+  padding: 0 2px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.reference-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+  max-height: calc(64px * 3 + 4px * 2);
+  border-radius: 6px;
+  scrollbar-width: thin;
+}
+
+.reference-list::-webkit-scrollbar {
+  width: 3px;
+}
+
+.reference-list::-webkit-scrollbar-thumb {
+  background-color: var(--el-border-color-lighter);
+  border-radius: 2px;
+}
+
+.reference-thumb {
+  flex-shrink: 0;
+  width: 64px;
+  height: 64px;
+  border-radius: 6px;
+  overflow: hidden;
+  background-color: var(--el-fill-color-lighter);
+  border: var(--border-width) solid var(--border-color);
+  cursor: pointer;
+  position: relative;
+  transition: border-color 0.2s;
+}
+
+.reference-thumb:hover {
+  border-color: var(--el-color-primary-light-5);
+}
+
+.reference-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.reference-overlay {
+  position: absolute;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s;
+  color: white;
+  font-size: 14px;
+}
+
+.reference-thumb:hover .reference-overlay {
+  opacity: 1;
+}
 
 .result-area {
   aspect-ratio: 16 / 9;
@@ -363,6 +561,53 @@ const getTaskResolution = (task: MediaTask) => {
 
 .media-preview:hover .overlay {
   opacity: 1;
+}
+
+/* 多图切换导航 */
+.result-nav {
+  position: absolute;
+  bottom: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background-color: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  border-radius: 12px;
+  padding: 2px 8px;
+  z-index: 2;
+}
+
+.nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: white;
+  cursor: pointer;
+  border-radius: 50%;
+  padding: 0;
+  transition: background-color 0.2s;
+}
+
+.nav-btn:hover:not(:disabled) {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.nav-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.nav-indicator {
+  font-size: 11px;
+  color: white;
+  font-family: monospace;
+  white-space: nowrap;
 }
 
 .media-info-tag {

@@ -86,7 +86,7 @@ const {
   containerProps,
   wrapperProps,
 } = useVirtualList(taskRows, {
-  itemHeight: 360, // 行高度 (卡片高度 + 间距)
+  itemHeight: 370, // 行高度 (卡片高度 + 间距)
   overscan: 10, // 增加预加载行数以减少快速滚动时的抖动
 });
 
@@ -228,16 +228,23 @@ const handleCopyResult = async (task: MediaTask) => {
 };
 
 const handleOpenAsset = async (task: MediaTask) => {
-  const asset = task.resultAssets?.[0];
-  if (!asset) return;
+  const assets = task.resultAssets;
+  if (!assets || assets.length === 0) return;
 
-  const url = await getOrUpdateAssetUrl(task);
   if (task.type === "image") {
-    imageViewer.show(url);
+    // 多图预览：加载所有结果图 URL
+    const urls: string[] = [];
+    for (const asset of assets) {
+      const url = await getAssetUrl(asset);
+      if (url) urls.push(url);
+    }
+    if (urls.length > 0) {
+      imageViewer.show(urls, 0);
+    }
   } else if (task.type === "video") {
-    videoViewer.previewVideo(asset);
+    videoViewer.previewVideo(assets[0]);
   } else if (task.type === "audio") {
-    audioViewer.previewAudio(asset);
+    audioViewer.previewAudio(assets[0]);
   }
 };
 </script>

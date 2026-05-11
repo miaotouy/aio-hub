@@ -9,8 +9,17 @@
       </el-radio-group>
     </div>
 
-    <div v-if="!isSession" class="options-section">
-      <div class="section-title">导出范围</div>
+    <div v-if="!isSession" class="options-section" :class="{ 'is-disabled': useContextPipeline }">
+      <div class="section-title">
+        导出范围
+        <el-tooltip
+          v-if="useContextPipeline"
+          content="真实 Payload 模式下由管道自动管理上下文窗口，不支持手动选择范围"
+          placement="top"
+        >
+          <span class="option-hint"> (已由管道接管) </span>
+        </el-tooltip>
+      </div>
       <div class="range-selector">
         <div class="range-inputs">
           <el-input-number
@@ -19,6 +28,7 @@
             :max="range[1]"
             size="small"
             controls-position="right"
+            :disabled="useContextPipeline"
           />
           <span class="range-separator">至</span>
           <el-input-number
@@ -27,6 +37,7 @@
             :max="maxRange"
             size="small"
             controls-position="right"
+            :disabled="useContextPipeline"
           />
           <span class="range-total">/ 共 {{ maxRange }} 条</span>
         </div>
@@ -38,6 +49,7 @@
           :step="1"
           :show-tooltip="true"
           class="range-slider"
+          :disabled="useContextPipeline"
         />
       </div>
     </div>
@@ -46,7 +58,7 @@
       <div class="section-title">包含内容</div>
       <div class="options-grid">
         <template v-if="!isSession">
-          <el-checkbox v-model="includePreset" class="option-checkbox">
+          <el-checkbox v-model="includePreset" class="option-checkbox" :disabled="useContextPipeline">
             <span class="option-label">
               智能体预设消息
               <span v-if="presetCount > 0" class="option-hint">（{{ presetCount }} 条）</span>
@@ -56,7 +68,7 @@
           <el-checkbox
             v-model="mergePresetIntoMessages"
             class="option-checkbox"
-            :disabled="!includePreset"
+            :disabled="!includePreset || useContextPipeline"
           >
             <span class="option-label"> 合并预设到消息列表 </span>
           </el-checkbox>
@@ -85,6 +97,15 @@
         <el-checkbox v-model="includeErrors" class="option-checkbox">
           <span class="option-label">错误信息</span>
         </el-checkbox>
+
+        <el-checkbox v-model="useContextPipeline" class="option-checkbox">
+          <span class="option-label">
+            使用上下文管道处理
+            <el-tooltip content="将导出经过宏解析、世界书注入、Token 裁剪等处理后的真实 Payload 内容" placement="top">
+              <span class="option-hint"> (真实 Payload) </span>
+            </el-tooltip>
+          </span>
+        </el-checkbox>
       </div>
     </div>
   </div>
@@ -112,6 +133,7 @@ const includeModelInfo = defineModel<boolean>("includeModelInfo", { default: tru
 const includeTokenUsage = defineModel<boolean>("includeTokenUsage", { default: true });
 const includeAttachments = defineModel<boolean>("includeAttachments", { default: true });
 const includeErrors = defineModel<boolean>("includeErrors", { default: true });
+const useContextPipeline = defineModel<boolean>("useContextPipeline", { default: false });
 
 // 仅 Branch 模式使用的选项
 const includePreset = defineModel<boolean>("includePreset", { default: false });
@@ -130,6 +152,12 @@ const range = defineModel<[number, number]>("range", { default: () => [1, 1] });
 
 .options-section {
   margin-bottom: 16px;
+  transition: opacity 0.3s;
+}
+
+.options-section.is-disabled {
+  opacity: 0.6;
+  pointer-events: none;
 }
 
 .options-section:last-child {

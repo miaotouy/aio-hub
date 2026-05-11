@@ -26,6 +26,10 @@ export interface ExportOptions {
   includeAttachments?: boolean;
   includeErrors?: boolean;
   range?: [number, number];
+  /** 是否使用上下文管道处理后的真实 Payload */
+  useContextPipeline?: boolean;
+  /** 处理后的消息列表 (来自 Context Pipeline) */
+  processedMessages?: any[];
 }
 
 /**
@@ -112,6 +116,28 @@ export function useExportManager() {
    * @param presetMessages 预设消息列表（如果需要包含）
    * @param options 细粒度导出选项
    */
+  /**
+   * 格式化处理后的消息内容（处理 LlmMessageContent[] 并保留文件占位符）
+   */
+  const formatProcessedContent = (content: string | any[]): string => {
+    if (typeof content === "string") return content;
+    if (!Array.isArray(content)) return String(content);
+
+    return content
+      .map((part) => {
+        if (part.type === "text") return part.text || "";
+        if (part.type === "image_url") {
+          return "\n> [图片占位符]\n";
+        }
+        if (part.type === "file") {
+          return `\n> [文件: ${part.file_name || "未命名附件"}]\n`;
+        }
+        return "";
+      })
+      .filter(Boolean)
+      .join("\n");
+  };
+
   const exportBranchAsMarkdown = (
     index: ChatSessionIndex,
     detail: ChatSessionDetail,
@@ -129,7 +155,42 @@ export function useExportManager() {
       includeTokenUsage = true,
       includeAttachments = true,
       includeErrors = true,
+      useContextPipeline = false,
+      processedMessages = [],
     } = options;
+
+    // 如果使用管道处理后的消息
+    if (useContextPipeline && processedMessages.length > 0) {
+      const lines: string[] = [
+        `# 对话记录 (真实 Payload): ${index.name}`,
+        "",
+        `导出时间：${formatDateTime(new Date(), "yyyy-MM-dd HH:mm:ss")}`,
+        `消息统计：共 ${processedMessages.length} 条处理后消息`,
+        "",
+        "> **提示**: 此导出包含经过上下文管道（宏解析、世界书注入、Token 裁剪等）处理后的真实请求内容。",
+        "",
+        "---",
+        "",
+      ];
+
+      processedMessages.forEach((msg) => {
+        const roleMap: Record<string, string> = {
+          system: "⚙️ 系统提示 (System)",
+          user: "👤 用户 (User)",
+          assistant: "🤖 助手 (Assistant)",
+          tool: "🛠️ 工具调用 (Tool)",
+        };
+
+        lines.push(`## ${roleMap[msg.role] || msg.role}`);
+        lines.push("");
+        lines.push(formatProcessedContent(msg.content));
+        lines.push("");
+        lines.push("---");
+        lines.push("");
+      });
+
+      return lines.join("\n");
+    }
 
     // 构建从根节点到目标节点的路径
     const path: ChatMessageNode[] = [];
@@ -392,7 +453,29 @@ export function useExportManager() {
       includeTokenUsage = true,
       includeAttachments = true,
       includeErrors = true,
+      useContextPipeline = false,
+      processedMessages = [],
     } = options;
+
+    // 如果使用管道处理后的消息
+    if (useContextPipeline && processedMessages.length > 0) {
+      return {
+        session: {
+          name: index.name,
+          createdAt: index.createdAt,
+          updatedAt: index.updatedAt,
+        },
+        exportType: "real_payload",
+        exportTime: new Date().toISOString(),
+        messageCount: processedMessages.length,
+        messages: processedMessages.map((msg) => ({
+          role: msg.role,
+          content: msg.content,
+          sourceType: msg.sourceType,
+          sourceId: msg.sourceId,
+        })),
+      };
+    }
 
     // 构建从根节点到目标节点的路径
     const path: ChatMessageNode[] = [];

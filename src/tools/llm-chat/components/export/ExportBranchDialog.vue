@@ -51,12 +51,15 @@
           v-model:include-token-usage="includeTokenUsage"
           v-model:include-attachments="includeAttachments"
           v-model:include-errors="includeErrors"
+          v-model:use-context-pipeline="useContextPipeline"
           :preset-count="presetCount"
           v-model:range="exportRange"
           :max-range="branchMessageCount"
         />
 
-        <ExportPreviewSection :content="previewContent" :format="exportFormat" :resolve-asset="resolveAsset" />
+        <div v-loading="isPipelineLoading" element-loading-text="正在执行上下文管道..." class="preview-wrapper">
+          <ExportPreviewSection :content="previewContent" :format="exportFormat" :resolve-asset="resolveAsset" />
+        </div>
       </div>
     </template>
 
@@ -76,8 +79,10 @@ import ExportPreviewSection from "./ExportPreviewSection.vue";
 import Avatar from "@/components/common/Avatar.vue";
 import type { ChatSessionDetail, ChatSessionIndex } from "../../types/session";
 import type { ChatMessageNode } from "../../types/message";
+import type { ContextPreviewData } from "../../types/context";
 import { useExportManager, type ExportOptions } from "../../composables/features/useExportManager";
 import { useAgentStore } from "../../stores/agentStore";
+import { useChatExecutor } from "../../composables/chat/useChatExecutor";
 import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
 import { processMessageAssetsSync } from "../../utils/agentAssetUtils";
 import { save } from "@tauri-apps/plugin-dialog";
@@ -125,14 +130,18 @@ const includeModelInfo = ref(true);
 const includeTokenUsage = ref(true);
 const includeAttachments = ref(true);
 const includeErrors = ref(true);
+const useContextPipeline = ref(false);
 
 // 导出范围 [开始, 结束] (1-based)
 const exportRange = ref<[number, number]>([1, 1]);
 
 const exporting = ref(false);
+const isPipelineLoading = ref(false);
+const pipelineResult = ref<ContextPreviewData | null>(null);
 
 const logger = createModuleLogger("ExportBranchDialog");
 const agentStore = useAgentStore();
+const { getContextForPreview } = useChatExecutor();
 const { exportBranchAsMarkdown, exportBranchAsJson, exportBranchAsRaw } = useExportManager();
 
 // 计算路径中的所有参与节点
@@ -231,6 +240,33 @@ watch(
   { immediate: true },
 );
 
+// 处理管道预览
+const refreshPipelinePreview = async () => {
+  if (!useContextPipeline.value || !props.session || !props.messageId) {
+    pipelineResult.value = null;
+    return;
+  }
+
+  isPipelineLoading.value = true;
+  try {
+    // 管道预览总是基于当前选中的节点（作为路径终点）
+    const result = await getContextForPreview(props.session, props.messageId, undefined, undefined, {
+      // 如果有范围限制，管道可能需要特殊处理，但目前 getContextForPreview 主要是基于路径的
+      // 这里我们先获取完整路径的处理结果
+    });
+    pipelineResult.value = result;
+  } catch (error) {
+    logger.error("获取管道预览失败", error);
+  } finally {
+    isPipelineLoading.value = false;
+  }
+};
+
+// 监听影响管道的因素
+watch([useContextPipeline, () => props.messageId], () => {
+  refreshPipelinePreview();
+});
+
 // 生成预览内容
 const previewContent = computed(() => {
   if (!props.session || !props.messageId || !props.sessionIndex) {
@@ -248,6 +284,8 @@ const previewContent = computed(() => {
     includeAttachments: includeAttachments.value,
     includeErrors: includeErrors.value,
     range: [...exportRange.value] as [number, number],
+    useContextPipeline: useContextPipeline.value,
+    processedMessages: pipelineResult.value?.finalMessages || [],
   };
 
   if (exportFormat.value === "raw") {
@@ -341,6 +379,13 @@ const handleExport = async () => {
   padding: 0;
   height: 100%;
   min-height: 0;
+}
+
+.preview-wrapper {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .export-summary {

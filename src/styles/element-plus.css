@@ -467,14 +467,36 @@ body.el-popup-parent--hidden {
   为 el-radio-group (按钮模式) 应用统一的毛玻璃效果
   - 将 backdrop-filter 应用于父级，以实现连续的毛玻璃效果
   - 使用 border-radius 和 overflow: hidden 来裁剪子元素的边角
+  - 分离式按钮组 (.separated-group) 排除在外，由各按钮自行模糊
 */
-.el-radio-group:has(.el-radio-button),
-.el-checkbox-group:has(.el-checkbox-button) {
+.el-radio-group:has(.el-radio-button):not(.separated-group),
+.el-checkbox-group:has(.el-checkbox-button):not(.separated-group) {
   backdrop-filter: blur(var(--ui-blur));
   border-radius: var(--el-border-radius-base, 4px);
   border: var(--border-width) solid var(--border-color);
   overflow: hidden;
   display: inline-flex; /* 保持原有的布局行为 */
+}
+
+/* 分离式按钮组：每个按钮独立模糊，无外层容器边框 */
+.separated-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.separated-group .el-radio-button__inner,
+.separated-group .el-checkbox-button__inner {
+  backdrop-filter: blur(var(--ui-blur));
+  border-radius: 4px !important;
+  border: var(--border-width) solid var(--border-color) !important;
+  box-shadow: none !important;
+}
+
+.separated-group .el-radio-button.is-active .el-radio-button__inner,
+.separated-group .el-checkbox-button.is-checked .el-checkbox-button__inner {
+  border-color: var(--primary-color) !important;
+  box-shadow: none !important;
 }
 
 /* 处理按钮组内部的分割线 */

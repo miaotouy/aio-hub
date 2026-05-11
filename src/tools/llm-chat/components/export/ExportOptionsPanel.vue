@@ -2,7 +2,7 @@
   <div class="export-options">
     <div class="options-section">
       <div class="section-title">导出格式</div>
-      <el-radio-group v-model="format" class="format-group">
+      <el-radio-group v-model="format" class="format-group separated-group">
         <el-radio-button value="markdown">Markdown{{ isSession ? " (树状)" : "" }}</el-radio-button>
         <el-radio-button value="json">JSON</el-radio-button>
         <el-radio-button value="raw">Raw (JSON)</el-radio-button>
@@ -174,28 +174,6 @@ const range = defineModel<[number, number]>("range", { default: () => [1, 1] });
 .format-group {
   display: flex;
   gap: 8px;
-}
-
-.format-group :deep(.el-radio-button) {
-  .el-radio-button__inner {
-    border: var(--border-width) solid var(--border-color);
-    border-radius: 4px !important;
-    padding: 5px 15px;
-  }
-
-  &:not(:last-child) .el-radio-button__inner {
-    border-right: var(--border-width) solid var(--border-color);
-  }
-
-  &.is-active .el-radio-button__inner {
-    border-color: var(--el-color-primary);
-    background-color: var(--el-color-primary);
-    color: var(--el-color-white);
-  }
-
-  &:hover .el-radio-button__inner {
-    border-color: var(--el-color-primary);
-  }
 }
 
 .options-grid {

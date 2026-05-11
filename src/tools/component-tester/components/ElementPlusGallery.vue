@@ -44,6 +44,29 @@
         <el-button>默认按钮</el-button>
         <el-button size="small">小型按钮</el-button>
       </div>
+      <h3 class="subsection-title">按钮组 & 分割按钮</h3>
+      <div class="button-demo">
+        <el-button-group>
+          <el-button type="primary" :icon="ArrowLeft">上一步</el-button>
+          <el-button type="primary">
+            下一步<el-icon class="el-icon--right"><ArrowRight /></el-icon>
+          </el-button>
+        </el-button-group>
+        <el-button-group>
+          <el-button type="primary" :icon="Edit" />
+          <el-button type="primary" :icon="Search" />
+          <el-button type="primary" :icon="Delete" />
+        </el-button-group>
+        <el-dropdown split-button type="primary">
+          分割按钮
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item>选项 1</el-dropdown-item>
+              <el-dropdown-item>选项 2</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+      </div>
     </div>
 
     <div class="section">
@@ -102,6 +125,16 @@
           <el-radio-button value="2">选项2</el-radio-button>
           <el-radio-button value="3">选项3</el-radio-button>
         </el-radio-group>
+        <el-radio-group v-model="radioValue" class="separated-group">
+          <el-radio-button value="1">分离按钮1</el-radio-button>
+          <el-radio-button value="2">分离按钮2</el-radio-button>
+          <el-radio-button value="3">分离按钮3</el-radio-button>
+        </el-radio-group>
+      </div>
+      <h3 class="subsection-title">分段控制器 Segmented</h3>
+      <div class="radio-demo">
+        <el-segmented v-model="segmentedValue" :options="['选项1', '选项2', '选项3']" />
+        <el-segmented v-model="segmentedValue" :options="['选项1', '选项2', '选项3']" block />
       </div>
     </div>
 
@@ -118,6 +151,11 @@
           <el-checkbox-button value="选项1">选项1</el-checkbox-button>
           <el-checkbox-button value="选项2">选项2</el-checkbox-button>
           <el-checkbox-button value="选项3">选项3</el-checkbox-button>
+        </el-checkbox-group>
+        <el-checkbox-group v-model="checkboxGroupValue" class="separated-group">
+          <el-checkbox-button value="选项1">分离按钮1</el-checkbox-button>
+          <el-checkbox-button value="选项2">分离按钮2</el-checkbox-button>
+          <el-checkbox-button value="选项3">分离按钮3</el-checkbox-button>
         </el-checkbox-group>
       </div>
     </div>
@@ -439,7 +477,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import InfoCard from "@/components/common/InfoCard.vue";
-import { Search, Edit, Check, Message, Star, Delete, Calendar } from "@element-plus/icons-vue";
+import { Search, Edit, Check, Message, Star, Delete, Calendar, ArrowLeft, ArrowRight } from "@element-plus/icons-vue";
 
 // 表单数据
 const inputValue = ref("");
@@ -447,6 +485,7 @@ const selectValue = ref("");
 const multiSelectValue = ref([]);
 const switchValue = ref(true);
 const radioValue = ref("1");
+const segmentedValue = ref("选项1");
 const checkboxValue = ref(false);
 const checkboxGroupValue = ref(["选项1"]);
 const dateValue = ref("");

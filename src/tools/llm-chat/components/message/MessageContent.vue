@@ -406,6 +406,7 @@ watch(
     () => currentAgent.value, // 监听解析后的 Agent 对象变化
     () => props.sessionIndex,
     () => props.sessionDetail,
+    () => userProfileStore.globalProfileId, // 监听全局档案变化
   ],
   async ([content, agent, sessionIndex, sessionDetail]) => {
     // 仅对预设消息进行宏处理（非编辑模式下）
@@ -413,9 +414,14 @@ watch(
     const isPresetMessage = props.message.metadata?.isPresetDisplay === true;
 
     if (!props.isEditing && content && isPresetMessage) {
+      // 获取当前生效的用户档案
+      const { userProfileId } = getAgentAndUserProfileIds(props.message.metadata, "message");
+      const userProfile = userProfileStore.getEffectiveProfile(userProfileId);
+
       // 构建宏上下文
       const context = buildMacroContext({
         agent,
+        userProfile: userProfile ?? undefined,
         index: sessionIndex ?? undefined,
         detail: sessionDetail ?? undefined,
       });

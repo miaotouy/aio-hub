@@ -659,40 +659,6 @@ const hasActivePostProcessingRules = computed(() => {
       />
     </ConfigSection>
 
-    <!-- Gemini 安全设置分组 -->
-    <ConfigSection
-      v-if="showSafetySettings"
-      title="Gemini 安全设置"
-      :icon="Shield"
-      v-model:expanded="safetySettingsExpanded"
-    >
-      <SafetySettingsPanel
-        :model-value="localParams.safetySettings"
-        @update:model-value="updateParameter('safetySettings', $event)"
-      />
-    </ConfigSection>
-
-    <!-- 特殊功能分组 -->
-    <ConfigSection
-      v-if="specialConfigs.length > 0"
-      title="特殊功能"
-      :icon="MagicStick"
-      v-model:expanded="specialFeaturesExpanded"
-    >
-      <ParameterItem
-        v-for="config in specialConfigs"
-        :key="config.key"
-        :config="config"
-        :model-value="localParams[config.key]"
-        :enabled="isParameterEnabled(config.key)"
-        @update:model-value="updateParameter(config.key, $event)"
-        @update:enabled="toggleParameterEnabled(config.key, $event)"
-        :overrides="overrides[config.key as keyof typeof overrides]"
-      />
-
-      <div class="param-hint">其他高级功能（如 Response Format、Tools、Web Search）需要通过代码配置。</div>
-    </ConfigSection>
-
     <!-- 图片压缩分组 -->
     <ConfigSection title="图片压缩" :icon="Image" v-model:expanded="imageCompressionExpanded">
       <div class="param-group">
@@ -778,6 +744,40 @@ const hasActivePostProcessingRules = computed(() => {
           <div class="param-desc">值越高画质越好，文件也越大。85% 是较好的平衡点。</div>
         </div>
       </template>
+    </ConfigSection>
+
+    <!-- Gemini 安全设置分组 -->
+    <ConfigSection
+      v-if="showSafetySettings"
+      title="Gemini 安全设置"
+      :icon="Shield"
+      v-model:expanded="safetySettingsExpanded"
+    >
+      <SafetySettingsPanel
+        :model-value="localParams.safetySettings"
+        @update:model-value="updateParameter('safetySettings', $event)"
+      />
+    </ConfigSection>
+
+    <!-- 特殊功能分组 -->
+    <ConfigSection
+      v-if="specialConfigs.length > 0"
+      title="特殊功能"
+      :icon="MagicStick"
+      v-model:expanded="specialFeaturesExpanded"
+    >
+      <ParameterItem
+        v-for="config in specialConfigs"
+        :key="config.key"
+        :config="config"
+        :model-value="localParams[config.key]"
+        :enabled="isParameterEnabled(config.key)"
+        @update:model-value="updateParameter(config.key, $event)"
+        @update:enabled="toggleParameterEnabled(config.key, $event)"
+        :overrides="overrides[config.key as keyof typeof overrides]"
+      />
+
+      <div class="param-hint">其他高级功能（如 Response Format、Tools、Web Search）需要通过代码配置。</div>
     </ConfigSection>
 
     <!-- 自定义参数分组 -->

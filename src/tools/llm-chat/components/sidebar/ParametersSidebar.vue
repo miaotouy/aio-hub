@@ -236,6 +236,13 @@ const handleSaveModelEdit = async (updatedModel: LlmModelInfo) => {
           </div>
         </div>
 
+        <!-- 预设消息分组 -->
+        <ConfigSection title="预设消息" :icon="ChatLineRound" v-model:expanded="presetMessagesExpanded">
+          <div class="preset-messages-compact">
+            <AgentPresetEditor v-model="presetMessages" :compact="true" :agent="currentAgent" height="400px" />
+          </div>
+        </ConfigSection>
+
         <!-- 模型参数 - 使用独立组件 -->
         <ModelParametersEditor
           v-model="modelParameters"
@@ -245,13 +252,6 @@ const handleSaveModelEdit = async (updatedModel: LlmModelInfo) => {
           :context-length-limit="contextLengthLimit"
           :external-stats="chatStore.contextStats"
         />
-
-        <!-- 预设消息分组 -->
-        <ConfigSection title="预设消息" :icon="ChatLineRound" v-model:expanded="presetMessagesExpanded">
-          <div class="preset-messages-compact">
-            <AgentPresetEditor v-model="presetMessages" :compact="true" :agent="currentAgent" height="400px" />
-          </div>
-        </ConfigSection>
       </div>
     </div>
 

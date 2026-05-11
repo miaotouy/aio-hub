@@ -1,9 +1,9 @@
-import { ref, computed, watch } from 'vue';
-import { createModuleLogger } from '@utils/logger';
-import type { StreamUpdate, StreamBuffer } from '../types';
-import { formatStreamingResponse, extractStreamContent, extractJsonContent, isJson, formatJson } from './utils';
+import { ref, computed, watch } from "vue";
+import { createModuleLogger } from "@utils/logger";
+import type { StreamUpdate, StreamBuffer } from "../types";
+import { formatStreamingResponse, extractStreamContent, extractJsonContent, isJson, formatJson } from "./utils";
 
-const logger = createModuleLogger('LlmInspector/StreamProcessor');
+const logger = createModuleLogger("LlmInspector/StreamProcessor");
 
 // 流式缓冲区
 const streamBuffer = ref<StreamBuffer>({});
@@ -37,15 +37,15 @@ export function isActiveStream(streamId: string): boolean {
  * 处理流式更新
  */
 export function processStreamUpdate(update: StreamUpdate): void {
-  logger.debug('处理流式更新', {
+  logger.debug("处理流式更新", {
     streamId: update.id,
     isComplete: update.is_complete,
-    chunkLength: update.chunk?.length
+    chunkLength: update.chunk?.length,
   });
 
   // 更新缓冲区
   if (update.chunk) {
-    const currentContent = streamBuffer.value[update.id] || '';
+    const currentContent = streamBuffer.value[update.id] || "";
     streamBuffer.value[update.id] = currentContent + update.chunk;
   }
 
@@ -53,13 +53,13 @@ export function processStreamUpdate(update: StreamUpdate): void {
   if (!update.is_complete) {
     activeStreamIds.value.add(update.id);
     currentStreamId.value = update.id;
-    logger.debug('流式传输开始', { streamId: update.id });
+    logger.debug("流式传输开始", { streamId: update.id });
   } else {
     activeStreamIds.value.delete(update.id);
     if (currentStreamId.value === update.id) {
       currentStreamId.value = null;
     }
-    logger.debug('流式传输完成', { streamId: update.id });
+    logger.debug("流式传输完成", { streamId: update.id });
   }
 }
 
@@ -67,7 +67,7 @@ export function processStreamUpdate(update: StreamUpdate): void {
  * 获取指定记录的流式内容
  */
 export function getStreamContent(recordId: string): string {
-  return streamBuffer.value[recordId] || '';
+  return streamBuffer.value[recordId] || "";
 }
 
 /**
@@ -79,7 +79,7 @@ export function clearStreamBuffer(recordId: string): void {
   if (currentStreamId.value === recordId) {
     currentStreamId.value = null;
   }
-  logger.debug('清理流式缓冲', { recordId });
+  logger.debug("清理流式缓冲", { recordId });
 }
 
 /**
@@ -89,7 +89,7 @@ export function clearAllStreamBuffers(): void {
   streamBuffer.value = {};
   activeStreamIds.value.clear();
   currentStreamId.value = null;
-  logger.debug('清理所有流式缓冲');
+  logger.debug("清理所有流式缓冲");
 }
 
 /**
@@ -105,9 +105,9 @@ export function isStreamingRecord(recordId: string): boolean {
 export function getDisplayResponseBody(recordId: string, originalBody?: string, isStreamingResponse?: boolean): string {
   // 优先使用流式缓冲内容
   const bufferedContent = streamBuffer.value[recordId];
-  const body = bufferedContent || originalBody || '';
+  const body = bufferedContent || originalBody || "";
 
-  if (!body) return '';
+  if (!body) return "";
 
   // 如果是流式响应，格式化SSE
   if (isStreamingResponse || isStreamingRecord(recordId)) {
@@ -125,24 +125,28 @@ export function getDisplayResponseBody(recordId: string, originalBody?: string, 
 /**
  * 提取正文内容
  */
-export function extractContent(recordId: string, originalBody?: string, isStreamingResponse?: boolean): string {
-  const body = streamBuffer.value[recordId] || originalBody || '';
+export function extractContent(
+  recordId: string,
+  originalBody?: string,
+  isStreamingResponse?: boolean,
+  requestUrl?: string,
+): string {
+  const body = streamBuffer.value[recordId] || originalBody || "";
 
-  if (!body) return '';
+  if (!body) return "";
 
   // 如果是流式响应，使用流式提取
   if (isStreamingResponse || isStreamingRecord(recordId)) {
-    return extractStreamContent(body);
+    return extractStreamContent(body, requestUrl);
   }
 
   // 如果是JSON，使用JSON提取
   if (isJson(body)) {
-    return extractJsonContent(body);
+    return extractJsonContent(body, requestUrl);
   }
 
   return body;
 }
-
 /**
  * 检查记录是否可以显示正文模式
  */
@@ -152,14 +156,14 @@ export function canShowTextMode(recordId: string, originalBody?: string): boolea
     return true;
   }
 
-  const body = streamBuffer.value[recordId] || originalBody || '';
+  const body = streamBuffer.value[recordId] || originalBody || "";
 
   if (!body) {
     return false;
   }
 
   // 检查是否是流式响应或JSON响应
-  return body.includes('data: ') || isJson(body);
+  return body.includes("data: ") || isJson(body);
 }
 
 /**
@@ -170,10 +174,10 @@ export function getStreamStats() {
     activeStreams: activeStreamIds.value.size,
     totalBuffered: Object.keys(streamBuffer.value).length,
     bufferSize: Object.values(streamBuffer.value).reduce((total, content) => total + content.length, 0),
-    currentStreamId: currentStreamId.value
+    currentStreamId: currentStreamId.value,
   };
 
-  logger.debug('流式传输统计', stats);
+  logger.debug("流式传输统计", stats);
   return stats;
 }
 
@@ -192,7 +196,7 @@ export function useStreamProcessor() {
 
   // 监听当前流式ID变化
   watch(currentStreamId, (newId, oldId) => {
-    logger.debug('当前流式ID变化', { newId, oldId });
+    logger.debug("当前流式ID变化", { newId, oldId });
   });
 
   return {
@@ -217,7 +221,7 @@ export function useStreamProcessor() {
     getDisplayResponseBody,
     extractContent,
     canShowTextMode,
-    getStreamStats
+    getStreamStats,
   };
 }
 
@@ -227,7 +231,7 @@ export function useStreamProcessor() {
 export class StreamContentProcessor {
   private recordId: string;
   private chunks: string[] = [];
-  private processedContent = '';
+  private processedContent = "";
 
   constructor(recordId: string) {
     this.recordId = recordId;
@@ -260,7 +264,7 @@ export class StreamContentProcessor {
    */
   reset(): void {
     this.chunks = [];
-    this.processedContent = '';
+    this.processedContent = "";
   }
 
   /**
@@ -278,7 +282,7 @@ export class StreamContentProcessor {
       recordId: this.recordId,
       chunkCount: this.chunks.length,
       contentLength: this.processedContent.length,
-      textLength: this.extractText().length
+      textLength: this.extractText().length,
     };
   }
 }

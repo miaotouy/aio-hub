@@ -98,7 +98,7 @@
           <span class="option-label">错误信息</span>
         </el-checkbox>
 
-        <el-checkbox v-model="useContextPipeline" class="option-checkbox">
+        <el-checkbox v-if="!isSession" v-model="useContextPipeline" class="option-checkbox">
           <span class="option-label">
             使用上下文管道处理
             <el-tooltip content="将导出经过宏解析、世界书注入、Token 裁剪等处理后的真实 Payload 内容" placement="top">

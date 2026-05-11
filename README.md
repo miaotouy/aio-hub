@@ -9,6 +9,7 @@
 一个基于 Tauri + Vue 3 + TypeScript 构建的跨平台 AI 枢纽，旨在为开发者与创作者提供精准的 LLM 操控体验与高效工具链。
 
 [![License](https://img.shields.io/badge/license-Apache%202.0%20%2F%20Proprietary-blue.svg)](#-许可证)
+[![Documentation](https://img.shields.io/badge/Documentation-docs-brightgreen.svg)](https://docs.aiohub-app.com)
 [![Tauri](https://img.shields.io/badge/Tauri-2.0-blue.svg)](https://tauri.app/)
 [![Vue](https://img.shields.io/badge/Vue-3.5-green.svg)](https://vuejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-blue.svg)](https://www.typescriptlang.org/)

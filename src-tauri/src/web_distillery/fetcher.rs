@@ -24,6 +24,7 @@ pub struct RawFetchPayload {
 pub async fn distillery_quick_fetch(
     url: String,
     options: Option<QuickFetchOptions>,
+    cookies: Option<String>,
 ) -> Result<RawFetchPayload, String> {
     log::info!("[Distillery] Level 0 Quick Fetch: {}", url);
 
@@ -34,6 +35,13 @@ pub async fn distillery_quick_fetch(
         .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
 
     let mut request = client.get(&url);
+
+    // 注入自定义 Cookie header
+    if let Some(ref cookie_str) = cookies {
+        if !cookie_str.is_empty() {
+            request = request.header("Cookie", cookie_str.as_str());
+        }
+    }
 
     // 注入自定义请求头
     if let Some(opts) = options {

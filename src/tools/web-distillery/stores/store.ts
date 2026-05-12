@@ -35,7 +35,6 @@ interface WebDistilleryState {
   activeToolTab: "rules" | "actions" | "preview";
 
   error: string | null;
-  cookieProfiles: string[];
   discoveredApis: ApiInfo[];
   extractionRules: {
     include: string[];
@@ -78,7 +77,6 @@ export const useWebDistilleryStore = defineStore("web-distillery", {
     activeToolTab: "rules",
 
     error: null,
-    cookieProfiles: [],
     discoveredApis: [],
     extractionRules: {
       include: [],

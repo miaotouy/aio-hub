@@ -1,8 +1,8 @@
 # 身份卡片 (Identity Card) 功能规划
 
-> **状态**: Draft → Investigating → 安全评估修正
+> **状态**: Implementing (P0-P2 完成)
 > **创建日期**: 2025-05-12
-> **最后更新**: 2025-05-12 (安全性论述修正：AppData 明文存储风险重新评估)
+> **最后更新**: 2025-05-12 (P0/P1/P2 基础实现完成)
 > **所属模块**: `src/tools/web-distillery/components/CookieLab.vue`
 
 ---
@@ -107,30 +107,30 @@ interface CookieProfile {
 
 #### P0 — 基础 CRUD + 持久化
 
-- [ ] 定义 `CookieEntry` / `CookieProfile` 类型（在 `types.ts` 中）
-- [ ] 创建 `core/cookie-profile-store.ts`，使用 `createConfigManager` 持久化到 `AppData/web-distillery/cookie-profiles.json`
-- [ ] Profile 列表视图（卡片式，按域名分组，显示名称、cookie 数量、最后使用时间）
-- [ ] 创建/编辑/删除 Profile
-- [ ] 单条 Cookie 的增删改查（表格形式，字段：name, value, domain, path, expires）
-- [ ] 域名互斥激活机制（同域名下只能有一个 Profile 激活）
-- [ ] 移除 `stores/store.ts` 中旧的 `cookieProfiles: string[]` 字段
+- [x] 定义 `CookieEntry` / `CookieProfile` 类型（在 `types.ts` 中）
+- [x] 创建 `core/cookie-profile-store.ts`，使用 `createConfigManager` 持久化到 `AppData/web-distillery/cookie-profiles.json`
+- [x] Profile 列表视图（卡片式，按域名分组，显示名称、cookie 数量、最后使用时间）
+- [x] 创建/编辑/删除 Profile
+- [x] 单条 Cookie 的增删改查（表格形式，字段：name, value, domain, path, expires）
+- [x] 域名互斥激活机制（同域名下只能有一个 Profile 激活）
+- [x] 移除 `stores/store.ts` 中旧的 `cookieProfiles: string[]` 字段
 
 #### P1 — 导入导出
 
-- [ ] 从当前浏览器页面"一键抓取"所有 cookie 到新 Profile
-- [ ] 从 JSON 文件导入（兼容 EditThisCookie 导出格式）
-- [ ] 从 Netscape/cURL 格式导入（`# Netscape HTTP Cookie File` 格式）
-- [ ] 导出为 JSON / cURL header 格式
+- [x] 从当前浏览器页面"一键抓取"所有 cookie 到新 Profile
+- [x] 从 JSON 文件导入（兼容 EditThisCookie 导出格式）
+- [x] 从 Netscape/cURL 格式导入（`# Netscape HTTP Cookie File` 格式）
+- [x] 导出为 JSON / cURL header 格式
 - [ ] 导出为明文 JSON 备份（用于密钥丢失恢复场景）
 
 #### P2 — 配方联动 + 自动注入
 
 - [ ] 配方编辑器 (`RecipeMetaDrawer.vue`) 中添加"绑定身份卡片"下拉选择器
-- [ ] `BrowserToolbar.vue` 地址栏旁添加身份快捷切换下拉
-- [ ] `smartExtract` 流程中：设置代理 cookie → iframe 加载时自动携带
-- [ ] `quickFetch` 流程中：将 cookie 作为 `cookies` 参数传递给 Rust `distillery_quick_fetch`
-- [ ] Rust `fetcher.rs` 使用 `cookies` 参数注入 Cookie header
-- [ ] Rust `proxy.rs` 扩展全局状态，支持代理请求携带 cookie
+- [x] `BrowserToolbar.vue` 地址栏旁添加身份快捷切换下拉
+- [x] `smartExtract` 流程中：设置代理 cookie → iframe 加载时自动携带
+- [x] `quickFetch` 流程中：将 cookie 作为 `cookies` 参数传递给 Rust `distillery_quick_fetch`
+- [x] Rust `fetcher.rs` 使用 `cookies` 参数注入 Cookie header
+- [x] Rust `proxy.rs` 扩展全局状态，支持代理请求携带 cookie
 
 #### P1.5 — 存储加密（替换明文脚手架）
 

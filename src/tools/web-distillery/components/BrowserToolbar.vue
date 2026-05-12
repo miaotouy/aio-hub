@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
-import { ArrowLeft, ArrowRight, RotateCw, Globe, Zap, Scan, Trash2, FileUp } from "lucide-vue-next";
-import type { DistillMode } from "../types";
+import { ArrowLeft, ArrowRight, RotateCw, Globe, Zap, Scan, Trash2, FileUp, Cookie } from "lucide-vue-next";
+import type { DistillMode, CookieProfile } from "../types";
 import { iframeBridge } from "../core/iframe-bridge";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
+import { cookieProfileStore } from "../core/cookie-profile-store";
 
 const logger = createModuleLogger("web-distillery/toolbar");
 
@@ -129,6 +130,56 @@ async function handleFileChange(event: Event) {
     customMessage.error("文件读取失败");
   }
 }
+
+// =========== 身份快捷切换 ===========
+
+const matchedProfiles = ref<CookieProfile[]>([]);
+const activeProfile = ref<CookieProfile | null>(null);
+
+/** 从 hostname 提取主域名（与 store 内部逻辑保持一致） */
+function extractRootDomain(hostname: string): string {
+  if (hostname === "localhost" || /^\d+\.\d+\.\d+\.\d+$/.test(hostname)) return hostname;
+  const parts = hostname.split(".");
+  return parts.length > 2 ? parts.slice(-2).join(".") : hostname;
+}
+
+async function refreshIdentityState(url: string) {
+  if (!url) {
+    matchedProfiles.value = [];
+    activeProfile.value = null;
+    return;
+  }
+  try {
+    const fullUrl = url.startsWith("http") ? url : `https://${url}`;
+    const hostname = new URL(fullUrl).hostname;
+    const rootDomain = extractRootDomain(hostname);
+    matchedProfiles.value = await cookieProfileStore.getByDomain(rootDomain);
+    activeProfile.value = await cookieProfileStore.getActiveProfileForUrl(fullUrl);
+  } catch {
+    matchedProfiles.value = [];
+    activeProfile.value = null;
+  }
+}
+
+watch(
+  () => props.modelValue,
+  (url) => {
+    refreshIdentityState(url);
+  },
+  { immediate: true },
+);
+
+async function handleIdentitySwitch(profileId: string | null) {
+  if (profileId === null) {
+    // 取消当前激活的身份
+    if (activeProfile.value) {
+      await cookieProfileStore.toggleActive(activeProfile.value.id);
+    }
+  } else {
+    await cookieProfileStore.toggleActive(profileId);
+  }
+  await refreshIdentityState(props.modelValue);
+}
 </script>
 
 <template>
@@ -177,6 +228,29 @@ async function handleFileChange(event: Event) {
         @keydown="onUrlKeydown"
       />
     </div>
+
+    <!-- 身份快捷切换 -->
+    <el-dropdown v-if="matchedProfiles.length > 0" trigger="click" @command="handleIdentitySwitch">
+      <div class="identity-selector-wrap">
+        <button class="toolbar-btn identity-btn" :class="{ 'has-identity': !!activeProfile }">
+          <Cookie :size="14" />
+          <span class="identity-name">{{ activeProfile?.name || "无身份" }}</span>
+          <i-ep-arrow-down class="mode-arrow" />
+        </button>
+      </div>
+      <template #dropdown>
+        <el-dropdown-menu>
+          <el-dropdown-item v-for="p in matchedProfiles" :key="p.id" :command="p.id">
+            <span class="identity-radio">{{ p.isActive ? "◉" : "○" }}</span>
+            <span>{{ p.name }}</span>
+          </el-dropdown-item>
+          <el-dropdown-item divided :command="null">
+            <span class="identity-radio">{{ !activeProfile ? "◉" : "○" }}</span>
+            <span>无身份</span>
+          </el-dropdown-item>
+        </el-dropdown-menu>
+      </template>
+    </el-dropdown>
 
     <!-- 模式选择器 -->
     <el-dropdown trigger="click" @command="handleModeCommand">
@@ -315,6 +389,33 @@ async function handleFileChange(event: Event) {
 }
 .url-input::placeholder {
   color: var(--text-color-light);
+}
+
+/* 身份快捷切换 */
+.identity-selector-wrap {
+  flex-shrink: 0;
+  outline: none;
+}
+
+.identity-btn {
+  max-width: 160px;
+}
+
+.identity-btn.has-identity {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.identity-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100px;
+}
+
+.identity-radio {
+  margin-right: 6px;
+  color: var(--primary-color);
 }
 
 /* 模式选择器 */

@@ -1,12 +1,12 @@
 use axum::{
     body::Body,
-    extract::Query,
+    extract::{Query, Request},
     http::{header, HeaderMap as AxumHeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::get,
     Router,
 };
-use log::{error, info};
+use log::{error, info, warn};
 use once_cell::sync::Lazy;
 use reqwest::header::HeaderValue;
 use serde::Deserialize;
@@ -23,6 +23,9 @@ pub struct DistilleryProxyState {
     pub is_running: bool,
     pub port: u16,
     pub shutdown_tx: Option<oneshot::Sender<()>>,
+    pub active_cookies: Option<String>,
+    /// 当前代理的目标 origin（如 "http://127.0.0.1:6565"），用于 fallback 路由转发
+    pub active_target_origin: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -71,6 +74,7 @@ pub async fn distillery_start_proxy() -> Result<u16, String> {
                 "/__distillery/anti-detection.js",
                 get(handle_anti_detection_js),
             )
+            .fallback(handle_fallback)
             .layer(tower_http::cors::CorsLayer::permissive());
 
         info!(
@@ -102,6 +106,7 @@ pub async fn distillery_stop_proxy() -> Result<(), String> {
     }
     state.is_running = false;
     state.port = 0;
+    state.active_target_origin = None;
     info!("[Distillery-Proxy] Server stopped");
     Ok(())
 }
@@ -117,6 +122,14 @@ pub async fn distillery_get_proxy_port() -> Result<u16, String> {
     }
 }
 
+/// 设置代理服务器的 Cookie（用于 iframe 代理请求携带身份）
+#[tauri::command]
+pub async fn distillery_set_proxy_cookies(cookies: Option<String>) -> Result<(), String> {
+    let mut state = DISTILLERY_PROXY_STATE.lock().await;
+    state.active_cookies = cookies;
+    Ok(())
+}
+
 /// 处理 HTML 代理请求
 async fn handle_proxy_html(
     Query(query): Query<ProxyQuery>,
@@ -125,14 +138,42 @@ async fn handle_proxy_html(
     let decoded_url =
         urlencoding::decode(&target_url).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
+    // 提取并存储目标 origin，供 fallback 路由使用
+    let target_origin = if let Ok(parsed) = Url::parse(decoded_url.as_ref()) {
+        let host_with_port = match parsed.port() {
+            Some(port) => format!("{}:{}", parsed.host_str().unwrap_or(""), port),
+            None => parsed.host_str().unwrap_or("").to_string(),
+        };
+        format!("{}://{}", parsed.scheme(), host_with_port)
+    } else {
+        String::new()
+    };
+
+    info!(
+        "[Distillery-Proxy] Proxying HTML: {} (origin: {})",
+        decoded_url, target_origin
+    );
+
     let client = reqwest::Client::builder()
         .user_agent(USER_AGENT)
         .timeout(std::time::Duration::from_secs(15))
         .build()
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let response = client
-        .get(decoded_url.as_ref())
+    let mut request = client.get(decoded_url.as_ref());
+
+    // 注入激活的 cookie，同时设置 active_target_origin
+    {
+        let mut state = DISTILLERY_PROXY_STATE.lock().await;
+        state.active_target_origin = Some(target_origin);
+        if let Some(ref cookies) = state.active_cookies {
+            if !cookies.is_empty() {
+                request = request.header("Cookie", cookies.as_str());
+            }
+        }
+    } // 锁在此释放
+
+    let response = request
         .send()
         .await
         .map_err(|e| (StatusCode::BAD_GATEWAY, format!("Request failed: {}", e)))?;
@@ -182,41 +223,19 @@ async fn handle_proxy_html(
         .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
     let mut html = String::from_utf8_lossy(&bytes).to_string();
 
-    // 计算 <base> 标签的 href
-    let base_href = if let Ok(parsed_url) = Url::parse(decoded_url.as_ref()) {
-        let mut path = parsed_url.path().to_string();
-        if !path.ends_with('/') {
-            if let Some(last_slash) = path.rfind('/') {
-                path.truncate(last_slash + 1);
-            } else {
-                path = "/".to_string();
-            }
-        }
-        format!(
-            "{}://{}{}",
-            parsed_url.scheme(),
-            parsed_url.host_str().unwrap_or(""),
-            path
-        )
-    } else {
-        decoded_url.to_string()
-    };
-
     // 注入脚本和 base 标签
-    // 1. anti-detection.js 必须在最前面同步执行，以确保在页面脚本运行前伪装环境
-    // 使用外链形式减少对 HTML 源码结构的直接破坏，有利于 React Hydration
-    let head_injections = format!(
-        r#"<base href="{}"><script src="/__distillery/anti-detection.js"></script>"#,
-        base_href
-    );
+    // 使用 <base href="/"> 让所有相对路径资源和 API 请求都发到代理服务器，
+    // 由 fallback 路由统一转发到目标服务器，彻底避免 CORS 问题
+    let head_injections =
+        r#"<base href="/"><script src="/__distillery/anti-detection.js"></script>"#;
 
-    // 2. bridge.js 和 sniffer.js 移到 body 末尾，避免干扰 head hydration
+    // bridge.js 和 sniffer.js 移到 body 末尾，避免干扰 head hydration
     let body_injections = r#"<script src="/__distillery/bridge.js" defer></script><script src="/__distillery/sniffer.js" defer></script>"#;
 
     // 健壮的注入逻辑：避免引入多余的换行符，防止 Text Node Hydration 失败
     if let Some(pos) = html.find("<head") {
         if let Some(end_pos) = html[pos..].find('>').map(|i| i + pos + 1) {
-            html.insert_str(end_pos, &head_injections);
+            html.insert_str(end_pos, head_injections);
         }
     }
 
@@ -229,7 +248,7 @@ async fn handle_proxy_html(
     Ok((status, resp_headers, html))
 }
 
-/// 处理子资源代理请求 (CSS/JS/Images)
+/// 处理子资源代理请求 (CSS/JS/Images) — 显式代理模式
 async fn handle_proxy_resource(
     Query(query): Query<ProxyQuery>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
@@ -243,8 +262,19 @@ async fn handle_proxy_resource(
         .build()
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let response = client
-        .get(decoded_url.as_ref())
+    let mut request = client.get(decoded_url.as_ref());
+
+    // 注入 cookie
+    {
+        let state = DISTILLERY_PROXY_STATE.lock().await;
+        if let Some(ref cookies) = state.active_cookies {
+            if !cookies.is_empty() {
+                request = request.header("Cookie", cookies.as_str());
+            }
+        }
+    }
+
+    let response = request
         .send()
         .await
         .map_err(|e| (StatusCode::BAD_GATEWAY, format!("Request failed: {}", e)))?;
@@ -286,6 +316,139 @@ async fn handle_proxy_resource(
         .bytes()
         .await
         .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+    Ok((status, resp_headers, Body::from(bytes)))
+}
+
+/// Fallback 路由：将所有未匹配的请求透传到目标服务器（完整反向代理）
+/// 这解决了 CORS 问题 — 页面内的 XHR/fetch 请求不再跨域
+async fn handle_fallback(req: Request) -> Result<impl IntoResponse, (StatusCode, String)> {
+    let (target_origin, cookies) = {
+        let state = DISTILLERY_PROXY_STATE.lock().await;
+        let origin = state.active_target_origin.clone();
+        let cookies = state.active_cookies.clone();
+        (origin, cookies)
+    };
+
+    let target_origin = match target_origin {
+        Some(origin) if !origin.is_empty() => origin,
+        _ => {
+            warn!("[Distillery-Proxy] Fallback: no active target origin set");
+            return Err((
+                StatusCode::BAD_GATEWAY,
+                "No active target origin. Load a page via /proxy first.".to_string(),
+            ));
+        }
+    };
+
+    let method = req.method().clone();
+    let path_and_query = req
+        .uri()
+        .path_and_query()
+        .map(|pq| pq.as_str().to_string())
+        .unwrap_or_else(|| "/".to_string());
+    let req_headers = req.headers().clone();
+
+    let target_url = format!("{}{}", target_origin, path_and_query);
+
+    // 读取请求 body
+    let body_bytes = axum::body::to_bytes(req.into_body(), 50 * 1024 * 1024)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::BAD_REQUEST,
+                format!("Failed to read body: {}", e),
+            )
+        })?;
+
+    let client = reqwest::Client::builder()
+        .user_agent(USER_AGENT)
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let reqwest_method =
+        reqwest::Method::from_bytes(method.as_str().as_bytes()).unwrap_or(reqwest::Method::GET);
+    let mut request = client.request(reqwest_method, &target_url);
+
+    // 注入 cookie
+    if let Some(ref cookie_str) = cookies {
+        if !cookie_str.is_empty() {
+            request = request.header("Cookie", cookie_str.as_str());
+        }
+    }
+
+    // 转发原始请求头（过滤掉 host 和 hop-by-hop 头）
+    let skip_headers = [
+        "host",
+        "connection",
+        "transfer-encoding",
+        "upgrade",
+        "te",
+        "trailer",
+    ];
+    for (name, value) in req_headers.iter() {
+        let name_str = name.as_str().to_lowercase();
+        if skip_headers.contains(&name_str.as_str()) {
+            continue;
+        }
+        if let Ok(v) = value.to_str() {
+            request = request.header(name.as_str(), v);
+        }
+    }
+
+    // 附加 body（非空时）
+    if !body_bytes.is_empty() {
+        request = request.body(body_bytes.to_vec());
+    }
+
+    let response = request.send().await.map_err(|e| {
+        (
+            StatusCode::BAD_GATEWAY,
+            format!("Fallback proxy failed: {}", e),
+        )
+    })?;
+
+    // 构建响应
+    let status = StatusCode::from_u16(response.status().as_u16()).unwrap_or(StatusCode::OK);
+    let mut resp_headers = AxumHeaderMap::new();
+
+    let unsafe_resp_headers = [
+        "x-frame-options",
+        "content-security-policy",
+        "content-security-policy-report-only",
+        "access-control-allow-origin",
+        "access-control-allow-credentials",
+        "access-control-allow-methods",
+        "access-control-allow-headers",
+        "connection",
+        "keep-alive",
+        "proxy-authenticate",
+        "proxy-authorization",
+        "te",
+        "trailers",
+        "transfer-encoding",
+        "upgrade",
+        "content-length",
+        "content-encoding",
+    ];
+
+    for (name, value) in response.headers().iter() {
+        let name_str = name.as_str().to_lowercase();
+        if unsafe_resp_headers.contains(&name_str.as_str()) {
+            continue;
+        }
+        if let Ok(axum_name) = axum::http::HeaderName::from_bytes(name.as_str().as_bytes()) {
+            if let Ok(axum_value) = axum::http::HeaderValue::from_bytes(value.as_bytes()) {
+                resp_headers.insert(axum_name, axum_value);
+            }
+        }
+    }
+
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+
     Ok((status, resp_headers, Body::from(bytes)))
 }
 

@@ -7,9 +7,11 @@ import { transformer } from "./core/transformer";
 import { iframeBridge } from "./core/iframe-bridge";
 import { actionRunner } from "./core/action-runner";
 import { recipeStore } from "./core/recipe-store";
+import { cookieProfileStore } from "./core/cookie-profile-store";
 import type { QuickFetchOptions, SmartExtractOptions, FetchResult, ExtractResult, RawFetchPayload } from "./types";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
+import { getLocalISOString } from "@/utils/time";
 
 const errorHandler = createModuleErrorHandler("web-distillery/actions");
 const logger = createModuleLogger("web-distillery/actions");
@@ -24,6 +26,10 @@ export async function quickFetch(options: QuickFetchOptions, context?: ToolConte
   context?.reportStatus("正在通过 HTTP 获取网页内容...");
   return (await errorHandler.wrapAsync(
     async () => {
+      await cookieProfileStore.load();
+      const activeProfile = await cookieProfileStore.getActiveProfileForUrl(options.url);
+      const cookieStr = activeProfile ? activeProfile.cookies.map((c) => `${c.name}=${c.value}`).join("; ") : undefined;
+
       const payload = await invoke<RawFetchPayload>("distillery_quick_fetch", {
         url: options.url,
         options: {
@@ -32,7 +38,16 @@ export async function quickFetch(options: QuickFetchOptions, context?: ToolConte
           headers: options.headers,
           cookieProfile: options.cookieProfile,
         },
+        cookies: cookieStr,
       });
+
+      if (activeProfile) {
+        logger.info("Using cookie profile for quickFetch", {
+          profileName: activeProfile.name,
+          domain: activeProfile.domain,
+        });
+        cookieProfileStore.update(activeProfile.id, { lastUsedAt: getLocalISOString() });
+      }
 
       context?.reportStatus("内容获取成功，正在蒸馏提取...");
       const matchedRecipe = await recipeStore.findBestMatch(options.url, payload.html);
@@ -72,6 +87,21 @@ export async function smartExtract(options: SmartExtractOptions, context?: ToolC
         logger.info("Found matched recipe", { id: matchedRecipe.id, name: matchedRecipe.name });
       }
 
+      // 查找匹配的 Cookie Profile 并设置代理 cookie
+      await cookieProfileStore.load();
+      const activeProfile = await cookieProfileStore.getActiveProfileForUrl(options.url);
+
+      if (activeProfile) {
+        const cookieStr = activeProfile.cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+        await invoke("distillery_set_proxy_cookies", { cookies: cookieStr });
+        logger.info("Using cookie profile for smartExtract", {
+          profileName: activeProfile.name,
+          domain: activeProfile.domain,
+        });
+      } else {
+        await invoke("distillery_set_proxy_cookies", { cookies: null });
+      }
+
       // 初始化 bridge（启动代理服务器）
       await iframeBridge.init();
 
@@ -90,6 +120,20 @@ export async function smartExtract(options: SmartExtractOptions, context?: ToolC
           container: tempContainer,
         });
 
+        // 注入非 HttpOnly cookie 到 document.cookie
+        if (activeProfile) {
+          for (const cookie of activeProfile.cookies.filter((c) => !c.httpOnly)) {
+            const parts = [`${cookie.name}=${cookie.value}`];
+            if (cookie.domain) parts.push(`domain=${cookie.domain}`);
+            if (cookie.path) parts.push(`path=${cookie.path}`);
+            if (cookie.expires) parts.push(`expires=${new Date(cookie.expires).toUTCString()}`);
+            if (cookie.secure) parts.push("secure");
+            await iframeBridge.setCookie(parts.join("; "));
+          }
+          // 更新 lastUsedAt（非关键，不阻塞主流程）
+          cookieProfileStore.update(activeProfile.id, { lastUsedAt: getLocalISOString() });
+        }
+
         // 执行配方动作（如果有）
         if (matchedRecipe?.actions?.length) {
           logger.info("Executing recipe actions", { count: matchedRecipe.actions.length });
@@ -100,8 +144,7 @@ export async function smartExtract(options: SmartExtractOptions, context?: ToolC
         // 优先级：options > recipe > 默认值
         const waitTimeout = options.waitTimeout || matchedRecipe?.waitTimeout || 15000;
         logger.debug("Extraction parameters", { waitTimeout, waitFor: options.waitFor || matchedRecipe?.waitFor });
-        const combinedWaitFor =
-          options.waitFor || matchedRecipe?.waitFor || matchedRecipe?.extractSelectors?.[0];
+        const combinedWaitFor = options.waitFor || matchedRecipe?.waitFor || matchedRecipe?.extractSelectors?.[0];
 
         // 预先启动等待事件监听（避免时序竞态条件丢失消息）
         const extractPromise = iframeBridge.waitForDomExtracted(waitTimeout + 3000);
@@ -118,36 +161,38 @@ export async function smartExtract(options: SmartExtractOptions, context?: ToolC
           throw new Error("未能从页面获取到有效内容");
         }
 
-      // 8. 用前端管道清洗 HTML
-      // 这里的 include/exclude 优先级：options > recipe
-      const finalOptions = {
-        ...options,
-        includeSelectors: options.extractSelectors || matchedRecipe?.extractSelectors,
-        excludeSelectors: options.excludeSelectors || matchedRecipe?.excludeSelectors,
-      };
+        // 8. 用前端管道清洗 HTML
+        // 这里的 include/exclude 优先级：options > recipe
+        const finalOptions = {
+          ...options,
+          includeSelectors: options.extractSelectors || matchedRecipe?.extractSelectors,
+          excludeSelectors: options.excludeSelectors || matchedRecipe?.excludeSelectors,
+        };
 
-      context?.reportStatus("内容抓取成功，正在进行高纯度蒸馏...");
-      const result = await transformer.transform(
-        extracted.html,
-        {
-          ...finalOptions,
-          cleanMode: options.cleanMode,
-        },
-        matchedRecipe || undefined,
-      );
+        context?.reportStatus("内容抓取成功，正在进行高纯度蒸馏...");
+        const result = await transformer.transform(
+          extracted.html,
+          {
+            ...finalOptions,
+            cleanMode: options.cleanMode,
+          },
+          matchedRecipe || undefined,
+        );
 
-      return {
-        ...result,
-        mode: "smart",
-        url: extracted.url || options.url,
-        title: extracted.title || result.title,
-        domSnapshot: extracted.html,
-      } as ExtractResult;
-    } finally {
-      // 无论成功失败，都清理
-      await iframeBridge.destroy().catch(() => {});
-      tempContainer.remove();
-    }
+        return {
+          ...result,
+          mode: "smart",
+          url: extracted.url || options.url,
+          title: extracted.title || result.title,
+          domSnapshot: extracted.html,
+        } as ExtractResult;
+      } finally {
+        // 清除代理 cookie，避免影响后续请求
+        await invoke("distillery_set_proxy_cookies", { cookies: null }).catch(() => {});
+        // 无论成功失败，都清理
+        await iframeBridge.destroy().catch(() => {});
+        tempContainer.remove();
+      }
     },
     {
       userMessage: "智能提取失败，目标页面可能需要更长加载时间或需要授权",

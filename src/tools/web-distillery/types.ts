@@ -150,3 +150,29 @@ export type ActionStep =
   | { type: "remove"; selector: string }
   | { type: "input"; selector: string; value: string }
   | { type: "hover"; selector: string };
+
+/** 单条 Cookie */
+export interface CookieEntry {
+  name: string;
+  value: string;
+  domain: string;
+  path: string;
+  expires?: string; // ISO 日期字符串
+  httpOnly?: boolean;
+  secure?: boolean;
+  sameSite?: "Strict" | "Lax" | "None";
+}
+
+/** Cookie 身份卡片 (Profile) */
+export interface CookieProfile {
+  id: string; // nanoid
+  name: string; // 用户自定义名称，如 "知乎-主号"
+  domain: string; // 主域名，如 "zhihu.com"
+  domainAliases?: string[]; // 可选：关联子域名
+  cookies: CookieEntry[];
+  isActive: boolean; // 是否为该域名当前激活的身份
+  createdAt: string;
+  updatedAt: string;
+  lastUsedAt?: string;
+  notes?: string; // 备注
+}

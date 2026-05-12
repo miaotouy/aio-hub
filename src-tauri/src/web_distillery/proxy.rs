@@ -28,6 +28,63 @@ pub struct DistilleryProxyState {
     pub active_target_origin: Option<String>,
 }
 
+/// 从 Set-Cookie 响应头中解析 name=value，并合并到现有的 cookie 字符串中。
+/// 这模拟了浏览器的 Cookie Jar 行为：每次响应中的 Set-Cookie 都会被记录，
+/// 后续请求会自动携带所有已知 cookies。
+fn merge_set_cookies(
+    existing: &Option<String>,
+    set_cookie_headers: &[String],
+) -> Option<String> {
+    if set_cookie_headers.is_empty() {
+        return existing.clone();
+    }
+
+    // 解析现有 cookies 到 HashMap
+    let mut cookie_map: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    if let Some(ref existing_str) = existing {
+        for pair in existing_str.split(';') {
+            let pair = pair.trim();
+            if let Some(eq_idx) = pair.find('=') {
+                let name = pair[..eq_idx].trim().to_string();
+                let value = pair[eq_idx + 1..].trim().to_string();
+                if !name.is_empty() {
+                    cookie_map.insert(name, value);
+                }
+            }
+        }
+    }
+
+    // 解析 Set-Cookie 头并合并
+    for set_cookie in set_cookie_headers {
+        // Set-Cookie 格式: name=value; Path=/; HttpOnly; ...
+        // 只取第一个 `;` 之前的 name=value 部分
+        let cookie_part = set_cookie.split(';').next().unwrap_or("").trim();
+        if let Some(eq_idx) = cookie_part.find('=') {
+            let name = cookie_part[..eq_idx].trim().to_string();
+            let value = cookie_part[eq_idx + 1..].trim().to_string();
+            if !name.is_empty() {
+                // 检查是否是删除 cookie（Max-Age=0 或 expires 已过期）
+                let lower = set_cookie.to_lowercase();
+                if lower.contains("max-age=0") || lower.contains("max-age=-") {
+                    cookie_map.remove(&name);
+                } else {
+                    cookie_map.insert(name, value);
+                }
+            }
+        }
+    }
+
+    if cookie_map.is_empty() {
+        None
+    } else {
+        let result: Vec<String> = cookie_map
+            .into_iter()
+            .map(|(k, v)| format!("{}={}", k, v))
+            .collect();
+        Some(result.join("; "))
+    }
+}
+
 #[derive(Deserialize)]
 pub struct ProxyQuery {
     pub url: String,
@@ -130,6 +187,14 @@ pub async fn distillery_set_proxy_cookies(cookies: Option<String>) -> Result<(),
     Ok(())
 }
 
+/// 获取代理服务器当前累积的所有 Cookie（Cookie Jar 内容）
+/// 前端可用此命令在登录后自动同步 cookies 到身份卡片
+#[tauri::command]
+pub async fn distillery_get_proxy_cookies() -> Result<Option<String>, String> {
+    let state = DISTILLERY_PROXY_STATE.lock().await;
+    Ok(state.active_cookies.clone())
+}
+
 /// 处理 HTML 代理请求
 async fn handle_proxy_html(
     Query(query): Query<ProxyQuery>,
@@ -177,6 +242,22 @@ async fn handle_proxy_html(
         .send()
         .await
         .map_err(|e| (StatusCode::BAD_GATEWAY, format!("Request failed: {}", e)))?;
+
+    // Cookie Jar: 自动累积响应中的 Set-Cookie 到 active_cookies
+    let set_cookies: Vec<String> = response
+        .headers()
+        .get_all("set-cookie")
+        .iter()
+        .filter_map(|v| v.to_str().ok().map(|s| s.to_string()))
+        .collect();
+    if !set_cookies.is_empty() {
+        let mut state = DISTILLERY_PROXY_STATE.lock().await;
+        state.active_cookies = merge_set_cookies(&state.active_cookies, &set_cookies);
+        info!(
+            "[Distillery-Proxy] Cookie Jar updated from proxy_html ({} Set-Cookie headers)",
+            set_cookies.len()
+        );
+    }
 
     let status = StatusCode::from_u16(response.status().as_u16()).unwrap_or(StatusCode::OK);
     let mut resp_headers = AxumHeaderMap::new();
@@ -279,6 +360,18 @@ async fn handle_proxy_resource(
         .await
         .map_err(|e| (StatusCode::BAD_GATEWAY, format!("Request failed: {}", e)))?;
 
+    // Cookie Jar: 子资源请求也可能返回 Set-Cookie（如跟踪 cookie）
+    let set_cookies: Vec<String> = response
+        .headers()
+        .get_all("set-cookie")
+        .iter()
+        .filter_map(|v| v.to_str().ok().map(|s| s.to_string()))
+        .collect();
+    if !set_cookies.is_empty() {
+        let mut state = DISTILLERY_PROXY_STATE.lock().await;
+        state.active_cookies = merge_set_cookies(&state.active_cookies, &set_cookies);
+    }
+
     let status = StatusCode::from_u16(response.status().as_u16()).unwrap_or(StatusCode::OK);
     let mut resp_headers = AxumHeaderMap::new();
 
@@ -377,7 +470,9 @@ async fn handle_fallback(req: Request) -> Result<impl IntoResponse, (StatusCode,
         }
     }
 
-    // 转发原始请求头（过滤掉 host 和 hop-by-hop 头）
+    // 转发原始请求头（过滤掉 host、hop-by-hop 头和 cookie）
+    // cookie 必须过滤：iframe 请求可能自带针对代理域(127.0.0.1)的 cookie，
+    // 与上面注入的 active_cookies 冲突会导致目标服务器 401
     let skip_headers = [
         "host",
         "connection",
@@ -385,6 +480,7 @@ async fn handle_fallback(req: Request) -> Result<impl IntoResponse, (StatusCode,
         "upgrade",
         "te",
         "trailer",
+        "cookie",
     ];
     for (name, value) in req_headers.iter() {
         let name_str = name.as_str().to_lowercase();
@@ -407,6 +503,22 @@ async fn handle_fallback(req: Request) -> Result<impl IntoResponse, (StatusCode,
             format!("Fallback proxy failed: {}", e),
         )
     })?;
+
+    // Cookie Jar: 自动累积响应中的 Set-Cookie 到 active_cookies
+    let set_cookies: Vec<String> = response
+        .headers()
+        .get_all("set-cookie")
+        .iter()
+        .filter_map(|v| v.to_str().ok().map(|s| s.to_string()))
+        .collect();
+    if !set_cookies.is_empty() {
+        let mut state = DISTILLERY_PROXY_STATE.lock().await;
+        state.active_cookies = merge_set_cookies(&state.active_cookies, &set_cookies);
+        info!(
+            "[Distillery-Proxy] Cookie Jar updated from fallback ({} Set-Cookie headers)",
+            set_cookies.len()
+        );
+    }
 
     // 构建响应
     let status = StatusCode::from_u16(response.status().as_u16()).unwrap_or(StatusCode::OK);

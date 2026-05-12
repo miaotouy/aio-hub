@@ -695,6 +695,7 @@ pub fn run() {
             web_distillery::distillery_stop_proxy,
             web_distillery::distillery_get_proxy_port,
             web_distillery::distillery_set_proxy_cookies,
+            web_distillery::distillery_get_proxy_cookies,
             // 系统脉搏命令
             start_pulse,
             stop_pulse,

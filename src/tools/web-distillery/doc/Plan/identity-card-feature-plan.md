@@ -1,9 +1,64 @@
+
 # 身份卡片 (Identity Card) 功能规划
 
-> **状态**: Implementing (P0-P2 完成)
+> **状态**: Implementing (P0-P2 部分完成，⚠️ P0.5 缺失——交互式浏览的 Cookie 注入/保存闭环未实现)
 > **创建日期**: 2025-05-12
-> **最后更新**: 2025-05-12 (P0/P1/P2 基础实现完成)
+> **最后更新**: 2025-05-12
 > **所属模块**: `src/tools/web-distillery/components/CookieLab.vue`
+
+---
+
+## 0. ⚠️ 当前阻塞问题（2025-05-12 调查）
+
+### 0.1 问题描述
+
+计划文档标记 P0-P2 为"完成"，但实际上存在一个**关键的断裂环节**——整个 Cookie 生命周期中最基础的一步没有实现：
+
+**交互式浏览模式下，cookies 既不会被自动注入到代理，也不会在用户登录后被保存。**
+
+错误现象：`GET http://127.0.0.1:61077/api/user/self 401 (Unauthorized)` — 代理转发请求时不带 Cookie。
+
+### 0.2 断裂链路
+
+```
+用户在交互式浏览中打开页面
+    ↓
+iframe 通过代理加载 → 代理的 fallback 转发 XHR 请求
+    ↓
+但 DISTILLERY_PROXY_STATE.active_cookies 为 null（没人设置过）
+    ↓
+代理转发请求时不带 Cookie header → 目标服务器返回 401
+```
+
+### 0.3 具体缺失点
+
+| # | 缺失环节 | 现状 | 影响 |
+|---|---------|------|------|
+| 1 | **交互式浏览加载页面时注入 cookies** | `DistilleryWorkbench.handleFetch()` 中 smart 模式调用 `smartExtract`（会注入），但交互式浏览模式加载页面时**没有人调用 `distillery_set_proxy_cookies`** | 即使 Profile 已激活，交互式浏览也不会带身份 |
+| 2 | **身份切换后更新代理状态** | `BrowserToolbar.handleIdentitySwitch()` 只调用了 `cookieProfileStore.toggleActive()`，**没有调用 `distillery_set_proxy_cookies`**，也没有刷新页面 | 切换身份后当前页面不会感知变化 |
+| 3 | **用户在 iframe 中登录后保存 cookies** | 完全没有实现。当前只有手动去 CookieLab 点"从浏览器抓取"才能保存，且只能读非 HttpOnly cookies | 用户登录后 cookies 只存在于 iframe 的浏览器 cookie jar 中，代理端口变化或 iframe 重建后就丢失 |
+| 4 | **代理层 Set-Cookie 响应头的捕获与回传** | `proxy.rs` 的 `unsafe_headers` 中没有 `set-cookie`，所以会透传给 iframe，但**没有机制将其回传给前端保存** | HttpOnly cookies 永远无法被前端感知和持久化 |
+
+### 0.4 当前已实现 vs 缺失对比
+
+```
+✅ 已实现（能用）：
+  - CookieProfile CRUD（创建/编辑/删除/导入/导出）
+  - 代理层 active_cookies 注入逻辑（proxy.rs fallback + proxy-resource）
+  - smartExtract 蒸馏时自动注入 cookies
+  - quickFetch 蒸馏时自动注入 cookies
+  - BrowserToolbar 身份下拉 UI（只是展示）
+
+❌ 缺失（不能用）：
+  - 交互式浏览加载页面时注入 cookies
+  - 身份切换后更新代理 + 刷新页面
+  - 用户登录后保存 cookies 到 Profile
+  - Set-Cookie 响应头捕获回传
+```
+
+### 0.5 修复优先级
+
+**Phase 4.5** 必须在 Phase 5（加密）之前完成，否则整个身份卡片功能在交互式浏览场景下完全不可用。
 
 ---
 
@@ -114,6 +169,15 @@ interface CookieProfile {
 - [x] 单条 Cookie 的增删改查（表格形式，字段：name, value, domain, path, expires）
 - [x] 域名互斥激活机制（同域名下只能有一个 Profile 激活）
 - [x] 移除 `stores/store.ts` 中旧的 `cookieProfiles: string[]` 字段
+
+#### P0.5 — 交互式浏览的 Cookie 注入与保存闭环（⚠️ 缺失，阻塞实际使用）
+
+> **这是当前最关键的缺失环节。** 没有这一步，即使 P0-P2 的 CRUD/导入/Rust 注入全部实现了，用户在交互式浏览模式下也无法使用身份卡片功能。
+
+- [ ] **交互式浏览加载页面时注入 cookies**：当用户在交互式浏览模式中加载页面时，应在 `iframeBridge.create()` 之前调用 `distillery_set_proxy_cookies`，将当前 URL 匹配的激活 Profile 的 cookies 注入代理
+- [ ] **身份切换后立即更新代理 + 刷新页面**：`BrowserToolbar.handleIdentitySwitch()` 中切换身份后，应立即调用 `distillery_set_proxy_cookies` 更新代理状态，并触发页面重新加载
+- [ ] **用户登录后保存 cookies（半自动）**：在 BrowserToolbar 或 BrowserViewport 中提供"保存当前 Cookie"按钮，一键将 iframe 中的 `document.cookie` 保存/更新到对应的 CookieProfile
+- [ ] **代理层 Set-Cookie 响应头捕获与回传（自动）**：Rust `proxy.rs` 的 fallback/proxy 路由在转发响应时，提取 `Set-Cookie` 头并通过注入脚本回传给前端，前端自动更新对应 Profile 的 cookies（覆盖 HttpOnly 场景）
 
 #### P1 — 导入导出
 
@@ -319,118 +383,6 @@ AppData/web-distillery/
 └── cookie-profiles.json       # 新增：身份卡片数据（开发期明文，发版前加密 value）
 ```
 
-#### 前端 Store 实现
-
-参考 `recipe-store.ts` 的单例 + `createConfigManager` 模式：
-
-```typescript
-// core/cookie-profile-store.ts
-import { createConfigManager } from "@/utils/configManager";
-import type { CookieProfile } from "../types";
-
-interface CookieProfileConfig {
-  profiles: CookieProfile[];
-  activeMap: Record<string, string | null>; // domain → active profile id
-}
-
-const configManager = createConfigManager<CookieProfileConfig>({
-  moduleName: "web-distillery",
-  fileName: "cookie-profiles.json",
-  createDefault: () => ({
-    profiles: [],
-    activeMap: {},
-  }),
-});
-
-export class CookieProfileStore {
-  private static instance: CookieProfileStore;
-  private profiles: CookieProfile[] = [];
-  private activeMap: Record<string, string | null> = {};
-  private isLoaded = false;
-  private readonly MAX_PROFILES = 100;
-
-  public static getInstance(): CookieProfileStore {
-    /* ... */
-  }
-  public async load(): Promise<void> {
-    /* ... */
-  }
-  private async save(): Promise<void> {
-    /* ... */
-  }
-
-  // CRUD
-  public async create(profile: Omit<CookieProfile, "id" | "createdAt" | "updatedAt">): Promise<CookieProfile> {
-    /* ... */
-  }
-  public async update(id: string, updates: Partial<CookieProfile>): Promise<void> {
-    /* ... */
-  }
-  public async delete(id: string): Promise<void> {
-    /* ... */
-  }
-  public getAll(): CookieProfile[] {
-    return this.profiles;
-  }
-  public getByDomain(domain: string): CookieProfile[] {
-    /* ... */
-  }
-
-  // 激活/切换
-  public async toggleActive(profileId: string): Promise<void> {
-    /* 互斥逻辑 */
-  }
-  public getActiveProfileForUrl(url: string): CookieProfile | null {
-    /* 域名匹配 */
-  }
-
-  // 导入/导出
-  public async importFromJson(data: any[]): Promise<number> {
-    /* ... */
-  }
-  public async importFromNetscape(text: string): Promise<number> {
-    /* ... */
-  }
-  public exportAsJson(profileId: string): string {
-    /* ... */
-  }
-  public exportAsCurlHeader(profileId: string): string {
-    /* ... */
-  }
-}
-
-export const cookieProfileStore = CookieProfileStore.getInstance();
-```
-
-#### 加密实现方案（替换脚手架时执行）
-
-加密目标：**只加密 cookie 的 value 字段**，其余元数据保持明文（name、domain、path、expires 等需要用于匹配和展示）。
-
-**实现路径**：
-
-1. 新增 Rust 命令 `cookie_encrypt_value` / `cookie_decrypt_value`（批量处理）
-2. 前端 Store 的 `save()` 时调用 Rust 加密 value → 存入 JSON
-3. 前端 Store 的 `load()` 时调用 Rust 解密 value → 内存中使用明文
-4. 直接替换明文实现，无需迁移逻辑（开发期数据可直接删除重建）
-
-**平台加密方案**：
-
-| 平台    | 方案                     | Crate                | 特点                          |
-| ------- | ------------------------ | -------------------- | ----------------------------- |
-| Windows | DPAPI (CryptProtectData) | `windows` (已有生态) | 绑定当前用户，零密钥管理      |
-| macOS   | Security Framework       | `security-framework` | 使用 Keychain 存储密钥        |
-| Linux   | libsecret                | `secret-service`     | AIO 是 GUI 应用，必有桌面环境 |
-
-**为什么不用 `keyring` crate**：`keyring` 是高层封装，API 简洁但隐藏了平台差异，出错时难以调试。直接按平台条件编译，控制力更强。
-
-#### P3 进一步加密升级（可选）
-
-如果需要更高安全性（如整个文件加密、防内存 dump）：
-
-1. 使用 `aes-gcm` 做文件级加密，密钥通过平台 API 保护
-2. 内存中使用后立即 zeroize（`zeroize` crate）
-3. 这属于过度工程，除非有明确的威胁模型要求
-
 ### 5.2 Rust 代理层改动
 
 #### 5.2.1 `fetcher.rs` — quickFetch Cookie 注入
@@ -467,24 +419,6 @@ pub async fn distillery_quick_fetch(
 }
 ```
 
-**前端调用变更**（`actions.ts`）：
-
-```typescript
-// actions.ts — quickFetch 中拼接 cookie
-import { cookieProfileStore } from "./core/cookie-profile-store";
-
-const activeProfile = cookieProfileStore.getActiveProfileForUrl(options.url);
-const cookieStr = activeProfile ? activeProfile.cookies.map((c) => `${c.name}=${c.value}`).join("; ") : undefined;
-
-const payload = await invoke<RawFetchPayload>("distillery_quick_fetch", {
-  url: options.url,
-  options: {
-    /* ... */
-  },
-  cookies: cookieStr, // 新增参数
-});
-```
-
 #### 5.2.2 `proxy.rs` — iframe 代理 Cookie 注入
 
 代理服务器需要在转发请求时携带 cookie。**方案：扩展全局状态**。
@@ -507,120 +441,119 @@ pub async fn distillery_set_proxy_cookies(cookies: Option<String>) -> Result<(),
 }
 ```
 
-```rust
-// proxy.rs — handle_proxy_html 中注入 Cookie header
-async fn handle_proxy_html(Query(query): Query<ProxyQuery>) -> Result<impl IntoResponse, ...> {
-    // ...existing URL decode + client build...
-    let mut request = client.get(decoded_url.as_ref());
+### 5.3 Phase 4.5 详细设计：交互式浏览 Cookie 闭环
 
-    // 新增：注入激活的 cookie
-    {
-        let state = DISTILLERY_PROXY_STATE.lock().await;
-        if let Some(ref cookies) = state.active_cookies {
-            if !cookies.is_empty() {
-                request = request.header("Cookie", cookies.as_str());
-            }
-        }
-    } // 锁在此释放
+> **这是当前最紧急需要实现的部分。**
 
-    let response = request.send().await...;
-    // ...rest unchanged...
-}
-```
+#### Step 1：交互式浏览加载时注入 cookies
 
-#### 5.2.3 Set-Cookie 响应头提取（P3: HttpOnly 支持）
-
-当前 `proxy.rs` 的 `unsafe_headers` 列表中**没有** `set-cookie`，意味着响应中的 Set-Cookie 头会透传给 iframe。但 iframe 的 `document.cookie` 无法读取 HttpOnly cookie。
-
-P3 阶段需要：
-
-1. 在代理响应中提取 `Set-Cookie` 头
-2. 通过注入脚本将其作为消息发送给父窗口
-3. 前端接收后存入 Profile
-
-### 5.3 iframe 注入流程改动
-
-#### 完整时序图
-
-```
-前端 actions.ts                    proxy.rs                     iframe (bridge.js)
-      │                               │                              │
-      │ ① distillery_set_proxy_cookies │                              │
-      │──────────────────────────────→│                              │
-      │                               │ (state.active_cookies 更新)   │
-      │                               │                              │
-      │ ② iframeBridge.create(url)    │                              │
-      │───────────────────────────────│──────────────────────────────→│
-      │                               │ ③ GET /proxy?url=...         │
-      │                               │←─────────────────────────────│
-      │                               │ (附加 Cookie header)          │
-      │                               │ ④ 转发请求到目标站            │
-      │                               │──→ target site               │
-      │                               │←── response (含 Set-Cookie)  │
-      │                               │ ⑤ 注入 bridge.js + 返回 HTML │
-      │                               │──────────────────────────────→│
-      │                               │                              │
-      │ ⑥ bridge ready                │                              │
-      │←──────────────────────────────│──────────────────────────────│
-      │                               │                              │
-      │ ⑦ 注入非 HttpOnly cookie      │                              │
-      │  (document.cookie 逐条写入)    │                              │
-      │──────────────────────────────────────────────────────────────→│
-      │                               │                              │
-      │ ⑧ 执行 actions               │                              │
-      │──────────────────────────────────────────────────────────────→│
-      │                               │                              │
-      │ ⑨ extractDom                  │                              │
-      │──────────────────────────────────────────────────────────────→│
-```
-
-**关键点**：
-
-- HttpOnly cookie 通过步骤 ③ 在代理层注入（服务端携带）
-- 非 HttpOnly cookie 通过步骤 ⑦ 在客户端注入（`document.cookie`）
-- 两者互补，覆盖所有 cookie 类型
-
-#### 前端 smartExtract 改动
+**改动文件**：所有调用 `iframeBridge.create()` 进行交互式浏览的地方
 
 ```typescript
-// actions.ts — smartExtract 中注入 cookie
-export async function smartExtract(options: SmartExtractOptions): Promise<ExtractResult> {
-  // 1. 查找匹配的 Profile
-  const activeProfile = cookieProfileStore.getActiveProfileForUrl(options.url);
+// 在调用 iframeBridge.create() 之前，注入 cookies 到代理
+import { invoke } from "@tauri-apps/api/core";
+import { cookieProfileStore } from "../core/cookie-profile-store";
 
-  // 2. 如果有激活的身份，设置代理 cookie（覆盖 HttpOnly）
-  if (activeProfile) {
-    const cookieStr = activeProfile.cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+await cookieProfileStore.load();
+const activeProfile = await cookieProfileStore.getActiveProfileForUrl(url);
+
+if (activeProfile) {
+  const cookieStr = activeProfile.cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+  await invoke("distillery_set_proxy_cookies", { cookies: cookieStr });
+} else {
+  await invoke("distillery_set_proxy_cookies", { cookies: null });
+}
+
+// 然后再创建 iframe
+await iframeBridge.create({ url, container, hidden: false });
+```
+
+#### Step 2：身份切换后更新代理 + 刷新页面
+
+**改动文件**：`BrowserToolbar.vue` 的 `handleIdentitySwitch()`
+
+```typescript
+async function handleIdentitySwitch(profileId: string | null) {
+  if (profileId === null) {
+    if (activeProfile.value) {
+      await cookieProfileStore.toggleActive(activeProfile.value.id);
+    }
+  } else {
+    await cookieProfileStore.toggleActive(profileId);
+  }
+  await refreshIdentityState(props.modelValue);
+
+  // ⚠️ 新增：立即更新代理 cookies
+  const newActive = await cookieProfileStore.getActiveProfileForUrl(props.modelValue);
+  if (newActive) {
+    const cookieStr = newActive.cookies.map((c) => `${c.name}=${c.value}`).join("; ");
     await invoke("distillery_set_proxy_cookies", { cookies: cookieStr });
   } else {
     await invoke("distillery_set_proxy_cookies", { cookies: null });
   }
 
-  // 3. 初始化 bridge + 创建 iframe（代理会自动携带 cookie）
-  await iframeBridge.init();
-  await iframeBridge.create({ url: options.url, hidden: true, container: tempContainer });
-
-  // 4. 额外注入非 HttpOnly cookie 到 document.cookie（补充客户端可见的）
-  if (activeProfile) {
-    for (const cookie of activeProfile.cookies.filter((c) => !c.httpOnly)) {
-      const cookieStr = `${cookie.name}=${cookie.value}; domain=${cookie.domain}; path=${cookie.path}`;
-      await iframeBridge.setCookie(cookieStr);
-    }
-  }
-
-  // 5. 继续执行 actions + extractDom（已有逻辑不变）...
+  // ⚠️ 新增：触发页面刷新，让新 cookies 生效
+  emit("refresh");
 }
 ```
+
+#### Step 3：用户登录后保存 cookies（半自动）
+
+**方案**：在 BrowserToolbar 中添加"💾 保存 Cookie"按钮，用户在 iframe 中登录后点击即可保存。
+
+**交互流程**：
+```
+用户在 iframe 中登录 → 登录成功（页面变化）
+    ↓
+用户点击工具栏 "💾 保存 Cookie" 按钮
+    ↓
+调用 iframeBridge.getCookies() → 获取 document.cookie
+    ↓
+如果当前 URL 已有激活的 Profile → 更新该 Profile 的 cookies
+如果没有 → 自动创建新 Profile（域名从 URL 推断）
+    ↓
+保存到磁盘 → 下次加载时代理自动注入
+```
+
+**实现要点**：
+- 按钮只在 `store.isWebviewCreated` 为 true 时可用
+- 保存时自动合并（按 cookie name 去重，新值覆盖旧值）
+- 保存后自动激活该 Profile
+- 保存后立即调用 `distillery_set_proxy_cookies` 更新代理
+
+#### Step 4：代理层 Set-Cookie 捕获与回传（P3 增强，非阻塞）
+
+**方案**：在 `proxy.rs` 的 fallback 路由中，提取响应的 `Set-Cookie` 头，通过注入脚本回传给前端。
+
+```rust
+// proxy.rs — handle_fallback 中提取 Set-Cookie
+let set_cookies: Vec<String> = response.headers()
+    .get_all("set-cookie")
+    .iter()
+    .filter_map(|v| v.to_str().ok().map(|s| s.to_string()))
+    .collect();
+
+// 如果有 Set-Cookie，通过注入脚本通知前端
+if !set_cookies.is_empty() {
+    // 方案 A：通过自定义响应头回传（前端 iframe 无法读取）
+    // 方案 B：通过 WebSocket/SSE 推送（过于复杂）
+    // 方案 C：存入全局状态，前端定期轮询（简单可行）
+    let mut state = DISTILLERY_PROXY_STATE.lock().await;
+    state.pending_set_cookies.extend(set_cookies);
+}
+```
+
+> 注：Step 4 属于 P3 增强，当前阶段 Step 1-3 足以解决"明文调试阶段"的闭环问题。
 
 ### 5.4 与配方系统的集成点
 
 | 集成位置                        | 改动内容                                            | 优先级 |
 | ------------------------------- | --------------------------------------------------- | ------ |
 | `RecipeMetaDrawer.vue`          | 添加"绑定身份卡片"下拉选择器                        | P2     |
-| `actions.ts` → `smartExtract()` | 读取配方/URL 匹配的 Profile，注入 cookie            | P2     |
-| `actions.ts` → `quickFetch()`   | 拼接 cookie 字符串传给 Rust `cookies` 参数          | P2     |
-| `BrowserToolbar.vue`            | 地址栏旁添加身份快捷切换下拉                        | P2     |
-| `stores/store.ts`               | 移除旧的 `cookieProfiles: string[]`，改用独立 Store | P0     |
+| `actions.ts` → `smartExtract()` | 读取配方/URL 匹配的 Profile，注入 cookie            | P2 ✅  |
+| `actions.ts` → `quickFetch()`   | 拼接 cookie 字符串传给 Rust `cookies` 参数          | P2 ✅  |
+| `BrowserToolbar.vue`            | 地址栏旁添加身份快捷切换下拉                        | P2 ✅  |
+| `stores/store.ts`               | 移除旧的 `cookieProfiles: string[]`，改用独立 Store | P0 ✅  |
 
 ### 5.5 新增/修改文件清单
 
@@ -630,7 +563,8 @@ src/tools/web-distillery/
 │   └── cookie-profile-store.ts    # 新增：Profile CRUD + 持久化 + 激活逻辑
 ├── components/
 │   ├── CookieLab.vue              # 重写：从简单展示升级为完整管理 UI
-│   └── CookieProfileCard.vue      # 新增：单个 Profile 卡片组件（含激活状态指示）
+│   ├── CookieProfileCard.vue      # 新增：单个 Profile 卡片组件（含激活状态指示）
+│   └── BrowserToolbar.vue         # 修改：添加身份切换 + 保存 Cookie 按钮 + 代理更新逻辑
 ├── types.ts                       # 修改：新增 CookieEntry, CookieProfile 接口
 ├── actions.ts                     # 修改：集成 cookie 注入逻辑（quickFetch + smartExtract）
 └── stores/store.ts                # 修改：移除旧 cookieProfiles 字段
@@ -642,35 +576,6 @@ src-tauri/src/web_distillery/
 
 src-tauri/src/
 └── lib.rs                         # 修改：注册新的 Tauri 命令
-```
-
-### 5.6 新增 Rust 依赖
-
-**P0 阶段：无新增 Rust 依赖**（仅利用已有的 `reqwest`、`axum`、`serde_json`）
-
-**P1.5 加密阶段**（必须实施）：
-
-```toml
-# Windows — DPAPI
-[target.'cfg(windows)'.dependencies]
-windows = { version = "0.58", features = ["Win32_Security_Cryptography"] }
-
-# macOS — Keychain
-[target.'cfg(target_os = "macos")'.dependencies]
-security-framework = "2"
-
-# Linux — libsecret (D-Bus Secret Service API)
-[target.'cfg(target_os = "linux")'.dependencies]
-secret-service = "4"
-```
-
-> 注：如果项目已经依赖了 `windows` crate（Tauri 生态常见），只需添加 feature flag，不算新增依赖。
-
-P3 进一步加密（可选）：
-
-```toml
-aes-gcm = "0.10"          # 文件级 AES-256-GCM 加密
-zeroize = "1"              # 内存安全清理
 ```
 
 ---
@@ -689,23 +594,6 @@ zeroize = "1"              # 内存安全清理
 | 内存 dump / 进程注入                 | 低       | 暴露    | 暴露      |
 | 备份/同步工具意外上传（如 OneDrive） | 中       | 暴露    | 已缓解    |
 
-#### 开发阶段（脚手架，不发版）
-
-- 明文 JSON 存储在 `AppData/web-distillery/cookie-profiles.json`
-- 仅用于开发调试，不会暴露给用户
-- 敏感 cookie value 在 UI 中默认以 `••••••` 遮罩显示，点击才展开（这是 UX 设计，与安全无关）
-
-#### 发版前（直接替换脚手架）
-
-- Cookie value 字段通过平台原生 API 加密后存储
-- 加密后的 JSON 文件即使被读取，攻击者也无法直接获得 cookie 值
-- DPAPI 绑定当前 Windows 用户，其他用户/其他机器无法解密
-- 无需迁移逻辑：开发期的明文数据直接删除或手动重建即可
-
-#### 与项目其他敏感数据的关系
-
-项目中 LLM API Key 同样以明文存储（`configManager`），这是一个已知的技术债。身份卡片功能不应继承这个问题——Cookie 的敏感度更高（可直接冒充用户身份），应该率先引入加密，后续可以将加密基础设施复用到 API Key 存储上。
-
 ### 6.2 传输安全
 
 - Cookie 字符串仅在本地 IPC（Tauri Command）和本地代理（127.0.0.1）之间传输
@@ -717,7 +605,6 @@ zeroize = "1"              # 内存安全清理
 - Profile 数据在前端内存中以明文存在（运行时必须解密才能使用，这是不可避免的）
 - 与浏览器自身的行为一致——浏览器进程内存中 cookie 也是明文
 - 组件卸载时不需要特殊清理（JavaScript GC 会处理）
-- P3 如需进一步防护，可在 Rust 侧使用 `zeroize` crate 清理解密后的临时缓冲区
 
 ---
 
@@ -730,19 +617,24 @@ graph TD
     B --> D[Phase 3: Rust fetcher.rs + proxy.rs 改动]
     D --> E[Phase 4: actions.ts 集成 - quickFetch + smartExtract]
     E --> F[Phase 4: BrowserToolbar 快捷切换]
-    F --> G[Phase 4: RecipeMetaDrawer 绑定]
-    G --> H[Phase 5: 替换脚手架 - 存储加密]
-    H --> I[Phase 6: 增强体验 - 过期检测/导出格式/HttpOnly 提取]
+    F --> F2[Phase 4.5: 交互式浏览 Cookie 注入闭环]
+    F2 --> G[Phase 5: RecipeMetaDrawer 绑定]
+    G --> H[Phase 6: 替换脚手架 - 存储加密]
+    H --> I[Phase 7: 增强体验 - 过期检测/导出格式/HttpOnly 提取]
+
+    style F2 fill:#ff6b6b,stroke:#c92a2a,color:#fff
 ```
 
 ### 开发顺序
 
-1. **Phase 1**：数据层 → 类型定义 + Store（明文脚手架，方便调试）+ 移除旧字段
-2. **Phase 2**：UI 层 → 重写 CookieLab 管理界面 + 导入功能（从浏览器抓取 / JSON / Netscape）
-3. **Phase 3**：Rust 改动 → fetcher + proxy 支持 cookie 注入
-4. **Phase 4**：前端集成 → actions.ts 对接、工具栏快捷入口、配方绑定
-5. **Phase 5**：拆脚手架 → 替换 Store 的 load/save 为平台加密实现（DPAPI/Keychain/libsecret）
-6. **Phase 6**：增强体验 → 过期检测、导出格式、HttpOnly 响应提取、使用统计
+1. **Phase 1** ✅：数据层 → 类型定义 + Store（明文脚手架，方便调试）+ 移除旧字段
+2. **Phase 2** ✅：UI 层 → 重写 CookieLab 管理界面 + 导入功能（从浏览器抓取 / JSON / Netscape）
+3. **Phase 3** ✅：Rust 改动 → fetcher + proxy 支持 cookie 注入
+4. **Phase 4** ✅：前端集成 → actions.ts 对接、工具栏快捷入口
+5. **⚠️ Phase 4.5（当前阻塞）**：交互式浏览 Cookie 闭环 → 加载时注入、切换时更新、登录后保存
+6. **Phase 5**：配方绑定 → RecipeMetaDrawer 中添加身份卡片选择器
+7. **Phase 6**：拆脚手架 → 替换 Store 的 load/save 为平台加密实现
+8. **Phase 7**：增强体验 → 过期检测、导出格式、HttpOnly 响应提取、使用统计
 
 ---
 
@@ -764,11 +656,12 @@ graph TD
 
 ## 9. 风险与缓解
 
-| 风险                       | 影响                    | 缓解措施                                   | 阶段    |
-| -------------------------- | ----------------------- | ------------------------------------------ | ------- |
-| Cookie 过期导致抓取失败    | 用户困惑                | P3 过期检测 + 视觉提示                     | P3      |
-| 代理全局状态竞态           | 并发请求携带错误 cookie | 蒸馏操作本身是串行的，风险极低             | —       |
-| 大量 cookie 导致请求头过大 | HTTP 413 错误           | 限制单个 Profile 最多 200 条 cookie        | P0      |
-| **明文存储被恶意软件读取** | **身份泄露（高危）**    | 开发期不发版；发版前必须完成加密替换       | Phase 5 |
-| 备份工具意外同步敏感文件   | 云端泄露                | 加密后即使被同步也无法解密                 | Phase 5 |
-| DPAPI 密钥随用户密码重置   | 数据不可恢复            | 提供明文 JSON 导出备份功能（用户主动操作） | Phase 6 |
+| 风险                       | 影响                    | 缓解措施                                   | 阶段      |
+| -------------------------- | ----------------------- | ------------------------------------------ | --------- |
+| Cookie 过期导致抓取失败    | 用户困惑                | P3 过期检测 + 视觉提示                     | P3        |
+| 代理全局状态竞态           | 并发请求携带错误 cookie | 蒸馏操作本身是串行的，风险极低             | —         |
+| 大量 cookie 导致请求头过大 | HTTP 413 错误           | 限制单个 Profile 最多 200 条 cookie        | P0        |
+| **明文存储被恶意软件读取** | **身份泄露（高危）**    | 开发期不发版；发版前必须完成加密替换       | Phase 6   |
+| 备份工具意外同步敏感文件   | 云端泄露                | 加密后即使被同步也无法解密                 | Phase 6   |
+| DPAPI 密钥随用户密码重置   | 数据不可恢复            | 提供明文 JSON 导出备份功能（用户主动操作） | Phase 7   |
+| **交互式浏览不注入 cookie** | **功能完全不可用**     | Phase 4.5 实现注入闭环                     | Phase 4.5 |

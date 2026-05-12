@@ -100,6 +100,47 @@
 
   // 监听 DOMContentLoaded
   document.addEventListener('DOMContentLoaded', () => {
-    window.__DISTILLERY_BRIDGE__.send({ type: 'page-loaded' });
+    window.__DISTILLERY_BRIDGE__.send({ type: 'page-loaded', url: window.location.href });
   });
+
+  // Hook SPA 导航变化（pushState / replaceState / popstate）
+  // 许多现代 Web 应用使用 History API 做前端路由，不会触发 DOMContentLoaded
+  (function() {
+    var lastUrl = window.location.href;
+
+    function onNavigationChange() {
+      var currentUrl = window.location.href;
+      if (currentUrl !== lastUrl) {
+        lastUrl = currentUrl;
+        window.__DISTILLERY_BRIDGE__.send({
+          type: 'navigation-changed',
+          url: currentUrl,
+          title: document.title
+        });
+      }
+    }
+
+    // Hook pushState
+    var origPushState = history.pushState;
+    history.pushState = function() {
+      origPushState.apply(this, arguments);
+      onNavigationChange();
+    };
+
+    // Hook replaceState
+    var origReplaceState = history.replaceState;
+    history.replaceState = function() {
+      origReplaceState.apply(this, arguments);
+      onNavigationChange();
+    };
+
+    // 监听 popstate（浏览器后退/前进）
+    window.addEventListener('popstate', function() {
+      // popstate 后 URL 已经改变，延迟一帧确保 location 更新
+      setTimeout(onNavigationChange, 0);
+    });
+
+    // 兜底：定期检查 URL 变化（防止某些框架绕过 history API）
+    setInterval(onNavigationChange, 2000);
+  })();
 })();

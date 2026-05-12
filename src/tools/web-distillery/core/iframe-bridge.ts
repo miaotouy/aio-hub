@@ -22,6 +22,7 @@ export class IframeBridge {
   private domExtractedCallbacks: DomExtractedCallback[] = [];
   private cookieExtractedCallbacks: ((cookies: string, url: string) => void)[] = [];
   private elementSelectedCallbacks: ((data: any) => void)[] = [];
+  private navigationCallbacks: ((url: string, title: string) => void)[] = [];
 
   private constructor() {}
 
@@ -151,6 +152,14 @@ export class IframeBridge {
           } else {
             this.elementSelectedCallbacks.forEach((cb) => cb(payload.data));
           }
+          break;
+        case "page-loaded":
+          // 页面加载完成（初始加载或全量刷新），通知导航监听器
+          this.navigationCallbacks.forEach((cb) => cb(payload.url || "", payload.title || ""));
+          break;
+        case "navigation-changed":
+          // SPA 内部路由变化（pushState/replaceState/popstate）
+          this.navigationCallbacks.forEach((cb) => cb(payload.url || "", payload.title || ""));
           break;
         case "element-hovered":
           store.setHoveredElement(payload.data);
@@ -335,6 +344,14 @@ export class IframeBridge {
     await this.evalScript(script);
   }
 
+  /** 注册导航变化监听器（page-loaded + SPA navigation-changed） */
+  public onNavigationChange(callback: (url: string, title: string) => void): () => void {
+    this.navigationCallbacks.push(callback);
+    return () => {
+      this.navigationCallbacks = this.navigationCallbacks.filter((cb) => cb !== callback);
+    };
+  }
+
   private destroyIframe() {
     if (this.iframe) {
       this.iframe.remove();
@@ -366,6 +383,7 @@ export class IframeBridge {
     this.domExtractedCallbacks = [];
     this.cookieExtractedCallbacks = [];
     this.elementSelectedCallbacks = [];
+    this.navigationCallbacks = [];
   }
 }
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
+import { invoke } from "@tauri-apps/api/core";
 import { ArrowLeft, ArrowRight, RotateCw, Globe, Zap, Scan, Trash2, FileUp, Cookie } from "lucide-vue-next";
 import type { DistillMode, CookieProfile } from "../types";
 import { iframeBridge } from "../core/iframe-bridge";
@@ -179,6 +180,18 @@ async function handleIdentitySwitch(profileId: string | null) {
     await cookieProfileStore.toggleActive(profileId);
   }
   await refreshIdentityState(props.modelValue);
+
+  // Step 2: 立即更新代理 cookies
+  const newActive = activeProfile.value;
+  if (newActive) {
+    const cookieStr = newActive.cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+    await invoke("distillery_set_proxy_cookies", { cookies: cookieStr });
+  } else {
+    await invoke("distillery_set_proxy_cookies", { cookies: null });
+  }
+
+  // 触发页面刷新，让新 cookies 生效
+  emit("refresh");
 }
 </script>
 

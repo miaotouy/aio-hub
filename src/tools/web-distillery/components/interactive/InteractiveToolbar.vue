@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
-import { RotateCw, Save, Cookie, Network, ExternalLink } from "lucide-vue-next";
+import { RotateCw, Save, Cookie, Network, ExternalLink, HardDriveDownload } from "lucide-vue-next";
 import { useWebDistilleryStore } from "../../stores/store";
 import { openUrl } from "@tauri-apps/plugin-opener";
 
-const emit = defineEmits(["save", "open-cookie", "open-api", "load-url"]);
+const emit = defineEmits(["save", "open-cookie", "open-api", "load-url", "save-cookies"]);
 const store = useWebDistilleryStore();
 const urlInput = ref(store.url);
 
@@ -59,6 +59,12 @@ watch(
 
     <div class="toolbar-right">
       <el-button-group>
+        <el-tooltip content="保存当前页面的 Cookie 到身份卡片" placement="bottom" :show-after="500">
+          <el-button @click="emit('save-cookies')" :disabled="!store.isWebviewCreated">
+            <el-icon><HardDriveDownload /></el-icon>
+            <span>保存 Cookie</span>
+          </el-button>
+        </el-tooltip>
         <el-button @click="emit('open-cookie')">
           <el-icon><Cookie /></el-icon>
           <span>Cookie</span>

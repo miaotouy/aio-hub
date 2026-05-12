@@ -255,6 +255,10 @@
       overlay.style.display = 'none';
       lastElement = null;
       console.log('Distillery Selector Picker Disabled');
-    }
+    },
+    addHighlight: addPersistentHighlight,
+    removeHighlight: removePersistentHighlight,
+    clearHighlights: clearAllPersistentHighlights,
+    syncHighlights: updatePersistentHighlights,
   };
 })();

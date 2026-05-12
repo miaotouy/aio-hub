@@ -3,6 +3,7 @@
  */
 import { invoke } from "@tauri-apps/api/core";
 import { useWebDistilleryStore } from "../stores/store";
+import selectorPickerScript from "../inject/selector-picker.js?raw";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { getLocalISOString } from "@/utils/time";
@@ -252,17 +253,11 @@ export class IframeBridge {
     });
   }
 
-  private async getPickerScript(): Promise<string> {
-    const response = await fetch("/src/tools/web-distillery/inject/selector-picker.js");
-    return await response.text();
-  }
-
   public async enablePicker(
     optionsOrCb: { mode: string; continuous?: boolean } | ((data: any) => void),
     onSelected?: (data: any) => void,
   ) {
-    const script = await this.getPickerScript();
-    await this.evalScript(script);
+    await this.evalScript(selectorPickerScript);
 
     let options = { mode: "include", continuous: true };
     let callback = onSelected;
@@ -287,20 +282,22 @@ export class IframeBridge {
 
   public async addHighlight(selector: string, mode: string) {
     await this.evalScript(
-      `window.__distillerySelectorPicker.addHighlight(${JSON.stringify(selector)}, ${JSON.stringify(mode)})`,
+      `if(window.__distillerySelectorPicker) window.__distillerySelectorPicker.addHighlight(${JSON.stringify(selector)}, ${JSON.stringify(mode)})`,
     );
   }
 
   public async removeHighlight(selector: string) {
-    await this.evalScript(`window.__distillerySelectorPicker.removeHighlight(${JSON.stringify(selector)})`);
+    await this.evalScript(
+      `if(window.__distillerySelectorPicker) window.__distillerySelectorPicker.removeHighlight(${JSON.stringify(selector)})`,
+    );
   }
 
   public async clearHighlights() {
-    await this.evalScript(`window.__distillerySelectorPicker.clearHighlights()`);
+    await this.evalScript(`if(window.__distillerySelectorPicker) window.__distillerySelectorPicker.clearHighlights()`);
   }
 
   public async syncHighlights() {
-    await this.evalScript(`window.__distillerySelectorPicker.syncHighlights()`);
+    await this.evalScript(`if(window.__distillerySelectorPicker) window.__distillerySelectorPicker.syncHighlights()`);
   }
 
   public async getCookies(): Promise<string> {

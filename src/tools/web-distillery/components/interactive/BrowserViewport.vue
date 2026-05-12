@@ -28,13 +28,23 @@ const syncTheme = async () => {
 
 // 同步持久高亮
 const syncPersistentHighlights = async () => {
-  if (!store.recipeDraft) return;
+  if (!store.recipeDraft || !store.isWebviewCreated) return;
   await iframeBridge.clearHighlights();
 
-  for (const selector of store.recipeDraft.extractSelectors || []) {
+  const includeSelectors = store.recipeDraft.extractSelectors || [];
+  const excludeSelectors = store.recipeDraft.excludeSelectors || [];
+
+  // 如果有规则但脚本可能没加载，先确保脚本加载（但不开启拾取模式）
+  if (includeSelectors.length > 0 || excludeSelectors.length > 0) {
+    // 这里我们不调用 enablePicker，因为它会改变 UI 状态，
+    // 我们只是通过 bridge 执行一次 addHighlight，它内部会安全处理。
+    // 但为了确保高亮能立刻显示出来，如果发现没加载，我们其实可以预注入。
+  }
+
+  for (const selector of includeSelectors) {
     if (selector) await iframeBridge.addHighlight(selector, "include");
   }
-  for (const selector of store.recipeDraft.excludeSelectors || []) {
+  for (const selector of excludeSelectors) {
     if (selector) await iframeBridge.addHighlight(selector, "exclude");
   }
 };

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
-import { ArrowLeft, ArrowRight, RotateCw, Globe, Zap, Scan, Settings2, Trash2, FileUp } from "lucide-vue-next";
+import { ArrowLeft, ArrowRight, RotateCw, Globe, Zap, Scan, Trash2, FileUp } from "lucide-vue-next";
 import type { DistillMode } from "../types";
 import { iframeBridge } from "../core/iframe-bridge";
 import { customMessage } from "@/utils/customMessage";
@@ -28,7 +28,6 @@ const emit = defineEmits<{
   fetch: [mode: "fast" | "smart"];
   navigate: [direction: "back" | "forward"];
   refresh: [];
-  "open-interactive": [];
   upload: [payload: { content: string; fileName: string }];
 }>();
 
@@ -40,7 +39,6 @@ const localUrl = ref(props.modelValue);
 const modeOptions = [
   { label: "快速模式", value: "fast", icon: Zap, desc: "纯 HTTP 请求，毫秒级响应" },
   { label: "智能模式", value: "smart", icon: Scan, desc: "隐藏 Iframe 渲染 JS，支持动态内容" },
-  { label: "交互模式", value: "interactive", icon: Settings2, desc: "可见 Iframe + 元素选择，配置持久化配方" },
 ];
 
 const selectedMode = ref<DistillMode>(props.activeMode ?? "fast");
@@ -91,20 +89,13 @@ function triggerFetch() {
   logger.debug("Triggering fetch", { url: finalUrl, mode: selectedMode.value });
   emit("update:modelValue", finalUrl);
 
-  if (selectedMode.value === "interactive") {
-    emit("open-interactive");
-  } else {
-    emit("fetch", selectedMode.value as "fast" | "smart");
-  }
+  emit("fetch", selectedMode.value as "fast" | "smart");
 
   urlInputRef.value?.blur();
 }
 
 function handleModeCommand(mode: DistillMode) {
   selectedMode.value = mode;
-  if (mode === "interactive") {
-    emit("open-interactive");
-  }
 }
 
 async function handleForceCleanup() {

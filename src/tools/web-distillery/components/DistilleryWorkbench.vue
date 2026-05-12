@@ -112,10 +112,6 @@ async function handleRefresh() {
   if (currentUrl.value) await handleFetch(activeMode.value);
 }
 
-function openInteractive() {
-  store.switchToInteractive();
-}
-
 async function handleFileUpload(payload: { content: string; fileName: string }) {
   logger.info("File upload triggered", { fileName: payload.fileName });
   isLoading.value = true;
@@ -191,7 +187,6 @@ function handleSendToChat() {
       :active-mode="activeMode"
       @fetch="handleFetch"
       @refresh="handleRefresh"
-      @open-interactive="openInteractive"
       @upload="handleFileUpload"
     />
 
@@ -284,7 +279,6 @@ function handleSendToChat() {
             <ul>
               <li><strong>快速模式</strong>: 纯 HTTP 请求，毫秒级响应</li>
               <li><strong>智能模式</strong>: 隐藏 Iframe 渲染，支持动态内容</li>
-              <li><strong>交互模式</strong>: 可视化配置持久化配方</li>
             </ul>
           </div>
         </InfoCard>

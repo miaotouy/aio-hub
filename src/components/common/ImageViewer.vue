@@ -243,3 +243,21 @@ onBeforeUnmount(() => {
 <style scoped>
 /* v-viewer 的样式会全局注入，这里不需要额外样式 */
 </style>
+
+<style lang="css">
+/**
+ * 标题栏避让
+ * 标题栏现在是文档流布局（position: relative），而 viewer.js 生成的容器为 position: fixed 全屏覆盖，
+ * 因此需要手动偏移顶部距离来避开标题栏区域。
+ */
+.viewer-backdrop {
+  top: var(--titlebar-height, 36px) !important;
+  height: calc(100vh - var(--titlebar-height, 36px)) !important;
+}
+
+.viewer-container {
+  top: var(--titlebar-height, 36px) !important;
+  height: calc(100vh - var(--titlebar-height, 36px)) !important;
+}
+
+</style>

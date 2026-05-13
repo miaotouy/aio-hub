@@ -26,6 +26,11 @@ export function resolveLocalPath(path: string): string {
   // 1. 处理 file:// 协议前缀
   let cleanPath = path.replace(/^file:\/{2,3}/, "");
 
+  // 1.5 防御性检查：如果去掉 file:// 后是一个 http/https URL，说明不是真正的本地路径
+  if (cleanPath.startsWith("http://") || cleanPath.startsWith("https://")) {
+    return cleanPath;
+  }
+
   // 2. 解码 URL 编码的字符
   try {
     cleanPath = decodeURIComponent(cleanPath);

@@ -491,9 +491,9 @@ const resolveAsset = (content: string) => {
   // 1. 处理 agent-asset:// 和 file://
   let processed = processMessageAssetsSync(content, currentAgent.value);
 
-  // 2. 处理 【file::assetId】 占位符
+  // 2. 处理 【file::assetId】 占位符（同时消耗前面可能残留的 file:// 前缀）
   if (processed.includes("【file::")) {
-    processed = processed.replace(/【file::([^】]+)】/g, (match, assetId) => {
+    processed = processed.replace(/(?:file:\/\/)?【file::([^】]+)】/g, (match, assetId) => {
       // 在当前消息的附件中查找
       const asset = props.message.attachments?.find((a) => a.id === assetId);
       if (asset && assetBasePath.value) {

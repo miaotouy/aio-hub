@@ -1,10 +1,22 @@
 <script setup lang="ts">
 import { ref, computed, watch, provide, nextTick } from "vue";
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { Copy, Check, GitBranch, Languages, MessageSquareText, Loader2 } from "lucide-vue-next";
+import {
+  Copy,
+  Check,
+  GitBranch,
+  Languages,
+  MessageSquareText,
+  Loader2,
+  Trash2,
+  Wand2,
+  FileAudio,
+  Square,
+} from "lucide-vue-next";
 import { useResizeObserver } from "@vueuse/core";
 import type { ChatMessageNode, ChatSessionIndex, ChatSessionDetail, TranslationDisplayMode } from "../../types";
 import type { Asset } from "@/types/asset-management";
+import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
@@ -38,7 +50,8 @@ import DocumentViewer from "@/components/common/DocumentViewer.vue";
 
 const logger = createModuleLogger("MessageContent");
 const { settings } = useChatSettings();
-const { computeWillUseTranscription } = useTranscriptionManager();
+const transcriptionManager = useTranscriptionManager();
+const { computeWillUseTranscription } = transcriptionManager;
 const imageViewer = useImageViewer();
 const macroProcessor = new MacroProcessor();
 
@@ -329,6 +342,50 @@ const saveToBranch = () => {
 // 处理附件移除
 const handleRemoveAttachment = (asset: Asset) => {
   attachmentManager.removeAttachment(asset);
+};
+
+// 编辑模式附件快捷操作
+const handleEditTranscribeAll = () => {
+  attachmentManager.attachments.value.forEach((asset) => {
+    const status = transcriptionManager.getTranscriptionStatus(asset);
+    if (status === "none" || status === "error") {
+      transcriptionManager.addTask(asset);
+    }
+  });
+};
+
+const handleEditSmartTranscribeAll = () => {
+  attachmentManager.attachments.value.forEach((asset) => {
+    if (getWillUseTranscription(asset)) {
+      const status = transcriptionManager.getTranscriptionStatus(asset);
+      if (status === "none" || status === "error") {
+        transcriptionManager.addTask(asset);
+      }
+    }
+  });
+};
+
+const handleEditStopAllTranscriptions = () => {
+  attachmentManager.attachments.value.forEach((asset) => {
+    const status = transcriptionManager.getTranscriptionStatus(asset);
+    if (status === "pending" || status === "processing") {
+      transcriptionManager.cancelTranscription(asset.id);
+    }
+  });
+};
+
+const handleEditClearAllAttachments = async () => {
+  try {
+    await ElMessageBox.confirm("确定要清空所有附件吗？", "提示", {
+      confirmButtonText: "确定",
+      cancelButtonText: "取消",
+      type: "warning",
+      lockScroll: false,
+    });
+    attachmentManager.clearAttachments();
+  } catch {
+    // 用户取消
+  }
 };
 
 // 编辑模式下插入占位符到编辑器
@@ -629,10 +686,50 @@ const errorMessage = computed(() => messageMetadata.value?.error);
             :all-assets="attachmentManager.attachments.value"
             :removable="true"
             size="medium"
+            :will-use-transcription="getWillUseTranscription(attachment)"
             :insert-placeholder-handler="handleInsertPlaceholderInEditor"
             @remove="handleRemoveAttachment"
             @preview-document="handlePreviewDocument"
           />
+        </div>
+        <!-- 附件快捷操作栏 -->
+        <div class="edit-attachments-actions">
+          <el-dropdown trigger="click" placement="top-end">
+            <div class="edit-attachments-badge" title="批量附件操作">
+              <span class="edit-attachment-count">{{ attachmentManager.count.value }} 个附件</span>
+            </div>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item @click="handleEditTranscribeAll">
+                  <template #icon><FileAudio :size="14" /></template>
+                  一键转写所有
+                </el-dropdown-item>
+                <el-dropdown-item @click="handleEditSmartTranscribeAll">
+                  <template #icon><Wand2 :size="14" /></template>
+                  智能转写所有
+                </el-dropdown-item>
+                <el-dropdown-item @click="handleEditStopAllTranscriptions">
+                  <template #icon><Square :size="14" /></template>
+                  停止所有任务
+                </el-dropdown-item>
+                <el-dropdown-item divided @click="handleEditClearAllAttachments" class="danger-item">
+                  <template #icon><Trash2 :size="14" /></template>
+                  清空所有附件
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+          <el-button
+            type="danger"
+            link
+            class="edit-clear-btn"
+            title="清空所有附件"
+            @click="handleEditClearAllAttachments"
+          >
+            <template #icon>
+              <Trash2 :size="12" />
+            </template>
+          </el-button>
         </div>
       </div>
 
@@ -1041,6 +1138,66 @@ const errorMessage = computed(() => messageMetadata.value?.error);
 .edit-buttons {
   display: flex;
   gap: 8px;
+}
+
+/* 编辑模式附件快捷操作栏 */
+.edit-attachments {
+  position: relative;
+}
+
+.edit-attachments-actions {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px 2px 8px;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(4px);
+  border-radius: 12px;
+  z-index: 1;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.edit-attachments-badge {
+  display: flex;
+  align-items: center;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.9);
+  height: 18px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.edit-attachments-badge:hover {
+  opacity: 0.8;
+}
+
+.edit-attachment-count {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.edit-clear-btn {
+  padding: 2px;
+  height: auto;
+  margin-left: -2px;
+  color: rgba(255, 255, 255, 0.6);
+  transition: all 0.2s ease;
+}
+
+.edit-clear-btn:hover {
+  color: var(--el-color-danger);
+  background: rgba(var(--el-color-danger-rgb), 0.1);
+}
+
+.edit-clear-btn:active {
+  transform: scale(0.9);
+}
+
+.danger-item {
+  color: var(--el-color-danger);
 }
 
 /* 附件展示区域样式 */

@@ -402,6 +402,10 @@ const handleInsertPlaceholderInEditor = (asset: Asset) => {
   } else {
     editingContent.value = before + insertText + after;
   }
+  // 插入后将焦点还给编辑器，防止焦点跑到主输入框
+  nextTick(() => {
+    editorRef.value?.focus();
+  });
 };
 
 // 处理文档预览

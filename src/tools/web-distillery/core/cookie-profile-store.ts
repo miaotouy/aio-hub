@@ -225,6 +225,42 @@ export class CookieProfileStore {
   // =========== URL 匹配 ===========
 
   /**
+   * 根据 URL 获取所有可能匹配的 Profile（不限于激活状态）
+   * 用于侧边栏/工具栏展示当前地址关联的身份列表
+   */
+  public async getMatchingProfilesForUrl(url: string): Promise<CookieProfile[]> {
+    await this.load();
+
+    let domainId: string;
+    let hostname: string;
+    try {
+      const parsed = new URL(url);
+      hostname = parsed.hostname;
+      domainId = extractDomainIdentifier(url);
+    } catch {
+      logger.warn("Invalid URL for profile matching", { url });
+      return [];
+    }
+
+    return this.profiles.filter((p) => {
+      // 1. 精确匹配域名标识符（含端口，如 127.0.0.1:6565）
+      if (p.domain === domainId) return true;
+      // 2. 精确匹配 hostname（不含端口，兼容旧数据）
+      if (domainId !== hostname && p.domain === hostname) return true;
+      // 3. 根域名匹配（仅对非 IP 域名有效）
+      if (!isIpOrLocalhost(hostname)) {
+        const rootDomain = extractRootDomain(hostname);
+        if (p.domain === rootDomain) return true;
+        // 4. 子域名匹配
+        if (hostnameMatchesDomain(hostname, p.domain)) return true;
+        // 5. domainAliases 匹配
+        if (p.domainAliases?.some((alias) => hostnameMatchesDomain(hostname, alias))) return true;
+      }
+      return false;
+    });
+  }
+
+  /**
    * 根据 URL 找到当前激活的 Profile
    * 匹配优先级：精确域名标识符 > 精确 hostname > 子域名 > domainAliases
    */

@@ -170,6 +170,7 @@ export interface CookieProfile {
   domain: string; // 主域名，如 "zhihu.com"
   domainAliases?: string[]; // 可选：关联子域名
   cookies: CookieEntry[];
+  localStorage?: Record<string, string>; // 页面 localStorage 快照（用于 SPA token 恢复）
   isActive: boolean; // 是否为该域名当前激活的身份
   createdAt: string;
   updatedAt: string;

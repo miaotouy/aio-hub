@@ -4,12 +4,14 @@ import { useWebDistilleryStore } from "../../stores/store";
 import RulesTab from "./RulesTab.vue";
 import ActionsTab from "./ActionsTab.vue";
 import LivePreviewTab from "./LivePreviewTab.vue";
+import IdentityPanel from "./IdentityPanel.vue";
 
 const store = useWebDistilleryStore();
 </script>
 
 <template>
   <div class="tool-panel">
+    <IdentityPanel />
     <el-tabs v-model="store.activeToolTab" class="tool-tabs">
       <el-tab-pane name="rules">
         <template #label>

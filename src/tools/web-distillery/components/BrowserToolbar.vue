@@ -6,7 +6,7 @@ import type { DistillMode, CookieProfile } from "../types";
 import { iframeBridge } from "../core/iframe-bridge";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
-import { cookieProfileStore, extractDomainIdentifier } from "../core/cookie-profile-store";
+import { cookieProfileStore } from "../core/cookie-profile-store";
 
 const logger = createModuleLogger("web-distillery/toolbar");
 
@@ -145,9 +145,14 @@ async function refreshIdentityState(url: string) {
   }
   try {
     const fullUrl = url.startsWith("http") ? url : `https://${url}`;
-    const domainId = extractDomainIdentifier(fullUrl);
-    matchedProfiles.value = await cookieProfileStore.getByDomain(domainId);
+    matchedProfiles.value = await cookieProfileStore.getMatchingProfilesForUrl(fullUrl);
     activeProfile.value = await cookieProfileStore.getActiveProfileForUrl(fullUrl);
+
+    // 自动同步激活的 cookies 到代理层（解决后端重启后身份丢失问题）
+    if (activeProfile.value) {
+      const cookieStr = activeProfile.value.cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+      await invoke("distillery_set_proxy_cookies", { cookies: cookieStr });
+    }
   } catch {
     matchedProfiles.value = [];
     activeProfile.value = null;

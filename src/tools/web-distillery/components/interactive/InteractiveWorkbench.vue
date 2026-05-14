@@ -30,7 +30,20 @@ let lastKnownCookies: string | null = null;
 let unsubNavigation: (() => void) | null = null;
 
 /**
- * 自动同步代理层 Cookie Jar 到身份卡片。
+ * 从 iframe 中采集 localStorage 快照（静默，失败返回 undefined）
+ */
+async function captureLocalStorage(): Promise<Record<string, string> | undefined> {
+  if (!store.isWebviewCreated) return undefined;
+  try {
+    return await iframeBridge.getLocalStorage();
+  } catch {
+    // 超时或 iframe 不可用时静默跳过
+    return undefined;
+  }
+}
+
+/**
+ * 自动同步代理层 Cookie Jar + localStorage 到身份卡片。
  * 当检测到页面导航变化时（如登录后跳转），从代理层读取累积的 cookies，
  * 如果之前没有 cookies 而现在有了（说明登录成功），自动创建/更新身份卡片。
  */
@@ -73,6 +86,9 @@ async function syncProxyCookiesToProfile() {
 
     if (parsed.length === 0) return;
 
+    // 同时采集 localStorage（用于 SPA token 恢复）
+    const localStorageData = await captureLocalStorage();
+
     if (existingProfile) {
       // 合并到已有 Profile
       const merged = [...existingProfile.cookies];
@@ -86,20 +102,30 @@ async function syncProxyCookiesToProfile() {
           nameMap.set(c.name, merged.length - 1);
         }
       }
-      await cookieProfileStore.update(existingProfile.id, { cookies: merged });
+      const updates: Parameters<typeof cookieProfileStore.update>[1] = { cookies: merged };
+      if (localStorageData && Object.keys(localStorageData).length > 0) {
+        updates.localStorage = localStorageData;
+      }
+      await cookieProfileStore.update(existingProfile.id, updates);
       logger.info("Auto-synced proxy cookies to existing profile", {
         profileName: existingProfile.name,
         cookieCount: parsed.length,
+        localStorageKeys: localStorageData ? Object.keys(localStorageData).length : 0,
       });
     } else {
       // 自动创建新 Profile
       const cookieStr = parsed.map((c) => `${c.name}=${c.value}`).join("; ");
       const profile = await cookieProfileStore.captureFromBrowser(cookieStr, url);
+      // 如果有 localStorage，也保存到新 Profile 中
+      if (localStorageData && Object.keys(localStorageData).length > 0) {
+        await cookieProfileStore.update(profile.id, { localStorage: localStorageData });
+      }
       await cookieProfileStore.toggleActive(profile.id);
       customMessage.success(`检测到登录成功，已自动创建身份卡片 "${profile.name}"`);
       logger.info("Auto-created identity card from proxy cookies", {
         profileName: profile.name,
         cookieCount: profile.cookies.length,
+        localStorageKeys: localStorageData ? Object.keys(localStorageData).length : 0,
       });
     }
   } catch (err) {
@@ -132,19 +158,31 @@ const handleLoadUrl = async (url: string) => {
   try {
     store.setUrl(url);
 
-    // Step 1: 注入 cookies 到代理（在创建 iframe 之前）
+    // Step 1: 注入 cookies + localStorage 到代理（在创建 iframe 之前）
     await cookieProfileStore.load();
     const activeProfile = await cookieProfileStore.getActiveProfileForUrl(url);
     if (activeProfile) {
       const cookieStr = activeProfile.cookies.map((c) => `${c.name}=${c.value}`).join("; ");
       await invoke("distillery_set_proxy_cookies", { cookies: cookieStr });
+
+      // 同步 localStorage 到代理层
+      if (activeProfile.localStorage && Object.keys(activeProfile.localStorage).length > 0) {
+        await invoke("distillery_set_proxy_local_storage", {
+          data: JSON.stringify(activeProfile.localStorage),
+        });
+      } else {
+        await invoke("distillery_set_proxy_local_storage", { data: null });
+      }
+
       logger.info("Injected cookies for interactive browsing", {
         profileName: activeProfile.name,
         domain: activeProfile.domain,
         cookieCount: activeProfile.cookies.length,
+        localStorageKeys: activeProfile.localStorage ? Object.keys(activeProfile.localStorage).length : 0,
       });
     } else {
       await invoke("distillery_set_proxy_cookies", { cookies: null });
+      await invoke("distillery_set_proxy_local_storage", { data: null });
     }
 
     // iframeBridge.create() 内部会自动调用 init()，无需重复调用
@@ -165,7 +203,7 @@ const handleLoadUrl = async (url: string) => {
   }
 };
 
-/** Step 3: 保存当前 iframe 中的 cookies 到 Profile */
+/** Step 3: 保存当前 iframe 中的 cookies + localStorage 到 Profile */
 const handleSaveCookies = async () => {
   if (!store.isWebviewCreated) {
     customMessage.warning("请先打开一个页面");
@@ -173,11 +211,19 @@ const handleSaveCookies = async () => {
   }
 
   try {
+    // 同时采集 cookies 和 localStorage
     await iframeBridge.getCookies();
-    const result = await iframeBridge.waitForCookiesExtracted(5000);
+    const [result, localStorageData] = await Promise.all([
+      iframeBridge.waitForCookiesExtracted(5000),
+      captureLocalStorage(),
+    ]);
 
-    if (!result.cookies) {
-      customMessage.info("当前页面没有可读取的 Cookie（HttpOnly Cookie 无法通过此方式获取）");
+    // 即使没有 document.cookie，也可能有代理层 Cookie Jar + localStorage
+    const proxyCookies = await invoke<string | null>("distillery_get_proxy_cookies");
+    const effectiveCookies = result.cookies || proxyCookies || "";
+
+    if (!effectiveCookies && (!localStorageData || Object.keys(localStorageData).length === 0)) {
+      customMessage.info("当前页面没有可保存的身份数据");
       return;
     }
 
@@ -194,7 +240,7 @@ const handleSaveCookies = async () => {
         // keep existing
       }
 
-      const parsed = result.cookies
+      const parsed = effectiveCookies
         .split(";")
         .map((pair) => pair.trim())
         .filter(Boolean)
@@ -221,25 +267,45 @@ const handleSaveCookies = async () => {
         }
       }
 
-      await cookieProfileStore.update(existingProfile.id, { cookies: merged });
-      customMessage.success(`已更新身份卡片 "${existingProfile.name}"（${parsed.length} 条 Cookie）`);
+      const updates: Parameters<typeof cookieProfileStore.update>[1] = { cookies: merged };
+      if (localStorageData && Object.keys(localStorageData).length > 0) {
+        updates.localStorage = localStorageData;
+      }
+      await cookieProfileStore.update(existingProfile.id, updates);
+
+      const savedItems: string[] = [];
+      if (parsed.length > 0) savedItems.push(`${parsed.length} 条 Cookie`);
+      if (localStorageData && Object.keys(localStorageData).length > 0) {
+        savedItems.push(`${Object.keys(localStorageData).length} 条 localStorage`);
+      }
+      customMessage.success(`已更新身份卡片 "${existingProfile.name}"（${savedItems.join("，")}）`);
 
       // 同步更新代理
       const cookieStr = merged.map((c) => `${c.name}=${c.value}`).join("; ");
       await invoke("distillery_set_proxy_cookies", { cookies: cookieStr });
     } else {
       // 创建新 Profile
-      const profile = await cookieProfileStore.captureFromBrowser(result.cookies, url);
+      const profile = await cookieProfileStore.captureFromBrowser(effectiveCookies, url);
+      // 保存 localStorage
+      if (localStorageData && Object.keys(localStorageData).length > 0) {
+        await cookieProfileStore.update(profile.id, { localStorage: localStorageData });
+      }
       // 自动激活
       await cookieProfileStore.toggleActive(profile.id);
-      customMessage.success(`已创建并激活身份卡片 "${profile.name}"（${profile.cookies.length} 条 Cookie）`);
+
+      const savedItems: string[] = [];
+      if (profile.cookies.length > 0) savedItems.push(`${profile.cookies.length} 条 Cookie`);
+      if (localStorageData && Object.keys(localStorageData).length > 0) {
+        savedItems.push(`${Object.keys(localStorageData).length} 条 localStorage`);
+      }
+      customMessage.success(`已创建并激活身份卡片 "${profile.name}"（${savedItems.join("，")}）`);
 
       // 同步更新代理
       const cookieStr = profile.cookies.map((c) => `${c.name}=${c.value}`).join("; ");
       await invoke("distillery_set_proxy_cookies", { cookies: cookieStr });
     }
   } catch (err) {
-    errorHandler.error(err, "保存 Cookie 失败");
+    errorHandler.error(err, "保存身份数据失败");
   }
 };
 

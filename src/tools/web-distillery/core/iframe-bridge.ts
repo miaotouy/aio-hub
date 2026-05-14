@@ -3,6 +3,7 @@
  */
 import { invoke } from "@tauri-apps/api/core";
 import { useWebDistilleryStore } from "../stores/store";
+import { cookieProfileStore } from "./cookie-profile-store";
 import selectorPickerScript from "../inject/selector-picker.js?raw";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -66,6 +67,9 @@ export class IframeBridge {
     await this.init();
     this.destroyIframe();
 
+    // 在加载页面之前，先同步已激活的身份 cookies 到代理层
+    await this.syncActiveCookiesToProxy(options.url);
+
     const store = useWebDistilleryStore();
 
     this.iframe = document.createElement("iframe");
@@ -120,6 +124,10 @@ export class IframeBridge {
         case "dom-extracted":
           this.domExtractedCallbacks.forEach((cb) => cb(null, payload.html, payload.url, payload.title));
           this.domExtractedCallbacks = [];
+          break;
+        case "local-storage-extracted":
+          this.localStorageExtractedCallbacks.forEach((cb) => cb(payload.data || {}));
+          this.localStorageExtractedCallbacks = [];
           break;
         case "dom-extract-error":
           this.domExtractedCallbacks.forEach((cb) => cb(new Error(payload.error || "DOM extraction error")));
@@ -344,12 +352,98 @@ export class IframeBridge {
     await this.evalScript(script);
   }
 
+  /** 获取 iframe 页面的 localStorage 快照 */
+  public async getLocalStorage(): Promise<Record<string, string>> {
+    const script = `
+      (function() {
+        if (window.__DISTILLERY_BRIDGE__) {
+          var data = {};
+          for (var i = 0; i < localStorage.length; i++) {
+            var key = localStorage.key(i);
+            if (key !== null) data[key] = localStorage.getItem(key) || '';
+          }
+          window.__DISTILLERY_BRIDGE__.send({
+            type: 'local-storage-extracted',
+            data: data
+          });
+        }
+      })();
+    `;
+    await this.evalScript(script);
+    return this.waitForLocalStorageExtracted(5000);
+  }
+
+  private localStorageExtractedCallbacks: ((data: Record<string, string>) => void)[] = [];
+
+  public waitForLocalStorageExtracted(timeoutMs = 5000): Promise<Record<string, string>> {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error("localStorage extraction timed out after " + timeoutMs + "ms"));
+      }, timeoutMs);
+
+      const callback = (data: Record<string, string>) => {
+        clearTimeout(timer);
+        resolve(data);
+      };
+      this.localStorageExtractedCallbacks.push(callback);
+    });
+  }
+
   /** 注册导航变化监听器（page-loaded + SPA navigation-changed） */
   public onNavigationChange(callback: (url: string, title: string) => void): () => void {
     this.navigationCallbacks.push(callback);
     return () => {
       this.navigationCallbacks = this.navigationCallbacks.filter((cb) => cb !== callback);
     };
+  }
+
+  /**
+   * 将已激活的身份 cookies + localStorage 同步到代理层
+   * 在页面加载前调用，确保代理发出的第一个请求就携带正确的 cookies，
+   * 且 localStorage 在页面 JS 执行前被还原
+   */
+  public async syncActiveCookiesToProxy(url?: string): Promise<void> {
+    const targetUrl = url || useWebDistilleryStore().url;
+    if (!targetUrl) {
+      logger.debug("syncActiveCookiesToProxy: no URL, skipping");
+      return;
+    }
+
+    try {
+      const fullUrl = targetUrl.startsWith("http") ? targetUrl : `https://${targetUrl}`;
+      await cookieProfileStore.load();
+      const activeProfile = await cookieProfileStore.getActiveProfileForUrl(fullUrl);
+
+      if (activeProfile) {
+        const cookieStr = activeProfile.cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+        await invoke("distillery_set_proxy_cookies", { cookies: cookieStr });
+
+        // 同步 localStorage 到代理层（用于 SPA token 恢复）
+        if (activeProfile.localStorage && Object.keys(activeProfile.localStorage).length > 0) {
+          await invoke("distillery_set_proxy_local_storage", {
+            data: JSON.stringify(activeProfile.localStorage),
+          });
+          logger.info("Synced active profile localStorage to proxy", {
+            keyCount: Object.keys(activeProfile.localStorage).length,
+          });
+        } else {
+          await invoke("distillery_set_proxy_local_storage", { data: null });
+        }
+
+        logger.info("Synced active profile cookies to proxy before page load", {
+          profileId: activeProfile.id,
+          profileName: activeProfile.name,
+          cookieCount: activeProfile.cookies.length,
+          hasLocalStorage: !!activeProfile.localStorage,
+          url: fullUrl,
+        });
+      } else {
+        logger.debug("No active profile for URL, proxy cookies not set", { url: fullUrl });
+        await invoke("distillery_set_proxy_local_storage", { data: null });
+      }
+    } catch (err) {
+      logger.warn("Failed to sync cookies to proxy", err);
+    }
   }
 
   private destroyIframe() {
@@ -369,6 +463,7 @@ export class IframeBridge {
     this.domExtractedCallbacks = [];
     this.cookieExtractedCallbacks = [];
     this.elementSelectedCallbacks = [];
+    this.localStorageExtractedCallbacks = [];
     const store = useWebDistilleryStore();
     store.setLoading(false);
     store.setWebviewCreated(false);
@@ -383,6 +478,7 @@ export class IframeBridge {
     this.domExtractedCallbacks = [];
     this.cookieExtractedCallbacks = [];
     this.elementSelectedCallbacks = [];
+    this.localStorageExtractedCallbacks = [];
     this.navigationCallbacks = [];
   }
 }

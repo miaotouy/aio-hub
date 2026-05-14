@@ -24,6 +24,8 @@ pub struct DistilleryProxyState {
     pub port: u16,
     pub shutdown_tx: Option<oneshot::Sender<()>>,
     pub active_cookies: Option<String>,
+    /// 页面 localStorage 快照（JSON 格式的 key-value map），用于 SPA token 恢复
+    pub active_local_storage: Option<String>,
     /// 当前代理的目标 origin（如 "http://127.0.0.1:6565"），用于 fallback 路由转发
     pub active_target_origin: Option<String>,
 }
@@ -184,13 +186,40 @@ pub async fn distillery_set_proxy_cookies(cookies: Option<String>) -> Result<(),
     state.active_cookies = cookies;
     Ok(())
 }
-
 /// 获取代理服务器当前累积的所有 Cookie（Cookie Jar 内容）
 /// 前端可用此命令在登录后自动同步 cookies 到身份卡片
 #[tauri::command]
 pub async fn distillery_get_proxy_cookies() -> Result<Option<String>, String> {
     let state = DISTILLERY_PROXY_STATE.lock().await;
     Ok(state.active_cookies.clone())
+}
+
+/// 设置代理服务器的 localStorage 数据（JSON 格式的 key-value map）
+/// 用于在 iframe 页面加载前注入 localStorage，恢复 SPA 的登录状态
+#[tauri::command]
+pub async fn distillery_set_proxy_local_storage(data: Option<String>) -> Result<(), String> {
+    let mut state = DISTILLERY_PROXY_STATE.lock().await;
+    state.active_local_storage = data;
+    Ok(())
+}
+
+/// 构建 localStorage 还原脚本（内联 <script>）
+/// 在页面 JS 执行前同步写入 localStorage，确保 SPA 能读取到 token
+fn build_local_storage_script(local_storage_json: &Option<String>) -> String {
+    match local_storage_json {
+        Some(json) if !json.is_empty() => {
+            // 对 JSON 进行转义以安全嵌入 HTML script 标签
+            let escaped = json
+                .replace('\\', "\\\\")
+                .replace('\'', "\\'")
+                .replace("</script>", "<\\/script>");
+            format!(
+                r#"<script>(function(){{try{{var d=JSON.parse('{}');for(var k in d){{if(Object.prototype.hasOwnProperty.call(d,k))localStorage.setItem(k,d[k])}}}}catch(e){{}}}})()</script>"#,
+                escaped
+            )
+        }
+        _ => String::new(),
+    }
 }
 
 /// 处理 HTML 代理请求
@@ -305,8 +334,15 @@ async fn handle_proxy_html(
     // 注入脚本和 base 标签
     // 使用 <base href="/"> 让所有相对路径资源和 API 请求都发到代理服务器，
     // 由 fallback 路由统一转发到目标服务器，彻底避免 CORS 问题
-    let head_injections =
-        r#"<base href="/"><script src="/__distillery/anti-detection.js"></script>"#;
+    let local_storage_script = {
+        let state = DISTILLERY_PROXY_STATE.lock().await;
+        build_local_storage_script(&state.active_local_storage)
+    };
+
+    let head_injections = format!(
+        r#"<base href="/"><script src="/__distillery/anti-detection.js"></script>{}"#,
+        local_storage_script
+    );
 
     // bridge.js 和 sniffer.js 移到 body 末尾，避免干扰 head hydration
     let body_injections = r#"<script src="/__distillery/bridge.js" defer></script><script src="/__distillery/sniffer.js" defer></script>"#;
@@ -314,7 +350,7 @@ async fn handle_proxy_html(
     // 健壮的注入逻辑：避免引入多余的换行符，防止 Text Node Hydration 失败
     if let Some(pos) = html.find("<head") {
         if let Some(end_pos) = html[pos..].find('>').map(|i| i + pos + 1) {
-            html.insert_str(end_pos, head_injections);
+            html.insert_str(end_pos, &head_injections);
         }
     }
 
@@ -570,13 +606,20 @@ async fn handle_fallback(req: Request) -> Result<impl IntoResponse, (StatusCode,
     if is_html {
         let mut html = String::from_utf8_lossy(&bytes).to_string();
 
-        let head_injections =
-            r#"<base href="/"><script src="/__distillery/anti-detection.js"></script>"#;
+        let local_storage_script = {
+            let state = DISTILLERY_PROXY_STATE.lock().await;
+            build_local_storage_script(&state.active_local_storage)
+        };
+
+        let head_injections = format!(
+            r#"<base href="/"><script src="/__distillery/anti-detection.js"></script>{}"#,
+            local_storage_script
+        );
         let body_injections = r#"<script src="/__distillery/bridge.js" defer></script><script src="/__distillery/sniffer.js" defer></script>"#;
 
         if let Some(pos) = html.find("<head") {
             if let Some(end_pos) = html[pos..].find('>').map(|i| i + pos + 1) {
-                html.insert_str(end_pos, head_injections);
+                html.insert_str(end_pos, &head_injections);
             }
         }
 

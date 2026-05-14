@@ -1,5 +1,5 @@
 <template>
-  <div class="file-preview">
+  <div class="file-preview" @keydown="handleKeydown">
     <!-- 空状态 -->
     <div v-if="!filePath" class="file-preview__empty">
       <FileSearch :size="48" />
@@ -8,8 +8,16 @@
 
     <!-- 文件头 -->
     <div v-else class="file-preview__header">
-      <span class="file-preview__path" :title="filePath">{{ relativePath || filePath }}</span>
+      <div class="file-preview__path-wrapper">
+        <span class="file-preview__path" :title="filePath">{{ relativePath || filePath }}</span>
+        <span v-if="isDirty" class="file-preview__dirty-dot" title="已修改，未保存" />
+      </div>
       <div class="file-preview__actions">
+        <el-tooltip v-if="isDirty" content="保存 (Ctrl+S)" :show-after="500">
+          <button class="file-preview__action-btn file-preview__action-btn--save" @click="saveFile">
+            <Save :size="14" />
+          </button>
+        </el-tooltip>
         <el-tooltip content="在编辑器中打开" :show-after="500">
           <button class="file-preview__action-btn" @click="openInEditor">
             <ExternalLink :size="14" />
@@ -35,12 +43,13 @@
       <RichCodeEditor
         v-else
         ref="editorRef"
-        :model-value="fileContent"
+        :model-value="editedContent"
         :language="fileLanguage"
-        :read-only="true"
+        :read-only="false"
         :line-numbers="true"
         editor-type="codemirror"
         class="file-preview__editor"
+        @update:model-value="handleContentChange"
         @mount="handleEditorMount"
       />
     </div>
@@ -50,11 +59,12 @@
 <script setup lang="ts">
 import { ref, watch, computed, nextTick } from "vue";
 import { invoke } from "@tauri-apps/api/core";
-import { FileSearch, ExternalLink, FolderOpen } from "lucide-vue-next";
+import { FileSearch, ExternalLink, FolderOpen, Save } from "lucide-vue-next";
 import { Loading } from "@element-plus/icons-vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import { EditorView, Decoration, type DecorationSet } from "@codemirror/view";
 import { StateEffect, StateField } from "@codemirror/state";
+import { customMessage } from "@/utils/customMessage";
 import type { SearchMatch } from "../types";
 
 const props = defineProps<{
@@ -66,8 +76,46 @@ const props = defineProps<{
 
 const isLoading = ref(false);
 const loadError = ref<string | null>(null);
-const fileContent = ref("");
+const fileContent = ref(""); // 原始内容（磁盘上的）
+const editedContent = ref(""); // 编辑器当前内容
+const isSaving = ref(false);
 const editorRef = ref<InstanceType<typeof RichCodeEditor> | null>(null);
+
+// 修改状态：编辑内容与原始内容不一致
+const isDirty = computed(() => editedContent.value !== fileContent.value);
+
+function handleContentChange(value: string) {
+  editedContent.value = value;
+}
+
+// 保存文件
+async function saveFile() {
+  if (!props.filePath || !isDirty.value || isSaving.value) return;
+
+  isSaving.value = true;
+  try {
+    await invoke("write_text_file_force", {
+      path: props.filePath,
+      content: editedContent.value,
+    });
+    // 保存成功，更新原始内容基准
+    fileContent.value = editedContent.value;
+    customMessage.success("文件已保存");
+  } catch (e: any) {
+    customMessage.error(`保存失败: ${e?.message || e}`);
+  } finally {
+    isSaving.value = false;
+  }
+}
+
+// 快捷键处理
+function handleKeydown(e: KeyboardEvent) {
+  if (e.ctrlKey && e.key === "s") {
+    e.preventDefault();
+    e.stopPropagation();
+    saveFile();
+  }
+}
 
 // 从文件路径推断语言
 const fileLanguage = computed(() => {
@@ -208,11 +256,13 @@ async function loadFile(path: string) {
   isLoading.value = true;
   loadError.value = null;
   fileContent.value = "";
+  editedContent.value = "";
   editorMounted = false;
 
   try {
     const content = await invoke<string>("read_text_file_force", { path });
     fileContent.value = content;
+    editedContent.value = content;
   } catch (e: any) {
     loadError.value = `无法读取文件: ${e?.message || e}`;
   } finally {
@@ -294,13 +344,39 @@ watch(
   flex-shrink: 0;
 }
 
+.file-preview__path-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  overflow: hidden;
+}
+
 .file-preview__path {
   font-size: 12px;
   color: var(--el-text-color-regular);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  flex: 1;
+}
+
+.file-preview__dirty-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--el-color-warning);
+  flex-shrink: 0;
+  animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
 }
 
 .file-preview__actions {
@@ -326,6 +402,15 @@ watch(
 .file-preview__action-btn:hover {
   background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.1));
   color: var(--el-color-primary);
+}
+
+.file-preview__action-btn--save {
+  color: var(--el-color-warning);
+}
+
+.file-preview__action-btn--save:hover {
+  background-color: rgba(var(--el-color-warning-rgb, 230, 162, 60), calc(var(--card-opacity) * 0.1));
+  color: var(--el-color-warning);
 }
 
 .file-preview__content {

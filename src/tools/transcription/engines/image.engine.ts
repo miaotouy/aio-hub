@@ -13,6 +13,18 @@ import type { ITranscriptionEngine, EngineContext, EngineResult } from "../types
 
 const logger = createModuleLogger("transcription/engines/image");
 
+/** 将 data URL 直接转为 ArrayBuffer，避免 fetch 触发 CSP 限制 */
+function dataUrlToArrayBuffer(dataUrl: string): ArrayBuffer {
+  const base64Idx = dataUrl.indexOf(",");
+  const base64Str = dataUrl.slice(base64Idx + 1);
+  const binaryStr = atob(base64Str);
+  const bytes = new Uint8Array(binaryStr.length);
+  for (let i = 0; i < binaryStr.length; i++) {
+    bytes[i] = binaryStr.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+
 export class ImageTranscriptionEngine implements ITranscriptionEngine {
   canHandle(asset: Asset): boolean {
     return asset.type === "image";
@@ -63,7 +75,7 @@ export class ImageTranscriptionEngine implements ITranscriptionEngine {
 
           imageBatchData = await Promise.all(
             blocks.map(async (b) => {
-              let buffer = await (await fetch(b.dataUrl)).arrayBuffer();
+              let buffer = dataUrlToArrayBuffer(b.dataUrl);
 
               if (maxDim && maxDim > 0) {
                 try {

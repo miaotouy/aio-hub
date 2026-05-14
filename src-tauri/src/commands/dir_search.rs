@@ -1,0 +1,632 @@
+use encoding_rs::GBK;
+use ignore::overrides::OverrideBuilder;
+use ignore::WalkBuilder;
+use regex::{Regex, RegexBuilder};
+use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::time::Instant;
+use tauri::{Emitter, State, Window};
+
+// ===== 取消机制 =====
+
+pub struct DirSearchCancellation {
+    cancelled: Arc<AtomicBool>,
+}
+
+impl DirSearchCancellation {
+    pub fn new() -> Self {
+        Self {
+            cancelled: Arc::new(AtomicBool::new(false)),
+        }
+    }
+
+    pub fn cancel(&self) {
+        self.cancelled.store(true, Ordering::SeqCst);
+    }
+
+    pub fn reset(&self) {
+        self.cancelled.store(false, Ordering::SeqCst);
+    }
+
+    pub fn is_cancelled(&self) -> bool {
+        self.cancelled.load(Ordering::SeqCst)
+    }
+}
+
+impl Default for DirSearchCancellation {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+// ===== 搜索请求 =====
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchRequest {
+    /// 搜索根目录
+    pub root_path: String,
+    /// 搜索模式（文本内容）
+    pub pattern: String,
+    /// 是否使用正则表达式
+    pub is_regex: bool,
+    /// 是否大小写敏感
+    pub case_sensitive: bool,
+    /// 是否全词匹配
+    pub whole_word: bool,
+    /// 包含的 glob 模式列表
+    pub include_globs: Vec<String>,
+    /// 排除的 glob 模式列表
+    pub exclude_globs: Vec<String>,
+    /// 是否尊重搜索目录内的 .gitignore
+    #[serde(default = "default_true")]
+    pub use_gitignore: bool,
+    /// 上下文行数（暂未使用，P2）
+    #[allow(dead_code)]
+    pub context_lines: Option<usize>,
+    /// 最大结果数限制
+    pub max_results: Option<usize>,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+// ===== 单个匹配项 =====
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchMatch {
+    /// 匹配所在行号（1-based）
+    pub line_number: usize,
+    /// 行内容（完整的一行文本）
+    pub line_content: String,
+    /// 匹配在行内的起始字符偏移（char 索引）
+    pub match_start: usize,
+    /// 匹配在行内的结束字符偏移（char 索引）
+    pub match_end: usize,
+}
+
+// ===== 单个文件的搜索结果 =====
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileSearchResult {
+    /// 文件绝对路径
+    pub file_path: String,
+    /// 文件相对于搜索根目录的路径
+    pub relative_path: String,
+    /// 该文件中的所有匹配
+    pub matches: Vec<SearchMatch>,
+}
+
+// ===== 搜索进度事件 =====
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchProgress {
+    /// 已扫描的文件数
+    pub files_scanned: usize,
+    /// 已找到匹配的文件数
+    pub files_matched: usize,
+    /// 总匹配数
+    pub total_matches: usize,
+    /// 当前正在扫描的文件路径
+    pub current_file: Option<String>,
+}
+
+// ===== 搜索完成汇总 =====
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchSummary {
+    /// 总扫描文件数
+    pub files_scanned: usize,
+    /// 包含匹配的文件数
+    pub files_matched: usize,
+    /// 总匹配数
+    pub total_matches: usize,
+    /// 搜索耗时（毫秒）
+    pub duration_ms: f64,
+    /// 是否被用户取消
+    pub cancelled: bool,
+}
+
+// ===== 替换请求 =====
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReplaceRequest {
+    /// 要替换的文件路径列表（空 = 替换所有搜索结果）
+    pub file_paths: Vec<String>,
+    /// 搜索模式
+    pub pattern: String,
+    /// 替换文本
+    pub replacement: String,
+    /// 是否正则
+    pub is_regex: bool,
+    /// 是否大小写敏感
+    pub case_sensitive: bool,
+    /// 是否全词匹配
+    pub whole_word: bool,
+}
+
+// ===== 替换结果 =====
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReplaceResult {
+    /// 成功替换的文件数
+    pub files_replaced: usize,
+    /// 失败的文件数
+    pub files_failed: usize,
+    /// 总替换次数
+    pub total_replacements: usize,
+    /// 错误详情
+    pub errors: Vec<ReplaceError>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReplaceError {
+    pub file_path: String,
+    pub error: String,
+}
+
+// ===== 辅助函数 =====
+
+/// 构建正则匹配器
+fn build_matcher(request: &SearchRequest) -> Result<Regex, String> {
+    let pattern = if request.is_regex {
+        request.pattern.clone()
+    } else {
+        // 纯文本模式：转义所有正则特殊字符
+        regex::escape(&request.pattern)
+    };
+
+    // 全词匹配：添加 \b 边界
+    let pattern = if request.whole_word {
+        format!(r"\b{}\b", pattern)
+    } else {
+        pattern
+    };
+
+    RegexBuilder::new(&pattern)
+        .case_insensitive(!request.case_sensitive)
+        .build()
+        .map_err(|e| format!("正则表达式无效: {}", e))
+}
+
+/// 在文件内容中搜索匹配项
+fn search_in_content(
+    content: &str,
+    matcher: &Regex,
+    max_matches: Option<usize>,
+) -> Vec<SearchMatch> {
+    let mut matches = Vec::new();
+
+    for (line_idx, line) in content.lines().enumerate() {
+        let line_number = line_idx + 1; // 1-based
+
+        // 查找该行中的所有匹配
+        let mut line_matches: Vec<(usize, usize)> = Vec::new();
+        for mat in matcher.find_iter(line) {
+            // 字节偏移 → char 索引转换
+            let match_start = line[..mat.start()].chars().count();
+            let match_end = match_start + line[mat.start()..mat.end()].chars().count();
+            line_matches.push((match_start, match_end));
+        }
+
+        // 合并重叠区间
+        if !line_matches.is_empty() {
+            line_matches.sort_by_key(|m| m.0);
+            let mut merged: Vec<(usize, usize)> = Vec::new();
+            if let Some(first) = line_matches.first().copied() {
+                let mut current = first;
+                for &next in &line_matches[1..] {
+                    if next.0 <= current.1 {
+                        current.1 = current.1.max(next.1);
+                    } else {
+                        merged.push(current);
+                        current = next;
+                    }
+                }
+                merged.push(current);
+            }
+
+            // 为每个合并后的匹配区间创建 SearchMatch
+            for (start, end) in merged {
+                matches.push(SearchMatch {
+                    line_number,
+                    line_content: line.to_string(),
+                    match_start: start,
+                    match_end: end,
+                });
+
+                // 检查是否达到最大结果数
+                if let Some(max) = max_matches {
+                    if matches.len() >= max {
+                        return matches;
+                    }
+                }
+            }
+        }
+    }
+
+    matches
+}
+
+/// 尝试将字节解码为字符串：先 UTF-8，失败则尝试 GBK（Windows 中文环境常见编码）
+fn decode_to_string(bytes: &[u8]) -> Option<String> {
+    // 处理 UTF-8 BOM
+    let bytes = if bytes.starts_with(&[0xEF, 0xBB, 0xBF]) {
+        &bytes[3..]
+    } else {
+        bytes
+    };
+
+    // 尝试 UTF-8
+    if let Ok(s) = std::str::from_utf8(bytes) {
+        return Some(s.to_string());
+    }
+
+    // Fallback: 尝试 GBK (GB2312/GB18030 的超集)
+    let (decoded, _, had_errors) = GBK.decode(bytes);
+    if !had_errors {
+        return Some(decoded.into_owned());
+    }
+
+    None
+}
+
+/// 单文件大小上限（5MB）
+const MAX_FILE_SIZE: u64 = 5 * 1024 * 1024;
+
+// ===== Tauri 命令 =====
+
+#[tauri::command]
+pub async fn dir_search(
+    request: SearchRequest,
+    window: Window,
+    cancellation: State<'_, DirSearchCancellation>,
+) -> Result<SearchSummary, String> {
+    // 重置取消标志
+    cancellation.reset();
+
+    let start_time = Instant::now();
+    let root_path = Path::new(&request.root_path);
+
+    if !root_path.exists() || !root_path.is_dir() {
+        return Err(format!("目录不存在: {}", request.root_path));
+    }
+
+    if request.pattern.is_empty() {
+        return Err("搜索模式不能为空".to_string());
+    }
+
+    // 构建匹配器
+    let matcher = build_matcher(&request)?;
+
+    // 构建 WalkBuilder
+    let mut builder = WalkBuilder::new(root_path);
+    builder
+        .hidden(false) // 搜索隐藏文件
+        .parents(false) // 不向上查找父目录的 .gitignore（避免父级规则误排除搜索目录内容）
+        .git_ignore(request.use_gitignore) // 是否尊重搜索目录内的 .gitignore
+        .git_global(false) // 不使用全局 gitignore
+        .git_exclude(false); // 不使用 .git/info/exclude
+
+    // 应用 include/exclude glob 过滤
+    let has_include = !request.include_globs.is_empty();
+    let has_exclude = !request.exclude_globs.is_empty();
+
+    if has_include || has_exclude {
+        let mut override_builder = OverrideBuilder::new(root_path);
+
+        if has_include {
+            // include 模式：只搜索匹配的文件
+            for glob in &request.include_globs {
+                let trimmed = glob.trim();
+                if !trimmed.is_empty() {
+                    override_builder
+                        .add(trimmed)
+                        .map_err(|e| format!("无效的 include glob '{}': {}", trimmed, e))?;
+                }
+            }
+        }
+
+        if has_exclude {
+            // exclude 模式：排除匹配的文件
+            for glob in &request.exclude_globs {
+                let trimmed = glob.trim();
+                if !trimmed.is_empty() {
+                    override_builder
+                        .add(&format!("!{}", trimmed))
+                        .map_err(|e| format!("无效的 exclude glob '{}': {}", trimmed, e))?;
+                }
+            }
+        }
+
+        let overrides = override_builder
+            .build()
+            .map_err(|e| format!("构建 glob 过滤器失败: {}", e))?;
+        builder.overrides(overrides);
+    }
+
+    // 统计变量
+    let mut files_scanned: usize = 0;
+    let mut files_matched: usize = 0;
+    let mut total_matches: usize = 0;
+    let max_results = request.max_results.unwrap_or(10_000);
+    let mut reached_limit = false;
+
+    // 遍历文件并搜索
+    for entry in builder.build().flatten() {
+        // 检查取消
+        if cancellation.is_cancelled() {
+            break;
+        }
+
+        // 只处理文件
+        if !entry.file_type().is_some_and(|ft| ft.is_file()) {
+            continue;
+        }
+
+        let path = entry.path();
+
+        // 检查文件大小
+        if let Ok(metadata) = path.metadata() {
+            if metadata.len() > MAX_FILE_SIZE {
+                continue;
+            }
+        }
+
+        files_scanned += 1;
+
+        // 读取文件内容
+        let content = match fs::read(path) {
+            Ok(bytes) => bytes,
+            Err(_) => continue, // 无法读取的文件跳过
+        };
+
+        // 跳过二进制文件：检查前 8KB 是否包含 NULL 字节
+        let check_len = content.len().min(8192);
+        if content[..check_len].contains(&0) {
+            continue;
+        }
+
+        // 尝试解码为文本：先 UTF-8，再 GBK fallback
+        let text = decode_to_string(&content);
+        let text = match text {
+            Some(s) => s,
+            None => continue,
+        };
+
+        // 计算剩余可用的匹配数
+        let remaining = if total_matches >= max_results {
+            break;
+        } else {
+            Some(max_results - total_matches)
+        };
+
+        // 搜索文件内容
+        let file_matches = search_in_content(&text, &matcher, remaining);
+
+        if !file_matches.is_empty() {
+            files_matched += 1;
+            total_matches += file_matches.len();
+
+            // 计算相对路径
+            let relative_path = path
+                .strip_prefix(root_path)
+                .unwrap_or(path)
+                .to_string_lossy()
+                .to_string()
+                // 统一使用正斜杠
+                .replace('\\', "/");
+
+            let result = FileSearchResult {
+                file_path: path.to_string_lossy().to_string(),
+                relative_path,
+                matches: file_matches,
+            };
+
+            // 流式发送结果
+            let _ = window.emit("dir-search-result", &result);
+
+            // 检查是否达到上限
+            if total_matches >= max_results {
+                reached_limit = true;
+                break;
+            }
+        }
+
+        // 每 100 个文件发送一次进度
+        if files_scanned % 100 == 0 {
+            let progress = SearchProgress {
+                files_scanned,
+                files_matched,
+                total_matches,
+                current_file: Some(
+                    path.strip_prefix(root_path)
+                        .unwrap_or(path)
+                        .to_string_lossy()
+                        .to_string(),
+                ),
+            };
+            let _ = window.emit("dir-search-progress", &progress);
+        }
+    }
+
+    let duration = start_time.elapsed();
+    let cancelled = cancellation.is_cancelled();
+
+    // 发送最终进度
+    let final_progress = SearchProgress {
+        files_scanned,
+        files_matched,
+        total_matches,
+        current_file: None,
+    };
+    let _ = window.emit("dir-search-progress", &final_progress);
+
+    if reached_limit {
+        log::info!("[dir-search] 搜索达到上限 {} 条结果，已停止", max_results);
+    }
+
+    Ok(SearchSummary {
+        files_scanned,
+        files_matched,
+        total_matches,
+        duration_ms: duration.as_secs_f64() * 1000.0,
+        cancelled,
+    })
+}
+
+#[tauri::command]
+pub async fn dir_search_cancel(
+    cancellation: State<'_, DirSearchCancellation>,
+) -> Result<(), String> {
+    cancellation.cancel();
+    log::info!("[dir-search] 搜索已取消");
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn dir_replace(request: ReplaceRequest) -> Result<ReplaceResult, String> {
+    if request.pattern.is_empty() {
+        return Err("搜索模式不能为空".to_string());
+    }
+
+    if request.file_paths.is_empty() {
+        return Err("未指定要替换的文件".to_string());
+    }
+
+    // 构建匹配器
+    let pattern = if request.is_regex {
+        request.pattern.clone()
+    } else {
+        regex::escape(&request.pattern)
+    };
+
+    let pattern = if request.whole_word {
+        format!(r"\b{}\b", pattern)
+    } else {
+        pattern
+    };
+
+    let regex = RegexBuilder::new(&pattern)
+        .case_insensitive(!request.case_sensitive)
+        .build()
+        .map_err(|e| format!("正则表达式无效: {}", e))?;
+
+    let mut files_replaced: usize = 0;
+    let mut files_failed: usize = 0;
+    let mut total_replacements: usize = 0;
+    let mut errors: Vec<ReplaceError> = Vec::new();
+
+    for file_path in &request.file_paths {
+        let path = Path::new(file_path);
+
+        // 读取文件
+        let content = match fs::read_to_string(path) {
+            Ok(c) => c,
+            Err(e) => {
+                files_failed += 1;
+                errors.push(ReplaceError {
+                    file_path: file_path.clone(),
+                    error: format!("读取失败: {}", e),
+                });
+                continue;
+            }
+        };
+
+        // 计算替换次数
+        let match_count = regex.find_iter(&content).count();
+        if match_count == 0 {
+            continue;
+        }
+
+        // 执行替换
+        let new_content = regex.replace_all(&content, request.replacement.as_str());
+
+        // 写回文件
+        match fs::write(path, new_content.as_bytes()) {
+            Ok(_) => {
+                files_replaced += 1;
+                total_replacements += match_count;
+            }
+            Err(e) => {
+                files_failed += 1;
+                errors.push(ReplaceError {
+                    file_path: file_path.clone(),
+                    error: format!("写入失败: {}", e),
+                });
+            }
+        }
+    }
+
+    log::info!(
+        "[dir-search] 替换完成: {} 文件, {} 处替换",
+        files_replaced,
+        total_replacements
+    );
+
+    Ok(ReplaceResult {
+        files_replaced,
+        files_failed,
+        total_replacements,
+        errors,
+    })
+}
+
+#[tauri::command]
+pub async fn dir_replace_preview(request: ReplaceRequest) -> Result<Vec<FileSearchResult>, String> {
+    if request.pattern.is_empty() {
+        return Err("搜索模式不能为空".to_string());
+    }
+
+    // 构建匹配器
+    let pattern = if request.is_regex {
+        request.pattern.clone()
+    } else {
+        regex::escape(&request.pattern)
+    };
+
+    let pattern = if request.whole_word {
+        format!(r"\b{}\b", pattern)
+    } else {
+        pattern
+    };
+
+    let regex = RegexBuilder::new(&pattern)
+        .case_insensitive(!request.case_sensitive)
+        .build()
+        .map_err(|e| format!("正则表达式无效: {}", e))?;
+
+    let mut results: Vec<FileSearchResult> = Vec::new();
+
+    for file_path in &request.file_paths {
+        let path = Path::new(file_path);
+
+        let content = match fs::read_to_string(path) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+
+        let file_matches = search_in_content(&content, &regex, None);
+
+        if !file_matches.is_empty() {
+            results.push(FileSearchResult {
+                file_path: file_path.clone(),
+                relative_path: file_path.clone(),
+                matches: file_matches,
+            });
+        }
+    }
+
+    Ok(results)
+}

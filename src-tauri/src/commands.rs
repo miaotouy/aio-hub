@@ -5,6 +5,7 @@ pub mod canvas_window;
 pub mod clipboard;
 pub mod config_manager;
 pub mod content_deduplicator;
+pub mod dir_search;
 pub mod directory_janitor;
 pub mod directory_tree;
 #[cfg(windows)]
@@ -33,6 +34,7 @@ pub use canvas_window::*;
 pub use clipboard::*;
 pub use config_manager::*;
 pub use content_deduplicator::*;
+pub use dir_search::*;
 pub use directory_janitor::*;
 pub use directory_tree::*;
 #[cfg(windows)]

@@ -51,6 +51,7 @@ dependencies = [
  "content_inspector",
  "dirs-next",
  "dotenvy",
+ "encoding_rs",
  "flate2",
  "fs_extra",
  "futures-util",

@@ -165,6 +165,10 @@ use commands::{
     write_file_force,
     write_skill_resource,
     write_text_file_force,
+    dir_replace,
+    dir_replace_preview,
+    dir_search,
+    dir_search_cancel,
     // 状态结构体
     AssetCatalog,
     ClipboardMonitorState,
@@ -447,6 +451,7 @@ pub fn run() {
         .manage(commands::native_plugin::NativePluginState::default())
         .manage(commands::directory_janitor::ScanCancellation::new())
         .manage(commands::directory_janitor::CleanupCancellation::new())
+        .manage(commands::dir_search::DirSearchCancellation::new())
         .manage(commands::content_deduplicator::DedupScanCancellation::new())
         .manage(AppState::default())
         .manage(commands::ffmpeg_processor::FFmpegState::default())
@@ -645,6 +650,11 @@ pub fn run() {
             get_full_media_info,
             // LLM 代理命令
             start_llm_proxy_server,
+            // 目录搜索命令
+            dir_search,
+            dir_search_cancel,
+            dir_replace,
+            dir_replace_preview,
             // LLM 搜索命令
             search_llm_data,
             search_media_generator_data,

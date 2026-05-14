@@ -1,0 +1,365 @@
+<template>
+  <div class="file-preview">
+    <!-- 空状态 -->
+    <div v-if="!filePath" class="file-preview__empty">
+      <FileSearch :size="48" />
+      <p>点击搜索结果查看文件内容</p>
+    </div>
+
+    <!-- 文件头 -->
+    <div v-else class="file-preview__header">
+      <span class="file-preview__path" :title="filePath">{{ relativePath || filePath }}</span>
+      <div class="file-preview__actions">
+        <el-tooltip content="在编辑器中打开" :show-after="500">
+          <button class="file-preview__action-btn" @click="openInEditor">
+            <ExternalLink :size="14" />
+          </button>
+        </el-tooltip>
+        <el-tooltip content="打开所在目录" :show-after="500">
+          <button class="file-preview__action-btn" @click="openDirectory">
+            <FolderOpen :size="14" />
+          </button>
+        </el-tooltip>
+      </div>
+    </div>
+
+    <!-- 文件内容 -->
+    <div v-if="filePath" class="file-preview__content">
+      <div v-if="isLoading" class="file-preview__loading">
+        <el-icon class="is-loading"><Loading /></el-icon>
+        <span>加载中...</span>
+      </div>
+      <div v-else-if="loadError" class="file-preview__error">
+        <span>{{ loadError }}</span>
+      </div>
+      <RichCodeEditor
+        v-else
+        ref="editorRef"
+        :model-value="fileContent"
+        :language="fileLanguage"
+        :read-only="true"
+        :line-numbers="true"
+        editor-type="codemirror"
+        class="file-preview__editor"
+        @mount="handleEditorMount"
+      />
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, watch, computed, nextTick } from "vue";
+import { invoke } from "@tauri-apps/api/core";
+import { FileSearch, ExternalLink, FolderOpen } from "lucide-vue-next";
+import { Loading } from "@element-plus/icons-vue";
+import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
+import { EditorView, Decoration, type DecorationSet } from "@codemirror/view";
+import { StateEffect, StateField } from "@codemirror/state";
+import type { SearchMatch } from "../types";
+
+const props = defineProps<{
+  filePath: string | null;
+  relativePath?: string;
+  matches?: SearchMatch[];
+  targetLine?: number | null;
+}>();
+
+const isLoading = ref(false);
+const loadError = ref<string | null>(null);
+const fileContent = ref("");
+const editorRef = ref<InstanceType<typeof RichCodeEditor> | null>(null);
+
+// 从文件路径推断语言
+const fileLanguage = computed(() => {
+  if (!props.filePath) return undefined;
+  const fileName = props.filePath.split(/[/\\]/).pop() || "";
+
+  // 特殊文件名映射
+  const specialFiles: Record<string, string> = {
+    Dockerfile: "dockerfile",
+    Makefile: "shell",
+    ".gitignore": "shell",
+    ".env": "shell",
+    ".env.local": "shell",
+    ".env.example": "shell",
+  };
+  if (specialFiles[fileName]) return specialFiles[fileName];
+
+  // 按扩展名推断
+  const ext = fileName.includes(".") ? fileName.split(".").pop()?.toLowerCase() : undefined;
+  return ext || undefined;
+});
+
+// --- CodeMirror 匹配行高亮 ---
+const setHighlightLinesEffect = StateEffect.define<number[]>();
+
+const highlightLineField = StateField.define<DecorationSet>({
+  create() {
+    return Decoration.none;
+  },
+  update(decorations, tr) {
+    for (const effect of tr.effects) {
+      if (effect.is(setHighlightLinesEffect)) {
+        const lines = effect.value;
+        const builder: any[] = [];
+        for (const lineNum of lines) {
+          if (lineNum >= 1 && lineNum <= tr.state.doc.lines) {
+            const line = tr.state.doc.line(lineNum);
+            builder.push(highlightLineDeco.range(line.from));
+          }
+        }
+        return Decoration.set(builder);
+      }
+    }
+    return decorations;
+  },
+  provide: (f) => EditorView.decorations.from(f),
+});
+
+const highlightLineDeco = Decoration.line({ class: "cm-highlight-match-line" });
+
+// 目标行（当前聚焦行）高亮
+const setTargetLineEffect = StateEffect.define<number | null>();
+
+const targetLineField = StateField.define<DecorationSet>({
+  create() {
+    return Decoration.none;
+  },
+  update(decorations, tr) {
+    for (const effect of tr.effects) {
+      if (effect.is(setTargetLineEffect)) {
+        const lineNum = effect.value;
+        if (lineNum && lineNum >= 1 && lineNum <= tr.state.doc.lines) {
+          const line = tr.state.doc.line(lineNum);
+          return Decoration.set([targetLineDeco.range(line.from)]);
+        }
+        return Decoration.none;
+      }
+    }
+    return decorations;
+  },
+  provide: (f) => EditorView.decorations.from(f),
+});
+
+const targetLineDeco = Decoration.line({ class: "cm-highlight-target-line" });
+
+let editorMounted = false;
+
+function handleEditorMount() {
+  editorMounted = true;
+  // 编辑器挂载后，注入高亮 StateField
+  nextTick(() => {
+    const view = editorRef.value?.editorView;
+    if (!view) return;
+
+    // 动态添加 StateField（通过 appendConfig）
+    view.dispatch({
+      effects: StateEffect.appendConfig.of([highlightLineField, targetLineField, highlightTheme]),
+    });
+
+    // 应用当前的匹配高亮
+    applyMatchHighlights();
+    applyTargetLine();
+  });
+}
+
+function applyMatchHighlights() {
+  const view = editorRef.value?.editorView;
+  if (!view || !editorMounted) return;
+
+  const lineNumbers = props.matches ? props.matches.map((m) => m.lineNumber) : [];
+  // 去重
+  const uniqueLines = [...new Set(lineNumbers)];
+
+  view.dispatch({
+    effects: setHighlightLinesEffect.of(uniqueLines),
+  });
+}
+
+function applyTargetLine() {
+  const view = editorRef.value?.editorView;
+  if (!view || !editorMounted) return;
+
+  const lineNum = props.targetLine || null;
+  view.dispatch({
+    effects: setTargetLineEffect.of(lineNum),
+  });
+
+  // 滚动到目标行
+  if (lineNum && lineNum >= 1 && lineNum <= view.state.doc.lines) {
+    const line = view.state.doc.line(lineNum);
+    view.dispatch({
+      effects: EditorView.scrollIntoView(line.from, { y: "center" }),
+    });
+  }
+}
+
+// 高亮样式主题
+const highlightTheme = EditorView.baseTheme({
+  ".cm-highlight-match-line": {
+    backgroundColor: "rgba(var(--el-color-primary-rgb, 64, 158, 255), 0.06)",
+  },
+  ".cm-highlight-target-line": {
+    backgroundColor: "rgba(var(--el-color-primary-rgb, 64, 158, 255), 0.14)",
+  },
+});
+
+async function loadFile(path: string) {
+  isLoading.value = true;
+  loadError.value = null;
+  fileContent.value = "";
+  editorMounted = false;
+
+  try {
+    const content = await invoke<string>("read_text_file_force", { path });
+    fileContent.value = content;
+  } catch (e: any) {
+    loadError.value = `无法读取文件: ${e?.message || e}`;
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+async function openInEditor() {
+  if (!props.filePath) return;
+  try {
+    await invoke("open_path_force", { path: props.filePath });
+  } catch {
+    // 静默处理
+  }
+}
+
+async function openDirectory() {
+  if (!props.filePath) return;
+  try {
+    await invoke("open_file_directory", { filePath: props.filePath });
+  } catch {
+    // 静默处理
+  }
+}
+
+watch(
+  () => props.filePath,
+  (newPath) => {
+    if (newPath) {
+      loadFile(newPath);
+    } else {
+      fileContent.value = "";
+    }
+  },
+  { immediate: true },
+);
+
+watch(
+  () => props.matches,
+  () => {
+    nextTick(() => applyMatchHighlights());
+  },
+);
+
+watch(
+  () => props.targetLine,
+  () => {
+    nextTick(() => applyTargetLine());
+  },
+);
+</script>
+
+<style scoped>
+.file-preview {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--card-bg);
+}
+
+.file-preview__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 12px;
+  color: var(--el-text-color-placeholder);
+  font-size: 13px;
+}
+
+.file-preview__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.file-preview__path {
+  font-size: 12px;
+  color: var(--el-text-color-regular);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.file-preview__actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.file-preview__action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--el-text-color-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.file-preview__action-btn:hover {
+  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.1));
+  color: var(--el-color-primary);
+}
+
+.file-preview__content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.file-preview__loading,
+.file-preview__error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 40px;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+}
+
+.file-preview__error {
+  color: var(--el-color-danger);
+}
+
+.file-preview__editor {
+  flex: 1;
+  height: 100%;
+  border: none;
+  border-radius: 0;
+}
+
+/* 覆盖 RichCodeEditor 的外层边框，预览场景不需要 */
+.file-preview__editor :deep(.rich-code-editor-wrapper) {
+  border: none;
+  border-radius: 0;
+}
+</style>

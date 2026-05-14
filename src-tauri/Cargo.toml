@@ -95,6 +95,7 @@ unicode-segmentation = "1.13.2"
 sysinfo = "0.33"
 # 系统脉搏：NVIDIA GPU 监控（运行时动态链接 nvml.dll，无 NVIDIA 驱动时优雅降级）
 nvml-wrapper = "0.10"
+encoding_rs = "0.8.35"
 
 # OCR 依赖
 [target.'cfg(windows)'.dependencies]

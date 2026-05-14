@@ -31,16 +31,14 @@ pub struct DistilleryProxyState {
 /// 从 Set-Cookie 响应头中解析 name=value，并合并到现有的 cookie 字符串中。
 /// 这模拟了浏览器的 Cookie Jar 行为：每次响应中的 Set-Cookie 都会被记录，
 /// 后续请求会自动携带所有已知 cookies。
-fn merge_set_cookies(
-    existing: &Option<String>,
-    set_cookie_headers: &[String],
-) -> Option<String> {
+fn merge_set_cookies(existing: &Option<String>, set_cookie_headers: &[String]) -> Option<String> {
     if set_cookie_headers.is_empty() {
         return existing.clone();
     }
 
     // 解析现有 cookies 到 HashMap
-    let mut cookie_map: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    let mut cookie_map: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
     if let Some(ref existing_str) = existing {
         for pair in existing_str.split(';') {
             let pair = pair.trim();
@@ -561,7 +559,43 @@ async fn handle_fallback(req: Request) -> Result<impl IntoResponse, (StatusCode,
         .await
         .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
 
-    Ok((status, resp_headers, Body::from(bytes)))
+    // 如果响应是 HTML，注入 bridge.js 等脚本（与 handle_proxy_html 一致）
+    // 这确保 iframe 内部全量导航（如登录后跳转）后新页面仍有 bridge 通信能力
+    let content_type = resp_headers
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    let is_html = content_type.contains("text/html");
+
+    if is_html {
+        let mut html = String::from_utf8_lossy(&bytes).to_string();
+
+        let head_injections =
+            r#"<base href="/"><script src="/__distillery/anti-detection.js"></script>"#;
+        let body_injections = r#"<script src="/__distillery/bridge.js" defer></script><script src="/__distillery/sniffer.js" defer></script>"#;
+
+        if let Some(pos) = html.find("<head") {
+            if let Some(end_pos) = html[pos..].find('>').map(|i| i + pos + 1) {
+                html.insert_str(end_pos, head_injections);
+            }
+        }
+
+        if let Some(pos) = html.rfind("</body>") {
+            html.insert_str(pos, body_injections);
+        } else {
+            html.push_str(body_injections);
+        }
+
+        // 移除原始 content-type 中可能的 charset 不匹配，强制 utf-8
+        resp_headers.insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("text/html; charset=utf-8"),
+        );
+
+        Ok((status, resp_headers, Body::from(html)))
+    } else {
+        Ok((status, resp_headers, Body::from(bytes)))
+    }
 }
 
 /// 返回注入的 bridge 脚本

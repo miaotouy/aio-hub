@@ -6,7 +6,7 @@ import type { DistillMode, CookieProfile } from "../types";
 import { iframeBridge } from "../core/iframe-bridge";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
-import { cookieProfileStore } from "../core/cookie-profile-store";
+import { cookieProfileStore, extractDomainIdentifier } from "../core/cookie-profile-store";
 
 const logger = createModuleLogger("web-distillery/toolbar");
 
@@ -137,13 +137,6 @@ async function handleFileChange(event: Event) {
 const matchedProfiles = ref<CookieProfile[]>([]);
 const activeProfile = ref<CookieProfile | null>(null);
 
-/** 从 hostname 提取主域名（与 store 内部逻辑保持一致） */
-function extractRootDomain(hostname: string): string {
-  if (hostname === "localhost" || /^\d+\.\d+\.\d+\.\d+$/.test(hostname)) return hostname;
-  const parts = hostname.split(".");
-  return parts.length > 2 ? parts.slice(-2).join(".") : hostname;
-}
-
 async function refreshIdentityState(url: string) {
   if (!url) {
     matchedProfiles.value = [];
@@ -152,9 +145,8 @@ async function refreshIdentityState(url: string) {
   }
   try {
     const fullUrl = url.startsWith("http") ? url : `https://${url}`;
-    const hostname = new URL(fullUrl).hostname;
-    const rootDomain = extractRootDomain(hostname);
-    matchedProfiles.value = await cookieProfileStore.getByDomain(rootDomain);
+    const domainId = extractDomainIdentifier(fullUrl);
+    matchedProfiles.value = await cookieProfileStore.getByDomain(domainId);
     activeProfile.value = await cookieProfileStore.getActiveProfileForUrl(fullUrl);
   } catch {
     matchedProfiles.value = [];

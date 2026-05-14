@@ -16,12 +16,20 @@ interface CookieProfileStoreData {
 }
 
 /**
+ * 判断是否为 IP 地址或 localhost
+ */
+function isIpOrLocalhost(hostname: string): boolean {
+  return hostname === "localhost" || /^\d+\.\d+\.\d+\.\d+$/.test(hostname);
+}
+
+/**
  * 从 hostname 提取主域名
  * 例：sub.zhihu.com -> zhihu.com，localhost -> localhost
+ * 注意：此函数只处理纯 hostname（不含端口），端口逻辑由 extractDomainIdentifier 处理
  */
 function extractRootDomain(hostname: string): string {
   // IP 地址或 localhost 直接返回
-  if (hostname === "localhost" || /^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
+  if (isIpOrLocalhost(hostname)) {
     return hostname;
   }
   const parts = hostname.split(".");
@@ -30,12 +38,38 @@ function extractRootDomain(hostname: string): string {
 }
 
 /**
- * 判断 hostname 是否匹配某个域名（含子域名）
+ * 从 URL 中提取用于 Profile 匹配/存储的域名标识符
+ * - 对于 IP/localhost：返回 host（含非标准端口，如 127.0.0.1:6565）
+ * - 对于普通域名：返回根域名（如 zhihu.com）
  */
-function hostnameMatchesDomain(hostname: string, domain: string): boolean {
-  if (hostname === domain) return true;
-  // 子域名匹配：hostname 以 .domain 结尾
-  if (hostname.endsWith(`.${domain}`)) return true;
+export function extractDomainIdentifier(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const hostname = parsed.hostname;
+
+    if (isIpOrLocalhost(hostname)) {
+      // IP/localhost 场景：端口是区分不同服务的关键
+      const port = parsed.port;
+      if (port && port !== "80" && port !== "443") {
+        return `${hostname}:${port}`;
+      }
+      return hostname;
+    }
+
+    // 普通域名：提取根域名
+    return extractRootDomain(hostname);
+  } catch {
+    return "unknown";
+  }
+}
+
+/**
+ * 判断 hostname（或 host）是否匹配某个域名标识符（含子域名）
+ */
+function hostnameMatchesDomain(hostOrHostname: string, domain: string): boolean {
+  if (hostOrHostname === domain) return true;
+  // 子域名匹配：hostname 以 .domain 结尾（仅对非 IP 域名有效）
+  if (!isIpOrLocalhost(hostOrHostname) && hostOrHostname.endsWith(`.${domain}`)) return true;
   return false;
 }
 
@@ -192,35 +226,50 @@ export class CookieProfileStore {
 
   /**
    * 根据 URL 找到当前激活的 Profile
-   * 匹配优先级：精确域名 > 子域名 > domainAliases
+   * 匹配优先级：精确域名标识符 > 精确 hostname > 子域名 > domainAliases
    */
   public async getActiveProfileForUrl(url: string): Promise<CookieProfile | null> {
     await this.load();
 
+    let domainId: string;
     let hostname: string;
     try {
-      hostname = new URL(url).hostname;
+      const parsed = new URL(url);
+      hostname = parsed.hostname;
+      domainId = extractDomainIdentifier(url);
     } catch {
       logger.warn("Invalid URL for profile matching", { url });
       return null;
     }
 
-    const rootDomain = extractRootDomain(hostname);
     const active = this.profiles.filter((p) => p.isActive);
 
-    // 1. 精确匹配 profile.domain
-    const exact = active.find((p) => p.domain === hostname || p.domain === rootDomain);
-    if (exact) return exact;
+    // 1. 精确匹配域名标识符（含端口，如 127.0.0.1:6565）
+    const exactId = active.find((p) => p.domain === domainId);
+    if (exactId) return exactId;
 
-    // 2. 子域名匹配
-    const subMatch = active.find((p) => hostnameMatchesDomain(hostname, p.domain));
-    if (subMatch) return subMatch;
+    // 2. 精确匹配 hostname（不含端口，兼容旧数据）
+    if (domainId !== hostname) {
+      const exactHost = active.find((p) => p.domain === hostname);
+      if (exactHost) return exactHost;
+    }
 
-    // 3. domainAliases 匹配
-    const aliasMatch = active.find(
-      (p) => p.domainAliases?.some((alias) => hostnameMatchesDomain(hostname, alias)),
-    );
-    return aliasMatch ?? null;
+    // 3. 根域名匹配（仅对非 IP 域名有效）
+    if (!isIpOrLocalhost(hostname)) {
+      const rootDomain = extractRootDomain(hostname);
+      const rootMatch = active.find((p) => p.domain === rootDomain);
+      if (rootMatch) return rootMatch;
+
+      // 4. 子域名匹配
+      const subMatch = active.find((p) => hostnameMatchesDomain(hostname, p.domain));
+      if (subMatch) return subMatch;
+
+      // 5. domainAliases 匹配
+      const aliasMatch = active.find((p) => p.domainAliases?.some((alias) => hostnameMatchesDomain(hostname, alias)));
+      if (aliasMatch) return aliasMatch;
+    }
+
+    return null;
   }
 
   // =========== 导入 ===========
@@ -339,12 +388,12 @@ export class CookieProfileStore {
    */
   public async captureFromBrowser(cookieString: string, url: string): Promise<CookieProfile> {
     let hostname = "unknown";
-    let rootDomain = "unknown";
+    let domainId = "unknown";
 
     try {
       const parsed = new URL(url);
       hostname = parsed.hostname;
-      rootDomain = extractRootDomain(hostname);
+      domainId = extractDomainIdentifier(url);
     } catch {
       errorHandler.handle(new Error(`无效的 URL：${url}`), {
         showToUser: false,
@@ -372,12 +421,12 @@ export class CookieProfileStore {
       .filter((c): c is CookieEntry => c !== null)
       .slice(0, MAX_COOKIES_PER_PROFILE);
 
-    const profileName = `${rootDomain} — ${getLocalISOString().slice(0, 10)}`;
-    logger.info("Captured cookies from browser", { url, cookieCount: cookies.length });
+    const profileName = `${domainId} — ${getLocalISOString().slice(0, 10)}`;
+    logger.info("Captured cookies from browser", { url, domainId, cookieCount: cookies.length });
 
     return this.create({
       name: profileName,
-      domain: rootDomain,
+      domain: domainId,
       cookies,
     });
   }

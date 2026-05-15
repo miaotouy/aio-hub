@@ -20,16 +20,22 @@
 
 ### 2.1 工具栏缺失项
 
-| 功能           | VSCode 行为                | 当前状态          | 优先级      |
-| -------------- | -------------------------- | ----------------- | ----------- |
-| 搜索历史       | 输入框内 ArrowUp/Down 切换 | ❌ 无             | P0          |
-| 目录历史       | 输入框内 ArrowUp/Down 切换 | ❌ 无             | P0          |
-| 刷新按钮       | 重新执行当前搜索           | ❌ 无             | P0          |
-| 全部展开       | 展开所有文件节点           | ✅ 有（在结果区） | P1 调整位置 |
-| 全部收起       | 收起所有文件节点           | ✅ 有（在结果区） | P1 调整位置 |
-| 清除结果       | 清空搜索结果               | ❌ 无             | P1          |
-| 树形/列表切换  | 切换结果展示模式           | ❌ 无             | P1          |
-| 新建搜索编辑器 | 打开独立搜索标签           | ❌ 无             | P2 暂不实现 |
+| 功能           | VSCode 行为                           | 当前状态          | 优先级      |
+| -------------- | ------------------------------------- | ----------------- | ----------- |
+| 搜索历史       | 输入框内 ArrowUp/Down 切换            | ❌ 无             | P0          |
+| 目录历史       | 输入框内 ArrowUp/Down 切换            | ❌ 无             | P0          |
+| 刷新按钮       | 重新执行当前搜索                      | ❌ 无             | P0          |
+| 全部展开       | 展开所有文件节点                      | ✅ 有（在结果区） | P1 调整位置 |
+| 全部收起       | 收起所有文件节点                      | ✅ 有（在结果区） | P1 调整位置 |
+| 清除结果       | 清空搜索结果                          | ❌ 无             | P1          |
+| 树形/列表切换  | 切换结果展示模式（树形=目录层级展开） | ❌ 无             | P1          |
+| 新建搜索编辑器 | 打开独立搜索标签                      | ❌ 无             | P2 暂不实现 |
+
+### 2.1.1 布局优化项
+
+| 功能             | VSCode 行为                                 | 当前状态                      | 优先级 |
+| ---------------- | ------------------------------------------- | ----------------------------- | ------ |
+| 替换展开按钮侧置 | Chevron 放在搜索/替换行的左侧，不占垂直空间 | ❌ 当前独占一行，浪费垂直空间 | P0     |
 
 ### 2.2 搜索结果交互缺失项
 
@@ -39,7 +45,7 @@
 | 悬停 Tooltip        | 展示匹配行上下文片段                                    | ❌ 无    |
 | 右键菜单 - 文件级   | 全部替换、消除、排除/包含类型、复制路径、资源管理器显示 | ❌ 无    |
 | 右键菜单 - 匹配项级 | 替换、消除、复制                                        | ❌ 无    |
-| 列表视图            | 平铺展示所有匹配项（不按文件分组）                      | ❌ 无    |
+| 树形目录视图        | 按目录层级树状展开（类似文件资源管理器）                | ❌ 无    |
 
 ### 2.3 性能问题
 
@@ -51,6 +57,94 @@
 ---
 
 ## 3. 技术方案
+
+### 3.0 替换展开按钮侧置
+
+**当前问题**：`SearchInput.vue` 中的"替换"展开/收起按钮（第 56-59 行）独占一行，浪费垂直空间。
+
+**目标布局**：对齐 VSCode，将 chevron 按钮移到搜索/替换输入行的**左侧**，作为侧边控件。
+
+**当前结构**：
+
+```
+┌─────────────────────────────────────┐
+│ [搜索 textarea] [Aa] [.*] [W]       │  搜索行
+├─────────────────────────────────────┤
+│ [替换 textarea] [替换全部]           │  替换行 (v-if showReplace)
+├─────────────────────────────────────┤
+│ ▶ 替换                              │  ← 独占一行（问题所在）
+├─────────────────────────────────────┤
+│ 过滤器...                            │
+└─────────────────────────────────────┘
+```
+
+**目标结构**：
+
+```
+┌───┬──────────────────────────────────┐
+│   │ [搜索 textarea] [Aa] [.*] [W]    │  搜索行
+│ ▶ ├──────────────────────────────────┤
+│   │ [替换 textarea] [替换全部]        │  替换行 (v-if showReplace)
+├───┴──────────────────────────────────┤
+│ 过滤器...                             │
+└──────────────────────────────────────┘
+```
+
+**实现方式**：
+
+1. 在 `SearchInput.vue` 中，将搜索行和替换行包裹在一个 flex 容器中
+2. Chevron 按钮作为该容器的左侧元素，垂直居中对齐
+3. 右侧为搜索行 + 替换行的纵向堆叠
+4. 删除原来独占一行的 `search-input__expand-btn`
+
+**HTML 结构变更**：
+
+```html
+<div class="search-input__main">
+  <!-- 左侧 chevron -->
+  <button class="search-input__replace-toggle" @click="showReplace = !showReplace">
+    <ChevronRight :size="14" :class="{ rotated: showReplace }" />
+  </button>
+
+  <!-- 右侧输入区 -->
+  <div class="search-input__inputs">
+    <!-- 搜索行 -->
+    <div class="search-input__row">...</div>
+    <!-- 替换行 -->
+    <div v-if="showReplace" class="search-input__row">...</div>
+  </div>
+</div>
+```
+
+**CSS 要点**：
+
+```css
+.search-input__main {
+  display: flex;
+  align-items: flex-start; /* chevron 对齐搜索行顶部 */
+  gap: 4px;
+}
+
+.search-input__replace-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 26px; /* 与搜索行等高 */
+  /* 无边框、透明背景、hover 变色 */
+}
+
+.search-input__inputs {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+```
+
+**节省空间**：此改动可节省约 24px 的垂直空间（原按钮行高 + gap），对于侧边栏式的搜索面板来说非常有价值。
+
+---
 
 ### 3.1 键盘优先的历史记录
 
@@ -97,7 +191,7 @@ interface SearchHistoryState {
 2. 清除 (`X`) — 清空结果和输入
 3. 全部折叠 (`ChevronsUp`) — 已有逻辑，移动位置
 4. 全部展开 (`ChevronsDown`) — 已有逻辑，移动位置
-5. 树形/列表切换 (`List` / `TreePine`) — 切换 `viewMode`
+5. 树形/列表切换 (`TreePine` / `List`) — 切换 `viewMode`（当前为列表模式，切换到树形目录模式）
 
 **布局**：与状态信息（"1254 文件中有 2829 个结果"）在同一行，左侧状态文字，右侧按钮组。
 
@@ -150,13 +244,31 @@ interface SearchHistoryState {
 
 ### 3.5 视图模式切换
 
-**树形模式 (Tree)**：当前默认，按文件分组展示。
+**列表模式 (List)**：当前默认，按文件平铺分组展示（文件名 + 相对路径在同一行，展开后显示匹配项）。
 
-**列表模式 (List)**：平铺展示所有匹配项，每项显示：
+**树形模式 (Tree)**：按目录层级树状展开，类似 VSCode 文件资源管理器的结构：
 
 ```
-[文件图标] 匹配内容高亮片段    文件名:行号
+src/
+  tools/
+    dir-search/
+      components/
+        ▶ ResultsTree.vue (3)
+            L42: ...匹配内容高亮...
+            L58: ...匹配内容高亮...
+        ▶ ResultItem.vue (1)
+            L15: ...匹配内容高亮...
+      composables/
+        ▶ useDirSearch.ts (5)
+            ...
 ```
+
+**实现要点**：
+
+- 将 `FileSearchResult[]` 按 `relativePath` 的目录层级构建为嵌套树结构
+- 目录节点可展开/收起，叶子节点为文件（再展开显示匹配项）
+- 目录节点显示其下所有文件的匹配总数
+- 空目录层级自动折叠（如 `src/tools/dir-search/` 可合并为一行）
 
 ### 3.6 后端性能优化
 
@@ -246,65 +358,220 @@ pub struct SearchMatch {
 
 ---
 
-## 4. 文件变更清单
+## 4. 文件变更清单（按 Batch 归属）
 
 ### 4.1 前端新增文件
 
-| 文件                             | 用途             |
-| -------------------------------- | ---------------- |
-| `composables/useInputHistory.ts` | 键盘历史回溯逻辑 |
-| `composables/useContextMenu.ts`  | 右键菜单状态管理 |
-| `components/ContextMenu.vue`     | 通用右键菜单组件 |
-| `components/ResultToolbar.vue`   | 顶部功能条组件   |
+| 文件                               | 引入批次 | 用途             |
+| ---------------------------------- | -------- | ---------------- |
+| `composables/useInputHistory.ts`   | B3       | 键盘历史回溯逻辑 |
+| `composables/useContextMenu.ts`    | B5       | 右键菜单状态管理 |
+| `components/ContextMenu.vue`       | B5       | 通用右键菜单组件 |
+| `components/DirectoryTreeView.vue` | B6       | 树形目录视图组件 |
 
 ### 4.2 前端修改文件
 
-| 文件                                 | 变更内容                                                     |
-| ------------------------------------ | ------------------------------------------------------------ |
-| `types.ts`                           | 增加 `SearchResultBatch`、`ViewMode`、`ContextMenuItem` 类型 |
-| `composables/useDirSearch.ts`        | 增加历史管理、视图模式、消除逻辑、批量事件监听               |
-| `composables/useDirSearchUiState.ts` | 持久化历史记录和视图模式                                     |
-| `components/SearchInput.vue`         | 集成 `useInputHistory`，增加键盘监听                         |
-| `components/DirectoryBar.vue`        | 集成 `useInputHistory`                                       |
-| `components/ResultsTree.vue`         | 集成右键菜单、悬停操作、列表视图、Tooltip                    |
-| `components/ResultItem.vue`          | 增加悬停按钮、右键菜单触发                                   |
-| `components/SearchPanel.vue`         | 集成 `ResultToolbar`                                         |
-| `DirSearch.vue`                      | 布局微调                                                     |
+| 文件                                 | 涉及批次       | 变更内容                                         |
+| ------------------------------------ | -------------- | ------------------------------------------------ |
+| `types.ts`                           | B2, B6, B7     | `ViewMode`、`DirectoryNode`、`SearchResultBatch` |
+| `composables/useDirSearch.ts`        | B2, B3, B4, B7 | clearResults、历史推入、消除逻辑、批量事件监听   |
+| `composables/useDirSearchUiState.ts` | B2, B3         | viewMode + 历史记录字段持久化                    |
+| `components/SearchInput.vue`         | B1, B3         | 布局重构（侧置 chevron）+ 集成 useInputHistory   |
+| `components/DirectoryBar.vue`        | B3             | 集成 useInputHistory                             |
+| `components/ResultsTree.vue`         | B2, B4, B5, B6 | 工具栏合并、悬停操作、右键菜单、视图切换         |
+| `components/ResultItem.vue`          | B4, B5, B8     | 悬停按钮、右键菜单触发、Tooltip 预览             |
+| `components/SearchPanel.vue`         | B2             | 传递新 props/events                              |
 
 ### 4.3 后端修改文件
 
-| 文件                                   | 变更内容                         |
-| -------------------------------------- | -------------------------------- |
-| `src-tauri/src/commands/dir_search.rs` | 并行搜索、批量发送、上下文行支持 |
+| 文件                                   | 涉及批次 | 变更内容                         |
+| -------------------------------------- | -------- | -------------------------------- |
+| `src-tauri/src/commands/dir_search.rs` | B7, B8   | 并行搜索、批量发送、上下文行支持 |
 
 ---
 
-## 5. 实施阶段
+## 5. 实施阶段（按提交批次）
 
-### Phase 1: 工具栏 + 历史记录 (前端)
+> 每个 Batch 完成后都是一个可独立提交、可测试的状态。
+> 依赖关系：B1 → B2 → B3 可并行 | B4 → B5 | B6 独立 | B7 → B8
+> 注意，这些都可以根据实际情况做调整，和细化提交内容等
 
-- [ ] 实现 `useInputHistory.ts`
-- [ ] 修改 `SearchInput.vue` 集成搜索历史
-- [ ] 修改 `DirectoryBar.vue` 集成目录历史
-- [ ] 实现 `ResultToolbar.vue`（刷新、清除、折叠/展开、视图切换）
-- [ ] 更新 `useDirSearchUiState.ts` 持久化新状态
+---
 
-### Phase 2: 结果交互增强 (前端)
+### Batch 1: 布局重构 — 替换按钮侧置
 
-- [ ] 实现 `ContextMenu.vue` 通用右键菜单
-- [ ] 实现 `useContextMenu.ts`
-- [ ] 修改 `ResultItem.vue` 增加悬停操作按钮
-- [ ] 修改 `ResultsTree.vue` 集成右键菜单和 Tooltip
-- [ ] 实现列表视图模式
-- [ ] 实现"消除"逻辑（从结果中移除）
-- [ ] 实现"排除/包含文件类型"联动过滤器
+**范围**: 纯 HTML/CSS 结构调整，零逻辑变更
+**风险**: 低
+**涉及文件**: `SearchInput.vue`
 
-### Phase 3: 后端性能优化
+- [ ] 将搜索行 + 替换行包裹进 `search-input__main` flex 容器
+- [ ] Chevron 按钮移至容器左侧，删除原 `search-input__expand-btn` 独占行
+- [ ] 调整 CSS：`.search-input__main` flex 布局、`.search-input__replace-toggle` 尺寸对齐
+- [ ] 验证：替换展开/收起动画正常，垂直空间节省 ~24px
 
-- [ ] 重构 `dir_search` 命令为并行架构
-- [ ] 实现 IPC 批处理机制
-- [ ] 增加 `context_lines` 支持
-- [ ] 前端适配批量事件 `dir-search-result-batch`
+**提交信息**: `feat(dir-search): 替换按钮侧置，对齐 VSCode 布局`
+
+---
+
+### Batch 2: 工具栏整合
+
+**范围**: 将现有折叠/展开按钮移至状态栏同行，新增刷新/清除/视图切换按钮
+**风险**: 低
+**涉及文件**: `ResultsTree.vue`, `types.ts`, `useDirSearchUiState.ts`
+
+- [ ] 在 `types.ts` 中新增 `ViewMode = 'list' | 'tree'` 类型
+- [ ] 在 `useDirSearchUiState.ts` 中新增 `viewMode` 持久化字段
+- [ ] 重构 `ResultsTree.vue` 的 `results-tree__toolbar`：
+  - 与状态栏合并为同一行（左侧状态文字，右侧按钮组）
+  - 按钮：刷新 / 清除 / 折叠 / 展开 / 视图切换
+- [ ] 在 `useDirSearch.ts` 中新增 `clearResults()` 方法
+- [ ] 验证：按钮功能正常，视图切换按钮暂时只切换图标（树形视图在 B6 实现）
+
+**提交信息**: `feat(dir-search): 工具栏整合，新增刷新/清除/视图切换入口`
+
+---
+
+### Batch 3: 键盘历史记录系统
+
+**范围**: 新增 composable + 集成到所有输入框
+**风险**: 低（纯前端新增，不影响现有逻辑）
+**涉及文件**: 新增 `useInputHistory.ts`，修改 `SearchInput.vue`, `DirectoryBar.vue`, `useDirSearchUiState.ts`
+
+- [ ] 新增 `composables/useInputHistory.ts`：
+  - 接口：`useInputHistory(historyArray: Ref<string[]>, currentValue: Ref<string>)`
+  - 返回：`{ onKeydown, isNavigating, historyIndex }`
+  - 逻辑：光标首行 + ArrowUp 向上翻，末行 + ArrowDown 向下翻，Escape 退出
+- [ ] 在 `useDirSearchUiState.ts` 中新增历史字段：
+  - `searchHistory: string[]` (上限 20)
+  - `directoryHistory: string[]` (上限 10)
+  - `includeHistory: string[]` (上限 10)
+  - `excludeHistory: string[]` (上限 10)
+- [ ] 在 `useDirSearch.ts` 的 `executeSearch()` 中，搜索执行时推入历史（去重 + FIFO）
+- [ ] `SearchInput.vue`：搜索 textarea 集成 `useInputHistory`
+- [ ] `DirectoryBar.vue`：目录 input 集成 `useInputHistory`
+- [ ] 验证：上下键切换历史正常，持久化重启后保留
+
+**提交信息**: `feat(dir-search): 键盘历史记录，支持搜索词/目录/glob 回溯`
+
+---
+
+### Batch 4: 结果项消除 + 悬停操作按钮
+
+**范围**: 结果交互的基础能力
+**风险**: 中（修改结果数据结构的操作逻辑）
+**涉及文件**: `useDirSearch.ts`, `ResultItem.vue`, `ResultsTree.vue`
+
+- [ ] 在 `useDirSearch.ts` 中新增：
+  - `dismissFile(filePath: string)` — 从 results Map 中移除整个文件
+  - `dismissMatch(filePath: string, matchIndex: number)` — 移除单个匹配项（文件无匹配时自动移除文件）
+- [ ] 修改 `ResultItem.vue`：
+  - 悬停时右侧显示操作按钮区域（opacity 过渡）
+  - 按钮：`X`（消除此匹配）、`Replace`（单项替换，仅替换模式显示）
+- [ ] 修改 `ResultsTree.vue` 文件头：
+  - 悬停时右侧显示：`Replace`（全部替换该文件，仅替换模式）、`X`（消除该文件）
+- [ ] 验证：消除后计数实时更新，替换按钮仅在 showReplace 时显示
+
+**提交信息**: `feat(dir-search): 结果项悬停操作，支持消除和单项替换`
+
+---
+
+### Batch 5: 右键菜单
+
+**范围**: 通用右键菜单组件 + 集成
+**前置依赖**: Batch 4（消除逻辑）
+**风险**: 中
+**涉及文件**: 新增 `ContextMenu.vue`, `useContextMenu.ts`，修改 `ResultsTree.vue`, `ResultItem.vue`
+
+- [ ] 新增 `components/ContextMenu.vue`：
+  - `position: fixed` 定位，`@contextmenu.prevent` 触发
+  - 支持分隔线、禁用项、图标
+  - 点击外部或 Escape 关闭
+- [ ] 新增 `composables/useContextMenu.ts`：
+  - 管理菜单显示状态、位置、菜单项列表
+  - 提供 `show(event, items)` / `hide()` 方法
+- [ ] 在 `ResultsTree.vue` 文件头绑定 `@contextmenu`：
+  - 菜单项：全部替换 / 消除 / --- / 排除此类型 / 包含此类型 / --- / 复制名 / 复制路径 / 全部复制 / --- / 资源管理器显示
+- [ ] 在 `ResultItem.vue` 绑定 `@contextmenu`：
+  - 菜单项：替换 / 消除 / --- / 复制 / 全部复制
+- [ ] 实现"排除/包含文件类型"联动：将 `*.ext` 追加到对应 glob 输入框
+- [ ] 实现"在资源管理器中显示"：调用 Tauri `opener.revealItemInDir`
+- [ ] 验证：右键菜单定位准确，各操作功能正常
+
+**提交信息**: `feat(dir-search): 右键菜单，支持文件级和匹配项级操作`
+
+---
+
+### Batch 6: 树形目录视图
+
+**范围**: 新增视图模式，独立于其他功能
+**前置依赖**: Batch 2（viewMode 状态已就绪）
+**风险**: 中高（新增较多渲染逻辑）
+**涉及文件**: 新增 `components/DirectoryTreeView.vue`，修改 `ResultsTree.vue`, `types.ts`
+
+- [ ] 在 `types.ts` 中新增树节点类型：
+  ```typescript
+  interface DirectoryNode {
+    name: string;
+    path: string;
+    children: DirectoryNode[];
+    files: FileSearchResult[];
+    totalMatches: number;
+  }
+  ```
+- [ ] 新增 `components/DirectoryTreeView.vue`：
+  - 接收 `FileSearchResult[]`，按 `relativePath` 构建嵌套目录树
+  - 空目录层级自动折叠合并（如 `src/tools/dir-search/` 合并为一行）
+  - 目录节点显示子树匹配总数
+  - 叶子节点为文件，展开后显示匹配项（复用 `ResultItem`）
+- [ ] 修改 `ResultsTree.vue`：
+  - 根据 `viewMode` 条件渲染列表视图或 `DirectoryTreeView`
+  - 两种视图共享展开/折叠/消除等操作
+- [ ] 验证：视图切换流畅，树形模式下目录层级正确，匹配数准确
+
+**提交信息**: `feat(dir-search): 树形目录视图模式`
+
+---
+
+### Batch 7: 后端并行搜索 + IPC 批处理
+
+**范围**: 后端性能重构 + 前端事件适配
+**风险**: 高（核心搜索逻辑重写）
+**涉及文件**: `src-tauri/src/commands/dir_search.rs`, `useDirSearch.ts`, `types.ts`
+
+- [ ] 后端：将 `WalkBuilder.build()` 替换为 `build_parallel()`
+  - 使用 `mpsc::channel` 收集并行结果
+  - 保留取消机制（`AtomicBool` 检查）
+- [ ] 后端：实现 IPC 批处理
+  - 新增 `SearchResultBatch { results: Vec<FileSearchResult> }` 事件类型
+  - 主线程消费 channel，每 20ms 或每 50 个结果批量 emit
+  - 搜索结束后 flush 剩余
+- [ ] 前端 `types.ts`：新增 `SearchResultBatch` 接口
+- [ ] 前端 `useDirSearch.ts`：
+  - 监听事件从 `dir-search-result` 改为 `dir-search-result-batch`
+  - 批量写入 results Map
+- [ ] 验证：大目录（万级文件）搜索速度提升，前端不卡顿，结果完整
+
+**提交信息**: `perf(dir-search): 后端并行搜索 + IPC 批处理`
+
+---
+
+### Batch 8: 上下文行 + Tooltip 预览
+
+**范围**: 后端增加上下文数据 + 前端 Tooltip 展示
+**前置依赖**: Batch 7（批处理事件格式）
+**风险**: 低
+**涉及文件**: `src-tauri/src/commands/dir_search.rs`, `types.ts`, `ResultItem.vue`
+
+- [ ] 后端：在 `SearchMatch` 中新增 `context_before: Vec<String>` 和 `context_after: Vec<String>`
+- [ ] 后端：根据 `SearchRequest.context_lines`（默认 0）读取上下文行
+- [ ] 前端 `types.ts`：`SearchMatch` 新增 `contextBefore?: string[]` 和 `contextAfter?: string[]`
+- [ ] 前端 `useDirSearch.ts`：搜索请求中设置 `contextLines: 2`
+- [ ] 修改 `ResultItem.vue`：
+  - 悬停 500ms 后显示 Tooltip
+  - 内容：匹配行 ± 2 行上下文，匹配部分高亮
+- [ ] 验证：Tooltip 显示正确，不影响搜索性能（对比 contextLines=0 和 =2 的耗时差异）
+
+**提交信息**: `feat(dir-search): 匹配项 Tooltip 预览，显示上下文行`
 
 ---
 

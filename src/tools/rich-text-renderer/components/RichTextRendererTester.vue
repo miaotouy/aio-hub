@@ -198,7 +198,7 @@ import type { StreamSource } from "../types";
 import { presets } from "../config/presets";
 import { useRichTextRendererStore } from "../stores/store";
 import { storeToRefs } from "pinia";
-import { llmChatRegistry } from "@/tools/llm-chat/llmChat.registry";
+import { llmChatRegistry } from "@/tools/llm-chat/llm-chat.registry";
 import { useAgentPresets } from "@/composables/useAgentPresets";
 import { processMessageAssetsSync, initAgentAssetCache } from "@/tools/llm-chat/utils/agentAssetUtils";
 import type { ChatAgent } from "@/tools/llm-chat/types";

@@ -1,5 +1,5 @@
 import type { ChatSessionDetail, ChatMessageNode, ChatSessionIndex } from "../types";
-import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
+import { tokenCalculatorService } from "@/tools/token-calculator/token-calculator.registry";
 import { createModuleLogger } from "@/utils/logger";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import type { Asset } from "@/types/asset-management";

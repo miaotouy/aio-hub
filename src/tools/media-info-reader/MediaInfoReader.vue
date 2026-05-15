@@ -139,7 +139,7 @@ import { createModuleErrorHandler } from "@utils/errorHandler";
 import { useMediaInfoParser } from "./composables/useMediaInfoParser";
 import { useAssetManager, type Asset } from "@/composables/useAssetManager";
 import { useMediaInfoState } from "./composables/useMediaInfoState";
-import { llmChatRegistry } from "@/tools/llm-chat/llmChat.registry";
+import { llmChatRegistry } from "@/tools/llm-chat/llm-chat.registry";
 import { customMessage } from "@/utils/customMessage";
 
 const logger = createModuleLogger("MediaInfoReader");

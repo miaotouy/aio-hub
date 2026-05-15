@@ -4,7 +4,7 @@ import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { getImageDimensions, resizeImage } from "@/utils/imageProcessor";
 import { createModuleLogger } from "@/utils/logger";
 import { parseModelCombo } from "@/utils/modelIdUtils";
-import SmartOcrRegistry from "@/tools/smart-ocr/smartOcr.registry";
+import SmartOcrRegistry from "@/tools/smart-ocr/smart-ocr.registry";
 import type { Asset } from "@/types/asset-management";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import { getModelParams } from "./base";

@@ -2,7 +2,7 @@
 import { computed, inject, type Ref } from "vue";
 import { useClipboard } from "@vueuse/core";
 import { toolRegistryManager } from "@/services/registry";
-import type LlmChatRegistry from "@/tools/llm-chat/llmChat.registry";
+import type LlmChatRegistry from "@/tools/llm-chat/llm-chat.registry";
 import customMessage from "@/utils/customMessage";
 
 const props = defineProps<{

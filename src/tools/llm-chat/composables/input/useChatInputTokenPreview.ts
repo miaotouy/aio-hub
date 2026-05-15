@@ -7,7 +7,7 @@ import { assetManagerEngine } from "@/composables/useAssetManager";
 import { MacroProcessor } from "../../macro-engine/MacroProcessor";
 import { buildMacroContext, processMacros } from "../../core/context-utils/macro";
 import { prepareMessageForTokenCalc } from "@/tools/llm-chat/utils/chatTokenUtils";
-import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
+import { tokenCalculatorService } from "@/tools/token-calculator/token-calculator.registry";
 import { useTranscriptionManager } from "../features/useTranscriptionManager";
 import type { Asset } from "@/types/asset-management";
 import type { ChatMessageNode, ModelIdentifier } from "@/tools/llm-chat/types";

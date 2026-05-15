@@ -21,7 +21,7 @@ import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
+import { tokenCalculatorService } from "@/tools/token-calculator/token-calculator.registry";
 
 const logger = createModuleLogger("llm-chat/context-compressor");
 const errorHandler = createModuleErrorHandler("llm-chat/context-compressor");

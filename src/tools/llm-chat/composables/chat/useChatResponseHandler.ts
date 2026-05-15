@@ -9,7 +9,7 @@ import type { LlmMessageContent } from "@/llm-apis/common";
 import { isAbortError, isTimeoutError } from "@/llm-apis/common";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
-import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
+import { tokenCalculatorService } from "@/tools/token-calculator/token-calculator.registry";
 import { processInlineData } from "@/composables/useAttachmentProcessor";
 import { useSessionManager } from "../session/useSessionManager";
 import { useChatSettings } from "../settings/useChatSettings";

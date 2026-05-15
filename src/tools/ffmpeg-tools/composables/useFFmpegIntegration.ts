@@ -1,5 +1,5 @@
 import { useRouter } from "vue-router";
-import { llmChatRegistry } from "@/tools/llm-chat/llmChat.registry";
+import { llmChatRegistry } from "@/tools/llm-chat/llm-chat.registry";
 import { transcriptionRegistry } from "@/tools/transcription/transcription.registry";
 import { useAssetManager } from "@/composables/useAssetManager";
 import { customMessage } from "@/utils/customMessage";

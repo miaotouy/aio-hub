@@ -1,6 +1,6 @@
 import type { PipelineContext } from "../../types/pipeline";
 import type { ContextPreviewData, WorldbookEntryPreview } from "../../types/context";
-import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
+import { tokenCalculatorService } from "@/tools/token-calculator/token-calculator.registry";
 import { getActiveModelProperties } from "@/config/model-metadata";
 import { tokenCalculatorEngine } from "@/tools/token-calculator/composables/useTokenCalculator";
 import { resolveAttachmentsBatch } from "./attachment-resolver";

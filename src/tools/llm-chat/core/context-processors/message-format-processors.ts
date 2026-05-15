@@ -10,7 +10,7 @@ import { createModuleLogger } from "@/utils/logger";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { LlmModelInfo } from "@/types/llm-profiles";
 import type { ContextPostProcessRule } from "../../types/llm";
-import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
+import { tokenCalculatorService } from "@/tools/token-calculator/token-calculator.registry";
 
 const logger = createModuleLogger("llm-chat/message-format-processors");
 

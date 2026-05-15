@@ -63,7 +63,7 @@
 import { ref, onMounted, onBeforeUnmount, computed, watch } from "vue";
 import { Copy, Check, Code2, ChevronRight } from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
-import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
+import { tokenCalculatorService } from "@/tools/token-calculator/token-calculator.registry";
 
 interface Props {
   rawTagName: string;

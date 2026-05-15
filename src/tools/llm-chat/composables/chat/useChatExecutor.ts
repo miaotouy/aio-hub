@@ -12,7 +12,7 @@ import { useChatSettings } from "../settings/useChatSettings";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import { tokenCalculatorService } from "@/tools/token-calculator/tokenCalculator.registry";
+import { tokenCalculatorService } from "@/tools/token-calculator/token-calculator.registry";
 import { useContextPipelineStore } from "../../stores/contextPipelineStore";
 import type { PipelineContext } from "../../types/pipeline";
 import { useNodeManager } from "../session/useNodeManager";

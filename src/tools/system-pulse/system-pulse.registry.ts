@@ -1,4 +1,4 @@
-// src/tools/system-pulse/systemPulse.registry.ts
+// src/tools/system-pulse/system-pulse.registry.ts
 import type { ToolConfig } from "@/services/types";
 import { Activity } from "lucide-vue-next";
 

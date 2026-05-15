@@ -2,7 +2,7 @@
  * LLM Chat 核心业务服务
  *
  * 包含输入框管理、消息发送、会话管理等核心业务逻辑。
- * 从 llmChat.registry.ts 中抽离，以便于维护和复用。
+ * 从 llm-chat.registry.ts 中抽离，以便于维护和复用。
  */
 
 import { useChatInputManager } from "../composables/input/useChatInputManager";

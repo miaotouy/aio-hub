@@ -60,10 +60,8 @@ export function useDirSearch() {
     unlistenResult = await listen<FileSearchResult>("dir-search-result", (event) => {
       const result = event.payload;
       results.value.set(result.filePath, result);
-      // 自动展开前 20 个文件
-      if (expandedFiles.value.size < 20) {
-        expandedFiles.value.add(result.filePath);
-      }
+      // 默认全部展开
+      expandedFiles.value.add(result.filePath);
     });
 
     unlistenProgress = await listen<SearchProgress>("dir-search-progress", (event) => {

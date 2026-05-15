@@ -189,6 +189,15 @@ export function useDirSearch() {
     expandedFiles.value.clear();
   }
 
+  /** 清空搜索结果 */
+  function clearResults() {
+    results.value = new Map();
+    summary.value = null;
+    progress.value = null;
+    expandedFiles.value = new Set();
+    selectedFilePath.value = null;
+  }
+
   /** 选择文件进行预览 */
   function selectFile(filePath: string) {
     selectedFilePath.value = filePath;
@@ -256,6 +265,7 @@ export function useDirSearch() {
     toggleFileExpand,
     expandAll,
     collapseAll,
+    clearResults,
     selectFile,
     dispose,
   };

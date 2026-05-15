@@ -15,16 +15,6 @@
       </template>
     </div>
 
-    <!-- 工具栏 -->
-    <div v-if="results.length > 0" class="results-tree__toolbar">
-      <button class="results-tree__toolbar-btn" @click="$emit('expandAll')">
-        <ChevronsDown :size="14" />
-      </button>
-      <button class="results-tree__toolbar-btn" @click="$emit('collapseAll')">
-        <ChevronsUp :size="14" />
-      </button>
-    </div>
-
     <!-- 结果列表 -->
     <div class="results-tree__list">
       <template v-if="results.length === 0 && !isSearching && summary">
@@ -69,7 +59,7 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
-import { ChevronRight, ChevronsDown, ChevronsUp, SearchX } from "lucide-vue-next";
+import { ChevronRight, SearchX } from "lucide-vue-next";
 import { Loading } from "@element-plus/icons-vue";
 import { FileIcon } from "lucide-vue-next";
 import ResultItem from "./ResultItem.vue";
@@ -153,34 +143,6 @@ function onMatchSelect(filePath: string, match: SearchMatch) {
 
 .results-tree__cancelled {
   color: var(--el-color-warning);
-}
-
-.results-tree__toolbar {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 4px 12px;
-  border-bottom: 1px solid var(--border-color);
-  flex-shrink: 0;
-}
-
-.results-tree__toolbar-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border: none;
-  border-radius: 3px;
-  background: transparent;
-  color: var(--el-text-color-secondary);
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.results-tree__toolbar-btn:hover {
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.1));
-  color: var(--el-text-color-primary);
 }
 
 .results-tree__list {

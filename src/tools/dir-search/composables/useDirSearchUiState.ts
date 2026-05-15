@@ -1,5 +1,6 @@
 import { ref, reactive, watch, toRefs, toRaw } from "vue";
 import { createConfigManager } from "@/utils/configManager";
+import type { ViewMode } from "../types";
 
 /**
  * 创建默认状态的工厂函数
@@ -20,6 +21,8 @@ function createDefaultState() {
     excludeGlobs: "",
     useGitignore: true,
     showReplace: false,
+    // 视图模式
+    viewMode: "list" as ViewMode,
   };
 }
 

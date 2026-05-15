@@ -181,19 +181,37 @@ interface SearchHistoryState {
 - 返回 `{ onKeydown, historyIndex }`
 - 封装上下键切换逻辑，可复用于所有输入框
 
-### 3.2 顶部功能条
+### 3.2 顶部标题栏功能按钮组
 
-**位置**：在搜索结果状态栏（`results-tree__status`）同一行右侧。
+**位置**：搜索面板最顶部的标题行，左侧为"搜索"标题文字，右侧为功能按钮组。**常驻显示**，不随搜索结果的有无而隐藏。
+
+**按钮状态逻辑**：
+
+- 无搜索结果时，依赖结果的按钮（刷新、清除、折叠、展开）显示为 **disabled（灰色不可点击）**
+- 有搜索结果时，所有按钮正常可用
 
 **按钮列表**（从左到右）：
 
-1. 刷新 (`RefreshCw`) — 重新执行 `executeSearch()`
-2. 清除 (`X`) — 清空结果和输入
-3. 全部折叠 (`ChevronsUp`) — 已有逻辑，移动位置
-4. 全部展开 (`ChevronsDown`) — 已有逻辑，移动位置
-5. 树形/列表切换 (`TreePine` / `List`) — 切换 `viewMode`（当前为列表模式，切换到树形目录模式）
+1. 刷新 (`RefreshCw`) — 重新执行 `executeSearch()`，无结果时 disabled
+2. 全部折叠 (`ChevronsUp`) — 已有逻辑，移动位置，无结果时 disabled
+3. 清除结果 (`X`) — 清空搜索结果，无结果时 disabled
+4. 树形/列表切换 (`TreePine` / `List`) — 切换 `viewMode`，始终可用
+5. 新建搜索编辑器 (`SquarePen`) — P2 暂不实现，预留位置
 
-**布局**：与状态信息（"1254 文件中有 2829 个结果"）在同一行，左侧状态文字，右侧按钮组。
+**布局示意**（对齐 VSCode 截图）：
+
+```
+┌──────────────────────────────────────────────┐
+│ 搜索          [🔄] [⊞] [✕] [≡] [□]         │  ← 标题行，按钮常驻
+├──────────────────────────────────────────────┤
+│ [▶] [搜索输入框...]       [Aa] [ab] [.*]    │
+│     [替换输入框...]       [AB] [全部替换]    │
+├──────────────────────────────────────────────┤
+│ ...过滤器...                                  │
+└──────────────────────────────────────────────┘
+```
+
+**注意**：搜索结果区域的状态栏（"N 文件中有 M 个结果"）和结果列表保持原有位置不变，不做移动。
 
 ### 3.3 结果项悬停操作
 
@@ -378,9 +396,9 @@ pub struct SearchMatch {
 | `composables/useDirSearchUiState.ts` | B2, B3         | viewMode + 历史记录字段持久化                    |
 | `components/SearchInput.vue`         | B1, B3         | 布局重构（侧置 chevron）+ 集成 useInputHistory   |
 | `components/DirectoryBar.vue`        | B3             | 集成 useInputHistory                             |
-| `components/ResultsTree.vue`         | B2, B4, B5, B6 | 工具栏合并、悬停操作、右键菜单、视图切换         |
+| `components/ResultsTree.vue`         | B4, B5, B6     | 悬停操作、右键菜单、视图切换                     |
 | `components/ResultItem.vue`          | B4, B5, B8     | 悬停按钮、右键菜单触发、Tooltip 预览             |
-| `components/SearchPanel.vue`         | B2             | 传递新 props/events                              |
+| `components/SearchPanel.vue`         | B2             | 顶部标题栏按钮组（常驻，disabled 状态控制）      |
 
 ### 4.3 后端修改文件
 
@@ -413,21 +431,23 @@ pub struct SearchMatch {
 
 ---
 
-### Batch 2: 工具栏整合
+### Batch 2: 顶部标题栏按钮组 ✅
 
-**范围**: 将现有折叠/展开按钮移至状态栏同行，新增刷新/清除/视图切换按钮
+**范围**: 在搜索面板顶部标题行新增常驻功能按钮组（刷新/折叠/清除/视图切换），无结果时按钮 disabled 灰显
 **风险**: 低
-**涉及文件**: `ResultsTree.vue`, `types.ts`, `useDirSearchUiState.ts`
+**涉及文件**: `SearchPanel.vue`（或顶层面板组件）, `types.ts`, `useDirSearchUiState.ts`, `useDirSearch.ts`
 
-- [ ] 在 `types.ts` 中新增 `ViewMode = 'list' | 'tree'` 类型
-- [ ] 在 `useDirSearchUiState.ts` 中新增 `viewMode` 持久化字段
-- [ ] 重构 `ResultsTree.vue` 的 `results-tree__toolbar`：
-  - 与状态栏合并为同一行（左侧状态文字，右侧按钮组）
-  - 按钮：刷新 / 清除 / 折叠 / 展开 / 视图切换
-- [ ] 在 `useDirSearch.ts` 中新增 `clearResults()` 方法
-- [ ] 验证：按钮功能正常，视图切换按钮暂时只切换图标（树形视图在 B6 实现）
+- [x] 在 `types.ts` 中新增 `ViewMode = 'list' | 'tree'` 类型
+- [x] 在 `useDirSearchUiState.ts` 中新增 `viewMode` 持久化字段
+- [x] 在面板顶部标题行（"搜索"文字右侧）添加按钮组：
+  - 按钮：刷新 / 全部折叠 / 清除结果 / 树形列表切换
+  - 按钮始终渲染，无搜索结果时设置 `disabled` 属性（灰色不可点击）
+  - 将原 `ResultsTree.vue` 中的折叠/展开按钮移除，改由顶部按钮组统一控制
+- [x] 在 `useDirSearch.ts` 中新增 `clearResults()` 方法
+- [x] 搜索结果区域（状态栏 + 结果列表）保持原有位置和布局不变
+- [x] 验证：按钮 disabled 状态正确切换，功能正常，视图切换按钮暂时只切换图标（树形视图在 B6 实现）
 
-**提交信息**: `feat(dir-search): 工具栏整合，新增刷新/清除/视图切换入口`
+**提交信息**: `feat(dir-search): 顶部标题栏按钮组，常驻显示，无结果时灰显`
 
 ---
 

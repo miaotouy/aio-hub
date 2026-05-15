@@ -29,6 +29,7 @@
           v-model:exclude-globs="search.excludeGlobs.value"
           v-model:use-gitignore="search.useGitignore.value"
           v-model:show-replace="search.showReplace.value"
+          v-model:view-mode="viewMode"
           :results="search.resultsList.value"
           :expanded-files="search.expandedFiles.value"
           :is-searching="search.isSearching.value"
@@ -37,9 +38,11 @@
           :selected-file-path="search.selectedFilePath.value"
           @search="search.executeSearch"
           @replace-all="handleReplaceAll"
+          @refresh="search.executeSearch"
           @toggle-file="search.toggleFileExpand"
           @expand-all="search.expandAll"
           @collapse-all="search.collapseAll"
+          @clear-results="search.clearResults"
           @cancel="search.cancelSearch"
           @select-match="handleSelectMatch"
         />
@@ -79,6 +82,7 @@ const uiState = useDirSearchUiState();
 // UI 状态（从持久化 composable 获取）
 const panelWidth = uiState.panelWidth;
 const isPanelCollapsed = uiState.isPanelCollapsed;
+const viewMode = uiState.viewMode;
 const targetLine = ref<number | null>(null);
 
 // 恢复上次的搜索目录

@@ -89,3 +89,6 @@ export interface HighlightPart {
   text: string;
   isMatch: boolean;
 }
+
+/** 结果视图模式 */
+export type ViewMode = "list" | "tree";

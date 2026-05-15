@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed } from "vue";
-import { Save, Info } from "lucide-vue-next";
+import { computed, ref, onMounted } from "vue";
+import { Save, Info, Cookie } from "lucide-vue-next";
 import { useWebDistilleryStore } from "../../stores/store";
+import { cookieProfileStore } from "../../core/cookie-profile-store";
 import { customMessage } from "@/utils/customMessage";
 import { invoke } from "@tauri-apps/api/core";
+import type { CookieProfile } from "../../types";
 
 const props = defineProps<{
   modelValue: boolean;
@@ -16,6 +18,14 @@ const store = useWebDistilleryStore();
 const visible = computed({
   get: () => props.modelValue,
   set: (val) => emit("update:modelValue", val),
+});
+
+// 身份卡片列表
+const allProfiles = ref<CookieProfile[]>([]);
+
+onMounted(async () => {
+  await cookieProfileStore.load();
+  allProfiles.value = await cookieProfileStore.getAll();
 });
 
 const handleSave = async () => {
@@ -55,6 +65,29 @@ const handleSave = async () => {
         <el-form-item label="路径匹配模式 (Path Pattern)">
           <el-input v-model="store.recipeDraft.pathPattern" placeholder="例如：/p/*" />
           <div class="form-tip">支持 Glob 模式，* 匹配所有路径</div>
+        </el-form-item>
+
+        <el-form-item label="绑定身份卡片">
+          <el-select
+            v-model="store.recipeDraft.cookieProfile"
+            placeholder="不绑定（使用当前激活身份）"
+            clearable
+            style="width: 100%"
+          >
+            <el-option
+              v-for="profile in allProfiles"
+              :key="profile.id"
+              :label="`${profile.name} (${profile.domain})`"
+              :value="profile.id"
+            >
+              <div class="profile-option">
+                <Cookie :size="12" class="profile-option-icon" />
+                <span>{{ profile.name }}</span>
+                <span class="profile-option-domain">{{ profile.domain }}</span>
+              </div>
+            </el-option>
+          </el-select>
+          <div class="form-tip">绑定后，使用此配方蒸馏时将自动携带指定身份的 Cookie</div>
         </el-form-item>
 
         <el-divider>规则摘要</el-divider>
@@ -144,5 +177,23 @@ const handleSave = async () => {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+}
+
+.profile-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.profile-option-icon {
+  color: var(--el-color-warning);
+  flex-shrink: 0;
+}
+
+.profile-option-domain {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
 }
 </style>

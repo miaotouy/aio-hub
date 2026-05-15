@@ -1,9 +1,8 @@
-
 # 身份卡片 (Identity Card) 功能规划
 
-> **状态**: Implementing (P0-P2 部分完成，⚠️ P0.5 缺失——交互式浏览的 Cookie 注入/保存闭环未实现)
+> **状态**: Implementing (P0-P2 完成，P1.5/P3 待实施)
 > **创建日期**: 2025-05-12
-> **最后更新**: 2025-05-12
+> **最后更新**: 2025-05-15
 > **所属模块**: `src/tools/web-distillery/components/CookieLab.vue`
 
 ---
@@ -32,12 +31,12 @@ iframe 通过代理加载 → 代理的 fallback 转发 XHR 请求
 
 ### 0.3 具体缺失点
 
-| # | 缺失环节 | 现状 | 影响 |
-|---|---------|------|------|
-| 1 | **交互式浏览加载页面时注入 cookies** | `DistilleryWorkbench.handleFetch()` 中 smart 模式调用 `smartExtract`（会注入），但交互式浏览模式加载页面时**没有人调用 `distillery_set_proxy_cookies`** | 即使 Profile 已激活，交互式浏览也不会带身份 |
-| 2 | **身份切换后更新代理状态** | `BrowserToolbar.handleIdentitySwitch()` 只调用了 `cookieProfileStore.toggleActive()`，**没有调用 `distillery_set_proxy_cookies`**，也没有刷新页面 | 切换身份后当前页面不会感知变化 |
-| 3 | **用户在 iframe 中登录后保存 cookies** | 完全没有实现。当前只有手动去 CookieLab 点"从浏览器抓取"才能保存，且只能读非 HttpOnly cookies | 用户登录后 cookies 只存在于 iframe 的浏览器 cookie jar 中，代理端口变化或 iframe 重建后就丢失 |
-| 4 | **代理层 Set-Cookie 响应头的捕获与回传** | `proxy.rs` 的 `unsafe_headers` 中没有 `set-cookie`，所以会透传给 iframe，但**没有机制将其回传给前端保存** | HttpOnly cookies 永远无法被前端感知和持久化 |
+| #   | 缺失环节                                 | 现状                                                                                                                                                    | 影响                                                                                          |
+| --- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| 1   | **交互式浏览加载页面时注入 cookies**     | `DistilleryWorkbench.handleFetch()` 中 smart 模式调用 `smartExtract`（会注入），但交互式浏览模式加载页面时**没有人调用 `distillery_set_proxy_cookies`** | 即使 Profile 已激活，交互式浏览也不会带身份                                                   |
+| 2   | **身份切换后更新代理状态**               | `BrowserToolbar.handleIdentitySwitch()` 只调用了 `cookieProfileStore.toggleActive()`，**没有调用 `distillery_set_proxy_cookies`**，也没有刷新页面       | 切换身份后当前页面不会感知变化                                                                |
+| 3   | **用户在 iframe 中登录后保存 cookies**   | 完全没有实现。当前只有手动去 CookieLab 点"从浏览器抓取"才能保存，且只能读非 HttpOnly cookies                                                            | 用户登录后 cookies 只存在于 iframe 的浏览器 cookie jar 中，代理端口变化或 iframe 重建后就丢失 |
+| 4   | **代理层 Set-Cookie 响应头的捕获与回传** | `proxy.rs` 的 `unsafe_headers` 中没有 `set-cookie`，所以会透传给 iframe，但**没有机制将其回传给前端保存**                                               | HttpOnly cookies 永远无法被前端感知和持久化                                                   |
 
 ### 0.4 当前已实现 vs 缺失对比
 
@@ -170,31 +169,32 @@ interface CookieProfile {
 - [x] 域名互斥激活机制（同域名下只能有一个 Profile 激活）
 - [x] 移除 `stores/store.ts` 中旧的 `cookieProfiles: string[]` 字段
 
-#### P0.5 — 交互式浏览的 Cookie 注入与保存闭环（⚠️ 缺失，阻塞实际使用）
+#### P0.5 — 交互式浏览的 Cookie 注入与保存闭环 ✅
 
-> **这是当前最关键的缺失环节。** 没有这一步，即使 P0-P2 的 CRUD/导入/Rust 注入全部实现了，用户在交互式浏览模式下也无法使用身份卡片功能。
+> 已全部实现，包含额外的 localStorage 同步能力（用于 SPA token 恢复）。
 
-- [ ] **交互式浏览加载页面时注入 cookies**：当用户在交互式浏览模式中加载页面时，应在 `iframeBridge.create()` 之前调用 `distillery_set_proxy_cookies`，将当前 URL 匹配的激活 Profile 的 cookies 注入代理
-- [ ] **身份切换后立即更新代理 + 刷新页面**：`BrowserToolbar.handleIdentitySwitch()` 中切换身份后，应立即调用 `distillery_set_proxy_cookies` 更新代理状态，并触发页面重新加载
-- [ ] **用户登录后保存 cookies（半自动）**：在 BrowserToolbar 或 BrowserViewport 中提供"保存当前 Cookie"按钮，一键将 iframe 中的 `document.cookie` 保存/更新到对应的 CookieProfile
-- [ ] **代理层 Set-Cookie 响应头捕获与回传（自动）**：Rust `proxy.rs` 的 fallback/proxy 路由在转发响应时，提取 `Set-Cookie` 头并通过注入脚本回传给前端，前端自动更新对应 Profile 的 cookies（覆盖 HttpOnly 场景）
+- [x] **交互式浏览加载页面时注入 cookies**：`iframeBridge.create()` 内部调用 `syncActiveCookiesToProxy()`；`InteractiveWorkbench.handleLoadUrl()` 中显式注入 cookies + localStorage
+- [x] **身份切换后立即更新代理 + 刷新页面**：`BrowserToolbar.handleIdentitySwitch()` 调用 `distillery_set_proxy_cookies` + `emit("refresh")`；`IdentityPanel.handleToggle()` 同步代理 + `location.reload()`
+- [x] **用户登录后保存 cookies（半自动 + 自动）**：`InteractiveToolbar` 提供"保存 Cookie"按钮；`InteractiveWorkbench.syncProxyCookiesToProfile()` 通过导航变化监听自动检测登录成功并同步
+- [x] **代理层 Set-Cookie 响应头捕获与回传（自动）**：`proxy.rs` 的 `handle_proxy_html`/`handle_proxy_resource`/`handle_fallback` 均实现 Cookie Jar 累积（`merge_set_cookies`）；前端通过 `distillery_get_proxy_cookies` 命令读取
 
-#### P1 — 导入导出
+#### P1 — 导入导出 ✅
 
 - [x] 从当前浏览器页面"一键抓取"所有 cookie 到新 Profile
 - [x] 从 JSON 文件导入（兼容 EditThisCookie 导出格式）
 - [x] 从 Netscape/cURL 格式导入（`# Netscape HTTP Cookie File` 格式）
 - [x] 导出为 JSON / cURL header 格式
-- [ ] 导出为明文 JSON 备份（用于密钥丢失恢复场景）
+- [x] 导出为明文 JSON 备份（`handleExportProfile` 即为此功能，导出完整 CookieProfile JSON）
 
-#### P2 — 配方联动 + 自动注入
+#### P2 — 配方联动 + 自动注入 ✅
 
-- [ ] 配方编辑器 (`RecipeMetaDrawer.vue`) 中添加"绑定身份卡片"下拉选择器
+- [x] 配方编辑器 (`RecipeMetaDrawer.vue`) 中添加"绑定身份卡片"下拉选择器
 - [x] `BrowserToolbar.vue` 地址栏旁添加身份快捷切换下拉
 - [x] `smartExtract` 流程中：设置代理 cookie → iframe 加载时自动携带
 - [x] `quickFetch` 流程中：将 cookie 作为 `cookies` 参数传递给 Rust `distillery_quick_fetch`
 - [x] Rust `fetcher.rs` 使用 `cookies` 参数注入 Cookie header
 - [x] Rust `proxy.rs` 扩展全局状态，支持代理请求携带 cookie
+- [x] `actions.ts` 中 `resolveProfileForUrl()` 支持配方绑定的身份卡片优先级
 
 #### P1.5 — 存储加密（替换明文脚手架）
 
@@ -205,12 +205,12 @@ interface CookieProfile {
 - [ ] 前端 Store 的 `load()` / `save()` 改为通过 Rust 命令加解密 cookie value
 - [ ] 直接替换明文存储实现（无需迁移逻辑，开发阶段不发版）
 
-#### P3 — 增强体验
+#### P3 — 增强体验（部分完成）
 
-- [ ] Cookie 过期检测 + 提醒（解析 expires 字段，标红已过期条目）
+- [x] Cookie 过期检测 + 提醒（`CookieProfileCard` 中 ⚠️ badge + `CookieLab` 表格中标红已过期条目）
 - [ ] 域名自动匹配建议（输入 URL 时自动推荐匹配的 Profile）
-- [ ] HttpOnly cookie 支持（Rust 代理层在响应中提取 `Set-Cookie` 头并回传）
-- [ ] Profile 使用统计（记录每次使用时间，按最近使用排序）
+- [x] HttpOnly cookie 支持（Rust 代理层 Cookie Jar 自动累积 `Set-Cookie` 响应头，含 HttpOnly cookies）
+- [x] Profile 使用统计（`lastUsedAt` 字段 + `CookieProfileCard` 显示"最后使用时间"）
 - [ ] 可选文件级加密升级（AES-256-GCM，整个 JSON 文件加密，防止元数据泄露）
 
 ### 3.3 UI 布局草案
@@ -502,6 +502,7 @@ async function handleIdentitySwitch(profileId: string | null) {
 **方案**：在 BrowserToolbar 中添加"💾 保存 Cookie"按钮，用户在 iframe 中登录后点击即可保存。
 
 **交互流程**：
+
 ```
 用户在 iframe 中登录 → 登录成功（页面变化）
     ↓
@@ -516,6 +517,7 @@ async function handleIdentitySwitch(profileId: string | null) {
 ```
 
 **实现要点**：
+
 - 按钮只在 `store.isWebviewCreated` 为 true 时可用
 - 保存时自动合并（按 cookie name 去重，新值覆盖旧值）
 - 保存后自动激活该 Profile
@@ -631,8 +633,8 @@ graph TD
 2. **Phase 2** ✅：UI 层 → 重写 CookieLab 管理界面 + 导入功能（从浏览器抓取 / JSON / Netscape）
 3. **Phase 3** ✅：Rust 改动 → fetcher + proxy 支持 cookie 注入
 4. **Phase 4** ✅：前端集成 → actions.ts 对接、工具栏快捷入口
-5. **⚠️ Phase 4.5（当前阻塞）**：交互式浏览 Cookie 闭环 → 加载时注入、切换时更新、登录后保存
-6. **Phase 5**：配方绑定 → RecipeMetaDrawer 中添加身份卡片选择器
+5. **Phase 4.5** ✅：交互式浏览 Cookie 闭环 → 加载时注入、切换时更新、登录后保存、Cookie Jar 自动累积
+6. **Phase 5** ✅：配方绑定 → RecipeMetaDrawer 中添加身份卡片选择器 + actions.ts 配方绑定优先级
 7. **Phase 6**：拆脚手架 → 替换 Store 的 load/save 为平台加密实现
 8. **Phase 7**：增强体验 → 过期检测、导出格式、HttpOnly 响应提取、使用统计
 
@@ -656,12 +658,12 @@ graph TD
 
 ## 9. 风险与缓解
 
-| 风险                       | 影响                    | 缓解措施                                   | 阶段      |
-| -------------------------- | ----------------------- | ------------------------------------------ | --------- |
-| Cookie 过期导致抓取失败    | 用户困惑                | P3 过期检测 + 视觉提示                     | P3        |
-| 代理全局状态竞态           | 并发请求携带错误 cookie | 蒸馏操作本身是串行的，风险极低             | —         |
-| 大量 cookie 导致请求头过大 | HTTP 413 错误           | 限制单个 Profile 最多 200 条 cookie        | P0        |
-| **明文存储被恶意软件读取** | **身份泄露（高危）**    | 开发期不发版；发版前必须完成加密替换       | Phase 6   |
-| 备份工具意外同步敏感文件   | 云端泄露                | 加密后即使被同步也无法解密                 | Phase 6   |
-| DPAPI 密钥随用户密码重置   | 数据不可恢复            | 提供明文 JSON 导出备份功能（用户主动操作） | Phase 7   |
-| **交互式浏览不注入 cookie** | **功能完全不可用**     | Phase 4.5 实现注入闭环                     | Phase 4.5 |
+| 风险                        | 影响                    | 缓解措施                                   | 阶段      |
+| --------------------------- | ----------------------- | ------------------------------------------ | --------- |
+| Cookie 过期导致抓取失败     | 用户困惑                | P3 过期检测 + 视觉提示                     | P3        |
+| 代理全局状态竞态            | 并发请求携带错误 cookie | 蒸馏操作本身是串行的，风险极低             | —         |
+| 大量 cookie 导致请求头过大  | HTTP 413 错误           | 限制单个 Profile 最多 200 条 cookie        | P0        |
+| **明文存储被恶意软件读取**  | **身份泄露（高危）**    | 开发期不发版；发版前必须完成加密替换       | Phase 6   |
+| 备份工具意外同步敏感文件    | 云端泄露                | 加密后即使被同步也无法解密                 | Phase 6   |
+| DPAPI 密钥随用户密码重置    | 数据不可恢复            | 提供明文 JSON 导出备份功能（用户主动操作） | Phase 7   |
+| **交互式浏览不注入 cookie** | **功能完全不可用**      | Phase 4.5 实现注入闭环                     | Phase 4.5 |

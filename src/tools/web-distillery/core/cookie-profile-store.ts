@@ -120,6 +120,12 @@ export class CookieProfileStore {
     return [...this.profiles];
   }
 
+  /** 按 ID 获取单个 Profile */
+  public async getById(id: string): Promise<CookieProfile | null> {
+    await this.load();
+    return this.profiles.find((p) => p.id === id) ?? null;
+  }
+
   /** 按主域名获取 Profile 列表 */
   public async getByDomain(domain: string): Promise<CookieProfile[]> {
     await this.load();

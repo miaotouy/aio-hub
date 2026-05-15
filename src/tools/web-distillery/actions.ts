@@ -8,7 +8,14 @@ import { iframeBridge } from "./core/iframe-bridge";
 import { actionRunner } from "./core/action-runner";
 import { recipeStore } from "./core/recipe-store";
 import { cookieProfileStore } from "./core/cookie-profile-store";
-import type { QuickFetchOptions, SmartExtractOptions, FetchResult, ExtractResult, RawFetchPayload } from "./types";
+import type {
+  QuickFetchOptions,
+  SmartExtractOptions,
+  FetchResult,
+  ExtractResult,
+  RawFetchPayload,
+  CookieProfile,
+} from "./types";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
 import { getLocalISOString } from "@/utils/time";
@@ -19,6 +26,29 @@ const logger = createModuleLogger("web-distillery/actions");
 import type { ToolContext } from "@/services/types";
 
 /**
+ * 解析蒸馏时应使用的 Cookie Profile
+ * 优先级：配方绑定的 cookieProfile > URL 匹配的激活 Profile
+ */
+async function resolveProfileForUrl(url: string, recipeCookieProfileId?: string): Promise<CookieProfile | null> {
+  await cookieProfileStore.load();
+
+  // 优先使用配方绑定的身份卡片
+  if (recipeCookieProfileId) {
+    const bound = await cookieProfileStore.getById(recipeCookieProfileId);
+    if (bound) {
+      logger.info("Using recipe-bound cookie profile", { profileId: bound.id, profileName: bound.name });
+      return bound;
+    }
+    logger.warn("Recipe-bound cookie profile not found, falling back to URL match", {
+      profileId: recipeCookieProfileId,
+    });
+  }
+
+  // 回退到 URL 匹配的激活 Profile
+  return cookieProfileStore.getActiveProfileForUrl(url);
+}
+
+/**
  * 快速获取并蒸馏（基于 HTTP 请求，无浏览器）
  */
 export async function quickFetch(options: QuickFetchOptions, context?: ToolContext): Promise<FetchResult> {
@@ -26,8 +56,9 @@ export async function quickFetch(options: QuickFetchOptions, context?: ToolConte
   context?.reportStatus("正在通过 HTTP 获取网页内容...");
   return (await errorHandler.wrapAsync(
     async () => {
-      await cookieProfileStore.load();
-      const activeProfile = await cookieProfileStore.getActiveProfileForUrl(options.url);
+      // 先尝试通过 URL 匹配配方（不需要 HTML 内容），以获取绑定的身份卡片
+      const preMatchedRecipe = await recipeStore.findBestMatch(options.url);
+      const activeProfile = await resolveProfileForUrl(options.url, preMatchedRecipe?.cookieProfile);
       const cookieStr = activeProfile ? activeProfile.cookies.map((c) => `${c.name}=${c.value}`).join("; ") : undefined;
 
       const payload = await invoke<RawFetchPayload>("distillery_quick_fetch", {
@@ -50,7 +81,8 @@ export async function quickFetch(options: QuickFetchOptions, context?: ToolConte
       }
 
       context?.reportStatus("内容获取成功，正在蒸馏提取...");
-      const matchedRecipe = await recipeStore.findBestMatch(options.url, payload.html);
+      // 用 HTML 内容做更精确的配方匹配（内容嗅探）
+      const matchedRecipe = (await recipeStore.findBestMatch(options.url, payload.html)) || preMatchedRecipe;
       const result = await transformer.transform(
         payload.html,
         {
@@ -88,8 +120,8 @@ export async function smartExtract(options: SmartExtractOptions, context?: ToolC
       }
 
       // 查找匹配的 Cookie Profile 并设置代理 cookie
-      await cookieProfileStore.load();
-      const activeProfile = await cookieProfileStore.getActiveProfileForUrl(options.url);
+      // 优先使用配方绑定的身份卡片
+      const activeProfile = await resolveProfileForUrl(options.url, matchedRecipe?.cookieProfile);
 
       if (activeProfile) {
         const cookieStr = activeProfile.cookies.map((c) => `${c.name}=${c.value}`).join("; ");

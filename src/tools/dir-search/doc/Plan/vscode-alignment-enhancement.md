@@ -398,16 +398,16 @@ pub struct SearchMatch {
 
 ---
 
-### Batch 1: 布局重构 — 替换按钮侧置
+### Batch 1: 布局重构 — 替换按钮侧置 O
 
 **范围**: 纯 HTML/CSS 结构调整，零逻辑变更
 **风险**: 低
 **涉及文件**: `SearchInput.vue`
 
-- [ ] 将搜索行 + 替换行包裹进 `search-input__main` flex 容器
-- [ ] Chevron 按钮移至容器左侧，删除原 `search-input__expand-btn` 独占行
-- [ ] 调整 CSS：`.search-input__main` flex 布局、`.search-input__replace-toggle` 尺寸对齐
-- [ ] 验证：替换展开/收起动画正常，垂直空间节省 ~24px
+- [x] 将搜索行 + 替换行包裹进 `search-input__main` flex 容器
+- [x] Chevron 按钮移至容器左侧，删除原 `search-input__expand-btn` 独占行
+- [x] 调整 CSS：`.search-input__main` flex 布局、`.search-input__replace-toggle` 尺寸对齐
+- [x] 验证：替换展开/收起动画正常，垂直空间节省 ~24px
 
 **提交信息**: `feat(dir-search): 替换按钮侧置，对齐 VSCode 布局`
 

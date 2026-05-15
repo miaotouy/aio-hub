@@ -1,62 +1,69 @@
 <template>
   <div class="search-input">
-    <!-- 搜索行 -->
-    <div class="search-input__row">
-      <div class="search-input__field">
-        <textarea
-          ref="searchTextarea"
-          v-model="pattern"
-          class="search-input__textarea"
-          placeholder="搜索内容..."
-          rows="1"
-          @keydown="onSearchKeydown"
-          @input="autoResize"
-        />
-      </div>
-      <div class="search-input__toggles">
-        <el-tooltip content="大小写敏感 (Aa)" :show-after="500">
-          <button
-            class="search-input__toggle"
-            :class="{ active: caseSensitive }"
-            @click="caseSensitive = !caseSensitive"
-          >
-            Aa
-          </button>
-        </el-tooltip>
-        <el-tooltip content="正则表达式 (.*)" :show-after="500">
-          <button class="search-input__toggle" :class="{ active: isRegex }" @click="isRegex = !isRegex">.*</button>
-        </el-tooltip>
-        <el-tooltip content="全词匹配 (W)" :show-after="500">
-          <button class="search-input__toggle" :class="{ active: wholeWord }" @click="wholeWord = !wholeWord">W</button>
-        </el-tooltip>
+    <!-- 搜索/替换主区域 -->
+    <div class="search-input__main">
+      <!-- 左侧 chevron 切换按钮 -->
+      <button class="search-input__replace-toggle" @click="showReplace = !showReplace">
+        <ChevronRight :size="16" :class="{ rotated: showReplace }" />
+      </button>
+
+      <!-- 右侧输入区 -->
+      <div class="search-input__inputs">
+        <!-- 搜索行 -->
+        <div class="search-input__row">
+          <div class="search-input__field">
+            <textarea
+              ref="searchTextarea"
+              v-model="pattern"
+              class="search-input__textarea"
+              placeholder="搜索内容..."
+              rows="1"
+              @keydown="onSearchKeydown"
+              @input="autoResize"
+            />
+          </div>
+          <div class="search-input__toggles">
+            <el-tooltip content="大小写敏感 (Aa)" :show-after="500">
+              <button
+                class="search-input__toggle"
+                :class="{ active: caseSensitive }"
+                @click="caseSensitive = !caseSensitive"
+              >
+                Aa
+              </button>
+            </el-tooltip>
+            <el-tooltip content="正则表达式 (.*)" :show-after="500">
+              <button class="search-input__toggle" :class="{ active: isRegex }" @click="isRegex = !isRegex">.*</button>
+            </el-tooltip>
+            <el-tooltip content="全词匹配 (W)" :show-after="500">
+              <button class="search-input__toggle" :class="{ active: wholeWord }" @click="wholeWord = !wholeWord">
+                W
+              </button>
+            </el-tooltip>
+          </div>
+        </div>
+
+        <!-- 替换行 -->
+        <div v-if="showReplace" class="search-input__row">
+          <div class="search-input__field">
+            <textarea
+              v-model="replacement"
+              class="search-input__textarea"
+              placeholder="替换为..."
+              rows="1"
+              @keydown="onReplaceKeydown"
+            />
+          </div>
+          <div class="search-input__toggles">
+            <el-tooltip content="替换全部" :show-after="500">
+              <button class="search-input__toggle action" :disabled="!canReplace" @click="$emit('replaceAll')">
+                <Replace :size="14" />
+              </button>
+            </el-tooltip>
+          </div>
+        </div>
       </div>
     </div>
-
-    <!-- 替换行 -->
-    <div v-if="showReplace" class="search-input__row">
-      <div class="search-input__field">
-        <textarea
-          v-model="replacement"
-          class="search-input__textarea"
-          placeholder="替换为..."
-          rows="1"
-          @keydown="onReplaceKeydown"
-        />
-      </div>
-      <div class="search-input__toggles">
-        <el-tooltip content="替换全部" :show-after="500">
-          <button class="search-input__toggle action" :disabled="!canReplace" @click="$emit('replaceAll')">
-            <Replace :size="14" />
-          </button>
-        </el-tooltip>
-      </div>
-    </div>
-
-    <!-- 展开替换按钮 -->
-    <button class="search-input__expand-btn" @click="showReplace = !showReplace">
-      <ChevronRight :size="14" :class="{ rotated: showReplace }" />
-      <span>替换</span>
-    </button>
 
     <!-- 过滤器 -->
     <div class="search-input__filters">
@@ -136,6 +143,49 @@ onMounted(() => {
   flex-direction: column;
   gap: 6px;
   border-bottom: 1px solid var(--border-color);
+}
+
+.search-input__main {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.search-input__replace-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  min-height: 26px;
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--el-text-color-secondary);
+  cursor: pointer;
+  border-radius: 3px;
+  padding: 0;
+  transition: color 0.15s;
+}
+
+.search-input__replace-toggle:hover {
+  color: var(--el-text-color-primary);
+  background-color: var(--container-bg);
+}
+
+.search-input__replace-toggle .rotated {
+  transform: rotate(90deg);
+}
+
+.search-input__replace-toggle svg {
+  transition: transform 0.2s;
+}
+
+.search-input__inputs {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
 }
 
 .search-input__row {
@@ -224,33 +274,6 @@ onMounted(() => {
 .search-input__toggle:disabled {
   opacity: 0.4;
   cursor: not-allowed;
-}
-
-.search-input__expand-btn {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 4px;
-  border: none;
-  background: transparent;
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
-  cursor: pointer;
-  border-radius: 3px;
-  transition: color 0.15s;
-  width: fit-content;
-}
-
-.search-input__expand-btn:hover {
-  color: var(--el-text-color-primary);
-}
-
-.search-input__expand-btn .rotated {
-  transform: rotate(90deg);
-}
-
-.search-input__expand-btn svg {
-  transition: transform 0.2s;
 }
 
 .search-input__filters {

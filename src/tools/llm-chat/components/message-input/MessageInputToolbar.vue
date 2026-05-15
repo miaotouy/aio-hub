@@ -227,12 +227,12 @@ const isCanvasEnabled = computed(() => {
   // 必须同时满足：1. 工具调用总开关开启 2. 画布工具开关开启
   if (!isToolCallingEnabled.value) return false;
   const agent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
-  return agent?.toolCallConfig?.toolToggles?.canvas === true;
+  return agent?.toolCallConfig?.toolToggles?.["web-canvas"] === true;
 });
 
 const boundCanvasId = computed(() => {
   const agent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
-  return agent?.toolCallConfig?.toolSettings?.canvas?.canvasId || null;
+  return agent?.toolCallConfig?.toolSettings?.["web-canvas"]?.canvasId || null;
 });
 
 // 监听画布状态和绑定 ID，变化时自动加载列表以同步胶囊显示
@@ -278,7 +278,7 @@ const unbindCanvas = () => {
   if (!agent.toolCallConfig!.toolSettings) {
     agent.toolCallConfig!.toolSettings = {};
   }
-  agent.toolCallConfig!.toolSettings!.canvas = { canvasId: null };
+  agent.toolCallConfig!.toolSettings!["web-canvas"] = { canvasId: null };
   agentStore.persistAgent(agent);
 };
 

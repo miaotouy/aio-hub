@@ -34,7 +34,7 @@ const currentAgentId = computed(() => agentStore.currentAgentId);
 
 const boundCanvasId = computed(() => {
   const agent = currentAgentId.value ? agentStore.getAgentById(currentAgentId.value) : null;
-  return agent?.toolCallConfig?.toolSettings?.canvas?.canvasId || null;
+  return agent?.toolCallConfig?.toolSettings?.["web-canvas"]?.canvasId || null;
 });
 
 const pendingChangesCount = computed(() => {
@@ -58,11 +58,11 @@ function bindCanvas(canvasId: string | null) {
   }
 
   if (agent.toolCallConfig && agent.toolCallConfig.toolSettings) {
-    // 确保 canvas 配置对象存在
-    if (!agent.toolCallConfig.toolSettings.canvas) {
-      agent.toolCallConfig.toolSettings.canvas = {};
+    // 确保 web-canvas 配置对象存在
+    if (!agent.toolCallConfig.toolSettings["web-canvas"]) {
+      agent.toolCallConfig.toolSettings["web-canvas"] = {};
     }
-    agent.toolCallConfig.toolSettings.canvas.canvasId = canvasId;
+    agent.toolCallConfig.toolSettings["web-canvas"].canvasId = canvasId;
   }
 
   agentStore.persistAgent(agent);

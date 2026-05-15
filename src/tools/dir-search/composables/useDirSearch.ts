@@ -11,20 +11,23 @@ import type {
   ReplaceResult,
 } from "../types";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { useDirSearchUiState } from "./useDirSearchUiState";
 
 const errorHandler = createModuleErrorHandler("tools/dir-search/useDirSearch");
 
 export function useDirSearch() {
-  // 搜索参数
-  const rootPath = ref("");
-  const pattern = ref("");
-  const replacement = ref("");
-  const isRegex = ref(false);
-  const caseSensitive = ref(false);
-  const wholeWord = ref(false);
-  const includeGlobs = ref("");
-  const excludeGlobs = ref("");
-  const useGitignore = ref(true);
+  const uiState = useDirSearchUiState();
+
+  // 搜索参数（直接引用持久化的 UI 状态）
+  const rootPath = uiState.lastRootPath;
+  const pattern = uiState.pattern;
+  const replacement = uiState.replacement;
+  const isRegex = uiState.isRegex;
+  const caseSensitive = uiState.caseSensitive;
+  const wholeWord = uiState.wholeWord;
+  const includeGlobs = uiState.includeGlobs;
+  const excludeGlobs = uiState.excludeGlobs;
+  const useGitignore = uiState.useGitignore;
 
   // 搜索状态
   const isSearching = ref(false);
@@ -33,7 +36,7 @@ export function useDirSearch() {
   const progress = ref<SearchProgress | null>(null);
 
   // UI 状态
-  const showReplace = ref(false);
+  const showReplace = uiState.showReplace;
   const selectedFilePath = ref<string | null>(null);
   const expandedFiles = ref<Set<string>>(new Set());
 

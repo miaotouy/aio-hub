@@ -258,6 +258,13 @@ export function useDirSearch() {
     selectedFilePath,
     expandedFiles,
 
+    // 历史记录
+    searchHistory: uiState.searchHistory,
+    replacementHistory: uiState.replacementHistory,
+    directoryHistory: uiState.directoryHistory,
+    includeHistory: uiState.includeHistory,
+    excludeHistory: uiState.excludeHistory,
+
     // 方法
     executeSearch,
     cancelSearch,

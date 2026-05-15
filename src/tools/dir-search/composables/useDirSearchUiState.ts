@@ -23,6 +23,12 @@ function createDefaultState() {
     showReplace: false,
     // 视图模式
     viewMode: "list" as ViewMode,
+    // 历史记录
+    searchHistory: [] as string[],
+    replacementHistory: [] as string[],
+    directoryHistory: [] as string[],
+    includeHistory: [] as string[],
+    excludeHistory: [] as string[],
   };
 }
 

@@ -457,19 +457,20 @@ pub struct SearchMatch {
 **风险**: 低（纯前端新增，不影响现有逻辑）
 **涉及文件**: 新增 `useInputHistory.ts`，修改 `SearchInput.vue`, `DirectoryBar.vue`, `useDirSearchUiState.ts`
 
-- [ ] 新增 `composables/useInputHistory.ts`：
+- [x] 新增 `composables/useInputHistory.ts`：
   - 接口：`useInputHistory(historyArray: Ref<string[]>, currentValue: Ref<string>)`
-  - 返回：`{ onKeydown, isNavigating, historyIndex }`
+  - 返回：`{ onKeydown, historyIndex }`
   - 逻辑：光标首行 + ArrowUp 向上翻，末行 + ArrowDown 向下翻，Escape 退出
-- [ ] 在 `useDirSearchUiState.ts` 中新增历史字段：
+- [x] 在 `useDirSearchUiState.ts` 中新增历史字段（加入 `createDefaultState()`，随现有 `createConfigManager` 自动持久化到 `AppData/dir-search/ui-state.json`）：
   - `searchHistory: string[]` (上限 20)
+  - `replacementHistory: string[]` (上限 20)
   - `directoryHistory: string[]` (上限 10)
   - `includeHistory: string[]` (上限 10)
   - `excludeHistory: string[]` (上限 10)
-- [ ] 在 `useDirSearch.ts` 的 `executeSearch()` 中，搜索执行时推入历史（去重 + FIFO）
-- [ ] `SearchInput.vue`：搜索 textarea 集成 `useInputHistory`
-- [ ] `DirectoryBar.vue`：目录 input 集成 `useInputHistory`
-- [ ] 验证：上下键切换历史正常，持久化重启后保留
+- [x] 在 `useDirSearch.ts` 的 `executeSearch()` 中，搜索执行时推入历史（去重 + 稳定排序）
+- [x] `SearchInput.vue`：搜索 textarea + 替换 textarea + 包含/排除 glob 全部集成 `useInputHistory`
+- [x] `DirectoryBar.vue`：目录 input 集成 `useInputHistory`
+- [x] 验证：上下键切换历史正常，持久化重启后保留
 
 **提交信息**: `feat(dir-search): 键盘历史记录，支持搜索词/目录/glob 回溯`
 

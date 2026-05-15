@@ -52,6 +52,7 @@
               placeholder="替换为..."
               rows="1"
               @keydown="onReplaceKeydown"
+              @input="autoResize"
             />
           </div>
           <div class="search-input__toggles">
@@ -69,11 +70,21 @@
     <div class="search-input__filters">
       <div class="search-input__filter-row">
         <label class="search-input__filter-label">包含:</label>
-        <input v-model="includeGlobs" class="search-input__filter-input" placeholder="*.md, *.txt" />
+        <input
+          v-model="includeGlobs"
+          class="search-input__filter-input"
+          placeholder="*.md, *.txt"
+          @keydown="onIncludeKeydown"
+        />
       </div>
       <div class="search-input__filter-row">
         <label class="search-input__filter-label">排除:</label>
-        <input v-model="excludeGlobs" class="search-input__filter-input" placeholder="node_modules, *.lock" />
+        <input
+          v-model="excludeGlobs"
+          class="search-input__filter-input"
+          placeholder="node_modules, *.lock"
+          @keydown="onExcludeKeydown"
+        />
       </div>
       <div class="search-input__filter-row">
         <el-tooltip content="尊重搜索目录内的 .gitignore 规则" :show-after="500">
@@ -90,6 +101,8 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted } from "vue";
 import { ChevronRight, Replace } from "lucide-vue-next";
+import { useInputHistory, useAutoSaveHistory } from "../composables/useInputHistory";
+import { useDirSearchUiState } from "../composables/useDirSearchUiState";
 
 const pattern = defineModel<string>("pattern", { required: true });
 const replacement = defineModel<string>("replacement", { required: true });
@@ -109,18 +122,47 @@ const emit = defineEmits<{
 const searchTextarea = ref<HTMLTextAreaElement | null>(null);
 const canReplace = computed(() => pattern.value.length > 0);
 
+// 历史记录集成
+const uiState = useDirSearchUiState();
+
+// 1. 键盘回溯 (ArrowUp/Down)
+const { onKeydown: onSearchHistoryKeydown } = useInputHistory(uiState.searchHistory, pattern);
+const { onKeydown: onReplaceHistoryKeydown } = useInputHistory(uiState.replacementHistory, replacement);
+const { onKeydown: onIncludeHistoryKeydown } = useInputHistory(uiState.includeHistory, includeGlobs);
+const { onKeydown: onExcludeHistoryKeydown } = useInputHistory(uiState.excludeHistory, excludeGlobs);
+
+// 2. 自动保存 (停止输入 2.5s 后)
+useAutoSaveHistory(uiState.searchHistory, pattern, { maxLength: 20 });
+useAutoSaveHistory(uiState.replacementHistory, replacement, { maxLength: 20 });
+useAutoSaveHistory(uiState.includeHistory, includeGlobs, { maxLength: 10 });
+useAutoSaveHistory(uiState.excludeHistory, excludeGlobs, { maxLength: 10 });
+
 function onSearchKeydown(e: KeyboardEvent) {
   if (e.key === "Enter" && e.ctrlKey) {
     e.preventDefault();
     emit("search");
+    return;
   }
+  // 历史记录导航
+  onSearchHistoryKeydown(e);
 }
 
 function onReplaceKeydown(e: KeyboardEvent) {
   if (e.key === "Enter" && e.ctrlKey) {
     e.preventDefault();
     emit("replaceAll");
+    return;
   }
+  // 历史记录导航
+  onReplaceHistoryKeydown(e);
+}
+
+function onIncludeKeydown(e: KeyboardEvent) {
+  onIncludeHistoryKeydown(e);
+}
+
+function onExcludeKeydown(e: KeyboardEvent) {
+  onExcludeHistoryKeydown(e);
 }
 
 function autoResize(e: Event) {

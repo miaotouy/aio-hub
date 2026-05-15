@@ -7,7 +7,7 @@
         type="text"
         class="directory-bar__input"
         placeholder="输入或拖放目录路径..."
-        @keydown.ctrl.enter="$emit('search')"
+        @keydown="onDirKeydown"
       />
     </div>
     <el-tooltip content="选择目录" :show-after="500">
@@ -23,14 +23,35 @@ import { ref } from "vue";
 import { open } from "@tauri-apps/plugin-dialog";
 import { FolderOpen, FolderSearch } from "lucide-vue-next";
 import { useFileDrop } from "@/composables/useFileDrop";
+import { useInputHistory, useAutoSaveHistory } from "../composables/useInputHistory";
+import { useDirSearchUiState } from "../composables/useDirSearchUiState";
 
 const modelValue = defineModel<string>({ required: true });
 
-defineEmits<{
+const emit = defineEmits<{
   search: [];
 }>();
 
 const barRef = ref<HTMLElement>();
+
+// 历史记录集成
+const uiState = useDirSearchUiState();
+
+// 1. 键盘回溯
+const { onKeydown: onDirHistoryKeydown } = useInputHistory(uiState.directoryHistory, modelValue);
+
+// 2. 自动保存
+useAutoSaveHistory(uiState.directoryHistory, modelValue, { maxLength: 10 });
+
+function onDirKeydown(e: KeyboardEvent) {
+  if (e.key === "Enter" && e.ctrlKey) {
+    e.preventDefault();
+    emit("search");
+    return;
+  }
+  // 历史记录导航
+  onDirHistoryKeydown(e);
+}
 
 const { isDraggingOver } = useFileDrop({
   element: barRef,

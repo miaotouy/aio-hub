@@ -448,6 +448,9 @@ onUnmounted(() => {
   flex-direction: column;
   height: 100%;
   overflow: hidden;
+  background-color: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
+  border-radius: 12px;
 }
 
 .dir-search__topbar {

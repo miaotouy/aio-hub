@@ -321,6 +321,7 @@ onMounted(() => {
   min-height: 26px;
   max-height: 120px;
   overflow-y: auto;
+  box-sizing: border-box;
 }
 
 .search-input__textarea::placeholder {

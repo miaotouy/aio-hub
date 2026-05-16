@@ -52,11 +52,16 @@
       :summary="summary"
       :progress="progress"
       :selected-file-path="selectedFilePath"
+      :show-replace="showReplace"
       @toggle-file="$emit('toggleFile', $event)"
       @expand-all="$emit('expandAll')"
       @collapse-all="$emit('collapseAll')"
       @cancel="$emit('cancel')"
       @select-match="(fp, m) => $emit('selectMatch', fp, m)"
+      @dismiss-file="(fp) => $emit('dismissFile', fp)"
+      @dismiss-match="(fp, idx) => $emit('dismissMatch', fp, idx)"
+      @replace-file="(fp) => $emit('replaceFile', fp)"
+      @replace-match="(fp, idx) => $emit('replaceMatch', fp, idx)"
     />
   </div>
 </template>
@@ -106,6 +111,10 @@ const emit = defineEmits<{
   clearResults: [];
   cancel: [];
   selectMatch: [filePath: string, match: SearchMatch];
+  dismissFile: [filePath: string];
+  dismissMatch: [filePath: string, matchIndex: number];
+  replaceFile: [filePath: string];
+  replaceMatch: [filePath: string, matchIndex: number];
 }>();
 
 function toggleExpandCollapse() {

@@ -167,6 +167,7 @@ use commands::{
     write_text_file_force,
     dir_replace,
     dir_replace_preview,
+    dir_replace_single,
     dir_search,
     dir_search_cancel,
     // 状态结构体
@@ -654,6 +655,7 @@ pub fn run() {
             dir_search,
             dir_search_cancel,
             dir_replace,
+            dir_replace_single,
             dir_replace_preview,
             // LLM 搜索命令
             search_llm_data,

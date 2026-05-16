@@ -84,6 +84,22 @@ export interface ReplaceError {
   error: string;
 }
 
+/** 单项替换请求 */
+export interface ReplaceSingleRequest {
+  filePath: string;
+  lineNumber: number;
+  matchStart: number;
+  matchEnd: number;
+  replacement: string;
+}
+
+/** 单项替换结果 */
+export interface ReplaceSingleResult {
+  success: boolean;
+  originalText: string;
+  replacedText: string;
+}
+
 /** 高亮片段 */
 export interface HighlightPart {
   text: string;

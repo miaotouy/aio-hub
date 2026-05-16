@@ -40,6 +40,24 @@
             {{ getFileDir(fileResult.relativePath) }}
           </span>
           <span class="results-tree__match-count">{{ fileResult.matches.length }}</span>
+          <!-- 文件级悬停操作按钮 -->
+          <span class="results-tree__file-actions">
+            <button
+              v-if="showReplace"
+              class="results-tree__file-action-btn"
+              title="替换该文件所有匹配"
+              @click.stop="$emit('replaceFile', fileResult.filePath)"
+            >
+              <Replace :size="14" />
+            </button>
+            <button
+              class="results-tree__file-action-btn results-tree__file-action-btn--dismiss"
+              title="从结果中移除该文件"
+              @click.stop="$emit('dismissFile', fileResult.filePath)"
+            >
+              <X :size="14" />
+            </button>
+          </span>
         </div>
 
         <!-- 匹配项列表 -->
@@ -48,8 +66,11 @@
             v-for="(match, idx) in fileResult.matches"
             :key="`${fileResult.filePath}-${idx}`"
             :match="match"
+            :show-replace="showReplace"
             :is-selected="selectedFilePath === fileResult.filePath && selectedLine === match.lineNumber"
             @select="onMatchSelect(fileResult.filePath, match)"
+            @dismiss="$emit('dismissMatch', fileResult.filePath, idx)"
+            @replace-match="$emit('replaceMatch', fileResult.filePath, idx)"
           />
         </div>
       </div>
@@ -59,7 +80,7 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
-import { ChevronRight, SearchX } from "lucide-vue-next";
+import { ChevronRight, SearchX, X, Replace } from "lucide-vue-next";
 import { Loading } from "@element-plus/icons-vue";
 import { FileIcon } from "lucide-vue-next";
 import ResultItem from "./ResultItem.vue";
@@ -72,6 +93,7 @@ defineProps<{
   summary: SearchSummary | null;
   progress: SearchProgress | null;
   selectedFilePath: string | null;
+  showReplace?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -80,6 +102,10 @@ const emit = defineEmits<{
   collapseAll: [];
   cancel: [];
   selectMatch: [filePath: string, match: SearchMatch];
+  dismissFile: [filePath: string];
+  dismissMatch: [filePath: string, matchIndex: number];
+  replaceFile: [filePath: string];
+  replaceMatch: [filePath: string, matchIndex: number];
 }>();
 
 const selectedLine = ref<number | null>(null);
@@ -223,6 +249,47 @@ function onMatchSelect(filePath: string, match: SearchMatch) {
   font-size: 11px;
   font-weight: 500;
   line-height: 18px;
+}
+
+/* 文件级悬停操作按钮 */
+.results-tree__file-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  margin-left: 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.results-tree__file-header:hover .results-tree__file-actions {
+  opacity: 1;
+}
+
+.results-tree__file-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--el-text-color-secondary);
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
+}
+
+.results-tree__file-action-btn:hover {
+  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.15));
+  color: var(--el-color-primary);
+}
+
+.results-tree__file-action-btn--dismiss:hover {
+  background-color: rgba(var(--el-color-danger-rgb), calc(var(--card-opacity) * 0.15));
+  color: var(--el-color-danger);
 }
 
 .results-tree__matches {

@@ -445,7 +445,7 @@ pub async fn dir_search(
         }
 
         // 每 100 个文件发送一次进度
-        if files_scanned % 100 == 0 {
+        if files_scanned.is_multiple_of(100) {
             let progress = SearchProgress {
                 files_scanned,
                 files_matched,
@@ -580,6 +580,103 @@ pub async fn dir_replace(request: ReplaceRequest) -> Result<ReplaceResult, Strin
         files_failed,
         total_replacements,
         errors,
+    })
+}
+
+// ===== 单项替换请求 =====
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReplaceSingleRequest {
+    /// 文件绝对路径
+    pub file_path: String,
+    /// 匹配所在行号（1-based）
+    pub line_number: usize,
+    /// 匹配在行内的起始字符偏移（char 索引）
+    pub match_start: usize,
+    /// 匹配在行内的结束字符偏移（char 索引）
+    pub match_end: usize,
+    /// 替换文本
+    pub replacement: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReplaceSingleResult {
+    pub success: bool,
+    pub original_text: String,
+    pub replaced_text: String,
+}
+
+#[tauri::command]
+pub async fn dir_replace_single(request: ReplaceSingleRequest) -> Result<ReplaceSingleResult, String> {
+    let path = Path::new(&request.file_path);
+
+    if !path.exists() {
+        return Err(format!("文件不存在: {}", request.file_path));
+    }
+
+    // 读取文件内容
+    let content = fs::read_to_string(path)
+        .map_err(|e| format!("读取文件失败: {}", e))?;
+
+    let lines: Vec<&str> = content.lines().collect();
+
+    // 行号是 1-based
+    let line_idx = request.line_number.checked_sub(1)
+        .ok_or_else(|| "行号必须大于 0".to_string())?;
+
+    if line_idx >= lines.len() {
+        return Err(format!("行号 {} 超出文件范围（共 {} 行）", request.line_number, lines.len()));
+    }
+
+    let target_line = lines[line_idx];
+
+    // 将 char 索引转换为字节索引
+    let chars: Vec<char> = target_line.chars().collect();
+    if request.match_start > chars.len() || request.match_end > chars.len() {
+        return Err(format!(
+            "匹配位置超出行范围（行长 {} 字符，请求 {}..{}）",
+            chars.len(), request.match_start, request.match_end
+        ));
+    }
+
+    let original_text: String = chars[request.match_start..request.match_end].iter().collect();
+
+    // 构建新行内容
+    let before: String = chars[..request.match_start].iter().collect();
+    let after: String = chars[request.match_end..].iter().collect();
+    let new_line = format!("{}{}{}", before, request.replacement, after);
+
+    // 重建文件内容
+    let mut new_lines: Vec<String> = lines.iter().map(|l| l.to_string()).collect();
+    new_lines[line_idx] = new_line;
+
+    // 保留原始行尾符（检测原文件是否以换行结尾）
+    let mut new_content = new_lines.join("\n");
+    if content.ends_with('\n') {
+        new_content.push('\n');
+    } else if content.ends_with("\r\n") {
+        // 如果原文件使用 CRLF，保持一致
+        new_content = new_lines.join("\r\n");
+        new_content.push_str("\r\n");
+    }
+
+    // 写回文件
+    fs::write(path, new_content.as_bytes())
+        .map_err(|e| format!("写入文件失败: {}", e))?;
+
+    log::info!(
+        "[dir-search] 单项替换完成: {}:L{} [{}..{}] '{}' -> '{}'",
+        request.file_path, request.line_number,
+        request.match_start, request.match_end,
+        original_text, request.replacement
+    );
+
+    Ok(ReplaceSingleResult {
+        success: true,
+        original_text,
+        replaced_text: request.replacement,
     })
 }
 

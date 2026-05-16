@@ -7,20 +7,42 @@
         <span v-else>{{ part.text }}</span>
       </template>
     </span>
+    <!-- 悬停操作按钮 -->
+    <span class="result-item__actions">
+      <button
+        v-if="showReplace"
+        class="result-item__action-btn"
+        title="替换此匹配"
+        @click.stop="$emit('replaceMatch')"
+      >
+        <Replace :size="14" />
+      </button>
+      <button
+        class="result-item__action-btn result-item__action-btn--dismiss"
+        title="从结果中移除"
+        @click.stop="$emit('dismiss')"
+      >
+        <X :size="14" />
+      </button>
+    </span>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from "vue";
+import { X, Replace } from "lucide-vue-next";
 import type { SearchMatch, HighlightPart } from "../types";
 
 const props = defineProps<{
   match: SearchMatch;
   isSelected?: boolean;
+  showReplace?: boolean;
 }>();
 
 defineEmits<{
   select: [match: SearchMatch];
+  dismiss: [];
+  replaceMatch: [];
 }>();
 
 const highlightParts = computed<HighlightPart[]>(() => {
@@ -63,6 +85,7 @@ const highlightParts = computed<HighlightPart[]>(() => {
   line-height: 1.5;
   border-radius: 3px;
   transition: background-color 0.1s;
+  position: relative;
 }
 
 .result-item:hover {
@@ -97,5 +120,45 @@ const highlightParts = computed<HighlightPart[]>(() => {
   background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.15));
   border-radius: 2px;
   padding: 0 1px;
+}
+
+/* 悬停操作按钮 */
+.result-item__actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.result-item:hover .result-item__actions {
+  opacity: 1;
+}
+
+.result-item__action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--el-text-color-secondary);
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
+}
+
+.result-item__action-btn:hover {
+  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.15));
+  color: var(--el-color-primary);
+}
+
+.result-item__action-btn--dismiss:hover {
+  background-color: rgba(var(--el-color-danger-rgb), calc(var(--card-opacity) * 0.15));
+  color: var(--el-color-danger);
 }
 </style>

@@ -9,6 +9,8 @@ import type {
   SearchRequest,
   ReplaceRequest,
   ReplaceResult,
+  ReplaceSingleRequest,
+  ReplaceSingleResult,
 } from "../types";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useDirSearchUiState } from "./useDirSearchUiState";
@@ -198,6 +200,106 @@ export function useDirSearch() {
     selectedFilePath.value = null;
   }
 
+  /** 从结果中移除整个文件 */
+  function dismissFile(filePath: string) {
+    const newMap = new Map(results.value);
+    newMap.delete(filePath);
+    results.value = newMap;
+    expandedFiles.value.delete(filePath);
+    if (selectedFilePath.value === filePath) {
+      selectedFilePath.value = null;
+    }
+  }
+
+  /** 对单个文件重新搜索，刷新匹配位置信息 */
+  async function refreshFileResults(filePath: string) {
+    if (!pattern.value) return;
+
+    const request: ReplaceRequest = {
+      filePaths: [filePath],
+      pattern: pattern.value,
+      replacement: replacement.value || "",
+      isRegex: isRegex.value,
+      caseSensitive: caseSensitive.value,
+      wholeWord: wholeWord.value,
+    };
+
+    try {
+      const freshResults = await invoke<FileSearchResult[]>("dir_replace_preview", { request });
+      const newMap = new Map(results.value);
+
+      if (freshResults.length > 0 && freshResults[0].matches.length > 0) {
+        // 用新结果更新，保留原始的 relativePath
+        const oldResult = newMap.get(filePath);
+        newMap.set(filePath, {
+          ...freshResults[0],
+          relativePath: oldResult?.relativePath || freshResults[0].relativePath,
+        });
+      } else {
+        // 该文件不再有匹配，移除
+        newMap.delete(filePath);
+        expandedFiles.value.delete(filePath);
+        if (selectedFilePath.value === filePath) {
+          selectedFilePath.value = null;
+        }
+      }
+
+      results.value = newMap;
+    } catch (e) {
+      // 刷新失败时回退为简单移除该匹配
+      errorHandler.warn(e, "刷新文件匹配信息失败");
+    }
+  }
+
+  /** 执行单项精确替换 */
+  async function replaceSingleMatch(filePath: string, matchIndex: number) {
+    if (replacement.value === undefined) return null;
+
+    const fileResult = results.value.get(filePath);
+    if (!fileResult) return null;
+
+    const match = fileResult.matches[matchIndex];
+    if (!match) return null;
+
+    const request: ReplaceSingleRequest = {
+      filePath,
+      lineNumber: match.lineNumber,
+      matchStart: match.matchStart,
+      matchEnd: match.matchEnd,
+      replacement: replacement.value,
+    };
+
+    try {
+      const result = await invoke<ReplaceSingleResult>("dir_replace_single", { request });
+      if (result.success) {
+        // 替换成功后重新搜索该文件，刷新所有匹配的位置信息
+        await refreshFileResults(filePath);
+      }
+      return result;
+    } catch (e) {
+      errorHandler.error(e, "单项替换失败");
+      return null;
+    }
+  }
+
+  /** 从结果中移除单个匹配项 */
+  function dismissMatch(filePath: string, matchIndex: number) {
+    const fileResult = results.value.get(filePath);
+    if (!fileResult) return;
+
+    const newMatches = [...fileResult.matches];
+    newMatches.splice(matchIndex, 1);
+
+    if (newMatches.length === 0) {
+      // 文件无匹配时自动移除文件
+      dismissFile(filePath);
+    } else {
+      const newMap = new Map(results.value);
+      newMap.set(filePath, { ...fileResult, matches: newMatches });
+      results.value = newMap;
+    }
+  }
+
   /** 选择文件进行预览 */
   function selectFile(filePath: string) {
     selectedFilePath.value = filePath;
@@ -269,10 +371,13 @@ export function useDirSearch() {
     executeSearch,
     cancelSearch,
     executeReplace,
+    replaceSingleMatch,
     toggleFileExpand,
     expandAll,
     collapseAll,
     clearResults,
+    dismissFile,
+    dismissMatch,
     selectFile,
     dispose,
   };

@@ -416,7 +416,7 @@ pub struct SearchMatch {
 
 ---
 
-### Batch 1: 布局重构 — 替换按钮侧置 O
+### Batch 1: 布局重构 — 替换按钮侧置 ✅
 
 **范围**: 纯 HTML/CSS 结构调整，零逻辑变更
 **风险**: 低
@@ -451,7 +451,7 @@ pub struct SearchMatch {
 
 ---
 
-### Batch 3: 键盘历史记录系统
+### Batch 3: 键盘历史记录系统 ✅
 
 **范围**: 新增 composable + 集成到所有输入框
 **风险**: 低（纯前端新增，不影响现有逻辑）
@@ -476,21 +476,21 @@ pub struct SearchMatch {
 
 ---
 
-### Batch 4: 结果项消除 + 悬停操作按钮
+### Batch 4: 结果项消除 + 悬停操作按钮 ✅
 
 **范围**: 结果交互的基础能力
 **风险**: 中（修改结果数据结构的操作逻辑）
 **涉及文件**: `useDirSearch.ts`, `ResultItem.vue`, `ResultsTree.vue`
 
-- [ ] 在 `useDirSearch.ts` 中新增：
+- [x] 在 `useDirSearch.ts` 中新增：
   - `dismissFile(filePath: string)` — 从 results Map 中移除整个文件
   - `dismissMatch(filePath: string, matchIndex: number)` — 移除单个匹配项（文件无匹配时自动移除文件）
-- [ ] 修改 `ResultItem.vue`：
+- [x] 修改 `ResultItem.vue`：
   - 悬停时右侧显示操作按钮区域（opacity 过渡）
   - 按钮：`X`（消除此匹配）、`Replace`（单项替换，仅替换模式显示）
-- [ ] 修改 `ResultsTree.vue` 文件头：
+- [x] 修改 `ResultsTree.vue` 文件头：
   - 悬停时右侧显示：`Replace`（全部替换该文件，仅替换模式）、`X`（消除该文件）
-- [ ] 验证：消除后计数实时更新，替换按钮仅在 showReplace 时显示
+- [x] 验证：消除后计数实时更新，替换按钮仅在 showReplace 时显示
 
 **提交信息**: `feat(dir-search): 结果项悬停操作，支持消除和单项替换`
 

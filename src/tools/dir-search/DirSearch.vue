@@ -45,6 +45,10 @@
           @clear-results="search.clearResults"
           @cancel="search.cancelSearch"
           @select-match="handleSelectMatch"
+          @dismiss-file="search.dismissFile"
+          @dismiss-match="search.dismissMatch"
+          @replace-file="handleReplaceFile"
+          @replace-match="handleReplaceMatch"
         />
       </div>
 
@@ -146,6 +150,26 @@ async function handleReplaceAll() {
     }
   } catch {
     // 用户取消
+  }
+}
+
+/** 替换单个文件的所有匹配 */
+async function handleReplaceFile(filePath: string) {
+  const fileResult = search.results.value.get(filePath);
+  if (!fileResult) return;
+
+  const result = await search.executeReplace([filePath]);
+  if (result) {
+    customMessage.success(`替换完成：${result.totalReplacements} 处`);
+    // 替换后从结果中移除该文件，重新搜索会自动更新
+    search.dismissFile(filePath);
+  }
+}
+/** 替换单个匹配项 */
+async function handleReplaceMatch(filePath: string, matchIndex: number) {
+  const result = await search.replaceSingleMatch(filePath, matchIndex);
+  if (result?.success) {
+    customMessage.success(`已替换: "${result.originalText}" → "${result.replacedText}"`);
   }
 }
 

@@ -4,7 +4,12 @@
     <div v-if="summary || isSearching" class="results-tree__status">
       <template v-if="isSearching">
         <el-icon class="is-loading"><Loading /></el-icon>
-        <span> 搜索中... {{ progress?.filesScanned ?? 0 }} 文件已扫描 </span>
+        <span>
+          搜索中... {{ progress?.filesScanned ?? 0 }} 文件已扫描
+          <template v-if="progress && progress.totalMatches > 0">
+            · {{ progress.totalMatches }} 个结果 · {{ progress.filesMatched }} 文件
+          </template>
+        </span>
         <button class="results-tree__cancel-btn" @click="$emit('cancel')">取消</button>
       </template>
       <template v-else-if="summary">

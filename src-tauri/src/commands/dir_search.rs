@@ -491,11 +491,11 @@ pub async fn dir_search(
 
     // 主线程：消费 channel，批量 emit 到前端
     // 使用较大的间隔和批次，给前端渲染留余量
-    let mut batch: Vec<FileSearchResult> = Vec::with_capacity(100);
+    let mut batch: Vec<FileSearchResult> = Vec::with_capacity(200);
     let mut last_emit = Instant::now();
     let mut last_progress = Instant::now();
-    let batch_interval = Duration::from_millis(150);
-    let progress_interval = Duration::from_millis(500);
+    let batch_interval = Duration::from_millis(300);
+    let progress_interval = Duration::from_millis(400);
 
     loop {
         // 主线程也检查取消标志，避免 walker 退出后仍继续 emit 残留数据
@@ -505,12 +505,28 @@ pub async fn dir_search(
             break;
         }
 
-        match rx.recv_timeout(Duration::from_millis(50)) {
+        // 达到上限后停止发送，丢弃残留
+        if total_matches_atomic.load(Ordering::Relaxed) >= max_results {
+            // flush 当前 batch 后退出
+            if !batch.is_empty() {
+                let _ = window.emit(
+                    "dir-search-result-batch",
+                    &SearchResultBatch {
+                        results: std::mem::take(&mut batch),
+                    },
+                );
+            }
+            // 丢弃 channel 残留
+            while rx.try_recv().is_ok() {}
+            break;
+        }
+
+        match rx.recv_timeout(Duration::from_millis(80)) {
             Ok(result) => {
                 batch.push(result);
 
-                // 批量发送条件：满 100 条或超过 150ms
-                if batch.len() >= 100 || last_emit.elapsed() >= batch_interval {
+                // 批量发送条件：满 200 条或超过 300ms
+                if batch.len() >= 200 || last_emit.elapsed() >= batch_interval {
                     let _ = window.emit(
                         "dir-search-result-batch",
                         &SearchResultBatch {
@@ -733,7 +749,9 @@ pub struct ReplaceSingleResult {
 }
 
 #[tauri::command]
-pub async fn dir_replace_single(request: ReplaceSingleRequest) -> Result<ReplaceSingleResult, String> {
+pub async fn dir_replace_single(
+    request: ReplaceSingleRequest,
+) -> Result<ReplaceSingleResult, String> {
     let path = Path::new(&request.file_path);
 
     if !path.exists() {
@@ -741,17 +759,22 @@ pub async fn dir_replace_single(request: ReplaceSingleRequest) -> Result<Replace
     }
 
     // 读取文件内容
-    let content = fs::read_to_string(path)
-        .map_err(|e| format!("读取文件失败: {}", e))?;
+    let content = fs::read_to_string(path).map_err(|e| format!("读取文件失败: {}", e))?;
 
     let lines: Vec<&str> = content.lines().collect();
 
     // 行号是 1-based
-    let line_idx = request.line_number.checked_sub(1)
+    let line_idx = request
+        .line_number
+        .checked_sub(1)
         .ok_or_else(|| "行号必须大于 0".to_string())?;
 
     if line_idx >= lines.len() {
-        return Err(format!("行号 {} 超出文件范围（共 {} 行）", request.line_number, lines.len()));
+        return Err(format!(
+            "行号 {} 超出文件范围（共 {} 行）",
+            request.line_number,
+            lines.len()
+        ));
     }
 
     let target_line = lines[line_idx];
@@ -761,11 +784,15 @@ pub async fn dir_replace_single(request: ReplaceSingleRequest) -> Result<Replace
     if request.match_start > chars.len() || request.match_end > chars.len() {
         return Err(format!(
             "匹配位置超出行范围（行长 {} 字符，请求 {}..{}）",
-            chars.len(), request.match_start, request.match_end
+            chars.len(),
+            request.match_start,
+            request.match_end
         ));
     }
 
-    let original_text: String = chars[request.match_start..request.match_end].iter().collect();
+    let original_text: String = chars[request.match_start..request.match_end]
+        .iter()
+        .collect();
 
     // 构建新行内容
     let before: String = chars[..request.match_start].iter().collect();
@@ -787,14 +814,16 @@ pub async fn dir_replace_single(request: ReplaceSingleRequest) -> Result<Replace
     }
 
     // 写回文件
-    fs::write(path, new_content.as_bytes())
-        .map_err(|e| format!("写入文件失败: {}", e))?;
+    fs::write(path, new_content.as_bytes()).map_err(|e| format!("写入文件失败: {}", e))?;
 
     log::info!(
         "[dir-search] 单项替换完成: {}:L{} [{}..{}] '{}' -> '{}'",
-        request.file_path, request.line_number,
-        request.match_start, request.match_end,
-        original_text, request.replacement
+        request.file_path,
+        request.line_number,
+        request.match_start,
+        request.match_end,
+        original_text,
+        request.replacement
     );
 
     Ok(ReplaceSingleResult {

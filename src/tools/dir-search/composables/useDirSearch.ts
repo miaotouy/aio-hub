@@ -71,12 +71,21 @@ export function useDirSearch() {
     pendingResults = [];
     flushTimer = null;
 
+    // 前端侧上限防护：计算当前已有匹配数，超过上限则截断
+    const maxR = uiState.maxResults.value;
+    let currentTotal = totalMatches.value;
+
     // 直接修改 shallowRef 内部的 Map/Set，最后统一 triggerRef
     const map = results.value;
     const expanded = expandedFiles.value;
     const shouldExpand = uiState.autoExpandResults.value;
     for (const result of toFlush) {
+      // 上限检查：如果已超过上限，停止添加
+      if (maxR > 0 && currentTotal >= maxR) {
+        break;
+      }
       map.set(result.filePath, result);
+      currentTotal += result.matches.length;
       if (shouldExpand) {
         expanded.add(result.filePath);
       }
@@ -102,6 +111,13 @@ export function useDirSearch() {
     // 监听批量结果事件
     unlistenResult = await listen<SearchResultBatch>("dir-search-result-batch", (event) => {
       const batch = event.payload;
+
+      // 前端侧上限防护：如果已有结果数超过 maxResults，丢弃后续 batch
+      const maxR = uiState.maxResults.value;
+      if (maxR > 0 && totalMatches.value >= maxR) {
+        return;
+      }
+
       // 先存入缓冲区，不立即触发响应式
       pendingResults.push(...batch.results);
       scheduleFlush();

@@ -242,7 +242,8 @@ async function handleContextMenuSelect(itemId: string, context: Record<string, u
     case "copy-all-matches": {
       const fileResult = search.results.value.get(filePath);
       if (fileResult) {
-        const text = fileResult.matches.map((m) => m.lineContent).join("\n");
+        const lines = fileResult.matches.map((m) => `  ${m.lineNumber},${m.matchStart + 1}: ${m.lineContent}`);
+        const text = `${filePath}\n${lines.join("\n")}`;
         await navigator.clipboard.writeText(text);
         customMessage.success("已复制所有匹配行");
       }
@@ -275,11 +276,13 @@ async function handleContextMenuSelect(itemId: string, context: Record<string, u
       }
       break;
     }
-
     case "copy-line": {
       const lineContent = context.lineContent as string;
-      if (lineContent) {
-        await navigator.clipboard.writeText(lineContent);
+      const lineNumber = context.lineNumber as number;
+      const matchStart = context.matchStart as number;
+      if (lineContent && filePath) {
+        const text = `${filePath}\n  ${lineNumber},${matchStart + 1}: ${lineContent}`;
+        await navigator.clipboard.writeText(text);
         customMessage.success("已复制匹配行");
       }
       break;
@@ -356,21 +359,22 @@ async function handleContextMenuSelect(itemId: string, context: Record<string, u
     }
 
     case "copy-all-dir-matches": {
-      // 复制该目录下所有文件的所有匹配行
+      // 复制该目录下所有文件的所有匹配行（VSCode 格式：路径 + 行号,列号: 内容）
       const dirFilePaths3 = context.filePaths as string[];
       if (dirFilePaths3) {
-        const lines: string[] = [];
+        const sections: string[] = [];
+        let totalLines = 0;
         for (const fp of dirFilePaths3) {
           const fileResult = search.results.value.get(fp);
-          if (fileResult) {
-            for (const m of fileResult.matches) {
-              lines.push(m.lineContent);
-            }
+          if (fileResult && fileResult.matches.length > 0) {
+            const matchLines = fileResult.matches.map((m) => `  ${m.lineNumber},${m.matchStart + 1}: ${m.lineContent}`);
+            sections.push(`${fp}\n${matchLines.join("\n")}`);
+            totalLines += fileResult.matches.length;
           }
         }
-        if (lines.length > 0) {
-          await navigator.clipboard.writeText(lines.join("\n"));
-          customMessage.success(`已复制 ${lines.length} 行匹配内容`);
+        if (sections.length > 0) {
+          await navigator.clipboard.writeText(sections.join("\n"));
+          customMessage.success(`已复制 ${totalLines} 行匹配内容`);
         }
       }
       break;

@@ -249,6 +249,8 @@ function onMatchContextMenu(event: MouseEvent, fileResult: FileSearchResult, mat
     relativePath: fileResult.relativePath,
     matchIndex,
     lineContent: match.lineContent,
+    lineNumber: match.lineNumber,
+    matchStart: match.matchStart,
   });
 }
 </script>

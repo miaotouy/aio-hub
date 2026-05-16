@@ -89,19 +89,29 @@
           </div>
 
           <!-- 匹配项列表 -->
-          <div v-if="expandedFiles.has(fileResult.filePath)" class="results-tree__matches">
-            <ResultItem
-              v-for="(match, idx) in fileResult.matches"
-              :key="`${fileResult.filePath}-${idx}`"
-              :match="match"
-              :show-replace="showReplace"
-              :is-selected="selectedFilePath === fileResult.filePath && selectedLine === match.lineNumber"
-              @select="onMatchSelect(fileResult.filePath, match)"
-              @dismiss="$emit('dismissMatch', fileResult.filePath, idx)"
-              @replace-match="$emit('replaceMatch', fileResult.filePath, idx)"
-              @contextmenu="onMatchContextMenu($event, fileResult, idx)"
-            />
-          </div>
+            <div v-if="expandedFiles.has(fileResult.filePath)" class="results-tree__matches">
+              <!-- 上下文块模式 -->
+              <ContextBlockView
+                v-if="contextEnabled && hasContextData(fileResult)"
+                :blocks="getContextBlocks(fileResult)"
+                @select-match="(lineNum) => onContextMatchSelect(fileResult, lineNum)"
+                @contextmenu="(ev, lineNum) => onContextMatchContextMenu(ev, fileResult, lineNum)"
+              />
+              <!-- 普通单行模式 -->
+              <template v-else>
+                <ResultItem
+                  v-for="(match, idx) in fileResult.matches"
+                  :key="`${fileResult.filePath}-${idx}`"
+                  :match="match"
+                  :show-replace="showReplace"
+                  :is-selected="selectedFilePath === fileResult.filePath && selectedLine === match.lineNumber"
+                  @select="onMatchSelect(fileResult.filePath, match)"
+                  @dismiss="$emit('dismissMatch', fileResult.filePath, idx)"
+                  @replace-match="$emit('replaceMatch', fileResult.filePath, idx)"
+                  @contextmenu="onMatchContextMenu($event, fileResult, idx)"
+                />
+              </template>
+            </div>
         </div>
       </template>
     </div>
@@ -109,14 +119,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import { ChevronRight, SearchX, X, Replace } from "lucide-vue-next";
 import { Loading } from "@element-plus/icons-vue";
 import { FileIcon } from "lucide-vue-next";
 import ResultItem from "./ResultItem.vue";
+import ContextBlockView from "./ContextBlockView.vue";
 import DirectoryTreeView from "./DirectoryTreeView.vue";
-import type { FileSearchResult, SearchMatch, SearchProgress, SearchSummary, ViewMode } from "../types";
+import type { FileSearchResult, SearchMatch, SearchProgress, SearchSummary, ViewMode, ContextBlock } from "../types";
 import type { ContextMenuItem } from "../composables/useContextMenu";
+import { buildContextBlocks } from "../composables/useContextBlocks";
+import { useDirSearchUiState } from "../composables/useDirSearchUiState";
 
 const props = defineProps<{
   results: FileSearchResult[];
@@ -128,6 +141,10 @@ const props = defineProps<{
   showReplace?: boolean;
   viewMode: ViewMode;
 }>();
+
+const uiState = useDirSearchUiState();
+const contextEnabled = computed(() => uiState.contextLinesEnabled.value);
+const contextLinesCount = computed(() => uiState.contextLinesCount.value);
 
 const treeViewRef = ref<InstanceType<typeof DirectoryTreeView> | null>(null);
 
@@ -163,9 +180,42 @@ function getFileExtension(relativePath: string): string {
   return dotIndex > 0 ? fileName.slice(dotIndex) : "";
 }
 
+/** 检查文件结果是否包含上下文数据 */
+function hasContextData(fileResult: FileSearchResult): boolean {
+  return fileResult.matches.some((m) => m.contextBefore || m.contextAfter);
+}
+
+/** 获取文件的上下文块（带缓存） */
+const contextBlocksCache = new WeakMap<FileSearchResult, ContextBlock[]>();
+function getContextBlocks(fileResult: FileSearchResult): ContextBlock[] {
+  let cached = contextBlocksCache.get(fileResult);
+  if (!cached) {
+    cached = buildContextBlocks(fileResult.matches, contextLinesCount.value);
+    contextBlocksCache.set(fileResult, cached);
+  }
+  return cached;
+}
+
 function onMatchSelect(filePath: string, match: SearchMatch) {
   selectedLine.value = match.lineNumber;
   emit("selectMatch", filePath, match);
+}
+
+/** 上下文块中点击匹配行 */
+function onContextMatchSelect(fileResult: FileSearchResult, lineNumber: number) {
+  const match = fileResult.matches.find((m) => m.lineNumber === lineNumber);
+  if (match) {
+    selectedLine.value = lineNumber;
+    emit("selectMatch", fileResult.filePath, match);
+  }
+}
+
+/** 上下文块中右键匹配行 */
+function onContextMatchContextMenu(event: MouseEvent, fileResult: FileSearchResult, lineNumber: number) {
+  const matchIndex = fileResult.matches.findIndex((m) => m.lineNumber === lineNumber);
+  if (matchIndex >= 0) {
+    onMatchContextMenu(event, fileResult, matchIndex);
+  }
 }
 
 /** 文件级右键菜单 */

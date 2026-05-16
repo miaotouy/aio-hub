@@ -27,6 +27,11 @@ function createDefaultState() {
     autoExpandResults: true,
     // 视图模式
     viewMode: "list" as ViewMode,
+    // 高级设置折叠状态
+    showAdvancedSettings: false,
+    // 上下文行
+    contextLinesEnabled: false,
+    contextLinesCount: 2,
     // 历史记录
     searchHistory: [] as string[],
     replacementHistory: [] as string[],

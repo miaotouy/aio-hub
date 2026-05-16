@@ -64,8 +64,7 @@ pub struct SearchRequest {
     /// 是否尊重搜索目录内的 .gitignore
     #[serde(default = "default_true")]
     pub use_gitignore: bool,
-    /// 上下文行数（暂未使用，P2）
-    #[allow(dead_code)]
+    /// 上下文行数（匹配行前后各取 N 行）
     pub context_lines: Option<usize>,
     /// 最大结果数限制
     pub max_results: Option<usize>,
@@ -88,6 +87,12 @@ pub struct SearchMatch {
     pub match_start: usize,
     /// 匹配在行内的结束字符偏移（char 索引）
     pub match_end: usize,
+    /// 匹配行之前的 N 行上下文
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_before: Option<Vec<String>>,
+    /// 匹配行之后的 N 行上下文
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_after: Option<Vec<String>>,
 }
 
 // ===== 单个文件的搜索结果 =====
@@ -213,10 +218,12 @@ fn search_in_content(
     content: &str,
     matcher: &Regex,
     max_matches: Option<usize>,
+    context_lines: usize,
 ) -> Vec<SearchMatch> {
     let mut matches = Vec::new();
+    let lines: Vec<&str> = content.lines().collect();
 
-    for (line_idx, line) in content.lines().enumerate() {
+    for (line_idx, line) in lines.iter().enumerate() {
         let line_number = line_idx + 1; // 1-based
 
         // 查找该行中的所有匹配
@@ -245,6 +252,25 @@ fn search_in_content(
                 merged.push(current);
             }
 
+            // 获取上下文行
+            let (ctx_before, ctx_after) = if context_lines > 0 {
+                let before_start = line_idx.saturating_sub(context_lines);
+                let before: Vec<String> = lines[before_start..line_idx]
+                    .iter()
+                    .map(|l| l.to_string())
+                    .collect();
+
+                let after_end = (line_idx + 1 + context_lines).min(lines.len());
+                let after: Vec<String> = lines[(line_idx + 1)..after_end]
+                    .iter()
+                    .map(|l| l.to_string())
+                    .collect();
+
+                (Some(before), Some(after))
+            } else {
+                (None, None)
+            };
+
             // 为每个合并后的匹配区间创建 SearchMatch
             for (start, end) in merged {
                 matches.push(SearchMatch {
@@ -252,6 +278,8 @@ fn search_in_content(
                     line_content: line.to_string(),
                     match_start: start,
                     match_end: end,
+                    context_before: ctx_before.clone(),
+                    context_after: ctx_after.clone(),
                 });
 
                 // 检查是否达到最大结果数
@@ -364,6 +392,9 @@ pub async fn dir_search(
         builder.overrides(overrides);
     }
 
+    // 提取搜索参数（供并行闭包使用，usize 是 Copy 的）
+    let context_lines = request.context_lines.unwrap_or(0);
+
     // 统计变量（原子类型，供并行线程安全访问）
     // max_results: 0 或 None 表示无限制
     let max_results = match request.max_results {
@@ -466,7 +497,8 @@ pub async fn dir_search(
                     let remaining = Some(max_results - current_total);
 
                     // 搜索文件内容
-                    let file_matches = search_in_content(&text, &matcher, remaining);
+                    let file_matches =
+                        search_in_content(&text, &matcher, remaining, context_lines);
 
                     if !file_matches.is_empty() {
                         let match_count = file_matches.len();
@@ -881,7 +913,7 @@ pub async fn dir_replace_preview(request: ReplaceRequest) -> Result<Vec<FileSear
             Err(_) => continue,
         };
 
-        let file_matches = search_in_content(&content, &regex, None);
+        let file_matches = search_in_content(&content, &regex, None, 0);
 
         if !file_matches.is_empty() {
             results.push(FileSearchResult {

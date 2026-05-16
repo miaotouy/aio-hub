@@ -86,32 +86,70 @@
           @keydown="onExcludeKeydown"
         />
       </div>
-      <div class="search-input__filter-row search-input__filter-row--split">
+      <div class="search-input__filter-row">
         <el-tooltip content="尊重搜索目录内的 .gitignore 规则" :show-after="500">
           <label class="search-input__filter-toggle" @click="useGitignore = !useGitignore">
             <span class="search-input__filter-checkbox" :class="{ active: useGitignore }">✓</span>
             <span>使用 .gitignore</span>
           </label>
         </el-tooltip>
-        <el-tooltip content="搜索时自动展开文件（关闭可提升大量结果时的渲染性能）" :show-after="500">
-          <label class="search-input__filter-toggle" @click="uiState.autoExpandResults.value = !uiState.autoExpandResults.value">
-            <span class="search-input__filter-checkbox" :class="{ active: uiState.autoExpandResults.value }">✓</span>
-            <span>自动展开</span>
-          </label>
-        </el-tooltip>
-        <el-tooltip content="搜索结果数量上限（0 = 无限制）" :show-after="500">
-          <div class="search-input__max-results">
-            <label class="search-input__filter-label">上限:</label>
-            <input
-              v-model.number="uiState.maxResults.value"
-              class="search-input__max-results-input"
-              type="number"
-              min="0"
-              step="1000"
-              placeholder="10000"
-            />
+      </div>
+
+      <!-- 折叠设置区域 -->
+      <div
+        class="search-input__settings-header"
+        @click="uiState.showAdvancedSettings.value = !uiState.showAdvancedSettings.value"
+      >
+        <ChevronRight :size="14" :class="{ rotated: uiState.showAdvancedSettings.value }" />
+        <span>搜索设置</span>
+      </div>
+      <div class="search-input__settings-body" :class="{ expanded: uiState.showAdvancedSettings.value }">
+        <div class="search-input__settings-content">
+          <div class="search-input__filter-row search-input__filter-row--split">
+            <el-tooltip content="搜索时自动展开文件（关闭可提升大量结果时的渲染性能）" :show-after="500">
+              <label class="search-input__filter-toggle" @click="uiState.autoExpandResults.value = !uiState.autoExpandResults.value">
+                <span class="search-input__filter-checkbox" :class="{ active: uiState.autoExpandResults.value }">✓</span>
+                <span>自动展开</span>
+              </label>
+            </el-tooltip>
+            <el-tooltip content="搜索结果数量上限（0 = 无限制）" :show-after="500">
+              <div class="search-input__max-results">
+                <label class="search-input__filter-label">上限:</label>
+                <input
+                  v-model.number="uiState.maxResults.value"
+                  class="search-input__max-results-input"
+                  type="number"
+                  min="0"
+                  step="1000"
+                  placeholder="10000"
+                />
+              </div>
+            </el-tooltip>
           </div>
-        </el-tooltip>
+          <div class="search-input__filter-row search-input__filter-row--split">
+            <el-tooltip content="在结果中显示匹配行的上下文（类似 grep -C）" :show-after="500">
+              <label class="search-input__filter-toggle" @click="uiState.contextLinesEnabled.value = !uiState.contextLinesEnabled.value">
+                <span class="search-input__filter-checkbox" :class="{ active: uiState.contextLinesEnabled.value }">✓</span>
+                <span>扩展上下文</span>
+              </label>
+            </el-tooltip>
+            <el-tooltip content="匹配行前后各显示的行数（1-10）" :show-after="500">
+              <div class="search-input__max-results">
+                <label class="search-input__filter-label">行数:</label>
+                <input
+                  v-model.number="uiState.contextLinesCount.value"
+                  class="search-input__max-results-input"
+                  type="number"
+                  min="1"
+                  max="10"
+                  step="1"
+                  placeholder="2"
+                  :disabled="!uiState.contextLinesEnabled.value"
+                />
+              </div>
+            </el-tooltip>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -378,6 +416,48 @@ onMounted(() => {
 
 .search-input__filter-row--split {
   justify-content: space-between;
+}
+
+/* 折叠设置区域 */
+.search-input__settings-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  cursor: pointer;
+  user-select: none;
+  padding: 2px 0;
+  margin-top: 2px;
+}
+
+.search-input__settings-header:hover {
+  color: var(--el-text-color-primary);
+}
+
+.search-input__settings-header svg {
+  transition: transform 0.2s;
+}
+
+.search-input__settings-header .rotated {
+  transform: rotate(90deg);
+}
+
+.search-input__settings-body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.2s ease-out;
+}
+
+.search-input__settings-body.expanded {
+  max-height: 120px;
+}
+
+.search-input__settings-content {
+  padding: 4px 0 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .search-input__max-results {

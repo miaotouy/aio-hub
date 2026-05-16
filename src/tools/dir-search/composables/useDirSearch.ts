@@ -187,6 +187,7 @@ export function useDirSearch() {
       includeGlobs: parseGlobs(includeGlobs.value),
       excludeGlobs: parseGlobs(excludeGlobs.value),
       useGitignore: useGitignore.value,
+      contextLines: uiState.contextLinesEnabled.value ? uiState.contextLinesCount.value : 0,
       maxResults:
         Number.isFinite(uiState.maxResults.value) && uiState.maxResults.value > 0
           ? uiState.maxResults.value

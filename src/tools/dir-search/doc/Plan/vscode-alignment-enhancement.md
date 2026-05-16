@@ -380,31 +380,33 @@ pub struct SearchMatch {
 
 ### 4.1 前端新增文件
 
-| 文件                               | 引入批次 | 用途             |
-| ---------------------------------- | -------- | ---------------- |
-| `composables/useInputHistory.ts`   | B3       | 键盘历史回溯逻辑 |
-| `composables/useContextMenu.ts`    | B5       | 右键菜单状态管理 |
-| `components/ContextMenu.vue`       | B5       | 通用右键菜单组件 |
-| `components/DirectoryTreeView.vue` | B6       | 树形目录视图组件 |
+| 文件                               | 引入批次 | 用途                     |
+| ---------------------------------- | -------- | ------------------------ |
+| `composables/useInputHistory.ts`   | B3       | 键盘历史回溯逻辑         |
+| `composables/useContextMenu.ts`    | B5       | 右键菜单状态管理         |
+| `composables/useContextBlocks.ts`  | B8c      | 上下文行合并去重算法     |
+| `components/ContextMenu.vue`       | B5       | 通用右键菜单组件         |
+| `components/DirectoryTreeView.vue` | B6       | 树形目录视图组件         |
+| `components/ContextBlockView.vue`  | B8c      | 上下文块渲染组件（可选） |
 
 ### 4.2 前端修改文件
 
-| 文件                                 | 涉及批次       | 变更内容                                         |
-| ------------------------------------ | -------------- | ------------------------------------------------ |
-| `types.ts`                           | B2, B6, B7     | `ViewMode`、`DirectoryNode`、`SearchResultBatch` |
-| `composables/useDirSearch.ts`        | B2, B3, B4, B7 | clearResults、历史推入、消除逻辑、批量事件监听   |
-| `composables/useDirSearchUiState.ts` | B2, B3         | viewMode + 历史记录字段持久化                    |
-| `components/SearchInput.vue`         | B1, B3         | 布局重构（侧置 chevron）+ 集成 useInputHistory   |
-| `components/DirectoryBar.vue`        | B3             | 集成 useInputHistory                             |
-| `components/ResultsTree.vue`         | B4, B5, B6     | 悬停操作、右键菜单、视图切换                     |
-| `components/ResultItem.vue`          | B4, B5, B8     | 悬停按钮、右键菜单触发、Tooltip 预览             |
-| `components/SearchPanel.vue`         | B2             | 顶部标题栏按钮组（常驻，disabled 状态控制）      |
+| 文件                                 | 涉及批次            | 变更内容                                                     |
+| ------------------------------------ | ------------------- | ------------------------------------------------------------ |
+| `types.ts`                           | B2, B6, B7, B8c     | `ViewMode`、`DirectoryNode`、`SearchResultBatch`、上下文类型 |
+| `composables/useDirSearch.ts`        | B2, B3, B4, B7, B8c | clearResults、历史推入、消除逻辑、批量事件、contextLines     |
+| `composables/useDirSearchUiState.ts` | B2, B3, B8b, B8c    | viewMode + 历史记录 + 设置折叠 + 上下文行设置                |
+| `components/SearchInput.vue`         | B1, B3, B8b         | 布局重构 + 集成 useInputHistory + 折叠设置区域               |
+| `components/DirectoryBar.vue`        | B3                  | 集成 useInputHistory                                         |
+| `components/ResultsTree.vue`         | B4, B5, B6, B8c     | 悬停操作、右键菜单、视图切换、上下文块渲染切换               |
+| `components/ResultItem.vue`          | B4, B5, B8a         | 悬停按钮、右键菜单触发、Tooltip 预览                         |
+| `components/SearchPanel.vue`         | B2                  | 顶部标题栏按钮组（常驻，disabled 状态控制）                  |
 
 ### 4.3 后端修改文件
 
 | 文件                                   | 涉及批次 | 变更内容                         |
 | -------------------------------------- | -------- | -------------------------------- |
-| `src-tauri/src/commands/dir_search.rs` | B7, B8   | 并行搜索、批量发送、上下文行支持 |
+| `src-tauri/src/commands/dir_search.rs` | B7, B8c  | 并行搜索、批量发送、上下文行支持 |
 
 ---
 
@@ -582,23 +584,245 @@ pub struct SearchMatch {
 
 ---
 
-### Batch 8: 上下文行 + Tooltip 预览
+### Batch 8: Tooltip 预览 + 折叠设置区域 + 上下文行功能 ✅
 
-**范围**: 后端增加上下文数据 + 前端 Tooltip 展示
-**前置依赖**: Batch 7（批处理事件格式）
-**风险**: 低
-**涉及文件**: `src-tauri/src/commands/dir_search.rs`, `types.ts`, `ResultItem.vue`
+本批次拆分为三个子任务，可按顺序独立提交。
 
-- [ ] 后端：在 `SearchMatch` 中新增 `context_before: Vec<String>` 和 `context_after: Vec<String>`
-- [ ] 后端：根据 `SearchRequest.context_lines`（默认 0）读取上下文行
-- [ ] 前端 `types.ts`：`SearchMatch` 新增 `contextBefore?: string[]` 和 `contextAfter?: string[]`
-- [ ] 前端 `useDirSearch.ts`：搜索请求中设置 `contextLines: 2`
-- [ ] 修改 `ResultItem.vue`：
-  - 悬停 500ms 后显示 Tooltip
-  - 内容：匹配行 ± 2 行上下文，匹配部分高亮
-- [ ] 验证：Tooltip 显示正确，不影响搜索性能（对比 contextLines=0 和 =2 的耗时差异）
+---
 
-**提交信息**: `feat(dir-search): 匹配项 Tooltip 预览，显示上下文行`
+#### Batch 8a: 结果项 Tooltip 预览（纯前端） ✅
+
+**范围**: 悬停显示匹配行的完整内容（对齐 VSCode 行为）
+**风险**: 极低（纯前端 UI 增强，无后端变更）
+**涉及文件**: `ResultItem.vue`
+
+**设计说明**：
+
+VSCode 的 tooltip 悬停显示的就是那一行的完整内容。当前 `ResultItem` 已经做了行内截断（前后各 60 字符 + 省略号），所以 tooltip 的价值在于展示**未被截断的完整行**。不需要后端提供额外的上下文行数据。
+
+**实现方式**：
+
+- 使用 `el-tooltip` 包裹 `.result-item__content`
+- `content` 为 `match.lineContent`（完整行内容）
+- `:show-after="500"` 延迟 500ms 显示
+- `:disabled="!isContentTruncated"` — 当行内容未被截断时不显示 tooltip（避免冗余）
+- tooltip 内容使用 `monospace` 字体，保持代码可读性
+
+**截断判断逻辑**：
+
+```typescript
+const isContentTruncated = computed(() => {
+  const { lineContent, matchStart, matchEnd } = props.match;
+  const contextChars = 60;
+  const displayStart = Math.max(0, matchStart - contextChars);
+  const displayEnd = Math.min(lineContent.length, matchEnd + contextChars);
+  return displayStart > 0 || displayEnd < lineContent.length;
+});
+```
+
+- [x] 修改 `ResultItem.vue`：
+  - 新增 `isContentTruncated` 计算属性
+  - 用 `el-tooltip` 包裹内容区域，显示完整 `lineContent`
+  - tooltip 样式：`max-width: 600px`，`word-break: break-all`，`monospace` 字体
+- [x] 验证：长行悬停显示完整内容，短行不显示冗余 tooltip
+
+**提交信息**: `feat(dir-search): 结果项 Tooltip 预览，显示匹配行完整内容`
+
+---
+
+#### Batch 8b: 折叠设置区域 ✅
+
+**范围**: 将散落的设置项收纳到一个可折叠的"搜索设置"区域
+**风险**: 低（纯布局重构）
+**涉及文件**: `SearchInput.vue`, `useDirSearchUiState.ts`
+
+**设计说明**：
+
+当前设置项（自动展开、搜索上限）散落在过滤器区域最后一行，随着设置项增多（上下文行开关、行数等），需要一个专门的折叠区域。
+
+**目标布局**：
+
+```
+┌──────────────────────────────────────┐
+│ [▶] [搜索输入框...]    [Aa] [.*] [W] │  搜索行
+│     [替换输入框...]    [替换全部]      │  替换行
+├──────────────────────────────────────┤
+│ 包含: [*.md, *.txt]                   │  过滤器
+│ 排除: [node_modules, *.lock]          │
+│ ☑ 使用 .gitignore                     │
+├──────────────────────────────────────┤
+│ ⚙ 搜索设置                      [▾]  │  ← 折叠标题行
+│ ┌──────────────────────────────────┐ │
+│ │ ☑ 自动展开    上限: [10000]      │ │  设置项（展开时显示）
+│ │ ☑ 扩展上下文  行数: [2]          │ │
+│ └──────────────────────────────────┘ │
+└──────────────────────────────────────┘
+```
+
+**实现要点**：
+
+1. 在 `useDirSearchUiState.ts` 中新增 `showAdvancedSettings: boolean`（默认 `false`，持久化）
+2. 将 `.gitignore` 复选框保留在过滤器区域（它是过滤逻辑的一部分）
+3. 将"自动展开"和"搜索上限"移入折叠设置区域
+4. 折叠设置区域使用 `<div v-show="showAdvancedSettings">` + 过渡动画
+5. 标题行点击切换展开/收起，右侧显示 chevron 图标
+
+**新增 UI 状态字段**：
+
+```typescript
+// useDirSearchUiState.ts createDefaultState() 中新增
+showAdvancedSettings: false,
+```
+
+- [x] 在 `useDirSearchUiState.ts` 中新增 `showAdvancedSettings` 字段
+- [x] 重构 `SearchInput.vue` 过滤器区域：
+  - `.gitignore` 复选框保留在过滤器行
+  - 新增折叠设置标题行（"搜索设置" + chevron）
+  - 设置内容区域包含：自动展开、搜索上限
+  - 使用 `max-height` + `overflow: hidden` + `transition` 实现折叠动画
+- [x] 验证：折叠/展开动画流畅，设置项功能不受影响，状态持久化正常
+
+**提交信息**: `refactor(dir-search): 折叠设置区域，收纳高级搜索选项`
+
+---
+
+#### Batch 8c: 上下文行功能（前后端联动） ✅
+
+**范围**: 后端支持上下文行数据 + 前端内联展示 + 多行合并去重
+**前置依赖**: Batch 8b（设置区域已就绪）
+**风险**: 中（后端搜索逻辑变更 + 前端渲染逻辑较复杂）
+**涉及文件**: `src-tauri/src/commands/dir_search.rs`, `types.ts`, `useDirSearch.ts`, `useDirSearchUiState.ts`, `SearchInput.vue`, `ResultItem.vue`, `ResultsTree.vue`
+
+**设计说明**：
+
+上下文行是一个独立的增强功能，在结果列表中直接展示匹配行的上下文（类似 `grep -C`）。核心难点是**多行结果的合并去重**：当同一文件中多个匹配行相邻时，它们的上下文会重叠，需要合并为连续的代码块展示。
+
+**后端变更**：
+
+```rust
+// SearchMatch 新增字段
+pub struct SearchMatch {
+    pub line_number: usize,
+    pub line_content: String,
+    pub match_start: usize,
+    pub match_end: usize,
+    // 新增
+    pub context_before: Option<Vec<String>>,  // 匹配行之前的 N 行
+    pub context_after: Option<Vec<String>>,   // 匹配行之后的 N 行
+}
+```
+
+- `context_before` / `context_after` 为 `Option`，当 `context_lines = 0` 时不序列化（节省带宽）
+- 后端在读取文件行时，根据 `context_lines` 参数向前/后取对应行数
+- 使用 `#[serde(skip_serializing_if = "Option::is_none")]` 避免无用字段传输
+
+**前端类型变更**：
+
+```typescript
+// types.ts
+export interface SearchMatch {
+  lineNumber: number;
+  lineContent: string;
+  matchStart: number;
+  matchEnd: number;
+  // 新增
+  contextBefore?: string[];
+  contextAfter?: string[];
+}
+```
+
+**前端合并去重逻辑**：
+
+当同一文件中多个匹配行的上下文存在重叠时，需要合并为连续的"上下文块"（ContextBlock）：
+
+```typescript
+interface ContextBlock {
+  /** 块的起始行号 */
+  startLine: number;
+  /** 块内所有行（含匹配行和上下文行） */
+  lines: ContextLine[];
+}
+
+interface ContextLine {
+  lineNumber: number;
+  content: string;
+  /** 该行中的匹配信息（null 表示纯上下文行） */
+  matchInfo: { matchStart: number; matchEnd: number } | null;
+}
+```
+
+**合并算法**：
+
+1. 对文件内所有匹配按 `lineNumber` 排序
+2. 遍历匹配，计算每个匹配的上下文范围 `[lineNumber - contextLines, lineNumber + contextLines]`
+3. 如果当前匹配的上下文范围与前一个块的范围重叠或相邻（gap ≤ 1），则合并到同一个块
+4. 否则创建新块
+5. 块与块之间用分隔线（`···`）分隔显示
+
+**渲染方式**：
+
+当上下文功能开启时，`ResultItem` 的渲染从"单行"变为"上下文块"：
+
+```
+  40 │ import { ref } from 'vue'        ← 上下文行（灰色）
+  41 │ import { computed } from 'vue'    ← 上下文行（灰色）
+  42 │ import { watch } from 'vue'       ← 匹配行（高亮）
+  43 │ import { onMounted } from 'vue'   ← 上下文行（灰色）
+  44 │ import { nextTick } from 'vue'    ← 上下文行（灰色）
+  ···
+  58 │ const result = ref(null)          ← 上下文行（灰色）
+  59 │ const pattern = ref('')           ← 匹配行（高亮）
+  60 │ const isRegex = ref(false)        ← 匹配行（高亮，与上一个合并）
+  61 │ const caseSensitive = ref(false)  ← 上下文行（灰色）
+```
+
+**UI 状态新增字段**：
+
+```typescript
+// useDirSearchUiState.ts createDefaultState() 中新增
+contextLinesEnabled: false,   // 上下文行开关（默认关闭）
+contextLinesCount: 2,         // 上下文行数（默认 2）
+```
+
+**设置区域新增项**（在 Batch 8b 的折叠设置区域中）：
+
+- `☑ 扩展上下文` — 开关
+- `行数: [2]` — 数字输入框（1-10）
+
+**搜索请求联动**：
+
+```typescript
+// useDirSearch.ts executeSearch() 中
+contextLines: uiState.contextLinesEnabled.value ? uiState.contextLinesCount.value : 0;
+```
+
+- [x] 后端 `dir_search.rs`：
+  - `SearchMatch` 新增 `context_before: Option<Vec<String>>` 和 `context_after: Option<Vec<String>>`
+  - 添加 `#[serde(skip_serializing_if = "Option::is_none")]`
+  - 在文件搜索逻辑中，当 `context_lines > 0` 时读取上下文行
+  - 移除 `context_lines` 字段上的 `#[allow(dead_code)]`
+- [x] 前端 `types.ts`：
+  - `SearchMatch` 新增 `contextBefore?: string[]` 和 `contextAfter?: string[]`
+  - 新增 `ContextBlock` 和 `ContextLine` 接口
+- [x] 前端 `useDirSearchUiState.ts`：新增 `contextLinesEnabled` 和 `contextLinesCount` 字段
+- [x] 前端 `SearchInput.vue`：在折叠设置区域新增"扩展上下文"开关和"行数"输入框
+- [x] 前端 `useDirSearch.ts`：搜索请求中根据设置传递 `contextLines`
+- [x] 新增 composable `useContextBlocks.ts`：
+  - 接收 `SearchMatch[]`，输出 `ContextBlock[]`
+  - 实现合并去重算法
+- [x] 修改 `ResultItem.vue` / 新增 `ContextBlockView.vue`：
+  - 当上下文功能关闭时，保持当前单行渲染
+  - 当上下文功能开启时，按 `ContextBlock` 渲染多行代码块
+  - 上下文行灰色显示，匹配行保持高亮
+  - 块间分隔线
+- [x] 修改 `ResultsTree.vue`：根据上下文开关选择渲染模式
+- [x] 验证：
+  - 上下文关闭时行为与当前完全一致
+  - 上下文开启时相邻匹配正确合并
+  - 性能对比：`contextLines=0` vs `contextLines=2` 的搜索耗时差异可接受
+  - 类型检查 + clippy 通过
+
+**提交信息**: `feat(dir-search): 上下文行功能，支持内联展示与多行合并去重`
 
 ---
 
@@ -607,4 +831,6 @@ pub struct SearchMatch {
 1. **并行搜索的结果顺序**：`WalkParallel` 不保证文件顺序，前端需要按路径排序或接受乱序。
 2. **单项替换的原子性**：单项替换需要精确定位到文件中的具体位置，需要确保替换时文件未被外部修改。
 3. **历史记录膨胀**：需要设置上限（搜索词 20 条，目录 10 条），超出时 FIFO 淘汰。
-4. **Tooltip 性能**：上下文行数据会增加 IPC 传输量，默认搜索时 `contextLines=0`，仅在用户悬停时按需加载（或统一设为 2，视性能测试结果决定）。
+4. **上下文行性能**：`contextLines > 0` 时每个匹配需要额外读取前后行，会增加内存占用和 IPC 传输量。默认关闭（`contextLinesEnabled: false`），由用户主动开启。开启后搜索耗时预计增加 10-20%（需实测验证）。
+5. **上下文合并复杂度**：合并算法在前端执行，对于单文件数百个匹配的极端情况需要注意性能。可考虑对超过阈值的文件跳过合并，直接逐行展示。
+6. **Tooltip 与上下文行的关系**：两者独立——Tooltip 始终显示匹配行完整内容（纯前端，无后端依赖），上下文行是结果列表的内联展示（需后端数据）。两者可同时生效互不干扰。

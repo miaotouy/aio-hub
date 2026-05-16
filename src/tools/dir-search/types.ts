@@ -8,6 +8,10 @@ export interface SearchMatch {
   matchStart: number;
   /** 匹配在行内的结束字符偏移（char 索引） */
   matchEnd: number;
+  /** 匹配行之前的 N 行上下文（仅 contextLines > 0 时存在） */
+  contextBefore?: string[];
+  /** 匹配行之后的 N 行上下文（仅 contextLines > 0 时存在） */
+  contextAfter?: string[];
 }
 
 /** 单个文件的搜索结果 */
@@ -126,4 +130,22 @@ export interface DirectoryNode {
   files: FileSearchResult[];
   /** 子树中的匹配总数（含子目录） */
   totalMatches: number;
+}
+
+/** 上下文块：多个相邻匹配合并后的连续代码区域 */
+export interface ContextBlock {
+  /** 块的起始行号（1-based） */
+  startLine: number;
+  /** 块内所有行（含匹配行和上下文行） */
+  lines: ContextLine[];
+}
+
+/** 上下文块中的单行 */
+export interface ContextLine {
+  /** 行号（1-based） */
+  lineNumber: number;
+  /** 行内容 */
+  content: string;
+  /** 该行中的匹配信息（null 表示纯上下文行） */
+  matchInfo: { matchStart: number; matchEnd: number } | null;
 }

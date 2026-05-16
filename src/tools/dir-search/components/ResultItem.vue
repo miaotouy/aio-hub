@@ -6,12 +6,20 @@
     @contextmenu="$emit('contextmenu', $event)"
   >
     <span class="result-item__line-number">{{ match.lineNumber }}</span>
-    <span class="result-item__content">
-      <template v-for="(part, idx) in highlightParts" :key="idx">
-        <span v-if="part.isMatch" class="result-item__highlight">{{ part.text }}</span>
-        <span v-else>{{ part.text }}</span>
-      </template>
-    </span>
+    <el-tooltip
+      :content="match.lineContent"
+      :show-after="500"
+      placement="top"
+      popper-class="result-item-tooltip"
+      :fallback-placements="['bottom', 'top']"
+    >
+      <span class="result-item__content">
+        <template v-for="(part, idx) in highlightParts" :key="idx">
+          <span v-if="part.isMatch" class="result-item__highlight">{{ part.text }}</span>
+          <span v-else>{{ part.text }}</span>
+        </template>
+      </span>
+    </el-tooltip>
     <!-- 悬停操作按钮 -->
     <span class="result-item__actions">
       <button v-if="showReplace" class="result-item__action-btn" title="替换此匹配" @click.stop="$emit('replaceMatch')">
@@ -161,5 +169,16 @@ const highlightParts = computed<HighlightPart[]>(() => {
 .result-item__action-btn--dismiss:hover {
   background-color: rgba(var(--el-color-danger-rgb), calc(var(--card-opacity) * 0.15));
   color: var(--el-color-danger);
+}
+</style>
+
+<!-- Tooltip popper 样式（非 scoped，因为 popper 挂在 body 上） -->
+<style>
+.result-item-tooltip {
+  max-width: 600px !important;
+  font-family: monospace;
+  font-size: 12px;
+  word-break: break-all;
+  white-space: pre-wrap;
 }
 </style>

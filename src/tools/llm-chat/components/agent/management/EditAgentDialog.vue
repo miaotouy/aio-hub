@@ -9,7 +9,7 @@ import { useChatSettings } from "../../../composables/settings/useChatSettings";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useAgentStore } from "../../../stores/agentStore";
 import { resolveAvatarPath } from "../../../composables/ui/useResolvedAvatar";
-import { createDefaultChatRegexConfig, DEFAULT_TOOL_CALL_CONFIG } from "../../../types";
+import { createDefaultChatRegexConfig, DEFAULT_TOOL_CALL_CONFIG, DEFAULT_KB_CONFIG } from "../../../types";
 import AgentEditor from "../agent-editor/AgentEditor.vue";
 import MiniAgentList from "./MiniAgentList.vue";
 import type { LlmThinkRule, RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
@@ -87,6 +87,11 @@ const defaultFormState = {
     defaultMediaVolume: 100,
   },
   toolCallConfig: JSON.parse(JSON.stringify(DEFAULT_TOOL_CALL_CONFIG)),
+  knowledgeBaseConfig: JSON.parse(JSON.stringify(DEFAULT_KB_CONFIG)),
+  knowledgeSettings: undefined as any,
+  extensionConfig: undefined as any,
+  quickActionSetIds: [] as string[],
+  variableConfig: undefined as any,
 };
 
 // 内部追踪当前正在编辑的智能体 ID (解耦全局选中)
@@ -293,6 +298,11 @@ const handleSave = (options: { silent?: boolean; overrideAgentId?: string } = {}
       assets: editForm.assets,
       assetGroups: editForm.assetGroups,
       toolCallConfig: editForm.toolCallConfig,
+      knowledgeBaseConfig: editForm.knowledgeBaseConfig,
+      knowledgeSettings: editForm.knowledgeSettings,
+      extensionConfig: editForm.extensionConfig,
+      quickActionSetIds: editForm.quickActionSetIds,
+      variableConfig: editForm.variableConfig,
     },
     {
       ...options,

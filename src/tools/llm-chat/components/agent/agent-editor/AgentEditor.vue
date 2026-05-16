@@ -6,6 +6,7 @@ import { agentEditTabs } from "./agentEditConfig";
 import BasicInfoSection from "./sections/BasicInfoSection.vue";
 import PersonalitySection from "./sections/PersonalitySection.vue";
 import CapabilitiesSection from "./sections/CapabilitiesSection.vue";
+import KnowledgeSection from "./sections/KnowledgeSection.vue";
 import ToolCallingSection from "./sections/ToolCallingSection.vue";
 import EnvironmentSection from "./sections/EnvironmentSection.vue";
 import OutputDisplaySection from "./sections/OutputDisplaySection.vue";
@@ -216,6 +217,7 @@ defineExpose({
           <PersonalitySection v-show="activeTab === 'personality'" />
           <CapabilitiesSection v-show="activeTab === 'capabilities'" />
           <SessionVariableSection v-show="activeTab === 'variables'" />
+          <KnowledgeSection v-show="activeTab === 'knowledge'" />
           <ToolCallingSection v-show="activeTab === 'tool-calling'" />
           <EnvironmentSection v-show="activeTab === 'environment-enhancement'" />
           <OutputDisplaySection v-show="activeTab === 'output'" />

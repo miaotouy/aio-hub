@@ -3,12 +3,8 @@ import { ProcessableMessage } from "../../types/context";
 import { createModuleLogger } from "@/utils/logger";
 import { searchKnowledge } from "../../services/knowledge-service";
 import type { SearchResult } from "../../../knowledge-base/types/search";
-import type { ChatAgent } from "../../types/agent";
-import {
-  TurnRecord,
-  getSessionRetrievalCache,
-  getSessionHistory,
-} from "../context-utils/knowledge-cache";
+import type { ChatAgent, AgentKnowledgeBaseConfig } from "../../types/agent";
+import { TurnRecord, getSessionRetrievalCache, getSessionHistory } from "../context-utils/knowledge-cache";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
 import { invoke } from "@tauri-apps/api/core";
@@ -99,7 +95,20 @@ export class KnowledgeProcessor implements ContextProcessor {
     const { agentConfig, messages } = context;
 
     // 1. 扫描占位符
-    const placeholders = scanPlaceholders(messages);
+    let placeholders = scanPlaceholders(messages);
+
+    // 1.5 自动注入逻辑：如果没有找到占位符，但 knowledgeBaseConfig 已启用且开启了保底注入
+    if (placeholders.length === 0) {
+      const kbConfig = agentConfig.knowledgeBaseConfig;
+      if (kbConfig?.enabled && kbConfig.autoInjectIfMacroMissing) {
+        const autoPlaceholders = this.generateAutoPlaceholders(kbConfig, messages);
+        if (autoPlaceholders.length > 0) {
+          placeholders = autoPlaceholders;
+          logger.debug("知识库自动注入已触发", { count: autoPlaceholders.length });
+        }
+      }
+    }
+
     if (placeholders.length === 0) {
       return;
     }
@@ -107,10 +116,7 @@ export class KnowledgeProcessor implements ContextProcessor {
     // 初始化缓存与历史（模块级持久化，跨请求存活）
     const { settings } = useChatSettings();
     const sessionId = context.detail.id;
-    const sessionCache = getSessionRetrievalCache(
-      sessionId,
-      settings.value.knowledgeBase.retrievalCacheMaxItems
-    );
+    const sessionCache = getSessionRetrievalCache(sessionId, settings.value.knowledgeBase.retrievalCacheMaxItems);
     const history = getSessionHistory(sessionId);
 
     logger.debug("发现知识库占位符", { count: placeholders.length });
@@ -289,11 +295,7 @@ export class KnowledgeProcessor implements ContextProcessor {
   /**
    * 检查占位符是否应该激活
    */
-  private shouldActivate(
-    ph: KBPlaceholder,
-    context: PipelineContext,
-    _history: TurnRecord[]
-  ): boolean {
+  private shouldActivate(ph: KBPlaceholder, context: PipelineContext, _history: TurnRecord[]): boolean {
     const { agentConfig, messages } = context;
     const settings = agentConfig.knowledgeSettings;
 
@@ -314,9 +316,7 @@ export class KnowledgeProcessor implements ContextProcessor {
         const scanDepth = settings?.gateScanDepth || 3;
         const recentMessages = messages.slice(-scanDepth);
         return recentMessages.some(
-          (msg) =>
-            typeof msg.content === "string" &&
-            keywords.some((kw) => (msg.content as string).includes(kw))
+          (msg) => typeof msg.content === "string" && keywords.some((kw) => (msg.content as string).includes(kw)),
         );
       }
       default:
@@ -392,9 +392,7 @@ export class KnowledgeProcessor implements ContextProcessor {
         if (!meta?.entries) continue;
 
         // 收集所有已启用条目的 ID
-        const enabledIds = meta.entries
-          .filter((e: any) => e.vectorStatus !== "error")
-          .map((e: any) => e.id);
+        const enabledIds = meta.entries.filter((e: any) => e.vectorStatus !== "error").map((e: any) => e.id);
 
         if (enabledIds.length === 0) continue;
 
@@ -452,7 +450,7 @@ export class KnowledgeProcessor implements ContextProcessor {
     queryText: string,
     context: PipelineContext,
     effectiveComboId: string | undefined,
-    history: TurnRecord[]
+    history: TurnRecord[],
   ): Promise<number[] | null> {
     const { agentConfig } = context;
 
@@ -527,11 +525,7 @@ export class KnowledgeProcessor implements ContextProcessor {
   /**
    * 聚合当前结果与历史结果 (时间衰减加权)
    */
-  private aggregateResults(
-    current: SearchResult[],
-    history: TurnRecord[],
-    config: any
-  ): SearchResult[] {
+  private aggregateResults(current: SearchResult[], history: TurnRecord[], config: any): SearchResult[] {
     const decay = config.resultDecay || 0.8;
     const maxHistory = config.maxHistoryTurns || 3;
 
@@ -563,6 +557,136 @@ export class KnowledgeProcessor implements ContextProcessor {
     return Array.from(allResults.values())
       .sort((a, b) => b.score - a.score)
       .slice(0, current.length + 2); // 稍微多留一点
+  }
+
+  /**
+   * 根据 knowledgeBaseConfig 自动生成占位符（保底注入）
+   *
+   * 注入策略：
+   * - 如果有 system 消息：追加到 system 消息末尾（最自然的位置）
+   * - 如果没有 system 消息：在目标位置插入一条独立的 user 消息来承载知识库内容，
+   *   避免直接污染用户原文（兼容不支持 system 角色的模型）
+   */
+  private generateAutoPlaceholders(
+    kbConfig: AgentKnowledgeBaseConfig,
+    messages: ProcessableMessage[],
+  ): KBPlaceholder[] {
+    const enabledBindings = kbConfig.bindings.filter((b) => b.enabled);
+    if (enabledBindings.length === 0) return [];
+
+    // 构建占位符文本
+    const placeholderRaws: string[] = [];
+    for (const binding of enabledBindings) {
+      const parts: string[] = [binding.kbName];
+      if (binding.limit) parts.push(binding.limit.toString());
+      else parts.push("");
+      if (binding.minScore) parts.push(binding.minScore.toFixed(2));
+      else parts.push("");
+      parts.push(binding.mode || "always");
+      if (binding.modeParams && binding.modeParams.length > 0) {
+        parts.push(binding.modeParams.join(","));
+      }
+
+      // 从末尾裁剪默认值，保持与 parseKBParams 顺序一致
+      while (parts.length > 0) {
+        const last = parts[parts.length - 1];
+        if (last === "" || last === "always") {
+          parts.pop();
+        } else {
+          break;
+        }
+      }
+
+      placeholderRaws.push(parts.length > 0 ? `【kb::${parts.join("::")}】` : `【kb::${binding.kbName}】`);
+    }
+
+    // 确定注入方式和位置
+    let targetIndex = 0;
+    let needInsertNewMessage = false;
+
+    if (kbConfig.autoInjectPosition === "before_last_user") {
+      // 最后一条用户消息之前
+      let lastUserIndex = -1;
+      for (let i = messages.length - 1; i >= 0; i--) {
+        if (messages[i].role === "user") {
+          lastUserIndex = i;
+          break;
+        }
+      }
+
+      if (lastUserIndex <= 0) {
+        // 用户消息是第一条或没有用户消息：需要插入新消息
+        needInsertNewMessage = true;
+        targetIndex = Math.max(0, lastUserIndex);
+      } else {
+        // 前一条消息存在，检查是否为 system
+        const prevMsg = messages[lastUserIndex - 1];
+        if (prevMsg.role === "system") {
+          // 追加到 system 消息末尾
+          targetIndex = lastUserIndex - 1;
+        } else {
+          // 在 user 消息之前插入新消息
+          needInsertNewMessage = true;
+          targetIndex = lastUserIndex;
+        }
+      }
+    } else {
+      // context_head (默认): 上下文最前方
+      let foundSystem = false;
+      for (let i = messages.length - 1; i >= 0; i--) {
+        if (messages[i].role === "system") {
+          targetIndex = i;
+          foundSystem = true;
+          break;
+        }
+      }
+      if (!foundSystem) {
+        // 无 system 消息：在消息列表开头插入新消息
+        needInsertNewMessage = true;
+        targetIndex = 0;
+      }
+    }
+
+    // 执行注入
+    const placeholderTexts = placeholderRaws.join("\n");
+
+    if (needInsertNewMessage) {
+      // 插入一条独立的 user 消息承载知识库内容
+      // 使用围栏标记让 LLM 明确区分这是系统注入的信息
+      const injectedMsg: ProcessableMessage = {
+        role: "user",
+        content: `【RAG信息】\n${placeholderTexts}\n【RAG信息结束】`,
+      };
+      messages.splice(targetIndex, 0, injectedMsg);
+
+      // 由于插入了新消息，targetIndex 就是新消息的位置
+      // 后续所有 messageIndex 都指向这条新消息
+    } else {
+      // 追加到已有消息（通常是 system 消息）末尾
+      const targetMsg = messages[targetIndex];
+      if (targetMsg && typeof targetMsg.content === "string") {
+        if (!targetMsg.content.includes(placeholderTexts)) {
+          targetMsg.content = targetMsg.content.trimEnd() + "\n\n" + placeholderTexts;
+        }
+      }
+    }
+
+    // 构建 placeholder 对象列表
+    const placeholders: KBPlaceholder[] = [];
+    for (let i = 0; i < enabledBindings.length; i++) {
+      const binding = enabledBindings[i];
+      placeholders.push({
+        raw: placeholderRaws[i],
+        messageIndex: targetIndex,
+        kbName: binding.kbName,
+        limit: binding.limit,
+        minScore: binding.minScore,
+        mode: binding.mode || "always",
+        modeParams: binding.modeParams,
+      });
+    }
+
+    return placeholders;
   }
 
   /**
@@ -605,9 +729,7 @@ export class KnowledgeProcessor implements ContextProcessor {
       })
       .join("\n\n");
 
-    return template
-      .replace(/{count}/g, results.length.toString())
-      .replace(/{items}/g, itemsContent);
+    return template.replace(/{count}/g, results.length.toString()).replace(/{items}/g, itemsContent);
   }
 }
 

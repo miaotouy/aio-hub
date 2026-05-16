@@ -1,4 +1,4 @@
-import { UserCircle, Bot, Zap, Settings2, Wrench, Variable, Sparkles } from "lucide-vue-next";
+import { UserCircle, Bot, Zap, Settings2, Wrench, Variable, Sparkles, BookOpen } from "lucide-vue-next";
 import type { Component } from "vue";
 
 export interface AgentEditItem {
@@ -85,6 +85,12 @@ export const agentEditTabs: AgentEditTab[] = [
     label: "会话变量",
     icon: Variable,
     items: [{ id: "sessionVariables", label: "变量定义", keywords: "session variable 会话 变量" }],
+  },
+  {
+    id: "knowledge",
+    label: "知识库",
+    icon: BookOpen,
+    items: [{ id: "knowledgeBase", label: "知识库 (RAG)", keywords: "knowledge base RAG 知识库 检索 向量" }],
   },
   {
     id: "tool-calling",

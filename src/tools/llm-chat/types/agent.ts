@@ -74,7 +74,68 @@ export interface AgentAsset {
 }
 
 /**
- * 智能体知识库设置
+ * 单个知识库的关联配置
+ */
+export interface AgentKnowledgeBaseBinding {
+  /** 知识库 ID */
+  kbId: string;
+  /** 知识库名称 (冗余存储，用于显示和占位符匹配) */
+  kbName: string;
+  /** 是否启用 */
+  enabled: boolean;
+  /** 激活模式 (覆盖全局默认) */
+  mode?: "always" | "gate" | "turn" | "static";
+  /** 模式参数 */
+  modeParams?: string[];
+  /** 召回数量 (覆盖全局默认) */
+  limit?: number;
+  /** 最低分数 (覆盖全局默认) */
+  minScore?: number;
+  /** 分组标识 (用于 UI 分组展示) */
+  group?: string;
+}
+
+/**
+ * 知识库分组定义
+ */
+export interface KnowledgeBaseGroup {
+  id: string;
+  displayName: string;
+  description?: string;
+  icon?: string;
+  sortOrder?: number;
+}
+
+/**
+ * 知识库关联总配置
+ */
+export interface AgentKnowledgeBaseConfig {
+  /** 全局开关 */
+  enabled: boolean;
+  /** 关联的知识库列表 */
+  bindings: AgentKnowledgeBaseBinding[];
+  /** 知识库分组 */
+  groups?: KnowledgeBaseGroup[];
+  /** 宏缺失时是否自动注入 */
+  autoInjectIfMacroMissing?: boolean;
+  /**
+   * 自动注入的位置
+   * - 'context_head': 上下文最前方（system 之后，若无 system 则为消息列表最前）
+   * - 'before_last_user': 最后一条用户消息之前
+   */
+  autoInjectPosition?: "context_head" | "before_last_user";
+}
+
+export const DEFAULT_KB_CONFIG: AgentKnowledgeBaseConfig = {
+  enabled: false,
+  bindings: [],
+  groups: [],
+  autoInjectIfMacroMissing: true,
+  autoInjectPosition: "context_head",
+};
+
+/**
+ * 工具调用配置
  */
 export interface ToolCallConfig {
   enabled: boolean;
@@ -372,7 +433,10 @@ export interface AgentBaseConfig {
     defaultScanDepth?: number;
   };
 
-  /** 知识库全局设置 */
+  /** 知识库关联配置 */
+  knowledgeBaseConfig?: AgentKnowledgeBaseConfig;
+
+  /** 知识库全局设置 (检索参数) */
   knowledgeSettings?: AgentKnowledgeSettings;
 
   /** 工具调用配置 */

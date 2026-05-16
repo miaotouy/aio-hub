@@ -245,7 +245,25 @@ async function handleContextMenuSelect(itemId: string, context: Record<string, u
         const lines = fileResult.matches.map((m) => `  ${m.lineNumber},${m.matchStart + 1}: ${m.lineContent}`);
         const text = `${filePath}\n${lines.join("\n")}`;
         await navigator.clipboard.writeText(text);
-        customMessage.success("已复制所有匹配行");
+        customMessage.success("已复制当前文件所有匹配");
+      }
+      break;
+    }
+
+    case "copy-all-results": {
+      const results = search.resultsList.value;
+      if (results.length > 0) {
+        const sections: string[] = [];
+        let totalMatches = 0;
+        for (const fileResult of results) {
+          if (fileResult.matches.length > 0) {
+            const lines = fileResult.matches.map((m) => `  ${m.lineNumber},${m.matchStart + 1}: ${m.lineContent}`);
+            sections.push(`${fileResult.filePath}\n${lines.join("\n")}`);
+            totalMatches += fileResult.matches.length;
+          }
+        }
+        await navigator.clipboard.writeText(sections.join("\n\n"));
+        customMessage.success(`已复制全部 ${results.length} 个文件的 ${totalMatches} 个结果`);
       }
       break;
     }

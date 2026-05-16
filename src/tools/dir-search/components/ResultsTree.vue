@@ -184,7 +184,8 @@ function onFileContextMenu(event: MouseEvent, fileResult: FileSearchResult) {
       : []),
     { id: "copy-name", label: "复制文件名" },
     { id: "copy-path", label: "复制路径" },
-    { id: "copy-all-matches", label: "复制所有匹配行" },
+    { id: "copy-all-matches", label: "复制当前文件所有匹配" },
+    { id: "copy-all-results", label: "复制所有搜索结果" },
     { id: "sep-3", label: "", separator: true },
     { id: "reveal-in-explorer", label: "在资源管理器中显示" },
   ];
@@ -208,7 +209,8 @@ function onMatchContextMenu(event: MouseEvent, fileResult: FileSearchResult, mat
     { id: "dismiss-match", label: "消除" },
     { id: "sep-1", label: "", separator: true },
     { id: "copy-line", label: "复制匹配行" },
-    { id: "copy-all-matches", label: "复制所有匹配行" },
+    { id: "copy-all-matches", label: "复制当前文件所有匹配" },
+    { id: "copy-all-results", label: "复制所有搜索结果" },
   ];
 
   emit("contextMenu", event, items, {

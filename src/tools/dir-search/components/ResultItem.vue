@@ -7,7 +7,7 @@
   >
     <span class="result-item__line-number">{{ match.lineNumber }}</span>
     <el-tooltip
-      :content="match.lineContent"
+      :content="tooltipContent"
       :show-after="500"
       placement="top"
       popper-class="result-item-tooltip"
@@ -53,6 +53,13 @@ defineEmits<{
   replaceMatch: [];
   contextmenu: [event: MouseEvent];
 }>();
+
+const tooltipContent = computed(() => {
+  const content = props.match.lineContent;
+  const MAX_LENGTH = 300;
+  if (content.length <= MAX_LENGTH) return content;
+  return content.slice(0, MAX_LENGTH) + `... (省略 ${content.length - MAX_LENGTH} 字符)`;
+});
 
 const highlightParts = computed<HighlightPart[]>(() => {
   const { lineContent, matchStart, matchEnd } = props.match;

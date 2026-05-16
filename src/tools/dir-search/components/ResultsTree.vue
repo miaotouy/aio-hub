@@ -225,7 +225,12 @@ function collapseAllTree() {
   treeViewRef.value?.collapseAllDirs();
 }
 
-defineExpose({ expandAllTree, collapseAllTree });
+/** 展开指定的目录路径列表 */
+function expandDirs(paths: string[]) {
+  treeViewRef.value?.expandDirs(paths);
+}
+
+defineExpose({ expandAllTree, collapseAllTree, expandDirs });
 </script>
 
 <style scoped>

@@ -20,6 +20,7 @@
       <!-- 左栏：搜索面板 -->
       <div v-show="!isPanelCollapsed" class="dir-search__left" :style="{ width: panelWidth + 'px' }">
         <SearchPanel
+          ref="searchPanelRef"
           v-model:pattern="search.pattern.value"
           v-model:replacement="search.replacement.value"
           v-model:is-regex="search.isRegex.value"
@@ -93,6 +94,7 @@ const errorHandler = createModuleErrorHandler("tools/dir-search/DirSearch");
 const search = useDirSearch();
 const uiState = useDirSearchUiState();
 const contextMenu = useContextMenu();
+const searchPanelRef = ref<InstanceType<typeof SearchPanel> | null>(null);
 
 // UI 状态（从持久化 composable 获取）
 const panelWidth = uiState.panelWidth;
@@ -279,6 +281,97 @@ async function handleContextMenuSelect(itemId: string, context: Record<string, u
       if (lineContent) {
         await navigator.clipboard.writeText(lineContent);
         customMessage.success("已复制匹配行");
+      }
+      break;
+    }
+
+    // === 目录级操作 ===
+    case "dismiss-dir": {
+      const dirFilePaths = context.filePaths as string[];
+      if (dirFilePaths) {
+        for (const fp of dirFilePaths) {
+          search.dismissFile(fp);
+        }
+      }
+      break;
+    }
+
+    case "restrict-to-dir": {
+      const dirPath = context.dirPath as string;
+      if (dirPath) {
+        // 将搜索限制为该文件夹：设置 includeGlobs 为 dirPath/**
+        search.includeGlobs.value = `${dirPath}/**`;
+      }
+      break;
+    }
+
+    case "expand-recursive": {
+      // 以递归方式展开：展开该目录下所有目录节点和文件节点
+      const dirFilePaths2 = context.filePaths as string[];
+      const subDirPaths = context.subDirPaths as string[];
+      // 展开目录节点
+      if (subDirPaths) {
+        searchPanelRef.value?.expandDirs(subDirPaths);
+      }
+      // 展开文件节点
+      if (dirFilePaths2) {
+        for (const fp of dirFilePaths2) {
+          if (!search.expandedFiles.value.has(fp)) {
+            search.expandedFiles.value.add(fp);
+          }
+        }
+      }
+      break;
+    }
+
+    case "exclude-dir": {
+      const dirPath2 = context.dirPath as string;
+      if (dirPath2) {
+        // 从搜索中排除该文件夹
+        const glob = `${dirPath2}/**`;
+        const current = search.excludeGlobs.value;
+        search.excludeGlobs.value = current ? `${current}, ${glob}` : glob;
+      }
+      break;
+    }
+
+    case "copy-dir-name": {
+      const dirName = context.dirName as string;
+      if (dirName) {
+        await navigator.clipboard.writeText(dirName);
+        customMessage.success("已复制目录名");
+      }
+      break;
+    }
+
+    case "copy-dir-path": {
+      const dirPath3 = context.dirPath as string;
+      if (dirPath3) {
+        // 复制完整路径：rootPath + dirPath
+        const fullPath = search.rootPath.value ? `${search.rootPath.value}/${dirPath3}` : dirPath3;
+        await navigator.clipboard.writeText(fullPath);
+        customMessage.success("已复制路径");
+      }
+      break;
+    }
+
+    case "copy-all-dir-matches": {
+      // 复制该目录下所有文件的所有匹配行
+      const dirFilePaths3 = context.filePaths as string[];
+      if (dirFilePaths3) {
+        const lines: string[] = [];
+        for (const fp of dirFilePaths3) {
+          const fileResult = search.results.value.get(fp);
+          if (fileResult) {
+            for (const m of fileResult.matches) {
+              lines.push(m.lineContent);
+            }
+          }
+        }
+        if (lines.length > 0) {
+          await navigator.clipboard.writeText(lines.join("\n"));
+          customMessage.success(`已复制 ${lines.length} 行匹配内容`);
+        }
       }
       break;
     }

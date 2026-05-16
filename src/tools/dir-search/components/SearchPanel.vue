@@ -123,7 +123,6 @@ const emit = defineEmits<{
   replaceMatch: [filePath: string, matchIndex: number];
   contextMenu: [event: MouseEvent, items: ContextMenuItem[], context: Record<string, unknown>];
 }>();
-
 function toggleExpandCollapse() {
   if (allCollapsed.value) {
     emit("expandAll");
@@ -135,6 +134,13 @@ function toggleExpandCollapse() {
     resultsTreeRef.value?.collapseAllTree();
   }
 }
+
+/** 展开指定的目录路径列表（供父组件调用） */
+function expandDirs(paths: string[]) {
+  resultsTreeRef.value?.expandDirs(paths);
+}
+
+defineExpose({ expandDirs });
 </script>
 
 <style scoped>

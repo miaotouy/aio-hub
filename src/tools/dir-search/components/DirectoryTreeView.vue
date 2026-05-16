@@ -206,7 +206,14 @@ function collapseAllDirs() {
   expandedDirs.value = new Set();
 }
 
-defineExpose({ expandAllDirs, collapseAllDirs });
+/** 展开指定的目录路径列表 */
+function expandDirs(paths: string[]) {
+  for (const p of paths) {
+    expandedDirs.value.add(p);
+  }
+}
+
+defineExpose({ expandAllDirs, collapseAllDirs, expandDirs });
 </script>
 
 <style scoped>

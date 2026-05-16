@@ -1,11 +1,21 @@
 <template>
   <div class="tree-node">
     <!-- 目录节点头部 -->
-    <div class="tree-node__dir-header" @click="$emit('toggleDir', node.path)">
+    <div class="tree-node__dir-header" @click="$emit('toggleDir', node.path)" @contextmenu="onDirContextMenu($event)">
       <ChevronRight :size="14" class="tree-node__chevron" :class="{ expanded: isExpanded }" />
       <Folder :size="14" class="tree-node__folder-icon" />
       <span class="tree-node__dir-name">{{ node.name }}</span>
       <span class="tree-node__match-count">{{ node.totalMatches }}</span>
+      <!-- 目录级悬停操作按钮 -->
+      <span class="tree-node__dir-actions">
+        <button
+          class="tree-node__action-btn tree-node__action-btn--dismiss"
+          title="从结果中移除该目录"
+          @click.stop="dismissDir"
+        >
+          <X :size="14" />
+        </button>
+      </span>
     </div>
 
     <!-- 展开内容 -->
@@ -135,6 +145,61 @@ function onMatchSelect(filePath: string, match: SearchMatch) {
   emit("selectMatch", filePath, match);
 }
 
+/** 收集目录下所有文件路径 */
+function collectAllFilePaths(dirNode: DirectoryNode): string[] {
+  const paths: string[] = [];
+  for (const file of dirNode.files) {
+    paths.push(file.filePath);
+  }
+  for (const child of dirNode.children) {
+    paths.push(...collectAllFilePaths(child));
+  }
+  return paths;
+}
+
+/** 收集目录下所有子目录路径（含自身） */
+function collectAllDirPaths(dirNode: DirectoryNode): string[] {
+  const paths: string[] = [];
+  if (dirNode.path) paths.push(dirNode.path);
+  for (const child of dirNode.children) {
+    paths.push(...collectAllDirPaths(child));
+  }
+  return paths;
+}
+
+/** 消除整个目录（移除该目录下所有文件） */
+function dismissDir() {
+  const filePaths = collectAllFilePaths(props.node);
+  for (const fp of filePaths) {
+    emit("dismissFile", fp);
+  }
+}
+
+/** 目录级右键菜单 */
+function onDirContextMenu(event: MouseEvent) {
+  event.preventDefault();
+  event.stopPropagation();
+
+  const items: ContextMenuItem[] = [
+    { id: "dismiss-dir", label: "消除" },
+    { id: "restrict-to-dir", label: "将搜索限制为文件夹" },
+    { id: "expand-recursive", label: "以递归方式展开" },
+    { id: "exclude-dir", label: "从搜索中排除文件夹" },
+    { id: "sep-1", label: "", separator: true },
+    { id: "copy-dir-name", label: "复制" },
+    { id: "copy-dir-path", label: "复制路径" },
+    { id: "copy-all-dir-matches", label: "全部复制" },
+  ];
+
+  emit("contextMenu", event, items, {
+    type: "directory",
+    dirPath: props.node.path,
+    dirName: props.node.name,
+    filePaths: collectAllFilePaths(props.node),
+    subDirPaths: collectAllDirPaths(props.node),
+  });
+}
+
 /** 文件级右键菜单 */
 function onFileContextMenu(event: MouseEvent, fileResult: FileSearchResult) {
   const ext = getFileExtension(fileResult.relativePath);
@@ -206,6 +271,21 @@ function onMatchContextMenu(event: MouseEvent, fileResult: FileSearchResult, mat
 
 .tree-node__dir-header:hover {
   background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.06));
+}
+
+/* 目录级悬停操作按钮 */
+.tree-node__dir-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  margin-left: 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.tree-node__dir-header:hover .tree-node__dir-actions {
+  opacity: 1;
 }
 
 .tree-node__chevron {

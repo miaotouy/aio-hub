@@ -496,27 +496,27 @@ pub struct SearchMatch {
 
 ---
 
-### Batch 5: 右键菜单
+### Batch 5: 右键菜单 ✅
 
 **范围**: 通用右键菜单组件 + 集成
 **前置依赖**: Batch 4（消除逻辑）
 **风险**: 中
 **涉及文件**: 新增 `ContextMenu.vue`, `useContextMenu.ts`，修改 `ResultsTree.vue`, `ResultItem.vue`
 
-- [ ] 新增 `components/ContextMenu.vue`：
+- [x] 新增 `components/ContextMenu.vue`：
   - `position: fixed` 定位，`@contextmenu.prevent` 触发
   - 支持分隔线、禁用项、图标
   - 点击外部或 Escape 关闭
-- [ ] 新增 `composables/useContextMenu.ts`：
+- [x] 新增 `composables/useContextMenu.ts`：
   - 管理菜单显示状态、位置、菜单项列表
   - 提供 `show(event, items)` / `hide()` 方法
-- [ ] 在 `ResultsTree.vue` 文件头绑定 `@contextmenu`：
+- [x] 在 `ResultsTree.vue` 文件头绑定 `@contextmenu`：
   - 菜单项：全部替换 / 消除 / --- / 排除此类型 / 包含此类型 / --- / 复制名 / 复制路径 / 全部复制 / --- / 资源管理器显示
-- [ ] 在 `ResultItem.vue` 绑定 `@contextmenu`：
+- [x] 在 `ResultItem.vue` 绑定 `@contextmenu`：
   - 菜单项：替换 / 消除 / --- / 复制 / 全部复制
-- [ ] 实现"排除/包含文件类型"联动：将 `*.ext` 追加到对应 glob 输入框
-- [ ] 实现"在资源管理器中显示"：调用 Tauri `opener.revealItemInDir`
-- [ ] 验证：右键菜单定位准确，各操作功能正常
+- [x] 实现"排除/包含文件类型"联动：将 `*.ext` 追加到对应 glob 输入框
+- [x] 实现"在资源管理器中显示"：调用 Tauri `opener.revealItemInDir`
+- [x] 验证：右键菜单定位准确，各操作功能正常
 
 **提交信息**: `feat(dir-search): 右键菜单，支持文件级和匹配项级操作`
 

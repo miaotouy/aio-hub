@@ -1,5 +1,10 @@
 <template>
-  <div class="result-item" :class="{ selected: isSelected }" @click="$emit('select', match)">
+  <div
+    class="result-item"
+    :class="{ selected: isSelected }"
+    @click="$emit('select', match)"
+    @contextmenu="$emit('contextmenu', $event)"
+  >
     <span class="result-item__line-number">{{ match.lineNumber }}</span>
     <span class="result-item__content">
       <template v-for="(part, idx) in highlightParts" :key="idx">
@@ -9,12 +14,7 @@
     </span>
     <!-- 悬停操作按钮 -->
     <span class="result-item__actions">
-      <button
-        v-if="showReplace"
-        class="result-item__action-btn"
-        title="替换此匹配"
-        @click.stop="$emit('replaceMatch')"
-      >
+      <button v-if="showReplace" class="result-item__action-btn" title="替换此匹配" @click.stop="$emit('replaceMatch')">
         <Replace :size="14" />
       </button>
       <button
@@ -43,6 +43,7 @@ defineEmits<{
   select: [match: SearchMatch];
   dismiss: [];
   replaceMatch: [];
+  contextmenu: [event: MouseEvent];
 }>();
 
 const highlightParts = computed<HighlightPart[]>(() => {

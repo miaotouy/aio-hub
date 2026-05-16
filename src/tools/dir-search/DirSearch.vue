@@ -49,6 +49,7 @@
           @dismiss-match="search.dismissMatch"
           @replace-file="handleReplaceFile"
           @replace-match="handleReplaceMatch"
+          @context-menu="handleContextMenu"
         />
       </div>
 
@@ -65,6 +66,9 @@
         />
       </div>
     </div>
+
+    <!-- 右键菜单 -->
+    <ContextMenu :state="contextMenu.state.value" @select="handleContextMenuSelect" @hide="contextMenu.hide" />
   </div>
 </template>
 
@@ -72,16 +76,23 @@
 import { ref, computed, onUnmounted, watch } from "vue";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-vue-next";
 import { ElMessageBox } from "element-plus";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import DirectoryBar from "./components/DirectoryBar.vue";
 import SearchPanel from "./components/SearchPanel.vue";
 import FilePreview from "./components/FilePreview.vue";
+import ContextMenu from "./components/ContextMenu.vue";
 import { useDirSearch } from "./composables/useDirSearch";
 import { useDirSearchUiState } from "./composables/useDirSearchUiState";
+import { useContextMenu, type ContextMenuItem } from "./composables/useContextMenu";
 import { customMessage } from "@/utils/customMessage";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { SearchMatch } from "./types";
+
+const errorHandler = createModuleErrorHandler("tools/dir-search/DirSearch");
 
 const search = useDirSearch();
 const uiState = useDirSearchUiState();
+const contextMenu = useContextMenu();
 
 // UI 状态（从持久化 composable 获取）
 const panelWidth = uiState.panelWidth;
@@ -170,6 +181,107 @@ async function handleReplaceMatch(filePath: string, matchIndex: number) {
   const result = await search.replaceSingleMatch(filePath, matchIndex);
   if (result?.success) {
     customMessage.success(`已替换: "${result.originalText}" → "${result.replacedText}"`);
+  }
+}
+
+/** 处理右键菜单触发 */
+function handleContextMenu(event: MouseEvent, items: ContextMenuItem[], context: Record<string, unknown>) {
+  contextMenu.show(event, items, context);
+}
+
+/** 处理右键菜单项选择 */
+async function handleContextMenuSelect(itemId: string, context: Record<string, unknown>) {
+  const filePath = context.filePath as string;
+  const relativePath = context.relativePath as string;
+
+  switch (itemId) {
+    // === 文件级操作 ===
+    case "replace-all":
+      if (filePath) handleReplaceFile(filePath);
+      break;
+
+    case "dismiss-file":
+      if (filePath) search.dismissFile(filePath);
+      break;
+
+    case "exclude-type": {
+      const ext = context.extension as string;
+      if (ext) {
+        const glob = `*${ext}`;
+        const current = search.excludeGlobs.value;
+        search.excludeGlobs.value = current ? `${current}, ${glob}` : glob;
+      }
+      break;
+    }
+
+    case "include-type": {
+      const ext = context.extension as string;
+      if (ext) {
+        const glob = `*${ext}`;
+        search.includeGlobs.value = glob;
+      }
+      break;
+    }
+
+    case "copy-name": {
+      const fileName = relativePath?.split("/").pop() || "";
+      await navigator.clipboard.writeText(fileName);
+      customMessage.success("已复制文件名");
+      break;
+    }
+
+    case "copy-path":
+      if (filePath) {
+        await navigator.clipboard.writeText(filePath);
+        customMessage.success("已复制路径");
+      }
+      break;
+
+    case "copy-all-matches": {
+      const fileResult = search.results.value.get(filePath);
+      if (fileResult) {
+        const text = fileResult.matches.map((m) => m.lineContent).join("\n");
+        await navigator.clipboard.writeText(text);
+        customMessage.success("已复制所有匹配行");
+      }
+      break;
+    }
+
+    case "reveal-in-explorer":
+      if (filePath) {
+        try {
+          await revealItemInDir(filePath);
+        } catch (e) {
+          errorHandler.error(e, "打开资源管理器失败");
+        }
+      }
+      break;
+
+    // === 匹配项级操作 ===
+    case "replace-match": {
+      const matchIndex = context.matchIndex as number;
+      if (filePath && matchIndex !== undefined) {
+        handleReplaceMatch(filePath, matchIndex);
+      }
+      break;
+    }
+
+    case "dismiss-match": {
+      const matchIndex = context.matchIndex as number;
+      if (filePath && matchIndex !== undefined) {
+        search.dismissMatch(filePath, matchIndex);
+      }
+      break;
+    }
+
+    case "copy-line": {
+      const lineContent = context.lineContent as string;
+      if (lineContent) {
+        await navigator.clipboard.writeText(lineContent);
+        customMessage.success("已复制匹配行");
+      }
+      break;
+    }
   }
 }
 

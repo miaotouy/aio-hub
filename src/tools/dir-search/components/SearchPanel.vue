@@ -62,6 +62,7 @@
       @dismiss-match="(fp, idx) => $emit('dismissMatch', fp, idx)"
       @replace-file="(fp) => $emit('replaceFile', fp)"
       @replace-match="(fp, idx) => $emit('replaceMatch', fp, idx)"
+      @context-menu="(ev, items, ctx) => $emit('contextMenu', ev, items, ctx)"
     />
   </div>
 </template>
@@ -72,6 +73,7 @@ import { RefreshCw, ChevronsUp, ChevronsDown, X, FolderTree, List } from "lucide
 import SearchInput from "./SearchInput.vue";
 import ResultsTree from "./ResultsTree.vue";
 import type { FileSearchResult, SearchMatch, SearchProgress, SearchSummary, ViewMode } from "../types";
+import type { ContextMenuItem } from "../composables/useContextMenu";
 
 const props = defineProps<{
   results: FileSearchResult[];
@@ -115,6 +117,7 @@ const emit = defineEmits<{
   dismissMatch: [filePath: string, matchIndex: number];
   replaceFile: [filePath: string];
   replaceMatch: [filePath: string, matchIndex: number];
+  contextMenu: [event: MouseEvent, items: ContextMenuItem[], context: Record<string, unknown>];
 }>();
 
 function toggleExpandCollapse() {

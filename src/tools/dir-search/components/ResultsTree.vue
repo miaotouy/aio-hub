@@ -26,7 +26,11 @@
 
       <div v-for="fileResult in results" :key="fileResult.filePath" class="results-tree__file">
         <!-- 文件头 -->
-        <div class="results-tree__file-header" @click="$emit('toggleFile', fileResult.filePath)">
+        <div
+          class="results-tree__file-header"
+          @click="$emit('toggleFile', fileResult.filePath)"
+          @contextmenu="onFileContextMenu($event, fileResult)"
+        >
           <ChevronRight
             :size="14"
             class="results-tree__chevron"
@@ -71,6 +75,7 @@
             @select="onMatchSelect(fileResult.filePath, match)"
             @dismiss="$emit('dismissMatch', fileResult.filePath, idx)"
             @replace-match="$emit('replaceMatch', fileResult.filePath, idx)"
+            @contextmenu="onMatchContextMenu($event, fileResult, idx)"
           />
         </div>
       </div>
@@ -85,8 +90,9 @@ import { Loading } from "@element-plus/icons-vue";
 import { FileIcon } from "lucide-vue-next";
 import ResultItem from "./ResultItem.vue";
 import type { FileSearchResult, SearchMatch, SearchProgress, SearchSummary } from "../types";
+import type { ContextMenuItem } from "../composables/useContextMenu";
 
-defineProps<{
+const props = defineProps<{
   results: FileSearchResult[];
   expandedFiles: Set<string>;
   isSearching: boolean;
@@ -106,6 +112,7 @@ const emit = defineEmits<{
   dismissMatch: [filePath: string, matchIndex: number];
   replaceFile: [filePath: string];
   replaceMatch: [filePath: string, matchIndex: number];
+  contextMenu: [event: MouseEvent, items: ContextMenuItem[], context: Record<string, unknown>];
 }>();
 
 const selectedLine = ref<number | null>(null);
@@ -121,9 +128,67 @@ function getFileDir(relativePath: string): string {
   return parts.slice(0, -1).join("/");
 }
 
+function getFileExtension(relativePath: string): string {
+  const fileName = getFileName(relativePath);
+  const dotIndex = fileName.lastIndexOf(".");
+  return dotIndex > 0 ? fileName.slice(dotIndex) : "";
+}
+
 function onMatchSelect(filePath: string, match: SearchMatch) {
   selectedLine.value = match.lineNumber;
   emit("selectMatch", filePath, match);
+}
+
+/** 文件级右键菜单 */
+function onFileContextMenu(event: MouseEvent, fileResult: FileSearchResult) {
+  const ext = getFileExtension(fileResult.relativePath);
+  const items: ContextMenuItem[] = [
+    ...(props.showReplace ? [{ id: "replace-all", label: "全部替换" }] : []),
+    { id: "dismiss-file", label: "消除" },
+    { id: "sep-1", label: "", separator: true },
+    ...(ext
+      ? [
+          { id: "exclude-type", label: `从搜索中排除 *${ext}` },
+          { id: "include-type", label: `在搜索中仅包含 *${ext}` },
+          { id: "sep-2", label: "", separator: true },
+        ]
+      : []),
+    { id: "copy-name", label: "复制文件名" },
+    { id: "copy-path", label: "复制路径" },
+    { id: "copy-all-matches", label: "复制所有匹配行" },
+    { id: "sep-3", label: "", separator: true },
+    { id: "reveal-in-explorer", label: "在资源管理器中显示" },
+  ];
+
+  emit("contextMenu", event, items, {
+    type: "file",
+    filePath: fileResult.filePath,
+    relativePath: fileResult.relativePath,
+    extension: ext,
+  });
+}
+
+/** 匹配项级右键菜单 */
+function onMatchContextMenu(event: MouseEvent, fileResult: FileSearchResult, matchIndex: number) {
+  event.preventDefault();
+  event.stopPropagation();
+
+  const match = fileResult.matches[matchIndex];
+  const items: ContextMenuItem[] = [
+    ...(props.showReplace ? [{ id: "replace-match", label: "替换" }] : []),
+    { id: "dismiss-match", label: "消除" },
+    { id: "sep-1", label: "", separator: true },
+    { id: "copy-line", label: "复制匹配行" },
+    { id: "copy-all-matches", label: "复制所有匹配行" },
+  ];
+
+  emit("contextMenu", event, items, {
+    type: "match",
+    filePath: fileResult.filePath,
+    relativePath: fileResult.relativePath,
+    matchIndex,
+    lineContent: match.lineContent,
+  });
 }
 </script>
 

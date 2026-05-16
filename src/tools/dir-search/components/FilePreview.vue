@@ -47,7 +47,8 @@
         :language="fileLanguage"
         :read-only="false"
         :line-numbers="true"
-        editor-type="codemirror"
+        editor-type="monaco"
+        :options="monacoEditorOptions"
         class="file-preview__editor"
         @update:model-value="handleContentChange"
         @mount="handleEditorMount"
@@ -62,10 +63,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { FileSearch, ExternalLink, FolderOpen, Save } from "lucide-vue-next";
 import { Loading } from "@element-plus/icons-vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
-import { EditorView, Decoration, type DecorationSet } from "@codemirror/view";
-import { StateEffect, StateField, type Range } from "@codemirror/state";
 import { customMessage } from "@/utils/customMessage";
 import type { SearchMatch, TargetMatch } from "../types";
+import type { editor as MonacoEditorType } from "monaco-editor";
 
 const props = defineProps<{
   filePath: string | null;
@@ -79,10 +79,36 @@ const loadError = ref<string | null>(null);
 const fileContent = ref(""); // 原始内容（磁盘上的）
 const editedContent = ref(""); // 编辑器当前内容
 const isSaving = ref(false);
-const editorRef = ref<InstanceType<typeof RichCodeEditor> | null>(null);
+
+// Monaco 编辑器实例
+let monacoEditor: MonacoEditorType.IStandaloneCodeEditor | null = null;
+// 装饰集合句柄
+let matchLineDecorations: string[] = [];
+let targetLineDecorations: string[] = [];
+let matchMarkDecorations: string[] = [];
 
 // 修改状态：编辑内容与原始内容不一致
 const isDirty = computed(() => editedContent.value !== fileContent.value);
+
+// Monaco 编辑器选项，开启缩略图
+const monacoEditorOptions = computed<MonacoEditorType.IStandaloneEditorConstructionOptions>(() => ({
+  minimap: {
+    enabled: true,
+    scale: 1,
+    showSlider: "mouseover",
+  },
+  scrollBeyondLastLine: false,
+  wordWrap: "off",
+  folding: true,
+  foldingStrategy: "indentation",
+  showFoldingControls: "always",
+  renderLineHighlight: "all",
+  occurrencesHighlight: "multiFile",
+  selectionHighlight: true,
+  find: {
+    addExtraSpaceOnTop: false,
+  },
+}));
 
 function handleContentChange(value: string) {
   editedContent.value = value;
@@ -138,182 +164,156 @@ const fileLanguage = computed(() => {
   return ext || undefined;
 });
 
-// --- CodeMirror 匹配行高亮 ---
-const setHighlightLinesEffect = StateEffect.define<number[]>();
+// --- Monaco 匹配高亮 ---
 
-const highlightLineField = StateField.define<DecorationSet>({
-  create() {
-    return Decoration.none;
-  },
-  update(decorations, tr) {
-    for (const effect of tr.effects) {
-      if (effect.is(setHighlightLinesEffect)) {
-        const lines = effect.value;
-        const builder: any[] = [];
-        for (const lineNum of lines) {
-          if (lineNum >= 1 && lineNum <= tr.state.doc.lines) {
-            const line = tr.state.doc.line(lineNum);
-            builder.push(highlightLineDeco.range(line.from));
-          }
-        }
-        return Decoration.set(builder);
-      }
-    }
-    return decorations;
-  },
-  provide: (f) => EditorView.decorations.from(f),
-});
+function clearDecorations() {
+  if (!monacoEditor) return;
+  matchLineDecorations = monacoEditor.deltaDecorations(matchLineDecorations, []);
+  targetLineDecorations = monacoEditor.deltaDecorations(targetLineDecorations, []);
+  matchMarkDecorations = monacoEditor.deltaDecorations(matchMarkDecorations, []);
+}
 
-const highlightLineDeco = Decoration.line({ class: "cm-highlight-match-line" });
+function applyMatchHighlights() {
+  if (!monacoEditor) return;
 
-// 目标行（当前聚焦行）高亮
-const setTargetMatchEffect = StateEffect.define<TargetMatch | null>();
+  const matchList = props.matches || [];
 
-const targetLineField = StateField.define<DecorationSet>({
-  create() {
-    return Decoration.none;
-  },
-  update(decorations, tr) {
-    for (const effect of tr.effects) {
-      if (effect.is(setTargetMatchEffect)) {
-        const target = effect.value;
-        if (target && target.lineNumber >= 1 && target.lineNumber <= tr.state.doc.lines) {
-          const line = tr.state.doc.line(target.lineNumber);
-          const builder: Range<Decoration>[] = [targetLineDeco.range(line.from)];
+  // 整行高亮装饰（去重行号）
+  const uniqueLines = [...new Set(matchList.map((m) => m.lineNumber))];
+  const lineDecos: MonacoEditorType.IModelDeltaDecoration[] = uniqueLines.map((lineNum) => ({
+    range: {
+      startLineNumber: lineNum,
+      startColumn: 1,
+      endLineNumber: lineNum,
+      endColumn: 1,
+    },
+    options: {
+      isWholeLine: true,
+      className: "monaco-highlight-match-line",
+      overviewRuler: {
+        color: "rgba(64, 158, 255, 0.4)",
+        position: 1, // OverviewRulerLane.Left
+      },
+    },
+  }));
+  matchLineDecorations = monacoEditor.deltaDecorations(matchLineDecorations, lineDecos);
 
-          // 同时也给目标匹配项添加醒目的文本高亮
-          const from = line.from + target.matchStart;
-          const to = line.from + target.matchEnd;
-          if (to <= line.to) {
-            builder.push(activeMatchMarkDeco.range(from, to));
-          }
-          builder.sort((a, b) => a.from - b.from);
-          return Decoration.set(builder);
-        }
-        return Decoration.none;
-      }
-    }
-    return decorations;
-  },
-  provide: (f) => EditorView.decorations.from(f),
-});
+  // 关键字文本高亮装饰
+  const markDecos: MonacoEditorType.IModelDeltaDecoration[] = matchList
+    .map((m) => {
+      const model = monacoEditor!.getModel();
+      if (!model) return null;
+      const lineContent = model.getLineContent(m.lineNumber);
+      const startCol = m.matchStart + 1;
+      const endCol = m.matchEnd + 1;
+      if (startCol > endCol || endCol > lineContent.length + 1) return null;
+      return {
+        range: {
+          startLineNumber: m.lineNumber,
+          startColumn: startCol,
+          endLineNumber: m.lineNumber,
+          endColumn: endCol,
+        },
+        options: {
+          inlineClassName: "monaco-search-match-text",
+          minimap: {
+            color: "rgba(230, 162, 60, 0.8)",
+            position: 2, // MinimapPosition.Inline
+          },
+        },
+      } as MonacoEditorType.IModelDeltaDecoration;
+    })
+    .filter((d): d is MonacoEditorType.IModelDeltaDecoration => d !== null);
 
-const targetLineDeco = Decoration.line({ class: "cm-highlight-target-line" });
-const activeMatchMarkDeco = Decoration.mark({ class: "cm-search-match-text-active" });
+  matchMarkDecorations = monacoEditor.deltaDecorations(matchMarkDecorations, markDecos);
+}
 
-// 全文关键字高亮
-const setMatchMarksEffect = StateEffect.define<SearchMatch[]>();
+function applyTargetMatch() {
+  if (!monacoEditor) return;
 
-const matchMarkField = StateField.define<DecorationSet>({
-  create() {
-    return Decoration.none;
-  },
-  update(decorations, tr) {
-    for (const effect of tr.effects) {
-      if (effect.is(setMatchMarksEffect)) {
-        const matches = effect.value;
-        const builder: Range<Decoration>[] = [];
-        for (const m of matches) {
-          if (m.lineNumber >= 1 && m.lineNumber <= tr.state.doc.lines) {
-            const line = tr.state.doc.line(m.lineNumber);
-            const from = line.from + m.matchStart;
-            const to = line.from + m.matchEnd;
-            if (to <= line.to) {
-              builder.push(matchMarkDeco.range(from, to));
-            }
-          }
-        }
-        builder.sort((a, b) => a.from - b.from);
-        return Decoration.set(builder);
-      }
-    }
-    return decorations;
-  },
-  provide: (f) => EditorView.decorations.from(f),
-});
+  const target = props.targetMatch || null;
+  if (!target) {
+    targetLineDecorations = monacoEditor.deltaDecorations(targetLineDecorations, []);
+    return;
+  }
 
-const matchMarkDeco = Decoration.mark({ class: "cm-search-match-text" });
+  const model = monacoEditor.getModel();
+  if (!model) return;
 
-let editorMounted = false;
+  const lineCount = model.getLineCount();
+  if (target.lineNumber < 1 || target.lineNumber > lineCount) {
+    targetLineDecorations = monacoEditor.deltaDecorations(targetLineDecorations, []);
+    return;
+  }
 
-function handleEditorMount() {
-  editorMounted = true;
-  // 编辑器挂载后，注入高亮 StateField
+  const decos: MonacoEditorType.IModelDeltaDecoration[] = [
+    // 整行背景高亮
+    {
+      range: {
+        startLineNumber: target.lineNumber,
+        startColumn: 1,
+        endLineNumber: target.lineNumber,
+        endColumn: 1,
+      },
+      options: {
+        isWholeLine: true,
+        className: "monaco-highlight-target-line",
+        overviewRuler: {
+          color: "rgba(64, 158, 255, 0.8)",
+          position: 4, // OverviewRulerLane.Center
+        },
+      },
+    },
+    // 目标匹配文本高亮
+    {
+      range: {
+        startLineNumber: target.lineNumber,
+        startColumn: target.matchStart + 1,
+        endLineNumber: target.lineNumber,
+        endColumn: target.matchEnd + 1,
+      },
+      options: {
+        inlineClassName: "monaco-search-match-text-active",
+        minimap: {
+          color: "rgba(64, 158, 255, 1.0)",
+          position: 2,
+        },
+      },
+    },
+  ];
+
+  targetLineDecorations = monacoEditor.deltaDecorations(targetLineDecorations, decos);
+
+  // 滚动到目标行，并设置光标
+  // 强制布局更新，确保滚动位置计算准确（特别是新打开文件时）
+  monacoEditor.layout();
+  monacoEditor.revealLineInCenter(target.lineNumber, 0 /* Smooth */);
+  monacoEditor.setSelection({
+    startLineNumber: target.lineNumber,
+    startColumn: target.matchStart + 1,
+    endLineNumber: target.lineNumber,
+    endColumn: target.matchEnd + 1,
+  });
+}
+
+function handleEditorMount(editor: MonacoEditorType.IStandaloneCodeEditor | any) {
+  monacoEditor = editor as MonacoEditorType.IStandaloneCodeEditor;
+
+  // 挂载后立即应用高亮
   nextTick(() => {
-    const view = editorRef.value?.editorView;
-    if (!view) return;
-
-    // 动态添加 StateField（通过 appendConfig）
-    view.dispatch({
-      effects: StateEffect.appendConfig.of([highlightLineField, targetLineField, matchMarkField, highlightTheme]),
-    });
-
-    // 应用当前的匹配高亮
     applyMatchHighlights();
     applyTargetMatch();
   });
 }
-
-function applyMatchHighlights() {
-  const view = editorRef.value?.editorView;
-  if (!view || !editorMounted) return;
-
-  const matchList = props.matches || [];
-  const lineNumbers = matchList.map((m) => m.lineNumber);
-  // 去重
-  const uniqueLines = [...new Set(lineNumbers)];
-
-  view.dispatch({
-    effects: [setHighlightLinesEffect.of(uniqueLines), setMatchMarksEffect.of(matchList)],
-  });
-}
-
-function applyTargetMatch() {
-  const view = editorRef.value?.editorView;
-  if (!view || !editorMounted) return;
-
-  const target = props.targetMatch || null;
-  view.dispatch({
-    effects: setTargetMatchEffect.of(target),
-  });
-
-  // 滚动到目标行
-  if (target && target.lineNumber >= 1 && target.lineNumber <= view.state.doc.lines) {
-    const line = view.state.doc.line(target.lineNumber);
-    // 精确定位到匹配起始位置
-    const targetPos = line.from + target.matchStart;
-    view.dispatch({
-      effects: EditorView.scrollIntoView(targetPos, { y: "center" }),
-      // 同时设置选区到匹配项
-      selection: { anchor: targetPos, head: line.from + target.matchEnd },
-    });
-  }
-}
-// 高亮样式主题
-const highlightTheme = EditorView.baseTheme({
-  ".cm-highlight-match-line": {
-    backgroundColor: "rgba(var(--el-color-primary-rgb, 64, 158, 255), 0.06)",
-  },
-  ".cm-highlight-target-line": {
-    backgroundColor: "rgba(var(--el-color-primary-rgb, 64, 158, 255), 0.14)",
-  },
-  ".cm-search-match-text": {
-    backgroundColor: "rgba(var(--el-color-warning-rgb, 230, 162, 60), 0.35)",
-    borderRadius: "2px",
-  },
-  ".cm-search-match-text-active": {
-    backgroundColor: "rgba(var(--el-color-primary-rgb, 64, 158, 255), 0.4)",
-    borderRadius: "2px",
-    outline: "1px solid rgba(var(--el-color-primary-rgb, 64, 158, 255), 0.6)",
-  },
-});
 
 async function loadFile(path: string) {
   isLoading.value = true;
   loadError.value = null;
   fileContent.value = "";
   editedContent.value = "";
-  editorMounted = false;
+  // 清空旧实例引用，避免对已销毁的编辑器操作
+  monacoEditor = null;
+  clearDecorations();
 
   try {
     const content = await invoke<string>("read_text_file_force", { path });
@@ -502,5 +502,28 @@ watch(
 .file-preview__editor :deep(.rich-code-editor-wrapper) {
   border: none;
   border-radius: 0;
+}
+
+/* Monaco 搜索匹配整行高亮 */
+.file-preview__editor :deep(.monaco-highlight-match-line) {
+  background-color: rgba(var(--el-color-primary-rgb, 64, 158, 255), 0.06);
+}
+
+/* Monaco 目标行高亮 */
+.file-preview__editor :deep(.monaco-highlight-target-line) {
+  background-color: rgba(var(--el-color-primary-rgb, 64, 158, 255), 0.14);
+}
+
+/* Monaco 搜索关键字文本高亮 */
+.file-preview__editor :deep(.monaco-search-match-text) {
+  background-color: rgba(var(--el-color-warning-rgb, 230, 162, 60), 0.45);
+  border-radius: 2px;
+}
+
+/* Monaco 当前聚焦匹配项文本高亮 */
+.file-preview__editor :deep(.monaco-search-match-text-active) {
+  background-color: rgba(var(--el-color-primary-rgb, 64, 158, 255), 0.5);
+  border-radius: 2px;
+  outline: 1px solid rgba(var(--el-color-primary-rgb, 64, 158, 255), 0.8);
 }
 </style>

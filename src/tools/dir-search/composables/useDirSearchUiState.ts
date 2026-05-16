@@ -63,7 +63,13 @@ export function useDirSearchUiState() {
     if (isLoaded.value) return;
     const config = await configManager.load();
     // 合并配置，缺失字段使用默认值
-    Object.assign(state, { ...createDefaultState(), ...config });
+    // 强制清空搜索和替换内容，不恢复上次的输入，交给历史记录处理
+    Object.assign(state, {
+      ...createDefaultState(),
+      ...config,
+      pattern: "",
+      replacement: "",
+    });
     isLoaded.value = true;
   }
 

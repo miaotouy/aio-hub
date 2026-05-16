@@ -67,6 +67,8 @@ export function useInputHistory(historyArray: Ref<string[]>, currentValue: Ref<s
 
       if (historyIndex.value === -1) {
         savedInput = currentValue.value;
+        // 如果当前为空，第一下 ArrowUp 直接显示最近的一条历史 (索引 0)
+        // 如果当前不为空，第一下 ArrowUp 也是显示最近的一条历史
         historyIndex.value = 0;
       } else if (historyIndex.value < history.length - 1) {
         historyIndex.value++;

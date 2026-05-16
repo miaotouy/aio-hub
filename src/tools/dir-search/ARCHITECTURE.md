@@ -22,7 +22,7 @@ src/tools/dir-search/
 │   ├── SearchInput.vue                  # 搜索/替换输入区 + 模式切换 + 过滤器 + 折叠设置
 │   ├── ResultsTree.vue                  # 搜索结果（列表/树形双视图 + 上下文块渲染）
 │   ├── ResultItem.vue                   # 单条匹配结果行（高亮 + 悬停操作 + Tooltip）
-│   ├── FilePreview.vue                  # 右栏文件预览（CodeMirror + 行高亮）
+│   ├── FilePreview.vue                  # 右栏文件预览（Monaco Editor + 行高亮）
 │   ├── ContextMenu.vue                  # 通用右键菜单组件
 │   ├── ContextBlockView.vue             # 上下文块渲染组件
 │   ├── DirectoryTreeView.vue            # 树形目录视图组件
@@ -47,7 +47,7 @@ src/tools/dir-search/
 │                                                            │
 │  ┌─────────────┐  ┌──────────────┐  ┌───────────────────┐  │
 │  │DirectoryBar │  │ SearchPanel  │  │   FilePreview     │  │
-│  │(目录选择)   │  │ ┌SearchInput │  │ (RichCodeEditor)  │  │
+│  │(目录选择)   │  │ ┌SearchInput │  │ (Monaco Editor)   │  │
 │  │             │  │ └ResultsTree │  │ + 行高亮 + 编辑   │  │
 │  └──────┬──────┘  └──────┬───────┘  └────────┬──────────┘  │
 │         │                │                   │             │
@@ -162,8 +162,8 @@ sequenceDiagram
     Tree->>Preview: selectedFilePath + targetMatch 更新
     Preview->>Rust: invoke("read_text_file_force", path)
     Rust-->>Preview: 文件内容字符串
-    Preview->>Preview: CodeMirror 渲染 + 注入行高亮装饰
-    Preview->>Preview: scrollIntoView(targetLine, center)
+    Preview->>Preview: Monaco Editor 渲染 + deltaDecorations 注入高亮
+    Preview->>Preview: revealLineInCenter(targetLine)
 ```
 
 ## 5. Rust 后端详解
@@ -262,14 +262,18 @@ sequenceDiagram
 
 核心特性：
 
-- **可编辑**：使用 `RichCodeEditor`（CodeMirror 引擎），支持直接编辑文件内容
+- **可编辑**：使用 `RichCodeEditor`（Monaco 引擎，`editor-type="monaco"`），支持直接编辑文件内容
 - **保存**：Ctrl+S 保存修改，通过 `write_text_file_force` 写回磁盘
-- **脏状态检测**：对比编辑内容与原始内容，显示修改指示器
-- **匹配行高亮**：通过 CodeMirror `StateField` + `Decoration` 实现两层高亮：
-  - 浅色背景：所有匹配行（`cm-highlight-match-line`）
-  - 深色背景：当前聚焦行（`cm-highlight-target-line`）
-- **自动滚动**：点击匹配项时 `scrollIntoView` 到目标行居中显示
-- **语言推断**：根据文件扩展名自动设置语法高亮语言
+- **脏状态检测**：对比编辑内容与原始内容，显示修改指示器（脉冲圆点）
+- **匹配高亮**：通过 Monaco `deltaDecorations` API 实现三层装饰：
+  - 整行浅色背景：所有匹配行（`monaco-highlight-match-line`）
+  - 关键字文本高亮：所有匹配文本（`monaco-search-match-text`，橙色背景）
+  - 当前聚焦行+文本：目标行深色背景（`monaco-highlight-target-line`）+ 活跃匹配文本（`monaco-search-match-text-active`，蓝色背景+边框）
+- **Overview Ruler**：匹配位置在右侧滚动条缩略图中标记，便于快速定位
+- **Minimap 标记**：匹配文本在缩略图中以颜色标记显示
+- **自动滚动**：点击匹配项时 `revealLineInCenter` + `setSelection` 定位到目标行并选中匹配文本
+- **语言推断**：根据文件扩展名和特殊文件名自动设置语法高亮语言
+- **Monaco 选项**：启用缩略图、代码折叠、选中高亮、多文件出现高亮
 
 ### 6.4. 结果交互
 

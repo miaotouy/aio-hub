@@ -119,7 +119,7 @@ Agent Skills 规范的**运行时基础设施**。采用 **Backend-First 架构*
 
 轻量级目录内容搜索与替换工具，**Rust 后端流式搜索 + 前端实时渲染**架构。基于 `ignore` crate 并行遍历，有界 channel 背压控制，支持正则/大小写/全词匹配、上下文行展示、单项精确替换。
 
-**亮点**：并行流式搜索（sync_channel 背压）、搜索代计数器竞态解决、双视图（列表/树形）、CodeMirror 可编辑预览、Preserve Case 替换。
+**亮点**：并行流式搜索（sync_channel 背压）、搜索代计数器竞态解决、双视图（列表/树形）、Monaco 可编辑预览、Preserve Case 替换。
 
 ---
 

@@ -375,8 +375,18 @@ pub async fn dir_search(
     let files_matched_atomic = Arc::new(AtomicUsize::new(0));
     let cancelled_flag = cancellation.cancelled.clone();
 
-    // 使用 channel 收集并行搜索结果
-    let (tx, rx) = mpsc::channel::<FileSearchResult>();
+    // 使用有界 channel 收集并行搜索结果
+    // 容量限制为 500，当 channel 满时 walker 线程会自动阻塞等待主线程消费
+    // 这是防止 IPC 积压导致 WebView 崩溃的核心背压机制
+    let (tx, rx) = mpsc::sync_channel::<FileSearchResult>(500);
+
+    log::info!(
+        "[dir-search] 开始搜索: pattern={:?}, root={}, max_results={}, gitignore={}",
+        request.pattern,
+        request.root_path,
+        max_results,
+        request.use_gitignore
+    );
 
     // 启动并行遍历
     let root_path_buf = root_path.to_path_buf();
@@ -583,7 +593,11 @@ pub async fn dir_search(
         }
     }
 
-    // 等待 walker 线程结束
+    // 立即 drop 接收端，使 walker 线程的 tx.send() 立即返回 Err 并退出
+    // 这避免了 walker 线程因 channel 满而阻塞，大幅减少 join 等待时间
+    drop(rx);
+
+    // 等待 walker 线程结束（由于 rx 已 drop，线程会很快退出）
     let _ = walker_handle.join();
 
     // Flush 剩余的 batch

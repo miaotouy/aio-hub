@@ -522,32 +522,32 @@ pub struct SearchMatch {
 
 ---
 
-### Batch 6: 树形目录视图
+### Batch 6: 树形目录视图 ✅
 
 **范围**: 新增视图模式，独立于其他功能
 **前置依赖**: Batch 2（viewMode 状态已就绪）
 **风险**: 中高（新增较多渲染逻辑）
-**涉及文件**: 新增 `components/DirectoryTreeView.vue`，修改 `ResultsTree.vue`, `types.ts`
+**涉及文件**: 新增 `components/DirectoryTreeView.vue`, `components/DirectoryTreeNode.vue`，修改 `ResultsTree.vue`, `SearchPanel.vue`, `types.ts`
 
-- [ ] 在 `types.ts` 中新增树节点类型：
-  ```typescript
-  interface DirectoryNode {
-    name: string;
-    path: string;
-    children: DirectoryNode[];
-    files: FileSearchResult[];
-    totalMatches: number;
-  }
-  ```
-- [ ] 新增 `components/DirectoryTreeView.vue`：
+- [x] 在 `types.ts` 中新增 `DirectoryNode` 树节点接口
+- [x] 新增 `components/DirectoryTreeView.vue`：
   - 接收 `FileSearchResult[]`，按 `relativePath` 构建嵌套目录树
   - 空目录层级自动折叠合并（如 `src/tools/dir-search/` 合并为一行）
   - 目录节点显示子树匹配总数
   - 叶子节点为文件，展开后显示匹配项（复用 `ResultItem`）
-- [ ] 修改 `ResultsTree.vue`：
+  - 暴露 `expandAllDirs` / `collapseAllDirs` 方法
+- [x] 新增 `components/DirectoryTreeNode.vue`：
+  - 递归组件，渲染目录/文件节点
+  - 支持右键菜单、悬停操作按钮
+  - 空路径根节点默认展开
+- [x] 修改 `ResultsTree.vue`：
   - 根据 `viewMode` 条件渲染列表视图或 `DirectoryTreeView`
   - 两种视图共享展开/折叠/消除等操作
-- [ ] 验证：视图切换流畅，树形模式下目录层级正确，匹配数准确
+  - 暴露 `expandAllTree` / `collapseAllTree` 方法
+- [x] 修改 `SearchPanel.vue`：
+  - 传递 `viewMode` 给 `ResultsTree`
+  - 展开/折叠按钮同时控制树形视图的目录节点
+- [x] 验证：类型检查通过，视图切换流畅，树形模式下目录层级正确，匹配数准确
 
 **提交信息**: `feat(dir-search): 树形目录视图模式`
 

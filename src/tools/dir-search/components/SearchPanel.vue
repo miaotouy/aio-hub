@@ -46,6 +46,7 @@
 
     <!-- 结果区 -->
     <ResultsTree
+      ref="resultsTreeRef"
       :results="results"
       :expanded-files="expandedFiles"
       :is-searching="isSearching"
@@ -53,6 +54,7 @@
       :progress="progress"
       :selected-file-path="selectedFilePath"
       :show-replace="showReplace"
+      :view-mode="viewMode"
       @toggle-file="$emit('toggleFile', $event)"
       @expand-all="$emit('expandAll')"
       @collapse-all="$emit('collapseAll')"
@@ -68,12 +70,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { RefreshCw, ChevronsUp, ChevronsDown, X, FolderTree, List } from "lucide-vue-next";
 import SearchInput from "./SearchInput.vue";
 import ResultsTree from "./ResultsTree.vue";
 import type { FileSearchResult, SearchMatch, SearchProgress, SearchSummary, ViewMode } from "../types";
 import type { ContextMenuItem } from "../composables/useContextMenu";
+
+const resultsTreeRef = ref<InstanceType<typeof ResultsTree> | null>(null);
 
 const props = defineProps<{
   results: FileSearchResult[];
@@ -123,8 +127,12 @@ const emit = defineEmits<{
 function toggleExpandCollapse() {
   if (allCollapsed.value) {
     emit("expandAll");
+    // 树形模式下同时展开目录节点
+    resultsTreeRef.value?.expandAllTree();
   } else {
     emit("collapseAll");
+    // 树形模式下同时折叠目录节点
+    resultsTreeRef.value?.collapseAllTree();
   }
 }
 </script>

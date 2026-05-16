@@ -15,7 +15,7 @@
       </template>
     </div>
 
-    <!-- 结果列表 -->
+    <!-- 结果区域 -->
     <div class="results-tree__list">
       <template v-if="results.length === 0 && !isSearching && summary">
         <div class="results-tree__empty">
@@ -24,61 +24,81 @@
         </div>
       </template>
 
-      <div v-for="fileResult in results" :key="fileResult.filePath" class="results-tree__file">
-        <!-- 文件头 -->
-        <div
-          class="results-tree__file-header"
-          @click="$emit('toggleFile', fileResult.filePath)"
-          @contextmenu="onFileContextMenu($event, fileResult)"
-        >
-          <ChevronRight
-            :size="14"
-            class="results-tree__chevron"
-            :class="{ expanded: expandedFiles.has(fileResult.filePath) }"
-          />
-          <FileIcon :size="14" class="results-tree__file-icon" />
-          <span class="results-tree__file-name" :title="fileResult.relativePath">
-            {{ getFileName(fileResult.relativePath) }}
-          </span>
-          <span class="results-tree__file-dir">
-            {{ getFileDir(fileResult.relativePath) }}
-          </span>
-          <span class="results-tree__match-count">{{ fileResult.matches.length }}</span>
-          <!-- 文件级悬停操作按钮 -->
-          <span class="results-tree__file-actions">
-            <button
-              v-if="showReplace"
-              class="results-tree__file-action-btn"
-              title="替换该文件所有匹配"
-              @click.stop="$emit('replaceFile', fileResult.filePath)"
-            >
-              <Replace :size="14" />
-            </button>
-            <button
-              class="results-tree__file-action-btn results-tree__file-action-btn--dismiss"
-              title="从结果中移除该文件"
-              @click.stop="$emit('dismissFile', fileResult.filePath)"
-            >
-              <X :size="14" />
-            </button>
-          </span>
-        </div>
+      <!-- 树形目录视图 -->
+      <DirectoryTreeView
+        v-if="viewMode === 'tree' && results.length > 0"
+        ref="treeViewRef"
+        :results="results"
+        :expanded-files="expandedFiles"
+        :selected-file-path="selectedFilePath"
+        :show-replace="showReplace"
+        @toggle-file="$emit('toggleFile', $event)"
+        @select-match="(fp, m) => $emit('selectMatch', fp, m)"
+        @dismiss-file="(fp) => $emit('dismissFile', fp)"
+        @dismiss-match="(fp, idx) => $emit('dismissMatch', fp, idx)"
+        @replace-file="(fp) => $emit('replaceFile', fp)"
+        @replace-match="(fp, idx) => $emit('replaceMatch', fp, idx)"
+        @context-menu="(ev, items, ctx) => $emit('contextMenu', ev, items, ctx)"
+      />
 
-        <!-- 匹配项列表 -->
-        <div v-if="expandedFiles.has(fileResult.filePath)" class="results-tree__matches">
-          <ResultItem
-            v-for="(match, idx) in fileResult.matches"
-            :key="`${fileResult.filePath}-${idx}`"
-            :match="match"
-            :show-replace="showReplace"
-            :is-selected="selectedFilePath === fileResult.filePath && selectedLine === match.lineNumber"
-            @select="onMatchSelect(fileResult.filePath, match)"
-            @dismiss="$emit('dismissMatch', fileResult.filePath, idx)"
-            @replace-match="$emit('replaceMatch', fileResult.filePath, idx)"
-            @contextmenu="onMatchContextMenu($event, fileResult, idx)"
-          />
+      <!-- 列表视图 -->
+      <template v-else-if="viewMode === 'list'">
+        <div v-for="fileResult in results" :key="fileResult.filePath" class="results-tree__file">
+          <!-- 文件头 -->
+          <div
+            class="results-tree__file-header"
+            @click="$emit('toggleFile', fileResult.filePath)"
+            @contextmenu="onFileContextMenu($event, fileResult)"
+          >
+            <ChevronRight
+              :size="14"
+              class="results-tree__chevron"
+              :class="{ expanded: expandedFiles.has(fileResult.filePath) }"
+            />
+            <FileIcon :size="14" class="results-tree__file-icon" />
+            <span class="results-tree__file-name" :title="fileResult.relativePath">
+              {{ getFileName(fileResult.relativePath) }}
+            </span>
+            <span class="results-tree__file-dir">
+              {{ getFileDir(fileResult.relativePath) }}
+            </span>
+            <span class="results-tree__match-count">{{ fileResult.matches.length }}</span>
+            <!-- 文件级悬停操作按钮 -->
+            <span class="results-tree__file-actions">
+              <button
+                v-if="showReplace"
+                class="results-tree__file-action-btn"
+                title="替换该文件所有匹配"
+                @click.stop="$emit('replaceFile', fileResult.filePath)"
+              >
+                <Replace :size="14" />
+              </button>
+              <button
+                class="results-tree__file-action-btn results-tree__file-action-btn--dismiss"
+                title="从结果中移除该文件"
+                @click.stop="$emit('dismissFile', fileResult.filePath)"
+              >
+                <X :size="14" />
+              </button>
+            </span>
+          </div>
+
+          <!-- 匹配项列表 -->
+          <div v-if="expandedFiles.has(fileResult.filePath)" class="results-tree__matches">
+            <ResultItem
+              v-for="(match, idx) in fileResult.matches"
+              :key="`${fileResult.filePath}-${idx}`"
+              :match="match"
+              :show-replace="showReplace"
+              :is-selected="selectedFilePath === fileResult.filePath && selectedLine === match.lineNumber"
+              @select="onMatchSelect(fileResult.filePath, match)"
+              @dismiss="$emit('dismissMatch', fileResult.filePath, idx)"
+              @replace-match="$emit('replaceMatch', fileResult.filePath, idx)"
+              @contextmenu="onMatchContextMenu($event, fileResult, idx)"
+            />
+          </div>
         </div>
-      </div>
+      </template>
     </div>
   </div>
 </template>
@@ -89,7 +109,8 @@ import { ChevronRight, SearchX, X, Replace } from "lucide-vue-next";
 import { Loading } from "@element-plus/icons-vue";
 import { FileIcon } from "lucide-vue-next";
 import ResultItem from "./ResultItem.vue";
-import type { FileSearchResult, SearchMatch, SearchProgress, SearchSummary } from "../types";
+import DirectoryTreeView from "./DirectoryTreeView.vue";
+import type { FileSearchResult, SearchMatch, SearchProgress, SearchSummary, ViewMode } from "../types";
 import type { ContextMenuItem } from "../composables/useContextMenu";
 
 const props = defineProps<{
@@ -100,7 +121,10 @@ const props = defineProps<{
   progress: SearchProgress | null;
   selectedFilePath: string | null;
   showReplace?: boolean;
+  viewMode: ViewMode;
 }>();
+
+const treeViewRef = ref<InstanceType<typeof DirectoryTreeView> | null>(null);
 
 const emit = defineEmits<{
   toggleFile: [filePath: string];
@@ -190,6 +214,18 @@ function onMatchContextMenu(event: MouseEvent, fileResult: FileSearchResult, mat
     lineContent: match.lineContent,
   });
 }
+
+/** 展开所有（含树形视图的目录节点） */
+function expandAllTree() {
+  treeViewRef.value?.expandAllDirs();
+}
+
+/** 折叠所有（含树形视图的目录节点） */
+function collapseAllTree() {
+  treeViewRef.value?.collapseAllDirs();
+}
+
+defineExpose({ expandAllTree, collapseAllTree });
 </script>
 
 <style scoped>

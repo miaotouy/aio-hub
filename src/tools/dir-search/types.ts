@@ -108,3 +108,17 @@ export interface HighlightPart {
 
 /** 结果视图模式 */
 export type ViewMode = "list" | "tree";
+
+/** 树形视图的目录节点 */
+export interface DirectoryNode {
+  /** 显示名称（可能是合并后的路径段，如 "src/tools/dir-search"） */
+  name: string;
+  /** 完整相对路径 */
+  path: string;
+  /** 子目录节点 */
+  children: DirectoryNode[];
+  /** 该目录下直接包含的文件结果 */
+  files: FileSearchResult[];
+  /** 子树中的匹配总数（含子目录） */
+  totalMatches: number;
+}

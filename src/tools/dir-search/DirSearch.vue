@@ -315,11 +315,11 @@ async function handleContextMenuSelect(itemId: string, context: Record<string, u
       }
       // 展开文件节点
       if (dirFilePaths2) {
+        const newExpanded = new Set(search.expandedFiles.value);
         for (const fp of dirFilePaths2) {
-          if (!search.expandedFiles.value.has(fp)) {
-            search.expandedFiles.value.add(fp);
-          }
+          newExpanded.add(fp);
         }
+        search.expandedFiles.value = newExpanded;
       }
       break;
     }

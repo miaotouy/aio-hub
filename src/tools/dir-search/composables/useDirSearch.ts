@@ -75,7 +75,7 @@ export function useDirSearch() {
     const maxR = uiState.maxResults.value;
     let currentTotal = totalMatches.value;
 
-    // 直接修改 shallowRef 内部的 Map/Set，最后统一 triggerRef
+    // 直接修改 shallowRef 内部的 Map，最后统一 triggerRef
     const map = results.value;
     const expanded = expandedFiles.value;
     const shouldExpand = uiState.autoExpandResults.value;
@@ -90,10 +90,10 @@ export function useDirSearch() {
         expanded.add(result.filePath);
       }
     }
-    // 手动触发响应式更新（无 Map 复制开销）
+    // 触发响应式更新：赋值新引用以确保子组件 prop 比较能检测到变化
     triggerRef(results);
     if (shouldExpand) {
-      triggerRef(expandedFiles);
+      expandedFiles.value = new Set(expanded);
     }
   }
 
@@ -257,26 +257,27 @@ export function useDirSearch() {
 
   /** 切换文件展开/折叠 */
   function toggleFileExpand(filePath: string) {
-    if (expandedFiles.value.has(filePath)) {
-      expandedFiles.value.delete(filePath);
+    const newSet = new Set(expandedFiles.value);
+    if (newSet.has(filePath)) {
+      newSet.delete(filePath);
     } else {
-      expandedFiles.value.add(filePath);
+      newSet.add(filePath);
     }
-    triggerRef(expandedFiles);
+    expandedFiles.value = newSet;
   }
 
   /** 全部展开 */
   function expandAll() {
+    const newSet = new Set(expandedFiles.value);
     for (const key of results.value.keys()) {
-      expandedFiles.value.add(key);
+      newSet.add(key);
     }
-    triggerRef(expandedFiles);
+    expandedFiles.value = newSet;
   }
 
   /** 全部折叠 */
   function collapseAll() {
-    expandedFiles.value.clear();
-    triggerRef(expandedFiles);
+    expandedFiles.value = new Set();
   }
 
   /** 清空搜索结果 */
@@ -291,9 +292,10 @@ export function useDirSearch() {
   /** 从结果中移除整个文件 */
   function dismissFile(filePath: string) {
     results.value.delete(filePath);
-    expandedFiles.value.delete(filePath);
     triggerRef(results);
-    triggerRef(expandedFiles);
+    const newExpanded = new Set(expandedFiles.value);
+    newExpanded.delete(filePath);
+    expandedFiles.value = newExpanded;
     if (selectedFilePath.value === filePath) {
       selectedFilePath.value = null;
     }
@@ -326,8 +328,9 @@ export function useDirSearch() {
       } else {
         // 该文件不再有匹配，移除
         map.delete(filePath);
-        expandedFiles.value.delete(filePath);
-        triggerRef(expandedFiles);
+        const newExpanded = new Set(expandedFiles.value);
+        newExpanded.delete(filePath);
+        expandedFiles.value = newExpanded;
         if (selectedFilePath.value === filePath) {
           selectedFilePath.value = null;
         }

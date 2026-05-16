@@ -63,7 +63,7 @@
           :file-path="search.selectedFilePath.value"
           :relative-path="selectedRelativePath"
           :matches="selectedFileMatches"
-          :target-line="targetLine"
+          :target-match="targetMatch"
         />
       </div>
     </div>
@@ -87,7 +87,7 @@ import { useDirSearchUiState } from "./composables/useDirSearchUiState";
 import { useContextMenu, type ContextMenuItem } from "./composables/useContextMenu";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import type { SearchMatch } from "./types";
+import type { SearchMatch, TargetMatch } from "./types";
 
 const errorHandler = createModuleErrorHandler("tools/dir-search/DirSearch");
 
@@ -100,7 +100,8 @@ const searchPanelRef = ref<InstanceType<typeof SearchPanel> | null>(null);
 const panelWidth = uiState.panelWidth;
 const isPanelCollapsed = uiState.isPanelCollapsed;
 const viewMode = uiState.viewMode;
-const targetLine = ref<number | null>(null);
+const targetMatch = ref<TargetMatch | null>(null);
+let matchSeq = 0;
 
 // 恢复上次的搜索目录
 if (uiState.lastRootPath.value && !search.rootPath.value) {
@@ -133,7 +134,12 @@ const selectedFileMatches = computed(() => {
 // 事件处理
 function handleSelectMatch(filePath: string, match: SearchMatch) {
   search.selectFile(filePath);
-  targetLine.value = match.lineNumber;
+  targetMatch.value = {
+    lineNumber: match.lineNumber,
+    matchStart: match.matchStart,
+    matchEnd: match.matchEnd,
+    _seq: ++matchSeq,
+  };
 }
 
 async function handleReplaceAll() {

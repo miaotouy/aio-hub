@@ -110,6 +110,15 @@ export interface HighlightPart {
   isMatch: boolean;
 }
 
+/** 当前聚焦的匹配项（用于预览定位） */
+export interface TargetMatch {
+  lineNumber: number;
+  matchStart: number;
+  matchEnd: number;
+  /** 序列号，用于强制触发 watch */
+  _seq?: number;
+}
+
 /** 搜索结果批次（IPC 批处理） */
 export interface SearchResultBatch {
   results: FileSearchResult[];

@@ -63,15 +63,15 @@ import { FileSearch, ExternalLink, FolderOpen, Save } from "lucide-vue-next";
 import { Loading } from "@element-plus/icons-vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import { EditorView, Decoration, type DecorationSet } from "@codemirror/view";
-import { StateEffect, StateField } from "@codemirror/state";
+import { StateEffect, StateField, type Range } from "@codemirror/state";
 import { customMessage } from "@/utils/customMessage";
-import type { SearchMatch } from "../types";
+import type { SearchMatch, TargetMatch } from "../types";
 
 const props = defineProps<{
   filePath: string | null;
   relativePath?: string;
   matches?: SearchMatch[];
-  targetLine?: number | null;
+  targetMatch?: TargetMatch | null;
 }>();
 
 const isLoading = ref(false);
@@ -167,7 +167,7 @@ const highlightLineField = StateField.define<DecorationSet>({
 const highlightLineDeco = Decoration.line({ class: "cm-highlight-match-line" });
 
 // 目标行（当前聚焦行）高亮
-const setTargetLineEffect = StateEffect.define<number | null>();
+const setTargetMatchEffect = StateEffect.define<TargetMatch | null>();
 
 const targetLineField = StateField.define<DecorationSet>({
   create() {
@@ -175,11 +175,20 @@ const targetLineField = StateField.define<DecorationSet>({
   },
   update(decorations, tr) {
     for (const effect of tr.effects) {
-      if (effect.is(setTargetLineEffect)) {
-        const lineNum = effect.value;
-        if (lineNum && lineNum >= 1 && lineNum <= tr.state.doc.lines) {
-          const line = tr.state.doc.line(lineNum);
-          return Decoration.set([targetLineDeco.range(line.from)]);
+      if (effect.is(setTargetMatchEffect)) {
+        const target = effect.value;
+        if (target && target.lineNumber >= 1 && target.lineNumber <= tr.state.doc.lines) {
+          const line = tr.state.doc.line(target.lineNumber);
+          const builder: Range<Decoration>[] = [targetLineDeco.range(line.from)];
+
+          // 同时也给目标匹配项添加醒目的文本高亮
+          const from = line.from + target.matchStart;
+          const to = line.from + target.matchEnd;
+          if (to <= line.to) {
+            builder.push(activeMatchMarkDeco.range(from, to));
+          }
+          builder.sort((a, b) => a.from - b.from);
+          return Decoration.set(builder);
         }
         return Decoration.none;
       }
@@ -190,6 +199,40 @@ const targetLineField = StateField.define<DecorationSet>({
 });
 
 const targetLineDeco = Decoration.line({ class: "cm-highlight-target-line" });
+const activeMatchMarkDeco = Decoration.mark({ class: "cm-search-match-text-active" });
+
+// 全文关键字高亮
+const setMatchMarksEffect = StateEffect.define<SearchMatch[]>();
+
+const matchMarkField = StateField.define<DecorationSet>({
+  create() {
+    return Decoration.none;
+  },
+  update(decorations, tr) {
+    for (const effect of tr.effects) {
+      if (effect.is(setMatchMarksEffect)) {
+        const matches = effect.value;
+        const builder: Range<Decoration>[] = [];
+        for (const m of matches) {
+          if (m.lineNumber >= 1 && m.lineNumber <= tr.state.doc.lines) {
+            const line = tr.state.doc.line(m.lineNumber);
+            const from = line.from + m.matchStart;
+            const to = line.from + m.matchEnd;
+            if (to <= line.to) {
+              builder.push(matchMarkDeco.range(from, to));
+            }
+          }
+        }
+        builder.sort((a, b) => a.from - b.from);
+        return Decoration.set(builder);
+      }
+    }
+    return decorations;
+  },
+  provide: (f) => EditorView.decorations.from(f),
+});
+
+const matchMarkDeco = Decoration.mark({ class: "cm-search-match-text" });
 
 let editorMounted = false;
 
@@ -202,12 +245,12 @@ function handleEditorMount() {
 
     // 动态添加 StateField（通过 appendConfig）
     view.dispatch({
-      effects: StateEffect.appendConfig.of([highlightLineField, targetLineField, highlightTheme]),
+      effects: StateEffect.appendConfig.of([highlightLineField, targetLineField, matchMarkField, highlightTheme]),
     });
 
     // 应用当前的匹配高亮
     applyMatchHighlights();
-    applyTargetLine();
+    applyTargetMatch();
   });
 }
 
@@ -215,33 +258,37 @@ function applyMatchHighlights() {
   const view = editorRef.value?.editorView;
   if (!view || !editorMounted) return;
 
-  const lineNumbers = props.matches ? props.matches.map((m) => m.lineNumber) : [];
+  const matchList = props.matches || [];
+  const lineNumbers = matchList.map((m) => m.lineNumber);
   // 去重
   const uniqueLines = [...new Set(lineNumbers)];
 
   view.dispatch({
-    effects: setHighlightLinesEffect.of(uniqueLines),
+    effects: [setHighlightLinesEffect.of(uniqueLines), setMatchMarksEffect.of(matchList)],
   });
 }
 
-function applyTargetLine() {
+function applyTargetMatch() {
   const view = editorRef.value?.editorView;
   if (!view || !editorMounted) return;
 
-  const lineNum = props.targetLine || null;
+  const target = props.targetMatch || null;
   view.dispatch({
-    effects: setTargetLineEffect.of(lineNum),
+    effects: setTargetMatchEffect.of(target),
   });
 
   // 滚动到目标行
-  if (lineNum && lineNum >= 1 && lineNum <= view.state.doc.lines) {
-    const line = view.state.doc.line(lineNum);
+  if (target && target.lineNumber >= 1 && target.lineNumber <= view.state.doc.lines) {
+    const line = view.state.doc.line(target.lineNumber);
+    // 精确定位到匹配起始位置
+    const targetPos = line.from + target.matchStart;
     view.dispatch({
-      effects: EditorView.scrollIntoView(line.from, { y: "center" }),
+      effects: EditorView.scrollIntoView(targetPos, { y: "center" }),
+      // 同时设置选区到匹配项
+      selection: { anchor: targetPos, head: line.from + target.matchEnd },
     });
   }
 }
-
 // 高亮样式主题
 const highlightTheme = EditorView.baseTheme({
   ".cm-highlight-match-line": {
@@ -249,6 +296,15 @@ const highlightTheme = EditorView.baseTheme({
   },
   ".cm-highlight-target-line": {
     backgroundColor: "rgba(var(--el-color-primary-rgb, 64, 158, 255), 0.14)",
+  },
+  ".cm-search-match-text": {
+    backgroundColor: "rgba(var(--el-color-warning-rgb, 230, 162, 60), 0.35)",
+    borderRadius: "2px",
+  },
+  ".cm-search-match-text-active": {
+    backgroundColor: "rgba(var(--el-color-primary-rgb, 64, 158, 255), 0.4)",
+    borderRadius: "2px",
+    outline: "1px solid rgba(var(--el-color-primary-rgb, 64, 158, 255), 0.6)",
   },
 });
 
@@ -308,9 +364,9 @@ watch(
 );
 
 watch(
-  () => props.targetLine,
+  () => props.targetMatch,
   () => {
-    nextTick(() => applyTargetLine());
+    nextTick(() => applyTargetMatch());
   },
 );
 </script>

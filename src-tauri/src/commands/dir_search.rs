@@ -953,11 +953,11 @@ pub async fn dir_replace_preview(request: ReplaceRequest) -> Result<Vec<FileSear
 
 /// 根据原始文本的大小写风格转换替换文本（Preserve Case）
 ///
-/// 识别三种模式：
-/// - 全大写 (APPLE) -> 替换文本也转为全大写 (ORANGE)
-/// - 全小写 (apple) -> 替换文本也转为全小写 (orange)
-/// - 首字母大写 (Apple) -> 替换文本首字母大写 (Orange)
-/// - 其他情况 -> 原样返回替换文本
+/// 识别模式（优先级从高到低）：
+/// 1. 全大写 (APPLE) -> 替换文本也转为全大写 (ORANGE)
+/// 2. 全小写 (apple) -> 替换文本也转为全小写 (orange)
+/// 3. 首字母大写且其余小写 (Apple) -> 替换文本首字母大写其余小写 (Orange)
+/// 4. 混合大小写 (camelCase / fOoBaR) -> 逐字符映射大小写模式到替换文本
 fn preserve_case_convert(original: &str, replacement: &str) -> String {
     if original.is_empty() || replacement.is_empty() {
         return replacement.to_string();
@@ -980,17 +980,43 @@ fn preserve_case_convert(original: &str, replacement: &str) -> String {
     } else if is_all_lowercase {
         replacement.to_lowercase()
     } else {
-        // 检查是否是首字母大写 (Title Case)
-        let first_alpha = original.chars().find(|c| c.is_alphabetic());
-        if let Some(first) = first_alpha {
-            if first.is_uppercase() {
-                let mut r_chars = replacement.chars();
-                if let Some(r_first) = r_chars.next() {
-                    return r_first.to_uppercase().collect::<String>()
-                        + &r_chars.collect::<String>();
-                }
+        // 检查是否是首字母大写且其余字母全小写 (Title Case: "Apple", "Hello")
+        let alpha_chars: Vec<char> = original.chars().filter(|c| c.is_alphabetic()).collect();
+        let is_title_case = alpha_chars.len() > 1
+            && alpha_chars[0].is_uppercase()
+            && alpha_chars[1..].iter().all(|c| c.is_lowercase());
+
+        if is_title_case {
+            let mut r_chars = replacement.chars();
+            if let Some(r_first) = r_chars.next() {
+                return r_first.to_uppercase().collect::<String>()
+                    + &r_chars.collect::<String>().to_lowercase();
             }
         }
-        replacement.to_string()
+
+        // Fallback: 逐字符映射大小写模式（对齐 VS Code 行为）
+        // 将原文每个字符的大小写状态"印"到替换文本对应位置上
+        // 替换文本多出的部分保持原样
+        let orig_chars: Vec<char> = original.chars().collect();
+        let mut result = String::with_capacity(replacement.len());
+
+        for (i, r_char) in replacement.chars().enumerate() {
+            if i < orig_chars.len() {
+                let o_char = orig_chars[i];
+                if o_char.is_uppercase() {
+                    result.extend(r_char.to_uppercase());
+                } else if o_char.is_lowercase() {
+                    result.extend(r_char.to_lowercase());
+                } else {
+                    // 原文对应位置不是字母（数字、符号等），保持替换字符原样
+                    result.push(r_char);
+                }
+            } else {
+                // 替换文本比原文长，多出的字符保持原样
+                result.push(r_char);
+            }
+        }
+
+        result
     }
 }

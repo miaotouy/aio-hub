@@ -72,6 +72,7 @@ export interface ReplaceRequest {
   isRegex: boolean;
   caseSensitive: boolean;
   wholeWord: boolean;
+  preserveCase: boolean;
 }
 
 /** 替换结果 */
@@ -95,6 +96,7 @@ export interface ReplaceSingleRequest {
   matchStart: number;
   matchEnd: number;
   replacement: string;
+  preserveCase: boolean;
 }
 
 /** 单项替换结果 */

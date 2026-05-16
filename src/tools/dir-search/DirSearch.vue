@@ -30,6 +30,7 @@
           v-model:exclude-globs="search.excludeGlobs.value"
           v-model:use-gitignore="search.useGitignore.value"
           v-model:show-replace="search.showReplace.value"
+          v-model:preserve-case="search.preserveCase.value"
           v-model:view-mode="viewMode"
           :results="search.resultsList.value"
           :expanded-files="search.expandedFiles.value"

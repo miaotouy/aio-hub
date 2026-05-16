@@ -40,6 +40,7 @@
       v-model:exclude-globs="excludeGlobs"
       v-model:use-gitignore="useGitignore"
       v-model:show-replace="showReplace"
+      v-model:preserve-case="preserveCase"
       @search="$emit('search')"
       @replace-all="$emit('replaceAll')"
     />
@@ -98,6 +99,7 @@ const includeGlobs = defineModel<string>("includeGlobs", { required: true });
 const excludeGlobs = defineModel<string>("excludeGlobs", { required: true });
 const useGitignore = defineModel<boolean>("useGitignore", { required: true });
 const showReplace = defineModel<boolean>("showReplace", { required: true });
+const preserveCase = defineModel<boolean>("preserveCase", { required: true });
 const viewMode = defineModel<ViewMode>("viewMode", { required: true });
 
 const hasResults = computed(() => props.results.length > 0);

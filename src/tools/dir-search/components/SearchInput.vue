@@ -56,6 +56,15 @@
             />
           </div>
           <div class="search-input__toggles">
+            <el-tooltip content="保留大小写 (AB)" :show-after="500">
+              <button
+                class="search-input__toggle"
+                :class="{ active: preserveCase }"
+                @click="preserveCase = !preserveCase"
+              >
+                AB
+              </button>
+            </el-tooltip>
             <el-tooltip content="替换全部" :show-after="500">
               <button class="search-input__toggle action" :disabled="!canReplace" @click="$emit('replaceAll')">
                 <Replace :size="14" />
@@ -107,8 +116,13 @@
         <div class="search-input__settings-content">
           <div class="search-input__filter-row search-input__filter-row--split">
             <el-tooltip content="搜索时自动展开文件（关闭可提升大量结果时的渲染性能）" :show-after="500">
-              <label class="search-input__filter-toggle" @click="uiState.autoExpandResults.value = !uiState.autoExpandResults.value">
-                <span class="search-input__filter-checkbox" :class="{ active: uiState.autoExpandResults.value }">✓</span>
+              <label
+                class="search-input__filter-toggle"
+                @click="uiState.autoExpandResults.value = !uiState.autoExpandResults.value"
+              >
+                <span class="search-input__filter-checkbox" :class="{ active: uiState.autoExpandResults.value }"
+                  >✓</span
+                >
                 <span>自动展开</span>
               </label>
             </el-tooltip>
@@ -128,8 +142,13 @@
           </div>
           <div class="search-input__filter-row search-input__filter-row--split">
             <el-tooltip content="在结果中显示匹配行的上下文（类似 grep -C）" :show-after="500">
-              <label class="search-input__filter-toggle" @click="uiState.contextLinesEnabled.value = !uiState.contextLinesEnabled.value">
-                <span class="search-input__filter-checkbox" :class="{ active: uiState.contextLinesEnabled.value }">✓</span>
+              <label
+                class="search-input__filter-toggle"
+                @click="uiState.contextLinesEnabled.value = !uiState.contextLinesEnabled.value"
+              >
+                <span class="search-input__filter-checkbox" :class="{ active: uiState.contextLinesEnabled.value }"
+                  >✓</span
+                >
                 <span>扩展上下文</span>
               </label>
             </el-tooltip>
@@ -170,6 +189,7 @@ const includeGlobs = defineModel<string>("includeGlobs", { required: true });
 const excludeGlobs = defineModel<string>("excludeGlobs", { required: true });
 const useGitignore = defineModel<boolean>("useGitignore", { required: true });
 const showReplace = defineModel<boolean>("showReplace", { required: true });
+const preserveCase = defineModel<boolean>("preserveCase", { required: true });
 
 const emit = defineEmits<{
   search: [];

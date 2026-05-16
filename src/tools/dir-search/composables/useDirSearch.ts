@@ -31,6 +31,7 @@ export function useDirSearch() {
   const includeGlobs = uiState.includeGlobs;
   const excludeGlobs = uiState.excludeGlobs;
   const useGitignore = uiState.useGitignore;
+  const preserveCase = uiState.preserveCase;
 
   // 搜索状态
   const isSearching = ref(false);
@@ -245,6 +246,7 @@ export function useDirSearch() {
       isRegex: isRegex.value,
       caseSensitive: caseSensitive.value,
       wholeWord: wholeWord.value,
+      preserveCase: preserveCase.value,
     };
 
     try {
@@ -313,6 +315,7 @@ export function useDirSearch() {
       isRegex: isRegex.value,
       caseSensitive: caseSensitive.value,
       wholeWord: wholeWord.value,
+      preserveCase: preserveCase.value,
     };
 
     try {
@@ -360,6 +363,7 @@ export function useDirSearch() {
       matchStart: match.matchStart,
       matchEnd: match.matchEnd,
       replacement: replacement.value,
+      preserveCase: preserveCase.value,
     };
 
     try {
@@ -448,6 +452,7 @@ export function useDirSearch() {
     includeGlobs,
     excludeGlobs,
     useGitignore,
+    preserveCase,
 
     // 搜索状态
     isSearching,

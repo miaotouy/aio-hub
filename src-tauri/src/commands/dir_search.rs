@@ -165,6 +165,8 @@ pub struct ReplaceRequest {
     pub case_sensitive: bool,
     /// 是否全词匹配
     pub whole_word: bool,
+    /// 是否保留大小写
+    pub preserve_case: bool,
 }
 
 // ===== 替换结果 =====
@@ -497,8 +499,7 @@ pub async fn dir_search(
                     let remaining = Some(max_results - current_total);
 
                     // 搜索文件内容
-                    let file_matches =
-                        search_in_content(&text, &matcher, remaining, context_lines);
+                    let file_matches = search_in_content(&text, &matcher, remaining, context_lines);
 
                     if !file_matches.is_empty() {
                         let match_count = file_matches.len();
@@ -737,7 +738,21 @@ pub async fn dir_replace(request: ReplaceRequest) -> Result<ReplaceResult, Strin
         }
 
         // 执行替换
-        let new_content = regex.replace_all(&content, request.replacement.as_str());
+        let new_content = if request.preserve_case {
+            let mut result = String::with_capacity(content.len());
+            let mut last_end = 0;
+            for mat in regex.find_iter(&content) {
+                result.push_str(&content[last_end..mat.start()]);
+                let matched_text = &content[mat.start()..mat.end()];
+                let converted = preserve_case_convert(matched_text, &request.replacement);
+                result.push_str(&converted);
+                last_end = mat.end();
+            }
+            result.push_str(&content[last_end..]);
+            std::borrow::Cow::Owned(result)
+        } else {
+            regex.replace_all(&content, request.replacement.as_str())
+        };
 
         // 写回文件
         match fs::write(path, new_content.as_bytes()) {
@@ -784,6 +799,8 @@ pub struct ReplaceSingleRequest {
     pub match_end: usize,
     /// 替换文本
     pub replacement: String,
+    /// 是否保留大小写
+    pub preserve_case: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -843,7 +860,14 @@ pub async fn dir_replace_single(
     // 构建新行内容
     let before: String = chars[..request.match_start].iter().collect();
     let after: String = chars[request.match_end..].iter().collect();
-    let new_line = format!("{}{}{}", before, request.replacement, after);
+
+    let actual_replacement = if request.preserve_case {
+        preserve_case_convert(&original_text, &request.replacement)
+    } else {
+        request.replacement.clone()
+    };
+
+    let new_line = format!("{}{}{}", before, actual_replacement, after);
 
     // 重建文件内容
     let mut new_lines: Vec<String> = lines.iter().map(|l| l.to_string()).collect();
@@ -869,13 +893,13 @@ pub async fn dir_replace_single(
         request.match_start,
         request.match_end,
         original_text,
-        request.replacement
+        actual_replacement
     );
 
     Ok(ReplaceSingleResult {
         success: true,
         original_text,
-        replaced_text: request.replacement,
+        replaced_text: actual_replacement,
     })
 }
 
@@ -925,4 +949,48 @@ pub async fn dir_replace_preview(request: ReplaceRequest) -> Result<Vec<FileSear
     }
 
     Ok(results)
+}
+
+/// 根据原始文本的大小写风格转换替换文本（Preserve Case）
+///
+/// 识别三种模式：
+/// - 全大写 (APPLE) -> 替换文本也转为全大写 (ORANGE)
+/// - 全小写 (apple) -> 替换文本也转为全小写 (orange)
+/// - 首字母大写 (Apple) -> 替换文本首字母大写 (Orange)
+/// - 其他情况 -> 原样返回替换文本
+fn preserve_case_convert(original: &str, replacement: &str) -> String {
+    if original.is_empty() || replacement.is_empty() {
+        return replacement.to_string();
+    }
+
+    let has_alpha = original.chars().any(|c| c.is_alphabetic());
+    if !has_alpha {
+        return replacement.to_string();
+    }
+
+    let is_all_uppercase = original
+        .chars()
+        .all(|c| !c.is_alphabetic() || c.is_uppercase());
+    let is_all_lowercase = original
+        .chars()
+        .all(|c| !c.is_alphabetic() || c.is_lowercase());
+
+    if is_all_uppercase {
+        replacement.to_uppercase()
+    } else if is_all_lowercase {
+        replacement.to_lowercase()
+    } else {
+        // 检查是否是首字母大写 (Title Case)
+        let first_alpha = original.chars().find(|c| c.is_alphabetic());
+        if let Some(first) = first_alpha {
+            if first.is_uppercase() {
+                let mut r_chars = replacement.chars();
+                if let Some(r_first) = r_chars.next() {
+                    return r_first.to_uppercase().collect::<String>()
+                        + &r_chars.collect::<String>();
+                }
+            }
+        }
+        replacement.to_string()
+    }
 }

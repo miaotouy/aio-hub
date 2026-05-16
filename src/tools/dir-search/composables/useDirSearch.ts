@@ -1,4 +1,4 @@
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, shallowRef, triggerRef } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { watchDebounced } from "@vueuse/core";
@@ -7,6 +7,7 @@ import type {
   SearchProgress,
   SearchSummary,
   SearchRequest,
+  SearchResultBatch,
   ReplaceRequest,
   ReplaceResult,
   ReplaceSingleRequest,
@@ -33,14 +34,17 @@ export function useDirSearch() {
 
   // 搜索状态
   const isSearching = ref(false);
-  const results = ref<Map<string, FileSearchResult>>(new Map());
+  const results = shallowRef<Map<string, FileSearchResult>>(new Map());
   const summary = ref<SearchSummary | null>(null);
   const progress = ref<SearchProgress | null>(null);
+
+  // 搜索代计数器：用于解决并发竞态，确保旧搜索的 finally 不会破坏新搜索的状态
+  let searchGeneration = 0;
 
   // UI 状态
   const showReplace = uiState.showReplace;
   const selectedFilePath = ref<string | null>(null);
-  const expandedFiles = ref<Set<string>>(new Set());
+  const expandedFiles = shallowRef<Set<string>>(new Set());
 
   // 计算属性
   const resultsList = computed(() => Array.from(results.value.values()));
@@ -57,16 +61,50 @@ export function useDirSearch() {
   let unlistenResult: UnlistenFn | null = null;
   let unlistenProgress: UnlistenFn | null = null;
 
+  // 前端缓冲区：收集 batch 后定时 flush，避免频繁触发响应式更新
+  let pendingResults: FileSearchResult[] = [];
+  let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function flushPendingResults() {
+    if (pendingResults.length === 0) return;
+    const toFlush = pendingResults;
+    pendingResults = [];
+    flushTimer = null;
+
+    // 直接修改 shallowRef 内部的 Map/Set，最后统一 triggerRef
+    const map = results.value;
+    const expanded = expandedFiles.value;
+    const shouldExpand = uiState.autoExpandResults.value;
+    for (const result of toFlush) {
+      map.set(result.filePath, result);
+      if (shouldExpand) {
+        expanded.add(result.filePath);
+      }
+    }
+    // 手动触发响应式更新（无 Map 复制开销）
+    triggerRef(results);
+    if (shouldExpand) {
+      triggerRef(expandedFiles);
+    }
+  }
+
+  function scheduleFlush() {
+    if (!flushTimer) {
+      flushTimer = setTimeout(flushPendingResults, 200);
+    }
+  }
+
   /** 设置事件监听 */
   async function setupListeners() {
     // 清理旧监听
     await cleanupListeners();
 
-    unlistenResult = await listen<FileSearchResult>("dir-search-result", (event) => {
-      const result = event.payload;
-      results.value.set(result.filePath, result);
-      // 默认全部展开
-      expandedFiles.value.add(result.filePath);
+    // 监听批量结果事件
+    unlistenResult = await listen<SearchResultBatch>("dir-search-result-batch", (event) => {
+      const batch = event.payload;
+      // 先存入缓冲区，不立即触发响应式
+      pendingResults.push(...batch.results);
+      scheduleFlush();
     });
 
     unlistenProgress = await listen<SearchProgress>("dir-search-progress", (event) => {
@@ -84,6 +122,14 @@ export function useDirSearch() {
       unlistenProgress();
       unlistenProgress = null;
     }
+    // flush 剩余缓冲
+    if (flushTimer) {
+      clearTimeout(flushTimer);
+      flushTimer = null;
+    }
+    if (pendingResults.length > 0) {
+      flushPendingResults();
+    }
   }
 
   /** 执行搜索 */
@@ -96,11 +142,14 @@ export function useDirSearch() {
       await cleanupListeners();
     }
 
+    // 递增搜索代，标记当前搜索会话
+    const currentGeneration = ++searchGeneration;
+
     // 清空旧结果
     results.value = new Map();
+    expandedFiles.value = new Set();
     summary.value = null;
     progress.value = null;
-    expandedFiles.value = new Set();
     isSearching.value = true;
 
     // 设置监听
@@ -122,22 +171,42 @@ export function useDirSearch() {
       includeGlobs: parseGlobs(includeGlobs.value),
       excludeGlobs: parseGlobs(excludeGlobs.value),
       useGitignore: useGitignore.value,
-      maxResults: 10000,
+      maxResults:
+        Number.isFinite(uiState.maxResults.value) && uiState.maxResults.value > 0
+          ? uiState.maxResults.value
+          : undefined,
     };
 
     try {
       const result = await invoke<SearchSummary>("dir_search", { request });
-      summary.value = result;
+      // 只有当前代的搜索才更新结果
+      if (currentGeneration === searchGeneration) {
+        summary.value = result;
+      }
     } catch (e) {
-      errorHandler.error(e, "搜索执行失败");
+      if (currentGeneration === searchGeneration) {
+        errorHandler.error(e, "搜索执行失败");
+      }
     } finally {
-      isSearching.value = false;
-      await cleanupListeners();
+      // 只有当前代的搜索才执行清理，避免破坏后续搜索的状态
+      if (currentGeneration === searchGeneration) {
+        isSearching.value = false;
+        await cleanupListeners();
+      }
     }
   }
 
   /** 取消搜索 */
   async function cancelSearch() {
+    if (!isSearching.value) return;
+
+    // 立即递增 generation，使当前搜索的 finally 失效
+    searchGeneration++;
+    // 立即更新前端状态，给用户即时反馈
+    isSearching.value = false;
+    // 清理监听器，停止接收后续结果
+    await cleanupListeners();
+
     try {
       await invoke("dir_search_cancel");
     } catch (e) {
@@ -177,6 +246,7 @@ export function useDirSearch() {
     } else {
       expandedFiles.value.add(filePath);
     }
+    triggerRef(expandedFiles);
   }
 
   /** 全部展开 */
@@ -184,28 +254,30 @@ export function useDirSearch() {
     for (const key of results.value.keys()) {
       expandedFiles.value.add(key);
     }
+    triggerRef(expandedFiles);
   }
 
   /** 全部折叠 */
   function collapseAll() {
     expandedFiles.value.clear();
+    triggerRef(expandedFiles);
   }
 
   /** 清空搜索结果 */
   function clearResults() {
     results.value = new Map();
+    expandedFiles.value = new Set();
     summary.value = null;
     progress.value = null;
-    expandedFiles.value = new Set();
     selectedFilePath.value = null;
   }
 
   /** 从结果中移除整个文件 */
   function dismissFile(filePath: string) {
-    const newMap = new Map(results.value);
-    newMap.delete(filePath);
-    results.value = newMap;
+    results.value.delete(filePath);
     expandedFiles.value.delete(filePath);
+    triggerRef(results);
+    triggerRef(expandedFiles);
     if (selectedFilePath.value === filePath) {
       selectedFilePath.value = null;
     }
@@ -226,25 +298,26 @@ export function useDirSearch() {
 
     try {
       const freshResults = await invoke<FileSearchResult[]>("dir_replace_preview", { request });
-      const newMap = new Map(results.value);
+      const map = results.value;
 
       if (freshResults.length > 0 && freshResults[0].matches.length > 0) {
         // 用新结果更新，保留原始的 relativePath
-        const oldResult = newMap.get(filePath);
-        newMap.set(filePath, {
+        const oldResult = map.get(filePath);
+        map.set(filePath, {
           ...freshResults[0],
           relativePath: oldResult?.relativePath || freshResults[0].relativePath,
         });
       } else {
         // 该文件不再有匹配，移除
-        newMap.delete(filePath);
+        map.delete(filePath);
         expandedFiles.value.delete(filePath);
+        triggerRef(expandedFiles);
         if (selectedFilePath.value === filePath) {
           selectedFilePath.value = null;
         }
       }
 
-      results.value = newMap;
+      triggerRef(results);
     } catch (e) {
       // 刷新失败时回退为简单移除该匹配
       errorHandler.warn(e, "刷新文件匹配信息失败");
@@ -294,9 +367,8 @@ export function useDirSearch() {
       // 文件无匹配时自动移除文件
       dismissFile(filePath);
     } else {
-      const newMap = new Map(results.value);
-      newMap.set(filePath, { ...fileResult, matches: newMatches });
-      results.value = newMap;
+      results.value.set(filePath, { ...fileResult, matches: newMatches });
+      triggerRef(results);
     }
   }
 
@@ -305,29 +377,40 @@ export function useDirSearch() {
     selectedFilePath.value = filePath;
   }
 
+  // === 自动搜索门控 ===
+  // 防止 UI 状态从持久化恢复时自动触发搜索
+  // 只有在状态加载完成并经过一个 debounce 周期后才启用自动搜索
+  const autoSearchReady = ref(uiState.isLoaded.value);
+
+  if (!autoSearchReady.value) {
+    const stopLoadWatch = watch(uiState.isLoaded, (loaded) => {
+      if (loaded) {
+        // 延迟启用：确保状态恢复触发的 debounced watch 已经被跳过
+        setTimeout(() => {
+          autoSearchReady.value = true;
+        }, 350); // > debounce 300ms
+        stopLoadWatch();
+      }
+    });
+  }
+
   // === 自动搜索：输入即搜索，300ms 节流 ===
+  // 将 rootPath 也纳入 debounced watch，避免状态恢复时重复触发
   watchDebounced(
-    [pattern, isRegex, caseSensitive, wholeWord, includeGlobs, excludeGlobs, useGitignore],
+    [pattern, rootPath, isRegex, caseSensitive, wholeWord, includeGlobs, excludeGlobs, useGitignore],
     () => {
+      // 状态恢复期间不触发自动搜索
+      if (!autoSearchReady.value) return;
+
       if (pattern.value && rootPath.value) {
         executeSearch();
       } else if (!pattern.value) {
         // 清空 pattern 时清空结果
-        results.value = new Map();
-        summary.value = null;
-        progress.value = null;
-        expandedFiles.value = new Set();
+        clearResults();
       }
     },
     { debounce: 300 },
   );
-
-  // rootPath 变化时，如果已有 pattern 则立即重新搜索
-  watch(rootPath, (newPath) => {
-    if (newPath && pattern.value) {
-      executeSearch();
-    }
-  });
 
   /** 清理资源 */
   function dispose() {

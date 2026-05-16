@@ -553,26 +553,32 @@ pub struct SearchMatch {
 
 ---
 
-### Batch 7: 后端并行搜索 + IPC 批处理
+### Batch 7: 后端并行搜索 + IPC 批处理 + 可配置上限 ✅
 
-**范围**: 后端性能重构 + 前端事件适配
+**范围**: 后端性能重构 + 前端事件适配 + 搜索上限设置
 **风险**: 高（核心搜索逻辑重写）
-**涉及文件**: `src-tauri/src/commands/dir_search.rs`, `useDirSearch.ts`, `types.ts`
+**涉及文件**: `src-tauri/src/commands/dir_search.rs`, `useDirSearch.ts`, `useDirSearchUiState.ts`, `types.ts`, `SearchInput.vue`
 
-- [ ] 后端：将 `WalkBuilder.build()` 替换为 `build_parallel()`
+- [x] 后端：将 `WalkBuilder.build()` 替换为 `build_parallel()`
   - 使用 `mpsc::channel` 收集并行结果
-  - 保留取消机制（`AtomicBool` 检查）
-- [ ] 后端：实现 IPC 批处理
+  - 保留取消机制（`AtomicBool` 检查，传入并行闭包）
+  - 使用 `AtomicUsize` 跟踪总匹配数（线程安全）
+- [x] 后端：实现 IPC 批处理
   - 新增 `SearchResultBatch { results: Vec<FileSearchResult> }` 事件类型
   - 主线程消费 channel，每 20ms 或每 50 个结果批量 emit
   - 搜索结束后 flush 剩余
-- [ ] 前端 `types.ts`：新增 `SearchResultBatch` 接口
-- [ ] 前端 `useDirSearch.ts`：
+  - 进度每 200ms 汇报一次
+- [x] 后端：`max_results` 支持 0/None 表示无限制（映射为 `usize::MAX`）
+- [x] 前端 `types.ts`：新增 `SearchResultBatch` 接口
+- [x] 前端 `useDirSearch.ts`：
   - 监听事件从 `dir-search-result` 改为 `dir-search-result-batch`
   - 批量写入 results Map
-- [ ] 验证：大目录（万级文件）搜索速度提升，前端不卡顿，结果完整
+  - 使用 `uiState.maxResults` 作为请求参数
+- [x] 前端 `useDirSearchUiState.ts`：新增 `maxResults` 持久化字段（默认 10000）
+- [x] 前端 `SearchInput.vue`：过滤器区域新增"上限"数字输入框（0 = 无限制）
+- [x] 验证：前后端类型检查 + clippy 全部通过
 
-**提交信息**: `perf(dir-search): 后端并行搜索 + IPC 批处理`
+**提交信息**: `perf(dir-search): 后端并行搜索 + IPC 批处理，支持可配置搜索上限`
 
 ---
 

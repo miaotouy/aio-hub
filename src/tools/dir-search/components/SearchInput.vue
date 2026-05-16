@@ -86,12 +86,31 @@
           @keydown="onExcludeKeydown"
         />
       </div>
-      <div class="search-input__filter-row">
+      <div class="search-input__filter-row search-input__filter-row--split">
         <el-tooltip content="尊重搜索目录内的 .gitignore 规则" :show-after="500">
           <label class="search-input__filter-toggle" @click="useGitignore = !useGitignore">
             <span class="search-input__filter-checkbox" :class="{ active: useGitignore }">✓</span>
             <span>使用 .gitignore</span>
           </label>
+        </el-tooltip>
+        <el-tooltip content="搜索时自动展开文件（关闭可提升大量结果时的渲染性能）" :show-after="500">
+          <label class="search-input__filter-toggle" @click="uiState.autoExpandResults.value = !uiState.autoExpandResults.value">
+            <span class="search-input__filter-checkbox" :class="{ active: uiState.autoExpandResults.value }">✓</span>
+            <span>自动展开</span>
+          </label>
+        </el-tooltip>
+        <el-tooltip content="搜索结果数量上限（0 = 无限制）" :show-after="500">
+          <div class="search-input__max-results">
+            <label class="search-input__filter-label">上限:</label>
+            <input
+              v-model.number="uiState.maxResults.value"
+              class="search-input__max-results-input"
+              type="number"
+              min="0"
+              step="1000"
+              placeholder="10000"
+            />
+          </div>
         </el-tooltip>
       </div>
     </div>
@@ -355,6 +374,42 @@ onMounted(() => {
 
 .search-input__filter-input::placeholder {
   color: var(--el-text-color-placeholder);
+}
+
+.search-input__filter-row--split {
+  justify-content: space-between;
+}
+
+.search-input__max-results {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.search-input__max-results-input {
+  width: 64px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background-color: var(--input-bg);
+  color: var(--el-text-color-primary);
+  font-size: 12px;
+  padding: 2px 6px;
+  outline: none;
+  text-align: right;
+  transition: border-color 0.2s;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.search-input__max-results-input::-webkit-inner-spin-button,
+.search-input__max-results-input::-webkit-outer-spin-button {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.search-input__max-results-input:focus {
+  border-color: var(--el-color-primary);
 }
 
 .search-input__filter-toggle {

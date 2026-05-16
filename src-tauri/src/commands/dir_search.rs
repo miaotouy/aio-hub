@@ -1,19 +1,19 @@
 use encoding_rs::GBK;
 use ignore::overrides::OverrideBuilder;
-use ignore::WalkBuilder;
+use ignore::{WalkBuilder, WalkState};
 use regex::{Regex, RegexBuilder};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use std::time::Instant;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{mpsc, Arc};
+use std::time::{Duration, Instant};
 use tauri::{Emitter, State, Window};
 
 // ===== 取消机制 =====
 
 pub struct DirSearchCancellation {
-    cancelled: Arc<AtomicBool>,
+    pub(crate) cancelled: Arc<AtomicBool>,
 }
 
 impl DirSearchCancellation {
@@ -101,6 +101,14 @@ pub struct FileSearchResult {
     pub relative_path: String,
     /// 该文件中的所有匹配
     pub matches: Vec<SearchMatch>,
+}
+
+// ===== 搜索结果批次（IPC 批处理） =====
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchResultBatch {
+    pub results: Vec<FileSearchResult>,
 }
 
 // ===== 搜索进度事件 =====
@@ -356,113 +364,229 @@ pub async fn dir_search(
         builder.overrides(overrides);
     }
 
-    // 统计变量
-    let mut files_scanned: usize = 0;
-    let mut files_matched: usize = 0;
-    let mut total_matches: usize = 0;
-    let max_results = request.max_results.unwrap_or(10_000);
-    let mut reached_limit = false;
+    // 统计变量（原子类型，供并行线程安全访问）
+    // max_results: 0 或 None 表示无限制
+    let max_results = match request.max_results {
+        Some(0) | None => usize::MAX,
+        Some(n) => n,
+    };
+    let total_matches_atomic = Arc::new(AtomicUsize::new(0));
+    let files_scanned_atomic = Arc::new(AtomicUsize::new(0));
+    let files_matched_atomic = Arc::new(AtomicUsize::new(0));
+    let cancelled_flag = cancellation.cancelled.clone();
 
-    // 遍历文件并搜索
-    for entry in builder.build().flatten() {
-        // 检查取消
-        if cancellation.is_cancelled() {
+    // 使用 channel 收集并行搜索结果
+    let (tx, rx) = mpsc::channel::<FileSearchResult>();
+
+    // 启动并行遍历
+    let root_path_buf = root_path.to_path_buf();
+    let walker = builder.build_parallel();
+
+    let walker_handle = std::thread::spawn({
+        let total_matches_atomic = total_matches_atomic.clone();
+        let files_scanned_atomic = files_scanned_atomic.clone();
+        let files_matched_atomic = files_matched_atomic.clone();
+        let cancelled_flag = cancelled_flag.clone();
+
+        move || {
+            walker.run(|| {
+                let tx = tx.clone();
+                let matcher = matcher.clone();
+                let cancelled_flag = cancelled_flag.clone();
+                let total_matches_atomic = total_matches_atomic.clone();
+                let files_scanned_atomic = files_scanned_atomic.clone();
+                let files_matched_atomic = files_matched_atomic.clone();
+                let root_path_buf = root_path_buf.clone();
+
+                Box::new(move |entry| {
+                    // 检查取消
+                    if cancelled_flag.load(Ordering::Relaxed) {
+                        return WalkState::Quit;
+                    }
+
+                    // 检查是否已达上限
+                    if total_matches_atomic.load(Ordering::Relaxed) >= max_results {
+                        return WalkState::Quit;
+                    }
+
+                    let entry = match entry {
+                        Ok(e) => e,
+                        Err(_) => return WalkState::Continue,
+                    };
+
+                    // 只处理文件
+                    if !entry.file_type().is_some_and(|ft| ft.is_file()) {
+                        return WalkState::Continue;
+                    }
+
+                    let path = entry.path();
+
+                    // 检查文件大小
+                    if let Ok(metadata) = path.metadata() {
+                        if metadata.len() > MAX_FILE_SIZE {
+                            return WalkState::Continue;
+                        }
+                    }
+
+                    files_scanned_atomic.fetch_add(1, Ordering::Relaxed);
+
+                    // 读取文件内容
+                    let content = match fs::read(path) {
+                        Ok(bytes) => bytes,
+                        Err(_) => return WalkState::Continue,
+                    };
+
+                    // 跳过二进制文件
+                    let check_len = content.len().min(8192);
+                    if content[..check_len].contains(&0) {
+                        return WalkState::Continue;
+                    }
+
+                    // 尝试解码为文本
+                    let text = match decode_to_string(&content) {
+                        Some(s) => s,
+                        None => return WalkState::Continue,
+                    };
+
+                    // 计算剩余可用的匹配数
+                    let current_total = total_matches_atomic.load(Ordering::Relaxed);
+                    if current_total >= max_results {
+                        return WalkState::Quit;
+                    }
+                    let remaining = Some(max_results - current_total);
+
+                    // 搜索文件内容
+                    let file_matches = search_in_content(&text, &matcher, remaining);
+
+                    if !file_matches.is_empty() {
+                        let match_count = file_matches.len();
+                        total_matches_atomic.fetch_add(match_count, Ordering::Relaxed);
+                        files_matched_atomic.fetch_add(1, Ordering::Relaxed);
+
+                        // 计算相对路径
+                        let relative_path = path
+                            .strip_prefix(&root_path_buf)
+                            .unwrap_or(path)
+                            .to_string_lossy()
+                            .to_string()
+                            .replace('\\', "/");
+
+                        let result = FileSearchResult {
+                            file_path: path.to_string_lossy().to_string(),
+                            relative_path,
+                            matches: file_matches,
+                        };
+
+                        // 发送到 channel（如果接收端已关闭则停止）
+                        if tx.send(result).is_err() {
+                            return WalkState::Quit;
+                        }
+                    }
+
+                    WalkState::Continue
+                })
+            });
+        }
+    });
+
+    // 主线程：消费 channel，批量 emit 到前端
+    // 使用较大的间隔和批次，给前端渲染留余量
+    let mut batch: Vec<FileSearchResult> = Vec::with_capacity(100);
+    let mut last_emit = Instant::now();
+    let mut last_progress = Instant::now();
+    let batch_interval = Duration::from_millis(150);
+    let progress_interval = Duration::from_millis(500);
+
+    loop {
+        // 主线程也检查取消标志，避免 walker 退出后仍继续 emit 残留数据
+        if cancelled_flag.load(Ordering::Relaxed) {
+            // 丢弃 channel 中的残留数据
+            while rx.try_recv().is_ok() {}
             break;
         }
 
-        // 只处理文件
-        if !entry.file_type().is_some_and(|ft| ft.is_file()) {
-            continue;
-        }
+        match rx.recv_timeout(Duration::from_millis(50)) {
+            Ok(result) => {
+                batch.push(result);
 
-        let path = entry.path();
+                // 批量发送条件：满 100 条或超过 150ms
+                if batch.len() >= 100 || last_emit.elapsed() >= batch_interval {
+                    let _ = window.emit(
+                        "dir-search-result-batch",
+                        &SearchResultBatch {
+                            results: std::mem::take(&mut batch),
+                        },
+                    );
+                    last_emit = Instant::now();
+                }
 
-        // 检查文件大小
-        if let Ok(metadata) = path.metadata() {
-            if metadata.len() > MAX_FILE_SIZE {
-                continue;
+                // 定期发送进度
+                if last_progress.elapsed() >= progress_interval {
+                    let progress = SearchProgress {
+                        files_scanned: files_scanned_atomic.load(Ordering::Relaxed),
+                        files_matched: files_matched_atomic.load(Ordering::Relaxed),
+                        total_matches: total_matches_atomic.load(Ordering::Relaxed),
+                        current_file: None,
+                    };
+                    let _ = window.emit("dir-search-progress", &progress);
+                    last_progress = Instant::now();
+                }
             }
-        }
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                // 超时：flush 当前 batch（如果有）
+                if !batch.is_empty() {
+                    let _ = window.emit(
+                        "dir-search-result-batch",
+                        &SearchResultBatch {
+                            results: std::mem::take(&mut batch),
+                        },
+                    );
+                    last_emit = Instant::now();
+                }
 
-        files_scanned += 1;
+                // 检查 walker 是否已完成
+                if walker_handle.is_finished() {
+                    break;
+                }
 
-        // 读取文件内容
-        let content = match fs::read(path) {
-            Ok(bytes) => bytes,
-            Err(_) => continue, // 无法读取的文件跳过
-        };
-
-        // 跳过二进制文件：检查前 8KB 是否包含 NULL 字节
-        let check_len = content.len().min(8192);
-        if content[..check_len].contains(&0) {
-            continue;
-        }
-
-        // 尝试解码为文本：先 UTF-8，再 GBK fallback
-        let text = decode_to_string(&content);
-        let text = match text {
-            Some(s) => s,
-            None => continue,
-        };
-
-        // 计算剩余可用的匹配数
-        let remaining = if total_matches >= max_results {
-            break;
-        } else {
-            Some(max_results - total_matches)
-        };
-
-        // 搜索文件内容
-        let file_matches = search_in_content(&text, &matcher, remaining);
-
-        if !file_matches.is_empty() {
-            files_matched += 1;
-            total_matches += file_matches.len();
-
-            // 计算相对路径
-            let relative_path = path
-                .strip_prefix(root_path)
-                .unwrap_or(path)
-                .to_string_lossy()
-                .to_string()
-                // 统一使用正斜杠
-                .replace('\\', "/");
-
-            let result = FileSearchResult {
-                file_path: path.to_string_lossy().to_string(),
-                relative_path,
-                matches: file_matches,
-            };
-
-            // 流式发送结果
-            let _ = window.emit("dir-search-result", &result);
-
-            // 检查是否达到上限
-            if total_matches >= max_results {
-                reached_limit = true;
+                // 发送进度
+                if last_progress.elapsed() >= progress_interval {
+                    let progress = SearchProgress {
+                        files_scanned: files_scanned_atomic.load(Ordering::Relaxed),
+                        files_matched: files_matched_atomic.load(Ordering::Relaxed),
+                        total_matches: total_matches_atomic.load(Ordering::Relaxed),
+                        current_file: None,
+                    };
+                    let _ = window.emit("dir-search-progress", &progress);
+                    last_progress = Instant::now();
+                }
+            }
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
                 break;
             }
         }
-
-        // 每 100 个文件发送一次进度
-        if files_scanned.is_multiple_of(100) {
-            let progress = SearchProgress {
-                files_scanned,
-                files_matched,
-                total_matches,
-                current_file: Some(
-                    path.strip_prefix(root_path)
-                        .unwrap_or(path)
-                        .to_string_lossy()
-                        .to_string(),
-                ),
-            };
-            let _ = window.emit("dir-search-progress", &progress);
-        }
     }
 
+    // 等待 walker 线程结束
+    let _ = walker_handle.join();
+
+    // Flush 剩余的 batch
+    if !batch.is_empty() {
+        let _ = window.emit(
+            "dir-search-result-batch",
+            &SearchResultBatch {
+                results: std::mem::take(&mut batch),
+            },
+        );
+    }
+
+    // 读取最终统计
+    let files_scanned = files_scanned_atomic.load(Ordering::Relaxed);
+    let files_matched = files_matched_atomic.load(Ordering::Relaxed);
+    let total_matches = total_matches_atomic.load(Ordering::Relaxed);
     let duration = start_time.elapsed();
     let cancelled = cancellation.is_cancelled();
+    let reached_limit = total_matches >= max_results;
 
     // 发送最终进度
     let final_progress = SearchProgress {

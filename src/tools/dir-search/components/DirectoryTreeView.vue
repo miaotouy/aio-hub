@@ -48,21 +48,34 @@ defineEmits<{
 // 目录展开状态（独立于文件展开状态）
 const expandedDirs = ref<Set<string>>(new Set());
 
-// 当结果变化时，默认展开所有目录
+// 当结果变化时，增量展开新出现的目录（不重建整个 Set）
 watch(
   () => props.results,
-  () => {
-    // 展开所有目录节点
-    const allDirPaths = new Set<string>();
-    for (const result of props.results) {
-      const parts = result.relativePath.split("/");
-      let current = "";
-      for (let i = 0; i < parts.length - 1; i++) {
-        current = current ? `${current}/${parts[i]}` : parts[i];
-        allDirPaths.add(current);
+  (newResults, oldResults) => {
+    // 如果从空变为非空（新搜索），重建整个 Set
+    if (!oldResults || oldResults.length === 0) {
+      const allDirPaths = new Set<string>();
+      for (const result of newResults) {
+        const parts = result.relativePath.split("/");
+        let current = "";
+        for (let i = 0; i < parts.length - 1; i++) {
+          current = current ? `${current}/${parts[i]}` : parts[i];
+          allDirPaths.add(current);
+        }
+      }
+      expandedDirs.value = allDirPaths;
+    } else {
+      // 增量：只处理新增的文件，添加其目录路径
+      const existing = expandedDirs.value;
+      for (let j = oldResults.length; j < newResults.length; j++) {
+        const parts = newResults[j].relativePath.split("/");
+        let current = "";
+        for (let i = 0; i < parts.length - 1; i++) {
+          current = current ? `${current}/${parts[i]}` : parts[i];
+          existing.add(current);
+        }
       }
     }
-    expandedDirs.value = allDirPaths;
   },
   { immediate: true },
 );

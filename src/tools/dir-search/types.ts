@@ -106,6 +106,11 @@ export interface HighlightPart {
   isMatch: boolean;
 }
 
+/** 搜索结果批次（IPC 批处理） */
+export interface SearchResultBatch {
+  results: FileSearchResult[];
+}
+
 /** 结果视图模式 */
 export type ViewMode = "list" | "tree";
 

@@ -21,6 +21,10 @@ function createDefaultState() {
     excludeGlobs: "",
     useGitignore: true,
     showReplace: false,
+    // 搜索上限
+    maxResults: 10000,
+    // 搜索时自动展开文件（关闭可提升大量结果时的渲染性能）
+    autoExpandResults: true,
     // 视图模式
     viewMode: "list" as ViewMode,
     // 历史记录

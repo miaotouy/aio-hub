@@ -763,12 +763,13 @@ export function useChatHandler() {
     // 获取用户档案
     const effectiveUserProfile = userProfileStore.getEffectiveProfile(currentAgent.userProfileId);
 
-    const profile = getProfileById(agentConfig.profileId);
-    const vcpStore = (await import("@/tools/vcp-connector/stores/vcpConnectorStore")).useVcpStore();
-    const { isSameHost } = await import("../useIsVcpChannel");
-    const isVcpChannel =
-      profile?.baseUrl && vcpStore.config.wsUrl ? isSameHost(profile.baseUrl, vcpStore.config.wsUrl) : false;
+    // const profile = getProfileById(agentConfig.profileId);
+    // const vcpStore = (await import("@/tools/vcp-connector/stores/vcpConnectorStore")).useVcpStore();
+    // const { isSameHost } = await import("../useIsVcpChannel");
+    // const isVcpChannel =
+    //   profile?.baseUrl && vcpStore.config.wsUrl ? isSameHost(profile.baseUrl, vcpStore.config.wsUrl) : false;
 
+    const isVcpChannel = false;  // 重新解析是手动行为，不应受 VCP 限制
     logger.info("开始重新解析工具调用", {
       nodeId,
       agentId,

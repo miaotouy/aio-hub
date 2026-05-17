@@ -30,6 +30,9 @@
       </div>
 
       <div class="header-actions">
+        <el-tooltip content="打开所在目录" placement="top">
+          <el-button size="small" :icon="FolderOpen" circle plain @click="handleOpenDirectory" />
+        </el-tooltip>
         <el-switch
           :model-value="isEnabled"
           @update:model-value="$emit('toggle', manifest.name)"
@@ -117,6 +120,47 @@
         </div>
       </el-tab-pane>
 
+      <!-- 环境变量标签 -->
+      <el-tab-pane label="环境变量" name="env">
+        <div class="tab-scroll-container">
+          <div class="env-section">
+            <div class="env-description">
+              <p>为此技能的脚本执行配置环境变量。脚本运行时会自动注入这些变量。</p>
+            </div>
+
+            <!-- 环境变量列表 -->
+            <div class="env-list">
+              <div v-for="(_, index) in envEntries" :key="index" class="env-row">
+                <el-input
+                  v-model="envEntries[index].key"
+                  placeholder="变量名 (如 ENDPOINT)"
+                  size="small"
+                  class="env-key-input"
+                />
+                <el-input
+                  v-model="envEntries[index].value"
+                  placeholder="变量值"
+                  size="small"
+                  class="env-value-input"
+                  show-password
+                />
+                <el-button size="small" :icon="X" circle plain type="danger" @click="removeEnvEntry(index)" />
+              </div>
+            </div>
+
+            <!-- 添加按钮 -->
+            <el-button size="small" :icon="Plus" plain @click="addEnvEntry" class="add-env-btn">
+              添加环境变量
+            </el-button>
+
+            <!-- 保存按钮 -->
+            <div class="env-actions" v-if="envEntries.length > 0">
+              <el-button type="primary" size="small" @click="saveEnvVars">保存</el-button>
+            </div>
+          </div>
+        </div>
+      </el-tab-pane>
+
       <!-- 目录树标签 -->
       <el-tab-pane label="文件目录" name="files">
         <div class="tab-scroll-container">
@@ -197,14 +241,29 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, watch } from "vue";
 import { groupBy } from "lodash-es";
-import { Trash2, ShieldCheck, Cpu, Terminal, Database, Wrench, Folder, PencilLine, Check, X } from "lucide-vue-next";
+import {
+  Trash2,
+  ShieldCheck,
+  Cpu,
+  Terminal,
+  Database,
+  Wrench,
+  Folder,
+  PencilLine,
+  Check,
+  X,
+  FolderOpen,
+  Plus,
+} from "lucide-vue-next";
 import { ElMessageBox } from "element-plus";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import DocumentViewer from "@/components/common/DocumentViewer.vue";
 import FileIcon from "@/components/common/FileIcon.vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import { determineAssetType, getExtension } from "@/utils/fileTypeDetector";
 import { SkillService } from "../services/SkillService";
+import { useSkillManagerStore } from "../stores/skillManagerStore";
 import { customMessage } from "@/utils/customMessage";
 import type { SkillManifest } from "../types";
 
@@ -220,6 +279,7 @@ const emit = defineEmits<{
   rename: [oldName: string, newName: string];
 }>();
 
+const store = useSkillManagerStore();
 const activeTab = ref("overview");
 
 // 重命名相关逻辑
@@ -250,13 +310,59 @@ function submitRename() {
   isEditingName.value = false;
 }
 
-// 当选中的技能改变时，退出编辑模式
+// 当选中的技能改变时，退出编辑模式并重新加载环境变量
 watch(
   () => props.manifest.name,
   () => {
     isEditingName.value = false;
+    loadEnvEntries();
   },
 );
+
+// 打开 Skill 所在目录
+async function handleOpenDirectory() {
+  try {
+    await revealItemInDir(props.manifest.basePath);
+  } catch {
+    customMessage.error("无法打开目录");
+  }
+}
+
+// 环境变量编辑逻辑
+interface EnvEntry {
+  key: string;
+  value: string;
+}
+
+const envEntries = ref<EnvEntry[]>([]);
+
+function loadEnvEntries() {
+  const vars = store.getSkillEnvVars(props.manifest.name);
+  envEntries.value = Object.entries(vars).map(([key, value]) => ({ key, value }));
+}
+
+function addEnvEntry() {
+  envEntries.value.push({ key: "", value: "" });
+}
+
+function removeEnvEntry(index: number) {
+  envEntries.value.splice(index, 1);
+}
+
+function saveEnvVars() {
+  const vars: Record<string, string> = {};
+  for (const entry of envEntries.value) {
+    const key = entry.key.trim();
+    if (key) {
+      vars[key] = entry.value;
+    }
+  }
+  store.setSkillEnvVars(props.manifest.name, vars);
+  customMessage.success("环境变量已保存");
+}
+
+// 初始加载
+loadEnvEntries();
 
 const isBuiltin = computed(() => props.manifest.source === "builtin");
 
@@ -860,6 +966,51 @@ async function handleSaveFile() {
   font-size: 12px;
   color: var(--el-color-warning);
   margin-right: auto;
+}
+
+/* Environment Variables Styles */
+.env-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.env-description p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-color-secondary);
+  line-height: 1.5;
+}
+
+.env-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.env-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.env-key-input {
+  flex: 2;
+}
+
+.env-value-input {
+  flex: 3;
+}
+
+.add-env-btn {
+  align-self: flex-start;
+}
+
+.env-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 8px;
+  border-top: var(--border-width) solid var(--border-color);
 }
 
 /* Scrollbar Customization */

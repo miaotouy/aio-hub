@@ -140,8 +140,10 @@ export class SkillManagerProxy implements ToolRegistry {
     const { skill_id, script_name, args: scriptArgs } = args;
     logger.info(`正在执行技能脚本: ${skill_id}/${script_name}`, { args: scriptArgs });
 
+    const store = useSkillManagerStore();
     const runtimeSettings = this.getRuntimeSettings();
-    const result = await SkillService.runScript(skill_id, script_name, scriptArgs ?? "", runtimeSettings);
+    const envVars = store.getSkillEnvVars(skill_id);
+    const result = await SkillService.runScript(skill_id, script_name, scriptArgs ?? "", runtimeSettings, envVars);
 
     if (!result) return "脚本执行出错，请查看日志。";
     if (!result.success) {

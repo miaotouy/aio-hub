@@ -394,6 +394,7 @@ pub async fn run_skill_script(
     args: Option<String>,
     timeout_secs: Option<u64>,
     runtime_settings: Option<RuntimeSettings>,
+    env_vars: Option<HashMap<String, String>>,
 ) -> Result<SkillScriptResult, String> {
     let start_time = Instant::now();
     let timeout_duration = Duration::from_secs(timeout_secs.unwrap_or(60));
@@ -460,12 +461,20 @@ pub async fn run_skill_script(
     }
 
     let output_result = timeout(timeout_duration, async {
-        Command::new(&cmd_name)
-            .args(&cmd_args)
+        let mut cmd = Command::new(&cmd_name);
+        cmd.args(&cmd_args)
             .current_dir(&base_path)
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output()
+            .stderr(Stdio::piped());
+
+        // 注入用户配置的环境变量
+        if let Some(envs) = &env_vars {
+            for (key, value) in envs {
+                cmd.env(key, value);
+            }
+        }
+
+        cmd.output()
             .await
             .map_err(|e| format!("执行脚本失败: {}", e))
     })

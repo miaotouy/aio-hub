@@ -59,6 +59,7 @@ export const SkillService = {
     scriptName: string,
     args: string = "",
     runtimeSettings: RuntimeSettings,
+    envVars?: Record<string, string>,
   ): Promise<SkillScriptResult | null> {
     return await errorHandler.wrapAsync(async () => {
       return await invoke<SkillScriptResult>("run_skill_script", {
@@ -66,6 +67,7 @@ export const SkillService = {
         scriptName,
         args,
         runtimeSettings,
+        envVars: envVars && Object.keys(envVars).length > 0 ? envVars : null,
       });
     });
   },

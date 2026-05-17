@@ -24,6 +24,8 @@ export interface SkillManagerConfig {
   runtimeSettings: RuntimeSettings;
   /** 终端/Shell 偏好 */
   terminalPreferences: TerminalPreferences;
+  /** Per-skill 环境变量配置 (skillName -> { key: value }) */
+  skillEnvVars: Record<string, Record<string, string>>;
 }
 
 const defaultRuntimeSettings: RuntimeSettings = {
@@ -46,6 +48,7 @@ const defaultConfig: SkillManagerConfig = {
   externalScanPaths: [],
   runtimeSettings: { ...defaultRuntimeSettings },
   terminalPreferences: { ...defaultTerminalPreferences },
+  skillEnvVars: {},
 };
 
 const configManager: ConfigManager<SkillManagerConfig> = createConfigManager({
@@ -89,6 +92,7 @@ export const useSkillManagerStore = defineStore("skill-manager", () => {
       externalScanPaths: (loaded.externalScanPaths ?? []).filter(
         (p) => typeof p.path === "string" && p.path.trim().length > 0,
       ),
+      skillEnvVars: loaded.skillEnvVars ?? {},
     };
   }
 
@@ -141,6 +145,8 @@ export const useSkillManagerStore = defineStore("skill-manager", () => {
     if (idx >= 0) {
       config.value.disabledSkillIds.splice(idx, 1);
     }
+    // 清理环境变量配置
+    delete config.value.skillEnvVars[name];
     activeSkillNames.value.delete(name);
     manifests.value = manifests.value.filter((m) => m.name !== name);
     saveConfig();
@@ -160,6 +166,12 @@ export const useSkillManagerStore = defineStore("skill-manager", () => {
       activeSkillNames.value.add(newName);
     }
 
+    // 3. 迁移环境变量配置
+    if (config.value.skillEnvVars[oldName]) {
+      config.value.skillEnvVars[newName] = config.value.skillEnvVars[oldName];
+      delete config.value.skillEnvVars[oldName];
+    }
+
     saveConfig();
   }
 
@@ -171,6 +183,21 @@ export const useSkillManagerStore = defineStore("skill-manager", () => {
   /** 判断技能是否已激活 */
   function isSkillActive(name: string): boolean {
     return activeSkillNames.value.has(name);
+  }
+
+  /** 获取指定 Skill 的环境变量 */
+  function getSkillEnvVars(skillName: string): Record<string, string> {
+    return config.value.skillEnvVars[skillName] ?? {};
+  }
+
+  /** 设置指定 Skill 的环境变量 */
+  function setSkillEnvVars(skillName: string, envVars: Record<string, string>) {
+    if (Object.keys(envVars).length === 0) {
+      delete config.value.skillEnvVars[skillName];
+    } else {
+      config.value.skillEnvVars[skillName] = envVars;
+    }
+    saveConfig();
   }
 
   /** 重置激活状态（对话轮次结束） */
@@ -197,5 +224,7 @@ export const useSkillManagerStore = defineStore("skill-manager", () => {
     isSkillEnabled,
     isSkillActive,
     resetActivation,
+    getSkillEnvVars,
+    setSkillEnvVars,
   };
 });

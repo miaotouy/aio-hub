@@ -62,7 +62,7 @@ interface Emits {
   (e: "translate", targetLang?: string): void;
   (e: "toggle-translation-visible"): void;
   (e: "change-translation-mode", mode: TranslationDisplayMode): void;
-  (e: "reparse-tools"): void;
+  (e: "reparse-tools", options?: { modelId?: string; profileId?: string }): void;
 }
 
 const agentStore = useAgentStore();
@@ -250,7 +250,20 @@ const handleRegenerateWithModel = async () => {
   // result 为 null 表示用户取消选择，不做任何操作
 };
 const handleToggleEnabled = () => emit("toggle-enabled");
-const handleReparseTools = () => emit("reparse-tools");
+const handleReparseTools = () => {
+  // 检查是否有临时模型，确保渠道判断使用正确的 profileId
+  const inputManager = useChatInputManager();
+  const temporaryModel = inputManager.temporaryModel.value;
+
+  if (temporaryModel) {
+    emit("reparse-tools", {
+      modelId: temporaryModel.modelId,
+      profileId: temporaryModel.profileId,
+    });
+  } else {
+    emit("reparse-tools");
+  }
+};
 const handleAbort = () => {
   logger.info("停止按钮点击", {
     nodeId: props.message.id,

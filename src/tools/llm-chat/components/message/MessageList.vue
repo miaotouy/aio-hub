@@ -288,11 +288,13 @@ watch(
 );
 
 // 事件处理
-const handleReparseTools = async (nodeId: string) => {
+const handleReparseTools = async (nodeId: string, options?: { modelId?: string; profileId?: string }) => {
   try {
     const { customMessage } = await import("@/utils/customMessage");
     customMessage.info("正在重新解析工具...");
-    await store.reparseNodeTools(nodeId);
+    const temporaryModel =
+      options?.modelId && options?.profileId ? { modelId: options.modelId, profileId: options.profileId } : null;
+    await store.reparseNodeTools(nodeId, { temporaryModel });
     customMessage.success("工具重新解析完成");
   } catch (error) {
     const { createModuleLogger } = await import("@utils/logger");
@@ -431,7 +433,7 @@ defineExpose({
                 store.contextAnalyzerVisible = true;
               }
             "
-            @reparse-tools="handleReparseTools(msg.id)"
+            @reparse-tools="(opts: any) => handleReparseTools(msg.id, opts)"
             @save-to-branch="
               (newContent: any, attachments: any) => store.createBranchFromEdit(msg.id, newContent, attachments)
             "
@@ -487,7 +489,7 @@ defineExpose({
                 store.contextAnalyzerVisible = true;
               }
             "
-            @reparse-tools="handleReparseTools(msg.id)"
+            @reparse-tools="(opts: any) => handleReparseTools(msg.id, opts)"
             @update-translation="(translation: any) => store.updateMessageTranslation(msg.id, translation)"
           />
         </template>

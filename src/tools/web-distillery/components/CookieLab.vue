@@ -14,6 +14,9 @@ import {
   FileJson,
   FileText,
   MonitorDown,
+  ShieldAlert,
+  ShieldCheck,
+  PackageOpen,
 } from "lucide-vue-next";
 import { ElMessageBox } from "element-plus";
 import { cookieProfileStore } from "../core/cookie-profile-store";
@@ -27,6 +30,10 @@ import { useWebDistilleryStore } from "../stores/store";
 
 const errorHandler = createModuleErrorHandler("web-distillery/cookie-lab");
 const store = useWebDistilleryStore();
+
+// =========== 加密状态 ===========
+const cryptoAvailable = ref<boolean | null>(null); // null = 未检测
+const cryptoBackend = ref("");
 
 // =========== 主要数据 ===========
 const profiles = ref<CookieProfile[]>([]);
@@ -182,14 +189,46 @@ async function handleExportProfile(id: string) {
 
   const profile = profiles.value.find((p) => p.id === id);
   const filename = `cookie-profile-${profile?.name ?? id}.json`;
-  const blob = new Blob([result], { type: "application/json" });
+  downloadTextFile(result, filename, "application/json");
+  customMessage.success("已导出为 JSON 文件");
+}
+
+async function handleExportAll() {
+  if (profiles.value.length === 0) {
+    customMessage.warning("没有可导出的身份卡片");
+    return;
+  }
+
+  const result = await errorHandler.wrapAsync(() => cookieProfileStore.exportAllAsJson(), {
+    userMessage: "导出失败",
+  });
+  if (result === null) return;
+
+  const filename = `cookie-profiles-all-${new Date().toISOString().slice(0, 10)}.json`;
+  downloadTextFile(result, filename, "application/json");
+  customMessage.success(`已导出全部 ${profiles.value.length} 个身份卡片`);
+}
+
+async function handleExportAsNetscape(id: string) {
+  const result = await errorHandler.wrapAsync(() => cookieProfileStore.exportAsNetscape(id), {
+    userMessage: "导出失败",
+  });
+  if (result === null) return;
+
+  const profile = profiles.value.find((p) => p.id === id);
+  const filename = `cookies-${profile?.name ?? id}.txt`;
+  downloadTextFile(result, filename, "text/plain");
+  customMessage.success("已导出为 Netscape 格式");
+}
+
+function downloadTextFile(content: string, filename: string, mimeType: string) {
+  const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
-  customMessage.success("已导出为 JSON 文件");
 }
 
 // =========== Cookie 表格操作 ===========
@@ -450,6 +489,11 @@ function handleJsonFileSelect(event: Event) {
 onMounted(async () => {
   await cookieProfileStore.load();
   await refreshProfiles();
+
+  // 检查加密状态
+  const status = await cookieProfileStore.checkCrypto();
+  cryptoAvailable.value = status.available;
+  cryptoBackend.value = status.backend;
 });
 </script>
 
@@ -493,7 +537,35 @@ onMounted(async () => {
             </el-dropdown-menu>
           </template>
         </el-dropdown>
+        <el-dropdown trigger="click" placement="bottom-end" :disabled="profiles.length === 0">
+          <div>
+            <el-tooltip content="没有可导出的身份卡片" :disabled="profiles.length > 0" placement="top">
+              <el-button size="small" :disabled="profiles.length === 0">
+                <Download :size="13" style="margin-right: 4px" />
+                导出
+              </el-button>
+            </el-tooltip>
+          </div>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item @click="handleExportAll">
+                <PackageOpen :size="13" class="dropdown-icon" />
+                导出全部 (JSON)
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </div>
+    </div>
+
+    <!-- 加密状态提示 -->
+    <div v-if="cryptoAvailable === false" class="crypto-warning-banner">
+      <ShieldAlert :size="13" class="crypto-icon" />
+      <span>当前平台不支持加密存储，Cookie 以明文保存在本地磁盘</span>
+    </div>
+    <div v-else-if="cryptoAvailable === true" class="crypto-ok-banner">
+      <ShieldCheck :size="13" class="crypto-icon" />
+      <span>Cookie 值已通过 {{ cryptoBackend.toUpperCase() }} 加密保护</span>
     </div>
 
     <!-- 主体：按域名分组 -->
@@ -527,7 +599,8 @@ onMounted(async () => {
             @toggle-active="handleToggleActive"
             @edit="openEditDialog"
             @delete="handleDeleteProfile"
-            @export="handleExportProfile"
+            @export-json="handleExportProfile"
+            @export-netscape="handleExportAsNetscape"
           />
         </div>
       </div>
@@ -659,14 +732,26 @@ onMounted(async () => {
               <Trash2 :size="12" style="margin-right: 4px" />
               删除此卡片
             </el-button>
-            <el-button
-              v-if="!isCreating && editingProfileId"
-              size="small"
-              @click="handleExportProfile(editingProfileId!)"
-            >
-              <Download :size="12" style="margin-right: 4px" />
-              导出
-            </el-button>
+            <el-dropdown v-if="!isCreating && editingProfileId" trigger="click" placement="top-start">
+              <div>
+                <el-button size="small">
+                  <Download :size="12" style="margin-right: 4px" />
+                  导出
+                </el-button>
+              </div>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item @click="handleExportProfile(editingProfileId!)">
+                    <FileJson :size="12" class="dropdown-icon" />
+                    导出 JSON
+                  </el-dropdown-item>
+                  <el-dropdown-item @click="handleExportAsNetscape(editingProfileId!)">
+                    <FileText :size="12" class="dropdown-icon" />
+                    导出 Netscape
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
           </div>
           <div class="footer-right">
             <el-button size="small" @click="showDetailDialog = false">取消</el-button>
@@ -885,6 +970,33 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 4px;
+  flex-shrink: 0;
+}
+
+/* ===== 加密状态提示 ===== */
+.crypto-warning-banner,
+.crypto-ok-banner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.crypto-warning-banner {
+  background-color: rgba(var(--el-color-warning-rgb), calc(var(--card-opacity) * 0.08));
+  color: var(--el-color-warning);
+  border-bottom: var(--border-width) solid rgba(var(--el-color-warning-rgb), 0.2);
+}
+
+.crypto-ok-banner {
+  background-color: rgba(var(--el-color-success-rgb), calc(var(--card-opacity) * 0.06));
+  color: var(--el-color-success);
+  border-bottom: var(--border-width) solid rgba(var(--el-color-success-rgb), 0.15);
+}
+
+.crypto-icon {
   flex-shrink: 0;
 }
 

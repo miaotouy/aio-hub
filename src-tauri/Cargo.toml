@@ -97,7 +97,11 @@ sysinfo = "0.33"
 nvml-wrapper = "0.10"
 encoding_rs = "0.8.35"
 
-# OCR 依赖
+# 跨平台加密（macOS/Linux 的 AES-GCM 后端）
+aes-gcm = "0.10"
+rand = "0.8"
+
+# OCR 依赖 + DPAPI 加密
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.58", features = [
     "Graphics_Imaging",
@@ -108,6 +112,7 @@ windows = { version = "0.58", features = [
     "Win32_Foundation",
     "Win32_Graphics_Gdi",
     "Win32_UI_HiDpi",
+    "Win32_Security_Cryptography",
 ] }
 
 # macOS 特定依赖

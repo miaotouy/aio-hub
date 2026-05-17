@@ -709,6 +709,10 @@ pub fn run() {
             web_distillery::distillery_set_proxy_cookies,
             web_distillery::distillery_get_proxy_cookies,
             web_distillery::distillery_set_proxy_local_storage,
+            // 网页蒸馏室 - Cookie 加密命令
+            web_distillery::distillery_check_crypto,
+            web_distillery::distillery_encrypt_cookie_values,
+            web_distillery::distillery_decrypt_cookie_values,
             // 系统脉搏命令
             start_pulse,
             stop_pulse,

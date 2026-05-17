@@ -1,4 +1,5 @@
 import { nanoid } from "nanoid";
+import { invoke } from "@tauri-apps/api/core";
 import type { CookieEntry, CookieProfile } from "../types";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -13,6 +14,12 @@ export const MAX_COOKIES_PER_PROFILE = 200;
 
 interface CookieProfileStoreData {
   profiles: CookieProfile[];
+  encrypted?: boolean; // 标记是否已加密存储
+}
+
+interface CryptoStatus {
+  available: boolean;
+  backend: string;
 }
 
 /**
@@ -77,11 +84,12 @@ export class CookieProfileStore {
   private static instance: CookieProfileStore;
   private profiles: CookieProfile[] = [];
   private isLoaded = false;
+  private _cryptoStatus: CryptoStatus | null = null;
 
   private configManager = createConfigManager<CookieProfileStoreData>({
     moduleName: "web-distillery",
     fileName: "cookie-profiles.json",
-    createDefault: () => ({ profiles: [] }),
+    createDefault: () => ({ profiles: [], encrypted: false }),
   });
 
   private constructor() {}
@@ -93,23 +101,127 @@ export class CookieProfileStore {
     return CookieProfileStore.instance;
   }
 
+  // =========== 加密能力 ===========
+
+  /** 探测加密能力（缓存结果） */
+  public async checkCrypto(): Promise<CryptoStatus> {
+    if (this._cryptoStatus) return this._cryptoStatus;
+    try {
+      this._cryptoStatus = await invoke<CryptoStatus>("distillery_check_crypto");
+    } catch (e) {
+      logger.warn("Crypto check failed, falling back to plaintext", { error: e });
+      this._cryptoStatus = { available: false, backend: "none" };
+    }
+    logger.info("Crypto status", this._cryptoStatus);
+    return this._cryptoStatus;
+  }
+
+  /** 获取缓存的加密状态（同步，需先调用 checkCrypto） */
+  public get cryptoAvailable(): boolean {
+    return this._cryptoStatus?.available ?? false;
+  }
+
+  /** 获取加密后端名称 */
+  public get cryptoBackend(): string {
+    return this._cryptoStatus?.backend ?? "unknown";
+  }
+
   // =========== 持久化 ===========
 
   /** 加载所有 Profile（幂等） */
   public async load(): Promise<CookieProfile[]> {
     if (this.isLoaded) return this.profiles;
 
+    // 先探测加密能力
+    await this.checkCrypto();
+
     const data = await this.configManager.load();
     this.profiles = data.profiles ?? [];
+
+    // 如果文件标记为已加密，解密所有 cookie values
+    if (data.encrypted && this.profiles.length > 0) {
+      await this.decryptAllValues();
+    }
+
     this.isLoaded = true;
-    logger.info("Cookie profiles loaded", { count: this.profiles.length });
+    logger.info("Cookie profiles loaded", { count: this.profiles.length, encrypted: data.encrypted ?? false });
     return this.profiles;
   }
 
-  /** 保存到磁盘（明文脚手架，后续可替换为加密实现） */
+  /** 保存到磁盘（加密可用时自动加密 cookie values） */
   private async save(): Promise<void> {
-    await this.configManager.save({ profiles: this.profiles });
-    logger.info("Cookie profiles saved", { count: this.profiles.length });
+    const crypto = await this.checkCrypto();
+
+    if (crypto.available) {
+      // 加密后写入
+      const encryptedProfiles = await this.encryptProfiles(this.profiles);
+      await this.configManager.save({ profiles: encryptedProfiles, encrypted: true });
+      logger.info("Cookie profiles saved (encrypted)", { count: this.profiles.length });
+    } else {
+      // 明文写入
+      await this.configManager.save({ profiles: this.profiles, encrypted: false });
+      logger.info("Cookie profiles saved (plaintext)", { count: this.profiles.length });
+    }
+  }
+
+  /** 加密所有 profile 的 cookie values（返回深拷贝，不修改内存中的明文） */
+  private async encryptProfiles(profiles: CookieProfile[]): Promise<CookieProfile[]> {
+    // 收集所有 cookie values
+    const allValues: string[] = [];
+    const indexMap: { profileIdx: number; cookieIdx: number }[] = [];
+
+    for (let pi = 0; pi < profiles.length; pi++) {
+      for (let ci = 0; ci < profiles[pi].cookies.length; ci++) {
+        allValues.push(profiles[pi].cookies[ci].value);
+        indexMap.push({ profileIdx: pi, cookieIdx: ci });
+      }
+    }
+
+    if (allValues.length === 0) return structuredClone(profiles);
+
+    try {
+      const encryptedValues = await invoke<string[]>("distillery_encrypt_cookie_values", { values: allValues });
+
+      // 深拷贝并替换 values
+      const result = structuredClone(profiles);
+      for (let i = 0; i < indexMap.length; i++) {
+        const { profileIdx, cookieIdx } = indexMap[i];
+        result[profileIdx].cookies[cookieIdx].value = encryptedValues[i];
+      }
+      return result;
+    } catch (e) {
+      errorHandler.warn(e, "加密 Cookie 失败，将以明文保存");
+      return structuredClone(profiles);
+    }
+  }
+
+  /** 解密内存中所有 profile 的 cookie values（就地修改） */
+  private async decryptAllValues(): Promise<void> {
+    // 收集所有 cookie values
+    const allValues: string[] = [];
+    const indexMap: { profileIdx: number; cookieIdx: number }[] = [];
+
+    for (let pi = 0; pi < this.profiles.length; pi++) {
+      for (let ci = 0; ci < this.profiles[pi].cookies.length; ci++) {
+        allValues.push(this.profiles[pi].cookies[ci].value);
+        indexMap.push({ profileIdx: pi, cookieIdx: ci });
+      }
+    }
+
+    if (allValues.length === 0) return;
+
+    try {
+      const decryptedValues = await invoke<string[]>("distillery_decrypt_cookie_values", { values: allValues });
+
+      // 就地替换
+      for (let i = 0; i < indexMap.length; i++) {
+        const { profileIdx, cookieIdx } = indexMap[i];
+        this.profiles[profileIdx].cookies[cookieIdx].value = decryptedValues[i];
+      }
+      logger.info("Cookie values decrypted", { count: allValues.length });
+    } catch (e) {
+      errorHandler.warn(e, "解密 Cookie 失败，数据可能不可用");
+    }
   }
 
   // =========== CRUD ===========
@@ -400,12 +512,18 @@ export class CookieProfileStore {
 
   // =========== 导出 ===========
 
-  /** 导出为 JSON（完整 CookieProfile 对象） */
+  /** 导出单个 Profile 为 JSON */
   public async exportAsJson(profileId: string): Promise<string> {
     await this.load();
     const profile = this.profiles.find((p) => p.id === profileId);
     if (!profile) throw new Error(`Cookie Profile 不存在：${profileId}`);
     return JSON.stringify(profile, null, 2);
+  }
+
+  /** 导出所有 Profile 为 JSON 数组 */
+  public async exportAllAsJson(): Promise<string> {
+    await this.load();
+    return JSON.stringify(this.profiles, null, 2);
   }
 
   /**
@@ -419,6 +537,34 @@ export class CookieProfileStore {
 
     const cookieStr = profile.cookies.map((c) => `${c.name}=${c.value}`).join("; ");
     return `-H "Cookie: ${cookieStr}"`;
+  }
+
+  /**
+   * 导出单个 Profile 为 Netscape Cookie 文件格式
+   * 格式：domain\tincludeSubdomains\tpath\tsecure\texpires\tname\tvalue
+   */
+  public async exportAsNetscape(profileId: string): Promise<string> {
+    await this.load();
+    const profile = this.profiles.find((p) => p.id === profileId);
+    if (!profile) throw new Error(`Cookie Profile 不存在：${profileId}`);
+
+    const lines: string[] = [
+      "# Netscape HTTP Cookie File",
+      `# Exported from AIO Hub - Profile: ${profile.name}`,
+      `# Domain: ${profile.domain}`,
+      "",
+    ];
+
+    for (const c of profile.cookies) {
+      const domain = c.domain.startsWith(".") ? c.domain : `.${c.domain}`;
+      const includeSubdomains = "TRUE";
+      const path = c.path || "/";
+      const secure = c.secure ? "TRUE" : "FALSE";
+      const expires = c.expires ? Math.floor(new Date(c.expires).getTime() / 1000).toString() : "0";
+      lines.push(`${domain}\t${includeSubdomains}\t${path}\t${secure}\t${expires}\t${c.name}\t${c.value}`);
+    }
+
+    return lines.join("\n");
   }
 
   // =========== 从浏览器抓取 ===========

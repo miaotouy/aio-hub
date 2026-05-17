@@ -2,7 +2,7 @@
 import { computed } from "vue";
 import { formatDistanceToNow } from "date-fns";
 import { zhCN } from "date-fns/locale";
-import { MoreHorizontal, Edit2, Trash2, Download } from "lucide-vue-next";
+import { MoreHorizontal, Edit2, Trash2, FileJson, FileText } from "lucide-vue-next";
 import type { CookieProfile } from "../types";
 
 interface Props {
@@ -16,7 +16,8 @@ const emit = defineEmits<{
   "toggle-active": [id: string];
   edit: [id: string];
   delete: [id: string];
-  export: [id: string];
+  "export-json": [id: string];
+  "export-netscape": [id: string];
 }>();
 
 const hasExpiredCookies = computed(() => {
@@ -48,8 +49,12 @@ function handleDelete() {
   emit("delete", props.profile.id);
 }
 
-function handleExport() {
-  emit("export", props.profile.id);
+function handleExportJson() {
+  emit("export-json", props.profile.id);
+}
+
+function handleExportNetscape() {
+  emit("export-netscape", props.profile.id);
 }
 </script>
 
@@ -81,9 +86,13 @@ function handleExport() {
                 <Edit2 :size="12" class="dropdown-icon" />
                 编辑
               </el-dropdown-item>
-              <el-dropdown-item @click="handleExport">
-                <Download :size="12" class="dropdown-icon" />
-                导出
+              <el-dropdown-item @click="handleExportJson">
+                <FileJson :size="12" class="dropdown-icon" />
+                导出 JSON
+              </el-dropdown-item>
+              <el-dropdown-item @click="handleExportNetscape">
+                <FileText :size="12" class="dropdown-icon" />
+                导出 Netscape
               </el-dropdown-item>
               <el-dropdown-item divided class="danger-item" @click="handleDelete">
                 <Trash2 :size="12" class="dropdown-icon" />

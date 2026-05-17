@@ -1,8 +1,8 @@
 # 身份卡片 (Identity Card) 功能规划
 
-> **状态**: Implementing (P0-P2 完成，P1.5/P3 待实施)
+> **状态**: Implementing (P0-P2.5 完成，P1.5 已实现，P3 部分待实施)
 > **创建日期**: 2025-05-12
-> **最后更新**: 2025-05-15
+> **最后更新**: 2025-05-17
 > **所属模块**: `src/tools/web-distillery/components/CookieLab.vue`
 
 ---
@@ -196,14 +196,24 @@ interface CookieProfile {
 - [x] Rust `proxy.rs` 扩展全局状态，支持代理请求携带 cookie
 - [x] `actions.ts` 中 `resolveProfileForUrl()` 支持配方绑定的身份卡片优先级
 
-#### P1.5 — 存储加密（替换明文脚手架）
+#### P1.5 — 存储加密（替换明文脚手架）✅
 
-- [ ] Rust 端实现平台加密命令（`cookie_encrypt_values` / `cookie_decrypt_values`）
-- [ ] Windows: DPAPI (`CryptProtectData` / `CryptUnprotectData`)
-- [ ] macOS: Security Framework (`SecItemAdd` / `SecItemCopyMatching`)
-- [ ] Linux: libsecret（AIO 是 GUI 应用，必然有桌面环境）
-- [ ] 前端 Store 的 `load()` / `save()` 改为通过 Rust 命令加解密 cookie value
-- [ ] 直接替换明文存储实现（无需迁移逻辑，开发阶段不发版）
+- [x] Rust 端实现平台加密命令（`distillery_encrypt_cookie_values` / `distillery_decrypt_cookie_values`）
+- [x] Windows: DPAPI (`CryptProtectData` / `CryptUnprotectData`)
+- [x] macOS: Keychain (`security` CLI) + AES-256-GCM — 已实现，运行时探测可用性
+- [x] Linux: libsecret (`secret-tool` CLI) + AES-256-GCM — 已实现，运行时探测可用性
+- [x] 前端 Store 的 `load()` / `save()` 改为通过 Rust 命令加解密 cookie value
+- [x] 直接替换明文存储实现（首次 save 自动升级为加密格式）
+- [x] 加密能力探测器（`distillery_check_crypto`）+ 前端 UI 状态提示
+- [x] 非 Windows 平台优雅降级（fallback 明文 + CookieLab 警告 banner）
+
+#### P2.5 — 导入导出完善 ✅
+
+- [x] Store 添加 `exportAllAsJson()` 批量导出所有 Profile
+- [x] Store 添加 `exportAsNetscape()` 单个 Profile 导出为 Netscape 格式
+- [x] 工具栏添加"导出"下拉按钮（与"导入"对称），支持导出全部 JSON
+- [x] 卡片操作菜单拆分为"导出 JSON"和"导出 Netscape"两个选项
+- [x] 编辑对话框 footer 导出按钮改为下拉菜单，支持两种格式
 
 #### P3 — 增强体验（部分完成）
 
@@ -635,7 +645,7 @@ graph TD
 4. **Phase 4** ✅：前端集成 → actions.ts 对接、工具栏快捷入口
 5. **Phase 4.5** ✅：交互式浏览 Cookie 闭环 → 加载时注入、切换时更新、登录后保存、Cookie Jar 自动累积
 6. **Phase 5** ✅：配方绑定 → RecipeMetaDrawer 中添加身份卡片选择器 + actions.ts 配方绑定优先级
-7. **Phase 6**：拆脚手架 → 替换 Store 的 load/save 为平台加密实现
+7. **Phase 6** ✅：拆脚手架 → 替换 Store 的 load/save 为平台加密实现（Windows DPAPI，其他平台 fallback）
 8. **Phase 7**：增强体验 → 过期检测、导出格式、HttpOnly 响应提取、使用统计
 
 ---

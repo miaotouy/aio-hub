@@ -2,7 +2,7 @@
 import { computed, inject, type Ref } from "vue";
 import { useClipboard } from "@vueuse/core";
 import { toolRegistryManager } from "@/services/registry";
-import type LlmChatRegistry from "@/tools/llm-chat/llm-chat.registry";
+import type { LlmChatRegistry } from "@/tools/llm-chat/llm-chat.registry";
 import customMessage from "@/utils/customMessage";
 
 const props = defineProps<{
@@ -22,9 +22,10 @@ const { copy, copied } = useClipboard({ source: clipboardSource });
 
 // 注入来自父组件（MessageContent）的消息 ID 和设置
 const messageId = inject<string | undefined>("messageId", undefined);
-const agentInteractionConfig = inject<
-  Ref<{ sendButtonCreateBranch?: boolean } | undefined> | undefined
->("agentInteractionConfig", undefined);
+const agentInteractionConfig = inject<Ref<{ sendButtonCreateBranch?: boolean } | undefined> | undefined>(
+  "agentInteractionConfig",
+  undefined,
+);
 
 // 安全过滤内容：防止控制字符和超长文本
 const safeContent = computed(() => {
@@ -103,10 +104,7 @@ const titleMap = {
 
 <template>
   <button
-    :class="[
-      'hover-effect',
-      { 'action-button': !props.style, [`action-${props.action}`]: !props.style },
-    ]"
+    :class="['hover-effect', { 'action-button': !props.style, [`action-${props.action}`]: !props.style }]"
     :style="safeStyle"
     :title="titleMap[props.action]"
     @click="handleClick"

@@ -43,6 +43,8 @@
   - 全局鼠标监听 (`rdev`)
   - 文件安全删除至回收站 (`trash`)
   - 文件系统操作 (`fs_extra`)
+- **命令注册**: 大部分 Tauri Command 统一注册在 `src-tauri/src/lib.rs` 的 `invoke_handler` 中。新增命令时需在此文件的 `tauri::generate_handler![]` 宏中添加对应条目。
+- **模块命名规范**: 优先使用**文件名作为模块名**（如 `commands.rs`），而非 `commands/mod.rs`。这是 Rust 2018+ 推荐的模块风格，能避免编辑器中出现大量 `mod.rs` 标签页导致难以区分的问题。
 
 ### 1.3. 项目脚本与开发命令
 

@@ -167,7 +167,7 @@
 | P0     | `knowledge-processor.ts` 中的聚合/衰减逻辑        | 活代码，每次检索都在执行无意义的聚合计算 |
 | P0     | `types/agent.ts` 的 `aggregation` 子对象          | 类型定义是所有下游的源头                 |
 | P1     | `KnowledgeSection.vue` 的 UI 设置项               | 用户可见的无效配置，造成困惑             |
-| P1     | `knowledge-processor.ts` 的 `buildContextQuery()` | 查询策略需要对齐 VCP（取完整轮次）       |
+| P1     | `knowledge-processor.ts` 的 `buildContextQuery()` | 查询策略需要改进（取完整轮次）           |
 | P1     | `embeddingModelId` Agent 级覆盖                   | 简化配置层级                             |
 | P2     | `knowledge-cache.ts` 的 `findSimilar()`           | 标记 deprecated 或直接移除               |
 | P2     | `agentEditConfig.ts` 搜索索引                     | 跟随 UI 变更同步清理                     |

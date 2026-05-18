@@ -1,4 +1,4 @@
-# KnowledgeSection 重构方案：对齐记忆系统定位
+# KnowledgeSection 重构方案：精简记忆系统配置
 
 **状态**: Implementing
 **日期**: 2025-05-18
@@ -30,11 +30,9 @@
 
 ---
 
-## 1.1 VCP 设计理念对照
+## 1.1 设计理念对照
 
-VCP 的记忆系统验证了我们的方向：
-
-| VCP 设计                              | 我们的对应                              | 状态                  |
+| 设计理念                              | 我们的对应                              | 状态                  |
 | ------------------------------------- | --------------------------------------- | --------------------- |
 | `[[日记本]]` 无条件 RAG 检索          | `mode: "always"`                        | ✅ 已有               |
 | `《《日记本》》` 相似度阈值门控 + RAG | `mode: "gate"` (关键词门控)             | ✅ 已有，可扩展       |
@@ -77,64 +75,104 @@ VCP 的记忆系统验证了我们的方向：
 | **启用检索缓存** (`enableCache`)     | 保留，但简化逻辑：只做精确文本匹配，移除向量相似度匹配                                                                                |
 | **空结果提示** (`emptyText`)         | 保留                                                                                                                                  |
 
-### 2.4 查询构建策略的根本性改变（对齐 VCP）
+### 2.4 查询构建策略的根本性改变（向量空间融合）
 
-**当前实现** (`buildContextQuery()`, knowledge-processor.ts:436-444):
+**当前实现** (`buildContextQuery()`, knowledge-processor.ts:430-479):
 
 ```typescript
-// 只取 user 角色的消息
-const userMessages = messages.filter((m) => m.role === "user" && typeof m.content === "string");
-const recent = userMessages.slice(-windowSize);
-return recent.map((m) => m.content).join("\n");
+// 拼接 [User]: xxx\n[AI]: xxx\n[Tool]: xxx 字符串，整体送入 embedding
+private buildContextQuery(context: PipelineContext): string {
+  // ... 按轮提取，拼接为带角色标记的文本
+  return rounds.join("\n\n");
+}
 ```
 
-**VCP 的实际做法**（从 RAG_RETRIEVAL_DETAILS 日志确认）:
+**新策略**（向量空间融合）：
 
-VCP 将最新一轮完整对话（User + AI + Tool）清洗组合后作为查询文本，格式为：
+**不在文本层面拼接角色标记**。策略是**向量空间融合**：
 
+```javascript
+// 1. 分别提取
+userContent = this._extractTextFromContent(lastUserMessage.content);
+aiContent = this._extractTextFromContent(lastAiMessage.content);
+
+// 2. 分别净化（按角色定制）
+userContent = this.sanitizeForEmbedding(userContent, "user"); // → 去系统通知 + HTML + Emoji + 工具标记
+aiContent = this.sanitizeForEmbedding(aiContent, "assistant"); // → 去 HTML + Emoji + 工具标记
+
+// 3. 分别向量化
+const [userVector, aiVector] = await Promise.all([
+  this.getSingleEmbeddingCached(userContent),
+  this.getSingleEmbeddingCached(aiContent),
+]);
+
+// 4. 在向量空间加权平均（默认 user 0.7 : AI 0.3）
+const queryVector = this._getWeightedAverageVector([userVector, aiVector], [0.7, 0.3]);
 ```
-[User]: {用户消息}
-[AI]: {AI 完整回复（含意图分析、策略、正文）}
-[Tool]: {工具调用结果}
-```
 
-**为什么 VCP 这样做**:
+而 `[AI]: ${aiContent}\n[User]: ${userContent}` 这个带角色标记的拼接**只用于日志显示**，从未送入 Embedding API。
 
-1. **语义丰富度**: AI 的回复通常包含对用户意图的解读、关键词提取、话题分析等，这些信息能极大提升检索精准度
-2. **空消息容错**: 如果用户只发了图片（无文本）或只说了"继续"，仅靠用户消息根本无法构建有效查询
-3. **工具结果关联**: 工具调用的结果（如 MaidName、timestamp）提供了额外的元数据线索，有助于匹配相关记忆
+**为什么这样做**:
+
+1. **零噪音**: Embedding 输入是纯净的自然语言，没有 `[User]:` 这种人造标记污染向量空间
+2. **可控权重**: User 意图占 70%，AI 上下文占 30%，精确控制语义贡献度
+3. **角色定制净化**: User 消息去系统通知，AI 消息去工具调用标记，互不干扰
+4. **空消息容错**: 如果 user 为空（只发图片），仅用 AI 向量；如果 AI 为空（首轮），仅用 user 向量
+5. **长度天然受控**: 分别 embed 意味着每个输入都是单条消息长度，不会超出模型 token 限制
+
+**对比两种方案**:
+
+| 维度     | 文本拼接（当前）     | 向量空间融合（目标）      |
+| -------- | -------------------- | ------------------------- |
+| 角色标记 | 会被 embed 进去      | 不存在于 embedding 输入中 |
+| 权重控制 | 无（文本等权拼接）   | 可配置（默认 0.7:0.3）    |
+| 净化策略 | 统一管线             | 按角色定制                |
+| API 调用 | 1 次                 | 2 次（可并行）            |
+| 长度风险 | AI 回复过长可能超限  | 天然受控                  |
+| 缓存命中 | 基于拼接文本精确匹配 | 基于 user+AI 文本组合匹配 |
 
 **对 `contextWindow` 语义的影响**:
 
-| 维度   | 当前实现              | 重构后（对齐 VCP）         |
-| ------ | --------------------- | -------------------------- |
-| 单位   | "条用户消息"          | "轮完整对话"               |
-| 默认值 | 1（最后一条用户消息） | 1（最后一轮 User+AI+Tool） |
-| 内容   | 仅用户文本            | 用户 + AI回复 + 工具结果   |
-| 格式   | 纯文本拼接            | 带角色标记的结构化文本     |
+| 维度   | 当前实现              | 重构后                    |
+| ------ | --------------------- | ------------------------- |
+| 单位   | "条用户消息"          | "轮完整对话"              |
+| 默认值 | 1（最后一条用户消息） | 1（最后一轮 User+AI）     |
+| 内容   | 仅用户文本            | 用户 + AI回复（分别处理） |
+| 融合   | 文本拼接              | 向量空间加权平均          |
 
 **对缓存策略的影响**:
 
-由于查询文本现在包含 AI 回复（每次都不同），精确文本匹配缓存的**跨轮次**命中率会降为零。但这不影响其核心价值：
+缓存 key 改为基于 `userText + aiText` 的组合哈希。核心价值不变：
 
-- **同一轮内多个占位符**仍然可以共享缓存（一个 Agent 绑定多个知识库时，查询文本相同）
-- **重试 (Regenerate) 场景**：用户重试时，查询文本完全一致（用户消息不变 + 上一轮 AI 回复不变），精确匹配缓存直接命中，避免重复向量化和检索开销
+- **同一轮内多个占位符**仍然可以共享缓存（一个 Agent 绑定多个知识库时，user+AI 文本相同）
+- **重试 (Regenerate) 场景**：用户重试时，user 文本不变 + 上一轮 AI 回复不变，直接命中缓存
 - 向量相似度缓存的价值因此降低（每轮查询足够独特），进一步验证了移除它的合理性
 
 **重构方案**:
 
 ```typescript
 /**
- * 构建上下文感知查询文本（对齐 VCP 策略）
- * 取最近 N 轮完整对话（User + AI + Tool）组合为检索查询
+ * 上下文查询部件：分别提取最近 N 轮的 user 和 assistant 文本
  */
-private buildContextQuery(context: PipelineContext): string {
-  const { messages, agentConfig } = context;
-  const windowSize = agentConfig.knowledgeSettings?.contextWindow || 1;
+interface ContextQueryParts {
+  /** 用户消息文本（已净化，用于 embedding） */
+  userText: string;
+  /** AI 回复文本（已净化，用于 embedding） */
+  aiText: string;
+  /** 合并文本（仅用于日志显示和 Tag 提取，不送入 embedding） */
+  combinedForDisplay: string;
+}
 
-  // 从消息列表末尾向前，按"轮"提取
-  // 一"轮" = 最近的 user 消息 + 紧随其后的 assistant/tool 消息
-  const rounds: string[] = [];
+/**
+ * 提取上下文查询部件
+ * 取最近 N 轮对话，分别收集 user 和 assistant 文本
+ */
+private extractContextParts(context: PipelineContext): ContextQueryParts {
+  const { messages, agentConfig } = context;
+  const windowSize = agentConfig.knowledgeSettings?.contextWindow ?? 1;
+
+  const userParts: string[] = [];
+  const aiParts: string[] = [];
   let i = messages.length - 1;
   let roundCount = 0;
 
@@ -146,35 +184,125 @@ private buildContextQuery(context: PipelineContext): string {
     if (i < 0) break;
 
     const userIdx = i;
-    const parts: string[] = [];
 
-    // 收集这条 user 消息
+    // 收集 user 消息
     const userContent = messages[userIdx].content;
     if (typeof userContent === "string" && userContent.trim()) {
-      parts.push(`[User]: ${userContent.trim()}`);
+      userParts.unshift(userContent.trim());
     }
 
-    // 收集紧随其后的 assistant 和 tool 消息
+    // 收集紧随其后的 assistant 消息
     for (let j = userIdx + 1; j < messages.length; j++) {
       const msg = messages[j];
-      if (msg.role === "user") break; // 遇到下一条 user 就停止
+      if (msg.role === "user") break;
       if (typeof msg.content !== "string") continue;
 
       if (msg.role === "assistant" && msg.content.trim()) {
-        parts.push(`[AI]: ${msg.content.trim()}`);
-      } else if (msg.role === "tool" && msg.content.trim()) {
-        parts.push(`[Tool]: ${msg.content.trim()}`);
+        aiParts.unshift(msg.content.trim());
       }
+      // tool 消息的语义贡献较低，暂不纳入
     }
 
-    if (parts.length > 0) {
-      rounds.unshift(parts.join("\n"));
-      roundCount++;
-    }
+    roundCount++;
     i = userIdx - 1;
   }
 
-  return rounds.join("\n\n");
+  const userText = userParts.join("\n");
+  const aiText = aiParts.join("\n");
+  const combinedForDisplay = aiText
+    ? `[User]: ${userText}\n[AI]: ${aiText}`
+    : userText;
+
+  return { userText, aiText, combinedForDisplay };
+}
+
+/**
+ * 构建上下文查询向量（向量空间融合策略）
+ * 分别 embed user 和 AI 文本，然后加权平均
+ */
+private async buildContextQueryVector(
+  context: PipelineContext,
+  effectiveComboId: string | undefined,
+): Promise<{ vector: number[] | null; userText: string; aiText: string; combinedForDisplay: string }> {
+  const parts = this.extractContextParts(context);
+
+  // 分别通过 preprocessQuery 净化（主要用于 Tag 提取和停用词过滤）
+  const kbStore = useKnowledgeBaseStore();
+  const tagPool = kbStore.globalStats.allDiscoveredTags;
+
+  const userProcessed = preprocessQuery(parts.userText, { tagPool });
+  const aiProcessed = parts.aiText
+    ? preprocessQuery(parts.aiText, { tagPool, enableTagMatching: false }) // AI 文本不做 Tag 匹配，避免噪音
+    : { cleanedQuery: "", tokens: [], matchedTags: [] };
+
+  // 合并 Tag 匹配结果（仅来自 user 文本）
+  const matchedTags = userProcessed.matchedTags;
+
+  // 分别向量化（并行）
+  const [userVector, aiVector] = await Promise.all([
+    userProcessed.cleanedQuery
+      ? this.embedText(userProcessed.cleanedQuery, effectiveComboId)
+      : Promise.resolve(null),
+    aiProcessed.cleanedQuery
+      ? this.embedText(aiProcessed.cleanedQuery, effectiveComboId)
+      : Promise.resolve(null),
+  ]);
+
+   // 向量空间加权平均（默认 user 0.7, AI 0.3）
+  let finalVector: number[] | null = null;
+  if (userVector && aiVector) {
+    const weights = [0.7, 0.3]; // TODO: 可配置化
+    finalVector = this.weightedAverageVector([userVector, aiVector], weights);
+  } else {
+    finalVector = userVector || aiVector;
+  }
+
+  return {
+    vector: finalVector,
+    userText: userProcessed.cleanedQuery,
+    aiText: aiProcessed.cleanedQuery,
+    combinedForDisplay: parts.combinedForDisplay,
+  };
+}
+
+/**
+ * 加权平均向量计算
+ */
+private weightedAverageVector(vectors: number[][], weights: number[]): number[] {
+  const dim = vectors[0].length;
+  const result = new Array(dim).fill(0);
+  let weightSum = 0;
+
+  for (let i = 0; i < vectors.length; i++) {
+    if (!vectors[i]) continue;
+    const w = weights[i] || 0;
+    weightSum += w;
+    for (let j = 0; j < dim; j++) {
+      result[j] += vectors[i][j] * w;
+    }
+  }
+
+  if (weightSum === 0) return vectors[0];
+  for (let j = 0; j < dim; j++) {
+    result[j] /= weightSum;
+  }
+  return result;
+}
+
+/**
+ * 单文本向量化（封装 vectorCacheManager）
+ */
+private async embedText(text: string, effectiveComboId: string | undefined): Promise<number[] | null> {
+  if (!text || !effectiveComboId) return null;
+  const profileId = getProfileId(effectiveComboId);
+  const pureModelId = getPureModelId(effectiveComboId);
+  if (!profileId || !pureModelId) return null;
+
+  const { getProfileById } = useLlmProfiles();
+  const profile = getProfileById(profileId);
+  if (!profile) return null;
+
+  return vectorCacheManager.getVector(text, profile, pureModelId);
 }
 ```
 
@@ -200,7 +328,7 @@ export interface AgentKnowledgeSettings {
 
   /**
    * 召回上限 (1-50)
-   * 类似 VCP 的动态 K 值概念：这是一个上限，实际截断以 minScore 为准。
+   * 这是一个上限，实际截断以 minScore 为准。
    * 即使设为 50，如果只有 3 条超过分数阈值，就只返回 3 条。
    */
   defaultLimit?: number;
@@ -210,7 +338,7 @@ export interface AgentKnowledgeSettings {
 
   /**
    * 最低相关度分数 (0.0-1.0)
-   * 类似 VCP 的 ::Truncate 硬截断：低于此分数的条目直接丢弃，不会被召回。
+   * 低于此分数的条目直接丢弃，不会被召回。
    * 这是实际的截断依据，比 limit 更重要。
    */
   defaultMinScore?: number;
@@ -227,13 +355,13 @@ export interface AgentKnowledgeSettings {
   /**
    * 查询上下文窗口（轮数）
    * 取最近 N 轮完整对话（User + AI + Tool）组合为检索查询。
-   * 对齐 VCP 策略：不是仅取用户消息，而是取完整一轮交互。
+   * 不是仅取用户消息，而是取完整一轮交互。
    */
   contextWindow?: number;
 
   /**
    * 是否启用检索结果缓存
-   * 缓存策略：精确文本匹配（同 VCP 的缓存设计），完全一致才命中。
+   * 缓存策略：精确文本匹配，完全一致才命中。
    */
   enableCache?: boolean;
 }
@@ -241,7 +369,7 @@ export interface AgentKnowledgeSettings {
 
 对比当前类型，移除了：
 
-- `embeddingModelId` → 使用知识库全局配置（同 VCP 全局统一模型）
+- `embeddingModelId` → 使用知识库全局配置
 - `aggregation` 整个子对象 → 拍平 `contextWindow` 和 `enableCache` 到顶层，其余删除
 
 ---
@@ -278,7 +406,7 @@ export interface AgentKnowledgeSettings {
 - **UI**: `KnowledgeSection.vue` 的 `knowledgeAdvancedSettings` computed 需要重写
 - **类型**: `AgentKnowledgeSettings` 接口需要重构
 - **处理器**: `knowledge-processor.ts` 需要：
-  - **重写 `buildContextQuery()`**：从"仅取用户消息"改为"取最近 N 轮完整对话（User + AI + Tool）"，对齐 VCP 查询策略
+  - **重写 `buildContextQuery()`**：从"仅取用户消息"改为"取最近 N 轮完整对话（User + AI + Tool）"
   - 移除聚合和向量衰减逻辑（`aggregateResults()`, `computeWeightedVector()`）
   - 简化缓存查找（移除 `findSimilar()` 调用，只保留 `findByText()`）
 - **缓存**: `knowledge-cache.ts` 的 `findSimilar()` 不再被调用（保留方法但标记 deprecated）
@@ -290,26 +418,47 @@ export interface AgentKnowledgeSettings {
 
 ### 7.1 `knowledge-processor.ts` 变更
 
-#### 7.1.1 `buildContextQuery()` 重写（核心变更）
+#### 7.1.1 查询构建重写：从文本拼接改为向量空间融合（核心变更）
+
+**移除**:
+
+- `buildContextQuery()` 方法（文本拼接 `[User]: xxx\n[AI]: xxx`）
+- `buildContextVector()` 方法（单文本整体 embed）
+
+**新增**:
+
+- `extractContextParts()` — 分别提取 user/AI 文本
+- `buildContextQueryVector()` — 分别 embed + 加权平均
+- `weightedAverageVector()` — 向量加权平均工具方法
+- `embedText()` — 单文本向量化封装
+
+**execute() 主流程变更**:
 
 ```diff
-- /**
--  * 构建上下文感知查询文本 (滑动窗口)
--  */
-- private buildContextQuery(context: PipelineContext): string {
--   const { messages, agentConfig } = context;
--   const windowSize = agentConfig.knowledgeSettings?.aggregation?.contextWindow || 1;
--   const userMessages = messages.filter((m) => m.role === "user" && typeof m.content === "string");
--   const recent = userMessages.slice(-windowSize);
--   return recent.map((m) => m.content).join("\n");
+  // 旧流程：文本拼接 → 统一 embed
+- const rawQuery = this.buildContextQuery(context);
+- const { cleanedQuery, matchedTags } = preprocessQuery(rawQuery, { tagPool });
+- queryText = cleanedQuery;
+- if (isVectorNeeded) {
+-   vector = await this.buildContextVector(queryText, effectiveComboId);
 - }
-+ /**
-+  * 构建上下文感知查询文本（对齐 VCP 策略）
-+  * 取最近 N 轮完整对话（User + AI + Tool）组合为检索查询
-+  */
-+ private buildContextQuery(context: PipelineContext): string {
-+   // 实现见 §2.4 的重构方案代码
-+ }
+
+  // 新流程：分别提取 → 分别净化 → 分别 embed → 加权平均
++ const { vector: queryVector, userText, aiText, combinedForDisplay, matchedTags } =
++   await this.buildContextQueryVector(context, effectiveComboId);
++ vector = queryVector;
++ queryText = userText; // 缓存 key 和关键词检索仍基于 user 文本
+```
+
+**缓存 key 变更**:
+
+```diff
+  // 旧：基于拼接后的 rawQuery
+- cached = enableCache ? sessionCache.findByText(rawQuery) : null;
+
+  // 新：基于 user + AI 文本组合
++ const cacheKey = `${userText}|||${aiText}`;
++ cached = enableCache ? sessionCache.findByText(cacheKey) : null;
 ```
 
 #### 7.1.2 聚合与衰减逻辑移除
@@ -323,14 +472,8 @@ export interface AgentKnowledgeSettings {
 ```
 
 ```diff
-  // buildContextVector 中移除加权平均
-- if (aggregation?.queryDecay && aggregation.queryDecay < 1.0) {
--   if (history.length > 0) {
--     return this.computeWeightedVector(currentVector, history, aggregation.queryDecay);
--   }
-- }
-+ // 直接返回当前查询向量，不做历史向量混合
-  return currentVector;
+  // buildContextVector 整个方法移除（被 buildContextQueryVector 替代）
+- private async buildContextVector(...) { ... }
 ```
 
 #### 7.1.3 缓存查找简化
@@ -345,8 +488,8 @@ export interface AgentKnowledgeSettings {
 
 **缓存核心价值（精确匹配仍然有效的场景）**:
 
-1. **同一轮多占位符**: Agent 绑定了 3 个知识库，每个占位符的查询文本相同，第 2、3 次直接命中缓存
-2. **重试 (Regenerate)**: 用户点击重试时，或者换模型回复，查询文本完全一致（用户消息 + 上一轮 AI 回复都没变），直接命中缓存，省去向量化和检索开销
+1. **同一轮多占位符**: Agent 绑定了 3 个知识库，每个占位符的 user+AI 文本相同，第 2、3 次直接命中缓存
+2. **重试 (Regenerate)**: 用户点击重试时，或者换模型回复，user 文本 + 上一轮 AI 回复都没变，直接命中缓存，省去向量化和检索开销
 
 ### 7.2 `knowledge-cache.ts` 变更
 
@@ -355,7 +498,7 @@ export interface AgentKnowledgeSettings {
 
 ### 7.3 检索逻辑保持不变的部分
 
-以下逻辑与 VCP 设计一致，保持不变：
+以下逻辑保持不变：
 
 - 占位符扫描和解析
 - 激活模式判断（always / gate / turn / static）

@@ -3,7 +3,6 @@ import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("KnowledgeCache");
 
-
 /**
  * 检索结果缓存条目
  */
@@ -27,7 +26,7 @@ export class KBSessionCache {
 
   /**
    * 查找相似的缓存条目
-   * @deprecated 已废弃。记忆系统采用精确文本匹配缓存策略（对齐 VCP），不再使用向量相似度匹配。
+   * @deprecated 已废弃。记忆系统采用精确文本匹配缓存策略，不再使用向量相似度匹配。
    * 保留此方法仅为向后兼容，不应在新代码中调用。
    */
   findSimilar(vector: number[], threshold: number): RetrievalCacheEntry | null {
@@ -123,7 +122,6 @@ interface SessionCacheData {
   history: TurnRecord[];
 }
 const sessionCaches = new Map<string, SessionCacheData>();
-
 
 /**
  * 获取指定会话的检索缓存（懒初始化）

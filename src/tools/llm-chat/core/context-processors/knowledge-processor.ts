@@ -137,23 +137,20 @@ export class KnowledgeProcessor implements ContextProcessor {
       if (ph.mode === "static") {
         results = await this.handleStaticMode(ph);
       } else {
-        // 构建上下文感知查询（对齐 VCP 策略：取最近 N 轮完整对话）
-        const rawQuery = this.buildContextQuery(context);
+        // 向量空间融合策略：分别提取 user/AI 文本
+        const { userText, aiText } = this.extractContextParts(context);
         const knowledgeSettings = agentConfig.knowledgeSettings;
         // 数据迁移兼容：从旧版 aggregation 中读取 enableCache
-        const enableCache = knowledgeSettings?.enableCache
-          ?? (agentConfig.knowledgeSettings as any)?.aggregation?.enableCache
-          ?? false;
+        const enableCache =
+          knowledgeSettings?.enableCache ?? (agentConfig.knowledgeSettings as any)?.aggregation?.enableCache ?? false;
 
-        let queryText = rawQuery;
+        // 缓存 key：基于 user + AI 文本组合
+        const cacheKey = `${userText}|||${aiText}`;
         let vector: number[] | null = null;
 
         // 确定最终使用的引擎 ID (优先级: 宏参数 > Agent 默认 > 全局默认)
         const engineId =
-          ph.engineId ||
-          knowledgeSettings?.defaultEngineId ||
-          settings.value.knowledgeBase.defaultEngineId ||
-          "vector";
+          ph.engineId || knowledgeSettings?.defaultEngineId || settings.value.knowledgeBase.defaultEngineId || "vector";
 
         // 确定是否需要向量化 (vector 和 hybrid 引擎需要)
         const isVectorNeeded = engineId === "vector" || engineId === "hybrid";
@@ -163,70 +160,58 @@ export class KnowledgeProcessor implements ContextProcessor {
         const effectiveComboId = kbStore.config.defaultEmbeddingModel;
         const pureModelId = getPureModelId(effectiveComboId);
 
-        // 1. 精确文本匹配缓存（对齐 VCP：完全一致才命中）
-        let cached = enableCache ? sessionCache.findByText(rawQuery) : null;
+        // 1. 精确文本匹配缓存（完全一致才命中）
+        let cached = enableCache ? sessionCache.findByText(cacheKey) : null;
 
         if (cached) {
-          logger.debug("命中知识库检索缓存 (精确文本匹配)", { query: rawQuery });
+          logger.debug("命中知识库检索缓存 (精确文本匹配)", { cacheKey: cacheKey.slice(0, 80) });
           results = cached.results;
           vector = cached.vector || null;
         } else {
-          // 2. 查询预处理：清洗、分词、停用词过滤、Tag 匹配
-          const kbStore = useKnowledgeBaseStore();
-          const { cleanedQuery, matchedTags } = preprocessQuery(rawQuery, {
+          // 2. 查询预处理：只对 userText 执行清洗和 Tag 匹配
+          //    AI 文本不参与 Tag 匹配（避免 AI 回复中的噪音词误触发标签）
+          const { cleanedQuery, matchedTags } = preprocessQuery(userText, {
             tagPool: kbStore.globalStats.allDiscoveredTags,
           });
-          queryText = cleanedQuery;
+          const queryTextForSearch = cleanedQuery;
 
-          logger.debug("RAG 查询预处理完成", {
-            rawQuery,
-            cleanedQuery: queryText,
+          logger.debug("RAG 查询预处理完成 (向量空间融合)", {
+            userText: userText.slice(0, 100),
+            aiText: aiText.slice(0, 100),
+            cleanedQuery: queryTextForSearch,
             matchedTags,
             engineId,
             isVectorNeeded,
           });
 
-          // 只有需要向量时才生成向量（直接返回当前查询向量，不做历史向量混合）
+          // 向量空间融合：分别 embed user/AI 文本，加权平均
           if (isVectorNeeded) {
-            vector = await this.buildContextVector(queryText, effectiveComboId);
+            vector = await this.buildContextQueryVector(
+              queryTextForSearch, // user 侧使用清洗后的文本
+              aiText, // AI 侧直接使用原文
+              effectiveComboId,
+            );
           }
 
-          // 3. 也尝试清洗后文本的精确匹配缓存
-          cached = enableCache && queryText !== rawQuery ? sessionCache.findByText(queryText) : null;
+          // 执行检索（传入预处理提取的标签）
+          results = await searchKnowledge({
+            query: queryTextForSearch,
+            tags: matchedTags.length > 0 ? matchedTags : undefined,
+            vector: vector || undefined,
+            limit: ph.limit || knowledgeSettings?.defaultLimit || 5,
+            minScore: ph.minScore || knowledgeSettings?.defaultMinScore || 0.3,
+            engineId: engineId,
+            modelId: pureModelId,
+          });
 
-          if (cached) {
-            logger.debug("命中知识库检索缓存 (清洗后文本匹配)", { query: queryText });
-            results = cached.results;
-            if (!vector) vector = cached.vector || null;
-          } else {
-            // 执行检索（传入预处理提取的标签）
-            results = await searchKnowledge({
-              query: queryText,
-              tags: matchedTags.length > 0 ? matchedTags : undefined,
+          // 存入缓存
+          if (enableCache) {
+            sessionCache.add({
+              query: cacheKey,
               vector: vector || undefined,
-              limit: ph.limit || knowledgeSettings?.defaultLimit || 5,
-              minScore: ph.minScore || knowledgeSettings?.defaultMinScore || 0.3,
-              engineId: engineId,
-              modelId: pureModelId,
+              results,
+              timestamp: Date.now(),
             });
-
-            // 存入缓存 (同时存入清洗前后的查询文本以提高命中率)
-            if (enableCache) {
-              sessionCache.add({
-                query: rawQuery,
-                vector: vector || undefined,
-                results,
-                timestamp: Date.now(),
-              });
-              if (queryText !== rawQuery) {
-                sessionCache.add({
-                  query: queryText,
-                  vector: vector || undefined,
-                  results,
-                  timestamp: Date.now(),
-                });
-              }
-            }
           }
         }
 
@@ -256,7 +241,7 @@ export class KnowledgeProcessor implements ContextProcessor {
         history.push({
           results,
           timestamp: Date.now(),
-          query: queryText,
+          query: userText,
         });
         // 保留最近 10 轮历史记录用于调试
         if (history.length > 10) {
@@ -424,19 +409,22 @@ export class KnowledgeProcessor implements ContextProcessor {
   }
 
   /**
-   * 构建上下文感知查询文本（对齐 VCP 策略）
-   * 取最近 N 轮完整对话（User + AI + Tool）组合为检索查询
-   */
-  private buildContextQuery(context: PipelineContext): string {
+   /**
+    * 从对话上下文中分别提取 User 和 AI 文本（向量空间融合策略）
+    *
+    * 不在文本层面拼接角色标记，而是分别提取 → 分别净化 → 分别 embed → 向量空间加权平均。
+    */
+  private extractContextParts(context: PipelineContext): { userText: string; aiText: string } {
     const { messages, agentConfig } = context;
     // 数据迁移兼容：优先读取顶层 contextWindow，回退到旧版 aggregation.contextWindow
-    const windowSize = agentConfig.knowledgeSettings?.contextWindow
-      ?? (agentConfig.knowledgeSettings as any)?.aggregation?.contextWindow
-      ?? 1;
+    const windowSize =
+      agentConfig.knowledgeSettings?.contextWindow ??
+      (agentConfig.knowledgeSettings as any)?.aggregation?.contextWindow ??
+      1;
 
     // 从消息列表末尾向前，按"轮"提取
-    // 一"轮" = 最近的 user 消息 + 紧随其后的 assistant/tool 消息
-    const rounds: string[] = [];
+    const userParts: string[] = [];
+    const aiParts: string[] = [];
     let i = messages.length - 1;
     let roundCount = 0;
 
@@ -448,42 +436,48 @@ export class KnowledgeProcessor implements ContextProcessor {
       if (i < 0) break;
 
       const userIdx = i;
-      const parts: string[] = [];
 
-      // 收集这条 user 消息
+      // 收集 user 消息文本
       const userContent = messages[userIdx].content;
       if (typeof userContent === "string" && userContent.trim()) {
-        parts.push(`[User]: ${userContent.trim()}`);
+        userParts.unshift(userContent.trim());
       }
 
-      // 收集紧随其后的 assistant 和 tool 消息
+      // 收集紧随其后的 assistant/tool 消息文本
       for (let j = userIdx + 1; j < messages.length; j++) {
         const msg = messages[j];
-        if (msg.role === "user") break; // 遇到下一条 user 就停止
+        if (msg.role === "user") break;
         if (typeof msg.content !== "string") continue;
 
         if (msg.role === "assistant" && msg.content.trim()) {
-          parts.push(`[AI]: ${msg.content.trim()}`);
+          aiParts.unshift(msg.content.trim());
         } else if (msg.role === "tool" && msg.content.trim()) {
-          parts.push(`[Tool]: ${msg.content.trim()}`);
+          // Tool 结果归入 AI 侧（提供额外元数据线索）
+          aiParts.unshift(msg.content.trim());
         }
       }
 
-      if (parts.length > 0) {
-        rounds.unshift(parts.join("\n"));
-        roundCount++;
-      }
+      roundCount++;
       i = userIdx - 1;
     }
 
-    return rounds.join("\n\n");
+    return {
+      userText: userParts.join("\n"),
+      aiText: aiParts.join("\n"),
+    };
   }
 
   /**
-   * 构建当前查询向量（直接返回，不做历史向量混合）
+   * 构建上下文查询向量（向量空间融合策略）
+   *
+   * 策略：分别 embed user 和 AI 文本，然后在向量空间加权平均。
+   * 默认权重：user 0.7, AI 0.3
+   *
+   * @returns 融合后的查询向量，如果无法生成则返回 null
    */
-  private async buildContextVector(
-    queryText: string,
+  private async buildContextQueryVector(
+    userText: string,
+    aiText: string,
     effectiveComboId: string | undefined,
   ): Promise<number[] | null> {
     if (!effectiveComboId) {
@@ -491,7 +485,6 @@ export class KnowledgeProcessor implements ContextProcessor {
       return null;
     }
 
-    // 解析格式 profileId:modelId
     const profileId = getProfileId(effectiveComboId);
     const pureModelId = getPureModelId(effectiveComboId);
 
@@ -500,22 +493,50 @@ export class KnowledgeProcessor implements ContextProcessor {
       return null;
     }
 
+    const { getProfileById } = useLlmProfiles();
+    const profile = getProfileById(profileId);
+    if (!profile) {
+      logger.warn("找不到指定的 LLM Profile", { profileId });
+      return null;
+    }
+
     try {
-      const { getProfileById } = useLlmProfiles();
-      const profile = getProfileById(profileId);
-      if (!profile) {
-        logger.warn("找不到指定的 LLM Profile", { profileId });
-        return null;
+      // 分别 embed user 和 AI 文本
+      const userVector = userText ? await vectorCacheManager.getVector(userText, profile, pureModelId) : null;
+
+      const aiVector = aiText ? await vectorCacheManager.getVector(aiText, profile, pureModelId) : null;
+
+      // 向量空间加权平均
+      if (userVector && aiVector) {
+        return this.weightedAverageVector([userVector, aiVector], [0.7, 0.3]);
       }
 
-      // 使用统一的 vectorCacheManager 获取向量 (内部处理了缓存和 API 调用)
-      return await vectorCacheManager.getVector(queryText, profile, pureModelId);
+      // 只有一侧有向量时直接返回
+      return userVector || aiVector;
     } catch (err) {
       logger.warn("获取 Embedding 向量失败，降级为文本检索", err);
       return null;
     }
   }
 
+  /**
+   * 向量加权平均
+   */
+  private weightedAverageVector(vectors: number[][], weights: number[]): number[] {
+    const dim = vectors[0].length;
+    const result = new Array<number>(dim).fill(0);
+    const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+
+    for (let vi = 0; vi < vectors.length; vi++) {
+      const w = weights[vi] / totalWeight;
+      const vec = vectors[vi];
+      for (let d = 0; d < dim; d++) {
+        result[d] += vec[d] * w;
+      }
+    }
+
+    return result;
+  }
   /**
    * 根据 knowledgeBaseConfig 自动生成占位符（保底注入）
    *

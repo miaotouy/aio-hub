@@ -234,7 +234,6 @@ export const DEFAULT_TOOL_CALL_CONFIG: ToolCallConfig = {
  * 智能体知识库设置
  *
  * 本项目的知识库模块是"条目式记忆系统"，不是文档分片 RAG。
- * 设计对齐 VCP 6.2+ 记忆管理系统（RAGDiaryPlugin）。
  */
 export interface AgentKnowledgeSettings {
   /** 默认检索引擎 ID (vector | keyword | blender) */
@@ -242,7 +241,7 @@ export interface AgentKnowledgeSettings {
 
   /**
    * 召回上限 (1-50)
-   * 类似 VCP 的动态 K 值概念：这是一个上限，实际截断以 minScore 为准。
+   * 这是一个上限，实际截断以 minScore 为准。
    * 即使设为 50，如果只有 3 条超过分数阈值，就只返回 3 条。
    */
   defaultLimit?: number;
@@ -252,7 +251,7 @@ export interface AgentKnowledgeSettings {
 
   /**
    * 最低相关度分数 (0.0-1.0)
-   * 类似 VCP 的 ::Truncate 硬截断：低于此分数的条目直接丢弃，不会被召回。
+   * 低于此分数的条目直接丢弃，不会被召回。
    * 这是实际的截断依据，比 limit 更重要。
    */
   defaultMinScore?: number;
@@ -269,13 +268,13 @@ export interface AgentKnowledgeSettings {
   /**
    * 查询上下文窗口（轮数）
    * 取最近 N 轮完整对话（User + AI + Tool）组合为检索查询。
-   * 对齐 VCP 策略：不是仅取用户消息，而是取完整一轮交互。
+   * 不是仅取用户消息，而是取完整一轮交互。
    */
   contextWindow?: number;
 
   /**
    * 是否启用检索结果缓存
-   * 缓存策略：精确文本匹配（同 VCP 的缓存设计），完全一致才命中。
+   * 缓存策略：精确文本匹配，完全一致才命中。
    */
   enableCache?: boolean;
 }

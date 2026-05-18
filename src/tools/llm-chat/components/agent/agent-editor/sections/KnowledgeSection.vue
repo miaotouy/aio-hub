@@ -236,7 +236,7 @@ const knowledgeAdvancedSettings = computed<SettingItem[]>(() => [
     label: "上下文窗口（轮数）",
     component: "SliderWithInput",
     modelPath: "knowledgeSettings.contextWindow",
-    hint: "取最近 N 轮完整对话（User + AI + Tool）组合为检索查询。对齐 VCP 策略：不是仅取用户消息，而是取完整一轮交互。",
+    hint: "取最近 N 轮完整对话（User + AI）组合为检索查询。",
     keywords: "knowledge context window 窗口 轮次",
     props: { min: 1, max: 10, step: 1, controlsPosition: "right" },
     groupCollapsible: {

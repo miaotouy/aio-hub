@@ -273,7 +273,12 @@ const resetSelection = () => {
   selectedPresetId.value = "";
 };
 
-defineExpose({ resetSelection });
+/** 外部调用：打开保存为预设弹窗 */
+const openSaveDialog = () => {
+  handleSaveAsPreset();
+};
+
+defineExpose({ resetSelection, openSaveDialog });
 </script>
 
 <style scoped>

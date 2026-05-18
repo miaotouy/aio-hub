@@ -15,13 +15,18 @@
               <!-- 预设管理 -->
               <div class="preset-section">
                 <FFmpegPresetManager
+                  ref="presetManagerRef"
                   placeholder="选择预设…"
                   @apply="handleApplyPreset"
                   @save-as-preset="handleSaveAsPreset"
                 />
               </div>
 
-              <FFmpegParamsForm :params="params" :is-professional="isProfessional" />
+              <FFmpegParamsForm
+                :params="params"
+                :is-professional="isProfessional"
+                @save-as-preset="triggerSaveAsPreset"
+              />
 
               <div class="command-preview">
                 <div class="preview-header">
@@ -141,6 +146,7 @@ import AudioPlayer from "@/components/common/AudioPlayer.vue";
 import FileIcon from "@/components/common/FileIcon.vue";
 import FFmpegParamsForm from "./FFmpegParamsForm.vue";
 import FFmpegPresetManager from "./FFmpegPresetManager.vue";
+
 import FFmpegConsole from "./FFmpegConsole.vue";
 import MediaInfoDialog from "./MediaInfoDialog.vue";
 import { convertFileSrc } from "@tauri-apps/api/core";
@@ -151,6 +157,7 @@ import { customMessage } from "@/utils/customMessage";
 
 const store = useFFmpegStore();
 const { getMetadata, startProcess, setupListeners } = useFFmpegCore();
+const presetManagerRef = ref<InstanceType<typeof FFmpegPresetManager>>();
 
 const currentFilePath = ref("");
 const fileName = ref("");
@@ -428,6 +435,13 @@ const handleApplyPreset = (preset: import("../types").FFmpegPreset) => {
   if (presetParams.maxSizeMb !== undefined) params.maxSizeMb = presetParams.maxSizeMb;
   if (presetParams.appendParamsToName !== undefined) params.appendParamsToName = presetParams.appendParamsToName;
   customMessage.success(`已应用预设: ${preset.name}`);
+};
+
+/**
+ * 从自定义命令编辑器触发保存为预设（打开预设管理器的保存弹窗）
+ */
+const triggerSaveAsPreset = () => {
+  presetManagerRef.value?.openSaveDialog();
 };
 
 /**

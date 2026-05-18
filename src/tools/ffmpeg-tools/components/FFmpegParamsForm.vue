@@ -9,8 +9,26 @@
       </el-radio-group>
     </el-form-item>
 
+    <!-- 自定义命令模式 -->
+    <template v-if="params.mode === 'custom'">
+      <el-divider content-position="left">自定义命令</el-divider>
+      <FFmpegCustomCommand :params="params" @save-as-preset="emit('save-as-preset')" />
+
+      <el-divider content-position="left">通用选项</el-divider>
+      <div class="advanced-options">
+        <div class="switch-row">
+          <span>硬件加速 (解码)</span>
+          <el-switch v-model="params.hwaccel" />
+        </div>
+        <div class="switch-row">
+          <span>智能命名 (将参数附加到文件名)</span>
+          <el-switch v-model="params.appendParamsToName" />
+        </div>
+      </div>
+    </template>
+
     <!-- 视频配置区 -->
-    <template v-if="params.mode !== 'extract_audio'">
+    <template v-if="params.mode !== 'extract_audio' && params.mode !== 'custom'">
       <el-divider content-position="left">视频配置</el-divider>
 
       <!-- 简单模式：质量预设 -->
@@ -124,73 +142,75 @@
       </template>
     </template>
 
-    <!-- 音频配置区 -->
-    <el-divider content-position="left">
-      {{ params.mode === "extract_audio" ? "音频提取配置" : "音频配置" }}
-    </el-divider>
+    <!-- 音频配置区（自定义模式下不显示，用户在命令中自行指定） -->
+    <template v-if="params.mode !== 'custom'">
+      <el-divider content-position="left">
+        {{ params.mode === "extract_audio" ? "音频提取配置" : "音频配置" }}
+      </el-divider>
 
-    <!-- 简单音频配置 (非音频模式且非专业模式) -->
-    <template v-if="!isProfessional && params.mode !== 'extract_audio'">
-      <div class="form-row">
-        <el-form-item label="音频编码" class="flex-1">
-          <el-select v-model="params.audioEncoder">
-            <el-option label="AAC (默认)" value="aac" />
-            <el-option label="直接流拷贝 (Copy)" value="copy" />
-            <el-option label="禁用音频流 (-an)" value="none" />
-          </el-select>
-        </el-form-item>
-        <el-form-item v-if="params.audioEncoder !== 'copy'" label="音频质量" class="flex-1">
-          <el-select v-model="params.audioBitrate">
-            <el-option label="标准 (128 kbps)" value="128k" />
-            <el-option label="高音质 (192 kbps)" value="192k" />
-            <el-option label="超高音质 (320 kbps)" value="320k" />
-            <el-option label="语音 (64 kbps)" value="64k" />
-          </el-select>
-        </el-form-item>
-      </div>
+      <!-- 简单音频配置 (非音频模式且非专业模式) -->
+      <template v-if="!isProfessional && params.mode !== 'extract_audio'">
+        <div class="form-row">
+          <el-form-item label="音频编码" class="flex-1">
+            <el-select v-model="params.audioEncoder">
+              <el-option label="AAC (默认)" value="aac" />
+              <el-option label="直接流拷贝 (Copy)" value="copy" />
+              <el-option label="禁用音频流 (-an)" value="none" />
+            </el-select>
+          </el-form-item>
+          <el-form-item v-if="params.audioEncoder !== 'copy'" label="音频质量" class="flex-1">
+            <el-select v-model="params.audioBitrate">
+              <el-option label="标准 (128 kbps)" value="128k" />
+              <el-option label="高音质 (192 kbps)" value="192k" />
+              <el-option label="超高音质 (320 kbps)" value="320k" />
+              <el-option label="语音 (64 kbps)" value="64k" />
+            </el-select>
+          </el-form-item>
+        </div>
+      </template>
+
+      <!-- 增强音频配置 (音频模式 或 专业模式) -->
+      <template v-else>
+        <div class="form-row">
+          <el-form-item label="音频编码器" class="flex-1">
+            <el-select v-model="params.audioEncoder">
+              <el-option label="AAC (推荐)" value="aac" />
+              <el-option label="MP3" value="libmp3lame" />
+              <el-option label="Opus" value="libopus" />
+              <el-option label="FLAC (无损)" value="flac" />
+              <el-option label="直接流拷贝 (Copy)" value="copy" />
+              <el-option label="禁用音频流 (None)" value="none" />
+            </el-select>
+          </el-form-item>
+          <el-form-item v-if="params.audioEncoder !== 'copy'" label="音频比特率" class="flex-1">
+            <el-select v-model="params.audioBitrate">
+              <el-option label="64 kbps" value="64k" />
+              <el-option label="128 kbps" value="128k" />
+              <el-option label="192 kbps" value="192k" />
+              <el-option label="320 kbps" value="320k" />
+            </el-select>
+          </el-form-item>
+        </div>
+        <div class="form-row" v-if="params.audioEncoder !== 'copy'">
+          <el-form-item label="采样率" class="flex-1">
+            <el-select v-model="params.sampleRate" clearable placeholder="保持原始">
+              <el-option label="44100 Hz" value="44100" />
+              <el-option label="48000 Hz" value="48000" />
+              <el-option label="96000 Hz" value="96000" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="声道" class="flex-1">
+            <el-select v-model="params.audioChannels" clearable placeholder="保持原始">
+              <el-option label="单声道 (Mono)" :value="1" />
+              <el-option label="双声道 (Stereo)" :value="2" />
+              <el-option label="5.1 声道" :value="6" />
+            </el-select>
+          </el-form-item>
+        </div>
+      </template>
     </template>
 
-    <!-- 增强音频配置 (音频模式 或 专业模式) -->
-    <template v-else>
-      <div class="form-row">
-        <el-form-item label="音频编码器" class="flex-1">
-          <el-select v-model="params.audioEncoder">
-            <el-option label="AAC (推荐)" value="aac" />
-            <el-option label="MP3" value="libmp3lame" />
-            <el-option label="Opus" value="libopus" />
-            <el-option label="FLAC (无损)" value="flac" />
-            <el-option label="直接流拷贝 (Copy)" value="copy" />
-            <el-option label="禁用音频流 (None)" value="none" />
-          </el-select>
-        </el-form-item>
-        <el-form-item v-if="params.audioEncoder !== 'copy'" label="音频比特率" class="flex-1">
-          <el-select v-model="params.audioBitrate">
-            <el-option label="64 kbps" value="64k" />
-            <el-option label="128 kbps" value="128k" />
-            <el-option label="192 kbps" value="192k" />
-            <el-option label="320 kbps" value="320k" />
-          </el-select>
-        </el-form-item>
-      </div>
-      <div class="form-row" v-if="params.audioEncoder !== 'copy'">
-        <el-form-item label="采样率" class="flex-1">
-          <el-select v-model="params.sampleRate" clearable placeholder="保持原始">
-            <el-option label="44100 Hz" value="44100" />
-            <el-option label="48000 Hz" value="48000" />
-            <el-option label="96000 Hz" value="96000" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="声道" class="flex-1">
-          <el-select v-model="params.audioChannels" clearable placeholder="保持原始">
-            <el-option label="单声道 (Mono)" :value="1" />
-            <el-option label="双声道 (Stereo)" :value="2" />
-            <el-option label="5.1 声道" :value="6" />
-          </el-select>
-        </el-form-item>
-      </div>
-    </template>
-
-    <template v-if="isProfessional || params.mode === 'custom'">
+    <template v-if="isProfessional && params.mode !== 'custom'">
       <el-divider content-position="left">高级选项</el-divider>
       <div class="advanced-options">
         <div class="switch-row">
@@ -201,14 +221,9 @@
           <span>智能命名 (将参数附加到文件名)</span>
           <el-switch v-model="params.appendParamsToName" />
         </div>
-        <el-form-item label="自定义参数 (Custom Arguments)">
-          <el-input
-            v-model="customArgsStr"
-            type="textarea"
-            :rows="2"
-            placeholder="例如: -threads 4 -aspect 16:9"
-          />
-          <div class="help-text">每个参数用空格分隔，将直接传递给 FFmpeg</div>
+        <el-form-item label="附加参数 (Custom Arguments)">
+          <el-input v-model="customArgsStr" type="textarea" :rows="2" placeholder="例如: -threads 4 -aspect 16:9" />
+          <div class="help-text">额外参数，会追加到自动生成的命令之后</div>
         </el-form-item>
       </div>
     </template>
@@ -218,10 +233,15 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
 import type { FFmpegParams } from "../types";
+import FFmpegCustomCommand from "./FFmpegCustomCommand.vue";
 
 const props = defineProps<{
   params: FFmpegParams;
   isProfessional: boolean;
+}>();
+
+const emit = defineEmits<{
+  (e: "save-as-preset"): void;
 }>();
 
 const strategy = ref<"crf" | "bitrate" | "size">("crf");
@@ -253,7 +273,7 @@ watch(
       props.params.maxSizeMb = undefined;
     }
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 // 监听策略变化，清除互斥参数
@@ -302,7 +322,7 @@ watch(
         props.params.audioEncoder = "aac";
       }
     }
-  }
+  },
 );
 
 // 监听音频编码器变化，如果是 copy，清除比特率
@@ -316,7 +336,7 @@ watch(
     } else if (!props.params.audioBitrate) {
       props.params.audioBitrate = "128k";
     }
-  }
+  },
 );
 </script>
 

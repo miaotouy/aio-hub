@@ -96,7 +96,7 @@ modelMatch:
 
 ### 4. 视觉化输出指南系统
 
-AIO Hub 支持通过 \`visualGuideline\` 字段为智能体配置视觉化输出指南。该指南会通过 \`{{ visual_guideline }}\` 宏注入到上下文中。
+AIO Hub 支持通过 \`visualGuideline\` 字段为智能体配置视觉化输出指南。该指南会通过 \`\\{{ visual_guideline }}\` 宏注入到上下文中。
 
 系统内置了默认的视觉化指南预设，支持三种渲染模式：
 - **布局模式**: 直接写 HTML（不用代码块包裹），支持 HTML/MD 混排
@@ -128,7 +128,7 @@ AIO Hub 深度兼容酒馆生态，用户可以直接导入角色卡。
 1. **人设合并**：将 \`description\`, \`personality\`, \`scenario\` 合并入 \`system\` 角色消息。
 2. **开场白**：转换为 \`assistant\` 角色的预设消息，并设置 \`displayPresetCount: 1\`。
 3. **深度注入 (depth_prompt)**：转换为带有 \`injectionStrategy: { type: "depth", depth: N }\` 的消息。
-4. **宏替换**：确保使用 AIO Hub 格式（如 \`{{char}}\`, \`{{user}}\`, \`{{time}}\`, \`{{date}}\` 等）。
+4. **宏替换**：确保使用 AIO Hub 格式（如 \`\\{{char}}\`, \`\\{{user}}\`, \`\\{{time}}\`, \`\\{{date}}\` 等）。
 5. **占位符**：必须包含 \`chat_history\` 和 \`user_profile\` 锚点。
 
 ### 6. 高级功能配置概览
@@ -136,19 +136,19 @@ AIO Hub 深度兼容酒馆生态，用户可以直接导入角色卡。
 #### 知识库 (RAG)
 - 通过 \`knowledgeBaseConfig\` 和 \`knowledgeSettings\` 配置
 - 支持向量检索、关键词检索和混合检索
-- 通过 \`{{kb}}\` 宏或 \`【kb::kbName::limit::minScore::mode::params】\` 占位符触发
+- 通过 \`\\{{kb}}\` 宏或 \`【kb::kbName::limit::minScore::mode::params】\` 占位符触发
 - 激活模式：always / gate / turn / static
 
 #### 工具调用 (Tool Calling)
 - 通过 \`toolCallConfig\` 配置
 - 支持 VCP 协议（纯文本结构，适用于所有模型）
-- 通过 \`{{tools}}\` 和 \`{{tool_usage}}\` 宏注入工具定义
+- 通过 \`\\{{tools}}\` 和 \`\\{{tool_usage}}\` 宏注入工具定义
 - 支持自动/手动审批模式
 
 #### 智能体资产 (Agent Assets)
 - 通过 \`assets\` 和 \`assetGroups\` 配置
 - 使用 \`agent-asset://{group}/{id}.{ext}\` 协议引用
-- 通过 \`{{assets}}\` 或 \`{{assets::groupId}}\` 宏注入资产列表
+- 通过 \`\\{{assets}}\` 或 \`\\{{assets::groupId}}\` 宏注入资产列表
 
 #### 正则管道 (Regex Pipeline)
 - 通过 \`regexConfig\` 配置
@@ -164,11 +164,67 @@ AIO Hub 深度兼容酒馆生态，用户可以直接导入角色卡。
 #### 会话变量 (Session Variables)
 - 通过 \`variableConfig\` 配置
 - 支持树形变量定义和约束
-- 通过 \`{{getvar::path}}\` 和 \`{{setvar::path::op::value}}\` 宏操作
+- 通过 \`\\{{getvar::path}}\` 和 \`\\{{setvar::path::op::value}}\` 宏操作
 
-#### 上下文后处理管道
+#### 上下文后处理管道 (Context Post-Processing)
 - 通过 \`parameters.contextPostProcessing\` 配置
-- 支持合并连续角色、合并 system 到头部、确保角色交替等规则
+- 按 \`rules\` 数组顺序依次执行，对最终发送给 LLM 的消息列表进行格式转换
+- 每条规则包含 \`type\`（处理器 ID）、\`enabled\`（是否启用）和处理器特有的配置参数
+
+**内置处理器及其参数：**
+
+| 处理器 ID | 功能 | 可选参数 |
+|-----------|------|----------|
+| \`post:merge-system-to-head\` | 合并所有 system 消息为一条，放在列表头部 | \`separator\`: 合并分隔符（默认 \`"\\n\\n---\\n\\n"\`） |
+| \`post:merge-consecutive-roles\` | 合并连续相同角色的消息 | \`separator\`: 合并分隔符（默认 \`"\\n\\n---\\n\\n"\`） |
+| \`post:convert-system-to-user\` | 将所有 system 角色转换为 user（适用于不支持 system 的模型） | 无额外参数 |
+| \`post:ensure-alternating-roles\` | 强制 user/assistant 严格交替 | \`userPlaceholder\`: user 占位文本（默认 \`"继续"\`）；\`assistantPlaceholder\`: assistant 占位文本（默认 \`"好的"\`） |
+
+**配置示例：**
+\`\`\`yaml
+parameters:
+  contextPostProcessing:
+    rules:
+      - type: "post:merge-consecutive-roles"
+        enabled: true
+        separator: "\\n\\n---\\n\\n"
+      - type: "post:merge-system-to-head"
+        enabled: true
+        separator: "\\n\\n"
+      - type: "post:convert-system-to-user"
+        enabled: false
+      - type: "post:ensure-alternating-roles"
+        enabled: false
+        userPlaceholder: "继续"
+        assistantPlaceholder: "好的"
+\`\`\`
+
+**执行优先级说明：** 规则按固定内部顺序执行（merge-system-to-head → merge-consecutive-roles → convert-system-to-user → ensure-alternating-roles），与数组中的排列顺序无关。\`enabled: false\` 的规则会被跳过。
+
+#### 上下文管理 (Context Management)
+- 通过 \`parameters.contextManagement\` 配置
+- 控制发送给 LLM 的最大上下文窗口大小
+- 配置示例：
+\`\`\`yaml
+parameters:
+  contextManagement:
+    enabled: true
+    maxContextTokens: 128000  # 0 表示不限制，使用模型默认上限
+    retainedCharacters: 200   # 截断消息时保留的字符数（避免完全删去）
+\`\`\`
+
+#### 图片压缩 (Image Compression)
+- 通过 \`parameters.imageCompression\` 配置
+- 在发送前对图片进行格式转换和尺寸缩放，节省 Token 和带宽
+- 配置示例：
+\`\`\`yaml
+parameters:
+  imageCompression:
+    enabled: true
+    format: "webp"        # original | jpeg | webp
+    quality: 0.85         # 有损格式质量 (0.1-1.0)
+    maxDimension: 2048    # 目标最大尺寸（像素）
+\`\`\`
 
 ## 工作流程
 
@@ -185,7 +241,8 @@ AIO Hub 深度兼容酒馆生态，用户可以直接导入角色卡。
 - 预设消息使用扁平列表结构（parentId: null, childrenIds: []）。
 - 注入策略使用 injectionStrategy 字段控制位置。
 
-现在，开始去服务接下来的用户。`;
+现在，开始去服务接下来的用户。
+`;
 
 // ============ 导出预设 ============
 
@@ -220,6 +277,35 @@ const preset: Omit<AgentPreset, "id"> = {
       content: "{{ visual_guideline }}",
       role: "system",
       name: "视觉化输出指南",
+      status: "complete",
+      injectionStrategy: {
+        type: "default",
+        depth: 0,
+        anchorTarget: "chat_history",
+        anchorPosition: "after",
+        order: 100,
+      },
+    },
+    {
+      id: "wizard-tools",
+      parentId: null,
+      childrenIds: [],
+      content: `
+## 工具调用工作流程
+
+你拥有操作智能体配置的工具能力（具体方法和参数由系统自动注入）。使用时遵循以下策略：
+
+1. 先用只读方法（list/search/read）定位目标智能体并了解当前配置
+2. 再用写入方法进行精确修改
+3. 如果用户要从零创建，直接使用 import 方法
+4. 修改/创建时务必保持核心原则：预设消息必须包含 \`chat_history\` 和 \`user_profile\` 锚点，注入策略要合理
+
+{{tools}}
+
+{{tool_usage}}
+`,
+      role: "system",
+      name: "工具定义注入",
       status: "complete",
       injectionStrategy: {
         type: "default",
@@ -292,9 +378,50 @@ const preset: Omit<AgentPreset, "id"> = {
   displayPresetCount: 1,
   parameters: {
     maxTokens: 8192,
+    contextPostProcessing: {
+      rules: [
+        {
+          type: "post:merge-consecutive-roles",
+          enabled: true,
+          separator: "\n\n---\n\n",
+        },
+        {
+          type: "post:merge-system-to-head",
+          enabled: true,
+          separator: "\n\n---\n\n",
+        },
+      ],
+    },
   },
   category: AgentCategory.Workflow,
   tags: ["配置", "转换", "向导", "教程"],
+  toolCallConfig: {
+    enabled: true,
+    mode: "auto" as const,
+    toolToggles: {
+      "llm-chat": true,
+    },
+    autoApproveTools: {},
+    autoApproveMethods: {
+      // 只读方法自动批准
+      "llm-chat_list_agents": true,
+      "llm-chat_search_agents": true,
+      "llm-chat_read_agent_config": true,
+      "llm-chat_export_agent_as_text": true,
+      // 写入方法需要用户确认
+      "llm-chat_set_agent_field": false,
+      "llm-chat_find_replace_in_presets": false,
+      "llm-chat_add_preset_message": false,
+      "llm-chat_delete_preset_message": false,
+      "llm-chat_import_agent_from_text": false,
+    },
+    defaultToolEnabled: false,
+    defaultAutoApprove: false,
+    maxIterations: 10,
+    timeout: 30000,
+    parallelExecution: false,
+    autoInjectIfMacroMissing: true,
+  },
 };
 
 export default preset;

@@ -6,7 +6,7 @@
  * 核心业务逻辑已迁移至 services/llmChatService.ts。
  */
 
-import type { ToolRegistry, ToolConfig } from "@/services/types";
+import type { ToolRegistry, ToolConfig, ServiceMetadata } from "@/services/types";
 import type { DetachableComponentRegistration } from "@/types/detachable";
 import { markRaw, computed, type Ref } from "vue";
 import { ChatDotRound } from "@element-plus/icons-vue";
@@ -17,6 +17,19 @@ import { resolveAvatarPath } from "./composables/ui/useResolvedAvatar";
 import { llmChatService, type InputOperationResult, type AddContentOptions } from "./services/llmChatService";
 import type { Asset } from "@/types/asset-management";
 import type { ChatSessionIndex, ChatSessionDetail, ChatAgent, UserProfile } from "./types";
+import * as agentManagementService from "./services/agentManagementService";
+
+/**
+ * UI 工具配置
+ */
+export const toolConfig: ToolConfig = {
+  name: "LLM 对话",
+  path: "/llm-chat",
+  icon: markRaw(ChatDotRound),
+  component: () => import("./LlmChat.vue"),
+  description: "树状分支对话工具，支持智能体管理、附件上传、多会话系统和上下文分析",
+  category: ["AI 工具"],
+};
 
 // ==================== 服务类 ====================
 
@@ -219,22 +232,199 @@ export default class LlmChatRegistry implements ToolRegistry {
       disableNativeResize: true, // 禁用原生窗口边缘缩放，使用组件自带的缩放逻辑
     },
   };
+
+  // ==================== Agent Callable Metadata ====================
+
+  public getMetadata(): ServiceMetadata {
+    return {
+      methods: [
+        {
+          name: "llm-chat_list_agents",
+          displayName: "列出智能体",
+          description: "列出所有智能体的摘要信息，支持按分类或标签过滤",
+          parameters: [
+            {
+              name: "filter",
+              type: "string",
+              required: false,
+              description: "过滤条件，如 'category:xxx' 或 'tag:xxx'",
+            },
+          ],
+          returnType: "Promise<string>",
+          agentCallable: true,
+        },
+        {
+          name: "llm-chat_search_agents",
+          displayName: "搜索智能体",
+          description: "按关键词搜索智能体（匹配名称、描述、标签）",
+          parameters: [{ name: "query", type: "string", required: true, description: "搜索关键词" }],
+          returnType: "Promise<string>",
+          agentCallable: true,
+        },
+        {
+          name: "llm-chat_read_agent_config",
+          displayName: "读取智能体配置",
+          description: "读取智能体的配置信息（YAML 格式），支持按 section 分段读取",
+          parameters: [
+            { name: "agentId", type: "string", required: true, description: "智能体 ID" },
+            {
+              name: "section",
+              type: "string",
+              required: false,
+              description:
+                "配置分段（metadata/presetMessages/parameters/toolCallConfig/regexConfig/knowledgeConfig/assets/advanced/all）",
+            },
+          ],
+          returnType: "Promise<string>",
+          agentCallable: true,
+        },
+        {
+          name: "llm-chat_export_agent_as_text",
+          displayName: "导出智能体配置",
+          description: "将智能体完整配置导出为文本（YAML 或 JSON）",
+          parameters: [
+            { name: "agentId", type: "string", required: true, description: "智能体 ID" },
+            { name: "format", type: "string", required: false, description: "导出格式：yaml（默认）或 json" },
+          ],
+          returnType: "Promise<string>",
+          agentCallable: true,
+        },
+        {
+          name: "llm-chat_set_agent_field",
+          displayName: "设置字段",
+          description: "通过路径式定位设置智能体配置字段的值",
+          parameters: [
+            { name: "agentId", type: "string", required: true, description: "智能体 ID" },
+            {
+              name: "path",
+              type: "string",
+              required: true,
+              description: "字段路径（如 'name', 'parameters.temperature', 'presetMessages[0].content'）",
+            },
+            {
+              name: "value",
+              type: "string",
+              required: true,
+              description: "新值（自动推断类型：布尔/数字/JSON/字符串）",
+            },
+          ],
+          returnType: "Promise<string>",
+          agentCallable: true,
+        },
+        {
+          name: "llm-chat_find_replace_in_presets",
+          displayName: "查找替换",
+          description: "在智能体预设消息的 content 中执行查找替换",
+          parameters: [
+            { name: "agentId", type: "string", required: true, description: "智能体 ID" },
+            { name: "search", type: "string", required: true, description: "要查找的文本或正则表达式" },
+            { name: "replace", type: "string", required: true, description: "替换为的文本" },
+            { name: "regex", type: "string", required: false, description: "是否使用正则模式（'true'/'false'）" },
+            { name: "messageId", type: "string", required: false, description: "限定在指定消息 ID 中操作" },
+          ],
+          returnType: "Promise<string>",
+          agentCallable: true,
+        },
+        {
+          name: "llm-chat_add_preset_message",
+          displayName: "添加预设消息",
+          description: "向智能体添加一条新的预设消息",
+          parameters: [
+            { name: "agentId", type: "string", required: true, description: "智能体 ID" },
+            { name: "role", type: "string", required: true, description: "消息角色：system/user/assistant" },
+            { name: "content", type: "string", required: true, description: "消息内容" },
+            { name: "name", type: "string", required: false, description: "消息名称标识" },
+            {
+              name: "position",
+              type: "string",
+              required: false,
+              description: "插入位置（start/end/before:chat_history/after:chat_history/before:id/after:id）",
+            },
+            { name: "injectionStrategy", type: "string", required: false, description: "注入策略 JSON" },
+          ],
+          returnType: "Promise<string>",
+          agentCallable: true,
+        },
+        {
+          name: "llm-chat_delete_preset_message",
+          displayName: "删除预设消息",
+          description: "删除智能体中指定的预设消息",
+          parameters: [
+            { name: "agentId", type: "string", required: true, description: "智能体 ID" },
+            { name: "messageId", type: "string", required: true, description: "要删除的预设消息 ID" },
+          ],
+          returnType: "Promise<string>",
+          agentCallable: true,
+        },
+        {
+          name: "llm-chat_import_agent_from_text",
+          displayName: "导入智能体配置",
+          description: "从 YAML/JSON 文本创建新的智能体",
+          parameters: [
+            { name: "text", type: "string", required: true, description: "智能体配置文本（YAML 或 JSON 格式）" },
+            { name: "format", type: "string", required: false, description: "格式提示：yaml/json/auto（默认 auto）" },
+          ],
+          returnType: "Promise<string>",
+          agentCallable: true,
+        },
+      ],
+    };
+  }
+
+  // ==================== Agent Callable Methods ====================
+
+  async "llm-chat_list_agents"(args: { filter?: string }): Promise<string> {
+    return await agentManagementService.list_agents(args);
+  }
+
+  async "llm-chat_search_agents"(args: { query: string }): Promise<string> {
+    return await agentManagementService.search_agents(args);
+  }
+
+  async "llm-chat_read_agent_config"(args: { agentId: string; section?: string }): Promise<string> {
+    return await agentManagementService.read_agent_config(args);
+  }
+
+  async "llm-chat_export_agent_as_text"(args: { agentId: string; format?: string }): Promise<string> {
+    return await agentManagementService.export_agent_as_text(args);
+  }
+
+  async "llm-chat_set_agent_field"(args: { agentId: string; path: string; value: string }): Promise<string> {
+    return await agentManagementService.set_agent_field(args);
+  }
+
+  async "llm-chat_find_replace_in_presets"(args: {
+    agentId: string;
+    search: string;
+    replace: string;
+    regex?: string;
+    messageId?: string;
+  }): Promise<string> {
+    return await agentManagementService.find_replace_in_presets(args);
+  }
+
+  async "llm-chat_add_preset_message"(args: {
+    agentId: string;
+    role: string;
+    content: string;
+    name?: string;
+    position?: string;
+    injectionStrategy?: string;
+  }): Promise<string> {
+    return await agentManagementService.add_preset_message(args);
+  }
+
+  async "llm-chat_delete_preset_message"(args: { agentId: string; messageId: string }): Promise<string> {
+    return await agentManagementService.delete_preset_message(args);
+  }
+
+  async "llm-chat_import_agent_from_text"(args: { text: string; format?: string }): Promise<string> {
+    return await agentManagementService.import_agent_from_text(args);
+  }
 }
 
 // 导出单例实例供直接使用
 export const llmChatRegistry = new LlmChatRegistry();
-
-/**
- * UI 工具配置
- */
-export const toolConfig: ToolConfig = {
-  name: "LLM 对话",
-  path: "/llm-chat",
-  icon: markRaw(ChatDotRound),
-  component: () => import("./LlmChat.vue"),
-  description: "树状分支对话工具，支持智能体管理、附件上传、多会话系统和上下文分析",
-  category: ["AI 工具"],
-};
 
 // 重导出工具函数供跨工具使用
 export { resolveAvatarPath };

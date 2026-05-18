@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, toRef, onMounted, watch, defineAsyncComponent } from "vue";
+import { ref, computed, toRef, onMounted, watch, shallowRef, defineAsyncComponent } from "vue";
 import { useElementSize, onLongPress } from "@vueuse/core";
 import { invoke } from "@tauri-apps/api/core";
 import { ElTooltip, ElIcon } from "element-plus";
@@ -82,6 +82,7 @@ import { useLlmChatUiState } from "../composables/ui/useLlmChatUiState";
 import { useLlmChatStore } from "../stores/llmChatStore";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { mergeStyleOptions } from "@/tools/rich-text-renderer/utils/styleUtils";
+import { isEqual } from "lodash-es";
 import { initAgentAssetCache } from "../utils/agentAssetUtils";
 
 const agentStore = useAgentStore();
@@ -460,6 +461,33 @@ const finalDisabled = toRef(props, "disabled");
 const finalCurrentAgentId = toRef(props, "currentAgentId");
 const finalCurrentModelId = toRef(props, "currentModelId");
 
+// ===== 渲染配置引用稳定化 =====
+// 防止切换智能体/保存配置时，即使内容未变也因引用变化触发全量重渲染
+const stableLlmThinkRules = shallowRef(currentAgent.value?.llmThinkRules);
+watch(
+  () => currentAgent.value?.llmThinkRules,
+  (newRules) => {
+    if (!isEqual(newRules, stableLlmThinkRules.value)) {
+      stableLlmThinkRules.value = newRules;
+    }
+  },
+  { immediate: true },
+);
+
+const stableMessageStyleOptions = shallowRef(finalMessageStyleOptions.value);
+watch(finalMessageStyleOptions, (newOptions) => {
+  if (!isEqual(newOptions, stableMessageStyleOptions.value)) {
+    stableMessageStyleOptions.value = newOptions;
+  }
+});
+
+const stableUserRichTextStyleOptions = shallowRef(userRichTextStyleOptions.value);
+watch(userRichTextStyleOptions, (newOptions) => {
+  if (!isEqual(newOptions, stableUserRichTextStyleOptions.value)) {
+    stableUserRichTextStyleOptions.value = newOptions;
+  }
+});
+
 const handleSendMessage = (payload: {
   content: string;
   attachments?: Asset[];
@@ -790,9 +818,9 @@ onMounted(async () => {
               :session-detail="llmChatStore.currentSessionDetail"
               :messages="finalMessages"
               :is-sending="finalIsSending"
-              :llm-think-rules="currentAgent?.llmThinkRules"
-              :rich-text-style-options="finalMessageStyleOptions"
-              :user-rich-text-style-options="userRichTextStyleOptions"
+              :llm-think-rules="stableLlmThinkRules"
+              :rich-text-style-options="stableMessageStyleOptions"
+              :user-rich-text-style-options="stableUserRichTextStyleOptions"
               :style="contentWidthStyle"
             />
 

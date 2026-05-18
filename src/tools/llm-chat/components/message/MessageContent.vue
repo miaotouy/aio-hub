@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, provide, nextTick } from "vue";
+import { ref, computed, watch, provide, nextTick, shallowRef } from "vue";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import {
   Copy,
@@ -13,7 +13,7 @@ import {
   FileAudio,
   Square,
 } from "lucide-vue-next";
-import { useResizeObserver } from "@vueuse/core";
+import { useResizeObserver, useIntersectionObserver } from "@vueuse/core";
 import type { ChatMessageNode, ChatSessionIndex, ChatSessionDetail, TranslationDisplayMode } from "../../types";
 import type { Asset } from "@/types/asset-management";
 import { ElMessageBox } from "element-plus";
@@ -586,6 +586,32 @@ useResizeObserver(containerRef, (entries) => {
   containerWidth.value = entry.contentRect.width;
 });
 
+// ===== 视口感知冻结：防止不可见消息因渲染配置变化触发重渲染导致 OOM =====
+const isInViewport = ref(true); // 默认可见，避免首次渲染时闪烁
+
+useIntersectionObserver(
+  containerRef,
+  ([{ isIntersecting }]) => {
+    isInViewport.value = isIntersecting;
+  },
+  { rootMargin: "400px" }, // 提前解冻范围，避免滚动时看到过时内容
+);
+
+// 冻结的渲染配置：只有消息在视口中（或附近）时才同步最新 prop
+const frozenLlmThinkRules = shallowRef(props.llmThinkRules);
+const frozenStyleOptions = shallowRef(props.richTextStyleOptions);
+
+watch(
+  [() => props.llmThinkRules, () => props.richTextStyleOptions, isInViewport],
+  ([rules, options, visible]) => {
+    if (visible) {
+      frozenLlmThinkRules.value = rules;
+      frozenStyleOptions.value = options;
+    }
+  },
+  { immediate: true },
+);
+
 const isWideLayout = computed(() => {
   // 当宽度大于 800px 且处于双语模式，并且确实有翻译内容需要显示时，启用并排布局
   return containerWidth.value > 800 && displayMode.value === "both" && showTranslation.value;
@@ -658,7 +684,7 @@ const errorMessage = computed(() => messageMetadata.value?.error);
       <RichTextRenderer
         :content="message.metadata.reasoningContent"
         :version="settings.uiPreferences.rendererVersion"
-        :style-options="richTextStyleOptions"
+        :style-options="frozenStyleOptions"
         :resolve-asset="resolveAsset"
         :default-render-html="settings.uiPreferences.defaultRenderHtml"
         :default-code-block-expanded="settings.uiPreferences.defaultCodeBlockExpanded"
@@ -784,8 +810,8 @@ const errorMessage = computed(() => messageMetadata.value?.error);
           :regex-rules="processedRules"
           :resolve-asset="resolveAsset"
           :version="settings.uiPreferences.rendererVersion"
-          :llm-think-rules="llmThinkRules"
-          :style-options="richTextStyleOptions"
+          :llm-think-rules="frozenLlmThinkRules"
+          :style-options="frozenStyleOptions"
           :generation-meta="generationMetaForRenderer"
           :is-streaming="isGenerating"
           :default-render-html="settings.uiPreferences.defaultRenderHtml"
@@ -846,8 +872,8 @@ const errorMessage = computed(() => messageMetadata.value?.error);
             "
             :regex-rules="processedRules"
             :version="settings.uiPreferences.rendererVersion"
-            :llm-think-rules="llmThinkRules"
-            :style-options="richTextStyleOptions"
+            :llm-think-rules="frozenLlmThinkRules"
+            :style-options="frozenStyleOptions"
             :default-render-html="settings.uiPreferences.defaultRenderHtml"
             :default-code-block-expanded="settings.uiPreferences.defaultCodeBlockExpanded"
             :default-tool-call-collapsed="

@@ -137,9 +137,13 @@ export class KnowledgeProcessor implements ContextProcessor {
       if (ph.mode === "static") {
         results = await this.handleStaticMode(ph);
       } else {
-        // 构建上下文感知查询
+        // 构建上下文感知查询（对齐 VCP 策略：取最近 N 轮完整对话）
         const rawQuery = this.buildContextQuery(context);
-        const aggregation = agentConfig.knowledgeSettings?.aggregation;
+        const knowledgeSettings = agentConfig.knowledgeSettings;
+        // 数据迁移兼容：从旧版 aggregation 中读取 enableCache
+        const enableCache = knowledgeSettings?.enableCache
+          ?? (agentConfig.knowledgeSettings as any)?.aggregation?.enableCache
+          ?? false;
 
         let queryText = rawQuery;
         let vector: number[] | null = null;
@@ -147,24 +151,23 @@ export class KnowledgeProcessor implements ContextProcessor {
         // 确定最终使用的引擎 ID (优先级: 宏参数 > Agent 默认 > 全局默认)
         const engineId =
           ph.engineId ||
-          agentConfig.knowledgeSettings?.defaultEngineId ||
+          knowledgeSettings?.defaultEngineId ||
           settings.value.knowledgeBase.defaultEngineId ||
           "vector";
 
         // 确定是否需要向量化 (vector 和 hybrid 引擎需要)
         const isVectorNeeded = engineId === "vector" || engineId === "hybrid";
 
-        // 获取 Embedding 模型 ID (优先级: Agent 配置 > 知识库全局配置)
+        // 获取 Embedding 模型 ID (统一使用知识库全局配置)
         const kbStore = useKnowledgeBaseStore();
-        const comboId = kbStore.config.defaultEmbeddingModel;
-        const effectiveComboId = agentConfig.knowledgeSettings?.embeddingModelId || comboId;
+        const effectiveComboId = kbStore.config.defaultEmbeddingModel;
         const pureModelId = getPureModelId(effectiveComboId);
 
-        // 1. 优先尝试原始文本精确匹配缓存 (在清洗前)
-        let cached = aggregation?.enableCache ? sessionCache.findByText(rawQuery) : null;
+        // 1. 精确文本匹配缓存（对齐 VCP：完全一致才命中）
+        let cached = enableCache ? sessionCache.findByText(rawQuery) : null;
 
         if (cached) {
-          logger.debug("命中知识库检索缓存 (原始文本匹配)", { query: rawQuery });
+          logger.debug("命中知识库检索缓存 (精确文本匹配)", { query: rawQuery });
           results = cached.results;
           vector = cached.vector || null;
         } else {
@@ -183,19 +186,16 @@ export class KnowledgeProcessor implements ContextProcessor {
             isVectorNeeded,
           });
 
-          // 只有需要向量时才生成向量
+          // 只有需要向量时才生成向量（直接返回当前查询向量，不做历史向量混合）
           if (isVectorNeeded) {
-            vector = await this.buildContextVector(queryText, context, effectiveComboId, history);
+            vector = await this.buildContextVector(queryText, effectiveComboId);
           }
 
-          // 3. 检查向量相似度缓存 (仅当有向量时)
-          cached =
-            aggregation?.enableCache && vector
-              ? sessionCache.findSimilar(vector, aggregation.cacheSimilarityThreshold || 0.95)
-              : null;
+          // 3. 也尝试清洗后文本的精确匹配缓存
+          cached = enableCache && queryText !== rawQuery ? sessionCache.findByText(queryText) : null;
 
           if (cached) {
-            logger.debug("命中知识库检索缓存 (向量相似度匹配)", { query: queryText });
+            logger.debug("命中知识库检索缓存 (清洗后文本匹配)", { query: queryText });
             results = cached.results;
             if (!vector) vector = cached.vector || null;
           } else {
@@ -204,23 +204,23 @@ export class KnowledgeProcessor implements ContextProcessor {
               query: queryText,
               tags: matchedTags.length > 0 ? matchedTags : undefined,
               vector: vector || undefined,
-              limit: ph.limit || agentConfig.knowledgeSettings?.defaultLimit || 5,
-              minScore: ph.minScore || agentConfig.knowledgeSettings?.defaultMinScore || 0.3,
+              limit: ph.limit || knowledgeSettings?.defaultLimit || 5,
+              minScore: ph.minScore || knowledgeSettings?.defaultMinScore || 0.3,
               engineId: engineId,
               modelId: pureModelId,
             });
 
             // 存入缓存 (同时存入清洗前后的查询文本以提高命中率)
-            if (aggregation?.enableCache) {
+            if (enableCache) {
               sessionCache.add({
-                query: rawQuery, // 存入原始查询
+                query: rawQuery,
                 vector: vector || undefined,
                 results,
                 timestamp: Date.now(),
               });
               if (queryText !== rawQuery) {
                 sessionCache.add({
-                  query: queryText, // 也存入清洗后的查询
+                  query: queryText,
                   vector: vector || undefined,
                   results,
                   timestamp: Date.now(),
@@ -230,20 +230,13 @@ export class KnowledgeProcessor implements ContextProcessor {
           }
         }
 
-        // 4. 历史结果聚合
-        if (aggregation?.enableResultAggregation) {
-          results = this.aggregateResults(results, history, aggregation);
-        }
-
-        // 5. 过滤结果 (如果指定了 kbName)
-        // 必须在字数截断之前过滤，否则可能因为其他库的结果占位导致指定库结果被截断
-        // 放在聚合之后可以确保过滤掉历史记录中可能存在的其他库结果
+        // 过滤结果 (如果指定了 kbName)
         if (ph.kbName) {
           results = results.filter((r) => r.kbName === ph.kbName);
         }
 
-        // 6. 字数限制过滤
-        const maxChars = agentConfig.knowledgeSettings?.maxRecallChars || 0;
+        // 字数限制过滤
+        const maxChars = knowledgeSettings?.maxRecallChars || 0;
         if (maxChars > 0) {
           let currentTotal = 0;
           const filtered: SearchResult[] = [];
@@ -259,14 +252,14 @@ export class KnowledgeProcessor implements ContextProcessor {
           results = filtered;
         }
 
-        // 保存到历史 (仅限非静态模式)
+        // 保存到历史 (用于调试/监控，不再用于聚合)
         history.push({
           results,
           timestamp: Date.now(),
           query: queryText,
-          queryVector: vector || undefined,
         });
-        if (history.length > (aggregation?.maxHistoryTurns || 10)) {
+        // 保留最近 10 轮历史记录用于调试
+        if (history.length > 10) {
           history.shift();
         }
       }
@@ -431,29 +424,68 @@ export class KnowledgeProcessor implements ContextProcessor {
   }
 
   /**
-   * 构建上下文感知查询文本 (滑动窗口)
+   * 构建上下文感知查询文本（对齐 VCP 策略）
+   * 取最近 N 轮完整对话（User + AI + Tool）组合为检索查询
    */
   private buildContextQuery(context: PipelineContext): string {
     const { messages, agentConfig } = context;
-    const windowSize = agentConfig.knowledgeSettings?.aggregation?.contextWindow || 1;
+    // 数据迁移兼容：优先读取顶层 contextWindow，回退到旧版 aggregation.contextWindow
+    const windowSize = agentConfig.knowledgeSettings?.contextWindow
+      ?? (agentConfig.knowledgeSettings as any)?.aggregation?.contextWindow
+      ?? 1;
 
-    const userMessages = messages.filter((m) => m.role === "user" && typeof m.content === "string");
-    const recent = userMessages.slice(-windowSize);
+    // 从消息列表末尾向前，按"轮"提取
+    // 一"轮" = 最近的 user 消息 + 紧随其后的 assistant/tool 消息
+    const rounds: string[] = [];
+    let i = messages.length - 1;
+    let roundCount = 0;
 
-    return recent.map((m) => m.content).join("\n");
+    while (i >= 0 && roundCount < windowSize) {
+      // 向前找到一条 user 消息
+      while (i >= 0 && messages[i].role !== "user") {
+        i--;
+      }
+      if (i < 0) break;
+
+      const userIdx = i;
+      const parts: string[] = [];
+
+      // 收集这条 user 消息
+      const userContent = messages[userIdx].content;
+      if (typeof userContent === "string" && userContent.trim()) {
+        parts.push(`[User]: ${userContent.trim()}`);
+      }
+
+      // 收集紧随其后的 assistant 和 tool 消息
+      for (let j = userIdx + 1; j < messages.length; j++) {
+        const msg = messages[j];
+        if (msg.role === "user") break; // 遇到下一条 user 就停止
+        if (typeof msg.content !== "string") continue;
+
+        if (msg.role === "assistant" && msg.content.trim()) {
+          parts.push(`[AI]: ${msg.content.trim()}`);
+        } else if (msg.role === "tool" && msg.content.trim()) {
+          parts.push(`[Tool]: ${msg.content.trim()}`);
+        }
+      }
+
+      if (parts.length > 0) {
+        rounds.unshift(parts.join("\n"));
+        roundCount++;
+      }
+      i = userIdx - 1;
+    }
+
+    return rounds.join("\n\n");
   }
 
   /**
-   * 构建上下文感知向量 (加权平均)
+   * 构建当前查询向量（直接返回，不做历史向量混合）
    */
   private async buildContextVector(
     queryText: string,
-    context: PipelineContext,
     effectiveComboId: string | undefined,
-    history: TurnRecord[],
   ): Promise<number[] | null> {
-    const { agentConfig } = context;
-
     if (!effectiveComboId) {
       logger.warn("未配置 Embedding 模型，无法执行向量检索");
       return null;
@@ -477,86 +509,11 @@ export class KnowledgeProcessor implements ContextProcessor {
       }
 
       // 使用统一的 vectorCacheManager 获取向量 (内部处理了缓存和 API 调用)
-      const currentVector = await vectorCacheManager.getVector(queryText, profile, pureModelId);
-
-      if (!currentVector) return null;
-
-      // 3. 向量加权平均 (Context Projection)
-      const aggregation = agentConfig.knowledgeSettings?.aggregation;
-      if (aggregation?.queryDecay && aggregation.queryDecay < 1.0) {
-        if (history.length > 0) {
-          return this.computeWeightedVector(currentVector, history, aggregation.queryDecay);
-        }
-      }
-
-      return currentVector;
+      return await vectorCacheManager.getVector(queryText, profile, pureModelId);
     } catch (err) {
       logger.warn("获取 Embedding 向量失败，降级为文本检索", err);
       return null;
     }
-  }
-
-  /**
-   * 计算加权平均向量
-   */
-  private computeWeightedVector(current: number[], history: TurnRecord[], decay: number): number[] {
-    const result = [...current];
-    let totalWeight = 1.0;
-
-    // 只取最近的 3 个历史向量进行聚合
-    const recentHistory = history.slice(-3).reverse();
-    recentHistory.forEach((turn, index) => {
-      if (turn.queryVector && turn.queryVector.length === current.length) {
-        const weight = Math.pow(decay, index + 1);
-        for (let i = 0; i < result.length; i++) {
-          result[i] += turn.queryVector[i] * weight;
-        }
-        totalWeight += weight;
-      }
-    });
-
-    // 归一化
-    for (let i = 0; i < result.length; i++) {
-      result[i] /= totalWeight;
-    }
-    return result;
-  }
-
-  /**
-   * 聚合当前结果与历史结果 (时间衰减加权)
-   */
-  private aggregateResults(current: SearchResult[], history: TurnRecord[], config: any): SearchResult[] {
-    const decay = config.resultDecay || 0.8;
-    const maxHistory = config.maxHistoryTurns || 3;
-
-    const allResults = new Map<string, SearchResult>();
-
-    // 添加当前结果 (权重 1.0)
-    current.forEach((r) => {
-      const id = r.caiu.id || r.caiu.key;
-      allResults.set(id, { ...r });
-    });
-
-    // 合并历史结果 (按轮次衰减)
-    const recentHistory = history.slice(-maxHistory).reverse();
-    recentHistory.forEach((turn, index) => {
-      const weight = Math.pow(decay, index + 1);
-      turn.results.forEach((r) => {
-        const id = r.caiu.id || r.caiu.key;
-        if (allResults.has(id)) {
-          // 如果已存在，取最高分 (或者加权平均)
-          const existing = allResults.get(id)!;
-          existing.score = Math.max(existing.score, r.score * weight);
-        } else {
-          allResults.set(id, { ...r, score: r.score * weight });
-        }
-      });
-    });
-
-    // 重新排序并截断
-    return Array.from(allResults.values())
-      .sort((a, b) => b.score - a.score)
-      .slice(0, current.length + 2); // 稍微多留一点
   }
 
   /**

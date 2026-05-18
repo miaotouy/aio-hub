@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { inject, computed, ref, onMounted, markRaw, type Ref } from "vue";
+import { inject, computed, ref, onMounted, type Ref } from "vue";
 import { InfoFilled, Search, Plus } from "@element-plus/icons-vue";
 import { useKnowledgeBaseStore } from "@/tools/knowledge-base/stores/knowledgeBaseStore";
 import { DEFAULT_KB_CONFIG } from "@/tools/llm-chat/types/agent";
@@ -7,7 +7,6 @@ import type { AgentKnowledgeBaseBinding } from "@/tools/llm-chat/types/agent";
 import type { SettingItem } from "@/types/settings-renderer";
 import KnowledgeBaseItem from "./KnowledgeBaseItem.vue";
 import SettingListRenderer from "@/components/common/SettingListRenderer.vue";
-import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 
 // 宏示例常量
 const kbMacro = "{{kb}}";
@@ -35,41 +34,45 @@ const ensureConfig = () => {
 // 初始化
 ensureConfig();
 
-// 初始化知识库设置
+// 初始化知识库设置 + 旧版数据迁移
 if (!editForm.knowledgeSettings) {
   editForm.knowledgeSettings = {
     defaultEngineId: "blender",
     defaultLimit: 5,
     maxRecallChars: 0,
     defaultMinScore: 0.3,
-    embeddingModelId: "",
     resultTemplate: "---\n### 相关内容 (共 {count} 条)\n\n{items}\n---",
     emptyText: "（未检索到相关内容）",
     gateScanDepth: 3,
-    aggregation: {
-      contextWindow: 1,
-      queryDecay: 0.8,
-      enableCache: true,
-      cacheSimilarityThreshold: 0.95,
-      enableResultAggregation: true,
-      resultDecay: 0.8,
-      maxHistoryTurns: 3,
-    },
+    contextWindow: 1,
+    enableCache: true,
   };
 } else {
-  if (!editForm.knowledgeSettings.aggregation) {
-    editForm.knowledgeSettings.aggregation = {
-      contextWindow: 1,
-      queryDecay: 0.8,
-      enableCache: true,
-      cacheSimilarityThreshold: 0.95,
-      enableResultAggregation: true,
-      resultDecay: 0.8,
-      maxHistoryTurns: 3,
-    };
+  // 数据迁移：从旧版 aggregation 子对象提升字段到顶层
+  const legacy = (editForm.knowledgeSettings as any).aggregation;
+  if (legacy) {
+    if (editForm.knowledgeSettings.contextWindow === undefined && legacy.contextWindow !== undefined) {
+      editForm.knowledgeSettings.contextWindow = legacy.contextWindow;
+    }
+    if (editForm.knowledgeSettings.enableCache === undefined && legacy.enableCache !== undefined) {
+      editForm.knowledgeSettings.enableCache = legacy.enableCache;
+    }
+    // 清理旧字段
+    delete (editForm.knowledgeSettings as any).aggregation;
   }
+  // 清理已废弃的 Agent 级 embeddingModelId
+  if ((editForm.knowledgeSettings as any).embeddingModelId !== undefined) {
+    delete (editForm.knowledgeSettings as any).embeddingModelId;
+  }
+  // 确保默认值
   if (editForm.knowledgeSettings.gateScanDepth === undefined) {
     editForm.knowledgeSettings.gateScanDepth = 3;
+  }
+  if (editForm.knowledgeSettings.contextWindow === undefined) {
+    editForm.knowledgeSettings.contextWindow = 1;
+  }
+  if (editForm.knowledgeSettings.enableCache === undefined) {
+    editForm.knowledgeSettings.enableCache = true;
   }
 }
 
@@ -155,7 +158,7 @@ const toggleBinding = (kbId: string, enabled: boolean) => {
   }
 };
 
-// 知识库高级设置
+// 知识库高级设置（精简版：移除传统 RAG 残留，对齐记忆系统定位）
 const knowledgeAdvancedSettings = computed<SettingItem[]>(() => [
   {
     id: "kbDefaultEngine",
@@ -178,12 +181,25 @@ const knowledgeAdvancedSettings = computed<SettingItem[]>(() => [
   },
   {
     id: "kbDefaultLimit",
-    label: "默认召回数量",
+    label: "召回上限",
     component: "SliderWithInput",
     modelPath: "knowledgeSettings.defaultLimit",
-    hint: "默认检索召回的知识片段数量",
-    keywords: "knowledge limit 召回",
+    hint: "检索结果的数量上限。实际截断以最低分数为主要依据——即使设为 50，只有超过分数阈值的条目才会被召回。",
+    keywords: "knowledge limit 召回 上限",
     props: { min: 1, max: 50, step: 1, controlsPosition: "right" },
+    groupCollapsible: {
+      name: "knowledge-advanced",
+      title: "知识库高级设置",
+    },
+  },
+  {
+    id: "kbDefaultMinScore",
+    label: "最低分数阈值",
+    component: "SliderWithInput",
+    modelPath: "knowledgeSettings.defaultMinScore",
+    hint: "低于此相关度分数的条目直接丢弃。这是实际的截断依据，比召回上限更重要。",
+    keywords: "knowledge score 分数 阈值 截断",
+    props: { min: 0, max: 1, step: 0.05, controlsPosition: "right" },
     groupCollapsible: {
       name: "knowledge-advanced",
       title: "知识库高级设置",
@@ -197,45 +213,6 @@ const knowledgeAdvancedSettings = computed<SettingItem[]>(() => [
     hint: "检索结果的总字数上限，0 表示不限制。超出部分将被丢弃。",
     keywords: "knowledge char limit 字数",
     props: { min: 0, step: 100, controlsPosition: "right" },
-    groupCollapsible: {
-      name: "knowledge-advanced",
-      title: "知识库高级设置",
-    },
-  },
-  {
-    id: "kbEmbeddingModel",
-    label: "Embedding 模型",
-    component: markRaw(LlmModelSelector),
-    modelPath: "knowledgeSettings.embeddingModelId",
-    hint: "用于向量检索的 Embedding 模型。如果不设置，将无法使用向量检索引擎。",
-    keywords: "knowledge embedding model 向量 模型",
-    props: { capabilities: { embedding: true } },
-    groupCollapsible: {
-      name: "knowledge-advanced",
-      title: "知识库高级设置",
-    },
-  },
-  {
-    id: "kbDefaultMinScore",
-    label: "默认最低分数",
-    component: "SliderWithInput",
-    modelPath: "knowledgeSettings.defaultMinScore",
-    hint: "低于此相关度分数的知识片段将被过滤",
-    keywords: "knowledge score 分数",
-    props: { min: 0, max: 1, step: 0.05, controlsPosition: "right" },
-    groupCollapsible: {
-      name: "knowledge-advanced",
-      title: "知识库高级设置",
-    },
-  },
-  {
-    id: "kbResultTemplate",
-    label: "结果模板",
-    component: "ElInput",
-    modelPath: "knowledgeSettings.resultTemplate",
-    hint: "检索结果注入提示词的模板。支持变量: {kbName}, {content}, {key}, {score}",
-    keywords: "knowledge template 模板",
-    props: { type: "textarea", rows: 4, placeholder: "检索结果注入模板" },
     groupCollapsible: {
       name: "knowledge-advanced",
       title: "知识库高级设置",
@@ -256,11 +233,11 @@ const knowledgeAdvancedSettings = computed<SettingItem[]>(() => [
   },
   {
     id: "kbContextWindow",
-    label: "上下文窗口",
+    label: "上下文窗口（轮数）",
     component: "SliderWithInput",
-    modelPath: "knowledgeSettings.aggregation.contextWindow",
-    hint: "用于构建检索查询的最近用户消息数量",
-    keywords: "knowledge context window 窗口",
+    modelPath: "knowledgeSettings.contextWindow",
+    hint: "取最近 N 轮完整对话（User + AI + Tool）组合为检索查询。对齐 VCP 策略：不是仅取用户消息，而是取完整一轮交互。",
+    keywords: "knowledge context window 窗口 轮次",
     props: { min: 1, max: 10, step: 1, controlsPosition: "right" },
     groupCollapsible: {
       name: "knowledge-advanced",
@@ -272,8 +249,8 @@ const knowledgeAdvancedSettings = computed<SettingItem[]>(() => [
     label: "启用检索缓存",
     layout: "inline",
     component: "ElSwitch",
-    modelPath: "knowledgeSettings.aggregation.enableCache",
-    hint: "开启后，相似的查询将复用缓存结果",
+    modelPath: "knowledgeSettings.enableCache",
+    hint: "精确文本匹配缓存：同一查询文本直接复用结果，避免重复检索。适用于同轮多占位符和重试场景。",
     keywords: "knowledge cache 缓存",
     groupCollapsible: {
       name: "knowledge-advanced",
@@ -281,65 +258,13 @@ const knowledgeAdvancedSettings = computed<SettingItem[]>(() => [
     },
   },
   {
-    id: "kbCacheThreshold",
-    label: "缓存相似度阈值",
-    component: "SliderWithInput",
-    modelPath: "knowledgeSettings.aggregation.cacheSimilarityThreshold",
-    hint: "查询向量与缓存向量的余弦相似度高于此值时命中缓存",
-    keywords: "knowledge cache threshold 阈值",
-    props: { min: 0.8, max: 1, step: 0.01, controlsPosition: "right" },
-    groupCollapsible: {
-      name: "knowledge-advanced",
-      title: "知识库高级设置",
-    },
-  },
-  {
-    id: "kbQueryDecay",
-    label: "查询衰减因子",
-    component: "SliderWithInput",
-    modelPath: "knowledgeSettings.aggregation.queryDecay",
-    hint: "多轮查询聚合时的权重衰减（1.0 表示不衰减）",
-    keywords: "knowledge query decay 衰减",
-    props: { min: 0.1, max: 1, step: 0.05, controlsPosition: "right" },
-    groupCollapsible: {
-      name: "knowledge-advanced",
-      title: "知识库高级设置",
-    },
-  },
-  {
-    id: "kbEnableResultAggregation",
-    label: "启用结果聚合",
-    layout: "inline",
-    component: "ElSwitch",
-    modelPath: "knowledgeSettings.aggregation.enableResultAggregation",
-    hint: "开启后，将聚合当前结果与历史轮次的结果",
-    keywords: "knowledge aggregation 聚合",
-    groupCollapsible: {
-      name: "knowledge-advanced",
-      title: "知识库高级设置",
-    },
-  },
-  {
-    id: "kbResultDecay",
-    label: "结果衰减因子",
-    component: "SliderWithInput",
-    modelPath: "knowledgeSettings.aggregation.resultDecay",
-    hint: "历史检索结果在聚合时的分数衰减因子",
-    keywords: "knowledge result decay 衰减",
-    props: { min: 0.1, max: 1, step: 0.05, controlsPosition: "right" },
-    groupCollapsible: {
-      name: "knowledge-advanced",
-      title: "知识库高级设置",
-    },
-  },
-  {
-    id: "kbMaxHistoryTurns",
-    label: "最大聚合轮次",
-    component: "SliderWithInput",
-    modelPath: "knowledgeSettings.aggregation.maxHistoryTurns",
-    hint: "结果聚合时保留的最大历史对话轮次",
-    keywords: "knowledge history turns 轮次",
-    props: { min: 1, max: 10, step: 1, controlsPosition: "right" },
+    id: "kbResultTemplate",
+    label: "结果模板",
+    component: "ElInput",
+    modelPath: "knowledgeSettings.resultTemplate",
+    hint: "检索结果注入提示词的模板。支持变量: {kbName}, {content}, {key}, {score}, {tags}, {count}, {items}",
+    keywords: "knowledge template 模板",
+    props: { type: "textarea", rows: 4, placeholder: "检索结果注入模板" },
     groupCollapsible: {
       name: "knowledge-advanced",
       title: "知识库高级设置",
@@ -350,7 +275,7 @@ const knowledgeAdvancedSettings = computed<SettingItem[]>(() => [
     label: "空结果提示",
     component: "ElInput",
     modelPath: "knowledgeSettings.emptyText",
-    hint: "未检索到内容时的提示词",
+    hint: "未检索到内容时的占位文本",
     keywords: "knowledge empty 提示",
     props: { placeholder: "未检索到内容时的提示词" },
     groupCollapsible: {

@@ -27,6 +27,8 @@ export class KBSessionCache {
 
   /**
    * 查找相似的缓存条目
+   * @deprecated 已废弃。记忆系统采用精确文本匹配缓存策略（对齐 VCP），不再使用向量相似度匹配。
+   * 保留此方法仅为向后兼容，不应在新代码中调用。
    */
   findSimilar(vector: number[], threshold: number): RetrievalCacheEntry | null {
     if (!vector || vector.length === 0) return null;
@@ -65,6 +67,9 @@ export class KBSessionCache {
     return this.cache.length;
   }
 
+  /**
+   * @deprecated 仅为 findSimilar() 服务，随其一同废弃
+   */
   private cosineSimilarity(v1: number[], v2: number[]): number {
     let dotProduct = 0;
     let norm1 = 0;
@@ -83,12 +88,17 @@ export class KBSessionCache {
 }
 
 /**
- * 轮次记录，用于结果聚合
+ * 轮次记录，用于调试和监控
+ * 注：不再用于结果聚合（已移除聚合逻辑）
  */
 export interface TurnRecord {
   results: SearchResult[];
   timestamp: number;
   query: string;
+  /**
+   * @deprecated 已废弃。移除向量加权平均后不再需要存储历史查询向量。
+   * 保留字段仅为旧数据兼容。
+   */
   queryVector?: number[];
 }
 

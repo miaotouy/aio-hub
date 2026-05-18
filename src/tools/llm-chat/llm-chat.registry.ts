@@ -357,6 +357,23 @@ export default class LlmChatRegistry implements ToolRegistry {
           agentCallable: true,
         },
         {
+          name: "llm-chat_move_preset_message",
+          displayName: "移动预设消息",
+          description: "移动已有预设消息到新位置（调整顺序）",
+          parameters: [
+            { name: "agentId", type: "string", required: true, description: "智能体 ID" },
+            { name: "messageId", type: "string", required: true, description: "要移动的预设消息 ID" },
+            {
+              name: "position",
+              type: "string",
+              required: true,
+              description: "目标位置（start/end/before:chat_history/after:chat_history/before:id/after:id）",
+            },
+          ],
+          returnType: "Promise<string>",
+          agentCallable: true,
+        },
+        {
           name: "llm-chat_import_agent_from_text",
           displayName: "导入智能体配置",
           description: "从 YAML/JSON 文本创建新的智能体",
@@ -416,6 +433,14 @@ export default class LlmChatRegistry implements ToolRegistry {
 
   async "llm-chat_delete_preset_message"(args: { agentId: string; messageId: string }): Promise<string> {
     return await agentManagementService.delete_preset_message(args);
+  }
+
+  async "llm-chat_move_preset_message"(args: {
+    agentId: string;
+    messageId: string;
+    position: string;
+  }): Promise<string> {
+    return await agentManagementService.move_preset_message(args);
   }
 
   async "llm-chat_import_agent_from_text"(args: { text: string; format?: string }): Promise<string> {

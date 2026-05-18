@@ -32,7 +32,7 @@
 
 ---
 
-## 2. 方法列表（9 个）
+## 2. 方法列表（10 个）
 
 | #   | 方法名                    | 类型 | 描述                             | 自动批准 |
 | --- | ------------------------- | ---- | -------------------------------- | -------- |
@@ -44,7 +44,8 @@
 | 6   | `find_replace_in_presets` | 写入 | 在 content 中查找替换            | ❌       |
 | 7   | `add_preset_message`      | 写入 | 新增预设消息                     | ❌       |
 | 8   | `delete_preset_message`   | 写入 | 删除指定预设消息                 | ❌       |
-| 9   | `import_agent_from_text`  | 写入 | 从 YAML 创建新智能体             | ❌       |
+| 9   | `move_preset_message`     | 写入 | 移动预设消息到新位置（调整顺序） | ❌       |
+| 10  | `import_agent_from_text`  | 写入 | 从 YAML 创建新智能体             | ❌       |
 
 ---
 
@@ -198,7 +199,28 @@ toolCallConfig.toolToggles      → {"web-canvas": true, "directory-tree": true}
 安全限制: 不允许删除 type=chat_history 的锚点消息
 ```
 
-### 3.9 `import_agent_from_text`
+### 3.9 `move_preset_message`
+
+```
+描述: 移动已有预设消息到新位置（调整顺序）
+参数:
+  - agentId (必填): 智能体 ID
+  - messageId (必填): 要移动的预设消息 ID
+  - position (必填): 目标位置
+      - "start" — 列表最前面
+      - "end" — 列表最后面
+      - "before:chat_history" — 在 chat_history 锚点之前
+      - "after:chat_history" — 在 chat_history 锚点之后
+      - "before:{messageId}" — 在指定消息之前
+      - "after:{messageId}" — 在指定消息之后
+返回: "成功移动预设消息 {name} (id: {messageId}) 到 {position}" 或错误信息
+
+说明: 允许移动任何消息（包括 chat_history 锚点），仅 delete 操作保留锚点删除保护。
+      移动到自身的 before/after 会返回提示而非报错。
+      如果目标消息不存在，操作会自动回滚（消息保持原位）。
+```
+
+### 3.10 `import_agent_from_text`
 
 ```
 描述: 从 YAML 或 JSON 文本创建新的智能体

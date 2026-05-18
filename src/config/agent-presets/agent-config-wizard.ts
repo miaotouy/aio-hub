@@ -413,6 +413,7 @@ const preset: Omit<AgentPreset, "id"> = {
       "llm-chat_find_replace_in_presets": false,
       "llm-chat_add_preset_message": false,
       "llm-chat_delete_preset_message": false,
+      "llm-chat_move_preset_message": false,
       "llm-chat_import_agent_from_text": false,
     },
     defaultToolEnabled: false,

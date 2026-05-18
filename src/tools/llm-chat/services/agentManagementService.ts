@@ -733,7 +733,106 @@ export async function delete_preset_message(params: { agentId: string; messageId
 }
 
 /**
- * 9. import_agent_from_text - 从 YAML/JSON 文本创建新智能体
+ * 9. move_preset_message - 移动预设消息到新位置
+ */
+export async function move_preset_message(params: {
+  agentId: string;
+  messageId: string;
+  position: string;
+}): Promise<string> {
+  try {
+    const agentStore = useAgentStore();
+    const agent = await agentStore.ensureAgentLoaded(params.agentId);
+
+    if (!agent) {
+      return `错误: 未找到智能体 (id: ${params.agentId})`;
+    }
+
+    if (!agent.presetMessages || agent.presetMessages.length === 0) {
+      return `错误: 该智能体没有预设消息`;
+    }
+
+    const messages = agent.presetMessages;
+    const sourceIndex = messages.findIndex((m) => m.id === params.messageId);
+    if (sourceIndex === -1) {
+      return `错误: 未找到预设消息 (id: ${params.messageId})`;
+    }
+
+    const position = params.position;
+
+    // 防止无意义操作：移动到自身的 before/after
+    if (position === `before:${params.messageId}` || position === `after:${params.messageId}`) {
+      return `提示: 消息已在目标位置，无需移动`;
+    }
+
+    // 从数组中取出消息
+    const [message] = messages.splice(sourceIndex, 1);
+    const messageName = message.name || message.role;
+
+    // 按 position 语法计算新插入点
+    if (position === "start") {
+      messages.unshift(message);
+    } else if (position === "end") {
+      messages.push(message);
+    } else if (position === "before:chat_history") {
+      const chatHistoryIndex = messages.findIndex((m) => m.type === "chat_history");
+      if (chatHistoryIndex !== -1) {
+        messages.splice(chatHistoryIndex, 0, message);
+      } else {
+        messages.push(message);
+      }
+    } else if (position === "after:chat_history") {
+      const chatHistoryIndex = messages.findIndex((m) => m.type === "chat_history");
+      if (chatHistoryIndex !== -1) {
+        messages.splice(chatHistoryIndex + 1, 0, message);
+      } else {
+        messages.push(message);
+      }
+    } else if (position.startsWith("before:")) {
+      const targetId = position.substring("before:".length);
+      const targetIndex = messages.findIndex((m) => m.id === targetId);
+      if (targetIndex !== -1) {
+        messages.splice(targetIndex, 0, message);
+      } else {
+        // 回滚：将消息放回原位
+        messages.splice(sourceIndex, 0, message);
+        return `错误: 未找到目标消息 (id: ${targetId})`;
+      }
+    } else if (position.startsWith("after:")) {
+      const targetId = position.substring("after:".length);
+      const targetIndex = messages.findIndex((m) => m.id === targetId);
+      if (targetIndex !== -1) {
+        messages.splice(targetIndex + 1, 0, message);
+      } else {
+        // 回滚：将消息放回原位
+        messages.splice(sourceIndex, 0, message);
+        return `错误: 未找到目标消息 (id: ${targetId})`;
+      }
+    } else {
+      // 无效 position，回滚
+      messages.splice(sourceIndex, 0, message);
+      return `错误: 无效的 position "${position}"`;
+    }
+
+    // 持久化
+    agentStore.persistAgent(agent);
+
+    logger.info("move_preset_message 成功", {
+      agentId: params.agentId,
+      messageId: params.messageId,
+      messageName,
+      position,
+    });
+
+    return `成功移动预设消息 ${messageName} (id: ${params.messageId}) 到 ${position}`;
+  } catch (error) {
+    errorHandler.error(error, "移动预设消息失败");
+    return `错误: ${String(error instanceof Error ? error.message : error)}`;
+  }
+}
+
+/**
+ * 10. import_agent_from_text - 从 YAML/JSON 文本创建新智能体
  */
 export async function import_agent_from_text(params: { text: string; format?: string }): Promise<string> {
   try {

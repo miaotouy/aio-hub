@@ -38,6 +38,7 @@ import { createMacroContext } from "../../macro-engine/MacroContext";
 import type { ChatRegexRule } from "../../types/chatRegex";
 import { processMessageAssetsSync } from "../../utils/agentAssetUtils";
 import { fixVcpEmoticonUrl } from "@/tools/vcp-connector/utils/emoticonFixer";
+import { mergeStyleOptions } from "@/tools/rich-text-renderer/utils/styleUtils";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import LlmThinkNode from "@/tools/rich-text-renderer/components/nodes/LlmThinkNode.vue";
 import AttachmentCard from "../AttachmentCard.vue";
@@ -585,6 +586,29 @@ useResizeObserver(containerRef, (entries) => {
   const entry = entries[0];
   containerWidth.value = entry.contentRect.width;
 });
+// ===== 消息绑定的渲染配置：优先使用来源智能体的配置，缺失时回退到 props（当前激活智能体） =====
+
+// 消息绑定的 llmThinkRules
+const messageBoundLlmThinkRules = computed(() => {
+  // 来源智能体存在且有配置 → 使用来源智能体的
+  if (currentAgent.value?.llmThinkRules && currentAgent.value.llmThinkRules.length > 0) {
+    return currentAgent.value.llmThinkRules;
+  }
+  // 回退到 props 传入的（当前激活智能体的配置）
+  return props.llmThinkRules;
+});
+
+// 消息绑定的样式配置
+const messageBoundStyleOptions = computed(() => {
+  const agentStyle = currentAgent.value?.richTextStyleOptions;
+  // 来源智能体存在且有自定义样式 → 合并全局 + 来源智能体
+  if (agentStyle) {
+    const globalStyle = settings.value.uiPreferences.markdownStyle;
+    return mergeStyleOptions(globalStyle, agentStyle);
+  }
+  // 回退到 props 传入的（已经是 global + 当前激活智能体的合并结果）
+  return props.richTextStyleOptions;
+});
 
 // ===== 视口感知冻结：防止不可见消息因渲染配置变化触发重渲染导致 OOM =====
 const isInViewport = ref(true); // 默认可见，避免首次渲染时闪烁
@@ -597,12 +621,12 @@ useIntersectionObserver(
   { rootMargin: "400px" }, // 提前解冻范围，避免滚动时看到过时内容
 );
 
-// 冻结的渲染配置：只有消息在视口中（或附近）时才同步最新 prop
-const frozenLlmThinkRules = shallowRef(props.llmThinkRules);
-const frozenStyleOptions = shallowRef(props.richTextStyleOptions);
+// 冻结的渲染配置：基于消息绑定的配置，只有消息在视口中（或附近）时才同步
+const frozenLlmThinkRules = shallowRef(messageBoundLlmThinkRules.value);
+const frozenStyleOptions = shallowRef(messageBoundStyleOptions.value);
 
 watch(
-  [() => props.llmThinkRules, () => props.richTextStyleOptions, isInViewport],
+  [messageBoundLlmThinkRules, messageBoundStyleOptions, isInViewport],
   ([rules, options, visible]) => {
     if (visible) {
       frozenLlmThinkRules.value = rules;

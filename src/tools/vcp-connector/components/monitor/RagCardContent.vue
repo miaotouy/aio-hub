@@ -96,6 +96,10 @@ function isCoreMatched(tag: string, result: RagResult): boolean {
   return result.coreTagsMatched?.includes(tag) ?? false;
 }
 
+function escapeRegExp(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function renderText(result: RagResult): string {
   let text = result.text;
   if (!isExpanded.value && text.length > 150) {
@@ -109,7 +113,7 @@ function renderText(result: RagResult): string {
 
   sortedTags.forEach((tag) => {
     const isCore = isCoreMatched(tag, result);
-    const regex = new RegExp(`(${tag})`, "gi");
+    const regex = new RegExp(`(${escapeRegExp(tag)})`, "gi");
     const className = isCore ? "highlight-tag is-core" : "highlight-tag";
     html = html.replace(regex, `<span class="${className}">$1</span>`);
   });

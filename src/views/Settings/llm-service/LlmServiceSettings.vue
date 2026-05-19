@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from "vue";
 import { useRoute } from "vue-router";
-import { ExternalLink, Info } from "lucide-vue-next";
+import { ExternalLink, Info, Terminal } from "lucide-vue-next";
 import { useElementSize } from "@vueuse/core";
 import ProfileSidebar from "../shared/ProfileSidebar.vue";
 import ProfileEditor from "../shared/ProfileEditor.vue";
@@ -9,6 +9,7 @@ import ModelList from "./components/ModelList.vue";
 import ModelFetcherDialog from "./components/ModelFetcherDialog.vue";
 import ModelEditDialog from "./components/ModelEditDialog.vue";
 import CreateProfileDialog from "./components/CreateProfileDialog.vue";
+import CurlImportDialog from "./components/CurlImportDialog.vue";
 import CustomHeadersEditor from "./components/CustomHeadersEditor.vue";
 import CustomEndpointsEditor from "./components/CustomEndpointsEditor.vue";
 import MultiKeyManagerDialog from "./components/MultiKeyManagerDialog.vue";
@@ -17,13 +18,16 @@ import SettingListRenderer from "@/components/common/SettingListRenderer.vue";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import { providerTypes } from "@/config/llm-providers";
+import { llmPresets } from "@/config/llm-presets";
 import { PRESET_ICONS } from "@/config/preset-icons";
 import { generateLlmApiEndpointPreview, getLlmEndpointHint } from "@/utils/llm-api-url";
+import type { LlmModelInfo } from "@/types/llm-profiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
 import { useProfileEditor } from "./composables/useProfileEditor";
 import { useModelEditor } from "./composables/useModelEditor";
 import { useConnectionTest } from "./composables/useConnectionTest";
 import type { LlmProfile } from "@/types/llm-profiles";
+import type { ParsedCurlResult } from "@/utils/parseCurlCommand";
 
 // ─── Composables ───
 const {
@@ -133,9 +137,91 @@ const showCustomHeadersDialog = ref(false);
 const showCustomEndpointsDialog = ref(false);
 const showMultiKeyManager = ref(false);
 const showLlmServiceInfoDialog = ref(false);
+const showCurlImportForEdit = ref(false);
 
 const handleAddClick = () => {
   showCreateProfileDialog.value = true;
+};
+
+// ─── curl 导入处理 ───
+const handleCurlImportForCreate = (result: ParsedCurlResult) => {
+  // 创建新渠道并填充解析结果
+  createNewProfile();
+  applyCurlResult(result);
+};
+
+const handleCurlImportForEdit = (result: ParsedCurlResult) => {
+  // 覆盖当前编辑中的渠道
+  applyCurlResult(result);
+};
+
+const applyCurlResult = (result: ParsedCurlResult) => {
+  // 填充基础信息
+  if (result.suggestedName && editForm.value.name.startsWith("未命名渠道")) {
+    editForm.value.name = result.suggestedName;
+  }
+  editForm.value.type = result.providerType;
+  editForm.value.baseUrl = result.baseUrl;
+
+  // 填充 API Key
+  if (result.apiKey) {
+    editForm.value.apiKeys = [result.apiKey];
+    apiKeyInput.value = result.apiKey;
+  }
+
+  // 填充模型（从预设中查找完整模型信息）
+  if (result.model) {
+    const existingModel = editForm.value.models.find((m) => m.id === result.model);
+    if (!existingModel) {
+      const presetModel = findPresetModel(result.model, result.providerType);
+      editForm.value.models.push(
+        presetModel || {
+          id: result.model,
+          name: result.model,
+        },
+      );
+    }
+  }
+
+  // 填充自定义请求头
+  if (result.customHeaders) {
+    editForm.value.customHeaders = {
+      ...(editForm.value.customHeaders || {}),
+      ...result.customHeaders,
+    };
+  }
+
+  // 填充自定义端点
+  if (result.chatEndpoint) {
+    if (!editForm.value.customEndpoints) {
+      editForm.value.customEndpoints = {};
+    }
+    editForm.value.customEndpoints.chatCompletions = result.chatEndpoint;
+  }
+};
+
+/**
+ * 从预设模板中查找匹配的完整模型信息
+ * 优先匹配同类型预设，再全局搜索
+ */
+const findPresetModel = (modelId: string, providerType: string): LlmModelInfo | null => {
+  // 先在同类型的预设中查找
+  for (const preset of llmPresets) {
+    if (preset.type === providerType && preset.defaultModels) {
+      const found = preset.defaultModels.find((m) => m.id === modelId);
+      if (found) return { ...found };
+    }
+  }
+
+  // 再在所有预设中查找（模型可能出现在不同类型的预设中）
+  for (const preset of llmPresets) {
+    if (preset.type !== providerType && preset.defaultModels) {
+      const found = preset.defaultModels.find((m) => m.id === modelId);
+      if (found) return { ...found };
+    }
+  }
+
+  return null;
 };
 
 const openDeepLinkInfo = () => {
@@ -257,6 +343,11 @@ const networkSettingSummary = computed(() => {
             <el-form-item label="API 地址">
               <el-input v-model="editForm.baseUrl" placeholder="https://api.openai.com">
                 <template #append>
+                  <el-tooltip content="从 curl 命令导入" placement="top">
+                    <el-button @click="showCurlImportForEdit = true">
+                      <Terminal :size="14" />
+                    </el-button>
+                  </el-tooltip>
                   <el-popconfirm
                     title="确定要重置为默认 API 地址吗？"
                     confirm-button-text="确定"
@@ -427,7 +518,11 @@ const networkSettingSummary = computed(() => {
       v-model:visible="showCreateProfileDialog"
       @create-from-preset="createFromPresetTemplate"
       @create-from-blank="createNewProfile"
+      @create-from-curl="handleCurlImportForCreate"
     />
+
+    <!-- 编辑界面的 curl 导入对话框 -->
+    <CurlImportDialog v-model:visible="showCurlImportForEdit" @import="handleCurlImportForEdit" />
 
     <!-- 模型编辑对话框 -->
     <ModelEditDialog

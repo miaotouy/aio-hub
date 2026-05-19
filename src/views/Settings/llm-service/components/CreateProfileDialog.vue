@@ -6,6 +6,9 @@ import type { LlmPreset } from "@/config/llm-presets";
 import type { ProviderType } from "@/types/llm-profiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
+import CurlImportDialog from "./CurlImportDialog.vue";
+import type { ParsedCurlResult } from "@/utils/parseCurlCommand";
+import { Terminal } from "lucide-vue-next";
 
 // Props
 interface Props {
@@ -17,6 +20,7 @@ interface Emits {
   (e: "update:visible", value: boolean): void;
   (e: "create-from-preset", preset: LlmPreset): void;
   (e: "create-from-blank"): void;
+  (e: "create-from-curl", result: ParsedCurlResult): void;
 }
 
 defineProps<Props>();
@@ -24,6 +28,15 @@ const emit = defineEmits<Emits>();
 
 // 使用统一的图标获取方法
 const { getDisplayIconPath, getIconPath } = useModelMetadata();
+
+// curl 导入对话框
+const showCurlImportDialog = ref(false);
+
+// 处理 curl 导入
+const handleCurlImport = (result: ParsedCurlResult) => {
+  emit("create-from-curl", result);
+  emit("update:visible", false);
+};
 
 // 当前选中的提供商类型
 const selectedProviderType = ref<ProviderType | "all">("all");
@@ -86,9 +99,15 @@ const getCategoryLabel = (category: ProviderType | "all") => {
         <div class="preset-section">
           <div class="section-header">
             <h4>从预设模板创建</h4>
-            <el-button size="small" type="primary" @click="createFromBlank"> 从空白创建 </el-button>
+            <div class="header-actions">
+              <el-button size="small" @click="showCurlImportDialog = true">
+                <Terminal :size="14" style="margin-right: 4px" />
+                从 curl 导入
+              </el-button>
+              <el-button size="small" type="primary" @click="createFromBlank"> 从空白创建 </el-button>
+            </div>
           </div>
-          <p class="preset-section-desc">选择常用服务商快速创建配置</p>
+          <p class="preset-section-desc">选择常用服务商快速创建配置，或粘贴 curl 命令自动解析</p>
 
           <!-- 分类标签 -->
           <div class="category-tabs">
@@ -130,6 +149,9 @@ const getCategoryLabel = (category: ProviderType | "all") => {
       </div>
     </template>
   </BaseDialog>
+
+  <!-- curl 导入对话框 -->
+  <CurlImportDialog v-model:visible="showCurlImportDialog" @import="handleCurlImport" />
 </template>
 
 <style scoped>
@@ -157,6 +179,12 @@ const getCategoryLabel = (category: ProviderType | "all") => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 8px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 .preset-section h4 {

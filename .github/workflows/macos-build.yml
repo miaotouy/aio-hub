@@ -37,8 +37,8 @@ jobs:
 
       - name: 安装依赖 (macOS)
         run: |
-          # 不需要安装 openssl 和 libgit2，使用 vendored 特性
-          echo "使用 vendored OpenSSL 和 libgit2"
+          # libgit2 使用 vendored 特性，TLS 使用 macOS 原生 SecureTransport
+          echo "使用 vendored libgit2，系统原生 TLS"
 
       - name: Rust 缓存
         uses: Swatinem/rust-cache@v2

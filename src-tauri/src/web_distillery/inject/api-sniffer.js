@@ -21,6 +21,15 @@
     return 'other';
   }
 
+  // 内部 URL 过滤（Tauri IPC 等不应被报告为 API）
+  function isInternalUrl(url) {
+    if (!url) return false;
+    if (url.indexOf('ipc.localhost') !== -1) return true;
+    if (url.indexOf('tauri.localhost') !== -1) return true;
+    if (url.indexOf('asset.localhost') !== -1) return true;
+    return false;
+  }
+
   // 1. Hook XMLHttpRequest
   const XHR = XMLHttpRequest.prototype;
   const open = XHR.open;
@@ -39,9 +48,10 @@
       try {
         // 优先使用原始 URL（resource-proxy.js 重写前的）
         const url = this._originalApiUrl || this._url;
-        // 简单过滤：忽略静态资源和代理内部路径
+        // 简单过滤：忽略静态资源、代理内部路径和 Tauri IPC
         if (url.includes('.js') || url.includes('.css') || url.includes('.png') || url.includes('.jpg')) return;
         if (url.startsWith('/__distillery/')) return;
+        if (isInternalUrl(url)) return;
 
         const contentType = this.getResponseHeader('content-type') || '';
         window.__DISTILLERY_BRIDGE__.send({
@@ -83,8 +93,9 @@
         } catch (e) { }
       }
 
-      // 忽略静态资源和代理内部路径
+      // 忽略静态资源、代理内部路径和 Tauri IPC
       if (reportUrl.startsWith('/__distillery/')) { /* skip */ }
+      else if (isInternalUrl(reportUrl)) { /* skip Tauri IPC */ }
       else if (!reportUrl.includes('.js') && !reportUrl.includes('.css') && !reportUrl.includes('.png')) {
         const ct = response.headers.get('content-type') || '';
         window.__DISTILLERY_BRIDGE__.send({

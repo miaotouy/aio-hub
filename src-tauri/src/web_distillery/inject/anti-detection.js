@@ -32,6 +32,55 @@
         configurable: false
       });
     }
+
+    // 中和 Tauri IPC 特征
+    // Tauri v2 会向 iframe 注入 __TAURI_INTERNALS__ 等全局变量，
+    // 导致 B站等网站检测到 Tauri 环境后使用 IPC 打开链接而非正常导航。
+    //
+    // 策略：不隐藏 Tauri 对象（隐藏会导致 Tauri VM 脚本崩溃），
+    // 而是 hook invoke 方法，将 open_url 等导航类 IPC 调用转为正常的浏览器导航。
+    // 这样 B站的 Tauri 适配代码正常执行，但实际效果是浏览器内导航。
+    if (window.__TAURI_INTERNALS__) {
+      var origInvoke = window.__TAURI_INTERNALS__.invoke;
+      window.__TAURI_INTERNALS__.invoke = function (cmd, args) {
+        // 拦截 opener 插件的 open_url 命令，转为代理内导航
+        if (cmd && (cmd.indexOf('open_url') !== -1 || cmd.indexOf('open') !== -1)) {
+          var url = args && (args.url || args.path);
+          if (url && /^https?:\/\//.test(url)) {
+            // 将绝对 URL 转为相对路径，保持在代理服务器内导航
+            // 例如 https://www.bilibili.com/video/xxx -> /video/xxx
+            try {
+              var parsed = new URL(url);
+              var currentHost = window.location.hostname;
+              // 如果目标 URL 的域名与当前代理的目标站点相同（或是其子域名），
+              // 则提取路径部分进行相对导航（通过 fallback 路由）
+              var targetHost = parsed.hostname;
+              // 简单匹配：去掉 www. 前缀后比较主域名
+              var normalizeHost = function (h) { return h.replace(/^www\./, ''); };
+              // 当前页面在代理中，origin 是 127.0.0.1，无法直接比较
+              // 所以对所有外部 URL 都提取路径进行代理内导航
+              window.location.href = parsed.pathname + parsed.search + parsed.hash;
+            } catch (e) {
+              window.location.href = url;
+            }
+            return Promise.resolve();
+          }
+        }
+        // 其他 IPC 调用静默返回（不转发到真实 IPC，避免 502）
+        return Promise.resolve();
+      };
+
+      // 确保 plugins 属性存在（Tauri VM 脚本会访问）
+      if (!window.__TAURI_INTERNALS__.plugins) {
+        window.__TAURI_INTERNALS__.plugins = {};
+      }
+    }
+
+    // 对于其他 Tauri 全局变量，确保不会因属性访问报错
+    if (typeof window.__TAURI__ !== 'undefined' && window.__TAURI__) {
+      // __TAURI__ 通常是 API 入口，确保其方法不会抛出
+      // 不做额外处理，让它保持原样（Tauri VM 脚本需要它）
+    }
   } catch (e) {
     console.warn('[Distillery] Failed to hide WebView features', e);
   }

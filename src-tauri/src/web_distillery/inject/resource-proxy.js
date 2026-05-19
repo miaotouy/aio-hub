@@ -13,9 +13,22 @@
   // 当前代理服务器的 origin（用于判断是否跨域）
   var proxyOrigin = window.location.origin;
 
+  // 不应代理的内部域名（Tauri IPC 等）
+  function isInternalUrl(url) {
+    if (!url || typeof url !== 'string') return false;
+    // Tauri IPC 通信地址 — 绝不能代理
+    if (url.indexOf('ipc.localhost') !== -1) return true;
+    if (url.indexOf('tauri.localhost') !== -1) return true;
+    // Tauri asset 协议
+    if (url.indexOf('asset.localhost') !== -1) return true;
+    return false;
+  }
+
   // 判断 URL 是否为跨域（绝对 URL 且 origin 不同）
   function isCrossOrigin(url) {
     if (!url || typeof url !== 'string') return false;
+    // 内部 URL 永远不代理
+    if (isInternalUrl(url)) return false;
     // 协议相对 URL (//example.com/...)
     if (url.startsWith('//')) return true;
     // 绝对 URL
@@ -44,6 +57,7 @@
 
   // ============================================================
   // 1. Hook Fetch — 将跨域请求重写为代理路径
+  //    同时拦截 Tauri IPC 的 open_url 调用，转为正常页面导航
   // ============================================================
   var originalFetch = window.fetch;
   window.fetch = function () {
@@ -55,6 +69,41 @@
       url = input;
     } else if (input instanceof Request) {
       url = input.url;
+    }
+
+    // 拦截 Tauri IPC 的 open_url 调用：提取目标 URL 并执行代理内导航
+    if (url && url.indexOf('ipc.localhost') !== -1 && url.indexOf('open_url') !== -1) {
+      // 阻止 IPC 调用，改为代理内页面导航
+      // 从请求 body 中提取目标 URL（Tauri IPC 的 body 是 JSON 或 ArrayBuffer）
+      var bodySource = null;
+      if (args[1] && args[1].body) {
+        bodySource = args[1].body;
+      } else if (input instanceof Request) {
+        bodySource = input.body;
+      }
+      if (bodySource && typeof bodySource === 'string') {
+        try {
+          var parsed = JSON.parse(bodySource);
+          var targetUrl = parsed.url || (parsed.data && parsed.data.url);
+          if (targetUrl && /^https?:\/\//.test(targetUrl)) {
+            // 将绝对 URL 转为相对路径，保持在代理服务器内
+            try {
+              var parsedUrl = new URL(targetUrl);
+              window.location.href = parsedUrl.pathname + parsedUrl.search + parsedUrl.hash;
+            } catch (e2) {
+              window.location.href = targetUrl;
+            }
+            return Promise.resolve(new Response('', { status: 200 }));
+          }
+        } catch (e) { }
+      }
+      // 如果无法解析 body，直接返回空响应（不让 502 错误传播）
+      return Promise.resolve(new Response('', { status: 200 }));
+    }
+
+    // 内部 URL 直接放行（不代理）
+    if (isInternalUrl(url)) {
+      return originalFetch.apply(this, args);
     }
 
     if (isCrossOrigin(url)) {

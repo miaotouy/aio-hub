@@ -44,8 +44,29 @@ export class Denoiser {
 
     // 2. 移除常见的干扰语义标签（合并选择器以提升性能）
     // 不再默认移除 header 和 nav，因为它们可能包含核心导航
-    const noisyTags = "aside, footer, form, button, select, textarea";
+    const noisyTags = "aside, footer, form, button, select, textarea, ins";
     doc.querySelectorAll(noisyTags).forEach(safeRemove);
+
+    // 2.5 移除广告和无障碍隐藏元素
+    const adAndHiddenSelectors = [
+      '[class*="ads"]',
+      '[id*="ads"]',
+      ".advertisement",
+      '[class*="advertisement"]',
+      '[id*="advertisement"]',
+      ".popup",
+      '[class*="popup"]',
+      '[id*="popup"]',
+    ].join(", ");
+    doc.querySelectorAll(adAndHiddenSelectors).forEach(safeRemove);
+
+    // aria-hidden 元素：只移除文本内容为空的（避免误删装饰性但有意义的 SVG 图标）
+    doc.querySelectorAll('[aria-hidden="true"]').forEach((el) => {
+      const textLen = el.textContent?.trim().length || 0;
+      if (textLen === 0) {
+        safeRemove(el);
+      }
+    });
 
     // 3. 基于 ID 和 Class 模式移除
     // 性能优化：预先编译正则表达式，避免循环内多次创建和 toLowerCase

@@ -93,7 +93,7 @@ export class Transformer {
     // 提取 (Extractor)
     const extractStart = performance.now();
     const extractSelectors = options.extractSelectors || recipe?.extractSelectors || [];
-    const { title, mainElement, metadata } = this.extractor.process(doc, extractSelectors, scrapedMetadata);
+    const { title, mainElement, metadata } = this.extractor.process(doc, extractSelectors, scrapedMetadata, recipe);
     const extractEnd = performance.now();
     logger.info(`Extractor finished`, { duration: `${(extractEnd - extractStart).toFixed(2)}ms` });
 

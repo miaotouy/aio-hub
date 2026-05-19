@@ -84,6 +84,11 @@ export class Converter {
       });
     }
 
+    // 检查是否为程序化提取器产出的原始 Markdown
+    if (element.hasAttribute("data-distillery-raw-markdown")) {
+      return element.textContent || "";
+    }
+
     // 默认转换为 Markdown
     return this.toMarkdown(element);
   }

@@ -117,6 +117,15 @@ export interface SiteRecipe {
   disabled?: boolean; // 是否禁用此配方
   metadataScrapers?: MetadataScraperRule[]; // 从脚本提取元数据的规则
   protectedSelectors?: string[]; // 去噪阶段必须保留的元素（即使隐藏）
+  scrollConfig?: ScrollConfig; // 自动滚动配置（用于触发懒加载）
+  evaluatorFn?: (doc: Document, url: URL) => string | null; // 程序化提取器（仅内置配方使用）
+}
+
+/** 自动滚动配置 */
+export interface ScrollConfig {
+  maxScrolls?: number; // 最大滚动次数，默认 3
+  delay?: number; // 每次滚动后等待时间(ms)，默认 800
+  disabled?: boolean; // 是否禁用自动滚动
 }
 
 export interface MetadataScraperRule {

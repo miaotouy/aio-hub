@@ -209,6 +209,81 @@ export class IframeBridge {
     return promise;
   }
 
+  /**
+   * 自动滚动页面以触发懒加载内容
+   * 参考 UrlFetch 的 autoScroll 逻辑
+   */
+  public async autoScroll(maxScrolls = 3, delayMs = 800): Promise<void> {
+    const script = `
+      (function() {
+        var maxScrolls = ${maxScrolls};
+        var delay = ${delayMs};
+        var scrolls = 0;
+        var lastHeight = document.body.scrollHeight;
+
+        function doScroll() {
+          if (scrolls >= maxScrolls) {
+            // 滚动完成，回到顶部
+            window.scrollTo(0, 0);
+            if (window.__DISTILLERY_BRIDGE__) {
+              window.__DISTILLERY_BRIDGE__.send({ type: 'scroll-complete' });
+            }
+            return;
+          }
+          window.scrollTo(0, document.body.scrollHeight);
+          scrolls++;
+          setTimeout(function() {
+            var newHeight = document.body.scrollHeight;
+            if (newHeight === lastHeight) {
+              // 高度没变，再等一次确认
+              setTimeout(function() {
+                var finalHeight = document.body.scrollHeight;
+                if (finalHeight === lastHeight) {
+                  // 确认没有新内容，结束
+                  window.scrollTo(0, 0);
+                  if (window.__DISTILLERY_BRIDGE__) {
+                    window.__DISTILLERY_BRIDGE__.send({ type: 'scroll-complete' });
+                  }
+                  return;
+                }
+                lastHeight = finalHeight;
+                doScroll();
+              }, delay);
+            } else {
+              lastHeight = newHeight;
+              doScroll();
+            }
+          }, delay);
+        }
+        doScroll();
+      })();
+    `;
+
+    const promise = new Promise<void>((resolve) => {
+      const timeout = setTimeout(
+        () => {
+          resolve(); // 超时也继续，不阻塞主流程
+        },
+        (maxScrolls + 2) * delayMs * 2 + 2000,
+      );
+
+      const handler = (event: MessageEvent) => {
+        if (this.iframe && event.source === this.iframe.contentWindow) {
+          const payload = event.data;
+          if (payload && payload.type === "scroll-complete") {
+            clearTimeout(timeout);
+            window.removeEventListener("message", handler);
+            resolve();
+          }
+        }
+      };
+      window.addEventListener("message", handler);
+    });
+
+    await this.evalScript(script);
+    await promise;
+  }
+
   public async extractDom(waitFor?: string, waitTimeoutMs?: number): Promise<string> {
     const timeoutMs = waitTimeoutMs || 10000;
     const selectorJson = waitFor ? JSON.stringify(waitFor) : "null";

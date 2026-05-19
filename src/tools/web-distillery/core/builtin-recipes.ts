@@ -1,5 +1,6 @@
 import type { SiteRecipe } from "../types";
 import { getLocalISOString } from "@/utils/time";
+import { githubRepoEvaluator, githubIssueListEvaluator } from "./builtin-evaluators";
 
 const now = getLocalISOString();
 
@@ -148,12 +149,63 @@ export const builtinRecipes: SiteRecipe[] = [
     updatedAt: now,
     useCount: 0,
   },
+  {
+    id: "builtin-github-repo",
+    name: "GitHub 仓库首页",
+    domain: "github.com",
+    // 匹配 /{owner}/{repo} 但不匹配更深的路径（blob/issues 等有各自配方）
+    evaluatorFn: githubRepoEvaluator,
+    extractSelectors: [
+      "article.markdown-body", // README
+      ".react-directory-row", // 文件列表
+      ".BorderGrid-cell p", // About 描述
+    ],
+    excludeSelectors: [".Header", ".AppHeader", ".footer", "footer", ".js-header-wrapper", "#repos-sticky-header"],
+    metadataScrapers: [
+      {
+        type: "meta",
+        target: "all",
+        mapping: {
+          title: ["og:title", "title"],
+          description: ["og:description", "description"],
+          author: ["author"],
+        },
+      },
+    ],
+    createdAt: now,
+    updatedAt: now,
+    useCount: 0,
+  },
+
+  {
+    id: "builtin-github-issues",
+    name: "GitHub Issues 列表",
+    domain: "github.com",
+    pathPattern: "/**/issues",
+    evaluatorFn: githubIssueListEvaluator,
+    extractSelectors: ["[data-testid='issue-row']", ".js-issue-row"],
+    excludeSelectors: [".Header", ".AppHeader", ".footer", "footer"],
+    metadataScrapers: [
+      {
+        type: "meta",
+        target: "all",
+        mapping: {
+          title: ["og:title", "title"],
+          description: ["og:description", "description"],
+        },
+      },
+    ],
+    createdAt: now,
+    updatedAt: now,
+    useCount: 0,
+  },
 
   {
     id: "builtin-github-blob",
     name: "GitHub 仓库文件页",
     domain: "github.com",
     pathPattern: "/**/blob/**",
+    evaluatorFn: githubRepoEvaluator, // 复用仓库提取器，它内部会检测 /blob/ 路径
     extractSelectors: [
       ".repository-content", // 包含文件头部（面包屑、文件信息）
       ".Box-header", // 文件名行

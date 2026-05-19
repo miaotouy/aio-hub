@@ -2,8 +2,11 @@
  * 环节：正文提取 (Extractor)
  * 职责：确定核心正文节点，提取元数据
  */
-import { ScrapedMetadata } from "../../types";
-import { Readability } from "../readability";
+import type { ScrapedMetadata, SiteRecipe } from "../../types";
+import { Readability } from "@mozilla/readability";
+import { createModuleLogger } from "@/utils/logger";
+
+const logger = createModuleLogger("web-distillery/extractor");
 
 export interface ExtractedData {
   title: string;
@@ -20,9 +23,37 @@ export class Extractor {
   /**
    * 提取正文和元数据
    */
-  public process(doc: Document, targetSelectors: string[] = [], scrapedMetadata?: ScrapedMetadata): ExtractedData {
+  public process(
+    doc: Document,
+    targetSelectors: string[] = [],
+    scrapedMetadata?: ScrapedMetadata,
+    recipe?: SiteRecipe,
+  ): ExtractedData {
     let mainElement: HTMLElement | null = null;
     let title = doc.title;
+
+    // 0. 优先尝试程序化提取器（evaluatorFn）
+    if (recipe?.evaluatorFn) {
+      try {
+        const url = new URL(doc.baseURI || "https://example.com");
+        const result = recipe.evaluatorFn(doc, url);
+        if (result && result.length > 50) {
+          logger.info("Programmatic evaluator produced content", { recipeId: recipe.id, length: result.length });
+          const container = doc.createElement("div");
+          // evaluatorFn 返回的是 Markdown 文本，包裹在 <pre> 中保留格式
+          // 后续 Converter 会检测到 pre 标签并保留原始内容
+          container.setAttribute("data-distillery-raw-markdown", "true");
+          container.textContent = result;
+          return {
+            title: title,
+            mainElement: container,
+            metadata: this.extractMetadata(doc),
+          };
+        }
+      } catch (e) {
+        logger.warn("Programmatic evaluator failed, falling back", { recipeId: recipe?.id, error: e });
+      }
+    }
 
     // 1. 如果指定了选择器，收集所有匹配元素并合并到一个容器中
     if (targetSelectors.length > 0) {
@@ -47,14 +78,28 @@ export class Extractor {
       }
     }
 
-    // 2. 如果选择器没匹配到任何内容，使用 Readability
+    // 2. 聚合页检测：如果页面链接密度极高，按分组提取链接列表
     if (!mainElement) {
-      const readability = new Readability(doc);
-      const result = readability.parse();
-      if (result) {
-        title = result.title;
+      const aggregationResult = this.detectAggregationPage(doc);
+      if (aggregationResult) {
+        logger.info("Detected aggregation page, using grouped link extraction");
         const container = doc.createElement("div");
-        container.innerHTML = result.content;
+        container.setAttribute("data-distillery-raw-markdown", "true");
+        container.textContent = aggregationResult;
+        mainElement = container;
+      }
+    }
+
+    // 3. 如果选择器没匹配到任何内容，使用 Mozilla Readability
+    if (!mainElement) {
+      // Readability 会修改传入的 Document，需要 clone
+      const clonedDoc = doc.cloneNode(true) as Document;
+      const reader = new Readability(clonedDoc);
+      const article = reader.parse();
+      if (article && article.content) {
+        title = article.title || title;
+        const container = doc.createElement("div");
+        container.innerHTML = article.content;
         mainElement = container;
       }
     }
@@ -99,6 +144,113 @@ export class Extractor {
       mainElement,
       metadata,
     };
+  }
+
+  /**
+   * 聚合页检测：识别链接密度极高的页面（如新闻聚合、导航站）
+   * 按语义分组提取链接列表
+   */
+  private detectAggregationPage(doc: Document): string | null {
+    const body = doc.body;
+    if (!body) return null;
+
+    // 统计外链数量
+    const allLinks = Array.from(body.querySelectorAll("a[href]")) as HTMLAnchorElement[];
+    const externalLinks = allLinks.filter((a) => {
+      const href = a.href;
+      return href && href.startsWith("http") && !href.startsWith("javascript:");
+    });
+
+    // 正文文本长度
+    const bodyText = body.textContent?.trim() || "";
+    const textLength = bodyText.length;
+
+    // 判定条件：外链 > 30 个，且正文文字少于 500 字（排除正常文章页）
+    // 或者链接数/文字数比值极高
+    const linkDensity = textLength > 0 ? externalLinks.length / (textLength / 100) : 0;
+    if (externalLinks.length < 30 || (textLength > 2000 && linkDensity < 1.5)) {
+      return null;
+    }
+
+    // 尝试按语义分组提取
+    const groups: { heading: string; links: { title: string; url: string }[] }[] = [];
+
+    // 策略1：查找 heading + 紧随的链接列表
+    const headings = Array.from(body.querySelectorAll("h1, h2, h3, h4, h5, h6, [role='heading']"));
+    for (const heading of headings) {
+      const headingText = heading.textContent?.trim();
+      if (!headingText || headingText.length > 50) continue;
+
+      // 查找 heading 后面的兄弟元素或父容器中的链接
+      const container = heading.parentElement;
+      if (!container) continue;
+
+      const containerLinks = Array.from(container.querySelectorAll("a[href]")) as HTMLAnchorElement[];
+      const validLinks = containerLinks
+        .filter((a) => {
+          const href = a.href;
+          const text = a.textContent?.trim();
+          return (
+            href &&
+            href.startsWith("http") &&
+            !href.startsWith("javascript:") &&
+            text &&
+            text.length > 3 &&
+            text.length < 200
+          );
+        })
+        .map((a) => ({ title: a.textContent!.trim(), url: a.href }));
+
+      // 去重
+      const seen = new Set<string>();
+      const uniqueLinks = validLinks.filter((link) => {
+        if (seen.has(link.url)) return false;
+        seen.add(link.url);
+        return true;
+      });
+
+      if (uniqueLinks.length >= 3) {
+        groups.push({ heading: headingText, links: uniqueLinks });
+      }
+    }
+
+    // 如果分组提取成功，格式化为 Markdown
+    if (groups.length >= 2) {
+      let md = "";
+      for (const group of groups) {
+        md += `## ${group.heading}\n`;
+        md += group.links.map((link) => `- [${link.title}](${link.url})`).join("\n");
+        md += "\n\n";
+      }
+      return md.trim();
+    }
+
+    // 策略2：如果没有明确的分组结构，但链接密度确实很高，
+    // 提取所有有意义的链接作为平铺列表
+    if (externalLinks.length >= 50 && linkDensity >= 3) {
+      const meaningfulLinks = externalLinks
+        .filter((a) => {
+          const text = a.textContent?.trim();
+          return text && text.length > 5 && text.length < 200;
+        })
+        .map((a) => ({ title: a.textContent!.trim(), url: a.href }));
+
+      // 去重
+      const seen = new Set<string>();
+      const uniqueLinks = meaningfulLinks.filter((link) => {
+        if (seen.has(link.url)) return false;
+        seen.add(link.url);
+        return true;
+      });
+
+      if (uniqueLinks.length >= 20) {
+        let md = "## 链接列表\n";
+        md += uniqueLinks.map((link) => `- [${link.title}](${link.url})`).join("\n");
+        return md;
+      }
+    }
+
+    return null;
   }
 
   private extractMetadata(doc: Document) {

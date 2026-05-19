@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, nextTick, computed } from "vue";
+import { ref, watch, nextTick, computed, onActivated, onDeactivated } from "vue";
 import { useThrottleFn } from "@vueuse/core";
 import type { ChatMessageNode, ChatSessionIndex, ChatSessionDetail } from "../../types";
 import { useLlmChatStore } from "../../stores/llmChatStore";
@@ -22,6 +22,41 @@ const props = defineProps<Props>();
 
 const store = useLlmChatStore();
 const { settings } = useChatSettings();
+
+// keep-alive 滚动位置恢复：在 scroll 事件中持续追踪 scrollTop
+// （deactivate 时浏览器会将 DOM 移出文档树导致 scrollTop 被重置为 0）
+const lastKnownScrollTop = ref(0);
+const wasNearBottomBeforeDeactivate = ref(true);
+
+onDeactivated(() => {
+  wasNearBottomBeforeDeactivate.value = isNearBottom.value;
+});
+
+onActivated(() => {
+  const container = messagesContainer.value;
+  if (!container) return;
+
+  // keep-alive 切换会导致浏览器重置 scrollTop 为 0，需要恢复
+  if (container.scrollTop === 0 && lastKnownScrollTop.value > 0) {
+    const restoreScroll = () => {
+      if (!messagesContainer.value) return;
+      if (wasNearBottomBeforeDeactivate.value) {
+        // 之前在底部附近，恢复到底部
+        messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
+      } else {
+        // 之前在中间位置，恢复到记录的位置
+        const maxScroll = messagesContainer.value.scrollHeight - messagesContainer.value.clientHeight;
+        messagesContainer.value.scrollTop = Math.min(lastKnownScrollTop.value, maxScroll);
+      }
+    };
+
+    // 多次尝试恢复：content-visibility: auto 会导致 scrollHeight 逐步恢复
+    restoreScroll();
+    nextTick(restoreScroll);
+    setTimeout(restoreScroll, 50);
+    setTimeout(restoreScroll, 150);
+  }
+});
 
 /**
  * 被压缩的节点 ID 集合
@@ -201,6 +236,9 @@ const onScroll = () => {
   if (!messagesContainer.value) return;
   const container = messagesContainer.value;
   const { scrollTop, scrollHeight, clientHeight } = container;
+
+  // 持续追踪有效的 scrollTop（用于 keep-alive 恢复）
+  lastKnownScrollTop.value = scrollTop;
 
   // 阻断水平滚动（如果有的话）
   if (container.scrollLeft !== 0) container.scrollLeft = 0;

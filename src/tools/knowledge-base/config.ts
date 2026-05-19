@@ -20,16 +20,11 @@ export const DEFAULT_WORKSPACE_CONFIG: WorkspaceConfig = {
   },
   vectorIndex: {
     autoIndex: true,
-    model: "",
     dimension: 1536,
-    algorithm: "hnsw",
-    metric: "cosine",
     texture: "coarse",
     refractionIndex: 0.5,
     k1: 1.2,
     b: 0.75,
-    limit: 20,
-    minScore: 0.0,
   },
   tagGeneration: {
     enabled: true,
@@ -92,7 +87,7 @@ export const knowledgeSettingsConfig: SettingsSection<WorkspaceConfig>[] = [
           placeholder: "选择用于向量化的 Embedding 模型",
         },
         modelPath: "defaultEmbeddingModel",
-        hint: "用于将知识条目转换为向量的 AI 模型。建议选择维度一致的模型以保证检索效果。",
+        hint: "统一的 Embedding 模型配置。用于知识条目向量化和智能体 RAG 检索查询向量化，所有智能体的知识库检索都使用此模型。",
         keywords: "embedding model 模型 向量",
       },
     ],
@@ -113,7 +108,7 @@ export const knowledgeSettingsConfig: SettingsSection<WorkspaceConfig>[] = [
     ],
   },
   {
-    title: "存储与安全",
+    title: "向量维度",
     icon: ShieldCheck,
     items: [
       {
@@ -133,7 +128,7 @@ export const knowledgeSettingsConfig: SettingsSection<WorkspaceConfig>[] = [
           },
         },
         modelPath: "vectorIndex.dimension",
-        hint: "向量的长度，必须与所选模型输出的维度一致（OpenAI 默认为 1536）",
+        hint: "向量的长度，必须与所选 Embedding 模型输出的维度一致。常见值：OpenAI 1536、Cohere 1024、BGE 768。",
         keywords: "dimension 维度",
         action: "detectDimension",
         slots: {

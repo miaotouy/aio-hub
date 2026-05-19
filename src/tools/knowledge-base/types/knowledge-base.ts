@@ -79,7 +79,7 @@ export interface KnowledgeBaseMeta {
  * 知识库级别配置 (可覆盖全局配置)
  */
 export interface KnowledgeBaseConfig {
-  /** 针对该库的 RAG 检索 TopK */
+  /** 针对该库的召回上限（最大返回条目数，实际截断以分数阈值为主） */
   searchTopK?: number;
   /** 最小分数阈值 */
   minScore?: number;
@@ -134,13 +134,13 @@ export interface KnowledgeBaseIndex {
 export interface VectorIndexConfig {
   /** 是否自动索引 */
   autoIndex: boolean;
-  /** 使用的模型 */
-  model: string;
+  /** @deprecated 已废弃，统一使用 WorkspaceConfig.defaultEmbeddingModel */
+  model?: string;
   /** 维度 */
   dimension: number;
-  /** 算法: "hnsw", "flat" 等 (保留以兼容旧数据或未来扩展) */
+  /** @deprecated 保留以兼容旧数据，不再使用 */
   algorithm?: string;
-  /** 距离度量: "cosine", "euclidean" (保留以兼容旧数据或未来扩展) */
+  /** @deprecated 保留以兼容旧数据，不再使用 */
   metric?: string;
   /** 透镜检索：纹理 (coarse/fine) */
   texture?: "coarse" | "fine";
@@ -150,9 +150,9 @@ export interface VectorIndexConfig {
   k1?: number;
   /** 向量检索：BM25 b */
   b?: number;
-  /** 检索数量限制 */
+  /** @deprecated 已废弃，召回上限现在在 Agent 级别的 knowledgeSettings.defaultLimit 中配置 */
   limit?: number;
-  /** 最小分数阈值 */
+  /** @deprecated 已废弃，最小分数阈值现在在 Agent 级别的 knowledgeSettings.defaultMinScore 中配置 */
   minScore?: number;
   /** 兼容动态引擎参数 */
   [key: string]: any;

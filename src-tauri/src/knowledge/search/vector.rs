@@ -59,11 +59,11 @@ impl RetrievalEngine for VectorRetrievalEngine {
                 }),
                 serde_json::json!({
                     "id": "limit",
-                    "label": "检索数量 (Top-K: {{ localSettings.vectorIndex.limit }})",
+                    "label": "召回上限 ({{ localSettings.vectorIndex.limit }})",
                     "component": "SliderWithInput",
                     "modelPath": "limit",
                     "defaultValue": 20,
-                    "hint": "返回最相关的结果条数",
+                    "hint": "检索结果的最大返回数量。实际截断以最低分数为主要依据。",
                     "props": {
                         "min": 1,
                         "max": 100,

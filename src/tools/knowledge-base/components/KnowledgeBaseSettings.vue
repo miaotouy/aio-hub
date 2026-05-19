@@ -218,7 +218,7 @@ const embeddingModelInfo = computed(() => {
         <div class="tab-content">
           <InfoCard title="检索策略" class="info-section">
             <el-form label-width="120px" size="small">
-              <el-form-item label="检索数量 (TopK)">
+              <el-form-item label="召回上限">
                 <div class="config-row">
                   <el-slider
                     v-model="formData.config.searchTopK"
@@ -228,7 +228,7 @@ const embeddingModelInfo = computed(() => {
                   />
                   <span class="slider-value">{{ formData.config.searchTopK }}</span>
                 </div>
-                <div class="form-tip">检索时返回的最相关条目数量。</div>
+                <div class="form-tip">检索结果的最大返回数量。实际截断以最低分数为主要依据——即使设为 50，只有超过分数阈值的条目才会被召回。</div>
               </el-form-item>
 
               <el-form-item label="最小分数">

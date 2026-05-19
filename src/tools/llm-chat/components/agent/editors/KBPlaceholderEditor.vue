@@ -21,8 +21,8 @@
         <div class="item-tip">留空则检索所有已启用的知识库</div>
       </el-form-item>
 
-      <!-- 召回数量 (非 static 模式显示) -->
-      <el-form-item v-if="form.mode !== 'static'" label="召回数量">
+      <!-- 召回上限 (非 static 模式显示) -->
+      <el-form-item v-if="form.mode !== 'static'" label="召回上限">
         <el-input-number
           v-model="form.limit"
           :min="1"
@@ -33,8 +33,8 @@
         <span class="unit">条</span>
       </el-form-item>
 
-      <!-- 最低分数 (非 static 模式显示) -->
-      <el-form-item v-if="form.mode !== 'static'" label="最低分数">
+      <!-- 最低分数阈值 (非 static 模式显示) -->
+      <el-form-item v-if="form.mode !== 'static'" label="最低分数阈值">
         <div class="slider-container">
           <el-slider
             v-model="form.minScore"

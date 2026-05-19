@@ -16,7 +16,7 @@ export function registerKnowledgeMacros(registry: MacroRegistry): void {
       name: "kb",
       type: MacroType.VALUE,
       phase: MacroPhase.SUBSTITUTE,
-      description: "触发知识库检索并注入结果。无参数时检索所有已启用的关联知识库；可指定知识库名称和召回数量。",
+      description: "触发知识库检索并注入结果。无参数时检索所有已启用的关联知识库；可指定知识库名称和召回上限。",
       example: "{{kb}}",
       acceptsArgs: true,
       priority: 90,

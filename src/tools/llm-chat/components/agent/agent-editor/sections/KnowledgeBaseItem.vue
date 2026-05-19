@@ -92,7 +92,7 @@ const macroRef = computed(() => `{{kb::${props.binding.kbName}}}`);
             />
           </el-form-item>
 
-          <el-form-item label="召回数量">
+          <el-form-item label="召回上限">
             <el-input-number
               v-model="binding.limit"
               :min="1"
@@ -103,7 +103,7 @@ const macroRef = computed(() => `{{kb::${props.binding.kbName}}}`);
             <span class="unit-hint">留空使用全局默认</span>
           </el-form-item>
 
-          <el-form-item label="最低分数">
+          <el-form-item label="最低分数阈值">
             <el-input-number
               v-model="binding.minScore"
               :min="0"

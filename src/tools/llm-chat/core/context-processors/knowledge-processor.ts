@@ -28,7 +28,7 @@ export interface KBPlaceholder {
   /** 知识库名称 (可选，为空则检索所有库) */
   kbName?: string;
 
-  /** 召回数量限制 */
+  /** 召回上限 */
   limit?: number;
 
   /** 最低相关度分数阈值 */

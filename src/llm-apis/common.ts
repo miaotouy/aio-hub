@@ -796,7 +796,9 @@ export const fetchWithTimeout = async (
         finalSizeKB: (proxyBodyStr.length / 1024).toFixed(1),
       });
 
-      if (proxyPayload.body && !proxyPayload.body.model) {
+      // 仅对非模型列表端点检查 model 字段（/v1/models 等 GET 请求本身不需要 model）
+      const isModelListEndpoint = /\/models\/?$/.test(proxyPayload.url);
+      if (proxyPayload.body && !proxyPayload.body.model && !isModelListEndpoint) {
         logger.warn("检测到代理请求体中缺失 model 字段!", {
           url: proxyPayload.url,
           bodyKeys: Object.keys(proxyPayload.body),

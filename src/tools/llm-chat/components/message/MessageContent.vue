@@ -38,6 +38,7 @@ import { createMacroContext } from "../../macro-engine/MacroContext";
 import type { ChatRegexRule } from "../../types/chatRegex";
 import { processMessageAssetsSync } from "../../utils/agentAssetUtils";
 import { fixVcpEmoticonUrl } from "@/tools/vcp-connector/utils/emoticonFixer";
+import { isEqual } from "lodash-es";
 import { mergeStyleOptions } from "@/tools/rich-text-renderer/utils/styleUtils";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import LlmThinkNode from "@/tools/rich-text-renderer/components/nodes/LlmThinkNode.vue";
@@ -622,6 +623,8 @@ useIntersectionObserver(
 );
 
 // 冻结的渲染配置：基于消息绑定的配置，只有消息在视口中（或附近）时才同步
+// 关键：必须使用 isEqual 深比较，防止切换智能体/保存配置时引用变化（但内容相同）
+// 触发所有可见消息的 RichTextRenderer 同时全量重渲染导致 OOM (STATUS_BREAKPOINT)
 const frozenLlmThinkRules = shallowRef(messageBoundLlmThinkRules.value);
 const frozenStyleOptions = shallowRef(messageBoundStyleOptions.value);
 
@@ -629,8 +632,12 @@ watch(
   [messageBoundLlmThinkRules, messageBoundStyleOptions, isInViewport],
   ([rules, options, visible]) => {
     if (visible) {
-      frozenLlmThinkRules.value = rules;
-      frozenStyleOptions.value = options;
+      if (!isEqual(rules, frozenLlmThinkRules.value)) {
+        frozenLlmThinkRules.value = rules;
+      }
+      if (!isEqual(options, frozenStyleOptions.value)) {
+        frozenStyleOptions.value = options;
+      }
     }
   },
   { immediate: true },

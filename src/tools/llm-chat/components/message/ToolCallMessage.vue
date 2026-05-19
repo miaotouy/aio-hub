@@ -569,8 +569,9 @@ defineExpose({
 <template>
   <div
     ref="messageRef"
-    class="tool-call-message"
+    class="tool-call-message chat-message"
     :class="{ 'is-disabled': message.isEnabled === false, 'is-editing': isEditing }"
+    :data-message-id="message.id"
   >
     <!-- 背景层 -->
     <div class="message-background-container">

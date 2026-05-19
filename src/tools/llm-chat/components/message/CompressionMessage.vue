@@ -197,8 +197,9 @@ defineExpose({
 <template>
   <div
     ref="messageRef"
-    class="compression-message"
+    class="compression-message chat-message"
     :class="{ 'is-disabled': !isEnabled, 'is-editing': isEditing }"
+    :data-message-id="message.id"
   >
     <!-- 背景层：分块渲染以规避浏览器对大尺寸 backdrop-filter 的限制 -->
     <div class="message-background-container">

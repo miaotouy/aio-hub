@@ -123,12 +123,16 @@ pub async fn distillery_start_proxy() -> Result<u16, String> {
     tokio::spawn(async move {
         let app = Router::new()
             .route("/proxy", get(handle_proxy_html))
-            .route("/proxy-resource", get(handle_proxy_resource))
+            .route("/proxy-resource", axum::routing::any(handle_proxy_resource))
             .route("/__distillery/bridge.js", get(handle_bridge_js))
             .route("/__distillery/sniffer.js", get(handle_sniffer_js))
             .route(
                 "/__distillery/anti-detection.js",
                 get(handle_anti_detection_js),
+            )
+            .route(
+                "/__distillery/resource-proxy.js",
+                get(handle_resource_proxy_js),
             )
             .fallback(handle_fallback)
             .layer(tower_http::cors::CorsLayer::permissive());
@@ -339,7 +343,7 @@ async fn handle_proxy_html(
     };
 
     let head_injections = format!(
-        r#"<base href="/"><script src="/__distillery/anti-detection.js"></script>{}"#,
+        r#"<base href="/"><script src="/__distillery/anti-detection.js"></script><script src="/__distillery/resource-proxy.js"></script>{}"#,
         local_storage_script
     );
 
@@ -362,13 +366,35 @@ async fn handle_proxy_html(
     Ok((status, resp_headers, html))
 }
 
-/// 处理子资源代理请求 (CSS/JS/Images) — 显式代理模式
+/// 处理子资源代理请求 (CSS/JS/Images/API) — 显式代理模式
+/// 支持所有 HTTP 方法，自动添加 Referer 头以绕过 CDN 防盗链
 async fn handle_proxy_resource(
     Query(query): Query<ProxyQuery>,
+    req: Request,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let target_url = query.url;
     let decoded_url =
         urlencoding::decode(&target_url).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+
+    // 提取目标 URL 的 origin 作为 Referer（绕过 CDN 防盗链检查）
+    let referer = if let Ok(parsed) = Url::parse(decoded_url.as_ref()) {
+        format!("{}/", parsed.origin().ascii_serialization())
+    } else {
+        String::new()
+    };
+
+    let req_method = req.method().clone();
+    let req_headers = req.headers().clone();
+
+    // 读取请求 body（支持 POST 等方法）
+    let body_bytes = axum::body::to_bytes(req.into_body(), 10 * 1024 * 1024)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::BAD_REQUEST,
+                format!("Failed to read body: {}", e),
+            )
+        })?;
 
     let client = wreq::Client::builder()
         .emulation(Emulation::Chrome133)
@@ -376,7 +402,14 @@ async fn handle_proxy_resource(
         .build()
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let mut request = client.get(decoded_url.as_ref());
+    let wreq_method =
+        wreq::Method::from_bytes(req_method.as_str().as_bytes()).unwrap_or(wreq::Method::GET);
+    let mut request = client.request(wreq_method, decoded_url.as_ref());
+
+    // 注入 Referer 头（关键：绕过 B站等 CDN 的防盗链）
+    if !referer.is_empty() {
+        request = request.header("Referer", referer.as_str());
+    }
 
     // 注入 cookie
     {
@@ -386,6 +419,33 @@ async fn handle_proxy_resource(
                 request = request.header("Cookie", cookies.as_str());
             }
         }
+    }
+
+    // 转发原始请求头（过滤掉 host、hop-by-hop 头和 cookie/referer）
+    let skip_headers = [
+        "host",
+        "connection",
+        "transfer-encoding",
+        "upgrade",
+        "te",
+        "trailer",
+        "cookie",
+        "referer",
+        "origin",
+    ];
+    for (name, value) in req_headers.iter() {
+        let name_str = name.as_str().to_lowercase();
+        if skip_headers.contains(&name_str.as_str()) {
+            continue;
+        }
+        if let Ok(v) = value.to_str() {
+            request = request.header(name.as_str(), v);
+        }
+    }
+
+    // 附加 body（非空时）
+    if !body_bytes.is_empty() {
+        request = request.body(body_bytes.to_vec());
     }
 
     let response = request
@@ -414,6 +474,9 @@ async fn handle_proxy_resource(
         "content-security-policy",
         "content-security-policy-report-only",
         "access-control-allow-origin",
+        "access-control-allow-credentials",
+        "access-control-allow-methods",
+        "access-control-allow-headers",
         "connection",
         "keep-alive",
         "proxy-authenticate",
@@ -611,7 +674,7 @@ async fn handle_fallback(req: Request) -> Result<impl IntoResponse, (StatusCode,
         };
 
         let head_injections = format!(
-            r#"<base href="/"><script src="/__distillery/anti-detection.js"></script>{}"#,
+            r#"<base href="/"><script src="/__distillery/anti-detection.js"></script><script src="/__distillery/resource-proxy.js"></script>{}"#,
             local_storage_script
         );
         let body_injections = r#"<script src="/__distillery/bridge.js" defer></script><script src="/__distillery/sniffer.js" defer></script>"#;
@@ -664,6 +727,15 @@ async fn handle_sniffer_js() -> Response {
 /// 返回注入的反检测脚本
 async fn handle_anti_detection_js() -> Response {
     let content = include_str!("inject/anti-detection.js");
+    Response::builder()
+        .header(header::CONTENT_TYPE, "application/javascript")
+        .body(Body::from(content))
+        .unwrap()
+}
+
+/// 返回注入的资源代理脚本（处理跨域请求重写和懒加载修复）
+async fn handle_resource_proxy_js() -> Response {
+    let content = include_str!("inject/resource-proxy.js");
     Response::builder()
         .header(header::CONTENT_TYPE, "application/javascript")
         .body(Body::from(content))

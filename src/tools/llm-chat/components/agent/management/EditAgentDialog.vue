@@ -77,11 +77,9 @@ const defaultFormState = {
   },
   assets: [] as import("../../../types").AgentAsset[],
   assetGroups: [] as import("../../../types").AssetGroup[],
-  virtualTimeConfig: {
-    virtualBaseTime: new Date().toISOString(),
-    realBaseTime: new Date().toISOString(),
-    timeScale: 1.0,
-  },
+  virtualTimeConfig: null as
+    | { virtualBaseTime: string; realBaseTime: string; timeScale: number }
+    | null,
   interactionConfig: {
     sendButtonCreateBranch: false,
     defaultMediaVolume: 100,
@@ -162,14 +160,6 @@ const loadFormData = () => {
     editForm.modelCombo = `${editForm.profileId}:${editForm.modelId}`;
   }
 
-  // 虚拟时间
-  if (!("virtualTimeConfig" in sourceData) || !sourceData.virtualTimeConfig) {
-    editForm.virtualTimeConfig = {
-      virtualBaseTime: new Date().toISOString(),
-      realBaseTime: new Date().toISOString(),
-      timeScale: 1.0,
-    };
-  }
 };
 
 const agentListVisible = ref(false);
@@ -290,7 +280,7 @@ const handleSave = (options: { silent?: boolean; overrideAgentId?: string } = {}
       richTextStyleOptions: editForm.richTextStyleOptions,
       tags: editForm.tags,
       category: editForm.category,
-      virtualTimeConfig: editForm.virtualTimeConfig,
+      virtualTimeConfig: editForm.virtualTimeConfig || undefined,
       regexConfig: editForm.regexConfig,
       interactionConfig: editForm.interactionConfig,
       worldbookIds: editForm.worldbookIds,

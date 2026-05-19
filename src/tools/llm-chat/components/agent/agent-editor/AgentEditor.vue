@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, provide, nextTick, watch, onMounted, defineAsyncComponent } from "vue";
+import { ref, computed, provide, nextTick, onMounted, defineAsyncComponent } from "vue";
 import { Search as SearchIcon } from "@element-plus/icons-vue";
 import { useElementSize } from "@vueuse/core";
 import { agentEditTabs } from "./agentEditConfig";
@@ -68,24 +68,25 @@ const highlightedItemId = ref("");
 const userProfileDialogVisible = ref(false);
 const worldbookManagerVisible = ref(false);
 const assetsDialogVisible = ref(false);
-const virtualTimeEnabled = ref(!!props.modelValue.virtualTimeConfig);
+const virtualTimeEnabled = computed({
+  get: () => !!props.modelValue.virtualTimeConfig,
+  set: (enabled) => {
+    if (enabled) {
+      if (!props.modelValue.virtualTimeConfig) {
+        props.modelValue.virtualTimeConfig = {
+          virtualBaseTime: new Date().toISOString(),
+          realBaseTime: new Date().toISOString(),
+          timeScale: 1.0,
+        };
+      }
+    } else {
+      props.modelValue.virtualTimeConfig = null;
+    }
+  },
+});
 
 const effectiveUserProfile = computed(() => {
   return userProfileStore.getEffectiveProfile(props.modelValue.userProfileId);
-});
-
-watch(virtualTimeEnabled, (enabled) => {
-  if (enabled) {
-    if (!props.modelValue.virtualTimeConfig) {
-      props.modelValue.virtualTimeConfig = {
-        virtualBaseTime: new Date().toISOString(),
-        realBaseTime: new Date().toISOString(),
-        timeScale: 1.0,
-      };
-    }
-  } else {
-    props.modelValue.virtualTimeConfig = undefined;
-  }
 });
 
 provide("agent-edit-form", props.modelValue);

@@ -2,6 +2,7 @@
 import { ref, onUnmounted } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import InteractiveToolbar from "./InteractiveToolbar.vue";
+import PageInfoBar from "./PageInfoBar.vue";
 import BrowserViewport from "./BrowserViewport.vue";
 import ToolPanel from "./ToolPanel.vue";
 import PickerStatusBar from "./PickerStatusBar.vue";
@@ -140,7 +141,9 @@ async function syncProxyCookiesToProfile() {
 // 注册导航变化监听
 function setupNavigationListener() {
   if (unsubNavigation) unsubNavigation();
-  unsubNavigation = iframeBridge.onNavigationChange((_url, _title) => {
+  unsubNavigation = iframeBridge.onNavigationChange((url, title) => {
+    // 更新当前页面信息到 store
+    store.setCurrentPage(url, title);
     // 页面导航发生变化，可能是登录成功后的跳转
     // 延迟执行以确保代理层已处理完所有 Set-Cookie 响应
     setTimeout(syncProxyCookiesToProfile, 500);
@@ -342,8 +345,9 @@ onUnmounted(async () => {
     />
 
     <div class="workbench-body">
-      <!-- 左侧主区域：浏览器视口 + 状态栏 -->
+      <!-- 左侧主区域：页面信息 + 浏览器视口 + 状态栏 -->
       <div class="main-viewport-container">
+        <PageInfoBar />
         <BrowserViewport ref="viewportRef" />
         <PickerStatusBar />
       </div>

@@ -41,6 +41,10 @@ interface WebDistilleryState {
     exclude: string[];
   };
   isWebviewCreated: boolean;
+
+  // 当前 iframe 内实际页面信息（导航后可能与初始 url 不同）
+  currentPageUrl: string;
+  currentPageTitle: string;
 }
 
 const configManager = createConfigManager<WebDistilleryConfig>({
@@ -83,6 +87,9 @@ export const useWebDistilleryStore = defineStore("web-distillery", {
       exclude: [],
     },
     isWebviewCreated: false,
+
+    currentPageUrl: "",
+    currentPageTitle: "",
   }),
 
   actions: {
@@ -173,6 +180,11 @@ export const useWebDistilleryStore = defineStore("web-distillery", {
 
     setWebviewCreated(created: boolean) {
       this.isWebviewCreated = created;
+    },
+
+    setCurrentPage(url: string, title: string) {
+      this.currentPageUrl = url;
+      this.currentPageTitle = title;
     },
 
     // =========== 动作序列管理 ===========

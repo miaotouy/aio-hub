@@ -9,6 +9,7 @@ mod web_distillery;
 // 导入所需的依赖
 use dirs_next::data_dir;
 use log::LevelFilter;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 #[cfg(debug_assertions)]
@@ -47,6 +48,11 @@ use commands::{
     delete_duplicate_files,
     delete_file_to_trash,
     delete_window_config,
+    dir_replace,
+    dir_replace_preview,
+    dir_replace_single,
+    dir_search,
+    dir_search_cancel,
     end_drag_session,
     ensure_window_visible,
     execute_sidecar,
@@ -165,11 +171,6 @@ use commands::{
     write_file_force,
     write_skill_resource,
     write_text_file_force,
-    dir_replace,
-    dir_replace_preview,
-    dir_replace_single,
-    dir_search,
-    dir_search_cancel,
     // 状态结构体
     AssetCatalog,
     ClipboardMonitorState,
@@ -307,9 +308,8 @@ pub fn run() {
 
     let context = tauri::generate_context!();
 
-    // 读取配置以获取时区
-    // 读取配置以获取时区和窗口特效
-    let (show_tray_icon, minimize_to_tray, timezone_str, window_effects_config) = {
+    // 读取配置以获取时区、窗口特效和窗口位置
+    let (show_tray_icon, minimize_to_tray, timezone_str, window_effects_config, main_window_config) = {
         let app_data_dir = get_app_data_dir(context.config());
         let settings_path = app_data_dir.join("settings.json");
 
@@ -356,11 +356,28 @@ pub fn run() {
                 }
             }
         }
+
+        // 同步读取主窗口配置，避免启动时窗口位置闪烁
+        let win_config = {
+            let config_path = app_data_dir.join("window-configs.json");
+            if config_path.exists() {
+                std::fs::read_to_string(&config_path)
+                    .ok()
+                    .and_then(|contents| {
+                        serde_json::from_str::<HashMap<String, commands::window_config::WindowConfig>>(&contents).ok()
+                    })
+                    .and_then(|configs| configs.get("main").cloned())
+            } else {
+                None
+            }
+        };
+
         (
             show,
             minimize,
             tz,
             (enable_effects, effect_type, show_shadow),
+            win_config,
         )
     };
     // 解析时区并计算偏移量
@@ -767,7 +784,6 @@ pub fn run() {
                     *minimize_to_tray_state = minimize_to_tray;
                 }
             }
-
             // 创建主窗口
             let mut win_builder = tauri::WebviewWindowBuilder::new(
                 app,
@@ -776,8 +792,20 @@ pub fn run() {
             )
             .title("AIO Hub")
             .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
-            .inner_size(1280.0, 768.0)
             .min_inner_size(360.0, 112.0);
+
+            // 始终隐藏创建主窗口，由前端 mount 后调用 show（避免白屏闪烁）
+            win_builder = win_builder.visible(false);
+
+            // 如果有保存的窗口配置，直接在创建时应用尺寸和最大化状态
+            if let Some(ref config) = main_window_config {
+                win_builder = win_builder.inner_size(config.width, config.height);
+                if config.maximized {
+                    win_builder = win_builder.maximized(true);
+                }
+            } else {
+                win_builder = win_builder.inner_size(1280.0, 768.0);
+            }
 
             // 开发模式下使用特殊的窗口图标
             #[cfg(debug_assertions)]
@@ -803,6 +831,12 @@ pub fn run() {
 
             let main_window = win_builder.build()?;
 
+            // 如果有保存的配置，用物理坐标精确设置位置（窗口仍隐藏，由前端 show）
+            if let Some(ref config) = main_window_config {
+                use tauri::PhysicalPosition;
+                let _ = main_window.set_position(PhysicalPosition::new(config.x, config.y));
+            }
+
             // 在启动时应用窗口特效和阴影，避免前端加载延迟导致的闪烁
             let (enable_effects, effect_type, show_shadow) = window_effects_config;
             if enable_effects && effect_type != "none" {
@@ -820,13 +854,6 @@ pub fn run() {
                 log::error!("[WINDOW_SHADOW] 启动时设置阴影失败: {}", e);
             }
 
-            // 应用保存的窗口配置（如果存在）
-            let main_window_clone = main_window.clone();
-            tauri::async_runtime::spawn(async move {
-                if let Err(e) = apply_window_config(main_window_clone).await {
-                    log::error!("[WINDOW_CONFIG] 应用主窗口配置失败: {}", e);
-                }
-            });
 
             // 确保窗口显示在任务栏
             main_window

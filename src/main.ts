@@ -158,6 +158,13 @@ const mountApp = async () => {
     // 3. 挂载 Vue 应用
     app.mount("#app");
     logger.info("应用挂载完成");
+
+    // 4. 主窗口挂载后显示（避免窗口位置或白屏闪烁，窗口在 Rust 端以 visible(false) 创建）
+    if (!isDetachedWindow() && !isDetachedComponentLoader() && !isCanvasWindow()) {
+      const { getCurrentWindow } = await import("@tauri-apps/api/window");
+      await getCurrentWindow().show();
+      logger.info("主窗口已显示");
+    }
   } catch (error) {
     errorHandler.handle(error, {
       module: "Main",

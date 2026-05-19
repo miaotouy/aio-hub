@@ -19,6 +19,7 @@ import type {
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
 import { getLocalISOString } from "@/utils/time";
+import { getWebViewFingerprint } from "./core/fingerprint";
 
 const errorHandler = createModuleErrorHandler("web-distillery/actions");
 const logger = createModuleLogger("web-distillery/actions");
@@ -49,62 +50,112 @@ async function resolveProfileForUrl(url: string, recipeCookieProfileId?: string)
 }
 
 /**
- * 快速获取并蒸馏（基于 HTTP 请求，无浏览器）
- */
-export async function quickFetch(options: QuickFetchOptions, context?: ToolContext): Promise<FetchResult> {
-  logger.info("Starting quickFetch", { url: options.url });
-  context?.reportStatus("正在通过 HTTP 获取网页内容...");
-  return (await errorHandler.wrapAsync(
-    async () => {
-      // 先尝试通过 URL 匹配配方（不需要 HTML 内容），以获取绑定的身份卡片
-      const preMatchedRecipe = await recipeStore.findBestMatch(options.url);
-      const activeProfile = await resolveProfileForUrl(options.url, preMatchedRecipe?.cookieProfile);
-      const cookieStr = activeProfile ? activeProfile.cookies.map((c) => `${c.name}=${c.value}`).join("; ") : undefined;
-
-      const payload = await invoke<RawFetchPayload>("distillery_quick_fetch", {
-        url: options.url,
-        options: {
-          url: options.url,
-          timeout: options.timeout || 15000,
-          headers: options.headers,
-          cookieProfile: options.cookieProfile,
-        },
-        cookies: cookieStr,
-      });
-
-      if (activeProfile) {
-        logger.info("Using cookie profile for quickFetch", {
-          profileName: activeProfile.name,
-          domain: activeProfile.domain,
-        });
-        cookieProfileStore.update(activeProfile.id, { lastUsedAt: getLocalISOString() });
-      }
-
-      context?.reportStatus("内容获取成功，正在蒸馏提取...");
-      // 用 HTML 内容做更精确的配方匹配（内容嗅探）
-      const matchedRecipe = (await recipeStore.findBestMatch(options.url, payload.html)) || preMatchedRecipe;
-      const result = await transformer.transform(
-        payload.html,
-        {
-          ...options,
-          cleanMode: options.cleanMode,
-        },
-        matchedRecipe || undefined,
-        "fast",
-      );
-
-      // 保存原始 HTML 用于源码查看
-      return {
-        ...result,
-        domSnapshot: payload.html,
-      };
-    },
-    {
-      userMessage: "网页内容获取失败，请重试",
-    },
-  )) as FetchResult;
-}
-
+ /**
+  * 检测 quickFetch 结果是否需要自动升级到 smartExtract
+  */
+ function detectShouldUpgrade(payload: RawFetchPayload): string | null {
+   // 1. 反爬 challenge 页面（后端已检测）
+   if (payload.isChallengePage) return "反爬验证页面";
+ 
+   // 2. 状态码异常
+   if (payload.statusCode === 403) return "403 禁止访问";
+   if (payload.statusCode === 429) return "429 请求过频";
+ 
+   // 3. SPA 空壳检测
+   const htmlLower = payload.html.toLowerCase();
+   if (payload.contentLength < 2000 && payload.html.length > 200) {
+     if (
+       htmlLower.includes('id="app"') ||
+       htmlLower.includes('id="root"') ||
+       htmlLower.includes('id="__next"') ||
+       htmlLower.includes('id="__nuxt"')
+     ) {
+       return "SPA 空壳页面";
+     }
+   }
+ 
+   // 4. 内容极短且文本密度低（大量标签但几乎没有文字）
+   const textOnly = payload.html.replace(/<[^>]*>/g, "").trim();
+   if (textOnly.length < 100 && payload.html.length > 1000) {
+     return "文本密度过低";
+   }
+ 
+   return null;
+ }
+ 
+ /**
+  * 快速获取并蒸馏（基于 HTTP 请求，无浏览器）
+  * 使用 wreq 进行 TLS/H2 指纹模拟，并在质量不足时自动升级到 smartExtract
+  */
+ export async function quickFetch(options: QuickFetchOptions, context?: ToolContext): Promise<FetchResult> {
+   logger.info("Starting quickFetch", { url: options.url });
+   context?.reportStatus("正在通过 HTTP 获取网页内容...");
+   return (await errorHandler.wrapAsync(
+     async () => {
+       // 先尝试通过 URL 匹配配方（不需要 HTML 内容），以获取绑定的身份卡片
+       const preMatchedRecipe = await recipeStore.findBestMatch(options.url);
+       const activeProfile = await resolveProfileForUrl(options.url, preMatchedRecipe?.cookieProfile);
+       const cookieStr = activeProfile ? activeProfile.cookies.map((c) => `${c.name}=${c.value}`).join("; ") : undefined;
+ 
+       // 获取当前 WebView 的真实浏览器指纹
+       const fingerprint = getWebViewFingerprint();
+ 
+       const payload = await invoke<RawFetchPayload>("distillery_quick_fetch", {
+         url: options.url,
+         options: {
+           url: options.url,
+           timeout: options.timeout || 15000,
+           headers: options.headers,
+           cookieProfile: options.cookieProfile,
+         },
+         cookies: cookieStr,
+         fingerprint,
+       });
+ 
+       if (activeProfile) {
+         logger.info("Using cookie profile for quickFetch", {
+           profileName: activeProfile.name,
+           domain: activeProfile.domain,
+         });
+         cookieProfileStore.update(activeProfile.id, { lastUsedAt: getLocalISOString() });
+       }
+ 
+       // 质量门控：检测是否需要自动升级到 smartExtract
+       const upgradeReason = detectShouldUpgrade(payload);
+       if (upgradeReason && !(options as any)._noUpgrade) {
+         logger.warn("quickFetch quality insufficient, upgrading to smartExtract", {
+           reason: upgradeReason,
+           statusCode: payload.statusCode,
+           contentLength: payload.contentLength,
+         });
+         context?.reportStatus(`快速获取受阻(${upgradeReason})，正在切换到智能提取...`);
+         return await smartExtract({ ...options, _noUpgrade: true } as any, context) as unknown as FetchResult;
+       }
+ 
+       context?.reportStatus("内容获取成功，正在蒸馏提取...");
+       // 用 HTML 内容做更精确的配方匹配（内容嗅探）
+       const matchedRecipe = (await recipeStore.findBestMatch(options.url, payload.html)) || preMatchedRecipe;
+       const result = await transformer.transform(
+         payload.html,
+         {
+           ...options,
+           cleanMode: options.cleanMode,
+         },
+         matchedRecipe || undefined,
+         "fast",
+       );
+ 
+       // 保存原始 HTML 用于源码查看
+       return {
+         ...result,
+         domSnapshot: payload.html,
+       };
+     },
+     {
+       userMessage: "网页内容获取失败，请重试",
+     },
+   )) as FetchResult;
+ }
 /**
  * 智能提取（使用隐藏 Iframe 渲染 JS，支持动态内容）
  */

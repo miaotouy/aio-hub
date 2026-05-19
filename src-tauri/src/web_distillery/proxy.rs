@@ -8,11 +8,12 @@ use axum::{
 };
 use log::{error, info, warn};
 use once_cell::sync::Lazy;
-use reqwest::header::HeaderValue;
 use serde::Deserialize;
 use std::sync::Arc;
 use tokio::sync::{oneshot, Mutex};
 use url::Url;
+use wreq::header::HeaderValue;
+use wreq_util::Emulation;
 
 // 全局代理服务状态
 pub static DISTILLERY_PROXY_STATE: Lazy<Arc<Mutex<DistilleryProxyState>>> =
@@ -89,8 +90,6 @@ fn merge_set_cookies(existing: &Option<String>, set_cookie_headers: &[String]) -
 pub struct ProxyQuery {
     pub url: String,
 }
-
-const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
 /// 启动代理服务器
 #[tauri::command]
@@ -246,8 +245,8 @@ async fn handle_proxy_html(
         decoded_url, target_origin
     );
 
-    let client = reqwest::Client::builder()
-        .user_agent(USER_AGENT)
+    let client = wreq::Client::builder()
+        .emulation(Emulation::Chrome133)
         .timeout(std::time::Duration::from_secs(15))
         .build()
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -371,8 +370,8 @@ async fn handle_proxy_resource(
     let decoded_url =
         urlencoding::decode(&target_url).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
-    let client = reqwest::Client::builder()
-        .user_agent(USER_AGENT)
+    let client = wreq::Client::builder()
+        .emulation(Emulation::Chrome133)
         .timeout(std::time::Duration::from_secs(15))
         .build()
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -487,15 +486,15 @@ async fn handle_fallback(req: Request) -> Result<impl IntoResponse, (StatusCode,
             )
         })?;
 
-    let client = reqwest::Client::builder()
-        .user_agent(USER_AGENT)
+    let client = wreq::Client::builder()
+        .emulation(Emulation::Chrome133)
         .timeout(std::time::Duration::from_secs(30))
         .build()
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let reqwest_method =
-        reqwest::Method::from_bytes(method.as_str().as_bytes()).unwrap_or(reqwest::Method::GET);
-    let mut request = client.request(reqwest_method, &target_url);
+    let wreq_method =
+        wreq::Method::from_bytes(method.as_str().as_bytes()).unwrap_or(wreq::Method::GET);
+    let mut request = client.request(wreq_method, &target_url);
 
     // 注入 cookie
     if let Some(ref cookie_str) = cookies {

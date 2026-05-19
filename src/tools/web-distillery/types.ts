@@ -92,6 +92,8 @@ export interface RawFetchPayload {
   html: string;
   statusCode: number;
   responseHeaders: Record<string, string>;
+  contentLength: number;
+  isChallengePage: boolean;
 }
 
 /**

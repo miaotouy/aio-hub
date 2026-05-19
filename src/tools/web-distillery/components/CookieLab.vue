@@ -19,6 +19,8 @@ import {
   PackageOpen,
 } from "lucide-vue-next";
 import { ElMessageBox } from "element-plus";
+import { save } from "@tauri-apps/plugin-dialog";
+import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { cookieProfileStore } from "../core/cookie-profile-store";
 import type { CookieProfile, CookieEntry } from "../types";
 import CookieProfileCard from "./CookieProfileCard.vue";
@@ -189,7 +191,7 @@ async function handleExportProfile(id: string) {
 
   const profile = profiles.value.find((p) => p.id === id);
   const filename = `cookie-profile-${profile?.name ?? id}.json`;
-  downloadTextFile(result, filename, "application/json");
+  await downloadTextFile(result, filename, "application/json");
   customMessage.success("已导出为 JSON 文件");
 }
 
@@ -205,7 +207,7 @@ async function handleExportAll() {
   if (result === null) return;
 
   const filename = `cookie-profiles-all-${new Date().toISOString().slice(0, 10)}.json`;
-  downloadTextFile(result, filename, "application/json");
+  await downloadTextFile(result, filename, "application/json");
   customMessage.success(`已导出全部 ${profiles.value.length} 个身份卡片`);
 }
 
@@ -217,18 +219,18 @@ async function handleExportAsNetscape(id: string) {
 
   const profile = profiles.value.find((p) => p.id === id);
   const filename = `cookies-${profile?.name ?? id}.txt`;
-  downloadTextFile(result, filename, "text/plain");
+  await downloadTextFile(result, filename, "text/plain");
   customMessage.success("已导出为 Netscape 格式");
 }
 
-function downloadTextFile(content: string, filename: string, mimeType: string) {
-  const blob = new Blob([content], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+async function downloadTextFile(content: string, filename: string, _mimeType: string) {
+  const ext = filename.split(".").pop() ?? "txt";
+  const filePath = await save({
+    defaultPath: filename,
+    filters: [{ name: ext.toUpperCase(), extensions: [ext] }],
+  });
+  if (!filePath) return; // 用户取消
+  await writeTextFile(filePath, content);
 }
 
 // =========== Cookie 表格操作 ===========

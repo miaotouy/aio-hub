@@ -104,7 +104,7 @@ impl RetrievalEngine for BlenderRetrievalEngine {
             parameters: vec![
                 serde_json::json!({
                     "id": "limit",
-                    "label": "召回上限",
+                    "label": "召回上限 ({{ localSettings.vectorIndex.limit }})",
                     "component": "SliderWithInput",
                     "modelPath": "limit",
                     "defaultValue": 20,
@@ -113,10 +113,11 @@ impl RetrievalEngine for BlenderRetrievalEngine {
                 }),
                 serde_json::json!({
                     "id": "minScore",
-                    "label": "最低分数",
+                    "label": "最低相关性分数 ({{ (localSettings.vectorIndex.minScore * 100).toFixed(0) }}%)",
                     "component": "SliderWithInput",
                     "modelPath": "minScore",
                     "defaultValue": 0.0,
+                    "hint": "过滤掉分数低于此值的检索结果",
                     "props": { "min": 0, "max": 1, "step": 0.01, "size": "small" }
                 }),
                 serde_json::json!({

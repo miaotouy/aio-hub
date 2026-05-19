@@ -150,9 +150,9 @@ export interface VectorIndexConfig {
   k1?: number;
   /** 向量检索：BM25 b */
   b?: number;
-  /** @deprecated 已废弃，召回上限现在在 Agent 级别的 knowledgeSettings.defaultLimit 中配置 */
+  /** @deprecated Agent RAG 检索中已废弃（使用 knowledgeSettings.defaultLimit），但在知识库 Playground 中仍有效 */
   limit?: number;
-  /** @deprecated 已废弃，最小分数阈值现在在 Agent 级别的 knowledgeSettings.defaultMinScore 中配置 */
+  /** @deprecated Agent RAG 检索中已废弃（使用 knowledgeSettings.defaultMinScore），但在知识库 Playground 中仍有效 */
   minScore?: number;
   /** 兼容动态引擎参数 */
   [key: string]: any;

@@ -87,9 +87,9 @@ export interface AgentKnowledgeBaseBinding {
   mode?: "always" | "gate" | "turn" | "static";
   /** 模式参数 */
   modeParams?: string[];
-  /** 召回数量 (覆盖全局默认) */
+  /** 召回上限 (覆盖全局默认) */
   limit?: number;
-  /** 最低分数 (覆盖全局默认) */
+  /** 最低分数阈值 (覆盖全局默认) */
   minScore?: number;
   /** 分组标识 (用于 UI 分组展示) */
   group?: string;

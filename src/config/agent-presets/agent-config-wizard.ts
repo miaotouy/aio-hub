@@ -250,9 +250,9 @@ const preset: Omit<AgentPreset, "id"> = {
   version: 2,
   agentVersion: "2.0.0",
   name: "智能体配置向导",
-  displayName: "🧙 智能体配置向导",
+  displayName: "智能体配置向导",
   description: "帮助你理解 AIO Hub 智能体格式、创建新配置、转换酒馆角色卡、配置高级功能",
-  icon: "🧙",
+  icon: "🔮",
   presetMessages: [
     {
       id: "wizard-system",
@@ -335,7 +335,7 @@ const preset: Omit<AgentPreset, "id"> = {
       id: "wizard-greeting",
       parentId: null,
       childrenIds: [],
-      content: `你好，{{user}}！我是智能体配置向导 🧙
+      content: `你好，{{user}}！我是智能体配置向导 🔮
 
 我可以帮你：
 - 📖 **理解格式**：解释 AIO Hub 智能体配置的各个字段和注入策略
@@ -391,6 +391,28 @@ const preset: Omit<AgentPreset, "id"> = {
           separator: "\n\n---\n\n",
         },
       ],
+    },
+  },
+  llmThinkRules: [
+    {
+      id: "deepseek-think",
+      kind: "xml_tag",
+      tagName: "think",
+      displayName: "思考过程",
+      collapsedByDefault: true,
+    },
+    {
+      id: "claude-think",
+      kind: "xml_tag",
+      tagName: "thinking",
+      displayName: "思考过程",
+      collapsedByDefault: true,
+    },
+  ],
+  richTextStyleOptions: {
+    quote: {
+      color: "rgb(233, 153, 54)",
+      enabled: true,
     },
   },
   category: AgentCategory.Workflow,

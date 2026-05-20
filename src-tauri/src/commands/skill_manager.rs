@@ -733,21 +733,20 @@ pub async fn install_skill_from_git(
     let temp_path = temp_dir.path().to_path_buf();
     let clone_dir = temp_path.join("repo");
 
-    let clone_dir_clone = clone_dir.clone();
-    tokio::task::spawn_blocking(move || {
-        let mut fetch_options = git2::FetchOptions::new();
-        fetch_options.download_tags(git2::AutotagOption::None);
+    // 使用系统 git 命令进行 clone（避免 git2 的 openssl-sys 依赖与 boring-sys2 符号冲突）
+    let output = Command::new("git")
+        .args(["clone", "--depth", "1", "--single-branch", &normalized_url])
+        .arg(&clone_dir)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .await
+        .map_err(|e| format!("执行 git clone 失败（请确保系统已安装 git）: {}", e))?;
 
-        let mut builder = git2::build::RepoBuilder::new();
-        builder.fetch_options(fetch_options);
-
-        match builder.clone(&normalized_url, &clone_dir_clone) {
-            Ok(_) => Ok(()),
-            Err(e) => Err(format!("Git 克隆失败: {}", e)),
-        }
-    })
-    .await
-    .map_err(|e| format!("克隆任务出错: {}", e))??;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("Git 克隆失败: {}", stderr.trim()));
+    }
 
     let manifest = install_skill_internal(&app, &clone_dir, custom_name).await?;
     drop(temp_dir);

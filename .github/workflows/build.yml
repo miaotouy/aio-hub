@@ -57,9 +57,11 @@ jobs:
       - name: 安装依赖 (macOS)
         if: matrix.platform == 'macos-latest'
         run: |
-          # git2 的 https 在 macOS 上使用 SecureTransport，无需 OpenSSL
-          # boring-sys2 (wreq) 自带 BoringSSL，也不需要系统 OpenSSL
-          echo "使用系统原生 TLS（macOS SecureTransport / BoringSSL）"
+          # macOS 无需额外依赖：
+          # - native-tls 使用 Security.framework
+          # - boring-sys2 (wreq) 自带 BoringSSL
+          # - git2 仅用于本地仓库分析，不需要网络功能
+          echo "macOS: 使用系统原生 TLS，无需安装 OpenSSL"
 
       - name: Rust 缓存
         uses: Swatinem/rust-cache@v2

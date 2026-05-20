@@ -7,15 +7,7 @@ import PdfViewer from "./PdfViewer.vue";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import HtmlInteractiveViewer from "@/tools/rich-text-renderer/components/HtmlInteractiveViewer.vue";
 import { RendererVersion } from "@/tools/rich-text-renderer/types";
-import {
-  ElSkeleton,
-  ElAlert,
-  ElButton,
-  ElButtonGroup,
-  ElTooltip,
-  ElRadioGroup,
-  ElRadioButton,
-} from "element-plus";
+import { ElSkeleton, ElAlert, ElButton, ElButtonGroup, ElTooltip, ElRadioGroup, ElRadioButton } from "element-plus";
 import { useClipboard } from "@vueuse/core";
 import { Copy, Download, Book, Code } from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
@@ -56,6 +48,7 @@ const {
   isMarkdown,
   isHtml,
   isPdf,
+  isDocx,
   isRenderableHtml,
 } = useDocumentViewer(props);
 // --- 视图逻辑 ---
@@ -77,7 +70,7 @@ watch(
       viewMode.value = "source";
     }
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 watch(
@@ -86,18 +79,16 @@ watch(
     if (newType) {
       currentEditorType.value = newType;
     }
-  }
+  },
 );
-const showToolbar = computed(
-  () => !isLoading.value && !error.value && decodedContent.value && !isPdf.value
-);
+const showToolbar = computed(() => !isLoading.value && !error.value && decodedContent.value && !isPdf.value);
 
-const canPreview = computed(() => isMarkdown.value || isRenderableHtml.value || isPdf.value);
+const canPreview = computed(() => isMarkdown.value || isRenderableHtml.value || isPdf.value || isDocx.value);
 
 const editorLanguage = computed(() => {
   if (viewMode.value === "source") {
     if (isMarkdown.value) return "markdown";
-    if (isHtml.value) return "html";
+    if (isHtml.value || isDocx.value) return "html";
   }
   return language.value || "plaintext";
 });
@@ -175,15 +166,9 @@ function toggleViewMode() {
         <el-skeleton :rows="5" animated />
       </div>
 
-      <el-alert
-        v-else-if="error"
-        :title="`加载文档失败: ${error}`"
-        type="error"
-        :closable="false"
-        show-icon
-      />
+      <el-alert v-else-if="error" :title="`加载文档失败: ${error}`" type="error" :closable="false" show-icon />
 
-      <div v-else-if="!decodedContent && !isTextContent && !isPdf" class="binary-placeholder">
+      <div v-else-if="!decodedContent && !isTextContent && !isPdf && !isDocx" class="binary-placeholder">
         <el-alert
           title="不支持预览的二进制文件"
           :description="`MIME 类型: ${mimeType || '未知'}`"
@@ -216,10 +201,9 @@ function toggleViewMode() {
         class="html-preview-component"
       />
 
-      <div
-        v-else-if="isHtml && !isRenderableHtml && viewMode === 'preview'"
-        class="unrenderable-html-placeholder"
-      >
+      <div v-else-if="isDocx && viewMode === 'preview'" class="docx-preview-component" v-html="decodedContent" />
+
+      <div v-else-if="isHtml && !isRenderableHtml && viewMode === 'preview'" class="unrenderable-html-placeholder">
         <el-alert
           title="无法直接预览"
           description="此 HTML 文件可能是一个需要编译的组件模板 (例如 Vue 或 React 组件)，而不是一个独立的网页，因此无法直接预览。"
@@ -339,5 +323,56 @@ function toggleViewMode() {
   width: 100%;
   height: 100%;
   box-sizing: border-box;
+}
+
+.docx-preview-component {
+  height: 100%;
+  overflow-y: auto;
+  padding: 24px 32px;
+  box-sizing: border-box;
+  color: var(--text-color);
+  font-size: 14px;
+  line-height: 1.8;
+  background: var(--vscode-editor-background);
+
+  :deep(h1),
+  :deep(h2),
+  :deep(h3),
+  :deep(h4) {
+    margin: 1em 0 0.5em;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+
+  :deep(p) {
+    margin: 0.5em 0;
+  }
+
+  :deep(table) {
+    width: 100%;
+    margin: 1em 0;
+    border-collapse: collapse;
+  }
+
+  :deep(td),
+  :deep(th) {
+    padding: 8px;
+    border: var(--border-width) solid var(--border-color);
+    vertical-align: top;
+  }
+
+  :deep(img) {
+    max-width: 100%;
+    height: auto;
+    margin: 0.5em 0;
+  }
+
+  :deep(.docx-conversion-warnings) {
+    margin-top: 24px;
+    padding: 12px 16px;
+    border: var(--border-width) solid var(--warning-color, #e6a23c);
+    border-radius: 6px;
+    color: var(--el-text-color-secondary);
+  }
 }
 </style>

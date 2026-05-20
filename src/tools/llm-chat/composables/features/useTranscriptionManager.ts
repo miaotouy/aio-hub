@@ -11,6 +11,7 @@ import { transcriptionRegistry } from "@/tools/transcription/transcription.regis
 import { useTranscriptionStore } from "@/tools/transcription/stores/transcriptionStore";
 import { saveTranscriptionResult } from "@/tools/transcription/engines/base";
 import { parseModelCombo } from "@/utils/modelIdUtils";
+import { isDocxAssetLike } from "@/utils/docxParser";
 import type { Asset } from "@/types/asset-management";
 
 const logger = createModuleLogger("useTranscriptionManager");
@@ -42,7 +43,7 @@ export function useTranscriptionManager() {
       asset.type === "image" ||
       asset.type === "audio" ||
       asset.type === "video" ||
-      (asset.type === "document" && asset.mimeType === "application/pdf")
+      (asset.type === "document" && (asset.mimeType === "application/pdf" || isDocxAssetLike(asset)))
     );
   };
 
@@ -248,10 +249,22 @@ export function useTranscriptionManager() {
       imageSlicerConfig: chatConfig.imageSlicerConfig,
       ffmpegPath: chatConfig.ffmpegPath,
       // 关键修复：如果指定了 modelId，则将其应用到所有分类配置中，防止被分类配置中的旧模型 ID 覆盖
-      image: { ...chatConfig.image, modelIdentifier: options?.modelId || chatConfig.image?.modelIdentifier || targetModelId },
-      audio: { ...chatConfig.audio, modelIdentifier: options?.modelId || chatConfig.audio?.modelIdentifier || targetModelId },
-      video: { ...chatConfig.video, modelIdentifier: options?.modelId || chatConfig.video?.modelIdentifier || targetModelId },
-      document: { ...chatConfig.document, modelIdentifier: options?.modelId || chatConfig.document?.modelIdentifier || targetModelId },
+      image: {
+        ...chatConfig.image,
+        modelIdentifier: options?.modelId || chatConfig.image?.modelIdentifier || targetModelId,
+      },
+      audio: {
+        ...chatConfig.audio,
+        modelIdentifier: options?.modelId || chatConfig.audio?.modelIdentifier || targetModelId,
+      },
+      video: {
+        ...chatConfig.video,
+        modelIdentifier: options?.modelId || chatConfig.video?.modelIdentifier || targetModelId,
+      },
+      document: {
+        ...chatConfig.document,
+        modelIdentifier: options?.modelId || chatConfig.document?.modelIdentifier || targetModelId,
+      },
     };
 
     return transcriptionRegistry.addTask(asset, overrideConfig);
@@ -367,6 +380,7 @@ export function useTranscriptionManager() {
     if (asset.type === "audio") return !cap.audio;
     if (asset.type === "video") return !cap.video;
     if (asset.type === "document" && asset.mimeType === "application/pdf") return !cap.document;
+    if (isDocxAssetLike(asset)) return true;
 
     return false;
   };

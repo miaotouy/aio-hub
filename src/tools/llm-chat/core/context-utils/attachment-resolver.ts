@@ -1,6 +1,7 @@
 import { useTranscriptionManager } from "../../composables/features/useTranscriptionManager";
 import { isTextFile } from "@/utils/fileTypeDetector";
 import { smartDecode } from "@/utils/encoding";
+import { isDocxAssetLike } from "@/utils/docxParser";
 import { createModuleLogger } from "@/utils/logger";
 import type { Asset } from "@/types/asset-management";
 import { assetManagerEngine } from "@/composables/useAssetManager";
@@ -33,7 +34,7 @@ export async function resolveAttachmentContent(
   asset: Asset,
   modelId: string,
   profileId: string,
-  options: { force?: boolean; silent?: boolean; messageDepth?: number } = {}
+  options: { force?: boolean; silent?: boolean; messageDepth?: number } = {},
 ): Promise<ResolvedAttachment> {
   const transcriptionManager = useTranscriptionManager();
 
@@ -70,7 +71,7 @@ export async function resolveAttachmentContent(
       asset,
       modelId,
       profileId,
-      options.messageDepth
+      options.messageDepth,
     );
 
     // 如果外部强制要求，则覆盖判断
@@ -126,7 +127,7 @@ export async function resolveAttachmentsBatch(
   assets: Asset[],
   modelId: string,
   profileId: string,
-  options: { force?: boolean; silent?: boolean; messageDepth?: number } = {}
+  options: { force?: boolean; silent?: boolean; messageDepth?: number } = {},
 ): Promise<ResolvedAttachment[]> {
   const results: ResolvedAttachment[] = [];
   const missingTranscriptions: Asset[] = [];
@@ -150,8 +151,8 @@ export async function resolveAttachmentsBatch(
         options.force ||
         transcriptionManager.computeWillUseTranscription(asset, modelId, profileId, options.messageDepth);
 
-      // 排除掉本来就是文本文件但读取失败的情况（虽然那种情况也可能需要转写，但这里主要针对媒体）
-      if (shouldTranscribe && asset.type !== "document") {
+      // 文本文档读取失败不重复警告；DOCX 这类二进制文档需要转写提示。
+      if (shouldTranscribe && (asset.type !== "document" || isDocxAssetLike(asset))) {
         missingTranscriptions.push(asset);
       }
     }

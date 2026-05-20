@@ -3,6 +3,7 @@ import { ImageTranscriptionEngine } from "../engines/image.engine";
 import { AudioTranscriptionEngine } from "../engines/audio.engine";
 import { VideoTranscriptionEngine } from "../engines/video.engine";
 import { PdfTranscriptionEngine } from "../engines/pdf.engine";
+import { DocxTranscriptionEngine } from "../engines/docx.engine";
 import { saveTranscriptionResult, updateDerivedStatus } from "../engines/base";
 import { sanitizeErrorMessage } from "../utils/text";
 import { createModuleLogger } from "@/utils/logger";
@@ -23,6 +24,7 @@ const engines: ITranscriptionEngine[] = [
   new AudioTranscriptionEngine(),
   new VideoTranscriptionEngine(),
   new PdfTranscriptionEngine(),
+  new DocxTranscriptionEngine(),
 ];
 
 export function useTranscriptionManager() {
@@ -52,14 +54,19 @@ export function useTranscriptionManager() {
     processQueue(); // 调度下一个
 
     try {
-      const engine = engines.find((e) => e.canHandle({
-        type: pendingTask.assetType,
-        mimeType: pendingTask.mimeType,
-        name: pendingTask.filename
-      } as any));
+      const engine = engines.find((e) =>
+        e.canHandle({
+          type: pendingTask.assetType,
+          mimeType: pendingTask.mimeType,
+          name: pendingTask.filename,
+        } as any),
+      );
       if (!engine) throw new Error(`未找到支持 ${pendingTask.assetType} 的引擎`);
 
-      logger.info(`开始执行转写任务: ${pendingTask.id}`, { assetId: pendingTask.assetId, retry: pendingTask.retryCount });
+      logger.info(`开始执行转写任务: ${pendingTask.id}`, {
+        assetId: pendingTask.assetId,
+        retry: pendingTask.retryCount,
+      });
 
       // 合并覆盖配置
       const finalConfig = {
@@ -93,7 +100,7 @@ export function useTranscriptionManager() {
         pendingTask.path,
         result.text,
         modelId,
-        result.isEmpty
+        result.isEmpty,
       );
 
       pendingTask.resultPath = resultPath;
@@ -113,12 +120,13 @@ export function useTranscriptionManager() {
       logger.error(`转写任务失败: ${pendingTask.id}`, e, {
         assetId: pendingTask.assetId,
         retry: pendingTask.retryCount,
-        isRepetitionError
+        isRepetitionError,
       });
 
       // 如果是复读错误，重试时依然允许重试，但在 execute 中我们会自动放宽阈值
       // 这里的策略是：复读错误依然允许重试，但如果重试一次还不行，就直接失败，避免无限循环
-      const canRetry = pendingTask.retryCount < store.config.maxRetries && (!isRepetitionError || pendingTask.retryCount < 1);
+      const canRetry =
+        pendingTask.retryCount < store.config.maxRetries && (!isRepetitionError || pendingTask.retryCount < 1);
 
       // 如果任务已被标记为取消，则不再处理错误逻辑
       if ((pendingTask.status as string) === "cancelled") {
@@ -132,7 +140,7 @@ export function useTranscriptionManager() {
         pendingTask.startedAt = undefined;
         pendingTask.completedAt = undefined;
         // 延迟重试，避免瞬间刷爆
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 1000));
       } else {
         pendingTask.status = "error";
         pendingTask.error = errorMessage;
@@ -180,7 +188,7 @@ export function useTranscriptionManager() {
       const basePath = await assetManagerEngine.getAssetBasePath();
       const fullPath = `${basePath}/${path}`.replace(/\\/g, "/");
       await remove(fullPath);
-    } catch (e) { }
+    } catch (e) {}
   };
 
   /**
@@ -194,7 +202,7 @@ export function useTranscriptionManager() {
 
     // 检查是否支持该类型
     const isText = asset.mimeType?.startsWith("text/") || asset.name.endsWith(".txt") || asset.name.endsWith(".md");
-    const isSupported = engines.some(e => e.canHandle(asset)) || isText;
+    const isSupported = engines.some((e) => e.canHandle(asset)) || isText;
 
     if (!isSupported) {
       logger.warn("不支持的资产类型，无法添加转写任务", { type: asset.type, mime: asset.mimeType });
@@ -242,7 +250,7 @@ export function useTranscriptionManager() {
    * 取消任务
    */
   const cancelTask = (assetId: string) => {
-    const task = store.tasks.find(t => t.assetId === assetId);
+    const task = store.tasks.find((t) => t.assetId === assetId);
     if (!task) return;
 
     if (task.status === "pending") {
@@ -260,6 +268,6 @@ export function useTranscriptionManager() {
     cancelTask,
     getTranscriptionText,
     retryTask: addTask,
-    processQueue
+    processQueue,
   };
 }

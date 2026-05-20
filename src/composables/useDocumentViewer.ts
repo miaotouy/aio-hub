@@ -1,6 +1,7 @@
 import { ref, watch, computed } from "vue";
 import { useAssetManager } from "@/composables/useAssetManager";
 import { detectMimeTypeFromBuffer } from "@/utils/fileTypeDetector";
+import { DOCX_MIME, docxToHtml, isDocxMime } from "@/utils/docxParser";
 import { smartDecode } from "@/utils/encoding";
 import { mapMimeToLanguage } from "@/utils/mimeToLanguage";
 import { createModuleLogger } from "@/utils/logger";
@@ -45,6 +46,8 @@ export function useDocumentViewer(options: UseDocumentViewerOptions) {
   const isHtml = computed(() => mimeType.value === "text/html");
 
   const isPdf = computed(() => mimeType.value === "application/pdf");
+
+  const isDocx = computed(() => isDocxMime(mimeType.value));
 
   /**
    * 检查 HTML 内容是否可能是一个简单的、可渲染的 HTML 文件，
@@ -131,7 +134,7 @@ export function useDocumentViewer(options: UseDocumentViewerOptions) {
       }
       mimeType.value = detectedMime;
 
-      const detectedLanguage = mapMimeToLanguage(detectedMime) || "plaintext";
+      const detectedLanguage = isDocxMime(detectedMime) ? "html" : mapMimeToLanguage(detectedMime) || "plaintext";
       language.value = detectedLanguage;
 
       logger.debug("Document details", {
@@ -139,6 +142,13 @@ export function useDocumentViewer(options: UseDocumentViewerOptions) {
         lang: detectedLanguage,
         hint,
       });
+
+      if (isDocxMime(detectedMime)) {
+        decodedContent.value = await docxToHtml(buffer);
+        mimeType.value = DOCX_MIME;
+        language.value = "html";
+        return;
+      }
 
       // 只有在 decodedContent 尚未被设置时才解码
       if (decodedContent.value === null && (isTextContent.value || detectedMime === "application/octet-stream")) {
@@ -196,6 +206,7 @@ export function useDocumentViewer(options: UseDocumentViewerOptions) {
     isMarkdown,
     isHtml,
     isPdf,
+    isDocx,
     isRenderableHtml,
     loadDocument,
   };

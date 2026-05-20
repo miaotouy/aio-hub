@@ -18,20 +18,9 @@
               <div class="loading-spinner"></div>
             </template>
             <template v-else>
-              <img
-                v-if="isImage"
-                :src="previewUrl"
-                class="preview-image"
-                alt="预览"
-                @click="handleImagePreview"
-              />
+              <img v-if="isImage" :src="previewUrl" class="preview-image" alt="预览" @click="handleImagePreview" />
               <div v-else-if="isVideo" class="video-player-wrapper">
-                <VideoPlayer
-                  v-if="previewUrl"
-                  :src="previewUrl"
-                  :title="asset.name"
-                  :autoplay="false"
-                />
+                <VideoPlayer v-if="previewUrl" :src="previewUrl" :title="asset.name" :autoplay="false" />
               </div>
               <div v-else-if="isAudio" class="audio-player-wrapper">
                 <AudioPlayer
@@ -42,6 +31,12 @@
                   :autoplay="false"
                 />
               </div>
+              <DocumentViewer
+                v-else-if="isDocx"
+                :file-path="asset.path"
+                :file-name="asset.name"
+                class="document-preview"
+              />
               <div v-else class="generic-preview">
                 <FileIcon :file-name="asset.name" :file-type="asset.type" :size="64" />
               </div>
@@ -75,11 +70,7 @@
     <template #footer>
       <div class="dialog-footer-content">
         <div class="left-actions">
-          <button
-            v-if="showRegenerate"
-            class="btn btn-secondary btn-danger-hover"
-            @click.stop="openRegenerateConfirm"
-          >
+          <button v-if="showRegenerate" class="btn btn-secondary btn-danger-hover" @click.stop="openRegenerateConfirm">
             <RefreshCw :size="16" class="btn-icon" />
             重新生成
           </button>
@@ -96,13 +87,7 @@
   </BaseDialog>
 
   <!-- 重新生成配置弹窗 (套娃弹窗) -->
-  <BaseDialog
-    v-model="showRegenerateConfirm"
-    title="重新生成转写"
-    width="500px"
-    height="auto"
-    :z-index="2100"
-  >
+  <BaseDialog v-model="showRegenerateConfirm" title="重新生成转写" width="500px" height="auto" :z-index="2100">
     <template #content>
       <div class="regenerate-form">
         <div class="form-item">
@@ -143,9 +128,7 @@
     <template #footer>
       <div class="confirm-footer">
         <button class="btn btn-secondary" @click="showRegenerateConfirm = false">取消</button>
-        <button class="btn btn-primary btn-danger" @click="handleConfirmRegenerate">
-          确认重新生成
-        </button>
+        <button class="btn btn-primary btn-danger" @click="handleConfirmRegenerate">确认重新生成</button>
       </div>
     </template>
   </BaseDialog>
@@ -156,6 +139,7 @@ import { ref, computed, watch } from "vue";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
+import DocumentViewer from "@/components/common/DocumentViewer.vue";
 import FileIcon from "@/components/common/FileIcon.vue";
 import VideoPlayer from "@/components/common/VideoPlayer.vue";
 import AudioPlayer from "@/components/common/AudioPlayer.vue";
@@ -164,6 +148,7 @@ import { assetManagerEngine } from "@/composables/useAssetManager";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { createModuleLogger } from "@/utils/logger";
 import { customMessage } from "@/utils/customMessage";
+import { isDocxAssetLike } from "@/utils/docxParser";
 import { getPureModelId } from "@/utils/modelIdUtils";
 import { Copy, RefreshCw, Info } from "lucide-vue-next";
 import type { Asset } from "@/types/asset-management";
@@ -180,18 +165,21 @@ const props = withDefaults(
   }>(),
   {
     showRegenerate: true,
-  }
+  },
 );
 
 const emit = defineEmits<{
   (e: "update:modelValue", value: boolean): void;
   (e: "save", content: string): void;
-  (e: "regenerate", payload: {
-    modelId: string;
-    prompt: string;
-    enableRepetitionDetection: boolean;
-    overrideConfig?: any;
-  }): void;
+  (
+    e: "regenerate",
+    payload: {
+      modelId: string;
+      prompt: string;
+      enableRepetitionDetection: boolean;
+      overrideConfig?: any;
+    },
+  ): void;
 }>();
 
 const { show: showImage } = useImageViewer();
@@ -210,6 +198,7 @@ const isImage = computed(() => props.asset.type === "image");
 const isVideo = computed(() => props.asset.type === "video");
 const isAudio = computed(() => props.asset.type === "audio");
 const isDocument = computed(() => props.asset.type === "document");
+const isDocx = computed(() => isDocxAssetLike(props.asset));
 
 const requiredCapabilities = computed(() => {
   if (isImage.value) {
@@ -238,9 +227,7 @@ const loadPreviewUrl = async () => {
     if (props.asset.importStatus === "pending" || props.asset.importStatus === "importing") {
       const originalPath = props.asset.originalPath || props.asset.path;
       if (originalPath) {
-        previewUrl.value = originalPath.startsWith("blob:")
-          ? originalPath
-          : convertFileSrc(originalPath);
+        previewUrl.value = originalPath.startsWith("blob:") ? originalPath : convertFileSrc(originalPath);
       }
     } else {
       // 已导入状态
@@ -249,10 +236,7 @@ const loadPreviewUrl = async () => {
 
     // 2. 加载缩略图/封面 URL (如有)
     if (props.asset.thumbnailPath) {
-      posterUrl.value = assetManagerEngine.convertToAssetProtocol(
-        props.asset.thumbnailPath,
-        basePath
-      );
+      posterUrl.value = assetManagerEngine.convertToAssetProtocol(props.asset.thumbnailPath, basePath);
     } else {
       posterUrl.value = "";
     }
@@ -269,7 +253,7 @@ watch(
   () => {
     loadPreviewUrl();
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 // 监听 initialContent 变化
@@ -278,7 +262,7 @@ watch(
   (newVal) => {
     currentContent.value = newVal || "";
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 const openRegenerateConfirm = () => {
@@ -402,6 +386,13 @@ const handleImagePreview = () => {
   justify-content: center;
   padding: 20px;
   box-sizing: border-box;
+}
+
+.document-preview {
+  width: 100%;
+  height: 100%;
+  border: none;
+  border-radius: 0;
 }
 
 .generic-preview {

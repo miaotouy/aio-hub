@@ -37,6 +37,12 @@ export const useModelMetadataStore = defineStore("modelMetadata", () => {
   const presetIcons = computed<PresetIconInfo[]>(() => PRESET_ICONS);
   const enabledCount = computed(() => rules.value.filter((r) => r.enabled !== false).length);
 
+  /** 内置预设中尚未合并到用户规则的新规则数量 */
+  const pendingUpdatesCount = computed(() => {
+    const currentRuleIds = new Set(rules.value.map((r) => r.id));
+    return DEFAULT_METADATA_RULES.filter((r) => !currentRuleIds.has(r.id)).length;
+  });
+
   // --- 核心操作 ---
 
   /**
@@ -263,6 +269,7 @@ export const useModelMetadataStore = defineStore("modelMetadata", () => {
     isLoaded,
     presetIcons,
     enabledCount,
+    pendingUpdatesCount,
     loadRules,
     saveRules,
     addRule,

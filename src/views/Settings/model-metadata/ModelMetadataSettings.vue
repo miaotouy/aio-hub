@@ -10,9 +10,23 @@
         <el-button @click="showPresets = true">查看预设</el-button>
         <el-button @click="handleImport">导入配置</el-button>
         <el-button @click="handleExport">导出配置</el-button>
-        <el-button @click="handleMerge">合并最新配置</el-button>
+        <el-badge :value="pendingUpdatesCount" :hidden="!pendingUpdatesCount" class="merge-badge">
+          <el-button @click="handleMerge" :type="pendingUpdatesCount ? 'success' : ''">合并最新配置</el-button>
+        </el-badge>
         <el-button @click="handleReset" type="warning">重置为默认</el-button>
         <el-button @click="handleAdd" type="primary">添加配置</el-button>
+      </div>
+    </div>
+
+    <!-- 更新提示横幅 -->
+    <div v-if="pendingUpdatesCount && !bannerDismissed" class="update-banner">
+      <div class="update-banner-content">
+        <el-icon class="update-banner-icon"><RefreshCw /></el-icon>
+        <span class="update-banner-text">
+          有 <strong>{{ pendingUpdatesCount }}</strong> 条新的内置模型规则可用（随应用版本更新）
+        </span>
+        <el-button type="primary" size="small" @click="handleMerge">立即合并</el-button>
+        <el-button size="small" text @click="dismissBanner">忽略</el-button>
       </div>
     </div>
 
@@ -309,12 +323,14 @@ import type { ModelMetadataRule, MetadataMatchType } from "../../../types/model-
 import ModelMetadataConfigEditor from "./components/ModelMetadataConfigEditor.vue";
 import IconPresetSelector from "@components/common/IconPresetSelector.vue";
 import { Edit, Delete, Select, Close, Grid, List } from "@element-plus/icons-vue";
+import { RefreshCw } from "lucide-vue-next";
 import DynamicIcon from "@components/common/DynamicIcon.vue";
 
 const {
   rules: configs,
   presetIcons,
   enabledCount,
+  pendingUpdatesCount,
   addRule: addConfig,
   updateRule: updateConfig,
   deleteRule: deleteConfig,
@@ -339,6 +355,9 @@ const filterEnabled = ref<"all" | "enabled" | "disabled">("all");
 const currentPage = ref(1);
 const pageSize = ref(12);
 const viewMode = ref<"grid" | "list">("grid");
+
+// 横幅忽略状态（本次会话内有效）
+const bannerDismissed = ref(false);
 
 // 测试模式
 const testMode = ref(false);
@@ -613,6 +632,11 @@ function handleImport() {
     }
   };
   input.click();
+}
+
+// 忽略更新横幅（本次会话）
+function dismissBanner() {
+  bannerDismissed.value = true;
 }
 
 // 格式化日期（简短格式）
@@ -1131,5 +1155,40 @@ function formatDate(dateString: string): string {
 
 .el-button {
   margin-left: 0px;
+}
+
+/* 更新提示横幅 */
+.update-banner {
+  margin-bottom: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: rgba(var(--el-color-success-rgb), calc(var(--card-opacity) * 0.1));
+  border: 1px solid rgba(var(--el-color-success-rgb), 0.3);
+  border-radius: 8px;
+  flex-shrink: 0;
+  backdrop-filter: blur(var(--ui-blur));
+}
+
+.update-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.update-banner-icon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+  color: var(--el-color-success);
+}
+
+.update-banner-text {
+  flex: 1;
+  font-size: 0.9rem;
+  min-width: 200px;
+}
+
+/* 合并按钮徽章 */
+.merge-badge {
+  display: inline-flex;
 }
 </style>

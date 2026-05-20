@@ -133,6 +133,7 @@ export function useModelMetadata() {
     isLoaded: computed(() => store.isLoaded),
     presetIcons: computed(() => store.presetIcons),
     enabledCount: computed(() => store.enabledCount),
+    pendingUpdatesCount: computed(() => store.pendingUpdatesCount),
 
     // 规则管理
     loadRules: store.loadRules,

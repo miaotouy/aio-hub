@@ -98,6 +98,7 @@ export const providerTypes: ProviderTypeInfo[] = [
       parallelToolCalls: true,
       // 特殊功能
       thinking: true,
+      webSearch: true,
     },
   },
   {
@@ -131,6 +132,7 @@ export const providerTypes: ProviderTypeInfo[] = [
       codeExecution: true,
       modalities: true,
       safetySettings: true,
+      webSearch: true,
     },
   },
   {
@@ -204,8 +206,7 @@ export const providerTypes: ProviderTypeInfo[] = [
   {
     type: "openai-responses",
     name: "OpenAI Responses",
-    description:
-      "OpenAI Responses API - 新一代有状态交互接口，支持工具调用、推理、网络搜索、文件搜索等高级功能",
+    description: "OpenAI Responses API - 新一代有状态交互接口，支持工具调用、推理、网络搜索、文件搜索等高级功能",
     defaultBaseUrl: "https://api.openai.com",
     supportsModelList: true,
     modelListEndpoint: "models",
@@ -334,6 +335,7 @@ export const providerTypes: ProviderTypeInfo[] = [
       codeExecution: true,
       modalities: true,
       safetySettings: true,
+      webSearch: true,
     },
     configFields: [
       {

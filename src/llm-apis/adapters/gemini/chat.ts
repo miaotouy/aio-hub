@@ -2,10 +2,7 @@ import type { LlmProfile } from "@/types/llm-profiles";
 import type { LlmRequestOptions, LlmResponse } from "@/llm-apis/common";
 import { fetchWithTimeout, ensureResponseOk } from "@/llm-apis/common";
 import { parseSSEStream, extractTextFromSSE } from "@utils/sse-parser";
-import {
-  applyCustomParameters,
-  cleanPayload,
-} from "@/llm-apis/request-builder";
+import { applyCustomParameters, cleanPayload } from "@/llm-apis/request-builder";
 import { asyncJsonStringify } from "@/utils/serialization";
 import {
   geminiUrlHandler,
@@ -77,7 +74,8 @@ export function parseGeminiResponse(data: any): LlmResponse {
 
   if (candidate.content?.parts) {
     for (const part of candidate.content.parts) {
-      if (!part.text && !part.functionCall && !part.executableCode && !part.codeExecutionResult && !part.inlineData) continue;
+      if (!part.text && !part.functionCall && !part.executableCode && !part.codeExecutionResult && !part.inlineData)
+        continue;
       if (part.thought && part.text) {
         thoughtsContent += part.text;
         continue;
@@ -96,8 +94,7 @@ export function parseGeminiResponse(data: any): LlmResponse {
             format: mimeType.split("/")[1],
           });
         }
-      }
-      else if (part.functionCall) {
+      } else if (part.functionCall) {
         if (!toolCalls) toolCalls = [];
         toolCalls.push({
           id: `call_${Date.now()}_${toolCalls.length}`,
@@ -137,6 +134,53 @@ export function parseGeminiResponse(data: any): LlmResponse {
     };
   }
 
+  // 解析 Grounding 元数据（Google Search 引用）
+  if (candidate.groundingMetadata) {
+    const gm = candidate.groundingMetadata;
+    const annotations: any[] = [];
+
+    // 优先使用 groundingSupports（提供精确的文本位置映射）
+    if (gm.groundingSupports && gm.groundingChunks) {
+      for (const support of gm.groundingSupports) {
+        const segment = support.segment;
+        if (!segment || !support.groundingChunkIndices) continue;
+        for (const chunkIndex of support.groundingChunkIndices) {
+          const chunk = gm.groundingChunks[chunkIndex];
+          if (chunk?.web) {
+            annotations.push({
+              type: "url_citation" as const,
+              urlCitation: {
+                startIndex: segment.startIndex || 0,
+                endIndex: segment.endIndex || 0,
+                url: chunk.web.uri,
+                title: chunk.web.title || chunk.web.uri,
+              },
+            });
+          }
+        }
+      }
+    } else if (gm.groundingChunks) {
+      // 回退：只有 chunks 没有 supports 时，使用简单映射
+      for (const chunk of gm.groundingChunks) {
+        if (chunk.web) {
+          annotations.push({
+            type: "url_citation" as const,
+            urlCitation: {
+              startIndex: 0,
+              endIndex: 0,
+              url: chunk.web.uri,
+              title: chunk.web.title || chunk.web.uri,
+            },
+          });
+        }
+      }
+    }
+
+    if (annotations.length > 0) {
+      result.annotations = annotations;
+    }
+  }
+
   if (toolCalls) result.toolCalls = toolCalls;
   if (thoughtsContent) result.reasoningContent = thoughtsContent;
   if (candidate.logprobsResult) result.logprobs = parseGeminiLogprobs(candidate.logprobsResult);
@@ -147,12 +191,12 @@ export function parseGeminiResponse(data: any): LlmResponse {
 /**
  * 调用 Google Gemini API
  */
-export const callGeminiChatApi = async (
-  profile: LlmProfile,
-  options: LlmRequestOptions
-): Promise<LlmResponse> => {
+export const callGeminiChatApi = async (profile: LlmProfile, options: LlmRequestOptions): Promise<LlmResponse> => {
   const apiKey = profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
-  const endpoint = options.stream && options.onStream ? `models/${options.modelId}:streamGenerateContent` : `models/${options.modelId}:generateContent`;
+  const endpoint =
+    options.stream && options.onStream
+      ? `models/${options.modelId}:streamGenerateContent`
+      : `models/${options.modelId}:generateContent`;
   const baseUrl = geminiUrlHandler.buildUrl(profile.baseUrl, endpoint);
   const url = `${baseUrl}?key=${apiKey}${options.stream ? "&alt=sse" : ""}`;
 
@@ -161,9 +205,11 @@ export const callGeminiChatApi = async (
     generationConfig: buildGeminiGenerationConfig(options),
   };
 
-  const systemMessages = (options.messages || []).filter(m => m.role === 'system');
+  const systemMessages = (options.messages || []).filter((m) => m.role === "system");
   if (systemMessages.length > 0) {
-    const systemContent = systemMessages.map(m => typeof m.content === 'string' ? m.content : JSON.stringify(m.content)).join('\n\n');
+    const systemContent = systemMessages
+      .map((m) => (typeof m.content === "string" ? m.content : JSON.stringify(m.content)))
+      .join("\n\n");
     body.systemInstruction = { parts: [{ text: systemContent }] };
   }
 
@@ -203,7 +249,7 @@ export const callGeminiChatApi = async (
         isStreaming: true,
       },
       options.timeout,
-      options.signal
+      options.signal,
     );
 
     await ensureResponseOk(response);
@@ -215,56 +261,109 @@ export const callGeminiChatApi = async (
     let finishReason: LlmResponse["finishReason"] = null;
     let toolCalls: LlmResponse["toolCalls"] = undefined;
     let reasoningContent = "";
+    let streamAnnotations: LlmResponse["annotations"] = undefined;
 
-    await parseSSEStream(reader, (data) => {
-      try {
-        const json = JSON.parse(data);
-        if (json.usageMetadata) {
-          usage = {
-            promptTokens: json.usageMetadata.promptTokenCount || 0,
-            completionTokens: json.usageMetadata.candidatesTokenCount || 0,
-            totalTokens: json.usageMetadata.totalTokenCount || 0,
-          };
-        }
-        if (json.candidates?.[0]?.finishReason) finishReason = mapGeminiFinishReason(json.candidates[0].finishReason);
-        const parts = json.candidates?.[0]?.content?.parts;
-        if (parts && Array.isArray(parts)) {
-          for (const part of parts) {
-            if (part.text) {
-              if (part.thought) {
-                reasoningContent += part.text;
-                if (options.onReasoningStream) options.onReasoningStream(part.text);
-              } else {
-                fullContent += part.text;
-                options.onStream!(part.text);
+    await parseSSEStream(
+      reader,
+      (data) => {
+        try {
+          const json = JSON.parse(data);
+          if (json.usageMetadata) {
+            usage = {
+              promptTokens: json.usageMetadata.promptTokenCount || 0,
+              completionTokens: json.usageMetadata.candidatesTokenCount || 0,
+              totalTokens: json.usageMetadata.totalTokenCount || 0,
+            };
+          }
+          if (json.candidates?.[0]?.finishReason) finishReason = mapGeminiFinishReason(json.candidates[0].finishReason);
+          const parts = json.candidates?.[0]?.content?.parts;
+          if (parts && Array.isArray(parts)) {
+            for (const part of parts) {
+              if (part.text) {
+                if (part.thought) {
+                  reasoningContent += part.text;
+                  if (options.onReasoningStream) options.onReasoningStream(part.text);
+                } else {
+                  fullContent += part.text;
+                  options.onStream!(part.text);
+                }
+              } else if (part.functionCall) {
+                toolCalls = [
+                  {
+                    id: `call_${Date.now()}`,
+                    type: "function",
+                    function: { name: part.functionCall.name, arguments: JSON.stringify(part.functionCall.args || {}) },
+                  },
+                ];
               }
-            } else if (part.functionCall) {
-              toolCalls = [{
-                id: `call_${Date.now()}`,
-                type: "function",
-                function: { name: part.functionCall.name, arguments: JSON.stringify(part.functionCall.args || {}) },
-              }];
             }
           }
+          // 解析流式 Grounding 元数据
+          const gm = json.candidates?.[0]?.groundingMetadata;
+          if (gm) {
+            const annotations: any[] = [];
+            if (gm.groundingSupports && gm.groundingChunks) {
+              for (const support of gm.groundingSupports) {
+                const segment = support.segment;
+                if (!segment || !support.groundingChunkIndices) continue;
+                for (const chunkIndex of support.groundingChunkIndices) {
+                  const chunk = gm.groundingChunks[chunkIndex];
+                  if (chunk?.web) {
+                    annotations.push({
+                      type: "url_citation" as const,
+                      urlCitation: {
+                        startIndex: segment.startIndex || 0,
+                        endIndex: segment.endIndex || 0,
+                        url: chunk.web.uri,
+                        title: chunk.web.title || chunk.web.uri,
+                      },
+                    });
+                  }
+                }
+              }
+            } else if (gm.groundingChunks) {
+              for (const chunk of gm.groundingChunks) {
+                if (chunk.web) {
+                  annotations.push({
+                    type: "url_citation" as const,
+                    urlCitation: {
+                      startIndex: 0,
+                      endIndex: 0,
+                      url: chunk.web.uri,
+                      title: chunk.web.title || chunk.web.uri,
+                    },
+                  });
+                }
+              }
+            }
+            if (annotations.length > 0) {
+              streamAnnotations = annotations;
+            }
+          }
+        } catch {
+          const text = extractTextFromSSE(data, "gemini");
+          if (text) {
+            fullContent += text;
+            options.onStream!(text);
+          }
         }
-      } catch {
-        const text = extractTextFromSSE(data, "gemini");
-        if (text) {
-          fullContent += text;
-          options.onStream!(text);
-        }
-      }
-    }, undefined, options.signal);
+      },
+      undefined,
+      options.signal,
+    );
 
     const result: LlmResponse = { content: fullContent, usage, finishReason, toolCalls, isStream: true };
     if (reasoningContent) result.reasoningContent = reasoningContent;
+    if (streamAnnotations) result.annotations = streamAnnotations;
     return result;
   }
 
   const stringifyStart = performance.now();
   const serializedBody = await asyncJsonStringify(body);
   const stringifyEnd = performance.now();
-  console.log(`[Gemini] 序列化总耗时: ${(stringifyEnd - stringifyStart).toFixed(2)}ms, 类型: ${typeof serializedBody === 'string' ? 'string' : 'Uint8Array'}`);
+  console.log(
+    `[Gemini] 序列化总耗时: ${(stringifyEnd - stringifyStart).toFixed(2)}ms, 类型: ${typeof serializedBody === "string" ? "string" : "Uint8Array"}`,
+  );
 
   const fetchStart = performance.now();
   const response = await fetchWithTimeout(
@@ -279,7 +378,7 @@ export const callGeminiChatApi = async (
       http1Only: options.http1Only,
     },
     options.timeout,
-    options.signal
+    options.signal,
   );
   const fetchEnd = performance.now();
   console.log(`[Gemini] fetch 调用耗时: ${(fetchEnd - fetchStart).toFixed(2)}ms`);

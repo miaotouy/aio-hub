@@ -138,7 +138,9 @@ export interface LlmParameters {
   };
 
   // ===== 特殊功能 =====
-  /** 网络搜索选项 */
+  /** 是否启用联网搜索（统一开关，各 Provider 自动适配） */
+  webSearchEnabled?: boolean;
+  /** 网络搜索选项（OpenAI 高级配置，webSearchEnabled 为 true 时自动注入默认值） */
   webSearchOptions?: {
     searchContextSize?: "low" | "medium" | "high";
     userLocation?: {

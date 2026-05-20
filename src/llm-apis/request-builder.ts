@@ -691,6 +691,9 @@ export function filterParametersByCapabilities(
 
   // ===== 网络搜索 =====
   const supportsWebSearch = supported.webSearch && (!capabilities || capabilities.webSearch);
+  if (supportsWebSearch && options.webSearchEnabled !== undefined) {
+    filtered.webSearchEnabled = options.webSearchEnabled;
+  }
   if (supportsWebSearch && options.webSearchOptions !== undefined) {
     filtered.webSearchOptions = options.webSearchOptions;
   }
@@ -894,6 +897,7 @@ export const KNOWN_NON_MODEL_OPTIONS_KEYS = new Set([
   "modalities",
   "audio",
   "prediction",
+  "webSearchEnabled",
   "webSearchOptions",
   "streamOptions",
 

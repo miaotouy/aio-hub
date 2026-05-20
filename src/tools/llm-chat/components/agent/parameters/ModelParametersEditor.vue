@@ -777,7 +777,7 @@ const hasActivePostProcessingRules = computed(() => {
         :overrides="overrides[config.key as keyof typeof overrides]"
       />
 
-      <div class="param-hint">其他高级功能（如 Response Format、Tools、Web Search）需要通过代码配置。</div>
+      <div class="param-hint">其他高级功能（如 Response Format、Tools）需要通过代码配置。</div>
     </ConfigSection>
 
     <!-- 自定义参数分组 -->

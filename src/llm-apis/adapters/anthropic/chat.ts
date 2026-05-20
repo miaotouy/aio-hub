@@ -2,21 +2,11 @@ import type { LlmProfile } from "@/types/llm-profiles";
 import type { LlmRequestOptions, LlmResponse } from "@/llm-apis/common";
 import { fetchWithTimeout, ensureResponseOk } from "@/llm-apis/common";
 import { parseSSEStream } from "@utils/sse-parser";
-import {
-  extractCommonParameters,
-  applyCustomParameters,
-  cleanPayload,
-} from "@/llm-apis/request-builder";
+import { extractCommonParameters, applyCustomParameters, cleanPayload } from "@/llm-apis/request-builder";
 import { asyncJsonStringify } from "@/utils/serialization";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import {
-  claudeUrlHandler,
-  convertToClaudeMessages,
-  convertTools,
-  convertToolChoice,
-  ClaudeRequest,
-} from "./utils";
+import { claudeUrlHandler, convertToClaudeMessages, convertTools, convertToolChoice, ClaudeRequest } from "./utils";
 
 const logger = createModuleLogger("anthropic-chat");
 const errorHandler = createModuleErrorHandler("anthropic-chat");
@@ -27,7 +17,7 @@ const errorHandler = createModuleErrorHandler("anthropic-chat");
 const parseClaudeSSE = async (
   reader: ReadableStreamDefaultReader<Uint8Array>,
   onChunk: (text: string) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ): Promise<{
   fullContent: string;
   usage?: LlmResponse["usage"];
@@ -102,7 +92,7 @@ const parseClaudeSSE = async (
       }
     },
     undefined,
-    signal
+    signal,
   );
 
   return { fullContent, usage, stopReason, stopSequence, toolCalls: toolCalls.length > 0 ? toolCalls : undefined };
@@ -111,13 +101,10 @@ const parseClaudeSSE = async (
 /**
  * 调用 Anthropic Claude API
  */
-export const callClaudeChatApi = async (
-  profile: LlmProfile,
-  options: LlmRequestOptions
-): Promise<LlmResponse> => {
+export const callClaudeChatApi = async (profile: LlmProfile, options: LlmRequestOptions): Promise<LlmResponse> => {
   const url = claudeUrlHandler.buildUrl(profile.baseUrl, "messages");
-  const systemMessages = (options.messages || []).filter(m => m.role === 'system');
-  const userAssistantMessages = (options.messages || []).filter(m => m.role !== 'system');
+  const systemMessages = (options.messages || []).filter((m) => m.role === "system");
+  const userAssistantMessages = (options.messages || []).filter((m) => m.role !== "system");
   const messages = convertToClaudeMessages(userAssistantMessages);
   const commonParams = extractCommonParameters(options);
 
@@ -132,7 +119,9 @@ export const callClaudeChatApi = async (
   if (commonParams.topP !== undefined) body.top_p = commonParams.topP;
 
   if (systemMessages.length > 0) {
-    body.system = systemMessages.map(m => typeof m.content === 'string' ? m.content : JSON.stringify(m.content)).join('\n\n');
+    body.system = systemMessages
+      .map((m) => (typeof m.content === "string" ? m.content : JSON.stringify(m.content)))
+      .join("\n\n");
   }
   if (options.stopSequences && options.stopSequences.length > 0) body.stop_sequences = options.stopSequences;
   if (options.claudeMetadata) body.metadata = options.claudeMetadata;
@@ -144,6 +133,17 @@ export const callClaudeChatApi = async (
 
   const tools = convertTools(options.tools);
   if (tools) body.tools = tools;
+
+  // 注入 Claude Web Search Tool（统一联网开关）
+  if ((options as any).webSearchEnabled) {
+    const webSearchTool = {
+      type: "web_search_20250305",
+      name: "web_search",
+      max_uses: 5,
+    } as any;
+    body.tools = body.tools ? [...body.tools, webSearchTool] : [webSearchTool];
+  }
+
   const toolChoice = convertToolChoice(options.toolChoice, options.parallelToolCalls);
   if (toolChoice) body.tool_choice = toolChoice;
 
@@ -190,7 +190,7 @@ export const callClaudeChatApi = async (
         isStreaming: true,
       },
       options.timeout,
-      options.signal
+      options.signal,
     );
     await ensureResponseOk(response);
     if (!response.body) throw new Error("响应体为空");
@@ -218,7 +218,7 @@ export const callClaudeChatApi = async (
       http1Only: options.http1Only,
     },
     options.timeout,
-    options.signal
+    options.signal,
   );
   await ensureResponseOk(response);
   const data: any = await response.json();
@@ -228,7 +228,11 @@ export const callClaudeChatApi = async (
   for (const block of data.content) {
     if (block.type === "text" && block.text) textContent += block.text;
     else if (block.type === "tool_use" && block.id && block.name) {
-      toolCalls.push({ id: block.id, type: "function", function: { name: block.name, arguments: JSON.stringify(block.input || {}) } });
+      toolCalls.push({
+        id: block.id,
+        type: "function",
+        function: { name: block.name, arguments: JSON.stringify(block.input || {}) },
+      });
     }
   }
 

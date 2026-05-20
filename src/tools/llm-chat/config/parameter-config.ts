@@ -35,6 +35,7 @@ export const ALL_LLM_PARAMETER_KEYS = [
   "audio",
   "prediction",
   // 特殊功能
+  "webSearchEnabled",
   "webSearchOptions",
   "streamOptions",
   "metadata",
@@ -198,7 +199,7 @@ export const parameterConfigs: ParameterConfig[] = [
       return val || "";
     },
     // parse string back to array
-    parse: (val: string) => val ? val.split(",").map(s => s.trim()) : undefined
+    parse: (val: string) => (val ? val.split(",").map((s) => s.trim()) : undefined),
   },
   {
     key: "maxCompletionTokens",
@@ -239,6 +240,15 @@ export const parameterConfigs: ParameterConfig[] = [
   // 思考能力相关参数：
   // - 所有思考相关参数都使用 supportedKey: "thinking"，由 Provider 层面控制是否显示整个区域
   // - 具体显示哪个控件由 Model 的 capabilities.thinkingConfigType 决定
+  {
+    key: "webSearchEnabled",
+    label: "联网搜索",
+    type: "switch",
+    description: "启用后模型将自动调用搜索引擎获取实时信息。注意：此功能可能产生额外费用（如 Gemini ~$35/1000次）。",
+    group: "special",
+    supportedKey: "webSearch",
+    defaultValue: false,
+  },
   {
     key: "thinkingEnabled",
     label: "启用思考",
@@ -288,7 +298,7 @@ export const parameterConfigs: ParameterConfig[] = [
 export function isParameterSupportedByModel(
   key: keyof LlmParameters,
   supportedParameters: LlmParameterSupport,
-  capabilities?: ModelCapabilities
+  capabilities?: ModelCapabilities,
 ): boolean {
   const config = parameterConfigs.find((c) => c.key === key);
   if (!config) {
@@ -333,7 +343,7 @@ export function isParameterSupportedByModel(
 export function filterParametersForModel(
   parameters: LlmParameters,
   supportedParameters: LlmParameterSupport,
-  capabilities?: ModelCapabilities
+  capabilities?: ModelCapabilities,
 ): LlmParameters {
   const filteredParams: LlmParameters & Record<string, any> = {};
 
@@ -361,7 +371,7 @@ export function filterParametersForModel(
   // 更新 enabledParameters 列表，只保留支持的参数
   if (filteredParams.enabledParameters) {
     filteredParams.enabledParameters = filteredParams.enabledParameters.filter((paramKey) =>
-      isParameterSupportedByModel(paramKey as keyof LlmParameters, supportedParameters, capabilities)
+      isParameterSupportedByModel(paramKey as keyof LlmParameters, supportedParameters, capabilities),
     );
   }
 

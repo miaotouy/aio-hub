@@ -58,6 +58,7 @@ export interface GeminiTool {
     parameters?: Record<string, any>;
   }>;
   codeExecution?: Record<string, never>;
+  googleSearch?: Record<string, never>;
 }
 
 export interface GeminiToolConfig {
@@ -122,30 +123,27 @@ export interface GeminiRequest {
  /**
   * 构建 Gemini 请求头
   */
- export function buildGeminiHeaders(
-   profile: LlmProfile,
-   requestId?: string
- ): Record<string, string> {
-   const headers: Record<string, string> = {
-     "Content-Type": "application/json",
-   };
- 
-   // 也可以通过请求头传递 API Key
-   if (profile.apiKeys && profile.apiKeys.length > 0) {
-     headers["x-goog-api-key"] = profile.apiKeys[0];
-   }
- 
-   // 如果提供了 requestId，则注入 X-Request-ID 头部
-   if (requestId) {
-     headers["X-Request-ID"] = requestId;
-   }
- 
-   if (profile.customHeaders) {
-     Object.assign(headers, profile.customHeaders);
-   }
- 
-   return headers;
- }
+export function buildGeminiHeaders(profile: LlmProfile, requestId?: string): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  // 也可以通过请求头传递 API Key
+  if (profile.apiKeys && profile.apiKeys.length > 0) {
+    headers["x-goog-api-key"] = profile.apiKeys[0];
+  }
+
+  // 如果提供了 requestId，则注入 X-Request-ID 头部
+  if (requestId) {
+    headers["X-Request-ID"] = requestId;
+  }
+
+  if (profile.customHeaders) {
+    Object.assign(headers, profile.customHeaders);
+  }
+
+  return headers;
+}
 /**
  * 构建 Gemini 完整的 URL
  */
@@ -161,13 +159,13 @@ export function buildGeminiUrl(baseUrl: string, modelId: string, action: string,
  */
 export const geminiUrlHandler = {
   buildUrl: (baseUrl: string, endpoint?: string): string => {
-    const host = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
-    const versionedHost = host.includes('/v1') ? host : `${host}v1beta/`;
+    const host = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+    const versionedHost = host.includes("/v1") ? host : `${host}v1beta/`;
     return endpoint ? `${versionedHost}${endpoint}` : `${versionedHost}models/{model}:generateContent`;
   },
   getHint: (): string => {
-    return '将自动添加 /v1beta/models/{model}:generateContent';
-  }
+    return "将自动添加 /v1beta/models/{model}:generateContent";
+  },
 };
 
 /**
@@ -258,7 +256,10 @@ export function buildGeminiParts(messages: LlmMessageContent[]): GeminiPart[] {
   }
 
   for (const toolResult of parsed.toolResultParts) {
-    const response = typeof toolResult.content === "string" ? { result: toolResult.content } : { result: JSON.stringify(toolResult.content) };
+    const response =
+      typeof toolResult.content === "string"
+        ? { result: toolResult.content }
+        : { result: JSON.stringify(toolResult.content) };
     parts.push({
       functionResponse: {
         name: toolResult.id,
@@ -276,7 +277,7 @@ export function buildGeminiParts(messages: LlmMessageContent[]): GeminiPart[] {
 export function buildGeminiContents(messages: LlmMessage[]): GeminiContent[] {
   const contents: GeminiContent[] = [];
   for (const msg of messages) {
-    if (msg.role === 'system') continue;
+    if (msg.role === "system") continue;
     const parts = typeof msg.content === "string" ? [{ text: msg.content }] : buildGeminiParts(msg.content);
     contents.push({
       role: msg.role === "assistant" ? "model" : "user",
@@ -298,10 +299,14 @@ export function buildGeminiTools(options: LlmRequestOptions): GeminiTool[] | und
         name: tool.name,
         description: tool.description,
         parameters: tool.parameters,
-      }))
+      })),
     });
   }
   if ((options as any).enableCodeExecution) tools.push({ codeExecution: {} });
+  // Google Search Grounding
+  if ((options as any).webSearchEnabled) {
+    tools.push({ googleSearch: {} });
+  }
   return tools.length > 0 ? tools : undefined;
 }
 
@@ -355,7 +360,8 @@ export function buildGeminiGenerationConfig(options: LlmRequestOptions): GeminiG
   if (commonParams.presencePenalty !== undefined) config.presencePenalty = commonParams.presencePenalty;
   if (commonParams.frequencyPenalty !== undefined) config.frequencyPenalty = commonParams.frequencyPenalty;
   if (commonParams.seed !== undefined) config.seed = commonParams.seed;
-  if (commonParams.stop) config.stopSequences = Array.isArray(commonParams.stop) ? commonParams.stop : [commonParams.stop];
+  if (commonParams.stop)
+    config.stopSequences = Array.isArray(commonParams.stop) ? commonParams.stop : [commonParams.stop];
 
   if (options.responseFormat) {
     if (options.responseFormat.type === "json_object") config.responseMimeType = "application/json";
@@ -374,14 +380,20 @@ export function buildGeminiGenerationConfig(options: LlmRequestOptions): GeminiG
   const ext = options as any;
   const isGemini3 = options.modelId.includes("gemini-3");
   const shouldIncludeThoughts = ext.includeThoughts === true || ext.thinkingEnabled === true;
-  if (ext.thinkingLevel !== undefined || ext.reasoningEffort !== undefined || ext.thinkingBudget !== undefined || shouldIncludeThoughts) {
+  if (
+    ext.thinkingLevel !== undefined ||
+    ext.reasoningEffort !== undefined ||
+    ext.thinkingBudget !== undefined ||
+    shouldIncludeThoughts
+  ) {
     const thinkingConfig: any = {};
     if (shouldIncludeThoughts) thinkingConfig.includeThoughts = true;
     if (isGemini3) {
       const level = (ext.thinkingLevel || ext.reasoningEffort)?.toLowerCase();
       if (level && ["minimal", "low", "medium", "high"].includes(level)) thinkingConfig.thinkingLevel = level;
       else if (level) thinkingConfig.thinkingLevel = level === "max" ? "high" : "low";
-      if (!thinkingConfig.thinkingLevel && ext.thinkingBudget !== undefined) thinkingConfig.thinkingBudget = ext.thinkingBudget;
+      if (!thinkingConfig.thinkingLevel && ext.thinkingBudget !== undefined)
+        thinkingConfig.thinkingBudget = ext.thinkingBudget;
     } else if (ext.thinkingBudget !== undefined) {
       thinkingConfig.thinkingBudget = ext.thinkingBudget;
     }
@@ -389,7 +401,7 @@ export function buildGeminiGenerationConfig(options: LlmRequestOptions): GeminiG
   }
 
   if (ext.speechConfig) config.speechConfig = ext.speechConfig;
-  
+
   // 自动设置响应模态
   if (ext.responseModalities) {
     config.responseModalities = ext.responseModalities;
@@ -416,7 +428,8 @@ function convertToGeminiSchema(schema: Record<string, any>): GeminiSchema {
   if (schema.type === "object") {
     if (schema.properties) {
       geminiSchema.properties = {};
-      for (const [key, value] of Object.entries(schema.properties)) geminiSchema.properties[key] = convertToGeminiSchema(value as any);
+      for (const [key, value] of Object.entries(schema.properties))
+        geminiSchema.properties[key] = convertToGeminiSchema(value as any);
     }
     if (schema.required) geminiSchema.required = schema.required;
   }
@@ -424,7 +437,14 @@ function convertToGeminiSchema(schema: Record<string, any>): GeminiSchema {
 }
 
 function convertSchemaType(type: string): GeminiSchema["type"] {
-  const typeMap: Record<string, GeminiSchema["type"]> = { string: "STRING", number: "NUMBER", integer: "INTEGER", boolean: "BOOLEAN", array: "ARRAY", object: "OBJECT" };
+  const typeMap: Record<string, GeminiSchema["type"]> = {
+    string: "STRING",
+    number: "NUMBER",
+    integer: "INTEGER",
+    boolean: "BOOLEAN",
+    array: "ARRAY",
+    object: "OBJECT",
+  };
   return typeMap[type] || "STRING";
 }
 
@@ -438,8 +458,7 @@ export function parseGeminiModelsResponse(data: any): LlmModelInfo[] {
     for (const model of data.models) {
       const modelId = model.name.replace("models/", "");
       const supportsVision =
-        model.supportedGenerationMethods?.includes("generateContent") &&
-        !modelId.includes("embedding");
+        model.supportedGenerationMethods?.includes("generateContent") && !modelId.includes("embedding");
 
       const presetCapabilities = extractModelCapabilities(modelId, "gemini");
 
@@ -476,9 +495,9 @@ export function parseGeminiModelsResponse(data: any): LlmModelInfo[] {
 }
 
 function extractModelCapabilities(modelId: string, provider?: string) {
-  const rules = DEFAULT_METADATA_RULES.filter(
-    (r) => r.enabled !== false && r.properties?.capabilities
-  ).sort((a, b) => (b.priority || 0) - (a.priority || 0));
+  const rules = DEFAULT_METADATA_RULES.filter((r) => r.enabled !== false && r.properties?.capabilities).sort(
+    (a, b) => (b.priority || 0) - (a.priority || 0),
+  );
 
   for (const rule of rules) {
     if (testRuleMatch(rule, modelId, provider) && rule.properties?.capabilities) {
@@ -489,9 +508,9 @@ function extractModelCapabilities(modelId: string, provider?: string) {
 }
 
 function extractModelGroup(modelId: string, provider?: string): string {
-  const rules = DEFAULT_METADATA_RULES.filter(
-    (r) => r.enabled !== false && r.properties?.group
-  ).sort((a, b) => (b.priority || 0) - (a.priority || 0));
+  const rules = DEFAULT_METADATA_RULES.filter((r) => r.enabled !== false && r.properties?.group).sort(
+    (a, b) => (b.priority || 0) - (a.priority || 0),
+  );
 
   for (const rule of rules) {
     if (testRuleMatch(rule, modelId, provider) && rule.properties?.group) {

@@ -266,7 +266,9 @@ export interface LlmRequestOptions {
   };
   /** 服务层级 */
   serviceTier?: "auto" | "default" | "flex";
-  /** 网络搜索选项 */
+  /** 是否启用联网搜索（统一开关，各 Provider 自动适配格式） */
+  webSearchEnabled?: boolean;
+  /** 网络搜索选项（OpenAI 高级配置） */
   webSearchOptions?: {
     searchContextSize?: "low" | "medium" | "high";
     userLocation?: {

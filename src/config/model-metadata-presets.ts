@@ -1346,6 +1346,24 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     enabled: true,
     description: "Gemini 3 系列模型分组",
   },
+  // Gemini 3.5 系列（独立分组，优先级高于 gemini-3.1）
+  {
+    id: "model-prefix-gemini-3.5",
+    matchType: "modelPrefix",
+    matchValue: "gemini-3.5",
+    properties: {
+      group: "Gemini 3.5",
+      capabilities: {
+        visionTokenCost: {
+          calculationMethod: "gemini_2_0", // Gemini 3.5 沿用 2.0 的计算规则
+          parameters: {},
+        },
+      },
+    },
+    priority: 24,
+    enabled: true,
+    description: "Gemini 3.5 系列模型分组（3.5 Flash 已 GA，强 agentic & coding 能力，1M 上下文）",
+  },
   // Gemini 3.1 系列（独立分组，优先级高于 gemini-3）
   {
     id: "model-prefix-gemini-3.1",
@@ -1413,8 +1431,8 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     description: "Gemini 1.5 系列模型分组",
   },
   // === Gemini 细分能力匹配（优先级 25-26） ===
-  // Gemini 3/3.1 高级能力模型 (Thinking via thinkingLevel, Code Execution, Search)
-  // 覆盖: Gemini 3 / 3.1 Pro/Flash（排除 image / tts / live）
+  // Gemini 3/3.1/3.5 高级能力模型 (Thinking via thinkingLevel, Code Execution, Search)
+  // 覆盖: Gemini 3 / 3.1 / 3.5 Pro/Flash（排除 image / tts / live）
   {
     id: "model-gemini-3x-advanced",
     matchType: "modelPrefix",
@@ -1433,7 +1451,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     priority: 25,
     enabled: true,
     description:
-      "Gemini 3/3.1 高级模型（支持思考等级 thinkingLevel、代码执行、联网搜索），覆盖 Gemini 3/3.1 的 Pro/Flash 变体",
+      "Gemini 3/3.1/3.5 高级模型（支持思考等级 thinkingLevel、代码执行、联网搜索），覆盖 Gemini 3.x 的 Pro/Flash 变体",
   },
   // Gemini 2.5 高级能力模型 (Thinking via thinkingBudget, Code Execution, Search)
   // 覆盖: Gemini 2.5 Pro/Flash（排除 image / tts / live）
@@ -1453,7 +1471,8 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     },
     priority: 25,
     enabled: true,
-    description: "Gemini 2.5 高级模型（支持思考预算 thinkingBudget、代码执行、联网搜索），覆盖 Gemini 2.5 的 Pro/Flash 变体",
+    description:
+      "Gemini 2.5 高级模型（支持思考预算 thinkingBudget、代码执行、联网搜索），覆盖 Gemini 2.5 的 Pro/Flash 变体",
   },
   // Gemini 2.0 Flash (Code Execution, Search)
   {

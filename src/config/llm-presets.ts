@@ -440,6 +440,25 @@ export const llmPresets: LlmPreset[] = [
         },
         description: "指向 PRO 模型最新版本的别名",
       },
+      // Gemini 3.5
+      {
+        id: "gemini-3.5-flash",
+        name: "Gemini 3.5 Flash",
+        group: "Gemini 3.5",
+        provider: "gemini",
+        capabilities: {
+          vision: true,
+          audio: true,
+          toolUse: true,
+          fileSearch: true,
+          webSearch: true,
+          codeExecution: true,
+          thinking: true,
+          thinkingConfigType: "effort",
+          reasoningEffortOptions: ["minimal", "low", "medium", "high"],
+        },
+        description: "最智能 Flash 系列，强 agentic & coding 能力，1M 上下文 (2026-05 GA)",
+      },
       // Gemini 3
       {
         id: "gemini-3-pro-preview",
@@ -455,7 +474,7 @@ export const llmPresets: LlmPreset[] = [
           codeExecution: true,
           thinking: true,
           thinkingConfigType: "effort",
-          reasoningEffortOptions: ["low", "high"],
+          reasoningEffortOptions: ["minimal", "low", "medium", "high"],
         },
         description: "旗舰多模态模型，支持文本、图像、视频、音频、PDF输入 (2025-11)",
       },
@@ -818,6 +837,21 @@ export const llmPresets: LlmPreset[] = [
       { label: "价格页", url: "https://cloud.google.com/vertex-ai/generative-ai/pricing" },
     ],
     defaultModels: [
+      {
+        id: "gemini-3.5-flash",
+        name: "Gemini 3.5 Flash",
+        group: "Gemini 3.5",
+        provider: "google",
+        capabilities: {
+          vision: true,
+          audio: true,
+          toolUse: true,
+          fileSearch: true,
+          webSearch: true,
+          codeExecution: true,
+        },
+        description: "最智能 Flash 系列，强 agentic & coding 能力，1M 上下文 (2026-05 GA)",
+      },
       {
         id: "gemini-3-pro-preview",
         name: "Gemini 3 Pro",

@@ -52,13 +52,16 @@ jobs:
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential libssl-dev pkg-config libgit2-dev libwebkit2gtk-4.1-dev librsvg2-dev patchelf libayatana-appindicator3-dev libfuse2 nasm libclang-dev
+          sudo apt-get install -y build-essential libssl-dev pkg-config libwebkit2gtk-4.1-dev librsvg2-dev patchelf libayatana-appindicator3-dev libfuse2 nasm libclang-dev
 
       - name: 安装依赖 (macOS)
         if: matrix.platform == 'macos-latest'
         run: |
-          # libgit2 使用 vendored 特性，TLS 使用 macOS 原生 SecureTransport
-          echo "使用 vendored libgit2，系统原生 TLS"
+          brew install openssl@3
+          echo "OPENSSL_DIR=$(brew --prefix openssl@3)" >> $GITHUB_ENV
+          echo "OPENSSL_LIB_DIR=$(brew --prefix openssl@3)/lib" >> $GITHUB_ENV
+          echo "OPENSSL_INCLUDE_DIR=$(brew --prefix openssl@3)/include" >> $GITHUB_ENV
+          echo "PKG_CONFIG_PATH=$(brew --prefix openssl@3)/lib/pkgconfig" >> $GITHUB_ENV
 
       - name: Rust 缓存
         uses: Swatinem/rust-cache@v2
@@ -229,7 +232,7 @@ jobs:
 
       - name: 安装 Tauri 构建依赖
         run: |
-          sudo apt-get install -y build-essential libssl-dev pkg-config libgit2-dev libwebkit2gtk-4.1-dev librsvg2-dev patchelf libayatana-appindicator3-dev nasm libclang-dev
+          sudo apt-get install -y build-essential libssl-dev pkg-config libwebkit2gtk-4.1-dev librsvg2-dev patchelf libayatana-appindicator3-dev nasm libclang-dev
 
       - name: Rust 缓存
         uses: Swatinem/rust-cache@v2

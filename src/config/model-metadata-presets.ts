@@ -1413,16 +1413,18 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     description: "Gemini 1.5 系列模型分组",
   },
   // === Gemini 细分能力匹配（优先级 25-26） ===
-  // Gemini 高级能力模型 (Thinking, Code Execution, Search)
-  // 覆盖: Gemini 3 / 3.1 Pro/Flash, Gemini 2.5 Pro/Flash（排除 image / tts / live）
+  // Gemini 3/3.1 高级能力模型 (Thinking via thinkingLevel, Code Execution, Search)
+  // 覆盖: Gemini 3 / 3.1 Pro/Flash（排除 image / tts / live）
   {
-    id: "model-gemini-advanced",
+    id: "model-gemini-3x-advanced",
     matchType: "modelPrefix",
-    matchValue: "gemini-(?:3(?:\\.\\d+)?|2\\.5)-(?:pro|flash)(?!.*(?:image|tts|live))",
+    matchValue: "gemini-3(?:\\.\\d+)?-(?:pro|flash)(?!.*(?:image|tts|live))",
     useRegex: true,
     properties: {
       capabilities: {
         thinking: true,
+        thinkingConfigType: "effort",
+        reasoningEffortOptions: ["minimal", "low", "medium", "high"],
         codeExecution: true,
         fileSearch: true,
         webSearch: true,
@@ -1430,7 +1432,28 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     },
     priority: 25,
     enabled: true,
-    description: "Gemini 高级模型（支持思考、代码执行、联网搜索），覆盖 Gemini 3/3.1/2.5 的 Pro/Flash 变体",
+    description:
+      "Gemini 3/3.1 高级模型（支持思考等级 thinkingLevel、代码执行、联网搜索），覆盖 Gemini 3/3.1 的 Pro/Flash 变体",
+  },
+  // Gemini 2.5 高级能力模型 (Thinking via thinkingBudget, Code Execution, Search)
+  // 覆盖: Gemini 2.5 Pro/Flash（排除 image / tts / live）
+  {
+    id: "model-gemini-2.5-advanced",
+    matchType: "modelPrefix",
+    matchValue: "gemini-2\\.5-(?:pro|flash)(?!.*(?:image|tts|live))",
+    useRegex: true,
+    properties: {
+      capabilities: {
+        thinking: true,
+        thinkingConfigType: "budget",
+        codeExecution: true,
+        fileSearch: true,
+        webSearch: true,
+      },
+    },
+    priority: 25,
+    enabled: true,
+    description: "Gemini 2.5 高级模型（支持思考预算 thinkingBudget、代码执行、联网搜索），覆盖 Gemini 2.5 的 Pro/Flash 变体",
   },
   // Gemini 2.0 Flash (Code Execution, Search)
   {

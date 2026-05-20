@@ -421,10 +421,11 @@ export async function callBackend(cmd: string, args: any) {
 
 ## 9. 附录索引
 
-| 编号                                            | 标题                            | 状态    | 说明                                                           |
-| ----------------------------------------------- | ------------------------------- | ------- | -------------------------------------------------------------- |
-| [附录 A](./appendix-web-distillery-analysis.md) | web_distillery 模块迁移影响分析 | ✅ 完成 | 确认为最适合作为迁移 PoC 切入点的模块                          |
-| [附录 B](./appendix-knowledge-base-analysis.md) | knowledge 模块迁移影响分析      | ✅ 完成 | 确认为必须保留 Rust 的核心模块，推荐 napi-rs Native Addon 方案 |
+| 编号                                            | 标题                            | 状态      | 说明                                                           |
+| ----------------------------------------------- | ------------------------------- | --------- | -------------------------------------------------------------- |
+| [附录 A](./appendix-web-distillery-analysis.md) | web_distillery 模块迁移影响分析 | ✅ 完成   | 确认为最适合作为迁移 PoC 切入点的模块                          |
+| [附录 B](./appendix-knowledge-base-analysis.md) | knowledge 模块迁移影响分析      | ✅ 完成   | 确认为必须保留 Rust 的核心模块，推荐 napi-rs Native Addon 方案 |
+| [附录 C](./cef-integration-guide.md)            | CEF 集成实操指南                | 🔨 进行中 | feat/cef 分支调查结果、集成步骤、验证清单                      |
 
 ---
 

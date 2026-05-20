@@ -1,0 +1,295 @@
+name: 手动构建测试
+
+on:
+  workflow_dispatch: # 仅允许手动触发
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: "windows-latest"
+            target: "x86_64-pc-windows-msvc"
+            bundles: "nsis"
+          - platform: "ubuntu-22.04"
+            target: "x86_64-unknown-linux-gnu"
+            bundles: "deb,appimage"
+          - platform: "macos-latest"
+            target: "aarch64-apple-darwin"
+            bundles: "dmg"
+          - platform: "macos-latest"
+            target: "x86_64-apple-darwin"
+            bundles: "dmg"
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: 安装 Rust 稳定版
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: 安装 NASM (Windows)
+        if: matrix.platform == 'windows-latest'
+        uses: ilammy/setup-nasm@v1
+
+      - name: 安装依赖 (Ubuntu)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libssl-dev pkg-config libwebkit2gtk-4.1-dev librsvg2-dev patchelf libayatana-appindicator3-dev libfuse2 nasm libclang-dev
+
+      - name: 安装依赖 (macOS)
+        if: matrix.platform == 'macos-latest'
+        run: |
+          # git2 的 https 在 macOS 上使用 SecureTransport，无需 OpenSSL
+          # boring-sys2 (wreq) 自带 BoringSSL，也不需要系统 OpenSSL
+          echo "使用系统原生 TLS（macOS SecureTransport / BoringSSL）"
+
+      - name: Rust 缓存
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: 安装前端依赖
+        run: bun install
+
+      - name: 构建应用 (仅构建，不创建 Release)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # 不传递 tagName/releaseName/releaseBody，禁用自动创建 Release
+          args: --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+      - name: 获取版本号
+        id: get-version
+        shell: bash
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            # 如果是标签触发，直接使用标签名
+            echo "version=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          else
+            # 否则从 package.json 读取版本号
+            VERSION=$(cat package.json | grep '"version"' | head -1 | awk -F: '{ print $2 }' | sed 's/[", ]//g')
+            echo "version=v${VERSION}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 设置平台简称和文件类型
+        id: platform-name
+        shell: bash
+        run: |
+          case "${{ matrix.target }}" in
+            "x86_64-pc-windows-msvc")
+              echo "name=windows-x64" >> $GITHUB_OUTPUT
+              echo "ext=exe" >> $GITHUB_OUTPUT
+              ;;
+            "x86_64-unknown-linux-gnu")
+              echo "name=linux-x64" >> $GITHUB_OUTPUT
+              echo "ext=deb-appimage" >> $GITHUB_OUTPUT
+              ;;
+            "aarch64-apple-darwin")
+              echo "name=macos-arm64" >> $GITHUB_OUTPUT
+              echo "ext=dmg" >> $GITHUB_OUTPUT
+              ;;
+            "x86_64-apple-darwin")
+              echo "name=macos-x64" >> $GITHUB_OUTPUT
+              echo "ext=dmg" >> $GITHUB_OUTPUT
+              ;;
+            *)
+              echo "name=unknown" >> $GITHUB_OUTPUT
+              echo "ext=bin" >> $GITHUB_OUTPUT
+              ;;
+          esac
+
+      - name: 准备扁平化的构建产物
+        shell: bash
+        run: |
+          # 创建临时目录用于存放扁平化的文件
+          mkdir -p dist-artifacts
+
+          # 根据平台类型，将嵌套在子目录中的文件复制到扁平目录
+          case "${{ matrix.target }}" in
+            "x86_64-pc-windows-msvc")
+              # Windows: 从 nsis/ 目录中提取安装程序
+              find src-tauri/target/${{ matrix.target }}/release/bundle -name "*.exe" -exec cp {} dist-artifacts/ \; 2>/dev/null || true
+              find src-tauri/target/${{ matrix.target }}/release/bundle -name "*.msi" -exec cp {} dist-artifacts/ \; 2>/dev/null || true
+              # 提取原始二进制文件作为便携版
+              RAW_EXE="src-tauri/target/${{ matrix.target }}/release/aiohub.exe"
+              if [ -f "$RAW_EXE" ]; then
+                cp "$RAW_EXE" "dist-artifacts/AIO-Hub-${{ steps.get-version.outputs.version }}-windows-x64-Portable.exe"
+                # 创建标识文件
+                echo "Portable Mode Enabled" > dist-artifacts/portable.flag
+              fi
+              ;;
+            "x86_64-unknown-linux-gnu")
+              # Linux: 从各自的子目录中提取 .deb 和 .AppImage
+              find src-tauri/target/${{ matrix.target }}/release/bundle -name "*.deb" -exec cp {} dist-artifacts/ \; 2>/dev/null || true
+              
+              # AppImage 后处理：移除底层图形栈库以避免与滚动发行版冲突
+              APPIMAGE_PATH=$(find src-tauri/target/${{ matrix.target }}/release/bundle -name "*.AppImage" | head -n 1)
+              if [ -n "$APPIMAGE_PATH" ]; then
+                echo "正在处理 AppImage: $APPIMAGE_PATH"
+                
+                # 解包 AppImage 到 app-content 目录
+                chmod +x "$APPIMAGE_PATH"
+                "$APPIMAGE_PATH" --appimage-extract
+                mv squashfs-root app-content
+                
+                # 删除底层图形栈库（避免与宿主系统冲突）
+                echo "移除底层图形栈库..."
+                rm -f app-content/usr/lib/libwayland-*.so.* || true
+                rm -f app-content/usr/lib/libepoxy.so.* || true
+                rm -f app-content/usr/lib/libEGL*.so.* || true
+                rm -f app-content/usr/lib/libgbm*.so.* || true
+                rm -f app-content/usr/lib/libdrm*.so.* || true
+                rm -f app-content/usr/lib/libGLESv2*.so.* || true
+                
+                # 添加 Wayland 兼容性环境变量到 AppRun
+                if [ -f app-content/AppRun ]; then
+                  sed -i '2i\# Wayland compatibility\nexport WEBKIT_DISABLE_DMABUF_RENDERER=1' app-content/AppRun
+                fi
+                
+                # 下载并解包 appimagetool (避免 FUSE 依赖)
+                wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+                chmod +x appimagetool-x86_64.AppImage
+                ./appimagetool-x86_64.AppImage --appimage-extract >/dev/null 2>&1
+                
+                # 重新打包 AppImage (直接使用解包后的 appimagetool)
+                ARCH=x86_64 ./squashfs-root/AppRun app-content "$APPIMAGE_PATH"
+                
+                # 复制处理后的 AppImage
+                cp "$APPIMAGE_PATH" dist-artifacts/
+                
+                # 清理临时文件
+                rm -rf squashfs-root app-content appimagetool-x86_64.AppImage
+                
+                echo "AppImage 后处理完成"
+              else
+                echo "警告: 未找到 AppImage 文件"
+              fi
+              ;;
+            *-apple-darwin)
+              # macOS: 从 dmg/ 目录中提取 .dmg
+              find src-tauri/target/${{ matrix.target }}/release/bundle -name "*.dmg" -exec cp {} dist-artifacts/ \; 2>/dev/null || true
+              ;;
+          esac
+
+          # 显示准备好的文件列表
+          echo "准备上传的文件："
+          ls -lh dist-artifacts/
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: aio-hub-${{ steps.get-version.outputs.version }}-${{ steps.platform-name.outputs.name }}.${{ steps.platform-name.outputs.ext }}
+          path: dist-artifacts/*
+          if-no-files-found: warn
+
+  # Flatpak 构建 (独立 Job)
+  build-flatpak:
+    runs-on: ubuntu-22.04
+    needs: build # 等待主构建完成
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: 安装 Rust 稳定版
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+
+      - name: 安装 Flatpak 构建依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder
+          # 添加 Flathub 仓库
+          sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+          # 安装 GNOME SDK 和 Platform (匹配清单文件中的版本 46)
+          sudo flatpak install -y flathub org.gnome.Platform//46 org.gnome.Sdk//46
+
+      - name: 安装 Tauri 构建依赖
+        run: |
+          sudo apt-get install -y build-essential libssl-dev pkg-config libwebkit2gtk-4.1-dev librsvg2-dev patchelf libayatana-appindicator3-dev nasm libclang-dev
+
+      - name: Rust 缓存
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: 安装前端依赖
+        run: bun install
+
+      - name: 构建应用 (使用 tauri build 确保资源嵌入)
+        run: bun tauri build
+
+      - name: 准备 Flatpak 源文件
+        run: |
+          # 将所有源文件复制到 src-tauri 目录（清单文件所在位置）
+          # 这样 flatpak-builder 可以通过相对路径找到它们
+          # 注意：tauri build 生成的路径可能不带 target 目录名（取决于配置），这里使用 find 确保找到
+          BINARY_PATH=$(find src-tauri/target/x86_64-unknown-linux-gnu/release -maxdepth 1 -type f -name "aiohub" | head -n 1)
+          if [ -z "$BINARY_PATH" ]; then
+            BINARY_PATH="src-tauri/target/release/aiohub"
+          fi
+          cp "$BINARY_PATH" src-tauri/aiohub
+          # 剥离调试符号以减小体积
+          strip src-tauri/aiohub
+          chmod +x src-tauri/aiohub
+          cp src-tauri/icons/128x128.png src-tauri/com.mty.aiohub.png
+          # 列出准备好的文件
+          echo "准备好的 Flatpak 源文件："
+          ls -la src-tauri/aiohub src-tauri/com.mty.aiohub.desktop src-tauri/com.mty.aiohub.png src-tauri/com.mty.aiohub.yml
+
+      - name: 构建 Flatpak
+        run: |
+          # flatpak-builder <build-dir> <manifest-path>
+          # build-dir: flatpak-builder 的工作目录（会被清空）
+          # manifest-path: 清单文件路径，源文件路径相对于清单文件位置
+          flatpak-builder --force-clean --repo=flatpak-repo flatpak-build src-tauri/com.mty.aiohub.yml
+          flatpak build-bundle flatpak-repo aio-hub.flatpak com.mty.aiohub
+
+      - name: 获取版本号
+        id: get-version
+        shell: bash
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            # 从标签名中提取版本号（去掉 v 前缀）
+            VERSION="${{ github.ref_name }}"
+            VERSION_NUM="${VERSION#v}"
+            echo "version=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "version_num=${VERSION_NUM}" >> $GITHUB_OUTPUT
+          else
+            VERSION=$(cat package.json | grep '"version"' | head -1 | awk -F: '{ print $2 }' | sed 's/[", ]//g')
+            echo "version=v${VERSION}" >> $GITHUB_OUTPUT
+            echo "version_num=${VERSION}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 重命名 Flatpak 文件
+        run: |
+          # 重命名为带版本号的文件名，与其他平台保持一致
+          mv aio-hub.flatpak AIO.Hub_${{ steps.get-version.outputs.version_num }}_amd64.flatpak
+
+      - name: 上传 Flatpak 构建产物到 Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: aio-hub-${{ steps.get-version.outputs.version }}-linux-x64.flatpak
+          path: AIO.Hub_${{ steps.get-version.outputs.version_num }}_amd64.flatpak
+          if-no-files-found: warn

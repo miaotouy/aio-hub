@@ -112,7 +112,18 @@ app.config.warnHandler = (msg, instance, trace) => {
 
 // 未捕获的 Promise 错误
 window.addEventListener("unhandledrejection", (event) => {
-  errorHandler.handle(event.reason, {
+  const reason = event.reason;
+  const message = reason?.message || String(reason || "");
+
+  // 过滤 Element Plus Popper 内部的无害竞态错误
+  // 当组件在 Popper 异步定位计算期间被卸载时，会抛出此错误
+  if (message.includes("getBoundingClientRect is not a function")) {
+    logger.debug("已忽略 Popper 内部竞态错误", { message });
+    event.preventDefault();
+    return;
+  }
+
+  errorHandler.handle(reason, {
     module: "Promise",
     level: ErrorLevel.ERROR,
     userMessage: "操作失败，请重试",

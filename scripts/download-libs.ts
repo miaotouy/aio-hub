@@ -25,16 +25,6 @@ const LIBS_TO_DOWNLOAD: LibDownload[] = [
     nodeModulesPath: "mermaid/dist/mermaid.min.js",
   },
   {
-    name: "jquery.min.js",
-    url: "https://cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js",
-    nodeModulesPath: "jquery/dist/jquery.min.js",
-  },
-  {
-    name: "lodash.min.js",
-    url: "https://cdn.jsdelivr.net/npm/lodash@4/lodash.min.js",
-    nodeModulesPath: "lodash/lodash.min.js",
-  },
-  {
     name: "echarts.min.js",
     url: "https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js",
     nodeModulesPath: "echarts/dist/echarts.min.js",

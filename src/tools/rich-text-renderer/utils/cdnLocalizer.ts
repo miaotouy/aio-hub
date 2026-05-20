@@ -21,7 +21,6 @@ const CDN_DOMAINS = [
   "cdn.jsdelivr.net",
   "cdnjs.cloudflare.com",
   "unpkg.com",
-  "code.jquery.com",
   "ajax.googleapis.com",
   "cdn.bootcdn.net",
   "lib.baomitu.com",
@@ -37,16 +36,6 @@ const LIB_CONFIGS: LibConfig[] = [
     name: "mermaid",
     patterns: [/mermaid(?:\.min)?\.js/i],
     localPath: "libs/mermaid.min.js",
-  },
-  {
-    name: "jquery",
-    patterns: [/jquery(?:-\d+\.\d+\.\d+)?(?:\.min)?\.js/i],
-    localPath: "libs/jquery.min.js",
-  },
-  {
-    name: "lodash",
-    patterns: [/lodash(?:\.min)?\.js/i],
-    localPath: "libs/lodash.min.js",
   },
   {
     name: "echarts",

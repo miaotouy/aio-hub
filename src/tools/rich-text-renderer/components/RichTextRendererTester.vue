@@ -147,6 +147,80 @@
               </div>
             </div>
           </div>
+
+          <!-- 帘幕模式 -->
+          <div v-show="layoutMode === 'curtain'" class="curtain-area">
+            <div class="area-header">
+              <h4>帘幕预览</h4>
+              <div class="preview-header-controls" :class="{ 'is-compact': isHeaderCompact }">
+                <div class="render-stats" v-if="renderStats.totalTokens > 0">
+                  <el-tag size="small" type="info">
+                    {{ renderStats.renderedTokens }}/{{ renderStats.totalTokens }} token
+                  </el-tag>
+                  <el-tag
+                    v-if="streamEnabled && renderStats.speed > 0"
+                    size="small"
+                    :type="isRendering ? 'primary' : 'info'"
+                  >
+                    {{ renderStats.speed.toFixed(1) }} token/秒
+                  </el-tag>
+                  <el-tag size="small" type="success">{{ renderStats.totalChars }} 字符</el-tag>
+                </div>
+                <div class="visualizer-toggle">
+                  <el-tooltip content="渲染时自动滚动到底部" placement="top" :show-after="300">
+                    <el-switch v-model="autoScroll" size="small" />
+                  </el-tooltip>
+                  <span>自动滚动</span>
+                </div>
+              </div>
+            </div>
+            <div class="curtain-container" ref="curtainContainerRef">
+              <!-- 上层：渲染结果 -->
+              <div class="curtain-rendered">
+                <RichTextRenderer
+                  v-if="currentContent || streamSource"
+                  :key="renderKey"
+                  :content="currentContent"
+                  :stream-source="streamSource"
+                  :version="rendererVersion"
+                  :default-render-html="defaultRenderHtml"
+                  :default-code-block-expanded="defaultCodeBlockExpanded"
+                  :default-tool-call-collapsed="defaultToolCallCollapsed"
+                  :allow-dangerous-html="allowDangerousHtml"
+                  :enable-cdn-localizer="enableCdnLocalizer"
+                  :enable-enter-animation="enableEnterAnimation"
+                  :llm-think-rules="llmThinkRules"
+                  :style-options="richTextStyleOptions"
+                  :regex-rules="activeRegexRules"
+                  :resolve-asset="resolveAsset"
+                  :generation-meta="simulateMeta ? generationMeta : undefined"
+                  :throttle-ms="throttleMs"
+                  :smoothing-enabled="smoothingEnabled"
+                  :throttle-enabled="throttleEnabled"
+                  :verbose-logging="verboseLogging"
+                  :safety-guard-enabled="safetyGuardEnabled"
+                  :seamless-mode="seamlessMode"
+                  :code-editor-engine="codeEditorEngine"
+                />
+                <div v-else class="empty-placeholder">
+                  <el-empty description="暂无内容，请输入或选择预设后开始渲染" />
+                </div>
+              </div>
+
+              <!-- 卡拉OK原文区 -->
+              <div v-if="hasCurtainRemaining" class="curtain-karaoke">
+                <!-- 当前行（卡拉OK效果） -->
+                <div class="karaoke-line karaoke-current">
+                  <span class="karaoke-consumed">{{ currentLineConsumed }}</span>
+                  <span class="karaoke-pending">{{ currentLineRemaining }}</span>
+                </div>
+                <!-- 未来行（淡色） -->
+                <div v-for="(line, idx) in futureLines" :key="idx" class="karaoke-line karaoke-future">
+                  {{ line || "\u200B" }}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </main>
     </div>
@@ -427,9 +501,66 @@ let elapsedTimer: number | null = null;
 // 渲染 key，用于强制重新挂载组件
 const renderKey = ref(0);
 const renderContainerRef = ref<HTMLDivElement | null>(null);
+const curtainContainerRef = ref<HTMLDivElement | null>(null);
 
 // 缓存的输入内容（用于同步模式下的重置）
 const cachedInputContent = ref("");
+
+// ===== 帘幕模式状态 =====
+const streamedChars = ref(0);
+const curtainFullContent = ref("");
+let curtainUnsubscribe: (() => void) | null = null;
+
+// 将原文按行分割
+const curtainLines = computed(() => {
+  if (!curtainFullContent.value) return [];
+  return curtainFullContent.value.split("\n");
+});
+
+// 每行的起始字符偏移
+const lineOffsets = computed(() => {
+  const offsets: number[] = [0];
+  for (let i = 0; i < curtainLines.value.length; i++) {
+    offsets.push(offsets[i] + curtainLines.value[i].length + 1); // +1 for \n
+  }
+  return offsets;
+});
+
+// 当前正在被"吃"的行索引
+const currentLineIndex = computed(() => {
+  const offsets = lineOffsets.value;
+  for (let i = 0; i < offsets.length - 1; i++) {
+    if (streamedChars.value < offsets[i + 1]) return i;
+  }
+  return curtainLines.value.length - 1;
+});
+
+// 当前行内已消费的字符偏移
+const currentLineOffset = computed(() => {
+  return streamedChars.value - lineOffsets.value[currentLineIndex.value];
+});
+
+// 当前行的已消费部分（高亮）
+const currentLineConsumed = computed(() => {
+  const line = curtainLines.value[currentLineIndex.value] || "";
+  return line.substring(0, currentLineOffset.value);
+});
+
+// 当前行的未消费部分（正常浓度）
+const currentLineRemaining = computed(() => {
+  const line = curtainLines.value[currentLineIndex.value] || "";
+  return line.substring(currentLineOffset.value);
+});
+
+// 未来行（当前行之后的所有行）
+const futureLines = computed(() => {
+  return curtainLines.value.slice(currentLineIndex.value + 1);
+});
+
+// 是否还有剩余原文未被消费
+const hasCurtainRemaining = computed(() => {
+  return curtainFullContent.value && streamedChars.value < curtainFullContent.value.length;
+});
 
 // 创建流式数据源（基于 token）
 const createStreamSource = (content: string): StreamSource => {
@@ -672,6 +803,10 @@ const startRender = () => {
     const fullContent = inputContent.value;
     currentContent.value = "";
 
+    // 帘幕模式：缓存完整原文并重置进度
+    curtainFullContent.value = fullContent;
+    streamedChars.value = 0;
+
     if (syncInputProgress.value) {
       cachedInputContent.value = fullContent;
       inputContent.value = "";
@@ -679,6 +814,13 @@ const startRender = () => {
 
     const source = createStreamSource(fullContent);
     streamSource.value = source;
+
+    // 帘幕模式：追踪字符进度
+    if (layoutMode.value === "curtain") {
+      curtainUnsubscribe = source.subscribe((chunk) => {
+        streamedChars.value += chunk.length;
+      });
+    }
 
     if (syncInputProgress.value) {
       inputSyncUnsubscribe = source.subscribe((chunk) => {
@@ -707,6 +849,10 @@ const stopRender = () => {
     inputSyncUnsubscribe();
     inputSyncUnsubscribe = null;
   }
+  if (curtainUnsubscribe) {
+    curtainUnsubscribe();
+    curtainUnsubscribe = null;
+  }
   // 停止计时器
   if (elapsedTimer !== null) {
     clearInterval(elapsedTimer);
@@ -732,6 +878,10 @@ const clearOutput = () => {
   renderStats.renderedTokens = 0;
   renderStats.speed = 0;
   renderStats.elapsedTime = 0;
+
+  // 重置帘幕状态
+  curtainFullContent.value = "";
+  streamedChars.value = 0;
 };
 
 // 净化 Markdown 文本为纯文本
@@ -967,6 +1117,21 @@ const scrollToBottom = () => {
       // 预览区滚动
       if (renderContainerRef.value) {
         renderContainerRef.value.scrollTop = renderContainerRef.value.scrollHeight;
+      }
+
+      // 帘幕模式容器滚动：让分界点（卡拉OK区顶部）保持在可视区域中间
+      if (curtainContainerRef.value && layoutMode.value === "curtain") {
+        const container = curtainContainerRef.value;
+        const karaokeEl = container.querySelector(".curtain-karaoke") as HTMLElement | null;
+        if (karaokeEl) {
+          // 让分界点位于容器可视区域的垂直中心
+          const containerHeight = container.clientHeight;
+          const targetScrollTop = karaokeEl.offsetTop - containerHeight / 2;
+          container.scrollTop = Math.max(0, targetScrollTop);
+        } else {
+          // 没有卡拉OK区（渲染完毕），回退到滚到底部
+          container.scrollTop = container.scrollHeight;
+        }
       }
 
       // 输入区滚动 (仅在同步输入进度开启时)
@@ -1277,5 +1442,82 @@ onMounted(async () => {
   flex: 1;
   overflow: auto;
   padding: 16px;
+}
+
+/* ===== 帘幕模式 ===== */
+.curtain-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-color);
+  border: none;
+  border-radius: 0;
+  overflow: hidden;
+  width: 100%;
+}
+
+.workspace-content.curtain {
+  padding: 0;
+}
+
+.workspace-content.curtain .curtain-area {
+  flex: 1;
+  width: 100%;
+}
+
+.curtain-container {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.curtain-rendered {
+  padding: 20px;
+  background: var(--bg-color);
+}
+
+/* 卡拉OK原文区 */
+.curtain-karaoke {
+  padding: 16px 20px;
+  font-family: "Consolas", "Monaco", "Courier New", monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  border-top: 1px dashed var(--border-color);
+  background: rgba(var(--el-color-info-rgb), calc(var(--card-opacity) * 0.03));
+}
+
+.karaoke-line {
+  white-space: pre-wrap;
+  word-break: break-word;
+  min-height: 1.6em;
+}
+
+/* 当前行：正常浓度 */
+.karaoke-current {
+  color: var(--text-color);
+  opacity: 1;
+}
+
+/* 已消费部分：高亮扫过效果 */
+.karaoke-consumed {
+  color: var(--el-color-primary);
+  background: linear-gradient(
+    to right,
+    rgba(var(--el-color-primary-rgb), 0.08),
+    rgba(var(--el-color-primary-rgb), 0.15)
+  );
+  border-radius: 2px;
+}
+
+/* 未消费部分：正常文字 */
+.karaoke-pending {
+  color: var(--text-color);
+}
+
+/* 未来行：淡色 */
+.karaoke-future {
+  color: var(--text-color-secondary);
+  opacity: 0.4;
 }
 </style>

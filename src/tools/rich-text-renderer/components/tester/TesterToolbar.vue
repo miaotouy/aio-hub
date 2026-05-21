@@ -2,11 +2,7 @@
   <div class="workspace-toolbar">
     <div class="toolbar-left">
       <!-- 侧边栏折叠按钮 -->
-      <el-tooltip
-        :content="isConfigCollapsed ? '展开配置栏' : '折叠配置栏'"
-        placement="bottom"
-        :show-after="300"
-      >
+      <el-tooltip :content="isConfigCollapsed ? '展开配置栏' : '折叠配置栏'" placement="bottom" :show-after="300">
         <el-button
           :icon="isConfigCollapsed ? DArrowRight : DArrowLeft"
           @click="$emit('update:isConfigCollapsed', !isConfigCollapsed)"
@@ -41,6 +37,7 @@
         <el-radio-button value="split">分栏</el-radio-button>
         <el-radio-button value="input-only">仅输入</el-radio-button>
         <el-radio-button value="preview-only">仅预览</el-radio-button>
+        <el-radio-button value="curtain">帘幕</el-radio-button>
       </el-radio-group>
     </div>
 
@@ -67,9 +64,7 @@
         </el-button>
       </el-tooltip>
       <el-tooltip
-        :content="
-          syncInputProgress && cachedInputContent ? '清空输出并重置输入内容' : '清空渲染输出'
-        "
+        :content="syncInputProgress && cachedInputContent ? '清空输出并重置输入内容' : '清空渲染输出'"
         placement="bottom"
         :show-after="300"
       >
@@ -102,12 +97,8 @@
             <el-checkbox v-model="copyOptions.includeConfig">测试配置</el-checkbox>
             <el-checkbox v-model="copyOptions.includeOriginal">Markdown 原文</el-checkbox>
             <el-checkbox v-model="copyOptions.includeHtml">渲染后的 HTML</el-checkbox>
-            <el-checkbox v-model="copyOptions.includeNormalizedOriginal"
-              >规范化后的原文</el-checkbox
-            >
-            <el-checkbox v-model="copyOptions.includeNormalizedRendered"
-              >规范化后的渲染文本</el-checkbox
-            >
+            <el-checkbox v-model="copyOptions.includeNormalizedOriginal">规范化后的原文</el-checkbox>
+            <el-checkbox v-model="copyOptions.includeNormalizedRendered">规范化后的渲染文本</el-checkbox>
             <el-checkbox v-model="copyOptions.includeComparison">对比信息</el-checkbox>
             <el-checkbox v-model="copyOptions.includeStyleConfig">MD 样式配置</el-checkbox>
             <el-checkbox v-model="copyOptions.includeBlockInfo">块信息属性</el-checkbox>
@@ -156,7 +147,7 @@ defineEmits<{
 
 // Local state models
 const isConfigCollapsed = defineModel<boolean>("isConfigCollapsed", { required: true });
-const layoutMode = defineModel<"split" | "input-only" | "preview-only">("layoutMode", {
+const layoutMode = defineModel<"split" | "input-only" | "preview-only" | "curtain">("layoutMode", {
   required: true,
 });
 

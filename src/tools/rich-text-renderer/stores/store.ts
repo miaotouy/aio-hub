@@ -90,7 +90,7 @@ function createDefaultState() {
   return {
     isInputCollapsed: false,
     isConfigCollapsed: false,
-    layoutMode: "split" as "split" | "input-only" | "preview-only",
+    layoutMode: "split" as "split" | "input-only" | "preview-only" | "curtain",
     selectedPreset: "",
     streamEnabled: true,
     syncInputProgress: false,

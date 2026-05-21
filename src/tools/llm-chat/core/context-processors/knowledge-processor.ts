@@ -10,7 +10,7 @@ import { useChatSettings } from "../../composables/settings/useChatSettings";
 import { invoke } from "@tauri-apps/api/core";
 import { preprocessQuery } from "../../../knowledge-base/utils/queryPreProcessor";
 import { useKnowledgeBaseStore } from "../../../knowledge-base/stores/knowledgeBaseStore";
-import { getPureModelId, getProfileId } from "../../../knowledge-base/utils/kbUtils";
+import { getPureModelId, getProfileId } from "@/utils/modelIdUtils";
 import { vectorCacheManager } from "../../../knowledge-base/utils/vectorCache";
 
 const logger = createModuleLogger("KnowledgeProcessor");

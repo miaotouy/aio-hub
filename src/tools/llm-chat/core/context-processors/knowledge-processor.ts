@@ -193,9 +193,25 @@ export class KnowledgeProcessor implements ContextProcessor {
             );
           }
 
+          // 从 agent 配置中获取已启用的知识库 ID 列表
+          const kbConfig = agentConfig.knowledgeBaseConfig;
+          let kbIds: string[] = [];
+          if (kbConfig?.enabled && kbConfig.bindings) {
+            const enabledBindings = kbConfig.bindings.filter((b) => b.enabled);
+            if (ph.kbName) {
+              // 如果占位符指定了知识库名称，只匹配对应的 kbId
+              const matched = enabledBindings.find((b) => b.kbName === ph.kbName);
+              if (matched) kbIds = [matched.kbId];
+            } else {
+              // 未指定名称时使用所有已启用的知识库
+              kbIds = enabledBindings.map((b) => b.kbId);
+            }
+          }
+
           // 执行检索（传入预处理提取的标签）
           results = await searchKnowledge({
             query: queryTextForSearch,
+            kbIds,
             tags: matchedTags.length > 0 ? matchedTags : undefined,
             vector: vector || undefined,
             limit: ph.limit || knowledgeSettings?.defaultLimit || 5,

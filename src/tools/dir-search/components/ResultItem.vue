@@ -20,18 +20,22 @@
         </template>
       </span>
     </el-tooltip>
-    <!-- 悬停操作按钮 -->
+    <!-- 悬停操作图标 -->
     <span class="result-item__actions">
-      <button v-if="showReplace" class="result-item__action-btn" title="替换此匹配" @click.stop="$emit('replaceMatch')">
-        <Replace :size="14" />
-      </button>
-      <button
-        class="result-item__action-btn result-item__action-btn--dismiss"
-        title="从结果中移除"
-        @click.stop="$emit('dismiss')"
-      >
-        <X :size="14" />
-      </button>
+      <el-tooltip v-if="showReplace" content="替换此匹配" placement="top" :show-after="500">
+        <Replace
+          :size="16"
+          class="result-item__action-icon"
+          @click.stop="$emit('replaceMatch')"
+        />
+      </el-tooltip>
+      <el-tooltip content="从结果中移除" placement="top" :show-after="500">
+        <X
+          :size="16"
+          class="result-item__action-icon result-item__action-icon--dismiss"
+          @click.stop="$emit('dismiss')"
+        />
+      </el-tooltip>
     </span>
   </div>
 </template>
@@ -138,43 +142,30 @@ const highlightParts = computed<HighlightPart[]>(() => {
   padding: 0 1px;
 }
 
-/* 悬停操作按钮 */
+/* 悬停操作图标 */
 .result-item__actions {
-  display: flex;
+  display: none;
   align-items: center;
-  gap: 2px;
+  gap: 6px;
   flex-shrink: 0;
-  opacity: 0;
-  transition: opacity 0.15s;
+  line-height: 1;
 }
 
 .result-item:hover .result-item__actions {
-  opacity: 1;
+  display: flex;
 }
 
-.result-item__action-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  border: none;
-  border-radius: 3px;
-  background: transparent;
+.result-item__action-icon {
   color: var(--el-text-color-secondary);
   cursor: pointer;
-  transition:
-    background-color 0.15s,
-    color 0.15s;
+  border-radius: 3px;
 }
 
-.result-item__action-btn:hover {
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.15));
+.result-item__action-icon:hover {
   color: var(--el-color-primary);
 }
 
-.result-item__action-btn--dismiss:hover {
-  background-color: rgba(var(--el-color-danger-rgb), calc(var(--card-opacity) * 0.15));
+.result-item__action-icon--dismiss:hover {
   color: var(--el-color-danger);
 }
 </style>

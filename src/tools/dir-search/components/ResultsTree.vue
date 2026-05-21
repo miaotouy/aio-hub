@@ -68,50 +68,49 @@
               {{ getFileDir(fileResult.relativePath) }}
             </span>
             <span class="results-tree__match-count">{{ fileResult.matches.length }}</span>
-            <!-- 文件级悬停操作按钮 -->
+            <!-- 文件级悬停操作图标 -->
             <span class="results-tree__file-actions">
-              <button
-                v-if="showReplace"
-                class="results-tree__file-action-btn"
-                title="替换该文件所有匹配"
-                @click.stop="$emit('replaceFile', fileResult.filePath)"
-              >
-                <Replace :size="14" />
-              </button>
-              <button
-                class="results-tree__file-action-btn results-tree__file-action-btn--dismiss"
-                title="从结果中移除该文件"
-                @click.stop="$emit('dismissFile', fileResult.filePath)"
-              >
-                <X :size="14" />
-              </button>
+              <el-tooltip v-if="showReplace" content="替换该文件所有匹配" placement="top" :show-after="500">
+                <Replace
+                  :size="16"
+                  class="results-tree__file-action-icon"
+                  @click.stop="$emit('replaceFile', fileResult.filePath)"
+                />
+              </el-tooltip>
+              <el-tooltip content="从结果中移除该文件" placement="top" :show-after="500">
+                <X
+                  :size="16"
+                  class="results-tree__file-action-icon results-tree__file-action-icon--dismiss"
+                  @click.stop="$emit('dismissFile', fileResult.filePath)"
+                />
+              </el-tooltip>
             </span>
           </div>
 
           <!-- 匹配项列表 -->
-            <div v-if="expandedFiles.has(fileResult.filePath)" class="results-tree__matches">
-              <!-- 上下文块模式 -->
-              <ContextBlockView
-                v-if="contextEnabled && hasContextData(fileResult)"
-                :blocks="getContextBlocks(fileResult)"
-                @select-match="(lineNum) => onContextMatchSelect(fileResult, lineNum)"
-                @contextmenu="(ev, lineNum) => onContextMatchContextMenu(ev, fileResult, lineNum)"
+          <div v-if="expandedFiles.has(fileResult.filePath)" class="results-tree__matches">
+            <!-- 上下文块模式 -->
+            <ContextBlockView
+              v-if="contextEnabled && hasContextData(fileResult)"
+              :blocks="getContextBlocks(fileResult)"
+              @select-match="(lineNum) => onContextMatchSelect(fileResult, lineNum)"
+              @contextmenu="(ev, lineNum) => onContextMatchContextMenu(ev, fileResult, lineNum)"
+            />
+            <!-- 普通单行模式 -->
+            <template v-else>
+              <ResultItem
+                v-for="(match, idx) in fileResult.matches"
+                :key="`${fileResult.filePath}-${idx}`"
+                :match="match"
+                :show-replace="showReplace"
+                :is-selected="selectedFilePath === fileResult.filePath && selectedLine === match.lineNumber"
+                @select="onMatchSelect(fileResult.filePath, match)"
+                @dismiss="$emit('dismissMatch', fileResult.filePath, idx)"
+                @replace-match="$emit('replaceMatch', fileResult.filePath, idx)"
+                @contextmenu="onMatchContextMenu($event, fileResult, idx)"
               />
-              <!-- 普通单行模式 -->
-              <template v-else>
-                <ResultItem
-                  v-for="(match, idx) in fileResult.matches"
-                  :key="`${fileResult.filePath}-${idx}`"
-                  :match="match"
-                  :show-replace="showReplace"
-                  :is-selected="selectedFilePath === fileResult.filePath && selectedLine === match.lineNumber"
-                  @select="onMatchSelect(fileResult.filePath, match)"
-                  @dismiss="$emit('dismissMatch', fileResult.filePath, idx)"
-                  @replace-match="$emit('replaceMatch', fileResult.filePath, idx)"
-                  @contextmenu="onMatchContextMenu($event, fileResult, idx)"
-                />
-              </template>
-            </div>
+            </template>
+          </div>
         </div>
       </template>
     </div>
@@ -416,44 +415,31 @@ defineExpose({ expandAllTree, collapseAllTree, expandDirs });
   line-height: 18px;
 }
 
-/* 文件级悬停操作按钮 */
+/* 文件级悬停操作图标 */
 .results-tree__file-actions {
-  display: flex;
+  display: none;
   align-items: center;
-  gap: 2px;
+  gap: 6px;
   flex-shrink: 0;
   margin-left: 4px;
-  opacity: 0;
-  transition: opacity 0.15s;
+  line-height: 1;
 }
 
 .results-tree__file-header:hover .results-tree__file-actions {
-  opacity: 1;
+  display: flex;
 }
 
-.results-tree__file-action-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  border: none;
-  border-radius: 3px;
-  background: transparent;
+.results-tree__file-action-icon {
   color: var(--el-text-color-secondary);
   cursor: pointer;
-  transition:
-    background-color 0.15s,
-    color 0.15s;
+  border-radius: 3px;
 }
 
-.results-tree__file-action-btn:hover {
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.15));
+.results-tree__file-action-icon:hover {
   color: var(--el-color-primary);
 }
 
-.results-tree__file-action-btn--dismiss:hover {
-  background-color: rgba(var(--el-color-danger-rgb), calc(var(--card-opacity) * 0.15));
+.results-tree__file-action-icon--dismiss:hover {
   color: var(--el-color-danger);
 }
 

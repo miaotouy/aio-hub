@@ -6,15 +6,15 @@
       <Folder :size="14" class="tree-node__folder-icon" />
       <span class="tree-node__dir-name">{{ node.name }}</span>
       <span class="tree-node__match-count">{{ node.totalMatches }}</span>
-      <!-- 目录级悬停操作按钮 -->
+      <!-- 目录级悬停操作图标 -->
       <span class="tree-node__dir-actions">
-        <button
-          class="tree-node__action-btn tree-node__action-btn--dismiss"
-          title="从结果中移除该目录"
-          @click.stop="dismissDir"
-        >
-          <X :size="14" />
-        </button>
+        <el-tooltip content="从结果中移除该目录" placement="top" :show-after="500">
+          <X
+            :size="16"
+            class="tree-node__action-icon tree-node__action-icon--dismiss"
+            @click.stop="dismissDir"
+          />
+        </el-tooltip>
       </span>
     </div>
 
@@ -58,23 +58,22 @@
           <FileIcon :size="14" class="tree-node__file-icon" />
           <span class="tree-node__file-name">{{ getFileName(fileResult.relativePath) }}</span>
           <span class="tree-node__match-count">{{ fileResult.matches.length }}</span>
-          <!-- 文件级悬停操作按钮 -->
+          <!-- 文件级悬停操作图标 -->
           <span class="tree-node__file-actions">
-            <button
-              v-if="showReplace"
-              class="tree-node__action-btn"
-              title="替换该文件所有匹配"
-              @click.stop="$emit('replaceFile', fileResult.filePath)"
-            >
-              <Replace :size="14" />
-            </button>
-            <button
-              class="tree-node__action-btn tree-node__action-btn--dismiss"
-              title="从结果中移除该文件"
-              @click.stop="$emit('dismissFile', fileResult.filePath)"
-            >
-              <X :size="14" />
-            </button>
+            <el-tooltip v-if="showReplace" content="替换该文件所有匹配" placement="top" :show-after="500">
+              <Replace
+                :size="16"
+                class="tree-node__action-icon"
+                @click.stop="$emit('replaceFile', fileResult.filePath)"
+              />
+            </el-tooltip>
+            <el-tooltip content="从结果中移除该文件" placement="top" :show-after="500">
+              <X
+                :size="16"
+                class="tree-node__action-icon tree-node__action-icon--dismiss"
+                @click.stop="$emit('dismissFile', fileResult.filePath)"
+              />
+            </el-tooltip>
           </span>
         </div>
 
@@ -331,19 +330,18 @@ function onMatchContextMenu(event: MouseEvent, fileResult: FileSearchResult, mat
   background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.06));
 }
 
-/* 目录级悬停操作按钮 */
+/* 目录级悬停操作图标 */
 .tree-node__dir-actions {
-  display: flex;
+  display: none;
   align-items: center;
-  gap: 2px;
+  gap: 6px;
   flex-shrink: 0;
   margin-left: 4px;
-  opacity: 0;
-  transition: opacity 0.15s;
+  line-height: 1;
 }
 
 .tree-node__dir-header:hover .tree-node__dir-actions {
-  opacity: 1;
+  display: flex;
 }
 
 .tree-node__chevron {
@@ -419,44 +417,31 @@ function onMatchContextMenu(event: MouseEvent, fileResult: FileSearchResult, mat
   flex: 1;
 }
 
-/* 文件级悬停操作按钮 */
+/* 文件级悬停操作图标 */
 .tree-node__file-actions {
-  display: flex;
+  display: none;
   align-items: center;
-  gap: 2px;
+  gap: 6px;
   flex-shrink: 0;
   margin-left: 4px;
-  opacity: 0;
-  transition: opacity 0.15s;
+  line-height: 1;
 }
 
 .tree-node__file-header:hover .tree-node__file-actions {
-  opacity: 1;
+  display: flex;
 }
 
-.tree-node__action-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  border: none;
-  border-radius: 3px;
-  background: transparent;
+.tree-node__action-icon {
   color: var(--el-text-color-secondary);
   cursor: pointer;
-  transition:
-    background-color 0.15s,
-    color 0.15s;
+  border-radius: 3px;
 }
 
-.tree-node__action-btn:hover {
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.15));
+.tree-node__action-icon:hover {
   color: var(--el-color-primary);
 }
 
-.tree-node__action-btn--dismiss:hover {
-  background-color: rgba(var(--el-color-danger-rgb), calc(var(--card-opacity) * 0.15));
+.tree-node__action-icon--dismiss:hover {
   color: var(--el-color-danger);
 }
 

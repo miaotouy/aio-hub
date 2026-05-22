@@ -3,8 +3,55 @@ import TurndownService from "turndown";
 import type { ContextProcessor, PipelineContext } from "../../types/pipeline";
 import type { ProcessableMessage } from "@/tools/llm-chat/types/context";
 import type { ChatMessageNode, ChatSessionDetail } from "@/tools/llm-chat/types";
+import type { LlmThinkRule } from "@/tools/rich-text-renderer/types";
 
 const logger = createModuleLogger("primary:session-loader");
+
+/** 默认需要保护的思考块标签名（当 agent 未配置时使用） */
+const DEFAULT_THINK_TAG_NAMES = ["think", "guguthink"];
+
+/**
+ * 保护思考块不被 HTML→Markdown 转换破坏。
+ *
+ * 将 `<think>...</think>` 等思考块替换为唯一占位符，
+ * 返回替换后的字符串和一个还原函数。
+ * 同时处理未闭合的思考块（流式中断场景）。
+ */
+function protectThinkBlocks(
+  content: string,
+  thinkTagNames: string[],
+): { text: string; restore: (s: string) => string } {
+  if (thinkTagNames.length === 0) {
+    return { text: content, restore: (s) => s };
+  }
+
+  const placeholders: Array<{ placeholder: string; original: string }> = [];
+  let result = content;
+
+  // 构建匹配正则：匹配闭合的 <tag>...</tag> 和未闭合的 <tag>...（到字符串末尾）
+  const tagPattern = thinkTagNames.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+  // 先匹配闭合标签，再匹配未闭合标签（贪心到末尾）
+  const regex = new RegExp(
+    `<(${tagPattern})(\\s[^>]*)?>([\\s\\S]*?)<\\/\\1>|<(${tagPattern})(\\s[^>]*)?>([\\s\\S]*)$`,
+    "gi",
+  );
+
+  result = result.replace(regex, (match) => {
+    const id = `__THINK_BLOCK_${placeholders.length}_${Date.now()}__`;
+    placeholders.push({ placeholder: id, original: match });
+    return id;
+  });
+
+  const restore = (s: string): string => {
+    let restored = s;
+    for (const { placeholder, original } of placeholders) {
+      restored = restored.replace(placeholder, original);
+    }
+    return restored;
+  };
+
+  return { text: result, restore };
+}
 
 /**
  * 对 turndown 输出的 Markdown 进行后处理，清理结构问题以节约 token。
@@ -108,7 +155,17 @@ export const sessionLoader: ContextProcessor = {
     const convertToolRoleToUser = context.agentConfig?.toolCallConfig?.convertToolRoleToUser ?? true;
 
     let turndownService: TurndownService | null = null;
+    // 收集需要保护的思考块标签名
+    let thinkTagNames: string[] = [];
     if (convertHtmlToMd) {
+      thinkTagNames = (context.agentConfig?.llmThinkRules || [])
+        .filter((rule: LlmThinkRule) => rule.kind === "xml_tag" && rule.tagName)
+        .map((rule: LlmThinkRule) => rule.tagName);
+      // 如果 agent 未配置思考块规则，使用默认标签名
+      if (thinkTagNames.length === 0) {
+        thinkTagNames = [...DEFAULT_THINK_TAG_NAMES];
+      }
+
       turndownService = new TurndownService({
         headingStyle: "atx",
         codeBlockStyle: "fenced",
@@ -144,10 +201,16 @@ export const sessionLoader: ContextProcessor = {
         // 启发式判断是否包含 HTML 标签，且避开可能是简单数学符号的情况
         if (/<[a-z][\s\S]*>/i.test(finalContent)) {
           try {
-            // 只有当内容中确实存在 HTML 结构时才转换
-            finalContent = turndownService.turndown(finalContent);
+            // 保护思考块：提取并替换为占位符，防止 turndown 破坏
+            const { text: safeContent, restore } = protectThinkBlocks(finalContent, thinkTagNames);
+            // 转换 HTML 为 Markdown
+            let converted = turndownService.turndown(safeContent);
             // 后处理：清理 turndown 输出中的结构问题
-            finalContent = postProcessMarkdown(finalContent);
+            converted = postProcessMarkdown(converted);
+            // 还原思考块
+            finalContent = restore(converted);
+            // 追加标记：告知模型此消息经过格式转换，避免模型误判不该使用 HTML
+            finalContent += "\n[note: this message was converted from HTML to Markdown for context compression]";
           } catch (e) {
             logger.warn("HTML 转 Markdown 失败", { error: e, nodeId: node.id });
           }

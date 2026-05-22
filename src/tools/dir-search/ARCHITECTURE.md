@@ -345,7 +345,7 @@ sequenceDiagram
 ## 9. 未来展望
 
 - **预设保存**：保存常用搜索配置
-- **Agent 服务注册**：暴露搜索能力给 LLM（`ToolRegistry` 接口）
+- ~~**Agent 服务注册**~~：✅ 已实现（`DirSearchRegistry` 类，暴露 `searchDirectory` 和 `replaceInDirectory` 方法）
 
 ### 已评估并放弃的方案
 

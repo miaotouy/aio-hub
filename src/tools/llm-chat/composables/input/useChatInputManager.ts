@@ -975,8 +975,11 @@ class ChatInputManager {
       const oldPlaceholder = generateAssetPlaceholder(oldId);
       const possibleTags = [uploadingPlaceholder, oldPlaceholder, `【file::uploading:${oldId}】`, `【file::${oldId}】`];
 
-      // 策略：如果编辑器存在，优先使用编辑器的局部替换能力，避免全量修改 inputText 导致的竞态
-      if (this.editorRef && typeof this.editorRef.insertText === "function") {
+      // 策略：如果编辑器存在，优先使用编辑器的静默替换能力（不移动光标），避免打断用户输入
+      const useReplaceRange = this.editorRef && typeof this.editorRef.replaceRange === "function";
+      const useInsertText = !useReplaceRange && this.editorRef && typeof this.editorRef.insertText === "function";
+
+      if (useReplaceRange || useInsertText) {
         let replacedInEditor = false;
 
         // 注意：每次替换后文档内容和长度都会变化，所以必须在循环内重新获取最新文本
@@ -985,7 +988,12 @@ class ChatInputManager {
           let pos = loopText.indexOf(tag);
 
           while (pos !== -1) {
-            this.editorRef.insertText(newPlaceholder, pos, pos + tag.length);
+            if (useReplaceRange) {
+              // 优先使用 replaceRange：不移动光标，不打断用户输入
+              this.editorRef.replaceRange(newPlaceholder, pos, pos + tag.length);
+            } else {
+              this.editorRef.insertText(newPlaceholder, pos, pos + tag.length);
+            }
             replacedInEditor = true;
 
             // 替换后，重新获取文本并寻找下一个

@@ -391,6 +391,33 @@ defineExpose({
     const newDoc = view.value.state.doc.toString();
     emit("update:value", newDoc);
   },
+  /**
+   * 静默替换文本：只做文本替换，不移动光标位置。
+   * CodeMirror 会自动 map 光标（如果光标在替换区域之后会正确偏移）。
+   * 用于上传完成后占位符 ID 替换等不应打断用户输入的场景。
+   */
+  replaceRange: (text: string, from: number, to: number) => {
+    if (!view.value) return;
+    const docLength = view.value.state.doc.length;
+
+    // 越界检查与修正
+    let replaceFrom = from;
+    let replaceTo = to;
+
+    if (replaceFrom < 0) replaceFrom = 0;
+    if (replaceFrom > docLength) replaceFrom = docLength;
+    if (replaceTo < replaceFrom) replaceTo = replaceFrom;
+    if (replaceTo > docLength) replaceTo = docLength;
+
+    view.value.dispatch({
+      changes: { from: replaceFrom, to: replaceTo, insert: text },
+      // 不设置 selection，CodeMirror 会自动 map 当前光标位置
+    });
+
+    // 立即同步到外部，防止竞态
+    const newDoc = view.value.state.doc.toString();
+    emit("update:value", newDoc);
+  },
   getValue: () => {
     return view.value?.state.doc.toString() || "";
   },

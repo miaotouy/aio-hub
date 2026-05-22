@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, nextTick, computed, onActivated, onDeactivated } from "vue";
+import { ref, watch, nextTick, computed, onActivated, onDeactivated, onMounted, onBeforeUnmount } from "vue";
 import { useThrottleFn } from "@vueuse/core";
 import type { ChatMessageNode, ChatSessionIndex, ChatSessionDetail } from "../../types";
 import { useLlmChatStore } from "../../stores/llmChatStore";
@@ -28,33 +28,40 @@ const { settings } = useChatSettings();
 const lastKnownScrollTop = ref(0);
 const wasNearBottomBeforeDeactivate = ref(true);
 
+// 会话切换时如果消息还没加载，挂起滚动到底部的操作
+const pendingInitialScroll = ref(false);
+
+// 底部锁定状态：当为 true 时，内容高度变化会自动跟随滚动到底部
+// 与 isNearBottom 不同，这是一个"意图"标志，用于 ResizeObserver 判断是否需要跟随
+const shouldStickToBottom = ref(true);
+
 onDeactivated(() => {
   wasNearBottomBeforeDeactivate.value = isNearBottom.value;
+  disconnectResizeObserver();
 });
 
 onActivated(() => {
   const container = messagesContainer.value;
   if (!container) return;
 
+  // 重新连接 ResizeObserver
+  setupResizeObserver();
+
   // keep-alive 切换会导致浏览器重置 scrollTop 为 0，需要恢复
   if (container.scrollTop === 0 && lastKnownScrollTop.value > 0) {
-    const restoreScroll = () => {
-      if (!messagesContainer.value) return;
-      if (wasNearBottomBeforeDeactivate.value) {
-        // 之前在底部附近，恢复到底部
-        messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
-      } else {
-        // 之前在中间位置，恢复到记录的位置
+    if (wasNearBottomBeforeDeactivate.value) {
+      // 之前在底部附近，启用底部锁定让 ResizeObserver 自动跟随
+      shouldStickToBottom.value = true;
+      container.scrollTop = container.scrollHeight;
+    } else {
+      // 之前在中间位置，恢复到记录的位置
+      shouldStickToBottom.value = false;
+      nextTick(() => {
+        if (!messagesContainer.value) return;
         const maxScroll = messagesContainer.value.scrollHeight - messagesContainer.value.clientHeight;
         messagesContainer.value.scrollTop = Math.min(lastKnownScrollTop.value, maxScroll);
-      }
-    };
-
-    // 多次尝试恢复：content-visibility: auto 会导致 scrollHeight 逐步恢复
-    restoreScroll();
-    nextTick(restoreScroll);
-    setTimeout(restoreScroll, 50);
-    setTimeout(restoreScroll, 150);
+      });
+    }
   }
 });
 
@@ -94,6 +101,7 @@ const getMessageSiblings = (messageId: string) => {
 
 // 容器引用
 const messagesContainer = ref<HTMLElement | null>(null);
+const messagesInnerContainer = ref<HTMLElement | null>(null);
 
 // 暴露滚动容器供外部使用
 const getScrollElement = () => messagesContainer.value;
@@ -108,6 +116,61 @@ const switchingMessageId = ref<string | null>(null);
 const switchingMessageViewportOffset = ref<number>(0);
 // 记录捕获时的原始滚动位置，用于检测浏览器强制修正
 const switchingOriginalScrollTop = ref<number>(0);
+
+// ==================== ResizeObserver：内容高度变化时自动跟随底部 ====================
+let resizeObserver: ResizeObserver | null = null;
+// 上一次观测到的内容高度，用于判断是增长还是缩小
+let lastObservedHeight = 0;
+
+const onContentResize = () => {
+  const container = messagesContainer.value;
+  if (!container) return;
+
+  const currentHeight = container.scrollHeight;
+  const isGrowing = currentHeight > lastObservedHeight;
+  lastObservedHeight = currentHeight;
+
+  // 只在内容增长时跟随（缩小时不动，避免删除消息时跳动）
+  if (!isGrowing) return;
+
+  // 当处于底部锁定状态时，自动跟随滚动
+  if (shouldStickToBottom.value) {
+    container.scrollTop = currentHeight;
+  }
+};
+
+const setupResizeObserver = () => {
+  disconnectResizeObserver();
+  const inner = messagesInnerContainer.value;
+  if (!inner) return;
+
+  resizeObserver = new ResizeObserver(onContentResize);
+  resizeObserver.observe(inner);
+  // 初始化高度记录
+  if (messagesContainer.value) {
+    lastObservedHeight = messagesContainer.value.scrollHeight;
+  }
+};
+
+const disconnectResizeObserver = () => {
+  if (resizeObserver) {
+    resizeObserver.disconnect();
+    resizeObserver = null;
+  }
+};
+
+onMounted(() => {
+  setupResizeObserver();
+  // 初始加载时如果已有消息，滚动到底部
+  if (messagesContainer.value && props.messages.length > 0) {
+    shouldStickToBottom.value = true;
+    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
+  }
+});
+
+onBeforeUnmount(() => {
+  disconnectResizeObserver();
+});
 
 // 滚动到底部
 const scrollToBottom = useThrottleFn((forceInstant = false) => {
@@ -243,8 +306,33 @@ const onScroll = () => {
   // 阻断水平滚动（如果有的话）
   if (container.scrollLeft !== 0) container.scrollLeft = 0;
 
-  isNearBottom.value = scrollHeight - clientHeight - scrollTop < settings.value.uiPreferences.autoScrollThreshold;
+  const threshold = settings.value.uiPreferences.autoScrollThreshold;
+  isNearBottom.value = scrollHeight - clientHeight - scrollTop < threshold;
+
+  // 同步底部锁定状态：用户手动上滚时解除锁定，滚到底部时恢复锁定
+  shouldStickToBottom.value = isNearBottom.value;
+
   updateVisibleIndex();
+};
+
+/**
+ * 激活底部锁定并立即滚动到底部。
+ * ResizeObserver 会在后续内容高度变化（content-visibility 渐进渲染）时自动跟随。
+ */
+const activateBottomLock = () => {
+  shouldStickToBottom.value = true;
+  isNearBottom.value = true;
+  nextTick(() => {
+    if (messagesContainer.value) {
+      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
+      lastObservedHeight = messagesContainer.value.scrollHeight;
+    }
+    updateVisibleIndex();
+    // 确保 ResizeObserver 已连接（消息容器可能刚从 v-if 中出现）
+    if (!resizeObserver && messagesInnerContainer.value) {
+      setupResizeObserver();
+    }
+  });
 };
 
 // 监听会话切换
@@ -252,26 +340,14 @@ watch(
   () => props.sessionIndex?.id,
   (newId, oldId) => {
     if (newId !== oldId && newId) {
-      // 第一次 nextTick 等待 DOM 结构生成
-      nextTick(() => {
-        if (messagesContainer.value && props.messages.length > 0) {
-          messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
-          isNearBottom.value = true;
-          updateVisibleIndex();
-
-          // 第二次 nextTick 应对重型渲染器导致的布局变化
-          setTimeout(() => {
-            if (messagesContainer.value) {
-              messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
-            }
-          }, 50);
-          setTimeout(() => {
-            if (messagesContainer.value) {
-              messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
-            }
-          }, 150);
-        }
-      });
+      if (props.messages.length > 0) {
+        // 消息已就绪，激活底部锁定（ResizeObserver 会处理后续渲染导致的高度增长）
+        pendingInitialScroll.value = false;
+        activateBottomLock();
+      } else {
+        // 消息还没加载（异步加载 detail），挂起等待
+        pendingInitialScroll.value = true;
+      }
     }
   },
   { flush: "post" },
@@ -287,8 +363,16 @@ watch(
     const isContentChanged = newLastContent !== oldLastContent;
 
     if (isNewMessage) {
+      // 消息从空变为非空：首次加载场景（刷新页面/打开应用恢复会话）
+      if (oldLength === 0 && newLength > 0 && pendingInitialScroll.value) {
+        pendingInitialScroll.value = false;
+        activateBottomLock();
+        return;
+      }
+
       if (isNearBottom.value || newLength === 1) {
-        // 新消息加入时，如果原本就在底部，执行一次立即滚动以锁定位置
+        // 新消息加入时，如果原本就在底部，激活底部锁定
+        shouldStickToBottom.value = true;
         scrollToBottom(true);
       }
     } else if (isContentChanged) {
@@ -415,7 +499,7 @@ defineExpose({
         <p>👋 开始新的对话吧！</p>
       </div>
 
-      <div v-else class="messages-container">
+      <div v-else ref="messagesInnerContainer" class="messages-container">
         <template v-for="msg in messages" :key="msg.id">
           <!-- 压缩节点渲染 -->
           <CompressionMessage

@@ -27,7 +27,7 @@
       <el-tab-pane name="skills">
         <template #label>
           <div class="tab-label">
-            <span>技能列表</span>
+            <span>已安装</span>
           </div>
         </template>
         <!-- 提示：技能未启用 -->
@@ -66,6 +66,15 @@
         </div>
       </el-tab-pane>
 
+      <el-tab-pane name="discover">
+        <template #label>
+          <div class="tab-label">
+            <span>获取技能</span>
+          </div>
+        </template>
+        <SkillDiscoveryPanel @installed="handleRefresh" />
+      </el-tab-pane>
+
       <el-tab-pane name="scan-settings">
         <template #label>
           <div class="tab-label">
@@ -91,6 +100,7 @@ import SkillListPanel from "./SkillListPanel.vue";
 import SkillDetailPanel from "./SkillDetailPanel.vue";
 import SkillInstallDialog from "./SkillInstallDialog.vue";
 import SkillScanSettings from "./SkillScanSettings.vue";
+import SkillDiscoveryPanel from "./SkillDiscoveryPanel.vue";
 
 const { store, initialize, refresh, toggleSkill, uninstallSkill, renameSkill } = useSkillManager();
 const loading = ref(false);

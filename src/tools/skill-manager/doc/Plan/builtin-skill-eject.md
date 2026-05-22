@@ -1,9 +1,12 @@
 # 内置 Skill 释出机制
 
-> **状态**: Implementing
+> **状态**: ~~Implementing~~ → **Superseded**
 > **日期**: 2025-05-22
+> **取代方案**: [Skill 发现与源管理](./skill-discovery-and-sources.md)
 > **前置**: 无
 > **后续**: [.env.example 支持](./env-example-support.md)
+>
+> ⚠️ **本方案中的"启动时自动释出"设计已被取代。** 新方案改为用户主动安装，保留了版本追踪、重置等机制。详见取代方案文档。
 
 ## 1. 问题陈述
 

@@ -4,8 +4,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { SkillManifest, ExternalScanPath, WellKnownPath } from "../types";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import { SkillService } from "./SkillService";
-import { useSkillManagerStore } from "../stores/skillManagerStore";
 
 const errorHandler = createModuleErrorHandler("skill-manager/loader");
 
@@ -16,13 +14,7 @@ export class SkillLoader {
    * 调用 Rust 命令扫描所有搜索路径，返回 Skill 清单列表
    */
   async scanAll(externalPaths?: ExternalScanPath[]): Promise<SkillManifest[]> {
-    // 1. 先执行释出检查
-    const ejected = await SkillService.ejectBuiltinSkills();
-    if (ejected.length > 0) {
-      await this.updateEjectedRecords(ejected);
-    }
-
-    // 2. 正常扫描
+    // 正常扫描 (不再自动释出内置技能)
     const manifests =
       (await errorHandler.wrapAsync(async () => {
         return await invoke<SkillManifest[]>("get_all_skill_manifests", {
@@ -31,20 +23,6 @@ export class SkillLoader {
       })) ?? [];
     this.cachedManifests = manifests;
     return manifests;
-  }
-
-  /**
-   * 更新释出记录
-   */
-  private async updateEjectedRecords(skillIds: string[]) {
-    const store = useSkillManagerStore();
-    for (const id of skillIds) {
-      const version = await SkillService.getBuiltinSkillVersion(id);
-      await store.updateEjectedRecord(id, {
-        version: version ?? "0.0.0",
-        ejectedAt: new Date().toISOString(),
-      });
-    }
   }
 
   /**

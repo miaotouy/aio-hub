@@ -34,9 +34,9 @@
       >
         <div class="skill-item-header">
           <span class="skill-name">{{ manifest.name }}</span>
-          <span class="skill-source-tag" :class="manifest.source">
-            {{ manifest.source === "user" ? "用户" : "内置" }}
-          </span>
+          <span class="skill-source-tag" :class="getSourceClass(manifest)">
+                      {{ getSourceLabel(manifest) }}
+                    </span>
         </div>
         <div class="skill-desc">{{ manifest.description }}</div>
         <div class="skill-meta">
@@ -54,7 +54,10 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import { Search } from "lucide-vue-next";
+import { useSkillManagerStore } from "../stores/skillManagerStore";
 import type { SkillManifest } from "../types";
+
+const store = useSkillManagerStore();
 
 const props = defineProps<{
   manifests: SkillManifest[];
@@ -71,11 +74,40 @@ defineEmits<{
 const searchQuery = ref("");
 const sourceFilter = ref("");
 
+/** 判断技能是否来自内置源 */
+function isFromBuiltin(manifest: SkillManifest): boolean {
+  return (
+    manifest.source === "builtin" ||
+    manifest.metadata?.installedFrom === "builtin" ||
+    store.isBuiltinInstalled(manifest.name)
+  );
+}
+
+/** 获取技能的来源标签文字 */
+function getSourceLabel(manifest: SkillManifest): string {
+  if (isFromBuiltin(manifest)) return "内置";
+  if (manifest.source === "user") return "用户";
+  if (manifest.source.startsWith("external:")) return "外部";
+  return manifest.source;
+}
+
+/** 获取技能的来源样式类名 */
+function getSourceClass(manifest: SkillManifest): string {
+  if (isFromBuiltin(manifest)) return "builtin";
+  if (manifest.source === "user") return "user";
+  if (manifest.source.startsWith("external:")) return "external";
+  return "";
+}
+
 const filteredManifests = computed(() => {
   let list = props.manifests;
 
-  // 来源过滤
-  if (sourceFilter.value) {
+  // 来源过滤（内置过滤需要同时匹配 source=builtin、metadata 标记和安装记录）
+  if (sourceFilter.value === "builtin") {
+    list = list.filter((m) => isFromBuiltin(m));
+  } else if (sourceFilter.value === "user") {
+    list = list.filter((m) => m.source === "user" && !isFromBuiltin(m));
+  } else if (sourceFilter.value) {
     list = list.filter((m) => m.source === sourceFilter.value);
   }
 

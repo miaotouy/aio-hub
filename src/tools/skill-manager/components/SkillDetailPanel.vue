@@ -4,7 +4,11 @@
     <div class="panel-header">
       <div class="header-main">
         <div class="title-row">
-          <el-tooltip v-if="isEjectedBuiltin" content="此技能从内置模板释出，你可以自由修改或重置为默认版本" placement="top">
+          <el-tooltip
+            v-if="isFromBuiltin"
+            content="此技能从内置模板安装，你可以自由修改或重置为默认版本"
+            placement="top"
+          >
             <div class="skill-badge" :class="sourceInfo.class">{{ sourceInfo.label }}</div>
           </el-tooltip>
           <div v-else class="skill-badge" :class="sourceInfo.class">{{ sourceInfo.label }}</div>
@@ -24,7 +28,7 @@
           </div>
           <template v-else>
             <h3 class="skill-title">{{ manifest.name }}</h3>
-            <el-tooltip v-if="manifest.source === 'user' && !isEjectedBuiltin" content="重命名技能" placement="top">
+            <el-tooltip v-if="manifest.source === 'user' && !isFromBuiltin" content="重命名技能" placement="top">
               <el-button size="small" :icon="PencilLine" link class="edit-btn" @click="startRename" />
             </el-tooltip>
           </template>
@@ -33,7 +37,7 @@
       </div>
 
       <div class="header-actions">
-        <el-tooltip v-if="isEjectedBuiltin" content="重置为内置默认版本" placement="top">
+        <el-tooltip v-if="isFromBuiltin" content="重置为内置默认版本" placement="top">
           <el-button size="small" :icon="RotateCcw" circle plain @click="handleReset" />
         </el-tooltip>
         <el-tooltip content="打开所在目录" placement="top">
@@ -46,7 +50,7 @@
           inactive-text="禁用"
           inline-prompt
         />
-        <el-tooltip v-if="manifest.source === 'user' && !isEjectedBuiltin" content="卸载技能" placement="top">
+        <el-tooltip v-if="manifest.source === 'user' && !isFromBuiltin" content="卸载技能" placement="top">
           <el-button size="small" :icon="Trash2" circle plain type="danger" @click="handleUninstall" />
         </el-tooltip>
       </div>
@@ -372,12 +376,18 @@ function saveEnvVars() {
 // 初始加载
 loadEnvEntries();
 
-const isEjectedBuiltin = computed(() => store.isEjectedBuiltin(props.manifest.name));
+/** 判断技能是否来自内置源（三重判断：source 字段、metadata 标记、安装记录） */
+const isFromBuiltin = computed(
+  () =>
+    props.manifest.source === "builtin" ||
+    props.manifest.metadata?.installedFrom === "builtin" ||
+    store.isBuiltinInstalled(props.manifest.name),
+);
 const isBuiltin = computed(() => props.manifest.source === "builtin");
 
 const sourceInfo = computed(() => {
   const source = props.manifest.source;
-  if (source === "builtin" || isEjectedBuiltin.value) return { label: "内置", class: "builtin" };
+  if (isFromBuiltin.value) return { label: "内置", class: "builtin" };
   if (source === "user") return { label: "用户", class: "user" };
   if (source.startsWith("external:")) {
     const id = source.split(":")[1];
@@ -423,12 +433,12 @@ async function handleReset() {
 
     await SkillService.resetSkillToBuiltin(props.manifest.name);
 
-    // 更新释出记录的时间戳
-    const info = store.getEjectedInfo(props.manifest.name);
+    // 更新安装记录的时间戳
+    const info = store.getInstallInfo(props.manifest.name);
     if (info) {
-      await store.updateEjectedRecord(props.manifest.name, {
+      await store.updateInstallRecord(props.manifest.name, {
         ...info,
-        ejectedAt: new Date().toISOString(),
+        installedAt: new Date().toISOString(),
         userModified: false,
       });
     }
@@ -512,10 +522,10 @@ async function handleSaveFile() {
     );
     if (success) {
       // 标记用户已修改
-      if (isEjectedBuiltin.value) {
-        const info = store.getEjectedInfo(props.manifest.name);
+      if (isFromBuiltin.value) {
+        const info = store.getInstallInfo(props.manifest.name);
         if (info) {
-          store.updateEjectedRecord(props.manifest.name, {
+          store.updateInstallRecord(props.manifest.name, {
             ...info,
             userModified: true,
           });

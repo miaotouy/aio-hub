@@ -12,7 +12,8 @@ import type {
   ExternalScanPath,
   RuntimeSettings,
   TerminalPreferences,
-  EjectedBuiltinInfo,
+  BuiltinInstallInfo,
+  SkillSource,
 } from "../types";
 
 export interface SkillManagerConfig {
@@ -32,8 +33,10 @@ export interface SkillManagerConfig {
   terminalPreferences: TerminalPreferences;
   /** Per-skill 环境变量配置 (skillName -> { key: value }) */
   skillEnvVars: Record<string, Record<string, string>>;
-  /** 从内置模板释出的 skill 记录 */
-  ejectedBuiltins: Record<string, EjectedBuiltinInfo>;
+  /** 已配置的 Skill 源列表 */
+  sources: SkillSource[];
+  /** 内置 skill 安装记录 */
+  builtinInstallRecords: Record<string, BuiltinInstallInfo>;
 }
 
 const defaultRuntimeSettings: RuntimeSettings = {
@@ -48,6 +51,15 @@ const defaultTerminalPreferences: TerminalPreferences = {
   commandChainStyle: "auto",
 };
 
+const defaultSources: SkillSource[] = [
+  {
+    id: "builtin",
+    type: "builtin",
+    name: "内置技能",
+    enabled: true,
+  },
+];
+
 const defaultConfig: SkillManagerConfig = {
   enabled: true,
   disabledSkillIds: [],
@@ -57,7 +69,8 @@ const defaultConfig: SkillManagerConfig = {
   runtimeSettings: { ...defaultRuntimeSettings },
   terminalPreferences: { ...defaultTerminalPreferences },
   skillEnvVars: {},
-  ejectedBuiltins: {},
+  sources: [...defaultSources],
+  builtinInstallRecords: {},
 };
 
 const configManager: ConfigManager<SkillManagerConfig> = createConfigManager({
@@ -102,7 +115,8 @@ export const useSkillManagerStore = defineStore("skill-manager", () => {
         (p) => typeof p.path === "string" && p.path.trim().length > 0,
       ),
       skillEnvVars: loaded.skillEnvVars ?? {},
-      ejectedBuiltins: loaded.ejectedBuiltins ?? {},
+      sources: loaded.sources ?? [...defaultSources],
+      builtinInstallRecords: loaded.builtinInstallRecords ?? (loaded as any).ejectedBuiltins ?? {},
     };
   }
 
@@ -196,18 +210,18 @@ export const useSkillManagerStore = defineStore("skill-manager", () => {
   }
 
   /** 判断是否为内置释出的 Skill */
-  function isEjectedBuiltin(skillName: string): boolean {
-    return !!config.value.ejectedBuiltins[skillName];
+  function isBuiltinInstalled(skillName: string): boolean {
+    return !!config.value.builtinInstallRecords[skillName];
   }
 
-  /** 获取释出信息 */
-  function getEjectedInfo(skillName: string): EjectedBuiltinInfo | undefined {
-    return config.value.ejectedBuiltins[skillName];
+  /** 获取安装信息 */
+  function getInstallInfo(skillName: string): BuiltinInstallInfo | undefined {
+    return config.value.builtinInstallRecords[skillName];
   }
 
-  /** 更新释出记录 */
-  async function updateEjectedRecord(skillName: string, info: EjectedBuiltinInfo) {
-    config.value.ejectedBuiltins[skillName] = info;
+  /** 更新安装记录 */
+  async function updateInstallRecord(skillName: string, info: BuiltinInstallInfo) {
+    config.value.builtinInstallRecords[skillName] = info;
     await saveConfig();
   }
 
@@ -252,8 +266,8 @@ export const useSkillManagerStore = defineStore("skill-manager", () => {
     resetActivation,
     getSkillEnvVars,
     setSkillEnvVars,
-    isEjectedBuiltin,
-    getEjectedInfo,
-    updateEjectedRecord,
+    isBuiltinInstalled,
+    getInstallInfo,
+    updateInstallRecord,
   };
 });

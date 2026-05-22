@@ -92,6 +92,17 @@ pub struct SkillFile {
     pub mime_type: String,
 }
 
+/// 可用的 Skill 信息（来自源，尚未安装）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AvailableSkillInfo {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub version: String,
+    pub metadata: HashMap<String, String>,
+}
+
 /// 脚本执行结果
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -957,46 +968,97 @@ pub async fn rename_skill(
     Ok(())
 }
 
-/// 将内置 skill 释出到用户目录（仅补充缺失的）
+/// 列出 resource/skills/ 中所有可用的内置 skill 元数据
 #[tauri::command]
-pub async fn eject_builtin_skills(app: AppHandle) -> Result<Vec<String>, String> {
-    let app_data_dir = crate::get_app_data_dir(app.config());
+pub async fn list_builtin_skills(app: AppHandle) -> Result<Vec<AvailableSkillInfo>, String> {
     let resource_dir = app
         .path()
         .resource_dir()
         .map_err(|e| format!("无法获取 resource 目录: {}", e))?;
     let builtin_dir = resource_dir.join("skills");
-    let user_skills_dir = app_data_dir.join("skills");
 
     if !builtin_dir.exists() {
         return Ok(Vec::new());
+    }
+
+    let entries = fs::read_dir(&builtin_dir).map_err(|e| format!("读取内置技能目录失败: {}", e))?;
+    let mut skills = Vec::new();
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            let skill_md_path = path.join("SKILL.md");
+            if !skill_md_path.exists() {
+                continue;
+            }
+
+            if let Ok(content) = fs::read_to_string(&skill_md_path) {
+                // 提取 Frontmatter
+                let parts: Vec<&str> = content.split("---").collect();
+                if parts.len() < 3 {
+                    continue;
+                }
+
+                let yaml_str = parts[1];
+                if let Ok(frontmatter) = serde_yaml::from_str::<SkillFrontmatter>(yaml_str) {
+                    let metadata = frontmatter.metadata.unwrap_or_default();
+
+                    // 确保 version 存在于 metadata 中
+                    let version = metadata
+                        .get("version")
+                        .cloned()
+                        .unwrap_or_else(|| "1.0.0".to_string());
+
+                    let id = path.file_name().unwrap().to_string_lossy().to_string();
+
+                    skills.push(AvailableSkillInfo {
+                        id,
+                        name: frontmatter.name,
+                        description: frontmatter.description,
+                        version,
+                        metadata,
+                    });
+                }
+            }
+        }
+    }
+
+    Ok(skills)
+}
+
+/// 将指定内置 skill 从 resource 安装到用户目录
+#[tauri::command]
+pub async fn install_builtin_skill(app: AppHandle, skill_id: String) -> Result<(), String> {
+    let app_data_dir = crate::get_app_data_dir(app.config());
+    let resource_dir = app
+        .path()
+        .resource_dir()
+        .map_err(|e| format!("无法获取 resource 目录: {}", e))?;
+    let builtin_skill_path = resource_dir.join("skills").join(&skill_id);
+    let user_skills_dir = app_data_dir.join("skills");
+    let target_path = user_skills_dir.join(&skill_id);
+
+    if !builtin_skill_path.exists() {
+        return Err(format!("内置技能 '{}' 不存在", skill_id));
+    }
+
+    if target_path.exists() {
+        return Err(format!("技能 '{}' 已安装", skill_id));
     }
 
     if !user_skills_dir.exists() {
         fs::create_dir_all(&user_skills_dir).map_err(|e| format!("无法创建技能目录: {}", e))?;
     }
 
-    let mut ejected = Vec::new();
-    let entries = fs::read_dir(&builtin_dir).map_err(|e| format!("读取内置技能目录失败: {}", e))?;
+    let mut options = fs_extra::dir::CopyOptions::new();
+    options.copy_inside = true;
+    fs_extra::dir::copy(&builtin_skill_path, &user_skills_dir, &options)
+        .map_err(|e| format!("复制内置技能 '{}' 失败: {}", skill_id, e))?;
 
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            let name = path.file_name().unwrap().to_string_lossy().to_string();
-            let target_path = user_skills_dir.join(&name);
+    // 注入 installedFrom: builtin 标记到 SKILL.md 的 metadata 中
+    inject_builtin_marker(&target_path)?;
 
-            // 如果用户目录不存在同名目录，则复制
-            if !target_path.exists() {
-                let mut options = fs_extra::dir::CopyOptions::new();
-                options.copy_inside = true;
-                fs_extra::dir::copy(&path, &user_skills_dir, &options)
-                    .map_err(|e| format!("复制内置技能 '{}' 失败: {}", name, e))?;
-                ejected.push(name);
-            }
-        }
-    }
-
-    Ok(ejected)
+    Ok(())
 }
 
 /// 将指定 skill 重置为内置模板版本
@@ -1026,6 +1088,65 @@ pub async fn reset_skill_to_builtin(app: AppHandle, skill_id: String) -> Result<
     fs_extra::dir::copy(&builtin_skill_path, user_skills_parent, &options)
         .map_err(|e| format!("重置技能 '{}' 失败: {}", skill_id, e))?;
 
+    // 3. 注入 installedFrom: builtin 标记
+    inject_builtin_marker(&user_skill_path)?;
+
+    Ok(())
+}
+
+/// 在 SKILL.md 的 metadata 中注入 `installedFrom: builtin` 标记
+///
+/// 约定格式：如果 metadata 块中已有 installedFrom，则覆盖；否则追加。
+fn inject_builtin_marker(skill_dir: &Path) -> Result<(), String> {
+    let skill_md_path = skill_dir.join("SKILL.md");
+    if !skill_md_path.exists() {
+        return Ok(()); // 非标准目录，跳过
+    }
+
+    let content =
+        fs::read_to_string(&skill_md_path).map_err(|e| format!("读取 SKILL.md 失败: {}", e))?;
+
+    let new_content = if content.contains("installedFrom:") {
+        // 已有该字段，替换值
+        let re = regex::Regex::new(r"(?m)^(\s*)installedFrom:[ \t]*[^\n]*$").unwrap();
+        re.replace(&content, "${1}installedFrom: builtin")
+            .to_string()
+    } else {
+        // 在 metadata: 块下追加（如果有 metadata 块）
+        if let Some(pos) = content.find("metadata:") {
+            // 找到 metadata: 行的末尾，在下一行插入
+            let after_metadata = &content[pos..];
+            if let Some(newline_pos) = after_metadata.find('\n') {
+                let insert_pos = pos + newline_pos + 1;
+                // 检测缩进（metadata 下的子项通常缩进 2 空格）
+                let indent = "  ";
+                format!(
+                    "{}{}installedFrom: builtin\n{}",
+                    &content[..insert_pos],
+                    indent,
+                    &content[insert_pos..]
+                )
+            } else {
+                // metadata: 是最后一行，追加换行
+                format!("{}\n  installedFrom: builtin", content)
+            }
+        } else {
+            // 没有 metadata 块，在 frontmatter 的 --- 结束前插入
+            // 找到第二个 ---
+            let parts: Vec<&str> = content.splitn(3, "---").collect();
+            if parts.len() >= 3 {
+                format!(
+                    "---{}metadata:\n  installedFrom: builtin\n---{}",
+                    parts[1], parts[2]
+                )
+            } else {
+                // 无法解析 frontmatter，跳过
+                return Ok(());
+            }
+        }
+    };
+
+    fs::write(&skill_md_path, new_content).map_err(|e| format!("写入 SKILL.md 失败: {}", e))?;
     Ok(())
 }
 

@@ -116,13 +116,46 @@ export interface SkillScriptResult {
 }
 
 /**
- * 从内置模板释出的 skill 记录
+ * 可用的 Skill 信息（来自源，尚未安装）
  */
-export interface EjectedBuiltinInfo {
-  /** 释出时的版本号（来自 metadata.version） */
+export interface AvailableSkillInfo {
+  id: string;
+  name: string;
+  description: string;
   version: string;
-  /** 释出时间 */
-  ejectedAt: string; // ISO 8601
+  metadata?: Record<string, string>;
+}
+
+/**
+ * Skill 源类型
+ */
+export type SkillSourceType = "builtin" | "remote-registry" | "git-repo";
+
+/**
+ * Skill 源定义
+ */
+export interface SkillSource {
+  id: string;
+  type: SkillSourceType;
+  name: string;
+  description?: string;
+  enabled: boolean;
+  url?: string;
+}
+
+/**
+ * 内置 skill 安装记录
+ */
+export interface BuiltinInstallInfo {
+  /** 安装时的版本号 */
+  version: string;
+  /** 安装时间 */
+  installedAt: string; // ISO 8601
   /** 用户是否修改过（可选，用于更新提示） */
   userModified?: boolean;
 }
+
+/**
+ * @deprecated 使用 BuiltinInstallInfo
+ */
+export type EjectedBuiltinInfo = BuiltinInstallInfo;

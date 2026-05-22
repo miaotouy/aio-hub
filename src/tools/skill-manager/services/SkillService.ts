@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import type { SkillScriptResult, RuntimeSettings, SkillManifest } from "../types";
+import type { SkillScriptResult, RuntimeSettings, SkillManifest, AvailableSkillInfo } from "../types";
 
 const errorHandler = createModuleErrorHandler("skill-manager/service");
 
@@ -73,14 +73,25 @@ export const SkillService = {
   },
 
   /**
-   * 将内置 skill 释出到用户目录（仅补充缺失的）
+   * 列出内置可用的 skill
    */
-  async ejectBuiltinSkills(): Promise<string[]> {
+  async listBuiltinSkills(): Promise<AvailableSkillInfo[]> {
     return (
       (await errorHandler.wrapAsync(async () => {
-        return await invoke<string[]>("eject_builtin_skills");
+        return await invoke<AvailableSkillInfo[]>("list_builtin_skills");
       })) ?? []
     );
+  },
+
+  /**
+   * 安装指定的内置 skill
+   */
+  async installBuiltinSkill(skillId: string): Promise<boolean> {
+    const result = await errorHandler.wrapAsync(async () => {
+      await invoke("install_builtin_skill", { skillId });
+      return true;
+    });
+    return result === true;
   },
 
   /**

@@ -114,3 +114,15 @@ export interface SkillScriptResult {
   exitCode: number | null;
   durationMs: number;
 }
+
+/**
+ * 从内置模板释出的 skill 记录
+ */
+export interface EjectedBuiltinInfo {
+  /** 释出时的版本号（来自 metadata.version） */
+  version: string;
+  /** 释出时间 */
+  ejectedAt: string; // ISO 8601
+  /** 用户是否修改过（可选，用于更新提示） */
+  userModified?: boolean;
+}

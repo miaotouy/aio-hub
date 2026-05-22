@@ -58,6 +58,7 @@
             @toggle="handleToggleSkill"
             @uninstall="handleUninstallSkill"
             @rename="handleRenameSkill"
+            @refresh="handleRefresh"
           />
           <div v-else class="empty-detail">
             <el-empty description="请选择一个技能查看详情" />

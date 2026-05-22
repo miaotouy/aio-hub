@@ -73,6 +73,39 @@ export const SkillService = {
   },
 
   /**
+   * 将内置 skill 释出到用户目录（仅补充缺失的）
+   */
+  async ejectBuiltinSkills(): Promise<string[]> {
+    return (
+      (await errorHandler.wrapAsync(async () => {
+        return await invoke<string[]>("eject_builtin_skills");
+      })) ?? []
+    );
+  },
+
+  /**
+   * 将指定 skill 重置为内置模板版本
+   */
+  async resetSkillToBuiltin(skillId: string): Promise<boolean> {
+    const result = await errorHandler.wrapAsync(async () => {
+      await invoke("reset_skill_to_builtin", { skillId });
+      return true;
+    });
+    return result === true;
+  },
+
+  /**
+   * 获取内置模板中指定 skill 的版本号
+   */
+  async getBuiltinSkillVersion(skillId: string): Promise<string | null> {
+    return (
+      (await errorHandler.wrapAsync(async () => {
+        return await invoke<string | null>("get_builtin_skill_version", { skillId });
+      })) ?? null
+    );
+  },
+
+  /**
    * 获取所有 Skill 清单
    */
   async getAllManifests(externalPaths?: any[]): Promise<SkillManifest[]> {

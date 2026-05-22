@@ -122,7 +122,6 @@ pub async fn get_all_skill_manifests(
     external_paths: Option<Vec<ExternalScanPath>>,
 ) -> Result<Vec<SkillManifest>, String> {
     let app_data_dir = crate::get_app_data_dir(app.config());
-    let resource_dir = app.path().resource_dir().ok();
 
     // 在阻塞线程中执行密集型 IO 和并行扫描
     tokio::task::spawn_blocking(move || {
@@ -132,14 +131,6 @@ pub async fn get_all_skill_manifests(
         let user_skills_dir = app_data_dir.join("skills");
         if user_skills_dir.exists() {
             manifests.extend(scan_skills_in_dir_parallel(&user_skills_dir, "user"));
-        }
-
-        // 2. 内置 Skill
-        if let Some(res_dir) = resource_dir {
-            let builtin_dir = res_dir.join("skills");
-            if builtin_dir.exists() {
-                manifests.extend(scan_skills_in_dir_parallel(&builtin_dir, "builtin"));
-            }
         }
 
         // 3. 外部路径
@@ -964,6 +955,114 @@ pub async fn rename_skill(
     fs::rename(&old_base_path, &new_base_path).map_err(|e| format!("重命名目录失败: {}", e))?;
 
     Ok(())
+}
+
+/// 将内置 skill 释出到用户目录（仅补充缺失的）
+#[tauri::command]
+pub async fn eject_builtin_skills(app: AppHandle) -> Result<Vec<String>, String> {
+    let app_data_dir = crate::get_app_data_dir(app.config());
+    let resource_dir = app
+        .path()
+        .resource_dir()
+        .map_err(|e| format!("无法获取 resource 目录: {}", e))?;
+    let builtin_dir = resource_dir.join("skills");
+    let user_skills_dir = app_data_dir.join("skills");
+
+    if !builtin_dir.exists() {
+        return Ok(Vec::new());
+    }
+
+    if !user_skills_dir.exists() {
+        fs::create_dir_all(&user_skills_dir).map_err(|e| format!("无法创建技能目录: {}", e))?;
+    }
+
+    let mut ejected = Vec::new();
+    let entries = fs::read_dir(&builtin_dir).map_err(|e| format!("读取内置技能目录失败: {}", e))?;
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            let name = path.file_name().unwrap().to_string_lossy().to_string();
+            let target_path = user_skills_dir.join(&name);
+
+            // 如果用户目录不存在同名目录，则复制
+            if !target_path.exists() {
+                let mut options = fs_extra::dir::CopyOptions::new();
+                options.copy_inside = true;
+                fs_extra::dir::copy(&path, &user_skills_dir, &options)
+                    .map_err(|e| format!("复制内置技能 '{}' 失败: {}", name, e))?;
+                ejected.push(name);
+            }
+        }
+    }
+
+    Ok(ejected)
+}
+
+/// 将指定 skill 重置为内置模板版本
+#[tauri::command]
+pub async fn reset_skill_to_builtin(app: AppHandle, skill_id: String) -> Result<(), String> {
+    let app_data_dir = crate::get_app_data_dir(app.config());
+    let resource_dir = app
+        .path()
+        .resource_dir()
+        .map_err(|e| format!("无法获取 resource 目录: {}", e))?;
+    let builtin_skill_path = resource_dir.join("skills").join(&skill_id);
+    let user_skill_path = app_data_dir.join("skills").join(&skill_id);
+
+    if !builtin_skill_path.exists() {
+        return Err(format!("内置技能模板 '{}' 不存在", skill_id));
+    }
+
+    // 1. 删除用户目录中的版本
+    if user_skill_path.exists() {
+        fs::remove_dir_all(&user_skill_path).map_err(|e| format!("删除现有技能失败: {}", e))?;
+    }
+
+    // 2. 从 resource 复制
+    let mut options = fs_extra::dir::CopyOptions::new();
+    options.copy_inside = true;
+    let user_skills_parent = user_skill_path.parent().unwrap();
+    fs_extra::dir::copy(&builtin_skill_path, user_skills_parent, &options)
+        .map_err(|e| format!("重置技能 '{}' 失败: {}", skill_id, e))?;
+
+    Ok(())
+}
+
+/// 获取内置模板中指定 skill 的版本号
+#[tauri::command]
+pub async fn get_builtin_skill_version(
+    app: AppHandle,
+    skill_id: String,
+) -> Result<Option<String>, String> {
+    let resource_dir = app
+        .path()
+        .resource_dir()
+        .map_err(|e| format!("无法获取 resource 目录: {}", e))?;
+    let skill_md_path = resource_dir.join("skills").join(&skill_id).join("SKILL.md");
+
+    if !skill_md_path.exists() {
+        return Ok(None);
+    }
+
+    let content = fs::read_to_string(&skill_md_path).map_err(|e| e.to_string())?;
+
+    // 提取 Frontmatter 中的 version
+    let parts: Vec<&str> = content.split("---").collect();
+    if parts.len() < 3 {
+        return Ok(None);
+    }
+
+    let yaml_str = parts[1];
+    let yaml: serde_yaml::Value = serde_yaml::from_str(yaml_str).map_err(|e| e.to_string())?;
+
+    if let Some(metadata) = yaml.get("metadata") {
+        if let Some(version) = metadata.get("version") {
+            return Ok(version.as_str().map(|s| s.to_string()));
+        }
+    }
+
+    Ok(None)
 }
 
 /// 获取已知工具的默认全局路径列表

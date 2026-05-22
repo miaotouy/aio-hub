@@ -7,7 +7,13 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { createConfigManager, type ConfigManager } from "@/utils/configManager";
-import type { SkillManifest, ExternalScanPath, RuntimeSettings, TerminalPreferences } from "../types";
+import type {
+  SkillManifest,
+  ExternalScanPath,
+  RuntimeSettings,
+  TerminalPreferences,
+  EjectedBuiltinInfo,
+} from "../types";
 
 export interface SkillManagerConfig {
   /** 总开关 */
@@ -26,6 +32,8 @@ export interface SkillManagerConfig {
   terminalPreferences: TerminalPreferences;
   /** Per-skill 环境变量配置 (skillName -> { key: value }) */
   skillEnvVars: Record<string, Record<string, string>>;
+  /** 从内置模板释出的 skill 记录 */
+  ejectedBuiltins: Record<string, EjectedBuiltinInfo>;
 }
 
 const defaultRuntimeSettings: RuntimeSettings = {
@@ -49,6 +57,7 @@ const defaultConfig: SkillManagerConfig = {
   runtimeSettings: { ...defaultRuntimeSettings },
   terminalPreferences: { ...defaultTerminalPreferences },
   skillEnvVars: {},
+  ejectedBuiltins: {},
 };
 
 const configManager: ConfigManager<SkillManagerConfig> = createConfigManager({
@@ -93,6 +102,7 @@ export const useSkillManagerStore = defineStore("skill-manager", () => {
         (p) => typeof p.path === "string" && p.path.trim().length > 0,
       ),
       skillEnvVars: loaded.skillEnvVars ?? {},
+      ejectedBuiltins: loaded.ejectedBuiltins ?? {},
     };
   }
 
@@ -185,6 +195,22 @@ export const useSkillManagerStore = defineStore("skill-manager", () => {
     return activeSkillNames.value.has(name);
   }
 
+  /** 判断是否为内置释出的 Skill */
+  function isEjectedBuiltin(skillName: string): boolean {
+    return !!config.value.ejectedBuiltins[skillName];
+  }
+
+  /** 获取释出信息 */
+  function getEjectedInfo(skillName: string): EjectedBuiltinInfo | undefined {
+    return config.value.ejectedBuiltins[skillName];
+  }
+
+  /** 更新释出记录 */
+  async function updateEjectedRecord(skillName: string, info: EjectedBuiltinInfo) {
+    config.value.ejectedBuiltins[skillName] = info;
+    await saveConfig();
+  }
+
   /** 获取指定 Skill 的环境变量 */
   function getSkillEnvVars(skillName: string): Record<string, string> {
     return config.value.skillEnvVars[skillName] ?? {};
@@ -226,5 +252,8 @@ export const useSkillManagerStore = defineStore("skill-manager", () => {
     resetActivation,
     getSkillEnvVars,
     setSkillEnvVars,
+    isEjectedBuiltin,
+    getEjectedInfo,
+    updateEjectedRecord,
   };
 });

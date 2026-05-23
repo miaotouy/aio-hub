@@ -59,7 +59,8 @@ export class VcpToolProxy implements ToolRegistry {
       if (!methodName) continue;
 
       (this as any)[methodName] = async (args: Record<string, any>) => {
-        return this.executeRemote(manifest.name, methodName, args);
+        const rawResult = await this.executeRemote(manifest.name, methodName, args);
+        return VcpToolProxy.normalizeResult(rawResult);
       };
     }
   }
@@ -84,6 +85,44 @@ export class VcpToolProxy implements ToolRegistry {
         };
       }),
     };
+  }
+
+  /**
+   * 规范化 VCP 工具返回结果
+   *
+   * VCP 插件的返回值通常被包装为 { original_plugin_output, timestamp } 结构。
+   * 此方法将其解包，提取 original_plugin_output 作为主内容返回给 LLM，
+   * 与 VCP 自身的 vcpInfoHandler 行为对齐。
+   */
+  private static normalizeResult(result: any): any {
+    if (result == null) return result;
+
+    // 如果结果不是对象，直接返回
+    if (typeof result !== "object") return result;
+
+    // 如果包含 taskId，说明是异步任务启动回执，不做处理
+    if (result.taskId) return result;
+
+    // 核心逻辑：提取 original_plugin_output
+    if (typeof result.original_plugin_output !== "undefined") {
+      const mainContent = result.original_plugin_output;
+
+      // 如果主内容是字符串，直接返回（最常见的情况）
+      if (typeof mainContent === "string") {
+        return mainContent;
+      }
+
+      // 如果主内容是对象/数组，返回其 JSON 序列化
+      if (typeof mainContent === "object" && mainContent !== null) {
+        return JSON.stringify(mainContent, null, 2);
+      }
+
+      // 其他类型（number, boolean 等），转为字符串
+      return String(mainContent);
+    }
+
+    // 没有 original_plugin_output 字段，保持原样
+    return result;
   }
 
   /**

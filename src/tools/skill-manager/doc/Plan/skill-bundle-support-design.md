@@ -427,7 +427,7 @@ function isBundleEnabled(bundleName: string): boolean;
 
 ## 5. 实施计划
 
-### Phase 1: 基础 Bundle 安装（核心）
+### Phase 1: 基础 Bundle 安装（核心）✅
 
 **Rust 侧**:
 
@@ -443,7 +443,7 @@ function isBundleEnabled(bundleName: string): boolean;
 3. `SkillInstallDialog` 增加集合包检测和选择界面
 4. Store 新增 `bundles` 状态和相关方法
 
-### Phase 2: Bundle 管理（增强）
+### Phase 2: Bundle 管理（增强）✅
 
 1. 实现 `uninstall_bundle` 命令
 2. UI: `SkillListPanel` 分组展示

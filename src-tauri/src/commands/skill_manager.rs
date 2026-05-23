@@ -170,12 +170,53 @@ fn scan_skills_in_dir_parallel(dir: &Path, source: &str) -> Vec<SkillManifest> {
         .map(|e| e.flatten().map(|entry| entry.path()).collect())
         .unwrap_or_default();
 
+    // 如果是用户目录，读取 bundles 建立映射
+    let mut skill_to_bundle = HashMap::new();
+    if source == "user" {
+        let bundles_dir = dir.join("_bundles");
+        if bundles_dir.exists() {
+            if let Ok(entries) = fs::read_dir(bundles_dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("json") {
+                        if let Ok(content) = fs::read_to_string(&path) {
+                            if let Ok(metadata) = serde_json::from_str::<BundleMetadata>(&content) {
+                                for skill_id in metadata.skill_ids {
+                                    skill_to_bundle.insert(skill_id, metadata.name.clone());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // 使用 rayon 并行处理目录解析
     entries
         .into_par_iter()
         .filter(|path| path.is_dir())
+        .filter(|path| {
+            // 忽略 _bundles 目录本身
+            path.file_name().and_then(|s| s.to_str()) != Some("_bundles")
+        })
         .filter_map(|path| {
-            let res = parse_skill_directory_sync(&path, source);
+            let skill_id = path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
+            let actual_source = if source == "user" {
+                if let Some(bundle_name) = skill_to_bundle.get(&skill_id) {
+                    format!("bundle:{}", bundle_name)
+                } else {
+                    source.to_string()
+                }
+            } else {
+                source.to_string()
+            };
+
+            let res = parse_skill_directory_sync(&path, &actual_source);
             if res.is_none() {
                 // 如果该目录下有 SKILL.md 但解析失败，打印日志
                 if path.join("SKILL.md").exists() {
@@ -1237,4 +1278,569 @@ pub fn get_well_known_skill_paths() -> Vec<WellKnownPath> {
                 .to_string(),
         },
     ]
+}
+
+// ==========================================
+// Skill Bundle 支持相关结构体与命令
+// ==========================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PackageType {
+    Single,
+    Bundle,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BundleInfo {
+    pub name: String,
+    pub version: String,
+    pub description: Option<String>,
+    pub author: Option<String>,
+    pub source_url: Option<String>,
+    pub license: Option<String>,
+    pub skills_path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillPreview {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub conflict: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillPackageInfo {
+    pub package_type: PackageType,
+    pub bundle: Option<BundleInfo>,
+    pub skills: Vec<SkillPreview>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BundleInstallRequest {
+    pub name: String,
+    pub version: Option<String>,
+    pub description: Option<String>,
+    pub author: Option<String>,
+    pub source_url: Option<String>,
+    pub license: Option<String>,
+    pub install_method: String,
+    pub selected_skills: Vec<String>,
+    pub skills_path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BundleMetadata {
+    pub name: String,
+    pub version: String,
+    pub description: Option<String>,
+    pub author: Option<String>,
+    pub source_url: Option<String>,
+    pub license: Option<String>,
+    pub skill_ids: Vec<String>,
+    pub installed_at: String,
+    pub install_method: String,
+    pub skills_path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BundleYaml {
+    name: String,
+    version: String,
+    description: Option<String>,
+    author: Option<String>,
+    #[serde(rename = "source_url")]
+    source_url: Option<String>,
+    license: Option<String>,
+    #[serde(rename = "skills_path")]
+    skills_path: Option<String>,
+}
+
+/// 探测目录/仓库的包结构
+#[tauri::command]
+pub async fn detect_skill_package(
+    app: AppHandle,
+    path: String,
+) -> Result<SkillPackageInfo, String> {
+    let p = PathBuf::from(&path);
+    if !p.exists() {
+        return Err("路径不存在".to_string());
+    }
+
+    tokio::task::spawn_blocking(move || detect_package_internal(&p, &app))
+        .await
+        .map_err(|e| format!("探测任务失败: {}", e))?
+}
+
+fn detect_package_internal(
+    path: &Path,
+    app_handle: &AppHandle,
+) -> Result<SkillPackageInfo, String> {
+    // 1. 检查是否有 bundle.yaml 或 bundle.yml
+    let mut bundle_yaml_path = path.join("bundle.yaml");
+    if !bundle_yaml_path.exists() {
+        bundle_yaml_path = path.join("bundle.yml");
+    }
+
+    if bundle_yaml_path.exists() {
+        let content = fs::read_to_string(&bundle_yaml_path)
+            .map_err(|e| format!("读取 bundle.yaml 失败: {}", e))?;
+        let bundle_yaml: BundleYaml =
+            serde_yaml::from_str(&content).map_err(|e| format!("解析 bundle.yaml 失败: {}", e))?;
+
+        let skills_rel_path = bundle_yaml.skills_path.clone().unwrap_or_default();
+        let skills_dir = path.join(&skills_rel_path);
+
+        let skills = scan_previews_in_dir(&skills_dir, app_handle)?;
+
+        return Ok(SkillPackageInfo {
+            package_type: PackageType::Bundle,
+            bundle: Some(BundleInfo {
+                name: bundle_yaml.name,
+                version: bundle_yaml.version,
+                description: bundle_yaml.description,
+                author: bundle_yaml.author,
+                source_url: bundle_yaml.source_url,
+                license: bundle_yaml.license,
+                skills_path: skills_rel_path,
+            }),
+            skills,
+        });
+    }
+
+    // 2. 检查根目录是否有 SKILL.md
+    if path.join("SKILL.md").exists() {
+        if let Some(manifest) = parse_skill_directory_sync(path, "preview") {
+            let app_data_dir = crate::get_app_data_dir(app_handle.config());
+            let conflict = app_data_dir.join("skills").join(&manifest.name).exists();
+            return Ok(SkillPackageInfo {
+                package_type: PackageType::Single,
+                bundle: None,
+                skills: vec![SkillPreview {
+                    id: path
+                        .file_name()
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                        .to_string(),
+                    name: manifest.name,
+                    description: manifest.description,
+                    conflict,
+                }],
+            });
+        }
+    }
+
+    // 3. 自动探测子目录
+    let candidate_paths = vec![
+        ".agents/skills",
+        ".codex/skills",
+        ".claude/skills",
+        "skills",
+    ];
+
+    for rel_path in candidate_paths {
+        let skills_dir = path.join(rel_path);
+        if skills_dir.exists() && skills_dir.is_dir() {
+            let skills = scan_previews_in_dir(&skills_dir, app_handle)?;
+            if !skills.is_empty() {
+                return Ok(SkillPackageInfo {
+                    package_type: PackageType::Bundle,
+                    bundle: Some(BundleInfo {
+                        name: path
+                            .file_name()
+                            .unwrap_or_default()
+                            .to_string_lossy()
+                            .to_string(),
+                        version: "1.0.0".to_string(),
+                        description: None,
+                        author: None,
+                        source_url: None,
+                        license: None,
+                        skills_path: rel_path.to_string(),
+                    }),
+                    skills,
+                });
+            }
+        }
+    }
+
+    // 4. 根目录的直接子目录中有多个包含 SKILL.md 的
+    let entries = fs::read_dir(path).map_err(|e| format!("读取目录失败: {}", e))?;
+    let mut skills = Vec::new();
+    for entry in entries.flatten() {
+        let p = entry.path();
+        if p.is_dir() && p.join("SKILL.md").exists() {
+            if let Some(manifest) = parse_skill_directory_sync(&p, "preview") {
+                let app_data_dir = crate::get_app_data_dir(app_handle.config());
+                let conflict = app_data_dir.join("skills").join(&manifest.name).exists();
+                skills.push(SkillPreview {
+                    id: p
+                        .file_name()
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                        .to_string(),
+                    name: manifest.name,
+                    description: manifest.description,
+                    conflict,
+                });
+            }
+        }
+    }
+
+    if skills.len() > 1 {
+        return Ok(SkillPackageInfo {
+            package_type: PackageType::Bundle,
+            bundle: Some(BundleInfo {
+                name: path
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .to_string(),
+                version: "1.0.0".to_string(),
+                description: None,
+                author: None,
+                source_url: None,
+                license: None,
+                skills_path: "".to_string(),
+            }),
+            skills,
+        });
+    } else if skills.len() == 1 {
+        return Ok(SkillPackageInfo {
+            package_type: PackageType::Single,
+            bundle: None,
+            skills,
+        });
+    }
+
+    Err("未找到任何有效的 Skill 目录".to_string())
+}
+
+fn scan_previews_in_dir(dir: &Path, app_handle: &AppHandle) -> Result<Vec<SkillPreview>, String> {
+    let mut previews = Vec::new();
+    if !dir.exists() || !dir.is_dir() {
+        return Ok(previews);
+    }
+    let entries = fs::read_dir(dir).map_err(|e| format!("读取目录失败: {}", e))?;
+    for entry in entries.flatten() {
+        let p = entry.path();
+        if p.is_dir() && p.join("SKILL.md").exists() {
+            if let Some(manifest) = parse_skill_directory_sync(&p, "preview") {
+                let app_data_dir = crate::get_app_data_dir(app_handle.config());
+                let conflict = app_data_dir.join("skills").join(&manifest.name).exists();
+                previews.push(SkillPreview {
+                    id: p
+                        .file_name()
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                        .to_string(),
+                    name: manifest.name,
+                    description: manifest.description,
+                    conflict,
+                });
+            }
+        }
+    }
+    Ok(previews)
+}
+
+/// 从集合包安装选中的 skill
+#[tauri::command]
+pub async fn install_bundle(
+    app: AppHandle,
+    source_path: String,
+    bundle_info: BundleInstallRequest,
+) -> Result<BundleMetadata, String> {
+    let source_dir = PathBuf::from(&source_path);
+    if !source_dir.exists() || !source_dir.is_dir() {
+        return Err("源目录不存在或不是目录".to_string());
+    }
+
+    let skills_dir = if bundle_info.skills_path.is_empty() {
+        source_dir.clone()
+    } else {
+        source_dir.join(&bundle_info.skills_path)
+    };
+
+    if !skills_dir.exists() || !skills_dir.is_dir() {
+        return Err(format!("技能目录不存在: {:?}", skills_dir));
+    }
+
+    let app_data_dir = crate::get_app_data_dir(app.config());
+    let target_skills_dir = app_data_dir.join("skills");
+    fs::create_dir_all(&target_skills_dir).map_err(|e| format!("无法创建技能库目录: {}", e))?;
+
+    let mut installed_skill_ids = Vec::new();
+
+    for skill_id in &bundle_info.selected_skills {
+        let skill_source_path = skills_dir.join(skill_id);
+        if !skill_source_path.exists() || !skill_source_path.is_dir() {
+            continue;
+        }
+
+        let manifest = parse_skill_directory_sync(&skill_source_path, "user")
+            .ok_or_else(|| format!("无效的技能目录: {}", skill_id))?;
+
+        let target_path = target_skills_dir.join(&manifest.name);
+        if target_path.exists() {
+            fs::remove_dir_all(&target_path).map_err(|e| format!("删除冲突技能失败: {}", e))?;
+        }
+
+        install_skill_internal(&app, &skill_source_path, None).await?;
+        installed_skill_ids.push(manifest.name);
+    }
+
+    // 写入 _bundles/{bundle-name}.json
+    let bundles_dir = target_skills_dir.join("_bundles");
+    fs::create_dir_all(&bundles_dir).map_err(|e| format!("无法创建 bundles 目录: {}", e))?;
+
+    let metadata = BundleMetadata {
+        name: bundle_info.name.clone(),
+        version: bundle_info
+            .version
+            .clone()
+            .unwrap_or_else(|| "1.0.0".to_string()),
+        description: bundle_info.description.clone(),
+        author: bundle_info.author.clone(),
+        source_url: bundle_info.source_url.clone(),
+        license: bundle_info.license.clone(),
+        skill_ids: installed_skill_ids,
+        installed_at: chrono::Utc::now().to_rfc3339(),
+        install_method: bundle_info.install_method.clone(),
+        skills_path: Some(bundle_info.skills_path.clone()),
+    };
+
+    let metadata_path = bundles_dir.join(format!("{}.json", bundle_info.name));
+    let metadata_json =
+        serde_json::to_string_pretty(&metadata).map_err(|e| format!("序列化元数据失败: {}", e))?;
+    fs::write(metadata_path, metadata_json).map_err(|e| format!("写入元数据文件失败: {}", e))?;
+
+    Ok(metadata)
+}
+
+/// 卸载整个 Bundle
+#[tauri::command]
+pub async fn uninstall_bundle(app: AppHandle, bundle_name: String) -> Result<(), String> {
+    let app_data_dir = crate::get_app_data_dir(app.config());
+    let target_skills_dir = app_data_dir.join("skills");
+    let bundles_dir = target_skills_dir.join("_bundles");
+    let metadata_path = bundles_dir.join(format!("{}.json", bundle_name));
+
+    if !metadata_path.exists() {
+        return Err(format!("未找到 Bundle 元数据: {}", bundle_name));
+    }
+
+    let content =
+        fs::read_to_string(&metadata_path).map_err(|e| format!("读取元数据失败: {}", e))?;
+    let metadata: BundleMetadata =
+        serde_json::from_str(&content).map_err(|e| format!("解析元数据失败: {}", e))?;
+
+    for skill_id in metadata.skill_ids {
+        let skill_dir = target_skills_dir.join(&skill_id);
+        if skill_dir.exists() {
+            fs::remove_dir_all(skill_dir)
+                .map_err(|e| format!("删除技能 '{}' 失败: {}", skill_id, e))?;
+        }
+    }
+
+    fs::remove_file(metadata_path).map_err(|e| format!("删除元数据文件失败: {}", e))?;
+
+    Ok(())
+}
+
+/// 获取所有已安装的 Bundle 元数据
+#[tauri::command]
+pub async fn get_installed_bundles(app: AppHandle) -> Result<Vec<BundleMetadata>, String> {
+    let app_data_dir = crate::get_app_data_dir(app.config());
+    let bundles_dir = app_data_dir.join("skills").join("_bundles");
+
+    if !bundles_dir.exists() {
+        return Ok(Vec::new());
+    }
+
+    let entries = fs::read_dir(bundles_dir).map_err(|e| format!("读取 bundles 目录失败: {}", e))?;
+    let mut bundles = Vec::new();
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("json") {
+            if let Ok(content) = fs::read_to_string(&path) {
+                if let Ok(metadata) = serde_json::from_str::<BundleMetadata>(&content) {
+                    bundles.push(metadata);
+                }
+            }
+        }
+    }
+
+    Ok(bundles)
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrepareDetectResult {
+    pub temp_path: String,
+    pub package_info: SkillPackageInfo,
+}
+
+/// 准备并探测技能包（支持本地目录、Git 仓库、ZIP 链接、本地 ZIP 文件）
+#[tauri::command]
+pub async fn prepare_and_detect_package(
+    app: AppHandle,
+    input_type: String,
+    path_or_url: String,
+) -> Result<PrepareDetectResult, String> {
+    // 为了防止临时目录被过早释放，我们直接在 appData/temp 下创建唯一的目录
+    let app_data_dir = crate::get_app_data_dir(app.config());
+    let app_temp_dir = app_data_dir
+        .join("temp")
+        .join(uuid::Uuid::new_v4().to_string());
+    fs::create_dir_all(&app_temp_dir).map_err(|e| format!("创建临时目录失败: {}", e))?;
+
+    match input_type.as_str() {
+        "local" => {
+            let p = PathBuf::from(&path_or_url);
+            if !p.exists() {
+                return Err("路径不存在".to_string());
+            }
+            let package_info = detect_package_internal(&p, &app)?;
+            Ok(PrepareDetectResult {
+                temp_path: path_or_url,
+                package_info,
+            })
+        }
+        "zip_file" => {
+            let source_zip_path = PathBuf::from(&path_or_url);
+            if !source_zip_path.exists() || !source_zip_path.is_file() {
+                return Err("ZIP 文件不存在".to_string());
+            }
+
+            let extract_dir = app_temp_dir.join("extracted");
+            fs::create_dir_all(&extract_dir).map_err(|e| format!("创建解压目录失败: {}", e))?;
+
+            let zip_file = fs::File::open(&source_zip_path)
+                .map_err(|e| format!("打开 ZIP 文件失败: {}", e))?;
+            let mut archive =
+                zip::ZipArchive::new(zip_file).map_err(|e| format!("读取 ZIP 文件失败: {}", e))?;
+
+            archive
+                .extract(&extract_dir)
+                .map_err(|e| format!("解压 ZIP 文件失败: {}", e))?;
+
+            // 探测解压后的目录
+            let package_info = detect_package_internal(&extract_dir, &app)?;
+            Ok(PrepareDetectResult {
+                temp_path: extract_dir.to_string_lossy().to_string(),
+                package_info,
+            })
+        }
+        "git" => {
+            let url = path_or_url.trim().to_string();
+            if url.is_empty() {
+                return Err("仓库 URL 不能为空".to_string());
+            }
+
+            let normalized_url = if !url.ends_with(".git") {
+                if url.starts_with("http://")
+                    || url.starts_with("https://")
+                    || url.starts_with("git@")
+                    || url.starts_with("ssh://")
+                {
+                    format!("{}.git", url)
+                } else {
+                    url.clone()
+                }
+            } else {
+                url.clone()
+            };
+
+            let clone_dir = app_temp_dir.join("repo");
+
+            let output = Command::new("git")
+                .args(["clone", "--depth", "1", "--single-branch", &normalized_url])
+                .arg(&clone_dir)
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .output()
+                .await
+                .map_err(|e| format!("执行 git clone 失败（请确保系统已安装 git）: {}", e))?;
+
+            if !output.status.success() {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                return Err(format!("Git 克隆失败: {}", stderr.trim()));
+            }
+
+            let package_info = detect_package_internal(&clone_dir, &app)?;
+            Ok(PrepareDetectResult {
+                temp_path: clone_dir.to_string_lossy().to_string(),
+                package_info,
+            })
+        }
+        "url" => {
+            let url = path_or_url.trim().to_string();
+            if url.is_empty() {
+                return Err("下载链接不能为空".to_string());
+            }
+
+            let zip_path = app_temp_dir.join("skill.zip");
+            let response = reqwest::get(&url)
+                .await
+                .map_err(|e| format!("下载失败: {}", e))?;
+
+            if !response.status().is_success() {
+                return Err(format!("下载失败，HTTP 状态码: {}", response.status()));
+            }
+
+            let bytes = response
+                .bytes()
+                .await
+                .map_err(|e| format!("读取下载数据失败: {}", e))?;
+            fs::write(&zip_path, &bytes).map_err(|e| format!("保存临时文件失败: {}", e))?;
+
+            let extract_dir = app_temp_dir.join("extracted");
+            fs::create_dir_all(&extract_dir).map_err(|e| format!("创建解压目录失败: {}", e))?;
+
+            let zip_file =
+                fs::File::open(&zip_path).map_err(|e| format!("打开 ZIP 文件失败: {}", e))?;
+            let mut archive =
+                zip::ZipArchive::new(zip_file).map_err(|e| format!("读取 ZIP 文件失败: {}", e))?;
+
+            archive
+                .extract(&extract_dir)
+                .map_err(|e| format!("解压 ZIP 文件失败: {}", e))?;
+
+            let package_info = detect_package_internal(&extract_dir, &app)?;
+            Ok(PrepareDetectResult {
+                temp_path: extract_dir.to_string_lossy().to_string(),
+                package_info,
+            })
+        }
+        _ => Err("不支持的输入类型".to_string()),
+    }
+}
+
+/// 清理临时目录
+#[tauri::command]
+pub async fn clean_temp_dir(app: AppHandle, temp_path: String) -> Result<(), String> {
+    let p = PathBuf::from(&temp_path);
+    let app_data_dir = crate::get_app_data_dir(app.config());
+    let app_temp_root = app_data_dir.join("temp");
+
+    // 安全校验：只能删除 appData/temp 下的子目录
+    if p.exists() && p.starts_with(&app_temp_root) && p != app_temp_root {
+        // 如果 p 是某个具体解压目录，我们可能需要删除它的父目录（即 uuid 目录）
+        if let Some(parent) = p.parent() {
+            if parent.starts_with(&app_temp_root) && parent != app_temp_root {
+                let _ = fs::remove_dir_all(parent);
+                return Ok(());
+            }
+        }
+        let _ = fs::remove_dir_all(p);
+    }
+    Ok(())
 }

@@ -21,6 +21,8 @@ export interface SkillManagerConfig {
   enabled: boolean;
   /** 禁用的 Skill ID 列表（skillName） */
   disabledSkillIds: string[];
+  /** 禁用的 Bundle 列表（整体禁用时，其下所有 skill 都禁用） */
+  disabledBundleIds: string[];
   /** 是否自动激活匹配的 Skill */
   autoActivate: boolean;
   /** 外部扫描总开关 */
@@ -63,6 +65,7 @@ const defaultSources: SkillSource[] = [
 const defaultConfig: SkillManagerConfig = {
   enabled: true,
   disabledSkillIds: [],
+  disabledBundleIds: [],
   autoActivate: false,
   externalScanEnabled: false,
   externalScanPaths: [],
@@ -80,15 +83,31 @@ const configManager: ConfigManager<SkillManagerConfig> = createConfigManager({
   createDefault: () => ({ ...defaultConfig }),
 });
 
+import type { BundleMetadata } from "../types";
+
 export const useSkillManagerStore = defineStore("skill-manager", () => {
   const config = ref<SkillManagerConfig>({ ...defaultConfig });
   const manifests = ref<SkillManifest[]>([]);
+  const bundles = ref<BundleMetadata[]>([]);
   const scanStatus = ref<"idle" | "scanning" | "ready" | "error">("idle");
   const activeSkillNames = ref<Set<string>>(new Set());
 
-  /** 已启用的 Skill 清单（过滤掉禁用的） */
+  /** 已启用的 Skill 清单（过滤掉禁用的，以及所属 Bundle 被禁用的） */
   const enabledManifests = computed(() => {
-    return manifests.value.filter((m) => !config.value.disabledSkillIds.includes(m.name));
+    return manifests.value.filter((m) => {
+      // 检查 skill 自身是否被禁用
+      if (config.value.disabledSkillIds.includes(m.name)) {
+        return false;
+      }
+      // 检查所属 Bundle 是否被禁用
+      if (m.source.startsWith("bundle:")) {
+        const bundleName = m.source.substring("bundle:".length);
+        if (config.value.disabledBundleIds.includes(bundleName)) {
+          return false;
+        }
+      }
+      return true;
+    });
   });
 
   /** 已安装的 Skill 名称列表 */
@@ -100,6 +119,7 @@ export const useSkillManagerStore = defineStore("skill-manager", () => {
     // 深度合并：确保新增字段有默认值
     config.value = {
       ...loaded,
+      disabledBundleIds: loaded.disabledBundleIds ?? [],
       runtimeSettings: {
         javascript: { command: loaded.runtimeSettings?.javascript?.command ?? "" },
         python: { command: loaded.runtimeSettings?.python?.command ?? "" },
@@ -160,6 +180,42 @@ export const useSkillManagerStore = defineStore("skill-manager", () => {
     } else {
       config.value.disabledSkillIds.push(name);
     }
+    saveConfig();
+  }
+
+  /** 切换 Bundle 启用/禁用 */
+  function toggleBundle(bundleName: string) {
+    const idx = config.value.disabledBundleIds.indexOf(bundleName);
+    if (idx >= 0) {
+      config.value.disabledBundleIds.splice(idx, 1);
+    } else {
+      config.value.disabledBundleIds.push(bundleName);
+    }
+    saveConfig();
+  }
+
+  /** 判断 Bundle 是否启用 */
+  function isBundleEnabled(bundleName: string): boolean {
+    return !config.value.disabledBundleIds.includes(bundleName);
+  }
+
+  /** 获取 Skill 所属的 Bundle */
+  function getBundleForSkill(skillName: string): BundleMetadata | undefined {
+    const manifest = manifests.value.find((m) => m.name === skillName);
+    if (manifest && manifest.source.startsWith("bundle:")) {
+      const bundleName = manifest.source.substring("bundle:".length);
+      return bundles.value.find((b) => b.name === bundleName);
+    }
+    return undefined;
+  }
+
+  /** 移除一个 Bundle（卸载后清理） */
+  function removeBundle(bundleName: string) {
+    const idx = config.value.disabledBundleIds.indexOf(bundleName);
+    if (idx >= 0) {
+      config.value.disabledBundleIds.splice(idx, 1);
+    }
+    bundles.value = bundles.value.filter((b) => b.name !== bundleName);
     saveConfig();
   }
 
@@ -268,6 +324,7 @@ export const useSkillManagerStore = defineStore("skill-manager", () => {
   return {
     config,
     manifests,
+    bundles,
     scanStatus,
     activeSkillNames,
     enabledManifests,
@@ -279,6 +336,10 @@ export const useSkillManagerStore = defineStore("skill-manager", () => {
     setScanStatus,
     setSkillActive,
     toggleSkill,
+    toggleBundle,
+    isBundleEnabled,
+    getBundleForSkill,
+    removeBundle,
     removeSkill,
     renameSkill,
     isSkillEnabled,

@@ -22,28 +22,74 @@
     </div>
 
     <!-- 技能列表 -->
-    <div class="skill-list" v-if="filteredManifests.length > 0">
-      <div
-        v-for="manifest in filteredManifests"
-        :key="manifest.name"
-        class="skill-item"
-        :class="{
-          selected: selectedName === manifest.name,
-        }"
-        @click="$emit('select', manifest)"
-      >
-        <div class="skill-item-header">
-          <span class="skill-name">{{ manifest.name }}</span>
-          <span class="skill-source-tag" :class="getSourceClass(manifest)">
-                      {{ getSourceLabel(manifest) }}
-                    </span>
+    <div class="skill-list" v-if="groupedSkills.length > 0">
+      <div v-for="group in groupedSkills" :key="group.id" class="skill-group">
+        <!-- Bundle 分组头部 -->
+        <div v-if="group.type === 'bundle'" class="bundle-group-header">
+          <div class="bundle-info-click" @click="toggleCollapse(group.id)">
+            <component
+              :is="ChevronDown"
+              :size="16"
+              class="collapse-arrow"
+              :class="{ collapsed: isCollapsed(group.id) }"
+            />
+            <component :is="FolderArchive" :size="14" class="bundle-icon" />
+            <div class="bundle-meta-info">
+              <span class="bundle-name" :title="group.name">{{ group.name }}</span>
+              <span class="bundle-version" v-if="group.version">v{{ group.version }}</span>
+            </div>
+          </div>
+
+          <div class="bundle-actions">
+            <el-switch :model-value="group.enabled" size="small" @change="toggleBundle(group.id)" @click.stop />
+            <el-dropdown trigger="click" @click.stop>
+              <component :is="MoreVertical" :size="14" class="more-btn" />
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item @click="handleUninstallBundle(group.id)">
+                    <span class="text-danger">卸载包</span>
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </div>
         </div>
-        <div class="skill-desc">{{ manifest.description }}</div>
-        <div class="skill-meta">
-          <span v-if="manifest.scripts.length > 0" class="meta-item"> {{ manifest.scripts.length }} 个脚本 </span>
-          <span v-if="isActive(manifest.name)" class="meta-item active">已激活</span>
-          <span v-if="!isSkillEnabled(manifest.name)" class="meta-item disabled-tag">已禁用</span>
+
+        <!-- Standalone 分组头部 -->
+        <div v-else-if="groupedSkills.length > 1" class="standalone-group-header">
+          <component :is="FileCode" :size="14" />
+          <span>独立技能</span>
         </div>
+
+        <!-- 技能列表项 -->
+        <el-collapse-transition>
+          <div v-show="group.type === 'standalone' || !isCollapsed(group.id)" class="group-items">
+            <div
+              v-for="manifest in group.skills"
+              :key="manifest.name"
+              class="skill-item"
+              :class="{
+                selected: selectedName === manifest.name,
+                'is-disabled': !isSkillEnabled(manifest.name) || (group.type === 'bundle' && !group.enabled),
+              }"
+              @click="$emit('select', manifest)"
+            >
+              <div class="skill-item-header">
+                <span class="skill-name">{{ manifest.name }}</span>
+                <span class="skill-source-tag" :class="getSourceClass(manifest)">
+                  {{ getSourceLabel(manifest) }}
+                </span>
+              </div>
+              <div class="skill-desc">{{ manifest.description }}</div>
+              <div class="skill-meta">
+                <span v-if="manifest.scripts.length > 0" class="meta-item"> {{ manifest.scripts.length }} 个脚本 </span>
+                <span v-if="isActive(manifest.name)" class="meta-item active">已激活</span>
+                <span v-if="!isSkillEnabled(manifest.name)" class="meta-item disabled-tag">已禁用</span>
+                <span v-if="group.type === 'bundle' && !group.enabled" class="meta-item disabled-tag">包已禁用</span>
+              </div>
+            </div>
+          </div>
+        </el-collapse-transition>
       </div>
     </div>
 
@@ -53,11 +99,15 @@
 
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import { Search } from "lucide-vue-next";
+import { Search, ChevronDown, FolderArchive, FileCode, MoreVertical } from "lucide-vue-next";
 import { useSkillManagerStore } from "../stores/skillManagerStore";
+import { useSkillManager } from "../composables/useSkillManager";
+import { ElMessageBox } from "element-plus";
+import { customMessage } from "@/utils/customMessage";
 import type { SkillManifest } from "../types";
 
 const store = useSkillManagerStore();
+const { uninstallBundle } = useSkillManager();
 
 const props = defineProps<{
   manifests: SkillManifest[];
@@ -73,6 +123,36 @@ defineEmits<{
 
 const searchQuery = ref("");
 const sourceFilter = ref("");
+const collapsedBundles = ref<Record<string, boolean>>({});
+
+function toggleCollapse(bundleId: string) {
+  collapsedBundles.value[bundleId] = !collapsedBundles.value[bundleId];
+}
+
+function isCollapsed(bundleId: string): boolean {
+  return !!collapsedBundles.value[bundleId];
+}
+
+function toggleBundle(bundleId: string) {
+  store.toggleBundle(bundleId);
+}
+
+async function handleUninstallBundle(bundleId: string) {
+  try {
+    await ElMessageBox.confirm(`确定要卸载技能包 "${bundleId}" 吗？这将删除该包下的所有技能。`, "提示", {
+      confirmButtonText: "确定",
+      cancelButtonText: "取消",
+      type: "warning",
+      lockScroll: false,
+    });
+    await uninstallBundle(bundleId);
+    customMessage.success("技能包卸载成功");
+  } catch (err: any) {
+    if (err !== "cancel") {
+      customMessage.error(`卸载失败: ${err}`);
+    }
+  }
+}
 
 /** 判断技能是否来自内置源 */
 function isFromBuiltin(manifest: SkillManifest): boolean {
@@ -118,6 +198,59 @@ const filteredManifests = computed(() => {
   }
 
   return list;
+});
+
+interface GroupedItem {
+  type: "bundle" | "standalone";
+  id: string;
+  name: string;
+  version?: string;
+  skills: SkillManifest[];
+  enabled?: boolean;
+}
+
+const groupedSkills = computed(() => {
+  const bundlesMap = new Map<string, SkillManifest[]>();
+  const standalone: SkillManifest[] = [];
+
+  for (const manifest of filteredManifests.value) {
+    const bundle = store.getBundleForSkill(manifest.name);
+    if (bundle) {
+      if (!bundlesMap.has(bundle.name)) {
+        bundlesMap.set(bundle.name, []);
+      }
+      bundlesMap.get(bundle.name)!.push(manifest);
+    } else {
+      standalone.push(manifest);
+    }
+  }
+
+  const groups: GroupedItem[] = [];
+
+  // 添加 Bundle 分组
+  for (const [bundleName, skills] of bundlesMap.entries()) {
+    const bundleMeta = store.bundles.find((b) => b.name === bundleName);
+    groups.push({
+      type: "bundle",
+      id: bundleName,
+      name: bundleName,
+      version: bundleMeta?.version,
+      skills,
+      enabled: store.isBundleEnabled(bundleName),
+    });
+  }
+
+  // 添加独立技能分组
+  if (standalone.length > 0) {
+    groups.push({
+      type: "standalone",
+      id: "standalone",
+      name: "独立技能",
+      skills: standalone,
+    });
+  }
+
+  return groups;
 });
 
 function isActive(name: string): boolean {

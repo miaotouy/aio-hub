@@ -159,3 +159,51 @@ export interface BuiltinInstallInfo {
  * @deprecated 使用 BuiltinInstallInfo
  */
 export type EjectedBuiltinInfo = BuiltinInstallInfo;
+
+/**
+ * Bundle 元数据
+ */
+export interface BundleMetadata {
+  name: string;
+  version: string;
+  description?: string;
+  author?: string;
+  sourceUrl?: string;
+  license?: string;
+  skillIds: string[];
+  installedAt: string;
+  installMethod: string;
+  skillsPath?: string;
+}
+
+/**
+ * Bundle 信息
+ */
+export interface BundleInfo {
+  name: string;
+  version: string;
+  description?: string;
+  author?: string;
+  sourceUrl?: string;
+  license?: string;
+  skillsPath: string;
+}
+
+/**
+ * Skill 预览
+ */
+export interface SkillPreview {
+  id: string;
+  name: string;
+  description: string;
+  conflict: boolean;
+}
+
+/**
+ * Skill 包探测结果
+ */
+export interface SkillPackageInfo {
+  packageType: "single" | "bundle";
+  bundle?: BundleInfo;
+  skills: SkillPreview[];
+}

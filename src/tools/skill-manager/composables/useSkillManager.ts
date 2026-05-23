@@ -25,6 +25,11 @@ export function useSkillManager() {
 
       const manifests = await skillLoader.scanAll(externalPaths);
       store.setManifests(manifests);
+
+      // 加载已安装的 bundles
+      const bundles = await skillLoader.getInstalledBundles();
+      store.bundles = bundles;
+
       store.setScanStatus("ready");
     } catch (error) {
       console.error("[SkillManager] 扫描技能失败", error);
@@ -85,6 +90,28 @@ export function useSkillManager() {
     return true;
   }
 
+  /** 卸载整个 Bundle */
+  async function uninstallBundle(bundleName: string): Promise<boolean> {
+    const bundle = store.bundles.find((b) => b.name === bundleName);
+    if (!bundle) return false;
+
+    const result = await errorHandler.wrapAsync(
+      async () => {
+        await skillLoader.uninstallBundle(bundleName);
+      },
+      { userMessage: `卸载技能包 "${bundleName}" 失败`, showToUser: false },
+    );
+
+    if (result === null) return false;
+
+    // 从 store 中移除
+    store.removeBundle(bundleName);
+
+    // 刷新列表以同步状态
+    await initialize();
+    return true;
+  }
+
   return {
     store,
     initialize,
@@ -92,5 +119,6 @@ export function useSkillManager() {
     toggleSkill,
     uninstallSkill,
     renameSkill,
+    uninstallBundle,
   };
 }

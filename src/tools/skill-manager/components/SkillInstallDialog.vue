@@ -7,7 +7,60 @@
     :close-on-backdrop-click="false"
     @update:model-value="!$event && $emit('close')"
   >
-    <el-tabs v-model="installMode" class="install-tabs">
+    <div v-if="showBundleSelect" class="bundle-select-view">
+      <div class="bundle-header">
+        <component :is="FolderOpen" :size="20" class="bundle-icon" />
+        <div class="bundle-meta">
+          <div class="bundle-title">
+            <strong>{{ detectedPackageInfo?.bundle?.name }}</strong>
+            <span class="bundle-version" v-if="detectedPackageInfo?.bundle?.version"
+              >v{{ detectedPackageInfo.bundle.version }}</span
+            >
+          </div>
+          <div class="bundle-desc" v-if="detectedPackageInfo?.bundle?.description">
+            {{ detectedPackageInfo.bundle.description }}
+          </div>
+          <div class="bundle-author" v-if="detectedPackageInfo?.bundle?.author">
+            作者: {{ detectedPackageInfo.bundle.author }}
+            <span v-if="detectedPackageInfo?.bundle?.license">| 许可: {{ detectedPackageInfo.bundle.license }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="skills-list-container">
+        <div class="list-header">
+          <span>选择要安装的技能 ({{ selectedSkills.length }}/{{ detectedPackageInfo?.skills.length }}):</span>
+          <div class="list-actions">
+            <el-button link type="primary" size="small" @click="selectAllSkills">全选</el-button>
+            <el-button link type="primary" size="small" @click="deselectAllSkills">全不选</el-button>
+          </div>
+        </div>
+
+        <el-scrollbar max-height="280px" class="skills-scroll">
+          <div class="skills-checkbox-list">
+            <div
+              v-for="skill in detectedPackageInfo?.skills"
+              :key="skill.id"
+              class="skill-select-item"
+              :class="{ 'has-conflict': skill.conflict }"
+            >
+              <el-checkbox v-model="selectedSkills" :value="skill.id">
+                <div class="skill-item-content">
+                  <span class="skill-item-name">{{ skill.name }}</span>
+                  <span class="skill-item-desc" v-if="skill.description">{{ skill.description }}</span>
+                </div>
+              </el-checkbox>
+              <div v-if="skill.conflict" class="conflict-badge">
+                <component :is="AlertTriangle" :size="12" />
+                <span>已存在，安装将覆盖</span>
+              </div>
+            </div>
+          </div>
+        </el-scrollbar>
+      </div>
+    </div>
+
+    <el-tabs v-else v-model="installMode" class="install-tabs">
       <el-tab-pane label="从本地目录" name="local">
         <p class="install-hint">选择包含 SKILL.md 的技能目录进行安装。</p>
         <DropZone
@@ -87,23 +140,24 @@
     </el-tabs>
 
     <template #footer>
-      <el-button @click="$emit('close')">取消</el-button>
+      <el-button @click="handleCancel">{{ showBundleSelect ? "返回" : "取消" }}</el-button>
       <el-button type="primary" :loading="installing" :disabled="installDisabled" @click="handleInstall">
-        安装
+        {{ showBundleSelect ? "确认安装" : "安装" }}
       </el-button>
     </template>
   </BaseDialog>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, onUnmounted } from "vue";
 import { FolderOpen, AlertTriangle, Info } from "lucide-vue-next";
 import { invoke } from "@tauri-apps/api/core";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import DropZone from "@/components/common/DropZone.vue";
 import { customMessage } from "@/utils/customMessage";
 import { useSkillManager } from "../composables/useSkillManager";
-import type { SkillManifest } from "../types/index";
+import { skillLoader } from "../services/SkillLoader";
+import type { SkillPackageInfo } from "../types/index";
 
 const emit = defineEmits<{
   close: [];
@@ -128,13 +182,51 @@ const isDuplicate = ref(false);
 const isNameMismatch = ref(false);
 const actualDirName = ref("");
 
+// Bundle 支持状态
+const detectedPackageInfo = ref<SkillPackageInfo | null>(null);
+const selectedSkills = ref<string[]>([]);
+const tempPath = ref("");
+const showBundleSelect = ref(false);
+
 /** 根据当前模式判断安装按钮是否可用 */
 const installDisabled = computed(() => {
-  if (installing.value || isDuplicate.value) return true;
+  if (installing.value) return true;
+  if (showBundleSelect.value) return selectedSkills.value.length === 0;
+  if (isDuplicate.value) return true;
   if (installMode.value === "local") return !selectedDir.value || !previewName.value || !installName.value;
   if (installMode.value === "git") return !gitUrl.value.trim();
   if (installMode.value === "url") return !zipUrl.value.trim();
   return true;
+});
+
+function selectAllSkills() {
+  if (detectedPackageInfo.value) {
+    selectedSkills.value = detectedPackageInfo.value.skills.map((s) => s.id);
+  }
+}
+
+function deselectAllSkills() {
+  selectedSkills.value = [];
+}
+
+async function handleCancel() {
+  if (showBundleSelect.value) {
+    showBundleSelect.value = false;
+    // 如果是 Git 或 URL 模式，返回时清理临时目录
+    if (installMode.value !== "local" && tempPath.value) {
+      await skillLoader.cleanTempDir(tempPath.value);
+      tempPath.value = "";
+    }
+  } else {
+    emit("close");
+  }
+}
+
+onUnmounted(async () => {
+  // 确保组件销毁时清理临时目录
+  if (tempPath.value && installMode.value !== "local") {
+    await skillLoader.cleanTempDir(tempPath.value);
+  }
 });
 
 /** 自动寻找不冲突的名称 */
@@ -168,38 +260,40 @@ async function processSelectedPath(path: string) {
   isDuplicate.value = false;
   isNameMismatch.value = false;
   checking.value = true;
+  detectedPackageInfo.value = null;
+  showBundleSelect.value = false;
 
   try {
-    // 如果是 zip 文件，简单显示文件名
-    if (path.toLowerCase().endsWith(".zip")) {
-      const fileName = path.split(/[\\/]/).pop() || "";
-      previewName.value = fileName;
-      installName.value = fileName.replace(/\.zip$/i, "");
-      previewDesc.value = "准备从本地 ZIP 包安装";
-      validateInstallName();
-      return;
-    }
+    const inputType = path.toLowerCase().endsWith(".zip") ? "zip_file" : "local";
+    const result = await skillLoader.prepareAndDetectPackage(inputType, path);
+    tempPath.value = result.tempPath;
+    detectedPackageInfo.value = result.packageInfo;
 
-    // 调用 Rust 预览该目录或文件的 SKILL.md
-    const manifest = await invoke<SkillManifest>("preview_skill_manifest", { path });
-    previewName.value = manifest.name;
-    installName.value = suggestNonConflictingName(manifest.name);
-    previewDesc.value = manifest.description;
+    if (result.packageInfo.packageType === "bundle") {
+      showBundleSelect.value = true;
+      selectAllSkills();
+    } else {
+      // 单个技能
+      const skill = result.packageInfo.skills[0];
+      if (skill) {
+        previewName.value = skill.name;
+        installName.value = suggestNonConflictingName(skill.name);
+        previewDesc.value = skill.description;
 
-    // 如果选的是 SKILL.md，我们要把 selectedDir 更新为其父目录，方便后续安装
-    let targetPath = path;
-    if (path.toLowerCase().endsWith(".md")) {
-      const parts = path.split(/[\\/]/);
-      parts.pop();
-      targetPath = parts.join("/");
-      selectedDir.value = targetPath;
-    }
+        let targetPath = path;
+        if (path.toLowerCase().endsWith(".md")) {
+          const parts = path.split(/[\\/]/);
+          parts.pop();
+          targetPath = parts.join("/");
+          selectedDir.value = targetPath;
+        }
 
-    // 检查目录名是否匹配
-    const dirName = targetPath.split(/[\\/]/).filter(Boolean).pop() || "";
-    actualDirName.value = dirName;
-    if (dirName !== manifest.name) {
-      isNameMismatch.value = true;
+        const dirName = targetPath.split(/[\\/]/).filter(Boolean).pop() || "";
+        actualDirName.value = dirName;
+        if (dirName !== skill.name) {
+          isNameMismatch.value = true;
+        }
+      }
     }
   } catch (err: any) {
     customMessage.error(`识别失败: ${err}`);
@@ -218,31 +312,62 @@ function handleDrop(paths: string[]) {
 async function handleInstall() {
   installing.value = true;
   try {
+    // 1. 如果还没有探测过，先进行探测（针对 Git 和 URL 模式）
+    if (!detectedPackageInfo.value && installMode.value !== "local") {
+      const pathOrUrl = installMode.value === "git" ? gitUrl.value.trim() : zipUrl.value.trim();
+      const result = await skillLoader.prepareAndDetectPackage(installMode.value, pathOrUrl);
+      tempPath.value = result.tempPath;
+      detectedPackageInfo.value = result.packageInfo;
+
+      if (result.packageInfo.packageType === "bundle") {
+        showBundleSelect.value = true;
+        selectAllSkills();
+        installing.value = false;
+        return;
+      }
+    }
+
+    // 2. 执行安装
     const customName = installName.value || null;
 
-    if (installMode.value === "local" && selectedDir.value) {
-      const path = selectedDir.value;
-      if (path.toLowerCase().endsWith(".zip")) {
-        await invoke("install_skill_from_zip_file", { zipPath: path, customName });
-      } else {
-        await invoke("install_skill_from_dir", { sourceDir: path, customName });
+    if (showBundleSelect.value && detectedPackageInfo.value?.bundle) {
+      // 安装 Bundle
+      const bundle = detectedPackageInfo.value.bundle;
+      await skillLoader.installBundle(tempPath.value, {
+        name: bundle.name,
+        version: bundle.version,
+        description: bundle.description,
+        author: bundle.author,
+        sourceUrl: bundle.sourceUrl || (installMode.value === "git" ? gitUrl.value.trim() : null),
+        license: bundle.license,
+        installMethod: installMode.value,
+        selectedSkills: selectedSkills.value,
+        skillsPath: bundle.skillsPath,
+      });
+      customMessage.success("技能包安装成功");
+    } else {
+      // 安装单个技能
+      if (installMode.value === "local" && selectedDir.value) {
+        const path = selectedDir.value;
+        if (path.toLowerCase().endsWith(".zip")) {
+          await invoke("install_skill_from_zip_file", { zipPath: path, customName });
+        } else {
+          await invoke("install_skill_from_dir", { sourceDir: path, customName });
+        }
+      } else if (installMode.value === "git") {
+        await invoke("install_skill_from_git", { repoUrl: gitUrl.value.trim(), customName });
+      } else if (installMode.value === "url") {
+        await invoke("install_skill_from_zip", { zipUrl: zipUrl.value.trim(), customName });
       }
-    } else if (installMode.value === "git") {
-      const url = gitUrl.value.trim();
-      if (!url) {
-        customMessage.warning("请输入 Git 仓库 URL");
-        return;
-      }
-      await invoke("install_skill_from_git", { repoUrl: url, customName });
-    } else if (installMode.value === "url") {
-      const url = zipUrl.value.trim();
-      if (!url) {
-        customMessage.warning("请输入 ZIP 包下载链接");
-        return;
-      }
-      await invoke("install_skill_from_zip", { zipUrl: url, customName });
+      customMessage.success("技能安装成功");
     }
-    customMessage.success("技能安装成功");
+
+    // 3. 清理临时目录
+    if (tempPath.value && installMode.value !== "local") {
+      await skillLoader.cleanTempDir(tempPath.value);
+      tempPath.value = "";
+    }
+
     emit("installed");
   } catch (err: any) {
     customMessage.error(`安装失败: ${err}`);

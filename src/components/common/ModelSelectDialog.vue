@@ -179,7 +179,11 @@ watch(isDialogVisible, async (visible) => {
 
     // 滚动到当前选中的模型
     if (currentSelection.value) {
+      // 等待 DOM 渲染完成
       await nextTick();
+      // 再等一帧，确保 ResizeObserver 已触发并稳定布局（isNarrow 状态）
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+
       const currentKey = getModelKey(currentSelection.value.profile, currentSelection.value.model);
       const currentElement = document.querySelector(`[data-model-key="${currentKey}"]`) as HTMLElement;
       const container = modelListWrapperRef.value;

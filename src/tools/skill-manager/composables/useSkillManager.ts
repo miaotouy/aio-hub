@@ -42,10 +42,12 @@ export function useSkillManager() {
     store.toggleSkill(name);
   }
 
-  /** 卸载技能（仅 user 来源） */
+  /** 卸载技能（user 来源或从内置安装的均可卸载） */
   async function uninstallSkill(name: string): Promise<boolean> {
     const manifest = store.manifests.find((m) => m.name === name);
-    if (!manifest || manifest.source !== "user") return false;
+    if (!manifest) return false;
+    // 仅允许 user 来源（包括从内置安装后变为 user 的）卸载
+    if (manifest.source !== "user") return false;
 
     const result = await errorHandler.wrapAsync(
       async () => {
@@ -56,7 +58,7 @@ export function useSkillManager() {
 
     if (result === null) return false;
 
-    // 从 store 中移除
+    // 从 store 中移除（包括清理 builtinInstallRecords）
     store.removeSkill(name);
     return true;
   }

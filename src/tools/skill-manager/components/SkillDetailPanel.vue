@@ -50,7 +50,7 @@
           inactive-text="禁用"
           inline-prompt
         />
-        <el-tooltip v-if="manifest.source === 'user' && !isFromBuiltin" content="卸载技能" placement="top">
+        <el-tooltip v-if="manifest.source === 'user'" content="卸载技能" placement="top">
           <el-button size="small" :icon="Trash2" circle plain type="danger" @click="handleUninstall" />
         </el-tooltip>
       </div>
@@ -138,39 +138,91 @@
               <p>为此技能的脚本执行配置环境变量。脚本运行时会自动注入这些变量。</p>
             </div>
 
-            <!-- 环境变量列表 -->
-            <div class="env-list">
-              <div v-for="(_, index) in envEntries" :key="index" class="env-row">
-                <el-input
-                  v-model="envEntries[index].key"
-                  placeholder="变量名 (如 ENDPOINT)"
-                  size="small"
-                  class="env-key-input"
-                />
-                <el-input
-                  v-model="envEntries[index].value"
-                  placeholder="变量值"
-                  size="small"
-                  class="env-value-input"
-                  show-password
-                />
-                <el-button size="small" :icon="X" circle plain type="danger" @click="removeEnvEntry(index)" />
+            <!-- 迁移提示 -->
+            <el-alert
+              v-if="envMigrated"
+              title="已将环境变量迁移到 .env 文件"
+              type="success"
+              :closable="true"
+              show-icon
+              class="env-migrate-alert"
+            />
+
+            <!-- 操作按钮栏（有 .env.example 时显示） -->
+            <div v-if="envExampleResult.exists" class="env-toolbar">
+              <el-button size="small" :icon="RefreshCw" plain @click="handleSyncFromExample" :loading="envSyncing">
+                同步变量项
+              </el-button>
+              <el-button size="small" :icon="RotateCcw" plain @click="handleResetDefaults"> 还原默认值 </el-button>
+            </div>
+
+            <!-- 有 .env.example 时：分组展示 -->
+            <template v-if="envExampleResult.exists && envExampleResult.definitions.length > 0">
+              <template v-for="(group, groupIndex) in envGroups" :key="groupIndex">
+                <!-- 分组标题 -->
+                <div v-if="group.name" class="env-group-header">
+                  <span class="env-group-title">{{ group.name }}</span>
+                </div>
+
+                <!-- 分组内的变量 -->
+                <div v-for="def in group.items" :key="def.key" class="env-var-card">
+                  <div class="env-var-header">
+                    <span class="env-var-key">{{ def.key }}</span>
+                    <span v-if="def.defaultValue" class="env-var-default">默认: {{ def.defaultValue }}</span>
+                    <span v-else class="env-var-default empty">默认: (空)</span>
+                  </div>
+                  <div v-if="def.description" class="env-var-description">{{ def.description }}</div>
+                  <el-input
+                    v-model="envValues[def.key]"
+                    :placeholder="def.defaultValue || '请输入值'"
+                    size="small"
+                    class="env-var-input"
+                    :show-password="isSensitiveVar(def.key)"
+                    :type="isSensitiveVar(def.key) ? 'password' : 'text'"
+                  />
+                </div>
+              </template>
+            </template>
+
+            <!-- 自定义变量区域 -->
+            <div v-if="customEnvEntries.length > 0 || !envExampleResult.exists" class="env-custom-section">
+              <div v-if="envExampleResult.exists" class="env-group-header">
+                <span class="env-group-title">自定义变量</span>
+              </div>
+
+              <div class="env-list">
+                <div v-for="(_, index) in customEnvEntries" :key="index" class="env-row">
+                  <el-input
+                    v-model="customEnvEntries[index].key"
+                    placeholder="变量名 (如 ENDPOINT)"
+                    size="small"
+                    class="env-key-input"
+                  />
+                  <el-input
+                    v-model="customEnvEntries[index].value"
+                    placeholder="变量值"
+                    size="small"
+                    class="env-value-input"
+                    :show-password="isSensitiveVar(customEnvEntries[index].key)"
+                    :type="isSensitiveVar(customEnvEntries[index].key) ? 'password' : 'text'"
+                  />
+                  <el-button size="small" :icon="X" circle plain type="danger" @click="removeCustomEnvEntry(index)" />
+                </div>
               </div>
             </div>
 
-            <!-- 添加按钮 -->
-            <el-button size="small" :icon="Plus" plain @click="addEnvEntry" class="add-env-btn">
-              添加环境变量
+            <!-- 添加自定义变量按钮 -->
+            <el-button size="small" :icon="Plus" plain @click="addCustomEnvEntry" class="add-env-btn">
+              添加自定义变量
             </el-button>
 
             <!-- 保存按钮 -->
-            <div class="env-actions" v-if="envEntries.length > 0">
-              <el-button type="primary" size="small" @click="saveEnvVars">保存</el-button>
+            <div class="env-actions">
+              <el-button type="primary" size="small" @click="handleSaveEnv" :loading="envSaving">保存</el-button>
             </div>
           </div>
         </div>
       </el-tab-pane>
-
       <!-- 目录树标签 -->
       <el-tab-pane label="文件目录" name="files">
         <div class="tab-scroll-container">
@@ -265,6 +317,7 @@ import {
   FolderOpen,
   Plus,
   RotateCcw,
+  RefreshCw,
 } from "lucide-vue-next";
 import { ElMessageBox } from "element-plus";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
@@ -276,6 +329,16 @@ import { determineAssetType, getExtension } from "@/utils/fileTypeDetector";
 import { SkillService } from "../services/SkillService";
 import { useSkillManagerStore } from "../stores/skillManagerStore";
 import { customMessage } from "@/utils/customMessage";
+import { isSensitiveVar, type EnvVarDefinition } from "../services/envExampleParser";
+import {
+  loadEnvExample,
+  loadEnvFile,
+  saveEnvFile,
+  migrateFromConfig,
+  syncFromExample,
+  resetToDefaults,
+} from "../services/envFileManager";
+import type { EnvExampleParseResult } from "../services/envExampleParser";
 import type { SkillManifest } from "../types";
 
 const props = defineProps<{
@@ -327,7 +390,8 @@ watch(
   () => props.manifest.name,
   () => {
     isEditingName.value = false;
-    loadEnvEntries();
+    envMigrated.value = false;
+    loadEnvData();
   },
 );
 
@@ -340,41 +404,156 @@ async function handleOpenDirectory() {
   }
 }
 
-// 环境变量编辑逻辑
+// ===== 环境变量编辑逻辑 =====
 interface EnvEntry {
   key: string;
   value: string;
 }
 
-const envEntries = ref<EnvEntry[]>([]);
+/** .env.example 解析结果 */
+const envExampleResult = ref<EnvExampleParseResult>({ definitions: [], exists: false });
+/** 基于 definitions 的变量值（key -> value） */
+const envValues = ref<Record<string, string>>({});
+/** 自定义变量（不在 .env.example 中的） */
+const customEnvEntries = ref<EnvEntry[]>([]);
+/** 是否执行了迁移 */
+const envMigrated = ref(false);
+/** 同步中 */
+const envSyncing = ref(false);
+/** 保存中 */
+const envSaving = ref(false);
 
-function loadEnvEntries() {
-  const vars = store.getSkillEnvVars(props.manifest.name);
-  envEntries.value = Object.entries(vars).map(([key, value]) => ({ key, value }));
-}
+/** 按分组组织的变量定义 */
+const envGroups = computed(() => {
+  const defs = envExampleResult.value.definitions;
+  const groups: { name: string | undefined; items: EnvVarDefinition[] }[] = [];
+  let currentGroup: { name: string | undefined; items: EnvVarDefinition[] } | null = null;
 
-function addEnvEntry() {
-  envEntries.value.push({ key: "", value: "" });
-}
+  for (const def of defs) {
+    if (!currentGroup || def.group !== currentGroup.name) {
+      currentGroup = { name: def.group, items: [] };
+      groups.push(currentGroup);
+    }
+    currentGroup.items.push(def);
+  }
 
-function removeEnvEntry(index: number) {
-  envEntries.value.splice(index, 1);
-}
+  return groups;
+});
 
-function saveEnvVars() {
-  const vars: Record<string, string> = {};
-  for (const entry of envEntries.value) {
-    const key = entry.key.trim();
-    if (key) {
-      vars[key] = entry.value;
+/** 加载环境变量数据 */
+async function loadEnvData() {
+  const skillId = props.manifest.name;
+
+  // 1. 加载 .env.example
+  envExampleResult.value = await loadEnvExample(skillId);
+
+  // 2. 尝试迁移旧数据
+  const configVars = store.getSkillEnvVars(skillId);
+  if (Object.keys(configVars).length > 0) {
+    const migrated = await migrateFromConfig(skillId, configVars, envExampleResult.value.definitions);
+    if (migrated) {
+      envMigrated.value = true;
+      // 清理 config 中的旧数据
+      store.setSkillEnvVars(skillId, {});
     }
   }
-  store.setSkillEnvVars(props.manifest.name, vars);
-  customMessage.success("环境变量已保存");
+
+  // 3. 加载 .env 文件
+  const fileVars = await loadEnvFile(skillId);
+
+  // 4. 分离 definitions 中的变量和自定义变量
+  const definedKeys = new Set(envExampleResult.value.definitions.map((d) => d.key));
+
+  // 填充 definitions 对应的值
+  const values: Record<string, string> = {};
+  for (const def of envExampleResult.value.definitions) {
+    values[def.key] = fileVars[def.key] ?? def.defaultValue;
+  }
+  envValues.value = values;
+
+  // 填充自定义变量
+  const customEntries: EnvEntry[] = [];
+  for (const [key, value] of Object.entries(fileVars)) {
+    if (!definedKeys.has(key)) {
+      customEntries.push({ key, value });
+    }
+  }
+  customEnvEntries.value = customEntries;
+}
+
+function addCustomEnvEntry() {
+  customEnvEntries.value.push({ key: "", value: "" });
+}
+
+function removeCustomEnvEntry(index: number) {
+  customEnvEntries.value.splice(index, 1);
+}
+
+/** 保存环境变量到 .env 文件 */
+async function handleSaveEnv() {
+  envSaving.value = true;
+  try {
+    // 合并所有变量
+    const allVars: Record<string, string> = { ...envValues.value };
+    for (const entry of customEnvEntries.value) {
+      const key = entry.key.trim();
+      if (key) {
+        allVars[key] = entry.value;
+      }
+    }
+
+    const defs = envExampleResult.value.exists ? envExampleResult.value.definitions : undefined;
+    const success = await saveEnvFile(props.manifest.name, allVars, defs);
+    if (success) {
+      customMessage.success("环境变量已保存到 .env 文件");
+    }
+  } finally {
+    envSaving.value = false;
+  }
+}
+
+/** 同步 .env.example 中的变量项 */
+async function handleSyncFromExample() {
+  envSyncing.value = true;
+  try {
+    const addedKeys = await syncFromExample(props.manifest.name, envExampleResult.value.definitions);
+    if (addedKeys.length > 0) {
+      customMessage.success(`已补充 ${addedKeys.length} 个新变量`);
+      await loadEnvData();
+    } else {
+      customMessage.info("所有变量已是最新，无需同步");
+    }
+  } finally {
+    envSyncing.value = false;
+  }
+}
+
+/** 还原默认值 */
+async function handleResetDefaults() {
+  try {
+    await ElMessageBox.confirm(
+      "确定要将所有变量值重置为 .env.example 中的默认值吗？自定义变量不受影响。",
+      "还原默认值",
+      {
+        confirmButtonText: "确定还原",
+        cancelButtonText: "取消",
+        type: "warning",
+        lockScroll: false,
+      },
+    );
+
+    const success = await resetToDefaults(props.manifest.name, envExampleResult.value.definitions);
+    if (success) {
+      customMessage.success("已还原为默认值");
+      await loadEnvData();
+    }
+  } catch {
+    // 用户取消
+  }
 }
 
 // 初始加载
-loadEnvEntries();
+loadEnvData();
 
 /** 判断技能是否来自内置源（三重判断：source 字段、metadata 标记、安装记录） */
 const isFromBuiltin = computed(
@@ -1045,6 +1224,76 @@ async function handleSaveFile() {
   font-size: 13px;
   color: var(--text-color-secondary);
   line-height: 1.5;
+}
+
+.env-migrate-alert {
+  margin-bottom: 4px;
+}
+
+.env-toolbar {
+  display: flex;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: var(--border-width) solid var(--border-color);
+}
+
+.env-group-header {
+  margin-top: 8px;
+  margin-bottom: 4px;
+}
+
+.env-group-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-color-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.env-var-card {
+  padding: 12px 16px;
+  background: var(--input-bg);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 8px;
+}
+
+.env-var-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.env-var-key {
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--el-font-family-mono);
+  color: var(--text-color);
+}
+
+.env-var-default {
+  font-size: 11px;
+  color: var(--text-color-secondary);
+  margin-left: auto;
+}
+
+.env-var-default.empty {
+  opacity: 0.6;
+}
+
+.env-var-description {
+  font-size: 12px;
+  color: var(--text-color-secondary);
+  line-height: 1.4;
+  margin-bottom: 8px;
+}
+
+.env-var-input {
+  width: 100%;
+}
+
+.env-custom-section {
+  margin-top: 4px;
 }
 
 .env-list {

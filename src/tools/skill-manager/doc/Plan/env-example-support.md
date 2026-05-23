@@ -1,6 +1,6 @@
 # .env.example 支持
 
-> **状态**: RFC
+> **状态**: Implementing
 > **日期**: 2025-05-22
 > **前置**: [内置 Skill 释出机制](./builtin-skill-eject.md)
 > **关联**: 释出机制完成后，所有 skill 都在用户可写目录中，`.env` 文件可以直接写入 skill 目录
@@ -445,3 +445,24 @@ ES_PATH=
 | skill 没有 .env.example                   | 退化为手动模式，仍写入 .env            |
 | skill 脚本使用 dotenv 库                  | 双保险：.env 文件存在 + cmd.env() 注入 |
 | .env 文件被用户手动编辑                   | 下次打开 tab 时正常读取展示            |
+
+## 9. 补充细节
+
+### 9.1. 内置安装的 Skill 支持卸载
+
+从内置源安装的 skill 允许卸载操作（不再禁止）。理由：
+
+- 用户可以随时从"获取技能"面板重新安装
+- 卸载操作与普通 user skill 一致：删除 `appData/skills/{skillId}` 目录
+- 卸载时同步清理 `builtinInstallRecords` 中对应的安装记录
+- UI 上不再区分"内置不可卸载"，统一显示卸载按钮（保留"重置为默认"按钮作为额外能力）
+
+### 9.2. 刷新时同步内置 Skill 索引状态
+
+当用户卸载了一个从内置源安装的 skill 后，"获取技能"面板中该 skill 的状态应正确回到"可安装"。
+
+**实现方式**：
+
+- `handleRefresh` / `loadAvailableSkills` 执行时，遍历 `builtinInstallRecords`，检查对应 skill 是否仍存在于 `manifests` 列表中
+- 如果某个记录对应的 skill 已不在 manifests 中（说明已被卸载），则自动清理该安装记录
+- 这样 `isInstalled()` 判断会正确返回 `false`，卡片显示"安装"按钮而非"已安装"

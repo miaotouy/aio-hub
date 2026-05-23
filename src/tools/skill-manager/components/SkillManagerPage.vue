@@ -171,6 +171,9 @@ async function handleRefresh() {
     await refresh();
     const count = store.manifests.length;
 
+    // 同步内置安装记录：清理已被卸载的 skill 的记录
+    store.syncInstallRecords();
+
     // 刷新后重新同步选中的 manifest 对象，确保详情面板更新
     if (currentName) {
       const newManifest = store.manifests.find((m) => m.name === currentName);

@@ -113,6 +113,8 @@ async function loadAvailableSkills() {
   try {
     // 目前只实现了内置源
     availableSkills.value = await SkillService.listBuiltinSkills();
+    // 同步安装记录：清理已被卸载的内置 skill 的记录，确保状态正确
+    store.syncInstallRecords();
   } finally {
     loading.value = false;
   }
@@ -259,13 +261,10 @@ onMounted(() => {
   border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   padding: 16px;
-  transition: all 0.2s ease;
 }
 
 .available-skill-card:hover {
   border-color: var(--el-color-primary-light-5);
-  transform: translateY(-2px);
-  box-shadow: var(--el-box-shadow-light);
 }
 
 .available-skill-card.is-installed {

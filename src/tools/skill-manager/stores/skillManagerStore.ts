@@ -171,6 +171,8 @@ export const useSkillManagerStore = defineStore("skill-manager", () => {
     }
     // 清理环境变量配置
     delete config.value.skillEnvVars[name];
+    // 清理内置安装记录（允许重新安装）
+    delete config.value.builtinInstallRecords[name];
     activeSkillNames.value.delete(name);
     manifests.value = manifests.value.filter((m) => m.name !== name);
     saveConfig();
@@ -225,6 +227,24 @@ export const useSkillManagerStore = defineStore("skill-manager", () => {
     await saveConfig();
   }
 
+  /**
+   * 同步内置安装记录：清理已不存在于 manifests 中的记录
+   * 用于刷新后确保"获取技能"面板正确显示安装状态
+   */
+  function syncInstallRecords() {
+    const installedNames = new Set(manifests.value.map((m) => m.name));
+    let changed = false;
+    for (const name of Object.keys(config.value.builtinInstallRecords)) {
+      if (!installedNames.has(name)) {
+        delete config.value.builtinInstallRecords[name];
+        changed = true;
+      }
+    }
+    if (changed) {
+      saveConfig();
+    }
+  }
+
   /** 获取指定 Skill 的环境变量 */
   function getSkillEnvVars(skillName: string): Record<string, string> {
     return config.value.skillEnvVars[skillName] ?? {};
@@ -269,5 +289,6 @@ export const useSkillManagerStore = defineStore("skill-manager", () => {
     isBuiltinInstalled,
     getInstallInfo,
     updateInstallRecord,
+    syncInstallRecords,
   };
 });

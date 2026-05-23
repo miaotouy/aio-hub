@@ -12,6 +12,7 @@ import type { RuntimeSettings } from "../types";
 import { useSkillManagerStore } from "../stores/skillManagerStore";
 import { createModuleLogger } from "@/utils/logger";
 import { SkillService } from "./SkillService";
+import { getEnvVarsForExecution } from "./envFileManager";
 
 const logger = createModuleLogger("skill-manager/system-proxy");
 
@@ -142,7 +143,11 @@ export class SkillManagerProxy implements ToolRegistry {
 
     const store = useSkillManagerStore();
     const runtimeSettings = this.getRuntimeSettings();
-    const envVars = store.getSkillEnvVars(skill_id);
+
+    // 从 .env 文件读取环境变量，fallback 到 config 中的旧数据
+    const configFallback = store.getSkillEnvVars(skill_id);
+    const envVars = await getEnvVarsForExecution(skill_id, configFallback);
+
     const result = await SkillService.runScript(skill_id, script_name, scriptArgs ?? "", runtimeSettings, envVars);
 
     if (!result) return "脚本执行出错，请查看日志。";

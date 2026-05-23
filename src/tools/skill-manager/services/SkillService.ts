@@ -1,8 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { createModuleLogger } from "@/utils/logger";
 import type { SkillScriptResult, RuntimeSettings, SkillManifest, AvailableSkillInfo } from "../types";
 
 const errorHandler = createModuleErrorHandler("skill-manager/service");
+const logger = createModuleLogger("skill-manager/service");
 
 /**
  * SkillService — 封装所有与 Skill 相关的底层操作
@@ -10,16 +12,26 @@ const errorHandler = createModuleErrorHandler("skill-manager/service");
 export const SkillService = {
   /**
    * 读取 Skill 资源文件
+   *
+   * 文件不存在时静默返回空字符串（属于预期情况），其他错误正常上报。
    */
   async readResource(skillId: string, relativePath: string): Promise<string> {
-    return (
-      (await errorHandler.wrapAsync(async () => {
-        return await invoke<string>("read_skill_resource", {
-          skillId,
-          relativePath,
-        });
-      })) ?? ""
-    );
+    try {
+      return await invoke<string>("read_skill_resource", {
+        skillId,
+        relativePath,
+      });
+    } catch (error: any) {
+      const msg = String(error?.message ?? error ?? "");
+      // "文件不存在"属于预期情况，静默处理
+      if (msg.includes("文件不存在") || msg.includes("not found") || msg.includes("No such file")) {
+        logger.debug("资源文件不存在（预期内）", { skillId, relativePath });
+        return "";
+      }
+      // 其他错误正常上报
+      errorHandler.error(error, undefined, { skillId, relativePath });
+      return "";
+    }
   },
 
   /**

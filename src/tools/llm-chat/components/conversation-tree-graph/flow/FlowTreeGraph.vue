@@ -32,6 +32,7 @@
       <!-- 自定义节点 -->
       <template #node-custom="{ data, id }">
         <GraphNode
+          :id="id"
           :data="data"
           :is-connecting="connectionPreviewState.isConnecting"
           :is-target="connectionPreviewState.targetNodeId === id"
@@ -443,7 +444,7 @@ watch(
   () => {
     saveSettings();
   },
-  { deep: true }
+  { deep: true },
 );
 
 // 上下文菜单状态
@@ -670,7 +671,7 @@ const copyDebugInfo = () => {
         const d3Link = d3Links.value.find(
           (l) =>
             (typeof l.source === "object" ? l.source.id : l.source) === link?.sourceId &&
-            (typeof l.target === "object" ? l.target.id : l.target) === link?.targetId
+            (typeof l.target === "object" ? l.target.id : l.target) === link?.targetId,
         );
 
         return {
@@ -709,7 +710,7 @@ const copyDebugInfo = () => {
       (err) => {
         console.error("复制失败:", err);
         customMessage.error("复制失败，请查看控制台");
-      }
+      },
     );
   } catch (error) {
     console.error("生成调试信息时出错:", error);
@@ -729,7 +730,7 @@ watch(
       updateChart();
     }
   },
-  { deep: true }
+  { deep: true },
 );
 
 // 组件挂载时立即更新一次图表
@@ -825,7 +826,7 @@ const dimensionsWatchStop = watch(
       updateNodeDimensions(dimensionsMap);
     }
   },
-  { deep: true, flush: "post" } // flush: 'post' 确保在 DOM 更新后执行
+  { deep: true, flush: "post" }, // flush: 'post' 确保在 DOM 更新后执行
 );
 
 onUnmounted(() => {
@@ -936,7 +937,7 @@ watch(
       }
     }
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 onUnmounted(() => {

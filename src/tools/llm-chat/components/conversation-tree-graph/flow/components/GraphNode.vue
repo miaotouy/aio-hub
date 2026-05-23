@@ -25,6 +25,7 @@
 
     <!-- 悬浮操作栏 -->
     <GraphNodeMenubar
+      :message-id="id"
       :is-enabled="data.isEnabled"
       :is-active-leaf="data.isActiveLeaf"
       :zoom="viewport.zoom"
@@ -91,6 +92,7 @@ interface NodeData {
 }
 
 interface Props {
+  id: string;
   data: NodeData;
   isConnecting: boolean;
   isTarget: boolean;

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { ref, computed } from "vue";
 import {
   Copy,
   Eye,
@@ -9,12 +9,27 @@ import {
   RefreshCw,
   GitFork,
   AtSign,
+  Menu,
+  BarChart3,
+  Download,
+  Hash,
+  Wand2,
+  Database,
+  StepForward,
 } from "lucide-vue-next";
-import { ElTooltip, ElPopconfirm } from "element-plus";
+import { ElTooltip, ElPopconfirm, ElDropdown, ElDropdownMenu, ElDropdownItem } from "element-plus";
 import { useChatInputManager } from "@/tools/llm-chat/composables/input/useChatInputManager";
 import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useAgentStore } from "../../../../stores/agentStore";
+import { useLlmChatStore } from "../../../../stores/llmChatStore";
+import { customMessage } from "@/utils/customMessage";
+import { createModuleLogger } from "@/utils/logger";
+import type { ChatMessageNode } from "../../../../types";
+import ExportBranchDialog from "../../../export/ExportBranchDialog.vue";
+import MessageDataEditor from "../../../message/MessageDataEditor.vue";
+
+const logger = createModuleLogger("GraphNodeMenubar");
 
 interface Props {
   isEnabled: boolean;
@@ -23,6 +38,7 @@ interface Props {
   role: "user" | "assistant" | "system" | "tool";
   modelId?: string;
   profileId?: string;
+  messageId: string;
 }
 
 interface Emits {
@@ -37,7 +53,16 @@ interface Emits {
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
+const store = useLlmChatStore();
+
 const isUserOrAssistant = computed(() => props.role === "user" || props.role === "assistant" || props.role === "tool");
+const isAssistantMessage = computed(() => props.role === "assistant");
+
+// 导出对话框
+const showExportDialog = ref(false);
+
+// 数据编辑对话框
+const showDataEditor = ref(false);
 
 // 计算反向缩放以保持固定大小,限定在合理范围内
 const menubarStyle = computed(() => {
@@ -73,6 +98,65 @@ const handleRegenerate = () => {
   }
 };
 const handleCreateBranch = () => emit("create-branch");
+
+// 续写消息
+const handleContinue = () => {
+  const inputManager = useChatInputManager();
+  const temporaryModel = inputManager.temporaryModel.value;
+
+  if (temporaryModel) {
+    store.continueGeneration(props.messageId, {
+      modelId: temporaryModel.modelId,
+      profileId: temporaryModel.profileId,
+    });
+  } else {
+    store.continueGeneration(props.messageId);
+  }
+};
+
+// 上下文分析
+const handleAnalyzeContext = () => {
+  logger.info("上下文分析", { nodeId: props.messageId });
+  store.contextAnalyzerNodeId = props.messageId;
+  store.contextAnalyzerVisible = true;
+};
+
+// 重新计算 Token
+const handleRecalculateTokens = async () => {
+  const fullSession = store.currentFullSession;
+  if (!fullSession) return;
+
+  logger.info("重新计算 Token", { nodeId: props.messageId });
+  try {
+    await store.recalculateNodeTokens(fullSession.index, fullSession.detail, props.messageId);
+    customMessage.success("Token 重新计算完成");
+  } catch (error) {
+    logger.error("重新计算 Token 失败", error, { nodeId: props.messageId });
+    customMessage.error("重新计算失败");
+  }
+};
+
+// 重新解析工具
+const handleReparseTools = () => {
+  const inputManager = useChatInputManager();
+  const temporaryModel = inputManager.temporaryModel.value;
+
+  const temporaryModelPayload = temporaryModel
+    ? { modelId: temporaryModel.modelId, profileId: temporaryModel.profileId }
+    : null;
+  store.reparseNodeTools(props.messageId, { temporaryModel: temporaryModelPayload });
+};
+
+// 获取当前预设消息列表
+const currentPresetMessages = computed(() => {
+  if (!agentStore.currentAgentId) return [];
+  const agent = agentStore.getAgentById(agentStore.currentAgentId);
+  if (!agent?.presetMessages) return [];
+  return agent.presetMessages.filter((msg: ChatMessageNode) => msg.isEnabled !== false && msg.type !== "chat_history");
+});
+
+// 计算预设消息数量
+const presetCount = computed(() => currentPresetMessages.value.length);
 
 // 处理选择模型并重新生成
 const { open: openModelSelectDialog } = useModelSelectDialog();
@@ -139,6 +223,55 @@ const handleSelectModelAndRegenerate = async () => {
       </button>
     </el-tooltip>
 
+    <!-- 更多菜单 -->
+    <el-tooltip content="更多操作" placement="bottom" :show-after="300">
+      <el-dropdown trigger="click" placement="bottom">
+        <button class="menu-btn">
+          <Menu :size="16" />
+        </button>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item v-if="isUserOrAssistant" @click="handleContinue">
+              <div class="dropdown-item-content">
+                <StepForward :size="16" />
+                <span>续写消息</span>
+              </div>
+            </el-dropdown-item>
+            <el-dropdown-item @click="handleAnalyzeContext">
+              <div class="dropdown-item-content">
+                <BarChart3 :size="16" />
+                <span>上下文分析</span>
+              </div>
+            </el-dropdown-item>
+            <el-dropdown-item @click="showExportDialog = true">
+              <div class="dropdown-item-content">
+                <Download :size="16" />
+                <span>导出分支</span>
+              </div>
+            </el-dropdown-item>
+            <el-dropdown-item v-if="isUserOrAssistant" @click="handleRecalculateTokens">
+              <div class="dropdown-item-content">
+                <Hash :size="16" />
+                <span>重新计算 Token</span>
+              </div>
+            </el-dropdown-item>
+            <el-dropdown-item v-if="isAssistantMessage" @click="handleReparseTools">
+              <div class="dropdown-item-content">
+                <Wand2 :size="16" />
+                <span>重新解析工具</span>
+              </div>
+            </el-dropdown-item>
+            <el-dropdown-item @click="showDataEditor = true">
+              <div class="dropdown-item-content">
+                <Database :size="16" />
+                <span>数据编辑 (高级)</span>
+              </div>
+            </el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
+    </el-tooltip>
+
     <!-- 复制内容 -->
     <el-tooltip content="复制内容" placement="bottom" :show-after="300">
       <button class="menu-btn" @click="handleCopy">
@@ -166,28 +299,15 @@ const handleSelectModelAndRegenerate = async () => {
     </el-tooltip>
 
     <!-- 指定模型重新生成 -->
-    <el-tooltip
-      v-if="isUserOrAssistant"
-      content="指定模型重新生成"
-      placement="bottom"
-      :show-after="300"
-    >
+    <el-tooltip v-if="isUserOrAssistant" content="指定模型重新生成" placement="bottom" :show-after="300">
       <button class="menu-btn" @click="handleSelectModelAndRegenerate">
         <AtSign :size="16" />
       </button>
     </el-tooltip>
 
     <!-- 启用/禁用 -->
-    <el-tooltip
-      :content="isEnabled ? '禁用此消息' : '启用此消息'"
-      placement="bottom"
-      :show-after="300"
-    >
-      <button
-        class="menu-btn"
-        :class="{ 'menu-btn-highlight': !isEnabled }"
-        @click="handleToggleEnabled"
-      >
+    <el-tooltip :content="isEnabled ? '禁用此消息' : '启用此消息'" placement="bottom" :show-after="300">
+      <button class="menu-btn" :class="{ 'menu-btn-highlight': !isEnabled }" @click="handleToggleEnabled">
         <Eye v-if="!isEnabled" :size="16" />
         <EyeOff v-else :size="16" />
       </button>
@@ -212,6 +332,19 @@ const handleSelectModelAndRegenerate = async () => {
         </div>
       </template>
     </el-popconfirm>
+
+    <!-- 导出对话框 -->
+    <ExportBranchDialog
+      v-model:visible="showExportDialog"
+      :preset-count="presetCount"
+      :session="store.currentSessionDetail"
+      :session-index="store.currentSession"
+      :message-id="props.messageId"
+      :preset-messages="currentPresetMessages"
+    />
+
+    <!-- 数据编辑对话框 -->
+    <MessageDataEditor v-model="showDataEditor" :message-id="props.messageId" />
   </div>
 </template>
 
@@ -273,5 +406,12 @@ const handleSelectModelAndRegenerate = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.dropdown-item-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
 }
 </style>

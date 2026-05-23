@@ -339,6 +339,11 @@ export function useFlowTreeGraph(
         light: getCssVar(`--el-color-warning${lightSuffix}`),
         lighter: containerBg || getCssVar(`--el-color-warning${lighterSuffix}`),
       },
+      tool: {
+        base: cardBg || getCssVar("--el-color-info"),
+        light: getCssVar(`--el-color-info${lightSuffix}`),
+        lighter: containerBg || getCssVar(`--el-color-info${lighterSuffix}`),
+      },
       danger: {
         base: getCssVar("--el-color-danger"),
         light: getCssVar(`--el-color-danger${lightSuffix}`),
@@ -451,7 +456,7 @@ export function useFlowTreeGraph(
     const isActiveLeaf = !!session.activeLeafId && node.id === session.activeLeafId;
     const isEnabled = node.isEnabled !== false && !isCompressed;
 
-    type RoleColorKey = 'user' | 'assistant' | 'system';
+    type RoleColorKey = 'user' | 'assistant' | 'system' | 'tool';
     const roleKey = node.role as RoleColorKey;
     const roleColors = (palette[roleKey] && 'base' in palette[roleKey])
       ? palette[roleKey] as { base: string; light: string; lighter: string }
@@ -594,6 +599,12 @@ export function useFlowTreeGraph(
       }
 
       return { icon, name };
+    } else if (node.role === "tool") {
+      // 工具消息：尝试从 metadata 中获取工具名称
+      const toolName = node.metadata?.toolCalls?.[0]?.toolName
+        || node.metadata?.toolCall?.toolName
+        || "工具";
+      return { icon: "🔧", name: toolName };
     } else {
       return { icon: "⚙️", name: "系统" };
     }

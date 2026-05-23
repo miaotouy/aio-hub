@@ -20,7 +20,7 @@ interface Props {
   isEnabled: boolean;
   isActiveLeaf: boolean;
   zoom: number;
-  role: "user" | "assistant" | "system";
+  role: "user" | "assistant" | "system" | "tool";
   modelId?: string;
   profileId?: string;
 }
@@ -37,7 +37,7 @@ interface Emits {
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
-const isUserOrAssistant = computed(() => props.role === "user" || props.role === "assistant");
+const isUserOrAssistant = computed(() => props.role === "user" || props.role === "assistant" || props.role === "tool");
 
 // 计算反向缩放以保持固定大小,限定在合理范围内
 const menubarStyle = computed(() => {

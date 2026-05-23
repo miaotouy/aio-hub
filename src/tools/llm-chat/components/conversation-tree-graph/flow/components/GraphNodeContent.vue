@@ -138,7 +138,7 @@ interface NodeData {
   contentPreview: string;
   isActiveLeaf: boolean;
   timestamp: string;
-  role: "user" | "assistant" | "system";
+  role: "user" | "assistant" | "system" | "tool";
   status: "generating" | "complete" | "error";
   errorMessage?: string;
   subtitleInfo: {

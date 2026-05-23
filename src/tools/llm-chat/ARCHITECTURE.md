@@ -1,4 +1,4 @@
-# LLM Chat: 架构与开发者指南 (v7)
+# LLM Chat: 架构与开发者指南 (v8)
 
 本文档旨在深入解析 `llm-chat` 工具的内部架构、设计理念和数据流，为后续的开发和维护提供清晰的指引。
 
@@ -492,7 +492,8 @@ graph TD
 对话树图视图是一个高度交互的可视化工具，旨在将对话的非线性树状结构直观地呈现给用户。
 
 - **核心技术**: 采用 `Vue Flow` 进行前端渲染，后端则利用 `D3.js` (`d3-force` 和 `d3-hierarchy`) 作为布局引擎。
-- **双布局模式**: 支持确定性的**树状布局**和动态的**力导向布局**。
+- **模块化设计**: 采用 **Facade 模式** 将复杂的交互逻辑拆分为多个高内聚的子 Composable（如物理仿真、子树拖拽、连线预览等），提升了代码的可维护性。
+- **多布局模式**: 支持确定性的**树状布局**、动态的**力导向布局**（Physics）以及**静态布局**（Static）。
 - **丰富的交互**: 支持分支切换、节点拖拽、子树嫁接、单点移动等高级操作。
 
 ### 3.5. 输入区域 (Input Area)
@@ -537,7 +538,8 @@ graph TD
   - `useChatInputManager`: 全局输入框状态（含附件）。
   - `useLlmChatUiState`: UI 状态（侧边栏折叠等）。
 - **Logic (Composables)**:
-  - `composables/` 目录下封装了所有核心业务逻辑。
+  - `composables/` 目录下封装了通用的核心业务逻辑。
+  - 遵循**逻辑物理聚合**原则，特定组件的复杂逻辑（如树图）封装在组件目录下的 `composables/` 中。
 - **View (Vue Components)**:
   - `components/` 目录下负责 UI 渲染。
   - `src/tools/rich-text-renderer/` 负责消息内容的富文本渲染。
@@ -679,6 +681,14 @@ graph TD
   - 接收 `content` 流和 `streaming` 状态。
   - 内部实例化 `StreamProcessorV2` 进行 AST 构建。
   - 通过 `useMarkdownAst` 管理渲染状态和 Patch 应用。
+
+### 6.12. 对话树图逻辑 (Tree Graph Logic)
+
+- **`useFlowTreeGraph`**: **树图逻辑入口 (Facade)**。整合物理引擎、交互行为和数据转换，对外提供统一接口。
+- **`useGraphD3Simulation`**: **物理仿真核心**。基于 D3.js 实现高性能的节点布局计算，支持自定义重力场。
+- **`useGraphConnectionPreview`**: **连线交互引擎**。负责节点间的嫁接（Graft）与移动（Move）逻辑及实时预览。
+- **`useGraphSubtreeDrag`**: **批量拖拽处理器**。支持带修饰键的子树整体拖拽位移计算。
+- **`graphContentUtils`**: **内容解析工具**。处理树图节点内的思考块剥离、角色头像解析等纯逻辑。
 
 ## 7. 数据持久化
 

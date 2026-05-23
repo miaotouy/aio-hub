@@ -733,6 +733,19 @@ watch(
   { deep: true },
 );
 
+// 监听会话 ID 变化（切换会话时自动聚焦到当前对话末端）
+watch(
+  () => props.session?.id,
+  (newId, oldId) => {
+    if (newId && newId !== oldId) {
+      // 切换会话后，等待图表更新和渲染完成再聚焦
+      setTimeout(() => {
+        locateActiveNode();
+      }, 300);
+    }
+  }
+);
+
 // 组件挂载时立即更新一次图表
 onMounted(() => {
   // 应用默认布局模式
@@ -740,6 +753,11 @@ onMounted(() => {
     switchLayoutMode(viewSettings.value.defaultLayoutMode);
   }
   updateChart();
+  
+  // 首次挂载时自动聚焦到激活节点（当前对话末端）
+  setTimeout(() => {
+    locateActiveNode();
+  }, 300);
 });
 
 // 获取 Vue Flow 内部节点状态，用于读取渲染后的节点尺寸和视口信息

@@ -22,6 +22,7 @@ import {
   Loader2,
   XCircle,
   RotateCcw,
+  Eye,
 } from "lucide-vue-next";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
 import { useAgentStore } from "../../stores/agentStore";
@@ -39,6 +40,7 @@ import {
 import { createMacroContext } from "../../macro-engine/MacroContext";
 import type { ChatRegexRule } from "../../types/chatRegex";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
+import BaseDialog from "@/components/common/BaseDialog.vue";
 import MessageMenubar from "./MessageMenubar.vue";
 import ChatCodeMirrorEditor from "../message-input/ChatCodeMirrorEditor.vue";
 import { useAsyncTaskStore } from "@/tools/tool-calling/stores/asyncTaskStore";
@@ -211,6 +213,11 @@ const isCollapsed = ref(true);
 const argsCollapsedMap = ref<Record<string, boolean>>({}); // 用于存储每个工具调用的参数折叠状态
 const editingContent = ref("");
 const editorRef = ref<any>(null);
+
+// ===== 预览弹窗状态 =====
+const previewDialogVisible = ref(false);
+const previewDialogContent = ref("");
+const previewDialogLabel = ref("执行结果");
 
 const toggleCollapse = () => {
   if (isEditing.value) return; // 编辑模式不允许折叠
@@ -560,6 +567,12 @@ const onToggleTranslationVisible = () => {
 
 const getElement = () => messageRef.value;
 
+const handlePreviewResult = (content: string, label?: string) => {
+  previewDialogContent.value = content;
+  previewDialogLabel.value = label ?? "执行结果";
+  previewDialogVisible.value = true;
+};
+
 defineExpose({
   startEdit,
   getElement,
@@ -774,47 +787,68 @@ defineExpose({
               <div class="translation-header" v-if="displayMode === 'both' && showTranslation">
                 <MessageSquareText :size="14" class="translation-icon" />
                 <span class="translation-title">原文</span>
+                <button
+                  class="preview-btn"
+                  @click="handlePreviewResult(displayContent, '原文（执行结果）')"
+                  title="预览渲染效果"
+                >
+                  <Eye :size="14" />
+                  <span>预览渲染</span>
+                </button>
               </div>
               <div class="tool-result">
                 <div class="result-header" v-if="!showTranslation">
                   <div class="result-label">执行结果</div>
-                  <div v-if="toolCalls.length === 1" class="status-indicator" :class="`status-${toolCalls[0].status}`">
-                    {{ toolCalls[0].status.toUpperCase() }}
+                  <div class="result-header-actions">
+                    <div
+                      v-if="toolCalls.length === 1"
+                      class="status-indicator"
+                      :class="`status-${toolCalls[0].status}`"
+                    >
+                      {{ toolCalls[0].status.toUpperCase() }}
+                    </div>
+                    <button
+                      class="preview-btn"
+                      @click="handlePreviewResult(displayContent, '执行结果')"
+                      title="预览渲染效果"
+                    >
+                      <Eye :size="14" />
+                      <span>预览渲染</span>
+                    </button>
                   </div>
                 </div>
-                <RichTextRenderer
-                  :content="displayContent"
-                  :version="settings.uiPreferences.rendererVersion"
-                  :regex-rules="processedRules"
-                  :resolve-asset="resolveAsset"
-                  :default-render-html="settings.uiPreferences.defaultRenderHtml"
-                  :throttle-ms="settings.uiPreferences.rendererThrottleMs"
-                  :enable-enter-animation="settings.uiPreferences.enableEnterAnimation"
-                  :code-editor-engine="settings.uiPreferences.codeEditorEngine"
-                />
+                <pre class="tool-result-text">{{ displayContent }}</pre>
               </div>
             </div>
 
             <!-- 译文区域 -->
             <div v-if="showTranslation" class="translation-column">
               <div class="translation-header">
-                <Languages :size="14" class="translation-icon" />
-                <span class="translation-title">翻译结果</span>
-                <span class="translation-meta" v-if="message.metadata?.translation">
-                  ({{ message.metadata.translation.targetLang }})
-                </span>
+                <div class="translation-header-left">
+                  <Languages :size="14" class="translation-icon" />
+                  <span class="translation-title">翻译结果</span>
+                  <span class="translation-meta" v-if="message.metadata?.translation">
+                    ({{ message.metadata.translation.targetLang }})
+                  </span>
+                </div>
+                <button
+                  class="preview-btn"
+                  @click="
+                    handlePreviewResult(
+                      isTranslating ? translationContent : message.metadata?.translation?.content || '',
+                      '翻译结果',
+                    )
+                  "
+                  title="预览渲染效果"
+                >
+                  <Eye :size="14" />
+                  <span>预览渲染</span>
+                </button>
               </div>
               <div class="translation-content">
-                <RichTextRenderer
-                  :content="isTranslating ? translationContent : message.metadata?.translation?.content || ''"
-                  :version="settings.uiPreferences.rendererVersion"
-                  :regex-rules="processedRules"
-                  :resolve-asset="resolveAsset"
-                  :default-render-html="settings.uiPreferences.defaultRenderHtml"
-                  :throttle-ms="settings.uiPreferences.rendererThrottleMs"
-                  :is-streaming="isTranslating"
-                  :code-editor-engine="settings.uiPreferences.codeEditorEngine"
-                />
+                <pre class="tool-result-text">{{
+                  isTranslating ? translationContent : message.metadata?.translation?.content || ""
+                }}</pre>
               </div>
             </div>
           </div>
@@ -877,6 +911,27 @@ defineExpose({
       </div>
     </div>
   </div>
+
+  <!-- 预览弹窗 -->
+  <BaseDialog
+    v-model="previewDialogVisible"
+    :title="`预览渲染：${previewDialogLabel}`"
+    width="90%"
+    height="80vh"
+    :show-close-button="true"
+    :close-on-backdrop-click="true"
+  >
+    <RichTextRenderer
+      :content="previewDialogContent"
+      :version="settings.uiPreferences.rendererVersion"
+      :regex-rules="processedRules"
+      :resolve-asset="resolveAsset"
+      :default-render-html="settings.uiPreferences.defaultRenderHtml"
+      :throttle-ms="settings.uiPreferences.rendererThrottleMs"
+      :enable-enter-animation="settings.uiPreferences.enableEnterAnimation"
+      :code-editor-engine="settings.uiPreferences.codeEditorEngine"
+    />
+  </BaseDialog>
 </template>
 
 <style scoped>
@@ -1348,11 +1403,25 @@ defineExpose({
   gap: 8px;
 }
 
+.result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .result-label {
   font-size: 11px;
   color: var(--text-color-tertiary);
   text-transform: uppercase;
   font-weight: 700;
+}
+
+.result-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .status-indicator {
@@ -1371,14 +1440,61 @@ defineExpose({
   color: var(--el-color-danger);
 }
 
+/* 纯文本结果展示 */
+.tool-result-text {
+  margin: 0;
+  padding: 12px;
+  background-color: var(--input-bg);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 6px;
+  font-family: var(--font-family-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-color-secondary);
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow-x: auto;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+/* 预览按钮 */
+.preview-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 5px;
+  background: var(--card-bg);
+  color: var(--text-color-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.preview-btn:hover {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 8%, var(--card-bg));
+}
+
 /* 翻译样式 */
 .translation-header {
   display: flex;
+  justify-content: space-between;
   align-items: center;
   gap: 6px;
   margin-bottom: 10px;
   font-size: 12px;
   color: var(--text-color-light);
+}
+
+.translation-header-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .translation-title {

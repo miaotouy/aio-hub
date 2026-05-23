@@ -3,11 +3,7 @@
     <!-- 节点头部 -->
     <div class="node-header">
       <!-- 压缩节点特殊头部 -->
-      <div
-        v-if="data.isCompressionNode"
-        class="compression-header"
-        @click.stop="emit('toggle-expand')"
-      >
+      <div v-if="data.isCompressionNode" class="compression-header" @click.stop="emit('toggle-expand')">
         <div class="compression-icon">
           <component :is="data.isExpanded ? 'span' : 'span'" class="icon-wrapper"> 📦 </component>
         </div>
@@ -24,14 +20,7 @@
 
       <!-- 普通节点头部 -->
       <template v-else>
-        <Avatar
-          v-if="data.avatar"
-          :src="data.avatar"
-          :alt="data.name"
-          :size="48"
-          shape="square"
-          :radius="6"
-        />
+        <Avatar v-if="data.avatar" :src="data.avatar" :alt="data.name" :size="48" shape="square" :radius="6" />
         <div class="node-info">
           <div class="node-name-row">
             <span class="node-name">{{ data.name }}</span>
@@ -62,10 +51,7 @@
           </div>
           <!-- 时间戳和 Token 信息 -->
           <div
-            v-if="
-              settings.uiPreferences.showTimestamp ||
-              (settings.uiPreferences.showTokenCount && data.tokens)
-            "
+            v-if="settings.uiPreferences.showTimestamp || (settings.uiPreferences.showTokenCount && data.tokens)"
             class="node-meta"
           >
             <span v-if="settings.uiPreferences.showTimestamp" class="meta-item">
@@ -77,6 +63,13 @@
           </div>
         </div>
       </template>
+    </div>
+
+    <!-- 思考内容标签 -->
+    <div v-if="data.hasThinking" class="thinking-tag" :title="data.thinkingPreview || '包含思考内容'">
+      <span class="thinking-icon">💭</span>
+      <span class="thinking-label">思考</span>
+      <span v-if="data.thinkingPreview" class="thinking-preview">{{ data.thinkingPreview }}</span>
     </div>
 
     <!-- 内容预览 -->
@@ -153,6 +146,9 @@ interface NodeData {
     completion?: number;
   } | null;
   attachments?: Asset[];
+  // 思考内容相关
+  hasThinking?: boolean;
+  thinkingPreview?: string | null;
   // 压缩节点相关
   isCompressionNode?: boolean;
   isExpanded?: boolean;
@@ -182,11 +178,7 @@ const errorCopied = ref(false);
 
 // 是否显示副标题
 const shouldShowSubtitle = computed(() => {
-  return (
-    settings.value.uiPreferences.showModelInfo &&
-    props.data.role === "assistant" &&
-    !!props.data.subtitleInfo
-  );
+  return settings.value.uiPreferences.showModelInfo && props.data.role === "assistant" && !!props.data.subtitleInfo;
 });
 
 // 格式化 Token 信息
@@ -324,6 +316,39 @@ const copyError = async () => {
   margin-left: 8px;
   color: var(--text-color-tertiary);
   opacity: 0.5;
+}
+
+/* 思考内容标签 */
+.thinking-tag {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background-color: rgba(var(--el-color-warning-rgb, 230, 162, 60), calc(var(--card-opacity, 1) * 0.12));
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--el-color-warning);
+  line-height: 1.3;
+  overflow: hidden;
+  max-width: 100%;
+}
+
+.thinking-icon {
+  flex-shrink: 0;
+  font-size: 12px;
+}
+
+.thinking-label {
+  flex-shrink: 0;
+  font-weight: 500;
+}
+
+.thinking-preview {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.8;
+  margin-left: 4px;
 }
 
 /* 内容预览 */

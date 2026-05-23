@@ -1,5 +1,5 @@
 import { ref, reactive, type Ref } from "vue";
-import { useMagicKeys, onKeyStroke } from '@vueuse/core';
+import { useMagicKeys, onKeyStroke } from "@vueuse/core";
 import { useChatSettings } from "../settings/useChatSettings";
 import * as d3Force from "d3-force";
 import { stratify, tree, type HierarchyNode } from "d3-hierarchy";
@@ -44,11 +44,11 @@ export interface DetailPopupState {
  * 连接预览状态
  */
 export interface ConnectionPreviewState {
-  isConnecting: boolean;      // 是否正在连接中
-  sourceNodeId: string | null;  // 连接的源节点 ID
-  targetNodeId: string | null;  // 当前悬停的目标节点 ID
-  isTargetValid: boolean;     // 目标节点是否有效
-  isGrafting: boolean;        // 是否为嫁接子树模式
+  isConnecting: boolean; // 是否正在连接中
+  sourceNodeId: string | null; // 连接的源节点 ID
+  targetNodeId: string | null; // 当前悬停的目标节点 ID
+  isTargetValid: boolean; // 目标节点是否有效
+  isGrafting: boolean; // 是否为嫁接子树模式
 }
 
 /**
@@ -65,8 +65,8 @@ interface FlowNode {
     isActiveLeaf: boolean;
     isEnabled: boolean;
     timestamp: string;
-    role: 'user' | 'assistant' | 'system' | 'tool';
-    status: 'generating' | 'complete' | 'error';
+    role: "user" | "assistant" | "system" | "tool";
+    status: "generating" | "complete" | "error";
     errorMessage?: string;
     subtitleInfo: {
       profileName: string;
@@ -90,6 +90,9 @@ interface FlowNode {
     isExpanded?: boolean;
     originalMessageCount?: number;
     originalTokenCount?: number;
+    // 思考内容相关
+    hasThinking?: boolean;
+    thinkingPreview?: string | null;
     // 模型和配置 ID（用于转写状态计算）
     modelId?: string;
     profileId?: string;
@@ -136,7 +139,7 @@ interface D3Link extends d3Force.SimulationLinkDatum<D3Node> {
 /**
  * 布局模式类型
  */
-export type LayoutMode = 'tree' | 'physics' | 'static';
+export type LayoutMode = "tree" | "physics" | "static";
 
 /**
  * 自定义 D3 力：模拟持续的重力加速度
@@ -179,7 +182,7 @@ function gravityForce(strength: number) {
 export function useFlowTreeGraph(
   sessionRef: () => ChatSessionDetail | null,
   contextMenuState: Ref<ContextMenuState>,
-  target: Ref<HTMLElement | null>
+  target: Ref<HTMLElement | null>,
 ) {
   const { shift, alt, ctrl } = useMagicKeys();
   const { settings } = useChatSettings();
@@ -192,7 +195,7 @@ export function useFlowTreeGraph(
   const edges = ref<FlowEdge[]>([]);
 
   // 布局模式
-  const layoutMode = ref<LayoutMode>('tree');
+  const layoutMode = ref<LayoutMode>("tree");
 
   // 调试模式
   const debugMode = ref(false);
@@ -260,8 +263,8 @@ export function useFlowTreeGraph(
   }
 
   /**
-    * 计算每个节点的直接子节点数
-    */
+   * 计算每个节点的直接子节点数
+   */
   function calculateDirectChildrenCount(nodes: Record<string, ChatMessageNode> | undefined): Map<string, number> {
     const counts = new Map<string, number>();
     if (!nodes) return counts;
@@ -287,9 +290,65 @@ export function useFlowTreeGraph(
   function getStructureFingerprint(session: ChatSessionDetail): string {
     if (!session.nodes) return "not-loaded";
     return Object.values(session.nodes)
-      .map(n => `${n.id}:${n.parentId || ''}`)
+      .map((n) => `${n.id}:${n.parentId || ""}`)
       .sort()
-      .join('|');
+      .join("|");
+  }
+
+  /**
+   * 已知的思考块标签名列表
+   * 与 defaultLlmThinkRules 中的 tagName 保持一致
+   */
+  const THINK_TAG_NAMES = ["think", "guguthink", "thinking"];
+
+  /**
+   * 从文本中剥离思考块标签及其内容，返回纯正文
+   */
+  function stripThinkingBlocks(text: string): string {
+    let result = text;
+    for (const tag of THINK_TAG_NAMES) {
+      // 匹配 <tag>...</tag>（包括跨行内容）
+      const regex = new RegExp(`<${tag}>[\\s\\S]*?<\\/${tag}>`, "gi");
+      result = result.replace(regex, "");
+    }
+    // 清理剥离后可能产生的多余空行
+    return result.replace(/^\s*\n/gm, "").trim();
+  }
+
+  /**
+   * 提取思考块内容的简短摘要
+   */
+  function extractThinkingPreview(text: string, reasoningContent?: string): string | null {
+    // 优先使用 API 返回的独立推理字段
+    if (reasoningContent) {
+      const preview = reasoningContent.substring(0, 60).trim();
+      return preview + (reasoningContent.length > 60 ? "..." : "");
+    }
+
+    // 从内容中提取思考块
+    for (const tag of THINK_TAG_NAMES) {
+      const regex = new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`, "i");
+      const match = text.match(regex);
+      if (match && match[1]) {
+        const content = match[1].trim();
+        const preview = content.substring(0, 60).trim();
+        return preview + (content.length > 60 ? "..." : "");
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * 检测文本中是否包含思考块
+   */
+  function hasThinkingContent(text: string, reasoningContent?: string): boolean {
+    if (reasoningContent) return true;
+    for (const tag of THINK_TAG_NAMES) {
+      const regex = new RegExp(`<${tag}>`, "i");
+      if (regex.test(text)) return true;
+    }
+    return false;
   }
 
   /**
@@ -403,7 +462,7 @@ export function useFlowTreeGraph(
         store.undo();
       }
     },
-    { target }
+    { target },
   );
 
   // 注册重做快捷键
@@ -424,7 +483,7 @@ export function useFlowTreeGraph(
         store.redo();
       }
     },
-    { target }
+    { target },
   );
 
   /**
@@ -448,7 +507,11 @@ export function useFlowTreeGraph(
   /**
    * 根据节点状态计算颜色
    */
-  function getNodeColor(session: ChatSessionDetail, node: ChatMessageNode, isCompressed: boolean = false): {
+  function getNodeColor(
+    session: ChatSessionDetail,
+    node: ChatMessageNode,
+    isCompressed: boolean = false,
+  ): {
     background: string;
     border: string;
   } {
@@ -456,11 +519,12 @@ export function useFlowTreeGraph(
     const isActiveLeaf = !!session.activeLeafId && node.id === session.activeLeafId;
     const isEnabled = node.isEnabled !== false && !isCompressed;
 
-    type RoleColorKey = 'user' | 'assistant' | 'system' | 'tool';
+    type RoleColorKey = "user" | "assistant" | "system" | "tool";
     const roleKey = node.role as RoleColorKey;
-    const roleColors = (palette[roleKey] && 'base' in palette[roleKey])
-      ? palette[roleKey] as { base: string; light: string; lighter: string }
-      : palette.inactive as { base: string; light: string };
+    const roleColors =
+      palette[roleKey] && "base" in palette[roleKey]
+        ? (palette[roleKey] as { base: string; light: string; lighter: string })
+        : (palette.inactive as { base: string; light: string });
 
     if (!isEnabled) {
       return {
@@ -475,7 +539,7 @@ export function useFlowTreeGraph(
       background = roleColors.base;
       border = roleColors.light;
     } else {
-      background = ('lighter' in roleColors ? roleColors.lighter : roleColors.light) as string;
+      background = ("lighter" in roleColors ? roleColors.lighter : roleColors.light) as string;
       border = roleColors.light;
     }
 
@@ -490,7 +554,7 @@ export function useFlowTreeGraph(
    * 判断图标是否像文件名
    */
   function isLikelyFilename(icon: string): boolean {
-    return icon.includes('.') && !icon.includes('/') && !icon.includes('\\');
+    return icon.includes(".") && !icon.includes("/") && !icon.includes("\\");
   }
 
   /**
@@ -502,7 +566,7 @@ export function useFlowTreeGraph(
   function getSubtitleInfo(node: ChatMessageNode) {
     const agentStore = useAgentStore();
     const metadata = node.metadata;
-    if (!metadata || node.role !== 'assistant') return null;
+    if (!metadata || node.role !== "assistant") return null;
 
     const agent = metadata.agentId ? agentStore.getAgentById(metadata.agentId) : null;
 
@@ -514,7 +578,7 @@ export function useFlowTreeGraph(
     const profile = getProfileById(profileId);
     if (!profile) return null;
 
-    const model = profile.models.find(m => m.id === modelId);
+    const model = profile.models.find((m) => m.id === modelId);
     if (!model) return null;
 
     const modelIcon = getModelIcon(model);
@@ -525,7 +589,7 @@ export function useFlowTreeGraph(
       profileName: profile.name,
       profileIcon: profileIcon,
       modelName: displayModelName,
-      modelIcon: modelIcon || undefined
+      modelIcon: modelIcon || undefined,
     };
   }
 
@@ -541,11 +605,7 @@ export function useFlowTreeGraph(
       const userProfileId = node.metadata?.userProfileId;
       const currentProfile = userProfileStore.getEffectiveProfile(userProfileId);
 
-      const name =
-        node.metadata?.userProfileName ||
-        currentProfile?.displayName ||
-        currentProfile?.name ||
-        "你";
+      const name = node.metadata?.userProfileName || currentProfile?.displayName || currentProfile?.name || "你";
 
       let target;
       if (node.metadata?.userProfileIcon && node.metadata?.userProfileId) {
@@ -572,11 +632,7 @@ export function useFlowTreeGraph(
       const agentId = node.metadata?.agentId;
       const currentAgent = agentId ? agentStore.getAgentById(agentId) : null;
 
-      const name =
-        node.metadata?.agentName ||
-        currentAgent?.displayName ||
-        currentAgent?.name ||
-        "助手";
+      const name = node.metadata?.agentName || currentAgent?.displayName || currentAgent?.name || "助手";
 
       let target;
       if (node.metadata?.agentIcon && node.metadata?.agentId) {
@@ -601,9 +657,7 @@ export function useFlowTreeGraph(
       return { icon, name };
     } else if (node.role === "tool") {
       // 工具消息：尝试从 metadata 中获取工具名称
-      const toolName = node.metadata?.toolCalls?.[0]?.toolName
-        || node.metadata?.toolCall?.toolName
-        || "工具";
+      const toolName = node.metadata?.toolCalls?.[0]?.toolName || node.metadata?.toolCall?.toolName || "工具";
       return { icon: "🔧", name: toolName };
     } else {
       return { icon: "⚙️", name: "系统" };
@@ -611,9 +665,9 @@ export function useFlowTreeGraph(
   }
 
   /**
-  * 初始化或更新图表数据
-  * @param forceResetPosition - 如果为 true，则忽略所有现有位置，从 (0,0) 开始
-  */
+   * 初始化或更新图表数据
+   * @param forceResetPosition - 如果为 true，则忽略所有现有位置，从 (0,0) 开始
+   */
   function updateChart(forceResetPosition: boolean = false): void {
     const session = sessionRef();
     if (!session) {
@@ -625,7 +679,8 @@ export function useFlowTreeGraph(
 
     // 计算当前的拓扑结构指纹
     // 注意：引入压缩折叠后，指纹还需要包含展开状态，否则折叠/展开不会触发结构更新
-    const currentFingerprint = getStructureFingerprint(session) + '|' + Array.from(expandedCompressionIds.value).sort().join(',');
+    const currentFingerprint =
+      getStructureFingerprint(session) + "|" + Array.from(expandedCompressionIds.value).sort().join(",");
     const isStructureChanged = forceResetPosition || currentFingerprint !== lastStructureFingerprint;
 
     // 记录旧节点位置，用于在更新时平滑过渡，避免整个树每次都从 (0, 0) 重新收缩成一团
@@ -644,17 +699,17 @@ export function useFlowTreeGraph(
     const logicalParentMap = new Map<string, string>(); // SummaryNodeId -> LogicalParentId (FirstNode.parentId)
 
     if (!session.nodes) return;
-    Object.values(session.nodes).forEach(node => {
+    Object.values(session.nodes).forEach((node) => {
       if (node.metadata?.isCompressionNode && node.isEnabled !== false) {
         const compressedIds = node.metadata.compressedNodeIds || [];
         const isExpanded = expandedCompressionIds.value.has(node.id);
 
         if (compressedIds.length > 0) {
           // 无论是否展开，都记录这些节点是被压缩的
-          compressedIds.forEach(id => compressedNodeIds.add(id));
+          compressedIds.forEach((id) => compressedNodeIds.add(id));
 
           // 不再标记为隐藏，而是记录它们被压缩了，以便在渲染时应用禁用样式
-          compressedIds.forEach(id => {
+          compressedIds.forEach((id) => {
             compressedNodeIds.add(id);
             if (!isExpanded) {
               // 如果没有展开，我们将它们逻辑上链接到压缩节点，但节点本身保持可见
@@ -696,7 +751,6 @@ export function useFlowTreeGraph(
       return effectiveParentId;
     };
 
-
     // 转换节点数据为 Vue Flow 格式
     const flowNodes: FlowNode[] = [];
 
@@ -709,7 +763,14 @@ export function useFlowTreeGraph(
       const isEnabled = node.isEnabled !== false && !isCompressed; // 被压缩也视作禁用
       const colors = getNodeColor(session, node, isCompressed);
       const roleDisplay = getRoleDisplay(node);
-      const contentPreview = truncateText(node.content, 150);
+      // 生成内容预览：剥离思考块后截取正文
+      const strippedContent = stripThinkingBlocks(node.content);
+      const contentPreview = truncateText(strippedContent, 150);
+      // 思考内容相关
+      const nodeHasThinking = hasThinkingContent(node.content, node.metadata?.reasoningContent);
+      const thinkingPreview = nodeHasThinking
+        ? extractThinkingPreview(node.content, node.metadata?.reasoningContent)
+        : null;
       const subtitleInfo = getSubtitleInfo(node);
       const attachments = node.attachments || [];
       const isCompressionNode = !!node.metadata?.isCompressionNode;
@@ -769,7 +830,7 @@ export function useFlowTreeGraph(
 
       flowNodes.push({
         id: node.id,
-        type: 'custom',
+        type: "custom",
         position: initialPosition,
         data: {
           name: roleDisplay.name,
@@ -786,6 +847,9 @@ export function useFlowTreeGraph(
           tokens,
           attachments,
           _node: node,
+          // 思考内容相关
+          hasThinking: nodeHasThinking,
+          thinkingPreview,
           // 传递压缩相关状态
           isCompressionNode,
           isExpanded,
@@ -803,7 +867,7 @@ export function useFlowTreeGraph(
 
     // 遍历生成的 flowNodes 来建立连接，而不是遍历 session.nodes
     // 这样可以确保只连接可见的节点
-    flowNodes.forEach(targetNode => {
+    flowNodes.forEach((targetNode) => {
       if (!session.nodes) return;
       const node = session.nodes[targetNode.id];
       if (!node) return;
@@ -822,7 +886,7 @@ export function useFlowTreeGraph(
         if (sourceId) {
           // 检查源节点是否在 flowNodes 中 (防止连接到已被过滤的节点)
           // 虽然 getVisibleParentId 应该已经处理了，但双重检查更安全
-          if (!flowNodes.find(n => n.id === sourceId)) return;
+          if (!flowNodes.find((n) => n.id === sourceId)) return;
 
           const isOnActivePath =
             BranchNavigator.isNodeInActivePath(session, sourceId) &&
@@ -867,7 +931,7 @@ export function useFlowTreeGraph(
     // --- 优化：先等待节点尺寸到位，再计算布局 ---
     // 1. 标记开始等待
     isWaitingForDimensions.value = true;
-    pendingNodeIds.value = new Set(flowNodes.map(n => n.id));
+    pendingNodeIds.value = new Set(flowNodes.map((n) => n.id));
 
     // 2. 清除旧的超时
     if (layoutTimeoutId) {
@@ -880,7 +944,7 @@ export function useFlowTreeGraph(
     layoutTimeoutId = setTimeout(() => {
       if (isWaitingForDimensions.value) {
         logger.warn("等待节点尺寸超时，强制开始布局", {
-          pendingCount: pendingNodeIds.value.size
+          pendingCount: pendingNodeIds.value.size,
         });
         isWaitingForDimensions.value = false;
         pendingNodeIds.value.clear();
@@ -913,7 +977,7 @@ export function useFlowTreeGraph(
     // 准备 D3 数据
     d3Nodes.value = nodes.value.map((n) => {
       const depth = depthMap[n.id] ?? 0;
-      const existingD3Node = simulation?.nodes().find(d => d.id === n.id);
+      const existingD3Node = simulation?.nodes().find((d) => d.id === n.id);
       const measured = measuredDimensions.get(n.id);
 
       // 估算节点高度：基础高度 + 附件高度 (作为回退)
@@ -938,7 +1002,7 @@ export function useFlowTreeGraph(
         // 初始化时即转换为中心点坐标
         x: n.position.x + finalWidth / 2,
         y: n.position.y + finalHeight / 2,
-        ...(!n.position.x && !n.position.y && { y: depth * levelGap })
+        ...(!n.position.x && !n.position.y && { y: depth * levelGap }),
       };
     });
 
@@ -954,13 +1018,9 @@ export function useFlowTreeGraph(
     if (!session.nodes) return;
     const rootHierarchy = stratify<ChatMessageNode>()
       .id((d: ChatMessageNode) => d.id)
-      .parentId((d: ChatMessageNode) => d.parentId)
-      (Object.values(session.nodes));
+      .parentId((d: ChatMessageNode) => d.parentId)(Object.values(session.nodes));
 
-    const treeLayout = tree<ChatMessageNode>().nodeSize([
-      nodeWidth + nodeHorizontalPadding,
-      levelGap,
-    ]);
+    const treeLayout = tree<ChatMessageNode>().nodeSize([nodeWidth + nodeHorizontalPadding, levelGap]);
 
     treeLayout(rootHierarchy);
 
@@ -976,13 +1036,12 @@ export function useFlowTreeGraph(
       // 使用源节点的子节点数量来决定线的长度
       const weight = childrenCount.get(sourceNodeId) || 0;
       // 动态计算连线长度，但在不同模式下使用不同的基础值
-      const isPhysics = layoutMode.value === 'physics';
+      const isPhysics = layoutMode.value === "physics";
       const baseDistance = isPhysics ? 180 : 80;
       const extraDistancePerNode = 30;
       const maxExtraDistance = 420;
       // 两种模式都应用基于子节点数量的额外距离
-      const distance =
-        baseDistance + Math.min(weight * extraDistancePerNode, maxExtraDistance);
+      const distance = baseDistance + Math.min(weight * extraDistancePerNode, maxExtraDistance);
 
       return {
         source: e.source,
@@ -999,20 +1058,22 @@ export function useFlowTreeGraph(
     }
     simulation.nodes(d3Nodes.value);
 
-
     // --- 4. 根据布局模式配置不同的力 ---
 
     // 通用力：碰撞力 (所有模式都需要)
-    simulation.force("collide", d3Force.forceCollide<D3Node>(d => Math.max(d.width, d.height) / 2 + 40).strength(1));
+    simulation.force("collide", d3Force.forceCollide<D3Node>((d) => Math.max(d.width, d.height) / 2 + 40).strength(1));
 
     // 通用力：链接力 (所有模式都需要，但参数不同)
-    simulation.force("link", d3Force.forceLink<D3Node, D3Link>(d3Links.value)
-      .id(d => d.id)
-      .distance(link => link._debug?.distance ?? 150)
-      .strength(link => link._debug?.strength ?? 0.4)
+    simulation.force(
+      "link",
+      d3Force
+        .forceLink<D3Node, D3Link>(d3Links.value)
+        .id((d) => d.id)
+        .distance((link) => link._debug?.distance ?? 150)
+        .strength((link) => link._debug?.strength ?? 0.4),
     );
 
-    if (layoutMode.value === 'static') {
+    if (layoutMode.value === "static") {
       // === Static 模式：纯静态布局，不启动物理引擎 ===
       // 直接应用计算结果到 Vue Flow 节点并停止模拟
       for (const d3Node of d3Nodes.value) {
@@ -1021,7 +1082,7 @@ export function useFlowTreeGraph(
         if (vueNode && pos) {
           vueNode.position.x = pos.x - d3Node.width / 2;
           vueNode.position.y = pos.y - d3Node.height / 2;
-          
+
           // 同时更新 d3Node 坐标，保持同步
           d3Node.x = pos.x;
           d3Node.y = pos.y;
@@ -1031,33 +1092,34 @@ export function useFlowTreeGraph(
       if (simulation) {
         simulation.stop();
       }
-      
+
       logger.info("静态布局已应用 (Static 模式，无物理引擎)");
       return; // 静态模式不需要配置力，直接返回
     }
 
-    if (layoutMode.value === 'tree') {
+    if (layoutMode.value === "tree") {
       // === Tree 模式：强定位，无电荷力 ===
       simulation
-        .alpha(1).restart() // 使用高 alpha 快速定位
-        .alphaDecay(0.04)   // 较快的衰减
+        .alpha(1)
+        .restart() // 使用高 alpha 快速定位
+        .alphaDecay(0.04) // 较快的衰减
         .velocityDecay(0.5) // 较高的阻尼
         .force("charge", null) // 禁用电荷力
-        .force("x", d3Force.forceX<D3Node>(d => calculatedPositions.get(d.id)?.x ?? d.x ?? 0).strength(0.15))
-        .force("y", d3Force.forceY<D3Node>(d => calculatedPositions.get(d.id)?.y ?? d.y ?? 0).strength(0.25));
+        .force("x", d3Force.forceX<D3Node>((d) => calculatedPositions.get(d.id)?.x ?? d.x ?? 0).strength(0.15))
+        .force("y", d3Force.forceY<D3Node>((d) => calculatedPositions.get(d.id)?.y ?? d.y ?? 0).strength(0.25));
 
       // 释放所有节点的固定位置，让它们可以被定位力驱动
-      simulation.nodes().forEach(n => {
+      simulation.nodes().forEach((n) => {
         n.fx = null;
         n.fy = null;
       });
 
       logger.info("D3 力模拟已配置 (Tree 模式)");
-
     } else {
       // === Physics 模式：使用自定义重力，移除Y钉固力 ===
       simulation
-        .alpha(1).restart() // 使用高alpha启动，快速展开
+        .alpha(1)
+        .restart() // 使用高alpha启动，快速展开
         .alphaDecay(0.0228)
         .velocityDecay(0.4)
         .force("charge", d3Force.forceManyBody().strength(-400))
@@ -1069,14 +1131,14 @@ export function useFlowTreeGraph(
         .force("gravity", gravityForce(6)); // 0.2 是一个初始值，可以微调
 
       // 释放非根节点的固定位置
-      simulation.nodes().forEach(n => {
+      simulation.nodes().forEach((n) => {
         if (n.id !== session.rootNodeId) {
           n.fx = null;
           n.fy = null;
         }
       });
       // 将根节点固定在计算出的位置，作为整个物理系统的锚点
-      const rootNode = simulation.nodes().find(n => n.id === session.rootNodeId);
+      const rootNode = simulation.nodes().find((n) => n.id === session.rootNodeId);
       const rootPos = session.rootNodeId ? calculatedPositions.get(session.rootNodeId) : null;
       if (rootNode && rootPos) {
         rootNode.fx = rootPos.x;
@@ -1110,7 +1172,6 @@ export function useFlowTreeGraph(
     });
   }
 
-
   /**
    * 处理节点拖拽开始事件
    */
@@ -1120,9 +1181,9 @@ export function useFlowTreeGraph(
 
     const dragSubtreeModifier = settings.value.graphViewShortcuts.dragSubtree;
     const isDragSubtree =
-      (dragSubtreeModifier === 'shift' && (domEvent?.shiftKey || false)) ||
-      (dragSubtreeModifier === 'alt' && (domEvent?.altKey || false)) ||
-      (dragSubtreeModifier === 'ctrl' && (domEvent?.ctrlKey || false));
+      (dragSubtreeModifier === "shift" && (domEvent?.shiftKey || false)) ||
+      (dragSubtreeModifier === "alt" && (domEvent?.altKey || false)) ||
+      (dragSubtreeModifier === "ctrl" && (domEvent?.ctrlKey || false));
 
     // 如果按住指定修饰键，则准备拖拽整个子树
     if (isDragSubtree) {
@@ -1143,7 +1204,7 @@ export function useFlowTreeGraph(
     logger.debug("节点拖拽开始 (Physics 模式)", { nodeId, isDragSubtree });
 
     // 激活模拟 (静态模式除外)
-    if (simulation && layoutMode.value !== 'static') {
+    if (simulation && layoutMode.value !== "static") {
       simulation.alphaTarget(0.3).restart();
     }
   }
@@ -1152,7 +1213,7 @@ export function useFlowTreeGraph(
    * 处理节点拖拽中事件
    */
   function handleNodeDrag(event: any): void {
-    if (layoutMode.value === 'static') return;
+    if (layoutMode.value === "static") return;
     if (!simulation) return;
 
     const { node } = event;
@@ -1166,7 +1227,7 @@ export function useFlowTreeGraph(
     // 关键修正：确保 nodes.value 中的引用是最新的
     // Vue Flow 在拖拽时可能会产生新的节点对象实例，导致 nodes.value 中的旧对象失效
     // 如果 tick 函数操作的是旧对象，视图就不会更新，导致"脱钩"
-    const localNodeIndex = nodes.value.findIndex(n => n.id === nodeId);
+    const localNodeIndex = nodes.value.findIndex((n) => n.id === nodeId);
     if (localNodeIndex !== -1 && nodes.value[localNodeIndex] !== node) {
       // 更新引用，确保 tick 能控制到真正的视图节点
       nodes.value[localNodeIndex] = node;
@@ -1182,7 +1243,7 @@ export function useFlowTreeGraph(
 
       const allNodeIds = [subtreeDragState.rootNodeId, ...subtreeDragState.descendantIds];
 
-      simulation.nodes().forEach(d3Node => {
+      simulation.nodes().forEach((d3Node) => {
         if (allNodeIds.includes(d3Node.id)) {
           // 如果节点是拖拽的根节点，直接使用它的位置
           if (d3Node.id === nodeId) {
@@ -1203,7 +1264,7 @@ export function useFlowTreeGraph(
       dragPositionState.lastPosition = { ...node.position };
     } else {
       // 只拖拽单个节点
-      const d3Node = simulation.nodes().find(n => n.id === nodeId);
+      const d3Node = simulation.nodes().find((n) => n.id === nodeId);
       if (d3Node) {
         // Vue Flow 的 position 是左上角，需要转换回 D3 的中心点坐标
         d3Node.fx = node.position.x + d3Node.width / 2;
@@ -1230,21 +1291,21 @@ export function useFlowTreeGraph(
    * 处理拖拽结束事件
    */
   function handleNodeDragStop(event: any): void {
-    if (layoutMode.value === 'static') return;
+    if (layoutMode.value === "static") return;
     if (!simulation) return;
 
     const draggedNodeId = event.node.id;
     const session = sessionRef();
     if (!session) return;
 
-    const shouldRebound = layoutMode.value === 'physics';
+    const shouldRebound = layoutMode.value === "physics";
 
     // 如果是子树拖拽结束
     if (subtreeDragState.isDragging) {
       // 在 physics 模式下，拖拽结束后节点应该弹回，所以需要解除固定
       if (shouldRebound) {
         const allNodeIds = [subtreeDragState.rootNodeId, ...subtreeDragState.descendantIds];
-        simulation.nodes().forEach(d3Node => {
+        simulation.nodes().forEach((d3Node) => {
           if (allNodeIds.includes(d3Node.id) && (!session.rootNodeId || d3Node.id !== session.rootNodeId)) {
             d3Node.fx = null;
             d3Node.fy = null;
@@ -1259,7 +1320,7 @@ export function useFlowTreeGraph(
       logger.info("子树拖拽结束");
     } else {
       // 单个节点拖拽结束
-      const d3Node = simulation.nodes().find(n => n.id === draggedNodeId);
+      const d3Node = simulation.nodes().find((n) => n.id === draggedNodeId);
       if (d3Node) {
         // 关键修正：松手瞬间，强制将 D3 节点的物理坐标(x,y)同步到 Vue Flow 的视觉位置
         // 否则 D3 节点可能还在"追赶"鼠标的路上，导致松手后位置突变或脱节
@@ -1304,7 +1365,7 @@ export function useFlowTreeGraph(
     // 规则 3: 不能将节点移动到其自身的子孙节点下（防止循环依赖）
     const nodeManager = useNodeManager();
     const descendants = nodeManager.getAllDescendants(session, nodeIdToMove);
-    if (descendants.some(d => d.id === newParentId)) return false;
+    if (descendants.some((d) => d.id === newParentId)) return false;
 
     // 规则 4: 不能移动根节点
     if (nodeIdToMove === session.rootNodeId) return false;
@@ -1318,7 +1379,7 @@ export function useFlowTreeGraph(
   /**
    * 处理连接开始事件
    */
-  function handleConnectionStart({ nodeId }: { event?: MouseEvent, nodeId?: string }): void {
+  function handleConnectionStart({ nodeId }: { event?: MouseEvent; nodeId?: string }): void {
     if (!nodeId) return;
 
     const graftSubtreeModifier = settings.value.graphViewShortcuts.graftSubtree;
@@ -1502,7 +1563,7 @@ export function useFlowTreeGraph(
     if (!simulation) return;
 
     let needsRestart = false;
-    simulation.nodes().forEach(d3Node => {
+    simulation.nodes().forEach((d3Node) => {
       const dim = dimensions.get(d3Node.id);
       if (dim && (d3Node.width !== dim.width || d3Node.height !== dim.height)) {
         d3Node.width = dim.width;
@@ -1675,7 +1736,7 @@ export function useFlowTreeGraph(
    */
   function toggleDebugMode(): void {
     debugMode.value = !debugMode.value;
-    logger.info(`切换调试模式: ${debugMode.value ? 'ON' : 'OFF'}`);
+    logger.info(`切换调试模式: ${debugMode.value ? "ON" : "OFF"}`);
     // 如果开启调试模式，可能需要强制更新一下 d3 节点数据
     if (debugMode.value && simulation) {
       d3Nodes.value = [...simulation.nodes()];

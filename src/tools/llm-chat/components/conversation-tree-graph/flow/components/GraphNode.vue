@@ -17,10 +17,7 @@
       <Handle type="target" :position="Position.Top" />
 
       <!-- 节点内容 -->
-      <GraphNodeContent
-        :data="data"
-        @toggle-expand="emit('toggle-expand')"
-      />
+      <GraphNodeContent :data="data" @toggle-expand="emit('toggle-expand')" />
 
       <!-- 底部：树结构出边的源连接点 -->
       <Handle type="source" :position="Position.Bottom" />
@@ -80,6 +77,9 @@ interface NodeData {
     completion?: number;
   } | null;
   attachments?: Asset[];
+  // 思考内容相关
+  hasThinking?: boolean;
+  thinkingPreview?: string | null;
   // 压缩节点相关
   isCompressionNode?: boolean;
   isExpanded?: boolean;
@@ -127,8 +127,7 @@ const handleCopy = () => emit("copy");
 const handleToggleEnabled = () => emit("toggle-enabled");
 const handleDelete = () => emit("delete");
 const handleViewDetail = (event: MouseEvent) => emit("view-detail", event);
-const handleRegenerate = (options?: { modelId?: string; profileId?: string }) =>
-  emit("regenerate", options);
+const handleRegenerate = (options?: { modelId?: string; profileId?: string }) => emit("regenerate", options);
 const handleCreateBranch = () => emit("create-branch");
 </script>
 

@@ -199,18 +199,52 @@ export function useGraphD3Simulation(
     );
 
     if (layoutMode.value === "static") {
+      // 静态模式：水平位置使用 tree() 计算结果，垂直位置根据实际节点高度按层级累加
+      // 这样有图片附件等大内容的节点能正确撑开层级间距
+
+      // 1. 按深度分组节点，收集每层的最大高度
+      const depthGroups = new Map<number, D3Node[]>();
+      for (const d3Node of d3Nodes.value) {
+        const group = depthGroups.get(d3Node.depth) || [];
+        group.push(d3Node);
+        depthGroups.set(d3Node.depth, group);
+      }
+
+      // 2. 计算每层的最大节点高度
+      const maxDepth = Math.max(...Array.from(depthGroups.keys()), 0);
+      const layerMaxHeights = new Map<number, number>();
+      for (let depth = 0; depth <= maxDepth; depth++) {
+        const group = depthGroups.get(depth) || [];
+        const maxHeight = group.reduce((max, node) => Math.max(max, node.height), 140);
+        layerMaxHeights.set(depth, maxHeight);
+      }
+
+      // 3. 累加计算每层的 y 中心坐标
+      const verticalGap = 60; // 层级之间的固定间距
+      const layerCenterY = new Map<number, number>();
+      let currentY = 0;
+      for (let depth = 0; depth <= maxDepth; depth++) {
+        const layerHeight = layerMaxHeights.get(depth) || 140;
+        // 当前层的中心 y = 累加偏移 + 当前层高度的一半
+        layerCenterY.set(depth, currentY + layerHeight / 2);
+        // 下一层的起始 y = 当前层底部 + 间距
+        currentY += layerHeight + verticalGap;
+      }
+
+      // 4. 应用位置：x 来自 tree() 计算，y 来自层级累加
       for (const d3Node of d3Nodes.value) {
         const vueNode = nodes.value.find((n) => n.id === d3Node.id);
-        const pos = calculatedPositions.get(d3Node.id);
-        if (vueNode && pos) {
-          vueNode.position.x = pos.x - d3Node.width / 2;
-          vueNode.position.y = pos.y - d3Node.height / 2;
-          d3Node.x = pos.x;
-          d3Node.y = pos.y;
+        const treePos = calculatedPositions.get(d3Node.id);
+        const centerY = layerCenterY.get(d3Node.depth) ?? 0;
+        if (vueNode && treePos) {
+          vueNode.position.x = treePos.x - d3Node.width / 2;
+          vueNode.position.y = centerY - d3Node.height / 2;
+          d3Node.x = treePos.x;
+          d3Node.y = centerY;
         }
       }
       sim.stop();
-      logger.info("静态布局已应用");
+      logger.info("静态布局已应用（自适应节点高度）");
       return;
     }
 

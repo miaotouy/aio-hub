@@ -20,14 +20,18 @@
     <div class="converter-body">
       <!-- 单文件模式 -->
       <template v-if="mode === 'single'">
-        <SinglePreview
-          v-model="singleInput"
-          :output="singleOutput"
-          :from-format="singleFrom"
-          :to-format="singleTo"
-          :error="singleError"
-          :warnings="singleWarnings"
-        />
+        <div class="single-layout">
+          <SinglePreview
+            v-model="singleInput"
+            :output="singleOutput"
+            :from-format="singleFrom"
+            :to-format="singleTo"
+            :error="singleError"
+            :warnings="singleWarnings"
+          />
+          <!-- overlay 拖放层 -->
+          <DropZone overlay bare hide-content :show-overlay-on-drag="true" :multiple="true" @drop="handleSingleImport" />
+        </div>
       </template>
 
       <!-- 批量模式 -->
@@ -75,6 +79,7 @@ const {
   singleError,
   singleWarnings,
   singleOptions,
+  handleSingleImport,
   batchItems,
   batchTo,
   batchOptions,
@@ -158,6 +163,12 @@ const selectDirectory = async () => {
 .empty-zone-wrapper {
   flex: 1;
   display: flex;
+  min-height: 0;
+}
+
+.single-layout {
+  position: relative;
+  flex: 1;
   min-height: 0;
 }
 

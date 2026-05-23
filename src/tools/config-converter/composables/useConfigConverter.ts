@@ -54,6 +54,52 @@ export function useConfigConverter() {
   // ==========================================
   // 单文件转换逻辑
   // ==========================================
+  /**
+   * 单文件模式下加载文件
+   */
+  const loadSingleFile = async (filePath: string) => {
+    try {
+      const isDir = await invoke<boolean>("is_directory", { path: filePath });
+      if (isDir) {
+        // 如果是目录，自动切换到批量模式并添加
+        mode.value = "batch";
+        await addFiles([filePath]);
+        return;
+      }
+
+      const content = await invoke<string>("read_text_file_force", {
+        path: filePath,
+      });
+
+      const detected = detectFormat(filePath, content);
+      singleFrom.value = detected;
+
+      singleInput.value = content;
+      const fileName = filePath.substring(Math.max(filePath.lastIndexOf("/"), filePath.lastIndexOf("\\")) + 1);
+      customMessage.success(`已成功加载文件: ${fileName}`);
+    } catch (error: any) {
+      errorHandler.error(error, `加载文件失败: ${filePath}`);
+    }
+  };
+
+  /**
+   * 处理单文件模式下的拖放/导入
+   */
+  const handleSingleImport = async (paths: string[]) => {
+    if (paths.length === 0) return;
+
+    if (paths.length > 1) {
+      // 多个文件，自动切换到批量模式并添加
+      mode.value = "batch";
+      await addFiles(paths);
+      customMessage.info("已自动切换到批量模式并添加文件");
+      return;
+    }
+
+    // 单个文件/目录
+    await loadSingleFile(paths[0]);
+  };
+
   const convertSingleInternal = () => {
     singleError.value = "";
     singleWarnings.value = [];
@@ -319,6 +365,7 @@ export function useConfigConverter() {
     singleWarnings,
     singleOptions,
     convertSingle,
+    handleSingleImport,
     // 批量
     batchItems,
     batchTo,

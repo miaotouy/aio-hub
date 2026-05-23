@@ -178,6 +178,7 @@ const sendToChat = () => {
   background-color: var(--card-bg);
   border: 1px solid var(--border-color);
   border-radius: 8px;
+  backdrop-filter: blur(var(--ui-blur));
   overflow: hidden;
   position: relative;
 }

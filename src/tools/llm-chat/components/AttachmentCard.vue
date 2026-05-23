@@ -850,6 +850,7 @@ onUnmounted(() => {
 
 .attachment-card.size-extra-large .preview-image {
   height: auto;
+  max-height: 500px;
   object-fit: contain;
 }
 

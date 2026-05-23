@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch, nextTick } from "vue";
+import { computed, ref, watch, nextTick, onMounted, onUnmounted } from "vue";
 import { ElInput, ElEmpty, ElSelect, ElOption, ElIcon } from "element-plus";
 import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
@@ -9,14 +9,36 @@ import BaseDialog from "@/components/common/BaseDialog.vue";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
 import { MODEL_CAPABILITIES } from "@/config/model-capabilities";
 
-const { isDialogVisible, currentSelection, initialCapabilities, select, cancel } =
-  useModelSelectDialog();
+const { isDialogVisible, currentSelection, initialCapabilities, select, cancel } = useModelSelectDialog();
 const { enabledProfiles } = useLlmProfiles();
 const { getModelIcon, getMatchedProperties, getModelGroup } = useModelMetadata();
 
 const searchQuery = ref("");
 const selectedCapabilities = ref<string[]>([]);
 const modelListWrapperRef = ref<HTMLDivElement>();
+const isNarrow = ref(false);
+
+let resizeObserver: ResizeObserver | null = null;
+
+onMounted(() => {
+  resizeObserver = new ResizeObserver((entries) => {
+    for (const entry of entries) {
+      // 当容器宽度小于 460px 时视为窄宽度
+      isNarrow.value = entry.contentRect.width < 460;
+    }
+  });
+});
+
+onUnmounted(() => {
+  resizeObserver?.disconnect();
+  resizeObserver = null;
+});
+
+watch(modelListWrapperRef, (el) => {
+  if (el) {
+    resizeObserver?.observe(el);
+  }
+});
 
 // --- 能力筛选相关函数 ---
 
@@ -125,9 +147,7 @@ const modelGroups = computed(() => {
 // 判断是否为当前选中的模型
 function isCurrentModel(profile: LlmProfile, model: LlmModelInfo): boolean {
   if (!currentSelection.value) return false;
-  return (
-    currentSelection.value.profile.id === profile.id && currentSelection.value.model.id === model.id
-  );
+  return currentSelection.value.profile.id === profile.id && currentSelection.value.model.id === model.id;
 }
 
 // 生成模型的唯一 key
@@ -191,12 +211,7 @@ watch(isDialogVisible, async (visible) => {
     <template #content>
       <div class="model-select-content">
         <div class="search-bar">
-          <el-input
-            v-model="searchQuery"
-            placeholder="搜索模型名称或服务商..."
-            clearable
-            class="search-input"
-          />
+          <el-input v-model="searchQuery" placeholder="搜索模型名称或服务商..." clearable class="search-input" />
           <el-select
             v-model="selectedCapabilities"
             multiple
@@ -206,12 +221,7 @@ watch(isDialogVisible, async (visible) => {
             class="capability-select"
             clearable
           >
-            <el-option
-              v-for="cap in MODEL_CAPABILITIES"
-              :key="cap.key"
-              :label="cap.label"
-              :value="cap.key"
-            >
+            <el-option v-for="cap in MODEL_CAPABILITIES" :key="cap.key" :label="cap.label" :value="cap.key">
               <div style="display: flex; align-items: center">
                 <el-icon style="margin-right: 8px" :style="{ color: cap.color }">
                   <component :is="cap.icon" />
@@ -222,7 +232,7 @@ watch(isDialogVisible, async (visible) => {
           </el-select>
         </div>
         <div ref="modelListWrapperRef" class="model-list-wrapper">
-          <div v-if="allModels.length > 0" class="model-list">
+          <div v-if="allModels.length > 0" :class="['model-list', { 'is-narrow': isNarrow }]">
             <div v-for="group in modelGroups" :key="group.profile.id" class="model-group">
               <h3 class="group-title">{{ group.profile.name }}</h3>
               <div
@@ -233,19 +243,12 @@ watch(isDialogVisible, async (visible) => {
                 @click="handleSelectModel(group.profile, model)"
               >
                 <div class="model-item-content">
-                  <DynamicIcon
-                    class="model-avatar"
-                    :src="getModelIcon(model) || ''"
-                    :alt="model.name"
-                  />
+                  <DynamicIcon class="model-avatar" :src="getModelIcon(model) || ''" :alt="model.name" />
                   <div class="model-info">
                     <div class="model-header">
                       <span class="model-name-text">{{ model.name }}</span>
                       <div class="model-capabilities">
-                        <template
-                          v-for="capability in getActiveCapabilities(model)"
-                          :key="capability.key"
-                        >
+                        <template v-for="capability in getActiveCapabilities(model)" :key="capability.key">
                           <el-tooltip :content="capability.description" placement="top">
                             <el-icon
                               class="capability-icon"
@@ -377,7 +380,7 @@ html:not(.dark) .model-item.is-current {
 
 .model-name-text {
   flex: 1;
-  min-width: 0;
+  min-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -396,6 +399,23 @@ html:not(.dark) .model-item.is-current {
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
+}
+
+/* 窄宽度下能力图标换行到名字下方，左对齐 */
+.model-list.is-narrow .model-header {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.model-list.is-narrow .model-name-text {
+  width: 100%;
+  flex: none;
+}
+
+.model-list.is-narrow .model-capabilities {
+  flex-shrink: 1;
+  width: 100%;
+  justify-content: flex-start;
 }
 
 .capability-icon {

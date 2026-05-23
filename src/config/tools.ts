@@ -19,6 +19,7 @@ export const DEFAULT_TOOLS_ORDER = [
   // 文本处理
   "/code-formatter",
   "/json-formatter",
+  "/config-converter",
   "/regex-applier",
   "/data-filter",
   "/text-diff",

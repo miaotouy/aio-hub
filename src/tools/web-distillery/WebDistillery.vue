@@ -7,11 +7,11 @@ import { createModuleLogger } from "@/utils/logger";
 import { iframeBridge } from "./core/iframe-bridge";
 
 // 组件导入
-import DistilleryWorkbench from "./components/DistilleryWorkbench.vue";
+import DistilleryWorkbench from "./components/distillery/DistilleryWorkbench.vue";
 import InteractiveWorkbench from "./components/interactive/InteractiveWorkbench.vue";
-import ApiSniffer from "./components/ApiSniffer.vue";
-import CookieLab from "./components/CookieLab.vue";
-import RecipeManager from "./components/RecipeManager.vue";
+import ApiSniffer from "./components/sniffer/ApiSniffer.vue";
+import CookieLab from "./components/cookie/CookieLab.vue";
+import RecipeManager from "./components/recipe/RecipeManager.vue";
 
 const errorHandler = createModuleErrorHandler("web-distillery");
 const logger = createModuleLogger("web-distillery");

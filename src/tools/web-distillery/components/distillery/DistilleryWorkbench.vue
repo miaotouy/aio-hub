@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onUnmounted, onMounted } from "vue";
-import { useWebDistilleryStore } from "../stores/store";
-import { quickFetch, smartExtract, processLocalContent } from "../actions";
-import { iframeBridge } from "../core/iframe-bridge";
+import { useWebDistilleryStore } from "../../stores/store";
+import { quickFetch, smartExtract, processLocalContent } from "../../actions";
+import { iframeBridge } from "../../core/iframe-bridge";
 import { customMessage } from "@/utils/customMessage";
 import { useSendToChat } from "@/composables/useSendToChat";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -10,7 +10,7 @@ import { createModuleLogger } from "@/utils/logger";
 import { readTextFile } from "@tauri-apps/plugin-fs";
 import InfoCard from "@/components/common/InfoCard.vue";
 import DropZone from "@/components/common/DropZone.vue";
-import type { DistillMode } from "../types";
+import type { DistillMode } from "../../types";
 
 // 组件导入
 import BrowserToolbar from "./BrowserToolbar.vue";

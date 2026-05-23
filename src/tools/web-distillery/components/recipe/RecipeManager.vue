@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, onErrorCaptured } from "vue";
 import { Search, Trash2, Edit, ExternalLink, ShieldCheck, ShieldAlert, BookOpen } from "lucide-vue-next";
-import { recipeStore } from "../core/recipe-store";
-import type { SiteRecipe } from "../types";
-import { useWebDistilleryStore } from "../stores/store";
+import { recipeStore } from "../../core/recipe-store";
+import type { SiteRecipe } from "../../types";
+import { useWebDistilleryStore } from "../../stores/store";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import InfoCard from "@/components/common/InfoCard.vue";

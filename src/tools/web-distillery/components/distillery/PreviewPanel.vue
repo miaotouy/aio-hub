@@ -11,7 +11,7 @@ import {
   GlassWater,
   MessageSquare,
 } from "lucide-vue-next";
-import type { FetchResult } from "../types";
+import type { FetchResult } from "../../types";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";

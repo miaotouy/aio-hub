@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onErrorCaptured } from "vue";
 import { Network, ExternalLink, Trash2, Code } from "lucide-vue-next";
-import { useWebDistilleryStore } from "../stores/store";
+import { useWebDistilleryStore } from "../../stores/store";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 

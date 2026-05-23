@@ -3,7 +3,7 @@ import { computed } from "vue";
 import { formatDistanceToNow } from "date-fns";
 import { zhCN } from "date-fns/locale";
 import { MoreHorizontal, Edit2, Trash2, FileJson, FileText } from "lucide-vue-next";
-import type { CookieProfile } from "../types";
+import type { CookieProfile } from "../../types";
 
 interface Props {
   profile: CookieProfile;

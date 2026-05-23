@@ -21,14 +21,14 @@ import {
 import { ElMessageBox } from "element-plus";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
-import { cookieProfileStore } from "../core/cookie-profile-store";
-import type { CookieProfile, CookieEntry } from "../types";
+import { cookieProfileStore } from "../../core/cookie-profile-store";
+import type { CookieProfile, CookieEntry } from "../../types";
 import CookieProfileCard from "./CookieProfileCard.vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import { iframeBridge } from "../core/iframe-bridge";
-import { useWebDistilleryStore } from "../stores/store";
+import { iframeBridge } from "../../core/iframe-bridge";
+import { useWebDistilleryStore } from "../../stores/store";
 
 const errorHandler = createModuleErrorHandler("web-distillery/cookie-lab");
 const store = useWebDistilleryStore();

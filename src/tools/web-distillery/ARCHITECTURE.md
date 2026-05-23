@@ -22,7 +22,7 @@
 ```
 src/tools/web-distillery/
 ├── WebDistillery.vue           # 根组件，5 Tab 容器
-├── webDistillery.registry.ts   # 工具注册 + Agent Facade
+├── web-distillery.registry.ts   # 工具注册 + Agent Facade
 ├── actions.ts                  # 顶层操作 Facade（quickFetch / smartExtract）
 ├── formatters.ts               # FetchResult → 字符串格式化
 ├── types.ts                    # 全局类型定义
@@ -43,23 +43,33 @@ src/tools/web-distillery/
 │       └── postprocessor.ts    # 阶段6: 后处理组装
 │
 ├── components/                 # UI 组件层
-│   ├── DistilleryWorkbench.vue # Tab: 蒸馏工作台
-│   ├── RecipeManager.vue       # Tab: 站点配方管理
-│   ├── CookieLab.vue           # Tab: 身份卡片
-│   ├── ApiSniffer.vue          # Tab: API 嗅探
-│   ├── PreviewPanel.vue        # 结果预览面板
-│   ├── RecipeEditor.vue        # 配方编辑器
-│   ├── BrowserToolbar.vue      # 工作台工具栏
-│   └── interactive/            # 交互模式专属组件
-│       ├── InteractiveWorkbench.vue # 交互模式主布局
-│       ├── InteractiveToolbar.vue   # 浏览器地址栏 + 工具按钮
-│       ├── BrowserViewport.vue      # Iframe 挂载容器
-│       ├── ToolPanel.vue            # 右侧工具面板（三 Tab）
-│       ├── RulesTab.vue             # 提取规则 Tab
-│       ├── ActionsTab.vue           # 动作序列 Tab
-│       ├── LivePreviewTab.vue       # 实时预览 Tab
-│       ├── PickerStatusBar.vue      # 拾取器状态栏
-│       └── RecipeMetaDrawer.vue     # 配方保存抽屉
+│   ├── distillery/             # 蒸馏工作台（快速/智能模式）
+│   │   ├── DistilleryWorkbench.vue # Tab: 蒸馏工作台主容器
+│   │   ├── BrowserToolbar.vue      # 工作台工具栏
+│   │   └── PreviewPanel.vue        # 结果预览面板
+│   │
+│   ├── interactive/            # 交互模式专属组件
+│   │   ├── InteractiveWorkbench.vue # 交互模式主布局
+│   │   ├── InteractiveToolbar.vue   # 浏览器地址栏 + 工具按钮
+│   │   ├── BrowserViewport.vue      # Iframe 挂载容器
+│   │   ├── PageInfoBar.vue          # 页面标题+URL信息条
+│   │   ├── ToolPanel.vue            # 右侧工具面板（三 Tab）
+│   │   ├── RulesTab.vue             # 提取规则 Tab
+│   │   ├── ActionsTab.vue           # 动作序列 Tab
+│   │   ├── LivePreviewTab.vue       # 实时预览 Tab
+│   │   ├── PickerStatusBar.vue      # 拾取器状态栏
+│   │   ├── IdentityPanel.vue        # 身份卡片快捷切换
+│   │   └── RecipeMetaDrawer.vue     # 配方保存抽屉
+│   │
+│   ├── cookie/                 # Cookie/身份管理
+│   │   ├── CookieLab.vue           # Tab: 身份卡片管理主面板
+│   │   └── CookieProfileCard.vue   # 单个身份卡片组件
+│   │
+│   ├── recipe/                 # 配方管理
+│   │   └── RecipeManager.vue       # Tab: 站点配方管理
+│   │
+│   └── sniffer/                # API 嗅探
+│       └── ApiSniffer.vue          # Tab: API 嗅探面板
 │
 ├── composables/
 │   └── useLivePreview.ts       # 实时预览防抖逻辑
@@ -464,9 +474,11 @@ InteractiveWorkbench
 ├── InteractiveToolbar          (地址栏、刷新、保存、Cookie、API 按钮)
 ├── .workbench-body
 │   ├── .main-viewport-container
+│   │   ├── PageInfoBar        (页面标题+URL信息条)
 │   │   ├── BrowserViewport    (iframe 挂载点)
 │   │   └── PickerStatusBar    (悬停元素实时信息)
 │   └── ToolPanel              (右侧可调宽面板)
+│       ├── IdentityPanel      (身份卡片快捷切换)
 │       ├── RulesTab           (include/exclude 选择器管理)
 │       ├── ActionsTab         (动作序列编排)
 │       └── LivePreviewTab     (提取结果实时预览)

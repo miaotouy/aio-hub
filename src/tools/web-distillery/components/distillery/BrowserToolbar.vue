@@ -2,11 +2,11 @@
 import { ref, computed, watch } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { ArrowLeft, ArrowRight, RotateCw, Globe, Zap, Scan, Trash2, FileUp, Cookie } from "lucide-vue-next";
-import type { DistillMode, CookieProfile } from "../types";
-import { iframeBridge } from "../core/iframe-bridge";
+import type { DistillMode, CookieProfile } from "../../types";
+import { iframeBridge } from "../../core/iframe-bridge";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
-import { cookieProfileStore } from "../core/cookie-profile-store";
+import { cookieProfileStore } from "../../core/cookie-profile-store";
 
 const logger = createModuleLogger("web-distillery/toolbar");
 

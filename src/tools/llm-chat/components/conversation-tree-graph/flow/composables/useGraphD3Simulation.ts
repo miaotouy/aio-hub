@@ -309,7 +309,12 @@ export function useGraphD3Simulation(
     });
 
     if (needsRestart) {
-      simulation.value.alpha(0.3).restart();
+      if (layoutMode.value === "static") {
+        // 静态模式下，尺寸变化只需重新应用静态布局逻辑，无需启动物理仿真
+        initD3Simulation();
+      } else {
+        simulation.value.alpha(0.3).restart();
+      }
     }
   }
 

@@ -372,7 +372,7 @@ import {
 } from "@element-plus/icons-vue";
 import customMessage from "@/utils/customMessage";
 import type { ChatSessionDetail, ChatMessageNode } from "../../../types";
-import { useFlowTreeGraph } from "../../../composables/visualization/useFlowTreeGraph";
+import { useFlowTreeGraph } from "./composables/useFlowTreeGraph";
 import { useLlmChatStore } from "../../../stores/llmChatStore";
 import { useAgentStore } from "../../../stores/agentStore";
 import { useChatSettings } from "../../../composables/settings/useChatSettings";

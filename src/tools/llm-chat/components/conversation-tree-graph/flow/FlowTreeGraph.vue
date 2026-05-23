@@ -91,8 +91,8 @@
               layoutMode === 'tree'
                 ? '切换到实时力导向图模式'
                 : layoutMode === 'physics'
-                  ? '切换到静态布局模式'
-                  : '切换到树状布局模式'
+                  ? '切换到静态树状布局模式'
+                  : '切换到动态树状布局模式'
             "
             :placement="isNarrowLayout ? 'left' : 'bottom'"
           >

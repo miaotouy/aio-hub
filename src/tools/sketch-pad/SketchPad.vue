@@ -1048,7 +1048,6 @@ async function handleMergeDown(id: string) {
   position: relative;
   overflow: hidden;
   border-radius: 12px;
-  margin: 8px;
   background-color: #1a1a1a;
   border: 1px solid rgba(255, 255, 255, 0.06);
 }

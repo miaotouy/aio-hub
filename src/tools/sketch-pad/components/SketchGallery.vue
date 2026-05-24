@@ -14,45 +14,47 @@
       </div>
     </div>
 
-    <!-- 草图列表 -->
-    <div v-if="projects.length > 0" ref="gridRef" class="project-grid">
-      <div v-for="project in projects" :key="project.id" class="project-card" @click="selectProject(project.id)">
-        <div class="card-glow-border" />
-        <div class="card-glow-bg" />
-        <div class="thumbnail-container">
-          <img
-            v-if="project.thumbnailPath"
-            :src="convertFileSrc(project.thumbnailPath)"
-            class="thumbnail"
-            alt="缩略图"
-          />
-          <div v-else class="thumbnail-placeholder">
-            <component :is="Image" class="placeholder-icon" />
-          </div>
-        </div>
-        <div class="project-info">
-          <div class="project-name-row">
-            <span class="project-name">{{ project.name }}</span>
-            <div class="project-actions" @click.stop>
-              <el-button :icon="Edit" link size="small" @click="startRename(project)" />
-              <el-button :icon="Trash2" link type="danger" size="small" @click="confirmDelete(project)" />
+    <!-- 草图列表（独立滚动区域） -->
+    <div class="gallery-body">
+      <div v-if="projects.length > 0" ref="gridRef" class="project-grid">
+        <div v-for="project in projects" :key="project.id" class="project-card" @click="selectProject(project.id)">
+          <div class="card-glow-border" />
+          <div class="card-glow-bg" />
+          <div class="thumbnail-container">
+            <img
+              v-if="project.thumbnailPath"
+              :src="convertFileSrc(project.thumbnailPath)"
+              class="thumbnail"
+              alt="缩略图"
+            />
+            <div v-else class="thumbnail-placeholder">
+              <component :is="Image" class="placeholder-icon" />
             </div>
           </div>
-          <div class="project-meta">
-            <span class="meta-item">
-              <component :is="Calendar" class="meta-icon" />
-              {{ formatDate(project.updatedAt) }}
-            </span>
-            <span class="meta-item"> {{ project.width }} × {{ project.height }} </span>
+          <div class="project-info">
+            <div class="project-name-row">
+              <span class="project-name">{{ project.name }}</span>
+              <div class="project-actions" @click.stop>
+                <el-button :icon="Edit" link size="small" @click="startRename(project)" />
+                <el-button :icon="Trash2" link type="danger" size="small" @click="confirmDelete(project)" />
+              </div>
+            </div>
+            <div class="project-meta">
+              <span class="meta-item">
+                <component :is="Calendar" class="meta-icon" />
+                {{ formatDate(project.updatedAt) }}
+              </span>
+              <span class="meta-item"> {{ project.width }} × {{ project.height }} </span>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <div v-else class="empty-state">
-      <component :is="Image" class="empty-icon" />
-      <p class="empty-text">还没有草图，快来新建一个吧！</p>
-      <el-button type="primary" :icon="Plus" @click="showCreateDialog = true">新建草图</el-button>
+      <div v-else class="empty-state">
+        <component :is="Image" class="empty-icon" />
+        <p class="empty-text">还没有草图，快来新建一个吧！</p>
+        <el-button type="primary" :icon="Plus" @click="showCreateDialog = true">新建草图</el-button>
+      </div>
     </div>
 
     <!-- 新建草图弹窗 -->
@@ -343,7 +345,9 @@ function formatDate(dateStr: string) {
   box-sizing: border-box;
   height: 100%;
   border-radius: 12px;
-  overflow-y: auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   background-color: var(--container-bg);
 }
 
@@ -351,7 +355,15 @@ function formatDate(dateStr: string) {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
+  flex-shrink: 0;
+}
+
+.gallery-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 8px;
 }
 
 .title-section {

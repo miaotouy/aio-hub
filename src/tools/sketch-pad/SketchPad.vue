@@ -44,6 +44,7 @@
         :active-tool="activeTool"
         :can-undo="canUndo"
         :can-redo="canRedo"
+        :is-dirty="isDirty"
         @back="goBack"
         @select-tool="handleSelectTool"
         @undo="handleUndo"
@@ -97,7 +98,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from "vue";
+import { ref, onMounted, onUnmounted, watch, nextTick } from "vue";
 import SketchGallery from "./components/SketchGallery.vue";
 import Toolbar from "./components/Toolbar.vue";
 import KonvaCanvas from "./components/KonvaCanvas.vue";
@@ -176,6 +177,7 @@ const selectedNodesCount = ref(0);
 
 // 脏状态 & 自动保存
 const isDirty = ref(false);
+const isInitializing = ref(false); // 初始化守卫：加载/创建项目期间跳过 dirty 标记
 let autoSaveTimer: ReturnType<typeof setInterval> | null = null;
 
 onMounted(async () => {
@@ -353,7 +355,7 @@ async function handleAutoSave() {
 watch(
   layers,
   () => {
-    if (currentView.value === "editor") {
+    if (currentView.value === "editor" && !isInitializing.value) {
       isDirty.value = true;
     }
   },
@@ -393,6 +395,7 @@ watch(activeTool, (newTool) => {
 async function handleSelectProject(id: string) {
   const manifest = await loadProject(id);
   if (manifest) {
+    isInitializing.value = true;
     currentProject.value = manifest.project;
     layers.value = manifest.layers;
     assetRefs.value = manifest.assetRefs || [];
@@ -401,6 +404,11 @@ async function handleSelectProject(id: string) {
     }
     clearHistory();
     currentView.value = "editor";
+
+    // 等待 DOM 更新和 watch 回调执行完毕后解除初始化守卫
+    await nextTick();
+    isInitializing.value = false;
+    isDirty.value = false;
 
     // 加载位图图层的像素数据并绘制到 canvas 上
     const rasterData = await loadRasterLayers(id, manifest.layers);
@@ -438,6 +446,8 @@ async function handleCreateProject(data: {
   createBackgroundLayer: boolean;
   backgroundLayerColor: string | null;
 }) {
+  isInitializing.value = true;
+
   const newProj: SketchProject = {
     id: nanoid(),
     name: data.name,
@@ -473,6 +483,11 @@ async function handleCreateProject(data: {
 
   activeLayerId.value = firstLayerId;
   currentView.value = "editor";
+
+  // 等待 DOM 更新和 watch 回调执行完毕后解除初始化守卫
+  await nextTick();
+  isInitializing.value = false;
+  isDirty.value = false;
 
   // 如果创建了背景图层且设置了背景色，在 canvas 就绪后填充
   if (data.createBackgroundLayer && data.backgroundLayerColor) {
@@ -534,6 +549,7 @@ async function handleRenameProject(id: string, newName: string) {
 async function handleImportProject(bytes: Uint8Array) {
   const unpacked = await unpackageSketch(bytes);
   if (unpacked) {
+    isInitializing.value = true;
     const { manifest, rasterLayers } = unpacked;
     // 生成新 ID 避免冲突
     manifest.project.id = nanoid();
@@ -548,6 +564,11 @@ async function handleImportProject(bytes: Uint8Array) {
     }
     clearHistory();
     currentView.value = "editor";
+
+    // 解除初始化守卫
+    await nextTick();
+    isInitializing.value = false;
+    isDirty.value = false;
 
     // 写入解包后的位图数据到 Canvas
     setTimeout(() => {

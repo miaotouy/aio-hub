@@ -120,9 +120,10 @@
 
     <!-- 右侧：操作按钮 -->
     <div class="toolbar-right">
-      <button class="action-btn" title="保存草图 (Ctrl+S)" @click="$emit('save')">
+      <button class="action-btn" :class="{ 'has-changes': isDirty }" title="保存草图 (Ctrl+S)" @click="$emit('save')">
         <Save :size="16" />
         <span>保存</span>
+        <span v-if="isDirty" class="dirty-dot" />
       </button>
       <button class="action-btn" title="导出为 .aiosk 文件" @click="$emit('export')">
         <Download :size="16" />
@@ -163,6 +164,7 @@ defineProps<{
   activeTool: ToolType;
   canUndo: boolean;
   canRedo: boolean;
+  isDirty: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -287,5 +289,18 @@ function selectTool(tool: ToolType) {
 
 .action-btn.accent:hover {
   background: var(--el-color-primary);
+}
+
+.action-btn.has-changes {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.dirty-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.55);
+  flex-shrink: 0;
+  margin-left: 2px;
 }
 </style>

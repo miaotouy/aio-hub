@@ -1,7 +1,7 @@
 # Sketch Pad 工具 — 架构设计方案
 
-**状态**: Implementing  
-**创建日期**: 2025-05-24  
+**状态**: Superseded (已被 `sketch-pad-hybrid-design.md` 替代)
+**创建日期**: 2025-05-24
 **作者**: 咕咕
 
 ---

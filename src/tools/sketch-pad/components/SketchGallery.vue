@@ -434,7 +434,7 @@ function formatDate(dateStr: string) {
 /* 边框发光层 - 模拟 Win10 Reveal Border（仅在鼠标不在卡片内部时显示径向渐变） */
 .card-glow-border {
   position: absolute;
-  inset: 0;
+  inset: -2px;
   border-radius: inherit;
   pointer-events: none;
   z-index: 1;
@@ -445,7 +445,7 @@ function formatDate(dateStr: string) {
     rgba(var(--primary-color-rgb, 64, 158, 255), 0.8) 0%,
     transparent 100%
   );
-  /* 用 mask 只保留边框区域，padding 控制边框粗细 */
+  /* 用 mask 只保留边框区域，padding 控制边框粗细（与卡片 border 2px 对齐） */
   -webkit-mask:
     linear-gradient(#fff 0 0) content-box,
     linear-gradient(#fff 0 0);

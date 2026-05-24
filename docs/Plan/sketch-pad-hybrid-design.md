@@ -839,18 +839,18 @@ User → Ctrl+S
 {
   "dependencies": {
     "konva": "^9.3.0",
-    "perfect-freehand": "^1.2.2",
-    "fflate": "^0.8.2"
+    "perfect-freehand": "^1.2.2"
   }
 }
 ```
+
+> **ZIP 打包**: 复用项目中已有的 `jszip`（`"jszip": "^3.10.1"`），无需新增 `fflate`。`jszip` 已在 `agentExportService`、`worldbookExportService` 等多处使用，功能完善。
 
 | 依赖               | 体积 (gzipped) | 用途                                   |
 | ------------------ | -------------- | -------------------------------------- |
 | `konva`            | ~150KB         | 图层管理、对象渲染、变换控件、事件系统 |
 | `perfect-freehand` | ~5KB           | 笔触轮廓算法（类 Procreate 手感）      |
-| `fflate`           | ~8KB           | .aiosk 文件打包解包                    |
-| **合计**           | **~163KB**     | —                                      |
+| **合计**           | **~155KB**     | —                                      |
 
 > 对比：Fabric.js v6 单独就 ~300KB。Konva + perfect-freehand 组合更轻量且更适合混合架构。
 

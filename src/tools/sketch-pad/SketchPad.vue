@@ -9,6 +9,7 @@
       @delete-project="handleDeleteProject"
       @rename-project="handleRenameProject"
       @import-project="handleImportProject"
+      @refresh="syncIndex"
     />
 
     <!-- 2. 编辑界面 -->
@@ -134,7 +135,8 @@ const {
 } = useLayerStack();
 
 const { undoStack, redoStack, canUndo, canRedo, pushEntry, clearHistory } = useHybridHistory();
-const { projects, loadIndex, saveProject, loadProject, loadRasterLayers, deleteProject } = useSketchStorage();
+const { projects, loadIndex, syncIndex, saveProject, loadProject, loadRasterLayers, deleteProject } =
+  useSketchStorage();
 const { sendToChat } = useSendSketchToChat();
 const { importImageFromDialog } = useImageAsset();
 
@@ -167,7 +169,7 @@ const isDirty = ref(false);
 let autoSaveTimer: ReturnType<typeof setInterval> | null = null;
 
 onMounted(async () => {
-  await loadIndex();
+  await syncIndex();
 
   // 绑定全局快捷键
   window.addEventListener("keydown", handleGlobalKeyDown);

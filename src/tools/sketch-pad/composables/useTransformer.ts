@@ -18,8 +18,8 @@ export function useTransformer() {
         "bottom-right",
         "top-center",
         "bottom-center",
-        "left-center",
-        "right-center",
+        "middle-left",
+        "middle-right",
       ],
     });
 

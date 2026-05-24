@@ -1,6 +1,6 @@
 import { ref } from "vue";
 import { appDataDir, join } from "@tauri-apps/api/path";
-import { readTextFile, readFile, writeTextFile, mkdir, exists, writeFile } from "@tauri-apps/plugin-fs";
+import { readTextFile, readFile, writeTextFile, mkdir, exists, writeFile, readDir } from "@tauri-apps/plugin-fs";
 import { invoke } from "@tauri-apps/api/core";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -56,6 +56,92 @@ export function useSketchStorage() {
       logger.error("加载索引失败", error as Error);
       return { projects: [] };
     }
+  }
+
+  /**
+   * 同步索引与实际目录状态
+   * - 移除索引中目录已不存在的孤儿记录
+   * - 发现实际目录中存在但索引中没有的项目，尝试恢复
+   */
+  async function syncIndex(): Promise<SketchIndex> {
+    const index = await loadIndex();
+    const root = await getSketchRootDir();
+    const sketchesDir = await join(root, "sketches");
+
+    // 确保 sketches 目录存在
+    if (!(await exists(sketchesDir))) {
+      await mkdir(sketchesDir, { recursive: true });
+      // 如果目录都不存在，索引中的项目全是孤儿
+      if (index.projects.length > 0) {
+        logger.warn("sketches 目录不存在，清理所有索引记录", { count: index.projects.length });
+        index.projects = [];
+        await saveIndex(index);
+      }
+      return index;
+    }
+
+    let dirty = false;
+
+    // 1. 校验索引中的项目，移除目录已不存在的孤儿
+    const validProjects: SketchProject[] = [];
+    for (const project of index.projects) {
+      const projectDir = await join(sketchesDir, project.id);
+      if (await exists(projectDir)) {
+        validProjects.push(project);
+      } else {
+        logger.warn("索引中的项目目录不存在，移除孤儿记录", { id: project.id, name: project.name });
+        dirty = true;
+      }
+    }
+
+    // 2. 扫描实际目录，发现未索引的项目
+    try {
+      const entries = await readDir(sketchesDir);
+      const indexedIds = new Set(validProjects.map((p) => p.id));
+
+      for (const entry of entries) {
+        if (!entry.isDirectory || !entry.name) continue;
+        const dirId = entry.name;
+        if (indexedIds.has(dirId)) continue;
+
+        // 尝试从 sketch.json 恢复项目信息
+        const manifestPath = await join(sketchesDir, dirId, "sketch.json");
+        if (await exists(manifestPath)) {
+          try {
+            const content = await readTextFile(manifestPath);
+            const manifest = JSON.parse(content) as HybridSketchFile;
+            if (manifest.project) {
+              validProjects.push(manifest.project);
+              logger.info("从目录恢复未索引的项目", { id: dirId, name: manifest.project.name });
+              dirty = true;
+            }
+          } catch {
+            logger.warn("无法解析项目 manifest，跳过", { dirId });
+          }
+        } else {
+          logger.warn("发现无 manifest 的孤儿目录，跳过", { dirId });
+        }
+      }
+    } catch (error) {
+      logger.warn("扫描 sketches 目录失败", { error });
+    }
+
+    // 3. 修正 lastOpenedId
+    if (index.lastOpenedId && !validProjects.some((p) => p.id === index.lastOpenedId)) {
+      index.lastOpenedId = validProjects[0]?.id || undefined;
+      dirty = true;
+    }
+
+    if (dirty) {
+      index.projects = validProjects;
+      await saveIndex(index);
+      logger.info("索引已同步更新", { projectCount: validProjects.length });
+    } else {
+      index.projects = validProjects;
+      projects.value = validProjects;
+    }
+
+    return index;
   }
 
   async function saveIndex(index: SketchIndex) {
@@ -201,12 +287,17 @@ export function useSketchStorage() {
   async function deleteProject(id: string) {
     return await errorHandler.wrapAsync(
       async () => {
-        // 使用 Rust 后端的安全删除指令
-        await invoke("delete_directory_in_app_data", {
-          relativePath: `sketch-pad/sketches/${id}`,
-        });
+        // 使用 Rust 后端的安全删除指令，容忍目录已不存在的情况
+        const sketchDir = await getSketchBasePath(id);
+        if (await exists(sketchDir)) {
+          await invoke("delete_directory_in_app_data", {
+            relativePath: `sketch-pad/sketches/${id}`,
+          });
+        } else {
+          logger.warn("项目目录已不存在，跳过文件删除", { id });
+        }
 
-        // 删除缩略图
+        // 删除缩略图（同样容忍不存在）
         const root = await getSketchRootDir();
         const thumbPath = await join(root, "thumbnails", `${id}.png`);
         if (await exists(thumbPath)) {
@@ -234,6 +325,7 @@ export function useSketchStorage() {
     projects,
     currentProjectId,
     loadIndex,
+    syncIndex,
     saveProject,
     loadProject,
     loadRasterLayers,

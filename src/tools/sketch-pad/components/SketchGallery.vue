@@ -6,6 +6,9 @@
         <span class="subtitle">管理和创作草图</span>
       </div>
       <div class="action-section">
+        <el-tooltip content="刷新索引" placement="bottom">
+          <el-button :icon="RefreshCw" circle @click="emit('refresh')" />
+        </el-tooltip>
         <el-button type="primary" :icon="Plus" @click="openCreateDialog">新建草图</el-button>
         <el-button :icon="Upload" @click="handleImport">导入草图 (.aiosk)</el-button>
       </div>
@@ -13,12 +16,7 @@
 
     <!-- 草图列表 -->
     <div v-if="projects.length > 0" ref="gridRef" class="project-grid">
-      <div
-        v-for="project in projects"
-        :key="project.id"
-        class="project-card"
-        @click="selectProject(project.id)"
-      >
+      <div v-for="project in projects" :key="project.id" class="project-card" @click="selectProject(project.id)">
         <div class="card-glow-border" />
         <div class="card-glow-bg" />
         <div class="thumbnail-container">
@@ -78,10 +76,7 @@
               @click="selectPreset(preset.id)"
             >
               <div class="ratio-block-wrapper">
-                <div
-                  class="ratio-block"
-                  :style="getRatioBlockStyle(preset.ratio)"
-                />
+                <div class="ratio-block" :style="getRatioBlockStyle(preset.ratio)" />
               </div>
               <span class="ratio-name">{{ preset.name }}</span>
               <span class="ratio-value">{{ preset.ratioLabel }}</span>
@@ -99,7 +94,13 @@
             <span class="size-separator">×</span>
             <div class="size-input-group">
               <label class="size-label">高</label>
-              <el-input-number v-model="createForm.height" :min="100" :max="8192" :step="10" controls-position="right" />
+              <el-input-number
+                v-model="createForm.height"
+                :min="100"
+                :max="8192"
+                :step="10"
+                controls-position="right"
+              />
             </div>
           </div>
         </Transition>
@@ -133,7 +134,7 @@
 <script setup lang="ts">
 import { ref, reactive } from "vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
-import { Plus, Upload, Trash2, Edit, Calendar, Image } from "lucide-vue-next";
+import { Plus, Upload, Trash2, Edit, Calendar, Image, RefreshCw } from "lucide-vue-next";
 import type { SketchProject } from "../types";
 import { generateDefaultSketchName } from "../constants";
 import { convertFileSrc } from "@tauri-apps/api/core";
@@ -191,6 +192,7 @@ const emit = defineEmits<{
   (e: "delete-project", id: string): void;
   (e: "rename-project", id: string, newName: string): void;
   (e: "import-project", data: Uint8Array): void;
+  (e: "refresh"): void;
 }>();
 
 // 画布预设定义
@@ -388,7 +390,9 @@ function formatDate(dateStr: string) {
   border: 1px solid transparent;
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
-  transition: border-color 0.2s ease, background-color 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease;
   --mouse-x: 50%;
   --mouse-y: 50%;
   --glow-opacity: 0;

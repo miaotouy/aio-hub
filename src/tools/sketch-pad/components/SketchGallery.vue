@@ -151,21 +151,26 @@ defineProps<{
 
 // ─── Reveal Highlight (Win10 磁贴边缘照亮) ───
 const gridRef = ref<HTMLElement | null>(null);
+let rafId: number | null = null;
+let lastMouseX = 0;
+let lastMouseY = 0;
 
-function handleGridMouseMove(e: MouseEvent) {
+function updateGlow() {
+  rafId = null;
   if (!gridRef.value) return;
   const cards = gridRef.value.querySelectorAll<HTMLElement>(".project-card");
+  const cx = lastMouseX;
+  const cy = lastMouseY;
   cards.forEach((card) => {
     const rect = card.getBoundingClientRect();
-    // 鼠标相对卡片左上角的坐标（用于光心定位）
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const x = cx - rect.left;
+    const y = cy - rect.top;
     card.style.setProperty("--mouse-x", `${x}px`);
     card.style.setProperty("--mouse-y", `${y}px`);
 
     // 计算鼠标到卡片矩形最近边缘的距离（内部为 0）
-    const dx = Math.max(rect.left - e.clientX, 0, e.clientX - rect.right);
-    const dy = Math.max(rect.top - e.clientY, 0, e.clientY - rect.bottom);
+    const dx = Math.max(rect.left - cx, 0, cx - rect.right);
+    const dy = Math.max(rect.top - cy, 0, cy - rect.bottom);
     const dist = Math.sqrt(dx * dx + dy * dy);
 
     // 判断鼠标是否在卡片内部
@@ -179,7 +184,19 @@ function handleGridMouseMove(e: MouseEvent) {
   });
 }
 
+function handleGridMouseMove(e: MouseEvent) {
+  lastMouseX = e.clientX;
+  lastMouseY = e.clientY;
+  if (rafId === null) {
+    rafId = requestAnimationFrame(updateGlow);
+  }
+}
+
 function handleGridMouseLeave() {
+  if (rafId !== null) {
+    cancelAnimationFrame(rafId);
+    rafId = null;
+  }
   if (!gridRef.value) return;
   const cards = gridRef.value.querySelectorAll<HTMLElement>(".project-card");
   cards.forEach((card) => {
@@ -399,12 +416,9 @@ function formatDate(dateStr: string) {
   cursor: pointer;
   position: relative;
   border-radius: var(--el-border-radius-base, 8px);
-  border: 1px solid transparent;
+  border: 2px solid transparent;
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
-  transition:
-    border-color 0.2s ease,
-    background-color 0.2s ease;
   --mouse-x: 50%;
   --mouse-y: 50%;
   --glow-opacity: 0;
@@ -426,7 +440,6 @@ function formatDate(dateStr: string) {
   z-index: 1;
   /* 鼠标在内部时隐藏径向渐变边框（由 :hover 的实色边框接管） */
   opacity: calc(var(--glow-opacity) * (1 - var(--is-hovered)));
-  transition: opacity 0.2s ease;
   background: radial-gradient(
     300px circle at var(--mouse-x) var(--mouse-y),
     rgba(var(--primary-color-rgb, 64, 158, 255), 0.8) 0%,
@@ -452,7 +465,6 @@ function formatDate(dateStr: string) {
   pointer-events: none;
   z-index: 0;
   opacity: calc(var(--glow-opacity) * (1 - var(--is-hovered) * 0.6));
-  transition: opacity 0.2s ease;
   background: radial-gradient(
     250px circle at var(--mouse-x) var(--mouse-y),
     rgba(var(--primary-color-rgb, 64, 158, 255), 0.08) 0%,

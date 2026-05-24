@@ -139,3 +139,39 @@ export interface SketchIndex {
   projects: SketchProject[];
   lastOpenedId?: string;
 }
+
+// ─── 画板全局首选项 ───
+
+export interface SketchPadSettings {
+  // ─── 新建项目默认值 ───
+  defaultCanvasWidth: number;
+  defaultCanvasHeight: number;
+  defaultCanvasPreset: string;
+
+  // ─── 默认图层配置 ───
+  createBackgroundLayer: boolean;
+  createObjectLayer: boolean;
+  backgroundLayerName: string;
+  objectLayerName: string;
+  backgroundLayerColor: string | null; // 背景层默认填充色，null = 透明
+
+  // ─── 画笔默认值 ───
+  defaultBrushSize: number;
+  defaultBrushColor: string;
+  defaultBrushOpacity: number;
+
+  // ─── 形状默认值 ───
+  defaultStrokeWidth: number;
+  defaultStrokeColor: string;
+  defaultFillColor: string | null;
+  defaultCornerRadius: number;
+
+  // ─── 文字默认值 ───
+  defaultFontSize: number;
+  defaultTextColor: string;
+
+  // ─── 行为设置 ───
+  autoSaveEnabled: boolean;
+  autoSaveInterval: number; // 秒
+  showToolSwitchHint: boolean;
+}

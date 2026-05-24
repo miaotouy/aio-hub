@@ -10,6 +10,7 @@
       @rename-project="handleRenameProject"
       @import-project="handleImportProject"
       @refresh="syncIndex"
+      @open-settings="showSettings = true"
     />
 
     <!-- 2. 编辑界面 -->
@@ -89,6 +90,9 @@
         @rasterize-layer="handleRasterizeLayer"
       />
     </div>
+
+    <!-- 设置对话框（不参与 v-if/v-else 链） -->
+    <SketchSettingsDialog v-model="showSettings" />
   </div>
 </template>
 
@@ -99,10 +103,12 @@ import Toolbar from "./components/Toolbar.vue";
 import KonvaCanvas from "./components/KonvaCanvas.vue";
 import PropertyPanel from "./components/PropertyPanel.vue";
 import LayerPanel from "./components/LayerPanel.vue";
+import SketchSettingsDialog from "./components/SketchSettingsDialog.vue";
 
 import { useLayerStack } from "./composables/useLayerStack";
 import { useHybridHistory, type HistoryEntry } from "./composables/useHybridHistory";
 import { useSketchStorage } from "./composables/useSketchStorage";
+import { useSketchSettings } from "./composables/useSketchSettings";
 import { useSendSketchToChat } from "./composables/useSendSketchToChat";
 import { useImageAsset } from "./composables/useImageAsset";
 import { packageSketch, unpackageSketch } from "./core/sketch-packager";
@@ -137,13 +143,17 @@ const {
 const { undoStack, redoStack, canUndo, canRedo, pushEntry, clearHistory } = useHybridHistory();
 const { projects, loadIndex, syncIndex, saveProject, loadProject, loadRasterLayers, deleteProject } =
   useSketchStorage();
+const { settings: sketchSettings, loadSettings: loadSketchSettings } = useSketchSettings();
 const { sendToChat } = useSendSketchToChat();
 const { importImageFromDialog } = useImageAsset();
 
 // 资产引用表（当前工程的图片资产引用）
 const assetRefs = ref<AssetRef[]>([]);
 
-// 属性状态
+// 设置对话框
+const showSettings = ref(false);
+
+// 属性状态（初始值将在 onMounted 中从设置加载）
 const activeTool = ref<ToolType>("select");
 const brushSize = ref(5);
 const brushColor = ref("#ff4d4f");
@@ -169,26 +179,57 @@ const isDirty = ref(false);
 let autoSaveTimer: ReturnType<typeof setInterval> | null = null;
 
 onMounted(async () => {
+  // 加载画板设置
+  await loadSketchSettings();
+  applySettingsDefaults();
+
   await syncIndex();
 
   // 绑定全局快捷键
   window.addEventListener("keydown", handleGlobalKeyDown);
 
-  // 启动自动保存定时器 (30s)
-  autoSaveTimer = setInterval(() => {
-    if (isDirty.value && currentProject.value && canvasRef.value) {
-      handleAutoSave();
-    }
-  }, 30000);
+  // 启动自动保存定时器
+  startAutoSaveTimer();
 });
 
 onUnmounted(() => {
   window.removeEventListener("keydown", handleGlobalKeyDown);
+  stopAutoSaveTimer();
+});
+
+/** 从设置中应用默认属性值 */
+function applySettingsDefaults() {
+  const s = sketchSettings.value;
+  brushSize.value = s.defaultBrushSize;
+  brushColor.value = s.defaultBrushColor;
+  brushOpacity.value = s.defaultBrushOpacity;
+  strokeWidth.value = s.defaultStrokeWidth;
+  strokeColor.value = s.defaultStrokeColor;
+  fillColor.value = s.defaultFillColor;
+  cornerRadius.value = s.defaultCornerRadius;
+  fontSize.value = s.defaultFontSize;
+  textColor.value = s.defaultTextColor;
+}
+
+/** 启动自动保存定时器 */
+function startAutoSaveTimer() {
+  stopAutoSaveTimer();
+  if (!sketchSettings.value.autoSaveEnabled) return;
+  const intervalMs = sketchSettings.value.autoSaveInterval * 1000;
+  autoSaveTimer = setInterval(() => {
+    if (isDirty.value && currentProject.value && canvasRef.value) {
+      handleAutoSave();
+    }
+  }, intervalMs);
+}
+
+/** 停止自动保存定时器 */
+function stopAutoSaveTimer() {
   if (autoSaveTimer) {
     clearInterval(autoSaveTimer);
     autoSaveTimer = null;
   }
-});
+}
 
 // ─── 快捷键系统 ───
 function handleGlobalKeyDown(e: KeyboardEvent) {
@@ -324,7 +365,9 @@ watch(activeTool, (newTool) => {
   if (!activeLayer.value) return;
 
   if (["pencil", "marker", "eraser"].includes(newTool) && activeLayer.value.type !== "raster") {
-    customMessage.info("提示：画笔工具需要位图图层，已自动为您切换/创建位图图层");
+    if (sketchSettings.value.showToolSwitchHint) {
+      customMessage.info("提示：画笔工具需要位图图层，已自动为您切换/创建位图图层");
+    }
     // 寻找最近的位图图层
     const rasterLayer = layers.value.find((l) => l.type === "raster");
     if (rasterLayer) {
@@ -333,7 +376,9 @@ watch(activeTool, (newTool) => {
       handleCreateLayer("raster");
     }
   } else if (["rect", "ellipse", "line", "arrow", "text"].includes(newTool) && activeLayer.value.type !== "object") {
-    customMessage.info("提示：形状/文字工具需要对象图层，已自动为您切换/创建对象图层");
+    if (sketchSettings.value.showToolSwitchHint) {
+      customMessage.info("提示：形状/文字工具需要对象图层，已自动为您切换/创建对象图层");
+    }
     // 寻找最近的对象图层
     const objectLayer = layers.value.find((l) => l.type === "object");
     if (objectLayer) {
@@ -401,12 +446,51 @@ async function handleCreateProject(data: { name: string; width: number; height: 
   clearHistory();
   assetRefs.value = [];
 
-  // 默认创建一个位图图层和一个对象图层
-  const raster = addLayer("raster", "背景涂鸦");
-  addLayer("object", "矢量标注");
-  activeLayerId.value = raster.id;
+  // 根据设置创建默认图层
+  const s = sketchSettings.value;
+  let firstLayerId = "";
 
+  if (s.createBackgroundLayer) {
+    const raster = addLayer("raster", s.backgroundLayerName || "背景涂鸦");
+    firstLayerId = raster.id;
+  }
+  if (s.createObjectLayer) {
+    const obj = addLayer("object", s.objectLayerName || "矢量标注");
+    if (!firstLayerId) firstLayerId = obj.id;
+  }
+
+  // 如果两个都没创建，至少创建一个位图图层
+  if (!firstLayerId) {
+    const fallback = addLayer("raster", "图层 1");
+    firstLayerId = fallback.id;
+  }
+
+  activeLayerId.value = firstLayerId;
   currentView.value = "editor";
+
+  // 如果设置了背景色，在 canvas 就绪后填充
+  if (s.createBackgroundLayer && s.backgroundLayerColor) {
+    const bgLayerId = firstLayerId;
+    const bgColor = s.backgroundLayerColor;
+    setTimeout(() => {
+      fillBackgroundLayer(bgLayerId, bgColor);
+    }, 100);
+  }
+}
+
+/** 为背景位图图层填充纯色 */
+function fillBackgroundLayer(layerId: string, color: string) {
+  if (!canvasRef.value) return;
+  const canvases = canvasRef.value.getCanvases();
+  const canvas = canvases.get(layerId);
+  if (canvas) {
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      ctx.fillStyle = color;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      canvasRef.value.getStage()?.batchDraw();
+    }
+  }
 }
 
 async function handleDeleteProject(id: string) {

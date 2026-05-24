@@ -6,6 +6,9 @@
         <span class="subtitle">管理和创作草图</span>
       </div>
       <div class="action-section">
+        <el-tooltip content="画板设置" placement="bottom">
+          <el-button :icon="Settings2" circle @click="emit('open-settings')" />
+        </el-tooltip>
         <el-tooltip content="刷新索引" placement="bottom">
           <el-button :icon="RefreshCw" circle @click="emit('refresh')" />
         </el-tooltip>
@@ -136,7 +139,7 @@
 <script setup lang="ts">
 import { ref, reactive } from "vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
-import { Plus, Upload, Trash2, Edit, Calendar, Image, RefreshCw } from "lucide-vue-next";
+import { Plus, Upload, Trash2, Edit, Calendar, Image, RefreshCw, Settings2 } from "lucide-vue-next";
 import type { SketchProject } from "../types";
 import { generateDefaultSketchName } from "../constants";
 import { convertFileSrc } from "@tauri-apps/api/core";
@@ -212,6 +215,7 @@ const emit = defineEmits<{
   (e: "rename-project", id: string, newName: string): void;
   (e: "import-project", data: Uint8Array): void;
   (e: "refresh"): void;
+  (e: "open-settings"): void;
 }>();
 
 // 画布预设定义

@@ -28,6 +28,7 @@ export const DEFAULT_TOOLS_ORDER = [
   "/ffmpeg-tools",
   "/danmaku-player",
   "/color-picker",
+  "/sketch-pad",
   "/media-info-reader",
 
   // 文件管理

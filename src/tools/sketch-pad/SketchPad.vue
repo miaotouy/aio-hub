@@ -431,7 +431,13 @@ async function handleSelectProject(id: string) {
   }
 }
 
-async function handleCreateProject(data: { name: string; width: number; height: number }) {
+async function handleCreateProject(data: {
+  name: string;
+  width: number;
+  height: number;
+  createBackgroundLayer: boolean;
+  backgroundLayerColor: string | null;
+}) {
   const newProj: SketchProject = {
     id: nanoid(),
     name: data.name,
@@ -446,11 +452,11 @@ async function handleCreateProject(data: { name: string; width: number; height: 
   clearHistory();
   assetRefs.value = [];
 
-  // 根据设置创建默认图层
+  // 根据弹窗设定 + 全局设置创建默认图层
   const s = sketchSettings.value;
   let firstLayerId = "";
 
-  if (s.createBackgroundLayer) {
+  if (data.createBackgroundLayer) {
     const raster = addLayer("raster", s.backgroundLayerName || "背景涂鸦");
     firstLayerId = raster.id;
   }
@@ -468,10 +474,10 @@ async function handleCreateProject(data: { name: string; width: number; height: 
   activeLayerId.value = firstLayerId;
   currentView.value = "editor";
 
-  // 如果设置了背景色，在 canvas 就绪后填充
-  if (s.createBackgroundLayer && s.backgroundLayerColor) {
+  // 如果创建了背景图层且设置了背景色，在 canvas 就绪后填充
+  if (data.createBackgroundLayer && data.backgroundLayerColor) {
     const bgLayerId = firstLayerId;
-    const bgColor = s.backgroundLayerColor;
+    const bgColor = data.backgroundLayerColor;
     setTimeout(() => {
       fillBackgroundLayer(bgLayerId, bgColor);
     }, 100);

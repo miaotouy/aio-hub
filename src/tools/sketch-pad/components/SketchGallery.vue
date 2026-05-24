@@ -110,6 +110,21 @@
           </div>
         </Transition>
 
+        <!-- 背景图层设定 -->
+        <div class="background-section">
+          <div class="bg-switch-row">
+            <label class="input-label">背景图层</label>
+            <el-switch v-model="createForm.createBackgroundLayer" />
+          </div>
+          <Transition name="expand">
+            <div v-if="createForm.createBackgroundLayer" class="bg-color-row">
+              <label class="size-label">背景色</label>
+              <el-color-picker v-model="createForm.backgroundLayerColor" :predefine="BG_COLOR_PRESETS" show-alpha />
+              <span class="color-hint">{{ createForm.backgroundLayerColor || "透明" }}</span>
+            </div>
+          </Transition>
+        </div>
+
         <!-- 尺寸预览 -->
         <div class="size-preview">
           最终尺寸：<strong>{{ createForm.width }} × {{ createForm.height }}</strong> px
@@ -142,6 +157,7 @@ import BaseDialog from "@/components/common/BaseDialog.vue";
 import { Plus, Upload, Trash2, Edit, Calendar, Image, RefreshCw, Settings2 } from "lucide-vue-next";
 import type { SketchProject } from "../types";
 import { generateDefaultSketchName } from "../constants";
+import { useSketchSettings } from "../composables/useSketchSettings";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { format } from "date-fns";
 import { ElMessageBox } from "element-plus";
@@ -207,10 +223,18 @@ function handleGridMouseLeave() {
     card.style.setProperty("--is-hovered", "0");
   });
 }
-
 const emit = defineEmits<{
   (e: "select-project", id: string): void;
-  (e: "create-project", data: { name: string; width: number; height: number }): void;
+  (
+    e: "create-project",
+    data: {
+      name: string;
+      width: number;
+      height: number;
+      createBackgroundLayer: boolean;
+      backgroundLayerColor: string | null;
+    },
+  ): void;
   (e: "delete-project", id: string): void;
   (e: "rename-project", id: string, newName: string): void;
   (e: "import-project", data: Uint8Array): void;
@@ -229,6 +253,11 @@ const CANVAS_PRESETS = [
   { id: "custom", name: "自定义", ratioLabel: "自由", ratio: 0, width: 1920, height: 1080 },
 ] as const;
 
+const { settings: sketchSettings } = useSketchSettings();
+
+// 背景色预设
+const BG_COLOR_PRESETS = ["#ffffff", "#f5f5f5", "#e8e8e8", "#1a1a1a", "#2d2d2d", "#000000", "#fffbe6", "#f0f5ff"];
+
 // 新建草图状态
 const showCreateDialog = ref(false);
 const createForm = reactive({
@@ -236,6 +265,8 @@ const createForm = reactive({
   preset: "hd" as string,
   width: 1920,
   height: 1080,
+  createBackgroundLayer: true,
+  backgroundLayerColor: "#ffffff" as string | null,
 });
 
 // 重命名状态
@@ -293,6 +324,9 @@ function getRatioBlockStyle(ratio: number) {
 
 function openCreateDialog() {
   createForm.name = generateDefaultSketchName();
+  // 从全局设置同步背景图层默认值
+  createForm.createBackgroundLayer = sketchSettings.value.createBackgroundLayer;
+  createForm.backgroundLayerColor = sketchSettings.value.backgroundLayerColor;
   showCreateDialog.value = true;
 }
 
@@ -301,6 +335,8 @@ function handleCreate() {
     name: createForm.name || generateDefaultSketchName(),
     width: createForm.width,
     height: createForm.height,
+    createBackgroundLayer: createForm.createBackgroundLayer,
+    backgroundLayerColor: createForm.createBackgroundLayer ? createForm.backgroundLayerColor : null,
   });
   showCreateDialog.value = false;
 }
@@ -691,6 +727,33 @@ function formatDate(dateStr: string) {
   font-size: 16px;
   color: var(--el-text-color-placeholder);
   font-weight: 300;
+}
+
+.background-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background-color: rgba(var(--el-color-info-rgb, 144, 147, 153), calc(var(--card-opacity, 1) * 0.05));
+}
+
+.bg-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.bg-color-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.color-hint {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  font-family: monospace;
 }
 
 .size-preview {

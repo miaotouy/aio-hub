@@ -134,7 +134,7 @@ const {
 } = useLayerStack();
 
 const { undoStack, redoStack, canUndo, canRedo, pushEntry, clearHistory } = useHybridHistory();
-const { projects, loadIndex, saveProject, loadProject, deleteProject } = useSketchStorage();
+const { projects, loadIndex, saveProject, loadProject, loadRasterLayers, deleteProject } = useSketchStorage();
 const { sendToChat } = useSendSketchToChat();
 const { importImageFromDialog } = useImageAsset();
 
@@ -247,6 +247,9 @@ function handleGlobalKeyDown(e: KeyboardEvent) {
     case "v":
       activeTool.value = "select";
       break;
+    case "h":
+      activeTool.value = "hand";
+      break;
     case "b":
       activeTool.value = "pencil";
       break;
@@ -294,6 +297,9 @@ async function handleAutoSave() {
   const stage = canvasRef.value.getStage();
   const canvases = canvasRef.value.getCanvases();
   if (stage) {
+    // 自动保存前也需要同步矢量数据
+    syncObjectLayersBeforeSave();
+
     currentProject.value.updatedAt = new Date().toISOString();
     await saveProject(currentProject.value, layers.value, canvases, stage, assetRefs.value);
     isDirty.value = false;
@@ -348,6 +354,33 @@ async function handleSelectProject(id: string) {
     }
     clearHistory();
     currentView.value = "editor";
+
+    // 加载位图图层的像素数据并绘制到 canvas 上
+    const rasterData = await loadRasterLayers(id, manifest.layers);
+    if (rasterData.size > 0) {
+      // 等待 canvas 创建完成（syncLayers 由 watch 触发）
+      setTimeout(() => {
+        if (!canvasRef.value) return;
+        const canvases = canvasRef.value.getCanvases();
+        rasterData.forEach((data, layerId) => {
+          const canvas = canvases.get(layerId);
+          if (canvas) {
+            const ctx = canvas.getContext("2d");
+            if (ctx) {
+              const blob = new Blob([data], { type: "image/png" });
+              const url = URL.createObjectURL(blob);
+              const img = new Image();
+              img.onload = () => {
+                ctx.drawImage(img, 0, 0);
+                URL.revokeObjectURL(url);
+                canvasRef.value?.getStage()?.batchDraw();
+              };
+              img.src = url;
+            }
+          }
+        });
+      }, 100);
+    }
   }
 }
 
@@ -485,6 +518,22 @@ function handleResetView() {
   canvasRef.value?.resetView();
 }
 
+/**
+ * 保存前同步矢量图层数据：从 Konva 运行时节点序列化回 layers 数据模型
+ */
+function syncObjectLayersBeforeSave() {
+  if (!canvasRef.value) return;
+  const objectData = canvasRef.value.collectObjectLayerData();
+  if (!objectData) return;
+
+  for (const [layerId, objects] of objectData) {
+    const layer = layers.value.find((l) => l.id === layerId);
+    if (layer && layer.type === "object") {
+      layer.objects = objects;
+    }
+  }
+}
+
 async function handleSave() {
   if (!currentProject.value || !canvasRef.value) return;
 
@@ -492,6 +541,9 @@ async function handleSave() {
   const canvases = canvasRef.value.getCanvases();
 
   if (stage) {
+    // 保存前同步矢量图层数据
+    syncObjectLayersBeforeSave();
+
     currentProject.value.updatedAt = new Date().toISOString();
     const success = await saveProject(currentProject.value, layers.value, canvases, stage, assetRefs.value);
     if (success) {
@@ -539,6 +591,9 @@ async function handleExport() {
   const canvases = canvasRef.value.getCanvases();
 
   if (stage) {
+    // 导出前同步矢量图层数据
+    syncObjectLayersBeforeSave();
+
     const bytes = await packageSketch(currentProject.value, layers.value, canvases, stage);
     if (bytes) {
       const filePath = await save({

@@ -44,6 +44,7 @@ export type ShapeType = (typeof SHAPE_TYPES)[keyof typeof SHAPE_TYPES];
 
 export const TOOL_TYPES = {
   SELECT: "select",
+  HAND: "hand",
   ...BRUSH_TYPES,
   ...SHAPE_TYPES,
 } as const;

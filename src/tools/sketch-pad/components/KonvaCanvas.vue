@@ -93,7 +93,7 @@ const containerRef = ref<HTMLDivElement | null>(null);
 const canvases = new Map<string, HTMLCanvasElement>(); // layerId -> canvas
 
 // 引入 Composables
-const { stage, zoom, initStage, resetView } = useKonvaStage();
+const { stage, zoom, panX, panY, initStage, resetView } = useKonvaStage();
 const { isDrawing, startDrawing, draw, stopDrawing } = useRasterBrush();
 const { createKonvaNode, serializeKonvaNode } = useObjectLayer();
 const { selectedNodes, initTransformer, clearSelection, handleStageClick } = useTransformer();
@@ -107,9 +107,11 @@ const zoomPercent = computed(() => Math.round(zoom.value * 100));
 let tempShape: Konva.Shape | null = null;
 let startPoint = { x: 0, y: 0 };
 
-// Space 平移状态
+// 平移状态（Space 键 / Hand 工具 / 中键）
 const isSpaceHeld = ref(false);
 const isPanning = ref(false);
+const isMiddleButtonPanning = ref(false);
+const middlePanStart = { x: 0, y: 0, stageX: 0, stageY: 0 };
 
 // 画布边界显示
 const showCanvasBorder = ref(true);
@@ -168,12 +170,22 @@ onMounted(() => {
   // 7. 绑定键盘事件（Space 平移）
   window.addEventListener("keydown", handleKeyDown);
   window.addEventListener("keyup", handleKeyUp);
+
+  // 8. 绑定鼠标中键拖拽事件（在 container 上监听，避免被 Konva 拦截）
+  containerRef.value.addEventListener("pointerdown", handleMiddlePointerDown);
+  window.addEventListener("pointermove", handleMiddlePointerMove);
+  window.addEventListener("pointerup", handleMiddlePointerUp);
 });
 
 onUnmounted(() => {
   canvases.clear();
   window.removeEventListener("keydown", handleKeyDown);
   window.removeEventListener("keyup", handleKeyUp);
+  window.removeEventListener("pointermove", handleMiddlePointerMove);
+  window.removeEventListener("pointerup", handleMiddlePointerUp);
+  if (containerRef.value) {
+    containerRef.value.removeEventListener("pointerdown", handleMiddlePointerDown);
+  }
 });
 
 // Space 平移键盘事件
@@ -183,7 +195,6 @@ function handleKeyDown(e: KeyboardEvent) {
     isSpaceHeld.value = true;
     if (stage.value) {
       stage.value.draggable(true);
-      // 更改光标样式
       const container = stage.value.container();
       container.style.cursor = "grab";
     }
@@ -195,10 +206,51 @@ function handleKeyUp(e: KeyboardEvent) {
     isSpaceHeld.value = false;
     isPanning.value = false;
     if (stage.value) {
-      stage.value.draggable(false);
+      stage.value.draggable(props.activeTool === "hand");
       const container = stage.value.container();
-      container.style.cursor = "default";
+      container.style.cursor = props.activeTool === "hand" ? "grab" : "default";
     }
+  }
+}
+
+// 鼠标中键拖拽
+function handleMiddlePointerDown(e: PointerEvent) {
+  if (e.button !== 1) return; // 只处理中键
+  e.preventDefault();
+  if (!stage.value) return;
+
+  isMiddleButtonPanning.value = true;
+  middlePanStart.x = e.clientX;
+  middlePanStart.y = e.clientY;
+  middlePanStart.stageX = stage.value.x();
+  middlePanStart.stageY = stage.value.y();
+
+  const container = stage.value.container();
+  container.style.cursor = "grabbing";
+}
+
+function handleMiddlePointerMove(e: PointerEvent) {
+  if (!isMiddleButtonPanning.value || !stage.value) return;
+
+  const dx = e.clientX - middlePanStart.x;
+  const dy = e.clientY - middlePanStart.y;
+
+  stage.value.position({
+    x: middlePanStart.stageX + dx,
+    y: middlePanStart.stageY + dy,
+  });
+  stage.value.batchDraw();
+}
+
+function handleMiddlePointerUp(e: PointerEvent) {
+  if (e.button !== 1 || !isMiddleButtonPanning.value) return;
+  isMiddleButtonPanning.value = false;
+
+  if (stage.value) {
+    panX.value = stage.value.x();
+    panY.value = stage.value.y();
+    const container = stage.value.container();
+    container.style.cursor = props.activeTool === "hand" ? "grab" : "default";
   }
 }
 
@@ -219,13 +271,21 @@ watch(
   },
 );
 
-// 监听工具变化，清空选择
+// 监听工具变化，清空选择 & 切换 Hand 工具的 draggable 状态
 watch(
   () => props.activeTool,
   (tool) => {
     if (tool !== "select") {
       clearSelection();
       emit("selection-change", 0);
+    }
+
+    // Hand 工具：stage 始终 draggable
+    if (stage.value) {
+      const isHand = tool === "hand";
+      stage.value.draggable(isHand);
+      const container = stage.value.container();
+      container.style.cursor = isHand ? "grab" : "default";
     }
   },
 );
@@ -236,25 +296,28 @@ watch(selectedNodes, (nodes) => {
 });
 
 function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
-  // Space 拖拽时更新光标
+  // Space / Hand 工具拖拽时更新光标
   stageInstance.on("dragstart", () => {
-    if (isSpaceHeld.value) {
+    if (isSpaceHeld.value || props.activeTool === "hand") {
       isPanning.value = true;
       stageInstance.container().style.cursor = "grabbing";
     }
   });
 
   stageInstance.on("dragend", () => {
-    if (isSpaceHeld.value) {
+    if (isSpaceHeld.value || props.activeTool === "hand") {
       isPanning.value = false;
       stageInstance.container().style.cursor = "grab";
+      // 同步 pan 值
+      panX.value = stageInstance.x();
+      panY.value = stageInstance.y();
     }
   });
 
   // 鼠标/触摸按下
   stageInstance.on("mousedown touchstart", (e) => {
-    // Space 平移模式下不处理绘制
-    if (isSpaceHeld.value) return;
+    // Space 平移 / Hand 工具 / 中键拖拽模式下不处理绘制
+    if (isSpaceHeld.value || props.activeTool === "hand" || isMiddleButtonPanning.value) return;
 
     const activeLayer = props.layers.find((l) => l.id === props.activeLayerId);
     if (!activeLayer || !activeLayer.visible || activeLayer.locked) return;
@@ -821,6 +884,36 @@ function contextResetView() {
   contextMenuVisible.value = false;
 }
 
+/**
+ * 从 Konva Stage 中收集所有对象图层的当前节点数据
+ * 用于保存前同步矢量数据到 layers 数据模型
+ */
+function collectObjectLayerData(): Map<string, import("../types").SketchObject[]> {
+  const result = new Map<string, import("../types").SketchObject[]>();
+  if (!stage.value) return result;
+
+  for (const layer of props.layers) {
+    if (layer.type !== "object") continue;
+
+    const konvaLayer = stage.value.findOne(`#${layer.id}`) as Konva.Layer;
+    if (!konvaLayer) continue;
+
+    const objects: import("../types").SketchObject[] = [];
+    konvaLayer.getChildren().forEach((node) => {
+      if (node.name() === "object-node") {
+        try {
+          objects.push(serializeKonvaNode(node));
+        } catch {
+          // 跳过无法序列化的节点
+        }
+      }
+    });
+    result.set(layer.id, objects);
+  }
+
+  return result;
+}
+
 // 暴露方法给父组件
 defineExpose({
   getStage: () => stage.value,
@@ -829,6 +922,7 @@ defineExpose({
   createKonvaNode,
   serializeKonvaNode,
   addImageToActiveLayer,
+  collectObjectLayerData,
   resetView: () => {
     if (containerRef.value && stage.value) {
       resetView(props.width, props.height, containerRef.value.clientWidth, containerRef.value.clientHeight);

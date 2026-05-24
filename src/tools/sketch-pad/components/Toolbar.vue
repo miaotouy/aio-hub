@@ -20,6 +20,14 @@
         </button>
         <button
           class="tool-btn"
+          :class="{ active: activeTool === 'hand' }"
+          title="抓手工具 (H) - 拖拽画布"
+          @click="selectTool('hand')"
+        >
+          <Hand :size="18" />
+        </button>
+        <button
+          class="tool-btn"
           :class="{ active: activeTool === 'pencil' }"
           title="铅笔 (B)"
           @click="selectTool('pencil')"
@@ -132,6 +140,7 @@
 import {
   ArrowLeft,
   MousePointer,
+  Hand,
   Pencil,
   Highlighter,
   Eraser,

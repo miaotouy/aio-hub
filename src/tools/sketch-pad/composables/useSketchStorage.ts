@@ -1,6 +1,6 @@
 import { ref } from "vue";
 import { appDataDir, join } from "@tauri-apps/api/path";
-import { readTextFile, writeTextFile, mkdir, exists, writeFile } from "@tauri-apps/plugin-fs";
+import { readTextFile, readFile, writeTextFile, mkdir, exists, writeFile } from "@tauri-apps/plugin-fs";
 import { invoke } from "@tauri-apps/api/core";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -172,6 +172,32 @@ export function useSketchStorage() {
     );
   }
 
+  /**
+   * 加载项目中所有位图图层的像素数据
+   * 返回 Map<layerId, Uint8Array>
+   */
+  async function loadRasterLayers(id: string, layers: HybridLayer[]): Promise<Map<string, Uint8Array>> {
+    const result = new Map<string, Uint8Array>();
+
+    const basePath = await getSketchBasePath(id);
+
+    for (const layer of layers) {
+      if (layer.type !== "raster") continue;
+
+      const layerPath = await join(basePath, "layers", `${layer.id}.png`);
+      if (await exists(layerPath)) {
+        try {
+          const data = await readFile(layerPath);
+          result.set(layer.id, new Uint8Array(data));
+        } catch (error) {
+          logger.warn("读取位图图层失败", { layerId: layer.id, error });
+        }
+      }
+    }
+
+    return result;
+  }
+
   async function deleteProject(id: string) {
     return await errorHandler.wrapAsync(
       async () => {
@@ -210,6 +236,7 @@ export function useSketchStorage() {
     loadIndex,
     saveProject,
     loadProject,
+    loadRasterLayers,
     deleteProject,
   };
 }

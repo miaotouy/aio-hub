@@ -32,6 +32,7 @@
         :corner-radius="cornerRadius"
         :font-size="fontSize"
         :text-color="textColor"
+        :font-family="fontFamily"
         :font-weight="fontWeight"
         :font-style="fontStyle"
         :text-align="textAlign"
@@ -69,6 +70,7 @@
         :corner-radius="cornerRadius"
         :font-size="fontSize"
         :text-color="textColor"
+        :font-family="fontFamily"
         :selection-info="selectionInfo"
         @update:brush="updateBrush"
         @update:shape="updateShape"
@@ -173,6 +175,7 @@ const cornerRadius = ref(0);
 
 const fontSize = ref(24);
 const textColor = ref("#000000");
+const fontFamily = ref("sans-serif");
 const fontWeight = ref<"normal" | "bold">("normal");
 const fontStyle = ref<"normal" | "italic">("normal");
 const textAlign = ref<"left" | "center" | "right">("left");
@@ -221,6 +224,7 @@ function applySettingsDefaults() {
   cornerRadius.value = s.defaultCornerRadius;
   fontSize.value = s.defaultFontSize;
   textColor.value = s.defaultTextColor;
+  fontFamily.value = s.defaultFontFamily || "sans-serif";
 }
 
 /** 启动自动保存定时器 */
@@ -765,12 +769,14 @@ function updateShape(data: {
 function updateText(data: {
   fontSize?: number;
   color?: string;
+  fontFamily?: string;
   fontWeight?: "normal" | "bold";
   fontStyle?: "normal" | "italic";
   textAlign?: "left" | "center" | "right";
 }) {
   if (data.fontSize !== undefined) fontSize.value = data.fontSize;
   if (data.color !== undefined) textColor.value = data.color;
+  if (data.fontFamily !== undefined) fontFamily.value = data.fontFamily;
   if (data.fontWeight !== undefined) fontWeight.value = data.fontWeight;
   if (data.fontStyle !== undefined) fontStyle.value = data.fontStyle;
   if (data.textAlign !== undefined) textAlign.value = data.textAlign;

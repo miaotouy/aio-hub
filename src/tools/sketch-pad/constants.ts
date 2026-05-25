@@ -66,3 +66,17 @@ export const LINE_CAP_OPTIONS: { label: string; value: "butt" | "round" | "squar
   { label: "圆头", value: "round" },
   { label: "方头", value: "square" },
 ];
+
+/** 字体预设列表 */
+export const FONT_PRESETS: { label: string; value: string }[] = [
+  { label: "默认无衬线", value: "sans-serif" },
+  { label: "衬线体", value: "serif" },
+  { label: "等宽体", value: "monospace" },
+  { label: "微软雅黑", value: "Microsoft YaHei" },
+  { label: "宋体", value: "SimSun" },
+  { label: "楷体", value: "KaiTi" },
+  { label: "黑体", value: "SimHei" },
+  { label: "Arial", value: "Arial" },
+  { label: "Georgia", value: "Georgia" },
+  { label: "Courier New", value: "Courier New" },
+];

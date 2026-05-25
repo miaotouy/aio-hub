@@ -198,6 +198,7 @@ export interface SketchPadSettings {
   // ─── 文字默认值 ───
   defaultFontSize: number;
   defaultTextColor: string;
+  defaultFontFamily: string;
 
   // ─── 画布外观 ───
   checkerOpacity: number; // 棋盘格透明度 0-1，0 = 隐藏

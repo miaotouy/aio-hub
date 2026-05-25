@@ -90,6 +90,7 @@ const props = defineProps<{
   fillColor: string | null;
   cornerRadius: number;
   fontSize: number;
+  fontFamily: string;
   textColor: string;
   fontWeight: "normal" | "bold";
   fontStyle: "normal" | "italic";
@@ -831,7 +832,7 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
           locked: false,
           content: "",
           fontSize: props.fontSize,
-          fontFamily: "sans-serif",
+          fontFamily: props.fontFamily,
           fontWeight: props.fontWeight,
           fontStyle: props.fontStyle,
           textAlign: props.textAlign,
@@ -871,7 +872,7 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
           locked: false,
           content: "",
           fontSize: props.fontSize,
-          fontFamily: "sans-serif",
+          fontFamily: props.fontFamily,
           fontWeight: props.fontWeight,
           fontStyle: props.fontStyle,
           textAlign: props.textAlign,

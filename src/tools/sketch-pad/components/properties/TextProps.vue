@@ -1,5 +1,35 @@
 <template>
   <div class="property-group">
+    <div class="property-item">
+      <span class="label">字体</span>
+      <el-select
+        :model-value="fontFamily"
+        size="small"
+        filterable
+        placeholder="选择字体"
+        @update:model-value="(v: any) => emitUpdate({ fontFamily: v })"
+      >
+        <el-option-group label="预设字体">
+          <el-option
+            v-for="font in FONT_PRESETS"
+            :key="font.value"
+            :label="font.label"
+            :value="font.value"
+            :style="{ fontFamily: font.value }"
+          />
+        </el-option-group>
+        <el-option-group v-if="systemFonts.length > 0" label="系统字体">
+          <el-option
+            v-for="font in systemFonts"
+            :key="font"
+            :label="font"
+            :value="font"
+            :style="{ fontFamily: font }"
+          />
+        </el-option-group>
+      </el-select>
+    </div>
+
     <PropertySlider
       label="字号"
       :model-value="fontSize"
@@ -36,13 +66,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref, watch, onMounted } from "vue";
 import { AlignLeft, AlignCenter, AlignRight } from "lucide-vue-next";
 import PropertySlider from "./PropertySlider.vue";
 import PropertyColorPicker from "./PropertyColorPicker.vue";
+import { useSystemFonts } from "../../composables/useSystemFonts";
+import { FONT_PRESETS } from "../../constants";
 
 const props = defineProps<{
   fontSize: number;
+  fontFamily: string;
   textColor: string;
   fontWeight?: "normal" | "bold";
   fontStyle?: "normal" | "italic";
@@ -54,6 +87,7 @@ const emit = defineEmits<{
     e: "update",
     data: {
       fontSize?: number;
+      fontFamily?: string;
       color?: string;
       fontWeight?: "normal" | "bold";
       fontStyle?: "normal" | "italic";
@@ -61,6 +95,12 @@ const emit = defineEmits<{
     },
   ): void;
 }>();
+
+const { systemFonts, loadSystemFonts } = useSystemFonts();
+
+onMounted(() => {
+  loadSystemFonts();
+});
 
 const localBold = ref(props.fontWeight === "bold");
 const localItalic = ref(props.fontStyle === "italic");

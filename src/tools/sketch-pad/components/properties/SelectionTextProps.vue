@@ -41,6 +41,37 @@
 
     <div class="section-divider" />
 
+    <!-- 字体选择 -->
+    <div class="property-item">
+      <span class="label">字体</span>
+      <el-select
+        :model-value="obj.fontFamily"
+        size="small"
+        filterable
+        placeholder="选择字体"
+        @update:model-value="(v: any) => emitProp('fontFamily', v)"
+      >
+        <el-option-group label="预设字体">
+          <el-option
+            v-for="font in FONT_PRESETS"
+            :key="font.value"
+            :label="font.label"
+            :value="font.value"
+            :style="{ fontFamily: font.value }"
+          />
+        </el-option-group>
+        <el-option-group v-if="systemFonts.length > 0" label="系统字体">
+          <el-option
+            v-for="font in systemFonts"
+            :key="font"
+            :label="font"
+            :value="font"
+            :style="{ fontFamily: font }"
+          />
+        </el-option-group>
+      </el-select>
+    </div>
+
     <PropertySlider
       label="字号"
       :model-value="obj.fontSize"
@@ -129,17 +160,25 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, onMounted } from "vue";
 import { AlignLeft, AlignCenter, AlignRight, Maximize2 } from "lucide-vue-next";
 import type { TextObject } from "../../types";
 import SelectionCommonProps from "./SelectionCommonProps.vue";
 import PropertySlider from "./PropertySlider.vue";
 import PropertyColorPicker from "./PropertyColorPicker.vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
+import { useSystemFonts } from "../../composables/useSystemFonts";
+import { FONT_PRESETS } from "../../constants";
 
 const props = defineProps<{
   obj: TextObject;
 }>();
+
+const { systemFonts, loadSystemFonts } = useSystemFonts();
+
+onMounted(() => {
+  loadSystemFonts();
+});
 
 const isEditorOpen = ref(false);
 

@@ -86,6 +86,7 @@ use commands::{
     get_local_ips,
     get_media_metadata,
     get_saved_window_labels,
+    get_system_fonts,
     get_well_known_skill_paths,
     git_cancel_load,
     git_cherry_pick,
@@ -753,6 +754,8 @@ pub fn run() {
             // 系统脉搏命令
             start_pulse,
             stop_pulse,
+            // 字体列表命令
+            get_system_fonts,
         ])
         // 设置应用
         .setup(move |app| {

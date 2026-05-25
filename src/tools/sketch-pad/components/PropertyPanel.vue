@@ -39,6 +39,7 @@
       <TextProps
         v-else-if="activeTool === 'text' && selectionInfo.count === 0"
         :font-size="fontSize"
+        :font-family="fontFamily"
         :text-color="textColor"
         @update="(data) => $emit('update:text', data)"
       />
@@ -95,6 +96,7 @@ const props = defineProps<{
   fillColor: string | null;
   cornerRadius: number;
   fontSize: number;
+  fontFamily: string;
   textColor: string;
   selectionInfo: SelectionInfo;
 }>();
@@ -109,6 +111,7 @@ defineEmits<{
     e: "update:text",
     data: {
       fontSize?: number;
+      fontFamily?: string;
       color?: string;
       fontWeight?: "normal" | "bold";
       fontStyle?: "normal" | "italic";

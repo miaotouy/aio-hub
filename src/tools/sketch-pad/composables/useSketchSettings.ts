@@ -37,6 +37,7 @@ export const DEFAULT_SKETCH_SETTINGS: SketchPadSettings = {
   // 文字默认值
   defaultFontSize: 24,
   defaultTextColor: "#000000",
+  defaultFontFamily: "sans-serif",
 
   // 画布外观
   checkerOpacity: 1,

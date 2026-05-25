@@ -5,6 +5,9 @@
     :style="canvasContainerStyle"
     @contextmenu.prevent="handleContextMenu"
   >
+    <!-- Konva Stage 专用容器，与 Vue 管理的覆盖层分离 -->
+    <div ref="stageRef" class="konva-stage-container"></div>
+
     <!-- 文本编辑覆盖层 -->
     <TextEditor
       v-if="isEditingText"
@@ -100,6 +103,7 @@ const emit = defineEmits<{
 }>();
 
 const containerRef = ref<HTMLDivElement | null>(null);
+const stageRef = ref<HTMLDivElement | null>(null);
 const canvases = new Map<string, HTMLCanvasElement>(); // layerId -> canvas
 
 // 引入 Composables
@@ -141,12 +145,12 @@ const contextMenuTarget = shallowRef<Konva.Node | null>(null);
 let clipboardObject: SketchObject | null = null;
 
 onMounted(() => {
-  if (!containerRef.value) return;
+  if (!containerRef.value || !stageRef.value) return;
 
-  // 1. 初始化 Stage
+  // 1. 初始化 Stage（使用专用容器，避免与 Vue 管理的 DOM 冲突）
   const containerWidth = containerRef.value.clientWidth || 800;
   const containerHeight = containerRef.value.clientHeight || 600;
-  const newStage = initStage(containerRef.value, containerWidth, containerHeight);
+  const newStage = initStage(stageRef.value, containerWidth, containerHeight);
 
   // 2. 创建画布边界层（最底层）
   borderLayer = new Konva.Layer({ id: "border-layer", name: "border-layer", listening: false });
@@ -187,20 +191,23 @@ onMounted(() => {
   window.addEventListener("keydown", handleKeyDown);
   window.addEventListener("keyup", handleKeyUp);
 
-  // 8. 绑定鼠标中键拖拽事件（在 container 上监听，避免被 Konva 拦截）
-  containerRef.value.addEventListener("pointerdown", handleMiddlePointerDown);
+  // 8. 绑定鼠标中键拖拽事件（在 stage 容器上监听，避免被 Konva 拦截）
+  stageRef.value.addEventListener("pointerdown", handleMiddlePointerDown);
   window.addEventListener("pointermove", handleMiddlePointerMove);
   window.addEventListener("pointerup", handleMiddlePointerUp);
 });
 
 onUnmounted(() => {
+  // 先停止文本编辑，避免卸载时 TextEditor 仍在渲染导致 DOM 不一致
+  stopEditing();
+
   canvases.clear();
   window.removeEventListener("keydown", handleKeyDown);
   window.removeEventListener("keyup", handleKeyUp);
   window.removeEventListener("pointermove", handleMiddlePointerMove);
   window.removeEventListener("pointerup", handleMiddlePointerUp);
-  if (containerRef.value) {
-    containerRef.value.removeEventListener("pointerdown", handleMiddlePointerDown);
+  if (stageRef.value) {
+    stageRef.value.removeEventListener("pointerdown", handleMiddlePointerDown);
   }
 });
 
@@ -1066,6 +1073,11 @@ defineExpose({
   position: absolute;
   inset: 0;
   overflow: hidden;
+}
+
+.konva-stage-container {
+  position: absolute;
+  inset: 0;
   /* 透明棋盘格背景 - 主题响应式，透明度由设置控制 */
   --checker-opacity: 1;
   --checker-color: rgba(0, 0, 0, calc(0.04 * var(--checker-opacity)));
@@ -1084,7 +1096,7 @@ defineExpose({
   background-color: var(--checker-bg);
 }
 
-:root.dark .canvas-container {
+:root.dark .konva-stage-container {
   --checker-color: rgba(255, 255, 255, calc(0.03 * var(--checker-opacity)));
   --checker-bg: #1a1a1a;
 }

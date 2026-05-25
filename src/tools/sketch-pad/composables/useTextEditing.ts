@@ -33,13 +33,15 @@ export function useTextEditing() {
     node.hide();
     nodeLayer?.batchDraw();
 
-    // 计算 textarea 的绝对定位和样式
+    // 计算 textarea 相对于容器的定位
+    // node.getAbsolutePosition() 返回的是节点在 stage 内的像素坐标（已含 stage 变换）
+    // TextEditor 是 containerRef 的子元素，containerRef 与 stageRef 完全重叠
+    // 所以直接使用 textPosition 作为相对于容器的坐标
     const textPosition = node.getAbsolutePosition();
-    const stageBox = stageContainer.getBoundingClientRect();
 
     const areaPosition = {
-      x: stageBox.left + textPosition.x,
-      y: stageBox.top + textPosition.y,
+      x: textPosition.x,
+      y: textPosition.y,
     };
 
     // 获取缩放比例
@@ -47,7 +49,6 @@ export function useTextEditing() {
 
     logger.debug("startEditing 计算样式", {
       textPosition,
-      stageBox: { left: stageBox.left, top: stageBox.top, width: stageBox.width, height: stageBox.height },
       areaPosition,
       scale,
       nodeWidth: node.width(),

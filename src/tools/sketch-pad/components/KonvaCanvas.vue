@@ -112,7 +112,7 @@ const { settings: sketchSettings } = useSketchSettings();
 const { stage, zoom, panX, panY, initStage, resetView } = useKonvaStage();
 const { isDrawing, startDrawing, draw, stopDrawing } = useRasterBrush();
 const { createKonvaNode, serializeKonvaNode } = useObjectLayer();
-const { selectedNodes, initTransformer, selectNodes, clearSelection, handleStageClick } = useTransformer();
+const { transformer, selectedNodes, initTransformer, selectNodes, clearSelection, handleStageClick } = useTransformer();
 const {
   isEditing: isEditingText,
   isAutoWidth: isTextAutoWidth,
@@ -351,6 +351,14 @@ watch(
 // 监听选中节点变化，通知父组件
 watch(selectedNodes, () => {
   emitSelectionInfo();
+});
+
+// 监听是否正在编辑文本，编辑时隐藏 Transformer 变化控件
+watch(isEditingText, (editing) => {
+  if (transformer.value) {
+    transformer.value.visible(!editing);
+    transformer.value.getLayer()?.batchDraw();
+  }
 });
 
 /** 构建并发射 SelectionInfo */

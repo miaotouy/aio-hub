@@ -98,7 +98,7 @@ export function useTextEditing() {
     // autoSize 模式：宽度自适应（不设固定 width，用 minWidth + pre 不自动换行）
     // 固定模式：设固定 width，pre-wrap 自动换行
     if (nodeIsAutoWidth) {
-      const minWidth = Math.max(nodeWidth * scale, 20 * scale);
+      const minWidth = 20 * scale;
       textareaStyle.value = {
         position: "absolute",
         top: `${areaPosition.y}px`,

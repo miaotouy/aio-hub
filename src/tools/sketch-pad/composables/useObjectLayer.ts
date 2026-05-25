@@ -86,6 +86,8 @@ export function useObjectLayer() {
   }
 
   function createTextNode(obj: TextObject): Konva.Text {
+    // autoSize 模式下不设置 width/height，让 Konva 自动计算
+    const isAutoSize = obj.autoSize === true;
     return new Konva.Text({
       id: obj.id,
       name: "object-node",
@@ -102,8 +104,8 @@ export function useObjectLayer() {
       scaleX: obj.scaleX ?? 1,
       scaleY: obj.scaleY ?? 1,
       draggable: !obj.locked,
-      width: obj.width > 0 ? obj.width : undefined,
-      height: obj.height > 0 ? obj.height : undefined,
+      width: isAutoSize ? undefined : obj.width > 0 ? obj.width : undefined,
+      height: isAutoSize ? undefined : obj.height > 0 ? obj.height : undefined,
     });
   }
 
@@ -217,6 +219,9 @@ export function useObjectLayer() {
       const fontStyleStr = node.fontStyle();
       const isBold = fontStyleStr.includes("bold");
       const isItalic = fontStyleStr.includes("italic");
+      // 判断 autoSize：如果 Konva 节点没有显式设置 width（attrs 中无 width），则为自适应模式
+      const hasExplicitWidth = node.attrs.width !== undefined && node.attrs.width !== null;
+      const autoSize = !hasExplicitWidth;
       return {
         ...base,
         type: "text",
@@ -229,6 +234,7 @@ export function useObjectLayer() {
         color: node.fill() as string,
         backgroundColor: null,
         lineHeight: node.lineHeight(),
+        autoSize,
       } as TextObject;
     }
 

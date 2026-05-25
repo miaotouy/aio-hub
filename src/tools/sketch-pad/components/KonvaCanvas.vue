@@ -13,6 +13,7 @@
       v-if="isEditingText"
       v-model="textValue"
       :style="textareaStyle"
+      :auto-width="isTextAutoWidth"
       @blur="finishTextEditing"
       @submit="finishTextEditing"
     />
@@ -111,8 +112,16 @@ const { settings: sketchSettings } = useSketchSettings();
 const { stage, zoom, panX, panY, initStage, resetView } = useKonvaStage();
 const { isDrawing, startDrawing, draw, stopDrawing } = useRasterBrush();
 const { createKonvaNode, serializeKonvaNode } = useObjectLayer();
-const { selectedNodes, initTransformer, clearSelection, handleStageClick } = useTransformer();
-const { isEditing: isEditingText, textValue, textareaStyle, startEditing, stopEditing } = useTextEditing();
+const { selectedNodes, initTransformer, selectNodes, clearSelection, handleStageClick } = useTransformer();
+const {
+  isEditing: isEditingText,
+  isAutoWidth: isTextAutoWidth,
+  textValue,
+  textareaStyle,
+  startEditing,
+  stopEditing,
+  getEditingNode,
+} = useTextEditing();
 const { loadImageNode } = useImageAsset();
 
 // 缩放百分比显示
@@ -126,6 +135,16 @@ const canvasContainerStyle = computed(() => ({
 // 临时绘制形状的状态
 let tempShape: Konva.Shape | null = null;
 let startPoint = { x: 0, y: 0 };
+
+// 文本工具拖拽创建状态
+let pendingTextCreate = false;
+let textDragStart = { x: 0, y: 0 };
+let textDragRect: Konva.Rect | null = null;
+let isTextDragging = false;
+const TEXT_DRAG_THRESHOLD = 6; // 拖拽阈值（像素）
+
+// 新创建的文本节点标记（用于区分新建 vs 编辑已有）
+const pendingNewTextNodes = new Set<string>();
 
 // 平移状态（Space 键 / Hand 工具 / 中键）
 const isSpaceHeld = ref(false);
@@ -304,7 +323,8 @@ watch(
 watch(
   () => props.activeTool,
   (tool) => {
-    if (tool !== "select") {
+    // 文本工具和选择工具都允许保留选中态
+    if (!["select", "text"].includes(tool)) {
       clearSelection();
       emitSelectionInfo();
     }
@@ -314,8 +334,17 @@ watch(
       const isHand = tool === "hand";
       stage.value.draggable(isHand);
       const container = stage.value.container();
-      container.style.cursor = isHand ? "grab" : "default";
+      if (isHand) {
+        container.style.cursor = "grab";
+      } else if (tool === "text") {
+        container.style.cursor = "text";
+      } else {
+        container.style.cursor = "default";
+      }
     }
+
+    // 更新图层交互性（文本工具下也需要允许拖拽已有文本）
+    updateLayerInteractivity();
   },
 );
 
@@ -403,6 +432,110 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
       panX.value = stageInstance.x();
       panY.value = stageInstance.y();
     }
+  });
+
+  // 双击事件：文本工具下双击已有文本进入编辑
+  stageInstance.on("dblclick dbltap", (e) => {
+    if (props.activeTool !== "text" && props.activeTool !== "select") return;
+    const target = e.target as Konva.Node;
+    if (target && target.hasName("object-node") && target instanceof Konva.Text) {
+      startEditing(target, stageInstance);
+    }
+  });
+
+  // 变换控件历史闭环：记录 transformstart/transformend
+  let transformBeforeSnapshots: Map<string, Record<string, any>> = new Map();
+
+  overlayLayer.on("transformstart", () => {
+    transformBeforeSnapshots.clear();
+    const nodes = selectedNodes.value;
+    for (const node of nodes) {
+      transformBeforeSnapshots.set(node.id(), {
+        x: node.x(),
+        y: node.y(),
+        width: node.width(),
+        height: node.height(),
+        rotation: node.rotation(),
+        scaleX: node.scaleX(),
+        scaleY: node.scaleY(),
+      });
+    }
+  });
+
+  overlayLayer.on("transformend", () => {
+    const nodes = selectedNodes.value;
+    for (const node of nodes) {
+      const before = transformBeforeSnapshots.get(node.id());
+      if (!before) continue;
+
+      const after = {
+        x: node.x(),
+        y: node.y(),
+        width: node.width(),
+        height: node.height(),
+        rotation: node.rotation(),
+        scaleX: node.scaleX(),
+        scaleY: node.scaleY(),
+      };
+
+      const layerId = node.getLayer()?.id();
+      if (layerId) {
+        emit("push-history", {
+          type: "object-modify",
+          layerId,
+          objectId: node.id(),
+          before,
+          after,
+        });
+      }
+
+      // 如果文本对象被手动调整尺寸，自动转为固定模式
+      if (node instanceof Konva.Text) {
+        const widthChanged = before.width !== after.width;
+        const heightChanged = before.height !== after.height;
+        if (widthChanged || heightChanged) {
+          // 设置显式 width 使其变为固定模式
+          if (node.attrs.width === undefined || node.attrs.width === null) {
+            node.width(node.width());
+          }
+        }
+      }
+    }
+    transformBeforeSnapshots.clear();
+  });
+
+  // 拖拽结束也记录历史（对象拖拽移动）
+  stageInstance.on("dragend", (e) => {
+    const target = e.target as Konva.Node;
+    // 排除 stage 自身的拖拽（平移）
+    if (target === stageInstance) return;
+    if (!target.hasName("object-node")) return;
+
+    const layerId = target.getLayer()?.id();
+    if (!layerId) return;
+
+    // 如果有 transformBeforeSnapshots 中的记录，说明是 transform 操作，已在 transformend 处理
+    if (transformBeforeSnapshots.has(target.id())) return;
+
+    // 简单的拖拽移动，记录位置变化
+    // 注意：dragstart 时我们没有记录 before，这里用一个简化方案
+    // 实际上 Konva 的 dragend 已经完成了位置更新，我们只需记录当前状态
+    emit("push-history", {
+      type: "object-modify",
+      layerId,
+      objectId: target.id(),
+      before: { x: target.getAttr("_dragStartX"), y: target.getAttr("_dragStartY") },
+      after: { x: target.x(), y: target.y() },
+    });
+  });
+
+  // 拖拽开始时记录初始位置
+  stageInstance.on("dragstart", (e) => {
+    const target = e.target as Konva.Node;
+    if (target === stageInstance) return;
+    if (!target.hasName("object-node")) return;
+    target.setAttr("_dragStartX", target.x());
+    target.setAttr("_dragStartY", target.y());
   });
 
   // 鼠标/触摸按下
@@ -526,67 +659,49 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
         return;
       }
 
-      const textObj: SketchObject = {
-        id: nanoid(), // 临时 ID
-        type: "text",
+      // 如果正在编辑文本，先结束编辑，本次点击不创建新文本
+      if (isEditingText.value) {
+        finishTextEditing();
+        return;
+      }
+
+      const target = e.target as Konva.Node;
+
+      // 4a. 点击已有文本对象 → 选中
+      if (target && target.hasName("object-node") && target instanceof Konva.Text) {
+        selectNodes([target]);
+        // 自动切换到对象所在图层
+        const targetLayer = target.getLayer();
+        if (targetLayer) {
+          const targetLayerId = targetLayer.id();
+          if (targetLayerId && targetLayerId !== props.activeLayerId) {
+            const targetLayerData = props.layers.find((l) => l.id === targetLayerId);
+            if (targetLayerData && targetLayerData.visible && !targetLayerData.locked) {
+              emit("switch-layer", targetLayerId);
+            }
+          }
+        }
+        return;
+      }
+
+      // 4b. 点击空白区域 → 进入 pendingTextCreate 状态
+      pendingTextCreate = true;
+      textDragStart = { x: docPoint.x, y: docPoint.y };
+      isTextDragging = false;
+
+      // 创建拖拽预览矩形（初始不可见）
+      textDragRect = new Konva.Rect({
         x: docPoint.x,
         y: docPoint.y,
-        width: 200,
-        height: 50,
-        rotation: 0,
-        opacity: 1,
-        locked: false,
-        content: "双击编辑文字",
-        fontSize: props.fontSize,
-        fontFamily: "sans-serif",
-        fontWeight: props.fontWeight,
-        fontStyle: props.fontStyle,
-        textAlign: props.textAlign,
-        color: props.textColor,
-        backgroundColor: null,
-        lineHeight: 1.2,
-      };
-
-      const konvaLayer = stageInstance.findOne(`#${activeLayer.id}`) as Konva.Layer;
-
-      logger.debug("文字工具：准备创建文字节点", {
-        activeLayerId: activeLayer.id,
-        konvaLayerFound: !!konvaLayer,
-        containerRefExists: !!containerRef.value,
-        docPoint,
+        width: 0,
+        height: 0,
+        stroke: "#4a90d9",
+        strokeWidth: 1,
+        dash: [4, 4],
+        fill: "rgba(74, 144, 217, 0.05)",
+        listening: false,
       });
-
-      if (konvaLayer) {
-        const textNode = createKonvaNode(textObj) as Konva.Text;
-        konvaLayer.add(textNode);
-        konvaLayer.batchDraw();
-
-        // 绑定双击编辑事件
-        textNode.on("dblclick dbltap", () => {
-          startEditing(textNode, stageInstance);
-        });
-
-        // 使用 nextTick 延迟进入编辑状态，确保 DOM 已更新
-        nextTick(() => {
-          logger.debug("文字工具：nextTick 后进入编辑状态", {
-            textNodeId: textNode.id(),
-            containerRefExists: !!containerRef.value,
-          });
-          startEditing(textNode, stageInstance);
-        });
-
-        // 记录历史
-        emit("push-history", {
-          type: "object-add",
-          layerId: activeLayer.id,
-          object: serializeKonvaNode(textNode),
-        });
-      } else {
-        logger.error("文字工具：找不到对应的 Konva 图层", {
-          activeLayerId: activeLayer.id,
-          stageLayerIds: stageInstance.getLayers().map((l) => l.id()),
-        });
-      }
+      overlayLayer.add(textDragRect);
     }
   });
 
@@ -602,13 +717,34 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
       return;
     }
 
+    const pos = stageInstance.getPointerPosition();
+    if (!pos) return;
+
+    const transform = stageInstance.getAbsoluteTransform().copy().invert();
+    const docPoint = transform.point(pos);
+
+    // 文本工具拖拽创建
+    if (pendingTextCreate && textDragRect) {
+      const dx = docPoint.x - textDragStart.x;
+      const dy = docPoint.y - textDragStart.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+
+      if (distance >= TEXT_DRAG_THRESHOLD) {
+        isTextDragging = true;
+        stageInstance.container().style.cursor = "crosshair";
+        // 更新拖拽矩形
+        const x = Math.min(textDragStart.x, docPoint.x);
+        const y = Math.min(textDragStart.y, docPoint.y);
+        const w = Math.abs(dx);
+        const h = Math.abs(dy);
+        textDragRect.setAttrs({ x, y, width: w, height: h, visible: true });
+        overlayLayer.batchDraw();
+      }
+      return;
+    }
+
+    // 形状工具拖拽
     if (tempShape && ["rect", "ellipse", "line", "arrow"].includes(props.activeTool)) {
-      const pos = stageInstance.getPointerPosition();
-      if (!pos) return;
-
-      const transform = stageInstance.getAbsoluteTransform().copy().invert();
-      const docPoint = transform.point(pos);
-
       if (tempShape instanceof Konva.Rect) {
         tempShape.width(docPoint.x - startPoint.x);
         tempShape.height(docPoint.y - startPoint.y);
@@ -620,7 +756,11 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
       }
 
       overlayLayer.batchDraw();
+      return;
     }
+
+    // 光标反馈
+    updateCursor(stageInstance, e.target as Konva.Node);
   });
 
   // 鼠标/触摸抬起
@@ -629,6 +769,130 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
       stopDrawing(props.activeLayerId, (entry) => {
         emit("push-history", entry);
       });
+      return;
+    }
+
+    // 文本工具拖拽/点击创建
+    if (pendingTextCreate) {
+      pendingTextCreate = false;
+
+      const activeLayer = props.layers.find((l) => l.id === props.activeLayerId);
+      const konvaLayer = stageInstance.findOne(`#${props.activeLayerId}`) as Konva.Layer;
+
+      // 清理拖拽预览矩形
+      if (textDragRect) {
+        textDragRect.destroy();
+        textDragRect = null;
+        overlayLayer.batchDraw();
+      }
+
+      if (!activeLayer || !konvaLayer) {
+        isTextDragging = false;
+        return;
+      }
+
+      if (isTextDragging) {
+        // 拖拽模式：创建固定尺寸文本
+        const pos = stageInstance.getPointerPosition();
+        if (!pos) {
+          isTextDragging = false;
+          return;
+        }
+        const endTransform = stageInstance.getAbsoluteTransform().copy().invert();
+        const endPoint = endTransform.point(pos);
+
+        const x = Math.min(textDragStart.x, endPoint.x);
+        const y = Math.min(textDragStart.y, endPoint.y);
+        const w = Math.abs(endPoint.x - textDragStart.x);
+        const h = Math.abs(endPoint.y - textDragStart.y);
+
+        if (w < 10 || h < 10) {
+          isTextDragging = false;
+          return;
+        }
+
+        const textObj: SketchObject = {
+          id: nanoid(),
+          type: "text",
+          x,
+          y,
+          width: w,
+          height: h,
+          rotation: 0,
+          opacity: 1,
+          locked: false,
+          content: "",
+          fontSize: props.fontSize,
+          fontFamily: "sans-serif",
+          fontWeight: props.fontWeight,
+          fontStyle: props.fontStyle,
+          textAlign: props.textAlign,
+          color: props.textColor,
+          backgroundColor: null,
+          lineHeight: 1.2,
+          autoSize: false,
+        };
+
+        const textNode = createKonvaNode(textObj) as Konva.Text;
+        konvaLayer.add(textNode);
+        konvaLayer.batchDraw();
+
+        // 绑定双击编辑
+        textNode.on("dblclick dbltap", () => {
+          startEditing(textNode, stageInstance);
+        });
+
+        // 标记为新创建
+        pendingNewTextNodes.add(textNode.id());
+
+        // 进入编辑
+        nextTick(() => {
+          startEditing(textNode, stageInstance);
+        });
+      } else {
+        // 点击模式：创建自适应文本
+        const textObj: SketchObject = {
+          id: nanoid(),
+          type: "text",
+          x: textDragStart.x,
+          y: textDragStart.y,
+          width: 0,
+          height: 0,
+          rotation: 0,
+          opacity: 1,
+          locked: false,
+          content: "",
+          fontSize: props.fontSize,
+          fontFamily: "sans-serif",
+          fontWeight: props.fontWeight,
+          fontStyle: props.fontStyle,
+          textAlign: props.textAlign,
+          color: props.textColor,
+          backgroundColor: null,
+          lineHeight: 1.2,
+          autoSize: true,
+        };
+
+        const textNode = createKonvaNode(textObj) as Konva.Text;
+        konvaLayer.add(textNode);
+        konvaLayer.batchDraw();
+
+        // 绑定双击编辑
+        textNode.on("dblclick dbltap", () => {
+          startEditing(textNode, stageInstance);
+        });
+
+        // 标记为新创建
+        pendingNewTextNodes.add(textNode.id());
+
+        // 进入编辑
+        nextTick(() => {
+          startEditing(textNode, stageInstance);
+        });
+      }
+
+      isTextDragging = false;
+      stageInstance.container().style.cursor = "text";
       return;
     }
 
@@ -843,14 +1107,36 @@ function updateLayerInteractivity() {
     const isCurrentActive = layer.id === props.activeLayerId;
 
     if (layer.type === "object") {
-      // 只有活跃的对象图层，其子节点才可拖拽和交互
+      // 选择工具和文本工具下，活跃图层的对象可拖拽
+      const allowDrag = isCurrentActive && !layer.locked && ["select", "text"].includes(props.activeTool);
       konvaLayer.getChildren().forEach((node) => {
         if (node.name() === "object-node") {
-          node.draggable(isCurrentActive && !layer.locked && props.activeTool === "select");
+          node.draggable(allowDrag);
         }
       });
     }
   });
+}
+
+/** 光标反馈 */
+function updateCursor(stageInstance: Konva.Stage, target: Konva.Node) {
+  if (isSpaceHeld.value || props.activeTool === "hand") return;
+
+  const container = stageInstance.container();
+
+  if (props.activeTool === "text") {
+    if (target && target.hasName("object-node") && target instanceof Konva.Text) {
+      container.style.cursor = "pointer";
+    } else {
+      container.style.cursor = "text";
+    }
+  } else if (props.activeTool === "select") {
+    if (target && target.hasName("object-node")) {
+      container.style.cursor = "move";
+    } else {
+      container.style.cursor = "default";
+    }
+  }
 }
 
 /**
@@ -904,7 +1190,57 @@ async function addImageToActiveLayer(imageObj: ImageObject) {
 }
 
 function finishTextEditing() {
-  stopEditing();
+  const editingNodeRef = getEditingNode();
+  const nodeId = editingNodeRef?.id();
+  const result = stopEditing();
+
+  if (!result) return;
+
+  const { node, before, after } = result;
+  const layerId = node.getLayer()?.id();
+  if (!layerId) return;
+
+  const isNewNode = nodeId ? pendingNewTextNodes.has(nodeId) : false;
+
+  if (isNewNode && nodeId) {
+    pendingNewTextNodes.delete(nodeId);
+
+    // 新创建的文本：检查内容是否为空
+    const content = after.content.trim();
+    if (content === "") {
+      // 空文本 → 删除临时节点，不产生历史
+      node.destroy();
+      stage.value?.batchDraw();
+      logger.debug("文本工具：空文本已清理", { nodeId });
+    } else {
+      // 有内容 → 推入 object-add 历史
+      emit("push-history", {
+        type: "object-add",
+        layerId,
+        object: serializeKonvaNode(node),
+      });
+      logger.debug("文本工具：新文本已创建", { nodeId, content: content.substring(0, 20) });
+
+      // 选中新创建的文本并刷新 Transformer
+      selectNodes([node]);
+    }
+  } else {
+    // 已有文本编辑：检查内容是否变化
+    if (before.content !== after.content) {
+      emit("push-history", {
+        type: "object-modify",
+        layerId,
+        objectId: node.id(),
+        before: { content: before.content },
+        after: { content: after.content },
+      });
+    }
+
+    // 刷新 Transformer 以匹配编辑后可能变化的尺寸
+    if (selectedNodes.value.includes(node)) {
+      selectNodes([...selectedNodes.value]);
+    }
+  }
 }
 
 function handleZoomClick() {

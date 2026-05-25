@@ -35,17 +35,17 @@
         @update="(data) => $emit('update:shape', data)"
       />
 
-      <!-- 3. 文字属性 -->
+      <!-- 3. 文字属性 (文字工具且未选中对象时显示默认属性) -->
       <TextProps
-        v-else-if="activeTool === 'text'"
+        v-else-if="activeTool === 'text' && selectionInfo.count === 0"
         :font-size="fontSize"
         :text-color="textColor"
         @update="(data) => $emit('update:text', data)"
       />
 
-      <!-- 4. 选中对象属性编辑 -->
+      <!-- 4. 选中对象属性编辑 (选择工具或文字工具下有选中对象) -->
       <SelectionProps
-        v-else-if="activeTool === 'select' && selectionInfo.count > 0"
+        v-else-if="(activeTool === 'select' || activeTool === 'text') && selectionInfo.count > 0"
         :selection-info="selectionInfo"
         @update-prop="(key, val) => $emit('update:selection-prop', key, val)"
         @update-props="(data) => $emit('update:selection-props', data)"
@@ -133,8 +133,8 @@ const isShapeTool = computed(() => {
 const panelTitle = computed(() => {
   if (isBrushTool.value) return "画笔";
   if (isShapeTool.value) return "形状";
-  if (props.activeTool === "text") return "文字";
-  if (props.activeTool === "select" && props.selectionInfo.count > 0) {
+  // 文字工具或选择工具下有选中对象时，显示对象类型
+  if ((props.activeTool === "text" || props.activeTool === "select") && props.selectionInfo.count > 0) {
     if (props.selectionInfo.count === 1 && props.selectionInfo.singleObject) {
       const typeLabels: Record<string, string> = {
         rect: "矩形",
@@ -148,6 +148,7 @@ const panelTitle = computed(() => {
     }
     return "多选对象";
   }
+  if (props.activeTool === "text") return "文字";
   return "属性";
 });
 </script>

@@ -116,6 +116,8 @@ export interface TextObject extends ObjectBase {
   color: string;
   backgroundColor: string | null;
   lineHeight: number;
+  /** 自适应模式：true = 宽高随内容增长，false/undefined = 固定尺寸换行 */
+  autoSize?: boolean;
 }
 
 export interface ImageObject extends ObjectBase {

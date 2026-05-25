@@ -1,4 +1,4 @@
-import { ref, onUnmounted, type Ref } from "vue";
+import { ref, watch, onUnmounted, type Ref } from "vue";
 import { useChatSettings } from "../../../../composables/settings/useChatSettings";
 import type { ChatSessionDetail, ChatMessageNode } from "../../../../types";
 import { BranchNavigator } from "../../../../utils/BranchNavigator";
@@ -47,7 +47,7 @@ export function useFlowTreeGraph(
   let lastStructureFingerprint = "";
 
   // 2. 初始化子模块
-  const { palette } = useGraphThemePalette();
+  const { palette, paletteVersion } = useGraphThemePalette();
   
   useGraphShortcuts(target, store, settings);
 
@@ -406,6 +406,11 @@ export function useFlowTreeGraph(
     }
     logger.info("Vue Flow 树图已销毁");
   }
+
+  // 监听主题变化，刷新节点颜色和边样式
+  watch(paletteVersion, () => {
+    updateChart();
+  });
 
   onUnmounted(() => {
     destroy();

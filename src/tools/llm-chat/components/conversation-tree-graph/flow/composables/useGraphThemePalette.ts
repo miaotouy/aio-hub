@@ -1,4 +1,4 @@
-import { reactive, onMounted, onUnmounted } from "vue";
+import { reactive, ref, onMounted, onUnmounted } from "vue";
 
 /**
  * 获取 CSS 变量值
@@ -75,12 +75,15 @@ function createThemePalette() {
  */
 export function useGraphThemePalette() {
   const palette = reactive(createThemePalette());
+  // 版本号：每次 palette 更新时递增，供外部 watch 触发刷新
+  const paletteVersion = ref(0);
 
   let observer: MutationObserver | null = null;
 
   onMounted(() => {
     observer = new MutationObserver(() => {
       Object.assign(palette, createThemePalette());
+      paletteVersion.value++;
     });
     observer.observe(document.documentElement, {
       attributes: true,
@@ -96,5 +99,6 @@ export function useGraphThemePalette() {
 
   return {
     palette,
+    paletteVersion,
   };
 }

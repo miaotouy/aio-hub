@@ -1125,7 +1125,7 @@ onUnmounted(() => {
   user-select: none;
   font-family: "Cascadia Code", "Fira Code", monospace;
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--el-text-color-primary);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   transition: opacity 0.3s ease;
 }
@@ -1138,7 +1138,7 @@ onUnmounted(() => {
 }
 
 .hud-label {
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--el-text-color-secondary);
   font-weight: bold;
 }
 

@@ -11,10 +11,10 @@
   --z-index-notification: 2030; /* 通知 */
   --z-index-dropdown: 1990; /* 下拉菜单（低于对话框） */
 
-  --bg-color: #f4f4f4;
-  --bg-color-rgb: 244, 244, 244;
-  --container-bg: #f9f9f9;
-  --container-bg-rgb: 249, 249, 249;
+  --bg-color: #efefef;
+  --bg-color-rgb: 239, 239, 239;
+  --container-bg: #f3f3f3;
+  --container-bg-rgb: 243, 243, 243;
   --text-color: #333;
   --text-color-rgb: 51, 51, 51;
   --text-color-light: #666;
@@ -28,15 +28,15 @@
   --danger-color: #f56c6c;
   --info-color: #909399;
   --error-color: #f56c6c;
-  --input-bg: #fff;
+  --input-bg: #ffffff;
   --input-bg-rgb: 255, 255, 255;
-  --sidebar-bg: #f0f2f5;
-  --sidebar-bg-rgb: 240, 242, 245; /* RGB值用于透明度 */
+  --sidebar-bg: #e9ebee;
+  --sidebar-bg-rgb: 233, 235, 238; /* RGB值用于透明度 */
   --sidebar-text: #303133;
-  --header-bg: #f9f9f9;
-  --header-bg-rgb: 249, 249, 249;
-  --card-bg: #ffffff; /* 卡片背景色 */
-  --card-bg-rgb: 255, 255, 255;
+  --header-bg: #f3f3f3;
+  --header-bg-rgb: 243, 243, 243;
+  --card-bg: #f7f7f7; /* 卡片背景色 - 柔和近白 */
+  --card-bg-rgb: 247, 247, 247;
   --backdrop-bg-rgb: 0, 0, 0; /* 遮罩层背景 */
   --border-color-light-rgb: 238, 238, 238; /* 浅色边框 RGB (#eee) */
   --border-color-light: rgba(var(--border-color-light-rgb), var(--border-opacity));

@@ -17,9 +17,28 @@
       <!-- 1. 画笔属性 (铅笔、马克笔、橡皮擦) -->
       <div v-if="isBrushTool" class="property-group">
         <div class="property-item">
-          <span class="label"
-            >粗细 <span class="value">{{ brushSize }}px</span></span
-          >
+          <div class="slider-header">
+            <span class="label">粗细</span>
+            <span
+              v-if="editingField !== 'brushSize'"
+              class="value clickable"
+              @click="startEditing('brushSize', localBrushSize)"
+              >{{ localBrushSize }}px</span
+            >
+            <input
+              v-else
+              ref="editInputRef"
+              type="number"
+              class="value-input"
+              :value="editingValue"
+              min="1"
+              max="100"
+              @input="onEditInput"
+              @blur="commitEditing('brushSize')"
+              @keydown.enter="commitEditing('brushSize')"
+              @keydown.escape="cancelEditing"
+            />
+          </div>
           <input
             type="range"
             class="custom-slider"
@@ -31,9 +50,29 @@
         </div>
 
         <div v-if="activeTool !== 'eraser'" class="property-item">
-          <span class="label"
-            >不透明度 <span class="value">{{ Math.round(brushOpacity * 100) }}%</span></span
-          >
+          <div class="slider-header">
+            <span class="label">不透明度</span>
+            <span
+              v-if="editingField !== 'brushOpacity'"
+              class="value clickable"
+              @click="startEditing('brushOpacity', Math.round(localBrushOpacity * 100))"
+              >{{ Math.round(localBrushOpacity * 100) }}%</span
+            >
+            <input
+              v-else
+              ref="editInputRef"
+              type="number"
+              class="value-input"
+              :value="editingValue"
+              min="10"
+              max="100"
+              step="5"
+              @input="onEditInput"
+              @blur="commitEditing('brushOpacity')"
+              @keydown.enter="commitEditing('brushOpacity')"
+              @keydown.escape="cancelEditing"
+            />
+          </div>
           <input
             type="range"
             class="custom-slider"
@@ -64,9 +103,28 @@
       <!-- 2. 形状属性 (矩形、圆形、线段、箭头) -->
       <div v-else-if="isShapeTool" class="property-group">
         <div class="property-item">
-          <span class="label"
-            >描边 <span class="value">{{ strokeWidth }}px</span></span
-          >
+          <div class="slider-header">
+            <span class="label">描边</span>
+            <span
+              v-if="editingField !== 'strokeWidth'"
+              class="value clickable"
+              @click="startEditing('strokeWidth', localStrokeWidth)"
+              >{{ localStrokeWidth }}px</span
+            >
+            <input
+              v-else
+              ref="editInputRef"
+              type="number"
+              class="value-input"
+              :value="editingValue"
+              min="1"
+              max="20"
+              @input="onEditInput"
+              @blur="commitEditing('strokeWidth')"
+              @keydown.enter="commitEditing('strokeWidth')"
+              @keydown.escape="cancelEditing"
+            />
+          </div>
           <input
             type="range"
             class="custom-slider"
@@ -105,9 +163,28 @@
         </div>
 
         <div v-if="activeTool === 'rect'" class="property-item">
-          <span class="label"
-            >圆角 <span class="value">{{ cornerRadius }}px</span></span
-          >
+          <div class="slider-header">
+            <span class="label">圆角</span>
+            <span
+              v-if="editingField !== 'cornerRadius'"
+              class="value clickable"
+              @click="startEditing('cornerRadius', localCornerRadius)"
+              >{{ localCornerRadius }}px</span
+            >
+            <input
+              v-else
+              ref="editInputRef"
+              type="number"
+              class="value-input"
+              :value="editingValue"
+              min="0"
+              max="50"
+              @input="onEditInput"
+              @blur="commitEditing('cornerRadius')"
+              @keydown.enter="commitEditing('cornerRadius')"
+              @keydown.escape="cancelEditing"
+            />
+          </div>
           <input
             type="range"
             class="custom-slider"
@@ -122,9 +199,28 @@
       <!-- 3. 文字属性 -->
       <div v-else-if="activeTool === 'text'" class="property-group">
         <div class="property-item">
-          <span class="label"
-            >字号 <span class="value">{{ fontSize }}px</span></span
-          >
+          <div class="slider-header">
+            <span class="label">字号</span>
+            <span
+              v-if="editingField !== 'fontSize'"
+              class="value clickable"
+              @click="startEditing('fontSize', localFontSize)"
+              >{{ localFontSize }}px</span
+            >
+            <input
+              v-else
+              ref="editInputRef"
+              type="number"
+              class="value-input"
+              :value="editingValue"
+              min="12"
+              max="120"
+              @input="onEditInput"
+              @blur="commitEditing('fontSize')"
+              @keydown.enter="commitEditing('fontSize')"
+              @keydown.escape="cancelEditing"
+            />
+          </div>
           <input
             type="range"
             class="custom-slider"
@@ -223,9 +319,28 @@
         </div>
 
         <div class="property-item">
-          <span class="label"
-            >粗细 <span class="value">{{ selectionStrokeWidth }}px</span></span
-          >
+          <div class="slider-header">
+            <span class="label">粗细</span>
+            <span
+              v-if="editingField !== 'selectionStroke'"
+              class="value clickable"
+              @click="startEditing('selectionStroke', selectionStrokeWidth)"
+              >{{ selectionStrokeWidth }}px</span
+            >
+            <input
+              v-else
+              ref="editInputRef"
+              type="number"
+              class="value-input"
+              :value="editingValue"
+              min="1"
+              max="20"
+              @input="onEditInput"
+              @blur="commitEditing('selectionStroke')"
+              @keydown.enter="commitEditing('selectionStroke')"
+              @keydown.escape="cancelEditing"
+            />
+          </div>
           <input
             type="range"
             class="custom-slider"
@@ -264,7 +379,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from "vue";
+import { ref, watch, computed, nextTick } from "vue";
 import { Palette, ChevronDown, Trash2, AlignLeft, AlignCenter, AlignRight, MousePointer, Hand } from "lucide-vue-next";
 import { PRESET_COLORS, type ToolType } from "../constants";
 
@@ -327,6 +442,61 @@ const textAlign = ref<"left" | "center" | "right">("left");
 // 4. 选中对象本地状态
 const selectionColor = ref("#000000");
 const selectionStrokeWidth = ref(2);
+
+// 5. 可编辑数值状态
+type EditableField = "brushSize" | "brushOpacity" | "strokeWidth" | "cornerRadius" | "fontSize" | "selectionStroke";
+const editingField = ref<EditableField | null>(null);
+const editingValue = ref<number>(0);
+const editInputRef = ref<HTMLInputElement | null>(null);
+
+function startEditing(field: EditableField, currentValue: number) {
+  editingField.value = field;
+  editingValue.value = currentValue;
+  nextTick(() => {
+    editInputRef.value?.focus();
+    editInputRef.value?.select();
+  });
+}
+
+function onEditInput(e: Event) {
+  editingValue.value = Number((e.target as HTMLInputElement).value);
+}
+
+function commitEditing(field: EditableField) {
+  const val = editingValue.value;
+  editingField.value = null;
+
+  switch (field) {
+    case "brushSize":
+      localBrushSize.value = Math.max(1, Math.min(100, val));
+      updateBrush();
+      break;
+    case "brushOpacity":
+      localBrushOpacity.value = Math.max(10, Math.min(100, val)) / 100;
+      updateBrush();
+      break;
+    case "strokeWidth":
+      localStrokeWidth.value = Math.max(1, Math.min(20, val));
+      updateShape();
+      break;
+    case "cornerRadius":
+      localCornerRadius.value = Math.max(0, Math.min(50, val));
+      updateShape();
+      break;
+    case "fontSize":
+      localFontSize.value = Math.max(12, Math.min(120, val));
+      updateText();
+      break;
+    case "selectionStroke":
+      selectionStrokeWidth.value = Math.max(1, Math.min(20, val));
+      updateSelectionStrokeWidth();
+      break;
+  }
+}
+
+function cancelEditing() {
+  editingField.value = null;
+}
 
 // 监听 props 变化同步本地状态
 watch(
@@ -561,6 +731,13 @@ function updateSelectionStrokeWidth() {
   gap: 6px;
 }
 
+.slider-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 18px;
+}
+
 .label {
   font-size: 11px;
   color: var(--el-text-color-secondary);
@@ -569,9 +746,49 @@ function updateSelectionStrokeWidth() {
   gap: 4px;
 }
 
-.label .value {
+.value {
+  font-size: 11px;
   color: var(--el-text-color-primary);
   font-weight: 500;
+  line-height: 18px;
+}
+
+.value.clickable {
+  cursor: pointer;
+  padding: 0 5px;
+  border-radius: 4px;
+  transition: all 0.12s ease;
+  user-select: none;
+  height: 18px;
+  line-height: 18px;
+}
+
+.value.clickable:hover {
+  background: rgba(var(--primary-color-rgb), 0.1);
+  color: var(--primary-color);
+}
+
+.value-input {
+  width: 48px;
+  height: 18px;
+  padding: 0 4px;
+  border: 1px solid var(--primary-color);
+  border-radius: 4px;
+  background: var(--input-bg);
+  color: var(--el-text-color-primary);
+  font-size: 11px;
+  font-weight: 500;
+  text-align: right;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(var(--primary-color-rgb), 0.15);
+  box-sizing: border-box;
+  line-height: 16px;
+}
+
+.value-input::-webkit-inner-spin-button,
+.value-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 /* 原生滑块 - 主题色适配 */
@@ -664,6 +881,7 @@ function updateSelectionStrokeWidth() {
   background: var(--primary-color);
   color: #fff;
 }
+
 .selected-info {
   font-size: 11px;
   color: var(--primary-color);

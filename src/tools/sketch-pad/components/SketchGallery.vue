@@ -523,7 +523,7 @@ function formatDate(dateStr: string) {
   justify-content: center;
   overflow: hidden;
   border-radius: var(--el-border-radius-base, 8px) var(--el-border-radius-base, 8px) 0 0;
-  border-bottom: 1px solid rgba(var(--el-color-info-rgb, 144, 147, 153), 0.08);
+  border-bottom: var(--border-width) solid var(--border-color);
 }
 
 .thumbnail {
@@ -660,16 +660,16 @@ function formatDate(dateStr: string) {
   transition: all 0.2s;
   border: 2px solid transparent;
   min-width: 76px;
-  background-color: rgba(var(--el-color-info-rgb, 144, 147, 153), calc(var(--card-opacity, 1) * 0.04));
+  background-color: rgba(var(--primary-color-rgb, 64, 158, 255), calc(var(--card-opacity, 1) * 0.04));
 }
 
 .ratio-card:hover {
-  background-color: rgba(var(--el-color-primary-rgb, 64, 158, 255), calc(var(--card-opacity, 1) * 0.08));
+  background-color: rgba(var(--primary-color-rgb, 64, 158, 255), calc(var(--card-opacity, 1) * 0.08));
 }
 
 .ratio-card.active {
-  border-color: var(--el-color-primary);
-  background-color: rgba(var(--el-color-primary-rgb, 64, 158, 255), calc(var(--card-opacity, 1) * 0.1));
+  border-color: var(--primary-color);
+  background-color: rgba(var(--primary-color-rgb, 64, 158, 255), calc(var(--card-opacity, 1) * 0.1));
 }
 
 .ratio-block-wrapper {
@@ -688,7 +688,7 @@ function formatDate(dateStr: string) {
 
 .ratio-card.active .ratio-block {
   opacity: 1;
-  background-color: var(--el-color-primary);
+  background-color: var(--primary-color);
 }
 
 .ratio-name {
@@ -708,7 +708,7 @@ function formatDate(dateStr: string) {
   gap: 12px;
   padding: 12px 16px;
   border-radius: 8px;
-  background-color: rgba(var(--el-color-info-rgb, 144, 147, 153), calc(var(--card-opacity, 1) * 0.05));
+  background-color: rgba(var(--primary-color-rgb, 64, 158, 255), calc(var(--card-opacity, 1) * 0.04));
 }
 
 .size-input-group {
@@ -735,7 +735,7 @@ function formatDate(dateStr: string) {
   gap: 10px;
   padding: 12px 16px;
   border-radius: 8px;
-  background-color: rgba(var(--el-color-info-rgb, 144, 147, 153), calc(var(--card-opacity, 1) * 0.05));
+  background-color: rgba(var(--primary-color-rgb, 64, 158, 255), calc(var(--card-opacity, 1) * 0.04));
 }
 
 .bg-switch-row {

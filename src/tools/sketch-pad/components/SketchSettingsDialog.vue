@@ -158,6 +158,19 @@
             </el-form-item>
           </div>
 
+          <!-- 画布外观 -->
+          <div class="settings-section">
+            <div class="section-title">
+              <Grid3x3 :size="16" />
+              <span>画布外观</span>
+            </div>
+
+            <el-form-item label="棋盘格透明度">
+              <el-slider v-model="local.checkerOpacity" :min="0" :max="1" :step="0.05" show-input />
+              <span class="setting-hint">设为 0 可完全隐藏棋盘格背景</span>
+            </el-form-item>
+          </div>
+
           <!-- 行为设置 -->
           <div class="settings-section">
             <div class="section-title">
@@ -205,7 +218,7 @@
 <script setup lang="ts">
 import { reactive, watch, computed } from "vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
-import { FilePlus, Pencil, Square, Type, Settings } from "lucide-vue-next";
+import { FilePlus, Pencil, Square, Type, Settings, Grid3x3 } from "lucide-vue-next";
 import { useSketchSettings, DEFAULT_SKETCH_SETTINGS } from "../composables/useSketchSettings";
 import { PRESET_COLORS } from "../constants";
 import { customMessage } from "@/utils/customMessage";
@@ -344,7 +357,7 @@ async function handleReset() {
 
 .sub-settings {
   padding-left: 16px;
-  border-left: 2px solid rgba(var(--el-color-primary-rgb), 0.2);
+  border-left: 2px solid rgba(var(--primary-color-rgb), 0.2);
   margin-top: 8px;
 }
 
@@ -358,6 +371,12 @@ async function handleReset() {
   font-size: 12px;
   color: var(--el-text-color-secondary);
   font-family: monospace;
+}
+
+.setting-hint {
+  font-size: 11px;
+  color: var(--el-text-color-placeholder);
+  margin-top: 4px;
 }
 
 /* 过渡动画 */

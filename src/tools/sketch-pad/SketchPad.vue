@@ -1159,7 +1159,8 @@ async function handleMergeDown(id: string) {
   position: relative;
   overflow: hidden;
   border-radius: 12px;
-  background-color: #1a1a1a;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background-color: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
+  border: var(--border-width) solid var(--border-color);
 }
 </style>

@@ -170,6 +170,9 @@ export interface SketchPadSettings {
   defaultFontSize: number;
   defaultTextColor: string;
 
+  // ─── 画布外观 ───
+  checkerOpacity: number; // 棋盘格透明度 0-1，0 = 隐藏
+
   // ─── 行为设置 ───
   autoSaveEnabled: boolean;
   autoSaveInterval: number; // 秒

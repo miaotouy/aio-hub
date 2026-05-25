@@ -204,12 +204,12 @@ function selectTool(tool: ToolType) {
   display: flex;
   align-items: center;
   gap: 4px;
-  background: rgba(30, 30, 30, 0.85);
-  backdrop-filter: blur(12px);
+  background: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
   border-radius: 10px;
   padding: 6px 8px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  border: var(--border-width) solid var(--border-color);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
 }
 
 .toolbar-center {
@@ -226,7 +226,7 @@ function selectTool(tool: ToolType) {
 .tool-divider {
   width: 1px;
   height: 20px;
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--border-color);
   margin: 0 6px;
 }
 
@@ -239,21 +239,21 @@ function selectTool(tool: ToolType) {
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--el-text-color-regular);
   cursor: pointer;
   transition: all 0.15s ease;
   outline: none;
 }
 
 .tool-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  background: rgba(var(--primary-color-rgb), 0.08);
+  color: var(--el-text-color-primary);
 }
 
 .tool-btn.active {
-  background: var(--el-color-primary);
+  background: var(--primary-color);
   color: #fff;
-  box-shadow: 0 2px 8px rgba(var(--el-color-primary-rgb), 0.4);
+  box-shadow: 0 2px 8px rgba(var(--primary-color-rgb), 0.4);
 }
 
 .tool-btn:disabled {
@@ -268,8 +268,8 @@ function selectTool(tool: ToolType) {
   padding: 6px 12px;
   border: none;
   border-radius: 7px;
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.8);
+  background: rgba(var(--primary-color-rgb), 0.06);
+  color: var(--el-text-color-regular);
   font-size: 12px;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -278,28 +278,29 @@ function selectTool(tool: ToolType) {
 }
 
 .action-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
-  color: #fff;
+  background: rgba(var(--primary-color-rgb), 0.12);
+  color: var(--el-text-color-primary);
 }
 
 .action-btn.accent {
-  background: rgba(var(--el-color-primary-rgb), 0.8);
+  background: rgba(var(--primary-color-rgb), 0.8);
   color: #fff;
 }
 
 .action-btn.accent:hover {
-  background: var(--el-color-primary);
+  background: var(--primary-color);
 }
 
 .action-btn.has-changes {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(var(--primary-color-rgb), 0.1);
 }
 
 .dirty-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.55);
+  background: var(--primary-color);
+  opacity: 0.7;
   flex-shrink: 0;
   margin-left: 2px;
 }

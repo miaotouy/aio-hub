@@ -62,12 +62,7 @@
 
       <!-- 底部操作栏 -->
       <div class="panel-footer">
-        <button
-          class="footer-btn danger"
-          :disabled="layers.length <= 1"
-          title="删除图层"
-          @click="deleteActiveLayer"
-        >
+        <button class="footer-btn danger" :disabled="layers.length <= 1" title="删除图层" @click="deleteActiveLayer">
           <Trash2 :size="13" />
         </button>
         <button
@@ -200,28 +195,28 @@ function rasterizeActiveLayer() {
   height: 38px;
   border: none;
   border-radius: 10px;
-  background: rgba(30, 30, 30, 0.85);
-  backdrop-filter: blur(12px);
-  color: rgba(255, 255, 255, 0.7);
+  background: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
+  color: var(--el-text-color-regular);
   cursor: pointer;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  border: var(--border-width) solid var(--border-color);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
   transition: all 0.15s ease;
 }
 
 .panel-toggle:hover {
-  background: rgba(30, 30, 30, 0.95);
-  color: #fff;
+  background: rgba(var(--primary-color-rgb), 0.08);
+  color: var(--el-text-color-primary);
 }
 
 .panel-body {
   width: 220px;
   max-height: 320px;
-  background: rgba(30, 30, 30, 0.88);
-  backdrop-filter: blur(12px);
+  background: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  border: var(--border-width) solid var(--border-color);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -232,13 +227,13 @@ function rasterizeActiveLayer() {
   align-items: center;
   justify-content: space-between;
   padding: 10px 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: var(--border-width) solid var(--border-color);
 }
 
 .panel-title {
   font-size: 12px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--el-text-color-primary);
   letter-spacing: 0.5px;
 }
 
@@ -256,15 +251,15 @@ function rasterizeActiveLayer() {
   height: 26px;
   border: none;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.6);
+  background: rgba(var(--primary-color-rgb), 0.06);
+  color: var(--el-text-color-regular);
   cursor: pointer;
   transition: all 0.12s;
 }
 
 .header-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
-  color: #fff;
+  background: rgba(var(--primary-color-rgb), 0.12);
+  color: var(--el-text-color-primary);
 }
 
 .panel-close {
@@ -276,15 +271,15 @@ function rasterizeActiveLayer() {
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--el-text-color-secondary);
   cursor: pointer;
   transition: all 0.15s;
   margin-left: 4px;
 }
 
 .panel-close:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  background: rgba(var(--primary-color-rgb), 0.08);
+  color: var(--el-text-color-primary);
 }
 
 .layer-list {
@@ -308,12 +303,12 @@ function rasterizeActiveLayer() {
 }
 
 .layer-item:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(var(--primary-color-rgb), 0.06);
 }
 
 .layer-item.active {
-  background: rgba(var(--el-color-primary-rgb), 0.15);
-  border-color: rgba(var(--el-color-primary-rgb), 0.25);
+  background: rgba(var(--primary-color-rgb), 0.15);
+  border-color: rgba(var(--primary-color-rgb), 0.25);
 }
 
 .icon-btn {
@@ -325,15 +320,15 @@ function rasterizeActiveLayer() {
   border: none;
   border-radius: 5px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--el-text-color-secondary);
   cursor: pointer;
   transition: all 0.12s;
   flex-shrink: 0;
 }
 
 .icon-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  background: rgba(var(--primary-color-rgb), 0.1);
+  color: var(--el-text-color-primary);
 }
 
 .icon-btn.mini {
@@ -349,14 +344,14 @@ function rasterizeActiveLayer() {
 .layer-type-icon {
   display: flex;
   align-items: center;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--el-text-color-placeholder);
   flex-shrink: 0;
 }
 
 .layer-name {
   flex: 1;
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--el-text-color-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -376,7 +371,7 @@ function rasterizeActiveLayer() {
 
 .panel-footer {
   padding: 8px 10px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: var(--border-width) solid var(--border-color);
   display: flex;
   gap: 4px;
   justify-content: center;
@@ -390,15 +385,15 @@ function rasterizeActiveLayer() {
   height: 28px;
   border: none;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.6);
+  background: rgba(var(--primary-color-rgb), 0.06);
+  color: var(--el-text-color-regular);
   cursor: pointer;
   transition: all 0.12s;
 }
 
 .footer-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.15);
-  color: #fff;
+  background: rgba(var(--primary-color-rgb), 0.12);
+  color: var(--el-text-color-primary);
 }
 
 .footer-btn:disabled {
@@ -407,7 +402,7 @@ function rasterizeActiveLayer() {
 }
 
 .footer-btn.danger:hover:not(:disabled) {
-  background: rgba(255, 77, 79, 0.25);
-  color: #ff7875;
+  background: rgba(var(--el-color-danger-rgb, 245, 108, 108), 0.2);
+  color: var(--el-color-danger);
 }
 </style>

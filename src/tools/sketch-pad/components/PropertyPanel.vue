@@ -17,7 +17,9 @@
       <!-- 1. 画笔属性 (铅笔、马克笔、橡皮擦) -->
       <div v-if="isBrushTool" class="property-group">
         <div class="property-item">
-          <span class="label">粗细 <span class="value">{{ brushSize }}px</span></span>
+          <span class="label"
+            >粗细 <span class="value">{{ brushSize }}px</span></span
+          >
           <input
             type="range"
             class="custom-slider"
@@ -29,7 +31,9 @@
         </div>
 
         <div v-if="activeTool !== 'eraser'" class="property-item">
-          <span class="label">不透明度 <span class="value">{{ Math.round(brushOpacity * 100) }}%</span></span>
+          <span class="label"
+            >不透明度 <span class="value">{{ Math.round(brushOpacity * 100) }}%</span></span
+          >
           <input
             type="range"
             class="custom-slider"
@@ -60,7 +64,9 @@
       <!-- 2. 形状属性 (矩形、圆形、线段、箭头) -->
       <div v-else-if="isShapeTool" class="property-group">
         <div class="property-item">
-          <span class="label">描边 <span class="value">{{ strokeWidth }}px</span></span>
+          <span class="label"
+            >描边 <span class="value">{{ strokeWidth }}px</span></span
+          >
           <input
             type="range"
             class="custom-slider"
@@ -99,7 +105,9 @@
         </div>
 
         <div v-if="activeTool === 'rect'" class="property-item">
-          <span class="label">圆角 <span class="value">{{ cornerRadius }}px</span></span>
+          <span class="label"
+            >圆角 <span class="value">{{ cornerRadius }}px</span></span
+          >
           <input
             type="range"
             class="custom-slider"
@@ -114,7 +122,9 @@
       <!-- 3. 文字属性 -->
       <div v-else-if="activeTool === 'text'" class="property-group">
         <div class="property-item">
-          <span class="label">字号 <span class="value">{{ fontSize }}px</span></span>
+          <span class="label"
+            >字号 <span class="value">{{ fontSize }}px</span></span
+          >
           <input
             type="range"
             class="custom-slider"
@@ -143,21 +153,60 @@
         <div class="property-item">
           <span class="label">样式</span>
           <div class="style-buttons">
-            <button class="style-btn" :class="{ active: isBold }" @click="isBold = !isBold; updateText()">B</button>
-            <button class="style-btn italic" :class="{ active: isItalic }" @click="isItalic = !isItalic; updateText()">I</button>
+            <button
+              class="style-btn"
+              :class="{ active: isBold }"
+              @click="
+                isBold = !isBold;
+                updateText();
+              "
+            >
+              B
+            </button>
+            <button
+              class="style-btn italic"
+              :class="{ active: isItalic }"
+              @click="
+                isItalic = !isItalic;
+                updateText();
+              "
+            >
+              I
+            </button>
           </div>
         </div>
 
         <div class="property-item">
           <span class="label">对齐</span>
           <div class="align-buttons">
-            <button class="style-btn" :class="{ active: textAlign === 'left' }" @click="textAlign = 'left'; updateText()">
+            <button
+              class="style-btn"
+              :class="{ active: textAlign === 'left' }"
+              @click="
+                textAlign = 'left';
+                updateText();
+              "
+            >
               <AlignLeft :size="14" />
             </button>
-            <button class="style-btn" :class="{ active: textAlign === 'center' }" @click="textAlign = 'center'; updateText()">
+            <button
+              class="style-btn"
+              :class="{ active: textAlign === 'center' }"
+              @click="
+                textAlign = 'center';
+                updateText();
+              "
+            >
               <AlignCenter :size="14" />
             </button>
-            <button class="style-btn" :class="{ active: textAlign === 'right' }" @click="textAlign = 'right'; updateText()">
+            <button
+              class="style-btn"
+              :class="{ active: textAlign === 'right' }"
+              @click="
+                textAlign = 'right';
+                updateText();
+              "
+            >
               <AlignRight :size="14" />
             </button>
           </div>
@@ -174,7 +223,9 @@
         </div>
 
         <div class="property-item">
-          <span class="label">粗细 <span class="value">{{ selectionStrokeWidth }}px</span></span>
+          <span class="label"
+            >粗细 <span class="value">{{ selectionStrokeWidth }}px</span></span
+          >
           <input
             type="range"
             class="custom-slider"
@@ -422,18 +473,18 @@ function updateSelectionStrokeWidth() {
   height: 38px;
   border: none;
   border-radius: 10px;
-  background: rgba(30, 30, 30, 0.85);
-  backdrop-filter: blur(12px);
-  color: rgba(255, 255, 255, 0.7);
+  background: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
+  color: var(--el-text-color-regular);
   cursor: pointer;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  border: var(--border-width) solid var(--border-color);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
   transition: all 0.15s ease;
 }
 
 .panel-toggle:hover {
-  background: rgba(30, 30, 30, 0.95);
-  color: #fff;
+  background: rgba(var(--primary-color-rgb), 0.08);
+  color: var(--el-text-color-primary);
 }
 
 .panel-body {
@@ -441,11 +492,11 @@ function updateSelectionStrokeWidth() {
   max-height: 360px;
   overflow-y: auto;
   overflow-x: hidden;
-  background: rgba(30, 30, 30, 0.88);
-  backdrop-filter: blur(12px);
+  background: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  border: var(--border-width) solid var(--border-color);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   padding: 12px;
   display: flex;
   flex-direction: column;
@@ -461,7 +512,7 @@ function updateSelectionStrokeWidth() {
 .panel-title {
   font-size: 12px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--el-text-color-primary);
   letter-spacing: 0.5px;
 }
 
@@ -474,14 +525,14 @@ function updateSelectionStrokeWidth() {
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--el-text-color-secondary);
   cursor: pointer;
   transition: all 0.15s;
 }
 
 .panel-close:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  background: rgba(var(--primary-color-rgb), 0.08);
+  color: var(--el-text-color-primary);
 }
 
 .property-group {
@@ -498,49 +549,27 @@ function updateSelectionStrokeWidth() {
 
 .label {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--el-text-color-secondary);
   display: flex;
   align-items: center;
   gap: 4px;
 }
 
 .label .value {
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--el-text-color-primary);
   font-weight: 500;
 }
 
-/* 自定义滑块 */
+/* 原生滑块 - 主题色适配 */
 .custom-slider {
-  -webkit-appearance: none;
-  appearance: none;
   width: 100%;
-  height: 4px;
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.15);
+  height: 18px;
+  margin: 2px 0;
+  padding: 0 2px;
+  box-sizing: border-box;
+  accent-color: var(--primary-color);
+  cursor: pointer;
   outline: none;
-  margin: 4px 0;
-}
-
-.custom-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--el-color-primary);
-  cursor: pointer;
-  border: 2px solid rgba(255, 255, 255, 0.9);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
-}
-
-.custom-slider::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--el-color-primary);
-  cursor: pointer;
-  border: 2px solid rgba(255, 255, 255, 0.9);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
 }
 
 .preset-colors {
@@ -564,8 +593,8 @@ function updateSelectionStrokeWidth() {
 }
 
 .color-swatch.active {
-  border-color: #fff;
-  box-shadow: 0 0 0 1px var(--el-color-primary);
+  border-color: var(--el-text-color-primary);
+  box-shadow: 0 0 0 1px var(--primary-color);
 }
 
 .fill-row {
@@ -579,12 +608,12 @@ function updateSelectionStrokeWidth() {
   align-items: center;
   gap: 5px;
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--el-text-color-regular);
   cursor: pointer;
 }
 
 .custom-checkbox input {
-  accent-color: var(--el-color-primary);
+  accent-color: var(--primary-color);
 }
 
 .style-buttons,
@@ -601,8 +630,8 @@ function updateSelectionStrokeWidth() {
   height: 28px;
   border: none;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.7);
+  background: rgba(var(--primary-color-rgb), 0.06);
+  color: var(--el-text-color-regular);
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
@@ -614,19 +643,18 @@ function updateSelectionStrokeWidth() {
 }
 
 .style-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(var(--primary-color-rgb), 0.12);
 }
 
 .style-btn.active {
-  background: var(--el-color-primary);
+  background: var(--primary-color);
   color: #fff;
 }
-
 .selected-info {
   font-size: 11px;
-  color: var(--el-color-primary-light-3);
+  color: var(--primary-color);
   font-weight: 500;
-  background: rgba(var(--el-color-primary-rgb), 0.15);
+  background: rgba(var(--primary-color-rgb), 0.1);
   padding: 6px 8px;
   border-radius: 6px;
   text-align: center;
@@ -641,20 +669,20 @@ function updateSelectionStrokeWidth() {
   padding: 7px;
   border: none;
   border-radius: 7px;
-  background: rgba(255, 77, 79, 0.2);
-  color: #ff7875;
+  background: rgba(var(--el-color-danger-rgb, 245, 108, 108), 0.15);
+  color: var(--el-color-danger);
   font-size: 12px;
   cursor: pointer;
   transition: all 0.15s;
 }
 
 .delete-btn:hover {
-  background: rgba(255, 77, 79, 0.35);
+  background: rgba(var(--el-color-danger-rgb, 245, 108, 108), 0.25);
 }
 
 .empty-tip {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--el-text-color-placeholder);
   text-align: center;
   padding: 12px 0;
 }

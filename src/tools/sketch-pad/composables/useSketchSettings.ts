@@ -38,6 +38,9 @@ export const DEFAULT_SKETCH_SETTINGS: SketchPadSettings = {
   defaultFontSize: 24,
   defaultTextColor: "#000000",
 
+  // 画布外观
+  checkerOpacity: 1,
+
   // 行为设置
   autoSaveEnabled: true,
   autoSaveInterval: 30,

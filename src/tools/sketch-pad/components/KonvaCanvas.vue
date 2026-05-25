@@ -1,5 +1,10 @@
 <template>
-  <div ref="containerRef" class="canvas-container" @contextmenu.prevent="handleContextMenu">
+  <div
+    ref="containerRef"
+    class="canvas-container"
+    :style="canvasContainerStyle"
+    @contextmenu.prevent="handleContextMenu"
+  >
     <!-- 文本编辑覆盖层 -->
     <TextEditor
       v-if="isEditingText"
@@ -52,6 +57,7 @@ import { ref, shallowRef, computed, onMounted, watch, onUnmounted } from "vue";
 import Konva from "konva";
 import { nanoid } from "nanoid";
 import { SquareDashed } from "lucide-vue-next";
+import { useSketchSettings } from "../composables/useSketchSettings";
 import { useKonvaStage } from "../composables/useKonvaStage";
 import { useRasterBrush } from "../composables/useRasterBrush";
 import { useObjectLayer } from "../composables/useObjectLayer";
@@ -93,6 +99,7 @@ const containerRef = ref<HTMLDivElement | null>(null);
 const canvases = new Map<string, HTMLCanvasElement>(); // layerId -> canvas
 
 // 引入 Composables
+const { settings: sketchSettings } = useSketchSettings();
 const { stage, zoom, panX, panY, initStage, resetView } = useKonvaStage();
 const { isDrawing, startDrawing, draw, stopDrawing } = useRasterBrush();
 const { createKonvaNode, serializeKonvaNode } = useObjectLayer();
@@ -102,6 +109,11 @@ const { loadImageNode } = useImageAsset();
 
 // 缩放百分比显示
 const zoomPercent = computed(() => Math.round(zoom.value * 100));
+
+// 棋盘格透明度（从设置中读取）
+const canvasContainerStyle = computed(() => ({
+  "--checker-opacity": String(sketchSettings.value.checkerOpacity),
+}));
 
 // 临时绘制形状的状态
 let tempShape: Konva.Shape | null = null;
@@ -988,19 +1000,27 @@ defineExpose({
   position: absolute;
   inset: 0;
   overflow: hidden;
-  /* 透明棋盘格背景 */
+  /* 透明棋盘格背景 - 主题响应式，透明度由设置控制 */
+  --checker-opacity: 1;
+  --checker-color: rgba(0, 0, 0, calc(0.04 * var(--checker-opacity)));
+  --checker-bg: var(--el-bg-color-page, #f5f5f5);
   background-image:
-    linear-gradient(45deg, rgba(255, 255, 255, 0.02) 25%, transparent 25%),
-    linear-gradient(-45deg, rgba(255, 255, 255, 0.02) 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, rgba(255, 255, 255, 0.02) 75%),
-    linear-gradient(-45deg, transparent 75%, rgba(255, 255, 255, 0.02) 75%);
+    linear-gradient(45deg, var(--checker-color) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--checker-color) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--checker-color) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--checker-color) 75%);
   background-size: 24px 24px;
   background-position:
     0 0,
     0 12px,
     12px -12px,
     -12px 0px;
-  background-color: #1a1a1a;
+  background-color: var(--checker-bg);
+}
+
+:root.dark .canvas-container {
+  --checker-color: rgba(255, 255, 255, calc(0.03 * var(--checker-opacity)));
+  --checker-bg: #1a1a1a;
 }
 
 .bottom-bar {
@@ -1011,13 +1031,13 @@ defineExpose({
   display: flex;
   align-items: center;
   gap: 8px;
-  background: rgba(30, 30, 30, 0.85);
-  backdrop-filter: blur(12px);
+  background: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
   border-radius: 8px;
   padding: 4px 10px;
   z-index: 50;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  border: var(--border-width) solid var(--border-color);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .bar-btn {
@@ -1029,29 +1049,29 @@ defineExpose({
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--el-text-color-secondary);
   cursor: pointer;
   transition: all 0.12s;
 }
 
 .bar-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.8);
+  background: rgba(var(--primary-color-rgb), 0.08);
+  color: var(--el-text-color-primary);
 }
 
 .bar-btn.active {
-  color: var(--el-color-primary);
+  color: var(--primary-color);
 }
 
 .zoom-value {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--el-text-color-regular);
   cursor: pointer;
   user-select: none;
   font-weight: 500;
 }
 
 .zoom-value:hover {
-  color: #fff;
+  color: var(--el-text-color-primary);
 }
 </style>

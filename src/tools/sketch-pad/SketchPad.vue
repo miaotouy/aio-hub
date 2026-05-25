@@ -37,6 +37,7 @@
         :text-align="textAlign"
         @push-history="pushHistory"
         @selection-change="handleSelectionChange"
+        @switch-layer="handleSelectLayer"
       />
 
       <!-- 悬浮工具栏（顶部居中） -->

@@ -96,6 +96,7 @@ const emit = defineEmits<{
   (e: "update:layers", layers: HybridLayer[]): void;
   (e: "push-history", entry: any): void;
   (e: "selection-change", count: number): void;
+  (e: "switch-layer", layerId: string): void;
 }>();
 
 const containerRef = ref<HTMLDivElement | null>(null);
@@ -352,6 +353,25 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
 
     // 1. 选择工具
     if (props.activeTool === "select") {
+      // 检查点击的对象是否在非活跃图层上，如果是则自动切换图层
+      const target = e.target as Konva.Node;
+      if (target && target.hasName("object-node")) {
+        const targetLayer = target.getLayer();
+        if (targetLayer) {
+          const targetLayerId = targetLayer.id();
+          if (targetLayerId && targetLayerId !== props.activeLayerId) {
+            // 检查目标图层是否可见且未锁定
+            const targetLayerData = props.layers.find((l) => l.id === targetLayerId);
+            if (targetLayerData && targetLayerData.visible && !targetLayerData.locked) {
+              logger.debug("选择工具：自动切换到对象所在图层", {
+                from: props.activeLayerId,
+                to: targetLayerId,
+              });
+              emit("switch-layer", targetLayerId);
+            }
+          }
+        }
+      }
       handleStageClick(e);
       return;
     }

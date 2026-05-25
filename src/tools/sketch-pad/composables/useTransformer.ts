@@ -44,8 +44,22 @@ export function useTransformer() {
     }
   }
 
+  function isTransformerNode(target: Konva.Node): boolean {
+    let node: Konva.Node | null = target;
+    while (node) {
+      if (node.getClassName() === "Transformer") return true;
+      node = node.getParent();
+    }
+    return false;
+  }
+
   function handleStageClick(e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) {
     if (!transformer.value) return;
+
+    // 点击 Transformer 自身或其子节点（锚点、边框）时，不做任何处理
+    if (isTransformerNode(e.target as Konva.Node)) {
+      return;
+    }
 
     // 点击空白区域清空选择
     if (e.target === e.target.getStage()) {

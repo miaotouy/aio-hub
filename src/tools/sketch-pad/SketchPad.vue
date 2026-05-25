@@ -413,6 +413,7 @@ async function handleSelectProject(id: string) {
       activeLayerId.value = manifest.layers[0].id;
     }
     clearHistory();
+    resetSelectionState();
     currentView.value = "editor";
 
     // 等待 DOM 更新和 watch 回调执行完毕后解除初始化守卫
@@ -470,6 +471,7 @@ async function handleCreateProject(data: {
   currentProject.value = newProj;
   clearLayers();
   clearHistory();
+  resetSelectionState();
   assetRefs.value = [];
 
   // 根据弹窗设定 + 全局设置创建默认图层
@@ -573,6 +575,7 @@ async function handleImportProject(bytes: Uint8Array) {
       activeLayerId.value = manifest.layers[0].id;
     }
     clearHistory();
+    resetSelectionState();
     currentView.value = "editor";
 
     // 解除初始化守卫
@@ -1007,6 +1010,17 @@ function applyHistoryEntry(entry: HistoryEntry, direction: "undo" | "redo") {
       break;
     }
   }
+}
+
+/** 重置选择状态（切换项目时调用） */
+function resetSelectionState() {
+  selectionInfo.value = {
+    count: 0,
+    singleObject: null,
+    objectTypes: [],
+    commonProps: {},
+  };
+  activeTool.value = "select";
 }
 
 function handleSelectionChange(info: SelectionInfo) {

@@ -244,6 +244,20 @@
         </div>
       </div>
 
+      <!-- 5. 选择工具 (未选中对象) -->
+      <div v-else-if="activeTool === 'select'" class="empty-tip">
+        <MousePointer :size="24" class="tip-icon" />
+        <div class="tip-title">选择工具</div>
+        <div class="tip-desc">在画布上点击或框选对象进行编辑</div>
+      </div>
+
+      <!-- 6. 抓手工具 -->
+      <div v-else-if="activeTool === 'hand'" class="empty-tip">
+        <Hand :size="24" class="tip-icon" />
+        <div class="tip-title">抓手工具</div>
+        <div class="tip-desc">在画布上拖拽可平移视图<br />滚动滚轮可缩放</div>
+      </div>
+
       <div v-else class="empty-tip">选择工具后显示属性</div>
     </div>
   </div>
@@ -251,7 +265,7 @@
 
 <script setup lang="ts">
 import { ref, watch, computed } from "vue";
-import { Palette, ChevronDown, Trash2, AlignLeft, AlignCenter, AlignRight } from "lucide-vue-next";
+import { Palette, ChevronDown, Trash2, AlignLeft, AlignCenter, AlignRight, MousePointer, Hand } from "lucide-vue-next";
 import { PRESET_COLORS, type ToolType } from "../constants";
 
 const isCollapsed = ref(false);
@@ -684,6 +698,28 @@ function updateSelectionStrokeWidth() {
   font-size: 11px;
   color: var(--el-text-color-placeholder);
   text-align: center;
-  padding: 12px 0;
+  padding: 16px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.tip-icon {
+  color: var(--el-text-color-placeholder);
+  opacity: 0.7;
+}
+
+.tip-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--el-text-color-regular);
+}
+
+.tip-desc {
+  font-size: 11px;
+  color: var(--el-text-color-placeholder);
+  line-height: 1.4;
 }
 </style>

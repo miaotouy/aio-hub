@@ -53,7 +53,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, shallowRef, computed, onMounted, watch, onUnmounted } from "vue";
+import { ref, shallowRef, computed, onMounted, watch, onUnmounted, nextTick } from "vue";
 import Konva from "konva";
 import { nanoid } from "nanoid";
 import { SquareDashed } from "lucide-vue-next";
@@ -68,6 +68,9 @@ import type { HybridLayer, SketchObject, ImageObject } from "../types";
 import type { ToolType } from "../constants";
 import TextEditor from "./TextEditor.vue";
 import { customMessage } from "@/utils/customMessage";
+import { createModuleLogger } from "@/utils/logger";
+
+const logger = createModuleLogger("SketchPad/KonvaCanvas");
 
 const props = defineProps<{
   width: number;
@@ -270,6 +273,11 @@ function handleMiddlePointerUp(e: PointerEvent) {
 watch(
   () => props.layers,
   () => {
+    logger.debug("watch(layers) 触发 syncLayers", {
+      layerCount: props.layers.length,
+      layerIds: props.layers.map((l) => l.id),
+      activeLayerId: props.activeLayerId,
+    });
     syncLayers();
   },
   { deep: true },
@@ -278,7 +286,8 @@ watch(
 // 监听活跃图层变化，更新交互状态
 watch(
   () => props.activeLayerId,
-  () => {
+  (newId, oldId) => {
+    logger.debug("watch(activeLayerId) 触发", { oldId, newId });
     updateLayerInteractivity();
   },
 );
@@ -449,9 +458,17 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
         lineHeight: 1.2,
       };
 
-      const textNode = createKonvaNode(textObj) as Konva.Text;
       const konvaLayer = stageInstance.findOne(`#${activeLayer.id}`) as Konva.Layer;
+
+      logger.debug("文字工具：准备创建文字节点", {
+        activeLayerId: activeLayer.id,
+        konvaLayerFound: !!konvaLayer,
+        containerRefExists: !!containerRef.value,
+        docPoint,
+      });
+
       if (konvaLayer) {
+        const textNode = createKonvaNode(textObj) as Konva.Text;
         konvaLayer.add(textNode);
         konvaLayer.batchDraw();
 
@@ -460,14 +477,25 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
           startEditing(textNode, stageInstance);
         });
 
-        // 自动进入编辑状态
-        startEditing(textNode, stageInstance);
+        // 使用 nextTick 延迟进入编辑状态，确保 DOM 已更新
+        nextTick(() => {
+          logger.debug("文字工具：nextTick 后进入编辑状态", {
+            textNodeId: textNode.id(),
+            containerRefExists: !!containerRef.value,
+          });
+          startEditing(textNode, stageInstance);
+        });
 
         // 记录历史
         emit("push-history", {
           type: "object-add",
           layerId: activeLayer.id,
           object: serializeKonvaNode(textNode),
+        });
+      } else {
+        logger.error("文字工具：找不到对应的 Konva 图层", {
+          activeLayerId: activeLayer.id,
+          stageLayerIds: stageInstance.getLayers().map((l) => l.id()),
         });
       }
     }
@@ -616,10 +644,28 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
 }
 
 function syncLayers() {
-  if (!stage.value) return;
+  if (!stage.value) {
+    logger.warn("syncLayers 中止：stage 为 null");
+    return;
+  }
 
   // 1. 移除已经不存在的 Konva 图层
   const existingLayers = stage.value.getLayers();
+  const existingIds = existingLayers.map((kl) => kl.id()).filter((id) => id !== "overlay" && id !== "border-layer");
+  const propsIds = props.layers.map((l) => l.id);
+
+  const toRemove = existingIds.filter((id) => !propsIds.includes(id));
+  const toCreate = propsIds.filter((id) => !existingIds.includes(id));
+
+  if (toRemove.length > 0 || toCreate.length > 0) {
+    logger.debug("syncLayers 差异", {
+      existingIds,
+      propsIds,
+      toRemove,
+      toCreate,
+    });
+  }
+
   for (const kl of existingLayers) {
     if (kl.id() === "overlay" || kl.id() === "border-layer") continue;
     if (!props.layers.some((l) => l.id === kl.id())) {

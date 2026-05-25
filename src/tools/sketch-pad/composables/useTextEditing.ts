@@ -1,5 +1,8 @@
 import { ref } from "vue";
 import Konva from "konva";
+import { createModuleLogger } from "@/utils/logger";
+
+const logger = createModuleLogger("SketchPad/TextEditing");
 
 export function useTextEditing() {
   const isEditing = ref(false);
@@ -9,17 +12,30 @@ export function useTextEditing() {
   let editingNode: Konva.Text | null = null;
 
   function startEditing(node: Konva.Text, stage: Konva.Stage) {
+    const nodeLayer = node.getLayer();
+    const stageContainer = stage.container();
+
+    logger.debug("startEditing 调用", {
+      nodeId: node.id(),
+      nodeText: node.text().substring(0, 20),
+      nodeLayerExists: !!nodeLayer,
+      nodeLayerId: nodeLayer?.id(),
+      stageContainerExists: !!stageContainer,
+      stageContainerParent: !!stageContainer?.parentNode,
+      isAlreadyEditing: isEditing.value,
+    });
+
     isEditing.value = true;
     editingNode = node;
     textValue.value = node.text();
 
     // 隐藏正在编辑的 Konva 节点
     node.hide();
-    node.getLayer()?.batchDraw();
+    nodeLayer?.batchDraw();
 
     // 计算 textarea 的绝对定位和样式
     const textPosition = node.getAbsolutePosition();
-    const stageBox = stage.container().getBoundingClientRect();
+    const stageBox = stageContainer.getBoundingClientRect();
 
     const areaPosition = {
       x: stageBox.left + textPosition.x,
@@ -28,6 +44,15 @@ export function useTextEditing() {
 
     // 获取缩放比例
     const scale = stage.scaleX();
+
+    logger.debug("startEditing 计算样式", {
+      textPosition,
+      stageBox: { left: stageBox.left, top: stageBox.top, width: stageBox.width, height: stageBox.height },
+      areaPosition,
+      scale,
+      nodeWidth: node.width(),
+      nodeHeight: node.height(),
+    });
 
     textareaStyle.value = {
       position: "absolute",
@@ -54,7 +79,15 @@ export function useTextEditing() {
   }
 
   function stopEditing() {
-    if (!isEditing.value || !editingNode) return;
+    if (!isEditing.value || !editingNode) {
+      logger.debug("stopEditing 跳过", { isEditing: isEditing.value, hasEditingNode: !!editingNode });
+      return;
+    }
+
+    logger.debug("stopEditing", {
+      nodeId: editingNode.id(),
+      newText: textValue.value.substring(0, 20),
+    });
 
     editingNode.text(textValue.value);
     editingNode.show();

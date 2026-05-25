@@ -121,6 +121,9 @@ import { nanoid } from "nanoid";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeFile } from "@tauri-apps/plugin-fs";
 import Konva from "konva";
+import { createModuleLogger } from "@/utils/logger";
+
+const logger = createModuleLogger("SketchPad");
 
 const currentView = ref<"gallery" | "editor">("gallery");
 const currentProject = ref<SketchProject | null>(null);
@@ -975,18 +978,31 @@ function handleSelectionChange(count: number) {
 
 // 图层操作
 function handleCreateLayer(type: "raster" | "object") {
+  logger.debug("handleCreateLayer", {
+    type,
+    currentLayerCount: layers.value.length,
+    currentActiveLayerId: activeLayerId.value,
+    currentActiveLayerIndex: layers.value.findIndex((l) => l.id === activeLayerId.value),
+  });
   addLayer(type);
 }
 
 function handleDeleteLayer(id: string) {
+  logger.debug("handleDeleteLayer", { id });
   deleteLayer(id);
 }
 
 function handleSelectLayer(id: string) {
+  logger.debug("handleSelectLayer", {
+    newId: id,
+    oldId: activeLayerId.value,
+    layerExists: layers.value.some((l) => l.id === id),
+  });
   activeLayerId.value = id;
 }
 
 function handleReorderLayers(newOrder: string[]) {
+  logger.debug("handleReorderLayers", { newOrder });
   reorderLayers(newOrder);
 }
 

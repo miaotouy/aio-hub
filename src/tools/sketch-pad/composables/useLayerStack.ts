@@ -1,6 +1,9 @@
 import { ref, computed } from "vue";
 import type { HybridLayer, RasterLayer, ObjectLayer } from "../types";
 import { nanoid } from "nanoid";
+import { createModuleLogger } from "@/utils/logger";
+
+const logger = createModuleLogger("SketchPad/LayerStack");
 
 export function useLayerStack() {
   const layers = ref<HybridLayer[]>([]);
@@ -45,28 +48,61 @@ export function useLayerStack() {
   function addLayer(type: "raster" | "object", name?: string) {
     const newLayer = type === "raster" ? createRasterLayer(name) : createObjectLayer(name);
 
+    const insertIndex = activeLayerIndex.value;
+    const layerCountBefore = layers.value.length;
+    const layerIdsBefore = layers.value.map((l) => l.id);
+
+    logger.debug("addLayer 开始", {
+      type,
+      name,
+      newLayerId: newLayer.id,
+      insertIndex,
+      layerCountBefore,
+      activeLayerIdBefore: activeLayerId.value,
+      layerIdsBefore,
+    });
+
     // 插入到当前活跃图层上方，如果没有活跃图层则放到最顶层
-    if (activeLayerIndex.value !== -1) {
-      layers.value.splice(activeLayerIndex.value, 0, newLayer);
+    if (insertIndex !== -1) {
+      layers.value.splice(insertIndex, 0, newLayer);
     } else {
       layers.value.unshift(newLayer);
     }
 
     activeLayerId.value = newLayer.id;
+
+    logger.debug("addLayer 完成", {
+      newLayerId: newLayer.id,
+      layerCountAfter: layers.value.length,
+      activeLayerIdAfter: activeLayerId.value,
+      layerIdsAfter: layers.value.map((l) => l.id),
+    });
+
     return newLayer;
   }
 
   function deleteLayer(id: string) {
     if (layers.value.length <= 1) {
-      return false; // 至少保留一个图层
+      logger.debug("deleteLayer 拒绝：至少保留一个图层", { id });
+      return false;
     }
     const index = layers.value.findIndex((l) => l.id === id);
     if (index !== -1) {
+      logger.debug("deleteLayer", {
+        id,
+        index,
+        layerCountBefore: layers.value.length,
+        isActiveLayer: activeLayerId.value === id,
+      });
       layers.value.splice(index, 1);
       // 如果删除的是活跃图层，切换活跃图层
       if (activeLayerId.value === id) {
         const nextActiveIndex = Math.min(index, layers.value.length - 1);
         activeLayerId.value = layers.value[nextActiveIndex].id;
+        logger.debug("deleteLayer 切换活跃图层", {
+          nextActiveIndex,
+          newActiveLayerId: activeLayerId.value,
+        });
       }
       return true;
     }

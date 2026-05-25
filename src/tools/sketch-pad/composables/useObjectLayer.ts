@@ -20,6 +20,8 @@ export function useObjectLayer() {
       height: obj.height,
       rotation: obj.rotation,
       opacity: obj.opacity,
+      scaleX: obj.scaleX ?? 1,
+      scaleY: obj.scaleY ?? 1,
       draggable: !obj.locked,
       fill: obj.fill || undefined,
       stroke: obj.stroke,
@@ -38,6 +40,8 @@ export function useObjectLayer() {
       radiusY: obj.height / 2,
       rotation: obj.rotation,
       opacity: obj.opacity,
+      scaleX: obj.scaleX ?? 1,
+      scaleY: obj.scaleY ?? 1,
       draggable: !obj.locked,
       fill: obj.fill || undefined,
       stroke: obj.stroke,
@@ -54,6 +58,8 @@ export function useObjectLayer() {
       points: [obj.points[0].x, obj.points[0].y, obj.points[1].x, obj.points[1].y],
       rotation: obj.rotation,
       opacity: obj.opacity,
+      scaleX: obj.scaleX ?? 1,
+      scaleY: obj.scaleY ?? 1,
       draggable: !obj.locked,
       stroke: obj.stroke,
       strokeWidth: obj.strokeWidth,
@@ -69,6 +75,8 @@ export function useObjectLayer() {
       points: [obj.points[0].x, obj.points[0].y, obj.points[1].x, obj.points[1].y],
       rotation: obj.rotation,
       opacity: obj.opacity,
+      scaleX: obj.scaleX ?? 1,
+      scaleY: obj.scaleY ?? 1,
       draggable: !obj.locked,
       stroke: obj.stroke,
       strokeWidth: obj.strokeWidth,
@@ -91,6 +99,8 @@ export function useObjectLayer() {
       fill: obj.color,
       rotation: obj.rotation,
       opacity: obj.opacity,
+      scaleX: obj.scaleX ?? 1,
+      scaleY: obj.scaleY ?? 1,
       draggable: !obj.locked,
       width: obj.width > 0 ? obj.width : undefined,
       height: obj.height > 0 ? obj.height : undefined,
@@ -111,6 +121,8 @@ export function useObjectLayer() {
       height: obj.height,
       rotation: obj.rotation,
       opacity: obj.opacity * 0.5,
+      scaleX: obj.scaleX ?? 1,
+      scaleY: obj.scaleY ?? 1,
       draggable: !obj.locked,
       fill: "#f0f0f0",
       stroke: "#cccccc",
@@ -152,7 +164,10 @@ export function useObjectLayer() {
     const opacity = node.opacity();
     const locked = !node.draggable();
 
-    const base = { id, type, x, y, width, height, rotation, opacity, locked };
+    const scaleX = node.scaleX();
+    const scaleY = node.scaleY();
+
+    const base = { id, type, x, y, width, height, rotation, opacity, locked, scaleX, scaleY };
 
     if (node instanceof Konva.Rect) {
       return {

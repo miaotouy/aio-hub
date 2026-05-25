@@ -65,6 +65,8 @@ export interface ObjectBase {
   rotation: number; // 角度（Konva 使用角度，0-360）
   opacity: number;
   locked: boolean;
+  scaleX?: number; // 水平变形比例，默认 1
+  scaleY?: number; // 垂直变形比例，默认 1
 }
 
 export interface RectObject extends ObjectBase {

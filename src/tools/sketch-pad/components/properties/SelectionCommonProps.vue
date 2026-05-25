@@ -73,6 +73,32 @@
         <span class="field-suffix">%</span>
       </div>
     </div>
+
+    <!-- 变形 (scaleX / scaleY) -->
+    <div class="prop-row">
+      <div class="prop-field">
+        <span class="field-label">横向</span>
+        <input
+          type="number"
+          class="field-input"
+          :value="Math.round((obj.scaleX ?? 1) * 100)"
+          step="1"
+          @change="(e) => emitProp('scaleX', Number((e.target as HTMLInputElement).value) / 100)"
+        />
+        <span class="field-suffix">%</span>
+      </div>
+      <div class="prop-field">
+        <span class="field-label">纵向</span>
+        <input
+          type="number"
+          class="field-input"
+          :value="Math.round((obj.scaleY ?? 1) * 100)"
+          step="1"
+          @change="(e) => emitProp('scaleY', Number((e.target as HTMLInputElement).value) / 100)"
+        />
+        <span class="field-suffix">%</span>
+      </div>
+    </div>
   </div>
 </template>
 

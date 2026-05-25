@@ -192,6 +192,8 @@ export function useImageAsset() {
         height: imageObj.height,
         rotation: imageObj.rotation,
         opacity: imageObj.opacity,
+        scaleX: imageObj.scaleX ?? 1,
+        scaleY: imageObj.scaleY ?? 1,
         draggable: !imageObj.locked,
         image: htmlImage,
       });
@@ -225,6 +227,8 @@ export function useImageAsset() {
       height: imageObj.height,
       rotation: imageObj.rotation,
       opacity: imageObj.opacity * 0.6,
+      scaleX: imageObj.scaleX ?? 1,
+      scaleY: imageObj.scaleY ?? 1,
       draggable: !imageObj.locked,
       image: img,
     });
@@ -251,6 +255,8 @@ export function useImageAsset() {
       height: node.height(),
       rotation: node.rotation(),
       opacity: node.opacity(),
+      scaleX: node.scaleX(),
+      scaleY: node.scaleY(),
       locked: !node.draggable(),
       assetId: node.getAttr("assetId") || "",
       cachedRelativePath: node.getAttr("cachedRelativePath"),

@@ -6,7 +6,12 @@
 
     <!-- 文本内容编辑 -->
     <div class="property-item">
-      <span class="label">内容</span>
+      <div class="label-row">
+        <span class="label">内容</span>
+        <el-button class="expand-btn" type="primary" link @click="isEditorOpen = true">
+          <Maximize2 :size="12" />
+        </el-button>
+      </div>
       <el-input
         type="textarea"
         :model-value="obj.content"
@@ -16,6 +21,23 @@
         @update:model-value="(v: string) => emitProp('content', v)"
       />
     </div>
+
+    <!-- 文本放大编辑器弹窗 -->
+    <BaseDialog v-model="isEditorOpen" title="编辑文本内容" width="600px" height="70vh">
+      <div class="large-editor-container">
+        <el-input
+          type="textarea"
+          :model-value="obj.content"
+          class="large-textarea"
+          resize="none"
+          placeholder="输入文本内容..."
+          @update:model-value="(v: string) => emitProp('content', v)"
+        />
+      </div>
+      <template #footer>
+        <el-button type="primary" @click="isEditorOpen = false">确定</el-button>
+      </template>
+    </BaseDialog>
 
     <div class="section-divider" />
 
@@ -107,15 +129,19 @@
 </template>
 
 <script setup lang="ts">
-import { AlignLeft, AlignCenter, AlignRight } from "lucide-vue-next";
+import { ref } from "vue";
+import { AlignLeft, AlignCenter, AlignRight, Maximize2 } from "lucide-vue-next";
 import type { TextObject } from "../../types";
 import SelectionCommonProps from "./SelectionCommonProps.vue";
 import PropertySlider from "./PropertySlider.vue";
 import PropertyColorPicker from "./PropertyColorPicker.vue";
+import BaseDialog from "@/components/common/BaseDialog.vue";
 
 const props = defineProps<{
   obj: TextObject;
 }>();
+
+const isEditorOpen = ref(false);
 
 const emit = defineEmits<{
   (e: "update-prop", key: string, value: any): void;
@@ -160,6 +186,32 @@ function onBgChange(val: string | null) {
 .label {
   font-size: 11px;
   color: var(--el-text-color-secondary);
+}
+
+.label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.expand-btn {
+  padding: 0;
+  height: auto;
+}
+
+.large-editor-container {
+  height: 100%;
+  padding: 8px 0;
+}
+
+.large-textarea {
+  height: 100%;
+}
+
+.large-textarea :deep(.el-textarea__inner) {
+  height: 100% !important;
+  font-family: inherit;
 }
 
 .style-buttons,

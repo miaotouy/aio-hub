@@ -67,7 +67,7 @@ import { useObjectLayer } from "../composables/useObjectLayer";
 import { useTransformer } from "../composables/useTransformer";
 import { useTextEditing } from "../composables/useTextEditing";
 import { useImageAsset } from "../composables/useImageAsset";
-import type { HybridLayer, SketchObject, ImageObject } from "../types";
+import type { HybridLayer, SketchObject, ImageObject, SelectionInfo } from "../types";
 import type { ToolType } from "../constants";
 import TextEditor from "./TextEditor.vue";
 import { customMessage } from "@/utils/customMessage";
@@ -98,7 +98,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: "update:layers", layers: HybridLayer[]): void;
   (e: "push-history", entry: any): void;
-  (e: "selection-change", count: number): void;
+  (e: "selection-change", info: SelectionInfo): void;
   (e: "switch-layer", layerId: string): void;
 }>();
 
@@ -306,7 +306,7 @@ watch(
   (tool) => {
     if (tool !== "select") {
       clearSelection();
-      emit("selection-change", 0);
+      emitSelectionInfo();
     }
 
     // Hand 工具：stage 始终 draggable
@@ -320,9 +320,71 @@ watch(
 );
 
 // 监听选中节点变化，通知父组件
-watch(selectedNodes, (nodes) => {
-  emit("selection-change", nodes.length);
+watch(selectedNodes, () => {
+  emitSelectionInfo();
 });
+
+/** 构建并发射 SelectionInfo */
+function emitSelectionInfo() {
+  emit("selection-change", buildSelectionInfo());
+}
+
+/** 从当前选中节点构建 SelectionInfo */
+function buildSelectionInfo(): SelectionInfo {
+  const nodes = selectedNodes.value;
+  if (nodes.length === 0) {
+    return { count: 0, singleObject: null, objectTypes: [], commonProps: {} };
+  }
+
+  const objectTypes: string[] = [];
+  const objects: SketchObject[] = [];
+
+  for (const node of nodes) {
+    try {
+      const obj = serializeKonvaNode(node);
+      objects.push(obj);
+      objectTypes.push(obj.type);
+    } catch {
+      // 跳过无法序列化的节点
+    }
+  }
+
+  if (nodes.length === 1 && objects.length === 1) {
+    return {
+      count: 1,
+      singleObject: objects[0],
+      objectTypes,
+      commonProps: {},
+    };
+  }
+
+  // 多选：计算共有属性
+  const commonProps: SelectionInfo["commonProps"] = {};
+
+  // 检查是否所有对象都有 stroke 属性
+  const strokeObjects = objects.filter((o) => "stroke" in o) as Array<{ stroke: string; strokeWidth: number }>;
+  if (strokeObjects.length === objects.length && strokeObjects.length > 0) {
+    const firstStroke = strokeObjects[0].stroke;
+    if (strokeObjects.every((o) => o.stroke === firstStroke)) {
+      commonProps.stroke = firstStroke;
+    } else {
+      commonProps.stroke = firstStroke; // 取第一个作为默认
+    }
+    commonProps.strokeWidth = strokeObjects[0].strokeWidth;
+  }
+
+  // 不透明度
+  if (objects.length > 0) {
+    commonProps.opacity = objects[0].opacity;
+  }
+
+  return {
+    count: nodes.length,
+    singleObject: null,
+    objectTypes,
+    commonProps,
+  };
+}
 
 function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
   // Space / Hand 工具拖拽时更新光标
@@ -999,6 +1061,206 @@ function collectObjectLayerData(): Map<string, import("../types").SketchObject[]
   return result;
 }
 
+// ─── 选中对象属性操作 ───
+
+/** 获取当前选中信息（供父组件主动查询） */
+function getSelectionInfo(): SelectionInfo {
+  return buildSelectionInfo();
+}
+
+/** 读取节点上某个属性的当前值（用于 history before 快照） */
+function getNodeAttrValue(node: Konva.Node, key: string): any {
+  if (key === "content" && node instanceof Konva.Text) {
+    return node.text();
+  } else if (key === "color" && node instanceof Konva.Text) {
+    return node.fill();
+  } else if (key === "arrowSize" && node instanceof Konva.Arrow) {
+    return node.pointerLength();
+  } else if (key === "dash") {
+    return (node as any).dash() || null;
+  } else if (key === "fill") {
+    return (node as any).fill() || null;
+  }
+  return node.getAttr(key);
+}
+
+/** 在节点上设置属性值 */
+function setNodeAttrValue(node: Konva.Node, key: string, value: any) {
+  if (key === "content" && node instanceof Konva.Text) {
+    node.text(value);
+  } else if (key === "color" && node instanceof Konva.Text) {
+    node.fill(value);
+  } else if (key === "arrowSize" && node instanceof Konva.Arrow) {
+    node.pointerLength(value);
+    node.pointerWidth(value);
+  } else if (key === "dash") {
+    (node as any).dash(value || []);
+  } else if (key === "fill") {
+    (node as any).fill(value || undefined);
+  } else {
+    node.setAttr(key, value);
+  }
+}
+
+/** 更新选中对象的单个属性 */
+function updateSelectionProp(key: string, value: any) {
+  if (selectedNodes.value.length === 0) return;
+
+  selectedNodes.value.forEach((node) => {
+    if (node instanceof Konva.Shape || node instanceof Konva.Text || node instanceof Konva.Image) {
+      const layerId = node.getLayer()?.id();
+      if (layerId) {
+        const before: Record<string, any> = {};
+        const after: Record<string, any> = {};
+        before[key] = getNodeAttrValue(node, key);
+        after[key] = value;
+
+        setNodeAttrValue(node, key, value);
+
+        emit("push-history", {
+          type: "object-modify",
+          layerId,
+          objectId: node.id(),
+          before,
+          after,
+        });
+      } else {
+        setNodeAttrValue(node, key, value);
+      }
+    }
+  });
+  stage.value?.batchDraw();
+}
+
+/** 批量更新选中对象的多个属性 */
+function updateSelectionProps(data: Record<string, any>) {
+  if (selectedNodes.value.length === 0) return;
+
+  selectedNodes.value.forEach((node) => {
+    if (node instanceof Konva.Shape || node instanceof Konva.Text || node instanceof Konva.Image) {
+      const layerId = node.getLayer()?.id();
+      if (layerId) {
+        const before: Record<string, any> = {};
+        const after: Record<string, any> = {};
+
+        for (const [key, value] of Object.entries(data)) {
+          before[key] = getNodeAttrValue(node, key);
+          after[key] = value;
+          setNodeAttrValue(node, key, value);
+        }
+
+        emit("push-history", {
+          type: "object-modify",
+          layerId,
+          objectId: node.id(),
+          before,
+          after,
+        });
+      } else {
+        for (const [key, value] of Object.entries(data)) {
+          setNodeAttrValue(node, key, value);
+        }
+      }
+    }
+  });
+  stage.value?.batchDraw();
+}
+
+/** 对齐选中对象 */
+function alignSelection(direction: "left" | "right" | "top" | "bottom" | "center-h" | "center-v") {
+  const nodes = selectedNodes.value;
+  if (nodes.length < 2) return;
+
+  const rects = nodes.map((n) => n.getClientRect());
+
+  switch (direction) {
+    case "left": {
+      const minX = Math.min(...rects.map((r) => r.x));
+      nodes.forEach((n, i) => {
+        n.x(n.x() + (minX - rects[i].x));
+      });
+      break;
+    }
+    case "right": {
+      const maxRight = Math.max(...rects.map((r) => r.x + r.width));
+      nodes.forEach((n, i) => {
+        n.x(n.x() + (maxRight - (rects[i].x + rects[i].width)));
+      });
+      break;
+    }
+    case "top": {
+      const minY = Math.min(...rects.map((r) => r.y));
+      nodes.forEach((n, i) => {
+        n.y(n.y() + (minY - rects[i].y));
+      });
+      break;
+    }
+    case "bottom": {
+      const maxBottom = Math.max(...rects.map((r) => r.y + r.height));
+      nodes.forEach((n, i) => {
+        n.y(n.y() + (maxBottom - (rects[i].y + rects[i].height)));
+      });
+      break;
+    }
+    case "center-h": {
+      const minX = Math.min(...rects.map((r) => r.x));
+      const maxRight = Math.max(...rects.map((r) => r.x + r.width));
+      const centerX = (minX + maxRight) / 2;
+      nodes.forEach((n, i) => {
+        n.x(n.x() + (centerX - (rects[i].x + rects[i].width / 2)));
+      });
+      break;
+    }
+    case "center-v": {
+      const minY = Math.min(...rects.map((r) => r.y));
+      const maxBottom = Math.max(...rects.map((r) => r.y + r.height));
+      const centerY = (minY + maxBottom) / 2;
+      nodes.forEach((n, i) => {
+        n.y(n.y() + (centerY - (rects[i].y + rects[i].height / 2)));
+      });
+      break;
+    }
+  }
+  stage.value?.batchDraw();
+}
+
+/** 等距分布选中对象 */
+function distributeSelection(direction: "horizontal" | "vertical") {
+  const nodes = selectedNodes.value;
+  if (nodes.length < 3) return;
+
+  const rects = nodes.map((n, i) => ({ index: i, rect: n.getClientRect() }));
+
+  if (direction === "horizontal") {
+    rects.sort((a, b) => a.rect.x - b.rect.x);
+    const totalWidth = rects.reduce((sum, r) => sum + r.rect.width, 0);
+    const minX = rects[0].rect.x;
+    const maxRight = rects[rects.length - 1].rect.x + rects[rects.length - 1].rect.width;
+    const gap = (maxRight - minX - totalWidth) / (rects.length - 1);
+
+    let currentX = minX;
+    rects.forEach((item) => {
+      const node = nodes[item.index];
+      node.x(node.x() + (currentX - item.rect.x));
+      currentX += item.rect.width + gap;
+    });
+  } else {
+    rects.sort((a, b) => a.rect.y - b.rect.y);
+    const totalHeight = rects.reduce((sum, r) => sum + r.rect.height, 0);
+    const minY = rects[0].rect.y;
+    const maxBottom = rects[rects.length - 1].rect.y + rects[rects.length - 1].rect.height;
+    const gap = (maxBottom - minY - totalHeight) / (rects.length - 1);
+
+    let currentY = minY;
+    rects.forEach((item) => {
+      const node = nodes[item.index];
+      node.y(node.y() + (currentY - item.rect.y));
+      currentY += item.rect.height + gap;
+    });
+  }
+  stage.value?.batchDraw();
+}
+
 // 暴露方法给父组件
 defineExpose({
   getStage: () => stage.value,
@@ -1008,6 +1270,11 @@ defineExpose({
   serializeKonvaNode,
   addImageToActiveLayer,
   collectObjectLayerData,
+  getSelectionInfo,
+  updateSelectionProp,
+  updateSelectionProps,
+  alignSelection,
+  distributeSelection,
   resetView: () => {
     if (containerRef.value && stage.value) {
       resetView(props.width, props.height, containerRef.value.clientWidth, containerRef.value.clientHeight);
@@ -1027,7 +1294,7 @@ defineExpose({
         node.destroy();
       });
       clearSelection();
-      emit("selection-change", 0);
+      emitSelectionInfo();
       stage.value?.batchDraw();
     }
   },
@@ -1045,25 +1312,9 @@ defineExpose({
       if (transformer.value) {
         transformer.value.nodes(objectNodes as any);
         transformer.value.getLayer()?.batchDraw();
-        emit("selection-change", objectNodes.length);
+        emitSelectionInfo();
       }
     }
-  },
-  updateSelectionColor: (color: string) => {
-    selectedNodes.value.forEach((node) => {
-      if (node instanceof Konva.Shape) {
-        node.stroke(color);
-      }
-    });
-    stage.value?.batchDraw();
-  },
-  updateSelectionStrokeWidth: (width: number) => {
-    selectedNodes.value.forEach((node) => {
-      if (node instanceof Konva.Shape) {
-        node.strokeWidth(width);
-      }
-    });
-    stage.value?.batchDraw();
   },
 });
 </script>

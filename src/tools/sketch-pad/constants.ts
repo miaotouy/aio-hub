@@ -50,3 +50,19 @@ export const TOOL_TYPES = {
 } as const;
 
 export type ToolType = (typeof TOOL_TYPES)[keyof typeof TOOL_TYPES];
+
+/** 虚线样式预设 */
+export const DASH_PRESETS: { label: string; value: number[] | null }[] = [
+  { label: "实线", value: null },
+  { label: "短虚线", value: [5, 5] },
+  { label: "长虚线", value: [12, 6] },
+  { label: "点线", value: [2, 4] },
+  { label: "点划线", value: [12, 4, 2, 4] },
+];
+
+/** 线帽样式预设 */
+export const LINE_CAP_OPTIONS: { label: string; value: "butt" | "round" | "square" }[] = [
+  { label: "平头", value: "butt" },
+  { label: "圆头", value: "round" },
+  { label: "方头", value: "square" },
+];

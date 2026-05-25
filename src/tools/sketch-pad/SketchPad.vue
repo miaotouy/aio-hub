@@ -69,12 +69,14 @@
         :corner-radius="cornerRadius"
         :font-size="fontSize"
         :text-color="textColor"
-        :has-selection="hasSelection"
-        :selected-nodes-count="selectedNodesCount"
+        :selection-info="selectionInfo"
         @update:brush="updateBrush"
         @update:shape="updateShape"
         @update:text="updateText"
-        @update:selection="updateSelection"
+        @update:selection-prop="updateSelectionProp"
+        @update:selection-props="updateSelectionProps"
+        @align-selection="alignSelection"
+        @distribute-selection="distributeSelection"
         @delete-selected="deleteSelected"
       />
 
@@ -114,7 +116,7 @@ import { useSketchSettings } from "./composables/useSketchSettings";
 import { useSendSketchToChat } from "./composables/useSendSketchToChat";
 import { useImageAsset } from "./composables/useImageAsset";
 import { packageSketch, unpackageSketch } from "./core/sketch-packager";
-import type { SketchProject, AssetRef } from "./types";
+import type { SketchProject, AssetRef, SelectionInfo } from "./types";
 import { generateDefaultSketchName, type ToolType } from "./constants";
 import { customMessage } from "@/utils/customMessage";
 import { ElMessageBox } from "element-plus";
@@ -176,8 +178,12 @@ const fontStyle = ref<"normal" | "italic">("normal");
 const textAlign = ref<"left" | "center" | "right">("left");
 
 // 选择状态
-const hasSelection = ref(false);
-const selectedNodesCount = ref(0);
+const selectionInfo = ref<SelectionInfo>({
+  count: 0,
+  singleObject: null,
+  objectTypes: [],
+  commonProps: {},
+});
 
 // 脏状态 & 自动保存
 const isDirty = ref(false);
@@ -767,9 +773,33 @@ function updateText(data: {
   if (data.textAlign !== undefined) textAlign.value = data.textAlign;
 }
 
-function updateSelection(data: { color?: string; strokeWidth?: number }) {
-  if (data.color) canvasRef.value?.updateSelectionColor(data.color);
-  if (data.strokeWidth) canvasRef.value?.updateSelectionStrokeWidth(data.strokeWidth);
+function updateSelectionProp(key: string, value: any) {
+  canvasRef.value?.updateSelectionProp(key, value);
+  // 同步更新本地 selectionInfo
+  refreshSelectionInfo();
+}
+
+function updateSelectionProps(data: Record<string, any>) {
+  canvasRef.value?.updateSelectionProps(data);
+  refreshSelectionInfo();
+}
+
+function alignSelection(direction: "left" | "right" | "top" | "bottom" | "center-h" | "center-v") {
+  canvasRef.value?.alignSelection(direction);
+  refreshSelectionInfo();
+}
+
+function distributeSelection(direction: "horizontal" | "vertical") {
+  canvasRef.value?.distributeSelection(direction);
+  refreshSelectionInfo();
+}
+
+/** 从 KonvaCanvas 重新读取选中对象信息 */
+function refreshSelectionInfo() {
+  const info = canvasRef.value?.getSelectionInfo();
+  if (info) {
+    selectionInfo.value = info;
+  }
 }
 
 function deleteSelected() {
@@ -879,12 +909,19 @@ function applyHistoryEntry(entry: HistoryEntry, direction: "undo" | "redo") {
         const node = konvaLayer.findOne(`#${entry.objectId}`) as Konva.Shape;
         if (node) {
           const attrs = direction === "undo" ? entry.before : entry.after;
-          // 将 null 值转换为 undefined 以兼容 Konva 的类型系统
-          const konvaAttrs: Record<string, any> = {};
+          // 逐个属性设置，处理特殊映射（如 content → text）
           for (const [key, value] of Object.entries(attrs)) {
-            konvaAttrs[key] = value === null ? undefined : value;
+            if (key === "content" && node instanceof Konva.Text) {
+              node.text(value as string);
+            } else if (key === "color" && node instanceof Konva.Text) {
+              node.fill(value as string);
+            } else if (key === "arrowSize" && node instanceof Konva.Arrow) {
+              node.pointerLength(value as number);
+              node.pointerWidth(value as number);
+            } else {
+              node.setAttr(key, value === null ? undefined : value);
+            }
           }
-          node.setAttrs(konvaAttrs);
           stage?.batchDraw();
         }
       }
@@ -972,9 +1009,8 @@ function applyHistoryEntry(entry: HistoryEntry, direction: "undo" | "redo") {
   }
 }
 
-function handleSelectionChange(count: number) {
-  selectedNodesCount.value = count;
-  hasSelection.value = count > 0;
+function handleSelectionChange(info: SelectionInfo) {
+  selectionInfo.value = info;
 }
 
 // 图层操作

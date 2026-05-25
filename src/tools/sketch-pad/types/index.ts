@@ -73,6 +73,7 @@ export interface RectObject extends ObjectBase {
   stroke: string;
   strokeWidth: number;
   cornerRadius: number;
+  dash?: number[] | null; // 虚线模式，null/undefined = 实线
 }
 
 export interface EllipseObject extends ObjectBase {
@@ -80,6 +81,7 @@ export interface EllipseObject extends ObjectBase {
   fill: string | null;
   stroke: string;
   strokeWidth: number;
+  dash?: number[] | null;
 }
 
 export interface LineObject extends ObjectBase {
@@ -87,6 +89,8 @@ export interface LineObject extends ObjectBase {
   points: [Point, Point]; // 相对于对象坐标系
   stroke: string;
   strokeWidth: number;
+  dash?: number[] | null;
+  lineCap?: "butt" | "round" | "square";
 }
 
 export interface ArrowObject extends ObjectBase {
@@ -95,6 +99,8 @@ export interface ArrowObject extends ObjectBase {
   stroke: string;
   strokeWidth: number;
   arrowSize: number;
+  dash?: number[] | null;
+  lineCap?: "butt" | "round" | "square";
 }
 
 export interface TextObject extends ObjectBase {
@@ -131,6 +137,25 @@ export interface AssetRef {
 export interface Point {
   x: number;
   y: number;
+}
+
+// ─── 选中对象信息（属性面板用） ───
+
+export interface SelectionInfo {
+  /** 选中对象数量 */
+  count: number;
+  /** 单选时的完整对象数据 */
+  singleObject: SketchObject | null;
+  /** 所有选中对象的类型列表 */
+  objectTypes: string[];
+  /** 多选时的共有属性（交集值） */
+  commonProps: {
+    stroke?: string;
+    strokeWidth?: number;
+    opacity?: number;
+    fill?: string | null;
+    dash?: number[] | null;
+  };
 }
 
 // ─── 项目索引 ───

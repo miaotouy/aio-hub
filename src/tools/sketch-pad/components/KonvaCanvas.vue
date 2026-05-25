@@ -28,8 +28,10 @@
         <div class="context-menu-item" @click="contextCopy">复制</div>
         <div class="context-menu-item" @click="contextDelete">删除</div>
         <div class="context-menu-divider" />
-        <div class="context-menu-item" @click="contextMoveToTop">置顶</div>
-        <div class="context-menu-item" @click="contextMoveToBottom">置底</div>
+        <div class="context-menu-item" @click="contextMoveUp">上移一层</div>
+        <div class="context-menu-item" @click="contextMoveDown">下移一层</div>
+        <div class="context-menu-item" @click="contextMoveToTop">置于顶层</div>
+        <div class="context-menu-item" @click="contextMoveToBottom">置于底层</div>
         <div class="context-menu-divider" />
         <div class="context-menu-item" @click="contextToggleLock">
           {{ contextMenuTarget.draggable() ? "锁定" : "解锁" }}
@@ -549,6 +551,9 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
 
   // 鼠标/触摸按下
   stageInstance.on("mousedown touchstart", (e) => {
+    // 右键点击不处理绘制逻辑（交由 contextmenu 事件处理）
+    if (e.evt && (e.evt as MouseEvent).button === 2) return;
+
     // Space 平移 / Hand 工具 / 中键拖拽模式下不处理绘制
     if (isSpaceHeld.value || props.activeTool === "hand" || isMiddleButtonPanning.value) return;
 
@@ -1346,18 +1351,77 @@ function contextDelete() {
   contextMenuVisible.value = false;
 }
 
+/**
+ * 通用对象排序操作（带历史记录）
+ */
+function reorderObjectNode(node: Konva.Node, action: "up" | "down" | "top" | "bottom") {
+  const konvaLayer = node.getLayer();
+  if (!konvaLayer) return;
+
+  const layerId = konvaLayer.id();
+  if (!layerId) return;
+
+  // 获取排序前的对象 ID 顺序
+  const objectNodes = konvaLayer.getChildren().filter((n) => n.name() === "object-node");
+  const before = objectNodes.map((n) => n.id());
+
+  // 执行排序
+  switch (action) {
+    case "up":
+      node.moveUp();
+      break;
+    case "down":
+      node.moveDown();
+      break;
+    case "top":
+      node.moveToTop();
+      break;
+    case "bottom":
+      node.moveToBottom();
+      break;
+  }
+
+  // 获取排序后的对象 ID 顺序
+  const objectNodesAfter = konvaLayer.getChildren().filter((n) => n.name() === "object-node");
+  const after = objectNodesAfter.map((n) => n.id());
+
+  // 只有顺序真正变化时才记录历史
+  if (before.join(",") !== after.join(",")) {
+    emit("push-history", {
+      type: "object-reorder",
+      layerId,
+      before,
+      after,
+    });
+  }
+
+  stage.value?.batchDraw();
+}
+
+function contextMoveUp() {
+  if (contextMenuTarget.value) {
+    reorderObjectNode(contextMenuTarget.value, "up");
+  }
+  contextMenuVisible.value = false;
+}
+
+function contextMoveDown() {
+  if (contextMenuTarget.value) {
+    reorderObjectNode(contextMenuTarget.value, "down");
+  }
+  contextMenuVisible.value = false;
+}
+
 function contextMoveToTop() {
   if (contextMenuTarget.value) {
-    contextMenuTarget.value.moveToTop();
-    stage.value?.batchDraw();
+    reorderObjectNode(contextMenuTarget.value, "top");
   }
   contextMenuVisible.value = false;
 }
 
 function contextMoveToBottom() {
   if (contextMenuTarget.value) {
-    contextMenuTarget.value.moveToBottom();
-    stage.value?.batchDraw();
+    reorderObjectNode(contextMenuTarget.value, "bottom");
   }
   contextMenuVisible.value = false;
 }
@@ -1606,6 +1670,68 @@ function distributeSelection(direction: "horizontal" | "vertical") {
   stage.value?.batchDraw();
 }
 
+/** 通过 ID 选中指定对象 */
+function selectObjectById(objectId: string) {
+  if (!stage.value) return;
+
+  // 在所有对象图层中查找
+  for (const layer of props.layers) {
+    if (layer.type !== "object") continue;
+    const konvaLayer = stage.value.findOne(`#${layer.id}`) as Konva.Layer;
+    if (!konvaLayer) continue;
+
+    const node = konvaLayer.findOne(`#${objectId}`);
+    if (node && node.name() === "object-node") {
+      // 如果不在活跃图层，先切换
+      if (layer.id !== props.activeLayerId) {
+        emit("switch-layer", layer.id);
+      }
+      selectNodes([node]);
+      emitSelectionInfo();
+      return;
+    }
+  }
+}
+
+/** 对指定图层内的对象重新排序（供外部调用） */
+function reorderObjectsInLayer(layerId: string, newOrder: string[]) {
+  if (!stage.value) return;
+
+  const konvaLayer = stage.value.findOne(`#${layerId}`) as Konva.Layer;
+  if (!konvaLayer) return;
+
+  // 获取排序前的对象 ID 顺序
+  const objectNodes = konvaLayer.getChildren().filter((n) => n.name() === "object-node");
+  const before = objectNodes.map((n) => n.id());
+
+  // 按新顺序设置 zIndex
+  newOrder.forEach((id, idx) => {
+    const node = konvaLayer.findOne(`#${id}`);
+    if (node) node.zIndex(idx);
+  });
+
+  // 获取排序后的对象 ID 顺序
+  const objectNodesAfter = konvaLayer.getChildren().filter((n) => n.name() === "object-node");
+  const after = objectNodesAfter.map((n) => n.id());
+
+  if (before.join(",") !== after.join(",")) {
+    emit("push-history", {
+      type: "object-reorder",
+      layerId,
+      before,
+      after,
+    });
+  }
+
+  stage.value.batchDraw();
+}
+
+/** 对选中对象执行排序操作（供快捷键调用） */
+function reorderSelectedObject(action: "up" | "down" | "top" | "bottom") {
+  if (selectedNodes.value.length !== 1) return;
+  reorderObjectNode(selectedNodes.value[0], action);
+}
+
 // 暴露方法给父组件
 defineExpose({
   getStage: () => stage.value,
@@ -1620,6 +1746,9 @@ defineExpose({
   updateSelectionProps,
   alignSelection,
   distributeSelection,
+  selectObjectById,
+  reorderObjectsInLayer,
+  reorderSelectedObject,
   resetView: () => {
     if (containerRef.value && stage.value) {
       resetView(props.width, props.height, containerRef.value.clientWidth, containerRef.value.clientHeight);
@@ -1747,5 +1876,39 @@ defineExpose({
 
 .zoom-value:hover {
   color: var(--el-text-color-primary);
+}
+
+/* 右键上下文菜单 */
+.context-menu {
+  position: absolute;
+  z-index: 1000;
+  min-width: 140px;
+  background: var(--card-bg, #fff);
+  backdrop-filter: blur(var(--ui-blur, 12px));
+  border: var(--border-width, 1px) solid var(--border-color, rgba(0, 0, 0, 0.1));
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.context-menu-item {
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--el-text-color-regular);
+  border-radius: 4px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.12s;
+}
+
+.context-menu-item:hover {
+  background: rgba(var(--el-color-primary-rgb, 64, 158, 255), 0.08);
+  color: var(--el-text-color-primary);
+}
+
+.context-menu-divider {
+  height: 1px;
+  margin: 4px 8px;
+  background: var(--border-color, rgba(0, 0, 0, 0.08));
 }
 </style>

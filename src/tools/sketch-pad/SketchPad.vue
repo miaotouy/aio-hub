@@ -86,6 +86,7 @@
       <LayerPanel
         :layers="layers"
         :active-layer-id="activeLayerId"
+        :selected-object-id="selectionInfo.singleObject?.id || null"
         @create-layer="handleCreateLayer"
         @delete-layer="handleDeleteLayer"
         @select-layer="handleSelectLayer"
@@ -94,6 +95,8 @@
         @reorder-layers="handleReorderLayers"
         @merge-down="handleMergeDown"
         @rasterize-layer="handleRasterizeLayer"
+        @select-object="handleSelectObject"
+        @reorder-objects="handleReorderObjects"
       />
     </div>
 
@@ -293,6 +296,22 @@ function handleGlobalKeyDown(e: KeyboardEvent) {
       case "-":
         e.preventDefault();
         handleZoomStep(-0.1);
+        return;
+      case "]":
+        e.preventDefault();
+        if (e.shiftKey) {
+          canvasRef.value?.reorderSelectedObject("top");
+        } else {
+          canvasRef.value?.reorderSelectedObject("up");
+        }
+        return;
+      case "[":
+        e.preventDefault();
+        if (e.shiftKey) {
+          canvasRef.value?.reorderSelectedObject("bottom");
+        } else {
+          canvasRef.value?.reorderSelectedObject("down");
+        }
         return;
     }
     return;
@@ -842,6 +861,25 @@ async function handleImportImage() {
 function pushHistory(entry: HistoryEntry) {
   pushEntry(entry);
   isDirty.value = true;
+
+  // 同步对象图层数据模型（让 LayerPanel 实时显示对象列表）
+  syncObjectLayerDataAfterHistory(entry);
+}
+
+/** 在历史操作后同步对象图层的 objects 数据 */
+function syncObjectLayerDataAfterHistory(entry: HistoryEntry) {
+  if (entry.type === "object-add" || entry.type === "object-remove" || entry.type === "object-reorder") {
+    // 从 Konva 运行时收集最新的对象数据
+    if (!canvasRef.value) return;
+    const objectData = canvasRef.value.collectObjectLayerData();
+    if (!objectData) return;
+
+    const layerId = entry.layerId;
+    const objects = objectData.get(layerId);
+    if (objects) {
+      updateLayerObjects(layerId, objects);
+    }
+  }
 }
 
 function handleUndo() {
@@ -1061,6 +1099,14 @@ function handleSelectLayer(id: string) {
 function handleReorderLayers(newOrder: string[]) {
   logger.debug("handleReorderLayers", { newOrder });
   reorderLayers(newOrder);
+}
+
+function handleSelectObject(objectId: string) {
+  canvasRef.value?.selectObjectById(objectId);
+}
+
+function handleReorderObjects(data: { layerId: string; newOrder: string[] }) {
+  canvasRef.value?.reorderObjectsInLayer(data.layerId, data.newOrder);
 }
 
 async function handleRasterizeLayer(id: string) {

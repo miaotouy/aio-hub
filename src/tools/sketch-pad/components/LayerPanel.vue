@@ -25,37 +25,78 @@
 
       <!-- 图层列表 -->
       <div class="layer-list">
-        <div
-          v-for="(layer, index) in layers"
-          :key="layer.id"
-          class="layer-item"
-          :class="{ active: layer.id === activeLayerId }"
-          @click="selectLayer(layer.id)"
-        >
-          <!-- 可见性 -->
-          <button class="icon-btn" :title="layer.visible ? '隐藏' : '显示'" @click.stop="toggleVisible(layer.id)">
-            <component :is="layer.visible ? Eye : EyeOff" :size="13" />
-          </button>
-
-          <!-- 锁定 -->
-          <button class="icon-btn" :title="layer.locked ? '解锁' : '锁定'" @click.stop="toggleLocked(layer.id)">
-            <component :is="layer.locked ? Lock : Unlock" :size="13" />
-          </button>
-
-          <!-- 类型图标 + 名称 -->
-          <span class="layer-type-icon">
-            <component :is="layer.type === 'raster' ? Paintbrush : Shapes" :size="12" />
-          </span>
-          <span class="layer-name">{{ layer.name }}</span>
-
-          <!-- 排序按钮 -->
-          <div class="layer-order">
-            <button class="icon-btn mini" :disabled="index === 0" @click.stop="moveLayer(index, -1)">
-              <ChevronUp :size="12" />
+        <div v-for="(layer, index) in layers" :key="layer.id" class="layer-group">
+          <!-- 图层条目 -->
+          <div class="layer-item" :class="{ active: layer.id === activeLayerId }" @click="selectLayer(layer.id)">
+            <!-- 可见性 -->
+            <button class="icon-btn" :title="layer.visible ? '隐藏' : '显示'" @click.stop="toggleVisible(layer.id)">
+              <component :is="layer.visible ? Eye : EyeOff" :size="13" />
             </button>
-            <button class="icon-btn mini" :disabled="index === layers.length - 1" @click.stop="moveLayer(index, 1)">
-              <ChevronDown :size="12" />
+
+            <!-- 锁定 -->
+            <button class="icon-btn" :title="layer.locked ? '解锁' : '锁定'" @click.stop="toggleLocked(layer.id)">
+              <component :is="layer.locked ? Lock : Unlock" :size="13" />
             </button>
+
+            <!-- 类型图标 + 名称 -->
+            <span class="layer-type-icon">
+              <component :is="layer.type === 'raster' ? Paintbrush : Shapes" :size="12" />
+            </span>
+            <span class="layer-name">{{ layer.name }}</span>
+
+            <!-- 展开/折叠按钮（仅对象图层） -->
+            <button
+              v-if="layer.type === 'object' && layer.objects.length > 0"
+              class="icon-btn mini expand-btn"
+              :title="expandedLayers.has(layer.id) ? '折叠' : '展开对象列表'"
+              @click.stop="toggleExpand(layer.id)"
+            >
+              <component :is="expandedLayers.has(layer.id) ? ChevronDown : ChevronRight" :size="12" />
+            </button>
+
+            <!-- 排序按钮 -->
+            <div class="layer-order">
+              <button class="icon-btn mini" :disabled="index === 0" @click.stop="moveLayer(index, -1)">
+                <ChevronUp :size="12" />
+              </button>
+              <button class="icon-btn mini" :disabled="index === layers.length - 1" @click.stop="moveLayer(index, 1)">
+                <ChevronDown :size="12" />
+              </button>
+            </div>
+          </div>
+
+          <!-- 对象列表（展开时显示） -->
+          <div v-if="layer.type === 'object' && expandedLayers.has(layer.id)" class="object-list">
+            <div
+              v-for="(obj, objIndex) in getLayerObjects(layer)"
+              :key="obj.id"
+              class="object-item"
+              :class="{ selected: obj.id === selectedObjectId }"
+              @click.stop="handleObjectClick(obj.id)"
+            >
+              <span class="object-type-icon">
+                <component :is="getObjectIcon(obj.type)" :size="11" />
+              </span>
+              <span class="object-name">{{ getObjectName(obj) }}</span>
+              <div class="object-order">
+                <button
+                  class="icon-btn mini"
+                  :disabled="objIndex === getLayerObjects(layer).length - 1"
+                  title="上移（显示更靠前）"
+                  @click.stop="moveObject(layer.id, objIndex, 1)"
+                >
+                  <ChevronUp :size="11" />
+                </button>
+                <button
+                  class="icon-btn mini"
+                  :disabled="objIndex === 0"
+                  title="下移（显示更靠后）"
+                  @click.stop="moveObject(layer.id, objIndex, -1)"
+                >
+                  <ChevronDown :size="11" />
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -96,19 +137,28 @@ import {
   Unlock,
   ChevronUp,
   ChevronDown,
+  ChevronRight,
   Layers,
   Paintbrush,
   Shapes,
   Merge,
   Grid3x3,
+  Square,
+  Circle,
+  Minus,
+  ArrowRight,
+  Type,
+  Image,
 } from "lucide-vue-next";
-import type { HybridLayer } from "../types";
+import type { HybridLayer, ObjectLayer, SketchObject } from "../types";
 
 const isCollapsed = ref(true);
+const expandedLayers = ref<Set<string>>(new Set());
 
 const props = defineProps<{
   layers: HybridLayer[];
   activeLayerId: string;
+  selectedObjectId: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -120,6 +170,8 @@ const emit = defineEmits<{
   (e: "reorder-layers", newOrder: string[]): void;
   (e: "merge-down", id: string): void;
   (e: "rasterize-layer", id: string): void;
+  (e: "select-object", objectId: string): void;
+  (e: "reorder-objects", data: { layerId: string; newOrder: string[] }): void;
 }>();
 
 const activeLayerIndex = computed(() => {
@@ -177,6 +229,93 @@ function rasterizeActiveLayer() {
     emit("rasterize-layer", props.activeLayerId);
   }
 }
+
+// ─── 对象列表相关 ───
+
+function toggleExpand(layerId: string) {
+  if (expandedLayers.value.has(layerId)) {
+    expandedLayers.value.delete(layerId);
+  } else {
+    expandedLayers.value.add(layerId);
+  }
+}
+
+/** 获取图层的对象列表（反转顺序，顶层对象在前） */
+function getLayerObjects(layer: HybridLayer): SketchObject[] {
+  if (layer.type !== "object") return [];
+  return [...(layer as ObjectLayer).objects].reverse();
+}
+
+function getObjectIcon(type: string) {
+  switch (type) {
+    case "rect":
+      return Square;
+    case "ellipse":
+      return Circle;
+    case "line":
+      return Minus;
+    case "arrow":
+      return ArrowRight;
+    case "text":
+      return Type;
+    case "image":
+      return Image;
+    default:
+      return Square;
+  }
+}
+
+function getObjectName(obj: SketchObject): string {
+  switch (obj.type) {
+    case "rect":
+      return "矩形";
+    case "ellipse":
+      return "椭圆";
+    case "line":
+      return "线段";
+    case "arrow":
+      return "箭头";
+    case "text": {
+      const content = obj.content.trim();
+      return content ? (content.length > 8 ? content.substring(0, 8) + "…" : content) : "文本";
+    }
+    case "image":
+      return "图片";
+    default:
+      return "对象";
+  }
+}
+
+function handleObjectClick(objectId: string) {
+  emit("select-object", objectId);
+}
+
+/**
+ * 移动对象排序
+ * 注意：显示列表是反转的（顶层在前），所以 direction 需要反转
+ * displayIndex 是反转后的索引，direction: 1 = 在显示中上移 = 在实际数组中下移（zIndex 增大）
+ */
+function moveObject(layerId: string, displayIndex: number, direction: number) {
+  const layer = props.layers.find((l) => l.id === layerId);
+  if (!layer || layer.type !== "object") return;
+
+  const objects = (layer as ObjectLayer).objects;
+  // 显示列表是反转的，所以实际索引 = objects.length - 1 - displayIndex
+  const actualIndex = objects.length - 1 - displayIndex;
+  const newActualIndex = actualIndex + direction;
+
+  if (newActualIndex < 0 || newActualIndex >= objects.length) return;
+
+  // 构建新顺序
+  const newObjects = [...objects];
+  const [moved] = newObjects.splice(actualIndex, 1);
+  newObjects.splice(newActualIndex, 0, moved);
+
+  emit("reorder-objects", {
+    layerId,
+    newOrder: newObjects.map((o) => o.id),
+  });
+}
 </script>
 
 <style scoped>
@@ -210,8 +349,8 @@ function rasterizeActiveLayer() {
 }
 
 .panel-body {
-  width: 220px;
-  max-height: 320px;
+  width: 240px;
+  max-height: 400px;
   background: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
   border-radius: 12px;
@@ -291,6 +430,11 @@ function rasterizeActiveLayer() {
   gap: 2px;
 }
 
+.layer-group {
+  display: flex;
+  flex-direction: column;
+}
+
 .layer-item {
   display: flex;
   align-items: center;
@@ -357,6 +501,15 @@ function rasterizeActiveLayer() {
   white-space: nowrap;
 }
 
+.expand-btn {
+  opacity: 0.6;
+  transition: opacity 0.12s;
+}
+
+.expand-btn:hover {
+  opacity: 1;
+}
+
 .layer-order {
   display: flex;
   flex-direction: column;
@@ -368,6 +521,62 @@ function rasterizeActiveLayer() {
 .layer-item:hover .layer-order {
   opacity: 1;
 }
+
+/* ─── 对象列表 ─── */
+
+.object-list {
+  margin-left: 20px;
+  padding: 2px 0 4px 8px;
+  border-left: 1px solid rgba(var(--primary-color-rgb), 0.15);
+}
+
+.object-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.object-item:hover {
+  background: rgba(var(--primary-color-rgb), 0.06);
+}
+
+.object-item.selected {
+  background: rgba(var(--primary-color-rgb), 0.12);
+}
+
+.object-type-icon {
+  display: flex;
+  align-items: center;
+  color: var(--el-text-color-placeholder);
+  flex-shrink: 0;
+}
+
+.object-name {
+  flex: 1;
+  font-size: 10px;
+  color: var(--el-text-color-regular);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.object-order {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.object-item:hover .object-order {
+  opacity: 1;
+}
+
+/* ─── 底部操作栏 ─── */
 
 .panel-footer {
   padding: 8px 10px;

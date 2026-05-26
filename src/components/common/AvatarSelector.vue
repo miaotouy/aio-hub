@@ -7,7 +7,7 @@ import IconPresetSelector from "@/components/common/IconPresetSelector.vue";
 import Avatar from "@/components/common/Avatar.vue";
 import { PRESET_ICONS } from "@/config/preset-icons";
 import { open } from "@tauri-apps/plugin-dialog";
-import { Star, Upload, RefreshLeft, Clock, Close, DocumentCopy } from "@element-plus/icons-vue";
+import { Star, Upload, RotateCcw, Clock, X, Copy } from "lucide-vue-next";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { LOBE_ICONS_MAP, LOCAL_ICONS_MAP } from "@/config/preset-icons";
 import { acquireBlobUrl } from "@/utils/avatarImageCache";
@@ -479,7 +479,7 @@ const handleIconClick = async () => {
               :show-after="300"
             >
               <el-button @click="pasteImageFromClipboard" :loading="isPastingImage">
-                <el-icon><DocumentCopy /></el-icon>
+                <el-icon><Copy /></el-icon>
               </el-button>
             </el-tooltip>
 
@@ -492,7 +492,7 @@ const handleIconClick = async () => {
 
             <el-tooltip content="重置为默认" placement="top" :show-after="300">
               <el-button @click="clearIcon">
-                <el-icon><RefreshLeft /></el-icon>
+                <el-icon><RotateCcw /></el-icon>
               </el-button>
             </el-tooltip>
           </el-button-group>
@@ -544,7 +544,7 @@ const handleIconClick = async () => {
             >
               <Avatar :src="`appdata://${storageSubdirectory}/${filename}`" :size="64" shape="square" :radius="8" />
               <div class="delete-overlay" @click="deleteHistoryAvatar(filename, $event)">
-                <el-icon :size="14"><Close /></el-icon>
+                <el-icon :size="14"><X /></el-icon>
               </div>
               <div v-if="modelValue === filename" class="active-badge">当前</div>
             </div>

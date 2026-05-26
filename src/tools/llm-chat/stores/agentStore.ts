@@ -5,10 +5,11 @@
 import { defineStore } from "pinia";
 import { invoke } from "@tauri-apps/api/core";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { createDefaultAgentTemplate } from "../config/defaultAgentTemplate";
 import { useChatSettings } from "../composables/settings/useChatSettings";
 import { useAgentStorageSeparated as useAgentStorage } from "../composables/storage/useAgentStorageSeparated";
 import { useLlmChatUiState } from "../composables/ui/useLlmChatUiState";
-import type { ChatAgent, ChatMessageNode, LlmParameters } from "../types";
+import type { ChatAgent, LlmParameters } from "../types";
 import { DEFAULT_AGENT_EXTENSION_CONFIG } from "../types/agent";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -485,23 +486,27 @@ export const useAgentStore = defineStore("llmChatAgent", {
 
         if (indexItems.length > 0) {
           // 1. 将元数据转换为轻量智能体对象放入 store
-          this.agents = indexItems.map(item => ({
-            ...item,
-            // 详情字段设为 undefined，待按需加载
-            parameters: undefined,
-            presetMessages: undefined,
-          } as any));
+          this.agents = indexItems.map(
+            (item) =>
+              ({
+                ...item,
+                // 详情字段设为 undefined，待按需加载
+                parameters: undefined,
+                presetMessages: undefined,
+              }) as any,
+          );
 
           logger.info("加载智能体索引成功", { agentCount: this.agents.length });
 
           // 2. 核心优化：只针对当前活跃智能体加载完整详情
           const { currentAgentId } = useLlmChatUiState();
-          const targetId = currentAgentId.value || savedCurrentId || (this.agents.length > 0 ? this.agents[0].id : null);
+          const targetId =
+            currentAgentId.value || savedCurrentId || (this.agents.length > 0 ? this.agents[0].id : null);
 
           if (targetId) {
             const fullAgent = await loadAgent(targetId);
             if (fullAgent) {
-              const index = this.agents.findIndex(a => a.id === targetId);
+              const index = this.agents.findIndex((a) => a.id === targetId);
               if (index !== -1) {
                 this.agents[index] = fullAgent;
                 // 确保 UI 状态同步
@@ -555,33 +560,15 @@ export const useAgentStore = defineStore("llmChatAgent", {
         });
       }
 
-      // 创建默认的预设消息
-      const defaultPresetMessages: ChatMessageNode[] = [
-        {
-          id: `preset-system-${Date.now()}`,
-          parentId: null,
-          childrenIds: [],
-          content: "## 核心定位\n友好且乐于助人的 AI 助手。",
-          role: "system",
-          status: "complete",
-          isEnabled: true,
-          timestamp: getLocalISOString(),
-        },
-      ];
+      // 从模板获取默认智能体配置
+      const template = createDefaultAgentTemplate();
 
       // 创建默认智能体（占位角色）
-      const defaultAgentId = this.createAgent("助手", firstProfile.id, targetModelId, {
-        description: "一个可以自由定制的对话伙伴",
-        icon: "✨",
-        presetMessages: defaultPresetMessages,
-        parameters: {
-          temperature: 1, // 模型逐渐开始不支持温度参数了，已经有部分模型使用非1的值时会报错或空回复
-          maxTokens: 4096,
-          topP: undefined,
-          topK: undefined,
-          frequencyPenalty: undefined,
-          presencePenalty: undefined,
-        },
+      const defaultAgentId = this.createAgent(template.name, firstProfile.id, targetModelId, {
+        description: template.description,
+        icon: template.icon,
+        presetMessages: template.presetMessages,
+        parameters: template.parameters,
       });
 
       // 自动选中默认智能体
@@ -591,7 +578,6 @@ export const useAgentStore = defineStore("llmChatAgent", {
       this.persistAgents();
       logger.info("创建默认智能体", { agentId: defaultAgentId });
     },
-
     /**
      * 从智能体获取完整配置（包括参数覆盖）
      */
@@ -609,7 +595,9 @@ export const useAgentStore = defineStore("llmChatAgent", {
 
       // 检查详情是否已加载
       if (agent.parameters === undefined) {
-        logger.warn("获取智能体配置时详情尚未加载，将使用默认参数。请确保在调用前执行了 ensureAgentLoaded", { agentId });
+        logger.warn("获取智能体配置时详情尚未加载，将使用默认参数。请确保在调用前执行了 ensureAgentLoaded", {
+          agentId,
+        });
       }
 
       // 分别合并基础参数和自定义参数容器

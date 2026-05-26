@@ -7,7 +7,7 @@ import IconPresetSelector from "@/components/common/IconPresetSelector.vue";
 import Avatar from "@/components/common/Avatar.vue";
 import { PRESET_ICONS } from "@/config/preset-icons";
 import { open } from "@tauri-apps/plugin-dialog";
-import { Star, Upload, RefreshLeft, Clock, Close } from "@element-plus/icons-vue";
+import { Star, Upload, RefreshLeft, Clock, Close, DocumentCopy } from "@element-plus/icons-vue";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { LOBE_ICONS_MAP, LOCAL_ICONS_MAP } from "@/config/preset-icons";
 import { acquireBlobUrl } from "@/utils/avatarImageCache";
@@ -257,6 +257,85 @@ const uploadCustomImage = async () => {
   }
 };
 
+// 从剪贴板粘贴图片
+const isPastingImage = ref(false);
+
+const pasteImageFromClipboard = async () => {
+  if (!props.entityId || !props.storageSubdirectory) {
+    errorHandler.error("缺少 entityId 或 storageSubdirectory", "粘贴失败");
+    return;
+  }
+
+  isPastingImage.value = true;
+
+  try {
+    const clipboardItems = await navigator.clipboard.read();
+
+    let imageBlob: Blob | null = null;
+    let mimeType = "";
+
+    for (const item of clipboardItems) {
+      // 优先查找 PNG，其次 JPEG/WebP
+      for (const type of item.types) {
+        if (type.startsWith("image/")) {
+          imageBlob = await item.getType(type);
+          mimeType = type;
+          break;
+        }
+      }
+      if (imageBlob) break;
+    }
+
+    if (!imageBlob) {
+      customMessage.warning("剪贴板中没有图片");
+      return;
+    }
+
+    // 确定文件扩展名
+    const extMap: Record<string, string> = {
+      "image/png": "png",
+      "image/jpeg": "jpg",
+      "image/webp": "webp",
+      "image/gif": "gif",
+      "image/svg+xml": "svg",
+    };
+    const ext = extMap[mimeType] || "png";
+
+    // 转换为 Uint8Array
+    const arrayBuffer = await imageBlob.arrayBuffer();
+    const fileData = Array.from(new Uint8Array(arrayBuffer));
+
+    // 生成文件名
+    const timestamp = Date.now();
+    const newFilename = `avatar-${timestamp}.${ext}`;
+
+    // 保存到 AppData
+    await invoke("save_uploaded_file", {
+      fileData,
+      filename: newFilename,
+      subdirectory: props.storageSubdirectory,
+    });
+
+    // 更新 v-model
+    emitIconChange(newFilename);
+
+    // 更新历史记录
+    const newHistory = [newFilename, ...props.avatarHistory.filter((h) => h !== newFilename)];
+    emit("update:avatarHistory", newHistory);
+
+    customMessage.success("已从剪贴板粘贴头像");
+  } catch (error: any) {
+    // 用户拒绝权限或其他错误
+    if (error?.name === "NotAllowedError") {
+      customMessage.warning("请允许访问剪贴板权限");
+    } else {
+      errorHandler.error(error, "粘贴图片失败");
+    }
+  } finally {
+    isPastingImage.value = false;
+  }
+};
+
 // 清除图标
 const clearIcon = () => {
   // 清空图标，让 Avatar 组件自动显示回退文本
@@ -392,6 +471,18 @@ const handleIconClick = async () => {
               </el-button>
             </el-tooltip>
 
+            <!-- 从剪贴板粘贴图片 -->
+            <el-tooltip
+              v-if="entityId && storageSubdirectory"
+              content="从剪贴板粘贴图片"
+              placement="top"
+              :show-after="300"
+            >
+              <el-button @click="pasteImageFromClipboard" :loading="isPastingImage">
+                <el-icon><DocumentCopy /></el-icon>
+              </el-button>
+            </el-tooltip>
+
             <!-- 历史头像选择按钮 -->
             <el-tooltip v-if="entityId && storageSubdirectory" content="历史头像" placement="top" :show-after="300">
               <el-button @click="openHistoryDialog">
@@ -425,7 +516,7 @@ const handleIconClick = async () => {
         </div>
 
         <div class="form-hint">
-          支持 Emoji、预设图标、本地路径引用{{ entityId && storageSubdirectory ? "或上传专属头像" : "" }}。
+          支持 Emoji、预设图标、本地路径引用{{ entityId && storageSubdirectory ? "、上传或粘贴图片" : "" }}。
         </div>
       </div>
     </div>

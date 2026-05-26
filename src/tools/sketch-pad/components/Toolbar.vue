@@ -332,17 +332,19 @@ function handleImportImage() {
 }
 
 .action-btn.has-changes {
+  position: relative;
   background: rgba(var(--primary-color-rgb), 0.1);
 }
 
 .dirty-dot {
+  position: absolute;
+  top: 2px;
+  right: 2px;
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: var(--primary-color);
   opacity: 0.7;
-  flex-shrink: 0;
-  margin-left: 2px;
 }
 
 /* 导出下拉菜单样式 */

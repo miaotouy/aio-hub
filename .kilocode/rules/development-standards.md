@@ -207,6 +207,29 @@ await ElMessageBox.confirm("...");
   }
   ```
 
+### 4.2. Data URL 转换禁令 (CSP 合规)
+
+- **核心规范**: **严禁**使用 `fetch()` 请求 `data:` 协议的 URL（如 `fetch(dataUrl)`）。Tauri 的 CSP `connect-src` 指令不包含 `data:` 协议，此类调用会被直接拦截并抛出 `TypeError: Failed to fetch`。
+- **适用场景**: Canvas `toDataURL()` 的返回值、任何 `data:image/...;base64,...` 格式的字符串。
+- **正确做法**: 使用纯 JavaScript 将 base64 data URL 解码为 `Uint8Array` / `ArrayBuffer`：
+
+  ```typescript
+  // ✅ 正确：纯 JS 解码，不触发网络请求
+  const base64Data = dataUrl.split(",")[1];
+  const binaryStr = atob(base64Data);
+  const buffer = new Uint8Array(binaryStr.length);
+  for (let i = 0; i < binaryStr.length; i++) {
+    buffer[i] = binaryStr.charCodeAt(i);
+  }
+
+  // ❌ 错误：fetch data URL 会被 CSP 拦截
+  const res = await fetch(dataUrl);
+  const blob = await res.blob();
+  const buffer = await blob.arrayBuffer();
+  ```
+
+- **原因**: 虽然在普通浏览器环境中 `fetch(dataUrl)` 是合法的快捷写法，但 Tauri 应用的 CSP 策略严格限制了 `connect-src`，`data:` 不在白名单中。这是一个**反复出现**的问题，必须从源头杜绝。
+
 ## 5. UI 交互与入口规范
 
 ### 5.1. 应用入口逻辑

@@ -276,6 +276,7 @@ export default withMermaid({
             { text: "数据筛选工具", link: "/user-guide/tools/data-filter" },
             { text: "图片色彩分析", link: "/user-guide/tools/color-picker" },
             { text: "FFmpeg 工具", link: "/user-guide/tools/ffmpeg-tools" },
+            { text: "画板", link: "/user-guide/tools/sketch-pad" },
             { text: "弹幕播放器", link: "/user-guide/tools/danmaku-player" },
             { text: "AI 信息解析", link: "/user-guide/tools/media-info-reader" },
             { text: "系统脉搏", link: "/user-guide/tools/system-pulse" },

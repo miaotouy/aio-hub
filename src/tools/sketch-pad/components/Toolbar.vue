@@ -2,137 +2,123 @@
   <div class="sketch-toolbar-wrapper">
     <!-- 左侧：返回按钮 -->
     <div class="toolbar-left">
-      <button class="tool-btn" title="返回草图列表" @click="$emit('back')">
-        <ArrowLeft :size="18" />
-      </button>
+      <el-tooltip content="返回草图列表" placement="bottom" :show-after="300">
+        <button class="tool-btn" @click="$emit('back')">
+          <ArrowLeft :size="18" />
+        </button>
+      </el-tooltip>
     </div>
 
     <!-- 中间：工具按钮条 -->
     <div class="toolbar-center">
       <div class="tool-group">
-        <button
-          class="tool-btn"
-          :class="{ active: activeTool === 'select' }"
-          title="选择工具 (V)"
-          @click="selectTool('select')"
-        >
-          <MousePointer :size="18" />
-        </button>
-        <button
-          class="tool-btn"
-          :class="{ active: activeTool === 'hand' }"
-          title="抓手工具 (H) - 拖拽画布"
-          @click="selectTool('hand')"
-        >
-          <Hand :size="18" />
-        </button>
-        <button
-          class="tool-btn"
-          :class="{ active: activeTool === 'pencil' }"
-          title="铅笔 (B)"
-          @click="selectTool('pencil')"
-        >
-          <Pencil :size="18" />
-        </button>
-        <button
-          class="tool-btn"
-          :class="{ active: activeTool === 'marker' }"
-          title="马克笔 (M)"
-          @click="selectTool('marker')"
-        >
-          <Highlighter :size="18" />
-        </button>
-        <button
-          class="tool-btn"
-          :class="{ active: activeTool === 'eraser' }"
-          title="橡皮擦 (E)"
-          @click="selectTool('eraser')"
-        >
-          <Eraser :size="18" />
-        </button>
+        <el-tooltip content="选择工具 (V)" placement="bottom" :show-after="300">
+          <button class="tool-btn" :class="{ active: activeTool === 'select' }" @click="selectTool('select')">
+            <MousePointer :size="18" />
+          </button>
+        </el-tooltip>
+        <el-tooltip content="抓手工具 (H) - 拖拽画布" placement="bottom" :show-after="300">
+          <button class="tool-btn" :class="{ active: activeTool === 'hand' }" @click="selectTool('hand')">
+            <Hand :size="18" />
+          </button>
+        </el-tooltip>
+        <el-tooltip content="铅笔 (B)" placement="bottom" :show-after="300">
+          <button class="tool-btn" :class="{ active: activeTool === 'pencil' }" @click="selectTool('pencil')">
+            <Pencil :size="18" />
+          </button>
+        </el-tooltip>
+        <el-tooltip content="马克笔 (M)" placement="bottom" :show-after="300">
+          <button class="tool-btn" :class="{ active: activeTool === 'marker' }" @click="selectTool('marker')">
+            <Highlighter :size="18" />
+          </button>
+        </el-tooltip>
+        <el-tooltip content="橡皮擦 (E)" placement="bottom" :show-after="300">
+          <button class="tool-btn" :class="{ active: activeTool === 'eraser' }" @click="selectTool('eraser')">
+            <Eraser :size="18" />
+          </button>
+        </el-tooltip>
       </div>
 
       <div class="tool-divider" />
 
       <div class="tool-group">
-        <button
-          class="tool-btn"
-          :class="{ active: activeTool === 'rect' }"
-          title="矩形 (R)"
-          @click="selectTool('rect')"
-        >
-          <Square :size="18" />
-        </button>
-        <button
-          class="tool-btn"
-          :class="{ active: activeTool === 'ellipse' }"
-          title="圆形 (O)"
-          @click="selectTool('ellipse')"
-        >
-          <Circle :size="18" />
-        </button>
-        <button
-          class="tool-btn"
-          :class="{ active: activeTool === 'line' }"
-          title="线段 (L)"
-          @click="selectTool('line')"
-        >
-          <Minus :size="18" />
-        </button>
-        <button
-          class="tool-btn"
-          :class="{ active: activeTool === 'arrow' }"
-          title="箭头 (A)"
-          @click="selectTool('arrow')"
-        >
-          <ArrowUpRight :size="18" />
-        </button>
-        <button
-          class="tool-btn"
-          :class="{ active: activeTool === 'text' }"
-          title="文字 (T)"
-          @click="selectTool('text')"
-        >
-          <Type :size="18" />
-        </button>
-        <button class="tool-btn" title="导入图片 (I)" @click="$emit('import-image')">
-          <ImageIcon :size="18" />
-        </button>
+        <el-tooltip content="矩形 (R)" placement="bottom" :show-after="300">
+          <button class="tool-btn" :class="{ active: activeTool === 'rect' }" @click="selectTool('rect')">
+            <Square :size="18" />
+          </button>
+        </el-tooltip>
+        <el-tooltip content="圆形 (O)" placement="bottom" :show-after="300">
+          <button class="tool-btn" :class="{ active: activeTool === 'ellipse' }" @click="selectTool('ellipse')">
+            <Circle :size="18" />
+          </button>
+        </el-tooltip>
+        <el-tooltip content="线段 (L)" placement="bottom" :show-after="300">
+          <button class="tool-btn" :class="{ active: activeTool === 'line' }" @click="selectTool('line')">
+            <Minus :size="18" />
+          </button>
+        </el-tooltip>
+        <el-tooltip content="箭头 (A)" placement="bottom" :show-after="300">
+          <button class="tool-btn" :class="{ active: activeTool === 'arrow' }" @click="selectTool('arrow')">
+            <ArrowUpRight :size="18" />
+          </button>
+        </el-tooltip>
+        <el-tooltip content="文字 (T)" placement="bottom" :show-after="300">
+          <button class="tool-btn" :class="{ active: activeTool === 'text' }" @click="selectTool('text')">
+            <Type :size="18" />
+          </button>
+        </el-tooltip>
+        <el-tooltip content="导入图片 (I)" placement="bottom" :show-after="300">
+          <button class="tool-btn" @click="$emit('import-image')">
+            <ImageIcon :size="18" />
+          </button>
+        </el-tooltip>
       </div>
 
       <div class="tool-divider" />
 
       <div class="tool-group">
-        <button class="tool-btn" :disabled="!canUndo" title="撤销 (Ctrl+Z)" @click="$emit('undo')">
-          <Undo2 :size="18" />
-        </button>
-        <button class="tool-btn" :disabled="!canRedo" title="重做 (Ctrl+Y)" @click="$emit('redo')">
-          <Redo2 :size="18" />
-        </button>
+        <el-tooltip content="撤销 (Ctrl+Z)" placement="bottom" :show-after="300">
+          <button class="tool-btn" :disabled="!canUndo" @click="$emit('undo')">
+            <Undo2 :size="18" />
+          </button>
+        </el-tooltip>
+        <el-tooltip content="重做 (Ctrl+Y)" placement="bottom" :show-after="300">
+          <button class="tool-btn" :disabled="!canRedo" @click="$emit('redo')">
+            <Redo2 :size="18" />
+          </button>
+        </el-tooltip>
       </div>
 
       <div class="tool-divider" />
 
-      <button class="tool-btn" title="重置视图 (Ctrl+0)" @click="$emit('reset-view')">
-        <Maximize :size="18" />
-      </button>
+      <el-tooltip content="重置视图 (Ctrl+0)" placement="bottom" :show-after="300">
+        <button class="tool-btn" @click="$emit('reset-view')">
+          <Maximize :size="18" />
+        </button>
+      </el-tooltip>
     </div>
 
     <!-- 右侧：操作按钮 -->
     <div class="toolbar-right">
-      <button class="action-btn" :class="{ 'has-changes': isDirty }" title="保存草图 (Ctrl+S)" @click="$emit('save')">
-        <Save :size="16" />
-        <span>保存</span>
-        <span v-if="isDirty" class="dirty-dot" />
-      </button>
-      <button class="action-btn" title="导出为 .aiosk 文件" @click="$emit('export')">
-        <Download :size="16" />
-        <span>导出</span>
-      </button>
-      <button class="action-btn accent" title="发送到 AI 对话附件" @click="$emit('send-to-chat')">
-        <Send :size="16" />
-        <span>发送</span>
-      </button>
+      <el-tooltip content="保存草图 (Ctrl+S)" placement="bottom" :show-after="300">
+        <button class="action-btn" :class="{ 'has-changes': isDirty }" @click="$emit('save')">
+          <Save :size="16" />
+          <span>保存</span>
+          <span v-if="isDirty" class="dirty-dot" />
+        </button>
+      </el-tooltip>
+      <el-tooltip content="导出为 .aiosk 文件" placement="bottom" :show-after="300">
+        <button class="action-btn" @click="$emit('export')">
+          <Download :size="16" />
+          <span>导出</span>
+        </button>
+      </el-tooltip>
+      <el-tooltip content="发送到 AI 对话附件" placement="bottom" :show-after="300">
+        <button class="action-btn accent" @click="$emit('send-to-chat')">
+          <Send :size="16" />
+          <span>发送</span>
+        </button>
+      </el-tooltip>
     </div>
   </div>
 </template>

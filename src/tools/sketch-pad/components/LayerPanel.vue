@@ -79,22 +79,24 @@
               </span>
               <span class="object-name">{{ getObjectName(obj) }}</span>
               <div class="object-order">
-                <button
-                  class="icon-btn mini"
-                  :disabled="objIndex === getLayerObjects(layer).length - 1"
-                  title="上移（显示更靠前）"
-                  @click.stop="moveObject(layer.id, objIndex, 1)"
-                >
-                  <ChevronUp :size="11" />
-                </button>
-                <button
-                  class="icon-btn mini"
-                  :disabled="objIndex === 0"
-                  title="下移（显示更靠后）"
-                  @click.stop="moveObject(layer.id, objIndex, -1)"
-                >
-                  <ChevronDown :size="11" />
-                </button>
+                <el-tooltip content="上移（显示更靠前）" placement="top" :show-after="300">
+                  <button
+                    class="icon-btn mini"
+                    :disabled="objIndex === getLayerObjects(layer).length - 1"
+                    @click.stop="moveObject(layer.id, objIndex, 1)"
+                  >
+                    <ChevronUp :size="11" />
+                  </button>
+                </el-tooltip>
+                <el-tooltip content="下移（显示更靠后）" placement="top" :show-after="300">
+                  <button
+                    class="icon-btn mini"
+                    :disabled="objIndex === 0"
+                    @click.stop="moveObject(layer.id, objIndex, -1)"
+                  >
+                    <ChevronDown :size="11" />
+                  </button>
+                </el-tooltip>
               </div>
             </div>
           </div>
@@ -103,25 +105,29 @@
 
       <!-- 底部操作栏 -->
       <div class="panel-footer">
-        <button class="footer-btn danger" :disabled="layers.length <= 1" title="删除图层" @click="deleteActiveLayer">
-          <Trash2 :size="13" />
-        </button>
-        <button
-          class="footer-btn"
-          :disabled="layers.length <= 1 || activeLayerIndex === layers.length - 1"
-          title="向下合并"
-          @click="mergeDown"
-        >
-          <Merge :size="13" />
-        </button>
-        <button
-          class="footer-btn"
-          :disabled="!activeLayer || activeLayer.type !== 'object'"
-          title="栅格化"
-          @click="rasterizeActiveLayer"
-        >
-          <Grid3x3 :size="13" />
-        </button>
+        <el-tooltip content="删除图层" placement="top" :show-after="300">
+          <button class="footer-btn danger" :disabled="layers.length <= 1" @click="deleteActiveLayer">
+            <Trash2 :size="13" />
+          </button>
+        </el-tooltip>
+        <el-tooltip content="向下合并" placement="top" :show-after="300">
+          <button
+            class="footer-btn"
+            :disabled="layers.length <= 1 || activeLayerIndex === layers.length - 1"
+            @click="mergeDown"
+          >
+            <Merge :size="13" />
+          </button>
+        </el-tooltip>
+        <el-tooltip content="栅格化" placement="top" :show-after="300">
+          <button
+            class="footer-btn"
+            :disabled="!activeLayer || activeLayer.type !== 'object'"
+            @click="rasterizeActiveLayer"
+          >
+            <Grid3x3 :size="13" />
+          </button>
+        </el-tooltip>
       </div>
     </div>
   </div>

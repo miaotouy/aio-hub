@@ -45,14 +45,11 @@
 
     <!-- 底部状态栏 -->
     <div class="bottom-bar">
-      <button
-        class="bar-btn"
-        :class="{ active: showCanvasBorder }"
-        title="显示/隐藏画布边界"
-        @click="toggleCanvasBorder"
-      >
-        <SquareDashed :size="15" />
-      </button>
+      <el-tooltip content="显示/隐藏画布边界" placement="top" :show-after="300">
+        <button class="bar-btn" :class="{ active: showCanvasBorder }" @click="toggleCanvasBorder">
+          <SquareDashed :size="15" />
+        </button>
+      </el-tooltip>
       <span class="zoom-value" @click="handleZoomClick">{{ zoomPercent }}%</span>
     </div>
   </div>

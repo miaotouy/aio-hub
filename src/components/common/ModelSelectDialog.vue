@@ -181,27 +181,19 @@ watch(isDialogVisible, async (visible) => {
     if (currentSelection.value) {
       // 等待 DOM 渲染完成
       await nextTick();
-      // 再等一帧，确保 ResizeObserver 已触发并稳定布局（isNarrow 状态）
-      await new Promise((resolve) => requestAnimationFrame(resolve));
+      // 等待对话框动画完成和布局稳定后再计算滚动位置
+      await new Promise((resolve) => setTimeout(resolve, 150));
 
       const currentKey = getModelKey(currentSelection.value.profile, currentSelection.value.model);
       const currentElement = document.querySelector(`[data-model-key="${currentKey}"]`) as HTMLElement;
       const container = modelListWrapperRef.value;
 
       if (currentElement && container) {
-        // 使用更安全的手动滚动方式，避免触发全局 scrollIntoView 导致的 body 偏移
-        const containerRect = container.getBoundingClientRect();
-        const elementRect = currentElement.getBoundingClientRect();
-
-        // 计算目标位置：让元素在容器中心
-        const targetScrollTop =
-          container.scrollTop +
-          (elementRect.top - containerRect.top) -
-          containerRect.height / 2 +
-          elementRect.height / 2;
+        // 直接使用 offsetTop，因为 container 设置了 position: relative 作为 offsetParent
+        const targetScrollTop = currentElement.offsetTop - container.clientHeight / 2 + currentElement.offsetHeight / 2;
 
         container.scrollTo({
-          top: targetScrollTop,
+          top: Math.max(0, targetScrollTop),
           behavior: "smooth",
         });
       }
@@ -301,6 +293,7 @@ watch(isDialogVisible, async (visible) => {
 }
 
 .model-list-wrapper {
+  position: relative;
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;

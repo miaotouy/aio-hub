@@ -97,6 +97,11 @@ export function useLayerOperations(session: EditorSession) {
     const upperLayer = state.layers.value[upperIndex];
     const lowerLayer = state.layers.value[lowerIndex];
 
+    if (upperLayer.type === "background" || lowerLayer.type === "background") {
+      customMessage.warning("填充图层不参与合并");
+      return;
+    }
+
     const upperKonvaLayer = stage.findOne(`#${upperLayer.id}`) as Konva.Layer;
     const lowerKonvaLayer = stage.findOne(`#${lowerLayer.id}`) as Konva.Layer;
 

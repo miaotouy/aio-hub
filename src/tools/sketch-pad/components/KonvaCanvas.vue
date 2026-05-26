@@ -1032,7 +1032,21 @@ function syncLayers() {
       });
       stage.value!.add(konvaLayer);
 
-      if (layer.type === "raster") {
+      if (layer.type === "background") {
+        const fillRect = new Konva.Rect({
+          id: `${layer.id}-fill`,
+          name: "background-fill",
+          x: 0,
+          y: 0,
+          width: canvasWidth(),
+          height: canvasHeight(),
+          fill: layer.fillColor || undefined,
+          strokeEnabled: false,
+          listening: false,
+        });
+        konvaLayer.listening(false);
+        konvaLayer.add(fillRect);
+      } else if (layer.type === "raster") {
         // 位图图层：创建 OffscreenCanvas 并用 Konva.Image 承载
         const canvas = document.createElement("canvas");
         canvas.width = canvasWidth();
@@ -1069,6 +1083,15 @@ function syncLayers() {
     }
 
     // 更新图层属性
+    if (layer.type === "background") {
+      konvaLayer.listening(false);
+      const fillRect = konvaLayer.findOne(".background-fill") as Konva.Rect | null;
+      fillRect?.setAttrs({
+        width: canvasWidth(),
+        height: canvasHeight(),
+        fill: layer.fillColor || undefined,
+      });
+    }
     konvaLayer.visible(layer.visible);
     konvaLayer.opacity(layer.opacity);
     konvaLayer.zIndex(index); // 调整层级
@@ -1725,6 +1748,10 @@ onMounted(() => {
     selectObjectById,
     reorderObjectsInLayer,
     reorderSelectedObject,
+    clearSelection: () => {
+      clearSelection();
+      emitSelectionInfo();
+    },
     resetView: () => {
       if (containerRef.value && stage.value) {
         resetView(canvasWidth(), canvasHeight(), containerRef.value.clientWidth, containerRef.value.clientHeight);

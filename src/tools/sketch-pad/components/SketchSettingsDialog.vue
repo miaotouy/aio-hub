@@ -46,16 +46,13 @@
             <el-form-item>
               <div class="switch-row">
                 <el-switch v-model="local.createBackgroundLayer" />
-                <span class="switch-label">新建时创建背景位图图层</span>
+                <span class="switch-label">新建时创建填充图层</span>
               </div>
             </el-form-item>
 
             <Transition name="fade">
               <div v-if="local.createBackgroundLayer" class="sub-settings">
-                <el-form-item label="背景图层名称">
-                  <el-input v-model="local.backgroundLayerName" placeholder="背景涂鸦" />
-                </el-form-item>
-                <el-form-item label="背景填充色">
+                <el-form-item label="默认填充色">
                   <div class="color-row">
                     <el-color-picker v-model="bgColorProxy" show-alpha :predefine="BG_COLOR_PRESETS" />
                     <el-button

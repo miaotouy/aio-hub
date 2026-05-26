@@ -89,6 +89,7 @@ export interface CanvasCapabilities {
   updateSelectionProps(data: Record<string, any>): void;
   alignSelection(dir: string): void;
   distributeSelection(dir: string): void;
+  clearSelection(): void;
   selectObjectById(id: string): void;
   reorderObjectsInLayer(layerId: string, order: string[]): void;
   reorderSelectedObject(action: string): void;
@@ -119,11 +120,12 @@ export interface EditorSessionActions {
   }): void;
 
   // 图层
-  addLayer(type: "raster" | "object", name?: string): HybridLayer;
+  addLayer(type: "background" | "raster" | "object", name?: string, options?: { fillColor?: string | null }): HybridLayer;
   deleteLayer(id: string): boolean;
   toggleVisible(id: string): void;
   toggleLocked(id: string): void;
   reorderLayers(newOrder: string[]): void;
+  updateBackgroundLayer(layerId: string, fillColor: string | null): void;
 
   // 历史
   pushHistory(entry: HistoryEntry): void;
@@ -280,6 +282,7 @@ export function createEditorSession(): EditorSession {
     updateSelectionProps() {},
     alignSelection() {},
     distributeSelection() {},
+    clearSelection() {},
     selectObjectById() {},
     reorderObjectsInLayer() {},
     reorderSelectedObject() {},
@@ -342,8 +345,8 @@ export function createEditorSession(): EditorSession {
     },
 
     // 图层
-    addLayer(type, name?) {
-      return layerStack.addLayer(type, name);
+    addLayer(type, name?, options?) {
+      return layerStack.addLayer(type, name, options);
     },
 
     deleteLayer(id) {
@@ -360,6 +363,20 @@ export function createEditorSession(): EditorSession {
 
     reorderLayers(newOrder) {
       layerStack.reorderLayers(newOrder);
+    },
+
+    updateBackgroundLayer(layerId, fillColor) {
+      const layer = state.layers.value.find((l) => l.id === layerId);
+      if (!layer || layer.type !== "background") return;
+      const before = { fillColor: layer.fillColor };
+      const after = { fillColor };
+      layer.fillColor = fillColor;
+      actions.pushHistory({
+        type: "layer-modify",
+        layerId,
+        before,
+        after,
+      });
     },
 
     // 历史
@@ -430,6 +447,7 @@ export function createEditorSession(): EditorSession {
     },
 
     resetSelection() {
+      runtime.capabilities.clearSelection();
       state.selectionInfo.value = {
         count: 0,
         singleObject: null,

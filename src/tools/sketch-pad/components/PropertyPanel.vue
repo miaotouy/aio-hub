@@ -14,9 +14,16 @@
         </button>
       </div>
 
-      <!-- 1. 画笔属性 (铅笔、马克笔、橡皮擦) -->
+      <!-- 1. 填充图层 -->
+      <BackgroundProps
+        v-if="activeBackgroundLayer"
+        :fill-color="activeBackgroundLayer.fillColor"
+        @update="updateActiveBackground"
+      />
+
+      <!-- 2. 画笔属性 (铅笔、马克笔、橡皮擦) -->
       <BrushProps
-        v-if="isBrushTool"
+        v-else-if="isBrushTool"
         :active-tool="activeTool"
         :brush-size="brushSize"
         :brush-color="brushColor"
@@ -79,6 +86,7 @@ import { ref, computed } from "vue";
 import { Palette, ChevronDown, MousePointer, Hand } from "lucide-vue-next";
 import { useEditorSession } from "../composables/useEditorSession";
 import BrushProps from "./properties/BrushProps.vue";
+import BackgroundProps from "./properties/BackgroundProps.vue";
 import ShapeProps from "./properties/ShapeProps.vue";
 import TextProps from "./properties/TextProps.vue";
 import SelectionProps from "./properties/SelectionProps.vue";
@@ -89,6 +97,7 @@ const isCollapsed = ref(false);
 
 // 直接从 session 读状态
 const activeTool = state.activeTool;
+const activeLayer = state.activeLayer;
 const brushSize = state.brushSize;
 const brushColor = state.brushColor;
 const brushOpacity = state.brushOpacity;
@@ -109,7 +118,17 @@ const isShapeTool = computed(() => {
   return ["rect", "ellipse", "line", "arrow"].includes(activeTool.value);
 });
 
+const activeBackgroundLayer = computed(() => {
+  return activeLayer.value?.type === "background" ? activeLayer.value : null;
+});
+
+function updateActiveBackground(fillColor: string | null) {
+  if (!activeBackgroundLayer.value) return;
+  actions.updateBackgroundLayer(activeBackgroundLayer.value.id, fillColor);
+}
+
 const panelTitle = computed(() => {
+  if (activeLayer.value?.type === "background") return "填充";
   if (isBrushTool.value) return "画笔";
   if (isShapeTool.value) return "形状";
   // 文字工具或选择工具下有选中对象时，显示对象类型

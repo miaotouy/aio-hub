@@ -105,21 +105,22 @@ export function useProjectLifecycle(session: EditorSession) {
 
     // 根据弹窗设定 + 全局设置创建默认图层
     const s = store.settings;
-    let firstLayerId = "";
 
+    // 填充图层（可选）
     if (data.createBackgroundLayer) {
-      const raster = actions.addLayer("raster", s.backgroundLayerName || "背景涂鸦");
-      firstLayerId = raster.id;
+      actions.addLayer("background", "填充", {
+        fillColor: data.backgroundLayerColor,
+      });
     }
+
+    // 涂鸦位图图层（总是创建，画笔依赖它）
+    const raster = actions.addLayer("raster", "涂鸦");
+    let firstLayerId = raster.id;
+
+    // 矢量对象图层（可选）
     if (s.createObjectLayer) {
       const obj = actions.addLayer("object", s.objectLayerName || "矢量标注");
-      if (!firstLayerId) firstLayerId = obj.id;
-    }
-
-    // 如果两个都没创建，至少创建一个位图图层
-    if (!firstLayerId) {
-      const fallback = actions.addLayer("raster", "图层 1");
-      firstLayerId = fallback.id;
+      firstLayerId = obj.id;
     }
 
     state.activeLayerId.value = firstLayerId;
@@ -129,15 +130,6 @@ export function useProjectLifecycle(session: EditorSession) {
     await nextTick();
     state.isInitializing.value = false;
     state.isDirty.value = false;
-
-    // 如果创建了背景图层且设置了背景色，在 canvas 就绪后填充
-    if (data.createBackgroundLayer && data.backgroundLayerColor) {
-      const bgLayerId = firstLayerId;
-      const bgColor = data.backgroundLayerColor;
-      setTimeout(() => {
-        fillBackgroundLayer(bgLayerId, bgColor);
-      }, 100);
-    }
 
     logger.info("新项目已创建", { id: newProj.id, name: newProj.name });
   }
@@ -251,20 +243,6 @@ export function useProjectLifecycle(session: EditorSession) {
   }
 
   // ─── 辅助函数 ───
-
-  /** 为背景位图图层填充纯色 */
-  function fillBackgroundLayer(layerId: string, color: string): void {
-    const canvases = runtime.capabilities.getCanvases();
-    const canvas = canvases.get(layerId);
-    if (canvas) {
-      const ctx = canvas.getContext("2d");
-      if (ctx) {
-        ctx.fillStyle = color;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        runtime.capabilities.getStage()?.batchDraw();
-      }
-    }
-  }
 
   return {
     openProject,

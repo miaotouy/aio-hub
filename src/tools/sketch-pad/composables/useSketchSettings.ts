@@ -19,7 +19,6 @@ export const DEFAULT_SKETCH_SETTINGS: SketchPadSettings = {
   // 默认图层配置
   createBackgroundLayer: true,
   createObjectLayer: true,
-  backgroundLayerName: "背景涂鸦",
   objectLayerName: "矢量标注",
   backgroundLayerColor: "#ffffff",
 

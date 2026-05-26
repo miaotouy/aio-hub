@@ -11,6 +11,9 @@
         <span class="panel-title">图层</span>
         <div class="header-actions">
           <!-- 新建图层按钮组 -->
+          <button class="header-btn" title="新建填充图层" @click="handleCreateLayer('background')">
+            <PaintBucket :size="14" />
+          </button>
           <button class="header-btn" title="新建位图图层" @click="handleCreateLayer('raster')">
             <Paintbrush :size="14" />
           </button>
@@ -40,7 +43,7 @@
 
             <!-- 类型图标 + 名称 -->
             <span class="layer-type-icon">
-              <component :is="layer.type === 'raster' ? Paintbrush : Shapes" :size="12" />
+              <component :is="getLayerIcon(layer.type)" :size="12" />
             </span>
             <span class="layer-name">{{ layer.name }}</span>
 
@@ -56,10 +59,10 @@
 
             <!-- 排序按钮 -->
             <div class="layer-order">
-              <button class="icon-btn mini" :disabled="index === 0" @click.stop="moveLayer(index, -1)">
+              <button class="icon-btn mini" :disabled="isMoveLayerDisabled(index, -1)" @click.stop="moveLayer(index, -1)">
                 <ChevronUp :size="12" />
               </button>
-              <button class="icon-btn mini" :disabled="index === layers.length - 1" @click.stop="moveLayer(index, 1)">
+              <button class="icon-btn mini" :disabled="isMoveLayerDisabled(index, 1)" @click.stop="moveLayer(index, 1)">
                 <ChevronDown :size="12" />
               </button>
             </div>
@@ -113,7 +116,7 @@
         <el-tooltip content="向下合并" placement="top" :show-after="300">
           <button
             class="footer-btn"
-            :disabled="layers.length <= 1 || activeLayerIndex === layers.length - 1"
+            :disabled="layers.length <= 1 || activeLayerIndex === layers.length - 1 || activeLayer?.type === 'background'"
             @click="mergeDown"
           >
             <Merge :size="13" />
@@ -145,6 +148,7 @@ import {
   ChevronDown,
   ChevronRight,
   Layers,
+  PaintBucket,
   Paintbrush,
   Shapes,
   Merge,
@@ -181,12 +185,16 @@ const activeLayer = computed(() => {
   return layers.value.find((l) => l.id === activeLayerId.value) || null;
 });
 
-function handleCreateLayer(type: "raster" | "object") {
-  actions.addLayer(type);
+function handleCreateLayer(type: "background" | "raster" | "object") {
+  actions.addLayer(type, type === "background" ? "填充" : undefined, type === "background" ? { fillColor: "#ffffff" } : undefined);
 }
 
 function selectLayer(id: string) {
   state.activeLayerId.value = id;
+  const layer = layers.value.find((l) => l.id === id);
+  if (layer?.type === "background") {
+    actions.resetSelection();
+  }
 }
 
 function toggleVisible(id: string) {
@@ -198,6 +206,8 @@ function toggleLocked(id: string) {
 }
 
 function moveLayer(index: number, direction: number) {
+  if (isMoveLayerDisabled(index, direction)) return;
+
   const newIndex = index + direction;
   if (newIndex < 0 || newIndex >= layers.value.length) return;
 
@@ -206,6 +216,12 @@ function moveLayer(index: number, direction: number) {
   newLayers.splice(newIndex, 0, moved);
 
   actions.reorderLayers(newLayers.map((l) => l.id));
+}
+
+function isMoveLayerDisabled(index: number, direction: number): boolean {
+  const newIndex = index + direction;
+  if (newIndex < 0 || newIndex >= layers.value.length) return true;
+  return false;
 }
 
 function deleteActiveLayer() {
@@ -240,6 +256,17 @@ function toggleExpand(layerId: string) {
 function getLayerObjects(layer: HybridLayer): SketchObject[] {
   if (layer.type !== "object") return [];
   return [...(layer as ObjectLayer).objects].reverse();
+}
+
+function getLayerIcon(type: HybridLayer["type"]) {
+  switch (type) {
+    case "background":
+      return PaintBucket;
+    case "raster":
+      return Paintbrush;
+    case "object":
+      return Shapes;
+  }
 }
 
 function getObjectIcon(type: string) {

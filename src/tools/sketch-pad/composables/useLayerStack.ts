@@ -1,5 +1,5 @@
 import { ref, computed } from "vue";
-import type { HybridLayer, RasterLayer, ObjectLayer } from "../types";
+import type { HybridLayer, BackgroundLayer, RasterLayer, ObjectLayer } from "../types";
 import { nanoid } from "nanoid";
 import { createModuleLogger } from "@/utils/logger";
 
@@ -32,6 +32,19 @@ export function useLayerStack() {
     };
   }
 
+  function createBackgroundLayer(name = "填充", fillColor: string | null = null): BackgroundLayer {
+    return {
+      id: nanoid(),
+      type: "background",
+      name,
+      visible: true,
+      locked: false,
+      opacity: 1,
+      blendMode: "source-over",
+      fillColor,
+    };
+  }
+
   function createObjectLayer(name = "新建对象图层"): ObjectLayer {
     return {
       id: nanoid(),
@@ -45,8 +58,13 @@ export function useLayerStack() {
     };
   }
 
-  function addLayer(type: "raster" | "object", name?: string) {
-    const newLayer = type === "raster" ? createRasterLayer(name) : createObjectLayer(name);
+  function addLayer(type: "background" | "raster" | "object", name?: string, options?: { fillColor?: string | null }) {
+    const newLayer =
+      type === "background"
+        ? createBackgroundLayer(name, options?.fillColor ?? null)
+        : type === "raster"
+          ? createRasterLayer(name)
+          : createObjectLayer(name);
 
     const insertIndex = activeLayerIndex.value;
     const layerCountBefore = layers.value.length;
@@ -179,6 +197,7 @@ export function useLayerStack() {
     reorderLayers,
     clearLayers,
     createRasterLayer,
+    createBackgroundLayer,
     createObjectLayer,
     updateLayerObjects,
     replaceLayer,

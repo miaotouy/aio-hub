@@ -27,7 +27,7 @@ export interface ViewportState {
 
 // ─── 图层类型 ───
 
-export type HybridLayer = RasterLayer | ObjectLayer;
+export type HybridLayer = BackgroundLayer | RasterLayer | ObjectLayer;
 
 export interface LayerBase {
   id: string;
@@ -43,6 +43,12 @@ export interface RasterLayer extends LayerBase {
   type: "raster";
   imagePath: string; // 相对路径，如 "layers/abc123.png"
   imageFormat: "png" | "webp";
+}
+
+/** 填充图层 */
+export interface BackgroundLayer extends LayerBase {
+  type: "background";
+  fillColor: string | null; // null = 透明背景
 }
 
 /** 对象图层 */
@@ -178,11 +184,10 @@ export interface SketchPadSettings {
   defaultCanvasPreset: string;
 
   // ─── 默认图层配置 ───
-  createBackgroundLayer: boolean;
+  createBackgroundLayer: boolean; // 是否创建填充图层
   createObjectLayer: boolean;
-  backgroundLayerName: string;
   objectLayerName: string;
-  backgroundLayerColor: string | null; // 背景层默认填充色，null = 透明
+  backgroundLayerColor: string | null; // 填充图层默认填充色，null = 透明
 
   // ─── 画笔默认值 ───
   defaultBrushSize: number;

@@ -87,62 +87,62 @@ appDataDir/sketch-pad/
 
 ```
 src/tools/sketch-pad/
-├── SketchPad.vue                   # 主入口组件（Session 组装器）
-├── sketch-pad.registry.ts          # 工具注册配置
-├── constants.ts                    # 常量定义（颜色预设、工具类型、字体预设）
+├── SketchPad.vue                        # 主入口组件（Session 组装器）
+├── sketch-pad.registry.ts               # 工具注册配置
+├── constants.ts                         # 常量定义（颜色预设、工具类型、字体预设）
 ├── types/
-│   └── index.ts                    # 完整类型定义
+│   └── index.ts                         # 完整类型定义
 ├── stores/
-│   └── sketchPadStore.ts           # Pinia Store（项目索引 + 全局设置）
-├── core/                           # 纯函数核心逻辑
-│   ├── brush-engine.ts             # 画笔引擎（perfect-freehand 封装）
-│   ├── konva-export.ts             # Konva 舞台导出工具
-│   ├── sketch-packager.ts          # .aiosk 打包/解包
-│   └── viewport-math.ts           # 视口坐标变换
-├── composables/                    # Vue Composables（状态 + 逻辑）
-│   ├── useEditorSession.ts         # ★ 核心：编辑器会话（State/Runtime/Actions）
-│   ├── useProjectLifecycle.ts      # 项目生命周期（打开/创建/导入/返回）
-│   ├── useEditorExport.ts          # 保存/导出/发送到 Chat
-│   ├── useEditorKeyboard.ts        # 快捷键系统
-│   ├── useAutoSave.ts              # 自动保存 + 智能图层切换
-│   ├── useHistoryApplicator.ts     # 历史记录应用器
-│   ├── useHybridHistory.ts         # 混合撤销/重做栈
-│   ├── useLayerStack.ts            # 图层栈 CRUD
-│   ├── useLayerOperations.ts       # 高级图层操作（栅格化/合并）
-│   ├── useImageAsset.ts            # 图片资产管理
-│   ├── useKonvaStage.ts            # Konva 舞台管理
-│   ├── useObjectLayer.ts           # 对象图层节点工厂
-│   ├── useRasterBrush.ts           # 位图画笔绘制逻辑
-│   ├── useSendSketchToChat.ts      # 发送到 Chat 功能
-│   ├── useSketchSettings.ts        # 画板全局设置
-│   ├── useSketchStorage.ts         # 项目持久化存储
-│   ├── useSystemFonts.ts           # 系统字体查询
-│   ├── useTextEditing.ts           # 文本就地编辑
-│   └── useTransformer.ts           # 选择与变换控制
-└── components/                     # UI 组件
-    ├── KonvaCanvas.vue             # 核心画布组件
-    ├── Toolbar.vue                 # 悬浮工具栏
-    ├── PropertyPanel.vue           # 属性面板（路由到子组件）
-    ├── LayerPanel.vue              # 图层面板
-    ├── SketchGallery.vue           # 项目列表/画廊
-    ├── SketchSettingsDialog.vue    # 设置对话框
-    ├── TextEditor.vue              # 文本编辑覆盖层
-    └── properties/                 # 属性面板子组件
-        ├── BackgroundProps.vue     # 填充图层属性
-        ├── BrushProps.vue          # 画笔属性
-        ├── ShapeProps.vue          # 形状属性
-        ├── TextProps.vue           # 文字属性
-        ├── SelectionProps.vue      # 选中对象属性（路由器）
-        ├── SelectionCommonProps.vue    # 选中对象通用属性
-        ├── SelectionMultiProps.vue     # 多选属性
-        ├── SelectionRectProps.vue      # 矩形属性
-        ├── SelectionEllipseProps.vue   # 椭圆属性
-        ├── SelectionLineProps.vue      # 线段属性
-        ├── SelectionArrowProps.vue     # 箭头属性
-        ├── SelectionTextProps.vue      # 文本属性
-        ├── SelectionImageProps.vue     # 图片属性
-        ├── PropertyColorPicker.vue     # 颜色选择器
-        └── PropertySlider.vue          # 滑块控件
+│   └── sketchPadStore.ts                # Pinia Store（项目索引 + 全局设置）
+├── core/                                # 纯函数核心逻辑
+│   ├── brush-engine.ts                  # 画笔引擎（perfect-freehand 封装）
+│   ├── konva-export.ts                  # Konva 舞台导出工具
+│   ├── sketch-packager.ts               # .aiosk 打包/解包
+│   └── viewport-math.ts                 # 视口坐标变换
+├── composables/                         # Vue Composables（状态 + 逻辑）
+│   ├── useEditorSession.ts              # ★ 核心：编辑器会话（State/Runtime/Actions）
+│   ├── useProjectLifecycle.ts           # 项目生命周期（打开/创建/导入/返回）
+│   ├── useEditorExport.ts               # 保存/导出/发送到 Chat
+│   ├── useEditorKeyboard.ts             # 快捷键系统
+│   ├── useAutoSave.ts                   # 自动保存 + 智能图层切换
+│   ├── useHistoryApplicator.ts          # 历史记录应用器
+│   ├── useHybridHistory.ts              # 混合撤销/重做栈
+│   ├── useLayerStack.ts                 # 图层栈 CRUD
+│   ├── useLayerOperations.ts            # 高级图层操作（栅格化/合并）
+│   ├── useImageAsset.ts                 # 图片资产管理
+│   ├── useKonvaStage.ts                 # Konva 舞台管理
+│   ├── useObjectLayer.ts                # 对象图层节点工厂
+│   ├── useRasterBrush.ts                # 位图画笔绘制逻辑
+│   ├── useSendSketchToChat.ts           # 发送到 Chat 功能
+│   ├── useSketchSettings.ts             # 画板全局设置
+│   ├── useSketchStorage.ts              # 项目持久化存储
+│   ├── useSystemFonts.ts                # 系统字体查询
+│   ├── useTextEditing.ts                # 文本就地编辑
+│   └── useTransformer.ts                # 选择与变换控制
+└── components/                          # UI 组件
+    ├── KonvaCanvas.vue                  # 核心画布组件
+    ├── Toolbar.vue                      # 悬浮工具栏
+    ├── PropertyPanel.vue                # 属性面板（路由到子组件）
+    ├── LayerPanel.vue                   # 图层面板
+    ├── SketchGallery.vue                # 项目列表/画廊
+    ├── SketchSettingsDialog.vue         # 设置对话框
+    ├── TextEditor.vue                   # 文本编辑覆盖层
+    └── properties/                      # 属性面板子组件
+        ├── BackgroundProps.vue          # 填充图层属性
+        ├── BrushProps.vue               # 画笔属性
+        ├── ShapeProps.vue               # 形状属性
+        ├── TextProps.vue                # 文字属性
+        ├── SelectionProps.vue           # 选中对象属性（路由器）
+        ├── SelectionCommonProps.vue     # 选中对象通用属性
+        ├── SelectionMultiProps.vue      # 多选属性
+        ├── SelectionRectProps.vue       # 矩形属性
+        ├── SelectionEllipseProps.vue    # 椭圆属性
+        ├── SelectionLineProps.vue       # 线段属性
+        ├── SelectionArrowProps.vue      # 箭头属性
+        ├── SelectionTextProps.vue       # 文本属性
+        ├── SelectionImageProps.vue      # 图片属性
+        ├── PropertyColorPicker.vue      # 颜色选择器
+        └── PropertySlider.vue           # 滑块控件
 ```
 
 ### 2.2. 分层架构

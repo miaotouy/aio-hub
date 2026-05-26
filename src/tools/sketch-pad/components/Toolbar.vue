@@ -107,12 +107,37 @@
           <span v-if="isDirty" class="dirty-dot" />
         </button>
       </el-tooltip>
-      <el-tooltip content="导出为 .aiosk 文件" placement="bottom" :show-after="300">
-        <button class="action-btn" @click="$emit('export')">
-          <Download :size="16" />
-          <span>导出</span>
-        </button>
-      </el-tooltip>
+      <el-dropdown trigger="click" @command="handleExportCommand">
+        <div>
+          <el-tooltip content="导出" placement="bottom" :show-after="300">
+            <button class="action-btn">
+              <Download :size="16" />
+              <span>导出</span>
+              <ChevronDown :size="12" />
+            </button>
+          </el-tooltip>
+        </div>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item command="aiosk">
+              <FileArchive :size="14" />
+              <span>导出为项目文件 (.aiosk)</span>
+            </el-dropdown-item>
+            <el-dropdown-item divided command="png">
+              <ImageIcon :size="14" />
+              <span>导出为 PNG (透明背景)</span>
+            </el-dropdown-item>
+            <el-dropdown-item command="jpg">
+              <ImageIcon :size="14" />
+              <span>导出为 JPG</span>
+            </el-dropdown-item>
+            <el-dropdown-item command="webp">
+              <ImageIcon :size="14" />
+              <span>导出为 WebP</span>
+            </el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
       <el-tooltip content="发送到 AI 对话附件" placement="bottom" :show-after="300">
         <button class="action-btn accent" @click="$emit('send-to-chat')">
           <Send :size="16" />
@@ -143,6 +168,8 @@ import {
   Download,
   Send,
   Maximize,
+  ChevronDown,
+  FileArchive,
 } from "lucide-vue-next";
 import type { ToolType } from "../constants";
 
@@ -153,6 +180,8 @@ defineProps<{
   isDirty: boolean;
 }>();
 
+export type ExportFormat = "aiosk" | "png" | "jpg" | "webp";
+
 const emit = defineEmits<{
   (e: "back"): void;
   (e: "select-tool", tool: ToolType): void;
@@ -160,13 +189,17 @@ const emit = defineEmits<{
   (e: "redo"): void;
   (e: "reset-view"): void;
   (e: "save"): void;
-  (e: "export"): void;
+  (e: "export", format: ExportFormat): void;
   (e: "send-to-chat"): void;
   (e: "import-image"): void;
 }>();
 
 function selectTool(tool: ToolType) {
   emit("select-tool", tool);
+}
+
+function handleExportCommand(command: string | number | object) {
+  emit("export", command as ExportFormat);
 }
 </script>
 
@@ -289,5 +322,13 @@ function selectTool(tool: ToolType) {
   opacity: 0.7;
   flex-shrink: 0;
   margin-left: 2px;
+}
+
+/* 导出下拉菜单样式 */
+:deep(.el-dropdown-menu__item) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
 }
 </style>

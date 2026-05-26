@@ -53,7 +53,7 @@
         @redo="handleRedo"
         @reset-view="handleResetView"
         @save="handleSave"
-        @export="handleExport"
+        @export="handleExport($event)"
         @send-to-chat="handleSendToChat"
         @import-image="handleImportImage"
       />
@@ -733,14 +733,15 @@ async function handleIncrementalSave() {
   }
 }
 
-async function handleExport() {
+async function handleExport(format: "aiosk" | "png" | "jpg" | "webp") {
   if (!currentProject.value || !canvasRef.value) return;
 
   const stage = canvasRef.value.getStage();
   const canvases = canvasRef.value.getCanvases();
+  if (!stage) return;
 
-  if (stage) {
-    // 导出前同步矢量图层数据
+  if (format === "aiosk") {
+    // 导出为项目文件
     syncObjectLayersBeforeSave();
 
     const bytes = await packageSketch(currentProject.value, layers.value, canvases, stage);
@@ -755,6 +756,67 @@ async function handleExport() {
         customMessage.success("导出成功");
       }
     }
+  } else {
+    // 导出为图片格式 (png / jpg / webp)
+    await handleExportImage(format);
+  }
+}
+
+async function handleExportImage(format: "png" | "jpg" | "webp") {
+  if (!currentProject.value || !canvasRef.value) return;
+
+  const stage = canvasRef.value.getStage() as Konva.Stage;
+  if (!stage) return;
+
+  // 隐藏 overlay 层（Transformer 等辅助元素）和边界层
+  const overlay = stage.findOne(".overlay");
+  const borderLayer = stage.findOne("#border-layer");
+  if (overlay) overlay.hide();
+  if (borderLayer) borderLayer.hide();
+
+  // 确定 MIME 类型和文件扩展名
+  const mimeMap: Record<string, string> = {
+    png: "image/png",
+    jpg: "image/jpeg",
+    webp: "image/webp",
+  };
+  const mimeType = mimeMap[format];
+  const ext = format === "jpg" ? "jpg" : format;
+
+  // 使用 stage.toDataURL 导出完整画布内容
+  // 裁剪到画布实际尺寸（排除画布外的空白区域）
+  const dataUrl = stage.toDataURL({
+    x: 0,
+    y: 0,
+    width: currentProject.value.width,
+    height: currentProject.value.height,
+    pixelRatio: 2, // 2x 分辨率，保证清晰度
+    mimeType,
+    quality: format === "png" ? undefined : 0.92,
+  });
+
+  // 恢复隐藏的层
+  if (overlay) overlay.show();
+  if (borderLayer) borderLayer.show();
+  stage.batchDraw();
+
+  // 将 data URL 转为 Uint8Array（遵循 CSP 规范，不使用 fetch）
+  const base64Data = dataUrl.split(",")[1];
+  const binaryStr = atob(base64Data);
+  const bytes = new Uint8Array(binaryStr.length);
+  for (let i = 0; i < binaryStr.length; i++) {
+    bytes[i] = binaryStr.charCodeAt(i);
+  }
+
+  // 弹出保存对话框
+  const filePath = await save({
+    filters: [{ name: `${format.toUpperCase()} 图片`, extensions: [ext] }],
+    defaultPath: `${currentProject.value.name}.${ext}`,
+  });
+
+  if (filePath) {
+    await writeFile(filePath, bytes);
+    customMessage.success(`已导出为 ${format.toUpperCase()} 图片`);
   }
 }
 

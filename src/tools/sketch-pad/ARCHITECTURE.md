@@ -496,6 +496,7 @@ sequenceDiagram
 
 - 管理 Konva.Transformer 实例（旋转、缩放锚点）。
 - 处理点击选择逻辑（单选、Shift 多选、空白区域取消选择）。
+- **框选 (Marquee Selection)**：在选择工具下拖拽空白区域画出选择矩形，松开后自动选中框内所有对象。支持 Shift+框选追加选择。框选逻辑实现在 `KonvaCanvas.vue` 中，通过包围盒相交检测判定命中对象。
 - 仅对 `name="object-node"` 的节点响应选择。
 
 ### 4.16. useImageAsset

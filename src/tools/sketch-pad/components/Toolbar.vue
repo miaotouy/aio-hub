@@ -3,7 +3,7 @@
     <!-- 左侧：返回按钮 -->
     <div class="toolbar-left">
       <el-tooltip content="返回草图列表" placement="bottom" :show-after="300">
-        <button class="tool-btn" @click="$emit('back')">
+        <button class="tool-btn" @click="handleBack">
           <ArrowLeft :size="18" />
         </button>
       </el-tooltip>
@@ -68,7 +68,7 @@
           </button>
         </el-tooltip>
         <el-tooltip content="导入图片 (I)" placement="bottom" :show-after="300">
-          <button class="tool-btn" @click="$emit('import-image')">
+          <button class="tool-btn" @click="handleImportImage">
             <ImageIcon :size="18" />
           </button>
         </el-tooltip>
@@ -78,12 +78,12 @@
 
       <div class="tool-group">
         <el-tooltip content="撤销 (Ctrl+Z)" placement="bottom" :show-after="300">
-          <button class="tool-btn" :disabled="!canUndo" @click="$emit('undo')">
+          <button class="tool-btn" :disabled="!canUndo" @click="handleUndo">
             <Undo2 :size="18" />
           </button>
         </el-tooltip>
         <el-tooltip content="重做 (Ctrl+Y)" placement="bottom" :show-after="300">
-          <button class="tool-btn" :disabled="!canRedo" @click="$emit('redo')">
+          <button class="tool-btn" :disabled="!canRedo" @click="handleRedo">
             <Redo2 :size="18" />
           </button>
         </el-tooltip>
@@ -92,7 +92,7 @@
       <div class="tool-divider" />
 
       <el-tooltip content="重置视图 (Ctrl+0)" placement="bottom" :show-after="300">
-        <button class="tool-btn" @click="$emit('reset-view')">
+        <button class="tool-btn" @click="handleResetView">
           <Maximize :size="18" />
         </button>
       </el-tooltip>
@@ -101,7 +101,7 @@
     <!-- 右侧：操作按钮 -->
     <div class="toolbar-right">
       <el-tooltip content="保存草图 (Ctrl+S)" placement="bottom" :show-after="300">
-        <button class="action-btn" :class="{ 'has-changes': isDirty }" @click="$emit('save')">
+        <button class="action-btn" :class="{ 'has-changes': isDirty }" @click="handleSave">
           <Save :size="16" />
           <span>保存</span>
           <span v-if="isDirty" class="dirty-dot" />
@@ -139,7 +139,7 @@
         </template>
       </el-dropdown>
       <el-tooltip content="发送到 AI 对话附件" placement="bottom" :show-after="300">
-        <button class="action-btn accent" @click="$emit('send-to-chat')">
+        <button class="action-btn accent" @click="handleSendToChat">
           <Send :size="16" />
           <span>发送</span>
         </button>
@@ -149,6 +149,7 @@
 </template>
 
 <script setup lang="ts">
+import { inject } from "vue";
 import {
   ArrowLeft,
   MousePointer,
@@ -171,35 +172,55 @@ import {
   ChevronDown,
   FileArchive,
 } from "lucide-vue-next";
+import { useEditorSession } from "../composables/useEditorSession";
 import type { ToolType } from "../constants";
+import type { SketchPadContext } from "../SketchPad.vue";
 
-defineProps<{
-  activeTool: ToolType;
-  canUndo: boolean;
-  canRedo: boolean;
-  isDirty: boolean;
-}>();
+const { state, runtime, actions } = useEditorSession();
+const ctx = inject<SketchPadContext>("sketchPadContext")!;
+
+// 直接读状态
+const activeTool = state.activeTool;
+const canUndo = state.canUndo;
+const canRedo = state.canRedo;
+const isDirty = state.isDirty;
 
 export type ExportFormat = "aiosk" | "png" | "jpg" | "webp";
 
-const emit = defineEmits<{
-  (e: "back"): void;
-  (e: "select-tool", tool: ToolType): void;
-  (e: "undo"): void;
-  (e: "redo"): void;
-  (e: "reset-view"): void;
-  (e: "save"): void;
-  (e: "export", format: ExportFormat): void;
-  (e: "send-to-chat"): void;
-  (e: "import-image"): void;
-}>();
-
 function selectTool(tool: ToolType) {
-  emit("select-tool", tool);
+  actions.selectTool(tool);
+}
+
+function handleBack() {
+  ctx.lifecycle.goBack(ctx.exportActions.handleSave);
+}
+
+function handleUndo() {
+  ctx.keyboard.handleUndo();
+}
+
+function handleRedo() {
+  ctx.keyboard.handleRedo();
+}
+
+function handleResetView() {
+  runtime.capabilities.resetView();
+}
+
+function handleSave() {
+  ctx.exportActions.handleSave();
 }
 
 function handleExportCommand(command: string | number | object) {
-  emit("export", command as ExportFormat);
+  ctx.exportActions.handleExport(command as ExportFormat);
+}
+
+function handleSendToChat() {
+  ctx.exportActions.handleSendToChat();
+}
+
+function handleImportImage() {
+  ctx.exportActions.handleImportImage();
 }
 </script>
 

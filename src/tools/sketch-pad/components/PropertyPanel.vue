@@ -21,7 +21,7 @@
         :brush-size="brushSize"
         :brush-color="brushColor"
         :brush-opacity="brushOpacity"
-        @update="(data) => $emit('update:brush', data)"
+        @update="(data) => actions.updateBrush(data)"
       />
 
       <!-- 2. 形状属性 (矩形、圆形、线段、箭头) -->
@@ -32,7 +32,7 @@
         :stroke-color="strokeColor"
         :fill-color="fillColor"
         :corner-radius="cornerRadius"
-        @update="(data) => $emit('update:shape', data)"
+        @update="(data) => actions.updateShape(data)"
       />
 
       <!-- 3. 文字属性 (文字工具且未选中对象时显示默认属性) -->
@@ -41,18 +41,18 @@
         :font-size="fontSize"
         :font-family="fontFamily"
         :text-color="textColor"
-        @update="(data) => $emit('update:text', data)"
+        @update="(data) => actions.updateText(data)"
       />
 
       <!-- 4. 选中对象属性编辑 (选择工具或文字工具下有选中对象) -->
       <SelectionProps
         v-else-if="(activeTool === 'select' || activeTool === 'text') && selectionInfo.count > 0"
         :selection-info="selectionInfo"
-        @update-prop="(key, val) => $emit('update:selection-prop', key, val)"
-        @update-props="(data) => $emit('update:selection-props', data)"
-        @align="(dir) => $emit('align-selection', dir)"
-        @distribute="(dir) => $emit('distribute-selection', dir)"
-        @delete-selected="$emit('delete-selected')"
+        @update-prop="(key, val) => actions.updateSelectionProp(key, val)"
+        @update-props="(data) => actions.updateSelectionProps(data)"
+        @align="(dir) => actions.alignSelection(dir)"
+        @distribute="(dir) => actions.distributeSelection(dir)"
+        @delete-selected="actions.deleteSelected()"
       />
 
       <!-- 5. 选择工具 (未选中对象) -->
@@ -77,68 +77,44 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import { Palette, ChevronDown, MousePointer, Hand } from "lucide-vue-next";
-import type { ToolType } from "../constants";
-import type { SelectionInfo } from "../types";
+import { useEditorSession } from "../composables/useEditorSession";
 import BrushProps from "./properties/BrushProps.vue";
 import ShapeProps from "./properties/ShapeProps.vue";
 import TextProps from "./properties/TextProps.vue";
 import SelectionProps from "./properties/SelectionProps.vue";
 
+const { state, actions } = useEditorSession();
+
 const isCollapsed = ref(false);
 
-const props = defineProps<{
-  activeTool: ToolType;
-  brushSize: number;
-  brushColor: string;
-  brushOpacity: number;
-  strokeWidth: number;
-  strokeColor: string;
-  fillColor: string | null;
-  cornerRadius: number;
-  fontSize: number;
-  fontFamily: string;
-  textColor: string;
-  selectionInfo: SelectionInfo;
-}>();
-
-defineEmits<{
-  (e: "update:brush", data: { size?: number; color?: string; opacity?: number }): void;
-  (
-    e: "update:shape",
-    data: { strokeWidth?: number; strokeColor?: string; fillColor?: string | null; cornerRadius?: number },
-  ): void;
-  (
-    e: "update:text",
-    data: {
-      fontSize?: number;
-      fontFamily?: string;
-      color?: string;
-      fontWeight?: "normal" | "bold";
-      fontStyle?: "normal" | "italic";
-      textAlign?: "left" | "center" | "right";
-    },
-  ): void;
-  (e: "update:selection-prop", key: string, value: any): void;
-  (e: "update:selection-props", data: Record<string, any>): void;
-  (e: "align-selection", direction: "left" | "right" | "top" | "bottom" | "center-h" | "center-v"): void;
-  (e: "distribute-selection", direction: "horizontal" | "vertical"): void;
-  (e: "delete-selected"): void;
-}>();
+// 直接从 session 读状态
+const activeTool = state.activeTool;
+const brushSize = state.brushSize;
+const brushColor = state.brushColor;
+const brushOpacity = state.brushOpacity;
+const strokeWidth = state.strokeWidth;
+const strokeColor = state.strokeColor;
+const fillColor = state.fillColor;
+const cornerRadius = state.cornerRadius;
+const fontSize = state.fontSize;
+const fontFamily = state.fontFamily;
+const textColor = state.textColor;
+const selectionInfo = state.selectionInfo;
 
 const isBrushTool = computed(() => {
-  return ["pencil", "marker", "eraser"].includes(props.activeTool);
+  return ["pencil", "marker", "eraser"].includes(activeTool.value);
 });
 
 const isShapeTool = computed(() => {
-  return ["rect", "ellipse", "line", "arrow"].includes(props.activeTool);
+  return ["rect", "ellipse", "line", "arrow"].includes(activeTool.value);
 });
 
 const panelTitle = computed(() => {
   if (isBrushTool.value) return "画笔";
   if (isShapeTool.value) return "形状";
   // 文字工具或选择工具下有选中对象时，显示对象类型
-  if ((props.activeTool === "text" || props.activeTool === "select") && props.selectionInfo.count > 0) {
-    if (props.selectionInfo.count === 1 && props.selectionInfo.singleObject) {
+  if ((activeTool.value === "text" || activeTool.value === "select") && selectionInfo.value.count > 0) {
+    if (selectionInfo.value.count === 1 && selectionInfo.value.singleObject) {
       const typeLabels: Record<string, string> = {
         rect: "矩形",
         ellipse: "圆形",
@@ -147,11 +123,11 @@ const panelTitle = computed(() => {
         text: "文本",
         image: "图片",
       };
-      return typeLabels[props.selectionInfo.singleObject.type] || "对象";
+      return typeLabels[selectionInfo.value.singleObject.type] || "对象";
     }
     return "多选对象";
   }
-  if (props.activeTool === "text") return "文字";
+  if (activeTool.value === "text") return "文字";
   return "属性";
 });
 </script>

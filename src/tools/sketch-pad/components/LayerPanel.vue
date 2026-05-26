@@ -134,7 +134,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, inject } from "vue";
 import {
   Trash2,
   Eye,
@@ -156,83 +156,73 @@ import {
   Type,
   Image,
 } from "lucide-vue-next";
+import { useEditorSession } from "../composables/useEditorSession";
 import type { HybridLayer, ObjectLayer, SketchObject } from "../types";
+import type { SketchPadContext } from "../SketchPad.vue";
+
+const { state, runtime, actions } = useEditorSession();
+const ctx = inject<SketchPadContext>("sketchPadContext")!;
 
 const isCollapsed = ref(true);
 const expandedLayers = ref<Set<string>>(new Set());
 
-const props = defineProps<{
-  layers: HybridLayer[];
-  activeLayerId: string;
-  selectedObjectId: string | null;
-}>();
+// 直接从 session 读状态
+const layers = state.layers;
+const activeLayerId = state.activeLayerId;
+const selectionInfo = state.selectionInfo;
 
-const emit = defineEmits<{
-  (e: "create-layer", type: "raster" | "object"): void;
-  (e: "delete-layer", id: string): void;
-  (e: "select-layer", id: string): void;
-  (e: "toggle-visible", id: string): void;
-  (e: "toggle-locked", id: string): void;
-  (e: "reorder-layers", newOrder: string[]): void;
-  (e: "merge-down", id: string): void;
-  (e: "rasterize-layer", id: string): void;
-  (e: "select-object", objectId: string): void;
-  (e: "reorder-objects", data: { layerId: string; newOrder: string[] }): void;
-}>();
+const selectedObjectId = computed(() => selectionInfo.value.singleObject?.id || null);
 
 const activeLayerIndex = computed(() => {
-  return props.layers.findIndex((l) => l.id === props.activeLayerId);
+  return layers.value.findIndex((l) => l.id === activeLayerId.value);
 });
 
 const activeLayer = computed(() => {
-  return props.layers.find((l) => l.id === props.activeLayerId) || null;
+  return layers.value.find((l) => l.id === activeLayerId.value) || null;
 });
 
 function handleCreateLayer(type: "raster" | "object") {
-  emit("create-layer", type);
+  actions.addLayer(type);
 }
 
 function selectLayer(id: string) {
-  emit("select-layer", id);
+  state.activeLayerId.value = id;
 }
 
 function toggleVisible(id: string) {
-  emit("toggle-visible", id);
+  actions.toggleVisible(id);
 }
 
 function toggleLocked(id: string) {
-  emit("toggle-locked", id);
+  actions.toggleLocked(id);
 }
 
 function moveLayer(index: number, direction: number) {
   const newIndex = index + direction;
-  if (newIndex < 0 || newIndex >= props.layers.length) return;
+  if (newIndex < 0 || newIndex >= layers.value.length) return;
 
-  const newLayers = [...props.layers];
+  const newLayers = [...layers.value];
   const [moved] = newLayers.splice(index, 1);
   newLayers.splice(newIndex, 0, moved);
 
-  emit(
-    "reorder-layers",
-    newLayers.map((l) => l.id),
-  );
+  actions.reorderLayers(newLayers.map((l) => l.id));
 }
 
 function deleteActiveLayer() {
-  if (props.activeLayerId) {
-    emit("delete-layer", props.activeLayerId);
+  if (activeLayerId.value) {
+    actions.deleteLayer(activeLayerId.value);
   }
 }
 
 function mergeDown() {
-  if (props.activeLayerId) {
-    emit("merge-down", props.activeLayerId);
+  if (activeLayerId.value) {
+    ctx.layerOps.mergeDown(activeLayerId.value);
   }
 }
 
 function rasterizeActiveLayer() {
-  if (props.activeLayerId) {
-    emit("rasterize-layer", props.activeLayerId);
+  if (activeLayerId.value) {
+    ctx.layerOps.rasterizeLayer(activeLayerId.value);
   }
 }
 
@@ -293,7 +283,7 @@ function getObjectName(obj: SketchObject): string {
 }
 
 function handleObjectClick(objectId: string) {
-  emit("select-object", objectId);
+  runtime.capabilities.selectObjectById(objectId);
 }
 
 /**
@@ -302,7 +292,7 @@ function handleObjectClick(objectId: string) {
  * displayIndex 是反转后的索引，direction: 1 = 在显示中上移 = 在实际数组中下移（zIndex 增大）
  */
 function moveObject(layerId: string, displayIndex: number, direction: number) {
-  const layer = props.layers.find((l) => l.id === layerId);
+  const layer = layers.value.find((l) => l.id === layerId);
   if (!layer || layer.type !== "object") return;
 
   const objects = (layer as ObjectLayer).objects;
@@ -317,10 +307,7 @@ function moveObject(layerId: string, displayIndex: number, direction: number) {
   const [moved] = newObjects.splice(actualIndex, 1);
   newObjects.splice(newActualIndex, 0, moved);
 
-  emit("reorder-objects", {
-    layerId,
-    newOrder: newObjects.map((o) => o.id),
-  });
+  runtime.capabilities.reorderObjectsInLayer(layerId, newObjects.map((o) => o.id));
 }
 </script>
 

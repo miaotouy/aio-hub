@@ -60,6 +60,7 @@ import { ref, shallowRef, computed, onMounted, watch, onUnmounted, nextTick } fr
 import Konva from "konva";
 import { nanoid } from "nanoid";
 import { SquareDashed } from "lucide-vue-next";
+import { useEditorSession } from "../composables/useEditorSession";
 import { useSketchSettings } from "../composables/useSketchSettings";
 import { useKonvaStage } from "../composables/useKonvaStage";
 import { useRasterBrush } from "../composables/useRasterBrush";
@@ -67,41 +68,52 @@ import { useObjectLayer } from "../composables/useObjectLayer";
 import { useTransformer } from "../composables/useTransformer";
 import { useTextEditing } from "../composables/useTextEditing";
 import { useImageAsset } from "../composables/useImageAsset";
-import type { HybridLayer, SketchObject, ImageObject, SelectionInfo } from "../types";
-import type { ToolType } from "../constants";
+import type { SketchObject, ImageObject, SelectionInfo } from "../types";
 import TextEditor from "./TextEditor.vue";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("SketchPad/KonvaCanvas");
 
-const props = defineProps<{
-  width: number;
-  height: number;
-  layers: HybridLayer[];
-  activeLayerId: string;
-  activeTool: ToolType;
-  brushSize: number;
-  brushColor: string;
-  brushOpacity: number;
-  strokeWidth: number;
-  strokeColor: string;
-  fillColor: string | null;
-  cornerRadius: number;
-  fontSize: number;
-  fontFamily: string;
-  textColor: string;
-  fontWeight: "normal" | "bold";
-  fontStyle: "normal" | "italic";
-  textAlign: "left" | "center" | "right";
-}>();
+// ─── inject EditorSession (替代 props/emits) ───
+const { state, runtime, actions } = useEditorSession();
 
-const emit = defineEmits<{
-  (e: "update:layers", layers: HybridLayer[]): void;
-  (e: "push-history", entry: any): void;
-  (e: "selection-change", info: SelectionInfo): void;
-  (e: "switch-layer", layerId: string): void;
-}>();
+// 兼容层：将 session state 映射为类似 props 的本地引用，减少下方代码改动量
+const props = {
+  get width() { return state.project.value?.width || 1920; },
+  get height() { return state.project.value?.height || 1080; },
+  get layers() { return state.layers.value; },
+  get activeLayerId() { return state.activeLayerId.value; },
+  get activeTool() { return state.activeTool.value; },
+  get brushSize() { return state.brushSize.value; },
+  get brushColor() { return state.brushColor.value; },
+  get brushOpacity() { return state.brushOpacity.value; },
+  get strokeWidth() { return state.strokeWidth.value; },
+  get strokeColor() { return state.strokeColor.value; },
+  get fillColor() { return state.fillColor.value; },
+  get cornerRadius() { return state.cornerRadius.value; },
+  get fontSize() { return state.fontSize.value; },
+  get fontFamily() { return state.fontFamily.value; },
+  get textColor() { return state.textColor.value; },
+  get fontWeight() { return state.fontWeight.value; },
+  get fontStyle() { return state.fontStyle.value; },
+  get textAlign() { return state.textAlign.value; },
+};
+
+// emit 兼容层：将 emit 调用转发到 session actions
+const emit = (event: string, ...args: any[]) => {
+  switch (event) {
+    case "push-history":
+      actions.pushHistory(args[0]);
+      break;
+    case "selection-change":
+      state.selectionInfo.value = args[0];
+      break;
+    case "switch-layer":
+      state.activeLayerId.value = args[0];
+      break;
+  }
+};
 
 const containerRef = ref<HTMLDivElement | null>(null);
 const stageRef = ref<HTMLDivElement | null>(null);
@@ -1729,64 +1741,64 @@ function reorderSelectedObject(action: "up" | "down" | "top" | "bottom") {
   reorderObjectNode(selectedNodes.value[0], action);
 }
 
-// 暴露方法给父组件
-defineExpose({
-  getStage: () => stage.value,
-  getCanvases: () => canvases,
-  getZoom: () => zoom.value,
-  createKonvaNode,
-  serializeKonvaNode,
-  addImageToActiveLayer,
-  collectObjectLayerData,
-  getSelectionInfo,
-  updateSelectionProp,
-  updateSelectionProps,
-  alignSelection,
-  distributeSelection,
-  selectObjectById,
-  reorderObjectsInLayer,
-  reorderSelectedObject,
-  resetView: () => {
-    if (containerRef.value && stage.value) {
-      resetView(props.width, props.height, containerRef.value.clientWidth, containerRef.value.clientHeight);
-    }
-  },
-  deleteSelected: () => {
-    if (selectedNodes.value.length > 0) {
-      selectedNodes.value.forEach((node) => {
-        const layerId = node.getLayer()?.id();
-        if (layerId) {
-          emit("push-history", {
-            type: "object-remove",
-            layerId,
-            object: serializeKonvaNode(node),
-          });
-        }
-        node.destroy();
-      });
-      clearSelection();
-      emitSelectionInfo();
-      stage.value?.batchDraw();
-    }
-  },
-  selectAll: () => {
-    if (!stage.value) return;
-    const activeLayer = props.layers.find((l) => l.id === props.activeLayerId);
-    if (!activeLayer || activeLayer.type !== "object") return;
-
-    const konvaLayer = stage.value.findOne(`#${activeLayer.id}`) as Konva.Layer;
-    if (!konvaLayer) return;
-
-    const objectNodes = konvaLayer.getChildren().filter((n) => n.name() === "object-node");
-    if (objectNodes.length > 0) {
-      const { transformer } = useTransformer();
-      if (transformer.value) {
-        transformer.value.nodes(objectNodes as any);
-        transformer.value.getLayer()?.batchDraw();
-        emitSelectionInfo();
+// ─── 注册 capabilities 到 EditorSession runtime ───
+onMounted(() => {
+  runtime.registerCapabilities({
+    getStage: () => stage.value as any,
+    getCanvases: () => canvases,
+    getZoom: () => zoom.value,
+    createKonvaNode,
+    addImageToActiveLayer,
+    collectObjectLayerData,
+    getSelectionInfo,
+    updateSelectionProp,
+    updateSelectionProps,
+    alignSelection,
+    distributeSelection,
+    selectObjectById,
+    reorderObjectsInLayer,
+    reorderSelectedObject,
+    resetView: () => {
+      if (containerRef.value && stage.value) {
+        resetView(props.width, props.height, containerRef.value.clientWidth, containerRef.value.clientHeight);
       }
-    }
-  },
+    },
+    deleteSelected: () => {
+      if (selectedNodes.value.length > 0) {
+        selectedNodes.value.forEach((node) => {
+          const layerId = node.getLayer()?.id();
+          if (layerId) {
+            actions.pushHistory({
+              type: "object-remove",
+              layerId,
+              object: serializeKonvaNode(node),
+            });
+          }
+          node.destroy();
+        });
+        clearSelection();
+        emitSelectionInfo();
+        stage.value?.batchDraw();
+      }
+    },
+    selectAll: () => {
+      if (!stage.value) return;
+      const activeLayer = props.layers.find((l) => l.id === props.activeLayerId);
+      if (!activeLayer || activeLayer.type !== "object") return;
+
+      const konvaLayer = stage.value.findOne(`#${activeLayer.id}`) as Konva.Layer;
+      if (!konvaLayer) return;
+
+      const objectNodes = konvaLayer.getChildren().filter((n) => n.name() === "object-node");
+      if (objectNodes.length > 0) {
+        if (transformer.value) {
+          transformer.value.nodes(objectNodes as any);
+          transformer.value.getLayer()?.batchDraw();
+          emitSelectionInfo();
+        }
+      }
+    },
+  });
 });
 </script>
 

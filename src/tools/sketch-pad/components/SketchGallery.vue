@@ -7,10 +7,10 @@
       </div>
       <div class="action-section">
         <el-tooltip content="画板设置" placement="bottom">
-          <el-button :icon="Settings2" circle @click="emit('open-settings')" />
+          <el-button :icon="Settings2" circle @click="ctx.showSettings.value = true" />
         </el-tooltip>
         <el-tooltip content="刷新索引" placement="bottom">
-          <el-button :icon="RefreshCw" circle @click="emit('refresh')" />
+          <el-button :icon="RefreshCw" circle @click="store.syncIndex()" />
         </el-tooltip>
         <el-button type="primary" :icon="Plus" @click="openCreateDialog">新建草图</el-button>
         <el-button :icon="Upload" @click="handleImport">导入草图 (.aiosk)</el-button>
@@ -152,21 +152,26 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from "vue";
+import { ref, reactive, inject, computed } from "vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import { Plus, Upload, Trash2, Edit, Calendar, Image, RefreshCw, Settings2 } from "lucide-vue-next";
 import type { SketchProject } from "../types";
 import { generateDefaultSketchName } from "../constants";
 import { useSketchSettings } from "../composables/useSketchSettings";
+import { useSketchPadStore } from "../stores/sketchPadStore";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { format } from "date-fns";
 import { ElMessageBox } from "element-plus";
 import { open } from "@tauri-apps/plugin-dialog";
 import { readFile } from "@tauri-apps/plugin-fs";
+import type { SketchPadContext } from "../SketchPad.vue";
 
-defineProps<{
-  projects: SketchProject[];
-}>();
+// ─── inject session context ───
+const store = useSketchPadStore();
+const ctx = inject<SketchPadContext>("sketchPadContext")!;
+
+// 从全局 store 读项目列表
+const projects = computed(() => store.projects);
 
 // ─── Reveal Highlight (Win10 磁贴边缘照亮) ───
 const gridRef = ref<HTMLElement | null>(null);
@@ -223,24 +228,6 @@ function handleGridMouseLeave() {
     card.style.setProperty("--is-hovered", "0");
   });
 }
-const emit = defineEmits<{
-  (e: "select-project", id: string): void;
-  (
-    e: "create-project",
-    data: {
-      name: string;
-      width: number;
-      height: number;
-      createBackgroundLayer: boolean;
-      backgroundLayerColor: string | null;
-    },
-  ): void;
-  (e: "delete-project", id: string): void;
-  (e: "rename-project", id: string, newName: string): void;
-  (e: "import-project", data: Uint8Array): void;
-  (e: "refresh"): void;
-  (e: "open-settings"): void;
-}>();
 
 // 画布预设定义
 const CANVAS_PRESETS = [
@@ -331,7 +318,7 @@ function openCreateDialog() {
 }
 
 function handleCreate() {
-  emit("create-project", {
+  ctx.lifecycle.createProject({
     name: createForm.name || generateDefaultSketchName(),
     width: createForm.width,
     height: createForm.height,
@@ -342,7 +329,7 @@ function handleCreate() {
 }
 
 function selectProject(id: string) {
-  emit("select-project", id);
+  ctx.lifecycle.openProject(id);
 }
 
 function startRename(project: SketchProject) {
@@ -353,7 +340,7 @@ function startRename(project: SketchProject) {
 
 function handleRename() {
   if (renameForm.name.trim()) {
-    emit("rename-project", renameForm.id, renameForm.name.trim());
+    ctx.lifecycle.renameProject(renameForm.id, renameForm.name.trim());
     showRenameDialog.value = false;
   }
 }
@@ -366,7 +353,7 @@ async function confirmDelete(project: SketchProject) {
       type: "warning",
       lockScroll: false,
     });
-    emit("delete-project", project.id);
+    ctx.lifecycle.deleteProject(project.id);
   } catch {
     // 取消删除
   }
@@ -380,7 +367,7 @@ async function handleImport() {
     });
     if (selected && typeof selected === "string") {
       const bytes = await readFile(selected);
-      emit("import-project", bytes);
+      ctx.lifecycle.importProject(bytes);
     }
   } catch (error) {
     console.error("导入失败", error);

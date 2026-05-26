@@ -112,8 +112,10 @@ export const useVcpStore = defineStore("vcp-connector", () => {
   // WebSocket 内部状态
   const ws = ref<WebSocket | null>(null);
   const distributedWs = ref<WebSocket | null>(null);
+  const vcpLogWs = ref<WebSocket | null>(null);
   const isConnecting = ref(false);
   const isDistributedConnecting = ref(false);
+  const isVcpLogConnecting = ref(false);
   const reconnectTimer = ref<ReturnType<typeof setTimeout> | null>(null);
   const pingTimer = ref<ReturnType<typeof setInterval> | null>(null);
   const pendingPingTime = ref<number | null>(null);
@@ -356,16 +358,22 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     if (isDetachedMonitor) {
       logger.info("Detached monitor mode: connecting to Observer only");
       connectObserver(wsUrl, vcpKey);
+      connectVcpLog(wsUrl, vcpKey);
       return;
     }
 
-    // 1. 连接观察者端点 (Observer)
+    // 1. 连接观察者端点 (Observer / VCPInfo)
     // 如果主窗口中监控已分离，主窗口可以选择不连 Observer 以节省资源
     if (!isMonitorDetached.value && (mode === "observer" || mode === "both")) {
       connectObserver(wsUrl, vcpKey);
     }
 
-    // 2. 连接分布式节点端点 (Distributed)
+    // 2. 连接 VCPLog 端点（接收普通日志和审批请求）
+    if (mode === "observer" || mode === "both") {
+      connectVcpLog(wsUrl, vcpKey);
+    }
+
+    // 3. 连接分布式节点端点 (Distributed)
     if (mode === "distributed" || mode === "both") {
       connectDistributed(wsUrl, vcpKey);
     }
@@ -438,6 +446,109 @@ export const useVcpStore = defineStore("vcp-connector", () => {
       if (config.value.autoConnect) {
         scheduleReconnect();
       }
+    }
+  }
+
+  /**
+   * 处理通过 VCPLog 频道收到的工具审批请求
+   * 审批响应直接通过 VCPLog 连接发回（VCP 后端在通用消息处理中接收 tool_approval_response）
+   */
+  async function handleVcpLogApprovalRequest(data: any) {
+    const { requestId, toolName, maid, args } = data;
+    const toolCallingStore = useToolCallingStore();
+
+    // 转换为 AIO 内部格式
+    const parsedRequest = {
+      requestId,
+      toolId: toolName,
+      methodName: (args?.command as string) || "",
+      toolName: toolName,
+      methodDisplayName: `${toolName}${args?.command ? "." + args.command : ""}`,
+      rawBlock: JSON.stringify(args, null, 2),
+      args: args || {},
+    };
+
+    // 映射 sessionId
+    const sessionId = `vcp-${maid || "unknown"}`;
+
+    // 调用 toolCallingStore 弹出审批 UI 并等待用户操作
+    const result = await toolCallingStore.requestApproval(sessionId, parsedRequest as any, requestId);
+
+    // 通过 VCPLog 连接发送审批响应回 VCP
+    const approved = result === "approved";
+    logger.info(`Tool approval response: ${requestId} -> ${approved ? "APPROVED" : "REJECTED"}`);
+
+    if (vcpLogWs.value?.readyState === WebSocket.OPEN) {
+      vcpLogWs.value.send(
+        JSON.stringify({
+          type: "tool_approval_response",
+          data: { requestId, approved },
+        }),
+      );
+    } else {
+      logger.warn("VCPLog WebSocket not open, cannot send approval response");
+    }
+  }
+
+  function connectVcpLog(baseUrl: string, vcpKey: string) {
+    if (vcpLogWs.value?.readyState === WebSocket.OPEN || isVcpLogConnecting.value) return;
+
+    let fullUrl = baseUrl;
+    if (!fullUrl.includes("/VCPlog/")) {
+      fullUrl = `${fullUrl.endsWith("/") ? fullUrl : fullUrl + "/"}VCPlog/VCP_Key=${vcpKey}`;
+    } else if (!fullUrl.includes("VCP_Key=")) {
+      fullUrl = `${fullUrl.endsWith("/") ? fullUrl : fullUrl + "/"}VCP_Key=${vcpKey}`;
+    }
+
+    try {
+      isVcpLogConnecting.value = true;
+      vcpLogWs.value = new WebSocket(fullUrl);
+
+      vcpLogWs.value.onopen = () => {
+        isVcpLogConnecting.value = false;
+        logger.info("VCPLog WebSocket connected");
+      };
+
+      vcpLogWs.value.onclose = (event) => {
+        isVcpLogConnecting.value = false;
+        logger.info("VCPLog WebSocket closed", event.code);
+        if (!event.wasClean && config.value.autoConnect) {
+          // 依赖主 Observer 的重连逻辑，VCPLog 会在 attemptConnect 中一起重连
+        }
+      };
+
+      vcpLogWs.value.onerror = () => {
+        logger.warn("VCPLog WebSocket connection failed");
+        isVcpLogConnecting.value = false;
+      };
+
+      vcpLogWs.value.onmessage = (event) => {
+        try {
+          const rawData = JSON.parse(event.data);
+
+          // 处理工具审批请求
+          if (rawData.type === "tool_approval_request") {
+            logger.info("Received tool_approval_request via VCPLog channel", rawData.data);
+            handleVcpLogApprovalRequest(rawData.data);
+            return;
+          }
+
+          // 处理连接确认
+          if (rawData.type === "connection_ack") {
+            logger.debug("VCPLog connection acknowledged");
+            return;
+          }
+
+          // 其他消息走正常的消息解析流程
+          const message = parseMessage(rawData);
+          if (message) addMessage(message);
+        } catch (e) {
+          logger.warn("Failed to parse VCPLog message", e);
+        }
+      };
+    } catch (e) {
+      isVcpLogConnecting.value = false;
+      logger.error("Failed to connect VCPLog WebSocket", e);
     }
   }
 
@@ -615,6 +726,11 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     if (ws.value) {
       ws.value.close(1000, "Client disconnect");
       ws.value = null;
+    }
+
+    if (vcpLogWs.value) {
+      vcpLogWs.value.close(1000, "Client disconnect");
+      vcpLogWs.value = null;
     }
 
     if (distributedWs.value) {

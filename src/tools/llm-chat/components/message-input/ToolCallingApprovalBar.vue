@@ -14,7 +14,9 @@ const llmChatStore = useLlmChatStore();
 const isSilent = ref(false);
 
 const currentSessionPendingRequests = computed(() => {
-  return toolCallingStore.pendingRequests.filter((r) => r.sessionId === llmChatStore.currentSessionId);
+  return toolCallingStore.pendingRequests.filter(
+    (r) => r.sessionId === llmChatStore.currentSessionId || !!r.externalId,
+  );
 });
 
 // 当有新的请求进入时，尝试同步节点的静默状态到 UI

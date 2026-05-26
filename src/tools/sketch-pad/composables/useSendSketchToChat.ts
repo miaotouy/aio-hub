@@ -4,6 +4,7 @@ import { useRouter } from "vue-router";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
 import { generateDefaultSketchName } from "../constants";
+import { canvasToBlob, exportStageToCanvas } from "../core/konva-export";
 import type Konva from "konva";
 
 const logger = createModuleLogger("SketchPad/SendToChat");
@@ -26,18 +27,14 @@ export function useSendSketchToChat() {
       if (overlay) overlay.hide();
       if (borderLayer) borderLayer.hide();
 
-      const blob = (await stage.toBlob({
+      const canvas = exportStageToCanvas(stage, {
         x: 0,
         y: 0,
         width: options.width,
         height: options.height,
         pixelRatio: 1,
-        mimeType: "image/png",
-      })) as Blob | null;
-
-      if (!blob) {
-        throw new Error("导出草图图片失败");
-      }
+      });
+      const blob = await canvasToBlob(canvas, "image/png");
 
       const buffer = await blob.arrayBuffer();
 

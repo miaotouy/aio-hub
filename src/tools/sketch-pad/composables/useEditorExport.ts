@@ -8,6 +8,7 @@ import { useSketchPadStore } from "../stores/sketchPadStore";
 import { useSendSketchToChat } from "./useSendSketchToChat";
 import { useImageAsset } from "./useImageAsset";
 import { packageSketch } from "../core/sketch-packager";
+import { canvasToBlob, exportStageToCanvas } from "../core/konva-export";
 import { generateDefaultSketchName } from "../constants";
 import type { SketchProject } from "../types";
 import { customMessage } from "@/utils/customMessage";
@@ -159,29 +160,24 @@ export function useEditorExport(session: EditorSession) {
     const mimeType = mimeMap[format];
     const ext = format === "jpg" ? "jpg" : format;
 
-    // 使用 stage.toDataURL 导出完整画布内容
-    const dataUrl = stage.toDataURL({
-      x: 0,
-      y: 0,
-      width: state.project.value.width,
-      height: state.project.value.height,
-      pixelRatio: 2,
-      mimeType,
-      quality: format === "png" ? undefined : 0.92,
-    });
-
-    // 恢复隐藏的层
-    if (overlay) overlay.show();
-    if (borderLayer) borderLayer.show();
-    stage.batchDraw();
-
-    // 将 data URL 转为 Uint8Array（遵循 CSP 规范，不使用 fetch）
-    const base64Data = dataUrl.split(",")[1];
-    const binaryStr = atob(base64Data);
-    const bytes = new Uint8Array(binaryStr.length);
-    for (let i = 0; i < binaryStr.length; i++) {
-      bytes[i] = binaryStr.charCodeAt(i);
+    let blob: Blob;
+    try {
+      const canvas = exportStageToCanvas(stage, {
+        x: 0,
+        y: 0,
+        width: state.project.value.width,
+        height: state.project.value.height,
+        pixelRatio: 2,
+      });
+      blob = await canvasToBlob(canvas, mimeType, format === "png" ? undefined : 0.92);
+    } finally {
+      // 恢复隐藏的层
+      if (overlay) overlay.show();
+      if (borderLayer) borderLayer.show();
+      stage.batchDraw();
     }
+
+    const bytes = new Uint8Array(await blob.arrayBuffer());
 
     // 弹出保存对话框
     const filePath = await save({

@@ -78,42 +78,9 @@ const logger = createModuleLogger("SketchPad/KonvaCanvas");
 // ─── inject EditorSession (替代 props/emits) ───
 const { state, runtime, actions } = useEditorSession();
 
-// 兼容层：将 session state 映射为类似 props 的本地引用，减少下方代码改动量
-const props = {
-  get width() { return state.project.value?.width || 1920; },
-  get height() { return state.project.value?.height || 1080; },
-  get layers() { return state.layers.value; },
-  get activeLayerId() { return state.activeLayerId.value; },
-  get activeTool() { return state.activeTool.value; },
-  get brushSize() { return state.brushSize.value; },
-  get brushColor() { return state.brushColor.value; },
-  get brushOpacity() { return state.brushOpacity.value; },
-  get strokeWidth() { return state.strokeWidth.value; },
-  get strokeColor() { return state.strokeColor.value; },
-  get fillColor() { return state.fillColor.value; },
-  get cornerRadius() { return state.cornerRadius.value; },
-  get fontSize() { return state.fontSize.value; },
-  get fontFamily() { return state.fontFamily.value; },
-  get textColor() { return state.textColor.value; },
-  get fontWeight() { return state.fontWeight.value; },
-  get fontStyle() { return state.fontStyle.value; },
-  get textAlign() { return state.textAlign.value; },
-};
-
-// emit 兼容层：将 emit 调用转发到 session actions
-const emit = (event: string, ...args: any[]) => {
-  switch (event) {
-    case "push-history":
-      actions.pushHistory(args[0]);
-      break;
-    case "selection-change":
-      state.selectionInfo.value = args[0];
-      break;
-    case "switch-layer":
-      state.activeLayerId.value = args[0];
-      break;
-  }
-};
+// 画布尺寸便捷 getter
+const canvasWidth = () => state.project.value?.width || 1920;
+const canvasHeight = () => state.project.value?.height || 1080;
 
 const containerRef = ref<HTMLDivElement | null>(null);
 const stageRef = ref<HTMLDivElement | null>(null);
@@ -188,8 +155,8 @@ onMounted(() => {
   borderRect = new Konva.Rect({
     x: 0,
     y: 0,
-    width: props.width,
-    height: props.height,
+    width: canvasWidth(),
+    height: canvasHeight(),
     fill: "transparent",
     stroke: "rgba(255, 255, 255, 0.25)",
     strokeWidth: 1,
@@ -216,7 +183,7 @@ onMounted(() => {
   syncLayers();
 
   // 6. 自适应居中
-  resetView(props.width, props.height, containerWidth, containerHeight);
+  resetView(canvasWidth(), canvasHeight(), containerWidth, containerHeight);
 
   // 7. 绑定键盘事件（Space 平移）
   window.addEventListener("keydown", handleKeyDown);
@@ -260,9 +227,9 @@ function handleKeyUp(e: KeyboardEvent) {
     isSpaceHeld.value = false;
     isPanning.value = false;
     if (stage.value) {
-      stage.value.draggable(props.activeTool === "hand");
+      stage.value.draggable(state.activeTool.value === "hand");
       const container = stage.value.container();
-      container.style.cursor = props.activeTool === "hand" ? "grab" : "default";
+      container.style.cursor = state.activeTool.value === "hand" ? "grab" : "default";
     }
   }
 }
@@ -304,18 +271,18 @@ function handleMiddlePointerUp(e: PointerEvent) {
     panX.value = stage.value.x();
     panY.value = stage.value.y();
     const container = stage.value.container();
-    container.style.cursor = props.activeTool === "hand" ? "grab" : "default";
+    container.style.cursor = state.activeTool.value === "hand" ? "grab" : "default";
   }
 }
 
 // 监听图层列表变化，同步 Konva 图层
 watch(
-  () => props.layers,
+  () => state.layers.value,
   () => {
     logger.debug("watch(layers) 触发 syncLayers", {
-      layerCount: props.layers.length,
-      layerIds: props.layers.map((l) => l.id),
-      activeLayerId: props.activeLayerId,
+      layerCount: state.layers.value.length,
+      layerIds: state.layers.value.map((l) => l.id),
+      activeLayerId: state.activeLayerId.value,
     });
     syncLayers();
   },
@@ -324,7 +291,7 @@ watch(
 
 // 监听活跃图层变化，更新交互状态
 watch(
-  () => props.activeLayerId,
+  () => state.activeLayerId.value,
   (newId, oldId) => {
     logger.debug("watch(activeLayerId) 触发", { oldId, newId });
     updateLayerInteractivity();
@@ -333,7 +300,7 @@ watch(
 
 // 监听工具变化，清空选择 & 切换 Hand 工具的 draggable 状态
 watch(
-  () => props.activeTool,
+  () => state.activeTool.value,
   (tool) => {
     // 文本工具和选择工具都允许保留选中态
     if (!["select", "text"].includes(tool)) {
@@ -375,7 +342,7 @@ watch(isEditingText, (editing) => {
 
 /** 构建并发射 SelectionInfo */
 function emitSelectionInfo() {
-  emit("selection-change", buildSelectionInfo());
+  state.selectionInfo.value = buildSelectionInfo();
 }
 
 /** 从当前选中节点构建 SelectionInfo */
@@ -438,14 +405,14 @@ function buildSelectionInfo(): SelectionInfo {
 function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
   // Space / Hand 工具拖拽时更新光标
   stageInstance.on("dragstart", () => {
-    if (isSpaceHeld.value || props.activeTool === "hand") {
+    if (isSpaceHeld.value || state.activeTool.value === "hand") {
       isPanning.value = true;
       stageInstance.container().style.cursor = "grabbing";
     }
   });
 
   stageInstance.on("dragend", () => {
-    if (isSpaceHeld.value || props.activeTool === "hand") {
+    if (isSpaceHeld.value || state.activeTool.value === "hand") {
       isPanning.value = false;
       stageInstance.container().style.cursor = "grab";
       // 同步 pan 值
@@ -456,7 +423,7 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
 
   // 双击事件：文本工具下双击已有文本进入编辑
   stageInstance.on("dblclick dbltap", (e) => {
-    if (props.activeTool !== "text" && props.activeTool !== "select") return;
+    if (state.activeTool.value !== "text" && state.activeTool.value !== "select") return;
     const target = e.target as Konva.Node;
     if (target && target.hasName("object-node") && target instanceof Konva.Text) {
       startEditing(target, stageInstance);
@@ -500,7 +467,7 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
 
       const layerId = node.getLayer()?.id();
       if (layerId) {
-        emit("push-history", {
+        actions.pushHistory({
           type: "object-modify",
           layerId,
           objectId: node.id(),
@@ -540,7 +507,7 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
     // 简单的拖拽移动，记录位置变化
     // 注意：dragstart 时我们没有记录 before，这里用一个简化方案
     // 实际上 Konva 的 dragend 已经完成了位置更新，我们只需记录当前状态
-    emit("push-history", {
+    actions.pushHistory({
       type: "object-modify",
       layerId,
       objectId: target.id(),
@@ -564,9 +531,9 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
     if (e.evt && (e.evt as MouseEvent).button === 2) return;
 
     // Space 平移 / Hand 工具 / 中键拖拽模式下不处理绘制
-    if (isSpaceHeld.value || props.activeTool === "hand" || isMiddleButtonPanning.value) return;
+    if (isSpaceHeld.value || state.activeTool.value === "hand" || isMiddleButtonPanning.value) return;
 
-    const activeLayer = props.layers.find((l) => l.id === props.activeLayerId);
+    const activeLayer = state.layers.value.find((l) => l.id === state.activeLayerId.value);
     if (!activeLayer || !activeLayer.visible || activeLayer.locked) return;
 
     const pos = stageInstance.getPointerPosition();
@@ -577,22 +544,22 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
     const docPoint = transform.point(pos);
 
     // 1. 选择工具
-    if (props.activeTool === "select") {
+    if (state.activeTool.value === "select") {
       // 检查点击的对象是否在非活跃图层上，如果是则自动切换图层
       const target = e.target as Konva.Node;
       if (target && target.hasName("object-node")) {
         const targetLayer = target.getLayer();
         if (targetLayer) {
           const targetLayerId = targetLayer.id();
-          if (targetLayerId && targetLayerId !== props.activeLayerId) {
+          if (targetLayerId && targetLayerId !== state.activeLayerId.value) {
             // 检查目标图层是否可见且未锁定
-            const targetLayerData = props.layers.find((l) => l.id === targetLayerId);
+            const targetLayerData = state.layers.value.find((l) => l.id === targetLayerId);
             if (targetLayerData && targetLayerData.visible && !targetLayerData.locked) {
               logger.debug("选择工具：自动切换到对象所在图层", {
-                from: props.activeLayerId,
+                from: state.activeLayerId.value,
                 to: targetLayerId,
               });
-              emit("switch-layer", targetLayerId);
+              state.activeLayerId.value = targetLayerId;
             }
           }
         }
@@ -602,7 +569,7 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
     }
 
     // 2. 画笔工具 (铅笔、马克笔、橡皮擦)
-    if (["pencil", "marker", "eraser"].includes(props.activeTool)) {
+    if (["pencil", "marker", "eraser"].includes(state.activeTool.value)) {
       if (activeLayer.type !== "raster") {
         customMessage.warning("当前图层不是位图图层，无法使用画笔");
         return;
@@ -614,17 +581,17 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
 
       if (canvas && konvaImage) {
         startDrawing(e.evt as PointerEvent, stageInstance, canvas, konvaImage, {
-          size: props.brushSize,
-          color: props.brushColor,
-          opacity: props.brushOpacity,
-          type: props.activeTool as any,
+          size: state.brushSize.value,
+          color: state.brushColor.value,
+          opacity: state.brushOpacity.value,
+          type: state.activeTool.value as any,
         });
       }
       return;
     }
 
     // 3. 形状工具 (矩形、圆形、线段、箭头)
-    if (["rect", "ellipse", "line", "arrow"].includes(props.activeTool)) {
+    if (["rect", "ellipse", "line", "arrow"].includes(state.activeTool.value)) {
       if (activeLayer.type !== "object") {
         customMessage.warning("当前图层不是对象图层，无法绘制形状");
         return;
@@ -632,38 +599,38 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
 
       startPoint = docPoint;
 
-      if (props.activeTool === "rect") {
+      if (state.activeTool.value === "rect") {
         tempShape = new Konva.Rect({
           x: docPoint.x,
           y: docPoint.y,
           width: 0,
           height: 0,
-          stroke: props.strokeColor,
-          strokeWidth: props.strokeWidth,
-          fill: props.fillColor || undefined,
-          cornerRadius: props.cornerRadius,
+          stroke: state.strokeColor.value,
+          strokeWidth: state.strokeWidth.value,
+          fill: state.fillColor.value || undefined,
+          cornerRadius: state.cornerRadius.value,
         });
-      } else if (props.activeTool === "ellipse") {
+      } else if (state.activeTool.value === "ellipse") {
         tempShape = new Konva.Ellipse({
           x: docPoint.x,
           y: docPoint.y,
           radiusX: 0,
           radiusY: 0,
-          stroke: props.strokeColor,
-          strokeWidth: props.strokeWidth,
-          fill: props.fillColor || undefined,
+          stroke: state.strokeColor.value,
+          strokeWidth: state.strokeWidth.value,
+          fill: state.fillColor.value || undefined,
         });
-      } else if (props.activeTool === "line") {
+      } else if (state.activeTool.value === "line") {
         tempShape = new Konva.Line({
           points: [docPoint.x, docPoint.y, docPoint.x, docPoint.y],
-          stroke: props.strokeColor,
-          strokeWidth: props.strokeWidth,
+          stroke: state.strokeColor.value,
+          strokeWidth: state.strokeWidth.value,
         });
-      } else if (props.activeTool === "arrow") {
+      } else if (state.activeTool.value === "arrow") {
         tempShape = new Konva.Arrow({
           points: [docPoint.x, docPoint.y, docPoint.x, docPoint.y],
-          stroke: props.strokeColor,
-          strokeWidth: props.strokeWidth,
+          stroke: state.strokeColor.value,
+          strokeWidth: state.strokeWidth.value,
           pointerLength: 10,
           pointerWidth: 10,
         });
@@ -676,7 +643,7 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
     }
 
     // 4. 文字工具
-    if (props.activeTool === "text") {
+    if (state.activeTool.value === "text") {
       if (activeLayer.type !== "object") {
         customMessage.warning("当前图层不是对象图层，无法添加文字");
         return;
@@ -697,10 +664,10 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
         const targetLayer = target.getLayer();
         if (targetLayer) {
           const targetLayerId = targetLayer.id();
-          if (targetLayerId && targetLayerId !== props.activeLayerId) {
-            const targetLayerData = props.layers.find((l) => l.id === targetLayerId);
+          if (targetLayerId && targetLayerId !== state.activeLayerId.value) {
+            const targetLayerData = state.layers.value.find((l) => l.id === targetLayerId);
             if (targetLayerData && targetLayerData.visible && !targetLayerData.locked) {
-              emit("switch-layer", targetLayerId);
+              state.activeLayerId.value = targetLayerId;
             }
           }
         }
@@ -732,10 +699,10 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
   stageInstance.on("mousemove touchmove", (e) => {
     if (isDrawing.value) {
       draw(e.evt as PointerEvent, stageInstance, {
-        size: props.brushSize,
-        color: props.brushColor,
-        opacity: props.brushOpacity,
-        type: props.activeTool as any,
+        size: state.brushSize.value,
+        color: state.brushColor.value,
+        opacity: state.brushOpacity.value,
+        type: state.activeTool.value as any,
       });
       return;
     }
@@ -767,7 +734,7 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
     }
 
     // 形状工具拖拽
-    if (tempShape && ["rect", "ellipse", "line", "arrow"].includes(props.activeTool)) {
+    if (tempShape && ["rect", "ellipse", "line", "arrow"].includes(state.activeTool.value)) {
       if (tempShape instanceof Konva.Rect) {
         tempShape.width(docPoint.x - startPoint.x);
         tempShape.height(docPoint.y - startPoint.y);
@@ -789,8 +756,8 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
   // 鼠标/触摸抬起
   stageInstance.on("mouseup touchend", () => {
     if (isDrawing.value) {
-      stopDrawing(props.activeLayerId, (entry) => {
-        emit("push-history", entry);
+      stopDrawing(state.activeLayerId.value, (entry) => {
+        actions.pushHistory(entry);
       });
       return;
     }
@@ -799,8 +766,8 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
     if (pendingTextCreate) {
       pendingTextCreate = false;
 
-      const activeLayer = props.layers.find((l) => l.id === props.activeLayerId);
-      const konvaLayer = stageInstance.findOne(`#${props.activeLayerId}`) as Konva.Layer;
+      const activeLayer = state.layers.value.find((l) => l.id === state.activeLayerId.value);
+      const konvaLayer = stageInstance.findOne(`#${state.activeLayerId.value}`) as Konva.Layer;
 
       // 清理拖拽预览矩形
       if (textDragRect) {
@@ -845,12 +812,12 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
           opacity: 1,
           locked: false,
           content: "",
-          fontSize: props.fontSize,
-          fontFamily: props.fontFamily,
-          fontWeight: props.fontWeight,
-          fontStyle: props.fontStyle,
-          textAlign: props.textAlign,
-          color: props.textColor,
+          fontSize: state.fontSize.value,
+          fontFamily: state.fontFamily.value,
+          fontWeight: state.fontWeight.value,
+          fontStyle: state.fontStyle.value,
+          textAlign: state.textAlign.value,
+          color: state.textColor.value,
           backgroundColor: null,
           lineHeight: 1.2,
           autoSize: false,
@@ -885,12 +852,12 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
           opacity: 1,
           locked: false,
           content: "",
-          fontSize: props.fontSize,
-          fontFamily: props.fontFamily,
-          fontWeight: props.fontWeight,
-          fontStyle: props.fontStyle,
-          textAlign: props.textAlign,
-          color: props.textColor,
+          fontSize: state.fontSize.value,
+          fontFamily: state.fontFamily.value,
+          fontWeight: state.fontWeight.value,
+          fontStyle: state.fontStyle.value,
+          textAlign: state.textAlign.value,
+          color: state.textColor.value,
           backgroundColor: null,
           lineHeight: 1.2,
           autoSize: true,
@@ -920,8 +887,8 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
     }
 
     if (tempShape) {
-      const activeLayer = props.layers.find((l) => l.id === props.activeLayerId);
-      const konvaLayer = stageInstance.findOne(`#${props.activeLayerId}`) as Konva.Layer;
+      const activeLayer = state.layers.value.find((l) => l.id === state.activeLayerId.value);
+      const konvaLayer = stageInstance.findOne(`#${state.activeLayerId.value}`) as Konva.Layer;
 
       if (activeLayer && konvaLayer) {
         // 将临时形状转换为正式的 Konva 节点并添加到目标图层
@@ -937,10 +904,10 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
             rotation: 0,
             opacity: 1,
             locked: false,
-            fill: props.fillColor,
-            stroke: props.strokeColor,
-            strokeWidth: props.strokeWidth,
-            cornerRadius: props.cornerRadius,
+            fill: state.fillColor.value,
+            stroke: state.strokeColor.value,
+            strokeWidth: state.strokeWidth.value,
+            cornerRadius: state.cornerRadius.value,
           };
         } else if (tempShape instanceof Konva.Ellipse) {
           finalObj = {
@@ -953,9 +920,9 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
             rotation: 0,
             opacity: 1,
             locked: false,
-            fill: props.fillColor,
-            stroke: props.strokeColor,
-            strokeWidth: props.strokeWidth,
+            fill: state.fillColor.value,
+            stroke: state.strokeColor.value,
+            strokeWidth: state.strokeWidth.value,
           };
         } else if (tempShape instanceof Konva.Line && !(tempShape instanceof Konva.Arrow)) {
           const pts = tempShape.points();
@@ -973,8 +940,8 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
               { x: pts[0], y: pts[1] },
               { x: pts[2], y: pts[3] },
             ],
-            stroke: props.strokeColor,
-            strokeWidth: props.strokeWidth,
+            stroke: state.strokeColor.value,
+            strokeWidth: state.strokeWidth.value,
           };
         } else if (tempShape instanceof Konva.Arrow) {
           const pts = tempShape.points();
@@ -992,8 +959,8 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
               { x: pts[0], y: pts[1] },
               { x: pts[2], y: pts[3] },
             ],
-            stroke: props.strokeColor,
-            strokeWidth: props.strokeWidth,
+            stroke: state.strokeColor.value,
+            strokeWidth: state.strokeWidth.value,
             arrowSize: 10,
           };
         }
@@ -1004,7 +971,7 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
           konvaLayer.batchDraw();
 
           // 记录历史
-          emit("push-history", {
+          actions.pushHistory({
             type: "object-add",
             layerId: activeLayer.id,
             object: finalObj,
@@ -1028,7 +995,7 @@ function syncLayers() {
   // 1. 移除已经不存在的 Konva 图层
   const existingLayers = stage.value.getLayers();
   const existingIds = existingLayers.map((kl) => kl.id()).filter((id) => id !== "overlay" && id !== "border-layer");
-  const propsIds = props.layers.map((l) => l.id);
+  const propsIds = state.layers.value.map((l) => l.id);
 
   const toRemove = existingIds.filter((id) => !propsIds.includes(id));
   const toCreate = propsIds.filter((id) => !existingIds.includes(id));
@@ -1044,7 +1011,7 @@ function syncLayers() {
 
   for (const kl of existingLayers) {
     if (kl.id() === "overlay" || kl.id() === "border-layer") continue;
-    if (!props.layers.some((l) => l.id === kl.id())) {
+    if (!state.layers.value.some((l) => l.id === kl.id())) {
       kl.destroy();
       canvases.delete(kl.id());
     }
@@ -1052,7 +1019,7 @@ function syncLayers() {
 
   // 2. 同步或创建图层
   // 注意：Konva 的渲染顺序是自底向上的，所以我们需要反向遍历 props.layers
-  const reversedLayers = [...props.layers].reverse();
+  const reversedLayers = [...state.layers.value].reverse();
 
   reversedLayers.forEach((layer, index) => {
     let konvaLayer = stage.value!.findOne(`#${layer.id}`) as Konva.Layer;
@@ -1068,14 +1035,14 @@ function syncLayers() {
       if (layer.type === "raster") {
         // 位图图层：创建 OffscreenCanvas 并用 Konva.Image 承载
         const canvas = document.createElement("canvas");
-        canvas.width = props.width;
-        canvas.height = props.height;
+        canvas.width = canvasWidth();
+        canvas.height = canvasHeight();
         canvases.set(layer.id, canvas);
 
         const konvaImage = new Konva.Image({
           image: canvas,
-          width: props.width,
-          height: props.height,
+          width: canvasWidth(),
+          height: canvasHeight(),
         });
         konvaLayer.add(konvaImage as any);
       } else if (layer.type === "object") {
@@ -1123,15 +1090,15 @@ function syncLayers() {
 function updateLayerInteractivity() {
   if (!stage.value) return;
 
-  props.layers.forEach((layer) => {
+  state.layers.value.forEach((layer) => {
     const konvaLayer = stage.value!.findOne(`#${layer.id}`) as Konva.Layer;
     if (!konvaLayer) return;
 
-    const isCurrentActive = layer.id === props.activeLayerId;
+    const isCurrentActive = layer.id === state.activeLayerId.value;
 
     if (layer.type === "object") {
       // 选择工具和文本工具下，活跃图层的对象可拖拽
-      const allowDrag = isCurrentActive && !layer.locked && ["select", "text"].includes(props.activeTool);
+      const allowDrag = isCurrentActive && !layer.locked && ["select", "text"].includes(state.activeTool.value);
       konvaLayer.getChildren().forEach((node) => {
         if (node.name() === "object-node") {
           node.draggable(allowDrag);
@@ -1143,17 +1110,17 @@ function updateLayerInteractivity() {
 
 /** 光标反馈 */
 function updateCursor(stageInstance: Konva.Stage, target: Konva.Node) {
-  if (isSpaceHeld.value || props.activeTool === "hand") return;
+  if (isSpaceHeld.value || state.activeTool.value === "hand") return;
 
   const container = stageInstance.container();
 
-  if (props.activeTool === "text") {
+  if (state.activeTool.value === "text") {
     if (target && target.hasName("object-node") && target instanceof Konva.Text) {
       container.style.cursor = "pointer";
     } else {
       container.style.cursor = "text";
     }
-  } else if (props.activeTool === "select") {
+  } else if (state.activeTool.value === "select") {
     if (target && target.hasName("object-node")) {
       container.style.cursor = "move";
     } else {
@@ -1185,13 +1152,13 @@ async function loadImageNodeAsync(imageObj: ImageObject, konvaLayer: Konva.Layer
 async function addImageToActiveLayer(imageObj: ImageObject) {
   if (!stage.value) return;
 
-  const activeLayerData = props.layers.find((l) => l.id === props.activeLayerId);
+  const activeLayerData = state.layers.value.find((l) => l.id === state.activeLayerId.value);
   if (!activeLayerData || activeLayerData.type !== "object") {
     customMessage.warning("请选择一个对象图层来放置图片");
     return;
   }
 
-  const konvaLayer = stage.value.findOne(`#${props.activeLayerId}`) as Konva.Layer;
+  const konvaLayer = stage.value.findOne(`#${state.activeLayerId.value}`) as Konva.Layer;
   if (!konvaLayer) return;
 
   // 异步加载图片节点
@@ -1205,9 +1172,9 @@ async function addImageToActiveLayer(imageObj: ImageObject) {
   konvaLayer.batchDraw();
 
   // 记录历史
-  emit("push-history", {
+  actions.pushHistory({
     type: "object-add",
-    layerId: props.activeLayerId,
+    layerId: state.activeLayerId.value,
     object: imageObj,
   });
 }
@@ -1237,7 +1204,7 @@ function finishTextEditing() {
       logger.debug("文本工具：空文本已清理", { nodeId });
     } else {
       // 有内容 → 推入 object-add 历史
-      emit("push-history", {
+      actions.pushHistory({
         type: "object-add",
         layerId,
         object: serializeKonvaNode(node),
@@ -1250,7 +1217,7 @@ function finishTextEditing() {
   } else {
     // 已有文本编辑：检查内容是否变化
     if (before.content !== after.content) {
-      emit("push-history", {
+      actions.pushHistory({
         type: "object-modify",
         layerId,
         objectId: node.id(),
@@ -1268,7 +1235,7 @@ function finishTextEditing() {
 
 function handleZoomClick() {
   if (!stage.value || !containerRef.value) return;
-  resetView(props.width, props.height, containerRef.value.clientWidth, containerRef.value.clientHeight);
+  resetView(canvasWidth(), canvasHeight(), containerRef.value.clientWidth, containerRef.value.clientHeight);
 }
 
 function toggleCanvasBorder() {
@@ -1321,14 +1288,14 @@ function contextPaste() {
     return;
   }
 
-  const activeLayerData = props.layers.find((l) => l.id === props.activeLayerId);
+  const activeLayerData = state.layers.value.find((l) => l.id === state.activeLayerId.value);
   if (!activeLayerData || activeLayerData.type !== "object") {
     customMessage.warning("请选择一个对象图层进行粘贴");
     contextMenuVisible.value = false;
     return;
   }
 
-  const konvaLayer = stage.value.findOne(`#${props.activeLayerId}`) as Konva.Layer;
+  const konvaLayer = stage.value.findOne(`#${state.activeLayerId.value}`) as Konva.Layer;
   if (!konvaLayer) {
     contextMenuVisible.value = false;
     return;
@@ -1340,7 +1307,7 @@ function contextPaste() {
   konvaLayer.add(node as any);
   konvaLayer.batchDraw();
 
-  emit("push-history", { type: "object-add", layerId: props.activeLayerId, object: newObj });
+  actions.pushHistory({ type: "object-add", layerId: state.activeLayerId.value, object: newObj });
   contextMenuVisible.value = false;
 }
 
@@ -1348,7 +1315,7 @@ function contextDelete() {
   if (contextMenuTarget.value) {
     const layerId = contextMenuTarget.value.getLayer()?.id();
     if (layerId) {
-      emit("push-history", {
+      actions.pushHistory({
         type: "object-remove",
         layerId,
         object: serializeKonvaNode(contextMenuTarget.value),
@@ -1396,7 +1363,7 @@ function reorderObjectNode(node: Konva.Node, action: "up" | "down" | "top" | "bo
 
   // 只有顺序真正变化时才记录历史
   if (before.join(",") !== after.join(",")) {
-    emit("push-history", {
+    actions.pushHistory({
       type: "object-reorder",
       layerId,
       before,
@@ -1457,7 +1424,7 @@ function collectObjectLayerData(): Map<string, import("../types").SketchObject[]
   const result = new Map<string, import("../types").SketchObject[]>();
   if (!stage.value) return result;
 
-  for (const layer of props.layers) {
+  for (const layer of state.layers.value) {
     if (layer.type !== "object") continue;
 
     const konvaLayer = stage.value.findOne(`#${layer.id}`) as Konva.Layer;
@@ -1535,7 +1502,7 @@ function updateSelectionProp(key: string, value: any) {
 
         setNodeAttrValue(node, key, value);
 
-        emit("push-history", {
+        actions.pushHistory({
           type: "object-modify",
           layerId,
           objectId: node.id(),
@@ -1567,7 +1534,7 @@ function updateSelectionProps(data: Record<string, any>) {
           setNodeAttrValue(node, key, value);
         }
 
-        emit("push-history", {
+        actions.pushHistory({
           type: "object-modify",
           layerId,
           objectId: node.id(),
@@ -1684,7 +1651,7 @@ function selectObjectById(objectId: string) {
   if (!stage.value) return;
 
   // 在所有对象图层中查找
-  for (const layer of props.layers) {
+  for (const layer of state.layers.value) {
     if (layer.type !== "object") continue;
     const konvaLayer = stage.value.findOne(`#${layer.id}`) as Konva.Layer;
     if (!konvaLayer) continue;
@@ -1692,8 +1659,8 @@ function selectObjectById(objectId: string) {
     const node = konvaLayer.findOne(`#${objectId}`);
     if (node && node.name() === "object-node") {
       // 如果不在活跃图层，先切换
-      if (layer.id !== props.activeLayerId) {
-        emit("switch-layer", layer.id);
+      if (layer.id !== state.activeLayerId.value) {
+        state.activeLayerId.value = layer.id;
       }
       selectNodes([node]);
       emitSelectionInfo();
@@ -1724,7 +1691,7 @@ function reorderObjectsInLayer(layerId: string, newOrder: string[]) {
   const after = objectNodesAfter.map((n) => n.id());
 
   if (before.join(",") !== after.join(",")) {
-    emit("push-history", {
+    actions.pushHistory({
       type: "object-reorder",
       layerId,
       before,
@@ -1760,7 +1727,7 @@ onMounted(() => {
     reorderSelectedObject,
     resetView: () => {
       if (containerRef.value && stage.value) {
-        resetView(props.width, props.height, containerRef.value.clientWidth, containerRef.value.clientHeight);
+        resetView(canvasWidth(), canvasHeight(), containerRef.value.clientWidth, containerRef.value.clientHeight);
       }
     },
     deleteSelected: () => {
@@ -1783,7 +1750,7 @@ onMounted(() => {
     },
     selectAll: () => {
       if (!stage.value) return;
-      const activeLayer = props.layers.find((l) => l.id === props.activeLayerId);
+      const activeLayer = state.layers.value.find((l) => l.id === state.activeLayerId.value);
       if (!activeLayer || activeLayer.type !== "object") return;
 
       const konvaLayer = stage.value.findOne(`#${activeLayer.id}`) as Konva.Layer;

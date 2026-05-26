@@ -1,6 +1,6 @@
 # SketchPad 编辑器架构重构计划
 
-> 状态: Implementing (阶段 A+B+C1 完成)
+> 状态: Implementing (阶段 A+B+C1 完成, 尾巴修复 P1-P3 完成)
 > 目标: 将 SketchPad.vue (1328行) 拆分为自治子组件架构，同时为多实例（多标签页/多窗口）预留扩展能力。
 
 ## 1. 现状问题
@@ -668,13 +668,13 @@ function openProject(projectId: string) {
 
 ### 发现的设计偏差（非阻塞，记录备查）
 
-1. **KonvaCanvas 的"兼容层"模式**：计划中说"去掉 18 props"，实际实现用了一个 getter-based `props` 对象 + `emit` 函数做桥接（第82-116行），而非直接在所有位置使用 `state.xxx.value`。这是务实的选择——避免了 1900 行代码的全量改写，但留下了一层间接性。未来如果要进一步清理，可以逐步替换。
+1. ~~**KonvaCanvas 的"兼容层"模式**~~：**已修复 (P3)**。已将 getter-based `props` 对象 + `emit` 函数桥接全部替换为直接使用 `state.xxx.value` 和 `actions.pushHistory()`。兼容层代码已删除。
 
 2. **额外的 provide("sketchPadContext")**：计划中设想子组件"零 props，自治读写 session"，实际实现中 Toolbar/LayerPanel/SketchGallery 还需要 inject 一个 `sketchPadContext` 来访问 lifecycle/exportActions/layerOps 等模块方法。这是因为这些模块不属于 EditorSession 本身（它们依赖 session 但不是 session 的一部分）。设计上合理，只是比计划多了一层 inject。
 
-3. **undo/redo 逻辑分散**：`useEditorKeyboard` 中的 `handleUndo/handleRedo` 直接操作 stack 并调用 `historyApplicator.applyHistoryEntry`，而 `session.actions.undo/redo` 只做 stack 操作不调用 applicator。Toolbar 的撤销/重做按钮调用的是 `ctx.keyboard.handleUndo()`。这意味着 `session.actions.undo()` 实际上是个"半成品"——它移动了栈但没有应用变更。建议后续统一入口。
+3. ~~**undo/redo 逻辑分散**~~：**已修复 (P1)**。`session.actions.undo/redo` 现在通过 `runtime.historyApplicator` 完成完整的撤销/重做流程（栈操作 + 应用变更）。`useEditorKeyboard` 和 `Toolbar` 统一调用 `actions.undo()/redo()`。
 
-4. **`useAutoSave` 中的动态 import**：第68/81行用了 `import("@/utils/customMessage").then(...)` 而非顶层 import。文件顶部并没有 import `customMessage`，但这个模块在同目录其他文件中都是静态 import 的。可能是为了避免循环依赖，但看起来更像是遗漏。
+4. ~~**`useAutoSave` 中的动态 import**~~：**已修复 (P2)**。已改为顶层静态 `import { customMessage } from "@/utils/customMessage"`。
 
 ---
 

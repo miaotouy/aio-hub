@@ -122,6 +122,14 @@ let textDragRect: Konva.Rect | null = null;
 let isTextDragging = false;
 const TEXT_DRAG_THRESHOLD = 6; // 拖拽阈值（像素）
 
+// 框选（Marquee Selection）状态
+let isMarqueePending = false; // 鼠标按下空白区域，等待判断是点击还是拖拽
+let isMarqueeActive = false; // 正在框选中
+let marqueeStart = { x: 0, y: 0 }; // 框选起始点（文档坐标）
+let marqueeRect: Konva.Rect | null = null; // 框选可视化矩形
+let marqueeShiftHeld = false; // 框选时是否按住 Shift（追加选择）
+const MARQUEE_THRESHOLD = 5; // 框选触发阈值（像素）
+
 // 新创建的文本节点标记（用于区分新建 vs 编辑已有）
 const pendingNewTextNodes = new Set<string>();
 
@@ -545,14 +553,15 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
 
     // 1. 选择工具
     if (state.activeTool.value === "select") {
-      // 检查点击的对象是否在非活跃图层上，如果是则自动切换图层
       const target = e.target as Konva.Node;
+
+      // 1a. 点击对象节点 → 走原有的单选/Shift多选逻辑
       if (target && target.hasName("object-node")) {
+        // 检查点击的对象是否在非活跃图层上，如果是则自动切换图层
         const targetLayer = target.getLayer();
         if (targetLayer) {
           const targetLayerId = targetLayer.id();
           if (targetLayerId && targetLayerId !== state.activeLayerId.value) {
-            // 检查目标图层是否可见且未锁定
             const targetLayerData = state.layers.value.find((l) => l.id === targetLayerId);
             if (targetLayerData && targetLayerData.visible && !targetLayerData.locked) {
               logger.debug("选择工具：自动切换到对象所在图层", {
@@ -563,8 +572,46 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
             }
           }
         }
+        handleStageClick(e);
+        return;
       }
-      handleStageClick(e);
+
+      // 1b. 点击空白区域或 Transformer → 进入框选准备状态
+      //     如果点击的是 Transformer 锚点，不处理
+      if (target !== stageInstance && target.getClassName() !== "Stage") {
+        // 检查是否点击了 Transformer 自身
+        let node: Konva.Node | null = target;
+        let isTransformerClick = false;
+        while (node) {
+          if (node.getClassName() === "Transformer") {
+            isTransformerClick = true;
+            break;
+          }
+          node = node.getParent();
+        }
+        if (isTransformerClick) return;
+      }
+
+      // 进入框选准备状态
+      isMarqueePending = true;
+      isMarqueeActive = false;
+      marqueeStart = { x: docPoint.x, y: docPoint.y };
+      marqueeShiftHeld = !!(e.evt as MouseEvent).shiftKey;
+
+      // 创建框选矩形（初始不可见）
+      marqueeRect = new Konva.Rect({
+        x: docPoint.x,
+        y: docPoint.y,
+        width: 0,
+        height: 0,
+        stroke: "#4a90d9",
+        strokeWidth: 1,
+        dash: [4, 4],
+        fill: "rgba(74, 144, 217, 0.08)",
+        listening: false,
+        visible: false,
+      });
+      overlayLayer.add(marqueeRect);
       return;
     }
 
@@ -713,6 +760,37 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
     const transform = stageInstance.getAbsoluteTransform().copy().invert();
     const docPoint = transform.point(pos);
 
+    // 框选拖拽
+    if (isMarqueePending || isMarqueeActive) {
+      const dx = docPoint.x - marqueeStart.x;
+      const dy = docPoint.y - marqueeStart.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+
+      if (!isMarqueeActive && distance >= MARQUEE_THRESHOLD) {
+        // 超过阈值，正式进入框选模式
+        isMarqueeActive = true;
+        isMarqueePending = false;
+
+        // 如果不是 Shift 追加模式，先清除已有选择
+        if (!marqueeShiftHeld) {
+          clearSelection();
+          emitSelectionInfo();
+        }
+
+        stageInstance.container().style.cursor = "crosshair";
+      }
+
+      if (isMarqueeActive && marqueeRect) {
+        const x = Math.min(marqueeStart.x, docPoint.x);
+        const y = Math.min(marqueeStart.y, docPoint.y);
+        const w = Math.abs(dx);
+        const h = Math.abs(dy);
+        marqueeRect.setAttrs({ x, y, width: w, height: h, visible: true });
+        overlayLayer.batchDraw();
+      }
+      return;
+    }
+
     // 文本工具拖拽创建
     if (pendingTextCreate && textDragRect) {
       const dx = docPoint.x - textDragStart.x;
@@ -759,6 +837,91 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
       stopDrawing(state.activeLayerId.value, (entry) => {
         actions.pushHistory(entry);
       });
+      return;
+    }
+
+    // 框选结束
+    if (isMarqueePending || isMarqueeActive) {
+      const wasActive = isMarqueeActive;
+      isMarqueePending = false;
+      isMarqueeActive = false;
+
+      // 清理框选矩形
+      if (marqueeRect) {
+        marqueeRect.destroy();
+        marqueeRect = null;
+        overlayLayer.batchDraw();
+      }
+
+      // 恢复光标
+      stageInstance.container().style.cursor = "default";
+
+      if (wasActive) {
+        // 框选模式：计算框内对象
+        const pos = stageInstance.getPointerPosition();
+        if (!pos) return;
+        const endTransform = stageInstance.getAbsoluteTransform().copy().invert();
+        const endPoint = endTransform.point(pos);
+
+        const selX = Math.min(marqueeStart.x, endPoint.x);
+        const selY = Math.min(marqueeStart.y, endPoint.y);
+        const selW = Math.abs(endPoint.x - marqueeStart.x);
+        const selH = Math.abs(endPoint.y - marqueeStart.y);
+
+        if (selW < 2 || selH < 2) return;
+
+        // 在活跃对象图层中查找框内对象
+        const activeLayer = state.layers.value.find((l) => l.id === state.activeLayerId.value);
+        if (!activeLayer || activeLayer.type !== "object") return;
+
+        const konvaLayer = stageInstance.findOne(`#${activeLayer.id}`) as Konva.Layer;
+        if (!konvaLayer) return;
+
+        const hitNodes: any[] = [];
+        konvaLayer.getChildren().forEach((node) => {
+          if (!node.hasName("object-node")) return;
+          if (!node.visible()) return;
+
+          // 获取对象的包围盒（相对于 stage 的绝对坐标）
+          const box = node.getClientRect({ relativeTo: stageInstance });
+          // 转换为文档坐标
+          const nodeTransform = stageInstance.getAbsoluteTransform().copy().invert();
+          const topLeft = nodeTransform.point({ x: box.x, y: box.y });
+          const bottomRight = nodeTransform.point({ x: box.x + box.width, y: box.y + box.height });
+
+          const nodeX = Math.min(topLeft.x, bottomRight.x);
+          const nodeY = Math.min(topLeft.y, bottomRight.y);
+          const nodeW = Math.abs(bottomRight.x - topLeft.x);
+          const nodeH = Math.abs(bottomRight.y - topLeft.y);
+
+          // 判断是否与选择框相交
+          const intersects = nodeX < selX + selW && nodeX + nodeW > selX && nodeY < selY + selH && nodeY + nodeH > selY;
+
+          if (intersects) {
+            hitNodes.push(node);
+          }
+        });
+
+        if (hitNodes.length > 0) {
+          if (marqueeShiftHeld) {
+            // Shift 追加：合并已有选择
+            const existing = [...selectedNodes.value];
+            for (const node of hitNodes) {
+              if (!existing.includes(node)) {
+                existing.push(node);
+              }
+            }
+            selectNodes(existing);
+          } else {
+            selectNodes(hitNodes);
+          }
+        }
+        emitSelectionInfo();
+      } else {
+        // 没有超过阈值 → 视为点击空白区域，清除选择
+        clearSelection();
+        emitSelectionInfo();
+      }
       return;
     }
 

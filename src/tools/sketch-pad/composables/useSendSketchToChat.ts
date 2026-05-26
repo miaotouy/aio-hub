@@ -1,34 +1,51 @@
-import { useAssetManager } from "@/composables/useAssetManager";
+import { assetManagerEngine } from "@/composables/useAssetManager";
 import { llmChatRegistry } from "@/tools/llm-chat/llm-chat.registry";
 import { useRouter } from "vue-router";
 import { customMessage } from "@/utils/customMessage";
+import { createModuleLogger } from "@/utils/logger";
 import { generateDefaultSketchName } from "../constants";
 import type Konva from "konva";
 
+const logger = createModuleLogger("SketchPad/SendToChat");
+
+interface SendSketchToChatOptions {
+  width?: number;
+  height?: number;
+}
+
 export function useSendSketchToChat() {
-  const { importAssetFromBytes } = useAssetManager();
   const router = useRouter();
 
-  async function sendToChat(stage: Konva.Stage, projectName: string) {
-    try {
-      // 1. 导出为 PNG DataURL
-      // 临时隐藏 overlay 层
-      const overlay = stage.findOne(".overlay");
-      if (overlay) overlay.hide();
-      const dataUrl = stage.toDataURL({ pixelRatio: 2 });
-      if (overlay) overlay.show();
+  async function sendToChat(stage: Konva.Stage, projectName: string, options: SendSketchToChatOptions = {}) {
+    const startedAt = performance.now();
+    const overlay = stage.findOne(".overlay");
+    const borderLayer = stage.findOne("#border-layer");
 
-      // 2. 直接解码 base64 data URL，避免 fetch 触发 CSP 拦截
-      const base64Data = dataUrl.split(",")[1];
-      const binaryStr = atob(base64Data);
-      const buffer = new Uint8Array(binaryStr.length);
-      for (let i = 0; i < binaryStr.length; i++) {
-        buffer[i] = binaryStr.charCodeAt(i);
+    try {
+      // 1. 导出为 PNG Blob。避免 DataURL/base64 在主线程产生大字符串和二次拷贝。
+      if (overlay) overlay.hide();
+      if (borderLayer) borderLayer.hide();
+
+      const blob = (await stage.toBlob({
+        x: 0,
+        y: 0,
+        width: options.width,
+        height: options.height,
+        pixelRatio: 1,
+        mimeType: "image/png",
+      })) as Blob | null;
+
+      if (!blob) {
+        throw new Error("导出草图图片失败");
       }
 
-      // 3. 导入资产管理器
+      const buffer = await blob.arrayBuffer();
+
+      // 2. 导入资产管理器。使用无状态引擎，避免一次性导入后额外刷新资产统计拖慢聊天投递。
       const fileName = `${projectName || generateDefaultSketchName()}.png`;
-      const asset = await importAssetFromBytes(buffer, fileName, {
+      const asset = await assetManagerEngine.importAssetFromBytes(buffer, fileName, {
+        generateThumbnail: true,
+        enableDeduplication: true,
         sourceModule: "sketch-pad",
         origin: {
           type: "generated",
@@ -38,16 +55,26 @@ export function useSendSketchToChat() {
       });
 
       if (asset) {
-        // 4. 添加到 Chat 附件
+        // 3. 添加到 Chat 附件
         llmChatRegistry.addAssets([asset]);
         customMessage.success("已成功发送到对话附件");
 
-        // 5. 跳转到 Chat 页面
+        logger.info("草图已发送到对话附件", {
+          assetId: asset.id,
+          byteLength: buffer.byteLength,
+          elapsedMs: Math.round(performance.now() - startedAt),
+        });
+
+        // 4. 跳转到 Chat 页面
         router.push("/llm-chat");
       }
     } catch (error) {
       customMessage.error("发送到对话失败");
-      console.error(error);
+      logger.error("发送草图到对话失败", error);
+    } finally {
+      if (overlay) overlay.show();
+      if (borderLayer) borderLayer.show();
+      stage.batchDraw();
     }
   }
 

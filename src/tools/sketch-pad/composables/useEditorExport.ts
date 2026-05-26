@@ -201,7 +201,10 @@ export function useEditorExport(session: EditorSession) {
   async function handleSendToChat(): Promise<void> {
     const stage = runtime.capabilities.getStage();
     if (stage) {
-      await sendToChat(stage, state.project.value?.name || generateDefaultSketchName());
+      await sendToChat(stage, state.project.value?.name || generateDefaultSketchName(), {
+        width: state.project.value?.width,
+        height: state.project.value?.height,
+      });
     }
   }
 

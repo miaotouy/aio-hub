@@ -53,11 +53,14 @@ const showSettings = ref(false);
 
 // ─── 组合各功能模块 ───
 const historyApplicator = useHistoryApplicator(session);
+// 注册 applicator 到 runtime，使 session.actions.undo/redo 能完整工作
+session.runtime.registerHistoryApplicator(historyApplicator.applyHistoryEntry);
+
 const exportActions = useEditorExport(session);
 const lifecycle = useProjectLifecycle(session);
 const layerOps = useLayerOperations(session);
 const autoSave = useAutoSave(session, exportActions);
-const keyboard = useEditorKeyboard(session, exportActions, historyApplicator);
+const keyboard = useEditorKeyboard(session, exportActions);
 
 // ─── 将模块方法暴露到 session 上下文（供子组件通过 provide/inject 使用） ───
 // 注意：这些通过 provide 额外的 key 暴露，或者子组件直接使用 session.actions

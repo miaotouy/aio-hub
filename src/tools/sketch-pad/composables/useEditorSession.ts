@@ -73,6 +73,10 @@ export interface EditorSessionRuntime {
   // KonvaCanvas 注册的能力
   registerCapabilities(caps: Partial<CanvasCapabilities>): void;
   capabilities: CanvasCapabilities;
+
+  // 历史应用器（由 SketchPad.vue 注册）
+  historyApplicator: ((entry: HistoryEntry, direction: "undo" | "redo") => void) | null;
+  registerHistoryApplicator(fn: (entry: HistoryEntry, direction: "undo" | "redo") => void): void;
 }
 
 export interface CanvasCapabilities {
@@ -301,6 +305,10 @@ export function createEditorSession(): EditorSession {
     registerCapabilities(caps: Partial<CanvasCapabilities>) {
       Object.assign(this.capabilities, caps);
     },
+    historyApplicator: null,
+    registerHistoryApplicator(fn) {
+      this.historyApplicator = fn;
+    },
   };
 
   // ─── Actions ───
@@ -373,6 +381,7 @@ export function createEditorSession(): EditorSession {
       if (history.undoStack.value.length === 0) return;
       const entry = history.undoStack.value.pop()!;
       history.redoStack.value.push(entry);
+      runtime.historyApplicator?.(entry, "undo");
       state.isDirty.value = true;
     },
 
@@ -380,6 +389,7 @@ export function createEditorSession(): EditorSession {
       if (history.redoStack.value.length === 0) return;
       const entry = history.redoStack.value.pop()!;
       history.undoStack.value.push(entry);
+      runtime.historyApplicator?.(entry, "redo");
       state.isDirty.value = true;
     },
 

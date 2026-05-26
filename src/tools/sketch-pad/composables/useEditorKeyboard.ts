@@ -1,7 +1,6 @@
 import { onMounted, onUnmounted } from "vue";
 import type { EditorSession } from "./useEditorSession";
 import type { useEditorExport } from "./useEditorExport";
-import type { useHistoryApplicator } from "./useHistoryApplicator";
 
 /**
  * 编辑器快捷键系统
@@ -10,7 +9,6 @@ import type { useHistoryApplicator } from "./useHistoryApplicator";
 export function useEditorKeyboard(
   session: EditorSession,
   exportActions: ReturnType<typeof useEditorExport>,
-  historyApplicator: ReturnType<typeof useHistoryApplicator>,
 ) {
   const { state, runtime, actions } = session;
 
@@ -150,23 +148,11 @@ export function useEditorKeyboard(
   }
 
   function handleUndo(): void {
-    if (state.undoStack.value.length === 0) return;
-
-    const entry = state.undoStack.value.pop()!;
-    state.redoStack.value.push(entry);
-
-    historyApplicator.applyHistoryEntry(entry, "undo");
-    state.isDirty.value = true;
+    actions.undo();
   }
 
   function handleRedo(): void {
-    if (state.redoStack.value.length === 0) return;
-
-    const entry = state.redoStack.value.pop()!;
-    state.undoStack.value.push(entry);
-
-    historyApplicator.applyHistoryEntry(entry, "redo");
-    state.isDirty.value = true;
+    actions.redo();
   }
 
   // 生命周期绑定

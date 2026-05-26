@@ -196,11 +196,11 @@ function handleBack() {
 }
 
 function handleUndo() {
-  ctx.keyboard.handleUndo();
+  actions.undo();
 }
 
 function handleRedo() {
-  ctx.keyboard.handleRedo();
+  actions.redo();
 }
 
 function handleResetView() {

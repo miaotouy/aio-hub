@@ -3,6 +3,7 @@ import type { EditorSession } from "./useEditorSession";
 import type { useEditorExport } from "./useEditorExport";
 import { useSketchPadStore } from "../stores/sketchPadStore";
 import { createModuleLogger } from "@/utils/logger";
+import { customMessage } from "@/utils/customMessage";
 
 const logger = createModuleLogger("SketchPad/AutoSave");
 
@@ -61,13 +62,9 @@ export function useAutoSave(
 
       const rasterTools = ["pencil", "marker", "eraser"];
       const objectTools = ["rect", "ellipse", "line", "arrow", "text"];
-
       if (rasterTools.includes(newTool) && state.activeLayer.value.type !== "raster") {
         if (store.settings.showToolSwitchHint) {
-          // 提示由 customMessage 处理，这里只做图层切换逻辑
-          import("@/utils/customMessage").then(({ customMessage }) => {
-            customMessage.info("提示：画笔工具需要位图图层，已自动为您切换/创建位图图层");
-          });
+          customMessage.info("提示：画笔工具需要位图图层，已自动为您切换/创建位图图层");
         }
         // 寻找最近的位图图层
         const rasterLayer = state.layers.value.find((l) => l.type === "raster");
@@ -78,9 +75,7 @@ export function useAutoSave(
         }
       } else if (objectTools.includes(newTool) && state.activeLayer.value.type !== "object") {
         if (store.settings.showToolSwitchHint) {
-          import("@/utils/customMessage").then(({ customMessage }) => {
-            customMessage.info("提示：形状/文字工具需要对象图层，已自动为您切换/创建对象图层");
-          });
+          customMessage.info("提示：形状/文字工具需要对象图层，已自动为您切换/创建对象图层");
         }
         // 寻找最近的对象图层
         const objectLayer = state.layers.value.find((l) => l.type === "object");

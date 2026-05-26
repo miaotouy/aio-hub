@@ -18,10 +18,13 @@ export function useSendSketchToChat() {
       const dataUrl = stage.toDataURL({ pixelRatio: 2 });
       if (overlay) overlay.show();
 
-      // 2. 转换为 ArrayBuffer
-      const res = await fetch(dataUrl);
-      const blob = await res.blob();
-      const buffer = await blob.arrayBuffer();
+      // 2. 直接解码 base64 data URL，避免 fetch 触发 CSP 拦截
+      const base64Data = dataUrl.split(",")[1];
+      const binaryStr = atob(base64Data);
+      const buffer = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) {
+        buffer[i] = binaryStr.charCodeAt(i);
+      }
 
       // 3. 导入资产管理器
       const fileName = `${projectName || generateDefaultSketchName()}.png`;

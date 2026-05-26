@@ -32,9 +32,13 @@ export async function packageSketch(
       const thumbnailDataUrl = stage.toDataURL({ pixelRatio: 1 });
       if (overlay) overlay.show();
 
-      const thumbRes = await fetch(thumbnailDataUrl);
-      const thumbBlob = await thumbRes.blob();
-      const thumbBuffer = await thumbBlob.arrayBuffer();
+      // 直接解码 base64 data URL，避免 fetch 触发 CSP 拦截
+      const base64Data = thumbnailDataUrl.split(",")[1];
+      const binaryStr = atob(base64Data);
+      const thumbBuffer = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) {
+        thumbBuffer[i] = binaryStr.charCodeAt(i);
+      }
       zip.file("thumbnail.png", thumbBuffer);
 
       // 2. 添加图层文件

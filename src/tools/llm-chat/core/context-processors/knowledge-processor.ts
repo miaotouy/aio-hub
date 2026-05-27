@@ -77,6 +77,10 @@ export function parseKBParams(
 
 /**
  * 扫描消息中的占位符
+ *
+ * 只扫描预设消息和注入消息，跳过对话历史。
+ * 对话历史不适合作为被动召回区域——主动查询有工具调用，
+ * 位置安排有深度注入的预设可以设置位置。
  */
 export function scanPlaceholders(
   messages: ProcessableMessage[]
@@ -84,6 +88,9 @@ export function scanPlaceholders(
   const placeholders: KBPlaceholder[] = [];
   messages.forEach((msg, index) => {
     if (typeof msg.content !== "string") return;
+
+    // 跳过对话历史消息，只处理预设/注入类消息
+    if (msg.sourceType === "session_history") return;
 
     let match;
     // 必须重置 lastIndex 因为是全局匹配

@@ -74,6 +74,17 @@
                   <el-radio-button value="all">同时满足 (AND)</el-radio-button>
                 </el-radio-group>
 
+                <el-divider direction="vertical" />
+                <el-switch
+                  v-model="modelMatchExclude"
+                  size="small"
+                  active-text="排除模式"
+                  :active-action-icon="
+                    modelMatchExclude ? undefined : undefined
+                  "
+                  style="--el-switch-on-color: var(--el-color-warning)"
+                />
+
                 <el-tooltip placement="top">
                   <template #content>
                     <div style="max-width: 300px">
@@ -85,6 +96,10 @@
                       <p>
                         <strong>同时满足 (AND)：</strong>
                         必须模型满足规则且渠道满足规则才生效。
+                      </p>
+                      <p>
+                        <strong>排除模式：</strong>
+                        开启后逻辑反转——匹配到的模型/渠道将<em>不</em>注入此消息。
                       </p>
                       <p><i>注：如果某项规则为空，则视为该项已通过匹配。</i></p>
                     </div>
@@ -494,6 +509,7 @@ interface MessageForm {
   modelMatch?: {
     enabled: boolean;
     mode?: "any" | "all";
+    exclude?: boolean;
     patterns: string[];
     profilePatterns?: string[];
     matchProfileName?: boolean;
@@ -555,6 +571,7 @@ const orderValue = ref(100);
 // 模型匹配配置
 const modelMatchEnabled = ref(false);
 const modelMatchMode = ref<"any" | "all">("any");
+const modelMatchExclude = ref(false);
 const matchProfileName = ref(false);
 const modelMatchPatternsText = ref("");
 const profileMatchPatternsText = ref("");
@@ -898,11 +915,13 @@ const buildInjectionStrategy = (): InjectionStrategy | undefined => {
 };
 
 /**
- * 从 modelMatch 恢复 UI 状态
- */
+ /**
+  * 从 modelMatch 恢复 UI 状态
+  */
 const restoreModelMatch = (modelMatch?: {
   enabled: boolean;
   mode?: "any" | "all";
+  exclude?: boolean;
   patterns: string[];
   profilePatterns?: string[];
   matchProfileName?: boolean;
@@ -910,6 +929,7 @@ const restoreModelMatch = (modelMatch?: {
   if (!modelMatch) {
     modelMatchEnabled.value = false;
     modelMatchMode.value = "any";
+    modelMatchExclude.value = false;
     matchProfileName.value = false;
     modelMatchPatternsText.value = "";
     profileMatchPatternsText.value = "";
@@ -917,6 +937,7 @@ const restoreModelMatch = (modelMatch?: {
   }
   modelMatchEnabled.value = modelMatch.enabled;
   modelMatchMode.value = modelMatch.mode || "any";
+  modelMatchExclude.value = modelMatch.exclude || false;
   matchProfileName.value = modelMatch.matchProfileName || false;
   modelMatchPatternsText.value = (modelMatch.patterns || []).join("\n");
   profileMatchPatternsText.value = (modelMatch.profilePatterns || []).join(
@@ -931,6 +952,7 @@ const buildModelMatch = ():
   | {
       enabled: boolean;
       mode: "any" | "all";
+      exclude?: boolean;
       patterns: string[];
       profilePatterns: string[];
       matchProfileName?: boolean;
@@ -956,6 +978,7 @@ const buildModelMatch = ():
   return {
     enabled: true,
     mode: modelMatchMode.value,
+    exclude: modelMatchExclude.value || undefined,
     patterns,
     profilePatterns,
     matchProfileName: matchProfileName.value,

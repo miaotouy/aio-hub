@@ -334,6 +334,7 @@ export const injectionAssembler: ContextProcessor = {
           patterns = [],
           profilePatterns = [],
           mode = "any",
+          exclude = false,
           matchProfileName = false,
         } = msg.modelMatch;
 
@@ -390,10 +391,13 @@ export const injectionAssembler: ContextProcessor = {
           );
 
         // 3. 根据模式组合结果
-        const isMatch =
+        const rawMatch =
           mode === "all"
             ? modelIsMatched && profileIsMatched
             : modelIsMatched || profileIsMatched;
+
+        // 排除模式：反转匹配结果
+        const isMatch = exclude ? !rawMatch : rawMatch;
 
         // 如果不匹配，则返回一个被禁用的副本，而不是过滤掉它
         if (!isMatch) {

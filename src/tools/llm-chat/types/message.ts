@@ -157,6 +157,8 @@ export interface ChatMessageNode {
     enabled: boolean;
     /** 匹配模式：'any' (满足任一模型或渠道规则即注入) | 'all' (必须同时满足模型规则和渠道规则才注入) */
     mode?: "any" | "all";
+    /** 排除模式：为 true 时，匹配到的模型/渠道将被排除（不注入），未匹配的才注入 */
+    exclude?: boolean;
     /** 模型匹配规则列表（正则字符串），只要满足其中一个即生效 */
     patterns: string[];
     /** 渠道匹配规则列表（正则字符串），只要满足其中一个即生效 */

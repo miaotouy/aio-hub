@@ -14,7 +14,8 @@
         class="variable-item"
       >
         <VariableEditor
-          v-model="editableVariables[index]"
+          :model-value="variable"
+          @update:model-value="updateVariable(index, $event)"
           @remove="removeVariable(index)"
           @edit-enum="editEnumOptions(variable)"
         />
@@ -31,7 +32,6 @@
     <BaseDialog
       v-model="isEnumEditorVisible"
       :title="`编辑枚举选项 - ${editingEnum?.key}`"
-      @confirm="saveEnumOptions"
     >
       <p class="hint">每行输入一个选项值：</p>
       <el-input
@@ -40,12 +40,16 @@
         :rows="8"
         placeholder="选项1&#10;选项2&#10;选项3"
       />
+      <template #footer>
+        <el-button @click="isEnumEditorVisible = false">取消</el-button>
+        <el-button type="primary" @click="saveEnumOptions">保存</el-button>
+      </template>
     </BaseDialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from "vue";
+import { ref, computed } from "vue";
 import { useApiTesterStore } from "../stores/store";
 import type { Variable } from "../types";
 import { ElButton, ElEmpty, ElInput } from "element-plus";
@@ -54,17 +58,13 @@ import VariableEditor from "./VariableEditor.vue";
 
 const store = useApiTesterStore();
 
-// 将 store 中的变量转换为可编辑的 ref
-const editableVariables = computed({
-  get: () =>
-    store.selectedPreset?.variables.map((v: any) => ({
-      ...v,
-      value: store.variables[v.key] ?? v.value,
-    })) || [],
-  set: () => {
-    // 这个 setter 主要用于 v-model 的类型兼容，实际更新通过 action
-  },
-});
+const editableVariables = computed<Variable[]>(
+  () =>
+    store.selectedPreset?.variables.map((variable) => ({
+      ...variable,
+      value: store.variables[variable.key] ?? variable.value,
+    })) || []
+);
 
 // 枚举编辑状态
 const isEnumEditorVisible = ref(false);
@@ -88,23 +88,6 @@ function updateVariable(index: number, variable: Variable) {
   store.updateVariableDefinition(index, variable);
   store.updateVariable(variable.key, variable.value);
 }
-
-// 监听 v-model 的变化
-watch(
-  editableVariables,
-  (newVal, oldVal) => {
-    if (JSON.stringify(newVal) !== JSON.stringify(oldVal)) {
-      newVal.forEach((variable: any, index: number) => {
-        // 检查定义或值是否有变化
-        const oldVariable = oldVal.find((v: any) => v.key === variable.key);
-        if (JSON.stringify(variable) !== JSON.stringify(oldVariable)) {
-          updateVariable(index, variable);
-        }
-      });
-    }
-  },
-  { deep: true }
-);
 
 // 删除变量
 function removeVariable(index: number) {
@@ -137,7 +120,7 @@ function saveEnumOptions() {
   }
 
   const index = editableVariables.value.findIndex(
-    (v: any) => v.key === updatedVariable.key
+    (variable) => variable.key === updatedVariable.key
   );
   if (index !== -1) {
     updateVariable(index, updatedVariable);

@@ -18,7 +18,14 @@ export interface Variable {
 }
 
 // HTTP 方法
-export type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
+export type HttpMethod =
+  | "GET"
+  | "POST"
+  | "PUT"
+  | "DELETE"
+  | "PATCH"
+  | "HEAD"
+  | "OPTIONS";
 
 // API 预设
 export interface ApiPreset {
@@ -41,6 +48,8 @@ export interface RequestProfile {
   id: string;
   name: string;
   selectedPresetId: string;
+  urlTemplate: string;
+  method: HttpMethod;
   // 当前变量值
   variables: Record<string, string | boolean>;
   // 自定义请求头
@@ -65,4 +74,24 @@ export interface ApiResponse {
   isStreaming?: boolean; // 是否是流式响应
   streamChunks?: string[]; // 流式响应的数据块
   isStreamComplete?: boolean; // 流是否已完成
+  size?: number; // 响应体字符数
+}
+
+// 请求历史
+export interface RequestHistoryItem {
+  id: string;
+  name: string;
+  method: HttpMethod;
+  url: string;
+  status: number;
+  statusText: string;
+  duration: number;
+  timestamp: string;
+  selectedPresetId: string;
+  urlTemplate: string;
+  variables: Record<string, string | boolean>;
+  headers: Record<string, string>;
+  body: string;
+  responsePreview: string;
+  error?: string;
 }

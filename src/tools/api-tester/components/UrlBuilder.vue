@@ -7,6 +7,8 @@
         <el-option label="PUT" value="PUT" />
         <el-option label="DELETE" value="DELETE" />
         <el-option label="PATCH" value="PATCH" />
+        <el-option label="HEAD" value="HEAD" />
+        <el-option label="OPTIONS" value="OPTIONS" />
       </el-select>
 
       <div class="url-input-wrapper">
@@ -33,7 +35,7 @@
         class="btn-send"
         title="发送请求"
         :icon="Promotion"
-        :disabled="!store.urlTemplate"
+        :disabled="!store.buildUrl"
         @click="$emit('send')"
       >
         发送
@@ -95,6 +97,8 @@ function copyUrl() {
   }
   navigator.clipboard.writeText(url).then(() => {
     customMessage.success("URL 已复制到剪贴板");
+  }).catch(() => {
+    customMessage.error("复制失败");
   });
 }
 
@@ -156,5 +160,22 @@ function handleAbort() {
 .btn-abort {
   font-weight: bold;
   min-width: 100px;
+}
+
+@media (max-width: 900px) {
+  .url-builder {
+    flex-wrap: wrap;
+  }
+
+  .method-selector,
+  .btn-send,
+  .btn-abort {
+    width: calc(50% - 4px);
+  }
+
+  .url-input-wrapper {
+    order: -1;
+    flex-basis: 100%;
+  }
 }
 </style>

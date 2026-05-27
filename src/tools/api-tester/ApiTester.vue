@@ -1,12 +1,14 @@
 <template>
   <div class="api-tester">
     <div class="tester-header">
-      <h2>API 测试工具</h2>
+      <div>
+        <h2>API 测试工具</h2>
+        <p>调试 HTTP 接口、LLM API 与流式响应</p>
+      </div>
       <div class="header-actions">
         <el-select
           v-model="selectedPresetId"
-          placeholder="-- 快速预设 --"
-          @change="handlePresetChange"
+          placeholder="快速预设"
           class="preset-selector-compact"
         >
           <el-option
@@ -16,7 +18,7 @@
             :value="preset.id"
           />
         </el-select>
-        <el-button @click="showProfileManager = true" type="primary">
+        <el-button @click="showProfileManager = true" type="primary" plain>
           配置
         </el-button>
       </div>
@@ -33,6 +35,8 @@
 
         <!-- 请求面板 -->
         <RequestPanel />
+
+        <RequestHistory />
       </div>
 
       <!-- 右侧：响应查看区 -->
@@ -62,6 +66,7 @@ import UrlVariableEditor from "./components/UrlVariableEditor.vue";
 import RequestPanel from "./components/RequestPanel.vue";
 import ResponsePanel from "./components/ResponsePanel.vue";
 import ProfileManager from "./components/ProfileManager.vue";
+import RequestHistory from "./components/RequestHistory.vue";
 
 const store = useApiTesterStore();
 const selectedPresetId = computed({
@@ -77,12 +82,6 @@ const showProfileManager = ref(false);
 onMounted(() => {
   store.loadProfiles();
 });
-
-function handlePresetChange(value: string) {
-  if (value) {
-    store.selectPreset(value);
-  }
-}
 
 async function handleSend() {
   if (!store.buildUrl) {
@@ -119,6 +118,12 @@ async function handleSend() {
   margin: 0;
   font-size: 24px;
   color: var(--text-color);
+}
+
+.tester-header p {
+  margin: 4px 0 0;
+  color: var(--text-color-light);
+  font-size: 13px;
 }
 
 .header-actions {

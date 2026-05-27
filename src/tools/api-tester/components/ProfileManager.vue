@@ -33,6 +33,9 @@
                 <span class="profile-preset">{{
                   getPresetName(profile.selectedPresetId)
                 }}</span>
+                <span class="profile-url"
+                  >{{ profile.method || "GET" }} {{ profile.urlTemplate }}</span
+                >
               </div>
               <div class="profile-actions">
                 <el-button
@@ -105,6 +108,7 @@ function handleDeleteProfile(profileId: string) {
     confirmButtonText: "确定",
     cancelButtonText: "取消",
     type: "warning",
+    lockScroll: false,
   })
     .then(() => {
       store.deleteProfile(profileId);
@@ -116,7 +120,7 @@ function handleDeleteProfile(profileId: string) {
 }
 
 function getPresetName(presetId: string): string {
-  const preset = store.availablePresets.find((p: any) => p.id === presetId);
+  const preset = store.availablePresets.find((p) => p.id === presetId);
   return preset?.name || presetId;
 }
 </script>
@@ -182,6 +186,16 @@ function getPresetName(presetId: string): string {
   padding: 2px 6px;
   border-radius: 4px;
   align-self: flex-start;
+}
+
+.profile-url {
+  max-width: 420px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-color-light);
+  font-family: "Consolas", "Monaco", monospace;
+  font-size: 12px;
 }
 
 .profile-actions {

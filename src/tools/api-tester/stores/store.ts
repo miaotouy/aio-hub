@@ -9,8 +9,17 @@ import type {
   ApiResponse,
   HttpMethod,
   Variable,
+  RequestHistoryItem,
 } from "../types";
 import { presets } from "../config/presets";
+import {
+  extractPlaceholders,
+  findMissingRequiredVariables,
+  hasRequestBody,
+  renderHeaderTemplates,
+  renderJsonTemplate,
+  renderTextTemplate,
+} from "../utils/template";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler, ErrorLevel } from "@utils/errorHandler";
 import { customMessage } from "@utils/customMessage";
@@ -38,9 +47,15 @@ interface ApiTesterState {
   isLoading: boolean;
   // 已保存的配置列表
   savedProfiles: RequestProfile[];
+  // 请求历史
+  requestHistory: RequestHistoryItem[];
   // 用于中止请求的控制器
   abortController: AbortController | null;
 }
+
+const PROFILE_STORAGE_KEY = "api-tester-profiles";
+const HISTORY_STORAGE_KEY = "api-tester-history";
+const MAX_HISTORY_ITEMS = 50;
 
 export const useApiTesterStore = defineStore("apiTester", {
   state: (): ApiTesterState => ({
@@ -53,6 +68,7 @@ export const useApiTesterStore = defineStore("apiTester", {
     lastResponse: null,
     isLoading: false,
     savedProfiles: [],
+    requestHistory: [],
     abortController: null,
   }),
 
@@ -64,18 +80,7 @@ export const useApiTesterStore = defineStore("apiTester", {
     buildUrl: (state): string => {
       if (!state.urlTemplate) return "";
 
-      let url = state.urlTemplate;
-
-      // 替换所有 {{variable}} 占位符
-      Object.entries(state.variables).forEach(([key, value]) => {
-        const placeholder = `{{${key}}}`;
-        url = url.replace(
-          new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"),
-          String(value)
-        );
-      });
-
-      return url;
+      return renderTextTemplate(state.urlTemplate, state.variables);
     },
 
     // 构建完整的请求头（包括预设和自定义）
@@ -89,29 +94,40 @@ export const useApiTesterStore = defineStore("apiTester", {
       const apiKey = state.variables.apiKey as string;
       if (apiKey && state.selectedPreset) {
         // 根据不同的 API 类型设置不同的 Authorization 格式
-        if (state.selectedPreset.id.startsWith("openai")) {
+        if (
+          state.selectedPreset.id.startsWith("openai") &&
+          !headers["Authorization"]
+        ) {
           headers["Authorization"] = `Bearer ${apiKey}`;
-        } else if (state.selectedPreset.id === "anthropic-chat") {
+        } else if (
+          state.selectedPreset.id === "anthropic-chat" &&
+          !headers["x-api-key"]
+        ) {
           headers["x-api-key"] = apiKey;
         }
       }
 
-      return headers;
+      return renderHeaderTemplates(headers, state.variables);
     },
 
     // 构建请求体（替换变量）
     buildBody: (state): string => {
       if (!state.requestBody) return "";
 
-      let body = state.requestBody;
+      return renderJsonTemplate(state.requestBody, state.variables);
+    },
 
-      // 替换所有 {{variable}} 占位符
-      Object.entries(state.variables).forEach(([key, value]) => {
-        const placeholder = `{{${key}}}`;
-        body = body.replace(new RegExp(placeholder, "g"), String(value));
-      });
+    unresolvedPlaceholders: (state): string[] => {
+      const source = [
+        state.urlTemplate,
+        state.requestBody,
+        ...Object.values(state.selectedPreset?.headers || {}),
+        ...Object.values(state.customHeaders),
+      ].join("\n");
 
-      return body;
+      return extractPlaceholders(source).filter(
+        (key) => !(key in state.variables)
+      );
     },
 
     // 获取当前配置的摘要信息
@@ -145,8 +161,8 @@ export const useApiTesterStore = defineStore("apiTester", {
         this.variables[variable.key] = variable.value;
       });
 
-      // 初始化请求头为预设的默认值
-      this.customHeaders = { ...preset.headers };
+      // 自定义请求头只保存用户覆盖项，预设头由 buildHeaders 统一合并。
+      this.customHeaders = {};
 
       // 初始化请求体
       this.requestBody = preset.bodyTemplate || "";
@@ -243,6 +259,34 @@ export const useApiTesterStore = defineStore("apiTester", {
       const url = this.buildUrl;
       if (!url) {
         logger.warn("尝试发送请求，但 URL 为空");
+        customMessage.warning("请输入有效的 API 地址");
+        return;
+      }
+
+      const missingRequiredVariables = findMissingRequiredVariables(
+        this.selectedPreset?.variables || [],
+        this.variables
+      );
+      if (missingRequiredVariables.length > 0) {
+        customMessage.warning(
+          `请先填写必填变量：${missingRequiredVariables
+            .map((variable) => variable.label || variable.key)
+            .join("、")}`
+        );
+        return;
+      }
+
+      if (this.unresolvedPlaceholders.length > 0) {
+        customMessage.warning(
+          `仍有未定义变量：${this.unresolvedPlaceholders.join("、")}`
+        );
+        return;
+      }
+
+      try {
+        new URL(url);
+      } catch {
+        customMessage.warning("URL 格式不正确，请包含协议和完整地址");
         return;
       }
 
@@ -251,6 +295,7 @@ export const useApiTesterStore = defineStore("apiTester", {
 
       // 创建新的 AbortController
       this.abortController = new AbortController();
+      this.lastResponse = null;
 
       try {
         const headers = this.buildHeaders;
@@ -259,7 +304,7 @@ export const useApiTesterStore = defineStore("apiTester", {
         const response = await fetch(url, {
           method: this.method,
           headers,
-          body: this.method !== "GET" ? body : undefined,
+          body: hasRequestBody(this.method) ? body : undefined,
           signal: this.abortController.signal,
         });
 
@@ -294,6 +339,7 @@ export const useApiTesterStore = defineStore("apiTester", {
             body: responseBody,
             duration: Date.now() - startTime,
             timestamp: new Date().toISOString(),
+            size: responseBody.length,
           };
         }
       } catch (error) {
@@ -316,6 +362,7 @@ export const useApiTesterStore = defineStore("apiTester", {
             duration: Date.now() - startTime,
             timestamp: new Date().toISOString(),
             error: errorMessage,
+            size: 0,
           };
           errorHandler.handle(error, {
             userMessage: `请求失败: ${errorMessage}`,
@@ -323,6 +370,9 @@ export const useApiTesterStore = defineStore("apiTester", {
           });
         }
       } finally {
+        if (this.lastResponse) {
+          this.addHistoryItem(url);
+        }
         this.isLoading = false;
         this.abortController = null;
       }
@@ -345,6 +395,7 @@ export const useApiTesterStore = defineStore("apiTester", {
         isStreaming: true,
         streamChunks: [],
         isStreamComplete: false,
+        size: 0,
       };
 
       const reader = response.body?.getReader();
@@ -370,6 +421,7 @@ export const useApiTesterStore = defineStore("apiTester", {
           this.lastResponse.streamChunks!.push(chunk);
           this.lastResponse.body += chunk;
           this.lastResponse.duration = Date.now() - startTime;
+          this.lastResponse.size = this.lastResponse.body.length;
         }
       } catch (error) {
         if (error instanceof Error && error.name !== "AbortError") {
@@ -398,6 +450,8 @@ export const useApiTesterStore = defineStore("apiTester", {
         id: `profile-${Date.now()}`,
         name,
         selectedPresetId: this.selectedPreset.id,
+        urlTemplate: this.urlTemplate,
+        method: this.method,
         variables: { ...this.variables },
         headers: { ...this.customHeaders },
         body: this.requestBody,
@@ -419,7 +473,10 @@ export const useApiTesterStore = defineStore("apiTester", {
       // 先选择对应的预设
       this.selectPreset(profile.selectedPresetId);
 
-      // 然后覆盖变量和请求体
+      // 然后覆盖 URL、方法、变量和请求体。旧版本 Profile 不包含 URL/方法，
+      // 因此保持向后兼容。
+      this.urlTemplate = profile.urlTemplate || this.urlTemplate;
+      this.method = profile.method || this.method;
       this.variables = { ...profile.variables };
       this.customHeaders = { ...profile.headers };
       this.requestBody = profile.body;
@@ -437,10 +494,7 @@ export const useApiTesterStore = defineStore("apiTester", {
     // 持久化配置到 localStorage
     persistProfiles(): void {
       try {
-        localStorage.setItem(
-          "api-tester-profiles",
-          JSON.stringify(this.savedProfiles)
-        );
+        localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(this.savedProfiles));
       } catch (error) {
         errorHandler.error(error, "保存 Profile 配置失败", {
           context: {
@@ -454,7 +508,7 @@ export const useApiTesterStore = defineStore("apiTester", {
     // 从 localStorage 加载配置
     loadProfiles(): void {
       try {
-        const stored = localStorage.getItem("api-tester-profiles");
+        const stored = localStorage.getItem(PROFILE_STORAGE_KEY);
         if (stored) {
           this.savedProfiles = JSON.parse(stored);
         }
@@ -469,6 +523,97 @@ export const useApiTesterStore = defineStore("apiTester", {
       // 如果没有选中任何预设，则默认选中空白请求
       if (!this.selectedPreset) {
         this.selectPreset("custom-request");
+      }
+
+      this.loadHistory();
+    },
+
+    // 添加请求历史
+    addHistoryItem(url: string): void {
+      if (!this.lastResponse || !this.selectedPreset) return;
+
+      const historyItem: RequestHistoryItem = {
+        id: `history-${Date.now()}`,
+        name: this.selectedPreset.name,
+        method: this.method,
+        url,
+        status: this.lastResponse.status,
+        statusText: this.lastResponse.statusText,
+        duration: this.lastResponse.duration,
+        timestamp: this.lastResponse.timestamp,
+        selectedPresetId: this.selectedPreset.id,
+        urlTemplate: this.urlTemplate,
+        variables: { ...this.variables },
+        headers: { ...this.customHeaders },
+        body: this.requestBody,
+        responsePreview:
+          this.lastResponse.error ||
+          this.lastResponse.body.slice(0, 300).replace(/\s+/g, " ").trim(),
+        error: this.lastResponse.error,
+      };
+
+      this.requestHistory = [
+        historyItem,
+        ...this.requestHistory,
+      ].slice(0, MAX_HISTORY_ITEMS);
+      this.persistHistory();
+    },
+
+    // 从历史恢复请求配置
+    loadHistoryItem(historyId: string): void {
+      const historyItem = this.requestHistory.find(
+        (item) => item.id === historyId
+      );
+      if (!historyItem) return;
+
+      this.selectPreset(historyItem.selectedPresetId);
+      this.urlTemplate = historyItem.urlTemplate;
+      this.method = historyItem.method;
+      this.variables = { ...historyItem.variables };
+      this.customHeaders = { ...historyItem.headers };
+      this.requestBody = historyItem.body;
+    },
+
+    deleteHistoryItem(historyId: string): void {
+      this.requestHistory = this.requestHistory.filter(
+        (item) => item.id !== historyId
+      );
+      this.persistHistory();
+    },
+
+    clearHistory(): void {
+      this.requestHistory = [];
+      this.persistHistory();
+    },
+
+    persistHistory(): void {
+      try {
+        localStorage.setItem(
+          HISTORY_STORAGE_KEY,
+          JSON.stringify(this.requestHistory)
+        );
+      } catch (error) {
+        errorHandler.error(error, "保存请求历史失败", {
+          context: {
+            operation: "persistHistory",
+            historyCount: this.requestHistory.length,
+          },
+        });
+      }
+    },
+
+    loadHistory(): void {
+      try {
+        const stored = localStorage.getItem(HISTORY_STORAGE_KEY);
+        if (stored) {
+          this.requestHistory = JSON.parse(stored);
+        }
+      } catch (error) {
+        errorHandler.error(error, "加载请求历史失败", {
+          context: {
+            operation: "loadHistory",
+          },
+        });
       }
     },
 

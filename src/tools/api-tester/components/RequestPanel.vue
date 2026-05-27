@@ -2,8 +2,18 @@
   <div class="section request-section">
     <el-tabs v-model="activeTab" class="request-tabs">
       <el-tab-pane label="载荷 (Body)" name="body">
+        <el-alert
+          v-if="!bodyEnabled"
+          title="当前 HTTP 方法不会发送请求体"
+          type="info"
+          show-icon
+          :closable="false"
+          class="body-hint"
+        />
         <div class="editor-actions">
-          <el-button @click="formatBody" size="small">格式化 JSON</el-button>
+          <el-button @click="formatBody" size="small" :disabled="!bodyEnabled"
+            >格式化 JSON</el-button
+          >
           <el-button @click="previewBody" size="small"
             >预览（变量替换后）</el-button
           >
@@ -13,6 +23,7 @@
             v-model="store.requestBody"
             language="json"
             editor-type="monaco"
+            :read-only="!bodyEnabled"
           />
         </div>
       </el-tab-pane>
@@ -162,6 +173,7 @@ import { Delete } from "@element-plus/icons-vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import { useApiTesterStore } from "../stores/store";
+import { hasRequestBody } from "../utils/template";
 import { customMessage } from "@utils/customMessage";
 
 const store = useApiTesterStore();
@@ -170,6 +182,7 @@ const activeTab = ref("body");
 
 const isPreviewVisible = ref(false);
 const previewContent = ref("");
+const bodyEnabled = computed(() => hasRequestBody(store.method));
 
 // Headers 管理
 const headerKeys = ref<Record<string, string>>({});
@@ -224,6 +237,7 @@ const apiKeyName = ref("X-API-Key");
 const apiKeyValue = ref("");
 const basicUsername = ref("");
 const basicPassword = ref("");
+const previousApiKeyName = ref(apiKeyName.value);
 
 // 当授权相关值改变时，自动应用授权
 watch(
@@ -242,9 +256,8 @@ watch(
 );
 
 function applyAuth() {
-  // 这部分逻辑可能需要更精细，以避免在用户输入时频繁删除/添加
-  // 但对于当前实现是可行的
   store.removeHeader("Authorization");
+  store.removeHeader(previousApiKeyName.value);
   store.removeHeader(apiKeyName.value);
 
   switch (authType.value) {
@@ -269,14 +282,21 @@ function applyAuth() {
       }
       break;
   }
+
+  previousApiKeyName.value = apiKeyName.value;
 }
 
 // Body 操作
 function formatBody() {
+  if (!store.requestBody.trim()) {
+    customMessage.warning("请求体为空");
+    return;
+  }
+
   try {
     const parsed = JSON.parse(store.requestBody);
     store.updateBody(JSON.stringify(parsed, null, 2));
-  } catch (error) {
+  } catch {
     customMessage.error("无法格式化：不是有效的 JSON");
   }
 }
@@ -286,7 +306,7 @@ function previewBody() {
     // 尝试格式化为 JSON 以获得更好的可读性
     const parsed = JSON.parse(store.buildBody);
     previewContent.value = JSON.stringify(parsed, null, 2);
-  } catch (e) {
+  } catch {
     // 如果不是 JSON，则显示原始字符串
     previewContent.value = store.buildBody;
   }
@@ -310,6 +330,10 @@ function previewBody() {
 .editor-actions {
   display: flex;
   gap: 8px;
+  margin-bottom: 12px;
+}
+
+.body-hint {
   margin-bottom: 12px;
 }
 

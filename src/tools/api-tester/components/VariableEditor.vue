@@ -6,7 +6,7 @@
         <el-input
           v-model="editableVariable.key"
           placeholder="变量名"
-          @change="emitUpdate"
+          @input="emitUpdate"
         />
       </el-col>
 
@@ -25,7 +25,7 @@
           <el-input
             v-model="stringValue"
             :placeholder="editableVariable.placeholder || '输入值'"
-            @change="emitUpdate"
+            @input="emitUpdate"
           />
         </template>
         <template v-else-if="editableVariable.type === 'enum'">
@@ -64,7 +64,7 @@
         <el-input
           v-model="editableVariable.description"
           placeholder="可选说明"
-          @change="emitUpdate"
+          @input="emitUpdate"
         />
       </el-col>
 

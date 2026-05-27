@@ -273,13 +273,14 @@ export function useGraphActions(
     const session = currentSession.value;
     if (!session) return;
 
+    const oldLeafId = session.activeLeafId;
     const newLeafId = branchManager.switchToSiblingBranch(
       session,
       nodeId,
       direction
     );
 
-    if (newLeafId !== session.activeLeafId) {
+    if (newLeafId !== oldLeafId) {
       if (sessionIndexMap?.value) {
         sessionManager.updateMessageCount(
           session.id,

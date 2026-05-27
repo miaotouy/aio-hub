@@ -396,7 +396,13 @@ export const useAgentStore = defineStore("llmChatAgent", {
      * 选择智能体（独立于会话）
      * 注意：仅选择不更新 lastUsedAt，只有真正使用（如发送消息）时才更新
      */
-    async selectAgent(agentId: string): Promise<void> {
+    async selectAgent(
+      agentId: string,
+      options: {
+        syncCurrentSessionGreetings?: boolean;
+        sessionId?: string | null;
+      } = {}
+    ): Promise<void> {
       const agent = await this.ensureAgentLoaded(agentId);
       if (!agent) {
         logger.warn("选择智能体失败：智能体不存在", { agentId });
@@ -410,7 +416,12 @@ export const useAgentStore = defineStore("llmChatAgent", {
       logger.info("选择智能体", { agentId, name: agent.name });
 
       // 切换智能体时，替换当前会话中未固化的开局消息
-      if (previousAgentId && previousAgentId !== agentId) {
+      const shouldSyncGreetings = options.syncCurrentSessionGreetings !== false;
+      if (
+        shouldSyncGreetings &&
+        previousAgentId &&
+        previousAgentId !== agentId
+      ) {
         void (async () => {
           try {
             const [{ useLlmChatStore }, { switchAgentGreetings }] =
@@ -421,7 +432,7 @@ export const useAgentStore = defineStore("llmChatAgent", {
             const chatStore = useLlmChatStore();
             const userProfileStore = useUserProfileStore();
 
-            const sessionId = chatStore.currentSessionId;
+            const sessionId = options.sessionId ?? chatStore.currentSessionId;
             if (!sessionId) return;
 
             const detail = chatStore.sessionDetailMap.get(sessionId);

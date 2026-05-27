@@ -4,6 +4,7 @@ import { useVirtualizer } from "@tanstack/vue-virtual";
 import { invoke } from "@tauri-apps/api/core";
 import yaml from "js-yaml";
 import { useAgentStore } from "../../stores/agentStore";
+import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useLlmChatUiState } from "../../composables/ui/useLlmChatUiState";
 import {
@@ -55,6 +56,7 @@ const WorldbookManagerDialog = defineAsyncComponent(
 );
 
 const agentStore = useAgentStore();
+const chatStore = useLlmChatStore();
 
 // 使用持久化的UI状态
 const { agentSortBy } = useLlmChatUiState();
@@ -309,7 +311,7 @@ const currentAgentId = computed(() => agentStore.currentAgentId);
 
 // 选择智能体（直接调用 store）
 const selectAgent = (agentId: string) => {
-  agentStore.selectAgent(agentId);
+  agentStore.selectAgent(agentId, { sessionId: chatStore.currentSessionId });
 };
 
 // 判断智能体是否被选中

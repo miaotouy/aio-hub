@@ -396,7 +396,9 @@ const handleQuickSwitchAgent = async (agentId: string) => {
     }
   } else {
     // 主窗口直接操作
-    agentStore.selectAgent(agentId);
+    agentStore.selectAgent(agentId, {
+      sessionId: llmChatStore.currentSessionId,
+    });
   }
 };
 

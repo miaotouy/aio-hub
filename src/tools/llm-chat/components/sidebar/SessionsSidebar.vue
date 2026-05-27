@@ -198,7 +198,9 @@ const handleSessionClick = (session: ChatSessionIndex) => {
   ) {
     const agent = agentStore.getAgentById(session.displayAgentId);
     if (agent) {
-      agentStore.selectAgent(session.displayAgentId);
+      agentStore.selectAgent(session.displayAgentId, {
+        syncCurrentSessionGreetings: false,
+      });
     }
   }
   emit("switch", session.id);

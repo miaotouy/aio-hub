@@ -349,7 +349,7 @@ export function useLlmChatSync() {
             return sessionId;
           });
       case "select-agent":
-        return (agentStore as any).selectAgent(params.agentId);
+        return (agentStore as any).selectAgent(params.agentId, params.options);
       case "complete-input":
         return (store as any).completeInput(params.content, params.options);
       case "analyze-context":

@@ -142,8 +142,8 @@ function truncateText(text: string, maxLength: number): string {
 
 <template>
   <div class="greeting-editor">
-    <div class="editor-toolbar">
-      <div class="toolbar-title" @click="isCollapsed = !isCollapsed">
+    <div class="editor-toolbar" @click="isCollapsed = !isCollapsed">
+      <div class="toolbar-title">
         <ChevronDown
           :size="14"
           class="collapse-icon"
@@ -151,7 +151,7 @@ function truncateText(text: string, maxLength: number): string {
         />
         <span class="summary">{{ greetings.length }} 条开局</span>
       </div>
-      <el-button type="primary" size="small" @click="addGreeting">
+      <el-button type="primary" size="small" @click.stop="addGreeting">
         <Plus :size="14" />
         添加
       </el-button>
@@ -257,22 +257,22 @@ function truncateText(text: string, maxLength: number): string {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  cursor: pointer;
+  padding: 4px 8px;
+  margin: -4px -8px;
+  border-radius: 6px;
+  transition: background-color 0.2s;
+  user-select: none;
+}
+
+.editor-toolbar:hover {
+  background-color: var(--el-fill-color-light);
 }
 
 .toolbar-title {
   display: flex;
   align-items: center;
   gap: 6px;
-  cursor: pointer;
-  padding: 4px 8px;
-  margin-left: -8px;
-  border-radius: 6px;
-  transition: background-color 0.2s;
-  user-select: none;
-}
-
-.toolbar-title:hover {
-  background-color: var(--el-fill-color-light);
 }
 
 .collapse-icon {

@@ -7,6 +7,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { createDefaultAgentTemplate } from "../config/defaultAgentTemplate";
 import { useChatSettings } from "../composables/settings/useChatSettings";
+import { useUserProfileStore } from "./userProfileStore";
 import { useAgentStorageSeparated as useAgentStorage } from "../composables/storage/useAgentStorageSeparated";
 import { useLlmChatUiState } from "../composables/ui/useLlmChatUiState";
 import type { ChatAgent, LlmParameters } from "../types";
@@ -173,6 +174,52 @@ export const useAgentStore = defineStore("llmChatAgent", {
 
       Object.assign(agent, updates);
       this.persistAgent(agent);
+
+      if ("greetings" in updates) {
+        void (async () => {
+          try {
+            const [{ useLlmChatStore }, { rebuildLiveGreetings }] =
+              await Promise.all([
+                import("./llmChatStore"),
+                import("../services/greetingService"),
+              ]);
+            const chatStore = useLlmChatStore();
+            const userProfileStore = useUserProfileStore();
+            const sessionManager = (await import(
+              "../composables/session/useSessionManager"
+            )).useSessionManager();
+            const effectiveUserProfile = userProfileStore.getEffectiveProfile(
+              agent.userProfileId
+            );
+
+            for (const [sessionId, detail] of chatStore.sessionDetailMap) {
+              const index = chatStore.sessionIndexMap.get(sessionId);
+              if (!index) continue;
+
+              const changed = await rebuildLiveGreetings(
+                index,
+                detail,
+                agent,
+                effectiveUserProfile
+              );
+              if (changed) {
+                sessionManager.updateMessageCount(
+                  sessionId,
+                  detail.nodes,
+                  chatStore.sessionIndexMap
+                );
+                sessionManager.persistSession(
+                  index,
+                  detail,
+                  chatStore.currentSessionId
+                );
+              }
+            }
+          } catch (error) {
+            logger.warn("同步开局消息到未固化会话失败", error);
+          }
+        })();
+      }
 
       logger.info("更新智能体", { agentId, updates });
     },

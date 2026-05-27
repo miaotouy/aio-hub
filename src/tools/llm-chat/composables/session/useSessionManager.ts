@@ -9,7 +9,9 @@ import type {
   ChatMessageNode,
 } from "../../types";
 import { useAgentStore } from "../../stores/agentStore";
+import { useUserProfileStore } from "../../stores/userProfileStore";
 import { useChatStorageSeparated as useChatStorage } from "../storage/useChatStorageSeparated";
+import { insertLiveGreetings } from "../../services/greetingService";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useExportManager } from "../features/useExportManager";
@@ -79,15 +81,16 @@ export function useSessionManager() {
   /**
    * 创建新会话（使用智能体）
    */
-  const createSession = (
+  const createSession = async (
     agentId: string,
     name?: string
-  ): {
+  ): Promise<{
     index: ChatSessionIndex;
     detail: ChatSessionDetail;
     sessionId: string;
-  } => {
+  }> => {
     const agentStore = useAgentStore();
+    const userProfileStore = useUserProfileStore();
     const agent = agentStore.getAgentById(agentId);
 
     if (!agent) {
@@ -142,6 +145,11 @@ export function useSessionManager() {
       history: [],
       historyIndex: 0,
     };
+
+    const effectiveUserProfile = userProfileStore.getEffectiveProfile(
+      agent.userProfileId
+    );
+    await insertLiveGreetings(index, detail, agent, effectiveUserProfile);
 
     // 更新智能体的最后使用时间
     agentStore.updateLastUsed(agentId);

@@ -37,6 +37,7 @@ import {
 import type { ModelIdentifier } from "../../types";
 import { useTranscriptionManager } from "../features/useTranscriptionManager";
 import { useChatSettings } from "../settings/useChatSettings";
+import { solidifyGreetings } from "../../services/greetingService";
 
 const logger = createModuleLogger("llm-chat/chat-handler");
 const errorHandler = createModuleErrorHandler("llm-chat/chat-handler");
@@ -174,6 +175,8 @@ export function useChatHandler() {
 
     // 使用指定的 parentId 或当前活跃叶节点作为父节点
     const parentId = options?.parentId || session.activeLeafId || "";
+
+    solidifyGreetings(session);
 
     // 使用节点管理器创建消息对（使用处理后的内容）
     const { userNode, assistantNode } = nodeManager.createMessagePair(

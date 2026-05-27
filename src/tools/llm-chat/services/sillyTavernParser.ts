@@ -6,7 +6,7 @@
  */
 
 import { createModuleLogger } from "@/utils/logger";
-import type { ChatAgent } from "../types/agent";
+import type { ChatAgent, GreetingMessage } from "../types/agent";
 import type { ChatMessageNode, InjectionStrategy } from "../types/message";
 import type { MessageRole } from "../types/common";
 import { ANCHOR_IDS } from "../types/context";
@@ -151,6 +151,7 @@ interface NormalizedCardData {
 export interface ParsedCharacterCard {
   agent: Partial<ChatAgent>;
   presetMessages: ChatMessageNode[];
+  greetings: GreetingMessage[];
 }
 
 export interface ParsedPromptFile {
@@ -180,6 +181,7 @@ export function parseCharacterCard(
     : { ...card, creator_notes: card.creatorcomment };
 
   const presetMessages: ChatMessageNode[] = [];
+  const greetings: GreetingMessage[] = [];
 
   // 1. System Prompt (v3)
   if (data.system_prompt) {
@@ -268,22 +270,19 @@ export function parseCharacterCard(
   }
 
   // 8. First Message & Alternate Greetings (开场白)
-  const greetings = [
+  const rawGreetings = [
     data.first_mes,
     ...(data.alternate_greetings || []),
   ].filter((g) => typeof g === "string" && g.trim());
 
-  if (greetings.length > 0) {
-    greetings.forEach((greeting, index) => {
-      presetMessages.push(
-        createPresetMessage(
-          "assistant",
-          convertMacros(greeting),
-          index === 0 ? "First Message" : `Alternate Greeting ${index}`,
-          undefined,
-          index === 0 // 只启用第一个
-        )
-      );
+  if (rawGreetings.length > 0) {
+    rawGreetings.forEach((greeting, index) => {
+      greetings.push({
+        id: `greeting-${Date.now()}-${index}-${Math.random().toString(36).substring(2, 8)}`,
+        role: "assistant",
+        content: convertMacros(greeting),
+        name: index === 0 ? "First Message" : `Alternate Greeting ${index}`,
+      });
     });
   }
 
@@ -315,7 +314,8 @@ export function parseCharacterCard(
     description: data.creator_notes, // 使用 creator_notes 作为 agent 的描述
     icon: card.avatar, // 直接从原始 card 中获取，因为 data 中没有 avatar
     tags: data.tags,
-    displayPresetCount: greetings.length,
+    greetings,
+    displayPresetCount: 0,
     regexConfig: regexConfig, // 赋值正则配置
   };
 
@@ -326,7 +326,7 @@ export function parseCharacterCard(
     regexCount: regexConfig?.presets.length || 0,
   });
 
-  return { agent, presetMessages };
+  return { agent, presetMessages, greetings };
 }
 
 /**

@@ -74,6 +74,11 @@ const isDisabled = computed(
 const isPresetDisplay = computed(
   () => props.message.metadata?.isPresetDisplay === true
 );
+const isLiveGreeting = computed(
+  () =>
+    props.message.metadata?.isGreeting === true &&
+    props.message.metadata?.greetingLive === true
+);
 
 // ===== 背景分块渲染逻辑 (解决超长消息 backdrop-filter 失效问题) =====
 const messageRef = ref<HTMLElement | null>(null);
@@ -220,7 +225,11 @@ defineExpose({
     :class="[
       'chat-message',
       `message-${message.role}`,
-      { 'is-disabled': isDisabled, 'is-preset-display': isPresetDisplay },
+      {
+        'is-disabled': isDisabled,
+        'is-preset-display': isPresetDisplay,
+        'is-live-greeting': isLiveGreeting,
+      },
     ]"
   >
     <!-- 背景层：分块渲染以规避浏览器对大尺寸 backdrop-filter 的限制 -->
@@ -339,6 +348,11 @@ defineExpose({
 /* Hover 效果迁移：hover 父容器，改变独立边框层的颜色 */
 .chat-message:hover::after {
   border-color: var(--primary-color);
+}
+
+.chat-message.is-live-greeting::after {
+  border-color: color-mix(in srgb, var(--primary-color) 45%, var(--border-color));
+  border-style: dashed;
 }
 
 /* 悬停时显示操作栏 */

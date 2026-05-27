@@ -13,6 +13,7 @@ import {
   AgentCategory,
   AgentCategoryLabels,
 } from "../../types";
+import { migrateAgent } from "../../services/agentMigrationService";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 
@@ -281,6 +282,10 @@ export function useAgentStorageSeparated() {
           agent.category = migratedCategory as AgentCategory;
           isDirty = true;
         }
+      }
+
+      if (migrateAgent(agent)) {
+        isDirty = true;
       }
 
       if (isDirty) {

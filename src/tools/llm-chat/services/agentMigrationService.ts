@@ -62,6 +62,9 @@ export function migrateAgent(agent: ChatAgent): boolean {
   // 5. 迁移环境增强配置
   if (migrateExtensionConfig(agent)) hasChanges = true;
 
+  // 6. 迁移旧版 ST 开场白预设到 greetings
+  if (migratePresetGreetings(agent)) hasChanges = true;
+
   return hasChanges;
 }
 
@@ -204,4 +207,47 @@ function migratePresetAssetPaths(agent: ChatAgent): boolean {
   }
 
   return hasChanges;
+}
+
+/**
+ * 将早期导入到 presetMessages 的 SillyTavern First Message /
+ * Alternate Greeting 迁移到独立 greetings 字段。
+ */
+function migratePresetGreetings(agent: ChatAgent): boolean {
+  if (agent.greetings && agent.greetings.length > 0) return false;
+  if (!agent.presetMessages || agent.presetMessages.length === 0) return false;
+
+  const greetingMessages = agent.presetMessages.filter((message) => {
+    const name = message.metadata?.stPromptName || message.name || "";
+    return name === "First Message" || /^Alternate Greeting\b/.test(name);
+  });
+
+  if (greetingMessages.length === 0) return false;
+
+  agent.greetings = greetingMessages.map((message, index) => ({
+    id: `greeting-${Date.now()}-${index}-${Math.random().toString(36).substring(2, 8)}`,
+    name:
+      message.metadata?.stPromptName ||
+      message.name ||
+      (index === 0 ? "First Message" : `Alternate Greeting ${index}`),
+    content: message.content,
+    role: message.role === "user" ? "user" : "assistant",
+    attachments: message.attachments,
+  }));
+
+  const greetingIds = new Set(greetingMessages.map((message) => message.id));
+  agent.presetMessages = agent.presetMessages.filter(
+    (message) => !greetingIds.has(message.id)
+  );
+  agent.displayPresetCount = Math.max(
+    0,
+    (agent.displayPresetCount || 0) - greetingMessages.length
+  );
+
+  logger.info("迁移旧版开局预设到 greetings", {
+    agentId: agent.id,
+    count: greetingMessages.length,
+  });
+
+  return true;
 }

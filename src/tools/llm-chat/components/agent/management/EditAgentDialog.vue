@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { reactive, watch, ref, computed } from "vue";
 import { customMessage } from "@/utils/customMessage";
-import type { ChatAgent, ChatMessageNode, AgentEditData } from "../../../types";
+import type {
+  ChatAgent,
+  ChatMessageNode,
+  AgentEditData,
+  GreetingMessage,
+} from "../../../types";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import Avatar from "@/components/common/Avatar.vue";
 import { Users } from "lucide-vue-next";
@@ -75,6 +80,7 @@ const defaultFormState = {
   modelCombo: "", // 用于 LlmModelSelector 的组合值 (profileId:modelId)
   userProfileId: null as string | null, // 绑定的用户档案 ID
   presetMessages: [] as ChatMessageNode[],
+  greetings: [] as GreetingMessage[],
   displayPresetCount: 0, // 显示的预设消息数量
   llmThinkRules: [] as LlmThinkRule[], // LLM 思考块规则配置
   richTextStyleOptions: {} as RichTextRendererStyleOptions, // 富文本样式配置
@@ -290,6 +296,7 @@ const handleSave = (
       modelId: editForm.modelId,
       userProfileId: editForm.userProfileId,
       presetMessages: editForm.presetMessages,
+      greetings: editForm.greetings,
       displayPresetCount: editForm.displayPresetCount,
       parameters,
       llmThinkRules: editForm.llmThinkRules,

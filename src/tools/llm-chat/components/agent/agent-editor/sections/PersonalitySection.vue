@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { inject, computed, ref, defineAsyncComponent, markRaw, h } from "vue";
 import AgentPresetEditor from "@/tools/llm-chat/components/agent/assets/AgentPresetEditor.vue";
+import AgentGreetingEditor from "@/tools/llm-chat/components/agent/assets/AgentGreetingEditor.vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import { parseModelCombo } from "@/utils/modelIdUtils";
 import WorldbookSelector from "@/tools/llm-chat/components/worldbook/WorldbookSelector.vue";
@@ -25,6 +26,9 @@ if (!editForm.quickActionSetIds) {
 }
 if (!editForm.worldbookIds) {
   editForm.worldbookIds = [];
+}
+if (!editForm.greetings) {
+  editForm.greetings = [];
 }
 if (!editForm.worldbookSettings) {
   editForm.worldbookSettings = {
@@ -203,6 +207,14 @@ const personalitySettings = computed<SettingItem[]>(() => [
       name: "worldbook-advanced",
       title: "世界书高级设置",
     },
+  },
+  {
+    id: "greetings",
+    label: "开局消息",
+    component: markRaw(AgentGreetingEditor),
+    modelPath: "greetings",
+    hint: "新建会话时作为真实消息节点插入，多个开局可在聊天中用分支切换。",
+    keywords: "greetings first message alternate greeting 开局",
   },
   {
     id: "displayPresetCount",

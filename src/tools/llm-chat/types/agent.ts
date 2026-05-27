@@ -2,8 +2,10 @@ import type {
   LlmThinkRule,
   RichTextRendererStyleOptions,
 } from "@/tools/rich-text-renderer/types";
+import type { Asset } from "@/types/asset-management";
 import type { LlmParameters } from "./llm";
 import type { ChatMessageNode } from "./message";
+import type { MessageRole } from "./common";
 import type { VariableConfig } from "./sessionVariable";
 
 /**
@@ -213,6 +215,24 @@ export const DEFAULT_AGENT_EXTENSION_CONFIG: AgentExtensionConfig = {
   defaultExtensionEnabled: true,
 };
 
+/**
+ * 开局消息定义
+ *
+ * 不参与 presetMessages 上下文装配；创建会话时会被实例化为真实消息树节点。
+ */
+export interface GreetingMessage {
+  /** 唯一标识，用于追踪同步来源 */
+  id: string;
+  /** UI 显示名称 */
+  name?: string;
+  /** 消息内容，创建/同步到会话时会执行宏展开 */
+  content: string;
+  /** 消息角色，通常为 assistant */
+  role: Extract<MessageRole, "assistant" | "user">;
+  /** 附件 */
+  attachments?: Asset[];
+}
+
 export const DEFAULT_TOOL_CALL_CONFIG: ToolCallConfig = {
   enabled: false,
   mode: "auto",
@@ -341,6 +361,14 @@ export interface AgentBaseConfig {
    * 支持插入系统消息、用户示例、助手回答等，实现 Few-shot、角色扮演等高级功能。
    */
   presetMessages?: ChatMessageNode[];
+
+  /**
+   * 开局消息列表
+   *
+   * 独立于 presetMessages。创建会话时作为 root 的真实子节点插入，
+   * 多个开局天然形成兄弟分支。
+   */
+  greetings?: GreetingMessage[];
 
   /**
    * 在聊天界面显示的预设消息数量

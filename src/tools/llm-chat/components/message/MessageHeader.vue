@@ -173,6 +173,11 @@ const shouldShowSubtitle = computed(() => {
   );
 });
 
+const greetingLabel = computed(() => {
+  if (!props.message.metadata?.isGreeting) return "";
+  return props.message.metadata.greetingLive ? "开局" : "开局快照";
+});
+
 const nameForAlt = computed(() => {
   if (props.message.role === "user") {
     return (
@@ -214,7 +219,12 @@ const formatLatency = (ms: number) => {
         :radius="6"
       />
       <div class="message-info">
-        <span class="message-name">{{ displayName }}</span>
+        <div class="name-row">
+          <span class="message-name">{{ displayName }}</span>
+          <span v-if="greetingLabel" class="greeting-tag">{{
+            greetingLabel
+          }}</span>
+        </div>
         <div
           v-if="shouldShowSubtitle && agentProfileInfo"
           class="message-subtitle"
@@ -369,6 +379,24 @@ const formatLatency = (ms: number) => {
   font-weight: 600;
   color: var(--text-color);
   line-height: 1.2;
+}
+
+.name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.greeting-tag {
+  font-size: 11px;
+  line-height: 1;
+  color: var(--primary-color);
+  border: var(--border-width) solid color-mix(in srgb, var(--primary-color) 50%, transparent);
+  border-radius: 4px;
+  padding: 2px 5px;
+  background-color: color-mix(in srgb, var(--primary-color) 8%, transparent);
+  white-space: nowrap;
 }
 
 .message-subtitle {

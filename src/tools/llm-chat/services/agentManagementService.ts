@@ -45,7 +45,7 @@ const SECTION_FIELDS: Record<string, string[]> = {
     "agentVersion",
     "version",
   ],
-  presetMessages: ["presetMessages", "displayPresetCount"],
+  presetMessages: ["presetMessages", "displayPresetCount", "greetings"],
   parameters: ["parameters"],
   toolCallConfig: ["toolCallConfig"],
   regexConfig: ["regexConfig"],

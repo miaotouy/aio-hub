@@ -356,9 +356,9 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     agentId: string,
     name?: string
   ): Promise<string> {
-    return executeOrProxy("create-session", { agentId, name }, () => {
+    return executeOrProxy("create-session", { agentId, name }, async () => {
       const sessionManager = useSessionManager();
-      const { index, detail, sessionId } = sessionManager.createSession(
+      const { index, detail, sessionId } = await sessionManager.createSession(
         agentId,
         name
       );

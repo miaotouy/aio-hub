@@ -241,6 +241,12 @@ export interface ChatMessageNode {
     reasoningEndTime?: number;
     /** 是否为预设消息的显示副本（用于 UI 区分） */
     isPresetDisplay?: boolean;
+    /** 是否为开局消息节点 */
+    isGreeting?: boolean;
+    /** 来源开局消息 ID */
+    greetingId?: string;
+    /** 未固化时为 true，会跟随 Agent greetings 配置同步 */
+    greetingLive?: boolean;
     /** 流式图像预览（Base64 数组） */
     partialImagePreviews?: string[];
     /** 请求开始时间戳 */

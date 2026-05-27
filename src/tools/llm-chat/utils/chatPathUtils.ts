@@ -7,7 +7,32 @@ import type {
   ChatAgent,
   ChatSessionIndex,
   ChatSessionDetail,
+  InjectionStrategy,
 } from "../types";
+import {
+  isModelMatchSatisfied,
+  type ModelMatchContext,
+} from "./modelMatchUtils";
+
+/**
+ * 判断消息是否具有非默认的注入策略
+ * 深度注入、高级深度、锚点注入的消息不应作为开场白展示
+ */
+function hasNonDefaultInjection(strategy?: InjectionStrategy): boolean {
+  if (!strategy) return false;
+  // 有显式 type 字段时，直接根据 type 判断
+  if (strategy.type) {
+    return strategy.type !== "default";
+  }
+  // 兼容旧数据（无 type 字段）：depth > 0 或有 depthConfig/anchorTarget 视为非默认
+  if (
+    (strategy.depth !== undefined && strategy.depth > 0) ||
+    strategy.depthConfig ||
+    strategy.anchorTarget
+  )
+    return true;
+  return false;
+}
 
 /**
  * 计算包含智能体预设展示的消息路径
@@ -15,13 +40,16 @@ import type {
  * 逻辑：
  * 1. 获取当前活动路径。
  * 2. 如果智能体配置了 displayPresetCount，则从预设消息中提取对应的消息。
- * 3. 标记这些预设消息为 isPresetDisplay，以便 UI 渲染。
+ * 3. 排除深度注入、锚点注入等非默认策略的消息（它们不是"开场白"）。
+ * 4. 排除当前模型不匹配的消息。
+ * 5. 标记这些预设消息为 isPresetDisplay，以便 UI 渲染。
  */
 export function getActivePathWithPresets(
   activePath: ChatMessageNode[],
   index: ChatSessionIndex | null,
   detail: ChatSessionDetail | null,
-  agent: ChatAgent | null
+  agent: ChatAgent | null,
+  modelMatchContext?: ModelMatchContext
 ): ChatMessageNode[] {
   if (
     !index ||
@@ -42,14 +70,23 @@ export function getActivePathWithPresets(
     return activePath;
   }
 
-  // 提取占位符之前的、启用的、且角色为 user/assistant 的消息
+  // 提取占位符之前的、符合显示条件的消息
   const presetsBeforePlaceholder = agent.presetMessages
     .slice(0, chatHistoryIndex)
-    .filter(
-      (msg: ChatMessageNode) =>
-        (msg.role === "user" || msg.role === "assistant") &&
-        msg.isEnabled !== false
-    );
+    .filter((msg: ChatMessageNode) => {
+      // 角色过滤：只取 user/assistant
+      if (msg.role !== "user" && msg.role !== "assistant") return false;
+      // 启用状态过滤
+      if (msg.isEnabled === false) return false;
+      // 排除非默认注入策略的消息（深度注入、锚点注入不是开场白）
+      if (hasNonDefaultInjection(msg.injectionStrategy)) return false;
+      // 排除当前模型不匹配的消息
+      if (msg.modelMatch?.enabled && modelMatchContext) {
+        if (!isModelMatchSatisfied(msg.modelMatch, modelMatchContext))
+          return false;
+      }
+      return true;
+    });
 
   // 取最后 N 条进行展示
   const displayPresets = presetsBeforePlaceholder.slice(

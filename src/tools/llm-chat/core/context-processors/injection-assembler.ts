@@ -1,7 +1,7 @@
 import type { ContextProcessor, PipelineContext } from "../../types/pipeline";
 import { createModuleLogger } from "@/utils/logger";
-import { getPureModelId } from "@/utils/modelIdUtils";
 import { buildMacroContext, processMacros } from "../context-utils/macro";
+import { isModelMatchSatisfied } from "../../utils/modelMatchUtils";
 import { MacroProcessor } from "@/tools/llm-chat/macro-engine";
 import type { ProcessableMessage } from "@/tools/llm-chat/types/context";
 import type { LlmModelInfo, LlmProfile } from "@/types/llm-profiles";
@@ -330,74 +330,11 @@ export const injectionAssembler: ContextProcessor = {
 
       // 检查模型/渠道匹配规则
       if (msg.modelMatch?.enabled) {
-        const {
-          patterns = [],
-          profilePatterns = [],
-          mode = "any",
-          exclude = false,
-          matchProfileName = false,
-        } = msg.modelMatch;
-
-        // 1. 检查模型是否匹配
-        const modelIsMatched =
-          patterns.length === 0 ||
-          patterns.some((pattern) => {
-            try {
-              const regex = new RegExp(pattern, "i");
-              // 匹配模型显示名称
-              if (modelInfo?.name && regex.test(modelInfo.name)) return true;
-              // 匹配模型 ID
-              const modelIdPart = getPureModelId(modelId);
-              if (modelIdPart && regex.test(modelIdPart)) return true;
-              // 匹配模型 ID 的最后一段
-              if (modelIdPart) {
-                const slashIndex = modelIdPart.lastIndexOf("/");
-                if (slashIndex !== -1) {
-                  const pureModelNamePart = modelIdPart.substring(
-                    slashIndex + 1
-                  );
-                  if (pureModelNamePart && regex.test(pureModelNamePart))
-                    return true;
-                }
-              }
-              return false;
-            } catch (e) {
-              logger.warn(
-                `预设消息 [${msg.name || msg.id}] 中的模型匹配正则表达式无效: ${pattern}`,
-                e
-              );
-              return false;
-            }
-          });
-
-        // 2. 检查渠道是否匹配
-        const profileIsMatched =
-          (profilePatterns.length === 0 && !matchProfileName) ||
-          [...profilePatterns, ...(matchProfileName ? patterns : [])].some(
-            (pattern) => {
-              try {
-                const regex = new RegExp(pattern, "i");
-                if (profileInfo?.name && regex.test(profileInfo.name))
-                  return true;
-                return false;
-              } catch (e) {
-                logger.warn(
-                  `预设消息 [${msg.name || msg.id}] 中的渠道匹配正则表达式无效: ${pattern}`,
-                  e
-                );
-                return false;
-              }
-            }
-          );
-
-        // 3. 根据模式组合结果
-        const rawMatch =
-          mode === "all"
-            ? modelIsMatched && profileIsMatched
-            : modelIsMatched || profileIsMatched;
-
-        // 排除模式：反转匹配结果
-        const isMatch = exclude ? !rawMatch : rawMatch;
+        const isMatch = isModelMatchSatisfied(msg.modelMatch, {
+          modelId,
+          modelName: modelInfo?.name,
+          profileName: profileInfo?.name,
+        });
 
         // 如果不匹配，则返回一个被禁用的副本，而不是过滤掉它
         if (!isMatch) {
@@ -408,7 +345,6 @@ export const injectionAssembler: ContextProcessor = {
       // 默认返回原始消息
       return msg;
     });
-
     // 过滤出有效的消息用于后续处理，但保留完整列表用于查找 sourceIndex
     const activePresetMessages = presetMessages.filter(
       (msg) => msg.isEnabled !== false

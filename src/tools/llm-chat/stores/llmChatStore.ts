@@ -14,7 +14,9 @@ import { useSessionNodeHistory } from "../composables/session/useSessionNodeHist
 import { useGraphActions } from "../composables/visualization/useGraphActions";
 import { useChatContextStats } from "../composables/features/useChatContextStats";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { getActivePathWithPresets } from "../utils/chatPathUtils";
+import type { ModelMatchContext } from "../utils/modelMatchUtils";
 import {
   recalculateNodeTokens as recalculateNodeTokensService,
   fillMissingTokenMetadata as fillMissingTokenMetadataService,
@@ -184,11 +186,25 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     const fullSession = currentFullSession.value;
     if (!fullSession) return [];
 
+    // 构建 modelMatch 上下文，用于 displayPresetCount 的类型感知过滤
+    let modelMatchContext: ModelMatchContext | undefined;
+    if (agent) {
+      const { getProfileById } = useLlmProfiles();
+      const profile = getProfileById(agent.profileId);
+      const model = profile?.models.find((m) => m.id === agent.modelId);
+      modelMatchContext = {
+        modelId: agent.modelId,
+        modelName: model?.name || agent.modelId,
+        profileName: profile?.name,
+      };
+    }
+
     return getActivePathWithPresets(
       currentActivePath.value,
       fullSession.index,
       fullSession.detail,
-      agent || null
+      agent || null,
+      modelMatchContext
     );
   });
 

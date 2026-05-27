@@ -15,6 +15,20 @@ export function useCommitDetail(repoPath: () => string) {
   const showDetail = ref(false);
 
   /**
+   * 检查缓存的 commit 数据是否包含完整的行统计信息
+   * 主加载路径在 includeFiles=true 但 includeLineStats=false 时，
+   * 只会填充文件路径和状态，additions/deletions 全为 0 且无 stats 字段。
+   */
+  function isCacheComplete(cached: GitCommit): boolean {
+    // 如果有 stats 字段，说明经过了完整的 diff 计算
+    if (cached.stats) return true;
+    // 如果没有 files，说明还没加载文件信息，也视为不完整
+    if (!cached.files || cached.files.length === 0) return false;
+    // 如果有 files 但没有 stats，检查是否有任何文件有非零的行统计
+    return cached.files.some((f) => f.additions > 0 || f.deletions > 0);
+  }
+
+  /**
    * 选择提交并显示详情
    */
   function selectCommit(commit: GitCommit) {
@@ -23,13 +37,18 @@ export function useCommitDetail(repoPath: () => string) {
 
     // 检查统一缓存
     const cached = commitCache.getCommitDetail(commit.hash);
-    if (cached) {
+    if (cached && isCacheComplete(cached)) {
       logger.debug("使用缓存的 commit 详细信息", {
         sha: commit.hash.substring(0, 8),
       });
       selectedCommit.value = cached;
     } else {
-      // 缓存未命中，从后端加载
+      // 缓存未命中或数据不完整（缺少行统计），从后端加载
+      if (cached) {
+        logger.debug("缓存数据不完整（缺少行统计），重新加载", {
+          sha: commit.hash.substring(0, 8),
+        });
+      }
       loadCommitDetail(commit.hash);
     }
   }

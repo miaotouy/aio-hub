@@ -2,7 +2,15 @@
   <BaseDialog
     :modelValue="visible"
     @update:modelValue="$emit('update:visible', $event)"
-    :title="isEditMode ? '编辑消息' : '添加消息'"
+    :title="
+      isGreetingMode
+        ? isEditMode
+          ? '编辑开局消息'
+          : '添加开局消息'
+        : isEditMode
+          ? '编辑消息'
+          : '添加消息'
+    "
     width="70vw"
     height="85vh"
     :closeOnBackdropClick="false"
@@ -14,7 +22,7 @@
           <span class="field-label">角色</span>
           <div class="role-selector">
             <el-radio-group v-model="form.role">
-              <el-radio value="system">
+              <el-radio v-if="!isGreetingMode" value="system">
                 <span class="role-option">
                   <el-icon><ChatDotRound /></el-icon>
                   <span>System</span>
@@ -57,8 +65,8 @@
           </div>
         </div>
 
-        <!-- 模型匹配配置行 -->
-        <div class="editor-row model-match-row">
+        <!-- 模型匹配配置行 (greeting 模式隐藏) -->
+        <div v-if="!isGreetingMode" class="editor-row model-match-row">
           <span class="field-label">过滤</span>
           <div class="model-match-config">
             <div class="match-switches">
@@ -144,8 +152,8 @@
             </div>
           </div>
         </div>
-        <!-- 注入策略配置行 -->
-        <div class="editor-row injection-row">
+        <!-- 注入策略配置行 (greeting 模式隐藏) -->
+        <div v-if="!isGreetingMode" class="editor-row injection-row">
           <span class="field-label">注入</span>
           <div class="injection-config">
             <!-- 模式选择 -->
@@ -519,6 +527,9 @@ interface MessageForm {
 /** 注入模式 */
 type InjectionMode = "default" | "depth" | "advanced_depth" | "anchor";
 
+/** 编辑器模式，控制显示哪些配置区域 */
+export type PresetEditorMode = "preset" | "greeting";
+
 interface Props {
   visible: boolean;
   isEditMode: boolean;
@@ -528,6 +539,12 @@ interface Props {
   agent?: any;
   llmThinkRules?: LlmThinkRule[];
   richTextStyleOptions?: RichTextRendererStyleOptions;
+  /**
+   * 编辑器模式
+   * - 'preset': 完整模式，显示所有配置（角色、名称、过滤、注入、内容）
+   * - 'greeting': 精简模式，仅显示角色、名称、内容编辑区域
+   */
+  editorMode?: PresetEditorMode;
 }
 
 interface Emits {
@@ -542,7 +559,11 @@ const props = withDefaults(defineProps<Props>(), {
   userProfile: null,
   llmThinkRules: () => [],
   richTextStyleOptions: () => ({}),
+  editorMode: "preset",
 });
+
+/** 是否为精简模式（greeting 模式隐藏过滤和注入策略） */
+const isGreetingMode = computed(() => props.editorMode === "greeting");
 
 const emit = defineEmits<Emits>();
 

@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { computed } from "vue";
-import { Plus, Trash2, ArrowUp, ArrowDown } from "lucide-vue-next";
-import type { GreetingMessage } from "../../../types";
+import { computed, ref, inject } from "vue";
+import { Plus, Trash2, ArrowUp, ArrowDown, Pencil } from "lucide-vue-next";
+import type { GreetingMessage, MessageRole } from "../../../types";
+import PresetMessageEditor from "../editors/PresetMessageEditor.vue";
+import { useUserProfileStore } from "../../../stores/userProfileStore";
 
 interface Props {
   modelValue?: GreetingMessage[];
@@ -16,30 +18,92 @@ const props = withDefaults(defineProps<Props>(), {
 });
 const emit = defineEmits<Emits>();
 
+const editForm = inject<any>("agent-edit-form");
+const userProfileStore = useUserProfileStore();
+
+// 当前生效的用户档案
+const effectiveUserProfile = computed(() => {
+  return userProfileStore.getEffectiveProfile(editForm?.userProfileId);
+});
+
 const greetings = computed<GreetingMessage[]>({
   get: () => props.modelValue || [],
   set: (value) => emit("update:modelValue", value),
+});
+
+// 编辑器对话框状态
+const editorVisible = ref(false);
+const isEditMode = ref(false);
+const editingIndex = ref<number>(-1);
+const editorInitialForm = ref<{
+  role: MessageRole;
+  name?: string;
+  content: string;
+}>({
+  role: "assistant",
+  name: "",
+  content: "",
 });
 
 function cloneGreetings(): GreetingMessage[] {
   return JSON.parse(JSON.stringify(greetings.value || []));
 }
 
-function updateGreeting(index: number, patch: Partial<GreetingMessage>) {
-  const next = cloneGreetings();
-  next[index] = { ...next[index], ...patch };
-  greetings.value = next;
+function addGreeting() {
+  isEditMode.value = false;
+  editingIndex.value = -1;
+  editorInitialForm.value = {
+    role: "assistant",
+    name:
+      greetings.value.length === 0
+        ? "默认开场白"
+        : `开场白 ${greetings.value.length + 1}`,
+    content: "",
+  };
+  editorVisible.value = true;
 }
 
-function addGreeting() {
+function editGreeting(index: number) {
+  const greeting = greetings.value[index];
+  if (!greeting) return;
+
+  isEditMode.value = true;
+  editingIndex.value = index;
+  editorInitialForm.value = {
+    role: greeting.role,
+    name: greeting.name || "",
+    content: greeting.content,
+  };
+  editorVisible.value = true;
+}
+
+function handleEditorSave(form: {
+  role: string;
+  name?: string;
+  content: string;
+}) {
   const next = cloneGreetings();
-  next.push({
-    id: `greeting-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
-    name: next.length === 0 ? "默认开场白" : `开场白 ${next.length + 1}`,
-    role: "assistant",
-    content: "",
-  });
+
+  if (isEditMode.value && editingIndex.value >= 0) {
+    // 编辑模式：更新现有条目
+    next[editingIndex.value] = {
+      ...next[editingIndex.value],
+      role: form.role as "assistant" | "user",
+      name: form.name || undefined,
+      content: form.content,
+    };
+  } else {
+    // 添加模式：新增条目
+    next.push({
+      id: `greeting-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+      name: form.name || undefined,
+      role: form.role as "assistant" | "user",
+      content: form.content,
+    });
+  }
+
   greetings.value = next;
+  editorVisible.value = false;
 }
 
 function removeGreeting(index: number) {
@@ -56,6 +120,13 @@ function moveGreeting(index: number, direction: -1 | 1) {
   const [item] = next.splice(index, 1);
   next.splice(target, 0, item);
   greetings.value = next;
+}
+
+function truncateText(text: string, maxLength: number): string {
+  if (!text) return "(空内容)";
+  const cleaned = text.replace(/\s+/g, " ").trim();
+  if (cleaned.length <= maxLength) return cleaned;
+  return cleaned.substring(0, maxLength) + "...";
 }
 </script>
 
@@ -80,28 +151,27 @@ function moveGreeting(index: number, direction: -1 | 1) {
         v-for="(greeting, index) in greetings"
         :key="greeting.id"
         class="greeting-item"
+        @click="editGreeting(index)"
       >
         <div class="item-header">
-          <el-input
-            :model-value="greeting.name"
-            placeholder="开局名称"
-            size="small"
-            @update:model-value="
-              (value: string) => updateGreeting(index, { name: value })
-            "
-          />
-          <el-select
-            :model-value="greeting.role"
-            size="small"
-            class="role-select"
-            @update:model-value="
-              (value: any) => updateGreeting(index, { role: value })
-            "
-          >
-            <el-option label="助手" value="assistant" />
-            <el-option label="用户" value="user" />
-          </el-select>
-          <div class="item-actions">
+          <div class="item-meta">
+            <el-tag
+              :type="greeting.role === 'assistant' ? 'success' : 'primary'"
+              size="small"
+              effect="plain"
+            >
+              {{ greeting.role === "assistant" ? "助手" : "用户" }}
+            </el-tag>
+            <span v-if="greeting.name" class="item-name">{{
+              greeting.name
+            }}</span>
+          </div>
+          <div class="item-actions" @click.stop>
+            <el-tooltip content="编辑" placement="top">
+              <button class="icon-btn" @click="editGreeting(index)">
+                <Pencil :size="14" />
+              </button>
+            </el-tooltip>
             <el-tooltip content="上移" placement="top">
               <button
                 class="icon-btn"
@@ -128,18 +198,25 @@ function moveGreeting(index: number, direction: -1 | 1) {
           </div>
         </div>
 
-        <el-input
-          :model-value="greeting.content"
-          type="textarea"
-          :rows="4"
-          resize="vertical"
-          placeholder="输入开局内容，支持 {{char}}、{{user}} 等宏"
-          @update:model-value="
-            (value: string) => updateGreeting(index, { content: value })
-          "
-        />
+        <div class="item-content">
+          {{ truncateText(greeting.content, 120) }}
+        </div>
       </div>
     </div>
+
+    <!-- 消息编辑器 (greeting 模式) -->
+    <PresetMessageEditor
+      v-model:visible="editorVisible"
+      :is-edit-mode="isEditMode"
+      :initial-form="editorInitialForm"
+      :agent-name="editForm?.name || 'Assistant'"
+      :user-profile="effectiveUserProfile"
+      :agent="editForm"
+      :llm-think-rules="editForm?.llmThinkRules"
+      :rich-text-style-options="editForm?.richTextStyleOptions"
+      editor-mode="greeting"
+      @save="handleEditorSave"
+    />
   </div>
 </template>
 
@@ -166,34 +243,65 @@ function moveGreeting(index: number, direction: -1 | 1) {
 .greeting-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .greeting-item {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 10px;
+  padding: 12px;
   border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
-  background-color: var(--input-bg);
+  background-color: var(--card-bg);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.greeting-item:hover {
+  border-color: var(--el-color-primary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
 .item-header {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 100px auto;
-  gap: 8px;
+  display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
-.role-select {
-  width: 100%;
+.item-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.item-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.item-content {
+  font-size: 13px;
+  color: var(--el-text-color-regular);
+  line-height: 1.5;
+  word-break: break-word;
+  display: -webkit-box;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .item-actions {
   display: flex;
   align-items: center;
   gap: 4px;
+  flex-shrink: 0;
 }
 
 .icon-btn {
@@ -207,6 +315,7 @@ function moveGreeting(index: number, direction: -1 | 1) {
   color: var(--text-color-secondary);
   background-color: var(--card-bg);
   cursor: pointer;
+  transition: all 0.15s;
 }
 
 .icon-btn:hover:not(:disabled) {
@@ -224,3 +333,4 @@ function moveGreeting(index: number, direction: -1 | 1) {
   border-color: var(--error-color);
 }
 </style>
+

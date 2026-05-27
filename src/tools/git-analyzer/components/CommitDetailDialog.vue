@@ -177,7 +177,7 @@
 
           <!-- 文件表格 -->
           <el-table
-            :data="filteredFiles"
+            :data="paginatedFiles"
             style="width: 100%"
             :max-height="fileTableMaxHeight"
             size="small"
@@ -209,6 +209,19 @@
               </template>
             </el-table-column>
           </el-table>
+
+          <!-- 分页器：文件数量超过阈值时显示 -->
+          <div v-if="showPagination" class="files-pagination">
+            <el-pagination
+              v-model:current-page="currentPage"
+              :page-size="pageSize"
+              :page-sizes="[50, 100, 200]"
+              :total="filteredFiles.length"
+              layout="total, sizes, prev, pager, next"
+              size="small"
+              @size-change="handlePageSizeChange"
+            />
+          </div>
         </div>
       </div>
     </template>
@@ -245,6 +258,11 @@ const isEditing = ref(false);
 const editMessage = ref("");
 const fileSearch = ref("");
 const fileTypeFilter = ref("");
+const currentPage = ref(1);
+const pageSize = ref(100);
+
+// 分页阈值：文件数超过此值时启用分页
+const PAGINATION_THRESHOLD = 50;
 
 // 文件表格最大高度，根据文件数量动态调整
 const fileTableMaxHeight = computed(() => {
@@ -284,6 +302,20 @@ const filteredFiles = computed(() => {
   return result;
 });
 
+// 是否显示分页
+const showPagination = computed(
+  () => filteredFiles.value.length > PAGINATION_THRESHOLD
+);
+
+// 分页后的文件列表
+const paginatedFiles = computed(() => {
+  if (!showPagination.value) {
+    return filteredFiles.value;
+  }
+  const start = (currentPage.value - 1) * pageSize.value;
+  return filteredFiles.value.slice(start, start + pageSize.value);
+});
+
 // 当对话框打开或选中的提交变化时，重置状态
 watch(
   () => [visible.value, props.selectedCommit],
@@ -291,12 +323,18 @@ watch(
     isEditing.value = false;
     fileSearch.value = "";
     fileTypeFilter.value = "";
+    currentPage.value = 1;
     if (props.selectedCommit) {
       editMessage.value =
         props.selectedCommit.full_message || props.selectedCommit.message;
     }
   }
 );
+
+// 搜索或过滤变化时重置页码
+watch([fileSearch, fileTypeFilter], () => {
+  currentPage.value = 1;
+});
 
 function startEdit() {
   if (props.selectedCommit) {
@@ -361,6 +399,11 @@ function getStatusLabel(status?: string): string {
     default:
       return "改";
   }
+}
+
+function handlePageSizeChange(size: number) {
+  pageSize.value = size;
+  currentPage.value = 1;
 }
 
 function handleCopyHash() {
@@ -462,5 +505,11 @@ function handleCopyHash() {
   color: var(--error-color);
   font-family: monospace;
   font-size: 12px;
+}
+
+.files-pagination {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 8px;
 }
 </style>

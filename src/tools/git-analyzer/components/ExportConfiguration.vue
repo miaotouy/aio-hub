@@ -49,7 +49,10 @@
         <el-radio-button value="light">浅色主题</el-radio-button>
         <el-radio-button value="dark">深色主题</el-radio-button>
       </el-radio-group>
-      <el-tooltip content="导出的 HTML 文件将使用选择的主题配色" placement="top">
+      <el-tooltip
+        content="导出的 HTML 文件将使用选择的主题配色"
+        placement="top"
+      >
         <el-icon style="margin-left: 10px; color: var(--text-color-light)">
           <QuestionFilled />
         </el-icon>
@@ -63,8 +66,16 @@
           <QuestionFilled />
         </el-icon>
       </el-tooltip>
-      <el-checkbox v-model="config.includeEmail" :disabled="!config.includeAuthor"> 显示作者邮箱 </el-checkbox>
-      <el-tooltip content="导出时包含作者的邮箱地址（需要先启用显示作者名称）" placement="top">
+      <el-checkbox
+        v-model="config.includeEmail"
+        :disabled="!config.includeAuthor"
+      >
+        显示作者邮箱
+      </el-checkbox>
+      <el-tooltip
+        content="导出时包含作者的邮箱地址（需要先启用显示作者名称）"
+        placement="top"
+      >
         <el-icon style="margin-left: 5px; color: var(--text-color-light)">
           <QuestionFilled />
         </el-icon>
@@ -72,17 +83,32 @@
     </el-form-item>
 
     <el-form-item label="其他选项">
-      <el-checkbox v-model="config.includeFullMessage"> 包含完整提交消息 </el-checkbox>
-      <el-checkbox v-model="config.includeFiles"> 包含文件变更列表 </el-checkbox>
+      <el-checkbox v-model="config.includeFullMessage">
+        包含完整提交消息
+      </el-checkbox>
       <el-checkbox v-model="config.includeTags"> 包含标签信息 </el-checkbox>
       <el-checkbox v-model="config.includeBranches"> 包含分支信息 </el-checkbox>
-      <el-checkbox v-model="config.includeStats"> 包含代码统计 </el-checkbox>
-      <el-checkbox v-model="config.includeFilterInfo"> 包含筛选摘要 </el-checkbox>
+      <el-checkbox v-model="config.includeFilterInfo">
+        包含筛选摘要
+      </el-checkbox>
+    </el-form-item>
+
+    <el-form-item label="文件变更" v-if="config.includeCommits">
+        <el-checkbox v-model="config.includeFiles">
+          包含文件变更详情
+        </el-checkbox>
+        <el-checkbox
+          v-model="config.includeStats"
+          :disabled="!config.includeFiles"
+        >
+          包含行级统计
+        </el-checkbox>
     </el-form-item>
   </el-form>
 </template>
 
 <script setup lang="ts">
+import { watch } from "vue";
 import { QuestionFilled } from "@element-plus/icons-vue";
 import type { ExportConfig } from "../types";
 
@@ -91,6 +117,25 @@ defineProps<{
 }>();
 
 const config = defineModel<ExportConfig>("config", { required: true });
+
+watch(
+  () => config.value.includeFiles,
+  (includeFiles) => {
+    if (!includeFiles) {
+      config.value.includeStats = false;
+    }
+  },
+);
+
+watch(
+  () => config.value.includeStats,
+  (includeStats) => {
+    if (includeStats) {
+      config.value.includeFiles = true;
+    }
+  },
+  { immediate: true },
+);
 </script>
 
 <style scoped>

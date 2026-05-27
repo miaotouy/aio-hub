@@ -10,7 +10,59 @@
     <template #content>
       <div class="export-module">
         <!-- 导出配置 -->
-        <ExportConfiguration v-model:config="exportConfig" :total-commits="totalCommits" />
+        <ExportConfiguration
+          v-model:config="exportConfig"
+          :total-commits="totalCommits"
+        />
+
+        <div v-if="needsEnrichment" class="enrich-panel">
+          <div class="enrich-content">
+            <span class="enrich-title">⚠️ 需要补充数据</span>
+            <span class="enrich-desc">
+              将为 {{ requiredEnrichHashes.length }} 个提交补充
+              {{ enrichmentRequirementText }}（预计约
+              {{ estimatedSeconds }} 秒）。
+            </span>
+            <el-progress
+              v-if="enriching"
+              :percentage="
+                enrichProgress.total > 0
+                  ? Math.round(
+                      (enrichProgress.loaded / enrichProgress.total) * 100,
+                    )
+                  : 0
+              "
+              :stroke-width="12"
+              striped
+              striped-flow
+              class="enrich-progress"
+            >
+              <template #default="{ percentage }">
+                <span class="progress-text"
+                  >{{ enrichProgress.loaded }} / {{ enrichProgress.total }} ({{
+                    percentage
+                  }}%)</span
+                >
+              </template>
+            </el-progress>
+          </div>
+          <div class="enrich-actions">
+            <el-button
+              type="warning"
+              size="small"
+              :loading="enriching"
+              @click="startEnrich"
+            >
+              {{ enriching ? "正在补充..." : "开始补充" }}
+            </el-button>
+            <el-button
+              v-if="enriching"
+              size="small"
+              @click="$emit('cancel-enrich')"
+              >取消</el-button
+            >
+          </div>
+        </div>
 
         <!-- 预览区域 -->
         <ExportPreview
@@ -29,7 +81,14 @@
     <template #footer>
       <el-space>
         <el-button @click="visible = false">取消</el-button>
-        <el-button type="primary" @click="handleExport" :loading="exporting"> 导出文件 </el-button>
+        <el-button
+          type="primary"
+          @click="handleExport"
+          :loading="exporting"
+          :disabled="needsEnrichment"
+        >
+          导出文件
+        </el-button>
       </el-space>
     </template>
   </BaseDialog>
@@ -62,15 +121,23 @@ const props = defineProps<{
   reverseOrder?: boolean;
 }>();
 
+const emit = defineEmits<{
+  "update:exportConfig": [config: ExportConfig];
+  "enrich-commits": [
+    options: {
+      hashes: string[];
+      includeStats: boolean;
+      includeFiles: boolean;
+      includeBranches: boolean;
+    },
+  ];
+  "cancel-enrich": [];
+}>();
+
 const visible = defineModel<boolean>("visible", { required: true });
 const generating = ref(false);
 const exporting = ref(false);
 const previewContent = ref("");
-
-// 获取当前缓存的文件数据（从统一缓存服务）
-const commitsWithFiles = computed(() => {
-  return commitCache.getBatchCommits(props.repoPath, props.branch) || [];
-});
 
 // 移除本地 exportConfig ref，直接使用来自 state 的 exportConfig
 
@@ -79,7 +146,9 @@ const totalCommits = computed(() => props.commits.length);
 // 生成导出文件名
 function generateFileName(extension: string): string {
   // 从仓库路径提取项目名
-  const projectName = props.repoPath ? props.repoPath.split(/[/\\]/).filter(Boolean).pop() || "git-repo" : "git-repo";
+  const projectName = props.repoPath
+    ? props.repoPath.split(/[/\\]/).filter(Boolean).pop() || "git-repo"
+    : "git-repo";
 
   // 格式化日期为 YYYY-MM-DD
   const now = new Date();
@@ -116,11 +185,53 @@ function getCommitsToExport(): GitCommit[] {
 }
 
 // 从 state 获取共享状态（文件变更信息在仓库加载完成后自动加载）
-const { loadingFiles, filterSummary, hasActiveFilters, exportConfig } = useGitAnalyzerState();
+const {
+  loadingFiles,
+  filterSummary,
+  hasActiveFilters,
+  exportConfig,
+  enriching,
+  enrichProgress,
+  enrichedHashes,
+} = useGitAnalyzerState();
+const requiredEnrichHashes = computed(() => {
+  if (!exportConfig.value.includeStats && !exportConfig.value.includeFiles) {
+    return [];
+  }
+
+  return getCommitsToExport()
+    .filter((commit) => {
+      // 已经补充过的提交不再需要重复补充
+      if (enrichedHashes.value.has(commit.hash)) {
+        return false;
+      }
+      if (exportConfig.value.includeStats) {
+        return !commit.stats || !commit.files;
+      }
+      return !commit.files;
+    })
+    .map((commit) => commit.hash);
+});
+
+const needsEnrichment = computed(() => requiredEnrichHashes.value.length > 0);
+const enrichmentRequirementText = computed(() => {
+  const requirements: string[] = [];
+  if (exportConfig.value.includeStats) {
+    requirements.push("行级统计");
+  }
+  if (exportConfig.value.includeFiles) {
+    requirements.push("文件变更详情");
+  }
+  return requirements.join("、") || "完整提交数据";
+});
+const estimatedSeconds = computed(() =>
+  Math.max(1, Math.ceil(requiredEnrichHashes.value.length / 10)),
+);
 
 // 获取合并后的提交数据（优先使用带文件信息的版本）
 function getMergedCommits(commits: GitCommit[]): GitCommit[] {
-  const cached = commitsWithFiles.value;
+  const cached =
+    commitCache.getBatchCommits(props.repoPath, props.branch) || [];
   if (!exportConfig.value.includeFiles || cached.length === 0) {
     return commits;
   }
@@ -199,7 +310,9 @@ async function downloadFile() {
   const fileName = generateFileName(extension);
 
   // 创建 Blob 并下载
-  const blob = new Blob([previewContent.value], { type: "text/plain;charset=utf-8" });
+  const blob = new Blob([previewContent.value], {
+    type: "text/plain;charset=utf-8",
+  });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -215,7 +328,9 @@ async function downloadFile() {
 // 发送到聊天
 function handleSendToChat() {
   const format = exportConfig.value.format;
-  const isCodeFormat = ["markdown", "json", "html", "csv", "text"].includes(format);
+  const isCodeFormat = ["markdown", "json", "html", "csv", "text"].includes(
+    format,
+  );
 
   sendToChat(previewContent.value, {
     format: isCodeFormat ? "code" : "plain",
@@ -225,6 +340,11 @@ function handleSendToChat() {
 
 // 导出文件（使用 Tauri 的文件保存对话框）
 async function handleExport() {
+  if (needsEnrichment.value) {
+    customMessage.warning("请先补充导出所需数据");
+    return;
+  }
+
   exporting.value = true;
 
   const formatExtensions: Record<string, string> = {
@@ -268,6 +388,16 @@ async function handleExport() {
   }
 }
 
+function startEnrich() {
+  emit("enrich-commits", {
+    hashes: requiredEnrichHashes.value,
+    includeStats: exportConfig.value.includeStats,
+    includeFiles:
+      exportConfig.value.includeFiles || exportConfig.value.includeStats,
+    includeBranches: false,
+  });
+}
+
 // 监听对话框打开时更新预览
 watch(
   () => visible.value,
@@ -275,16 +405,16 @@ watch(
     if (val) {
       updatePreview();
     }
-  }
+  },
 );
 
-// 监听 includeFiles 选项变化，更新预览
+// 监听需要补充数据的导出选项变化，更新预览
 watch(
-  () => exportConfig.value.includeFiles,
+  () => [exportConfig.value.includeFiles, exportConfig.value.includeStats],
   () => {
     if (!visible.value) return;
     updatePreview();
-  }
+  },
 );
 
 // 监听 loadingFiles 变化，加载完成后自动刷新预览
@@ -301,7 +431,7 @@ watch(
     if (newPath !== oldPath || newBranch !== oldBranch) {
       previewContent.value = "";
     }
-  }
+  },
 );
 </script>
 
@@ -310,5 +440,55 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+
+.enrich-panel {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, var(--el-color-warning) 30%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--el-color-warning) 5%, var(--card-bg));
+}
+
+.enrich-content {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.enrich-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--el-color-warning);
+  white-space: nowrap;
+}
+
+.enrich-desc {
+  font-size: 12px;
+  color: var(--el-text-color-primary);
+}
+
+.enrich-progress {
+  width: 180px;
+  margin-left: 8px;
+}
+
+.progress-text {
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.enrich-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
 }
 </style>

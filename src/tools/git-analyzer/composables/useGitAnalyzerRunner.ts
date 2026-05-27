@@ -5,9 +5,11 @@ import {
   streamLoadRepository,
   streamIncrementalLoad,
   cancelLoadRepository as apiCancelLoadRepository,
+  cancelEnrich as apiCancelEnrich,
+  streamEnrichCommits,
   updateCommitMessage as apiUpdateCommitMessage,
 } from "./useGitLoader";
-import type { GitProgressEvent } from "./useGitLoader";
+import type { GitEnrichEvent, GitProgressEvent } from "./useGitLoader";
 import type { GitCommit } from "../types";
 
 import { filterCommits as processFilter } from "./useGitProcessor";
@@ -134,6 +136,11 @@ export function useGitAnalyzerRunner() {
             commitCache.setBatchCommits(repoPath, branch, [...existing, ...event.commits]);
           }
 
+          if (state.loadConfig.value.includeLineStats) {
+            event.commits.forEach((commit) => state.enrichedHashes.value.add(commit.hash));
+            state.enrichedHashes.value = new Set(state.enrichedHashes.value);
+          }
+
           // 实时更新 commitRange 以反映当前已加载的数据
           state.commitRange.value = [0, state.commits.value.length];
 
@@ -148,9 +155,15 @@ export function useGitAnalyzerRunner() {
         }
         break;
 
+      case "meta":
+        if (event.total !== undefined) {
+          state.progress.value.total = event.total;
+        }
+        break;
+
       case "end": {
-        state.progress.value.loading = false;
-        state.loading.value = false;
+        // 先强制将进度设为 100%，确保用户能看到完成状态
+        state.progress.value.loaded = state.progress.value.total;
         state.commitRange.value = [0, state.commits.value.length];
 
         const loadType = state.batchSize.value === 0 ? "" : "流式";
@@ -169,6 +182,12 @@ export function useGitAnalyzerRunner() {
 
         // 现在文件信息已经默认包含或动态获取，不再需要额外的后台补充逻辑
         state.loadingFiles.value = false;
+
+        // 短暂延迟后再隐藏进度条，让用户能看到 100% 完成状态
+        setTimeout(() => {
+          state.progress.value.loading = false;
+          state.loading.value = false;
+        }, 500);
         break;
       }
 
@@ -238,7 +257,9 @@ export function useGitAnalyzerRunner() {
             skip,
             limit: newLimit,
             batchSize: state.batchSize.value,
-            includeFiles: state.includeFiles.value,
+            includeFiles: state.loadConfig.value.includeFilePaths,
+            includeLineStats: state.loadConfig.value.includeLineStats,
+            includeBranchInference: state.loadConfig.value.includeBranchInference,
           },
           (event) => handleProgressEvent(event, true, initialCommitCount),
         );
@@ -266,7 +287,9 @@ export function useGitAnalyzerRunner() {
           path: currentRepoPath,
           limit: state.limitCount.value,
           batchSize: state.batchSize.value,
-          includeFiles: state.includeFiles.value,
+          includeFiles: state.loadConfig.value.includeFilePaths,
+          includeLineStats: state.loadConfig.value.includeLineStats,
+          includeBranchInference: state.loadConfig.value.includeBranchInference,
         },
         (event) => handleProgressEvent(event, false, 0),
       );
@@ -294,6 +317,109 @@ export function useGitAnalyzerRunner() {
   async function cancelLoading() {
     await apiCancelLoadRepository();
     // 状态更新将通过事件回调中的 "cancelled" 事件统一处理
+  }
+
+  function handleEnrichEvent(event: GitEnrichEvent) {
+    switch (event.type) {
+      case "start":
+        state.enrichProgress.value = { loaded: 0, total: event.total || 0 };
+        break;
+
+      case "data": {
+        const repoPath = state.repoPath.value;
+        const branch = state.selectedBranch.value;
+
+        for (const enrichment of event.enriched || []) {
+          const commit = state.commits.value.find((c) => c.hash === enrichment.hash);
+          if (!commit) continue;
+
+          if (enrichment.stats) commit.stats = enrichment.stats;
+          if (enrichment.files) commit.files = enrichment.files;
+          if (enrichment.branches) commit.branches = enrichment.branches;
+          state.enrichedHashes.value.add(enrichment.hash);
+          commitCache.setCommitDetail(enrichment.hash, commit);
+        }
+        state.enrichedHashes.value = new Set(state.enrichedHashes.value);
+
+        commitCache.setBatchCommits(
+          repoPath,
+          branch,
+          state.commits.value.filter((commit) => commit.files),
+        );
+        state.enrichProgress.value.loaded = event.progress || state.enrichProgress.value.loaded;
+        filterCommits();
+        break;
+      }
+
+      case "end":
+        state.enriching.value = false;
+        state.loadingFiles.value = false;
+        customMessage.success("补充数据完成");
+        filterCommits();
+        break;
+
+      case "cancelled":
+        state.enriching.value = false;
+        state.loadingFiles.value = false;
+        customMessage.info("补充数据已终止");
+        break;
+
+      case "error":
+        state.enriching.value = false;
+        state.loadingFiles.value = false;
+        errorHandler.error(new Error(event.message || "Unknown error"), `补充数据失败: ${event.message}`);
+        break;
+    }
+  }
+
+  async function enrichCommits(options?: {
+    hashes?: string[];
+    includeStats?: boolean;
+    includeFiles?: boolean;
+    includeBranches?: boolean;
+  }) {
+    const currentRepoPath = state.repoPath.value;
+    if (!currentRepoPath) {
+      customMessage.warning("请先输入或选择 Git 仓库路径");
+      return false;
+    }
+
+    const hashesToEnrich =
+      options?.hashes ??
+      state.commits.value.filter((commit) => !state.enrichedHashes.value.has(commit.hash)).map((commit) => commit.hash);
+
+    if (hashesToEnrich.length === 0) {
+      customMessage.info("当前提交数据已完整");
+      return true;
+    }
+
+    state.enriching.value = true;
+    state.loadingFiles.value = true;
+    state.enrichProgress.value = { loaded: 0, total: hashesToEnrich.length };
+
+    try {
+      await streamEnrichCommits(
+        {
+          path: currentRepoPath,
+          hashes: hashesToEnrich,
+          batchSize: 50,
+          includeStats: options?.includeStats ?? true,
+          includeFiles: options?.includeFiles ?? true,
+          includeBranches: options?.includeBranches ?? false,
+        },
+        handleEnrichEvent,
+      );
+      return true;
+    } catch (error) {
+      state.enriching.value = false;
+      state.loadingFiles.value = false;
+      errorHandler.error(error, "补充提交数据失败");
+      return false;
+    }
+  }
+
+  async function cancelEnrich() {
+    await apiCancelEnrich();
   }
 
   // ==================== 筛选操作 ====================
@@ -401,6 +527,8 @@ export function useGitAnalyzerRunner() {
     loadRepository,
     refreshRepository,
     cancelLoading,
+    enrichCommits,
+    cancelEnrich,
 
     // 提交操作
     updateCommitMessage,

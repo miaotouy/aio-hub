@@ -14,7 +14,9 @@ export function calculateStatistics(commits: GitCommit[]): RepoStatistics {
   }
   const authors = new Set(commits.map((c) => c.author));
   const dates = commits.map((c) => new Date(c.date).getTime());
-  const days = Math.ceil((Math.max(...dates) - Math.min(...dates)) / (1000 * 60 * 60 * 24));
+  const days = Math.ceil(
+    (Math.max(...dates) - Math.min(...dates)) / (1000 * 60 * 60 * 24),
+  );
   return {
     totalCommits: commits.length,
     contributors: authors.size,
@@ -27,7 +29,9 @@ export function calculateStatistics(commits: GitCommit[]): RepoStatistics {
  * 创建 Agent 场景的默认 ExportConfig（全量包含）
  * 避免 registry.ts 中手动构造不相关字段
  */
-export function createAgentExportConfig(overrides?: Partial<ExportConfig>): ExportConfig {
+export function createAgentExportConfig(
+  overrides?: Partial<ExportConfig>,
+): ExportConfig {
   return {
     format: "markdown",
     includeStatistics: true,
@@ -59,9 +63,11 @@ export function createAgentExportConfig(overrides?: Partial<ExportConfig>): Expo
 export const formatters = {
   hash: (hash: string, short = true) => (short ? hash.substring(0, 7) : hash),
 
-  date: (date: string, format: ExportConfig["dateFormat"]) => formatDate(date, format),
+  date: (date: string, format: ExportConfig["dateFormat"]) =>
+    formatDate(date, format),
 
-  author: (name: string, email?: string) => (email ? `${name} <${email}>` : name),
+  author: (name: string, email?: string) =>
+    email ? `${name} <${email}>` : name,
 
   stats: (stats: { additions: number; deletions: number; files?: number }) => {
     const parts = [`+${stats.additions}`, `-${stats.deletions}`];
@@ -69,14 +75,28 @@ export const formatters = {
     return parts.join(" ");
   },
 
-  message: (msg: string, fullMsg?: string, useFull = false) => (useFull && fullMsg ? fullMsg : msg),
+  message: (msg: string, fullMsg?: string, useFull = false) =>
+    useFull && fullMsg ? fullMsg : msg,
 
-  branches: (branches: string[]) => (branches?.length ? branches.join(", ") : ""),
+  branches: (branches: string[]) =>
+    branches?.length ? branches.join(", ") : "",
 
   tags: (tags: string[]) => (tags?.length ? tags.join(", ") : ""),
 
-  fileChange: (file: { path: string; status?: string; additions: number; deletions: number }) =>
-    `\`${file.path}\`${file.status ? ` (${file.status})` : ""} +${file.additions} -${file.deletions}`,
+  fileChange: (
+    file: {
+      path: string;
+      status?: string;
+      additions: number;
+      deletions: number;
+    },
+    includeLineStats = false,
+  ) => {
+    const base = `\`${file.path}\`${file.status ? ` (${file.status})` : ""}`;
+    return includeLineStats
+      ? `${base} +${file.additions} -${file.deletions}`
+      : base;
+  },
 };
 
 // ==================== 报告组件格式化器 ====================
@@ -86,15 +106,34 @@ export const formatters = {
  * 所有路径（Agent / 手动导出）统一通过此处生成文本
  */
 export const reportComponents = {
-  header: (title: string, path: string, branch: string, format: "md" | "text" = "md") => {
+  header: (
+    title: string,
+    path: string,
+    branch: string,
+    format: "md" | "text" = "md",
+  ) => {
     const time = formatDateTime(new Date(), "yyyy-MM-dd HH:mm:ss");
     if (format === "md") {
-      return [`# ${title}`, "", `- **仓库路径**: ${path}`, `- **分支**: ${branch}`, `- **生成时间**: ${time}`, ""].join(
-        "\n"
-      );
+      return [
+        `# ${title}`,
+        "",
+        `- **仓库路径**: ${path}`,
+        `- **分支**: ${branch}`,
+        `- **生成时间**: ${time}`,
+        "",
+      ].join("\n");
     }
     const line = "=".repeat(60);
-    return [line, title, line, "", `仓库路径: ${path}`, `分支: ${branch}`, `生成时间: ${time}`, ""].join("\n");
+    return [
+      line,
+      title,
+      line,
+      "",
+      `仓库路径: ${path}`,
+      `分支: ${branch}`,
+      `生成时间: ${time}`,
+      "",
+    ].join("\n");
   },
 
   section: (title: string, content: string, format: "md" | "text" = "md") => {
@@ -113,7 +152,9 @@ export const reportComponents = {
       `平均提交/天: ${stats.averagePerDay.toFixed(2)}`,
     ];
     if (format === "md") {
-      return items.map((i) => `- **${i.split(": ")[0]}**: ${i.split(": ")[1]}`).join("\n");
+      return items
+        .map((i) => `- **${i.split(": ")[0]}**: ${i.split(": ")[1]}`)
+        .join("\n");
     }
     return items.join("\n");
   },
@@ -122,13 +163,19 @@ export const reportComponents = {
     data: Array<{ name: string; count: number }>,
     totalCommits: number,
     format: "md" | "text" = "md",
-    showPercentage = true
+    showPercentage = true,
   ) => {
     if (format === "md") {
       if (showPercentage) {
-        const lines = ["| 贡献者 | 提交数 | 占比 |", "|--------|--------|------|"];
+        const lines = [
+          "| 贡献者 | 提交数 | 占比 |",
+          "|--------|--------|------|",
+        ];
         data.forEach((c) => {
-          const percentage = totalCommits > 0 ? ((c.count / totalCommits) * 100).toFixed(1) : "0.0";
+          const percentage =
+            totalCommits > 0
+              ? ((c.count / totalCommits) * 100).toFixed(1)
+              : "0.0";
           lines.push(`| ${c.name} | ${c.count} | ${percentage}% |`);
         });
         return lines.join("\n");
@@ -143,7 +190,10 @@ export const reportComponents = {
     return data
       .map((c) => {
         if (showPercentage) {
-          const percentage = totalCommits > 0 ? ((c.count / totalCommits) * 100).toFixed(1) : "0.0";
+          const percentage =
+            totalCommits > 0
+              ? ((c.count / totalCommits) * 100).toFixed(1)
+              : "0.0";
           return `${c.name}: ${c.count} 次提交 (${percentage}%)`;
         }
         return `${c.name}: ${c.count} 次提交`;
@@ -151,7 +201,10 @@ export const reportComponents = {
       .join("\n");
   },
 
-  timeline: (data: Array<{ date: string; count: number }>, format: "md" | "text" = "md") => {
+  timeline: (
+    data: Array<{ date: string; count: number }>,
+    format: "md" | "text" = "md",
+  ) => {
     if (format === "md") {
       const lines = ["| 日期 | 提交数 |", "|------|--------|"];
       data.forEach((item) => lines.push(`| ${item.date} | ${item.count} |`));
@@ -164,7 +217,11 @@ export const reportComponents = {
    * 格式化单条提交的详细信息（积木块）
    * Agent 和手动导出统一使用此函数
    */
-  commitItem: (commit: GitCommit, options: ExportConfig, format: "md" | "text" = "md") => {
+  commitItem: (
+    commit: GitCommit,
+    options: ExportConfig,
+    format: "md" | "text" = "md",
+  ) => {
     const lines: string[] = [];
     const {
       dateFormat,
@@ -185,11 +242,17 @@ export const reportComponents = {
       lines.push("");
 
       if (includeAuthor) {
-        lines.push(`**作者**: ${formatters.author(commit.author, includeEmail ? commit.email : undefined)}`);
+        lines.push(
+          `**作者**: ${formatters.author(commit.author, includeEmail ? commit.email : undefined)}`,
+        );
         lines.push("");
       }
 
-      const msg = formatters.message(commit.message, commit.full_message, includeFullMessage);
+      const msg = formatters.message(
+        commit.message,
+        commit.full_message,
+        includeFullMessage,
+      );
       if (includeFullMessage && commit.full_message) {
         lines.push(`**提交信息**:`);
         lines.push("");
@@ -217,7 +280,7 @@ export const reportComponents = {
         lines.push("");
         lines.push("**文件变更**:");
         commit.files.forEach((file) => {
-          lines.push(`  - ${formatters.fileChange(file)}`);
+          lines.push(`  - ${formatters.fileChange(file, includeStats)}`);
         });
       }
 
@@ -228,10 +291,16 @@ export const reportComponents = {
       lines.push(`[${hashStr}] ${dateStr}`);
 
       if (includeAuthor) {
-        lines.push(`作者: ${formatters.author(commit.author, includeEmail ? commit.email : undefined)}`);
+        lines.push(
+          `作者: ${formatters.author(commit.author, includeEmail ? commit.email : undefined)}`,
+        );
       }
 
-      const msg = formatters.message(commit.message, commit.full_message, includeFullMessage);
+      const msg = formatters.message(
+        commit.message,
+        commit.full_message,
+        includeFullMessage,
+      );
       if (includeFullMessage && commit.full_message) {
         lines.push(`提交信息:`);
         lines.push(msg);
@@ -254,7 +323,10 @@ export const reportComponents = {
       if (includeFiles && commit.files && commit.files.length > 0) {
         lines.push(`文件变更 (${commit.files.length}):`);
         commit.files.forEach((file) => {
-          lines.push(`  - ${file.path} (+${file.additions} -${file.deletions})`);
+          const lineStats = includeStats
+            ? ` (+${file.additions} -${file.deletions})`
+            : "";
+          lines.push(`  - ${file.path}${lineStats}`);
         });
       }
 
@@ -271,7 +343,11 @@ export const reportComponents = {
  * 格式化提交记录列表（根据配置生成对应详情）
  * Agent 和手动导出统一使用
  */
-export function formatCommitList(commits: GitCommit[], options: ExportConfig, format: "md" | "text" = "md"): string {
+export function formatCommitList(
+  commits: GitCommit[],
+  options: ExportConfig,
+  format: "md" | "text" = "md",
+): string {
   if (commits.length === 0) {
     return "没有找到匹配的提交记录。";
   }

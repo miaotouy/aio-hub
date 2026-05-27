@@ -1,5 +1,11 @@
 import { ref, computed } from "vue";
-import type { GitCommit, GitBranch, RepoStatistics, ExportConfig } from "../types";
+import type {
+  GitCommit,
+  GitBranch,
+  RepoStatistics,
+  ExportConfig,
+  GitLoadConfig,
+} from "../types";
 import { commitCache } from "./useCommitCache";
 
 // ==================== 单例状态（模块级别）====================
@@ -17,6 +23,26 @@ const limitCount = ref(100);
 const batchSize = ref(20);
 const includeFiles = ref(true);
 const commitRange = ref<[number, number]>([0, 0]);
+
+const LOAD_CONFIG_STORAGE_KEY = "git-analyzer-load-config";
+const DEFAULT_LOAD_CONFIG: GitLoadConfig = {
+  includeFilePaths: true,
+  includeLineStats: false,
+  includeBranchInference: false,
+};
+
+function loadStoredLoadConfig(): GitLoadConfig {
+  try {
+    const raw = localStorage.getItem(LOAD_CONFIG_STORAGE_KEY);
+    if (!raw) return { ...DEFAULT_LOAD_CONFIG };
+    return { ...DEFAULT_LOAD_CONFIG, ...JSON.parse(raw) };
+  } catch {
+    return { ...DEFAULT_LOAD_CONFIG };
+  }
+}
+
+const loadConfig = ref<GitLoadConfig>(loadStoredLoadConfig());
+includeFiles.value = loadConfig.value.includeFilePaths;
 
 const searchQuery = ref("");
 const excludeQuery = ref("");
@@ -45,7 +71,7 @@ const exportConfig = ref<ExportConfig>({
   includeFiles: false,
   includeTags: true,
   includeBranches: true,
-  includeStats: true,
+  includeStats: false,
   includeFilterInfo: true,
   htmlTheme: "light",
 });
@@ -55,6 +81,12 @@ const lastLoadedBranch = ref("");
 const lastLoadedLimit = ref(0);
 
 const loadingFiles = ref(false);
+const enriching = ref(false);
+const enrichProgress = ref({
+  loaded: 0,
+  total: 0,
+});
+const enrichedHashes = ref<Set<string>>(new Set());
 
 const progress = ref({
   loading: false,
@@ -119,7 +151,9 @@ const statistics = computed<RepoStatistics>(() => {
   const dates = commitsValue.map((c) => new Date(c.date).getTime());
   const minDate = new Date(Math.min(...dates));
   const maxDate = new Date(Math.max(...dates));
-  const days = Math.ceil((maxDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24));
+  const days = Math.ceil(
+    (maxDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24),
+  );
 
   return {
     totalCommits: commitsValue.length,
@@ -159,7 +193,21 @@ function resetCommits() {
   commits.value = [];
   filteredCommits.value = [];
   commitRange.value = [0, 0];
+  enrichedHashes.value = new Set();
   commitCache.clearAll();
+}
+
+function updateLoadConfig(nextConfig: GitLoadConfig) {
+  loadConfig.value = { ...nextConfig };
+  includeFiles.value = loadConfig.value.includeFilePaths;
+  localStorage.setItem(
+    LOAD_CONFIG_STORAGE_KEY,
+    JSON.stringify(loadConfig.value),
+  );
+}
+
+function resetLoadConfig() {
+  updateLoadConfig(DEFAULT_LOAD_CONFIG);
 }
 
 /**
@@ -181,6 +229,7 @@ export function useGitAnalyzerState() {
     limitCount,
     batchSize,
     includeFiles,
+    loadConfig,
     commitRange,
     searchQuery,
     excludeQuery,
@@ -195,6 +244,9 @@ export function useGitAnalyzerState() {
     lastLoadedBranch,
     lastLoadedLimit,
     progress,
+    enriching,
+    enrichProgress,
+    enrichedHashes,
 
     // 计算属性
     statistics,
@@ -206,5 +258,7 @@ export function useGitAnalyzerState() {
     resetProgress,
     resetFilters,
     resetCommits,
+    updateLoadConfig,
+    resetLoadConfig,
   };
 }

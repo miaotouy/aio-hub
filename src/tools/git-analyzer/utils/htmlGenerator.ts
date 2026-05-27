@@ -12,10 +12,14 @@ interface HtmlGeneratorOptions {
   statistics: RepoStatistics;
   commits: GitCommit[];
   getCommitsToExport: () => GitCommit[];
-  getContributorStats: (commits: GitCommit[]) => Array<{ name: string; count: number }>;
+  getContributorStats: (
+    commits: GitCommit[],
+  ) => Array<{ name: string; count: number }>;
   formatDate: (date: string, format: string) => string;
   escapeHtml: (text: string) => string;
-  generateTimelineData?: (commits: GitCommit[]) => Array<{ date: string; count: number }>;
+  generateTimelineData?: (
+    commits: GitCommit[],
+  ) => Array<{ date: string; count: number }>;
   generateChartData?: (commits: GitCommit[]) => {
     frequency: Array<{ date: string; count: number }>;
     contributors: Array<{ name: string; count: number }>;
@@ -126,7 +130,9 @@ export function generateHTML(options: HtmlGeneratorOptions): string {
 
   // 根据主题配置决定是否添加 data-theme 属性
   const htmlThemeAttr =
-    config.htmlTheme === "dark" || config.htmlTheme === "light" ? ` data-theme="${config.htmlTheme}"` : "";
+    config.htmlTheme === "dark" || config.htmlTheme === "light"
+      ? ` data-theme="${config.htmlTheme}"`
+      : "";
 
   let html = `<!DOCTYPE html>
 <html lang="zh-CN"${htmlThemeAttr}>
@@ -353,7 +359,10 @@ export function generateHTML(options: HtmlGeneratorOptions): string {
       <tbody>`;
 
     contributors.slice(0, 10).forEach((c) => {
-      const percentage = commitsToExport.length > 0 ? ((c.count / commitsToExport.length) * 100).toFixed(1) : "0.0";
+      const percentage =
+        commitsToExport.length > 0
+          ? ((c.count / commitsToExport.length) * 100).toFixed(1)
+          : "0.0";
       html += `
         <tr>
           <td>${escapeHtml(c.name)}</td>
@@ -507,7 +516,11 @@ export function generateHTML(options: HtmlGeneratorOptions): string {
       </p>`;
       }
 
-      if (config.includeBranches && commit.branches && commit.branches.length > 0) {
+      if (
+        config.includeBranches &&
+        commit.branches &&
+        commit.branches.length > 0
+      ) {
         html += `
       <p><strong>分支:</strong> ${commit.branches.map((b) => escapeHtml(b)).join(", ")}</p>`;
       }
@@ -525,8 +538,13 @@ export function generateHTML(options: HtmlGeneratorOptions): string {
           html += `
         <li>
           <code style="background: var(--bg-primary); padding: 2px 6px; border-radius: 3px;">${escapeHtml(file.path)}</code>
-          <span class="${cssPrefix}-additions">+${file.additions}</span>
-          <span class="${cssPrefix}-deletions">-${file.deletions}</span>
+          ${file.status ? `<span>${escapeHtml(file.status)}</span>` : ""}
+          ${
+            config.includeStats
+              ? `<span class="${cssPrefix}-additions">+${file.additions}</span>
+          <span class="${cssPrefix}-deletions">-${file.deletions}</span>`
+              : ""
+          }
         </li>`;
         });
         html += `

@@ -85,7 +85,7 @@ function createDefaultConfig(): GitAnalyzerConfig {
       includeFiles: false,
       includeTags: true,
       includeBranches: true,
-      includeStats: true,
+      includeStats: false,
       includeFilterInfo: true,
       htmlTheme: "auto",
     },

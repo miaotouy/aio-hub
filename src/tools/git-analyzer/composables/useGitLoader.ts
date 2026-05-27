@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import type { GitCommit, GitBranch } from "../types";
+import type { GitCommit, GitBranch, CommitStats, FileChange } from "../types";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 
@@ -13,7 +13,7 @@ const errorHandler = createModuleErrorHandler("GitLoader");
  * Git 进度事件
  */
 export interface GitProgressEvent {
-  type: "start" | "data" | "end" | "error" | "cancelled";
+  type: "start" | "data" | "meta" | "end" | "error" | "cancelled";
   total?: number;
   branches?: GitBranch[];
   commits?: GitCommit[];
@@ -30,6 +30,8 @@ export interface StreamLoadOptions {
   limit: number;
   batchSize: number;
   includeFiles?: boolean;
+  includeLineStats?: boolean;
+  includeBranchInference?: boolean;
 }
 
 /**
@@ -49,6 +51,30 @@ export interface StreamLoadResult {
   total: number;
 }
 
+export interface CommitEnrichment {
+  hash: string;
+  stats?: CommitStats;
+  files?: FileChange[];
+  branches?: string[];
+}
+
+export interface GitEnrichEvent {
+  type: "start" | "data" | "end" | "error" | "cancelled";
+  total?: number;
+  enriched?: CommitEnrichment[];
+  progress?: number;
+  message?: string;
+}
+
+export interface EnrichOptions {
+  path: string;
+  hashes: string[];
+  batchSize?: number;
+  includeStats?: boolean;
+  includeFiles?: boolean;
+  includeBranches?: boolean;
+}
+
 // ==================== 数据获取函数 ====================
 
 /**
@@ -62,7 +88,11 @@ export async function fetchBranches(path: string): Promise<GitBranch[]> {
     logger.info(`成功获取 ${branches.length} 个分支`);
     return branches;
   } catch (error) {
-    errorHandler.handle(error as Error, { userMessage: "获取分支列表失败", context: { path }, showToUser: false });
+    errorHandler.handle(error as Error, {
+      userMessage: "获取分支列表失败",
+      context: { path },
+      showToUser: false,
+    });
     throw error;
   }
 }
@@ -73,7 +103,7 @@ export async function fetchBranches(path: string): Promise<GitBranch[]> {
 export async function fetchBranchCommits(
   path: string,
   branch: string,
-  limit: number
+  limit: number,
 ): Promise<GitCommit[]> {
   logger.info("获取分支提交", { path, branch, limit });
 
@@ -86,7 +116,11 @@ export async function fetchBranchCommits(
     logger.info(`成功获取 ${commits.length} 条提交`);
     return commits;
   } catch (error) {
-    errorHandler.handle(error as Error, { userMessage: "获取分支提交失败", context: { path, branch, limit }, showToUser: false });
+    errorHandler.handle(error as Error, {
+      userMessage: "获取分支提交失败",
+      context: { path, branch, limit },
+      showToUser: false,
+    });
     throw error;
   }
 }
@@ -96,7 +130,7 @@ export async function fetchBranchCommits(
  */
 export async function fetchCommitDetail(
   path: string,
-  hash: string
+  hash: string,
 ): Promise<GitCommit> {
   logger.info("获取提交详情", { path, hash });
 
@@ -108,7 +142,11 @@ export async function fetchCommitDetail(
     logger.info(`成功获取提交 ${hash} 的详情`);
     return commit;
   } catch (error) {
-    errorHandler.handle(error as Error, { userMessage: "获取提交详情失败", context: { path, hash }, showToUser: false });
+    errorHandler.handle(error as Error, {
+      userMessage: "获取提交详情失败",
+      context: { path, hash },
+      showToUser: false,
+    });
     throw error;
   }
 }
@@ -119,7 +157,7 @@ export async function fetchCommitDetail(
 export async function updateCommitMessage(
   path: string,
   hash: string,
-  message: string
+  message: string,
 ): Promise<string> {
   logger.info("修改提交消息", { path, hash, messageLength: message.length });
 
@@ -132,7 +170,11 @@ export async function updateCommitMessage(
     logger.info(`成功修改提交 ${hash} 的消息`);
     return result;
   } catch (error) {
-    errorHandler.handle(error as Error, { userMessage: "修改提交消息失败", context: { path, hash }, showToUser: false });
+    errorHandler.handle(error as Error, {
+      userMessage: "修改提交消息失败",
+      context: { path, hash },
+      showToUser: false,
+    });
     throw error;
   }
 }
@@ -145,7 +187,22 @@ export async function cancelLoadRepository(): Promise<void> {
   try {
     await invoke("git_cancel_load");
   } catch (error) {
-    errorHandler.handle(error as Error, { userMessage: "终止加载失败", showToUser: false });
+    errorHandler.handle(error as Error, {
+      userMessage: "终止加载失败",
+      showToUser: false,
+    });
+  }
+}
+
+export async function cancelEnrich(): Promise<void> {
+  logger.info("请求终止提交补充");
+  try {
+    await invoke("git_cancel_enrich");
+  } catch (error) {
+    errorHandler.handle(error as Error, {
+      userMessage: "终止补充失败",
+      showToUser: false,
+    });
   }
 }
 
@@ -155,7 +212,7 @@ export async function cancelLoadRepository(): Promise<void> {
  */
 export async function streamLoadRepository(
   options: StreamLoadOptions,
-  onProgress: (event: GitProgressEvent) => void
+  onProgress: (event: GitProgressEvent) => void,
 ): Promise<void> {
   const { path, limit, batchSize } = options;
   logger.info("开始流式加载仓库", { path, limit, batchSize });
@@ -193,13 +250,19 @@ export async function streamLoadRepository(
         limit,
         batchSize,
         includeFiles: options.includeFiles,
+        includeLineStats: options.includeLineStats,
+        includeBranchInference: options.includeBranchInference,
       });
     } catch (error) {
       // 清理监听器
       if (unlisten) {
         unlisten();
       }
-      errorHandler.handle(error as Error, { userMessage: "流式加载失败", context: { path, limit }, showToUser: false });
+      errorHandler.handle(error as Error, {
+        userMessage: "流式加载失败",
+        context: { path, limit },
+        showToUser: false,
+      });
       reject(error);
     }
   });
@@ -210,7 +273,7 @@ export async function streamLoadRepository(
  */
 export async function streamIncrementalLoad(
   options: IncrementalLoadOptions,
-  onProgress: (event: GitProgressEvent) => void
+  onProgress: (event: GitProgressEvent) => void,
 ): Promise<void> {
   const { path, branch, skip, limit, batchSize } = options;
   logger.info("开始增量流式加载", { path, branch, skip, limit, batchSize });
@@ -250,13 +313,88 @@ export async function streamIncrementalLoad(
         limit,
         batchSize,
         includeFiles: options.includeFiles,
+        includeLineStats: options.includeLineStats,
+        includeBranchInference: options.includeBranchInference,
       });
     } catch (error) {
       // 清理监听器
       if (unlisten) {
         unlisten();
       }
-      errorHandler.handle(error as Error, { userMessage: "增量加载失败", context: { path, branch, skip, limit }, showToUser: false });
+      errorHandler.handle(error as Error, {
+        userMessage: "增量加载失败",
+        context: { path, branch, skip, limit },
+        showToUser: false,
+      });
+      reject(error);
+    }
+  });
+}
+
+export async function streamEnrichCommits(
+  options: EnrichOptions,
+  onProgress: (event: GitEnrichEvent) => void,
+): Promise<void> {
+  const {
+    path,
+    hashes,
+    batchSize,
+    includeStats,
+    includeFiles,
+    includeBranches,
+  } = options;
+  logger.info("开始补充提交数据", {
+    path,
+    count: hashes.length,
+    batchSize,
+    includeStats,
+    includeFiles,
+    includeBranches,
+  });
+
+  return new Promise<void>(async (resolve, reject) => {
+    let unlisten: UnlistenFn | null = null;
+
+    try {
+      unlisten = await listen<GitEnrichEvent>(
+        "git-enrich-progress",
+        (event) => {
+          const payload = event.payload;
+          onProgress(payload);
+
+          if (payload.type === "end" || payload.type === "cancelled") {
+            if (unlisten) {
+              unlisten();
+              unlisten = null;
+            }
+            resolve();
+          } else if (payload.type === "error") {
+            if (unlisten) {
+              unlisten();
+              unlisten = null;
+            }
+            reject(new Error(payload.message || "Unknown error"));
+          }
+        },
+      );
+
+      await invoke("git_enrich_commits_stream", {
+        path,
+        hashes,
+        batchSize,
+        includeStats,
+        includeFiles,
+        includeBranches,
+      });
+    } catch (error) {
+      if (unlisten) {
+        unlisten();
+      }
+      errorHandler.handle(error as Error, {
+        userMessage: "补充提交数据失败",
+        context: { path, count: hashes.length },
+        showToUser: false,
+      });
       reject(error);
     }
   });

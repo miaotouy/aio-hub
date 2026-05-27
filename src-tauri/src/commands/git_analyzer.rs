@@ -17,7 +17,7 @@
 //! - `git_format_log`: 支持用户自定义格式模板，git2 难以灵活实现
 
 use chrono::TimeZone;
-use git2::{BranchType, Oid, Repository};
+use git2::{BranchType, Delta, Oid, Repository};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -74,6 +74,7 @@ pub struct RepositoryInfo {
 
 lazy_static! {
     static ref CANCEL_TOKEN: Mutex<CancellationToken> = Mutex::new(CancellationToken::new());
+    static ref ENRICH_CANCEL_TOKEN: Mutex<CancellationToken> = Mutex::new(CancellationToken::new());
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -87,11 +88,40 @@ pub enum GitProgressEvent {
         commits: Vec<GitCommit>,
         loaded: usize,
     },
+    Meta {
+        total: usize,
+    },
     End,
     Cancelled,
     Error {
         message: String,
     },
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum GitEnrichEvent {
+    Start {
+        total: usize,
+    },
+    Data {
+        enriched: Vec<CommitEnrichment>,
+        progress: usize,
+    },
+    End,
+    Cancelled,
+    Error {
+        message: String,
+    },
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommitEnrichment {
+    pub hash: String,
+    pub stats: Option<CommitStats>,
+    pub files: Option<Vec<FileChange>>,
+    pub branches: Option<Vec<String>>,
 }
 
 #[tauri::command]
@@ -122,12 +152,163 @@ pub async fn git_cancel_load() -> Result<(), String> {
 }
 
 #[tauri::command]
+pub async fn git_cancel_enrich() -> Result<(), String> {
+    let mut token = ENRICH_CANCEL_TOKEN.lock().map_err(|e| e.to_string())?;
+    token.cancel();
+    *token = CancellationToken::new();
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn git_enrich_commits_stream(
+    window: tauri::Window,
+    path: String,
+    hashes: Vec<String>,
+    batch_size: Option<usize>,
+    include_stats: Option<bool>,
+    include_files: Option<bool>,
+    include_branches: Option<bool>,
+) -> Result<(), String> {
+    let repo_path = if path.is_empty() {
+        ".".to_string()
+    } else {
+        path.clone()
+    };
+    let cancel_token = ENRICH_CANCEL_TOKEN.lock().unwrap().clone();
+
+    tokio::spawn(async move {
+        let total = hashes.len();
+        let _ = window.emit("git-enrich-progress", GitEnrichEvent::Start { total });
+
+        let repo = match Repository::open(&repo_path) {
+            Ok(repo) => repo,
+            Err(e) => {
+                let _ = window.emit(
+                    "git-enrich-progress",
+                    GitEnrichEvent::Error {
+                        message: format!("无法打开仓库: {}", e),
+                    },
+                );
+                return;
+            }
+        };
+
+        let include_stats_val = include_stats.unwrap_or(true);
+        let include_files_val = include_files.unwrap_or(true);
+        let include_branches_val = include_branches.unwrap_or(false);
+        let batch_size_val = batch_size.unwrap_or(50).max(1);
+        let branch_tips = if include_branches_val {
+            get_branch_tips_map(&repo).unwrap_or_default()
+        } else {
+            HashMap::new()
+        };
+
+        let mut progress = 0usize;
+        let mut current_batch = Vec::with_capacity(batch_size_val);
+
+        for hash in hashes {
+            if cancel_token.is_cancelled() {
+                let _ = window.emit("git-enrich-progress", GitEnrichEvent::Cancelled);
+                return;
+            }
+
+            let oid = match Oid::from_str(&hash) {
+                Ok(oid) => oid,
+                Err(e) => {
+                    let _ = window.emit(
+                        "git-enrich-progress",
+                        GitEnrichEvent::Error {
+                            message: format!("无效提交哈希 {}: {}", hash, e),
+                        },
+                    );
+                    return;
+                }
+            };
+
+            let commit = match repo.find_commit(oid) {
+                Ok(commit) => commit,
+                Err(e) => {
+                    let _ = window.emit(
+                        "git-enrich-progress",
+                        GitEnrichEvent::Error {
+                            message: format!("查找提交 {} 失败: {}", hash, e),
+                        },
+                    );
+                    return;
+                }
+            };
+
+            let (stats, files) = if include_stats_val || include_files_val {
+                match get_commit_full_diff_info(&repo, &commit) {
+                    Ok((stats, files)) => (
+                        if include_stats_val { Some(stats) } else { None },
+                        if include_files_val { Some(files) } else { None },
+                    ),
+                    Err(e) => {
+                        let _ = window.emit(
+                            "git-enrich-progress",
+                            GitEnrichEvent::Error {
+                                message: format!("计算提交 {} 变更失败: {}", hash, e),
+                            },
+                        );
+                        return;
+                    }
+                }
+            } else {
+                (None, None)
+            };
+
+            let branches = if include_branches_val {
+                Some(get_commit_branches_optimized(&repo, oid, &branch_tips).unwrap_or_default())
+            } else {
+                None
+            };
+
+            current_batch.push(CommitEnrichment {
+                hash: oid.to_string(),
+                stats,
+                files,
+                branches,
+            });
+            progress += 1;
+
+            if current_batch.len() >= batch_size_val {
+                let _ = window.emit(
+                    "git-enrich-progress",
+                    GitEnrichEvent::Data {
+                        enriched: current_batch.clone(),
+                        progress,
+                    },
+                );
+                current_batch.clear();
+            }
+        }
+
+        if !current_batch.is_empty() {
+            let _ = window.emit(
+                "git-enrich-progress",
+                GitEnrichEvent::Data {
+                    enriched: current_batch,
+                    progress,
+                },
+            );
+        }
+
+        let _ = window.emit("git-enrich-progress", GitEnrichEvent::End);
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn git_load_repository_stream(
     window: tauri::Window,
     path: String,
     limit: usize,
     batch_size: Option<usize>,
     include_files: Option<bool>,
+    include_line_stats: Option<bool>,
+    include_branch_inference: Option<bool>,
 ) -> Result<(), String> {
     let repo_path = if path.is_empty() {
         ".".to_string()
@@ -153,31 +334,12 @@ pub async fn git_load_repository_stream(
             }
         };
 
-        // 获取总提交数
-        let total = match get_total_commits(&repo_path, None) {
-            Ok(t) => {
-                if limit == 0 {
-                    t
-                } else {
-                    t.min(limit)
-                }
-            }
-            Err(e) => {
-                let _ = window.emit(
-                    "git-progress",
-                    GitProgressEvent::Error {
-                        message: format!("获取提交总数失败: {}", e),
-                    },
-                );
-                return;
-            }
-        };
-
-        // 发送开始事件
+        // 先发送开始事件，避免主线程等待完整 revwalk 计数。
+        let estimated_total = limit;
         let _ = window.emit(
             "git-progress",
             GitProgressEvent::Start {
-                total,
+                total: estimated_total,
                 branches: branches.clone(),
             },
         );
@@ -237,8 +399,10 @@ pub async fn git_load_repository_stream(
         };
 
         let include_files_val = include_files.unwrap_or(false);
+        let include_line_stats_val = include_line_stats.unwrap_or(false);
+        let include_branch_inference_val = include_branch_inference.unwrap_or(false);
         let mut current_batch = Vec::with_capacity(if batch_size_val == 0 {
-            total
+            limit.max(1)
         } else {
             batch_size_val
         });
@@ -257,7 +421,15 @@ pub async fn git_load_repository_stream(
                 Err(_) => continue,
             };
 
-            if let Ok(commit) = parse_commit_optimized(&repo, oid, include_files_val, &tags_map, &branch_tips) {
+            if let Ok(commit) = parse_commit_optimized(
+                &repo,
+                oid,
+                include_files_val,
+                include_line_stats_val,
+                include_branch_inference_val,
+                &tags_map,
+                &branch_tips,
+            ) {
                 current_batch.push(commit);
                 loaded += 1;
 
@@ -285,6 +457,8 @@ pub async fn git_load_repository_stream(
                 },
             );
         }
+
+        let _ = window.emit("git-progress", GitProgressEvent::Meta { total: loaded });
 
         // 发送完成事件
         let _ = window.emit("git-progress", GitProgressEvent::End);
@@ -315,6 +489,7 @@ pub async fn git_get_incremental_commits(
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn git_load_incremental_stream(
     window: tauri::Window,
     path: String,
@@ -323,6 +498,8 @@ pub async fn git_load_incremental_stream(
     limit: usize,
     batch_size: Option<usize>,
     include_files: Option<bool>,
+    include_line_stats: Option<bool>,
+    include_branch_inference: Option<bool>,
 ) -> Result<(), String> {
     let repo_path = if path.is_empty() {
         ".".to_string()
@@ -334,23 +511,11 @@ pub async fn git_load_incremental_stream(
 
     // 在后台启动增量加载任务
     tokio::spawn(async move {
-        // 获取总提交数（用于进度展示）
-        let total = match get_total_commits(&repo_path, branch.as_deref()) {
-            Ok(t) => {
-                if limit == 0 {
-                    t
-                } else {
-                    t.min(skip + limit)
-                }
-            }
-            Err(_) => skip + limit, // 降级处理
-        };
-
         // 发送开始事件（增量加载不需要获取分支）
         let _ = window.emit(
             "git-progress",
             GitProgressEvent::Start {
-                total,
+                total: if limit == 0 { 0 } else { skip + limit },
                 branches: vec![],
             },
         );
@@ -435,8 +600,10 @@ pub async fn git_load_incremental_stream(
         }
 
         let include_files_val = include_files.unwrap_or(false);
+        let include_line_stats_val = include_line_stats.unwrap_or(false);
+        let include_branch_inference_val = include_branch_inference.unwrap_or(false);
         let mut current_batch = Vec::with_capacity(if batch_size_val == 0 {
-            limit
+            limit.max(1)
         } else {
             batch_size_val
         });
@@ -451,9 +618,15 @@ pub async fn git_load_incremental_stream(
             }
 
             if let Ok(oid) = oid_result {
-                if let Ok(commit) =
-                    parse_commit_optimized(&repo, oid, include_files_val, &tags_map, &branch_tips)
-                {
+                if let Ok(commit) = parse_commit_optimized(
+                    &repo,
+                    oid,
+                    include_files_val,
+                    include_line_stats_val,
+                    include_branch_inference_val,
+                    &tags_map,
+                    &branch_tips,
+                ) {
                     current_batch.push(commit);
                     loaded += 1;
 
@@ -481,6 +654,8 @@ pub async fn git_load_incremental_stream(
                 },
             );
         }
+
+        let _ = window.emit("git-progress", GitProgressEvent::Meta { total: loaded });
 
         // 发送完成事件
         let _ = window.emit("git-progress", GitProgressEvent::End);
@@ -825,9 +1000,15 @@ fn get_commits_with_skip(
             break;
         }
 
-        if let Ok(commit) =
-            parse_commit_optimized(&repo, oid, include_files, &tags_map, &branch_tips)
-        {
+        if let Ok(commit) = parse_commit_optimized(
+            &repo,
+            oid,
+            include_files,
+            false,
+            false,
+            &tags_map,
+            &branch_tips,
+        ) {
             commits.push(commit);
         }
 
@@ -840,13 +1021,23 @@ fn get_commits_with_skip(
 fn parse_commit(repo: &Repository, oid: Oid, include_files: bool) -> Result<GitCommit, String> {
     let tags_map = get_all_tags_map(repo).unwrap_or_default();
     let branch_tips = get_branch_tips_map(repo).unwrap_or_default();
-    parse_commit_optimized(repo, oid, include_files, &tags_map, &branch_tips)
+    parse_commit_optimized(
+        repo,
+        oid,
+        include_files,
+        true,
+        true,
+        &tags_map,
+        &branch_tips,
+    )
 }
 
 fn parse_commit_optimized(
     repo: &Repository,
     oid: Oid,
     include_files: bool,
+    include_line_stats: bool,
+    include_branch_inference: bool,
     tags_map: &HashMap<Oid, Vec<String>>,
     branch_tips: &HashMap<Oid, Vec<String>>,
 ) -> Result<GitCommit, String> {
@@ -885,20 +1076,22 @@ fn parse_commit_optimized(
     // 获取 tags (从预计算的 Map 中获取，极快)
     let tags = tags_map.get(&oid).cloned().unwrap_or_default();
 
-    // 获取 branches
-    let branches = if let Some(tips) = branch_tips.get(&oid) {
-        tips.clone()
+    // 主加载默认只返回分支 tip，避免每个 commit 做 DAG 后代判断。
+    let branches = if include_branch_inference {
+        branch_tips.get(&oid).cloned().unwrap_or_else(|| {
+            get_commit_branches_optimized(repo, oid, branch_tips).unwrap_or_default()
+        })
     } else {
-        // 如果不是 Tip，则使用启发式规则查找（这里可以根据性能需求决定是否开启）
-        get_commit_branches_optimized(repo, oid, branch_tips).unwrap_or_default()
+        branch_tips.get(&oid).cloned().unwrap_or_default()
     };
 
-    // 获取 stats 和 files
-    let (stats, files) = if include_files {
-        let (s, f) = get_commit_diff_info(repo, &commit)?;
+    // include_files 在主加载中只表示轻量文件路径。完整行级统计由 include_line_stats 或 enrich 阶段触发。
+    let (stats, files) = if include_line_stats {
+        let (s, f) = get_commit_full_diff_info(repo, &commit)?;
         (Some(s), Some(f))
+    } else if include_files {
+        (None, Some(get_commit_file_paths(repo, &commit)?))
     } else {
-        // 优化：在列表模式下，不获取 stats 以大幅提速
         (None, None)
     };
 
@@ -1121,15 +1314,36 @@ fn get_commit_tags(repo_path: &str, hash: &str) -> Result<Vec<String>, String> {
 
 // git2 版本的获取 commit stats
 fn get_commit_stats_git2(repo: &Repository, commit: &git2::Commit) -> Result<CommitStats, String> {
-    let (stats, _) = get_commit_diff_info(repo, commit)?;
+    let (stats, _) = get_commit_full_diff_info(repo, commit)?;
     Ok(stats)
 }
 
-// 获取提交的 diff 信息（stats 和 files）
-fn get_commit_diff_info(
-    repo: &Repository,
-    commit: &git2::Commit,
-) -> Result<(CommitStats, Vec<FileChange>), String> {
+fn delta_status_str(status: Delta) -> String {
+    match status {
+        Delta::Added => "A",
+        Delta::Deleted => "D",
+        Delta::Modified => "M",
+        Delta::Renamed => "R",
+        Delta::Copied => "C",
+        Delta::Typechange => "T",
+        _ => "U",
+    }
+    .to_string()
+}
+
+fn delta_path(delta: &git2::DiffDelta<'_>) -> Option<String> {
+    delta
+        .new_file()
+        .path()
+        .or_else(|| delta.old_file().path())
+        .and_then(|path| path.to_str())
+        .map(|path| path.to_string())
+}
+
+fn create_commit_diff<'repo>(
+    repo: &'repo Repository,
+    commit: &git2::Commit<'repo>,
+) -> Result<git2::Diff<'repo>, String> {
     let a = if commit.parents().len() > 0 {
         let parent = commit
             .parent(0)
@@ -1147,42 +1361,27 @@ fn get_commit_diff_info(
         .tree()
         .map_err(|e| format!("Failed to get commit tree: {}", e))?;
 
-    let diff = repo
-        .diff_tree_to_tree(a.as_ref(), Some(&b), None)
-        .map_err(|e| format!("Failed to create diff: {}", e))?;
+    repo.diff_tree_to_tree(a.as_ref(), Some(&b), None)
+        .map_err(|e| format!("Failed to create diff: {}", e))
+}
 
-    let stats = diff
-        .stats()
-        .map_err(|e| format!("Failed to get diff stats: {}", e))?;
+// Level 1：只获取文件路径和状态，主加载路径使用。
+fn get_commit_file_paths(
+    repo: &Repository,
+    commit: &git2::Commit,
+) -> Result<Vec<FileChange>, String> {
+    let diff = create_commit_diff(repo, commit)?;
 
-    let commit_stats = CommitStats {
-        additions: stats.insertions() as u32,
-        deletions: stats.deletions() as u32,
-        files: stats.files_changed() as u32,
-    };
-
-    let mut files = Vec::new();
+    let mut files: Vec<FileChange> = Vec::new();
     diff.foreach(
         &mut |delta, _| {
-            let status = match delta.status() {
-                git2::Delta::Added => "A",
-                git2::Delta::Deleted => "D",
-                git2::Delta::Modified => "M",
-                git2::Delta::Renamed => "R",
-                git2::Delta::Copied => "C",
-                git2::Delta::Typechange => "T",
-                _ => "U",
-            };
-
-            if let Some(path) = delta.new_file().path() {
-                if let Some(path_str) = path.to_str() {
-                    files.push(FileChange {
-                        path: path_str.to_string(),
-                        status: status.to_string(),
-                        additions: 0, // 将在 line callback 中更新
-                        deletions: 0,
-                    });
-                }
+            if let Some(path) = delta_path(&delta) {
+                files.push(FileChange {
+                    path,
+                    status: delta_status_str(delta.status()),
+                    additions: 0,
+                    deletions: 0,
+                });
             }
             true
         },
@@ -1192,17 +1391,29 @@ fn get_commit_diff_info(
     )
     .map_err(|e| format!("Failed to foreach diff: {}", e))?;
 
-    // 获取每个文件的详细统计
-    let mut file_stats: std::collections::HashMap<String, (u32, u32)> =
-        std::collections::HashMap::new();
+    Ok(files)
+}
 
-    // 先收集所有文件路径
+// Level 2：获取总统计和每文件行级统计，enrich/详情路径使用。
+fn get_commit_full_diff_info(
+    repo: &Repository,
+    commit: &git2::Commit,
+) -> Result<(CommitStats, Vec<FileChange>), String> {
+    let diff = create_commit_diff(repo, commit)?;
+    let mut files: HashMap<String, FileChange> = HashMap::new();
+    let mut total_additions = 0u32;
+    let mut total_deletions = 0u32;
+
+    // 先收集文件路径，保留没有 patch 行的变更（例如纯重命名或二进制文件）。
     diff.foreach(
         &mut |delta, _| {
-            if let Some(path) = delta.new_file().path() {
-                if let Some(path_str) = path.to_str() {
-                    file_stats.insert(path_str.to_string(), (0, 0));
-                }
+            if let Some(path) = delta_path(&delta) {
+                files.entry(path.clone()).or_insert_with(|| FileChange {
+                    path,
+                    status: delta_status_str(delta.status()),
+                    additions: 0,
+                    deletions: 0,
+                });
             }
             true
         },
@@ -1212,32 +1423,39 @@ fn get_commit_diff_info(
     )
     .map_err(|e| format!("Failed to collect file paths: {}", e))?;
 
-    // 然后统计每个文件的行变更
-    diff.print(git2::DiffFormat::Patch, |delta, _hunk, line| {
-        if let Some(path) = delta.new_file().path() {
-            if let Some(path_str) = path.to_str() {
-                if let Some(entry) = file_stats.get_mut(path_str) {
-                    match line.origin() {
-                        '+' => entry.0 += 1,
-                        '-' => entry.1 += 1,
-                        _ => {}
-                    }
+    diff.foreach(
+        &mut |_delta, _| true,
+        None,
+        None,
+        Some(&mut |delta, _hunk, line| {
+            if let Some(path) = delta_path(&delta) {
+                let entry = files.entry(path.clone()).or_insert_with(|| FileChange {
+                    path,
+                    status: delta_status_str(delta.status()),
+                    additions: 0,
+                    deletions: 0,
+                });
+
+                if line.old_lineno().is_none() && line.new_lineno().is_some() {
+                    entry.additions += 1;
+                    total_additions += 1;
+                } else if line.old_lineno().is_some() && line.new_lineno().is_none() {
+                    entry.deletions += 1;
+                    total_deletions += 1;
                 }
             }
-        }
-        true
-    })
+            true
+        }),
+    )
     .map_err(|e| format!("Failed to get line stats: {}", e))?;
 
-    // 更新文件的增删统计
-    for file in &mut files {
-        if let Some((adds, dels)) = file_stats.get(&file.path) {
-            file.additions = *adds;
-            file.deletions = *dels;
-        }
-    }
+    let commit_stats = CommitStats {
+        additions: total_additions,
+        deletions: total_deletions,
+        files: files.len() as u32,
+    };
 
-    Ok((commit_stats, files))
+    Ok((commit_stats, files.into_values().collect()))
 }
 
 // 保留旧版本的函数用于向后兼容
@@ -1261,10 +1479,11 @@ fn get_commit_files(repo_path: &str, hash: &str) -> Result<Vec<FileChange>, Stri
     let commit = repo
         .find_commit(oid)
         .map_err(|e| format!("Failed to find commit: {}", e))?;
-    let (_, files) = get_commit_diff_info(&repo, &commit)?;
+    let (_, files) = get_commit_full_diff_info(&repo, &commit)?;
     Ok(files)
 }
 
+#[allow(dead_code)]
 fn get_total_commits(repo_path: &str, branch: Option<&str>) -> Result<usize, String> {
     let repo =
         Repository::open(repo_path).map_err(|e| format!("Failed to open repository: {}", e))?;

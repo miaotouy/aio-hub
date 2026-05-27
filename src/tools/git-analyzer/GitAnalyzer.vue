@@ -3,8 +3,23 @@
     <InfoCard title="Git 仓库分析" class="analyzer-card">
       <template #headerExtra>
         <el-button-group>
-          <el-button :icon="Refresh" @click="refreshRepository" :loading="loading"> 刷新 </el-button>
-          <el-button :icon="Upload" @click="showExportDialog" :disabled="commits.length === 0"> 导出 </el-button>
+          <el-button :icon="Setting" @click="showLoadConfig = true">
+            设置
+          </el-button>
+          <el-button
+            :icon="Refresh"
+            @click="refreshRepository"
+            :loading="loading"
+          >
+            刷新
+          </el-button>
+          <el-button
+            :icon="Upload"
+            @click="showExportDialog"
+            :disabled="commits.length === 0"
+          >
+            导出
+          </el-button>
         </el-button-group>
       </template>
 
@@ -84,7 +99,15 @@
       :branch="selectedBranch"
       :reverse-order="reverseOrder"
       :initial-config="config?.exportConfig"
+      @enrich-commits="enrichCommits"
+      @cancel-enrich="cancelEnrich"
       @update:exportConfig="handleExportConfigUpdate"
+    />
+
+    <LoadConfigDialog
+      v-model:visible="showLoadConfig"
+      :config="gitLoadConfig"
+      @update:config="updateLoadConfig"
     />
   </div>
 </template>
@@ -92,14 +115,19 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, onMounted, computed } from "vue";
 import { customMessage } from "@/utils/customMessage";
-import { Refresh, Upload } from "@element-plus/icons-vue";
+import { Refresh, Setting, Upload } from "@element-plus/icons-vue";
 import InfoCard from "@components/common/InfoCard.vue";
 import ExportModule from "./components/ExportModule.vue";
 import ControlPanel from "./components/ControlPanel.vue";
 import CommitListView from "./components/CommitListView.vue";
 import ChartsView from "./components/ChartsView.vue";
 import CommitDetailDialog from "./components/CommitDetailDialog.vue";
-import { gitAnalyzerConfigManager, debouncedSaveConfig, type GitAnalyzerConfig } from "./config/config";
+import LoadConfigDialog from "./components/LoadConfigDialog.vue";
+import {
+  gitAnalyzerConfigManager,
+  debouncedSaveConfig,
+  type GitAnalyzerConfig,
+} from "./config/config";
 import { useGitAnalyzerState } from "./composables/useGitAnalyzerState";
 import { useGitAnalyzerRunner } from "./composables/useGitAnalyzerRunner";
 import { useCharts } from "./composables/useCharts";
@@ -132,11 +160,13 @@ const {
   currentPage,
   pageSize,
   exportConfig,
+  loadConfig: gitLoadConfig,
   progress,
   statistics,
   paginatedCommits,
   hasActiveFilters,
   filterSummary,
+  updateLoadConfig,
 } = useGitAnalyzerState();
 
 // 使用运行器（业务编排层）
@@ -149,6 +179,8 @@ const {
   filterCommits,
   clearFilters,
   cancelLoading,
+  enrichCommits,
+  cancelEnrich,
   updateCommitMessage,
 } = useGitAnalyzerRunner();
 
@@ -158,6 +190,7 @@ const chartsViewRef = ref<InstanceType<typeof ChartsView>>();
 // 本地状态
 const activeTab = ref("list");
 const showExport = ref(false);
+const showLoadConfig = ref(false);
 
 // 计算图表视图是否可见
 const isChartTabActive = computed(() => activeTab.value === "chart");
@@ -176,7 +209,8 @@ const { updateCharts, setupResizeObserver } = useCharts(
   isChartTabActive,
 );
 
-const { selectedCommit, showDetail, selectCommit, copyCommitHash, clearCache } = useCommitDetail(() => repoPath.value);
+const { selectedCommit, showDetail, selectCommit, copyCommitHash, clearCache } =
+  useCommitDetail(() => repoPath.value);
 
 // 处理分支切换，并在成功后清空缓存
 async function handleBranchChange(branch: string) {
@@ -209,7 +243,9 @@ function showExportDialog() {
 }
 
 // 处理导出配置更新
-function handleExportConfigUpdate(newExportConfig: GitAnalyzerConfig["exportConfig"]) {
+function handleExportConfigUpdate(
+  newExportConfig: GitAnalyzerConfig["exportConfig"],
+) {
   exportConfig.value = newExportConfig;
   saveCurrentConfig();
 }
@@ -239,12 +275,18 @@ async function loadConfig() {
 
     // 恢复导出配置
     if (loadedConfig.exportConfig) {
-      exportConfig.value = { ...exportConfig.value, ...loadedConfig.exportConfig };
+      exportConfig.value = {
+        ...exportConfig.value,
+        ...loadedConfig.exportConfig,
+      };
     }
 
     // 恢复日期范围（需要将字符串转换为 Date 对象）
     if (loadedConfig.dateRange) {
-      dateRange.value = [new Date(loadedConfig.dateRange[0]), new Date(loadedConfig.dateRange[1])];
+      dateRange.value = [
+        new Date(loadedConfig.dateRange[0]),
+        new Date(loadedConfig.dateRange[1]),
+      ];
     }
     commitRange.value = loadedConfig.commitRange || [0, 0];
   } catch (error) {
@@ -278,7 +320,10 @@ function saveCurrentConfig() {
     searchQuery: searchQuery.value,
     excludeQuery: excludeQuery.value,
     dateRange: dateRange.value
-      ? [new Date(dateRange.value[0]).toISOString(), new Date(dateRange.value[1]).toISOString()]
+      ? [
+          new Date(dateRange.value[0]).toISOString(),
+          new Date(dateRange.value[1]).toISOString(),
+        ]
       : null,
     authorFilter: authorFilter.value,
     commitRange: commitRange.value,

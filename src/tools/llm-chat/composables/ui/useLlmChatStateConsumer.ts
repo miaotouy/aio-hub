@@ -20,7 +20,12 @@ import { useUserProfileStore } from "../../stores/userProfileStore";
 import { useWorldbookStore } from "../../stores/worldbookStore";
 import { useLlmChatUiState } from "./useLlmChatUiState";
 import { createModuleLogger } from "@/utils/logger";
-import type { ChatAgent, ChatSessionIndex, ChatSessionDetail, UserProfile } from "../../types";
+import type {
+  ChatAgent,
+  ChatSessionIndex,
+  ChatSessionDetail,
+  UserProfile,
+} from "../../types";
 import { CHAT_STATE_KEYS, createChatSyncConfig } from "../../types/sync";
 
 const logger = createModuleLogger("LlmChatStateConsumer");
@@ -65,7 +70,10 @@ export function useLlmChatStateConsumer(options: ConsumerOptions = {}) {
     { state: syncedCurrentAgentId, key: CHAT_STATE_KEYS.CURRENT_AGENT_ID },
     // 无论是否同步所有会话，都必须订阅当前会话数据，否则分离窗口无法显示消息
     { state: syncedSessions, key: CHAT_STATE_KEYS.SESSIONS },
-    { state: syncedCurrentSessionData, key: CHAT_STATE_KEYS.CURRENT_SESSION_DATA },
+    {
+      state: syncedCurrentSessionData,
+      key: CHAT_STATE_KEYS.CURRENT_SESSION_DATA,
+    },
     { state: syncedCurrentSessionId, key: CHAT_STATE_KEYS.CURRENT_SESSION_ID },
     { state: syncedUserProfiles, key: CHAT_STATE_KEYS.USER_PROFILES },
     { state: syncedGlobalProfileId, key: CHAT_STATE_KEYS.GLOBAL_PROFILE_ID },
@@ -97,7 +105,7 @@ export function useLlmChatStateConsumer(options: ConsumerOptions = {}) {
         agentStore.agents = newAgents;
       }
     },
-    { deep: true },
+    { deep: true }
   );
 
   watch(syncedCurrentAgentId, (newId) => {
@@ -146,11 +154,13 @@ export function useLlmChatStateConsumer(options: ConsumerOptions = {}) {
     syncedUserProfiles,
     (newProfiles) => {
       if (newProfiles && newProfiles.length > 0) {
-        logger.info("接收到 userProfiles 同步数据", { count: newProfiles.length });
+        logger.info("接收到 userProfiles 同步数据", {
+          count: newProfiles.length,
+        });
         userProfileStore.profiles = newProfiles;
       }
     },
-    { deep: true },
+    { deep: true }
   );
 
   watch(syncedGlobalProfileId, (newId) => {
@@ -166,7 +176,7 @@ export function useLlmChatStateConsumer(options: ConsumerOptions = {}) {
         worldbookStore.worldbooks = newWbs;
       }
     },
-    { deep: true },
+    { deep: true }
   );
 
   watch(syncedIsSending, (newValue) => {

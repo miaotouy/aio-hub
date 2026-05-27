@@ -113,7 +113,11 @@ export async function loadFile(filePath: string): Promise<FileReadResult> {
  * @param options 补丁选项
  * @returns 补丁生成结果
  */
-export function generatePatch(oldText: string, newText: string, options: PatchOptions = {}): PatchResult {
+export function generatePatch(
+  oldText: string,
+  newText: string,
+  options: PatchOptions = {}
+): PatchResult {
   logger.debug("生成补丁", { options });
 
   if (!oldText && !newText) {
@@ -147,7 +151,15 @@ export function generatePatch(oldText: string, newText: string, options: PatchOp
         .join("\n");
     }
 
-    const patch = createTwoFilesPatch(oldFileName, newFileName, processedOld, processedNew, "", "", { context });
+    const patch = createTwoFilesPatch(
+      oldFileName,
+      newFileName,
+      processedOld,
+      processedNew,
+      "",
+      "",
+      { context }
+    );
 
     if (!patch || patch.trim().length === 0) {
       return {
@@ -166,7 +178,10 @@ export function generatePatch(oldText: string, newText: string, options: PatchOp
       success: true,
     };
   } catch (error: any) {
-    errorHandler.handle(error as Error, { userMessage: "生成补丁失败", showToUser: false });
+    errorHandler.handle(error as Error, {
+      userMessage: "生成补丁失败",
+      showToUser: false,
+    });
     return {
       patch: "",
       success: false,

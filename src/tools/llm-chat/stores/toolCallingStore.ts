@@ -22,7 +22,7 @@ export const useToolCallingStore = defineStore("toolCalling", () => {
   function requestApproval(
     sessionId: string,
     request: ParsedToolRequest,
-    externalId?: string,
+    externalId?: string
   ): Promise<ToolApprovalResult> {
     return new Promise((resolve) => {
       pendingRequests.value.push({
@@ -63,29 +63,39 @@ export const useToolCallingStore = defineStore("toolCalling", () => {
    * 批准所有（针对当前会话）
    */
   function approveAll(sessionId: string) {
-    const requestsToApprove = pendingRequests.value.filter((r) => r.sessionId === sessionId);
+    const requestsToApprove = pendingRequests.value.filter(
+      (r) => r.sessionId === sessionId
+    );
     requestsToApprove.forEach((r) => {
       r.resolve("approved");
     });
-    pendingRequests.value = pendingRequests.value.filter((r) => r.sessionId !== sessionId);
+    pendingRequests.value = pendingRequests.value.filter(
+      (r) => r.sessionId !== sessionId
+    );
   }
 
   /**
    * 拒绝所有（针对当前会话）
    */
   function rejectAll(sessionId: string) {
-    const requestsToReject = pendingRequests.value.filter((r) => r.sessionId === sessionId);
+    const requestsToReject = pendingRequests.value.filter(
+      (r) => r.sessionId === sessionId
+    );
     requestsToReject.forEach((r) => {
       r.resolve("rejected");
     });
-    pendingRequests.value = pendingRequests.value.filter((r) => r.sessionId !== sessionId);
+    pendingRequests.value = pendingRequests.value.filter(
+      (r) => r.sessionId !== sessionId
+    );
   }
 
   /**
    * 处理外部响应（用于同步状态，例如 VCP 另一端已经批准了）
    */
   function handleExternalResponse(externalId: string, approved: boolean) {
-    const index = pendingRequests.value.findIndex((r) => r.externalId === externalId);
+    const index = pendingRequests.value.findIndex(
+      (r) => r.externalId === externalId
+    );
     if (index !== -1) {
       const pending = pendingRequests.value[index];
       // 如果外部已经处理了，我们这边静默完成

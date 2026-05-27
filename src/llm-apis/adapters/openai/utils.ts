@@ -13,9 +13,15 @@ export const openAiUrlHandler = {
   ): string => {
     // 如果提供了 profile 且有对应的自定义端点，则优先使用
     if (profile?.customEndpoints) {
-      const custom = profile.customEndpoints as Record<string, string | undefined>;
+      const custom = profile.customEndpoints as Record<
+        string,
+        string | undefined
+      >;
       // 根据 endpoint 映射到对应的自定义配置键
-      const mapping: Record<string, keyof NonNullable<LlmProfile["customEndpoints"]>> = {
+      const mapping: Record<
+        string,
+        keyof NonNullable<LlmProfile["customEndpoints"]>
+      > = {
         "chat/completions": "chatCompletions",
         completions: "completions",
         models: "models",
@@ -71,7 +77,9 @@ export const openAiUrlHandler = {
       host.includes("/api/v")
         ? host
         : `${host}v1/`;
-    return endpoint ? `${versionedHost}${endpoint}` : `${versionedHost}chat/completions`;
+    return endpoint
+      ? `${versionedHost}${endpoint}`
+      : `${versionedHost}chat/completions`;
   },
   getHint: (): string => {
     return "将自动补全版本号(如 /v1/)及端点(如 /chat/completions)，如需禁用请在URL末尾加#";
@@ -92,7 +100,9 @@ export const openAiResponsesUrlHandler = {
       host.includes("/api/v")
         ? host
         : `${host}v1/`;
-    return endpoint ? `${versionedHost}${endpoint}` : `${versionedHost}responses`;
+    return endpoint
+      ? `${versionedHost}${endpoint}`
+      : `${versionedHost}responses`;
   },
   getHint: (): string => {
     return "将自动补全版本号(如 /v1/)及端点(如 /responses)，支持工具调用和推理的有状态交互";
@@ -137,15 +147,23 @@ export function parseOpenAiModelsResponse(data: any): LlmModelInfo[] {
   if (data.data && Array.isArray(data.data)) {
     for (const model of data.data) {
       // 检测是否为增强格式（有更多字段，如 OpenRouter）
-      const isEnhancedFormat = model.context_length || model.architecture || model.pricing;
+      const isEnhancedFormat =
+        model.context_length || model.architecture || model.pricing;
 
       const modelInfo: LlmModelInfo = {
         id: model.id,
         name: model.name || model.id,
-        group: extractModelGroup(model.id, "openai", model.owned_by || "openai"),
+        group: extractModelGroup(
+          model.id,
+          "openai",
+          model.owned_by || "openai"
+        ),
         provider: model.owned_by || "openai",
         description: model.description,
-        capabilities: extractModelCapabilities(model.id, model.owned_by || "openai"),
+        capabilities: extractModelCapabilities(
+          model.id,
+          model.owned_by || "openai"
+        ),
       };
 
       // 解析增强字段
@@ -153,7 +171,8 @@ export function parseOpenAiModelsResponse(data: any): LlmModelInfo[] {
         if (model.context_length) {
           modelInfo.tokenLimits = { contextLength: model.context_length };
           if (model.top_provider?.max_completion_tokens) {
-            modelInfo.tokenLimits.output = model.top_provider.max_completion_tokens;
+            modelInfo.tokenLimits.output =
+              model.top_provider.max_completion_tokens;
           }
         }
 
@@ -184,7 +203,9 @@ export function parseOpenAiModelsResponse(data: any): LlmModelInfo[] {
         }
 
         if (model.supported_parameters) {
-          modelInfo.supportedFeatures = { parameters: model.supported_parameters };
+          modelInfo.supportedFeatures = {
+            parameters: model.supported_parameters,
+          };
         }
 
         if (model.default_parameters) {
@@ -211,7 +232,10 @@ function extractModelCapabilities(modelId: string, provider?: string) {
   ).sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
   for (const rule of rules) {
-    if (testRuleMatch(rule, modelId, provider) && rule.properties?.capabilities) {
+    if (
+      testRuleMatch(rule, modelId, provider) &&
+      rule.properties?.capabilities
+    ) {
       return rule.properties.capabilities;
     }
   }
@@ -221,7 +245,11 @@ function extractModelCapabilities(modelId: string, provider?: string) {
 /**
  * 内部辅助：提取模型分组
  */
-function extractModelGroup(modelId: string, _providerType: string, provider?: string): string {
+function extractModelGroup(
+  modelId: string,
+  _providerType: string,
+  provider?: string
+): string {
   const rules = DEFAULT_METADATA_RULES.filter(
     (r) => r.enabled !== false && r.properties?.group
   ).sort((a, b) => (b.priority || 0) - (a.priority || 0));

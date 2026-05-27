@@ -1,7 +1,12 @@
 <template>
   <div class="property-panel-float" :class="{ collapsed: isCollapsed }">
     <!-- 折叠状态下的触发按钮 -->
-    <button v-if="isCollapsed" class="panel-toggle" title="展开属性面板" @click="isCollapsed = false">
+    <button
+      v-if="isCollapsed"
+      class="panel-toggle"
+      title="展开属性面板"
+      @click="isCollapsed = false"
+    >
       <Palette :size="18" />
     </button>
 
@@ -53,7 +58,10 @@
 
       <!-- 4. 选中对象属性编辑 (选择工具或文字工具下有选中对象) -->
       <SelectionProps
-        v-else-if="(activeTool === 'select' || activeTool === 'text') && selectionInfo.count > 0"
+        v-else-if="
+          (activeTool === 'select' || activeTool === 'text') &&
+          selectionInfo.count > 0
+        "
         :selection-info="selectionInfo"
         @update-prop="(key, val) => actions.updateSelectionProp(key, val)"
         @update-props="(data) => actions.updateSelectionProps(data)"
@@ -132,7 +140,10 @@ const panelTitle = computed(() => {
   if (isBrushTool.value) return "画笔";
   if (isShapeTool.value) return "形状";
   // 文字工具或选择工具下有选中对象时，显示对象类型
-  if ((activeTool.value === "text" || activeTool.value === "select") && selectionInfo.value.count > 0) {
+  if (
+    (activeTool.value === "text" || activeTool.value === "select") &&
+    selectionInfo.value.count > 0
+  ) {
     if (selectionInfo.value.count === 1 && selectionInfo.value.singleObject) {
       const typeLabels: Record<string, string> = {
         rect: "矩形",

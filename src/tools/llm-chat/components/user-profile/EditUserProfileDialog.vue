@@ -10,7 +10,7 @@
       <div v-loading="isLoading" element-loading-text="正在加载档案详情...">
         <UserProfileForm
           v-if="!isLoading"
-          v-model="(form as any)"
+          v-model="form as any"
           :profile-id="profile?.id"
           :required="true"
           :description-rows="8"
@@ -25,7 +25,13 @@
 
     <template #footer>
       <el-button @click="handleVisibleChange(false)">取消</el-button>
-      <el-button type="primary" @click="handleSave" :disabled="!isValid || isLoading"> 保存 </el-button>
+      <el-button
+        type="primary"
+        @click="handleSave"
+        :disabled="!isValid || isLoading"
+      >
+        保存
+      </el-button>
     </template>
   </BaseDialog>
 </template>
@@ -36,7 +42,11 @@ import BaseDialog from "@/components/common/BaseDialog.vue";
 import UserProfileForm from "@/views/Settings/user-profile/components/UserProfileForm.vue";
 import { customMessage } from "@/utils/customMessage";
 import { useUserProfileStore } from "../../stores/userProfileStore";
-import { type UserProfile, type UserProfileUpdateData, createDefaultUserProfileConfig } from "../../types";
+import {
+  type UserProfile,
+  type UserProfileUpdateData,
+  createDefaultUserProfileConfig,
+} from "../../types";
 
 interface Props {
   visible: boolean;
@@ -81,11 +91,14 @@ const ensureDataLoaded = async () => {
 };
 
 // 监听可见性变化，打开时触发加载
-watch(() => props.visible, (visible) => {
-  if (visible) {
-    ensureDataLoaded();
+watch(
+  () => props.visible,
+  (visible) => {
+    if (visible) {
+      ensureDataLoaded();
+    }
   }
-});
+);
 
 // 监听传入的档案数据变化
 watch(
@@ -101,14 +114,16 @@ watch(
       // 使用解构赋值，自动包含所有字段
       form.value = {
         ...defaults, // 先应用默认值
-        ...profile,  // 再应用实际值
+        ...profile, // 再应用实际值
         // 确保必填字段不为 undefined
         content: profile.content ?? "",
         // 确保可选字段不为 undefined/null
         displayName: profile.displayName ?? defaults.displayName,
         icon: profile.icon ?? defaults.icon,
-        richTextStyleOptions: profile.richTextStyleOptions ?? defaults.richTextStyleOptions,
-        richTextStyleBehavior: profile.richTextStyleBehavior ?? defaults.richTextStyleBehavior,
+        richTextStyleOptions:
+          profile.richTextStyleOptions ?? defaults.richTextStyleOptions,
+        richTextStyleBehavior:
+          profile.richTextStyleBehavior ?? defaults.richTextStyleBehavior,
         regexConfig: profile.regexConfig ?? defaults.regexConfig,
         worldbookIds: profile.worldbookIds ?? defaults.worldbookIds ?? [],
       };
@@ -119,7 +134,9 @@ watch(
 
 // 验证表单是否有效
 const isValid = computed(() => {
-  return form.value.name.trim() !== "" && (form.value.content?.trim() ?? "") !== "";
+  return (
+    form.value.name.trim() !== "" && (form.value.content?.trim() ?? "") !== ""
+  );
 });
 
 // 处理对话框显示状态变化

@@ -50,20 +50,26 @@ class Logger {
       const appDir = await getAppConfigDir();
       this.logsDir = await join(appDir, "logs");
 
-      const isDirExists = await invoke<boolean>("path_exists", { path: this.logsDir });
+      const isDirExists = await invoke<boolean>("path_exists", {
+        path: this.logsDir,
+      });
       if (!isDirExists) {
         await invoke("create_dir_force", { path: this.logsDir });
       }
 
       // 使用应用时区生成文件名，避免时区导致日期偏差
-      const date = formatDateTime(new Date(), 'yyyy-MM-dd');
+      const date = formatDateTime(new Date(), "yyyy-MM-dd");
 
       this.logFilePath = await join(this.logsDir, `app-${date}.log`);
 
       // 获取当前文件大小
-      const isFileExists = await invoke<boolean>("path_exists", { path: this.logFilePath });
+      const isFileExists = await invoke<boolean>("path_exists", {
+        path: this.logFilePath,
+      });
       if (isFileExists) {
-        const fileInfo = await invoke<{ size: number }>("get_file_metadata", { path: this.logFilePath });
+        const fileInfo = await invoke<{ size: number }>("get_file_metadata", {
+          path: this.logFilePath,
+        });
         this.currentFileSize = fileInfo.size;
       } else {
         this.currentFileSize = 0;
@@ -147,14 +153,18 @@ class Logger {
     try {
       // 2. 真实性检查：多窗口环境下，内存状态可能滞后
       // 必须获取文件实际大小，确认是否真的需要轮转
-      const isExists = await invoke<boolean>("path_exists", { path: this.logFilePath });
+      const isExists = await invoke<boolean>("path_exists", {
+        path: this.logFilePath,
+      });
       if (!isExists) {
         // 文件不存在，说明可能被删除了或刚被轮转，重置状态
         this.currentFileSize = 0;
         return;
       }
 
-      const fileInfo = await invoke<{ size: number }>("get_file_metadata", { path: this.logFilePath });
+      const fileInfo = await invoke<{ size: number }>("get_file_metadata", {
+        path: this.logFilePath,
+      });
       const realSize = fileInfo.size;
 
       // 如果实际大小小于阈值，说明文件已经被其他实例轮转过了
@@ -168,8 +178,8 @@ class Logger {
       // 3. 执行轮转
       // 生成备份文件名: app-YYYY-MM-DD.HH-mm-ss.log (使用应用时区)
       const now = new Date();
-      const dateStr = formatDateTime(now, 'yyyy-MM-dd');
-      const timeStr = formatDateTime(now, 'HH-mm-ss');
+      const dateStr = formatDateTime(now, "yyyy-MM-dd");
+      const timeStr = formatDateTime(now, "HH-mm-ss");
       const backupName = `app-${dateStr}.${timeStr}.log`;
       const backupPath = await join(this.logsDir, backupName);
 
@@ -190,7 +200,6 @@ class Logger {
       this.isRotating = false;
     }
   }
-
 
   /**
    * 格式化日志条目
@@ -235,18 +244,18 @@ class Logger {
         // 根据日志级别选择合适的控制台方法
         const consoleMethod = this.getConsoleMethod(entry.level);
         consoleMethod(groupTitle);
-        console.groupCollapsed('详细信息');
+        console.groupCollapsed("详细信息");
 
         if (entry.data) {
           try {
-            console.log('数据:', entry.data);
+            console.log("数据:", entry.data);
           } catch (error) {
-            console.log('数据: [无法序列化]');
+            console.log("数据: [无法序列化]");
           }
         }
 
         if (entry.stack) {
-          console.log('堆栈:', entry.stack);
+          console.log("堆栈:", entry.stack);
         }
 
         console.groupEnd();
@@ -284,7 +293,7 @@ class Logger {
         // 使用 Rust 后端命令强制追加，绕过前端 Scope 限制
         const encoder = new TextEncoder();
         const uint8Array = encoder.encode(logLine);
-        
+
         // 性能监控：记录大数据量的 IPC 调用
         const isLargeLog = uint8Array.length > 500000;
         const startTime = isLargeLog ? performance.now() : 0;
@@ -293,12 +302,14 @@ class Logger {
           path: this.logFilePath,
           // 关键优化：Tauri v2 支持直接传递 Uint8Array，
           // 使用 Array.from 会导致数据膨胀数倍且序列化极其缓慢
-          content: uint8Array
+          content: uint8Array,
         });
 
         if (isLargeLog) {
           const duration = performance.now() - startTime;
-          console.debug(`[Logger] 大日志 IPC 写入耗时: ${duration.toFixed(2)}ms, 大小: ${(uint8Array.length / 1024).toFixed(2)}KB`);
+          console.debug(
+            `[Logger] 大日志 IPC 写入耗时: ${duration.toFixed(2)}ms, 大小: ${(uint8Array.length / 1024).toFixed(2)}KB`
+          );
         }
 
         this.currentFileSize += lineSize;
@@ -339,7 +350,7 @@ class Logger {
     collapsed?: boolean
   ): LogEntry {
     // 使用应用时区格式 YYYY-MM-DD HH:mm:ss.SSS
-    const timestamp = formatDateTime(new Date(), 'yyyy-MM-dd HH:mm:ss.SSS');
+    const timestamp = formatDateTime(new Date(), "yyyy-MM-dd HH:mm:ss.SSS");
 
     return {
       timestamp,
@@ -357,7 +368,16 @@ class Logger {
    */
   debug(module: string, message: string, data?: any, collapsed?: boolean) {
     if (this.currentLevel <= LogLevel.DEBUG) {
-      this.writeLog(this.createEntry(LogLevel.DEBUG, module, message, data, undefined, collapsed));
+      this.writeLog(
+        this.createEntry(
+          LogLevel.DEBUG,
+          module,
+          message,
+          data,
+          undefined,
+          collapsed
+        )
+      );
     }
   }
 
@@ -366,7 +386,16 @@ class Logger {
    */
   info(module: string, message: string, data?: any, collapsed?: boolean) {
     if (this.currentLevel <= LogLevel.INFO) {
-      this.writeLog(this.createEntry(LogLevel.INFO, module, message, data, undefined, collapsed));
+      this.writeLog(
+        this.createEntry(
+          LogLevel.INFO,
+          module,
+          message,
+          data,
+          undefined,
+          collapsed
+        )
+      );
     }
   }
 
@@ -375,16 +404,40 @@ class Logger {
    */
   warn(module: string, message: string, data?: any, collapsed?: boolean) {
     if (this.currentLevel <= LogLevel.WARN) {
-      this.writeLog(this.createEntry(LogLevel.WARN, module, message, data, undefined, collapsed));
+      this.writeLog(
+        this.createEntry(
+          LogLevel.WARN,
+          module,
+          message,
+          data,
+          undefined,
+          collapsed
+        )
+      );
     }
   }
 
   /**
    * Error 日志
    */
-  error(module: string, message: string, error?: Error | any, data?: any, collapsed?: boolean) {
+  error(
+    module: string,
+    message: string,
+    error?: Error | any,
+    data?: any,
+    collapsed?: boolean
+  ) {
     const errorObj = error instanceof Error ? error : new Error(String(error));
-    this.writeLog(this.createEntry(LogLevel.ERROR, module, message, data, errorObj, collapsed));
+    this.writeLog(
+      this.createEntry(
+        LogLevel.ERROR,
+        module,
+        message,
+        data,
+        errorObj,
+        collapsed
+      )
+    );
   }
 
   /**
@@ -406,13 +459,15 @@ class Logger {
    */
   async exportLogs(filePath: string): Promise<void> {
     try {
-      const logs = this.logBuffer.map((entry) => this.formatLogEntry(entry)).join("\n");
+      const logs = this.logBuffer
+        .map((entry) => this.formatLogEntry(entry))
+        .join("\n");
       // 导出日志也使用强制写入命令
       const encoder = new TextEncoder();
       const uint8Array = encoder.encode(logs);
       await invoke("write_file_force", {
         path: filePath,
-        content: uint8Array
+        content: uint8Array,
       });
     } catch (error) {
       console.error("导出日志失败:", error);
@@ -433,7 +488,11 @@ export function createModuleLogger(moduleName: string) {
       logger.info(moduleName, message, data, collapsed),
     warn: (message: string, data?: any, collapsed?: boolean) =>
       logger.warn(moduleName, message, data, collapsed),
-    error: (message: string, error?: Error | any, data?: any, collapsed?: boolean) =>
-      logger.error(moduleName, message, error, data, collapsed),
+    error: (
+      message: string,
+      error?: Error | any,
+      data?: any,
+      collapsed?: boolean
+    ) => logger.error(moduleName, message, error, data, collapsed),
   };
 }

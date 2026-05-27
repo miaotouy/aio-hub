@@ -94,7 +94,11 @@ export interface PresetSlot {
 ```typescript
 // src/types/translation-profiles.ts
 
-export type TraditionalProviderType = "deepl" | "google" | "microsoft" | "custom";
+export type TraditionalProviderType =
+  | "deepl"
+  | "google"
+  | "microsoft"
+  | "custom";
 
 export interface TraditionalProfile {
   id: string;

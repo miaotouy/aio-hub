@@ -5,7 +5,10 @@
       <template v-if="item.groupCollapsible">
         <!-- 只有组内第一个元素负责渲染折叠容器 -->
         <template v-if="isFirstInGroup(index)">
-          <el-collapse v-model="localActiveGroups" class="group-collapsible-container">
+          <el-collapse
+            v-model="localActiveGroups"
+            class="group-collapsible-container"
+          >
             <el-collapse-item
               :title="item.groupCollapsible.title"
               :name="item.groupCollapsible.name"
@@ -15,7 +18,10 @@
                 :key="subItem.id"
               >
                 <SettingItemRenderer
-                  v-if="!subItem.visible || subItem.visible(settingsContext || settings)"
+                  v-if="
+                    !subItem.visible ||
+                    subItem.visible(settingsContext || settings)
+                  "
                   :item="subItem"
                   :settings="settingsContext || settings"
                   :actual-settings="settings"

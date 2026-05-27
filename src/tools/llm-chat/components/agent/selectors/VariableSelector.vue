@@ -2,7 +2,13 @@
   <div class="variable-selector">
     <div class="variable-selector-header">
       <span class="title">可用变量列表</span>
-      <el-input v-model="searchText" placeholder="搜索变量..." size="small" clearable style="width: 200px">
+      <el-input
+        v-model="searchText"
+        placeholder="搜索变量..."
+        size="small"
+        clearable
+        style="width: 200px"
+      >
         <template #prefix>
           <el-icon><Search /></el-icon>
         </template>
@@ -11,7 +17,10 @@
 
     <div class="variable-selector-body">
       <!-- 根级变量 -->
-      <div v-if="filteredVariables.root && filteredVariables.root.length > 0" class="variable-group">
+      <div
+        v-if="filteredVariables.root && filteredVariables.root.length > 0"
+        class="variable-group"
+      >
         <div class="variable-group-title">根级变量</div>
         <div class="variable-list">
           <el-tooltip
@@ -22,8 +31,14 @@
             effect="light"
           >
             <div class="variable-item" @click="handleInsertVariable(variable)">
-              <span class="variable-name">{{ formatVariableName(variable.path) }}</span>
-              <el-tag v-if="variable.type" size="small" class="variable-type-tag">
+              <span class="variable-name">{{
+                formatVariableName(variable.path)
+              }}</span>
+              <el-tag
+                v-if="variable.type"
+                size="small"
+                class="variable-type-tag"
+              >
                 {{ variable.type }}
               </el-tag>
               <el-icon class="insert-icon"><Plus /></el-icon>
@@ -33,7 +48,11 @@
       </div>
 
       <!-- 分组变量 -->
-      <div v-for="group in filteredVariables.groups" :key="group.name" class="variable-group">
+      <div
+        v-for="group in filteredVariables.groups"
+        :key="group.name"
+        class="variable-group"
+      >
         <div class="variable-group-title">{{ group.name }}</div>
         <div class="variable-list">
           <el-tooltip
@@ -44,8 +63,14 @@
             effect="light"
           >
             <div class="variable-item" @click="handleInsertVariable(variable)">
-              <span class="variable-name">{{ formatVariableName(variable.path) }}</span>
-              <el-tag v-if="variable.type" size="small" class="variable-type-tag">
+              <span class="variable-name">{{
+                formatVariableName(variable.path)
+              }}</span>
+              <el-tag
+                v-if="variable.type"
+                size="small"
+                class="variable-type-tag"
+              >
                 {{ variable.type }}
               </el-tag>
               <el-icon class="insert-icon"><Plus /></el-icon>
@@ -106,7 +131,11 @@ const flattenedVariables = computed(() => {
     groups: [],
   };
 
-  const flatten = (nodes: VariableTreeNode[], parentPath = "", groupName?: string) => {
+  const flatten = (
+    nodes: VariableTreeNode[],
+    parentPath = "",
+    groupName?: string
+  ) => {
     nodes.forEach((node) => {
       const currentPath = parentPath ? `${parentPath}.${node.key}` : node.key;
 
@@ -157,7 +186,9 @@ const filteredVariables = computed(() => {
 
   // 过滤根级变量
   result.root = flattenedVariables.value.root.filter(
-    (v) => v.path.toLowerCase().includes(searchLower) || v.description?.toLowerCase().includes(searchLower)
+    (v) =>
+      v.path.toLowerCase().includes(searchLower) ||
+      v.description?.toLowerCase().includes(searchLower)
   );
 
   // 过滤分组变量
@@ -184,7 +215,10 @@ const filteredVariables = computed(() => {
  * 是否有任何变量
  */
 const hasAnyVariables = computed(() => {
-  return filteredVariables.value.root.length > 0 || filteredVariables.value.groups.length > 0;
+  return (
+    filteredVariables.value.root.length > 0 ||
+    filteredVariables.value.groups.length > 0
+  );
 });
 
 /**
@@ -208,7 +242,9 @@ function getVariableTooltip(variable: VariableItem): string {
 
   if (variable.initialValue !== undefined) {
     const valueStr = JSON.stringify(variable.initialValue);
-    parts.push(`初始值: ${valueStr.length > 50 ? valueStr.slice(0, 50) + "..." : valueStr}`);
+    parts.push(
+      `初始值: ${valueStr.length > 50 ? valueStr.slice(0, 50) + "..." : valueStr}`
+    );
   }
 
   if (variable.description) {
@@ -291,7 +327,11 @@ function handleInsertVariable(variable: VariableItem) {
 }
 
 .variable-item:hover {
-  background-color: color-mix(in srgb, var(--el-color-primary-light-5) 20%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-primary-light-5) 20%,
+    transparent
+  );
   transform: translateX(2px);
 }
 

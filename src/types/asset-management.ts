@@ -247,7 +247,12 @@ export interface DuplicateFilesResult {
 /**
  * 资产分组方式
  */
-export type AssetGroupBy = "month" | "type" | "origin" | "source-module" | "none";
+export type AssetGroupBy =
+  | "month"
+  | "type"
+  | "origin"
+  | "source-module"
+  | "none";
 
 // --- 懒加载与分页类型 ---
 

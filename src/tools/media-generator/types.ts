@@ -10,7 +10,12 @@ export type MediaTaskType = "image" | "video" | "audio";
 /**
  * 媒体生成任务状态
  */
-export type MediaTaskStatus = "pending" | "processing" | "completed" | "error" | "cancelled";
+export type MediaTaskStatus =
+  | "pending"
+  | "processing"
+  | "completed"
+  | "error"
+  | "cancelled";
 /**
  * 媒体生成消息
  * 继承自聊天消息节点，增强媒体生成相关的元数据
@@ -231,7 +236,8 @@ export interface GenerationSessionDetail {
 /**
  * 媒体生成会话（完整对象，兼容旧代码）
  */
-export interface GenerationSession extends MediaSessionIndexItem, GenerationSessionDetail {
+export interface GenerationSession
+  extends MediaSessionIndexItem, GenerationSessionDetail {
   /** 兼容旧版字段 (可选，迁移后可移除) */
   messages?: MediaMessage[];
 }

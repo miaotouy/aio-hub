@@ -27,7 +27,7 @@ export class Extractor {
     doc: Document,
     targetSelectors: string[] = [],
     scrapedMetadata?: ScrapedMetadata,
-    recipe?: SiteRecipe,
+    recipe?: SiteRecipe
   ): ExtractedData {
     let mainElement: HTMLElement | null = null;
     let title = doc.title;
@@ -38,7 +38,10 @@ export class Extractor {
         const url = new URL(doc.baseURI || "https://example.com");
         const result = recipe.evaluatorFn(doc, url);
         if (result && result.length > 50) {
-          logger.info("Programmatic evaluator produced content", { recipeId: recipe.id, length: result.length });
+          logger.info("Programmatic evaluator produced content", {
+            recipeId: recipe.id,
+            length: result.length,
+          });
           const container = doc.createElement("div");
           // evaluatorFn 返回的是 Markdown 文本，包裹在 <pre> 中保留格式
           // 后续 Converter 会检测到 pre 标签并保留原始内容
@@ -51,7 +54,10 @@ export class Extractor {
           };
         }
       } catch (e) {
-        logger.warn("Programmatic evaluator failed, falling back", { recipeId: recipe?.id, error: e });
+        logger.warn("Programmatic evaluator failed, falling back", {
+          recipeId: recipe?.id,
+          error: e,
+        });
       }
     }
 
@@ -115,9 +121,11 @@ export class Extractor {
     // 数据源优先级：ScrapedMetadata (脚本) > Extractor (DOM/Meta)
     if (scrapedMetadata) {
       if (scrapedMetadata.title) title = scrapedMetadata.title;
-      if (scrapedMetadata.description) metadata.description = scrapedMetadata.description;
+      if (scrapedMetadata.description)
+        metadata.description = scrapedMetadata.description;
       if (scrapedMetadata.author) metadata.author = scrapedMetadata.author;
-      if (scrapedMetadata.publishDate) metadata.publishDate = scrapedMetadata.publishDate;
+      if (scrapedMetadata.publishDate)
+        metadata.publishDate = scrapedMetadata.publishDate;
 
       // 正文兜底：如果 DOM 提取的正文为空或过短
       const domContentLen = mainElement.textContent?.trim().length || 0;
@@ -129,10 +137,15 @@ export class Extractor {
           mainElement = container;
         }
         // 2. 如果脚本没有 content 但有较长的 description，回退到 description
-        else if (scrapedMetadata.description && scrapedMetadata.description.length > domContentLen) {
+        else if (
+          scrapedMetadata.description &&
+          scrapedMetadata.description.length > domContentLen
+        ) {
           const container = doc.createElement("div");
           // 清洗 description 中的 HTML 标签后包装成段落
-          const cleanDesc = scrapedMetadata.description.replace(/<[^>]*>/g, "").trim();
+          const cleanDesc = scrapedMetadata.description
+            .replace(/<[^>]*>/g, "")
+            .trim();
           container.innerHTML = `<p>${cleanDesc}</p>`;
           mainElement = container;
         }
@@ -155,7 +168,9 @@ export class Extractor {
     if (!body) return null;
 
     // 统计外链数量
-    const allLinks = Array.from(body.querySelectorAll("a[href]")) as HTMLAnchorElement[];
+    const allLinks = Array.from(
+      body.querySelectorAll("a[href]")
+    ) as HTMLAnchorElement[];
     const externalLinks = allLinks.filter((a) => {
       const href = a.href;
       return href && href.startsWith("http") && !href.startsWith("javascript:");
@@ -167,16 +182,22 @@ export class Extractor {
 
     // 判定条件：外链 > 30 个，且正文文字少于 500 字（排除正常文章页）
     // 或者链接数/文字数比值极高
-    const linkDensity = textLength > 0 ? externalLinks.length / (textLength / 100) : 0;
+    const linkDensity =
+      textLength > 0 ? externalLinks.length / (textLength / 100) : 0;
     if (externalLinks.length < 30 || (textLength > 2000 && linkDensity < 1.5)) {
       return null;
     }
 
     // 尝试按语义分组提取
-    const groups: { heading: string; links: { title: string; url: string }[] }[] = [];
+    const groups: {
+      heading: string;
+      links: { title: string; url: string }[];
+    }[] = [];
 
     // 策略1：查找 heading + 紧随的链接列表
-    const headings = Array.from(body.querySelectorAll("h1, h2, h3, h4, h5, h6, [role='heading']"));
+    const headings = Array.from(
+      body.querySelectorAll("h1, h2, h3, h4, h5, h6, [role='heading']")
+    );
     for (const heading of headings) {
       const headingText = heading.textContent?.trim();
       if (!headingText || headingText.length > 50) continue;
@@ -185,7 +206,9 @@ export class Extractor {
       const container = heading.parentElement;
       if (!container) continue;
 
-      const containerLinks = Array.from(container.querySelectorAll("a[href]")) as HTMLAnchorElement[];
+      const containerLinks = Array.from(
+        container.querySelectorAll("a[href]")
+      ) as HTMLAnchorElement[];
       const validLinks = containerLinks
         .filter((a) => {
           const href = a.href;
@@ -219,7 +242,9 @@ export class Extractor {
       let md = "";
       for (const group of groups) {
         md += `## ${group.heading}\n`;
-        md += group.links.map((link) => `- [${link.title}](${link.url})`).join("\n");
+        md += group.links
+          .map((link) => `- [${link.title}](${link.url})`)
+          .join("\n");
         md += "\n\n";
       }
       return md.trim();
@@ -245,7 +270,9 @@ export class Extractor {
 
       if (uniqueLinks.length >= 20) {
         let md = "## 链接列表\n";
-        md += uniqueLinks.map((link) => `- [${link.title}](${link.url})`).join("\n");
+        md += uniqueLinks
+          .map((link) => `- [${link.title}](${link.url})`)
+          .join("\n");
         return md;
       }
     }
@@ -258,15 +285,25 @@ export class Extractor {
 
     const getMeta = (names: string[]) => {
       for (const name of names) {
-        const el = doc.querySelector(`meta[name="${name}"], meta[property="${name}"]`);
+        const el = doc.querySelector(
+          `meta[name="${name}"], meta[property="${name}"]`
+        );
         if (el) return el.getAttribute("content");
       }
       return undefined;
     };
 
-    meta.description = getMeta(["description", "og:description", "twitter:description"]);
+    meta.description = getMeta([
+      "description",
+      "og:description",
+      "twitter:description",
+    ]);
     meta.author = getMeta(["author", "article:author", "og:site_name"]);
-    meta.publishDate = getMeta(["publish_date", "article:published_time", "og:pubdate"]);
+    meta.publishDate = getMeta([
+      "publish_date",
+      "article:published_time",
+      "og:pubdate",
+    ]);
     meta.language = doc.documentElement.lang || getMeta(["language"]);
 
     return meta;

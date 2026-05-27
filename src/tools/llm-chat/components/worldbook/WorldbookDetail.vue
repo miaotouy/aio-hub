@@ -71,7 +71,9 @@ const loadBook = async () => {
         const entries = Object.values(book.entries);
         if (entries.length > 0) {
           // 按 Order 排序选第一个
-          const sorted = entries.sort((a, b) => (b.order || 0) - (a.order || 0));
+          const sorted = entries.sort(
+            (a, b) => (b.order || 0) - (a.order || 0)
+          );
           selectedEntryUid.value = sorted[0].uid;
         }
       }
@@ -241,7 +243,8 @@ const handleMoveCopyEntry = () => {
 };
 
 const executeMoveCopy = async () => {
-  if (!currentEntry.value || !moveCopyTargetId.value || !currentBook.value) return;
+  if (!currentEntry.value || !moveCopyTargetId.value || !currentBook.value)
+    return;
 
   const targetId = moveCopyTargetId.value;
   const entryToProcess = JSON.parse(JSON.stringify(currentEntry.value));
@@ -348,16 +351,47 @@ const enhancedPositionOptions = [
   { label: "@D ⚙ [系统]在深度", value: STWorldbookPosition.Depth, role: 0 },
   { label: "@D 👤 [用户]在深度", value: STWorldbookPosition.Depth, role: 1 },
   { label: "@D 🤖 [AI]在深度", value: STWorldbookPosition.Depth, role: 2 },
-  { label: "角色之前 (Before Char)", value: STWorldbookPosition.BeforeChar, role: null },
-  { label: "角色之后 (After Char)", value: STWorldbookPosition.AfterChar, role: null },
-  { label: "示例之前 (Before EM) [降级]", value: STWorldbookPosition.BeforeEM, role: null },
-  { label: "示例之后 (After EM) [降级]", value: STWorldbookPosition.AfterEM, role: null },
-  { label: "作者注之前 (Before AN) [降级]", value: STWorldbookPosition.BeforeAN, role: null },
-  { label: "作者注之后 (After AN) [降级]", value: STWorldbookPosition.AfterAN, role: null },
-  { label: "➡️ Outlet [不支持]", value: STWorldbookPosition.Outlet, role: null },
+  {
+    label: "角色之前 (Before Char)",
+    value: STWorldbookPosition.BeforeChar,
+    role: null,
+  },
+  {
+    label: "角色之后 (After Char)",
+    value: STWorldbookPosition.AfterChar,
+    role: null,
+  },
+  {
+    label: "示例之前 (Before EM) [降级]",
+    value: STWorldbookPosition.BeforeEM,
+    role: null,
+  },
+  {
+    label: "示例之后 (After EM) [降级]",
+    value: STWorldbookPosition.AfterEM,
+    role: null,
+  },
+  {
+    label: "作者注之前 (Before AN) [降级]",
+    value: STWorldbookPosition.BeforeAN,
+    role: null,
+  },
+  {
+    label: "作者注之后 (After AN) [降级]",
+    value: STWorldbookPosition.AfterAN,
+    role: null,
+  },
+  {
+    label: "➡️ Outlet [不支持]",
+    value: STWorldbookPosition.Outlet,
+    role: null,
+  },
 ];
 
-const handlePositionChange = (entry: STWorldbookEntry, compositeVal: string) => {
+const handlePositionChange = (
+  entry: STWorldbookEntry,
+  compositeVal: string
+) => {
   const [pos, roleStr] = compositeVal.split("_");
   const posVal = parseInt(pos);
   const roleVal = roleStr === "null" ? null : parseInt(roleStr);
@@ -369,7 +403,8 @@ const handlePositionChange = (entry: STWorldbookEntry, compositeVal: string) => 
 };
 
 const getCompositePosition = (entry: STWorldbookEntry) => {
-  const role = entry.position === STWorldbookPosition.Depth ? (entry.role ?? 0) : "null";
+  const role =
+    entry.position === STWorldbookPosition.Depth ? (entry.role ?? 0) : "null";
   return `${entry.position}_${role}`;
 };
 </script>
@@ -383,10 +418,16 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
     <!-- 内部窄屏模式：顶部导航 -->
     <div v-if="!isInnerWide" class="inner-mobile-header">
       <div class="mobile-nav-left">
-        <el-button v-if="selectedEntryUid" :icon="ArrowLeft" link @click="selectedEntryUid = null"
+        <el-button
+          v-if="selectedEntryUid"
+          :icon="ArrowLeft"
+          link
+          @click="selectedEntryUid = null"
           >返回列表</el-button
         >
-        <span v-else class="mobile-title">条目列表 ({{ entryList.length }})</span>
+        <span v-else class="mobile-title"
+          >条目列表 ({{ entryList.length }})</span
+        >
       </div>
       <div class="mobile-nav-actions">
         <el-button
@@ -416,7 +457,13 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
             clearable
             class="search-input"
           />
-          <el-button type="primary" :icon="Plus" circle size="small" @click="handleAddEntry" />
+          <el-button
+            type="primary"
+            :icon="Plus"
+            circle
+            size="small"
+            @click="handleAddEntry"
+          />
         </div>
         <div class="header-tools-row">
           <div class="tool-group">
@@ -424,7 +471,11 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
               <el-button :icon="RotateCw" link @click="handleRefresh" />
             </el-tooltip>
             <el-tooltip :content="isCompact ? '展开视图' : '紧凑视图'">
-              <el-button :icon="isCompact ? Expand : Shrink" link @click="isCompact = !isCompact" />
+              <el-button
+                :icon="isCompact ? Expand : Shrink"
+                link
+                @click="isCompact = !isCompact"
+              />
             </el-tooltip>
             <el-tooltip content="填充空备注 (使用首个关键词)">
               <el-button :icon="StickyNote" link @click="handleBackfillMemos" />
@@ -486,7 +537,10 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
           v-for="entry in entryList"
           :key="entry.uid"
           class="entry-item-row"
-          :class="{ active: selectedEntryUid === entry.uid, disabled: entry.disable }"
+          :class="{
+            active: selectedEntryUid === entry.uid,
+            disabled: entry.disable,
+          }"
           @click="selectedEntryUid = entry.uid"
         >
           <!-- 状态与开关 (仿酒馆三态) -->
@@ -588,7 +642,11 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
           </div>
         </div>
 
-        <el-empty v-if="entryList.length === 0" description="没有找到条目" :image-size="60" />
+        <el-empty
+          v-if="entryList.length === 0"
+          description="没有找到条目"
+          :image-size="60"
+        />
       </div>
     </aside>
 
@@ -608,12 +666,23 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
         </div>
         <div class="header-actions">
           <el-tooltip content="移动/复制到其他世界书">
-            <el-button :icon="ArrowLeftRight" circle @click="handleMoveCopyEntry" />
+            <el-button
+              :icon="ArrowLeftRight"
+              circle
+              @click="handleMoveCopyEntry"
+            />
           </el-tooltip>
           <el-tooltip content="复制条目">
-            <el-button :icon="Copy" circle @click="handleDuplicateEntry(currentEntry)" />
+            <el-button
+              :icon="Copy"
+              circle
+              @click="handleDuplicateEntry(currentEntry)"
+            />
           </el-tooltip>
-          <el-popconfirm title="确定删除此条目吗？" @confirm="handleDeleteEntry(currentEntry.uid)">
+          <el-popconfirm
+            title="确定删除此条目吗？"
+            @confirm="handleDeleteEntry(currentEntry.uid)"
+          >
             <template #reference>
               <el-tooltip content="删除条目">
                 <el-button :icon="Trash2" circle plain />
@@ -669,7 +738,9 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
                 <div class="flex-center gap-8">
                   <el-switch
                     :model-value="!currentEntry.disable"
-                    @update:model-value="(val: boolean) => (currentEntry!.disable = !val)"
+                    @update:model-value="
+                      (val: boolean) => (currentEntry!.disable = !val)
+                    "
                     size="small"
                     active-text="已启用"
                     inactive-text="已禁用"
@@ -677,7 +748,9 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
                   />
                   <el-select
                     :model-value="getEntryState(currentEntry)"
-                    @update:model-value="(val: any) => setEntryState(currentEntry!, val)"
+                    @update:model-value="
+                      (val: any) => setEntryState(currentEntry!, val)
+                    "
                     size="small"
                     style="flex: 1"
                   >
@@ -696,7 +769,9 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
                 <el-select
                   :model-value="getCompositePosition(currentEntry)"
                   size="small"
-                  @change="(val: string) => handlePositionChange(currentEntry!, val)"
+                  @change="
+                    (val: string) => handlePositionChange(currentEntry!, val)
+                  "
                 >
                   <el-option
                     v-for="opt in enhancedPositionOptions"
@@ -727,13 +802,25 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
               </div>
 
               <div class="control-item">
-                <span class="label">触发概率 ({{ currentEntry.probability }}%)</span>
-                <el-slider v-model="currentEntry.probability" size="small" :min="0" :max="100" />
+                <span class="label"
+                  >触发概率 ({{ currentEntry.probability }}%)</span
+                >
+                <el-slider
+                  v-model="currentEntry.probability"
+                  size="small"
+                  :min="0"
+                  :max="100"
+                />
               </div>
 
               <div class="control-item">
                 <span class="label">插入角色 (Role)</span>
-                <el-select v-model="currentEntry.role" size="small" placeholder="不限" clearable>
+                <el-select
+                  v-model="currentEntry.role"
+                  size="small"
+                  placeholder="不限"
+                  clearable
+                >
                   <el-option
                     v-for="opt in roleOptions"
                     :key="opt.value"
@@ -743,7 +830,10 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
                 </el-select>
               </div>
 
-              <div class="control-item" v-if="currentEntry.position === STWorldbookPosition.Outlet">
+              <div
+                class="control-item"
+                v-if="currentEntry.position === STWorldbookPosition.Outlet"
+              >
                 <span class="label">Outlet 名称</span>
                 <el-input
                   v-model="currentEntry.outletName"
@@ -754,7 +844,11 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
 
               <div class="control-item">
                 <span class="label">自动化 ID (不支持)</span>
-                <el-input v-model="currentEntry.automationId" size="small" placeholder="不支持" />
+                <el-input
+                  v-model="currentEntry.automationId"
+                  size="small"
+                  placeholder="不支持"
+                />
               </div>
             </div>
           </div>
@@ -767,7 +861,11 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
             <div class="advanced-grid">
               <div class="control-item">
                 <span class="label">包含组 (Inclusion Group)</span>
-                <el-input v-model="currentEntry.group" size="small" placeholder="组名..." />
+                <el-input
+                  v-model="currentEntry.group"
+                  size="small"
+                  placeholder="组名..."
+                />
               </div>
 
               <div class="control-item">
@@ -782,12 +880,18 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
 
               <div class="control-item">
                 <span class="label">组评分</span>
-                <el-switch v-model="currentEntry.useGroupScoring" size="small" />
+                <el-switch
+                  v-model="currentEntry.useGroupScoring"
+                  size="small"
+                />
               </div>
 
               <div class="control-item">
                 <span class="label">确定优先级</span>
-                <el-checkbox v-model="currentEntry.groupOverride" size="small" />
+                <el-checkbox
+                  v-model="currentEntry.groupOverride"
+                  size="small"
+                />
               </div>
             </div>
           </div>
@@ -845,7 +949,11 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
 
               <div class="control-item">
                 <span class="label">区分大小写</span>
-                <el-select v-model="currentEntry.caseSensitive" size="small" placeholder="使用全局">
+                <el-select
+                  v-model="currentEntry.caseSensitive"
+                  size="small"
+                  placeholder="使用全局"
+                >
                   <el-option label="是" :value="true" />
                   <el-option label="否" :value="false" />
                   <el-option label="使用全局" :value="null" />
@@ -879,17 +987,26 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
             <div class="advanced-grid">
               <div class="control-item">
                 <span class="label">排除递归 (不支持)</span>
-                <el-switch v-model="currentEntry.excludeRecursion" size="small" />
+                <el-switch
+                  v-model="currentEntry.excludeRecursion"
+                  size="small"
+                />
               </div>
 
               <div class="control-item">
                 <span class="label">防止进一步递归</span>
-                <el-switch v-model="currentEntry.preventRecursion" size="small" />
+                <el-switch
+                  v-model="currentEntry.preventRecursion"
+                  size="small"
+                />
               </div>
 
               <div class="control-item">
                 <span class="label">延迟到递归</span>
-                <el-switch v-model="currentEntry.delayUntilRecursion" size="small" />
+                <el-switch
+                  v-model="currentEntry.delayUntilRecursion"
+                  size="small"
+                />
               </div>
 
               <div class="control-item">
@@ -936,30 +1053,42 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
             </div>
             <div class="advanced-grid">
               <div class="control-item">
-                <el-checkbox v-model="currentEntry.matchCharacterDescription" size="small"
+                <el-checkbox
+                  v-model="currentEntry.matchCharacterDescription"
+                  size="small"
                   >角色描述</el-checkbox
                 >
               </div>
               <div class="control-item">
-                <el-checkbox v-model="currentEntry.matchCharacterPersonality" size="small"
+                <el-checkbox
+                  v-model="currentEntry.matchCharacterPersonality"
+                  size="small"
                   >角色性格</el-checkbox
                 >
               </div>
               <div class="control-item">
-                <el-checkbox v-model="currentEntry.matchScenario" size="small">情景</el-checkbox>
+                <el-checkbox v-model="currentEntry.matchScenario" size="small"
+                  >情景</el-checkbox
+                >
               </div>
               <div class="control-item">
-                <el-checkbox v-model="currentEntry.matchPersonaDescription" size="small"
+                <el-checkbox
+                  v-model="currentEntry.matchPersonaDescription"
+                  size="small"
                   >用户设定描述</el-checkbox
                 >
               </div>
               <div class="control-item">
-                <el-checkbox v-model="currentEntry.matchCharacterDepthPrompt" size="small"
+                <el-checkbox
+                  v-model="currentEntry.matchCharacterDepthPrompt"
+                  size="small"
                   >角色备注</el-checkbox
                 >
               </div>
               <div class="control-item">
-                <el-checkbox v-model="currentEntry.matchCreatorNotes" size="small"
+                <el-checkbox
+                  v-model="currentEntry.matchCreatorNotes"
+                  size="small"
                   >创作者注释</el-checkbox
                 >
               </div>
@@ -1001,11 +1130,20 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
     </div>
 
     <!-- 移动/复制对话框 -->
-    <BaseDialog v-model="moveCopyDialogVisible" title="移动/复制条目" width="400px" height="auto">
+    <BaseDialog
+      v-model="moveCopyDialogVisible"
+      title="移动/复制条目"
+      width="400px"
+      height="auto"
+    >
       <div class="move-copy-dialog-content">
         <div class="dialog-form-item">
           <label>目标世界书</label>
-          <el-select v-model="moveCopyTargetId" placeholder="请选择目标世界书" style="width: 100%">
+          <el-select
+            v-model="moveCopyTargetId"
+            placeholder="请选择目标世界书"
+            style="width: 100%"
+          >
             <el-option
               v-for="book in store.worldbooks.filter((b) => b.id !== props.id)"
               :key="book.id"
@@ -1027,7 +1165,11 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
       <template #footer>
         <div class="dialog-footer">
           <el-button @click="moveCopyDialogVisible = false">取消</el-button>
-          <el-button type="primary" :disabled="!moveCopyTargetId" @click="executeMoveCopy">
+          <el-button
+            type="primary"
+            :disabled="!moveCopyTargetId"
+            @click="executeMoveCopy"
+          >
             确定
           </el-button>
         </div>
@@ -1121,7 +1263,11 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
 .entry-list-header {
   display: flex;
   padding: 4px 8px;
-  background-color: color-mix(in srgb, var(--el-fill-color-lighter), transparent 40%);
+  background-color: color-mix(
+    in srgb,
+    var(--el-fill-color-lighter),
+    transparent 40%
+  );
   border: var(--border-width) solid var(--border-color);
   font-size: 11px;
   color: var(--el-text-color-secondary);
@@ -1192,11 +1338,19 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
 }
 
 .entry-item-row:hover {
-  background-color: color-mix(in srgb, var(--el-fill-color-light), transparent 50%);
+  background-color: color-mix(
+    in srgb,
+    var(--el-fill-color-light),
+    transparent 50%
+  );
 }
 
 .entry-item-row.active {
-  background-color: color-mix(in srgb, var(--el-color-primary), transparent 90%);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-primary),
+    transparent 90%
+  );
 }
 
 .entry-item-row.active .col-handle {
@@ -1214,7 +1368,11 @@ const getCompositePosition = (entry: STWorldbookEntry) => {
 
 .entry-item-row.disabled {
   opacity: 0.6;
-  background-color: color-mix(in srgb, var(--el-fill-color-lighter), transparent 20%);
+  background-color: color-mix(
+    in srgb,
+    var(--el-fill-color-lighter),
+    transparent 20%
+  );
 }
 
 .cell {

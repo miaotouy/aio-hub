@@ -1,17 +1,13 @@
 <template>
   <g>
-    <path
-      class="vue-flow__connection-path"
-      :d="path"
-      :style="style"
-    />
+    <path class="vue-flow__connection-path" :d="path" :style="style" />
   </g>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import { type ConnectionLineProps, getBezierPath } from '@vue-flow/core';
-import type { ConnectionPreviewState } from '../composables/useGraphConnectionPreview';
+import { computed } from "vue";
+import { type ConnectionLineProps, getBezierPath } from "@vue-flow/core";
+import type { ConnectionPreviewState } from "../composables/useGraphConnectionPreview";
 
 interface CustomConnectionLineProps extends ConnectionLineProps {
   connectionState: ConnectionPreviewState;
@@ -23,7 +19,7 @@ const path = computed(() => getBezierPath(props)[0]);
 
 const style = computed(() => {
   const state = props.connectionState;
-  let strokeColor = 'var(--el-text-color-secondary)';
+  let strokeColor = "var(--el-text-color-secondary)";
 
   // `props.targetNode` 由 vue-flow 提供，当悬停在 handle 上时会有值
   const isOverHandle = !!props.targetNode;
@@ -33,14 +29,16 @@ const style = computed(() => {
     if (state.targetNodeId) {
       if (state.isTargetValid) {
         // 目标节点本身是合法的，接着判断是否悬停在插槽上
-        strokeColor = isOverHandle ? 'var(--el-color-success)' : 'var(--el-color-primary)';
+        strokeColor = isOverHandle
+          ? "var(--el-color-success)"
+          : "var(--el-color-primary)";
       } else {
         // 目标节点本身就是非法的（比如会造成循环）
-        strokeColor = 'var(--el-color-danger)';
+        strokeColor = "var(--el-color-danger)";
       }
     } else {
       // 正在连接但还未悬停到任何目标上，使用一个中间状态颜色
-      strokeColor = 'var(--el-color-primary)';
+      strokeColor = "var(--el-color-primary)";
     }
   }
 
@@ -50,9 +48,9 @@ const style = computed(() => {
   return {
     stroke: strokeColor,
     strokeWidth: 3.5,
-    strokeDasharray: isDashed ? '6, 6' : 'none',
-    animation: isAnimated ? 'connection-flow 1s linear infinite' : 'none',
-    fill: 'none',
+    strokeDasharray: isDashed ? "6, 6" : "none",
+    animation: isAnimated ? "connection-flow 1s linear infinite" : "none",
+    fill: "none",
   };
 });
 </script>

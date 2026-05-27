@@ -3,7 +3,10 @@
     <!-- 搜索/替换主区域 -->
     <div class="search-input__main">
       <!-- 左侧 chevron 切换按钮 -->
-      <button class="search-input__replace-toggle" @click="showReplace = !showReplace">
+      <button
+        class="search-input__replace-toggle"
+        @click="showReplace = !showReplace"
+      >
         <ChevronRight :size="16" :class="{ rotated: showReplace }" />
       </button>
 
@@ -33,10 +36,20 @@
               </button>
             </el-tooltip>
             <el-tooltip content="正则表达式 (.*)" :show-after="500">
-              <button class="search-input__toggle" :class="{ active: isRegex }" @click="isRegex = !isRegex">.*</button>
+              <button
+                class="search-input__toggle"
+                :class="{ active: isRegex }"
+                @click="isRegex = !isRegex"
+              >
+                .*
+              </button>
             </el-tooltip>
             <el-tooltip content="全词匹配 (W)" :show-after="500">
-              <button class="search-input__toggle" :class="{ active: wholeWord }" @click="wholeWord = !wholeWord">
+              <button
+                class="search-input__toggle"
+                :class="{ active: wholeWord }"
+                @click="wholeWord = !wholeWord"
+              >
                 W
               </button>
             </el-tooltip>
@@ -66,7 +79,11 @@
               </button>
             </el-tooltip>
             <el-tooltip content="替换全部" :show-after="500">
-              <button class="search-input__toggle action" :disabled="!canReplace" @click="$emit('replaceAll')">
+              <button
+                class="search-input__toggle action"
+                :disabled="!canReplace"
+                @click="$emit('replaceAll')"
+              >
                 <Replace :size="14" />
               </button>
             </el-tooltip>
@@ -96,9 +113,19 @@
         />
       </div>
       <div class="search-input__filter-row">
-        <el-tooltip content="尊重搜索目录内的 .gitignore 规则" :show-after="500">
-          <label class="search-input__filter-toggle" @click="useGitignore = !useGitignore">
-            <span class="search-input__filter-checkbox" :class="{ active: useGitignore }">✓</span>
+        <el-tooltip
+          content="尊重搜索目录内的 .gitignore 规则"
+          :show-after="500"
+        >
+          <label
+            class="search-input__filter-toggle"
+            @click="useGitignore = !useGitignore"
+          >
+            <span
+              class="search-input__filter-checkbox"
+              :class="{ active: useGitignore }"
+              >✓</span
+            >
             <span>使用 .gitignore</span>
           </label>
         </el-tooltip>
@@ -107,26 +134,46 @@
       <!-- 折叠设置区域 -->
       <div
         class="search-input__settings-header"
-        @click="uiState.showAdvancedSettings.value = !uiState.showAdvancedSettings.value"
+        @click="
+          uiState.showAdvancedSettings.value =
+            !uiState.showAdvancedSettings.value
+        "
       >
-        <ChevronRight :size="14" :class="{ rotated: uiState.showAdvancedSettings.value }" />
+        <ChevronRight
+          :size="14"
+          :class="{ rotated: uiState.showAdvancedSettings.value }"
+        />
         <span>搜索设置</span>
       </div>
-      <div class="search-input__settings-body" :class="{ expanded: uiState.showAdvancedSettings.value }">
+      <div
+        class="search-input__settings-body"
+        :class="{ expanded: uiState.showAdvancedSettings.value }"
+      >
         <div class="search-input__settings-content">
           <div class="search-input__filter-row search-input__filter-row--split">
-            <el-tooltip content="搜索时自动展开文件（关闭可提升大量结果时的渲染性能）" :show-after="500">
+            <el-tooltip
+              content="搜索时自动展开文件（关闭可提升大量结果时的渲染性能）"
+              :show-after="500"
+            >
               <label
                 class="search-input__filter-toggle"
-                @click="uiState.autoExpandResults.value = !uiState.autoExpandResults.value"
+                @click="
+                  uiState.autoExpandResults.value =
+                    !uiState.autoExpandResults.value
+                "
               >
-                <span class="search-input__filter-checkbox" :class="{ active: uiState.autoExpandResults.value }"
+                <span
+                  class="search-input__filter-checkbox"
+                  :class="{ active: uiState.autoExpandResults.value }"
                   >✓</span
                 >
                 <span>自动展开</span>
               </label>
             </el-tooltip>
-            <el-tooltip content="搜索结果数量上限（0 = 无限制）" :show-after="500">
+            <el-tooltip
+              content="搜索结果数量上限（0 = 无限制）"
+              :show-after="500"
+            >
               <div class="search-input__max-results">
                 <label class="search-input__filter-label">上限:</label>
                 <input
@@ -141,18 +188,29 @@
             </el-tooltip>
           </div>
           <div class="search-input__filter-row search-input__filter-row--split">
-            <el-tooltip content="在结果中显示匹配行的上下文（类似 grep -C）" :show-after="500">
+            <el-tooltip
+              content="在结果中显示匹配行的上下文（类似 grep -C）"
+              :show-after="500"
+            >
               <label
                 class="search-input__filter-toggle"
-                @click="uiState.contextLinesEnabled.value = !uiState.contextLinesEnabled.value"
+                @click="
+                  uiState.contextLinesEnabled.value =
+                    !uiState.contextLinesEnabled.value
+                "
               >
-                <span class="search-input__filter-checkbox" :class="{ active: uiState.contextLinesEnabled.value }"
+                <span
+                  class="search-input__filter-checkbox"
+                  :class="{ active: uiState.contextLinesEnabled.value }"
                   >✓</span
                 >
                 <span>扩展上下文</span>
               </label>
             </el-tooltip>
-            <el-tooltip content="匹配行前后各显示的行数（1-10）" :show-after="500">
+            <el-tooltip
+              content="匹配行前后各显示的行数（1-10）"
+              :show-after="500"
+            >
               <div class="search-input__max-results">
                 <label class="search-input__filter-label">行数:</label>
                 <input
@@ -177,7 +235,10 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted } from "vue";
 import { ChevronRight, Replace } from "lucide-vue-next";
-import { useInputHistory, useAutoSaveHistory } from "../composables/useInputHistory";
+import {
+  useInputHistory,
+  useAutoSaveHistory,
+} from "../composables/useInputHistory";
 import { useDirSearchUiState } from "../composables/useDirSearchUiState";
 
 const pattern = defineModel<string>("pattern", { required: true });
@@ -203,10 +264,22 @@ const canReplace = computed(() => pattern.value.length > 0);
 const uiState = useDirSearchUiState();
 
 // 1. 键盘回溯 (ArrowUp/Down)
-const { onKeydown: onSearchHistoryKeydown } = useInputHistory(uiState.searchHistory, pattern);
-const { onKeydown: onReplaceHistoryKeydown } = useInputHistory(uiState.replacementHistory, replacement);
-const { onKeydown: onIncludeHistoryKeydown } = useInputHistory(uiState.includeHistory, includeGlobs);
-const { onKeydown: onExcludeHistoryKeydown } = useInputHistory(uiState.excludeHistory, excludeGlobs);
+const { onKeydown: onSearchHistoryKeydown } = useInputHistory(
+  uiState.searchHistory,
+  pattern
+);
+const { onKeydown: onReplaceHistoryKeydown } = useInputHistory(
+  uiState.replacementHistory,
+  replacement
+);
+const { onKeydown: onIncludeHistoryKeydown } = useInputHistory(
+  uiState.includeHistory,
+  includeGlobs
+);
+const { onKeydown: onExcludeHistoryKeydown } = useInputHistory(
+  uiState.excludeHistory,
+  excludeGlobs
+);
 
 // 2. 自动保存 (停止输入 2.5s 后)
 useAutoSaveHistory(uiState.searchHistory, pattern, { maxLength: 20 });
@@ -373,12 +446,18 @@ onMounted(() => {
 }
 
 .search-input__toggle:hover {
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.1));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
   color: var(--el-text-color-primary);
 }
 
 .search-input__toggle.active {
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.15));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.15)
+  );
   color: var(--el-color-primary);
   border-color: var(--el-color-primary);
 }

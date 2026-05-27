@@ -21,7 +21,8 @@ export function isSameHost(urlA: string, urlB: string): boolean {
   try {
     const a = new URL(urlA);
     const b = new URL(urlB);
-    if (normalizeHostname(a.hostname) !== normalizeHostname(b.hostname)) return false;
+    if (normalizeHostname(a.hostname) !== normalizeHostname(b.hostname))
+      return false;
     // 同端口不同协议（如 http:6505 vs ws:6505），端口若都显式则要求一致
     if (a.port && b.port && a.port !== b.port) return false;
     return true;
@@ -37,7 +38,9 @@ export function isSameHost(urlA: string, urlB: string): boolean {
  * VCP 连接器配置的 wsUrl 是否指向同一主机，以此推断工具调用
  * 由 VCP 后端负责处理。
  */
-export function useIsVcpChannel(overrideProfileId?: string | import("vue").Ref<string | undefined>) {
+export function useIsVcpChannel(
+  overrideProfileId?: string | import("vue").Ref<string | undefined>
+) {
   const agentStore = useAgentStore();
   const vcpStore = useVcpStore();
   const { getProfileById } = useLlmProfiles();
@@ -51,12 +54,17 @@ export function useIsVcpChannel(overrideProfileId?: string | import("vue").Ref<s
     if (!wsUrl) return false;
 
     // 优先使用传入的 profileId
-    const pId = typeof overrideProfileId === "object" ? overrideProfileId.value : overrideProfileId;
+    const pId =
+      typeof overrideProfileId === "object"
+        ? overrideProfileId.value
+        : overrideProfileId;
     let targetProfileId = pId;
 
     if (!targetProfileId) {
       // 如果没传，则获取当前 Agent 的默认 profileId
-      const agent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
+      const agent = agentStore.currentAgentId
+        ? agentStore.getAgentById(agentStore.currentAgentId)
+        : null;
       targetProfileId = agent?.profileId;
     }
 

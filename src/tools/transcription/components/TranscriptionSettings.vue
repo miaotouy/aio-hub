@@ -34,11 +34,15 @@ const handleUpdate = (newConfig: any) => {
 
 const handleReset = async () => {
   try {
-    await ElMessageBox.confirm("确定要将所有转写设置重置为默认值吗？此操作不可撤销。", "重置确认", {
-      confirmButtonText: "确定重置",
-      cancelButtonText: "取消",
-      type: "warning",
-    });
+    await ElMessageBox.confirm(
+      "确定要将所有转写设置重置为默认值吗？此操作不可撤销。",
+      "重置确认",
+      {
+        confirmButtonText: "确定重置",
+        cancelButtonText: "取消",
+        type: "warning",
+      }
+    );
     store.resetConfig();
     customMessage.success("设置已重置为默认值");
   } catch {
@@ -55,7 +59,9 @@ const handleReset = async () => {
           <h3 class="header-title">转写配置</h3>
           <p class="header-desc">配置多模态转写的全局模型、提示词及并发策略</p>
         </div>
-        <el-button :icon="RotateCcw" @click="handleReset" plain type="danger"> 一键重置 </el-button>
+        <el-button :icon="RotateCcw" @click="handleReset" plain type="danger">
+          一键重置
+        </el-button>
       </div>
 
       <el-collapse v-model="activeCollapse">

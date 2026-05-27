@@ -1,5 +1,9 @@
 import { createModuleLogger } from "@/utils/logger";
-import type { ContextProcessor, PipelineContext, ProcessableMessage } from "../../../types";
+import type {
+  ContextProcessor,
+  PipelineContext,
+  ProcessableMessage,
+} from "../../../types";
 import type { ChatMessageNode } from "../../../types/message";
 
 const logger = createModuleLogger("primary:session-loader");
@@ -8,7 +12,7 @@ const logger = createModuleLogger("primary:session-loader");
  * 从会话的树状结构中提取当前活动分支的线性历史记录。
  */
 function getActiveBranchHistory(
-  session: PipelineContext["session"],
+  session: PipelineContext["session"]
 ): ChatMessageNode[] {
   const history: ChatMessageNode[] = [];
   let currentId: string | null = session.activeLeafId;
@@ -60,7 +64,7 @@ export const sessionLoader: ContextProcessor = {
 
     for (const node of historyNodes) {
       // 忽略空消息 (仅针对纯文本，如果未来支持多模态，这里需要更复杂的判断)
-      if (typeof node.content === 'string' && !node.content.trim()) {
+      if (typeof node.content === "string" && !node.content.trim()) {
         continue;
       }
 

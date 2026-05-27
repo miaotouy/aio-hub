@@ -34,14 +34,17 @@ export interface ResizeOptions {
 /**
  * 从 ArrayBuffer 加载 HTMLImageElement
  */
-function loadImageFromBuffer(buffer: ArrayBuffer): Promise<{ img: HTMLImageElement; cleanup: () => void }> {
+function loadImageFromBuffer(
+  buffer: ArrayBuffer
+): Promise<{ img: HTMLImageElement; cleanup: () => void }> {
   const bytes = new Uint8Array(buffer);
   const blob = new Blob([bytes]);
   const url = URL.createObjectURL(blob);
 
   return new Promise((resolve, reject) => {
     const image = new Image();
-    image.onload = () => resolve({ img: image, cleanup: () => URL.revokeObjectURL(url) });
+    image.onload = () =>
+      resolve({ img: image, cleanup: () => URL.revokeObjectURL(url) });
     image.onerror = () => {
       URL.revokeObjectURL(url);
       reject(new Error("图片加载失败"));
@@ -53,11 +56,17 @@ function loadImageFromBuffer(buffer: ArrayBuffer): Promise<{ img: HTMLImageEleme
 /**
  * 从图片二进制获取尺寸信息
  */
-export async function getImageDimensions(buffer: ArrayBuffer): Promise<ImageDimensions> {
+export async function getImageDimensions(
+  buffer: ArrayBuffer
+): Promise<ImageDimensions> {
   try {
     const { img, cleanup } = await loadImageFromBuffer(buffer);
     cleanup();
-    return { width: img.naturalWidth, height: img.naturalHeight, byteLength: buffer.byteLength };
+    return {
+      width: img.naturalWidth,
+      height: img.naturalHeight,
+      byteLength: buffer.byteLength,
+    };
   } catch (error) {
     logger.warn("获取图片尺寸失败", { error });
     return { width: 0, height: 0, byteLength: buffer.byteLength };
@@ -71,7 +80,10 @@ export async function getImageDimensions(buffer: ArrayBuffer): Promise<ImageDime
  *
  * 短路优化：若尺寸无需缩放且未指定格式转换，直接返回原 buffer。
  */
-export async function resizeImage(buffer: ArrayBuffer, options: ResizeOptions): Promise<ArrayBuffer> {
+export async function resizeImage(
+  buffer: ArrayBuffer,
+  options: ResizeOptions
+): Promise<ArrayBuffer> {
   try {
     const { img, cleanup } = await loadImageFromBuffer(buffer);
 
@@ -96,8 +108,14 @@ export async function resizeImage(buffer: ArrayBuffer, options: ResizeOptions): 
       }
     }
 
-    const mimeType = format === "jpeg" ? "image/jpeg" : format === "webp" ? "image/webp" : "image/png";
-    const quality = format && format !== "png" ? (options.quality ?? 0.85) : undefined;
+    const mimeType =
+      format === "jpeg"
+        ? "image/jpeg"
+        : format === "webp"
+          ? "image/webp"
+          : "image/png";
+    const quality =
+      format && format !== "png" ? (options.quality ?? 0.85) : undefined;
 
     const canvas = document.createElement("canvas");
     canvas.width = targetW;
@@ -119,7 +137,11 @@ export async function resizeImage(buffer: ArrayBuffer, options: ResizeOptions): 
 
     // Canvas → Blob → ArrayBuffer（纯二进制，不经过 base64）
     const blob = await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("toBlob 失败"))), mimeType, quality);
+      canvas.toBlob(
+        (b) => (b ? resolve(b) : reject(new Error("toBlob 失败"))),
+        mimeType,
+        quality
+      );
     });
     return await blob.arrayBuffer();
   } catch (error) {

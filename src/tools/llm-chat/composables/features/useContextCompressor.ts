@@ -44,7 +44,10 @@ export function useContextCompressor() {
   /**
    * 判断是否需要压缩
    */
-  const shouldCompress = (context: CompressionContext, config: ContextCompressionConfig): boolean => {
+  const shouldCompress = (
+    context: CompressionContext,
+    config: ContextCompressionConfig
+  ): boolean => {
     // 检查最小历史条数
     if (context.historyCount < (config.minHistoryCount || 15)) {
       return false;
@@ -60,7 +63,10 @@ export function useContextCompressor() {
       case "count":
         return context.messageCount > countThreshold;
       case "both":
-        return context.totalTokens > tokenThreshold || context.messageCount > countThreshold;
+        return (
+          context.totalTokens > tokenThreshold ||
+          context.messageCount > countThreshold
+        );
       default:
         return false;
     }
@@ -69,13 +75,19 @@ export function useContextCompressor() {
    * 计算当前有效路径的上下文统计信息
    * (优先使用 Store 中的 Pipeline 计算结果，不再自己重复计算)
    */
-  const calculateContextStats = (path: ChatMessageNode[]): CompressionContext => {
+  const calculateContextStats = (
+    path: ChatMessageNode[]
+  ): CompressionContext => {
     // 1. 找出所有启用的压缩节点及其隐藏的节点 ID
-    const enabledCompressionNodes = path.filter((node) => node.metadata?.isCompressionNode && node.isEnabled !== false);
+    const enabledCompressionNodes = path.filter(
+      (node) => node.metadata?.isCompressionNode && node.isEnabled !== false
+    );
 
     const hiddenNodeIds = new Set<string>();
     enabledCompressionNodes.forEach((node) => {
-      (node.metadata?.compressedNodeIds || []).forEach((id) => hiddenNodeIds.add(id));
+      (node.metadata?.compressedNodeIds || []).forEach((id) =>
+        hiddenNodeIds.add(id)
+      );
     });
 
     // 2. 过滤掉被隐藏的节点
@@ -115,7 +127,7 @@ export function useContextCompressor() {
     messages: ChatMessageNode[],
     config: ContextCompressionConfig,
     agentId?: string,
-    previousSummary?: string,
+    previousSummary?: string
   ): Promise<string> => {
     logger.info("开始生成摘要", {
       messageCount: messages.length,
@@ -128,7 +140,9 @@ export function useContextCompressor() {
       switch (msg.role) {
         case "user":
           // 优先使用用户档案名称
-          return metadata?.userProfileName ? `👤 ${metadata.userProfileName}` : "👤 用户";
+          return metadata?.userProfileName
+            ? `👤 ${metadata.userProfileName}`
+            : "👤 用户";
         case "assistant":
           // 优先使用 Agent 名称
           return metadata?.agentName ? `🤖 ${metadata.agentName}` : "🤖 助手";
@@ -151,11 +165,15 @@ export function useContextCompressor() {
     let prompt = "";
     if (previousSummary) {
       // 如果有前情提要，使用续写提示词
-      const promptTemplate = config.continueSummaryPrompt || CONTINUE_CONTEXT_COMPRESSION_PROMPT;
-      prompt = promptTemplate.replace("{previous_summary}", previousSummary).replace("{context}", contentText);
+      const promptTemplate =
+        config.continueSummaryPrompt || CONTINUE_CONTEXT_COMPRESSION_PROMPT;
+      prompt = promptTemplate
+        .replace("{previous_summary}", previousSummary)
+        .replace("{context}", contentText);
     } else {
       // 否则使用默认提示词
-      const promptTemplate = config.summaryPrompt || DEFAULT_CONTEXT_COMPRESSION_PROMPT;
+      const promptTemplate =
+        config.summaryPrompt || DEFAULT_CONTEXT_COMPRESSION_PROMPT;
       prompt = promptTemplate.replace("{context}", contentText);
     }
 
@@ -171,7 +189,9 @@ export function useContextCompressor() {
       // 使用当前 Agent 的模型
       // 如果没有指定 agentId，尝试获取当前选中的 Agent
       const targetAgentId = agentId || agentStore.currentAgentId;
-      const agent = targetAgentId ? agentStore.getAgentById(targetAgentId) : null;
+      const agent = targetAgentId
+        ? agentStore.getAgentById(targetAgentId)
+        : null;
 
       if (agent) {
         profileId = agent.profileId;
@@ -179,20 +199,27 @@ export function useContextCompressor() {
       } else {
         // 回退到全局默认模型
         const { settings } = useChatSettings();
-        const defaultModelIdentifier = settings.value.modelPreferences.defaultModel;
+        const defaultModelIdentifier =
+          settings.value.modelPreferences.defaultModel;
 
         if (defaultModelIdentifier) {
           const firstColonIndex = defaultModelIdentifier.indexOf(":");
           profileId = defaultModelIdentifier.substring(0, firstColonIndex);
           modelId = defaultModelIdentifier.substring(firstColonIndex + 1);
-          logger.info("未找到 Agent 模型，使用全局默认模型进行摘要生成", { profileId, modelId });
+          logger.info("未找到 Agent 模型，使用全局默认模型进行摘要生成", {
+            profileId,
+            modelId,
+          });
         } else {
           // 尝试从 profiles 中找一个可用的
           const { enabledProfiles } = useLlmProfiles();
           if (enabledProfiles.value.length > 0) {
             profileId = enabledProfiles.value[0].id;
             modelId = enabledProfiles.value[0].models[0]?.id;
-            logger.info("未配置全局默认模型，回退使用第一个可用模型进行摘要生成", { profileId, modelId });
+            logger.info(
+              "未配置全局默认模型，回退使用第一个可用模型进行摘要生成",
+              { profileId, modelId }
+            );
           } else {
             throw new Error("无法确定摘要生成模型：未找到可用配置");
           }
@@ -206,13 +233,20 @@ export function useContextCompressor() {
         profileId,
         modelId,
         messages: [{ role: "user", content: prompt }], // 摘要任务通常作为单次 Prompt
-        temperature: config.summaryTemperature ?? DEFAULT_CONTEXT_COMPRESSION_CONFIG.summaryTemperature,
-        maxTokens: config.summaryMaxTokens ?? DEFAULT_CONTEXT_COMPRESSION_CONFIG.summaryMaxTokens,
+        temperature:
+          config.summaryTemperature ??
+          DEFAULT_CONTEXT_COMPRESSION_CONFIG.summaryTemperature,
+        maxTokens:
+          config.summaryMaxTokens ??
+          DEFAULT_CONTEXT_COMPRESSION_CONFIG.summaryMaxTokens,
       });
 
       return response.content;
     } catch (error) {
-      errorHandler.handle(error, { userMessage: "摘要生成失败", showToUser: false });
+      errorHandler.handle(error, {
+        userMessage: "摘要生成失败",
+        showToUser: false,
+      });
       throw error;
     }
   };
@@ -226,7 +260,7 @@ export function useContextCompressor() {
     detail: ChatSessionDetail,
     nodesToCompress: ChatMessageNode[],
     summaryContent: string,
-    config: ContextCompressionConfig,
+    config: ContextCompressionConfig
   ): Promise<ChatMessageNode | null> => {
     if (nodesToCompress.length === 0) return null;
 
@@ -234,7 +268,9 @@ export function useContextCompressor() {
 
     // 统计原始信息
     let originalTokenCount = 0;
-    nodesToCompress.forEach((n) => (originalTokenCount += n.metadata?.tokenCount || 0));
+    nodesToCompress.forEach(
+      (n) => (originalTokenCount += n.metadata?.tokenCount || 0)
+    );
 
     // 1. 创建压缩节点
     const summaryNode = createNode({
@@ -264,9 +300,14 @@ export function useContextCompressor() {
     // 尝试使用 TokenCalculator 计算精确的 Token 数
     try {
       const currentAgentId = agentStore.currentAgentId;
-      const agent = currentAgentId ? agentStore.getAgentById(currentAgentId) : null;
+      const agent = currentAgentId
+        ? agentStore.getAgentById(currentAgentId)
+        : null;
       // 如果没有指定模型，TokenCalculator 会自动回退到默认估算策略
-      const tokenResult = await tokenCalculatorService.calculateTokens(summaryContent, agent?.modelId || "");
+      const tokenResult = await tokenCalculatorService.calculateTokens(
+        summaryContent,
+        agent?.modelId || ""
+      );
       if (summaryNode.metadata) {
         summaryNode.metadata.tokenCount = tokenResult.count;
       }
@@ -293,7 +334,10 @@ export function useContextCompressor() {
     for (const childId of childrenToTransfer) {
       const childNode = detail.nodes?.[childId];
       if (!childNode) {
-        logger.warn("转移子节点失败：子节点不存在", { childId, summaryNodeId: summaryNode.id });
+        logger.warn("转移子节点失败：子节点不存在", {
+          childId,
+          summaryNodeId: summaryNode.id,
+        });
         continue;
       }
 
@@ -330,7 +374,9 @@ export function useContextCompressor() {
    * 优先级：参数 config > Agent 配置 > 默认配置
    * 注意：Session 级别的压缩配置已移除，仅保留 Agent 配置和默认兜底
    */
-  const getEffectiveConfig = (config?: ContextCompressionConfig): ContextCompressionConfig => {
+  const getEffectiveConfig = (
+    config?: ContextCompressionConfig
+  ): ContextCompressionConfig => {
     let effectiveConfig: ContextCompressionConfig = {
       ...DEFAULT_CONTEXT_COMPRESSION_CONFIG,
     };
@@ -375,7 +421,7 @@ export function useContextCompressor() {
   const checkAndCompress = async (
     index: ChatSessionIndex,
     detail: ChatSessionDetail,
-    config?: ContextCompressionConfig,
+    config?: ContextCompressionConfig
   ): Promise<CompressionResult> => {
     const effectiveConfig = getEffectiveConfig(config);
 
@@ -401,7 +447,10 @@ export function useContextCompressor() {
   /**
    * 手动触发压缩（忽略自动触发阈值）
    */
-  const manualCompress = async (index: ChatSessionIndex, detail: ChatSessionDetail): Promise<CompressionResult> => {
+  const manualCompress = async (
+    index: ChatSessionIndex,
+    detail: ChatSessionDetail
+  ): Promise<CompressionResult> => {
     const effectiveConfig = getEffectiveConfig();
     const path = getNodePath(detail, detail.activeLeafId || "");
 
@@ -417,21 +466,28 @@ export function useContextCompressor() {
     index: ChatSessionIndex,
     detail: ChatSessionDetail,
     path: ChatMessageNode[],
-    effectiveConfig: ContextCompressionConfig,
+    effectiveConfig: ContextCompressionConfig
   ): Promise<CompressionResult> => {
     // 4. 确定压缩范围
     // 策略：保护最近 N 条，压缩之前的 M 条
     // 过滤出有效节点（未被隐藏的）
-    const enabledCompressionNodes = path.filter((node) => node.metadata?.isCompressionNode && node.isEnabled !== false);
+    const enabledCompressionNodes = path.filter(
+      (node) => node.metadata?.isCompressionNode && node.isEnabled !== false
+    );
     const hiddenNodeIds = new Set<string>();
     enabledCompressionNodes.forEach((node) => {
-      (node.metadata?.compressedNodeIds || []).forEach((id) => hiddenNodeIds.add(id));
+      (node.metadata?.compressedNodeIds || []).forEach((id) =>
+        hiddenNodeIds.add(id)
+      );
     });
 
     // 获取所有“可见”的普通消息节点 (排除 system prompt? 通常 system prompt 不压缩)
     // 排除 System 角色
     const candidateNodes = path.filter(
-      (node) => !hiddenNodeIds.has(node.id) && !node.metadata?.isCompressionNode && node.role !== "system",
+      (node) =>
+        !hiddenNodeIds.has(node.id) &&
+        !node.metadata?.isCompressionNode &&
+        node.role !== "system"
     );
 
     const protectCount = effectiveConfig.protectRecentCount || 10;
@@ -450,7 +506,10 @@ export function useContextCompressor() {
     // 注意：candidateNodes 是按时间顺序排列的 (path 是从根到叶)
     // 我们要保留末尾的 protectCount 个
     // 可压缩的范围是 [0, length - protectCount]
-    const compressibleNodes = candidateNodes.slice(0, candidateNodes.length - protectCount);
+    const compressibleNodes = candidateNodes.slice(
+      0,
+      candidateNodes.length - protectCount
+    );
 
     // 从中取最后 compressCount 个？还是最早的？
     // 通常压缩最早的。
@@ -470,10 +529,18 @@ export function useContextCompressor() {
 
       // 计算预计节省的 Token
       let originalTokenCount = 0;
-      nodesToCompress.forEach((n) => (originalTokenCount += n.metadata?.tokenCount || 0));
+      nodesToCompress.forEach(
+        (n) => (originalTokenCount += n.metadata?.tokenCount || 0)
+      );
 
       // 创建节点并更新树
-      await compressNodes(index, detail, nodesToCompress, summary, effectiveConfig);
+      await compressNodes(
+        index,
+        detail,
+        nodesToCompress,
+        summary,
+        effectiveConfig
+      );
 
       // 持久化会话状态，防止压缩结果丢失
       llmChatStore.persistSessions();

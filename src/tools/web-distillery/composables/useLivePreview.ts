@@ -47,13 +47,16 @@ export function useLivePreview() {
           extractSelectors: recipe?.extractSelectors || [],
         },
         recipe,
-        "interactive",
+        "interactive"
       );
 
       store.setLivePreview(result.content, result.quality);
     } catch (err) {
       logger.error("Live preview failed", err);
-      store.setLivePreview("预览生成失败: " + (err instanceof Error ? err.message : String(err)), 0);
+      store.setLivePreview(
+        "预览生成失败: " + (err instanceof Error ? err.message : String(err)),
+        0
+      );
     } finally {
       store.setLivePreviewLoading(false);
     }
@@ -64,13 +67,16 @@ export function useLivePreview() {
 
   // 监听规则变化
   const stopWatch = watch(
-    [() => store.recipeDraft?.extractSelectors, () => store.recipeDraft?.excludeSelectors],
+    [
+      () => store.recipeDraft?.extractSelectors,
+      () => store.recipeDraft?.excludeSelectors,
+    ],
     () => {
       if (store.activeToolTab === "preview") {
         debouncedTrigger();
       }
     },
-    { deep: true },
+    { deep: true }
   );
 
   onUnmounted(() => {

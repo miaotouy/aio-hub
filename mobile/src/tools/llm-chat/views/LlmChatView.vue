@@ -46,7 +46,7 @@ watch(
   () => chatStore.currentActivePath.length,
   () => {
     scrollToBottom();
-  },
+  }
 );
 
 // 监听键盘状态，键盘弹出时也尝试滚动到底部
@@ -87,7 +87,13 @@ const handleDelete = async (message: ChatMessageNode) => {
       class="nav-bar"
     >
       <template #left>
-        <var-button round text color="transparent" text-color="var(--text-color)" @click="router.back()">
+        <var-button
+          round
+          text
+          color="transparent"
+          text-color="var(--text-color)"
+          @click="router.back()"
+        >
           <ChevronLeft :size="24" />
         </var-button>
       </template>

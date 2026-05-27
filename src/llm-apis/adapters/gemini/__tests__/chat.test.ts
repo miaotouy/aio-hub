@@ -59,7 +59,11 @@ describe("Gemini Adapter - Chat", () => {
             finishReason: "STOP",
           },
         ],
-        usageMetadata: { promptTokenCount: 5, candidatesTokenCount: 3, totalTokenCount: 8 },
+        usageMetadata: {
+          promptTokenCount: 5,
+          candidatesTokenCount: 3,
+          totalTokenCount: 8,
+        },
       }),
     };
     (fetchWithTimeout as any).mockResolvedValue(mockResponse);
@@ -70,7 +74,9 @@ describe("Gemini Adapter - Chat", () => {
     const body = JSON.parse(fetchOptions.body);
 
     expect(url).toContain("key=gemini-test-key");
-    expect(body.systemInstruction).toEqual({ parts: [{ text: "Instruction." }] });
+    expect(body.systemInstruction).toEqual({
+      parts: [{ text: "Instruction." }],
+    });
     expect(body.contents).toHaveLength(1);
     expect(body.contents[0].role).toBe("user");
     expect(body.contents[0].parts[0].text).toBe("Hello.");

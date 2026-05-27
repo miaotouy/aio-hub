@@ -12,7 +12,9 @@ import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 
 const logger = createModuleLogger("media-generator/session-manager");
-const errorHandler = createModuleErrorHandler("media-generator/session-manager");
+const errorHandler = createModuleErrorHandler(
+  "media-generator/session-manager"
+);
 
 export function useSessionManager() {
   const storage = useMediaStorage();
@@ -24,12 +26,14 @@ export function useSessionManager() {
   const updateTaskCount = (
     sessionId: string,
     nodes: Record<string, MediaMessage>,
-    sessionIndexMap: Map<string, MediaSessionIndexItem>,
+    sessionIndexMap: Map<string, MediaSessionIndexItem>
   ): void => {
     const index = sessionIndexMap.get(sessionId);
     if (index) {
       // 增加 Math.max(0, ...) 保护
-      const taskCount = Object.values(nodes).filter((n) => n.metadata?.isMediaTask).length;
+      const taskCount = Object.values(nodes).filter(
+        (n) => n.metadata?.isMediaTask
+      ).length;
       index.taskCount = Math.max(0, taskCount);
       logger.debug("更新任务计数", { sessionId, taskCount: index.taskCount });
     }
@@ -64,7 +68,7 @@ export function useSessionManager() {
    * 创建一个全新的会话对象（拆分为 index 和 detail）
    */
   const createSessionObject = (
-    name?: string,
+    name?: string
   ): { index: MediaSessionIndexItem; detail: GenerationSessionDetail } => {
     const newId = uuidv4();
     const now = new Date().toISOString();

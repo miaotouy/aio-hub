@@ -1,4 +1,8 @@
-import type { ToolRegistry, ServiceMetadata, ToolConfig } from "@/services/types";
+import type {
+  ToolRegistry,
+  ServiceMetadata,
+  ToolConfig,
+} from "@/services/types";
 import { markRaw } from "vue";
 import TextDiffIcon from "@/components/icons/TextDiffIcon.vue";
 import { createModuleLogger } from "@/utils/logger";
@@ -41,7 +45,11 @@ export default class TextDiffRegistry implements ToolRegistry {
       context: args.context ? Number(args.context) : 3,
     };
     logger.info("生成补丁", { options });
-    const result = generatePatch(args.oldText || "", args.newText || "", options);
+    const result = generatePatch(
+      args.oldText || "",
+      args.newText || "",
+      options
+    );
     return formatPatchResult(result);
   }
 

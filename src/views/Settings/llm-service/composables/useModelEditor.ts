@@ -40,7 +40,9 @@ export function useModelEditor(
 
   const handleSaveModel = (model: LlmModelInfo) => {
     if (isEditingModel.value && editingModel.value) {
-      const index = editForm.value.models.findIndex((m) => m.id === editingModel.value!.id);
+      const index = editForm.value.models.findIndex(
+        (m) => m.id === editingModel.value!.id
+      );
       if (index !== -1) {
         editForm.value.models[index] = model;
       }
@@ -75,7 +77,9 @@ export function useModelEditor(
 
     isFetchingModels.value = true;
     try {
-      const { models, rawResponse } = await fetchModelsFromApi(selectedProfile.value);
+      const { models, rawResponse } = await fetchModelsFromApi(
+        selectedProfile.value
+      );
 
       if (models.length === 0) {
         customMessage.warning("未获取到任何模型");

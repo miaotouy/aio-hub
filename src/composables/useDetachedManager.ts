@@ -74,20 +74,32 @@ const useDetachedWindowManager = () => {
       });
 
       // 兼容旧的组件系统事件
-      await listen<{ label: string; componentId: string }>("component-detached", (event) => {
-        const { label, componentId } = event.payload;
-        logger.info(`组件窗口已分离(旧事件): '${componentId}' (label: ${label})`);
-        detachedWindows.value.set(label, { label, id: componentId, type: "component" });
-        detachedWindows.value = new Map(detachedWindows.value); // 强制响应式更新
-      });
-
-      await listen<{ label: string; componentId: string }>("component-attached", (event) => {
-        const { label } = event.payload;
-        logger.info(`组件窗口已重新附着(旧事件): (label: ${label})`);
-        if (detachedWindows.value.delete(label)) {
+      await listen<{ label: string; componentId: string }>(
+        "component-detached",
+        (event) => {
+          const { label, componentId } = event.payload;
+          logger.info(
+            `组件窗口已分离(旧事件): '${componentId}' (label: ${label})`
+          );
+          detachedWindows.value.set(label, {
+            label,
+            id: componentId,
+            type: "component",
+          });
           detachedWindows.value = new Map(detachedWindows.value); // 强制响应式更新
         }
-      });
+      );
+
+      await listen<{ label: string; componentId: string }>(
+        "component-attached",
+        (event) => {
+          const { label } = event.payload;
+          logger.info(`组件窗口已重新附着(旧事件): (label: ${label})`);
+          if (detachedWindows.value.delete(label)) {
+            detachedWindows.value = new Map(detachedWindows.value); // 强制响应式更新
+          }
+        }
+      );
 
       // 监听窗口销毁事件，确保状态被清理
       await listen<{ label?: string }>("tauri://destroyed", async (event) => {
@@ -96,13 +108,17 @@ const useDetachedWindowManager = () => {
         const label = event.payload?.label || (event as any).windowLabel;
 
         if (!label) {
-          logger.debug("收到 tauri://destroyed 事件，但无法确定窗口 label，忽略");
+          logger.debug(
+            "收到 tauri://destroyed 事件，但无法确定窗口 label，忽略"
+          );
           return;
         }
 
         if (detachedWindows.value.has(label)) {
           const detached = detachedWindows.value.get(label)!;
-          logger.info(`窗口已销毁，清理状态并触发恢复逻辑: ${detached.type} '${detached.id}' (label: ${label})`);
+          logger.info(
+            `窗口已销毁，清理状态并触发恢复逻辑: ${detached.type} '${detached.id}' (label: ${label})`
+          );
 
           // 模拟发送 window-attached 事件，以便主窗口能够恢复对应的标签页/状态
           const { emit } = await import("@tauri-apps/api/event");
@@ -115,7 +131,9 @@ const useDetachedWindowManager = () => {
       });
 
       // 从后端获取当前所有已分离的窗口进行初始化
-      const existingWindows = await invoke<DetachedWindow[]>("get_all_detached_windows");
+      const existingWindows = await invoke<DetachedWindow[]>(
+        "get_all_detached_windows"
+      );
       for (const win of existingWindows) {
         detachedWindows.value.set(win.label, win);
       }
@@ -224,13 +242,19 @@ const useDetachedWindowManager = () => {
    */
   const ensureWindowVisible = async (label: string): Promise<boolean> => {
     try {
-      const adjusted = await invoke<boolean>("ensure_window_visible", { label });
+      const adjusted = await invoke<boolean>("ensure_window_visible", {
+        label,
+      });
       if (adjusted) {
         logger.info("窗口位置已调整到可见区域", { label });
       }
       return adjusted;
     } catch (error) {
-      errorHandler.handle(error, { userMessage: "调整窗口位置失败", context: { label }, showToUser: false });
+      errorHandler.handle(error, {
+        userMessage: "调整窗口位置失败",
+        context: { label },
+        showToUser: false,
+      });
       return false;
     }
   };
@@ -253,7 +277,9 @@ const useDetachedWindowManager = () => {
     // 如果找不到 label，可能是因为状态不同步，或者传入的直接就是 label
     // 这种情况下，我们直接尝试使用传入的 id 作为 label
     if (!labelToClose) {
-      logger.warn(`在管理器中未找到 ID 为 '${id}' 的窗口，将尝试直接使用此 ID 作为 label 关闭。`);
+      logger.warn(
+        `在管理器中未找到 ID 为 '${id}' 的窗口，将尝试直接使用此 ID 作为 label 关闭。`
+      );
       labelToClose = id;
     }
 
@@ -264,7 +290,9 @@ const useDetachedWindowManager = () => {
       logger.info("窗口关闭成功", { label: labelToClose });
       return true;
     } catch (error) {
-      errorHandler.error(error, "关闭窗口失败", { context: { label: labelToClose, id } });
+      errorHandler.error(error, "关闭窗口失败", {
+        context: { label: labelToClose, id },
+      });
       return false;
     }
   };
@@ -316,4 +344,5 @@ const useDetachedWindowManager = () => {
   };
 };
 
-export const useDetachedManager = () => getOrCreateInstance("DetachedManager", useDetachedWindowManager);
+export const useDetachedManager = () =>
+  getOrCreateInstance("DetachedManager", useDetachedWindowManager);

@@ -18,7 +18,9 @@ import { useTranscriptionManager } from "@/tools/llm-chat/composables/features/u
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import ComponentHeader from "@/components/ComponentHeader.vue";
-import MessageInputToolbar, { type InputToolbarSettings } from "./MessageInputToolbar.vue";
+import MessageInputToolbar, {
+  type InputToolbarSettings,
+} from "./MessageInputToolbar.vue";
 import ChatCodeMirrorEditor from "./ChatCodeMirrorEditor.vue";
 import MessageInputAttachments from "./MessageInputAttachments.vue";
 
@@ -33,12 +35,19 @@ const bus = useWindowSyncBus();
 
 // 获取聊天 store 以访问流式输出开关
 const chatStore = useLlmChatStore();
-const { settings, updateSettings, isLoaded: settingsLoaded, loadSettings } = useChatSettings();
+const {
+  settings,
+  updateSettings,
+  isLoaded: settingsLoaded,
+  loadSettings,
+} = useChatSettings();
 const transcriptionManager = useTranscriptionManager();
 
 // 计算流式输出状态，在设置加载前默认为 false（非流式）
 const isStreamingEnabled = computed(() => {
-  return settingsLoaded.value ? settings.value.uiPreferences.isStreaming : false;
+  return settingsLoaded.value
+    ? settings.value.uiPreferences.isStreaming
+    : false;
 });
 
 // UI 设置状态 (持久化)
@@ -51,7 +60,7 @@ const inputSettings = useStorage<InputToolbarSettings>(
     groupQuickActionsBySet: false,
   },
   localStorage,
-  { mergeDefaults: true },
+  { mergeDefaults: true }
 );
 
 // 计算当前分支是否正在生成
@@ -87,10 +96,14 @@ interface Emits {
       attachments?: Asset[];
       temporaryModel?: ModelIdentifier | null;
       disableMacroParsing?: boolean;
-    },
+    }
   ): void;
   (e: "abort"): void;
-  (e: "complete-input", content: string, options?: { modelId?: string; profileId?: string }): void;
+  (
+    e: "complete-input",
+    content: string,
+    options?: { modelId?: string; profileId?: string }
+  ): void;
   (e: "select-continuation-model"): void;
   (e: "clear-continuation-model"): void;
   (e: "open-agent-settings", tab?: string): void;
@@ -146,7 +159,12 @@ const attachmentManager = {
 };
 
 // 1. 高度调整逻辑
-const { editorHeight, editorMaxHeight, handleInputResizeStart, handleResizeDoubleClick } = useMessageInputResize({
+const {
+  editorHeight,
+  editorMaxHeight,
+  handleInputResizeStart,
+  handleResizeDoubleClick,
+} = useMessageInputResize({
   isDetached: props.isDetached || false,
   textareaRef,
   extraHeight: attachmentsHeight,
@@ -204,8 +222,14 @@ const { isDraggingOver } = useChatFileInteraction({
     const beforeIds = new Set(inputManager.attachments.value.map((a) => a.id));
     await inputManager.addAttachments(paths);
 
-    const newAssets = inputManager.attachments.value.filter((a) => !beforeIds.has(a.id));
-    inputManager.handleAssetsAddition(newAssets, textareaRef.value, settings.value.transcription.autoInsertPlaceholder);
+    const newAssets = inputManager.attachments.value.filter(
+      (a) => !beforeIds.has(a.id)
+    );
+    inputManager.handleAssetsAddition(
+      newAssets,
+      textareaRef.value,
+      settings.value.transcription.autoInsertPlaceholder
+    );
   },
   onAssets: async (assets) => {
     logger.info("文件粘贴触发", { count: assets.length });
@@ -217,13 +241,15 @@ const { isDraggingOver } = useChatFileInteraction({
     }
     if (addedAssets.length > 0) {
       const message =
-        addedAssets.length === 1 ? `已粘贴文件: ${assets[0].name}` : `已粘贴 ${addedAssets.length} 个文件`;
+        addedAssets.length === 1
+          ? `已粘贴文件: ${assets[0].name}`
+          : `已粘贴 ${addedAssets.length} 个文件`;
       customMessage.success(message);
 
       inputManager.handleAssetsAddition(
         addedAssets,
         textareaRef.value,
-        settings.value.transcription.autoInsertPlaceholder,
+        settings.value.transcription.autoInsertPlaceholder
       );
     }
   },
@@ -245,7 +271,10 @@ const placeholderText = computed(() => {
   if (!chatStore.currentSessionId) return "请先创建或选择一个对话";
 
   const sendKey = settings.value.shortcuts.send;
-  const sendHint = sendKey === "ctrl+enter" ? "Ctrl/Cmd + Enter 发送" : "Enter 发送, Shift + Enter 换行";
+  const sendHint =
+    sendKey === "ctrl+enter"
+      ? "Ctrl/Cmd + Enter 发送"
+      : "Enter 发送, Shift + Enter 换行";
   return `输入消息、拖入或粘贴文件... (${sendHint})`;
 });
 
@@ -258,7 +287,9 @@ watch(inputManager.focusRequest, () => {
  * 动态调整分离窗口高度以适应菜单显示或内容变化
  * @param expanding 是否强制展开高度（用于菜单显示）
  */
-const updateDetachedWindowSize = async (expanding: boolean = isAnyMenuOpen.value) => {
+const updateDetachedWindowSize = async (
+  expanding: boolean = isAnyMenuOpen.value
+) => {
   if (!props.isDetached || isUpdatingSize.value) return;
   isUpdatingSize.value = true;
   try {
@@ -267,7 +298,9 @@ const updateDetachedWindowSize = async (expanding: boolean = isAnyMenuOpen.value
     // 获取当前容器的实际像素高度
     // 这里的计算需要考虑到 DetachedComponentContainer.vue 中的 padding (32px * 2)
     // 以及组件自身的 top: 12px 定位和底部留出的缓冲空间
-    const currentContentHeight = Math.ceil((containerHeight.value + 12 + 64 + 16) * scale);
+    const currentContentHeight = Math.ceil(
+      (containerHeight.value + 12 + 64 + 16) * scale
+    );
 
     let targetHeight;
     if (expanding) {
@@ -391,7 +424,10 @@ const handleDetach = async () => {
   try {
     const sessionId = await invoke<string>("begin_detach_session", { config });
     if (sessionId) {
-      await invoke("finalize_detach_session", { sessionId, shouldDetach: true });
+      await invoke("finalize_detach_session", {
+        sessionId,
+        shouldDetach: true,
+      });
     }
   } catch (error) {
     errorHandler.error(error, "通过菜单分离窗口失败");
@@ -413,7 +449,9 @@ const handleConvertPaths = async () => {
           : `已转换 ${result.successCount} 个路径为附件`;
       customMessage.success(msg);
     } else {
-      customMessage.warning(`${result.failedCount} 个路径转换失败，请检查文件是否存在`);
+      customMessage.warning(
+        `${result.failedCount} 个路径转换失败，请检查文件是否存在`
+      );
     }
   } catch (error) {
     errorHandler.error(error, "路径转换失败");
@@ -464,7 +502,10 @@ const handleDragStart = (e: MouseEvent) => {
 
   const config = getDetachConfig(e);
   if (!config) {
-    errorHandler.error(new Error("Container rect is null"), "无法获取容器尺寸，无法开始拖拽");
+    errorHandler.error(
+      new Error("Container rect is null"),
+      "无法获取容器尺寸，无法开始拖拽"
+    );
     return;
   }
 
@@ -475,11 +516,17 @@ const handleDragStart = (e: MouseEvent) => {
 <template>
   <div
     ref="containerRef"
-    :class="['message-input-container', { 'detached-mode': isDetached, 'dragging-over': isDraggingOver }]"
+    :class="[
+      'message-input-container',
+      { 'detached-mode': isDetached, 'dragging-over': isDraggingOver },
+    ]"
     @mousedown="handleDragStart"
   >
     <!-- 分离模式下的壁纸层 -->
-    <div v-if="isDetached && settings.uiPreferences.showWallpaperInDetachedMode" class="detached-wallpaper"></div>
+    <div
+      v-if="isDetached && settings.uiPreferences.showWallpaperInDetachedMode"
+      class="detached-wallpaper"
+    ></div>
 
     <!-- 调整高度手柄 - 非悬浮模式下在顶部 -->
     <div
@@ -509,7 +556,10 @@ const handleDragStart = (e: MouseEvent) => {
       <!-- 输入内容区 -->
       <div class="input-content">
         <!-- 附件展示区 -->
-        <div v-if="attachmentManager.hasAttachments.value" ref="attachmentsContainerRef">
+        <div
+          v-if="attachmentManager.hasAttachments.value"
+          ref="attachmentsContainerRef"
+        >
           <MessageInputAttachments
             :attachments="attachmentManager.attachments.value"
             :count="attachmentManager.count.value"
@@ -577,9 +627,19 @@ const handleDragStart = (e: MouseEvent) => {
       </div>
     </div>
     <!-- 左侧调整宽度手柄，仅在分离模式下显示 -->
-    <div v-if="props.isDetached" class="resize-handle-left" @mousedown="handleResizeWest" title="拖拽调整宽度"></div>
+    <div
+      v-if="props.isDetached"
+      class="resize-handle-left"
+      @mousedown="handleResizeWest"
+      title="拖拽调整宽度"
+    ></div>
     <!-- 右侧调整宽度手柄，仅在分离模式下显示 -->
-    <div v-if="props.isDetached" class="resize-handle-right" @mousedown="handleResizeEast" title="拖拽调整宽度"></div>
+    <div
+      v-if="props.isDetached"
+      class="resize-handle-right"
+      @mousedown="handleResizeEast"
+      title="拖拽调整宽度"
+    ></div>
   </div>
 </template>
 

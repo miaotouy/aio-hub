@@ -14,8 +14,18 @@ export class VSCodeDetector {
     try {
       // 1. User Install (Local AppData)
       const localAppData = await localDataDir();
-      possiblePaths.push(await join(localAppData, "Programs", "Microsoft VS Code", "bin", "code.cmd"));
-      possiblePaths.push(await join(localAppData, "Programs", "Microsoft VS Code", "Code.exe"));
+      possiblePaths.push(
+        await join(
+          localAppData,
+          "Programs",
+          "Microsoft VS Code",
+          "bin",
+          "code.cmd"
+        )
+      );
+      possiblePaths.push(
+        await join(localAppData, "Programs", "Microsoft VS Code", "Code.exe")
+      );
 
       // 2. System Install (Program Files)
       // 在 Windows 上，通常是 C:\Program Files
@@ -23,7 +33,9 @@ export class VSCodeDetector {
       possiblePaths.push("C:\\Program Files\\Microsoft VS Code\\Code.exe");
 
       // 3. System Install (x86)
-      possiblePaths.push("C:\\Program Files (x86)\\Microsoft VS Code\\bin\\code.cmd");
+      possiblePaths.push(
+        "C:\\Program Files (x86)\\Microsoft VS Code\\bin\\code.cmd"
+      );
 
       for (const path of possiblePaths) {
         try {

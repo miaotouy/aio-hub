@@ -47,7 +47,9 @@ const { show: showImage } = useImageViewer();
 const currentAsset = ref<Asset | null>(null);
 const previewUrl = ref<string>("");
 const posterUrl = ref<string>("");
-const previewType = ref<"image" | "video" | "audio" | "document" | "text" | null>(null);
+const previewType = ref<
+  "image" | "video" | "audio" | "document" | "text" | null
+>(null);
 const editorLanguage = ref("markdown");
 const isProcessing = ref(false);
 const isSaving = ref(false);
@@ -125,7 +127,10 @@ watch(
 // 判断当前资产是否正在导入中
 const isImporting = computed(() => {
   if (!currentAsset.value) return false;
-  return currentAsset.value.importStatus === "pending" || currentAsset.value.importStatus === "importing";
+  return (
+    currentAsset.value.importStatus === "pending" ||
+    currentAsset.value.importStatus === "importing"
+  );
 });
 
 // 文件交互
@@ -210,7 +215,11 @@ const tryLoadExistingResult = async (asset: Asset) => {
 // 处理资产选择
 // 处理资产选择
 const handleAssetSelect = async (asset: Asset) => {
-  logger.info("处理资产选择", { id: asset.id, name: asset.name, status: asset.importStatus });
+  logger.info("处理资产选择", {
+    id: asset.id,
+    name: asset.name,
+    status: asset.importStatus,
+  });
   currentAsset.value = asset;
 
   // 识别文本类型
@@ -228,9 +237,11 @@ const handleAssetSelect = async (asset: Asset) => {
     // 判断是否可以直接读取：
     // 1. importStatus 为 complete
     // 2. 或者 importStatus 未定义但 path 存在且不是 blob URL（说明是已存在的资产）
-    const isPending = asset.importStatus === "pending" || asset.importStatus === "importing";
+    const isPending =
+      asset.importStatus === "pending" || asset.importStatus === "importing";
     const hasValidPath = asset.path && !asset.path.startsWith("blob:");
-    const canReadDirectly = asset.importStatus === "complete" || (!isPending && hasValidPath);
+    const canReadDirectly =
+      asset.importStatus === "complete" || (!isPending && hasValidPath);
     logger.debug("纯文本处理路径", {
       importStatus: asset.importStatus,
       path: asset.path,
@@ -252,7 +263,10 @@ const handleAssetSelect = async (asset: Asset) => {
         if (!basePath.value) {
           basePath.value = await assetManagerEngine.getAssetBasePath();
         }
-        previewUrl.value = assetManagerEngine.convertToAssetProtocol(asset.path, basePath.value);
+        previewUrl.value = assetManagerEngine.convertToAssetProtocol(
+          asset.path,
+          basePath.value
+        );
         return;
       } catch (e) {
         logger.warn("读取纯文本内容失败", e);
@@ -266,14 +280,17 @@ const handleAssetSelect = async (asset: Asset) => {
   }
 
   // 判断是否为 pending/importing 状态
-  const isPending = asset.importStatus === "pending" || asset.importStatus === "importing";
+  const isPending =
+    asset.importStatus === "pending" || asset.importStatus === "importing";
 
   if (isPending) {
     // pending 状态：使用 originalPath（blob URL）作为预览
     const originalPath = (asset as any).originalPath || asset.path;
     if (originalPath) {
       // 如果是 blob URL，直接使用；否则使用 convertFileSrc
-      previewUrl.value = originalPath.startsWith("blob:") ? originalPath : convertFileSrc(originalPath);
+      previewUrl.value = originalPath.startsWith("blob:")
+        ? originalPath
+        : convertFileSrc(originalPath);
     }
     posterUrl.value = "";
     logger.debug("资产正在导入中，使用临时预览", {
@@ -287,11 +304,17 @@ const handleAssetSelect = async (asset: Asset) => {
     if (!basePath.value) {
       basePath.value = await assetManagerEngine.getAssetBasePath();
     }
-    previewUrl.value = assetManagerEngine.convertToAssetProtocol(asset.path, basePath.value);
+    previewUrl.value = assetManagerEngine.convertToAssetProtocol(
+      asset.path,
+      basePath.value
+    );
 
     // 加载缩略图/封面
     if (asset.thumbnailPath) {
-      posterUrl.value = assetManagerEngine.convertToAssetProtocol(asset.thumbnailPath, basePath.value);
+      posterUrl.value = assetManagerEngine.convertToAssetProtocol(
+        asset.thumbnailPath,
+        basePath.value
+      );
     } else {
       posterUrl.value = "";
     }
@@ -311,8 +334,15 @@ const handleAssetSelect = async (asset: Asset) => {
       // 如果开启了自动转写，且没有正在进行的任务，则自动开始
       // 注意：只有在导入完成后且非纯文本才触发，如果还在导入中，由 watch 处理
       const existingTask = store.getTaskByAssetId(asset.id);
-      if (asset.importStatus === "complete" && !isText && store.config.autoStartOnImport && !existingTask) {
-        logger.info("检测到已导入资产且开启了自动转写，触发任务", { assetId: asset.id });
+      if (
+        asset.importStatus === "complete" &&
+        !isText &&
+        store.config.autoStartOnImport &&
+        !existingTask
+      ) {
+        logger.info("检测到已导入资产且开启了自动转写，触发任务", {
+          assetId: asset.id,
+        });
         startTranscription();
       }
     }
@@ -324,7 +354,11 @@ watch(
   () => currentAsset.value?.importStatus,
   async (newStatus, oldStatus) => {
     if (!currentAsset.value) return;
-    logger.debug("资产导入状态变化", { oldStatus, newStatus, assetId: currentAsset.value.id });
+    logger.debug("资产导入状态变化", {
+      oldStatus,
+      newStatus,
+      assetId: currentAsset.value.id,
+    });
 
     // 当资产变为 complete 时，更新预览 URL（放宽条件，只要变为 complete 就处理）
     if (newStatus === "complete") {
@@ -335,7 +369,10 @@ watch(
       });
 
       // 识别文本类型
-      const isText = isTextFile(currentAsset.value.name, currentAsset.value.mimeType || "");
+      const isText = isTextFile(
+        currentAsset.value.name,
+        currentAsset.value.mimeType || ""
+      );
       logger.debug("导入完成后重新识别文本类型", { isText });
 
       // 更新资产类型（上传后可能识别得更准确）
@@ -354,18 +391,28 @@ watch(
       if (!basePath.value) {
         basePath.value = await assetManagerEngine.getAssetBasePath();
       }
-      previewUrl.value = assetManagerEngine.convertToAssetProtocol(currentAsset.value.path, basePath.value);
+      previewUrl.value = assetManagerEngine.convertToAssetProtocol(
+        currentAsset.value.path,
+        basePath.value
+      );
 
       // 加载缩略图/封面
       if (currentAsset.value.thumbnailPath) {
-        posterUrl.value = assetManagerEngine.convertToAssetProtocol(currentAsset.value.thumbnailPath, basePath.value);
+        posterUrl.value = assetManagerEngine.convertToAssetProtocol(
+          currentAsset.value.thumbnailPath,
+          basePath.value
+        );
       }
 
       // 1. 如果是纯文本，直接读取展示
       if (isText) {
         try {
-          logger.info("导入完成，读取纯文本内容", { path: currentAsset.value.path });
-          const buffer = await assetManagerEngine.getAssetBinary(currentAsset.value.path);
+          logger.info("导入完成，读取纯文本内容", {
+            path: currentAsset.value.path,
+          });
+          const buffer = await assetManagerEngine.getAssetBinary(
+            currentAsset.value.path
+          );
           const text = smartDecode(buffer);
           logger.debug("读取到文本内容长度", { length: text.length });
           resultText.value = text;
@@ -381,7 +428,9 @@ watch(
 
       // 3. 如果没有结果且启用了自动转写，立即触发
       if (!hasResult && store.config.autoStartOnImport) {
-        logger.info("资产后台上传完成，自动触发转写任务", { assetId: currentAsset.value.id });
+        logger.info("资产后台上传完成，自动触发转写任务", {
+          assetId: currentAsset.value.id,
+        });
         startTranscription();
       }
     }
@@ -433,7 +482,8 @@ watch(
       return;
     }
 
-    isProcessing.value = task.status === "processing" || task.status === "pending";
+    isProcessing.value =
+      task.status === "processing" || task.status === "pending";
 
     if (task.status === "completed") {
       // 转写结果通常是 markdown
@@ -498,7 +548,9 @@ const handleImagePreview = () => {
 
 // 下载结果
 const downloadResult = () => {
-  const blob = new Blob([resultText.value], { type: "text/plain;charset=utf-8" });
+  const blob = new Blob([resultText.value], {
+    type: "text/plain;charset=utf-8",
+  });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -520,7 +572,18 @@ const selectFile = async () => {
       filters: [
         {
           name: "多媒体文件",
-          extensions: ["png", "jpg", "jpeg", "mp3", "wav", "mp4", "mkv", "pdf", "txt", "md"],
+          extensions: [
+            "png",
+            "jpg",
+            "jpeg",
+            "mp3",
+            "wav",
+            "mp4",
+            "mkv",
+            "pdf",
+            "txt",
+            "md",
+          ],
         },
       ],
     });
@@ -579,7 +642,9 @@ const toggleQuickConfig = () => {
           :disabled="!currentAsset || isImporting"
           @click="startTranscription"
         >
-          {{ isProcessing ? "转写中..." : isImporting ? "上传中..." : "开始转写" }}
+          {{
+            isProcessing ? "转写中..." : isImporting ? "上传中..." : "开始转写"
+          }}
         </el-button>
 
         <el-button
@@ -595,7 +660,9 @@ const toggleQuickConfig = () => {
       <div class="toolbar-right">
         <template v-if="showResult && resultText">
           <el-button :icon="Copy" link @click="copyResult">复制结果</el-button>
-          <el-button :icon="MessageSquare" link @click="sendResultToChat">发送到聊天</el-button>
+          <el-button :icon="MessageSquare" link @click="sendResultToChat"
+            >发送到聊天</el-button
+          >
         </template>
       </div>
     </div>
@@ -636,7 +703,10 @@ const toggleQuickConfig = () => {
     <!-- 主工作区 -->
     <div class="workbench-main">
       <!-- 左侧：预览区 -->
-      <div class="preview-section" :class="{ 'is-text-preview': previewType === 'text' }">
+      <div
+        class="preview-section"
+        :class="{ 'is-text-preview': previewType === 'text' }"
+      >
         <!-- 预览区标题栏：放置核心操作 -->
         <div class="preview-header" v-if="currentAsset">
           <div class="header-left">
@@ -644,18 +714,26 @@ const toggleQuickConfig = () => {
             <span class="file-name">{{ currentAsset.name }}</span>
           </div>
           <div class="header-right">
-            <el-button :icon="XCircle" link size="small" @click="clearPreview">移除文件</el-button>
+            <el-button :icon="XCircle" link size="small" @click="clearPreview"
+              >移除文件</el-button
+            >
           </div>
         </div>
 
         <div class="preview-content">
-          <div v-if="!currentAsset" class="upload-area" :class="{ highlight: isDraggingOver }">
+          <div
+            v-if="!currentAsset"
+            class="upload-area"
+            :class="{ highlight: isDraggingOver }"
+          >
             <el-icon :size="64"><Upload /></el-icon>
             <div class="upload-texts">
               <p>拖放文件到此处，或粘贴文件</p>
               <p class="hint-text">支持图片、音频、视频、PDF 或纯文本</p>
             </div>
-            <el-button type="primary" plain @click="selectFile">选择文件</el-button>
+            <el-button type="primary" plain @click="selectFile"
+              >选择文件</el-button
+            >
           </div>
           <div v-else class="asset-preview">
             <!-- 图片预览 -->
@@ -674,7 +752,12 @@ const toggleQuickConfig = () => {
                 <Loader2 class="import-spinner" />
                 <span>上传中...</span>
               </div>
-              <VideoPlayer v-if="previewUrl" :src="previewUrl" :title="currentAsset.name" :autoplay="false" />
+              <VideoPlayer
+                v-if="previewUrl"
+                :src="previewUrl"
+                :title="currentAsset.name"
+                :autoplay="false"
+              />
             </div>
             <!-- 音频预览 -->
             <div v-else-if="previewType === 'audio'" class="audio-preview">
@@ -692,28 +775,46 @@ const toggleQuickConfig = () => {
               />
             </div>
             <!-- 文档预览 -->
-            <div v-else-if="previewType === 'document'" class="document-preview">
+            <div
+              v-else-if="previewType === 'document'"
+              class="document-preview"
+            >
               <div class="file-icon-wrapper">
-                <FileIcon :file-name="currentAsset.name" :file-type="currentAsset.type" :size="80" />
+                <FileIcon
+                  :file-name="currentAsset.name"
+                  :file-type="currentAsset.type"
+                  :size="80"
+                />
               </div>
               <div class="file-details">
                 <span class="document-name">{{ currentAsset.name }}</span>
                 <div class="file-meta">
                   <span class="meta-tag">{{ currentAsset.mimeType }}</span>
-                  <span class="meta-tag">{{ (currentAsset.size / 1024).toFixed(1) }} KB</span>
+                  <span class="meta-tag"
+                    >{{ (currentAsset.size / 1024).toFixed(1) }} KB</span
+                  >
                 </div>
               </div>
             </div>
             <!-- 纯文本预览 -->
-            <div v-else-if="previewType === 'text'" class="document-preview text-file">
+            <div
+              v-else-if="previewType === 'text'"
+              class="document-preview text-file"
+            >
               <div class="file-icon-wrapper">
-                <FileIcon :file-name="currentAsset.name" file-type="document" :size="80" />
+                <FileIcon
+                  :file-name="currentAsset.name"
+                  file-type="document"
+                  :size="80"
+                />
               </div>
               <div class="file-details">
                 <span class="document-name">{{ currentAsset.name }}</span>
                 <div class="file-meta">
                   <span class="meta-tag text-type">纯文本</span>
-                  <span class="meta-tag">{{ (currentAsset.size / 1024).toFixed(1) }} KB</span>
+                  <span class="meta-tag"
+                    >{{ (currentAsset.size / 1024).toFixed(1) }} KB</span
+                  >
                 </div>
                 <p class="hint-text">该文件已是纯文本，已在右侧直接展示内容</p>
               </div>
@@ -721,7 +822,11 @@ const toggleQuickConfig = () => {
             <!-- 未知类型 -->
             <div v-else class="unknown-preview">
               <div class="file-icon-wrapper grayscale">
-                <FileIcon :file-name="currentAsset.name" :file-type="currentAsset.type" :size="80" />
+                <FileIcon
+                  :file-name="currentAsset.name"
+                  :file-type="currentAsset.type"
+                  :size="80"
+                />
               </div>
               <div class="file-details">
                 <span class="document-name">{{ currentAsset.name }}</span>
@@ -733,13 +838,28 @@ const toggleQuickConfig = () => {
       </div>
 
       <!-- 右侧：结果区 -->
-      <div class="result-section" :class="{ empty: !showResult || !resultText }">
+      <div
+        class="result-section"
+        :class="{ empty: !showResult || !resultText }"
+      >
         <div v-if="showResult && resultText" class="result-container">
           <div class="result-header">
             <span class="title">转写结果</span>
             <div class="actions">
-              <el-button :icon="Save" link size="small" :loading="isSaving" @click="saveResult">保存</el-button>
-              <el-button :icon="Download" link size="small" @click="downloadResult" />
+              <el-button
+                :icon="Save"
+                link
+                size="small"
+                :loading="isSaving"
+                @click="saveResult"
+                >保存</el-button
+              >
+              <el-button
+                :icon="Download"
+                link
+                size="small"
+                @click="downloadResult"
+              />
             </div>
           </div>
           <div class="result-editor">

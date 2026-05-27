@@ -78,7 +78,11 @@ const toggleExpand = () => {
   >
     <div class="card-header" @click="toggleExpand">
       <div class="header-left">
-        <component :is="isExpanded ? ChevronDown : ChevronRight" class="expand-icon" :size="16" />
+        <component
+          :is="isExpanded ? ChevronDown : ChevronRight"
+          class="expand-icon"
+          :size="16"
+        />
         <div class="level-icon-wrapper">
           <component :is="levelIcon" class="level-icon" :size="16" />
         </div>
@@ -119,7 +123,11 @@ const toggleExpand = () => {
       </div>
     </el-collapse-transition>
 
-    <JsonDetailDrawer v-model="showJson" :data="message" :title="`日志详情 - ${message.title}`" />
+    <JsonDetailDrawer
+      v-model="showJson"
+      :data="message"
+      :title="`日志详情 - ${message.title}`"
+    />
   </div>
 </template>
 

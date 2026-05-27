@@ -24,14 +24,22 @@
       <!-- 悬停操作栏 -->
       <transition name="fade">
         <div v-show="isHovered" class="image-toolbar">
-          <div class="toolbar-item" @click.stop="handlePreview" title="放大查看">
+          <div
+            class="toolbar-item"
+            @click.stop="handlePreview"
+            title="放大查看"
+          >
             <ZoomIn :size="16" />
           </div>
           <div class="toolbar-item" @click.stop="handleCopy" title="复制图片">
             <Copy v-if="!isCopying" :size="16" />
             <Check v-else :size="16" class="success-icon" />
           </div>
-          <div class="toolbar-item" @click.stop="handleDownload" title="下载图片">
+          <div
+            class="toolbar-item"
+            @click.stop="handleDownload"
+            title="下载图片"
+          >
             <Download :size="16" />
           </div>
         </div>
@@ -62,7 +70,10 @@ const props = defineProps<{
 // 注入上下文
 const context = inject<RichTextContext | null>(RICH_TEXT_CONTEXT_KEY, null);
 // 注入当前 Agent（由 MessageContent 提供，用于解析 agent-asset:// URL）
-const currentAgent = inject<ComputedRef<ChatAgent | undefined> | null>("currentAgent", null);
+const currentAgent = inject<ComputedRef<ChatAgent | undefined> | null>(
+  "currentAgent",
+  null
+);
 const imageViewer = useImageViewer();
 
 const resolvedSrc = ref("");
@@ -105,7 +116,9 @@ const resolveUrl = async () => {
       if (agent) {
         src = resolveAgentAssetUrlSync(src, agent);
       } else {
-        console.warn(`[ImageNode] No agent context or resolveAsset hook for agent-asset:// URL: ${src}`);
+        console.warn(
+          `[ImageNode] No agent context or resolveAsset hook for agent-asset:// URL: ${src}`
+        );
       }
     }
 
@@ -118,7 +131,10 @@ const resolveUrl = async () => {
         basePath = await assetManagerEngine.getAssetBasePath();
       }
       const assetPath = props.src.substring("appdata://".length);
-      resolvedSrc.value = assetManagerEngine.convertToAssetProtocol(assetPath, basePath);
+      resolvedSrc.value = assetManagerEngine.convertToAssetProtocol(
+        assetPath,
+        basePath
+      );
     } else if (props.src.startsWith("//")) {
       // 协议相对 URL (如 //example.com/image.png)
       // 默认使用 https
@@ -129,7 +145,10 @@ const resolveUrl = async () => {
     }
   } catch (error) {
     if (isActive) {
-      console.error(`[ImageNode] Failed to resolve image source: ${props.src}`, error);
+      console.error(
+        `[ImageNode] Failed to resolve image source: ${props.src}`,
+        error
+      );
       hasError.value = true;
     }
   } finally {
@@ -148,7 +167,8 @@ const handleImageError = async () => {
   // === 新增：VCP 表情包 URL 修复 ===
   // 如果 URL 含"表情包"字样且尚未尝试修复，先走 resolveAsset 修复路径
   if (
-    (!vcpFixAttempted.value && resolvedSrc.value.includes("%E8%A1%A8%E6%83%85%E5%8C%85")) || // URL 编码的"表情包"
+    (!vcpFixAttempted.value &&
+      resolvedSrc.value.includes("%E8%A1%A8%E6%83%85%E5%8C%85")) || // URL 编码的"表情包"
     resolvedSrc.value.includes("表情包")
   ) {
     vcpFixAttempted.value = true; // 标记已尝试，防止死循环
@@ -236,7 +256,7 @@ watch(
       resolveUrl();
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 // Agent 上下文变化时重新解析（仅针对 agent-asset:// 协议）
@@ -247,7 +267,7 @@ watch(
     if (props.src.startsWith("agent-asset://")) {
       resolveUrl();
     }
-  },
+  }
 );
 
 // 监听降级模式：如果检测到降级，停止所有异步操作
@@ -259,7 +279,7 @@ if (context?.images) {
       if (images.length === 0 && lastSrc) {
         isActive = false; // 停用组件
       }
-    },
+    }
   );
 }
 
@@ -323,7 +343,9 @@ const handlePreview = async () => {
   }
 
   // 3. 转换上下文中的所有图片 URL（限制数量后）
-  const convertedImages = await Promise.all(allImages.map((src) => convertToPreviewUrl(src)));
+  const convertedImages = await Promise.all(
+    allImages.map((src) => convertToPreviewUrl(src))
+  );
 
   // 4. 查找当前图片在转换后列表中的索引
   const index = allImages.indexOf(props.src);

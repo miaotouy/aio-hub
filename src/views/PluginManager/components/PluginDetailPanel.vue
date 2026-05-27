@@ -1,18 +1,18 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
-import { Delete, Switch } from '@element-plus/icons-vue';
-import type { PluginProxy } from '@/services/plugin-types';
-import PluginSettingsPanel from './PluginSettingsPanel.vue';
-import Avatar from '@/components/common/Avatar.vue';
-import MarkdownIt from 'markdown-it';
-import DOMPurify from 'dompurify';
-import { readTextFile, exists } from '@tauri-apps/plugin-fs';
-import { path } from '@tauri-apps/api';
-import { createModuleLogger } from '@/utils/logger';
-import { createModuleErrorHandler } from '@/utils/errorHandler';
+import { computed, ref, watch } from "vue";
+import { Delete, Switch } from "@element-plus/icons-vue";
+import type { PluginProxy } from "@/services/plugin-types";
+import PluginSettingsPanel from "./PluginSettingsPanel.vue";
+import Avatar from "@/components/common/Avatar.vue";
+import MarkdownIt from "markdown-it";
+import DOMPurify from "dompurify";
+import { readTextFile, exists } from "@tauri-apps/plugin-fs";
+import { path } from "@tauri-apps/api";
+import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 
-const logger = createModuleLogger('PluginDetailPanel');
-const errorHandler = createModuleErrorHandler('PluginDetailPanel');
+const logger = createModuleLogger("PluginDetailPanel");
+const errorHandler = createModuleErrorHandler("PluginDetailPanel");
 
 // Markdown 渲染器
 const md = new MarkdownIt({
@@ -31,74 +31,81 @@ const props = defineProps<Props>();
 
 // Emits
 const emit = defineEmits<{
-  'toggle': [];
-  'uninstall': [];
+  toggle: [];
+  uninstall: [];
 }>();
 
 // 内部 tab 状态
-const activeContentTab = ref('detail');
+const activeContentTab = ref("detail");
 
 // README 内容
-const readmeHtml = ref<string>('');
+const readmeHtml = ref<string>("");
 const loadingReadme = ref(false);
 const readmeError = ref<string | null>(null);
 
 // 计算属性：插件类型显示文本
 const pluginTypeText = computed(() => {
-  if (!props.plugin) return '';
-  return props.plugin.manifest.type === 'javascript' ? 'JavaScript' : 'Sidecar';
+  if (!props.plugin) return "";
+  return props.plugin.manifest.type === "javascript" ? "JavaScript" : "Sidecar";
 });
 
 // 计算属性：插件状态文本
 const pluginStatusText = computed(() => {
-  if (!props.plugin) return '';
-  return props.plugin.enabled ? '已启用' : '已禁用';
+  if (!props.plugin) return "";
+  return props.plugin.enabled ? "已启用" : "已禁用";
 });
 
 // 加载 README 文件
 async function loadReadme() {
   if (!props.plugin) {
-    readmeHtml.value = '';
+    readmeHtml.value = "";
     return;
   }
 
   loadingReadme.value = true;
   readmeError.value = null;
-  readmeHtml.value = '';
+  readmeHtml.value = "";
 
   try {
     let content: string;
-    
+
     if (props.plugin.devMode) {
       // 开发模式：使用 fetch 从 Vite 开发服务器读取
-      const readmePath = props.plugin.installPath + '/README.md';
-      logger.debug('开发模式：从 Vite 加载 README', { pluginId: props.plugin.id, path: readmePath });
-      
+      const readmePath = props.plugin.installPath + "/README.md";
+      logger.debug("开发模式：从 Vite 加载 README", {
+        pluginId: props.plugin.id,
+        path: readmePath,
+      });
+
       try {
         const response = await fetch(readmePath);
         if (!response.ok) {
           if (response.status === 404) {
-            logger.info('README 文件不存在');
-            readmeHtml.value = '<p class="no-readme">此插件暂无 README 文档</p>';
+            logger.info("README 文件不存在");
+            readmeHtml.value =
+              '<p class="no-readme">此插件暂无 README 文档</p>';
             return;
           }
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
         content = await response.text();
       } catch (error) {
-        logger.warn('README 文件读取失败', { error });
+        logger.warn("README 文件读取失败", { error });
         readmeHtml.value = '<p class="no-readme">此插件暂无 README 文档</p>';
         return;
       }
     } else {
       // 生产模式：使用 Tauri fs API 读取
-      const readmePath = await path.join(props.plugin.installPath, 'README.md');
-      logger.debug('生产模式：从文件系统加载 README', { pluginId: props.plugin.id, path: readmePath });
-      
+      const readmePath = await path.join(props.plugin.installPath, "README.md");
+      logger.debug("生产模式：从文件系统加载 README", {
+        pluginId: props.plugin.id,
+        path: readmePath,
+      });
+
       // 检查文件是否存在
       const fileExists = await exists(readmePath);
       if (!fileExists) {
-        logger.info('README 文件不存在');
+        logger.info("README 文件不存在");
         readmeHtml.value = '<p class="no-readme">此插件暂无 README 文档</p>';
         return;
       }
@@ -106,17 +113,20 @@ async function loadReadme() {
       // 读取文件内容
       content = await readTextFile(readmePath);
     }
-    
+
     // 渲染 Markdown
     const rendered = md.render(content);
-    
+
     // 使用 DOMPurify 净化 HTML
     readmeHtml.value = DOMPurify.sanitize(rendered);
-    
-    logger.info('README 加载成功', { pluginId: props.plugin.id });
+
+    logger.info("README 加载成功", { pluginId: props.plugin.id });
   } catch (error) {
-    errorHandler.handle(error as Error, { userMessage: '加载 README 失败', showToUser: false });
-    readmeError.value = error instanceof Error ? error.message : '未知错误';
+    errorHandler.handle(error as Error, {
+      userMessage: "加载 README 失败",
+      showToUser: false,
+    });
+    readmeError.value = error instanceof Error ? error.message : "未知错误";
     readmeHtml.value = `<p class="readme-error">加载 README 失败: ${readmeError.value}</p>`;
   } finally {
     loadingReadme.value = false;
@@ -128,8 +138,11 @@ watch(
   (newPlugin) => {
     loadReadme();
     // 如果新插件没有设置项，或者当前 tab 是设置但插件变了，则切回详情
-    if (activeContentTab.value === 'settings' && !newPlugin?.manifest.settingsSchema) {
-      activeContentTab.value = 'detail';
+    if (
+      activeContentTab.value === "settings" &&
+      !newPlugin?.manifest.settingsSchema
+    ) {
+      activeContentTab.value = "detail";
     }
   },
   { immediate: true, deep: true }
@@ -141,8 +154,8 @@ watch(
   (newTab) => {
     if (newTab) {
       // 如果是设置 tab，但插件没有设置项，则忽略
-      if (newTab === 'settings' && !props.plugin?.manifest.settingsSchema) {
-        activeContentTab.value = 'detail';
+      if (newTab === "settings" && !props.plugin?.manifest.settingsSchema) {
+        activeContentTab.value = "detail";
       } else {
         activeContentTab.value = newTab;
       }
@@ -182,13 +195,22 @@ watch(
                   {{ pluginStatusText }}
                 </el-tag>
                 <el-tag
-                  :type="plugin.manifest.type === 'javascript' ? 'primary' : 'warning'"
+                  :type="
+                    plugin.manifest.type === 'javascript'
+                      ? 'primary'
+                      : 'warning'
+                  "
                   size="small"
                   effect="plain"
                 >
                   {{ pluginTypeText }}
                 </el-tag>
-                <el-tag v-if="plugin.devMode" type="info" size="small" effect="plain">
+                <el-tag
+                  v-if="plugin.devMode"
+                  type="info"
+                  size="small"
+                  effect="plain"
+                >
                   开发模式
                 </el-tag>
               </div>
@@ -211,7 +233,7 @@ watch(
             :icon="Switch"
             @click="emit('toggle')"
           >
-            {{ plugin.enabled ? '禁用插件' : '启用插件' }}
+            {{ plugin.enabled ? "禁用插件" : "启用插件" }}
           </el-button>
 
           <el-tooltip
@@ -219,11 +241,7 @@ watch(
             content="开发模式插件无法卸载，请手动删除源码目录"
             placement="top"
           >
-            <el-button
-              :icon="Delete"
-              type="danger"
-              disabled
-            >
+            <el-button :icon="Delete" type="danger" disabled>
               卸载插件
             </el-button>
           </el-tooltip>
@@ -281,7 +299,9 @@ watch(
                   </div>
                   <div class="info-item">
                     <span class="label">主机版本</span>
-                    <span class="value">{{ plugin.manifest.host.appVersion }}</span>
+                    <span class="value">{{
+                      plugin.manifest.host.appVersion
+                    }}</span>
                   </div>
                   <div v-if="!plugin.devMode" class="info-item">
                     <span class="label">安装路径</span>
@@ -291,7 +311,12 @@ watch(
                     <span class="label">源码路径</span>
                     <span class="value path">{{ plugin.installPath }}</span>
                   </div>
-                  <div v-if="plugin.manifest.tags && plugin.manifest.tags.length > 0" class="info-item">
+                  <div
+                    v-if="
+                      plugin.manifest.tags && plugin.manifest.tags.length > 0
+                    "
+                    class="info-item"
+                  >
                     <span class="label">标签</span>
                     <div class="tag-list">
                       <el-tag
@@ -400,7 +425,6 @@ watch(
   padding: 24px 32px 20px;
 }
 
-
 .plugin-info {
   flex: 1;
   min-width: 0;
@@ -449,7 +473,7 @@ watch(
 
 .version,
 .plugin-id {
-  font-family: 'Consolas', 'Monaco', monospace;
+  font-family: "Consolas", "Monaco", monospace;
 }
 
 .tags-row {
@@ -579,7 +603,7 @@ watch(
   border-radius: 3px;
   padding: 2px 6px;
   font-size: 0.9em;
-  font-family: 'Consolas', 'Monaco', monospace;
+  font-family: "Consolas", "Monaco", monospace;
   color: var(--text-color);
 }
 
@@ -711,7 +735,7 @@ watch(
 
 .info-item .value.path {
   font-size: 11px;
-  font-family: 'Consolas', 'Monaco', monospace;
+  font-family: "Consolas", "Monaco", monospace;
   color: var(--text-color-secondary);
   word-break: break-all;
 }
@@ -752,7 +776,7 @@ watch(
 }
 
 :deep(.el-button) {
-    margin-left: 0px;
+  margin-left: 0px;
 }
 
 /* ========== 响应式设计 - 使用容器查询 ========== */
@@ -761,7 +785,7 @@ watch(
   .info-sidebar {
     width: 220px;
   }
-  
+
   .readme-area {
     padding: 24px;
     max-width: 800px;
@@ -773,7 +797,7 @@ watch(
   .content-section {
     flex-direction: column;
   }
-  
+
   .info-sidebar {
     width: 100%;
     border-left: none;
@@ -781,20 +805,20 @@ watch(
     max-height: 400px;
     order: 1; /* 插件信息在上面 */
   }
-  
+
   .main-content {
     order: 2; /* README 在下面 */
   }
-  
+
   .readme-area {
     padding: 24px;
     max-width: 100%;
   }
-  
+
   .plugin-header {
     padding: 20px 24px 16px;
   }
-  
+
   .action-bar {
     padding: 0 24px 16px;
   }
@@ -813,15 +837,15 @@ watch(
     flex-direction: column;
     gap: 16px;
   }
-  
+
   .plugin-name {
     font-size: 20px;
   }
-  
+
   .action-bar {
     flex-direction: column;
   }
-  
+
   .action-bar .el-button {
     width: 100%;
   }

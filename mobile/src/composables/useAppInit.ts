@@ -79,6 +79,6 @@ export function useAppInit() {
     isReady,
     progress,
     statusMessage,
-    bootstrap
+    bootstrap,
   };
 }

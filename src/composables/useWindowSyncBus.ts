@@ -6,8 +6,15 @@
  */
 
 import { ref, computed } from "vue";
-import { listen, emit as tauriEmit, type UnlistenFn as TauriUnlistenFn } from "@tauri-apps/api/event";
-import { getCurrentWebviewWindow, getAllWebviewWindows } from "@tauri-apps/api/webviewWindow";
+import {
+  listen,
+  emit as tauriEmit,
+  type UnlistenFn as TauriUnlistenFn,
+} from "@tauri-apps/api/event";
+import {
+  getCurrentWebviewWindow,
+  getAllWebviewWindows,
+} from "@tauri-apps/api/webviewWindow";
 import { getOrCreateInstance } from "@/utils/singleton";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -45,7 +52,10 @@ class WindowSyncBus {
 
   // 连接管理
   private connectedWindows = ref(new Map<string, WindowInfo>());
-  private messageHandlers = new Map<WindowMessageType, Set<MessageHandler<any>>>();
+  private messageHandlers = new Map<
+    WindowMessageType,
+    Set<MessageHandler<any>>
+  >();
   private connectionHandlers = new Set<ConnectionHandler>();
   private disconnectionHandlers = new Set<ConnectionHandler>();
   private reconnectionHandlers = new Set<() => void>();
@@ -80,7 +90,10 @@ class WindowSyncBus {
     } else {
       // 对于分离窗口，检查当前路由路径
       const currentPath = window.location.pathname;
-      if (currentPath.startsWith("/detached-component/") || currentPath.startsWith("/canvas-window/")) {
+      if (
+        currentPath.startsWith("/detached-component/") ||
+        currentPath.startsWith("/canvas-window/")
+      ) {
         this.windowType = "detached-component";
       } else if (currentPath.startsWith("/detached-window/")) {
         this.windowType = "detached-tool";
@@ -115,9 +128,12 @@ class WindowSyncBus {
 
     try {
       // 监听所有类型的消息
-      const unlisten = await listen<BaseMessage>("window-sync-message", (event) => {
-        this.handleMessage(event.payload);
-      });
+      const unlisten = await listen<BaseMessage>(
+        "window-sync-message",
+        (event) => {
+          this.handleMessage(event.payload);
+        }
+      );
       this.eventUnlisteners.push(unlisten);
 
       // 启动心跳检测
@@ -127,11 +143,13 @@ class WindowSyncBus {
 
       // 监听窗口焦点变化以实现重连
       const currentWindow = getCurrentWebviewWindow();
-      const unlistenFocus = await currentWindow.onFocusChanged(({ payload: focused }: { payload: boolean }) => {
-        if (focused) {
-          this.handleReconnect();
+      const unlistenFocus = await currentWindow.onFocusChanged(
+        ({ payload: focused }: { payload: boolean }) => {
+          if (focused) {
+            this.handleReconnect();
+          }
         }
-      });
+      );
       this.eventUnlisteners.push(unlistenFocus);
 
       this.initialized = true;
@@ -173,7 +191,11 @@ class WindowSyncBus {
   /**
    * 发送消息
    */
-  private async sendMessage<T>(type: WindowMessageType, payload: T, target?: string): Promise<void> {
+  private async sendMessage<T>(
+    type: WindowMessageType,
+    payload: T,
+    target?: string
+  ): Promise<void> {
     const message: BaseMessage<T> = {
       type,
       payload,
@@ -230,18 +252,26 @@ class WindowSyncBus {
         this.handleStateSync(message as BaseMessage<StateSyncPayload>);
         break;
       case "action-request":
-        this.handleActionRequest(message as BaseMessage<ActionRequestPayload>).catch((err) => {
-          errorHandler.error(err, "handleActionRequest 未捕获异常", { context: { from: message.from } });
+        this.handleActionRequest(
+          message as BaseMessage<ActionRequestPayload>
+        ).catch((err) => {
+          errorHandler.error(err, "handleActionRequest 未捕获异常", {
+            context: { from: message.from },
+          });
         });
         break;
       case "action-response":
-        this.handleActionResponse(message as BaseMessage<ActionResponsePayload>);
+        this.handleActionResponse(
+          message as BaseMessage<ActionResponsePayload>
+        );
         break;
       case "heartbeat":
         this.handleHeartbeat(message as BaseMessage<HeartbeatPayload>);
         break;
       case "state-sync-batch":
-        this.handleStateSyncBatch(message as BaseMessage<StateSyncBatchPayload>);
+        this.handleStateSyncBatch(
+          message as BaseMessage<StateSyncBatchPayload>
+        );
         break;
       case "request-initial-state":
         this.handleInitialStateRequest(message.from);
@@ -255,7 +285,9 @@ class WindowSyncBus {
         try {
           handler(message.payload, message);
         } catch (error) {
-          errorHandler.error(error, "消息处理器执行失败", { context: { type: message.type } });
+          errorHandler.error(error, "消息处理器执行失败", {
+            context: { type: message.type },
+          });
         }
       }
     }
@@ -307,7 +339,9 @@ class WindowSyncBus {
   /**
    * 处理批量状态同步消息
    */
-  private handleStateSyncBatch(message: BaseMessage<StateSyncBatchPayload>): void {
+  private handleStateSyncBatch(
+    message: BaseMessage<StateSyncBatchPayload>
+  ): void {
     logger.info("收到批量状态同步", {
       statesCount: message.payload.states.length,
     });
@@ -316,7 +350,9 @@ class WindowSyncBus {
   /**
    * 处理操作请求
    */
-  private async handleActionRequest(message: BaseMessage<ActionRequestPayload>): Promise<void> {
+  private async handleActionRequest(
+    message: BaseMessage<ActionRequestPayload>
+  ): Promise<void> {
     const { action, params, requestId } = message.payload;
     let handler: ActionHandler | undefined;
     let actionName = action;
@@ -337,7 +373,11 @@ class WindowSyncBus {
         // 如果匹配到命名空间处理器，传递短名称
         actionName = action.substring(colonIndex + 1);
       }
-      logger.info("[诊断] 命名空间解析", { namespace, found: !!handler, actionName });
+      logger.info("[诊断] 命名空间解析", {
+        namespace,
+        found: !!handler,
+        actionName,
+      });
     }
 
     // 如果没有命名空间处理器，Fallback 到默认处理器
@@ -359,7 +399,7 @@ class WindowSyncBus {
             success: true,
             data: result,
           },
-          message.from,
+          message.from
         );
       } catch (error) {
         // 发送失败响应
@@ -370,7 +410,7 @@ class WindowSyncBus {
             success: false,
             error: error instanceof Error ? error.message : String(error),
           },
-          message.from,
+          message.from
         );
       }
     } else {
@@ -383,7 +423,7 @@ class WindowSyncBus {
           success: false,
           error: `未找到匹配的操作处理器: ${action}`,
         },
-        message.from,
+        message.from
       );
     }
   }
@@ -391,7 +431,9 @@ class WindowSyncBus {
   /**
    * 处理操作响应
    */
-  private handleActionResponse(message: BaseMessage<ActionResponsePayload>): void {
+  private handleActionResponse(
+    message: BaseMessage<ActionResponsePayload>
+  ): void {
     // 操作响应由 ActionProxy 处理，这里只做日志记录
     logger.info("收到操作响应", {
       requestId: message.payload.requestId,
@@ -406,7 +448,10 @@ class WindowSyncBus {
     const windowInfo = this.connectedWindows.value.get(message.from);
     if (windowInfo) {
       windowInfo.lastHeartbeat = message.timestamp;
-      logger.debug("更新窗口心跳", { label: message.from, sequence: message.payload.sequence });
+      logger.debug("更新窗口心跳", {
+        label: message.from,
+        sequence: message.payload.sequence,
+      });
     }
   }
 
@@ -514,7 +559,7 @@ class WindowSyncBus {
     data: any,
     version: number,
     isFull: boolean,
-    target?: string,
+    target?: string
   ): Promise<void> {
     const payload: StateSyncPayload = {
       stateType: stateType,
@@ -530,7 +575,10 @@ class WindowSyncBus {
   /**
    * 批量同步状态
    */
-  async syncStateBatch(states: StateSyncPayload[], target?: string): Promise<void> {
+  async syncStateBatch(
+    states: StateSyncPayload[],
+    target?: string
+  ): Promise<void> {
     const payload: StateSyncBatchPayload = {
       states,
     };
@@ -544,7 +592,7 @@ class WindowSyncBus {
   async requestAction<TParams, TResult>(
     action: string,
     params: TParams,
-    options?: { retries?: number; idempotencyKey?: string },
+    options?: { retries?: number; idempotencyKey?: string }
   ): Promise<TResult> {
     const requestId = `${this.windowLabel}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
@@ -562,17 +610,20 @@ class WindowSyncBus {
         reject(new Error(`操作请求超时: ${action}`));
       }, 10000);
 
-      const unlisten = this.onMessage<ActionResponsePayload>("action-response", (responsePayload) => {
-        if (responsePayload.requestId === requestId) {
-          unlisten();
-          clearTimeout(timeout);
-          if (responsePayload.success) {
-            resolve(responsePayload.data as TResult);
-          } else {
-            reject(new Error(responsePayload.error || "操作失败"));
+      const unlisten = this.onMessage<ActionResponsePayload>(
+        "action-response",
+        (responsePayload) => {
+          if (responsePayload.requestId === requestId) {
+            unlisten();
+            clearTimeout(timeout);
+            if (responsePayload.success) {
+              resolve(responsePayload.data as TResult);
+            } else {
+              reject(new Error(responsePayload.error || "操作失败"));
+            }
           }
         }
-      });
+      );
     });
 
     // 广播到所有窗口，由有处理器的窗口响应
@@ -604,7 +655,7 @@ class WindowSyncBus {
     // 只要窗口注册了处理器，就应该响应（无论是 main 还是 detached-tool）
     if (this.initialStateRequestHandlers.size > 0) {
       logger.info(
-        `[${this.windowType}] 收到来自 ${requesterLabel} 的初始状态请求，准备批量推送 (${this.initialStateRequestHandlers.size} 个处理器)`,
+        `[${this.windowType}] 收到来自 ${requesterLabel} 的初始状态请求，准备批量推送 (${this.initialStateRequestHandlers.size} 个处理器)`
       );
       for (const handler of this.initialStateRequestHandlers) {
         try {
@@ -624,7 +675,10 @@ class WindowSyncBus {
    */
   onActionRequest(handler: ActionHandler): UnlistenFn;
   onActionRequest(namespace: string, handler: ActionHandler): UnlistenFn;
-  onActionRequest(namespaceOrHandler: string | ActionHandler, handler?: ActionHandler): UnlistenFn {
+  onActionRequest(
+    namespaceOrHandler: string | ActionHandler,
+    handler?: ActionHandler
+  ): UnlistenFn {
     if (typeof namespaceOrHandler === "string") {
       const namespace = namespaceOrHandler;
       const actualHandler = handler!;
@@ -644,7 +698,10 @@ class WindowSyncBus {
   /**
    * 监听消息
    */
-  onMessage<TPayload>(type: WindowMessageType, handler: MessageHandler<TPayload>): UnlistenFn {
+  onMessage<TPayload>(
+    type: WindowMessageType,
+    handler: MessageHandler<TPayload>
+  ): UnlistenFn {
     if (!this.messageHandlers.has(type)) {
       this.messageHandlers.set(type, new Set());
     }
@@ -763,7 +820,10 @@ export function useWindowSyncBus() {
       bus.onActionRequest("executor", async (action, params) => {
         if (action === "execute-tool") {
           const call = params as ToolCall;
-          logger.info("主窗口收到转发的工具调用", { service: call.service, method: call.method });
+          logger.info("主窗口收到转发的工具调用", {
+            service: call.service,
+            method: call.method,
+          });
           const result = await execute(call);
           if (result.success) {
             return result.data;

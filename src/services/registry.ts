@@ -1,4 +1,8 @@
-import type { ToolRegistry, ToolRegistryFactory, ToolRegistryItem } from "./types";
+import type {
+  ToolRegistry,
+  ToolRegistryFactory,
+  ToolRegistryItem,
+} from "./types";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 
@@ -61,7 +65,10 @@ class ToolRegistryManager {
   }
 
   private isFactory(item: ToolRegistryItem): item is ToolRegistryFactory {
-    return "factoryId" in item && typeof (item as any).createRegistries === "function";
+    return (
+      "factoryId" in item &&
+      typeof (item as any).createRegistries === "function"
+    );
   }
 
   private async registerSingle(tool: ToolRegistry): Promise<void> {
@@ -72,7 +79,9 @@ class ToolRegistryManager {
           logger.warn(`工具 "${tool.id}" 已被注册，热重载覆盖`);
         } else {
           // 初始加载阶段发现重复 ID，抛出异常以防静默覆盖
-          throw new Error(`工具 ID 冲突: "${tool.id}" 已经被注册。请确保工具 ID 唯一。`);
+          throw new Error(
+            `工具 ID 冲突: "${tool.id}" 已经被注册。请确保工具 ID 唯一。`
+          );
         }
       }
 
@@ -84,7 +93,9 @@ class ToolRegistryManager {
       this.registries.set(tool.id, tool);
       logger.debug(`工具 "${tool.id}" 注册成功`);
     } catch (error) {
-      errorHandler.error(error, "工具注册失败", { context: { toolId: tool.id } });
+      errorHandler.error(error, "工具注册失败", {
+        context: { toolId: tool.id },
+      });
       throw error;
     }
   }
@@ -104,7 +115,9 @@ class ToolRegistryManager {
 
       this.factories.set(factoryId, factory);
       this.factoryToolIds.set(factoryId, toolIds);
-      logger.info(`工厂 "${factoryId}" 注册完成，生成了 ${registries.length} 个工具`);
+      logger.info(
+        `工厂 "${factoryId}" 注册完成，生成了 ${registries.length} 个工具`
+      );
     } catch (error) {
       errorHandler.error(error, "工厂注册失败", { context: { factoryId } });
       throw error;
@@ -121,7 +134,9 @@ class ToolRegistryManager {
     const tool = this.registries.get(id);
     if (!tool) {
       const availableTools = Array.from(this.registries.keys()).join(", ");
-      throw new Error(`工具 "${id}" 尚未注册。可用的工具: ${availableTools || "无"}`);
+      throw new Error(
+        `工具 "${id}" 尚未注册。可用的工具: ${availableTools || "无"}`
+      );
     }
     return tool as T;
   }
@@ -251,7 +266,9 @@ class ToolRegistryManager {
           logger.debug(`工具 "${id}" 已清理`);
         }
       } catch (error) {
-        errorHandler.error(error, "清理工具时出错", { context: { toolId: id } });
+        errorHandler.error(error, "清理工具时出错", {
+          context: { toolId: id },
+        });
       }
     }
 
@@ -263,7 +280,9 @@ class ToolRegistryManager {
           logger.debug(`工厂 "${id}" 已清理`);
         }
       } catch (error) {
-        errorHandler.error(error, "清理工厂时出错", { context: { factoryId: id } });
+        errorHandler.error(error, "清理工厂时出错", {
+          context: { factoryId: id },
+        });
       }
     }
 

@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import { useMediaGenStore } from "../stores/mediaGenStore";
-import { LayoutDashboard, Activity, Settings, Image as ImageIcon } from "lucide-vue-next";
+import {
+  LayoutDashboard,
+  Activity,
+  Settings,
+  Image as ImageIcon,
+} from "lucide-vue-next";
 import MediaWorkbench from "../components/MediaWorkbench.vue";
 import MediaTaskList from "../components/MediaTaskList.vue";
 import MediaSettings from "../components/MediaSettings.vue";
@@ -47,8 +52,13 @@ onMounted(() => {
             <el-icon><Activity /></el-icon>
             <span>任务列表</span>
             <el-badge
-              v-if="Array.isArray(store.tasks) && store.tasks.filter((t) => t.status === 'processing').length > 0"
-              :value="store.tasks.filter((t) => t.status === 'processing').length"
+              v-if="
+                Array.isArray(store.tasks) &&
+                store.tasks.filter((t) => t.status === 'processing').length > 0
+              "
+              :value="
+                store.tasks.filter((t) => t.status === 'processing').length
+              "
               type="primary"
               is-dot
               class="tab-badge"

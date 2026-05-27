@@ -55,14 +55,19 @@ async function executeWithRetry<T>(
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       if (attempt > 0) {
-        const delay = retryMode === "exponential" ? retryInterval * Math.pow(2, attempt - 1) : retryInterval;
+        const delay =
+          retryMode === "exponential"
+            ? retryInterval * Math.pow(2, attempt - 1)
+            : retryInterval;
         onRetry?.(attempt, delay);
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
 
       return await Promise.race([
         task(),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`${label} 请求超时`)), timeout)),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(`${label} 请求超时`)), timeout)
+        ),
       ]);
     } catch (error) {
       lastError = error;
@@ -81,7 +86,14 @@ async function executeWithRetry<T>(
  * 生成文本向量（支持单条或批量）
  */
 export async function generateVectors(params: VectorGenerationParams) {
-  const { input, modelId, profile, requestSettings, label = "向量化", onRetry } = params;
+  const {
+    input,
+    modelId,
+    profile,
+    requestSettings,
+    label = "向量化",
+    onRetry,
+  } = params;
 
   const response = await executeWithRetry(
     () =>
@@ -105,7 +117,10 @@ export async function generateVectors(params: VectorGenerationParams) {
 /**
  * 探测模型维度
  */
-export async function detectDimension(params: { profile: LlmProfile; modelId: string }) {
+export async function detectDimension(params: {
+  profile: LlmProfile;
+  modelId: string;
+}) {
   const { profile, modelId } = params;
   const response = await callEmbeddingApi(profile, {
     modelId,
@@ -125,8 +140,11 @@ export async function detectDimension(params: { profile: LlmProfile; modelId: st
 /**
  * 批量向量化标签（带并发控制和降级容错）
  */
-export async function vectorizeTags(params: TagVectorizationParams): Promise<Map<string, number[]>> {
-  const { tags, modelId, profile, requestSettings, onProgress, shouldStop } = params;
+export async function vectorizeTags(
+  params: TagVectorizationParams
+): Promise<Map<string, number[]>> {
+  const { tags, modelId, profile, requestSettings, onProgress, shouldStop } =
+    params;
   if (tags.length === 0) return new Map();
 
   const batchSize = requestSettings?.batchSize ?? 20;
@@ -168,8 +186,14 @@ export async function vectorizeTags(params: TagVectorizationParams): Promise<Map
         } catch (error: any) {
           // 容错降级：如果批量失败且是 400 错误，降级为单条处理
           const errorMsg = error?.message || "";
-          if (batch.length > 1 && (errorMsg.includes("400") || errorMsg.includes("input"))) {
-            logger.warn("端点可能不支持批量 Embedding，降级为单条处理", { modelId, error: errorMsg });
+          if (
+            batch.length > 1 &&
+            (errorMsg.includes("400") || errorMsg.includes("input"))
+          ) {
+            logger.warn("端点可能不支持批量 Embedding，降级为单条处理", {
+              modelId,
+              error: errorMsg,
+            });
 
             for (const text of batch) {
               if (shouldStop?.()) break;

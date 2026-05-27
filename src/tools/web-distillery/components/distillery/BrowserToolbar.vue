@@ -1,7 +1,17 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
 import { invoke } from "@tauri-apps/api/core";
-import { ArrowLeft, ArrowRight, RotateCw, Globe, Zap, Scan, Trash2, FileUp, Cookie } from "lucide-vue-next";
+import {
+  ArrowLeft,
+  ArrowRight,
+  RotateCw,
+  Globe,
+  Zap,
+  Scan,
+  Trash2,
+  FileUp,
+  Cookie,
+} from "lucide-vue-next";
 import type { DistillMode, CookieProfile } from "../../types";
 import { iframeBridge } from "../../core/iframe-bridge";
 import { customMessage } from "@/utils/customMessage";
@@ -39,12 +49,25 @@ const isEditing = ref(false);
 const localUrl = ref(props.modelValue);
 
 const modeOptions = [
-  { label: "快速模式", value: "fast", icon: Zap, desc: "纯 HTTP 请求，毫秒级响应" },
-  { label: "智能模式", value: "smart", icon: Scan, desc: "隐藏 Iframe 渲染 JS，支持动态内容" },
+  {
+    label: "快速模式",
+    value: "fast",
+    icon: Zap,
+    desc: "纯 HTTP 请求，毫秒级响应",
+  },
+  {
+    label: "智能模式",
+    value: "smart",
+    icon: Scan,
+    desc: "隐藏 Iframe 渲染 JS，支持动态内容",
+  },
 ];
 
 const selectedMode = ref<DistillMode>(props.activeMode ?? "fast");
-const currentModeOption = computed(() => modeOptions.find((o) => o.value === selectedMode.value) || modeOptions[0]);
+const currentModeOption = computed(
+  () =>
+    modeOptions.find((o) => o.value === selectedMode.value) || modeOptions[0]
+);
 
 watch(
   () => props.activeMode,
@@ -52,14 +75,14 @@ watch(
     if (newMode !== undefined) {
       selectedMode.value = newMode;
     }
-  },
+  }
 );
 
 watch(
   () => props.modelValue,
   (newUrl) => {
     localUrl.value = newUrl;
-  },
+  }
 );
 
 function onUrlKeydown(e: KeyboardEvent) {
@@ -145,12 +168,16 @@ async function refreshIdentityState(url: string) {
   }
   try {
     const fullUrl = url.startsWith("http") ? url : `https://${url}`;
-    matchedProfiles.value = await cookieProfileStore.getMatchingProfilesForUrl(fullUrl);
-    activeProfile.value = await cookieProfileStore.getActiveProfileForUrl(fullUrl);
+    matchedProfiles.value =
+      await cookieProfileStore.getMatchingProfilesForUrl(fullUrl);
+    activeProfile.value =
+      await cookieProfileStore.getActiveProfileForUrl(fullUrl);
 
     // 自动同步激活的 cookies 到代理层（解决后端重启后身份丢失问题）
     if (activeProfile.value) {
-      const cookieStr = activeProfile.value.cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+      const cookieStr = activeProfile.value.cookies
+        .map((c) => `${c.name}=${c.value}`)
+        .join("; ");
       await invoke("distillery_set_proxy_cookies", { cookies: cookieStr });
     }
   } catch {
@@ -164,7 +191,7 @@ watch(
   (url) => {
     refreshIdentityState(url);
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 async function handleIdentitySwitch(profileId: string | null) {
@@ -181,7 +208,9 @@ async function handleIdentitySwitch(profileId: string | null) {
   // Step 2: 立即更新代理 cookies
   const newActive = activeProfile.value;
   if (newActive) {
-    const cookieStr = newActive.cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+    const cookieStr = newActive.cookies
+      .map((c) => `${c.name}=${c.value}`)
+      .join("; ");
     await invoke("distillery_set_proxy_cookies", { cookies: cookieStr });
   } else {
     await invoke("distillery_set_proxy_cookies", { cookies: null });
@@ -205,7 +234,12 @@ async function handleIdentitySwitch(profileId: string | null) {
 
     <!-- 导航按钮 -->
     <div class="nav-group">
-      <button class="toolbar-btn" :disabled="!canGoBack || loading" title="后退" @click="emit('navigate', 'back')">
+      <button
+        class="toolbar-btn"
+        :disabled="!canGoBack || loading"
+        title="后退"
+        @click="emit('navigate', 'back')"
+      >
         <ArrowLeft :size="15" />
       </button>
       <button
@@ -216,10 +250,20 @@ async function handleIdentitySwitch(profileId: string | null) {
       >
         <ArrowRight :size="15" />
       </button>
-      <button class="toolbar-btn" :disabled="loading" title="刷新" @click="emit('refresh')">
+      <button
+        class="toolbar-btn"
+        :disabled="loading"
+        title="刷新"
+        @click="emit('refresh')"
+      >
         <RotateCw :size="15" :class="{ spin: loading }" />
       </button>
-      <button class="toolbar-btn" :disabled="loading" title="上传文件" @click="triggerFileUpload">
+      <button
+        class="toolbar-btn"
+        :disabled="loading"
+        title="上传文件"
+        @click="triggerFileUpload"
+      >
         <FileUp :size="15" />
       </button>
     </div>
@@ -240,17 +284,30 @@ async function handleIdentitySwitch(profileId: string | null) {
     </div>
 
     <!-- 身份快捷切换 -->
-    <el-dropdown v-if="matchedProfiles.length > 0" trigger="click" @command="handleIdentitySwitch">
+    <el-dropdown
+      v-if="matchedProfiles.length > 0"
+      trigger="click"
+      @command="handleIdentitySwitch"
+    >
       <div class="identity-selector-wrap">
-        <button class="toolbar-btn identity-btn" :class="{ 'has-identity': !!activeProfile }">
+        <button
+          class="toolbar-btn identity-btn"
+          :class="{ 'has-identity': !!activeProfile }"
+        >
           <Cookie :size="14" />
-          <span class="identity-name">{{ activeProfile?.name || "无身份" }}</span>
+          <span class="identity-name">{{
+            activeProfile?.name || "无身份"
+          }}</span>
           <i-ep-arrow-down class="mode-arrow" />
         </button>
       </div>
       <template #dropdown>
         <el-dropdown-menu>
-          <el-dropdown-item v-for="p in matchedProfiles" :key="p.id" :command="p.id">
+          <el-dropdown-item
+            v-for="p in matchedProfiles"
+            :key="p.id"
+            :command="p.id"
+          >
             <span class="identity-radio">{{ p.isActive ? "◉" : "○" }}</span>
             <span>{{ p.name }}</span>
           </el-dropdown-item>
@@ -279,7 +336,10 @@ async function handleIdentitySwitch(profileId: string | null) {
             :command="opt.value"
             :class="{ 'mode-item-active': selectedMode === opt.value }"
           >
-            <div class="mode-item" :class="{ 'is-active': selectedMode === opt.value }">
+            <div
+              class="mode-item"
+              :class="{ 'is-active': selectedMode === opt.value }"
+            >
               <component :is="opt.icon" :size="15" class="mode-item-icon" />
               <div class="mode-item-info">
                 <span class="mode-item-name">{{ opt.label }}</span>
@@ -299,7 +359,14 @@ async function handleIdentitySwitch(profileId: string | null) {
     </el-tooltip>
 
     <!-- 蒸馏按钮 -->
-    <el-button type="primary" :loading="loading" :disabled="!localUrl.trim()" @click="triggerFetch"> 蒸馏 </el-button>
+    <el-button
+      type="primary"
+      :loading="loading"
+      :disabled="!localUrl.trim()"
+      @click="triggerFetch"
+    >
+      蒸馏
+    </el-button>
   </div>
 </template>
 
@@ -349,10 +416,18 @@ async function handleIdentitySwitch(profileId: string | null) {
 
 .cleanup-btn {
   color: var(--danger-color, #f56c6c);
-  border-color: color-mix(in srgb, var(--danger-color, #f56c6c) 30%, transparent);
+  border-color: color-mix(
+    in srgb,
+    var(--danger-color, #f56c6c) 30%,
+    transparent
+  );
 }
 .cleanup-btn:hover {
-  background: color-mix(in srgb, var(--danger-color, #f56c6c) 10%, transparent) !important;
+  background: color-mix(
+    in srgb,
+    var(--danger-color, #f56c6c) 10%,
+    transparent
+  ) !important;
   border-color: var(--danger-color, #f56c6c) !important;
   color: var(--danger-color, #f56c6c) !important;
 }

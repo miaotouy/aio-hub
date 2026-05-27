@@ -1,5 +1,10 @@
 import { markRaw } from "vue";
-import type { ToolConfig, ToolRegistry, ServiceMetadata, ToolContext } from "@/services/types";
+import type {
+  ToolConfig,
+  ToolRegistry,
+  ServiceMetadata,
+  ToolContext,
+} from "@/services/types";
 import { Wrench } from "lucide-vue-next";
 import { taskManager } from "./core/async-task";
 import { createModuleLogger } from "@/utils/logger";
@@ -83,7 +88,8 @@ export class ToolCallingRegistry implements ToolRegistry {
         {
           name: "testAsyncTask",
           displayName: "测试异步任务",
-          description: "用于测试异步任务系统的示例方法，会模拟一个耗时操作。duration 默认 5 秒，shouldFail 默认 false",
+          description:
+            "用于测试异步任务系统的示例方法，会模拟一个耗时操作。duration 默认 5 秒，shouldFail 默认 false",
           parameters: [
             {
               name: "duration",
@@ -147,11 +153,17 @@ export class ToolCallingRegistry implements ToolRegistry {
     return actions.retryTask(args);
   }
 
-  testAsyncTask(args: { duration?: number; shouldFail?: boolean }, context?: ToolContext): Promise<string> {
+  testAsyncTask(
+    args: { duration?: number; shouldFail?: boolean },
+    context?: ToolContext
+  ): Promise<string> {
     return actions.testAsyncTask(args, context);
   }
 
-  testSyncTask(args: { duration?: number; shouldFail?: boolean }, context?: ToolContext): Promise<string> {
+  testSyncTask(
+    args: { duration?: number; shouldFail?: boolean },
+    context?: ToolContext
+  ): Promise<string> {
     return actions.testSyncTask(args, context);
   }
 
@@ -183,7 +195,10 @@ export class ToolCallingRegistry implements ToolRegistry {
     return useAsyncTaskStore().deleteTask(params.taskId);
   }
 
-  async executeToolRequests(params: { requests: any[]; options?: any }): Promise<any[]> {
+  async executeToolRequests(params: {
+    requests: any[];
+    options?: any;
+  }): Promise<any[]> {
     return internalExecuteToolRequests(params.requests, params.options);
   }
 }

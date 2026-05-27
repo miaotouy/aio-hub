@@ -18,9 +18,12 @@ export function formatFetchResult(result: FetchResult | ExtractResult): string {
   lines.push(`- **获取时间**: ${result.fetchedAt || getLocalISOString()}`);
 
   if (result.metadata) {
-    if (result.metadata.author) lines.push(`- **作者**: ${result.metadata.author}`);
-    if (result.metadata.publishDate) lines.push(`- **发布日期**: ${result.metadata.publishDate}`);
-    if (result.metadata.language) lines.push(`- **语言**: ${result.metadata.language}`);
+    if (result.metadata.author)
+      lines.push(`- **作者**: ${result.metadata.author}`);
+    if (result.metadata.publishDate)
+      lines.push(`- **发布日期**: ${result.metadata.publishDate}`);
+    if (result.metadata.language)
+      lines.push(`- **语言**: ${result.metadata.language}`);
   }
 
   if (result.warnings && result.warnings.length > 0) {
@@ -37,10 +40,14 @@ export function formatFetchResult(result: FetchResult | ExtractResult): string {
     lines.push("| 方法 | URL | 内容类型 | 时间 |");
     lines.push("|------|-----|----------|------|");
     extractResult.discoveredApis.slice(0, 10).forEach((api) => {
-      lines.push(`| ${api.method} | ${api.url} | ${api.contentType} | ${api.timestamp} |`);
+      lines.push(
+        `| ${api.method} | ${api.url} | ${api.contentType} | ${api.timestamp} |`
+      );
     });
     if (extractResult.discoveredApis.length > 10) {
-      lines.push(`*... 还有 ${extractResult.discoveredApis.length - 10} 个 API 未列出*`);
+      lines.push(
+        `*... 还有 ${extractResult.discoveredApis.length - 10} 个 API 未列出*`
+      );
     }
   }
 

@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { CheckCircle2, Circle, Loader2, XCircle, FileText, Target, Zap } from "lucide-vue-next";
+import {
+  CheckCircle2,
+  Circle,
+  Loader2,
+  XCircle,
+  FileText,
+  Target,
+  Zap,
+} from "lucide-vue-next";
 import type { RagPayload } from "../../types/monitor";
 
 defineProps<{
@@ -36,7 +44,9 @@ const formattedDuration = (ms: number) => {
       <div class="stat-item">
         <Zap :size="14" class="stat-icon" />
         <span class="stat-label">总耗时:</span>
-        <span class="stat-value">{{ formattedDuration(payload.stats.duration) }}</span>
+        <span class="stat-value">{{
+          formattedDuration(payload.stats.duration)
+        }}</span>
       </div>
       <div class="stat-item" v-if="payload.stats.hitCount !== undefined">
         <Target :size="14" class="stat-icon" />
@@ -71,19 +81,32 @@ const formattedDuration = (ms: number) => {
           <div class="step-info">
             <div class="step-header">
               <span class="step-name">{{ step.name }}</span>
-              <span class="step-duration">{{ formattedDuration(step.duration) }}</span>
+              <span class="step-duration">{{
+                formattedDuration(step.duration)
+              }}</span>
             </div>
-            <div v-if="step.details" class="step-details">{{ step.details }}</div>
+            <div v-if="step.details" class="step-details">
+              {{ step.details }}
+            </div>
           </div>
         </div>
       </div>
     </div>
 
     <!-- 检索结果 -->
-    <div v-if="payload.results && payload.results.length > 0" class="trace-section">
-      <div class="section-title">召回片段 (Top {{ payload.results.length }})</div>
+    <div
+      v-if="payload.results && payload.results.length > 0"
+      class="trace-section"
+    >
+      <div class="section-title">
+        召回片段 (Top {{ payload.results.length }})
+      </div>
       <div class="results-list">
-        <div v-for="result in payload.results" :key="result.id" class="result-item">
+        <div
+          v-for="result in payload.results"
+          :key="result.id"
+          class="result-item"
+        >
           <div class="result-header">
             <div class="result-source">
               <FileText :size="12" />
@@ -120,7 +143,10 @@ const formattedDuration = (ms: number) => {
   flex-wrap: wrap;
   gap: 16px;
   padding: 10px;
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.1));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
   border-radius: 6px;
   border: var(--border-width) solid var(--border-color);
 }

@@ -1,8 +1,11 @@
-import { reactive, toRefs } from 'vue';
-import { useAssetManager, assetManagerEngine } from '@/composables/useAssetManager';
-import type { Asset } from '@/types/asset-management';
+import { reactive, toRefs } from "vue";
+import {
+  useAssetManager,
+  assetManagerEngine,
+} from "@/composables/useAssetManager";
+import type { Asset } from "@/types/asset-management";
 
-import type { AudioItem } from '@/components/common/AudioPlayer.vue';
+import type { AudioItem } from "@/components/common/AudioPlayer.vue";
 
 interface AudioViewerState {
   visible: boolean;
@@ -17,12 +20,12 @@ interface AudioViewerState {
 // 全局单例状态
 const state = reactive<AudioViewerState>({
   visible: false,
-  src: '',
-  title: '',
-  poster: '',
-  artist: '',
+  src: "",
+  title: "",
+  poster: "",
+  artist: "",
   playlist: [],
-  initialIndex: 0
+  initialIndex: 0,
 });
 
 /**
@@ -45,9 +48,9 @@ export function useAudioViewer() {
 
     // 更新状态 (单曲模式)
     state.src = item.src;
-    state.title = item.title || '音频预览';
-    state.poster = item.poster || '';
-    state.artist = item.artist || '';
+    state.title = item.title || "音频预览";
+    state.poster = item.poster || "";
+    state.artist = item.artist || "";
     state.playlist = [item];
     state.initialIndex = 0;
     state.visible = true;
@@ -65,7 +68,7 @@ export function useAudioViewer() {
     try {
       const resolvedItems: AudioItem[] = [];
       for (const item of items) {
-        if (typeof item === 'object' && 'src' in item && !('id' in item)) {
+        if (typeof item === "object" && "src" in item && !("id" in item)) {
           // 已经是 AudioItem
           resolvedItems.push(item as AudioItem);
         } else {
@@ -79,14 +82,14 @@ export function useAudioViewer() {
 
       const current = resolvedItems[initialIndex] || resolvedItems[0];
       state.src = current.src;
-      state.title = current.title || '音频预览';
-      state.poster = current.poster || '';
-      state.artist = current.artist || '';
+      state.title = current.title || "音频预览";
+      state.poster = current.poster || "";
+      state.artist = current.artist || "";
       state.playlist = resolvedItems;
       state.initialIndex = initialIndex;
       state.visible = true;
     } catch (error) {
-      console.error('无法预览音频列表:', error);
+      console.error("无法预览音频列表:", error);
     }
   };
 
@@ -97,36 +100,46 @@ export function useAudioViewer() {
     source: string | Asset,
     options: { title?: string; poster?: string; artist?: string } = {}
   ): Promise<AudioItem | null> => {
-    let url = '';
-    let title = options.title || '';
-    let poster = options.poster || '';
-    let artist = options.artist || '';
+    let url = "";
+    let title = options.title || "";
+    let poster = options.poster || "";
+    let artist = options.artist || "";
 
     try {
-      if (typeof source === 'string') {
-        if (source.startsWith('http') || source.startsWith('blob:') || source.startsWith('asset:')) {
+      if (typeof source === "string") {
+        if (
+          source.startsWith("http") ||
+          source.startsWith("blob:") ||
+          source.startsWith("asset:")
+        ) {
           url = source;
-        } else if (source.startsWith('appdata://')) {
+        } else if (source.startsWith("appdata://")) {
           const relativePath = source.substring(10);
           const basePath = await assetManagerEngine.getAssetBasePath();
-          url = assetManagerEngine.convertToAssetProtocol(relativePath, basePath);
-          if (!title) title = relativePath.split('/').pop() || '音频';
+          url = assetManagerEngine.convertToAssetProtocol(
+            relativePath,
+            basePath
+          );
+          if (!title) title = relativePath.split("/").pop() || "音频";
         } else {
           const basePath = await assetManagerEngine.getAssetBasePath();
           url = assetManagerEngine.convertToAssetProtocol(source, basePath);
-          if (!title) title = source.split('/').pop() || '音频';
+          if (!title) title = source.split("/").pop() || "音频";
         }
       } else {
         url = await getAssetUrl(source);
         if (!title) title = source.name;
         if (!poster && source.thumbnailPath) {
           const basePath = await assetManagerEngine.getAssetBasePath();
-          poster = assetManagerEngine.convertToAssetProtocol(source.thumbnailPath, basePath);
+          poster = assetManagerEngine.convertToAssetProtocol(
+            source.thumbnailPath,
+            basePath
+          );
         }
       }
       return { src: url, title, poster, artist };
     } catch (error) {
-      console.error('解析音频项失败:', error);
+      console.error("解析音频项失败:", error);
       return null;
     }
   };
@@ -136,7 +149,7 @@ export function useAudioViewer() {
     // 稍微延迟清空 src，避免关闭动画时音频突然停止
     setTimeout(() => {
       if (!state.visible) {
-        state.src = '';
+        state.src = "";
       }
     }, 300);
   };
@@ -145,6 +158,6 @@ export function useAudioViewer() {
     ...toRefs(state),
     previewAudio,
     previewPlaylist,
-    close
+    close,
   };
 }

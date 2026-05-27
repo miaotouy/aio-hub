@@ -1,6 +1,10 @@
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import { fetchBranches, fetchBranchCommits, fetchCommitDetail } from "./composables/useGitLoader";
+import {
+  fetchBranches,
+  fetchBranchCommits,
+  fetchCommitDetail,
+} from "./composables/useGitLoader";
 import { getContributorStats, formatDate } from "./composables/useGitProcessor";
 import { calculateStatistics } from "./formatters";
 import type { GitCommit, RepoStatistics } from "./types";
@@ -64,7 +68,9 @@ export interface GetCommitDetailOptions {
 /**
  * 获取仓库的格式化分析摘要
  */
-export async function analyzeRepository(options: AnalyzeRepositoryOptions): Promise<FormattedRepoAnalysis> {
+export async function analyzeRepository(
+  options: AnalyzeRepositoryOptions
+): Promise<FormattedRepoAnalysis> {
   const {
     path,
     branch,
@@ -75,11 +81,19 @@ export async function analyzeRepository(options: AnalyzeRepositoryOptions): Prom
     includeTimeline: _includeTimeline = false,
     includeCharts: _includeCharts = false,
   } = options;
-  logger.info("开始分析仓库", { path, branch, limit, includeStatistics, includeCommits, includeContributors });
+  logger.info("开始分析仓库", {
+    path,
+    branch,
+    limit,
+    includeStatistics,
+    includeCommits,
+    includeContributors,
+  });
 
   try {
     const branches = await fetchBranches(path);
-    const targetBranch = branch || branches.find((b) => b.current)?.name || "main";
+    const targetBranch =
+      branch || branches.find((b) => b.current)?.name || "main";
     const commits = await fetchBranchCommits(path, targetBranch, limit);
 
     if (commits.length === 0) {
@@ -88,7 +102,12 @@ export async function analyzeRepository(options: AnalyzeRepositoryOptions): Prom
         details: {
           path,
           branch: targetBranch,
-          statistics: { totalCommits: 0, contributors: 0, timeSpan: 0, averagePerDay: 0 },
+          statistics: {
+            totalCommits: 0,
+            contributors: 0,
+            timeSpan: 0,
+            averagePerDay: 0,
+          },
           topContributors: [],
           recentCommits: [],
         },
@@ -97,7 +116,9 @@ export async function analyzeRepository(options: AnalyzeRepositoryOptions): Prom
 
     const statistics = calculateStatistics(commits);
 
-    const topContributors = includeContributors ? getContributorStats(commits).slice(0, 5) : [];
+    const topContributors = includeContributors
+      ? getContributorStats(commits).slice(0, 5)
+      : [];
     const recentCommits = includeCommits ? commits : []; // 修复AI遗留的数量限制bug
 
     const summary = `仓库分析完成: ${statistics.totalCommits} 个提交，${statistics.contributors} 位贡献者，跨度 ${statistics.timeSpan} 天`;
@@ -114,7 +135,11 @@ export async function analyzeRepository(options: AnalyzeRepositoryOptions): Prom
       },
     };
   } catch (error) {
-    errorHandler.handle(error as Error, { userMessage: "仓库分析失败", context: options, showToUser: false });
+    errorHandler.handle(error as Error, {
+      userMessage: "仓库分析失败",
+      context: options,
+      showToUser: false,
+    });
     throw error;
   }
 }
@@ -122,7 +147,9 @@ export async function analyzeRepository(options: AnalyzeRepositoryOptions): Prom
 /**
  * 获取指定作者的提交记录
  */
-export async function getAuthorCommits(options: GetAuthorCommitsOptions): Promise<GitCommit[]> {
+export async function getAuthorCommits(
+  options: GetAuthorCommitsOptions
+): Promise<GitCommit[]> {
   const {
     path,
     author,
@@ -139,21 +166,26 @@ export async function getAuthorCommits(options: GetAuthorCommitsOptions): Promis
 
   try {
     const branches = await fetchBranches(path);
-    const targetBranch = branch || branches.find((b) => b.current)?.name || "main";
+    const targetBranch =
+      branch || branches.find((b) => b.current)?.name || "main";
     const commits = await fetchBranchCommits(path, targetBranch, limit);
 
     const authorLower = author.toLowerCase();
-    const filtered = commits.filter((c) => c.author.toLowerCase().includes(authorLower));
+    const filtered = commits.filter((c) =>
+      c.author.toLowerCase().includes(authorLower)
+    );
 
     const processedCommits = filtered.map((c) => {
       const commit: Record<string, unknown> = {
         hash: c.hash,
         author: c.author,
         date: formatDate(c.date, dateFormat),
-        message: includeFullMessage && c.full_message ? c.full_message : c.message,
+        message:
+          includeFullMessage && c.full_message ? c.full_message : c.message,
       };
       if (includeEmail) commit.email = c.email;
-      if (includeFullMessage && c.full_message) commit.full_message = c.full_message;
+      if (includeFullMessage && c.full_message)
+        commit.full_message = c.full_message;
       if (includeTags && c.tags) commit.tags = c.tags;
       if (includeStats && c.stats) commit.stats = c.stats;
       if (includeFiles && c.files) commit.files = c.files;
@@ -163,7 +195,11 @@ export async function getAuthorCommits(options: GetAuthorCommitsOptions): Promis
     logger.info(`找到 ${processedCommits.length} 条作者 "${author}" 的提交`);
     return processedCommits;
   } catch (error) {
-    errorHandler.handle(error as Error, { userMessage: "获取作者提交记录失败", context: options, showToUser: false });
+    errorHandler.handle(error as Error, {
+      userMessage: "获取作者提交记录失败",
+      context: options,
+      showToUser: false,
+    });
     throw error;
   }
 }
@@ -171,7 +207,9 @@ export async function getAuthorCommits(options: GetAuthorCommitsOptions): Promis
 /**
  * 获取指定提交的详细信息
  */
-export async function getCommitDetail(options: GetCommitDetailOptions): Promise<GitCommit> {
+export async function getCommitDetail(
+  options: GetCommitDetailOptions
+): Promise<GitCommit> {
   const { path, hash } = options;
   logger.info("获取提交详情", { path, hash });
 
@@ -180,7 +218,11 @@ export async function getCommitDetail(options: GetCommitDetailOptions): Promise<
     logger.info(`成功获取提交 ${hash} 的详情`);
     return commit;
   } catch (error) {
-    errorHandler.handle(error as Error, { userMessage: "获取提交详情失败", context: options, showToUser: false });
+    errorHandler.handle(error as Error, {
+      userMessage: "获取提交详情失败",
+      context: options,
+      showToUser: false,
+    });
     throw error;
   }
 }
@@ -195,7 +237,11 @@ export async function getBranchList(path: string): Promise<string[]> {
     const branches = await fetchBranches(path);
     return branches.map((b) => b.name);
   } catch (error) {
-    errorHandler.handle(error as Error, { userMessage: "获取分支列表失败", context: { path }, showToUser: false });
+    errorHandler.handle(error as Error, {
+      userMessage: "获取分支列表失败",
+      context: { path },
+      showToUser: false,
+    });
     throw error;
   }
 }

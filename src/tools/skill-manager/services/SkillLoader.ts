@@ -2,7 +2,13 @@
  * SkillLoader — 调用 Rust 命令的薄封装层
  */
 import { invoke } from "@tauri-apps/api/core";
-import type { SkillManifest, ExternalScanPath, WellKnownPath, SkillPackageInfo, BundleMetadata } from "../types";
+import type {
+  SkillManifest,
+  ExternalScanPath,
+  WellKnownPath,
+  SkillPackageInfo,
+  BundleMetadata,
+} from "../types";
 
 export interface PrepareDetectResult {
   tempPath: string;
@@ -51,7 +57,9 @@ export class SkillLoader {
   /**
    * 刷新清单（重新调用 Rust 命令扫描）
    */
-  async refreshManifests(externalPaths?: ExternalScanPath[]): Promise<SkillManifest[]> {
+  async refreshManifests(
+    externalPaths?: ExternalScanPath[]
+  ): Promise<SkillManifest[]> {
     this.cachedManifests = null;
     return await this.scanAll(externalPaths);
   }
@@ -91,7 +99,10 @@ export class SkillLoader {
   /**
    * 准备并探测技能包（支持本地目录、Git 仓库、ZIP 链接、本地 ZIP 文件）
    */
-  async prepareAndDetectPackage(inputType: string, pathOrUrl: string): Promise<PrepareDetectResult> {
+  async prepareAndDetectPackage(
+    inputType: string,
+    pathOrUrl: string
+  ): Promise<PrepareDetectResult> {
     return await invoke<PrepareDetectResult>("prepare_and_detect_package", {
       inputType,
       pathOrUrl,
@@ -108,7 +119,10 @@ export class SkillLoader {
   /**
    * 从集合包安装选中的 skill
    */
-  async installBundle(sourcePath: string, bundleInfo: any): Promise<BundleMetadata> {
+  async installBundle(
+    sourcePath: string,
+    bundleInfo: any
+  ): Promise<BundleMetadata> {
     const metadata = await invoke<BundleMetadata>("install_bundle", {
       sourcePath,
       bundleInfo,

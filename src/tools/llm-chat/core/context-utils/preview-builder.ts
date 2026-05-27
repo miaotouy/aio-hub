@@ -1,5 +1,8 @@
 import type { PipelineContext } from "../../types/pipeline";
-import type { ContextPreviewData, WorldbookEntryPreview } from "../../types/context";
+import type {
+  ContextPreviewData,
+  WorldbookEntryPreview,
+} from "../../types/context";
 import { tokenCalculatorService } from "@/tools/token-calculator/token-calculator.registry";
 import { getActiveModelProperties } from "@/config/model-metadata";
 import { tokenCalculatorEngine } from "@/tools/token-calculator/composables/useTokenCalculator";
@@ -16,8 +19,17 @@ import type { MatchedWorldbookEntry } from "../../types/worldbook";
  * @param context - 已执行完毕的 PipelineContext。
  * @returns ContextPreviewData 对象。
  */
-export async function buildPreviewDataFromContext(context: PipelineContext): Promise<ContextPreviewData> {
-  const { messages, index: sessionIndex, detail: sessionDetail, agentConfig, userProfile, timestamp } = context;
+export async function buildPreviewDataFromContext(
+  context: PipelineContext
+): Promise<ContextPreviewData> {
+  const {
+    messages,
+    index: sessionIndex,
+    detail: sessionDetail,
+    agentConfig,
+    userProfile,
+    timestamp,
+  } = context;
 
   const presetMessages: ContextPreviewData["presetMessages"] = [];
   const chatHistory: ContextPreviewData["chatHistory"] = [];
@@ -32,7 +44,9 @@ export async function buildPreviewDataFromContext(context: PipelineContext): Pro
   let tokenizerName: string | undefined = undefined;
 
   // 获取模型元数据，用于视觉 token 计算
-  const modelMetadata = agentConfig.modelId ? getActiveModelProperties(agentConfig.modelId) : undefined;
+  const modelMetadata = agentConfig.modelId
+    ? getActiveModelProperties(agentConfig.modelId)
+    : undefined;
 
   // 从 sharedData 获取 Profile 信息（可能是实时对象，也可能是从元数据恢复的临时对象）
   const profile = context.sharedData.get("profile") as
@@ -52,7 +66,11 @@ export async function buildPreviewDataFromContext(context: PipelineContext): Pro
     }
   }
   // 如果 Profile 中没找到，尝试从元数据获取（如果有）
-  if (!modelName && modelMetadata?.name && typeof modelMetadata.name === "string") {
+  if (
+    !modelName &&
+    modelMetadata?.name &&
+    typeof modelMetadata.name === "string"
+  ) {
     modelName = modelMetadata.name;
   }
 
@@ -68,7 +86,9 @@ export async function buildPreviewDataFromContext(context: PipelineContext): Pro
   const messageDepthMap = new Map<string | number, number>();
 
   // 找出所有会话历史消息，按顺序计算深度
-  const historyMessages = messages.filter((m) => m.sourceType === "session_history");
+  const historyMessages = messages.filter(
+    (m) => m.sourceType === "session_history"
+  );
   const totalHistoryCount = historyMessages.length;
   historyMessages.forEach((msg, idx) => {
     const depth = totalHistoryCount - 1 - idx;
@@ -94,7 +114,10 @@ export async function buildPreviewDataFromContext(context: PipelineContext): Pro
     } else if (Array.isArray(msg.content)) {
       // 只提取文本部分
       contentText = msg.content
-        .filter((p): p is { type: "text"; text: string } => p.type === "text" && !!p.text)
+        .filter(
+          (p): p is { type: "text"; text: string } =>
+            p.type === "text" && !!p.text
+        )
         .map((p) => p.text)
         .join("\n");
     }
@@ -106,7 +129,10 @@ export async function buildPreviewDataFromContext(context: PipelineContext): Pro
       msg.sourceType === "depth_injection" ||
       msg.sourceType === "anchor_injection"
     ) {
-      const tokenResult = await tokenCalculatorService.calculateTokens(contentText, agentConfig.modelId);
+      const tokenResult = await tokenCalculatorService.calculateTokens(
+        contentText,
+        agentConfig.modelId
+      );
       const tokenCount = tokenResult.count;
 
       if (tokenResult.isEstimated) {
@@ -138,10 +164,14 @@ export async function buildPreviewDataFromContext(context: PipelineContext): Pro
       const sourceNode = sessionDetail.nodes?.[msg.sourceId as string];
       if (!sourceNode) {
         // 回退到简单计算
-        const tokenResult = await tokenCalculatorService.calculateTokens(contentText, agentConfig.modelId);
+        const tokenResult = await tokenCalculatorService.calculateTokens(
+          contentText,
+          agentConfig.modelId
+        );
         const tokenCount = tokenResult.count;
         if (tokenResult.isEstimated) isEstimated = true;
-        if (!tokenizerName && tokenResult.tokenizerName) tokenizerName = tokenResult.tokenizerName;
+        if (!tokenizerName && tokenResult.tokenizerName)
+          tokenizerName = tokenResult.tokenizerName;
 
         chatHistory.push({
           role: msg.role as "user" | "assistant",
@@ -169,11 +199,13 @@ export async function buildPreviewDataFromContext(context: PipelineContext): Pro
       // 准备用于 Token 计算的消息内容
       // 注意：优先使用 msg.content（可能被 token-limiter 截断），而非 sourceNode.content（原始内容）
       // 这确保字符统计反映截断后的实际内容
-      let combinedText = typeof msg.content === "string" ? msg.content : sourceNode.content;
+      let combinedText =
+        typeof msg.content === "string" ? msg.content : sourceNode.content;
       const mediaAttachments: Asset[] = [];
 
       // 获取当前消息的深度
-      const currentMessageDepth = messageDepthMap.get(msg.sourceId as string) ?? 0;
+      const currentMessageDepth =
+        messageDepthMap.get(msg.sourceId as string) ?? 0;
 
       if (sourceNode.attachments && sourceNode.attachments.length > 0) {
         // 关键修复：在解析前获取最新的 Asset 对象，确保能拿到转写结果
@@ -181,7 +213,7 @@ export async function buildPreviewDataFromContext(context: PipelineContext): Pro
           sourceNode.attachments.map(async (asset: Asset) => {
             const latest = await assetManagerEngine.getAssetById(asset.id);
             return latest || asset;
-          }),
+          })
         );
 
         const resolvedResults = await resolveAttachmentsBatch(
@@ -190,7 +222,7 @@ export async function buildPreviewDataFromContext(context: PipelineContext): Pro
           agentConfig.profileId,
           {
             messageDepth: currentMessageDepth,
-          },
+          }
         );
 
         for (const result of resolvedResults) {
@@ -207,14 +239,19 @@ export async function buildPreviewDataFromContext(context: PipelineContext): Pro
       let textIsEstimated = false;
       let textTokenizerName: string | undefined;
       if (combinedText) {
-        const tokenResult = await tokenCalculatorService.calculateTokens(combinedText, agentConfig.modelId);
+        const tokenResult = await tokenCalculatorService.calculateTokens(
+          combinedText,
+          agentConfig.modelId
+        );
         textTokenCount = tokenResult.count;
         if (tokenResult.isEstimated) textIsEstimated = true;
-        if (tokenResult.tokenizerName) textTokenizerName = tokenResult.tokenizerName;
+        if (tokenResult.tokenizerName)
+          textTokenizerName = tokenResult.tokenizerName;
       }
 
       // 计算媒体附件 token
-      const attachmentsData: ContextPreviewData["chatHistory"][0]["attachments"] = [];
+      const attachmentsData: ContextPreviewData["chatHistory"][0]["attachments"] =
+        [];
       let attachmentsTokenCount = 0;
       let attachmentsIsEstimated = false;
 
@@ -224,7 +261,8 @@ export async function buildPreviewDataFromContext(context: PipelineContext): Pro
         let error: string | undefined;
 
         // 检查附件是否已有转写
-        const hasTranscription = transcriptionManager.getTranscriptionStatus(asset) === "success";
+        const hasTranscription =
+          transcriptionManager.getTranscriptionStatus(asset) === "success";
 
         // 检查附件是否会因为消息深度被强制转写
         // 这意味着即使模型支持，也会使用转写内容
@@ -233,7 +271,9 @@ export async function buildPreviewDataFromContext(context: PipelineContext): Pro
           transcriptionConfig.strategy === "smart" &&
           transcriptionConfig.forceTranscriptionAfter > 0 &&
           currentMessageDepth >= transcriptionConfig.forceTranscriptionAfter &&
-          (asset.type === "image" || asset.type === "audio" || asset.type === "video");
+          (asset.type === "image" ||
+            asset.type === "audio" ||
+            asset.type === "video");
 
         // 如果附件会被强制转写，但还没有转写内容，显示提示信息
         if (willForceTranscribe) {
@@ -252,7 +292,7 @@ export async function buildPreviewDataFromContext(context: PipelineContext): Pro
                 tokenCount = tokenCalculatorEngine.calculateImageTokens(
                   asset.metadata.width,
                   asset.metadata.height,
-                  visionTokenCost,
+                  visionTokenCost
                 );
               } catch (e) {
                 error = e instanceof Error ? e.message : "图片 Token 计算异常";
@@ -260,7 +300,11 @@ export async function buildPreviewDataFromContext(context: PipelineContext): Pro
               }
             } else {
               error = "缺少图片尺寸信息，使用默认值估算";
-              tokenCount = tokenCalculatorEngine.calculateImageTokens(1024, 1024, visionTokenCost);
+              tokenCount = tokenCalculatorEngine.calculateImageTokens(
+                1024,
+                1024,
+                visionTokenCost
+              );
               isAttachmentEstimated = true;
             }
           } else {
@@ -275,7 +319,9 @@ export async function buildPreviewDataFromContext(context: PipelineContext): Pro
         } else if (asset.type === "video") {
           if (asset.metadata?.duration) {
             try {
-              tokenCount = tokenCalculatorEngine.calculateVideoTokens(asset.metadata.duration);
+              tokenCount = tokenCalculatorEngine.calculateVideoTokens(
+                asset.metadata.duration
+              );
             } catch (e) {
               error = e instanceof Error ? e.message : "视频 Token 计算异常";
               isAttachmentEstimated = true;
@@ -291,7 +337,9 @@ export async function buildPreviewDataFromContext(context: PipelineContext): Pro
         } else if (asset.type === "audio") {
           if (asset.metadata?.duration) {
             try {
-              tokenCount = tokenCalculatorEngine.calculateAudioTokens(asset.metadata.duration);
+              tokenCount = tokenCalculatorEngine.calculateAudioTokens(
+                asset.metadata.duration
+              );
             } catch (e) {
               error = e instanceof Error ? e.message : "音频 Token 计算异常";
               isAttachmentEstimated = true;
@@ -329,7 +377,8 @@ export async function buildPreviewDataFromContext(context: PipelineContext): Pro
 
       const totalNodeTokenCount = textTokenCount + attachmentsTokenCount;
       if (textIsEstimated || attachmentsIsEstimated) isEstimated = true;
-      if (textTokenizerName && !tokenizerName) tokenizerName = textTokenizerName;
+      if (textTokenizerName && !tokenizerName)
+        tokenizerName = textTokenizerName;
 
       chatHistory.push({
         role: msg.role as "user" | "assistant",
@@ -340,15 +389,20 @@ export async function buildPreviewDataFromContext(context: PipelineContext): Pro
         nodeId: msg.sourceId as string,
         index: typeof msg.sourceIndex === "number" ? msg.sourceIndex : -1,
         agentName: sourceNode.metadata?.agentName,
-        agentDisplayName: sourceNode.metadata?.agentDisplayName || sourceNode.metadata?.agentName,
+        agentDisplayName:
+          sourceNode.metadata?.agentDisplayName ||
+          sourceNode.metadata?.agentName,
         agentIcon: sourceNode.metadata?.agentIcon,
         userName: sourceNode.metadata?.userProfileName,
-        userDisplayName: sourceNode.metadata?.userProfileDisplayName || sourceNode.metadata?.userProfileName,
+        userDisplayName:
+          sourceNode.metadata?.userProfileDisplayName ||
+          sourceNode.metadata?.userProfileName,
         userIcon: sourceNode.metadata?.userProfileIcon,
         isCompressionNode: sourceNode.metadata?.isCompressionNode,
         originalMessageCount: sourceNode.metadata?.originalMessageCount,
         // 虚拟待发送节点的宏展开原始内容
-        pendingInputOriginal: sourceNode.metadata?.pendingInputOriginal || msg._originalContent,
+        pendingInputOriginal:
+          sourceNode.metadata?.pendingInputOriginal || msg._originalContent,
         attachments: attachmentsData.length > 0 ? attachmentsData : undefined,
       });
 
@@ -359,7 +413,10 @@ export async function buildPreviewDataFromContext(context: PipelineContext): Pro
     } else {
       // 其他未知来源的消息，安全处理
       // 1. 计算文本 Token
-      const tokenResult = await tokenCalculatorService.calculateTokens(contentText, agentConfig.modelId);
+      const tokenResult = await tokenCalculatorService.calculateTokens(
+        contentText,
+        agentConfig.modelId
+      );
       let tokenCount = tokenResult.count;
 
       // 2. 计算附件 Token (如果有)
@@ -371,18 +428,22 @@ export async function buildPreviewDataFromContext(context: PipelineContext): Pro
           agentConfig.profileId,
           {
             silent: true,
-          },
+          }
         );
 
         for (const result of resolvedResults) {
           const asset = result.asset;
           try {
             if (asset.type === "image") {
-              if (visionTokenCost && asset.metadata?.width && asset.metadata?.height) {
+              if (
+                visionTokenCost &&
+                asset.metadata?.width &&
+                asset.metadata?.height
+              ) {
                 tokenCount += tokenCalculatorEngine.calculateImageTokens(
                   asset.metadata.width,
                   asset.metadata.height,
-                  visionTokenCost,
+                  visionTokenCost
                 );
               } else {
                 // 如果没有元数据或不支持视觉Token，使用默认值
@@ -390,9 +451,13 @@ export async function buildPreviewDataFromContext(context: PipelineContext): Pro
                 isEstimated = true;
               }
             } else if (asset.type === "video" && asset.metadata?.duration) {
-              tokenCount += tokenCalculatorEngine.calculateVideoTokens(asset.metadata.duration);
+              tokenCount += tokenCalculatorEngine.calculateVideoTokens(
+                asset.metadata.duration
+              );
             } else if (asset.type === "audio" && asset.metadata?.duration) {
-              tokenCount += tokenCalculatorEngine.calculateAudioTokens(asset.metadata.duration);
+              tokenCount += tokenCalculatorEngine.calculateAudioTokens(
+                asset.metadata.duration
+              );
             } else if (asset.type === "document") {
               // 文档类型通常作为 base64 发送，Token 取决于大小或内容
               // 这里暂时使用固定估算值，直到有更好的计算方法
@@ -408,7 +473,8 @@ export async function buildPreviewDataFromContext(context: PipelineContext): Pro
       }
 
       if (tokenResult.isEstimated) isEstimated = true;
-      if (!tokenizerName && tokenResult.tokenizerName) tokenizerName = tokenResult.tokenizerName;
+      if (!tokenizerName && tokenResult.tokenizerName)
+        tokenizerName = tokenResult.tokenizerName;
 
       totalCharCount += charCount;
       totalTokenCount += tokenCount;
@@ -425,9 +491,9 @@ export async function buildPreviewDataFromContext(context: PipelineContext): Pro
   const tokenLimiterStats = context.sharedData.get("tokenLimiterStats");
 
   // 从 sharedData 中获取激活的世界书条目
-  const activatedWorldbookEntries = context.sharedData.get("activatedWorldbookEntries") as
-    | MatchedWorldbookEntry[]
-    | undefined;
+  const activatedWorldbookEntries = context.sharedData.get(
+    "activatedWorldbookEntries"
+  ) as MatchedWorldbookEntry[] | undefined;
 
   // 构建世界书预览数据
   const worldbookEntries: WorldbookEntryPreview[] = [];
@@ -440,7 +506,10 @@ export async function buildPreviewDataFromContext(context: PipelineContext): Pro
       const charCount = entry.content.length;
 
       // 计算 Token（简单估算）
-      const tokenResult = await tokenCalculatorService.calculateTokens(entry.content, agentConfig.modelId);
+      const tokenResult = await tokenCalculatorService.calculateTokens(
+        entry.content,
+        agentConfig.modelId
+      );
       const tokenCount = tokenResult.count;
 
       if (tokenResult.isEstimated) {
@@ -477,9 +546,11 @@ export async function buildPreviewDataFromContext(context: PipelineContext): Pro
     presetMessages,
     chatHistory,
     finalMessages: messages.filter(
-      (msg): msg is typeof msg & { role: "system" | "user" | "assistant" } => msg.role !== "tool",
+      (msg): msg is typeof msg & { role: "system" | "user" | "assistant" } =>
+        msg.role !== "tool"
     ),
-    worldbookEntries: worldbookEntries.length > 0 ? worldbookEntries : undefined,
+    worldbookEntries:
+      worldbookEntries.length > 0 ? worldbookEntries : undefined,
     statistics: {
       totalCharCount,
       presetMessagesCharCount,
@@ -494,9 +565,12 @@ export async function buildPreviewDataFromContext(context: PipelineContext): Pro
       savedTokenCount: tokenLimiterStats?.savedTokens,
       savedCharCount: tokenLimiterStats?.savedChars,
       originalCharCount: tokenLimiterStats?.originalTotalChars,
-      worldbookEntryCount: worldbookEntries.length > 0 ? worldbookEntries.length : undefined,
-      worldbookCharCount: worldbookCharCount > 0 ? worldbookCharCount : undefined,
-      worldbookTokenCount: worldbookTokenCount > 0 ? worldbookTokenCount : undefined,
+      worldbookEntryCount:
+        worldbookEntries.length > 0 ? worldbookEntries.length : undefined,
+      worldbookCharCount:
+        worldbookCharCount > 0 ? worldbookCharCount : undefined,
+      worldbookTokenCount:
+        worldbookTokenCount > 0 ? worldbookTokenCount : undefined,
     },
     agentInfo: {
       id: agentConfig.id,

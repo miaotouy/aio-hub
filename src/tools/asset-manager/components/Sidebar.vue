@@ -63,7 +63,10 @@
     <!-- 按来源方式筛选 -->
     <div class="filter-section">
       <h3 class="section-title">来源方式</h3>
-      <el-radio-group v-model="internalSelectedOrigin" @change="handleOriginChange">
+      <el-radio-group
+        v-model="internalSelectedOrigin"
+        @change="handleOriginChange"
+      >
         <el-radio value="all" class="filter-radio">
           <div class="radio-content">
             <span>全部</span>
@@ -72,25 +75,33 @@
         </el-radio>
         <el-radio value="local" class="filter-radio">
           <div class="radio-content">
-            <span class="radio-label"><HardDrive :size="16" /> {{ getOriginLabel('local') }}</span>
+            <span class="radio-label"
+              ><HardDrive :size="16" /> {{ getOriginLabel("local") }}</span
+            >
             <span class="count">{{ originCounts?.local || 0 }}</span>
           </div>
         </el-radio>
         <el-radio value="clipboard" class="filter-radio">
           <div class="radio-content">
-            <span class="radio-label"><Clipboard :size="16" /> {{ getOriginLabel('clipboard') }}</span>
+            <span class="radio-label"
+              ><Clipboard :size="16" /> {{ getOriginLabel("clipboard") }}</span
+            >
             <span class="count">{{ originCounts?.clipboard || 0 }}</span>
           </div>
         </el-radio>
         <el-radio value="network" class="filter-radio">
           <div class="radio-content">
-            <span class="radio-label"><Globe :size="16" /> {{ getOriginLabel('network') }}</span>
+            <span class="radio-label"
+              ><Globe :size="16" /> {{ getOriginLabel("network") }}</span
+            >
             <span class="count">{{ originCounts?.network || 0 }}</span>
           </div>
         </el-radio>
         <el-radio value="generated" class="filter-radio">
           <div class="radio-content">
-            <span class="radio-label"><Sparkles :size="16" /> {{ getOriginLabel('generated') }}</span>
+            <span class="radio-label"
+              ><Sparkles :size="16" /> {{ getOriginLabel("generated") }}</span
+            >
             <span class="count">{{ originCounts?.generated || 0 }}</span>
           </div>
         </el-radio>
@@ -102,7 +113,10 @@
     <!-- 按来源模块筛选 -->
     <div class="filter-section">
       <h3 class="section-title">来源模块</h3>
-      <el-radio-group v-model="internalSelectedSourceModule" @change="handleSourceModuleChange">
+      <el-radio-group
+        v-model="internalSelectedSourceModule"
+        @change="handleSourceModuleChange"
+      >
         <el-radio value="all" class="filter-radio">
           <div class="radio-content">
             <span>全部</span>
@@ -127,16 +141,19 @@
         </el-radio>
       </el-radio-group>
     </div>
-
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue';
-import type { AssetType, AssetStats, AssetOriginType } from '@/types/asset-management';
-import { assetManagerEngine } from '@/composables/useAssetManager';
-import { useToolsStore } from '@/stores/tools';
-import { getOriginLabel } from '../utils/displayUtils';
+import { ref, watch, computed } from "vue";
+import type {
+  AssetType,
+  AssetStats,
+  AssetOriginType,
+} from "@/types/asset-management";
+import { assetManagerEngine } from "@/composables/useAssetManager";
+import { useToolsStore } from "@/stores/tools";
+import { getOriginLabel } from "../utils/displayUtils";
 import {
   Image,
   Video,
@@ -148,31 +165,31 @@ import {
   Clipboard,
   Globe,
   Sparkles,
-} from 'lucide-vue-next';
+} from "lucide-vue-next";
 
 interface Props {
-  selectedType: AssetType | 'all';
-  selectedSourceModule?: string | 'all';
-  selectedOrigin?: AssetOriginType | 'all';
+  selectedType: AssetType | "all";
+  selectedSourceModule?: string | "all";
+  selectedOrigin?: AssetOriginType | "all";
   totalAssets: number;
   totalSize: number;
-  typeCounts: AssetStats['typeCounts'];
+  typeCounts: AssetStats["typeCounts"];
   sourceModuleCounts?: Record<string, number>;
   originCounts?: Record<AssetOriginType, number>;
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  selectedSourceModule: 'all',
-  selectedOrigin: 'all',
+  selectedSourceModule: "all",
+  selectedOrigin: "all",
   sourceModuleCounts: () => ({}),
   originCounts: () => ({ local: 0, clipboard: 0, network: 0, generated: 0 }),
 });
 
 const emit = defineEmits<{
-  'update:selectedType': [value: AssetType | 'all'];
-  'update:selectedSourceModule': [value: string | 'all'];
-  'update:selectedOrigin': [value: AssetOriginType | 'all'];
-  'update:showDuplicatesOnly': [value: boolean];
+  "update:selectedType": [value: AssetType | "all"];
+  "update:selectedSourceModule": [value: string | "all"];
+  "update:selectedOrigin": [value: AssetOriginType | "all"];
+  "update:showDuplicatesOnly": [value: boolean];
 }>();
 
 // 内部状态
@@ -181,29 +198,38 @@ const internalSelectedSourceModule = ref(props.selectedSourceModule);
 const internalSelectedOrigin = ref(props.selectedOrigin);
 
 // 监听 props 变化
-watch(() => props.selectedType, (newVal) => {
-  internalSelectedType.value = newVal;
-});
+watch(
+  () => props.selectedType,
+  (newVal) => {
+    internalSelectedType.value = newVal;
+  }
+);
 
-watch(() => props.selectedSourceModule, (newVal) => {
-  internalSelectedSourceModule.value = newVal;
-});
+watch(
+  () => props.selectedSourceModule,
+  (newVal) => {
+    internalSelectedSourceModule.value = newVal;
+  }
+);
 
-watch(() => props.selectedOrigin, (newVal) => {
-  internalSelectedOrigin.value = newVal;
-});
+watch(
+  () => props.selectedOrigin,
+  (newVal) => {
+    internalSelectedOrigin.value = newVal;
+  }
+);
 
 // 事件处理
 const handleTypeChange = (value: string | number | boolean) => {
-  emit('update:selectedType', value as AssetType | 'all');
+  emit("update:selectedType", value as AssetType | "all");
 };
 
 const handleSourceModuleChange = (value: string | number | boolean) => {
-  emit('update:selectedSourceModule', value as string | 'all');
+  emit("update:selectedSourceModule", value as string | "all");
 };
 
 const handleOriginChange = (value: string | number | boolean) => {
-  emit('update:selectedOrigin', value as AssetOriginType | 'all');
+  emit("update:selectedOrigin", value as AssetOriginType | "all");
 };
 
 // 从工具注册表动态获取工具配置
@@ -212,16 +238,16 @@ const toolsStore = useToolsStore();
 // 创建模块ID到工具配置的映射
 const moduleToolMap = computed(() => {
   const map = new Map<string, { name: string; icon: any }>();
-  
-  toolsStore.tools.forEach(tool => {
+
+  toolsStore.tools.forEach((tool) => {
     // 将路径转换为模块ID（去掉开头的 '/'）
     const moduleId = tool.path.substring(1);
     map.set(moduleId, {
       name: tool.name,
-      icon: tool.icon
+      icon: tool.icon,
     });
   });
-  
+
   return map;
 });
 
@@ -237,15 +263,15 @@ const getModuleLabel = (module: string): string => {
   if (toolConfig) {
     return toolConfig.name;
   }
-  
+
   // 对于特殊模块提供友好的回退名称
-  if (module === 'unknown') return '未知来源';
-  
+  if (module === "unknown") return "未知来源";
+
   // 将 kebab-case 转换为友好的标题
   return module
-    .split('-')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
+    .split("-")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
 };
 
 // 格式化文件大小

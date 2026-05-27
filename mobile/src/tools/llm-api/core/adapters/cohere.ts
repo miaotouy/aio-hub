@@ -2,7 +2,11 @@ import type { LlmProfile } from "../../types";
 import type { LlmRequestOptions, LlmResponse } from "../common";
 // import type { EmbeddingRequestOptions, EmbeddingResponse } from "./embedding-types";
 import { fetchWithTimeout, ensureResponseOk } from "../common";
-import { parseSSEStream, extractTextFromSSE, extractReasoningFromSSE } from "@/utils/sse-parser";
+import {
+  parseSSEStream,
+  extractTextFromSSE,
+  extractReasoningFromSSE,
+} from "@/utils/sse-parser";
 import {
   parseMessageContents,
   extractCommonParameters,
@@ -15,13 +19,13 @@ import {
  */
 export const cohereUrlHandler = {
   buildUrl: (baseUrl: string, endpoint?: string): string => {
-    const host = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
-    const versionedHost = host.includes('/v2') ? host : `${host}v2/`;
+    const host = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+    const versionedHost = host.includes("/v2") ? host : `${host}v2/`;
     return endpoint ? `${versionedHost}${endpoint}` : `${versionedHost}chat`;
   },
   getHint: (): string => {
-    return '将自动添加 /v2/chat';
-  }
+    return "将自动添加 /v2/chat";
+  },
 };
 
 /**
@@ -40,7 +44,8 @@ export const callCohereApi = async (
   const url = cohereUrlHandler.buildUrl(profile.baseUrl, "chat");
 
   // 获取第一个可用的 API Key
-  const apiKey = profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
+  const apiKey =
+    profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
 
   // 使用共享函数提取通用参数
   const commonParams = extractCommonParameters(options);
@@ -67,7 +72,9 @@ export const callCohereApi = async (
         // 多模态格式
         contentValue = [];
         if (parsed.textParts.length > 0) {
-          const textContent = parsed.textParts.map((part: any) => part.text).join("\n");
+          const textContent = parsed.textParts
+            .map((part: any) => part.text)
+            .join("\n");
           contentValue.push({ type: "text", text: textContent });
         }
         for (const img of parsed.imageParts) {
@@ -80,7 +87,9 @@ export const callCohereApi = async (
         }
       } else {
         // 纯文本格式
-        contentValue = parsed.textParts.map((part: any) => part.text).join("\n");
+        contentValue = parsed.textParts
+          .map((part: any) => part.text)
+          .join("\n");
       }
 
       messages.push({
@@ -143,7 +152,7 @@ export const callCohereApi = async (
   // 工具支持
   if (options.tools && options.tools.length > 0) {
     body.tools = options.tools.map((tool: any) => ({
-      type: 'function',
+      type: "function",
       function: {
         name: tool.function.name,
         description: tool.function.description,
@@ -153,11 +162,11 @@ export const callCohereApi = async (
   }
 
   if (options.toolChoice) {
-    if (typeof options.toolChoice === 'string') {
+    if (typeof options.toolChoice === "string") {
       body.tool_choice = { type: options.toolChoice };
-    } else if (options.toolChoice.type === 'function') {
+    } else if (options.toolChoice.type === "function") {
       body.tool_choice = {
-        type: 'function',
+        type: "function",
         function: { name: options.toolChoice.function.name },
       };
     }
@@ -202,21 +211,26 @@ export const callCohereApi = async (
     let fullContent = "";
     let fullReasoning = "";
 
-    await parseSSEStream(reader, (data) => {
-      // 提取文本
-      const text = extractTextFromSSE(data, "cohere");
-      if (text) {
-        fullContent += text;
-        options.onStream!(text);
-      }
+    await parseSSEStream(
+      reader,
+      (data) => {
+        // 提取文本
+        const text = extractTextFromSSE(data, "cohere");
+        if (text) {
+          fullContent += text;
+          options.onStream!(text);
+        }
 
-      // 提取思考内容
-      const reasoning = extractReasoningFromSSE(data, "cohere");
-      if (reasoning && options.onReasoningStream) {
-        fullReasoning += reasoning;
-        options.onReasoningStream(reasoning);
-      }
-    }, undefined, options.signal);
+        // 提取思考内容
+        const reasoning = extractReasoningFromSSE(data, "cohere");
+        if (reasoning && options.onReasoningStream) {
+          fullReasoning += reasoning;
+          options.onReasoningStream(reasoning);
+        }
+      },
+      undefined,
+      options.signal
+    );
 
     return {
       content: fullContent,
@@ -260,24 +274,26 @@ export const callCohereApi = async (
     content: content,
     usage: data.usage?.tokens
       ? {
-        promptTokens: data.usage.tokens.input_tokens,
-        completionTokens: data.usage.tokens.output_tokens,
-        totalTokens: data.usage.tokens.input_tokens + data.usage.tokens.output_tokens,
-      }
+          promptTokens: data.usage.tokens.input_tokens,
+          completionTokens: data.usage.tokens.output_tokens,
+          totalTokens:
+            data.usage.tokens.input_tokens + data.usage.tokens.output_tokens,
+        }
       : data.meta?.tokens // V1 兼容
         ? {
-          promptTokens: data.meta.tokens.input_tokens,
-          completionTokens: data.meta.tokens.output_tokens,
-          totalTokens: data.meta.tokens.input_tokens + data.meta.tokens.output_tokens,
-        }
+            promptTokens: data.meta.tokens.input_tokens,
+            completionTokens: data.meta.tokens.output_tokens,
+            totalTokens:
+              data.meta.tokens.input_tokens + data.meta.tokens.output_tokens,
+          }
         : undefined,
   };
 };
 
 /**
-* 调用 Cohere Embedding API (V2)
-* (移动端暂未启用)
-*/
+ * 调用 Cohere Embedding API (V2)
+ * (移动端暂未启用)
+ */
 /*
 export const callCohereEmbeddingApi = async (
   profile: LlmProfile,

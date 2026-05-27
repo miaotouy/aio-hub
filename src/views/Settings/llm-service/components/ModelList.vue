@@ -1,9 +1,19 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { Plus, Delete, Edit, ArrowRight, MoreFilled, VideoPlay } from "@element-plus/icons-vue";
+import {
+  Plus,
+  Delete,
+  Edit,
+  ArrowRight,
+  MoreFilled,
+  VideoPlay,
+} from "@element-plus/icons-vue";
 import type { LlmModelInfo } from "@/types/llm-profiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
-import { MODEL_CAPABILITIES, type CapabilityConfig } from "@/config/model-capabilities";
+import {
+  MODEL_CAPABILITIES,
+  type CapabilityConfig,
+} from "@/config/model-capabilities";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
 
 const MAX_VISIBLE_CAPS = 4;
@@ -38,7 +48,10 @@ const emit = defineEmits<Emits>();
 
 // 按分组组织模型（带索引）
 const modelGroups = computed(() => {
-  const groups = new Map<string, Array<{ model: LlmModelInfo; index: number }>>();
+  const groups = new Map<
+    string,
+    Array<{ model: LlmModelInfo; index: number }>
+  >();
 
   props.models.forEach((model, index) => {
     // 使用 getModelGroup 获取分组名称（优先使用图标配置中的 groupName）
@@ -108,10 +121,21 @@ const getVisibleCapabilities = (model: LlmModelInfo): CapabilityConfig[] => {
     <div class="list-header">
       <span class="model-count">已添加 {{ models.length }} 个模型</span>
       <div class="list-actions">
-        <el-button v-if="editable" size="small" :loading="loading" @click="emit('fetch')">
+        <el-button
+          v-if="editable"
+          size="small"
+          :loading="loading"
+          @click="emit('fetch')"
+        >
           从 API 获取
         </el-button>
-        <el-button v-if="editable" type="primary" size="small" :icon="Plus" @click="emit('add')">
+        <el-button
+          v-if="editable"
+          type="primary"
+          size="small"
+          :icon="Plus"
+          @click="emit('add')"
+        >
           手动添加
         </el-button>
         <el-popconfirm
@@ -121,7 +145,9 @@ const getVisibleCapabilities = (model: LlmModelInfo): CapabilityConfig[] => {
           @confirm="emit('clear')"
         >
           <template #reference>
-            <el-button type="danger" size="small" :icon="Delete"> 清空 </el-button>
+            <el-button type="danger" size="small" :icon="Delete">
+              清空
+            </el-button>
           </template>
         </el-popconfirm>
       </div>
@@ -138,7 +164,10 @@ const getVisibleCapabilities = (model: LlmModelInfo): CapabilityConfig[] => {
           <!-- 分组标题 -->
           <div class="group-header">
             <div class="group-title" @click="toggleGroup(group.name)">
-              <el-icon class="expand-icon" :class="{ expanded: isGroupExpanded(group.name) }">
+              <el-icon
+                class="expand-icon"
+                :class="{ expanded: isGroupExpanded(group.name) }"
+              >
                 <ArrowRight />
               </el-icon>
               <span class="group-name">{{ group.name }}</span>
@@ -151,7 +180,13 @@ const getVisibleCapabilities = (model: LlmModelInfo): CapabilityConfig[] => {
                 @confirm.stop="deleteGroup(group)"
               >
                 <template #reference>
-                  <el-button size="small" type="danger" :icon="Delete" circle @click.stop />
+                  <el-button
+                    size="small"
+                    type="danger"
+                    :icon="Delete"
+                    circle
+                    @click.stop
+                  />
                 </template>
               </el-popconfirm>
             </div>
@@ -160,7 +195,11 @@ const getVisibleCapabilities = (model: LlmModelInfo): CapabilityConfig[] => {
           <!-- 分组内容 -->
           <transition name="group-collapse">
             <div v-show="isGroupExpanded(group.name)" class="group-content">
-              <div v-for="item in group.models" :key="item.model.id" class="model-item">
+              <div
+                v-for="item in group.models"
+                :key="item.model.id"
+                class="model-item"
+              >
                 <!-- Logo -->
                 <DynamicIcon
                   class="model-logo"
@@ -181,7 +220,10 @@ const getVisibleCapabilities = (model: LlmModelInfo): CapabilityConfig[] => {
                     v-for="capability in getVisibleCapabilities(item.model)"
                     :key="capability.key"
                   >
-                    <el-tooltip :content="capability.description" placement="top">
+                    <el-tooltip
+                      :content="capability.description"
+                      placement="top"
+                    >
                       <el-icon
                         class="capability-icon"
                         :class="capability.className"
@@ -194,7 +236,10 @@ const getVisibleCapabilities = (model: LlmModelInfo): CapabilityConfig[] => {
 
                   <!-- 更多能力折叠 -->
                   <el-popover
-                    v-if="getEnabledCapabilities(item.model).length > MAX_VISIBLE_CAPS"
+                    v-if="
+                      getEnabledCapabilities(item.model).length >
+                      MAX_VISIBLE_CAPS
+                    "
                     placement="top"
                     :width="220"
                     trigger="hover"
@@ -213,7 +258,10 @@ const getVisibleCapabilities = (model: LlmModelInfo): CapabilityConfig[] => {
                         :key="cap.key"
                         class="capability-item"
                       >
-                        <el-icon class="item-icon" :style="{ color: cap.color }">
+                        <el-icon
+                          class="item-icon"
+                          :style="{ color: cap.color }"
+                        >
                           <component :is="cap.icon" />
                         </el-icon>
                         <span class="item-label">{{ cap.label }}</span>
@@ -232,7 +280,11 @@ const getVisibleCapabilities = (model: LlmModelInfo): CapabilityConfig[] => {
                     :loading="testLoading[item.model.id]"
                     @click="emit('test', item.model)"
                   />
-                  <el-button size="small" :icon="Edit" @click="emit('edit', item.index)" />
+                  <el-button
+                    size="small"
+                    :icon="Edit"
+                    @click="emit('edit', item.index)"
+                  />
                   <el-button
                     size="small"
                     type="danger"

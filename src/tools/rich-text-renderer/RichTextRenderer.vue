@@ -21,7 +21,13 @@ import { StreamProcessor } from "./core/StreamProcessor";
 import { StreamProcessorV2 } from "./core/StreamProcessorV2";
 import { StreamController } from "./core/StreamController";
 import AstNodeRenderer from "./components/AstNodeRenderer.tsx";
-import type { StreamSource, LlmThinkRule, RichTextRendererStyleOptions, MarkdownStyleOption, AstNode } from "./types";
+import type {
+  StreamSource,
+  LlmThinkRule,
+  RichTextRendererStyleOptions,
+  MarkdownStyleOption,
+  AstNode,
+} from "./types";
 import { RendererVersion, RICH_TEXT_CONTEXT_KEY } from "./types";
 import { applyRegexRules } from "@/tools/llm-chat/utils/chatRegexUtils";
 import type { ChatRegexRule } from "@/tools/llm-chat/types/chatRegex";
@@ -129,7 +135,7 @@ const props = withDefaults(
     ],
     styleOptions: () => ({}),
     regexRules: () => [],
-  },
+  }
 );
 
 /**
@@ -150,14 +156,19 @@ const cssVariables = computed(() => {
     // 子项开关：如果 enabled 为 false，则跳过生成 CSS 变量
     if (style.enabled === false) return;
     if (style.color) vars[`--md-${prefix}-color`] = style.color;
-    if (style.backgroundColor) vars[`--md-${prefix}-bg-color`] = style.backgroundColor;
-    if (style.borderColor) vars[`--md-${prefix}-border-color`] = style.borderColor;
-    if (style.fontWeight) vars[`--md-${prefix}-font-weight`] = String(style.fontWeight);
+    if (style.backgroundColor)
+      vars[`--md-${prefix}-bg-color`] = style.backgroundColor;
+    if (style.borderColor)
+      vars[`--md-${prefix}-border-color`] = style.borderColor;
+    if (style.fontWeight)
+      vars[`--md-${prefix}-font-weight`] = String(style.fontWeight);
     if (style.fontStyle) vars[`--md-${prefix}-font-style`] = style.fontStyle;
-    if (style.textDecoration) vars[`--md-${prefix}-text-decoration`] = style.textDecoration;
+    if (style.textDecoration)
+      vars[`--md-${prefix}-text-decoration`] = style.textDecoration;
     if (style.textShadow) vars[`--md-${prefix}-text-shadow`] = style.textShadow;
     if (style.boxShadow) vars[`--md-${prefix}-box-shadow`] = style.boxShadow;
-    if (style.borderRadius) vars[`--md-${prefix}-border-radius`] = style.borderRadius;
+    if (style.borderRadius)
+      vars[`--md-${prefix}-border-radius`] = style.borderRadius;
   };
 
   addVars("paragraph", opts.paragraph);
@@ -183,7 +194,9 @@ const cssVariables = computed(() => {
 
 // 是否使用 AST 渲染器（V1 / V2 等）
 const useAstRenderer = computed(
-  () => props.version === RendererVersion.V1_MARKDOWN_IT || props.version === RendererVersion.V2_CUSTOM_PARSER,
+  () =>
+    props.version === RendererVersion.V1_MARKDOWN_IT ||
+    props.version === RendererVersion.V2_CUSTOM_PARSER
 );
 
 // AST 状态
@@ -214,7 +227,9 @@ const extractImages = (nodes: AstNode[]): string[] => {
   const traverse = (nodeList: AstNode[]): boolean => {
     for (const nodeListElement of nodeList) {
       if (++nodeCount > MAX_NODES_TO_TRAVERSE) {
-        console.warn(`[RichTextRenderer] Image extraction stopped: node count exceeded ${MAX_NODES_TO_TRAVERSE}`);
+        console.warn(
+          `[RichTextRenderer] Image extraction stopped: node count exceeded ${MAX_NODES_TO_TRAVERSE}`
+        );
         return false; // 停止遍历
       }
 
@@ -249,7 +264,11 @@ watch(
   (newAst) => {
     if (useAstRenderer.value) {
       // 降级模式检测：如果 AST 只有一个 alert 节点且是警告类型，说明已降级
-      if (newAst.length === 1 && newAst[0].type === "alert" && newAst[0].props.alertType === "warning") {
+      if (
+        newAst.length === 1 &&
+        newAst[0].type === "alert" &&
+        newAst[0].props.alertType === "warning"
+      ) {
         // 触发紧急停止，清理所有异步操作
         emergencyShutdown();
         imageList.value = [];
@@ -264,7 +283,7 @@ watch(
         imageList.value = extractImages(newAst);
       }
     }
-  },
+  }
   // 移除 { deep: true }，因为 ast 是 shallowRef，引用变化即可触发
 );
 
@@ -309,7 +328,9 @@ const createProcessor = (version: RendererVersion) => {
   switch (version) {
     case RendererVersion.V2_CUSTOM_PARSER: {
       // 提取思考标签名集合传递给 V2 处理器
-      const thinkTagNames = new Set(props.llmThinkRules?.map((rule) => rule.tagName) || []);
+      const thinkTagNames = new Set(
+        props.llmThinkRules?.map((rule) => rule.tagName) || []
+      );
       return new StreamProcessorV2({
         onPatch: enqueuePatch,
         llmThinkTagNames: thinkTagNames,
@@ -392,7 +413,10 @@ watch(
       if (!streamProcessor.value) {
         streamProcessor.value = createProcessor(props.version);
       }
-      if (!props.isStreaming && typeof streamProcessor.value.setStaticContent === "function") {
+      if (
+        !props.isStreaming &&
+        typeof streamProcessor.value.setStaticContent === "function"
+      ) {
         // 非流式状态下，使用优化的静态内容设置接口，避免重复解析
         streamProcessor.value.setStaticContent(newContent);
       } else {
@@ -408,7 +432,7 @@ watch(
       htmlContent.value = md.render(newContent);
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 /**
@@ -446,7 +470,7 @@ watch(
       htmlContent.value = md.render(props.content);
     }
   },
-  { deep: true },
+  { deep: true }
 );
 
 /**
@@ -459,7 +483,7 @@ watch(
     if (!newIsStreaming && useAstRenderer.value && streamProcessor.value) {
       streamProcessor.value.finalize();
     }
-  },
+  }
 );
 
 /**
@@ -472,7 +496,7 @@ onMounted(() => {
     console.log(
       `%c[RichTextRenderer] Streaming Started%c\nVersion: ${props.version}\nSmoothing: ${props.smoothingEnabled}\nThrottle: ${props.throttleEnabled} (${props.throttleMs}ms)`,
       "color: #409EFF; font-weight: bold; font-size: 12px;",
-      "color: inherit;",
+      "color: inherit;"
     );
   }
 
@@ -498,10 +522,13 @@ onMounted(() => {
     streamController = new StreamController({
       onContent: (smoothedContent: string) => {
         if (props.verboseLogging) {
-          const displayStr = smoothedContent.length > 20 ? smoothedContent.slice(0, 20) + "..." : smoothedContent;
+          const displayStr =
+            smoothedContent.length > 20
+              ? smoothedContent.slice(0, 20) + "..."
+              : smoothedContent;
           console.log(
             `%c[RichTextRenderer] Smooth Emit: "${displayStr.replace(/\n/g, "\\n")}" (len: ${smoothedContent.length})`,
-            "color: #67C23A;",
+            "color: #67C23A;"
           );
         }
 
@@ -511,7 +538,11 @@ onMounted(() => {
         // 应用正则规则（需要在完整文本上执行）
         let bufferToProcess = buffer.value;
         if (props.regexRules && props.regexRules.length > 0) {
-          bufferToProcess = applyRegexRules(bufferToProcess, props.regexRules, true);
+          bufferToProcess = applyRegexRules(
+            bufferToProcess,
+            props.regexRules,
+            true
+          );
         }
 
         // 2. 自动包裹裸 HTML 页面
@@ -529,7 +560,9 @@ onMounted(() => {
 
         if (useAstRenderer.value) {
           if (props.verboseLogging) {
-            console.debug(`[RichTextRenderer] Triggering Parse (total len: ${bufferToProcess.length})`);
+            console.debug(
+              `[RichTextRenderer] Triggering Parse (total len: ${bufferToProcess.length})`
+            );
           }
           streamProcessor.value?.setContent(bufferToProcess);
         } else {
@@ -550,7 +583,9 @@ onMounted(() => {
     // 订阅原始数据，推入控制器
     unsubscribe = props.streamSource.subscribe((chunk) => {
       if (props.verboseLogging) {
-        console.debug(`[RichTextRenderer] Raw Chunk received: ${chunk.length} chars`);
+        console.debug(
+          `[RichTextRenderer] Raw Chunk received: ${chunk.length} chars`
+        );
       }
       streamController?.push(chunk);
     });
@@ -565,7 +600,11 @@ onMounted(() => {
 
       // 1. 应用正则规则
       if (props.regexRules && props.regexRules.length > 0) {
-        bufferToProcess = applyRegexRules(bufferToProcess, props.regexRules, true);
+        bufferToProcess = applyRegexRules(
+          bufferToProcess,
+          props.regexRules,
+          true
+        );
       }
 
       // 2. 自动包裹裸 HTML 页面
@@ -656,7 +695,10 @@ defineExpose({
 }
 
 /* 无自定义尺寸的图片：添加安全约束，防止超大图撑爆容器 */
-.rich-text-renderer :deep(img:not([width]):not([height]):not([style*="width"]):not([style*="height"])) {
+.rich-text-renderer
+  :deep(
+    img:not([width]):not([height]):not([style*="width"]):not([style*="height"])
+  ) {
   max-width: 100%;
   max-height: 720px;
   height: auto;

@@ -33,7 +33,9 @@ export function migrateAgents(agents: ChatAgent[]): boolean {
 function migrateExtensionConfig(agent: ChatAgent): boolean {
   if (!agent.extensionConfig) {
     logger.info("迁移环境增强配置 (缺失填充)", { agentId: agent.id });
-    agent.extensionConfig = JSON.parse(JSON.stringify(DEFAULT_AGENT_EXTENSION_CONFIG));
+    agent.extensionConfig = JSON.parse(
+      JSON.stringify(DEFAULT_AGENT_EXTENSION_CONFIG)
+    );
     return true;
   }
   return false;
@@ -69,7 +71,12 @@ export function migrateAgent(agent: ChatAgent): boolean {
 function migrateCustomParameters(agent: ChatAgent): boolean {
   if (agent.parameters?.custom) {
     const custom = agent.parameters.custom as any;
-    if (typeof custom === "object" && custom !== null && !("enabled" in custom) && !("params" in custom)) {
+    if (
+      typeof custom === "object" &&
+      custom !== null &&
+      !("enabled" in custom) &&
+      !("params" in custom)
+    ) {
       logger.info("迁移旧版 custom 参数格式", { agentId: agent.id });
       agent.parameters.custom = {
         enabled: Object.keys(custom).length > 0,
@@ -96,7 +103,9 @@ function migrateTemplateAnchors(agent: ChatAgent): boolean {
       if (!anchor?.hasTemplate) continue;
 
       const legacyFixedTexts = ["用户档案", "user_profile", "User Profile"];
-      const isLegacyFixedContent = legacyFixedTexts.some((text) => message.content.trim() === text);
+      const isLegacyFixedContent = legacyFixedTexts.some(
+        (text) => message.content.trim() === text
+      );
 
       const needsMigration = !message.content || isLegacyFixedContent;
 
@@ -159,11 +168,17 @@ function migratePresetAssetPaths(agent: ChatAgent): boolean {
 
   if (agent.icon && agent.icon.startsWith("/agent-icons/")) {
     const oldIcon = agent.icon;
-    const agentIdMatch = oldIcon.match(/\/agent-icons\/(.+)\.(jpg|png|webp|gif)$/);
+    const agentIdMatch = oldIcon.match(
+      /\/agent-icons\/(.+)\.(jpg|png|webp|gif)$/
+    );
     if (agentIdMatch) {
       const presetId = agentIdMatch[1];
       agent.icon = `/agent-presets/${presetId}/icon.jpg`;
-      logger.info("迁移内置头像路径", { agentId: agent.id, oldIcon, newIcon: agent.icon });
+      logger.info("迁移内置头像路径", {
+        agentId: agent.id,
+        oldIcon,
+        newIcon: agent.icon,
+      });
       hasChanges = true;
     }
   }
@@ -177,7 +192,11 @@ function migratePresetAssetPaths(agent: ChatAgent): boolean {
           const presetId = agentIdMatch[1];
           const filename = agentIdMatch[2];
           asset.path = `/agent-presets/${presetId}/${filename}`;
-          logger.info("迁移内置资产路径", { agentId: agent.id, oldPath, newPath: asset.path });
+          logger.info("迁移内置资产路径", {
+            agentId: agent.id,
+            oldPath,
+            newPath: asset.path,
+          });
           hasChanges = true;
         }
       }

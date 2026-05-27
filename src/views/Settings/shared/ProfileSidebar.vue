@@ -1,4 +1,8 @@
-<script setup lang="ts" generic="T extends { id: string; name: string; enabled: boolean }">
+<script
+  setup
+  lang="ts"
+  generic="T extends { id: string; name: string; enabled: boolean }"
+>
 import { computed, watch, nextTick, ref } from "vue";
 import { Plus } from "@element-plus/icons-vue";
 import { GripVertical } from "lucide-vue-next";
@@ -38,7 +42,10 @@ const scrollToSelected = () => {
       const offsetTop = itemRect.top - containerRect.top + container.scrollTop;
 
       // 如果目标元素在容器可视区域之外，则滚动到合适位置
-      if (itemRect.top < containerRect.top || itemRect.bottom > containerRect.bottom) {
+      if (
+        itemRect.top < containerRect.top ||
+        itemRect.bottom > containerRect.bottom
+      ) {
         // 使用 smooth 滚动
         container.scrollTo({
           top: offsetTop - container.clientHeight * 0.3, // 稍微向上偏移，使元素不在顶部边缘
@@ -73,7 +80,14 @@ const draggableProfiles = computed({
       <h3>{{ title }}</h3>
       <div class="header-actions">
         <slot name="header-actions"></slot>
-        <el-button type="primary" :icon="Plus" size="small" @click="emit('add')"> 添加 </el-button>
+        <el-button
+          type="primary"
+          :icon="Plus"
+          size="small"
+          @click="emit('add')"
+        >
+          添加
+        </el-button>
       </div>
     </div>
 
@@ -89,7 +103,11 @@ const draggableProfiles = computed({
         :fallback-tolerance="3"
       >
         <template #item="{ element: profile }">
-          <div class="sidebar-item" :class="{ active: selectedId === profile.id }" @click="emit('select', profile.id)">
+          <div
+            class="sidebar-item"
+            :class="{ active: selectedId === profile.id }"
+            @click="emit('select', profile.id)"
+          >
             <div v-if="sortable" class="drag-handle" @click.stop>
               <GripVertical :size="14" class="icon" />
             </div>
@@ -102,7 +120,12 @@ const draggableProfiles = computed({
             </slot>
 
             <div class="switch-container">
-              <el-switch :model-value="profile.enabled" size="small" @click.stop @change="emit('toggle', profile)" />
+              <el-switch
+                :model-value="profile.enabled"
+                size="small"
+                @click.stop
+                @change="emit('toggle', profile)"
+              />
             </div>
           </div>
         </template>

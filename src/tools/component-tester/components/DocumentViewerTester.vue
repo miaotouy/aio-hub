@@ -139,7 +139,9 @@ const jsonContent = ref(
 
 const textContent = ref("这是一个用于测试查看器的纯文本文件。");
 
-const binaryContent = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const binaryContent = new Uint8Array([
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+]);
 </script>
 
 <template>
@@ -149,7 +151,11 @@ const binaryContent = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 
     <div class="tester-grid">
       <div class="test-case">
         <h3>Markdown 预览（来自字符串）</h3>
-        <DocumentViewer :content="markdownContent" file-name="example.md" class="viewer-instance" />
+        <DocumentViewer
+          :content="markdownContent"
+          file-name="example.md"
+          class="viewer-instance"
+        />
       </div>
 
       <div class="test-case">
@@ -165,12 +171,20 @@ const binaryContent = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 
 
       <div class="test-case">
         <h3>纯文本视图</h3>
-        <DocumentViewer :content="textContent" file-name="plain.txt" class="viewer-instance" />
+        <DocumentViewer
+          :content="textContent"
+          file-name="plain.txt"
+          class="viewer-instance"
+        />
       </div>
 
       <div class="test-case">
         <h3>二进制文件占位符</h3>
-        <DocumentViewer :content="binaryContent" file-name="image.png" class="viewer-instance" />
+        <DocumentViewer
+          :content="binaryContent"
+          file-name="image.png"
+          class="viewer-instance"
+        />
       </div>
 
       <div class="test-case">
@@ -180,7 +194,10 @@ const binaryContent = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 
 
       <div class="test-case">
         <h3>加载失败: 文件不存在</h3>
-        <DocumentViewer file-path="simulated/non-existent/path.txt" class="viewer-instance" />
+        <DocumentViewer
+          file-path="simulated/non-existent/path.txt"
+          class="viewer-instance"
+        />
       </div>
     </div>
   </div>

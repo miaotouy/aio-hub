@@ -3,7 +3,12 @@
  * 参考 llm-chat 的分离式存储方案
  */
 
-import { exists, readTextFile, writeTextFile, remove } from "@tauri-apps/plugin-fs";
+import {
+  exists,
+  readTextFile,
+  writeTextFile,
+  remove,
+} from "@tauri-apps/plugin-fs";
 import { join } from "@tauri-apps/api/path";
 import { getAppConfigDir } from "@/utils/appPath";
 import { createConfigManager } from "@/utils/configManager";
@@ -119,7 +124,9 @@ export function useMediaStorage() {
   /**
    * 加载单个会话完整数据
    */
-  async function loadSession(sessionId: string): Promise<GenerationSession | null> {
+  async function loadSession(
+    sessionId: string
+  ): Promise<GenerationSession | null> {
     try {
       const sessionPath = await getSessionPath(sessionId);
       const sessionExists = await exists(sessionPath);
@@ -145,7 +152,9 @@ export function useMediaStorage() {
   /**
    * 加载单个会话详情（重型数据）
    */
-  async function loadSessionDetail(sessionId: string): Promise<GenerationSessionDetail | null> {
+  async function loadSessionDetail(
+    sessionId: string
+  ): Promise<GenerationSessionDetail | null> {
     const fullSession = await loadSession(sessionId);
     if (!fullSession) return null;
 
@@ -166,7 +175,10 @@ export function useMediaStorage() {
   /**
    * 保存单个会话（仅在内容变化时写入）
    */
-  async function saveSession(session: GenerationSession, forceWrite: boolean = false): Promise<void> {
+  async function saveSession(
+    session: GenerationSession,
+    forceWrite: boolean = false
+  ): Promise<void> {
     try {
       await indexManager.ensureModuleDir();
       await ensureSessionsDir();
@@ -184,7 +196,9 @@ export function useMediaStorage() {
               return;
             }
           } catch (readError) {
-            logger.warn("读取现有会话文件失败，继续写入", { sessionId: session.id });
+            logger.warn("读取现有会话文件失败，继续写入", {
+              sessionId: session.id,
+            });
           }
         }
       }
@@ -211,7 +225,9 @@ export function useMediaStorage() {
     */
   function createIndexItem(session: GenerationSession): MediaSessionIndexItem {
     // 统计媒体任务数
-    const taskCount = Object.values(session.nodes || {}).filter((n) => n.metadata?.isMediaTask).length;
+    const taskCount = Object.values(session.nodes || {}).filter(
+      (n) => n.metadata?.isMediaTask
+    ).length;
 
     return {
       id: session.id,
@@ -234,9 +250,14 @@ export function useMediaStorage() {
       if (!(await exists(sessionsDir))) return [];
 
       const entries = await readDir(sessionsDir);
-      return entries.filter((entry) => entry.name?.endsWith(".json")).map((entry) => entry.name!.replace(".json", ""));
+      return entries
+        .filter((entry) => entry.name?.endsWith(".json"))
+        .map((entry) => entry.name!.replace(".json", ""));
     } catch (error) {
-      errorHandler.handle(error as Error, { userMessage: "扫描会话目录失败", showToUser: false });
+      errorHandler.handle(error as Error, {
+        userMessage: "扫描会话目录失败",
+        showToUser: false,
+      });
       return [];
     }
   }
@@ -244,7 +265,9 @@ export function useMediaStorage() {
   /**
    * 同步索引：确保物理文件与索引项一致
    */
-  async function syncIndex(index: MediaSessionsIndex): Promise<MediaSessionIndexItem[]> {
+  async function syncIndex(
+    index: MediaSessionsIndex
+  ): Promise<MediaSessionIndexItem[]> {
     const fileIds = await scanSessionDirectory();
     const fileIdSet = new Set(fileIds);
     const indexMap = new Map(index.sessions.map((item) => [item.id, item]));
@@ -306,11 +329,16 @@ export function useMediaStorage() {
     currentSessionId: string | null;
   }> {
     try {
-      const { sessions: indexItems, currentSessionId } = await loadSessionsIndex();
+      const { sessions: indexItems, currentSessionId } =
+        await loadSessionsIndex();
 
       // 并行加载所有会话完整数据
-      const sessionResults = await Promise.all(indexItems.map((item) => loadSession(item.id)));
-      const sessions = sessionResults.filter((s): s is GenerationSession => s !== null);
+      const sessionResults = await Promise.all(
+        indexItems.map((item) => loadSession(item.id))
+      );
+      const sessions = sessionResults.filter(
+        (s): s is GenerationSession => s !== null
+      );
 
       return {
         sessions,
@@ -338,7 +366,10 @@ export function useMediaStorage() {
   /**
    * 持久化单个会话并更新索引
    */
-  async function persistSession(session: GenerationSession, currentSessionId: string | null): Promise<void> {
+  async function persistSession(
+    session: GenerationSession,
+    currentSessionId: string | null
+  ): Promise<void> {
     try {
       await saveSession(session);
 
@@ -396,13 +427,16 @@ export function useMediaStorage() {
   /**
    * 内部防抖保存会话
    */
-  const debouncedPersist = debounce(async (session: GenerationSession, currentSessionId: string | null) => {
-    try {
-      await persistSession(session, currentSessionId);
-    } catch (error) {
-      logger.error("防抖保存会话失败", error);
-    }
-  }, 2000);
+  const debouncedPersist = debounce(
+    async (session: GenerationSession, currentSessionId: string | null) => {
+      try {
+        await persistSession(session, currentSessionId);
+      } catch (error) {
+        logger.error("防抖保存会话失败", error);
+      }
+    },
+    2000
+  );
 
   /**
    * 加载全局设置
@@ -443,7 +477,9 @@ export function useMediaStorage() {
   /**
    * 仅更新当前活跃会话 ID
    */
-  async function updateCurrentSessionId(sessionId: string | null): Promise<void> {
+  async function updateCurrentSessionId(
+    sessionId: string | null
+  ): Promise<void> {
     try {
       const index = await loadIndex();
       if (index.currentSessionId === sessionId) return;

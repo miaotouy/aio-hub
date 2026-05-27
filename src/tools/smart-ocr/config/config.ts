@@ -6,7 +6,12 @@
 
 import { createConfigManager } from "@/utils/configManager";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import type { OcrEngineConfig, OcrEngineType, SlicerConfig, EngineConfigs } from "../types";
+import type {
+  OcrEngineConfig,
+  OcrEngineType,
+  SlicerConfig,
+  EngineConfigs,
+} from "../types";
 
 // 创建模块错误处理器
 const errorHandler = createModuleErrorHandler("smart-ocr/config");
@@ -69,7 +74,8 @@ const smartOcrConfigManager = createConfigManager<SmartOcrConfig>({
   createDefault: () => defaultSmartOcrConfig,
   mergeConfig: (defaultConfig, loadedConfig) => {
     // 合并当前引擎类型
-    const currentEngineType = loadedConfig.currentEngineType || defaultConfig.currentEngineType;
+    const currentEngineType =
+      loadedConfig.currentEngineType || defaultConfig.currentEngineType;
 
     // 合并各个引擎的配置
     const mergedEngineConfigs: EngineConfigs = {
@@ -113,7 +119,10 @@ export const loadSmartOcrConfig = async (): Promise<SmartOcrConfig> => {
   try {
     return await smartOcrConfigManager.load();
   } catch (error) {
-    errorHandler.handle(error as Error, { userMessage: "加载 SmartOCR 配置失败", showToUser: false });
+    errorHandler.handle(error as Error, {
+      userMessage: "加载 SmartOCR 配置失败",
+      showToUser: false,
+    });
     return defaultSmartOcrConfig;
   }
 };
@@ -121,11 +130,16 @@ export const loadSmartOcrConfig = async (): Promise<SmartOcrConfig> => {
 /**
  * 保存配置
  */
-export const saveSmartOcrConfig = async (config: SmartOcrConfig): Promise<void> => {
+export const saveSmartOcrConfig = async (
+  config: SmartOcrConfig
+): Promise<void> => {
   try {
     await smartOcrConfigManager.save(config);
   } catch (error) {
-    errorHandler.handle(error as Error, { userMessage: "保存 SmartOCR 配置失败", showToUser: false });
+    errorHandler.handle(error as Error, {
+      userMessage: "保存 SmartOCR 配置失败",
+      showToUser: false,
+    });
     throw error;
   }
 };
@@ -133,11 +147,16 @@ export const saveSmartOcrConfig = async (config: SmartOcrConfig): Promise<void> 
 /**
  * 更新部分配置
  */
-export const updateSmartOcrConfig = async (updates: Partial<SmartOcrConfig>): Promise<SmartOcrConfig> => {
+export const updateSmartOcrConfig = async (
+  updates: Partial<SmartOcrConfig>
+): Promise<SmartOcrConfig> => {
   try {
     return await smartOcrConfigManager.update(updates);
   } catch (error) {
-    errorHandler.handle(error as Error, { userMessage: "更新 SmartOCR 配置失败", showToUser: false });
+    errorHandler.handle(error as Error, {
+      userMessage: "更新 SmartOCR 配置失败",
+      showToUser: false,
+    });
     throw error;
   }
 };
@@ -150,7 +169,9 @@ export const debouncedSaveConfig = smartOcrConfigManager.saveDebounced;
 /**
  * 根据当前引擎类型获取对应的引擎配置
  */
-export const getCurrentEngineConfig = (config: SmartOcrConfig): OcrEngineConfig => {
+export const getCurrentEngineConfig = (
+  config: SmartOcrConfig
+): OcrEngineConfig => {
   const { currentEngineType, engineConfigs } = config;
 
   switch (currentEngineType) {

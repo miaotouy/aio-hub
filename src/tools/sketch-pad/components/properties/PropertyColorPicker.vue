@@ -34,7 +34,7 @@ withDefaults(
   {
     showAlpha: false,
     disabled: false,
-  },
+  }
 );
 
 const emit = defineEmits<{

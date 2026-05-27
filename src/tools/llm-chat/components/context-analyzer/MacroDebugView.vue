@@ -1,6 +1,12 @@
 <template>
   <div class="macro-debug-view">
-    <el-alert v-if="!hasMacros" title="未检测到宏" type="info" :closable="false" show-icon>
+    <el-alert
+      v-if="!hasMacros"
+      title="未检测到宏"
+      type="info"
+      :closable="false"
+      show-icon
+    >
       此消息中没有使用任何宏表达式
     </el-alert>
 
@@ -48,7 +54,10 @@
 
             <el-table-column label="预览值" min-width="150">
               <template #default="{ row }">
-                <span v-if="macroPreviews[row.fullMatch] !== undefined" class="preview-value">
+                <span
+                  v-if="macroPreviews[row.fullMatch] !== undefined"
+                  class="preview-value"
+                >
                   {{ macroPreviews[row.fullMatch] }}
                 </span>
                 <span v-else class="preview-loading">
@@ -57,9 +66,18 @@
               </template>
             </el-table-column>
 
-            <el-table-column prop="count" label="次数" width="70" :align="'center'" />
+            <el-table-column
+              prop="count"
+              label="次数"
+              width="70"
+              :align="'center'"
+            />
 
-            <el-table-column label="完整表达式" min-width="160" show-overflow-tooltip>
+            <el-table-column
+              label="完整表达式"
+              min-width="160"
+              show-overflow-tooltip
+            >
               <template #default="{ row }">
                 <code class="macro-code">{{ row.fullMatch }}</code>
               </template>
@@ -73,7 +91,12 @@
         <InfoCard title="宏替换结果对比">
           <template #header-extra>
             <div class="diff-controls">
-              <el-button link type="primary" size="small" @click="toggleAllContext">
+              <el-button
+                link
+                type="primary"
+                size="small"
+                @click="toggleAllContext"
+              >
                 {{ allContextExpanded ? "收起未变行" : "展开全部" }}
               </el-button>
             </div>
@@ -92,9 +115,15 @@
                     <span class="role-tag" :class="msgResult.role">{{
                       msgResult.role.toUpperCase()
                     }}</span>
-                    <span v-if="msgResult.name" class="message-name">{{ msgResult.name }}</span>
+                    <span v-if="msgResult.name" class="message-name">{{
+                      msgResult.name
+                    }}</span>
                     <span class="diff-status">
-                      <el-tag v-if="msgResult.hasChanges" size="small" type="warning" effect="plain"
+                      <el-tag
+                        v-if="msgResult.hasChanges"
+                        size="small"
+                        type="warning"
+                        effect="plain"
                         >已修改</el-tag
                       >
                       <el-tag
@@ -110,7 +139,11 @@
                 </template>
 
                 <div class="diff-container">
-                  <div v-for="(hunk, index) in msgResult.diffHunks" :key="index" class="diff-hunk">
+                  <div
+                    v-for="(hunk, index) in msgResult.diffHunks"
+                    :key="index"
+                    class="diff-hunk"
+                  >
                     <!-- 差异块头部（折叠的上下文） -->
                     <div
                       v-if="hunk.isCollapsed"
@@ -145,11 +178,15 @@
                         }"
                       >
                         <div class="line-number">
-                          <span v-if="line.oldLineNo">{{ line.oldLineNo }}</span>
+                          <span v-if="line.oldLineNo">{{
+                            line.oldLineNo
+                          }}</span>
                           <span v-else>&nbsp;</span>
                         </div>
                         <div class="line-number">
-                          <span v-if="line.newLineNo">{{ line.newLineNo }}</span>
+                          <span v-if="line.newLineNo">{{
+                            line.newLineNo
+                          }}</span>
                           <span v-else>&nbsp;</span>
                         </div>
                         <div class="line-content">
@@ -171,7 +208,12 @@
                       </div>
                     </div>
                   </div>
-                  <div v-if="msgResult.diffHunks.length === 0" class="no-changes">内容无变化</div>
+                  <div
+                    v-if="msgResult.diffHunks.length === 0"
+                    class="no-changes"
+                  >
+                    内容无变化
+                  </div>
                 </div>
               </el-collapse-item>
             </el-collapse>
@@ -187,7 +229,10 @@ import { ref, computed, watch, reactive } from "vue";
 import InfoCard from "@/components/common/InfoCard.vue";
 import { Loading, MoreFilled } from "@element-plus/icons-vue";
 import { MacroProcessor, MacroRegistry } from "../../macro-engine";
-import { createMacroContext, extractContextFromSession } from "../../macro-engine/MacroContext";
+import {
+  createMacroContext,
+  extractContextFromSession,
+} from "../../macro-engine/MacroContext";
 import type { MacroProcessResult } from "../../macro-engine";
 import type { ContextPreviewData } from "../../types/context";
 import { useAgentStore } from "../../stores/agentStore";
@@ -253,7 +298,10 @@ const detectedMacros = computed(() => {
 // 去重并统计宏
 const uniqueDetectedMacros = computed(() => {
   const macros = detectedMacros.value;
-  const map = new Map<string, { name: string; args: string[]; fullMatch: string; count: number }>();
+  const map = new Map<
+    string,
+    { name: string; args: string[]; fullMatch: string; count: number }
+  >();
 
   macros.forEach((m) => {
     if (map.has(m.fullMatch)) {
@@ -303,21 +351,22 @@ const getDiffHunks = (original: string, modified: string): DiffHunk[] => {
     }
   };
 
-  const rawOps: { type: "add" | "remove" | "common"; lines: string[] }[] = linesDiff
-    .map((part) => {
-      let lines = part.value.split("\n");
-      if (lines.length > 0 && lines[lines.length - 1] === "") {
-        lines.pop();
-      }
-      return {
-        type: (part.added ? "add" : part.removed ? "remove" : "common") as
-          | "add"
-          | "remove"
-          | "common",
-        lines: lines,
-      };
-    })
-    .filter((op) => op.lines.length > 0);
+  const rawOps: { type: "add" | "remove" | "common"; lines: string[] }[] =
+    linesDiff
+      .map((part) => {
+        let lines = part.value.split("\n");
+        if (lines.length > 0 && lines[lines.length - 1] === "") {
+          lines.pop();
+        }
+        return {
+          type: (part.added ? "add" : part.removed ? "remove" : "common") as
+            | "add"
+            | "remove"
+            | "common",
+          lines: lines,
+        };
+      })
+      .filter((op) => op.lines.length > 0);
 
   let i = 0;
   while (i < rawOps.length) {
@@ -443,7 +492,8 @@ const toggleAllContext = () => {
 const toggleHunk = (msgIndex: number, hunkIndex: number) => {
   const msg = messageResults.value[msgIndex];
   if (msg && msg.diffHunks[hunkIndex]) {
-    msg.diffHunks[hunkIndex].isCollapsed = !msg.diffHunks[hunkIndex].isCollapsed;
+    msg.diffHunks[hunkIndex].isCollapsed =
+      !msg.diffHunks[hunkIndex].isCollapsed;
 
     // 检查是否所有可折叠块的状态都一致，更新全局 allContextExpanded
     updateAllContextState();
@@ -482,7 +532,9 @@ watch(
     const agent = agentStore.getAgentById(agentId);
 
     // 确定生效的用户档案（智能体绑定 > 全局配置）
-    const effectiveUserProfile = userProfileStore.getEffectiveProfile(agent?.userProfileId);
+    const effectiveUserProfile = userProfileStore.getEffectiveProfile(
+      agent?.userProfileId
+    );
 
     // 基础上下文，用于宏预览等
     // 注意：如果 contextData 中有 virtualTimeConfig，应该优先使用（这可能是从历史记录恢复的快照）
@@ -491,7 +543,8 @@ watch(
       ? {
           ...agent,
           // 如果 contextData 中有虚拟时间配置，覆盖 agent 中的配置
-          virtualTimeConfig: newData.agentInfo.virtualTimeConfig || agent.virtualTimeConfig,
+          virtualTimeConfig:
+            newData.agentInfo.virtualTimeConfig || agent.virtualTimeConfig,
         }
       : newData.agentInfo.virtualTimeConfig
         ? { virtualTimeConfig: newData.agentInfo.virtualTimeConfig }
@@ -554,11 +607,16 @@ watch(
           Object.assign(messageContext, sessionContext);
         }
 
-        const processResult = await processor.process(original, messageContext, {
-          debug: true,
-        });
+        const processResult = await processor.process(
+          original,
+          messageContext,
+          {
+            debug: true,
+          }
+        );
 
-        const modified = processResult.phaseOutputs?.afterPostProcess || original;
+        const modified =
+          processResult.phaseOutputs?.afterPostProcess || original;
         const hunks = getDiffHunks(original, modified);
         const hasChanges = original !== modified;
         const hasMacros = containsMacro(original);

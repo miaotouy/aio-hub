@@ -1,6 +1,16 @@
 <script setup lang="ts">
 import { reactive, computed, onMounted, ref } from "vue";
-import { CheckCircle2, XCircle, Clock, Eye, Code, FileJson, Loader2, Ban, RotateCw } from "lucide-vue-next";
+import {
+  CheckCircle2,
+  XCircle,
+  Clock,
+  Eye,
+  Code,
+  FileJson,
+  Loader2,
+  Ban,
+  RotateCw,
+} from "lucide-vue-next";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import { RendererVersion } from "@/tools/rich-text-renderer/types";
@@ -33,7 +43,10 @@ const task = computed(() => {
 
 // 检测是否包含异步任务 ID
 onMounted(async () => {
-  const resultStr = typeof props.res.result === "string" ? props.res.result : JSON.stringify(props.res.result);
+  const resultStr =
+    typeof props.res.result === "string"
+      ? props.res.result
+      : JSON.stringify(props.res.result);
   const extractedTaskId = extractTaskId(resultStr);
 
   if (extractedTaskId) {
@@ -128,7 +141,11 @@ const elapsedTime = computed(() => {
 });
 
 const showCancelButton = computed(() => {
-  return task.value && ["pending", "running"].includes(task.value.status) && task.value.cancellable;
+  return (
+    task.value &&
+    ["pending", "running"].includes(task.value.status) &&
+    task.value.cancellable
+  );
 });
 
 const showRetryButton = computed(() => {
@@ -138,7 +155,10 @@ const showRetryButton = computed(() => {
 /**
  * 格式化显示结果
  */
-const formatDisplayResult = (result: any, mode: "markdown" | "json" | "raw") => {
+const formatDisplayResult = (
+  result: any,
+  mode: "markdown" | "json" | "raw"
+) => {
   if (result === undefined || result === null) return "";
 
   if (mode === "json") {
@@ -165,13 +185,20 @@ const formatDisplayResult = (result: any, mode: "markdown" | "json" | "raw") => 
   <div class="res-card">
     <div class="res-head">
       <div class="res-status" :class="res.status">
-        <component :is="res.status === 'success' ? CheckCircle2 : XCircle" :size="14" />
+        <component
+          :is="res.status === 'success' ? CheckCircle2 : XCircle"
+          :size="14"
+        />
         <span>{{ res.status.toUpperCase() }}</span>
       </div>
       <div class="res-id">{{ res.requestId }}</div>
       <div class="res-meta">
-        <span class="meta-item"><Clock :size="12" /> {{ res.durationMs }}ms</span>
-        <span class="meta-item debug-tag" :title="res.result">Len: {{ res.result?.length || 0 }}</span>
+        <span class="meta-item"
+          ><Clock :size="12" /> {{ res.durationMs }}ms</span
+        >
+        <span class="meta-item debug-tag" :title="res.result"
+          >Len: {{ res.result?.length || 0 }}</span
+        >
       </div>
       <div class="res-view-switch">
         <el-radio-group v-model="viewMode.current" size="small">
@@ -191,16 +218,27 @@ const formatDisplayResult = (result: any, mode: "markdown" | "json" | "raw") => 
       <template v-if="viewMode.current === 'markdown'">
         <div class="markdown-viewer scrollbar-styled">
           <RichTextRenderer
-            :content="typeof res.result === 'string' ? res.result : JSON.stringify(res.result, null, 2)"
+            :content="
+              typeof res.result === 'string'
+                ? res.result
+                : JSON.stringify(res.result, null, 2)
+            "
             :version="RendererVersion.V2_CUSTOM_PARSER"
           />
         </div>
       </template>
       <template v-else-if="viewMode.current === 'json'">
-        <RichCodeEditor :value="formatDisplayResult(res.result, 'json')" language="json" height="300px" readonly />
+        <RichCodeEditor
+          :value="formatDisplayResult(res.result, 'json')"
+          language="json"
+          height="300px"
+          readonly
+        />
       </template>
       <div v-else class="raw-preview scrollbar-styled">
-        <div class="raw-content">{{ formatDisplayResult(res.result, "raw") }}</div>
+        <div class="raw-content">
+          {{ formatDisplayResult(res.result, "raw") }}
+        </div>
         <div v-if="!res.result" class="raw-empty">结果为空字符串</div>
       </div>
 
@@ -237,37 +275,63 @@ const formatDisplayResult = (result: any, mode: "markdown" | "json" | "raw") => 
               {{ taskStatusText }}
             </el-tag>
           </div>
-          <div v-if="task.status === 'running' && task.progress !== undefined" class="task-info-row">
+          <div
+            v-if="task.status === 'running' && task.progress !== undefined"
+            class="task-info-row"
+          >
             <span class="task-label">进度:</span>
             <div class="task-progress-wrapper">
-              <el-progress :percentage="task.progress" :stroke-width="8" :show-text="true" />
+              <el-progress
+                :percentage="task.progress"
+                :stroke-width="8"
+                :show-text="true"
+              />
             </div>
           </div>
           <div v-if="task.progressMessage" class="task-info-row">
             <span class="task-label">消息:</span>
             <span class="task-value">{{ task.progressMessage }}</span>
           </div>
-          <div v-if="task.status === 'running' || task.status === 'completed'" class="task-info-row">
+          <div
+            v-if="task.status === 'running' || task.status === 'completed'"
+            class="task-info-row"
+          >
             <span class="task-label">耗时:</span>
             <span class="task-value">{{ elapsedTime }}秒</span>
           </div>
-          <div v-if="task.status === 'completed' && task.result" class="task-info-row task-result">
+          <div
+            v-if="task.status === 'completed' && task.result"
+            class="task-info-row task-result"
+          >
             <span class="task-label">结果:</span>
             <div class="task-result-content scrollbar-styled">
               <pre>{{ task.result }}</pre>
             </div>
           </div>
-          <div v-if="task.status === 'failed' && task.error" class="task-info-row task-error">
+          <div
+            v-if="task.status === 'failed' && task.error"
+            class="task-info-row task-error"
+          >
             <span class="task-label">错误:</span>
             <span class="task-value error-text">{{ task.error }}</span>
           </div>
         </div>
         <div class="task-panel-actions">
-          <el-button v-if="showCancelButton" size="small" type="warning" @click="handleCancelTask">
+          <el-button
+            v-if="showCancelButton"
+            size="small"
+            type="warning"
+            @click="handleCancelTask"
+          >
             <Ban :size="14" />
             取消
           </el-button>
-          <el-button v-if="showRetryButton" size="small" type="primary" @click="handleRetryTask">
+          <el-button
+            v-if="showRetryButton"
+            size="small"
+            type="primary"
+            @click="handleRetryTask"
+          >
             <RotateCw :size="14" />
             重试
           </el-button>

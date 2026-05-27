@@ -60,13 +60,16 @@ watch(
           typeof newModel.defaultPostProcessingRules[0] === "string"
         ) {
           // 旧数据格式 (string[]) -> 新格式 (ContextPostProcessRule[])
-          defaultRules = (newModel.defaultPostProcessingRules as unknown as string[]).map((id) => ({
+          defaultRules = (
+            newModel.defaultPostProcessingRules as unknown as string[]
+          ).map((id) => ({
             type: id,
             enabled: true,
           }));
         } else {
           // 新数据格式
-          defaultRules = newModel.defaultPostProcessingRules as ContextPostProcessRule[];
+          defaultRules =
+            newModel.defaultPostProcessingRules as ContextPostProcessRule[];
         }
       }
 
@@ -98,7 +101,7 @@ watch(
       };
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 // 保存模型
@@ -140,7 +143,8 @@ const formatModelName = (modelId: string): string => {
   const lastSlashIndex = modelId.lastIndexOf("/");
 
   // 如果找到 /，取后面的部分，否则使用整个 ID
-  let name = lastSlashIndex !== -1 ? modelId.substring(lastSlashIndex + 1) : modelId;
+  let name =
+    lastSlashIndex !== -1 ? modelId.substring(lastSlashIndex + 1) : modelId;
 
   // 将 - 替换为空格
   name = name.replace(/-/g, " ");
@@ -165,7 +169,10 @@ const applyPreset = () => {
   }
 
   // 从预设中获取匹配的元数据
-  const properties = getActiveModelProperties(modelId, modelEditForm.value.provider);
+  const properties = getActiveModelProperties(
+    modelId,
+    modelEditForm.value.provider
+  );
 
   if (!properties) {
     // 如果没有预设，至少尝试格式化名称
@@ -267,7 +274,10 @@ const applyOutputPreset = (value: number) => {
 // 自定义参数的 JSON 字符串计算属性
 const customParametersJsonString = computed({
   get: () => {
-    if (!modelEditForm.value.customParameters || Object.keys(modelEditForm.value.customParameters).length === 0) {
+    if (
+      !modelEditForm.value.customParameters ||
+      Object.keys(modelEditForm.value.customParameters).length === 0
+    ) {
       return "";
     }
     try {
@@ -296,7 +306,13 @@ const customParametersJsonString = computed({
 </script>
 
 <template>
-  <BaseDialog :model-value="visible" @update:model-value="handleClose" :title="dialogTitle" width="75%" height="75vh">
+  <BaseDialog
+    :model-value="visible"
+    @update:model-value="handleClose"
+    :title="dialogTitle"
+    width="75%"
+    height="75vh"
+  >
     <template #content>
       <div class="form-container">
         <el-form :model="modelEditForm" label-width="110px">
@@ -306,12 +322,18 @@ const customParametersJsonString = computed({
           <el-form-item label="模型 ID">
             <el-input v-model="modelEditForm.id" placeholder="例如: gpt-4o">
               <template #append>
-                <el-button :icon="MagicStick" @click="applyPreset" title="根据模型 ID 自动应用预设配置">
+                <el-button
+                  :icon="MagicStick"
+                  @click="applyPreset"
+                  title="根据模型 ID 自动应用预设配置"
+                >
                   应用预设
                 </el-button>
               </template>
             </el-input>
-            <div class="form-hint">输入模型 ID 后可点击"应用预设"自动填充名称、分组、图标和能力</div>
+            <div class="form-hint">
+              输入模型 ID 后可点击"应用预设"自动填充名称、分组、图标和能力
+            </div>
           </el-form-item>
 
           <el-form-item label="显示名称">
@@ -319,15 +341,26 @@ const customParametersJsonString = computed({
           </el-form-item>
 
           <el-form-item label="分组">
-            <el-input v-model="modelEditForm.group" placeholder="可选，例如: GPT-4 系列" />
+            <el-input
+              v-model="modelEditForm.group"
+              placeholder="可选，例如: GPT-4 系列"
+            />
           </el-form-item>
 
           <el-form-item label="描述">
-            <el-input v-model="modelEditForm.description" type="textarea" :rows="2" placeholder="可选，模型描述信息" />
+            <el-input
+              v-model="modelEditForm.description"
+              type="textarea"
+              :rows="2"
+              placeholder="可选，模型描述信息"
+            />
           </el-form-item>
 
           <el-form-item label="模型图标">
-            <el-input v-model="modelEditForm.icon" placeholder="可选，自定义图标路径或选择预设">
+            <el-input
+              v-model="modelEditForm.icon"
+              placeholder="可选，自定义图标路径或选择预设"
+            >
               <template #append>
                 <el-button @click="openModelIconSelector">选择预设</el-button>
               </template>
@@ -363,7 +396,9 @@ const customParametersJsonString = computed({
                 class="token-input"
               />
             </div>
-            <div class="form-hint">模型可处理的总 token 数量（包含输入和历史消息）</div>
+            <div class="form-hint">
+              模型可处理的总 token 数量（包含输入和历史消息）
+            </div>
           </el-form-item>
 
           <el-form-item label="输出限制">
@@ -391,20 +426,37 @@ const customParametersJsonString = computed({
                 class="token-input"
               />
             </div>
-            <div class="form-hint">单次响应最大输出 token 数（包含推理 token）</div>
+            <div class="form-hint">
+              单次响应最大输出 token 数（包含推理 token）
+            </div>
           </el-form-item>
 
           <!-- 模型能力 -->
           <el-divider content-position="left">模型能力</el-divider>
 
           <div class="capabilities-grid">
-            <div v-for="capability in MODEL_CAPABILITIES" :key="capability.key" class="capability-item">
-              <el-switch v-model="modelEditForm.capabilities![capability.key]" size="small" />
-              <el-icon v-if="capability.icon" class="capability-icon" :style="{ color: capability.color }">
+            <div
+              v-for="capability in MODEL_CAPABILITIES"
+              :key="capability.key"
+              class="capability-item"
+            >
+              <el-switch
+                v-model="modelEditForm.capabilities![capability.key]"
+                size="small"
+              />
+              <el-icon
+                v-if="capability.icon"
+                class="capability-icon"
+                :style="{ color: capability.color }"
+              >
                 <component :is="capability.icon" />
               </el-icon>
               <span class="capability-label">{{ capability.label }}</span>
-              <el-tooltip :content="capability.description" placement="top" effect="dark">
+              <el-tooltip
+                :content="capability.description"
+                placement="top"
+                effect="dark"
+              >
                 <el-icon class="capability-info">
                   <InfoFilled />
                 </el-icon>
@@ -418,7 +470,9 @@ const customParametersJsonString = computed({
           <el-form-item label="最大输入尺寸">
             <div class="token-input-group">
               <el-select
-                :model-value="(modelEditForm.capabilities as any)?.maxImageDimension"
+                :model-value="
+                  (modelEditForm.capabilities as any)?.maxImageDimension
+                "
                 @update:model-value="
                   (val: number) => {
                     const c = modelEditForm.capabilities as any;
@@ -436,7 +490,9 @@ const customParametersJsonString = computed({
                 <el-option label="不限制" :value="0" />
               </el-select>
               <el-input-number
-                :model-value="(modelEditForm.capabilities as any)?.maxImageDimension"
+                :model-value="
+                  (modelEditForm.capabilities as any)?.maxImageDimension
+                "
                 @update:model-value="
                   (val: number) => {
                     (modelEditForm.capabilities as any).maxImageDimension = val;
@@ -460,17 +516,24 @@ const customParametersJsonString = computed({
 
           <el-form-item label="配置模式">
             <div style="width: 100%">
-              <el-radio-group v-model="modelEditForm.capabilities!.thinkingConfigType">
+              <el-radio-group
+                v-model="modelEditForm.capabilities!.thinkingConfigType"
+              >
                 <el-radio value="none">无</el-radio>
                 <el-radio value="switch">开关模式</el-radio>
                 <el-radio value="budget">预算模式</el-radio>
                 <el-radio value="effort">等级模式</el-radio>
               </el-radio-group>
-              <div class="form-hint">决定了在 Agent 参数面板中如何配置该模型的思考/推理能力。</div>
+              <div class="form-hint">
+                决定了在 Agent 参数面板中如何配置该模型的思考/推理能力。
+              </div>
             </div>
           </el-form-item>
 
-          <el-form-item v-if="modelEditForm.capabilities?.thinkingConfigType === 'effort'" label="可用等级">
+          <el-form-item
+            v-if="modelEditForm.capabilities?.thinkingConfigType === 'effort'"
+            label="可用等级"
+          >
             <el-select
               v-model="modelEditForm.capabilities!.reasoningEffortOptions"
               multiple
@@ -486,7 +549,9 @@ const customParametersJsonString = computed({
               <el-option label="high" value="high" />
               <el-option label="max" value="max" />
             </el-select>
-            <div class="form-hint">当配置模式为“等级模式”时，在此处定义可用的等级选项。支持手动输入自定义等级。</div>
+            <div class="form-hint">
+              当配置模式为“等级模式”时，在此处定义可用的等级选项。支持手动输入自定义等级。
+            </div>
           </el-form-item>
 
           <!-- 默认后处理规则 -->
@@ -496,15 +561,25 @@ const customParametersJsonString = computed({
             <template #label>
               <div style="display: flex; align-items: center">
                 <span>后处理规则</span>
-                <el-tooltip content="此配置仅适用于 LLM Chat 工具，不会影响其他功能。" placement="top">
-                  <el-icon style="margin-left: 4px; color: var(--el-color-info)">
+                <el-tooltip
+                  content="此配置仅适用于 LLM Chat 工具，不会影响其他功能。"
+                  placement="top"
+                >
+                  <el-icon
+                    style="margin-left: 4px; color: var(--el-color-info)"
+                  >
                     <InfoFilled />
                   </el-icon>
                 </el-tooltip>
               </div>
             </template>
-            <PostProcessingPanel v-model="modelEditForm.defaultPostProcessingRules" />
-            <div class="form-hint">Chat 工具专属配置。这些规则会作为默认值，与智能体的具体配置合并使用。</div>
+            <PostProcessingPanel
+              v-model="modelEditForm.defaultPostProcessingRules"
+            />
+            <div class="form-hint">
+              Chat
+              工具专属配置。这些规则会作为默认值，与智能体的具体配置合并使用。
+            </div>
           </el-form-item>
 
           <!-- 自定义参数 -->
@@ -520,7 +595,8 @@ const customParametersJsonString = computed({
               />
             </div>
             <div class="form-hint">
-              为该模型指定非标准的、专属的 API 参数。请输入合法的JSON格式。这些参数将与标准请求参数合并。
+              为该模型指定非标准的、专属的 API
+              参数。请输入合法的JSON格式。这些参数将与标准请求参数合并。
             </div>
           </el-form-item>
 
@@ -528,28 +604,40 @@ const customParametersJsonString = computed({
           <el-divider content-position="left">价格配置</el-divider>
 
           <el-form-item label="输入价格">
-            <el-input v-model="modelEditForm.pricing!.prompt" placeholder="例如: $0.01 / 1M tokens">
+            <el-input
+              v-model="modelEditForm.pricing!.prompt"
+              placeholder="例如: $0.01 / 1M tokens"
+            >
               <template #prepend>$</template>
             </el-input>
             <div class="form-hint">每百万 token 的输入价格</div>
           </el-form-item>
 
           <el-form-item label="输出价格">
-            <el-input v-model="modelEditForm.pricing!.completion" placeholder="例如: $0.03 / 1M tokens">
+            <el-input
+              v-model="modelEditForm.pricing!.completion"
+              placeholder="例如: $0.03 / 1M tokens"
+            >
               <template #prepend>$</template>
             </el-input>
             <div class="form-hint">每百万 token 的输出价格</div>
           </el-form-item>
 
           <el-form-item label="请求价格">
-            <el-input v-model="modelEditForm.pricing!.request" placeholder="例如: $0.001 / request">
+            <el-input
+              v-model="modelEditForm.pricing!.request"
+              placeholder="例如: $0.001 / request"
+            >
               <template #prepend>$</template>
             </el-input>
             <div class="form-hint">每次请求的固定价格（可选）</div>
           </el-form-item>
 
           <el-form-item label="图像价格">
-            <el-input v-model="modelEditForm.pricing!.image" placeholder="例如: $0.005 / image">
+            <el-input
+              v-model="modelEditForm.pricing!.image"
+              placeholder="例如: $0.005 / image"
+            >
               <template #prepend>$</template>
             </el-input>
             <div class="form-hint">每张图像的处理价格（可选）</div>

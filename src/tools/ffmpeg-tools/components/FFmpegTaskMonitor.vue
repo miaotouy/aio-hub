@@ -58,13 +58,21 @@
           <template #default="{ row }">
             <div class="status-cell">
               <div class="status-wrapper">
-                <el-tag :type="statusType(row.status)" size="small" class="status-tag">
-                  <el-icon :class="{ 'is-loading': row.status === 'processing' }">
+                <el-tag
+                  :type="statusType(row.status)"
+                  size="small"
+                  class="status-tag"
+                >
+                  <el-icon
+                    :class="{ 'is-loading': row.status === 'processing' }"
+                  >
                     <component :is="statusIcon(row.status)" />
                   </el-icon>
                   <span>{{ statusText(row.status) }}</span>
                   <span
-                    v-if="row.status === 'processing' && row.progress.percent > 0"
+                    v-if="
+                      row.status === 'processing' && row.progress.percent > 0
+                    "
                     class="percent-text"
                   >
                     {{ row.progress.percent.toFixed(1) }}%
@@ -111,7 +119,11 @@
         <el-table-column label="操作" width="180" fixed="right" align="center">
           <template #default="{ row }">
             <div class="action-cell">
-              <el-tooltip v-if="row.status === 'processing'" content="停止任务" placement="top">
+              <el-tooltip
+                v-if="row.status === 'processing'"
+                content="停止任务"
+                placement="top"
+              >
                 <el-button
                   :icon="StopCircle"
                   circle
@@ -147,18 +159,33 @@
                   trigger="click"
                   @command="(cmd: string) => handleIntegration(cmd, row)"
                 >
-                  <el-button :icon="Send" circle size="small" type="primary" plain />
+                  <el-button
+                    :icon="Send"
+                    circle
+                    size="small"
+                    type="primary"
+                    plain
+                  />
                   <template #dropdown>
                     <el-dropdown-menu>
-                      <el-dropdown-item command="chat">LLM Chat</el-dropdown-item>
-                      <el-dropdown-item command="transcription">转写工具</el-dropdown-item>
+                      <el-dropdown-item command="chat"
+                        >LLM Chat</el-dropdown-item
+                      >
+                      <el-dropdown-item command="transcription"
+                        >转写工具</el-dropdown-item
+                      >
                     </el-dropdown-menu>
                   </template>
                 </el-dropdown>
               </template>
 
               <el-tooltip content="删除记录" placement="top">
-                <el-button :icon="Trash" circle size="small" @click="store.removeTask(row.id)" />
+                <el-button
+                  :icon="Trash"
+                  circle
+                  size="small"
+                  @click="store.removeTask(row.id)"
+                />
               </el-tooltip>
             </div>
           </template>

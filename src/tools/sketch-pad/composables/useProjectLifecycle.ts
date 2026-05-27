@@ -188,7 +188,10 @@ export function useProjectLifecycle(session: EditorSession) {
     }, 100);
 
     customMessage.success("导入成功");
-    logger.info("项目已导入", { id: manifest.project.id, name: manifest.project.name });
+    logger.info("项目已导入", {
+      id: manifest.project.id,
+      name: manifest.project.name,
+    });
     return true;
   }
 
@@ -199,13 +202,17 @@ export function useProjectLifecycle(session: EditorSession) {
   async function goBack(saveCallback: () => Promise<void>): Promise<void> {
     if (state.isDirty.value) {
       try {
-        await ElMessageBox.confirm("当前草图有未保存的更改，是否保存后退出？", "提示", {
-          confirmButtonText: "保存并退出",
-          cancelButtonText: "直接退出",
-          distinguishCancelAndClose: true,
-          type: "warning",
-          lockScroll: false,
-        });
+        await ElMessageBox.confirm(
+          "当前草图有未保存的更改，是否保存后退出？",
+          "提示",
+          {
+            confirmButtonText: "保存并退出",
+            cancelButtonText: "直接退出",
+            distinguishCancelAndClose: true,
+            type: "warning",
+            lockScroll: false,
+          }
+        );
         await saveCallback();
       } catch (action) {
         if (action !== "cancel") {

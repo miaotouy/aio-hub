@@ -14,7 +14,12 @@ import {
   Square,
 } from "lucide-vue-next";
 import { useResizeObserver, useIntersectionObserver } from "@vueuse/core";
-import type { ChatMessageNode, ChatSessionIndex, ChatSessionDetail, TranslationDisplayMode } from "../../types";
+import type {
+  ChatMessageNode,
+  ChatSessionIndex,
+  ChatSessionDetail,
+  TranslationDisplayMode,
+} from "../../types";
 import type { Asset } from "@/types/asset-management";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
@@ -27,7 +32,10 @@ import { useImageViewer } from "@/composables/useImageViewer";
 import { useUserProfileStore } from "../../stores/userProfileStore";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { MacroProcessor } from "../../macro-engine";
-import { processMacros, buildMacroContext } from "../../core/context-utils/macro";
+import {
+  processMacros,
+  buildMacroContext,
+} from "../../core/context-utils/macro";
 import {
   resolveRawRules,
   filterRulesByRole,
@@ -97,7 +105,7 @@ const userProfileStore = useUserProfileStore();
  */
 function getAgentAndUserProfileIds(
   metadata: any,
-  bindingMode: "message" | "session" = "message",
+  bindingMode: "message" | "session" = "message"
 ): { agentId: string | undefined; userProfileId: string | undefined } {
   let agentId: string | undefined;
   let userProfileId: string | undefined;
@@ -109,13 +117,17 @@ function getAgentAndUserProfileIds(
     userProfileId = metadata?.userProfileId;
     if (!userProfileId) {
       const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
-      userProfileId = userProfileStore.getEffectiveProfile(agent?.userProfileId)?.id;
+      userProfileId = userProfileStore.getEffectiveProfile(
+        agent?.userProfileId
+      )?.id;
     }
   } else {
     // 会话绑定模式：忽略消息元数据，使用当前激活的 Agent 和全局档案
     agentId = agentStore.currentAgentId ?? undefined;
     const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
-    userProfileId = userProfileStore.getEffectiveProfile(agent?.userProfileId)?.id;
+    userProfileId = userProfileStore.getEffectiveProfile(
+      agent?.userProfileId
+    )?.id;
   }
 
   return { agentId, userProfileId };
@@ -123,14 +135,17 @@ function getAgentAndUserProfileIds(
 
 // 获取当前生效的 Agent
 const currentAgent = computed(() => {
-  const { agentId } = getAgentAndUserProfileIds(props.message.metadata, "message");
+  const { agentId } = getAgentAndUserProfileIds(
+    props.message.metadata,
+    "message"
+  );
   return agentId ? agentStore.getAgentById(agentId) : undefined;
 });
 
 // 提供 Agent 交互配置给后代组件
 provide(
   "agentInteractionConfig",
-  computed(() => currentAgent.value?.interactionConfig),
+  computed(() => currentAgent.value?.interactionConfig)
 );
 
 // 提供当前 Agent 给后代组件（用于解析 agent-asset:// URL）
@@ -163,7 +178,12 @@ const getWillUseTranscription = (asset: Asset) => {
   }
 
   // 使用统一方法计算
-  return computeWillUseTranscription(asset, finalModelId, finalProfileId, props.messageDepth);
+  return computeWillUseTranscription(
+    asset,
+    finalModelId,
+    finalProfileId,
+    props.messageDepth
+  );
 };
 
 // 是否有附件 - 非编辑模式显示原始附件
@@ -236,7 +256,10 @@ const generationMetaForRenderer = computed(() => {
 // 解析需要传递给渲染器的正则规则
 const activeRules = computed(() => {
   const bindingMode = settings.value.regexConfig.bindingMode ?? "message";
-  const { agentId, userProfileId } = getAgentAndUserProfileIds(props.message.metadata, bindingMode);
+  const { agentId, userProfileId } = getAgentAndUserProfileIds(
+    props.message.metadata,
+    bindingMode
+  );
 
   // 获取配置源
   const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
@@ -244,7 +267,12 @@ const activeRules = computed(() => {
   const globalConfig = settings.value.regexConfig;
 
   // 1. 解析原始规则 (全局 -> Agent -> UserProfile)
-  const rawRules = resolveRawRules("render", globalConfig, agent?.regexConfig, userProfile?.regexConfig);
+  const rawRules = resolveRawRules(
+    "render",
+    globalConfig,
+    agent?.regexConfig,
+    userProfile?.regexConfig
+  );
 
   // 2. 按角色过滤
   const roleFiltered = filterRulesByRole(rawRules, props.message.role);
@@ -273,7 +301,10 @@ watch(
 
     // 根据绑定模式确定 agent 和 userProfile
     const mode = bindingMode ?? "message";
-    const { agentId, userProfileId } = getAgentAndUserProfileIds(metadata, mode);
+    const { agentId, userProfileId } = getAgentAndUserProfileIds(
+      metadata,
+      mode
+    );
 
     const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
     const userProfile = userProfileStore.getEffectiveProfile(userProfileId);
@@ -287,7 +318,7 @@ watch(
 
     processedRules.value = await processRulesWithMacros(rules, macroContext);
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 // 编辑区域引用
@@ -323,7 +354,11 @@ const saveEdit = () => {
   if (editingContent.value.trim() || attachmentManager.hasAttachments.value) {
     // 传递文本内容和附件列表
     // 必须传递数组本身，即使是空数组，以便父组件知道需要清空附件
-    emit("save-edit", editingContent.value, attachmentManager.attachments.value);
+    emit(
+      "save-edit",
+      editingContent.value,
+      attachmentManager.attachments.value
+    );
   }
 };
 
@@ -337,7 +372,11 @@ const cancelEdit = () => {
 // 保存到新分支
 const saveToBranch = () => {
   if (editingContent.value.trim() || attachmentManager.hasAttachments.value) {
-    emit("save-to-branch", editingContent.value, attachmentManager.attachments.value);
+    emit(
+      "save-to-branch",
+      editingContent.value,
+      attachmentManager.attachments.value
+    );
   }
 };
 
@@ -393,10 +432,12 @@ const handleEditClearAllAttachments = async () => {
 // 编辑模式下插入占位符到编辑器
 const handleInsertPlaceholderInEditor = (asset: Asset) => {
   const placeholder = generateAssetPlaceholder(asset.id);
-  const cursorPos = editorRef.value?.getSelectionRange()?.start ?? editingContent.value.length;
+  const cursorPos =
+    editorRef.value?.getSelectionRange()?.start ?? editingContent.value.length;
   const before = editingContent.value.substring(0, cursorPos);
   const after = editingContent.value.substring(cursorPos);
-  const prefix = before && !before.endsWith("\n") && !before.endsWith(" ") ? "\n" : "";
+  const prefix =
+    before && !before.endsWith("\n") && !before.endsWith(" ") ? "\n" : "";
   const suffix = after && !after.startsWith("\n") ? "\n" : "";
   const insertText = prefix + placeholder + suffix;
   if (editorRef.value?.insertText) {
@@ -439,7 +480,10 @@ const { isDraggingOver } = useChatFileInteraction({
       }
     }
     if (successCount > 0) {
-      const message = successCount === 1 ? `已粘贴文件: ${assets[0].name}` : `已粘贴 ${successCount} 个文件`;
+      const message =
+        successCount === 1
+          ? `已粘贴文件: ${assets[0].name}`
+          : `已粘贴 ${successCount} 个文件`;
       customMessage.success(message);
     }
   },
@@ -478,7 +522,10 @@ watch(
 
     if (!props.isEditing && content && isPresetMessage) {
       // 获取当前生效的用户档案
-      const { userProfileId } = getAgentAndUserProfileIds(props.message.metadata, "message");
+      const { userProfileId } = getAgentAndUserProfileIds(
+        props.message.metadata,
+        "message"
+      );
       const userProfile = userProfileStore.getEffectiveProfile(userProfileId);
 
       // 构建宏上下文
@@ -488,7 +535,11 @@ watch(
         index: sessionIndex ?? undefined,
         detail: sessionDetail ?? undefined,
       });
-      const macroProcessed = await processMacros(macroProcessor, content, context);
+      const macroProcessed = await processMacros(
+        macroProcessor,
+        content,
+        context
+      );
       // 不再提前处理资产链接，交给 RichTextRenderer 内部的节点处理，避免 Markdown 二次编码问题
       displayedContent.value = macroProcessed;
     } else {
@@ -496,7 +547,7 @@ watch(
       displayedContent.value = content || "";
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 // 监听编辑模式变化
@@ -509,7 +560,7 @@ watch(
       // 退出编辑模式时清空附件管理器
       attachmentManager.clearAttachments();
     }
-  },
+  }
 );
 
 // 翻译显示逻辑
@@ -522,8 +573,12 @@ const showOriginal = computed(() => {
   if (props.isEditing) return false; // 编辑模式由专门的区域接管
 
   // 如果没有翻译数据，或者翻译被隐藏了，应该显示原文（兜底，防止消息完全消失）
-  const translationHidden = props.message.metadata?.translation?.visible === false;
-  if ((!props.message.metadata?.translation && !props.isTranslating) || (translationHidden && !props.isTranslating)) {
+  const translationHidden =
+    props.message.metadata?.translation?.visible === false;
+  if (
+    (!props.message.metadata?.translation && !props.isTranslating) ||
+    (translationHidden && !props.isTranslating)
+  ) {
     return true;
   }
 
@@ -535,12 +590,22 @@ const showTranslation = computed(() => {
 
   // 检查 visible 属性 (默认为 true，兼容旧数据)
   // 正在翻译时强制显示
-  const isVisible = props.isTranslating || props.message.metadata?.translation?.visible !== false;
+  const isVisible =
+    props.isTranslating ||
+    props.message.metadata?.translation?.visible !== false;
 
   // 只要有元数据，或者正在翻译，或者有临时的翻译内容（应对流式结束但元数据未更新的间隙），都应该显示
-  const hasContent = !!(props.message.metadata?.translation || props.isTranslating || props.translationContent);
+  const hasContent = !!(
+    props.message.metadata?.translation ||
+    props.isTranslating ||
+    props.translationContent
+  );
 
-  return isVisible && hasContent && (displayMode.value === "translation" || displayMode.value === "both");
+  return (
+    isVisible &&
+    hasContent &&
+    (displayMode.value === "translation" || displayMode.value === "both")
+  );
 });
 
 // 缓存资产根目录，用于同步解析 【file::...】 占位符
@@ -556,21 +621,31 @@ const resolveAsset = (content: string) => {
 
   // 2. 处理 【file::assetId】 占位符（同时消耗前面可能残留的 file:// 前缀）
   if (processed.includes("【file::")) {
-    processed = processed.replace(/(?:file:\/\/)?【file::([^】]+)】/g, (match, assetId) => {
-      // 在当前消息的附件中查找
-      const asset = props.message.attachments?.find((a) => a.id === assetId);
-      if (asset && assetBasePath.value) {
-        // 如果是导入完成的资产，使用资产协议 URL
-        if (asset.path && !asset.path.startsWith("http") && !asset.path.includes(":")) {
-          return assetManagerEngine.convertToAssetProtocol(asset.path, assetBasePath.value);
+    processed = processed.replace(
+      /(?:file:\/\/)?【file::([^】]+)】/g,
+      (match, assetId) => {
+        // 在当前消息的附件中查找
+        const asset = props.message.attachments?.find((a) => a.id === assetId);
+        if (asset && assetBasePath.value) {
+          // 如果是导入完成的资产，使用资产协议 URL
+          if (
+            asset.path &&
+            !asset.path.startsWith("http") &&
+            !asset.path.includes(":")
+          ) {
+            return assetManagerEngine.convertToAssetProtocol(
+              asset.path,
+              assetBasePath.value
+            );
+          }
+          // 如果是待导入的资产（存储的是原始路径），直接转换
+          if (asset.originalPath || asset.path) {
+            return convertFileSrc(asset.originalPath || asset.path);
+          }
         }
-        // 如果是待导入的资产（存储的是原始路径），直接转换
-        if (asset.originalPath || asset.path) {
-          return convertFileSrc(asset.originalPath || asset.path);
-        }
+        return match;
       }
-      return match;
-    });
+    );
   }
 
   // 3. 修复 VCP 表情包 URL（注入 pw= 鉴权参数）
@@ -592,7 +667,10 @@ useResizeObserver(containerRef, (entries) => {
 // 消息绑定的 llmThinkRules
 const messageBoundLlmThinkRules = computed(() => {
   // 来源智能体存在且有配置 → 使用来源智能体的
-  if (currentAgent.value?.llmThinkRules && currentAgent.value.llmThinkRules.length > 0) {
+  if (
+    currentAgent.value?.llmThinkRules &&
+    currentAgent.value.llmThinkRules.length > 0
+  ) {
     return currentAgent.value.llmThinkRules;
   }
   // 回退到 props 传入的（当前激活智能体的配置）
@@ -619,7 +697,7 @@ useIntersectionObserver(
   ([{ isIntersecting }]) => {
     isInViewport.value = isIntersecting;
   },
-  { rootMargin: "400px" }, // 提前解冻范围，避免滚动时看到过时内容
+  { rootMargin: "400px" } // 提前解冻范围，避免滚动时看到过时内容
 );
 
 // 冻结的渲染配置：基于消息绑定的配置，只有消息在视口中（或附近）时才同步
@@ -640,12 +718,16 @@ watch(
       }
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 const isWideLayout = computed(() => {
   // 当宽度大于 800px 且处于双语模式，并且确实有翻译内容需要显示时，启用并排布局
-  return containerWidth.value > 800 && displayMode.value === "both" && showTranslation.value;
+  return (
+    containerWidth.value > 800 &&
+    displayMode.value === "both" &&
+    showTranslation.value
+  );
 });
 
 /**
@@ -659,12 +741,15 @@ const shouldFreezeHtml = computed(() => {
   // 基于消息深度判断是否冻结
   // messageDepth 从 0 开始，0 表示最新消息
   // 例如：keepAliveCount = 5 时，深度 0-4 的消息保持活跃，深度 >= 5 的消息被冻结
-  return props.messageDepth >= settings.value.uiPreferences.htmlFreezerKeepAliveCount;
+  return (
+    props.messageDepth >= settings.value.uiPreferences.htmlFreezerKeepAliveCount
+  );
 });
 
 const containerClasses = computed(() => ({
   "is-wide-layout": isWideLayout.value,
-  "is-translating": props.isTranslating || !!props.message.metadata?.translation,
+  "is-translating":
+    props.isTranslating || !!props.message.metadata?.translation,
   "is-generating": isGenerating.value,
   "smooth-enabled": settings.value.uiPreferences.smoothAutoScroll,
 }));
@@ -676,7 +761,10 @@ const showMeta = computed(() => {
   if (!metadata) return false;
 
   const showToken = settings.value.uiPreferences.showTokenCount;
-  return (showToken && (!!metadata.usage || metadata.contentTokens !== undefined)) || !!metadata.error;
+  return (
+    (showToken && (!!metadata.usage || metadata.contentTokens !== undefined)) ||
+    !!metadata.error
+  );
 });
 const usageInfo = computed(() => messageMetadata.value?.usage);
 const contentTokensValue = computed(() => messageMetadata.value?.contentTokens);
@@ -718,9 +806,12 @@ const errorMessage = computed(() => messageMetadata.value?.error);
         :style-options="frozenStyleOptions"
         :resolve-asset="resolveAsset"
         :default-render-html="settings.uiPreferences.defaultRenderHtml"
-        :default-code-block-expanded="settings.uiPreferences.defaultCodeBlockExpanded"
+        :default-code-block-expanded="
+          settings.uiPreferences.defaultCodeBlockExpanded
+        "
         :default-tool-call-collapsed="
-          currentAgent?.defaultToolCallCollapsed ?? settings.uiPreferences.defaultToolCallCollapsed
+          currentAgent?.defaultToolCallCollapsed ??
+          settings.uiPreferences.defaultToolCallCollapsed
         "
         :enable-cdn-localizer="settings.uiPreferences.enableCdnLocalizer"
         :allow-external-scripts="settings.uiPreferences.allowExternalScripts"
@@ -736,9 +827,17 @@ const errorMessage = computed(() => messageMetadata.value?.error);
     </LlmThinkNode>
 
     <!-- 编辑模式 -->
-    <div v-if="isEditing" ref="editAreaRef" class="edit-mode" :class="{ 'is-dragging': isDraggingOver }">
+    <div
+      v-if="isEditing"
+      ref="editAreaRef"
+      class="edit-mode"
+      :class="{ 'is-dragging': isDraggingOver }"
+    >
       <!-- 编辑模式的附件展示 -->
-      <div v-if="attachmentManager.hasAttachments.value" class="attachments-section edit-attachments">
+      <div
+        v-if="attachmentManager.hasAttachments.value"
+        class="attachments-section edit-attachments"
+      >
         <div class="attachments-list">
           <AttachmentCard
             v-for="attachment in attachmentManager.attachments.value"
@@ -757,7 +856,9 @@ const errorMessage = computed(() => messageMetadata.value?.error);
         <div class="edit-attachments-actions">
           <el-dropdown trigger="click" placement="top-end">
             <div class="edit-attachments-badge" title="批量附件操作">
-              <span class="edit-attachment-count">{{ attachmentManager.count.value }} 个附件</span>
+              <span class="edit-attachment-count"
+                >{{ attachmentManager.count.value }} 个附件</span
+              >
             </div>
             <template #dropdown>
               <el-dropdown-menu>
@@ -773,7 +874,11 @@ const errorMessage = computed(() => messageMetadata.value?.error);
                   <template #icon><Square :size="14" /></template>
                   停止所有任务
                 </el-dropdown-item>
-                <el-dropdown-item divided @click="handleEditClearAllAttachments" class="danger-item">
+                <el-dropdown-item
+                  divided
+                  @click="handleEditClearAllAttachments"
+                  class="danger-item"
+                >
                   <template #icon><Trash2 :size="14" /></template>
                   清空所有附件
                 </el-dropdown-item>
@@ -814,14 +919,21 @@ const errorMessage = computed(() => messageMetadata.value?.error);
       <!-- 操作按钮 -->
       <div class="edit-actions">
         <div class="edit-info">
-          <span v-if="attachmentManager.count.value > 0" class="attachment-count">
+          <span
+            v-if="attachmentManager.count.value > 0"
+            class="attachment-count"
+          >
             {{ attachmentManager.count.value }} 个附件
           </span>
           <span class="drag-tip">拖拽文件到此区域添加附件</span>
         </div>
         <div class="edit-buttons">
-          <el-button @click="saveEdit" type="primary" size="small">保存 (Ctrl+Enter)</el-button>
-          <el-button @click="saveToBranch" size="small" :icon="GitBranch">保存到分支</el-button>
+          <el-button @click="saveEdit" type="primary" size="small"
+            >保存 (Ctrl+Enter)</el-button
+          >
+          <el-button @click="saveToBranch" size="small" :icon="GitBranch"
+            >保存到分支</el-button
+          >
           <el-button @click="cancelEdit" size="small">取消 (Esc)</el-button>
         </div>
       </div>
@@ -831,7 +943,10 @@ const errorMessage = computed(() => messageMetadata.value?.error);
     <div v-else class="content-display-grid">
       <!-- 原文区域 -->
       <div v-if="showOriginal" class="original-column">
-        <div class="translation-header" v-if="displayMode === 'both' && showTranslation">
+        <div
+          class="translation-header"
+          v-if="displayMode === 'both' && showTranslation"
+        >
           <MessageSquareText :size="14" class="translation-icon" />
           <span class="translation-title">原文</span>
         </div>
@@ -846,9 +961,12 @@ const errorMessage = computed(() => messageMetadata.value?.error);
           :generation-meta="generationMetaForRenderer"
           :is-streaming="isGenerating"
           :default-render-html="settings.uiPreferences.defaultRenderHtml"
-          :default-code-block-expanded="settings.uiPreferences.defaultCodeBlockExpanded"
+          :default-code-block-expanded="
+            settings.uiPreferences.defaultCodeBlockExpanded
+          "
           :default-tool-call-collapsed="
-            currentAgent?.defaultToolCallCollapsed ?? settings.uiPreferences.defaultToolCallCollapsed
+            currentAgent?.defaultToolCallCollapsed ??
+            settings.uiPreferences.defaultToolCallCollapsed
           "
           :seamless-mode="settings.uiPreferences.seamlessMode"
           :enable-cdn-localizer="settings.uiPreferences.enableCdnLocalizer"
@@ -870,10 +988,22 @@ const errorMessage = computed(() => messageMetadata.value?.error);
         </div>
 
         <!-- 流式预览图（gpt-image-2 partial_images 特性） -->
-        <div v-if="isGenerating && message.metadata?.partialImagePreviews?.length" class="partial-image-previews">
+        <div
+          v-if="isGenerating && message.metadata?.partialImagePreviews?.length"
+          class="partial-image-previews"
+        >
           <div class="partial-image-grid">
-            <div v-for="(url, idx) in message.metadata.partialImagePreviews" :key="idx" class="partial-image-item">
-              <img :src="url" :alt="`预览图 ${idx + 1}`" class="partial-image" @click="imageViewer.show(url)" />
+            <div
+              v-for="(url, idx) in message.metadata.partialImagePreviews"
+              :key="idx"
+              class="partial-image-item"
+            >
+              <img
+                :src="url"
+                :alt="`预览图 ${idx + 1}`"
+                class="partial-image"
+                @click="imageViewer.show(url)"
+              />
               <div class="partial-image-badge">
                 <Loader2 class="animate-spin" :size="10" />
                 <span>渐进预览</span>
@@ -885,7 +1015,10 @@ const errorMessage = computed(() => messageMetadata.value?.error);
 
       <!-- 译文区域 -->
       <div v-if="showTranslation" class="translation-column">
-        <div class="translation-header" v-if="displayMode === 'both' || displayMode === 'translation'">
+        <div
+          class="translation-header"
+          v-if="displayMode === 'both' || displayMode === 'translation'"
+        >
           <Languages :size="14" class="translation-icon" />
           <span class="translation-title">翻译结果</span>
           <span class="translation-meta" v-if="message.metadata?.translation">
@@ -898,7 +1031,7 @@ const errorMessage = computed(() => messageMetadata.value?.error);
               resolveAsset(
                 isTranslating || !message.metadata?.translation
                   ? translationContent
-                  : message.metadata.translation.content,
+                  : message.metadata.translation.content
               )
             "
             :regex-rules="processedRules"
@@ -906,13 +1039,18 @@ const errorMessage = computed(() => messageMetadata.value?.error);
             :llm-think-rules="frozenLlmThinkRules"
             :style-options="frozenStyleOptions"
             :default-render-html="settings.uiPreferences.defaultRenderHtml"
-            :default-code-block-expanded="settings.uiPreferences.defaultCodeBlockExpanded"
+            :default-code-block-expanded="
+              settings.uiPreferences.defaultCodeBlockExpanded
+            "
             :default-tool-call-collapsed="
-              currentAgent?.defaultToolCallCollapsed ?? settings.uiPreferences.defaultToolCallCollapsed
+              currentAgent?.defaultToolCallCollapsed ??
+              settings.uiPreferences.defaultToolCallCollapsed
             "
             :seamless-mode="settings.uiPreferences.seamlessMode"
             :enable-cdn-localizer="settings.uiPreferences.enableCdnLocalizer"
-            :allow-external-scripts="settings.uiPreferences.allowExternalScripts"
+            :allow-external-scripts="
+              settings.uiPreferences.allowExternalScripts
+            "
             :allow-dangerous-html="settings.uiPreferences.allowDangerousHtml"
             :throttle-ms="settings.uiPreferences.rendererThrottleMs"
             :smoothing-enabled="settings.uiPreferences.smoothingEnabled"
@@ -924,7 +1062,10 @@ const errorMessage = computed(() => messageMetadata.value?.error);
             :show-token-count="settings.uiPreferences.showTokenCountForBlocks"
             :code-editor-engine="settings.uiPreferences.codeEditorEngine"
           />
-          <div v-if="isTranslating" class="streaming-indicator translation-loading">
+          <div
+            v-if="isTranslating"
+            class="streaming-indicator translation-loading"
+          >
             <span class="dot"></span>
             <span class="dot"></span>
             <span class="dot"></span>
@@ -936,20 +1077,35 @@ const errorMessage = computed(() => messageMetadata.value?.error);
     <!-- 元数据 -->
     <div v-if="showMeta" class="message-meta">
       <!-- API 返回的完整 Usage 信息（助手消息） -->
-      <div v-if="settings.uiPreferences.showTokenCount && usageInfo" class="usage-info">
+      <div
+        v-if="settings.uiPreferences.showTokenCount && usageInfo"
+        class="usage-info"
+      >
         <span
           >Token:
           {{
-            contentTokensValue !== undefined ? usageInfo.promptTokens + contentTokensValue : usageInfo.totalTokens
+            contentTokensValue !== undefined
+              ? usageInfo.promptTokens + contentTokensValue
+              : usageInfo.totalTokens
           }}</span
         >
         <span class="usage-detail">
-          (输入: {{ usageInfo.promptTokens }}, 输出: {{ contentTokensValue ?? usageInfo.completionTokens }})
+          (输入: {{ usageInfo.promptTokens }}, 输出:
+          {{ contentTokensValue ?? usageInfo.completionTokens }})
         </span>
       </div>
       <!-- 本地计算的单条消息 Token（用户消息） -->
-      <div v-else-if="settings.uiPreferences.showTokenCount && contentTokensValue !== undefined" class="usage-info">
-        <span>本条消息: {{ contentTokensValue.toLocaleString("en-US") }} tokens</span>
+      <div
+        v-else-if="
+          settings.uiPreferences.showTokenCount &&
+          contentTokensValue !== undefined
+        "
+        class="usage-info"
+      >
+        <span
+          >本条消息:
+          {{ contentTokensValue.toLocaleString("en-US") }} tokens</span
+        >
       </div>
       <div v-if="errorMessage" class="error-info">
         <el-button
@@ -1167,7 +1323,8 @@ const errorMessage = computed(() => messageMetadata.value?.error);
 }
 
 .edit-mode :deep(.chat-cm-editor:focus-within) {
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 20%, transparent);
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--primary-color) 20%, transparent);
 }
 
 .edit-actions {

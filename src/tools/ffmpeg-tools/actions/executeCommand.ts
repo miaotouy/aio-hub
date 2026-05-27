@@ -11,7 +11,9 @@ import type { ToolContext } from "@/services/types";
 import type { FFmpegParams, FFmpegProgress } from "../types";
 
 const logger = createModuleLogger("ffmpeg-tools/actions/executeCommand");
-const errorHandler = createModuleErrorHandler("ffmpeg-tools/actions/executeCommand");
+const errorHandler = createModuleErrorHandler(
+  "ffmpeg-tools/actions/executeCommand"
+);
 
 export interface ExecuteCommandArgs {
   /** 输入文件路径 */
@@ -40,19 +42,34 @@ async function resolveOutputPath(inputPath: string): Promise<string> {
   return await join(dir, `${nameWithoutExt}_processed.${ext}`);
 }
 
-export async function executeCommand(args: ExecuteCommandArgs, context?: ToolContext): Promise<string> {
-  const { inputPath, outputPath, args: ffmpegArgs, hwaccel = true, taskName } = args;
+export async function executeCommand(
+  args: ExecuteCommandArgs,
+  context?: ToolContext
+): Promise<string> {
+  const {
+    inputPath,
+    outputPath,
+    args: ffmpegArgs,
+    hwaccel = true,
+    taskName,
+  } = args;
 
   // 参数验证
   if (!inputPath) {
     return JSON.stringify({ success: false, error: "缺少必需参数: inputPath" });
   }
   if (!ffmpegArgs || !Array.isArray(ffmpegArgs) || ffmpegArgs.length === 0) {
-    return JSON.stringify({ success: false, error: "缺少必需参数: args（FFmpeg 参数数组）" });
+    return JSON.stringify({
+      success: false,
+      error: "缺少必需参数: args（FFmpeg 参数数组）",
+    });
   }
 
   if (!context?.isAsync) {
-    return JSON.stringify({ success: false, error: "此方法必须作为异步任务执行" });
+    return JSON.stringify({
+      success: false,
+      error: "此方法必须作为异步任务执行",
+    });
   }
 
   const result = await errorHandler.wrapAsync(
@@ -63,7 +80,10 @@ export async function executeCommand(args: ExecuteCommandArgs, context?: ToolCon
       // 验证输入文件存在
       const exists = await invoke<boolean>("path_exists", { path: inputPath });
       if (!exists) {
-        return JSON.stringify({ success: false, error: `输入文件不存在: ${inputPath}` });
+        return JSON.stringify({
+          success: false,
+          error: `输入文件不存在: ${inputPath}`,
+        });
       }
 
       // 解析输出路径
@@ -89,28 +109,34 @@ export async function executeCommand(args: ExecuteCommandArgs, context?: ToolCon
       });
 
       context.reportStatus("正在启动 FFmpeg 处理...", 0);
-      logger.info("Agent 启动 FFmpeg 命令", { taskId: task.id, args: ffmpegArgs });
+      logger.info("Agent 启动 FFmpeg 命令", {
+        taskId: task.id,
+        args: ffmpegArgs,
+      });
 
       // 监听进度事件，桥接到 ToolContext
-      const unlistenProgress = await listen<{ taskId: string; progress: FFmpegProgress }>(
-        "ffmpeg-progress",
-        (event) => {
-          if (event.payload.taskId === task.id) {
-            const p = event.payload.progress;
-            store.updateTaskProgress(task.id, p);
-            context.reportStatus(
-              `处理中: ${p.percent.toFixed(1)}% | 速度: ${p.speed} | 码率: ${p.bitrate}`,
-              Math.floor(p.percent),
-            );
-          }
-        },
-      );
-
-      const unlistenLog = await listen<{ taskId: string; message: string }>("ffmpeg-log", (event) => {
+      const unlistenProgress = await listen<{
+        taskId: string;
+        progress: FFmpegProgress;
+      }>("ffmpeg-progress", (event) => {
         if (event.payload.taskId === task.id) {
-          store.addTaskLog(task.id, event.payload.message);
+          const p = event.payload.progress;
+          store.updateTaskProgress(task.id, p);
+          context.reportStatus(
+            `处理中: ${p.percent.toFixed(1)}% | 速度: ${p.speed} | 码率: ${p.bitrate}`,
+            Math.floor(p.percent)
+          );
         }
       });
+
+      const unlistenLog = await listen<{ taskId: string; message: string }>(
+        "ffmpeg-log",
+        (event) => {
+          if (event.payload.taskId === task.id) {
+            store.addTaskLog(task.id, event.payload.message);
+          }
+        }
+      );
 
       try {
         // 检查取消信号
@@ -132,7 +158,10 @@ export async function executeCommand(args: ExecuteCommandArgs, context?: ToolCon
         });
 
         // 完成
-        store.updateTask(task.id, { status: "completed", outputPath: outputResult });
+        store.updateTask(task.id, {
+          status: "completed",
+          outputPath: outputResult,
+        });
         store.addTaskLog(task.id, `[System] 任务完成: ${outputResult}`);
 
         const duration = ((Date.now() - startTime) / 1000).toFixed(2);
@@ -147,7 +176,7 @@ export async function executeCommand(args: ExecuteCommandArgs, context?: ToolCon
             message: "FFmpeg 处理完成",
           },
           null,
-          2,
+          2
         );
       } catch (error: any) {
         if (error.name === "AbortError") {
@@ -173,14 +202,14 @@ export async function executeCommand(args: ExecuteCommandArgs, context?: ToolCon
             error: errorMsg,
           },
           null,
-          2,
+          2
         );
       } finally {
         unlistenProgress();
         unlistenLog();
       }
     },
-    { userMessage: "执行 FFmpeg 命令失败" },
+    { userMessage: "执行 FFmpeg 命令失败" }
   );
 
   return result ?? JSON.stringify({ success: false, error: "执行失败" });

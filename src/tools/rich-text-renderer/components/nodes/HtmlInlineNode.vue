@@ -3,8 +3,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import DOMPurify from 'dompurify';
+import { computed } from "vue";
+import DOMPurify from "dompurify";
 
 const props = defineProps<{
   nodeId: string;
@@ -15,19 +15,49 @@ const props = defineProps<{
 const sanitizedContent = computed(() => {
   return DOMPurify.sanitize(props.content, {
     ALLOWED_TAGS: [
-      'span', 'b', 'i', 'u', 's', 'em', 'strong', 'code', 'a', 'br', 'button',
-      'mark', 'small', 'del', 'ins', 'sub', 'sup', 'abbr', 'kbd', 'q', 'cite', 'time',
-      'img' // img is technically an inline-block, but often used inline
+      "span",
+      "b",
+      "i",
+      "u",
+      "s",
+      "em",
+      "strong",
+      "code",
+      "a",
+      "br",
+      "button",
+      "mark",
+      "small",
+      "del",
+      "ins",
+      "sub",
+      "sup",
+      "abbr",
+      "kbd",
+      "q",
+      "cite",
+      "time",
+      "img", // img is technically an inline-block, but often used inline
     ],
     ALLOWED_ATTR: [
-      'class', 'style', 'title', 'lang',
-      'href', 'target', 'rel',
-      'src', 'alt', 'width', 'height',
-      'datetime', 'cite', 'aria-label'
+      "class",
+      "style",
+      "title",
+      "lang",
+      "href",
+      "target",
+      "rel",
+      "src",
+      "alt",
+      "width",
+      "height",
+      "datetime",
+      "cite",
+      "aria-label",
     ],
     ALLOW_DATA_ATTR: true,
-    FORBID_TAGS: ['script', 'iframe', 'object', 'embed'],
-    FORBID_ATTR: ['onerror', 'onload', 'onmouseover'],
+    FORBID_TAGS: ["script", "iframe", "object", "embed"],
+    FORBID_ATTR: ["onerror", "onload", "onmouseover"],
   });
 });
 </script>

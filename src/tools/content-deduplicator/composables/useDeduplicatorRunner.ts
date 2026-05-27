@@ -4,10 +4,16 @@ import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";
 import { useContentDeduplicatorStore } from "../stores/store";
-import type { DedupAnalysisResult, DedupScanProgress, DedupDeleteResult } from "../types";
+import type {
+  DedupAnalysisResult,
+  DedupScanProgress,
+  DedupDeleteResult,
+} from "../types";
 
 const logger = createModuleLogger("tools/content-deduplicator/runner");
-const errorHandler = createModuleErrorHandler("tools/content-deduplicator/runner");
+const errorHandler = createModuleErrorHandler(
+  "tools/content-deduplicator/runner"
+);
 
 export function useDeduplicatorRunner() {
   const store = useContentDeduplicatorStore();
@@ -16,9 +22,12 @@ export function useDeduplicatorRunner() {
 
   /** 初始化事件监听 */
   async function initialize() {
-    unlistenProgress = await listen<DedupScanProgress>("dedup-scan-progress", (event) => {
-      store.scanProgress = event.payload;
-    });
+    unlistenProgress = await listen<DedupScanProgress>(
+      "dedup-scan-progress",
+      (event) => {
+        store.scanProgress = event.payload;
+      }
+    );
 
     unlistenDeleteProgress = await listen("dedup-delete-progress", () => {
       // 删除进度暂时不做特殊处理，store.isDeleting 已足够
@@ -76,9 +85,12 @@ export function useDeduplicatorRunner() {
 
   /** 停止扫描 */
   async function stopScan() {
-    const result = await errorHandler.wrapAsync(() => invoke("stop_dedup_scan"), {
-      userMessage: "停止扫描失败",
-    });
+    const result = await errorHandler.wrapAsync(
+      () => invoke("stop_dedup_scan"),
+      {
+        userMessage: "停止扫描失败",
+      }
+    );
 
     if (result !== null) {
       store.isScanning = false;
@@ -135,7 +147,8 @@ export function useDeduplicatorRunner() {
   /** 读取文件内容（用于 diff 预览） */
   async function readFileForDiff(path: string): Promise<string | null> {
     return errorHandler.wrapAsync(
-      () => invoke<string>("read_file_content_for_diff", { path, maxSizeKb: 512 }),
+      () =>
+        invoke<string>("read_file_content_for_diff", { path, maxSizeKb: 512 }),
       { userMessage: "读取文件内容失败" }
     );
   }

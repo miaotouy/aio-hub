@@ -4,14 +4,24 @@
       <div class="settings-stats">
         <span>总配置: {{ configs.length }}</span>
         <span>已启用: {{ enabledCount }}</span>
-        <span v-if="searchText || filterEnabled !== 'all'"> 当前显示: {{ filteredConfigs.length }} </span>
+        <span v-if="searchText || filterEnabled !== 'all'">
+          当前显示: {{ filteredConfigs.length }}
+        </span>
       </div>
       <div class="header-actions">
         <el-button @click="showPresets = true">查看预设</el-button>
         <el-button @click="handleImport">导入配置</el-button>
         <el-button @click="handleExport">导出配置</el-button>
-        <el-badge :value="pendingUpdatesCount" :hidden="!pendingUpdatesCount" class="merge-badge">
-          <el-button @click="handleMerge" :type="pendingUpdatesCount ? 'success' : ''">合并最新配置</el-button>
+        <el-badge
+          :value="pendingUpdatesCount"
+          :hidden="!pendingUpdatesCount"
+          class="merge-badge"
+        >
+          <el-button
+            @click="handleMerge"
+            :type="pendingUpdatesCount ? 'success' : ''"
+            >合并最新配置</el-button
+          >
         </el-badge>
         <el-button @click="handleReset" type="warning">重置为默认</el-button>
         <el-button @click="handleAdd" type="primary">添加配置</el-button>
@@ -23,9 +33,13 @@
       <div class="update-banner-content">
         <el-icon class="update-banner-icon"><RefreshCw /></el-icon>
         <span class="update-banner-text">
-          有 <strong>{{ pendingUpdatesCount }}</strong> 条新的内置模型规则可用（随应用版本更新）
+          有
+          <strong>{{ pendingUpdatesCount }}</strong>
+          条新的内置模型规则可用（随应用版本更新）
         </span>
-        <el-button type="primary" size="small" @click="handleMerge">立即合并</el-button>
+        <el-button type="primary" size="small" @click="handleMerge"
+          >立即合并</el-button
+        >
         <el-button size="small" text @click="dismissBanner">忽略</el-button>
       </div>
     </div>
@@ -61,7 +75,12 @@
       <div class="toolbar-controls">
         <!-- 测试模式开关 -->
         <el-tooltip content="测试模式：输入模型ID查看匹配结果" placement="top">
-          <el-switch v-model="testMode" active-text="测试" inactive-text="" class="test-mode-switch" />
+          <el-switch
+            v-model="testMode"
+            active-text="测试"
+            inactive-text=""
+            class="test-mode-switch"
+          />
         </el-tooltip>
         <el-select v-model="sortBy" placeholder="排序方式">
           <el-option label="按优先级排序" value="priority" />
@@ -70,7 +89,11 @@
           <el-option label="按创建时间排序" value="createdAt" />
         </el-select>
 
-        <el-select v-model="filterEnabled" @change="resetPage" placeholder="筛选状态">
+        <el-select
+          v-model="filterEnabled"
+          @change="resetPage"
+          placeholder="筛选状态"
+        >
           <el-option label="全部状态" value="all" />
           <el-option label="仅启用" value="enabled" />
           <el-option label="仅禁用" value="disabled" />
@@ -99,14 +122,18 @@
         </span>
       </div>
 
-      <div v-if="!testModelId" class="test-result-empty">请输入模型 ID 进行测试</div>
+      <div v-if="!testModelId" class="test-result-empty">
+        请输入模型 ID 进行测试
+      </div>
 
       <div v-else class="test-result-content">
         <!-- 匹配结果 -->
         <div class="result-section">
           <div class="result-label">匹配状态</div>
           <div class="result-value">
-            <el-tag v-if="testMatchedRule" type="success" size="large"> ✓ 已匹配 </el-tag>
+            <el-tag v-if="testMatchedRule" type="success" size="large">
+              ✓ 已匹配
+            </el-tag>
             <el-tag v-else type="danger" size="large"> ✗ 未匹配 </el-tag>
           </div>
         </div>
@@ -117,11 +144,19 @@
             <div class="result-label">匹配规则</div>
             <div class="result-value matched-rule">
               <div class="rule-info">
-                <el-tag :type="getMatchTypeTagType(testMatchedRule.matchType)">{{
-                  getMatchTypeLabel(testMatchedRule.matchType)
-                }}</el-tag>
-                <el-tag v-if="testMatchedRule.useRegex" type="success" effect="light">RegEx</el-tag>
-                <code class="rule-match-value">{{ testMatchedRule.matchValue }}</code>
+                <el-tag
+                  :type="getMatchTypeTagType(testMatchedRule.matchType)"
+                  >{{ getMatchTypeLabel(testMatchedRule.matchType) }}</el-tag
+                >
+                <el-tag
+                  v-if="testMatchedRule.useRegex"
+                  type="success"
+                  effect="light"
+                  >RegEx</el-tag
+                >
+                <code class="rule-match-value">{{
+                  testMatchedRule.matchValue
+                }}</code>
               </div>
               <div class="rule-meta">
                 <span>优先级: {{ testMatchedRule.priority || 0 }}</span>
@@ -133,7 +168,9 @@
           <div class="result-section">
             <div class="result-label">图标路径</div>
             <div class="result-value">
-              <code class="icon-path">{{ testMatchedRule.properties?.icon || "无" }}</code>
+              <code class="icon-path">{{
+                testMatchedRule.properties?.icon || "无"
+              }}</code>
             </div>
           </div>
 
@@ -172,7 +209,9 @@
                 <li>没有匹配此模型 ID 的规则</li>
                 <li>匹配规则可能被禁用了</li>
                 <li>检查规则的 matchType 和 matchValue 是否正确</li>
-                <li v-if="testProvider">如果是 provider 匹配，确认 provider 值正确</li>
+                <li v-if="testProvider">
+                  如果是 provider 匹配，确认 provider 值正确
+                </li>
               </ul>
             </div>
           </div>
@@ -180,17 +219,29 @@
           <div class="result-section">
             <div class="result-label">候选规则（按优先级）</div>
             <div class="result-value candidate-rules">
-              <div v-for="rule in candidateRules" :key="rule.id" class="candidate-rule">
+              <div
+                v-for="rule in candidateRules"
+                :key="rule.id"
+                class="candidate-rule"
+              >
                 <div class="candidate-main">
-                  <el-tag :type="getMatchTypeTagType(rule.matchType)" size="small">{{
-                    getMatchTypeLabel(rule.matchType)
-                  }}</el-tag>
+                  <el-tag
+                    :type="getMatchTypeTagType(rule.matchType)"
+                    size="small"
+                    >{{ getMatchTypeLabel(rule.matchType) }}</el-tag
+                  >
                   <code>{{ rule.matchValue }}</code>
-                  <el-tag v-if="rule.enabled === false" type="info" size="small">禁用</el-tag>
+                  <el-tag v-if="rule.enabled === false" type="info" size="small"
+                    >禁用</el-tag
+                  >
                 </div>
-                <div class="candidate-meta">优先级: {{ rule.priority || 0 }}</div>
+                <div class="candidate-meta">
+                  优先级: {{ rule.priority || 0 }}
+                </div>
               </div>
-              <div v-if="candidateRules.length === 0" class="no-candidates">没有相关的候选规则</div>
+              <div v-if="candidateRules.length === 0" class="no-candidates">
+                没有相关的候选规则
+              </div>
             </div>
           </div>
         </template>
@@ -200,7 +251,13 @@
     <!-- 配置列表 -->
     <div v-if="paginatedConfigs.length > 0" class="configs-container">
       <div class="configs-scroll-area">
-        <div class="configs-list" :class="{ 'grid-view': viewMode === 'grid', 'list-view': viewMode === 'list' }">
+        <div
+          class="configs-list"
+          :class="{
+            'grid-view': viewMode === 'grid',
+            'list-view': viewMode === 'list',
+          }"
+        >
           <div
             v-for="config in paginatedConfigs"
             :key="config.id"
@@ -215,14 +272,26 @@
 
             <div class="config-info">
               <div class="config-header">
-                <el-tag :type="getMatchTypeTagType(config.matchType)" effect="plain">{{
-                  getMatchTypeLabel(config.matchType)
-                }}</el-tag>
-                <el-tag v-if="config.useRegex" type="success" effect="plain" title="使用正则表达式">RegEx</el-tag>
+                <el-tag
+                  :type="getMatchTypeTagType(config.matchType)"
+                  effect="plain"
+                  >{{ getMatchTypeLabel(config.matchType) }}</el-tag
+                >
+                <el-tag
+                  v-if="config.useRegex"
+                  type="success"
+                  effect="plain"
+                  title="使用正则表达式"
+                  >RegEx</el-tag
+                >
                 <span class="config-value">{{ config.matchValue }}</span>
               </div>
-              <div v-if="config.properties?.group" class="config-group">分组: {{ config.properties.group }}</div>
-              <div v-if="config.priority" class="config-priority">优先级: {{ config.priority }}</div>
+              <div v-if="config.properties?.group" class="config-group">
+                分组: {{ config.properties.group }}
+              </div>
+              <div v-if="config.priority" class="config-priority">
+                优先级: {{ config.priority }}
+              </div>
               <div v-if="config.description" class="config-description">
                 {{ config.description }}
               </div>
@@ -254,7 +323,13 @@
                   <Edit />
                 </el-icon>
               </el-button>
-              <el-button text circle type="danger" @click="handleDelete(config.id)" title="删除">
+              <el-button
+                text
+                circle
+                type="danger"
+                @click="handleDelete(config.id)"
+                title="删除"
+              >
                 <el-icon>
                   <Delete />
                 </el-icon>
@@ -285,7 +360,9 @@
       <div class="empty-text">
         {{ searchText ? "未找到匹配的配置" : "暂无配置" }}
       </div>
-      <el-button v-if="!searchText" @click="handleAdd" type="primary">添加第一个配置</el-button>
+      <el-button v-if="!searchText" @click="handleAdd" type="primary"
+        >添加第一个配置</el-button
+      >
     </div>
 
     <!-- 预设图标对话框 -->
@@ -319,10 +396,20 @@ import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { formatDateTime } from "@/utils/time";
 import { useModelMetadata } from "@composables/useModelMetadata";
-import type { ModelMetadataRule, MetadataMatchType } from "../../../types/model-metadata";
+import type {
+  ModelMetadataRule,
+  MetadataMatchType,
+} from "../../../types/model-metadata";
 import ModelMetadataConfigEditor from "./components/ModelMetadataConfigEditor.vue";
 import IconPresetSelector from "@components/common/IconPresetSelector.vue";
-import { Edit, Delete, Select, Close, Grid, List } from "@element-plus/icons-vue";
+import {
+  Edit,
+  Delete,
+  Select,
+  Close,
+  Grid,
+  List,
+} from "@element-plus/icons-vue";
 import { RefreshCw } from "lucide-vue-next";
 import DynamicIcon from "@components/common/DynamicIcon.vue";
 
@@ -367,7 +454,10 @@ const testProvider = ref("");
 // 测试匹配结果
 const testMatchedRule = computed(() => {
   if (!testMode.value || !testModelId.value.trim()) return null;
-  return getMatchedRule(testModelId.value.trim(), testProvider.value.trim() || undefined);
+  return getMatchedRule(
+    testModelId.value.trim(),
+    testProvider.value.trim() || undefined
+  );
 });
 
 // 候选规则（用于调试未匹配情况）
@@ -385,7 +475,8 @@ const candidateRules = computed(() => {
       return (
         matchValueLower.includes(searchLower) ||
         searchLower.includes(matchValueLower) ||
-        (rule.matchType === "provider" && providerLower.includes(matchValueLower))
+        (rule.matchType === "provider" &&
+          providerLower.includes(matchValueLower))
       );
     })
     .sort((a, b) => (b.priority || 0) - (a.priority || 0))
@@ -404,7 +495,7 @@ const filteredConfigs = computed(() => {
         config.matchValue.toLowerCase().includes(search) ||
         config.matchType.toLowerCase().includes(search) ||
         config.description?.toLowerCase().includes(search) ||
-        config.properties?.group?.toLowerCase().includes(search),
+        config.properties?.group?.toLowerCase().includes(search)
     );
   }
 
@@ -463,8 +554,13 @@ function getMatchTypeLabel(type: MetadataMatchType): string {
 }
 
 // 获取匹配类型的标签类型
-function getMatchTypeTagType(type: MetadataMatchType): "" | "success" | "info" | "warning" | "danger" {
-  const types: Record<MetadataMatchType, "" | "success" | "info" | "warning" | "danger"> = {
+function getMatchTypeTagType(
+  type: MetadataMatchType
+): "" | "success" | "info" | "warning" | "danger" {
+  const types: Record<
+    MetadataMatchType,
+    "" | "success" | "info" | "warning" | "danger"
+  > = {
     provider: "",
     model: "info",
     modelPrefix: "warning",
@@ -557,12 +653,16 @@ function closeEditor() {
 // 处理重置
 async function handleReset() {
   try {
-    await ElMessageBox.confirm("确定要重置为默认配置吗？这将清除所有自定义配置。", "警告", {
-      confirmButtonText: "确定",
-      cancelButtonText: "取消",
-      type: "warning",
-      lockScroll: false,
-    });
+    await ElMessageBox.confirm(
+      "确定要重置为默认配置吗？这将清除所有自定义配置。",
+      "警告",
+      {
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+        type: "warning",
+        lockScroll: false,
+      }
+    );
     if (await resetToDefaults()) {
       customMessage.success("已重置为默认配置");
     } else {
@@ -584,7 +684,7 @@ async function handleMerge() {
         cancelButtonText: "取消",
         type: "info",
         lockScroll: false,
-      },
+      }
     );
     const result = await mergeWithDefaults();
     if (result.added > 0) {
@@ -1161,7 +1261,10 @@ function formatDate(dateString: string): string {
 .update-banner {
   margin-bottom: 0.75rem;
   padding: 0.75rem 1rem;
-  background: rgba(var(--el-color-success-rgb), calc(var(--card-opacity) * 0.1));
+  background: rgba(
+    var(--el-color-success-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
   border: 1px solid rgba(var(--el-color-success-rgb), 0.3);
   border-radius: 8px;
   flex-shrink: 0;

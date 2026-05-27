@@ -5,7 +5,10 @@ import type { SearchMatch, ContextBlock } from "../types";
  * 将同一文件的匹配列表合并为上下文块
  * 当多个匹配行的上下文范围重叠或相邻时，合并为连续的代码块
  */
-export function buildContextBlocks(matches: SearchMatch[], contextLines: number): ContextBlock[] {
+export function buildContextBlocks(
+  matches: SearchMatch[],
+  contextLines: number
+): ContextBlock[] {
   if (matches.length === 0 || contextLines <= 0) return [];
 
   // 确保按行号排序
@@ -60,7 +63,9 @@ export function buildContextBlocks(matches: SearchMatch[], contextLines: number)
       currentBlockEnd = blockEnd;
     } else {
       // 合并到当前块：需要去重已有的行
-      const existingLineNumbers = new Set(currentBlock.lines.map((l) => l.lineNumber));
+      const existingLineNumbers = new Set(
+        currentBlock.lines.map((l) => l.lineNumber)
+      );
 
       // 添加上下文前行（去重）
       if (match.contextBefore) {
@@ -78,7 +83,9 @@ export function buildContextBlocks(matches: SearchMatch[], contextLines: number)
       }
 
       // 添加匹配行（可能已存在为上下文行，需要升级为匹配行）
-      const existingIdx = currentBlock.lines.findIndex((l) => l.lineNumber === matchLine);
+      const existingIdx = currentBlock.lines.findIndex(
+        (l) => l.lineNumber === matchLine
+      );
       if (existingIdx >= 0) {
         // 升级为匹配行
         currentBlock.lines[existingIdx].matchInfo = {
@@ -130,7 +137,12 @@ export function buildContextBlocks(matches: SearchMatch[], contextLines: number)
 /**
  * 响应式 composable：根据匹配列表和上下文行数计算上下文块
  */
-export function useContextBlocks(matches: Ref<SearchMatch[]>, contextLines: Ref<number>) {
-  const blocks = computed(() => buildContextBlocks(matches.value, contextLines.value));
+export function useContextBlocks(
+  matches: Ref<SearchMatch[]>,
+  contextLines: Ref<number>
+) {
+  const blocks = computed(() =>
+    buildContextBlocks(matches.value, contextLines.value)
+  );
   return { blocks };
 }

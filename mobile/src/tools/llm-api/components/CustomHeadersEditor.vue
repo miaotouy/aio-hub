@@ -54,8 +54,11 @@ const scrollIntoViewOnFocus = (event: Event) => {
 
   const tryScroll = (retryCount = 0) => {
     const kbHeight =
-      parseInt(getComputedStyle(document.documentElement).getPropertyValue("--keyboard-height")) ||
-      0;
+      parseInt(
+        getComputedStyle(document.documentElement).getPropertyValue(
+          "--keyboard-height"
+        )
+      ) || 0;
 
     if (kbHeight === 0 && retryCount < 3) {
       setTimeout(() => tryScroll(retryCount + 1), 100);
@@ -68,7 +71,10 @@ const scrollIntoViewOnFocus = (event: Event) => {
     const containerRect = scrollContainer.getBoundingClientRect();
 
     const groupCenterInContainer =
-      groupRect.top - containerRect.top + scrollContainer.scrollTop + groupRect.height / 2;
+      groupRect.top -
+      containerRect.top +
+      scrollContainer.scrollTop +
+      groupRect.height / 2;
 
     const targetScrollTop = groupCenterInContainer - availableHeight * 0.4;
 
@@ -98,7 +104,11 @@ const scrollIntoViewOnFocus = (event: Event) => {
     style="width: 100%; height: 100%"
   >
     <div class="popup-container">
-      <var-app-bar :title="tRaw('tools.llm-api.CustomHeadersEditor.自定义请求头')" fixed safe-area>
+      <var-app-bar
+        :title="tRaw('tools.llm-api.CustomHeadersEditor.自定义请求头')"
+        fixed
+        safe-area
+      >
         <template #left>
           <var-button round text @click="$emit('update:show', false)">
             <ChevronLeft :size="24" />

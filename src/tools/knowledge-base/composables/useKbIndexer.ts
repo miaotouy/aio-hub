@@ -7,7 +7,11 @@ import { detectDimension as coreDetectDimension } from "../core/embedding";
 import { kbStorage } from "../utils/kbStorage";
 import type { LlmProfile } from "@/types/llm-profiles";
 import { calculateHash } from "../utils/kbUtils";
-import { getPureModelId, getProfileId, parseModelCombo } from "@/utils/modelIdUtils";
+import {
+  getPureModelId,
+  getProfileId,
+  parseModelCombo,
+} from "@/utils/modelIdUtils";
 import { IndexingOrchestrator } from "../logic/orchestrator";
 
 const errorHandler = createModuleErrorHandler("useKbIndexer");
@@ -34,7 +38,9 @@ export function useKbIndexer() {
     store.loading = true;
     try {
       const [profileId, modelId] = parseModelCombo(comboId);
-      const profile = profiles.value.find((p: LlmProfile) => p.id === profileId);
+      const profile = profiles.value.find(
+        (p: LlmProfile) => p.id === profileId
+      );
       if (!profile) throw new Error("未找到对应模型的配置 Profile");
 
       const dim = await coreDetectDimension({ profile, modelId });
@@ -66,7 +72,8 @@ export function useKbIndexer() {
       return false;
     }
 
-    const currentHash = entry.contentHash || (await calculateHash(entry.content));
+    const currentHash =
+      entry.contentHash || (await calculateHash(entry.content));
 
     // 检查内容哈希是否一致（如果后端索引存在，且哈希没变，则跳过）
     // 注意：这里我们假设如果 vectorizedIds 包含该 ID，说明索引文件存在
@@ -85,7 +92,9 @@ export function useKbIndexer() {
 
     try {
       const profileId = getProfileId(comboId);
-      const profile = profiles.value.find((p: LlmProfile) => p.id === profileId);
+      const profile = profiles.value.find(
+        (p: LlmProfile) => p.id === profileId
+      );
       if (!profile) throw new Error("未找到模型配置 Profile");
 
       await orchestrator.indexEntry({
@@ -167,7 +176,9 @@ export function useKbIndexer() {
 
     try {
       const profileId = getProfileId(comboId);
-      const profile = profiles.value.find((p: LlmProfile) => p.id === profileId);
+      const profile = profiles.value.find(
+        (p: LlmProfile) => p.id === profileId
+      );
       if (!profile) throw new Error("未找到模型配置 Profile");
 
       // 直接调用逻辑层进行批量处理
@@ -180,7 +191,9 @@ export function useKbIndexer() {
         onProgress: async (processed, failed) => {
           store.indexingProgress.current += processed;
           if (failed) {
-            failed.forEach((f) => store.indexingProgress.failedDetails.set(f.id, f.reason));
+            failed.forEach((f) =>
+              store.indexingProgress.failedDetails.set(f.id, f.reason)
+            );
           }
           // 同步更新 Store 中的索引状态集合
           await store.updateGlobalStats(true);
@@ -188,9 +201,13 @@ export function useKbIndexer() {
       });
 
       if (store.indexingProgress.shouldStop) {
-        customMessage.warning(`处理已停止：当前已完成 ${store.indexingProgress.current} 项`);
+        customMessage.warning(
+          `处理已停止：当前已完成 ${store.indexingProgress.current} 项`
+        );
       } else {
-        customMessage.success(`批量处理完成：共处理 ${pendingEntries.length} 项`);
+        customMessage.success(
+          `批量处理完成：共处理 ${pendingEntries.length} 项`
+        );
       }
     } catch (e) {
       errorHandler.error(e, "批量向量化任务执行异常");

@@ -22,7 +22,10 @@ export function stripThinkingBlocks(text: string): string {
 /**
  * 提取思考块内容的简短摘要
  */
-export function extractThinkingPreview(text: string, reasoningContent?: string): string | null {
+export function extractThinkingPreview(
+  text: string,
+  reasoningContent?: string
+): string | null {
   // 优先使用 API 返回的独立推理字段
   if (reasoningContent) {
     const preview = reasoningContent.substring(0, 60).trim();
@@ -46,7 +49,10 @@ export function extractThinkingPreview(text: string, reasoningContent?: string):
 /**
  * 检测文本中是否包含思考块
  */
-export function hasThinkingContent(text: string, reasoningContent?: string): boolean {
+export function hasThinkingContent(
+  text: string,
+  reasoningContent?: string
+): boolean {
   if (reasoningContent) return true;
   for (const tag of THINK_TAG_NAMES) {
     const regex = new RegExp(`<${tag}>`, "i");
@@ -76,13 +82,17 @@ export function isLikelyFilename(icon: string): boolean {
 export function getRoleDisplay(
   node: ChatMessageNode,
   userProfileStore: any,
-  agentStore: any,
+  agentStore: any
 ): { icon: string; name: string } {
   if (node.role === "user") {
     const userProfileId = node.metadata?.userProfileId;
     const currentProfile = userProfileStore.getEffectiveProfile(userProfileId);
 
-    const name = node.metadata?.userProfileName || currentProfile?.displayName || currentProfile?.name || "你";
+    const name =
+      node.metadata?.userProfileName ||
+      currentProfile?.displayName ||
+      currentProfile?.name ||
+      "你";
 
     let target;
     if (node.metadata?.userProfileIcon && node.metadata?.userProfileId) {
@@ -107,7 +117,11 @@ export function getRoleDisplay(
     const agentId = node.metadata?.agentId;
     const currentAgent = agentId ? agentStore.getAgentById(agentId) : null;
 
-    const name = node.metadata?.agentName || currentAgent?.displayName || currentAgent?.name || "助手";
+    const name =
+      node.metadata?.agentName ||
+      currentAgent?.displayName ||
+      currentAgent?.name ||
+      "助手";
 
     let target;
     if (node.metadata?.agentIcon && node.metadata?.agentId) {
@@ -130,7 +144,10 @@ export function getRoleDisplay(
 
     return { icon, name };
   } else if (node.role === "tool") {
-    const toolName = node.metadata?.toolCalls?.[0]?.toolName || node.metadata?.toolCall?.toolName || "工具";
+    const toolName =
+      node.metadata?.toolCalls?.[0]?.toolName ||
+      node.metadata?.toolCall?.toolName ||
+      "工具";
     return { icon: "🔧", name: toolName };
   } else {
     return { icon: "⚙️", name: "系统" };
@@ -144,12 +161,14 @@ export function getSubtitleInfo(
   node: ChatMessageNode,
   agentStore: any,
   getProfileById: (id: string) => any,
-  getModelIcon: (model: any) => string | undefined | null,
+  getModelIcon: (model: any) => string | undefined | null
 ) {
   const metadata = node.metadata;
   if (!metadata || node.role !== "assistant") return null;
 
-  const agent = metadata.agentId ? agentStore.getAgentById(metadata.agentId) : null;
+  const agent = metadata.agentId
+    ? agentStore.getAgentById(metadata.agentId)
+    : null;
 
   const profileId = metadata.profileId || agent?.profileId;
   const modelId = metadata.modelId || agent?.modelId;

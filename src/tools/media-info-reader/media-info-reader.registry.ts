@@ -38,7 +38,9 @@ export default class MediaInfoReaderRegistry implements ToolRegistry {
    * @param args 扁平化参数对象，包含 filePath
    * @returns 解析后的元数据，如果失败则返回 null
    */
-  public async readImageMetadata(args: Record<string, string>): Promise<string> {
+  public async readImageMetadata(
+    args: Record<string, string>
+  ): Promise<string> {
     const filePath = args.filePath;
     if (!filePath) {
       errorHandler.error(new Error("缺少 filePath 参数"), "读取图片元数据失败");
@@ -46,21 +48,23 @@ export default class MediaInfoReaderRegistry implements ToolRegistry {
     }
     logger.info("开始读取图片元数据", { filePath });
 
-    return await errorHandler.wrapAsync(
-      async () => {
-        const buffer = await readFile(filePath);
-        const { parseImageBuffer } = useMediaInfoParser();
-        const result = await parseImageBuffer(buffer);
+    return (
+      (await errorHandler.wrapAsync(
+        async () => {
+          const buffer = await readFile(filePath);
+          const { parseImageBuffer } = useMediaInfoParser();
+          const result = await parseImageBuffer(buffer);
 
-        logger.info("图片元数据解析完成", { filePath });
-        return formatMetadataResult(result);
-      },
-      {
-        level: ErrorLevel.ERROR,
-        userMessage: "读取或解析图片元数据失败",
-        context: { filePath },
-      }
-    ) || "❌ 读取或解析图片元数据失败";
+          logger.info("图片元数据解析完成", { filePath });
+          return formatMetadataResult(result);
+        },
+        {
+          level: ErrorLevel.ERROR,
+          userMessage: "读取或解析图片元数据失败",
+          context: { filePath },
+        }
+      )) || "❌ 读取或解析图片元数据失败"
+    );
   }
 
   /**
@@ -68,7 +72,9 @@ export default class MediaInfoReaderRegistry implements ToolRegistry {
    * @param buffer 图片文件的 Uint8Array buffer
    * @returns 解析后的元数据，如果失败则返回 null
    */
-  public async parseImageBuffer(buffer: Uint8Array): Promise<ImageMetadataResult | null> {
+  public async parseImageBuffer(
+    buffer: Uint8Array
+  ): Promise<ImageMetadataResult | null> {
     logger.info("开始解析图片 buffer");
 
     return await errorHandler.wrapAsync(
@@ -95,7 +101,8 @@ export default class MediaInfoReaderRegistry implements ToolRegistry {
           name: "readImageMetadata",
           displayName: "读取图片 AI 元数据",
           agentCallable: true,
-          description: "[Agent 调用] 从指定的图片文件路径读取并解析 AI 元数据。",
+          description:
+            "[Agent 调用] 从指定的图片文件路径读取并解析 AI 元数据。",
           parameters: [
             {
               name: "filePath",
@@ -132,6 +139,7 @@ export const toolConfig: ToolConfig = {
   runMode: "any",
   icon: markRaw(PictureFilled),
   component: () => import("./MediaInfoReader.vue"),
-  description: "深度解析 AI 图片元数据、SillyTavern 角色卡及 AioBundle (AIO 角色包) 信息",
+  description:
+    "深度解析 AI 图片元数据、SillyTavern 角色卡及 AioBundle (AIO 角色包) 信息",
   category: ["媒体工具", "AI 工具"],
 };

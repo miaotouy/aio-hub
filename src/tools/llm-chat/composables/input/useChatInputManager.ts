@@ -16,10 +16,18 @@
 import { ref, watch, nextTick, type Ref } from "vue";
 import { listen } from "@tauri-apps/api/event";
 import { getOrCreateInstance } from "@/utils/singleton";
-import { useAttachmentManager, type UseAttachmentManagerReturn } from "../features/useAttachmentManager";
+import {
+  useAttachmentManager,
+  type UseAttachmentManagerReturn,
+} from "../features/useAttachmentManager";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { registerSyncSource } from "@/composables/useStateSyncEngine";
-import { calculateDiff, applyPatches, shouldUseDelta, VersionGenerator } from "@/utils/sync-helpers";
+import {
+  calculateDiff,
+  applyPatches,
+  shouldUseDelta,
+  VersionGenerator,
+} from "@/utils/sync-helpers";
 import { CHAT_STATE_KEYS } from "../../types/sync";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -99,7 +107,12 @@ class ChatInputManager {
     attachments: Asset[];
     temporaryModel: ModelIdentifier | null;
     continuationModel: ModelIdentifier | null;
-  } = { text: "", attachments: [], temporaryModel: null, continuationModel: null };
+  } = {
+    text: "",
+    attachments: [],
+    temporaryModel: null,
+    continuationModel: null,
+  };
 
   // 防抖推送计时器
   private pushTimer: ReturnType<typeof setTimeout> | null = null;
@@ -117,7 +130,9 @@ class ChatInputManager {
    * 判断是否为临时 ID (NanoID 或包含 pending/importing)
    */
   private isTempId(id: string): boolean {
-    return id.length === 21 || id.includes("pending") || id.includes("importing");
+    return (
+      id.length === 21 || id.includes("pending") || id.includes("importing")
+    );
   }
 
   /**
@@ -127,14 +142,19 @@ class ChatInputManager {
     // 优先使用 uploadingId 作为占位符标识
     if (asset.uploadingId) {
       // 如果资产还在导入中，显示上传中占位符
-      if (asset.importStatus === "pending" || asset.importStatus === "importing") {
+      if (
+        asset.importStatus === "pending" ||
+        asset.importStatus === "importing"
+      ) {
         return generateUploadingPlaceholder(asset.uploadingId);
       }
       // 如果已完成导入且 ID 已经变了，使用正式占位符
       return generateAssetPlaceholder(asset.id);
     }
     // 回退逻辑：根据 ID 判定
-    return this.isTempId(asset.id) ? generateUploadingPlaceholder(asset.id) : generateAssetPlaceholder(asset.id);
+    return this.isTempId(asset.id)
+      ? generateUploadingPlaceholder(asset.id)
+      : generateAssetPlaceholder(asset.id);
   }
 
   // 监听器清理函数
@@ -204,7 +224,12 @@ class ChatInputManager {
           for (const [oldId, newId] of this.idUpdateLog.entries()) {
             const uploadingPlaceholder = generateUploadingPlaceholder(oldId);
             const oldPlaceholder = generateAssetPlaceholder(oldId);
-            const tags = [uploadingPlaceholder, oldPlaceholder, `【file::uploading:${oldId}】`, `【file::${oldId}】`];
+            const tags = [
+              uploadingPlaceholder,
+              oldPlaceholder,
+              `【file::uploading:${oldId}】`,
+              `【file::${oldId}】`,
+            ];
 
             for (const tag of tags) {
               if (currentText.includes(tag)) {
@@ -232,12 +257,19 @@ class ChatInputManager {
       (newAttachments) => {
         // 自动维护 idUpdateLog 并触发实时替换
         newAttachments.forEach((asset) => {
-          if (asset.uploadingId && asset.id !== asset.uploadingId && asset.importStatus === "complete") {
+          if (
+            asset.uploadingId &&
+            asset.id !== asset.uploadingId &&
+            asset.importStatus === "complete"
+          ) {
             if (!this.idUpdateLog.has(asset.uploadingId)) {
-              logger.info("[attachments watch] 检测到资产上传完成，准备替换占位符", {
-                oldId: asset.uploadingId,
-                newId: asset.id,
-              });
+              logger.info(
+                "[attachments watch] 检测到资产上传完成，准备替换占位符",
+                {
+                  oldId: asset.uploadingId,
+                  newId: asset.id,
+                }
+              );
               // 关键：主动调用高性能替换方法
               this.updatePlaceholderId(asset.uploadingId, asset.id);
             }
@@ -255,7 +287,7 @@ class ChatInputManager {
           this.debouncedSaveToStorage();
         }
       },
-      { deep: true },
+      { deep: true }
     );
 
     // 监听临时模型变化
@@ -288,7 +320,10 @@ class ChatInputManager {
       (newState) => {
         // 如果是本地修改导致的 syncState 变化（isApplyingSyncState 为 false 时触发的本地 push），
         // 我们不需要再同步回 inputText，否则会产生竞态
-        if (!this.isApplyingSyncState && newState.text === this.inputText.value) {
+        if (
+          !this.isApplyingSyncState &&
+          newState.text === this.inputText.value
+        ) {
           return;
         }
 
@@ -303,10 +338,14 @@ class ChatInputManager {
             !this.inputText.value.includes("uploading:") &&
             newState.text.includes("uploading:")
           ) {
-            logger.warn("[syncState watch] 拒绝将已完成的占位符回滚为上传中状态");
+            logger.warn(
+              "[syncState watch] 拒绝将已完成的占位符回滚为上传中状态"
+            );
           } else {
             this.inputText.value = newState.text;
-            logger.debug("从同步状态更新输入框", { textLength: newState.text.length });
+            logger.debug("从同步状态更新输入框", {
+              textLength: newState.text.length,
+            });
           }
         }
 
@@ -314,15 +353,25 @@ class ChatInputManager {
         this.attachmentManager.syncAttachments(newState.attachments);
 
         // 同步临时模型
-        if (JSON.stringify(newState.temporaryModel) !== JSON.stringify(this.temporaryModel.value)) {
+        if (
+          JSON.stringify(newState.temporaryModel) !==
+          JSON.stringify(this.temporaryModel.value)
+        ) {
           this.temporaryModel.value = newState.temporaryModel;
-          logger.debug("从同步状态更新临时模型", { model: newState.temporaryModel });
+          logger.debug("从同步状态更新临时模型", {
+            model: newState.temporaryModel,
+          });
         }
 
         // 同步续写模型
-        if (JSON.stringify(newState.continuationModel) !== JSON.stringify(this.continuationModel.value)) {
+        if (
+          JSON.stringify(newState.continuationModel) !==
+          JSON.stringify(this.continuationModel.value)
+        ) {
           this.continuationModel.value = newState.continuationModel;
-          logger.debug("从同步状态更新续写模型", { model: newState.continuationModel });
+          logger.debug("从同步状态更新续写模型", {
+            model: newState.continuationModel,
+          });
         }
 
         // 使用 nextTick 确保在 Vue 响应式更新循环结束后再重置标志位
@@ -331,7 +380,7 @@ class ChatInputManager {
           this.isApplyingSyncState = false;
         });
       },
-      { deep: true },
+      { deep: true }
     );
 
     // 监听全局资产导入完成事件（用于粘贴等直接导入场景的占位符替换）
@@ -349,48 +398,59 @@ class ChatInputManager {
     });
 
     // 监听来自其他窗口的状态同步
-    this.unlistenStateSync = this.bus.onMessage<StateSyncPayload>("state-sync", (payload) => {
-      if (payload.stateType !== CHAT_STATE_KEYS.INPUT_STATE) return;
-      if (payload.version <= this.stateVersion) {
-        logger.warn("收到旧版本状态，已忽略", {
-          currentVersion: this.stateVersion,
-          receivedVersion: payload.version,
-        });
-        return;
-      }
-
-      this.isApplyingSyncState = true;
-      try {
-        if (payload.isFull) {
-          this.syncState.value = payload.data as typeof this.syncState.value;
-          logger.info("已应用全量输入状态", {
-            version: payload.version,
-            textLength: this.syncState.value.text.length,
-            attachmentCount: this.syncState.value.attachments.length,
+    this.unlistenStateSync = this.bus.onMessage<StateSyncPayload>(
+      "state-sync",
+      (payload) => {
+        if (payload.stateType !== CHAT_STATE_KEYS.INPUT_STATE) return;
+        if (payload.version <= this.stateVersion) {
+          logger.warn("收到旧版本状态，已忽略", {
+            currentVersion: this.stateVersion,
+            receivedVersion: payload.version,
           });
-        } else {
-          this.syncState.value = applyPatches(this.syncState.value, payload.patches as JsonPatchOperation[]);
-          logger.info("已应用增量输入状态", {
-            version: payload.version,
-            textLength: this.syncState.value.text.length,
-            attachmentCount: this.syncState.value.attachments.length,
-          });
+          return;
         }
-        this.stateVersion = payload.version;
-        this.lastSyncedValue = JSON.parse(JSON.stringify(this.syncState.value));
-      } catch (error) {
-        errorHandler.handle(error as Error, {
-          userMessage: "应用输入状态更新失败",
-          showToUser: false,
-        });
-      } finally {
-        this.isApplyingSyncState = false;
+
+        this.isApplyingSyncState = true;
+        try {
+          if (payload.isFull) {
+            this.syncState.value = payload.data as typeof this.syncState.value;
+            logger.info("已应用全量输入状态", {
+              version: payload.version,
+              textLength: this.syncState.value.text.length,
+              attachmentCount: this.syncState.value.attachments.length,
+            });
+          } else {
+            this.syncState.value = applyPatches(
+              this.syncState.value,
+              payload.patches as JsonPatchOperation[]
+            );
+            logger.info("已应用增量输入状态", {
+              version: payload.version,
+              textLength: this.syncState.value.text.length,
+              attachmentCount: this.syncState.value.attachments.length,
+            });
+          }
+          this.stateVersion = payload.version;
+          this.lastSyncedValue = JSON.parse(
+            JSON.stringify(this.syncState.value)
+          );
+        } catch (error) {
+          errorHandler.handle(error as Error, {
+            userMessage: "应用输入状态更新失败",
+            showToUser: false,
+          });
+        } finally {
+          this.isApplyingSyncState = false;
+        }
       }
-    });
+    );
 
     // 注册到全局同步源（仅主窗口和工具窗口）
     // 这样当有新窗口请求初始状态时，InputManager 也能自动响应
-    if (this.bus.windowType === "main" || this.bus.windowType === "detached-tool") {
+    if (
+      this.bus.windowType === "main" ||
+      this.bus.windowType === "detached-tool"
+    ) {
       this.unregisterSyncSource = registerSyncSource({
         pushState: async (isFullSync, targetWindowLabel, silent) => {
           this.pushState(isFullSync, targetWindowLabel, silent);
@@ -428,7 +488,11 @@ class ChatInputManager {
   /**
    * 推送状态到其他窗口
    */
-  public pushState(isFullSync = false, targetWindowLabel?: string, silent = false): void {
+  public pushState(
+    isFullSync = false,
+    targetWindowLabel?: string,
+    silent = false
+  ): void {
     if (this.isApplyingSyncState) return;
 
     const newValue = this.syncState.value;
@@ -439,10 +503,17 @@ class ChatInputManager {
     }
     const newVersion = VersionGenerator.next();
 
-    const shouldForceFullSync = isFullSync || !shouldUseDelta([], newValue, 0.5);
+    const shouldForceFullSync =
+      isFullSync || !shouldUseDelta([], newValue, 0.5);
 
     if (shouldForceFullSync) {
-      this.bus.syncState(CHAT_STATE_KEYS.INPUT_STATE, newValue, newVersion, true, targetWindowLabel);
+      this.bus.syncState(
+        CHAT_STATE_KEYS.INPUT_STATE,
+        newValue,
+        newVersion,
+        true,
+        targetWindowLabel
+      );
       if (!silent)
         logger.debug("执行全量输入状态同步", {
           version: newVersion,
@@ -454,7 +525,13 @@ class ChatInputManager {
         if (!silent) logger.debug("输入状态无变化，跳过同步");
         return;
       }
-      this.bus.syncState(CHAT_STATE_KEYS.INPUT_STATE, patches, newVersion, false, targetWindowLabel);
+      this.bus.syncState(
+        CHAT_STATE_KEYS.INPUT_STATE,
+        patches,
+        newVersion,
+        false,
+        targetWindowLabel
+      );
       if (!silent)
         logger.debug("执行增量输入状态同步", {
           version: newVersion,
@@ -531,7 +608,10 @@ class ChatInputManager {
         }
       }
     } catch (error) {
-      errorHandler.handle(error as Error, { userMessage: "恢复输入状态失败", showToUser: false });
+      errorHandler.handle(error as Error, {
+        userMessage: "恢复输入状态失败",
+        showToUser: false,
+      });
     }
   }
 
@@ -567,7 +647,10 @@ class ChatInputManager {
         temporaryModel: this.temporaryModel.value,
       });
     } catch (error) {
-      errorHandler.handle(error as Error, { userMessage: "保存输入状态失败", showToUser: false });
+      errorHandler.handle(error as Error, {
+        userMessage: "保存输入状态失败",
+        showToUser: false,
+      });
     }
   }
 
@@ -631,8 +714,12 @@ class ChatInputManager {
     * @param assets 附件列表
     * @param cursorPosition 当前光标位置
     */
-  preparePlaceholderInsert(assets: Asset[], cursorPosition: number): { text: string; from: number; to: number } {
-    if (assets.length === 0) return { text: "", from: cursorPosition, to: cursorPosition };
+  preparePlaceholderInsert(
+    assets: Asset[],
+    cursorPosition: number
+  ): { text: string; from: number; to: number } {
+    if (assets.length === 0)
+      return { text: "", from: cursorPosition, to: cursorPosition };
 
     const placeholders = assets.map((asset) => this.getPlaceholder(asset));
     const placeholderText = placeholders.join("\n");
@@ -643,7 +730,8 @@ class ChatInputManager {
     const before = currentText.substring(0, pos);
     const after = currentText.substring(pos);
 
-    const insertPrefix = before && !before.endsWith("\n") && !before.endsWith(" ") ? "\n" : "";
+    const insertPrefix =
+      before && !before.endsWith("\n") && !before.endsWith(" ") ? "\n" : "";
     const insertSuffix = after && !after.startsWith("\n") ? "\n" : "";
     return {
       text: insertPrefix + placeholderText + insertSuffix,
@@ -657,12 +745,16 @@ class ChatInputManager {
    * 注意：在 UI 组件中建议优先使用 preparePlaceholderInsert + editor.insertText 以获得更好的光标体验
    */
   insertAssetPlaceholders(assets: Asset[], cursorPosition?: number): number {
-    const pos = cursorPosition ?? this.lastCursorPosition.value ?? this.inputText.value.length;
+    const pos =
+      cursorPosition ??
+      this.lastCursorPosition.value ??
+      this.inputText.value.length;
     const { text, from, to } = this.preparePlaceholderInsert(assets, pos);
     if (!text) return pos;
 
     const currentText = this.inputText.value;
-    this.inputText.value = currentText.substring(0, from) + text + currentText.substring(to);
+    this.inputText.value =
+      currentText.substring(0, from) + text + currentText.substring(to);
     return from + text.length;
   }
 
@@ -707,14 +799,16 @@ class ChatInputManager {
       anchors.push({ index: anchorMatch.index, prefix: anchorMatch[0] });
     }
 
-    if (anchors.length === 0) return { successCount: 0, failedCount: 0, totalCount: 0 };
+    if (anchors.length === 0)
+      return { successCount: 0, failedCount: 0, totalCount: 0 };
 
     // 2. 从每个锚点向后提取候选路径
     const candidates: string[] = [];
     for (let i = 0; i < anchors.length; i++) {
       const start = anchors[i].index;
       // 截取到下一个锚点开始之前，或者文本结束
-      const nextAnchorStart = i < anchors.length - 1 ? anchors[i + 1].index : text.length;
+      const nextAnchorStart =
+        i < anchors.length - 1 ? anchors[i + 1].index : text.length;
       let subText = text.substring(start, nextAnchorStart);
 
       // 关键：绝对不跨行匹配，截断到第一个换行符
@@ -723,14 +817,17 @@ class ChatInputManager {
 
       // 3. 在当前行片段中，从头开始匹配最长的合法路径部分
       // 排除掉常见的路径非法字符，允许空格但通常不以空格结尾
-      const pathPartMatch = subText.match(/^(?:[^\s"<>|?*【】]+(?:\s+[^\s"<>|?*【】]+)*)/);
+      const pathPartMatch = subText.match(
+        /^(?:[^\s"<>|?*【】]+(?:\s+[^\s"<>|?*【】]+)*)/
+      );
       if (pathPartMatch) {
         const candidate = pathPartMatch[0].trim();
         if (candidate) candidates.push(candidate);
       }
     }
 
-    if (candidates.length === 0) return { successCount: 0, failedCount: 0, totalCount: 0 };
+    if (candidates.length === 0)
+      return { successCount: 0, failedCount: 0, totalCount: 0 };
 
     let successCount = 0;
     let failedCount = 0;
@@ -750,7 +847,9 @@ class ChatInputManager {
         }
         cleanPath = cleanPath.replace(/\//g, "\\");
 
-        const beforeIds = new Set(this.attachmentManager.attachments.value.map((a) => a.id));
+        const beforeIds = new Set(
+          this.attachmentManager.attachments.value.map((a) => a.id)
+        );
         await this.attachmentManager.addAttachments([cleanPath]);
 
         // 重新获取最新的 attachments 引用
@@ -758,7 +857,9 @@ class ChatInputManager {
         // 优先找新加的，找不到找已存在的
         const targetAsset =
           afterAssets.find(
-            (a) => !beforeIds.has(a.id) && (a.path === cleanPath || a.name === cleanPath.split("\\").pop()),
+            (a) =>
+              !beforeIds.has(a.id) &&
+              (a.path === cleanPath || a.name === cleanPath.split("\\").pop())
           ) || afterAssets.find((a) => a.path === cleanPath);
 
         if (targetAsset) {
@@ -769,7 +870,10 @@ class ChatInputManager {
 
           const placeholder = this.getPlaceholder(targetAsset);
           const escapedPath = rawPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-          this.inputText.value = this.inputText.value.replace(new RegExp(escapedPath, "g"), placeholder);
+          this.inputText.value = this.inputText.value.replace(
+            new RegExp(escapedPath, "g"),
+            placeholder
+          );
           successCount++;
         } else {
           failedCount++;
@@ -795,10 +899,15 @@ class ChatInputManager {
    * @param textareaRef 编辑器引用，用于插入文本
    * @param autoInsert 是否自动插入占位符
    */
-  handleAssetsAddition(addedAssets: Asset[], textareaRef: any, autoInsert: boolean): void {
+  handleAssetsAddition(
+    addedAssets: Asset[],
+    textareaRef: any,
+    autoInsert: boolean
+  ): void {
     if (!autoInsert || addedAssets.length === 0) return;
 
-    const cursorPos = textareaRef?.getSelectionRange()?.start ?? this.inputText.value.length;
+    const cursorPos =
+      textareaRef?.getSelectionRange()?.start ?? this.inputText.value.length;
 
     // 统一生成插入信息，内部会自动判断是普通占位符还是上传中占位符
     const insertInfo = this.preparePlaceholderInsert(addedAssets, cursorPos);
@@ -857,7 +966,9 @@ class ChatInputManager {
     // 只要资产已经完成导入 (importStatus === 'complete')，我们就执行替换检查
     for (const asset of currentAttachments) {
       if (asset.uploadingId && asset.importStatus === "complete") {
-        const uploadingPlaceholder = generateUploadingPlaceholder(asset.uploadingId);
+        const uploadingPlaceholder = generateUploadingPlaceholder(
+          asset.uploadingId
+        );
         const realPlaceholder = generateAssetPlaceholder(asset.id);
 
         if (newText.includes(uploadingPlaceholder)) {
@@ -906,9 +1017,13 @@ class ChatInputManager {
     const matches = Array.from(text.matchAll(placeholderRegex));
     if (matches.length === 0) return { removedCount: 0 };
 
-    const currentAttachmentIds = new Set(this.attachmentManager.attachments.value.map((a) => a.id));
+    const currentAttachmentIds = new Set(
+      this.attachmentManager.attachments.value.map((a) => a.id)
+    );
     const currentUploadingIds = new Set(
-      this.attachmentManager.attachments.value.map((a) => a.uploadingId).filter(Boolean) as string[],
+      this.attachmentManager.attachments.value
+        .map((a) => a.uploadingId)
+        .filter(Boolean) as string[]
     );
 
     let newText = text;
@@ -919,7 +1034,9 @@ class ChatInputManager {
 
     for (const fullTag of uniqueMatches) {
       // 提取 ID
-      const idMatch = fullTag.match(/【file::(?:uploading:)?([a-zA-Z0-9_-]+)】/);
+      const idMatch = fullTag.match(
+        /【file::(?:uploading:)?([a-zA-Z0-9_-]+)】/
+      );
       if (!idMatch) continue;
       const id = idMatch[1];
 
@@ -934,7 +1051,9 @@ class ChatInputManager {
       // 清理可能产生的多余换行（连续两个换行转为一个）
       newText = newText.replace(/\n\n\n+/g, "\n\n");
       this.inputText.value = newText.trim();
-      logger.info("[cleanupInvalidPlaceholders] 清理了无效占位符", { removedCount });
+      logger.info("[cleanupInvalidPlaceholders] 清理了无效占位符", {
+        removedCount,
+      });
     }
 
     return { removedCount };
@@ -973,11 +1092,20 @@ class ChatInputManager {
 
       const uploadingPlaceholder = generateUploadingPlaceholder(oldId);
       const oldPlaceholder = generateAssetPlaceholder(oldId);
-      const possibleTags = [uploadingPlaceholder, oldPlaceholder, `【file::uploading:${oldId}】`, `【file::${oldId}】`];
+      const possibleTags = [
+        uploadingPlaceholder,
+        oldPlaceholder,
+        `【file::uploading:${oldId}】`,
+        `【file::${oldId}】`,
+      ];
 
       // 策略：如果编辑器存在，优先使用编辑器的静默替换能力（不移动光标），避免打断用户输入
-      const useReplaceRange = this.editorRef && typeof this.editorRef.replaceRange === "function";
-      const useInsertText = !useReplaceRange && this.editorRef && typeof this.editorRef.insertText === "function";
+      const useReplaceRange =
+        this.editorRef && typeof this.editorRef.replaceRange === "function";
+      const useInsertText =
+        !useReplaceRange &&
+        this.editorRef &&
+        typeof this.editorRef.insertText === "function";
 
       if (useReplaceRange || useInsertText) {
         let replacedInEditor = false;
@@ -990,7 +1118,11 @@ class ChatInputManager {
           while (pos !== -1) {
             if (useReplaceRange) {
               // 优先使用 replaceRange：不移动光标，不打断用户输入
-              this.editorRef.replaceRange(newPlaceholder, pos, pos + tag.length);
+              this.editorRef.replaceRange(
+                newPlaceholder,
+                pos,
+                pos + tag.length
+              );
             } else {
               this.editorRef.insertText(newPlaceholder, pos, pos + tag.length);
             }
@@ -1004,10 +1136,13 @@ class ChatInputManager {
         }
 
         if (replacedInEditor) {
-          logger.info(`[updatePlaceholderId] 通过编辑器执行了局部替换${isRetry ? " (重试成功)" : ""}`, {
-            oldId,
-            newId,
-          });
+          logger.info(
+            `[updatePlaceholderId] 通过编辑器执行了局部替换${isRetry ? " (重试成功)" : ""}`,
+            {
+              oldId,
+              newId,
+            }
+          );
           this.pushState(false, undefined, true);
           return true;
         }
@@ -1026,10 +1161,13 @@ class ChatInputManager {
 
       if (replaced) {
         this.inputText.value = newText;
-        logger.info(`[updatePlaceholderId] 成功更新占位符 ID (兜底方案${isRetry ? " 重试成功" : ""})`, {
-          oldId,
-          newId,
-        });
+        logger.info(
+          `[updatePlaceholderId] 成功更新占位符 ID (兜底方案${isRetry ? " 重试成功" : ""})`,
+          {
+            oldId,
+            newId,
+          }
+        );
         this.pushState(false, undefined, true);
       }
       return replaced;
@@ -1047,11 +1185,18 @@ class ChatInputManager {
       const retry = () => {
         retryCount++;
         if (doReplace(true)) {
-          logger.info("[updatePlaceholderId] 延迟重试替换成功", { oldId, newId, retryCount });
+          logger.info("[updatePlaceholderId] 延迟重试替换成功", {
+            oldId,
+            newId,
+            retryCount,
+          });
         } else if (retryCount < maxRetries) {
           // 在重试期间，如果发现 text 已经包含了目标占位符，说明可能已经被其他机制（如 watch）修好了
           if (this.inputText.value.includes(generateAssetPlaceholder(newId))) {
-            logger.debug("[updatePlaceholderId] 占位符已被其他机制修复，停止重试", { oldId, newId });
+            logger.debug(
+              "[updatePlaceholderId] 占位符已被其他机制修复，停止重试",
+              { oldId, newId }
+            );
             return;
           }
           setTimeout(retry, retryInterval);
@@ -1063,7 +1208,7 @@ class ChatInputManager {
               oldId,
               newId,
               currentTextLength: this.inputText.value.length,
-            },
+            }
           );
         }
       };
@@ -1121,7 +1266,10 @@ class ChatInputManager {
  * - 发送消息后清空状态会同步到所有窗口
  */
 export function useChatInputManager() {
-  const manager = getOrCreateInstance("ChatInputManager", () => new ChatInputManager());
+  const manager = getOrCreateInstance(
+    "ChatInputManager",
+    () => new ChatInputManager()
+  );
 
   return {
     // ========== 输入框文本 ==========
@@ -1166,9 +1314,11 @@ export function useChatInputManager() {
     /** 全量扫描并修复残留的 uploading 占位符（发送前兜底） */
     scanAndFixPlaceholders: manager.scanAndFixPlaceholders.bind(manager),
     /** 清理无效占位符 */
-    cleanupInvalidPlaceholders: manager.cleanupInvalidPlaceholders.bind(manager),
+    cleanupInvalidPlaceholders:
+      manager.cleanupInvalidPlaceholders.bind(manager),
     /** 更新最后已知的光标位置 */
-    updateLastCursorPosition: (pos: number) => (manager.lastCursorPosition.value = pos),
+    updateLastCursorPosition: (pos: number) =>
+      (manager.lastCursorPosition.value = pos),
     /** 请求编辑器聚焦 */
     requestEditorFocus: () => manager.focusRequest.value++,
     /** 聚焦请求信号（只读） */

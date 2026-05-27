@@ -3,13 +3,13 @@
  * 提供标准化的服务调用接口，实现关注点分离
  */
 
-import { toolRegistryManager } from './registry';
-import { createModuleLogger } from '@/utils/logger';
-import { createModuleErrorHandler, ErrorLevel } from '@/utils/errorHandler';
-import { useWindowSyncBus } from '@/composables/useWindowSyncBus';
+import { toolRegistryManager } from "./registry";
+import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
+import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 
-const logger = createModuleLogger('services/executor');
-const errorHandler = createModuleErrorHandler('services/executor');
+const logger = createModuleLogger("services/executor");
+const errorHandler = createModuleErrorHandler("services/executor");
 
 // ==================== 类型定义 ====================
 
@@ -36,12 +36,12 @@ export type ServiceResult<TData = any, TError = Error> =
 
 /**
  * 统一执行器函数
- * 
+ *
  * 通过标准化的 ToolCall 对象调用服务方法，并返回标准化的结果。
- * 
+ *
  * @param call - 工具调用描述对象
  * @returns Promise<ServiceResult<TData>> - 标准化的执行结果
- * 
+ *
  * @example
  * ```typescript
  * const result = await execute({
@@ -49,7 +49,7 @@ export type ServiceResult<TData = any, TError = Error> =
  *   method: 'processText',
  *   params: { text: 'hello', presetIds: ['preset-1'] }
  * });
- * 
+ *
  * if (result.success) {
  *   console.log('Success:', result.data);
  * } else {
@@ -63,7 +63,7 @@ export async function execute<TData = any>(
   const { service: serviceId, method, params } = call;
   const bus = useWindowSyncBus();
 
-  logger.info('执行服务调用', {
+  logger.info("执行服务调用", {
     serviceId,
     method,
     paramsKeys: Object.keys(params || {}),
@@ -72,30 +72,30 @@ export async function execute<TData = any>(
 
   try {
     // 1. 环境感知路由：如果是分离窗口且工具不在本地或标记为 main-only，则转发给主窗口
-    const isDetached = bus.windowType !== 'main';
+    const isDetached = bus.windowType !== "main";
     const hasLocalTool = toolRegistryManager.hasTool(serviceId);
-    
+
     // 获取工具运行模式 (如果是本地工具)
-    let runMode = 'main-only';
+    let runMode = "main-only";
     if (hasLocalTool) {
       const registry = toolRegistryManager.getRegistry(serviceId);
-      runMode = registry.runMode || 'main-only';
+      runMode = registry.runMode || "main-only";
     }
 
     // 转发决策逻辑：
     // 1. 当前是分离窗口
     // 2. 且 (本地没有该工具 OR 工具明确要求在主窗口运行)
-    if (isDetached && (!hasLocalTool || runMode === 'main-only')) {
-      logger.info('转发工具调用请求至主窗口', { serviceId, method, runMode });
-      
+    if (isDetached && (!hasLocalTool || runMode === "main-only")) {
+      logger.info("转发工具调用请求至主窗口", { serviceId, method, runMode });
+
       try {
         const result = await bus.requestAction<ToolCall, TData>(
-          'executor:execute-tool',
+          "executor:execute-tool",
           call
         );
         return { success: true, data: result };
       } catch (error) {
-        logger.error('转发工具调用失败', error, { serviceId, method });
+        logger.error("转发工具调用失败", error, { serviceId, method });
         return {
           success: false,
           error: error instanceof Error ? error : new Error(String(error)),
@@ -141,20 +141,20 @@ export async function execute<TData = any>(
         }
       }
     }
-    
+
     if (!toolInstance) {
       throw new Error(`工具未找到: ${serviceId}`);
     }
 
     // 2. 验证方法是否存在
-    if (typeof (toolInstance as Record<string, any>)[method] !== 'function') {
+    if (typeof (toolInstance as Record<string, any>)[method] !== "function") {
       throw new Error(`方法不存在: ${serviceId}.${method}`);
     }
 
     // 3. 执行方法调用
     const result = await (toolInstance as Record<string, any>)[method](params);
 
-    logger.info('服务调用成功', {
+    logger.info("服务调用成功", {
       serviceId,
       method,
       resultType: typeof result,
@@ -180,10 +180,10 @@ export async function execute<TData = any>(
 
 /**
  * 批量执行多个服务调用
- * 
+ *
  * @param calls - 工具调用数组
  * @returns Promise<ServiceResult<TData>[]> - 所有调用的结果数组
- * 
+ *
  * @example
  * ```typescript
  * const results = await executeMany([
@@ -195,7 +195,7 @@ export async function execute<TData = any>(
 export async function executeMany<TData = any>(
   calls: ToolCall[]
 ): Promise<ServiceResult<TData>[]> {
-  logger.info('批量执行服务调用', { count: calls.length });
-  
+  logger.info("批量执行服务调用", { count: calls.length });
+
   return Promise.all(calls.map((call) => execute<TData>(call)));
 }

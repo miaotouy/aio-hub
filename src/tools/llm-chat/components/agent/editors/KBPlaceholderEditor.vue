@@ -1,6 +1,11 @@
 <template>
   <div class="kb-placeholder-editor">
-    <el-form :model="form" label-width="100px" label-position="left" size="default">
+    <el-form
+      :model="form"
+      label-width="100px"
+      label-position="left"
+      size="default"
+    >
       <!-- 知识库选择 -->
       <el-form-item label="知识库">
         <el-select
@@ -69,14 +74,24 @@
           placeholder="输入标签并回车"
           class="full-width"
         >
-          <el-option v-for="tag in allTags" :key="tag" :label="tag" :value="tag" />
+          <el-option
+            v-for="tag in allTags"
+            :key="tag"
+            :label="tag"
+            :value="tag"
+          />
         </el-select>
         <div class="item-tip">仅当用户消息包含这些标签时才触发检索</div>
       </el-form-item>
 
       <!-- 模式参数: turn -->
       <el-form-item v-if="form.mode === 'turn'" label="轮次间隔">
-        <el-input-number v-model="turnInterval" :min="1" :max="100" controls-position="right" />
+        <el-input-number
+          v-model="turnInterval"
+          :min="1"
+          :max="100"
+          controls-position="right"
+        />
         <span class="unit">轮</span>
         <div class="item-tip">每隔多少轮对话触发一次检索</div>
       </el-form-item>
@@ -133,12 +148,16 @@
             >
               <div class="entry-option">
                 <span class="entry-key">{{ entry.key }}</span>
-                <span v-if="entry.summary" class="entry-summary">{{ entry.summary }}</span>
+                <span v-if="entry.summary" class="entry-summary">{{
+                  entry.summary
+                }}</span>
               </div>
             </el-option>
           </el-select>
 
-          <div v-if="staticKbId && loadingEntries" class="item-tip">加载条目中...</div>
+          <div v-if="staticKbId && loadingEntries" class="item-tip">
+            加载条目中...
+          </div>
           <div
             v-if="staticKbId && !loadingEntries && staticKbEntries.length === 0"
             class="item-tip"
@@ -292,7 +311,10 @@ const parseValue = (val: string) => {
     if (params.mode === "turn" && params.modeParams?.[0]) {
       turnInterval.value = parseInt(params.modeParams[0]) || 1;
     } else if (params.mode === "static" && params.modeParams) {
-      if (params.modeParams.length === 1 && params.modeParams[0].toLowerCase() === "all") {
+      if (
+        params.modeParams.length === 1 &&
+        params.modeParams[0].toLowerCase() === "all"
+      ) {
         staticType.value = "all";
       } else {
         staticType.value = "select";
@@ -365,10 +387,13 @@ const generatedPlaceholder = computed(() => {
       isDefault: form.value.limit === undefined || form.value.limit === null,
     },
     {
-      value: form.value.minScore !== undefined ? form.value.minScore.toFixed(2) : "",
+      value:
+        form.value.minScore !== undefined ? form.value.minScore.toFixed(2) : "",
       isDefault:
         form.value.minScore === undefined ||
-        Math.abs((form.value.minScore ?? DEFAULT_MIN_SCORE) - DEFAULT_MIN_SCORE) < 0.001,
+        Math.abs(
+          (form.value.minScore ?? DEFAULT_MIN_SCORE) - DEFAULT_MIN_SCORE
+        ) < 0.001,
     },
     {
       value: form.value.mode || DEFAULT_MODE,

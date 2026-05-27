@@ -14,13 +14,19 @@ const emit = defineEmits<{
   (e: "delete", canvasId: string): void;
   (e: "open-vscode", canvasId: string): void;
   (e: "preview", canvasId: string): void;
-  (e: "repair", canvasId: string, action: "remove_index" | "reindex" | "restore_metadata"): void;
+  (
+    e: "repair",
+    canvasId: string,
+    action: "remove_index" | "reindex" | "restore_metadata"
+  ): void;
 }>();
 
 const filteredCanvases = computed(() => {
   const query = props.searchQuery.trim().toLowerCase();
   if (!query) return props.canvases;
-  return props.canvases.filter((c) => c.metadata.name.toLowerCase().includes(query));
+  return props.canvases.filter((c) =>
+    c.metadata.name.toLowerCase().includes(query)
+  );
 });
 </script>
 
@@ -43,7 +49,11 @@ const filteredCanvases = computed(() => {
     </template>
 
     <div v-else class="empty-state">
-      <el-empty :description="searchQuery ? '没有找到匹配的画布' : '还没有画布，快去创建一个吧！'">
+      <el-empty
+        :description="
+          searchQuery ? '没有找到匹配的画布' : '还没有画布，快去创建一个吧！'
+        "
+      >
         <template v-if="!searchQuery" #extra>
           <slot name="empty-action"></slot>
         </template>

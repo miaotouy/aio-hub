@@ -1,6 +1,6 @@
 export const themeVariableTest = {
-  id: 'theme-variable-test',
-  name: '主题变量测试',
+  id: "theme-variable-test",
+  name: "主题变量测试",
   content: `
 # 主题变量审查
 
@@ -91,5 +91,5 @@ export const themeVariableTest = {
     </div>
   </div>
 </div>
-`
+`,
 };

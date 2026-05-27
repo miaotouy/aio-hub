@@ -6,7 +6,14 @@ import { formatBytes } from "@/utils/fileUtils";
 import { formatDistanceToNow } from "date-fns";
 import { zhCN } from "date-fns/locale";
 import { customMessage } from "@/utils/customMessage";
-import { FolderOpen, Trash2, CheckCircle2, XCircle, Loader2, Inbox } from "lucide-vue-next";
+import {
+  FolderOpen,
+  Trash2,
+  CheckCircle2,
+  XCircle,
+  Loader2,
+  Inbox,
+} from "lucide-vue-next";
 
 const downloadStore = useDownloadStore();
 const { openDownloadFolder } = useFileDownload();
@@ -48,10 +55,22 @@ const formatTime = (timestamp: number) => {
       </div>
 
       <div v-else class="download-list">
-        <div v-for="item in recentDownloads" :key="item.id" class="download-item">
+        <div
+          v-for="item in recentDownloads"
+          :key="item.id"
+          class="download-item"
+        >
           <div class="item-icon">
-            <CheckCircle2 v-if="item.status === 'success'" class="status-success" :size="20" />
-            <XCircle v-else-if="item.status === 'failed'" class="status-failed" :size="20" />
+            <CheckCircle2
+              v-if="item.status === 'success'"
+              class="status-success"
+              :size="20"
+            />
+            <XCircle
+              v-else-if="item.status === 'failed'"
+              class="status-failed"
+              :size="20"
+            />
             <Loader2 v-else class="status-pending spinning" :size="20" />
           </div>
 
@@ -64,7 +83,10 @@ const formatTime = (timestamp: number) => {
               <span class="dot">·</span>
               <span>{{ formatTime(item.timestamp) }}</span>
             </div>
-            <div v-if="item.status === 'failed' && item.error" class="item-error">
+            <div
+              v-if="item.status === 'failed' && item.error"
+              class="item-error"
+            >
               {{ item.error }}
             </div>
           </div>
@@ -81,7 +103,13 @@ const formatTime = (timestamp: number) => {
               </el-button>
             </el-tooltip>
             <el-tooltip content="移除记录" placement="top" :show-after="500">
-              <el-button circle size="small" type="danger" plain @click="handleRemove(item.id)">
+              <el-button
+                circle
+                size="small"
+                type="danger"
+                plain
+                @click="handleRemove(item.id)"
+              >
                 <el-icon><Trash2 /></el-icon>
               </el-button>
             </el-tooltip>
@@ -130,7 +158,10 @@ const formatTime = (timestamp: number) => {
 }
 
 .download-item:hover {
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.1));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
 }
 
 .item-icon {

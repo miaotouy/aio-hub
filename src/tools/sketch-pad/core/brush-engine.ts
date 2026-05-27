@@ -19,7 +19,10 @@ export interface BrushOptions {
 /**
  * 使用 perfect-freehand 计算平滑的笔画轮廓多边形
  */
-export function getStrokeOutline(points: StrokePoint[], options: BrushOptions): number[][] {
+export function getStrokeOutline(
+  points: StrokePoint[],
+  options: BrushOptions
+): number[][] {
   if (points.length === 0) return [];
 
   const inputPoints = points.map((p) => [p.x, p.y, p.pressure ?? 0.5]);
@@ -41,7 +44,11 @@ export function getStrokeOutline(points: StrokePoint[], options: BrushOptions): 
 /**
  * 将笔画轮廓绘制到 Canvas 2D 上下文
  */
-export function drawStrokeOutline(ctx: CanvasRenderingContext2D, outline: number[][], options: BrushOptions) {
+export function drawStrokeOutline(
+  ctx: CanvasRenderingContext2D,
+  outline: number[][],
+  options: BrushOptions
+) {
   if (outline.length === 0) return;
 
   ctx.save();

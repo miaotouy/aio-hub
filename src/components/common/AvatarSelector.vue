@@ -23,7 +23,12 @@ import { readDir, remove, BaseDirectory } from "@tauri-apps/plugin-fs";
 function isLikelyFilename(icon: string): boolean {
   if (!icon) return false;
   if (icon.startsWith("data:") || icon.includes("://")) return false;
-  return icon.includes(".") && !icon.includes("/") && !icon.includes("\\") && !icon.includes(":");
+  return (
+    icon.includes(".") &&
+    !icon.includes("/") &&
+    !icon.includes("\\") &&
+    !icon.includes(":")
+  );
 }
 
 interface Props {
@@ -105,7 +110,8 @@ const historyAvatars = computed(() => {
   // 过滤并排序历史头像
   return [...props.avatarHistory].sort((a, b) => {
     const getTimestamp = (name: string) => {
-      const match = name.match(/avatar-(\d+)/) || name.match(/avatar_migrated_(\d+)/);
+      const match =
+        name.match(/avatar-(\d+)/) || name.match(/avatar_migrated_(\d+)/);
       return match ? parseInt(match[1]) : 0;
     };
 
@@ -123,10 +129,20 @@ const loadHistoryAvatars = async () => {
 
   try {
     // 读取目录内容
-    const entries = await readDir(props.storageSubdirectory, { baseDir: BaseDirectory.AppData });
+    const entries = await readDir(props.storageSubdirectory, {
+      baseDir: BaseDirectory.AppData,
+    });
 
     // 过滤出图片文件
-    const imageExtensions = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico"];
+    const imageExtensions = [
+      ".png",
+      ".jpg",
+      ".jpeg",
+      ".gif",
+      ".webp",
+      ".svg",
+      ".ico",
+    ];
     const foundAvatars: string[] = [];
 
     for (const entry of entries) {
@@ -139,7 +155,9 @@ const loadHistoryAvatars = async () => {
     }
 
     // 与现有历史合并并去重
-    const mergedHistory = Array.from(new Set([...foundAvatars, ...props.avatarHistory]));
+    const mergedHistory = Array.from(
+      new Set([...foundAvatars, ...props.avatarHistory])
+    );
 
     // 如果有变化，通知父组件更新
     if (JSON.stringify(mergedHistory) !== JSON.stringify(props.avatarHistory)) {
@@ -176,7 +194,9 @@ const deleteHistoryAvatar = async (filename: string, event: Event) => {
     }
 
     // 删除物理文件
-    await remove(`${props.storageSubdirectory}/${filename}`, { baseDir: BaseDirectory.AppData });
+    await remove(`${props.storageSubdirectory}/${filename}`, {
+      baseDir: BaseDirectory.AppData,
+    });
 
     // 从历史记录中移除
     const newHistory = props.avatarHistory.filter((h) => h !== filename);
@@ -219,7 +239,12 @@ const uploadCustomImage = async () => {
   try {
     const selectedPath = await open({
       multiple: false,
-      filters: [{ name: "图像文件", extensions: ["png", "jpg", "jpeg", "gif", "svg", "webp", "ico"] }],
+      filters: [
+        {
+          name: "图像文件",
+          extensions: ["png", "jpg", "jpeg", "gif", "svg", "webp", "ico"],
+        },
+      ],
     });
 
     if (!selectedPath) return;
@@ -246,7 +271,10 @@ const uploadCustomImage = async () => {
     emitIconChange(newFilename);
 
     // 更新历史记录
-    const newHistory = [newFilename, ...props.avatarHistory.filter((h) => h !== newFilename)];
+    const newHistory = [
+      newFilename,
+      ...props.avatarHistory.filter((h) => h !== newFilename),
+    ];
     emit("update:avatarHistory", newHistory);
 
     customMessage.success("专属头像上传成功");
@@ -320,7 +348,10 @@ const pasteImageFromClipboard = async () => {
     emitIconChange(newFilename);
 
     // 更新历史记录
-    const newHistory = [newFilename, ...props.avatarHistory.filter((h) => h !== newFilename)];
+    const newHistory = [
+      newFilename,
+      ...props.avatarHistory.filter((h) => h !== newFilename),
+    ];
     emit("update:avatarHistory", newHistory);
 
     customMessage.success("已从剪贴板粘贴头像");
@@ -412,7 +443,11 @@ const handleIconClick = async () => {
     if (LOBE_ICONS_MAP[currentSrc] || LOCAL_ICONS_MAP[currentSrc]) {
       const rawSvg = LOBE_ICONS_MAP[currentSrc] || LOCAL_ICONS_MAP[currentSrc];
       // 如果内容已经是 data: 或者是 URL 则直接用，否则视为 SVG 源码转为 Data URL
-      if (rawSvg.startsWith("data:") || rawSvg.startsWith("http") || rawSvg.startsWith("/")) {
+      if (
+        rawSvg.startsWith("data:") ||
+        rawSvg.startsWith("http") ||
+        rawSvg.startsWith("/")
+      ) {
         imageViewer.show(rawSvg);
       } else {
         const processed = processSvgContent(rawSvg);
@@ -430,7 +465,11 @@ const handleIconClick = async () => {
 
 <template>
   <div class="avatar-selector-root">
-    <div class="avatar-selector-layout" ref="containerRef" :class="{ 'is-compact': isCompact }">
+    <div
+      class="avatar-selector-layout"
+      ref="containerRef"
+      :class="{ 'is-compact': isCompact }"
+    >
       <div class="avatar-preview-container">
         <el-tooltip
           :content="isImagePath ? '点击放大查看' : ''"
@@ -453,8 +492,14 @@ const handleIconClick = async () => {
       <div class="icon-controls-container" ref="controlsContainerRef">
         <!-- 定义按钮组模板 -->
         <DefineActionButtons>
-          <el-button-group :class="{ 'compact-button-group': shouldWrapButtons }">
-            <el-tooltip content="选择预设图标" placement="top" :show-after="300">
+          <el-button-group
+            :class="{ 'compact-button-group': shouldWrapButtons }"
+          >
+            <el-tooltip
+              content="选择预设图标"
+              placement="top"
+              :show-after="300"
+            >
               <el-button @click="openPresetIconSelector">
                 <el-icon><Star /></el-icon>
               </el-button>
@@ -478,13 +523,21 @@ const handleIconClick = async () => {
               placement="top"
               :show-after="300"
             >
-              <el-button @click="pasteImageFromClipboard" :loading="isPastingImage">
+              <el-button
+                @click="pasteImageFromClipboard"
+                :loading="isPastingImage"
+              >
                 <el-icon><Copy /></el-icon>
               </el-button>
             </el-tooltip>
 
             <!-- 历史头像选择按钮 -->
-            <el-tooltip v-if="entityId && storageSubdirectory" content="历史头像" placement="top" :show-after="300">
+            <el-tooltip
+              v-if="entityId && storageSubdirectory"
+              content="历史头像"
+              placement="top"
+              :show-after="300"
+            >
               <el-button @click="openHistoryDialog">
                 <el-icon><Clock /></el-icon>
               </el-button>
@@ -516,13 +569,20 @@ const handleIconClick = async () => {
         </div>
 
         <div class="form-hint">
-          支持 Emoji、预设图标、本地路径引用{{ entityId && storageSubdirectory ? "、上传或粘贴图片" : "" }}。
+          支持 Emoji、预设图标、本地路径引用{{
+            entityId && storageSubdirectory ? "、上传或粘贴图片" : ""
+          }}。
         </div>
       </div>
     </div>
 
     <!-- 历史头像对话框 -->
-    <BaseDialog v-model="showHistoryDialog" title="历史头像" width="520px" height="auto">
+    <BaseDialog
+      v-model="showHistoryDialog"
+      title="历史头像"
+      width="520px"
+      height="auto"
+    >
       <template #content>
         <div class="history-dialog-content">
           <div v-if="isLoadingHistory" class="loading-state">
@@ -530,7 +590,9 @@ const handleIconClick = async () => {
           </div>
 
           <div v-else-if="historyAvatars.length === 0" class="empty-state">
-            <el-icon :size="48" color="var(--el-text-color-placeholder)"><Clock /></el-icon>
+            <el-icon :size="48" color="var(--el-text-color-placeholder)"
+              ><Clock
+            /></el-icon>
             <p>暂无上传记录</p>
           </div>
 
@@ -542,21 +604,38 @@ const handleIconClick = async () => {
               :class="{ active: modelValue === filename }"
               @click="selectHistoryAvatar(filename)"
             >
-              <Avatar :src="`appdata://${storageSubdirectory}/${filename}`" :size="64" shape="square" :radius="8" />
-              <div class="delete-overlay" @click="deleteHistoryAvatar(filename, $event)">
+              <Avatar
+                :src="`appdata://${storageSubdirectory}/${filename}`"
+                :size="64"
+                shape="square"
+                :radius="8"
+              />
+              <div
+                class="delete-overlay"
+                @click="deleteHistoryAvatar(filename, $event)"
+              >
                 <el-icon :size="14"><X /></el-icon>
               </div>
-              <div v-if="modelValue === filename" class="active-badge">当前</div>
+              <div v-if="modelValue === filename" class="active-badge">
+                当前
+              </div>
             </div>
           </div>
 
-          <div class="history-hint">点击选择头像，悬停显示删除按钮。删除操作不可恢复。</div>
+          <div class="history-hint">
+            点击选择头像，悬停显示删除按钮。删除操作不可恢复。
+          </div>
         </div>
       </template>
     </BaseDialog>
 
     <!-- 预设图标选择对话框 -->
-    <BaseDialog v-model="showPresetIconDialog" title="选择预设图标" width="80%" height="70vh">
+    <BaseDialog
+      v-model="showPresetIconDialog"
+      title="选择预设图标"
+      width="80%"
+      height="70vh"
+    >
       <template #content>
         <IconPresetSelector
           :icons="PRESET_ICONS"
@@ -675,13 +754,19 @@ const handleIconClick = async () => {
 }
 
 .history-avatar-item:hover {
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity, 1) * 0.08));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity, 1) * 0.08)
+  );
   border-color: var(--el-border-color-lighter);
 }
 
 .history-avatar-item.active {
   border-color: var(--el-color-primary);
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity, 1) * 0.1));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity, 1) * 0.1)
+  );
 }
 
 /* 删除按钮覆盖层 */

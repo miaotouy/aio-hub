@@ -4,7 +4,10 @@
  */
 
 import type { ProviderType, LlmProfile } from "../types/llm-profiles";
-import { openAiUrlHandler, openAiResponsesUrlHandler } from "@/llm-apis/adapters/openai/utils";
+import {
+  openAiUrlHandler,
+  openAiResponsesUrlHandler,
+} from "@/llm-apis/adapters/openai/utils";
 import { claudeUrlHandler } from "@/llm-apis/adapters/anthropic/utils";
 import { geminiUrlHandler } from "@/llm-apis/adapters/gemini/utils";
 import { cohereUrlHandler } from "@/llm-apis/adapters/cohere/utils";
@@ -15,7 +18,11 @@ import { sunoNewApiUrlHandler } from "@/llm-apis/adapters/suno-newapi/utils";
  * 适配器 URL 处理接口
  */
 interface AdapterUrlHandler {
-  buildUrl: (baseUrl: string, endpoint?: string, profile?: LlmProfile) => string;
+  buildUrl: (
+    baseUrl: string,
+    endpoint?: string,
+    profile?: LlmProfile
+  ) => string;
   getHint: () => string;
 }
 
@@ -47,7 +54,8 @@ const azureUrlHandler: AdapterUrlHandler = {
     const ep = endpoint || "chat/completions";
     return `${host}${ep}?api-version=${apiVersion}`;
   },
-  getHint: () => "Azure OpenAI 格式，需填写到 /openai/deployments/{deployment-id} 一级",
+  getHint: () =>
+    "Azure OpenAI 格式，需填写到 /openai/deployments/{deployment-id} 一级",
 };
 
 const adapterUrlHandlers: Record<ProviderType, AdapterUrlHandler> = {
@@ -147,7 +155,10 @@ export function buildLlmApiUrl(
  * @param providerType - 服务提供商类型
  * @returns 完整的端点URL预览
  */
-export function generateLlmApiEndpointPreview(baseUrl: string, providerType: ProviderType): string {
+export function generateLlmApiEndpointPreview(
+  baseUrl: string,
+  providerType: ProviderType
+): string {
   return buildLlmApiUrl(baseUrl, providerType);
 }
 

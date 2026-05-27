@@ -14,8 +14,11 @@ function hexToVarletHsl(hex: string): string {
   const g = parseInt(hex.slice(3, 5), 16) / 255;
   const b = parseInt(hex.slice(5, 7), 16) / 255;
 
-  const max = Math.max(r, g, b), min = Math.min(r, g, b);
-  let h = 0, s, l = (max + min) / 2;
+  const max = Math.max(r, g, b),
+    min = Math.min(r, g, b);
+  let h = 0,
+    s,
+    l = (max + min) / 2;
 
   if (max === min) {
     h = s = 0; // achromatic
@@ -23,9 +26,15 @@ function hexToVarletHsl(hex: string): string {
     const d = max - min;
     s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
     switch (max) {
-      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-      case g: h = (b - r) / d + 2; break;
-      case b: h = (r - g) / d + 4; break;
+      case r:
+        h = (g - b) / d + (g < b ? 6 : 0);
+        break;
+      case g:
+        h = (b - r) / d + 2;
+        break;
+      case b:
+        h = (r - g) / d + 4;
+        break;
     }
     h /= 6;
   }
@@ -103,13 +112,17 @@ export function generateMd3Theme(sourceColorHex: string, isDark: boolean) {
   const infoContainerHex = hexFromArgb(scheme.secondaryContainer);
   themeConfig["--color-info-container"] = infoContainerHex;
   themeConfig["--hsl-info-container"] = hexToVarletHsl(infoContainerHex);
-  themeConfig["--color-on-info-container"] = hexFromArgb(scheme.onSecondaryContainer);
+  themeConfig["--color-on-info-container"] = hexFromArgb(
+    scheme.onSecondaryContainer
+  );
 
   // Success (使用 Tertiary)
   const successHex = hexFromArgb(scheme.tertiary);
   themeConfig["--color-success"] = successHex;
   themeConfig["--hsl-success"] = hexToVarletHsl(successHex);
-  themeConfig["--color-success-container"] = hexFromArgb(scheme.tertiaryContainer);
+  themeConfig["--color-success-container"] = hexFromArgb(
+    scheme.tertiaryContainer
+  );
 
   // Warning (使用 Tertiary 的变体或原始色)
   const warningHex = hexFromArgb(scheme.tertiary);
@@ -125,41 +138,64 @@ export function generateMd3Theme(sourceColorHex: string, isDark: boolean) {
 
   // 容器类颜色映射 (MD3 规范)
   themeConfig["--color-surface-container"] = hexFromArgb(scheme.surfaceVariant);
-  themeConfig["--hsl-surface-container"] = hexToVarletHsl(themeConfig["--color-surface-container"]);
+  themeConfig["--hsl-surface-container"] = hexToVarletHsl(
+    themeConfig["--color-surface-container"]
+  );
 
   themeConfig["--color-surface-container-low"] = hexFromArgb(scheme.surface);
-  themeConfig["--hsl-surface-container-low"] = hexToVarletHsl(themeConfig["--color-surface-container-low"]);
+  themeConfig["--hsl-surface-container-low"] = hexToVarletHsl(
+    themeConfig["--color-surface-container-low"]
+  );
 
-  themeConfig["--color-surface-container-high"] = hexFromArgb(scheme.surfaceVariant);
-  themeConfig["--hsl-surface-container-high"] = hexToVarletHsl(themeConfig["--color-surface-container-high"]);
+  themeConfig["--color-surface-container-high"] = hexFromArgb(
+    scheme.surfaceVariant
+  );
+  themeConfig["--hsl-surface-container-high"] = hexToVarletHsl(
+    themeConfig["--color-surface-container-high"]
+  );
 
-  themeConfig["--color-surface-container-highest"] = hexFromArgb(scheme.surfaceVariant);
-  themeConfig["--hsl-surface-container-highest"] = hexToVarletHsl(themeConfig["--color-surface-container-highest"]);
+  themeConfig["--color-surface-container-highest"] = hexFromArgb(
+    scheme.surfaceVariant
+  );
+  themeConfig["--hsl-surface-container-highest"] = hexToVarletHsl(
+    themeConfig["--color-surface-container-highest"]
+  );
 
   // 修复 BottomNavigation 等组件的紫色高亮问题
   const primaryContainer = hexFromArgb(scheme.primaryContainer);
   const onPrimaryContainer = hexFromArgb(scheme.onPrimaryContainer);
-  themeConfig["--bottom-navigation-item-active-background-color"] = primaryContainer;
-  themeConfig["--bottom-navigation-item-variant-active-background-color"] = primaryContainer;
-  themeConfig["--bottom-navigation-item-variant-active-color"] = onPrimaryContainer;
+  themeConfig["--bottom-navigation-item-active-background-color"] =
+    primaryContainer;
+  themeConfig["--bottom-navigation-item-variant-active-background-color"] =
+    primaryContainer;
+  themeConfig["--bottom-navigation-item-variant-active-color"] =
+    onPrimaryContainer;
 
   // AppBar 颜色适配
   themeConfig["--app-bar-color"] = hexFromArgb(scheme.surface);
   themeConfig["--app-bar-text-color"] = hexFromArgb(scheme.onSurface);
 
   // 补充 Varlet 组件变量覆盖
-  themeConfig["--dialog-background"] = themeConfig["--color-surface-container-high"];
-  themeConfig["--popup-content-background-color"] = themeConfig["--color-surface-container-high"];
-  themeConfig["--menu-background-color"] = themeConfig["--color-surface-container"];
-  themeConfig["--select-scroller-background"] = themeConfig["--color-surface-container"];
-  themeConfig["--action-sheet-background"] = themeConfig["--color-surface-container-high"];
+  themeConfig["--dialog-background"] =
+    themeConfig["--color-surface-container-high"];
+  themeConfig["--popup-content-background-color"] =
+    themeConfig["--color-surface-container-high"];
+  themeConfig["--menu-background-color"] =
+    themeConfig["--color-surface-container"];
+  themeConfig["--select-scroller-background"] =
+    themeConfig["--color-surface-container"];
+  themeConfig["--action-sheet-background"] =
+    themeConfig["--color-surface-container-high"];
   themeConfig["--picker-background"] = themeConfig["--color-body"];
 
   // 按钮与交互组件
-  themeConfig["--button-default-color"] = themeConfig["--color-surface-container-highest"];
+  themeConfig["--button-default-color"] =
+    themeConfig["--color-surface-container-highest"];
   themeConfig["--button-default-text-color"] = themeConfig["--color-primary"];
-  themeConfig["--card-background"] = themeConfig["--color-surface-container-low"];
-  themeConfig["--paper-background"] = themeConfig["--color-surface-container-highest"];
+  themeConfig["--card-background"] =
+    themeConfig["--color-surface-container-low"];
+  themeConfig["--paper-background"] =
+    themeConfig["--color-surface-container-highest"];
 
   return themeConfig;
 }

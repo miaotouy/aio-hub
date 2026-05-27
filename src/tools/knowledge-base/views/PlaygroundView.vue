@@ -38,7 +38,12 @@
 
         <div class="spacer"></div>
 
-        <el-button type="primary" plain @click="addSlot" :disabled="slots.length >= 4">
+        <el-button
+          type="primary"
+          plain
+          @click="addSlot"
+          :disabled="slots.length >= 4"
+        >
           <Plus :size="16" style="margin-right: 4px" />
           添加对比槽位
         </el-button>
@@ -59,7 +64,9 @@
           :initial-config="slot.config"
           :initial-results="slot.results"
           @remove="removeSlot(slot.id)"
-          @results-updated="(results: SearchResult[]) => updateSlotResults(slot.id, results)"
+          @results-updated="
+            (results: SearchResult[]) => updateSlotResults(slot.id, results)
+          "
           @select="handleSelect"
           @update:engine-id="(val) => (slot.engineId = val)"
           @update:config="(val) => (slot.config = val)"
@@ -94,7 +101,9 @@ import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useKbVectorSync } from "../composables/useKbVectorSync";
 import { getPureModelId, parseModelCombo } from "@/utils/modelIdUtils";
 import SearchSlot from "../components/SearchSlot.vue";
-import VectorCoverageDialog, { BatchCoverageItem } from "../components/VectorCoverageDialog.vue";
+import VectorCoverageDialog, {
+  BatchCoverageItem,
+} from "../components/VectorCoverageDialog.vue";
 import SearchResultDetailDialog from "../components/SearchResultDetailDialog.vue";
 import { SearchResult } from "../types/search";
 import { customMessage } from "@/utils/customMessage";
@@ -259,8 +268,12 @@ async function syncAndSearchAll() {
             s.el.config.embeddingModel.endsWith(item.modelName)
           );
           if (slotWithThisModel) {
-            const [profileId] = parseModelCombo(slotWithThisModel.el.config.embeddingModel);
-            const profile = enabledProfiles.value.find((p) => p.id === profileId);
+            const [profileId] = parseModelCombo(
+              slotWithThisModel.el.config.embeddingModel
+            );
+            const profile = enabledProfiles.value.find(
+              (p) => p.id === profileId
+            );
             if (profile) {
               // 收集需要补全的条目 ID
               const entryIds: string[] = [];

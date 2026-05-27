@@ -19,7 +19,8 @@ const logger = createModuleLogger("skill-manager/system-proxy");
 export class SkillManagerProxy implements ToolRegistry {
   readonly id = "skill:system";
   readonly name = "Skill 系统工具";
-  readonly description = "提供对已安装 Skill 私有资源的受限访问能力（仅限 scripts/ 和 references/）";
+  readonly description =
+    "提供对已安装 Skill 私有资源的受限访问能力（仅限 scripts/ 和 references/）";
   readonly runMode = "main-only";
 
   getMetadata(): ServiceMetadata {
@@ -36,19 +37,22 @@ export class SkillManagerProxy implements ToolRegistry {
           {
             name: "skill_id",
             type: "string",
-            description: "Skill 的唯一标识符。对应 CLI 命令中的包名/工具名（如 `npx gitnexus` 中的 `gitnexus`）",
+            description:
+              "Skill 的唯一标识符。对应 CLI 命令中的包名/工具名（如 `npx gitnexus` 中的 `gitnexus`）",
             required: true,
           },
           {
             name: "script_name",
             type: "string",
-            description: "脚本名称。对应 CLI 中的子命令或脚本文件名（如 `analyze` 或 `hello.js`）",
+            description:
+              "脚本名称。对应 CLI 中的子命令或脚本文件名（如 `analyze` 或 `hello.js`）",
             required: true,
           },
           {
             name: "args",
             type: "string",
-            description: "命令行参数。对应 CLI 中的所有后续 Flag 和参数（如 `--force --embeddings`）",
+            description:
+              "命令行参数。对应 CLI 中的所有后续 Flag 和参数（如 `--force --embeddings`）",
             required: false,
           },
         ],
@@ -70,7 +74,8 @@ export class SkillManagerProxy implements ToolRegistry {
           {
             name: "path",
             type: "string",
-            description: "文件相对路径。如果文档提到 `README.md` 或 `guide.md`，请尝试在此处读取",
+            description:
+              "文件相对路径。如果文档提到 `README.md` 或 `guide.md`，请尝试在此处读取",
             required: true,
           },
         ],
@@ -82,7 +87,12 @@ export class SkillManagerProxy implements ToolRegistry {
         displayName: "列出 Skill 目录",
         description: "列出 Skill 目录下的文件和子目录结构。",
         parameters: [
-          { name: "skill_id", type: "string", description: "Skill 名称", required: true },
+          {
+            name: "skill_id",
+            type: "string",
+            description: "Skill 名称",
+            required: true,
+          },
           {
             name: "sub_dir",
             type: "string",
@@ -104,8 +114,12 @@ export class SkillManagerProxy implements ToolRegistry {
       const summary = [
         `激活技能 "${manifest.name}"。`,
         `描述: ${manifest.description}`,
-        manifest.scripts.length > 0 ? `可用脚本: ${manifest.scripts.map((s) => s.name).join(", ")}` : "",
-        manifest.files.length > 0 ? `可用文件: ${manifest.files.length} 个` : "",
+        manifest.scripts.length > 0
+          ? `可用脚本: ${manifest.scripts.map((s) => s.name).join(", ")}`
+          : "",
+        manifest.files.length > 0
+          ? `可用文件: ${manifest.files.length} 个`
+          : "",
         `调用此方法将返回该技能的完整指令和资源索引。`,
       ]
         .filter(Boolean)
@@ -139,7 +153,9 @@ export class SkillManagerProxy implements ToolRegistry {
 
   async skill_run_script(args: Record<string, string>): Promise<string> {
     const { skill_id, script_name, args: scriptArgs } = args;
-    logger.info(`正在执行技能脚本: ${skill_id}/${script_name}`, { args: scriptArgs });
+    logger.info(`正在执行技能脚本: ${skill_id}/${script_name}`, {
+      args: scriptArgs,
+    });
 
     const store = useSkillManagerStore();
     const runtimeSettings = this.getRuntimeSettings();
@@ -148,7 +164,13 @@ export class SkillManagerProxy implements ToolRegistry {
     const configFallback = store.getSkillEnvVars(skill_id);
     const envVars = await getEnvVarsForExecution(skill_id, configFallback);
 
-    const result = await SkillService.runScript(skill_id, script_name, scriptArgs ?? "", runtimeSettings, envVars);
+    const result = await SkillService.runScript(
+      skill_id,
+      script_name,
+      scriptArgs ?? "",
+      runtimeSettings,
+      envVars
+    );
 
     if (!result) return "脚本执行出错，请查看日志。";
     if (!result.success) {
@@ -166,7 +188,9 @@ export class SkillManagerProxy implements ToolRegistry {
   async skill_list_dir(args: Record<string, string>): Promise<string> {
     const { skill_id, sub_dir = "" } = args;
     const entries = await SkillService.listDirectory(skill_id, sub_dir);
-    return entries.length > 0 ? entries.map((e: string) => `- ${e}`).join("\n") : "目录为空";
+    return entries.length > 0
+      ? entries.map((e: string) => `- ${e}`).join("\n")
+      : "目录为空";
   }
 
   /**
@@ -185,12 +209,18 @@ export class SkillManagerProxy implements ToolRegistry {
     // 文件索引
     if (manifest.files.length > 0) {
       parts.push(`\n### 可用文件`);
-      parts.push(`> 读取文件请调用 \`skill:system.skill_read_file\`（skill_id="${skillId}"，path="文件相对路径"）`);
+      parts.push(
+        `> 读取文件请调用 \`skill:system.skill_read_file\`（skill_id="${skillId}"，path="文件相对路径"）`
+      );
       for (const file of manifest.files) {
-        parts.push(`- \`${file.relativePath}\` (${(file.size / 1024).toFixed(1)} KB)`);
+        parts.push(
+          `- \`${file.relativePath}\` (${(file.size / 1024).toFixed(1)} KB)`
+        );
       }
       if (manifest.files.length > 5) {
-        parts.push(`> 可使用 \`skill:system.skill_list_dir\` 浏览子目录（skill_id="${skillId}"）`);
+        parts.push(
+          `> 可使用 \`skill:system.skill_list_dir\` 浏览子目录（skill_id="${skillId}"）`
+        );
       }
     }
 
@@ -198,10 +228,12 @@ export class SkillManagerProxy implements ToolRegistry {
     if (manifest.scripts.length > 0) {
       parts.push(`\n### 可用脚本`);
       parts.push(
-        `> 执行脚本请调用 \`skill:system.skill_run_script\`（skill_id="${skillId}"，script_name="脚本名"，args="命令行参数"）`,
+        `> 执行脚本请调用 \`skill:system.skill_run_script\`（skill_id="${skillId}"，script_name="脚本名"，args="命令行参数"）`
       );
       for (const script of manifest.scripts) {
-        parts.push(`- \`${script.name}\`: ${script.description || `[${script.language}] 执行脚本`}`);
+        parts.push(
+          `- \`${script.name}\`: ${script.description || `[${script.language}] 执行脚本`}`
+        );
       }
     }
 
@@ -236,10 +268,22 @@ export class SkillManagerProxy implements ToolRegistry {
       const prefs = store.config.terminalPreferences;
       const rt = store.config.runtimeSettings;
 
-      const jsCmd = this.getCommandBasename(rt.javascript.command, "bun / node (自动检测)");
-      const pyCmd = this.getCommandBasename(rt.python.command, "python (自动检测)");
-      const shellCmd = this.getCommandBasename(rt.shell.command, "bash (自动检测)");
-      const psCmd = this.getCommandBasename(rt.powershell.command, "powershell");
+      const jsCmd = this.getCommandBasename(
+        rt.javascript.command,
+        "bun / node (自动检测)"
+      );
+      const pyCmd = this.getCommandBasename(
+        rt.python.command,
+        "python (自动检测)"
+      );
+      const shellCmd = this.getCommandBasename(
+        rt.shell.command,
+        "bash (自动检测)"
+      );
+      const psCmd = this.getCommandBasename(
+        rt.powershell.command,
+        "powershell"
+      );
 
       let shellDesc = "PowerShell";
       let chainStyle = "使用 `;` 串联命令（PowerShell 语义）";

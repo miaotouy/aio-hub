@@ -22,7 +22,13 @@
             <el-text class="message-text">{{
               selectedCommit.full_message || selectedCommit.message
             }}</el-text>
-            <el-button link type="primary" :icon="Edit" @click="startEdit" class="edit-btn">
+            <el-button
+              link
+              type="primary"
+              :icon="Edit"
+              @click="startEdit"
+              class="edit-btn"
+            >
               编辑
             </el-button>
           </div>
@@ -35,8 +41,15 @@
               class="message-input"
             />
             <div class="edit-actions">
-              <el-button size="small" @click="isEditing = false">取消</el-button>
-              <el-button size="small" type="primary" @click="handleSaveMessage" :loading="loading">
+              <el-button size="small" @click="isEditing = false"
+                >取消</el-button
+              >
+              <el-button
+                size="small"
+                type="primary"
+                @click="handleSaveMessage"
+                :loading="loading"
+              >
                 保存
               </el-button>
             </div>
@@ -57,7 +70,11 @@
           v-if="selectedCommit.branches && selectedCommit.branches.length > 0"
         >
           <el-space>
-            <el-tag v-for="branch in selectedCommit.branches" :key="branch" type="success">
+            <el-tag
+              v-for="branch in selectedCommit.branches"
+              :key="branch"
+              type="success"
+            >
               {{ branch }}
             </el-tag>
           </el-space>
@@ -67,21 +84,30 @@
           v-if="selectedCommit.tags && selectedCommit.tags.length > 0"
         >
           <el-space>
-            <el-tag v-for="tag in selectedCommit.tags" :key="tag" type="warning">
+            <el-tag
+              v-for="tag in selectedCommit.tags"
+              :key="tag"
+              type="warning"
+            >
               {{ tag }}
             </el-tag>
           </el-space>
         </el-descriptions-item>
       </el-descriptions>
 
-      <div v-if="selectedCommit?.files && selectedCommit.files.length > 0" style="margin-top: 20px">
+      <div
+        v-if="selectedCommit?.files && selectedCommit.files.length > 0"
+        style="margin-top: 20px"
+      >
         <h4>文件更改 ({{ selectedCommit.files.length }})</h4>
         <el-table :data="selectedCommit.files" style="width: 100%">
           <el-table-column prop="path" label="文件路径" />
           <el-table-column label="更改" width="150">
             <template #default="scope">
               <span class="additions">+{{ scope.row.additions }}</span>
-              <span class="deletions" style="margin-left: 10px">-{{ scope.row.deletions }}</span>
+              <span class="deletions" style="margin-left: 10px"
+                >-{{ scope.row.deletions }}</span
+              >
             </template>
           </el-table-column>
         </el-table>
@@ -125,14 +151,16 @@ watch(
   () => {
     isEditing.value = false;
     if (props.selectedCommit) {
-      editMessage.value = props.selectedCommit.full_message || props.selectedCommit.message;
+      editMessage.value =
+        props.selectedCommit.full_message || props.selectedCommit.message;
     }
   }
 );
 
 function startEdit() {
   if (props.selectedCommit) {
-    editMessage.value = props.selectedCommit.full_message || props.selectedCommit.message;
+    editMessage.value =
+      props.selectedCommit.full_message || props.selectedCommit.message;
     isEditing.value = true;
   }
 }

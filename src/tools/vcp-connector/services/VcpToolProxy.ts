@@ -1,8 +1,19 @@
-import type { ToolRegistry, ServiceMetadata, MethodParameter } from "@/services/types";
-import type { SettingItem, BuiltinSettingComponent } from "@/types/settings-renderer";
+import type {
+  ToolRegistry,
+  ServiceMetadata,
+  MethodParameter,
+} from "@/services/types";
+import type {
+  SettingItem,
+  BuiltinSettingComponent,
+} from "@/types/settings-renderer";
 import type { VcpBridgeManifest, VcpBridgeCommand } from "../types/distributed";
 
-export type VcpRemoteExecuteFn = (pluginId: string, command: string, args: Record<string, any>) => Promise<any>;
+export type VcpRemoteExecuteFn = (
+  pluginId: string,
+  command: string,
+  args: Record<string, any>
+) => Promise<any>;
 
 /**
  * VCP 工具代理类
@@ -17,7 +28,11 @@ export class VcpToolProxy implements ToolRegistry {
   private bridgeCommands: VcpBridgeCommand[];
   private executeRemote: VcpRemoteExecuteFn;
 
-  constructor(manifest: VcpBridgeManifest, executeFn: VcpRemoteExecuteFn, disabledIds: string[] = []) {
+  constructor(
+    manifest: VcpBridgeManifest,
+    executeFn: VcpRemoteExecuteFn,
+    disabledIds: string[] = []
+  ) {
     // 使用 vcp: 前缀，防止 ID 冲突
     this.id = `vcp:${manifest.name}`;
     this.name = manifest.displayName || manifest.name;
@@ -26,23 +41,26 @@ export class VcpToolProxy implements ToolRegistry {
 
     // 映射 configSchema 到 settingsSchema
     if (manifest.configSchema) {
-      this.settingsSchema = Object.entries(manifest.configSchema).map(([key, schema]) => {
-        const type = schema.type?.toLowerCase();
-        let component: BuiltinSettingComponent = "ElInput";
+      this.settingsSchema = Object.entries(manifest.configSchema).map(
+        ([key, schema]) => {
+          const type = schema.type?.toLowerCase();
+          let component: BuiltinSettingComponent = "ElInput";
 
-        if (type === "boolean") component = "ElSwitch";
-        else if (type === "number" || type === "integer") component = "ElInputNumber";
+          if (type === "boolean") component = "ElSwitch";
+          else if (type === "number" || type === "integer")
+            component = "ElInputNumber";
 
-        return {
-          id: `${this.id}:${key}`,
-          component,
-          label: key,
-          modelPath: key,
-          hint: schema.description || "",
-          keywords: key,
-          defaultValue: schema.default,
-        };
-      });
+          return {
+            id: `${this.id}:${key}`,
+            component,
+            label: key,
+            modelPath: key,
+            hint: schema.description || "",
+            keywords: key,
+            defaultValue: schema.default,
+          };
+        }
+      );
     }
 
     // 过滤掉被禁用的命令
@@ -59,7 +77,11 @@ export class VcpToolProxy implements ToolRegistry {
       if (!methodName) continue;
 
       (this as any)[methodName] = async (args: Record<string, any>) => {
-        const rawResult = await this.executeRemote(manifest.name, methodName, args);
+        const rawResult = await this.executeRemote(
+          manifest.name,
+          methodName,
+          args
+        );
         return VcpToolProxy.normalizeResult(rawResult);
       };
     }
@@ -138,12 +160,16 @@ export class VcpToolProxy implements ToolRegistry {
       }
       // 如果是 JSON Schema 格式，尝试简单转换
       if (cmd.parameters.properties) {
-        return Object.entries(cmd.parameters.properties).map(([name, prop]: [string, any]) => ({
-          name,
-          type: prop.type || "string",
-          description: prop.description,
-          required: Array.isArray(cmd.parameters.required) ? cmd.parameters.required.includes(name) : true,
-        }));
+        return Object.entries(cmd.parameters.properties).map(
+          ([name, prop]: [string, any]) => ({
+            name,
+            type: prop.type || "string",
+            description: prop.description,
+            required: Array.isArray(cmd.parameters.required)
+              ? cmd.parameters.required.includes(name)
+              : true,
+          })
+        );
       }
     }
 
@@ -158,18 +184,31 @@ export class VcpToolProxy implements ToolRegistry {
       const match = line.match(paramRegex);
       if (match) {
         const [, name, typeAndRequired, description] = match;
-        const isRequired = typeAndRequired.includes("必需") || typeAndRequired.includes("必需");
+        const isRequired =
+          typeAndRequired.includes("必需") || typeAndRequired.includes("必需");
         let type = "string";
 
-        if (typeAndRequired.includes("布尔") || typeAndRequired.includes("boolean")) type = "boolean";
+        if (
+          typeAndRequired.includes("布尔") ||
+          typeAndRequired.includes("boolean")
+        )
+          type = "boolean";
         else if (
           typeAndRequired.includes("数字") ||
           typeAndRequired.includes("number") ||
           typeAndRequired.includes("整数")
         )
           type = "number";
-        else if (typeAndRequired.includes("数组") || typeAndRequired.includes("array")) type = "array";
-        else if (typeAndRequired.includes("对象") || typeAndRequired.includes("object")) type = "object";
+        else if (
+          typeAndRequired.includes("数组") ||
+          typeAndRequired.includes("array")
+        )
+          type = "array";
+        else if (
+          typeAndRequired.includes("对象") ||
+          typeAndRequired.includes("object")
+        )
+          type = "object";
 
         parameters.push({
           name: name.trim(),

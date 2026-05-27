@@ -3,10 +3,10 @@
  * 负责管理分支的切换和遍历
  */
 
-import type { ChatSessionDetail, ChatMessageNode } from '../types';
-import { createModuleLogger } from '@utils/logger';
+import type { ChatSessionDetail, ChatMessageNode } from "../types";
+import { createModuleLogger } from "@utils/logger";
 
-const logger = createModuleLogger('llm-chat/BranchNavigator');
+const logger = createModuleLogger("llm-chat/BranchNavigator");
 
 export class BranchNavigator {
   /**
@@ -19,7 +19,7 @@ export class BranchNavigator {
     if (!session.nodes) return [];
     const node = session.nodes[nodeId];
     if (!node) {
-      logger.warn('获取兄弟节点失败：节点不存在', { nodeId });
+      logger.warn("获取兄弟节点失败：节点不存在", { nodeId });
       return [];
     }
 
@@ -30,12 +30,15 @@ export class BranchNavigator {
 
     const parent = session.nodes[node.parentId];
     if (!parent) {
-      logger.warn('获取兄弟节点失败：父节点不存在', { nodeId, parentId: node.parentId });
+      logger.warn("获取兄弟节点失败：父节点不存在", {
+        nodeId,
+        parentId: node.parentId,
+      });
       return [node];
     }
 
     return parent.childrenIds
-      .map(id => session.nodes![id])
+      .map((id) => session.nodes![id])
       .filter((n): n is ChatMessageNode => n !== undefined);
   }
 
@@ -46,22 +49,24 @@ export class BranchNavigator {
   static switchToSibling(
     session: ChatSessionDetail,
     currentNodeId: string,
-    direction: 'prev' | 'next'
+    direction: "prev" | "next"
   ): string {
     const siblings = this.getSiblings(session, currentNodeId);
     if (siblings.length <= 1) {
-      logger.info('无兄弟节点可切换', { nodeId: currentNodeId });
+      logger.info("无兄弟节点可切换", { nodeId: currentNodeId });
       return currentNodeId;
     }
 
-    const currentIndex = siblings.findIndex(n => n.id === currentNodeId);
+    const currentIndex = siblings.findIndex((n) => n.id === currentNodeId);
     if (currentIndex === -1) {
-      logger.warn('切换失败：当前节点不在兄弟列表中', { nodeId: currentNodeId });
+      logger.warn("切换失败：当前节点不在兄弟列表中", {
+        nodeId: currentNodeId,
+      });
       return currentNodeId;
     }
 
     let targetIndex: number;
-    if (direction === 'next') {
+    if (direction === "next") {
       targetIndex = (currentIndex + 1) % siblings.length;
     } else {
       targetIndex = (currentIndex - 1 + siblings.length) % siblings.length;
@@ -70,7 +75,7 @@ export class BranchNavigator {
     const targetNode = siblings[targetIndex];
     const newLeafId = this.findLeafOfBranch(session, targetNode.id);
 
-    logger.info('切换到兄弟分支', {
+    logger.info("切换到兄弟分支", {
       from: currentNodeId,
       to: targetNode.id,
       direction,
@@ -94,7 +99,7 @@ export class BranchNavigator {
     let current = session.nodes[startNodeId];
 
     if (!current) {
-      logger.warn('查找叶节点失败：起始节点不存在', { startNodeId });
+      logger.warn("查找叶节点失败：起始节点不存在", { startNodeId });
       return startNodeId;
     }
 
@@ -102,16 +107,19 @@ export class BranchNavigator {
     while (current && current.childrenIds.length > 0) {
       // 优先使用上次选择的子节点
       let nextId: string;
-      if (current.lastSelectedChildId && current.childrenIds.includes(current.lastSelectedChildId)) {
+      if (
+        current.lastSelectedChildId &&
+        current.childrenIds.includes(current.lastSelectedChildId)
+      ) {
         nextId = current.lastSelectedChildId;
-        logger.debug('使用记忆的子节点', {
+        logger.debug("使用记忆的子节点", {
           currentId: current.id,
           selectedChildId: nextId,
         });
       } else {
         // 没有记忆或记忆的子节点已被删除，使用第一个子节点
         nextId = current.childrenIds[0];
-        logger.debug('使用默认子节点', {
+        logger.debug("使用默认子节点", {
           currentId: current.id,
           defaultChildId: nextId,
         });
@@ -119,7 +127,7 @@ export class BranchNavigator {
 
       const nextNode = session.nodes![nextId];
       if (!nextNode) {
-        logger.warn('查找叶节点中断：子节点不存在', {
+        logger.warn("查找叶节点中断：子节点不存在", {
           currentId: current.id,
           missingChildId: nextId,
         });
@@ -147,7 +155,7 @@ export class BranchNavigator {
     while (currentId !== null) {
       const node: ChatMessageNode | undefined = session.nodes[currentId];
       if (!node) {
-        logger.warn('更新选择记忆失败：路径中断', { currentId });
+        logger.warn("更新选择记忆失败：路径中断", { currentId });
         break;
       }
       path.unshift(currentId);
@@ -164,7 +172,7 @@ export class BranchNavigator {
         // 只有当子节点确实存在于父节点的子节点列表中时才更新
         if (parentNode.childrenIds.includes(childId)) {
           parentNode.lastSelectedChildId = childId;
-          logger.debug('更新父节点选择记忆', {
+          logger.debug("更新父节点选择记忆", {
             parentId,
             selectedChildId: childId,
           });
@@ -172,7 +180,7 @@ export class BranchNavigator {
       }
     }
 
-    logger.info('选择记忆已更新', {
+    logger.info("选择记忆已更新", {
       leafNodeId,
       pathLength: path.length,
     });
@@ -206,7 +214,7 @@ export class BranchNavigator {
     nodeId: string
   ): { index: number; total: number } {
     const siblings = this.getSiblings(session, nodeId);
-    const index = siblings.findIndex(n => n.id === nodeId);
+    const index = siblings.findIndex((n) => n.id === nodeId);
     return {
       index: index === -1 ? 0 : index,
       total: siblings.length,
@@ -222,7 +230,7 @@ export class BranchNavigator {
     if (!session.nodes[session.activeLeafId]) {
       const oldLeafId = session.activeLeafId;
       session.activeLeafId = session.rootNodeId;
-      logger.warn('活动叶节点无效，已重置为根节点', {
+      logger.warn("活动叶节点无效，已重置为根节点", {
         sessionId: session.id,
         invalidLeafId: oldLeafId,
         newLeafId: session.rootNodeId,

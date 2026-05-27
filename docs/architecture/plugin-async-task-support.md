@@ -69,6 +69,7 @@ return method(finalParams, toolContext);
 ```
 
 **设计要点**：
+
 - `ToolContext` 作为第二个参数注入，用于任务控制和状态汇报
 - `context.settings` 由 `JsPluginAdapter` 注入，用于访问插件配置
 - 两者互不干扰，插件方法可以同时使用
@@ -93,12 +94,9 @@ return method(finalParams, toolContext);
 ### 3. 插件方法实现
 
 ```typescript
-async function myAsyncMethod(
-  params: { input: string },
-  context?: ToolContext
-) {
+async function myAsyncMethod(params: { input: string }, context?: ToolContext) {
   // context 包含 reportStatus, signal, isAsync, taskId
-  
+
   if (context?.isAsync) {
     // 异步模式：使用进度汇报
     context.reportStatus("开始处理...", 0);
@@ -106,7 +104,7 @@ async function myAsyncMethod(
     if (context.signal?.aborted) throw new Error("AbortError");
     context.reportStatus("完成", 100);
   }
-  
+
   // 直接模式：无进度汇报（兼容性）
   return await doWork(params.input);
 }

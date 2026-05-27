@@ -26,7 +26,11 @@ export function useTesseractEngine() {
     workerCount: number = DEFAULT_WORKER_COUNT
   ): Promise<void> => {
     // 如果已有 scheduler 且配置相同，则复用
-    if (scheduler && currentLanguage === language && currentWorkerCount === workerCount) {
+    if (
+      scheduler &&
+      currentLanguage === language &&
+      currentWorkerCount === workerCount
+    ) {
       logger.debug("复用现有 Scheduler", { language, workerCount });
       return;
     }
@@ -57,11 +61,14 @@ export function useTesseractEngine() {
           langPath: "/tesseract-lang",
           logger: (m) => {
             if (m.status === "recognizing text") {
-              logger.debug(`Worker ${index + 1} 识别进度: ${(m.progress * 100).toFixed(1)}%`, {
-                workerId: index + 1,
-                status: m.status,
-                progress: m.progress,
-              });
+              logger.debug(
+                `Worker ${index + 1} 识别进度: ${(m.progress * 100).toFixed(1)}%`,
+                {
+                  workerId: index + 1,
+                  status: m.status,
+                  progress: m.progress,
+                }
+              );
             }
           },
         });

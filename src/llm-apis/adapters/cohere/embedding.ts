@@ -1,11 +1,14 @@
 import type { LlmProfile } from "@/types/llm-profiles";
-import type { EmbeddingRequestOptions, EmbeddingResponse } from "@/llm-apis/embedding-types";
+import type {
+  EmbeddingRequestOptions,
+  EmbeddingResponse,
+} from "@/llm-apis/embedding-types";
 import { fetchWithTimeout, ensureResponseOk } from "@/llm-apis/common";
 import { asyncJsonStringify } from "@/utils/serialization";
 
 /**
-* 调用 Cohere Embedding API (V2)
-*/
+ * 调用 Cohere Embedding API (V2)
+ */
 export const callCohereEmbeddingApi = async (
   profile: LlmProfile,
   options: EmbeddingRequestOptions
@@ -15,21 +18,22 @@ export const callCohereEmbeddingApi = async (
   if (baseUrl.endsWith("/v1")) baseUrl = baseUrl.slice(0, -3);
 
   const url = `${baseUrl}/v2/embed`;
-  const apiKey = profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
+  const apiKey =
+    profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
 
   const taskTypeMap: Record<string, string> = {
-    RETRIEVAL_QUERY: 'search_query',
-    RETRIEVAL_DOCUMENT: 'search_document',
-    SEMANTIC_SIMILARITY: 'search_query',
-    CLASSIFICATION: 'classification',
-    CLUSTERING: 'clustering',
+    RETRIEVAL_QUERY: "search_query",
+    RETRIEVAL_DOCUMENT: "search_document",
+    SEMANTIC_SIMILARITY: "search_query",
+    CLASSIFICATION: "classification",
+    CLUSTERING: "clustering",
   };
 
   const body: any = {
     model: options.modelId,
     texts: Array.isArray(options.input) ? options.input : [options.input],
-    input_type: taskTypeMap[options.taskType || 'RETRIEVAL_QUERY'],
-    embedding_types: [options.encodingFormat || 'float'],
+    input_type: taskTypeMap[options.taskType || "RETRIEVAL_QUERY"],
+    embedding_types: [options.encodingFormat || "float"],
   };
 
   const headers: Record<string, string> = {
@@ -62,7 +66,7 @@ export const callCohereEmbeddingApi = async (
   await ensureResponseOk(response);
 
   const data = await response.json();
-  const format = options.encodingFormat || 'float';
+  const format = options.encodingFormat || "float";
   const embeddings = data.embeddings[format];
 
   return {

@@ -14,12 +14,24 @@
       <!-- 基础工具组：选择 + 抓手（始终可见） -->
       <div class="tool-group">
         <el-tooltip content="选择工具 (V)" placement="bottom" :show-after="300">
-          <button class="tool-btn" :class="{ active: activeTool === 'select' }" @click="selectTool('select')">
+          <button
+            class="tool-btn"
+            :class="{ active: activeTool === 'select' }"
+            @click="selectTool('select')"
+          >
             <MousePointer :size="18" />
           </button>
         </el-tooltip>
-        <el-tooltip content="抓手工具 (H) - 拖拽画布" placement="bottom" :show-after="300">
-          <button class="tool-btn" :class="{ active: activeTool === 'hand' }" @click="selectTool('hand')">
+        <el-tooltip
+          content="抓手工具 (H) - 拖拽画布"
+          placement="bottom"
+          :show-after="300"
+        >
+          <button
+            class="tool-btn"
+            :class="{ active: activeTool === 'hand' }"
+            @click="selectTool('hand')"
+          >
             <Hand :size="18" />
           </button>
         </el-tooltip>
@@ -30,17 +42,29 @@
         <div class="tool-divider" />
         <div class="tool-group">
           <el-tooltip content="铅笔 (B)" placement="bottom" :show-after="300">
-            <button class="tool-btn" :class="{ active: activeTool === 'pencil' }" @click="selectTool('pencil')">
+            <button
+              class="tool-btn"
+              :class="{ active: activeTool === 'pencil' }"
+              @click="selectTool('pencil')"
+            >
               <Pencil :size="18" />
             </button>
           </el-tooltip>
           <el-tooltip content="马克笔 (M)" placement="bottom" :show-after="300">
-            <button class="tool-btn" :class="{ active: activeTool === 'marker' }" @click="selectTool('marker')">
+            <button
+              class="tool-btn"
+              :class="{ active: activeTool === 'marker' }"
+              @click="selectTool('marker')"
+            >
               <Highlighter :size="18" />
             </button>
           </el-tooltip>
           <el-tooltip content="橡皮擦 (E)" placement="bottom" :show-after="300">
-            <button class="tool-btn" :class="{ active: activeTool === 'eraser' }" @click="selectTool('eraser')">
+            <button
+              class="tool-btn"
+              :class="{ active: activeTool === 'eraser' }"
+              @click="selectTool('eraser')"
+            >
               <Eraser :size="18" />
             </button>
           </el-tooltip>
@@ -52,31 +76,55 @@
         <div class="tool-divider" />
         <div class="tool-group">
           <el-tooltip content="矩形 (R)" placement="bottom" :show-after="300">
-            <button class="tool-btn" :class="{ active: activeTool === 'rect' }" @click="selectTool('rect')">
+            <button
+              class="tool-btn"
+              :class="{ active: activeTool === 'rect' }"
+              @click="selectTool('rect')"
+            >
               <Square :size="18" />
             </button>
           </el-tooltip>
           <el-tooltip content="圆形 (O)" placement="bottom" :show-after="300">
-            <button class="tool-btn" :class="{ active: activeTool === 'ellipse' }" @click="selectTool('ellipse')">
+            <button
+              class="tool-btn"
+              :class="{ active: activeTool === 'ellipse' }"
+              @click="selectTool('ellipse')"
+            >
               <Circle :size="18" />
             </button>
           </el-tooltip>
           <el-tooltip content="线段 (L)" placement="bottom" :show-after="300">
-            <button class="tool-btn" :class="{ active: activeTool === 'line' }" @click="selectTool('line')">
+            <button
+              class="tool-btn"
+              :class="{ active: activeTool === 'line' }"
+              @click="selectTool('line')"
+            >
               <Minus :size="18" />
             </button>
           </el-tooltip>
           <el-tooltip content="箭头 (A)" placement="bottom" :show-after="300">
-            <button class="tool-btn" :class="{ active: activeTool === 'arrow' }" @click="selectTool('arrow')">
+            <button
+              class="tool-btn"
+              :class="{ active: activeTool === 'arrow' }"
+              @click="selectTool('arrow')"
+            >
               <ArrowUpRight :size="18" />
             </button>
           </el-tooltip>
           <el-tooltip content="文字 (T)" placement="bottom" :show-after="300">
-            <button class="tool-btn" :class="{ active: activeTool === 'text' }" @click="selectTool('text')">
+            <button
+              class="tool-btn"
+              :class="{ active: activeTool === 'text' }"
+              @click="selectTool('text')"
+            >
               <Type :size="18" />
             </button>
           </el-tooltip>
-          <el-tooltip content="导入图片 (I)" placement="bottom" :show-after="300">
+          <el-tooltip
+            content="导入图片 (I)"
+            placement="bottom"
+            :show-after="300"
+          >
             <button class="tool-btn" @click="handleImportImage">
               <ImageIcon :size="18" />
             </button>
@@ -87,11 +135,24 @@
       <!-- 溢出菜单：收起的工具 -->
       <template v-if="hasOverflow">
         <div class="tool-divider" />
-        <el-popover placement="bottom" trigger="click" :width="220" :offset="8" popper-class="toolbar-overflow-popover">
+        <el-popover
+          placement="bottom"
+          trigger="click"
+          :width="220"
+          :offset="8"
+          popper-class="toolbar-overflow-popover"
+        >
           <template #reference>
             <div>
-              <el-tooltip content="更多工具" placement="bottom" :show-after="300">
-                <button class="tool-btn" :class="{ active: overflowHasActiveTool }">
+              <el-tooltip
+                content="更多工具"
+                placement="bottom"
+                :show-after="300"
+              >
+                <button
+                  class="tool-btn"
+                  :class="{ active: overflowHasActiveTool }"
+                >
                   <Ellipsis :size="18" />
                 </button>
               </el-tooltip>
@@ -102,18 +163,42 @@
             <template v-if="collapseDrawTools">
               <div class="overflow-section-title">绘图</div>
               <div class="overflow-grid">
-                <el-tooltip content="铅笔 (B)" placement="top" :show-after="300">
-                  <button class="tool-btn" :class="{ active: activeTool === 'pencil' }" @click="selectTool('pencil')">
+                <el-tooltip
+                  content="铅笔 (B)"
+                  placement="top"
+                  :show-after="300"
+                >
+                  <button
+                    class="tool-btn"
+                    :class="{ active: activeTool === 'pencil' }"
+                    @click="selectTool('pencil')"
+                  >
                     <Pencil :size="18" />
                   </button>
                 </el-tooltip>
-                <el-tooltip content="马克笔 (M)" placement="top" :show-after="300">
-                  <button class="tool-btn" :class="{ active: activeTool === 'marker' }" @click="selectTool('marker')">
+                <el-tooltip
+                  content="马克笔 (M)"
+                  placement="top"
+                  :show-after="300"
+                >
+                  <button
+                    class="tool-btn"
+                    :class="{ active: activeTool === 'marker' }"
+                    @click="selectTool('marker')"
+                  >
                     <Highlighter :size="18" />
                   </button>
                 </el-tooltip>
-                <el-tooltip content="橡皮擦 (E)" placement="top" :show-after="300">
-                  <button class="tool-btn" :class="{ active: activeTool === 'eraser' }" @click="selectTool('eraser')">
+                <el-tooltip
+                  content="橡皮擦 (E)"
+                  placement="top"
+                  :show-after="300"
+                >
+                  <button
+                    class="tool-btn"
+                    :class="{ active: activeTool === 'eraser' }"
+                    @click="selectTool('eraser')"
+                  >
                     <Eraser :size="18" />
                   </button>
                 </el-tooltip>
@@ -123,32 +208,76 @@
             <template v-if="collapseShapeTools">
               <div class="overflow-section-title">形状</div>
               <div class="overflow-grid">
-                <el-tooltip content="矩形 (R)" placement="top" :show-after="300">
-                  <button class="tool-btn" :class="{ active: activeTool === 'rect' }" @click="selectTool('rect')">
+                <el-tooltip
+                  content="矩形 (R)"
+                  placement="top"
+                  :show-after="300"
+                >
+                  <button
+                    class="tool-btn"
+                    :class="{ active: activeTool === 'rect' }"
+                    @click="selectTool('rect')"
+                  >
                     <Square :size="18" />
                   </button>
                 </el-tooltip>
-                <el-tooltip content="圆形 (O)" placement="top" :show-after="300">
-                  <button class="tool-btn" :class="{ active: activeTool === 'ellipse' }" @click="selectTool('ellipse')">
+                <el-tooltip
+                  content="圆形 (O)"
+                  placement="top"
+                  :show-after="300"
+                >
+                  <button
+                    class="tool-btn"
+                    :class="{ active: activeTool === 'ellipse' }"
+                    @click="selectTool('ellipse')"
+                  >
                     <Circle :size="18" />
                   </button>
                 </el-tooltip>
-                <el-tooltip content="线段 (L)" placement="top" :show-after="300">
-                  <button class="tool-btn" :class="{ active: activeTool === 'line' }" @click="selectTool('line')">
+                <el-tooltip
+                  content="线段 (L)"
+                  placement="top"
+                  :show-after="300"
+                >
+                  <button
+                    class="tool-btn"
+                    :class="{ active: activeTool === 'line' }"
+                    @click="selectTool('line')"
+                  >
                     <Minus :size="18" />
                   </button>
                 </el-tooltip>
-                <el-tooltip content="箭头 (A)" placement="top" :show-after="300">
-                  <button class="tool-btn" :class="{ active: activeTool === 'arrow' }" @click="selectTool('arrow')">
+                <el-tooltip
+                  content="箭头 (A)"
+                  placement="top"
+                  :show-after="300"
+                >
+                  <button
+                    class="tool-btn"
+                    :class="{ active: activeTool === 'arrow' }"
+                    @click="selectTool('arrow')"
+                  >
                     <ArrowUpRight :size="18" />
                   </button>
                 </el-tooltip>
-                <el-tooltip content="文字 (T)" placement="top" :show-after="300">
-                  <button class="tool-btn" :class="{ active: activeTool === 'text' }" @click="selectTool('text')">
+                <el-tooltip
+                  content="文字 (T)"
+                  placement="top"
+                  :show-after="300"
+                >
+                  <button
+                    class="tool-btn"
+                    :class="{ active: activeTool === 'text' }"
+                    @click="selectTool('text')"
+                  >
                     <Type :size="18" />
                   </button>
                 </el-tooltip>
-                <el-tooltip content="导入图片 (I)" placement="top" :show-after="300">
+                <el-tooltip
+                  content="导入图片 (I)"
+                  placement="top"
+                  :show-after="300"
+                >
                   <button class="tool-btn" @click="handleImportImage">
                     <ImageIcon :size="18" />
                   </button>
@@ -163,12 +292,20 @@
 
       <!-- 撤销/重做（始终可见） -->
       <div class="tool-group">
-        <el-tooltip content="撤销 (Ctrl+Z)" placement="bottom" :show-after="300">
+        <el-tooltip
+          content="撤销 (Ctrl+Z)"
+          placement="bottom"
+          :show-after="300"
+        >
           <button class="tool-btn" :disabled="!canUndo" @click="handleUndo">
             <Undo2 :size="18" />
           </button>
         </el-tooltip>
-        <el-tooltip content="重做 (Ctrl+Y)" placement="bottom" :show-after="300">
+        <el-tooltip
+          content="重做 (Ctrl+Y)"
+          placement="bottom"
+          :show-after="300"
+        >
           <button class="tool-btn" :disabled="!canRedo" @click="handleRedo">
             <Redo2 :size="18" />
           </button>
@@ -177,7 +314,11 @@
 
       <div class="tool-divider" />
 
-      <el-tooltip content="重置视图 (Ctrl+0)" placement="bottom" :show-after="300">
+      <el-tooltip
+        content="重置视图 (Ctrl+0)"
+        placement="bottom"
+        :show-after="300"
+      >
         <button class="tool-btn" @click="handleResetView">
           <Maximize :size="18" />
         </button>
@@ -186,8 +327,16 @@
 
     <!-- 右侧：操作按钮 -->
     <div class="toolbar-right">
-      <el-tooltip content="保存草图 (Ctrl+S)" placement="bottom" :show-after="300">
-        <button class="action-btn" :class="{ 'has-changes': isDirty, compact: compactActions }" @click="handleSave">
+      <el-tooltip
+        content="保存草图 (Ctrl+S)"
+        placement="bottom"
+        :show-after="300"
+      >
+        <button
+          class="action-btn"
+          :class="{ 'has-changes': isDirty, compact: compactActions }"
+          @click="handleSave"
+        >
           <Save :size="16" />
           <span v-if="!compactActions">保存</span>
           <span v-if="isDirty" class="dirty-dot" />
@@ -224,8 +373,16 @@
           </el-dropdown-menu>
         </template>
       </el-dropdown>
-      <el-tooltip content="发送到 AI 对话附件" placement="bottom" :show-after="300">
-        <button class="action-btn accent" :class="{ compact: compactActions }" @click="handleSendToChat">
+      <el-tooltip
+        content="发送到 AI 对话附件"
+        placement="bottom"
+        :show-after="300"
+      >
+        <button
+          class="action-btn accent"
+          :class="{ compact: compactActions }"
+          @click="handleSendToChat"
+        >
           <Send :size="16" />
           <span v-if="!compactActions">发送</span>
         </button>
@@ -280,13 +437,21 @@ const wrapperRef = ref<HTMLElement | null>(null);
 const { width: wrapperWidth } = useElementSize(wrapperRef);
 
 /** 右侧按钮隐藏文字，只显示图标 */
-const compactActions = computed(() => wrapperWidth.value > 0 && wrapperWidth.value < 950);
+const compactActions = computed(
+  () => wrapperWidth.value > 0 && wrapperWidth.value < 950
+);
 /** 形状工具组折叠 */
-const collapseShapeTools = computed(() => wrapperWidth.value > 0 && wrapperWidth.value < 820);
+const collapseShapeTools = computed(
+  () => wrapperWidth.value > 0 && wrapperWidth.value < 820
+);
 /** 绘图工具组折叠 */
-const collapseDrawTools = computed(() => wrapperWidth.value > 0 && wrapperWidth.value < 680);
+const collapseDrawTools = computed(
+  () => wrapperWidth.value > 0 && wrapperWidth.value < 680
+);
 /** 是否有溢出内容 */
-const hasOverflow = computed(() => collapseShapeTools.value || collapseDrawTools.value);
+const hasOverflow = computed(
+  () => collapseShapeTools.value || collapseDrawTools.value
+);
 
 /** 溢出菜单中是否包含当前激活的工具 */
 const drawTools: ToolType[] = ["pencil", "marker", "eraser"];

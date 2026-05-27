@@ -59,7 +59,13 @@ export interface ObjectLayer extends LayerBase {
 
 // ─── 对象类型 ───
 
-export type SketchObject = RectObject | EllipseObject | LineObject | ArrowObject | TextObject | ImageObject;
+export type SketchObject =
+  | RectObject
+  | EllipseObject
+  | LineObject
+  | ArrowObject
+  | TextObject
+  | ImageObject;
 
 export interface ObjectBase {
   id: string;

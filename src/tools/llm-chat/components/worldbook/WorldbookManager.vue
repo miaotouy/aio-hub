@@ -57,7 +57,11 @@ const { isDraggingOver: isDragging } = useFileDrop({
 </script>
 
 <template>
-  <div ref="dropZoneRef" class="worldbook-manager-container" :class="{ 'is-dragging': isDragging }">
+  <div
+    ref="dropZoneRef"
+    class="worldbook-manager-container"
+    :class="{ 'is-dragging': isDragging }"
+  >
     <!-- 拖拽覆盖层 -->
     <div v-if="isDragging" class="drop-overlay">
       <div class="drop-hint">

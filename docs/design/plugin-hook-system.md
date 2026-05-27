@@ -88,12 +88,20 @@ context.ui.observe(".chat-input-area", (el) => {
 interface PluginContext {
   // --- L1: 钩子 ---
   hooks: {
-    tap: (name: string, handler: Function, options?: { priority: number }) => void;
+    tap: (
+      name: string,
+      handler: Function,
+      options?: { priority: number }
+    ) => void;
   };
 
   // --- L3: 魔改 ---
   /** 拦截并替换宿主 Service 的方法 */
-  patch: (serviceName: string, methodName: string, handler: PatchHandler) => void;
+  patch: (
+    serviceName: string,
+    methodName: string,
+    handler: PatchHandler
+  ) => void;
   /** 获取宿主 Service 实例 (只读或 Proxy) */
   host: {
     getService: <T>(name: string) => T;

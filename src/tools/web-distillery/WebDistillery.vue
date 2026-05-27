@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { onMounted, onErrorCaptured, onUnmounted } from "vue";
-import { LayoutDashboard, Cookie, Network, BookOpen, Crosshair } from "lucide-vue-next";
+import {
+  LayoutDashboard,
+  Cookie,
+  Network,
+  BookOpen,
+  Crosshair,
+} from "lucide-vue-next";
 import { useWebDistilleryStore } from "./stores/store";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";

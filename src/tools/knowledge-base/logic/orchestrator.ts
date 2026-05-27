@@ -1,7 +1,7 @@
 /**
  * 知识库业务编排层 (统一编排器)
  * 职责: 协调 Core 层纯函数与 Tauri 后端，执行完整业务流程
- * 
+ *
  * 包含三大核心能力:
  * 1. IndexingOrchestrator - 索引编排（条目向量化、标签同步）
  * 2. SearchOrchestrator - 检索编排（环境准备、向量搜索）
@@ -58,7 +58,10 @@ export class IndexingOrchestrator {
     if (tags.length === 0) return;
 
     // 1. 获取缺失标签
-    const missingTags = await invoke<string[]>("kb_get_missing_tags", { modelId, tags });
+    const missingTags = await invoke<string[]>("kb_get_missing_tags", {
+      modelId,
+      tags,
+    });
     if (!missingTags || missingTags.length === 0) return;
 
     // 2. 调用核心层进行向量化
@@ -73,20 +76,32 @@ export class IndexingOrchestrator {
 
     // 3. 持久化回后端
     if (tagVectorMap.size > 0) {
-      await invoke("kb_sync_tag_vectors", { modelId, data: Array.from(tagVectorMap.entries()) });
+      await invoke("kb_sync_tag_vectors", {
+        modelId,
+        data: Array.from(tagVectorMap.entries()),
+      });
       await invoke("kb_rebuild_tag_pool_index", { modelId });
-      logger.info(`同步全局标签池完成，新增 ${tagVectorMap.size} 个标签`, { modelId });
+      logger.info(`同步全局标签池完成，新增 ${tagVectorMap.size} 个标签`, {
+        modelId,
+      });
     }
   }
 
   /**
    * 索引单个条目
    */
-  async indexEntry(params: { kbId: string; entry: Caiu; modelId: string; profile: LlmProfile }) {
+  async indexEntry(params: {
+    kbId: string;
+    entry: Caiu;
+    modelId: string;
+    profile: LlmProfile;
+  }) {
     const { kbId, entry, modelId, profile } = params;
 
     // 1. 同步条目关联的标签
-    const entryTags = (entry.tags || []).map((t) => (typeof t === "string" ? t : t.name)).filter(Boolean) as string[];
+    const entryTags = (entry.tags || [])
+      .map((t) => (typeof t === "string" ? t : t.name))
+      .filter(Boolean) as string[];
     await this.syncTags({ tags: entryTags, modelId, profile });
 
     // 2. 生成内容向量
@@ -122,7 +137,10 @@ export class IndexingOrchestrator {
     entryIds: string[];
     modelId: string;
     profile: LlmProfile;
-    onProgress?: (processed: number, failed?: { id: string; reason: string }[]) => void;
+    onProgress?: (
+      processed: number,
+      failed?: { id: string; reason: string }[]
+    ) => void;
     shouldStop?: () => boolean;
   }) {
     const { kbId, entryIds, modelId, profile, onProgress, shouldStop } = params;
@@ -151,7 +169,10 @@ export class IndexingOrchestrator {
             // 加载当前批次的完整条目
             const entries: Caiu[] = [];
             for (const id of batchIds) {
-              const entry = await invoke<Caiu | null>("kb_load_entry", { kbId, entryId: id });
+              const entry = await invoke<Caiu | null>("kb_load_entry", {
+                kbId,
+                entryId: id,
+              });
               if (entry) entries.push(entry);
             }
 
@@ -169,7 +190,12 @@ export class IndexingOrchestrator {
               });
             });
             if (batchTags.size > 0) {
-              await this.syncTags({ tags: Array.from(batchTags), modelId, profile, shouldStop });
+              await this.syncTags({
+                tags: Array.from(batchTags),
+                modelId,
+                profile,
+                shouldStop,
+              });
             }
 
             // 批量生成向量
@@ -183,7 +209,9 @@ export class IndexingOrchestrator {
 
             if (response.data) {
               const totalTokens = response.usage?.promptTokens ?? 0;
-              const perEntryTokens = Math.floor(totalTokens / response.data.length);
+              const perEntryTokens = Math.floor(
+                totalTokens / response.data.length
+              );
 
               const syncTasks = response.data.map(async (item, index) => {
                 const entry = entries[index];
@@ -201,7 +229,10 @@ export class IndexingOrchestrator {
           } catch (error: any) {
             onProgress?.(
               0,
-              batchIds.map((id) => ({ id, reason: error.message || "批量处理失败" }))
+              batchIds.map((id) => ({
+                id,
+                reason: error.message || "批量处理失败",
+              }))
             );
           }
         }
@@ -223,7 +254,10 @@ export class VectorSyncManager {
    */
   async checkCoverage(params: { kbIds: string[]; modelId: string }) {
     const { kbIds, modelId } = params;
-    const report = await invoke<any>("kb_check_vector_coverage", { kbIds, modelId });
+    const report = await invoke<any>("kb_check_vector_coverage", {
+      kbIds,
+      modelId,
+    });
 
     return {
       missingEntries: report.missingEntries as number,
@@ -253,7 +287,10 @@ export class VectorSyncManager {
       const [kbId, caiuId] = missingMap[i];
       try {
         // 加载条目内容
-        const entry = await invoke<Caiu | null>("kb_load_entry", { kbId, entryId: caiuId });
+        const entry = await invoke<Caiu | null>("kb_load_entry", {
+          kbId,
+          entryId: caiuId,
+        });
         if (entry) {
           // 调用索引编排器的单条索引逻辑
           await this.indexingOrchestrator.indexEntry({
@@ -298,7 +335,9 @@ export class SearchOrchestrator {
     extraFilters?: Record<string, any>;
     vector_payload?: number[];
     skipPrep?: boolean;
-    onCoverageRequired?: (data: CoverageData) => Promise<"cancel" | "fill" | "ignore">;
+    onCoverageRequired?: (
+      data: CoverageData
+    ) => Promise<"cancel" | "fill" | "ignore">;
   }): Promise<SearchResult[]> {
     const {
       query,
@@ -326,7 +365,10 @@ export class SearchOrchestrator {
       if (!skipPrep) {
         // A. 覆盖率检查与补全 (由外部 UI 控制)
         if (onCoverageRequired && this.syncManager) {
-          const coverage = await this.syncManager.checkCoverage({ kbIds, modelId });
+          const coverage = await this.syncManager.checkCoverage({
+            kbIds,
+            modelId,
+          });
           if (coverage.missingEntries > 0) {
             const action = await onCoverageRequired({
               ...coverage,

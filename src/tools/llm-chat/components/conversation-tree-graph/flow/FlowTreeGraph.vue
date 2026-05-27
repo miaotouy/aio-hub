@@ -1,5 +1,10 @@
 <template>
-  <div ref="wrapperRef" class="flow-tree-graph-wrapper" tabindex="0" style="outline: none">
+  <div
+    ref="wrapperRef"
+    class="flow-tree-graph-wrapper"
+    tabindex="0"
+    style="outline: none"
+  >
     <VueFlow
       :nodes="nodes"
       :edges="edges"
@@ -17,7 +22,11 @@
       @node-context-menu="handleNodeContextMenu"
     >
       <!-- 背景网格 -->
-      <Background v-if="viewSettings.showBackground" pattern-color="#aaa" :gap="16" />
+      <Background
+        v-if="viewSettings.showBackground"
+        pattern-color="#aaa"
+        :gap="16"
+      />
 
       <!-- 小地图 -->
       <MiniMap v-if="viewSettings.showMiniMap" />
@@ -51,7 +60,10 @@
 
       <!-- 自定义连接线 -->
       <template #connection-line="props">
-        <CustomConnectionLine v-bind="props" :connection-state="connectionPreviewState" />
+        <CustomConnectionLine
+          v-bind="props"
+          :connection-state="connectionPreviewState"
+        />
       </template>
     </VueFlow>
 
@@ -59,7 +71,9 @@
     <div v-if="viewSettings.showHud" class="graph-hud-panel">
       <div class="hud-item">
         <span class="hud-label">FPS</span>
-        <span class="hud-value" :class="{ 'low-fps': graphStats.fps < 30 }">{{ graphStats.fps }}</span>
+        <span class="hud-value" :class="{ 'low-fps': graphStats.fps < 30 }">{{
+          graphStats.fps
+        }}</span>
       </div>
       <div class="hud-item">
         <span class="hud-label">NODES</span>
@@ -68,7 +82,11 @@
       <div class="hud-item">
         <span class="hud-label">MODE</span>
         <span class="hud-value">{{
-          layoutMode === "tree" ? "TREE" : layoutMode === "physics" ? "PHYSICS" : "STATIC"
+          layoutMode === "tree"
+            ? "TREE"
+            : layoutMode === "physics"
+              ? "PHYSICS"
+              : "STATIC"
         }}</span>
       </div>
       <div class="hud-item">
@@ -97,28 +115,46 @@
             :placement="isNarrowLayout ? 'left' : 'bottom'"
           >
             <el-button
-              :icon="layoutMode === 'tree' ? Grid : layoutMode === 'physics' ? Share : Minus"
+              :icon="
+                layoutMode === 'tree'
+                  ? Grid
+                  : layoutMode === 'physics'
+                    ? Share
+                    : Minus
+              "
               @click="toggleLayoutMode"
             />
           </el-tooltip>
 
           <!-- 重置布局按钮 -->
-          <el-tooltip content="重置布局" :placement="isNarrowLayout ? 'left' : 'bottom'">
+          <el-tooltip
+            content="重置布局"
+            :placement="isNarrowLayout ? 'left' : 'bottom'"
+          >
             <el-button :icon="Refresh" @click="resetLayout" />
           </el-tooltip>
 
           <!-- 撤销按钮 -->
-          <el-tooltip :content="undoTooltip" :placement="isNarrowLayout ? 'left' : 'bottom'">
+          <el-tooltip
+            :content="undoTooltip"
+            :placement="isNarrowLayout ? 'left' : 'bottom'"
+          >
             <el-button :icon="ArrowLeft" :disabled="!canUndo" @click="undo" />
           </el-tooltip>
 
           <!-- 重做按钮 -->
-          <el-tooltip :content="redoTooltip" :placement="isNarrowLayout ? 'left' : 'bottom'">
+          <el-tooltip
+            :content="redoTooltip"
+            :placement="isNarrowLayout ? 'left' : 'bottom'"
+          >
             <el-button :icon="ArrowRight" :disabled="!canRedo" @click="redo" />
           </el-tooltip>
 
           <!-- 历史记录按钮 -->
-          <el-tooltip content="查看操作历史" :placement="isNarrowLayout ? 'left' : 'bottom'">
+          <el-tooltip
+            content="查看操作历史"
+            :placement="isNarrowLayout ? 'left' : 'bottom'"
+          >
             <el-button
               :icon="Timer"
               :type="historyPanelState.visible ? 'primary' : 'default'"
@@ -127,13 +163,22 @@
           </el-tooltip>
 
           <!-- 视图设置按钮 -->
-          <el-tooltip content="视图设置" :placement="isNarrowLayout ? 'left' : 'bottom'">
+          <el-tooltip
+            content="视图设置"
+            :placement="isNarrowLayout ? 'left' : 'bottom'"
+          >
             <el-button ref="viewSettingsBtnRef" :icon="Operation" />
           </el-tooltip>
 
           <!-- 使用说明按钮 -->
-          <el-tooltip content="使用说明" :placement="isNarrowLayout ? 'left' : 'bottom'">
-            <el-button :icon="QuestionFilled" @click="isUsageGuideVisible = true" />
+          <el-tooltip
+            content="使用说明"
+            :placement="isNarrowLayout ? 'left' : 'bottom'"
+          >
+            <el-button
+              :icon="QuestionFilled"
+              @click="isUsageGuideVisible = true"
+            />
           </el-tooltip>
 
           <!-- 调试模式切换按钮 - 仅在设置中启用调试模式时显示 -->
@@ -142,24 +187,45 @@
               :content="debugMode ? '关闭调试叠加层' : '显示调试叠加层'"
               :placement="isNarrowLayout ? 'left' : 'bottom'"
             >
-              <el-button :icon="View" :type="debugMode ? 'primary' : 'default'" @click="toggleDebugMode" />
+              <el-button
+                :icon="View"
+                :type="debugMode ? 'primary' : 'default'"
+                @click="toggleDebugMode"
+              />
             </el-tooltip>
 
             <!-- 复制调试信息按钮 - 与调试模式按钮一起出现，保持布局稳定 -->
-            <el-tooltip content="复制调试信息到剪贴板" :placement="isNarrowLayout ? 'left' : 'bottom'">
-              <el-button :icon="CopyDocument" :disabled="!debugMode" @click="copyDebugInfo" />
+            <el-tooltip
+              content="复制调试信息到剪贴板"
+              :placement="isNarrowLayout ? 'left' : 'bottom'"
+            >
+              <el-button
+                :icon="CopyDocument"
+                :disabled="!debugMode"
+                @click="copyDebugInfo"
+              />
             </el-tooltip>
           </template>
 
           <!-- 收起按钮 -->
-          <el-tooltip content="收起工具栏" :placement="isNarrowLayout ? 'left' : 'bottom'">
-            <el-button class="rotate-icon" :icon="DArrowRight" @click="isControlsExpanded = false" />
+          <el-tooltip
+            content="收起工具栏"
+            :placement="isNarrowLayout ? 'left' : 'bottom'"
+          >
+            <el-button
+              class="rotate-icon"
+              :icon="DArrowRight"
+              @click="isControlsExpanded = false"
+            />
           </el-tooltip>
         </el-button-group>
 
         <!-- 展开按钮 (折叠状态下显示) -->
         <div v-else>
-          <el-tooltip content="展开工具栏" :placement="isNarrowLayout ? 'left' : 'bottom'">
+          <el-tooltip
+            content="展开工具栏"
+            :placement="isNarrowLayout ? 'left' : 'bottom'"
+          >
             <el-button
               class="rotate-icon"
               :icon="DArrowLeft"
@@ -190,7 +256,14 @@
       }"
     >
       <defs>
-        <marker id="arrowhead-debug" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+        <marker
+          id="arrowhead-debug"
+          markerWidth="10"
+          markerHeight="7"
+          refX="9"
+          refY="3.5"
+          orient="auto"
+        >
           <polygon points="0 0, 10 3.5, 0 7" class="debug-link-arrow" />
         </marker>
         <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
@@ -205,8 +278,17 @@
       <!-- 绘制连线 -->
       <g class="debug-links">
         <g v-for="link in debugLinkPaths" :key="link?.id">
-          <path :d="link?.path" class="debug-link-path" marker-end="url(#arrowhead-debug)" />
-          <text v-if="link?.midpoint" :x="link.midpoint.x" :y="link.midpoint.y" class="debug-text debug-link-text">
+          <path
+            :d="link?.path"
+            class="debug-link-path"
+            marker-end="url(#arrowhead-debug)"
+          />
+          <text
+            v-if="link?.midpoint"
+            :x="link.midpoint.x"
+            :y="link.midpoint.y"
+            class="debug-text debug-link-text"
+          >
             {{ link.debugText }}
           </text>
         </g>
@@ -215,7 +297,13 @@
       <!-- 绘制节点 -->
       <g class="debug-nodes">
         <g v-for="node in debugNodeRects" :key="node.id">
-          <rect :x="node.x" :y="node.y" :width="node.width" :height="node.height" class="debug-node-rect" />
+          <rect
+            :x="node.x"
+            :y="node.y"
+            :width="node.width"
+            :height="node.height"
+            class="debug-node-rect"
+          />
           <circle :cx="node.cx" :cy="node.cy" r="4" class="debug-node-center" />
           <line
             v-if="Math.abs(node.vx) > 0.01 || Math.abs(node.vy) > 0.01"
@@ -243,21 +331,53 @@
             class="debug-text-bg"
           />
           <!-- 节点信息文本 -->
-          <text :x="node.x + 4" :y="node.y + 14" class="debug-text debug-node-text">
-            <tspan v-for="(line, index) in node.textLines" :key="index" :x="node.x + 4" :dy="index === 0 ? 0 : '1.2em'">
+          <text
+            :x="node.x + 4"
+            :y="node.y + 14"
+            class="debug-text debug-node-text"
+          >
+            <tspan
+              v-for="(line, index) in node.textLines"
+              :key="index"
+              :x="node.x + 4"
+              :dy="index === 0 ? 0 : '1.2em'"
+            >
               {{ line }}
             </tspan>
           </text>
 
           <!-- 状态徽章 -->
-          <g :transform="`translate(${node.x + node.width - 4}, ${node.y + 4})`">
+          <g
+            :transform="`translate(${node.x + node.width - 4}, ${node.y + 4})`"
+          >
             <g v-if="node.isActiveLeaf">
-              <rect x="-40" y="-2" width="40" height="14" rx="4" class="debug-badge-bg-active" />
-              <text text-anchor="end" y="8" class="debug-badge-text-active">● Active</text>
+              <rect
+                x="-40"
+                y="-2"
+                width="40"
+                height="14"
+                rx="4"
+                class="debug-badge-bg-active"
+              />
+              <text text-anchor="end" y="8" class="debug-badge-text-active">
+                ● Active
+              </text>
             </g>
-            <g v-if="!node.isEnabled" :transform="`translate(0, ${node.isActiveLeaf ? 16 : 0})`">
-              <rect x="-50" y="-2" width="50" height="14" rx="4" class="debug-badge-bg-disabled" />
-              <text text-anchor="end" y="8" class="debug-badge-text-disabled">● Disabled</text>
+            <g
+              v-if="!node.isEnabled"
+              :transform="`translate(0, ${node.isActiveLeaf ? 16 : 0})`"
+            >
+              <rect
+                x="-50"
+                y="-2"
+                width="50"
+                height="14"
+                rx="4"
+                class="debug-badge-bg-disabled"
+              />
+              <text text-anchor="end" y="8" class="debug-badge-text-disabled">
+                ● Disabled
+              </text>
             </g>
           </g>
         </g>
@@ -265,7 +385,14 @@
 
       <!-- 速度向量箭头标记 -->
       <defs>
-        <marker id="arrowhead-velocity" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+        <marker
+          id="arrowhead-velocity"
+          markerWidth="8"
+          markerHeight="6"
+          refX="7"
+          refY="3"
+          orient="auto"
+        >
           <polygon points="0 0, 8 3, 0 6" class="debug-velocity-arrow" />
         </marker>
       </defs>
@@ -304,13 +431,19 @@
     >
       <div class="view-settings-list">
         <div class="view-setting-item">
-          <el-checkbox v-model="viewSettings.showBackground">显示背景网格</el-checkbox>
+          <el-checkbox v-model="viewSettings.showBackground"
+            >显示背景网格</el-checkbox
+          >
         </div>
         <div class="view-setting-item">
-          <el-checkbox v-model="viewSettings.showMiniMap">显示小地图</el-checkbox>
+          <el-checkbox v-model="viewSettings.showMiniMap"
+            >显示小地图</el-checkbox
+          >
         </div>
         <div class="view-setting-item">
-          <el-checkbox v-model="viewSettings.showControls">显示控制器</el-checkbox>
+          <el-checkbox v-model="viewSettings.showControls"
+            >显示控制器</el-checkbox
+          >
         </div>
         <div class="view-setting-item">
           <el-checkbox v-model="viewSettings.showHud">显示信息面板</el-checkbox>
@@ -318,7 +451,11 @@
         <el-divider style="margin: 8px 0" />
         <div class="view-setting-item mode-setting">
           <span class="setting-label">默认布局模式</span>
-          <el-select v-model="viewSettings.defaultLayoutMode" size="small" style="width: 160px">
+          <el-select
+            v-model="viewSettings.defaultLayoutMode"
+            size="small"
+            style="width: 160px"
+          >
             <el-option label="动态树状" value="tree" />
             <el-option label="物理引力" value="physics" />
             <el-option label="静态树状" value="static" />
@@ -414,7 +551,12 @@ useResizeObserver(wrapperRef, (entries) => {
 // Composable
 const agentStore = useAgentStore();
 const llmChatStore = useLlmChatStore();
-const { settings: chatSettings, updateSettings, loadSettings, saveSettings } = useChatSettings();
+const {
+  settings: chatSettings,
+  updateSettings,
+  loadSettings,
+  saveSettings,
+} = useChatSettings();
 
 // 确保聊天设置已加载
 loadSettings();
@@ -444,7 +586,7 @@ watch(
   () => {
     saveSettings();
   },
-  { deep: true },
+  { deep: true }
 );
 
 // 上下文菜单状态
@@ -551,7 +693,9 @@ const toggleHistoryPanel = (event: MouseEvent) => {
   if (historyPanelState.value.visible) {
     closeHistoryPanel();
   } else {
-    const buttonGroupEl = (event.currentTarget as HTMLElement).closest(".el-button-group");
+    const buttonGroupEl = (event.currentTarget as HTMLElement).closest(
+      ".el-button-group"
+    );
     if (!buttonGroupEl) return;
 
     const rect = buttonGroupEl.getBoundingClientRect();
@@ -586,7 +730,11 @@ const handleNodeViewDetail = (nodeId: string, event: MouseEvent) => {
 
 // 计算选中节点用于详情显示
 const selectedNodeForDetail = computed<ChatMessageNode | null>(() => {
-  if (!detailPopupState.value.nodeId || !props.session || !props.session.nodes) {
+  if (
+    !detailPopupState.value.nodeId ||
+    !props.session ||
+    !props.session.nodes
+  ) {
     return null;
   }
   return props.session.nodes[detailPopupState.value.nodeId] || null;
@@ -601,7 +749,9 @@ const agentConfigForDetail = computed(() => {
   const agentId = selectedNodeForDetail.value.metadata?.agentId;
   if (!agentId) {
     // 如果消息没有关联 Agent，则尝试使用当前激活的 Agent
-    const currentAgent = agentStore.getAgentById(agentStore.currentAgentId ?? "");
+    const currentAgent = agentStore.getAgentById(
+      agentStore.currentAgentId ?? ""
+    );
     return {
       llmThinkRules: currentAgent?.llmThinkRules,
       richTextStyleOptions: currentAgent?.richTextStyleOptions,
@@ -617,7 +767,11 @@ const agentConfigForDetail = computed(() => {
 
 // 切换布局模式
 const toggleLayoutMode = () => {
-  const modes: ("tree" | "physics" | "static")[] = ["tree", "physics", "static"];
+  const modes: ("tree" | "physics" | "static")[] = [
+    "tree",
+    "physics",
+    "static",
+  ];
   const currentIndex = modes.indexOf(layoutMode.value);
   const newMode = modes[(currentIndex + 1) % modes.length];
   switchLayoutMode(newMode);
@@ -647,14 +801,19 @@ const copyDebugInfo = () => {
         velocity: {
           vx: (d3Node?.vx ?? 0).toFixed(3),
           vy: (d3Node?.vy ?? 0).toFixed(3),
-          speed: (Math.sqrt((d3Node?.vx ?? 0) ** 2 + (d3Node?.vy ?? 0) ** 2) * 50).toFixed(2),
+          speed: (
+            Math.sqrt((d3Node?.vx ?? 0) ** 2 + (d3Node?.vy ?? 0) ** 2) * 50
+          ).toFixed(2),
         },
         size: {
           width: (d3Node?.width ?? 0).toFixed(0),
           height: (d3Node?.height ?? 0).toFixed(0),
         },
         fixed:
-          d3Node?.fx !== undefined && d3Node?.fx !== null && d3Node?.fy !== undefined && d3Node?.fy !== null
+          d3Node?.fx !== undefined &&
+          d3Node?.fx !== null &&
+          d3Node?.fy !== undefined &&
+          d3Node?.fy !== null
             ? { fx: d3Node.fx.toFixed(2), fy: d3Node.fy.toFixed(2) }
             : null,
         state: {
@@ -670,8 +829,10 @@ const copyDebugInfo = () => {
       .map((link) => {
         const d3Link = d3Links.value.find(
           (l) =>
-            (typeof l.source === "object" ? l.source.id : l.source) === link?.sourceId &&
-            (typeof l.target === "object" ? l.target.id : l.target) === link?.targetId,
+            (typeof l.source === "object" ? l.source.id : l.source) ===
+              link?.sourceId &&
+            (typeof l.target === "object" ? l.target.id : l.target) ===
+              link?.targetId
         );
 
         return {
@@ -705,12 +866,14 @@ const copyDebugInfo = () => {
     const jsonString = JSON.stringify(debugInfo, null, 2);
     navigator.clipboard.writeText(jsonString).then(
       () => {
-        customMessage.success(`已复制调试信息 (${nodesInfo.length} 节点, ${linksInfo.length} 连线)`);
+        customMessage.success(
+          `已复制调试信息 (${nodesInfo.length} 节点, ${linksInfo.length} 连线)`
+        );
       },
       (err) => {
         console.error("复制失败:", err);
         customMessage.error("复制失败，请查看控制台");
-      },
+      }
     );
   } catch (error) {
     console.error("生成调试信息时出错:", error);
@@ -730,7 +893,7 @@ watch(
       updateChart();
     }
   },
-  { deep: true },
+  { deep: true }
 );
 
 // 监听会话 ID 变化（切换会话时自动聚焦到当前对话末端）
@@ -749,11 +912,14 @@ watch(
 // 组件挂载时立即更新一次图表
 onMounted(() => {
   // 应用默认布局模式
-  if (viewSettings.value.defaultLayoutMode && layoutMode.value !== viewSettings.value.defaultLayoutMode) {
+  if (
+    viewSettings.value.defaultLayoutMode &&
+    layoutMode.value !== viewSettings.value.defaultLayoutMode
+  ) {
     switchLayoutMode(viewSettings.value.defaultLayoutMode);
   }
   updateChart();
-  
+
   // 首次挂载时自动聚焦到激活节点（当前对话末端）
   setTimeout(() => {
     locateActiveNode();
@@ -844,7 +1010,7 @@ const dimensionsWatchStop = watch(
       updateNodeDimensions(dimensionsMap);
     }
   },
-  { deep: true, flush: "post" }, // flush: 'post' 确保在 DOM 更新后执行
+  { deep: true, flush: "post" } // flush: 'post' 确保在 DOM 更新后执行
 );
 
 onUnmounted(() => {
@@ -876,7 +1042,12 @@ const debugNodeRects = computed(() => {
       `Vel: (${(node.vx ?? 0).toFixed(1)}, ${(node.vy ?? 0).toFixed(1)}) | Speed: ${(Math.sqrt((node.vx ?? 0) ** 2 + (node.vy ?? 0) ** 2) * 50).toFixed(1)}`,
       `Size: ${node.width.toFixed(0)}x${node.height.toFixed(0)}`,
     ];
-    if (node.fx !== undefined && node.fx !== null && node.fy !== undefined && node.fy !== null) {
+    if (
+      node.fx !== undefined &&
+      node.fx !== null &&
+      node.fy !== undefined &&
+      node.fy !== null
+    ) {
       textLines.push(`Fixed: (${node.fx.toFixed(0)}, ${node.fy.toFixed(0)})`);
     }
 
@@ -905,8 +1076,14 @@ const debugLinkPaths = computed(() => {
   if (!debugMode.value) return [];
   return d3Links.value
     .map((link, index) => {
-      const source = typeof link.source === "object" ? link.source : d3Nodes.value.find((n) => n.id === link.source);
-      const target = typeof link.target === "object" ? link.target : d3Nodes.value.find((n) => n.id === link.target);
+      const source =
+        typeof link.source === "object"
+          ? link.source
+          : d3Nodes.value.find((n) => n.id === link.source);
+      const target =
+        typeof link.target === "object"
+          ? link.target
+          : d3Nodes.value.find((n) => n.id === link.target);
 
       if (!source || !target) return null;
 
@@ -927,8 +1104,10 @@ const debugLinkPaths = computed(() => {
       return {
         id: `link-${index}`,
         path: `M ${sourcePos.x} ${sourcePos.y} L ${targetPos.x} ${targetPos.y}`,
-        sourceId: typeof link.source === "object" ? link.source.id : link.source,
-        targetId: typeof link.target === "object" ? link.target.id : link.target,
+        sourceId:
+          typeof link.source === "object" ? link.source.id : link.source,
+        targetId:
+          typeof link.target === "object" ? link.target.id : link.target,
         midpoint,
         debugText,
       };
@@ -955,7 +1134,7 @@ watch(
       }
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 onUnmounted(() => {

@@ -12,7 +12,9 @@ export const useThemeStore = defineStore("theme", () => {
   const isDark = ref(false);
 
   const themeMode = computed(() => settingsStore.settings.appearance.theme);
-  const themeColor = computed(() => settingsStore.settings.appearance.themeColor || "#409EFF");
+  const themeColor = computed(
+    () => settingsStore.settings.appearance.themeColor || "#409EFF"
+  );
 
   const initTheme = () => {
     updateIsDark();
@@ -68,11 +70,13 @@ export const useThemeStore = defineStore("theme", () => {
   });
 
   // 监听系统主题变化 (当模式为 auto 时)
-  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
-    if (themeMode.value === "auto") {
-      updateIsDark();
-    }
-  });
+  window
+    .matchMedia("(prefers-color-scheme: dark)")
+    .addEventListener("change", () => {
+      if (themeMode.value === "auto") {
+        updateIsDark();
+      }
+    });
 
   return {
     isDark,

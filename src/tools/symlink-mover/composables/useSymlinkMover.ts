@@ -26,16 +26,21 @@ export function useSymlinkMoverLogic() {
   /**
    * 验证单个文件是否适合创建链接
    */
-  const validateFile = async (options: ValidateFileOptions): Promise<FileValidation | null> => {
+  const validateFile = async (
+    options: ValidateFileOptions
+  ): Promise<FileValidation | null> => {
     logger.info("验证文件", options);
 
     return await errorHandler.wrapAsync(
       async () => {
-        const validation = await invoke<FileValidation>("validate_file_for_link", {
-          sourcePath: options.sourcePath,
-          targetDir: options.targetDir,
-          linkType: options.linkType,
-        });
+        const validation = await invoke<FileValidation>(
+          "validate_file_for_link",
+          {
+            sourcePath: options.sourcePath,
+            targetDir: options.targetDir,
+            linkType: options.linkType,
+          }
+        );
 
         logger.info("文件验证完成", { path: options.sourcePath, validation });
         return validation;
@@ -59,17 +64,25 @@ export function useSymlinkMoverLogic() {
     operationMode: OperationMode
   ): Promise<FileItem[]> => {
     if (files.length === 0) return files;
-    logger.info("批量验证文件", { count: files.length, targetDir, linkType, operationMode });
+    logger.info("批量验证文件", {
+      count: files.length,
+      targetDir,
+      linkType,
+      operationMode,
+    });
 
     const validatedFiles = [...files];
 
     const validations = await errorHandler.wrapAsync(
       async () => {
-        const result = await invoke<FileValidation[]>("validate_files_for_link", {
-          sourcePaths: files.map((f) => f.path),
-          targetDir,
-          linkType,
-        });
+        const result = await invoke<FileValidation[]>(
+          "validate_files_for_link",
+          {
+            sourcePaths: files.map((f) => f.path),
+            targetDir,
+            linkType,
+          }
+        );
         logger.info("批量验证完成", { count: result.length });
         return result;
       },
@@ -146,8 +159,13 @@ export function useSymlinkMoverLogic() {
   /**
    * 合并文件列表（去重）
    */
-  const mergeFileItems = (existingFiles: FileItem[], newFiles: FileItem[]): FileItem[] => {
-    const uniqueNewFiles = newFiles.filter((nf) => !existingFiles.some((sf) => sf.path === nf.path));
+  const mergeFileItems = (
+    existingFiles: FileItem[],
+    newFiles: FileItem[]
+  ): FileItem[] => {
+    const uniqueNewFiles = newFiles.filter(
+      (nf) => !existingFiles.some((sf) => sf.path === nf.path)
+    );
     return [...existingFiles, ...uniqueNewFiles];
   };
 
@@ -165,7 +183,9 @@ export function useSymlinkMoverLogic() {
   /**
    * 移动文件并创建链接
    */
-  const moveAndLink = async (options: MoveAndLinkOptions): Promise<string | null> => {
+  const moveAndLink = async (
+    options: MoveAndLinkOptions
+  ): Promise<string | null> => {
     logger.info("开始移动文件并创建链接", options);
 
     return await errorHandler.wrapAsync(
@@ -191,7 +211,9 @@ export function useSymlinkMoverLogic() {
   /**
    * 仅创建链接（不移动文件）
    */
-  const createLinksOnly = async (options: CreateLinksOnlyOptions): Promise<string | null> => {
+  const createLinksOnly = async (
+    options: CreateLinksOnlyOptions
+  ): Promise<string | null> => {
     logger.info("开始创建链接", options);
 
     return await errorHandler.wrapAsync(
@@ -241,7 +263,9 @@ export function useSymlinkMoverLogic() {
   /**
    * 开始监听进度事件
    */
-  const startProgressListener = async (onProgress: (progress: CopyProgress) => void): Promise<boolean> => {
+  const startProgressListener = async (
+    onProgress: (progress: CopyProgress) => void
+  ): Promise<boolean> => {
     logger.info("开始监听进度事件");
 
     // 如果已有监听器，先清理
@@ -252,11 +276,14 @@ export function useSymlinkMoverLogic() {
 
     const result = await errorHandler.wrapAsync(
       async () => {
-        progressUnlisten = await listen<CopyProgress>("copy-progress", (event) => {
-          const progress = event.payload;
-          logger.debug("收到进度事件", progress);
-          onProgress(progress);
-        });
+        progressUnlisten = await listen<CopyProgress>(
+          "copy-progress",
+          (event) => {
+            const progress = event.payload;
+            logger.debug("收到进度事件", progress);
+            onProgress(progress);
+          }
+        );
         logger.info("进度监听器已启动");
         return true;
       },
@@ -291,7 +318,9 @@ export function useSymlinkMoverLogic() {
 
     return await errorHandler.wrapAsync(
       async () => {
-        const log = await invoke<OperationLog | null>("get_latest_operation_log");
+        const log = await invoke<OperationLog | null>(
+          "get_latest_operation_log"
+        );
         logger.info("获取最新日志成功", { hasLog: !!log });
         return log;
       },
@@ -396,41 +425,50 @@ export function useSymlinkMoverLogic() {
   /**
    * 获取最新操作摘要（格式化）
    */
-  const getLatestOperationSummary = async (): Promise<FormattedLogSummary | null> => {
-    const log = await getLatestLog();
-    if (!log) return null;
+  const getLatestOperationSummary =
+    async (): Promise<FormattedLogSummary | null> => {
+      const log = await getLatestLog();
+      if (!log) return null;
 
-    return {
-      time: formatTimestamp(log.timestamp),
-      operationType: getOperationTypeLabel(log.operationType),
-      linkType: getLinkTypeLabel(log.linkType),
-      status: log.errorCount > 0 ? (log.successCount > 0 ? "partial" : "failed") : "success",
-      summary: formatLogTicker(log),
-      details: {
-        totalFiles: log.sourceCount,
-        successFiles: log.successCount,
-        failedFiles: log.errorCount,
-        totalSize: formatBytes(log.totalSize),
-        duration: formatDuration(log.durationMs),
-        targetDirectory: log.targetDirectory,
-      },
-      errors: log.errors.length > 0 ? log.errors : undefined,
+      return {
+        time: formatTimestamp(log.timestamp),
+        operationType: getOperationTypeLabel(log.operationType),
+        linkType: getLinkTypeLabel(log.linkType),
+        status:
+          log.errorCount > 0
+            ? log.successCount > 0
+              ? "partial"
+              : "failed"
+            : "success",
+        summary: formatLogTicker(log),
+        details: {
+          totalFiles: log.sourceCount,
+          successFiles: log.successCount,
+          failedFiles: log.errorCount,
+          totalSize: formatBytes(log.totalSize),
+          duration: formatDuration(log.durationMs),
+          targetDirectory: log.targetDirectory,
+        },
+        errors: log.errors.length > 0 ? log.errors : undefined,
+      };
     };
-  };
 
   /**
    * 获取操作历史（格式化）
    */
-  const getOperationHistory = async (limit?: number): Promise<FormattedLogSummary[]> => {
+  const getOperationHistory = async (
+    limit?: number
+  ): Promise<FormattedLogSummary[]> => {
     const logs = await getAllLogs();
     const formattedLogs = logs.map((log) => ({
       time: formatTimestamp(log.timestamp),
       operationType: getOperationTypeLabel(log.operationType),
       linkType: getLinkTypeLabel(log.linkType),
-      status: (log.errorCount > 0 ? (log.successCount > 0 ? "partial" : "failed") : "success") as
-        | "success"
-        | "partial"
-        | "failed",
+      status: (log.errorCount > 0
+        ? log.successCount > 0
+          ? "partial"
+          : "failed"
+        : "success") as "success" | "partial" | "failed",
       summary: formatLogTicker(log),
       details: {
         totalFiles: log.sourceCount,

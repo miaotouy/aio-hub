@@ -57,24 +57,24 @@
     }
   `;
 
-  const container = document.createElement('div');
-  const shadow = container.attachShadow({ mode: 'open' });
+  const container = document.createElement("div");
+  const shadow = container.attachShadow({ mode: "open" });
 
-  const styleEl = document.createElement('style');
+  const styleEl = document.createElement("style");
   styleEl.textContent = style;
   shadow.appendChild(styleEl);
 
-  const overlay = document.createElement('div');
-  overlay.id = 'distillery-overlay';
-  const label = document.createElement('div');
-  label.id = 'distillery-label';
+  const overlay = document.createElement("div");
+  overlay.id = "distillery-overlay";
+  const label = document.createElement("div");
+  label.id = "distillery-label";
   overlay.appendChild(label);
   shadow.appendChild(overlay);
 
   document.body.appendChild(container);
 
   let lastElement = null;
-  let currentOptions = { mode: 'include', continuous: true };
+  let currentOptions = { mode: "include", continuous: true };
   let persistentHighlights = new Map(); // selector -> element
 
   function updatePersistentHighlights() {
@@ -87,10 +87,10 @@
         continue;
       }
       const rect = targetEl.getBoundingClientRect();
-      highlightEl.style.top = (rect.top + window.scrollY) + 'px';
-      highlightEl.style.left = (rect.left + window.scrollX) + 'px';
-      highlightEl.style.width = rect.width + 'px';
-      highlightEl.style.height = rect.height + 'px';
+      highlightEl.style.top = rect.top + window.scrollY + "px";
+      highlightEl.style.left = rect.left + window.scrollX + "px";
+      highlightEl.style.width = rect.width + "px";
+      highlightEl.style.height = rect.height + "px";
     }
   }
 
@@ -100,13 +100,13 @@
     const targetEl = document.querySelector(selector);
     if (!targetEl) return;
 
-    const highlightEl = document.createElement('div');
+    const highlightEl = document.createElement("div");
     highlightEl.className = `distillery-persistent-highlight mode-${mode}`;
     const rect = targetEl.getBoundingClientRect();
-    highlightEl.style.top = (rect.top + window.scrollY) + 'px';
-    highlightEl.style.left = (rect.left + window.scrollX) + 'px';
-    highlightEl.style.width = rect.width + 'px';
-    highlightEl.style.height = rect.height + 'px';
+    highlightEl.style.top = rect.top + window.scrollY + "px";
+    highlightEl.style.left = rect.left + window.scrollX + "px";
+    highlightEl.style.width = rect.width + "px";
+    highlightEl.style.height = rect.height + "px";
 
     shadow.appendChild(highlightEl);
     persistentHighlights.set(selector, highlightEl);
@@ -128,12 +128,14 @@
   }
 
   function getSelector(el) {
-    if (el.id && !/^\d/.test(el.id)) return '#' + el.id;
-    if (el === document.body) return 'body';
-    if (el === document.documentElement) return 'html';
+    if (el.id && !/^\d/.test(el.id)) return "#" + el.id;
+    if (el === document.body) return "body";
+    if (el === document.documentElement) return "html";
 
     // 尝试寻找带有 data- 属性的元素
-    const dataAttr = Array.from(el.attributes).find(attr => attr.name.startsWith('data-') && attr.value);
+    const dataAttr = Array.from(el.attributes).find(
+      (attr) => attr.name.startsWith("data-") && attr.value
+    );
     if (dataAttr) {
       return `${el.tagName.toLowerCase()}[${dataAttr.name}="${dataAttr.value}"]`;
     }
@@ -144,16 +146,19 @@
       let selector = current.tagName.toLowerCase();
 
       // 尝试使用 class，但排除掉过于通用的 class
-      if (current.className && typeof current.className === 'string') {
-        const classes = current.className.trim().split(/\s+/).filter(c =>
-          c && !/^(el-|v-|is-|active|selected|hover)/.test(c)
-        );
+      if (current.className && typeof current.className === "string") {
+        const classes = current.className
+          .trim()
+          .split(/\s+/)
+          .filter((c) => c && !/^(el-|v-|is-|active|selected|hover)/.test(c));
         if (classes.length > 0) {
-          selector += '.' + classes[0];
+          selector += "." + classes[0];
         }
       }
 
-      let siblings = Array.from(current.parentElement.children).filter(e => e.tagName === current.tagName);
+      let siblings = Array.from(current.parentElement.children).filter(
+        (e) => e.tagName === current.tagName
+      );
       if (siblings.length > 1) {
         let index = siblings.indexOf(current) + 1;
         selector += `:nth-of-type(${index})`;
@@ -163,11 +168,11 @@
 
       // 如果路径已经包含 ID，则停止向上回溯
       if (current && current.id && !/^\d/.test(current.id)) {
-        path.unshift('#' + current.id);
+        path.unshift("#" + current.id);
         break;
       }
     }
-    return path.join(' > ');
+    return path.join(" > ");
   }
 
   function onMouseMove(e) {
@@ -177,24 +182,25 @@
     lastElement = el;
     const rect = el.getBoundingClientRect();
 
-    overlay.style.display = 'block';
-    overlay.style.top = (rect.top + window.scrollY) + 'px';
-    overlay.style.left = (rect.left + window.scrollX) + 'px';
-    overlay.style.width = rect.width + 'px';
-    overlay.style.height = rect.height + 'px';
+    overlay.style.display = "block";
+    overlay.style.top = rect.top + window.scrollY + "px";
+    overlay.style.left = rect.left + window.scrollX + "px";
+    overlay.style.width = rect.width + "px";
+    overlay.style.height = rect.height + "px";
 
     const selector = getSelector(el);
-    label.textContent = (currentOptions.mode === 'exclude' ? '- ' : '+ ') + selector;
+    label.textContent =
+      (currentOptions.mode === "exclude" ? "- " : "+ ") + selector;
 
     // 发送 hover 消息
     if (window.__DISTILLERY_BRIDGE__) {
       window.__DISTILLERY_BRIDGE__.send({
-        type: 'element-hovered',
+        type: "element-hovered",
         data: {
           selector: selector,
           tagName: el.tagName,
-          textPreview: el.innerText.substring(0, 100).trim()
-        }
+          textPreview: el.innerText.substring(0, 100).trim(),
+        },
       });
     }
   }
@@ -208,13 +214,13 @@
       const selector = getSelector(el);
       if (window.__DISTILLERY_BRIDGE__) {
         window.__DISTILLERY_BRIDGE__.send({
-          type: 'element-selected',
+          type: "element-selected",
           data: {
             selector: selector,
             tagName: el.tagName,
             innerText: el.innerText.substring(0, 100).trim(),
-            mode: currentOptions.mode
-          }
+            mode: currentOptions.mode,
+          },
         });
       }
 
@@ -225,36 +231,41 @@
   }
 
   function onKeyDown(e) {
-    if (e.key === 'Escape') {
+    if (e.key === "Escape") {
       window.__distillerySelectorPicker.disable();
       if (window.__DISTILLERY_BRIDGE__) {
-        window.__DISTILLERY_BRIDGE__.send({ type: 'picker-cancelled' });
+        window.__DISTILLERY_BRIDGE__.send({ type: "picker-cancelled" });
       }
     }
   }
 
   window.__distillerySelectorPicker = {
     enable: (options) => {
-      currentOptions = Object.assign({ mode: 'include', continuous: true }, options);
+      currentOptions = Object.assign(
+        { mode: "include", continuous: true },
+        options
+      );
 
       // 更新样式类
-      overlay.className = '';
-      if (currentOptions.mode === 'exclude') overlay.classList.add('mode-exclude');
-      if (currentOptions.mode === 'action') overlay.classList.add('mode-action');
+      overlay.className = "";
+      if (currentOptions.mode === "exclude")
+        overlay.classList.add("mode-exclude");
+      if (currentOptions.mode === "action")
+        overlay.classList.add("mode-action");
 
-      document.addEventListener('mousemove', onMouseMove, true);
-      document.addEventListener('click', onClick, true);
-      document.addEventListener('keydown', onKeyDown, true);
-      overlay.style.display = 'none';
-      console.log('Distillery Selector Picker Enabled', currentOptions);
+      document.addEventListener("mousemove", onMouseMove, true);
+      document.addEventListener("click", onClick, true);
+      document.addEventListener("keydown", onKeyDown, true);
+      overlay.style.display = "none";
+      console.log("Distillery Selector Picker Enabled", currentOptions);
     },
     disable: () => {
-      document.removeEventListener('mousemove', onMouseMove, true);
-      document.removeEventListener('click', onClick, true);
-      document.removeEventListener('keydown', onKeyDown, true);
-      overlay.style.display = 'none';
+      document.removeEventListener("mousemove", onMouseMove, true);
+      document.removeEventListener("click", onClick, true);
+      document.removeEventListener("keydown", onKeyDown, true);
+      overlay.style.display = "none";
       lastElement = null;
-      console.log('Distillery Selector Picker Disabled');
+      console.log("Distillery Selector Picker Disabled");
     },
     addHighlight: addPersistentHighlight,
     removeHighlight: removePersistentHighlight,

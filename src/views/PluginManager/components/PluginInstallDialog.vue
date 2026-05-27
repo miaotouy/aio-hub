@@ -1,13 +1,24 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import type { PluginManifest } from '@/services/plugin-types';
-import BaseDialog from '@/components/common/BaseDialog.vue';
-import { ElButton, ElDescriptions, ElDescriptionsItem, ElTag, ElAlert } from 'element-plus';
+import { computed } from "vue";
+import type { PluginManifest } from "@/services/plugin-types";
+import BaseDialog from "@/components/common/BaseDialog.vue";
+import {
+  ElButton,
+  ElDescriptions,
+  ElDescriptionsItem,
+  ElTag,
+  ElAlert,
+} from "element-plus";
 
 /**
  * 安装类型枚举
  */
-export type InstallType = 'new' | 'upgrade' | 'downgrade' | 'reinstall' | 'conflict';
+export type InstallType =
+  | "new"
+  | "upgrade"
+  | "downgrade"
+  | "reinstall"
+  | "conflict";
 
 /**
  * 预检结果接口
@@ -32,49 +43,49 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  'update:visible': [value: boolean];
-  'confirm': [result: PreflightResult];
-  'cancel': [];
+  "update:visible": [value: boolean];
+  confirm: [result: PreflightResult];
+  cancel: [];
 }>();
 
 // 安装类型标签配置
 const installTypeConfig = computed(() => {
   if (!props.preflightResult) return null;
-  
+
   const configs = {
     new: {
-      label: '新安装',
-      type: 'success' as const,
-      description: '这是一个全新的插件，将被安装到系统中。',
+      label: "新安装",
+      type: "success" as const,
+      description: "这是一个全新的插件，将被安装到系统中。",
     },
     upgrade: {
-      label: '升级安装',
-      type: 'primary' as const,
+      label: "升级安装",
+      type: "primary" as const,
       description: `将从版本 ${props.preflightResult.existingVersion} 升级到 ${props.preflightResult.manifest.version}。`,
     },
     downgrade: {
-      label: '降级安装',
-      type: 'warning' as const,
+      label: "降级安装",
+      type: "warning" as const,
       description: `将从版本 ${props.preflightResult.existingVersion} 降级到 ${props.preflightResult.manifest.version}。这可能导致功能丢失或不兼容问题。`,
     },
     reinstall: {
-      label: '重新安装',
-      type: 'info' as const,
+      label: "重新安装",
+      type: "info" as const,
       description: `将重新安装相同版本 ${props.preflightResult.manifest.version}。现有配置将被保留。`,
     },
     conflict: {
-      label: '冲突',
-      type: 'error' as const,
-      description: '检测到以下冲突，请先解决后再尝试安装。',
+      label: "冲突",
+      type: "error" as const,
+      description: "检测到以下冲突，请先解决后再尝试安装。",
     },
   };
-  
+
   return configs[props.preflightResult.installType];
 });
 
 // 是否有冲突
 const hasConflict = computed(() => {
-  return props.preflightResult?.installType === 'conflict';
+  return props.preflightResult?.installType === "conflict";
 });
 
 // 是否可以安装（无冲突）
@@ -84,13 +95,13 @@ const canInstall = computed(() => {
 
 function handleConfirm() {
   if (props.preflightResult && canInstall.value) {
-    emit('confirm', props.preflightResult);
+    emit("confirm", props.preflightResult);
   }
 }
 
 function handleCancel() {
-  emit('update:visible', false);
-  emit('cancel');
+  emit("update:visible", false);
+  emit("cancel");
 }
 </script>
 
@@ -115,10 +126,16 @@ function handleCancel() {
         />
 
         <!-- 冲突列表 -->
-        <div v-if="hasConflict && preflightResult.conflicts" class="conflicts-section">
+        <div
+          v-if="hasConflict && preflightResult.conflicts"
+          class="conflicts-section"
+        >
           <h4 class="section-title">检测到的冲突：</h4>
           <ul class="conflict-list">
-            <li v-for="(conflict, index) in preflightResult.conflicts" :key="index">
+            <li
+              v-for="(conflict, index) in preflightResult.conflicts"
+              :key="index"
+            >
               {{ conflict }}
             </li>
           </ul>
@@ -138,7 +155,14 @@ function handleCancel() {
               <ElTag size="small">{{ preflightResult.manifest.version }}</ElTag>
             </ElDescriptionsItem>
             <ElDescriptionsItem label="类型">
-              <ElTag :type="preflightResult.manifest.type === 'javascript' ? 'success' : 'primary'" size="small">
+              <ElTag
+                :type="
+                  preflightResult.manifest.type === 'javascript'
+                    ? 'success'
+                    : 'primary'
+                "
+                size="small"
+              >
                 {{ preflightResult.manifest.type }}
               </ElTag>
             </ElDescriptionsItem>
@@ -148,7 +172,11 @@ function handleCancel() {
             <ElDescriptionsItem label="描述" :span="2">
               {{ preflightResult.manifest.description }}
             </ElDescriptionsItem>
-            <ElDescriptionsItem v-if="preflightResult.manifest.tags?.length" label="标签" :span="2">
+            <ElDescriptionsItem
+              v-if="preflightResult.manifest.tags?.length"
+              label="标签"
+              :span="2"
+            >
               <ElTag
                 v-for="tag in preflightResult.manifest.tags"
                 :key="tag"
@@ -159,39 +187,61 @@ function handleCancel() {
               </ElTag>
             </ElDescriptionsItem>
             <ElDescriptionsItem label="应用版本要求" :span="1">
-              {{ preflightResult.manifest.host.appVersion || '未指定' }}
+              {{ preflightResult.manifest.host.appVersion || "未指定" }}
             </ElDescriptionsItem>
             <ElDescriptionsItem label="API 版本要求" :span="1">
-              {{ preflightResult.manifest.host.apiVersion || '未指定' }}
+              {{ preflightResult.manifest.host.apiVersion || "未指定" }}
             </ElDescriptionsItem>
-            <ElDescriptionsItem v-if="preflightResult.manifest.ui" label="提供 UI" :span="2">
+            <ElDescriptionsItem
+              v-if="preflightResult.manifest.ui"
+              label="提供 UI"
+              :span="2"
+            >
               <ElTag type="success" size="small">是</ElTag>
               <span class="ui-info">
-                ({{ preflightResult.manifest.ui.displayName || preflightResult.manifest.name }})
+                ({{
+                  preflightResult.manifest.ui.displayName ||
+                  preflightResult.manifest.name
+                }})
               </span>
             </ElDescriptionsItem>
             <ElDescriptionsItem label="暴露方法数" :span="2">
               <template v-if="preflightResult.manifest.methods?.length">
                 {{ preflightResult.manifest.methods.length }} 个
               </template>
-              <template v-else-if="preflightResult.manifest.type === 'javascript'">
+              <template
+                v-else-if="preflightResult.manifest.type === 'javascript'"
+              >
                 <ElTag type="info" size="small">动态加载</ElTag>
                 <span class="dynamic-info"> (将由插件 index.js 提供)</span>
               </template>
-              <template v-else>
-                0 个
-              </template>
+              <template v-else> 0 个 </template>
             </ElDescriptionsItem>
-            <ElDescriptionsItem v-if="preflightResult.manifest.settingsSchema" label="配置项" :span="2">
+            <ElDescriptionsItem
+              v-if="preflightResult.manifest.settingsSchema"
+              label="配置项"
+              :span="2"
+            >
               <ElTag type="info" size="small">
-                {{ Object.keys(preflightResult.manifest.settingsSchema.properties).length }} 个配置项
+                {{
+                  Object.keys(
+                    preflightResult.manifest.settingsSchema.properties
+                  ).length
+                }}
+                个配置项
               </ElTag>
             </ElDescriptionsItem>
           </ElDescriptions>
         </div>
 
         <!-- 方法列表 -->
-        <div v-if="preflightResult.manifest.methods && preflightResult.manifest.methods.length > 0" class="methods-section">
+        <div
+          v-if="
+            preflightResult.manifest.methods &&
+            preflightResult.manifest.methods.length > 0
+          "
+          class="methods-section"
+        >
           <h4 class="section-title">暴露的方法</h4>
           <div class="methods-list">
             <ElTag
@@ -212,16 +262,14 @@ function handleCancel() {
     </template>
 
     <template #footer>
-      <ElButton @click="handleCancel" :disabled="loading">
-        取消
-      </ElButton>
+      <ElButton @click="handleCancel" :disabled="loading"> 取消 </ElButton>
       <ElButton
         type="primary"
         @click="handleConfirm"
         :disabled="!canInstall || loading"
         :loading="loading"
       >
-        {{ hasConflict ? '无法安装' : '确认安装' }}
+        {{ hasConflict ? "无法安装" : "确认安装" }}
       </ElButton>
     </template>
   </BaseDialog>
@@ -265,7 +313,7 @@ function handleCancel() {
   padding: 2px 6px;
   background: var(--el-fill-color-light);
   border-radius: 3px;
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-family: "Consolas", "Monaco", "Courier New", monospace;
   font-size: 13px;
   color: var(--el-color-primary);
 }
@@ -289,7 +337,7 @@ function handleCancel() {
 }
 
 .method-tag {
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-family: "Consolas", "Monaco", "Courier New", monospace;
 }
 
 .empty-state {

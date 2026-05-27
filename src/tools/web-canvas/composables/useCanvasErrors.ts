@@ -36,7 +36,7 @@ export function useCanvasErrors(config: Ref<CanvasConfig>) {
         e.canvasId === newError.canvasId &&
         e.message === newError.message &&
         e.filename === newError.filename &&
-        e.lineno === newError.lineno,
+        e.lineno === newError.lineno
     );
 
     if (!exists) {
@@ -53,7 +53,9 @@ export function useCanvasErrors(config: Ref<CanvasConfig>) {
    * 清空指定画布的错误
    */
   function clearRuntimeErrors(canvasId: string) {
-    runtimeErrors.value = runtimeErrors.value.filter((e) => e.canvasId !== canvasId);
+    runtimeErrors.value = runtimeErrors.value.filter(
+      (e) => e.canvasId !== canvasId
+    );
   }
 
   /**
@@ -71,14 +73,18 @@ export function useCanvasErrors(config: Ref<CanvasConfig>) {
    * 清除指定画布的过期错误（预览刷新完成后调用）
    */
   function clearStaleRuntimeErrors(canvasId: string) {
-    runtimeErrors.value = runtimeErrors.value.filter((e) => !(e.canvasId === canvasId && e.stale));
+    runtimeErrors.value = runtimeErrors.value.filter(
+      (e) => !(e.canvasId === canvasId && e.stale)
+    );
   }
 
   /**
    * 获取指定画布的活跃错误（未过期）
    */
   function getActiveRuntimeErrors(canvasId: string): RuntimeError[] {
-    return runtimeErrors.value.filter((e) => e.canvasId === canvasId && !e.stale);
+    return runtimeErrors.value.filter(
+      (e) => e.canvasId === canvasId && !e.stale
+    );
   }
 
   /**
@@ -97,7 +103,9 @@ export function useCanvasErrors(config: Ref<CanvasConfig>) {
       context += `${idx + 1}. [${err.level.toUpperCase()}] ${err.message}\n`;
       if (err.filename) {
         // 尝试缩短文件名，如果是 asset:// 协议，只保留相对路径
-        const shortFile = err.filename.includes("asset://") ? err.filename.split("/").pop() : err.filename;
+        const shortFile = err.filename.includes("asset://")
+          ? err.filename.split("/").pop()
+          : err.filename;
         context += `   at ${shortFile}:${err.lineno}:${err.colno}\n`;
       }
       if (err.stack && err.level === "error") {

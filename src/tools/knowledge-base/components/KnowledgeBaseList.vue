@@ -51,7 +51,9 @@ const localMatchedBases = computed(() => {
   if (!searchQuery.value.trim()) return [];
   const q = searchQuery.value.toLowerCase();
   return kbStore.sortedBases.filter(
-    (b) => b.name.toLowerCase().includes(q) || (b.description || "").toLowerCase().includes(q)
+    (b) =>
+      b.name.toLowerCase().includes(q) ||
+      (b.description || "").toLowerCase().includes(q)
   );
 });
 
@@ -98,7 +100,10 @@ watch(searchQuery, (val) => {
         if (r.kbId) matchedIds.add(r.kbId);
       });
       contentMatchedKbIds.value = matchedIds;
-      logger.info("全局内容检索完成", { query: trimmed, matchedCount: matchedIds.size });
+      logger.info("全局内容检索完成", {
+        query: trimmed,
+        matchedCount: matchedIds.size,
+      });
     } catch (error) {
       if (searchId === currentSearchId) {
         logger.error("全局内容检索失败", error, { query: trimmed });
@@ -187,13 +192,17 @@ const handleRename = async (id?: string) => {
   const currentName = base?.name || "";
 
   try {
-    const { value: newName } = await ElMessageBox.prompt("请输入新的名称", "重命名知识库", {
-      confirmButtonText: "确定",
-      cancelButtonText: "取消",
-      inputValue: currentName,
-      inputPattern: /\S+/,
-      inputErrorMessage: "名称不能为空",
-    });
+    const { value: newName } = await ElMessageBox.prompt(
+      "请输入新的名称",
+      "重命名知识库",
+      {
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+        inputValue: currentName,
+        inputPattern: /\S+/,
+        inputErrorMessage: "名称不能为空",
+      }
+    );
 
     if (newName && newName !== currentName) {
       await updateBaseMeta(targetId, { name: newName });
@@ -208,12 +217,16 @@ const handleDelete = async (id?: string) => {
   const targetId = id || kbStore.activeBaseId;
   if (!targetId) return;
   try {
-    await ElMessageBox.confirm("确定删除该知识库吗？此操作不可恢复。", "删除确认", {
-      type: "warning",
-      confirmButtonText: "确定删除",
-      cancelButtonText: "取消",
-      confirmButtonClass: "el-button--danger",
-    });
+    await ElMessageBox.confirm(
+      "确定删除该知识库吗？此操作不可恢复。",
+      "删除确认",
+      {
+        type: "warning",
+        confirmButtonText: "确定删除",
+        cancelButtonText: "取消",
+        confirmButtonClass: "el-button--danger",
+      }
+    );
     await deleteBase(targetId);
   } catch (error) {}
 };
@@ -275,10 +288,16 @@ const formatTokens = (num: number) => {
                 >
                   <div class="sort-menu-item">
                     <span>{{ item.label }}</span>
-                    <Check v-if="kbStore.baseSort.field === item.value" :size="14" />
+                    <Check
+                      v-if="kbStore.baseSort.field === item.value"
+                      :size="14"
+                    />
                   </div>
                 </el-dropdown-item>
-                <el-dropdown-item divided @click="kbStore.baseSort.order = 'asc'">
+                <el-dropdown-item
+                  divided
+                  @click="kbStore.baseSort.order = 'asc'"
+                >
                   <div class="sort-menu-item">
                     <span>升序</span>
                     <Check v-if="kbStore.baseSort.order === 'asc'" :size="14" />
@@ -287,7 +306,10 @@ const formatTokens = (num: number) => {
                 <el-dropdown-item @click="kbStore.baseSort.order = 'desc'">
                   <div class="sort-menu-item">
                     <span>降序</span>
-                    <Check v-if="kbStore.baseSort.order === 'desc'" :size="14" />
+                    <Check
+                      v-if="kbStore.baseSort.order === 'desc'"
+                      :size="14"
+                    />
                   </div>
                 </el-dropdown-item>
               </el-dropdown-menu>
@@ -302,7 +324,12 @@ const formatTokens = (num: number) => {
             </el-button>
           </el-tooltip>
           <el-tooltip content="创建知识库" placement="top">
-            <el-button type="primary" circle size="small" @click="showCreateDialog = true">
+            <el-button
+              type="primary"
+              circle
+              size="small"
+              @click="showCreateDialog = true"
+            >
               <template #icon><Plus :size="14" /></template>
             </el-button>
           </el-tooltip>
@@ -384,7 +411,9 @@ const formatTokens = (num: number) => {
             <Database :size="16" class="kb-icon" v-else />
             <div class="name">{{ base.name }}</div>
           </div>
-          <div class="description" v-if="base.description">{{ base.description }}</div>
+          <div class="description" v-if="base.description">
+            {{ base.description }}
+          </div>
           <div class="meta">
             {{ base.entryCount }} 条目
             <template v-if="base.totalTokens">
@@ -430,7 +459,10 @@ const formatTokens = (num: number) => {
       <div v-if="filteredBases.length === 0" class="empty-state">
         <template v-if="searchQuery">
           <div class="empty-text" v-if="isSearchingContent">
-            <el-icon class="is-loading" style="margin-bottom: 8px; font-size: 20px">
+            <el-icon
+              class="is-loading"
+              style="margin-bottom: 8px; font-size: 20px"
+            >
               <RefreshCw />
             </el-icon>
             <div>正在深度检索内容...</div>
@@ -446,7 +478,12 @@ const formatTokens = (num: number) => {
     </div>
 
     <!-- 创建对话框 -->
-    <el-dialog v-model="showCreateDialog" title="创建知识库" width="400px" append-to-body>
+    <el-dialog
+      v-model="showCreateDialog"
+      title="创建知识库"
+      width="400px"
+      append-to-body
+    >
       <el-form label-position="top">
         <el-form-item label="名称">
           <el-input v-model="newBaseForm.name" placeholder="请输入知识库名称" />
@@ -462,7 +499,11 @@ const formatTokens = (num: number) => {
       </el-form>
       <template #footer>
         <el-button @click="showCreateDialog = false">取消</el-button>
-        <el-button type="primary" @click="handleCreate" :disabled="!newBaseForm.name">
+        <el-button
+          type="primary"
+          @click="handleCreate"
+          :disabled="!newBaseForm.name"
+        >
           创建
         </el-button>
       </template>
@@ -505,7 +546,11 @@ const formatTokens = (num: number) => {
 }
 
 .batch-header {
-  background-color: color-mix(in srgb, var(--el-color-primary), transparent 90%);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-primary),
+    transparent 90%
+  );
   margin: -4px;
   padding: 4px 12px;
   border-radius: 6px;
@@ -573,7 +618,11 @@ const formatTokens = (num: number) => {
 }
 
 .kb-item.active {
-  background-color: color-mix(in srgb, var(--el-color-primary), transparent 90%);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-primary),
+    transparent 90%
+  );
 }
 
 .kb-item.active::before {
@@ -598,12 +647,20 @@ const formatTokens = (num: number) => {
 }
 
 .kb-item.is-selecting:hover {
-  background-color: color-mix(in srgb, var(--el-color-primary), transparent 95%);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-primary),
+    transparent 95%
+  );
   border-color: rgba(var(--el-color-primary-rgb), 0.2);
 }
 
 .kb-item.is-selecting.active {
-  background-color: color-mix(in srgb, var(--el-color-primary), transparent 90%);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-primary),
+    transparent 90%
+  );
   border-color: rgba(var(--el-color-primary-rgb), 0.3);
 }
 

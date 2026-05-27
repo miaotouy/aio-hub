@@ -8,7 +8,13 @@ import { compareVersions } from "compare-versions";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import { RendererVersion } from "@/tools/rich-text-renderer/types";
-import { User, Link, DocumentCopy, Star, Present } from "@element-plus/icons-vue";
+import {
+  User,
+  Link,
+  DocumentCopy,
+  Star,
+  Present,
+} from "@element-plus/icons-vue";
 
 // 创建模块错误处理器
 const errorHandler = createModuleErrorHandler("AboutSettings");
@@ -35,7 +41,9 @@ const checkUpdate = async (event?: MouseEvent) => {
   const forceShow = event?.altKey; // 按住 Alt 键强制显示
   isCheckingUpdate.value = true;
   try {
-    const response = await fetch("https://api.github.com/repos/miaotouy/aio-hub/releases/latest");
+    const response = await fetch(
+      "https://api.github.com/repos/miaotouy/aio-hub/releases/latest"
+    );
     if (!response.ok) {
       throw new Error(`GitHub API error: ${response.statusText}`);
     }
@@ -149,7 +157,9 @@ onMounted(async () => {
             检查更新
           </el-button>
         </div>
-        <p class="app-description">提供多种实用的开发和日常工具，以及高可控性的LLM交互。</p>
+        <p class="app-description">
+          提供多种实用的开发和日常工具，以及高可控性的LLM交互。
+        </p>
       </div>
     </div>
 
@@ -220,7 +230,9 @@ onMounted(async () => {
       </template>
       <template #footer>
         <el-button @click="showUpdateDialog = false">暂不更新</el-button>
-        <el-button type="primary" @click="handleUpdateConfirm"> 前往下载 </el-button>
+        <el-button type="primary" @click="handleUpdateConfirm">
+          前往下载
+        </el-button>
       </template>
     </BaseDialog>
   </div>

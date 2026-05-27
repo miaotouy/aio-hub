@@ -63,7 +63,11 @@
           <span class="field-label">过滤</span>
           <div class="model-match-config">
             <div class="match-switches">
-              <el-switch v-model="modelMatchEnabled" size="small" active-text="启用过滤" />
+              <el-switch
+                v-model="modelMatchEnabled"
+                size="small"
+                active-text="启用过滤"
+              />
               <template v-if="modelMatchEnabled">
                 <el-divider direction="vertical" />
                 <el-radio-group v-model="modelMatchMode" size="small">
@@ -75,12 +79,20 @@
                   <template #content>
                     <div style="max-width: 300px">
                       <p>输入匹配规则，支持正则表达式。</p>
-                      <p><strong>满足其一 (OR)：</strong> 只要模型或渠道满足任意一条规则即生效。</p>
-                      <p><strong>同时满足 (AND)：</strong> 必须模型满足规则且渠道满足规则才生效。</p>
+                      <p>
+                        <strong>满足其一 (OR)：</strong>
+                        只要模型或渠道满足任意一条规则即生效。
+                      </p>
+                      <p>
+                        <strong>同时满足 (AND)：</strong>
+                        必须模型满足规则且渠道满足规则才生效。
+                      </p>
                       <p><i>注：如果某项规则为空，则视为该项已通过匹配。</i></p>
                     </div>
                   </template>
-                  <el-icon class="info-icon" style="margin-left: 4px"><InfoFilled /></el-icon>
+                  <el-icon class="info-icon" style="margin-left: 4px"
+                    ><InfoFilled
+                  /></el-icon>
                 </el-tooltip>
               </template>
             </div>
@@ -107,7 +119,10 @@
                   style="width: 100%; max-width: 600px"
                 />
               </div>
-              <div v-if="matchProfileName && !profileMatchPatternsText" class="legacy-hint">
+              <div
+                v-if="matchProfileName && !profileMatchPatternsText"
+                class="legacy-hint"
+              >
                 <el-checkbox v-model="matchProfileName" size="small">
                   兼容旧版：在模型规则中同时匹配渠道名
                 </el-checkbox>
@@ -145,24 +160,47 @@
 
             <!-- 深度参数 -->
             <div v-if="injectionMode === 'depth'" class="injection-params">
-              <el-input-number v-model="depthValue" :min="0" :max="99" size="small" controls-position="right" />
+              <el-input-number
+                v-model="depthValue"
+                :min="0"
+                :max="99"
+                size="small"
+                controls-position="right"
+              />
               <span class="param-hint">0 = 紧跟最新消息</span>
             </div>
 
             <!-- 高级深度参数 -->
-            <div v-if="injectionMode === 'advanced_depth'" class="injection-params">
-              <el-input v-model="depthConfigValue" placeholder="如 3, 10~5" size="small" style="width: 160px" />
+            <div
+              v-if="injectionMode === 'advanced_depth'"
+              class="injection-params"
+            >
+              <el-input
+                v-model="depthConfigValue"
+                placeholder="如 3, 10~5"
+                size="small"
+                style="width: 160px"
+              />
               <el-tooltip placement="top">
                 <template #content>
                   <div style="max-width: 280px; line-height: 1.5">
-                    <p style="margin: 0 0 8px 0"><strong>混合深度语法</strong></p>
+                    <p style="margin: 0 0 8px 0">
+                      <strong>混合深度语法</strong>
+                    </p>
                     <ul style="padding-left: 16px; margin: 0">
                       <li><strong>5</strong> → 仅在深度 5 注入</li>
                       <li><strong>3, 10, 15</strong> → 在多个深度各注入一次</li>
-                      <li><strong>10~5</strong> → 从深度 10 开始，每 5 条注入</li>
-                      <li><strong>3, 10~5</strong> → 混合：深度 3 一次 + 从 10 起每 5 条注入一次</li>
+                      <li>
+                        <strong>10~5</strong> → 从深度 10 开始，每 5 条注入
+                      </li>
+                      <li>
+                        <strong>3, 10~5</strong> → 混合：深度 3 一次 + 从 10
+                        起每 5 条注入一次
+                      </li>
                     </ul>
-                    <p style="margin: 8px 0 0 0; font-size: 12px; color: #909399">
+                    <p
+                      style="margin: 8px 0 0 0; font-size: 12px; color: #909399"
+                    >
                       注意：历史消息数不足时，对应深度点会被跳过
                     </p>
                   </div>
@@ -173,7 +211,11 @@
 
             <!-- 锚点参数 -->
             <div v-if="injectionMode === 'anchor'" class="injection-params">
-              <el-select v-model="anchorTarget" size="small" style="width: 120px">
+              <el-select
+                v-model="anchorTarget"
+                size="small"
+                style="width: 120px"
+              >
                 <el-option
                   v-for="anchor in availableAnchors"
                   :key="anchor.id"
@@ -199,7 +241,10 @@
                 controls-position="right"
                 style="width: 100px"
               />
-              <el-tooltip content="值越大越靠近新消息（对话末尾）" placement="top">
+              <el-tooltip
+                content="值越大越靠近新消息（对话末尾）"
+                placement="top"
+              >
                 <el-icon class="info-icon"><InfoFilled /></el-icon>
               </el-tooltip>
             </div>
@@ -219,7 +264,11 @@
               popper-class="macro-selector-popover"
             >
               <template #reference>
-                <el-button size="small" :type="macroSelectorVisible ? 'primary' : 'default'" plain>
+                <el-button
+                  size="small"
+                  :type="macroSelectorVisible ? 'primary' : 'default'"
+                  plain
+                >
                   <el-icon style="margin-right: 4px"><MagicStick /></el-icon>
                   插入宏
                 </el-button>
@@ -228,7 +277,10 @@
             </el-popover>
 
             <el-popover
-              v-if="agent?.variableConfig?.enabled && agent?.variableConfig?.definitions?.length > 0"
+              v-if="
+                agent?.variableConfig?.enabled &&
+                agent?.variableConfig?.definitions?.length > 0
+              "
               v-model:visible="variableSelectorVisible"
               placement="bottom-start"
               :width="400"
@@ -236,12 +288,21 @@
               popper-class="variable-selector-popover"
             >
               <template #reference>
-                <el-button size="small" :type="variableSelectorVisible ? 'primary' : 'default'" plain>
-                  <el-icon style="margin-right: 4px"><Variable :size="16" /></el-icon>
+                <el-button
+                  size="small"
+                  :type="variableSelectorVisible ? 'primary' : 'default'"
+                  plain
+                >
+                  <el-icon style="margin-right: 4px"
+                    ><Variable :size="16"
+                  /></el-icon>
                   插入变量
                 </el-button>
               </template>
-              <VariableSelector :variables="agent?.variableConfig?.definitions || []" @insert="handleInsertVariable" />
+              <VariableSelector
+                :variables="agent?.variableConfig?.definitions || []"
+                @insert="handleInsertVariable"
+              />
             </el-popover>
 
             <el-button
@@ -279,14 +340,28 @@
               复制
             </el-button>
 
-            <el-button size="small" @click="handlePaste" plain title="粘贴到光标处">
+            <el-button
+              size="small"
+              @click="handlePaste"
+              plain
+              title="粘贴到光标处"
+            >
               <el-icon style="margin-right: 4px"><DocumentAdd /></el-icon>
               粘贴
             </el-button>
 
-            <el-popconfirm title="确定要用剪贴板内容覆盖当前内容吗？" @confirm="handleOverwrite" width="220">
+            <el-popconfirm
+              title="确定要用剪贴板内容覆盖当前内容吗？"
+              @confirm="handleOverwrite"
+              width="220"
+            >
               <template #reference>
-                <el-button size="small" plain title="用剪贴板内容覆盖" type="warning">
+                <el-button
+                  size="small"
+                  plain
+                  title="用剪贴板内容覆盖"
+                  type="warning"
+                >
                   <el-icon style="margin-right: 4px"><Document /></el-icon>
                   覆盖
                 </el-button>
@@ -294,7 +369,12 @@
             </el-popconfirm>
           </div>
           <div v-else-if="viewMode === 'text'" class="preview-hint">
-            <el-button size="small" @click="handleCopy" plain style="margin-left: 12px">
+            <el-button
+              size="small"
+              @click="handleCopy"
+              plain
+              style="margin-left: 12px"
+            >
               <el-icon style="margin-right: 4px"><CopyDocument /></el-icon>
               复制预览
             </el-button>
@@ -320,8 +400,13 @@
           </div>
 
           <!-- 文本预览 -->
-          <div v-if="viewMode === 'text'" class="preview-wrapper text-preview-wrapper">
-            <pre class="text-preview-content">{{ previewContent || form.content || "(空)" }}</pre>
+          <div
+            v-if="viewMode === 'text'"
+            class="preview-wrapper text-preview-wrapper"
+          >
+            <pre class="text-preview-content">{{
+              previewContent || form.content || "(空)"
+            }}</pre>
           </div>
 
           <!-- 渲染预览 -->
@@ -352,7 +437,11 @@
 
 <script setup lang="ts">
 import { ref, watch, computed, onMounted, provide } from "vue";
-import type { MessageRole, UserProfile, InjectionStrategy } from "../../../types";
+import type {
+  MessageRole,
+  UserProfile,
+  InjectionStrategy,
+} from "../../../types";
 import {
   ChatDotRound,
   User,
@@ -370,7 +459,10 @@ import VariableSelector from "../selectors/VariableSelector.vue";
 import KBPlaceholderEditor from "./KBPlaceholderEditor.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
-import type { LlmThinkRule, RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
+import type {
+  LlmThinkRule,
+  RichTextRendererStyleOptions,
+} from "@/tools/rich-text-renderer/types";
 import { useChatSettings } from "../../../composables/settings/useChatSettings";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useAnchorRegistry } from "../../../composables/ui/useAnchorRegistry";
@@ -386,8 +478,14 @@ import {
   type MacroContext,
   extractContextFromSession,
 } from "../../../macro-engine";
-import type { CompletionContext, CompletionResult } from "@codemirror/autocomplete";
-import { processMessageAssetsSync, resolveAgentAssetUrlSync } from "../../../utils/agentAssetUtils";
+import type {
+  CompletionContext,
+  CompletionResult,
+} from "@codemirror/autocomplete";
+import {
+  processMessageAssetsSync,
+  resolveAgentAssetUrlSync,
+} from "../../../utils/agentAssetUtils";
 
 interface MessageForm {
   role: MessageRole;
@@ -526,7 +624,9 @@ onMounted(() => {
  * 宏自动补全源
  * 当用户输入 {{ 时触发宏候选   //}}vscode双花括号高亮显示防溢出补丁
  */
-const macroCompletionSource = (context: CompletionContext): CompletionResult | null => {
+const macroCompletionSource = (
+  context: CompletionContext
+): CompletionResult | null => {
   // 获取光标前的文本
   const line = context.state.doc.lineAt(context.pos);
   const textBefore = line.text.slice(0, context.pos - line.from);
@@ -549,7 +649,9 @@ const macroCompletionSource = (context: CompletionContext): CompletionResult | n
       kbStore.init();
     }
 
-    const matchedBases = kbStore.bases.filter((b) => b.name.toLowerCase().includes(prefix));
+    const matchedBases = kbStore.bases.filter((b) =>
+      b.name.toLowerCase().includes(prefix)
+    );
 
     if (matchedBases.length === 0) return null;
 
@@ -571,11 +673,15 @@ const macroCompletionSource = (context: CompletionContext): CompletionResult | n
 
   // 获取所有支持的宏
   const registry = MacroRegistry.getInstance();
-  const allMacros = registry.getAllMacros().filter((m) => m.supported !== false);
+  const allMacros = registry
+    .getAllMacros()
+    .filter((m) => m.supported !== false);
 
   // 过滤匹配的宏
   const matchedMacros = allMacros.filter(
-    (macro) => macro.name.toLowerCase().includes(prefix) || macro.description.toLowerCase().includes(prefix),
+    (macro) =>
+      macro.name.toLowerCase().includes(prefix) ||
+      macro.description.toLowerCase().includes(prefix)
   );
 
   if (matchedMacros.length === 0) {
@@ -583,7 +689,11 @@ const macroCompletionSource = (context: CompletionContext): CompletionResult | n
   }
 
   // 智能排序：优先按 priority 降序，然后按类型，最后按名称
-  const typeOrder: Record<string, number> = { value: 0, variable: 1, function: 2 };
+  const typeOrder: Record<string, number> = {
+    value: 0,
+    variable: 1,
+    function: 2,
+  };
   matchedMacros.sort((a, b) => {
     // 1. 优先级高的在前 (priority 越大越靠前)
     const priorityA = a.priority ?? 0;
@@ -730,9 +840,12 @@ const restoreInjectionStrategy = (strategy?: InjectionStrategy) => {
   // 1. 恢复所有数据字段 (如果存在)
   if (strategy) {
     if (strategy.depth !== undefined) depthValue.value = strategy.depth;
-    if (strategy.depthConfig !== undefined) depthConfigValue.value = strategy.depthConfig;
-    if (strategy.anchorTarget !== undefined) anchorTarget.value = strategy.anchorTarget;
-    if (strategy.anchorPosition !== undefined) anchorPosition.value = strategy.anchorPosition;
+    if (strategy.depthConfig !== undefined)
+      depthConfigValue.value = strategy.depthConfig;
+    if (strategy.anchorTarget !== undefined)
+      anchorTarget.value = strategy.anchorTarget;
+    if (strategy.anchorPosition !== undefined)
+      anchorPosition.value = strategy.anchorPosition;
     if (strategy.order !== undefined) orderValue.value = strategy.order;
   } else {
     // 如果没有策略对象，重置为默认值
@@ -807,7 +920,9 @@ const restoreModelMatch = (modelMatch?: {
   modelMatchMode.value = modelMatch.mode || "any";
   matchProfileName.value = modelMatch.matchProfileName || false;
   modelMatchPatternsText.value = (modelMatch.patterns || []).join("\n");
-  profileMatchPatternsText.value = (modelMatch.profilePatterns || []).join("\n");
+  profileMatchPatternsText.value = (modelMatch.profilePatterns || []).join(
+    "\n"
+  );
 };
 
 /**
@@ -858,7 +973,7 @@ watch(
       restoreModelMatch(newForm.modelMatch);
     }
   },
-  { immediate: true, deep: true },
+  { immediate: true, deep: true }
 );
 
 // 监听对话框打开，重置或设置表单
@@ -873,7 +988,7 @@ watch(
         restoreModelMatch(props.initialForm.modelMatch);
       }
     }
-  },
+  }
 );
 
 /**
@@ -900,7 +1015,12 @@ const insertTextToEditor = (text: string) => {
     if (position) {
       monacoInstance.executeEdits("", [
         {
-          range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+          range: new monaco.Range(
+            position.lineNumber,
+            position.column,
+            position.lineNumber,
+            position.column
+          ),
           text: text,
           forceMoveMarkers: true,
         },
@@ -935,7 +1055,10 @@ function handleKBButtonClick() {
     const { from, to } = editorView.state.selection.main;
     selectedText = editorView.state.sliceDoc(from, to);
   } else if (monacoInstance) {
-    selectedText = monacoInstance.getModel()?.getValueInRange(monacoInstance.getSelection()!) || "";
+    selectedText =
+      monacoInstance
+        .getModel()
+        ?.getValueInRange(monacoInstance.getSelection()!) || "";
   }
 
   // 检查是否匹配 KB 正则
@@ -974,18 +1097,22 @@ function handleInsertVariable(variablePath: string) {
  */
 async function handleCopy() {
   const contentToCopy =
-    viewMode.value === "edit" ? form.value.content : previewContent.value || form.value.content || "";
+    viewMode.value === "edit"
+      ? form.value.content
+      : previewContent.value || form.value.content || "";
 
   const result = await errorHandler.wrapAsync(
     async () => {
       await navigator.clipboard.writeText(contentToCopy);
       return true;
     },
-    { userMessage: "复制失败" },
+    { userMessage: "复制失败" }
   );
 
   if (result) {
-    customMessage.success(viewMode.value === "edit" ? "已复制源码" : "已复制预览文本");
+    customMessage.success(
+      viewMode.value === "edit" ? "已复制源码" : "已复制预览文本"
+    );
   }
 }
 
@@ -997,7 +1124,7 @@ async function handlePaste() {
     async () => {
       return await navigator.clipboard.readText();
     },
-    { userMessage: "粘贴失败，请检查剪贴板权限" },
+    { userMessage: "粘贴失败，请检查剪贴板权限" }
   );
 
   if (!text) return;
@@ -1014,7 +1141,7 @@ async function handleOverwrite() {
     async () => {
       return await navigator.clipboard.readText();
     },
-    { userMessage: "覆盖失败，请检查剪贴板权限" },
+    { userMessage: "覆盖失败，请检查剪贴板权限" }
   );
 
   if (!text) return;

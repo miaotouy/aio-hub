@@ -8,12 +8,18 @@ import { join, extname } from "@tauri-apps/api/path";
 import { getAppConfigDir } from "@/utils/appPath";
 import { invoke } from "@tauri-apps/api/core";
 import { createConfigManager } from "@/utils/configManager";
-import { type ChatAgent, AgentCategory, AgentCategoryLabels } from "../../types";
+import {
+  type ChatAgent,
+  AgentCategory,
+  AgentCategoryLabels,
+} from "../../types";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 
 const logger = createModuleLogger("llm-chat/agent-storage-separated");
-const errorHandler = createModuleErrorHandler("llm-chat/agent-storage-separated");
+const errorHandler = createModuleErrorHandler(
+  "llm-chat/agent-storage-separated"
+);
 
 const MODULE_NAME = "llm-chat";
 const AGENTS_SUBDIR = "agents";
@@ -150,7 +156,10 @@ export function useAgentStorageSeparated() {
       const agentExists = await exists(agentPath);
 
       if (!agentExists) {
-        logger.warn("智能体配置文件不存在，可能是导入不完整", { agentId, path: agentPath });
+        logger.warn("智能体配置文件不存在，可能是导入不完整", {
+          agentId,
+          path: agentPath,
+        });
         return null;
       }
 
@@ -163,7 +172,10 @@ export function useAgentStorageSeparated() {
       // 强制同步 ID：确保文件内容里的 ID 与目录名一致
       // 避免从其他地方（如酒馆）导入后，ID 还是原始 UUID 导致存储路径错乱
       if (agent.id !== agentId) {
-        logger.info("同步智能体 ID 与目录名一致", { oldId: agent.id, newId: agentId });
+        logger.info("同步智能体 ID 与目录名一致", {
+          oldId: agent.id,
+          newId: agentId,
+        });
         agent.id = agentId;
         isDirty = true;
       }
@@ -184,7 +196,12 @@ export function useAgentStorageSeparated() {
       const isWindowsPath = /^[a-zA-Z]:\\/.test(icon || "");
       const isFileProtocol = icon?.startsWith("file://");
 
-      const shouldMigrate = icon && !isAppData && !isNetwork && !isWebRelative && (isWindowsPath || isFileProtocol);
+      const shouldMigrate =
+        icon &&
+        !isAppData &&
+        !isNetwork &&
+        !isWebRelative &&
+        (isWindowsPath || isFileProtocol);
 
       if (shouldMigrate) {
         try {
@@ -205,9 +222,17 @@ export function useAgentStorageSeparated() {
             agent.avatarHistory.push(newAvatarName);
           }
           isDirty = true;
-          logger.info("智能体头像绝对路径已迁移", { agentId, oldPath: icon, newName: newAvatarName });
+          logger.info("智能体头像绝对路径已迁移", {
+            agentId,
+            oldPath: icon,
+            newName: newAvatarName,
+          });
         } catch (e) {
-          logger.warn("智能体头像绝对路径迁移失败", { agentId, icon, error: e });
+          logger.warn("智能体头像绝对路径迁移失败", {
+            agentId,
+            icon,
+            error: e,
+          });
         }
       }
 
@@ -218,10 +243,22 @@ export function useAgentStorageSeparated() {
           const agentDir = await getAgentDirPath(agentId);
           if (await exists(agentDir)) {
             const entries = await readDir(agentDir);
-            const imageExts = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];
+            const imageExts = [
+              ".png",
+              ".jpg",
+              ".jpeg",
+              ".gif",
+              ".webp",
+              ".svg",
+            ];
             agent.avatarHistory = entries
-              .filter(e => e.isFile && imageExts.some(ext => e.name.toLowerCase().endsWith(ext)) && e.name !== 'agent.json')
-              .map(e => e.name);
+              .filter(
+                (e) =>
+                  e.isFile &&
+                  imageExts.some((ext) => e.name.toLowerCase().endsWith(ext)) &&
+                  e.name !== "agent.json"
+              )
+              .map((e) => e.name);
             isDirty = true;
           } else {
             // 目录不存在，初始化为空数组
@@ -237,7 +274,9 @@ export function useAgentStorageSeparated() {
 
       // 处理分类兼容性
       if (agent.category) {
-        const migratedCategory = migrateAgentCategory(agent.category as unknown as string);
+        const migratedCategory = migrateAgentCategory(
+          agent.category as unknown as string
+        );
         if (migratedCategory !== agent.category) {
           agent.category = migratedCategory as AgentCategory;
           isDirty = true;
@@ -251,7 +290,11 @@ export function useAgentStorageSeparated() {
       // logger.debug('智能体加载成功', { agentId, name: agent.name });
       return agent;
     } catch (error) {
-      errorHandler.handle(error as Error, { userMessage: "加载智能体失败", context: { agentId }, showToUser: false });
+      errorHandler.handle(error as Error, {
+        userMessage: "加载智能体失败",
+        context: { agentId },
+        showToUser: false,
+      });
       return null;
     }
   }
@@ -271,7 +314,10 @@ export function useAgentStorageSeparated() {
   /**
    * 保存单个智能体（仅在内容变化时写入）
    */
-  async function saveAgent(agent: ChatAgent, forceWrite: boolean = false): Promise<void> {
+  async function saveAgent(
+    agent: ChatAgent,
+    forceWrite: boolean = false
+  ): Promise<void> {
     try {
       await ensureAgentDir(agent.id); // 确保智能体目录存在
       const agentPath = await getAgentConfigPath(agent.id);
@@ -301,7 +347,9 @@ export function useAgentStorageSeparated() {
             }
           } catch (readError) {
             // 读取失败则继续写入
-            logger.warn("读取现有智能体文件失败，继续写入", { agentId: agent.id });
+            logger.warn("读取现有智能体文件失败，继续写入", {
+              agentId: agent.id,
+            });
           }
         }
       }
@@ -313,7 +361,11 @@ export function useAgentStorageSeparated() {
         name: agent.name,
       });
     } catch (error) {
-      errorHandler.handle(error as Error, { userMessage: "保存智能体失败", context: { agentId: agent.id }, showToUser: false });
+      errorHandler.handle(error as Error, {
+        userMessage: "保存智能体失败",
+        context: { agentId: agent.id },
+        showToUser: false,
+      });
       throw error;
     }
   }
@@ -324,7 +376,9 @@ export function useAgentStorageSeparated() {
   async function deleteAgentDirectory(agentId: string): Promise<void> {
     try {
       const agentDir = await getAgentDirPath(agentId);
-      const relativePath = (await join(MODULE_NAME, AGENTS_SUBDIR, agentId)).replace(/\\/g, "/");
+      const relativePath = (
+        await join(MODULE_NAME, AGENTS_SUBDIR, agentId)
+      ).replace(/\\/g, "/");
 
       const dirExists = await exists(agentDir);
       if (dirExists) {
@@ -334,7 +388,11 @@ export function useAgentStorageSeparated() {
         logger.warn("智能体目录不存在，跳过删除", { agentId, path: agentDir });
       }
     } catch (error) {
-      errorHandler.handle(error as Error, { userMessage: "删除智能体目录失败", context: { agentId }, showToUser: false });
+      errorHandler.handle(error as Error, {
+        userMessage: "删除智能体目录失败",
+        context: { agentId },
+        showToUser: false,
+      });
       throw error;
     }
   }
@@ -363,7 +421,10 @@ export function useAgentStorageSeparated() {
       logger.debug("扫描智能体目录完成", { count: agentIds.length });
       return agentIds;
     } catch (error) {
-      errorHandler.handle(error as Error, { userMessage: "扫描智能体目录失败", showToUser: false });
+      errorHandler.handle(error as Error, {
+        userMessage: "扫描智能体目录失败",
+        showToUser: false,
+      });
       return [];
     }
   }
@@ -500,7 +561,11 @@ export function useAgentStorageSeparated() {
 
         logger.info(`智能体 ${agentId} 迁移成功`);
       } catch (error) {
-        errorHandler.handle(error as Error, { userMessage: `迁移智能体 ${agentId} 失败`, context: { oldPath }, showToUser: false });
+        errorHandler.handle(error as Error, {
+          userMessage: `迁移智能体 ${agentId} 失败`,
+          context: { oldPath },
+          showToUser: false,
+        });
       }
     }
     logger.info("智能体数据迁移完成");
@@ -539,7 +604,10 @@ export function useAgentStorageSeparated() {
         currentAgentId: index.currentAgentId,
       };
     } catch (error) {
-      errorHandler.handle(error as Error, { userMessage: "加载智能体索引失败", showToUser: false });
+      errorHandler.handle(error as Error, {
+        userMessage: "加载智能体索引失败",
+        showToUser: false,
+      });
       return { agents: [], currentAgentId: null };
     }
   }
@@ -565,7 +633,10 @@ export function useAgentStorageSeparated() {
       logger.info(`全量加载了 ${agents.length} 个智能体`);
       return agents;
     } catch (error) {
-      errorHandler.handle(error as Error, { userMessage: "全量加载智能体失败", showToUser: false });
+      errorHandler.handle(error as Error, {
+        userMessage: "全量加载智能体失败",
+        showToUser: false,
+      });
       return [];
     }
   }
@@ -604,7 +675,11 @@ export function useAgentStorageSeparated() {
 
       logger.debug("单个智能体保存成功", { agentId: agent.id });
     } catch (error) {
-      errorHandler.handle(error as Error, { userMessage: "保存单个智能体失败", context: { agentId: agent.id }, showToUser: false });
+      errorHandler.handle(error as Error, {
+        userMessage: "保存单个智能体失败",
+        context: { agentId: agent.id },
+        showToUser: false,
+      });
       throw error;
     }
   }
@@ -615,15 +690,19 @@ export function useAgentStorageSeparated() {
   async function saveAgents(agents: ChatAgent[]): Promise<void> {
     try {
       // 过滤掉详情未加载的智能体，防止空数据覆盖磁盘文件
-      const agentsWithDetails = agents.filter(a => a.parameters !== undefined);
+      const agentsWithDetails = agents.filter(
+        (a) => a.parameters !== undefined
+      );
 
       logger.debug("开始批量保存智能体", {
         total: agents.length,
-        toSave: agentsWithDetails.length
+        toSave: agentsWithDetails.length,
       });
 
       // 1. 并行保存已加载详情的智能体文件（强制写入）
-      await Promise.all(agentsWithDetails.map((agent) => saveAgent(agent, true)));
+      await Promise.all(
+        agentsWithDetails.map((agent) => saveAgent(agent, true))
+      );
 
       // 2. 更新索引（保存元数据）
       const index = await loadIndex();
@@ -664,7 +743,11 @@ export function useAgentStorageSeparated() {
 
       logger.info("智能体已删除", { agentId });
     } catch (error) {
-      errorHandler.handle(error as Error, { userMessage: "删除智能体失败", context: { agentId }, showToUser: false });
+      errorHandler.handle(error as Error, {
+        userMessage: "删除智能体失败",
+        context: { agentId },
+        showToUser: false,
+      });
       throw error;
     }
   }
@@ -679,7 +762,11 @@ export function useAgentStorageSeparated() {
       await saveIndex(index);
       logger.debug("更新当前智能体", { agentId });
     } catch (error) {
-      errorHandler.handle(error as Error, { userMessage: "更新当前智能体失败", context: { agentId }, showToUser: false });
+      errorHandler.handle(error as Error, {
+        userMessage: "更新当前智能体失败",
+        context: { agentId },
+        showToUser: false,
+      });
       throw error;
     }
   }
@@ -692,7 +779,10 @@ export function useAgentStorageSeparated() {
       const index = await loadIndex();
       return index.currentAgentId;
     } catch (error) {
-      errorHandler.handle(error as Error, { userMessage: "获取当前智能体失败", showToUser: false });
+      errorHandler.handle(error as Error, {
+        userMessage: "获取当前智能体失败",
+        showToUser: false,
+      });
       return null;
     }
   }
@@ -713,7 +803,10 @@ export function useAgentStorageSeparated() {
           await saveAgents(agents);
           logger.debug("防抖保存完成", { delay });
         } catch (error) {
-          errorHandler.handle(error as Error, { userMessage: "防抖保存失败", showToUser: false });
+          errorHandler.handle(error as Error, {
+            userMessage: "防抖保存失败",
+            showToUser: false,
+          });
         }
       }, delay);
     };

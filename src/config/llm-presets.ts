@@ -2,7 +2,12 @@
  * LLM 服务商预设模板配置
  */
 
-import type { ProviderType, LlmModelInfo, LlmLink, LlmProfile } from "../types/llm-profiles";
+import type {
+  ProviderType,
+  LlmModelInfo,
+  LlmLink,
+  LlmProfile,
+} from "../types/llm-profiles";
 
 /**
  * 预设模板接口
@@ -43,7 +48,10 @@ export const llmPresets: LlmPreset[] = [
     links: [
       { label: "官网", url: "https://www.deepseek.com" },
       { label: "API 文档", url: "https://api-docs.deepseek.com" },
-      { label: "计费说明", url: "https://api-docs.deepseek.com/zh-cn/quick_start/pricing" },
+      {
+        label: "计费说明",
+        url: "https://api-docs.deepseek.com/zh-cn/quick_start/pricing",
+      },
     ],
     defaultModels: [
       {
@@ -51,7 +59,11 @@ export const llmPresets: LlmPreset[] = [
         name: "DeepSeek V4 Pro",
         group: "DeepSeek",
         provider: "deepseek",
-        capabilities: { toolUse: true, thinking: true, thinkingConfigType: "switch" },
+        capabilities: {
+          toolUse: true,
+          thinking: true,
+          thinkingConfigType: "switch",
+        },
         description: "DeepSeek 旗舰模型 (V4 Pro)",
       },
       {
@@ -59,7 +71,11 @@ export const llmPresets: LlmPreset[] = [
         name: "DeepSeek V4 Flash",
         group: "DeepSeek",
         provider: "deepseek",
-        capabilities: { toolUse: true, thinking: true, thinkingConfigType: "switch" },
+        capabilities: {
+          toolUse: true,
+          thinking: true,
+          thinkingConfigType: "switch",
+        },
         description: "DeepSeek 高速模型 (V4 Flash)",
       },
       {
@@ -67,7 +83,11 @@ export const llmPresets: LlmPreset[] = [
         name: "DeepSeek Reasoner",
         group: "DeepSeek",
         provider: "deepseek",
-        capabilities: { toolUse: true, thinking: true, thinkingConfigType: "switch" },
+        capabilities: {
+          toolUse: true,
+          thinking: true,
+          thinkingConfigType: "switch",
+        },
         description: "推理专用模型 (即将弃用，请迁移至 V4 系列)",
       },
       {
@@ -75,7 +95,11 @@ export const llmPresets: LlmPreset[] = [
         name: "DeepSeek Chat",
         group: "DeepSeek",
         provider: "deepseek",
-        capabilities: { toolUse: true, thinking: true, thinkingConfigType: "switch" },
+        capabilities: {
+          toolUse: true,
+          thinking: true,
+          thinkingConfigType: "switch",
+        },
         description: "通用对话模型 (即将弃用，请迁移至 V4 系列)",
       },
     ],
@@ -89,7 +113,10 @@ export const llmPresets: LlmPreset[] = [
     logoUrl: "/model-icons/openai.svg",
     links: [
       { label: "控制台", url: "https://platform.openai.com" },
-      { label: "API 文档", url: "https://platform.openai.com/docs/api-reference" },
+      {
+        label: "API 文档",
+        url: "https://platform.openai.com/docs/api-reference",
+      },
       { label: "价格页", url: "https://openai.com/api/pricing" },
     ],
     defaultModels: [
@@ -162,7 +189,10 @@ export const llmPresets: LlmPreset[] = [
     logoUrl: "/model-icons/openai.svg",
     links: [
       { label: "控制台", url: "https://platform.openai.com" },
-      { label: "API 文档", url: "https://platform.openai.com/docs/api-reference/responses" },
+      {
+        label: "API 文档",
+        url: "https://platform.openai.com/docs/api-reference/responses",
+      },
     ],
     defaultModels: [
       {
@@ -332,8 +362,18 @@ export const llmPresets: LlmPreset[] = [
         capabilities: { toolUse: true },
         description: "开源代理专用，推理/编码增强（2025-07-28）",
       },
-      { id: "glm-4-plus", name: "GLM-4 Plus", group: "GLM-4", provider: "zhipu" },
-      { id: "glm-4-flash", name: "GLM-4 Flash", group: "GLM-4", provider: "zhipu" },
+      {
+        id: "glm-4-plus",
+        name: "GLM-4 Plus",
+        group: "GLM-4",
+        provider: "zhipu",
+      },
+      {
+        id: "glm-4-flash",
+        name: "GLM-4 Flash",
+        group: "GLM-4",
+        provider: "zhipu",
+      },
     ],
   },
   // Groq
@@ -364,7 +404,12 @@ export const llmPresets: LlmPreset[] = [
         provider: "groq",
         description: "即时响应，轻量首选",
       },
-      { id: "mixtral-8x7b-32768", name: "Mixtral 8x7B 32K", group: "Mixtral", provider: "groq" },
+      {
+        id: "mixtral-8x7b-32768",
+        name: "Mixtral 8x7B 32K",
+        group: "Mixtral",
+        provider: "groq",
+      },
       {
         id: "gemma-2-9b",
         name: "Gemma 2 9B",
@@ -457,7 +502,8 @@ export const llmPresets: LlmPreset[] = [
           thinkingConfigType: "effort",
           reasoningEffortOptions: ["minimal", "low", "medium", "high"],
         },
-        description: "最智能 Flash 系列，强 agentic & coding 能力，1M 上下文 (2026-05 GA)",
+        description:
+          "最智能 Flash 系列，强 agentic & coding 能力，1M 上下文 (2026-05 GA)",
       },
       // Gemini 3
       {
@@ -476,7 +522,8 @@ export const llmPresets: LlmPreset[] = [
           thinkingConfigType: "effort",
           reasoningEffortOptions: ["minimal", "low", "medium", "high"],
         },
-        description: "旗舰多模态模型，支持文本、图像、视频、音频、PDF输入 (2025-11)",
+        description:
+          "旗舰多模态模型，支持文本、图像、视频、音频、PDF输入 (2025-11)",
       },
       {
         id: "gemini-3-pro-image-preview",
@@ -549,7 +596,12 @@ export const llmPresets: LlmPreset[] = [
         name: "Gemini 2.5 Flash Image",
         group: "Gemini 2.5",
         provider: "gemini",
-        capabilities: { vision: true, imageGeneration: true, fileSearch: true, preferChat: true },
+        capabilities: {
+          vision: true,
+          imageGeneration: true,
+          fileSearch: true,
+          preferChat: true,
+        },
         description: "Flash 系列的图像生成模型 (2025-10)",
       },
       {
@@ -622,7 +674,12 @@ export const llmPresets: LlmPreset[] = [
         name: "Gemini 2.0 Flash Image",
         group: "Gemini 2.0",
         provider: "gemini",
-        capabilities: { vision: true, audio: true, imageGeneration: true, preferChat: true },
+        capabilities: {
+          vision: true,
+          audio: true,
+          imageGeneration: true,
+          preferChat: true,
+        },
         description: "第二代图像生成模型 (2025-05)",
       },
       {
@@ -658,7 +715,10 @@ export const llmPresets: LlmPreset[] = [
     logoUrl: "/model-icons/claude-color.svg",
     links: [
       { label: "控制台", url: "https://console.anthropic.com" },
-      { label: "API 文档", url: "https://docs.anthropic.com/claude/reference/getting-started-with-the-api" },
+      {
+        label: "API 文档",
+        url: "https://docs.anthropic.com/claude/reference/getting-started-with-the-api",
+      },
       { label: "价格页", url: "https://www.anthropic.com/pricing" },
     ],
     defaultModels: [
@@ -667,7 +727,12 @@ export const llmPresets: LlmPreset[] = [
         name: "Claude Haiku 4.5",
         group: "Claude 4.5",
         provider: "anthropic",
-        capabilities: { vision: true, toolUse: true, thinking: true, thinkingConfigType: "budget" },
+        capabilities: {
+          vision: true,
+          toolUse: true,
+          thinking: true,
+          thinkingConfigType: "budget",
+        },
         description: "小模型旗舰，成本敏感任务专家（2025-10-15）",
       },
       {
@@ -675,7 +740,12 @@ export const llmPresets: LlmPreset[] = [
         name: "Claude Sonnet 4.5",
         group: "Claude 4.5",
         provider: "anthropic",
-        capabilities: { vision: true, toolUse: true, thinking: true, thinkingConfigType: "budget" },
+        capabilities: {
+          vision: true,
+          toolUse: true,
+          thinking: true,
+          thinkingConfigType: "budget",
+        },
         description: "编码/代理/计算机使用顶级，SWE-bench 77.2%（2025-09-29）",
       },
       {
@@ -683,7 +753,11 @@ export const llmPresets: LlmPreset[] = [
         name: "Claude Opus 4.1",
         group: "Claude 4",
         provider: "anthropic",
-        capabilities: { vision: true, thinking: true, thinkingConfigType: "budget" },
+        capabilities: {
+          vision: true,
+          thinking: true,
+          thinkingConfigType: "budget",
+        },
         description: "旗舰推理模型",
       },
       {
@@ -691,7 +765,11 @@ export const llmPresets: LlmPreset[] = [
         name: "Claude 3.7 Sonnet",
         group: "Claude 3.7",
         provider: "anthropic",
-        capabilities: { vision: true, thinking: true, thinkingConfigType: "budget" },
+        capabilities: {
+          vision: true,
+          thinking: true,
+          thinkingConfigType: "budget",
+        },
       },
     ],
   },
@@ -787,7 +865,10 @@ export const llmPresets: LlmPreset[] = [
     logoUrl: "/model-icons/huggingface-color.svg",
     links: [
       { label: "官网", url: "https://huggingface.co/" },
-      { label: "API 文档", url: "https://huggingface.co/docs/inference-providers/index" },
+      {
+        label: "API 文档",
+        url: "https://huggingface.co/docs/inference-providers/index",
+      },
       { label: "价格页", url: "https://huggingface.co/pricing" },
     ],
     defaultModels: [
@@ -834,7 +915,10 @@ export const llmPresets: LlmPreset[] = [
     links: [
       { label: "控制台", url: "https://console.cloud.google.com/vertex-ai" },
       { label: "API 文档", url: "https://cloud.google.com/vertex-ai/docs" },
-      { label: "价格页", url: "https://cloud.google.com/vertex-ai/generative-ai/pricing" },
+      {
+        label: "价格页",
+        url: "https://cloud.google.com/vertex-ai/generative-ai/pricing",
+      },
     ],
     defaultModels: [
       {
@@ -850,7 +934,8 @@ export const llmPresets: LlmPreset[] = [
           webSearch: true,
           codeExecution: true,
         },
-        description: "最智能 Flash 系列，强 agentic & coding 能力，1M 上下文 (2026-05 GA)",
+        description:
+          "最智能 Flash 系列，强 agentic & coding 能力，1M 上下文 (2026-05 GA)",
       },
       {
         id: "gemini-3-pro-preview",
@@ -947,8 +1032,14 @@ export const llmPresets: LlmPreset[] = [
     links: [
       { label: "官网", url: "https://www.volcengine.com/product/ark" },
       { label: "控制台", url: "https://console.volcengine.com/ark" },
-      { label: "API 文档", url: "https://www.volcengine.com/docs/82379/1099420" },
-      { label: "计费说明", url: "https://www.volcengine.com/docs/82379/1099722" },
+      {
+        label: "API 文档",
+        url: "https://www.volcengine.com/docs/82379/1099420",
+      },
+      {
+        label: "计费说明",
+        url: "https://www.volcengine.com/docs/82379/1099722",
+      },
     ],
     defaultModels: [
       {
@@ -967,9 +1058,24 @@ export const llmPresets: LlmPreset[] = [
         capabilities: { vision: true },
         description: "多模态升级，资源高效",
       },
-      { id: "doubao-pro-256k", name: "豆包 Pro 256K", group: "豆包", provider: "bytedance" },
-      { id: "doubao-pro-128k", name: "豆包 Pro 128K", group: "豆包", provider: "bytedance" },
-      { id: "doubao-lite-128k", name: "豆包 Lite 128K", group: "豆包", provider: "bytedance" },
+      {
+        id: "doubao-pro-256k",
+        name: "豆包 Pro 256K",
+        group: "豆包",
+        provider: "bytedance",
+      },
+      {
+        id: "doubao-pro-128k",
+        name: "豆包 Pro 128K",
+        group: "豆包",
+        provider: "bytedance",
+      },
+      {
+        id: "doubao-lite-128k",
+        name: "豆包 Lite 128K",
+        group: "豆包",
+        provider: "bytedance",
+      },
     ],
   },
   // xAI (Grok)
@@ -1038,8 +1144,14 @@ export const llmPresets: LlmPreset[] = [
     logoUrl: "/model-icons/qwen-color.svg",
     links: [
       { label: "官网", url: "https://bailian.console.aliyun.com" },
-      { label: "控制台", url: "https://bailian.console.aliyun.com/cn-beijing/?tab=model#/model-market" },
-      { label: "API 文档", url: "https://bailian.console.aliyun.com/cn-beijing/doc?tab=doc#/doc" },
+      {
+        label: "控制台",
+        url: "https://bailian.console.aliyun.com/cn-beijing/?tab=model#/model-market",
+      },
+      {
+        label: "API 文档",
+        url: "https://bailian.console.aliyun.com/cn-beijing/doc?tab=doc#/doc",
+      },
       {
         label: "计费说明",
         url: "https://bailian.console.aliyun.com/cn-beijing/doc?tab=doc#/doc/?type=model&url=2987148",
@@ -1185,9 +1297,18 @@ export const llmPresets: LlmPreset[] = [
     logoUrl: "/model-icons/wenxin-color.svg",
     links: [
       { label: "官网", url: "https://cloud.baidu.com/product/wenxinworkshop" },
-      { label: "控制台", url: "https://console.bce.baidu.com/qianfan/ais/console/application/protocols" },
-      { label: "API 文档", url: "https://cloud.baidu.com/doc/WENXINWORKSHOP/index.html" },
-      { label: "计费说明", url: "https://cloud.baidu.com/doc/qianfan/s/wmh4sv6ya" },
+      {
+        label: "控制台",
+        url: "https://console.bce.baidu.com/qianfan/ais/console/application/protocols",
+      },
+      {
+        label: "API 文档",
+        url: "https://cloud.baidu.com/doc/WENXINWORKSHOP/index.html",
+      },
+      {
+        label: "计费说明",
+        url: "https://cloud.baidu.com/doc/qianfan/s/wmh4sv6ya",
+      },
     ],
     defaultModels: [
       {
@@ -1233,8 +1354,14 @@ export const llmPresets: LlmPreset[] = [
     links: [
       { label: "官网", url: "https://hunyuan.tencent.com" },
       { label: "控制台", url: "https://console.cloud.tencent.com/hunyuan" },
-      { label: "API 文档", url: "https://cloud.tencent.com/document/product/1729" },
-      { label: "计费说明", url: "https://cloud.tencent.com/document/product/1729/97731" },
+      {
+        label: "API 文档",
+        url: "https://cloud.tencent.com/document/product/1729",
+      },
+      {
+        label: "计费说明",
+        url: "https://cloud.tencent.com/document/product/1729/97731",
+      },
     ],
     defaultModels: [
       {
@@ -1288,8 +1415,14 @@ export const llmPresets: LlmPreset[] = [
     links: [
       { label: "官网", url: "https://www.minimaxi.com" },
       { label: "控制台", url: "https://platform.minimaxi.com" },
-      { label: "API 文档", url: "https://platform.minimaxi.com/docs/api-reference/api-overview" },
-      { label: "计费说明", url: "https://platform.minimaxi.com/docs/guides/pricing-speech" },
+      {
+        label: "API 文档",
+        url: "https://platform.minimaxi.com/docs/api-reference/api-overview",
+      },
+      {
+        label: "计费说明",
+        url: "https://platform.minimaxi.com/docs/guides/pricing-speech",
+      },
     ],
     defaultModels: [
       {
@@ -1415,7 +1548,10 @@ export const llmPresets: LlmPreset[] = [
     links: [
       { label: "官网", url: "https://www.sensetime.com" },
       { label: "控制台", url: "https://platform.sensenova.cn" },
-      { label: "API 文档", url: "https://platform.sensenova.cn/product/APIService/document/" },
+      {
+        label: "API 文档",
+        url: "https://platform.sensenova.cn/product/APIService/document/",
+      },
     ],
     defaultModels: [
       {
@@ -1654,12 +1790,19 @@ export const llmPresets: LlmPreset[] = [
     type: "azure",
     name: "Azure OpenAI",
     description: "微软 Azure OpenAI 服务",
-    defaultBaseUrl: "https://{resource}.openai.azure.com/openai/deployments/{deployment}",
+    defaultBaseUrl:
+      "https://{resource}.openai.azure.com/openai/deployments/{deployment}",
     logoUrl: "/model-icons/azure-color.svg",
     links: [
-      { label: "官网", url: "https://azure.microsoft.com/products/ai-services/openai-service" },
+      {
+        label: "官网",
+        url: "https://azure.microsoft.com/products/ai-services/openai-service",
+      },
       { label: "控制台", url: "https://portal.azure.com" },
-      { label: "API 文档", url: "https://learn.microsoft.com/azure/ai-services/openai/" },
+      {
+        label: "API 文档",
+        url: "https://learn.microsoft.com/azure/ai-services/openai/",
+      },
     ],
     defaultModels: [
       {
@@ -1713,7 +1856,10 @@ export const llmPresets: LlmPreset[] = [
     links: [
       { label: "官网", url: "https://modelscope.cn" },
       { label: "模型推理", url: "https://modelscope.cn/models" },
-      { label: "API 文档", url: "https://modelscope.cn/docs/model-service/API-Inference/intro" },
+      {
+        label: "API 文档",
+        url: "https://modelscope.cn/docs/model-service/API-Inference/intro",
+      },
     ],
     defaultModels: [
       {
@@ -1910,9 +2056,15 @@ export const llmPresets: LlmPreset[] = [
     defaultBaseUrl: "https://api.example.com",
     logoUrl: "/model-icons/newapi-color.svg",
     links: [
-      { label: "GitHub (NewAPI)", url: "https://github.com/Calcium-Ion/new-api" },
+      {
+        label: "GitHub (NewAPI)",
+        url: "https://github.com/Calcium-Ion/new-api",
+      },
       { label: "API 文档 (NewAPI)", url: "https://docs.newapi.pro/zh/docs" },
-      { label: "GitHub (One API)", url: "https://github.com/songquanpeng/one-api" },
+      {
+        label: "GitHub (One API)",
+        url: "https://github.com/songquanpeng/one-api",
+      },
     ],
   },
   // Suno (NewAPI)
@@ -1925,8 +2077,14 @@ export const llmPresets: LlmPreset[] = [
     links: [
       { label: "Suno 官网", url: "https://suno.com" },
       { label: "API 项目", url: "https://github.com/Suno-API/Suno-API" },
-      { label: "Suno API文档", url: "https://github.com/Suno-API/Suno-API/blob/main/README_ZH.md" },
-      { label: "API 文档 (NewAPI)", url: "https://github.com/Suno-API/Suno-API/blob/main/Suno.md" },
+      {
+        label: "Suno API文档",
+        url: "https://github.com/Suno-API/Suno-API/blob/main/README_ZH.md",
+      },
+      {
+        label: "API 文档 (NewAPI)",
+        url: "https://github.com/Suno-API/Suno-API/blob/main/Suno.md",
+      },
     ],
     defaultModels: [
       {

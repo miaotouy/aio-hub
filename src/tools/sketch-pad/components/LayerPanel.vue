@@ -1,7 +1,12 @@
 <template>
   <div class="layer-panel-float" :class="{ collapsed: isCollapsed }">
     <!-- 折叠状态下的触发按钮 -->
-    <button v-if="isCollapsed" class="panel-toggle" title="展开图层面板" @click="isCollapsed = false">
+    <button
+      v-if="isCollapsed"
+      class="panel-toggle"
+      title="展开图层面板"
+      @click="isCollapsed = false"
+    >
       <Layers :size="18" />
     </button>
 
@@ -11,13 +16,25 @@
         <span class="panel-title">图层</span>
         <div class="header-actions">
           <!-- 新建图层按钮组 -->
-          <button class="header-btn" title="新建填充图层" @click="handleCreateLayer('background')">
+          <button
+            class="header-btn"
+            title="新建填充图层"
+            @click="handleCreateLayer('background')"
+          >
             <PaintBucket :size="14" />
           </button>
-          <button class="header-btn" title="新建位图图层" @click="handleCreateLayer('raster')">
+          <button
+            class="header-btn"
+            title="新建位图图层"
+            @click="handleCreateLayer('raster')"
+          >
             <Paintbrush :size="14" />
           </button>
-          <button class="header-btn" title="新建对象图层" @click="handleCreateLayer('object')">
+          <button
+            class="header-btn"
+            title="新建对象图层"
+            @click="handleCreateLayer('object')"
+          >
             <Shapes :size="14" />
           </button>
           <button class="panel-close" title="收起" @click="isCollapsed = true">
@@ -28,16 +45,32 @@
 
       <!-- 图层列表 -->
       <div class="layer-list">
-        <div v-for="(layer, index) in layers" :key="layer.id" class="layer-group">
+        <div
+          v-for="(layer, index) in layers"
+          :key="layer.id"
+          class="layer-group"
+        >
           <!-- 图层条目 -->
-          <div class="layer-item" :class="{ active: layer.id === activeLayerId }" @click="selectLayer(layer.id)">
+          <div
+            class="layer-item"
+            :class="{ active: layer.id === activeLayerId }"
+            @click="selectLayer(layer.id)"
+          >
             <!-- 可见性 -->
-            <button class="icon-btn" :title="layer.visible ? '隐藏' : '显示'" @click.stop="toggleVisible(layer.id)">
+            <button
+              class="icon-btn"
+              :title="layer.visible ? '隐藏' : '显示'"
+              @click.stop="toggleVisible(layer.id)"
+            >
               <component :is="layer.visible ? Eye : EyeOff" :size="13" />
             </button>
 
             <!-- 锁定 -->
-            <button class="icon-btn" :title="layer.locked ? '解锁' : '锁定'" @click.stop="toggleLocked(layer.id)">
+            <button
+              class="icon-btn"
+              :title="layer.locked ? '解锁' : '锁定'"
+              @click.stop="toggleLocked(layer.id)"
+            >
               <component :is="layer.locked ? Lock : Unlock" :size="13" />
             </button>
 
@@ -54,22 +87,36 @@
               :title="expandedLayers.has(layer.id) ? '折叠' : '展开对象列表'"
               @click.stop="toggleExpand(layer.id)"
             >
-              <component :is="expandedLayers.has(layer.id) ? ChevronDown : ChevronRight" :size="12" />
+              <component
+                :is="expandedLayers.has(layer.id) ? ChevronDown : ChevronRight"
+                :size="12"
+              />
             </button>
 
             <!-- 排序按钮 -->
             <div class="layer-order">
-              <button class="icon-btn mini" :disabled="isMoveLayerDisabled(index, -1)" @click.stop="moveLayer(index, -1)">
+              <button
+                class="icon-btn mini"
+                :disabled="isMoveLayerDisabled(index, -1)"
+                @click.stop="moveLayer(index, -1)"
+              >
                 <ChevronUp :size="12" />
               </button>
-              <button class="icon-btn mini" :disabled="isMoveLayerDisabled(index, 1)" @click.stop="moveLayer(index, 1)">
+              <button
+                class="icon-btn mini"
+                :disabled="isMoveLayerDisabled(index, 1)"
+                @click.stop="moveLayer(index, 1)"
+              >
                 <ChevronDown :size="12" />
               </button>
             </div>
           </div>
 
           <!-- 对象列表（展开时显示） -->
-          <div v-if="layer.type === 'object' && expandedLayers.has(layer.id)" class="object-list">
+          <div
+            v-if="layer.type === 'object' && expandedLayers.has(layer.id)"
+            class="object-list"
+          >
             <div
               v-for="(obj, objIndex) in getLayerObjects(layer)"
               :key="obj.id"
@@ -82,7 +129,11 @@
               </span>
               <span class="object-name">{{ getObjectName(obj) }}</span>
               <div class="object-order">
-                <el-tooltip content="上移（显示更靠前）" placement="top" :show-after="300">
+                <el-tooltip
+                  content="上移（显示更靠前）"
+                  placement="top"
+                  :show-after="300"
+                >
                   <button
                     class="icon-btn mini"
                     :disabled="objIndex === getLayerObjects(layer).length - 1"
@@ -91,7 +142,11 @@
                     <ChevronUp :size="11" />
                   </button>
                 </el-tooltip>
-                <el-tooltip content="下移（显示更靠后）" placement="top" :show-after="300">
+                <el-tooltip
+                  content="下移（显示更靠后）"
+                  placement="top"
+                  :show-after="300"
+                >
                   <button
                     class="icon-btn mini"
                     :disabled="objIndex === 0"
@@ -109,14 +164,22 @@
       <!-- 底部操作栏 -->
       <div class="panel-footer">
         <el-tooltip content="删除图层" placement="top" :show-after="300">
-          <button class="footer-btn danger" :disabled="layers.length <= 1" @click="deleteActiveLayer">
+          <button
+            class="footer-btn danger"
+            :disabled="layers.length <= 1"
+            @click="deleteActiveLayer"
+          >
             <Trash2 :size="13" />
           </button>
         </el-tooltip>
         <el-tooltip content="向下合并" placement="top" :show-after="300">
           <button
             class="footer-btn"
-            :disabled="layers.length <= 1 || activeLayerIndex === layers.length - 1 || activeLayer?.type === 'background'"
+            :disabled="
+              layers.length <= 1 ||
+              activeLayerIndex === layers.length - 1 ||
+              activeLayer?.type === 'background'
+            "
             @click="mergeDown"
           >
             <Merge :size="13" />
@@ -175,7 +238,9 @@ const layers = state.layers;
 const activeLayerId = state.activeLayerId;
 const selectionInfo = state.selectionInfo;
 
-const selectedObjectId = computed(() => selectionInfo.value.singleObject?.id || null);
+const selectedObjectId = computed(
+  () => selectionInfo.value.singleObject?.id || null
+);
 
 const activeLayerIndex = computed(() => {
   return layers.value.findIndex((l) => l.id === activeLayerId.value);
@@ -186,7 +251,11 @@ const activeLayer = computed(() => {
 });
 
 function handleCreateLayer(type: "background" | "raster" | "object") {
-  actions.addLayer(type, type === "background" ? "填充" : undefined, type === "background" ? { fillColor: "#ffffff" } : undefined);
+  actions.addLayer(
+    type,
+    type === "background" ? "填充" : undefined,
+    type === "background" ? { fillColor: "#ffffff" } : undefined
+  );
 }
 
 function selectLayer(id: string) {
@@ -300,7 +369,11 @@ function getObjectName(obj: SketchObject): string {
       return "箭头";
     case "text": {
       const content = obj.content.trim();
-      return content ? (content.length > 8 ? content.substring(0, 8) + "…" : content) : "文本";
+      return content
+        ? content.length > 8
+          ? content.substring(0, 8) + "…"
+          : content
+        : "文本";
     }
     case "image":
       return "图片";
@@ -334,7 +407,10 @@ function moveObject(layerId: string, displayIndex: number, direction: number) {
   const [moved] = newObjects.splice(actualIndex, 1);
   newObjects.splice(newActualIndex, 0, moved);
 
-  runtime.capabilities.reorderObjectsInLayer(layerId, newObjects.map((o) => o.id));
+  runtime.capabilities.reorderObjectsInLayer(
+    layerId,
+    newObjects.map((o) => o.id)
+  );
 }
 </script>
 

@@ -19,18 +19,24 @@
             effect="light"
             round
           >
-            {{ hasMetadata ? '已实现' : '未实现' }}
+            {{ hasMetadata ? "已实现" : "未实现" }}
           </el-tag>
         </el-descriptions-item>
       </el-descriptions>
     </InfoCard>
 
     <!-- 方法列表 -->
-    <ServiceMethods v-if="hasMetadata && metadata" :methods="metadata.methods" />
+    <ServiceMethods
+      v-if="hasMetadata && metadata"
+      :methods="metadata.methods"
+    />
 
     <!-- 未实现元数据提示 -->
     <InfoCard v-else-if="!hasMetadata" class="detail-card">
-      <el-empty description="该服务尚未实现 getMetadata() 方法" :image-size="100">
+      <el-empty
+        description="该服务尚未实现 getMetadata() 方法"
+        :image-size="100"
+      >
         <template #image>
           <el-icon :size="100" color="#909399">
             <InfoFilled />
@@ -49,11 +55,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import type { ToolRegistry, ServiceMetadata } from '@/services/types';
-import { InfoFilled } from '@element-plus/icons-vue';
-import ServiceMethods from './ServiceMethods.vue';
-import InfoCard from '@/components/common/InfoCard.vue';
+import { computed } from "vue";
+import type { ToolRegistry, ServiceMetadata } from "@/services/types";
+import { InfoFilled } from "@element-plus/icons-vue";
+import ServiceMethods from "./ServiceMethods.vue";
+import InfoCard from "@/components/common/InfoCard.vue";
 
 const props = defineProps<{
   service: ToolRegistry | null;

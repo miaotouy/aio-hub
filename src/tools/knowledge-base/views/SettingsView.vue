@@ -66,7 +66,9 @@ onMounted(() => {
           <h3 class="header-title">知识库全局配置</h3>
           <p class="header-desc">配置向量化模型、索引策略及存储参数</p>
         </div>
-        <el-button :icon="RotateCcw" @click="handleReset" plain type="danger"> 一键重置 </el-button>
+        <el-button :icon="RotateCcw" @click="handleReset" plain type="danger">
+          一键重置
+        </el-button>
       </div>
 
       <el-collapse v-model="activeCollapse">

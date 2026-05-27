@@ -53,7 +53,9 @@ export const useAppSettingsStore = defineStore("appSettings", () => {
   // 避免组件中出现 store.settings.appearance?.xxx 这种繁琐且可能 undefined 的访问
 
   /** 外观设置 */
-  const appearance = computed(() => settings.value.appearance ?? defaultAppearanceSettings);
+  const appearance = computed(
+    () => settings.value.appearance ?? defaultAppearanceSettings
+  );
 
   /** 主题模式 */
   const theme = computed(() => settings.value.theme ?? "auto");
@@ -70,8 +72,12 @@ export const useAppSettingsStore = defineStore("appSettings", () => {
   /** 生效的主题色（如果开启了自动提取且有提取值，则使用提取值，否则使用设置的主题色） */
   const effectiveThemeColor = computed(() => {
     const app = appearance.value;
-    const isExtracted = !!(app.autoExtractThemeColorFromWallpaper && app.wallpaperExtractedThemeColor);
-    return isExtracted ? app.wallpaperExtractedThemeColor! : (settings.value.themeColor ?? "#409eff");
+    const isExtracted = !!(
+      app.autoExtractThemeColorFromWallpaper && app.wallpaperExtractedThemeColor
+    );
+    return isExtracted
+      ? app.wallpaperExtractedThemeColor!
+      : (settings.value.themeColor ?? "#409eff");
   });
 
   return {

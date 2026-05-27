@@ -22,19 +22,31 @@
       <!-- 右侧监控面板 -->
       <main class="monitor-panel">
         <div v-if="isConfigCollapsed" class="expand-trigger">
-          <el-button :icon="PanelLeft" text circle size="small" @click="isConfigCollapsed = false" title="展开侧边栏" />
+          <el-button
+            :icon="PanelLeft"
+            text
+            circle
+            size="small"
+            @click="isConfigCollapsed = false"
+            title="展开侧边栏"
+          />
         </div>
         <el-tabs v-model="activeTab" class="monitor-tabs">
           <el-tab-pane label="消息监控" name="messages">
             <div v-if="isMonitorDetached" class="detached-placeholder">
-              <el-result title="监控面板已分离" sub-title="消息监控正在悬浮窗中运行">
+              <el-result
+                title="监控面板已分离"
+                sub-title="消息监控正在悬浮窗中运行"
+              >
                 <template #icon>
                   <div class="detached-icon-wrapper">
                     <Monitor :size="48" class="detached-icon" />
                   </div>
                 </template>
                 <template #extra>
-                  <el-button type="primary" @click="reattachMonitor" round> 收回面板 </el-button>
+                  <el-button type="primary" @click="reattachMonitor" round>
+                    收回面板
+                  </el-button>
                 </template>
               </el-result>
             </div>
@@ -47,7 +59,12 @@
       </main>
     </div>
 
-    <el-drawer v-model="showJsonViewer" title="消息详情" direction="rtl" size="50%">
+    <el-drawer
+      v-model="showJsonViewer"
+      title="消息详情"
+      direction="rtl"
+      size="50%"
+    >
       <JsonViewer :message="selectedMessage" />
     </el-drawer>
   </div>
@@ -91,7 +108,7 @@ watch(
       store.reloadMessages();
       store.connect();
     }
-  },
+  }
 );
 
 async function reattachMonitor() {

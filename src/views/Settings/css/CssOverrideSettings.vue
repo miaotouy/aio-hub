@@ -1,10 +1,20 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import { useCssOverrides } from '@/composables/useCssOverrides';
-import RichCodeEditor from '@/components/common/RichCodeEditor.vue';
-import AddCssPresetDialog from './components/AddCssPresetDialog.vue';
-import { DocumentCopy, Refresh, Delete, Check, Loading, Edit, Plus, Position, QuestionFilled } from '@element-plus/icons-vue';
-import { ElMessageBox } from 'element-plus';
+import { ref, computed } from "vue";
+import { useCssOverrides } from "@/composables/useCssOverrides";
+import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
+import AddCssPresetDialog from "./components/AddCssPresetDialog.vue";
+import {
+  DocumentCopy,
+  Refresh,
+  Delete,
+  Check,
+  Loading,
+  Edit,
+  Plus,
+  Position,
+  QuestionFilled,
+} from "@element-plus/icons-vue";
+import { ElMessageBox } from "element-plus";
 
 const {
   builtInPresets,
@@ -25,19 +35,19 @@ const {
 } = useCssOverrides();
 
 const showAddDialog = ref(false);
-const editorType = ref<'monaco' | 'codemirror'>('codemirror');
+const editorType = ref<"monaco" | "codemirror">("codemirror");
 
 // 保存状态的图标和文字
 const saveStatusInfo = computed(() => {
   switch (saveStatus.value) {
-    case 'saving':
-      return { icon: Loading, text: '保存中...', class: 'status-saving' };
-    case 'saved':
-      return { icon: Check, text: '已保存', class: 'status-saved' };
-    case 'unsaved':
-      return { icon: null, text: '未保存', class: 'status-unsaved' };
+    case "saving":
+      return { icon: Loading, text: "保存中...", class: "status-saving" };
+    case "saved":
+      return { icon: Check, text: "已保存", class: "status-saved" };
+    case "unsaved":
+      return { icon: null, text: "未保存", class: "status-unsaved" };
     default:
-      return { icon: null, text: '', class: '' };
+      return { icon: null, text: "", class: "" };
   }
 });
 
@@ -63,20 +73,18 @@ function handleAddPreset(name: string) {
 
 // 处理删除预设
 function handleDeletePreset(presetId: string) {
-  ElMessageBox.confirm(
-    '确定要删除这个预设吗？此操作不可恢复。',
-    '确认删除',
-    {
-      type: 'warning',
-      confirmButtonText: '删除',
-      cancelButtonText: '取消',
-      lockScroll: false,
-    }
-  ).then(() => {
-    deleteUserPreset(presetId);
-  }).catch(() => {
-    // 取消删除
-  });
+  ElMessageBox.confirm("确定要删除这个预设吗？此操作不可恢复。", "确认删除", {
+    type: "warning",
+    confirmButtonText: "删除",
+    cancelButtonText: "取消",
+    lockScroll: false,
+  })
+    .then(() => {
+      deleteUserPreset(presetId);
+    })
+    .catch(() => {
+      // 取消删除
+    });
 }
 
 // 判断预设是否正在使用
@@ -110,7 +118,10 @@ function isPresetSelected(presetId: string | null): boolean {
           应用选中的预设
         </el-button>
         <div class="save-status" :class="saveStatusInfo.class">
-          <el-icon v-if="saveStatusInfo.icon" :class="{ rotating: saveStatus === 'saving' }">
+          <el-icon
+            v-if="saveStatusInfo.icon"
+            :class="{ rotating: saveStatus === 'saving' }"
+          >
             <component :is="saveStatusInfo.icon" />
           </el-icon>
           <span>{{ saveStatusInfo.text }}</span>
@@ -154,10 +165,7 @@ function isPresetSelected(presetId: string | null): boolean {
               <el-icon><Edit /></el-icon>
               <span class="preset-name">纯自定义</span>
             </div>
-            <span
-              v-if="isPresetActive(null)"
-              class="active-badge"
-            >
+            <span v-if="isPresetActive(null)" class="active-badge">
               使用中
             </span>
           </div>
@@ -182,10 +190,7 @@ function isPresetSelected(presetId: string | null): boolean {
                   <span class="preset-desc">{{ preset.description }}</span>
                 </div>
               </div>
-              <span
-                v-if="isPresetActive(preset.id)"
-                class="active-badge"
-              >
+              <span v-if="isPresetActive(preset.id)" class="active-badge">
                 使用中
               </span>
             </div>
@@ -212,10 +217,7 @@ function isPresetSelected(presetId: string | null): boolean {
                 </div>
               </div>
               <div class="preset-actions">
-                <span
-                  v-if="isPresetActive(preset.id)"
-                  class="active-badge"
-                >
+                <span v-if="isPresetActive(preset.id)" class="active-badge">
                   使用中
                 </span>
                 <el-button
@@ -241,7 +243,11 @@ function isPresetSelected(presetId: string | null): boolean {
                 <el-tag type="info" size="small">预览模式</el-tag>
               </template>
               <template v-else>
-                {{ currentPreset ? `基于预设：${currentPreset.name}` : '完全自定义' }}
+                {{
+                  currentPreset
+                    ? `基于预设：${currentPreset.name}`
+                    : "完全自定义"
+                }}
               </template>
             </span>
           </div>
@@ -296,11 +302,18 @@ function isPresetSelected(presetId: string | null): boolean {
               <ul>
                 <li>自定义 CSS 会在启用时立即应用到整个应用</li>
                 <li>编辑器支持自动保存，修改后会在 500ms 后自动保存</li>
-                <li>可以使用 CSS 变量来适配主题，如 <code>var(--primary-color)</code></li>
-                <li>选择预设后会进入预览模式（只读），点击"应用选中的预设"按钮才会应用</li>
+                <li>
+                  可以使用 CSS 变量来适配主题，如
+                  <code>var(--primary-color)</code>
+                </li>
+                <li>
+                  选择预设后会进入预览模式（只读），点击"应用选中的预设"按钮才会应用
+                </li>
                 <li>预览模式下无法编辑，应用后即可编辑</li>
                 <li>点击"添加"按钮可以将当前编辑器内容保存为新预设</li>
-                <li>建议谨慎使用 <code>!important</code>，避免影响应用的正常功能</li>
+                <li>
+                  建议谨慎使用 <code>!important</code>，避免影响应用的正常功能
+                </li>
               </ul>
             </div>
           </el-collapse-item>
@@ -648,7 +661,7 @@ function isPresetSelected(presetId: string | null): boolean {
   background: var(--bg-color);
   border: var(--border-width) solid var(--border-color);
   border-radius: 3px;
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-family: "Consolas", "Monaco", "Courier New", monospace;
   font-size: 12px;
   color: var(--primary-color);
 }

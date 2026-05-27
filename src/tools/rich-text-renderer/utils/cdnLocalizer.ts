@@ -11,7 +11,7 @@ const logger = createModuleLogger("CdnLocalizer");
 interface LibConfig {
   name: string;
   patterns: RegExp[]; // 匹配 CDN URL 的正则
-  localPath: string;  // 对应 public/libs/ 下的路径
+  localPath: string; // 对应 public/libs/ 下的路径
 }
 
 /**
@@ -81,11 +81,17 @@ export function localizeCdnLinks(html: string): {
   if (!html) return { html, replacements: [] };
 
   let processedHtml = html;
-  const replacements: Array<{ lib: string; original: string; local: string }> = [];
+  const replacements: Array<{ lib: string; original: string; local: string }> =
+    [];
 
   // 匹配 URL 的通用正则：(http|https)://(域名)/(任何路径)/(文件名)
-  const cdnDomainPattern = CDN_DOMAINS.map(d => d.replace(/\./g, '\\.')).join('|');
-  const urlRegex = new RegExp(`https?://(?:${cdnDomainPattern})/[^"'>\\s]+`, "gi");
+  const cdnDomainPattern = CDN_DOMAINS.map((d) => d.replace(/\./g, "\\.")).join(
+    "|"
+  );
+  const urlRegex = new RegExp(
+    `https?://(?:${cdnDomainPattern})/[^"'>\\s]+`,
+    "gi"
+  );
 
   const matches = html.match(urlRegex);
   if (matches) {
@@ -93,7 +99,7 @@ export function localizeCdnLinks(html: string): {
       for (const config of LIB_CONFIGS) {
         let matched = false;
         for (const pattern of config.patterns) {
-          const urlParts = url.split('/');
+          const urlParts = url.split("/");
           const fileName = urlParts[urlParts.length - 1];
 
           if (pattern.test(fileName)) {
@@ -109,7 +115,9 @@ export function localizeCdnLinks(html: string): {
             local: `/${config.localPath}`,
           });
 
-          logger.info(`检测到 CDN 资源: ${config.name}, URL: ${url} -> 本地: ${config.localPath}`);
+          logger.info(
+            `检测到 CDN 资源: ${config.name}, URL: ${url} -> 本地: ${config.localPath}`
+          );
           processedHtml = processedHtml.split(url).join(`/${config.localPath}`);
           break;
         }
@@ -118,7 +126,10 @@ export function localizeCdnLinks(html: string): {
   }
 
   if (replacements.length > 0) {
-    logger.info(`CDN 本地化完成`, { count: replacements.length, libs: replacements.map(r => r.lib) });
+    logger.info(`CDN 本地化完成`, {
+      count: replacements.length,
+      libs: replacements.map((r) => r.lib),
+    });
   }
 
   return { html: processedHtml, replacements };
@@ -133,8 +144,13 @@ export function detectCdnLibraries(html: string): string[] {
   if (!html) return [];
 
   const detected: string[] = [];
-  const cdnDomainPattern = CDN_DOMAINS.map(d => d.replace(/\./g, '\\.')).join('|');
-  const urlRegex = new RegExp(`https?://(?:${cdnDomainPattern})/[^"'>\\s]+`, "gi");
+  const cdnDomainPattern = CDN_DOMAINS.map((d) => d.replace(/\./g, "\\.")).join(
+    "|"
+  );
+  const urlRegex = new RegExp(
+    `https?://(?:${cdnDomainPattern})/[^"'>\\s]+`,
+    "gi"
+  );
 
   const matches = html.match(urlRegex);
   // console.log("CDN matches found:", matches);
@@ -144,7 +160,7 @@ export function detectCdnLibraries(html: string): string[] {
         if (detected.includes(config.name)) continue;
 
         for (const pattern of config.patterns) {
-          const urlParts = url.split('/');
+          const urlParts = url.split("/");
           const fileName = urlParts[urlParts.length - 1];
           if (pattern.test(fileName)) {
             detected.push(config.name);
@@ -161,7 +177,10 @@ export function detectCdnLibraries(html: string): string[] {
 /**
  * 获取所有支持本地化的库列表
  */
-export function getSupportedLibraries(): Array<{ name: string; localPath: string }> {
+export function getSupportedLibraries(): Array<{
+  name: string;
+  localPath: string;
+}> {
   return LIB_CONFIGS.map((config) => ({
     name: config.name,
     localPath: config.localPath,

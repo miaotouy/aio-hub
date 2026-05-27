@@ -118,7 +118,8 @@ const groupCounts = computed(() => {
   const counts: Record<string, number> = {
     all: assets.value.length,
     default: assets.value.filter(
-      (a) => !a.group || a.group === "default" || !groupIds.value.has(a.group ?? "")
+      (a) =>
+        !a.group || a.group === "default" || !groupIds.value.has(a.group ?? "")
     ).length,
   };
 
@@ -244,7 +245,10 @@ const handleDropOnGroup = (group: string) => {
   let idsToMove: string[] = [];
 
   // 如果拖拽的是已选中的资产之一，则移动所有选中的资产
-  if (draggingAssetId.value && selectedAssetIds.value.has(draggingAssetId.value)) {
+  if (
+    draggingAssetId.value &&
+    selectedAssetIds.value.has(draggingAssetId.value)
+  ) {
     idsToMove = Array.from(selectedAssetIds.value);
   } else if (draggingAssetId.value) {
     // 否则只移动当前拖拽的资产
@@ -291,7 +295,9 @@ const handleBatchDelete = async () => {
     return;
   }
 
-  const assetsToDelete = assets.value.filter((a) => selectedAssetIds.value.has(a.id));
+  const assetsToDelete = assets.value.filter((a) =>
+    selectedAssetIds.value.has(a.id)
+  );
   const assetPaths = assetsToDelete.map((a) => a.path);
 
   try {
@@ -301,7 +307,9 @@ const handleBatchDelete = async () => {
     });
 
     // 从本地列表中移除
-    assets.value = assets.value.filter((a) => !selectedAssetIds.value.has(a.id));
+    assets.value = assets.value.filter(
+      (a) => !selectedAssetIds.value.has(a.id)
+    );
 
     customMessage.success(`成功删除 ${assetsToDelete.length} 个资产`);
     notifyUpdate();
@@ -518,7 +526,13 @@ const getGroupDisplayName = (groupId: string) => {
 const handleOpenAssetsDir = async () => {
   try {
     const appDir = await getAppConfigDir();
-    const assetsPath = await join(appDir, "llm-chat", "agents", props.agentId, "assets");
+    const assetsPath = await join(
+      appDir,
+      "llm-chat",
+      "agents",
+      props.agentId,
+      "assets"
+    );
     logger.info("尝试打开资产目录", {
       appDir,
       agentId: props.agentId,
@@ -656,7 +670,7 @@ const handleDeleteAsset = async (asset: AgentAsset) => {
       assetPath: asset.path,
     });
 
-    const index = assets.value.findIndex(a => a.id === asset.id);
+    const index = assets.value.findIndex((a) => a.id === asset.id);
     if (index > -1) {
       assets.value.splice(index, 1);
       notifyUpdate();
@@ -716,7 +730,9 @@ const getFileExtension = (filename: string): string => {
 const buildAssetRef = (asset: AgentAsset): string => {
   const group = asset.group || "default";
   const ext = getFileExtension(asset.filename);
-  return ext ? `agent-asset://${group}/${asset.id}.${ext}` : `agent-asset://${group}/${asset.id}`;
+  return ext
+    ? `agent-asset://${group}/${asset.id}.${ext}`
+    : `agent-asset://${group}/${asset.id}`;
 };
 
 /**
@@ -748,7 +764,9 @@ const saveEdit = () => {
   if (!editingAsset.value) return;
 
   // 检查 ID 是否冲突（排除自己）
-  const idExists = assets.value.some((a) => a.id === editForm.value.id && a !== editingAsset.value);
+  const idExists = assets.value.some(
+    (a) => a.id === editForm.value.id && a !== editingAsset.value
+  );
   if (idExists) {
     customMessage.warning("该 ID 已存在，请使用唯一的 ID");
     return;
@@ -828,7 +846,12 @@ const ThumbnailPreview = {
       <div class="sidebar-header">
         <span class="title">资产分组</span>
         <el-tooltip content="创建分组" :show-after="500">
-          <el-button :icon="Plus" circle size="small" @click="openCreateGroupDialog" />
+          <el-button
+            :icon="Plus"
+            circle
+            size="small"
+            @click="openCreateGroupDialog"
+          />
         </el-tooltip>
       </div>
       <div class="group-list">
@@ -869,9 +892,13 @@ const ThumbnailPreview = {
           @dragover.prevent
           @drop="handleDropOnGroup(group.id)"
         >
-          <span v-if="group.icon" class="group-icon-emoji">{{ group.icon }}</span>
+          <span v-if="group.icon" class="group-icon-emoji">{{
+            group.icon
+          }}</span>
           <el-icon v-else><Folder /></el-icon>
-          <span class="name" :title="group.description">{{ group.displayName }}</span>
+          <span class="name" :title="group.description">{{
+            group.displayName
+          }}</span>
           <span class="count">{{ groupCounts[group.id] || 0 }}</span>
           <el-dropdown
             trigger="click"
@@ -884,10 +911,18 @@ const ThumbnailPreview = {
             "
             @click.stop
           >
-            <el-button :icon="MoreFilled" circle size="small" class="group-menu-btn" @click.stop />
+            <el-button
+              :icon="MoreFilled"
+              circle
+              size="small"
+              class="group-menu-btn"
+              @click.stop
+            />
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item command="edit" :icon="Edit">编辑分组</el-dropdown-item>
+                <el-dropdown-item command="edit" :icon="Edit"
+                  >编辑分组</el-dropdown-item
+                >
                 <el-dropdown-item command="copyMacro" :icon="CopyDocument"
                   >复制分组宏</el-dropdown-item
                 >
@@ -907,11 +942,14 @@ const ThumbnailPreview = {
       <div class="toolbar">
         <div class="left-tools">
           <template v-if="isSelectionMode">
-            <span class="selection-count">已选 {{ selectedAssetIds.size }} 项</span>
+            <span class="selection-count"
+              >已选 {{ selectedAssetIds.size }} 项</span
+            >
             <el-divider direction="vertical" />
             <el-button size="small" @click="toggleSelectAll">
               {{
-                selectedAssetIds.size > 0 && selectedAssetIds.size === filteredAssets.length
+                selectedAssetIds.size > 0 &&
+                selectedAssetIds.size === filteredAssets.length
                   ? "取消全选"
                   : "全选"
               }}
@@ -930,7 +968,9 @@ const ThumbnailPreview = {
 
         <div class="actions">
           <template v-if="isSelectionMode">
-            <el-button size="small" :icon="Close" @click="toggleSelectionMode">退出批量</el-button>
+            <el-button size="small" :icon="Close" @click="toggleSelectionMode"
+              >退出批量</el-button
+            >
             <el-divider direction="vertical" />
             <el-button-group size="small">
               <el-button
@@ -951,13 +991,29 @@ const ThumbnailPreview = {
             </el-button-group>
           </template>
           <template v-else>
-            <el-tooltip content="批量管理资产" :show-after="500" placement="top">
-              <el-button size="small" :icon="Operation" @click="toggleSelectionMode">
+            <el-tooltip
+              content="批量管理资产"
+              :show-after="500"
+              placement="top"
+            >
+              <el-button
+                size="small"
+                :icon="Operation"
+                @click="toggleSelectionMode"
+              >
                 批量
               </el-button>
             </el-tooltip>
-            <el-tooltip content="打开本地资产目录" :show-after="500" placement="top">
-              <el-button size="small" :icon="Folder" @click="handleOpenAssetsDir" />
+            <el-tooltip
+              content="打开本地资产目录"
+              :show-after="500"
+              placement="top"
+            >
+              <el-button
+                size="small"
+                :icon="Folder"
+                @click="handleOpenAssetsDir"
+              />
             </el-tooltip>
             <el-button
               size="small"
@@ -992,7 +1048,11 @@ const ThumbnailPreview = {
         <!-- 资产列表网格 -->
         <div v-if="filteredAssets.length === 0" class="empty-state">
           <el-empty
-            :description="searchQuery ? '未找到匹配的资产' : '暂无资产，拖拽文件或点击上传按钮添加'"
+            :description="
+              searchQuery
+                ? '未找到匹配的资产'
+                : '暂无资产，拖拽文件或点击上传按钮添加'
+            "
             :image-size="100"
           />
         </div>
@@ -1052,17 +1112,32 @@ const ThumbnailPreview = {
 
                 <!-- 其他类型 -->
                 <div v-else class="generic-preview" :class="asset.type">
-                  <el-icon v-if="asset.type === 'video'" :size="48"><VideoPlay /></el-icon>
+                  <el-icon v-if="asset.type === 'video'" :size="48"
+                    ><VideoPlay
+                  /></el-icon>
                   <FileIcon v-else :filename="asset.filename" :size="48" />
                 </div>
 
                 <!-- 悬停遮罩 (非选择模式下显示) -->
                 <div class="asset-overlay" @click.stop v-if="!isSelectionMode">
                   <div class="overlay-actions">
-                    <el-tooltip content="预览" :show-after="500" placement="top">
-                      <el-button circle size="small" :icon="ZoomIn" @click="handlePreview(asset)" />
+                    <el-tooltip
+                      content="预览"
+                      :show-after="500"
+                      placement="top"
+                    >
+                      <el-button
+                        circle
+                        size="small"
+                        :icon="ZoomIn"
+                        @click="handlePreview(asset)"
+                      />
                     </el-tooltip>
-                    <el-tooltip content="复制引用路径" :show-after="500" placement="top">
+                    <el-tooltip
+                      content="复制引用路径"
+                      :show-after="500"
+                      placement="top"
+                    >
                       <el-button
                         circle
                         size="small"
@@ -1070,7 +1145,11 @@ const ThumbnailPreview = {
                         @click="handleCopyId(asset)"
                       />
                     </el-tooltip>
-                    <el-tooltip content="编辑信息" :show-after="500" placement="top">
+                    <el-tooltip
+                      content="编辑信息"
+                      :show-after="500"
+                      placement="top"
+                    >
                       <el-button
                         circle
                         size="small"
@@ -1080,7 +1159,11 @@ const ThumbnailPreview = {
                         @click="openEditDialog(asset)"
                       />
                     </el-tooltip>
-                    <el-tooltip content="删除" :show-after="500" placement="top">
+                    <el-tooltip
+                      content="删除"
+                      :show-after="500"
+                      placement="top"
+                    >
                       <el-button
                         circle
                         size="small"
@@ -1105,7 +1188,9 @@ const ThumbnailPreview = {
                   {{ asset.id }}
                 </div>
                 <div class="asset-meta">
-                  <span class="filename" :title="asset.filename">{{ asset.filename }}</span>
+                  <span class="filename" :title="asset.filename">{{
+                    asset.filename
+                  }}</span>
                   <span class="size">{{ formatSize(asset.size) }}</span>
                 </div>
               </div>
@@ -1127,7 +1212,11 @@ const ThumbnailPreview = {
     </div>
 
     <!-- 批量移动弹窗 -->
-    <BaseDialog v-model="batchMoveDialogVisible" title="批量移动到分组" width="400px">
+    <BaseDialog
+      v-model="batchMoveDialogVisible"
+      title="批量移动到分组"
+      width="400px"
+    >
       <el-form label-width="80px">
         <el-form-item label="目标分组">
           <el-select
@@ -1163,8 +1252,12 @@ const ThumbnailPreview = {
           <div class="form-tip">
             在对话中使用
             <code
-              >agent-asset://{{ editForm.group || "default" }}/{{ editForm.id || "ID" }}.{{
-                editingAsset ? getFileExtension(editingAsset.filename) || "ext" : "ext"
+              >agent-asset://{{ editForm.group || "default" }}/{{
+                editForm.id || "ID"
+              }}.{{
+                editingAsset
+                  ? getFileExtension(editingAsset.filename) || "ext"
+                  : "ext"
               }}</code
             >
             引用此资产
@@ -1209,7 +1302,11 @@ const ThumbnailPreview = {
       :title="editingGroup ? '编辑分组' : '创建分组'"
       width="400px"
     >
-      <el-form :model="groupEditForm" label-width="80px" @submit.prevent="saveGroup">
+      <el-form
+        :model="groupEditForm"
+        label-width="80px"
+        @submit.prevent="saveGroup"
+      >
         <el-form-item label="ID" required>
           <el-input
             v-model="groupEditForm.id"
@@ -1221,7 +1318,10 @@ const ThumbnailPreview = {
           </div>
         </el-form-item>
         <el-form-item label="名称" required>
-          <el-input v-model="groupEditForm.displayName" placeholder="显示名称" />
+          <el-input
+            v-model="groupEditForm.displayName"
+            placeholder="显示名称"
+          />
         </el-form-item>
         <el-form-item label="图标">
           <el-input
@@ -1348,7 +1448,10 @@ const ThumbnailPreview = {
 }
 
 .group-item.active {
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.1));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
   color: var(--el-color-primary);
 }
 
@@ -1373,7 +1476,10 @@ const ThumbnailPreview = {
 }
 
 .group-item.active .count {
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.15));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.15)
+  );
   color: var(--el-color-primary);
 }
 
@@ -1490,7 +1596,10 @@ const ThumbnailPreview = {
 
 .asset-card.is-selected {
   border-color: var(--el-color-primary);
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.1));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
   box-shadow: 0 0 0 1px var(--el-color-primary);
 }
 

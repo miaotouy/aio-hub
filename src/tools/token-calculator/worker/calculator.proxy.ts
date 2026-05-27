@@ -9,7 +9,10 @@ import CalculatorWorker from "./calculator.worker?worker";
  */
 class TokenCalculatorProxy {
   private worker: Worker | null = null;
-  private pendingRequests = new Map<number, { resolve: Function; reject: Function }>();
+  private pendingRequests = new Map<
+    number,
+    { resolve: Function; reject: Function }
+  >();
   private nextId = 0;
 
   constructor() {
@@ -80,7 +83,10 @@ class TokenCalculatorProxy {
     });
   }
 
-  async calculateTokens(text: string, modelId: string): Promise<TokenCalculationResult> {
+  async calculateTokens(
+    text: string,
+    modelId: string
+  ): Promise<TokenCalculationResult> {
     return this.request("calculateTokens", { text, modelId });
   }
 
@@ -96,7 +102,11 @@ class TokenCalculatorProxy {
     identifier: string,
     useTokenizerName: boolean = false
   ): Promise<{ tokens: Array<{ text: string; id: number }> } | null> {
-    return this.request("getTokenizedText", { text, identifier, useTokenizerName });
+    return this.request("getTokenizedText", {
+      text,
+      identifier,
+      useTokenizerName,
+    });
   }
 
   async calculateImageTokens(
@@ -104,7 +114,11 @@ class TokenCalculatorProxy {
     height: number,
     visionTokenCost: VisionTokenCost
   ): Promise<number> {
-    return this.request("calculateImageTokens", { width, height, visionTokenCost });
+    return this.request("calculateImageTokens", {
+      width,
+      height,
+      visionTokenCost,
+    });
   }
 
   async calculateVideoTokens(durationSeconds: number): Promise<number> {

@@ -28,7 +28,9 @@ export function parseSiliconFlowModelsResponse(data: any): LlmModelInfo[] {
           model.pricing.prompt = String(modelData.price.input_price_range[0]);
         }
         if (!model.pricing.completion && modelData.price.output_price_range) {
-          model.pricing.completion = String(modelData.price.output_price_range[0]);
+          model.pricing.completion = String(
+            modelData.price.output_price_range[0]
+          );
         }
       }
 
@@ -40,7 +42,10 @@ export function parseSiliconFlowModelsResponse(data: any): LlmModelInfo[] {
         };
 
         // 如果没有标准上下文长度，尝试用范围的最大值填充
-        if (!model.tokenLimits.contextLength && modelData.context_length_range) {
+        if (
+          !model.tokenLimits.contextLength &&
+          modelData.context_length_range
+        ) {
           model.tokenLimits.contextLength = modelData.context_length_range[1];
         }
       }
@@ -51,16 +56,16 @@ export function parseSiliconFlowModelsResponse(data: any): LlmModelInfo[] {
           ...model.architecture,
           modality: modelData.model_type,
         };
-        
+
         // 如果是 VLM 类型，自动开启 vision 能力
-        if (modelData.model_type === 'vlm') {
+        if (modelData.model_type === "vlm") {
           model.capabilities = {
             ...model.capabilities,
-            vision: true
+            vision: true,
           };
         }
       }
-      
+
       // 4. 设置提供商信息
       model.provider = "siliconflow";
     }

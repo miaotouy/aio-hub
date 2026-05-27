@@ -1,6 +1,6 @@
-import { createGlobalState } from '@vueuse/core';
-import { ref } from 'vue';
-import type { LlmProfile, LlmModelInfo } from '@/types/llm-profiles';
+import { createGlobalState } from "@vueuse/core";
+import { ref } from "vue";
+import type { LlmProfile, LlmModelInfo } from "@/types/llm-profiles";
 
 export interface ModelSelection {
   profile: LlmProfile;
@@ -20,9 +20,11 @@ export const useModelSelectDialog = createGlobalState(() => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   let _resolvePromise: (value: ModelSelection | null) => void = (
     _value: ModelSelection | null
-  ) => { };
+  ) => {};
 
-  const open = (options?: ModelSelectOptions): Promise<ModelSelection | null> => {
+  const open = (
+    options?: ModelSelectOptions
+  ): Promise<ModelSelection | null> => {
     currentSelection.value = options?.current || null;
     initialCapabilities.value = options?.initialCapabilities || {};
     isDialogVisible.value = true;

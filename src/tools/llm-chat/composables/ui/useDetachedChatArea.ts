@@ -26,7 +26,10 @@ export function useDetachedChatArea() {
 
   // 1. 操作代理
   const sendMessage = (content: string, attachments?: any[]) => {
-    logger.info("代理发送消息操作", { content, attachmentCount: attachments?.length });
+    logger.info("代理发送消息操作", {
+      content,
+      attachmentCount: attachments?.length,
+    });
     return bus.requestAction("llm-chat:send-message", { content, attachments });
   };
 
@@ -35,9 +38,15 @@ export function useDetachedChatArea() {
     return bus.requestAction("llm-chat:abort-sending", {});
   };
 
-  const regenerateLastMessage = (messageId: string, options?: { modelId?: string; profileId?: string }) => {
+  const regenerateLastMessage = (
+    messageId: string,
+    options?: { modelId?: string; profileId?: string }
+  ) => {
     logger.info("代理重新生成操作", { messageId, options });
-    return bus.requestAction("llm-chat:regenerate-from-node", { messageId, options });
+    return bus.requestAction("llm-chat:regenerate-from-node", {
+      messageId,
+      options,
+    });
   };
 
   const deleteMessage = (messageId: string) => {
@@ -55,9 +64,21 @@ export function useDetachedChatArea() {
     return bus.requestAction("llm-chat:toggle-enabled", { nodeId });
   };
 
-  const editMessage = (nodeId: string, newContent: string, attachments?: any[]) => {
-    logger.info("代理编辑消息操作", { nodeId, contentLength: newContent.length, attachmentCount: attachments?.length });
-    return bus.requestAction("llm-chat:edit-message", { nodeId, newContent, attachments });
+  const editMessage = (
+    nodeId: string,
+    newContent: string,
+    attachments?: any[]
+  ) => {
+    logger.info("代理编辑消息操作", {
+      nodeId,
+      contentLength: newContent.length,
+      attachmentCount: attachments?.length,
+    });
+    return bus.requestAction("llm-chat:edit-message", {
+      nodeId,
+      newContent,
+      attachments,
+    });
   };
 
   const createBranch = (nodeId: string) => {

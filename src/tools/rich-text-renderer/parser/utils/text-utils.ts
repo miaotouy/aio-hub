@@ -83,7 +83,11 @@ export function optimizeBadgeLineBreaks(nodes: AstNode[]): AstNode[] {
       };
 
       // 模式1：链接 + 硬换行 + 链接
-      if (isLinkLike(current) && next?.type === "hard_break" && isLinkLike(afterNext)) {
+      if (
+        isLinkLike(current) &&
+        next?.type === "hard_break" &&
+        isLinkLike(afterNext)
+      ) {
         // 保留当前节点，跳过硬换行
         optimizedChildren.push(current);
         i++; // 跳过 hard_break
@@ -148,16 +152,16 @@ export function createTextNode(content: string): AstNode {
  * 如果先替换 &amp;，会得到 &lt;，但后续的 &lt; 替换不会再执行
  */
 export function decodeHtmlEntities(text: string): string {
-  if (!text || !text.includes('&')) return text;
-  
+  if (!text || !text.includes("&")) return text;
+
   // 重要：&amp; 必须最后替换！
   // 这样 &amp;lt; 会先保持不变，然后 &lt; 被替换为 <
   // 最后 &amp; 被替换为 &
   return text
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'")
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&');
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&");
 }

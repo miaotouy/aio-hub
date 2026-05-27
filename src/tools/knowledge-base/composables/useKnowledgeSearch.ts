@@ -36,9 +36,10 @@ export function useKnowledgeSearch() {
       // 合并预处理提取的标签到过滤器
       const mergedFilters: SearchFilters = {
         ...filters.value,
-        tags: matchedTags.length > 0
-          ? [...new Set([...(filters.value.tags || []), ...matchedTags])]
-          : filters.value.tags,
+        tags:
+          matchedTags.length > 0
+            ? [...new Set([...(filters.value.tags || []), ...matchedTags])]
+            : filters.value.tags,
       };
 
       const searchResults = await invoke<SearchResult[]>("kb_search", {
@@ -61,15 +62,22 @@ export function useKnowledgeSearch() {
     }
   };
 
-  const vectorSearch = async (vector: number[], kbId: string, model: string) => {
+  const vectorSearch = async (
+    vector: number[],
+    kbId: string,
+    model: string
+  ) => {
     loading.value = true;
     try {
-      const searchResults = await invoke<SearchResult[]>("kb_search_by_vector", {
-        kbId,
-        vector,
-        model,
-        topK: filters.value.limit || 10,
-      });
+      const searchResults = await invoke<SearchResult[]>(
+        "kb_search_by_vector",
+        {
+          kbId,
+          vector,
+          model,
+          topK: filters.value.limit || 10,
+        }
+      );
       results.value = searchResults;
       logger.info("向量检索完成", { count: results.value.length });
       return searchResults;

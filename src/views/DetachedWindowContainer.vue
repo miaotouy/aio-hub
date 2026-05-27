@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, shallowRef, defineAsyncComponent, type Component, watch } from "vue";
+import {
+  computed,
+  onMounted,
+  shallowRef,
+  defineAsyncComponent,
+  type Component,
+  watch,
+} from "vue";
 import { Loading } from "@element-plus/icons-vue";
 import { useRoute } from "vue-router";
 import { useTheme } from "../composables/useTheme";
@@ -35,7 +42,9 @@ const { isPreview } = useDetachedPreview();
 const toolPath = computed(() => `/${route.params.toolPath as string}`);
 
 // 从工具配置中查找对应的工具
-const toolConfig = computed(() => toolsStore.tools.find((t) => t.path === toolPath.value));
+const toolConfig = computed(() =>
+  toolsStore.tools.find((t) => t.path === toolPath.value)
+);
 
 // 工具标题
 const toolTitle = computed(() => toolConfig.value?.name || "工具窗口");
@@ -72,7 +81,10 @@ onMounted(async () => {
         const config = toolConfig.value;
         if (config) {
           try {
-            logger.info("加载工具组件", { toolPath: toolPath.value, toolName: config.name });
+            logger.info("加载工具组件", {
+              toolPath: toolPath.value,
+              toolName: config.name,
+            });
             toolComponent.value = defineAsyncComponent(config.component);
           } catch (error) {
             errorHandler.handle(error, {
@@ -90,7 +102,7 @@ onMounted(async () => {
         }
       }
     },
-    { immediate: true },
+    { immediate: true }
   );
 
   logger.info("DetachedWindowContainer 初始化完成");
@@ -100,7 +112,10 @@ onMounted(async () => {
 <template>
   <div
     class="detached-container"
-    :class="[`theme-${currentTheme}`, { 'preview-mode': isPreview, 'final-mode': !isPreview }]"
+    :class="[
+      `theme-${currentTheme}`,
+      { 'preview-mode': isPreview, 'final-mode': !isPreview },
+    ]"
   >
     <!-- 预览模式提示 -->
     <DetachPreviewHint :visible="isPreview" />

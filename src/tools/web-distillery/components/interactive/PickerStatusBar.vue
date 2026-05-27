@@ -10,7 +10,9 @@ const store = useWebDistilleryStore();
     <div class="status-left">
       <div class="mode-indicator">
         <el-icon v-if="store.pickerMode === 'idle'"><MousePointer2 /></el-icon>
-        <el-icon v-else-if="store.pickerMode === 'include'"><Crosshair /></el-icon>
+        <el-icon v-else-if="store.pickerMode === 'include'"
+          ><Crosshair
+        /></el-icon>
         <el-icon v-else-if="store.pickerMode === 'exclude'"><Ban /></el-icon>
         <el-icon v-else-if="store.pickerMode === 'action'"><Zap /></el-icon>
 
@@ -28,7 +30,9 @@ const store = useWebDistilleryStore();
       </div>
 
       <div v-if="store.hoveredElement" class="element-info">
-        <span class="tag-name">{{ store.hoveredElement.tagName.toLowerCase() }}</span>
+        <span class="tag-name">{{
+          store.hoveredElement.tagName.toLowerCase()
+        }}</span>
         <span class="selector">{{ store.hoveredElement.selector }}</span>
       </div>
     </div>
@@ -40,7 +44,9 @@ const store = useWebDistilleryStore();
           {{ store.recipeDraft?.excludeSelectors?.length || 0 }} 排除</span
         >
       </div>
-      <div class="hint" v-if="store.pickerMode !== 'idle'">按 <kbd>Esc</kbd> 退出拾取</div>
+      <div class="hint" v-if="store.pickerMode !== 'idle'">
+        按 <kbd>Esc</kbd> 退出拾取
+      </div>
     </div>
   </div>
 </template>

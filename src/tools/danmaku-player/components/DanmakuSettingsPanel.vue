@@ -26,7 +26,12 @@
               <span class="value-hint">{{ config.displayArea }}%</span>
             </div>
           </template>
-          <el-slider v-model="config.displayArea" :min="0" :max="100" :format-tooltip="(val: number) => val + '%'" />
+          <el-slider
+            v-model="config.displayArea"
+            :min="0"
+            :max="100"
+            :format-tooltip="(val: number) => val + '%'"
+          />
         </el-form-item>
         <el-form-item>
           <template #label>
@@ -35,7 +40,12 @@
               <span class="value-hint">{{ config.density }}%</span>
             </div>
           </template>
-          <el-slider v-model="config.density" :min="0" :max="100" :format-tooltip="(val: number) => val + '%'" />
+          <el-slider
+            v-model="config.density"
+            :min="0"
+            :max="100"
+            :format-tooltip="(val: number) => val + '%'"
+          />
         </el-form-item>
         <el-form-item>
           <template #label>
@@ -44,7 +54,12 @@
               <span class="value-hint">{{ config.opacity }}%</span>
             </div>
           </template>
-          <el-slider v-model="config.opacity" :min="0" :max="100" :format-tooltip="(val: number) => val + '%'" />
+          <el-slider
+            v-model="config.opacity"
+            :min="0"
+            :max="100"
+            :format-tooltip="(val: number) => val + '%'"
+          />
         </el-form-item>
         <el-form-item>
           <template #label>
@@ -53,7 +68,12 @@
               <span class="value-hint">{{ config.fontScale }}%</span>
             </div>
           </template>
-          <el-slider v-model="config.fontScale" :min="50" :max="200" :format-tooltip="(val: number) => val + '%'" />
+          <el-slider
+            v-model="config.fontScale"
+            :min="50"
+            :max="200"
+            :format-tooltip="(val: number) => val + '%'"
+          />
         </el-form-item>
         <el-form-item>
           <template #label>
@@ -83,7 +103,9 @@
           </el-radio-group>
         </el-form-item>
         <el-checkbox v-model="config.isBold">强制粗体</el-checkbox>
-        <el-checkbox v-model="config.preventSubtitleOverlap">防挡字幕 (底部留空)</el-checkbox>
+        <el-checkbox v-model="config.preventSubtitleOverlap"
+          >防挡字幕 (底部留空)</el-checkbox
+        >
       </div>
     </el-form>
   </div>

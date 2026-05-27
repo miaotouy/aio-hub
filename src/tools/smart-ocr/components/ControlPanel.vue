@@ -58,7 +58,8 @@ const engineType = computed({
 });
 // Tesseract 语言
 const engineLanguage = computed({
-  get: () => (engineConfig.value?.type === "tesseract" ? engineConfig.value.language : ""),
+  get: () =>
+    engineConfig.value?.type === "tesseract" ? engineConfig.value.language : "",
   set: (value) => {
     emit("updateEngineConfig", { language: value });
   },
@@ -66,7 +67,10 @@ const engineLanguage = computed({
 
 // Tesseract 并发数
 const tesseractConcurrency = computed({
-  get: () => (engineConfig.value?.type === "tesseract" ? (engineConfig.value.concurrency ?? 4) : 4),
+  get: () =>
+    engineConfig.value?.type === "tesseract"
+      ? (engineConfig.value.concurrency ?? 4)
+      : 4,
   set: (value) => {
     emit("updateEngineConfig", { concurrency: value });
   },
@@ -74,7 +78,8 @@ const tesseractConcurrency = computed({
 
 // VLM 提示词
 const enginePrompt = computed({
-  get: () => (engineConfig.value?.type === "vlm" ? engineConfig.value.prompt : ""),
+  get: () =>
+    engineConfig.value?.type === "vlm" ? engineConfig.value.prompt : "",
   set: (value) => {
     emit("updateEngineConfig", { prompt: value });
   },
@@ -82,7 +87,10 @@ const enginePrompt = computed({
 
 // VLM 温度
 const engineTemperature = computed({
-  get: () => (engineConfig.value?.type === "vlm" ? (engineConfig.value.temperature ?? 0.7) : 0.7),
+  get: () =>
+    engineConfig.value?.type === "vlm"
+      ? (engineConfig.value.temperature ?? 0.7)
+      : 0.7,
   set: (value) => {
     emit("updateEngineConfig", { temperature: value });
   },
@@ -90,7 +98,10 @@ const engineTemperature = computed({
 
 // VLM 最大 Token
 const engineMaxTokens = computed({
-  get: () => (engineConfig.value?.type === "vlm" ? (engineConfig.value.maxTokens ?? 4096) : 4096),
+  get: () =>
+    engineConfig.value?.type === "vlm"
+      ? (engineConfig.value.maxTokens ?? 4096)
+      : 4096,
   set: (value) => {
     emit("updateEngineConfig", { maxTokens: value });
   },
@@ -98,7 +109,10 @@ const engineMaxTokens = computed({
 
 // VLM 并发数
 const engineConcurrency = computed({
-  get: () => (engineConfig.value?.type === "vlm" ? (engineConfig.value.concurrency ?? 3) : 3),
+  get: () =>
+    engineConfig.value?.type === "vlm"
+      ? (engineConfig.value.concurrency ?? 3)
+      : 3,
   set: (value) => {
     emit("updateEngineConfig", { concurrency: value });
   },
@@ -106,7 +120,8 @@ const engineConcurrency = computed({
 
 // VLM 请求延迟
 const engineDelay = computed({
-  get: () => (engineConfig.value?.type === "vlm" ? (engineConfig.value.delay ?? 0) : 0),
+  get: () =>
+    engineConfig.value?.type === "vlm" ? (engineConfig.value.delay ?? 0) : 0,
   set: (value) => {
     emit("updateEngineConfig", { delay: value });
   },
@@ -114,7 +129,10 @@ const engineDelay = computed({
 
 // Cloud OCR 选中的服务
 const cloudActiveProfileId = computed({
-  get: () => (engineConfig.value?.type === "cloud" ? engineConfig.value.activeProfileId : ""),
+  get: () =>
+    engineConfig.value?.type === "cloud"
+      ? engineConfig.value.activeProfileId
+      : "",
   set: (value) => {
     emit("updateEngineConfig", { activeProfileId: value });
   },
@@ -178,7 +196,8 @@ const selectedImage = computed(() => {
 const selectedModelCombo = computed({
   get: () => {
     const config = engineConfig.value;
-    if (config?.type !== "vlm" || !config.profileId || !config.modelId) return "";
+    if (config?.type !== "vlm" || !config.profileId || !config.modelId)
+      return "";
     return `${config.profileId}:${config.modelId}`;
   },
   set: (value: string) => {
@@ -258,7 +277,12 @@ const handleNavigateToSettings = () => {
   <div class="control-panel">
     <div class="panel-header">
       <h3>控制面板</h3>
-      <el-button circle size="small" @click="emit('open-history')" title="历史记录">
+      <el-button
+        circle
+        size="small"
+        @click="emit('open-history')"
+        title="历史记录"
+      >
         <History :size="16" />
       </el-button>
     </div>
@@ -281,7 +305,14 @@ const handleNavigateToSettings = () => {
             "
             placement="left"
           >
-            <el-button type="primary" text size="small" @click="handleNavigateToSettings"> 配置 </el-button>
+            <el-button
+              type="primary"
+              text
+              size="small"
+              @click="handleNavigateToSettings"
+            >
+              配置
+            </el-button>
           </el-tooltip>
         </div>
 
@@ -293,15 +324,35 @@ const handleNavigateToSettings = () => {
               <el-option label="云端OCR" value="cloud" />
               <el-option label="视觉语言模型 (VLM)" value="vlm" />
             </el-select>
-            <div v-if="engineType === 'vlm' && visionProfiles.length === 0" class="warning-hint">
-              <el-text size="small" type="warning"> 请先在设置中配置 LLM 服务并添加视觉模型 </el-text>
-              <el-button type="warning" text size="small" @click="navigateToSettings('llm-service')">
+            <div
+              v-if="engineType === 'vlm' && visionProfiles.length === 0"
+              class="warning-hint"
+            >
+              <el-text size="small" type="warning">
+                请先在设置中配置 LLM 服务并添加视觉模型
+              </el-text>
+              <el-button
+                type="warning"
+                text
+                size="small"
+                @click="navigateToSettings('llm-service')"
+              >
                 前往配置
               </el-button>
             </div>
-            <div v-if="engineType === 'cloud' && ocrProfiles.length === 0" class="warning-hint">
-              <el-text size="small" type="warning"> 请先在设置中配置云端 OCR 服务 </el-text>
-              <el-button type="warning" text size="small" @click="navigateToSettings('ocr-service')">
+            <div
+              v-if="engineType === 'cloud' && ocrProfiles.length === 0"
+              class="warning-hint"
+            >
+              <el-text size="small" type="warning">
+                请先在设置中配置云端 OCR 服务
+              </el-text>
+              <el-button
+                type="warning"
+                text
+                size="small"
+                @click="navigateToSettings('ocr-service')"
+              >
                 前往配置
               </el-button>
             </div>
@@ -320,7 +371,10 @@ const handleNavigateToSettings = () => {
 
           <el-form-item v-if="engineType === 'tesseract'">
             <template #label>
-              <el-tooltip content="同时处理的图片块数量。增加并发数可以显著提高识别速度" placement="top">
+              <el-tooltip
+                content="同时处理的图片块数量。增加并发数可以显著提高识别速度"
+                placement="top"
+              >
                 <span
                   >并发数 <el-icon><i-ep-question-filled /></el-icon
                 ></span>
@@ -334,7 +388,9 @@ const handleNavigateToSettings = () => {
               show-input
               :show-input-controls="false"
             />
-            <el-text size="small" type="info"> 同时处理 {{ tesseractConcurrency }} 个图片块，提高识别速度 </el-text>
+            <el-text size="small" type="info">
+              同时处理 {{ tesseractConcurrency }} 个图片块，提高识别速度
+            </el-text>
           </el-form-item>
 
           <el-form-item v-if="engineType === 'cloud'" label="云端服务">
@@ -344,11 +400,23 @@ const handleNavigateToSettings = () => {
               placeholder="选择云端 OCR 服务"
               :disabled="ocrProfiles.length === 0"
             >
-              <el-option v-for="profile in ocrProfiles" :key="profile.id" :label="profile.name" :value="profile.id" />
+              <el-option
+                v-for="profile in ocrProfiles"
+                :key="profile.id"
+                :label="profile.name"
+                :value="profile.id"
+              />
             </el-select>
             <div v-if="ocrProfiles.length === 0" class="warning-hint">
-              <el-text size="small" type="warning"> 请先在设置中配置云端 OCR 服务 </el-text>
-              <el-button type="warning" text size="small" @click="navigateToSettings('ocr-service')">
+              <el-text size="small" type="warning">
+                请先在设置中配置云端 OCR 服务
+              </el-text>
+              <el-button
+                type="warning"
+                text
+                size="small"
+                @click="navigateToSettings('ocr-service')"
+              >
                 前往配置
               </el-button>
             </div>
@@ -358,13 +426,22 @@ const handleNavigateToSettings = () => {
             <el-form-item label="视觉模型">
               <LlmModelSelector
                 v-model="selectedModelCombo"
-                :capabilities="{ vision: true, embedding: false, rerank: false }"
+                :capabilities="{
+                  vision: true,
+                  embedding: false,
+                  rerank: false,
+                }"
                 :disabled="visionProfiles.length === 0"
               />
             </el-form-item>
 
             <el-form-item label="识别提示词">
-              <el-input v-model="enginePrompt" type="textarea" :rows="3" placeholder="输入 OCR 识别的提示词" />
+              <el-input
+                v-model="enginePrompt"
+                type="textarea"
+                :rows="3"
+                placeholder="输入 OCR 识别的提示词"
+              />
             </el-form-item>
 
             <el-form-item>
@@ -386,7 +463,9 @@ const handleNavigateToSettings = () => {
                 show-input
                 :show-input-controls="false"
               />
-              <el-text size="small" type="info"> 较低的温度让输出更确定，较高的温度让输出更随机 </el-text>
+              <el-text size="small" type="info">
+                较低的温度让输出更确定，较高的温度让输出更随机
+              </el-text>
             </el-form-item>
 
             <el-form-item>
@@ -400,8 +479,16 @@ const handleNavigateToSettings = () => {
                   ></span>
                 </el-tooltip>
               </template>
-              <el-input-number v-model="engineMaxTokens" :min="100" :max="32000" :step="64" style="width: 100%" />
-              <el-text size="small" type="info"> 限制模型生成的最大 token 数量 </el-text>
+              <el-input-number
+                v-model="engineMaxTokens"
+                :min="100"
+                :max="32000"
+                :step="64"
+                style="width: 100%"
+              />
+              <el-text size="small" type="info">
+                限制模型生成的最大 token 数量
+              </el-text>
             </el-form-item>
 
             <el-form-item>
@@ -423,7 +510,9 @@ const handleNavigateToSettings = () => {
                 show-input
                 :show-input-controls="false"
               />
-              <el-text size="small" type="info"> 同时处理 {{ engineConcurrency }} 个图片块，提高识别速度 </el-text>
+              <el-text size="small" type="info">
+                同时处理 {{ engineConcurrency }} 个图片块，提高识别速度
+              </el-text>
             </el-form-item>
 
             <el-form-item>
@@ -445,7 +534,9 @@ const handleNavigateToSettings = () => {
                 show-input
                 :show-input-controls="false"
               />
-              <el-text size="small" type="info"> 每个请求之间延迟 {{ engineDelay }}ms，避免触发 API 限流 </el-text>
+              <el-text size="small" type="info">
+                每个请求之间延迟 {{ engineDelay }}ms，避免触发 API 限流
+              </el-text>
             </el-form-item>
           </template>
         </el-form>
@@ -462,7 +553,11 @@ const handleNavigateToSettings = () => {
 
         <el-form label-position="top" size="small" class="section-form">
           <el-form-item>
-            <el-switch v-model="slicerEnabled" active-text="启用" inactive-text="禁用" />
+            <el-switch
+              v-model="slicerEnabled"
+              active-text="启用"
+              inactive-text="禁用"
+            />
           </el-form-item>
 
           <template v-if="slicerEnabled">
@@ -486,13 +581,17 @@ const handleNavigateToSettings = () => {
                 :show-input-controls="false"
               />
               <el-text size="small" type="info">
-                当图片高度/宽度 > {{ slicerAspectRatioThreshold }} 时自动触发切图
+                当图片高度/宽度 >
+                {{ slicerAspectRatioThreshold }} 时自动触发切图
               </el-text>
             </el-form-item>
 
             <el-form-item>
               <template #label>
-                <el-tooltip content="用于检测图片中的空白区域。值越小，检测越严格；值越大，检测越宽松" placement="top">
+                <el-tooltip
+                  content="用于检测图片中的空白区域。值越小，检测越严格；值越大，检测越宽松"
+                  placement="top"
+                >
                   <span
                     >空白行阈值 <el-icon><i-ep-question-filled /></el-icon
                   ></span>
@@ -507,7 +606,8 @@ const handleNavigateToSettings = () => {
                 :show-input-controls="false"
               />
               <el-text size="small" type="info">
-                方差低于中位数的 {{ (slicerBlankThreshold * 100).toFixed(0) }}% 视为空白行（颜色越单一，方差越小）
+                方差低于中位数的 {{ (slicerBlankThreshold * 100).toFixed(0) }}%
+                视为空白行（颜色越单一，方差越小）
               </el-text>
             </el-form-item>
 
@@ -522,8 +622,16 @@ const handleNavigateToSettings = () => {
                   ></span>
                 </el-tooltip>
               </template>
-              <el-slider v-model="slicerMinBlankHeight" :min="10" :max="50" show-input :show-input-controls="false" />
-              <el-text size="small" type="info"> 空白区域至少 {{ slicerMinBlankHeight }}px 才切割 </el-text>
+              <el-slider
+                v-model="slicerMinBlankHeight"
+                :min="10"
+                :max="50"
+                show-input
+                :show-input-controls="false"
+              />
+              <el-text size="small" type="info">
+                空白区域至少 {{ slicerMinBlankHeight }}px 才切割
+              </el-text>
             </el-form-item>
 
             <el-form-item>
@@ -546,7 +654,8 @@ const handleNavigateToSettings = () => {
                 :show-input-controls="false"
               />
               <el-text size="small" type="info">
-                切割块的最小高度 {{ slicerMinCutHeight }}px，小于此值的块将与相邻块合并
+                切割块的最小高度
+                {{ slicerMinCutHeight }}px，小于此值的块将与相邻块合并
               </el-text>
             </el-form-item>
 
@@ -570,7 +679,13 @@ const handleNavigateToSettings = () => {
                 :show-input-controls="false"
               />
               <el-text size="small" type="info">
-                调整切割位置：{{ slicerCutLineOffset < 0 ? "向上偏移" : slicerCutLineOffset > 0 ? "向下偏移" : "居中" }}
+                调整切割位置：{{
+                  slicerCutLineOffset < 0
+                    ? "向上偏移"
+                    : slicerCutLineOffset > 0
+                      ? "向下偏移"
+                      : "居中"
+                }}
               </el-text>
             </el-form-item>
           </template>
@@ -580,7 +695,10 @@ const handleNavigateToSettings = () => {
 
     <!-- 操作按钮 - 固定在底部 -->
     <div class="panel-footer">
-      <div class="button-group" :class="{ 'has-batch': uploadedImages.length > 1 }">
+      <div
+        class="button-group"
+        :class="{ 'has-batch': uploadedImages.length > 1 }"
+      >
         <el-tooltip
           :content="
             !selectedImage

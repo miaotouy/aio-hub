@@ -5,7 +5,8 @@
       style="width: 100%"
       :row-class-name="getRowClassName"
       @row-click="
-        (row: Asset, _column: any, event: MouseEvent) => emit('selection-change', row, event)
+        (row: Asset, _column: any, event: MouseEvent) =>
+          emit('selection-change', row, event)
       "
     >
       <!-- 复选框列 -->
@@ -70,7 +71,10 @@
       <!-- 来源 -->
       <el-table-column label="来源" width="180">
         <template #default="{ row }">
-          <div v-if="row.origins && row.origins.length > 0" class="origins-cell">
+          <div
+            v-if="row.origins && row.origins.length > 0"
+            class="origins-cell"
+          >
             <el-tag
               v-for="(origin, index) in row.origins.slice(0, 2)"
               :key="index"
@@ -80,7 +84,12 @@
             >
               {{ getOriginDisplayText(origin) }}
             </el-tag>
-            <el-tag v-if="row.origins.length > 2" size="small" type="info" effect="plain">
+            <el-tag
+              v-if="row.origins.length > 2"
+              size="small"
+              type="info"
+              effect="plain"
+            >
               +{{ row.origins.length - 2 }}
             </el-tag>
           </div>
@@ -113,7 +122,10 @@
                   打开所在目录
                 </el-dropdown-item>
                 <!-- 动态附属操作 -->
-                <template v-for="action in getSidecarActions(row)" :key="action.id">
+                <template
+                  v-for="action in getSidecarActions(row)"
+                  :key="action.id"
+                >
                   <el-dropdown-item
                     :divided="action.divided"
                     @click="action.handler(row)"
@@ -138,9 +150,17 @@
 </template>
 
 <script setup lang="ts">
-import { View, Delete, MoreFilled, FolderOpened } from "@element-plus/icons-vue";
+import {
+  View,
+  Delete,
+  MoreFilled,
+  FolderOpened,
+} from "@element-plus/icons-vue";
 import type { Asset } from "@/types/asset-management";
-import { useAssetManager, assetManagerEngine } from "@/composables/useAssetManager";
+import {
+  useAssetManager,
+  assetManagerEngine,
+} from "@/composables/useAssetManager";
 import { getTypeLabel, getOriginDisplayText } from "../utils/displayUtils";
 import AssetIcon from "./AssetIcon.vue";
 
@@ -261,23 +281,43 @@ const getRowClassName = ({ row }: { row: Asset }) => {
 }
 
 :deep(.el-table__row:hover .el-table__cell) {
-  background-color: color-mix(in srgb, var(--primary-color) 10%, transparent) !important;
+  background-color: color-mix(
+    in srgb,
+    var(--primary-color) 10%,
+    transparent
+  ) !important;
 }
 
 :deep(.el-table__row.duplicate-row .el-table__cell) {
-  background-color: color-mix(in srgb, var(--el-color-warning) 15%, transparent) !important;
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-warning) 15%,
+    transparent
+  ) !important;
 }
 
 :deep(.el-table__row.duplicate-row:hover .el-table__cell) {
-  background-color: color-mix(in srgb, var(--el-color-warning) 25%, transparent) !important;
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-warning) 25%,
+    transparent
+  ) !important;
 }
 
 :deep(.el-table__row.selected-row .el-table__cell) {
-  background-color: color-mix(in srgb, var(--primary-color) 20%, transparent) !important;
+  background-color: color-mix(
+    in srgb,
+    var(--primary-color) 20%,
+    transparent
+  ) !important;
 }
 
 :deep(.el-table__row.selected-row:hover .el-table__cell) {
-  background-color: color-mix(in srgb, var(--primary-color) 30%, transparent) !important;
+  background-color: color-mix(
+    in srgb,
+    var(--primary-color) 30%,
+    transparent
+  ) !important;
 }
 .el-table {
   box-sizing: border-box;

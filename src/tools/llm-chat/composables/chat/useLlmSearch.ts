@@ -103,8 +103,12 @@ export function useLlmSearch(options: SearchOptions = {}) {
   let loadingDelayTimer: ReturnType<typeof setTimeout> | null = null;
 
   // 按类型分组的结果
-  const agentResults = computed(() => searchResults.value.filter((r) => r.kind === "agent"));
-  const sessionResults = computed(() => searchResults.value.filter((r) => r.kind === "session"));
+  const agentResults = computed(() =>
+    searchResults.value.filter((r) => r.kind === "agent")
+  );
+  const sessionResults = computed(() =>
+    searchResults.value.filter((r) => r.kind === "session")
+  );
 
   /**
    * 执行搜索（内部方法）
@@ -123,7 +127,11 @@ export function useLlmSearch(options: SearchOptions = {}) {
         matchMode: matchMode.value,
       });
 
-      logger.debug("搜索完成", { query: trimmedQuery, scope, resultCount: results.length });
+      logger.debug("搜索完成", {
+        query: trimmedQuery,
+        scope,
+        resultCount: results.length,
+      });
       return results;
     } catch (error) {
       errorHandler.error(error, "搜索失败");
@@ -286,7 +294,10 @@ export function useLlmSearch(options: SearchOptions = {}) {
    * @param match 匹配详情
    * @param maxChars 最大显示字符数
    */
-  const formatMatchContext = (match: MatchDetail, maxChars: number = 40): HighlightPart[] => {
+  const formatMatchContext = (
+    match: MatchDetail,
+    maxChars: number = 40
+  ): HighlightPart[] => {
     const { context, match_offsets } = match;
     if (!match_offsets || match_offsets.length === 0) {
       return [{ text: context, isMatch: false }];

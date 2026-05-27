@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { AlertCircle } from 'lucide-vue-next';
-import type { ChatMessageNode } from '../types';
+import { AlertCircle } from "lucide-vue-next";
+import type { ChatMessageNode } from "../types";
 
 defineProps<{
   message: ChatMessageNode;
@@ -9,16 +9,21 @@ defineProps<{
 
 <template>
   <div class="message-content">
-    <div v-if="message.status === 'generating' && !message.content" class="loading-dots">
+    <div
+      v-if="message.status === 'generating' && !message.content"
+      class="loading-dots"
+    >
       <span>.</span><span>.</span><span>.</span>
     </div>
     <div class="text-content">{{ message.content }}</div>
-    
+
     <div v-if="message.status === 'error'" class="error-info">
       <AlertCircle :size="14" />
       <div class="error-text">
         <div class="error-title">发送失败</div>
-        <div v-if="message.metadata?.error" class="error-detail">{{ message.metadata.error }}</div>
+        <div v-if="message.metadata?.error" class="error-detail">
+          {{ message.metadata.error }}
+        </div>
       </div>
     </div>
   </div>
@@ -72,12 +77,22 @@ defineProps<{
   animation: blink 1.4s infinite both;
 }
 
-.loading-dots span:nth-child(2) { animation-delay: 0.2s; }
-.loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+.loading-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.loading-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
 
 @keyframes blink {
-  0% { opacity: 0.2; }
-  20% { opacity: 1; }
-  100% { opacity: 0.2; }
+  0% {
+    opacity: 0.2;
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.2;
+  }
 }
 </style>

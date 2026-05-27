@@ -9,14 +9,21 @@
     <div class="language-info">
       <span class="language-tag">{{ language || "文本" }}</span>
       <!-- 预览模式指示器 -->
-      <span v-if="isHtml && viewMode === 'preview'" class="mode-tag">预览模式</span>
+      <span v-if="isHtml && viewMode === 'preview'" class="mode-tag"
+        >预览模式</span
+      >
       <!-- Token 计数 -->
-      <span v-if="showTokenCount" class="token-info"> {{ contentLength }} 字 / ~{{ tokenCount }} tokens </span>
+      <span v-if="showTokenCount" class="token-info">
+        {{ contentLength }} 字 / ~{{ tokenCount }} tokens
+      </span>
     </div>
     <div class="header-actions">
       <!-- HTML 预览切换按钮 -->
       <template v-if="isHtml">
-        <el-tooltip :content="viewMode === 'preview' ? '查看源码' : '预览 HTML'" :show-after="300">
+        <el-tooltip
+          :content="viewMode === 'preview' ? '查看源码' : '预览 HTML'"
+          :show-after="300"
+        >
           <button
             class="action-btn"
             :class="{ 'action-btn-active': viewMode === 'preview' }"
@@ -27,8 +34,15 @@
           </button>
         </el-tooltip>
 
-        <el-tooltip :content="closed === false ? '内容生成中...' : '在弹窗中预览'" :show-after="300">
-          <button class="action-btn" :disabled="closed === false" @click="$emit('open-dialog-preview')">
+        <el-tooltip
+          :content="closed === false ? '内容生成中...' : '在弹窗中预览'"
+          :show-after="300"
+        >
+          <button
+            class="action-btn"
+            :disabled="closed === false"
+            @click="$emit('open-dialog-preview')"
+          >
             <ExternalLink :size="14" />
           </button>
         </el-tooltip>
@@ -38,7 +52,11 @@
 
       <!-- 字体大小调整按钮 -->
       <el-tooltip content="减小字体" :show-after="300">
-        <button class="action-btn" :disabled="codeFontSize <= codeFontMin" @click="$emit('decrease-font')">
+        <button
+          class="action-btn"
+          :disabled="codeFontSize <= codeFontMin"
+          @click="$emit('decrease-font')"
+        >
           <Minus :size="14" />
         </button>
       </el-tooltip>
@@ -52,21 +70,36 @@
         </button>
       </el-tooltip>
       <el-tooltip content="增大字体" :show-after="300">
-        <button class="action-btn" :disabled="codeFontSize >= codeFontMax" @click="$emit('increase-font')">
+        <button
+          class="action-btn"
+          :disabled="codeFontSize >= codeFontMax"
+          @click="$emit('increase-font')"
+        >
           <Plus :size="14" />
         </button>
       </el-tooltip>
 
       <!-- 换行切换按钮 -->
-      <el-tooltip :content="wordWrapEnabled ? '禁用换行' : '启用换行'" :show-after="300">
-        <button class="action-btn" :class="{ 'action-btn-active': wordWrapEnabled }" @click="$emit('toggle-word-wrap')">
+      <el-tooltip
+        :content="wordWrapEnabled ? '禁用换行' : '启用换行'"
+        :show-after="300"
+      >
+        <button
+          class="action-btn"
+          :class="{ 'action-btn-active': wordWrapEnabled }"
+          @click="$emit('toggle-word-wrap')"
+        >
           <WrapText :size="14" />
         </button>
       </el-tooltip>
 
       <!-- 复制按钮 -->
       <el-tooltip :content="copied ? '已复制' : '复制代码'" :show-after="300">
-        <button class="action-btn" :class="{ 'action-btn-active': copied }" @click="$emit('copy-code')">
+        <button
+          class="action-btn"
+          :class="{ 'action-btn-active': copied }"
+          @click="$emit('copy-code')"
+        >
           <Check v-if="copied" :size="14" />
           <Copy v-else :size="14" />
         </button>
@@ -275,7 +308,10 @@ defineEmits<{
 }
 
 .action-btn-active {
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity, 1) * 0.2));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity, 1) * 0.2)
+  );
   color: var(--el-color-primary);
 }
 
@@ -284,7 +320,10 @@ defineEmits<{
 }
 
 .action-btn-active:hover:not(:disabled) {
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity, 1) * 0.35));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity, 1) * 0.35)
+  );
   box-shadow: 0 2px 8px rgba(var(--el-color-primary-rgb), 0.2);
 }
 

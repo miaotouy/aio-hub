@@ -140,7 +140,10 @@ interface AppearanceSettings {
 // 计算分离窗口的壁纸配置
 const wallpaperMeta = {
   // 如果策略是 static，强制指定类型为 image
-  type: settings.detachedWallpaperStrategy === "static" ? "image" : settings.wallpaperType,
+  type:
+    settings.detachedWallpaperStrategy === "static"
+      ? "image"
+      : settings.wallpaperType,
   source: settings.wallpaperSource,
   // 传递初始静音状态（通常分离窗口起步时应静音，避免突然发出声音）
   muted: true,

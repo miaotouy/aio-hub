@@ -251,7 +251,8 @@ const preset: Omit<AgentPreset, "id"> = {
   agentVersion: "2.0.0",
   name: "智能体配置向导",
   displayName: "智能体配置向导",
-  description: "帮助你理解 AIO Hub 智能体格式、创建新配置、转换酒馆角色卡、配置高级功能",
+  description:
+    "帮助你理解 AIO Hub 智能体格式、创建新配置、转换酒馆角色卡、配置高级功能",
   icon: "🔮",
   presetMessages: [
     {

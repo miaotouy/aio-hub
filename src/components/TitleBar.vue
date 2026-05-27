@@ -33,7 +33,10 @@ import SidebarMenu from "@/components/SidebarMenu.vue";
 import NotificationBell from "@/components/notification/NotificationBell.vue";
 import DownloadManager from "@/components/DownloadManager.vue";
 import { useDebounceFn } from "@vueuse/core";
-import { useResolvedAvatar, resolveAvatarPath } from "@/tools/llm-chat/composables/ui/useResolvedAvatar";
+import {
+  useResolvedAvatar,
+  resolveAvatarPath,
+} from "@/tools/llm-chat/composables/ui/useResolvedAvatar";
 import UserProfileManagerDialog from "@/views/Settings/user-profile/components/UserProfileManagerDialog.vue";
 
 // 接收可选的标题和图标 prop（用于分离窗口）
@@ -58,7 +61,7 @@ const downloadStore = useDownloadStore();
 // 解析当前选中的全局用户档案头像
 const globalProfileAvatarSrc = useResolvedAvatar(
   computed(() => userProfileStore.globalProfile),
-  "user-profile",
+  "user-profile"
 );
 
 const appWindow = getCurrentWindow();
@@ -124,7 +127,10 @@ const currentIcon = computed(() => props.icon || currentTool.value.icon);
 // 如果传入了 icon prop，则不使用默认图标
 const useDefaultIcon = computed(() => {
   if (props.icon) return false;
-  return route.path === "/" || !toolsStore.tools.find((tool) => tool.path === route.path);
+  return (
+    route.path === "/" ||
+    !toolsStore.tools.find((tool) => tool.path === route.path)
+  );
 });
 
 const logoSrc = computed(() => (isDark.value ? iconWhite : iconBlack));
@@ -136,7 +142,9 @@ const checkMaximized = async () => {
 
   // 如果状态发生变化，记录日志
   if (previousState !== currentState) {
-    const changeType = isManualMaximizeChange.value ? "[手动操作]" : "[自动变更]";
+    const changeType = isManualMaximizeChange.value
+      ? "[手动操作]"
+      : "[自动变更]";
     const windowLabel = appWindow.label;
 
     logger.debug("窗口最大化状态变化", {
@@ -149,7 +157,7 @@ const checkMaximized = async () => {
     });
 
     console.log(
-      `[${new Date().toLocaleString()}] ${changeType} 窗口 ${windowLabel} 最大化状态变化: ${previousState} -> ${currentState}`,
+      `[${new Date().toLocaleString()}] ${changeType} 窗口 ${windowLabel} 最大化状态变化: ${previousState} -> ${currentState}`
     );
   }
 
@@ -167,7 +175,10 @@ const saveWindowConfig = useDebounceFn(async () => {
     await invoke("save_window_config", { label: windowLabel });
     logger.debug(`窗口配置已保存: ${windowLabel}`);
   } catch (error) {
-    errorHandler.handle(error, { userMessage: "保存窗口配置失败", showToUser: false });
+    errorHandler.handle(error, {
+      userMessage: "保存窗口配置失败",
+      showToUser: false,
+    });
   }
 }, 500); // 500ms 防抖
 
@@ -323,7 +334,7 @@ watch(
         downloadButtonAnimating.value = false;
       }, 1000); // 动画持续时间
     }
-  },
+  }
 );
 </script>
 
@@ -361,7 +372,8 @@ watch(
     class="title-bar"
     :class="{
       macos: isMacOS,
-      'has-glass-effect': appearanceSettings?.enableUiEffects && appearanceSettings?.enableUiBlur,
+      'has-glass-effect':
+        appearanceSettings?.enableUiEffects && appearanceSettings?.enableUiBlur,
     }"
     data-tauri-drag-region
   >
@@ -375,7 +387,13 @@ watch(
         </div>
 
         <!-- 菜单按钮（仅在非 sidebar 模式下显示） -->
-        <template v-if="isMainWindow && settings?.sidebarMode && settings.sidebarMode !== 'sidebar'">
+        <template
+          v-if="
+            isMainWindow &&
+            settings?.sidebarMode &&
+            settings.sidebarMode !== 'sidebar'
+          "
+        >
           <!-- 下拉菜单模式 -->
           <el-dropdown
             v-if="settings.sidebarMode === 'dropdown'"
@@ -400,7 +418,12 @@ watch(
           </el-dropdown>
 
           <!-- 抽屉模式 -->
-          <button v-else class="control-btn menu-btn" style="padding: 0 16px" @click="drawerVisible = true">
+          <button
+            v-else
+            class="control-btn menu-btn"
+            style="padding: 0 16px"
+            @click="drawerVisible = true"
+          >
             <el-icon><MenuIcon /></el-icon>
           </button>
         </template>
@@ -420,20 +443,31 @@ watch(
         <span v-else-if="!useDefaultIcon" class="icon-wrapper">
           <component :is="currentIcon" />
         </span>
-        <span v-if="!(isMainWindow && route.path === '/')" class="app-title">{{ currentToolName }}</span>
+        <span v-if="!(isMainWindow && route.path === '/')" class="app-title">{{
+          currentToolName
+        }}</span>
       </div>
 
       <!-- 右侧控制区域 -->
       <div class="right-controls">
         <!-- 返回主窗口按钮（仅在分离窗口显示，所有平台通用） -->
-        <el-tooltip v-if="!isMainWindow" content="回归主窗口" placement="bottom">
+        <el-tooltip
+          v-if="!isMainWindow"
+          content="回归主窗口"
+          placement="bottom"
+        >
           <button class="control-btn reattach-btn" @click="handleReattach">
             <el-icon><CornerDownLeft /></el-icon>
           </button>
         </el-tooltip>
 
         <!-- 用户档案选择下拉菜单（仅主窗口显示） -->
-        <el-dropdown v-if="isMainWindow" trigger="hover" @command="handleProfileSelect" placement="bottom">
+        <el-dropdown
+          v-if="isMainWindow"
+          trigger="hover"
+          @command="handleProfileSelect"
+          placement="bottom"
+        >
           <button
             class="control-btn profile-btn"
             :title="
@@ -446,7 +480,10 @@ watch(
             <Avatar
               v-if="userProfileStore.globalProfile"
               :src="globalProfileAvatarSrc || ''"
-              :alt="userProfileStore.globalProfile.displayName || userProfileStore.globalProfile.name"
+              :alt="
+                userProfileStore.globalProfile.displayName ||
+                userProfileStore.globalProfile.name
+              "
               :size="20"
               shape="square"
               :radius="4"
@@ -456,14 +493,19 @@ watch(
           </button>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item :command="null" :class="{ 'is-active': !userProfileStore.globalProfileId }">
+              <el-dropdown-item
+                :command="null"
+                :class="{ 'is-active': !userProfileStore.globalProfileId }"
+              >
                 <span>无（不使用）</span>
               </el-dropdown-item>
               <el-dropdown-item
                 v-for="profile in userProfileStore.enabledProfiles"
                 :key="profile.id"
                 :command="profile.id"
-                :class="{ 'is-active': userProfileStore.globalProfileId === profile.id }"
+                :class="{
+                  'is-active': userProfileStore.globalProfileId === profile.id,
+                }"
               >
                 <!-- 始终使用 Avatar，有头像显示头像，无头像显示首字母 -->
                 <Avatar
@@ -485,21 +527,35 @@ watch(
         </el-dropdown>
 
         <!-- 主题切换下拉菜单（仅主窗口显示） -->
-        <el-dropdown v-if="isMainWindow" trigger="hover" @command="handleThemeChange" placement="bottom">
+        <el-dropdown
+          v-if="isMainWindow"
+          trigger="hover"
+          @command="handleThemeChange"
+          placement="bottom"
+        >
           <button class="control-btn theme-btn" :title="getThemeTooltip">
             <el-icon><component :is="getThemeIcon" /></el-icon>
           </button>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item command="auto" :class="{ 'is-active': currentTheme === 'auto' }">
+              <el-dropdown-item
+                command="auto"
+                :class="{ 'is-active': currentTheme === 'auto' }"
+              >
                 <el-icon><SystemThemeIcon /></el-icon>
                 <span>跟随系统</span>
               </el-dropdown-item>
-              <el-dropdown-item command="light" :class="{ 'is-active': currentTheme === 'light' }">
+              <el-dropdown-item
+                command="light"
+                :class="{ 'is-active': currentTheme === 'light' }"
+              >
                 <el-icon><Sunny /></el-icon>
                 <span>浅色</span>
               </el-dropdown-item>
-              <el-dropdown-item command="dark" :class="{ 'is-active': currentTheme === 'dark' }">
+              <el-dropdown-item
+                command="dark"
+                :class="{ 'is-active': currentTheme === 'dark' }"
+              >
                 <el-icon><Moon /></el-icon>
                 <span>深色</span>
               </el-dropdown-item>
@@ -509,7 +565,9 @@ watch(
 
         <!-- 下载管理入口（仅主窗口显示） -->
         <el-popover
-          v-if="isMainWindow && settings?.download?.showDownloadButtonInTitleBar"
+          v-if="
+            isMainWindow && settings?.download?.showDownloadButtonInTitleBar
+          "
           placement="bottom-end"
           :width="350"
           trigger="click"
@@ -547,15 +605,27 @@ watch(
             </button>
           </el-tooltip>
 
-          <el-tooltip :content="isMaximized ? '还原' : '最大化'" placement="bottom">
+          <el-tooltip
+            :content="isMaximized ? '还原' : '最大化'"
+            placement="bottom"
+          >
             <button class="control-btn maximize-btn" @click="toggleMaximize">
               <el-icon>
-                <CopyDocument :style="{ transform: isMaximized ? 'rotate(180deg)' : 'none' }" />
+                <CopyDocument
+                  :style="{
+                    transform: isMaximized ? 'rotate(180deg)' : 'none',
+                  }"
+                />
               </el-icon>
             </button>
           </el-tooltip>
 
-          <el-tooltip :content="isMainWindow && settings?.minimizeToTray ? '隐藏到托盘' : '关闭'" placement="bottom">
+          <el-tooltip
+            :content="
+              isMainWindow && settings?.minimizeToTray ? '隐藏到托盘' : '关闭'
+            "
+            placement="bottom"
+          >
             <button class="control-btn close-btn" @click="closeWindow">
               <el-icon><Close /></el-icon>
             </button>

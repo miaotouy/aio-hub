@@ -11,7 +11,11 @@ export class Denoiser {
   /**
    * 去除噪声元素
    */
-  public process(doc: Document, excludeSelectors: string[] = [], protectedSelectors: string[] = []): void {
+  public process(
+    doc: Document,
+    excludeSelectors: string[] = [],
+    protectedSelectors: string[] = []
+  ): void {
     // 0. 标记受保护的元素
     if (protectedSelectors.length > 0) {
       protectedSelectors.forEach((selector) => {
@@ -71,7 +75,8 @@ export class Denoiser {
     // 3. 基于 ID 和 Class 模式移除
     // 性能优化：预先编译正则表达式，避免循环内多次创建和 toLowerCase
     // 移除了 related 和 share，因为它们在视频站点中往往包含核心推荐内容
-    const noisyRegex = /(sidebar|nav|menu|ad-|ad_|banner|comment|social|widget|popup|modal|breadcrumb|pagination)/i;
+    const noisyRegex =
+      /(sidebar|nav|menu|ad-|ad_|banner|comment|social|widget|popup|modal|breadcrumb|pagination)/i;
 
     // 性能优化：不再遍历 span，主要噪声集中在块级容器中
     const elements = doc.querySelectorAll("div, section, aside, ul, ol");
@@ -92,7 +97,9 @@ export class Denoiser {
         if (textLen < 200) {
           // 特殊处理：如果是 B 站这种带图的列表，即使文字少也可能是核心内容
           // 检查是否包含图片、SVG 图标或视频/Canvas 等多媒体内容
-          const hasVisualContent = el.querySelector("img, svg, picture, video, canvas, iframe");
+          const hasVisualContent = el.querySelector(
+            "img, svg, picture, video, canvas, iframe"
+          );
           if (!hasVisualContent) {
             safeRemove(el);
             removedCount++;
@@ -104,7 +111,8 @@ export class Denoiser {
     logger.info(`Removed ${removedCount} noisy elements based on patterns`);
 
     // 4. 移除隐藏元素 - 性能优化：只检查特定的容器
-    const hiddenSelectors = '[style*="display: none"], [style*="visibility: hidden"], [hidden]';
+    const hiddenSelectors =
+      '[style*="display: none"], [style*="visibility: hidden"], [hidden]';
     const hiddenElements = doc.querySelectorAll(hiddenSelectors);
     logger.info(`Removing ${hiddenElements.length} hidden elements`);
     hiddenElements.forEach(safeRemove);

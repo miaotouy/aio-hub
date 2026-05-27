@@ -39,7 +39,12 @@
             </h3>
             <div v-else></div>
           </slot>
-          <button v-if="props.showCloseButton" @click="handleClose" class="dialog-close-btn" aria-label="关闭">
+          <button
+            v-if="props.showCloseButton"
+            @click="handleClose"
+            class="dialog-close-btn"
+            aria-label="关闭"
+          >
             <svg
               class="close-icon"
               xmlns="http://www.w3.org/2000/svg"
@@ -47,20 +52,33 @@
               viewBox="0 0 24 24"
               stroke="currentColor"
             >
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         </div>
 
         <!-- 内容区域 -->
-        <div class="dialog-content" :class="props.contentClass" v-loading="props.loading">
+        <div
+          class="dialog-content"
+          :class="props.contentClass"
+          v-loading="props.loading"
+        >
           <slot name="content">
             <slot></slot>
           </slot>
         </div>
 
         <!-- 底部区域 -->
-        <div v-if="hasFooterSlot && props.showFooter" class="dialog-footer" :class="{ 'with-border': !props.bare }">
+        <div
+          v-if="hasFooterSlot && props.showFooter"
+          class="dialog-footer"
+          :class="{ 'with-border': !props.bare }"
+        >
           <slot name="footer"></slot>
         </div>
       </div>
@@ -69,7 +87,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onBeforeUnmount, useSlots, computed, nextTick } from "vue";
+import {
+  ref,
+  watch,
+  onMounted,
+  onBeforeUnmount,
+  useSlots,
+  computed,
+  nextTick,
+} from "vue";
 import { useThemeAppearance } from "@/composables/useThemeAppearance";
 
 const props = withDefaults(
@@ -106,7 +132,7 @@ const props = withDefaults(
     enableTransition: true,
     loading: false,
     appendToBody: true,
-  },
+  }
 );
 
 const emit = defineEmits<{
@@ -124,7 +150,9 @@ const hasHeaderSlot = computed(() => !!slots.header);
 
 const { appearanceSettings } = useThemeAppearance();
 const isGlassEffectActive = computed(
-  () => appearanceSettings.value.enableUiEffects && appearanceSettings.value.enableUiBlur,
+  () =>
+    appearanceSettings.value.enableUiEffects &&
+    appearanceSettings.value.enableUiBlur
 );
 
 const showContentTransition = ref(false);
@@ -216,7 +244,7 @@ watch(
       showContentTransition.value = false;
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 function handleClose() {

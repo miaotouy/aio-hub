@@ -58,17 +58,26 @@
       <!-- 分析结果颜色 -->
       <div v-if="hasAnalysisColors" class="analysis-colors">
         <!-- 主色调模式 -->
-        <template v-if="store.selectedAlgorithm === 'quantize' && store.currentAnalysisResult?.quantize">
+        <template
+          v-if="
+            store.selectedAlgorithm === 'quantize' &&
+            store.currentAnalysisResult?.quantize
+          "
+        >
           <div class="color-chips">
             <div
-              v-for="(color, index) in store.currentAnalysisResult.quantize.colors"
+              v-for="(color, index) in store.currentAnalysisResult.quantize
+                .colors"
               :key="`quantize-${index}`"
               class="color-chip"
               :style="{ backgroundColor: color }"
               @click="copyColor(color)"
             >
               <div class="color-chip-overlay">
-                <span class="color-chip-text" :style="{ color: getTextColor(color) }">
+                <span
+                  class="color-chip-text"
+                  :style="{ color: getTextColor(color) }"
+                >
                   {{ formatColor(color) }}
                 </span>
               </div>
@@ -77,10 +86,17 @@
         </template>
 
         <!-- 设计感模式 -->
-        <template v-if="store.selectedAlgorithm === 'vibrant' && store.currentAnalysisResult?.vibrant">
+        <template
+          v-if="
+            store.selectedAlgorithm === 'vibrant' &&
+            store.currentAnalysisResult?.vibrant
+          "
+        >
           <div class="vibrant-colors">
             <div
-              v-for="[label, color] in Object.entries(store.currentAnalysisResult.vibrant).filter(([, c]) => c !== null)"
+              v-for="[label, color] in Object.entries(
+                store.currentAnalysisResult.vibrant
+              ).filter(([, c]) => c !== null)"
               :key="label"
               class="vibrant-chip"
             >
@@ -91,7 +107,10 @@
                 @click="copyColor(color as string)"
               >
                 <div class="color-chip-overlay">
-                  <span class="color-chip-text" :style="{ color: getTextColor(color as string) }">
+                  <span
+                    class="color-chip-text"
+                    :style="{ color: getTextColor(color as string) }"
+                  >
                     {{ formatColor(color as string) }}
                   </span>
                 </div>
@@ -101,15 +120,29 @@
         </template>
 
         <!-- 平均色模式 -->
-        <template v-if="store.selectedAlgorithm === 'average' && store.currentAnalysisResult?.average">
+        <template
+          v-if="
+            store.selectedAlgorithm === 'average' &&
+            store.currentAnalysisResult?.average
+          "
+        >
           <div class="color-chips">
             <div
               class="color-chip average-chip"
-              :style="{ backgroundColor: store.currentAnalysisResult.average.color }"
+              :style="{
+                backgroundColor: store.currentAnalysisResult.average.color,
+              }"
               @click="copyColor(store.currentAnalysisResult.average.color)"
             >
               <div class="color-chip-overlay">
-                <span class="color-chip-text" :style="{ color: getTextColor(store.currentAnalysisResult.average.color) }">
+                <span
+                  class="color-chip-text"
+                  :style="{
+                    color: getTextColor(
+                      store.currentAnalysisResult.average.color
+                    ),
+                  }"
+                >
                   {{ formatColor(store.currentAnalysisResult.average.color) }}
                 </span>
               </div>
@@ -175,7 +208,10 @@
               @click="copyColor(color.hex)"
             >
               <div class="color-chip-overlay">
-                <span class="color-chip-text" :style="{ color: getTextColor(color.hex) }">
+                <span
+                  class="color-chip-text"
+                  :style="{ color: getTextColor(color.hex) }"
+                >
                   {{ formatColor(color.hex) }}
                 </span>
                 <el-button
@@ -197,14 +233,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import { DocumentCopy, Close } from '@element-plus/icons-vue';
-import { Pipette } from 'lucide-vue-next';
-import { useColorPickerStore } from '../colorPicker.store';
-import { useColorConverter, getContrastColor, copyToClipboard } from '../composables/useColorConverter';
-import { customMessage } from '@/utils/customMessage';
-import { createModuleErrorHandler } from '@/utils/errorHandler';
-import InfoCard from '@/components/common/InfoCard.vue';
+import { computed } from "vue";
+import { DocumentCopy, Close } from "@element-plus/icons-vue";
+import { Pipette } from "lucide-vue-next";
+import { useColorPickerStore } from "../colorPicker.store";
+import {
+  useColorConverter,
+  getContrastColor,
+  copyToClipboard,
+} from "../composables/useColorConverter";
+import { customMessage } from "@/utils/customMessage";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
+import InfoCard from "@/components/common/InfoCard.vue";
 
 interface Props {
   isEyeDropperSupported: boolean;
@@ -215,18 +255,18 @@ interface Props {
 
 defineProps<Props>();
 const store = useColorPickerStore();
-const errorHandler = createModuleErrorHandler('ColorPicker/RightPanel');
+const errorHandler = createModuleErrorHandler("ColorPicker/RightPanel");
 
 const algorithmOptions = [
-  { label: '主色调', value: 'quantize' },
-  { label: '设计感', value: 'vibrant' },
-  { label: '平均色', value: 'average' },
+  { label: "主色调", value: "quantize" },
+  { label: "设计感", value: "vibrant" },
+  { label: "平均色", value: "average" },
 ];
 
 const formatOptions = [
-  { label: 'HEX', value: 'hex' },
-  { label: 'RGB', value: 'rgb' },
-  { label: 'HSL', value: 'hsl' },
+  { label: "HEX", value: "hex" },
+  { label: "RGB", value: "rgb" },
+  { label: "HSL", value: "hsl" },
 ];
 
 /**
@@ -234,14 +274,18 @@ const formatOptions = [
  */
 const hasAnalysisColors = computed(() => {
   if (!store.currentAnalysisResult) return false;
-  
+
   switch (store.selectedAlgorithm) {
-    case 'quantize':
+    case "quantize":
       return !!store.currentAnalysisResult.quantize?.colors?.length;
-    case 'vibrant':
-      return !!store.currentAnalysisResult.vibrant && 
-        Object.values(store.currentAnalysisResult.vibrant).some(c => c !== null);
-    case 'average':
+    case "vibrant":
+      return (
+        !!store.currentAnalysisResult.vibrant &&
+        Object.values(store.currentAnalysisResult.vibrant).some(
+          (c) => c !== null
+        )
+      );
+    case "average":
       return !!store.currentAnalysisResult.average?.color;
     default:
       return false;
@@ -271,7 +315,7 @@ async function copyColor(hexColor: string) {
   await copyToClipboard(
     formattedColor,
     () => customMessage.success(`已复制: ${formattedColor}`),
-    (error) => errorHandler.error(error, '复制失败')
+    (error) => errorHandler.error(error, "复制失败")
   );
 }
 
@@ -280,22 +324,31 @@ async function copyColor(hexColor: string) {
  */
 async function copyAllAnalysisColors() {
   const colors: string[] = [];
-  
-  if (store.selectedAlgorithm === 'quantize' && store.currentAnalysisResult?.quantize) {
+
+  if (
+    store.selectedAlgorithm === "quantize" &&
+    store.currentAnalysisResult?.quantize
+  ) {
     colors.push(...store.currentAnalysisResult.quantize.colors);
-  } else if (store.selectedAlgorithm === 'vibrant' && store.currentAnalysisResult?.vibrant) {
-    Object.values(store.currentAnalysisResult.vibrant).forEach(color => {
+  } else if (
+    store.selectedAlgorithm === "vibrant" &&
+    store.currentAnalysisResult?.vibrant
+  ) {
+    Object.values(store.currentAnalysisResult.vibrant).forEach((color) => {
       if (color) colors.push(color);
     });
-  } else if (store.selectedAlgorithm === 'average' && store.currentAnalysisResult?.average) {
+  } else if (
+    store.selectedAlgorithm === "average" &&
+    store.currentAnalysisResult?.average
+  ) {
     colors.push(store.currentAnalysisResult.average.color);
   }
-  
-  const formattedColors = colors.map(c => formatColor(c)).join('\n');
+
+  const formattedColors = colors.map((c) => formatColor(c)).join("\n");
   await copyToClipboard(
     formattedColors,
     () => customMessage.success(`已复制 ${colors.length} 个颜色`),
-    (error) => errorHandler.error(error, '复制失败')
+    (error) => errorHandler.error(error, "复制失败")
   );
 }
 
@@ -303,11 +356,11 @@ async function copyAllAnalysisColors() {
  * 复制所有手动取色
  */
 async function copyAllManualColors() {
-  const colors = store.manualPalette.map(c => formatColor(c.hex)).join('\n');
+  const colors = store.manualPalette.map((c) => formatColor(c.hex)).join("\n");
   await copyToClipboard(
     colors,
     () => customMessage.success(`已复制 ${store.manualPalette.length} 个颜色`),
-    (error) => errorHandler.error(error, '复制失败')
+    (error) => errorHandler.error(error, "复制失败")
   );
 }
 
@@ -316,12 +369,12 @@ async function copyAllManualColors() {
  */
 function translateLabel(label: string): string {
   const labelMap: Record<string, string> = {
-    Vibrant: '鲜艳',
-    Muted: '柔和',
-    DarkVibrant: '暗色鲜艳',
-    DarkMuted: '暗色柔和',
-    LightVibrant: '亮色鲜艳',
-    LightMuted: '亮色柔和',
+    Vibrant: "鲜艳",
+    Muted: "柔和",
+    DarkVibrant: "暗色鲜艳",
+    DarkMuted: "暗色柔和",
+    LightVibrant: "亮色鲜艳",
+    LightMuted: "亮色柔和",
   };
   return labelMap[label] || label;
 }
@@ -402,7 +455,9 @@ function translateLabel(label: string): string {
   cursor: pointer;
   position: relative;
   overflow: hidden;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
   border: var(--border-width) solid var(--border-color);
 }
 
@@ -516,11 +571,11 @@ function translateLabel(label: string): string {
   .color-chips {
     grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
   }
-  
+
   .vibrant-colors {
     grid-template-columns: 1fr;
   }
-  
+
   .control-label {
     width: 70px;
   }

@@ -127,7 +127,9 @@ export interface AgentExtension {
    * 用于向 Agent 注入当前环境信息、运行时状态或操作指南。
    * @param context 可选的运行时上下文（由上层解析并下推）
    */
-  getExtraPromptContext?(context?: AgentExtensionContext): string | Promise<string>;
+  getExtraPromptContext?(
+    context?: AgentExtensionContext
+  ): string | Promise<string>;
 }
 
 /**
@@ -157,7 +159,11 @@ export interface ToolRegistry extends AgentExtension {
    * @param methodName 被调用的方法名
    * @param args 原始调用参数
    */
-  onToolCallDiscarded?(requestId: string, methodName: string, args: Record<string, any>): void | Promise<void>;
+  onToolCallDiscarded?(
+    requestId: string,
+    methodName: string,
+    args: Record<string, any>
+  ): void | Promise<void>;
 
   /**
    * 当工具调用进入待定（审批）状态前触发。
@@ -166,7 +172,11 @@ export interface ToolRegistry extends AgentExtension {
    * @param methodName 被调用的方法名
    * @param args 原始调用参数
    */
-  onToolCallPreview?(requestId: string, methodName: string, args: Record<string, any>): void | Promise<void>;
+  onToolCallPreview?(
+    requestId: string,
+    methodName: string,
+    args: Record<string, any>
+  ): void | Promise<void>;
 
   /**
    * 提供工具的元数据，用于工具监控、文档生成和未来的工具调用。

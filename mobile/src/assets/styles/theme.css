@@ -21,7 +21,7 @@
   --container-bg: var(--color-surface-container);
   --input-bg: var(--color-surface-container-high);
   --sidebar-bg: var(--color-surface-container-low);
-  
+
   /* 字体变量 */
   --app-font-size: 14px;
   --app-font-scale: 1;
@@ -29,7 +29,7 @@
   /* 质感变量 */
   --ui-blur: 10px;
   --card-opacity: 0.85;
-  
+
   /* 圆角规范 */
   --app-radius-lg: 12px;
   --app-radius-md: 8px;
@@ -41,7 +41,10 @@
   /* 导航栏与安全区域变量 */
   --app-bar-height: 54px;
   /* 状态栏避让高度 */
-  --app-safe-area-top: max(env(safe-area-inset-top), var(--app-safe-area-top-offset, 16px));
+  --app-safe-area-top: max(
+    env(safe-area-inset-top),
+    var(--app-safe-area-top-offset, 16px)
+  );
   /* 顶部总占用高度 */
   --app-top-offset: calc(var(--app-bar-height) + var(--app-safe-area-top));
 }
@@ -49,7 +52,8 @@
 /* 
  * 移动端特定全局样式 
  */
-html, body {
+html,
+body {
   height: 100%;
   overflow: hidden;
   overscroll-behavior: none;
@@ -59,7 +63,9 @@ html, body {
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif;
   font-size: var(--app-font-size);
   line-height: 1.5;
 }
@@ -75,7 +81,10 @@ body {
 
 /* 安全区域与键盘避让辅助类 */
 .safe-area-bottom {
-  padding-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+  padding-bottom: var(
+    --safe-area-inset-bottom,
+    env(safe-area-inset-bottom, 0px)
+  );
 }
 
 /* 键盘避让类：

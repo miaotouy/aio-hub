@@ -40,7 +40,7 @@ export function useDanmakuConfig() {
     (newVal) => {
       configManager.saveDebounced(newVal);
     },
-    { deep: true },
+    { deep: true }
   );
 
   const resetConfig = () => {

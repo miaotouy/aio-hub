@@ -8,7 +8,8 @@ import { History, RefreshCw } from "lucide-vue-next";
 import type { Asset, AssetType } from "@/types/asset-management";
 import AssetIcon from "../../asset-manager/components/AssetIcon.vue";
 
-const { assets, isLoading, loadAssetsPaginated, getAssetUrl } = useAssetManager();
+const { assets, isLoading, loadAssetsPaginated, getAssetUrl } =
+  useAssetManager();
 const { show: showImageViewer } = useImageViewer();
 const { previewVideo } = useVideoViewer();
 const { previewAudio } = useAudioViewer();

@@ -33,7 +33,12 @@ import { storeToRefs } from "pinia";
 import { useRichTextRendererStore } from "../../../stores/store";
 import { useIntersectionObserver } from "@vueuse/core";
 import { EditorState, Compartment } from "@codemirror/state";
-import { EditorView, lineNumbers, highlightActiveLineGutter, keymap } from "@codemirror/view";
+import {
+  EditorView,
+  lineNumbers,
+  highlightActiveLineGutter,
+  keymap,
+} from "@codemirror/view";
 import { foldGutter, foldKeymap } from "@codemirror/language";
 import { defaultKeymap } from "@codemirror/commands";
 import { useTheme } from "@composables/useTheme";
@@ -78,7 +83,7 @@ useIntersectionObserver(
       initEditor();
     }
   },
-  { rootMargin: "600px" }, // 提前 600px 开始初始化，确保用户滚动到时已完成
+  { rootMargin: "600px" } // 提前 600px 开始初始化，确保用户滚动到时已完成
 );
 
 const languageCompartment = new Compartment();
@@ -153,9 +158,11 @@ const initEditor = async () => {
     fontSizeCompartment.of(
       EditorView.theme({
         "&": { fontSize: `${props.codeFontSize}px` },
-      }),
+      })
     ),
-    wordWrapCompartment.of(props.wordWrapEnabled ? EditorView.lineWrapping : []),
+    wordWrapCompartment.of(
+      props.wordWrapEnabled ? EditorView.lineWrapping : []
+    ),
     languageCompartment.of([]),
   ];
 
@@ -194,12 +201,19 @@ const initEditor = async () => {
 watch(
   () => props.content,
   (newContent) => {
-    if (editorView.value && newContent !== editorView.value.state.doc.toString()) {
+    if (
+      editorView.value &&
+      newContent !== editorView.value.state.doc.toString()
+    ) {
       editorView.value.dispatch({
-        changes: { from: 0, to: editorView.value.state.doc.length, insert: newContent },
+        changes: {
+          from: 0,
+          to: editorView.value.state.doc.length,
+          insert: newContent,
+        },
       });
     }
-  },
+  }
 );
 
 watch(cmTheme, (newTheme) => {
@@ -218,11 +232,11 @@ watch(
         effects: fontSizeCompartment.reconfigure(
           EditorView.theme({
             "&": { fontSize: `${size}px` },
-          }),
+          })
         ),
       });
     }
-  },
+  }
 );
 
 watch(
@@ -230,10 +244,12 @@ watch(
   (enabled) => {
     if (editorView.value) {
       editorView.value.dispatch({
-        effects: wordWrapCompartment.reconfigure(enabled ? EditorView.lineWrapping : []),
+        effects: wordWrapCompartment.reconfigure(
+          enabled ? EditorView.lineWrapping : []
+        ),
       });
     }
-  },
+  }
 );
 
 onMounted(() => {

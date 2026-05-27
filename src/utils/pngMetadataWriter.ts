@@ -1,6 +1,6 @@
-import { createModuleLogger } from '@/utils/logger';
+import { createModuleLogger } from "@/utils/logger";
 
-const logger = createModuleLogger('utils/pngMetadataWriter');
+const logger = createModuleLogger("utils/pngMetadataWriter");
 
 /**
  * 将数据嵌入到 PNG 文件的 tEXt chunk 中。
@@ -22,18 +22,21 @@ export async function embedDataIntoPng(
     const dataView = new DataView(uint8Buffer.buffer);
 
     // 检查是否是有效的 PNG 文件签名
-    if (dataView.getUint32(0) !== 0x89504E47 || dataView.getUint32(4) !== 0x0D0A1A0A) {
-      throw new Error('Invalid PNG file signature.');
+    if (
+      dataView.getUint32(0) !== 0x89504e47 ||
+      dataView.getUint32(4) !== 0x0d0a1a0a
+    ) {
+      throw new Error("Invalid PNG file signature.");
     }
 
     // 关键字不能包含 null 字节，且长度限制 (1-79 bytes)
-    if (keyword.includes('\0') || keyword.length === 0 || keyword.length > 79) {
-      throw new Error('Invalid keyword for PNG tEXt chunk.');
+    if (keyword.includes("\0") || keyword.length === 0 || keyword.length > 79) {
+      throw new Error("Invalid keyword for PNG tEXt chunk.");
     }
 
     // 将文本数据进行 Base64 编码（与 reader 端期望的格式一致）
     const base64Data = btoa(unescape(encodeURIComponent(textData)));
-    
+
     const keywordBytes = new TextEncoder().encode(keyword);
     const textBytes = new TextEncoder().encode(base64Data);
 
@@ -50,19 +53,19 @@ export async function embedDataIntoPng(
       for (let i = 0; i < buf.length; i++) {
         crc = (crc ^ buf[i]) >>> 0;
         for (let j = 0; j < 8; j++) {
-          crc = (crc & 1) ? (crc >>> 1) ^ 0xEDB88320 : (crc >>> 1);
+          crc = crc & 1 ? (crc >>> 1) ^ 0xedb88320 : crc >>> 1;
         }
       }
       return (crc ^ -1) >>> 0; // 确保返回无符号整数
     };
 
-    const typeBytes = new TextEncoder().encode('tEXt');
-    
+    const typeBytes = new TextEncoder().encode("tEXt");
+
     // 构建完整的 chunk: Length(4) + Type(4) + Data(N) + CRC(4)
     const fullChunkLength = 4 + 4 + chunkDataLength + 4;
     const fullChunk = new Uint8Array(fullChunkLength);
     const chunkDataView = new DataView(fullChunk.buffer);
-    
+
     let offset = 0;
 
     // 1. Chunk Data Length (Big-endian)
@@ -90,8 +93,10 @@ export async function embedDataIntoPng(
 
     while (currentOffset < uint8Buffer.length) {
       const len = dataView.getUint32(currentOffset, false);
-      const type = new TextDecoder().decode(uint8Buffer.subarray(currentOffset + 4, currentOffset + 8));
-      if (type === 'IEND') {
+      const type = new TextDecoder().decode(
+        uint8Buffer.subarray(currentOffset + 4, currentOffset + 8)
+      );
+      if (type === "IEND") {
         iendOffset = currentOffset;
         break;
       }
@@ -99,7 +104,7 @@ export async function embedDataIntoPng(
     }
 
     if (iendOffset === -1) {
-      throw new Error('IEND chunk not found in PNG file.');
+      throw new Error("IEND chunk not found in PNG file.");
     }
 
     // 构建新的 PNG 文件
@@ -111,13 +116,17 @@ export async function embedDataIntoPng(
     // 插入新的 tEXt chunk
     newPngBuffer.set(fullChunk, iendOffset);
     // 复制 IEND chunk
-    newPngBuffer.set(uint8Buffer.subarray(iendOffset), iendOffset + fullChunkLength);
+    newPngBuffer.set(
+      uint8Buffer.subarray(iendOffset),
+      iendOffset + fullChunkLength
+    );
 
-    logger.info(`成功将数据嵌入到 PNG 文件，关键字: ${keyword}, 数据大小: ${base64Data.length} bytes`);
+    logger.info(
+      `成功将数据嵌入到 PNG 文件，关键字: ${keyword}, 数据大小: ${base64Data.length} bytes`
+    );
     return newPngBuffer.buffer;
-
   } catch (error) {
-    logger.error('嵌入数据到 PNG 失败', error as Error);
+    logger.error("嵌入数据到 PNG 失败", error as Error);
     throw error;
   }
 }

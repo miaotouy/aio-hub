@@ -1,5 +1,10 @@
 import { ref, computed } from "vue";
-import type { HybridLayer, SketchObject, RasterLayer, ObjectLayer } from "../types";
+import type {
+  HybridLayer,
+  SketchObject,
+  RasterLayer,
+  ObjectLayer,
+} from "../types";
 
 export type HistoryEntry =
   | {
@@ -18,11 +23,26 @@ export type HistoryEntry =
       before: Partial<SketchObject>;
       after: Partial<SketchObject>;
     }
-  | { type: "object-reorder"; layerId: string; before: string[]; after: string[] }
+  | {
+      type: "object-reorder";
+      layerId: string;
+      before: string[];
+      after: string[];
+    }
   | { type: "layer-add"; layer: HybridLayer; index: number }
-  | { type: "layer-remove"; layer: HybridLayer; index: number; imageData?: ImageData }
+  | {
+      type: "layer-remove";
+      layer: HybridLayer;
+      index: number;
+      imageData?: ImageData;
+    }
   | { type: "layer-reorder"; before: string[]; after: string[] }
-  | { type: "layer-modify"; layerId: string; before: Record<string, unknown>; after: Record<string, unknown> }
+  | {
+      type: "layer-modify";
+      layerId: string;
+      before: Record<string, unknown>;
+      after: Record<string, unknown>;
+    }
   | {
       type: "layer-rasterize";
       layerId: string;

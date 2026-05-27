@@ -259,7 +259,11 @@ export function useMarkdownAst(
         return nodes.map((node) => {
           if (node.id === patch.parentId && node.children) {
             const newChildren = [...node.children];
-            newChildren.splice(patch.start, patch.deleteCount, ...patch.newChildren);
+            newChildren.splice(
+              patch.start,
+              patch.deleteCount,
+              ...patch.newChildren
+            );
             return { ...node, children: newChildren };
           }
 
@@ -303,7 +307,9 @@ export function useMarkdownAst(
     // 改进：不再清空整个 AST，而是只在控制台报错并停止后续 patch
     if (safetyGuardEnabled && nodeMap.size > MAX_TOTAL_NODES) {
       if (verboseLogging) {
-        console.error(`[useMarkdownAst] Critical: Node count ${nodeMap.size} exceeds hard limit ${MAX_TOTAL_NODES}!`);
+        console.error(
+          `[useMarkdownAst] Critical: Node count ${nodeMap.size} exceeds hard limit ${MAX_TOTAL_NODES}!`
+        );
       }
       // 触发紧急停止，不再接收后续更新，但保留当前已渲染内容
       emergencyShutdown();
@@ -404,7 +410,9 @@ export function useMarkdownAst(
 
     if (verboseLogging && patches.length > 0) {
       const ops = patches.map((p) => p.op).join(", ");
-      console.debug(`[useMarkdownAst] enqueuePatch: ${patches.length} patches (${ops})`);
+      console.debug(
+        `[useMarkdownAst] enqueuePatch: ${patches.length} patches (${ops})`
+      );
     }
 
     patchQueue.push(...patches);

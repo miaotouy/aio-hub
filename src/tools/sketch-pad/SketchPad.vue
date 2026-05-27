@@ -32,7 +32,10 @@ import PropertyPanel from "./components/PropertyPanel.vue";
 import LayerPanel from "./components/LayerPanel.vue";
 import SketchSettingsDialog from "./components/SketchSettingsDialog.vue";
 
-import { createEditorSession, provideEditorSession } from "./composables/useEditorSession";
+import {
+  createEditorSession,
+  provideEditorSession,
+} from "./composables/useEditorSession";
 import { useHistoryApplicator } from "./composables/useHistoryApplicator";
 import { useProjectLifecycle } from "./composables/useProjectLifecycle";
 import { useEditorExport } from "./composables/useEditorExport";

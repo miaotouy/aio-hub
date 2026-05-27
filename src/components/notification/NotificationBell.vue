@@ -19,7 +19,12 @@ const handleClick = () => {
       placement="bottom"
     >
       <button class="control-btn bell-btn" @click="handleClick">
-        <el-badge :value="unreadCount" :max="99" :hidden="unreadCount === 0" class="bell-badge">
+        <el-badge
+          :value="unreadCount"
+          :max="99"
+          :hidden="unreadCount === 0"
+          class="bell-badge"
+        >
           <div class="bell-icon-wrapper">
             <Bell :size="18" />
           </div>

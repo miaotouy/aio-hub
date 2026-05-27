@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import { Delete, Document, FolderOpened, FolderAdd } from "@element-plus/icons-vue";
+import {
+  Delete,
+  Document,
+  FolderOpened,
+  FolderAdd,
+} from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import InfoCard from "@components/common/InfoCard.vue";
@@ -55,15 +60,29 @@ const clearFiles = () => {
 <template>
   <InfoCard title="待处理文件" class="full-height-card">
     <template #headerExtra>
-      <el-button :icon="Delete" text circle @click="clearFiles" :disabled="files.length === 0" />
+      <el-button
+        :icon="Delete"
+        text
+        circle
+        @click="clearFiles"
+        :disabled="files.length === 0"
+      />
     </template>
     <div class="source-controls">
-      <el-input v-model="sourcePathInput" placeholder="输入文件/文件夹路径" @keyup.enter="addSourcePathFromInput" />
+      <el-input
+        v-model="sourcePathInput"
+        placeholder="输入文件/文件夹路径"
+        @keyup.enter="addSourcePathFromInput"
+      />
       <el-tooltip content="选择文件" placement="top">
         <el-button @click="emit('select-files')" :icon="Document" circle />
       </el-tooltip>
       <el-tooltip content="选择文件夹" placement="top">
-        <el-button @click="emit('select-folders')" :icon="FolderOpened" circle />
+        <el-button
+          @click="emit('select-folders')"
+          :icon="FolderOpened"
+          circle
+        />
       </el-tooltip>
       <el-button @click="addSourcePathFromInput" type="primary">添加</el-button>
     </div>
@@ -88,7 +107,13 @@ const clearFiles = () => {
       </el-scrollbar>
 
       <!-- 采用标准的 Sibling Overlay 模式 -->
-      <DropZone overlay :multiple="true" @drop="handleDrop" show-overlay-on-drag hide-content />
+      <DropZone
+        overlay
+        :multiple="true"
+        @drop="handleDrop"
+        show-overlay-on-drag
+        hide-content
+      />
     </div>
   </InfoCard>
 </template>

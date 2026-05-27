@@ -66,7 +66,9 @@
       <div class="toolbar-divider"></div>
 
       <div class="toolbar-group">
-        <el-tooltip :content="viewMode === 'single' ? '切换到滚动模式' : '切换到单页模式'">
+        <el-tooltip
+          :content="viewMode === 'single' ? '切换到滚动模式' : '切换到单页模式'"
+        >
           <el-button
             :icon="viewMode === 'single' ? Rows3 : FileText"
             circle
@@ -83,7 +85,12 @@
 
       <div class="toolbar-group">
         <el-tooltip content="下载 PDF">
-          <el-button :icon="Download" circle size="small" @click="downloadPdf" />
+          <el-button
+            :icon="Download"
+            circle
+            size="small"
+            @click="downloadPdf"
+          />
         </el-tooltip>
         <el-tooltip content="打印">
           <el-button :icon="Printer" circle size="small" @click="printPdf" />
@@ -106,8 +113,12 @@
           >
             <template #default="{ node, data }">
               <div class="outline-node">
-                <span class="outline-label" :title="node.label">{{ node.label }}</span>
-                <span v-if="data.page" class="outline-page">{{ data.page }}</span>
+                <span class="outline-label" :title="node.label">{{
+                  node.label
+                }}</span>
+                <span v-if="data.page" class="outline-page">{{
+                  data.page
+                }}</span>
               </div>
             </template>
           </el-tree>
@@ -115,8 +126,15 @@
       </div>
 
       <!-- PDF 内容区域 -->
-      <div class="pdf-container" ref="containerRef" @scroll="handleContainerScroll">
-        <div class="pdf-wrapper" :style="{ transform: `rotate(${rotation}deg)` }">
+      <div
+        class="pdf-container"
+        ref="containerRef"
+        @scroll="handleContainerScroll"
+      >
+        <div
+          class="pdf-wrapper"
+          :style="{ transform: `rotate(${rotation}deg)` }"
+        >
           <template v-if="source">
             <!-- 单页模式 (始终渲染以保持文档状态，使用 v-show 控制显示) -->
             <div v-show="viewMode === 'single'" class="single-view-container">
@@ -165,7 +183,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, shallowRef, onMounted, onUnmounted } from "vue";
+import {
+  ref,
+  computed,
+  watch,
+  nextTick,
+  shallowRef,
+  onMounted,
+  onUnmounted,
+} from "vue";
 import { useResizeObserver, useDebounceFn } from "@vueuse/core";
 import VuePdfEmbed from "vue-pdf-embed";
 import { GlobalWorkerOptions } from "pdfjs-dist";
@@ -183,7 +209,14 @@ import {
   FileText,
   List,
 } from "lucide-vue-next";
-import { ElButton, ElTooltip, ElInputNumber, ElSkeleton, ElTree, ElScrollbar } from "element-plus";
+import {
+  ElButton,
+  ElTooltip,
+  ElInputNumber,
+  ElSkeleton,
+  ElTree,
+  ElScrollbar,
+} from "element-plus";
 import { createModuleLogger } from "@/utils/logger";
 import customMessage from "@/utils/customMessage";
 
@@ -255,7 +288,10 @@ async function handleLoaded(doc: any) {
   baseWidth.value = viewport.width;
   // 初始加载时适应容器宽度
   await fitWidth();
-  logger.info("PDF 文档加载完成", { pageCount: doc.numPages, fileName: props.fileName });
+  logger.info("PDF 文档加载完成", {
+    pageCount: doc.numPages,
+    fileName: props.fileName,
+  });
 
   // 获取并解析目录
   loadOutline(doc);
@@ -304,7 +340,9 @@ async function parseOutline(items: any[], doc: any): Promise<OutlineNode[]> {
       label: item.title,
       page: pageNumber,
       children:
-        item.items && item.items.length > 0 ? await parseOutline(item.items, doc) : undefined,
+        item.items && item.items.length > 0
+          ? await parseOutline(item.items, doc)
+          : undefined,
     };
     result.push(node);
   }
@@ -441,7 +479,8 @@ function updatePdfWidth() {
 }
 
 async function fitWidth() {
-  if (!containerRef.value || !pdfDocument.value || baseWidth.value === 0) return;
+  if (!containerRef.value || !pdfDocument.value || baseWidth.value === 0)
+    return;
 
   // 标记为自动适应模式
   autoFit.value = true;
@@ -646,7 +685,11 @@ watch(
 function handleKeydown(e: KeyboardEvent) {
   // 如果焦点在输入框内，不触发快捷键
   const target = e.target as HTMLElement;
-  if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) {
+  if (
+    target.tagName === "INPUT" ||
+    target.tagName === "TEXTAREA" ||
+    target.isContentEditable
+  ) {
     return;
   }
 

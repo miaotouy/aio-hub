@@ -33,7 +33,9 @@ const handleGoBack = () => {
 // 从路径提取工具ID（用于初始化工具可见性）
 const getToolIdFromPath = (path: string): string => {
   // 从 /regex-applier 转换为 regexApply
-  return path.substring(1).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+  return path
+    .substring(1)
+    .replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
 };
 
 // 使用 store 中的设置
@@ -127,7 +129,8 @@ const scrollToSection = (id: string) => {
     // 计算相对位置并加上当前滚动量
     // 适配新的布局间距：桌面端 0px, 移动端 8px
     const offset = isMobile.value ? 8 : 0;
-    const targetTop = container.scrollTop + (elementRect.top - containerRect.top) - offset;
+    const targetTop =
+      container.scrollTop + (elementRect.top - containerRect.top) - offset;
 
     container.scrollTo({
       top: targetTop,
@@ -171,12 +174,16 @@ const checkRouteAndScroll = (query: Record<string, any>) => {
 // 重置设置
 const handleReset = async () => {
   try {
-    await ElMessageBox.confirm("确定要重置所有设置到默认值吗？此操作不可撤销。", "重置设置", {
-      confirmButtonText: "确定",
-      cancelButtonText: "取消",
-      type: "warning",
-      lockScroll: false,
-    });
+    await ElMessageBox.confirm(
+      "确定要重置所有设置到默认值吗？此操作不可撤销。",
+      "重置设置",
+      {
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+        type: "warning",
+        lockScroll: false,
+      }
+    );
 
     await appSettingsStore.reset();
     applyThemeFromComposable(settings.value.theme || "auto");
@@ -230,7 +237,7 @@ watch(
     } catch (error) {
       errorHandler.error(error, "更新托盘图标失败", { show: newValue });
     }
-  },
+  }
 );
 
 // 监听最小化到托盘设置变化
@@ -243,7 +250,7 @@ watch(
     } catch (error) {
       errorHandler.error(error, "更新托盘设置失败", { enabled: newValue });
     }
-  },
+  }
 );
 
 // 监听设置变化，自动应用（Store 内部处理保存）
@@ -256,7 +263,7 @@ watch(
     }
     // 注意：主题色应用已移至 useRootInit.ts 的全局监听中统一处理
   },
-  { deep: true },
+  { deep: true }
 );
 
 onMounted(async () => {
@@ -268,7 +275,9 @@ onMounted(async () => {
     }
 
     // 为每个工具设置默认可见状态（使用 toolsStore.orderedTools 包括插件）
-    const updates: Record<string, boolean> = { ...(appSettingsStore.settings.toolsVisible || {}) };
+    const updates: Record<string, boolean> = {
+      ...(appSettingsStore.settings.toolsVisible || {}),
+    };
     let hasUpdates = false;
     toolsStore.orderedTools.forEach((tool) => {
       const toolId = getToolIdFromPath(tool.path);
@@ -336,7 +345,7 @@ watch(
     if (!isLoading.value) {
       checkRouteAndScroll(newQuery);
     }
-  },
+  }
 );
 
 // 监听移动端状态变化，重新初始化观察器
@@ -366,7 +375,10 @@ onUnmounted(() => {
         <aside class="settings-nav">
           <el-skeleton animated>
             <template #template>
-              <el-skeleton-item variant="rect" style="width: 100%; height: 100%" />
+              <el-skeleton-item
+                variant="rect"
+                style="width: 100%; height: 100%"
+              />
             </template>
           </el-skeleton>
         </aside>
@@ -393,7 +405,12 @@ onUnmounted(() => {
               </el-tooltip>
             </div>
             <div class="header-nav">
-              <el-select v-model="activeSection" @change="handleSelect" placeholder="跳转到..." size="default">
+              <el-select
+                v-model="activeSection"
+                @change="handleSelect"
+                placeholder="跳转到..."
+                size="default"
+              >
                 <el-option
                   v-for="module in settingsModules"
                   :key="module.id"
@@ -427,7 +444,14 @@ onUnmounted(() => {
             </div>
 
             <div class="sidebar-footer">
-              <el-button @click="handleReset" type="danger" plain class="reset-btn"> 重置所有设置 </el-button>
+              <el-button
+                @click="handleReset"
+                type="danger"
+                plain
+                class="reset-btn"
+              >
+                重置所有设置
+              </el-button>
             </div>
           </aside>
 
@@ -454,16 +478,31 @@ onUnmounted(() => {
                 :proxy="settings.proxy"
                 :timezone="settings.timezone"
                 :download="settings.download"
-                @update:show-tray-icon="(val: any) => appSettingsStore.update({ showTrayIcon: val })"
-                @update:minimize-to-tray="(val: any) => appSettingsStore.update({ minimizeToTray: val })"
-                @update:theme="(val: any) => appSettingsStore.update({ theme: val })"
-                @update:auto-adjust-window-position="
-                  (val: any) => appSettingsStore.update({ autoAdjustWindowPosition: val })
+                @update:show-tray-icon="
+                  (val: any) => appSettingsStore.update({ showTrayIcon: val })
                 "
-                @update:sidebar-mode="(val: any) => appSettingsStore.update({ sidebarMode: val })"
-                @update:proxy="(val: any) => appSettingsStore.update({ proxy: val })"
-                @update:timezone="(val: any) => appSettingsStore.update({ timezone: val })"
-                @update:download="(val: any) => appSettingsStore.update({ download: val })"
+                @update:minimize-to-tray="
+                  (val: any) => appSettingsStore.update({ minimizeToTray: val })
+                "
+                @update:theme="
+                  (val: any) => appSettingsStore.update({ theme: val })
+                "
+                @update:auto-adjust-window-position="
+                  (val: any) =>
+                    appSettingsStore.update({ autoAdjustWindowPosition: val })
+                "
+                @update:sidebar-mode="
+                  (val: any) => appSettingsStore.update({ sidebarMode: val })
+                "
+                @update:proxy="
+                  (val: any) => appSettingsStore.update({ proxy: val })
+                "
+                @update:timezone="
+                  (val: any) => appSettingsStore.update({ timezone: val })
+                "
+                @update:download="
+                  (val: any) => appSettingsStore.update({ download: val })
+                "
                 @config-imported="onConfigImported"
               />
 
@@ -472,7 +511,9 @@ onUnmounted(() => {
                 v-else-if="module.id === 'startup'"
                 :is="module.component"
                 :startup-tasks="settings.startupTasks"
-                @update:startup-tasks="(val: any) => appSettingsStore.update({ startupTasks: val })"
+                @update:startup-tasks="
+                  (val: any) => appSettingsStore.update({ startupTasks: val })
+                "
               />
 
               <!-- 主题色配置 -->
@@ -484,11 +525,21 @@ onUnmounted(() => {
                 :warning-color="settings.warningColor"
                 :danger-color="settings.dangerColor"
                 :info-color="settings.infoColor"
-                @update:theme-color="(val: any) => appSettingsStore.update({ themeColor: val })"
-                @update:success-color="(val: any) => appSettingsStore.update({ successColor: val })"
-                @update:warning-color="(val: any) => appSettingsStore.update({ warningColor: val })"
-                @update:danger-color="(val: any) => appSettingsStore.update({ dangerColor: val })"
-                @update:info-color="(val: any) => appSettingsStore.update({ infoColor: val })"
+                @update:theme-color="
+                  (val: any) => appSettingsStore.update({ themeColor: val })
+                "
+                @update:success-color="
+                  (val: any) => appSettingsStore.update({ successColor: val })
+                "
+                @update:warning-color="
+                  (val: any) => appSettingsStore.update({ warningColor: val })
+                "
+                @update:danger-color="
+                  (val: any) => appSettingsStore.update({ dangerColor: val })
+                "
+                @update:info-color="
+                  (val: any) => appSettingsStore.update({ infoColor: val })
+                "
               />
 
               <!-- 日志配置 -->
@@ -500,11 +551,21 @@ onUnmounted(() => {
                 :log-to-console="settings.logToConsole"
                 :log-buffer-size="settings.logBufferSize"
                 :max-file-size="settings.maxFileSize"
-                @update:log-level="(val: any) => appSettingsStore.update({ logLevel: val })"
-                @update:log-to-file="(val: any) => appSettingsStore.update({ logToFile: val })"
-                @update:log-to-console="(val: any) => appSettingsStore.update({ logToConsole: val })"
-                @update:log-buffer-size="(val: any) => appSettingsStore.update({ logBufferSize: val })"
-                @update:max-file-size="(val: any) => appSettingsStore.update({ maxFileSize: val })"
+                @update:log-level="
+                  (val: any) => appSettingsStore.update({ logLevel: val })
+                "
+                @update:log-to-file="
+                  (val: any) => appSettingsStore.update({ logToFile: val })
+                "
+                @update:log-to-console="
+                  (val: any) => appSettingsStore.update({ logToConsole: val })
+                "
+                @update:log-buffer-size="
+                  (val: any) => appSettingsStore.update({ logBufferSize: val })
+                "
+                @update:max-file-size="
+                  (val: any) => appSettingsStore.update({ maxFileSize: val })
+                "
               />
 
               <!-- 工具模块配置 -->
@@ -512,7 +573,9 @@ onUnmounted(() => {
                 v-else-if="module.id === 'tools'"
                 :is="module.component"
                 :tools-visible="settings.toolsVisible"
-                @update:tools-visible="(val: any) => appSettingsStore.update({ toolsVisible: val })"
+                @update:tools-visible="
+                  (val: any) => appSettingsStore.update({ toolsVisible: val })
+                "
               />
 
               <!-- 其他动态组件 -->

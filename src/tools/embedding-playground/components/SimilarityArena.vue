@@ -22,13 +22,27 @@
         <div class="panel-content scrollbar-custom">
           <div class="config-section">
             <label class="section-label">对比算法</label>
-            <el-select v-model="store.similarityAlgorithm" class="w-full custom-select">
-              <el-option label="Cosine Similarity (余弦相似度)" value="cosine" />
-              <el-option label="Euclidean Distance (欧氏距离)" value="euclidean" />
+            <el-select
+              v-model="store.similarityAlgorithm"
+              class="w-full custom-select"
+            >
+              <el-option
+                label="Cosine Similarity (余弦相似度)"
+                value="cosine"
+              />
+              <el-option
+                label="Euclidean Distance (欧氏距离)"
+                value="euclidean"
+              />
               <el-option label="Dot Product (点积)" value="dot" />
-              <el-option label="Manhattan Distance (曼哈顿距离)" value="manhattan" />
+              <el-option
+                label="Manhattan Distance (曼哈顿距离)"
+                value="manhattan"
+              />
             </el-select>
-            <p class="section-tip">注：距离类算法已转换为相似度分数 (1/(1+d))。</p>
+            <p class="section-tip">
+              注：距离类算法已转换为相似度分数 (1/(1+d))。
+            </p>
           </div>
 
           <div class="config-section">
@@ -46,12 +60,21 @@
           <div class="config-section">
             <div class="flex items-center justify-between mb-2">
               <label class="section-label m-0">对比文本组</label>
-              <el-button type="primary" link :icon="Plus" @click="addText" size="small"
+              <el-button
+                type="primary"
+                link
+                :icon="Plus"
+                @click="addText"
+                size="small"
                 >添加文本</el-button
               >
             </div>
             <div class="comparison-list">
-              <div v-for="(_, index) in store.comparisonTexts" :key="index" class="comparison-item">
+              <div
+                v-for="(_, index) in store.comparisonTexts"
+                :key="index"
+                class="comparison-item"
+              >
                 <el-input
                   v-model="store.comparisonTexts[index]"
                   placeholder="输入对比文本..."
@@ -78,7 +101,9 @@
         <div class="panel-header">
           <div class="title-group">
             <span class="panel-title">语义相似度排行</span>
-            <span v-if="results.length" class="panel-subtitle">基于向量空间的语义距离计算</span>
+            <span v-if="results.length" class="panel-subtitle"
+              >基于向量空间的语义距离计算</span
+            >
           </div>
           <div v-if="results.length" class="header-actions">
             <el-tag type="info" size="small" effect="plain" class="count-tag">
@@ -104,7 +129,10 @@
               class="result-card"
               :style="{ '--score-color': getScoreColor(item.score) }"
             >
-              <div class="card-bg-progress" :style="{ width: `${item.score * 100}%` }"></div>
+              <div
+                class="card-bg-progress"
+                :style="{ width: `${item.score * 100}%` }"
+              ></div>
               <div class="card-content">
                 <div class="text-info">
                   <span class="rank-num">#{{ index + 1 }}</span>
@@ -139,7 +167,9 @@ import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 
 const store = useEmbeddingPlaygroundStore();
-const errorHandler = createModuleErrorHandler("EmbeddingPlayground/SimilarityArena");
+const errorHandler = createModuleErrorHandler(
+  "EmbeddingPlayground/SimilarityArena"
+);
 const { isLoading, runEmbedding } = useEmbeddingRunner();
 const { calculateSimilarity } = useVectorMath();
 
@@ -179,7 +209,9 @@ const copyResults = async () => {
 
   const header = `语义相似度排行 (算法: ${store.similarityAlgorithm})\n基准文本: ${store.anchorText}\n\n`;
   const content = sortedResults.value
-    .map((item, index) => `#${index + 1} [${item.score.toFixed(4)}] ${item.text}`)
+    .map(
+      (item, index) => `#${index + 1} [${item.score.toFixed(4)}] ${item.text}`
+    )
     .join("\n");
 
   try {
@@ -196,7 +228,8 @@ const copyResults = async () => {
 
 // 纯计算逻辑
 const updateScores = () => {
-  if (currentEmbeddings.value.length < 2 || currentTexts.value.length < 2) return;
+  if (currentEmbeddings.value.length < 2 || currentTexts.value.length < 2)
+    return;
 
   const anchorVec = currentEmbeddings.value[0];
   const newResults = [];
@@ -204,7 +237,11 @@ const updateScores = () => {
   // 从索引 1 开始，因为 0 是 Anchor
   for (let i = 1; i < currentEmbeddings.value.length; i++) {
     const compareVec = currentEmbeddings.value[i];
-    const score = calculateSimilarity(anchorVec, compareVec, store.similarityAlgorithm);
+    const score = calculateSimilarity(
+      anchorVec,
+      compareVec,
+      store.similarityAlgorithm
+    );
     newResults.push({
       text: currentTexts.value[i],
       score: score,
@@ -235,7 +272,10 @@ const handleCompare = async () => {
 
   // 1. 准备数据
   const modelId = store.selectedModelId;
-  const allTexts = [store.anchorText, ...store.comparisonTexts.filter((t) => t.trim())];
+  const allTexts = [
+    store.anchorText,
+    ...store.comparisonTexts.filter((t) => t.trim()),
+  ];
 
   if (allTexts.length < 2) {
     customMessage.warning("至少需要一个基准文本和一个对比文本");
@@ -283,16 +323,16 @@ const handleCompare = async () => {
   // 此时所有文本在 modelCache 中都应该有值了
   const finalEmbeddings: number[][] = [];
 
-for (const text of allTexts) {
-  const vec = modelCache.get(text);
-  if (vec) {
-    finalEmbeddings.push(vec);
-  } else {
-    // 理论上不应执行到这里，除非上面的请求失败了但没被捕获
-    errorHandler.error(`无法获取文本向量: ${text.slice(0, 10)}...`);
-    return;
+  for (const text of allTexts) {
+    const vec = modelCache.get(text);
+    if (vec) {
+      finalEmbeddings.push(vec);
+    } else {
+      // 理论上不应执行到这里，除非上面的请求失败了但没被捕获
+      errorHandler.error(`无法获取文本向量: ${text.slice(0, 10)}...`);
+      return;
+    }
   }
-}
 
   // 7. 更新状态并计算分数
   currentEmbeddings.value = finalEmbeddings;

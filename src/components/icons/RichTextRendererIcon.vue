@@ -10,6 +10,6 @@
 <script setup lang="ts">
 // 使用 currentColor 确保图标颜色能够继承父级文本颜色
 defineOptions({
-  name: 'RichTextRendererIcon',
+  name: "RichTextRendererIcon",
 });
 </script>

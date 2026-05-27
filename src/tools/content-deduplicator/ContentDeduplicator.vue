@@ -51,11 +51,15 @@ async function handleDelete() {
   if (count === 0) return;
 
   try {
-    await ElMessageBox.confirm(`确定要将 ${count} 个文件移入回收站吗？`, "确认删除", {
-      type: "warning",
-      confirmButtonText: "删除",
-      cancelButtonText: "取消",
-    });
+    await ElMessageBox.confirm(
+      `确定要将 ${count} 个文件移入回收站吗？`,
+      "确认删除",
+      {
+        type: "warning",
+        confirmButtonText: "删除",
+        cancelButtonText: "取消",
+      }
+    );
   } catch {
     return; // 用户取消
   }
@@ -64,7 +68,9 @@ async function handleDelete() {
   if (!result) return;
 
   if (result.errorCount > 0) {
-    customMessage.warning(`删除完成：成功 ${result.successCount}，失败 ${result.errorCount}`);
+    customMessage.warning(
+      `删除完成：成功 ${result.successCount}，失败 ${result.errorCount}`
+    );
   } else {
     customMessage.success(`已删除 ${result.successCount} 个文件`);
   }

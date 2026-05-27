@@ -4,7 +4,8 @@
       <div class="info-text">
         <h3>窗口分离与同步体系测试</h3>
         <p>
-          本模块用于展示 <code>useDetachable</code> 和 <code>useDetachedManager</code>
+          本模块用于展示 <code>useDetachable</code> 和
+          <code>useDetachedManager</code>
           如何协同工作，实现组件从主窗口分离到悬浮窗，并保持状态同步。
         </p>
       </div>
@@ -14,7 +15,10 @@
           <template #header>
             <div class="card-header">
               <span>同步数据预览 (主窗口)</span>
-              <el-tag :type="isSyncDemoDetached ? 'success' : 'info'" size="small">
+              <el-tag
+                :type="isSyncDemoDetached ? 'success' : 'info'"
+                size="small"
+              >
                 {{ isSyncDemoDetached ? "已分离" : "内嵌中" }}
               </el-tag>
             </div>
@@ -42,11 +46,22 @@
     </div>
 
     <div class="action-bar">
-      <el-button type="primary" :disabled="isSyncDemoDetached" @click="handleDetach">
+      <el-button
+        type="primary"
+        :disabled="isSyncDemoDetached"
+        @click="handleDetach"
+      >
         分离组件到新窗口
       </el-button>
-      <el-button v-if="isSyncDemoDetached" @click="handleFocus"> 聚焦分离窗口 </el-button>
-      <el-button v-if="isSyncDemoDetached" type="danger" plain @click="handleReattach">
+      <el-button v-if="isSyncDemoDetached" @click="handleFocus">
+        聚焦分离窗口
+      </el-button>
+      <el-button
+        v-if="isSyncDemoDetached"
+        type="danger"
+        plain
+        @click="handleReattach"
+      >
         强制收回 (Reattach)
       </el-button>
     </div>
@@ -69,7 +84,9 @@
             <el-result icon="info" title="组件已分离">
               <template #sub-title>
                 <p>该组件现在正在悬浮窗中运行。</p>
-                <p class="hint">尝试在悬浮窗中修改数据，你会看到上方卡片实时更新。</p>
+                <p class="hint">
+                  尝试在悬浮窗中修改数据，你会看到上方卡片实时更新。
+                </p>
               </template>
             </el-result>
           </div>
@@ -82,7 +99,11 @@
           <span class="desc">展示不同位置下的头部样式</span>
         </div>
         <div class="header-grid">
-          <div v-for="pos in ['top', 'bottom', 'left', 'right']" :key="pos" class="header-item">
+          <div
+            v-for="pos in ['top', 'bottom', 'left', 'right']"
+            :key="pos"
+            class="header-item"
+          >
             <div class="header-box" :class="pos">
               <ComponentHeader
                 :title="`位置: ${pos}`"
@@ -107,7 +128,10 @@ import ComponentHeader from "@/components/ComponentHeader.vue";
 import DetachedWindowContent from "./DetachedWindowContent.vue";
 import { useDetachable } from "@/composables/useDetachable";
 import { useDetachedManager } from "@/composables/useDetachedManager";
-import { useSyncDemoState, SYNC_DEMO_COMPONENT_ID } from "../composables/useSyncDemoState";
+import {
+  useSyncDemoState,
+  SYNC_DEMO_COMPONENT_ID,
+} from "../composables/useSyncDemoState";
 import { customMessage } from "@/utils/customMessage";
 
 // 1. 同步数据管理

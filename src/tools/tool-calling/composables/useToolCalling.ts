@@ -15,7 +15,9 @@ const toolDiscovery = createToolDiscoveryService();
 const defaultProtocol: ToolCallingProtocol = new VcpToolCallingProtocol();
 
 export function useToolCalling() {
-  const resolveProtocol = (protocol?: ToolCallConfig["protocol"]): ToolCallingProtocol => {
+  const resolveProtocol = (
+    protocol?: ToolCallConfig["protocol"]
+  ): ToolCallingProtocol => {
     if (protocol === "vcp" || !protocol) {
       return defaultProtocol;
     }
@@ -25,8 +27,10 @@ export function useToolCalling() {
   const processCycle = async (
     assistantText: string,
     config: ToolCallConfig,
-    onBeforeExecute?: (request: ParsedToolRequest) => Promise<ToolApprovalResult | boolean>,
-    onStatusChange?: (requestId: string, status: ToolCallStatus) => void,
+    onBeforeExecute?: (
+      request: ParsedToolRequest
+    ) => Promise<ToolApprovalResult | boolean>,
+    onStatusChange?: (requestId: string, status: ToolCallStatus) => void
   ): Promise<ToolCallCycleResult> => {
     const protocol = resolveProtocol(config.protocol);
     return await processToolCallCycle(assistantText, {
@@ -39,12 +43,15 @@ export function useToolCalling() {
 
   const formatCycleResults = (
     results: ToolCallCycleResult["executionResults"],
-    protocolId?: ToolCallConfig["protocol"],
+    protocolId?: ToolCallConfig["protocol"]
   ): string => {
     return formatResultsForContext(results, resolveProtocol(protocolId));
   };
 
-  const generateToolsPrompt = (config: ToolCallConfig, agentId?: string): string => {
+  const generateToolsPrompt = (
+    config: ToolCallConfig,
+    agentId?: string
+  ): string => {
     return toolDiscovery.generatePrompt({
       protocol: config.protocol || "vcp",
       config,
@@ -52,7 +59,9 @@ export function useToolCalling() {
     });
   };
 
-  const hasToolCallingEnabled = computed(() => (config: ToolCallConfig | undefined) => Boolean(config?.enabled));
+  const hasToolCallingEnabled = computed(
+    () => (config: ToolCallConfig | undefined) => Boolean(config?.enabled)
+  );
 
   return {
     resolveProtocol,

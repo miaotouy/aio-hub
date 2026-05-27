@@ -18,7 +18,9 @@ const logger = createModuleLogger("llm-chat/macros/css-variables");
 function getCssVariableValue(varName: string): string {
   try {
     // 确保变量名以 -- 开头
-    const normalizedVarName = varName.startsWith("--") ? varName : `--${varName}`;
+    const normalizedVarName = varName.startsWith("--")
+      ? varName
+      : `--${varName}`;
 
     // 从根元素获取计算样式
     const root = document.documentElement;

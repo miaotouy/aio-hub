@@ -12,7 +12,9 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";
 
 const logger = createModuleLogger("tool-calling/async-task-monitor");
-const errorHandler = createModuleErrorHandler("tool-calling/async-task-monitor");
+const errorHandler = createModuleErrorHandler(
+  "tool-calling/async-task-monitor"
+);
 
 const asyncTaskStore = useAsyncTaskStore();
 
@@ -35,7 +37,11 @@ const filteredTasks = computed(() => {
   // 按关键词搜索
   if (searchKeyword.value.trim()) {
     const keyword = searchKeyword.value.toLowerCase();
-    tasks = tasks.filter((t) => t.taskId.toLowerCase().includes(keyword) || t.toolName.toLowerCase().includes(keyword));
+    tasks = tasks.filter(
+      (t) =>
+        t.taskId.toLowerCase().includes(keyword) ||
+        t.toolName.toLowerCase().includes(keyword)
+    );
   }
 
   return tasks;
@@ -74,14 +80,22 @@ function handleSearch(keyword: string) {
 
 async function handleClearCompleted() {
   try {
-    await ElMessageBox.confirm(`确定要清理 ${completedCount.value} 个已完成的任务吗？`, "确认清理", {
-      type: "warning",
-      confirmButtonText: "确定",
-      cancelButtonText: "取消",
-    });
+    await ElMessageBox.confirm(
+      `确定要清理 ${completedCount.value} 个已完成的任务吗？`,
+      "确认清理",
+      {
+        type: "warning",
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+      }
+    );
 
     const taskIds = asyncTaskStore.completedTasks.map((t) => t.taskId);
-    const result = await execute({ service: "tool-calling", method: "deleteTasks", params: { taskIds } });
+    const result = await execute({
+      service: "tool-calling",
+      method: "deleteTasks",
+      params: { taskIds },
+    });
     if (result.success) {
       customMessage.success(`已清理 ${result.data} 个已完成任务`);
       logger.info("已清理已完成任务", { count: result.data });
@@ -95,14 +109,22 @@ async function handleClearCompleted() {
 
 async function handleClearFailed() {
   try {
-    await ElMessageBox.confirm(`确定要清理 ${failedCount.value} 个失败的任务吗？`, "确认清理", {
-      type: "warning",
-      confirmButtonText: "确定",
-      cancelButtonText: "取消",
-    });
+    await ElMessageBox.confirm(
+      `确定要清理 ${failedCount.value} 个失败的任务吗？`,
+      "确认清理",
+      {
+        type: "warning",
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+      }
+    );
 
     const taskIds = asyncTaskStore.failedTasks.map((t) => t.taskId);
-    const result = await execute({ service: "tool-calling", method: "deleteTasks", params: { taskIds } });
+    const result = await execute({
+      service: "tool-calling",
+      method: "deleteTasks",
+      params: { taskIds },
+    });
     if (result.success) {
       customMessage.success(`已清理 ${result.data} 个失败任务`);
       logger.info("已清理失败任务", { count: result.data });
@@ -116,14 +138,22 @@ async function handleClearFailed() {
 
 async function handleClearAll() {
   try {
-    await ElMessageBox.confirm(`确定要清理全部 ${totalCount.value} 个任务吗？此操作不可恢复！`, "确认清理", {
-      type: "warning",
-      confirmButtonText: "确定",
-      cancelButtonText: "取消",
-    });
+    await ElMessageBox.confirm(
+      `确定要清理全部 ${totalCount.value} 个任务吗？此操作不可恢复！`,
+      "确认清理",
+      {
+        type: "warning",
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+      }
+    );
 
     const taskIds = asyncTaskStore.taskList.map((t) => t.taskId);
-    const result = await execute({ service: "tool-calling", method: "deleteTasks", params: { taskIds } });
+    const result = await execute({
+      service: "tool-calling",
+      method: "deleteTasks",
+      params: { taskIds },
+    });
     if (result.success) {
       customMessage.success(`已清理 ${result.data} 个任务`);
       logger.info("已清理全部任务", { count: result.data });
@@ -143,7 +173,11 @@ async function handleCancelTask(taskId: string) {
       cancelButtonText: "取消",
     });
 
-    const result = await execute({ service: "tool-calling", method: "cancelTask", params: { taskId } });
+    const result = await execute({
+      service: "tool-calling",
+      method: "cancelTask",
+      params: { taskId },
+    });
     if (result.success) {
       customMessage.success("任务已取消");
       logger.info("任务已取消", { taskId });
@@ -159,7 +193,11 @@ async function handleCancelTask(taskId: string) {
 
 async function handleRetryTask(taskId: string) {
   try {
-    const result = await execute({ service: "tool-calling", method: "retryTask", params: { taskId } });
+    const result = await execute({
+      service: "tool-calling",
+      method: "retryTask",
+      params: { taskId },
+    });
     if (result.success) {
       customMessage.success("任务已重新提交");
       logger.info("任务已重试", { originalTaskId: taskId });
@@ -177,7 +215,11 @@ async function handleDeleteTask(taskId: string) {
       cancelButtonText: "取消",
     });
 
-    const result = await execute({ service: "tool-calling", method: "deleteTask", params: { taskId } });
+    const result = await execute({
+      service: "tool-calling",
+      method: "deleteTask",
+      params: { taskId },
+    });
     if (result.success && result.data) {
       customMessage.success("任务已删除");
       logger.info("任务已删除", { taskId });

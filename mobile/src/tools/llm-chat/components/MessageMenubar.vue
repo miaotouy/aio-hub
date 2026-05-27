@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { ChevronLeft, ChevronRight, Copy, RotateCcw, Trash2, Edit3 } from "lucide-vue-next";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Copy,
+  RotateCcw,
+  Trash2,
+  Edit3,
+} from "lucide-vue-next";
 import { Snackbar } from "@varlet/ui";
 import type { ChatMessageNode, ChatSession } from "../types";
 import { BranchNavigator } from "../utils/BranchNavigator";
@@ -67,11 +74,25 @@ const handleRegenerate = () => {
   <div class="message-menubar" @click.stop>
     <!-- 分支切换 (左侧) -->
     <div v-if="hasSiblings" class="branch-control">
-      <var-button text round size="mini" class="menu-btn" @click="handleSwitchBranch('prev')">
+      <var-button
+        text
+        round
+        size="mini"
+        class="menu-btn"
+        @click="handleSwitchBranch('prev')"
+      >
         <ChevronLeft :size="14" />
       </var-button>
-      <span class="branch-indicator">{{ branchInfo.index + 1 }} / {{ branchInfo.total }}</span>
-      <var-button text round size="mini" class="menu-btn" @click="handleSwitchBranch('next')">
+      <span class="branch-indicator"
+        >{{ branchInfo.index + 1 }} / {{ branchInfo.total }}</span
+      >
+      <var-button
+        text
+        round
+        size="mini"
+        class="menu-btn"
+        @click="handleSwitchBranch('next')"
+      >
         <ChevronRight :size="14" />
       </var-button>
       <div class="separator"></div>
@@ -85,10 +106,23 @@ const handleRegenerate = () => {
       <var-button text round size="mini" class="menu-btn" @click="handleEdit">
         <Edit3 :size="14" />
       </var-button>
-      <var-button v-if="message.role === 'assistant'" text round size="mini" class="menu-btn" @click="handleRegenerate">
+      <var-button
+        v-if="message.role === 'assistant'"
+        text
+        round
+        size="mini"
+        class="menu-btn"
+        @click="handleRegenerate"
+      >
         <RotateCcw :size="14" />
       </var-button>
-      <var-button text round size="mini" class="menu-btn danger" @click="handleDelete">
+      <var-button
+        text
+        round
+        size="mini"
+        class="menu-btn danger"
+        @click="handleDelete"
+      >
         <Trash2 :size="14" />
       </var-button>
     </div>

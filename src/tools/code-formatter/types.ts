@@ -5,7 +5,7 @@ export interface FormatOptions {
   /** 使用单引号 */
   singleQuote?: boolean;
   /** 尾随逗号 */
-  trailingComma?: 'none' | 'es5' | 'all';
+  trailingComma?: "none" | "es5" | "all";
   /** 额外的 Prettier 选项 */
   [key: string]: any;
 }
@@ -28,12 +28,12 @@ export interface FormatResult {
  * 支持的语言类型
  */
 export type SupportedLanguage =
-  | 'javascript'
-  | 'typescript'
-  | 'json'
-  | 'html'
-  | 'css'
-  | 'markdown'
-  | 'php'
-  | 'xml'
-  | 'yaml';
+  | "javascript"
+  | "typescript"
+  | "json"
+  | "html"
+  | "css"
+  | "markdown"
+  | "php"
+  | "xml"
+  | "yaml";

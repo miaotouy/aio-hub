@@ -9,7 +9,11 @@ import type { Asset } from "@/types/asset-management";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import { getModelParams } from "./base";
 import { cleanLlmOutput, detectRepetition } from "../utils/text";
-import type { ITranscriptionEngine, EngineContext, EngineResult } from "../types";
+import type {
+  ITranscriptionEngine,
+  EngineContext,
+  EngineResult,
+} from "../types";
 
 const logger = createModuleLogger("transcription/engines/image");
 
@@ -35,10 +39,14 @@ export class ImageTranscriptionEngine implements ITranscriptionEngine {
     const { sendRequest } = useLlmRequest();
     const { getProfileById } = useLlmProfiles();
 
-    const { modelIdentifier, prompt, temperature, maxTokens, timeout, enableRepetitionDetection } = getModelParams(
-      ctx,
-      "image",
-    );
+    const {
+      modelIdentifier,
+      prompt,
+      temperature,
+      maxTokens,
+      timeout,
+      enableRepetitionDetection,
+    } = getModelParams(ctx, "image");
     const [profileId, modelId] = parseModelCombo(modelIdentifier);
 
     if (!profileId || !modelId) {
@@ -68,10 +76,16 @@ export class ImageTranscriptionEngine implements ITranscriptionEngine {
         });
 
         const ocrRegistry = new SmartOcrRegistry();
-        const { blocks } = await ocrRegistry.sliceImage(img, slicerConfig, task.assetId);
+        const { blocks } = await ocrRegistry.sliceImage(
+          img,
+          slicerConfig,
+          task.assetId
+        );
 
         if (blocks.length > 1) {
-          logger.info(`图片触发智能切图，共切分为 ${blocks.length} 块`, { assetId: task.assetId });
+          logger.info(`图片触发智能切图，共切分为 ${blocks.length} 块`, {
+            assetId: task.assetId,
+          });
 
           imageBatchData = await Promise.all(
             blocks.map(async (b) => {
@@ -81,16 +95,24 @@ export class ImageTranscriptionEngine implements ITranscriptionEngine {
                 try {
                   const dims = await getImageDimensions(buffer);
                   if (dims.width > maxDim || dims.height > maxDim) {
-                    buffer = await resizeImage(buffer, { maxWidth: maxDim, maxHeight: maxDim });
+                    buffer = await resizeImage(buffer, {
+                      maxWidth: maxDim,
+                      maxHeight: maxDim,
+                    });
                   }
                 } catch (e) {
                   logger.warn("切片缩放失败", e);
                 }
               }
 
-              const base64 = btoa(new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), ""));
+              const base64 = btoa(
+                new Uint8Array(buffer).reduce(
+                  (data, byte) => data + String.fromCharCode(byte),
+                  ""
+                )
+              );
               return { base64 };
-            }),
+            })
           );
         }
       } catch (e) {
@@ -102,12 +124,16 @@ export class ImageTranscriptionEngine implements ITranscriptionEngine {
 
     // 2. 构建请求
     let transcriptionText: string;
-    const finalPrompt = task.filename ? prompt.replace(/\{filename\}/g, task.filename) : prompt;
+    const finalPrompt = task.filename
+      ? prompt.replace(/\{filename\}/g, task.filename)
+      : prompt;
 
     if (imageBatchData && imageBatchData.length > 1) {
       // 批量/切片模式
       const MAX_IMAGE_PER_REQUEST = 15;
-      const totalBatches = Math.ceil(imageBatchData.length / MAX_IMAGE_PER_REQUEST);
+      const totalBatches = Math.ceil(
+        imageBatchData.length / MAX_IMAGE_PER_REQUEST
+      );
       const batchTexts: string[] = new Array(totalBatches).fill("");
 
       // 针对 Gemini 等模型，顺序处理配合延迟以避免 429
@@ -121,12 +147,20 @@ export class ImageTranscriptionEngine implements ITranscriptionEngine {
         }
 
         const start = i * MAX_IMAGE_PER_REQUEST;
-        const end = Math.min(start + MAX_IMAGE_PER_REQUEST, imageBatchData!.length);
+        const end = Math.min(
+          start + MAX_IMAGE_PER_REQUEST,
+          imageBatchData!.length
+        );
         const batch = imageBatchData!.slice(start, end);
 
-        logger.info(`正在处理第 ${i + 1}/${totalBatches} 批图片切片 (${batch.length} 张)`, { assetId: task.assetId });
+        logger.info(
+          `正在处理第 ${i + 1}/${totalBatches} 批图片切片 (${batch.length} 张)`,
+          { assetId: task.assetId }
+        );
 
-        const content: LlmMessageContent[] = [{ type: "text", text: finalPrompt }];
+        const content: LlmMessageContent[] = [
+          { type: "text", text: finalPrompt },
+        ];
         for (const img of batch) {
           content.push({ type: "image", imageBase64: img.base64 });
         }
@@ -161,8 +195,14 @@ export class ImageTranscriptionEngine implements ITranscriptionEngine {
         try {
           const dims = await getImageDimensions(buffer);
           if (dims.width > maxDim || dims.height > maxDim) {
-            buffer = await resizeImage(buffer, { maxWidth: maxDim, maxHeight: maxDim });
-            logger.debug("转写单图已缩放", { original: `${dims.width}×${dims.height}`, maxDim });
+            buffer = await resizeImage(buffer, {
+              maxWidth: maxDim,
+              maxHeight: maxDim,
+            });
+            logger.debug("转写单图已缩放", {
+              original: `${dims.width}×${dims.height}`,
+              maxDim,
+            });
           }
         } catch (e) {
           logger.warn("单图缩放失败", e);

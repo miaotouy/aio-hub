@@ -58,7 +58,9 @@ export function useModelMetadata() {
   /**
    * 启用的规则数量
    */
-  const enabledCount = computed(() => rules.value.filter((r) => r.enabled !== false).length);
+  const enabledCount = computed(
+    () => rules.value.filter((r) => r.enabled !== false).length
+  );
 
   /**
    * 加载规则
@@ -66,13 +68,15 @@ export function useModelMetadata() {
   async function loadRules() {
     try {
       const data = await configManager.load();
-      
+
       // 规范化所有规则中的图标路径
       rules.value = data.rules.map((rule: ModelMetadataRule) => ({
         ...rule,
         properties: {
           ...rule.properties,
-          icon: rule.properties.icon ? normalizeIconPath(rule.properties.icon) : undefined,
+          icon: rule.properties.icon
+            ? normalizeIconPath(rule.properties.icon)
+            : undefined,
         },
       }));
       isLoaded.value = true;
@@ -104,7 +108,9 @@ export function useModelMetadata() {
   /**
    * 添加新规则
    */
-  async function addRule(rule: Omit<ModelMetadataRule, "id">): Promise<boolean> {
+  async function addRule(
+    rule: Omit<ModelMetadataRule, "id">
+  ): Promise<boolean> {
     try {
       const newRule: ModelMetadataRule = {
         ...rule,
@@ -113,11 +119,16 @@ export function useModelMetadata() {
         createdAt: new Date().toISOString(),
         properties: {
           ...rule.properties,
-          icon: rule.properties.icon ? normalizeIconPath(rule.properties.icon) : undefined,
+          icon: rule.properties.icon
+            ? normalizeIconPath(rule.properties.icon)
+            : undefined,
         },
       };
 
-      if (newRule.properties.icon && !isValidIconPath(newRule.properties.icon)) {
+      if (
+        newRule.properties.icon &&
+        !isValidIconPath(newRule.properties.icon)
+      ) {
         throw new Error("无效的图标路径");
       }
       rules.value.push(newRule);
@@ -132,17 +143,25 @@ export function useModelMetadata() {
   /**
    * 更新规则
    */
-  async function updateRule(id: string, updates: Partial<ModelMetadataRule>): Promise<boolean> {
+  async function updateRule(
+    id: string,
+    updates: Partial<ModelMetadataRule>
+  ): Promise<boolean> {
     try {
       const index = rules.value.findIndex((r) => r.id === id);
       if (index === -1) throw new Error("规则不存在");
 
       const processedUpdates = { ...updates };
       if (processedUpdates.properties?.icon) {
-        processedUpdates.properties.icon = normalizeIconPath(processedUpdates.properties.icon);
+        processedUpdates.properties.icon = normalizeIconPath(
+          processedUpdates.properties.icon
+        );
       }
 
-      if (processedUpdates.properties?.icon && !isValidIconPath(processedUpdates.properties.icon)) {
+      if (
+        processedUpdates.properties?.icon &&
+        !isValidIconPath(processedUpdates.properties.icon)
+      ) {
         throw new Error("无效的图标路径");
       }
 
@@ -213,7 +232,10 @@ export function useModelMetadata() {
   /**
    * 合并最新的内置配置
    */
-  async function mergeWithDefaults(): Promise<{ added: number; updated: number }> {
+  async function mergeWithDefaults(): Promise<{
+    added: number;
+    updated: number;
+  }> {
     try {
       const now = new Date().toISOString();
       const currentRules = [...rules.value];
@@ -232,7 +254,7 @@ export function useModelMetadata() {
 
       rules.value = currentRules;
       await saveRules();
-      
+
       logger.info("合并内置配置完成", { added: addedCount });
       return { added: addedCount, updated: 0 };
     } catch (error) {
@@ -244,7 +266,10 @@ export function useModelMetadata() {
   /**
    * 获取匹配模型的元数据规则
    */
-  function getMatchedRule(modelId: string, provider?: string): ModelMetadataRule | undefined {
+  function getMatchedRule(
+    modelId: string,
+    provider?: string
+  ): ModelMetadataRule | undefined {
     const enabledRules = rules.value
       .filter((r) => r.enabled !== false)
       .sort((a, b) => (b.priority || 0) - (a.priority || 0));
@@ -280,7 +305,8 @@ export function useModelMetadata() {
     if (modelValue !== undefined) return modelValue;
 
     const matchedProps = getMatchedProperties(model.id, model.provider);
-    if (matchedProps?.[propertyKey] !== undefined) return matchedProps[propertyKey];
+    if (matchedProps?.[propertyKey] !== undefined)
+      return matchedProps[propertyKey];
 
     return defaultValue;
   }
@@ -302,8 +328,12 @@ export function useModelMetadata() {
    */
   function getDisplayIconPath(iconPath: string): string {
     if (!iconPath) return "";
-    
-    if (!iconPath.includes("/") && !iconPath.includes("\\") && isValidIconPath(iconPath)) {
+
+    if (
+      !iconPath.includes("/") &&
+      !iconPath.includes("\\") &&
+      isValidIconPath(iconPath)
+    ) {
       return `/model-icons/${iconPath}`;
     }
 

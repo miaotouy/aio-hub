@@ -15,7 +15,11 @@ export interface CanvasState {
   hasPendingChanges: boolean;
 }
 
-export type CanvasProjectHealth = "healthy" | "missing" | "unindexed" | "corrupted";
+export type CanvasProjectHealth =
+  | "healthy"
+  | "missing"
+  | "unindexed"
+  | "corrupted";
 
 // 画布列表项（用于管理界面展示）
 export interface CanvasListItem {

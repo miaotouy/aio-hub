@@ -198,7 +198,11 @@ export const asyncTaskProcessor: ContextProcessor = {
       replacedCount++;
 
       // 如果任务完成且有关联资产，注入到 attachments
-      if (task.status === "completed" && task.resultAssetIds && task.resultAssetIds.length > 0) {
+      if (
+        task.status === "completed" &&
+        task.resultAssetIds &&
+        task.resultAssetIds.length > 0
+      ) {
         logger.debug("任务包含关联资产", {
           taskId,
           assetCount: task.resultAssetIds.length,
@@ -208,8 +212,12 @@ export const asyncTaskProcessor: ContextProcessor = {
         // 我们需要将资产 ID 转换为 Asset 对象
         // 但由于我们在 context processor 中，无法直接访问 assetManager
         // 所以我们将资产 ID 存储在 sharedData 中，供后续处理器使用
-        const existingAssetIds = context.sharedData.get("asyncTaskAssetIds") || [];
-        context.sharedData.set("asyncTaskAssetIds", [...existingAssetIds, ...task.resultAssetIds]);
+        const existingAssetIds =
+          context.sharedData.get("asyncTaskAssetIds") || [];
+        context.sharedData.set("asyncTaskAssetIds", [
+          ...existingAssetIds,
+          ...task.resultAssetIds,
+        ]);
       }
 
       logger.info("已更新异步任务节点内容", {

@@ -5,7 +5,10 @@ import { Dialog, Snackbar } from "@varlet/ui";
 import { useI18n } from "@/i18n";
 import type { LlmModelInfo } from "../types";
 import { useModelMetadata } from "../composables/useModelMetadata";
-import { useTranslatedCapabilities, type CapabilityConfig } from "../config/model-capabilities";
+import {
+  useTranslatedCapabilities,
+  type CapabilityConfig,
+} from "../config/model-capabilities";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
 
 interface Props {
@@ -60,7 +63,10 @@ const handleExpandChange = (value: any) => {
 
 const { t, tRaw } = useI18n();
 
-const deleteGroup = async (group: { name: string; models: { model: LlmModelInfo }[] }) => {
+const deleteGroup = async (group: {
+  name: string;
+  models: { model: LlmModelInfo }[];
+}) => {
   const confirm = await Dialog({
     title: tRaw("tools.llm-api.ModelList.确认删除分组"),
     message: tRaw("tools.llm-api.ModelList.确定要删除分组N下的所有M个模型吗", {
@@ -77,7 +83,9 @@ const deleteGroup = async (group: { name: string; models: { model: LlmModelInfo 
   }
 };
 const getEnabledCapabilities = (model: LlmModelInfo): CapabilityConfig[] => {
-  return translatedCapabilities.value.filter((cap) => model.capabilities?.[cap.key]);
+  return translatedCapabilities.value.filter(
+    (cap) => model.capabilities?.[cap.key]
+  );
 };
 
 const showCapabilityDesc = (capability: CapabilityConfig) => {
@@ -95,10 +103,21 @@ const showCapabilityDesc = (capability: CapabilityConfig) => {
         tRaw("tools.llm-api.ModelList.已添加N个模型", { count: models.length })
       }}</span>
       <div class="list-actions">
-        <var-button v-if="editable" size="mini" type="primary" plain @click="emit('fetch')">
+        <var-button
+          v-if="editable"
+          size="mini"
+          type="primary"
+          plain
+          @click="emit('fetch')"
+        >
           <List :size="14" /> {{ tRaw("tools.llm-api.ModelList.从 API 获取") }}
         </var-button>
-        <var-button v-if="editable" size="mini" type="primary" @click="emit('add')">
+        <var-button
+          v-if="editable"
+          size="mini"
+          type="primary"
+          @click="emit('add')"
+        >
           <Plus :size="14" /> {{ tRaw("tools.llm-api.ModelList.手动添加") }}
         </var-button>
         <var-button
@@ -116,7 +135,11 @@ const showCapabilityDesc = (capability: CapabilityConfig) => {
     <div class="list-content">
       <div v-if="models.length === 0" class="list-empty">
         <p>{{ tRaw("tools.llm-api.ModelList.还没有添加任何模型") }}</p>
-        <p class="hint">{{ tRaw("tools.llm-api.ModelList.点击手动添加或从API获取来添加模型") }}</p>
+        <p class="hint">
+          {{
+            tRaw("tools.llm-api.ModelList.点击手动添加或从API获取来添加模型")
+          }}
+        </p>
       </div>
 
       <div v-else class="model-groups">
@@ -153,7 +176,12 @@ const showCapabilityDesc = (capability: CapabilityConfig) => {
             </template>
 
             <div class="group-content">
-              <div v-for="item in group.models" :key="item.model.id" class="model-card" v-ripple>
+              <div
+                v-for="item in group.models"
+                :key="item.model.id"
+                class="model-card"
+                v-ripple
+              >
                 <div class="model-card-main">
                   <DynamicIcon
                     class="model-logo"
@@ -206,7 +234,9 @@ const showCapabilityDesc = (capability: CapabilityConfig) => {
                       @click.stop="showCapabilityDesc(capability)"
                     >
                       <component :is="capability.icon" :size="12" />
-                      <span class="capability-label">{{ capability.label }}</span>
+                      <span class="capability-label">{{
+                        capability.label
+                      }}</span>
                     </div>
                   </template>
                 </div>
@@ -389,7 +419,11 @@ const showCapabilityDesc = (capability: CapabilityConfig) => {
   gap: 4px;
   padding: 4px 8px;
   border-radius: 6px;
-  background: color-mix(in srgb, var(--cap-color, currentColor) 12%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--cap-color, currentColor) 12%,
+    transparent
+  );
   font-size: 0.8rem;
 }
 

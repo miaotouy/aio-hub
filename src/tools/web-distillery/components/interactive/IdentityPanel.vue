@@ -26,7 +26,8 @@ async function refreshProfiles() {
   try {
     const fullUrl = url.startsWith("http") ? url : `https://${url}`;
     await cookieProfileStore.load();
-    matchedProfiles.value = await cookieProfileStore.getMatchingProfilesForUrl(fullUrl);
+    matchedProfiles.value =
+      await cookieProfileStore.getMatchingProfilesForUrl(fullUrl);
   } catch {
     matchedProfiles.value = [];
   } finally {
@@ -35,9 +36,12 @@ async function refreshProfiles() {
 }
 
 async function handleToggle(profileId: string) {
-  const result = await errorHandler.wrapAsync(() => cookieProfileStore.toggleActive(profileId), {
-    userMessage: "切换身份失败",
-  });
+  const result = await errorHandler.wrapAsync(
+    () => cookieProfileStore.toggleActive(profileId),
+    {
+      userMessage: "切换身份失败",
+    }
+  );
   if (result !== null) {
     await refreshProfiles();
     await syncCookiesToProxy();
@@ -55,7 +59,9 @@ async function syncCookiesToProxy() {
     const fullUrl = url.startsWith("http") ? url : `https://${url}`;
     const active = await cookieProfileStore.getActiveProfileForUrl(fullUrl);
     if (active) {
-      const cookieStr = active.cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+      const cookieStr = active.cookies
+        .map((c) => `${c.name}=${c.value}`)
+        .join("; ");
       await invoke("distillery_set_proxy_cookies", { cookies: cookieStr });
       // 同步 localStorage 到代理层（用于 SPA token 恢复）
       if (active.localStorage && Object.keys(active.localStorage).length > 0) {
@@ -94,7 +100,11 @@ onMounted(() => refreshProfiles());
         :title="profile.isActive ? '点击停用' : '点击激活'"
         @click="handleToggle(profile.id)"
       >
-        <component :is="profile.isActive ? ShieldCheck : ShieldOff" :size="12" class="profile-icon" />
+        <component
+          :is="profile.isActive ? ShieldCheck : ShieldOff"
+          :size="12"
+          class="profile-icon"
+        />
         <span class="profile-name">{{ profile.name }}</span>
         <span v-if="profile.isActive" class="active-badge">已激活</span>
       </button>
@@ -154,13 +164,19 @@ onMounted(() => refreshProfiles());
 }
 
 .profile-item:hover {
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.08));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.08)
+  );
   border-color: var(--el-color-primary-light-5);
 }
 
 .profile-item.active {
   border-color: var(--el-color-primary);
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.1));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
 }
 
 .profile-icon {
@@ -183,7 +199,10 @@ onMounted(() => refreshProfiles());
   font-size: 10px;
   padding: 1px 5px;
   border-radius: 3px;
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.15));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.15)
+  );
   color: var(--el-color-primary);
   font-weight: 600;
   flex-shrink: 0;

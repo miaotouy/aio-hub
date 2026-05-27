@@ -8,15 +8,18 @@
             <div class="intro-card">
               <h3>🤔 这是什么？</h3>
               <p>
-                想象一下，你有一个<strong>全自动的文字处理机器人</strong>。 在消息发送给 AI
-                之前，或者 AI 回复显示在屏幕上之前，它可以帮你<strong>自动修改</strong>这些文字。
+                想象一下，你有一个<strong>全自动的文字处理机器人</strong>。
+                在消息发送给 AI 之前，或者 AI
+                回复显示在屏幕上之前，它可以帮你<strong>自动修改</strong>这些文字。
               </p>
             </div>
 
             <!-- 新增：推荐路径引导 -->
             <div class="recommendation-box">
               <h4>🔎 别急！你可能不需要正则...</h4>
-              <p>为了让你的生活更轻松，我们已经为智能体常用功能准备了<strong>专用工具</strong>：</p>
+              <p>
+                为了让你的生活更轻松，我们已经为智能体常用功能准备了<strong>专用工具</strong>：
+              </p>
               <ul>
                 <li>
                   想要<strong>折叠思考过程</strong>？ 👉 请去
@@ -31,14 +34,17 @@
                   <strong>高级设置 > 虚拟时间线配置</strong>
                 </li>
               </ul>
-              <div class="rec-footer">只有当上述工具无法满足需求时，才推荐使用正则表达式。</div>
+              <div class="rec-footer">
+                只有当上述工具无法满足需求时，才推荐使用正则表达式。
+              </div>
             </div>
 
             <div class="tip-box">
               <el-icon><Lightbulb /></el-icon>
               <span
                 ><strong>小窍门：</strong> 不知道怎么写？点击编辑器里的
-                <strong>"预制规则"</strong> 栏，我们准备了很多常用模板，点一下就能用！</span
+                <strong>"预制规则"</strong>
+                栏，我们准备了很多常用模板，点一下就能用！</span
               >
             </div>
 
@@ -68,14 +74,19 @@
                 <div class="uc-icon">✂️</div>
                 <div class="uc-content">
                   <h4>节省流量 (Token)</h4>
-                  <p>比如：在发送给 AI 之前，自动删除多余的空行或 HTML 标签。</p>
+                  <p>
+                    比如：在发送给 AI 之前，自动删除多余的空行或 HTML 标签。
+                  </p>
                 </div>
               </div>
               <div class="use-case-item">
                 <div class="uc-icon">🔗</div>
                 <div class="uc-content">
                   <h4>复杂格式转换</h4>
-                  <p>比如：把特殊的 <code>[img:123]</code> 格式转换为实际的图片标签。</p>
+                  <p>
+                    比如：把特殊的
+                    <code>[img:123]</code> 格式转换为实际的图片标签。
+                  </p>
                 </div>
               </div>
             </div>
@@ -95,8 +106,14 @@
                 <p><strong>比喻：</strong> 就像给照片加滤镜。</p>
                 <ul>
                   <li><strong>作用：</strong> 修改消息在屏幕上的显示效果。</li>
-                  <li><strong>影响：</strong> <strong>不会</strong> 改变发送给 AI 的实际内容。</li>
-                  <li><strong>场景：</strong> 折叠思考块、Markdown 渲染、敏感词遮蔽。</li>
+                  <li>
+                    <strong>影响：</strong> <strong>不会</strong> 改变发送给 AI
+                    的实际内容。
+                  </li>
+                  <li>
+                    <strong>场景：</strong> 折叠思考块、Markdown
+                    渲染、敏感词遮蔽。
+                  </li>
                 </ul>
               </div>
 
@@ -105,13 +122,18 @@
                 <div class="concept-tag warning">修改记忆，永久生效</div>
                 <p><strong>比喻：</strong> 就像在 PS 里修图。</p>
                 <ul>
-                  <li><strong>作用：</strong> 修改发送给 AI 的 Prompt (提示词)。</li>
                   <li>
-                    <strong>影响：</strong> AI 会接收到修改后的内容，<strong>会</strong> 影响 AI
-                    的记忆和后续回复。
+                    <strong>作用：</strong> 修改发送给 AI 的 Prompt (提示词)。
                   </li>
                   <li>
-                    <strong>场景：</strong> 删除 HTML 标签以节省 Token、注入特定的 Prompt 前缀。
+                    <strong>影响：</strong> AI 会接收到修改后的内容，<strong
+                      >会</strong
+                    >
+                    影响 AI 的记忆和后续回复。
+                  </li>
+                  <li>
+                    <strong>场景：</strong> 删除 HTML 标签以节省
+                    Token、注入特定的 Prompt 前缀。
                   </li>
                 </ul>
               </div>
@@ -145,7 +167,9 @@
                   <h4>导入 (Import)</h4>
                   <p>点击顶部 <strong>"导入"</strong> 按钮。</p>
                   <ul>
-                    <li>支持 <strong>AIO Hub</strong> 标准的 JSON 配置文件。</li>
+                    <li>
+                      支持 <strong>AIO Hub</strong> 标准的 JSON 配置文件。
+                    </li>
                     <li>支持 <strong>SillyTavern (酒馆)</strong> 正则脚本。</li>
                   </ul>
                 </div>
@@ -157,7 +181,10 @@
                   <h4>导出 (Export)</h4>
                   <ul>
                     <li><strong>导出全部</strong>: 备份当前所有预设。</li>
-                    <li><strong>单项导出</strong>: 点击预设栏的导出图标，仅导出该预设。</li>
+                    <li>
+                      <strong>单项导出</strong>:
+                      点击预设栏的导出图标，仅导出该预设。
+                    </li>
                   </ul>
                 </div>
               </div>
@@ -173,7 +200,8 @@
               </div>
               <div class="code-line">
                 <span class="label">粘贴:</span> 点击顶部的
-                <strong>"粘贴预设"</strong>，或在规则列表点击 <strong>"粘贴规则"</strong>。
+                <strong>"粘贴预设"</strong>，或在规则列表点击
+                <strong>"粘贴规则"</strong>。
               </div>
               <div class="code-line">
                 <span class="label">分享:</span> 复制出来的 JSON
@@ -189,12 +217,14 @@
             <h3>🧙‍♂️ 黑魔法：UI 注入与交互</h3>
             <p>
               这是正则最硬核的玩法。你可以利用正则将特定文本替换为
-              <strong>HTML/CSS/JS</strong> 代码，在聊天窗口里"手搓"出复杂的交互界面。
+              <strong>HTML/CSS/JS</strong>
+              代码，在聊天窗口里"手搓"出复杂的交互界面。
             </p>
             <div class="code-block">
               <div class="code-line">
-                <span class="label">原理：</span> 利用 <code>markdownOnly</code> (仅渲染层)
-                注入样式，利用 <code>promptOnly</code> (仅请求层) 清洗标签。
+                <span class="label">原理：</span> 利用
+                <code>markdownOnly</code> (仅渲染层) 注入样式，利用
+                <code>promptOnly</code> (仅请求层) 清洗标签。
               </div>
               <div class="code-line">
                 <span class="label">案例：</span> <strong>万界终端系统</strong>
@@ -202,14 +232,16 @@
               <div class="code-line" v-pre>
                 <span class="label">1.</span> <strong>CSS 注入：</strong> 把
                 <code>&lt;link...&gt;</code> 替换为几百行的
-                <code>&lt;style&gt;...&lt;/style&gt;</code>，实现赛博朋克风格界面。
+                <code>&lt;style&gt;...&lt;/style&gt;</code
+                >，实现赛博朋克风格界面。
               </div>
               <div class="code-line" v-pre>
                 <span class="label">2.</span> <strong>JS 注入：</strong> 插入
                 <code>&lt;script&gt;</code> 实现 Tab 切换、状态栏动态更新。
               </div>
               <div class="code-line">
-                <span class="label">3.</span> <strong>省流清洗：</strong> 设置一条
+                <span class="label">3.</span>
+                <strong>省流清洗：</strong> 设置一条
                 <code>promptOnly</code> 规则，在发送给 AI 前把这些花哨的 HTML
                 标签全部洗掉，既保留了视觉效果，又节省了 Token。
               </div>
@@ -248,19 +280,22 @@
             </table>
 
             <h4>替换模式 (Substitution Mode)</h4>
-            <p>当你的用户名包含特殊字符（如 <code>C.C.</code>）时，如何处理？</p>
+            <p>
+              当你的用户名包含特殊字符（如 <code>C.C.</code>）时，如何处理？
+            </p>
             <ul>
               <li><strong>None</strong>: 不使用宏。</li>
               <li>
-                <strong>Raw (原样)</strong>: 直接替换。<code>{{ userMacro }}</code> ->
-                <code>C.C.</code> (点号在正则中会匹配任意字符，可能不安全)。
+                <strong>Raw (原样)</strong>: 直接替换。<code>{{
+                  userMacro
+                }}</code>
+                -> <code>C.C.</code> (点号在正则中会匹配任意字符，可能不安全)。
               </li>
               <li>
                 <strong>Escaped (转义)</strong>:
-                <el-tag size="small" type="success">推荐</el-tag> 自动转义正则特殊字符。<code
-                  >{{ userMacro }}</code
-                >
-                -> <code>C\.C\.</code> (精确匹配)。
+                <el-tag size="small" type="success">推荐</el-tag>
+                自动转义正则特殊字符。<code>{{ userMacro }}</code> ->
+                <code>C\.C\.</code> (精确匹配)。
               </li>
             </ul>
 
@@ -274,12 +309,16 @@
                 <span class="label">原文：</span> (思考中：...我在想什么...)
               </div>
               <div class="code-line">
-                <span class="label">正则：</span> <code>/\(思考中：(.*?)\)/</code> (提取括号内容)
+                <span class="label">正则：</span>
+                <code>/\(思考中：(.*?)\)/</code> (提取括号内容)
               </div>
               <div class="code-line">
-                <span class="label">Trim：</span> 添加 <code>...</code> 到移除列表
+                <span class="label">Trim：</span> 添加
+                <code>...</code> 到移除列表
               </div>
-              <div class="code-line"><span class="label">结果：</span> 我在想什么</div>
+              <div class="code-line">
+                <span class="label">结果：</span> 我在想什么
+              </div>
             </div>
           </div>
         </el-tab-pane>
@@ -296,9 +335,9 @@ import { computed, ref } from "vue";
 import { Lightbulb } from "lucide-vue-next";
 
 // 宏示例常量（避免格式化工具添加空格）
-const variableMacro = '{{ 变量名 }}';
-const userMacro = '{{user}}';
-const charMacro = '{{char}}';
+const variableMacro = "{{ 变量名 }}";
+const userMacro = "{{user}}";
+const charMacro = "{{char}}";
 
 const props = defineProps<{
   modelValue: boolean;

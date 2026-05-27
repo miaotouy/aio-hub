@@ -52,7 +52,12 @@ async function resolveKbId(kbId?: string, kbName?: string): Promise<string> {
  */
 async function locateEntry(
   kbId: string,
-  options: { entryId?: string; key?: string; searchQuery?: string; searchMode?: "keyword" | "vector" }
+  options: {
+    entryId?: string;
+    key?: string;
+    searchQuery?: string;
+    searchMode?: "keyword" | "vector";
+  }
 ): Promise<Caiu> {
   const { entryId, key, searchQuery, searchMode = "keyword" } = options;
 
@@ -68,7 +73,9 @@ async function locateEntry(
     const item = meta.entries.find((e) => e.key === key);
     if (!item) {
       // 尝试模糊匹配标题
-      const fuzzyItem = meta.entries.find((e) => e.key.toLowerCase().includes(key.toLowerCase()));
+      const fuzzyItem = meta.entries.find((e) =>
+        e.key.toLowerCase().includes(key.toLowerCase())
+      );
       if (fuzzyItem) {
         logger.info(`通过模糊匹配找到条目: "${key}" -> "${fuzzyItem.key}"`);
         const entry = await kbStorage.loadEntry(kbId, fuzzyItem.id);
@@ -94,7 +101,8 @@ async function locateEntry(
       engineId: searchMode,
     });
 
-    if (results.length === 0) throw new Error(`搜索未命中任何条目: "${searchQuery}"`);
+    if (results.length === 0)
+      throw new Error(`搜索未命中任何条目: "${searchQuery}"`);
     const entryId = results[0].caiu?.id || results[0].id;
     const entry = await kbStorage.loadEntry(kbId, entryId);
     if (!entry) throw new Error(`无法加载搜索命中的条目内容: ${entryId}`);
@@ -108,9 +116,18 @@ async function locateEntry(
  * 1. upsertEntry（创建或更新条目）
  * 功能：创建新条目或更新已存在条目的完整内容。
  */
-export async function upsertEntry(options: UpsertEntryOptions): Promise<UpsertEntryResult> {
+export async function upsertEntry(
+  options: UpsertEntryOptions
+): Promise<UpsertEntryResult> {
   try {
-    const { key, content, tags, priority = 100, enabled = true, autoVectorize = false } = options;
+    const {
+      key,
+      content,
+      tags,
+      priority = 100,
+      enabled = true,
+      autoVectorize = false,
+    } = options;
     const kbId = await resolveKbId(options.kbId, options.kbName);
 
     logger.info("执行 upsertEntry", { key, kbId });
@@ -129,13 +146,16 @@ export async function upsertEntry(options: UpsertEntryOptions): Promise<UpsertEn
     if (existingIndexItem) {
       // 加载完整条目
       const fullEntry = await kbStorage.loadEntry(kbId, existingIndexItem.id);
-      if (!fullEntry) throw new Error(`无法加载条目内容: ${existingIndexItem.id}`);
+      if (!fullEntry)
+        throw new Error(`无法加载条目内容: ${existingIndexItem.id}`);
 
       entry = {
         ...fullEntry,
         content,
         contentHash,
-        tags: tags ? tags.map((t) => ({ name: t, weight: 1.0 })) : fullEntry.tags,
+        tags: tags
+          ? tags.map((t) => ({ name: t, weight: 1.0 }))
+          : fullEntry.tags,
         priority: priority ?? fullEntry.priority,
         enabled: enabled ?? fullEntry.enabled,
         updatedAt: now,
@@ -186,7 +206,9 @@ export async function upsertEntry(options: UpsertEntryOptions): Promise<UpsertEn
           vectorized = true;
 
           // 更新统计
-          store.updateGlobalStats(true).catch((e) => logger.warn("更新统计失败", e));
+          store
+            .updateGlobalStats(true)
+            .catch((e) => logger.warn("更新统计失败", e));
         } else {
           logger.warn("未找到模型配置 Profile，跳过自动向量化");
         }
@@ -199,7 +221,9 @@ export async function upsertEntry(options: UpsertEntryOptions): Promise<UpsertEn
     const store = useKnowledgeBaseStore();
     if (store.activeBaseId === kbId) {
       // 刷新元数据
-      store.validateVectorStatus().catch((e) => logger.warn("同步 Store 失败", e));
+      store
+        .validateVectorStatus()
+        .catch((e) => logger.warn("同步 Store 失败", e));
     }
 
     return {
@@ -229,7 +253,9 @@ export async function upsertEntry(options: UpsertEntryOptions): Promise<UpsertEn
  * 2. updateEntryContent（更新条目内容）
  * 功能：支持精确替换模式和搜索替换模式更新条目内容。
  */
-export async function updateEntryContent(options: UpdateEntryContentOptions): Promise<UpdateEntryContentResult> {
+export async function updateEntryContent(
+  options: UpdateEntryContentOptions
+): Promise<UpdateEntryContentResult> {
   try {
     const {
       targetContent,
@@ -255,16 +281,21 @@ export async function updateEntryContent(options: UpdateEntryContentOptions): Pr
 
     // 2. 执行替换
     if (mode === "exact") {
-      if (!targetContent || !replaceWith) throw new Error("精确替换模式必须提供 targetContent 和 replaceWith");
-      if (targetContent.length < 15) throw new Error("targetContent 必须至少 15 个字符以确保匹配精度");
+      if (!targetContent || !replaceWith)
+        throw new Error("精确替换模式必须提供 targetContent 和 replaceWith");
+      if (targetContent.length < 15)
+        throw new Error("targetContent 必须至少 15 个字符以确保匹配精度");
 
       const matchIndex = entry.content.indexOf(targetContent);
-      if (matchIndex === -1) throw new Error("未在条目内容中找到指定的 targetContent 片段");
+      if (matchIndex === -1)
+        throw new Error("未在条目内容中找到指定的 targetContent 片段");
 
       oldContentSnippet = targetContent;
       newContentSnippet = replaceWith;
       finalContent =
-        entry.content.slice(0, matchIndex) + replaceWith + entry.content.slice(matchIndex + targetContent.length);
+        entry.content.slice(0, matchIndex) +
+        replaceWith +
+        entry.content.slice(matchIndex + targetContent.length);
       changes.push("精确内容替换");
     } else {
       // 搜索替换模式 / 整体替换
@@ -313,7 +344,9 @@ export async function updateEntryContent(options: UpdateEntryContentOptions): Pr
               modelId: getPureModelId(comboId),
               profile,
             });
-            store.updateGlobalStats(true).catch((e) => logger.warn("更新统计失败", e));
+            store
+              .updateGlobalStats(true)
+              .catch((e) => logger.warn("更新统计失败", e));
           }
         }
       }
@@ -321,7 +354,9 @@ export async function updateEntryContent(options: UpdateEntryContentOptions): Pr
       // 5. 同步 Store
       const store = useKnowledgeBaseStore();
       if (store.activeBaseId === kbId) {
-        store.validateVectorStatus().catch((e) => logger.warn("同步 Store 失败", e));
+        store
+          .validateVectorStatus()
+          .catch((e) => logger.warn("同步 Store 失败", e));
       }
     }
 
@@ -361,12 +396,18 @@ export async function updateEntryContent(options: UpdateEntryContentOptions): Pr
 /**
  * 3. deleteEntry（删除条目）
  */
-export async function deleteEntry(options: DeleteEntryOptions): Promise<DeleteEntryResult> {
+export async function deleteEntry(
+  options: DeleteEntryOptions
+): Promise<DeleteEntryResult> {
   try {
     const { confirm = false } = options;
     const kbId = await resolveKbId(options.kbId, options.kbName);
 
-    logger.info("执行 deleteEntry", { kbId, entryId: options.entryId, key: options.key });
+    logger.info("执行 deleteEntry", {
+      kbId,
+      entryId: options.entryId,
+      key: options.key,
+    });
 
     if (!confirm) {
       throw new Error("请设置 confirm: true 以确认删除操作");
@@ -382,7 +423,9 @@ export async function deleteEntry(options: DeleteEntryOptions): Promise<DeleteEn
     const store = useKnowledgeBaseStore();
     if (store.activeBaseId === kbId) {
       // 刷新元数据
-      store.validateVectorStatus().catch((e) => logger.warn("同步 Store 失败", e));
+      store
+        .validateVectorStatus()
+        .catch((e) => logger.warn("同步 Store 失败", e));
       // 如果删除的是当前选中的条目，清空选中
       if (store.activeEntryId === entry.id) {
         store.activeEntryId = null;
@@ -412,9 +455,18 @@ export async function deleteEntry(options: DeleteEntryOptions): Promise<DeleteEn
 /**
  * 4. searchEntries（搜索条目）
  */
-export async function searchEntries(options: SearchEntriesOptions): Promise<SearchEntriesResult> {
+export async function searchEntries(
+  options: SearchEntriesOptions
+): Promise<SearchEntriesResult> {
   try {
-    const { query, engineId = "keyword", limit = 10, minScore, tags, enabledOnly = true } = options;
+    const {
+      query,
+      engineId = "keyword",
+      limit = 10,
+      minScore,
+      tags,
+      enabledOnly = true,
+    } = options;
 
     // 解析知识库 ID 列表
     const kbIds: string[] = [];
@@ -483,7 +535,9 @@ export async function searchEntries(options: SearchEntriesOptions): Promise<Sear
 /**
  * 5. batchUpdateMetadata（批量更新元数据）
  */
-export async function batchUpdateMetadata(options: BatchUpdateMetadataOptions): Promise<BatchUpdateMetadataResult> {
+export async function batchUpdateMetadata(
+  options: BatchUpdateMetadataOptions
+): Promise<BatchUpdateMetadataResult> {
   try {
     const { entryIds, enabled, priority, addTags, removeTags } = options;
     const kbId = await resolveKbId(options.kbId, options.kbName);
@@ -540,7 +594,9 @@ export async function batchUpdateMetadata(options: BatchUpdateMetadataOptions): 
     // 同步 Store
     const store = useKnowledgeBaseStore();
     if (store.activeBaseId === kbId) {
-      store.validateVectorStatus().catch((e) => logger.warn("同步 Store 失败", e));
+      store
+        .validateVectorStatus()
+        .catch((e) => logger.warn("同步 Store 失败", e));
     }
 
     return {
@@ -565,7 +621,9 @@ export async function batchUpdateMetadata(options: BatchUpdateMetadataOptions): 
 /**
  * 6. listEntriesMetadata（查询条目元数据）
  */
-export async function listEntriesMetadata(options: ListEntriesMetadataOptions): Promise<ListEntriesMetadataResult> {
+export async function listEntriesMetadata(
+  options: ListEntriesMetadataOptions
+): Promise<ListEntriesMetadataResult> {
   try {
     const {
       query,
@@ -579,7 +637,13 @@ export async function listEntriesMetadata(options: ListEntriesMetadataOptions): 
     } = options;
     const kbId = await resolveKbId(options.kbId, options.kbName);
 
-    logger.info("执行 listEntriesMetadata", { kbId, query, tags, limit, offset });
+    logger.info("执行 listEntriesMetadata", {
+      kbId,
+      query,
+      tags,
+      limit,
+      offset,
+    });
 
     // 限制单次查询数量
     const actualLimit = Math.min(limit, 200);
@@ -594,12 +658,16 @@ export async function listEntriesMetadata(options: ListEntriesMetadataOptions): 
     // 标题关键词搜索
     if (query && query.trim()) {
       const lowerQuery = query.toLowerCase();
-      filteredEntries = filteredEntries.filter((e) => e.key.toLowerCase().includes(lowerQuery));
+      filteredEntries = filteredEntries.filter((e) =>
+        e.key.toLowerCase().includes(lowerQuery)
+      );
     }
 
     // 标签过滤 (AND 逻辑)
     if (tags && tags.length > 0) {
-      filteredEntries = filteredEntries.filter((e) => tags.every((tag) => e.tags.includes(tag)));
+      filteredEntries = filteredEntries.filter((e) =>
+        tags.every((tag) => e.tags.includes(tag))
+      );
     }
 
     // 启用状态过滤
@@ -609,7 +677,9 @@ export async function listEntriesMetadata(options: ListEntriesMetadataOptions): 
 
     // 向量状态过滤
     if (vectorStatus) {
-      filteredEntries = filteredEntries.filter((e) => e.vectorStatus === vectorStatus);
+      filteredEntries = filteredEntries.filter(
+        (e) => e.vectorStatus === vectorStatus
+      );
     }
 
     // 3. 排序
@@ -642,7 +712,10 @@ export async function listEntriesMetadata(options: ListEntriesMetadataOptions): 
 
     // 4. 分页
     const total = filteredEntries.length;
-    const paginatedEntries = filteredEntries.slice(offset, offset + actualLimit);
+    const paginatedEntries = filteredEntries.slice(
+      offset,
+      offset + actualLimit
+    );
 
     // 5. 格式化返回
     const formattedEntries = paginatedEntries.map((e) => ({
@@ -686,7 +759,9 @@ export async function listEntriesMetadata(options: ListEntriesMetadataOptions): 
 /**
  * 7. listKnowledgeBases（列出知识库列表）
  */
-export async function listKnowledgeBases(options: ListKnowledgeBasesOptions = {}): Promise<ListKnowledgeBasesResult> {
+export async function listKnowledgeBases(
+  options: ListKnowledgeBasesOptions = {}
+): Promise<ListKnowledgeBasesResult> {
   try {
     const { query, includeStats = true } = options;
 
@@ -701,7 +776,9 @@ export async function listKnowledgeBases(options: ListKnowledgeBasesOptions = {}
     // 名称关键词搜索
     if (query && query.trim()) {
       const lowerQuery = query.toLowerCase();
-      filteredBases = filteredBases.filter((b) => b.name.toLowerCase().includes(lowerQuery));
+      filteredBases = filteredBases.filter((b) =>
+        b.name.toLowerCase().includes(lowerQuery)
+      );
     }
 
     // 3. 格式化返回
@@ -723,8 +800,13 @@ export async function listKnowledgeBases(options: ListKnowledgeBasesOptions = {}
           result.stats = {
             totalEntries: meta.entries.length,
             enabledEntries: meta.entries.filter((e) => e.enabled).length,
-            totalTokens: meta.entries.reduce((sum, e) => sum + (e.totalTokens || 0), 0),
-            vectorizedEntries: meta.entries.filter((e) => e.vectorStatus === "ready").length,
+            totalTokens: meta.entries.reduce(
+              (sum, e) => sum + (e.totalTokens || 0),
+              0
+            ),
+            vectorizedEntries: meta.entries.filter(
+              (e) => e.vectorStatus === "ready"
+            ).length,
           };
         }
 

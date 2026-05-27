@@ -82,7 +82,8 @@ onMounted(async () => {
   // 从 props 更新内部状态
   if (props.logLevel) internalLogLevel.value = props.logLevel;
   if (props.logToFile !== undefined) internalLogToFile.value = props.logToFile;
-  if (props.logToConsole !== undefined) internalLogToConsole.value = props.logToConsole;
+  if (props.logToConsole !== undefined)
+    internalLogToConsole.value = props.logToConsole;
   if (props.logBufferSize) internalLogBufferSize.value = props.logBufferSize;
   if (props.maxFileSize) internalMaxFileSize.value = props.maxFileSize;
 
@@ -100,10 +101,13 @@ onMounted(async () => {
   try {
     const appDir = await getAppConfigDir();
     const logsDir = await join(appDir, "logs");
-    const date = formatDateTime(new Date(), 'yyyy-MM-dd');
+    const date = formatDateTime(new Date(), "yyyy-MM-dd");
     logFilePath.value = await join(logsDir, `app-${date}.log`);
   } catch (error) {
-    errorHandler.handle(error as Error, { userMessage: "获取日志文件路径失败", showToUser: false });
+    errorHandler.handle(error as Error, {
+      userMessage: "获取日志文件路径失败",
+      showToUser: false,
+    });
   }
 });
 
@@ -197,7 +201,7 @@ const handleExportLogs = async () => {
     const { save } = await import("@tauri-apps/plugin-dialog");
     const filePath = await save({
       title: "导出日志",
-      defaultPath: `logs-${formatDateTime(new Date(), 'yyyy-MM-dd')}.txt`,
+      defaultPath: `logs-${formatDateTime(new Date(), "yyyy-MM-dd")}.txt`,
       filters: [
         {
           name: "文本文件",
@@ -266,7 +270,10 @@ watch(internalMaxFileSize, (newValue) => {
     <div class="setting-item">
       <div class="setting-label">
         <span>日志级别</span>
-        <el-tooltip content="设置记录的最低日志级别，低于此级别的日志将被忽略" placement="top">
+        <el-tooltip
+          content="设置记录的最低日志级别，低于此级别的日志将被忽略"
+          placement="top"
+        >
           <el-icon class="info-icon">
             <InfoFilled />
           </el-icon>
@@ -311,7 +318,10 @@ watch(internalMaxFileSize, (newValue) => {
     <div class="setting-item">
       <div class="setting-label">
         <span>日志缓冲区大小</span>
-        <el-tooltip content="内存中保存的日志条数，超过后将删除最早的日志" placement="top">
+        <el-tooltip
+          content="内存中保存的日志条数，超过后将删除最早的日志"
+          placement="top"
+        >
           <el-icon class="info-icon">
             <InfoFilled />
           </el-icon>
@@ -331,7 +341,10 @@ watch(internalMaxFileSize, (newValue) => {
     <div class="setting-item">
       <div class="setting-label">
         <span>文件分割阈值</span>
-        <el-tooltip content="当单个日志文件超过此大小时，将自动分割并创建新文件" placement="top">
+        <el-tooltip
+          content="当单个日志文件超过此大小时，将自动分割并创建新文件"
+          placement="top"
+        >
           <el-icon class="info-icon">
             <InfoFilled />
           </el-icon>
@@ -386,10 +399,17 @@ watch(internalMaxFileSize, (newValue) => {
           打开日志目录
         </el-button>
         <el-button @click="handleExportLogs" size="small"> 导出日志 </el-button>
-        <el-button @click="handleClearLogBuffer" :icon="Delete" size="small" type="warning">
+        <el-button
+          @click="handleClearLogBuffer"
+          :icon="Delete"
+          size="small"
+          type="warning"
+        >
           清空缓冲区
         </el-button>
-        <el-button @click="handleTestLogs" size="small" type="primary"> 测试日志 </el-button>
+        <el-button @click="handleTestLogs" size="small" type="primary">
+          测试日志
+        </el-button>
       </div>
     </div>
 

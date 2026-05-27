@@ -30,7 +30,14 @@
             :warnings="singleWarnings"
           />
           <!-- overlay 拖放层 -->
-          <DropZone overlay bare hide-content :show-overlay-on-drag="true" :multiple="true" @drop="handleSingleImport" />
+          <DropZone
+            overlay
+            bare
+            hide-content
+            :show-overlay-on-drag="true"
+            :multiple="true"
+            @drop="handleSingleImport"
+          />
         </div>
       </template>
 
@@ -51,7 +58,14 @@
             @select-directory="selectDirectory"
           />
           <!-- overlay 拖放层 -->
-          <DropZone overlay bare hide-content :show-overlay-on-drag="true" :multiple="true" @drop="addFiles" />
+          <DropZone
+            overlay
+            bare
+            hide-content
+            :show-overlay-on-drag="true"
+            :multiple="true"
+            @drop="addFiles"
+          />
         </div>
       </template>
     </div>
@@ -106,7 +120,16 @@ const selectFiles = async () => {
       filters: [
         {
           name: "配置文件",
-          extensions: ["json", "yaml", "yml", "toml", "ini", "cfg", "xml", "env"],
+          extensions: [
+            "json",
+            "yaml",
+            "yml",
+            "toml",
+            "ini",
+            "cfg",
+            "xml",
+            "env",
+          ],
         },
       ],
     });

@@ -29,7 +29,8 @@ export const DEFAULT_QUICK_ACTION_SETS: QuickActionSet[] = [
       {
         id: "full-code-update",
         label: "完整代码",
-        content: "{{input}}\n\n合并更新刚才讨论的内容到对应的最新完整版本，让我一键复制。",
+        content:
+          "{{input}}\n\n合并更新刚才讨论的内容到对应的最新完整版本，让我一键复制。",
         autoSend: true,
         icon: "FileCode",
       },
@@ -45,7 +46,8 @@ export const DEFAULT_QUICK_ACTION_SETS: QuickActionSet[] = [
       {
         id: "html-details",
         label: "HTML 折叠",
-        content: "<details>\n<summary>点击展开内容</summary>\n\n{{input}}\n\n</details>",
+        content:
+          "<details>\n<summary>点击展开内容</summary>\n\n{{input}}\n\n</details>",
         autoSend: false,
         icon: "ChevronDownSquare",
       },
@@ -74,7 +76,8 @@ export const DEFAULT_QUICK_ACTION_SETS: QuickActionSet[] = [
       {
         id: "action-forward-msg",
         label: "转发消息",
-        content: "\n<details>\n<summary>转发的消息</summary>\n\n{{input}}\n\n---转发结束---\n</details>\n",
+        content:
+          "\n<details>\n<summary>转发的消息</summary>\n\n{{input}}\n\n---转发结束---\n</details>\n",
         autoSend: false,
         icon: "Zap",
       },

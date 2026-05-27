@@ -12,18 +12,32 @@
         @change="handlePresetChange"
       >
         <el-option-group label="📦 内置预设">
-          <el-option v-for="preset in builtinPresets" :key="preset.id" :label="preset.name" :value="preset.id">
+          <el-option
+            v-for="preset in builtinPresets"
+            :key="preset.id"
+            :label="preset.name"
+            :value="preset.id"
+          >
             <div class="preset-option">
               <div class="preset-option-label">{{ preset.name }}</div>
-              <div v-if="preset.description" class="preset-option-desc">{{ preset.description }}</div>
+              <div v-if="preset.description" class="preset-option-desc">
+                {{ preset.description }}
+              </div>
             </div>
           </el-option>
         </el-option-group>
         <el-option-group v-if="userPresets.length > 0" label="⭐ 我的预设">
-          <el-option v-for="preset in userPresets" :key="preset.id" :label="preset.name" :value="preset.id">
+          <el-option
+            v-for="preset in userPresets"
+            :key="preset.id"
+            :label="preset.name"
+            :value="preset.id"
+          >
             <div class="preset-option">
               <div class="preset-option-label">{{ preset.name }}</div>
-              <div v-if="preset.description" class="preset-option-desc">{{ preset.description }}</div>
+              <div v-if="preset.description" class="preset-option-desc">
+                {{ preset.description }}
+              </div>
             </div>
           </el-option>
         </el-option-group>
@@ -34,7 +48,11 @@
           <el-button :icon="Save" size="small" @click="handleSaveAsPreset" />
         </el-tooltip>
         <el-tooltip content="管理预设">
-          <el-button :icon="Settings" size="small" @click="dialogVisible = true" />
+          <el-button
+            :icon="Settings"
+            size="small"
+            @click="dialogVisible = true"
+          />
         </el-tooltip>
       </div>
     </div>
@@ -43,12 +61,28 @@
     <div v-if="selectedPreset" class="preset-info">
       <div class="preset-info-text">
         <span class="preset-info-name">{{ selectedPreset.name }}</span>
-        <span v-if="selectedPreset.description" class="preset-info-desc">— {{ selectedPreset.description }}</span>
-        <el-tag v-if="selectedPreset.isSystem" size="small" type="info" effect="plain">内置</el-tag>
-        <el-tag v-else size="small" type="warning" effect="plain">自定义</el-tag>
+        <span v-if="selectedPreset.description" class="preset-info-desc"
+          >— {{ selectedPreset.description }}</span
+        >
+        <el-tag
+          v-if="selectedPreset.isSystem"
+          size="small"
+          type="info"
+          effect="plain"
+          >内置</el-tag
+        >
+        <el-tag v-else size="small" type="warning" effect="plain"
+          >自定义</el-tag
+        >
       </div>
       <div class="preset-info-actions">
-        <el-button size="small" :icon="Download" link @click="handleExportPreset">导出</el-button>
+        <el-button
+          size="small"
+          :icon="Download"
+          link
+          @click="handleExportPreset"
+          >导出</el-button
+        >
       </div>
     </div>
 
@@ -56,7 +90,12 @@
     <el-dialog v-model="saveDialogVisible" title="保存为预设" width="420">
       <el-form label-position="top">
         <el-form-item label="预设名称">
-          <el-input v-model="saveForm.name" placeholder="输入预设名称" maxlength="30" show-word-limit />
+          <el-input
+            v-model="saveForm.name"
+            placeholder="输入预设名称"
+            maxlength="30"
+            show-word-limit
+          />
         </el-form-item>
         <el-form-item label="描述（可选）">
           <el-input
@@ -71,7 +110,12 @@
       </el-form>
       <template #footer>
         <el-button @click="saveDialogVisible = false">取消</el-button>
-        <el-button type="primary" :disabled="!saveForm.name.trim()" @click="confirmSave">保存</el-button>
+        <el-button
+          type="primary"
+          :disabled="!saveForm.name.trim()"
+          @click="confirmSave"
+          >保存</el-button
+        >
       </template>
     </el-dialog>
 
@@ -80,23 +124,43 @@
       <div class="manager-body">
         <!-- 内置预设只读展示 -->
         <div class="preset-group">
-          <div class="preset-group-title">📦 内置预设 ({{ builtinPresets.length }})</div>
+          <div class="preset-group-title">
+            📦 内置预设 ({{ builtinPresets.length }})
+          </div>
           <div class="preset-group-list">
-            <div v-for="preset in builtinPresets" :key="preset.id" class="preset-group-item">
+            <div
+              v-for="preset in builtinPresets"
+              :key="preset.id"
+              class="preset-group-item"
+            >
               <div class="preset-item-info">
                 <div class="preset-item-name">{{ preset.name }}</div>
-                <div v-if="preset.description" class="preset-item-desc">{{ preset.description }}</div>
+                <div v-if="preset.description" class="preset-item-desc">
+                  {{ preset.description }}
+                </div>
               </div>
-              <el-button size="small" :icon="Download" link @click="handleExportPreset(preset)">导出</el-button>
+              <el-button
+                size="small"
+                :icon="Download"
+                link
+                @click="handleExportPreset(preset)"
+                >导出</el-button
+              >
             </div>
           </div>
         </div>
 
         <!-- 自定义预设可删除 -->
         <div v-if="userPresets.length > 0" class="preset-group">
-          <div class="preset-group-title">⭐ 我的预设 ({{ userPresets.length }})</div>
+          <div class="preset-group-title">
+            ⭐ 我的预设 ({{ userPresets.length }})
+          </div>
           <div class="preset-group-list">
-            <div v-for="preset in userPresets" :key="preset.id" class="preset-group-item">
+            <div
+              v-for="preset in userPresets"
+              :key="preset.id"
+              class="preset-group-item"
+            >
               <div class="preset-item-info">
                 <div class="preset-item-name">
                   <el-input
@@ -110,12 +174,27 @@
                   />
                   <template v-else>{{ preset.name }}</template>
                 </div>
-                <div v-if="preset.description" class="preset-item-desc">{{ preset.description }}</div>
+                <div v-if="preset.description" class="preset-item-desc">
+                  {{ preset.description }}
+                </div>
               </div>
               <div class="preset-item-actions">
-                <el-button size="small" :icon="Download" link @click="handleExportPreset(preset)" />
-                <el-button size="small" :icon="Pencil" link @click="startRename(preset)" />
-                <el-popconfirm title="确定删除此预设？" @confirm="handleDeletePreset(preset.id)">
+                <el-button
+                  size="small"
+                  :icon="Download"
+                  link
+                  @click="handleExportPreset(preset)"
+                />
+                <el-button
+                  size="small"
+                  :icon="Pencil"
+                  link
+                  @click="startRename(preset)"
+                />
+                <el-popconfirm
+                  title="确定删除此预设？"
+                  @confirm="handleDeletePreset(preset.id)"
+                >
                   <template #reference>
                     <el-button size="small" :icon="Trash2" link type="danger" />
                   </template>
@@ -130,8 +209,12 @@
       </div>
       <template #footer>
         <div class="manager-footer">
-          <el-button :icon="Upload" @click="handleImportPreset">导入预设</el-button>
-          <el-button type="primary" @click="dialogVisible = false">完成</el-button>
+          <el-button :icon="Upload" @click="handleImportPreset"
+            >导入预设</el-button
+          >
+          <el-button type="primary" @click="dialogVisible = false"
+            >完成</el-button
+          >
         </div>
       </template>
     </el-dialog>
@@ -140,7 +223,14 @@
 
 <script setup lang="ts">
 import { ref, computed, reactive, nextTick } from "vue";
-import { Save, Settings, Download, Upload, Pencil, Trash2 } from "lucide-vue-next";
+import {
+  Save,
+  Settings,
+  Download,
+  Upload,
+  Pencil,
+  Trash2,
+} from "lucide-vue-next";
 import { useFFmpegStore } from "../ffmpegStore";
 import { BUILTIN_PRESETS } from "../config";
 import type { FFmpegPreset, FFmpegParams } from "../types";
@@ -165,7 +255,9 @@ const selectedPresetId = ref<string | "">("");
 const allPresets = computed(() => store.allPresets);
 const builtinPresets = computed(() => BUILTIN_PRESETS);
 const userPresets = computed(() => store.presets);
-const selectedPreset = computed(() => allPresets.value.find((p) => p.id === selectedPresetId.value));
+const selectedPreset = computed(() =>
+  allPresets.value.find((p) => p.id === selectedPresetId.value)
+);
 
 const handlePresetChange = (presetId: string | "") => {
   if (!presetId) return;
@@ -198,7 +290,9 @@ const startRename = (preset: FFmpegPreset) => {
   renamingId.value = preset.id;
   renameForm.name = preset.name;
   nextTick(() => {
-    const el = document.querySelector(".rename-input input") as HTMLInputElement;
+    const el = document.querySelector(
+      ".rename-input input"
+    ) as HTMLInputElement;
     el?.focus();
     el?.select();
   });
@@ -233,7 +327,9 @@ const handleExportPreset = (preset?: FFmpegPreset) => {
     params: target.params,
   };
 
-  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+  const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+    type: "application/json",
+  });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -259,7 +355,11 @@ const handleImportPreset = () => {
         customMessage.error("无效的预设文件");
         return;
       }
-      store.saveAsPreset(data.name, data.description || "", data.params as Partial<FFmpegParams>);
+      store.saveAsPreset(
+        data.name,
+        data.description || "",
+        data.params as Partial<FFmpegParams>
+      );
       customMessage.success(`已导入预设: ${data.name}`);
     } catch {
       customMessage.error("解析预设文件失败");

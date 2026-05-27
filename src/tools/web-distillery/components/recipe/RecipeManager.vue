@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, onErrorCaptured } from "vue";
-import { Search, Trash2, Edit, ExternalLink, ShieldCheck, ShieldAlert, BookOpen } from "lucide-vue-next";
+import {
+  Search,
+  Trash2,
+  Edit,
+  ExternalLink,
+  ShieldCheck,
+  ShieldAlert,
+  BookOpen,
+} from "lucide-vue-next";
 import { recipeStore } from "../../core/recipe-store";
 import type { SiteRecipe } from "../../types";
 import { useWebDistilleryStore } from "../../stores/store";
@@ -35,7 +43,11 @@ onMounted(async () => {
 const filteredRecipes = computed(() => {
   if (!searchText.value) return recipes.value;
   const lower = searchText.value.toLowerCase();
-  return recipes.value.filter((r) => r.name.toLowerCase().includes(lower) || r.domain.toLowerCase().includes(lower));
+  return recipes.value.filter(
+    (r) =>
+      r.name.toLowerCase().includes(lower) ||
+      r.domain.toLowerCase().includes(lower)
+  );
 });
 
 async function deleteRecipe(id: string) {
@@ -96,7 +108,11 @@ onErrorCaptured((err) => {
         <p>管理已保存的自动化提取规则与动作序列</p>
       </div>
       <div class="search-bar">
-        <el-input v-model="searchText" placeholder="搜索域名或配方名称..." clearable>
+        <el-input
+          v-model="searchText"
+          placeholder="搜索域名或配方名称..."
+          clearable
+        >
           <template #prefix>
             <el-icon><Search /></el-icon>
           </template>
@@ -112,7 +128,12 @@ onErrorCaptured((err) => {
       </div>
 
       <div v-else class="recipe-grid">
-        <InfoCard v-for="recipe in filteredRecipes" :key="recipe.id" class="recipe-card" :class="{ 'is-disabled': recipe.disabled }">
+        <InfoCard
+          v-for="recipe in filteredRecipes"
+          :key="recipe.id"
+          class="recipe-card"
+          :class="{ 'is-disabled': recipe.disabled }"
+        >
           <template #header>
             <div class="card-header">
               <div class="header-left">
@@ -120,8 +141,16 @@ onErrorCaptured((err) => {
                 <span class="recipe-name">{{ recipe.name }}</span>
               </div>
               <div class="header-right">
-                <el-tag v-if="recipe.id.startsWith('builtin-')" size="small" effect="dark" type="info">内置</el-tag>
-                <el-tag v-else size="small" effect="plain" type="success">用户</el-tag>
+                <el-tag
+                  v-if="recipe.id.startsWith('builtin-')"
+                  size="small"
+                  effect="dark"
+                  type="info"
+                  >内置</el-tag
+                >
+                <el-tag v-else size="small" effect="plain" type="success"
+                  >用户</el-tag
+                >
               </div>
             </div>
           </template>
@@ -144,9 +173,15 @@ onErrorCaptured((err) => {
           <template #footer>
             <div class="card-actions">
               <el-button-group>
-                <el-tooltip :content="recipe.disabled ? '启用' : '禁用'" placement="top">
+                <el-tooltip
+                  :content="recipe.disabled ? '启用' : '禁用'"
+                  placement="top"
+                >
                   <el-button size="small" @click="toggleRecipeStatus(recipe)">
-                    <component :is="recipe.disabled ? ShieldAlert : ShieldCheck" :size="14" />
+                    <component
+                      :is="recipe.disabled ? ShieldAlert : ShieldCheck"
+                      :size="14"
+                    />
                   </el-button>
                 </el-tooltip>
                 <el-tooltip content="编辑配方" placement="top">
@@ -154,13 +189,25 @@ onErrorCaptured((err) => {
                     <Edit :size="14" />
                   </el-button>
                 </el-tooltip>
-                <el-tooltip v-if="!recipe.id.startsWith('builtin-')" content="删除配方" placement="top">
-                  <el-button size="small" type="danger" @click="deleteRecipe(recipe.id)">
+                <el-tooltip
+                  v-if="!recipe.id.startsWith('builtin-')"
+                  content="删除配方"
+                  placement="top"
+                >
+                  <el-button
+                    size="small"
+                    type="danger"
+                    @click="deleteRecipe(recipe.id)"
+                  >
                     <Trash2 :size="14" />
                   </el-button>
                 </el-tooltip>
               </el-button-group>
-              <el-button size="small" text @click="openExternal(`https://${recipe.domain}`)">
+              <el-button
+                size="small"
+                text
+                @click="openExternal(`https://${recipe.domain}`)"
+              >
                 <ExternalLink :size="14" />
               </el-button>
             </div>
@@ -231,7 +278,9 @@ onErrorCaptured((err) => {
 }
 
 .recipe-card {
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s;
 }
 
 .recipe-card:hover {

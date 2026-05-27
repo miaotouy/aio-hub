@@ -1,4 +1,4 @@
-import { RenderPreset } from '../types';
+import { RenderPreset } from "../types";
 
 export const htmlGameSnakePreset: RenderPreset = {
   id: "html-game-snake",

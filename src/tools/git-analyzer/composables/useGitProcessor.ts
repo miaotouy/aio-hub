@@ -65,13 +65,15 @@ export function escapeHtml(text: string): string {
 /**
  * 获取贡献者统计
  */
-export function getContributorStats(commits: GitCommit[]): Array<{ name: string; count: number }> {
+export function getContributorStats(
+  commits: GitCommit[]
+): Array<{ name: string; count: number }> {
   const authorCounts = commits.reduce(
     (acc, c) => {
       acc[c.author] = (acc[c.author] || 0) + 1;
       return acc;
     },
-    {} as Record<string, number>,
+    {} as Record<string, number>
   );
 
   return Object.entries(authorCounts)
@@ -82,14 +84,16 @@ export function getContributorStats(commits: GitCommit[]): Array<{ name: string;
 /**
  * 生成时间线数据（按日期统计提交数）
  */
-export function generateTimelineData(commits: GitCommit[]): Array<{ date: string; count: number }> {
+export function generateTimelineData(
+  commits: GitCommit[]
+): Array<{ date: string; count: number }> {
   const dateCounts = commits.reduce(
     (acc, c) => {
       const date = c.date.split("T")[0];
       acc[date] = (acc[date] || 0) + 1;
       return acc;
     },
-    {} as Record<string, number>,
+    {} as Record<string, number>
   );
 
   return Object.entries(dateCounts)
@@ -100,7 +104,9 @@ export function generateTimelineData(commits: GitCommit[]): Array<{ date: string
 /**
  * 生成提交热力图数据（按星期几和小时统计）
  */
-export function generateHeatmapData(commits: GitCommit[]): Array<{ day: number; hour: number; count: number }> {
+export function generateHeatmapData(
+  commits: GitCommit[]
+): Array<{ day: number; hour: number; count: number }> {
   const heatmapData: Array<{ day: number; hour: number; count: number }> = [];
   const dayMap = new Map<string, number>();
 
@@ -149,7 +155,10 @@ export interface FilterOptions {
   reverseOrder?: boolean;
 }
 
-export function filterCommits(commits: GitCommit[], options: FilterOptions): GitCommit[] {
+export function filterCommits(
+  commits: GitCommit[],
+  options: FilterOptions
+): GitCommit[] {
   let filtered = [...commits];
 
   // 搜索筛选（支持 hash、首行摘要、完整提交消息、变更文件路径）
@@ -167,7 +176,7 @@ export function filterCommits(commits: GitCommit[], options: FilterOptions): Git
           c.files.some((f) => {
             const normalizedPath = f.path.toLowerCase().replace(/\\/g, "/");
             return normalizedPath.includes(pathQuery);
-          })),
+          }))
     );
   }
 
@@ -187,7 +196,7 @@ export function filterCommits(commits: GitCommit[], options: FilterOptions): Git
             const normalizedPath = f.path.toLowerCase().replace(/\\/g, "/");
             return normalizedPath.includes(pathQuery);
           })
-        ),
+        )
     );
   }
 

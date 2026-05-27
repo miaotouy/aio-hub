@@ -1,4 +1,13 @@
-import { UserCircle, Bot, Zap, Settings2, Wrench, Variable, Sparkles, BookOpen } from "lucide-vue-next";
+import {
+  UserCircle,
+  Bot,
+  Zap,
+  Settings2,
+  Wrench,
+  Variable,
+  Sparkles,
+  BookOpen,
+} from "lucide-vue-next";
 import type { Component } from "vue";
 
 export interface AgentEditItem {
@@ -21,7 +30,11 @@ export const agentEditTabs: AgentEditTab[] = [
     icon: Bot,
     items: [
       { id: "name", label: "ID/名称", keywords: "name id 名称" },
-      { id: "displayName", label: "显示名称", keywords: "display name 显示名称" },
+      {
+        id: "displayName",
+        label: "显示名称",
+        keywords: "display name 显示名称",
+      },
       { id: "agentVersion", label: "配置版本", keywords: "version 版本" },
       { id: "icon", label: "图标", keywords: "icon avatar 图标 头像" },
       { id: "category", label: "分类", keywords: "category 分类" },
@@ -35,22 +48,82 @@ export const agentEditTabs: AgentEditTab[] = [
     icon: UserCircle,
     items: [
       { id: "model", label: "模型", keywords: "model 模型" },
-      { id: "userProfile", label: "关联用户档案", keywords: "user profile 用户 档案" },
-      { id: "quickActionSetIds", label: "快捷操作", keywords: "quick action 快捷操作" },
+      {
+        id: "userProfile",
+        label: "关联用户档案",
+        keywords: "user profile 用户 档案",
+      },
+      {
+        id: "quickActionSetIds",
+        label: "快捷操作",
+        keywords: "quick action 快捷操作",
+      },
       { id: "worldbook", label: "关联世界书", keywords: "worldbook 世界书" },
-      { id: "wbDisableRecursion", label: "禁用递归扫描", keywords: "worldbook recursion 递归" },
-      { id: "wbScanDepth", label: "默认扫描深度", keywords: "worldbook depth 深度" },
-      { id: "kbDefaultEngine", label: "默认检索引擎", keywords: "knowledge engine 知识库 引擎" },
-      { id: "kbDefaultLimit", label: "召回上限", keywords: "knowledge limit 召回 上限" },
-      { id: "kbDefaultMinScore", label: "最低分数阈值", keywords: "knowledge score 分数 阈值 截断" },
-      { id: "kbMaxRecallChars", label: "召回字数上限", keywords: "knowledge char limit 字数" },
-      { id: "kbGateScanDepth", label: "门控扫描深度", keywords: "knowledge gate depth 深度" },
-      { id: "kbContextWindow", label: "上下文窗口", keywords: "knowledge context window 窗口 轮次" },
-      { id: "kbEnableCache", label: "启用检索缓存", keywords: "knowledge cache 缓存" },
-      { id: "kbResultTemplate", label: "结果模板", keywords: "knowledge template 模板" },
-      { id: "kbEmptyText", label: "空结果提示", keywords: "knowledge empty 提示" },
-      { id: "displayPresetCount", label: "显示数量", keywords: "preset count 数量" },
-      { id: "presetMessages", label: "预设消息", keywords: "preset messages 预设消息" },
+      {
+        id: "wbDisableRecursion",
+        label: "禁用递归扫描",
+        keywords: "worldbook recursion 递归",
+      },
+      {
+        id: "wbScanDepth",
+        label: "默认扫描深度",
+        keywords: "worldbook depth 深度",
+      },
+      {
+        id: "kbDefaultEngine",
+        label: "默认检索引擎",
+        keywords: "knowledge engine 知识库 引擎",
+      },
+      {
+        id: "kbDefaultLimit",
+        label: "召回上限",
+        keywords: "knowledge limit 召回 上限",
+      },
+      {
+        id: "kbDefaultMinScore",
+        label: "最低分数阈值",
+        keywords: "knowledge score 分数 阈值 截断",
+      },
+      {
+        id: "kbMaxRecallChars",
+        label: "召回字数上限",
+        keywords: "knowledge char limit 字数",
+      },
+      {
+        id: "kbGateScanDepth",
+        label: "门控扫描深度",
+        keywords: "knowledge gate depth 深度",
+      },
+      {
+        id: "kbContextWindow",
+        label: "上下文窗口",
+        keywords: "knowledge context window 窗口 轮次",
+      },
+      {
+        id: "kbEnableCache",
+        label: "启用检索缓存",
+        keywords: "knowledge cache 缓存",
+      },
+      {
+        id: "kbResultTemplate",
+        label: "结果模板",
+        keywords: "knowledge template 模板",
+      },
+      {
+        id: "kbEmptyText",
+        label: "空结果提示",
+        keywords: "knowledge empty 提示",
+      },
+      {
+        id: "displayPresetCount",
+        label: "显示数量",
+        keywords: "preset count 数量",
+      },
+      {
+        id: "presetMessages",
+        label: "预设消息",
+        keywords: "preset messages 预设消息",
+      },
     ],
   },
   {
@@ -59,26 +132,48 @@ export const agentEditTabs: AgentEditTab[] = [
     icon: Zap,
     items: [
       { id: "assets", label: "资产管理", keywords: "assets 资产 图片 音频" },
-      { id: "virtualTime", label: "虚拟时间线", keywords: "virtual time 虚拟时间" },
+      {
+        id: "virtualTime",
+        label: "虚拟时间线",
+        keywords: "virtual time 虚拟时间",
+      },
     ],
   },
   {
     id: "variables",
     label: "会话变量",
     icon: Variable,
-    items: [{ id: "sessionVariables", label: "变量定义", keywords: "session variable 会话 变量" }],
+    items: [
+      {
+        id: "sessionVariables",
+        label: "变量定义",
+        keywords: "session variable 会话 变量",
+      },
+    ],
   },
   {
     id: "knowledge",
     label: "知识库",
     icon: BookOpen,
-    items: [{ id: "knowledgeBase", label: "知识库 (RAG)", keywords: "knowledge base RAG 知识库 检索 向量" }],
+    items: [
+      {
+        id: "knowledgeBase",
+        label: "知识库 (RAG)",
+        keywords: "knowledge base RAG 知识库 检索 向量",
+      },
+    ],
   },
   {
     id: "tool-calling",
     label: "工具调用",
     icon: Wrench,
-    items: [{ id: "toolCalling", label: "工具调用 (Agent)", keywords: "tool calling agent 工具 调用" }],
+    items: [
+      {
+        id: "toolCalling",
+        label: "工具调用 (Agent)",
+        keywords: "tool calling agent 工具 调用",
+      },
+    ],
   },
   {
     id: "environment-enhancement",
@@ -112,8 +207,16 @@ export const agentEditTabs: AgentEditTab[] = [
         label: "媒体音量",
         keywords: "volume media audio 音量 媒体 音频",
       },
-      { id: "regexConfig", label: "文本替换规则", keywords: "regex replace 文本替换 正则" },
-      { id: "llmThinkRules", label: "思考块规则配置", keywords: "think rules 思考块 规则" },
+      {
+        id: "regexConfig",
+        label: "文本替换规则",
+        keywords: "regex replace 文本替换 正则",
+      },
+      {
+        id: "llmThinkRules",
+        label: "思考块规则配置",
+        keywords: "think rules 思考块 规则",
+      },
       {
         id: "richTextStyleOptions",
         label: "回复样式自定义",

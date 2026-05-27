@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { computed, ref, provide, watch, nextTick, onMounted, onUnmounted } from "vue";
+import {
+  computed,
+  ref,
+  provide,
+  watch,
+  nextTick,
+  onMounted,
+  onUnmounted,
+} from "vue";
 import { useResizeObserver, useClipboard } from "@vueuse/core";
 import type {
   ChatMessageNode,
@@ -76,7 +84,9 @@ interface Emits {
   (e: "cancel-edit"): void;
   (
     e: "update-translation",
-    translation: NonNullable<NonNullable<ChatMessageNode["metadata"]>["translation"]> | undefined,
+    translation:
+      | NonNullable<NonNullable<ChatMessageNode["metadata"]>["translation"]>
+      | undefined
   ): void;
   (e: "resize", el: HTMLElement | null): void;
 }
@@ -119,7 +129,11 @@ onMounted(() => {
     asyncTask.value = asyncTaskStore.getTask(extractedTaskId) ?? null;
 
     // 如果任务正在运行,启动轮询
-    if (asyncTask.value && (asyncTask.value.status === "running" || asyncTask.value.status === "pending")) {
+    if (
+      asyncTask.value &&
+      (asyncTask.value.status === "running" ||
+        asyncTask.value.status === "pending")
+    ) {
       startPolling();
     }
   }
@@ -136,11 +150,16 @@ watch(
     asyncTask.value = newTask ?? null;
 
     // 如果任务完成或失败，停止轮询
-    if (newTask && (newTask.status === "completed" || newTask.status === "failed" || newTask.status === "cancelled")) {
+    if (
+      newTask &&
+      (newTask.status === "completed" ||
+        newTask.status === "failed" ||
+        newTask.status === "cancelled")
+    ) {
       stopPolling();
     }
   },
-  { deep: true },
+  { deep: true }
 );
 
 // 启动轮询
@@ -154,7 +173,11 @@ const startPolling = () => {
         asyncTask.value = task;
 
         // 如果任务完成，停止轮询
-        if (task.status === "completed" || task.status === "failed" || task.status === "cancelled") {
+        if (
+          task.status === "completed" ||
+          task.status === "failed" ||
+          task.status === "cancelled"
+        ) {
           stopPolling();
         }
       }
@@ -188,7 +211,9 @@ const handleRetryTask = async () => {
 
   try {
     const newTaskId = await asyncTaskStore.retryTask(taskId.value);
-    customMessage.success(`任务已重新提交，新任务 ID: ${newTaskId.slice(0, 8)}`);
+    customMessage.success(
+      `任务已重新提交，新任务 ID: ${newTaskId.slice(0, 8)}`
+    );
   } catch (error) {
     customMessage.error("重试任务失败");
   }
@@ -199,8 +224,12 @@ const asyncTaskStatus = computed(() => {
   if (!asyncTask.value) return null;
 
   return {
-    isRunning: asyncTask.value.status === "running" || asyncTask.value.status === "pending",
-    isFailed: asyncTask.value.status === "failed" || asyncTask.value.status === "interrupted",
+    isRunning:
+      asyncTask.value.status === "running" ||
+      asyncTask.value.status === "pending",
+    isFailed:
+      asyncTask.value.status === "failed" ||
+      asyncTask.value.status === "interrupted",
     isCompleted: asyncTask.value.status === "completed",
     isCancelled: asyncTask.value.status === "cancelled",
     progress: asyncTask.value.progress ?? 0,
@@ -262,7 +291,10 @@ const backgroundBlocks = computed(() => {
 
 // ===== 工具状态与元数据 =====
 const toolCalls = computed(() => {
-  if (props.message.metadata?.toolCalls && props.message.metadata.toolCalls.length > 0) {
+  if (
+    props.message.metadata?.toolCalls &&
+    props.message.metadata.toolCalls.length > 0
+  ) {
     return props.message.metadata.toolCalls;
   }
   if (props.message.metadata?.toolCall) {
@@ -292,9 +324,13 @@ const toolCalls = computed(() => {
 const mainStatus = computed(() => {
   if (props.message.metadata?.isCancelled) return "cancelled";
   // 优先识别等待审批状态
-  if (toolCalls.value.some((t) => t.status === "awaiting_approval")) return "pending";
+  if (toolCalls.value.some((t) => t.status === "awaiting_approval"))
+    return "pending";
   if (toolCalls.value.some((t) => t.status === "executing")) return "executing";
-  if (toolCalls.value.some((t) => t.status === "error" || t.status === "denied")) return "error";
+  if (
+    toolCalls.value.some((t) => t.status === "error" || t.status === "denied")
+  )
+    return "error";
   if (toolCalls.value.length === 0) return "pending";
   return "success";
 });
@@ -327,7 +363,8 @@ const formattedTime = computed(() => {
 });
 
 const currentAgent = computed(() => {
-  const agentId = props.message.metadata?.agentId ?? agentStore.currentAgentId ?? undefined;
+  const agentId =
+    props.message.metadata?.agentId ?? agentStore.currentAgentId ?? undefined;
   return agentId ? agentStore.getAgentById(agentId) : undefined;
 });
 
@@ -342,7 +379,9 @@ const processToolResultContent = (content: string): string => {
   let processed = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 
   // 移除头尾包围栏
-  processed = processed.replace(/^\[\[AIO工具调用结果信息汇总:\s*/i, "").replace(/\s*AIO工具调用结果结束\]\]$/i, "");
+  processed = processed
+    .replace(/^\[\[AIO工具调用结果信息汇总:\s*/i, "")
+    .replace(/\s*AIO工具调用结果结束\]\]$/i, "");
 
   // 尝试检测并格式化 JSON（最多4层缩进）
   try {
@@ -353,7 +392,11 @@ const processToolResultContent = (content: string): string => {
       const parsed = JSON.parse(jsonStr);
 
       // 自定义格式化：限制缩进深度为4层
-      const formatWithDepthLimit = (obj: any, depth: number = 0, maxDepth: number = 4): string => {
+      const formatWithDepthLimit = (
+        obj: any,
+        depth: number = 0,
+        maxDepth: number = 4
+      ): string => {
         if (depth >= maxDepth) {
           return JSON.stringify(obj);
         }
@@ -366,7 +409,10 @@ const processToolResultContent = (content: string): string => {
 
         if (Array.isArray(obj)) {
           if (obj.length === 0) return "[]";
-          const items = obj.map((item) => `${nextIndent}${formatWithDepthLimit(item, depth + 1, maxDepth)}`);
+          const items = obj.map(
+            (item) =>
+              `${nextIndent}${formatWithDepthLimit(item, depth + 1, maxDepth)}`
+          );
           return `[\n${items.join(",\n")}\n${indent}]`;
         }
 
@@ -390,17 +436,28 @@ const processToolResultContent = (content: string): string => {
   return processed.trim();
 };
 
-const displayContent = computed(() => processToolResultContent(props.message.content));
+const displayContent = computed(() =>
+  processToolResultContent(props.message.content)
+);
 
 const activeRules = computed(() => {
-  const agentId = props.message.metadata?.agentId ?? agentStore.currentAgentId ?? undefined;
-  const userProfileId = props.message.metadata?.userProfileId ?? userProfileStore.globalProfileId ?? undefined;
+  const agentId =
+    props.message.metadata?.agentId ?? agentStore.currentAgentId ?? undefined;
+  const userProfileId =
+    props.message.metadata?.userProfileId ??
+    userProfileStore.globalProfileId ??
+    undefined;
 
   const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
   const userProfile = userProfileStore.getEffectiveProfile(userProfileId);
   const globalConfig = settings.value.regexConfig;
 
-  const rawRules = resolveRawRules("render", globalConfig, agent?.regexConfig, userProfile?.regexConfig);
+  const rawRules = resolveRawRules(
+    "render",
+    globalConfig,
+    agent?.regexConfig,
+    userProfile?.regexConfig
+  );
   const roleFiltered = filterRulesByRole(rawRules, props.message.role);
   return filterRulesByDepth(roleFiltered, props.messageDepth);
 });
@@ -408,7 +465,12 @@ const activeRules = computed(() => {
 const processedRules = ref<ChatRegexRule[]>([]);
 
 watch(
-  [activeRules, () => props.sessionIndex, () => props.sessionDetail, () => props.message.metadata],
+  [
+    activeRules,
+    () => props.sessionIndex,
+    () => props.sessionDetail,
+    () => props.message.metadata,
+  ],
   async ([rules, sessionIndex, sessionDetail]) => {
     if (!rules || rules.length === 0) {
       processedRules.value = [];
@@ -416,13 +478,16 @@ watch(
     }
     const macroContext = createMacroContext({
       agent: currentAgent.value,
-      userProfile: userProfileStore.getEffectiveProfile(props.message.metadata?.userProfileId) ?? undefined,
+      userProfile:
+        userProfileStore.getEffectiveProfile(
+          props.message.metadata?.userProfileId
+        ) ?? undefined,
       index: sessionIndex ?? undefined,
       detail: sessionDetail ?? undefined,
     });
     processedRules.value = await processRulesWithMacros(rules, macroContext);
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 // ===== 翻译显示逻辑 =====
@@ -433,8 +498,12 @@ const displayMode = computed<TranslationDisplayMode>(() => {
 
 const showOriginal = computed(() => {
   if (isEditing.value) return false;
-  const translationHidden = props.message.metadata?.translation?.visible === false;
-  if ((!props.message.metadata?.translation && !props.isTranslating) || (translationHidden && !props.isTranslating)) {
+  const translationHidden =
+    props.message.metadata?.translation?.visible === false;
+  if (
+    (!props.message.metadata?.translation && !props.isTranslating) ||
+    (translationHidden && !props.isTranslating)
+  ) {
     return true;
   }
   return displayMode.value === "original" || displayMode.value === "both";
@@ -442,13 +511,27 @@ const showOriginal = computed(() => {
 
 const showTranslation = computed(() => {
   if (isEditing.value) return false;
-  const isVisible = props.isTranslating || props.message.metadata?.translation?.visible !== false;
-  const hasContent = !!(props.message.metadata?.translation || props.isTranslating || props.translationContent);
-  return isVisible && hasContent && (displayMode.value === "translation" || displayMode.value === "both");
+  const isVisible =
+    props.isTranslating ||
+    props.message.metadata?.translation?.visible !== false;
+  const hasContent = !!(
+    props.message.metadata?.translation ||
+    props.isTranslating ||
+    props.translationContent
+  );
+  return (
+    isVisible &&
+    hasContent &&
+    (displayMode.value === "translation" || displayMode.value === "both")
+  );
 });
 
 const isWideLayout = computed(() => {
-  return containerWidth.value > 800 && displayMode.value === "both" && showTranslation.value;
+  return (
+    containerWidth.value > 800 &&
+    displayMode.value === "both" &&
+    showTranslation.value
+  );
 });
 
 // ===== 翻译与重试逻辑 =====
@@ -461,7 +544,8 @@ const handleTranslate = async (targetLang?: string) => {
     return;
   }
 
-  const lang = targetLang || settings.value.translation.messageTargetLang || "Chinese";
+  const lang =
+    targetLang || settings.value.translation.messageTargetLang || "Chinese";
 
   try {
     const result = await translateText(
@@ -470,7 +554,7 @@ const handleTranslate = async (targetLang?: string) => {
         // 这里的流式内容处理通常在父组件或 store 中维护
       },
       undefined,
-      lang,
+      lang
     );
 
     const translation = {
@@ -536,7 +620,8 @@ const formatArgValue = (val: any) => {
 // ===== 菜单栏相关计算 =====
 const siblings = computed(() => {
   const nodes = props.sessionDetail?.nodes;
-  if (!props.sessionDetail || !nodes || !props.message.parentId) return [props.message];
+  if (!props.sessionDetail || !nodes || !props.message.parentId)
+    return [props.message];
   const parent = nodes[props.message.parentId];
   if (!parent) return [props.message];
   return parent.childrenIds.map((id) => nodes[id]).filter(Boolean);
@@ -546,16 +631,24 @@ const currentSiblingIndex = computed(() => {
   return siblings.value.findIndex((s) => s.id === props.message.id);
 });
 
-const isGenerating = computed(() => props.isSending || chatStore.isNodeGenerating(props.message.id));
+const isGenerating = computed(
+  () => props.isSending || chatStore.isNodeGenerating(props.message.id)
+);
 
 // 事件处理函数（对齐 ChatMessage.vue，避免模板中的隐式 any）
-const onRegenerate = (options?: { modelId?: string; profileId?: string }) => emit("regenerate", options);
-const onContinue = (options?: { modelId?: string; profileId?: string }) => emit("continue", options);
-const onSwitchSibling = (direction: "prev" | "next") => emit("switch-sibling", direction);
+const onRegenerate = (options?: { modelId?: string; profileId?: string }) =>
+  emit("regenerate", options);
+const onContinue = (options?: { modelId?: string; profileId?: string }) =>
+  emit("continue", options);
+const onSwitchSibling = (direction: "prev" | "next") =>
+  emit("switch-sibling", direction);
 const onSwitchBranch = (nodeId: string) => emit("switch-branch", nodeId);
 const onChangeTranslationMode = (mode: TranslationDisplayMode) => {
   if (!props.message.metadata?.translation) return;
-  emit("update-translation", { ...props.message.metadata.translation, displayMode: mode });
+  emit("update-translation", {
+    ...props.message.metadata.translation,
+    displayMode: mode,
+  });
 };
 const onToggleTranslationVisible = () => {
   if (!props.message.metadata?.translation) return;
@@ -583,7 +676,10 @@ defineExpose({
   <div
     ref="messageRef"
     class="tool-call-message chat-message"
-    :class="{ 'is-disabled': message.isEnabled === false, 'is-editing': isEditing }"
+    :class="{
+      'is-disabled': message.isEnabled === false,
+      'is-editing': isEditing,
+    }"
     :data-message-id="message.id"
   >
     <!-- 背景层 -->
@@ -609,7 +705,10 @@ defineExpose({
       <div class="bar-line"></div>
     </div>
 
-    <div class="tool-content-wrapper" :class="{ 'is-wide-layout': isWideLayout }">
+    <div
+      class="tool-content-wrapper"
+      :class="{ 'is-wide-layout': isWideLayout }"
+    >
       <!-- 头部信息 -->
       <div class="tool-header" @click="toggleCollapse">
         <div class="header-left">
@@ -621,13 +720,20 @@ defineExpose({
             <Terminal :size="12" />
             工具
           </span>
-          <span v-if="toolCalls.length === 1" class="tool-name">{{ toolCalls[0].toolName }}</span>
-          <span v-else-if="toolCalls.length > 1" class="tool-name">调用了 {{ toolCalls.length }} 个工具</span>
+          <span v-if="toolCalls.length === 1" class="tool-name">{{
+            toolCalls[0].toolName
+          }}</span>
+          <span v-else-if="toolCalls.length > 1" class="tool-name"
+            >调用了 {{ toolCalls.length }} 个工具</span
+          >
           <span v-if="toolCalls.length === 1" class="request-id">
             <Hash :size="10" />
             {{ toolCalls[0].requestId.slice(0, 8) }}
           </span>
-          <span v-if="toolCalls.length === 1 && toolCalls[0].durationMs" class="duration">
+          <span
+            v-if="toolCalls.length === 1 && toolCalls[0].durationMs"
+            class="duration"
+          >
             <Clock :size="10" />
             {{ toolCalls[0].durationMs }}ms
           </span>
@@ -649,8 +755,12 @@ defineExpose({
         />
         <div class="edit-actions">
           <div class="edit-buttons">
-            <el-button @click="saveEdit" type="primary" size="small">保存 (Ctrl+Enter)</el-button>
-            <el-button @click="onSaveToBranch(editingContent)" size="small">保存到分支</el-button>
+            <el-button @click="saveEdit" type="primary" size="small"
+              >保存 (Ctrl+Enter)</el-button
+            >
+            <el-button @click="onSaveToBranch(editingContent)" size="small"
+              >保存到分支</el-button
+            >
             <el-button @click="cancelEdit" size="small">取消</el-button>
           </div>
         </div>
@@ -658,10 +768,18 @@ defineExpose({
 
       <!-- 内容显示区域 -->
       <transition v-else name="tool-collapse">
-        <div v-if="!isCollapsed" class="tool-body-container" :class="{ 'is-wide-layout': isWideLayout }">
+        <div
+          v-if="!isCollapsed"
+          class="tool-body-container"
+          :class="{ 'is-wide-layout': isWideLayout }"
+        >
           <!-- 多工具列表 -->
           <div v-if="toolCalls.length > 1" class="tool-calls-list">
-            <div v-for="tc in toolCalls" :key="tc.requestId" class="tool-call-item">
+            <div
+              v-for="tc in toolCalls"
+              :key="tc.requestId"
+              class="tool-call-item"
+            >
               <div class="item-header">
                 <div class="item-title">
                   <Terminal :size="12" />
@@ -669,8 +787,12 @@ defineExpose({
                   <span class="item-id">#{{ tc.requestId.slice(0, 6) }}</span>
                 </div>
                 <div class="item-meta">
-                  <span v-if="tc.durationMs" class="item-duration">{{ tc.durationMs }}ms</span>
-                  <div class="item-status" :class="`status-${tc.status}`">{{ tc.status }}</div>
+                  <span v-if="tc.durationMs" class="item-duration"
+                    >{{ tc.durationMs }}ms</span
+                  >
+                  <div class="item-status" :class="`status-${tc.status}`">
+                    {{ tc.status }}
+                  </div>
                 </div>
               </div>
               <div
@@ -678,18 +800,38 @@ defineExpose({
                 class="tool-args-preview mini"
                 :class="{ 'is-collapsed': isArgsCollapsed(tc.requestId) }"
               >
-                <div class="args-header" @click="toggleArgsCollapse(tc.requestId)">
+                <div
+                  class="args-header"
+                  @click="toggleArgsCollapse(tc.requestId)"
+                >
                   <div class="args-title">
                     <span class="collapse-arrow">
-                      <ChevronRight :size="12" :class="{ 'is-expanded': !isArgsCollapsed(tc.requestId) }" />
+                      <ChevronRight
+                        :size="12"
+                        :class="{
+                          'is-expanded': !isArgsCollapsed(tc.requestId),
+                        }"
+                      />
                     </span>
                     参数
                   </div>
-                  <button class="copy-small-btn" @click.stop="handleCopyArgs(tc.rawArgs)">复制</button>
+                  <button
+                    class="copy-small-btn"
+                    @click.stop="handleCopyArgs(tc.rawArgs)"
+                  >
+                    复制
+                  </button>
                 </div>
-                <div v-show="!isArgsCollapsed(tc.requestId)" class="args-content-wrapper">
+                <div
+                  v-show="!isArgsCollapsed(tc.requestId)"
+                  class="args-content-wrapper"
+                >
                   <div class="args-list">
-                    <div v-for="(value, key) in tc.rawArgs" :key="key" class="arg-item">
+                    <div
+                      v-for="(value, key) in tc.rawArgs"
+                      :key="key"
+                      class="arg-item"
+                    >
                       <span class="arg-key">{{ key }}:</span>
                       <span class="arg-value">{{ formatArgValue(value) }}</span>
                     </div>
@@ -705,18 +847,38 @@ defineExpose({
             class="tool-args-preview"
             :class="{ 'is-collapsed': isArgsCollapsed(toolCalls[0].requestId) }"
           >
-            <div class="args-header" @click="toggleArgsCollapse(toolCalls[0].requestId)">
+            <div
+              class="args-header"
+              @click="toggleArgsCollapse(toolCalls[0].requestId)"
+            >
               <div class="args-title">
                 <span class="collapse-arrow">
-                  <ChevronRight :size="12" :class="{ 'is-expanded': !isArgsCollapsed(toolCalls[0].requestId) }" />
+                  <ChevronRight
+                    :size="12"
+                    :class="{
+                      'is-expanded': !isArgsCollapsed(toolCalls[0].requestId),
+                    }"
+                  />
                 </span>
                 输入参数
               </div>
-              <button class="copy-small-btn" @click.stop="handleCopyArgs(toolCalls[0].rawArgs)">复制</button>
+              <button
+                class="copy-small-btn"
+                @click.stop="handleCopyArgs(toolCalls[0].rawArgs)"
+              >
+                复制
+              </button>
             </div>
-            <div v-show="!isArgsCollapsed(toolCalls[0].requestId)" class="args-content-wrapper">
+            <div
+              v-show="!isArgsCollapsed(toolCalls[0].requestId)"
+              class="args-content-wrapper"
+            >
               <div class="args-list">
-                <div v-for="(value, key) in toolCalls[0].rawArgs" :key="key" class="arg-item">
+                <div
+                  v-for="(value, key) in toolCalls[0].rawArgs"
+                  :key="key"
+                  class="arg-item"
+                >
                   <span class="arg-key">{{ key }}:</span>
                   <span class="arg-value">{{ formatArgValue(value) }}</span>
                 </div>
@@ -732,11 +894,22 @@ defineExpose({
                 <Loader2 :size="16" class="spinning-icon" />
                 <span class="task-status-text">任务执行中...</span>
               </div>
-              <div v-if="asyncTaskStatus.progress > 0" class="task-progress-bar">
-                <div class="progress-fill" :style="{ width: `${asyncTaskStatus.progress}%` }"></div>
-                <span class="progress-text">{{ asyncTaskStatus.progress }}%</span>
+              <div
+                v-if="asyncTaskStatus.progress > 0"
+                class="task-progress-bar"
+              >
+                <div
+                  class="progress-fill"
+                  :style="{ width: `${asyncTaskStatus.progress}%` }"
+                ></div>
+                <span class="progress-text"
+                  >{{ asyncTaskStatus.progress }}%</span
+                >
               </div>
-              <div v-if="asyncTaskStatus.progressMessage" class="task-progress-message">
+              <div
+                v-if="asyncTaskStatus.progressMessage"
+                class="task-progress-message"
+              >
                 {{ asyncTaskStatus.progressMessage }}
               </div>
               <div class="task-actions">
@@ -784,12 +957,17 @@ defineExpose({
           <div class="content-display-grid">
             <!-- 原文区域 -->
             <div v-if="showOriginal" class="original-column">
-              <div class="translation-header" v-if="displayMode === 'both' && showTranslation">
+              <div
+                class="translation-header"
+                v-if="displayMode === 'both' && showTranslation"
+              >
                 <MessageSquareText :size="14" class="translation-icon" />
                 <span class="translation-title">原文</span>
                 <button
                   class="preview-btn"
-                  @click="handlePreviewResult(displayContent, '原文（执行结果）')"
+                  @click="
+                    handlePreviewResult(displayContent, '原文（执行结果）')
+                  "
                   title="预览渲染效果"
                 >
                   <Eye :size="14" />
@@ -827,7 +1005,10 @@ defineExpose({
                 <div class="translation-header-left">
                   <Languages :size="14" class="translation-icon" />
                   <span class="translation-title">翻译结果</span>
-                  <span class="translation-meta" v-if="message.metadata?.translation">
+                  <span
+                    class="translation-meta"
+                    v-if="message.metadata?.translation"
+                  >
                     ({{ message.metadata.translation.targetLang }})
                   </span>
                 </div>
@@ -835,8 +1016,10 @@ defineExpose({
                   class="preview-btn"
                   @click="
                     handlePreviewResult(
-                      isTranslating ? translationContent : message.metadata?.translation?.content || '',
-                      '翻译结果',
+                      isTranslating
+                        ? translationContent
+                        : message.metadata?.translation?.content || '',
+                      '翻译结果'
                     )
                   "
                   title="预览渲染效果"
@@ -847,7 +1030,9 @@ defineExpose({
               </div>
               <div class="translation-content">
                 <pre class="tool-result-text">{{
-                  isTranslating ? translationContent : message.metadata?.translation?.content || ""
+                  isTranslating
+                    ? translationContent
+                    : message.metadata?.translation?.content || ""
                 }}</pre>
               </div>
             </div>
@@ -856,22 +1041,39 @@ defineExpose({
       </transition>
 
       <!-- 折叠时的简短预览 -->
-      <div v-if="isCollapsed && !isEditing" class="tool-preview-line" @click="toggleCollapse">
+      <div
+        v-if="isCollapsed && !isEditing"
+        class="tool-preview-line"
+        @click="toggleCollapse"
+      >
         <div class="preview-content">
-          <span class="preview-tool-name" v-if="toolCalls.length === 1">[{{ toolCalls[0].toolName }}]</span>
-          <span class="preview-tool-name" v-else-if="toolCalls.length > 1">[{{ toolCalls.length }} 个工具]</span>
+          <span class="preview-tool-name" v-if="toolCalls.length === 1"
+            >[{{ toolCalls[0].toolName }}]</span
+          >
+          <span class="preview-tool-name" v-else-if="toolCalls.length > 1"
+            >[{{ toolCalls.length }} 个工具]</span
+          >
           <span class="preview-tool-name" v-else>[未知工具]</span>
           <span class="preview-text">
-            {{ displayContent.trim().slice(0, 120) }}{{ displayContent.trim().length > 120 ? "..." : "" }}
+            {{ displayContent.trim().slice(0, 120)
+            }}{{ displayContent.trim().length > 120 ? "..." : "" }}
           </span>
         </div>
-        <div v-if="toolCalls.length > 0" class="preview-status-tag" :class="statusClass">
+        <div
+          v-if="toolCalls.length > 0"
+          class="preview-status-tag"
+          :class="statusClass"
+        >
           {{ mainStatus }}
         </div>
       </div>
 
       <!-- 悬浮操作栏 (对齐 ChatMessage.vue 逻辑) -->
-      <div class="menubar-wrapper" v-if="!isEditing" :class="{ 'is-collapsed': isCollapsed }">
+      <div
+        class="menubar-wrapper"
+        v-if="!isEditing"
+        :class="{ 'is-collapsed': isCollapsed }"
+      >
         <MessageMenubar
           :message="message"
           :is-sending="isGenerating"
@@ -896,7 +1098,10 @@ defineExpose({
       </div>
 
       <!-- 元数据展示 -->
-      <div v-if="message.metadata?.usage || message.metadata?.error" class="message-meta">
+      <div
+        v-if="message.metadata?.usage || message.metadata?.error"
+        class="message-meta"
+      >
         <div v-if="message.metadata.usage" class="usage-info">
           <span>Token: {{ message.metadata.usage.totalTokens }}</span>
           <span class="usage-detail"
@@ -1101,28 +1306,60 @@ defineExpose({
 }
 
 .role-badge.tool.status-success {
-  background-color: color-mix(in srgb, var(--el-color-success) 10%, var(--card-bg));
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-success) 10%,
+    var(--card-bg)
+  );
   color: var(--el-color-success);
-  border-color: color-mix(in srgb, var(--el-color-success) 30%, var(--border-color));
+  border-color: color-mix(
+    in srgb,
+    var(--el-color-success) 30%,
+    var(--border-color)
+  );
 }
 
 .role-badge.tool.status-error,
 .role-badge.tool.status-denied {
-  background-color: color-mix(in srgb, var(--el-color-danger) 10%, var(--card-bg));
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-danger) 10%,
+    var(--card-bg)
+  );
   color: var(--el-color-danger);
-  border-color: color-mix(in srgb, var(--el-color-danger) 30%, var(--border-color));
+  border-color: color-mix(
+    in srgb,
+    var(--el-color-danger) 30%,
+    var(--border-color)
+  );
 }
 
 .role-badge.tool.status-cancelled {
-  background-color: color-mix(in srgb, var(--el-color-info) 10%, var(--card-bg));
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-info) 10%,
+    var(--card-bg)
+  );
   color: var(--el-color-info);
-  border-color: color-mix(in srgb, var(--el-color-info) 30%, var(--border-color));
+  border-color: color-mix(
+    in srgb,
+    var(--el-color-info) 30%,
+    var(--border-color)
+  );
 }
 
 .role-badge.tool.status-pending {
-  background-color: color-mix(in srgb, var(--el-color-warning) 10%, var(--card-bg));
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-warning) 10%,
+    var(--card-bg)
+  );
   color: var(--el-color-warning);
-  border-color: color-mix(in srgb, var(--el-color-warning) 30%, var(--border-color));
+  border-color: color-mix(
+    in srgb,
+    var(--el-color-warning) 30%,
+    var(--border-color)
+  );
 }
 
 .tool-name {
@@ -1721,7 +1958,11 @@ defineExpose({
   left: 0;
   top: 0;
   height: 100%;
-  background: linear-gradient(90deg, var(--el-color-primary), var(--el-color-primary-light-3));
+  background: linear-gradient(
+    90deg,
+    var(--el-color-primary),
+    var(--el-color-primary-light-3)
+  );
   transition: width 0.3s ease;
 }
 
@@ -1761,7 +2002,11 @@ defineExpose({
   font-size: 12px;
   color: var(--el-color-danger);
   padding: 8px 10px;
-  background-color: color-mix(in srgb, var(--el-color-danger) 10%, var(--card-bg));
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-danger) 10%,
+    var(--card-bg)
+  );
   border-radius: 4px;
   border-left: 3px solid var(--el-color-danger);
   font-family: var(--font-family-mono);

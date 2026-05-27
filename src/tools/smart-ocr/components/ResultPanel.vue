@@ -141,7 +141,9 @@ const getStatusIcon = (status: OcrResult["status"]) => {
 };
 
 // 获取状态类型
-const getStatusType = (status: OcrResult["status"]): "success" | "danger" | "warning" | "info" => {
+const getStatusType = (
+  status: OcrResult["status"]
+): "success" | "danger" | "warning" | "info" => {
   switch (status) {
     case "success":
       return "success";
@@ -256,7 +258,12 @@ const isEditing = (blockId: string) => {
         >
           重试失败
         </el-button>
-        <el-button v-if="allText" size="small" :icon="CopyDocument" @click="copyAllText">
+        <el-button
+          v-if="allText"
+          size="small"
+          :icon="CopyDocument"
+          @click="copyAllText"
+        >
           复制全部
         </el-button>
         <el-button
@@ -281,18 +288,25 @@ const isEditing = (blockId: string) => {
       <template v-else>
         <div class="result-list">
           <!-- 按图片分组显示 -->
-          <div v-for="[imageId, results] in groupedResults" :key="imageId" class="image-group">
+          <div
+            v-for="[imageId, results] in groupedResults"
+            :key="imageId"
+            class="image-group"
+          >
             <div class="group-header" @click="toggleGroupCollapse(imageId)">
               <div class="group-header-left">
                 <el-icon class="collapse-icon">
-                  <component :is="isGroupCollapsed(imageId) ? ArrowRight : ArrowDown" />
+                  <component
+                    :is="isGroupCollapsed(imageId) ? ArrowRight : ArrowDown"
+                  />
                 </el-icon>
                 <el-text class="group-title" type="primary" size="large">
                   {{ getImageName(imageId) }}
                 </el-text>
               </div>
               <el-tag size="small">
-                {{ results.filter((r) => r.status === "success").length }} / {{ results.length }}
+                {{ results.filter((r) => r.status === "success").length }} /
+                {{ results.length }}
               </el-tag>
             </div>
 
@@ -303,12 +317,23 @@ const isEditing = (blockId: string) => {
                 class="result-item"
                 :class="{ 'is-ignored': result.ignored }"
               >
-                <div class="result-header" @click="toggleBlockCollapse(result.blockId)">
+                <div
+                  class="result-header"
+                  @click="toggleBlockCollapse(result.blockId)"
+                >
                   <div class="header-left">
                     <el-icon class="collapse-icon">
-                      <component :is="isBlockCollapsed(result.blockId) ? ArrowRight : ArrowDown" />
+                      <component
+                        :is="
+                          isBlockCollapsed(result.blockId)
+                            ? ArrowRight
+                            : ArrowDown
+                        "
+                      />
                     </el-icon>
-                    <el-tag size="small">块 {{ getBlockIndex(imageId, result.blockId) }}</el-tag>
+                    <el-tag size="small"
+                      >块 {{ getBlockIndex(imageId, result.blockId) }}</el-tag
+                    >
                     <el-tag
                       :type="getStatusType(result.status)"
                       size="small"
@@ -316,11 +341,15 @@ const isEditing = (blockId: string) => {
                     >
                       {{ getStatusText(result.status) }}
                     </el-tag>
-                    <el-tag v-if="result.ignored" size="small" type="info">已忽略</el-tag>
+                    <el-tag v-if="result.ignored" size="small" type="info"
+                      >已忽略</el-tag
+                    >
                   </div>
                   <div class="header-actions" @click.stop>
                     <el-tooltip
-                      v-if="result.status === 'error' || result.status === 'success'"
+                      v-if="
+                        result.status === 'error' || result.status === 'success'
+                      "
                       content="重试"
                       placement="top"
                     >
@@ -343,7 +372,10 @@ const isEditing = (blockId: string) => {
                       />
                     </el-tooltip>
                     <el-tooltip
-                      v-if="result.status === 'success' && !isEditing(result.blockId)"
+                      v-if="
+                        result.status === 'success' &&
+                        !isEditing(result.blockId)
+                      "
                       content="编辑"
                       placement="top"
                     >
@@ -355,17 +387,26 @@ const isEditing = (blockId: string) => {
                     </el-tooltip>
                     <el-tooltip
                       v-if="
-                        result.status === 'success' && result.text && !isEditing(result.blockId)
+                        result.status === 'success' &&
+                        result.text &&
+                        !isEditing(result.blockId)
                       "
                       content="复制"
                       placement="top"
                     >
-                      <el-button size="small" :icon="CopyDocument" @click="copyText(result.text)" />
+                      <el-button
+                        size="small"
+                        :icon="CopyDocument"
+                        @click="copyText(result.text)"
+                      />
                     </el-tooltip>
                   </div>
                 </div>
 
-                <div v-show="!isBlockCollapsed(result.blockId)" class="result-content">
+                <div
+                  v-show="!isBlockCollapsed(result.blockId)"
+                  class="result-content"
+                >
                   <template v-if="result.status === 'processing'">
                     <div class="loading-state">
                       <el-icon class="is-loading"><Loading /></el-icon>
@@ -375,7 +416,9 @@ const isEditing = (blockId: string) => {
 
                   <template v-else-if="result.status === 'error'">
                     <div class="error-state">
-                      <el-text type="danger">{{ result.error || "识别失败" }}</el-text>
+                      <el-text type="danger">{{
+                        result.error || "识别失败"
+                      }}</el-text>
                     </div>
                   </template>
 
@@ -400,7 +443,11 @@ const isEditing = (blockId: string) => {
                             />
                           </el-tooltip>
                           <el-tooltip content="取消" placement="top">
-                            <el-button size="small" :icon="Close" @click="cancelEdit" />
+                            <el-button
+                              size="small"
+                              :icon="Close"
+                              @click="cancelEdit"
+                            />
                           </el-tooltip>
                         </div>
                       </div>

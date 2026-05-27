@@ -5,7 +5,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed } from "vue";
 
 const props = defineProps<{
   nodeId: string;
@@ -13,7 +13,7 @@ const props = defineProps<{
   start?: number;
 }>();
 
-const tag = computed(() => props.ordered ? 'ol' : 'ul');
+const tag = computed(() => (props.ordered ? "ol" : "ul"));
 </script>
 
 <style scoped>

@@ -1,11 +1,19 @@
 <template>
   <div class="pipeline-config">
-    <el-alert title="关于上下文管道" type="info" :closable="false" show-icon class="mb-4">
+    <el-alert
+      title="关于上下文管道"
+      type="info"
+      :closable="false"
+      show-icon
+      class="mb-4"
+    >
       <p>
         上下文管道 (Context Pipeline)
         是一系列按顺序执行的处理器，用于在向大语言模型（LLM）发送请求之前，构建和准备核心上下文内容。
       </p>
-      <p>你可以通过拖拽来调整处理器的执行顺序，或通过开关来启用/禁用它们。顺序和状态将自动保存。</p>
+      <p>
+        你可以通过拖拽来调整处理器的执行顺序，或通过开关来启用/禁用它们。顺序和状态将自动保存。
+      </p>
     </el-alert>
 
     <div class="card-header">
@@ -35,7 +43,11 @@
       @end="onDragEnd"
       class="processor-list"
     >
-      <div v-for="processor in draggableProcessors" :key="processor.id" class="processor-item">
+      <div
+        v-for="processor in draggableProcessors"
+        :key="processor.id"
+        class="processor-item"
+      >
         <div class="drag-handle">
           <el-icon><Rank /></el-icon>
         </div>
@@ -48,7 +60,9 @@
         <div class="processor-actions">
           <el-switch
             :model-value="isEnabled(processor.id)"
-            @update:model-value="(enabled) => toggleProcessor(processor.id, !!enabled)"
+            @update:model-value="
+              (enabled) => toggleProcessor(processor.id, !!enabled)
+            "
             :disabled="processor.isCore"
           />
         </div>
@@ -61,7 +75,14 @@
 import { ref, watch } from "vue";
 import { VueDraggableNext } from "vue-draggable-next";
 import { useContextPipelineStore } from "@/tools/llm-chat/stores/contextPipelineStore";
-import { ElSwitch, ElAlert, ElIcon, ElEmpty, ElButton, ElMessageBox } from "element-plus";
+import {
+  ElSwitch,
+  ElAlert,
+  ElIcon,
+  ElEmpty,
+  ElButton,
+  ElMessageBox,
+} from "element-plus";
 import { Rank, Refresh } from "@element-plus/icons-vue";
 import type { ContextProcessor } from "@/tools/llm-chat/types/pipeline";
 import { customMessage } from "@/utils/customMessage";
@@ -73,7 +94,9 @@ const emit = defineEmits<{
 const pipelineStore = useContextPipelineStore();
 
 // 创建一个可用于拖拽的本地 ref
-const draggableProcessors = ref<ContextProcessor[]>([...pipelineStore.processors]);
+const draggableProcessors = ref<ContextProcessor[]>([
+  ...pipelineStore.processors,
+]);
 
 // 用于记录拖拽前的顺序，防止误触
 const orderBeforeDrag = ref<string[]>([]);
@@ -98,14 +121,18 @@ const toggleProcessor = (processorId: string, enabled: boolean) => {
 
 // 拖拽开始时记录当前顺序
 const onDragStart = () => {
-  orderBeforeDrag.value = draggableProcessors.value.map((p: ContextProcessor) => p.id);
+  orderBeforeDrag.value = draggableProcessors.value.map(
+    (p: ContextProcessor) => p.id
+  );
 };
 
 const onDragEnd = () => {
   const newOrder = draggableProcessors.value.map((p: ContextProcessor) => p.id);
 
   // 检查顺序是否真的发生了变化
-  const hasChanged = !orderBeforeDrag.value.every((id, index) => id === newOrder[index]);
+  const hasChanged = !orderBeforeDrag.value.every(
+    (id, index) => id === newOrder[index]
+  );
 
   if (!hasChanged) {
     // 顺序没有变化，可能只是点击，不执行保存

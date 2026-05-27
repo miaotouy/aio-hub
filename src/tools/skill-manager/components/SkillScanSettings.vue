@@ -7,7 +7,8 @@
           <h3>终端 / Shell 偏好</h3>
         </div>
         <p class="section-desc">
-          配置默认终端和命令链接风格。这些信息会自动注入到 Agent 的环境上下文中，让 AI 正确生成宿主兼容的命令。
+          配置默认终端和命令链接风格。这些信息会自动注入到 Agent
+          的环境上下文中，让 AI 正确生成宿主兼容的命令。
         </p>
       </div>
       <div class="terminal-prefs-grid">
@@ -15,7 +16,9 @@
           <label class="pref-label">默认 Shell</label>
           <el-select
             :model-value="store.config.terminalPreferences.defaultShell"
-            @update:model-value="(val: string) => handleTerminalPrefChange('defaultShell', val)"
+            @update:model-value="
+              (val: string) => handleTerminalPrefChange('defaultShell', val)
+            "
             size="small"
           >
             <el-option label="自动检测" value="auto-detect" />
@@ -29,12 +32,18 @@
           <label class="pref-label">命令链接风格</label>
           <el-select
             :model-value="store.config.terminalPreferences.commandChainStyle"
-            @update:model-value="(val: string) => handleTerminalPrefChange('commandChainStyle', val)"
+            @update:model-value="
+              (val: string) =>
+                handleTerminalPrefChange('commandChainStyle', val)
+            "
             size="small"
           >
             <el-option label="自动 (根据 Shell 类型推断)" value="auto" />
             <el-option label="分号 `;` (PowerShell 风格)" value="semicolon" />
-            <el-option label="双与 `&&` (cmd/bash/zsh 风格)" value="ampersand" />
+            <el-option
+              label="双与 `&&` (cmd/bash/zsh 风格)"
+              value="ampersand"
+            />
           </el-select>
         </div>
       </div>
@@ -56,7 +65,9 @@
           <label class="runtime-label">{{ rt.label }}</label>
           <el-input
             :model-value="store.config.runtimeSettings[rt.key].command"
-            @update:model-value="(val: string | number) => handleRuntimeChange(rt.key, String(val))"
+            @update:model-value="
+              (val: string | number) => handleRuntimeChange(rt.key, String(val))
+            "
             :placeholder="rt.placeholder"
             size="small"
             clearable
@@ -70,9 +81,14 @@
       <div class="section-header">
         <div class="section-title-row">
           <h3>外部兼容扫描</h3>
-          <el-switch v-model="externalScanEnabled" @change="handleExternalScanToggle" />
+          <el-switch
+            v-model="externalScanEnabled"
+            @change="handleExternalScanToggle"
+          />
         </div>
-        <p class="section-desc">扫描其他 AI 工具（Claude Code、Cursor 等）安装的 Skill，实现跨工具兼容</p>
+        <p class="section-desc">
+          扫描其他 AI 工具（Claude Code、Cursor 等）安装的 Skill，实现跨工具兼容
+        </p>
       </div>
     </div>
 
@@ -80,12 +96,18 @@
     <div class="section" v-if="externalScanEnabled">
       <h3 class="subsection-title">已知工具路径</h3>
       <div class="path-list">
-        <div v-for="pathItem in knownPaths" :key="pathItem.id" class="path-item">
+        <div
+          v-for="pathItem in knownPaths"
+          :key="pathItem.id"
+          class="path-item"
+        >
           <div class="path-info">
             <div class="path-header">
               <span class="path-label">{{ pathItem.label }}</span>
             </div>
-            <code class="path-value" :title="pathItem.defaultPath">{{ pathItem.defaultPath || "未检测到路径" }}</code>
+            <code class="path-value" :title="pathItem.defaultPath">{{
+              pathItem.defaultPath || "未检测到路径"
+            }}</code>
           </div>
           <el-switch
             :model-value="getPathEnabled(pathItem.id)"
@@ -111,7 +133,11 @@
       </div>
 
       <div class="path-list" v-else>
-        <div v-for="(pathItem, index) in customPaths" :key="pathItem.id" class="path-item">
+        <div
+          v-for="(pathItem, index) in customPaths"
+          :key="pathItem.id"
+          class="path-item"
+        >
           <div class="path-info">
             <el-input
               v-model="pathItem.path"
@@ -121,8 +147,18 @@
             />
           </div>
           <div class="path-actions">
-            <el-switch v-model="pathItem.enabled" @change="handleCustomPathChange" size="small" />
-            <el-button size="small" type="danger" :icon="Trash2" circle @click="handleRemoveCustomPath(index)" />
+            <el-switch
+              v-model="pathItem.enabled"
+              @change="handleCustomPathChange"
+              size="small"
+            />
+            <el-button
+              size="small"
+              type="danger"
+              :icon="Trash2"
+              circle
+              @click="handleRemoveCustomPath(index)"
+            />
           </div>
         </div>
       </div>
@@ -141,17 +177,34 @@ import { ref, computed, onMounted } from "vue";
 import { Plus, Trash2, LoaderCircle } from "lucide-vue-next";
 import { useSkillManagerStore } from "../stores/skillManagerStore";
 import { skillLoader } from "../services/SkillLoader";
-import type { ExternalScanPath, WellKnownPath, RuntimeSettings, TerminalPreferences } from "../types";
+import type {
+  ExternalScanPath,
+  WellKnownPath,
+  RuntimeSettings,
+  TerminalPreferences,
+} from "../types";
 
 const store = useSkillManagerStore();
 const loading = ref(false);
 const knownPaths = ref<WellKnownPath[]>([]);
 
-const runtimeList: { key: keyof RuntimeSettings; label: string; placeholder: string }[] = [
-  { key: "javascript", label: "JavaScript / TypeScript", placeholder: "留空自动检测（bun > node）" },
+const runtimeList: {
+  key: keyof RuntimeSettings;
+  label: string;
+  placeholder: string;
+}[] = [
+  {
+    key: "javascript",
+    label: "JavaScript / TypeScript",
+    placeholder: "留空自动检测（bun > node）",
+  },
   { key: "python", label: "Python", placeholder: "留空自动检测（python）" },
   { key: "shell", label: "Shell / Bash", placeholder: "留空自动检测（bash）" },
-  { key: "powershell", label: "PowerShell", placeholder: "留空自动检测（powershell）" },
+  {
+    key: "powershell",
+    label: "PowerShell",
+    placeholder: "留空自动检测（powershell）",
+  },
 ];
 
 const externalScanEnabled = computed({
@@ -238,7 +291,10 @@ async function handleCustomPathChange() {
   await store.saveConfig();
 }
 
-async function handleTerminalPrefChange(key: keyof TerminalPreferences, value: string) {
+async function handleTerminalPrefChange(
+  key: keyof TerminalPreferences,
+  value: string
+) {
   const prefs = store.config.terminalPreferences;
   if (key === "defaultShell") {
     prefs.defaultShell = value as TerminalPreferences["defaultShell"];

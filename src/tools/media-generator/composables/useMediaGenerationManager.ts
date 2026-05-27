@@ -24,10 +24,20 @@ const errorHandler = createModuleErrorHandler("media-generator/manager");
 export function useMediaGenerationManager() {
   const taskManager = useMediaTaskManager();
   const { sendRequest } = useLlmRequest();
-  const { importAssetFromBytes, importAssetFromPath, getAssetBasePath, getAssetBinary } = useAssetManager();
+  const {
+    importAssetFromBytes,
+    importAssetFromPath,
+    getAssetBasePath,
+    getAssetBinary,
+  } = useAssetManager();
   const { getMatchedProperties } = useModelMetadata();
   const { profiles: allProfiles } = useLlmProfiles();
-  const { getParamRules, sanitizeParams, usesAspectRatioMode, buildXaiSizeParams } = useMediaGenParamRules();
+  const {
+    getParamRules,
+    sanitizeParams,
+    usesAspectRatioMode,
+    buildXaiSizeParams,
+  } = useMediaGenParamRules();
   const isGenerating = ref(false);
   // 使用 Map 管理多个任务的 AbortController
   const abortControllers = ref<Map<string, AbortController>>(new Map());
@@ -76,16 +86,22 @@ export function useMediaGenerationManager() {
   const applyContextRules = (
     contextMessages: MediaMessage[],
     task: MediaTask,
-    autoIncludeLastResult: boolean = false,
+    autoIncludeLastResult: boolean = false
   ): MediaMessage[] => {
     let finalContext = [...contextMessages];
     const shouldIncludeContext = task.input.includeContext;
-    const isManualContext = task.input.contextMessageIds && task.input.contextMessageIds.length > 0;
+    const isManualContext =
+      task.input.contextMessageIds && task.input.contextMessageIds.length > 0;
 
     if (isManualContext) {
-      finalContext = finalContext.filter((m) => task.input.contextMessageIds?.includes(m.id));
+      finalContext = finalContext.filter((m) =>
+        task.input.contextMessageIds?.includes(m.id)
+      );
     } else if (!shouldIncludeContext) {
-      const lastUserIndex = findLastIndex(finalContext, (m: MediaMessage) => m.role === "user");
+      const lastUserIndex = findLastIndex(
+        finalContext,
+        (m: MediaMessage) => m.role === "user"
+      );
       if (lastUserIndex !== -1) {
         const lastUser = finalContext[lastUserIndex];
         const modelProps = getMatchedProperties(task.input.modelId);
@@ -94,7 +110,8 @@ export function useMediaGenerationManager() {
         if (autoIncludeLastResult && hasVisualInput && lastUserIndex > 0) {
           const prevAssistant = finalContext[lastUserIndex - 1];
           if (prevAssistant.role === "assistant") {
-            const resultAsset = prevAssistant.metadata?.taskSnapshot?.resultAsset;
+            const resultAsset =
+              prevAssistant.metadata?.taskSnapshot?.resultAsset;
             if (resultAsset) {
               const augmentedUser = {
                 ...lastUser,
@@ -124,7 +141,11 @@ export function useMediaGenerationManager() {
   const executeGeneration = async (
     task: MediaTask,
     contextMessages?: MediaMessage[],
-    config?: { timeout?: number; maxRetries?: number; autoIncludeLastResult?: boolean },
+    config?: {
+      timeout?: number;
+      maxRetries?: number;
+      autoIncludeLastResult?: boolean;
+    }
   ) => {
     const taskId = task.id;
     const options = task.input.params as any;
@@ -135,10 +156,17 @@ export function useMediaGenerationManager() {
     abortControllers.value.set(taskId, controller);
 
     try {
-      if (task.input.params.inputAttachments && (task.input.params.inputAttachments as any[]).length > 0) {
-        taskManager.updateTaskStatus(taskId, "processing", { statusText: "正在处理附件..." });
+      if (
+        task.input.params.inputAttachments &&
+        (task.input.params.inputAttachments as any[]).length > 0
+      ) {
+        taskManager.updateTaskStatus(taskId, "processing", {
+          statusText: "正在处理附件...",
+        });
       } else {
-        taskManager.updateTaskStatus(taskId, "processing", { statusText: "正在准备生成..." });
+        taskManager.updateTaskStatus(taskId, "processing", {
+          statusText: "正在准备生成...",
+        });
       }
 
       // 构造多轮会话上下文
@@ -148,7 +176,9 @@ export function useMediaGenerationManager() {
       // 处理参考图：将本地 Asset (含 path) 转换为 Base64
       let processedAttachments = task.input.params.inputAttachments;
       if (processedAttachments && (processedAttachments as any[]).length > 0) {
-        const profile = allProfiles.value.find((p) => p.id === task.input.profileId);
+        const profile = allProfiles.value.find(
+          (p) => p.id === task.input.profileId
+        );
         const model = profile?.models.find((m) => m.id === task.input.modelId);
         const maxDim = model?.capabilities?.maxImageDimension;
 
@@ -167,7 +197,10 @@ export function useMediaGenerationManager() {
                         maxWidth: maxDim,
                         maxHeight: maxDim,
                       });
-                      logger.debug("媒体生成参考图已缩放", { assetId: att.id, maxDim });
+                      logger.debug("媒体生成参考图已缩放", {
+                        assetId: att.id,
+                        maxDim,
+                      });
                     }
                   } catch (e) {
                     logger.warn("参考图缩放失败", e);
@@ -187,7 +220,7 @@ export function useMediaGenerationManager() {
               }
             }
             return att;
-          }),
+          })
         );
       }
 
@@ -200,14 +233,16 @@ export function useMediaGenerationManager() {
       };
 
       // 应用参数规则清洁
-      const selectedProfile = allProfiles.value.find((p) => p.id === task.input.profileId);
+      const selectedProfile = allProfiles.value.find(
+        (p) => p.id === task.input.profileId
+      );
       const rules = getParamRules(task.input.modelId, selectedProfile?.type);
       if (rules) {
         if (usesAspectRatioMode(rules)) {
           const ext = finalOptions as any;
           const xaiParams = buildXaiSizeParams(
             ext.aspectRatio || rules.aspectRatioMode?.defaultRatio || "1:1",
-            ext.resolution || rules.aspectRatioMode?.defaultResolution || "1k",
+            ext.resolution || rules.aspectRatioMode?.defaultResolution || "1k"
           );
           finalOptions = { ...finalOptions, ...xaiParams };
           delete (finalOptions as any).size;
@@ -218,8 +253,14 @@ export function useMediaGenerationManager() {
       // 构造多轮会话上下文
       let finalContext: MediaMessage[] = [];
       if (contextMessages && contextMessages.length > 0) {
-        const filteredContext = contextMessages.filter((m: MediaMessage) => m.id !== taskId && m.role !== "system");
-        finalContext = applyContextRules(filteredContext, task, config?.autoIncludeLastResult);
+        const filteredContext = contextMessages.filter(
+          (m: MediaMessage) => m.id !== taskId && m.role !== "system"
+        );
+        finalContext = applyContextRules(
+          filteredContext,
+          task,
+          config?.autoIncludeLastResult
+        );
       }
 
       if (finalContext.length > 0) {
@@ -228,7 +269,9 @@ export function useMediaGenerationManager() {
           content: m.content,
           attachments:
             m.attachments ||
-            (m.metadata?.taskSnapshot?.resultAsset ? [m.metadata.taskSnapshot.resultAsset] : undefined),
+            (m.metadata?.taskSnapshot?.resultAsset
+              ? [m.metadata.taskSnapshot.resultAsset]
+              : undefined),
         }));
 
         finalOptions = {
@@ -238,7 +281,10 @@ export function useMediaGenerationManager() {
       }
 
       if (selectedProfile?.type === "openai-responses") {
-        (finalOptions as any).onPartialImage = (base64: string, index: number) => {
+        (finalOptions as any).onPartialImage = (
+          base64: string,
+          index: number
+        ) => {
           const currentTask = taskManager.getTask(taskId);
           const previews = [...(currentTask?.previewUrls || [])];
           previews[index] = base64;
@@ -298,9 +344,12 @@ export function useMediaGenerationManager() {
    * 构造任务对象 (纯函数，无副作用)
    */
   const buildTask = (
-    options: MediaGenerationOptions & { contextMessageIds?: string[]; includeContext?: boolean },
+    options: MediaGenerationOptions & {
+      contextMessageIds?: string[];
+      includeContext?: boolean;
+    },
     type: MediaTaskType,
-    translatedPrompt?: string,
+    translatedPrompt?: string
   ): MediaTask => {
     const taskId = uuidv4();
     const modelProps = getMatchedProperties(options.modelId);
@@ -323,7 +372,9 @@ export function useMediaGenerationManager() {
           ...options.params,
           prompt: finalPrompt,
         },
-        referenceAssetIds: (options.inputAttachments as any[])?.map((a) => a.path || a.url).filter(Boolean) as string[],
+        referenceAssetIds: (options.inputAttachments as any[])
+          ?.map((a) => a.path || a.url)
+          .filter(Boolean) as string[],
         contextMessageIds: options.contextMessageIds,
         includeContext: shouldIncludeContext,
       },
@@ -342,16 +393,29 @@ export function useMediaGenerationManager() {
   /**
    * 处理响应中的资产并导入系统
    */
-  const handleResponseAssets = async (taskId: string, response: LlmResponse, type: MediaTaskType) => {
+  const handleResponseAssets = async (
+    taskId: string,
+    response: LlmResponse,
+    type: MediaTaskType
+  ) => {
     const task = taskManager.getTask(taskId);
     if (!task) return;
 
     // 1. 提取所有资产数据
     const resultAssets: any[] = [];
     const responseItems = [
-      ...(response.images || []).map((item) => ({ item, type: "image" as MediaTaskType })),
-      ...(response.videos || []).map((item) => ({ item, type: "video" as MediaTaskType })),
-      ...(response.audios || []).map((item) => ({ item, type: "audio" as MediaTaskType })),
+      ...(response.images || []).map((item) => ({
+        item,
+        type: "image" as MediaTaskType,
+      })),
+      ...(response.videos || []).map((item) => ({
+        item,
+        type: "video" as MediaTaskType,
+      })),
+      ...(response.audios || []).map((item) => ({
+        item,
+        type: "audio" as MediaTaskType,
+      })),
     ];
 
     if (responseItems.length === 0) {
@@ -414,22 +478,31 @@ export function useMediaGenerationManager() {
         if (bytes) {
           // 嵌入元数据
           try {
-            bytes = await embedMetadata(bytes, mimeType, { ...baseMetadata, itemIndex: i });
+            bytes = await embedMetadata(bytes, mimeType, {
+              ...baseMetadata,
+              itemIndex: i,
+            });
           } catch (e) {
             logger.warn("嵌入元数据失败", e);
           }
 
-          asset = await importAssetFromBytes(bytes, `generated-${taskId}-${i}.${extension}`, {
-            sourceModule: "media-generator",
-            origin: {
-              type: "generated",
-              source: response.revisedPrompt || taskId,
+          asset = await importAssetFromBytes(
+            bytes,
+            `generated-${taskId}-${i}.${extension}`,
+            {
               sourceModule: "media-generator",
-            },
-          });
+              origin: {
+                type: "generated",
+                source: response.revisedPrompt || taskId,
+                sourceModule: "media-generator",
+              },
+            }
+          );
         } else if (
           item.url &&
-          (item.url.startsWith("file://") || item.url.startsWith("/") || item.url.startsWith("appdata://"))
+          (item.url.startsWith("file://") ||
+            item.url.startsWith("/") ||
+            item.url.startsWith("appdata://"))
         ) {
           // 如果是本地路径且无法获取 bytes，尝试直接导入
           asset = await importAssetFromPath(item.url, {
@@ -460,7 +533,10 @@ export function useMediaGenerationManager() {
         resultAssetId: resultAssets[0].id,
         resultAsset: resultAssets[0],
       });
-      logger.info("所有资产已关联到任务", { taskId, count: resultAssets.length });
+      logger.info("所有资产已关联到任务", {
+        taskId,
+        count: resultAssets.length,
+      });
     }
   };
 
@@ -510,7 +586,9 @@ export function useMediaGenerationManager() {
    * 解析 Data URL，提取 MIME 类型和 Base64 数据
    * @returns 解析结果，非 Data URL 返回 null
    */
-  function parseDataUrl(url: string): { mimeType: string; base64: string } | null {
+  function parseDataUrl(
+    url: string
+  ): { mimeType: string; base64: string } | null {
     const match = url.match(/^data:([^;]+);base64,(.+)$/s);
     if (!match) return null;
     return { mimeType: match[1], base64: match[2] };
@@ -544,7 +622,11 @@ export function useMediaGenerationManager() {
     }
 
     // 处理 tauri 协议或本地路径
-    if (url.startsWith("appdata://") || url.startsWith("file://") || url.startsWith("/")) {
+    if (
+      url.startsWith("appdata://") ||
+      url.startsWith("file://") ||
+      url.startsWith("/")
+    ) {
       const { convertFileSrc } = await import("@tauri-apps/api/core");
       const response = await fetch(convertFileSrc(url));
       return await response.arrayBuffer();

@@ -31,7 +31,10 @@ export interface ChatContextActions {
   /** 删除指定消息 */
   deleteMessage?: (messageId: string) => void;
   /** 重新生成指定消息 */
-  regenerate?: (messageId: string, options?: { modelId?: string; profileId?: string }) => Promise<void>;
+  regenerate?: (
+    messageId: string,
+    options?: { modelId?: string; profileId?: string }
+  ) => Promise<void>;
   /** 切换兄弟分支 */
   switchSibling?: (nodeId: string, direction: "prev" | "next") => void;
   /** 切换到指定分支 */
@@ -39,7 +42,11 @@ export interface ChatContextActions {
   /** 切换节点启用状态 */
   toggleEnabled?: (nodeId: string) => void;
   /** 编辑消息内容 */
-  editMessage?: (nodeId: string, newContent: string, attachments?: Asset[]) => void;
+  editMessage?: (
+    nodeId: string,
+    newContent: string,
+    attachments?: Asset[]
+  ) => void;
   /** 中止单个节点的生成 */
   abortNode?: (nodeId: string) => void;
   /** 创建新分支 */
@@ -47,11 +54,21 @@ export interface ChatContextActions {
   /** 分析上下文 */
   analyzeContext?: (nodeId: string) => void;
   /** 保存编辑内容到新分支 */
-  saveToBranch?: (nodeId: string, newContent: string, attachments?: Asset[]) => void;
+  saveToBranch?: (
+    nodeId: string,
+    newContent: string,
+    attachments?: Asset[]
+  ) => void;
   /** 续写消息 */
-  continue?: (nodeId: string, options?: { modelId?: string; profileId?: string }) => void;
+  continue?: (
+    nodeId: string,
+    options?: { modelId?: string; profileId?: string }
+  ) => void;
   /** 智能补全输入 */
-  completeInput?: (content: string, options?: { modelId?: string; profileId?: string }) => void;
+  completeInput?: (
+    content: string,
+    options?: { modelId?: string; profileId?: string }
+  ) => void;
   /** 执行快捷操作 */
   executeQuickAction?: (action: QuickAction) => void;
   /** 插入宏变量 */
@@ -82,7 +99,8 @@ export interface ChatContext {
   actions: ChatContextActions;
 }
 
-export const CHAT_CONTEXT_KEY: InjectionKey<ChatContext> = Symbol("ChatContext");
+export const CHAT_CONTEXT_KEY: InjectionKey<ChatContext> =
+  Symbol("ChatContext");
 
 /**
  * 提供对话上下文

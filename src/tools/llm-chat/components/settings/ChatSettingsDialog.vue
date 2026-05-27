@@ -30,7 +30,12 @@
 
         <!-- 快速导航标签页 -->
         <div class="settings-tabs">
-          <el-tabs v-model="activeTab" type="card" @tab-click="handleTabClick" class="navigation-tabs">
+          <el-tabs
+            v-model="activeTab"
+            type="card"
+            @tab-click="handleTabClick"
+            class="navigation-tabs"
+          >
             <el-tab-pane
               v-for="section in mergedSettingsConfig"
               :key="section.title"
@@ -47,8 +52,15 @@
           </el-tabs>
         </div>
         <div class="settings-content" ref="scrollContainerRef">
-          <el-form :model="localSettings" :label-width="formLabelWidth" :label-position="formLabelPosition">
-            <template v-for="(section, sectionIndex) in mergedSettingsConfig" :key="section.title">
+          <el-form
+            :model="localSettings"
+            :label-width="formLabelWidth"
+            :label-position="formLabelPosition"
+          >
+            <template
+              v-for="(section, sectionIndex) in mergedSettingsConfig"
+              :key="section.title"
+            >
               <div class="settings-section">
                 <div class="section-title">
                   <el-icon><component :is="section.icon" /></el-icon>
@@ -64,7 +76,9 @@
                   @action="handleAction"
                 />
               </div>
-              <el-divider v-if="sectionIndex < mergedSettingsConfig.length - 1" />
+              <el-divider
+                v-if="sectionIndex < mergedSettingsConfig.length - 1"
+              />
             </template>
           </el-form>
         </div>
@@ -101,9 +115,24 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick, computed, onUnmounted } from "vue";
-import { ElMessageBox, ElTabs, ElTabPane, ElForm, ElDivider, ElAutocomplete, ElButton, ElIcon } from "element-plus";
+import {
+  ElMessageBox,
+  ElTabs,
+  ElTabPane,
+  ElForm,
+  ElDivider,
+  ElAutocomplete,
+  ElButton,
+  ElIcon,
+} from "element-plus";
 import { set } from "lodash-es";
-import { RefreshLeft, Loading, Search, SuccessFilled, CircleClose } from "@element-plus/icons-vue";
+import {
+  RefreshLeft,
+  Loading,
+  Search,
+  SuccessFilled,
+  CircleClose,
+} from "@element-plus/icons-vue";
 import { useElementSize, useWindowSize, useDebounceFn } from "@vueuse/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
@@ -165,9 +194,12 @@ interface Emits {
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
-const { settings, loadSettings, updateSettings, resetSettings, isLoaded } = useChatSettings();
+const { settings, loadSettings, updateSettings, resetSettings, isLoaded } =
+  useChatSettings();
 
-const localSettings = ref<ChatSettings>(JSON.parse(JSON.stringify(DEFAULT_SETTINGS)));
+const localSettings = ref<ChatSettings>(
+  JSON.parse(JSON.stringify(DEFAULT_SETTINGS))
+);
 
 const isLoadingSettings = ref(false);
 const activeGroupCollapses = ref<string[]>([]);
@@ -196,8 +228,9 @@ const handleSettingsUpdate = (newSettings: ChatSettings) => {
 watch(
   () => localSettings.value.shortcuts.send,
   (sendKey) => {
-    localSettings.value.shortcuts.newLine = sendKey === "ctrl+enter" ? "enter" : "shift+enter";
-  },
+    localSettings.value.shortcuts.newLine =
+      sendKey === "ctrl+enter" ? "enter" : "shift+enter";
+  }
 );
 
 const autoSave = useDebounceFn(async () => {
@@ -231,7 +264,7 @@ watch(
     }
     autoSave();
   },
-  { deep: true },
+  { deep: true }
 );
 
 const handleClose = () => {
@@ -319,7 +352,8 @@ const handleTabClick = (tab: any) => {
 
   const sectionTitle = tab.props.name;
 
-  const allSections = scrollContainerRef.value.querySelectorAll(".settings-section");
+  const allSections =
+    scrollContainerRef.value.querySelectorAll(".settings-section");
   let targetSection: HTMLElement | null = null;
 
   for (const section of allSections) {
@@ -356,7 +390,9 @@ const renderHint = (hint: string) => {
   return hint.replace(/\{\{ (.*?) \}\}/g, (_, expression) => {
     try {
       // eslint-disable-next-line no-new-func
-      return new Function("localSettings", `return ${expression}`)(localSettings.value);
+      return new Function("localSettings", `return ${expression}`)(
+        localSettings.value
+      );
     } catch (e) {
       return `{{ ${expression} }}`;
     }
@@ -372,11 +408,14 @@ const searchIndex = computed<SearchIndexItem[]>(() =>
         label: item.label,
         keywords: item.keywords,
         value: renderHint(`${section.title} > ${item.label}`),
-      })),
-  ),
+      }))
+  )
 );
 
-const querySearch = (queryString: string, cb: (results: SearchIndexItem[]) => void) => {
+const querySearch = (
+  queryString: string,
+  cb: (results: SearchIndexItem[]) => void
+) => {
   const results = queryString
     ? searchIndex.value.filter((item) => {
         const query = queryString.toLowerCase().trim();
@@ -394,7 +433,9 @@ const querySearch = (queryString: string, cb: (results: SearchIndexItem[]) => vo
 const handleSearchSelect = (item: Record<string, any>) => {
   if (!scrollContainerRef.value) return;
 
-  const targetElement = scrollContainerRef.value.querySelector(`[data-setting-id="${item.id}"]`) as HTMLElement;
+  const targetElement = scrollContainerRef.value.querySelector(
+    `[data-setting-id="${item.id}"]`
+  ) as HTMLElement;
 
   if (targetElement) {
     targetElement.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -426,7 +467,8 @@ const addScrollListener = () => {
 
   removeScrollListener();
 
-  const sections = scrollContainerRef.value.querySelectorAll(".settings-section");
+  const sections =
+    scrollContainerRef.value.querySelectorAll(".settings-section");
   const sectionElements = Array.from(sections) as HTMLElement[];
 
   const options = {
@@ -440,7 +482,9 @@ const addScrollListener = () => {
     entries.forEach((entry) => {
       if (entry.isIntersecting) {
         const sectionElement = entry.target as HTMLElement;
-        const titleElement = sectionElement.querySelector(".section-title span");
+        const titleElement = sectionElement.querySelector(
+          ".section-title span"
+        );
         if (titleElement && titleElement.textContent) {
           activeTab.value = titleElement.textContent;
         }
@@ -473,7 +517,7 @@ watch(
       removeScrollListener();
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 </script>
 
@@ -604,7 +648,11 @@ watch(
 
 .navigation-tabs :deep(.el-tabs__item.is-active) {
   color: var(--el-color-primary);
-  background-color: color-mix(in srgb, var(--el-color-primary-light-5) 30%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-primary-light-5) 30%,
+    transparent
+  );
   border-radius: 4px 4px 0 0;
 }
 

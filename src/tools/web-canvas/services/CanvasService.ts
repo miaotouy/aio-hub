@@ -15,12 +15,16 @@ export class CanvasService {
   /**
    * 执行健康检查
    */
-  async performHealthCheck(currentList: CanvasListItem[]): Promise<CanvasListItem[]> {
+  async performHealthCheck(
+    currentList: CanvasListItem[]
+  ): Promise<CanvasListItem[]> {
     const rootDir = await this.storage.getCanvasesRootDir();
     if (!(await exists(rootDir))) return currentList;
 
     const entries = await readDir(rootDir);
-    const diskIds = new Set(entries.filter((e) => e.isDirectory).map((e) => e.name));
+    const diskIds = new Set(
+      entries.filter((e) => e.isDirectory).map((e) => e.name)
+    );
     const newList = [...currentList];
     const indexedIds = new Set(newList.map((c) => c.metadata.id));
 
@@ -53,7 +57,10 @@ export class CanvasService {
   /**
    * 创建新画布
    */
-  async createCanvas(title: string, templateId?: string): Promise<CanvasMetadata> {
+  async createCanvas(
+    title: string,
+    templateId?: string
+  ): Promise<CanvasMetadata> {
     const registry = useTemplateRegistry();
     const id = generateCanvasId();
     const now = Date.now();
@@ -89,7 +96,9 @@ export class CanvasService {
     const addRes = await gitService.add(copiedFiles);
     if (addRes === null) throw new Error("Git 添加文件失败");
 
-    const commitRes = await gitService.commit(`Initial commit from template: ${template.name}`);
+    const commitRes = await gitService.commit(
+      `Initial commit from template: ${template.name}`
+    );
     if (commitRes === null) throw new Error("Git 初始提交失败");
 
     // 4. 写入元数据
@@ -113,7 +122,10 @@ export class CanvasService {
   /**
    * 修复项目
    */
-  async repairProject(canvasId: string, action: "remove_index" | "reindex" | "restore_metadata") {
+  async repairProject(
+    canvasId: string,
+    action: "remove_index" | "reindex" | "restore_metadata"
+  ) {
     logger.info("正在修复项目", { canvasId, action });
 
     if (action === "remove_index") {

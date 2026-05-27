@@ -1,10 +1,16 @@
 <template>
-  <div class="broadcast-card" :class="[`type-${message.type.toLowerCase()}`]" @click="$emit('click')">
+  <div
+    class="broadcast-card"
+    :class="[`type-${message.type.toLowerCase()}`]"
+    @click="$emit('click')"
+  >
     <div class="card-header">
       <span class="type-icon">
         <Database v-if="message.type === 'RAG_RETRIEVAL_DETAILS'" />
         <GitBranch v-else-if="message.type === 'META_THINKING_CHAIN'" />
-        <MessageSquare v-else-if="message.type === 'AGENT_PRIVATE_CHAT_PREVIEW'" />
+        <MessageSquare
+          v-else-if="message.type === 'AGENT_PRIVATE_CHAT_PREVIEW'"
+        />
         <StickyNote v-else-if="message.type === 'AI_MEMO_RETRIEVAL'" />
         <Cpu v-else-if="message.type === 'PLUGIN_STEP_STATUS'" />
         <Terminal v-else-if="message.type === 'vcp_log'" />
@@ -16,27 +22,45 @@
 
     <div class="card-body">
       <template v-if="message.type === 'RAG_RETRIEVAL_DETAILS'">
-        <RagCardContent :message="message as RagRetrievalMessage" @show-json="onShowJson" />
+        <RagCardContent
+          :message="message as RagRetrievalMessage"
+          @show-json="onShowJson"
+        />
       </template>
 
       <template v-else-if="message.type === 'META_THINKING_CHAIN'">
-        <ChainCardContent :message="message as ThinkingChainMessage" @show-json="onShowJson" />
+        <ChainCardContent
+          :message="message as ThinkingChainMessage"
+          @show-json="onShowJson"
+        />
       </template>
 
       <template v-else-if="message.type === 'AGENT_PRIVATE_CHAT_PREVIEW'">
-        <AgentCardContent :message="message as AgentChatPreviewMessage" @show-json="onShowJson" />
+        <AgentCardContent
+          :message="message as AgentChatPreviewMessage"
+          @show-json="onShowJson"
+        />
       </template>
 
       <template v-else-if="message.type === 'AI_MEMO_RETRIEVAL'">
-        <MemoCardContent :message="message as AiMemoRetrievalMessage" @show-json="onShowJson" />
+        <MemoCardContent
+          :message="message as AiMemoRetrievalMessage"
+          @show-json="onShowJson"
+        />
       </template>
 
       <template v-else-if="message.type === 'PLUGIN_STEP_STATUS'">
-        <PluginCardContent :message="message as PluginStepStatusMessage" @show-json="onShowJson" />
+        <PluginCardContent
+          :message="message as PluginStepStatusMessage"
+          @show-json="onShowJson"
+        />
       </template>
 
       <template v-else-if="message.type === 'vcp_log'">
-        <LogCardContent :message="message as VcpLogMessage" @show-json="onShowJson" />
+        <LogCardContent
+          :message="message as VcpLogMessage"
+          @show-json="onShowJson"
+        />
       </template>
     </div>
   </div>
@@ -44,7 +68,15 @@
 
 <script setup lang="ts">
 import { computed, defineAsyncComponent } from "vue";
-import { Database, GitBranch, MessageSquare, StickyNote, Cpu, Terminal, HelpCircle } from "lucide-vue-next";
+import {
+  Database,
+  GitBranch,
+  MessageSquare,
+  StickyNote,
+  Cpu,
+  Terminal,
+  HelpCircle,
+} from "lucide-vue-next";
 import type {
   VcpMessage,
   RagRetrievalMessage,
@@ -55,12 +87,24 @@ import type {
   VcpLogMessage,
 } from "../../types/protocol";
 
-const RagCardContent = defineAsyncComponent(() => import("./RagCardContent.vue"));
-const ChainCardContent = defineAsyncComponent(() => import("./ChainCardContent.vue"));
-const AgentCardContent = defineAsyncComponent(() => import("./AgentCardContent.vue"));
-const MemoCardContent = defineAsyncComponent(() => import("./MemoCardContent.vue"));
-const PluginCardContent = defineAsyncComponent(() => import("./PluginCardContent.vue"));
-const LogCardContent = defineAsyncComponent(() => import("./LogCardContent.vue"));
+const RagCardContent = defineAsyncComponent(
+  () => import("./RagCardContent.vue")
+);
+const ChainCardContent = defineAsyncComponent(
+  () => import("./ChainCardContent.vue")
+);
+const AgentCardContent = defineAsyncComponent(
+  () => import("./AgentCardContent.vue")
+);
+const MemoCardContent = defineAsyncComponent(
+  () => import("./MemoCardContent.vue")
+);
+const PluginCardContent = defineAsyncComponent(
+  () => import("./PluginCardContent.vue")
+);
+const LogCardContent = defineAsyncComponent(
+  () => import("./LogCardContent.vue")
+);
 
 const props = defineProps<{
   message: VcpMessage;

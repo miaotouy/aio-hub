@@ -8,10 +8,17 @@ import { debounce } from "lodash-es";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
 import { useLlmProfiles } from "@composables/useLlmProfiles";
-import { tokenCalculatorEngine, type TokenCalculationResult } from "./useTokenCalculator";
+import {
+  tokenCalculatorEngine,
+  type TokenCalculationResult,
+} from "./useTokenCalculator";
 import { calculatorProxy } from "../worker/calculator.proxy";
 import { getActiveModelProperties } from "@/config/model-metadata";
-import { loadTokenCalculatorConfig, debouncedSaveConfig, type TokenCalculatorConfig } from "../config";
+import {
+  loadTokenCalculatorConfig,
+  debouncedSaveConfig,
+  type TokenCalculatorConfig,
+} from "../config";
 
 const logger = createModuleLogger("composables/token-calculator");
 const errorHandler = createModuleErrorHandler("composables/token-calculator");
@@ -142,7 +149,10 @@ export function useTokenCalculator() {
       configLoaded.value = true;
       logger.info("配置加载成功", config);
     } catch (error) {
-      errorHandler.handle(error as Error, { userMessage: "加载配置失败", showToUser: false });
+      errorHandler.handle(error as Error, {
+        userMessage: "加载配置失败",
+        showToUser: false,
+      });
       configLoaded.value = true; // 即使失败也标记为已加载，使用默认值
     }
   };
@@ -153,7 +163,8 @@ export function useTokenCalculator() {
   const sanitizedCharacterCount = computed(() => {
     if (!inputText.value) return 0;
     // 正则表达式匹配 Markdown 图片语法中的 data:image/...;base64,...
-    const base64ImageRegex = /!\[.*?\]\(data:image\/[a-zA-Z0-9-+.]+;base64,.*?\)/g;
+    const base64ImageRegex =
+      /!\[.*?\]\(data:image\/[a-zA-Z0-9-+.]+;base64,.*?\)/g;
     // 替换为简短占位符后再计算长度
     const sanitizedText = inputText.value.replace(base64ImageRegex, "[IMAGE]");
     return sanitizedText.length;
@@ -216,13 +227,13 @@ export function useTokenCalculator() {
         tokenizerResult = await calculatorProxy.getTokenizedText(
           text,
           selectedModelId.value,
-          true, // 使用分词器名称
+          true // 使用分词器名称
         );
       } else {
         tokenizerResult = await calculatorProxy.getTokenizedText(
           text,
           selectedModelId.value,
-          false, // 使用模型 ID
+          false // 使用模型 ID
         );
       }
 
@@ -233,13 +244,15 @@ export function useTokenCalculator() {
             text: token.text,
             id: token.id,
             index,
-          }),
+          })
         );
 
         // 根据用户设置限制显示数量
         if (tokens.length > maxDisplayTokens.value) {
           tokenizedText.value = tokens.slice(0, maxDisplayTokens.value);
-          logger.warn(`分词数量过多 (${tokens.length})，仅显示前 ${maxDisplayTokens.value} 个`);
+          logger.warn(
+            `分词数量过多 (${tokens.length})，仅显示前 ${maxDisplayTokens.value} 个`
+          );
         } else {
           tokenizedText.value = tokens;
         }
@@ -278,7 +291,9 @@ export function useTokenCalculator() {
     // 根据用户设置限制显示数量
     if (tokens.length > maxDisplayTokens.value) {
       tokenizedText.value = tokens.slice(0, maxDisplayTokens.value);
-      logger.warn(`简单分词数量过多 (${tokens.length})，仅显示前 ${maxDisplayTokens.value} 个`);
+      logger.warn(
+        `简单分词数量过多 (${tokens.length})，仅显示前 ${maxDisplayTokens.value} 个`
+      );
     } else {
       tokenizedText.value = tokens;
     }
@@ -306,9 +321,15 @@ export function useTokenCalculator() {
         let result: TokenCalculationResult;
         // 根据模式选择不同的计算方法 (使用 Worker 代理)
         if (calculationMode.value === "tokenizer") {
-          result = await calculatorProxy.calculateTokensByTokenizer(inputText.value, selectedModelId.value);
+          result = await calculatorProxy.calculateTokensByTokenizer(
+            inputText.value,
+            selectedModelId.value
+          );
         } else {
-          result = await calculatorProxy.calculateTokens(inputText.value, selectedModelId.value);
+          result = await calculatorProxy.calculateTokens(
+            inputText.value,
+            selectedModelId.value
+          );
         }
 
         // === 计算媒体 Token ===
@@ -321,19 +342,35 @@ export function useTokenCalculator() {
         // 如果是 tokenizer 模式，或者模型未定义视觉规则，我们默认使用 Gemini 2.0 规则作为参考
         // 这样用户添加了媒体至少能看到一个合理的数字，而不是 0
         const metadata = getActiveModelProperties(selectedModelId.value);
-        const defaultVisionCost = { calculationMethod: "gemini_2_0", parameters: {} } as const;
-        const visionTokenCost = metadata?.capabilities?.visionTokenCost || defaultVisionCost;
+        const defaultVisionCost = {
+          calculationMethod: "gemini_2_0",
+          parameters: {},
+        } as const;
+        const visionTokenCost =
+          metadata?.capabilities?.visionTokenCost || defaultVisionCost;
 
         mediaItems.value.forEach((item) => {
           let count = 0;
-          if (item.type === "image" && item.params.width && item.params.height) {
-            count = tokenCalculatorEngine.calculateImageTokens(item.params.width, item.params.height, visionTokenCost);
+          if (
+            item.type === "image" &&
+            item.params.width &&
+            item.params.height
+          ) {
+            count = tokenCalculatorEngine.calculateImageTokens(
+              item.params.width,
+              item.params.height,
+              visionTokenCost
+            );
             imageTotal += count;
           } else if (item.type === "video" && item.params.duration) {
-            count = tokenCalculatorEngine.calculateVideoTokens(item.params.duration);
+            count = tokenCalculatorEngine.calculateVideoTokens(
+              item.params.duration
+            );
             videoTotal += count;
           } else if (item.type === "audio" && item.params.duration) {
-            count = tokenCalculatorEngine.calculateAudioTokens(item.params.duration);
+            count = tokenCalculatorEngine.calculateAudioTokens(
+              item.params.duration
+            );
             audioTotal += count;
           }
 
@@ -374,7 +411,7 @@ export function useTokenCalculator() {
           mode: calculationMode.value,
           modelId: selectedModelId.value,
         },
-      },
+      }
     );
 
     isCalculating.value = false;
@@ -500,7 +537,9 @@ export function useTokenCalculator() {
   watch(maxDisplayTokens, () => {
     if (inputText.value) {
       generateTokenizedText();
-      logger.info("更新最大显示数量", { maxDisplayTokens: maxDisplayTokens.value });
+      logger.info("更新最大显示数量", {
+        maxDisplayTokens: maxDisplayTokens.value,
+      });
     }
     // 保存配置
     saveCurrentConfig();
@@ -515,7 +554,9 @@ export function useTokenCalculator() {
 
     // 如果配置中有保存的模型ID，先尝试验证它是否仍然可用
     if (selectedModelId.value && availableModels.value.length > 0) {
-      const modelExists = availableModels.value.some((m: { id: string }) => m.id === selectedModelId.value);
+      const modelExists = availableModels.value.some(
+        (m: { id: string }) => m.id === selectedModelId.value
+      );
       if (modelExists) {
         logger.info("使用配置中保存的模型", { modelId: selectedModelId.value });
         return;
@@ -547,11 +588,14 @@ export function useTokenCalculator() {
         const firstModel = models[0];
         if (firstModel) {
           selectedModelId.value = firstModel.id;
-          logger.info("自动选择默认模型", { modelId: firstModel.id, modelName: firstModel.name });
+          logger.info("自动选择默认模型", {
+            modelId: firstModel.id,
+            modelName: firstModel.name,
+          });
         }
       }
     },
-    { immediate: true },
+    { immediate: true }
   );
 
   // ==================== 返回 ====================

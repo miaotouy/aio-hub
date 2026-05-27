@@ -20,7 +20,10 @@ import BaseDialog from "@/components/common/BaseDialog.vue";
 import { providerTypes } from "@/config/llm-providers";
 import { llmPresets } from "@/config/llm-presets";
 import { PRESET_ICONS } from "@/config/preset-icons";
-import { generateLlmApiEndpointPreview, getLlmEndpointHint } from "@/utils/llm-api-url";
+import {
+  generateLlmApiEndpointPreview,
+  getLlmEndpointHint,
+} from "@/utils/llm-api-url";
 import type { LlmModelInfo } from "@/types/llm-profiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
 import { useProfileEditor } from "./composables/useProfileEditor";
@@ -67,8 +70,14 @@ const {
   handleAddModels,
 } = useModelEditor(editForm, selectedProfile);
 
-const { isTestingConnection, modelTestLoading, keyTestLoading, testConnection, handleTestModel, handleTestKey } =
-  useConnectionTest(editForm, selectedProfile);
+const {
+  isTestingConnection,
+  modelTestLoading,
+  keyTestLoading,
+  testConnection,
+  handleTestModel,
+  handleTestKey,
+} = useConnectionTest(editForm, selectedProfile);
 
 // ─── 图标 ───
 const { getDisplayIconPath, getIconPath } = useModelMetadata();
@@ -108,7 +117,7 @@ onMounted(() => {
 
 watch(
   () => route.query.profileId,
-  () => handleProfileIdParam(),
+  () => handleProfileIdParam()
 );
 
 // 监听 profiles 加载，一旦加载完成且有 profileId 参数，则进行选中
@@ -119,7 +128,7 @@ watch(
       handleProfileIdParam();
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 // ─── 响应式布局 ───
@@ -128,9 +137,15 @@ const editorContainerRef = ref<HTMLElement | null>(null);
 const { width: containerWidth } = useElementSize(containerRef);
 const { width: editorWidth } = useElementSize(editorContainerRef);
 
-const isNarrow = computed(() => containerWidth.value > 0 && containerWidth.value < 850);
-const isEditorNarrow = computed(() => editorWidth.value > 0 && editorWidth.value < 760);
-const formLabelPosition = computed(() => (isNarrow.value || isEditorNarrow.value ? "top" : "left"));
+const isNarrow = computed(
+  () => containerWidth.value > 0 && containerWidth.value < 850
+);
+const isEditorNarrow = computed(
+  () => editorWidth.value > 0 && editorWidth.value < 760
+);
+const formLabelPosition = computed(() =>
+  isNarrow.value || isEditorNarrow.value ? "top" : "left"
+);
 // ─── 对话框状态 ───
 const showCreateProfileDialog = ref(false);
 const showCustomHeadersDialog = ref(false);
@@ -171,14 +186,16 @@ const applyCurlResult = (result: ParsedCurlResult) => {
 
   // 填充模型（从预设中查找完整模型信息）
   if (result.model) {
-    const existingModel = editForm.value.models.find((m) => m.id === result.model);
+    const existingModel = editForm.value.models.find(
+      (m) => m.id === result.model
+    );
     if (!existingModel) {
       const presetModel = findPresetModel(result.model, result.providerType);
       editForm.value.models.push(
         presetModel || {
           id: result.model,
           name: result.model,
-        },
+        }
       );
     }
   }
@@ -204,7 +221,10 @@ const applyCurlResult = (result: ParsedCurlResult) => {
  * 从预设模板中查找匹配的完整模型信息
  * 优先匹配同类型预设，再全局搜索
  */
-const findPresetModel = (modelId: string, providerType: string): LlmModelInfo | null => {
+const findPresetModel = (
+  modelId: string,
+  providerType: string
+): LlmModelInfo | null => {
   // 先在同类型的预设中查找
   for (const preset of llmPresets) {
     if (preset.type === providerType && preset.defaultModels) {
@@ -235,10 +255,15 @@ const openMultiKeyManager = () => {
 // ─── API 端点预览 ───
 const apiEndpointPreview = computed(() => {
   if (!editForm.value.baseUrl) return "";
-  return generateLlmApiEndpointPreview(editForm.value.baseUrl, editForm.value.type);
+  return generateLlmApiEndpointPreview(
+    editForm.value.baseUrl,
+    editForm.value.type
+  );
 });
 
-const endpointHintText = computed(() => getLlmEndpointHint(editForm.value.type));
+const endpointHintText = computed(() =>
+  getLlmEndpointHint(editForm.value.type)
+);
 
 // ─── 网络设置 ───
 const networkCollapseActive = ref<string[]>([]);
@@ -258,10 +283,14 @@ const networkSettingSummary = computed(() => {
     if (editForm.value.http1Only) parts.push("HTTP/1.1");
   }
 
-  const headersCount = editForm.value.customHeaders ? Object.keys(editForm.value.customHeaders).length : 0;
+  const headersCount = editForm.value.customHeaders
+    ? Object.keys(editForm.value.customHeaders).length
+    : 0;
   if (headersCount > 0) parts.push(`${headersCount} 个请求头`);
 
-  const endpointsCount = editForm.value.customEndpoints ? Object.keys(editForm.value.customEndpoints).length : 0;
+  const endpointsCount = editForm.value.customEndpoints
+    ? Object.keys(editForm.value.customEndpoints).length
+    : 0;
   if (endpointsCount > 0) parts.push(`${endpointsCount} 个自定义端点`);
 
   return parts.join(" · ");
@@ -269,7 +298,11 @@ const networkSettingSummary = computed(() => {
 </script>
 
 <template>
-  <div class="llm-settings-page" :class="{ 'is-narrow': isNarrow }" ref="containerRef">
+  <div
+    class="llm-settings-page"
+    :class="{ 'is-narrow': isNarrow }"
+    ref="containerRef"
+  >
     <div class="settings-layout">
       <!-- 左侧：渠道列表 -->
       <ProfileSidebar
@@ -289,10 +322,16 @@ const networkSettingSummary = computed(() => {
           </el-tooltip>
         </template>
         <template #item="{ profile }">
-          <DynamicIcon :src="getProviderIcon(profile) || ''" class="profile-icon" :alt="profile.name" />
+          <DynamicIcon
+            :src="getProviderIcon(profile) || ''"
+            class="profile-icon"
+            :alt="profile.name"
+          />
           <div class="profile-info">
             <div class="profile-name">{{ profile.name }}</div>
-            <div class="profile-type">{{ getProviderTypeInfo(profile.type)?.name }}</div>
+            <div class="profile-type">
+              {{ getProviderTypeInfo(profile.type)?.name }}
+            </div>
             <div class="profile-models">{{ profile.models.length }} 个模型</div>
           </div>
         </template>
@@ -300,9 +339,18 @@ const networkSettingSummary = computed(() => {
 
       <!-- 右侧：配置编辑 -->
       <div class="editor-container" ref="editorContainerRef">
-        <ProfileEditor v-if="selectedProfile" :title="selectedProfile.name" :show-save="false" @delete="handleDelete">
+        <ProfileEditor
+          v-if="selectedProfile"
+          :title="selectedProfile.name"
+          :show-save="false"
+          @delete="handleDelete"
+        >
           <template #header-actions>
-            <DynamicIcon :src="getProviderIcon(editForm) || ''" class="profile-editor-icon" :alt="editForm.name" />
+            <DynamicIcon
+              :src="getProviderIcon(editForm) || ''"
+              class="profile-editor-icon"
+              :alt="editForm.name"
+            />
           </template>
           <el-form
             :model="editForm"
@@ -310,7 +358,12 @@ const networkSettingSummary = computed(() => {
             :label-position="formLabelPosition"
           >
             <el-form-item label="渠道名称">
-              <el-input v-model="editForm.name" placeholder="例如: 我的 OpenAI" maxlength="50" show-word-limit />
+              <el-input
+                v-model="editForm.name"
+                placeholder="例如: 我的 OpenAI"
+                maxlength="50"
+                show-word-limit
+              />
             </el-form-item>
 
             <el-form-item label="API 格式">
@@ -323,25 +376,40 @@ const networkSettingSummary = computed(() => {
                 >
                   <div>
                     <div>{{ provider.name }}</div>
-                    <div style="font-size: 12px; color: var(--el-text-color-secondary)">
+                    <div
+                      style="
+                        font-size: 12px;
+                        color: var(--el-text-color-secondary);
+                      "
+                    >
                       {{ provider.description }}
                     </div>
                   </div>
                 </el-option>
               </el-select>
-              <div class="form-hint">API 请求格式类型（兼容该格式的所有服务商均可使用）</div>
+              <div class="form-hint">
+                API 请求格式类型（兼容该格式的所有服务商均可使用）
+              </div>
             </el-form-item>
 
             <el-form-item label="供应商图标">
-              <el-input v-model="editForm.icon" placeholder="自定义图标路径或URL，或选择预设">
+              <el-input
+                v-model="editForm.icon"
+                placeholder="自定义图标路径或URL，或选择预设"
+              >
                 <template #append>
-                  <el-button @click="openProviderIconSelector">选择预设</el-button>
+                  <el-button @click="openProviderIconSelector"
+                    >选择预设</el-button
+                  >
                 </template>
               </el-input>
             </el-form-item>
 
             <el-form-item label="API 地址">
-              <el-input v-model="editForm.baseUrl" placeholder="https://api.openai.com">
+              <el-input
+                v-model="editForm.baseUrl"
+                placeholder="https://api.openai.com"
+              >
                 <template #append>
                   <el-tooltip content="从 curl 命令导入" placement="top">
                     <el-button @click="showCurlImportForEdit = true">
@@ -362,7 +430,10 @@ const networkSettingSummary = computed(() => {
               </el-input>
 
               <!-- 快捷链接 -->
-              <div v-if="editForm.links && editForm.links.length > 0" class="preset-links-bar">
+              <div
+                v-if="editForm.links && editForm.links.length > 0"
+                class="preset-links-bar"
+              >
                 <span class="links-title">快捷方式:</span>
                 <div class="links-list">
                   <el-tooltip
@@ -372,7 +443,13 @@ const networkSettingSummary = computed(() => {
                     placement="top"
                     :show-after="500"
                   >
-                    <el-link :href="link.url" target="_blank" type="primary" underline="never" class="link-item">
+                    <el-link
+                      :href="link.url"
+                      target="_blank"
+                      type="primary"
+                      underline="never"
+                      class="link-item"
+                    >
                       <ExternalLink :size="12" class="link-icon" />
                       {{ link.label }}
                     </el-link>
@@ -388,7 +465,12 @@ const networkSettingSummary = computed(() => {
               </div>
               <div v-else>
                 <div class="form-hint">
-                  <span>默认: {{ getProviderTypeInfo(editForm.type)?.defaultBaseUrl }}</span>
+                  <span
+                    >默认:
+                    {{
+                      getProviderTypeInfo(editForm.type)?.defaultBaseUrl
+                    }}</span
+                  >
                 </div>
               </div>
             </el-form-item>
@@ -405,12 +487,17 @@ const networkSettingSummary = computed(() => {
             </template>
 
             <!-- 网络设置折叠区域 -->
-            <el-collapse v-model="networkCollapseActive" class="network-collapse">
+            <el-collapse
+              v-model="networkCollapseActive"
+              class="network-collapse"
+            >
               <el-collapse-item name="network">
                 <template #title>
                   <div class="network-collapse-title">
                     <span class="network-collapse-label">网络设置</span>
-                    <span class="network-collapse-summary">{{ networkSettingSummary }}</span>
+                    <span class="network-collapse-summary">{{
+                      networkSettingSummary
+                    }}</span>
                   </div>
                 </template>
 
@@ -422,10 +509,12 @@ const networkSettingSummary = computed(() => {
                   </el-radio-group>
                   <div class="form-hint">
                     <span v-if="editForm.networkStrategy === 'auto'">
-                      默认使用后端 Rust 代理。支持底层网络微调，可绕过 CORS，并自动处理本地文件协议。
+                      默认使用后端 Rust 代理。支持底层网络微调，可绕过
+                      CORS，并自动处理本地文件协议。
                     </span>
                     <span v-else-if="editForm.networkStrategy === 'proxy'">
-                      强制通过后端 Rust 代理。支持放宽证书校验、强制 HTTP/1.1 等底层配置，可绕过 CORS。
+                      强制通过后端 Rust 代理。支持放宽证书校验、强制 HTTP/1.1
+                      等底层配置，可绕过 CORS。
                     </span>
                     <span v-else-if="editForm.networkStrategy === 'native'">
                       强制使用前端原生请求。但不支持底层网络微调，且受限于浏览器安全策略。
@@ -433,32 +522,68 @@ const networkSettingSummary = computed(() => {
                   </div>
                 </el-form-item>
 
-                <el-form-item label="代理行为" v-if="editForm.networkStrategy !== 'native'">
+                <el-form-item
+                  label="代理行为"
+                  v-if="editForm.networkStrategy !== 'native'"
+                >
                   <div style="display: flex; gap: 20px">
-                    <el-checkbox v-model="editForm.relaxIdCerts" label="放宽证书校验" />
-                    <el-checkbox v-model="editForm.http1Only" label="强制 HTTP/1.1" />
+                    <el-checkbox
+                      v-model="editForm.relaxIdCerts"
+                      label="放宽证书校验"
+                    />
+                    <el-checkbox
+                      v-model="editForm.http1Only"
+                      label="强制 HTTP/1.1"
+                    />
                   </div>
-                  <div class="form-hint">放宽证书校验允许自签名证书；强制 HTTP/1.1 可提高与某些自建服务的兼容性。</div>
+                  <div class="form-hint">
+                    放宽证书校验允许自签名证书；强制 HTTP/1.1
+                    可提高与某些自建服务的兼容性。
+                  </div>
                 </el-form-item>
 
                 <el-form-item label="自定义请求头">
-                  <el-button type="primary" plain size="small" @click="showCustomHeadersDialog = true">
+                  <el-button
+                    type="primary"
+                    plain
+                    size="small"
+                    @click="showCustomHeadersDialog = true"
+                  >
                     编辑请求头
-                    <span v-if="editForm.customHeaders && Object.keys(editForm.customHeaders).length > 0">
+                    <span
+                      v-if="
+                        editForm.customHeaders &&
+                        Object.keys(editForm.customHeaders).length > 0
+                      "
+                    >
                       ({{ Object.keys(editForm.customHeaders).length }})
                     </span>
                   </el-button>
-                  <div class="form-hint">为该渠道的所有请求附加自定义 HTTP 请求头。</div>
+                  <div class="form-hint">
+                    为该渠道的所有请求附加自定义 HTTP 请求头。
+                  </div>
                 </el-form-item>
 
                 <el-form-item label="高级端点">
-                  <el-button type="primary" plain size="small" @click="showCustomEndpointsDialog = true">
+                  <el-button
+                    type="primary"
+                    plain
+                    size="small"
+                    @click="showCustomEndpointsDialog = true"
+                  >
                     编辑端点
-                    <span v-if="editForm.customEndpoints && Object.keys(editForm.customEndpoints).length > 0">
+                    <span
+                      v-if="
+                        editForm.customEndpoints &&
+                        Object.keys(editForm.customEndpoints).length > 0
+                      "
+                    >
                       ({{ Object.keys(editForm.customEndpoints).length }})
                     </span>
                   </el-button>
-                  <div class="form-hint">自定义特定操作（如聊天、嵌入）的 API 端点路径。</div>
+                  <div class="form-hint">
+                    自定义特定操作（如聊天、嵌入）的 API 端点路径。
+                  </div>
                 </el-form-item>
               </el-collapse-item>
             </el-collapse>
@@ -473,13 +598,28 @@ const networkSettingSummary = computed(() => {
                   style="flex: 1"
                   @blur="updateApiKeys"
                 />
-                <el-button type="primary" plain :loading="isTestingConnection" @click="testConnection">
+                <el-button
+                  type="primary"
+                  plain
+                  :loading="isTestingConnection"
+                  @click="testConnection"
+                >
                   测试连接
                 </el-button>
               </div>
-              <div v-if="editForm.apiKeys.length > 0" class="form-hint multi-key-hint">
+              <div
+                v-if="editForm.apiKeys.length > 0"
+                class="form-hint multi-key-hint"
+              >
                 <span>已配置 {{ editForm.apiKeys.length }} 个密钥</span>
-                <el-button link type="primary" size="small" @click="openMultiKeyManager"> 管理密钥状态 </el-button>
+                <el-button
+                  link
+                  type="primary"
+                  size="small"
+                  @click="openMultiKeyManager"
+                >
+                  管理密钥状态
+                </el-button>
               </div>
             </el-form-item>
 
@@ -499,7 +639,9 @@ const networkSettingSummary = computed(() => {
                   @delete-group="deleteModelGroup"
                   @clear="clearAllModels"
                   @fetch="fetchModels"
-                  @update:expand-state="(state: any) => (editForm.modelGroupsExpandState = state)"
+                  @update:expand-state="
+                    (state: any) => (editForm.modelGroupsExpandState = state)
+                  "
                 />
               </div>
             </el-form-item>
@@ -522,7 +664,10 @@ const networkSettingSummary = computed(() => {
     />
 
     <!-- 编辑界面的 curl 导入对话框 -->
-    <CurlImportDialog v-model:visible="showCurlImportForEdit" @import="handleCurlImportForEdit" />
+    <CurlImportDialog
+      v-model:visible="showCurlImportForEdit"
+      @import="handleCurlImportForEdit"
+    />
 
     <!-- 模型编辑对话框 -->
     <ModelEditDialog
@@ -556,10 +701,16 @@ const networkSettingSummary = computed(() => {
     />
 
     <!-- 自定义请求头配置弹窗 -->
-    <CustomHeadersEditor v-model:visible="showCustomHeadersDialog" v-model="editForm.customHeaders" />
+    <CustomHeadersEditor
+      v-model:visible="showCustomHeadersDialog"
+      v-model="editForm.customHeaders"
+    />
 
     <!-- 高级端点配置弹窗 -->
-    <CustomEndpointsEditor v-model:visible="showCustomEndpointsDialog" v-model="editForm.customEndpoints" />
+    <CustomEndpointsEditor
+      v-model:visible="showCustomEndpointsDialog"
+      v-model="editForm.customEndpoints"
+    />
 
     <!-- 多密钥管理弹窗 -->
     <MultiKeyManagerDialog

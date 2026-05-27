@@ -59,7 +59,8 @@ const routes: Array<RouteRecordRaw> = [
     // 动态路由：画布专用预览窗口 /canvas-window/{canvasId}
     path: "/canvas-window/:canvasId",
     name: "CanvasWindow",
-    component: () => import("../tools/web-canvas/components/window/CanvasWindowContainer.vue"),
+    component: () =>
+      import("../tools/web-canvas/components/window/CanvasWindowContainer.vue"),
   },
   {
     // 捕获所有未匹配路由，防止初始导航报错
@@ -132,7 +133,7 @@ export function initDynamicRoutes() {
         }
       });
     },
-    { immediate: true },
+    { immediate: true }
   );
 }
 
@@ -143,7 +144,10 @@ export function initDynamicRoutes() {
 export function refreshCurrentRoute() {
   const { fullPath, matched } = router.currentRoute.value;
   // 如果当前没有匹配到路由，或者匹配到了 fallback，则尝试重新导航到当前路径
-  if (matched.length === 0 || matched.some((m) => m.name === "NotFound" || !m.components?.default)) {
+  if (
+    matched.length === 0 ||
+    matched.some((m) => m.name === "NotFound" || !m.components?.default)
+  ) {
     router.replace(fullPath);
   }
 }

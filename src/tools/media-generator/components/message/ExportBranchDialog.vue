@@ -42,7 +42,9 @@
     <template #footer>
       <div class="footer-actions">
         <el-button @click="handleClose">取消</el-button>
-        <el-button type="primary" @click="handleExport" :loading="exporting">开始导出</el-button>
+        <el-button type="primary" @click="handleExport" :loading="exporting"
+          >开始导出</el-button
+        >
       </div>
     </template>
   </BaseDialog>
@@ -56,7 +58,9 @@ import { useMediaGenStore } from "../../stores/mediaGenStore";
 import { useMediaExportManager } from "../../composables/useMediaExportManager";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 
-const errorHandler = createModuleErrorHandler("MediaGenerator/ExportBranchDialog");
+const errorHandler = createModuleErrorHandler(
+  "MediaGenerator/ExportBranchDialog"
+);
 
 const props = defineProps<{
   modelValue: boolean;
@@ -92,9 +96,16 @@ const handleExport = async () => {
   try {
     exporting.value = true;
     if (exportFormat.value === "markdown") {
-      await exportManager.exportBranchAsMarkdown(store.currentFullSession, props.messageId, options);
+      await exportManager.exportBranchAsMarkdown(
+        store.currentFullSession,
+        props.messageId,
+        options
+      );
     } else {
-      await exportManager.exportBranchAsJson(store.currentFullSession, props.messageId);
+      await exportManager.exportBranchAsJson(
+        store.currentFullSession,
+        props.messageId
+      );
     }
     handleClose();
   } catch (error) {

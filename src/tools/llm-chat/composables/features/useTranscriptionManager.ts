@@ -43,7 +43,8 @@ export function useTranscriptionManager() {
       asset.type === "image" ||
       asset.type === "audio" ||
       asset.type === "video" ||
-      (asset.type === "document" && (asset.mimeType === "application/pdf" || isDocxAssetLike(asset)))
+      (asset.type === "document" &&
+        (asset.mimeType === "application/pdf" || isDocxAssetLike(asset)))
     );
   };
 
@@ -56,16 +57,21 @@ export function useTranscriptionManager() {
     let modelIdentifier = "";
 
     // (1) 类型专用模型
-    if (asset.type === "image") modelIdentifier = chatConfig.image?.modelIdentifier;
-    else if (asset.type === "audio") modelIdentifier = chatConfig.audio?.modelIdentifier;
-    else if (asset.type === "video") modelIdentifier = chatConfig.video?.modelIdentifier;
-    else if (asset.type === "document") modelIdentifier = chatConfig.document?.modelIdentifier;
+    if (asset.type === "image")
+      modelIdentifier = chatConfig.image?.modelIdentifier;
+    else if (asset.type === "audio")
+      modelIdentifier = chatConfig.audio?.modelIdentifier;
+    else if (asset.type === "video")
+      modelIdentifier = chatConfig.video?.modelIdentifier;
+    else if (asset.type === "document")
+      modelIdentifier = chatConfig.document?.modelIdentifier;
 
     // (2) 转写兜底模型
     if (!modelIdentifier) modelIdentifier = chatConfig.modelIdentifier;
 
     // (3) Chat 全局默认模型
-    if (!modelIdentifier) modelIdentifier = settings.value.modelPreferences.defaultModel;
+    if (!modelIdentifier)
+      modelIdentifier = settings.value.modelPreferences.defaultModel;
 
     // (4) 当前会话/Agent 模型
     if (!modelIdentifier && currentAgent) {
@@ -116,19 +122,33 @@ export function useTranscriptionManager() {
     // 3. 检查任务列表是否已经有该资产的任务
     const existingTask = transcriptionStore.getTaskByAssetId(asset.id);
     if (existingTask && existingTask.status !== "error") {
-      logger.debug("资产已有正在进行的转写任务，跳过自动触发", { assetId: asset.id, status: existingTask.status });
+      logger.debug("资产已有正在进行的转写任务，跳过自动触发", {
+        assetId: asset.id,
+        status: existingTask.status,
+      });
       return;
     }
 
     // 4. 获取当前聊天上下文的模型 (用于判断必要性)
     const agentStore = useAgentStore();
-    const currentAgent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
+    const currentAgent = agentStore.currentAgentId
+      ? agentStore.getAgentById(agentStore.currentAgentId)
+      : null;
 
     // 5. 确定执行转写的模型
-    const transcribeModelIdentifier = getTranscribeModelIdentifier(currentAsset, currentAgent);
+    const transcribeModelIdentifier = getTranscribeModelIdentifier(
+      currentAsset,
+      currentAgent
+    );
 
     // 6. 检查必要性 (基于当前聊天模型判断)
-    if (checkTranscriptionNecessity(currentAsset, currentAgent?.modelId, currentAgent?.profileId)) {
+    if (
+      checkTranscriptionNecessity(
+        currentAsset,
+        currentAgent?.modelId,
+        currentAgent?.profileId
+      )
+    ) {
       if (transcribeModelIdentifier) {
         logger.info("触发自动转写", {
           assetId: asset.id,
@@ -137,7 +157,9 @@ export function useTranscriptionManager() {
         });
         addTask(currentAsset, { modelId: transcribeModelIdentifier });
       } else {
-        logger.debug("需要转写但未找到任何可用模型执行任务，跳过自动触发", { assetId: asset.id });
+        logger.debug("需要转写但未找到任何可用模型执行任务，跳过自动触发", {
+          assetId: asset.id,
+        });
       }
     }
   };
@@ -161,7 +183,10 @@ export function useTranscriptionManager() {
       listen<{ asset: Asset; tempId: string }>("asset-imported", (event) => {
         const { asset } = event.payload;
         // 仅处理本模块导入的资产
-        if (asset.sourceModule === "llm-chat" || asset.sourceModule === "llm-chat-paste") {
+        if (
+          asset.sourceModule === "llm-chat" ||
+          asset.sourceModule === "llm-chat-paste"
+        ) {
           // 如果已经在 watch 中处理过了，这里就跳过
           if (processedAssetIds.has(asset.id)) return;
 
@@ -184,7 +209,9 @@ export function useTranscriptionManager() {
 
         newAssets.forEach((asset: any) => {
           // 核心逻辑：如果资产状态是 'complete' 且我们还没处理过它
-          const isReady = asset.importStatus === "complete" && !processedAssetIds.has(asset.id);
+          const isReady =
+            asset.importStatus === "complete" &&
+            !processedAssetIds.has(asset.id);
 
           if (isReady) {
             logger.debug("检测到资产就绪，触发自动转写", {
@@ -203,7 +230,7 @@ export function useTranscriptionManager() {
           processedAssetIds.clear();
         }
       },
-      { deep: true, immediate: true },
+      { deep: true, immediate: true }
     );
   };
 
@@ -219,7 +246,7 @@ export function useTranscriptionManager() {
       modelId?: string;
       additionalPrompt?: string;
       enableRepetitionDetection?: boolean;
-    },
+    }
   ) => {
     const chatConfig = settings.value.transcription;
 
@@ -237,7 +264,9 @@ export function useTranscriptionManager() {
       executionDelay: chatConfig.executionDelay,
       maxRetries: chatConfig.maxRetries,
       // 复读处理
-      enableRepetitionDetection: options?.enableRepetitionDetection ?? chatConfig.enableRepetitionDetection,
+      enableRepetitionDetection:
+        options?.enableRepetitionDetection ??
+        chatConfig.enableRepetitionDetection,
       additionalPrompt: options?.additionalPrompt,
       repetitionConfig: {
         consecutiveThreshold: chatConfig.repetitionConfig?.consecutiveThreshold,
@@ -251,19 +280,31 @@ export function useTranscriptionManager() {
       // 关键修复：如果指定了 modelId，则将其应用到所有分类配置中，防止被分类配置中的旧模型 ID 覆盖
       image: {
         ...chatConfig.image,
-        modelIdentifier: options?.modelId || chatConfig.image?.modelIdentifier || targetModelId,
+        modelIdentifier:
+          options?.modelId ||
+          chatConfig.image?.modelIdentifier ||
+          targetModelId,
       },
       audio: {
         ...chatConfig.audio,
-        modelIdentifier: options?.modelId || chatConfig.audio?.modelIdentifier || targetModelId,
+        modelIdentifier:
+          options?.modelId ||
+          chatConfig.audio?.modelIdentifier ||
+          targetModelId,
       },
       video: {
         ...chatConfig.video,
-        modelIdentifier: options?.modelId || chatConfig.video?.modelIdentifier || targetModelId,
+        modelIdentifier:
+          options?.modelId ||
+          chatConfig.video?.modelIdentifier ||
+          targetModelId,
       },
       document: {
         ...chatConfig.document,
-        modelIdentifier: options?.modelId || chatConfig.document?.modelIdentifier || targetModelId,
+        modelIdentifier:
+          options?.modelId ||
+          chatConfig.document?.modelIdentifier ||
+          targetModelId,
       },
     };
 
@@ -309,7 +350,7 @@ export function useTranscriptionManager() {
       modelId?: string;
       additionalPrompt?: string;
       enableRepetitionDetection?: boolean;
-    },
+    }
   ) => {
     addTask(asset, options);
   };
@@ -345,7 +386,11 @@ export function useTranscriptionManager() {
   /**
    * 检查必要性 (业务逻辑：检查模型是否具备原生处理能力)
    */
-  const checkTranscriptionNecessity = (asset: Asset, modelId?: string, profileId?: string) => {
+  const checkTranscriptionNecessity = (
+    asset: Asset,
+    modelId?: string,
+    profileId?: string
+  ) => {
     // 1. 首先检查是否是支持转写的类型
     if (!isSupportedTranscriptionType(asset)) return false;
 
@@ -358,7 +403,9 @@ export function useTranscriptionManager() {
 
     if (!refModelId) {
       const agentStore = useAgentStore();
-      const currentAgent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
+      const currentAgent = agentStore.currentAgentId
+        ? agentStore.getAgentById(agentStore.currentAgentId)
+        : null;
       const fullId = getTranscribeModelIdentifier(asset, currentAgent);
 
       if (fullId) {
@@ -379,7 +426,8 @@ export function useTranscriptionManager() {
     if (asset.type === "image") return !cap.vision;
     if (asset.type === "audio") return !cap.audio;
     if (asset.type === "video") return !cap.video;
-    if (asset.type === "document" && asset.mimeType === "application/pdf") return !cap.document;
+    if (asset.type === "document" && asset.mimeType === "application/pdf")
+      return !cap.document;
     if (isDocxAssetLike(asset)) return true;
 
     return false;
@@ -392,7 +440,7 @@ export function useTranscriptionManager() {
     asset: Asset,
     modelId: string,
     profileId: string,
-    messageDepth?: number,
+    messageDepth?: number
   ): boolean => {
     const config = settings.value.transcription;
 
@@ -436,7 +484,7 @@ export function useTranscriptionManager() {
     assets: Asset[],
     modelId: string,
     profileId: string,
-    forceAssetIds?: Set<string>,
+    forceAssetIds?: Set<string>
   ): Promise<Map<string, Asset>> => {
     const updatedAssets = new Map<string, Asset>();
     for (const asset of assets) {
@@ -462,14 +510,24 @@ export function useTranscriptionManager() {
       if (status === "none" || status === "error") {
         // 确定执行转写的模型
         const agentStore = useAgentStore();
-        const currentAgent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
-        const transcribeModelId = getTranscribeModelIdentifier(assetToCheck, currentAgent);
+        const currentAgent = agentStore.currentAgentId
+          ? agentStore.getAgentById(agentStore.currentAgentId)
+          : null;
+        const transcribeModelId = getTranscribeModelIdentifier(
+          assetToCheck,
+          currentAgent
+        );
 
         if (transcribeModelId) {
-          logger.debug("发送前补齐转写任务", { assetId: asset.id, usingModel: transcribeModelId });
+          logger.debug("发送前补齐转写任务", {
+            assetId: asset.id,
+            usingModel: transcribeModelId,
+          });
           addTask(assetToCheck, { modelId: transcribeModelId });
         } else {
-          logger.warn("需要转写但未找到可用模型，跳过任务创建", { assetId: asset.id });
+          logger.warn("需要转写但未找到可用模型，跳过任务创建", {
+            assetId: asset.id,
+          });
         }
       }
     }

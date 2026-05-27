@@ -5,8 +5,8 @@
  * 锚点用于标记上下文流中可注入的位置，如 'chat_history'、'user_profile' 等。
  */
 
-import { markRaw, ref } from 'vue';
-import { User, ChatDotRound } from '@element-plus/icons-vue';
+import { markRaw, ref } from "vue";
+import { User, ChatDotRound } from "@element-plus/icons-vue";
 
 /**
  * 锚点定义
@@ -40,7 +40,7 @@ export interface AnchorDefinition {
   /** 主题色 */
   color?: string;
   /** Element Plus 的 Tag 类型 */
-  tagType?: 'success' | 'primary' | 'info' | 'warning' | 'danger';
+  tagType?: "success" | "primary" | "info" | "warning" | "danger";
 }
 
 /**
@@ -48,27 +48,27 @@ export interface AnchorDefinition {
  */
 export const SYSTEM_ANCHORS: AnchorDefinition[] = [
   {
-    id: 'user_profile',
-    name: '用户档案',
-    description: '用户档案内容的插入位置，支持模板编辑',
+    id: "user_profile",
+    name: "用户档案",
+    description: "用户档案内容的插入位置，支持模板编辑",
     isSystem: true,
-    hasTemplate: true,   // 模板锚点
+    hasTemplate: true, // 模板锚点
     defaultTemplate: `### {{user}}的档案
 
 {{persona}}`,
     icon: markRaw(User),
-    color: 'var(--el-color-primary)',
-    tagType: 'primary',
+    color: "var(--el-color-primary)",
+    tagType: "primary",
   },
   {
-    id: 'chat_history',
-    name: '会话历史',
-    description: '会话消息的插入位置',
+    id: "chat_history",
+    name: "会话历史",
+    description: "会话消息的插入位置",
     isSystem: true,
-    hasTemplate: false,  // 纯占位符
+    hasTemplate: false, // 纯占位符
     icon: markRaw(ChatDotRound),
-    color: 'var(--el-color-warning)',
-    tagType: 'warning',
+    color: "var(--el-color-warning)",
+    tagType: "warning",
   },
 ];
 
@@ -109,7 +109,9 @@ export function useAnchorRegistry() {
    * @param anchor 锚点定义
    * @returns 是否注册成功（如果 ID 已存在则返回 false）
    */
-  const registerAnchor = (anchor: Omit<AnchorDefinition, 'isSystem'>): boolean => {
+  const registerAnchor = (
+    anchor: Omit<AnchorDefinition, "isSystem">
+  ): boolean => {
     if (hasAnchor(anchor.id)) {
       console.warn(`[AnchorRegistry] 锚点 "${anchor.id}" 已存在，注册失败`);
       return false;

@@ -18,7 +18,10 @@
 继承自 `LlmRequestOptions`，新增媒体专用字段：
 
 ```typescript
-export interface MediaGenerationOptions extends Omit<LlmRequestOptions, 'responseFormat'> {
+export interface MediaGenerationOptions extends Omit<
+  LlmRequestOptions,
+  "responseFormat"
+> {
   /** 单次生成的提示词，若提供则自动包装为 user 消息 */
   prompt?: string;
   /** 负面提示词 (Negative Prompt) */
@@ -52,9 +55,13 @@ export interface MediaGenerationOptions extends Omit<LlmRequestOptions, 'respons
 ```typescript
 export interface LlmResponse {
   content: string; // 文本描述
-  images?: Array<{ url?: string; b64_json?: string | ArrayBuffer; revisedPrompt?: string; }>;
-  videos?: Array<{ url?: string; id?: string; status?: string; }>;
-  audios?: Array<{ b64_json?: string | ArrayBuffer; format?: string; }>;
+  images?: Array<{
+    url?: string;
+    b64_json?: string | ArrayBuffer;
+    revisedPrompt?: string;
+  }>;
+  videos?: Array<{ url?: string; id?: string; status?: string }>;
+  audios?: Array<{ b64_json?: string | ArrayBuffer; format?: string }>;
   audioData?: string | ArrayBuffer; // 降级兼容字段
   revisedPrompt?: string; // 模型重写后的提示词
 }
@@ -63,15 +70,18 @@ export interface LlmResponse {
 ## 3. 适配器实现现状
 
 ### 3.1 OpenAI 兼容适配器 (`adapters/openai/`)
+
 - **图片 (`image.ts`)**: 支持 `/v1/images/generations`。支持 `mask` 蒙版上传（Multipart 格式）进行图片编辑。
 - **音频 (`audio.ts`)**: 支持 `/v1/audio/speech` (TTS)。返回 `ArrayBuffer` 格式的音频流。
 - **视频 (`video.ts`)**: 支持异步视频生成任务。适配器内部实现了基于 `jobId` 的自动轮询机制（5秒间隔），直至任务完成或失败。
 
 ### 3.2 Gemini 适配器 (`adapters/gemini/`)
+
 - **图片 (`image.ts`)**: 映射至 `generateContent` 接口。通过设置 `responseModalities: ["TEXT", "IMAGE"]` 实现对话内联输出图片。
 - **多模态解析 (`chat.ts`)**: `parseGeminiResponse` 能够自动识别 `parts` 中的 `inlineData`，并根据 MIME 类型将其分发至响应的 `images` 或 `audios` 列表中。
 
 ### 3.3 SiliconFlow 适配器
+
 - 继承 OpenAI 适配器，但针对其特定的图片响应结构（`images` 字段而非 `data`）进行了兼容处理。
 
 ## 4. 使用方法
@@ -88,7 +98,7 @@ const response = await sendRequest({
   modelId: "dall-e-3",
   prompt: "A futuristic city at sunset",
   size: "1024x1024",
-  quality: "hd"
+  quality: "hd",
 });
 
 if (response.images?.length) {
@@ -106,8 +116,8 @@ const response = await sendRequest({
   prompt: "Hello, I am a snow owl.",
   audioConfig: {
     voice: "alloy",
-    responseFormat: "mp3"
-  }
+    responseFormat: "mp3",
+  },
 });
 
 if (response.audioData) {

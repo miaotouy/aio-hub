@@ -60,7 +60,12 @@ export function useKonvaStage() {
     zoom.value = clampedZoom;
   }
 
-  function resetView(width: number, height: number, containerWidth: number, containerHeight: number) {
+  function resetView(
+    width: number,
+    height: number,
+    containerWidth: number,
+    containerHeight: number
+  ) {
     if (!stage.value) return;
 
     // 计算自适应缩放比例，使画布居中并完整显示

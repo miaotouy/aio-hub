@@ -4,8 +4,8 @@
  * 定义了插件清单、插件接口和相关的管理类型
  */
 
-import type { ToolRegistry, MethodMetadata, ServiceMetadata } from './types';
-import type { SettingItem } from '@/types/settings-renderer';
+import type { ToolRegistry, MethodMetadata, ServiceMetadata } from "./types";
+import type { SettingItem } from "@/types/settings-renderer";
 
 // ==================== 插件清单类型 ====================
 
@@ -29,12 +29,12 @@ export interface PluginUiConfig {
 /**
  * 插件类型
  */
-export type PluginType = 'javascript' | 'sidecar' | 'native';
+export type PluginType = "javascript" | "sidecar" | "native";
 /**
  * 配置项类型（保留用于向后兼容）
  * @deprecated 请直接使用 SettingItem 类型
  */
-export type SettingsPropertyType = 'string' | 'number' | 'boolean';
+export type SettingsPropertyType = "string" | "number" | "boolean";
 
 /**
  * 配置项定义（保留用于向后兼容）
@@ -72,7 +72,13 @@ export interface SettingsSchema {
 /**
  * 平台标识符 (OS-架构)
  */
-export type PlatformKey = 'win32-x64' | 'win32-arm64' | 'darwin-x64' | 'darwin-arm64' | 'linux-x64' | 'linux-arm64';
+export type PlatformKey =
+  | "win32-x64"
+  | "win32-arm64"
+  | "darwin-x64"
+  | "darwin-arm64"
+  | "linux-x64"
+  | "linux-arm64";
 
 /**
  * Sidecar 插件配置
@@ -126,19 +132,19 @@ export interface PluginManifest {
     /** 插件 API 版本要求 (整数) */
     apiVersion?: number;
   };
-  
+
   /** 插件类型 */
   type: PluginType;
-  
+
   /** JS 插件入口文件 (type='javascript' 时必需) */
   main?: string;
-  
+
   /** Sidecar 配置 (type='sidecar' 时必需) */
   sidecar?: SidecarConfig;
-  
+
   /** 原生插件配置 (type='native' 时必需) */
   native?: NativeConfig;
-  
+
   /**
    * 插件方法元数据声明
    *
@@ -146,13 +152,13 @@ export interface PluginManifest {
    * 对于 JS 插件，如果 index.ts 没有导出 getMetadata()，则以此处声明为准。
    */
   methods?: MethodMetadata[];
-  
+
   /** 配置模式 (可选) */
   settingsSchema?: SettingsSchema;
-  
+
   /** UI 配置 (可选) */
   ui?: PluginUiConfig;
-  
+
   /** 权限声明 (未来功能) */
   permissions?: string[];
 }
@@ -161,7 +167,7 @@ export interface PluginManifest {
 
 /**
  * JavaScript 插件导出对象
- * 
+ *
  * JS 插件必须 export default 一个实现此接口的对象
  */
 /**
@@ -233,7 +239,9 @@ export interface PluginStorageAPI {
    * 列出目录内容
    * @param path 相对路径
    */
-  readDir: (path: string) => Promise<Array<{ name: string; isDirectory: boolean }>>;
+  readDir: (
+    path: string
+  ) => Promise<Array<{ name: string; isDirectory: boolean }>>;
 }
 
 export interface PluginContext {
@@ -263,7 +271,6 @@ export interface PluginContext {
 
   // 未来可扩展其他 API，例如 ui.showNotification, commands.registerCommand 等
 }
-
 
 /**
  * JavaScript 插件导出对象

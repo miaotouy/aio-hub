@@ -52,13 +52,17 @@ const updateHeight = () => {
   const visible = height > 0;
 
   // 如果状态没变，跳过更新
-  if (keyboardHeight.value === height && isKeyboardVisible.value === visible) return;
+  if (keyboardHeight.value === height && isKeyboardVisible.value === visible)
+    return;
 
   keyboardHeight.value = height;
   isKeyboardVisible.value = visible;
 
   // 同步到 CSS 变量，供全局使用
-  document.documentElement.style.setProperty("--keyboard-height", `${height}px`);
+  document.documentElement.style.setProperty(
+    "--keyboard-height",
+    `${height}px`
+  );
 
   // class 控制
   document.documentElement.classList.toggle("keyboard-visible", visible);
@@ -155,8 +159,14 @@ export function useKeyboardAvoidance() {
     detector.style.position = "absolute";
     document.body.appendChild(detector);
     const s = getComputedStyle(detector);
-    document.documentElement.style.setProperty("--safe-area-inset-top", s.paddingTop);
-    document.documentElement.style.setProperty("--safe-area-inset-bottom", s.paddingBottom);
+    document.documentElement.style.setProperty(
+      "--safe-area-inset-top",
+      s.paddingTop
+    );
+    document.documentElement.style.setProperty(
+      "--safe-area-inset-bottom",
+      s.paddingBottom
+    );
     document.body.removeChild(detector);
 
     // 统一处理 Insets 变化
@@ -177,18 +187,31 @@ export function useKeyboardAvoidance() {
       // 同步安全区到 CSS 变量
       // 注意：由于原生端已经对 WebView 容器应用了 padding-bottom，
       // 这里的 safeBottom 仅作为元数据同步，前端不应再次将其加在 App 容器上。
-      document.documentElement.style.setProperty("--safe-area-inset-top", `${safeTop}px`);
-      document.documentElement.style.setProperty("--safe-area-inset-bottom", `${safeBottom}px`);
+      document.documentElement.style.setProperty(
+        "--safe-area-inset-top",
+        `${safeTop}px`
+      );
+      document.documentElement.style.setProperty(
+        "--safe-area-inset-bottom",
+        `${safeBottom}px`
+      );
 
       // 实时键盘高度（仅供某些特殊 UI 偏移使用，App 主容器不再依赖此变量避让）
       const currentKeyboardHeight = imeVisible ? height : 0;
 
-      if (keyboardHeight.value === currentKeyboardHeight && isKeyboardVisible.value === imeVisible) return;
+      if (
+        keyboardHeight.value === currentKeyboardHeight &&
+        isKeyboardVisible.value === imeVisible
+      )
+        return;
 
       keyboardHeight.value = currentKeyboardHeight;
       isKeyboardVisible.value = imeVisible;
 
-      document.documentElement.style.setProperty("--keyboard-height", `${currentKeyboardHeight}px`);
+      document.documentElement.style.setProperty(
+        "--keyboard-height",
+        `${currentKeyboardHeight}px`
+      );
       document.documentElement.classList.toggle("keyboard-visible", imeVisible);
 
       logger.debug("Keyboard state updated from Android Insets", {
@@ -218,7 +241,10 @@ export function useKeyboardAvoidance() {
       handleInsetsChange((window as any).__ANDROID_INSETS__);
     }
 
-    logger.info("Keyboard avoidance initialized (VisualViewport + Android Insets)", { maxWindowHeight });
+    logger.info(
+      "Keyboard avoidance initialized (VisualViewport + Android Insets)",
+      { maxWindowHeight }
+    );
   }
 
   return {

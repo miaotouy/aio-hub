@@ -28,10 +28,14 @@ import { ElMessageBox as elMessageBox } from "element-plus";
 
 const store = useMediaGenStore();
 const taskManager = useMediaTaskManager();
-const { buildTask, executeGeneration, abortAll, activeTaskCount } = useMediaGenerationManager();
+const { buildTask, executeGeneration, abortAll, activeTaskCount } =
+  useMediaGenerationManager();
 
 // 工作区模式：session (会话模式) | quick (快速单次模式)
-const workbenchMode = useLocalStorage<"session" | "quick">("media-gen-workbench-mode", "session");
+const workbenchMode = useLocalStorage<"session" | "quick">(
+  "media-gen-workbench-mode",
+  "session"
+);
 
 const handleSendQuick = async (options: any, mediaType: any) => {
   try {
@@ -98,7 +102,11 @@ const startEdit = async () => {
 const saveEdit = async () => {
   if (!isEditingName.value) return;
   const newName = editingName.value.trim();
-  if (newName && newName !== currentSessionName.value && store.currentSessionId) {
+  if (
+    newName &&
+    newName !== currentSessionName.value &&
+    store.currentSessionId
+  ) {
     await store.updateSessionName(store.currentSessionId, newName);
   }
   isEditingName.value = false;
@@ -114,12 +122,16 @@ const handleBatchDelete = async () => {
   if (selectedCount === 0) return;
 
   try {
-    await elMessageBox.confirm(`确定要删除选中的 ${selectedCount} 条消息吗？`, "批量删除", {
-      confirmButtonText: "确定",
-      cancelButtonText: "取消",
-      type: "warning",
-      lockScroll: false,
-    });
+    await elMessageBox.confirm(
+      `确定要删除选中的 ${selectedCount} 条消息吗？`,
+      "批量删除",
+      {
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+        type: "warning",
+        lockScroll: false,
+      }
+    );
 
     for (const msg of store.selectedMessages) {
       store.deleteMessage(msg.id);
@@ -148,7 +160,7 @@ watch(
       store.settings.rightCollapsed = rightCollapsed.value;
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 // 监听 store 变化同步回 localStorage (确保设置页面修改也能同步)
@@ -156,13 +168,13 @@ watch(
   () => store.settings.leftCollapsed,
   (val) => {
     leftCollapsed.value = val;
-  },
+  }
 );
 watch(
   () => store.settings.rightCollapsed,
   (val) => {
     rightCollapsed.value = val;
-  },
+  }
 );
 </script>
 
@@ -180,21 +192,36 @@ watch(
           store.settings.leftCollapsed = leftCollapsed;
         "
       >
-        <el-icon><ChevronLeft v-if="!leftCollapsed" /><ChevronRight v-else /></el-icon>
+        <el-icon
+          ><ChevronLeft v-if="!leftCollapsed" /><ChevronRight v-else
+        /></el-icon>
       </div>
     </div>
     <!-- 中间：生成流 (核心对话/任务区) -->
     <div class="main-content">
       <!-- 统一头部 -->
-      <div class="workbench-header" :class="{ 'batch-mode-active': store.isBatchMode && workbenchMode === 'session' }">
+      <div
+        class="workbench-header"
+        :class="{
+          'batch-mode-active': store.isBatchMode && workbenchMode === 'session',
+        }"
+      >
         <!-- 左侧：模式切换 + 标题 -->
         <div class="header-left-section">
           <div class="mode-selector">
-            <div class="mode-tab" :class="{ active: workbenchMode === 'session' }" @click="workbenchMode = 'session'">
+            <div
+              class="mode-tab"
+              :class="{ active: workbenchMode === 'session' }"
+              @click="workbenchMode = 'session'"
+            >
               <el-icon><MessageSquare /></el-icon>
               <span class="mode-label">创作会话</span>
             </div>
-            <div class="mode-tab" :class="{ active: workbenchMode === 'quick' }" @click="workbenchMode = 'quick'">
+            <div
+              class="mode-tab"
+              :class="{ active: workbenchMode === 'quick' }"
+              @click="workbenchMode = 'quick'"
+            >
               <el-icon><Zap /></el-icon>
               <span class="mode-label">快速生成</span>
             </div>
@@ -207,7 +234,9 @@ watch(
             <!-- 会话模式标题 -->
             <template v-if="workbenchMode === 'session'">
               <div v-if="store.isBatchMode" class="batch-info">
-                <span class="selected-count">已选中 {{ store.selectedMessages.length }} 项</span>
+                <span class="selected-count"
+                  >已选中 {{ store.selectedMessages.length }} 项</span
+                >
               </div>
               <div v-else class="session-title-area">
                 <div v-if="isEditingName" class="title-edit-wrapper">
@@ -221,7 +250,12 @@ watch(
                     @keyup.esc="cancelEdit"
                   />
                   <div class="edit-actions">
-                    <el-button link size="small" type="primary" @click="saveEdit">
+                    <el-button
+                      link
+                      size="small"
+                      type="primary"
+                      @click="saveEdit"
+                    >
                       <el-icon><Check /></el-icon>
                     </el-button>
                     <el-button link size="small" @click="cancelEdit">
@@ -229,13 +263,17 @@ watch(
                     </el-button>
                   </div>
                 </div>
-                <span v-else class="session-display-name" @click="startEdit">{{ currentSessionName }}</span>
+                <span v-else class="session-display-name" @click="startEdit">{{
+                  currentSessionName
+                }}</span>
               </div>
             </template>
 
             <!-- 单次模式标题 -->
             <template v-else>
-              <span class="mode-status-text">当前任务队列 ({{ taskManager.tasks.value.length }})</span>
+              <span class="mode-status-text"
+                >当前任务队列 ({{ taskManager.tasks.value.length }})</span
+              >
             </template>
           </div>
         </div>
@@ -266,23 +304,38 @@ watch(
                 <span>删除</span>
               </el-button>
               <el-divider direction="vertical" />
-              <el-button size="small" @click="store.exitBatchMode">取消</el-button>
+              <el-button size="small" @click="store.exitBatchMode"
+                >取消</el-button
+              >
             </div>
 
             <div v-else class="session-actions">
               <el-tooltip content="批量操作" placement="bottom">
-                <el-button link class="action-btn" @click="store.enterBatchMode">
+                <el-button
+                  link
+                  class="action-btn"
+                  @click="store.enterBatchMode"
+                >
                   <el-icon><Layers /></el-icon>
                 </el-button>
               </el-tooltip>
 
               <el-tooltip content="开启新会话" placement="bottom">
-                <el-button link class="action-btn" @click="store.createNewSession()">
+                <el-button
+                  link
+                  class="action-btn"
+                  @click="store.createNewSession()"
+                >
                   <el-icon><MessageSquarePlus /></el-icon>
                 </el-button>
               </el-tooltip>
 
-              <el-popover placement="bottom-end" :width="360" trigger="click" popper-class="session-popover">
+              <el-popover
+                placement="bottom-end"
+                :width="360"
+                trigger="click"
+                popper-class="session-popover"
+              >
                 <template #reference>
                   <el-button link class="history-btn">
                     <span style="padding-right: 4px">切换会话</span>
@@ -297,10 +350,24 @@ watch(
           <!-- 单次模式操作 -->
           <template v-else>
             <div class="quick-actions">
-              <el-button v-if="activeTaskCount > 0" :icon="Square" type="danger" plain size="small" @click="stopAll">
+              <el-button
+                v-if="activeTaskCount > 0"
+                :icon="Square"
+                type="danger"
+                plain
+                size="small"
+                @click="stopAll"
+              >
                 停止全部 ({{ activeTaskCount }})
               </el-button>
-              <el-button :icon="Trash2" plain size="small" @click="clearFinished"> 清理已完成 </el-button>
+              <el-button
+                :icon="Trash2"
+                plain
+                size="small"
+                @click="clearFinished"
+              >
+                清理已完成
+              </el-button>
             </div>
           </template>
         </div>
@@ -308,7 +375,9 @@ watch(
 
       <div class="content-body">
         <KeepAlive>
-          <component :is="workbenchMode === 'session' ? GenerationStream : QuickTaskView" />
+          <component
+            :is="workbenchMode === 'session' ? GenerationStream : QuickTaskView"
+          />
         </KeepAlive>
       </div>
 
@@ -329,7 +398,9 @@ watch(
           store.settings.rightCollapsed = rightCollapsed;
         "
       >
-        <el-icon><ChevronRight v-if="!rightCollapsed" /><ChevronLeft v-else /></el-icon>
+        <el-icon
+          ><ChevronRight v-if="!rightCollapsed" /><ChevronLeft v-else
+        /></el-icon>
       </div>
     </div>
   </div>
@@ -404,8 +475,13 @@ watch(
 }
 
 .workbench-header.batch-mode-active {
-  background-color: color-mix(in srgb, var(--el-color-primary), transparent 92%);
-  border-bottom: 1px solid color-mix(in srgb, var(--el-color-primary), transparent 80%);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-primary),
+    transparent 92%
+  );
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--el-color-primary), transparent 80%);
   backdrop-filter: blur(var(--ui-blur));
 }
 

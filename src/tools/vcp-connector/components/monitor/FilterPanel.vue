@@ -10,7 +10,10 @@
             v-for="type in typeOptions"
             :key="type.value"
             class="type-filter-item"
-            :class="[type.class, { active: selectedTypes.includes(type.value) }]"
+            :class="[
+              type.class,
+              { active: selectedTypes.includes(type.value) },
+            ]"
             @click="toggleType(type.value)"
           >
             <div class="type-indicator"></div>
@@ -82,11 +85,36 @@ const maxHistory = ref(store.config.maxHistory);
 const stats = computed(() => store.stats);
 
 const typeOptions = [
-  { value: "RAG_RETRIEVAL_DETAILS", label: "RAG", desc: "检索详情", class: "rag" },
-  { value: "META_THINKING_CHAIN", label: "Chain", desc: "思考链", class: "chain" },
-  { value: "AGENT_PRIVATE_CHAT_PREVIEW", label: "Agent", desc: "私聊预览", class: "agent" },
-  { value: "AI_MEMO_RETRIEVAL", label: "Memo", desc: "记忆回溯", class: "memo" },
-  { value: "PLUGIN_STEP_STATUS", label: "Plugin", desc: "插件步骤", class: "plugin" },
+  {
+    value: "RAG_RETRIEVAL_DETAILS",
+    label: "RAG",
+    desc: "检索详情",
+    class: "rag",
+  },
+  {
+    value: "META_THINKING_CHAIN",
+    label: "Chain",
+    desc: "思考链",
+    class: "chain",
+  },
+  {
+    value: "AGENT_PRIVATE_CHAT_PREVIEW",
+    label: "Agent",
+    desc: "私聊预览",
+    class: "agent",
+  },
+  {
+    value: "AI_MEMO_RETRIEVAL",
+    label: "Memo",
+    desc: "记忆回溯",
+    class: "memo",
+  },
+  {
+    value: "PLUGIN_STEP_STATUS",
+    label: "Plugin",
+    desc: "插件步骤",
+    class: "plugin",
+  },
   { value: "vcp_log", label: "Log", desc: "运行日志", class: "log" },
 ] as const;
 
@@ -110,14 +138,14 @@ watch(
   () => store.filter.types,
   (types) => {
     selectedTypes.value = [...types];
-  },
+  }
 );
 
 watch(
   () => store.config.maxHistory,
   (val) => {
     maxHistory.value = val;
-  },
+  }
 );
 </script>
 

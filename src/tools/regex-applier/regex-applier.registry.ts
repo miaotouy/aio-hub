@@ -42,15 +42,23 @@ export default class RegexApplierRegistry implements ToolRegistry {
   /**
    * 处理文本（应用多个预设的规则）
    */
-  public async processText(options: TextProcessOptions): Promise<TextProcessResult | null> {
-    return engine.processText(options, (id) => this.store.presets.find((p) => p.id === id));
+  public async processText(
+    options: TextProcessOptions
+  ): Promise<TextProcessResult | null> {
+    return engine.processText(options, (id) =>
+      this.store.presets.find((p) => p.id === id)
+    );
   }
 
   /**
    * 处理文件（调用 Rust 后端）
    */
-  public async processFiles(options: FileProcessOptions): Promise<FileProcessResult | null> {
-    return engine.processFiles(options, (id) => this.store.presets.find((p) => p.id === id));
+  public async processFiles(
+    options: FileProcessOptions
+  ): Promise<FileProcessResult | null> {
+    return engine.processFiles(options, (id) =>
+      this.store.presets.find((p) => p.id === id)
+    );
   }
 
   /**
@@ -95,7 +103,9 @@ export default class RegexApplierRegistry implements ToolRegistry {
   /**
    * 一键处理：粘贴 -> 处理 -> 复制
    */
-  public async oneClickProcess(options: OneClickOptions): Promise<FormattedProcessSummary | null> {
+  public async oneClickProcess(
+    options: OneClickOptions
+  ): Promise<FormattedProcessSummary | null> {
     logger.info("执行一键处理", { presetCount: options.presetIds.length });
 
     return await errorHandler.wrapAsync(
@@ -152,7 +162,12 @@ export default class RegexApplierRegistry implements ToolRegistry {
   /**
    * 获取所有预设列表（简化信息）
    */
-  public getPresets(): Array<{ id: string; name: string; description?: string; ruleCount: number }> {
+  public getPresets(): Array<{
+    id: string;
+    name: string;
+    description?: string;
+    ruleCount: number;
+  }> {
     return this.store.presets.map((preset) => ({
       id: preset.id,
       name: preset.name,
@@ -191,7 +206,9 @@ export default class RegexApplierRegistry implements ToolRegistry {
   /**
    * 获取格式化的文本处理结果（推荐 Agent 使用）
    */
-  public async getFormattedTextResult(options: TextProcessOptions): Promise<FormattedProcessSummary | null> {
+  public async getFormattedTextResult(
+    options: TextProcessOptions
+  ): Promise<FormattedProcessSummary | null> {
     const result = await this.processText(options);
     if (!result) return null;
 
@@ -207,7 +224,9 @@ export default class RegexApplierRegistry implements ToolRegistry {
   /**
    * 获取格式化的文件处理结果（推荐 Agent 使用）
    */
-  public async getFormattedFileResult(options: FileProcessOptions): Promise<FormattedProcessSummary | null> {
+  public async getFormattedFileResult(
+    options: FileProcessOptions
+  ): Promise<FormattedProcessSummary | null> {
     const result = await this.processFiles(options);
     if (!result) return null;
 

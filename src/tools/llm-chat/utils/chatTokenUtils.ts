@@ -1,4 +1,8 @@
-import type { ChatSessionDetail, ChatMessageNode, ChatSessionIndex } from "../types";
+import type {
+  ChatSessionDetail,
+  ChatMessageNode,
+  ChatSessionIndex,
+} from "../types";
 import { tokenCalculatorService } from "@/tools/token-calculator/token-calculator.registry";
 import { createModuleLogger } from "@/utils/logger";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
@@ -21,12 +25,19 @@ export async function prepareMessageForTokenCalc(
   const { profiles } = useLlmProfiles();
 
   // 尝试查找 profileId
-  const profile = profiles.value.find((p) => p.models.some((m) => m.id === modelId));
+  const profile = profiles.value.find((p) =>
+    p.models.some((m) => m.id === modelId)
+  );
   const profileId = profile?.id || "";
 
-  const resolvedResults = await resolveAttachmentsBatch(attachments, modelId, profileId, {
-    silent: true,
-  });
+  const resolvedResults = await resolveAttachmentsBatch(
+    attachments,
+    modelId,
+    profileId,
+    {
+      silent: true,
+    }
+  );
 
   for (const result of resolvedResults) {
     if (result.type === "text" && result.content) {
@@ -88,15 +99,27 @@ export async function recalculateNodeTokens(
     let fullContent = node.content;
     let mediaAttachments = node.attachments;
 
-    if (node.role === "user" && node.attachments && node.attachments.length > 0) {
+    if (
+      node.role === "user" &&
+      node.attachments &&
+      node.attachments.length > 0
+    ) {
       // 准备用于 Token 计算的消息内容
-      const result = await prepareMessageForTokenCalc(node.content, node.attachments, modelId);
+      const result = await prepareMessageForTokenCalc(
+        node.content,
+        node.attachments,
+        modelId
+      );
 
       fullContent = result.combinedText;
       mediaAttachments = result.mediaAttachments;
     }
 
-    const tokenResult = await tokenCalculatorService.calculateMessageTokens(fullContent, modelId, mediaAttachments);
+    const tokenResult = await tokenCalculatorService.calculateMessageTokens(
+      fullContent,
+      modelId,
+      mediaAttachments
+    );
 
     if (!node.metadata) node.metadata = {};
     node.metadata.contentTokens = tokenResult.count;
@@ -141,7 +164,8 @@ export async function fillMissingTokenMetadata(
       } else if (node.role === "user") {
         let currentId: string | null = session.activeLeafId || null;
         while (currentId !== null) {
-          const pathNode: ChatMessageNode | undefined = session.nodes[currentId];
+          const pathNode: ChatMessageNode | undefined =
+            session.nodes[currentId];
           if (pathNode?.role === "assistant" && pathNode.metadata?.modelId) {
             modelId = pathNode.metadata.modelId;
             break;
@@ -167,17 +191,26 @@ export async function fillMissingTokenMetadata(
             let fullContent = node.content;
             let mediaAttachments = node.attachments;
 
-            if (node.role === "user" && node.attachments && node.attachments.length > 0) {
-              const result = await prepareMessageForTokenCalc(node.content, node.attachments, currentModelId);
+            if (
+              node.role === "user" &&
+              node.attachments &&
+              node.attachments.length > 0
+            ) {
+              const result = await prepareMessageForTokenCalc(
+                node.content,
+                node.attachments,
+                currentModelId
+              );
               fullContent = result.combinedText;
               mediaAttachments = result.mediaAttachments;
             }
 
-            const tokenResult = await tokenCalculatorService.calculateMessageTokens(
-              fullContent,
-              currentModelId,
-              mediaAttachments
-            );
+            const tokenResult =
+              await tokenCalculatorService.calculateMessageTokens(
+                fullContent,
+                currentModelId,
+                mediaAttachments
+              );
 
             if (!node.metadata) node.metadata = {};
             node.metadata.contentTokens = tokenResult.count;

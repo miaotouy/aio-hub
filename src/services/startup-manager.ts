@@ -55,7 +55,9 @@ class StartupManager {
       const appSettingsStore = useAppSettingsStore();
       const settings = appSettingsStore.settings;
       const startupTasks = settings.startupTasks || {};
-      const updatedTasks: Record<string, StartupTaskState> = { ...startupTasks };
+      const updatedTasks: Record<string, StartupTaskState> = {
+        ...startupTasks,
+      };
       let hasChanges = false;
 
       // 获取所有注册的工具
@@ -63,116 +65,126 @@ class StartupManager {
       const notify = useNotification();
 
       // 筛选出有启动配置的工具
-      const toolsWithStartup = tools.filter((tool) => tool.startupConfig && tool.onStartup);
+      const toolsWithStartup = tools.filter(
+        (tool) => tool.startupConfig && tool.onStartup
+      );
 
-      const executionPromises = toolsWithStartup.map(async (tool: ToolRegistry) => {
-        const toolId = tool.id;
-        const config = tool.startupConfig!;
+      const executionPromises = toolsWithStartup.map(
+        async (tool: ToolRegistry) => {
+          const toolId = tool.id;
+          const config = tool.startupConfig!;
 
-        // 获取或初始化任务状态
-        let state = updatedTasks[toolId];
-        if (!state) {
-          state = {
-            enabled: config.defaultEnabled ?? false,
-            consecutiveFailures: 0,
-          };
-          updatedTasks[toolId] = state;
-          hasChanges = true;
-        }
-
-        // 检查是否被自动禁用
-        if (state.autoDisabled) {
-          logger.info(`跳过自动禁用的启动项: ${config.label} (${toolId})`);
-          this._results.value.push({
-            toolId,
-            label: config.label,
-            success: false,
-            duration: 0,
-            error: "已自动禁用（熔断）",
-          });
-          return;
-        }
-
-        // 检查用户是否启用
-        if (!state.enabled) {
-          return;
-        }
-
-        // 准备执行
-        const taskStartTime = Date.now();
-        let timeoutId: ReturnType<typeof setTimeout> | undefined;
-        try {
-          logger.info(`正在执行启动项: ${config.label} (${toolId})`);
-
-          // 使用 Promise.race 实现超时控制，并在完成后清理 timer
-          await Promise.race([
-            Promise.resolve(tool.onStartup!()),
-            new Promise((_, reject) => {
-              timeoutId = setTimeout(() => reject(new Error("启动超时")), this.TIMEOUT_MS);
-            }),
-          ]);
-
-          const duration = Date.now() - taskStartTime;
-
-          // 执行成功，重置失败计数
-          if (state.consecutiveFailures > 0) {
-            state.consecutiveFailures = 0;
-            state.lastError = undefined;
+          // 获取或初始化任务状态
+          let state = updatedTasks[toolId];
+          if (!state) {
+            state = {
+              enabled: config.defaultEnabled ?? false,
+              consecutiveFailures: 0,
+            };
+            updatedTasks[toolId] = state;
             hasChanges = true;
           }
 
-          this._results.value.push({
-            toolId,
-            label: config.label,
-            success: true,
-            duration,
-          });
-
-          logger.info(`启动项执行成功: ${config.label}`, { duration });
-        } catch (error: any) {
-          const duration = Date.now() - taskStartTime;
-          const errorMessage = error?.message || String(error);
-
-          // 执行失败，增加失败计数
-          state.consecutiveFailures++;
-          state.lastError = errorMessage;
-          hasChanges = true;
-
-          // 检查是否触发熔断
-          if (state.consecutiveFailures >= this.FAILURE_THRESHOLD) {
-            state.autoDisabled = true;
-            state.enabled = false;
-
-            notify.error(
-              `启动项已禁用: ${config.label}`,
-              `由于连续 ${state.consecutiveFailures} 次启动失败，该项已自动禁用以保护应用稳定性。错误: ${errorMessage}`,
-              {
-                source: "StartupManager",
-                metadata: { path: "/settings" },
-              }
-            );
-
-            logger.warn(`启动项触发熔断: ${config.label}`, {
-              consecutiveFailures: state.consecutiveFailures,
-              error: errorMessage,
+          // 检查是否被自动禁用
+          if (state.autoDisabled) {
+            logger.info(`跳过自动禁用的启动项: ${config.label} (${toolId})`);
+            this._results.value.push({
+              toolId,
+              label: config.label,
+              success: false,
+              duration: 0,
+              error: "已自动禁用（熔断）",
             });
+            return;
           }
 
-          this._results.value.push({
-            toolId,
-            label: config.label,
-            success: false,
-            duration,
-            error: errorMessage,
-            autoDisabled: state.autoDisabled,
-          });
+          // 检查用户是否启用
+          if (!state.enabled) {
+            return;
+          }
 
-          errorHandler.error(error, `启动项执行失败: ${config.label}`, { toolId, duration });
-        } finally {
-          // 无论成功/失败/超时，都清理超时 timer
-          if (timeoutId !== undefined) clearTimeout(timeoutId);
+          // 准备执行
+          const taskStartTime = Date.now();
+          let timeoutId: ReturnType<typeof setTimeout> | undefined;
+          try {
+            logger.info(`正在执行启动项: ${config.label} (${toolId})`);
+
+            // 使用 Promise.race 实现超时控制，并在完成后清理 timer
+            await Promise.race([
+              Promise.resolve(tool.onStartup!()),
+              new Promise((_, reject) => {
+                timeoutId = setTimeout(
+                  () => reject(new Error("启动超时")),
+                  this.TIMEOUT_MS
+                );
+              }),
+            ]);
+
+            const duration = Date.now() - taskStartTime;
+
+            // 执行成功，重置失败计数
+            if (state.consecutiveFailures > 0) {
+              state.consecutiveFailures = 0;
+              state.lastError = undefined;
+              hasChanges = true;
+            }
+
+            this._results.value.push({
+              toolId,
+              label: config.label,
+              success: true,
+              duration,
+            });
+
+            logger.info(`启动项执行成功: ${config.label}`, { duration });
+          } catch (error: any) {
+            const duration = Date.now() - taskStartTime;
+            const errorMessage = error?.message || String(error);
+
+            // 执行失败，增加失败计数
+            state.consecutiveFailures++;
+            state.lastError = errorMessage;
+            hasChanges = true;
+
+            // 检查是否触发熔断
+            if (state.consecutiveFailures >= this.FAILURE_THRESHOLD) {
+              state.autoDisabled = true;
+              state.enabled = false;
+
+              notify.error(
+                `启动项已禁用: ${config.label}`,
+                `由于连续 ${state.consecutiveFailures} 次启动失败，该项已自动禁用以保护应用稳定性。错误: ${errorMessage}`,
+                {
+                  source: "StartupManager",
+                  metadata: { path: "/settings" },
+                }
+              );
+
+              logger.warn(`启动项触发熔断: ${config.label}`, {
+                consecutiveFailures: state.consecutiveFailures,
+                error: errorMessage,
+              });
+            }
+
+            this._results.value.push({
+              toolId,
+              label: config.label,
+              success: false,
+              duration,
+              error: errorMessage,
+              autoDisabled: state.autoDisabled,
+            });
+
+            errorHandler.error(error, `启动项执行失败: ${config.label}`, {
+              toolId,
+              duration,
+            });
+          } finally {
+            // 无论成功/失败/超时，都清理超时 timer
+            if (timeoutId !== undefined) clearTimeout(timeoutId);
+          }
         }
-      });
+      );
 
       // 等待所有任务完成
       await Promise.allSettled(executionPromises);

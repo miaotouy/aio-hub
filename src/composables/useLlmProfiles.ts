@@ -3,7 +3,11 @@
  */
 
 import { ref, computed } from "vue";
-import type { LlmProfile, LlmParameterSupport, ProviderType } from "../types/llm-profiles";
+import type {
+  LlmProfile,
+  LlmParameterSupport,
+  ProviderType,
+} from "../types/llm-profiles";
 import { DEFAULT_LLM_PROFILE } from "../types/llm-profiles";
 import type { LlmPreset } from "../config/llm-presets";
 import { providerTypes } from "../config/llm-providers";
@@ -59,7 +63,8 @@ export function useLlmProfiles() {
           }))
         : [],
       customHeaders: rest.customHeaders || DEFAULT_LLM_PROFILE.customHeaders,
-      networkStrategy: rest.networkStrategy || DEFAULT_LLM_PROFILE.networkStrategy,
+      networkStrategy:
+        rest.networkStrategy || DEFAULT_LLM_PROFILE.networkStrategy,
     };
     return normalized;
   };
@@ -96,7 +101,9 @@ export function useLlmProfiles() {
 
               // 清除 localStorage 数据
               localStorage.removeItem(STORAGE_KEY);
-              logger.info("数据迁移完成", { profileCount: loadedProfiles.length });
+              logger.info("数据迁移完成", {
+                profileCount: loadedProfiles.length,
+              });
             } catch (parseError) {
               errorHandler.handle(parseError, {
                 userMessage: "解析 localStorage 数据失败",
@@ -111,7 +118,9 @@ export function useLlmProfiles() {
 
         profiles.value = loadedProfiles;
         isLoaded.value = true;
-        logger.info("LLM 配置加载成功", { profileCount: loadedProfiles.length });
+        logger.info("LLM 配置加载成功", {
+          profileCount: loadedProfiles.length,
+        });
       } catch (error) {
         errorHandler.error(error, "加载 LLM 配置失败");
         profiles.value = [];
@@ -129,7 +138,9 @@ export function useLlmProfiles() {
    */
   const saveToStorage = async () => {
     try {
-      logger.debug("保存 LLM 配置到文件系统", { profileCount: profiles.value.length });
+      logger.debug("保存 LLM 配置到文件系统", {
+        profileCount: profiles.value.length,
+      });
       await configManager.save({ profiles: profiles.value });
       logger.info("LLM 配置保存成功");
     } catch (error) {
@@ -148,11 +159,17 @@ export function useLlmProfiles() {
       const index = profiles.value.findIndex((p) => p.id === profile.id);
       if (index !== -1) {
         // 更新现有配置
-        logger.info("更新 LLM 配置", { profileId: profile.id, profileName: profile.name });
+        logger.info("更新 LLM 配置", {
+          profileId: profile.id,
+          profileName: profile.name,
+        });
         profiles.value[index] = profile;
       } else {
         // 添加新配置
-        logger.info("添加新 LLM 配置", { profileId: profile.id, profileName: profile.name });
+        logger.info("添加新 LLM 配置", {
+          profileId: profile.id,
+          profileName: profile.name,
+        });
         profiles.value.push(profile);
       }
       await saveToStorage();
@@ -182,7 +199,9 @@ export function useLlmProfiles() {
         logger.warn("尝试删除不存在的配置", { profileId: id });
       }
     } catch (error) {
-      errorHandler.error(error, "删除 LLM 配置失败", { context: { profileId: id } });
+      errorHandler.error(error, "删除 LLM 配置失败", {
+        context: { profileId: id },
+      });
       throw error;
     }
   };
@@ -205,7 +224,9 @@ export function useLlmProfiles() {
    * 获取包含视觉模型的配置
    */
   const visionProfiles = computed(() => {
-    return enabledProfiles.value.filter((p) => p.models.some((m) => m.capabilities?.vision));
+    return enabledProfiles.value.filter((p) =>
+      p.models.some((m) => m.capabilities?.vision)
+    );
   });
 
   /**
@@ -226,7 +247,9 @@ export function useLlmProfiles() {
         logger.warn("尝试切换不存在的配置", { profileId: id });
       }
     } catch (error) {
-      errorHandler.error(error, "切换配置状态失败", { context: { profileId: id } });
+      errorHandler.error(error, "切换配置状态失败", {
+        context: { profileId: id },
+      });
       throw error;
     }
   };
@@ -268,14 +291,18 @@ export function useLlmProfiles() {
       logoUrl: preset.logoUrl,
       icon: preset.logoUrl, // 同时设置 icon 字段，确保供应商图标正确显示
       links: preset.links ? [...preset.links] : [],
-      customEndpoints: preset.customEndpoints ? { ...preset.customEndpoints } : undefined,
+      customEndpoints: preset.customEndpoints
+        ? { ...preset.customEndpoints }
+        : undefined,
     };
   };
 
   /**
    * 获取指定渠道类型支持的参数
    */
-  const getSupportedParameters = (providerType: ProviderType): LlmParameterSupport => {
+  const getSupportedParameters = (
+    providerType: ProviderType
+  ): LlmParameterSupport => {
     const provider = providerTypes.find((p) => p.type === providerType);
 
     // 如果找到了配置且定义了支持的参数，返回配置的参数

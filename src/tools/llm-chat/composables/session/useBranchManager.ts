@@ -4,14 +4,14 @@
  */
 
 import type { ChatSessionDetail, ChatMessageNode } from "../../types";
-import type { Asset } from '@/types/asset-management';
-import { useNodeManager } from './useNodeManager';
+import type { Asset } from "@/types/asset-management";
+import { useNodeManager } from "./useNodeManager";
 import { BranchNavigator } from "../../utils/BranchNavigator";
 import { useAgentStore } from "../../stores/agentStore";
 import { useUserProfileStore } from "../../stores/userProfileStore";
-import { createModuleLogger } from '@/utils/logger';
+import { createModuleLogger } from "@/utils/logger";
 
-const logger = createModuleLogger('llm-chat/branch-manager');
+const logger = createModuleLogger("llm-chat/branch-manager");
 
 export function useBranchManager() {
   /**
@@ -26,7 +26,7 @@ export function useBranchManager() {
     const result = nodeManager.hardDeleteNode(session, nodeId);
 
     if (result.success) {
-      logger.info('消息已删除', {
+      logger.info("消息已删除", {
         sessionId: session.id,
         nodeId,
         deletedCount: result.deletedNodes.length,
@@ -39,12 +39,15 @@ export function useBranchManager() {
   /**
    * 切换到指定分支（将某个节点设为活跃叶节点）
    */
-  const switchBranch = (session: ChatSessionDetail, nodeId: string): boolean => {
+  const switchBranch = (
+    session: ChatSessionDetail,
+    nodeId: string
+  ): boolean => {
     const nodeManager = useNodeManager();
     const success = nodeManager.updateActiveLeaf(session, nodeId);
 
     if (success) {
-      logger.info('已切换分支', { sessionId: session.id, nodeId });
+      logger.info("已切换分支", { sessionId: session.id, nodeId });
     }
 
     return success;
@@ -56,9 +59,13 @@ export function useBranchManager() {
   const switchToSiblingBranch = (
     session: ChatSessionDetail,
     nodeId: string,
-    direction: 'prev' | 'next'
+    direction: "prev" | "next"
   ): string => {
-    const newLeafId = BranchNavigator.switchToSibling(session, nodeId, direction);
+    const newLeafId = BranchNavigator.switchToSibling(
+      session,
+      nodeId,
+      direction
+    );
 
     if (newLeafId !== session.activeLeafId) {
       session.activeLeafId = newLeafId;
@@ -66,7 +73,7 @@ export function useBranchManager() {
       // 更新路径上所有父节点的选择记忆
       BranchNavigator.updateSelectionMemory(session, newLeafId);
 
-      logger.info('已切换到兄弟分支', {
+      logger.info("已切换到兄弟分支", {
         sessionId: session.id,
         fromNode: nodeId,
         toLeaf: newLeafId,
@@ -90,13 +97,16 @@ export function useBranchManager() {
     if (!session.nodes) return false;
     const node = session.nodes[nodeId];
     if (!node) {
-      logger.warn('编辑消息失败：节点不存在', { sessionId: session.id, nodeId });
+      logger.warn("编辑消息失败：节点不存在", {
+        sessionId: session.id,
+        nodeId,
+      });
       return false;
     }
 
     // 只允许编辑用户消息和助手消息
-    if (node.role !== 'user' && node.role !== 'assistant') {
-      logger.warn('编辑消息失败：只能编辑用户或助手消息', {
+    if (node.role !== "user" && node.role !== "assistant") {
+      logger.warn("编辑消息失败：只能编辑用户或助手消息", {
         sessionId: session.id,
         nodeId,
         role: node.role,
@@ -117,7 +127,7 @@ export function useBranchManager() {
       }
     }
 
-    logger.info('消息已编辑', {
+    logger.info("消息已编辑", {
       sessionId: session.id,
       nodeId,
       role: node.role,
@@ -132,17 +142,23 @@ export function useBranchManager() {
    * 创建分支（创建源节点的兄弟节点，复制内容）
    * 用于在同一父节点下创建新的分支
    */
-  const createBranch = (session: ChatSessionDetail, sourceNodeId: string): string | null => {
+  const createBranch = (
+    session: ChatSessionDetail,
+    sourceNodeId: string
+  ): string | null => {
     if (!session.nodes) return null;
     const sourceNode = session.nodes[sourceNodeId];
     if (!sourceNode) {
-      logger.warn('创建分支失败：源节点不存在', { sessionId: session.id, sourceNodeId });
+      logger.warn("创建分支失败：源节点不存在", {
+        sessionId: session.id,
+        sourceNodeId,
+      });
       return null;
     }
 
     // 只允许为用户消息和助手消息创建分支
-    if (sourceNode.role !== 'user' && sourceNode.role !== 'assistant') {
-      logger.warn('创建分支失败：只能为用户或助手消息创建分支', {
+    if (sourceNode.role !== "user" && sourceNode.role !== "assistant") {
+      logger.warn("创建分支失败：只能为用户或助手消息创建分支", {
         sessionId: session.id,
         sourceNodeId,
         role: sourceNode.role,
@@ -157,18 +173,20 @@ export function useBranchManager() {
       parentId: sourceNode.parentId,
       role: sourceNode.role,
       content: sourceNode.content,
-      attachments: sourceNode.attachments ? [...sourceNode.attachments] : undefined,
+      attachments: sourceNode.attachments
+        ? [...sourceNode.attachments]
+        : undefined,
       isEnabled: true,
-      status: 'complete',
+      status: "complete",
     });
 
     // 如果是助手消息，复制元数据
-    if (sourceNode.role === 'assistant' && sourceNode.metadata) {
+    if (sourceNode.role === "assistant" && sourceNode.metadata) {
       newNode.metadata = { ...sourceNode.metadata };
     }
 
     // 如果是用户消息，处理元数据（身份快照）
-    if (sourceNode.role === 'user') {
+    if (sourceNode.role === "user") {
       if (sourceNode.metadata?.userProfileId) {
         // 1. 如果源节点有用户档案信息（历史快照），直接复制，保持历史一致性
         newNode.metadata = { ...sourceNode.metadata };
@@ -178,15 +196,20 @@ export function useBranchManager() {
         const agentStore = useAgentStore();
         const userProfileStore = useUserProfileStore();
 
-        const agent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
-        const effectiveProfile = userProfileStore.getEffectiveProfile(agent?.userProfileId);
+        const agent = agentStore.currentAgentId
+          ? agentStore.getAgentById(agentStore.currentAgentId)
+          : null;
+        const effectiveProfile = userProfileStore.getEffectiveProfile(
+          agent?.userProfileId
+        );
 
         if (effectiveProfile) {
           newNode.metadata = {
             ...(newNode.metadata || {}),
             userProfileId: effectiveProfile.id,
             // 优先使用 displayName (别名)，其次使用 name
-            userProfileName: effectiveProfile.displayName || effectiveProfile.name,
+            userProfileName:
+              effectiveProfile.displayName || effectiveProfile.name,
             userProfileIcon: effectiveProfile.icon,
           };
         }
@@ -202,7 +225,7 @@ export function useBranchManager() {
     // 更新路径上所有父节点的选择记忆
     BranchNavigator.updateSelectionMemory(session, newNode.id);
 
-    logger.info('分支已创建', {
+    logger.info("分支已创建", {
       sessionId: session.id,
       sourceNodeId,
       newNodeId: newNode.id,
@@ -215,11 +238,17 @@ export function useBranchManager() {
   /**
    * 切换节点启用状态
    */
-  const toggleNodeEnabled = (session: ChatSessionDetail, nodeId: string): boolean => {
+  const toggleNodeEnabled = (
+    session: ChatSessionDetail,
+    nodeId: string
+  ): boolean => {
     if (!session.nodes) return false;
     const node = session.nodes[nodeId];
     if (!node) {
-      logger.warn('切换节点状态失败：节点不存在', { sessionId: session.id, nodeId });
+      logger.warn("切换节点状态失败：节点不存在", {
+        sessionId: session.id,
+        nodeId,
+      });
       return false;
     }
 
@@ -227,7 +256,7 @@ export function useBranchManager() {
     const newState = !(node.isEnabled ?? true);
     node.isEnabled = newState;
 
-    logger.info('节点状态已切换', {
+    logger.info("节点状态已切换", {
       sessionId: session.id,
       nodeId,
       role: node.role,
@@ -243,19 +272,28 @@ export function useBranchManager() {
    */
   const prepareRegenerateLastMessage = (
     session: ChatSessionDetail
-  ): { shouldRegenerate: boolean; userContent?: string; newActiveLeafId?: string } => {
-    if (!session.nodes || !session.activeLeafId) return { shouldRegenerate: false };
+  ): {
+    shouldRegenerate: boolean;
+    userContent?: string;
+    newActiveLeafId?: string;
+  } => {
+    if (!session.nodes || !session.activeLeafId)
+      return { shouldRegenerate: false };
     const currentLeaf = session.nodes[session.activeLeafId];
     if (!currentLeaf) {
-      logger.warn('重新生成失败：当前叶节点不存在', { sessionId: session.id });
+      logger.warn("重新生成失败：当前叶节点不存在", { sessionId: session.id });
       return { shouldRegenerate: false };
     }
 
     // 如果当前叶节点是助手消息，回退到其父节点（用户消息）
-    if (currentLeaf.role === 'assistant') {
-      const parentNode = currentLeaf.parentId ? session.nodes[currentLeaf.parentId] : null;
-      if (!parentNode || parentNode.role !== 'user') {
-        logger.warn('重新生成失败：父节点不是用户消息', { sessionId: session.id });
+    if (currentLeaf.role === "assistant") {
+      const parentNode = currentLeaf.parentId
+        ? session.nodes[currentLeaf.parentId]
+        : null;
+      if (!parentNode || parentNode.role !== "user") {
+        logger.warn("重新生成失败：父节点不是用户消息", {
+          sessionId: session.id,
+        });
         return { shouldRegenerate: false };
       }
 
@@ -267,7 +305,7 @@ export function useBranchManager() {
       };
     }
 
-    logger.warn('重新生成失败：当前叶节点不是助手消息', {
+    logger.warn("重新生成失败：当前叶节点不是助手消息", {
       sessionId: session.id,
       currentRole: currentLeaf.role,
     });
@@ -277,14 +315,20 @@ export function useBranchManager() {
   /**
    * 获取某个节点的兄弟节点（包括自己）
    */
-  const getSiblings = (session: ChatSessionDetail, nodeId: string): ChatMessageNode[] => {
+  const getSiblings = (
+    session: ChatSessionDetail,
+    nodeId: string
+  ): ChatMessageNode[] => {
     return BranchNavigator.getSiblings(session, nodeId);
   };
 
   /**
    * 判断节点是否在当前活动路径上
    */
-  const isNodeInActivePath = (session: ChatSessionDetail, nodeId: string): boolean => {
+  const isNodeInActivePath = (
+    session: ChatSessionDetail,
+    nodeId: string
+  ): boolean => {
     return BranchNavigator.isNodeInActivePath(session, nodeId);
   };
 
@@ -317,7 +361,7 @@ export function useBranchManager() {
     const success = nodeManager.reparentSubtree(session, nodeId, newParentId);
 
     if (success) {
-      logger.info('分支已嫁接', {
+      logger.info("分支已嫁接", {
         sessionId: session.id,
         nodeId,
         newParentId,
@@ -339,7 +383,11 @@ export function useBranchManager() {
     const success = nodeManager.reparentNode(session, nodeId, newParentId);
 
     if (success) {
-      logger.info('单个节点已移动', { sessionId: session.id, nodeId, newParentId });
+      logger.info("单个节点已移动", {
+        sessionId: session.id,
+        nodeId,
+        newParentId,
+      });
     }
 
     return success;

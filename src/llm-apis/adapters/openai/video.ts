@@ -26,7 +26,7 @@ export async function callOpenAiVideoApi(
 
   const baseUrl = profile.baseUrl || "https://api.openai.com/v1";
   const headers = buildOpenAiHeaders(profile, options.requestId);
-  
+
   // 1. 发起生成请求
   const createUrl = openAiUrlHandler.buildUrl(baseUrl, "videos", profile);
   const createResponse = await fetchWithTimeout(
@@ -54,7 +54,11 @@ export async function callOpenAiVideoApi(
 
   // 2. 轮询状态
   const pollInterval = 5000; // 5秒轮询一次
-  const statusUrl = openAiUrlHandler.buildUrl(baseUrl, `videos/${jobId}`, profile);
+  const statusUrl = openAiUrlHandler.buildUrl(
+    baseUrl,
+    `videos/${jobId}`,
+    profile
+  );
 
   while (job.status === "queued" || job.status === "in_progress") {
     // 检查是否已取消
@@ -63,7 +67,7 @@ export async function callOpenAiVideoApi(
     }
 
     // 等待
-    await new Promise(resolve => setTimeout(resolve, pollInterval));
+    await new Promise((resolve) => setTimeout(resolve, pollInterval));
 
     const pollResponse = await fetchWithTimeout(
       statusUrl,
@@ -86,17 +90,23 @@ export async function callOpenAiVideoApi(
   }
 
   if (job.status === "failed") {
-    throw new Error(`Video generation failed: ${job.error?.message || "Unknown error"}`);
+    throw new Error(
+      `Video generation failed: ${job.error?.message || "Unknown error"}`
+    );
   }
 
   // 3. 获取内容 (视频 URL)
   // 注意：OpenAI /videos/{id}/content 返回的是二进制流
   // 但通常我们希望得到一个可以播放的 URL。在桌面端，我们可以下载到本地并返回 appdata:// 路径
   // 或者直接返回 content 接口的 URL，让前端去加载（需要带上 Auth Header，这比较麻烦）
-  
+
   // 按照 Sora API 文档，completed 状态的任务可能已经包含了某些信息
   // 这里我们返回任务信息，并尝试构建一个内容下载链接
-  const contentUrl = openAiUrlHandler.buildUrl(baseUrl, `videos/${jobId}/content`, profile);
+  const contentUrl = openAiUrlHandler.buildUrl(
+    baseUrl,
+    `videos/${jobId}/content`,
+    profile
+  );
 
   return {
     content: "Video generated successfully.",
@@ -105,8 +115,8 @@ export async function callOpenAiVideoApi(
         id: jobId,
         url: contentUrl, // 前端需要处理带 Auth 的请求或由后端代理
         status: "completed",
-      }
+      },
     ],
-    progress: 100
+    progress: 100,
   };
 }

@@ -20,17 +20,17 @@ export interface VideoMetadata {
  */
 export type MediaSource =
   | {
-    /** 内联 Base64 数据 */
-    type: "base64";
-    media_type: string;
-    data: string;
-  }
+      /** 内联 Base64 数据 */
+      type: "base64";
+      media_type: string;
+      data: string;
+    }
   | {
-    /** 通过文件服务（如 Gemini Files API）上传后获得的 URI */
-    type: "file_uri";
-    file_uri: string;
-    mime_type: string;
-  };
+      /** 通过文件服务（如 Gemini Files API）上传后获得的 URI */
+      type: "file_uri";
+      file_uri: string;
+      mime_type: string;
+    };
 
 // =================================================================
 // 定义不同类型的消息内容
@@ -432,10 +432,10 @@ export interface LlmRequestOptions {
   }>;
   /** 工具选择策略 */
   toolChoice?:
-  | "none"
-  | "auto"
-  | "required"
-  | { type: "function"; function: { name: string } };
+    | "none"
+    | "auto"
+    | "required"
+    | { type: "function"; function: { name: string } };
   /** 是否启用并行工具调用 */
   parallelToolCalls?: boolean;
   /** 流式选项 */
@@ -466,25 +466,25 @@ export interface LlmRequestOptions {
   prediction?: {
     type: "content";
     content:
-    | string
-    | Array<{
-      type: "text";
-      text: string;
-    }>;
+      | string
+      | Array<{
+          type: "text";
+          text: string;
+        }>;
   };
   /** 音频输出参数 */
   audio?: {
     voice:
-    | "alloy"
-    | "ash"
-    | "ballad"
-    | "coral"
-    | "echo"
-    | "fable"
-    | "nova"
-    | "onyx"
-    | "sage"
-    | "shimmer";
+      | "alloy"
+      | "ash"
+      | "ballad"
+      | "coral"
+      | "echo"
+      | "fable"
+      | "nova"
+      | "onyx"
+      | "sage"
+      | "shimmer";
     format: "wav" | "mp3" | "flac" | "opus" | "pcm16";
   };
   /** 服务层级 */
@@ -583,16 +583,16 @@ export interface LlmResponse {
   refusal?: string | null;
   /** 停止原因 */
   finishReason?:
-  | "stop"
-  | "length"
-  | "content_filter"
-  | "tool_calls"
-  | "function_call"
-  | "end_turn"
-  | "max_tokens"
-  | "stop_sequence"
-  | "tool_use"
-  | null;
+    | "stop"
+    | "length"
+    | "content_filter"
+    | "tool_calls"
+    | "function_call"
+    | "end_turn"
+    | "max_tokens"
+    | "stop_sequence"
+    | "tool_use"
+    | null;
   /** 停止序列（Claude） */
   stopSequence?: string | null;
   /** 工具调用结果（函数调用） */

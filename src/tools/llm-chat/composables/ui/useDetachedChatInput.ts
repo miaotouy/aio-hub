@@ -22,7 +22,9 @@ export function useDetachedChatInput() {
 
   // 计算流式输出状态
   const isStreamingEnabled = computed(() => {
-    return settingsLoaded.value ? settings.value.uiPreferences.isStreaming : false;
+    return settingsLoaded.value
+      ? settings.value.uiPreferences.isStreaming
+      : false;
   });
 
   logger.info("分离的 MessageInput 同步引擎已初始化", {
@@ -32,7 +34,10 @@ export function useDetachedChatInput() {
 
   // 4. 操作代理
   const handleSendMessage = (content: string, attachments?: any[]) => {
-    logger.info("代理发送消息操作", { content, attachmentCount: attachments?.length });
+    logger.info("代理发送消息操作", {
+      content,
+      attachmentCount: attachments?.length,
+    });
     bus.requestAction("llm-chat:send-message", { content, attachments });
   };
 

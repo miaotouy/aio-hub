@@ -15,7 +15,7 @@ export function flattenObject(
   obj: Record<string, any>,
   prefix = "",
   delimiter = "_",
-  warnings: string[] = [],
+  warnings: string[] = []
 ): Record<string, any> {
   const flattened: Record<string, any> = {};
 
@@ -25,7 +25,10 @@ export function flattenObject(
 
     if (value !== null && typeof value === "object" && !Array.isArray(value)) {
       warnings.push(`检测到嵌套对象 "${newKey}"，已自动展平为扁平键值对。`);
-      Object.assign(flattened, flattenObject(value, newKey, delimiter, warnings));
+      Object.assign(
+        flattened,
+        flattenObject(value, newKey, delimiter, warnings)
+      );
     } else if (Array.isArray(value)) {
       warnings.push(`检测到数组 "${newKey}"，已转换为逗号分隔的字符串。`);
       flattened[newKey] = value.join(",");
@@ -40,7 +43,10 @@ export function flattenObject(
 /**
  * 序列化对象为 .env 格式
  */
-export function serializeEnv(obj: Record<string, any>, warnings: string[] = []): string {
+export function serializeEnv(
+  obj: Record<string, any>,
+  warnings: string[] = []
+): string {
   // .env 必须是扁平的，所以先展平
   const flatObj = flattenObject(obj, "", "_", warnings);
   let output = "";
@@ -65,7 +71,11 @@ export function serializeEnv(obj: Record<string, any>, warnings: string[] = []):
 /**
  * 序列化对象为 INI 格式
  */
-export function serializeIni(obj: Record<string, any>, options: ConvertOptions = {}, warnings: string[] = []): string {
+export function serializeIni(
+  obj: Record<string, any>,
+  options: ConvertOptions = {},
+  warnings: string[] = []
+): string {
   const delimiter = options.iniDelimiter || ".";
   const processedObj: Record<string, any> = {};
 
@@ -76,9 +86,13 @@ export function serializeIni(obj: Record<string, any>, options: ConvertOptions =
     const value = obj[key];
     if (value !== null && typeof value === "object" && !Array.isArray(value)) {
       // 检查第二层是否还有嵌套
-      const hasDeepNest = Object.values(value).some((v) => v !== null && typeof v === "object" && !Array.isArray(v));
+      const hasDeepNest = Object.values(value).some(
+        (v) => v !== null && typeof v === "object" && !Array.isArray(v)
+      );
       if (hasDeepNest) {
-        warnings.push(`INI 格式不支持多层嵌套，Section "${key}" 内部的深层对象已被展平。`);
+        warnings.push(
+          `INI 格式不支持多层嵌套，Section "${key}" 内部的深层对象已被展平。`
+        );
         processedObj[key] = flattenObject(value, "", delimiter, warnings);
       } else {
         processedObj[key] = value;
@@ -98,7 +112,10 @@ export function serializeIni(obj: Record<string, any>, options: ConvertOptions =
 /**
  * 序列化对象为 XML 格式
  */
-export function serializeXml(obj: Record<string, any>, options: ConvertOptions = {}): string {
+export function serializeXml(
+  obj: Record<string, any>,
+  options: ConvertOptions = {}
+): string {
   const rootName = options.xmlRootName || "root";
   const format = options.xmlFormat !== false;
 
@@ -125,7 +142,7 @@ export function serializeConfig(
   obj: Record<string, any>,
   format: ConfigFormat,
   options: ConvertOptions = {},
-  warnings: string[] = [],
+  warnings: string[] = []
 ): string {
   switch (format) {
     case "json": {

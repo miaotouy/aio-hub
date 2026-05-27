@@ -8,7 +8,10 @@ import { nanoid } from "nanoid";
 import { useAgentStore } from "../../stores/agentStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useChatSettings } from "../settings/useChatSettings";
-import { detectFileType, isTextFile as checkIsTextFile } from "@/utils/fileTypeDetector";
+import {
+  detectFileType,
+  isTextFile as checkIsTextFile,
+} from "@/utils/fileTypeDetector";
 
 const logger = createModuleLogger("AttachmentManager");
 const errorHandler = createModuleErrorHandler("AttachmentManager");
@@ -55,14 +58,18 @@ export interface UseAttachmentManagerReturn {
   /** 最大数量 */
   maxCount: number;
   /** 注册导入完成的回调 */
-  onImportComplete: (cb: (oldId: string, newAsset: Asset) => void) => () => void;
+  onImportComplete: (
+    cb: (oldId: string, newAsset: Asset) => void
+  ) => () => void;
 }
 
 /**
  * 附件管理 Composable
  * 用于管理消息的附件列表
  */
-export function useAttachmentManager(options: AttachmentManagerOptions = {}): UseAttachmentManagerReturn {
+export function useAttachmentManager(
+  options: AttachmentManagerOptions = {}
+): UseAttachmentManagerReturn {
   const {
     maxCount = 100,
     maxFileSize = 50 * 1024 * 1024, // 默认 50MB
@@ -75,7 +82,9 @@ export function useAttachmentManager(options: AttachmentManagerOptions = {}): Us
 
   // 计算是否正在处理：只要有一个资产处于 pending 或 importing 状态
   const isProcessing = computed(() =>
-    attachments.value.some((a) => a.importStatus === "pending" || a.importStatus === "importing")
+    attachments.value.some(
+      (a) => a.importStatus === "pending" || a.importStatus === "importing"
+    )
   );
 
   // 在顶层初始化 composables，避免在嵌套函数中调用导致状态获取问题
@@ -108,7 +117,9 @@ export function useAttachmentManager(options: AttachmentManagerOptions = {}): Us
       }
 
       // 检查文件大小
-      const metadata = await invoke<{ size: number }>("get_file_metadata", { path });
+      const metadata = await invoke<{ size: number }>("get_file_metadata", {
+        path,
+      });
       if (metadata.size > maxFileSize) {
         const sizeMB = (metadata.size / (1024 * 1024)).toFixed(1);
         const maxSizeMB = (maxFileSize / (1024 * 1024)).toFixed(0);
@@ -145,7 +156,10 @@ export function useAttachmentManager(options: AttachmentManagerOptions = {}): Us
     const assetType = asset.type;
 
     // 如果是文本文件，不需要检查文档能力（会被直接插入为文本）
-    if (assetType === "document" && checkIsTextFile(asset.name, asset.mimeType)) {
+    if (
+      assetType === "document" &&
+      checkIsTextFile(asset.name, asset.mimeType)
+    ) {
       logger.debug("文本文件不需要文档处理能力", {
         assetName: asset.name,
         mimeType: asset.mimeType,
@@ -298,7 +312,9 @@ export function useAttachmentManager(options: AttachmentManagerOptions = {}): Us
   const createPendingAsset = async (path: string): Promise<Asset | null> => {
     try {
       // 获取文件元数据（文件名、大小等）
-      const metadata = await invoke<{ size: number }>("get_file_metadata", { path });
+      const metadata = await invoke<{ size: number }>("get_file_metadata", {
+        path,
+      });
       const fileName = path.split(/[/\\]/).pop() || "unknown";
 
       // 使用新的文件类型检测工具
@@ -371,14 +387,18 @@ export function useAttachmentManager(options: AttachmentManagerOptions = {}): Us
       if (existingIndex !== -1) {
         const existingAsset = attachments.value[existingIndex];
         // 发现重复，移除当前的 pending 资产
-        const index = attachments.value.findIndex((a) => a.id === pendingAsset.id);
+        const index = attachments.value.findIndex(
+          (a) => a.id === pendingAsset.id
+        );
         if (index !== -1) {
           attachments.value.splice(index, 1);
         }
 
         // 关键修复：即使是重复文件，也要触发 ID 替换回调，否则占位符会永远卡在 uploading 状态
         // 使用 uploadingId 确保占位符能被准确找到
-        importCallbacks.forEach((cb) => cb(pendingAsset.uploadingId || pendingAsset.id, existingAsset));
+        importCallbacks.forEach((cb) =>
+          cb(pendingAsset.uploadingId || pendingAsset.id, existingAsset)
+        );
 
         logger.info("检测到重复文件，已移除，并触发 ID 替换", {
           pendingId: pendingAsset.id,
@@ -389,7 +409,9 @@ export function useAttachmentManager(options: AttachmentManagerOptions = {}): Us
       }
 
       // 找到数组中的索引并替换整个对象（触发 Vue 响应式更新）
-      const index = attachments.value.findIndex((a) => a.id === pendingAsset.id);
+      const index = attachments.value.findIndex(
+        (a) => a.id === pendingAsset.id
+      );
       if (index !== -1) {
         // 创建新对象替换，确保触发响应式更新
         const updatedAsset = {
@@ -408,7 +430,9 @@ export function useAttachmentManager(options: AttachmentManagerOptions = {}): Us
 
         // 触发回调
         // 使用 uploadingId 确保占位符能被准确找到
-        importCallbacks.forEach((cb) => cb(pendingAsset.uploadingId || pendingAsset.id, updatedAsset));
+        importCallbacks.forEach((cb) =>
+          cb(pendingAsset.uploadingId || pendingAsset.id, updatedAsset)
+        );
 
         logger.info("资产导入完成", {
           assetId: importedAsset.id,
@@ -427,7 +451,8 @@ export function useAttachmentManager(options: AttachmentManagerOptions = {}): Us
 
       // 标记为错误状态
       pendingAsset.importStatus = "error";
-      pendingAsset.importError = error instanceof Error ? error.message : "导入失败";
+      pendingAsset.importError =
+        error instanceof Error ? error.message : "导入失败";
 
       errorHandler.error(error, "导入失败", { assetName: pendingAsset.name });
     }
@@ -452,7 +477,9 @@ export function useAttachmentManager(options: AttachmentManagerOptions = {}): Us
     const pathsToAdd = paths.slice(0, availableSlots);
 
     if (pathsToAdd.length < paths.length) {
-      customMessage.warning(`最多只能添加 ${availableSlots} 个附件，已自动限制`);
+      customMessage.warning(
+        `最多只能添加 ${availableSlots} 个附件，已自动限制`
+      );
     }
 
     // 第一阶段：快速验证并创建 pending 资产（用于立即预览）
@@ -475,7 +502,9 @@ export function useAttachmentManager(options: AttachmentManagerOptions = {}): Us
     attachments.value.push(...pendingAssets);
 
     const message =
-      pendingAssets.length === 1 ? `已添加附件: ${pendingAssets[0].name}` : `已添加 ${pendingAssets.length} 个附件`;
+      pendingAssets.length === 1
+        ? `已添加附件: ${pendingAssets[0].name}`
+        : `已添加 ${pendingAssets.length} 个附件`;
     customMessage.success(message);
 
     logger.info("附件预览已显示", {
@@ -501,7 +530,10 @@ export function useAttachmentManager(options: AttachmentManagerOptions = {}): Us
     // 并行导入所有资产，但不等待它们完成，让导入在后台进行
     pendingAssets.forEach((asset) => {
       importPendingAsset(asset).catch((err) => {
-        logger.error("后台导入资产失败", err, { assetId: asset.id, name: asset.name });
+        logger.error("后台导入资产失败", err, {
+          assetId: asset.id,
+          name: asset.name,
+        });
       });
     });
 
@@ -546,7 +578,9 @@ export function useAttachmentManager(options: AttachmentManagerOptions = {}): Us
     const isDuplicate = attachments.value.some(
       (existing) =>
         existing.id === asset.id ||
-        (existing.metadata?.sha256 && asset.metadata?.sha256 && existing.metadata.sha256 === asset.metadata.sha256)
+        (existing.metadata?.sha256 &&
+          asset.metadata?.sha256 &&
+          existing.metadata.sha256 === asset.metadata.sha256)
     );
 
     if (isDuplicate) {
@@ -621,7 +655,11 @@ export function useAttachmentManager(options: AttachmentManagerOptions = {}): Us
 
       // 如果本地存在且正在导入（pending/importing），保留本地引用
       // 因为本地引用可能绑定了正在进行的后台任务或回调（如 MessageInput.vue 中的 watch）
-      if (localAsset && (localAsset.importStatus === "pending" || localAsset.importStatus === "importing")) {
+      if (
+        localAsset &&
+        (localAsset.importStatus === "pending" ||
+          localAsset.importStatus === "importing")
+      ) {
         mergedAssets.push(localAsset);
       } else {
         // 否则使用同步过来的新资产
@@ -644,8 +682,9 @@ export function useAttachmentManager(options: AttachmentManagerOptions = {}): Us
       attachments.value = mergedAssets;
       logger.debug("已同步附件列表（保留了正在导入的资产）", {
         count: mergedAssets.length,
-        preservedCount: mergedAssets.filter((a) => a.importStatus === "pending" || a.importStatus === "importing")
-          .length,
+        preservedCount: mergedAssets.filter(
+          (a) => a.importStatus === "pending" || a.importStatus === "importing"
+        ).length,
       });
     }
   };

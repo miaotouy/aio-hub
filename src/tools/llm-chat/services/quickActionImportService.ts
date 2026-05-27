@@ -9,7 +9,9 @@ import { readTextFile } from "@tauri-apps/plugin-fs";
 import type { QuickAction } from "../types/quick-action";
 
 createModuleLogger("llm-chat/quickActionImportService");
-const errorHandler = createModuleErrorHandler("llm-chat/quickActionImportService");
+const errorHandler = createModuleErrorHandler(
+  "llm-chat/quickActionImportService"
+);
 
 /**
  * 导入快捷操作组 (从 File 对象)
@@ -19,7 +21,9 @@ export async function importQuickActionSet(file: File): Promise<string | null> {
     const text = await file.text();
     return await importQuickActionFromText(text, file.name);
   } catch (error) {
-    errorHandler.handle(error as Error, { userMessage: "解析快捷操作文件失败" });
+    errorHandler.handle(error as Error, {
+      userMessage: "解析快捷操作文件失败",
+    });
     return null;
   }
 }
@@ -27,13 +31,17 @@ export async function importQuickActionSet(file: File): Promise<string | null> {
 /**
  * 导入快捷操作组 (从文件路径)
  */
-export async function importQuickActionFromPath(path: string): Promise<string | null> {
+export async function importQuickActionFromPath(
+  path: string
+): Promise<string | null> {
   try {
     const text = await readTextFile(path);
     const fileName = path.split(/[/\\]/).pop() || "未命名快捷操作组";
     return await importQuickActionFromText(text, fileName);
   } catch (error) {
-    errorHandler.handle(error as Error, { userMessage: `读取快捷操作文件失败: ${path}` });
+    errorHandler.handle(error as Error, {
+      userMessage: `读取快捷操作文件失败: ${path}`,
+    });
     return null;
   }
 }
@@ -41,7 +49,10 @@ export async function importQuickActionFromPath(path: string): Promise<string | 
 /**
  * 内部通用导入逻辑
  */
-async function importQuickActionFromText(text: string, fileName: string): Promise<string | null> {
+async function importQuickActionFromText(
+  text: string,
+  fileName: string
+): Promise<string | null> {
   try {
     const data = JSON.parse(text);
     const quickActionStore = useQuickActionStore();
@@ -76,7 +87,9 @@ async function importQuickActionFromText(text: string, fileName: string): Promis
 
     throw new Error("无效的快捷操作格式");
   } catch (error) {
-    errorHandler.handle(error as Error, { userMessage: "解析快捷操作数据失败" });
+    errorHandler.handle(error as Error, {
+      userMessage: "解析快捷操作数据失败",
+    });
     return null;
   }
 }

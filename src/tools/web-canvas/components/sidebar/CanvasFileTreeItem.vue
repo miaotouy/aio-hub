@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import { ChevronRight, Folder, FolderOpen, Plus, Trash2 } from "lucide-vue-next";
+import {
+  ChevronRight,
+  Folder,
+  FolderOpen,
+  Plus,
+  Trash2,
+} from "lucide-vue-next";
 import type { CanvasFileNode } from "../../types";
 import FileIcon from "@/components/common/FileIcon.vue";
 
@@ -65,11 +71,23 @@ const onChildSelect = (path: string) => {
       <span class="item-name">{{ node.name }}</span>
 
       <div class="item-status" v-if="!node.isDirectory">
-        <div v-if="node.status === 'modified'" class="status-dot modified" title="已修改"></div>
-        <div v-if="node.status === 'new'" class="status-icon new" title="新增文件">
+        <div
+          v-if="node.status === 'modified'"
+          class="status-dot modified"
+          title="已修改"
+        ></div>
+        <div
+          v-if="node.status === 'new'"
+          class="status-icon new"
+          title="新增文件"
+        >
           <Plus :size="10" />
         </div>
-        <div v-if="node.status === 'deleted'" class="status-icon deleted" title="已删除">
+        <div
+          v-if="node.status === 'deleted'"
+          class="status-icon deleted"
+          title="已删除"
+        >
           <Trash2 :size="10" />
         </div>
       </div>
@@ -101,11 +119,17 @@ const onChildSelect = (path: string) => {
   gap: 6px;
 
   &:hover {
-    background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.05));
+    background-color: rgba(
+      var(--el-color-primary-rgb),
+      calc(var(--card-opacity) * 0.05)
+    );
   }
 
   &.is-active {
-    background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.1));
+    background-color: rgba(
+      var(--el-color-primary-rgb),
+      calc(var(--card-opacity) * 0.1)
+    );
     color: var(--el-color-primary);
     font-weight: 500;
   }

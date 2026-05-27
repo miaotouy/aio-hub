@@ -10,7 +10,11 @@
  * - 不强制统一所有差异，尊重各 API 的独特性
  */
 
-import type { LlmMessageContent, LlmRequestOptions, MediaGenerationOptions } from "./common";
+import type {
+  LlmMessageContent,
+  LlmRequestOptions,
+  MediaGenerationOptions,
+} from "./common";
 import type { LlmProfile, LlmModelInfo } from "../types/llm-profiles";
 import { getProviderTypeInfo } from "../config/llm-providers";
 import { getActiveModelProperties } from "../config/model-metadata";
@@ -72,7 +76,9 @@ export interface ParsedMessageContent {
  * @param messages - 要解析的消息内容数组
  * @returns 解析后的消息内容结构
  */
-export function parseMessageContents(messages: LlmMessageContent[]): ParsedMessageContent {
+export function parseMessageContents(
+  messages: LlmMessageContent[]
+): ParsedMessageContent {
   const result: ParsedMessageContent = {
     textParts: [],
     imageParts: [],
@@ -163,7 +169,9 @@ export interface CommonToolDefinition {
  * @param tools - LlmRequestOptions 中的工具数组
  * @returns 标准化的工具定义数组，如果没有工具则返回 undefined
  */
-export function extractToolDefinitions(tools?: LlmRequestOptions["tools"]): CommonToolDefinition[] | undefined {
+export function extractToolDefinitions(
+  tools?: LlmRequestOptions["tools"]
+): CommonToolDefinition[] | undefined {
   if (!tools || tools.length === 0) {
     return undefined;
   }
@@ -201,7 +209,9 @@ export interface CommonParameters {
  * @param options - LLM 请求选项
  * @returns 标准化的通用参数对象
  */
-export function extractCommonParameters(options: LlmRequestOptions): CommonParameters {
+export function extractCommonParameters(
+  options: LlmRequestOptions
+): CommonParameters {
   const params: CommonParameters = {};
 
   if (options.temperature !== undefined) {
@@ -235,7 +245,11 @@ export function extractCommonParameters(options: LlmRequestOptions): CommonParam
 /**
  * 工具选择策略类型
  */
-export type ToolChoiceType = "auto" | "none" | "required" | { functionName: string };
+export type ToolChoiceType =
+  | "auto"
+  | "none"
+  | "required"
+  | { functionName: string };
 
 /**
  * 解析工具选择策略
@@ -244,7 +258,9 @@ export type ToolChoiceType = "auto" | "none" | "required" | { functionName: stri
  * @param toolChoice - LlmRequestOptions 中的工具选择策略
  * @returns 标准化的工具选择类型
  */
-export function parseToolChoice(toolChoice?: LlmRequestOptions["toolChoice"]): ToolChoiceType | undefined {
+export function parseToolChoice(
+  toolChoice?: LlmRequestOptions["toolChoice"]
+): ToolChoiceType | undefined {
   if (!toolChoice) {
     return undefined;
   }
@@ -273,7 +289,7 @@ export function mergeConversationHistory(
   conversationHistory?: Array<{
     role: "user" | "assistant";
     content: string | LlmMessageContent[];
-  }>,
+  }>
 ): Array<{
   role: "user" | "assistant";
   content: string | LlmMessageContent[];
@@ -307,7 +323,10 @@ export function mergeConversationHistory(
  * @param fileExt - 可选的文件扩展名
  * @returns MIME 类型字符串
  */
-export function inferImageMimeType(base64Data?: string | ArrayBuffer | Uint8Array, fileExt?: string): string {
+export function inferImageMimeType(
+  base64Data?: string | ArrayBuffer | Uint8Array,
+  fileExt?: string
+): string {
   // 根据文件扩展名推测
   if (fileExt) {
     const extMap: Record<string, string> = {
@@ -336,15 +355,32 @@ export function inferImageMimeType(base64Data?: string | ArrayBuffer | Uint8Arra
       const bytes =
         base64Data instanceof Uint8Array
           ? base64Data
-          : new Uint8Array(base64Data instanceof ArrayBuffer ? base64Data : (base64Data as any).buffer);
+          : new Uint8Array(
+              base64Data instanceof ArrayBuffer
+                ? base64Data
+                : (base64Data as any).buffer
+            );
 
       if (bytes.length > 4) {
         // PNG: 89 50 4E 47
-        if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return "image/png";
+        if (
+          bytes[0] === 0x89 &&
+          bytes[1] === 0x50 &&
+          bytes[2] === 0x4e &&
+          bytes[3] === 0x47
+        )
+          return "image/png";
         // JPEG: FF D8 FF
-        if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg";
+        if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff)
+          return "image/jpeg";
         // GIF: 47 49 46 38
-        if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x38) return "image/gif";
+        if (
+          bytes[0] === 0x47 &&
+          bytes[1] === 0x49 &&
+          bytes[2] === 0x46 &&
+          bytes[3] === 0x38
+        )
+          return "image/gif";
       }
     }
   }
@@ -361,7 +397,10 @@ export function inferImageMimeType(base64Data?: string | ArrayBuffer | Uint8Arra
  * @param fileExt - 可选的文件扩展名
  * @returns MIME 类型字符串
  */
-export function inferMediaMimeType(base64Data?: string | ArrayBuffer | Uint8Array, fileExt?: string): string {
+export function inferMediaMimeType(
+  base64Data?: string | ArrayBuffer | Uint8Array,
+  fileExt?: string
+): string {
   // 首先尝试推断图片类型
   const imageMimeType = inferImageMimeType(base64Data, fileExt);
 
@@ -408,7 +447,7 @@ export function inferMediaMimeType(base64Data?: string | ArrayBuffer | Uint8Arra
 export function buildBase64DataUrl(
   data: string | ArrayBuffer | Uint8Array,
   mimeType?: string,
-  options: { rawBase64?: boolean } = {},
+  options: { rawBase64?: boolean } = {}
 ): string {
   // 劫持检测：如果是本地文件协议，构建带 data URL 前缀的格式
   // 后端代理会在字符串中查找 local-file:// 并替换为实际的 base64 数据
@@ -482,7 +521,10 @@ export function buildBase64DataUrl(
  * @param provider - 提供商标识（可选）
  * @returns 模型家族类型
  */
-export function getModelFamily(modelId: string, provider?: string): ModelFamily {
+export function getModelFamily(
+  modelId: string,
+  provider?: string
+): ModelFamily {
   const props = getActiveModelProperties(modelId, provider);
   const group = props?.group?.toLowerCase();
 
@@ -490,11 +532,18 @@ export function getModelFamily(modelId: string, provider?: string): ModelFamily 
     // 如果元数据没有匹配到，尝试通过 provider 推断
     if (provider) {
       const lowerProvider = provider.toLowerCase();
-      if (lowerProvider === "anthropic" || lowerProvider === "claude") return "claude";
-      if (lowerProvider === "google" || lowerProvider === "gemini" || lowerProvider === "vertexai") return "gemini";
+      if (lowerProvider === "anthropic" || lowerProvider === "claude")
+        return "claude";
+      if (
+        lowerProvider === "google" ||
+        lowerProvider === "gemini" ||
+        lowerProvider === "vertexai"
+      )
+        return "gemini";
       if (lowerProvider === "cohere") return "cohere";
       if (lowerProvider === "deepseek") return "deepseek";
-      if (lowerProvider === "qwen" || lowerProvider === "alibaba") return "qwen";
+      if (lowerProvider === "qwen" || lowerProvider === "alibaba")
+        return "qwen";
       if (lowerProvider === "xai") return "xai";
     }
     return "unknown";
@@ -502,7 +551,11 @@ export function getModelFamily(modelId: string, provider?: string): ModelFamily 
 
   // 基于 group 判断家族
   // OpenAI 系列
-  if (group === "openai" || group === "openai responses" || group.startsWith("gpt")) {
+  if (
+    group === "openai" ||
+    group === "openai responses" ||
+    group.startsWith("gpt")
+  ) {
     return "openai";
   }
 
@@ -512,7 +565,12 @@ export function getModelFamily(modelId: string, provider?: string): ModelFamily 
   }
 
   // Gemini 系列
-  if (group === "gemini" || group === "gemma" || group.startsWith("gemini") || group.startsWith("gemma")) {
+  if (
+    group === "gemini" ||
+    group === "gemma" ||
+    group.startsWith("gemini") ||
+    group.startsWith("gemma")
+  ) {
     return "gemini";
   }
 
@@ -570,7 +628,7 @@ export function isOpenAIModel(modelId: string, provider?: string): boolean {
 export function filterParametersByCapabilities(
   options: LlmRequestOptions | MediaGenerationOptions,
   profile: LlmProfile,
-  model?: LlmModelInfo,
+  model?: LlmModelInfo
 ): Partial<LlmRequestOptions | MediaGenerationOptions> {
   const providerInfo = getProviderTypeInfo(profile.type);
   const supported = providerInfo?.supportedParameters;
@@ -584,21 +642,37 @@ export function filterParametersByCapabilities(
 
   // 媒体生成参数透传
   const mediaOptions = options as MediaGenerationOptions;
-  if (mediaOptions.prompt) (filtered as MediaGenerationOptions).prompt = mediaOptions.prompt;
-  if (mediaOptions.negativePrompt) (filtered as MediaGenerationOptions).negativePrompt = mediaOptions.negativePrompt;
-  if (mediaOptions.size) (filtered as MediaGenerationOptions).size = mediaOptions.size;
-  if (mediaOptions.aspectRatio) (filtered as MediaGenerationOptions).aspectRatio = mediaOptions.aspectRatio;
-  if (mediaOptions.guidanceScale) (filtered as MediaGenerationOptions).guidanceScale = mediaOptions.guidanceScale;
+  if (mediaOptions.prompt)
+    (filtered as MediaGenerationOptions).prompt = mediaOptions.prompt;
+  if (mediaOptions.negativePrompt)
+    (filtered as MediaGenerationOptions).negativePrompt =
+      mediaOptions.negativePrompt;
+  if (mediaOptions.size)
+    (filtered as MediaGenerationOptions).size = mediaOptions.size;
+  if (mediaOptions.aspectRatio)
+    (filtered as MediaGenerationOptions).aspectRatio = mediaOptions.aspectRatio;
+  if (mediaOptions.guidanceScale)
+    (filtered as MediaGenerationOptions).guidanceScale =
+      mediaOptions.guidanceScale;
   if (mediaOptions.numInferenceSteps)
-    (filtered as MediaGenerationOptions).numInferenceSteps = mediaOptions.numInferenceSteps;
+    (filtered as MediaGenerationOptions).numInferenceSteps =
+      mediaOptions.numInferenceSteps;
   if (mediaOptions.promptEnhancement !== undefined)
-    (filtered as MediaGenerationOptions).promptEnhancement = mediaOptions.promptEnhancement;
-  if (mediaOptions.audioConfig) (filtered as MediaGenerationOptions).audioConfig = mediaOptions.audioConfig;
-  if (mediaOptions.mask) (filtered as MediaGenerationOptions).mask = mediaOptions.mask;
+    (filtered as MediaGenerationOptions).promptEnhancement =
+      mediaOptions.promptEnhancement;
+  if (mediaOptions.audioConfig)
+    (filtered as MediaGenerationOptions).audioConfig = mediaOptions.audioConfig;
+  if (mediaOptions.mask)
+    (filtered as MediaGenerationOptions).mask = mediaOptions.mask;
   if (mediaOptions.inputAttachments)
-    (filtered as MediaGenerationOptions).inputAttachments = mediaOptions.inputAttachments;
-  if (mediaOptions.durationSeconds) (filtered as MediaGenerationOptions).durationSeconds = mediaOptions.durationSeconds;
-  if (mediaOptions.inputFidelity) (filtered as MediaGenerationOptions).inputFidelity = mediaOptions.inputFidelity;
+    (filtered as MediaGenerationOptions).inputAttachments =
+      mediaOptions.inputAttachments;
+  if (mediaOptions.durationSeconds)
+    (filtered as MediaGenerationOptions).durationSeconds =
+      mediaOptions.durationSeconds;
+  if (mediaOptions.inputFidelity)
+    (filtered as MediaGenerationOptions).inputFidelity =
+      mediaOptions.inputFidelity;
 
   filtered.stream = options.stream;
   filtered.onStream = options.onStream;
@@ -646,7 +720,10 @@ export function filterParametersByCapabilities(
   }
 
   // ===== 高级参数 =====
-  if (supported.maxCompletionTokens && options.maxCompletionTokens !== undefined) {
+  if (
+    supported.maxCompletionTokens &&
+    options.maxCompletionTokens !== undefined
+  ) {
     filtered.maxCompletionTokens = options.maxCompletionTokens;
   }
   if (supported.logprobs && options.logprobs !== undefined) {
@@ -660,21 +737,31 @@ export function filterParametersByCapabilities(
   }
 
   // ===== 工具调用（需要同时检查 provider 支持和模型能力） =====
-  const supportsTools = supported.tools && (!capabilities || capabilities.toolUse);
+  const supportsTools =
+    supported.tools && (!capabilities || capabilities.toolUse);
   if (supportsTools && options.tools !== undefined) {
     filtered.tools = options.tools;
   }
-  if (supportsTools && supported.toolChoice && options.toolChoice !== undefined) {
+  if (
+    supportsTools &&
+    supported.toolChoice &&
+    options.toolChoice !== undefined
+  ) {
     filtered.toolChoice = options.toolChoice;
   }
-  if (supportsTools && supported.parallelToolCalls && options.parallelToolCalls !== undefined) {
+  if (
+    supportsTools &&
+    supported.parallelToolCalls &&
+    options.parallelToolCalls !== undefined
+  ) {
     filtered.parallelToolCalls = options.parallelToolCalls;
   }
 
   // ===== 推理模式（o系列模型） =====
   // 兼容旧的 reasoningEffort 检查，或者新的 thinking 检查
   const supportsReasoning =
-    (supported.reasoningEffort || supported.thinking) && (!capabilities || capabilities.thinking);
+    (supported.reasoningEffort || supported.thinking) &&
+    (!capabilities || capabilities.thinking);
 
   if (supportsReasoning && options.reasoningEffort !== undefined) {
     filtered.reasoningEffort = options.reasoningEffort;
@@ -683,14 +770,18 @@ export function filterParametersByCapabilities(
   // ===== 思考模式 (通用) =====
   // 只要 Provider 支持 thinking，就允许传递 these 通用参数
   // 具体参数的转换由各 API 模块内部处理
-  const supportsThinking = supported.thinking && (!capabilities || capabilities.thinking);
+  const supportsThinking =
+    supported.thinking && (!capabilities || capabilities.thinking);
   if (supportsThinking) {
-    if (options.thinkingEnabled !== undefined) filtered.thinkingEnabled = options.thinkingEnabled;
-    if (options.thinkingBudget !== undefined) filtered.thinkingBudget = options.thinkingBudget;
+    if (options.thinkingEnabled !== undefined)
+      filtered.thinkingEnabled = options.thinkingEnabled;
+    if (options.thinkingBudget !== undefined)
+      filtered.thinkingBudget = options.thinkingBudget;
   }
 
   // ===== 网络搜索 =====
-  const supportsWebSearch = supported.webSearch && (!capabilities || capabilities.webSearch);
+  const supportsWebSearch =
+    supported.webSearch && (!capabilities || capabilities.webSearch);
   if (supportsWebSearch && options.webSearchEnabled !== undefined) {
     filtered.webSearchEnabled = options.webSearchEnabled;
   }
@@ -716,34 +807,45 @@ export function filterParametersByCapabilities(
 
   // OpenAI 特有参数
   // 条件：profile.type 是 openai 系列，且模型家族也是 openai（排除通过 OpenAI 渠道访问其他厂商的情况）
-  const isOpenAIProfile = profile.type === "openai" || profile.type === "openai-responses";
-  const shouldApplyOpenAIParams = isOpenAIProfile && (modelFamily === "openai" || modelFamily === "unknown");
+  const isOpenAIProfile =
+    profile.type === "openai" || profile.type === "openai-responses";
+  const shouldApplyOpenAIParams =
+    isOpenAIProfile && (modelFamily === "openai" || modelFamily === "unknown");
   if (shouldApplyOpenAIParams) {
     if (options.n !== undefined) filtered.n = options.n;
     if (options.logitBias !== undefined) filtered.logitBias = options.logitBias;
     if (options.store !== undefined) filtered.store = options.store;
     if (options.user !== undefined) filtered.user = options.user;
-    if (options.serviceTier !== undefined) filtered.serviceTier = options.serviceTier;
-    if (options.streamOptions !== undefined) filtered.streamOptions = options.streamOptions;
+    if (options.serviceTier !== undefined)
+      filtered.serviceTier = options.serviceTier;
+    if (options.streamOptions !== undefined)
+      filtered.streamOptions = options.streamOptions;
     if (options.metadata !== undefined) filtered.metadata = options.metadata;
   }
 
   // Claude 特有参数
   // 条件：profile.type 是 claude，或者模型家族是 claude（通过其他渠道访问 Claude 模型）
-  const shouldApplyClaudeParams = profile.type === "claude" || modelFamily === "claude";
+  const shouldApplyClaudeParams =
+    profile.type === "claude" || modelFamily === "claude";
   if (shouldApplyClaudeParams) {
-    if (options.stopSequences !== undefined) filtered.stopSequences = options.stopSequences;
-    if (options.claudeMetadata !== undefined) filtered.claudeMetadata = options.claudeMetadata;
+    if (options.stopSequences !== undefined)
+      filtered.stopSequences = options.stopSequences;
+    if (options.claudeMetadata !== undefined)
+      filtered.claudeMetadata = options.claudeMetadata;
   }
 
   // Gemini/VertexAI 特有参数
   // 条件：profile.type 是 gemini/vertexai，或者模型家族是 gemini（通过 OpenAI 渠道访问 Gemini 模型）
-  const shouldApplyGeminiParams = profile.type === "gemini" || profile.type === "vertexai" || modelFamily === "gemini";
+  const shouldApplyGeminiParams =
+    profile.type === "gemini" ||
+    profile.type === "vertexai" ||
+    modelFamily === "gemini";
   if (shouldApplyGeminiParams) {
     // 安全设置
     const extendedOptions = options as Record<string, any>;
     if (extendedOptions.safetySettings !== undefined) {
-      (filtered as Record<string, any>).safetySettings = extendedOptions.safetySettings;
+      (filtered as Record<string, any>).safetySettings =
+        extendedOptions.safetySettings;
     }
 
     // 其他 Gemini 特有参数
@@ -763,7 +865,8 @@ export function filterParametersByCapabilities(
     }
 
     // 代码执行
-    const supportsCodeExecution = supported.codeExecution && (!capabilities || capabilities.codeExecution);
+    const supportsCodeExecution =
+      supported.codeExecution && (!capabilities || capabilities.codeExecution);
     if (supportsCodeExecution) {
       // 代码执行相关参数在 gemini.ts 中处理
     }
@@ -781,7 +884,8 @@ export function filterParametersByCapabilities(
 
   // Cohere 特有参数
   // 条件：profile.type 是 cohere，或者模型家族是 cohere
-  const shouldApplyCohereParams = profile.type === "cohere" || modelFamily === "cohere";
+  const shouldApplyCohereParams =
+    profile.type === "cohere" || modelFamily === "cohere";
   if (shouldApplyCohereParams) {
     const extendedOptions = options as any;
     // Cohere 特有的参数
@@ -963,11 +1067,17 @@ export const KNOWN_NON_MODEL_OPTIONS_KEYS = new Set([
  * @param options - 包含所有参数的原始 LlmRequestOptions 对象。
  * @returns 修改后的 body 对象。
  */
-export function applyCustomParameters(body: any, options: LlmRequestOptions): any {
+export function applyCustomParameters(
+  body: any,
+  options: LlmRequestOptions
+): any {
   for (const key in options) {
     if (Object.prototype.hasOwnProperty.call(options, key)) {
       // @ts-expect-error - key is a string
-      if (!KNOWN_NON_MODEL_OPTIONS_KEYS.has(key) && options[key] !== undefined) {
+      if (
+        !KNOWN_NON_MODEL_OPTIONS_KEYS.has(key) &&
+        options[key] !== undefined
+      ) {
         const rawKey = key;
         // @ts-expect-error - key is a string
         const value = options[key];

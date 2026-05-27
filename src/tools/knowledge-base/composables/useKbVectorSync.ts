@@ -6,7 +6,11 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
 import { useKnowledgeBaseStore } from "../stores/knowledgeBaseStore";
 import { kbStorage } from "../utils/kbStorage";
-import { getPureModelId, getProfileId, parseModelCombo } from "@/utils/modelIdUtils";
+import {
+  getPureModelId,
+  getProfileId,
+  parseModelCombo,
+} from "@/utils/modelIdUtils";
 import { performGenerateTags, mergeTags } from "../core/tagGenerator";
 import { IndexingOrchestrator, VectorSyncManager } from "../logic/orchestrator";
 import { invoke } from "@tauri-apps/api/core";
@@ -26,7 +30,11 @@ export function useKbVectorSync() {
   /**
    * 批量更新向量
    */
-  async function updateVectors(kbIds?: string[], entryIds?: string[], options: { customComboId?: string } = {}) {
+  async function updateVectors(
+    kbIds?: string[],
+    entryIds?: string[],
+    options: { customComboId?: string } = {}
+  ) {
     const comboId = options.customComboId || store.config.defaultEmbeddingModel;
     if (!comboId) {
       customMessage.warning("请先在设置中配置默认 Embedding 模型");
@@ -46,9 +54,13 @@ export function useKbVectorSync() {
     if (entryIds && store.activeBaseId) {
       missingMap = entryIds.map((id) => [store.activeBaseId!, id]);
     } else {
-      const targetKbIds = kbIds || (store.activeBaseId ? [store.activeBaseId] : []);
+      const targetKbIds =
+        kbIds || (store.activeBaseId ? [store.activeBaseId] : []);
       if (targetKbIds.length === 0) return;
-      const coverage = await syncManager.checkCoverage({ kbIds: targetKbIds, modelId: pureModelId });
+      const coverage = await syncManager.checkCoverage({
+        kbIds: targetKbIds,
+        modelId: pureModelId,
+      });
       missingMap = coverage.missingMap;
     }
 
@@ -77,11 +89,18 @@ export function useKbVectorSync() {
       });
 
       if (store.indexingProgress.shouldStop) {
-        notify.warning("进度已手动停止", `共处理 ${store.indexingProgress.current} 项`);
+        notify.warning(
+          "进度已手动停止",
+          `共处理 ${store.indexingProgress.current} 项`
+        );
       } else {
-        notify.success("向量化任务全部完成", `成功补齐了 ${store.indexingProgress.total} 项索引。`, {
-          source: "knowledge-base",
-        });
+        notify.success(
+          "向量化任务全部完成",
+          `成功补齐了 ${store.indexingProgress.total} 项索引。`,
+          {
+            source: "knowledge-base",
+          }
+        );
       }
     } catch (e) {
       errorHandler.error(e, "向量同步任务执行异常");
@@ -119,7 +138,10 @@ export function useKbVectorSync() {
 
     // 收集所有标签
     for (const id of kbIds) {
-      const meta = await invoke<KnowledgeBaseMeta | null>("kb_load_base_meta", { kbId: id, modelId: pureModelId });
+      const meta = await invoke<KnowledgeBaseMeta | null>("kb_load_base_meta", {
+        kbId: id,
+        modelId: pureModelId,
+      });
       if (!meta) continue;
       meta.entries.forEach((e) => e.tags?.forEach((t) => allTags.add(t)));
     }
@@ -154,8 +176,12 @@ export function useKbVectorSync() {
   /**
    * 批量生成标签
    */
-  async function batchGenerateTags(entryIds: string[], options: { force?: boolean } = {}) {
-    if (!store.activeBaseId || !store.activeBaseMeta || entryIds.length === 0) return;
+  async function batchGenerateTags(
+    entryIds: string[],
+    options: { force?: boolean } = {}
+  ) {
+    if (!store.activeBaseId || !store.activeBaseMeta || entryIds.length === 0)
+      return;
 
     const config = store.config.tagGeneration;
     if (!config.enabled || !config.modelId) {
@@ -165,7 +191,9 @@ export function useKbVectorSync() {
 
     const { profiles } = useLlmProfiles();
     const { sendRequest } = useLlmRequest();
-    const profile = profiles.value.find((p) => p.id === getProfileId(config.modelId));
+    const profile = profiles.value.find(
+      (p) => p.id === getProfileId(config.modelId)
+    );
     if (!profile) return;
 
     const tasks = entryIds.filter((id) => {
@@ -195,7 +223,10 @@ export function useKbVectorSync() {
             if (!id) break;
 
             try {
-              const fullEntry = await invoke<Caiu | null>("kb_load_entry", { kbId: store.activeBaseId!, entryId: id });
+              const fullEntry = await invoke<Caiu | null>("kb_load_entry", {
+                kbId: store.activeBaseId!,
+                entryId: id,
+              });
               if (!fullEntry || !fullEntry.content) continue;
 
               const newTags = await performGenerateTags({
@@ -206,15 +237,24 @@ export function useKbVectorSync() {
               });
 
               const merged = mergeTags(fullEntry.tags || [], newTags);
-              const updated = { ...fullEntry, tags: merged, updatedAt: Date.now() };
+              const updated = {
+                ...fullEntry,
+                tags: merged,
+                updatedAt: Date.now(),
+              };
 
               await kbStorage.saveEntry(store.activeBaseId!, updated);
 
               // 同步 UI 状态
-              const idx = store.activeBaseMeta!.entries.findIndex((e) => e.id === id);
+              const idx = store.activeBaseMeta!.entries.findIndex(
+                (e) => e.id === id
+              );
               if (idx !== -1) {
-                store.activeBaseMeta!.entries[idx].tags = merged.map((t) => (typeof t === "string" ? t : t.name));
-                store.activeBaseMeta!.entries[idx].updatedAt = updated.updatedAt;
+                store.activeBaseMeta!.entries[idx].tags = merged.map((t) =>
+                  typeof t === "string" ? t : t.name
+                );
+                store.activeBaseMeta!.entries[idx].updatedAt =
+                  updated.updatedAt;
               }
               store.entriesCache.set(id, updated);
             } catch (e) {

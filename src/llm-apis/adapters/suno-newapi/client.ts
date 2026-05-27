@@ -34,23 +34,35 @@ export class SunoClient {
   constructor(config: SunoClientConfig) {
     this.config = config;
     this.pollInterval = config.pollInterval ?? SUNO_DEFAULTS.pollInterval;
-    this.maxPollAttempts = config.maxPollAttempts ?? SUNO_DEFAULTS.maxPollAttempts;
+    this.maxPollAttempts =
+      config.maxPollAttempts ?? SUNO_DEFAULTS.maxPollAttempts;
   }
 
   /** 提交音乐生成并轮询至完成 */
-  async generateMusic(request: SunoMusicRequest, onProgress?: SunoProgressCallback): Promise<SunoMusicResult> {
+  async generateMusic(
+    request: SunoMusicRequest,
+    onProgress?: SunoProgressCallback
+  ): Promise<SunoMusicResult> {
     const taskId = await this.submitMusic(request);
     onProgress?.({ status: "SUBMITTED", progressText: "0%", percentage: 0 });
     const fetchResult = await this.pollUntilDone(taskId, onProgress);
     if (fetchResult.data.status === "FAILURE") {
-      return { taskId, clips: [], status: "FAILURE", failReason: fetchResult.data.fail_reason || "Unknown error" };
+      return {
+        taskId,
+        clips: [],
+        status: "FAILURE",
+        failReason: fetchResult.data.fail_reason || "Unknown error",
+      };
     }
     const clips = await this.extractClipsFromTask(fetchResult);
     return { taskId, clips, status: "SUCCESS" };
   }
 
   /** 提交歌词生成并轮询至完成 */
-  async generateLyrics(request: SunoLyricsRequest, onProgress?: SunoProgressCallback): Promise<SunoLyricsResult> {
+  async generateLyrics(
+    request: SunoLyricsRequest,
+    onProgress?: SunoProgressCallback
+  ): Promise<SunoLyricsResult> {
     const taskId = await this.submitLyrics(request);
     onProgress?.({ status: "SUBMITTED", progressText: "0%", percentage: 0 });
     const fetchResult = await this.pollUntilDone(taskId, onProgress);
@@ -58,16 +70,29 @@ export class SunoClient {
       return { taskId, title: "", text: "", status: "FAILURE" };
     }
     const taskData = fetchResult.data.data || {};
-    return { taskId, title: taskData.title || "", text: taskData.text || "", status: "SUCCESS" };
+    return {
+      taskId,
+      title: taskData.title || "",
+      text: taskData.text || "",
+      status: "SUCCESS",
+    };
   }
 
   /** 提交拼接任务并轮询至完成 */
-  async concat(request: SunoConcatRequest, onProgress?: SunoProgressCallback): Promise<SunoMusicResult> {
+  async concat(
+    request: SunoConcatRequest,
+    onProgress?: SunoProgressCallback
+  ): Promise<SunoMusicResult> {
     const taskId = await this.submitConcat(request);
     onProgress?.({ status: "SUBMITTED", progressText: "0%", percentage: 0 });
     const fetchResult = await this.pollUntilDone(taskId, onProgress);
     if (fetchResult.data.status === "FAILURE") {
-      return { taskId, clips: [], status: "FAILURE", failReason: fetchResult.data.fail_reason || "Unknown error" };
+      return {
+        taskId,
+        clips: [],
+        status: "FAILURE",
+        failReason: fetchResult.data.fail_reason || "Unknown error",
+      };
     }
     const clips = await this.extractClipsFromTask(fetchResult);
     return { taskId, clips, status: "SUCCESS" };
@@ -97,12 +122,18 @@ export class SunoClient {
   }
 
   async fetchTask(taskId: string): Promise<SunoFetchResponse> {
-    const url = buildSunoUrl(this.config.baseUrl, `${SUNO_PATHS.fetch}/${taskId}`);
+    const url = buildSunoUrl(
+      this.config.baseUrl,
+      `${SUNO_PATHS.fetch}/${taskId}`
+    );
     return this.request<SunoFetchResponse>("GET", url);
   }
 
   async getClipInfo(clipId: string): Promise<SunoClipInfo[]> {
-    const url = buildSunoUrl(this.config.baseUrl, `${SUNO_PATHS.feed}/${clipId}`);
+    const url = buildSunoUrl(
+      this.config.baseUrl,
+      `${SUNO_PATHS.feed}/${clipId}`
+    );
     return this.request<SunoClipInfo[]>("GET", url);
   }
 
@@ -111,14 +142,23 @@ export class SunoClient {
     return this.request<SunoTagsResponse>("POST", url, request);
   }
 
-  async separateVocals(clipId: string, request?: SunoVoxRequest): Promise<SunoVoxResponse> {
-    const url = buildSunoUrl(this.config.baseUrl, `${SUNO_PATHS.actVox}/${clipId}`);
+  async separateVocals(
+    clipId: string,
+    request?: SunoVoxRequest
+  ): Promise<SunoVoxResponse> {
+    const url = buildSunoUrl(
+      this.config.baseUrl,
+      `${SUNO_PATHS.actVox}/${clipId}`
+    );
     return this.request<SunoVoxResponse>("POST", url, request ?? {});
   }
 
   // === 内部方法 ===
 
-  private async pollUntilDone(taskId: string, onProgress?: SunoProgressCallback): Promise<SunoFetchResponse> {
+  private async pollUntilDone(
+    taskId: string,
+    onProgress?: SunoProgressCallback
+  ): Promise<SunoFetchResponse> {
     for (let attempt = 0; attempt < this.maxPollAttempts; attempt++) {
       // 检查中止信号
       if (this.config.signal?.aborted) {
@@ -140,10 +180,14 @@ export class SunoClient {
       await this.sleep(this.pollInterval);
     }
 
-    throw new Error(`Suno task ${taskId} timed out after ${this.maxPollAttempts} poll attempts`);
+    throw new Error(
+      `Suno task ${taskId} timed out after ${this.maxPollAttempts} poll attempts`
+    );
   }
 
-  private async extractClipsFromTask(fetchResult: SunoFetchResponse): Promise<SunoClipInfo[]> {
+  private async extractClipsFromTask(
+    fetchResult: SunoFetchResponse
+  ): Promise<SunoClipInfo[]> {
     const taskData = fetchResult.data.data;
     if (!taskData) return [];
 
@@ -176,7 +220,11 @@ export class SunoClient {
     return allClips;
   }
 
-  private async request<T>(method: "GET" | "POST", url: string, body?: unknown): Promise<T> {
+  private async request<T>(
+    method: "GET" | "POST",
+    url: string,
+    body?: unknown
+  ): Promise<T> {
     return sunoFetch<T>(this.config, method, url, body);
   }
 

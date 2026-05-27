@@ -22,7 +22,7 @@ const props = withDefaults(
   }>(),
   {
     mode: "session",
-  },
+  }
 );
 
 const emit = defineEmits<{
@@ -42,12 +42,16 @@ const textareaRef = ref<HTMLTextAreaElement>();
 const attachmentsContainerRef = ref<HTMLDivElement>();
 const { height: attachmentsHeight } = useElementSize(attachmentsContainerRef);
 
-const { editorHeight, editorMaxHeight, handleInputResizeStart, handleResizeDoubleClick, adjustHeight } = useInputResize(
-  {
-    textareaRef,
-    extraHeight: attachmentsHeight,
-  },
-);
+const {
+  editorHeight,
+  editorMaxHeight,
+  handleInputResizeStart,
+  handleResizeDoubleClick,
+  adjustHeight,
+} = useInputResize({
+  textareaRef,
+  extraHeight: attachmentsHeight,
+});
 
 // 监听模型切换，自动更新上下文开关
 watch(
@@ -65,7 +69,7 @@ watch(
       }
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 // 使用 store 中的状态，确保刷新保持
@@ -207,7 +211,10 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
 </script>
 
 <template>
-  <div ref="containerRef" :class="['input-container', { 'dragging-over': isDraggingOver }]">
+  <div
+    ref="containerRef"
+    :class="['input-container', { 'dragging-over': isDraggingOver }]"
+  >
     <!-- 调整高度手柄 - 在顶部 -->
     <div
       class="resize-handle"
@@ -218,7 +225,11 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
 
     <div class="input-main-area">
       <!-- 附件展示区 -->
-      <div v-if="store.hasAttachments" ref="attachmentsContainerRef" class="attachments-area">
+      <div
+        v-if="store.hasAttachments"
+        ref="attachmentsContainerRef"
+        class="attachments-area"
+      >
         <div class="attachments-list">
           <AttachmentCard
             v-for="asset in store.attachments"
@@ -260,7 +271,9 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
         :is-generating="isGenerating"
         :has-attachments="store.hasAttachments"
         :prompt-text="prompt"
-        :include-context="props.mode === 'session' ? store.currentConfig.includeContext : false"
+        :include-context="
+          props.mode === 'session' ? store.currentConfig.includeContext : false
+        "
         :show-context-toggle="props.mode === 'session'"
         @update:include-context="store.currentConfig.includeContext = $event"
         @send="handleSend"

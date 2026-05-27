@@ -4,7 +4,7 @@
 
 import {
   getPureModelId as globalGetPureModelId,
-  getProfileId as globalGetProfileId
+  getProfileId as globalGetProfileId,
 } from "@/utils/modelIdUtils";
 
 /**

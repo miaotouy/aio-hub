@@ -75,7 +75,11 @@ export function getDateInTimezone(
  * @param timezone 可选的时区覆盖
  * @returns 格式化后的字符串
  */
-export function formatWithTimezone(date: Date, options: Intl.DateTimeFormatOptions = {}, timezone?: string): string {
+export function formatWithTimezone(
+  date: Date,
+  options: Intl.DateTimeFormatOptions = {},
+  timezone?: string
+): string {
   const tz = timezone || getAppTimezone();
   return new Intl.DateTimeFormat("zh-CN", {
     ...options,
@@ -96,7 +100,11 @@ export function formatWithTimezone(date: Date, options: Intl.DateTimeFormatOptio
  * @param timezone 可选的时区覆盖
  * @returns 格式化后的字符串
  */
-export function formatRelativeTime(timestamp: string | Date, now: Date = new Date(), timezone?: string): string {
+export function formatRelativeTime(
+  timestamp: string | Date,
+  now: Date = new Date(),
+  timezone?: string
+): string {
   const date = new Date(timestamp);
   const tz = timezone || getAppTimezone();
 
@@ -144,7 +152,11 @@ export function formatRelativeTime(timestamp: string | Date, now: Date = new Dat
   const yesterday = new Date(now);
   yesterday.setDate(nowDate - 1);
   const yesterdayInTz = getDateInTimezone(yesterday, tz);
-  if (yesterdayInTz.year === dateYear && yesterdayInTz.month === dateMonth && yesterdayInTz.day === dateDate) {
+  if (
+    yesterdayInTz.year === dateYear &&
+    yesterdayInTz.month === dateMonth &&
+    yesterdayInTz.day === dateDate
+  ) {
     return `昨天 ${timeStr}`;
   }
 
@@ -167,7 +179,10 @@ export function formatRelativeTime(timestamp: string | Date, now: Date = new Dat
  * @param timezone 可选的时区覆盖
  * @returns 应用时区的 ISO 格式字符串
  */
-export function getLocalISOString(date: Date = new Date(), timezone?: string): string {
+export function getLocalISOString(
+  date: Date = new Date(),
+  timezone?: string
+): string {
   const tz = timezone || getAppTimezone();
   const dateInTz = getDateInTimezone(date, tz);
   const year = dateInTz.year;
@@ -193,7 +208,10 @@ export function formatDateTime(
   formatString: string = "yyyy-MM-dd_HH-mm-ss",
   timezone?: string
 ): string {
-  const dateObj = typeof date === "string" || typeof date === "number" ? new Date(date) : date;
+  const dateObj =
+    typeof date === "string" || typeof date === "number"
+      ? new Date(date)
+      : date;
   const tz = timezone || getAppTimezone();
 
   try {
@@ -214,6 +232,9 @@ export function formatDateTimeLocal(
   date: Date | string | number,
   formatString: string = "yyyy-MM-dd_HH-mm-ss"
 ): string {
-  const dateObj = typeof date === "string" || typeof date === "number" ? new Date(date) : date;
+  const dateObj =
+    typeof date === "string" || typeof date === "number"
+      ? new Date(date)
+      : date;
   return format(dateObj, formatString);
 }

@@ -4,17 +4,30 @@
     <div v-if="progress.loading" class="progress-container">
       <div class="progress-wrapper">
         <el-progress
-          :percentage="progress.total > 0 ? Math.round((progress.loaded / progress.total) * 100) : 0"
+          :percentage="
+            progress.total > 0
+              ? Math.round((progress.loaded / progress.total) * 100)
+              : 0
+          "
           :status="progress.loaded === progress.total ? 'success' : undefined"
           class="flex-1"
         >
           <template #default="{ percentage }">
             <span class="progress-text">
-              正在加载... {{ progress.loaded }} / {{ progress.total }} ({{ percentage }}%)
+              正在加载... {{ progress.loaded }} / {{ progress.total }} ({{
+                percentage
+              }}%)
             </span>
           </template>
         </el-progress>
-        <el-button type="danger" size="small" link @click="$emit('cancel-loading')"> 终止加载 </el-button>
+        <el-button
+          type="danger"
+          size="small"
+          link
+          @click="$emit('cancel-loading')"
+        >
+          终止加载
+        </el-button>
       </div>
     </div>
 
@@ -36,7 +49,9 @@
               clearable
               @keyup.enter="$emit('load-repository')"
             />
-            <el-button @click="$emit('select-directory')" :icon="FolderOpened">选择</el-button>
+            <el-button @click="$emit('select-directory')" :icon="FolderOpened"
+              >选择</el-button
+            >
           </div>
         </DropZone>
         <el-select
@@ -53,7 +68,10 @@
             :value="branch.name"
           />
         </el-select>
-        <el-tooltip content="设置要加载的提交记录数量。设置为 0 则加载全部记录" placement="top">
+        <el-tooltip
+          content="设置要加载的提交记录数量。设置为 0 则加载全部记录"
+          placement="top"
+        >
           <el-input-number
             v-model="limitCount"
             :min="0"
@@ -67,7 +85,10 @@
             </template>
           </el-input-number>
         </el-tooltip>
-        <el-tooltip content="设置流式加载时的批次大小。设置为 0 则使用非流式加载（一次性加载所有记录）" placement="top">
+        <el-tooltip
+          content="设置流式加载时的批次大小。设置为 0 则使用非流式加载（一次性加载所有记录）"
+          placement="top"
+        >
           <el-input-number
             v-model="batchSize"
             :min="0"
@@ -81,11 +102,19 @@
             </template>
           </el-input-number>
         </el-tooltip>
-        <el-dropdown split-button type="primary" @click="$emit('load-repository')" :loading="loading" class="load-btn">
+        <el-dropdown
+          split-button
+          type="primary"
+          @click="$emit('load-repository')"
+          :loading="loading"
+          class="load-btn"
+        >
           加载仓库
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item @click="loadAllCommits">加载全部</el-dropdown-item>
+              <el-dropdown-item @click="loadAllCommits"
+                >加载全部</el-dropdown-item
+              >
             </el-dropdown-menu>
           </template>
         </el-dropdown>
@@ -162,10 +191,20 @@
           <el-option label="revert (回退)" value="revert" />
           <el-option label="other (其他)" value="other" />
         </el-select>
-        <el-checkbox v-model="reverseOrder" @change="$emit('filter-commits')" class="reverse-checkbox">
+        <el-checkbox
+          v-model="reverseOrder"
+          @change="$emit('filter-commits')"
+          class="reverse-checkbox"
+        >
           倒序
         </el-checkbox>
-        <el-button @click="$emit('clear-filters')" :icon="Refresh" class="clear-btn"> 清除 </el-button>
+        <el-button
+          @click="$emit('clear-filters')"
+          :icon="Refresh"
+          class="clear-btn"
+        >
+          清除
+        </el-button>
       </div>
     </div>
 
@@ -181,7 +220,10 @@
         <div class="range-header">
           <span class="range-label">提交范围:</span>
           <div class="tag-actions">
-            <el-tooltip content="定位到最近的一个标签（从最新开始）" placement="top">
+            <el-tooltip
+              content="定位到最近的一个标签（从最新开始）"
+              placement="top"
+            >
               <el-button
                 size="small"
                 circle
@@ -261,7 +303,9 @@
         </el-col>
         <el-col :span="6">
           <div class="stat-item-compact">
-            <span class="stat-value">{{ statistics.averagePerDay.toFixed(1) }}</span>
+            <span class="stat-value">{{
+              statistics.averagePerDay.toFixed(1)
+            }}</span>
             <span class="stat-label">平均提交/天</span>
           </div>
         </el-col>
@@ -340,7 +384,9 @@ const emit = defineEmits<{
 
 // 由于使用了 v-model，需要定义对应的计算属性
 const repoPath = defineModel<string>("repoPath", { required: true });
-const selectedBranch = defineModel<string>("selectedBranch", { required: true });
+const selectedBranch = defineModel<string>("selectedBranch", {
+  required: true,
+});
 const limitCount = defineModel<number>("limitCount", { required: true });
 
 function loadAllCommits() {
@@ -348,13 +394,17 @@ function loadAllCommits() {
   emit("load-repository");
 }
 const batchSize = defineModel<number>("batchSize", { required: true });
-const commitRange = defineModel<[number, number]>("commitRange", { required: true });
+const commitRange = defineModel<[number, number]>("commitRange", {
+  required: true,
+});
 const searchQuery = defineModel<string>("searchQuery", { required: true });
 const excludeQuery = defineModel<string>("excludeQuery", { required: true });
 const dateRange = defineModel<Date[] | null>("dateRange", { required: true });
 const authorFilter = defineModel<string>("authorFilter", { required: true });
 const reverseOrder = defineModel<boolean>("reverseOrder", { required: true });
-const commitTypeFilter = defineModel<string[]>("commitTypeFilter", { required: true });
+const commitTypeFilter = defineModel<string[]>("commitTypeFilter", {
+  required: true,
+});
 
 // 范围输入框的计算属性
 const rangeStart = computed({
@@ -424,7 +474,11 @@ function locateTagInterval() {
   }
 
   if (tagIndices.length < 2) {
-    customMessage.warning(tagIndices.length === 1 ? "仅找到一个标签，无法确定区间范围" : "未找到版本标签");
+    customMessage.warning(
+      tagIndices.length === 1
+        ? "仅找到一个标签，无法确定区间范围"
+        : "未找到版本标签"
+    );
     return;
   }
 
@@ -449,8 +503,13 @@ function locateTagInterval() {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background-color: color-mix(in srgb, var(--el-color-primary-light-5) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--el-color-primary-light-7) 50%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-primary-light-5) 10%,
+    transparent
+  );
+  border: 1px solid
+    color-mix(in srgb, var(--el-color-primary-light-7) 50%, transparent);
   border-radius: 6px;
   color: var(--el-color-primary);
   font-size: 13px;

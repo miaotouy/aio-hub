@@ -120,11 +120,20 @@ const getTypeText = (type: string) => {
       <div class="center-header">
         <div class="header-title">
           <span>消息中心</span>
-          <el-badge v-if="unreadCount > 0" :value="unreadCount" :max="99" class="unread-badge" />
+          <el-badge
+            v-if="unreadCount > 0"
+            :value="unreadCount"
+            :max="99"
+            class="unread-badge"
+          />
         </div>
         <div class="header-actions">
           <el-tooltip content="全部标记为已读" placement="bottom">
-            <button class="action-btn" :disabled="unreadCount === 0" @click="handleMarkAllRead">
+            <button
+              class="action-btn"
+              :disabled="unreadCount === 0"
+              @click="handleMarkAllRead"
+            >
               <CheckCheck :size="18" />
             </button>
           </el-tooltip>
@@ -158,7 +167,12 @@ const getTypeText = (type: string) => {
 
       <!-- 底部操作 -->
       <div v-if="notifications.length > 0" class="center-footer">
-        <el-button type="danger" plain class="clear-btn" @click="handleClearAll">
+        <el-button
+          type="danger"
+          plain
+          class="clear-btn"
+          @click="handleClearAll"
+        >
           <template #icon>
             <Trash2 :size="16" />
           </template>
@@ -177,13 +191,18 @@ const getTypeText = (type: string) => {
   >
     <div v-if="currentNotification" class="detail-container">
       <div class="detail-meta">
-        <div class="meta-item type-tag" :class="`type-${currentNotification.type}`">
+        <div
+          class="meta-item type-tag"
+          :class="`type-${currentNotification.type}`"
+        >
           <component :is="getTypeIcon(currentNotification.type)" :size="14" />
           <span>{{ getTypeText(currentNotification.type) }}</span>
         </div>
         <div class="meta-item">
           <Clock :size="14" />
-          <span>{{ format(currentNotification.timestamp, "yyyy-MM-dd HH:mm:ss") }}</span>
+          <span>{{
+            format(currentNotification.timestamp, "yyyy-MM-dd HH:mm:ss")
+          }}</span>
         </div>
         <div v-if="currentNotification.source" class="meta-item">
           <Tag :size="14" />
@@ -198,7 +217,10 @@ const getTypeText = (type: string) => {
         />
       </div>
       <div v-if="currentNotification.metadata?.path" class="detail-actions">
-        <button class="primary-action-btn" @click="handleItemClick(currentNotification.id)">
+        <button
+          class="primary-action-btn"
+          @click="handleItemClick(currentNotification.id)"
+        >
           前往查看
         </button>
       </div>

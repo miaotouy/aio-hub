@@ -31,7 +31,9 @@
         <div class="context-menu-item" @click="contextMoveUp">上移一层</div>
         <div class="context-menu-item" @click="contextMoveDown">下移一层</div>
         <div class="context-menu-item" @click="contextMoveToTop">置于顶层</div>
-        <div class="context-menu-item" @click="contextMoveToBottom">置于底层</div>
+        <div class="context-menu-item" @click="contextMoveToBottom">
+          置于底层
+        </div>
         <div class="context-menu-divider" />
         <div class="context-menu-item" @click="contextToggleLock">
           {{ contextMenuTarget.draggable() ? "锁定" : "解锁" }}
@@ -46,17 +48,31 @@
     <!-- 底部状态栏 -->
     <div class="bottom-bar">
       <el-tooltip content="显示/隐藏画布边界" placement="top" :show-after="300">
-        <button class="bar-btn" :class="{ active: showCanvasBorder }" @click="toggleCanvasBorder">
+        <button
+          class="bar-btn"
+          :class="{ active: showCanvasBorder }"
+          @click="toggleCanvasBorder"
+        >
           <SquareDashed :size="15" />
         </button>
       </el-tooltip>
-      <span class="zoom-value" @click="handleZoomClick">{{ zoomPercent }}%</span>
+      <span class="zoom-value" @click="handleZoomClick"
+        >{{ zoomPercent }}%</span
+      >
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, shallowRef, computed, onMounted, watch, onUnmounted, nextTick } from "vue";
+import {
+  ref,
+  shallowRef,
+  computed,
+  onMounted,
+  watch,
+  onUnmounted,
+  nextTick,
+} from "vue";
 import Konva from "konva";
 import { nanoid } from "nanoid";
 import { SquareDashed } from "lucide-vue-next";
@@ -91,7 +107,14 @@ const { settings: sketchSettings } = useSketchSettings();
 const { stage, zoom, panX, panY, initStage, resetView } = useKonvaStage();
 const { isDrawing, startDrawing, draw, stopDrawing } = useRasterBrush();
 const { createKonvaNode, serializeKonvaNode } = useObjectLayer();
-const { transformer, selectedNodes, initTransformer, selectNodes, clearSelection, handleStageClick } = useTransformer();
+const {
+  transformer,
+  selectedNodes,
+  initTransformer,
+  selectNodes,
+  clearSelection,
+  handleStageClick,
+} = useTransformer();
 const {
   isEditing: isEditingText,
   isAutoWidth: isTextAutoWidth,
@@ -159,7 +182,11 @@ onMounted(() => {
   const newStage = initStage(stageRef.value, containerWidth, containerHeight);
 
   // 2. 创建画布边界层（最底层）
-  borderLayer = new Konva.Layer({ id: "border-layer", name: "border-layer", listening: false });
+  borderLayer = new Konva.Layer({
+    id: "border-layer",
+    name: "border-layer",
+    listening: false,
+  });
   borderRect = new Konva.Rect({
     x: 0,
     y: 0,
@@ -237,7 +264,8 @@ function handleKeyUp(e: KeyboardEvent) {
     if (stage.value) {
       stage.value.draggable(state.activeTool.value === "hand");
       const container = stage.value.container();
-      container.style.cursor = state.activeTool.value === "hand" ? "grab" : "default";
+      container.style.cursor =
+        state.activeTool.value === "hand" ? "grab" : "default";
     }
   }
 }
@@ -279,7 +307,8 @@ function handleMiddlePointerUp(e: PointerEvent) {
     panX.value = stage.value.x();
     panY.value = stage.value.y();
     const container = stage.value.container();
-    container.style.cursor = state.activeTool.value === "hand" ? "grab" : "default";
+    container.style.cursor =
+      state.activeTool.value === "hand" ? "grab" : "default";
   }
 }
 
@@ -294,7 +323,7 @@ watch(
     });
     syncLayers();
   },
-  { deep: true },
+  { deep: true }
 );
 
 // 监听活跃图层变化，更新交互状态
@@ -303,7 +332,7 @@ watch(
   (newId, oldId) => {
     logger.debug("watch(activeLayerId) 触发", { oldId, newId });
     updateLayerInteractivity();
-  },
+  }
 );
 
 // 监听工具变化，清空选择 & 切换 Hand 工具的 draggable 状态
@@ -332,7 +361,7 @@ watch(
 
     // 更新图层交互性（文本工具下也需要允许拖拽已有文本）
     updateLayerInteractivity();
-  },
+  }
 );
 
 // 监听选中节点变化，通知父组件
@@ -386,7 +415,10 @@ function buildSelectionInfo(): SelectionInfo {
   const commonProps: SelectionInfo["commonProps"] = {};
 
   // 检查是否所有对象都有 stroke 属性
-  const strokeObjects = objects.filter((o) => "stroke" in o) as Array<{ stroke: string; strokeWidth: number }>;
+  const strokeObjects = objects.filter((o) => "stroke" in o) as Array<{
+    stroke: string;
+    strokeWidth: number;
+  }>;
   if (strokeObjects.length === objects.length && strokeObjects.length > 0) {
     const firstStroke = strokeObjects[0].stroke;
     if (strokeObjects.every((o) => o.stroke === firstStroke)) {
@@ -431,9 +463,17 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
 
   // 双击事件：文本工具下双击已有文本进入编辑
   stageInstance.on("dblclick dbltap", (e) => {
-    if (state.activeTool.value !== "text" && state.activeTool.value !== "select") return;
+    if (
+      state.activeTool.value !== "text" &&
+      state.activeTool.value !== "select"
+    )
+      return;
     const target = e.target as Konva.Node;
-    if (target && target.hasName("object-node") && target instanceof Konva.Text) {
+    if (
+      target &&
+      target.hasName("object-node") &&
+      target instanceof Konva.Text
+    ) {
       startEditing(target, stageInstance);
     }
   });
@@ -519,7 +559,10 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
       type: "object-modify",
       layerId,
       objectId: target.id(),
-      before: { x: target.getAttr("_dragStartX"), y: target.getAttr("_dragStartY") },
+      before: {
+        x: target.getAttr("_dragStartX"),
+        y: target.getAttr("_dragStartY"),
+      },
       after: { x: target.x(), y: target.y() },
     });
   });
@@ -539,9 +582,16 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
     if (e.evt && (e.evt as MouseEvent).button === 2) return;
 
     // Space 平移 / Hand 工具 / 中键拖拽模式下不处理绘制
-    if (isSpaceHeld.value || state.activeTool.value === "hand" || isMiddleButtonPanning.value) return;
+    if (
+      isSpaceHeld.value ||
+      state.activeTool.value === "hand" ||
+      isMiddleButtonPanning.value
+    )
+      return;
 
-    const activeLayer = state.layers.value.find((l) => l.id === state.activeLayerId.value);
+    const activeLayer = state.layers.value.find(
+      (l) => l.id === state.activeLayerId.value
+    );
     if (!activeLayer || !activeLayer.visible || activeLayer.locked) return;
 
     const pos = stageInstance.getPointerPosition();
@@ -562,8 +612,14 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
         if (targetLayer) {
           const targetLayerId = targetLayer.id();
           if (targetLayerId && targetLayerId !== state.activeLayerId.value) {
-            const targetLayerData = state.layers.value.find((l) => l.id === targetLayerId);
-            if (targetLayerData && targetLayerData.visible && !targetLayerData.locked) {
+            const targetLayerData = state.layers.value.find(
+              (l) => l.id === targetLayerId
+            );
+            if (
+              targetLayerData &&
+              targetLayerData.visible &&
+              !targetLayerData.locked
+            ) {
               logger.debug("选择工具：自动切换到对象所在图层", {
                 from: state.activeLayerId.value,
                 to: targetLayerId,
@@ -623,7 +679,9 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
       }
 
       const canvas = canvases.get(activeLayer.id);
-      const konvaLayer = stageInstance.findOne(`#${activeLayer.id}`) as Konva.Layer;
+      const konvaLayer = stageInstance.findOne(
+        `#${activeLayer.id}`
+      ) as Konva.Layer;
       const konvaImage = konvaLayer?.findOne("Image") as Konva.Image;
 
       if (canvas && konvaImage) {
@@ -705,15 +763,25 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
       const target = e.target as Konva.Node;
 
       // 4a. 点击已有文本对象 → 选中
-      if (target && target.hasName("object-node") && target instanceof Konva.Text) {
+      if (
+        target &&
+        target.hasName("object-node") &&
+        target instanceof Konva.Text
+      ) {
         selectNodes([target]);
         // 自动切换到对象所在图层
         const targetLayer = target.getLayer();
         if (targetLayer) {
           const targetLayerId = targetLayer.id();
           if (targetLayerId && targetLayerId !== state.activeLayerId.value) {
-            const targetLayerData = state.layers.value.find((l) => l.id === targetLayerId);
-            if (targetLayerData && targetLayerData.visible && !targetLayerData.locked) {
+            const targetLayerData = state.layers.value.find(
+              (l) => l.id === targetLayerId
+            );
+            if (
+              targetLayerData &&
+              targetLayerData.visible &&
+              !targetLayerData.locked
+            ) {
               state.activeLayerId.value = targetLayerId;
             }
           }
@@ -812,14 +880,20 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
     }
 
     // 形状工具拖拽
-    if (tempShape && ["rect", "ellipse", "line", "arrow"].includes(state.activeTool.value)) {
+    if (
+      tempShape &&
+      ["rect", "ellipse", "line", "arrow"].includes(state.activeTool.value)
+    ) {
       if (tempShape instanceof Konva.Rect) {
         tempShape.width(docPoint.x - startPoint.x);
         tempShape.height(docPoint.y - startPoint.y);
       } else if (tempShape instanceof Konva.Ellipse) {
         tempShape.radiusX(Math.abs(docPoint.x - startPoint.x));
         tempShape.radiusY(Math.abs(docPoint.y - startPoint.y));
-      } else if (tempShape instanceof Konva.Line || tempShape instanceof Konva.Arrow) {
+      } else if (
+        tempShape instanceof Konva.Line ||
+        tempShape instanceof Konva.Arrow
+      ) {
         tempShape.points([startPoint.x, startPoint.y, docPoint.x, docPoint.y]);
       }
 
@@ -860,7 +934,10 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
         // 框选模式：计算框内对象
         const pos = stageInstance.getPointerPosition();
         if (!pos) return;
-        const endTransform = stageInstance.getAbsoluteTransform().copy().invert();
+        const endTransform = stageInstance
+          .getAbsoluteTransform()
+          .copy()
+          .invert();
         const endPoint = endTransform.point(pos);
 
         const selX = Math.min(marqueeStart.x, endPoint.x);
@@ -871,10 +948,14 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
         if (selW < 2 || selH < 2) return;
 
         // 在活跃对象图层中查找框内对象
-        const activeLayer = state.layers.value.find((l) => l.id === state.activeLayerId.value);
+        const activeLayer = state.layers.value.find(
+          (l) => l.id === state.activeLayerId.value
+        );
         if (!activeLayer || activeLayer.type !== "object") return;
 
-        const konvaLayer = stageInstance.findOne(`#${activeLayer.id}`) as Konva.Layer;
+        const konvaLayer = stageInstance.findOne(
+          `#${activeLayer.id}`
+        ) as Konva.Layer;
         if (!konvaLayer) return;
 
         const hitNodes: any[] = [];
@@ -885,9 +966,15 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
           // 获取对象的包围盒（相对于 stage 的绝对坐标）
           const box = node.getClientRect({ relativeTo: stageInstance });
           // 转换为文档坐标
-          const nodeTransform = stageInstance.getAbsoluteTransform().copy().invert();
+          const nodeTransform = stageInstance
+            .getAbsoluteTransform()
+            .copy()
+            .invert();
           const topLeft = nodeTransform.point({ x: box.x, y: box.y });
-          const bottomRight = nodeTransform.point({ x: box.x + box.width, y: box.y + box.height });
+          const bottomRight = nodeTransform.point({
+            x: box.x + box.width,
+            y: box.y + box.height,
+          });
 
           const nodeX = Math.min(topLeft.x, bottomRight.x);
           const nodeY = Math.min(topLeft.y, bottomRight.y);
@@ -895,7 +982,11 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
           const nodeH = Math.abs(bottomRight.y - topLeft.y);
 
           // 判断是否与选择框相交
-          const intersects = nodeX < selX + selW && nodeX + nodeW > selX && nodeY < selY + selH && nodeY + nodeH > selY;
+          const intersects =
+            nodeX < selX + selW &&
+            nodeX + nodeW > selX &&
+            nodeY < selY + selH &&
+            nodeY + nodeH > selY;
 
           if (intersects) {
             hitNodes.push(node);
@@ -929,8 +1020,12 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
     if (pendingTextCreate) {
       pendingTextCreate = false;
 
-      const activeLayer = state.layers.value.find((l) => l.id === state.activeLayerId.value);
-      const konvaLayer = stageInstance.findOne(`#${state.activeLayerId.value}`) as Konva.Layer;
+      const activeLayer = state.layers.value.find(
+        (l) => l.id === state.activeLayerId.value
+      );
+      const konvaLayer = stageInstance.findOne(
+        `#${state.activeLayerId.value}`
+      ) as Konva.Layer;
 
       // 清理拖拽预览矩形
       if (textDragRect) {
@@ -951,7 +1046,10 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
           isTextDragging = false;
           return;
         }
-        const endTransform = stageInstance.getAbsoluteTransform().copy().invert();
+        const endTransform = stageInstance
+          .getAbsoluteTransform()
+          .copy()
+          .invert();
         const endPoint = endTransform.point(pos);
 
         const x = Math.min(textDragStart.x, endPoint.x);
@@ -1050,8 +1148,12 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
     }
 
     if (tempShape) {
-      const activeLayer = state.layers.value.find((l) => l.id === state.activeLayerId.value);
-      const konvaLayer = stageInstance.findOne(`#${state.activeLayerId.value}`) as Konva.Layer;
+      const activeLayer = state.layers.value.find(
+        (l) => l.id === state.activeLayerId.value
+      );
+      const konvaLayer = stageInstance.findOne(
+        `#${state.activeLayerId.value}`
+      ) as Konva.Layer;
 
       if (activeLayer && konvaLayer) {
         // 将临时形状转换为正式的 Konva 节点并添加到目标图层
@@ -1087,7 +1189,10 @@ function setupEvents(stageInstance: Konva.Stage, overlayLayer: Konva.Layer) {
             stroke: state.strokeColor.value,
             strokeWidth: state.strokeWidth.value,
           };
-        } else if (tempShape instanceof Konva.Line && !(tempShape instanceof Konva.Arrow)) {
+        } else if (
+          tempShape instanceof Konva.Line &&
+          !(tempShape instanceof Konva.Arrow)
+        ) {
           const pts = tempShape.points();
           finalObj = {
             id: nanoid(),
@@ -1157,7 +1262,9 @@ function syncLayers() {
 
   // 1. 移除已经不存在的 Konva 图层
   const existingLayers = stage.value.getLayers();
-  const existingIds = existingLayers.map((kl) => kl.id()).filter((id) => id !== "overlay" && id !== "border-layer");
+  const existingIds = existingLayers
+    .map((kl) => kl.id())
+    .filter((id) => id !== "overlay" && id !== "border-layer");
   const propsIds = state.layers.value.map((l) => l.id);
 
   const toRemove = existingIds.filter((id) => !propsIds.includes(id));
@@ -1248,7 +1355,9 @@ function syncLayers() {
     // 更新图层属性
     if (layer.type === "background") {
       konvaLayer.listening(false);
-      const fillRect = konvaLayer.findOne(".background-fill") as Konva.Rect | null;
+      const fillRect = konvaLayer.findOne(
+        ".background-fill"
+      ) as Konva.Rect | null;
       fillRect?.setAttrs({
         width: canvasWidth(),
         height: canvasHeight(),
@@ -1284,7 +1393,10 @@ function updateLayerInteractivity() {
 
     if (layer.type === "object") {
       // 选择工具和文本工具下，活跃图层的对象可拖拽
-      const allowDrag = isCurrentActive && !layer.locked && ["select", "text"].includes(state.activeTool.value);
+      const allowDrag =
+        isCurrentActive &&
+        !layer.locked &&
+        ["select", "text"].includes(state.activeTool.value);
       konvaLayer.getChildren().forEach((node) => {
         if (node.name() === "object-node") {
           node.draggable(allowDrag);
@@ -1301,7 +1413,11 @@ function updateCursor(stageInstance: Konva.Stage, target: Konva.Node) {
   const container = stageInstance.container();
 
   if (state.activeTool.value === "text") {
-    if (target && target.hasName("object-node") && target instanceof Konva.Text) {
+    if (
+      target &&
+      target.hasName("object-node") &&
+      target instanceof Konva.Text
+    ) {
       container.style.cursor = "pointer";
     } else {
       container.style.cursor = "text";
@@ -1318,7 +1434,10 @@ function updateCursor(stageInstance: Konva.Stage, target: Konva.Node) {
 /**
  * 异步加载图片对象并替换占位节点
  */
-async function loadImageNodeAsync(imageObj: ImageObject, konvaLayer: Konva.Layer) {
+async function loadImageNodeAsync(
+  imageObj: ImageObject,
+  konvaLayer: Konva.Layer
+) {
   const imageNode = await loadImageNode(imageObj);
   if (!imageNode) return;
 
@@ -1338,13 +1457,17 @@ async function loadImageNodeAsync(imageObj: ImageObject, konvaLayer: Konva.Layer
 async function addImageToActiveLayer(imageObj: ImageObject) {
   if (!stage.value) return;
 
-  const activeLayerData = state.layers.value.find((l) => l.id === state.activeLayerId.value);
+  const activeLayerData = state.layers.value.find(
+    (l) => l.id === state.activeLayerId.value
+  );
   if (!activeLayerData || activeLayerData.type !== "object") {
     customMessage.warning("请选择一个对象图层来放置图片");
     return;
   }
 
-  const konvaLayer = stage.value.findOne(`#${state.activeLayerId.value}`) as Konva.Layer;
+  const konvaLayer = stage.value.findOne(
+    `#${state.activeLayerId.value}`
+  ) as Konva.Layer;
   if (!konvaLayer) return;
 
   // 异步加载图片节点
@@ -1395,7 +1518,10 @@ function finishTextEditing() {
         layerId,
         object: serializeKonvaNode(node),
       });
-      logger.debug("文本工具：新文本已创建", { nodeId, content: content.substring(0, 20) });
+      logger.debug("文本工具：新文本已创建", {
+        nodeId,
+        content: content.substring(0, 20),
+      });
 
       // 选中新创建的文本并刷新 Transformer
       selectNodes([node]);
@@ -1421,7 +1547,12 @@ function finishTextEditing() {
 
 function handleZoomClick() {
   if (!stage.value || !containerRef.value) return;
-  resetView(canvasWidth(), canvasHeight(), containerRef.value.clientWidth, containerRef.value.clientHeight);
+  resetView(
+    canvasWidth(),
+    canvasHeight(),
+    containerRef.value.clientWidth,
+    containerRef.value.clientHeight
+  );
 }
 
 function toggleCanvasBorder() {
@@ -1474,26 +1605,39 @@ function contextPaste() {
     return;
   }
 
-  const activeLayerData = state.layers.value.find((l) => l.id === state.activeLayerId.value);
+  const activeLayerData = state.layers.value.find(
+    (l) => l.id === state.activeLayerId.value
+  );
   if (!activeLayerData || activeLayerData.type !== "object") {
     customMessage.warning("请选择一个对象图层进行粘贴");
     contextMenuVisible.value = false;
     return;
   }
 
-  const konvaLayer = stage.value.findOne(`#${state.activeLayerId.value}`) as Konva.Layer;
+  const konvaLayer = stage.value.findOne(
+    `#${state.activeLayerId.value}`
+  ) as Konva.Layer;
   if (!konvaLayer) {
     contextMenuVisible.value = false;
     return;
   }
 
   // 创建副本，偏移位置
-  const newObj = { ...clipboardObject, id: nanoid(), x: clipboardObject.x + 20, y: clipboardObject.y + 20 };
+  const newObj = {
+    ...clipboardObject,
+    id: nanoid(),
+    x: clipboardObject.x + 20,
+    y: clipboardObject.y + 20,
+  };
   const node = createKonvaNode(newObj);
   konvaLayer.add(node as any);
   konvaLayer.batchDraw();
 
-  actions.pushHistory({ type: "object-add", layerId: state.activeLayerId.value, object: newObj });
+  actions.pushHistory({
+    type: "object-add",
+    layerId: state.activeLayerId.value,
+    object: newObj,
+  });
   contextMenuVisible.value = false;
 }
 
@@ -1516,7 +1660,10 @@ function contextDelete() {
 /**
  * 通用对象排序操作（带历史记录）
  */
-function reorderObjectNode(node: Konva.Node, action: "up" | "down" | "top" | "bottom") {
+function reorderObjectNode(
+  node: Konva.Node,
+  action: "up" | "down" | "top" | "bottom"
+) {
   const konvaLayer = node.getLayer();
   if (!konvaLayer) return;
 
@@ -1524,7 +1671,9 @@ function reorderObjectNode(node: Konva.Node, action: "up" | "down" | "top" | "bo
   if (!layerId) return;
 
   // 获取排序前的对象 ID 顺序
-  const objectNodes = konvaLayer.getChildren().filter((n) => n.name() === "object-node");
+  const objectNodes = konvaLayer
+    .getChildren()
+    .filter((n) => n.name() === "object-node");
   const before = objectNodes.map((n) => n.id());
 
   // 执行排序
@@ -1544,7 +1693,9 @@ function reorderObjectNode(node: Konva.Node, action: "up" | "down" | "top" | "bo
   }
 
   // 获取排序后的对象 ID 顺序
-  const objectNodesAfter = konvaLayer.getChildren().filter((n) => n.name() === "object-node");
+  const objectNodesAfter = konvaLayer
+    .getChildren()
+    .filter((n) => n.name() === "object-node");
   const after = objectNodesAfter.map((n) => n.id());
 
   // 只有顺序真正变化时才记录历史
@@ -1606,7 +1757,10 @@ function contextResetView() {
  * 从 Konva Stage 中收集所有对象图层的当前节点数据
  * 用于保存前同步矢量数据到 layers 数据模型
  */
-function collectObjectLayerData(): Map<string, import("../types").SketchObject[]> {
+function collectObjectLayerData(): Map<
+  string,
+  import("../types").SketchObject[]
+> {
   const result = new Map<string, import("../types").SketchObject[]>();
   if (!stage.value) return result;
 
@@ -1678,7 +1832,11 @@ function updateSelectionProp(key: string, value: any) {
   if (selectedNodes.value.length === 0) return;
 
   selectedNodes.value.forEach((node) => {
-    if (node instanceof Konva.Shape || node instanceof Konva.Text || node instanceof Konva.Image) {
+    if (
+      node instanceof Konva.Shape ||
+      node instanceof Konva.Text ||
+      node instanceof Konva.Image
+    ) {
       const layerId = node.getLayer()?.id();
       if (layerId) {
         const before: Record<string, any> = {};
@@ -1708,7 +1866,11 @@ function updateSelectionProps(data: Record<string, any>) {
   if (selectedNodes.value.length === 0) return;
 
   selectedNodes.value.forEach((node) => {
-    if (node instanceof Konva.Shape || node instanceof Konva.Text || node instanceof Konva.Image) {
+    if (
+      node instanceof Konva.Shape ||
+      node instanceof Konva.Text ||
+      node instanceof Konva.Image
+    ) {
       const layerId = node.getLayer()?.id();
       if (layerId) {
         const before: Record<string, any> = {};
@@ -1738,7 +1900,9 @@ function updateSelectionProps(data: Record<string, any>) {
 }
 
 /** 对齐选中对象 */
-function alignSelection(direction: "left" | "right" | "top" | "bottom" | "center-h" | "center-v") {
+function alignSelection(
+  direction: "left" | "right" | "top" | "bottom" | "center-h" | "center-v"
+) {
   const nodes = selectedNodes.value;
   if (nodes.length < 2) return;
 
@@ -1806,7 +1970,8 @@ function distributeSelection(direction: "horizontal" | "vertical") {
     rects.sort((a, b) => a.rect.x - b.rect.x);
     const totalWidth = rects.reduce((sum, r) => sum + r.rect.width, 0);
     const minX = rects[0].rect.x;
-    const maxRight = rects[rects.length - 1].rect.x + rects[rects.length - 1].rect.width;
+    const maxRight =
+      rects[rects.length - 1].rect.x + rects[rects.length - 1].rect.width;
     const gap = (maxRight - minX - totalWidth) / (rects.length - 1);
 
     let currentX = minX;
@@ -1819,7 +1984,8 @@ function distributeSelection(direction: "horizontal" | "vertical") {
     rects.sort((a, b) => a.rect.y - b.rect.y);
     const totalHeight = rects.reduce((sum, r) => sum + r.rect.height, 0);
     const minY = rects[0].rect.y;
-    const maxBottom = rects[rects.length - 1].rect.y + rects[rects.length - 1].rect.height;
+    const maxBottom =
+      rects[rects.length - 1].rect.y + rects[rects.length - 1].rect.height;
     const gap = (maxBottom - minY - totalHeight) / (rects.length - 1);
 
     let currentY = minY;
@@ -1863,7 +2029,9 @@ function reorderObjectsInLayer(layerId: string, newOrder: string[]) {
   if (!konvaLayer) return;
 
   // 获取排序前的对象 ID 顺序
-  const objectNodes = konvaLayer.getChildren().filter((n) => n.name() === "object-node");
+  const objectNodes = konvaLayer
+    .getChildren()
+    .filter((n) => n.name() === "object-node");
   const before = objectNodes.map((n) => n.id());
 
   // 按新顺序设置 zIndex
@@ -1873,7 +2041,9 @@ function reorderObjectsInLayer(layerId: string, newOrder: string[]) {
   });
 
   // 获取排序后的对象 ID 顺序
-  const objectNodesAfter = konvaLayer.getChildren().filter((n) => n.name() === "object-node");
+  const objectNodesAfter = konvaLayer
+    .getChildren()
+    .filter((n) => n.name() === "object-node");
   const after = objectNodesAfter.map((n) => n.id());
 
   if (before.join(",") !== after.join(",")) {
@@ -1917,7 +2087,12 @@ onMounted(() => {
     },
     resetView: () => {
       if (containerRef.value && stage.value) {
-        resetView(canvasWidth(), canvasHeight(), containerRef.value.clientWidth, containerRef.value.clientHeight);
+        resetView(
+          canvasWidth(),
+          canvasHeight(),
+          containerRef.value.clientWidth,
+          containerRef.value.clientHeight
+        );
       }
     },
     deleteSelected: () => {
@@ -1940,13 +2115,19 @@ onMounted(() => {
     },
     selectAll: () => {
       if (!stage.value) return;
-      const activeLayer = state.layers.value.find((l) => l.id === state.activeLayerId.value);
+      const activeLayer = state.layers.value.find(
+        (l) => l.id === state.activeLayerId.value
+      );
       if (!activeLayer || activeLayer.type !== "object") return;
 
-      const konvaLayer = stage.value.findOne(`#${activeLayer.id}`) as Konva.Layer;
+      const konvaLayer = stage.value.findOne(
+        `#${activeLayer.id}`
+      ) as Konva.Layer;
       if (!konvaLayer) return;
 
-      const objectNodes = konvaLayer.getChildren().filter((n) => n.name() === "object-node");
+      const objectNodes = konvaLayer
+        .getChildren()
+        .filter((n) => n.name() === "object-node");
       if (objectNodes.length > 0) {
         if (transformer.value) {
           transformer.value.nodes(objectNodes as any);

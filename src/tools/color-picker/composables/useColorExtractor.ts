@@ -1,20 +1,20 @@
-import { ref } from 'vue';
+import { ref } from "vue";
 // node-vibrant v4.x 在浏览器环境中的正确导入方式
-import { Vibrant } from 'node-vibrant/browser';
-import ColorThief from 'color-thief-ts';
-import { FastAverageColor } from 'fast-average-color';
+import { Vibrant } from "node-vibrant/browser";
+import ColorThief from "color-thief-ts";
+import { FastAverageColor } from "fast-average-color";
 import type {
   QuantizeResult,
   VibrantResult,
   AverageResult,
   ColorAnalysisResult,
-  AnalysisAlgorithm
-} from '../colorPicker.store';
-import { createModuleErrorHandler } from '@/utils/errorHandler';
-import { createModuleLogger } from '@/utils/logger';
+  AnalysisAlgorithm,
+} from "../colorPicker.store";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { createModuleLogger } from "@/utils/logger";
 
-const errorHandler = createModuleErrorHandler('color-picker/useColorExtractor');
-const logger = createModuleLogger('color-picker/useColorExtractor');
+const errorHandler = createModuleErrorHandler("color-picker/useColorExtractor");
+const logger = createModuleLogger("color-picker/useColorExtractor");
 
 /**
  * 创建一个可供分析的、同源的 Image 元素
@@ -24,7 +24,7 @@ function getAnalyzableImage(blob: Blob): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image();
     const url = URL.createObjectURL(blob);
-    image.crossOrigin = 'Anonymous'; // 尽管是blob，也最好加上
+    image.crossOrigin = "Anonymous"; // 尽管是blob，也最好加上
     image.src = url;
     image.onload = () => {
       URL.revokeObjectURL(url);
@@ -50,7 +50,7 @@ export function useColorExtractor() {
    */
   async function extractColors(
     imageSource: HTMLImageElement | Blob,
-    algorithms: AnalysisAlgorithm[] = ['quantize', 'vibrant', 'average']
+    algorithms: AnalysisAlgorithm[] = ["quantize", "vibrant", "average"]
   ): Promise<ColorAnalysisResult> {
     isProcessing.value = true;
 
@@ -69,7 +69,7 @@ export function useColorExtractor() {
       // 并行执行所有请求的算法
       const promises: Promise<void>[] = [];
 
-      if (algorithms.includes('quantize')) {
+      if (algorithms.includes("quantize")) {
         promises.push(
           extractQuantizeColors(imageElement).then((res) => {
             result.quantize = res;
@@ -77,7 +77,7 @@ export function useColorExtractor() {
         );
       }
 
-      if (algorithms.includes('vibrant')) {
+      if (algorithms.includes("vibrant")) {
         promises.push(
           extractVibrantColors(imageElement).then((res) => {
             result.vibrant = res;
@@ -85,7 +85,7 @@ export function useColorExtractor() {
         );
       }
 
-      if (algorithms.includes('average')) {
+      if (algorithms.includes("average")) {
         promises.push(
           extractAverageColor(imageElement).then((res) => {
             result.average = res;
@@ -95,15 +95,14 @@ export function useColorExtractor() {
 
       await Promise.all(promises);
 
-      logger.info('颜色提取完成', {
+      logger.info("颜色提取完成", {
         algorithms,
         hasQuantize: !!result.quantize,
         hasVibrant: !!result.vibrant,
         hasAverage: !!result.average,
       });
-
     } catch (error) {
-      errorHandler.error(error, '颜色提取失败');
+      errorHandler.error(error, "颜色提取失败");
     } finally {
       isProcessing.value = false;
     }
@@ -118,61 +117,67 @@ export function useColorExtractor() {
     imageSource: HTMLImageElement | Blob,
     colorCount: number = 8
   ): Promise<QuantizeResult | null> {
-    return errorHandler.wrapAsync(async () => {
-      const imageElement =
-        imageSource instanceof HTMLImageElement
-          ? imageSource
-          : await getAnalyzableImage(imageSource);
-      const colorThief = new ColorThief();
+    return errorHandler.wrapAsync(
+      async () => {
+        const imageElement =
+          imageSource instanceof HTMLImageElement
+            ? imageSource
+            : await getAnalyzableImage(imageSource);
+        const colorThief = new ColorThief();
 
-      // 确保图片已加载完成
-      if (!imageElement.complete) {
-        await new Promise((resolve, reject) => {
-          imageElement.onload = resolve;
-          imageElement.onerror = reject;
-          // 如果图片已经加载但没有触发 onload，手动触发
-          if (imageElement.complete) {
-            resolve(void 0);
+        // 确保图片已加载完成
+        if (!imageElement.complete) {
+          await new Promise((resolve, reject) => {
+            imageElement.onload = resolve;
+            imageElement.onerror = reject;
+            // 如果图片已经加载但没有触发 onload，手动触发
+            if (imageElement.complete) {
+              resolve(void 0);
+            }
+          });
+        }
+
+        const palette = colorThief.getPalette(imageElement, colorCount);
+        const dominantColor = colorThief.getColor(imageElement);
+
+        // 根据调试日志，color-thief-ts 可以直接返回十六进制字符串。
+        // 此函数处理字符串和数组格式以增强健壮性。
+        const formatToHex = (color: string | number[]): string => {
+          if (typeof color === "string") {
+            return color.startsWith("#") ? color : `#${color}`;
           }
+          if (Array.isArray(color)) {
+            return `#${color.map((c: number) => c.toString(16).padStart(2, "0")).join("")}`;
+          }
+          // 针对意外格式的回退处理
+          logger.warn("Unexpected color format from ColorThief", { color });
+          return "#000000";
+        };
+
+        // 将主色调放在第一位，然后添加调色板颜色
+        const rawColors = [
+          formatToHex(dominantColor as number[]),
+          ...palette.map((pColor: string | number[]) => formatToHex(pColor)),
+        ];
+
+        // 过滤掉转换失败的颜色并去重
+        const colors = [...new Set(rawColors.filter((c) => c !== "#000000"))];
+
+        logger.debug("主色调提取完成", {
+          colorCount,
+          actualCount: colors.length,
         });
+
+        return {
+          colors,
+          count: colors.length,
+        };
+      },
+      {
+        userMessage: "主色调提取失败",
+        context: { colorCount },
       }
-
-      const palette = colorThief.getPalette(imageElement, colorCount);
-      const dominantColor = colorThief.getColor(imageElement);
-
-      // 根据调试日志，color-thief-ts 可以直接返回十六进制字符串。
-      // 此函数处理字符串和数组格式以增强健壮性。
-      const formatToHex = (color: string | number[]): string => {
-        if (typeof color === 'string') {
-          return color.startsWith('#') ? color : `#${color}`;
-        }
-        if (Array.isArray(color)) {
-          return `#${color.map((c: number) => c.toString(16).padStart(2, '0')).join('')}`;
-        }
-        // 针对意外格式的回退处理
-        logger.warn('Unexpected color format from ColorThief', { color });
-        return '#000000';
-      };
-
-      // 将主色调放在第一位，然后添加调色板颜色
-      const rawColors = [
-        formatToHex(dominantColor as number[]),
-        ...palette.map((pColor: string | number[]) => formatToHex(pColor))
-      ];
-
-      // 过滤掉转换失败的颜色并去重
-      const colors = [...new Set(rawColors.filter(c => c !== '#000000'))];
-      
-      logger.debug('主色调提取完成', { colorCount, actualCount: colors.length });
-
-      return {
-        colors,
-        count: colors.length,
-      };
-    }, {
-      userMessage: '主色调提取失败',
-      context: { colorCount },
-    });
+    );
   }
 
   /**
@@ -181,57 +186,12 @@ export function useColorExtractor() {
   async function extractVibrantColors(
     imageSource: HTMLImageElement | Blob
   ): Promise<VibrantResult | null> {
-    return errorHandler.wrapAsync(async () => {
-      const imageElement =
-        imageSource instanceof HTMLImageElement
-          ? imageSource
-          : await getAnalyzableImage(imageSource);
-      // 确保图片已加载完成
-      if (!imageElement.complete) {
-        await new Promise((resolve, reject) => {
-          imageElement.onload = resolve;
-          imageElement.onerror = reject;
-          if (imageElement.complete) {
-            resolve(void 0);
-          }
-        });
-      }
-
-      const palette = await Vibrant.from(imageElement).getPalette();
-      const result: VibrantResult = {
-        Vibrant: palette.Vibrant?.hex || null,
-        Muted: palette.Muted?.hex || null,
-        DarkVibrant: palette.DarkVibrant?.hex || null,
-        DarkMuted: palette.DarkMuted?.hex || null,
-        LightVibrant: palette.LightVibrant?.hex || null,
-        LightMuted: palette.LightMuted?.hex || null,
-      };
-
-      logger.debug('设计感调色板提取完成', {
-        hasVibrant: !!result.Vibrant,
-        hasMuted: !!result.Muted,
-      });
-
-      return result;
-    }, {
-      userMessage: '设计感调色板提取失败',
-    });
-  }
-
-  /**
-   * 提取平均色 (Fast Average Color)
-   */
-  async function extractAverageColor(
-    imageSource: HTMLImageElement | Blob
-  ): Promise<AverageResult | null> {
-    return errorHandler.wrapAsync(async () => {
-      const imageElement =
-        imageSource instanceof HTMLImageElement
-          ? imageSource
-          : await getAnalyzableImage(imageSource);
-      const fac = new FastAverageColor();
-
-      try {
+    return errorHandler.wrapAsync(
+      async () => {
+        const imageElement =
+          imageSource instanceof HTMLImageElement
+            ? imageSource
+            : await getAnalyzableImage(imageSource);
         // 确保图片已加载完成
         if (!imageElement.complete) {
           await new Promise((resolve, reject) => {
@@ -243,29 +203,80 @@ export function useColorExtractor() {
           });
         }
 
-        const color = await fac.getColorAsync(imageElement);
-
-        if (!color) {
-          throw new Error('FastAverageColor could not determine the color.');
-        }
-
-        const result: AverageResult = {
-          color: color.hex,
-          rgb: color.rgb,
+        const palette = await Vibrant.from(imageElement).getPalette();
+        const result: VibrantResult = {
+          Vibrant: palette.Vibrant?.hex || null,
+          Muted: palette.Muted?.hex || null,
+          DarkVibrant: palette.DarkVibrant?.hex || null,
+          DarkMuted: palette.DarkMuted?.hex || null,
+          LightVibrant: palette.LightVibrant?.hex || null,
+          LightMuted: palette.LightMuted?.hex || null,
         };
 
-        logger.debug('平均色提取完成', {
-          hex: result.color,
-          rgb: result.rgb,
+        logger.debug("设计感调色板提取完成", {
+          hasVibrant: !!result.Vibrant,
+          hasMuted: !!result.Muted,
         });
 
         return result;
-      } finally {
-        fac.destroy();
+      },
+      {
+        userMessage: "设计感调色板提取失败",
       }
-    }, {
-      userMessage: '平均色提取失败',
-    });
+    );
+  }
+
+  /**
+   * 提取平均色 (Fast Average Color)
+   */
+  async function extractAverageColor(
+    imageSource: HTMLImageElement | Blob
+  ): Promise<AverageResult | null> {
+    return errorHandler.wrapAsync(
+      async () => {
+        const imageElement =
+          imageSource instanceof HTMLImageElement
+            ? imageSource
+            : await getAnalyzableImage(imageSource);
+        const fac = new FastAverageColor();
+
+        try {
+          // 确保图片已加载完成
+          if (!imageElement.complete) {
+            await new Promise((resolve, reject) => {
+              imageElement.onload = resolve;
+              imageElement.onerror = reject;
+              if (imageElement.complete) {
+                resolve(void 0);
+              }
+            });
+          }
+
+          const color = await fac.getColorAsync(imageElement);
+
+          if (!color) {
+            throw new Error("FastAverageColor could not determine the color.");
+          }
+
+          const result: AverageResult = {
+            color: color.hex,
+            rgb: color.rgb,
+          };
+
+          logger.debug("平均色提取完成", {
+            hex: result.color,
+            rgb: result.rgb,
+          });
+
+          return result;
+        } finally {
+          fac.destroy();
+        }
+      },
+      {
+        userMessage: "平均色提取失败",
+      }
+    );
   }
 
   /**
@@ -280,9 +291,9 @@ export function useColorExtractor() {
     y: number
   ): { hex: string; rgb: { r: number; g: number; b: number } } | null {
     try {
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext("2d");
       if (!ctx) {
-        logger.warn('无法获取 Canvas 2D 上下文');
+        logger.warn("无法获取 Canvas 2D 上下文");
         return null;
       }
 
@@ -295,11 +306,11 @@ export function useColorExtractor() {
         b: data[2],
       };
 
-      const hex = `#${rgb.r.toString(16).padStart(2, '0')}${rgb.g.toString(16).padStart(2, '0')}${rgb.b.toString(16).padStart(2, '0')}`;
+      const hex = `#${rgb.r.toString(16).padStart(2, "0")}${rgb.g.toString(16).padStart(2, "0")}${rgb.b.toString(16).padStart(2, "0")}`;
 
       return { hex, rgb };
     } catch (error) {
-      errorHandler.error(error, '获取像素颜色失败', { x, y });
+      errorHandler.error(error, "获取像素颜色失败", { x, y });
       return null;
     }
   }

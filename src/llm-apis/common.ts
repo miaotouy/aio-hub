@@ -202,7 +202,11 @@ export interface LlmRequestOptions {
     };
   }>;
   /** 工具选择策略 */
-  toolChoice?: "none" | "auto" | "required" | { type: "function"; function: { name: string } };
+  toolChoice?:
+    | "none"
+    | "auto"
+    | "required"
+    | { type: "function"; function: { name: string } };
   /** 是否启用并行工具调用 */
   parallelToolCalls?: boolean;
   /** 流式选项 */
@@ -261,7 +265,17 @@ export interface LlmRequestOptions {
   };
   /** 音频输出参数 */
   audio?: {
-    voice: "alloy" | "ash" | "ballad" | "coral" | "echo" | "fable" | "nova" | "onyx" | "sage" | "shimmer";
+    voice:
+      | "alloy"
+      | "ash"
+      | "ballad"
+      | "coral"
+      | "echo"
+      | "fable"
+      | "nova"
+      | "onyx"
+      | "sage"
+      | "shimmer";
     format: "wav" | "mp3" | "flac" | "opus" | "pcm16";
   };
   /** 服务层级 */
@@ -294,7 +308,10 @@ export interface LlmRequestOptions {
 /**
  * 媒体生成通用选项
  */
-export interface MediaGenerationOptions extends Omit<LlmRequestOptions, "responseFormat"> {
+export interface MediaGenerationOptions extends Omit<
+  LlmRequestOptions,
+  "responseFormat"
+> {
   /** 单次生成的提示词，若提供则自动包装为 user 消息 */
   prompt?: string;
   /** 负面提示词 (Negative Prompt) */
@@ -528,7 +545,11 @@ export function isAbortError(error: unknown, signal?: AbortSignal): boolean {
   // 如果是字符串，直接判断内容
   if (typeof error === "string") {
     const lower = error.toLowerCase();
-    return lower.includes("canceled") || lower.includes("cancelled") || lower.includes("aborted");
+    return (
+      lower.includes("canceled") ||
+      lower.includes("cancelled") ||
+      lower.includes("aborted")
+    );
   }
 
   // 如果是对象/Error实例
@@ -539,7 +560,11 @@ export function isAbortError(error: unknown, signal?: AbortSignal): boolean {
 
   // 检查 message 属性
   const message = String(err.message || "").toLowerCase();
-  if (message.includes("canceled") || message.includes("cancelled") || message.includes("aborted")) {
+  if (
+    message.includes("canceled") ||
+    message.includes("cancelled") ||
+    message.includes("aborted")
+  ) {
     return true;
   }
 
@@ -579,7 +604,12 @@ export class LlmApiError extends Error {
   statusText: string;
   body?: string;
 
-  constructor(message: string, status: number, statusText: string, body?: string) {
+  constructor(
+    message: string,
+    status: number,
+    statusText: string,
+    body?: string
+  ) {
     super(message);
     this.name = "LlmApiError";
     this.status = status;
@@ -603,7 +633,7 @@ export const ensureResponseOk = async (response: Response): Promise<void> => {
       `API 请求失败 (${response.status} ${response.statusText}): ${errorText}`,
       response.status,
       response.statusText,
-      errorText,
+      errorText
     );
   }
 };
@@ -622,7 +652,7 @@ export const fetchWithTimeout = async (
     isStreaming?: boolean;
   },
   timeout: number = DEFAULT_TIMEOUT,
-  externalSignal?: AbortSignal,
+  externalSignal?: AbortSignal
 ): Promise<Response> => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => {
@@ -663,7 +693,9 @@ export const fetchWithTimeout = async (
     if (useProxy) {
       // ── FormData 分支（透明转发）：检测 body 是否为 FormData，直接转发到 /proxy ──
       if (options.body instanceof FormData) {
-        const PROXY_PORT = parseInt(import.meta.env.VITE_AIO_PROXY_PORT || "16655");
+        const PROXY_PORT = parseInt(
+          import.meta.env.VITE_AIO_PROXY_PORT || "16655"
+        );
         try {
           await invoke("start_llm_proxy_server", { port: PROXY_PORT });
         } catch {
@@ -690,7 +722,9 @@ export const fetchWithTimeout = async (
           headers: {
             ...forwardHeaders,
             "X-Target-URL": url,
-            "X-Request-ID": (options.headers as Record<string, string>)?.["X-Request-ID"] || "",
+            "X-Request-ID":
+              (options.headers as Record<string, string>)?.["X-Request-ID"] ||
+              "",
             "X-Proxy-Mode": settings.proxy?.mode || "system",
             "X-Proxy-URL": settings.proxy?.customUrl || "",
             "X-Relax-Certs": String(options.relaxIdCerts ?? true),
@@ -716,11 +750,15 @@ export const fetchWithTimeout = async (
       if (options.body) {
         if (typeof options.body === "string") {
           const bodySize = options.body.length;
-          logger.debug("代理 body 解析 (string)", { sizeKB: (bodySize / 1024).toFixed(1) });
+          logger.debug("代理 body 解析 (string)", {
+            sizeKB: (bodySize / 1024).toFixed(1),
+          });
           const t0 = performance.now();
           try {
             bodyObjForProxy = JSON.parse(options.body);
-            logger.debug("代理 body JSON.parse 完成", { elapsedMs: (performance.now() - t0).toFixed(2) });
+            logger.debug("代理 body JSON.parse 完成", {
+              elapsedMs: (performance.now() - t0).toFixed(2),
+            });
           } catch (e) {
             logger.warn("代理 body JSON.parse 失败", { error: String(e) });
             // 如果不是 JSON，则无法通过代理处理
@@ -733,17 +771,25 @@ export const fetchWithTimeout = async (
           }
         } else if (options.body instanceof Uint8Array) {
           const bodySize = options.body.byteLength;
-          logger.debug("代理 body 解析 (Uint8Array)", { sizeKB: (bodySize / 1024).toFixed(1) });
+          logger.debug("代理 body 解析 (Uint8Array)", {
+            sizeKB: (bodySize / 1024).toFixed(1),
+          });
           const t0 = performance.now();
           try {
             const decoder = new TextDecoder();
             const decoded = decoder.decode(options.body);
             const t1 = performance.now();
-            logger.debug("代理 body TextDecoder.decode 完成", { decodeMs: (t1 - t0).toFixed(2) });
+            logger.debug("代理 body TextDecoder.decode 完成", {
+              decodeMs: (t1 - t0).toFixed(2),
+            });
             bodyObjForProxy = JSON.parse(decoded);
-            logger.debug("代理 body JSON.parse 完成", { parseMs: (performance.now() - t1).toFixed(2) });
+            logger.debug("代理 body JSON.parse 完成", {
+              parseMs: (performance.now() - t1).toFixed(2),
+            });
           } catch (e) {
-            logger.warn("代理 body Uint8Array decode/parse 失败", { error: String(e) });
+            logger.warn("代理 body Uint8Array decode/parse 失败", {
+              error: String(e),
+            });
             if (!options.forceProxy) {
               return await window.fetch(url, {
                 ...options,
@@ -755,7 +801,9 @@ export const fetchWithTimeout = async (
       }
       // 确保代理服务已启动
       // 优先使用环境变量配置的端口，支持多实例开发
-      const PROXY_PORT = parseInt(import.meta.env.VITE_AIO_PROXY_PORT || "16655");
+      const PROXY_PORT = parseInt(
+        import.meta.env.VITE_AIO_PROXY_PORT || "16655"
+      );
       try {
         await invoke("start_llm_proxy_server", { port: PROXY_PORT });
       } catch (e) {
@@ -779,7 +827,9 @@ export const fetchWithTimeout = async (
         headers: (() => {
           const h = { ...(options.headers as Record<string, string>) };
           // 确保 Content-Type 被透传，且处理大小写不一致的问题
-          const hasContentType = Object.keys(h).some((k) => k.toLowerCase() === "content-type");
+          const hasContentType = Object.keys(h).some(
+            (k) => k.toLowerCase() === "content-type"
+          );
           if (!hasContentType) {
             h["Content-Type"] = "application/json";
           }
@@ -800,7 +850,11 @@ export const fetchWithTimeout = async (
 
       // 仅对非模型列表端点检查 model 字段（/v1/models 等 GET 请求本身不需要 model）
       const isModelListEndpoint = /\/models\/?$/.test(proxyPayload.url);
-      if (proxyPayload.body && !proxyPayload.body.model && !isModelListEndpoint) {
+      if (
+        proxyPayload.body &&
+        !proxyPayload.body.model &&
+        !isModelListEndpoint
+      ) {
         logger.warn("检测到代理请求体中缺失 model 字段!", {
           url: proxyPayload.url,
           bodyKeys: Object.keys(proxyPayload.body),
@@ -826,7 +880,10 @@ export const fetchWithTimeout = async (
     // 关键修复：如果底层 fetch 抛出了通用的 "canceled" 错误，
     // 但我们的 controller 确实是因为超时才 abort 的，
     // 那么我们要把错误包装回 TimeoutError 抛出。
-    if (controller.signal.aborted && controller.signal.reason instanceof TimeoutError) {
+    if (
+      controller.signal.aborted &&
+      controller.signal.reason instanceof TimeoutError
+    ) {
       throw controller.signal.reason;
     }
     throw error;

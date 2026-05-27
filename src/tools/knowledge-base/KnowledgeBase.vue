@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import { LayoutDashboard, Settings, Activity, FlaskConical, BarChart3 } from "lucide-vue-next";
+import {
+  LayoutDashboard,
+  Settings,
+  Activity,
+  FlaskConical,
+  BarChart3,
+} from "lucide-vue-next";
 import WorkspaceView from "./views/WorkspaceView.vue";
 import SettingsView from "./views/SettingsView.vue";
 import StatisticsView from "./views/StatisticsView.vue";
@@ -10,10 +16,25 @@ import PlaygroundView from "./views/PlaygroundView.vue";
 const activeTab = ref("workspace");
 
 const tabs = [
-  { id: "workspace", label: "工作区", icon: LayoutDashboard, component: WorkspaceView },
-  { id: "statistics", label: "统计", icon: BarChart3, component: StatisticsView },
+  {
+    id: "workspace",
+    label: "工作区",
+    icon: LayoutDashboard,
+    component: WorkspaceView,
+  },
+  {
+    id: "statistics",
+    label: "统计",
+    icon: BarChart3,
+    component: StatisticsView,
+  },
   { id: "monitor", label: "监控", icon: Activity, component: MonitorView },
-  { id: "playground", label: "实验室", icon: FlaskConical, component: PlaygroundView },
+  {
+    id: "playground",
+    label: "实验室",
+    icon: FlaskConical,
+    component: PlaygroundView,
+  },
   { id: "settings", label: "设置", icon: Settings, component: SettingsView },
 ];
 </script>

@@ -1,4 +1,9 @@
-import type { ToolConfig, ToolRegistry, ServiceMetadata, AgentExtensionContext } from "@/services/types";
+import type {
+  ToolConfig,
+  ToolRegistry,
+  ServiceMetadata,
+  AgentExtensionContext,
+} from "@/services/types";
 import type { SettingItem } from "@/types/settings-renderer";
 import { markRaw } from "vue";
 import { Brush } from "@element-plus/icons-vue";
@@ -56,7 +61,9 @@ export class CanvasRegistry implements ToolRegistry {
   /**
    * 为 Agent 提供额外的上下文信息
    */
-  async getExtraPromptContext(context?: AgentExtensionContext): Promise<string> {
+  async getExtraPromptContext(
+    context?: AgentExtensionContext
+  ): Promise<string> {
     return await canvasAgentService.getExtraPromptContext(context);
   }
   public getMetadata(): ServiceMetadata {
@@ -66,7 +73,14 @@ export class CanvasRegistry implements ToolRegistry {
           name: "read_canvas_file",
           displayName: "读取画布文件",
           description: "读取画布文件内容（带行号）",
-          parameters: [{ name: "path", type: "string", required: true, description: "文件路径" }],
+          parameters: [
+            {
+              name: "path",
+              type: "string",
+              required: true,
+              description: "文件路径",
+            },
+          ],
           returnType: "Promise<string>",
           agentCallable: true,
         },
@@ -75,19 +89,30 @@ export class CanvasRegistry implements ToolRegistry {
           displayName: "应用 Diff",
           description: "使用 Search/Replace 块模式修改画布文件",
           parameters: [
-            { name: "path", type: "string", required: true, description: "文件路径" },
+            {
+              name: "path",
+              type: "string",
+              required: true,
+              description: "文件路径",
+            },
             {
               name: "search",
               type: "string",
               required: true,
               description: "要查找的代码块（必须与原文件内容逻辑一致）",
             },
-            { name: "replace", type: "string", required: true, description: "要替换成的代码块" },
+            {
+              name: "replace",
+              type: "string",
+              required: true,
+              description: "要替换成的代码块",
+            },
             {
               name: "start_line",
               type: "number",
               required: false,
-              description: "搜索起始行号提示（1-based），用于缩小搜索范围和重复消歧义",
+              description:
+                "搜索起始行号提示（1-based），用于缩小搜索范围和重复消歧义",
             },
           ],
           returnType: "Promise<string>",
@@ -98,8 +123,18 @@ export class CanvasRegistry implements ToolRegistry {
           displayName: "写入文件",
           description: "全量覆盖画布文件内容",
           parameters: [
-            { name: "path", type: "string", required: true, description: "文件路径" },
-            { name: "content", type: "string", required: true, description: "文件内容" },
+            {
+              name: "path",
+              type: "string",
+              required: true,
+              description: "文件路径",
+            },
+            {
+              name: "content",
+              type: "string",
+              required: true,
+              description: "文件内容",
+            },
           ],
           returnType: "Promise<string>",
           agentCallable: true,
@@ -108,7 +143,14 @@ export class CanvasRegistry implements ToolRegistry {
           name: "commit_changes",
           displayName: "提交更改",
           description: "提交所有待定更改到物理磁盘并创建 Git 提交",
-          parameters: [{ name: "message", type: "string", required: false, description: "提交说明" }],
+          parameters: [
+            {
+              name: "message",
+              type: "string",
+              required: false,
+              description: "提交说明",
+            },
+          ],
           returnType: "Promise<string>",
           agentCallable: true,
         },
@@ -133,8 +175,18 @@ export class CanvasRegistry implements ToolRegistry {
           displayName: "创建画布",
           description: "创建一个新的画布项目",
           parameters: [
-            { name: "title", type: "string", required: true, description: "画布标题" },
-            { name: "templateId", type: "string", required: false, description: "模板 ID (如 blank-html, blank)" },
+            {
+              name: "title",
+              type: "string",
+              required: true,
+              description: "画布标题",
+            },
+            {
+              name: "templateId",
+              type: "string",
+              required: false,
+              description: "模板 ID (如 blank-html, blank)",
+            },
           ],
           returnType: "Promise<any>",
           agentCallable: true,
@@ -143,7 +195,14 @@ export class CanvasRegistry implements ToolRegistry {
           name: "open_window",
           displayName: "打开预览窗",
           description: "打开或聚焦画布的独立预览窗口",
-          parameters: [{ name: "canvasId", type: "string", required: true, description: "画布 ID" }],
+          parameters: [
+            {
+              name: "canvasId",
+              type: "string",
+              required: true,
+              description: "画布 ID",
+            },
+          ],
           returnType: "Promise<void>",
           agentCallable: false,
         },
@@ -151,7 +210,14 @@ export class CanvasRegistry implements ToolRegistry {
           name: "clear_runtime_errors",
           displayName: "清空运行时错误",
           description: "清空当前预览中的运行时错误列表",
-          parameters: [{ name: "canvasId", type: "string", required: false, description: "画布 ID" }],
+          parameters: [
+            {
+              name: "canvasId",
+              type: "string",
+              required: false,
+              description: "画布 ID",
+            },
+          ],
           returnType: "Promise<string>",
           agentCallable: true,
         },
@@ -161,8 +227,14 @@ export class CanvasRegistry implements ToolRegistry {
 
   // ==================== Agent Callable Methods ====================
 
-  async read_canvas_file(args: { path: string; canvasId?: string }): Promise<string> {
-    return await canvasAgentService.readFileWithLineNumbers(args.path, args.canvasId);
+  async read_canvas_file(args: {
+    path: string;
+    canvasId?: string;
+  }): Promise<string> {
+    return await canvasAgentService.readFileWithLineNumbers(
+      args.path,
+      args.canvasId
+    );
   }
 
   async apply_canvas_diff(args: {
@@ -175,11 +247,18 @@ export class CanvasRegistry implements ToolRegistry {
     return await canvasAgentService.applyDiff(args);
   }
 
-  async write_canvas_file(args: { path: string; content: string; canvasId?: string }): Promise<string> {
+  async write_canvas_file(args: {
+    path: string;
+    content: string;
+    canvasId?: string;
+  }): Promise<string> {
     return await canvasAgentService.writeFile(args);
   }
 
-  async commit_changes(args: { message?: string; canvasId?: string }): Promise<string> {
+  async commit_changes(args: {
+    message?: string;
+    canvasId?: string;
+  }): Promise<string> {
     return await canvasAgentService.commitChanges(args);
   }
 
@@ -191,7 +270,10 @@ export class CanvasRegistry implements ToolRegistry {
     return await canvasAgentService.listFiles(args);
   }
 
-  async create_canvas(args: { title: string; templateId?: string }): Promise<any> {
+  async create_canvas(args: {
+    title: string;
+    templateId?: string;
+  }): Promise<any> {
     return await canvasAgentService.createCanvas(args);
   }
 
@@ -212,14 +294,26 @@ export class CanvasRegistry implements ToolRegistry {
   /**
    * 工具调用进入审批挂起前的预览钩子
    */
-  async onToolCallPreview(requestId: string, methodName: string, args: Record<string, any>) {
-    return await canvasAgentService.onToolCallPreview(requestId, methodName, args);
+  async onToolCallPreview(
+    requestId: string,
+    methodName: string,
+    args: Record<string, any>
+  ) {
+    return await canvasAgentService.onToolCallPreview(
+      requestId,
+      methodName,
+      args
+    );
   }
 
   /**
    * 用户拒绝工具调用后的清理钩子
    */
-  async onToolCallDiscarded(requestId: string, _methodName: string, _args: Record<string, any>) {
+  async onToolCallDiscarded(
+    requestId: string,
+    _methodName: string,
+    _args: Record<string, any>
+  ) {
     return await canvasAgentService.onToolCallDiscarded(requestId);
   }
 }

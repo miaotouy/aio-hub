@@ -80,7 +80,8 @@ const emit = defineEmits<{
 }>();
 
 const kbStore = useKnowledgeBaseStore();
-const { query, results, loading, filters, search, debouncedSearch } = useKnowledgeSearch();
+const { query, results, loading, filters, search, debouncedSearch } =
+  useKnowledgeSearch();
 
 // 同步引擎 ID
 watch(

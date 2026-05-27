@@ -19,7 +19,9 @@ const changeInfo = computed(() => {
 
   // 查找匹配当前路径的变更（由于一条消息可能有多个 svar 标签，我们按顺序匹配）
   // 注意：这里的匹配逻辑可能比较简单，但在大多数情况下是够用的
-  return snapshot.changes.find((c) => c.path === props.name && String(c.opValue) === String(props.value));
+  return snapshot.changes.find(
+    (c) => c.path === props.name && String(c.opValue) === String(props.value)
+  );
 });
 
 const displayValue = computed(() => {
@@ -38,7 +40,12 @@ const tooltipContent = computed(() => {
 </script>
 
 <template>
-  <el-tooltip effect="dark" :content="tooltipContent" placement="top" :show-after="500">
+  <el-tooltip
+    effect="dark"
+    :content="tooltipContent"
+    placement="top"
+    :show-after="500"
+  >
     <span class="svar-badge">
       <span class="svar-name">{{ props.name }}</span>
       <span class="svar-value">{{ displayValue }}</span>

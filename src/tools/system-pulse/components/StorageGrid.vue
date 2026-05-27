@@ -8,14 +8,27 @@
       <div v-for="disk in disks" :key="disk.mountPoint" class="disk-item">
         <div class="disk-info-row">
           <div class="disk-main-info">
-            <span class="disk-name" :title="disk.mountPoint">{{ disk.name || disk.mountPoint }}</span>
-            <span class="disk-detail">{{ formatBytes(disk.usedBytes) }} / {{ formatBytes(disk.totalBytes) }}</span>
+            <span class="disk-name" :title="disk.mountPoint">{{
+              disk.name || disk.mountPoint
+            }}</span>
+            <span class="disk-detail"
+              >{{ formatBytes(disk.usedBytes) }} /
+              {{ formatBytes(disk.totalBytes) }}</span
+            >
           </div>
-          <span class="disk-usage-pct">{{ diskPercent(disk).toFixed(0) }}%</span>
+          <span class="disk-usage-pct"
+            >{{ diskPercent(disk).toFixed(0) }}%</span
+          >
         </div>
 
         <div class="bar-track">
-          <div class="bar-fill" :style="{ width: diskPercent(disk) + '%', backgroundColor: diskColor(disk) }" />
+          <div
+            class="bar-fill"
+            :style="{
+              width: diskPercent(disk) + '%',
+              backgroundColor: diskColor(disk),
+            }"
+          />
         </div>
 
         <!-- 读写速率与趋势图 -->
@@ -23,15 +36,23 @@
           <div class="io-stats">
             <div class="io-item read">
               <span class="io-label">读</span>
-              <span class="io-value">{{ formatBytesPerSec(disk.readBytesPerSec) }}</span>
+              <span class="io-value">{{
+                formatBytesPerSec(disk.readBytesPerSec)
+              }}</span>
             </div>
             <div class="io-item write">
               <span class="io-label">写</span>
-              <span class="io-value">{{ formatBytesPerSec(disk.writeBytesPerSec) }}</span>
+              <span class="io-value">{{
+                formatBytesPerSec(disk.writeBytesPerSec)
+              }}</span>
             </div>
           </div>
           <div class="io-chart">
-            <SparklineChart :data="getDiskHistory(disk.mountPoint)" :height="32" area />
+            <SparklineChart
+              :data="getDiskHistory(disk.mountPoint)"
+              :height="32"
+              area
+            />
           </div>
         </div>
       </div>

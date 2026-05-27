@@ -53,7 +53,10 @@ export function useLogConfig() {
         maxFileSize: settings.maxFileSize,
       });
     } catch (error) {
-      errorHandler.handle(error, { userMessage: "应用日志配置失败", showToUser: false });
+      errorHandler.handle(error, {
+        userMessage: "应用日志配置失败",
+        showToUser: false,
+      });
     }
   };
 
@@ -69,7 +72,10 @@ export function useLogConfig() {
       }
       applyLogConfig(appSettingsStore.settings);
     } catch (error) {
-      errorHandler.handle(error, { userMessage: "初始化日志配置失败", showToUser: false });
+      errorHandler.handle(error, {
+        userMessage: "初始化日志配置失败",
+        showToUser: false,
+      });
     }
   };
 

@@ -1,7 +1,17 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { Search, Info, ArrowRight, Variable, Maximize2, Filter } from "lucide-vue-next";
-import type { SessionVariableSnapshot, VariableChange } from "../../types/sessionVariable";
+import {
+  Search,
+  Info,
+  ArrowRight,
+  Variable,
+  Maximize2,
+  Filter,
+} from "lucide-vue-next";
+import type {
+  SessionVariableSnapshot,
+  VariableChange,
+} from "../../types/sessionVariable";
 import { customMessage } from "@/utils/customMessage";
 import { useClipboard } from "@vueuse/core";
 import BaseDialog from "@/components/common/BaseDialog.vue";
@@ -45,7 +55,9 @@ const variableItems = computed(() => {
   return items
     .filter((item) => {
       // 搜索过滤
-      const matchesSearch = !searchQuery.value || item.path.toLowerCase().includes(searchQuery.value.toLowerCase());
+      const matchesSearch =
+        !searchQuery.value ||
+        item.path.toLowerCase().includes(searchQuery.value.toLowerCase());
 
       // 变更过滤
       const matchesChangeFilter = !showOnlyChanges.value || item.isChanged;
@@ -99,7 +111,10 @@ const formatValue = (val: any) => {
         clearable
         class="search-input"
       />
-      <el-tooltip :content="showOnlyChanges ? '显示全部' : '仅看变更'" placement="top">
+      <el-tooltip
+        :content="showOnlyChanges ? '显示全部' : '仅看变更'"
+        placement="top"
+      >
         <el-button
           size="small"
           :type="showOnlyChanges ? 'success' : 'default'"
@@ -115,7 +130,9 @@ const formatValue = (val: any) => {
       <div v-if="variableItems.length === 0" class="empty-state">
         <el-empty
           :image-size="40"
-          :description="searchQuery || showOnlyChanges ? '未发现匹配的变量' : '暂无变量数据'"
+          :description="
+            searchQuery || showOnlyChanges ? '未发现匹配的变量' : '暂无变量数据'
+          "
         />
       </div>
 
@@ -127,11 +144,15 @@ const formatValue = (val: any) => {
       >
         <div class="item-main">
           <div class="item-path">
-            <code title="点击复制路径" @click="copyPath(item.path)">{{ item.path }}</code>
+            <code title="点击复制路径" @click="copyPath(item.path)">{{
+              item.path
+            }}</code>
           </div>
           <div class="item-value-container">
             <template v-if="item.isChanged && item.changeInfo">
-              <span class="old-value">{{ formatValue(item.changeInfo.oldValue) }}</span>
+              <span class="old-value">{{
+                formatValue(item.changeInfo.oldValue)
+              }}</span>
               <ArrowRight :size="12" class="change-arrow" />
               <span class="new-value">{{ formatValue(item.value) }}</span>
             </template>
@@ -140,17 +161,27 @@ const formatValue = (val: any) => {
             </template>
           </div>
         </div>
-        <div v-if="item.isChanged" class="change-badge">{{ item.changeInfo?.op }}{{ item.changeInfo?.opValue }}</div>
+        <div v-if="item.isChanged" class="change-badge">
+          {{ item.changeInfo?.op }}{{ item.changeInfo?.opValue }}
+        </div>
       </div>
     </div>
 
     <div class="snapshot-footer">
       <Info :size="12" />
-      <span>快照时间: {{ new Date(snapshot.timestamp || Date.now()).toLocaleString() }}</span>
+      <span
+        >快照时间:
+        {{ new Date(snapshot.timestamp || Date.now()).toLocaleString() }}</span
+      >
     </div>
 
     <!-- 详情对话框 -->
-    <BaseDialog v-model="isDialogOpen" title="会话变量状态详情" width="900px" height="70vh">
+    <BaseDialog
+      v-model="isDialogOpen"
+      title="会话变量状态详情"
+      width="900px"
+      height="70vh"
+    >
       <div class="dialog-variable-view">
         <div class="dialog-toolbar">
           <el-input
@@ -160,18 +191,30 @@ const formatValue = (val: any) => {
             clearable
             style="width: 300px"
           />
-          <el-checkbox v-model="showOnlyChanges">仅显示发生变更的变量</el-checkbox>
+          <el-checkbox v-model="showOnlyChanges"
+            >仅显示发生变更的变量</el-checkbox
+          >
         </div>
 
-        <el-table :data="variableItems" stripe border height="100%" class="variable-table">
+        <el-table
+          :data="variableItems"
+          stripe
+          border
+          height="100%"
+          class="variable-table"
+        >
           <el-table-column prop="path" label="路径" min-width="200">
             <template #default="{ row }">
-              <code class="table-code" @click="copyPath(row.path)">{{ row.path }}</code>
+              <code class="table-code" @click="copyPath(row.path)">{{
+                row.path
+              }}</code>
             </template>
           </el-table-column>
           <el-table-column label="状态" width="100" align="center">
             <template #default="{ row }">
-              <el-tag v-if="row.isChanged" type="success" size="small">已变更</el-tag>
+              <el-tag v-if="row.isChanged" type="success" size="small"
+                >已变更</el-tag
+              >
               <el-tag v-else type="info" size="small">未变</el-tag>
             </template>
           </el-table-column>
@@ -179,7 +222,9 @@ const formatValue = (val: any) => {
             <template #default="{ row }">
               <div class="table-value-cell">
                 <template v-if="row.isChanged && row.changeInfo">
-                  <span class="old-value">{{ formatValue(row.changeInfo.oldValue) }}</span>
+                  <span class="old-value">{{
+                    formatValue(row.changeInfo.oldValue)
+                  }}</span>
                   <ArrowRight :size="12" class="change-arrow" />
                   <span class="new-value">{{ formatValue(row.value) }}</span>
                   <span class="op-badge" v-if="row.changeInfo.op"
@@ -187,7 +232,9 @@ const formatValue = (val: any) => {
                   >
                 </template>
                 <template v-else>
-                  <span class="current-value">{{ formatValue(row.value) }}</span>
+                  <span class="current-value">{{
+                    formatValue(row.value)
+                  }}</span>
                 </template>
               </div>
             </template>
@@ -262,8 +309,14 @@ const formatValue = (val: any) => {
 }
 
 .variable-item.is-changed {
-  background: rgba(var(--el-color-success-rgb), calc(var(--card-opacity) * 0.1));
-  border-color: rgba(var(--el-color-success-rgb), calc(var(--card-opacity) * 0.2));
+  background: rgba(
+    var(--el-color-success-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
+  border-color: rgba(
+    var(--el-color-success-rgb),
+    calc(var(--card-opacity) * 0.2)
+  );
 }
 
 .item-main {

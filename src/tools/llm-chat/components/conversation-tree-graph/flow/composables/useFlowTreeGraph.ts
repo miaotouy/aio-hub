@@ -20,7 +20,9 @@ import { useGraphNodeActions } from "./useGraphNodeActions";
 import { useGraphD3Simulation, type LayoutMode } from "./useGraphD3Simulation";
 
 const logger = createModuleLogger("llm-chat/composables/useFlowTreeGraph");
-const errorHandler = createModuleErrorHandler("llm-chat/composables/useFlowTreeGraph");
+const errorHandler = createModuleErrorHandler(
+  "llm-chat/composables/useFlowTreeGraph"
+);
 
 /**
  * Vue Flow 树图主 Composable
@@ -29,7 +31,7 @@ const errorHandler = createModuleErrorHandler("llm-chat/composables/useFlowTreeG
 export function useFlowTreeGraph(
   sessionRef: () => ChatSessionDetail | null,
   contextMenuState: Ref<any>,
-  target: Ref<HTMLElement | null>,
+  target: Ref<HTMLElement | null>
 ) {
   const { settings } = useChatSettings();
   const store = useLlmChatStore();
@@ -48,7 +50,7 @@ export function useFlowTreeGraph(
 
   // 2. 初始化子模块
   const { palette, paletteVersion } = useGraphThemePalette();
-  
+
   useGraphShortcuts(target, store, settings);
 
   const {
@@ -60,11 +62,8 @@ export function useFlowTreeGraph(
     startWaitingForDimensions,
   } = useGraphD3Simulation(sessionRef, layoutMode, debugMode, nodes, edges);
 
-  const {
-    handleNodeDragStart,
-    handleNodeDrag,
-    handleNodeDragStop,
-  } = useGraphSubtreeDrag(sessionRef, settings, simulation, layoutMode, nodes);
+  const { handleNodeDragStart, handleNodeDrag, handleNodeDragStop } =
+    useGraphSubtreeDrag(sessionRef, settings, simulation, layoutMode, nodes);
 
   const {
     connectionPreviewState,
@@ -113,7 +112,10 @@ export function useFlowTreeGraph(
   /**
    * 计算节点的层级深度
    */
-  function calculateNodeDepth(session: ChatSessionDetail, nodeId: string): number {
+  function calculateNodeDepth(
+    session: ChatSessionDetail,
+    nodeId: string
+  ): number {
     let depth = 0;
     if (!session.nodes || !session.rootNodeId) return depth;
     let currentId: string | null = nodeId;
@@ -134,10 +136,11 @@ export function useFlowTreeGraph(
   function getNodeColor(
     session: ChatSessionDetail,
     node: ChatMessageNode,
-    isCompressed: boolean = false,
+    isCompressed: boolean = false
   ): { background: string; border: string } {
     const isOnActivePath = BranchNavigator.isNodeInActivePath(session, node.id);
-    const isActiveLeaf = !!session.activeLeafId && node.id === session.activeLeafId;
+    const isActiveLeaf =
+      !!session.activeLeafId && node.id === session.activeLeafId;
     const isEnabled = node.isEnabled !== false && !isCompressed;
 
     const roleKey = node.role as "user" | "assistant" | "system" | "tool";
@@ -180,8 +183,11 @@ export function useFlowTreeGraph(
     }
 
     const currentFingerprint =
-      getStructureFingerprint(session) + "|" + Array.from(expandedCompressionIds.value).sort().join(",");
-    const isStructureChanged = forceResetPosition || currentFingerprint !== lastStructureFingerprint;
+      getStructureFingerprint(session) +
+      "|" +
+      Array.from(expandedCompressionIds.value).sort().join(",");
+    const isStructureChanged =
+      forceResetPosition || currentFingerprint !== lastStructureFingerprint;
 
     const previousNodesMap = new Map<string, any>();
     if (!forceResetPosition) {
@@ -233,17 +239,32 @@ export function useFlowTreeGraph(
         const isActiveLeaf = node.id === session.activeLeafId;
         const isEnabled = node.isEnabled !== false && !isCompressed;
         const colors = getNodeColor(session, node, isCompressed);
-        const roleDisplay = contentUtils.getRoleDisplay(node, userProfileStore, agentStore);
-        
+        const roleDisplay = contentUtils.getRoleDisplay(
+          node,
+          userProfileStore,
+          agentStore
+        );
+
         const strippedContent = contentUtils.stripThinkingBlocks(node.content);
         const contentPreview = contentUtils.truncateText(strippedContent, 150);
-        
-        const nodeHasThinking = contentUtils.hasThinkingContent(node.content, node.metadata?.reasoningContent);
+
+        const nodeHasThinking = contentUtils.hasThinkingContent(
+          node.content,
+          node.metadata?.reasoningContent
+        );
         const thinkingPreview = nodeHasThinking
-          ? contentUtils.extractThinkingPreview(node.content, node.metadata?.reasoningContent)
+          ? contentUtils.extractThinkingPreview(
+              node.content,
+              node.metadata?.reasoningContent
+            )
           : null;
-          
-        const subtitleInfo = contentUtils.getSubtitleInfo(node, agentStore, getProfileById, getModelIcon);
+
+        const subtitleInfo = contentUtils.getSubtitleInfo(
+          node,
+          agentStore,
+          getProfileById,
+          getModelIcon
+        );
         const attachments = node.attachments || [];
         const isCompressionNode = !!node.metadata?.isCompressionNode;
         const isExpanded = expandedCompressionIds.value.has(node.id);
@@ -287,7 +308,9 @@ export function useFlowTreeGraph(
           initialPosition = { x: 0, y: 0 };
         }
 
-        const agent = node.metadata?.agentId ? agentStore.getAgentById(node.metadata.agentId) : null;
+        const agent = node.metadata?.agentId
+          ? agentStore.getAgentById(node.metadata.agentId)
+          : null;
         const modelId = node.metadata?.modelId || agent?.modelId;
         const profileId = node.metadata?.profileId || agent?.profileId;
 
@@ -332,7 +355,11 @@ export function useFlowTreeGraph(
       if (!node) return;
 
       let rawParentId = node.parentId;
-      if (targetNode.data.isCompressionNode && !targetNode.data.isExpanded && logicalParentMap.has(node.id)) {
+      if (
+        targetNode.data.isCompressionNode &&
+        !targetNode.data.isExpanded &&
+        logicalParentMap.has(node.id)
+      ) {
         rawParentId = logicalParentMap.get(node.id)!;
       }
 
@@ -349,7 +376,9 @@ export function useFlowTreeGraph(
             target: targetNode.id,
             animated: isOnActivePath,
             style: {
-              stroke: isOnActivePath ? (palette as any).edge.active : (palette as any).edge.inactive,
+              stroke: isOnActivePath
+                ? (palette as any).edge.active
+                : (palette as any).edge.inactive,
               strokeWidth: isOnActivePath ? 2 : 1,
             },
           });

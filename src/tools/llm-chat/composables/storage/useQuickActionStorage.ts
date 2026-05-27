@@ -2,7 +2,12 @@
  * 快捷操作持久化存储 Composable
  */
 
-import { exists, readTextFile, writeTextFile, remove } from "@tauri-apps/plugin-fs";
+import {
+  exists,
+  readTextFile,
+  writeTextFile,
+  remove,
+} from "@tauri-apps/plugin-fs";
 import { join } from "@tauri-apps/api/path";
 import { getAppConfigDir } from "@/utils/appPath";
 import { createConfigManager } from "@/utils/configManager";
@@ -105,7 +110,10 @@ export function useQuickActionStorage() {
   /**
    * 保存单个快捷操作组内容
    */
-  async function saveSetContent(id: string, content: QuickActionSet): Promise<void> {
+  async function saveSetContent(
+    id: string,
+    content: QuickActionSet
+  ): Promise<void> {
     try {
       await ensureDir();
       const path = await getSetPath(id);
@@ -142,7 +150,9 @@ export function useQuickActionStorage() {
   /**
    * 同步索引
    */
-  async function syncIndex(currentIndex: QuickActionIndex): Promise<QuickActionSetMetadata[]> {
+  async function syncIndex(
+    currentIndex: QuickActionIndex
+  ): Promise<QuickActionSetMetadata[]> {
     try {
       const { readDir } = await import("@tauri-apps/plugin-fs");
       const appDir = await getAppConfigDir();
@@ -155,7 +165,9 @@ export function useQuickActionStorage() {
         .filter((e) => e.name?.endsWith(".json"))
         .map((e) => e.name!.replace(".json", ""));
 
-      const indexMap = new Map(currentIndex.quickActionSets.map((item) => [item.id, item]));
+      const indexMap = new Map(
+        currentIndex.quickActionSets.map((item) => [item.id, item])
+      );
       const fileIdSet = new Set(fileIds);
 
       // 找出新增的文件
@@ -177,11 +189,16 @@ export function useQuickActionStorage() {
       }
 
       // 过滤已删除的文件
-      const validItems = currentIndex.quickActionSets.filter((item) => fileIdSet.has(item.id));
+      const validItems = currentIndex.quickActionSets.filter((item) =>
+        fileIdSet.has(item.id)
+      );
 
       const syncedItems = [...validItems, ...newItems];
 
-      if (newItems.length > 0 || validItems.length !== currentIndex.quickActionSets.length) {
+      if (
+        newItems.length > 0 ||
+        validItems.length !== currentIndex.quickActionSets.length
+      ) {
         currentIndex.quickActionSets = syncedItems;
         await saveIndex(currentIndex);
       }

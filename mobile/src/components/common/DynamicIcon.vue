@@ -50,7 +50,7 @@ const wrapperRef = ref<HTMLElement | null>(null);
 let observer: IntersectionObserver | null = null;
 
 onMounted(() => {
-  if (props.lazy && typeof IntersectionObserver !== 'undefined') {
+  if (props.lazy && typeof IntersectionObserver !== "undefined") {
     observer = new IntersectionObserver((entries) => {
       if (entries[0] && entries[0].isIntersecting) {
         shouldLoad.value = true;

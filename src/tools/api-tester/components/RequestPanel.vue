@@ -4,16 +4,26 @@
       <el-tab-pane label="载荷 (Body)" name="body">
         <div class="editor-actions">
           <el-button @click="formatBody" size="small">格式化 JSON</el-button>
-          <el-button @click="previewBody" size="small">预览（变量替换后）</el-button>
+          <el-button @click="previewBody" size="small"
+            >预览（变量替换后）</el-button
+          >
         </div>
         <div class="editor-container">
-          <RichCodeEditor v-model="store.requestBody" language="json" editor-type="monaco" />
+          <RichCodeEditor
+            v-model="store.requestBody"
+            language="json"
+            editor-type="monaco"
+          />
         </div>
       </el-tab-pane>
 
       <el-tab-pane label="标头 (Headers)" name="headers">
         <div class="headers-list">
-          <div v-for="(_value, key) in allHeaders" :key="key" class="header-item">
+          <div
+            v-for="(_value, key) in allHeaders"
+            :key="key"
+            class="header-item"
+          >
             <el-input
               v-model="headerKeys[key]"
               placeholder="Header Name"
@@ -36,10 +46,14 @@
               size="small"
               title="删除"
             />
-            <el-tag v-else type="info" size="small" disable-transitions>预设</el-tag>
+            <el-tag v-else type="info" size="small" disable-transitions
+              >预设</el-tag
+            >
           </div>
         </div>
-        <el-button @click="addHeader" size="small" type="primary" plain> + 添加请求头 </el-button>
+        <el-button @click="addHeader" size="small" type="primary" plain>
+          + 添加请求头
+        </el-button>
       </el-tab-pane>
 
       <el-tab-pane label="授权 (Auth)" name="auth">
@@ -47,7 +61,11 @@
           <h4>授权设置</h4>
           <el-form label-position="top" label-width="120px" @submit.prevent>
             <el-form-item label="授权类型">
-              <el-select v-model="authType" placeholder="请选择授权类型" style="width: 100%">
+              <el-select
+                v-model="authType"
+                placeholder="请选择授权类型"
+                style="width: 100%"
+              >
                 <el-option label="无授权" value="none" />
                 <el-option label="Bearer Token" value="bearer" />
                 <el-option label="API Key" value="api-key" />
@@ -57,7 +75,10 @@
 
             <div v-if="authType === 'bearer'">
               <el-form-item label="Bearer Token">
-                <el-input v-model="bearerToken" placeholder="输入 Bearer Token 或使用 {{apiKey}}" />
+                <el-input
+                  v-model="bearerToken"
+                  placeholder="输入 Bearer Token 或使用 {{apiKey}}"
+                />
               </el-form-item>
             </div>
 
@@ -66,7 +87,10 @@
                 <el-input v-model="apiKeyName" placeholder="例如: X-API-Key" />
               </el-form-item>
               <el-form-item label="API Key Value">
-                <el-input v-model="apiKeyValue" placeholder="输入 API Key 或使用 {{apiKey}}" />
+                <el-input
+                  v-model="apiKeyValue"
+                  placeholder="输入 API Key 或使用 {{apiKey}}"
+                />
               </el-form-item>
             </div>
 
@@ -113,7 +137,9 @@
       />
     </template>
     <template #footer>
-      <el-button type="primary" @click="isPreviewVisible = false">关闭</el-button>
+      <el-button type="primary" @click="isPreviewVisible = false"
+        >关闭</el-button
+      >
     </template>
   </BaseDialog>
 </template>
@@ -201,7 +227,14 @@ const basicPassword = ref("");
 
 // 当授权相关值改变时，自动应用授权
 watch(
-  [authType, bearerToken, apiKeyName, apiKeyValue, basicUsername, basicPassword],
+  [
+    authType,
+    bearerToken,
+    apiKeyName,
+    apiKeyValue,
+    basicUsername,
+    basicPassword,
+  ],
   () => {
     applyAuth();
   },
@@ -229,7 +262,9 @@ function applyAuth() {
 
     case "basic":
       if (basicUsername.value || basicPassword.value) {
-        const credentials = btoa(`${basicUsername.value}:${basicPassword.value}`);
+        const credentials = btoa(
+          `${basicUsername.value}:${basicPassword.value}`
+        );
         store.updateHeader("Authorization", `Basic ${credentials}`);
       }
       break;

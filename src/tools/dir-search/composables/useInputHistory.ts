@@ -20,7 +20,10 @@ const logger = createModuleLogger("dir-search/useInputHistory");
  * 因为 defineModel 的多层传播链会导致 watch 时序不可控。
  * 改为纯 keydown 驱动的状态机。
  */
-export function useInputHistory(historyArray: Ref<string[]>, currentValue: Ref<string>) {
+export function useInputHistory(
+  historyArray: Ref<string[]>,
+  currentValue: Ref<string>
+) {
   /** 当前浏览的历史索引，-1 表示不在历史浏览模式 */
   const historyIndex = ref(-1);
   /** 进入历史浏览前保存的原始输入 */
@@ -29,7 +32,9 @@ export function useInputHistory(historyArray: Ref<string[]>, currentValue: Ref<s
   /**
    * 检测光标是否在 textarea 的首行
    */
-  function isCursorOnFirstLine(el: HTMLTextAreaElement | HTMLInputElement): boolean {
+  function isCursorOnFirstLine(
+    el: HTMLTextAreaElement | HTMLInputElement
+  ): boolean {
     if (el.tagName === "INPUT") return true;
     const textarea = el as HTMLTextAreaElement;
     const cursorPos = textarea.selectionStart ?? 0;
@@ -40,7 +45,9 @@ export function useInputHistory(historyArray: Ref<string[]>, currentValue: Ref<s
   /**
    * 检测光标是否在 textarea 的末行
    */
-  function isCursorOnLastLine(el: HTMLTextAreaElement | HTMLInputElement): boolean {
+  function isCursorOnLastLine(
+    el: HTMLTextAreaElement | HTMLInputElement
+  ): boolean {
     if (el.tagName === "INPUT") return true;
     const textarea = el as HTMLTextAreaElement;
     const cursorPos = textarea.selectionEnd ?? 0;
@@ -59,7 +66,9 @@ export function useInputHistory(historyArray: Ref<string[]>, currentValue: Ref<s
     if (e.key === "ArrowUp" && !e.ctrlKey && !e.altKey && !e.metaKey) {
       if (!isCursorOnFirstLine(target)) return; // 多行 textarea 内部移动，不拦截
       if (history.length === 0) {
-        logger.debug("ArrowUp 但历史为空，跳过", { historyArrayLength: history.length });
+        logger.debug("ArrowUp 但历史为空，跳过", {
+          historyArrayLength: history.length,
+        });
         return;
       }
 
@@ -190,7 +199,11 @@ function formatHistoryForLog(arr: string[]) {
  *    导致用户脚下的数组索引发生偏移，产生“滚动感”。
  * 2. 只有全新的值才会 unshift 到最前面。
  */
-export function pushToHistory(historyArray: Ref<string[]>, value: string, maxLength: number = 20) {
+export function pushToHistory(
+  historyArray: Ref<string[]>,
+  value: string,
+  maxLength: number = 20
+) {
   const trimmed = value.trim();
   if (!trimmed) return;
 

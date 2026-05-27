@@ -172,7 +172,6 @@ knowledge 模块采用**全量内存缓存**设计：
 |             | 重写工作量巨大（~163KB 复杂算法代码） |
 |             | 内存管理不如 Rust 精确                |
 
-
 ### 方案 B: 保留为 Native Addon (.node) ✅ 推荐
 
 将 knowledge 模块编译为 Node.js Native Addon（通过 `napi-rs`）：
@@ -198,7 +197,6 @@ knowledge 模块采用**全量内存缓存**设计：
 | 无 IPC 序列化开销（直接内存访问）                 | 增加构建复杂度        |
 | 保留 rayon 并行能力                               |                       |
 
-
 ### 方案 C: 保留为 Sidecar 进程 🟡 可接受
 
 将 knowledge 模块编译为独立二进制，通过 HTTP/Unix Socket 通信：
@@ -209,7 +207,6 @@ knowledge 模块采用**全量内存缓存**设计：
 | 进程隔离，崩溃不影响主进程 | 进程管理复杂度                          |
 |                            | 大向量传输延迟（1536维 × 1000条 ≈ 6MB） |
 
-
 ### 方案 D: WASM 编译 🟡 有条件可行
 
 将核心计算部分编译为 WASM：
@@ -219,7 +216,6 @@ knowledge 模块采用**全量内存缓存**设计：
 | 跨平台零配置       | WASM 无法使用 rayon（无多线程） |
 | 无 native 编译依赖 | hnsw_rs 可能不支持 WASM target  |
 |                    | 性能比 native 低 20-40%         |
-
 
 ---
 

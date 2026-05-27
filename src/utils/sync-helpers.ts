@@ -1,11 +1,14 @@
 /**
  * 窗口同步辅助工具
- * 
+ *
  * 提供增量更新、幂等性检查等核心功能
  */
 
-import { compare, applyPatch } from 'fast-json-patch';
-import type { JsonPatchOperation, IdempotencyCacheItem } from '@/types/window-sync';
+import { compare, applyPatch } from "fast-json-patch";
+import type {
+  JsonPatchOperation,
+  IdempotencyCacheItem,
+} from "@/types/window-sync";
 
 // 深度比较工具
 
@@ -20,21 +23,21 @@ import type { JsonPatchOperation, IdempotencyCacheItem } from '@/types/window-sy
 export function deepEqual(a: any, b: any): boolean {
   // 处理基本类型和引用相等
   if (a === b) return true;
-  
+
   // 处理 null 和 undefined
   if (a == null || b == null) return a === b;
-  
+
   // 处理不同类型
   const typeA = typeof a;
   const typeB = typeof b;
   if (typeA !== typeB) return false;
-  
+
   // 处理基本类型
-  if (typeA !== 'object') return a === b;
-  
+  if (typeA !== "object") return a === b;
+
   // 处理数组
   if (Array.isArray(a) !== Array.isArray(b)) return false;
-  
+
   if (Array.isArray(a)) {
     if (a.length !== b.length) return false;
     for (let i = 0; i < a.length; i++) {
@@ -42,12 +45,12 @@ export function deepEqual(a: any, b: any): boolean {
     }
     return true;
   }
-  
+
   // 处理 Date
   if (a instanceof Date && b instanceof Date) {
     return a.getTime() === b.getTime();
   }
-  
+
   // 处理 Set
   if (a instanceof Set && b instanceof Set) {
     if (a.size !== b.size) return false;
@@ -56,7 +59,7 @@ export function deepEqual(a: any, b: any): boolean {
     }
     return true;
   }
-  
+
   // 处理 Map
   if (a instanceof Map && b instanceof Map) {
     if (a.size !== b.size) return false;
@@ -65,18 +68,18 @@ export function deepEqual(a: any, b: any): boolean {
     }
     return true;
   }
-  
+
   // 处理普通对象
   const keysA = Object.keys(a);
   const keysB = Object.keys(b);
-  
+
   if (keysA.length !== keysB.length) return false;
-  
+
   for (const key of keysA) {
     if (!Object.prototype.hasOwnProperty.call(b, key)) return false;
     if (!deepEqual(a[key], b[key])) return false;
   }
-  
+
   return true;
 }
 
@@ -89,22 +92,30 @@ export function deepEqual(a: any, b: any): boolean {
  * @param newValue 新值
  * @returns JSON Patch 操作数组
  */
-export function calculateDiff(oldValue: any, newValue: any): JsonPatchOperation[] {
+export function calculateDiff(
+  oldValue: any,
+  newValue: any
+): JsonPatchOperation[] {
   try {
     // 如果旧值或新值为 null/undefined，无法进行差异计算
-    if (oldValue === null || oldValue === undefined || newValue === null || newValue === undefined) {
+    if (
+      oldValue === null ||
+      oldValue === undefined ||
+      newValue === null ||
+      newValue === undefined
+    ) {
       return [];
     }
     return compare(oldValue, newValue);
   } catch (error) {
-    console.error('计算差异失败:', error);
+    console.error("计算差异失败:", error);
     return [];
   }
 }
 
 /**
  * 应用 JSON Patch 到目标对象
- * 
+ *
  * @param target 目标对象
  * @param patches JSON Patch 操作数组
  * @returns 应用补丁后的新对象
@@ -117,7 +128,7 @@ export function applyPatches<T>(target: T, patches: JsonPatchOperation[]): T {
     const { newDocument } = applyPatch(document, patches, true, false);
     return newDocument;
   } catch (error) {
-    console.error('应用补丁失败:', error);
+    console.error("应用补丁失败:", error);
     // 失败时返回原始对象
     return target;
   }
@@ -125,7 +136,7 @@ export function applyPatches<T>(target: T, patches: JsonPatchOperation[]): T {
 
 /**
  * 判断是否应该使用增量更新
- * 
+ *
  * @param patches 补丁数组
  * @param newValue 新值
  * @param threshold 阈值（0-1）
@@ -137,14 +148,14 @@ export function shouldUseDelta(
   threshold: number = 0.5
 ): boolean {
   if (!patches || patches.length === 0) return false;
-  
+
   try {
     const patchesSize = JSON.stringify(patches).length;
     const fullSize = JSON.stringify(newValue).length;
-    
+
     return patchesSize < fullSize * threshold;
   } catch (error) {
-    console.error('计算补丁大小失败:', error);
+    console.error("计算补丁大小失败:", error);
     return false;
   }
 }
@@ -159,10 +170,11 @@ class IdempotencyCache {
   private maxSize: number;
   private ttl: number; // 生存时间（毫秒）
 
-  constructor(maxSize: number = 1000, ttl: number = 300000) { // 默认5分钟TTL
+  constructor(maxSize: number = 1000, ttl: number = 300000) {
+    // 默认5分钟TTL
     this.maxSize = maxSize;
     this.ttl = ttl;
-    
+
     // 定期清理过期缓存
     setInterval(() => this.cleanup(), 60000); // 每分钟清理一次
   }
@@ -173,7 +185,7 @@ class IdempotencyCache {
   generateKey(action: string, params: any, userId?: string): string {
     const paramsHash = this.hashParams(params);
     const timeWindow = Math.floor(Date.now() / 60000); // 1分钟时间窗口
-    return `${action}-${userId || 'anonymous'}-${paramsHash}-${timeWindow}`;
+    return `${action}-${userId || "anonymous"}-${paramsHash}-${timeWindow}`;
   }
 
   /**
@@ -181,26 +193,26 @@ class IdempotencyCache {
    */
   checkAndSet(key: string, requestId: string, response: any): boolean {
     const existing = this.cache.get(key);
-    
+
     // 如果存在且未过期，返回 false（表示重复请求）
-    if (existing && (Date.now() - existing.timestamp) < this.ttl) {
+    if (existing && Date.now() - existing.timestamp < this.ttl) {
       return false;
     }
-    
+
     // 设置新缓存
     const item: IdempotencyCacheItem = {
       requestId,
       response,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
-    
+
     this.cache.set(key, item);
-    
+
     // 如果缓存过大，清理最旧的条目
     if (this.cache.size > this.maxSize) {
       this.evictOldest();
     }
-    
+
     return true;
   }
 
@@ -209,11 +221,11 @@ class IdempotencyCache {
    */
   get(key: string): IdempotencyCacheItem | undefined {
     const item = this.cache.get(key);
-    
-    if (item && (Date.now() - item.timestamp) < this.ttl) {
+
+    if (item && Date.now() - item.timestamp < this.ttl) {
       return item;
     }
-    
+
     // 过期则删除
     this.cache.delete(key);
     return undefined;
@@ -235,16 +247,16 @@ class IdempotencyCache {
    * 清理最旧的缓存项
    */
   private evictOldest(): void {
-    let oldestKey = '';
+    let oldestKey = "";
     let oldestTime = Date.now();
-    
+
     for (const [key, item] of this.cache.entries()) {
       if (item.timestamp < oldestTime) {
         oldestTime = item.timestamp;
         oldestKey = key;
       }
     }
-    
+
     if (oldestKey) {
       this.cache.delete(oldestKey);
     }
@@ -258,7 +270,7 @@ class IdempotencyCache {
       const str = JSON.stringify(params, Object.keys(params).sort());
       return this.simpleHash(str);
     } catch (error) {
-      console.error('参数哈希计算失败:', error);
+      console.error("参数哈希计算失败:", error);
       return String(Date.now());
     }
   }
@@ -270,7 +282,7 @@ class IdempotencyCache {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
       const char = str.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
+      hash = (hash << 5) - hash + char;
       hash = hash & hash; // 转换为32位整数
     }
     return Math.abs(hash).toString(36);

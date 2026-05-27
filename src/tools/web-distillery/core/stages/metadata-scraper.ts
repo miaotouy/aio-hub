@@ -4,7 +4,9 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { MetadataScraperRule, ScrapedMetadata } from "../../types";
 
 const logger = createModuleLogger("web-distillery/metadata-scraper");
-const errorHandler = createModuleErrorHandler("web-distillery/metadata-scraper");
+const errorHandler = createModuleErrorHandler(
+  "web-distillery/metadata-scraper"
+);
 
 /**
  * 环节：元数据提取器 (Metadata Scraper)
@@ -20,7 +22,7 @@ export class MetadataScraper {
     scriptContents: string[],
     rules: MetadataScraperRule[] | undefined,
     doc: Document,
-    rawHtml: string,
+    rawHtml: string
   ): ScrapedMetadata {
     if (!rules || rules.length === 0) {
       return {};
@@ -51,7 +53,12 @@ export class MetadataScraper {
   /**
    * 执行单条提取规则
    */
-  private executeRule(scriptContents: string[], rule: MetadataScraperRule, doc: Document, rawHtml: string): any | null {
+  private executeRule(
+    scriptContents: string[],
+    rule: MetadataScraperRule,
+    doc: Document,
+    rawHtml: string
+  ): any | null {
     switch (rule.type) {
       case "json-variable":
         return this.extractJsonVariable(scriptContents, rule.target);
@@ -69,12 +76,15 @@ export class MetadataScraper {
   /**
    * 从 window.XXX = {...} 模式中提取 JSON
    */
-  private extractJsonVariable(scriptContents: string[], target: string): any | null {
+  private extractJsonVariable(
+    scriptContents: string[],
+    target: string
+  ): any | null {
     // 匹配变量赋值，支持 window.xxx = ..., var xxx = ..., const xxx = ..., xxx = ...
     // 特别是针对 target 变量名进行匹配
     const regex = new RegExp(
       `(?:(?:window|var|let|const)\\s+)?${target}\\s*=\\s*({[\\s\\S]*?});?\\s*(?:$|[\\n;])`,
-      "m",
+      "m"
     );
 
     for (const content of scriptContents) {
@@ -84,7 +94,10 @@ export class MetadataScraper {
           // 尝试解析提取到的 JSON 字符串
           return JSON.parse(match[1]);
         } catch (e) {
-          logger.warn(`解析变量 ${target} 失败`, { error: e, preview: match[1].substring(0, 100) });
+          logger.warn(`解析变量 ${target} 失败`, {
+            error: e,
+            preview: match[1].substring(0, 100),
+          });
         }
       }
     }
@@ -115,7 +128,11 @@ export class MetadataScraper {
   /**
    * 正则捕获组提取
    */
-  private extractByRegex(scriptContents: string[], target: string, rawHtml: string): Record<string, string> | null {
+  private extractByRegex(
+    scriptContents: string[],
+    target: string,
+    rawHtml: string
+  ): Record<string, string> | null {
     try {
       const regex = new RegExp(target, "m");
 
@@ -155,13 +172,18 @@ export class MetadataScraper {
     const metaTags = doc.querySelectorAll("meta");
 
     metaTags.forEach((tag) => {
-      const name = tag.getAttribute("name") || tag.getAttribute("property") || tag.getAttribute("itemprop");
+      const name =
+        tag.getAttribute("name") ||
+        tag.getAttribute("property") ||
+        tag.getAttribute("itemprop");
       const content = tag.getAttribute("content");
 
       if (name && content) {
         // 处理可能存在的 URL 编码
         try {
-          result[name] = content.includes("%") ? decodeURIComponent(content) : content;
+          result[name] = content.includes("%")
+            ? decodeURIComponent(content)
+            : content;
         } catch (e) {
           result[name] = content;
         }
@@ -174,7 +196,11 @@ export class MetadataScraper {
   /**
    * 根据映射规则将提取到的数据应用到元数据对象
    */
-  private applyMapping(metadata: ScrapedMetadata, source: any, mapping: Record<string, string | string[]>) {
+  private applyMapping(
+    metadata: ScrapedMetadata,
+    source: any,
+    mapping: Record<string, string | string[]>
+  ) {
     for (const [field, paths] of Object.entries(mapping)) {
       const pathArray = Array.isArray(paths) ? paths : [paths];
       let value: any = null;
@@ -207,7 +233,11 @@ export class MetadataScraper {
         }
 
         // 如果是核心字段，直接赋值
-        if (["title", "description", "author", "publishDate", "content"].includes(field)) {
+        if (
+          ["title", "description", "author", "publishDate", "content"].includes(
+            field
+          )
+        ) {
           (metadata as any)[field] = value;
         } else {
           // 否则放入 extras

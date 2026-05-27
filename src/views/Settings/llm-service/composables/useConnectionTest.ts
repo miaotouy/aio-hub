@@ -25,7 +25,11 @@ export function useConnectionTest(
    * 构造测试请求参数
    * 根据模型能力识别"特种模型"
    */
-  const buildTestOptions = (profileId: string, model: LlmModelInfo, apiKey?: string) => {
+  const buildTestOptions = (
+    profileId: string,
+    model: LlmModelInfo,
+    apiKey?: string
+  ) => {
     const options: any = {
       profileId,
       modelId: model.id,
@@ -58,9 +62,13 @@ export function useConnectionTest(
       const { models } = await fetchModelsFromApi(editForm.value);
       const duration = ((performance.now() - startTime) / 1000).toFixed(2);
       if (models.length > 0) {
-        customMessage.success(`连接成功！已检测到 ${models.length} 个模型 (耗时: ${duration}s)`);
+        customMessage.success(
+          `连接成功！已检测到 ${models.length} 个模型 (耗时: ${duration}s)`
+        );
       } else {
-        customMessage.warning(`连接成功，但未返回任何模型 (耗时: ${duration}s)`);
+        customMessage.warning(
+          `连接成功，但未返回任何模型 (耗时: ${duration}s)`
+        );
       }
     } catch {
       // errorHandler 已在 fetchModelsFromApi 中 handle
@@ -94,7 +102,13 @@ export function useConnectionTest(
   };
 
   // 多 Key 管理中的特定 Key 测试
-  const handleTestKey = async ({ key, modelId }: { key: string; modelId: string }) => {
+  const handleTestKey = async ({
+    key,
+    modelId,
+  }: {
+    key: string;
+    modelId: string;
+  }) => {
     if (!selectedProfile.value) return;
 
     const model = selectedProfile.value.models.find((m) => m.id === modelId);
@@ -106,7 +120,11 @@ export function useConnectionTest(
     keyTestLoading.value[key] = true;
     const startTime = performance.now();
     try {
-      const testOptions = buildTestOptions(selectedProfile.value.id, model, key);
+      const testOptions = buildTestOptions(
+        selectedProfile.value.id,
+        model,
+        key
+      );
       const response = await sendRequest(testOptions);
       const duration = ((performance.now() - startTime) / 1000).toFixed(2);
 

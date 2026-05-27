@@ -33,10 +33,18 @@
             >
               启动检查器
             </el-button>
-            <el-button v-else @click="handleStopInspector" type="danger" :loading="isLoading">
+            <el-button
+              v-else
+              @click="handleStopInspector"
+              type="danger"
+              :loading="isLoading"
+            >
               停止检查器
             </el-button>
-            <el-button @click="handleClearRecords" :disabled="records.length === 0">
+            <el-button
+              @click="handleClearRecords"
+              :disabled="records.length === 0"
+            >
               清空记录
             </el-button>
           </div>
@@ -57,12 +65,18 @@
               v-if="isRunning"
               @click="handleUpdateTargetUrl"
               type="primary"
-              :disabled="!config.target_url || config.target_url === currentTargetUrl"
+              :disabled="
+                !config.target_url || config.target_url === currentTargetUrl
+              "
               :loading="isLoading"
             >
               更新地址
             </el-button>
-            <el-button @click="showHeaderDialog = true" title="配置请求头覆盖规则" :icon="Setting">
+            <el-button
+              @click="showHeaderDialog = true"
+              title="配置请求头覆盖规则"
+              :icon="Setting"
+            >
               请求头设置
             </el-button>
           </div>
@@ -95,10 +109,16 @@
         <div class="form-row">
           <div class="form-group">
             <label class="checkbox-label">
-              <input type="checkbox" v-model="maskApiKeys" class="checkbox-input" />
+              <input
+                type="checkbox"
+                v-model="maskApiKeys"
+                class="checkbox-input"
+              />
               <span>复制时打码 API Key</span>
             </label>
-            <span class="checkbox-hint">开启后复制请求信息时会自动隐藏敏感的 API Key</span>
+            <span class="checkbox-hint"
+              >开启后复制请求信息时会自动隐藏敏感的 API Key</span
+            >
           </div>
         </div>
       </div>
@@ -114,7 +134,11 @@
     />
 
     <!-- 详情面板组件 -->
-    <RecordDetail :record="selectedRecord" :maskApiKeys="maskApiKeys" @close="selectRecord(null)" />
+    <RecordDetail
+      :record="selectedRecord"
+      :maskApiKeys="maskApiKeys"
+      @close="selectRecord(null)"
+    />
 
     <!-- 请求头覆盖配置弹窗 -->
     <HeaderOverrideDialog

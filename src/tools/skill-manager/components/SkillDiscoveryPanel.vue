@@ -2,18 +2,34 @@
   <div class="skill-discovery-panel">
     <!-- 搜索与筛选 -->
     <div class="discovery-header">
-      <el-input v-model="searchQuery" placeholder="搜索可用技能..." clearable class="search-input">
+      <el-input
+        v-model="searchQuery"
+        placeholder="搜索可用技能..."
+        clearable
+        class="search-input"
+      >
         <template #prefix>
           <Search :size="14" />
         </template>
       </el-input>
-      <el-button @click="loadAvailableSkills" :loading="loading" :icon="RefreshCw" circle size="small" />
+      <el-button
+        @click="loadAvailableSkills"
+        :loading="loading"
+        :icon="RefreshCw"
+        circle
+        size="small"
+      />
     </div>
 
     <div class="discovery-content" v-loading="loading">
       <!-- 空状态引导 -->
-      <div v-if="!loading && filteredSkills.length === 0" class="empty-discovery">
-        <el-empty :description="searchQuery ? '没有找到匹配的技能' : '暂无可用的技能'">
+      <div
+        v-if="!loading && filteredSkills.length === 0"
+        class="empty-discovery"
+      >
+        <el-empty
+          :description="searchQuery ? '没有找到匹配的技能' : '暂无可用的技能'"
+        >
           <template #image>
             <Box :size="48" class="empty-icon" />
           </template>
@@ -22,9 +38,17 @@
 
       <!-- 技能源分组 -->
       <div v-else class="source-groups">
-        <div v-for="source in enabledSources" :key="source.id" class="source-group">
+        <div
+          v-for="source in enabledSources"
+          :key="source.id"
+          class="source-group"
+        >
           <div class="source-group-header">
-            <component :is="getSourceIcon(source.type)" :size="16" class="source-icon" />
+            <component
+              :is="getSourceIcon(source.type)"
+              :size="16"
+              class="source-icon"
+            />
             <span class="source-name">{{ source.name }}</span>
           </div>
 
@@ -39,12 +63,20 @@
                 <div class="skill-info">
                   <div class="skill-title">
                     <span class="skill-name">{{ skill.name }}</span>
-                    <el-tag size="small" effect="plain" class="version-tag">v{{ skill.version }}</el-tag>
+                    <el-tag size="small" effect="plain" class="version-tag"
+                      >v{{ skill.version }}</el-tag
+                    >
                   </div>
                   <p class="skill-desc">{{ skill.description }}</p>
 
                   <div v-if="skill.metadata" class="skill-tags">
-                    <el-tag v-for="(val, key) in skill.metadata" :key="key" size="small" type="info" class="meta-tag">
+                    <el-tag
+                      v-for="(val, key) in skill.metadata"
+                      :key="key"
+                      size="small"
+                      type="info"
+                      class="meta-tag"
+                    >
                       {{ key }}: {{ val }}
                     </el-tag>
                   </div>
@@ -85,10 +117,22 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
-import { Search, RefreshCw, Box, Globe, Puzzle, Github, Cloud } from "lucide-vue-next";
+import {
+  Search,
+  RefreshCw,
+  Box,
+  Globe,
+  Puzzle,
+  Github,
+  Cloud,
+} from "lucide-vue-next";
 import { SkillService } from "../services/SkillService";
 import { useSkillManagerStore } from "../stores/skillManagerStore";
-import type { AvailableSkillInfo, SkillSourceType, AvailableSkillInfo as AvailableSkill } from "../types";
+import type {
+  AvailableSkillInfo,
+  SkillSourceType,
+  AvailableSkillInfo as AvailableSkill,
+} from "../types";
 import { customMessage } from "@/utils/customMessage";
 
 const store = useSkillManagerStore();
@@ -97,14 +141,18 @@ const installingId = ref<string | null>(null);
 const searchQuery = ref("");
 const availableSkills = ref<AvailableSkillInfo[]>([]);
 
-const enabledSources = computed(() => store.config.sources.filter((s) => s.enabled));
+const enabledSources = computed(() =>
+  store.config.sources.filter((s) => s.enabled)
+);
 
 const filteredSkills = computed(() => {
   if (!searchQuery.value) return availableSkills.value;
   const q = searchQuery.value.toLowerCase();
   return availableSkills.value.filter(
     (s) =>
-      s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q) || s.id.toLowerCase().includes(q),
+      s.name.toLowerCase().includes(q) ||
+      s.description.toLowerCase().includes(q) ||
+      s.id.toLowerCase().includes(q)
   );
 });
 
@@ -137,7 +185,7 @@ function isInstalled(skillId: string) {
     store.manifests.some(
       (m) =>
         m.basePath.replace(/\\/g, "/").endsWith(`/${skillId}`) ||
-        (m.metadata?.installedFrom === "builtin" && m.name === skillId),
+        (m.metadata?.installedFrom === "builtin" && m.name === skillId)
     ) || store.isBuiltinInstalled(skillId)
   );
 }

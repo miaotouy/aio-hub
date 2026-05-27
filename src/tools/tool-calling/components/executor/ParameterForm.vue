@@ -27,7 +27,9 @@ const notifyChange = () => {
 /**
  * 解析联合类型字符串
  */
-const parseUnionType = (typeStr: string): { options: string[]; isArray: boolean } | null => {
+const parseUnionType = (
+  typeStr: string
+): { options: string[]; isArray: boolean } | null => {
   if (!typeStr) return null;
 
   let isArray = false;
@@ -60,7 +62,13 @@ const parseUnionType = (typeStr: string): { options: string[]; isArray: boolean 
  */
 const isPathParameter = (p: any) => {
   const hint = p.uiHint?.toLowerCase();
-  if (hint === "path" || hint === "file" || hint === "directory" || hint === "folder") return true;
+  if (
+    hint === "path" ||
+    hint === "file" ||
+    hint === "directory" ||
+    hint === "folder"
+  )
+    return true;
 
   if (p.type?.toLowerCase() !== "string") return false;
   const name = p.name?.toLowerCase() || "";
@@ -138,7 +146,10 @@ const handleJsonParamUpdate = (paramName: string, value: string) => {
  */
 const handlePathSelect = async (paramName: string, description: string) => {
   try {
-    const isDir = description.includes("目录") || description.includes("folder") || description.includes("dir");
+    const isDir =
+      description.includes("目录") ||
+      description.includes("folder") ||
+      description.includes("dir");
     const selected = await open({
       directory: isDir,
       multiple: false,
@@ -162,7 +173,11 @@ const handlePathSelect = async (paramName: string, description: string) => {
       <p>请先选择一个方法</p>
     </div>
     <el-form v-else label-position="top" size="default">
-      <el-form-item v-for="p in method.parameters" :key="p.name" :label="p.name">
+      <el-form-item
+        v-for="p in method.parameters"
+        :key="p.name"
+        :label="p.name"
+      >
         <template #label>
           <div class="form-label">
             <span class="p-name">{{ p.name }}</span>
@@ -181,7 +196,9 @@ const handlePathSelect = async (paramName: string, description: string) => {
 
         <!-- 数字类型 -->
         <el-input-number
-          v-else-if="p.uiHint === 'number' || p.type?.toLowerCase() === 'number'"
+          v-else-if="
+            p.uiHint === 'number' || p.type?.toLowerCase() === 'number'
+          "
           v-model="modelValue[p.name]"
           class="w-full"
           :min="p.min !== undefined ? p.min : p.range?.min"
@@ -191,14 +208,22 @@ const handlePathSelect = async (paramName: string, description: string) => {
 
         <!-- 枚举或联合类型 -->
         <el-select
-          v-else-if="p.uiHint === 'select' || p.enumValues || p.options || parseUnionType(p.type)"
+          v-else-if="
+            p.uiHint === 'select' ||
+            p.enumValues ||
+            p.options ||
+            parseUnionType(p.type)
+          "
           v-model="modelValue[p.name]"
           class="w-full"
           :multiple="parseUnionType(p.type)?.isArray"
           @change="notifyChange"
         >
           <el-option
-            v-for="val in p.enumValues || p.options || parseUnionType(p.type)?.options || []"
+            v-for="val in p.enumValues ||
+            p.options ||
+            parseUnionType(p.type)?.options ||
+            []"
             :key="typeof val === 'object' ? val.value : val"
             :label="typeof val === 'object' ? val.label : val"
             :value="typeof val === 'object' ? val.value : val"
@@ -222,7 +247,10 @@ const handlePathSelect = async (paramName: string, description: string) => {
           @input="notifyChange"
         >
           <template #append>
-            <el-button :icon="FolderOpen" @click="handlePathSelect(p.name, p.description)" />
+            <el-button
+              :icon="FolderOpen"
+              @click="handlePathSelect(p.name, p.description)"
+            />
           </template>
         </el-input>
 
@@ -247,7 +275,12 @@ const handlePathSelect = async (paramName: string, description: string) => {
         />
 
         <!-- 普通输入 -->
-        <el-input v-else v-model="modelValue[p.name]" :placeholder="p.description" @input="notifyChange" />
+        <el-input
+          v-else
+          v-model="modelValue[p.name]"
+          :placeholder="p.description"
+          @input="notifyChange"
+        />
 
         <div v-if="p.description" class="p-desc">{{ p.description }}</div>
       </el-form-item>

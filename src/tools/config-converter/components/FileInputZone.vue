@@ -1,5 +1,10 @@
 <template>
-  <div ref="dropZoneRef" class="file-input-zone" :class="{ 'is-dragover': isDraggingOver }" @click="selectFiles">
+  <div
+    ref="dropZoneRef"
+    class="file-input-zone"
+    :class="{ 'is-dragover': isDraggingOver }"
+    @click="selectFiles"
+  >
     <div class="zone-content">
       <div class="icon-wrapper">
         <UploadCloud :size="48" class="upload-icon" />
@@ -7,8 +12,12 @@
       <h3 class="zone-title">拖放配置文件或目录到这里</h3>
       <p class="zone-desc">支持 JSON, YAML, TOML, INI, XML, .env 格式</p>
       <div class="zone-actions" @click.stop>
-        <el-button type="primary" :icon="FileCode" @click="selectFiles"> 选择文件 </el-button>
-        <el-button :icon="FolderOpen" @click="selectDirectory"> 选择目录 </el-button>
+        <el-button type="primary" :icon="FileCode" @click="selectFiles">
+          选择文件
+        </el-button>
+        <el-button :icon="FolderOpen" @click="selectDirectory">
+          选择目录
+        </el-button>
       </div>
     </div>
   </div>
@@ -50,7 +59,16 @@ const selectFiles = async () => {
       filters: [
         {
           name: "配置文件",
-          extensions: ["json", "yaml", "yml", "toml", "ini", "cfg", "xml", "env"],
+          extensions: [
+            "json",
+            "yaml",
+            "yml",
+            "toml",
+            "ini",
+            "cfg",
+            "xml",
+            "env",
+          ],
         },
         {
           name: "所有文件",
@@ -97,7 +115,10 @@ const selectDirectory = async () => {
   justify-content: center;
   border: 2px dashed var(--border-color);
   border-radius: 8px;
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.02));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.02)
+  );
   padding: 40px 20px;
   text-align: center;
   cursor: pointer;
@@ -111,7 +132,10 @@ const selectDirectory = async () => {
 .file-input-zone:hover,
 .file-input-zone.is-dragover {
   border-color: var(--primary-color);
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.05));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.05)
+  );
 }
 
 .icon-wrapper {

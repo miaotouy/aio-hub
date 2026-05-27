@@ -4,7 +4,11 @@ import { listen } from "@tauri-apps/api/event";
 import { v4 as uuidv4 } from "uuid";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import { DOWNLOAD_EVENTS, type DownloadCompletedPayload, type DownloadItem } from "@/types/download";
+import {
+  DOWNLOAD_EVENTS,
+  type DownloadCompletedPayload,
+  type DownloadItem,
+} from "@/types/download";
 import { downloadHistoryManager } from "@/utils/downloadHistory";
 
 const logger = createModuleLogger("DownloadStore");
@@ -162,7 +166,11 @@ export const useDownloadStore = defineStore("download", () => {
   /**
    * 更新下载状态
    */
-  async function updateStatus(id: string, status: DownloadItem["status"], error?: string) {
+  async function updateStatus(
+    id: string,
+    status: DownloadItem["status"],
+    error?: string
+  ) {
     const item = history.value.find((i) => i.id === id);
     if (item) {
       item.status = status;

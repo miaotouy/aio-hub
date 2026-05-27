@@ -2,13 +2,34 @@
   <div class="option-list-editor">
     <div v-if="modelValue.length > 0" class="options-container">
       <div v-for="(item, index) in modelValue" :key="index" class="option-row">
-        <el-input v-model="item.label" placeholder="显示标签" class="label-input" />
-        <el-input v-model="item.value" placeholder="参数值" class="value-input" @blur="handleValueBlur(index)" />
-        <el-button type="danger" :icon="Delete" circle @click="removeOption(index)" />
+        <el-input
+          v-model="item.label"
+          placeholder="显示标签"
+          class="label-input"
+        />
+        <el-input
+          v-model="item.value"
+          placeholder="参数值"
+          class="value-input"
+          @blur="handleValueBlur(index)"
+        />
+        <el-button
+          type="danger"
+          :icon="Delete"
+          circle
+          @click="removeOption(index)"
+        />
       </div>
     </div>
     <div v-else class="empty-options">暂无选项</div>
-    <el-button type="primary" :icon="Plus" plain @click="addOption" class="add-btn">添加选项</el-button>
+    <el-button
+      type="primary"
+      :icon="Plus"
+      plain
+      @click="addOption"
+      class="add-btn"
+      >添加选项</el-button
+    >
   </div>
 </template>
 

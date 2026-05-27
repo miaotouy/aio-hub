@@ -45,12 +45,15 @@ export default class ContentDeduplicatorRegistry implements ToolRegistry {
   public readonly id = "content-deduplicator";
   public readonly runMode = "any";
   public readonly name = "内容查重";
-  public readonly description = "扫描目录中的重复文本文件，支持精确匹配和规范化匹配";
+  public readonly description =
+    "扫描目录中的重复文本文件，支持精确匹配和规范化匹配";
 
   /**
    * [Agent Friendly] 扫描目录查找重复文件
    */
-  public async scanDuplicates(options: ScanDuplicatesOptions): Promise<FormattedDedupResult | null> {
+  public async scanDuplicates(
+    options: ScanDuplicatesOptions
+  ): Promise<FormattedDedupResult | null> {
     logger.info("开始查重扫描 (Agent 调用)", { path: options.path });
 
     return await errorHandler.wrapAsync(
@@ -122,14 +125,20 @@ export default class ContentDeduplicatorRegistry implements ToolRegistry {
           name: "scanDuplicates",
           displayName: "扫描重复文件",
           agentCallable: true,
-          description: "扫描目录查找重复文本文件，支持精确匹配和规范化匹配，可指定预设（relaxed/strict/code/document）",
+          description:
+            "扫描目录查找重复文本文件，支持精确匹配和规范化匹配，可指定预设（relaxed/strict/code/document）",
           parameters: [
             {
               name: "options",
               type: "ScanDuplicatesOptions",
               description: "扫描选项",
               properties: [
-                { name: "path", type: "string", description: "扫描路径", required: true },
+                {
+                  name: "path",
+                  type: "string",
+                  description: "扫描路径",
+                  required: true,
+                },
                 {
                   name: "preset",
                   type: "string",

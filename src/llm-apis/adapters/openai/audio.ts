@@ -15,13 +15,7 @@ export async function callOpenAiAudioApi(
   profile: LlmProfile,
   options: MediaGenerationOptions
 ): Promise<LlmResponse> {
-  const {
-    modelId,
-    prompt,
-    audioConfig,
-    timeout,
-    signal,
-  } = options;
+  const { modelId, prompt, audioConfig, timeout, signal } = options;
 
   const baseUrl = profile.baseUrl || "https://api.openai.com/v1";
   const url = openAiUrlHandler.buildUrl(baseUrl, "audio/speech", profile);
@@ -63,7 +57,7 @@ export async function callOpenAiAudioApi(
       {
         b64_json: arrayBuffer,
         format: audioConfig?.responseFormat || "mp3",
-      }
-    ]
+      },
+    ],
   };
 }

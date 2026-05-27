@@ -30,7 +30,11 @@ export class NativePluginAdapter implements PluginProxy {
   public readonly devMode: boolean;
   public enabled: boolean = false;
 
-  constructor(manifest: PluginManifest, installPath: string, devMode: boolean = false) {
+  constructor(
+    manifest: PluginManifest,
+    installPath: string,
+    devMode: boolean = false
+  ) {
     this.manifest = manifest;
     this.installPath = installPath;
     // 开发模式下为 ID 添加后缀，避免与生产版本冲突
@@ -67,7 +71,9 @@ export class NativePluginAdapter implements PluginProxy {
       this.enabled = true;
       logger.info(`原生插件 ${this.id} 启用成功`);
     } catch (error) {
-      errorHandler.error(error, "启用原生插件失败", { context: { pluginId: this.id } });
+      errorHandler.error(error, "启用原生插件失败", {
+        context: { pluginId: this.id },
+      });
       throw error;
     }
   }
@@ -89,7 +95,9 @@ export class NativePluginAdapter implements PluginProxy {
       this.enabled = false;
       logger.info(`原生插件 ${this.id} 禁用成功`);
     } catch (error) {
-      errorHandler.error(error, "禁用原生插件失败", { context: { pluginId: this.id } });
+      errorHandler.error(error, "禁用原生插件失败", {
+        context: { pluginId: this.id },
+      });
       // 即使卸载失败，也标记为禁用
       this.enabled = false;
     }
@@ -196,7 +204,9 @@ export class NativePluginAdapter implements PluginProxy {
         return result;
       }
     } catch (error) {
-      errorHandler.error(error, "原生方法调用失败", { context: { pluginId: this.id, methodName } });
+      errorHandler.error(error, "原生方法调用失败", {
+        context: { pluginId: this.id, methodName },
+      });
       throw error;
     }
   }
@@ -224,7 +234,7 @@ export class NativePluginAdapter implements PluginProxy {
 export function createNativePluginProxy(
   manifest: PluginManifest,
   installPath: string,
-  devMode: boolean = false,
+  devMode: boolean = false
 ): PluginProxy {
   const adapter = new NativePluginAdapter(manifest, installPath, devMode);
 
@@ -240,7 +250,9 @@ export function createNativePluginProxy(
       const propStr = String(prop);
 
       // 检查是否是 manifest 中声明的方法
-      const hasMethod = target.manifest.methods?.some((m) => m.name === propStr);
+      const hasMethod = target.manifest.methods?.some(
+        (m) => m.name === propStr
+      );
       if (!hasMethod) {
         return undefined;
       }

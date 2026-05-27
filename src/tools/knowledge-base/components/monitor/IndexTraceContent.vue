@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { CheckCircle2, Circle, Loader2, XCircle, Files, Layers, Clock } from "lucide-vue-next";
+import {
+  CheckCircle2,
+  Circle,
+  Loader2,
+  XCircle,
+  Files,
+  Layers,
+  Clock,
+} from "lucide-vue-next";
 import type { IndexPayload } from "../../types/monitor";
 
 defineProps<{
@@ -65,7 +73,8 @@ const formattedDuration = (ms: number) => {
         <el-progress
           :percentage="
             payload.stats.totalChunks > 0
-              ? (payload.stats.vectorizedChunks / payload.stats.totalChunks) * 100
+              ? (payload.stats.vectorizedChunks / payload.stats.totalChunks) *
+                100
               : 0
           "
           :show-text="false"
@@ -80,7 +89,9 @@ const formattedDuration = (ms: number) => {
           <span>耗时</span>
         </div>
         <div class="stat-body">
-          <span class="main-val">{{ formattedDuration(payload.stats.duration) }}</span>
+          <span class="main-val">{{
+            formattedDuration(payload.stats.duration)
+          }}</span>
         </div>
       </div>
     </div>
@@ -102,8 +113,12 @@ const formattedDuration = (ms: number) => {
             :class="{ 'is-spinning': step.status === 'running' }"
           />
           <span class="step-name">{{ step.name }}</span>
-          <span class="step-duration">{{ formattedDuration(step.duration) }}</span>
-          <span v-if="step.details" class="step-details">- {{ step.details }}</span>
+          <span class="step-duration">{{
+            formattedDuration(step.duration)
+          }}</span>
+          <span v-if="step.details" class="step-details"
+            >- {{ step.details }}</span
+          >
         </div>
       </div>
     </div>
@@ -111,7 +126,9 @@ const formattedDuration = (ms: number) => {
     <!-- 元数据 -->
     <div v-if="payload.metadata" class="metadata-footer">
       <el-tag size="small" type="info">KB: {{ payload.metadata.kbId }}</el-tag>
-      <el-tag size="small" type="info">Model: {{ payload.metadata.modelId }}</el-tag>
+      <el-tag size="small" type="info"
+        >Model: {{ payload.metadata.modelId }}</el-tag
+      >
     </div>
   </div>
 </template>

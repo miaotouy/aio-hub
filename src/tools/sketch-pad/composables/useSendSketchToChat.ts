@@ -17,7 +17,11 @@ interface SendSketchToChatOptions {
 export function useSendSketchToChat() {
   const router = useRouter();
 
-  async function sendToChat(stage: Konva.Stage, projectName: string, options: SendSketchToChatOptions = {}) {
+  async function sendToChat(
+    stage: Konva.Stage,
+    projectName: string,
+    options: SendSketchToChatOptions = {}
+  ) {
     const startedAt = performance.now();
     const overlay = stage.findOne(".overlay");
     const borderLayer = stage.findOne("#border-layer");
@@ -40,16 +44,20 @@ export function useSendSketchToChat() {
 
       // 2. 导入资产管理器。使用无状态引擎，避免一次性导入后额外刷新资产统计拖慢聊天投递。
       const fileName = `${projectName || generateDefaultSketchName()}.png`;
-      const asset = await assetManagerEngine.importAssetFromBytes(buffer, fileName, {
-        generateThumbnail: true,
-        enableDeduplication: true,
-        sourceModule: "sketch-pad",
-        origin: {
-          type: "generated",
-          source: "sketch-pad",
+      const asset = await assetManagerEngine.importAssetFromBytes(
+        buffer,
+        fileName,
+        {
+          generateThumbnail: true,
+          enableDeduplication: true,
           sourceModule: "sketch-pad",
-        },
-      });
+          origin: {
+            type: "generated",
+            source: "sketch-pad",
+            sourceModule: "sketch-pad",
+          },
+        }
+      );
 
       if (asset) {
         // 3. 添加到 Chat 附件

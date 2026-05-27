@@ -28,7 +28,9 @@ interface ClassifiedMessages {
  * 对预设消息进行分类
  * 优先级：depth > anchorTarget > 无策略
  */
-const classifyPresetMessages = (presetMessages: ChatMessageNode[]): ClassifiedMessages => {
+const classifyPresetMessages = (
+  presetMessages: ChatMessageNode[]
+): ClassifiedMessages => {
   const skeleton: ChatMessageNode[] = [];
   const depthInjections: InjectionMessage[] = [];
   const anchorInjections: InjectionMessage[] = [];
@@ -94,7 +96,9 @@ const classifyPresetMessages = (presetMessages: ChatMessageNode[]): ClassifiedMe
  * order 值越大越靠近新消息（对话末尾）
  */
 const sortByOrder = (injections: InjectionMessage[]): InjectionMessage[] => {
-  return [...injections].sort((a, b) => (a.strategy.order ?? 100) - (b.strategy.order ?? 100));
+  return [...injections].sort(
+    (a, b) => (a.strategy.order ?? 100) - (b.strategy.order ?? 100)
+  );
 };
 
 /**
@@ -104,7 +108,7 @@ const applyDepthInjections = <T extends { role: string; content: any }>(
   history: T[],
   depthInjections: InjectionMessage[],
   processedContents: Map<string, string>,
-  presetMessages: ChatMessageNode[],
+  presetMessages: ChatMessageNode[]
 ): (
   | T
   | {
@@ -127,7 +131,9 @@ const applyDepthInjections = <T extends { role: string; content: any }>(
 
     // 判断是否应该使用高级深度配置
     // 如果有 type，必须是 advanced_depth；如果没有 type，则看 depthConfig 是否存在
-    const useAdvanced = strategy.type ? strategy.type === "advanced_depth" : !!strategy.depthConfig;
+    const useAdvanced = strategy.type
+      ? strategy.type === "advanced_depth"
+      : !!strategy.depthConfig;
 
     // 1. 处理高级深度配置 (depthConfig)
     if (useAdvanced && strategy.depthConfig) {
@@ -165,7 +171,11 @@ const applyDepthInjections = <T extends { role: string; content: any }>(
         } else {
           // 单点语法
           const singleDepth = parseInt(segment, 10);
-          if (!isNaN(singleDepth) && singleDepth <= historyLength && !depths.includes(singleDepth)) {
+          if (
+            !isNaN(singleDepth) &&
+            singleDepth <= historyLength &&
+            !depths.includes(singleDepth)
+          ) {
             depths.push(singleDepth);
           }
         }
@@ -181,13 +191,16 @@ const applyDepthInjections = <T extends { role: string; content: any }>(
 
       if (depths.length === 0) {
         logger.debug(
-          `预设消息 [${injection.message.name || injection.message.id}] 的 depthConfig "${strategy.depthConfig}" 未产生有效深度点（可能历史长度不足）`,
+          `预设消息 [${injection.message.name || injection.message.id}] 的 depthConfig "${strategy.depthConfig}" 未产生有效深度点（可能历史长度不足）`
         );
       }
     }
     // 2. 处理基础深度注入 (Legacy depth)
     // 如果有 type，必须是 depth；如果没有 type，则看 depth 是否存在
-    else if ((!strategy.type || strategy.type === "depth") && strategy.depth !== undefined) {
+    else if (
+      (!strategy.type || strategy.type === "depth") &&
+      strategy.depth !== undefined
+    ) {
       const depth = strategy.depth;
       // 旧逻辑：深度不足会插入到最前面 (由后续的 Math.max(0, length - depth) 保证)
       if (!depthGroups.has(depth)) {
@@ -224,10 +237,16 @@ const applyDepthInjections = <T extends { role: string; content: any }>(
       sourceType: "depth_injection",
       sourceId: inj.message.id,
       sourceIndex: presetMessages.indexOf(inj.message),
-      _originalContent: processedContents.has(inj.message.id) ? inj.message.content : undefined,
-      _timestamp: inj.message.timestamp ? new Date(inj.message.timestamp).getTime() : undefined,
+      _originalContent: processedContents.has(inj.message.id)
+        ? inj.message.content
+        : undefined,
+      _timestamp: inj.message.timestamp
+        ? new Date(inj.message.timestamp).getTime()
+        : undefined,
       _userName: inj.message.metadata?.userProfileName,
-      _userDisplayName: inj.message.metadata?.userProfileDisplayName || inj.message.metadata?.userProfileName,
+      _userDisplayName:
+        inj.message.metadata?.userProfileDisplayName ||
+        inj.message.metadata?.userProfileName,
       _userIcon: inj.message.metadata?.userProfileIcon,
       _name: inj.message.name,
     }));
@@ -249,9 +268,12 @@ const applyDepthInjections = <T extends { role: string; content: any }>(
  * 获取锚点注入消息（按锚点和位置分组）
  */
 const getAnchorInjectionGroups = (
-  anchorInjections: InjectionMessage[],
+  anchorInjections: InjectionMessage[]
 ): Map<string, { before: InjectionMessage[]; after: InjectionMessage[] }> => {
-  const groups = new Map<string, { before: InjectionMessage[]; after: InjectionMessage[] }>();
+  const groups = new Map<
+    string,
+    { before: InjectionMessage[]; after: InjectionMessage[] }
+  >();
 
   for (const injection of anchorInjections) {
     const target = injection.strategy.anchorTarget!;
@@ -275,7 +297,9 @@ const getAnchorInjectionGroups = (
 /**
  * 对锚点注入消息进行排序（在添加到 groups 之前调用）
  */
-const getSortedAnchorInjections = (anchorInjections: InjectionMessage[]): InjectionMessage[] => {
+const getSortedAnchorInjections = (
+  anchorInjections: InjectionMessage[]
+): InjectionMessage[] => {
   return sortByOrder(anchorInjections);
 };
 
@@ -290,8 +314,12 @@ export const injectionAssembler: ContextProcessor = {
     const modelId = agentConfig.modelId;
 
     // 准备模型和渠道信息
-    const modelInfo = context.sharedData.get("model") as LlmModelInfo | undefined;
-    const profileInfo = context.sharedData.get("profile") as LlmProfile | undefined;
+    const modelInfo = context.sharedData.get("model") as
+      | LlmModelInfo
+      | undefined;
+    const profileInfo = context.sharedData.get("profile") as
+      | LlmProfile
+      | undefined;
 
     // 根据模型匹配规则等动态调整预设消息的启用状态
     const presetMessages = allPresetMessages.map((msg) => {
@@ -302,7 +330,12 @@ export const injectionAssembler: ContextProcessor = {
 
       // 检查模型/渠道匹配规则
       if (msg.modelMatch?.enabled) {
-        const { patterns = [], profilePatterns = [], mode = "any", matchProfileName = false } = msg.modelMatch;
+        const {
+          patterns = [],
+          profilePatterns = [],
+          mode = "any",
+          matchProfileName = false,
+        } = msg.modelMatch;
 
         // 1. 检查模型是否匹配
         const modelIsMatched =
@@ -319,13 +352,19 @@ export const injectionAssembler: ContextProcessor = {
               if (modelIdPart) {
                 const slashIndex = modelIdPart.lastIndexOf("/");
                 if (slashIndex !== -1) {
-                  const pureModelNamePart = modelIdPart.substring(slashIndex + 1);
-                  if (pureModelNamePart && regex.test(pureModelNamePart)) return true;
+                  const pureModelNamePart = modelIdPart.substring(
+                    slashIndex + 1
+                  );
+                  if (pureModelNamePart && regex.test(pureModelNamePart))
+                    return true;
                 }
               }
               return false;
             } catch (e) {
-              logger.warn(`预设消息 [${msg.name || msg.id}] 中的模型匹配正则表达式无效: ${pattern}`, e);
+              logger.warn(
+                `预设消息 [${msg.name || msg.id}] 中的模型匹配正则表达式无效: ${pattern}`,
+                e
+              );
               return false;
             }
           });
@@ -333,19 +372,28 @@ export const injectionAssembler: ContextProcessor = {
         // 2. 检查渠道是否匹配
         const profileIsMatched =
           (profilePatterns.length === 0 && !matchProfileName) ||
-          [...profilePatterns, ...(matchProfileName ? patterns : [])].some((pattern) => {
-            try {
-              const regex = new RegExp(pattern, "i");
-              if (profileInfo?.name && regex.test(profileInfo.name)) return true;
-              return false;
-            } catch (e) {
-              logger.warn(`预设消息 [${msg.name || msg.id}] 中的渠道匹配正则表达式无效: ${pattern}`, e);
-              return false;
+          [...profilePatterns, ...(matchProfileName ? patterns : [])].some(
+            (pattern) => {
+              try {
+                const regex = new RegExp(pattern, "i");
+                if (profileInfo?.name && regex.test(profileInfo.name))
+                  return true;
+                return false;
+              } catch (e) {
+                logger.warn(
+                  `预设消息 [${msg.name || msg.id}] 中的渠道匹配正则表达式无效: ${pattern}`,
+                  e
+                );
+                return false;
+              }
             }
-          });
+          );
 
         // 3. 根据模式组合结果
-        const isMatch = mode === "all" ? modelIsMatched && profileIsMatched : modelIsMatched || profileIsMatched;
+        const isMatch =
+          mode === "all"
+            ? modelIsMatched && profileIsMatched
+            : modelIsMatched || profileIsMatched;
 
         // 如果不匹配，则返回一个被禁用的副本，而不是过滤掉它
         if (!isMatch) {
@@ -358,13 +406,17 @@ export const injectionAssembler: ContextProcessor = {
     });
 
     // 过滤出有效的消息用于后续处理，但保留完整列表用于查找 sourceIndex
-    const activePresetMessages = presetMessages.filter((msg) => msg.isEnabled !== false);
+    const activePresetMessages = presetMessages.filter(
+      (msg) => msg.isEnabled !== false
+    );
 
     // 1. 检查是否需要保底注入工具相关宏 (tools, tool_usage, tool_context)，兼容带参数的宏调用
     const toolCallConfig = agentConfig.toolCallConfig;
     if (toolCallConfig?.enabled && toolCallConfig.autoInjectIfMacroMissing) {
       const toolMacros = ["{{tools", "{{tool_usage", "{{tool_context"];
-      const hasToolMacros = activePresetMessages.some((msg) => toolMacros.some((macro) => msg.content.includes(macro)));
+      const hasToolMacros = activePresetMessages.some((msg) =>
+        toolMacros.some((macro) => msg.content.includes(macro))
+      );
 
       if (!hasToolMacros) {
         // 创建保底宏消息，包含定义、用法说明和运行时上下文
@@ -386,7 +438,9 @@ export const injectionAssembler: ContextProcessor = {
         // 同时也加入到 activePresetMessages 中，以便进行宏处理
         activePresetMessages.push(autoMacroMsg);
 
-        logger.info("已自动追加工具宏消息进行保底注入 (tools, tool_usage, tool_context)");
+        logger.info(
+          "已自动追加工具宏消息进行保底注入 (tools, tool_usage, tool_context)"
+        );
       }
     }
 
@@ -417,35 +471,49 @@ export const injectionAssembler: ContextProcessor = {
     const processedContents = new Map<string, string>();
     for (const msg of activePresetMessages) {
       if (msg.content.includes("{{")) {
-        const processed = await processMacros(macroProcessor, msg.content, macroContext, { silent: true });
+        const processed = await processMacros(
+          macroProcessor,
+          msg.content,
+          macroContext,
+          { silent: true }
+        );
         processedContents.set(msg.id, processed);
       }
     }
 
     // 2. 分类预设消息 (使用完整的列表以保留锚点)
-    const { skeleton, depthInjections, anchorInjections } = classifyPresetMessages(presetMessages);
+    const { skeleton, depthInjections, anchorInjections } =
+      classifyPresetMessages(presetMessages);
 
     // 3. 应用深度注入 (只使用有效的注入)
-    const activeDepthInjections = depthInjections.filter((inj) => inj.message.isEnabled !== false);
+    const activeDepthInjections = depthInjections.filter(
+      (inj) => inj.message.isEnabled !== false
+    );
     const historyWithDepthInjections = applyDepthInjections(
       history,
       activeDepthInjections,
       processedContents,
-      presetMessages, // 传入完整列表以正确查找 sourceIndex
+      presetMessages // 传入完整列表以正确查找 sourceIndex
     ) as ProcessableMessage[];
 
     // 4. 组装最终消息列表
     const finalMessages: ProcessableMessage[] = [];
-    const historyAnchorIndex = skeleton.findIndex((msg) => msg.type === ANCHOR_IDS.CHAT_HISTORY);
+    const historyAnchorIndex = skeleton.findIndex(
+      (msg) => msg.type === ANCHOR_IDS.CHAT_HISTORY
+    );
 
     // 过滤出有效的锚点注入
-    const activeAnchorInjections = anchorInjections.filter((inj) => inj.message.isEnabled !== false);
-    const sortedAnchorInjections = getSortedAnchorInjections(activeAnchorInjections);
+    const activeAnchorInjections = anchorInjections.filter(
+      (inj) => inj.message.isEnabled !== false
+    );
+    const sortedAnchorInjections = getSortedAnchorInjections(
+      activeAnchorInjections
+    );
     const anchorGroups = getAnchorInjectionGroups(sortedAnchorInjections);
 
     const buildAnchorMessages = (
       target: string,
-      position: "before" | "after" | "all" = "all",
+      position: "before" | "after" | "all" = "all"
     ): ProcessableMessage[] => {
       const group = anchorGroups.get(target);
       if (!group) return [];
@@ -465,17 +533,27 @@ export const injectionAssembler: ContextProcessor = {
         sourceType: "anchor_injection",
         sourceId: inj.message.id,
         sourceIndex: presetMessages.indexOf(inj.message),
-        _originalContent: processedContents.has(inj.message.id) ? inj.message.content : undefined,
-        _timestamp: inj.message.timestamp ? new Date(inj.message.timestamp).getTime() : undefined,
+        _originalContent: processedContents.has(inj.message.id)
+          ? inj.message.content
+          : undefined,
+        _timestamp: inj.message.timestamp
+          ? new Date(inj.message.timestamp).getTime()
+          : undefined,
         _userName: inj.message.metadata?.userProfileName,
-        _userDisplayName: inj.message.metadata?.userProfileDisplayName || inj.message.metadata?.userProfileName,
+        _userDisplayName:
+          inj.message.metadata?.userProfileDisplayName ||
+          inj.message.metadata?.userProfileName,
         _userIcon: inj.message.metadata?.userProfileIcon,
         _name: inj.message.name,
       }));
     };
 
-    const skeletonBefore = historyAnchorIndex === -1 ? skeleton : skeleton.slice(0, historyAnchorIndex);
-    const skeletonAfter = historyAnchorIndex === -1 ? [] : skeleton.slice(historyAnchorIndex + 1);
+    const skeletonBefore =
+      historyAnchorIndex === -1
+        ? skeleton
+        : skeleton.slice(0, historyAnchorIndex);
+    const skeletonAfter =
+      historyAnchorIndex === -1 ? [] : skeleton.slice(historyAnchorIndex + 1);
 
     // 辅助函数：构建并添加普通消息
     const pushSkeletonMessage = (msg: ChatMessageNode) => {
@@ -485,17 +563,24 @@ export const injectionAssembler: ContextProcessor = {
         sourceType: "agent_preset",
         sourceId: msg.id,
         sourceIndex: presetMessages.indexOf(msg),
-        _originalContent: processedContents.has(msg.id) ? msg.content : undefined,
-        _timestamp: msg.timestamp ? new Date(msg.timestamp).getTime() : undefined,
+        _originalContent: processedContents.has(msg.id)
+          ? msg.content
+          : undefined,
+        _timestamp: msg.timestamp
+          ? new Date(msg.timestamp).getTime()
+          : undefined,
         _userName: msg.metadata?.userProfileName,
-        _userDisplayName: msg.metadata?.userProfileDisplayName || msg.metadata?.userProfileName,
+        _userDisplayName:
+          msg.metadata?.userProfileDisplayName || msg.metadata?.userProfileName,
         _userIcon: msg.metadata?.userProfileIcon,
         _name: msg.name,
       });
     };
 
     // 从 sharedData 获取锚点定义（上游必须提供）
-    const anchorDefinitionsFromShared = context.sharedData.get("anchorDefinitions") as AnchorDefinition[] | undefined;
+    const anchorDefinitionsFromShared = context.sharedData.get(
+      "anchorDefinitions"
+    ) as AnchorDefinition[] | undefined;
     let anchorDefinitions: AnchorDefinition[];
     if (!anchorDefinitionsFromShared) {
       logger.warn("缺少锚点定义：上游未提供 anchorDefinitions");
@@ -512,7 +597,9 @@ export const injectionAssembler: ContextProcessor = {
     }
 
     // 辅助函数：获取锚点定义
-    const getAnchorDefinition = (anchorId: string): AnchorDefinition | undefined => {
+    const getAnchorDefinition = (
+      anchorId: string
+    ): AnchorDefinition | undefined => {
       return anchorDefinitions.find((anchor) => anchor.id === anchorId);
     };
 
@@ -559,12 +646,16 @@ export const injectionAssembler: ContextProcessor = {
     }
     // 添加历史消息（已包含深度注入）
     // 1. 插入 chat_history 的 before 锚点
-    finalMessages.push(...buildAnchorMessages(ANCHOR_IDS.CHAT_HISTORY, "before"));
+    finalMessages.push(
+      ...buildAnchorMessages(ANCHOR_IDS.CHAT_HISTORY, "before")
+    );
 
     // 2. 插入历史消息本体
     finalMessages.push(...historyWithDepthInjections);
     // 3. 插入 chat_history 的 after 锚点
-    finalMessages.push(...buildAnchorMessages(ANCHOR_IDS.CHAT_HISTORY, "after"));
+    finalMessages.push(
+      ...buildAnchorMessages(ANCHOR_IDS.CHAT_HISTORY, "after")
+    );
 
     // 添加 chat_history 锚点之后的骨架消息
     for (const msg of skeletonAfter) {

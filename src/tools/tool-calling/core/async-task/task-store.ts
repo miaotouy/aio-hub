@@ -50,7 +50,9 @@ export class TaskStore {
   /**
    * 立即保存任务数据
    */
-  async saveImmediately(tasks: Record<string, AsyncTaskMetadata>): Promise<void> {
+  async saveImmediately(
+    tasks: Record<string, AsyncTaskMetadata>
+  ): Promise<void> {
     await configManager.save({
       version: "1.0.0",
       tasks,

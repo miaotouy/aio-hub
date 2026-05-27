@@ -152,7 +152,7 @@ watch(
     if (isVisible) {
       Object.assign(draft, props.config);
     }
-  },
+  }
 );
 
 watch(
@@ -161,7 +161,7 @@ watch(
     if (includeLineStats) {
       draft.includeFilePaths = true;
     }
-  },
+  }
 );
 
 function isSameConfig(a: GitLoadConfig, b: GitLoadConfig) {

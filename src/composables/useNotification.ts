@@ -1,6 +1,9 @@
 import { computed } from "vue";
 import { useNotificationStore } from "@/stores/notification";
-import type { NotificationType, NotificationMetadata } from "@/types/notification";
+import type {
+  NotificationType,
+  NotificationMetadata,
+} from "@/types/notification";
 
 export interface NotificationOptions {
   source?: string;

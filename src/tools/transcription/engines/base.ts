@@ -15,7 +15,10 @@ export function getEffectiveConfig(ctx: EngineContext) {
 /**
  * 获取模型配置
  */
-export function getModelParams(ctx: EngineContext, type: "image" | "audio" | "video" | "document") {
+export function getModelParams(
+  ctx: EngineContext,
+  type: "image" | "audio" | "video" | "document"
+) {
   const config = getEffectiveConfig(ctx);
   const { task } = ctx;
 
@@ -40,7 +43,8 @@ export function getModelParams(ctx: EngineContext, type: "image" | "audio" | "vi
     prompt = specific.customPrompt || prompt;
     temperature = specific.temperature ?? temperature;
     maxTokens = specific.maxTokens ?? maxTokens;
-    enableRepetitionDetection = specific.enableRepetitionDetection ?? enableRepetitionDetection;
+    enableRepetitionDetection =
+      specific.enableRepetitionDetection ?? enableRepetitionDetection;
   }
 
   // 2. 特殊处理：如果 overrideConfig 中显式提供了针对该类型的模型，则它具有最高优先级
@@ -52,7 +56,10 @@ export function getModelParams(ctx: EngineContext, type: "image" | "audio" | "vi
 
   // 3. 处理 additionalPrompt 追加逻辑 (集中分发)
   // 优先级: 任务覆盖配置中的 additionalPrompt > 分类型配置中的 additionalPrompt > 全局配置中的 additionalPrompt
-  const additionalPrompt = task.overrideConfig?.additionalPrompt || specific?.additionalPrompt || config.additionalPrompt;
+  const additionalPrompt =
+    task.overrideConfig?.additionalPrompt ||
+    specific?.additionalPrompt ||
+    config.additionalPrompt;
   if (additionalPrompt) {
     prompt = `${prompt}\n\n${additionalPrompt}`;
   }
@@ -119,7 +126,10 @@ export async function saveTranscriptionResult(
 /**
  * 更新衍生数据状态
  */
-export async function updateDerivedStatus(assetId: string, info: DerivedDataInfo) {
+export async function updateDerivedStatus(
+  assetId: string,
+  info: DerivedDataInfo
+) {
   await invoke("update_asset_derived_data", {
     assetId,
     key: "transcription",

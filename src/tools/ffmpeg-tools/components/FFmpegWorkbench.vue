@@ -31,7 +31,9 @@
               <div class="command-preview">
                 <div class="preview-header">
                   <span>FFmpeg 指令预览</span>
-                  <el-tag size="small" type="info" effect="plain">自动生成</el-tag>
+                  <el-tag size="small" type="info" effect="plain"
+                    >自动生成</el-tag
+                  >
                 </div>
                 <div class="command-content">
                   <code>{{ generatedCommand }}</code>
@@ -40,7 +42,12 @@
             </div>
 
             <div class="submit-area">
-              <el-button type="primary" size="large" :disabled="!currentFilePath" @click="submitTask">
+              <el-button
+                type="primary"
+                size="large"
+                :disabled="!currentFilePath"
+                @click="submitTask"
+              >
                 <el-icon><Play /></el-icon>
                 <span>开始处理任务</span>
               </el-button>
@@ -53,7 +60,14 @@
           <!-- 待处理文件卡片 -->
           <InfoCard title="待处理文件" :icon="Files" class="file-card">
             <template #headerExtra>
-              <el-button v-if="currentFilePath" link :icon="Delete" type="danger" @click="reset">清除</el-button>
+              <el-button
+                v-if="currentFilePath"
+                link
+                :icon="Delete"
+                type="danger"
+                @click="reset"
+                >清除</el-button
+              >
             </template>
             <div class="file-selection-area">
               <DropZone
@@ -61,7 +75,16 @@
                 clickable
                 click-zone
                 @drop="handleFileDrop"
-                :accept="['.mp4', '.mkv', '.avi', '.mov', '.mp3', '.wav', '.flac', '.m4a']"
+                :accept="[
+                  '.mp4',
+                  '.mkv',
+                  '.avi',
+                  '.mov',
+                  '.mp3',
+                  '.wav',
+                  '.flac',
+                  '.m4a',
+                ]"
                 placeholder="点击或拖入媒体文件"
                 class="full-dropzone"
               />
@@ -70,29 +93,48 @@
                   <div class="file-header">
                     <FileIcon :name="fileName" :size="32" />
                     <div class="file-meta">
-                      <div class="name" :title="currentFilePath">{{ fileName }}</div>
+                      <div class="name" :title="currentFilePath">
+                        {{ fileName }}
+                      </div>
                       <div class="path">{{ currentFilePath }}</div>
                     </div>
                     <div class="file-replace-hint">
-                      <el-button type="primary" link @click="handleManualSelect"> 更换 </el-button>
+                      <el-button
+                        type="primary"
+                        link
+                        @click="handleManualSelect"
+                      >
+                        更换
+                      </el-button>
                     </div>
                   </div>
                   <!-- 媒体元数据展示 -->
                   <div v-if="metadata" class="metadata-mini-grid">
                     <div class="mini-item">
                       <span class="label">时长</span>
-                      <span class="value">{{ formatDuration(metadata.duration) }}</span>
+                      <span class="value">{{
+                        formatDuration(metadata.duration)
+                      }}</span>
                     </div>
                     <div class="mini-item" v-if="metadata.width">
                       <span class="label">分辨率</span>
-                      <span class="value">{{ metadata.width }}x{{ metadata.height }}</span>
+                      <span class="value"
+                        >{{ metadata.width }}x{{ metadata.height }}</span
+                      >
                     </div>
                     <div class="mini-item">
                       <span class="label">大小</span>
                       <span class="value">{{ formatSize(metadata.size) }}</span>
                     </div>
                     <div class="mini-item info-btn-item">
-                      <el-button type="primary" link :icon="Info" @click="showFullMediaInfo"> 详情 </el-button>
+                      <el-button
+                        type="primary"
+                        link
+                        :icon="Info"
+                        @click="showFullMediaInfo"
+                      >
+                        详情
+                      </el-button>
                     </div>
                   </div>
                 </div>
@@ -101,7 +143,16 @@
                   overlay
                   hide-content
                   @drop="handleFileDrop"
-                  :accept="['.mp4', '.mkv', '.avi', '.mov', '.mp3', '.wav', '.flac', '.m4a']"
+                  :accept="[
+                    '.mp4',
+                    '.mkv',
+                    '.avi',
+                    '.mov',
+                    '.mp3',
+                    '.wav',
+                    '.flac',
+                    '.m4a',
+                  ]"
                 />
               </div>
             </div>
@@ -112,8 +163,15 @@
             <el-tabs v-model="activeRightTab" class="content-tabs">
               <el-tab-pane label="媒体预览" name="preview">
                 <div class="preview-box">
-                  <VideoPlayer v-if="isMaybeVideo" :src="currentFileUrl" class="preview-player" />
-                  <AudioPlayer v-else-if="metadata?.hasAudio" :src="currentFileUrl" />
+                  <VideoPlayer
+                    v-if="isMaybeVideo"
+                    :src="currentFileUrl"
+                    class="preview-player"
+                  />
+                  <AudioPlayer
+                    v-else-if="metadata?.hasAudio"
+                    :src="currentFileUrl"
+                  />
                   <div v-else class="no-preview">
                     <el-icon :size="48"><VideoOff /></el-icon>
                     <span>暂无预览</span>
@@ -231,7 +289,8 @@ const generatedCommand = computed(() => {
     if (params.audioEncoder !== "copy" && params.audioEncoder !== "none") {
       if (params.audioBitrate) parts.push("-b:a", params.audioBitrate);
       if (params.sampleRate) parts.push("-ar", params.sampleRate);
-      if (params.audioChannels) parts.push("-ac", params.audioChannels.toString());
+      if (params.audioChannels)
+        parts.push("-ac", params.audioChannels.toString());
     }
 
     // 优化：添加 faststart 标志，便于网页预加载
@@ -420,20 +479,30 @@ const handleApplyPreset = (preset: import("../types").FFmpegPreset) => {
   // 跳过运行时字段，只覆盖配置参数
   if (presetParams.mode !== undefined) params.mode = presetParams.mode;
   if (presetParams.hwaccel !== undefined) params.hwaccel = presetParams.hwaccel;
-  if (presetParams.videoEncoder !== undefined) params.videoEncoder = presetParams.videoEncoder;
+  if (presetParams.videoEncoder !== undefined)
+    params.videoEncoder = presetParams.videoEncoder;
   if (presetParams.preset !== undefined) params.preset = presetParams.preset;
   if (presetParams.crf !== undefined) params.crf = presetParams.crf;
-  if (presetParams.videoBitrate !== undefined) params.videoBitrate = presetParams.videoBitrate;
+  if (presetParams.videoBitrate !== undefined)
+    params.videoBitrate = presetParams.videoBitrate;
   if (presetParams.scale !== undefined) params.scale = presetParams.scale;
   if (presetParams.fps !== undefined) params.fps = presetParams.fps;
-  if (presetParams.pixelFormat !== undefined) params.pixelFormat = presetParams.pixelFormat;
-  if (presetParams.audioEncoder !== undefined) params.audioEncoder = presetParams.audioEncoder;
-  if (presetParams.audioBitrate !== undefined) params.audioBitrate = presetParams.audioBitrate;
-  if (presetParams.sampleRate !== undefined) params.sampleRate = presetParams.sampleRate;
-  if (presetParams.audioChannels !== undefined) params.audioChannels = presetParams.audioChannels;
-  if (presetParams.customArgs !== undefined) params.customArgs = presetParams.customArgs;
-  if (presetParams.maxSizeMb !== undefined) params.maxSizeMb = presetParams.maxSizeMb;
-  if (presetParams.appendParamsToName !== undefined) params.appendParamsToName = presetParams.appendParamsToName;
+  if (presetParams.pixelFormat !== undefined)
+    params.pixelFormat = presetParams.pixelFormat;
+  if (presetParams.audioEncoder !== undefined)
+    params.audioEncoder = presetParams.audioEncoder;
+  if (presetParams.audioBitrate !== undefined)
+    params.audioBitrate = presetParams.audioBitrate;
+  if (presetParams.sampleRate !== undefined)
+    params.sampleRate = presetParams.sampleRate;
+  if (presetParams.audioChannels !== undefined)
+    params.audioChannels = presetParams.audioChannels;
+  if (presetParams.customArgs !== undefined)
+    params.customArgs = presetParams.customArgs;
+  if (presetParams.maxSizeMb !== undefined)
+    params.maxSizeMb = presetParams.maxSizeMb;
+  if (presetParams.appendParamsToName !== undefined)
+    params.appendParamsToName = presetParams.appendParamsToName;
   customMessage.success(`已应用预设: ${preset.name}`);
 };
 
@@ -483,7 +552,10 @@ watch(
   ],
   async () => {
     if (!currentFilePath.value) return;
-    const nameWithoutExt = fileName.value.substring(0, fileName.value.lastIndexOf("."));
+    const nameWithoutExt = fileName.value.substring(
+      0,
+      fileName.value.lastIndexOf(".")
+    );
     const originalExt = await extname(currentFilePath.value);
 
     const suffix = paramsSuffix.value;
@@ -500,7 +572,7 @@ watch(
       const baseSuffix = suffix || "_processed";
       outputName.value = `${nameWithoutExt}${baseSuffix}.${originalExt}`;
     }
-  },
+  }
 );
 </script>
 

@@ -3,7 +3,11 @@
  * 负责会话和分支的导出功能
  */
 
-import type { ChatSessionDetail, ChatSessionIndex, ChatMessageNode } from "../../types";
+import type {
+  ChatSessionDetail,
+  ChatSessionIndex,
+  ChatMessageNode,
+} from "../../types";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useUserProfileStore } from "../../stores/userProfileStore";
 import { useAgentStore } from "../../stores/agentStore";
@@ -38,7 +42,12 @@ export interface ExportOptions {
 const isEmoji = (str: string): boolean => {
   if (!str) return false;
   // Emoji 通常是 1-4 个字符，且不包含路径分隔符
-  return str.length <= 4 && !str.includes("/") && !str.includes("\\") && !str.includes(".");
+  return (
+    str.length <= 4 &&
+    !str.includes("/") &&
+    !str.includes("\\") &&
+    !str.includes(".")
+  );
 };
 
 export function useExportManager() {
@@ -52,7 +61,7 @@ export function useExportManager() {
   const exportSessionAsMarkdown = (
     index: ChatSessionIndex | null,
     detail: ChatSessionDetail | null,
-    currentActivePath: ChatMessageNode[],
+    currentActivePath: ChatMessageNode[]
   ): string => {
     if (!index || !detail) {
       logger.warn("导出失败：会话不存在或详情未加载");
@@ -72,7 +81,11 @@ export function useExportManager() {
     // 收集活动路径中被压缩隐藏的节点 ID
     const hiddenNodeIds = new Set<string>();
     currentActivePath.forEach((node) => {
-      if (node.metadata?.isCompressionNode && node.metadata.compressedNodeIds && node.isEnabled !== false) {
+      if (
+        node.metadata?.isCompressionNode &&
+        node.metadata.compressedNodeIds &&
+        node.isEnabled !== false
+      ) {
         node.metadata.compressedNodeIds.forEach((id) => hiddenNodeIds.add(id));
       }
     });
@@ -84,7 +97,9 @@ export function useExportManager() {
 
       const role = node.role === "user" ? "用户" : "助手";
       const nameStr = node.name ? ` - ${node.name}` : "";
-      const time = node.timestamp ? formatDateTime(node.timestamp, "HH:mm:ss") : "";
+      const time = node.timestamp
+        ? formatDateTime(node.timestamp, "HH:mm:ss")
+        : "";
 
       lines.push(`## ${role}${nameStr} (${time})`);
       lines.push("");
@@ -93,7 +108,9 @@ export function useExportManager() {
 
       if (node.metadata?.usage) {
         const usage = node.metadata.usage;
-        lines.push(`*Token 使用: ${usage.totalTokens} (输入: ${usage.promptTokens}, 输出: ${usage.completionTokens})*`);
+        lines.push(
+          `*Token 使用: ${usage.totalTokens} (输入: ${usage.promptTokens}, 输出: ${usage.completionTokens})*`
+        );
         lines.push("");
       }
 
@@ -144,7 +161,7 @@ export function useExportManager() {
     nodeId: string,
     includePreset: boolean = false,
     presetMessages: ChatMessageNode[] = [],
-    options: ExportOptions = {},
+    options: ExportOptions = {}
   ): string => {
     // 设置默认值
     const {
@@ -209,13 +226,19 @@ export function useExportManager() {
     // 收集所有被压缩隐藏的节点 ID
     const hiddenNodeIds = new Set<string>();
     path.forEach((node) => {
-      if (node.metadata?.isCompressionNode && node.metadata.compressedNodeIds && node.isEnabled !== false) {
+      if (
+        node.metadata?.isCompressionNode &&
+        node.metadata.compressedNodeIds &&
+        node.isEnabled !== false
+      ) {
         node.metadata.compressedNodeIds.forEach((id) => hiddenNodeIds.add(id));
       }
     });
 
     // 过滤掉系统根节点和被压缩隐藏的节点
-    let messagePath = path.filter((node) => node.id !== detail.rootNodeId && !hiddenNodeIds.has(node.id));
+    let messagePath = path.filter(
+      (node) => node.id !== detail.rootNodeId && !hiddenNodeIds.has(node.id)
+    );
 
     // 应用导出范围过滤
     if (options.range) {
@@ -311,7 +334,9 @@ export function useExportManager() {
 
     // 添加消息
     allMessages.forEach((node) => {
-      const time = node.timestamp ? formatDateTime(node.timestamp, "HH:mm:ss") : "";
+      const time = node.timestamp
+        ? formatDateTime(node.timestamp, "HH:mm:ss")
+        : "";
       const enabledStatus = node.isEnabled === false ? " [已禁用]" : "";
 
       if (node.role === "user") {
@@ -322,7 +347,9 @@ export function useExportManager() {
             userName = node.metadata.userProfileName;
           } else if (node.metadata?.userProfileId) {
             // 尝试从 Store 获取最新信息作为回退
-            const profile = userProfileStore.getProfileById(node.metadata.userProfileId);
+            const profile = userProfileStore.getProfileById(
+              node.metadata.userProfileId
+            );
             if (profile) {
               userName = profile.displayName || profile.name;
             }
@@ -330,7 +357,9 @@ export function useExportManager() {
         }
 
         const userIcon =
-          includeUserProfile && node.metadata?.userProfileIcon && isEmoji(node.metadata.userProfileIcon)
+          includeUserProfile &&
+          node.metadata?.userProfileIcon &&
+          isEmoji(node.metadata.userProfileIcon)
             ? node.metadata.userProfileIcon
             : "";
 
@@ -353,7 +382,9 @@ export function useExportManager() {
         }
 
         const agentIcon =
-          includeAgentInfo && node.metadata?.agentIcon && isEmoji(node.metadata.agentIcon)
+          includeAgentInfo &&
+          node.metadata?.agentIcon &&
+          isEmoji(node.metadata.agentIcon)
             ? node.metadata.agentIcon
             : "";
 
@@ -367,7 +398,9 @@ export function useExportManager() {
           if (metadata.profileId && metadata.modelId) {
             const profile = getProfileById(metadata.profileId);
             if (profile) {
-              const model = profile.models.find((m) => m.id === metadata.modelId);
+              const model = profile.models.find(
+                (m) => m.id === metadata.modelId
+              );
               if (model) {
                 const modelName = metadata.modelName || model.name || model.id;
                 lines.push(`*模型: ${modelName} (${profile.name})*`);
@@ -390,7 +423,11 @@ export function useExportManager() {
       lines.push("");
 
       // 添加附件信息
-      if (includeAttachments && node.attachments && node.attachments.length > 0) {
+      if (
+        includeAttachments &&
+        node.attachments &&
+        node.attachments.length > 0
+      ) {
         lines.push("**附件**:");
         node.attachments.forEach((attachment) => {
           lines.push(`- ${attachment.name} (${attachment.type})`);
@@ -401,7 +438,9 @@ export function useExportManager() {
       // 添加 Token 使用信息
       if (includeTokenUsage && node.metadata?.usage) {
         const usage = node.metadata.usage;
-        lines.push(`*Token 使用: ${usage.totalTokens} (输入: ${usage.promptTokens}, 输出: ${usage.completionTokens})*`);
+        lines.push(
+          `*Token 使用: ${usage.totalTokens} (输入: ${usage.promptTokens}, 输出: ${usage.completionTokens})*`
+        );
         lines.push("");
       }
 
@@ -442,7 +481,7 @@ export function useExportManager() {
     nodeId: string,
     includePreset: boolean = false,
     presetMessages: ChatMessageNode[] = [],
-    options: ExportOptions = {},
+    options: ExportOptions = {}
   ): any => {
     // 设置默认值
     const {
@@ -494,13 +533,19 @@ export function useExportManager() {
     // 收集所有被压缩隐藏的节点 ID
     const hiddenNodeIds = new Set<string>();
     path.forEach((node) => {
-      if (node.metadata?.isCompressionNode && node.metadata.compressedNodeIds && node.isEnabled !== false) {
+      if (
+        node.metadata?.isCompressionNode &&
+        node.metadata.compressedNodeIds &&
+        node.isEnabled !== false
+      ) {
         node.metadata.compressedNodeIds.forEach((id) => hiddenNodeIds.add(id));
       }
     });
 
     // 过滤掉系统根节点和被压缩隐藏的节点
-    let messagePath = path.filter((node) => node.id !== detail.rootNodeId && !hiddenNodeIds.has(node.id));
+    let messagePath = path.filter(
+      (node) => node.id !== detail.rootNodeId && !hiddenNodeIds.has(node.id)
+    );
 
     // 应用导出范围过滤
     if (options.range) {
@@ -581,7 +626,11 @@ export function useExportManager() {
       };
 
       // 用户信息
-      if (node.role === "user" && includeUserProfile && node.metadata?.userProfileName) {
+      if (
+        node.role === "user" &&
+        includeUserProfile &&
+        node.metadata?.userProfileName
+      ) {
         msg.user = {
           name: node.metadata.userProfileName,
           icon: node.metadata.userProfileIcon,
@@ -602,7 +651,9 @@ export function useExportManager() {
           if (node.metadata.profileId && node.metadata.modelId) {
             const profile = getProfileById(node.metadata.profileId);
             if (profile) {
-              const model = profile.models.find((m) => m.id === node.metadata!.modelId);
+              const model = profile.models.find(
+                (m) => m.id === node.metadata!.modelId
+              );
               if (model) {
                 msg.model = {
                   name: node.metadata.modelName || model.name || model.id,
@@ -620,7 +671,11 @@ export function useExportManager() {
       }
 
       // 附件信息
-      if (includeAttachments && node.attachments && node.attachments.length > 0) {
+      if (
+        includeAttachments &&
+        node.attachments &&
+        node.attachments.length > 0
+      ) {
         msg.attachments = node.attachments.map((att) => ({
           name: att.name,
           type: att.type,
@@ -665,7 +720,7 @@ export function useExportManager() {
   const exportSessionAsMarkdownTree = (
     index: ChatSessionIndex,
     detail: ChatSessionDetail,
-    options: ExportOptions = {},
+    options: ExportOptions = {}
   ): string => {
     // 设置默认值
     const {
@@ -698,8 +753,14 @@ export function useExportManager() {
     // 收集全树中所有被压缩隐藏的节点 ID
     const allHiddenNodeIds = new Set<string>();
     Object.values(detail.nodes || {}).forEach((node) => {
-      if (node.metadata?.isCompressionNode && node.metadata.compressedNodeIds && node.isEnabled !== false) {
-        node.metadata.compressedNodeIds.forEach((id) => allHiddenNodeIds.add(id));
+      if (
+        node.metadata?.isCompressionNode &&
+        node.metadata.compressedNodeIds &&
+        node.isEnabled !== false
+      ) {
+        node.metadata.compressedNodeIds.forEach((id) =>
+          allHiddenNodeIds.add(id)
+        );
       }
     });
 
@@ -737,7 +798,9 @@ export function useExportManager() {
       const indent = "  ".repeat(depth);
 
       // 格式化时间和状态
-      const time = node.timestamp ? formatDateTime(node.timestamp, "HH:mm:ss") : "";
+      const time = node.timestamp
+        ? formatDateTime(node.timestamp, "HH:mm:ss")
+        : "";
       const enabledStatus = node.isEnabled === false ? " [已禁用]" : "";
 
       // 根据角色确定图标和名称
@@ -746,17 +809,27 @@ export function useExportManager() {
       const nameStr = node.name ? ` [${node.name}]` : "";
 
       if (node.role === "user") {
-        const userName = includeUserProfile && node.metadata?.userProfileName ? node.metadata.userProfileName : "用户";
+        const userName =
+          includeUserProfile && node.metadata?.userProfileName
+            ? node.metadata.userProfileName
+            : "用户";
         const userIcon =
-          includeUserProfile && node.metadata?.userProfileIcon && isEmoji(node.metadata.userProfileIcon)
+          includeUserProfile &&
+          node.metadata?.userProfileIcon &&
+          isEmoji(node.metadata.userProfileIcon)
             ? node.metadata.userProfileIcon
             : "";
         roleIcon = userIcon;
         roleName = userName;
       } else if (node.role === "assistant") {
-        const agentName = includeAgentInfo && node.metadata?.agentName ? node.metadata.agentName : "助手";
+        const agentName =
+          includeAgentInfo && node.metadata?.agentName
+            ? node.metadata.agentName
+            : "助手";
         const agentIcon =
-          includeAgentInfo && node.metadata?.agentIcon && isEmoji(node.metadata.agentIcon)
+          includeAgentInfo &&
+          node.metadata?.agentIcon &&
+          isEmoji(node.metadata.agentIcon)
             ? node.metadata.agentIcon
             : "";
         roleIcon = agentIcon;
@@ -768,7 +841,9 @@ export function useExportManager() {
 
       // 添加消息标题（使用列表项）
       const roleLabel = roleIcon ? `${roleIcon} ${roleName}` : roleName;
-      lines.push(`${indent}- **${roleLabel}${nameStr}** (${time})${enabledStatus}`);
+      lines.push(
+        `${indent}- **${roleLabel}${nameStr}** (${time})${enabledStatus}`
+      );
 
       // 添加元数据（缩进）
       const metaIndent = indent + "  ";
@@ -778,10 +853,15 @@ export function useExportManager() {
           if (node.metadata.profileId && node.metadata.modelId) {
             const profile = getProfileById(node.metadata.profileId);
             if (profile) {
-              const model = profile.models.find((m) => m.id === node.metadata!.modelId);
+              const model = profile.models.find(
+                (m) => m.id === node.metadata!.modelId
+              );
               if (model) {
-                const modelName = node.metadata.modelName || model.name || model.id;
-                lines.push(`${metaIndent}*模型: ${modelName} | 渠道: ${profile.name}*`);
+                const modelName =
+                  node.metadata.modelName || model.name || model.id;
+                lines.push(
+                  `${metaIndent}*模型: ${modelName} | 渠道: ${profile.name}*`
+                );
               }
             }
           } else if (node.metadata.modelName) {
@@ -803,15 +883,21 @@ export function useExportManager() {
       });
 
       // 添加附件信息
-      if (includeAttachments && node.attachments && node.attachments.length > 0) {
-        lines.push(`${metaIndent}*附件: ${node.attachments.map((a) => a.name).join(", ")}*`);
+      if (
+        includeAttachments &&
+        node.attachments &&
+        node.attachments.length > 0
+      ) {
+        lines.push(
+          `${metaIndent}*附件: ${node.attachments.map((a) => a.name).join(", ")}*`
+        );
       }
 
       // 添加 Token 使用信息
       if (includeTokenUsage && node.metadata?.usage) {
         const usage = node.metadata.usage;
         lines.push(
-          `${metaIndent}*Token: ${usage.totalTokens} (输入: ${usage.promptTokens}, 输出: ${usage.completionTokens})*`,
+          `${metaIndent}*Token: ${usage.totalTokens} (输入: ${usage.promptTokens}, 输出: ${usage.completionTokens})*`
         );
       }
 
@@ -826,7 +912,9 @@ export function useExportManager() {
       if (node.childrenIds && node.childrenIds.length > 0) {
         // 如果有多个子节点，说明有分支
         if (node.childrenIds.length > 1) {
-          lines.push(`${indent}  *[此处产生了 ${node.childrenIds.length} 条不同的对话路径]*`);
+          lines.push(
+            `${indent}  *[此处产生了 ${node.childrenIds.length} 条不同的对话路径]*`
+          );
           lines.push("");
         }
 
@@ -859,7 +947,7 @@ export function useExportManager() {
     index: ChatSessionIndex,
     detail: ChatSessionDetail,
     nodeId: string,
-    options: ExportOptions = {},
+    options: ExportOptions = {}
   ): string => {
     const branchNodes: Record<string, ChatMessageNode> = {};
     let currentId: string | null = nodeId;

@@ -4,7 +4,9 @@ import type { ParsedToolRequest } from "../types";
 /**
  * 对解析后的工具请求进行运行时验证（工具/方法是否存在、是否可调用）
  */
-export function validateToolRequest(request: ParsedToolRequest): ParsedToolRequest {
+export function validateToolRequest(
+  request: ParsedToolRequest
+): ParsedToolRequest {
   // 解析层已标记为无效时直接透传，不再叠加 registry 层的噪音错误
   if (request.validation && !request.validation.isValid) {
     return request;
@@ -27,11 +29,18 @@ export function validateToolRequest(request: ParsedToolRequest): ParsedToolReque
     if (toolInstance) {
       const method = toolInstance[request.methodName];
       if (typeof method !== "function") {
-        errors.push(`方法 "${request.methodName}" 在工具 "${request.toolId}" 中不存在`);
+        errors.push(
+          `方法 "${request.methodName}" 在工具 "${request.toolId}" 中不存在`
+        );
       } else {
         // 3. 检查元数据（是否标记为 agentCallable）
-        const metadata = typeof toolInstance.getMetadata === "function" ? toolInstance.getMetadata() : undefined;
-        const methodMeta = metadata?.methods?.find((m: any) => m.name === request.methodName);
+        const metadata =
+          typeof toolInstance.getMetadata === "function"
+            ? toolInstance.getMetadata()
+            : undefined;
+        const methodMeta = metadata?.methods?.find(
+          (m: any) => m.name === request.methodName
+        );
 
         if (methodMeta && methodMeta.agentCallable === false) {
           errors.push(`方法 "${request.methodName}" 不允许被智能体直接调用`);

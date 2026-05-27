@@ -1,4 +1,4 @@
-import type * as monaco from 'monaco-editor';
+import type * as monaco from "monaco-editor";
 
 /**
  * 编辑器装饰器配置
@@ -17,8 +17,8 @@ export interface StaticError {
   endLine: number;
   endColumn: number;
   message: string;
-  severity: 'error' | 'warning' | 'info';
-  source: 'monaco' | 'lsp' | 'oxlint';
+  severity: "error" | "warning" | "info";
+  source: "monaco" | "lsp" | "oxlint";
 }
 
 /**
@@ -53,11 +53,11 @@ export interface CanvasMonacoEditorProps {
  */
 export interface CanvasMonacoEditorEmits {
   /** 内容变化 */
-  (e: 'update:modelValue', value: string): void;
+  (e: "update:modelValue", value: string): void;
   /** Markers 变化（静态错误） */
-  (e: 'markersChange', markers: monaco.editor.IMarker[]): void;
+  (e: "markersChange", markers: monaco.editor.IMarker[]): void;
   /** 光标位置变化 */
-  (e: 'cursorPositionChange', position: monaco.Position): void;
+  (e: "cursorPositionChange", position: monaco.Position): void;
   /** 编辑器挂载完成 */
-  (e: 'editorReady', editor: monaco.editor.IStandaloneCodeEditor): void;
+  (e: "editorReady", editor: monaco.editor.IStandaloneCodeEditor): void;
 }

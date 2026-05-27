@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, provide, nextTick, onMounted, defineAsyncComponent } from "vue";
+import {
+  ref,
+  computed,
+  provide,
+  nextTick,
+  onMounted,
+  defineAsyncComponent,
+} from "vue";
 import { Search as SearchIcon } from "@element-plus/icons-vue";
 import { useElementSize } from "@vueuse/core";
 import { agentEditTabs } from "./agentEditConfig";
@@ -14,8 +21,12 @@ import SessionVariableSection from "./sections/SessionVariableSection.vue";
 import { useUserProfileStore } from "../../../stores/userProfileStore";
 import AgentAssetsDialog from "../assets/AgentAssetsDialog.vue";
 
-const EditUserProfileDialog = defineAsyncComponent(() => import("../../user-profile/EditUserProfileDialog.vue"));
-const WorldbookManagerDialog = defineAsyncComponent(() => import("../../worldbook/WorldbookManagerDialog.vue"));
+const EditUserProfileDialog = defineAsyncComponent(
+  () => import("../../user-profile/EditUserProfileDialog.vue")
+);
+const WorldbookManagerDialog = defineAsyncComponent(
+  () => import("../../worldbook/WorldbookManagerDialog.vue")
+);
 
 interface Props {
   modelValue: any; // editForm 数据
@@ -106,7 +117,7 @@ const searchIndex = computed(() => {
       tabId: tab.id,
       tabLabel: tab.label,
       value: `${tab.label} > ${item.label}`,
-    })),
+    }))
   );
 });
 
@@ -114,7 +125,10 @@ const querySearch = (queryString: string, cb: any) => {
   const results = queryString
     ? searchIndex.value.filter((item) => {
         const query = queryString.toLowerCase();
-        return item.label.toLowerCase().includes(query) || item.keywords.toLowerCase().includes(query);
+        return (
+          item.label.toLowerCase().includes(query) ||
+          item.keywords.toLowerCase().includes(query)
+        );
       })
     : [];
   cb(results);
@@ -145,7 +159,9 @@ onMounted(() => {
   }
   if (props.initialSection) {
     nextTick(() => {
-      const target = document.querySelector(`[data-setting-id="${props.initialSection}"]`);
+      const target = document.querySelector(
+        `[data-setting-id="${props.initialSection}"]`
+      );
       if (target) {
         target.scrollIntoView({ behavior: "smooth", block: "center" });
         highlightedItemId.value = props.initialSection!;
@@ -205,7 +221,12 @@ defineExpose({
           :class="{ active: activeTab === tab.id }"
           @click="activeTab = tab.id"
         >
-          <el-tooltip :content="tab.label" placement="right" :disabled="!isSidebarCollapsed" :offset="16">
+          <el-tooltip
+            :content="tab.label"
+            placement="right"
+            :disabled="!isSidebarCollapsed"
+            :offset="16"
+          >
             <el-icon><component :is="tab.icon" /></el-icon>
           </el-tooltip>
           <span v-if="!isSidebarCollapsed">{{ tab.label }}</span>
@@ -213,14 +234,21 @@ defineExpose({
       </div>
 
       <div class="editor-content">
-        <el-form :model="modelValue" :label-width="formLabelWidth" :label-position="formLabelPosition" @submit.prevent>
+        <el-form
+          :model="modelValue"
+          :label-width="formLabelWidth"
+          :label-position="formLabelPosition"
+          @submit.prevent
+        >
           <BasicInfoSection v-show="activeTab === 'basic'" />
           <PersonalitySection v-show="activeTab === 'personality'" />
           <CapabilitiesSection v-show="activeTab === 'capabilities'" />
           <SessionVariableSection v-show="activeTab === 'variables'" />
           <KnowledgeSection v-show="activeTab === 'knowledge'" />
           <ToolCallingSection v-show="activeTab === 'tool-calling'" />
-          <EnvironmentSection v-show="activeTab === 'environment-enhancement'" />
+          <EnvironmentSection
+            v-show="activeTab === 'environment-enhancement'"
+          />
           <OutputDisplaySection v-show="activeTab === 'output'" />
         </el-form>
       </div>
@@ -318,7 +346,11 @@ defineExpose({
 }
 
 .sidebar-item.active {
-  background-color: color-mix(in srgb, var(--el-color-primary), transparent 90%);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-primary),
+    transparent 90%
+  );
   color: var(--el-color-primary);
   font-weight: 500;
 }
@@ -349,7 +381,11 @@ defineExpose({
 }
 
 :deep(.setting-highlight) {
-  background-color: color-mix(in srgb, var(--el-color-primary), transparent 90%);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-primary),
+    transparent 90%
+  );
   outline: 2px solid var(--el-color-primary);
   border-radius: 4px;
 }

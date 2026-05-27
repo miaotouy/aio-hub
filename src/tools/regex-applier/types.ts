@@ -32,7 +32,7 @@ export interface PresetsConfig {
 export interface LogEntry {
   time: string;
   message: string;
-  type: 'info' | 'warn' | 'error';
+  type: "info" | "warn" | "error";
 }
 
 /** 规则应用结果 */

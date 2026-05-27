@@ -5,22 +5,40 @@
       <span class="search-panel__title">搜索</span>
       <div class="search-panel__actions">
         <el-tooltip content="刷新搜索" :show-after="500">
-          <button class="search-panel__action-btn" :disabled="!hasResults" @click="$emit('refresh')">
+          <button
+            class="search-panel__action-btn"
+            :disabled="!hasResults"
+            @click="$emit('refresh')"
+          >
             <RefreshCw :size="16" />
           </button>
         </el-tooltip>
-        <el-tooltip :content="allCollapsed ? '全部展开' : '全部折叠'" :show-after="500">
-          <button class="search-panel__action-btn" :disabled="!hasResults" @click="toggleExpandCollapse">
+        <el-tooltip
+          :content="allCollapsed ? '全部展开' : '全部折叠'"
+          :show-after="500"
+        >
+          <button
+            class="search-panel__action-btn"
+            :disabled="!hasResults"
+            @click="toggleExpandCollapse"
+          >
             <ChevronsDown v-if="allCollapsed" :size="16" />
             <ChevronsUp v-else :size="16" />
           </button>
         </el-tooltip>
         <el-tooltip content="清除结果" :show-after="500">
-          <button class="search-panel__action-btn" :disabled="!hasResults" @click="$emit('clearResults')">
+          <button
+            class="search-panel__action-btn"
+            :disabled="!hasResults"
+            @click="$emit('clearResults')"
+          >
             <X :size="16" />
           </button>
         </el-tooltip>
-        <el-tooltip :content="viewMode === 'list' ? '切换为树形视图' : '切换为列表视图'" :show-after="500">
+        <el-tooltip
+          :content="viewMode === 'list' ? '切换为树形视图' : '切换为列表视图'"
+          :show-after="500"
+        >
           <button class="search-panel__action-btn" @click="toggleViewMode">
             <FolderTree v-if="viewMode === 'list'" :size="16" />
             <List v-else :size="16" />
@@ -72,10 +90,23 @@
 
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { RefreshCw, ChevronsUp, ChevronsDown, X, FolderTree, List } from "lucide-vue-next";
+import {
+  RefreshCw,
+  ChevronsUp,
+  ChevronsDown,
+  X,
+  FolderTree,
+  List,
+} from "lucide-vue-next";
 import SearchInput from "./SearchInput.vue";
 import ResultsTree from "./ResultsTree.vue";
-import type { FileSearchResult, SearchMatch, SearchProgress, SearchSummary, ViewMode } from "../types";
+import type {
+  FileSearchResult,
+  SearchMatch,
+  SearchProgress,
+  SearchSummary,
+  ViewMode,
+} from "../types";
 import type { ContextMenuItem } from "../composables/useContextMenu";
 
 const resultsTreeRef = ref<InstanceType<typeof ResultsTree> | null>(null);
@@ -103,7 +134,9 @@ const preserveCase = defineModel<boolean>("preserveCase", { required: true });
 const viewMode = defineModel<ViewMode>("viewMode", { required: true });
 
 const hasResults = computed(() => props.results.length > 0);
-const allCollapsed = computed(() => hasResults.value && props.expandedFiles.size === 0);
+const allCollapsed = computed(
+  () => hasResults.value && props.expandedFiles.size === 0
+);
 
 function toggleViewMode() {
   viewMode.value = viewMode.value === "list" ? "tree" : "list";
@@ -123,7 +156,11 @@ const emit = defineEmits<{
   dismissMatch: [filePath: string, matchIndex: number];
   replaceFile: [filePath: string];
   replaceMatch: [filePath: string, matchIndex: number];
-  contextMenu: [event: MouseEvent, items: ContextMenuItem[], context: Record<string, unknown>];
+  contextMenu: [
+    event: MouseEvent,
+    items: ContextMenuItem[],
+    context: Record<string, unknown>,
+  ];
 }>();
 function toggleExpandCollapse() {
   if (allCollapsed.value) {
@@ -193,8 +230,14 @@ defineExpose({ expandDirs });
 }
 
 .search-panel__action-btn:hover:not(:disabled) {
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.1));
-  border-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.2));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
+  border-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.2)
+  );
 }
 
 .search-panel__action-btn:disabled {

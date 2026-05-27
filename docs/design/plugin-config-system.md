@@ -27,6 +27,7 @@
 - `plugin-id` 来自插件 `manifest.json` 中的 `id` 字段。
 
 **理由**:
+
 - **数据持久化**: 插件包（位于 `appDataDir/plugins/`）可能会在更新时被完全替换，将配置分离可确保数据得以保留。
 - **生命周期清晰**: 卸载插件时，可以安全地删除对应的 `plugins-config/{plugin-id}` 目录，彻底清理数据。
 
@@ -124,21 +125,21 @@
 export default {
   async translate({ text, context }) {
     // 安全地获取配置
-    const apiKey = await context.settings.get('apiKey');
-    const lang = await context.settings.get('defaultLanguage');
+    const apiKey = await context.settings.get("apiKey");
+    const lang = await context.settings.get("defaultLanguage");
 
     if (!apiKey) {
-      throw new Error('API Key 未配置！');
+      throw new Error("API Key 未配置！");
     }
-    
+
     // ... 调用翻译服务
 
     // 如果需要，也可以更新配置
-    await context.settings.set('enableCache', false);
+    await context.settings.set("enableCache", false);
 
-    return '...';
-  }
-}
+    return "...";
+  },
+};
 ```
 
 - **`context.settings.get(key: string): Promise<T>`**: 获取单个配置项的值。

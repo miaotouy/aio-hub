@@ -39,7 +39,13 @@ export interface ProcessableMessage {
   /** 思考/推理内容（用于 DeepSeek 等模型的多轮对话回传） */
   reasoningContent?: string;
   /** 消息来源类型 */
-  sourceType?: "agent_preset" | "session_history" | "depth_injection" | "anchor_injection" | "unknown" | "merged";
+  sourceType?:
+    | "agent_preset"
+    | "session_history"
+    | "depth_injection"
+    | "anchor_injection"
+    | "unknown"
+    | "merged";
   /** 来源标识（预设消息的 index 或会话历史的 nodeId） */
   sourceId?: string | number;
   /** 在来源数组中的索引（用于精确匹配） */
@@ -88,7 +94,13 @@ export interface LlmContextData {
     role: "system" | "user" | "assistant";
     content: string | LlmMessageContent[];
     /** 消息来源类型 */
-    sourceType?: "agent_preset" | "session_history" | "depth_injection" | "anchor_injection" | "unknown" | "merged";
+    sourceType?:
+      | "agent_preset"
+      | "session_history"
+      | "depth_injection"
+      | "anchor_injection"
+      | "unknown"
+      | "merged";
     /** 来源标识（预设消息的 index 或会话历史的 nodeId） */
     sourceId?: string | number;
     /** 在来源数组中的索引（用于精确匹配） */
@@ -197,7 +209,13 @@ export interface ContextPreviewData {
     role: "system" | "user" | "assistant";
     content: string | LlmMessageContent[];
     /** 消息来源类型 */
-    sourceType?: "agent_preset" | "session_history" | "depth_injection" | "anchor_injection" | "unknown" | "merged";
+    sourceType?:
+      | "agent_preset"
+      | "session_history"
+      | "depth_injection"
+      | "anchor_injection"
+      | "unknown"
+      | "merged";
     /** 用于存储被合并的原始消息 */
     _mergedSources?: any[];
     /** [中间格式] 暂存的附件列表 */

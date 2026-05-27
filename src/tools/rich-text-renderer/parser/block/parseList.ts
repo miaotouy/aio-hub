@@ -33,7 +33,6 @@ export function parseList(
       break;
     }
 
-
     // 检查列表类型是否一致 (ordered vs unordered)
     // 注意：不同层级的列表类型可以不同，但同级应该一致（通常）
     // 但 Markdown 允许混合。不过为了简单，我们通常按类型分组。

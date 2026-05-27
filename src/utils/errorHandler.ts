@@ -122,8 +122,15 @@ class GlobalErrorHandler {
   /**
    * 标准化错误
    */
-  private standardizeError(error: any, options: ErrorHandlerOptions = {}): StandardError {
-    const { level = ErrorLevel.ERROR, context = {}, module = "Unknown" } = options;
+  private standardizeError(
+    error: any,
+    options: ErrorHandlerOptions = {}
+  ): StandardError {
+    const {
+      level = ErrorLevel.ERROR,
+      context = {},
+      module = "Unknown",
+    } = options;
 
     let message = "未知错误";
     let stack: string | undefined;
@@ -222,7 +229,9 @@ class GlobalErrorHandler {
     // 显示给用户（如果需要）
     // 1. 显式要求显示 (showToUser === true)
     // 2. 默认要求显示 (showToUser !== false) 且 之前未处理过 (!alreadyHandled)
-    const shouldShow = options.showToUser === true || (options.showToUser !== false && !alreadyHandled);
+    const shouldShow =
+      options.showToUser === true ||
+      (options.showToUser !== false && !alreadyHandled);
 
     if (shouldShow) {
       this.showToUser(standardError, options.userMessage);
@@ -257,7 +266,11 @@ class GlobalErrorHandler {
         // 如果 originalError 不是 Error 实例且是个对象，为了防止 logger 内部 String(error) 导致的性能开销或信息丢失，
         // 我们传递一个已经净化过的副本或者直接使用 standardError 的信息
         let safeError = error.originalError;
-        if (!(safeError instanceof Error) && typeof safeError === "object" && safeError !== null) {
+        if (
+          !(safeError instanceof Error) &&
+          typeof safeError === "object" &&
+          safeError !== null
+        ) {
           safeError = new Error(`[Object Error] ${error.message}`);
         }
         logger.error(messageWithModule, safeError, logData);
@@ -280,7 +293,10 @@ class GlobalErrorHandler {
    */
   private showToUser(error: StandardError, userMessage?: string): void {
     const friendlyMessage = this.getUserFriendlyMessage(error);
-    const truncatedMessage = this.truncateMessage(friendlyMessage, this.maxUserMessageLength);
+    const truncatedMessage = this.truncateMessage(
+      friendlyMessage,
+      this.maxUserMessageLength
+    );
     const safeFriendlyMessage = escapeHtml(truncatedMessage);
     const safeModule = escapeHtml(error.module);
     const safeUserMessage = userMessage ? escapeHtml(userMessage) : "";
@@ -381,7 +397,10 @@ class GlobalErrorHandler {
   /**
    * 异步函数错误包装器
    */
-  async wrapAsync<T>(fn: () => Promise<T>, options: ErrorHandlerOptions = {}): Promise<T | null> {
+  async wrapAsync<T>(
+    fn: () => Promise<T>,
+    options: ErrorHandlerOptions = {}
+  ): Promise<T | null> {
     try {
       return await fn();
     } catch (error) {
@@ -414,11 +433,15 @@ export function createModuleErrorHandler(moduleName: string) {
     handle: (error: any, options: Omit<ErrorHandlerOptions, "module"> = {}) =>
       errorHandler.handle(error, { ...options, module: moduleName }),
 
-    wrapAsync: <T>(fn: () => Promise<T>, options: Omit<ErrorHandlerOptions, "module"> = {}) =>
-      errorHandler.wrapAsync(fn, { ...options, module: moduleName }),
+    wrapAsync: <T>(
+      fn: () => Promise<T>,
+      options: Omit<ErrorHandlerOptions, "module"> = {}
+    ) => errorHandler.wrapAsync(fn, { ...options, module: moduleName }),
 
-    wrapSync: <T>(fn: () => T, options: Omit<ErrorHandlerOptions, "module"> = {}) =>
-      errorHandler.wrapSync(fn, { ...options, module: moduleName }),
+    wrapSync: <T>(
+      fn: () => T,
+      options: Omit<ErrorHandlerOptions, "module"> = {}
+    ) => errorHandler.wrapSync(fn, { ...options, module: moduleName }),
 
     info: (error: any, userMessage?: string, context?: Record<string, any>) =>
       errorHandler.handle(error, {
@@ -444,7 +467,11 @@ export function createModuleErrorHandler(moduleName: string) {
         context,
       }),
 
-    critical: (error: any, userMessage?: string, context?: Record<string, any>) =>
+    critical: (
+      error: any,
+      userMessage?: string,
+      context?: Record<string, any>
+    ) =>
       errorHandler.handle(error, {
         module: moduleName,
         level: ErrorLevel.CRITICAL,

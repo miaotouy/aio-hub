@@ -7,7 +7,13 @@ import { getDetachableComponentConfig } from "@/config/detachable-components";
 import type { DetachableConfig } from "@/composables/useDetachable";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import { CornerDownLeft, Pin, ExternalLink, Minus, Plus } from "lucide-vue-next";
+import {
+  CornerDownLeft,
+  Pin,
+  ExternalLink,
+  Minus,
+  Plus,
+} from "lucide-vue-next";
 
 const logger = createModuleLogger("ComponentHeader");
 const errorHandler = createModuleErrorHandler("ComponentHeader");
@@ -49,7 +55,10 @@ onMounted(async () => {
       const win = getCurrentWebviewWindow();
       isPinned.value = await win.isAlwaysOnTop();
     } catch (error) {
-      errorHandler.handle(error, { userMessage: "获取窗口置顶状态失败", showToUser: false });
+      errorHandler.handle(error, {
+        userMessage: "获取窗口置顶状态失败",
+        showToUser: false,
+      });
     }
   }
 
@@ -58,7 +67,10 @@ onMounted(async () => {
     const plat = await platform();
     isMac.value = plat === "macos";
   } catch (error) {
-    errorHandler.handle(error, { userMessage: "检查操作系统平台失败", showToUser: false });
+    errorHandler.handle(error, {
+      userMessage: "检查操作系统平台失败",
+      showToUser: false,
+    });
   }
 });
 
@@ -83,7 +95,9 @@ const tooltipPlacement = computed(() => {
 });
 
 const dragTooltip = computed(() => {
-  return props.dragMode === "window" ? "拖拽以移动窗口" : "拖拽以分离，可在悬浮窗打开";
+  return props.dragMode === "window"
+    ? "拖拽以移动窗口"
+    : "拖拽以分离，可在悬浮窗打开";
 });
 
 const toggleCollapse = () => {
@@ -164,7 +178,9 @@ const handleDragInteraction = (event: MouseEvent) => {
 const getDetachableConfig = (event?: MouseEvent): DetachableConfig => {
   // 优先使用事件目标，否则使用组件根元素
   const el = (event?.currentTarget as HTMLElement) || headerRef.value;
-  const rect = el ? el.getBoundingClientRect() : { width: 0, height: 0, left: 0, top: 0 };
+  const rect = el
+    ? el.getBoundingClientRect()
+    : { width: 0, height: 0, left: 0, top: 0 };
   const componentConfig = getDetachableComponentConfig(props.id || "");
 
   return {
@@ -234,8 +250,18 @@ defineExpose({
 
       <!-- Menu Button -->
       <div class="menu-container">
-        <el-tooltip content="菜单" :placement="tooltipPlacement" :show-arrow="false" :offset="10" :enterable="false">
-          <button @click="toggleMenu" class="action-btn" :class="{ active: showMenu }">
+        <el-tooltip
+          content="菜单"
+          :placement="tooltipPlacement"
+          :show-arrow="false"
+          :offset="10"
+          :enterable="false"
+        >
+          <button
+            @click="toggleMenu"
+            class="action-btn"
+            :class="{ active: showMenu }"
+          >
             <i-ep-menu />
           </button>
         </el-tooltip>
@@ -252,7 +278,10 @@ defineExpose({
                 :offset="10"
                 :enterable="false"
               >
-                <button @click="handleMenuReattach" class="action-btn menu-action-btn">
+                <button
+                  @click="handleMenuReattach"
+                  class="action-btn menu-action-btn"
+                >
                   <CornerDownLeft :size="16" />
                 </button>
               </el-tooltip>
@@ -263,7 +292,11 @@ defineExpose({
                 :offset="10"
                 :enterable="false"
               >
-                <button @click="togglePin" class="action-btn menu-action-btn" :class="{ pinned: isPinned }">
+                <button
+                  @click="togglePin"
+                  class="action-btn menu-action-btn"
+                  :class="{ pinned: isPinned }"
+                >
                   <Pin :size="16" :fill="isPinned ? 'currentColor' : 'none'" />
                 </button>
               </el-tooltip>
@@ -277,7 +310,10 @@ defineExpose({
                 :offset="10"
                 :enterable="false"
               >
-                <button @click="handleMenuDetach" class="action-btn menu-action-btn">
+                <button
+                  @click="handleMenuDetach"
+                  class="action-btn menu-action-btn"
+                >
                   <ExternalLink :size="16" />
                 </button>
               </el-tooltip>

@@ -55,7 +55,11 @@ const handleExport = () => {
 };
 
 const handleCreateBranch = () => {
-  store.saveToBranch(props.message.id, props.message.content, props.message.attachments);
+  store.saveToBranch(
+    props.message.id,
+    props.message.content,
+    props.message.attachments
+  );
 };
 
 const handleRetry = async (useNewModel = false) => {
@@ -111,7 +115,8 @@ const backgroundBlocks = computed(() => {
   return Math.ceil(messageHeight.value / BLOCK_SIZE);
 });
 
-const onSwitchSibling = (direction: "prev" | "next") => emit("switch-sibling", direction);
+const onSwitchSibling = (direction: "prev" | "next") =>
+  emit("switch-sibling", direction);
 const onSwitchBranch = (nodeId: string) => emit("switch-branch", nodeId);
 
 // 暴露给虚拟列表用于精确测量的 ref
@@ -156,7 +161,10 @@ defineExpose({
 
       <!-- 翻译提示 (如果启用翻译且有译文) -->
       <div v-if="message.metadata?.translatedContent" class="translation-hint">
-        <el-tooltip :content="message.metadata.translatedContent" placement="top">
+        <el-tooltip
+          :content="message.metadata.translatedContent"
+          placement="top"
+        >
           <div class="translation-badge">
             <Languages :size="12" class="mr-1" />
             <span>已自动翻译提示词</span>
@@ -222,7 +230,11 @@ defineExpose({
   align-items: center;
   font-size: 11px;
   color: var(--el-color-primary);
-  background-color: color-mix(in srgb, var(--el-color-primary), transparent 90%);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-primary),
+    transparent 90%
+  );
   padding: 2px 8px;
   border-radius: 10px;
   cursor: help;
@@ -261,7 +273,8 @@ defineExpose({
 .chat-message.is-selected::after {
   border-color: var(--el-color-primary);
   border-width: 2px;
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--el-color-primary), transparent 85%);
+  box-shadow: 0 0 0 4px
+    color-mix(in srgb, var(--el-color-primary), transparent 85%);
 }
 
 .chat-message.batch-mode:hover::after {
@@ -269,7 +282,11 @@ defineExpose({
 }
 
 .chat-message.is-selected .message-background-slice {
-  background-color: color-mix(in srgb, var(--el-color-primary), transparent 90%);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-primary),
+    transparent 90%
+  );
 }
 
 /* 背景切片 */

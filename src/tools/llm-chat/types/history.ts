@@ -1,4 +1,4 @@
-import type { ChatMessageNode } from './message';
+import type { ChatMessageNode } from "./message";
 
 // 撤销/重做历史记录相关类型
 
@@ -41,40 +41,40 @@ export interface NodeRelationChange {
  */
 export type HistoryDelta =
   | {
-    type: "create";
-    payload: {
-      node: ChatMessageNode;
-      relationChange: NodeRelationChange;
-    };
-  }
+      type: "create";
+      payload: {
+        node: ChatMessageNode;
+        relationChange: NodeRelationChange;
+      };
+    }
   | {
-    type: "delete";
-    payload: {
-      deletedNode: ChatMessageNode;
-      relationChange: NodeRelationChange;
-    };
-  }
+      type: "delete";
+      payload: {
+        deletedNode: ChatMessageNode;
+        relationChange: NodeRelationChange;
+      };
+    }
   | {
-    type: "update";
-    payload: {
-      nodeId: string;
-      previousNodeState: ChatMessageNode;
-      finalNodeState: ChatMessageNode;
-    };
-  }
+      type: "update";
+      payload: {
+        nodeId: string;
+        previousNodeState: ChatMessageNode;
+        finalNodeState: ChatMessageNode;
+      };
+    }
   | {
-    type: "relation";
-    payload: {
-      changes: NodeRelationChange[];
-    };
-  }
+      type: "relation";
+      payload: {
+        changes: NodeRelationChange[];
+      };
+    }
   | {
-    type: "active_leaf_change";
-    payload: {
-      oldLeafId: string;
-      newLeafId: string;
+      type: "active_leaf_change";
+      payload: {
+        oldLeafId: string;
+        newLeafId: string;
+      };
     };
-  };
 
 /**
  * 历史上下文（用于生成摘要或调试）
@@ -94,12 +94,12 @@ export type HistoryEntry = {
   timestamp: number;
   context: HistoryContext;
 } & (
-    | {
+  | {
       isSnapshot: true;
       snapshot: Record<string, ChatMessageNode>;
     }
-    | {
+  | {
       isSnapshot: false;
       deltas: HistoryDelta[];
     }
-  );
+);

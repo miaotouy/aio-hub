@@ -10,12 +10,16 @@ export default class ComponentTesterRegistry implements ToolRegistry {
   public readonly id = "component-tester";
   public readonly runMode = "any";
   public readonly name = "组件测试器";
-  public readonly description = "测试和展示各种 UI 组件、Element Plus 元素、消息提示和主题色板";
+  public readonly description =
+    "测试和展示各种 UI 组件、Element Plus 元素、消息提示和主题色板";
 
   /**
    * 工具提供的可分离组件配置
    */
-  public readonly detachableComponents: Record<string, DetachableComponentRegistration> = {
+  public readonly detachableComponents: Record<
+    string,
+    DetachableComponentRegistration
+  > = {
     "component-tester:sync-demo": {
       component: () => import("./components/DetachedWindowContent.vue"),
       logicHook: () => ({
@@ -55,6 +59,7 @@ export const toolConfig: ToolConfig = {
   runMode: "any",
   icon: markRaw(FlaskConical),
   component: () => import("./ComponentTester.vue"),
-  description: "测试和展示各种 UI 组件、窗口分离同步体系、Element Plus 元素、消息提示和主题色板",
+  description:
+    "测试和展示各种 UI 组件、窗口分离同步体系、Element Plus 元素、消息提示和主题色板",
   category: ["开发工具"],
 };

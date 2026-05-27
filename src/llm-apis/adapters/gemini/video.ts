@@ -25,10 +25,11 @@ export async function callGeminiVideoApi(
     signal,
   } = options;
 
-  const baseUrl = profile.baseUrl || "https://generativelanguage.googleapis.com";
+  const baseUrl =
+    profile.baseUrl || "https://generativelanguage.googleapis.com";
   const apiVersion = "v1beta";
   const apiKey = profile.apiKeys?.[0] || "";
-  
+
   // 1. 发起生成请求 (Long Running Operation)
   const predictUrl = `${baseUrl}/${apiVersion}/models/${modelId}:predictLongRunning?key=${apiKey}`;
   const headers = buildGeminiHeaders(profile, options.requestId);
@@ -42,13 +43,13 @@ export async function callGeminiVideoApi(
         instances: [
           {
             prompt: prompt || "",
-          }
+          },
         ],
         parameters: {
           aspectRatio,
           resolution,
-          durationSeconds
-        }
+          durationSeconds,
+        },
       }),
       forceProxy: options.forceProxy,
       relaxIdCerts: options.relaxIdCerts,
@@ -71,7 +72,7 @@ export async function callGeminiVideoApi(
       throw new Error("Video generation cancelled by user.");
     }
 
-    await new Promise(resolve => setTimeout(resolve, pollInterval));
+    await new Promise((resolve) => setTimeout(resolve, pollInterval));
 
     const pollResponse = await fetchWithTimeout(
       getOperationUrl,
@@ -91,19 +92,25 @@ export async function callGeminiVideoApi(
   }
 
   if (operation.error) {
-    throw new Error(`Video generation failed: ${operation.error.message || "Unknown error"}`);
+    throw new Error(
+      `Video generation failed: ${operation.error.message || "Unknown error"}`
+    );
   }
 
   // 3. 解析结果
-  const generatedSamples = operation.response?.generateVideoResponse?.generatedSamples || [];
+  const generatedSamples =
+    operation.response?.generateVideoResponse?.generatedSamples || [];
   const videos = generatedSamples.map((sample: any) => ({
     url: sample.video?.uri,
     status: "completed",
   }));
 
   return {
-    content: videos.length > 0 ? "Video generated successfully." : "No video generated.",
+    content:
+      videos.length > 0
+        ? "Video generated successfully."
+        : "No video generated.",
     videos: videos,
-    progress: 100
+    progress: 100,
   };
 }

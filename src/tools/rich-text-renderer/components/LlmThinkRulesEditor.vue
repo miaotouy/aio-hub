@@ -24,11 +24,20 @@
           <el-button size="small" @click="resetToDefault">重置</el-button>
         </div>
       </div>
-      <el-button :icon="Plus" type="primary" size="small" @click="showAddDialog = true">添加规则</el-button>
+      <el-button
+        :icon="Plus"
+        type="primary"
+        size="small"
+        @click="showAddDialog = true"
+        >添加规则</el-button
+      >
     </div>
 
     <div class="rules-list">
-      <el-empty v-if="localRules.length === 0" description="暂无规则，点击上方按钮添加" />
+      <el-empty
+        v-if="localRules.length === 0"
+        description="暂无规则，点击上方按钮添加"
+      />
 
       <div v-for="(rule, index) in localRules" :key="rule.id" class="rule-item">
         <div class="rule-content">
@@ -40,7 +49,10 @@
               <div class="rule-display-name">{{ rule.displayName }}</div>
               <div class="rule-meta">
                 <el-tag size="small" type="info">{{ rule.id }}</el-tag>
-                <el-tag size="small" :type="rule.collapsedByDefault ? 'warning' : 'success'">
+                <el-tag
+                  size="small"
+                  :type="rule.collapsedByDefault ? 'warning' : 'success'"
+                >
                   {{ rule.collapsedByDefault ? "默认折叠" : "默认展开" }}
                 </el-tag>
               </div>
@@ -49,7 +61,12 @@
 
           <div class="rule-actions">
             <el-button :icon="Edit" size="small" @click="editRule(index)" />
-            <el-button :icon="Delete" size="small" type="danger" @click="deleteRule(index)" />
+            <el-button
+              :icon="Delete"
+              size="small"
+              type="danger"
+              @click="deleteRule(index)"
+            />
           </div>
         </div>
       </div>
@@ -64,7 +81,11 @@
     >
       <el-form :model="editingRule" label-width="100px" label-position="left">
         <el-form-item label="规则ID">
-          <el-input v-model="editingRule.id" placeholder="如: gugu-think" :disabled="editingIndex !== -1" />
+          <el-input
+            v-model="editingRule.id"
+            placeholder="如: gugu-think"
+            :disabled="editingIndex !== -1"
+          />
           <div class="form-tip">规则的唯一标识，创建后不可修改</div>
         </el-form-item>
 
@@ -74,12 +95,19 @@
         </el-form-item>
 
         <el-form-item label="显示名称">
-          <el-input v-model="editingRule.displayName" placeholder="如: 咕咕的思考" />
+          <el-input
+            v-model="editingRule.displayName"
+            placeholder="如: 咕咕的思考"
+          />
           <div class="form-tip">在UI中显示的友好名称</div>
         </el-form-item>
 
         <el-form-item label="默认状态">
-          <el-switch v-model="editingRule.collapsedByDefault" active-text="折叠" inactive-text="展开" />
+          <el-switch
+            v-model="editingRule.collapsedByDefault"
+            active-text="折叠"
+            inactive-text="展开"
+          />
         </el-form-item>
       </el-form>
 
@@ -146,14 +174,14 @@ watch(
     // 使用浅拷贝数组 + 对象，避免和父级共享引用
     localRules.value = newVal.map((rule) => ({ ...rule }));
   },
-  { immediate: true, deep: true },
+  { immediate: true, deep: true }
 );
 
 // 将本地变更同步回父组件
 function emitRulesUpdate() {
   emit(
     "update:modelValue",
-    localRules.value.map((rule) => ({ ...rule })),
+    localRules.value.map((rule) => ({ ...rule }))
   );
 }
 
@@ -210,7 +238,9 @@ function saveRule() {
   }
 
   // 检查ID是否重复（除了当前编辑的规则）
-  const isDuplicate = localRules.value.some((r, idx) => r.id === editingRule.value.id && idx !== editingIndex.value);
+  const isDuplicate = localRules.value.some(
+    (r, idx) => r.id === editingRule.value.id && idx !== editingIndex.value
+  );
   if (isDuplicate) {
     customMessage.warning("规则ID已存在，请使用其他ID");
     return;
@@ -247,11 +277,15 @@ function handlePresetCommand(preset: LlmThinkRule) {
 
 // 重置为默认
 function resetToDefault() {
-  ElMessageBox.confirm("确定要重置所有规则吗？这将清空当前所有自定义配置并恢复预设规则。", "确认重置", {
-    confirmButtonText: "确定重置",
-    cancelButtonText: "取消",
-    type: "warning",
-  })
+  ElMessageBox.confirm(
+    "确定要重置所有规则吗？这将清空当前所有自定义配置并恢复预设规则。",
+    "确认重置",
+    {
+      confirmButtonText: "确定重置",
+      cancelButtonText: "取消",
+      type: "warning",
+    }
+  )
     .then(() => {
       localRules.value = PRESET_RULES.map((r) => ({ ...r }));
       emitRulesUpdate();

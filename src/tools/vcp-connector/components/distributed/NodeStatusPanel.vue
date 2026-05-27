@@ -3,7 +3,9 @@
     <div class="panel-section">
       <div class="section-header">
         <h4 class="section-title">节点配置与状态</h4>
-        <el-tag :type="statusTagType" size="small" effect="light">{{ statusText }}</el-tag>
+        <el-tag :type="statusTagType" size="small" effect="light">{{
+          statusText
+        }}</el-tag>
       </div>
 
       <div class="form-item">
@@ -19,7 +21,12 @@
 
       <div class="form-item">
         <label class="form-label">服务器地址</label>
-        <el-input :model-value="store.config.wsUrl" size="small" readonly disabled>
+        <el-input
+          :model-value="store.config.wsUrl"
+          size="small"
+          readonly
+          disabled
+        >
           <template #prefix>
             <el-icon><Link /></el-icon>
           </template>
@@ -38,7 +45,9 @@
         <div class="form-item">
           <el-checkbox
             :model-value="distStore.config.autoRegisterTools"
-            @update:model-value="distStore.updateConfig({ autoRegisterTools: $event })"
+            @update:model-value="
+              distStore.updateConfig({ autoRegisterTools: $event })
+            "
           >
             自动注册工具
           </el-checkbox>
@@ -56,7 +65,12 @@
           >
             {{ isConnected ? "断连" : "连接" }}
           </el-button>
-          <el-button size="small" :disabled="!isConnected" @click="reregisterTools" style="flex: 1">
+          <el-button
+            size="small"
+            :disabled="!isConnected"
+            @click="reregisterTools"
+            style="flex: 1"
+          >
             同步工具
           </el-button>
         </div>
@@ -130,11 +144,17 @@ const statusText = computed(() => {
 
 const lastHeartbeatText = computed(() => {
   if (!distStore.lastHeartbeat) return "从未";
-  return formatDistanceToNow(distStore.lastHeartbeat, { addSuffix: true, locale: zhCN });
+  return formatDistanceToNow(distStore.lastHeartbeat, {
+    addSuffix: true,
+    locale: zhCN,
+  });
 });
 
 function toggleConnection() {
-  console.log("[VCP Node] Toggle connection, current isConnected:", isConnected.value);
+  console.log(
+    "[VCP Node] Toggle connection, current isConnected:",
+    isConnected.value
+  );
   if (isConnected.value) {
     disconnect();
   } else {

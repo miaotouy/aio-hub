@@ -41,15 +41,26 @@
           class="path-drop-zone"
         >
           <template #default="{ dragging }">
-            <div class="path-selector" :class="{ 'path-selector--dragging': dragging }">
+            <div
+              class="path-selector"
+              :class="{ 'path-selector--dragging': dragging }"
+            >
               <div class="path-selector__icon">
                 <Film :size="16" />
               </div>
               <span class="path-selector__label">视频</span>
-              <span class="path-selector__path" :class="{ 'path-selector__path--empty': !videoName }">
+              <span
+                class="path-selector__path"
+                :class="{ 'path-selector__path--empty': !videoName }"
+              >
                 {{ videoName || "拖入或点击选择视频文件" }}
               </span>
-              <button v-if="videoUrl" class="path-selector__clear" title="清除视频" @click.stop="resetVideo">
+              <button
+                v-if="videoUrl"
+                class="path-selector__clear"
+                title="清除视频"
+                @click.stop="resetVideo"
+              >
                 <X :size="14" />
               </button>
             </div>
@@ -68,16 +79,29 @@
           class="path-drop-zone"
         >
           <template #default="{ dragging }">
-            <div class="path-selector" :class="{ 'path-selector--dragging': dragging }">
+            <div
+              class="path-selector"
+              :class="{ 'path-selector--dragging': dragging }"
+            >
               <div class="path-selector__icon path-selector__icon--ass">
                 <MessageSquareText :size="16" />
               </div>
               <span class="path-selector__label">弹幕</span>
-              <span class="path-selector__path" :class="{ 'path-selector__path--empty': !assFileName }">
+              <span
+                class="path-selector__path"
+                :class="{ 'path-selector__path--empty': !assFileName }"
+              >
                 {{ assFileName || "拖入或点击选择 ASS 弹幕文件" }}
               </span>
-              <span v-if="danmakus.length > 0" class="path-selector__badge"> {{ danmakus.length }} 条 </span>
-              <button v-if="assFileName" class="path-selector__clear" title="清除弹幕" @click.stop="resetAss">
+              <span v-if="danmakus.length > 0" class="path-selector__badge">
+                {{ danmakus.length }} 条
+              </span>
+              <button
+                v-if="assFileName"
+                class="path-selector__clear"
+                title="清除弹幕"
+                @click.stop="resetAss"
+              >
                 <X :size="14" />
               </button>
             </div>
@@ -87,7 +111,10 @@
     </div>
 
     <!-- 播放器区域 -->
-    <div class="player-area" :class="{ 'player-area--builtin': activeMode === 'builtin' }">
+    <div
+      class="player-area"
+      :class="{ 'player-area--builtin': activeMode === 'builtin' }"
+    >
       <template v-if="activeMode === 'builtin'">
         <template v-if="videoUrl">
           <DanmakuVideoPlayer
@@ -103,11 +130,18 @@
           <div class="player-placeholder">
             <Tv :size="64" class="placeholder-icon" />
             <p class="placeholder-text">拖入视频文件到上方开始播放</p>
-            <p class="placeholder-hint">支持 ASS 格式弹幕 · 专为 Bilibili Evolved 优化</p>
+            <p class="placeholder-hint">
+              支持 ASS 格式弹幕 · 专为 Bilibili Evolved 优化
+            </p>
           </div>
         </template>
       </template>
-      <ExternalPlayerPanel v-else :danmakus="danmakus" :script-info="scriptInfo" :config="config" />
+      <ExternalPlayerPanel
+        v-else
+        :danmakus="danmakus"
+        :script-info="scriptInfo"
+        :config="config"
+      />
     </div>
   </div>
 </template>
@@ -165,7 +199,10 @@ async function handleAssDrop(paths: string[]) {
     const result = parseAss(content);
     danmakus.value = result.danmakus;
     scriptInfo.value = result.info;
-    logger.info("弹幕解析成功", { count: result.danmakus.length, info: result.info });
+    logger.info("弹幕解析成功", {
+      count: result.danmakus.length,
+      info: result.info,
+    });
     customMessage.success(`成功解析 ${result.danmakus.length} 条弹幕`);
   } catch (err) {
     logger.error("弹幕解析失败", err as Error);
@@ -239,12 +276,18 @@ function resetAss() {
 
 .mode-tab:hover {
   color: var(--el-color-primary);
-  background: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.08));
+  background: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.08)
+  );
 }
 
 .mode-tab.active {
   color: var(--el-color-primary);
-  background: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.14));
+  background: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.14)
+  );
 }
 
 .file-input-group {
@@ -278,7 +321,10 @@ function resetAss() {
 
 .path-selector--dragging {
   border-color: var(--el-color-primary);
-  background: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.1));
+  background: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
 }
 
 .path-selector__icon {
@@ -290,12 +336,18 @@ function resetAss() {
   justify-content: center;
   border-radius: 4px;
   color: var(--el-color-primary);
-  background: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.1));
+  background: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
 }
 
 .path-selector__icon--ass {
   color: var(--el-color-success);
-  background: rgba(var(--el-color-success-rgb), calc(var(--card-opacity) * 0.1));
+  background: rgba(
+    var(--el-color-success-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
 }
 
 .path-selector__label {
@@ -329,7 +381,10 @@ function resetAss() {
   padding: 1px 6px;
   border-radius: 10px;
   color: var(--el-color-success);
-  background: rgba(var(--el-color-success-rgb), calc(var(--card-opacity) * 0.1));
+  background: rgba(
+    var(--el-color-success-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
   font-weight: 500;
 }
 

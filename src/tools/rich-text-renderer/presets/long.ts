@@ -1,4 +1,4 @@
-import { RenderPreset } from '../types';
+import { RenderPreset } from "../types";
 
 export const longPreset: RenderPreset = {
   id: "long",

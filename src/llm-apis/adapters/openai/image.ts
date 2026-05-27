@@ -1,12 +1,20 @@
 import type { LlmProfile } from "@/types/llm-profiles";
-import { type MediaGenerationOptions, type LlmResponse, fetchWithTimeout, ensureResponseOk } from "@/llm-apis/common";
+import {
+  type MediaGenerationOptions,
+  type LlmResponse,
+  fetchWithTimeout,
+  ensureResponseOk,
+} from "@/llm-apis/common";
 import { asyncJsonStringify } from "@/utils/serialization";
 import { openAiUrlHandler, buildOpenAiHeaders } from "./utils";
 
 /**
  * 调用 OpenAI 兼容的图片生成 API
  */
-export async function callOpenAiImageApi(profile: LlmProfile, options: MediaGenerationOptions): Promise<LlmResponse> {
+export async function callOpenAiImageApi(
+  profile: LlmProfile,
+  options: MediaGenerationOptions
+): Promise<LlmResponse> {
   const {
     modelId,
     prompt,
@@ -22,7 +30,8 @@ export async function callOpenAiImageApi(profile: LlmProfile, options: MediaGene
   const ext = options as any;
   const baseUrl = profile.baseUrl || "https://api.openai.com/v1";
   // 根据 2026.04 文档，如果有参考图（inputAttachments）也要走 edits 端点
-  const hasReferences = options.inputAttachments && options.inputAttachments.length > 0;
+  const hasReferences =
+    options.inputAttachments && options.inputAttachments.length > 0;
   const isEditMode = options.mask || hasReferences;
   const endpoint = isEditMode ? "images/edits" : "images/generations";
   const url = openAiUrlHandler.buildUrl(baseUrl, endpoint, profile);
@@ -43,8 +52,10 @@ export async function callOpenAiImageApi(profile: LlmProfile, options: MediaGene
     formData.append("quality", quality);
     if (ext.moderation) formData.append("moderation", ext.moderation);
     if (ext.background) formData.append("background", ext.background);
-    if (ext.partialImages !== undefined) formData.append("partial_images", ext.partialImages.toString());
-    if (ext.outputCompression !== undefined) formData.append("output_compression", ext.outputCompression.toString());
+    if (ext.partialImages !== undefined)
+      formData.append("partial_images", ext.partialImages.toString());
+    if (ext.outputCompression !== undefined)
+      formData.append("output_compression", ext.outputCompression.toString());
 
     // 注意：/images/edits 端点不支持 response_format 参数（仅 /images/generations 支持）
 
@@ -98,7 +109,9 @@ export async function callOpenAiImageApi(profile: LlmProfile, options: MediaGene
     };
 
     // 移除所有 undefined/null 值，避免发送 "null" 字符串
-    const cleanBody = Object.fromEntries(Object.entries(rawBody).filter(([_, v]) => v !== undefined && v !== null));
+    const cleanBody = Object.fromEntries(
+      Object.entries(rawBody).filter(([_, v]) => v !== undefined && v !== null)
+    );
 
     body = await asyncJsonStringify(cleanBody);
   }
@@ -114,7 +127,7 @@ export async function callOpenAiImageApi(profile: LlmProfile, options: MediaGene
       http1Only: options.http1Only,
     },
     timeout,
-    signal,
+    signal
   );
 
   await ensureResponseOk(response);
@@ -129,7 +142,10 @@ export async function callOpenAiImageApi(profile: LlmProfile, options: MediaGene
   }));
 
   return {
-    content: images.length > 0 ? `Generated ${images.length} images.` : "No images generated.",
+    content:
+      images.length > 0
+        ? `Generated ${images.length} images.`
+        : "No images generated.",
     images,
     revisedPrompt: images[0]?.revisedPrompt,
     seed: data.seed,
@@ -186,7 +202,7 @@ function dataUrlToBlob(dataUrl: string): Blob | null {
     const [header, base64] = dataUrl.split(",");
     const mimeMatch = header.match(/:(.*?);/);
     const mime = mimeMatch ? mimeMatch[1] : "image/png";
-    
+
     const bytes = atob(base64);
     const array = new Uint8Array(bytes.length);
     for (let i = 0; i < bytes.length; i++) {

@@ -1,9 +1,9 @@
-import { RenderPreset } from '../types';
+import { RenderPreset } from "../types";
 
 export const actionButtonTestPreset: RenderPreset = {
-  id: 'action-button-test',
-  name: 'Action Button 测试集',
-  description: '覆盖 RP 场景、对话交互、样式定制和边界情况的综合测试',
+  id: "action-button-test",
+  name: "Action Button 测试集",
+  description: "覆盖 RP 场景、对话交互、样式定制和边界情况的综合测试",
   content: `# Action Button 完整测试集
 
 本测试集旨在全面验证 \`<Button>\` 标签的解析、渲染和交互能力，重点验证其在 RP (Role Play) 和日常对话场景中的表现。
@@ -112,5 +112,5 @@ export const actionButtonTestPreset: RenderPreset = {
 - ✅ 样式的灵活定制（CSS 变量、color-mix、毛玻璃效果）
 
 请检查每个按钮的渲染效果和点击行为是否符合预期。
-`
+`,
 };

@@ -66,8 +66,11 @@ export function useKbMonitor() {
     // 更新 RAG 平均耗时和历史记录
     const ragLogs = newLogs.filter((log) => log.type === "RAG");
     if (ragLogs.length > 0) {
-      const durations = ragLogs.map((log) => (log.payload as RagPayload).stats.duration);
-      const batchAvg = durations.reduce((acc, d) => acc + d, 0) / durations.length;
+      const durations = ragLogs.map(
+        (log) => (log.payload as RagPayload).stats.duration
+      );
+      const batchAvg =
+        durations.reduce((acc, d) => acc + d, 0) / durations.length;
 
       if (store.monitor.stats.avgRagDuration === 0) {
         store.monitor.stats.avgRagDuration = batchAvg;
@@ -77,7 +80,10 @@ export function useKbMonitor() {
       }
 
       // 更新历史记录 (保留最近 20 次)
-      const newHistory = [...store.monitor.stats.ragDurationHistory, ...durations];
+      const newHistory = [
+        ...store.monitor.stats.ragDurationHistory,
+        ...durations,
+      ];
       store.monitor.stats.ragDurationHistory = newHistory.slice(-20);
     }
 
@@ -124,7 +130,10 @@ export function useKbMonitor() {
       if (!heartbeatTimer) {
         heartbeatTimer = setInterval(() => {
           invoke("kb_monitor_heartbeat").catch((e) =>
-            errorHandler.handle(e, { userMessage: "发送心跳失败", showToUser: false })
+            errorHandler.handle(e, {
+              userMessage: "发送心跳失败",
+              showToUser: false,
+            })
           );
         }, 30000);
       }

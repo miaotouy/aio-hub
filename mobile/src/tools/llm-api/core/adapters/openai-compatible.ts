@@ -2,7 +2,11 @@ import type { LlmProfile } from "../../types";
 import type { LlmRequestOptions, LlmResponse } from "../common";
 // import type { EmbeddingRequestOptions, EmbeddingResponse } from "./embedding-types";
 import { fetchWithTimeout, ensureResponseOk } from "../common";
-import { parseSSEStream, extractTextFromSSE, extractReasoningFromSSE } from "@/utils/sse-parser";
+import {
+  parseSSEStream,
+  extractTextFromSSE,
+  extractReasoningFromSSE,
+} from "@/utils/sse-parser";
 import { useI18n } from "@/i18n";
 import {
   parseMessageContents,
@@ -20,29 +24,40 @@ const logger = createModuleLogger("openai-compatible");
  * OpenAI 适配器的 URL 处理逻辑
  */
 export const openAiUrlHandler = {
-  buildUrl: (baseUrl: string, endpoint?: string, profile?: LlmProfile, pathParams?: Record<string, string>): string => {
+  buildUrl: (
+    baseUrl: string,
+    endpoint?: string,
+    profile?: LlmProfile,
+    pathParams?: Record<string, string>
+  ): string => {
     // 如果提供了 profile 且有对应的自定义端点，则优先使用
     if (profile?.customEndpoints) {
-      const custom = profile.customEndpoints as Record<string, string | undefined>;
+      const custom = profile.customEndpoints as Record<
+        string,
+        string | undefined
+      >;
       // 根据 endpoint 映射到对应的自定义配置键
-      const mapping: Record<string, keyof NonNullable<LlmProfile['customEndpoints']>> = {
-        'chat/completions': 'chatCompletions',
-        'completions': 'completions',
-        'models': 'models',
-        'embeddings': 'embeddings',
-        'rerank': 'rerank',
-        'images/generations': 'imagesGenerations',
-        'images/edits': 'imagesEdits',
-        'images/variations': 'imagesVariations',
-        'audio/speech': 'audioSpeech',
-        'audio/transcriptions': 'audioTranscriptions',
-        'audio/translations': 'audioTranslations',
-        'moderations': 'moderations',
-        'videos': 'videos',
-        'videoStatus': 'videoStatus',
+      const mapping: Record<
+        string,
+        keyof NonNullable<LlmProfile["customEndpoints"]>
+      > = {
+        "chat/completions": "chatCompletions",
+        completions: "completions",
+        models: "models",
+        embeddings: "embeddings",
+        rerank: "rerank",
+        "images/generations": "imagesGenerations",
+        "images/edits": "imagesEdits",
+        "images/variations": "imagesVariations",
+        "audio/speech": "audioSpeech",
+        "audio/transcriptions": "audioTranscriptions",
+        "audio/translations": "audioTranslations",
+        moderations: "moderations",
+        videos: "videos",
+        videoStatus: "videoStatus",
       };
 
-      const customKey = endpoint ? mapping[endpoint] : 'chatCompletions';
+      const customKey = endpoint ? mapping[endpoint] : "chatCompletions";
       if (customKey && custom[customKey]) {
         let customEndpoint = custom[customKey]!;
 
@@ -54,26 +69,36 @@ export const openAiUrlHandler = {
         }
 
         // 如果自定义端点是完整的 URL，直接返回
-        if (customEndpoint.startsWith('http')) return customEndpoint;
+        if (customEndpoint.startsWith("http")) return customEndpoint;
         // 否则将其拼接到 baseUrl
-        const host = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+        const host = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
         // 去掉自定义端点开头的 /
-        const cleanEndpoint = customEndpoint.startsWith('/') ? customEndpoint.substring(1) : customEndpoint;
+        const cleanEndpoint = customEndpoint.startsWith("/")
+          ? customEndpoint.substring(1)
+          : customEndpoint;
         return `${host}${cleanEndpoint}`;
       }
     }
 
     // 确保 baseUrl 以 / 结尾
-    const host = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+    const host = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
     // 智能添加 v1 版本路径（如果没加的话）
     // 如果已经包含 /v1, /v2, /v3 或 /api/v3 等，则不再添加
-    const versionedHost = (host.includes('/v1') || host.includes('/v2') || host.includes('/v3') || host.includes('/api/v')) ? host : `${host}v1/`;
-    return endpoint ? `${versionedHost}${endpoint}` : `${versionedHost}chat/completions`;
+    const versionedHost =
+      host.includes("/v1") ||
+      host.includes("/v2") ||
+      host.includes("/v3") ||
+      host.includes("/api/v")
+        ? host
+        : `${host}v1/`;
+    return endpoint
+      ? `${versionedHost}${endpoint}`
+      : `${versionedHost}chat/completions`;
   },
   getHint: (): string => {
     const { tRaw } = useI18n();
-    return tRaw('tools.llm-api.Adapters.OpenAI提示');
-  }
+    return tRaw("tools.llm-api.Adapters.OpenAI提示");
+  },
 };
 
 /**
@@ -177,7 +202,8 @@ export const callOpenAiCompatibleApi = async (
             type: "input_audio",
             input_audio: {
               data: audioPart.source.data,
-              format: audioPart.source.media_type === "audio/wav" ? "wav" : "mp3", // 粗略适配
+              format:
+                audioPart.source.media_type === "audio/wav" ? "wav" : "mp3", // 粗略适配
             },
           });
         }
@@ -190,7 +216,10 @@ export const callOpenAiCompatibleApi = async (
           const part: any = {
             type: "image_url",
             image_url: {
-              url: buildBase64DataUrl(videoPart.source.data, videoPart.source.media_type),
+              url: buildBase64DataUrl(
+                videoPart.source.data,
+                videoPart.source.media_type
+              ),
             },
           };
           if (videoPart.videoMetadata) {
@@ -309,7 +338,11 @@ export const callOpenAiCompatibleApi = async (
   }
 
   // 警告：如果 custom 字段仍然存在，说明上游逻辑可能存在问题
-  if (extendedOptions.custom && typeof extendedOptions.custom === "object" && Object.keys(extendedOptions.custom).length > 0) {
+  if (
+    extendedOptions.custom &&
+    typeof extendedOptions.custom === "object" &&
+    Object.keys(extendedOptions.custom).length > 0
+  ) {
     logger.warn(
       "检测到 'custom' 参数容器，但它未被上游逻辑解包。这可能是一个错误。",
       { customParams: extendedOptions.custom }
@@ -378,19 +411,24 @@ export const callOpenAiCompatibleApi = async (
               totalTokens: json.usage.total_tokens,
               promptTokensDetails: json.usage.prompt_tokens_details
                 ? {
-                  cachedTokens: json.usage.prompt_tokens_details.cached_tokens,
-                  audioTokens: json.usage.prompt_tokens_details.audio_tokens,
-                }
+                    cachedTokens:
+                      json.usage.prompt_tokens_details.cached_tokens,
+                    audioTokens: json.usage.prompt_tokens_details.audio_tokens,
+                  }
                 : undefined,
               completionTokensDetails: json.usage.completion_tokens_details
                 ? {
-                  reasoningTokens: json.usage.completion_tokens_details.reasoning_tokens,
-                  audioTokens: json.usage.completion_tokens_details.audio_tokens,
-                  acceptedPredictionTokens:
-                    json.usage.completion_tokens_details.accepted_prediction_tokens,
-                  rejectedPredictionTokens:
-                    json.usage.completion_tokens_details.rejected_prediction_tokens,
-                }
+                    reasoningTokens:
+                      json.usage.completion_tokens_details.reasoning_tokens,
+                    audioTokens:
+                      json.usage.completion_tokens_details.audio_tokens,
+                    acceptedPredictionTokens:
+                      json.usage.completion_tokens_details
+                        .accepted_prediction_tokens,
+                    rejectedPredictionTokens:
+                      json.usage.completion_tokens_details
+                        .rejected_prediction_tokens,
+                  }
                 : undefined,
             };
           }
@@ -448,44 +486,45 @@ export const callOpenAiCompatibleApi = async (
   // 提取音频信息
   const audio = message?.audio
     ? {
-      id: message.audio.id,
-      data: message.audio.data,
-      transcript: message.audio.transcript,
-      expiresAt: message.audio.expires_at,
-    }
+        id: message.audio.id,
+        data: message.audio.data,
+        transcript: message.audio.transcript,
+        expiresAt: message.audio.expires_at,
+      }
     : undefined;
 
   // 处理 logprobs（包括 refusal）
   const logprobs = choice.logprobs
     ? {
-      content: choice.logprobs.content,
-      refusal: choice.logprobs.refusal,
-    }
+        content: choice.logprobs.content,
+        refusal: choice.logprobs.refusal,
+      }
     : undefined;
 
   // 构建 usage 信息
   const usage = data.usage
     ? {
-      promptTokens: data.usage.prompt_tokens,
-      completionTokens: data.usage.completion_tokens,
-      totalTokens: data.usage.total_tokens,
-      promptTokensDetails: data.usage.prompt_tokens_details
-        ? {
-          cachedTokens: data.usage.prompt_tokens_details.cached_tokens,
-          audioTokens: data.usage.prompt_tokens_details.audio_tokens,
-        }
-        : undefined,
-      completionTokensDetails: data.usage.completion_tokens_details
-        ? {
-          reasoningTokens: data.usage.completion_tokens_details.reasoning_tokens,
-          audioTokens: data.usage.completion_tokens_details.audio_tokens,
-          acceptedPredictionTokens:
-            data.usage.completion_tokens_details.accepted_prediction_tokens,
-          rejectedPredictionTokens:
-            data.usage.completion_tokens_details.rejected_prediction_tokens,
-        }
-        : undefined,
-    }
+        promptTokens: data.usage.prompt_tokens,
+        completionTokens: data.usage.completion_tokens,
+        totalTokens: data.usage.total_tokens,
+        promptTokensDetails: data.usage.prompt_tokens_details
+          ? {
+              cachedTokens: data.usage.prompt_tokens_details.cached_tokens,
+              audioTokens: data.usage.prompt_tokens_details.audio_tokens,
+            }
+          : undefined,
+        completionTokensDetails: data.usage.completion_tokens_details
+          ? {
+              reasoningTokens:
+                data.usage.completion_tokens_details.reasoning_tokens,
+              audioTokens: data.usage.completion_tokens_details.audio_tokens,
+              acceptedPredictionTokens:
+                data.usage.completion_tokens_details.accepted_prediction_tokens,
+              rejectedPredictionTokens:
+                data.usage.completion_tokens_details.rejected_prediction_tokens,
+            }
+          : undefined,
+      }
     : undefined;
 
   // 如果有拒绝消息，优先返回拒绝消息
@@ -521,9 +560,9 @@ export const callOpenAiCompatibleApi = async (
 };
 
 /**
-* 调用 OpenAI 兼容的 Embedding API
-* (移动端暂未启用)
-*/
+ * 调用 OpenAI 兼容的 Embedding API
+ * (移动端暂未启用)
+ */
 // export const callOpenAiEmbeddingApi = async (
 //   profile: LlmProfile,
 //   options: any

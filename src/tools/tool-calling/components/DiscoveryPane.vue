@@ -54,7 +54,7 @@ const filteredGroups = computed(() => {
       (g) =>
         g.toolName.toLowerCase().includes(query) ||
         g.toolId.toLowerCase().includes(query) ||
-        g.methods.some((m: any) => m.name.toLowerCase().includes(query)),
+        g.methods.some((m: any) => m.name.toLowerCase().includes(query))
     );
   }
 
@@ -65,7 +65,7 @@ const filteredGroups = computed(() => {
       (g) =>
         !g.toolName.toLowerCase().includes(query) &&
         !g.toolId.toLowerCase().includes(query) &&
-        !g.methods.some((m: any) => m.name.toLowerCase().includes(query)),
+        !g.methods.some((m: any) => m.name.toLowerCase().includes(query))
     );
   }
 
@@ -126,7 +126,12 @@ const toggleSort = () => {
   <div class="pane discovery-pane">
     <div class="pane-header">
       <div class="header-left">
-        <el-input v-model="searchQuery" placeholder="搜索工具或方法..." clearable class="search-input">
+        <el-input
+          v-model="searchQuery"
+          placeholder="搜索工具或方法..."
+          clearable
+          class="search-input"
+        >
           <template #prefix>
             <Search :size="14" />
           </template>
@@ -135,7 +140,12 @@ const toggleSort = () => {
 
       <div class="header-actions">
         <el-button-group>
-          <el-tooltip :content="sortBy === 'name' ? '当前按名称排序' : '当前按方法数量排序'" placement="top">
+          <el-tooltip
+            :content="
+              sortBy === 'name' ? '当前按名称排序' : '当前按方法数量排序'
+            "
+            placement="top"
+          >
             <el-button @click="toggleSort">
               <template #icon>
                 <ArrowDownAZ v-if="sortBy === 'name'" :size="16" />
@@ -144,7 +154,10 @@ const toggleSort = () => {
               {{ sortBy === "name" ? "名称" : "数量" }}
             </el-button>
           </el-tooltip>
-          <el-button :type="showFilterPanel ? 'primary' : ''" @click="showFilterPanel = !showFilterPanel">
+          <el-button
+            :type="showFilterPanel ? 'primary' : ''"
+            @click="showFilterPanel = !showFilterPanel"
+          >
             <template #icon>
               <Filter :size="16" />
             </template>
@@ -180,18 +193,35 @@ const toggleSort = () => {
 
           <div v-if="factories.length > 0" class="filter-item">
             <span class="filter-label">工厂类:</span>
-            <el-select v-model="filterFactoryId" placeholder="选择工厂" size="small" clearable style="width: 160px">
+            <el-select
+              v-model="filterFactoryId"
+              placeholder="选择工厂"
+              size="small"
+              clearable
+              style="width: 160px"
+            >
               <template #prefix>
                 <Factory :size="14" />
               </template>
               <el-option label="非工厂类" value="__none__" />
-              <el-option v-for="fid in factories" :key="fid" :label="fid" :value="fid" />
+              <el-option
+                v-for="fid in factories"
+                :key="fid"
+                :label="fid"
+                :value="fid"
+              />
             </el-select>
           </div>
 
           <div class="filter-item">
             <span class="filter-label">排除词:</span>
-            <el-input v-model="excludeQuery" placeholder="排除名称或ID..." size="small" clearable style="width: 180px">
+            <el-input
+              v-model="excludeQuery"
+              placeholder="排除名称或ID..."
+              size="small"
+              clearable
+              style="width: 180px"
+            >
               <template #prefix>
                 <FilterX :size="14" />
               </template>
@@ -222,7 +252,12 @@ const toggleSort = () => {
           <Search :size="48" class="empty-icon" />
           <p>未找到匹配的工具</p>
           <el-button
-            v-if="searchQuery || excludeQuery || filterFactoryId || filterExecutionMode !== 'all'"
+            v-if="
+              searchQuery ||
+              excludeQuery ||
+              filterFactoryId ||
+              filterExecutionMode !== 'all'
+            "
             link
             type="primary"
             @click="
@@ -254,14 +289,20 @@ const toggleSort = () => {
               <div class="tool-info">
                 <div class="tool-name">
                   {{ group.toolName }}
-                  <el-tooltip v-if="group.factoryId" :content="`工厂: ${group.factoryId}`" placement="top">
+                  <el-tooltip
+                    v-if="group.factoryId"
+                    :content="`工厂: ${group.factoryId}`"
+                    placement="top"
+                  >
                     <Factory :size="12" class="factory-badge" />
                   </el-tooltip>
                 </div>
                 <div class="tool-id">{{ group.toolId }}</div>
               </div>
               <div class="method-count">
-                <el-tag size="small" effect="plain" round>{{ group.methods.length }}</el-tag>
+                <el-tag size="small" effect="plain" round>{{
+                  group.methods.length
+                }}</el-tag>
               </div>
             </div>
           </div>
@@ -274,7 +315,11 @@ const toggleSort = () => {
           <div class="sidebar-header">
             <div class="sidebar-title">
               <span class="sidebar-icon-wrapper">
-                <component :is="selectedGroup.icon" v-if="selectedGroup.icon" :size="18" />
+                <component
+                  :is="selectedGroup.icon"
+                  v-if="selectedGroup.icon"
+                  :size="18"
+                />
                 <Box v-else :size="18" />
               </span>
               <span>{{ selectedGroup.toolName }}</span>
@@ -283,12 +328,25 @@ const toggleSort = () => {
           </div>
 
           <div class="method-list">
-            <div v-for="method in selectedGroup.methods" :key="method.name" class="method-item">
+            <div
+              v-for="method in selectedGroup.methods"
+              :key="method.name"
+              class="method-item"
+            >
               <div class="method-header">
                 <div class="method-name-wrapper">
                   <code class="method-name">{{ method.name }}</code>
-                  <el-tooltip :content="method.executionMode === 'async' ? '异步方法' : '同步方法'" placement="top">
-                    <Clock v-if="method.executionMode === 'async'" :size="14" class="mode-icon async" />
+                  <el-tooltip
+                    :content="
+                      method.executionMode === 'async' ? '异步方法' : '同步方法'
+                    "
+                    placement="top"
+                  >
+                    <Clock
+                      v-if="method.executionMode === 'async'"
+                      :size="14"
+                      class="mode-icon async"
+                    />
                     <Zap v-else :size="14" class="mode-icon sync" />
                   </el-tooltip>
                 </div>
@@ -303,12 +361,18 @@ const toggleSort = () => {
                   <ChevronRight :size="14" />
                 </el-button>
               </div>
-              <div class="method-desc">{{ method.description || "暂无描述" }}</div>
+              <div class="method-desc">
+                {{ method.description || "暂无描述" }}
+              </div>
 
               <div v-if="method.parameters?.length" class="param-section">
                 <div class="param-title">参数列表</div>
                 <div class="param-list">
-                  <div v-for="p in method.parameters" :key="p.name" class="param-row">
+                  <div
+                    v-for="p in method.parameters"
+                    :key="p.name"
+                    class="param-row"
+                  >
                     <span class="p-name">{{ p.name }}</span>
                     <span class="p-sep">:</span>
                     <span class="p-type">{{ p.type }}</span>

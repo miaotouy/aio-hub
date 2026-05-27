@@ -1,12 +1,15 @@
-import { defineAsyncComponent, type Component } from 'vue';
-import { toolRegistryManager } from '@/services/registry';
-import type { DetachableComponentRegistration } from '@/types/detachable';
+import { defineAsyncComponent, type Component } from "vue";
+import { toolRegistryManager } from "@/services/registry";
+import type { DetachableComponentRegistration } from "@/types/detachable";
 
 /**
  * 获取所有已注册的可分离组件配置
  * 从所有已注册的工具中收集 detachableComponents
  */
-function getAllDetachableComponents(): Record<string, DetachableComponentRegistration> {
+function getAllDetachableComponents(): Record<
+  string,
+  DetachableComponentRegistration
+> {
   const allTools = toolRegistryManager.getAllTools();
   const result: Record<string, DetachableComponentRegistration> = {};
 
@@ -25,7 +28,9 @@ function getAllDetachableComponents(): Record<string, DetachableComponentRegistr
  * @param id - 组件的唯一 ID（支持命名空间格式，如 'llm-chat:chat-area'）
  * @returns {DetachableComponentRegistration | undefined}
  */
-export function getDetachableComponentConfig(id: string): DetachableComponentRegistration | undefined {
+export function getDetachableComponentConfig(
+  id: string
+): DetachableComponentRegistration | undefined {
   const allComponents = getAllDetachableComponents();
   return allComponents[id];
 }

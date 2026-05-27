@@ -20,7 +20,7 @@ export async function packageSketch(
   project: SketchProject,
   layers: HybridLayer[],
   canvases: Map<string, HTMLCanvasElement>,
-  stage: Konva.Stage,
+  stage: Konva.Stage
 ): Promise<Uint8Array | null> {
   return await errorHandler.wrapAsync(
     async () => {
@@ -49,14 +49,19 @@ export async function packageSketch(
         if (layer.type === "raster") {
           const canvas = canvases.get(layer.id);
           if (canvas) {
-            const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+            const blob = await new Promise<Blob | null>((resolve) =>
+              canvas.toBlob(resolve, "image/png")
+            );
             if (blob) {
               const buffer = await blob.arrayBuffer();
               layersFolder.file(`${layer.id}.png`, buffer);
             }
           }
         } else if (layer.type === "object") {
-          layersFolder.file(`${layer.id}.json`, JSON.stringify(layer.objects, null, 2));
+          layersFolder.file(
+            `${layer.id}.json`,
+            JSON.stringify(layer.objects, null, 2)
+          );
         }
       }
 
@@ -74,14 +79,16 @@ export async function packageSketch(
       logger.info("草图打包成功", { id: project.id });
       return content;
     },
-    { userMessage: "打包草图失败" },
+    { userMessage: "打包草图失败" }
   );
 }
 
 /**
  * 从 .aiosk (ZIP) 二进制数据中解包草图项目
  */
-export async function unpackageSketch(data: Uint8Array): Promise<PackagedSketch | null> {
+export async function unpackageSketch(
+  data: Uint8Array
+): Promise<PackagedSketch | null> {
   return await errorHandler.wrapAsync(
     async () => {
       const zip = await JSZip.loadAsync(data);
@@ -123,6 +130,6 @@ export async function unpackageSketch(data: Uint8Array): Promise<PackagedSketch 
         rasterLayers,
       };
     },
-    { userMessage: "解包草图失败" },
+    { userMessage: "解包草图失败" }
   );
 }

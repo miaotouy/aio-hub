@@ -3,7 +3,9 @@
   <div class="pulse-card">
     <div class="card-header">
       <span class="card-title">内存</span>
-      <span class="card-value" :style="{ color: usageColor(memPercent) }"> {{ memPercent.toFixed(1) }}% </span>
+      <span class="card-value" :style="{ color: usageColor(memPercent) }">
+        {{ memPercent.toFixed(1) }}%
+      </span>
     </div>
 
     <SparklineChart
@@ -21,7 +23,10 @@
         <div class="bar-track">
           <div class="bar-fill ram" :style="{ width: memPercent + '%' }" />
         </div>
-        <span class="bar-text"> {{ formatBytes(memory.usedBytes) }} / {{ formatBytes(memory.totalBytes) }} </span>
+        <span class="bar-text">
+          {{ formatBytes(memory.usedBytes) }} /
+          {{ formatBytes(memory.totalBytes) }}
+        </span>
       </div>
       <!-- Swap -->
       <div class="bar-row" v-if="memory.swapTotalBytes > 0">
@@ -30,7 +35,8 @@
           <div class="bar-fill swap" :style="{ width: swapPercent + '%' }" />
         </div>
         <span class="bar-text">
-          {{ formatBytes(memory.swapUsedBytes) }} / {{ formatBytes(memory.swapTotalBytes) }}
+          {{ formatBytes(memory.swapUsedBytes) }} /
+          {{ formatBytes(memory.swapTotalBytes) }}
         </span>
       </div>
     </div>
@@ -49,11 +55,15 @@ const props = defineProps<{
 }>();
 
 const memPercent = computed(() =>
-  props.memory.totalBytes > 0 ? (props.memory.usedBytes / props.memory.totalBytes) * 100 : 0,
+  props.memory.totalBytes > 0
+    ? (props.memory.usedBytes / props.memory.totalBytes) * 100
+    : 0
 );
 
 const swapPercent = computed(() =>
-  props.memory.swapTotalBytes > 0 ? (props.memory.swapUsedBytes / props.memory.swapTotalBytes) * 100 : 0,
+  props.memory.swapTotalBytes > 0
+    ? (props.memory.swapUsedBytes / props.memory.swapTotalBytes) * 100
+    : 0
 );
 </script>
 

@@ -3,48 +3,47 @@
  * 统一管理所有正则预设的状态和操作
  */
 
-import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
-import type { RegexPreset, PresetsConfig, RegexRule } from '../types';
-import { generateId } from '../core/engine';
+import { defineStore } from "pinia";
+import { ref, computed } from "vue";
+import type { RegexPreset, PresetsConfig, RegexRule } from "../types";
+import { generateId } from "../core/engine";
 import {
   loadPresets,
   savePresets,
   createPreset as createNewPreset,
   duplicatePreset as duplicateExistingPreset,
   touchPreset as touchPresetTimestamp,
-  presetsConfigManager
-} from '../core/presets';
-import { createModuleErrorHandler } from '@/utils/errorHandler';
+  presetsConfigManager,
+} from "../core/presets";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 
 // 创建模块日志记录器
-const errorHandler = createModuleErrorHandler('regex-applier/store');
+const errorHandler = createModuleErrorHandler("regex-applier/store");
 
-export const usePresetStore = defineStore('preset', () => {
+export const usePresetStore = defineStore("preset", () => {
   // ===== 状态 =====
   const presets = ref<RegexPreset[]>([]);
   const activePresetId = ref<string | null>(null);
   const isLoading = ref(false);
-  const version = ref('1.0.0');
-
+  const version = ref("1.0.0");
 
   /** 获取当前激活的预设 */
   const activePreset = computed(() => {
     if (!activePresetId.value) return undefined;
-    return presets.value.find(p => p.id === activePresetId.value);
+    return presets.value.find((p) => p.id === activePresetId.value);
   });
 
   /** 根据 ID 获取预设 */
   const getPresetById = computed(() => {
-    return (id: string) => presets.value.find(p => p.id === id);
+    return (id: string) => presets.value.find((p) => p.id === id);
   });
 
   /** 获取所有预设的简要信息（用于选择器） */
   const presetOptions = computed(() => {
-    return presets.value.map(p => ({
+    return presets.value.map((p) => ({
       id: p.id,
       name: p.name,
-      description: p.description
+      description: p.description,
     }));
   });
 
@@ -57,7 +56,7 @@ export const usePresetStore = defineStore('preset', () => {
     const config: PresetsConfig = {
       presets: presets.value,
       activePresetId: activePresetId.value,
-      version: version.value
+      version: version.value,
     };
     presetsConfigManager.saveDebounced(config);
   }
@@ -73,30 +72,32 @@ export const usePresetStore = defineStore('preset', () => {
       const config = await loadPresets();
 
       // 确保每个预设和规则都有必要的字段，进行数据清洗
-      presets.value = config.presets.map(preset => ({
+      presets.value = config.presets.map((preset) => ({
         ...preset,
-        id: preset.id || generateId('preset'),
+        id: preset.id || generateId("preset"),
         rules: (preset.rules || []).map((rule: Partial<RegexRule>) => ({
-          id: rule.id || generateId('rule'),
+          id: rule.id || generateId("rule"),
           enabled: rule.enabled ?? true,
-          regex: rule.regex || '',
-          replacement: rule.replacement || '',
+          regex: rule.regex || "",
+          replacement: rule.replacement || "",
           // 兼容旧数据：如果没有 name 字段，使用 regex 作为名称，regex 为空则使用 '未命名规则'
-          name: rule.name || rule.regex || '未命名规则',
+          name: rule.name || rule.regex || "未命名规则",
         })),
       }));
 
       activePresetId.value = config.activePresetId;
-      version.value = config.version || '1.0.0';
-
+      version.value = config.version || "1.0.0";
     } catch (error: any) {
       errorHandler.handle(error, {
-        userMessage: '加载预设失败',
-        context: { context: '从文件加载预设配置时发生错误，将使用默认配置' },
+        userMessage: "加载预设失败",
+        context: { context: "从文件加载预设配置时发生错误，将使用默认配置" },
         showToUser: false,
       });
       // 加载失败时创建默认配置
-      const defaultPreset = createNewPreset('默认预设', '空白预设，可以开始添加你的规则');
+      const defaultPreset = createNewPreset(
+        "默认预设",
+        "空白预设，可以开始添加你的规则"
+      );
       presets.value = [defaultPreset];
       activePresetId.value = defaultPreset.id;
     } finally {
@@ -127,8 +128,11 @@ export const usePresetStore = defineStore('preset', () => {
   /**
    * 复制预设
    */
-  function duplicatePreset(presetId: string, newName?: string): RegexPreset | null {
-    const sourcePreset = presets.value.find(p => p.id === presetId);
+  function duplicatePreset(
+    presetId: string,
+    newName?: string
+  ): RegexPreset | null {
+    const sourcePreset = presets.value.find((p) => p.id === presetId);
     if (!sourcePreset) return null;
 
     const newPreset = duplicateExistingPreset(sourcePreset, newName);
@@ -144,7 +148,7 @@ export const usePresetStore = defineStore('preset', () => {
    * 重命名预设
    */
   function renamePreset(presetId: string, newName: string): boolean {
-    const preset = presets.value.find(p => p.id === presetId);
+    const preset = presets.value.find((p) => p.id === presetId);
     if (!preset) return false;
 
     preset.name = newName;
@@ -158,13 +162,14 @@ export const usePresetStore = defineStore('preset', () => {
    * 删除预设
    */
   function deletePreset(presetId: string): boolean {
-    const index = presets.value.findIndex(p => p.id === presetId);
+    const index = presets.value.findIndex((p) => p.id === presetId);
     if (index === -1) return false;
 
     // 如果删除的是激活的预设，切换到第一个预设
     if (activePresetId.value === presetId) {
       const remainingPresets = presets.value.filter((_, i) => i !== index);
-      activePresetId.value = remainingPresets.length > 0 ? remainingPresets[0].id : null;
+      activePresetId.value =
+        remainingPresets.length > 0 ? remainingPresets[0].id : null;
     }
 
     presets.value.splice(index, 1);
@@ -177,7 +182,7 @@ export const usePresetStore = defineStore('preset', () => {
    * 切换激活的预设
    */
   function setActivePreset(presetId: string): boolean {
-    const preset = presets.value.find(p => p.id === presetId);
+    const preset = presets.value.find((p) => p.id === presetId);
     if (!preset) return false;
 
     activePresetId.value = presetId;
@@ -190,7 +195,7 @@ export const usePresetStore = defineStore('preset', () => {
    * 更新预设的更新时间
    */
   function touchPreset(presetId: string): void {
-    const preset = presets.value.find(p => p.id === presetId);
+    const preset = presets.value.find((p) => p.id === presetId);
     if (preset) {
       touchPresetTimestamp(preset);
       saveCurrentState();
@@ -202,16 +207,19 @@ export const usePresetStore = defineStore('preset', () => {
   /**
    * 向预设添加规则
    */
-  function addRule(presetId: string, rule?: Partial<RegexRule>): RegexRule | null {
-    const preset = presets.value.find(p => p.id === presetId);
+  function addRule(
+    presetId: string,
+    rule?: Partial<RegexRule>
+  ): RegexRule | null {
+    const preset = presets.value.find((p) => p.id === presetId);
     if (!preset) return null;
 
     const newRule: RegexRule = {
-      id: generateId('rule'),
+      id: generateId("rule"),
       enabled: rule?.enabled ?? true,
-      regex: rule?.regex ?? '',
-      replacement: rule?.replacement ?? '',
-      name: rule?.name || rule?.regex || '未命名规则'
+      regex: rule?.regex ?? "",
+      replacement: rule?.replacement ?? "",
+      name: rule?.name || rule?.regex || "未命名规则",
     };
 
     preset.rules.push(newRule);
@@ -224,11 +232,15 @@ export const usePresetStore = defineStore('preset', () => {
   /**
    * 更新规则
    */
-  function updateRule(presetId: string, ruleId: string, updates: Partial<RegexRule>): boolean {
-    const preset = presets.value.find(p => p.id === presetId);
+  function updateRule(
+    presetId: string,
+    ruleId: string,
+    updates: Partial<RegexRule>
+  ): boolean {
+    const preset = presets.value.find((p) => p.id === presetId);
     if (!preset) return false;
 
-    const rule = preset.rules.find(r => r.id === ruleId);
+    const rule = preset.rules.find((r) => r.id === ruleId);
     if (!rule) return false;
 
     Object.assign(rule, updates);
@@ -242,10 +254,10 @@ export const usePresetStore = defineStore('preset', () => {
    * 删除规则
    */
   function deleteRule(presetId: string, ruleId: string): boolean {
-    const preset = presets.value.find(p => p.id === presetId);
+    const preset = presets.value.find((p) => p.id === presetId);
     if (!preset) return false;
 
-    const index = preset.rules.findIndex(r => r.id === ruleId);
+    const index = preset.rules.findIndex((r) => r.id === ruleId);
     if (index === -1) return false;
 
     preset.rules.splice(index, 1);
@@ -259,10 +271,10 @@ export const usePresetStore = defineStore('preset', () => {
    * 切换规则启用状态
    */
   function toggleRuleEnabled(presetId: string, ruleId: string): boolean {
-    const preset = presets.value.find(p => p.id === presetId);
+    const preset = presets.value.find((p) => p.id === presetId);
     if (!preset) return false;
 
-    const rule = preset.rules.find(r => r.id === ruleId);
+    const rule = preset.rules.find((r) => r.id === ruleId);
     if (!rule) return false;
 
     rule.enabled = !rule.enabled;
@@ -276,7 +288,7 @@ export const usePresetStore = defineStore('preset', () => {
    * 更新规则顺序
    */
   function reorderRules(presetId: string, newOrder: RegexRule[]): boolean {
-    const preset = presets.value.find(p => p.id === presetId);
+    const preset = presets.value.find((p) => p.id === presetId);
     if (!preset) return false;
 
     preset.rules = newOrder;
@@ -289,22 +301,27 @@ export const usePresetStore = defineStore('preset', () => {
   /**
    * 导入规则（JSON）
    */
-  async function importRules(presetId: string, rules: Partial<RegexRule>[]): Promise<number> {
-    const preset = presets.value.find(p => p.id === presetId);
+  async function importRules(
+    presetId: string,
+    rules: Partial<RegexRule>[]
+  ): Promise<number> {
+    const preset = presets.value.find((p) => p.id === presetId);
     if (!preset) return 0;
 
-    const existingRulesMap = new Map(preset.rules.map(r => [`${r.regex}::${r.replacement}`, r]));
+    const existingRulesMap = new Map(
+      preset.rules.map((r) => [`${r.regex}::${r.replacement}`, r])
+    );
     let addedCount = 0;
 
     rules.forEach((newRule) => {
       const key = `${newRule.regex}::${newRule.replacement}`;
       if (!existingRulesMap.has(key)) {
         preset.rules.push({
-          id: generateId('rule'),
+          id: generateId("rule"),
           enabled: newRule.enabled ?? true,
-          regex: newRule.regex || '',
-          replacement: newRule.replacement || '',
-          name: newRule.name || newRule.regex || '未命名规则'
+          regex: newRule.regex || "",
+          replacement: newRule.replacement || "",
+          name: newRule.name || newRule.regex || "未命名规则",
         });
         addedCount++;
       }
@@ -316,7 +333,7 @@ export const usePresetStore = defineStore('preset', () => {
       const config: PresetsConfig = {
         presets: presets.value,
         activePresetId: activePresetId.value,
-        version: version.value
+        version: version.value,
       };
       await savePresets(config);
     }
@@ -328,7 +345,7 @@ export const usePresetStore = defineStore('preset', () => {
    * 导出预设（返回 JSON 字符串）
    */
   function exportPreset(presetId: string): string | null {
-    const preset = presets.value.find(p => p.id === presetId);
+    const preset = presets.value.find((p) => p.id === presetId);
     if (!preset) return null;
 
     return JSON.stringify(preset, null, 2);
@@ -362,6 +379,6 @@ export const usePresetStore = defineStore('preset', () => {
     toggleRuleEnabled,
     reorderRules,
     importRules,
-    exportPreset
+    exportPreset,
   };
 });

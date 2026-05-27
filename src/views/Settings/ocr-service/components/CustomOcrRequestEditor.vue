@@ -7,10 +7,10 @@ import type { Variable } from "@/tools/api-tester/types";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 
 // 宏示例常量（避免格式化工具添加空格）
-const variableMacro = '{{variable}}';
-const hostMacro = '{{host}}';
-const apiKeyMacro = '{{apiKey}}';
-const imageBase64Macro = '{{imageBase64}}';
+const variableMacro = "{{variable}}";
+const hostMacro = "{{host}}";
+const apiKeyMacro = "{{apiKey}}";
+const imageBase64Macro = "{{imageBase64}}";
 
 interface Props {
   modelValue: OcrApiRequest;
@@ -137,7 +137,8 @@ function getDisplayIconPath(iconPath: string): string {
   // Windows: C:\, D:\, E:\ 等
   const isWindowsAbsolutePath = /^[A-Za-z]:[\\/]/.test(iconPath);
   // Unix/Linux 绝对路径，但排除 /ocr-icons/ 这种项目内的相对路径
-  const isUnixAbsolutePath = iconPath.startsWith("/") && !iconPath.startsWith("/ocr-icons");
+  const isUnixAbsolutePath =
+    iconPath.startsWith("/") && !iconPath.startsWith("/ocr-icons");
 
   if (isWindowsAbsolutePath || isUnixAbsolutePath) {
     // 只对真正的本地文件系统绝对路径转换为 Tauri asset URL
@@ -178,16 +179,37 @@ function getDisplayIconPath(iconPath: string): string {
 
       <!-- Variables -->
       <div class="variables-section">
-        <div v-for="(variable, index) in localValue.variables" :key="index" class="variable-item">
-          <el-input v-model="variable.key" placeholder="变量名" style="width: 150px" />
-          <el-input v-model="variable.label" placeholder="显示标签" style="width: 150px" />
+        <div
+          v-for="(variable, index) in localValue.variables"
+          :key="index"
+          class="variable-item"
+        >
+          <el-input
+            v-model="variable.key"
+            placeholder="变量名"
+            style="width: 150px"
+          />
+          <el-input
+            v-model="variable.label"
+            placeholder="显示标签"
+            style="width: 150px"
+          />
           <el-select v-model="variable.type" style="width: 120px">
             <el-option label="字符串" value="string" />
             <el-option label="布尔值" value="boolean" />
             <el-option label="枚举" value="enum" />
           </el-select>
-          <el-input v-model="variable.value" placeholder="默认值" style="flex: 1" />
-          <el-button type="danger" text @click="removeVariable(index)" style="width: 60px">
+          <el-input
+            v-model="variable.value"
+            placeholder="默认值"
+            style="flex: 1"
+          />
+          <el-button
+            type="danger"
+            text
+            @click="removeVariable(index)"
+            style="width: 60px"
+          >
             删除
           </el-button>
         </div>
@@ -195,7 +217,8 @@ function getDisplayIconPath(iconPath: string): string {
           + 添加变量
         </el-button>
         <div class="form-hint" style="margin-top: 8px">
-          💡 特殊变量 <code>{{ imageBase64Macro }}</code> 会自动填充图片数据，无需手动添加
+          💡 特殊变量
+          <code>{{ imageBase64Macro }}</code> 会自动填充图片数据，无需手动添加
         </div>
       </div>
 
@@ -205,7 +228,11 @@ function getDisplayIconPath(iconPath: string): string {
 
       <!-- Headers -->
       <div class="headers-section">
-        <div v-for="(value, key) in localValue.headers" :key="key" class="header-item">
+        <div
+          v-for="(value, key) in localValue.headers"
+          :key="key"
+          class="header-item"
+        >
           <el-input
             :model-value="key"
             placeholder="Header Name"
@@ -219,8 +246,17 @@ function getDisplayIconPath(iconPath: string): string {
               }
             "
           />
-          <el-input v-model="localValue.headers[key]" placeholder="Header Value" style="flex: 1" />
-          <el-button type="danger" text @click="removeHeader(String(key))" style="width: 60px">
+          <el-input
+            v-model="localValue.headers[key]"
+            placeholder="Header Value"
+            style="flex: 1"
+          />
+          <el-button
+            type="danger"
+            text
+            @click="removeHeader(String(key))"
+            style="width: 60px"
+          >
             删除
           </el-button>
         </div>
@@ -241,8 +277,12 @@ function getDisplayIconPath(iconPath: string): string {
       <el-form-item label="请求体模板">
         <div style="width: 100%">
           <div class="editor-actions">
-            <el-button @click="formatBodyTemplate" size="small">✨ 格式化 JSON</el-button>
-            <el-button @click="loadExampleTemplate" size="small">📋 加载示例</el-button>
+            <el-button @click="formatBodyTemplate" size="small"
+              >✨ 格式化 JSON</el-button
+            >
+            <el-button @click="loadExampleTemplate" size="small"
+              >📋 加载示例</el-button
+            >
           </div>
           <el-input
             v-model="localValue.bodyTemplate"
@@ -252,7 +292,8 @@ function getDisplayIconPath(iconPath: string): string {
             class="code-editor"
           />
           <div class="form-hint">
-            必须是有效的 JSON。使用 <code>{{ imageBase64Macro }}</code> 表示图片数据
+            必须是有效的 JSON。使用
+            <code>{{ imageBase64Macro }}</code> 表示图片数据
           </div>
         </div>
       </el-form-item>
@@ -263,7 +304,10 @@ function getDisplayIconPath(iconPath: string): string {
 
       <!-- Result Path -->
       <el-form-item label="结果路径">
-        <el-input v-model="localValue.resultPath" placeholder="data.text 或 result.0.content" />
+        <el-input
+          v-model="localValue.resultPath"
+          placeholder="data.text 或 result.0.content"
+        />
         <div class="form-hint">
           从返回的 JSON 中提取文本的路径。例如: <code>data.text</code>,
           <code>result.0.text</code>
@@ -277,9 +321,16 @@ function getDisplayIconPath(iconPath: string): string {
       <!-- Icon Path -->
       <el-form-item label="图标路径">
         <div class="input-with-actions">
-          <el-input v-model="localValue.iconPath" placeholder="例如: /ocr-icons/阿里云.svg" />
-          <el-button @click="handleSelectFile" class="btn-action">选择文件</el-button>
-          <el-button @click="$emit('open-presets')" class="btn-action">选择预设</el-button>
+          <el-input
+            v-model="localValue.iconPath"
+            placeholder="例如: /ocr-icons/阿里云.svg"
+          />
+          <el-button @click="handleSelectFile" class="btn-action"
+            >选择文件</el-button
+          >
+          <el-button @click="$emit('open-presets')" class="btn-action"
+            >选择预设</el-button
+          >
         </div>
         <div class="form-hint">支持相对路径或绝对路径，推荐使用预设图标</div>
       </el-form-item>

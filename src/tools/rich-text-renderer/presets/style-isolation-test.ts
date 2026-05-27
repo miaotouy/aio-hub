@@ -3,7 +3,8 @@ import { RenderPreset } from "../types";
 export const styleIsolationTestPreset: RenderPreset = {
   id: "style-isolation-test",
   name: "样式隔离与动态渲染测试",
-  description: "测试 HTML 块和 Style 节点的样式隔离、加缀以及持续运行的 CSS 动画功能",
+  description:
+    "测试 HTML 块和 Style 节点的样式隔离、加缀以及持续运行的 CSS 动画功能",
   content: `
 ### 1. 动态诊断界面 (持续动画测试)
 

@@ -11,12 +11,24 @@
           </el-radio-group>
         </div>
         <div class="header-actions">
-          <el-tooltip placement="bottom" :disabled="selectedPresetIds.length === 0">
+          <el-tooltip
+            placement="bottom"
+            :disabled="selectedPresetIds.length === 0"
+          >
             <template #content>
               <div v-if="selectedPresetIds.length > 0">
-                <div style="font-weight: bold; margin-bottom: 4px">已启用的预设：</div>
-                <div v-for="preset in selectedPresets" :key="preset.id" style="margin: 2px 0">
-                  {{ preset.name }} ({{ preset.rules.filter((r: any) => r.enabled).length }} 条规则)
+                <div style="font-weight: bold; margin-bottom: 4px">
+                  已启用的预设：
+                </div>
+                <div
+                  v-for="preset in selectedPresets"
+                  :key="preset.id"
+                  style="margin: 2px 0"
+                >
+                  {{ preset.name }} ({{
+                    preset.rules.filter((r: any) => r.enabled).length
+                  }}
+                  条规则)
                 </div>
               </div>
             </template>
@@ -28,12 +40,19 @@
               {{ showPresetSection ? "隐藏预设" : "显示预设" }}
             </el-button>
           </el-tooltip>
-          <el-badge :value="errorLogCount" :hidden="errorLogCount === 0" :max="99" type="danger">
+          <el-badge
+            :value="errorLogCount"
+            :hidden="errorLogCount === 0"
+            :max="99"
+            type="danger"
+          >
             <el-button @click="openLogDialog" :icon="List">
               查看日志{{ logs.length > 0 ? `(${logs.length})` : "" }}
             </el-button>
           </el-badge>
-          <el-button type="primary" @click="goToManageRules" :icon="Setting"> 管理规则 </el-button>
+          <el-button type="primary" @click="goToManageRules" :icon="Setting">
+            管理规则
+          </el-button>
         </div>
       </div>
     </InfoCard>
@@ -65,7 +84,10 @@
       </template>
 
       <div class="preset-tags-container">
-        <el-empty v-if="selectedPresetIds.length === 0" description="请添加要应用的预设" />
+        <el-empty
+          v-if="selectedPresetIds.length === 0"
+          description="请添加要应用的预设"
+        />
         <VueDraggableNext
           v-else
           v-model="selectedPresets"
@@ -79,7 +101,11 @@
           :fallback-tolerance="3"
           :animation="200"
         >
-          <div v-for="preset in selectedPresets" :key="preset.id" class="preset-tag">
+          <div
+            v-for="preset in selectedPresets"
+            :key="preset.id"
+            class="preset-tag"
+          >
             <span class="preset-tag-content">
               {{ preset.name }}
               <span class="rules-count">{{
@@ -136,7 +162,9 @@
                 <span>输出文本</span>
                 <div class="card-actions">
                   <el-button text @click="copyResult">复制</el-button>
-                  <el-button text type="success" @click="sendResultToChat">发送到聊天</el-button>
+                  <el-button text type="success" @click="sendResultToChat"
+                    >发送到聊天</el-button
+                  >
                 </div>
               </div>
             </template>
@@ -178,7 +206,9 @@
               <el-tooltip content="选择文件夹" placement="top">
                 <el-button @click="selectFolders" :icon="FolderOpened" circle />
               </el-tooltip>
-              <el-button @click="addFilePathFromInput" type="primary">添加</el-button>
+              <el-button @click="addFilePathFromInput" type="primary"
+                >添加</el-button
+              >
             </div>
             <div
               ref="fileDropArea"
@@ -196,11 +226,19 @@
                   <p>将要处理的文件或文件夹拖拽至此</p>
                 </div>
                 <div v-else class="file-list">
-                  <div v-for="(file, index) in files" :key="file.path" class="file-item">
+                  <div
+                    v-for="(file, index) in files"
+                    :key="file.path"
+                    class="file-item"
+                  >
                     <el-icon class="file-icon"><Document /></el-icon>
                     <div class="file-details">
-                      <div class="file-name" :title="file.name">{{ file.name }}</div>
-                      <div class="file-path" :title="file.path">{{ file.path }}</div>
+                      <div class="file-name" :title="file.name">
+                        {{ file.name }}
+                      </div>
+                      <div class="file-path" :title="file.path">
+                        {{ file.path }}
+                      </div>
                       <div
                         v-if="file.status !== 'pending'"
                         class="file-status"
@@ -237,27 +275,42 @@
                 @dragleave="handleDragLeave"
                 @drop="handleDrop"
               >
-                <el-input v-model="outputDirectory" placeholder="输入、拖拽或点击选择输出目录" />
-                <el-button @click="selectOutputDirectory" :icon="FolderOpened">选择</el-button>
+                <el-input
+                  v-model="outputDirectory"
+                  placeholder="输入、拖拽或点击选择输出目录"
+                />
+                <el-button @click="selectOutputDirectory" :icon="FolderOpened"
+                  >选择</el-button
+                >
               </div>
             </div>
 
             <div class="setting-group">
               <label>文件名后缀</label>
-              <el-input v-model="filenameSuffix" placeholder="可选，例如 _processed" clearable>
+              <el-input
+                v-model="filenameSuffix"
+                placeholder="可选，例如 _processed"
+                clearable
+              >
                 <template #prepend>原文件名</template>
                 <template #append>.扩展名</template>
               </el-input>
-              <div class="setting-hint">在原文件名后添加后缀，方便区分处理后的文件</div>
+              <div class="setting-hint">
+                在原文件名后添加后缀，方便区分处理后的文件
+              </div>
             </div>
 
             <div class="setting-group">
               <el-checkbox v-model="forceTxt">强制保存为 .txt 格式</el-checkbox>
-              <div class="setting-hint">忽略原始文件扩展名，统一保存为 .txt</div>
+              <div class="setting-hint">
+                忽略原始文件扩展名，统一保存为 .txt
+              </div>
             </div>
 
             <div class="setting-group">
-              <el-checkbox v-model="clearProcessedFiles">处理后清除成功的文件</el-checkbox>
+              <el-checkbox v-model="clearProcessedFiles"
+                >处理后清除成功的文件</el-checkbox
+              >
               <div class="setting-hint">处理成功的文件将自动从列表中移除</div>
             </div>
 
@@ -297,11 +350,20 @@
     </BaseDialog>
 
     <!-- 日志弹窗 -->
-    <BaseDialog v-model="logDialogVisible" title="日志" width="800px" height="auto">
+    <BaseDialog
+      v-model="logDialogVisible"
+      title="日志"
+      width="800px"
+      height="auto"
+    >
       <template #content>
         <div class="log-dialog-content">
           <div class="log-output">
-            <p v-for="(log, index) in logs" :key="index" :class="`log-${log.type}`">
+            <p
+              v-for="(log, index) in logs"
+              :key="index"
+              :class="`log-${log.type}`"
+            >
               [{{ log.time }}] {{ log.message }}
             </p>
             <p v-if="logs.length === 0" class="empty-log">暂无日志</p>
@@ -310,7 +372,9 @@
       </template>
       <template #footer>
         <el-button @click="clearLogs">清空日志</el-button>
-        <el-button type="primary" @click="logDialogVisible = false">关闭</el-button>
+        <el-button type="primary" @click="logDialogVisible = false"
+          >关闭</el-button
+        >
       </template>
     </BaseDialog>
   </div>
@@ -344,7 +408,11 @@ import PresetManager from "./components/PresetManager.vue";
 import { usePresetStore } from "./stores/store";
 import type { LogEntry, RegexPreset } from "./types";
 import * as engine from "./core/engine";
-import { loadAppConfig, appConfigManager, type AppConfig } from "./config/appConfig";
+import {
+  loadAppConfig,
+  appConfigManager,
+  type AppConfig,
+} from "./config/appConfig";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useSendToChat } from "@/composables/useSendToChat";
@@ -413,7 +481,9 @@ const selectedPresets = ref<RegexPreset[]>([]);
 
 // 计算错误和警告日志数量
 const errorLogCount = computed(
-  () => logs.value.filter((log) => log.type === "error" || log.type === "warn").length
+  () =>
+    logs.value.filter((log) => log.type === "error" || log.type === "warn")
+      .length
 );
 
 // 监听 selectedPresetIds 变化，更新 selectedPresets
@@ -492,7 +562,10 @@ onMounted(async () => {
 
     addLog("已恢复上次的设置", "info");
   } catch (error) {
-    errorHandler.handle(error, { userMessage: "加载应用配置失败", showToUser: false });
+    errorHandler.handle(error, {
+      userMessage: "加载应用配置失败",
+      showToUser: false,
+    });
     // 如果没有选中的预设，默认选中第一个
     if (selectedPresetIds.value.length === 0 && store.presets.length > 0) {
       selectedPresetIds.value = [store.presets[0].id];
@@ -705,7 +778,10 @@ let unlistenDragEnter: (() => void) | null = null;
 let unlistenDragOver: (() => void) | null = null;
 let unlistenDragLeave: (() => void) | null = null;
 
-const isPositionInRect = (position: { x: number; y: number }, rect: DOMRect) => {
+const isPositionInRect = (
+  position: { x: number; y: number },
+  rect: DOMRect
+) => {
   const ratio = window.devicePixelRatio || 1;
   return (
     position.x >= rect.left * ratio &&
@@ -876,7 +952,9 @@ const addFiles = (paths: string[]) => {
     return { path, name, status: "pending" };
   });
 
-  const uniqueNewFiles = newFiles.filter((nf) => !files.value.some((sf) => sf.path === nf.path));
+  const uniqueNewFiles = newFiles.filter(
+    (nf) => !files.value.some((sf) => sf.path === nf.path)
+  );
   if (uniqueNewFiles.length > 0) {
     files.value.push(...uniqueNewFiles);
     customMessage.success(`已添加 ${uniqueNewFiles.length} 个文件/文件夹`);
@@ -913,7 +991,9 @@ const selectFiles = async () => {
       addFiles([selected]);
     }
   } catch (error) {
-    errorHandler.error(error, "选择文件失败", { context: { operation: "selectFiles" } });
+    errorHandler.error(error, "选择文件失败", {
+      context: { operation: "selectFiles" },
+    });
   }
 };
 
@@ -930,7 +1010,9 @@ const selectFolders = async () => {
       addFiles([selected]);
     }
   } catch (error) {
-    errorHandler.error(error, "选择文件夹失败", { context: { operation: "selectFolders" } });
+    errorHandler.error(error, "选择文件夹失败", {
+      context: { operation: "selectFolders" },
+    });
   }
 };
 
@@ -1001,7 +1083,12 @@ const processFiles = async () => {
     // 添加后端返回的日志
     if (result.logs && Array.isArray(result.logs)) {
       result.logs.forEach((log) => {
-        const logType = log.level === "error" ? "error" : log.level === "warn" ? "warn" : "info";
+        const logType =
+          log.level === "error"
+            ? "error"
+            : log.level === "warn"
+              ? "warn"
+              : "info";
         addLog(log.message, logType);
       });
     }
@@ -1012,7 +1099,9 @@ const processFiles = async () => {
     if (result.error_count > 0) {
       customMessage.warning(summaryMsg);
     } else {
-      customMessage.success(`所有文件处理完成！共处理 ${result.success_count} 个文件`);
+      customMessage.success(
+        `所有文件处理完成！共处理 ${result.success_count} 个文件`
+      );
     }
 
     // 更新文件状态
@@ -1333,7 +1422,12 @@ const processFiles = async () => {
   position: absolute;
   inset: -2px;
   border-radius: 8px;
-  background: linear-gradient(45deg, transparent, rgba(64, 158, 255, 0.2), transparent);
+  background: linear-gradient(
+    45deg,
+    transparent,
+    rgba(64, 158, 255, 0.2),
+    transparent
+  );
   animation: shimmer 2s infinite;
   pointer-events: none;
 }
@@ -1494,7 +1588,12 @@ const processFiles = async () => {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, transparent, rgba(64, 158, 255, 0.1), transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(64, 158, 255, 0.1),
+    transparent
+  );
   animation: pulse 1.5s ease-in-out infinite;
   pointer-events: none;
 }

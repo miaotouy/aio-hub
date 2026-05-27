@@ -1,18 +1,22 @@
-import type { ProviderType, LlmProfile } from '../types';
-import { openAiUrlHandler } from '../core/adapters/openai-compatible';
-import { claudeUrlHandler } from '../core/adapters/claude';
-import { geminiUrlHandler } from '../core/adapters/gemini';
-import { cohereUrlHandler } from '../core/adapters/cohere';
-import { vertexAiUrlHandler } from '../core/adapters/vertexai';
+import type { ProviderType, LlmProfile } from "../types";
+import { openAiUrlHandler } from "../core/adapters/openai-compatible";
+import { claudeUrlHandler } from "../core/adapters/claude";
+import { geminiUrlHandler } from "../core/adapters/gemini";
+import { cohereUrlHandler } from "../core/adapters/cohere";
+import { vertexAiUrlHandler } from "../core/adapters/vertexai";
 
 interface AdapterUrlHandler {
-  buildUrl: (baseUrl: string, endpoint?: string, profile?: LlmProfile) => string;
+  buildUrl: (
+    baseUrl: string,
+    endpoint?: string,
+    profile?: LlmProfile
+  ) => string;
   getHint: () => string;
 }
 
 const adapterUrlHandlers: Record<string, AdapterUrlHandler> = {
   openai: openAiUrlHandler,
-  'openai-responses': openAiUrlHandler, // 移动端暂未细分
+  "openai-responses": openAiUrlHandler, // 移动端暂未细分
   claude: claudeUrlHandler,
   gemini: geminiUrlHandler,
   cohere: cohereUrlHandler,
@@ -21,10 +25,10 @@ const adapterUrlHandlers: Record<string, AdapterUrlHandler> = {
 
 export function formatLlmApiHost(host: string): string {
   if (!host) return "";
-  if (host.endsWith('#')) {
+  if (host.endsWith("#")) {
     return host.slice(0, -1);
   }
-  return host.endsWith('/') ? host : `${host}/`;
+  return host.endsWith("/") ? host : `${host}/`;
 }
 
 export function buildLlmApiUrl(
@@ -33,9 +37,9 @@ export function buildLlmApiUrl(
   endpoint?: string,
   profile?: LlmProfile
 ): string {
-  if (!baseUrl) return '';
+  if (!baseUrl) return "";
 
-  if (baseUrl.endsWith('#')) {
+  if (baseUrl.endsWith("#")) {
     const cleanUrl = formatLlmApiHost(baseUrl);
     return endpoint ? `${cleanUrl}${endpoint}` : cleanUrl;
   }
@@ -49,11 +53,14 @@ export function buildLlmApiUrl(
   return endpoint ? `${formattedHost}${endpoint}` : formattedHost;
 }
 
-export function generateLlmApiEndpointPreview(baseUrl: string, providerType: ProviderType): string {
+export function generateLlmApiEndpointPreview(
+  baseUrl: string,
+  providerType: ProviderType
+): string {
   return buildLlmApiUrl(baseUrl, providerType);
 }
 
 export function getLlmEndpointHint(providerType: ProviderType): string {
   const handler = adapterUrlHandlers[providerType];
-  return handler ? handler.getHint() : '';
+  return handler ? handler.getHint() : "";
 }

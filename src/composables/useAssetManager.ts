@@ -183,7 +183,10 @@ export const assetManagerEngine = {
   /**
    * 为现有资产添加一个来源
    */
-  addAssetSource: async (assetId: string, origin: AssetOrigin): Promise<Asset> => {
+  addAssetSource: async (
+    assetId: string,
+    origin: AssetOrigin
+  ): Promise<Asset> => {
     return await invoke<Asset>("add_asset_source", { assetId, origin });
   },
 
@@ -195,10 +198,13 @@ export const assetManagerEngine = {
     assetId: string,
     sourceModule: string
   ): Promise<{ deleted: boolean; asset: Asset | null }> => {
-    return await invoke<{ deleted: boolean; asset: Asset | null }>("remove_asset_source", {
-      assetId,
-      sourceModule,
-    });
+    return await invoke<{ deleted: boolean; asset: Asset | null }>(
+      "remove_asset_source",
+      {
+        assetId,
+        sourceModule,
+      }
+    );
   },
 
   /**
@@ -229,7 +235,9 @@ export const assetManagerEngine = {
   listAssetsPaginated: async (
     payload: ListAssetsPaginatedPayload
   ): Promise<PaginatedAssetsResponse> => {
-    return await invoke<PaginatedAssetsResponse>("list_assets_paginated", { payload });
+    return await invoke<PaginatedAssetsResponse>("list_assets_paginated", {
+      payload,
+    });
   },
 
   /**
@@ -258,7 +266,10 @@ export const assetManagerEngine = {
    * @param assetId 资产 ID
    * @param base64Data Base64 编码的图片数据
    */
-  saveAssetThumbnail: async (assetId: string, base64Data: string): Promise<Asset> => {
+  saveAssetThumbnail: async (
+    assetId: string,
+    base64Data: string
+  ): Promise<Asset> => {
     return await invoke<Asset>("save_asset_thumbnail", {
       assetId,
       base64Data,
@@ -276,7 +287,9 @@ export const assetManagerEngine = {
       if (tool.getAssetSidecarActions) {
         const actions = tool.getAssetSidecarActions();
         actions.forEach((action) => {
-          if (!_registeredSidecarActions.value.some((a) => a.id === action.id)) {
+          if (
+            !_registeredSidecarActions.value.some((a) => a.id === action.id)
+          ) {
             _registeredSidecarActions.value.push(action);
           }
         });
@@ -348,7 +361,10 @@ export function useAssetManager() {
     throw new Error(errorMsg);
   };
 
-  const withLoading = async <T>(promise: Promise<T>, append = false): Promise<T> => {
+  const withLoading = async <T>(
+    promise: Promise<T>,
+    append = false
+  ): Promise<T> => {
     if (append) {
       isAppending.value = true;
     } else {
@@ -369,7 +385,10 @@ export function useAssetManager() {
   /**
    * 分页加载资产
    */
-  const loadAssetsPaginated = async (payload: ListAssetsPaginatedPayload, append = false) => {
+  const loadAssetsPaginated = async (
+    payload: ListAssetsPaginatedPayload,
+    append = false
+  ) => {
     try {
       // 准备要发送到后端的载荷
       const backendPayload: any = { ...payload };
@@ -439,7 +458,9 @@ export function useAssetManager() {
    */
   const handlePostImport = async (updatedOrNewAsset: Asset) => {
     // 检查资产是否已存在于列表中
-    const existingAssetIndex = assets.value.findIndex((a) => a.id === updatedOrNewAsset.id);
+    const existingAssetIndex = assets.value.findIndex(
+      (a) => a.id === updatedOrNewAsset.id
+    );
 
     if (existingAssetIndex !== -1) {
       // 如果存在，说明是为现有资产添加了新来源，更新它
@@ -466,7 +487,10 @@ export function useAssetManager() {
     options?: AssetImportOptions
   ): Promise<Asset> => {
     try {
-      const promise = assetManagerEngine.importAssetFromPath(originalPath, options);
+      const promise = assetManagerEngine.importAssetFromPath(
+        originalPath,
+        options
+      );
       const asset = await withLoading(promise);
       await handlePostImport(asset);
       return asset;
@@ -489,7 +513,10 @@ export function useAssetManager() {
     isLoading.value = true;
     for (const path of paths) {
       try {
-        const asset = await assetManagerEngine.importAssetFromPath(path, options);
+        const asset = await assetManagerEngine.importAssetFromPath(
+          path,
+          options
+        );
         importedAssets.push(asset);
       } catch (err) {
         console.error(`导入文件 ${path} 失败:`, err);
@@ -515,7 +542,11 @@ export function useAssetManager() {
     options?: AssetImportOptions
   ): Promise<Asset> => {
     try {
-      const promise = assetManagerEngine.importAssetFromBytes(bytes, originalName, options);
+      const promise = assetManagerEngine.importAssetFromBytes(
+        bytes,
+        originalName,
+        options
+      );
       const asset = await withLoading(promise);
       await handlePostImport(asset);
       return asset;
@@ -529,7 +560,9 @@ export function useAssetManager() {
   /**
    * 从剪贴板导入图片
    */
-  const importAssetFromClipboard = async (options?: AssetImportOptions): Promise<Asset> => {
+  const importAssetFromClipboard = async (
+    options?: AssetImportOptions
+  ): Promise<Asset> => {
     try {
       const clipboardItems = await navigator.clipboard.read();
       for (const item of clipboardItems) {
@@ -544,10 +577,17 @@ export function useAssetManager() {
               origin: {
                 type: "clipboard",
                 source: "clipboard",
-                sourceModule: options?.sourceModule || options?.origin?.sourceModule || "unknown",
+                sourceModule:
+                  options?.sourceModule ||
+                  options?.origin?.sourceModule ||
+                  "unknown",
               },
             };
-            return await importAssetFromBytes(arrayBuffer, fileName, importOptions);
+            return await importAssetFromBytes(
+              arrayBuffer,
+              fileName,
+              importOptions
+            );
           }
         }
       }
@@ -563,16 +603,21 @@ export function useAssetManager() {
   const rebuildCatalogIndex = async (): Promise<string> => {
     // 开始监听进度事件
     if (!unlistenCatalogRebuildProgress) {
-      const unlisten = await listen<{ current: number; total: number; currentType: string }>(
-        "rebuild-catalog-progress",
-        (event) => {
-          rebuildProgress.value = event.payload;
-        }
-      );
+      const unlisten = await listen<{
+        current: number;
+        total: number;
+        currentType: string;
+      }>("rebuild-catalog-progress", (event) => {
+        rebuildProgress.value = event.payload;
+      });
       unlistenCatalogRebuildProgress = unlisten;
     }
 
-    rebuildProgress.value = { current: 0, total: 0, currentType: "starting..." };
+    rebuildProgress.value = {
+      current: 0,
+      total: 0,
+      currentType: "starting...",
+    };
     try {
       const promise = assetManagerEngine.rebuildCatalogIndex();
       const result = await withLoading(promise);
@@ -597,16 +642,21 @@ export function useAssetManager() {
   const rebuildHashIndex = async (): Promise<string> => {
     // 开始监听进度事件
     if (!unlistenRebuildProgress) {
-      const unlisten = await listen<{ current: number; total: number; currentType: string }>(
-        "rebuild-index-progress",
-        (event) => {
-          rebuildProgress.value = event.payload;
-        }
-      );
+      const unlisten = await listen<{
+        current: number;
+        total: number;
+        currentType: string;
+      }>("rebuild-index-progress", (event) => {
+        rebuildProgress.value = event.payload;
+      });
       unlistenRebuildProgress = unlisten;
     }
 
-    rebuildProgress.value = { current: 0, total: 0, currentType: "starting..." };
+    rebuildProgress.value = {
+      current: 0,
+      total: 0,
+      currentType: "starting...",
+    };
     try {
       const promise = assetManagerEngine.rebuildHashIndex();
       return await withLoading(promise);
@@ -645,9 +695,15 @@ export function useAssetManager() {
    * // LLM Chat 删除附件时
    * await removeSourceFromAsset(attachment.id, 'llm-chat');
    */
-  const removeSourceFromAsset = async (assetId: string, sourceModule: string): Promise<void> => {
+  const removeSourceFromAsset = async (
+    assetId: string,
+    sourceModule: string
+  ): Promise<void> => {
     try {
-      const result = await assetManagerEngine.removeAssetSource(assetId, sourceModule);
+      const result = await assetManagerEngine.removeAssetSource(
+        assetId,
+        sourceModule
+      );
 
       const index = assets.value.findIndex((a) => a.id === assetId);
       if (index === -1) return; // Not in the current list, do nothing
@@ -699,8 +755,13 @@ export function useAssetManager() {
    * @param assetIds 资产 ID 列表
    * @param sourceModule 来源模块标识
    */
-  const removeSourceFromAssets = async (assetIds: string[], sourceModule: string): Promise<void> => {
-    await withLoading(Promise.all(assetIds.map((id) => removeSourceFromAsset(id, sourceModule))));
+  const removeSourceFromAssets = async (
+    assetIds: string[],
+    sourceModule: string
+  ): Promise<void> => {
+    await withLoading(
+      Promise.all(assetIds.map((id) => removeSourceFromAsset(id, sourceModule)))
+    );
   };
 
   /**
@@ -709,13 +770,16 @@ export function useAssetManager() {
    * @param assetIds 资产 ID 列表
    * @returns 删除失败的资产 ID 列表
    */
-  const deleteAssetsCompletely = async (assetIds: string[]): Promise<string[]> => {
+  const deleteAssetsCompletely = async (
+    assetIds: string[]
+  ): Promise<string[]> => {
     try {
-      const failedIds = await assetManagerEngine.removeAssetsCompletely(assetIds);
+      const failedIds =
+        await assetManagerEngine.removeAssetsCompletely(assetIds);
 
       // 从本地列表中移除成功删除的资产
-      const successIds = assetIds.filter(id => !failedIds.includes(id));
-      assets.value = assets.value.filter(a => !successIds.includes(a.id));
+      const successIds = assetIds.filter((id) => !failedIds.includes(id));
+      assets.value = assets.value.filter((a) => !successIds.includes(a.id));
       totalItems.value -= successIds.length;
 
       await fetchAssetStats();
@@ -879,7 +943,9 @@ export const assetUtils = {
   /**
    * 生成默认的导入选项
    */
-  createDefaultImportOptions: (overrides?: Partial<AssetImportOptions>): AssetImportOptions => {
+  createDefaultImportOptions: (
+    overrides?: Partial<AssetImportOptions>
+  ): AssetImportOptions => {
     return {
       generateThumbnail: true,
       enableDeduplication: true,
@@ -888,4 +954,10 @@ export const assetUtils = {
   },
 };
 
-export type { Asset, AssetImportOptions, AssetType, AssetOrigin, AssetMetadata };
+export type {
+  Asset,
+  AssetImportOptions,
+  AssetType,
+  AssetOrigin,
+  AssetMetadata,
+};

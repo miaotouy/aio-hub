@@ -29,7 +29,9 @@
  * // => null
  * ```
  */
-export function parseToolTarget(toolName: string): { toolId: string; methodName: string } | null {
+export function parseToolTarget(
+  toolName: string
+): { toolId: string; methodName: string } | null {
   const separatorIndex = toolName.indexOf("_");
 
   // 验证分隔符位置

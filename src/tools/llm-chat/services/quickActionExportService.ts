@@ -11,7 +11,9 @@ import { writeFile } from "@tauri-apps/plugin-fs";
 import JSZip from "jszip";
 
 const logger = createModuleLogger("llm-chat/quickActionExportService");
-const errorHandler = createModuleErrorHandler("llm-chat/quickActionExportService");
+const errorHandler = createModuleErrorHandler(
+  "llm-chat/quickActionExportService"
+);
 
 /**
  * 导出单个快捷操作组

@@ -4,7 +4,10 @@ import { useVirtualList } from "@vueuse/core";
 import { useAgentStore } from "../../stores/agentStore";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import type { ChatSessionIndex } from "../../types";
-import { useLlmSearch, type SearchMatchMode } from "../../composables/chat/useLlmSearch";
+import {
+  useLlmSearch,
+  type SearchMatchMode,
+} from "../../composables/chat/useLlmSearch";
 import { Plus, Search, Loading } from "@element-plus/icons-vue";
 import Avatar from "@/components/common/Avatar.vue";
 import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
@@ -37,13 +40,20 @@ const {
 } = useLlmSearch({ debounceMs: 300, scope: "session" });
 
 // 搜索模式配置
-const matchModeOptions: { value: SearchMatchMode; label: string; desc: string }[] = [
+const matchModeOptions: {
+  value: SearchMatchMode;
+  label: string;
+  desc: string;
+}[] = [
   { value: "exact", label: "精确", desc: "完整短语匹配" },
   { value: "and", label: "全部", desc: "所有关键词都须出现" },
   { value: "or", label: "任一", desc: "任一关键词出现即可" },
 ];
 
-const currentModeLabel = computed(() => matchModeOptions.find((o) => o.value === matchMode.value)?.label ?? "精确");
+const currentModeLabel = computed(
+  () =>
+    matchModeOptions.find((o) => o.value === matchMode.value)?.label ?? "精确"
+);
 
 const handleMatchModeChange = (mode: SearchMatchMode) => {
   matchMode.value = mode;
@@ -71,7 +81,9 @@ const localFilteredSessions = computed(() => {
 
   if (searchQuery.value.trim()) {
     const query = searchQuery.value.toLowerCase();
-    result = result.filter((session) => session.name.toLowerCase().includes(query));
+    result = result.filter((session) =>
+      session.name.toLowerCase().includes(query)
+    );
   }
 
   // 默认按更新时间降序排序
@@ -146,9 +158,12 @@ const getItemHeight = (index: number) => {
 };
 
 // 虚拟滚动列表
-const { list, containerProps, wrapperProps, scrollTo } = useVirtualList(displaySessions, {
-  itemHeight: getItemHeight,
-});
+const { list, containerProps, wrapperProps, scrollTo } = useVirtualList(
+  displaySessions,
+  {
+    itemHeight: getItemHeight,
+  }
+);
 
 // 获取会话当前显示的智能体信息
 const getSessionDisplayAgent = (session: ChatSessionIndex) => {
@@ -158,7 +173,10 @@ const getSessionDisplayAgent = (session: ChatSessionIndex) => {
 
 // 处理会话点击
 const handleSessionClick = (session: ChatSessionIndex) => {
-  if (settings.value.uiPreferences.autoSwitchAgentOnSessionChange && session.displayAgentId) {
+  if (
+    settings.value.uiPreferences.autoSwitchAgentOnSessionChange &&
+    session.displayAgentId
+  ) {
     const agent = agentStore.getAgentById(session.displayAgentId);
     if (agent) {
       agentStore.selectAgent(session.displayAgentId);
@@ -178,7 +196,9 @@ const getMessageCount = (session: ChatSessionIndex) => {
 
 // 自动定位到当前会话
 const scrollToCurrentSession = () => {
-  const index = displaySessions.value.findIndex((s) => s.id === chatStore.currentSessionId);
+  const index = displaySessions.value.findIndex(
+    (s) => s.id === chatStore.currentSessionId
+  );
   if (index === -1) return;
 
   const container = containerProps.ref.value;
@@ -218,7 +238,7 @@ watch(
       setTimeout(scrollToCurrentSession, 0);
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 defineExpose({
@@ -228,7 +248,10 @@ defineExpose({
 
 <template>
   <div class="mini-session-list">
-    <div class="list-container" v-bind="displaySessions.length > 0 ? containerProps : {}">
+    <div
+      class="list-container"
+      v-bind="displaySessions.length > 0 ? containerProps : {}"
+    >
       <div v-if="chatStore.sessions.length === 0" class="empty-state">
         <p>暂无会话</p>
       </div>
@@ -254,7 +277,10 @@ defineExpose({
             <div class="session-title-row">
               <Avatar
                 v-if="getSessionDisplayAgent(session)"
-                :src="resolveAvatarPath(getSessionDisplayAgent(session), 'agent') || ''"
+                :src="
+                  resolveAvatarPath(getSessionDisplayAgent(session), 'agent') ||
+                  ''
+                "
                 :alt="getSessionDisplayAgent(session)?.name"
                 :size="16"
                 shape="square"
@@ -265,14 +291,27 @@ defineExpose({
             </div>
 
             <!-- 搜索匹配详情 -->
-            <div v-if="getSessionMatches(session.id)?.length" class="match-details">
-              <div v-for="(match, index) in getSessionMatches(session.id)!.slice(0, 2)" :key="index" class="match-item">
+            <div
+              v-if="getSessionMatches(session.id)?.length"
+              class="match-details"
+            >
+              <div
+                v-for="(match, index) in getSessionMatches(session.id)!.slice(
+                  0,
+                  2
+                )"
+                :key="index"
+                class="match-item"
+              >
                 <span class="match-field">
-                  {{ getFieldLabel(match.field) }}{{ match.role ? `(${getRoleLabel(match.role)})` : "" }}:
+                  {{ getFieldLabel(match.field)
+                  }}{{ match.role ? `(${getRoleLabel(match.role)})` : "" }}:
                 </span>
                 <div class="match-context" :title="match.context">
                   <template v-for="(part, pIdx) in match.parts" :key="pIdx">
-                    <span v-if="part.isMatch" class="highlight">{{ part.text }}</span>
+                    <span v-if="part.isMatch" class="highlight">{{
+                      part.text
+                    }}</span>
                     <span v-else>{{ part.text }}</span>
                   </template>
                 </div>
@@ -280,8 +319,12 @@ defineExpose({
             </div>
 
             <div class="session-meta">
-              <span class="message-count">{{ getMessageCount(session) }} 条</span>
-              <span class="session-time">{{ formatRelativeTime(session.updatedAt) }}</span>
+              <span class="message-count"
+                >{{ getMessageCount(session) }} 条</span
+              >
+              <span class="session-time">{{
+                formatRelativeTime(session.updatedAt)
+              }}</span>
             </div>
           </div>
         </div>
@@ -304,14 +347,23 @@ defineExpose({
           <el-icon class="is-loading"><Loading /></el-icon>
         </template>
       </el-input>
-      <el-dropdown trigger="click" @command="handleMatchModeChange" placement="top-end">
+      <el-dropdown
+        trigger="click"
+        @command="handleMatchModeChange"
+        placement="top-end"
+      >
         <div>
           <el-tooltip
             :content="`搜索模式: ${matchModeOptions.find((o) => o.value === matchMode)?.desc}`"
             placement="top"
             :show-after="400"
           >
-            <el-button size="small" :type="matchMode !== 'exact' ? 'primary' : ''" plain class="match-mode-btn">
+            <el-button
+              size="small"
+              :type="matchMode !== 'exact' ? 'primary' : ''"
+              plain
+              class="match-mode-btn"
+            >
               {{ currentModeLabel }}
             </el-button>
           </el-tooltip>

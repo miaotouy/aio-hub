@@ -44,7 +44,8 @@ export function useKbEntryManagement() {
         entry: newEntry,
         config: {
           autoExtractTags: store.config.importSettings?.autoExtractTags ?? true,
-          autoExtractTitle: store.config.importSettings?.autoExtractTitle ?? false,
+          autoExtractTitle:
+            store.config.importSettings?.autoExtractTitle ?? false,
         },
       });
 
@@ -61,7 +62,9 @@ export function useKbEntryManagement() {
         id: entryId,
         key: savedEntry.key,
         summary: savedEntry.summary || content.substring(0, 100),
-        tags: (savedEntry.tags || []).map((t: any) => (typeof t === "string" ? t : t.name)),
+        tags: (savedEntry.tags || []).map((t: any) =>
+          typeof t === "string" ? t : t.name
+        ),
         priority: 100,
         enabled: savedEntry.enabled ?? true,
         updatedAt: now,
@@ -110,7 +113,8 @@ export function useKbEntryManagement() {
         deduplicate: store.config.importSettings?.deduplicate ?? true,
         config: {
           autoExtractTags: store.config.importSettings?.autoExtractTags ?? true,
-          autoExtractTitle: store.config.importSettings?.autoExtractTitle ?? false,
+          autoExtractTitle:
+            store.config.importSettings?.autoExtractTitle ?? false,
         },
       });
 
@@ -120,7 +124,9 @@ export function useKbEntryManagement() {
             id: entry.id,
             key: entry.key,
             summary: entry.summary || "",
-            tags: (entry.tags || []).map((t: any) => (typeof t === "string" ? t : t.name)),
+            tags: (entry.tags || []).map((t: any) =>
+              typeof t === "string" ? t : t.name
+            ),
             priority: entry.priority,
             enabled: entry.enabled ?? true,
             updatedAt: entry.updatedAt,
@@ -154,8 +160,15 @@ export function useKbEntryManagement() {
   /**
    * 批量添加条目内容
    */
-  async function addEntries(items: { key: string; content: string }[], options: { deduplicate?: boolean } = {}) {
-    const { deduplicate = options.deduplicate ?? store.config.importSettings.deduplicate ?? true } = options;
+  async function addEntries(
+    items: { key: string; content: string }[],
+    options: { deduplicate?: boolean } = {}
+  ) {
+    const {
+      deduplicate = options.deduplicate ??
+        store.config.importSettings.deduplicate ??
+        true,
+    } = options;
     if (!store.activeBaseId || !store.activeBaseMeta || items.length === 0) {
       return { ids: [], skippedCount: 0, dupeCount: 0 };
     }
@@ -189,7 +202,8 @@ export function useKbEntryManagement() {
         deduplicate,
         config: {
           autoExtractTags: store.config.importSettings?.autoExtractTags ?? true,
-          autoExtractTitle: store.config.importSettings?.autoExtractTitle ?? false,
+          autoExtractTitle:
+            store.config.importSettings?.autoExtractTitle ?? false,
         },
       });
 
@@ -199,7 +213,9 @@ export function useKbEntryManagement() {
             id: entry.id,
             key: entry.key,
             summary: entry.summary || entry.content.substring(0, 100),
-            tags: (entry.tags || []).map((t: any) => (typeof t === "string" ? t : t.name)),
+            tags: (entry.tags || []).map((t: any) =>
+              typeof t === "string" ? t : t.name
+            ),
             priority: entry.priority,
             enabled: entry.enabled ?? true,
             updatedAt: entry.updatedAt,
@@ -251,9 +267,13 @@ export function useKbEntryManagement() {
 
       store.entriesCache.set(caiuId, savedEntry);
 
-      const idx = store.activeBaseMeta.entries.findIndex((e) => e.id === caiuId);
+      const idx = store.activeBaseMeta.entries.findIndex(
+        (e) => e.id === caiuId
+      );
       if (idx !== -1) {
-        const tagNames = (savedEntry.tags || []).map((t) => (typeof t === "string" ? t : t.name)).filter(Boolean);
+        const tagNames = (savedEntry.tags || [])
+          .map((t) => (typeof t === "string" ? t : t.name))
+          .filter(Boolean);
         store.activeBaseMeta.entries[idx] = {
           ...store.activeBaseMeta.entries[idx],
           key: savedEntry.key,
@@ -275,14 +295,20 @@ export function useKbEntryManagement() {
   /**
    * 批量更新条目（直接调用后端批量 patch 接口，不循环单个更新）
    */
-  async function batchUpdateEntries(caiuIds: string[], patch: Partial<CaiuInput>) {
-    if (!store.activeBaseId || !store.activeBaseMeta || caiuIds.length === 0) return;
+  async function batchUpdateEntries(
+    caiuIds: string[],
+    patch: Partial<CaiuInput>
+  ) {
+    if (!store.activeBaseId || !store.activeBaseMeta || caiuIds.length === 0)
+      return;
 
     // 预过滤：只处理状态真正变化的条目
     const entriesToUpdate = store.activeBaseMeta.entries.filter((e) => {
       if (!caiuIds.includes(e.id)) return false;
-      if (patch.enabled !== undefined && e.enabled === patch.enabled) return false;
-      if (patch.priority !== undefined && e.priority === patch.priority) return false;
+      if (patch.enabled !== undefined && e.enabled === patch.enabled)
+        return false;
+      if (patch.priority !== undefined && e.priority === patch.priority)
+        return false;
       return true;
     });
 
@@ -305,8 +331,10 @@ export function useKbEntryManagement() {
       for (const id of updateIds) {
         const idx = store.activeBaseMeta!.entries.findIndex((e) => e.id === id);
         if (idx !== -1) {
-          if (patch.enabled !== undefined) store.activeBaseMeta!.entries[idx].enabled = patch.enabled;
-          if (patch.priority !== undefined) store.activeBaseMeta!.entries[idx].priority = patch.priority;
+          if (patch.enabled !== undefined)
+            store.activeBaseMeta!.entries[idx].enabled = patch.enabled;
+          if (patch.priority !== undefined)
+            store.activeBaseMeta!.entries[idx].priority = patch.priority;
           store.activeBaseMeta!.entries[idx].updatedAt = now;
         }
       }
@@ -328,7 +356,9 @@ export function useKbEntryManagement() {
     store.loading = true;
     try {
       await kbStorage.deleteEntry(store.activeBaseId, caiuId);
-      store.activeBaseMeta.entries = store.activeBaseMeta.entries.filter((e) => e.id !== caiuId);
+      store.activeBaseMeta.entries = store.activeBaseMeta.entries.filter(
+        (e) => e.id !== caiuId
+      );
       store.entriesCache.delete(caiuId);
       if (store.activeEntryId === caiuId) store.activeEntryId = null;
       await store.syncBaseMeta();
@@ -342,7 +372,8 @@ export function useKbEntryManagement() {
    * 批量删除条目
    */
   async function deleteEntries(caiuIds: string[]) {
-    if (!store.activeBaseId || !store.activeBaseMeta || caiuIds.length === 0) return;
+    if (!store.activeBaseId || !store.activeBaseMeta || caiuIds.length === 0)
+      return;
     store.loading = true;
     try {
       await kbStorage.deleteEntries(store.activeBaseId, caiuIds);
@@ -350,7 +381,9 @@ export function useKbEntryManagement() {
         store.entriesCache.delete(id);
         if (store.activeEntryId === id) store.activeEntryId = null;
       }
-      store.activeBaseMeta.entries = store.activeBaseMeta.entries.filter((e) => !caiuIds.includes(e.id));
+      store.activeBaseMeta.entries = store.activeBaseMeta.entries.filter(
+        (e) => !caiuIds.includes(e.id)
+      );
       await store.syncBaseMeta();
       customMessage.success(`已删除 ${caiuIds.length} 个条目`);
     } finally {

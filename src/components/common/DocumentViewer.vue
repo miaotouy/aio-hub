@@ -7,7 +7,15 @@ import PdfViewer from "./PdfViewer.vue";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import HtmlInteractiveViewer from "@/tools/rich-text-renderer/components/HtmlInteractiveViewer.vue";
 import { RendererVersion } from "@/tools/rich-text-renderer/types";
-import { ElSkeleton, ElAlert, ElButton, ElButtonGroup, ElTooltip, ElRadioGroup, ElRadioButton } from "element-plus";
+import {
+  ElSkeleton,
+  ElAlert,
+  ElButton,
+  ElButtonGroup,
+  ElTooltip,
+  ElRadioGroup,
+  ElRadioButton,
+} from "element-plus";
 import { useClipboard } from "@vueuse/core";
 import { Copy, Download, Book, Code } from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
@@ -70,7 +78,7 @@ watch(
       viewMode.value = "source";
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 watch(
@@ -79,11 +87,16 @@ watch(
     if (newType) {
       currentEditorType.value = newType;
     }
-  },
+  }
 );
-const showToolbar = computed(() => !isLoading.value && !error.value && decodedContent.value && !isPdf.value);
+const showToolbar = computed(
+  () => !isLoading.value && !error.value && decodedContent.value && !isPdf.value
+);
 
-const canPreview = computed(() => isMarkdown.value || isRenderableHtml.value || isPdf.value || isDocx.value);
+const canPreview = computed(
+  () =>
+    isMarkdown.value || isRenderableHtml.value || isPdf.value || isDocx.value
+);
 
 const editorLanguage = computed(() => {
   if (viewMode.value === "source") {
@@ -105,7 +118,9 @@ function handleCopy() {
 function handleDownload() {
   try {
     if (!decodedContent.value) return;
-    const blob = new Blob([decodedContent.value], { type: mimeType.value || "text/plain" });
+    const blob = new Blob([decodedContent.value], {
+      type: mimeType.value || "text/plain",
+    });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -137,7 +152,11 @@ function toggleViewMode() {
         </span>
       </div>
       <div class="actions-right">
-        <el-radio-group v-if="props.showEngineSwitch" v-model="currentEditorType" size="small">
+        <el-radio-group
+          v-if="props.showEngineSwitch"
+          v-model="currentEditorType"
+          size="small"
+        >
           <el-tooltip content="CodeMirror 引擎 (兼容性好, 启动快)">
             <el-radio-button value="codemirror">CodeMirror</el-radio-button>
           </el-tooltip>
@@ -148,7 +167,11 @@ function toggleViewMode() {
 
         <el-button-group>
           <el-tooltip v-if="canPreview" content="切换视图">
-            <el-button :icon="viewMode === 'preview' ? Code : Book" text @click="toggleViewMode" />
+            <el-button
+              :icon="viewMode === 'preview' ? Code : Book"
+              text
+              @click="toggleViewMode"
+            />
           </el-tooltip>
           <el-tooltip content="复制内容">
             <el-button :icon="Copy" text @click="handleCopy" />
@@ -166,9 +189,18 @@ function toggleViewMode() {
         <el-skeleton :rows="5" animated />
       </div>
 
-      <el-alert v-else-if="error" :title="`加载文档失败: ${error}`" type="error" :closable="false" show-icon />
+      <el-alert
+        v-else-if="error"
+        :title="`加载文档失败: ${error}`"
+        type="error"
+        :closable="false"
+        show-icon
+      />
 
-      <div v-else-if="!decodedContent && !isTextContent && !isPdf && !isDocx" class="binary-placeholder">
+      <div
+        v-else-if="!decodedContent && !isTextContent && !isPdf && !isDocx"
+        class="binary-placeholder"
+      >
         <el-alert
           title="不支持预览的二进制文件"
           :description="`MIME 类型: ${mimeType || '未知'}`"
@@ -201,9 +233,16 @@ function toggleViewMode() {
         class="html-preview-component"
       />
 
-      <div v-else-if="isDocx && viewMode === 'preview'" class="docx-preview-component" v-html="decodedContent" />
+      <div
+        v-else-if="isDocx && viewMode === 'preview'"
+        class="docx-preview-component"
+        v-html="decodedContent"
+      />
 
-      <div v-else-if="isHtml && !isRenderableHtml && viewMode === 'preview'" class="unrenderable-html-placeholder">
+      <div
+        v-else-if="isHtml && !isRenderableHtml && viewMode === 'preview'"
+        class="unrenderable-html-placeholder"
+      >
         <el-alert
           title="无法直接预览"
           description="此 HTML 文件可能是一个需要编译的组件模板 (例如 Vue 或 React 组件)，而不是一个独立的网页，因此无法直接预览。"

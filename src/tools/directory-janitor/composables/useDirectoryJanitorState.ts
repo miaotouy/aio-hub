@@ -1,15 +1,15 @@
-import { ref, computed } from 'vue';
-import type { ItemInfo, DirectoryScanProgress, Statistics } from '../types';
+import { ref, computed } from "vue";
+import type { ItemInfo, DirectoryScanProgress, Statistics } from "../types";
 
 /**
  * 目录清道夫状态管理 Composable
- * 
+ *
  * 提供去中心化的状态管理，UI 和业务逻辑可以按需组合使用
  */
 export function useDirectoryJanitorState() {
   // ==================== 扫描配置状态 ====================
-  const scanPath = ref('');
-  const namePattern = ref('');
+  const scanPath = ref("");
+  const namePattern = ref("");
   const minAgeDays = ref<number | undefined>(undefined);
   const minSizeMB = ref<number | undefined>(undefined);
   const maxDepth = ref(5);
@@ -20,7 +20,7 @@ export function useDirectoryJanitorState() {
   const hasAnalyzed = ref(false);
 
   // ==================== 二次筛选条件 ====================
-  const filterNamePattern = ref('');
+  const filterNamePattern = ref("");
   const filterMinAgeDays = ref<number | undefined>(undefined);
   const filterMinSizeMB = ref<number | undefined>(undefined);
 
@@ -49,7 +49,8 @@ export function useDirectoryJanitorState() {
 
     // 年龄筛选
     if (filterMinAgeDays.value !== undefined && filterMinAgeDays.value > 0) {
-      const minTimestamp = Math.floor(Date.now() / 1000) - filterMinAgeDays.value * 86400;
+      const minTimestamp =
+        Math.floor(Date.now() / 1000) - filterMinAgeDays.value * 86400;
       filtered = filtered.filter((item) => item.modified < minTimestamp);
     }
 
@@ -103,7 +104,7 @@ export function useDirectoryJanitorState() {
    * 清除所有筛选条件
    */
   function clearFilters() {
-    filterNamePattern.value = '';
+    filterNamePattern.value = "";
     filterMinAgeDays.value = undefined;
     filterMinSizeMB.value = undefined;
   }
@@ -112,8 +113,8 @@ export function useDirectoryJanitorState() {
    * 重置所有状态
    */
   function reset() {
-    scanPath.value = '';
-    namePattern.value = '';
+    scanPath.value = "";
+    namePattern.value = "";
     minAgeDays.value = undefined;
     minSizeMB.value = undefined;
     maxDepth.value = 5;

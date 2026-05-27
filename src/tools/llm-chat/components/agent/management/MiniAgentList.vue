@@ -29,7 +29,8 @@ const filteredAgents = computed(() => {
     result = result.filter(
       (agent) =>
         agent.name.toLowerCase().includes(query) ||
-        (agent.displayName && agent.displayName.toLowerCase().includes(query)) ||
+        (agent.displayName &&
+          agent.displayName.toLowerCase().includes(query)) ||
         (agent.description && agent.description.toLowerCase().includes(query))
     );
   }
@@ -58,7 +59,10 @@ const handleCreate = () => {
 
 <template>
   <div class="mini-agent-list">
-    <div class="list-container" v-bind="filteredAgents.length > 0 ? containerProps : {}">
+    <div
+      class="list-container"
+      v-bind="filteredAgents.length > 0 ? containerProps : {}"
+    >
       <div v-if="agentStore.agents.length === 0" class="empty-state">
         <p>暂无智能体</p>
       </div>
@@ -82,9 +86,15 @@ const handleCreate = () => {
           />
           <div class="agent-info">
             <div class="agent-name-row">
-              <span class="agent-name">{{ agent.displayName || agent.name }}</span>
+              <span class="agent-name">{{
+                agent.displayName || agent.name
+              }}</span>
             </div>
-            <div v-if="agent.description" class="agent-desc" :title="agent.description">
+            <div
+              v-if="agent.description"
+              class="agent-desc"
+              :title="agent.description"
+            >
               {{ agent.description }}
             </div>
           </div>

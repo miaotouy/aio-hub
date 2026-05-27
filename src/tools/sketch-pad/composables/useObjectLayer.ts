@@ -55,7 +55,12 @@ export function useObjectLayer() {
       name: "object-node",
       x: obj.x,
       y: obj.y,
-      points: [obj.points[0].x, obj.points[0].y, obj.points[1].x, obj.points[1].y],
+      points: [
+        obj.points[0].x,
+        obj.points[0].y,
+        obj.points[1].x,
+        obj.points[1].y,
+      ],
       rotation: obj.rotation,
       opacity: obj.opacity,
       scaleX: obj.scaleX ?? 1,
@@ -72,7 +77,12 @@ export function useObjectLayer() {
       name: "object-node",
       x: obj.x,
       y: obj.y,
-      points: [obj.points[0].x, obj.points[0].y, obj.points[1].x, obj.points[1].y],
+      points: [
+        obj.points[0].x,
+        obj.points[0].y,
+        obj.points[1].x,
+        obj.points[1].y,
+      ],
       rotation: obj.rotation,
       opacity: obj.opacity,
       scaleX: obj.scaleX ?? 1,
@@ -169,7 +179,19 @@ export function useObjectLayer() {
     const scaleX = node.scaleX();
     const scaleY = node.scaleY();
 
-    const base = { id, type, x, y, width, height, rotation, opacity, locked, scaleX, scaleY };
+    const base = {
+      id,
+      type,
+      x,
+      y,
+      width,
+      height,
+      rotation,
+      opacity,
+      locked,
+      scaleX,
+      scaleY,
+    };
 
     if (node instanceof Konva.Rect) {
       return {
@@ -220,7 +242,8 @@ export function useObjectLayer() {
       const isBold = fontStyleStr.includes("bold");
       const isItalic = fontStyleStr.includes("italic");
       // 判断 autoSize：如果 Konva 节点没有显式设置 width（attrs 中无 width），则为自适应模式
-      const hasExplicitWidth = node.attrs.width !== undefined && node.attrs.width !== null;
+      const hasExplicitWidth =
+        node.attrs.width !== undefined && node.attrs.width !== null;
       const autoSize = !hasExplicitWidth;
       return {
         ...base,

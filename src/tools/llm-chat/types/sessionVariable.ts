@@ -1,7 +1,15 @@
 /**
  * 变量操作符定义
  */
-export type VariableOperator = "=" | "+" | "-" | "*" | "/" | "set" | "add" | "sub";
+export type VariableOperator =
+  | "="
+  | "+"
+  | "-"
+  | "*"
+  | "/"
+  | "set"
+  | "add"
+  | "sub";
 
 /**
  * 变量树节点

@@ -14,7 +14,11 @@
       @update:modified="(value: string) => emit('update:modified', value)"
     />
     <!-- CodeMirror 编辑器 -->
-    <div v-else-if="props.editorType === 'codemirror'" ref="editorContainerRef" class="editor-container"></div>
+    <div
+      v-else-if="props.editorType === 'codemirror'"
+      ref="editorContainerRef"
+      class="editor-container"
+    ></div>
     <!-- Monaco 编辑器 -->
     <vue-monaco-editor
       v-else-if="props.editorType === 'monaco'"
@@ -31,9 +35,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, shallowRef, computed, nextTick } from "vue";
+import {
+  ref,
+  onMounted,
+  onUnmounted,
+  watch,
+  shallowRef,
+  computed,
+  nextTick,
+} from "vue";
 import { useTheme } from "@composables/useTheme";
-import { VueMonacoEditor, VueMonacoDiffEditor } from "@guolao/vue-monaco-editor";
+import {
+  VueMonacoEditor,
+  VueMonacoDiffEditor,
+} from "@guolao/vue-monaco-editor";
 import type { editor as MonacoEditor } from "monaco-editor";
 import { EditorState, Compartment } from "@codemirror/state";
 import {
@@ -46,8 +61,17 @@ import {
   highlightActiveLine,
   highlightActiveLineGutter,
 } from "@codemirror/view";
-import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
-import { highlightSelectionMatches, searchKeymap, search } from "@codemirror/search";
+import {
+  defaultKeymap,
+  history,
+  historyKeymap,
+  indentWithTab,
+} from "@codemirror/commands";
+import {
+  highlightSelectionMatches,
+  searchKeymap,
+  search,
+} from "@codemirror/search";
 import {
   autocompletion,
   completionKeymap,
@@ -57,7 +81,10 @@ import {
 } from "@codemirror/autocomplete";
 import { foldGutter, foldKeymap } from "@codemirror/language";
 import { vscodeLight, vscodeDark } from "@uiw/codemirror-theme-vscode";
-import { getMonacoLanguageId, getCodeMirrorLanguage } from "@/utils/codeLanguages";
+import {
+  getMonacoLanguageId,
+  getCodeMirrorLanguage,
+} from "@/utils/codeLanguages";
 
 const props = withDefaults(
   defineProps<{
@@ -69,7 +96,9 @@ const props = withDefaults(
     readOnly?: boolean;
     lineNumbers?: boolean;
     editorType?: "codemirror" | "monaco";
-    options?: MonacoEditor.IStandaloneDiffEditorConstructionOptions | MonacoEditor.IStandaloneEditorConstructionOptions;
+    options?:
+      | MonacoEditor.IStandaloneDiffEditorConstructionOptions
+      | MonacoEditor.IStandaloneEditorConstructionOptions;
     /** 自定义补全源（仅 CodeMirror 支持） */
     completionSource?: CompletionSource | CompletionSource[];
     /** 是否禁用默认的语言补全（如 HTML 标签补全） */
@@ -85,14 +114,20 @@ const props = withDefaults(
     readOnly: false,
     options: () => ({}),
     disableDefaultCompletion: false,
-  },
+  }
 );
 
 const emit = defineEmits<{
   (e: "update:modelValue", value: string): void;
   (e: "update:original", value: string): void;
   (e: "update:modified", value: string): void;
-  (e: "mount", editor: MonacoEditor.IStandaloneCodeEditor | EditorView | MonacoEditor.IStandaloneDiffEditor): void;
+  (
+    e: "mount",
+    editor:
+      | MonacoEditor.IStandaloneCodeEditor
+      | EditorView
+      | MonacoEditor.IStandaloneDiffEditor
+  ): void;
 }>();
 
 const editorContainerRef = ref<HTMLDivElement | null>(null);
@@ -159,42 +194,46 @@ const zhCnPhrases = {
 };
 
 // Monaco Editor 相关状态
-const monacoEditorInstance = shallowRef<MonacoEditor.IStandaloneCodeEditor | null>(null);
-const monacoDiffEditorInstance = shallowRef<MonacoEditor.IStandaloneDiffEditor | null>(null);
+const monacoEditorInstance =
+  shallowRef<MonacoEditor.IStandaloneCodeEditor | null>(null);
+const monacoDiffEditorInstance =
+  shallowRef<MonacoEditor.IStandaloneDiffEditor | null>(null);
 const monacoValue = ref(props.modelValue);
 
 // Monaco Editor 配置
-const monacoOptions = computed<MonacoEditor.IStandaloneEditorConstructionOptions>(() => ({
-  readOnly: props.readOnly ?? false,
-  lineNumbers: (props.lineNumbers ?? true) ? "on" : "off",
-  minimap: { enabled: false },
-  scrollBeyondLastLine: false,
-  fontSize: 14,
-  fontFamily: "'Consolas', 'Monaco', 'Courier New', monospace",
-  wordWrap: "on",
-  automaticLayout: true,
-  scrollbar: {
-    vertical: "auto",
-    horizontal: "auto",
-    verticalScrollbarSize: 8,
-    horizontalScrollbarSize: 8,
-  },
-  renderLineHighlight: "all",
-  folding: true,
-  foldingStrategy: "indentation",
-  showFoldingControls: "always",
-  ...(props.options as MonacoEditor.IStandaloneEditorConstructionOptions),
-}));
+const monacoOptions =
+  computed<MonacoEditor.IStandaloneEditorConstructionOptions>(() => ({
+    readOnly: props.readOnly ?? false,
+    lineNumbers: (props.lineNumbers ?? true) ? "on" : "off",
+    minimap: { enabled: false },
+    scrollBeyondLastLine: false,
+    fontSize: 14,
+    fontFamily: "'Consolas', 'Monaco', 'Courier New', monospace",
+    wordWrap: "on",
+    automaticLayout: true,
+    scrollbar: {
+      vertical: "auto",
+      horizontal: "auto",
+      verticalScrollbarSize: 8,
+      horizontalScrollbarSize: 8,
+    },
+    renderLineHighlight: "all",
+    folding: true,
+    foldingStrategy: "indentation",
+    showFoldingControls: "always",
+    ...(props.options as MonacoEditor.IStandaloneEditorConstructionOptions),
+  }));
 
 // Monaco Diff Editor 配置
-const monacoDiffOptions = computed<MonacoEditor.IStandaloneDiffEditorConstructionOptions>(() => ({
-  readOnly: props.readOnly ?? false,
-  lineNumbers: (props.lineNumbers ?? true) ? "on" : "off",
-  automaticLayout: true,
-  fontSize: 14,
-  scrollBeyondLastLine: false,
-  ...(props.options as MonacoEditor.IStandaloneDiffEditorConstructionOptions),
-}));
+const monacoDiffOptions =
+  computed<MonacoEditor.IStandaloneDiffEditorConstructionOptions>(() => ({
+    readOnly: props.readOnly ?? false,
+    lineNumbers: (props.lineNumbers ?? true) ? "on" : "off",
+    automaticLayout: true,
+    fontSize: 14,
+    scrollBeyondLastLine: false,
+    ...(props.options as MonacoEditor.IStandaloneDiffEditorConstructionOptions),
+  }));
 // Monaco 语言映射
 const getMonacoLanguage = () => {
   return getMonacoLanguageId(props.language);
@@ -441,7 +480,11 @@ const destroyCodeMirror = () => {
 
 // 监听 Monaco 值变化并同步到父组件
 watch(monacoValue, (newVal) => {
-  if (!props.diff && props.editorType === "monaco" && newVal !== props.modelValue) {
+  if (
+    !props.diff &&
+    props.editorType === "monaco" &&
+    newVal !== props.modelValue
+  ) {
     emit("update:modelValue", newVal);
   }
 });
@@ -463,9 +506,16 @@ watch(
   (newVal) => {
     if (props.diff) return;
     if (props.editorType === "codemirror") {
-      if (editorView.value && newVal !== editorView.value.state.doc.toString()) {
+      if (
+        editorView.value &&
+        newVal !== editorView.value.state.doc.toString()
+      ) {
         editorView.value.dispatch({
-          changes: { from: 0, to: editorView.value.state.doc.length, insert: newVal },
+          changes: {
+            from: 0,
+            to: editorView.value.state.doc.length,
+            insert: newVal,
+          },
         });
       }
     } else if (props.editorType === "monaco") {
@@ -473,7 +523,7 @@ watch(
         monacoValue.value = newVal;
       }
     }
-  },
+  }
 );
 
 // 监听配置变化 - CodeMirror
@@ -483,11 +533,13 @@ watch(
     if (props.diff) return;
     if (props.editorType === "codemirror" && editorView.value) {
       editorView.value.dispatch({
-        effects: editableCompartment.reconfigure(EditorView.editable.of(!(isReadOnly ?? false))),
+        effects: editableCompartment.reconfigure(
+          EditorView.editable.of(!(isReadOnly ?? false))
+        ),
       });
     }
     // Monaco 通过 computed options 自动响应
-  },
+  }
 );
 
 watch(
@@ -496,11 +548,13 @@ watch(
     if (props.diff) return;
     if (props.editorType === "codemirror" && editorView.value) {
       editorView.value.dispatch({
-        effects: lineNumbersCompartment.reconfigure((show ?? true) ? lineNumbers() : []),
+        effects: lineNumbersCompartment.reconfigure(
+          (show ?? true) ? lineNumbers() : []
+        ),
       });
     }
     // Monaco 通过 computed options 自动响应
-  },
+  }
 );
 
 // 监听编辑器类型切换
@@ -515,7 +569,7 @@ watch(
     } else if (newType === "monaco" && oldType === "codemirror") {
       destroyCodeMirror();
     }
-  },
+  }
 );
 
 watch(cmTheme, (newTheme) => {
@@ -535,7 +589,7 @@ watch(
         effects: languageCompartment.reconfigure(languageExt || []),
       });
     }
-  },
+  }
 );
 
 // 暴露一些有用的方法（统一 CodeMirror 和 Monaco 的 API）
@@ -549,13 +603,19 @@ const getContent = (): string => {
 
 const setContent = (newContent: string): void => {
   if (props.diff) {
-    console.warn("`setContent` is not supported in diff mode. Use `original` and `modified` props.");
+    console.warn(
+      "`setContent` is not supported in diff mode. Use `original` and `modified` props."
+    );
     return;
   }
   if (props.editorType === "codemirror") {
     if (editorView.value) {
       editorView.value.dispatch({
-        changes: { from: 0, to: editorView.value.state.doc.length, insert: newContent },
+        changes: {
+          from: 0,
+          to: editorView.value.state.doc.length,
+          insert: newContent,
+        },
       });
     }
   } else {
@@ -646,11 +706,13 @@ defineExpose({
   background-color: var(--input-bg) !important;
 }
 
-.monaco-editor-container :deep(.monaco-scrollable-element > .scrollbar > .slider) {
+.monaco-editor-container
+  :deep(.monaco-scrollable-element > .scrollbar > .slider) {
   background: var(--scrollbar-thumb-color) !important;
 }
 
-.monaco-editor-container :deep(.monaco-scrollable-element > .scrollbar > .slider:hover) {
+.monaco-editor-container
+  :deep(.monaco-scrollable-element > .scrollbar > .slider:hover) {
   background: var(--scrollbar-thumb-hover-color) !important;
 }
 
@@ -663,10 +725,22 @@ defineExpose({
     我们根据 useThemeAppearance 的逻辑重新构建正确的背景色，并使用 --code-block-bg 变量来同步设置。
   */
   --vscode-editor-background: var(--code-block-bg, var(--input-bg)) !important;
-  --vscode-editorGutter-background: var(--code-block-bg, var(--input-bg)) !important;
-  --vscode-editorStickyScrollGutter-background: var(--code-block-bg, var(--card-bg)) !important;
-  --vscode-editorStickyScroll-background: var(--code-block-bg, var(--card-bg)) !important;
-  --vscode-editorStickyScroll-shadow: var(--code-block-bg, var(--card-bg)) !important;
+  --vscode-editorGutter-background: var(
+    --code-block-bg,
+    var(--input-bg)
+  ) !important;
+  --vscode-editorStickyScrollGutter-background: var(
+    --code-block-bg,
+    var(--card-bg)
+  ) !important;
+  --vscode-editorStickyScroll-background: var(
+    --code-block-bg,
+    var(--card-bg)
+  ) !important;
+  --vscode-editorStickyScroll-shadow: var(
+    --code-block-bg,
+    var(--card-bg)
+  ) !important;
 }
 
 :deep(.monaco-editor .monaco-editor-background),

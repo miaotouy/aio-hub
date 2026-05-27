@@ -22,7 +22,11 @@ export function detectFormatByPath(filePath: string): ConfigFormat | "unknown" {
   if (lowerPath.endsWith(".xml")) {
     return "xml";
   }
-  if (lowerPath.endsWith(".env") || lowerPath.includes(".env.") || lowerPath.endsWith("properties")) {
+  if (
+    lowerPath.endsWith(".env") ||
+    lowerPath.includes(".env.") ||
+    lowerPath.endsWith("properties")
+  ) {
     return "env";
   }
 
@@ -32,7 +36,9 @@ export function detectFormatByPath(filePath: string): ConfigFormat | "unknown" {
 /**
  * 根据内容嗅探格式
  */
-export function sniffFormatByContent(content: string): ConfigFormat | "unknown" {
+export function sniffFormatByContent(
+  content: string
+): ConfigFormat | "unknown" {
   const trimmed = content.trim();
   if (!trimmed) {
     return "unknown";

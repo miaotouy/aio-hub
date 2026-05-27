@@ -26,14 +26,19 @@ const assetGroupStats = computed(() => {
 
   // 统计资产
   editForm.assets.forEach((asset: any) => {
-    const gid = asset.group && counts[asset.group] !== undefined ? asset.group : "default";
+    const gid =
+      asset.group && counts[asset.group] !== undefined
+        ? asset.group
+        : "default";
     counts[gid]++;
   });
   return counts;
 });
 
 const sortedAssetGroups = computed(() => {
-  return [...editForm.assetGroups].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+  return [...editForm.assetGroups].sort(
+    (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+  );
 });
 
 // 虚拟时间预览相关
@@ -69,8 +74,15 @@ const parseMacroPreview = async (input: string): Promise<string> => {
     const args = argsStr ? argsStr.split("::") : undefined;
     if (replacements.has(fullMatch)) continue;
     try {
-      const value = await MacroProcessor.executeDirectly(macroName, args, extraContext);
-      replacements.set(fullMatch, value !== null ? value : `[无效宏: ${macroName}]`);
+      const value = await MacroProcessor.executeDirectly(
+        macroName,
+        args,
+        extraContext
+      );
+      replacements.set(
+        fullMatch,
+        value !== null ? value : `[无效宏: ${macroName}]`
+      );
     } catch (e) {
       replacements.set(fullMatch, `[错误: ${macroName}]`);
     }
@@ -98,7 +110,9 @@ const stopPreviewTimer = () => {
   }
 };
 
-const shouldTimerBeRunning = computed(() => virtualTimeEnabled.value && activeTab.value === "capabilities");
+const shouldTimerBeRunning = computed(
+  () => virtualTimeEnabled.value && activeTab.value === "capabilities"
+);
 
 watch(
   () => [
@@ -136,30 +150,53 @@ const handleInsertMacro = (macro: MacroDefinition) => {
     <div class="section-group" data-setting-id="assets">
       <div class="section-group-title">资产管理</div>
       <div class="form-hint" style="margin-bottom: 12px">
-        管理该智能体的专属资产（图片、音频等）。上传后可通过宏或 ID 在对话中引用。
+        管理该智能体的专属资产（图片、音频等）。上传后可通过宏或 ID
+        在对话中引用。
       </div>
       <div style="display: flex; align-items: center; gap: 16px">
-        <el-button type="primary" plain @click="assetsDialogVisible = true" :disabled="mode === 'create'">
+        <el-button
+          type="primary"
+          plain
+          @click="assetsDialogVisible = true"
+          :disabled="mode === 'create'"
+        >
           打开资产管理器
         </el-button>
-        <span v-if="mode === 'create'" style="font-size: 12px; color: var(--el-color-warning)">
+        <span
+          v-if="mode === 'create'"
+          style="font-size: 12px; color: var(--el-color-warning)"
+        >
           请先保存智能体后再管理资产
         </span>
-        <span v-else style="font-size: 12px; color: var(--el-text-color-secondary)">
+        <span
+          v-else
+          style="font-size: 12px; color: var(--el-text-color-secondary)"
+        >
           当前包含 {{ editForm.assets.length }} 个资产
         </span>
       </div>
 
       <!-- 资产分组预览 -->
-      <div class="asset-groups-preview" v-if="editForm.assets.length > 0 || editForm.assetGroups.length > 0">
-        <div v-for="group in sortedAssetGroups" :key="group.id" class="group-preview-item">
+      <div
+        class="asset-groups-preview"
+        v-if="editForm.assets.length > 0 || editForm.assetGroups.length > 0"
+      >
+        <div
+          v-for="group in sortedAssetGroups"
+          :key="group.id"
+          class="group-preview-item"
+        >
           <div class="group-icon">
             <span v-if="group.icon">{{ group.icon }}</span>
             <el-icon v-else><Folder /></el-icon>
           </div>
           <div class="group-info">
-            <div class="group-name" :title="group.displayName">{{ group.displayName }}</div>
-            <div class="group-count">{{ assetGroupStats[group.id] }} 个资产</div>
+            <div class="group-name" :title="group.displayName">
+              {{ group.displayName }}
+            </div>
+            <div class="group-count">
+              {{ assetGroupStats[group.id] }} 个资产
+            </div>
           </div>
         </div>
         <div v-if="assetGroupStats['default'] > 0" class="group-preview-item">
@@ -168,7 +205,9 @@ const handleInsertMacro = (macro: MacroDefinition) => {
           </div>
           <div class="group-info">
             <div class="group-name">未分组</div>
-            <div class="group-count">{{ assetGroupStats["default"] }} 个资产</div>
+            <div class="group-count">
+              {{ assetGroupStats["default"] }} 个资产
+            </div>
           </div>
         </div>
       </div>
@@ -180,7 +219,8 @@ const handleInsertMacro = (macro: MacroDefinition) => {
     <div class="section-group" data-setting-id="virtualTime">
       <div class="section-group-title">虚拟时间线</div>
       <div class="form-hint" style="margin-bottom: 12px">
-        设定智能体的虚拟时间流逝规则。启用后，{{ timeMacro }} 等宏将基于此配置计算时间。
+        设定智能体的虚拟时间流逝规则。启用后，{{ timeMacro }}
+        等宏将基于此配置计算时间。
       </div>
       <el-form-item label="启用虚拟时间">
         <el-switch v-model="virtualTimeEnabled" />
@@ -207,15 +247,28 @@ const handleInsertMacro = (macro: MacroDefinition) => {
           </div>
         </el-form-item>
         <el-form-item label="时间流速">
-          <el-input-number v-model="editForm.virtualTimeConfig.timeScale" :step="0.1" :precision="2" />
+          <el-input-number
+            v-model="editForm.virtualTimeConfig.timeScale"
+            :step="0.1"
+            :precision="2"
+          />
         </el-form-item>
 
         <!-- 预览 -->
         <div class="macro-preview-box">
           <div class="preview-title">实时预览</div>
           <div class="macro-input-wrapper">
-            <el-input v-model="macroPreviewInput" placeholder="输入要测试的宏，如 {{time}}" clearable />
-            <el-popover v-model:visible="macroSelectorVisible" placement="bottom-end" :width="400" trigger="click">
+            <el-input
+              v-model="macroPreviewInput"
+              placeholder="输入要测试的宏，如 {{time}}"
+              clearable
+            />
+            <el-popover
+              v-model:visible="macroSelectorVisible"
+              placement="bottom-end"
+              :width="400"
+              trigger="click"
+            >
               <template #reference>
                 <el-button plain :icon="MagicStick">插入宏</el-button>
               </template>
@@ -226,7 +279,8 @@ const handleInsertMacro = (macro: MacroDefinition) => {
             {{ macroPreviewResult || "（输入宏后显示结果）" }}
           </div>
           <div class="form-hint">
-            支持：{{ timeMacro }}, {{ dateMacro }}, {{ datetimeMacro }}, {{ shichenMacro }} 等
+            支持：{{ timeMacro }}, {{ dateMacro }}, {{ datetimeMacro }},
+            {{ shichenMacro }} 等
           </div>
         </div>
       </template>

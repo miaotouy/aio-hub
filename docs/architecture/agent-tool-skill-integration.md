@@ -262,7 +262,10 @@ sequenceDiagram
 
 ```typescript
 // 执行器侧 - 发起审批
-const approvalResult = await toolCallingStore.requestApproval(sessionId, request);
+const approvalResult = await toolCallingStore.requestApproval(
+  sessionId,
+  request
+);
 // 这里会挂起，直到 UI 侧调用 approveRequest() 或 rejectRequest()
 ```
 

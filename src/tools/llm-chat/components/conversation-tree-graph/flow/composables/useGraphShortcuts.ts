@@ -18,8 +18,13 @@ function getBindingState(binding: string) {
  */
 export function useGraphShortcuts(
   target: Ref<HTMLElement | null>,
-  store: { canUndo: boolean; canRedo: boolean; undo: () => void; redo: () => void },
-  settings: Ref<{ shortcuts: { undo: string; redo: string } }>,
+  store: {
+    canUndo: boolean;
+    canRedo: boolean;
+    undo: () => void;
+    redo: () => void;
+  },
+  settings: Ref<{ shortcuts: { undo: string; redo: string } }>
 ) {
   // 注册撤销快捷键
   onKeyStroke(
@@ -39,7 +44,7 @@ export function useGraphShortcuts(
         store.undo();
       }
     },
-    { target },
+    { target }
   );
 
   // 注册重做快捷键
@@ -60,6 +65,6 @@ export function useGraphShortcuts(
         store.redo();
       }
     },
-    { target },
+    { target }
   );
 }

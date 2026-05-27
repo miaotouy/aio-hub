@@ -39,7 +39,8 @@ const agentProfileInfo = computed(() => {
 
   // 从元数据快照中获取显示名称（这是最可靠的来源）
   const snapshotModelName = metadata.modelDisplayName || metadata.modelName;
-  const snapshotProfileName = metadata.profileDisplayName || metadata.profileName;
+  const snapshotProfileName =
+    metadata.profileDisplayName || metadata.profileName;
 
   // 获取模型 ID 和提供商类型（用于图标匹配）
   const modelId = metadata.modelId || agent.value?.modelId;
@@ -51,7 +52,8 @@ const agentProfileInfo = computed(() => {
   const model = profile?.models.find((m) => m.id === modelId);
 
   // 确定最终显示的名称：优先元数据快照，其次当前配置
-  const displayModelName = snapshotModelName || model?.name || model?.id || modelId;
+  const displayModelName =
+    snapshotModelName || model?.name || model?.id || modelId;
   const displayProfileName = snapshotProfileName || profile?.name || profileId;
 
   // 如果连名称都无法确定，则不显示副标题
@@ -84,12 +86,21 @@ const effectiveUserProfile = computed(() => {
 const displayName = computed(() => {
   if (props.message.role === "user") {
     // 优先使用消息元数据中的用户档案快照
-    if (props.message.metadata?.userProfileDisplayName || props.message.metadata?.userProfileName) {
-      return props.message.metadata.userProfileDisplayName || props.message.metadata.userProfileName;
+    if (
+      props.message.metadata?.userProfileDisplayName ||
+      props.message.metadata?.userProfileName
+    ) {
+      return (
+        props.message.metadata.userProfileDisplayName ||
+        props.message.metadata.userProfileName
+      );
     }
     // 回退到当前生效的用户档案
     if (effectiveUserProfile.value) {
-      return effectiveUserProfile.value.displayName || effectiveUserProfile.value.name;
+      return (
+        effectiveUserProfile.value.displayName ||
+        effectiveUserProfile.value.name
+      );
     }
     // 最后使用默认值
     return "你";
@@ -155,7 +166,11 @@ const displayIcon = computed<any>(() => {
 
 // 检查是否应该显示副标题（基于设置和数据可用性）
 const shouldShowSubtitle = computed(() => {
-  return settings.value.uiPreferences.showModelInfo && props.message.role === "assistant" && !!agentProfileInfo.value;
+  return (
+    settings.value.uiPreferences.showModelInfo &&
+    props.message.role === "assistant" &&
+    !!agentProfileInfo.value
+  );
 });
 
 const nameForAlt = computed(() => {
@@ -200,7 +215,10 @@ const formatLatency = (ms: number) => {
       />
       <div class="message-info">
         <span class="message-name">{{ displayName }}</span>
-        <div v-if="shouldShowSubtitle && agentProfileInfo" class="message-subtitle">
+        <div
+          v-if="shouldShowSubtitle && agentProfileInfo"
+          class="message-subtitle"
+        >
           <!-- 模型信息 -->
           <div class="subtitle-item">
             <DynamicIcon
@@ -219,7 +237,9 @@ const formatLatency = (ms: number) => {
               :alt="agentProfileInfo.profileName"
               class="subtitle-icon"
             />
-            <span class="subtitle-text">{{ agentProfileInfo.profileName }}</span>
+            <span class="subtitle-text">{{
+              agentProfileInfo.profileName
+            }}</span>
           </div>
         </div>
       </div>
@@ -227,14 +247,28 @@ const formatLatency = (ms: number) => {
 
     <div class="header-right">
       <!-- 工具执行状态 -->
-      <div v-if="message.role === 'tool' && message.metadata?.toolCall" class="tool-status-tag">
+      <div
+        v-if="message.role === 'tool' && message.metadata?.toolCall"
+        class="tool-status-tag"
+      >
         <div class="status-item" :class="message.metadata.toolCall.status">
-          <component :is="message.metadata.toolCall.status === 'success' ? CheckCircle2 : XCircle" :size="12" />
-          <span>{{ message.metadata.toolCall.status === "success" ? "已完成" : "失败" }}</span>
+          <component
+            :is="
+              message.metadata.toolCall.status === 'success'
+                ? CheckCircle2
+                : XCircle
+            "
+            :size="12"
+          />
+          <span>{{
+            message.metadata.toolCall.status === "success" ? "已完成" : "失败"
+          }}</span>
         </div>
         <div class="status-item duration">
           <Clock :size="12" />
-          <span>{{ formatLatency(message.metadata.toolCall.durationMs || 0) }}</span>
+          <span>{{
+            formatLatency(message.metadata.toolCall.durationMs || 0)
+          }}</span>
         </div>
       </div>
 
@@ -248,31 +282,51 @@ const formatLatency = (ms: number) => {
         class="performance-stats"
       >
         <el-tooltip content="生成速度" placement="top">
-          <span class="stat-item">{{ message.metadata.tokensPerSecond }} t/s</span>
+          <span class="stat-item"
+            >{{ message.metadata.tokensPerSecond }} t/s</span
+          >
         </el-tooltip>
         <el-tooltip
-          v-if="message.metadata.requestStartTime !== undefined && message.metadata.firstTokenTime !== undefined"
+          v-if="
+            message.metadata.requestStartTime !== undefined &&
+            message.metadata.firstTokenTime !== undefined
+          "
           content="首字延迟 (TTFT)"
           placement="top"
         >
           <span class="stat-item">
-            {{ formatLatency(message.metadata.firstTokenTime - message.metadata.requestStartTime) }}
+            {{
+              formatLatency(
+                message.metadata.firstTokenTime -
+                  message.metadata.requestStartTime
+              )
+            }}
           </span>
         </el-tooltip>
         <el-tooltip
-          v-if="message.metadata.requestStartTime && message.metadata.requestEndTime"
+          v-if="
+            message.metadata.requestStartTime && message.metadata.requestEndTime
+          "
           content="总耗时"
           placement="top"
         >
           <span class="stat-item">
-            {{ ((message.metadata.requestEndTime - message.metadata.requestStartTime) / 1000).toFixed(1) }}s
+            {{
+              (
+                (message.metadata.requestEndTime -
+                  message.metadata.requestStartTime) /
+                1000
+              ).toFixed(1)
+            }}s
           </span>
         </el-tooltip>
       </div>
 
-      <span v-if="settings.uiPreferences.showTimestamp && message.timestamp" class="message-time">{{
-        formatRelativeTime(message.timestamp)
-      }}</span>
+      <span
+        v-if="settings.uiPreferences.showTimestamp && message.timestamp"
+        class="message-time"
+        >{{ formatRelativeTime(message.timestamp) }}</span
+      >
     </div>
   </div>
 </template>

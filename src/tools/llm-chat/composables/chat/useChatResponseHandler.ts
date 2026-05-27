@@ -20,8 +20,14 @@ const errorHandler = createModuleErrorHandler("llm-chat/response-handler");
 
 export function useChatResponseHandler() {
   // 用于节流 reasoning 和 content 更新的 Map
-  const reasoningUpdateBuffer = new Map<string, { buffer: string; isScheduled: boolean }>();
-  const contentUpdateBuffer = new Map<string, { buffer: string; isScheduled: boolean }>();
+  const reasoningUpdateBuffer = new Map<
+    string,
+    { buffer: string; isScheduled: boolean }
+  >();
+  const contentUpdateBuffer = new Map<
+    string,
+    { buffer: string; isScheduled: boolean }
+  >();
 
   // 用于控制增量保存的频率
   const lastPersistTimeMap = new Map<string, number>();
@@ -63,7 +69,7 @@ export function useChatResponseHandler() {
     session: ChatSessionDetail,
     nodeId: string,
     chunk: string,
-    isReasoning: boolean = false,
+    isReasoning: boolean = false
   ): void => {
     if (!session.nodes) return;
     const node = session.nodes[nodeId];
@@ -113,7 +119,7 @@ export function useChatResponseHandler() {
                 isReasoning: true,
               },
               0,
-              false,
+              false
             );
           }
           state.buffer = "";
@@ -155,7 +161,9 @@ export function useChatResponseHandler() {
                 nodeId,
                 startTime: nodeToUpdate.metadata.reasoningStartTime,
                 endTime: nodeToUpdate.metadata.reasoningEndTime,
-                duration: nodeToUpdate.metadata.reasoningEndTime - nodeToUpdate.metadata.reasoningStartTime,
+                duration:
+                  nodeToUpdate.metadata.reasoningEndTime -
+                  nodeToUpdate.metadata.reasoningStartTime,
               });
             }
             nodeToUpdate.content += contentState.buffer;
@@ -170,7 +178,7 @@ export function useChatResponseHandler() {
                 isReasoning: false,
               },
               0,
-              false,
+              false
             );
           }
           contentState.buffer = "";
@@ -193,25 +201,32 @@ export function useChatResponseHandler() {
     messages: Array<{
       role: "system" | "user" | "assistant";
       content: string | LlmMessageContent[];
-    }>,
+    }>
   ): Promise<void> => {
     // 检查 usage 是否可靠
     const hasContent = response.content && response.content.trim() !== "";
     const usageIsZero =
       !response.usage ||
       response.usage.totalTokens === 0 ||
-      (response.usage.promptTokens === 0 && response.usage.completionTokens === 0);
+      (response.usage.promptTokens === 0 &&
+        response.usage.completionTokens === 0);
 
     if (usageIsZero && hasContent) {
-      logger.warn("检测到 API 返回的 usage 信息不可靠（全为 0 但有内容），使用本地计算", {
-        originalUsage: response.usage,
-        contentLength: response.content.length,
-        modelId,
-      });
+      logger.warn(
+        "检测到 API 返回的 usage 信息不可靠（全为 0 但有内容），使用本地计算",
+        {
+          originalUsage: response.usage,
+          contentLength: response.content.length,
+          modelId,
+        }
+      );
 
       try {
         // 计算 completionTokens（助手回复）
-        const completionResult = await tokenCalculatorService.calculateTokens(response.content, modelId);
+        const completionResult = await tokenCalculatorService.calculateTokens(
+          response.content,
+          modelId
+        );
 
         // 计算 promptTokens（所有消息）
         let promptText = "";
@@ -228,7 +243,10 @@ export function useChatResponseHandler() {
           }
         }
 
-        const promptResult = await tokenCalculatorService.calculateTokens(promptText, modelId);
+        const promptResult = await tokenCalculatorService.calculateTokens(
+          promptText,
+          modelId
+        );
 
         // 更新 response 的 usage
         response.usage = {
@@ -261,7 +279,7 @@ export function useChatResponseHandler() {
     session: ChatSessionDetail,
     nodeId: string,
     response: any,
-    agentId: string,
+    agentId: string
   ): Promise<void> => {
     // 强制刷新所有缓冲区以确保最终状态正确
     const flushAllBuffers = () => {
@@ -272,7 +290,8 @@ export function useChatResponseHandler() {
       const rState = reasoningUpdateBuffer.get(nodeId);
       if (rState && rState.buffer) {
         if (!node.metadata) node.metadata = {};
-        node.metadata.reasoningContent = (node.metadata.reasoningContent || "") + rState.buffer;
+        node.metadata.reasoningContent =
+          (node.metadata.reasoningContent || "") + rState.buffer;
         rState.buffer = "";
       }
 
@@ -316,12 +335,18 @@ export function useChatResponseHandler() {
         });
 
         // 将新附件添加到节点
-        finalNode.attachments = [...(finalNode.attachments || []), ...newAssets];
+        finalNode.attachments = [
+          ...(finalNode.attachments || []),
+          ...newAssets,
+        ];
       }
 
       // 处理 openai-responses 等接口返回的独立图像数组
       if (response.images && response.images.length > 0) {
-        const { importAssetFromBytes } = await import("@/composables/useAssetManager").then((m) => m.useAssetManager());
+        const { importAssetFromBytes } =
+          await import("@/composables/useAssetManager").then((m) =>
+            m.useAssetManager()
+          );
         const imagesAssets = [];
 
         for (let i = 0; i < response.images.length; i++) {
@@ -335,14 +360,18 @@ export function useChatResponseHandler() {
                 bytes[j] = binaryString.charCodeAt(j);
               }
 
-              const asset = await importAssetFromBytes(bytes.buffer, `generated-${nodeId}-${i}.png`, {
-                sourceModule: "llm-chat",
-                origin: {
-                  type: "generated",
-                  source: img.revisedPrompt || `generated-by:${modelId}`,
+              const asset = await importAssetFromBytes(
+                bytes.buffer,
+                `generated-${nodeId}-${i}.png`,
+                {
                   sourceModule: "llm-chat",
-                },
-              });
+                  origin: {
+                    type: "generated",
+                    source: img.revisedPrompt || `generated-by:${modelId}`,
+                    sourceModule: "llm-chat",
+                  },
+                }
+              );
               imagesAssets.push(asset);
             } catch (e) {
               logger.warn(`处理响应中的第 ${i} 张图像失败`, e);
@@ -351,8 +380,14 @@ export function useChatResponseHandler() {
         }
 
         if (imagesAssets.length > 0) {
-          logger.info(`✨ 已从响应图像数组中导入 ${imagesAssets.length} 个资产`, { nodeId });
-          finalNode.attachments = [...(finalNode.attachments || []), ...imagesAssets];
+          logger.info(
+            `✨ 已从响应图像数组中导入 ${imagesAssets.length} 个资产`,
+            { nodeId }
+          );
+          finalNode.attachments = [
+            ...(finalNode.attachments || []),
+            ...imagesAssets,
+          ];
         }
       }
     } catch (error) {
@@ -428,9 +463,12 @@ export function useChatResponseHandler() {
     // 在 finalize 阶段，确保所有缓冲的内容都已写入
     const reasoningState = reasoningUpdateBuffer.get(nodeId);
     if (reasoningState && reasoningState.buffer) {
-      finalNode.metadata.reasoningContent = (finalNode.metadata.reasoningContent || "") + reasoningState.buffer;
+      finalNode.metadata.reasoningContent =
+        (finalNode.metadata.reasoningContent || "") + reasoningState.buffer;
       reasoningState.buffer = "";
-      logger.debug("Flushed remaining reasoning buffer on finalize", { nodeId });
+      logger.debug("Flushed remaining reasoning buffer on finalize", {
+        nodeId,
+      });
     }
     const contentState = contentUpdateBuffer.get(nodeId);
     if (contentState && contentState.buffer) {
@@ -451,7 +489,9 @@ export function useChatResponseHandler() {
         nodeId,
         startTime: finalNode.metadata.reasoningStartTime,
         endTime: finalNode.metadata.reasoningEndTime,
-        duration: finalNode.metadata.reasoningEndTime - finalNode.metadata.reasoningStartTime,
+        duration:
+          finalNode.metadata.reasoningEndTime -
+          finalNode.metadata.reasoningStartTime,
       });
     }
 
@@ -471,7 +511,12 @@ export function useChatResponseHandler() {
   /**
    * 处理节点生成错误
    */
-  const handleNodeError = (session: ChatSessionDetail, nodeId: string, error: unknown, context: string): void => {
+  const handleNodeError = (
+    session: ChatSessionDetail,
+    nodeId: string,
+    error: unknown,
+    context: string
+  ): void => {
     const errorNode = session.nodes ? session.nodes[nodeId] : undefined;
     if (!errorNode) return;
 

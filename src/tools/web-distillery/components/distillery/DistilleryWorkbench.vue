@@ -30,7 +30,9 @@ const activeMode = computed(() => {
   return store.result ? store.result.mode : "fast";
 });
 
-const qualityPercent = computed(() => Math.round((store.result?.quality ?? 0) * 100));
+const qualityPercent = computed(() =>
+  Math.round((store.result?.quality ?? 0) * 100)
+);
 const qualityStatus = computed(() => {
   const q = store.result?.quality ?? 0;
   if (q >= 0.75) return "success";
@@ -64,7 +66,10 @@ async function handleFetch(mode: DistillMode) {
 
   try {
     // 处理本地路径 (Windows: C:\... 或 Unix: /...)
-    const isLocalPath = /^[a-zA-Z]:[\\/]/.test(url) || url.startsWith("/") || url.startsWith("file://");
+    const isLocalPath =
+      /^[a-zA-Z]:[\\/]/.test(url) ||
+      url.startsWith("/") ||
+      url.startsWith("file://");
     if (isLocalPath) {
       const path = url.startsWith("file://") ? url.slice(7) : url;
       await handleFileDrop([path]);
@@ -83,7 +88,11 @@ async function handleFetch(mode: DistillMode) {
       logger.info("Executing smartExtract (Smart Mode)");
       await iframeBridge.init();
       logger.debug("Bridge initialized for smartExtract");
-      const result = await smartExtract({ url, format: "markdown", waitTimeout: 12000 });
+      const result = await smartExtract({
+        url,
+        format: "markdown",
+        waitTimeout: 12000,
+      });
       if (!result) {
         throw new Error("智能提取失败");
       }
@@ -112,7 +121,10 @@ async function handleRefresh() {
   if (currentUrl.value) await handleFetch(activeMode.value);
 }
 
-async function handleFileUpload(payload: { content: string; fileName: string }) {
+async function handleFileUpload(payload: {
+  content: string;
+  fileName: string;
+}) {
   logger.info("File upload triggered", { fileName: payload.fileName });
   isLoading.value = true;
   errorMsg.value = null;
@@ -220,7 +232,9 @@ function handleSendToChat() {
             <div class="quality-card">
               <div class="quality-header">
                 <span class="quality-label">模式: {{ store.result.mode }}</span>
-                <el-tag size="small" :type="qualityStatus">{{ qualityPercent }}%</el-tag>
+                <el-tag size="small" :type="qualityStatus"
+                  >{{ qualityPercent }}%</el-tag
+                >
               </div>
               <el-progress
                 :percentage="qualityPercent"
@@ -238,23 +252,33 @@ function handleSendToChat() {
             <div class="info-grid">
               <div class="info-item">
                 <span class="info-label">字数</span>
-                <span class="info-value">{{ store.result.contentLength?.toLocaleString() }}</span>
+                <span class="info-value">{{
+                  store.result.contentLength?.toLocaleString()
+                }}</span>
               </div>
               <div class="info-item">
                 <span class="info-label">格式</span>
-                <span class="info-value">{{ store.result.format?.toUpperCase() }}</span>
+                <span class="info-value">{{
+                  store.result.format?.toUpperCase()
+                }}</span>
               </div>
               <div v-if="store.result.metadata?.language" class="info-item">
                 <span class="info-label">语言</span>
-                <span class="info-value">{{ store.result.metadata.language }}</span>
+                <span class="info-value">{{
+                  store.result.metadata.language
+                }}</span>
               </div>
               <div v-if="store.result.recipeName" class="info-item">
                 <span class="info-label">匹配配方</span>
-                <el-tag size="small" effect="plain" type="primary">{{ store.result.recipeName }}</el-tag>
+                <el-tag size="small" effect="plain" type="primary">{{
+                  store.result.recipeName
+                }}</el-tag>
               </div>
               <div class="info-item">
                 <span class="info-label">提取时间</span>
-                <span class="info-value">{{ new Date(store.result.fetchedAt).toLocaleTimeString() }}</span>
+                <span class="info-value">{{
+                  new Date(store.result.fetchedAt).toLocaleTimeString()
+                }}</span>
               </div>
             </div>
           </InfoCard>
@@ -264,7 +288,13 @@ function handleSendToChat() {
               <div class="section-title warning">提取警告</div>
             </template>
             <div class="warning-box">
-              <div v-for="(w, i) in store.result.warnings" :key="i" class="warning-item">{{ w }}</div>
+              <div
+                v-for="(w, i) in store.result.warnings"
+                :key="i"
+                class="warning-item"
+              >
+                {{ w }}
+              </div>
             </div>
           </InfoCard>
         </template>

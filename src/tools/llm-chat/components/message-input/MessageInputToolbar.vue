@@ -8,7 +8,15 @@ export interface InputToolbarSettings {
 </script>
 
 <script setup lang="ts">
-import { ElTooltip, ElPopover, ElDropdown, ElDropdownMenu, ElDropdownItem, ElSwitch, ElIcon } from "element-plus";
+import {
+  ElTooltip,
+  ElPopover,
+  ElDropdown,
+  ElDropdownMenu,
+  ElDropdownItem,
+  ElSwitch,
+  ElIcon,
+} from "element-plus";
 import {
   Paperclip,
   AtSign,
@@ -48,7 +56,9 @@ import type { QuickAction, QuickActionSet } from "../../types/quick-action";
 import { computed, ref, onMounted, defineAsyncComponent, watch } from "vue";
 import { useChatContext } from "../../composables/chat/useChatContext";
 
-const QuickActionManagerDialog = defineAsyncComponent(() => import("../quick-action/QuickActionManagerDialog.vue"));
+const QuickActionManagerDialog = defineAsyncComponent(
+  () => import("../quick-action/QuickActionManagerDialog.vue")
+);
 
 const quickActionManagerVisible = ref(false);
 
@@ -114,14 +124,17 @@ const quickActionStore = useQuickActionStore();
 const agentStore = useAgentStore();
 const profileStore = useUserProfileStore();
 const bus = useWindowSyncBus();
-const { settings: chatSettings, updateSettings: updateChatSettings } = useChatSettings();
+const { settings: chatSettings, updateSettings: updateChatSettings } =
+  useChatSettings();
 
 /**
  * 计算工具调用是否开启
  */
 const isToolCallingEnabled = computed(() => {
   // 优先从当前 Agent 获取配置
-  const agent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
+  const agent = agentStore.currentAgentId
+    ? agentStore.getAgentById(agentStore.currentAgentId)
+    : null;
   if (agent?.toolCallConfig) {
     return agent.toolCallConfig.enabled;
   }
@@ -133,7 +146,9 @@ const isToolCallingEnabled = computed(() => {
  * 计算上下文压缩是否启用
  */
 const isContextCompressionEnabled = computed(() => {
-  const agent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
+  const agent = agentStore.currentAgentId
+    ? agentStore.getAgentById(agentStore.currentAgentId)
+    : null;
   return agent?.parameters?.contextCompression?.enabled ?? false;
 });
 
@@ -150,15 +165,21 @@ onMounted(() => {
  */
 const activeActionSets = computed(() => {
   const globalIds = chatSettings.value.quickActionSetIds || [];
-  const agent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
+  const agent = agentStore.currentAgentId
+    ? agentStore.getAgentById(agentStore.currentAgentId)
+    : null;
   const agentIds = agent?.quickActionSetIds || [];
 
   // 计算生效的用户档案
-  const effectiveProfile = profileStore.getEffectiveProfile(agent?.userProfileId);
+  const effectiveProfile = profileStore.getEffectiveProfile(
+    agent?.userProfileId
+  );
   const profileIds = effectiveProfile?.quickActionSetIds || [];
 
   // 合并并去重
-  const allIds = Array.from(new Set([...globalIds, ...agentIds, ...profileIds]));
+  const allIds = Array.from(
+    new Set([...globalIds, ...agentIds, ...profileIds])
+  );
 
   // 触发异步加载
   if (allIds.length > 0) {
@@ -166,7 +187,9 @@ const activeActionSets = computed(() => {
   }
 
   // 从 store 中获取已加载的组内容
-  return allIds.map((id) => quickActionStore.loadedSets.get(id)).filter(Boolean) as QuickActionSet[];
+  return allIds
+    .map((id) => quickActionStore.loadedSets.get(id))
+    .filter(Boolean) as QuickActionSet[];
 });
 
 /**
@@ -174,7 +197,9 @@ const activeActionSets = computed(() => {
  * 解决 Agent 绑定的档案在未手动点开前不加载详情，导致快捷操作不显示的问题
  */
 const effectiveUserProfileId = computed(() => {
-  const agent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
+  const agent = agentStore.currentAgentId
+    ? agentStore.getAgentById(agentStore.currentAgentId)
+    : null;
   return agent?.userProfileId || profileStore.globalProfileId;
 });
 
@@ -185,14 +210,16 @@ watch(
       profileStore.ensureProfileLoaded(id);
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 const continuationModelInfo = computed(() => {
   if (!props.continuationModel) return null;
   const profile = getProfileById(props.continuationModel.profileId);
   if (!profile) return null;
-  const model = profile.models.find((m) => m.id === props.continuationModel?.modelId);
+  const model = profile.models.find(
+    (m) => m.id === props.continuationModel?.modelId
+  );
   if (!model) return null;
   return {
     profileName: profile.name,
@@ -204,7 +231,9 @@ const temporaryModelInfo = computed(() => {
   if (!props.temporaryModel) return null;
   const profile = getProfileById(props.temporaryModel.profileId);
   if (!profile) return null;
-  const model = profile.models.find((m) => m.id === props.temporaryModel?.modelId);
+  const model = profile.models.find(
+    (m) => m.id === props.temporaryModel?.modelId
+  );
   if (!model) return null;
   return {
     profileName: profile.name,
@@ -226,12 +255,16 @@ const miniSessionListRef = ref<any>(null);
 const isCanvasEnabled = computed(() => {
   // 必须同时满足：1. 工具调用总开关开启 2. 画布工具开关开启
   if (!isToolCallingEnabled.value) return false;
-  const agent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
+  const agent = agentStore.currentAgentId
+    ? agentStore.getAgentById(agentStore.currentAgentId)
+    : null;
   return agent?.toolCallConfig?.toolToggles?.["web-canvas"] === true;
 });
 
 const boundCanvasId = computed(() => {
-  const agent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
+  const agent = agentStore.currentAgentId
+    ? agentStore.getAgentById(agentStore.currentAgentId)
+    : null;
   return agent?.toolCallConfig?.toolSettings?.["web-canvas"]?.canvasId || null;
 });
 
@@ -244,14 +277,16 @@ watch(
       canvasStore.loadCanvasList();
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 const hasCanvasPendingChanges = computed(() => {
   if (!boundCanvasId.value) return false;
   try {
     const canvasStore = useCanvasStore();
-    const canvas = canvasStore.canvasList.find((c: any) => c.metadata.id === boundCanvasId.value);
+    const canvas = canvasStore.canvasList.find(
+      (c: any) => c.metadata.id === boundCanvasId.value
+    );
     return (canvas?.dirtyFileCount || 0) > 0;
   } catch {
     return false;
@@ -262,15 +297,21 @@ const canvasBindingInfo = computed(() => {
   if (!boundCanvasId.value) return null;
   try {
     const canvasStore = useCanvasStore();
-    const canvas = canvasStore.canvasList.find((c: any) => c.metadata.id === boundCanvasId.value);
-    return canvas ? { id: boundCanvasId.value, name: canvas.metadata.name } : null;
+    const canvas = canvasStore.canvasList.find(
+      (c: any) => c.metadata.id === boundCanvasId.value
+    );
+    return canvas
+      ? { id: boundCanvasId.value, name: canvas.metadata.name }
+      : null;
   } catch {
     return null;
   }
 });
 
 const unbindCanvas = () => {
-  const agent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
+  const agent = agentStore.currentAgentId
+    ? agentStore.getAgentById(agentStore.currentAgentId)
+    : null;
   if (!agent) return;
   if (!agent.toolCallConfig) {
     agent.toolCallConfig = JSON.parse(JSON.stringify(DEFAULT_TOOL_CALL_CONFIG));
@@ -293,8 +334,11 @@ watch(
     canvasControlVisible,
   ],
   ([macro, session, tool, more, settings, canvas]) => {
-    emit("update:anyMenuOpen", !!(macro || session || tool || more || settings || canvas));
-  },
+    emit(
+      "update:anyMenuOpen",
+      !!(macro || session || tool || more || settings || canvas)
+    );
+  }
 );
 
 const handleSessionListShow = () => {
@@ -353,7 +397,10 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
     >
       <template v-for="(set, index) in activeActionSets" :key="set.id">
         <!-- 非分组模式下的组间分割线 -->
-        <div v-if="!props.settings.groupQuickActionsBySet && index > 0" class="qa-set-divider"></div>
+        <div
+          v-if="!props.settings.groupQuickActionsBySet && index > 0"
+          class="qa-set-divider"
+        ></div>
 
         <div class="qa-set-group">
           <button
@@ -363,7 +410,12 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
             @click="emit('execute-quick-action', action)"
             :title="action.description || action.label"
           >
-            <component :is="action.icon" v-if="action.icon" :size="12" class="qa-btn-icon" />
+            <component
+              :is="action.icon"
+              v-if="action.icon"
+              :size="12"
+              class="qa-btn-icon"
+            />
             <span class="qa-btn-label">{{ action.label }}</span>
           </button>
         </div>
@@ -373,7 +425,11 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
     <div class="input-bottom-bar">
       <div class="tool-actions">
         <el-tooltip
-          :content="props.isStreamingEnabled ? '流式输出：实时显示生成内容' : '非流式输出：等待完整响应'"
+          :content="
+            props.isStreamingEnabled
+              ? '流式输出：实时显示生成内容'
+              : '非流式输出：等待完整响应'
+          "
           placement="top"
           :show-after="500"
         >
@@ -396,14 +452,22 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
               :placement="props.isDetached ? 'bottom-start' : 'bottom-start'"
               :width="300"
               trigger="click"
-              :popper-class="['macro-selector-popover', { 'detached-popover': props.isDetached }]"
+              :popper-class="[
+                'macro-selector-popover',
+                { 'detached-popover': props.isDetached },
+              ]"
             >
               <template #reference>
-                <button class="macro-icon-button" :class="{ active: props.macroSelectorVisible }">
+                <button
+                  class="macro-icon-button"
+                  :class="{ active: props.macroSelectorVisible }"
+                >
                   <el-icon><MagicStick /></el-icon>
                 </button>
               </template>
-              <MacroSelector @insert="(macro: MacroDefinition) => emit('insert', macro)" />
+              <MacroSelector
+                @insert="(macro: MacroDefinition) => emit('insert', macro)"
+              />
             </el-popover>
           </div>
         </el-tooltip>
@@ -423,15 +487,25 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
               :placement="props.isDetached ? 'bottom-start' : 'bottom-start'"
               :width="300"
               trigger="click"
-              :popper-class="['session-list-popover', { 'detached-popover': props.isDetached }]"
+              :popper-class="[
+                'session-list-popover',
+                { 'detached-popover': props.isDetached },
+              ]"
               @show="handleSessionListShow"
             >
               <template #reference>
-                <button class="tool-btn" :class="{ active: sessionListVisible }">
+                <button
+                  class="tool-btn"
+                  :class="{ active: sessionListVisible }"
+                >
                   <MessageSquare :size="16" />
                 </button>
               </template>
-              <MiniSessionList ref="miniSessionListRef" @switch="handleSwitchSession" @new-session="handleNewSession" />
+              <MiniSessionList
+                ref="miniSessionListRef"
+                @switch="handleSwitchSession"
+                @new-session="handleNewSession"
+              />
             </el-popover>
           </div>
         </el-tooltip>
@@ -456,19 +530,31 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
             <el-dropdown-menu>
               <!-- 智能补全 -->
               <el-dropdown-item
-                :disabled="isSending || props.isCompleting || disabled || !props.inputText.trim()"
+                :disabled="
+                  isSending ||
+                  props.isCompleting ||
+                  disabled ||
+                  !props.inputText.trim()
+                "
                 @click="emit('complete-input', props.inputText)"
               >
                 <div class="dropdown-item-content">
                   <Sparkles :size="16" class="sparkles-icon" />
                   <span>智能补全</span>
-                  <span v-if="props.isCompleting" class="loading-dots">...</span>
+                  <span v-if="props.isCompleting" class="loading-dots"
+                    >...</span
+                  >
                 </div>
               </el-dropdown-item>
 
               <!-- 补全模型设置 -->
               <el-dropdown-item
-                :disabled="isSending || props.isCompleting || disabled || !props.inputText.trim()"
+                :disabled="
+                  isSending ||
+                  props.isCompleting ||
+                  disabled ||
+                  !props.inputText.trim()
+                "
                 @click="emit('select-continuation-model')"
               >
                 <div class="dropdown-item-content">
@@ -491,26 +577,37 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
                 <div class="dropdown-item-content">
                   <Languages :size="16" />
                   <span>翻译输入</span>
-                  <span v-if="props.isTranslating" class="loading-dots">...</span>
+                  <span v-if="props.isTranslating" class="loading-dots"
+                    >...</span
+                  >
                 </div>
               </el-dropdown-item>
 
               <!-- 压缩 -->
               <el-dropdown-item
-                :disabled="props.isCompressing || disabled || !isContextCompressionEnabled"
+                :disabled="
+                  props.isCompressing ||
+                  disabled ||
+                  !isContextCompressionEnabled
+                "
                 @click="emit('compress-context')"
               >
                 <div class="dropdown-item-content">
                   <Package :size="16" />
                   <span>压缩上下文</span>
-                  <span v-if="props.isCompressing" class="loading-dots">...</span>
+                  <span v-if="props.isCompressing" class="loading-dots"
+                    >...</span
+                  >
                 </div>
               </el-dropdown-item>
 
               <div class="dropdown-divider"></div>
 
               <!-- 路径转附件 -->
-              <el-dropdown-item :disabled="disabled || !props.inputText.trim()" @click="emit('convert-paths')">
+              <el-dropdown-item
+                :disabled="disabled || !props.inputText.trim()"
+                @click="emit('convert-paths')"
+              >
                 <div class="dropdown-item-content">
                   <FileUp :size="16" />
                   <span>路径转附件</span>
@@ -518,7 +615,10 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
               </el-dropdown-item>
 
               <!-- 清理无效占位符 -->
-              <el-dropdown-item :disabled="disabled || !props.inputText.trim()" @click="emit('cleanup-placeholders')">
+              <el-dropdown-item
+                :disabled="disabled || !props.inputText.trim()"
+                @click="emit('cleanup-placeholders')"
+              >
                 <div class="dropdown-item-content">
                   <el-icon><X /></el-icon>
                   <span>清理无效占位符</span>
@@ -526,7 +626,10 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
               </el-dropdown-item>
 
               <!-- 分析当前上下文 -->
-              <el-dropdown-item :disabled="disabled" @click="emit('analyze-context-with-input')">
+              <el-dropdown-item
+                :disabled="disabled"
+                @click="emit('analyze-context-with-input')"
+              >
                 <div class="dropdown-item-content">
                   <ScanSearch :size="16" />
                   <span>分析当前上下文</span>
@@ -548,7 +651,11 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
 
         <!-- 工具调用设置 -->
         <el-tooltip
-          :content="isVcpChannel ? 'VCP 后端接管工具调用（点击查看详情）' : '工具调用设置'"
+          :content="
+            isVcpChannel
+              ? 'VCP 后端接管工具调用（点击查看详情）'
+              : '工具调用设置'
+          "
           placement="top"
           :show-after="500"
         >
@@ -558,21 +665,31 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
               :placement="props.isDetached ? 'bottom' : 'top'"
               :width="360"
               trigger="click"
-              :popper-class="['tool-settings-popover', { 'detached-popover': props.isDetached }]"
+              :popper-class="[
+                'tool-settings-popover',
+                { 'detached-popover': props.isDetached },
+              ]"
             >
               <template #reference>
                 <button
                   class="tool-btn"
                   :class="{
-                    active: !isVcpChannel && (toolSettingsVisible || isToolCallingEnabled),
-                    'vcp-active': isVcpChannel && (toolSettingsVisible || isToolCallingEnabled),
+                    active:
+                      !isVcpChannel &&
+                      (toolSettingsVisible || isToolCallingEnabled),
+                    'vcp-active':
+                      isVcpChannel &&
+                      (toolSettingsVisible || isToolCallingEnabled),
                     'is-vcp': isVcpChannel,
                   }"
                 >
                   <Wrench :size="16" />
                 </button>
               </template>
-              <MiniToolCallingSettings :is-vcp="isVcpChannel" @open-advanced="handleOpenAdvanced" />
+              <MiniToolCallingSettings
+                :is-vcp="isVcpChannel"
+                @open-advanced="handleOpenAdvanced"
+              />
             </el-popover>
           </div>
         </el-tooltip>
@@ -585,10 +702,16 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
               :placement="props.isDetached ? 'bottom' : 'top'"
               :width="240"
               trigger="click"
-              :popper-class="['toolbar-settings-popover', { 'detached-popover': props.isDetached }]"
+              :popper-class="[
+                'toolbar-settings-popover',
+                { 'detached-popover': props.isDetached },
+              ]"
             >
               <template #reference>
-                <button class="tool-btn settings-btn" :class="{ active: settingsVisible }">
+                <button
+                  class="tool-btn settings-btn"
+                  :class="{ active: settingsVisible }"
+                >
                   <Settings :size="16" />
                 </button>
               </template>
@@ -668,7 +791,11 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
           placement="top"
           :show-after="500"
         >
-          <button class="expand-toggle-button" :class="{ active: props.isExpanded }" @click="emit('toggle-expand')">
+          <button
+            class="expand-toggle-button"
+            :class="{ active: props.isExpanded }"
+            @click="emit('toggle-expand')"
+          >
             <svg
               v-if="!props.isExpanded"
               width="16"
@@ -680,7 +807,9 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
               stroke-linecap="round"
               stroke-linejoin="round"
             >
-              <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
+              <path
+                d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"
+              />
             </svg>
             <svg
               v-else
@@ -693,13 +822,17 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
               stroke-linecap="round"
               stroke-linejoin="round"
             >
-              <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" />
+              <path
+                d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"
+              />
             </svg>
           </button>
         </el-tooltip>
 
         <!-- 正在处理提示：移至图标后方，保持图标位置稳定 -->
-        <span v-if="props.isProcessingAttachments" class="processing-hint"> 正在处理文件... </span>
+        <span v-if="props.isProcessingAttachments" class="processing-hint">
+          正在处理文件...
+        </span>
         <span v-if="props.isCompressing" class="processing-hint compressing">
           <el-icon class="is-loading"><Package /></el-icon>
           正在压缩上下文...
@@ -745,7 +878,11 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
         <!-- 画布状态标签 (展示+控制合一) -->
         <el-tooltip
           v-if="isCanvasEnabled"
-          :content="canvasBindingInfo ? `当前绑定画布: ${canvasBindingInfo.name} (点击管理)` : '画布未绑定 (点击管理)'"
+          :content="
+            canvasBindingInfo
+              ? `当前绑定画布: ${canvasBindingInfo.name} (点击管理)`
+              : '画布未绑定 (点击管理)'
+          "
           placement="top"
           :show-after="500"
         >
@@ -755,7 +892,10 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
               :placement="props.isDetached ? 'bottom-end' : 'top-end'"
               :width="320"
               trigger="click"
-              :popper-class="['canvas-control-popover', { 'detached-popover': props.isDetached }]"
+              :popper-class="[
+                'canvas-control-popover',
+                { 'detached-popover': props.isDetached },
+              ]"
             >
               <template #reference>
                 <div
@@ -770,8 +910,15 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
                   <span class="model-name">
                     {{ canvasBindingInfo ? canvasBindingInfo.name : "未绑定" }}
                   </span>
-                  <div v-if="hasCanvasPendingChanges" class="pending-pulse"></div>
-                  <button v-if="canvasBindingInfo" class="clear-btn" @click.stop="unbindCanvas">
+                  <div
+                    v-if="hasCanvasPendingChanges"
+                    class="pending-pulse"
+                  ></div>
+                  <button
+                    v-if="canvasBindingInfo"
+                    class="clear-btn"
+                    @click.stop="unbindCanvas"
+                  >
                     <X :size="14" />
                   </button>
                 </div>
@@ -785,27 +932,50 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
 
         <!-- 历史上下文统计 -->
         <el-tooltip
-          v-if="props.settings.showTokenUsage && props.contextStats && props.contextStats.totalTokenCount !== undefined"
+          v-if="
+            props.settings.showTokenUsage &&
+            props.contextStats &&
+            props.contextStats.totalTokenCount !== undefined
+          "
           placement="top"
           :show-after="500"
         >
           <template #content>
             <div style="text-align: left; line-height: 1.6">
-              <div style="font-weight: 600; margin-bottom: 4px">历史上下文统计</div>
+              <div style="font-weight: 600; margin-bottom: 4px">
+                历史上下文统计
+              </div>
               <div style="font-size: 12px">
-                <div>总计: {{ props.contextStats.totalTokenCount.toLocaleString() }} tokens</div>
+                <div>
+                  总计:
+                  {{ props.contextStats.totalTokenCount.toLocaleString() }}
+                  tokens
+                </div>
                 <div v-if="props.contextStats.presetMessagesTokenCount">
                   预设消息:
-                  {{ props.contextStats.presetMessagesTokenCount.toLocaleString() }} tokens
+                  {{
+                    props.contextStats.presetMessagesTokenCount.toLocaleString()
+                  }}
+                  tokens
                 </div>
                 <div v-if="props.contextStats.worldbookTokenCount">
-                  世界书: {{ props.contextStats.worldbookTokenCount.toLocaleString() }} tokens
+                  世界书:
+                  {{ props.contextStats.worldbookTokenCount.toLocaleString() }}
+                  tokens
                 </div>
                 <div v-if="props.contextStats.chatHistoryTokenCount">
-                  会话历史: {{ props.contextStats.chatHistoryTokenCount.toLocaleString() }} tokens
+                  会话历史:
+                  {{
+                    props.contextStats.chatHistoryTokenCount.toLocaleString()
+                  }}
+                  tokens
                 </div>
                 <div v-if="props.contextStats.postProcessingTokenCount">
-                  后处理: {{ props.contextStats.postProcessingTokenCount.toLocaleString() }} tokens
+                  后处理:
+                  {{
+                    props.contextStats.postProcessingTokenCount.toLocaleString()
+                  }}
+                  tokens
                 </div>
                 <div
                   v-if="props.contextStats.truncatedMessageCount"
@@ -813,11 +983,19 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
                 >
                   已截断: {{ props.contextStats.truncatedMessageCount }} 条消息
                   <span v-if="props.contextStats.savedTokenCount">
-                    (省 {{ props.contextStats.savedTokenCount.toLocaleString() }} tokens)
+                    (省
+                    {{ props.contextStats.savedTokenCount.toLocaleString() }}
+                    tokens)
                   </span>
                 </div>
-                <div v-if="props.contextStats.tokenizerName" style="margin-top: 4px; opacity: 0.8">
-                  {{ props.contextStats.isEstimated ? "字符估算" : "Token 计算" }} -
+                <div
+                  v-if="props.contextStats.tokenizerName"
+                  style="margin-top: 4px; opacity: 0.8"
+                >
+                  {{
+                    props.contextStats.isEstimated ? "字符估算" : "Token 计算"
+                  }}
+                  -
                   {{ props.contextStats.tokenizerName }}
                 </div>
               </div>
@@ -837,7 +1015,9 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
               style="margin-right: 4px"
             >
               <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
-              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+              <path
+                d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"
+              ></path>
             </svg>
             <span
               >{{ props.contextStats.totalTokenCount.toLocaleString()
@@ -847,8 +1027,15 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
         </el-tooltip>
         <!-- 当前输入 Token 计数显示 -->
         <el-tooltip
-          v-if="props.settings.showTokenUsage && (props.tokenCount > 0 || props.isCalculatingTokens)"
-          :content="props.tokenEstimated ? '当前输入 Token 数量（估算值）' : '当前输入 Token 数量'"
+          v-if="
+            props.settings.showTokenUsage &&
+            (props.tokenCount > 0 || props.isCalculatingTokens)
+          "
+          :content="
+            props.tokenEstimated
+              ? '当前输入 Token 数量（估算值）'
+              : '当前输入 Token 数量'
+          "
           placement="top"
           :show-after="500"
         >
@@ -866,15 +1053,22 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
               style="margin-right: 4px"
             >
               <path d="M12 20h9"></path>
-              <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+              <path
+                d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"
+              ></path>
             </svg>
-            <span> {{ props.tokenCount.toLocaleString() }}{{ props.tokenEstimated ? "~" : "" }} </span>
+            <span>
+              {{ props.tokenCount.toLocaleString()
+              }}{{ props.tokenEstimated ? "~" : "" }}
+            </span>
           </span>
         </el-tooltip>
         <button
           v-if="!isSending"
           @click="send?.()"
-          :disabled="disabled || (!props.inputText.trim() && !props.hasAttachments)"
+          :disabled="
+            disabled || (!props.inputText.trim() && !props.hasAttachments)
+          "
           class="btn-send"
           title="发送 (Ctrl/Cmd + Enter)"
         >
@@ -1094,8 +1288,8 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
 /* 打字机图标 "A_" */
 .typewriter-icon {
   font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans",
-    "Helvetica Neue", sans-serif;
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
+    Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
   font-size: 14px;
   font-weight: 600;
   letter-spacing: -2px;

@@ -1,5 +1,9 @@
 <template>
-  <div class="audio-node-container" :class="{ 'is-streaming': isStreaming }" :title="title">
+  <div
+    class="audio-node-container"
+    :class="{ 'is-streaming': isStreaming }"
+    :title="title"
+  >
     <AudioPlayer
       :src="resolvedSrc"
       :title="displayTitle"

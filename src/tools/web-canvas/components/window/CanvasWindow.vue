@@ -27,7 +27,11 @@
     <CanvasStatusBar
       v-if="showStatusBar"
       :canvas-id="activeCanvasId || ''"
-      :current-file="canvasStore.activeFile || activeCanvas?.metadata.entryFile || 'index.html'"
+      :current-file="
+        canvasStore.activeFile ||
+        activeCanvas?.metadata.entryFile ||
+        'index.html'
+      "
       :file-count="activeCanvas?.metadata.fileCount || 0"
       :pending-count="dirtyFilesCount"
     />
@@ -39,7 +43,10 @@ import { ref, watch, onMounted, useAttrs, computed } from "vue";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useCanvasStore } from "../../stores/canvasStore";
 import { useCanvasStateConsumer } from "../../composables/useCanvasStateConsumer";
-import { useCanvasPreview, type ConsoleMessage } from "../../composables/useCanvasPreview";
+import {
+  useCanvasPreview,
+  type ConsoleMessage,
+} from "../../composables/useCanvasPreview";
 import { useCanvasStorage } from "../../composables/useCanvasStorage";
 import CanvasPreviewPane from "./CanvasPreviewPane.vue";
 import CanvasTitleBar from "./CanvasTitleBar.vue";
@@ -50,7 +57,8 @@ const logger = createModuleLogger("Canvas/Window");
 const attrs = useAttrs();
 
 // 1. 状态同步消费者
-const { activeCanvasId: syncedId, lastFileChangeTimestamp } = useCanvasStateConsumer();
+const { activeCanvasId: syncedId, lastFileChangeTimestamp } =
+  useCanvasStateConsumer();
 const activeCanvasId = ref<string | null>(null);
 
 // 调试日志：检查状态来源
@@ -72,7 +80,7 @@ watch(
       activeCanvasId.value = finalId;
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 // 2. 存储访问
@@ -82,7 +90,14 @@ const canvasStore = useCanvasStore();
 const canvasBasePath = ref<string | null>(null);
 
 // 3. 预览引擎
-const { previewSrc, previewSrcdoc, isRefreshing, consoleMessages, refreshPreview, forceRefresh } = useCanvasPreview({
+const {
+  previewSrc,
+  previewSrcdoc,
+  isRefreshing,
+  consoleMessages,
+  refreshPreview,
+  forceRefresh,
+} = useCanvasPreview({
   canvasId: () => activeCanvasId.value,
   basePath: () => canvasBasePath.value,
   readPhysicalFile: (id, path) => storage.readPhysicalFile(id, path),
@@ -90,9 +105,13 @@ const { previewSrc, previewSrcdoc, isRefreshing, consoleMessages, refreshPreview
 
 // 4. UI 状态
 const showStatusBar = ref(true);
-const titleBarPinned = ref(localStorage.getItem("canvas-titlebar-pinned") !== "false");
+const titleBarPinned = ref(
+  localStorage.getItem("canvas-titlebar-pinned") !== "false"
+);
 const activeCanvas = ref<any>(null);
-const dirtyFilesCount = computed(() => (activeCanvasId.value ? canvasStore.dirtyFiles.size : 0));
+const dirtyFilesCount = computed(() =>
+  activeCanvasId.value ? canvasStore.dirtyFiles.size : 0
+);
 
 watch(titleBarPinned, (val) => {
   localStorage.setItem("canvas-titlebar-pinned", String(val));
@@ -119,7 +138,7 @@ watch(
       canvasBasePath.value = null;
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 // 监听文件变更通知，自动刷新预览

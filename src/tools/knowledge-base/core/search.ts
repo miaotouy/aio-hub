@@ -26,7 +26,9 @@ export interface SearchVectorPrepperParams {
 /**
  * 准备搜索向量（优先使用缓存，否则生成新向量）
  */
-export async function prepareSearchVector(params: SearchVectorPrepperParams): Promise<number[]> {
+export async function prepareSearchVector(
+  params: SearchVectorPrepperParams
+): Promise<number[]> {
   const { query, modelId, profile, vector_payload, requestSettings } = params;
 
   // 1. 优先使用外部传入向量

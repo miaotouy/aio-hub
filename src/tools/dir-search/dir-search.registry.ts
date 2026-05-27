@@ -1,4 +1,9 @@
-import type { ToolRegistry, ToolConfig, ServiceMetadata, ToolContext } from "@/services/types";
+import type {
+  ToolRegistry,
+  ToolConfig,
+  ServiceMetadata,
+  ToolContext,
+} from "@/services/types";
 import { FolderSearch } from "lucide-vue-next";
 import { markRaw } from "vue";
 import { searchDirectory, replaceInDirectory } from "./actions";
@@ -15,23 +20,30 @@ export default class DirSearchRegistry implements ToolRegistry {
   public readonly id = "dir-search";
   public readonly runMode = "any";
   public readonly name = "目录搜索";
-  public readonly description = "在指定目录中搜索文件内容，支持正则表达式、全词匹配和批量替换";
+  public readonly description =
+    "在指定目录中搜索文件内容，支持正则表达式、全词匹配和批量替换";
 
   /**
    * 搜索目录内容（Agent Facade）
    */
-  public async searchDirectory(args: Record<string, unknown>, context?: ToolContext): Promise<string> {
+  public async searchDirectory(
+    args: Record<string, unknown>,
+    context?: ToolContext
+  ): Promise<string> {
     const searchArgs: AgentSearchArgs = {
       path: String(args.path || ""),
       pattern: String(args.pattern || ""),
       isRegex: args.isRegex === true || args.isRegex === "true",
-      caseSensitive: args.caseSensitive === true || args.caseSensitive === "true",
+      caseSensitive:
+        args.caseSensitive === true || args.caseSensitive === "true",
       wholeWord: args.wholeWord === true || args.wholeWord === "true",
       includeGlobs: args.includeGlobs ? String(args.includeGlobs) : undefined,
       excludeGlobs: args.excludeGlobs ? String(args.excludeGlobs) : undefined,
-      useGitignore: args.useGitignore !== false && args.useGitignore !== "false",
+      useGitignore:
+        args.useGitignore !== false && args.useGitignore !== "false",
       maxResults: args.maxResults !== undefined ? Number(args.maxResults) : 200,
-      contextLines: args.contextLines !== undefined ? Number(args.contextLines) : 0,
+      contextLines:
+        args.contextLines !== undefined ? Number(args.contextLines) : 0,
     };
     return searchDirectory(searchArgs, context);
   }
@@ -39,18 +51,23 @@ export default class DirSearchRegistry implements ToolRegistry {
   /**
    * 批量替换目录中的文件内容（Agent Facade）
    */
-  public async replaceInDirectory(args: Record<string, unknown>, context?: ToolContext): Promise<string> {
+  public async replaceInDirectory(
+    args: Record<string, unknown>,
+    context?: ToolContext
+  ): Promise<string> {
     const replaceArgs: AgentReplaceArgs = {
       path: String(args.path || ""),
       pattern: String(args.pattern || ""),
       replacement: String(args.replacement ?? ""),
       isRegex: args.isRegex === true || args.isRegex === "true",
-      caseSensitive: args.caseSensitive === true || args.caseSensitive === "true",
+      caseSensitive:
+        args.caseSensitive === true || args.caseSensitive === "true",
       wholeWord: args.wholeWord === true || args.wholeWord === "true",
       preserveCase: args.preserveCase === true || args.preserveCase === "true",
       includeGlobs: args.includeGlobs ? String(args.includeGlobs) : undefined,
       excludeGlobs: args.excludeGlobs ? String(args.excludeGlobs) : undefined,
-      useGitignore: args.useGitignore !== false && args.useGitignore !== "false",
+      useGitignore:
+        args.useGitignore !== false && args.useGitignore !== "false",
     };
     return replaceInDirectory(replaceArgs, context);
   }
@@ -102,13 +119,15 @@ export default class DirSearchRegistry implements ToolRegistry {
             {
               name: "includeGlobs",
               type: "string",
-              description: "包含的文件 glob 模式，多个用逗号分隔（如 '*.ts,*.vue'）",
+              description:
+                "包含的文件 glob 模式，多个用逗号分隔（如 '*.ts,*.vue'）",
               required: false,
             },
             {
               name: "excludeGlobs",
               type: "string",
-              description: "排除的文件 glob 模式，多个用逗号分隔（如 'node_modules,dist'）",
+              description:
+                "排除的文件 glob 模式，多个用逗号分隔（如 'node_modules,dist'）",
               required: false,
             },
             {
@@ -185,7 +204,8 @@ export default class DirSearchRegistry implements ToolRegistry {
             {
               name: "preserveCase",
               type: "boolean",
-              description: "是否保持原始文本的大小写风格（如 FOO→BAR, foo→bar, Foo→Bar）",
+              description:
+                "是否保持原始文本的大小写风格（如 FOO→BAR, foo→bar, Foo→Bar）",
               required: false,
               defaultValue: false,
             },

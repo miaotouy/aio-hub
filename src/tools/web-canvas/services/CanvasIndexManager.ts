@@ -1,5 +1,11 @@
 import { appDataDir, join } from "@tauri-apps/api/path";
-import { readTextFile, writeTextFile, exists, mkdir, rename } from "@tauri-apps/plugin-fs";
+import {
+  readTextFile,
+  writeTextFile,
+  exists,
+  mkdir,
+  rename,
+} from "@tauri-apps/plugin-fs";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 
@@ -67,7 +73,7 @@ export class CanvasIndexManager {
           const content = await readTextFile(path);
           return JSON.parse(content) as CanvasIndex;
         },
-        { userMessage: "加载项目索引失败" },
+        { userMessage: "加载项目索引失败" }
       )) || this.createEmptyIndex()
     );
   }
@@ -95,7 +101,7 @@ export class CanvasIndexManager {
         await rename(tempPath, path);
         logger.debug("索引文件已更新", { path });
       },
-      { userMessage: "保存项目索引失败" },
+      { userMessage: "保存项目索引失败" }
     );
   }
 

@@ -13,7 +13,8 @@ export default class JsonFormatterRegistry implements ToolRegistry {
   public readonly id = "json-formatter";
   public readonly runMode = "any";
   public readonly name = "JSON 格式化工具";
-  public readonly description = "提供 JSON 解析、格式化和美化功能，支持文件路径输入和自定义展开层级";
+  public readonly description =
+    "提供 JSON 解析、格式化和美化功能，支持文件路径输入和自定义展开层级";
   public readonly settingsSchema: SettingItem[] = [
     {
       id: "json-default-indent",
@@ -85,7 +86,8 @@ export default class JsonFormatterRegistry implements ToolRegistry {
             {
               name: "filePath",
               type: "string",
-              description: "要读取并格式化的 JSON 文件路径（与 text 二选一，优先使用）",
+              description:
+                "要读取并格式化的 JSON 文件路径（与 text 二选一，优先使用）",
               required: false,
             },
             {

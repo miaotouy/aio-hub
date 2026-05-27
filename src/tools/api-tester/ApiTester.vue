@@ -16,7 +16,9 @@
             :value="preset.id"
           />
         </el-select>
-        <el-button @click="showProfileManager = true" type="primary"> 配置 </el-button>
+        <el-button @click="showProfileManager = true" type="primary">
+          配置
+        </el-button>
       </div>
     </div>
 
@@ -43,7 +45,10 @@
     </div>
 
     <!-- 配置管理对话框 -->
-    <ProfileManager v-if="showProfileManager" @close="showProfileManager = false" />
+    <ProfileManager
+      v-if="showProfileManager"
+      @close="showProfileManager = false"
+    />
   </div>
 </template>
 

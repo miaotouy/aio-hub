@@ -2,7 +2,10 @@ import type { LlmProfile } from "@/types/llm-profiles";
 import type { LlmRequestOptions, LlmResponse } from "@/llm-apis/common";
 import { fetchWithTimeout, ensureResponseOk } from "@/llm-apis/common";
 import { parseSSEStream, extractTextFromSSE } from "@utils/sse-parser";
-import { applyCustomParameters, cleanPayload } from "@/llm-apis/request-builder";
+import {
+  applyCustomParameters,
+  cleanPayload,
+} from "@/llm-apis/request-builder";
 import { asyncJsonStringify } from "@/utils/serialization";
 import {
   geminiUrlHandler,
@@ -17,7 +20,9 @@ import {
 /**
  * 映射 Gemini finishReason 到通用格式
  */
-function mapGeminiFinishReason(reason: string | undefined): LlmResponse["finishReason"] {
+function mapGeminiFinishReason(
+  reason: string | undefined
+): LlmResponse["finishReason"] {
   if (!reason) return null;
   const reasonMap: Record<string, LlmResponse["finishReason"]> = {
     STOP: "stop",
@@ -74,7 +79,13 @@ export function parseGeminiResponse(data: any): LlmResponse {
 
   if (candidate.content?.parts) {
     for (const part of candidate.content.parts) {
-      if (!part.text && !part.functionCall && !part.executableCode && !part.codeExecutionResult && !part.inlineData)
+      if (
+        !part.text &&
+        !part.functionCall &&
+        !part.executableCode &&
+        !part.codeExecutionResult &&
+        !part.inlineData
+      )
         continue;
       if (part.thought && part.text) {
         thoughtsContent += part.text;
@@ -107,14 +118,16 @@ export function parseGeminiResponse(data: any): LlmResponse {
       } else if (part.executableCode) {
         content += `\n\`\`\`${part.executableCode.language.toLowerCase()}\n${part.executableCode.code}\n\`\`\`\n`;
       } else if (part.codeExecutionResult) {
-        const outcomeText = part.codeExecutionResult.outcome === "OUTCOME_OK" ? "成功" : "失败";
+        const outcomeText =
+          part.codeExecutionResult.outcome === "OUTCOME_OK" ? "成功" : "失败";
         content += `\n**代码执行结果 (${outcomeText}):**\n\`\`\n${part.codeExecutionResult.output}\n\`\`\`\n`;
       }
     }
   }
 
   if (!content && !toolCalls) {
-    if (data.promptFeedback?.blockReason) throw new Error(`请求被屏蔽: ${data.promptFeedback.blockReason}`);
+    if (data.promptFeedback?.blockReason)
+      throw new Error(`请求被屏蔽: ${data.promptFeedback.blockReason}`);
     throw new Error(`Gemini API 响应格式异常: ${JSON.stringify(data)}`);
   }
 
@@ -183,7 +196,8 @@ export function parseGeminiResponse(data: any): LlmResponse {
 
   if (toolCalls) result.toolCalls = toolCalls;
   if (thoughtsContent) result.reasoningContent = thoughtsContent;
-  if (candidate.logprobsResult) result.logprobs = parseGeminiLogprobs(candidate.logprobsResult);
+  if (candidate.logprobsResult)
+    result.logprobs = parseGeminiLogprobs(candidate.logprobsResult);
 
   return result;
 }
@@ -191,8 +205,12 @@ export function parseGeminiResponse(data: any): LlmResponse {
 /**
  * 调用 Google Gemini API
  */
-export const callGeminiChatApi = async (profile: LlmProfile, options: LlmRequestOptions): Promise<LlmResponse> => {
-  const apiKey = profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
+export const callGeminiChatApi = async (
+  profile: LlmProfile,
+  options: LlmRequestOptions
+): Promise<LlmResponse> => {
+  const apiKey =
+    profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
   const endpoint =
     options.stream && options.onStream
       ? `models/${options.modelId}:streamGenerateContent`
@@ -205,10 +223,14 @@ export const callGeminiChatApi = async (profile: LlmProfile, options: LlmRequest
     generationConfig: buildGeminiGenerationConfig(options),
   };
 
-  const systemMessages = (options.messages || []).filter((m) => m.role === "system");
+  const systemMessages = (options.messages || []).filter(
+    (m) => m.role === "system"
+  );
   if (systemMessages.length > 0) {
     const systemContent = systemMessages
-      .map((m) => (typeof m.content === "string" ? m.content : JSON.stringify(m.content)))
+      .map((m) =>
+        typeof m.content === "string" ? m.content : JSON.stringify(m.content)
+      )
       .join("\n\n");
     body.systemInstruction = { parts: [{ text: systemContent }] };
   }
@@ -223,7 +245,9 @@ export const callGeminiChatApi = async (profile: LlmProfile, options: LlmRequest
   applyCustomParameters(body, options);
   cleanPayload(body);
 
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
   if (options.requestId) {
     headers["X-Request-ID"] = options.requestId;
   }
@@ -249,7 +273,7 @@ export const callGeminiChatApi = async (profile: LlmProfile, options: LlmRequest
         isStreaming: true,
       },
       options.timeout,
-      options.signal,
+      options.signal
     );
 
     await ensureResponseOk(response);
@@ -275,14 +299,18 @@ export const callGeminiChatApi = async (profile: LlmProfile, options: LlmRequest
               totalTokens: json.usageMetadata.totalTokenCount || 0,
             };
           }
-          if (json.candidates?.[0]?.finishReason) finishReason = mapGeminiFinishReason(json.candidates[0].finishReason);
+          if (json.candidates?.[0]?.finishReason)
+            finishReason = mapGeminiFinishReason(
+              json.candidates[0].finishReason
+            );
           const parts = json.candidates?.[0]?.content?.parts;
           if (parts && Array.isArray(parts)) {
             for (const part of parts) {
               if (part.text) {
                 if (part.thought) {
                   reasoningContent += part.text;
-                  if (options.onReasoningStream) options.onReasoningStream(part.text);
+                  if (options.onReasoningStream)
+                    options.onReasoningStream(part.text);
                 } else {
                   fullContent += part.text;
                   options.onStream!(part.text);
@@ -292,7 +320,10 @@ export const callGeminiChatApi = async (profile: LlmProfile, options: LlmRequest
                   {
                     id: `call_${Date.now()}`,
                     type: "function",
-                    function: { name: part.functionCall.name, arguments: JSON.stringify(part.functionCall.args || {}) },
+                    function: {
+                      name: part.functionCall.name,
+                      arguments: JSON.stringify(part.functionCall.args || {}),
+                    },
                   },
                 ];
               }
@@ -349,10 +380,16 @@ export const callGeminiChatApi = async (profile: LlmProfile, options: LlmRequest
         }
       },
       undefined,
-      options.signal,
+      options.signal
     );
 
-    const result: LlmResponse = { content: fullContent, usage, finishReason, toolCalls, isStream: true };
+    const result: LlmResponse = {
+      content: fullContent,
+      usage,
+      finishReason,
+      toolCalls,
+      isStream: true,
+    };
     if (reasoningContent) result.reasoningContent = reasoningContent;
     if (streamAnnotations) result.annotations = streamAnnotations;
     return result;
@@ -362,7 +399,7 @@ export const callGeminiChatApi = async (profile: LlmProfile, options: LlmRequest
   const serializedBody = await asyncJsonStringify(body);
   const stringifyEnd = performance.now();
   console.log(
-    `[Gemini] 序列化总耗时: ${(stringifyEnd - stringifyStart).toFixed(2)}ms, 类型: ${typeof serializedBody === "string" ? "string" : "Uint8Array"}`,
+    `[Gemini] 序列化总耗时: ${(stringifyEnd - stringifyStart).toFixed(2)}ms, 类型: ${typeof serializedBody === "string" ? "string" : "Uint8Array"}`
   );
 
   const fetchStart = performance.now();
@@ -378,10 +415,12 @@ export const callGeminiChatApi = async (profile: LlmProfile, options: LlmRequest
       http1Only: options.http1Only,
     },
     options.timeout,
-    options.signal,
+    options.signal
   );
   const fetchEnd = performance.now();
-  console.log(`[Gemini] fetch 调用耗时: ${(fetchEnd - fetchStart).toFixed(2)}ms`);
+  console.log(
+    `[Gemini] fetch 调用耗时: ${(fetchEnd - fetchStart).toFixed(2)}ms`
+  );
 
   await ensureResponseOk(response);
   const data = await response.json();

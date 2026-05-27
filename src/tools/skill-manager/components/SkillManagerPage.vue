@@ -5,7 +5,11 @@
       <div class="header-left">
         <h2>技能管理</h2>
         <div class="master-toggle">
-          <el-switch v-model="skillEnabled" @change="handleMasterToggle" size="small" />
+          <el-switch
+            v-model="skillEnabled"
+            @change="handleMasterToggle"
+            size="small"
+          />
           <span class="toggle-label">启用技能</span>
         </div>
       </div>
@@ -17,8 +21,12 @@
             <span>正在扫描...</span>
           </div>
         </transition>
-        <el-button size="small" @click="handleRefresh" :disabled="loading">刷新</el-button>
-        <el-button size="small" type="primary" @click="showInstallDialog = true">安装技能</el-button>
+        <el-button size="small" @click="handleRefresh" :disabled="loading"
+          >刷新</el-button
+        >
+        <el-button size="small" type="primary" @click="showInstallDialog = true"
+          >安装技能</el-button
+        >
       </div>
     </div>
 
@@ -86,7 +94,11 @@
     </el-tabs>
 
     <!-- 安装对话框 -->
-    <SkillInstallDialog v-if="showInstallDialog" @close="showInstallDialog = false" @installed="handleInstalled" />
+    <SkillInstallDialog
+      v-if="showInstallDialog"
+      @close="showInstallDialog = false"
+      @installed="handleInstalled"
+    />
   </div>
 </template>
 
@@ -102,7 +114,8 @@ import SkillInstallDialog from "./SkillInstallDialog.vue";
 import SkillScanSettings from "./SkillScanSettings.vue";
 import SkillDiscoveryPanel from "./SkillDiscoveryPanel.vue";
 
-const { store, initialize, refresh, toggleSkill, uninstallSkill, renameSkill } = useSkillManager();
+const { store, initialize, refresh, toggleSkill, uninstallSkill, renameSkill } =
+  useSkillManager();
 const loading = ref(false);
 const selectedManifest = ref<SkillManifest | null>(null);
 const showInstallDialog = ref(false);
@@ -327,8 +340,12 @@ function handleInstalled() {
   border-radius: 8px;
   flex-shrink: 0;
   margin-bottom: 12px;
-  background-color: rgba(var(--el-color-warning-rgb), calc(var(--card-opacity) * 0.12));
-  border: var(--border-width) solid rgba(var(--el-color-warning-rgb), calc(var(--card-opacity) * 0.25));
+  background-color: rgba(
+    var(--el-color-warning-rgb),
+    calc(var(--card-opacity) * 0.12)
+  );
+  border: var(--border-width) solid
+    rgba(var(--el-color-warning-rgb), calc(var(--card-opacity) * 0.25));
 }
 
 .banner-icon {

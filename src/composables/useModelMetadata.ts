@@ -6,9 +6,16 @@
  */
 
 import { computed } from "vue";
-import type { ModelMetadataRule, ModelMetadataProperties } from "../types/model-metadata";
+import type {
+  ModelMetadataRule,
+  ModelMetadataProperties,
+} from "../types/model-metadata";
 import type { LlmModelInfo } from "../types/llm-profiles";
-import { getMatchedModelProperties, getModelIconPath, isValidIconPath } from "../config/model-metadata";
+import {
+  getMatchedModelProperties,
+  getModelIconPath,
+  isValidIconPath,
+} from "../config/model-metadata";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useModelMetadataStore } from "../stores/modelMetadataStore";
 
@@ -22,7 +29,10 @@ export function useModelMetadata() {
   /**
    * 获取匹配模型的元数据属性
    */
-  function getMatchedProperties(modelId: string, provider?: string): ModelMetadataProperties | undefined {
+  function getMatchedProperties(
+    modelId: string,
+    provider?: string
+  ): ModelMetadataProperties | undefined {
     return getMatchedModelProperties(store.rules, modelId, provider);
   }
 
@@ -33,7 +43,7 @@ export function useModelMetadata() {
   function getModelProperty<K extends keyof ModelMetadataProperties>(
     model: LlmModelInfo,
     propertyKey: K,
-    defaultValue?: ModelMetadataProperties[K],
+    defaultValue?: ModelMetadataProperties[K]
   ): ModelMetadataProperties[K] | undefined {
     // 第一优先级：模型自身的属性
     const modelValue = (model as Record<string, any>)[propertyKey as string];
@@ -66,7 +76,8 @@ export function useModelMetadata() {
   function getDisplayIconPath(iconPath: string): string {
     if (!iconPath) return "";
     const isWindowsAbsolutePath = /^[A-Za-z]:[\\/]/.test(iconPath);
-    const isUnixAbsolutePath = iconPath.startsWith("/") && !iconPath.startsWith("/model-icons");
+    const isUnixAbsolutePath =
+      iconPath.startsWith("/") && !iconPath.startsWith("/model-icons");
 
     if (isWindowsAbsolutePath || isUnixAbsolutePath) {
       return convertFileSrc(iconPath);
@@ -94,7 +105,7 @@ export function useModelMetadata() {
         updatedAt: new Date().toISOString(),
       },
       null,
-      2,
+      2
     );
   }
 
@@ -104,7 +115,8 @@ export function useModelMetadata() {
   async function importRules(jsonStr: string): Promise<boolean> {
     try {
       const data = JSON.parse(jsonStr);
-      if (!data.rules || !Array.isArray(data.rules)) throw new Error("无效的配置格式");
+      if (!data.rules || !Array.isArray(data.rules))
+        throw new Error("无效的配置格式");
       store.rules = data.rules;
       await store.saveRules();
       return true;
@@ -147,7 +159,8 @@ export function useModelMetadata() {
     exportRules,
     importRules,
     sortByPriority,
-    getRulesByType: (matchType: ModelMetadataRule["matchType"]) => store.rules.filter((r) => r.matchType === matchType),
+    getRulesByType: (matchType: ModelMetadataRule["matchType"]) =>
+      store.rules.filter((r) => r.matchType === matchType),
 
     // 匹配与查询
     getMatchedRule: store.getMatchedRule,

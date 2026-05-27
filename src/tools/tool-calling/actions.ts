@@ -43,14 +43,16 @@ export async function getTaskStatus(args: { taskId: string }): Promise<string> {
           createdAt: new Date(task.createdAt).toISOString(),
         };
 
-        if (task.startedAt) result.startedAt = new Date(task.startedAt).toISOString();
+        if (task.startedAt)
+          result.startedAt = new Date(task.startedAt).toISOString();
         if (task.completedAt) {
           result.completedAt = new Date(task.completedAt).toISOString();
           result.duration = `${((task.completedAt - (task.startedAt || task.createdAt)) / 1000).toFixed(2)}秒`;
         }
         if (task.progress !== undefined) result.progress = `${task.progress}%`;
         if (task.progressMessage) result.progressMessage = task.progressMessage;
-        if (task.status === "completed" && task.result) result.result = task.result;
+        if (task.status === "completed" && task.result)
+          result.result = task.result;
         if (task.status === "failed" && task.error) result.error = task.error;
         if (task.status === "interrupted") {
           result.error = task.error;
@@ -59,7 +61,7 @@ export async function getTaskStatus(args: { taskId: string }): Promise<string> {
 
         return JSON.stringify(result, null, 2);
       },
-      { userMessage: "查询任务状态失败" },
+      { userMessage: "查询任务状态失败" }
     )) || buildError("查询失败")
   );
 }
@@ -83,7 +85,7 @@ export async function cancelTask(args: { taskId: string }): Promise<string> {
 
         return buildSuccess({ message: `任务 ${taskId} 已取消` });
       },
-      { userMessage: "取消任务失败" },
+      { userMessage: "取消任务失败" }
     )) || buildError("取消失败")
   );
 }
@@ -105,7 +107,7 @@ export async function retryTask(args: { taskId: string }): Promise<string> {
           newTaskId,
         });
       },
-      { userMessage: "重试任务失败" },
+      { userMessage: "重试任务失败" }
     )) || buildError("重试失败")
   );
 }
@@ -118,7 +120,7 @@ export async function retryTask(args: { taskId: string }): Promise<string> {
  */
 export async function testAsyncTask(
   args: { duration?: number; shouldFail?: boolean },
-  context?: ToolContext,
+  context?: ToolContext
 ): Promise<string> {
   const duration = args.duration ?? 5;
   const shouldFail = !!args.shouldFail;
@@ -127,7 +129,11 @@ export async function testAsyncTask(
     return buildError("此方法必须作为异步任务执行");
   }
 
-  logger.info("开始测试异步任务", { duration, shouldFail, taskId: context.taskId });
+  logger.info("开始测试异步任务", {
+    duration,
+    shouldFail,
+    taskId: context.taskId,
+  });
 
   try {
     const startTime = Date.now();
@@ -142,7 +148,10 @@ export async function testAsyncTask(
 
       const progress = Math.floor((i / totalSteps) * 100);
       const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-      context.reportStatus(`执行中... 已用时 ${elapsed}秒 (${i}/${totalSteps})`, progress);
+      context.reportStatus(
+        `执行中... 已用时 ${elapsed}秒 (${i}/${totalSteps})`,
+        progress
+      );
 
       await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -162,7 +171,7 @@ export async function testAsyncTask(
         taskId: context.taskId,
       },
       null,
-      2,
+      2
     );
   } catch (error: any) {
     if (error.name === "AbortError") {
@@ -184,7 +193,7 @@ export async function testAsyncTask(
  */
 export async function testSyncTask(
   args: { duration?: number; shouldFail?: boolean },
-  context?: ToolContext,
+  context?: ToolContext
 ): Promise<string> {
   const duration = args.duration ?? 5;
   const shouldFail = !!args.shouldFail;
@@ -211,7 +220,10 @@ export async function testSyncTask(
 
       // 每 5 步上报一次进度，避免过于频繁
       if (i % 5 === 0 || i === totalSteps) {
-        context?.reportStatus(`同步执行中... 已用时 ${elapsed}秒 (${i}/${totalSteps})`, progress);
+        context?.reportStatus(
+          `同步执行中... 已用时 ${elapsed}秒 (${i}/${totalSteps})`,
+          progress
+        );
       }
 
       // 异步延时，释放 Event Loop
@@ -235,7 +247,7 @@ export async function testSyncTask(
         taskId,
       },
       null,
-      2,
+      2
     );
   } catch (error: any) {
     if (error.name === "AbortError") {

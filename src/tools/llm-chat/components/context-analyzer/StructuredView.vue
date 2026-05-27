@@ -5,7 +5,15 @@
       <div class="agent-info">
         <Avatar
           v-if="contextData.agentInfo.icon"
-          :src="resolveAvatarPath({ id: contextData.agentInfo.id, icon: contextData.agentInfo.icon }, 'agent') || ''"
+          :src="
+            resolveAvatarPath(
+              {
+                id: contextData.agentInfo.id,
+                icon: contextData.agentInfo.icon,
+              },
+              'agent'
+            ) || ''
+          "
           :alt="agentDisplayName"
           :size="96"
           shape="square"
@@ -21,15 +29,31 @@
           <div class="info-item">
             <span class="label">模型:</span>
             <span class="value">
-              <DynamicIcon v-if="modelIcon" :src="modelIcon" :size="16" class="value-icon" alt="model icon" />
+              <DynamicIcon
+                v-if="modelIcon"
+                :src="modelIcon"
+                :size="16"
+                class="value-icon"
+                alt="model icon"
+              />
               {{ modelDisplayName }}
             </span>
           </div>
           <div class="info-item">
             <span class="label">配置文件:</span>
             <span class="value">
-              <DynamicIcon v-if="providerIcon" :src="providerIcon" :size="16" class="value-icon" alt="provider icon" />
-              {{ contextData.agentInfo.profileName || agentProfile?.name || "未知配置" }}
+              <DynamicIcon
+                v-if="providerIcon"
+                :src="providerIcon"
+                :size="16"
+                class="value-icon"
+                alt="provider icon"
+              />
+              {{
+                contextData.agentInfo.profileName ||
+                agentProfile?.name ||
+                "未知配置"
+              }}
             </span>
           </div>
         </div>
@@ -41,8 +65,13 @@
       <template #header>
         <div class="card-header">
           <span>上下文统计</span>
-          <el-tag v-if="contextData.statistics.tokenizerName" size="small" type="info">
-            {{ contextData.statistics.isEstimated ? "字符估算" : "Token 计算" }} -
+          <el-tag
+            v-if="contextData.statistics.tokenizerName"
+            size="small"
+            type="info"
+          >
+            {{ contextData.statistics.isEstimated ? "字符估算" : "Token 计算" }}
+            -
             {{ contextData.statistics.tokenizerName }}
           </el-tag>
         </div>
@@ -50,47 +79,98 @@
       <div class="stats-grid">
         <div class="stat-item">
           <div class="stat-label">总消息数</div>
-          <div class="stat-value">{{ contextData.statistics.messageCount }}</div>
+          <div class="stat-value">
+            {{ contextData.statistics.messageCount }}
+          </div>
         </div>
-        <div v-if="contextData.statistics.totalTokenCount !== undefined" class="stat-item primary">
+        <div
+          v-if="contextData.statistics.totalTokenCount !== undefined"
+          class="stat-item primary"
+        >
           <div class="stat-label">总 Token 数</div>
           <div class="stat-value">
             {{ contextData.statistics.totalTokenCount.toLocaleString() }}
-            <span class="char-count"> {{ contextData.statistics.totalCharCount.toLocaleString() }} 字符 </span>
+            <span class="char-count">
+              {{ contextData.statistics.totalCharCount.toLocaleString() }} 字符
+            </span>
           </div>
         </div>
         <div v-else class="stat-item">
           <div class="stat-label">总字符数</div>
-          <div class="stat-value">{{ contextData.statistics.totalCharCount.toLocaleString() }}</div>
+          <div class="stat-value">
+            {{ contextData.statistics.totalCharCount.toLocaleString() }}
+          </div>
         </div>
         <div class="stat-item">
           <div class="stat-label">预设消息</div>
           <div class="stat-value">
-            <template v-if="contextData.statistics.presetMessagesTokenCount !== undefined">
-              {{ contextData.statistics.presetMessagesTokenCount.toLocaleString() }} tokens
+            <template
+              v-if="
+                contextData.statistics.presetMessagesTokenCount !== undefined
+              "
+            >
+              {{
+                contextData.statistics.presetMessagesTokenCount.toLocaleString()
+              }}
+              tokens
               <span class="char-count">
-                {{ contextData.statistics.presetMessagesCharCount.toLocaleString() }} 字符
+                {{
+                  contextData.statistics.presetMessagesCharCount.toLocaleString()
+                }}
+                字符
               </span>
             </template>
-            <template v-else> {{ contextData.statistics.presetMessagesCharCount.toLocaleString() }} 字符 </template>
+            <template v-else>
+              {{
+                contextData.statistics.presetMessagesCharCount.toLocaleString()
+              }}
+              字符
+            </template>
           </div>
         </div>
         <div class="stat-item">
           <div class="stat-label">会话历史</div>
           <div class="stat-value">
-            <template v-if="contextData.statistics.chatHistoryTokenCount !== undefined">
-              {{ contextData.statistics.chatHistoryTokenCount.toLocaleString() }} tokens
-              <span class="char-count"> {{ contextData.statistics.chatHistoryCharCount.toLocaleString() }} 字符 </span>
+            <template
+              v-if="contextData.statistics.chatHistoryTokenCount !== undefined"
+            >
+              {{
+                contextData.statistics.chatHistoryTokenCount.toLocaleString()
+              }}
+              tokens
+              <span class="char-count">
+                {{
+                  contextData.statistics.chatHistoryCharCount.toLocaleString()
+                }}
+                字符
+              </span>
             </template>
-            <template v-else> {{ contextData.statistics.chatHistoryCharCount.toLocaleString() }} 字符 </template>
+            <template v-else>
+              {{ contextData.statistics.chatHistoryCharCount.toLocaleString() }}
+              字符
+            </template>
           </div>
         </div>
-        <div v-if="contextData.statistics.postProcessingTokenCount !== undefined" class="stat-item">
+        <div
+          v-if="contextData.statistics.postProcessingTokenCount !== undefined"
+          class="stat-item"
+        >
           <div class="stat-label">后处理消耗</div>
           <div class="stat-value">
-            {{ contextData.statistics.postProcessingTokenCount.toLocaleString() }} tokens
-            <span class="char-count" v-if="contextData.statistics.postProcessingCharCount !== undefined">
-              {{ contextData.statistics.postProcessingCharCount.toLocaleString() }} 字符
+            {{
+              contextData.statistics.postProcessingTokenCount.toLocaleString()
+            }}
+            tokens
+            <span
+              class="char-count"
+              v-if="
+                contextData.statistics.postProcessingCharCount !== undefined
+              "
+            >
+              {{
+                contextData.statistics.postProcessingCharCount.toLocaleString()
+              }}
+              字符
             </span>
           </div>
         </div>
@@ -106,12 +186,24 @@
           <div class="stat-value">
             {{ contextData.statistics.worldbookEntryCount || 0 }} 条
             <span class="char-count">
-              <template v-if="contextData.statistics.worldbookTokenCount !== undefined">
-                {{ contextData.statistics.worldbookTokenCount.toLocaleString() }} tokens
+              <template
+                v-if="contextData.statistics.worldbookTokenCount !== undefined"
+              >
+                {{
+                  contextData.statistics.worldbookTokenCount.toLocaleString()
+                }}
+                tokens
               </template>
-              <template v-if="contextData.statistics.worldbookCharCount !== undefined">
-                {{ contextData.statistics.worldbookTokenCount !== undefined ? " / " : "" }}
-                {{ contextData.statistics.worldbookCharCount.toLocaleString() }} 字符
+              <template
+                v-if="contextData.statistics.worldbookCharCount !== undefined"
+              >
+                {{
+                  contextData.statistics.worldbookTokenCount !== undefined
+                    ? " / "
+                    : ""
+                }}
+                {{ contextData.statistics.worldbookCharCount.toLocaleString() }}
+                字符
               </template>
               <template
                 v-if="
@@ -125,14 +217,22 @@
           </div>
         </div>
         <div
-          v-if="contextData.statistics.truncatedMessageCount && contextData.statistics.truncatedMessageCount > 0"
+          v-if="
+            contextData.statistics.truncatedMessageCount &&
+            contextData.statistics.truncatedMessageCount > 0
+          "
           class="stat-item warning"
         >
           <div class="stat-label">截断统计</div>
           <div class="stat-value">
             {{ contextData.statistics.truncatedMessageCount }} 条消息
-            <span class="saved-count" v-if="contextData.statistics.savedTokenCount !== undefined">
-              节省 {{ contextData.statistics.savedTokenCount.toLocaleString() }} tokens
+            <span
+              class="saved-count"
+              v-if="contextData.statistics.savedTokenCount !== undefined"
+            >
+              节省
+              {{ contextData.statistics.savedTokenCount.toLocaleString() }}
+              tokens
             </span>
           </div>
         </div>
@@ -141,28 +241,56 @@
 
     <!-- 世界书条目 -->
     <InfoCard
-      v-if="contextData.worldbookEntries && contextData.worldbookEntries.length > 0"
+      v-if="
+        contextData.worldbookEntries && contextData.worldbookEntries.length > 0
+      "
       class="worldbook-section-card"
     >
       <template #header>
-        <div class="card-header clickable" @click="worldbookExpanded = !worldbookExpanded">
+        <div
+          class="card-header clickable"
+          @click="worldbookExpanded = !worldbookExpanded"
+        >
           <div class="header-left">
-            <el-icon class="expand-icon" :class="{ expanded: worldbookExpanded }">
+            <el-icon
+              class="expand-icon"
+              :class="{ expanded: worldbookExpanded }"
+            >
               <ArrowRight />
             </el-icon>
-            <el-icon class="section-icon worldbook-color"><MagicStick /></el-icon>
+            <el-icon class="section-icon worldbook-color"
+              ><MagicStick
+            /></el-icon>
             <span>激活的世界书条目</span>
           </div>
           <div class="header-tags">
-            <el-tag size="small" type="warning"> {{ contextData.worldbookEntries.length }} 条 </el-tag>
-            <el-tag v-if="contextData.statistics.worldbookTokenCount" size="small" type="success">
-              {{ contextData.statistics.worldbookTokenCount.toLocaleString() }} tokens
+            <el-tag size="small" type="warning">
+              {{ contextData.worldbookEntries.length }} 条
             </el-tag>
-            <el-tag v-if="contextData.statistics.worldbookCharCount" size="small" type="info">
-              {{ contextData.statistics.worldbookCharCount.toLocaleString() }} 字符
+            <el-tag
+              v-if="contextData.statistics.worldbookTokenCount"
+              size="small"
+              type="success"
+            >
+              {{ contextData.statistics.worldbookTokenCount.toLocaleString() }}
+              tokens
+            </el-tag>
+            <el-tag
+              v-if="contextData.statistics.worldbookCharCount"
+              size="small"
+              type="info"
+            >
+              {{ contextData.statistics.worldbookCharCount.toLocaleString() }}
+              字符
             </el-tag>
             <el-divider direction="vertical" />
-            <el-button link type="primary" size="small" class="expand-all-btn" @click.stop="toggleAllEntries">
+            <el-button
+              link
+              type="primary"
+              size="small"
+              class="expand-all-btn"
+              @click.stop="toggleAllEntries"
+            >
               {{ isAllEntriesExpanded ? "一键收起" : "一键展开" }}
             </el-button>
           </div>
@@ -170,17 +298,36 @@
       </template>
       <el-collapse-transition>
         <div v-show="worldbookExpanded" class="worldbook-list">
-          <div v-for="entry in contextData.worldbookEntries" :key="entry.uid" class="worldbook-entry">
+          <div
+            v-for="entry in contextData.worldbookEntries"
+            :key="entry.uid"
+            class="worldbook-entry"
+          >
             <div class="entry-header" @click="toggleEntryExpand(entry.uid)">
               <div class="entry-title">
-                <el-icon class="expand-icon small" :class="{ expanded: expandedEntries.has(entry.uid) }">
+                <el-icon
+                  class="expand-icon small"
+                  :class="{ expanded: expandedEntries.has(entry.uid) }"
+                >
                   <ArrowRight />
                 </el-icon>
                 <span class="entry-name">
                   {{ entry.comment || `条目 #${entry.uid}` }}
                 </span>
-                <el-tag v-if="entry.constant" size="small" type="danger" effect="dark"> 常量 </el-tag>
-                <el-tag size="small" type="info" effect="plain" class="entry-source-tag">
+                <el-tag
+                  v-if="entry.constant"
+                  size="small"
+                  type="danger"
+                  effect="dark"
+                >
+                  常量
+                </el-tag>
+                <el-tag
+                  size="small"
+                  type="info"
+                  effect="plain"
+                  class="entry-source-tag"
+                >
                   {{ entry.worldbookName }}
                 </el-tag>
               </div>
@@ -188,14 +335,23 @@
                 <el-tag size="small" type="warning" effect="plain">
                   {{ getPositionLabel(entry.position, entry.depth) }}
                 </el-tag>
-                <el-tag v-if="entry.tokenCount !== undefined" size="small" type="success">
+                <el-tag
+                  v-if="entry.tokenCount !== undefined"
+                  size="small"
+                  type="success"
+                >
                   {{ entry.tokenCount }} tokens
                 </el-tag>
-                <el-tag size="small" type="info"> {{ entry.charCount }} 字符 </el-tag>
+                <el-tag size="small" type="info">
+                  {{ entry.charCount }} 字符
+                </el-tag>
               </div>
             </div>
             <el-collapse-transition>
-              <div v-show="expandedEntries.has(entry.uid)" class="entry-details">
+              <div
+                v-show="expandedEntries.has(entry.uid)"
+                class="entry-details"
+              >
                 <!-- 关键词信息 -->
                 <div class="worldbook-keywords">
                   <div v-if="entry.keys.length > 0" class="keyword-group">
@@ -211,9 +367,14 @@
                     >
                       {{ key }}
                     </el-tag>
-                    <span v-if="entry.keys.length > 8" class="more-keywords"> +{{ entry.keys.length - 8 }} </span>
+                    <span v-if="entry.keys.length > 8" class="more-keywords">
+                      +{{ entry.keys.length - 8 }}
+                    </span>
                   </div>
-                  <div v-if="entry.keysecondary.length > 0" class="keyword-group">
+                  <div
+                    v-if="entry.keysecondary.length > 0"
+                    class="keyword-group"
+                  >
                     <span class="keyword-label">次要:</span>
                     <el-tag
                       v-for="(key, idx) in entry.keysecondary.slice(0, 5)"
@@ -225,7 +386,10 @@
                     >
                       {{ key }}
                     </el-tag>
-                    <span v-if="entry.keysecondary.length > 5" class="more-keywords">
+                    <span
+                      v-if="entry.keysecondary.length > 5"
+                      class="more-keywords"
+                    >
                       +{{ entry.keysecondary.length - 5 }}
                     </span>
                   </div>
@@ -246,8 +410,14 @@
       <div class="section-title">
         <span>上下文消息</span>
         <div class="header-tags">
-          <el-tag size="small" type="primary"> {{ unifiedMessages.length }} 条消息 </el-tag>
-          <el-tag v-if="contextData.statistics.totalTokenCount !== undefined" size="small" type="success">
+          <el-tag size="small" type="primary">
+            {{ unifiedMessages.length }} 条消息
+          </el-tag>
+          <el-tag
+            v-if="contextData.statistics.totalTokenCount !== undefined"
+            size="small"
+            type="success"
+          >
             {{ contextData.statistics.totalTokenCount.toLocaleString() }} tokens
           </el-tag>
         </div>
@@ -256,7 +426,10 @@
         <InfoCard
           v-for="(msg, index) in unifiedMessages"
           :key="msg.key"
-          :class="['message-card', { 'pending-message-card': msg.isPendingInput }]"
+          :class="[
+            'message-card',
+            { 'pending-message-card': msg.isPendingInput },
+          ]"
         >
           <template #header>
             <div class="message-card-header">
@@ -273,7 +446,12 @@
                 <Avatar
                   v-else-if="msg.role === 'assistant'"
                   :src="getAssistantAvatarSrc(msg)"
-                  :alt="msg.agentName || contextData.agentInfo.displayName || contextData.agentInfo.name || '助手'"
+                  :alt="
+                    msg.agentName ||
+                    contextData.agentInfo.displayName ||
+                    contextData.agentInfo.name ||
+                    '助手'
+                  "
                   :size="24"
                   shape="square"
                   :radius="4"
@@ -286,26 +464,54 @@
                   #{{ index + 1 }}
                 </span>
                 <!-- 摘要节点标识 -->
-                <el-tag v-if="msg.isCompressionNode" size="small" type="info" effect="dark" class="compression-tag">
+                <el-tag
+                  v-if="msg.isCompressionNode"
+                  size="small"
+                  type="info"
+                  effect="dark"
+                  class="compression-tag"
+                >
                   上下文摘要
                 </el-tag>
                 <!-- 待发送节点标识 -->
-                <el-tag v-if="msg.isPendingInput" size="small" type="warning" effect="dark" class="pending-tag">
+                <el-tag
+                  v-if="msg.isPendingInput"
+                  size="small"
+                  type="warning"
+                  effect="dark"
+                  class="pending-tag"
+                >
                   待发送
                 </el-tag>
                 <!-- 来源标签 -->
-                <el-tag :type="getSourceTagType(msg.source)" size="small" effect="plain" class="source-tag">
+                <el-tag
+                  :type="getSourceTagType(msg.source)"
+                  size="small"
+                  effect="plain"
+                  class="source-tag"
+                >
                   {{ getSourceLabel(msg) }}
                 </el-tag>
               </div>
               <div class="header-tags">
-                <el-tag v-if="msg.nonTextCount > 0" size="small" type="warning" effect="plain">
+                <el-tag
+                  v-if="msg.nonTextCount > 0"
+                  size="small"
+                  type="warning"
+                  effect="plain"
+                >
                   +{{ msg.nonTextCount }} 非文本
                 </el-tag>
-                <el-tag v-if="msg.tokenCount !== undefined" size="small" type="success">
+                <el-tag
+                  v-if="msg.tokenCount !== undefined"
+                  size="small"
+                  type="success"
+                >
                   {{ msg.tokenCount }} tokens
                 </el-tag>
-                <el-tag size="small" type="info"> {{ msg.charCount }} 字符 </el-tag>
+                <el-tag size="small" type="info">
+                  {{ msg.charCount }} 字符
+                </el-tag>
               </div>
             </div>
             <!-- 摘要详情 -->
@@ -317,7 +523,10 @@
             </div>
           </template>
           <!-- 宏展开对比（待发送消息） -->
-          <div v-if="msg.isPendingInput && msg.pendingInputOriginal" class="macro-diff-section">
+          <div
+            v-if="msg.isPendingInput && msg.pendingInputOriginal"
+            class="macro-diff-section"
+          >
             <el-collapse>
               <el-collapse-item title="查看宏展开对比" name="macro">
                 <div class="macro-diff-content">
@@ -327,17 +536,26 @@
                   </div>
                   <div class="diff-block">
                     <div class="diff-label">处理后：</div>
-                    <div class="diff-text">{{ getDisplayContent(msg.content) }}</div>
+                    <div class="diff-text">
+                      {{ getDisplayContent(msg.content) }}
+                    </div>
                   </div>
                 </div>
               </el-collapse-item>
             </el-collapse>
           </div>
-          <div v-else class="message-content" :class="{ 'is-summary': msg.isCompressionNode }">
+          <div
+            v-else
+            class="message-content"
+            :class="{ 'is-summary': msg.isCompressionNode }"
+          >
             {{ getDisplayContent(msg.content) }}
           </div>
           <!-- 附件分析（仅会话历史消息有） -->
-          <div v-if="msg.attachments && msg.attachments.length > 0" class="attachments-section">
+          <div
+            v-if="msg.attachments && msg.attachments.length > 0"
+            class="attachments-section"
+          >
             <div class="attachments-title">附件分析</div>
             <div class="attachments-grid">
               <AttachmentCard
@@ -350,7 +568,9 @@
                 :token-error="att.error"
                 :removable="false"
                 size="large"
-                :will-use-transcription="getWillUseTranscription(att, msg.messageDepth)"
+                :will-use-transcription="
+                  getWillUseTranscription(att, msg.messageDepth)
+                "
               />
             </div>
           </div>
@@ -362,11 +582,20 @@
 
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { Setting, ChatLineRound, MagicStick, Key, ArrowRight } from "@element-plus/icons-vue";
+import {
+  Setting,
+  ChatLineRound,
+  MagicStick,
+  Key,
+  ArrowRight,
+} from "@element-plus/icons-vue";
 import InfoCard from "@/components/common/InfoCard.vue";
 import Avatar from "@/components/common/Avatar.vue";
 import AttachmentCard from "../AttachmentCard.vue";
-import { type ContextPreviewData, isVirtualPendingInputNode } from "../../types/context";
+import {
+  type ContextPreviewData,
+  isVirtualPendingInputNode,
+} from "../../types/context";
 import type { Asset } from "@/types/asset-management";
 import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
 import type { LlmMessageContent } from "@/llm-apis/common";
@@ -398,7 +627,9 @@ function toggleEntryExpand(uid: number) {
 
 const isAllEntriesExpanded = computed(() => {
   if (!props.contextData.worldbookEntries?.length) return false;
-  return expandedEntries.value.size >= props.contextData.worldbookEntries.length;
+  return (
+    expandedEntries.value.size >= props.contextData.worldbookEntries.length
+  );
 });
 
 function toggleAllEntries() {
@@ -413,7 +644,8 @@ function toggleAllEntries() {
   }
 }
 
-const { getModelIcon, getModelProperty, getIconPath, getDisplayIconPath } = useModelMetadata();
+const { getModelIcon, getModelProperty, getIconPath, getDisplayIconPath } =
+  useModelMetadata();
 const { computeWillUseTranscription } = useTranscriptionManager();
 
 const agentProfile = computed(() => {
@@ -422,8 +654,11 @@ const agentProfile = computed(() => {
 });
 
 const agentModel = computed(() => {
-  if (!agentProfile.value || !props.contextData.agentInfo.modelId) return undefined;
-  return agentProfile.value.models.find((m) => m.id === props.contextData.agentInfo.modelId);
+  if (!agentProfile.value || !props.contextData.agentInfo.modelId)
+    return undefined;
+  return agentProfile.value.models.find(
+    (m) => m.id === props.contextData.agentInfo.modelId
+  );
 });
 
 const modelDisplayName = computed(() => {
@@ -433,7 +668,11 @@ const modelDisplayName = computed(() => {
   }
   // 2. 如果快照没有，再尝试从当前配置获取（用于兼容旧数据）
   if (agentModel.value) {
-    return getModelProperty(agentModel.value, "name") || agentModel.value.name || agentModel.value.id;
+    return (
+      getModelProperty(agentModel.value, "name") ||
+      agentModel.value.name ||
+      agentModel.value.id
+    );
   }
   // 3. 最终回退到使用 modelId
   return props.contextData.agentInfo.modelId;
@@ -506,7 +745,9 @@ const fallbackUserInfo = computed(() => {
   }
 
   // 2. 尝试获取当前生效的用户配置（优先使用智能体绑定的档案）
-  const effectiveProfile = userProfileStore.getEffectiveProfile(props.contextData.agentInfo.userProfileId);
+  const effectiveProfile = userProfileStore.getEffectiveProfile(
+    props.contextData.agentInfo.userProfileId
+  );
   if (effectiveProfile) {
     // 适配：UserProfile 的 name 是内部ID，displayName 才是显示名
     return {
@@ -594,7 +835,8 @@ const unifiedMessages = computed<UnifiedMessage[]>(() => {
     } else if (Array.isArray(finalMsg.content)) {
       // 只提取文本部分，避免 Base64 导致字符数虚高
       const textParts = finalMsg.content.filter(
-        (p): p is { type: "text"; text: string } => p.type === "text" && !!p.text,
+        (p): p is { type: "text"; text: string } =>
+          p.type === "text" && !!p.text
       );
       contentStr = textParts.map((p) => p.text).join("\n");
       baseMsg.nonTextCount = finalMsg.content.length - textParts.length;
@@ -617,10 +859,16 @@ const unifiedMessages = computed<UnifiedMessage[]>(() => {
         // 获取源数据对象 (Preset 或 History)
         let sourceData: any = null;
 
-        if (sourceMsg.sourceType === "agent_preset" && sourceMsg.sourceIndex !== undefined) {
+        if (
+          sourceMsg.sourceType === "agent_preset" &&
+          sourceMsg.sourceIndex !== undefined
+        ) {
           sourceData = presetMap.get(sourceMsg.sourceIndex);
           source = "agent_preset"; // 只要含预设，整体即为预设来源（优先级更高）
-        } else if (sourceMsg.sourceType === "session_history" && sourceMsg.sourceId) {
+        } else if (
+          sourceMsg.sourceType === "session_history" &&
+          sourceMsg.sourceId
+        ) {
           sourceData = historyMap.get(String(sourceMsg.sourceId));
           if (source !== "agent_preset") source = "session_history";
         }
@@ -631,12 +879,16 @@ const unifiedMessages = computed<UnifiedMessage[]>(() => {
 
           // 2. 提取身份信息 (仅当尚未提取到时，优先取第一个非空的)
           if (mergedRole === "user") {
-            if (!userName && sourceData.userName) userName = sourceData.userName;
-            if (!userIcon && sourceData.userIcon) userIcon = sourceData.userIcon;
+            if (!userName && sourceData.userName)
+              userName = sourceData.userName;
+            if (!userIcon && sourceData.userIcon)
+              userIcon = sourceData.userIcon;
           } else if (mergedRole === "assistant") {
             // 注意：preset 数据结构中通常没有 agentName/Icon，访问 undefined 也没关系
-            if (!agentName && sourceData.agentName) agentName = sourceData.agentName;
-            if (!agentIcon && sourceData.agentIcon) agentIcon = sourceData.agentIcon;
+            if (!agentName && sourceData.agentName)
+              agentName = sourceData.agentName;
+            if (!agentIcon && sourceData.agentIcon)
+              agentIcon = sourceData.agentIcon;
           }
           // system 角色不需要提取名字头像
         }
@@ -655,13 +907,20 @@ const unifiedMessages = computed<UnifiedMessage[]>(() => {
       };
 
       // 为合并后的 user 消息应用回退逻辑
-      if (result.role === "user" && !result.userName && fallbackUserInfo.value) {
+      if (
+        result.role === "user" &&
+        !result.userName &&
+        fallbackUserInfo.value
+      ) {
         result.userName = fallbackUserInfo.value.name;
         result.userIcon = fallbackUserInfo.value.icon;
       }
 
       return result;
-    } else if (finalMsg.sourceType === "agent_preset" && finalMsg.sourceIndex !== undefined) {
+    } else if (
+      finalMsg.sourceType === "agent_preset" &&
+      finalMsg.sourceIndex !== undefined
+    ) {
       const preset = presetMap.get(finalMsg.sourceIndex);
       if (preset) {
         const result: UnifiedMessage = {
@@ -674,7 +933,11 @@ const unifiedMessages = computed<UnifiedMessage[]>(() => {
         };
 
         // 为预设的 user 消息应用回退逻辑
-        if (result.role === "user" && !result.userName && fallbackUserInfo.value) {
+        if (
+          result.role === "user" &&
+          !result.userName &&
+          fallbackUserInfo.value
+        ) {
           result.userName = fallbackUserInfo.value.name;
           result.userIcon = fallbackUserInfo.value.icon;
         }
@@ -700,11 +963,14 @@ const unifiedMessages = computed<UnifiedMessage[]>(() => {
           messageDepth: historyDepthMap.get(history.nodeId),
           // 通过 nodeId 前缀识别虚拟待发送节点
           isPendingInput: isVirtualPendingInputNode(history.nodeId),
-          pendingInputOriginal: isVirtualPendingInputNode(history.nodeId) ? history.pendingInputOriginal : undefined,
+          pendingInputOriginal: isVirtualPendingInputNode(history.nodeId)
+            ? history.pendingInputOriginal
+            : undefined,
         };
       }
     } else if (
-      (finalMsg.sourceType === "depth_injection" || finalMsg.sourceType === "anchor_injection") &&
+      (finalMsg.sourceType === "depth_injection" ||
+        finalMsg.sourceType === "anchor_injection") &&
       finalMsg.sourceIndex !== undefined
     ) {
       // 注入消息（归类为预设）
@@ -736,13 +1002,22 @@ function getAssistantAvatarSrc(msg: UnifiedMessage): string {
     // 检查是否需要解析（可能是文件名格式）
     // 但由于历史消息没有存储 agentId，我们无法正确解析
     // 只能尝试用当前 agent 的 id 来解析（假设是同一个 agent）
-    const resolved = resolveAvatarPath({ id: props.contextData.agentInfo.id, icon: msg.agentIcon }, "agent");
+    const resolved = resolveAvatarPath(
+      { id: props.contextData.agentInfo.id, icon: msg.agentIcon },
+      "agent"
+    );
     if (resolved) return resolved;
   }
 
   // 回退到当前 agent 的头像
   return (
-    resolveAvatarPath({ id: props.contextData.agentInfo.id, icon: props.contextData.agentInfo.icon }, "agent") || ""
+    resolveAvatarPath(
+      {
+        id: props.contextData.agentInfo.id,
+        icon: props.contextData.agentInfo.icon,
+      },
+      "agent"
+    ) || ""
   );
 }
 
@@ -757,7 +1032,12 @@ function getRoleName(msg: UnifiedMessage): string {
     return msg.userName || "用户";
   }
   if (msg.role === "assistant") {
-    return msg.agentName || props.contextData.agentInfo.displayName || props.contextData.agentInfo.name || "助手";
+    return (
+      msg.agentName ||
+      props.contextData.agentInfo.displayName ||
+      props.contextData.agentInfo.name ||
+      "助手"
+    );
   }
   return msg.role;
 }
@@ -765,7 +1045,9 @@ function getRoleName(msg: UnifiedMessage): string {
 /**
  * 获取来源标签类型
  */
-function getSourceTagType(source: UnifiedMessage["source"]): "warning" | "success" | "info" {
+function getSourceTagType(
+  source: UnifiedMessage["source"]
+): "warning" | "success" | "info" {
   switch (source) {
     case "agent_preset":
       return "warning";
@@ -780,7 +1062,11 @@ function getSourceTagType(source: UnifiedMessage["source"]): "warning" | "succes
  * 获取来源标签文本
  */
 function getSourceLabel(msg: UnifiedMessage): string {
-  if (msg.source === "agent_preset" && msg._mergedSources && msg._mergedSources.length > 1) {
+  if (
+    msg.source === "agent_preset" &&
+    msg._mergedSources &&
+    msg._mergedSources.length > 1
+  ) {
     return `预设 (合并 x${msg._mergedSources.length})`;
   }
 
@@ -818,7 +1104,10 @@ const castToAssetArray = (val: any): Asset[] => val as Asset[];
  * @param asset 附件对象
  * @param messageDepth 消息深度（用于判断是否触发强制转写）
  */
-const getWillUseTranscription = (asset: any, messageDepth?: number): boolean => {
+const getWillUseTranscription = (
+  asset: any,
+  messageDepth?: number
+): boolean => {
   // 确保 asset 有必要的字段
   if (!asset || typeof asset !== "object") {
     return true; // 无效资产，默认需要转写
@@ -832,13 +1121,21 @@ const getWillUseTranscription = (asset: any, messageDepth?: number): boolean => 
   // 使用类型断言，因为上下文预览数据中的附件对象可能缺少某些字段
   // 但 computeWillUseTranscription 只需要 type、id、path 等基本字段
   // 这些字段在预览数据中应该都存在
-  return computeWillUseTranscription(asset as Asset, modelId, profileId, messageDepth);
+  return computeWillUseTranscription(
+    asset as Asset,
+    modelId,
+    profileId,
+    messageDepth
+  );
 };
 
 /**
  * 获取世界书条目位置的显示文本
  */
-function getPositionLabel(position: STWorldbookPosition, depth?: number): string {
+function getPositionLabel(
+  position: STWorldbookPosition,
+  depth?: number
+): string {
   switch (position) {
     case STWorldbookPosition.BeforeChar:
       return "角色设定前";

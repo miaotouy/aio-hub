@@ -22,7 +22,10 @@
       <div
         ref="editorEl"
         class="monaco-wrapper"
-        :class="{ visible: displayEditorReady, 'is-hidden': !displayEditorReady }"
+        :class="{
+          visible: displayEditorReady,
+          'is-hidden': !displayEditorReady,
+        }"
       ></div>
     </div>
   </div>
@@ -62,7 +65,9 @@ const containerRef = ref<HTMLElement | null>(null);
 const editorEl = ref<HTMLElement | null>(null);
 const { isDark } = useTheme();
 const logger = createModuleLogger("code-block/MonacoSourceViewer.vue");
-const errorHandler = createModuleErrorHandler("code-block/MonacoSourceViewer.vue");
+const errorHandler = createModuleErrorHandler(
+  "code-block/MonacoSourceViewer.vue"
+);
 
 const isEditorReady = ref(false);
 
@@ -96,14 +101,18 @@ function ensureMonacoPassiveTouchListeners() {
       this: Element,
       type: string,
       listener: EventListenerOrEventListenerObject,
-      options?: boolean | AddEventListenerOptions,
+      options?: boolean | AddEventListenerOptions
     ) {
       const isTouchStart = type === "touchstart";
       const isMonaco = this.closest?.(".monaco-editor, .monaco-diff-editor");
-      const hasPassive = options && typeof options === "object" && "passive" in options;
+      const hasPassive =
+        options && typeof options === "object" && "passive" in options;
 
       if (isTouchStart && isMonaco && !hasPassive) {
-        const newOptions = typeof options === "object" ? { ...options, passive: true } : { passive: true };
+        const newOptions =
+          typeof options === "object"
+            ? { ...options, passive: true }
+            : { passive: true };
         return nativeAdd.call(this, type, listener, newOptions);
       }
       return nativeAdd.call(this, type, listener, options);
@@ -148,25 +157,35 @@ function syncEditorCssVars() {
   const rootEl = containerRef.value;
   if (!editorWrapper || !rootEl) return;
 
-  const editorRoot = (editorWrapper.querySelector(".monaco-editor") || editorWrapper) as HTMLElement;
-  const bgEl = (editorRoot.querySelector(".monaco-editor-background") || editorRoot) as HTMLElement;
-  const fgEl = (editorRoot.querySelector(".view-lines") || editorRoot) as HTMLElement;
+  const editorRoot = (editorWrapper.querySelector(".monaco-editor") ||
+    editorWrapper) as HTMLElement;
+  const bgEl = (editorRoot.querySelector(".monaco-editor-background") ||
+    editorRoot) as HTMLElement;
+  const fgEl = (editorRoot.querySelector(".view-lines") ||
+    editorRoot) as HTMLElement;
 
   try {
     const rootStyles = window.getComputedStyle(editorRoot);
     const bgStyles = window.getComputedStyle(bgEl);
     const fgStyles = window.getComputedStyle(fgEl);
 
-    const fgVar = rootStyles.getPropertyValue("--vscode-editor-foreground").trim();
-    const bgVar = rootStyles.getPropertyValue("--vscode-editor-background").trim();
-    const selVar = rootStyles.getPropertyValue("--vscode-editor-selectionBackground").trim();
+    const fgVar = rootStyles
+      .getPropertyValue("--vscode-editor-foreground")
+      .trim();
+    const bgVar = rootStyles
+      .getPropertyValue("--vscode-editor-background")
+      .trim();
+    const selVar = rootStyles
+      .getPropertyValue("--vscode-editor-selectionBackground")
+      .trim();
 
     const fg = fgVar || fgStyles.color || rootStyles.color;
     const bg = bgVar || bgStyles.backgroundColor || rootStyles.backgroundColor;
 
     if (fg) rootEl.style.setProperty("--vscode-editor-foreground", fg);
     if (bg) rootEl.style.setProperty("--vscode-editor-background", bg);
-    if (selVar) rootEl.style.setProperty("--vscode-editor-selectionBackground", selVar);
+    if (selVar)
+      rootEl.style.setProperty("--vscode-editor-selectionBackground", selVar);
   } catch {}
 }
 
@@ -219,7 +238,10 @@ const setAutomaticLayout = (enabled: boolean) => {
       editor.updateOptions({ automaticLayout: enabled });
     }
   } catch (error) {
-    errorHandler.handle(error, { userMessage: "设置 automaticLayout 失败", showToUser: false });
+    errorHandler.handle(error, {
+      userMessage: "设置 automaticLayout 失败",
+      showToUser: false,
+    });
   }
 };
 
@@ -247,7 +269,8 @@ const doAdjustLayout = () => {
 
   if (contentHeight && contentHeight > 0) {
     const maxHeightInCollapsed = 500;
-    const isSaturated = !props.isExpanded && contentHeight >= maxHeightInCollapsed;
+    const isSaturated =
+      !props.isExpanded && contentHeight >= maxHeightInCollapsed;
 
     if (props.isExpanded) {
       const targetHeight = Math.ceil(contentHeight);
@@ -261,7 +284,9 @@ const doAdjustLayout = () => {
         window.scrollBy(0, heightDelta);
       }
     } else {
-      const editorHeight = Math.ceil(Math.min(contentHeight, maxHeightInCollapsed));
+      const editorHeight = Math.ceil(
+        Math.min(contentHeight, maxHeightInCollapsed)
+      );
       editorEl.value.style.height = `${editorHeight}px`;
       container.style.height = `${editorHeight}px`;
       container.style.maxHeight = `${maxHeightInCollapsed}px`;
@@ -331,7 +356,8 @@ const initEditor = async () => {
       lineNumbers: "on" as const,
       renderLineHighlight: "none" as const,
       renderValidationDecorations: "off" as const,
-      fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+      fontFamily:
+        "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
       scrollbar: {
         vertical: "auto" as const,
         horizontal: "auto" as const,
@@ -347,7 +373,9 @@ const initEditor = async () => {
       theme: isDark.value ? "vs-dark" : "vs",
     };
 
-    logger.debug("Initializing Monaco Source Viewer", { language: monacoLanguage.value });
+    logger.debug("Initializing Monaco Source Viewer", {
+      language: monacoLanguage.value,
+    });
     const helpers = useMonaco({
       ...editorOptions,
       updateThrottleMs: 32, // 提高更新频率到约 30fps，让增量解析更细碎平滑
@@ -417,7 +445,7 @@ onMounted(() => {
           }
         }
       },
-      { rootMargin: "800px" }, // 提前 800px 开始初始化，确保用户滚动到时已完成
+      { rootMargin: "800px" } // 提前 800px 开始初始化，确保用户滚动到时已完成
     );
     stopIntersectionObserver = stop;
   }
@@ -462,7 +490,7 @@ watch(
       // 编辑器未就绪，仅同步状态
       lastContent.value = newContent;
     }
-  },
+  }
 );
 
 watch(
@@ -480,7 +508,7 @@ watch(
         adjustLayout();
       });
     }
-  },
+  }
 );
 
 watch(
@@ -496,7 +524,7 @@ watch(
       editor.updateOptions({ scrollbar: { handleMouseWheel: true } });
     }
     adjustLayout();
-  },
+  }
 );
 
 watch(
@@ -506,7 +534,7 @@ watch(
     if (editor && typeof editor.updateOptions === "function") {
       editor.updateOptions({ fontSize: size });
     }
-  },
+  }
 );
 
 watch(
@@ -517,7 +545,7 @@ watch(
       editor.updateOptions({ wordWrap: enabled ? "on" : "off" });
       adjustLayout();
     }
-  },
+  }
 );
 
 // 暴露 layout 方法

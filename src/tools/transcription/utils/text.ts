@@ -1,7 +1,10 @@
 /**
  * 清理错误信息，纯截断策略，保留开头的有用信息（错误类型、文件路径等）
  */
-export const sanitizeErrorMessage = (message: string, maxLength: number = 500): string => {
+export const sanitizeErrorMessage = (
+  message: string,
+  maxLength: number = 500
+): string => {
   if (!message || message.length <= maxLength) return message;
   return message.substring(0, maxLength) + `...[已截断]`;
 };
@@ -13,7 +16,10 @@ export const cleanLlmOutput = (text: string): string => {
   let cleaned = text;
 
   // 1. 移除 **Reasoning:** ... **Response:** 格式
-  cleaned = cleaned.replace(/\*\*Reasoning:\*\*[\s\S]*?\*\*Response:\*\*\s*/gi, "");
+  cleaned = cleaned.replace(
+    /\*\*Reasoning:\*\*[\s\S]*?\*\*Response:\*\*\s*/gi,
+    ""
+  );
 
   // 2. 移除 <think>...</think> 格式
   cleaned = cleaned.replace(/<think>[\s\S]*?<\/think>\s*/gi, "");
@@ -32,11 +38,19 @@ export const cleanLlmOutput = (text: string): string => {
  */
 export const detectRepetition = (
   text: string,
-  config?: { consecutiveThreshold?: number; globalThreshold?: number; whitelist?: string[] }
+  config?: {
+    consecutiveThreshold?: number;
+    globalThreshold?: number;
+    whitelist?: string[];
+  }
 ): { isRepetitive: boolean; reason?: string } => {
   if (text.length < 50) return { isRepetitive: false };
 
-  const { consecutiveThreshold = 3, globalThreshold = 5, whitelist = [] } = config || {};
+  const {
+    consecutiveThreshold = 3,
+    globalThreshold = 5,
+    whitelist = [],
+  } = config || {};
 
   // 0. 白名单检查
   if (whitelist.length > 0) {
@@ -55,7 +69,10 @@ export const detectRepetition = (
 
   // 1. 检查连续重复的行/句
   // 优化：不按空格切割，避免表格内容被拆散；同时排除掉纯符号组成的片段（如表格分隔符）
-  const segments = text.split(/[\n。！？、]/).map((l) => l.trim()).filter((l) => l.length >= 4);
+  const segments = text
+    .split(/[\n。！？、]/)
+    .map((l) => l.trim())
+    .filter((l) => l.length >= 4);
   let consecutiveCount = 1;
   for (let i = 1; i < segments.length; i++) {
     const current = segments[i];
@@ -75,9 +92,13 @@ export const detectRepetition = (
       }
 
       consecutiveCount++;
-      const threshold = current.length > 10 ? consecutiveThreshold : consecutiveThreshold + 1;
+      const threshold =
+        current.length > 10 ? consecutiveThreshold : consecutiveThreshold + 1;
       if (consecutiveCount >= threshold) {
-        return { isRepetitive: true, reason: `检测到连续重复内容: "${current.substring(0, 20)}..."` };
+        return {
+          isRepetitive: true,
+          reason: `检测到连续重复内容: "${current.substring(0, 20)}..."`,
+        };
       }
     } else {
       consecutiveCount = 1;
@@ -100,7 +121,10 @@ export const detectRepetition = (
       // 排除白名单
       if (isInWhitelist(pattern)) continue;
 
-      return { isRepetitive: true, reason: `检测到末尾循环模式: "${pattern.substring(0, 20)}..."` };
+      return {
+        isRepetitive: true,
+        reason: `检测到末尾循环模式: "${pattern.substring(0, 20)}..."`,
+      };
     }
   }
 
@@ -122,11 +146,16 @@ export const detectRepetition = (
       if (isInWhitelist(chunk)) continue;
 
       // 如果片段包含大量非字母数字字符，提高阈值
-      const alphanumericRatio = chunk.replace(/[^\w\u4e00-\u9fa5]/g, "").length / chunk.length;
-      const threshold = alphanumericRatio < 0.3 ? globalThreshold * 2 : globalThreshold;
+      const alphanumericRatio =
+        chunk.replace(/[^\w\u4e00-\u9fa5]/g, "").length / chunk.length;
+      const threshold =
+        alphanumericRatio < 0.3 ? globalThreshold * 2 : globalThreshold;
 
       if (count >= threshold) {
-        return { isRepetitive: true, reason: `检测到高频重复片段: "${chunk.substring(0, 20)}..."` };
+        return {
+          isRepetitive: true,
+          reason: `检测到高频重复片段: "${chunk.substring(0, 20)}..."`,
+        };
       }
     }
   }

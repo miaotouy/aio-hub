@@ -1,9 +1,10 @@
-import { RenderPreset } from '../types';
+import { RenderPreset } from "../types";
 
 export const advancedMixedTestPreset: RenderPreset = {
   id: "advanced-mixed-test",
   name: "高级混合解析与复杂 UI 测试",
-  description: "测试 HTML 深度嵌套、容器边缘 Banner、嵌套 Markdown 表格及复杂 CSS 样式",
+  description:
+    "测试 HTML 深度嵌套、容器边缘 Banner、嵌套 Markdown 表格及复杂 CSS 样式",
   content: `<think>
 正在生成高级混合测试场景...
 [设计目标]：

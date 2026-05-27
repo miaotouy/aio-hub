@@ -38,26 +38,54 @@
       @update:model-value="(v) => emitUpdate({ fontSize: v })"
     />
 
-    <PropertyColorPicker label="颜色" :model-value="textColor" @update:model-value="(v) => emitUpdate({ color: v })" />
+    <PropertyColorPicker
+      label="颜色"
+      :model-value="textColor"
+      @update:model-value="(v) => emitUpdate({ color: v })"
+    />
 
     <div class="property-item">
       <span class="label">样式</span>
       <div class="style-buttons">
-        <button class="style-btn" :class="{ active: localBold }" @click="toggleBold">B</button>
-        <button class="style-btn italic" :class="{ active: localItalic }" @click="toggleItalic">I</button>
+        <button
+          class="style-btn"
+          :class="{ active: localBold }"
+          @click="toggleBold"
+        >
+          B
+        </button>
+        <button
+          class="style-btn italic"
+          :class="{ active: localItalic }"
+          @click="toggleItalic"
+        >
+          I
+        </button>
       </div>
     </div>
 
     <div class="property-item">
       <span class="label">对齐</span>
       <div class="align-buttons">
-        <button class="style-btn" :class="{ active: localAlign === 'left' }" @click="setAlign('left')">
+        <button
+          class="style-btn"
+          :class="{ active: localAlign === 'left' }"
+          @click="setAlign('left')"
+        >
           <AlignLeft :size="14" />
         </button>
-        <button class="style-btn" :class="{ active: localAlign === 'center' }" @click="setAlign('center')">
+        <button
+          class="style-btn"
+          :class="{ active: localAlign === 'center' }"
+          @click="setAlign('center')"
+        >
           <AlignCenter :size="14" />
         </button>
-        <button class="style-btn" :class="{ active: localAlign === 'right' }" @click="setAlign('right')">
+        <button
+          class="style-btn"
+          :class="{ active: localAlign === 'right' }"
+          @click="setAlign('right')"
+        >
           <AlignRight :size="14" />
         </button>
       </div>
@@ -92,7 +120,7 @@ const emit = defineEmits<{
       fontWeight?: "normal" | "bold";
       fontStyle?: "normal" | "italic";
       textAlign?: "left" | "center" | "right";
-    },
+    }
   ): void;
 }>();
 
@@ -110,19 +138,19 @@ watch(
   () => props.fontWeight,
   (v) => {
     localBold.value = v === "bold";
-  },
+  }
 );
 watch(
   () => props.fontStyle,
   (v) => {
     localItalic.value = v === "italic";
-  },
+  }
 );
 watch(
   () => props.textAlign,
   (v) => {
     if (v) localAlign.value = v;
-  },
+  }
 );
 
 function emitUpdate(data: Record<string, any>) {

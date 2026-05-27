@@ -15,7 +15,9 @@ import type { MethodMetadata } from "@/services/types";
 import type { VcpToolManifest } from "../types/distributed";
 
 const logger = createModuleLogger("vcp-connector/useVcpDistributedNode");
-const errorHandler = createModuleErrorHandler("vcp-connector/useVcpDistributedNode");
+const errorHandler = createModuleErrorHandler(
+  "vcp-connector/useVcpDistributedNode"
+);
 
 const HEARTBEAT_INTERVAL = 30000;
 const INITIAL_RECONNECT_DELAY = 2000;
@@ -56,7 +58,9 @@ export const BUILTIN_VCP_TOOLS: VcpToolManifest[] = [
  */
 export function getExposableTools() {
   const discovery = createToolDiscoveryService();
-  return discovery.getDiscoveredMethods(() => true).filter((tool) => !tool.toolId.startsWith("vcp:"));
+  return discovery
+    .getDiscoveredMethods(() => true)
+    .filter((tool) => !tool.toolId.startsWith("vcp:"));
 }
 
 export function useVcpDistributedNode() {
@@ -87,7 +91,8 @@ export function useVcpDistributedNode() {
       for (const tool of allExposable) {
         // 过滤出标记为可暴露的方法
         const methods = tool.methods.filter(
-          (method: MethodMetadata) => method.agentCallable === true || method.distributedExposed === true,
+          (method: MethodMetadata) =>
+            method.agentCallable === true || method.distributedExposed === true
         );
 
         for (const method of methods) {
@@ -147,15 +152,26 @@ export function useVcpDistributedNode() {
   function convertToManifest(toolId: string, methods: any[]): VcpToolManifest {
     // 构建所有命令的 invocationCommands
     const invocationCommands = methods.map((method) => {
-      const commandName = method.protocolConfig?.vcpCommand?.trim() || method.name;
+      const commandName =
+        method.protocolConfig?.vcpCommand?.trim() || method.name;
 
       // 使用 VCP 协议统一的描述生成逻辑
       const body = buildMethodDescription(method, toolId);
-      const description = [method.description || "无描述", TOOL_DEFINITION_START, body, TOOL_DEFINITION_END].join("\n");
+      const description = [
+        method.description || "无描述",
+        TOOL_DEFINITION_START,
+        body,
+        TOOL_DEFINITION_END,
+      ].join("\n");
 
       // 构建调用示例（使用标准的 tool_name + command 格式）
       const exampleArgs = method.parameters.map((p: any) => {
-        const val = p.defaultValue !== undefined ? String(p.defaultValue) : p.type === "string" ? `[${p.name}]` : "0";
+        const val =
+          p.defaultValue !== undefined
+            ? String(p.defaultValue)
+            : p.type === "string"
+              ? `[${p.name}]`
+              : "0";
         return `${p.name}:「始」${val}「末」`;
       });
 
@@ -163,7 +179,9 @@ export function useVcpDistributedNode() {
         "<<<[TOOL_REQUEST]>>>",
         `tool_name:「始」${toolId}「末」,`,
         `command:「始」${commandName}「末」,`,
-        ...exampleArgs.map((line: string, i: number) => (i === exampleArgs.length - 1 ? line : `${line},`)),
+        ...exampleArgs.map((line: string, i: number) =>
+          i === exampleArgs.length - 1 ? line : `${line},`
+        ),
         "<<<[END_TOOL_REQUEST]>>>",
       ].join("\n");
 
@@ -182,7 +200,12 @@ export function useVcpDistributedNode() {
       for (const p of method.parameters) {
         if (!allParameters.has(p.name)) {
           allParameters.set(p.name, {
-            type: p.type === "string" ? "string" : p.type === "number" ? "number" : "object",
+            type:
+              p.type === "string"
+                ? "string"
+                : p.type === "number"
+                  ? "number"
+                  : "object",
             description: p.description || "",
           });
         }
@@ -303,7 +326,7 @@ export function useVcpDistributedNode() {
           stopHeartbeat();
         }
       },
-      { immediate: true },
+      { immediate: true }
     );
 
     // 监听配置变化自动重注册
@@ -318,7 +341,7 @@ export function useVcpDistributedNode() {
           reregisterTools();
         }
       },
-      { deep: true },
+      { deep: true }
     );
   }
 

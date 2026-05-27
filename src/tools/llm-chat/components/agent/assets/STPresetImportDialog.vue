@@ -39,10 +39,16 @@
                 :class="{ selected: item.selected }"
               >
                 <el-checkbox v-model="item.selected" />
-                <el-tag :type="getRoleTagType(item.message.role)" size="small" effect="plain">
+                <el-tag
+                  :type="getRoleTagType(item.message.role)"
+                  size="small"
+                  effect="plain"
+                >
                   {{ getRoleLabel(item.message.role) }}
                 </el-tag>
-                <span class="message-preview">{{ truncateText(item.message.content, 80) }}</span>
+                <span class="message-preview">{{
+                  truncateText(item.message.content, 80)
+                }}</span>
                 <el-switch
                   v-model="item.enabled"
                   size="small"
@@ -61,7 +67,9 @@
                 :indeterminate="isInjectionIndeterminate"
                 @change="toggleInjectionAll"
               >
-                注入消息 ({{ selectedInjectionCount }}/{{ injectionPrompts.length }})
+                注入消息 ({{ selectedInjectionCount }}/{{
+                  injectionPrompts.length
+                }})
               </el-checkbox>
               <el-tag size="small" type="warning">在聊天历史之后</el-tag>
             </div>
@@ -74,7 +82,11 @@
                 :class="{ selected: item.selected }"
               >
                 <el-checkbox v-model="item.selected" />
-                <el-tag :type="getRoleTagType(item.message.role)" size="small" effect="plain">
+                <el-tag
+                  :type="getRoleTagType(item.message.role)"
+                  size="small"
+                  effect="plain"
+                >
                   {{ getRoleLabel(item.message.role) }}
                 </el-tag>
                 <span
@@ -83,7 +95,9 @@
                 >
                   📍{{ item.message.injectionStrategy.depth }}
                 </span>
-                <span class="message-preview">{{ truncateText(item.message.content, 80) }}</span>
+                <span class="message-preview">{{
+                  truncateText(item.message.content, 80)
+                }}</span>
                 <el-switch
                   v-model="item.enabled"
                   size="small"
@@ -102,7 +116,9 @@
                 :indeterminate="isUnorderedIndeterminate"
                 @change="toggleUnorderedAll"
               >
-                其他消息 ({{ selectedUnorderedCount }}/{{ unorderedPrompts.length }})
+                其他消息 ({{ selectedUnorderedCount }}/{{
+                  unorderedPrompts.length
+                }})
               </el-checkbox>
               <el-tag size="small" type="danger">未在排序中配置</el-tag>
             </div>
@@ -115,13 +131,22 @@
                 :class="{ selected: item.selected }"
               >
                 <el-checkbox v-model="item.selected" />
-                <el-tag :type="getRoleTagType(item.message.role)" size="small" effect="plain">
+                <el-tag
+                  :type="getRoleTagType(item.message.role)"
+                  size="small"
+                  effect="plain"
+                >
                   {{ getRoleLabel(item.message.role) }}
                 </el-tag>
-                <span v-if="item.message.metadata?.stPromptName" class="prompt-name">
+                <span
+                  v-if="item.message.metadata?.stPromptName"
+                  class="prompt-name"
+                >
                   {{ item.message.metadata.stPromptName }}
                 </span>
-                <span class="message-preview">{{ truncateText(item.message.content, 60) }}</span>
+                <span class="message-preview">{{
+                  truncateText(item.message.content, 60)
+                }}</span>
                 <el-switch
                   v-model="item.enabled"
                   size="small"
@@ -153,7 +178,9 @@
             @change="toggleAllParameters"
           >
             <span class="section-title">
-              导入模型参数 ({{ selectedParametersCount }}/{{ selectableParameters.length }})
+              导入模型参数 ({{ selectedParametersCount }}/{{
+                selectableParameters.length
+              }})
             </span>
           </el-checkbox>
         </div>
@@ -175,13 +202,17 @@
       <div class="dialog-footer">
         <span class="selected-count">
           已选择 {{ totalSelectedCount }} 条消息
-          <span v-if="selectedParametersCount > 0"> 和 {{ selectedParametersCount }} 个参数 </span>
+          <span v-if="selectedParametersCount > 0">
+            和 {{ selectedParametersCount }} 个参数
+          </span>
         </span>
         <div class="footer-actions">
           <el-button @click="emit('update:visible', false)">取消</el-button>
           <el-button
             type="primary"
-            :disabled="totalSelectedCount === 0 && selectedParametersCount === 0"
+            :disabled="
+              totalSelectedCount === 0 && selectedParametersCount === 0
+            "
             @click="handleConfirm"
           >
             确认导入
@@ -196,7 +227,10 @@
 import { ref, computed, watch } from "vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import type { ChatMessageNode, MessageRole } from "../../../types";
-import { type ParsedPromptFile, convertMacros } from "../../../services/sillyTavernParser";
+import {
+  type ParsedPromptFile,
+  convertMacros,
+} from "../../../services/sillyTavernParser";
 
 interface SelectableMessage {
   message: ChatMessageNode;
@@ -263,11 +297,13 @@ watch(
         selected: false, // 未排序消息默认不选中
         enabled: false,
       }));
-      selectableParameters.value = Object.entries(result.parameters || {}).map(([key, value]) => ({
-        key,
-        value,
-        selected: false, // 参数默认不选中
-      }));
+      selectableParameters.value = Object.entries(result.parameters || {}).map(
+        ([key, value]) => ({
+          key,
+          value,
+          selected: false, // 参数默认不选中
+        })
+      );
     }
   },
   { immediate: true }
@@ -276,7 +312,9 @@ watch(
 // 计算属性
 const hasParameters = computed(() => selectableParameters.value.length > 0);
 
-const selectedSystemCount = computed(() => systemPrompts.value.filter((m) => m.selected).length);
+const selectedSystemCount = computed(
+  () => systemPrompts.value.filter((m) => m.selected).length
+);
 const selectedInjectionCount = computed(
   () => injectionPrompts.value.filter((m) => m.selected).length
 );
@@ -284,19 +322,28 @@ const selectedUnorderedCount = computed(
   () => unorderedPrompts.value.filter((m) => m.selected).length
 );
 const totalSelectedCount = computed(
-  () => selectedSystemCount.value + selectedInjectionCount.value + selectedUnorderedCount.value
+  () =>
+    selectedSystemCount.value +
+    selectedInjectionCount.value +
+    selectedUnorderedCount.value
 );
 
 const selectAllSystem = computed({
-  get: () => systemPrompts.value.length > 0 && systemPrompts.value.every((m) => m.selected),
+  get: () =>
+    systemPrompts.value.length > 0 &&
+    systemPrompts.value.every((m) => m.selected),
   set: () => {},
 });
 const isSystemIndeterminate = computed(
-  () => systemPrompts.value.some((m) => m.selected) && !systemPrompts.value.every((m) => m.selected)
+  () =>
+    systemPrompts.value.some((m) => m.selected) &&
+    !systemPrompts.value.every((m) => m.selected)
 );
 
 const selectAllInjection = computed({
-  get: () => injectionPrompts.value.length > 0 && injectionPrompts.value.every((m) => m.selected),
+  get: () =>
+    injectionPrompts.value.length > 0 &&
+    injectionPrompts.value.every((m) => m.selected),
   set: () => {},
 });
 const isInjectionIndeterminate = computed(
@@ -306,7 +353,9 @@ const isInjectionIndeterminate = computed(
 );
 
 const selectAllUnordered = computed({
-  get: () => unorderedPrompts.value.length > 0 && unorderedPrompts.value.every((m) => m.selected),
+  get: () =>
+    unorderedPrompts.value.length > 0 &&
+    unorderedPrompts.value.every((m) => m.selected),
   set: () => {},
 });
 const isUnorderedIndeterminate = computed(
@@ -321,7 +370,8 @@ const selectedParametersCount = computed(
 );
 const allParametersSelected = computed({
   get: () =>
-    selectableParameters.value.length > 0 && selectableParameters.value.every((p) => p.selected),
+    selectableParameters.value.length > 0 &&
+    selectableParameters.value.every((p) => p.selected),
   set: (value) => toggleAllParameters(value),
 });
 const isParametersIndeterminate = computed(

@@ -17,7 +17,9 @@ function normalizeHtmlTokens(tokens: Token[], tagName: string): Token[] {
 
   // 预格式化标签特殊处理：仅移除首尾换行，保留中间内容原样
   if (isPreFormatted) {
-    const result = tokens.map(t => t.type === 'text' ? { ...t, content: decodeHtmlEntities(t.content) } : t);
+    const result = tokens.map((t) =>
+      t.type === "text" ? { ...t, content: decodeHtmlEntities(t.content) } : t
+    );
 
     // 移除开头的换行 (通常 HTML 会忽略 <pre> 后紧跟的第一个换行)
     if (result.length > 0 && result[0].type === "newline") {
@@ -49,14 +51,14 @@ function normalizeHtmlTokens(tokens: Token[], tagName: string): Token[] {
       // 中间的换行转为空格
       result.push({
         type: "text",
-        content: " "
+        content: " ",
       });
     } else {
       // 对普通文本进行反转义处理
-      if (token.type === 'text') {
+      if (token.type === "text") {
         result.push({
           ...token,
-          content: decodeHtmlEntities(token.content)
+          content: decodeHtmlEntities(token.content),
         });
       } else {
         result.push(token);
@@ -133,11 +135,7 @@ export function parseHtmlBlock(
     // 特例处理 <p> 和 标题：
     // <p> 和 标题标签内部不应该再包含块级元素（包括 <p>），否则会导致 HTML 结构错误。
     // 因此强制将其内容解析为内联元素。
-    if (
-      tagName === "summary" ||
-      tagName === "p" ||
-      /^h[1-6]$/.test(tagName)
-    ) {
+    if (tagName === "summary" || tagName === "p" || /^h[1-6]$/.test(tagName)) {
       // 预处理 tokens，处理换行符
       const normalizedTokens = normalizeHtmlTokens(contentTokens, tagName);
       htmlNode.children = ctx.parseInlines(normalizedTokens);
@@ -161,16 +159,26 @@ export function parseHtmlBlock(
  * 1. 不会将内联HTML标签包裹成段落
  * 2. 保持HTML原始结构
  */
-export function parseHtmlContent(ctx: ParserContext, tokens: Token[]): AstNode[] {
+export function parseHtmlContent(
+  ctx: ParserContext,
+  tokens: Token[]
+): AstNode[] {
   // 预处理所有文本 token 进行反转义
-  const processedTokens = tokens.map(t => t.type === 'text' ? { ...t, content: decodeHtmlEntities(t.content) } : t);
+  const processedTokens = tokens.map((t) =>
+    t.type === "text" ? { ...t, content: decodeHtmlEntities(t.content) } : t
+  );
 
   // 检查是否在 SVG 上下文中 (简单启发式：首个标签是 svg)
-  const isSvgContext = processedTokens.some(t => t.type === 'html_open' && t.tagName === 'svg')
-    || processedTokens.some(t => t.type === 'html_close' && t.tagName === 'svg');
+  const isSvgContext =
+    processedTokens.some(
+      (t) => t.type === "html_open" && t.tagName === "svg"
+    ) ||
+    processedTokens.some((t) => t.type === "html_close" && t.tagName === "svg");
 
   // 检查是否在表格上下文中 (避免在 <td> 内部产生不必要的段落)
-  const isTableContext = processedTokens.some(t => t.type === 'html_open' && (t.tagName === 'td' || t.tagName === 'th'));
+  const isTableContext = processedTokens.some(
+    (t) => t.type === "html_open" && (t.tagName === "td" || t.tagName === "th")
+  );
 
   const nodes: AstNode[] = [];
   let i = 0;
@@ -195,8 +203,10 @@ export function parseHtmlContent(ctx: ParserContext, tokens: Token[]): AstNode[]
       const next = processedTokens[i + 1];
 
       const isBetweenBlocks =
-        (!prev || prev.type === 'generic_html' || prev.type === 'html_block') &&
-        (!next || (next.type === 'html_open' && BLOCK_LEVEL_TAGS.has(next.tagName)) || next.type === 'html_close');
+        (!prev || prev.type === "generic_html" || prev.type === "html_block") &&
+        (!next ||
+          (next.type === "html_open" && BLOCK_LEVEL_TAGS.has(next.tagName)) ||
+          next.type === "html_close");
 
       if (isSvgContext || isTableContext || isBetweenBlocks) {
         i++;
@@ -312,7 +322,7 @@ export function parseHtmlContent(ctx: ParserContext, tokens: Token[]): AstNode[]
       } else {
         // 如果没有块级结构，为了防止布局偏移（避免 parseInlines 将 newline 渲染为 <br>）
         // 我们在此将 newline token 统一转换为空格文本 token
-        const sanitizedInlineTokens = inlineTokens.map(t =>
+        const sanitizedInlineTokens = inlineTokens.map((t) =>
           t.type === "newline" ? { type: "text" as const, content: " " } : t
         );
         const inlineNodes = ctx.parseInlines(sanitizedInlineTokens);
@@ -383,7 +393,10 @@ export function parseLlmThinkBlock(
   }
 
   // 移除结尾的换行符
-  while (contentTokens.length > 0 && contentTokens[contentTokens.length - 1].type === "newline") {
+  while (
+    contentTokens.length > 0 &&
+    contentTokens[contentTokens.length - 1].type === "newline"
+  ) {
     contentTokens.pop();
   }
 
@@ -391,7 +404,8 @@ export function parseLlmThinkBlock(
   const rawContent = tokensToRawText(contentTokens);
 
   // 将内容解析为块级节点
-  const children = contentTokens.length > 0 ? ctx.parseBlocks(contentTokens) : [];
+  const children =
+    contentTokens.length > 0 ? ctx.parseBlocks(contentTokens) : [];
 
   const llmThinkNode: LlmThinkNode = {
     id: "",

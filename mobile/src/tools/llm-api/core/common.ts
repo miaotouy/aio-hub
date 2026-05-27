@@ -59,7 +59,12 @@ export class LlmApiError extends Error {
   statusText: string;
   body?: string;
 
-  constructor(message: string, status: number, statusText: string, body?: string) {
+  constructor(
+    message: string,
+    status: number,
+    statusText: string,
+    body?: string
+  ) {
     super(message);
     this.name = "LlmApiError";
     this.status = status;

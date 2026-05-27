@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { InfoFilled, Warning, CircleCheck, Timer } from "@element-plus/icons-vue";
+import {
+  InfoFilled,
+  Warning,
+  CircleCheck,
+  Timer,
+} from "@element-plus/icons-vue";
 import { toolRegistryManager } from "@/services/registry";
 import { startupManager } from "@/services/startup-manager";
 import type { StartupTaskState } from "@/utils/appSettings";
@@ -80,7 +85,13 @@ const formatDuration = (ms: number) => {
         <div class="item-info">
           <div class="item-header">
             <span class="item-label">{{ item.config.label }}</span>
-            <el-tag v-if="item.state.autoDisabled" type="danger" size="small" effect="plain" class="status-tag">
+            <el-tag
+              v-if="item.state.autoDisabled"
+              type="danger"
+              size="small"
+              effect="plain"
+              class="status-tag"
+            >
               <el-icon><Warning /></el-icon> 已自动禁用
             </el-tag>
           </div>
@@ -89,20 +100,32 @@ const formatDuration = (ms: number) => {
         <div class="item-action">
           <el-switch
             :model-value="item.state.enabled"
-            @update:model-value="(val: any) => toggleTask(item.id, val as boolean)"
+            @update:model-value="
+              (val: any) => toggleTask(item.id, val as boolean)
+            "
           />
         </div>
       </div>
 
       <!-- 执行状态展示 -->
       <div v-if="executionResults.has(item.id)" class="item-status">
-        <div class="status-detail" :class="executionResults.get(item.id)!.success ? 'success' : 'error'">
-          <el-icon v-if="executionResults.get(item.id)!.success"><CircleCheck /></el-icon>
+        <div
+          class="status-detail"
+          :class="executionResults.get(item.id)!.success ? 'success' : 'error'"
+        >
+          <el-icon v-if="executionResults.get(item.id)!.success"
+            ><CircleCheck
+          /></el-icon>
           <el-icon v-else><Warning /></el-icon>
           <span>{{
-            executionResults.get(item.id)!.success ? "启动成功" : executionResults.get(item.id)!.error || "启动失败"
+            executionResults.get(item.id)!.success
+              ? "启动成功"
+              : executionResults.get(item.id)!.error || "启动失败"
           }}</span>
-          <span class="duration" v-if="executionResults.get(item.id)!.duration > 0">
+          <span
+            class="duration"
+            v-if="executionResults.get(item.id)!.duration > 0"
+          >
             <el-icon><Timer /></el-icon>
             {{ formatDuration(executionResults.get(item.id)!.duration) }}
           </span>
@@ -114,7 +137,9 @@ const formatDuration = (ms: number) => {
         <el-alert
           :title="`由于连续 ${item.state.consecutiveFailures} 次启动失败，该项已被熔断。`"
           type="error"
-          :description="item.state.lastError ? `错误信息: ${item.state.lastError}` : ''"
+          :description="
+            item.state.lastError ? `错误信息: ${item.state.lastError}` : ''
+          "
           show-icon
           :closable="false"
         />
@@ -123,7 +148,9 @@ const formatDuration = (ms: number) => {
 
     <div class="startup-tips">
       <el-icon><InfoFilled /></el-icon>
-      <span>自启动任务在应用启动时异步并行执行，若某项任务连续多次失败将触发熔断机制以保护应用。</span>
+      <span
+        >自启动任务在应用启动时异步并行执行，若某项任务连续多次失败将触发熔断机制以保护应用。</span
+      >
     </div>
   </div>
 </template>
@@ -146,12 +173,18 @@ const formatDuration = (ms: number) => {
 
 .startup-item:hover {
   border-color: var(--primary-color);
-  background: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.05));
+  background: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.05)
+  );
 }
 
 .startup-item.is-disabled {
   border-color: var(--el-color-danger-light-5);
-  background: rgba(var(--el-color-danger-rgb), calc(var(--card-opacity) * 0.02));
+  background: rgba(
+    var(--el-color-danger-rgb),
+    calc(var(--card-opacity) * 0.02)
+  );
 }
 
 .item-main {

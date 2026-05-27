@@ -7,7 +7,9 @@ import { getLocalISOString } from "@/utils/time";
 import { createConfigManager } from "@/utils/configManager";
 
 const logger = createModuleLogger("web-distillery/cookie-profile-store");
-const errorHandler = createModuleErrorHandler("web-distillery/cookie-profile-store");
+const errorHandler = createModuleErrorHandler(
+  "web-distillery/cookie-profile-store"
+);
 
 export const MAX_PROFILES = 100;
 export const MAX_COOKIES_PER_PROFILE = 200;
@@ -73,10 +75,14 @@ export function extractDomainIdentifier(url: string): string {
 /**
  * 判断 hostname（或 host）是否匹配某个域名标识符（含子域名）
  */
-function hostnameMatchesDomain(hostOrHostname: string, domain: string): boolean {
+function hostnameMatchesDomain(
+  hostOrHostname: string,
+  domain: string
+): boolean {
   if (hostOrHostname === domain) return true;
   // 子域名匹配：hostname 以 .domain 结尾（仅对非 IP 域名有效）
-  if (!isIpOrLocalhost(hostOrHostname) && hostOrHostname.endsWith(`.${domain}`)) return true;
+  if (!isIpOrLocalhost(hostOrHostname) && hostOrHostname.endsWith(`.${domain}`))
+    return true;
   return false;
 }
 
@@ -107,9 +113,13 @@ export class CookieProfileStore {
   public async checkCrypto(): Promise<CryptoStatus> {
     if (this._cryptoStatus) return this._cryptoStatus;
     try {
-      this._cryptoStatus = await invoke<CryptoStatus>("distillery_check_crypto");
+      this._cryptoStatus = await invoke<CryptoStatus>(
+        "distillery_check_crypto"
+      );
     } catch (e) {
-      logger.warn("Crypto check failed, falling back to plaintext", { error: e });
+      logger.warn("Crypto check failed, falling back to plaintext", {
+        error: e,
+      });
       this._cryptoStatus = { available: false, backend: "none" };
     }
     logger.info("Crypto status", this._cryptoStatus);
@@ -144,7 +154,10 @@ export class CookieProfileStore {
     }
 
     this.isLoaded = true;
-    logger.info("Cookie profiles loaded", { count: this.profiles.length, encrypted: data.encrypted ?? false });
+    logger.info("Cookie profiles loaded", {
+      count: this.profiles.length,
+      encrypted: data.encrypted ?? false,
+    });
     return this.profiles;
   }
 
@@ -155,17 +168,29 @@ export class CookieProfileStore {
     if (crypto.available) {
       // 加密后写入
       const encryptedProfiles = await this.encryptProfiles(this.profiles);
-      await this.configManager.save({ profiles: encryptedProfiles, encrypted: true });
-      logger.info("Cookie profiles saved (encrypted)", { count: this.profiles.length });
+      await this.configManager.save({
+        profiles: encryptedProfiles,
+        encrypted: true,
+      });
+      logger.info("Cookie profiles saved (encrypted)", {
+        count: this.profiles.length,
+      });
     } else {
       // 明文写入
-      await this.configManager.save({ profiles: this.profiles, encrypted: false });
-      logger.info("Cookie profiles saved (plaintext)", { count: this.profiles.length });
+      await this.configManager.save({
+        profiles: this.profiles,
+        encrypted: false,
+      });
+      logger.info("Cookie profiles saved (plaintext)", {
+        count: this.profiles.length,
+      });
     }
   }
 
   /** 加密所有 profile 的 cookie values（返回深拷贝，不修改内存中的明文） */
-  private async encryptProfiles(profiles: CookieProfile[]): Promise<CookieProfile[]> {
+  private async encryptProfiles(
+    profiles: CookieProfile[]
+  ): Promise<CookieProfile[]> {
     // 收集所有 cookie values
     const allValues: string[] = [];
     const indexMap: { profileIdx: number; cookieIdx: number }[] = [];
@@ -180,7 +205,10 @@ export class CookieProfileStore {
     if (allValues.length === 0) return structuredClone(profiles);
 
     try {
-      const encryptedValues = await invoke<string[]>("distillery_encrypt_cookie_values", { values: allValues });
+      const encryptedValues = await invoke<string[]>(
+        "distillery_encrypt_cookie_values",
+        { values: allValues }
+      );
 
       // 深拷贝并替换 values
       const result = structuredClone(profiles);
@@ -211,7 +239,10 @@ export class CookieProfileStore {
     if (allValues.length === 0) return;
 
     try {
-      const decryptedValues = await invoke<string[]>("distillery_decrypt_cookie_values", { values: allValues });
+      const decryptedValues = await invoke<string[]>(
+        "distillery_decrypt_cookie_values",
+        { values: allValues }
+      );
 
       // 就地替换
       for (let i = 0; i < indexMap.length; i++) {
@@ -246,7 +277,7 @@ export class CookieProfileStore {
 
   /** 创建新 Profile */
   public async create(
-    data: Omit<CookieProfile, "id" | "createdAt" | "updatedAt" | "isActive">,
+    data: Omit<CookieProfile, "id" | "createdAt" | "updatedAt" | "isActive">
   ): Promise<CookieProfile> {
     await this.load();
 
@@ -267,12 +298,19 @@ export class CookieProfileStore {
 
     this.profiles.push(profile);
     await this.save();
-    logger.info("Cookie profile created", { id: profile.id, name: profile.name, domain: profile.domain });
+    logger.info("Cookie profile created", {
+      id: profile.id,
+      name: profile.name,
+      domain: profile.domain,
+    });
     return profile;
   }
 
   /** 更新 Profile */
-  public async update(id: string, updates: Partial<Omit<CookieProfile, "id" | "createdAt">>): Promise<CookieProfile> {
+  public async update(
+    id: string,
+    updates: Partial<Omit<CookieProfile, "id" | "createdAt">>
+  ): Promise<CookieProfile> {
     await this.load();
 
     const index = this.profiles.findIndex((p) => p.id === id);
@@ -282,7 +320,10 @@ export class CookieProfileStore {
 
     // 限制 cookies 数量
     if (updates.cookies) {
-      updates = { ...updates, cookies: updates.cookies.slice(0, MAX_COOKIES_PER_PROFILE) };
+      updates = {
+        ...updates,
+        cookies: updates.cookies.slice(0, MAX_COOKIES_PER_PROFILE),
+      };
     }
 
     this.profiles[index] = {
@@ -330,14 +371,22 @@ export class CookieProfileStore {
     this.profiles = this.profiles.map((p) => {
       if (p.domain !== target.domain) return p;
       if (p.id === profileId) {
-        return { ...p, isActive: willActivate, lastUsedAt: willActivate ? now : p.lastUsedAt, updatedAt: now };
+        return {
+          ...p,
+          isActive: willActivate,
+          lastUsedAt: willActivate ? now : p.lastUsedAt,
+          updatedAt: now,
+        };
       }
       // 同域名其他 Profile 强制停用
       return p.isActive ? { ...p, isActive: false, updatedAt: now } : p;
     });
 
     await this.save();
-    logger.info("Cookie profile toggled", { id: profileId, isActive: willActivate });
+    logger.info("Cookie profile toggled", {
+      id: profileId,
+      isActive: willActivate,
+    });
   }
 
   // =========== URL 匹配 ===========
@@ -346,7 +395,9 @@ export class CookieProfileStore {
    * 根据 URL 获取所有可能匹配的 Profile（不限于激活状态）
    * 用于侧边栏/工具栏展示当前地址关联的身份列表
    */
-  public async getMatchingProfilesForUrl(url: string): Promise<CookieProfile[]> {
+  public async getMatchingProfilesForUrl(
+    url: string
+  ): Promise<CookieProfile[]> {
     await this.load();
 
     let domainId: string;
@@ -372,7 +423,12 @@ export class CookieProfileStore {
         // 4. 子域名匹配
         if (hostnameMatchesDomain(hostname, p.domain)) return true;
         // 5. domainAliases 匹配
-        if (p.domainAliases?.some((alias) => hostnameMatchesDomain(hostname, alias))) return true;
+        if (
+          p.domainAliases?.some((alias) =>
+            hostnameMatchesDomain(hostname, alias)
+          )
+        )
+          return true;
       }
       return false;
     });
@@ -382,7 +438,9 @@ export class CookieProfileStore {
    * 根据 URL 找到当前激活的 Profile
    * 匹配优先级：精确域名标识符 > 精确 hostname > 子域名 > domainAliases
    */
-  public async getActiveProfileForUrl(url: string): Promise<CookieProfile | null> {
+  public async getActiveProfileForUrl(
+    url: string
+  ): Promise<CookieProfile | null> {
     await this.load();
 
     let domainId: string;
@@ -415,11 +473,15 @@ export class CookieProfileStore {
       if (rootMatch) return rootMatch;
 
       // 4. 子域名匹配
-      const subMatch = active.find((p) => hostnameMatchesDomain(hostname, p.domain));
+      const subMatch = active.find((p) =>
+        hostnameMatchesDomain(hostname, p.domain)
+      );
       if (subMatch) return subMatch;
 
       // 5. domainAliases 匹配
-      const aliasMatch = active.find((p) => p.domainAliases?.some((alias) => hostnameMatchesDomain(hostname, alias)));
+      const aliasMatch = active.find((p) =>
+        p.domainAliases?.some((alias) => hostnameMatchesDomain(hostname, alias))
+      );
       if (aliasMatch) return aliasMatch;
     }
 
@@ -432,10 +494,14 @@ export class CookieProfileStore {
    * 从 JSON 导入（覆盖同名 Profile 或新建）
    * 支持单个 CookieProfile 对象或数组
    */
-  public async importFromJson(data: unknown): Promise<{ imported: number; skipped: number }> {
+  public async importFromJson(
+    data: unknown
+  ): Promise<{ imported: number; skipped: number }> {
     await this.load();
 
-    const items: CookieProfile[] = Array.isArray(data) ? data : [data as CookieProfile];
+    const items: CookieProfile[] = Array.isArray(data)
+      ? data
+      : [data as CookieProfile];
     let imported = 0;
     let skipped = 0;
     const now = getLocalISOString();
@@ -479,7 +545,11 @@ export class CookieProfileStore {
    * 从 Netscape Cookie 文件格式导入
    * 格式：domain\tincludeSubdomains\tpath\tsecure\texpires\tname\tvalue
    */
-  public async importFromNetscape(text: string, profileName: string, domain: string): Promise<CookieProfile> {
+  public async importFromNetscape(
+    text: string,
+    profileName: string,
+    domain: string
+  ): Promise<CookieProfile> {
     const cookies: CookieEntry[] = [];
 
     for (const rawLine of text.split("\n")) {
@@ -498,7 +568,10 @@ export class CookieProfileStore {
         domain: cookieDomain.trim().replace(/^\./, ""),
         path: path.trim(),
         secure: secure.trim().toUpperCase() === "TRUE",
-        expires: !isNaN(expiresTs) && expiresTs > 0 ? new Date(expiresTs * 1000).toISOString() : undefined,
+        expires:
+          !isNaN(expiresTs) && expiresTs > 0
+            ? new Date(expiresTs * 1000).toISOString()
+            : undefined,
       };
 
       if (entry.name) {
@@ -535,7 +608,9 @@ export class CookieProfileStore {
     const profile = this.profiles.find((p) => p.id === profileId);
     if (!profile) throw new Error(`Cookie Profile 不存在：${profileId}`);
 
-    const cookieStr = profile.cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+    const cookieStr = profile.cookies
+      .map((c) => `${c.name}=${c.value}`)
+      .join("; ");
     return `-H "Cookie: ${cookieStr}"`;
   }
 
@@ -560,8 +635,12 @@ export class CookieProfileStore {
       const includeSubdomains = "TRUE";
       const path = c.path || "/";
       const secure = c.secure ? "TRUE" : "FALSE";
-      const expires = c.expires ? Math.floor(new Date(c.expires).getTime() / 1000).toString() : "0";
-      lines.push(`${domain}\t${includeSubdomains}\t${path}\t${secure}\t${expires}\t${c.name}\t${c.value}`);
+      const expires = c.expires
+        ? Math.floor(new Date(c.expires).getTime() / 1000).toString()
+        : "0";
+      lines.push(
+        `${domain}\t${includeSubdomains}\t${path}\t${secure}\t${expires}\t${c.name}\t${c.value}`
+      );
     }
 
     return lines.join("\n");
@@ -574,7 +653,10 @@ export class CookieProfileStore {
    * document.cookie 格式：name=value; name2=value2; ...
    * 注意：document.cookie 不包含 domain/path/expires 等元数据，需从 URL 推断
    */
-  public async captureFromBrowser(cookieString: string, url: string): Promise<CookieProfile> {
+  public async captureFromBrowser(
+    cookieString: string,
+    url: string
+  ): Promise<CookieProfile> {
     let hostname = "unknown";
     let domainId = "unknown";
 
@@ -610,7 +692,11 @@ export class CookieProfileStore {
       .slice(0, MAX_COOKIES_PER_PROFILE);
 
     const profileName = `${domainId} — ${getLocalISOString().slice(0, 10)}`;
-    logger.info("Captured cookies from browser", { url, domainId, cookieCount: cookies.length });
+    logger.info("Captured cookies from browser", {
+      url,
+      domainId,
+      cookieCount: cookies.length,
+    });
 
     return this.create({
       name: profileName,

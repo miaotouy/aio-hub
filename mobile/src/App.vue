@@ -29,14 +29,29 @@ watchEffect(() => {
   document.documentElement.style.fontSize = `${baseSize}px`;
 
   // 同时提供变量供全局使用
-  document.documentElement.style.setProperty("--app-font-size", `${baseSize}px`);
-  document.documentElement.style.setProperty("--app-font-scale", fontSizeScale.toString());
+  document.documentElement.style.setProperty(
+    "--app-font-size",
+    `${baseSize}px`
+  );
+  document.documentElement.style.setProperty(
+    "--app-font-scale",
+    fontSizeScale.toString()
+  );
 
   // 同步更新 Varlet 的基础字体大小变量
   document.documentElement.style.setProperty("--font-size-md", `${baseSize}px`);
-  document.documentElement.style.setProperty("--font-size-sm", `${baseSize - 2}px`);
-  document.documentElement.style.setProperty("--font-size-lg", `${baseSize + 2}px`);
-  document.documentElement.style.setProperty("--font-size-xs", `${baseSize - 4}px`);
+  document.documentElement.style.setProperty(
+    "--font-size-sm",
+    `${baseSize - 2}px`
+  );
+  document.documentElement.style.setProperty(
+    "--font-size-lg",
+    `${baseSize + 2}px`
+  );
+  document.documentElement.style.setProperty(
+    "--font-size-xs",
+    `${baseSize - 4}px`
+  );
 });
 
 onMounted(() => {
@@ -50,13 +65,19 @@ onMounted(() => {
       <var-loading type="cube" size="large" color="var(--primary-color)" />
       <div class="init-status">{{ statusMessage }}</div>
       <div class="init-progress-bar">
-        <div class="init-progress-inner" :style="{ width: progress + '%' }"></div>
+        <div
+          class="init-progress-inner"
+          :style="{ width: progress + '%' }"
+        ></div>
       </div>
     </div>
   </div>
 
   <div v-else class="app-container">
-    <var-style-provider :style="themeStore.themeVars" class="app-style-provider">
+    <var-style-provider
+      :style="themeStore.themeVars"
+      class="app-style-provider"
+    >
       <main class="main-content">
         <router-view v-slot="{ Component }">
           <keep-alive>
@@ -150,7 +171,8 @@ body,
   -webkit-overflow-scrolling: touch;
   /* 只有当内容超出时才需要 padding 给 fixed 的导航栏留位置 */
   padding-bottom: calc(
-    var(--var-bottom-navigation-height) + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))
+    var(--var-bottom-navigation-height) +
+      var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))
   );
   box-sizing: border-box;
   /* 移除 transition，键盘避让需要即时反馈 */

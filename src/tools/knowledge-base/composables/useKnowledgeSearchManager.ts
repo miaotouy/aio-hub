@@ -4,7 +4,12 @@ import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { type SearchResult } from "../types/search";
 import { debounce } from "lodash-es";
 import { getPureModelId, getProfileId } from "@/utils/modelIdUtils";
-import { SearchOrchestrator, IndexingOrchestrator, VectorSyncManager, type CoverageData } from "../logic/orchestrator";
+import {
+  SearchOrchestrator,
+  IndexingOrchestrator,
+  VectorSyncManager,
+  type CoverageData,
+} from "../logic/orchestrator";
 
 export function useKnowledgeSearchManager() {
   const kbStore = useKnowledgeBaseStore();
@@ -37,13 +42,16 @@ export function useKnowledgeSearchManager() {
     extraFilters?: Record<string, any>;
     skipCoverageCheck?: boolean;
     // UI 交互回调
-    onCoverageRequired?: (data: CoverageData) => Promise<"cancel" | "fill" | "ignore">;
+    onCoverageRequired?: (
+      data: CoverageData
+    ) => Promise<"cancel" | "fill" | "ignore">;
     onProgress?: (current: number, total: number) => void;
   }) => {
     const {
       query,
       engineId = "keyword",
-      kbIds = params.kbIds || (kbStore.activeBaseId ? [kbStore.activeBaseId] : []),
+      kbIds = params.kbIds ||
+        (kbStore.activeBaseId ? [kbStore.activeBaseId] : []),
       embeddingModel = kbStore.config.defaultEmbeddingModel,
       extraFilters,
       skipCoverageCheck = false,

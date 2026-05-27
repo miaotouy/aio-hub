@@ -40,7 +40,9 @@
               placeholder="输入或拖拽目录路径"
               @keyup.enter="emitAnalyze"
             />
-            <el-button @click="selectDirectory" :icon="FolderOpened">选择</el-button>
+            <el-button @click="selectDirectory" :icon="FolderOpened"
+              >选择</el-button
+            >
           </div>
         </DropZone>
       </div>
@@ -50,7 +52,11 @@
 
         <div class="filter-item">
           <span class="filter-label">名称匹配</span>
-          <el-input v-model="localNamePattern" placeholder="例如: *.tmp 或 temp*" clearable>
+          <el-input
+            v-model="localNamePattern"
+            placeholder="例如: *.tmp 或 temp*"
+            clearable
+          >
             <template #prepend>
               <el-icon>
                 <Filter />
@@ -114,12 +120,7 @@
         </el-icon>
         开始分析
       </el-button>
-      <el-button
-        v-else
-        type="warning"
-        @click="emitStop"
-        class="analyze-btn"
-      >
+      <el-button v-else type="warning" @click="emitStop" class="analyze-btn">
         <el-icon style="padding-right: 5px">
           <CloseBold />
         </el-icon>
@@ -131,8 +132,13 @@
 
 <script setup lang="ts">
 import { ref, watch } from "vue";
-import { customMessage } from '@/utils/customMessage';
-import { FolderOpened, Search, Filter, CloseBold } from "@element-plus/icons-vue";
+import { customMessage } from "@/utils/customMessage";
+import {
+  FolderOpened,
+  Search,
+  Filter,
+  CloseBold,
+} from "@element-plus/icons-vue";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import InfoCard from "@components/common/InfoCard.vue";
 import DropZone from "@components/common/DropZone.vue";
@@ -141,7 +147,9 @@ import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 
 const logger = createModuleLogger("tools/directory-janitor/ConfigPanel");
-const errorHandler = createModuleErrorHandler("tools/directory-janitor/ConfigPanel");
+const errorHandler = createModuleErrorHandler(
+  "tools/directory-janitor/ConfigPanel"
+);
 
 interface Props {
   scanPath: string;

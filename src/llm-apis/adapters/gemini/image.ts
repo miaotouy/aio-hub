@@ -5,7 +5,11 @@ import {
   fetchWithTimeout,
   ensureResponseOk,
 } from "@/llm-apis/common";
-import { buildGeminiUrl, buildGeminiHeaders, buildGeminiContents } from "./utils";
+import {
+  buildGeminiUrl,
+  buildGeminiHeaders,
+  buildGeminiContents,
+} from "./utils";
 import { parseGeminiResponse } from "./chat";
 
 /**
@@ -27,16 +31,18 @@ export async function callGeminiImageApi(
   } = options;
 
   // 如果提供了 prompt，包装为 messages
-  const effectiveMessages = messages || (prompt ? [{ role: 'user', content: prompt }] : []);
+  const effectiveMessages =
+    messages || (prompt ? [{ role: "user", content: prompt }] : []);
 
-  const baseUrl = profile.baseUrl || "https://generativelanguage.googleapis.com";
+  const baseUrl =
+    profile.baseUrl || "https://generativelanguage.googleapis.com";
   const url = buildGeminiUrl(baseUrl, modelId, "generateContent", profile);
   const headers = buildGeminiHeaders(profile, options.requestId);
 
   // 构建 Gemini 特有的图片配置
   const imageConfig: any = {};
   if (aspectRatio) imageConfig.aspectRatio = aspectRatio;
-  
+
   // 映射 resolution/size 到 imageSize (要求大写 K)
   if (size) {
     const upperSize = size.toUpperCase();
@@ -51,7 +57,8 @@ export async function callGeminiImageApi(
     contents: buildGeminiContents(effectiveMessages),
     generationConfig: {
       responseModalities: ["TEXT", "IMAGE"],
-      imageConfig: Object.keys(imageConfig).length > 0 ? imageConfig : undefined,
+      imageConfig:
+        Object.keys(imageConfig).length > 0 ? imageConfig : undefined,
       temperature: options.temperature,
       topP: options.topP,
       topK: options.topK,
@@ -59,7 +66,9 @@ export async function callGeminiImageApi(
       stopSequences: options.stop,
     },
     // 支持 Google Search 增强
-    tools: (options.tools as any)?.some((t: any) => t.type === 'web_search') ? [{ google_search: {} }] : undefined,
+    tools: (options.tools as any)?.some((t: any) => t.type === "web_search")
+      ? [{ google_search: {} }]
+      : undefined,
   });
 
   const response = await fetchWithTimeout(

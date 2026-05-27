@@ -13,26 +13,45 @@
         <div class="bundle-meta">
           <div class="bundle-title">
             <strong>{{ detectedPackageInfo?.bundle?.name }}</strong>
-            <span class="bundle-version" v-if="detectedPackageInfo?.bundle?.version"
+            <span
+              class="bundle-version"
+              v-if="detectedPackageInfo?.bundle?.version"
               >v{{ detectedPackageInfo.bundle.version }}</span
             >
           </div>
-          <div class="bundle-desc" v-if="detectedPackageInfo?.bundle?.description">
+          <div
+            class="bundle-desc"
+            v-if="detectedPackageInfo?.bundle?.description"
+          >
             {{ detectedPackageInfo.bundle.description }}
           </div>
           <div class="bundle-author" v-if="detectedPackageInfo?.bundle?.author">
             作者: {{ detectedPackageInfo.bundle.author }}
-            <span v-if="detectedPackageInfo?.bundle?.license">| 许可: {{ detectedPackageInfo.bundle.license }}</span>
+            <span v-if="detectedPackageInfo?.bundle?.license"
+              >| 许可: {{ detectedPackageInfo.bundle.license }}</span
+            >
           </div>
         </div>
       </div>
 
       <div class="skills-list-container">
         <div class="list-header">
-          <span>选择要安装的技能 ({{ selectedSkills.length }}/{{ detectedPackageInfo?.skills.length }}):</span>
+          <span
+            >选择要安装的技能 ({{ selectedSkills.length }}/{{
+              detectedPackageInfo?.skills.length
+            }}):</span
+          >
           <div class="list-actions">
-            <el-button link type="primary" size="small" @click="selectAllSkills">全选</el-button>
-            <el-button link type="primary" size="small" @click="deselectAllSkills">全不选</el-button>
+            <el-button link type="primary" size="small" @click="selectAllSkills"
+              >全选</el-button
+            >
+            <el-button
+              link
+              type="primary"
+              size="small"
+              @click="deselectAllSkills"
+              >全不选</el-button
+            >
           </div>
         </div>
 
@@ -47,7 +66,9 @@
               <el-checkbox v-model="selectedSkills" :value="skill.id">
                 <div class="skill-item-content">
                   <span class="skill-item-name">{{ skill.name }}</span>
-                  <span class="skill-item-desc" v-if="skill.description">{{ skill.description }}</span>
+                  <span class="skill-item-desc" v-if="skill.description">{{
+                    skill.description
+                  }}</span>
                 </div>
               </el-checkbox>
               <div v-if="skill.conflict" class="conflict-badge">
@@ -93,23 +114,31 @@
           <div v-if="isDuplicate" class="preview-warning">
             <component :is="AlertTriangle" :size="14" />
             <span
-              >技能 <strong>{{ installName }}</strong> 已安装，请更换名称。</span
+              >技能
+              <strong>{{ installName }}</strong> 已安装，请更换名称。</span
             >
           </div>
 
           <div v-if="isNameMismatch && !isDuplicate" class="preview-info">
             <component :is="Info" :size="14" />
-            <span>目录名 ({{ actualDirName }}) 与安装名称不一致，安装后将自动重命名。</span>
+            <span
+              >目录名 ({{ actualDirName }})
+              与安装名称不一致，安装后将自动重命名。</span
+            >
           </div>
         </div>
       </el-tab-pane>
 
       <el-tab-pane label="从 Git 仓库" name="git">
         <p class="install-hint">
-          输入 Git 仓库 URL，将自动克隆到技能目录。支持带 <code>.git</code> 后缀或不带后缀的地址。
+          输入 Git 仓库 URL，将自动克隆到技能目录。支持带
+          <code>.git</code> 后缀或不带后缀的地址。
         </p>
         <div class="input-group">
-          <el-input v-model="gitUrl" placeholder="https://github.com/user/skill-repo.git" />
+          <el-input
+            v-model="gitUrl"
+            placeholder="https://github.com/user/skill-repo.git"
+          />
           <div v-if="gitUrl" class="install-name-field mt-8">
             <span class="field-label">安装名称 (可选):</span>
             <el-input
@@ -123,9 +152,14 @@
       </el-tab-pane>
 
       <el-tab-pane label="从 URL" name="url">
-        <p class="install-hint">输入 ZIP 包下载链接，将自动下载并解压到技能目录。</p>
+        <p class="install-hint">
+          输入 ZIP 包下载链接，将自动下载并解压到技能目录。
+        </p>
         <div class="input-group">
-          <el-input v-model="zipUrl" placeholder="https://example.com/skill.zip" />
+          <el-input
+            v-model="zipUrl"
+            placeholder="https://example.com/skill.zip"
+          />
           <div v-if="zipUrl" class="install-name-field mt-8">
             <span class="field-label">安装名称 (可选):</span>
             <el-input
@@ -140,8 +174,15 @@
     </el-tabs>
 
     <template #footer>
-      <el-button @click="handleCancel">{{ showBundleSelect ? "返回" : "取消" }}</el-button>
-      <el-button type="primary" :loading="installing" :disabled="installDisabled" @click="handleInstall">
+      <el-button @click="handleCancel">{{
+        showBundleSelect ? "返回" : "取消"
+      }}</el-button>
+      <el-button
+        type="primary"
+        :loading="installing"
+        :disabled="installDisabled"
+        @click="handleInstall"
+      >
         {{ showBundleSelect ? "确认安装" : "安装" }}
       </el-button>
     </template>
@@ -193,7 +234,8 @@ const installDisabled = computed(() => {
   if (installing.value) return true;
   if (showBundleSelect.value) return selectedSkills.value.length === 0;
   if (isDuplicate.value) return true;
-  if (installMode.value === "local") return !selectedDir.value || !previewName.value || !installName.value;
+  if (installMode.value === "local")
+    return !selectedDir.value || !previewName.value || !installName.value;
   if (installMode.value === "git") return !gitUrl.value.trim();
   if (installMode.value === "url") return !zipUrl.value.trim();
   return true;
@@ -264,7 +306,9 @@ async function processSelectedPath(path: string) {
   showBundleSelect.value = false;
 
   try {
-    const inputType = path.toLowerCase().endsWith(".zip") ? "zip_file" : "local";
+    const inputType = path.toLowerCase().endsWith(".zip")
+      ? "zip_file"
+      : "local";
     const result = await skillLoader.prepareAndDetectPackage(inputType, path);
     tempPath.value = result.tempPath;
     detectedPackageInfo.value = result.packageInfo;
@@ -314,8 +358,12 @@ async function handleInstall() {
   try {
     // 1. 如果还没有探测过，先进行探测（针对 Git 和 URL 模式）
     if (!detectedPackageInfo.value && installMode.value !== "local") {
-      const pathOrUrl = installMode.value === "git" ? gitUrl.value.trim() : zipUrl.value.trim();
-      const result = await skillLoader.prepareAndDetectPackage(installMode.value, pathOrUrl);
+      const pathOrUrl =
+        installMode.value === "git" ? gitUrl.value.trim() : zipUrl.value.trim();
+      const result = await skillLoader.prepareAndDetectPackage(
+        installMode.value,
+        pathOrUrl
+      );
       tempPath.value = result.tempPath;
       detectedPackageInfo.value = result.packageInfo;
 
@@ -338,7 +386,9 @@ async function handleInstall() {
         version: bundle.version,
         description: bundle.description,
         author: bundle.author,
-        sourceUrl: bundle.sourceUrl || (installMode.value === "git" ? gitUrl.value.trim() : null),
+        sourceUrl:
+          bundle.sourceUrl ||
+          (installMode.value === "git" ? gitUrl.value.trim() : null),
         license: bundle.license,
         installMethod: installMode.value,
         selectedSkills: selectedSkills.value,
@@ -350,14 +400,26 @@ async function handleInstall() {
       if (installMode.value === "local" && selectedDir.value) {
         const path = selectedDir.value;
         if (path.toLowerCase().endsWith(".zip")) {
-          await invoke("install_skill_from_zip_file", { zipPath: path, customName });
+          await invoke("install_skill_from_zip_file", {
+            zipPath: path,
+            customName,
+          });
         } else {
-          await invoke("install_skill_from_dir", { sourceDir: path, customName });
+          await invoke("install_skill_from_dir", {
+            sourceDir: path,
+            customName,
+          });
         }
       } else if (installMode.value === "git") {
-        await invoke("install_skill_from_git", { repoUrl: gitUrl.value.trim(), customName });
+        await invoke("install_skill_from_git", {
+          repoUrl: gitUrl.value.trim(),
+          customName,
+        });
       } else if (installMode.value === "url") {
-        await invoke("install_skill_from_zip", { zipUrl: zipUrl.value.trim(), customName });
+        await invoke("install_skill_from_zip", {
+          zipUrl: zipUrl.value.trim(),
+          customName,
+        });
       }
       customMessage.success("技能安装成功");
     }

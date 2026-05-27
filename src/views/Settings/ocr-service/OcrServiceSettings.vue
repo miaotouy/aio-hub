@@ -7,7 +7,11 @@ import ProfileEditor from "../shared/ProfileEditor.vue";
 import CustomOcrRequestEditor from "./components/CustomOcrRequestEditor.vue";
 import { useOcrProfiles } from "@composables/useOcrProfiles";
 import { ocrProviderTypes, ocrPresets } from "@config/ocr-providers";
-import type { OcrProfile, OcrProviderType, OcrApiRequest } from "../../../types/ocr-profiles";
+import type {
+  OcrProfile,
+  OcrProviderType,
+  OcrApiRequest,
+} from "../../../types/ocr-profiles";
 import type { OcrPreset } from "@config/ocr-providers";
 
 const {
@@ -161,7 +165,7 @@ const handleDelete = async () => {
         cancelButtonText: "取消",
         type: "warning",
         lockScroll: false,
-      },
+      }
     );
     deleteProfile(selectedProfile.value.id);
     selectedProfileId.value = profiles.value[0]?.id || null;
@@ -241,7 +245,9 @@ const createDefaultApiRequest = (): OcrApiRequest => {
             />
             <div class="profile-text">
               <div class="profile-name">{{ profile.name }}</div>
-              <div class="profile-type">{{ getProviderTypeInfo(profile.provider)?.name }}</div>
+              <div class="profile-type">
+                {{ getProviderTypeInfo(profile.provider)?.name }}
+              </div>
             </div>
           </div>
         </template>
@@ -278,7 +284,12 @@ const createDefaultApiRequest = (): OcrApiRequest => {
               >
                 <div>
                   <div>{{ provider.name }}</div>
-                  <div style="font-size: 12px; color: var(--el-text-color-secondary)">
+                  <div
+                    style="
+                      font-size: 12px;
+                      color: var(--el-text-color-secondary);
+                    "
+                  >
                     {{ provider.description }}
                   </div>
                 </div>
@@ -289,9 +300,13 @@ const createDefaultApiRequest = (): OcrApiRequest => {
           <!-- 标准服务商配置 -->
           <template v-if="editForm.provider !== 'custom'">
             <el-form-item label="API 端点">
-              <el-input v-model="editForm.endpoint" placeholder="https://api.example.com/ocr" />
+              <el-input
+                v-model="editForm.endpoint"
+                placeholder="https://api.example.com/ocr"
+              />
               <div class="form-hint">
-                默认: {{ getProviderTypeInfo(editForm.provider)?.defaultEndpoint }}
+                默认:
+                {{ getProviderTypeInfo(editForm.provider)?.defaultEndpoint }}
               </div>
             </el-form-item>
 
@@ -304,23 +319,33 @@ const createDefaultApiRequest = (): OcrApiRequest => {
               />
             </el-form-item>
 
-            <el-form-item v-if="editForm.provider === 'baidu'" label="API Secret">
+            <el-form-item
+              v-if="editForm.provider === 'baidu'"
+              label="API Secret"
+            >
               <el-input
                 v-model="editForm.credentials.apiSecret"
                 type="password"
                 placeholder="请输入 API Secret"
                 show-password
               />
-              <div class="form-hint">百度云需要 API Secret 来获取 access_token</div>
+              <div class="form-hint">
+                百度云需要 API Secret 来获取 access_token
+              </div>
             </el-form-item>
           </template>
 
           <!-- 自定义服务配置 -->
           <template v-else>
             <el-divider content-position="left">
-              <span style="font-size: 14px; font-weight: 600">自定义 API 配置</span>
+              <span style="font-size: 14px; font-weight: 600"
+                >自定义 API 配置</span
+              >
             </el-divider>
-            <CustomOcrRequestEditor v-if="editForm.apiRequest" v-model="editForm.apiRequest" />
+            <CustomOcrRequestEditor
+              v-if="editForm.apiRequest"
+              v-model="editForm.apiRequest"
+            />
           </template>
 
           <el-divider />
@@ -334,7 +359,9 @@ const createDefaultApiRequest = (): OcrApiRequest => {
               show-input
               :show-input-controls="false"
             />
-            <div class="form-hint">同时处理 {{ editForm.concurrency }} 个图片块</div>
+            <div class="form-hint">
+              同时处理 {{ editForm.concurrency }} 个图片块
+            </div>
           </el-form-item>
 
           <el-form-item label="请求延迟">
@@ -346,7 +373,9 @@ const createDefaultApiRequest = (): OcrApiRequest => {
               show-input
               :show-input-controls="false"
             />
-            <div class="form-hint">每个请求之间延迟 {{ editForm.delay }}ms，避免触发 API 限流</div>
+            <div class="form-hint">
+              每个请求之间延迟 {{ editForm.delay }}ms，避免触发 API 限流
+            </div>
           </el-form-item>
         </el-form>
       </ProfileEditor>
@@ -361,42 +390,48 @@ const createDefaultApiRequest = (): OcrApiRequest => {
     <BaseDialog v-model="showPresetDialog" title="选择创建方式" width="600px">
       <template #content>
         <div class="preset-options">
-        <div class="preset-section">
-          <h4>从预设模板创建</h4>
-          <div class="preset-grid">
-            <div
-              v-for="preset in ocrPresets"
-              :key="preset.name"
-              class="preset-card"
-              @click="createFromPresetTemplate(preset)"
-            >
-              <div class="preset-icon">
-                <img v-if="preset.icon" :src="preset.icon" :alt="preset.name" />
-                <div v-else class="preset-placeholder">{{ preset.name.charAt(0) }}</div>
-              </div>
-              <div class="preset-info">
-                <div class="preset-name">{{ preset.name }}</div>
-                <div class="preset-desc">{{ preset.description }}</div>
+          <div class="preset-section">
+            <h4>从预设模板创建</h4>
+            <div class="preset-grid">
+              <div
+                v-for="preset in ocrPresets"
+                :key="preset.name"
+                class="preset-card"
+                @click="createFromPresetTemplate(preset)"
+              >
+                <div class="preset-icon">
+                  <img
+                    v-if="preset.icon"
+                    :src="preset.icon"
+                    :alt="preset.name"
+                  />
+                  <div v-else class="preset-placeholder">
+                    {{ preset.name.charAt(0) }}
+                  </div>
+                </div>
+                <div class="preset-info">
+                  <div class="preset-name">{{ preset.name }}</div>
+                  <div class="preset-desc">{{ preset.description }}</div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <el-divider />
+          <el-divider />
 
-        <div class="preset-section">
-          <h4>或者</h4>
-          <el-button
-            style="width: 100%"
-            @click="
-              () => {
-                createNewProfile();
-                showPresetDialog = false;
-              }
-            "
-          >
-            从空白创建
-          </el-button>
+          <div class="preset-section">
+            <h4>或者</h4>
+            <el-button
+              style="width: 100%"
+              @click="
+                () => {
+                  createNewProfile();
+                  showPresetDialog = false;
+                }
+              "
+            >
+              从空白创建
+            </el-button>
           </div>
         </div>
       </template>

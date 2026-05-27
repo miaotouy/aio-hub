@@ -26,9 +26,12 @@ const executorRef = ref<InstanceType<typeof ExecutorPane> | null>(null);
 const refreshDiscovery = async () => {
   discoveryService.invalidateCache();
   discoveredGroups.value = discoveryService.getDiscoveredMethods();
-  logger.info(`工具库已刷新，当前发现 ${discoveredGroups.value.length} 个工具组`, {
-    tools: discoveredGroups.value.map((g) => g.toolId),
-  });
+  logger.info(
+    `工具库已刷新，当前发现 ${discoveredGroups.value.length} 个工具组`,
+    {
+      tools: discoveredGroups.value.map((g) => g.toolId),
+    }
+  );
 };
 
 /**
@@ -71,7 +74,11 @@ onUnmounted(() => {
             <span>工具库浏览</span>
           </div>
         </template>
-        <DiscoveryPane :groups="discoveredGroups" @refresh="refreshDiscovery" @load="handleLoadToExecutor" />
+        <DiscoveryPane
+          :groups="discoveredGroups"
+          @refresh="refreshDiscovery"
+          @load="handleLoadToExecutor"
+        />
       </el-tab-pane>
 
       <!-- 2. 执行沙盒 -->

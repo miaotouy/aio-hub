@@ -21,8 +21,14 @@ if (!editForm.variableConfig) {
       <el-switch v-model="editForm.variableConfig.enabled" />
     </div>
 
-    <div class="section-content" :class="{ 'is-disabled': !editForm.variableConfig.enabled }">
-      <div v-if="!editForm.variableConfig.enabled" class="disabled-overlay-hint">
+    <div
+      class="section-content"
+      :class="{ 'is-disabled': !editForm.variableConfig.enabled }"
+    >
+      <div
+        v-if="!editForm.variableConfig.enabled"
+        class="disabled-overlay-hint"
+      >
         <el-icon><InfoFilled /></el-icon>
         <span>当前功能已禁用，配置将不会在会话中生效</span>
       </div>
@@ -30,8 +36,10 @@ if (!editForm.variableConfig) {
       <div class="info-alert">
         <el-icon><InfoFilled /></el-icon>
         <div class="info-text">
-          启用后，智能体可以通过 <code>&lt;svar name="path" op="+" value="1" /&gt;</code> 标签更新变量状态。
-          你可以在提示词中使用 <code>$[path]</code> 来引用当前变量值。
+          启用后，智能体可以通过
+          <code>&lt;svar name="path" op="+" value="1" /&gt;</code>
+          标签更新变量状态。 你可以在提示词中使用
+          <code>$[path]</code> 来引用当前变量值。
         </div>
       </div>
 
@@ -97,7 +105,8 @@ if (!editForm.variableConfig) {
   gap: 8px;
   padding: 8px 12px;
   background: rgba(var(--el-color-info-rgb), calc(var(--card-opacity) * 0.1));
-  border: 1px solid rgba(var(--el-color-info-rgb), calc(var(--card-opacity) * 0.2));
+  border: 1px solid
+    rgba(var(--el-color-info-rgb), calc(var(--card-opacity) * 0.2));
   border-radius: 6px;
   color: var(--el-text-color-secondary);
   font-size: 13px;
@@ -108,8 +117,12 @@ if (!editForm.variableConfig) {
   display: flex;
   gap: 12px;
   padding: 12px 16px;
-  background: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.1));
-  border: 1px solid rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.2));
+  background: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
+  border: 1px solid
+    rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.2));
   border-radius: 8px;
   color: var(--el-color-primary);
   font-size: 13px;
@@ -117,7 +130,10 @@ if (!editForm.variableConfig) {
 }
 
 .info-alert code {
-  background: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.15));
+  background: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.15)
+  );
   padding: 2px 4px;
   border-radius: 4px;
   font-family: var(--el-font-family-mono);

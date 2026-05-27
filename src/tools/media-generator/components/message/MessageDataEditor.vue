@@ -41,7 +41,9 @@ import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import { useMediaGenStore } from "../../stores/mediaGenStore";
 import type { MediaMessage } from "../../types";
 
-const errorHandler = createModuleErrorHandler("MediaGenerator/MessageDataEditor");
+const errorHandler = createModuleErrorHandler(
+  "MediaGenerator/MessageDataEditor"
+);
 
 const props = defineProps<{
   modelValue: boolean;

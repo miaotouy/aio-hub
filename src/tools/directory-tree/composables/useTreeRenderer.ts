@@ -5,7 +5,12 @@ import { computed } from "vue";
 import type { Ref } from "vue";
 import type { TreeNode, TreeStats } from "../config";
 import type { GenerateTreeOptions, RenderTreeOptions } from "../actions";
-import { buildMetadataHeader, renderTreeRecursive, calculateMaxDepth, findAllNodesAndPaths } from "../actions";
+import {
+  buildMetadataHeader,
+  renderTreeRecursive,
+  calculateMaxDepth,
+  findAllNodesAndPaths,
+} from "../actions";
 
 export function useTreeRenderer(
   treeData: Ref<TreeNode | null>,
@@ -34,14 +39,22 @@ export function useTreeRenderer(
       const result: string[] = [];
 
       // 1. 动态生成元数据部分
-      if (includeMetadata.value && lastGenerationOptions.value && statsInfo.value) {
-        const metadata = buildMetadataHeader(lastGenerationOptions.value, statsInfo.value, {
-          includeFilterInfo: includeFilterInfo.value,
-          secondaryMaxDepth: secondaryMaxDepth.value,
-          secondaryIncludePath: secondaryIncludePath.value,
-          secondaryExcludePattern: secondaryExcludePattern.value,
-          viewShowFiles: viewShowFiles.value,
-        });
+      if (
+        includeMetadata.value &&
+        lastGenerationOptions.value &&
+        statsInfo.value
+      ) {
+        const metadata = buildMetadataHeader(
+          lastGenerationOptions.value,
+          statsInfo.value,
+          {
+            includeFilterInfo: includeFilterInfo.value,
+            secondaryMaxDepth: secondaryMaxDepth.value,
+            secondaryIncludePath: secondaryIncludePath.value,
+            secondaryExcludePattern: secondaryExcludePattern.value,
+            viewShowFiles: viewShowFiles.value,
+          }
+        );
         result.push(metadata);
       }
 
@@ -54,14 +67,17 @@ export function useTreeRenderer(
       // 解析包含路径的片段（支持多条路径链，支持逗号分隔多个路径）
       let includePathChains: string[][] = [];
       if (includePath) {
-        const paths = includePath.split(',').map(p => p.trim()).filter(p => p.length > 0);
+        const paths = includePath
+          .split(",")
+          .map((p) => p.trim())
+          .filter((p) => p.length > 0);
         const allMatches: string[][] = [];
         const missingPaths: string[] = [];
 
         for (const p of paths) {
           const matches = findAllNodesAndPaths(treeData.value, p);
           if (matches.length > 0) {
-            allMatches.push(...matches.map(m => m.path));
+            allMatches.push(...matches.map((m) => m.path));
           } else {
             missingPaths.push(p);
           }
@@ -70,11 +86,14 @@ export function useTreeRenderer(
         if (allMatches.length > 0) {
           includePathChains = allMatches;
         } else if (missingPaths.length > 0) {
-          return `[未找到路径: ${missingPaths.join(', ')}]`;
+          return `[未找到路径: ${missingPaths.join(", ")}]`;
         }
       }
 
-      const options: Required<RenderTreeOptions> & { excludePattern: string; includePathChains?: string[][] } = {
+      const options: Required<RenderTreeOptions> & {
+        excludePattern: string;
+        includePathChains?: string[][];
+      } = {
         maxDepth,
         includePath,
         excludePattern,

@@ -2,7 +2,10 @@ import { createModuleLogger } from "@/utils/logger";
 import TurndownService from "turndown";
 import type { ContextProcessor, PipelineContext } from "../../types/pipeline";
 import type { ProcessableMessage } from "@/tools/llm-chat/types/context";
-import type { ChatMessageNode, ChatSessionDetail } from "@/tools/llm-chat/types";
+import type {
+  ChatMessageNode,
+  ChatSessionDetail,
+} from "@/tools/llm-chat/types";
 import type { LlmThinkRule } from "@/tools/rich-text-renderer/types";
 
 const logger = createModuleLogger("primary:session-loader");
@@ -19,7 +22,7 @@ const DEFAULT_THINK_TAG_NAMES = ["think", "guguthink"];
  */
 function protectThinkBlocks(
   content: string,
-  thinkTagNames: string[],
+  thinkTagNames: string[]
 ): { text: string; restore: (s: string) => string } {
   if (thinkTagNames.length === 0) {
     return { text: content, restore: (s) => s };
@@ -29,11 +32,13 @@ function protectThinkBlocks(
   let result = content;
 
   // 构建匹配正则：匹配闭合的 <tag>...</tag> 和未闭合的 <tag>...（到字符串末尾）
-  const tagPattern = thinkTagNames.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+  const tagPattern = thinkTagNames
+    .map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("|");
   // 先匹配闭合标签，再匹配未闭合标签（贪心到末尾）
   const regex = new RegExp(
     `<(${tagPattern})(\\s[^>]*)?>([\\s\\S]*?)<\\/\\1>|<(${tagPattern})(\\s[^>]*)?>([\\s\\S]*)$`,
-    "gi",
+    "gi"
   );
 
   result = result.replace(regex, (match) => {
@@ -147,12 +152,14 @@ export const sessionLoader: ContextProcessor = {
 
     const historyNodes = getActiveBranchHistory(context.detail);
 
-    const { convertHtmlToMd, htmlToMdLastMessages } = context.settings.contextOptimization || {
+    const { convertHtmlToMd, htmlToMdLastMessages } = context.settings
+      .contextOptimization || {
       convertHtmlToMd: false,
       htmlToMdLastMessages: 5,
     };
 
-    const convertToolRoleToUser = context.agentConfig?.toolCallConfig?.convertToolRoleToUser ?? true;
+    const convertToolRoleToUser =
+      context.agentConfig?.toolCallConfig?.convertToolRoleToUser ?? true;
 
     let turndownService: TurndownService | null = null;
     // 收集需要保护的思考块标签名
@@ -187,7 +194,9 @@ export const sessionLoader: ContextProcessor = {
       const node = historyNodes[i];
       // 忽略空消息且没有附件的消息
       const hasContent = !!node.content.trim();
-      const hasAttachments = !!(node.attachments && node.attachments.length > 0);
+      const hasAttachments = !!(
+        node.attachments && node.attachments.length > 0
+      );
 
       if (!hasContent && !hasAttachments) {
         continue;
@@ -202,7 +211,10 @@ export const sessionLoader: ContextProcessor = {
         if (/<[a-z][\s\S]*>/i.test(finalContent)) {
           try {
             // 保护思考块：提取并替换为占位符，防止 turndown 破坏
-            const { text: safeContent, restore } = protectThinkBlocks(finalContent, thinkTagNames);
+            const { text: safeContent, restore } = protectThinkBlocks(
+              finalContent,
+              thinkTagNames
+            );
             // 转换 HTML 为 Markdown
             let converted = turndownService.turndown(safeContent);
             // 后处理：清理 turndown 输出中的结构问题
@@ -210,7 +222,8 @@ export const sessionLoader: ContextProcessor = {
             // 还原思考块
             finalContent = restore(converted);
             // 追加标记：告知模型此消息经过格式转换，避免模型误判不该使用 HTML
-            finalContent += "\n[note: this message was converted from HTML to Markdown for context compression]";
+            finalContent +=
+              "\n[note: this message was converted from HTML to Markdown for context compression]";
           } catch (e) {
             logger.warn("HTML 转 Markdown 失败", { error: e, nodeId: node.id });
           }

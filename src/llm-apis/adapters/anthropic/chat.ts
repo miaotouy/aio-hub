@@ -2,11 +2,21 @@ import type { LlmProfile } from "@/types/llm-profiles";
 import type { LlmRequestOptions, LlmResponse } from "@/llm-apis/common";
 import { fetchWithTimeout, ensureResponseOk } from "@/llm-apis/common";
 import { parseSSEStream } from "@utils/sse-parser";
-import { extractCommonParameters, applyCustomParameters, cleanPayload } from "@/llm-apis/request-builder";
+import {
+  extractCommonParameters,
+  applyCustomParameters,
+  cleanPayload,
+} from "@/llm-apis/request-builder";
 import { asyncJsonStringify } from "@/utils/serialization";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import { claudeUrlHandler, convertToClaudeMessages, convertTools, convertToolChoice, ClaudeRequest } from "./utils";
+import {
+  claudeUrlHandler,
+  convertToClaudeMessages,
+  convertTools,
+  convertToolChoice,
+  ClaudeRequest,
+} from "./utils";
 
 const logger = createModuleLogger("anthropic-chat");
 const errorHandler = createModuleErrorHandler("anthropic-chat");
@@ -17,7 +27,7 @@ const errorHandler = createModuleErrorHandler("anthropic-chat");
 const parseClaudeSSE = async (
   reader: ReadableStreamDefaultReader<Uint8Array>,
   onChunk: (text: string) => void,
-  signal?: AbortSignal,
+  signal?: AbortSignal
 ): Promise<{
   fullContent: string;
   usage?: LlmResponse["usage"];
@@ -30,7 +40,8 @@ const parseClaudeSSE = async (
   let stopReason: string | undefined;
   let stopSequence: string | null | undefined;
   const toolCalls: LlmResponse["toolCalls"] = [];
-  let currentToolCall: { id: string; name: string; input: string } | null = null;
+  let currentToolCall: { id: string; name: string; input: string } | null =
+    null;
 
   await parseSSEStream(
     reader,
@@ -43,15 +54,25 @@ const parseClaudeSSE = async (
             break;
           case "content_block_start":
             if (event.content_block?.type === "tool_use") {
-              currentToolCall = { id: event.content_block.id!, name: event.content_block.name!, input: "" };
-              logger.debug("工具调用块开始", { toolName: currentToolCall.name });
+              currentToolCall = {
+                id: event.content_block.id!,
+                name: event.content_block.name!,
+                input: "",
+              };
+              logger.debug("工具调用块开始", {
+                toolName: currentToolCall.name,
+              });
             }
             break;
           case "content_block_delta":
             if (event.delta?.type === "text_delta" && event.delta.text) {
               fullContent += event.delta.text;
               onChunk(event.delta.text);
-            } else if (event.delta?.type === "input_json_delta" && event.delta.partial_json && currentToolCall) {
+            } else if (
+              event.delta?.type === "input_json_delta" &&
+              event.delta.partial_json &&
+              currentToolCall
+            ) {
               currentToolCall.input += event.delta.partial_json;
             }
             break;
@@ -60,20 +81,27 @@ const parseClaudeSSE = async (
               toolCalls.push({
                 id: currentToolCall.id,
                 type: "function",
-                function: { name: currentToolCall.name, arguments: currentToolCall.input },
+                function: {
+                  name: currentToolCall.name,
+                  arguments: currentToolCall.input,
+                },
               });
-              logger.debug("工具调用块结束", { toolName: currentToolCall.name });
+              logger.debug("工具调用块结束", {
+                toolName: currentToolCall.name,
+              });
               currentToolCall = null;
             }
             break;
           case "message_delta":
             if (event.delta?.stop_reason) stopReason = event.delta.stop_reason;
-            if (event.delta?.stop_sequence !== undefined) stopSequence = event.delta.stop_sequence;
+            if (event.delta?.stop_sequence !== undefined)
+              stopSequence = event.delta.stop_sequence;
             if (event.usage) {
               usage = {
                 promptTokens: event.usage.input_tokens,
                 completionTokens: event.usage.output_tokens,
-                totalTokens: event.usage.input_tokens + event.usage.output_tokens,
+                totalTokens:
+                  event.usage.input_tokens + event.usage.output_tokens,
               };
             }
             break;
@@ -82,7 +110,9 @@ const parseClaudeSSE = async (
             break;
           case "error": {
             const err = new Error(event.error?.message || "未知流错误");
-            errorHandler.error(err, "Claude 流错误", { context: { errorType: event.error?.type } });
+            errorHandler.error(err, "Claude 流错误", {
+              context: { errorType: event.error?.type },
+            });
             throw err;
           }
         }
@@ -92,19 +122,32 @@ const parseClaudeSSE = async (
       }
     },
     undefined,
-    signal,
+    signal
   );
 
-  return { fullContent, usage, stopReason, stopSequence, toolCalls: toolCalls.length > 0 ? toolCalls : undefined };
+  return {
+    fullContent,
+    usage,
+    stopReason,
+    stopSequence,
+    toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+  };
 };
 
 /**
  * 调用 Anthropic Claude API
  */
-export const callClaudeChatApi = async (profile: LlmProfile, options: LlmRequestOptions): Promise<LlmResponse> => {
+export const callClaudeChatApi = async (
+  profile: LlmProfile,
+  options: LlmRequestOptions
+): Promise<LlmResponse> => {
   const url = claudeUrlHandler.buildUrl(profile.baseUrl, "messages");
-  const systemMessages = (options.messages || []).filter((m) => m.role === "system");
-  const userAssistantMessages = (options.messages || []).filter((m) => m.role !== "system");
+  const systemMessages = (options.messages || []).filter(
+    (m) => m.role === "system"
+  );
+  const userAssistantMessages = (options.messages || []).filter(
+    (m) => m.role !== "system"
+  );
   const messages = convertToClaudeMessages(userAssistantMessages);
   const commonParams = extractCommonParameters(options);
 
@@ -114,20 +157,27 @@ export const callClaudeChatApi = async (profile: LlmProfile, options: LlmRequest
     max_tokens: commonParams.maxTokens || 4096,
   };
 
-  if (commonParams.temperature !== undefined) body.temperature = commonParams.temperature;
+  if (commonParams.temperature !== undefined)
+    body.temperature = commonParams.temperature;
   if (commonParams.topK !== undefined) body.top_k = commonParams.topK;
   if (commonParams.topP !== undefined) body.top_p = commonParams.topP;
 
   if (systemMessages.length > 0) {
     body.system = systemMessages
-      .map((m) => (typeof m.content === "string" ? m.content : JSON.stringify(m.content)))
+      .map((m) =>
+        typeof m.content === "string" ? m.content : JSON.stringify(m.content)
+      )
       .join("\n\n");
   }
-  if (options.stopSequences && options.stopSequences.length > 0) body.stop_sequences = options.stopSequences;
+  if (options.stopSequences && options.stopSequences.length > 0)
+    body.stop_sequences = options.stopSequences;
   if (options.claudeMetadata) body.metadata = options.claudeMetadata;
 
   if (options.thinkingEnabled) {
-    body.thinking = { type: "enabled", budget_tokens: options.thinkingBudget || 4096 };
+    body.thinking = {
+      type: "enabled",
+      budget_tokens: options.thinkingBudget || 4096,
+    };
     delete body.temperature;
   }
 
@@ -144,13 +194,17 @@ export const callClaudeChatApi = async (profile: LlmProfile, options: LlmRequest
     body.tools = body.tools ? [...body.tools, webSearchTool] : [webSearchTool];
   }
 
-  const toolChoice = convertToolChoice(options.toolChoice, options.parallelToolCalls);
+  const toolChoice = convertToolChoice(
+    options.toolChoice,
+    options.parallelToolCalls
+  );
   if (toolChoice) body.tool_choice = toolChoice;
 
   applyCustomParameters(body, options);
   cleanPayload(body);
 
-  const apiKey = profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
+  const apiKey =
+    profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     "x-api-key": apiKey,
@@ -190,12 +244,16 @@ export const callClaudeChatApi = async (profile: LlmProfile, options: LlmRequest
         isStreaming: true,
       },
       options.timeout,
-      options.signal,
+      options.signal
     );
     await ensureResponseOk(response);
     if (!response.body) throw new Error("响应体为空");
     const reader = response.body.getReader();
-    const result = await parseClaudeSSE(reader, options.onStream, options.signal);
+    const result = await parseClaudeSSE(
+      reader,
+      options.onStream,
+      options.signal
+    );
     return {
       content: result.fullContent,
       usage: result.usage,
@@ -218,7 +276,7 @@ export const callClaudeChatApi = async (profile: LlmProfile, options: LlmRequest
       http1Only: options.http1Only,
     },
     options.timeout,
-    options.signal,
+    options.signal
   );
   await ensureResponseOk(response);
   const data: any = await response.json();
@@ -231,7 +289,10 @@ export const callClaudeChatApi = async (profile: LlmProfile, options: LlmRequest
       toolCalls.push({
         id: block.id,
         type: "function",
-        function: { name: block.name, arguments: JSON.stringify(block.input || {}) },
+        function: {
+          name: block.name,
+          arguments: JSON.stringify(block.input || {}),
+        },
       });
     }
   }

@@ -36,7 +36,9 @@ const handleCreateCustom = () => {
       <div class="popup-header">
         <div class="popup-title-group">
           <Zap :size="20" class="title-icon" />
-          <span class="popup-title">{{ tRaw("tools.llm-api.PresetSelector.选择预设渠道") }}</span>
+          <span class="popup-title">{{
+            tRaw("tools.llm-api.PresetSelector.选择预设渠道")
+          }}</span>
         </div>
         <var-button round text @click="emit('update:show', false)">
           <span class="close-icon">×</span>
@@ -63,7 +65,8 @@ const handleCreateCustom = () => {
 
       <div class="popup-footer">
         <var-button block type="primary" outline @click="handleCreateCustom">
-          <Plus :size="18" /> {{ tRaw("tools.llm-api.PresetSelector.自定义添加") }}
+          <Plus :size="18" />
+          {{ tRaw("tools.llm-api.PresetSelector.自定义添加") }}
         </var-button>
       </div>
     </div>

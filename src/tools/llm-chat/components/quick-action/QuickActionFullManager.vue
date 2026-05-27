@@ -46,7 +46,8 @@ const allSelected = computed(() => {
 
 const isIndeterminate = computed(() => {
   return (
-    selectedIds.value.size > 0 && selectedIds.value.size < quickActionStore.quickActionSets.length
+    selectedIds.value.size > 0 &&
+    selectedIds.value.size < quickActionStore.quickActionSets.length
   );
 });
 
@@ -62,7 +63,9 @@ watch(
   (newLen, oldLen) => {
     if (newLen > oldLen && !isSelectionMode.value) {
       selectedSetId.value =
-        quickActionStore.quickActionSets[quickActionStore.quickActionSets.length - 1].id;
+        quickActionStore.quickActionSets[
+          quickActionStore.quickActionSets.length - 1
+        ].id;
     }
   }
 );
@@ -70,7 +73,9 @@ watch(
 const processImportFile = async (file: File) => {
   const id = await importQuickActionSet(file);
   if (id) {
-    customMessage.success(`快捷操作组《${file.name.replace(/\.[^/.]+$/, "")}》导入成功`);
+    customMessage.success(
+      `快捷操作组《${file.name.replace(/\.[^/.]+$/, "")}》导入成功`
+    );
     selectedSetId.value = id;
   }
 };
@@ -105,12 +110,16 @@ const handleFilesDrop = async (paths: string[]) => {
 
 const handleCreate = async () => {
   try {
-    const { value: name } = await ElMessageBox.prompt("请输入快捷操作组名称", "新建组", {
-      confirmButtonText: "确定",
-      cancelButtonText: "取消",
-      inputPattern: /\S+/,
-      inputErrorMessage: "名称不能为空",
-    });
+    const { value: name } = await ElMessageBox.prompt(
+      "请输入快捷操作组名称",
+      "新建组",
+      {
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+        inputPattern: /\S+/,
+        inputErrorMessage: "名称不能为空",
+      }
+    );
     if (name) {
       const id = await quickActionStore.createQuickActionSet(name);
       selectedSetId.value = id;
@@ -123,17 +132,23 @@ const handleCreate = async () => {
 
 const handleRename = async () => {
   if (!selectedSetId.value) return;
-  const set = quickActionStore.quickActionSets.find((s) => s.id === selectedSetId.value);
+  const set = quickActionStore.quickActionSets.find(
+    (s) => s.id === selectedSetId.value
+  );
   if (!set) return;
 
   try {
-    const { value: newName } = await ElMessageBox.prompt("请输入新的名称", "重命名组", {
-      confirmButtonText: "确定",
-      cancelButtonText: "取消",
-      inputValue: set.name,
-      inputPattern: /\S+/,
-      inputErrorMessage: "名称不能为空",
-    });
+    const { value: newName } = await ElMessageBox.prompt(
+      "请输入新的名称",
+      "重命名组",
+      {
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+        inputValue: set.name,
+        inputPattern: /\S+/,
+        inputErrorMessage: "名称不能为空",
+      }
+    );
     if (newName && newName !== set.name) {
       await quickActionStore.renameQuickActionSet(set.id, newName);
       customMessage.success("已重命名");
@@ -146,7 +161,9 @@ const handleRename = async () => {
 const handleDuplicate = async () => {
   if (!selectedSetId.value) return;
   try {
-    const newId = await quickActionStore.duplicateQuickActionSet(selectedSetId.value);
+    const newId = await quickActionStore.duplicateQuickActionSet(
+      selectedSetId.value
+    );
     if (newId) {
       selectedSetId.value = newId;
       customMessage.success("已克隆快捷操作组");
@@ -163,7 +180,9 @@ const handleDelete = async () => {
     await quickActionStore.deleteQuickActionSet(id);
     customMessage.success("组已删除");
     selectedSetId.value =
-      quickActionStore.quickActionSets.length > 0 ? quickActionStore.quickActionSets[0].id : null;
+      quickActionStore.quickActionSets.length > 0
+        ? quickActionStore.quickActionSets[0].id
+        : null;
   } catch (error) {
     customMessage.error("删除失败");
   }
@@ -196,7 +215,9 @@ const toggleSelection = (id: string) => {
 
 const handleSelectAll = (val: any) => {
   if (val) {
-    quickActionStore.quickActionSets.forEach((s) => selectedIds.value.add(s.id));
+    quickActionStore.quickActionSets.forEach((s) =>
+      selectedIds.value.add(s.id)
+    );
   } else {
     selectedIds.value.clear();
   }
@@ -223,7 +244,9 @@ const handleBatchDelete = async () => {
 
     if (selectedSetId.value && idsToDelete.includes(selectedSetId.value)) {
       selectedSetId.value =
-        quickActionStore.quickActionSets.length > 0 ? quickActionStore.quickActionSets[0].id : null;
+        quickActionStore.quickActionSets.length > 0
+          ? quickActionStore.quickActionSets[0].id
+          : null;
     }
   } catch (error) {
     // 取消
@@ -240,7 +263,11 @@ const handleBatchExport = async () => {
 </script>
 
 <template>
-  <div class="quick-action-full-manager" ref="containerRef" :class="{ 'is-narrow': !isWide }">
+  <div
+    class="quick-action-full-manager"
+    ref="containerRef"
+    :class="{ 'is-narrow': !isWide }"
+  >
     <div class="manager-header" :class="{ 'selection-mode': isSelectionMode }">
       <template v-if="!isSelectionMode">
         <div v-if="!isWide" class="selector-section">
@@ -268,7 +295,9 @@ const handleBatchExport = async () => {
 
         <div class="actions-section">
           <el-button-group>
-            <el-button :icon="CheckSquare" @click="toggleSelectionMode">批量管理</el-button>
+            <el-button :icon="CheckSquare" @click="toggleSelectionMode"
+              >批量管理</el-button
+            >
             <el-button :icon="Plus" @click="handleCreate">新建组</el-button>
             <el-button :icon="Upload" @click="handleImport">导入</el-button>
           </el-button-group>
@@ -323,7 +352,11 @@ const handleBatchExport = async () => {
               active: !isSelectionMode && selectedSetId === set.id,
               'is-selecting': isSelectionMode,
             }"
-            @click="isSelectionMode ? toggleSelection(set.id) : (selectedSetId = set.id)"
+            @click="
+              isSelectionMode
+                ? toggleSelection(set.id)
+                : (selectedSetId = set.id)
+            "
           >
             <div class="qa-item-icon" v-if="!isSelectionMode">
               <FileJson :size="18" />
@@ -343,8 +376,13 @@ const handleBatchExport = async () => {
             <ChevronRight v-if="!isSelectionMode" class="arrow" :size="16" />
           </div>
 
-          <div v-if="quickActionStore.quickActionSets.length === 0" class="empty-state">
-            <el-button type="primary" link @click="handleCreate">新建第一个快捷操作组</el-button>
+          <div
+            v-if="quickActionStore.quickActionSets.length === 0"
+            class="empty-state"
+          >
+            <el-button type="primary" link @click="handleCreate"
+              >新建第一个快捷操作组</el-button
+            >
           </div>
         </div>
 
@@ -362,7 +400,10 @@ const handleBatchExport = async () => {
         </div>
       </aside>
 
-      <div v-if="!isWide && isSelectionMode" class="narrow-selection-list custom-scrollbar">
+      <div
+        v-if="!isWide && isSelectionMode"
+        class="narrow-selection-list custom-scrollbar"
+      >
         <div
           v-for="set in quickActionStore.quickActionSets"
           :key="set.id"
@@ -395,10 +436,17 @@ const handleBatchExport = async () => {
         >
           <el-empty description="请选择或导入一个快捷操作组">
             <el-button type="primary" :icon="Upload">立即导入</el-button>
-            <el-button :icon="Plus" @click.stop="handleCreate">新建组</el-button>
+            <el-button :icon="Plus" @click.stop="handleCreate"
+              >新建组</el-button
+            >
           </el-empty>
         </DropZone>
-        <QuickActionDetail v-else :id="selectedSetId" :key="selectedSetId" class="detail-view" />
+        <QuickActionDetail
+          v-else
+          :id="selectedSetId"
+          :key="selectedSetId"
+          class="detail-view"
+        />
       </main>
     </div>
   </div>
@@ -430,7 +478,11 @@ const handleBatchExport = async () => {
 }
 
 .manager-header.selection-mode {
-  background-color: color-mix(in srgb, var(--el-color-primary), transparent 90%);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-primary),
+    transparent 90%
+  );
 }
 
 .header-title {

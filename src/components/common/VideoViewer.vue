@@ -34,7 +34,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed, nextTick, onMounted, onBeforeUnmount } from "vue";
+import {
+  ref,
+  watch,
+  computed,
+  nextTick,
+  onMounted,
+  onBeforeUnmount,
+} from "vue";
 import { X } from "lucide-vue-next";
 import VideoPlayer from "./VideoPlayer.vue";
 

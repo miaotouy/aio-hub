@@ -20,7 +20,11 @@ export function useDanmakuRenderer() {
   // 弹幕渲染间隔：~30fps（约 33ms），降低 CPU/GPU 压力
   const RENDER_INTERVAL = 33;
 
-  const initEngine = (canvas: HTMLCanvasElement, config: DanmakuConfig, scriptInfo: AssScriptInfo) => {
+  const initEngine = (
+    canvas: HTMLCanvasElement,
+    config: DanmakuConfig,
+    scriptInfo: AssScriptInfo
+  ) => {
     canvasRef.value = canvas;
     engine = new DanmakuEngine(canvas, config, scriptInfo);
   };

@@ -67,7 +67,10 @@ export function useNodeManager() {
   /**
    * 将节点添加到会话（更新父子关系）
    */
-  const addNodeToSession = (session: GenerationSession, node: MediaMessage): void => {
+  const addNodeToSession = (
+    session: GenerationSession,
+    node: MediaMessage
+  ): void => {
     if (!session.nodes) session.nodes = {};
 
     // 添加节点到会话
@@ -113,12 +116,16 @@ export function useNodeManager() {
    * 寻找指定节点下的最深叶子节点
    * 优先遵循 lastSelectedChildId 记忆路径
    */
-  const findDeepestLeaf = (session: GenerationSession, nodeId: string): string => {
+  const findDeepestLeaf = (
+    session: GenerationSession,
+    nodeId: string
+  ): string => {
     const node = session.nodes[nodeId];
     if (!node || node.childrenIds.length === 0) return nodeId;
 
     // 优先走上次选中的子节点路径，否则走最后一个子节点
-    const nextId = node.lastSelectedChildId ?? node.childrenIds[node.childrenIds.length - 1];
+    const nextId =
+      node.lastSelectedChildId ?? node.childrenIds[node.childrenIds.length - 1];
     const nextNode = session.nodes[nextId];
 
     return nextNode ? findDeepestLeaf(session, nextId) : nodeId;
@@ -127,7 +134,10 @@ export function useNodeManager() {
   /**
    * 更新活跃叶节点
    */
-  const updateActiveLeaf = (session: GenerationSession, nodeId: string): boolean => {
+  const updateActiveLeaf = (
+    session: GenerationSession,
+    nodeId: string
+  ): boolean => {
     const node = session.nodes[nodeId];
     if (!node) {
       logger.warn("更新活跃叶节点失败：节点不存在", {
@@ -161,18 +171,27 @@ export function useNodeManager() {
    */
   const hardDeleteNode = (
     session: GenerationSession,
-    nodeId: string,
+    nodeId: string
   ): { success: boolean; deletedNodes: MediaMessage[] } => {
-    logger.info("🗑️ [硬删除] 开始硬删除节点", { sessionId: session.id, nodeId });
+    logger.info("🗑️ [硬删除] 开始硬删除节点", {
+      sessionId: session.id,
+      nodeId,
+    });
 
     const node = session.nodes[nodeId];
     if (!node) {
-      logger.warn("🗑️ [硬删除] 失败：节点不存在", { sessionId: session.id, nodeId });
+      logger.warn("🗑️ [硬删除] 失败：节点不存在", {
+        sessionId: session.id,
+        nodeId,
+      });
       return { success: false, deletedNodes: [] };
     }
 
     if (node.id === session.rootNodeId) {
-      logger.warn("🗑️ [硬删除] 失败：不能删除根节点", { sessionId: session.id, nodeId });
+      logger.warn("🗑️ [硬删除] 失败：不能删除根节点", {
+        sessionId: session.id,
+        nodeId,
+      });
       return { success: false, deletedNodes: [] };
     }
 
@@ -188,7 +207,9 @@ export function useNodeManager() {
     collectDescendants(nodeId);
 
     if (session.activeLeafId && nodesToDeleteIds.has(session.activeLeafId)) {
-      const siblings = node.parentId ? session.nodes[node.parentId]?.childrenIds || [] : [];
+      const siblings = node.parentId
+        ? session.nodes[node.parentId]?.childrenIds || []
+        : [];
 
       // 找到被删除节点在兄弟列表中的索引
       const deletedIndex = siblings.indexOf(nodeId);
@@ -209,13 +230,18 @@ export function useNodeManager() {
         session.activeLeafId = node.parentId || session.rootNodeId;
       }
 
-      BranchNavigator.updateSelectionMemory(session as any, session.activeLeafId || "");
+      BranchNavigator.updateSelectionMemory(
+        session as any,
+        session.activeLeafId || ""
+      );
     }
 
     if (node.parentId) {
       const parentNode = session.nodes[node.parentId];
       if (parentNode) {
-        parentNode.childrenIds = parentNode.childrenIds.filter((id) => id !== nodeId);
+        parentNode.childrenIds = parentNode.childrenIds.filter(
+          (id) => id !== nodeId
+        );
       }
     }
 
@@ -239,7 +265,10 @@ export function useNodeManager() {
   /**
    * 获取从根节点到指定节点的路径
    */
-  const getNodePath = (session: GenerationSession, targetNodeId: string): MediaMessage[] => {
+  const getNodePath = (
+    session: GenerationSession,
+    targetNodeId: string
+  ): MediaMessage[] => {
     const path: MediaMessage[] = [];
     let currentId: string | null = targetNodeId;
 
@@ -260,7 +289,10 @@ export function useNodeManager() {
   /**
    * 获取节点的所有子节点（递归）
    */
-  const getAllDescendants = (session: GenerationSession, nodeId: string): MediaMessage[] => {
+  const getAllDescendants = (
+    session: GenerationSession,
+    nodeId: string
+  ): MediaMessage[] => {
     const descendants: MediaMessage[] = [];
     const node = session.nodes[nodeId];
 
@@ -280,7 +312,10 @@ export function useNodeManager() {
   /**
    * 获取节点的所有祖先节点（递归）
    */
-  const getAllAncestors = (session: GenerationSession, nodeId: string): MediaMessage[] => {
+  const getAllAncestors = (
+    session: GenerationSession,
+    nodeId: string
+  ): MediaMessage[] => {
     const ancestors: MediaMessage[] = [];
     let currentId: string | null = nodeId;
 
@@ -309,7 +344,7 @@ export function useNodeManager() {
    */
   const createRegenerateBranch = (
     session: GenerationSession,
-    targetNodeId: string,
+    targetNodeId: string
   ): { assistantNode: MediaMessage; userNode: MediaMessage } | null => {
     const targetNode = session.nodes[targetNodeId];
     if (!targetNode) return null;

@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
 import { customMessage } from "@/utils/customMessage";
-import { Upload, Delete, Picture, Scissor, Plus } from "@element-plus/icons-vue";
+import {
+  Upload,
+  Delete,
+  Picture,
+  Scissor,
+  Plus,
+} from "@element-plus/icons-vue";
 import type { ImageBlock, CutLine, UploadedImage } from "../types";
 import { useFileDrop } from "@composables/useFileDrop";
 import { invoke } from "@tauri-apps/api/core";
@@ -58,7 +64,9 @@ const { isDraggingOver: isTauriDragging } = useFileDrop({
         const { mimeType } = await detectFileType(path, fileName);
 
         // 使用 Tauri 命令读取文件为 base64
-        const base64Data = await invoke<string>("read_file_as_base64", { path });
+        const base64Data = await invoke<string>("read_file_as_base64", {
+          path,
+        });
 
         // 将 base64 转换为 Blob
         const byteCharacters = atob(base64Data);
@@ -472,7 +480,10 @@ onUnmounted(() => {
             <span class="image-size">{{ formatFileSize(image.size) }}</span>
           </div>
           <!-- 图片块数量徽章 -->
-          <div v-if="imageBlocksMap.get(image.id)?.length" class="block-count-badge">
+          <div
+            v-if="imageBlocksMap.get(image.id)?.length"
+            class="block-count-badge"
+          >
             {{ imageBlocksMap.get(image.id)!.length }}
           </div>
           <div class="image-actions">
@@ -561,10 +572,16 @@ onUnmounted(() => {
 
           <!-- 图片块视图 -->
           <div v-else class="blocks-view">
-            <div v-for="(block, index) in currentImageBlocks" :key="block.id" class="block-item">
+            <div
+              v-for="(block, index) in currentImageBlocks"
+              :key="block.id"
+              class="block-item"
+            >
               <div class="block-header">
                 <el-tag size="small">块 {{ index + 1 }}</el-tag>
-                <el-text size="small" type="info"> {{ block.width }}x{{ block.height }}px </el-text>
+                <el-text size="small" type="info">
+                  {{ block.width }}x{{ block.height }}px
+                </el-text>
               </div>
               <div class="block-image">
                 <el-tooltip content="点击查看大图" placement="top">

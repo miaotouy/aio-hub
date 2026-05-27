@@ -1,5 +1,9 @@
 <template>
-  <div ref="barRef" class="directory-bar" :class="{ 'is-dragover': isDraggingOver }">
+  <div
+    ref="barRef"
+    class="directory-bar"
+    :class="{ 'is-dragover': isDraggingOver }"
+  >
     <div class="directory-bar__input-wrapper">
       <FolderOpen :size="16" class="directory-bar__icon" />
       <input
@@ -23,7 +27,10 @@ import { ref } from "vue";
 import { open } from "@tauri-apps/plugin-dialog";
 import { FolderOpen, FolderSearch } from "lucide-vue-next";
 import { useFileDrop } from "@/composables/useFileDrop";
-import { useInputHistory, useAutoSaveHistory } from "../composables/useInputHistory";
+import {
+  useInputHistory,
+  useAutoSaveHistory,
+} from "../composables/useInputHistory";
 import { useDirSearchUiState } from "../composables/useDirSearchUiState";
 
 const modelValue = defineModel<string>({ required: true });
@@ -38,7 +45,10 @@ const barRef = ref<HTMLElement>();
 const uiState = useDirSearchUiState();
 
 // 1. 键盘回溯
-const { onKeydown: onDirHistoryKeydown } = useInputHistory(uiState.directoryHistory, modelValue);
+const { onKeydown: onDirHistoryKeydown } = useInputHistory(
+  uiState.directoryHistory,
+  modelValue
+);
 
 // 2. 自动保存
 useAutoSaveHistory(uiState.directoryHistory, modelValue, { maxLength: 10 });
@@ -88,7 +98,10 @@ async function selectDirectory() {
 
 .directory-bar.is-dragover {
   border-color: var(--el-color-primary);
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.05));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.05)
+  );
   box-shadow: inset 0 0 0 1px var(--el-color-primary);
 }
 
@@ -146,6 +159,9 @@ async function selectDirectory() {
 .directory-bar__btn:hover {
   border-color: var(--el-color-primary);
   color: var(--el-color-primary);
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.1));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
 }
 </style>

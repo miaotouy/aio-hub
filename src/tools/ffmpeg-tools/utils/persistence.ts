@@ -28,7 +28,9 @@ export const ffmpegTasksManager = createConfigManager<{ list: FFmpegTask[] }>({
  * FFmpeg 预设持久化管理器
  * 存储用户自定义预设 (系统预设不会持久化)
  */
-export const ffmpegPresetsManager = createConfigManager<{ list: FFmpegPreset[] }>({
+export const ffmpegPresetsManager = createConfigManager<{
+  list: FFmpegPreset[];
+}>({
   moduleName: "ffmpeg-tools",
   fileName: "presets.json",
   createDefault: () => ({ list: [] }),

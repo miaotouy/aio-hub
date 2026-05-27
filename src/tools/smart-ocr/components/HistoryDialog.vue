@@ -31,7 +31,11 @@ const emit = defineEmits<{
 }>();
 
 const errorHandler = createModuleErrorHandler("HistoryDialog");
-const { loadHistoryIndex, deleteRecord, loadFullRecord: loadHistoryRecord } = useOcrHistory();
+const {
+  loadHistoryIndex,
+  deleteRecord,
+  loadFullRecord: loadHistoryRecord,
+} = useOcrHistory();
 const { getAssetBasePath, convertToAssetProtocol } = useAssetManager();
 const imageViewer = useImageViewer();
 const { copy, copied } = useClipboard();
@@ -101,7 +105,9 @@ const filteredHistory = computed(() => {
       const text = record.textPreview?.toLowerCase() || "";
       const engine = record.engine?.toLowerCase() || "";
       const detail = record.engineDetail?.toLowerCase() || "";
-      return text.includes(query) || engine.includes(query) || detail.includes(query);
+      return (
+        text.includes(query) || engine.includes(query) || detail.includes(query)
+      );
     });
   }
 
@@ -145,7 +151,10 @@ async function fetchHistory() {
     // 加载第一页
     await loadPage(1);
   } catch (error) {
-    errorHandler.handle(error as Error, { userMessage: "加载历史记录索引失败", showToUser: false });
+    errorHandler.handle(error as Error, {
+      userMessage: "加载历史记录索引失败",
+      showToUser: false,
+    });
   } finally {
     isLoading.value = false;
   }
@@ -179,7 +188,10 @@ async function loadMore() {
   try {
     await loadPage(currentPage.value + 1);
   } catch (error) {
-    errorHandler.handle(error as Error, { userMessage: "加载更多历史记录失败", showToUser: false });
+    errorHandler.handle(error as Error, {
+      userMessage: "加载更多历史记录失败",
+      showToUser: false,
+    });
   } finally {
     isLoadingMore.value = false;
   }
@@ -215,7 +227,10 @@ function updateImageUrls(records: OcrHistoryIndexItem[]) {
     if (record.assetId && !thumbnailUrls.value[record.id]) {
       // 默认尝试使用缩略图路径 (.thumbnails/{uuid}.jpg)
       const thumbPath = `.thumbnails/${record.assetId}.jpg`;
-      thumbnailUrls.value[record.id] = convertToAssetProtocol(thumbPath, assetBasePath.value);
+      thumbnailUrls.value[record.id] = convertToAssetProtocol(
+        thumbPath,
+        assetBasePath.value
+      );
     }
   });
 }
@@ -224,7 +239,10 @@ function handleImageError(record: OcrHistoryIndexItem) {
   if (!record.assetId || !record.assetPath || !assetBasePath.value) return true;
 
   const currentSrc = thumbnailUrls.value[record.id];
-  const originalSrc = convertToAssetProtocol(record.assetPath, assetBasePath.value);
+  const originalSrc = convertToAssetProtocol(
+    record.assetPath,
+    assetBasePath.value
+  );
 
   // 如果当前是缩略图，尝试降级到原图
   if (currentSrc && currentSrc.includes(".thumbnails")) {
@@ -239,12 +257,17 @@ function handlePreview(record: OcrHistoryIndexItem) {
   if (!record.assetId || !record.assetPath || !assetBasePath.value) return;
 
   try {
-    const fullImageUrl = convertToAssetProtocol(record.assetPath, assetBasePath.value);
+    const fullImageUrl = convertToAssetProtocol(
+      record.assetPath,
+      assetBasePath.value
+    );
     if (fullImageUrl) {
       imageViewer.show(fullImageUrl);
     }
   } catch (error) {
-    errorHandler.error(error as Error, "预览图片失败", { context: { recordId: record.id } });
+    errorHandler.error(error as Error, "预览图片失败", {
+      context: { recordId: record.id },
+    });
   }
 }
 
@@ -264,13 +287,15 @@ async function handleDelete(record: OcrHistoryIndexItem) {
     // 从所有记录中移除
     allHistory.value = allHistory.value.filter((r) => r.id !== record.id);
     // 从显示记录中移除
-    displayedHistory.value = displayedHistory.value.filter((r) => r.id !== record.id);
+    displayedHistory.value = displayedHistory.value.filter(
+      (r) => r.id !== record.id
+    );
     // 移除缩略图
     delete thumbnailUrls.value[record.id];
 
     // 更新 hasMore 状态
-    hasMore.value = displayedHistory.value.length < filteredHistory.value.length;
-
+    hasMore.value =
+      displayedHistory.value.length < filteredHistory.value.length;
   } catch (error) {
     if (error !== "cancel") {
       errorHandler.error(error as Error, "删除历史记录失败", {
@@ -293,7 +318,9 @@ async function handleCopy(record: OcrHistoryIndexItem) {
       customMessage.warning("未能加载到有效的文本内容");
     }
   } catch (error) {
-    errorHandler.error(error as Error, "复制失败", { context: { recordId: record.id } });
+    errorHandler.error(error as Error, "复制失败", {
+      context: { recordId: record.id },
+    });
   }
 }
 
@@ -311,7 +338,10 @@ watch(
         try {
           assetBasePath.value = await getAssetBasePath();
         } catch (error) {
-          errorHandler.handle(error as Error, { userMessage: "获取资产根目录失败", showToUser: false });
+          errorHandler.handle(error as Error, {
+            userMessage: "获取资产根目录失败",
+            showToUser: false,
+          });
         }
       }
       fetchHistory();
@@ -338,7 +368,12 @@ onUnmounted(() => {
           :prefix-icon="Search"
           class="search-input"
         />
-        <el-select v-model="filterEngine" placeholder="引擎类型" clearable class="filter-select">
+        <el-select
+          v-model="filterEngine"
+          placeholder="引擎类型"
+          clearable
+          class="filter-select"
+        >
           <el-option
             v-for="item in engineOptions"
             :key="item.value"
@@ -403,15 +438,23 @@ onUnmounted(() => {
           </el-table-column>
           <el-table-column label="识别时间" width="180">
             <template #default="{ row }">
-              <span>{{ formatDateTime(row.createdAt, "yyyy-MM-dd HH:mm:ss") }}</span>
+              <span>{{
+                formatDateTime(row.createdAt, "yyyy-MM-dd HH:mm:ss")
+              }}</span>
             </template>
           </el-table-column>
           <el-table-column label="操作" width="280" fixed="right">
             <template #default="{ row }">
-              <el-button size="small" @click="$emit('load-record', row.id)">追加</el-button>
+              <el-button size="small" @click="$emit('load-record', row.id)"
+                >追加</el-button
+              >
               <el-button size="small" @click="handleCopy(row)">复制</el-button>
-              <el-button size="small" @click="$emit('re-recognize', row.id)">重识别</el-button>
-              <el-button type="danger" size="small" @click="handleDelete(row)">删除</el-button>
+              <el-button size="small" @click="$emit('re-recognize', row.id)"
+                >重识别</el-button
+              >
+              <el-button type="danger" size="small" @click="handleDelete(row)"
+                >删除</el-button
+              >
             </template>
           </el-table-column>
 
@@ -423,7 +466,10 @@ onUnmounted(() => {
               </el-icon>
               <span>加载中...</span>
             </div>
-            <div v-else-if="!hasMore && displayedHistory.length > 0" class="no-more">
+            <div
+              v-else-if="!hasMore && displayedHistory.length > 0"
+              class="no-more"
+            >
               已加载全部 {{ filteredHistory.length }} 条记录
             </div>
           </template>

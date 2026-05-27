@@ -40,7 +40,7 @@ class Logger {
 
   private formatTimestamp(): string {
     const now = new Date();
-    return now.toISOString().replace('T', ' ').substring(0, 23);
+    return now.toISOString().replace("T", " ").substring(0, 23);
   }
 
   private trimLogs() {
@@ -55,15 +55,15 @@ class Logger {
     this.trimLogs();
 
     // 通知监听者
-    this.listeners.forEach(listener => listener(entry));
+    this.listeners.forEach((listener) => listener(entry));
 
     const levelStr = LogLevel[entry.level];
     const prefix = `[${entry.timestamp}] [${levelStr}] [${entry.module}]`;
 
     if (entry.collapsed) {
       console.groupCollapsed(`${prefix} ${entry.message}`);
-      if (entry.data) console.log('Data:', entry.data);
-      if (entry.stack) console.log('Stack:', entry.stack);
+      if (entry.data) console.log("Data:", entry.data);
+      if (entry.stack) console.log("Stack:", entry.stack);
       console.groupEnd();
     } else {
       const args = [`${prefix} ${entry.message}`];
@@ -71,15 +71,30 @@ class Logger {
       if (entry.stack) args.push(entry.stack);
 
       switch (entry.level) {
-        case LogLevel.DEBUG: console.debug(...args); break;
-        case LogLevel.INFO: console.info(...args); break;
-        case LogLevel.WARN: console.warn(...args); break;
-        case LogLevel.ERROR: console.error(...args); break;
+        case LogLevel.DEBUG:
+          console.debug(...args);
+          break;
+        case LogLevel.INFO:
+          console.info(...args);
+          break;
+        case LogLevel.WARN:
+          console.warn(...args);
+          break;
+        case LogLevel.ERROR:
+          console.error(...args);
+          break;
       }
     }
   }
 
-  private createEntry(level: LogLevel, module: string, message: string, data?: any, error?: Error, collapsed?: boolean): LogEntry {
+  private createEntry(
+    level: LogLevel,
+    module: string,
+    message: string,
+    data?: any,
+    error?: Error,
+    collapsed?: boolean
+  ): LogEntry {
     return {
       id: Math.random().toString(36).substring(2, 11),
       timestamp: this.formatTimestamp(),
@@ -106,40 +121,84 @@ class Logger {
   }
 
   exportLogs(): string {
-    return this.logs.map(entry => {
-      const levelStr = LogLevel[entry.level];
-      let line = `[${entry.timestamp}] [${levelStr}] [${entry.module}] ${entry.message}`;
-      if (entry.data) {
-        line += `\nData: ${JSON.stringify(entry.data, null, 2)}`;
-      }
-      if (entry.stack) {
-        line += `\nStack: ${entry.stack}`;
-      }
-      return line;
-    }).join('\n' + '-'.repeat(40) + '\n');
+    return this.logs
+      .map((entry) => {
+        const levelStr = LogLevel[entry.level];
+        let line = `[${entry.timestamp}] [${levelStr}] [${entry.module}] ${entry.message}`;
+        if (entry.data) {
+          line += `\nData: ${JSON.stringify(entry.data, null, 2)}`;
+        }
+        if (entry.stack) {
+          line += `\nStack: ${entry.stack}`;
+        }
+        return line;
+      })
+      .join("\n" + "-".repeat(40) + "\n");
   }
 
   debug(module: string, message: string, data?: any, collapsed?: boolean) {
     if (this.currentLevel <= LogLevel.DEBUG) {
-      this.writeLog(this.createEntry(LogLevel.DEBUG, module, message, data, undefined, collapsed));
+      this.writeLog(
+        this.createEntry(
+          LogLevel.DEBUG,
+          module,
+          message,
+          data,
+          undefined,
+          collapsed
+        )
+      );
     }
   }
 
   info(module: string, message: string, data?: any, collapsed?: boolean) {
     if (this.currentLevel <= LogLevel.INFO) {
-      this.writeLog(this.createEntry(LogLevel.INFO, module, message, data, undefined, collapsed));
+      this.writeLog(
+        this.createEntry(
+          LogLevel.INFO,
+          module,
+          message,
+          data,
+          undefined,
+          collapsed
+        )
+      );
     }
   }
 
   warn(module: string, message: string, data?: any, collapsed?: boolean) {
     if (this.currentLevel <= LogLevel.WARN) {
-      this.writeLog(this.createEntry(LogLevel.WARN, module, message, data, undefined, collapsed));
+      this.writeLog(
+        this.createEntry(
+          LogLevel.WARN,
+          module,
+          message,
+          data,
+          undefined,
+          collapsed
+        )
+      );
     }
   }
 
-  error(module: string, message: string, error?: Error | any, data?: any, collapsed?: boolean) {
+  error(
+    module: string,
+    message: string,
+    error?: Error | any,
+    data?: any,
+    collapsed?: boolean
+  ) {
     const errorObj = error instanceof Error ? error : new Error(String(error));
-    this.writeLog(this.createEntry(LogLevel.ERROR, module, message, data, errorObj, collapsed));
+    this.writeLog(
+      this.createEntry(
+        LogLevel.ERROR,
+        module,
+        message,
+        data,
+        errorObj,
+        collapsed
+      )
+    );
   }
 }
 
@@ -147,9 +206,17 @@ export const logger = new Logger();
 
 export function createModuleLogger(moduleName: string) {
   return {
-    debug: (message: string, data?: any, collapsed?: boolean) => logger.debug(moduleName, message, data, collapsed),
-    info: (message: string, data?: any, collapsed?: boolean) => logger.info(moduleName, message, data, collapsed),
-    warn: (message: string, data?: any, collapsed?: boolean) => logger.warn(moduleName, message, data, collapsed),
-    error: (message: string, error?: Error | any, data?: any, collapsed?: boolean) => logger.error(moduleName, message, error, data, collapsed),
+    debug: (message: string, data?: any, collapsed?: boolean) =>
+      logger.debug(moduleName, message, data, collapsed),
+    info: (message: string, data?: any, collapsed?: boolean) =>
+      logger.info(moduleName, message, data, collapsed),
+    warn: (message: string, data?: any, collapsed?: boolean) =>
+      logger.warn(moduleName, message, data, collapsed),
+    error: (
+      message: string,
+      error?: Error | any,
+      data?: any,
+      collapsed?: boolean
+    ) => logger.error(moduleName, message, error, data, collapsed),
   };
 }

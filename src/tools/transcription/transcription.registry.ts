@@ -29,7 +29,8 @@ export default class TranscriptionRegistry implements ToolRegistry {
   public readonly id = "transcription";
   public readonly runMode = "main-only";
   public readonly name = "多模态转写管理";
-  public readonly description = "管理从图片、音频、视频和 PDF 中提取文本内容的转写任务";
+  public readonly description =
+    "管理从图片、音频、视频和 PDF 中提取文本内容的转写任务";
 
   private _manager: ReturnType<typeof useTranscriptionManager> | null = null;
 
@@ -59,7 +60,11 @@ export default class TranscriptionRegistry implements ToolRegistry {
   ): TranscriptionTask | null {
     return errorHandler.wrapSync(
       () => {
-        logger.info("添加转写任务", { assetId: asset.id, assetName: asset.name, activateWorkbench: options?.activateWorkbench });
+        logger.info("添加转写任务", {
+          assetId: asset.id,
+          assetName: asset.name,
+          activateWorkbench: options?.activateWorkbench,
+        });
         const task = this.manager.addTask(asset, overrideConfig);
 
         // 如果请求激活工作台，设置 pending 标记
@@ -98,7 +103,10 @@ export default class TranscriptionRegistry implements ToolRegistry {
    * @param asset 资产对象
    * @param overrideConfig 覆盖配置
    */
-  public retryTask(asset: Asset, overrideConfig?: Partial<TranscriptionConfig>): void {
+  public retryTask(
+    asset: Asset,
+    overrideConfig?: Partial<TranscriptionConfig>
+  ): void {
     errorHandler.wrapSync(
       () => {
         logger.info("重试转写任务", { assetId: asset.id });
@@ -140,7 +148,10 @@ export default class TranscriptionRegistry implements ToolRegistry {
     }
 
     try {
-      logger.debug("正在读取转写内容", { assetId: asset.id, path: derived.path });
+      logger.debug("正在读取转写内容", {
+        assetId: asset.id,
+        path: derived.path,
+      });
       const buffer = await assetManagerEngine.getAssetBinary(derived.path);
       const text = smartDecode(buffer);
 

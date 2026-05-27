@@ -7,7 +7,11 @@ import RequestSerializerWorker from "@/workers/request-serializer.worker?worker"
  * 递归寻找对象中的 Transferable 对象 (ArrayBuffer)
  * 优化：限制深度，避免在主线程进行无限递归导致的性能问题
  */
-const findTransferables = (obj: any, transferables: Set<Transferable> = new Set(), depth = 0): Set<Transferable> => {
+const findTransferables = (
+  obj: any,
+  transferables: Set<Transferable> = new Set(),
+  depth = 0
+): Set<Transferable> => {
   if (!obj || typeof obj !== "object" || depth > 10) return transferables;
 
   if (obj instanceof ArrayBuffer) {
@@ -23,7 +27,7 @@ const findTransferables = (obj: any, transferables: Set<Transferable> = new Set(
     for (const key in obj) {
       if (Object.prototype.hasOwnProperty.call(obj, key)) {
         // 忽略某些已知不包含二进制的大字段
-        if (key === 'content' && typeof obj[key] === 'string') continue;
+        if (key === "content" && typeof obj[key] === "string") continue;
         findTransferables(obj[key], transferables, depth + 1);
       }
     }
@@ -49,8 +53,12 @@ export const asyncJsonStringify = (obj: any): Promise<string | Uint8Array> => {
       const { status, data, error, workerMetrics } = e.data;
       if (status === "success") {
         const resolveTime = performance.now();
-        console.log(`[Serialization] Worker 耗时: ${workerMetrics.serializeTime.toFixed(2)}ms, JSON 大小: ${(workerMetrics.jsonSize / 1024 / 1024).toFixed(2)}MB`);
-        console.log(`[Serialization] 主线程接收耗时: ${(resolveTime - receiveTime).toFixed(2)}ms, 总往返耗时: ${(resolveTime - startTime).toFixed(2)}ms`);
+        console.log(
+          `[Serialization] Worker 耗时: ${workerMetrics.serializeTime.toFixed(2)}ms, JSON 大小: ${(workerMetrics.jsonSize / 1024 / 1024).toFixed(2)}MB`
+        );
+        console.log(
+          `[Serialization] 主线程接收耗时: ${(resolveTime - receiveTime).toFixed(2)}ms, 总往返耗时: ${(resolveTime - startTime).toFixed(2)}ms`
+        );
         resolve(data);
       } else {
         reject(new Error(error || "Worker serialization failed"));

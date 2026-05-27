@@ -2,7 +2,12 @@
   <div class="icon-preset-selector">
     <!-- 搜索栏（可选） -->
     <div v-if="showSearch" class="search-bar">
-      <input v-model="searchText" type="text" placeholder="搜索图标..." class="search-input" />
+      <input
+        v-model="searchText"
+        type="text"
+        placeholder="搜索图标..."
+        class="search-input"
+      />
     </div>
 
     <!-- 分类标签（可选） -->
@@ -42,17 +47,29 @@
               @click="handleSelect(icon)"
             >
               <!-- 复制按钮 -->
-              <button class="copy-btn" title="复制图标路径" @click.stop="handleCopy(icon.path)">
+              <button
+                class="copy-btn"
+                title="复制图标路径"
+                @click.stop="handleCopy(icon.path)"
+              >
                 <Copy :size="14" />
               </button>
 
               <div class="preset-icon">
-                <DynamicIcon :src="getIconPath(icon.path)" :alt="icon.name" lazy />
+                <DynamicIcon
+                  :src="getIconPath(icon.path)"
+                  :alt="icon.name"
+                  lazy
+                />
               </div>
               <div class="preset-info">
                 <div class="preset-name">{{ icon.name }}</div>
                 <div v-if="showTags && icon.suggestedFor" class="preset-tags">
-                  <span v-for="tag in icon.suggestedFor.slice(0, 3)" :key="tag" class="tag">
+                  <span
+                    v-for="tag in icon.suggestedFor.slice(0, 3)"
+                    :key="tag"
+                    class="tag"
+                  >
                     {{ tag }}
                   </span>
                 </div>
@@ -158,7 +175,7 @@ const filteredIcons = computed(() => {
       (icon) =>
         icon.name.toLowerCase().includes(search) ||
         icon.path.toLowerCase().includes(search) ||
-        icon.suggestedFor?.some((tag) => tag.toLowerCase().includes(search)),
+        icon.suggestedFor?.some((tag) => tag.toLowerCase().includes(search))
     );
   }
 
@@ -194,7 +211,10 @@ const visibleRows = computed(() => {
 
   // 增加缓冲区
   const buffer = 2;
-  return rows.value.slice(Math.max(0, start - buffer), Math.min(rows.value.length, end + buffer));
+  return rows.value.slice(
+    Math.max(0, start - buffer),
+    Math.min(rows.value.length, end + buffer)
+  );
 });
 
 // 动态网格样式

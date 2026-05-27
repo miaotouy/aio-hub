@@ -85,7 +85,9 @@ watch(
     if (mode === "source" && snapshot) {
       // 性能优化：调低阈值到 200KB，因为 Prettier 在处理复杂 HTML 时非常耗时
       if (snapshot.length > 200 * 1024) {
-        logger.info("DOM 快照较大，跳过自动美化以保持响应", { size: snapshot.length });
+        logger.info("DOM 快照较大，跳过自动美化以保持响应", {
+          size: snapshot.length,
+        });
         formattedHtml.value = snapshot;
         return;
       }
@@ -108,7 +110,9 @@ watch(
         });
 
         const fEnd = performance.now();
-        logger.info("HTML formatting finished", { duration: `${(fEnd - fStart).toFixed(2)}ms` });
+        logger.info("HTML formatting finished", {
+          duration: `${(fEnd - fStart).toFixed(2)}ms`,
+        });
       } catch (err) {
         errorHandler.handle(err, {
           userMessage: "HTML 格式化失败，显示原始内容",
@@ -141,7 +145,10 @@ const qualityType = computed(() => {
 });
 
 async function copyContent() {
-  const text = viewMode.value === "source" ? formattedHtml.value || props.result?.domSnapshot : props.result?.content;
+  const text =
+    viewMode.value === "source"
+      ? formattedHtml.value || props.result?.domSnapshot
+      : props.result?.content;
   if (!text) return;
   try {
     await navigator.clipboard.writeText(text);
@@ -156,9 +163,14 @@ function downloadContent() {
   const text = isSource ? props.result?.domSnapshot : props.result?.content;
   if (!text) return;
 
-  const title = (props.result!.title || "distilled").replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, "_");
+  const title = (props.result!.title || "distilled").replace(
+    /[^a-zA-Z0-9\u4e00-\u9fa5]/g,
+    "_"
+  );
   const ext = isSource ? "html" : "md";
-  const mimeType = isSource ? "text/html;charset=utf-8" : "text/markdown;charset=utf-8";
+  const mimeType = isSource
+    ? "text/html;charset=utf-8"
+    : "text/markdown;charset=utf-8";
   const blob = new Blob([text], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -199,14 +211,24 @@ function downloadContent() {
       <!-- 结果头部 -->
       <div class="result-header">
         <div class="header-left">
-          <div class="result-title" :title="result.title">{{ result.title || "(无标题)" }}</div>
+          <div class="result-title" :title="result.title">
+            {{ result.title || "(无标题)" }}
+          </div>
           <div class="meta-tags">
             <el-tag size="small">{{ result.mode }}</el-tag>
             <el-tag :type="qualityType" size="small">
-              {{ qualityType === "success" ? "高质量" : qualityType === "warning" ? "中等" : "低质量" }}
+              {{
+                qualityType === "success"
+                  ? "高质量"
+                  : qualityType === "warning"
+                    ? "中等"
+                    : "低质量"
+              }}
               {{ Math.round((result.quality ?? 0) * 100) }}%
             </el-tag>
-            <el-tag type="info" size="small">{{ result.format?.toUpperCase() }}</el-tag>
+            <el-tag type="info" size="small">{{
+              result.format?.toUpperCase()
+            }}</el-tag>
             <el-tag v-if="result.contentLength" type="info" size="small">
               {{ (result.contentLength / 1000).toFixed(1) }}k 字
             </el-tag>
@@ -220,7 +242,11 @@ function downloadContent() {
                 <FileText :size="13" />
               </el-radio-button>
             </el-tooltip>
-            <el-tooltip content="Markdown 源码" placement="top" :show-after="500">
+            <el-tooltip
+              content="Markdown 源码"
+              placement="top"
+              :show-after="500"
+            >
               <el-radio-button value="raw">
                 <Code2 :size="13" />
               </el-radio-button>
@@ -239,10 +265,19 @@ function downloadContent() {
             <el-button size="small" title="下载文件" @click="downloadContent">
               <Download :size="13" />
             </el-button>
-            <el-button size="small" title="发送到聊天" @click="emit('sendToChat')">
+            <el-button
+              size="small"
+              title="发送到聊天"
+              @click="emit('sendToChat')"
+            >
               <MessageSquare :size="13" />
             </el-button>
-            <el-button size="small" title="重新蒸馏" :disabled="loading" @click="emit('refresh')">
+            <el-button
+              size="small"
+              title="重新蒸馏"
+              :disabled="loading"
+              @click="emit('refresh')"
+            >
               <RotateCw :size="13" :class="{ spin: loading }" />
             </el-button>
           </el-button-group>

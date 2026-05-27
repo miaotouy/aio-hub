@@ -47,17 +47,22 @@ export function useTranslation() {
       }
     }
 
-    const firstColonIndex = modelIdentifier.indexOf(':');
+    const firstColonIndex = modelIdentifier.indexOf(":");
     const profileId = modelIdentifier.substring(0, firstColonIndex);
     const modelId = modelIdentifier.substring(firstColonIndex + 1);
 
     if (!profileId || !modelId) {
-      errorHandler.error(new Error(`翻译模型配置无效: ${modelIdentifier}`), "翻译模型配置无效");
+      errorHandler.error(
+        new Error(`翻译模型配置无效: ${modelIdentifier}`),
+        "翻译模型配置无效"
+      );
       return "";
     }
 
     // 构建 Prompt
-    let prompt = config.prompt || "Please translate the following text to {targetLang}.\n\nImportant: If the text contains any of the following XML-style tag blocks: {thinkTags}, please keep the XML tags themselves unchanged, but translate the text content inside the tags.\n\n{text}";
+    let prompt =
+      config.prompt ||
+      "Please translate the following text to {targetLang}.\n\nImportant: If the text contains any of the following XML-style tag blocks: {thinkTags}, please keep the XML tags themselves unchanged, but translate the text content inside the tags.\n\n{text}";
     // 优先使用传入的目标语言，否则回退到消息默认语言（作为兜底）
     const finalTargetLang = targetLang || config.messageTargetLang || "Chinese";
 
@@ -68,7 +73,9 @@ export function useTranslation() {
 
     // 处理 {thinkTags} 占位符
     if (prompt.includes("{thinkTags}")) {
-      prompt = prompt.split("{thinkTags}").join(thinkTags || "<think>...</think>");
+      prompt = prompt
+        .split("{thinkTags}")
+        .join(thinkTags || "<think>...</think>");
     }
 
     // 使用全局替换，支持提示词中多次出现占位符

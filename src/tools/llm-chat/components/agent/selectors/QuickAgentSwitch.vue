@@ -31,7 +31,12 @@ onUnmounted(() => {
 });
 
 const getAgentAvatar = (agent: any) => {
-  return useResolvedAvatar(computed(() => agent), "agent").value || "";
+  return (
+    useResolvedAvatar(
+      computed(() => agent),
+      "agent"
+    ).value || ""
+  );
 };
 </script>
 

@@ -1,9 +1,18 @@
 import { ref, computed, watch, toRefs } from "vue";
 import { useStreamProcessor } from "../core/streamProcessor";
-import { copyToClipboard, maskSensitiveData, formatJson, formatSize, getStatusClass } from "../core/utils";
+import {
+  copyToClipboard,
+  maskSensitiveData,
+  formatJson,
+  formatSize,
+  getStatusClass,
+} from "../core/utils";
 import type { CombinedRecord, ViewMode } from "../types";
 
-export function useRecordDetail(props: { record: CombinedRecord | null; maskApiKeys?: boolean }) {
+export function useRecordDetail(props: {
+  record: CombinedRecord | null;
+  maskApiKeys?: boolean;
+}) {
   const { record, maskApiKeys } = toRefs(props);
   const streamProcessor = useStreamProcessor();
 
@@ -11,14 +20,18 @@ export function useRecordDetail(props: { record: CombinedRecord | null; maskApiK
 
   // 计算属性
   const isStreamingActive = computed(() => {
-    return record.value ? streamProcessor.isStreamingRecord(record.value.id) : false;
+    return record.value
+      ? streamProcessor.isStreamingRecord(record.value.id)
+      : false;
   });
 
   const isStreamingResponse = computed(() => {
     if (isStreamingActive.value) return true;
     if (!record.value?.response?.headers) return false;
     const contentType =
-      record.value.response.headers["content-type"] || record.value.response.headers["Content-Type"] || "";
+      record.value.response.headers["content-type"] ||
+      record.value.response.headers["Content-Type"] ||
+      "";
     return contentType.includes("text/event-stream");
   });
 
@@ -27,12 +40,17 @@ export function useRecordDetail(props: { record: CombinedRecord | null; maskApiK
     return streamProcessor.getDisplayResponseBody(
       record.value.id,
       record.value.response?.body,
-      isStreamingResponse.value,
+      isStreamingResponse.value
     );
   });
 
   const canShowTextMode = computed(() => {
-    return record.value ? streamProcessor.canShowTextMode(record.value.id, record.value.response?.body) : false;
+    return record.value
+      ? streamProcessor.canShowTextMode(
+          record.value.id,
+          record.value.response?.body
+        )
+      : false;
   });
 
   const extractedContent = computed(() => {
@@ -41,7 +59,7 @@ export function useRecordDetail(props: { record: CombinedRecord | null; maskApiK
       record.value.id,
       record.value.response?.body,
       isStreamingResponse.value,
-      record.value.request.url,
+      record.value.request.url
     );
   });
 
@@ -82,7 +100,7 @@ export function useRecordDetail(props: { record: CombinedRecord | null; maskApiK
     const body = streamProcessor.getDisplayResponseBody(
       record.value.id,
       record.value.response?.body,
-      isStreamingResponse.value,
+      isStreamingResponse.value
     );
     copyWithMask(body, "响应体已复制");
   }
@@ -124,7 +142,7 @@ export function useRecordDetail(props: { record: CombinedRecord | null; maskApiK
       const responseBody = streamProcessor.getDisplayResponseBody(
         record.value.id,
         record.value.response?.body,
-        isStreamingResponse.value,
+        isStreamingResponse.value
       );
       if (responseBody) {
         fullText += "--- 响应体 ---\n";
@@ -142,7 +160,7 @@ export function useRecordDetail(props: { record: CombinedRecord | null; maskApiK
       if (newId !== oldId) {
         viewMode.value = "raw";
       }
-    },
+    }
   );
 
   return {
@@ -161,7 +179,11 @@ export function useRecordDetail(props: { record: CombinedRecord | null; maskApiK
     formatSize,
     getStatusClass,
     isJson: (str: string) =>
-      str ? streamProcessor.getDisplayResponseBody(record.value?.id || "", str).startsWith("{") : false,
+      str
+        ? streamProcessor
+            .getDisplayResponseBody(record.value?.id || "", str)
+            .startsWith("{")
+        : false,
     formatJson,
   };
 }

@@ -40,7 +40,9 @@
               v-model="syncData.counter"
               :min="0"
               :max="100"
-              @change="(val: number | null) => handleManualUpdate('counter', val)"
+              @change="
+                (val: number | null) => handleManualUpdate('counter', val)
+              "
             />
           </div>
           <div class="demo-item vertical">
@@ -72,7 +74,9 @@
           <el-button type="primary" size="small" @click="handleRemoteNotify">
             触发主窗口通知
           </el-button>
-          <div v-if="lastActionResult" class="action-result">结果: {{ lastActionResult }}</div>
+          <div v-if="lastActionResult" class="action-result">
+            结果: {{ lastActionResult }}
+          </div>
         </div>
       </div>
 
@@ -83,15 +87,27 @@
             <span>模拟壁纸层</span>
             <el-switch v-model="showWallpaper" />
           </div>
-          <el-button type="primary" plain @click="handleResizeTest"> 调整窗口至 600x800 </el-button>
-          <el-button type="danger" @click="handleReattach"> 立即重附着 (Reattach) </el-button>
+          <el-button type="primary" plain @click="handleResizeTest">
+            调整窗口至 600x800
+          </el-button>
+          <el-button type="danger" @click="handleReattach">
+            立即重附着 (Reattach)
+          </el-button>
         </el-space>
       </div>
     </div>
 
     <!-- 左右宽度调整手柄 (模拟 MessageInput) -->
-    <div v-if="isDetached" class="resize-handle-left" @mousedown="handleResizeWest"></div>
-    <div v-if="isDetached" class="resize-handle-right" @mousedown="handleResizeEast"></div>
+    <div
+      v-if="isDetached"
+      class="resize-handle-left"
+      @mousedown="handleResizeWest"
+    ></div>
+    <div
+      v-if="isDetached"
+      class="resize-handle-right"
+      @mousedown="handleResizeEast"
+    ></div>
   </div>
 </template>
 
@@ -102,7 +118,10 @@ import ComponentHeader from "@/components/ComponentHeader.vue";
 import { useDetachable } from "@/composables/useDetachable";
 import { useDetachedManager } from "@/composables/useDetachedManager";
 import { useWindowResize } from "@/composables/useWindowResize";
-import { useSyncDemoState, SYNC_DEMO_COMPONENT_ID } from "../composables/useSyncDemoState";
+import {
+  useSyncDemoState,
+  SYNC_DEMO_COMPONENT_ID,
+} from "../composables/useSyncDemoState";
 import { customMessage } from "@/utils/customMessage";
 
 const containerRef = ref<HTMLElement>();
@@ -123,7 +142,8 @@ const { startDetaching } = useDetachable();
 const { createResizeHandler } = useWindowResize();
 
 // 1. 状态同步
-const { syncData, triggerRemoteNotify, requestUpdateSyncData } = useSyncDemoState();
+const { syncData, triggerRemoteNotify, requestUpdateSyncData } =
+  useSyncDemoState();
 
 // 2. 模拟 UI 状态
 const showWallpaper = ref(true);

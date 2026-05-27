@@ -9,7 +9,9 @@
           @keyup.enter="handleSaveProfile"
         >
           <template #append>
-            <el-button @click="handleSaveProfile" :icon="DocumentAdd">保存</el-button>
+            <el-button @click="handleSaveProfile" :icon="DocumentAdd"
+              >保存</el-button
+            >
           </template>
         </el-input>
       </div>
@@ -21,13 +23,23 @@
             <el-empty description="暂无保存的配置" :image-size="80" />
           </div>
           <div v-else>
-            <div v-for="profile in store.savedProfiles" :key="profile.id" class="profile-item">
+            <div
+              v-for="profile in store.savedProfiles"
+              :key="profile.id"
+              class="profile-item"
+            >
               <div class="profile-info">
                 <strong>{{ profile.name }}</strong>
-                <span class="profile-preset">{{ getPresetName(profile.selectedPresetId) }}</span>
+                <span class="profile-preset">{{
+                  getPresetName(profile.selectedPresetId)
+                }}</span>
               </div>
               <div class="profile-actions">
-                <el-button @click="handleLoadProfile(profile.id)" :icon="Download" plain>
+                <el-button
+                  @click="handleLoadProfile(profile.id)"
+                  :icon="Download"
+                  plain
+                >
                   加载
                 </el-button>
                 <el-button
@@ -51,7 +63,13 @@
 import { ref } from "vue";
 import { useApiTesterStore } from "../stores/store";
 import BaseDialog from "@components/common/BaseDialog.vue";
-import { ElInput, ElButton, ElScrollbar, ElEmpty, ElMessageBox } from "element-plus";
+import {
+  ElInput,
+  ElButton,
+  ElScrollbar,
+  ElEmpty,
+  ElMessageBox,
+} from "element-plus";
 import { DocumentAdd, Download, Delete } from "@element-plus/icons-vue";
 import { customMessage } from "@utils/customMessage";
 

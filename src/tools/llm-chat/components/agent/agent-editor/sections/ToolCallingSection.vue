@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { inject, computed, ref, type Ref } from "vue";
-import { CopyDocument, Files, InfoFilled, Search } from "@element-plus/icons-vue";
+import {
+  CopyDocument,
+  Files,
+  InfoFilled,
+  Search,
+} from "@element-plus/icons-vue";
 import { useToolCalling } from "@/tools/tool-calling/composables/useToolCalling";
 import { useToolSearch } from "@/tools/tool-calling/composables/useToolSearch";
 import { DEFAULT_TOOL_CALL_CONFIG } from "@/tools/llm-chat/types/agent";
@@ -21,7 +26,9 @@ const isToolsMacroMissing = computed(() => {
   if (!editForm.toolCallConfig?.enabled) return false;
   const messages = editForm.presetMessages || [];
   // 扫描所有启用的消息（如果未定义 enabled 则默认视为启用）
-  return !messages.some((m: any) => m.enabled !== false && m.content?.includes("{{tools}}"));
+  return !messages.some(
+    (m: any) => m.enabled !== false && m.content?.includes("{{tools}}")
+  );
 });
 
 const switchToPersonality = () => {
@@ -45,7 +52,9 @@ const expandedToolId = ref<string | null>(null);
 
 const ensureConfig = () => {
   if (!editForm.toolCallConfig) {
-    editForm.toolCallConfig = JSON.parse(JSON.stringify(DEFAULT_TOOL_CALL_CONFIG));
+    editForm.toolCallConfig = JSON.parse(
+      JSON.stringify(DEFAULT_TOOL_CALL_CONFIG)
+    );
   }
   if (!editForm.toolCallConfig.toolToggles) {
     editForm.toolCallConfig.toolToggles = {};
@@ -87,7 +96,9 @@ const toggleToolSettings = (toolId: string) => {
 const copyAllToolSettings = async () => {
   ensureConfig();
   try {
-    await writeText(JSON.stringify(editForm.toolCallConfig.toolSettings, null, 2));
+    await writeText(
+      JSON.stringify(editForm.toolCallConfig.toolSettings, null, 2)
+    );
     customMessage.success("所有工具配置已复制");
   } catch (e) {
     customMessage.error("复制失败");
@@ -116,7 +127,10 @@ const pasteAllToolSettings = async () => {
     <div class="section-group" data-setting-id="toolCalling">
       <div class="section-header">
         <div class="section-group-title">工具调用 (Agent)</div>
-        <el-switch v-model="editForm.toolCallConfig.enabled" @change="ensureConfig" />
+        <el-switch
+          v-model="editForm.toolCallConfig.enabled"
+          @change="ensureConfig"
+        />
       </div>
       <div class="form-hint">
         允许智能体在对话中使用 AIO 内部工具。启用后，你可以通过
@@ -124,7 +138,9 @@ const pasteAllToolSettings = async () => {
         获取定义，通过
         <code style="color: var(--el-color-primary)">{{ toolUsageMacro }}</code>
         获取协议说明，或使用
-        <code style="color: var(--el-color-primary)">{{ toolsParamMacro }}</code>
+        <code style="color: var(--el-color-primary)">{{
+          toolsParamMacro
+        }}</code>
         精确注入指定工具。
       </div>
 
@@ -132,13 +148,19 @@ const pasteAllToolSettings = async () => {
       <transition name="el-zoom-in-top">
         <div v-if="isToolsMacroMissing" class="macro-warning-alert">
           <el-alert
-            :type="editForm.toolCallConfig.autoInjectIfMacroMissing ? 'info' : 'warning'"
+            :type="
+              editForm.toolCallConfig.autoInjectIfMacroMissing
+                ? 'info'
+                : 'warning'
+            "
             :closable="false"
             show-icon
           >
             <template #title>
               <div class="alert-title-content">
-                <span v-if="editForm.toolCallConfig.autoInjectIfMacroMissing"> 自动注入已启用 </span>
+                <span v-if="editForm.toolCallConfig.autoInjectIfMacroMissing">
+                  自动注入已启用
+                </span>
                 <span v-else>
                   提示词中未发现 <code>{{ toolsMacro }}</code> 宏
                 </span>
@@ -147,11 +169,20 @@ const pasteAllToolSettings = async () => {
                     v-if="!editForm.toolCallConfig.autoInjectIfMacroMissing"
                     type="primary"
                     size="small"
-                    @click="editForm.toolCallConfig.autoInjectIfMacroMissing = true"
+                    @click="
+                      editForm.toolCallConfig.autoInjectIfMacroMissing = true
+                    "
                   >
                     立即开启保底注入
                   </el-button>
-                  <el-button link type="primary" size="small" @click="switchToPersonality"> 前往编辑提示词 </el-button>
+                  <el-button
+                    link
+                    type="primary"
+                    size="small"
+                    @click="switchToPersonality"
+                  >
+                    前往编辑提示词
+                  </el-button>
                 </div>
               </div>
             </template>
@@ -171,7 +202,11 @@ const pasteAllToolSettings = async () => {
       <template v-if="editForm.toolCallConfig?.enabled">
         <div class="tool-config-grid">
           <el-form-item label="自动批准">
-            <el-switch v-model="editForm.toolCallConfig.mode" active-value="auto" inactive-value="manual" />
+            <el-switch
+              v-model="editForm.toolCallConfig.mode"
+              active-value="auto"
+              inactive-value="manual"
+            />
           </el-form-item>
 
           <el-form-item label="并行执行">
@@ -179,11 +214,21 @@ const pasteAllToolSettings = async () => {
           </el-form-item>
 
           <el-form-item label="最大迭代">
-            <el-input-number v-model="editForm.toolCallConfig.maxIterations" :min="1" :max="10" size="small" />
+            <el-input-number
+              v-model="editForm.toolCallConfig.maxIterations"
+              :min="1"
+              :max="10"
+              size="small"
+            />
           </el-form-item>
 
           <el-form-item label="超时 (ms)">
-            <el-input-number v-model="editForm.toolCallConfig.timeout" :min="1000" :step="5000" size="small" />
+            <el-input-number
+              v-model="editForm.toolCallConfig.timeout"
+              :min="1000"
+              :step="5000"
+              size="small"
+            />
           </el-form-item>
 
           <el-form-item label="角色转换">
@@ -198,7 +243,9 @@ const pasteAllToolSettings = async () => {
                 </div>
               </el-tooltip>
             </template>
-            <el-switch v-model="editForm.toolCallConfig.convertToolRoleToUser" />
+            <el-switch
+              v-model="editForm.toolCallConfig.convertToolRoleToUser"
+            />
           </el-form-item>
 
           <el-form-item label="保底注入">
@@ -213,7 +260,9 @@ const pasteAllToolSettings = async () => {
                 </div>
               </el-tooltip>
             </template>
-            <el-switch v-model="editForm.toolCallConfig.autoInjectIfMacroMissing" />
+            <el-switch
+              v-model="editForm.toolCallConfig.autoInjectIfMacroMissing"
+            />
           </el-form-item>
         </div>
 
@@ -223,10 +272,22 @@ const pasteAllToolSettings = async () => {
             <div class="box-title-group">
               <span class="box-title">可用工具列表</span>
               <div class="header-actions">
-                <el-tooltip content="复制所有工具配置" placement="top" :show-after="500">
-                  <el-button link :icon="CopyDocument" @click="copyAllToolSettings" />
+                <el-tooltip
+                  content="复制所有工具配置"
+                  placement="top"
+                  :show-after="500"
+                >
+                  <el-button
+                    link
+                    :icon="CopyDocument"
+                    @click="copyAllToolSettings"
+                  />
                 </el-tooltip>
-                <el-tooltip content="粘贴所有工具配置" placement="top" :show-after="500">
+                <el-tooltip
+                  content="粘贴所有工具配置"
+                  placement="top"
+                  :show-after="500"
+                >
                   <el-button link :icon="Files" @click="pasteAllToolSettings" />
                 </el-tooltip>
               </div>
@@ -234,15 +295,24 @@ const pasteAllToolSettings = async () => {
             <div class="box-actions">
               <div class="action-item">
                 <span class="form-hint">显示方法统计:</span>
-                <el-switch v-model="editForm.toolCallConfig.showMethodsCount" size="small" />
+                <el-switch
+                  v-model="editForm.toolCallConfig.showMethodsCount"
+                  size="small"
+                />
               </div>
               <div class="action-item">
                 <span class="form-hint">默认启用:</span>
-                <el-switch v-model="editForm.toolCallConfig.defaultToolEnabled" size="small" />
+                <el-switch
+                  v-model="editForm.toolCallConfig.defaultToolEnabled"
+                  size="small"
+                />
               </div>
               <div class="action-item">
                 <span class="form-hint">默认自动批准:</span>
-                <el-switch v-model="editForm.toolCallConfig.defaultAutoApprove" size="small" />
+                <el-switch
+                  v-model="editForm.toolCallConfig.defaultAutoApprove"
+                  size="small"
+                />
               </div>
             </div>
           </div>
@@ -259,7 +329,12 @@ const pasteAllToolSettings = async () => {
           </div>
 
           <div v-if="filteredTools.length === 0" class="empty-tools">
-            <el-empty :image-size="40" :description="searchQuery ? '未找到匹配结果' : '未发现可调用的工具方法'" />
+            <el-empty
+              :image-size="40"
+              :description="
+                searchQuery ? '未找到匹配结果' : '未发现可调用的工具方法'
+              "
+            />
           </div>
 
           <div v-else class="tools-list">

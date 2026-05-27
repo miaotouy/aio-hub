@@ -3,7 +3,12 @@
  * 负责创建宏上下文和处理宏的纯函数
  */
 
-import type { ChatSessionIndex, ChatSessionDetail, ChatAgent, UserProfile } from "../../types";
+import type {
+  ChatSessionIndex,
+  ChatSessionDetail,
+  ChatAgent,
+  UserProfile,
+} from "../../types";
 import {
   createMacroContext,
   extractContextFromSession,
@@ -65,7 +70,7 @@ export const buildMacroContext = (data: MacroContextData) => {
       data.index,
       data.detail,
       data.agent,
-      data.userProfile,
+      data.userProfile
     );
     Object.assign(baseContext, extractedContext);
   }
@@ -92,7 +97,7 @@ export const processMacros = async (
   options?: {
     valueTransformer?: (value: string) => string;
     silent?: boolean;
-  },
+  }
 ): Promise<string> => {
   if (!text.includes("{{")) {
     return text;
@@ -148,7 +153,7 @@ export const processMacrosBatch = async (
   options?: {
     valueTransformer?: (value: string) => string;
     silent?: boolean;
-  },
+  }
 ): Promise<string[]> => {
   const hasAnyMacros = texts.some((t) => t.includes("{{"));
   if (!hasAnyMacros) {

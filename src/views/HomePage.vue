@@ -7,7 +7,12 @@
 
       <!-- 搜索栏 -->
       <div class="search-bar">
-        <input v-model="searchText" type="text" placeholder="搜索工具..." class="search-input" />
+        <input
+          v-model="searchText"
+          type="text"
+          placeholder="搜索工具..."
+          class="search-input"
+        />
       </div>
 
       <!-- 分类标签 -->
@@ -29,11 +34,26 @@
       <div class="tool-grid">
         <!-- 使用 component :is 动态渲染，已分离的工具使用 div，未分离的使用 router-link -->
         <component
-          :is="detachedManager.isDetached(getToolIdFromPath(tool.path)) ? 'div' : 'router-link'"
+          :is="
+            detachedManager.isDetached(getToolIdFromPath(tool.path))
+              ? 'div'
+              : 'router-link'
+          "
           v-for="tool in filteredTools"
           :key="tool.path"
-          :to="detachedManager.isDetached(getToolIdFromPath(tool.path)) ? undefined : tool.path"
-          :class="['tool-card', { 'tool-card-detached': detachedManager.isDetached(getToolIdFromPath(tool.path)) }]"
+          :to="
+            detachedManager.isDetached(getToolIdFromPath(tool.path))
+              ? undefined
+              : tool.path
+          "
+          :class="[
+            'tool-card',
+            {
+              'tool-card-detached': detachedManager.isDetached(
+                getToolIdFromPath(tool.path)
+              ),
+            },
+          ]"
           @click="handleToolClick(tool.path)"
         >
           <!-- 已分离徽章（带下拉菜单） -->
@@ -41,7 +61,9 @@
             v-if="detachedManager.isDetached(getToolIdFromPath(tool.path))"
             class="detached-badge-dropdown"
             trigger="hover"
-            @command="(command: string) => handleDropdownCommand(command, tool.path)"
+            @command="
+              (command: string) => handleDropdownCommand(command, tool.path)
+            "
           >
             <div class="detached-badge" @click.stop>
               <el-icon><i-ep-full-screen /></el-icon>
@@ -66,9 +88,15 @@
       <div v-if="filteredTools.length === 0" class="empty-state">
         <div class="empty-icon">🔍</div>
         <div class="empty-text">
-          {{ visibleTools.length === 0 ? "没有可显示的工具" : "未找到匹配的工具" }}
+          {{
+            visibleTools.length === 0 ? "没有可显示的工具" : "未找到匹配的工具"
+          }}
         </div>
-        <el-button v-if="visibleTools.length === 0" type="primary" @click="router.push('/settings')">
+        <el-button
+          v-if="visibleTools.length === 0"
+          type="primary"
+          @click="router.push('/settings')"
+        >
           前往设置页面配置工具
         </el-button>
       </div>
@@ -98,7 +126,9 @@ const selectedCategory = ref("全部");
 // 从路径提取工具ID（与设置页面保持一致）
 const getToolIdFromPath = (path: string): string => {
   // 从 /regex-applier 转换为 regexApply
-  return path.substring(1).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+  return path
+    .substring(1)
+    .replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
 };
 
 // 使用 store 中的设置
@@ -152,7 +182,9 @@ const filteredTools = computed(() => {
   if (searchText.value.trim()) {
     const search = searchText.value.toLowerCase();
     result = result.filter(
-      (tool) => tool.name.toLowerCase().includes(search) || tool.description?.toLowerCase().includes(search),
+      (tool) =>
+        tool.name.toLowerCase().includes(search) ||
+        tool.description?.toLowerCase().includes(search)
     );
   }
 
@@ -391,7 +423,11 @@ onMounted(async () => {
 .tool-card-detached {
   position: relative;
   border-color: var(--primary-color);
-  background: linear-gradient(135deg, var(--card-bg) 0%, rgba(var(--primary-color-rgb), 0.05) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--card-bg) 0%,
+    rgba(var(--primary-color-rgb), 0.05) 100%
+  );
 }
 
 .tool-card-detached::before {

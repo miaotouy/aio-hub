@@ -23,7 +23,9 @@
             >
               <div class="preset-option">
                 <span class="preset-name">{{ preset.name }}</span>
-                <span v-if="preset.description" class="preset-desc">{{ preset.description }}</span>
+                <span v-if="preset.description" class="preset-desc">{{
+                  preset.description
+                }}</span>
               </div>
             </el-option>
           </el-select>
@@ -31,10 +33,14 @@
 
         <div class="preset-actions">
           <el-tooltip content="创建一个新的正则预设" placement="top">
-            <el-button :icon="Plus" @click="handleCreatePreset" size="small">新建</el-button>
+            <el-button :icon="Plus" @click="handleCreatePreset" size="small"
+              >新建</el-button
+            >
           </el-tooltip>
           <el-tooltip
-            :content="!store.activePresetId ? '请先选择一个预设' : '复制当前预设'"
+            :content="
+              !store.activePresetId ? '请先选择一个预设' : '复制当前预设'
+            "
             placement="top"
           >
             <span>
@@ -48,11 +54,16 @@
             </span>
           </el-tooltip>
           <el-tooltip
-            :content="!store.activePresetId ? '请先选择一个预设' : '重命名当前预设'"
+            :content="
+              !store.activePresetId ? '请先选择一个预设' : '重命名当前预设'
+            "
             placement="top"
           >
             <span>
-              <el-button @click="handleRenamePreset" size="small" :disabled="!store.activePresetId"
+              <el-button
+                @click="handleRenamePreset"
+                size="small"
+                :disabled="!store.activePresetId"
                 >重命名</el-button
               >
             </span>
@@ -87,13 +98,21 @@
             </el-button>
           </el-tooltip>
           <el-tooltip content="从剪贴板粘贴 JSON 内容导入" placement="top">
-            <el-button @click="importFromClipboard" size="small" style="width: 100%">
+            <el-button
+              @click="importFromClipboard"
+              size="small"
+              style="width: 100%"
+            >
               <el-icon><DocumentCopy /></el-icon>
               从剪贴板导入
             </el-button>
           </el-tooltip>
           <el-tooltip
-            :content="!store.activePresetId ? '请先选择一个预设' : '将当前预设导出为 JSON 文件'"
+            :content="
+              !store.activePresetId
+                ? '请先选择一个预设'
+                : '将当前预设导出为 JSON 文件'
+            "
             placement="top"
           >
             <span style="width: 100%">
@@ -115,10 +134,16 @@
       <div class="rules-section">
         <div class="rules-header">
           <span class="section-title"
-            >规则列表 ({{ filteredRules.length }}/{{ currentRules.length }})</span
+            >规则列表 ({{ filteredRules.length }}/{{
+              currentRules.length
+            }})</span
           >
           <el-tooltip content="添加一条新的正则规则" placement="top">
-            <el-button :icon="Plus" @click="handleAddRule" type="primary" size="small"
+            <el-button
+              :icon="Plus"
+              @click="handleAddRule"
+              type="primary"
+              size="small"
               >添加规则</el-button
             >
           </el-tooltip>
@@ -154,7 +179,10 @@
                 v-for="rule in filteredRules"
                 :key="rule.id"
                 class="rule-item"
-                :class="{ active: selectedRuleId === rule.id, disabled: !rule.enabled }"
+                :class="{
+                  active: selectedRuleId === rule.id,
+                  disabled: !rule.enabled,
+                }"
                 @click="selectRule(rule.id)"
               >
                 <el-tooltip content="拖动以调整规则顺序" placement="top">
@@ -171,9 +199,12 @@
                   />
                 </el-tooltip>
                 <div class="rule-content">
-                  <div class="rule-name">{{ rule.name || rule.regex || "(未命名规则)" }}</div>
+                  <div class="rule-name">
+                    {{ rule.name || rule.regex || "(未命名规则)" }}
+                  </div>
                   <div class="rule-preview">
-                    {{ rule.regex || "(空正则)" }} → {{ rule.replacement || "(空替换)" }}
+                    {{ rule.regex || "(空正则)" }} →
+                    {{ rule.replacement || "(空替换)" }}
                   </div>
                 </div>
                 <el-tooltip content="删除此规则" placement="top">
@@ -229,15 +260,24 @@
               {{ regexError }}
             </div>
             <!-- Rust 兼容性提示 -->
-            <div v-if="rustValidation && !rustValidation.isValid" class="rust-error-hint">
+            <div
+              v-if="rustValidation && !rustValidation.isValid"
+              class="rust-error-hint"
+            >
               <el-icon><WarningFilled /></el-icon>
               <span>Rust 后端不兼容: {{ rustValidation.errorMessage }}</span>
             </div>
-            <div v-else-if="rustValidation && rustValidation.warning" class="rust-warning-hint">
+            <div
+              v-else-if="rustValidation && rustValidation.warning"
+              class="rust-warning-hint"
+            >
               <el-icon><WarningFilled /></el-icon>
               <span>{{ rustValidation.warning }}</span>
             </div>
-            <div v-else-if="rustValidation && rustValidation.isValid" class="rust-success-hint">
+            <div
+              v-else-if="rustValidation && rustValidation.isValid"
+              class="rust-success-hint"
+            >
               <el-icon><CircleCheck /></el-icon>
               <span>Rust 后端兼容 ✓</span>
             </div>
@@ -280,7 +320,12 @@
 
           <div class="test-field">
             <label>测试输入</label>
-            <el-input v-model="testInput" type="textarea" :rows="4" placeholder="输入测试文本..." />
+            <el-input
+              v-model="testInput"
+              type="textarea"
+              :rows="4"
+              placeholder="输入测试文本..."
+            />
           </div>
 
           <div class="test-field">
@@ -356,14 +401,34 @@ const regexInputRef = ref<any>(null); // 正则输入框的引用
 const quickPatterns = [
   { label: "数字", value: "\\d+", desc: "匹配一个或多个数字" },
   { label: "字母", value: "[a-zA-Z]+", desc: "匹配一个或多个字母" },
-  { label: "中文", value: "[\\u4e00-\\u9fa5]+", desc: "匹配一个或多个中文字符" },
+  {
+    label: "中文",
+    value: "[\\u4e00-\\u9fa5]+",
+    desc: "匹配一个或多个中文字符",
+  },
   { label: "空白", value: "\\s+", desc: "匹配一个或多个空白字符" },
-  { label: "邮箱", value: "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}", desc: "匹配邮箱地址" },
+  {
+    label: "邮箱",
+    value: "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}",
+    desc: "匹配邮箱地址",
+  },
   { label: "URL", value: "https?://[^\\s]+", desc: "匹配 HTTP/HTTPS URL" },
-  { label: "IP地址", value: "\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b", desc: "匹配 IPv4 地址" },
+  {
+    label: "IP地址",
+    value: "\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b",
+    desc: "匹配 IPv4 地址",
+  },
   { label: "手机号", value: "1[3-9]\\d{9}", desc: "匹配中国大陆手机号" },
-  { label: "日期", value: "\\d{4}-\\d{2}-\\d{2}", desc: "匹配 YYYY-MM-DD 格式日期" },
-  { label: "时间", value: "\\d{2}:\\d{2}(:\\d{2})?", desc: "匹配 HH:MM 或 HH:MM:SS 格式时间" },
+  {
+    label: "日期",
+    value: "\\d{4}-\\d{2}-\\d{2}",
+    desc: "匹配 YYYY-MM-DD 格式日期",
+  },
+  {
+    label: "时间",
+    value: "\\d{2}:\\d{2}(:\\d{2})?",
+    desc: "匹配 HH:MM 或 HH:MM:SS 格式时间",
+  },
   { label: "HTML标签", value: "<[^>]+>", desc: "匹配 HTML 标签" },
   { label: "空行", value: "^\\s*$", desc: "匹配空行或只包含空白的行" },
   {
@@ -391,7 +456,11 @@ const quickPatterns = [
     value: "/START.*?END/gs",
     desc: "匹配 START 到 END 的所有内容（跨行），需手动替换 START/END",
   },
-  { label: "UUID", value: "[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}", desc: "匹配 UUID" },
+  {
+    label: "UUID",
+    value: "[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}",
+    desc: "匹配 UUID",
+  },
 ];
 
 // ===== 计算属性 =====
@@ -409,7 +478,11 @@ const filteredRules = computed(() => {
     const regex = (rule.regex || "").toLowerCase();
     const replacement = (rule.replacement || "").toLowerCase();
 
-    return name.includes(keyword) || regex.includes(keyword) || replacement.includes(keyword);
+    return (
+      name.includes(keyword) ||
+      regex.includes(keyword) ||
+      replacement.includes(keyword)
+    );
   });
 });
 
@@ -418,7 +491,9 @@ watch(
   () => store.activePreset,
   (newPreset) => {
     // 使用 deep copy 确保本地副本是独立的
-    localRules.value = newPreset ? JSON.parse(JSON.stringify(newPreset.rules)) : [];
+    localRules.value = newPreset
+      ? JSON.parse(JSON.stringify(newPreset.rules))
+      : [];
   },
   { immediate: true, deep: true }
 );
@@ -491,12 +566,16 @@ const onPresetChange = () => {
 };
 
 const handleCreatePreset = async () => {
-  const { value: name } = await ElMessageBox.prompt("请输入预设名称", "新建预设", {
-    confirmButtonText: "确定",
-    cancelButtonText: "取消",
-    inputPattern: /.+/,
-    inputErrorMessage: "预设名称不能为空",
-  }).catch(() => ({ value: null })); // 捕获取消操作
+  const { value: name } = await ElMessageBox.prompt(
+    "请输入预设名称",
+    "新建预设",
+    {
+      confirmButtonText: "确定",
+      cancelButtonText: "取消",
+      inputPattern: /.+/,
+      inputErrorMessage: "预设名称不能为空",
+    }
+  ).catch(() => ({ value: null })); // 捕获取消操作
 
   if (name) {
     store.createPreset(name.trim());
@@ -509,13 +588,17 @@ const handleDuplicatePreset = async () => {
   const currentPreset = store.activePreset;
   if (!currentPreset) return;
 
-  const { value: name } = await ElMessageBox.prompt("请输入新预设名称", "复制预设", {
-    confirmButtonText: "确定",
-    cancelButtonText: "取消",
-    inputValue: `${currentPreset.name} (副本)`,
-    inputPattern: /.+/,
-    inputErrorMessage: "预设名称不能为空",
-  }).catch(() => ({ value: null })); // 捕获取消操作
+  const { value: name } = await ElMessageBox.prompt(
+    "请输入新预设名称",
+    "复制预设",
+    {
+      confirmButtonText: "确定",
+      cancelButtonText: "取消",
+      inputValue: `${currentPreset.name} (副本)`,
+      inputPattern: /.+/,
+      inputErrorMessage: "预设名称不能为空",
+    }
+  ).catch(() => ({ value: null })); // 捕获取消操作
 
   if (name) {
     store.duplicatePreset(store.activePresetId, name.trim());
@@ -528,13 +611,17 @@ const handleRenamePreset = async () => {
   const currentPreset = store.activePreset;
   if (!currentPreset) return;
 
-  const { value: name } = await ElMessageBox.prompt("请输入新名称", "重命名预设", {
-    confirmButtonText: "确定",
-    cancelButtonText: "取消",
-    inputValue: currentPreset.name,
-    inputPattern: /.+/,
-    inputErrorMessage: "预设名称不能为空",
-  }).catch(() => ({ value: null })); // 捕获取消操作
+  const { value: name } = await ElMessageBox.prompt(
+    "请输入新名称",
+    "重命名预设",
+    {
+      confirmButtonText: "确定",
+      cancelButtonText: "取消",
+      inputValue: currentPreset.name,
+      inputPattern: /.+/,
+      inputErrorMessage: "预设名称不能为空",
+    }
+  ).catch(() => ({ value: null })); // 捕获取消操作
 
   if (name) {
     store.renamePreset(store.activePresetId, name.trim());
@@ -552,11 +639,15 @@ const handleDeletePreset = async () => {
   if (!currentPreset) return;
 
   try {
-    await ElMessageBox.confirm(`确定要删除预设"${currentPreset.name}"吗？`, "删除预设", {
-      confirmButtonText: "确定",
-      cancelButtonText: "取消",
-      type: "warning",
-    });
+    await ElMessageBox.confirm(
+      `确定要删除预设"${currentPreset.name}"吗？`,
+      "删除预设",
+      {
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+        type: "warning",
+      }
+    );
 
     store.deletePreset(store.activePresetId);
     customMessage.success("预设删除成功！");
@@ -588,7 +679,10 @@ const importPreset = async () => {
     }
 
     // 创建新预设
-    const newPreset = store.createPreset(importedPreset.name, importedPreset.description);
+    const newPreset = store.createPreset(
+      importedPreset.name,
+      importedPreset.description
+    );
 
     // 清空默认规则并导入规则
     if (newPreset && store.activePresetId) {
@@ -643,7 +737,8 @@ const importFromClipboard = async () => {
 
       // 验证规则格式
       const isValidRules = parsedData.every(
-        (rule) => typeof rule === "object" && ("regex" in rule || "name" in rule)
+        (rule) =>
+          typeof rule === "object" && ("regex" in rule || "name" in rule)
       );
 
       if (!isValidRules) {
@@ -657,7 +752,10 @@ const importFromClipboard = async () => {
       const importedPreset: RegexPreset = parsedData;
 
       // 创建新预设
-      const newPreset = store.createPreset(importedPreset.name, importedPreset.description);
+      const newPreset = store.createPreset(
+        importedPreset.name,
+        importedPreset.description
+      );
 
       // 清空默认规则并导入规则
       if (newPreset && store.activePresetId) {
@@ -670,7 +768,9 @@ const importFromClipboard = async () => {
 
       customMessage.success(`成功导入预设: ${importedPreset.name}`);
     } else {
-      throw new Error("无效的格式：必须是规则数组或包含 name 和 rules 的预设对象");
+      throw new Error(
+        "无效的格式：必须是规则数组或包含 name 和 rules 的预设对象"
+      );
     }
   } catch (error: any) {
     errorHandler.error(error, "导入失败");
@@ -740,7 +840,8 @@ const handleRemoveRule = async (index: number) => {
   if (isDeleted) {
     // 如果删除的是选中的规则，选中下一条
     if (selectedRuleId.value === rule.id) {
-      const nextRule = currentRules.value[Math.min(index, currentRules.value.length - 1)];
+      const nextRule =
+        currentRules.value[Math.min(index, currentRules.value.length - 1)];
       selectedRuleId.value = nextRule ? nextRule.id : null;
     }
 
@@ -774,7 +875,10 @@ const onRulesReordered = () => {
   logger.debug("拖拽结束，规则已重新排序", {
     presetId: store.activePresetId,
     presetName: store.activePreset?.name,
-    newOrder: localRules.value.map((r) => ({ id: r.id, name: r.name || r.regex || "(未命名)" })),
+    newOrder: localRules.value.map((r) => ({
+      id: r.id,
+      name: r.name || r.regex || "(未命名)",
+    })),
     ruleCount: localRules.value.length,
   });
   if (!store.activePresetId) return;
@@ -847,7 +951,8 @@ const insertPattern = (pattern: string) => {
   const currentValue = selectedRule.value.regex || "";
 
   // 在光标位置插入规则
-  const newValue = currentValue.substring(0, start) + pattern + currentValue.substring(end);
+  const newValue =
+    currentValue.substring(0, start) + pattern + currentValue.substring(end);
   selectedRule.value.regex = newValue;
 
   // 触发保存
@@ -1199,7 +1304,11 @@ function escapeRegex(str: string): string {
   cursor: pointer;
   user-select: none;
   transition: all 0.2s ease;
-  background-color: color-mix(in srgb, var(--primary-color) 15%, transparent) !important;
+  background-color: color-mix(
+    in srgb,
+    var(--primary-color) 15%,
+    transparent
+  ) !important;
   border-color: var(--primary-color) !important;
   color: var(--primary-color) !important;
 }
@@ -1207,13 +1316,21 @@ function escapeRegex(str: string): string {
 :deep(.quick-pattern-tag.el-tag:hover) {
   transform: translateY(-1px);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  background-color: color-mix(in srgb, var(--primary-color) 25%, transparent) !important;
+  background-color: color-mix(
+    in srgb,
+    var(--primary-color) 25%,
+    transparent
+  ) !important;
 }
 
 :deep(.quick-pattern-tag.el-tag:active) {
   transform: translateY(0);
   opacity: 0.8;
-  background-color: color-mix(in srgb, var(--primary-color) 35%, transparent) !important;
+  background-color: color-mix(
+    in srgb,
+    var(--primary-color) 35%,
+    transparent
+  ) !important;
 }
 
 .preview-output {

@@ -46,7 +46,9 @@ export class SkillBridgeFactory implements ToolRegistryFactory {
     // 仅返回系统级代理，所有 Skill 的能力将聚合在其中
     const registries: ToolRegistry[] = [skillManagerProxy];
 
-    logger.info(`SkillBridgeFactory: 生成了 ${registries.length} 个工具（Skill 管理器）`);
+    logger.info(
+      `SkillBridgeFactory: 生成了 ${registries.length} 个工具（Skill 管理器）`
+    );
     return registries;
   }
 

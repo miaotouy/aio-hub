@@ -45,7 +45,9 @@ export const useMediaGenStore = defineStore("media-generator", () => {
   const activeTaskId = ref<string | null>(null);
   const currentSessionId = ref<string | null>(null);
   const inputPrompt = ref("");
-  const settings = ref<MediaGeneratorSettings>({ ...DEFAULT_MEDIA_GENERATOR_SETTINGS });
+  const settings = ref<MediaGeneratorSettings>({
+    ...DEFAULT_MEDIA_GENERATOR_SETTINGS,
+  });
   const currentConfig = ref({
     activeType: "image" as MediaTaskType,
     includeContext: false,
@@ -84,7 +86,10 @@ export const useMediaGenStore = defineStore("media-generator", () => {
       rootNodeId: rootNodeId.value,
       activeLeafId: activeLeafId.value,
     } as any;
-    return nodeManager.getNodePath(tempSession, activeLeafId.value) as MediaMessage[];
+    return nodeManager.getNodePath(
+      tempSession,
+      activeLeafId.value
+    ) as MediaMessage[];
   });
 
   // --- 业务逻辑管理封装 ---
@@ -143,7 +148,8 @@ export const useMediaGenStore = defineStore("media-generator", () => {
    * 职责：编排任务构造、翻译、节点创建、执行启动
    */
   const submitTaskInSession = async (options: any, type: MediaTaskType) => {
-    const { useMediaGenerationManager } = await import("../composables/useMediaGenerationManager");
+    const { useMediaGenerationManager } =
+      await import("../composables/useMediaGenerationManager");
     const genManager = useMediaGenerationManager();
 
     // 1. 翻译逻辑
@@ -174,7 +180,9 @@ export const useMediaGenStore = defineStore("media-generator", () => {
 
     // 7. 自动命名逻辑
     const namingConfig = settings.value.topicNaming;
-    const userMessageCount = messages.value.filter((m) => m.role === "user").length;
+    const userMessageCount = messages.value.filter(
+      (m) => m.role === "user"
+    ).length;
 
     if (
       settings.value.enableAutoNaming &&
@@ -185,9 +193,14 @@ export const useMediaGenStore = defineStore("media-generator", () => {
       userMessageCount >= (namingConfig.autoTriggerThreshold || 1)
     ) {
       setTimeout(() => {
-        aiLogic.generateSessionName(currentSessionId.value!, currentSession.value!.name).catch((err) => {
-          logger.error("自动命名失败", err);
-        });
+        aiLogic
+          .generateSessionName(
+            currentSessionId.value!,
+            currentSession.value!.name
+          )
+          .catch((err) => {
+            logger.error("自动命名失败", err);
+          });
       }, 1500);
     }
 
@@ -216,11 +229,19 @@ export const useMediaGenStore = defineStore("media-generator", () => {
   /**
    * 更新任务状态
    */
-  const updateTaskStatus = (taskId: string, status: MediaTaskStatus, updates?: Partial<MediaTask>) => {
+  const updateTaskStatus = (
+    taskId: string,
+    status: MediaTaskStatus,
+    updates?: Partial<MediaTask>
+  ) => {
     taskManager.updateTaskStatus(taskId, status, updates);
 
     // 仅处理生成追踪状态
-    if (status === "completed" || status === "error" || status === "cancelled") {
+    if (
+      status === "completed" ||
+      status === "error" ||
+      status === "cancelled"
+    ) {
       generatingNodes.value.delete(taskId);
     }
   };
@@ -247,10 +268,19 @@ export const useMediaGenStore = defineStore("media-generator", () => {
   /**
    * 编辑消息
    */
-  const editMessage = (messageId: string, content: string, attachments?: Asset[]) => {
+  const editMessage = (
+    messageId: string,
+    content: string,
+    attachments?: Asset[]
+  ) => {
     const fullSession = currentFullSession.value;
     if (!fullSession) return;
-    const success = branchManager.editMessage(fullSession, messageId, content, attachments);
+    const success = branchManager.editMessage(
+      fullSession,
+      messageId,
+      content,
+      attachments
+    );
     if (success) {
       persistence.persist(true);
     }
@@ -265,17 +295,26 @@ export const useMediaGenStore = defineStore("media-generator", () => {
       if (newSize < (oldSize || 0)) {
         // 任务减少了，检查是否有漏网之鱼
         Object.values(nodes.value).forEach((node) => {
-          if (node.status === "generating" && !generatingNodes.value.has(node.id)) {
+          if (
+            node.status === "generating" &&
+            !generatingNodes.value.has(node.id)
+          ) {
             const task = taskManager.getTask(node.id);
-            if (!task || task.status === "completed" || task.status === "error") {
-              logger.warn("检测到僵死节点，正在自动修复状态", { nodeId: node.id });
+            if (
+              !task ||
+              task.status === "completed" ||
+              task.status === "error"
+            ) {
+              logger.warn("检测到僵死节点，正在自动修复状态", {
+                nodeId: node.id,
+              });
               node.status = task?.status === "completed" ? "complete" : "error";
             }
           }
         });
       }
     },
-    { flush: "post" },
+    { flush: "post" }
   );
 
   /**
@@ -290,7 +329,8 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     // 按需加载详情
     let detail = sessionDetailMap.value.get(sessionId);
     if (!detail) {
-      const { useMediaStorage } = await import("../composables/useMediaStorage");
+      const { useMediaStorage } =
+        await import("../composables/useMediaStorage");
       const storage = useMediaStorage();
       const loadedDetail = await storage.loadSessionDetail(sessionId);
       if (loadedDetail) {
@@ -306,7 +346,8 @@ export const useMediaGenStore = defineStore("media-generator", () => {
       activeLeafId.value = detail.activeLeafId || "";
       inputPrompt.value = detail.inputPrompt || "";
       if (detail.generationConfig) {
-        currentConfig.value.activeType = detail.generationConfig.activeType || "image";
+        currentConfig.value.activeType =
+          detail.generationConfig.activeType || "image";
         if (detail.generationConfig.types) {
           currentConfig.value.types = {
             ...currentConfig.value.types,
@@ -326,7 +367,9 @@ export const useMediaGenStore = defineStore("media-generator", () => {
    */
   const createNewSession = async () => {
     await persistence.persist();
-    const { index, detail } = sessionManager.createSessionObject(`新生成会话 ${sessionIndexMap.value.size + 1}`);
+    const { index, detail } = sessionManager.createSessionObject(
+      `新生成会话 ${sessionIndexMap.value.size + 1}`
+    );
 
     sessionIndexMap.value.set(index.id, index);
     sessionDetailMap.value.set(detail.id, detail);
@@ -359,7 +402,8 @@ export const useMediaGenStore = defineStore("media-generator", () => {
       } else {
         // 如果详情没加载，可能需要特殊的持久化逻辑，或者先加载详情
         // 这里简单处理：如果详情没加载，只更新索引（假设存储层支持）
-        const { useMediaStorage } = await import("../composables/useMediaStorage");
+        const { useMediaStorage } =
+          await import("../composables/useMediaStorage");
         const storage = useMediaStorage();
         const fullSession = await storage.loadSession(sessionId);
         if (fullSession) {
@@ -411,7 +455,10 @@ export const useMediaGenStore = defineStore("media-generator", () => {
   /**
    * 从指定节点重新生成 (重试/分支)
    */
-  const regenerateFromNode = async (messageId: string, temporaryModel?: { profileId: string; modelId: string }) => {
+  const regenerateFromNode = async (
+    messageId: string,
+    temporaryModel?: { profileId: string; modelId: string }
+  ) => {
     const fullSession = currentFullSession.value;
     if (!fullSession) return;
 
@@ -438,9 +485,13 @@ export const useMediaGenStore = defineStore("media-generator", () => {
       generationOptions.modelId = temporaryModel.modelId;
     }
 
-    const type = params.type || assistantNode.metadata?.taskSnapshot?.type || currentConfig.value.activeType;
+    const type =
+      params.type ||
+      assistantNode.metadata?.taskSnapshot?.type ||
+      currentConfig.value.activeType;
 
-    const { useMediaGenerationManager } = await import("../composables/useMediaGenerationManager");
+    const { useMediaGenerationManager } =
+      await import("../composables/useMediaGenerationManager");
     const mediaGenManager = useMediaGenerationManager();
 
     // 复用 buildTask，但强制使用 assistantNode.id 作为 taskId
@@ -502,7 +553,11 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     removeTask,
     deleteMessage: (id: string) => removeTask(id),
     editMessage,
-    saveToBranch: (messageId: string, content: string, attachments?: Asset[]) => {
+    saveToBranch: (
+      messageId: string,
+      content: string,
+      attachments?: Asset[]
+    ) => {
       const fullSession = currentFullSession.value;
       if (!fullSession) return;
 
@@ -514,7 +569,12 @@ export const useMediaGenStore = defineStore("media-generator", () => {
       if (newNodeId) {
         // 如果是 User 节点，应用新内容
         if (node.role === "user") {
-          branchManager.editMessage(fullSession, newNodeId, content, attachments);
+          branchManager.editMessage(
+            fullSession,
+            newNodeId,
+            content,
+            attachments
+          );
         }
         // Assistant 节点的 createBranch 已经复制了内容，无需额外操作
         activeLeafId.value = newNodeId;
@@ -543,9 +603,13 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     // 分支管理 Actions
     switchToBranch,
     getSiblings: (id: string) =>
-      currentFullSession.value ? branchManager.getSiblings(currentFullSession.value, id) : [],
+      currentFullSession.value
+        ? branchManager.getSiblings(currentFullSession.value, id)
+        : [],
     isNodeInActivePath: (id: string) =>
-      currentFullSession.value ? branchManager.isNodeInActivePath(currentFullSession.value, id) : false,
+      currentFullSession.value
+        ? branchManager.isNodeInActivePath(currentFullSession.value, id)
+        : false,
 
     // 节点操作
     toggleMessageEnabled: (id: string) => {
@@ -567,11 +631,14 @@ export const useMediaGenStore = defineStore("media-generator", () => {
       const now = new Date().toISOString();
       nodes.value[id] = { ...node, ...sanitizedData, updatedAt: now };
 
-      if (sanitizedData.metadata?.taskSnapshot && sanitizedData.metadata.taskId) {
+      if (
+        sanitizedData.metadata?.taskSnapshot &&
+        sanitizedData.metadata.taskId
+      ) {
         taskManager.updateTaskStatus(
           sanitizedData.metadata.taskId,
           sanitizedData.metadata.taskSnapshot.status,
-          sanitizedData.metadata.taskSnapshot,
+          sanitizedData.metadata.taskSnapshot
         );
       }
       persistence.persist(true);

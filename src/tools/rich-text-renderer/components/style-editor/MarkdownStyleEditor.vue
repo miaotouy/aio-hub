@@ -6,7 +6,14 @@
         <div class="nav-tabs">
           <el-skeleton animated class="nav-skeleton">
             <template #template>
-              <div style="display: flex; gap: 20px; align-items: center; height: 100%">
+              <div
+                style="
+                  display: flex;
+                  gap: 20px;
+                  align-items: center;
+                  height: 100%;
+                "
+              >
                 <el-skeleton-item variant="text" style="width: 60px" />
                 <el-skeleton-item variant="text" style="width: 60px" />
                 <el-skeleton-item variant="text" style="width: 60px" />
@@ -20,21 +27,30 @@
         <el-skeleton animated>
           <template #template>
             <div style="margin-bottom: 40px">
-              <el-skeleton-item variant="text" style="width: 150px; margin-bottom: 16px" />
+              <el-skeleton-item
+                variant="text"
+                style="width: 150px; margin-bottom: 16px"
+              />
               <el-skeleton-item
                 variant="rect"
                 style="height: 120px; width: 100%; border-radius: 8px"
               />
             </div>
             <div style="margin-bottom: 40px">
-              <el-skeleton-item variant="text" style="width: 100px; margin-bottom: 16px" />
+              <el-skeleton-item
+                variant="text"
+                style="width: 100px; margin-bottom: 16px"
+              />
               <el-skeleton-item
                 variant="rect"
                 style="height: 80px; width: 100%; border-radius: 8px"
               />
             </div>
             <div>
-              <el-skeleton-item variant="text" style="width: 120px; margin-bottom: 16px" />
+              <el-skeleton-item
+                variant="text"
+                style="width: 120px; margin-bottom: 16px"
+              />
               <el-skeleton-item
                 variant="rect"
                 style="height: 80px; width: 100%; border-radius: 8px"
@@ -240,7 +256,10 @@ import { ElMessageBox } from "element-plus";
 import { Refresh, CopyDocument, DocumentAdd } from "@element-plus/icons-vue";
 import { useClipboard } from "@vueuse/core";
 import { customMessage } from "@/utils/customMessage";
-import type { RichTextRendererStyleOptions, MarkdownStyleOption } from "../../types";
+import type {
+  RichTextRendererStyleOptions,
+  MarkdownStyleOption,
+} from "../../types";
 import StyleItemEditor from "./StyleItemEditor.vue";
 
 const props = defineProps<{
@@ -263,7 +282,8 @@ const tabs = [
 
 // 全局开关状态（直接绑定到 modelValue.globalEnabled）
 const allEnabled = computed({
-  get: () => (props.modelValue ? props.modelValue.globalEnabled !== false : true),
+  get: () =>
+    props.modelValue ? props.modelValue.globalEnabled !== false : true,
   set: (val: boolean) => {
     emit("update:modelValue", {
       ...(props.modelValue || {}),
@@ -279,11 +299,15 @@ const handleToggleAll = (enabled: boolean) => {
 };
 
 const handleReset = () => {
-  ElMessageBox.confirm("确定要重置所有 Markdown 样式配置吗？此操作无法撤销。", "确认重置", {
-    confirmButtonText: "重置",
-    cancelButtonText: "取消",
-    type: "warning",
-  })
+  ElMessageBox.confirm(
+    "确定要重置所有 Markdown 样式配置吗？此操作无法撤销。",
+    "确认重置",
+    {
+      confirmButtonText: "重置",
+      cancelButtonText: "取消",
+      type: "warning",
+    }
+  )
     .then(() => {
       emit("update:modelValue", {});
       allEnabled.value = true;
@@ -319,11 +343,15 @@ const handlePasteConfig = async () => {
         throw new Error("无效的配置格式");
       }
 
-      ElMessageBox.confirm("确定要用剪贴板中的配置覆盖当前样式吗？", "确认粘贴", {
-        confirmButtonText: "覆盖",
-        cancelButtonText: "取消",
-        type: "warning",
-      })
+      ElMessageBox.confirm(
+        "确定要用剪贴板中的配置覆盖当前样式吗？",
+        "确认粘贴",
+        {
+          confirmButtonText: "覆盖",
+          cancelButtonText: "取消",
+          type: "warning",
+        }
+      )
         .then(() => {
           emit("update:modelValue", config);
           customMessage.success("配置已粘贴并应用");
@@ -340,7 +368,9 @@ const handlePasteConfig = async () => {
 
 // 创建一个代理对象，用于处理 v-model 的双向绑定
 // 这样可以避免维护一个 localValue 副本，直接操作 modelValue
-const createProxy = (key: Exclude<keyof RichTextRendererStyleOptions, "globalEnabled">) => {
+const createProxy = (
+  key: Exclude<keyof RichTextRendererStyleOptions, "globalEnabled">
+) => {
   return computed({
     get: () => (props.modelValue ? props.modelValue[key] || {} : {}),
     set: (val: MarkdownStyleOption) => {

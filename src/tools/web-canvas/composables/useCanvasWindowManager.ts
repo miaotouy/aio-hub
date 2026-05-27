@@ -50,7 +50,10 @@ export function useCanvasWindowManager() {
   /**
    * 打开预览窗口
    */
-  async function openPreviewWindow(canvasId: string, title?: string): Promise<string> {
+  async function openPreviewWindow(
+    canvasId: string,
+    title?: string
+  ): Promise<string> {
     return invoke<string>("create_canvas_window", {
       canvasId,
       title: title ?? `画布预览 - ${canvasId}`,

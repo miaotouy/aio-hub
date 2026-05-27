@@ -68,16 +68,25 @@ export const resolveEnvPath = async (path: string): Promise<string> => {
       // %LocalAppData% -> C:/Users/xxx/AppData/Local
       if (resolvedPath.includes("%LocalAppData%")) {
         const localAppDataPath = `${homePath}/AppData/Local`;
-        resolvedPath = resolvedPath.replace(/%LocalAppData%/gi, localAppDataPath);
+        resolvedPath = resolvedPath.replace(
+          /%LocalAppData%/gi,
+          localAppDataPath
+        );
       }
 
       // %UserProfile% 或 %HOME% -> 用户主目录
-      if (resolvedPath.includes("%UserProfile%") || resolvedPath.includes("%HOME%")) {
+      if (
+        resolvedPath.includes("%UserProfile%") ||
+        resolvedPath.includes("%HOME%")
+      ) {
         resolvedPath = resolvedPath.replace(/%UserProfile%/gi, homePath);
         resolvedPath = resolvedPath.replace(/%HOME%/gi, homePath);
       }
     } catch (error) {
-      errorHandler.handle(error, { userMessage: "解析环境变量失败", showToUser: false });
+      errorHandler.handle(error, {
+        userMessage: "解析环境变量失败",
+        showToUser: false,
+      });
     }
   }
 
@@ -91,7 +100,10 @@ export const resolveEnvPath = async (path: string): Promise<string> => {
         resolvedPath = resolvedPath.replace(/\$\{HOME\}/g, homePath);
       }
     } catch (error) {
-      errorHandler.handle(error, { userMessage: "解析环境变量失败", showToUser: false });
+      errorHandler.handle(error, {
+        userMessage: "解析环境变量失败",
+        showToUser: false,
+      });
     }
   }
 

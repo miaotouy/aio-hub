@@ -17,7 +17,10 @@ const logger = createModuleLogger("llm-apis/openai-responses");
 /**
  * 调用 OpenAI Responses API
  */
-export const callOpenAiResponsesApi = async (profile: LlmProfile, options: LlmRequestOptions): Promise<LlmResponse> => {
+export const callOpenAiResponsesApi = async (
+  profile: LlmProfile,
+  options: LlmRequestOptions
+): Promise<LlmResponse> => {
   const url = openAiResponsesUrlHandler.buildUrl(profile.baseUrl, "responses");
 
   const headers: Record<string, string> = {
@@ -32,16 +35,25 @@ export const callOpenAiResponsesApi = async (profile: LlmProfile, options: LlmRe
     Object.assign(headers, profile.customHeaders);
   }
 
-  const systemMessages = (options.messages || []).filter((m) => m.role === "system");
-  const userAssistantMessages = (options.messages || []).filter((m) => m.role !== "system");
+  const systemMessages = (options.messages || []).filter(
+    (m) => m.role === "system"
+  );
+  const userAssistantMessages = (options.messages || []).filter(
+    (m) => m.role !== "system"
+  );
 
   const messages: any[] = [];
 
   // 如果提供了 prompt (MediaGenerationOptions)，我们将其视为 user 消息
   // 注意：useLlmRequest.ts 可能会先将 prompt 转为 messages，所以这里做个兜底判断
   const mediaOpts = options as any;
-  if (mediaOpts.prompt && userAssistantMessages.length === 0 && (!options.messages || options.messages.length === 0)) {
-    const hasAttachments = mediaOpts.inputAttachments && mediaOpts.inputAttachments.length > 0;
+  if (
+    mediaOpts.prompt &&
+    userAssistantMessages.length === 0 &&
+    (!options.messages || options.messages.length === 0)
+  ) {
+    const hasAttachments =
+      mediaOpts.inputAttachments && mediaOpts.inputAttachments.length > 0;
 
     if (!hasAttachments) {
       messages.push({
@@ -50,7 +62,9 @@ export const callOpenAiResponsesApi = async (profile: LlmProfile, options: LlmRe
       });
     } else {
       // 如果有附件，构造复合消息
-      const contentArray: any[] = [{ type: "input_text", text: mediaOpts.prompt }];
+      const contentArray: any[] = [
+        { type: "input_text", text: mediaOpts.prompt },
+      ];
 
       for (const attachment of mediaOpts.inputAttachments) {
         if (attachment.type === "image") {
@@ -124,7 +138,10 @@ export const callOpenAiResponsesApi = async (profile: LlmProfile, options: LlmRe
     }
   }
 
-  const input = messages.length === 1 && typeof messages[0].content === "string" ? messages[0].content : messages;
+  const input =
+    messages.length === 1 && typeof messages[0].content === "string"
+      ? messages[0].content
+      : messages;
 
   const commonParams = extractCommonParameters(options);
 
@@ -146,7 +163,9 @@ export const callOpenAiResponsesApi = async (profile: LlmProfile, options: LlmRe
 
   if (systemMessages.length > 0) {
     const systemContent = systemMessages
-      .map((m) => (typeof m.content === "string" ? m.content : JSON.stringify(m.content)))
+      .map((m) =>
+        typeof m.content === "string" ? m.content : JSON.stringify(m.content)
+      )
       .join("\n\n");
     body.instructions = systemContent;
   }
@@ -185,8 +204,10 @@ export const callOpenAiResponsesApi = async (profile: LlmProfile, options: LlmRe
     }
 
     // 使用我们新定义的规范化参数
-    if (options.partialImages !== undefined) imgTool.partial_images = options.partialImages;
-    if (options.inputFidelity !== undefined) imgTool.input_fidelity = options.inputFidelity;
+    if (options.partialImages !== undefined)
+      imgTool.partial_images = options.partialImages;
+    if (options.inputFidelity !== undefined)
+      imgTool.input_fidelity = options.inputFidelity;
 
     body.tools = [imgTool];
   }
@@ -260,7 +281,7 @@ export const callOpenAiResponsesApi = async (profile: LlmProfile, options: LlmRe
         isStreaming: true,
       },
       options.timeout,
-      options.signal,
+      options.signal
     );
 
     await ensureResponseOk(response);
@@ -290,7 +311,10 @@ export const callOpenAiResponsesApi = async (profile: LlmProfile, options: LlmRe
             const text = json.delta;
             fullContent += text;
             options.onStream!(text);
-          } else if (json.type === "response.reasoning_text.delta" && json.delta) {
+          } else if (
+            json.type === "response.reasoning_text.delta" &&
+            json.delta
+          ) {
             // 这是推理模型的思维链输出
             fullReasoning += json.delta;
             if (options.onReasoningStream) {
@@ -298,11 +322,16 @@ export const callOpenAiResponsesApi = async (profile: LlmProfile, options: LlmRe
             }
           } else if (json.type === "error") {
             // 显式抛出 API 返回的错误，不再默默吞掉
-            throw new Error(`OpenAI Responses Error: ${json.error?.message || JSON.stringify(json.error)}`);
+            throw new Error(
+              `OpenAI Responses Error: ${json.error?.message || JSON.stringify(json.error)}`
+            );
           }
 
           // 处理图像生成工具的流式预览 (Partial Image)
-          if (json.type === "response.image_generation_call.partial_image" && json.partial_image_b64) {
+          if (
+            json.type === "response.image_generation_call.partial_image" &&
+            json.partial_image_b64
+          ) {
             // 这是 gpt-image-2 的特性，可以将预览图传给前端展示
             const base64 = `data:image/png;base64,${json.partial_image_b64}`;
             if (options.onPartialImage) {
@@ -352,7 +381,10 @@ export const callOpenAiResponsesApi = async (profile: LlmProfile, options: LlmRe
                   finishReason = "tool_calls";
                 } else if (item.type === "message" && item.content) {
                   for (const contentItem of item.content) {
-                    if (contentItem.type === "output_text" && contentItem.annotations) {
+                    if (
+                      contentItem.type === "output_text" &&
+                      contentItem.annotations
+                    ) {
                       for (const annotation of contentItem.annotations) {
                         if (annotation.type === "url_citation") {
                           annotations.push({
@@ -385,7 +417,7 @@ export const callOpenAiResponsesApi = async (profile: LlmProfile, options: LlmRe
         } catch (e) {}
       },
       undefined,
-      options.signal,
+      options.signal
     );
 
     const finalResponse: LlmResponse = {
@@ -417,7 +449,7 @@ export const callOpenAiResponsesApi = async (profile: LlmProfile, options: LlmRe
       body: await asyncJsonStringify(body),
     },
     options.timeout,
-    options.signal,
+    options.signal
   );
 
   await ensureResponseOk(response);
@@ -447,7 +479,10 @@ export const callOpenAiResponsesApi = async (profile: LlmProfile, options: LlmRe
           if (contentItem.type === "output_text") {
             content += contentItem.text;
 
-            if (contentItem.annotations && Array.isArray(contentItem.annotations)) {
+            if (
+              contentItem.annotations &&
+              Array.isArray(contentItem.annotations)
+            ) {
               for (const annotation of contentItem.annotations) {
                 if (annotation.type === "url_citation") {
                   annotations.push({
@@ -501,7 +536,9 @@ export const callOpenAiResponsesApi = async (profile: LlmProfile, options: LlmRe
   }
 
   return {
-    content: content || (images.length > 0 ? `Generated ${images.length} images.` : ""),
+    content:
+      content ||
+      (images.length > 0 ? `Generated ${images.length} images.` : ""),
     reasoningContent: reasoningContent || undefined,
     refusal,
     finishReason,

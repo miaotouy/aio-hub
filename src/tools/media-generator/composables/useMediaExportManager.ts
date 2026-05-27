@@ -55,13 +55,21 @@ export function useMediaExportManager() {
 
           markdown += `\n\`\`\`json\n${JSON.stringify(task.input.params, null, 2)}\n\`\`\`\n\n`;
 
-          if (options.includeAssets && task.status === "completed" && task.resultAssetIds?.length) {
+          if (
+            options.includeAssets &&
+            task.status === "completed" &&
+            task.resultAssetIds?.length
+          ) {
             markdown += `> Result Assets: ${task.resultAssetIds.join(", ")}\n\n`;
           }
         }
 
         // 导出其他元数据
-        if (options.includeMetadata && node.metadata && Object.keys(node.metadata).length > 0) {
+        if (
+          options.includeMetadata &&
+          node.metadata &&
+          Object.keys(node.metadata).length > 0
+        ) {
           const filteredMeta = { ...node.metadata };
           delete filteredMeta.taskSnapshot; // 已经单独处理了
           if (Object.keys(filteredMeta).length > 0) {
@@ -90,7 +98,10 @@ export function useMediaExportManager() {
   /**
    * 将分支导出为 JSON (Raw)
    */
-  const exportBranchAsJson = async (session: GenerationSession, leafId: string) => {
+  const exportBranchAsJson = async (
+    session: GenerationSession,
+    leafId: string
+  ) => {
     try {
       const path = nodeManager.getNodePath(session, leafId);
       const exportData = {

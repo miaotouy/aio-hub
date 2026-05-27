@@ -13,7 +13,10 @@ export interface StageImageExportOptions {
 /**
  * Export document coordinates, not the currently panned/zoomed editor viewport.
  */
-export function exportStageToCanvas(stage: Konva.Stage, options: StageImageExportOptions): HTMLCanvasElement {
+export function exportStageToCanvas(
+  stage: Konva.Stage,
+  options: StageImageExportOptions
+): HTMLCanvasElement {
   const originalTransform = {
     x: stage.x(),
     y: stage.y(),
@@ -38,7 +41,11 @@ export function exportStageToCanvas(stage: Konva.Stage, options: StageImageExpor
   }
 }
 
-export function canvasToBlob(canvas: HTMLCanvasElement, mimeType = "image/png", quality?: number): Promise<Blob> {
+export function canvasToBlob(
+  canvas: HTMLCanvasElement,
+  mimeType = "image/png",
+  quality?: number
+): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob(
       (blob) => {
@@ -49,7 +56,7 @@ export function canvasToBlob(canvas: HTMLCanvasElement, mimeType = "image/png", 
         }
       },
       mimeType,
-      quality,
+      quality
     );
   });
 }

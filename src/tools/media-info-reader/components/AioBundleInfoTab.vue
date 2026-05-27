@@ -56,7 +56,11 @@ const getAvatarUrl = (agent: any) => {
   // 检查是否是有效的远程 URL 或 Base64
   const isValidUrl = (url: string) => {
     if (!url) return false;
-    return url.startsWith("http") || url.startsWith("data:") || url.startsWith("blob:");
+    return (
+      url.startsWith("http") ||
+      url.startsWith("data:") ||
+      url.startsWith("blob:")
+    );
   };
 
   if (isValidUrl(avatar)) {
@@ -86,7 +90,10 @@ const getAssetIcon = (type: string) => {
 const formatInjection = (strategy: any) => {
   if (!strategy) return "默认";
   const pos = strategy.anchorPosition === "after" ? "后" : "前";
-  const target = strategy.anchorTarget === "chat_history" ? "聊天记录" : strategy.anchorTarget;
+  const target =
+    strategy.anchorTarget === "chat_history"
+      ? "聊天记录"
+      : strategy.anchorTarget;
   if (strategy.type === "depth") return `深度注入 (层级: ${strategy.depth})`;
   if (strategy.type === "advanced_depth")
     return `高级深度 (层级: ${strategy.depth}, Config: ${strategy.depthConfig})`;
@@ -110,14 +117,22 @@ const formatInjection = (strategy: any) => {
                     :size="80"
                     class="agent-avatar"
                   />
-                  <div class="category-badge">{{ agent.category || "Agent" }}</div>
+                  <div class="category-badge">
+                    {{ agent.category || "Agent" }}
+                  </div>
                 </div>
                 <div class="info-container">
                   <div class="name-line">
-                    <h2 class="agent-display-name">{{ agent.displayName || agent.name }}</h2>
-                    <span class="version-badge">v{{ agent.version || "1.0" }}</span>
+                    <h2 class="agent-display-name">
+                      {{ agent.displayName || agent.name }}
+                    </h2>
+                    <span class="version-badge"
+                      >v{{ agent.version || "1.0" }}</span
+                    >
                   </div>
-                  <p class="agent-desc">{{ agent.description || "暂无描述" }}</p>
+                  <p class="agent-desc">
+                    {{ agent.description || "暂无描述" }}
+                  </p>
                   <div class="quick-meta">
                     <div class="meta-tag">
                       <Cpu :size="14" />
@@ -141,7 +156,11 @@ const formatInjection = (strategy: any) => {
                 </div>
                 <div class="section-body">
                   <div class="think-rules" v-if="agent.llmThinkRules?.length">
-                    <div v-for="rule in agent.llmThinkRules" :key="rule.id" class="rule-pill">
+                    <div
+                      v-for="rule in agent.llmThinkRules"
+                      :key="rule.id"
+                      class="rule-pill"
+                    >
                       <Brain :size="14" />
                       <span class="rule-name">{{ rule.displayName }}</span>
                       <span class="rule-tag">{{ rule.tagName }}</span>
@@ -184,13 +203,18 @@ const formatInjection = (strategy: any) => {
                           <div class="spacer"></div>
                           <div class="injection-info">
                             <Clock :size="12" />
-                            <span>{{ formatInjection(msg.injectionStrategy) }}</span>
+                            <span>{{
+                              formatInjection(msg.injectionStrategy)
+                            }}</span>
                           </div>
                         </div>
                         <div class="card-body">{{ msg.content }}</div>
                         <div v-if="msg.modelMatch?.enabled" class="card-footer">
                           <Wrench :size="12" />
-                          <span>匹配模式: {{ msg.modelMatch.patterns.join(", ") }}</span>
+                          <span
+                            >匹配模式:
+                            {{ msg.modelMatch.patterns.join(", ") }}</span
+                          >
                         </div>
                       </div>
                     </div>
@@ -217,11 +241,18 @@ const formatInjection = (strategy: any) => {
                         </div>
                         <div class="param-entry">
                           <span class="label">Top P</span>
-                          <span class="value">{{ agent.parameters?.topP ?? agent.topP }}</span>
+                          <span class="value">{{
+                            agent.parameters?.topP ?? agent.topP
+                          }}</span>
                         </div>
-                        <div class="param-entry" v-if="agent.parameters?.reasoningEffort">
+                        <div
+                          class="param-entry"
+                          v-if="agent.parameters?.reasoningEffort"
+                        >
                           <span class="label">Reasoning</span>
-                          <span class="value">{{ agent.parameters?.reasoningEffort }}</span>
+                          <span class="value">{{
+                            agent.parameters?.reasoningEffort
+                          }}</span>
                         </div>
                       </div>
                     </div>
@@ -231,15 +262,20 @@ const formatInjection = (strategy: any) => {
                         <div class="param-entry">
                           <span class="label">状态</span>
                           <span class="value">{{
-                            agent.parameters?.contextCompression?.enabled ? "已开启" : "未启用"
+                            agent.parameters?.contextCompression?.enabled
+                              ? "已开启"
+                              : "未启用"
                           }}</span>
                         </div>
-                        <template v-if="agent.parameters?.contextCompression?.enabled">
+                        <template
+                          v-if="agent.parameters?.contextCompression?.enabled"
+                        >
                           <div class="param-entry">
                             <span class="label">触发阈值</span>
                             <span class="value"
                               >{{
-                                agent.parameters?.contextCompression?.tokenThreshold
+                                agent.parameters?.contextCompression
+                                  ?.tokenThreshold
                               }}
                               tokens</span
                             >
@@ -248,7 +284,8 @@ const formatInjection = (strategy: any) => {
                             <span class="label">保留最近</span>
                             <span class="value"
                               >{{
-                                agent.parameters?.contextCompression?.protectRecentCount
+                                agent.parameters?.contextCompression
+                                  ?.protectRecentCount
                               }}
                               条</span
                             >
@@ -267,20 +304,28 @@ const formatInjection = (strategy: any) => {
                   <span>关联资产</span>
                 </div>
                 <div class="section-body">
-                  <div v-for="group in agent.assetGroups" :key="group.id" class="asset-group">
+                  <div
+                    v-for="group in agent.assetGroups"
+                    :key="group.id"
+                    class="asset-group"
+                  >
                     <div class="group-title">
                       <ChevronRight :size="14" />
                       <span>{{ group.icon }} {{ group.displayName }}</span>
                     </div>
                     <div class="asset-items">
                       <div
-                        v-for="asset in (agent.assets as any[]).filter((a) => a.group === group.id)"
+                        v-for="asset in (agent.assets as any[]).filter(
+                          (a) => a.group === group.id
+                        )"
                         :key="asset.id"
                         class="asset-item-mini"
                       >
                         <component :is="getAssetIcon(asset.type)" :size="16" />
                         <span class="asset-id">{{ asset.id }}</span>
-                        <span class="asset-size">{{ (asset.size / 1024).toFixed(1) }} KB</span>
+                        <span class="asset-size"
+                          >{{ (asset.size / 1024).toFixed(1) }} KB</span
+                        >
                       </div>
                     </div>
                   </div>

@@ -53,7 +53,9 @@ export function useTransformer() {
     return false;
   }
 
-  function handleStageClick(e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) {
+  function handleStageClick(
+    e: Konva.KonvaEventObject<MouseEvent | TouchEvent>
+  ) {
     if (!transformer.value) return;
 
     // 点击 Transformer 自身或其子节点（锚点、边框）时，不做任何处理

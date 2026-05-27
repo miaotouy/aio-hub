@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { onMounted } from 'vue';
-import { useRoute } from 'vue-router';
-import { useWindowSyncBus } from '@/composables/useWindowSyncBus';
-import { useLlmChatSync } from '@/tools/llm-chat/composables/chat/useLlmChatSync';
-import { createModuleLogger } from '@/utils/logger';
+import { onMounted } from "vue";
+import { useRoute } from "vue-router";
+import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
+import { useLlmChatSync } from "@/tools/llm-chat/composables/chat/useLlmChatSync";
+import { createModuleLogger } from "@/utils/logger";
 
-const logger = createModuleLogger('SyncServiceProvider');
+const logger = createModuleLogger("SyncServiceProvider");
 const { windowType } = useWindowSyncBus();
 const route = useRoute();
 
@@ -22,26 +22,26 @@ onMounted(() => {
   //    - 只接收状态，不广播
   //    - 所有操作代理回父窗口（main 或 detached-tool）
   const shouldStartSync =
-    windowType === 'main' ||
-    (windowType === 'detached-tool' && route.path.includes('/llm-chat'));
+    windowType === "main" ||
+    (windowType === "detached-tool" && route.path.includes("/llm-chat"));
 
   if (shouldStartSync) {
-    logger.info('启动全局同步服务', {
+    logger.info("启动全局同步服务", {
       windowType,
       path: route.path,
-      role: '状态源头+业务处理器'
+      role: "状态源头+业务处理器",
     });
-    
+
     // 启动 LLM Chat 同步服务
     // 该服务现在会自动根据是否存在下游窗口来初始化或清理引擎
     useLlmChatSync();
-    
+
     // 未来可以在这里添加其他工具的同步服务
     // if (route.path.includes('/another-tool')) {
     //   useAnotherToolSync();
     // }
-    
-    logger.info('全局同步服务已启动');
+
+    logger.info("全局同步服务已启动");
   } else {
     logger.info(`跳过同步服务启动`, { windowType, path: route.path });
   }

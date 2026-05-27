@@ -61,7 +61,10 @@ export const DASH_PRESETS: { label: string; value: number[] | null }[] = [
 ];
 
 /** 线帽样式预设 */
-export const LINE_CAP_OPTIONS: { label: string; value: "butt" | "round" | "square" }[] = [
+export const LINE_CAP_OPTIONS: {
+  label: string;
+  value: "butt" | "round" | "square";
+}[] = [
   { label: "平头", value: "butt" },
   { label: "圆头", value: "round" },
   { label: "方头", value: "square" },

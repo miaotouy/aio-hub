@@ -1,7 +1,11 @@
 import type { LlmProfile } from "@/types/llm-profiles";
 import type { LlmRequestOptions, LlmResponse } from "@/llm-apis/common";
 import { fetchWithTimeout, ensureResponseOk } from "@/llm-apis/common";
-import { parseSSEStream, extractTextFromSSE, extractReasoningFromSSE } from "@utils/sse-parser";
+import {
+  parseSSEStream,
+  extractTextFromSSE,
+  extractReasoningFromSSE,
+} from "@utils/sse-parser";
 import {
   parseMessageContents,
   extractCommonParameters,
@@ -18,10 +22,14 @@ export const callCohereChatApi = async (
   profile: LlmProfile,
   options: LlmRequestOptions
 ): Promise<LlmResponse> => {
-  const url = cohereUrlHandler.buildUrl(profile.baseUrl || "https://api.cohere.com", "chat");
+  const url = cohereUrlHandler.buildUrl(
+    profile.baseUrl || "https://api.cohere.com",
+    "chat"
+  );
 
   // 获取第一个可用的 API Key
-  const apiKey = profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
+  const apiKey =
+    profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
 
   // 使用共享函数提取通用参数
   const commonParams = extractCommonParameters(options);
@@ -47,7 +55,9 @@ export const callCohereChatApi = async (
         // 多模态格式
         contentValue = [];
         if (parsed.textParts.length > 0) {
-          const textContent = parsed.textParts.map((part) => part.text).join("\n");
+          const textContent = parsed.textParts
+            .map((part) => part.text)
+            .join("\n");
           contentValue.push({ type: "text", text: textContent });
         }
         for (const img of parsed.imageParts) {
@@ -117,8 +127,8 @@ export const callCohereChatApi = async (
 
   // 工具支持
   if (options.tools && options.tools.length > 0) {
-    body.tools = options.tools.map(tool => ({
-      type: 'function',
+    body.tools = options.tools.map((tool) => ({
+      type: "function",
       function: {
         name: tool.function.name,
         description: tool.function.description,
@@ -128,11 +138,11 @@ export const callCohereChatApi = async (
   }
 
   if (options.toolChoice) {
-    if (typeof options.toolChoice === 'string') {
+    if (typeof options.toolChoice === "string") {
       body.tool_choice = { type: options.toolChoice };
-    } else if (options.toolChoice.type === 'function') {
+    } else if (options.toolChoice.type === "function") {
       body.tool_choice = {
-        type: 'function',
+        type: "function",
         function: { name: options.toolChoice.function.name },
       };
     }
@@ -184,19 +194,24 @@ export const callCohereChatApi = async (
     let fullContent = "";
     let fullReasoning = "";
 
-    await parseSSEStream(reader, (data) => {
-      const text = extractTextFromSSE(data, "cohere");
-      if (text) {
-        fullContent += text;
-        options.onStream!(text);
-      }
+    await parseSSEStream(
+      reader,
+      (data) => {
+        const text = extractTextFromSSE(data, "cohere");
+        if (text) {
+          fullContent += text;
+          options.onStream!(text);
+        }
 
-      const reasoning = extractReasoningFromSSE(data, "cohere");
-      if (reasoning && options.onReasoningStream) {
-        fullReasoning += reasoning;
-        options.onReasoningStream(reasoning);
-      }
-    }, undefined, options.signal);
+        const reasoning = extractReasoningFromSSE(data, "cohere");
+        if (reasoning && options.onReasoningStream) {
+          fullReasoning += reasoning;
+          options.onReasoningStream(reasoning);
+        }
+      },
+      undefined,
+      options.signal
+    );
 
     return {
       content: fullContent,
@@ -241,16 +256,18 @@ export const callCohereChatApi = async (
     content: content,
     usage: data.usage?.tokens
       ? {
-        promptTokens: data.usage.tokens.input_tokens,
-        completionTokens: data.usage.tokens.output_tokens,
-        totalTokens: data.usage.tokens.input_tokens + data.usage.tokens.output_tokens,
-      }
+          promptTokens: data.usage.tokens.input_tokens,
+          completionTokens: data.usage.tokens.output_tokens,
+          totalTokens:
+            data.usage.tokens.input_tokens + data.usage.tokens.output_tokens,
+        }
       : data.meta?.tokens
         ? {
-          promptTokens: data.meta.tokens.input_tokens,
-          completionTokens: data.meta.tokens.output_tokens,
-          totalTokens: data.meta.tokens.input_tokens + data.meta.tokens.output_tokens,
-        }
+            promptTokens: data.meta.tokens.input_tokens,
+            completionTokens: data.meta.tokens.output_tokens,
+            totalTokens:
+              data.meta.tokens.input_tokens + data.meta.tokens.output_tokens,
+          }
         : undefined,
   };
 };

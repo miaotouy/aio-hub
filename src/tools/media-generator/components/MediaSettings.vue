@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { useMediaGenStore } from "../stores/mediaGenStore";
-import { mediaGeneratorSettingsConfig, DEFAULT_MEDIA_GENERATOR_SETTINGS } from "../config";
+import {
+  mediaGeneratorSettingsConfig,
+  DEFAULT_MEDIA_GENERATOR_SETTINGS,
+} from "../config";
 import SettingListRenderer from "@/components/common/SettingListRenderer.vue";
 import { RotateCcw } from "lucide-vue-next";
 import { ElMessageBox } from "element-plus";
@@ -18,11 +21,15 @@ const handleUpdate = (newSettings: any) => {
 
 const handleReset = async () => {
   try {
-    await ElMessageBox.confirm("确定要将所有生成设置重置为默认值吗？此操作不可撤销。", "重置确认", {
-      confirmButtonText: "确定重置",
-      cancelButtonText: "取消",
-      type: "warning",
-    });
+    await ElMessageBox.confirm(
+      "确定要将所有生成设置重置为默认值吗？此操作不可撤销。",
+      "重置确认",
+      {
+        confirmButtonText: "确定重置",
+        cancelButtonText: "取消",
+        type: "warning",
+      }
+    );
     store.settings = { ...DEFAULT_MEDIA_GENERATOR_SETTINGS };
     customMessage.success("设置已重置为默认值");
     logger.info("用户重置了全局设置");
@@ -38,9 +45,17 @@ const handleReset = async () => {
       <div class="settings-header">
         <div class="header-info">
           <h3 class="header-title">媒体生成配置</h3>
-          <p class="header-desc">配置媒体生成器的默认行为、并发任务及通知偏好</p>
+          <p class="header-desc">
+            配置媒体生成器的默认行为、并发任务及通知偏好
+          </p>
         </div>
-        <el-button :icon="RotateCcw" @click="handleReset" plain type="danger" size="small">
+        <el-button
+          :icon="RotateCcw"
+          @click="handleReset"
+          plain
+          type="danger"
+          size="small"
+        >
           一键重置
         </el-button>
       </div>
@@ -68,7 +83,9 @@ const handleReset = async () => {
       </el-collapse>
 
       <div class="settings-footer">
-        <div class="placeholder-text">更多生成预设和全局参数配置正在开发中...</div>
+        <div class="placeholder-text">
+          更多生成预设和全局参数配置正在开发中...
+        </div>
       </div>
     </el-form>
   </div>

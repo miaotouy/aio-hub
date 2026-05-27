@@ -27,12 +27,16 @@ const treeData = ref<VariableTreeNode[]>([...props.modelValue]);
 const jsonText = ref("");
 
 // 同步 props 到本地
-watch(() => props.modelValue, (newVal) => {
-  treeData.value = [...newVal];
-  if (mode.value === "json") {
-    jsonText.value = JSON.stringify(newVal, null, 2);
-  }
-}, { deep: true });
+watch(
+  () => props.modelValue,
+  (newVal) => {
+    treeData.value = [...newVal];
+    if (mode.value === "json") {
+      jsonText.value = JSON.stringify(newVal, null, 2);
+    }
+  },
+  { deep: true }
+);
 
 // 切换模式
 const switchMode = (newMode: EditorMode) => {
@@ -63,7 +67,7 @@ const addRootNode = (type: "group" | "variable") => {
   const newNode: VariableTreeNode = {
     key: "",
     type,
-    ...(type === "variable" ? { initialValue: 0 } : { children: [] })
+    ...(type === "variable" ? { initialValue: 0 } : { children: [] }),
   };
   treeData.value.push(newNode);
   emit("update:modelValue", treeData.value);
@@ -85,13 +89,13 @@ const deleteNode = (index: number) => {
 const addChildToRoot = (index: number, type: "group" | "variable") => {
   const targetNode = treeData.value[index];
   if (targetNode.type !== "group") return;
-  
+
   const newChild: VariableTreeNode = {
     key: "",
     type,
-    ...(type === "variable" ? { initialValue: 0 } : { children: [] })
+    ...(type === "variable" ? { initialValue: 0 } : { children: [] }),
   };
-  
+
   targetNode.children = [...(targetNode.children || []), newChild];
   emit("update:modelValue", treeData.value);
 };
@@ -142,26 +146,34 @@ const formatJson = () => {
           <span>JSON 编辑</span>
         </el-radio-button>
       </el-radio-group>
-      
+
       <div v-if="mode === 'ui'" class="toolbar-actions">
-        <el-button type="primary" :icon="Plus" size="small" @click="addRootNode('variable')">
+        <el-button
+          type="primary"
+          :icon="Plus"
+          size="small"
+          @click="addRootNode('variable')"
+        >
           添加变量
         </el-button>
-        <el-button type="info" :icon="Plus" size="small" @click="addRootNode('group')">
+        <el-button
+          type="info"
+          :icon="Plus"
+          size="small"
+          @click="addRootNode('group')"
+        >
           添加分组
         </el-button>
       </div>
-      
+
       <div v-if="mode === 'json'" class="toolbar-actions">
         <el-button type="primary" size="small" @click="applyJsonChanges">
           应用更改
         </el-button>
-        <el-button size="small" @click="formatJson">
-          格式化
-        </el-button>
+        <el-button size="small" @click="formatJson"> 格式化 </el-button>
       </div>
     </div>
-    
+
     <div class="editor-content">
       <div v-if="mode === 'ui'" class="ui-editor">
         <div v-if="treeData.length === 0" class="empty-hint">
@@ -176,7 +188,7 @@ const formatJson = () => {
           @add-child="addChildToRoot(index, $event)"
         />
       </div>
-      
+
       <div v-else class="json-editor">
         <RichCodeEditor
           :model-value="jsonText"

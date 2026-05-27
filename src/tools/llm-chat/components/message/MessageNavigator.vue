@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useScroll, useThrottleFn } from "@vueuse/core";
-import { ArrowUp, ArrowDown, DArrowLeft, DArrowRight } from "@element-plus/icons-vue";
+import {
+  ArrowUp,
+  ArrowDown,
+  DArrowLeft,
+  DArrowRight,
+} from "@element-plus/icons-vue";
 
 interface Props {
   /** 滚动容器的引用 */
@@ -34,7 +39,7 @@ const { arrivedState } = useScroll(
   computed(() => props.scrollElement),
   {
     offset: { top: 50, bottom: 50 },
-  },
+  }
 );
 
 // 当前可见的消息索引
@@ -85,7 +90,7 @@ watch(
     if (isAtBottom && props.hasNewMessages) {
       emit("seen-new-messages");
     }
-  },
+  }
 );
 </script>
 
@@ -99,8 +104,16 @@ watch(
       @mouseleave="handleMouseLeave"
     >
       <!-- 到顶按钮 -->
-      <el-tooltip :content="canScrollUp ? '跳转到顶部' : '已在顶部'" placement="right" :show-after="300">
-        <div class="nav-button nav-button-jump" :class="{ disabled: !canScrollUp }" @click="handleScrollToTop">
+      <el-tooltip
+        :content="canScrollUp ? '跳转到顶部' : '已在顶部'"
+        placement="right"
+        :show-after="300"
+      >
+        <div
+          class="nav-button nav-button-jump"
+          :class="{ disabled: !canScrollUp }"
+          @click="handleScrollToTop"
+        >
           <el-icon :size="14" style="transform: rotate(90deg)">
             <DArrowLeft />
           </el-icon>
@@ -108,8 +121,16 @@ watch(
       </el-tooltip>
 
       <!-- 向上按钮 -->
-      <el-tooltip :content="canScrollUp ? '上一条消息 (↑)' : '已在顶部'" placement="right" :show-after="300">
-        <div class="nav-button" :class="{ disabled: !canScrollUp }" @click="handleScrollToPrev">
+      <el-tooltip
+        :content="canScrollUp ? '上一条消息 (↑)' : '已在顶部'"
+        placement="right"
+        :show-after="300"
+      >
+        <div
+          class="nav-button"
+          :class="{ disabled: !canScrollUp }"
+          @click="handleScrollToPrev"
+        >
           <el-icon :size="14">
             <ArrowUp />
           </el-icon>
@@ -124,30 +145,50 @@ watch(
       </div>
 
       <!-- 向下按钮 -->
-      <el-tooltip :content="canScrollDown ? '下一条消息 (↓)' : '已在底部'" placement="right" :show-after="300">
+      <el-tooltip
+        :content="canScrollDown ? '下一条消息 (↓)' : '已在底部'"
+        placement="right"
+        :show-after="300"
+      >
         <div
           class="nav-button"
-          :class="{ disabled: !canScrollDown, 'has-new-badge': hasNewMessages && canScrollDown }"
+          :class="{
+            disabled: !canScrollDown,
+            'has-new-badge': hasNewMessages && canScrollDown,
+          }"
           @click="handleScrollToNext"
         >
           <el-icon :size="14">
             <ArrowDown />
           </el-icon>
-          <div v-if="hasNewMessages && canScrollDown" class="new-message-dot"></div>
+          <div
+            v-if="hasNewMessages && canScrollDown"
+            class="new-message-dot"
+          ></div>
         </div>
       </el-tooltip>
 
       <!-- 到底按钮 -->
-      <el-tooltip :content="canScrollDown ? '跳转到底部' : '已在底部'" placement="right" :show-after="300">
+      <el-tooltip
+        :content="canScrollDown ? '跳转到底部' : '已在底部'"
+        placement="right"
+        :show-after="300"
+      >
         <div
           class="nav-button nav-button-jump"
-          :class="{ disabled: !canScrollDown, 'has-new-badge': hasNewMessages && canScrollDown }"
+          :class="{
+            disabled: !canScrollDown,
+            'has-new-badge': hasNewMessages && canScrollDown,
+          }"
           @click="handleScrollToBottom"
         >
           <el-icon :size="14" style="transform: rotate(90deg)">
             <DArrowRight />
           </el-icon>
-          <div v-if="hasNewMessages && canScrollDown" class="new-message-dot"></div>
+          <div
+            v-if="hasNewMessages && canScrollDown"
+            class="new-message-dot"
+          ></div>
         </div>
       </el-tooltip>
     </div>

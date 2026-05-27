@@ -13,7 +13,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 const logger = createModuleLogger("services/sidecar-plugin-adapter");
-const errorHandler = createModuleErrorHandler("services/sidecar-plugin-adapter");
+const errorHandler = createModuleErrorHandler(
+  "services/sidecar-plugin-adapter"
+);
 
 /**
  * Sidecar 输出事件
@@ -51,9 +53,14 @@ export class SidecarPluginAdapter implements PluginProxy {
   public enabled: boolean = false;
 
   private unlisten: UnlistenFn | null = null;
-  private eventHandlers: Map<string, (event: SidecarOutputEvent) => void> = new Map();
+  private eventHandlers: Map<string, (event: SidecarOutputEvent) => void> =
+    new Map();
 
-  constructor(manifest: PluginManifest, installPath: string, devMode: boolean = false) {
+  constructor(
+    manifest: PluginManifest,
+    installPath: string,
+    devMode: boolean = false
+  ) {
     this.manifest = manifest;
     this.installPath = installPath;
     // 开发模式下为 ID 添加后缀，避免与生产版本冲突
@@ -62,7 +69,10 @@ export class SidecarPluginAdapter implements PluginProxy {
     this.description = manifest.description;
     this.devMode = devMode;
 
-    logger.debug(`创建 Sidecar 插件适配器: ${this.id}`, { devMode, installPath });
+    logger.debug(`创建 Sidecar 插件适配器: ${this.id}`, {
+      devMode,
+      installPath,
+    });
   }
 
   /**
@@ -77,20 +87,25 @@ export class SidecarPluginAdapter implements PluginProxy {
     logger.info(`启用 Sidecar 插件: ${this.id}`);
 
     // 监听 Sidecar 输出事件
-    this.unlisten = await listen<SidecarOutputEvent>("sidecar-output", (event) => {
-      const data = event.payload;
+    this.unlisten = await listen<SidecarOutputEvent>(
+      "sidecar-output",
+      (event) => {
+        const data = event.payload;
 
-      // 只处理本插件的事件
-      if (data.plugin_id === this.manifest.id) {
-        logger.debug(`收到 Sidecar 输出事件: ${data.event_type}`, { data: data.data });
+        // 只处理本插件的事件
+        if (data.plugin_id === this.manifest.id) {
+          logger.debug(`收到 Sidecar 输出事件: ${data.event_type}`, {
+            data: data.data,
+          });
 
-        // 触发对应的事件处理器
-        const handler = this.eventHandlers.get(data.event_type);
-        if (handler) {
-          handler(data);
+          // 触发对应的事件处理器
+          const handler = this.eventHandlers.get(data.event_type);
+          if (handler) {
+            handler(data);
+          }
         }
       }
-    });
+    );
 
     this.enabled = true;
   }
@@ -244,7 +259,9 @@ export class SidecarPluginAdapter implements PluginProxy {
 
           resolve(data.data);
         } catch (error) {
-          errorHandler.error(error, "解析结果数据失败", { context: { data: event.data } });
+          errorHandler.error(error, "解析结果数据失败", {
+            context: { data: event.data },
+          });
           reject(new Error(`解析结果失败: ${error}`));
         }
       };
@@ -253,7 +270,9 @@ export class SidecarPluginAdapter implements PluginProxy {
         if (hasResult) return;
         hasResult = true;
 
-        errorHandler.error(new Error(event.data), "方法执行失败", { context: { methodName } });
+        errorHandler.error(new Error(event.data), "方法执行失败", {
+          context: { methodName },
+        });
 
         // 清理临时处理器
         this.eventHandlers.delete("progress");
@@ -299,7 +318,9 @@ export class SidecarPluginAdapter implements PluginProxy {
             this.eventHandlers.delete("result");
             this.eventHandlers.delete("error");
 
-            errorHandler.error(error, "调用后端命令失败", { context: { methodName } });
+            errorHandler.error(error, "调用后端命令失败", {
+              context: { methodName },
+            });
             reject(error);
           }
         });
@@ -329,7 +350,7 @@ export class SidecarPluginAdapter implements PluginProxy {
 export function createSidecarPluginProxy(
   manifest: PluginManifest,
   installPath: string,
-  devMode: boolean = false,
+  devMode: boolean = false
 ): PluginProxy {
   const adapter = new SidecarPluginAdapter(manifest, installPath, devMode);
 
@@ -345,7 +366,9 @@ export function createSidecarPluginProxy(
       const propStr = String(prop);
 
       // 检查是否是 manifest 中声明的方法
-      const hasMethod = target.manifest.methods?.some((m) => m.name === propStr);
+      const hasMethod = target.manifest.methods?.some(
+        (m) => m.name === propStr
+      );
       if (!hasMethod) {
         return undefined;
       }

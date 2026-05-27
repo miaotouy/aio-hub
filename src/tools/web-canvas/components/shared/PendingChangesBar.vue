@@ -29,11 +29,15 @@ const fileList = computed(() => {
 const hasChanges = computed(() => fileList.value.length > 0);
 
 const handleDiscard = () => {
-  ElMessageBox.confirm("确定要丢弃所有未提交的更改吗？此操作不可撤销。", "提示", {
-    confirmButtonText: "确定丢弃",
-    cancelButtonText: "取消",
-    type: "warning",
-  })
+  ElMessageBox.confirm(
+    "确定要丢弃所有未提交的更改吗？此操作不可撤销。",
+    "提示",
+    {
+      confirmButtonText: "确定丢弃",
+      cancelButtonText: "取消",
+      type: "warning",
+    }
+  )
     .then(() => {
       emit("discard");
     })
@@ -50,7 +54,12 @@ const handleDiscard = () => {
           <el-button link type="danger" :icon="X" @click="handleDiscard" />
         </el-tooltip>
         <el-tooltip content="提交所有更改" placement="top">
-          <el-button link type="success" :icon="Check" @click="emit('commit')" />
+          <el-button
+            link
+            type="success"
+            :icon="Check"
+            @click="emit('commit')"
+          />
         </el-tooltip>
       </div>
     </div>
@@ -73,7 +82,12 @@ const handleDiscard = () => {
     </div>
 
     <div class="bottom-actions" v-if="hasChanges">
-      <el-button type="primary" class="commit-btn" size="small" @click="emit('commit')">
+      <el-button
+        type="primary"
+        class="commit-btn"
+        size="small"
+        @click="emit('commit')"
+      >
         提交所有更改 (Commit All)
       </el-button>
     </div>
@@ -96,7 +110,10 @@ const handleDiscard = () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background-color: rgba(var(--el-fill-color-light-rgb), calc(var(--card-opacity) * 0.3));
+  background-color: rgba(
+    var(--el-fill-color-light-rgb),
+    calc(var(--card-opacity) * 0.3)
+  );
   flex-shrink: 0;
 
   .title {
@@ -133,7 +150,10 @@ const handleDiscard = () => {
   cursor: default;
 
   &:hover {
-    background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.05));
+    background-color: rgba(
+      var(--el-color-primary-rgb),
+      calc(var(--card-opacity) * 0.05)
+    );
   }
 
   .file-path {

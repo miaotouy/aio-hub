@@ -59,7 +59,10 @@ function parseGlobs(str?: string): string[] {
 /**
  * Agent 搜索：同步收集流式结果并返回格式化文本
  */
-export async function searchDirectory(args: AgentSearchArgs, context?: ToolContext): Promise<string> {
+export async function searchDirectory(
+  args: AgentSearchArgs,
+  context?: ToolContext
+): Promise<string> {
   if (!args.path) return "错误: 必须指定搜索目录路径 (path)。";
   if (!args.pattern) return "错误: 必须指定搜索模式 (pattern)。";
 
@@ -67,9 +70,12 @@ export async function searchDirectory(args: AgentSearchArgs, context?: ToolConte
   let unlisten: UnlistenFn | null = null;
 
   // 监听流式结果事件
-  unlisten = await listen<SearchResultBatch>("dir-search-result-batch", (event) => {
-    collectedResults.push(...event.payload.results);
-  });
+  unlisten = await listen<SearchResultBatch>(
+    "dir-search-result-batch",
+    (event) => {
+      collectedResults.push(...event.payload.results);
+    }
+  );
 
   const request: SearchRequest = {
     rootPath: args.path,
@@ -105,7 +111,10 @@ export async function searchDirectory(args: AgentSearchArgs, context?: ToolConte
 /**
  * Agent 替换：先搜索确认范围，再执行替换
  */
-export async function replaceInDirectory(args: AgentReplaceArgs, context?: ToolContext): Promise<string> {
+export async function replaceInDirectory(
+  args: AgentReplaceArgs,
+  context?: ToolContext
+): Promise<string> {
   if (!args.path) return "错误: 必须指定目录路径 (path)。";
   if (!args.pattern) return "错误: 必须指定搜索模式 (pattern)。";
   if (args.replacement === undefined || args.replacement === null) {
@@ -116,9 +125,12 @@ export async function replaceInDirectory(args: AgentReplaceArgs, context?: ToolC
   const searchResults: FileSearchResult[] = [];
   let unlisten: UnlistenFn | null = null;
 
-  unlisten = await listen<SearchResultBatch>("dir-search-result-batch", (event) => {
-    searchResults.push(...event.payload.results);
-  });
+  unlisten = await listen<SearchResultBatch>(
+    "dir-search-result-batch",
+    (event) => {
+      searchResults.push(...event.payload.results);
+    }
+  );
 
   const searchRequest: SearchRequest = {
     rootPath: args.path,
@@ -150,9 +162,15 @@ export async function replaceInDirectory(args: AgentReplaceArgs, context?: ToolC
 
   // 执行替换
   const filePaths = searchResults.map((r) => r.filePath);
-  const totalMatches = searchResults.reduce((sum, r) => sum + r.matches.length, 0);
+  const totalMatches = searchResults.reduce(
+    (sum, r) => sum + r.matches.length,
+    0
+  );
 
-  context?.reportStatus(`正在替换 ${filePaths.length} 个文件中的 ${totalMatches} 处匹配...`, 50);
+  context?.reportStatus(
+    `正在替换 ${filePaths.length} 个文件中的 ${totalMatches} 处匹配...`,
+    50
+  );
 
   const replaceRequest: ReplaceRequest = {
     filePaths,
@@ -166,7 +184,9 @@ export async function replaceInDirectory(args: AgentReplaceArgs, context?: ToolC
 
   let result: ReplaceResult;
   try {
-    result = await invoke<ReplaceResult>("dir_replace", { request: replaceRequest });
+    result = await invoke<ReplaceResult>("dir_replace", {
+      request: replaceRequest,
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return `替换执行失败: ${msg}`;
@@ -180,14 +200,20 @@ export async function replaceInDirectory(args: AgentReplaceArgs, context?: ToolC
 /**
  * 格式化搜索结果为 LLM 可读文本
  */
-function formatSearchResults(results: FileSearchResult[], summary: SearchSummary, args: AgentSearchArgs): string {
+function formatSearchResults(
+  results: FileSearchResult[],
+  summary: SearchSummary,
+  args: AgentSearchArgs
+): string {
   const lines: string[] = [];
 
   // 摘要
   lines.push(`## 搜索结果`);
   lines.push("");
   lines.push(`- **搜索目录**: ${args.path}`);
-  lines.push(`- **搜索模式**: \`${args.pattern}\`${args.isRegex ? " (正则)" : ""}`);
+  lines.push(
+    `- **搜索模式**: \`${args.pattern}\`${args.isRegex ? " (正则)" : ""}`
+  );
   lines.push(`- **匹配文件数**: ${summary.filesMatched}`);
   lines.push(`- **总匹配数**: ${summary.totalMatches}`);
   lines.push(`- **扫描文件数**: ${summary.filesScanned}`);
@@ -223,14 +249,18 @@ function formatSearchResults(results: FileSearchResult[], summary: SearchSummary
     }
 
     if (file.matches.length > maxMatchesPerFile) {
-      lines.push(`- ... 还有 ${file.matches.length - maxMatchesPerFile} 处匹配`);
+      lines.push(
+        `- ... 还有 ${file.matches.length - maxMatchesPerFile} 处匹配`
+      );
     }
     lines.push("");
   }
 
   if (truncated) {
     lines.push(`---`);
-    lines.push(`> 结果已截断，仅展示前 ${maxDisplay} 个文件。共 ${results.length} 个文件包含匹配。`);
+    lines.push(
+      `> 结果已截断，仅展示前 ${maxDisplay} 个文件。共 ${results.length} 个文件包含匹配。`
+    );
   }
 
   return lines.join("\n");
@@ -239,12 +269,17 @@ function formatSearchResults(results: FileSearchResult[], summary: SearchSummary
 /**
  * 格式化替换结果
  */
-function formatReplaceResult(result: ReplaceResult, args: AgentReplaceArgs): string {
+function formatReplaceResult(
+  result: ReplaceResult,
+  args: AgentReplaceArgs
+): string {
   const lines: string[] = [];
 
   lines.push(`## 替换完成`);
   lines.push("");
-  lines.push(`- **搜索模式**: \`${args.pattern}\`${args.isRegex ? " (正则)" : ""}`);
+  lines.push(
+    `- **搜索模式**: \`${args.pattern}\`${args.isRegex ? " (正则)" : ""}`
+  );
   lines.push(`- **替换为**: \`${args.replacement}\``);
   lines.push(`- **成功替换文件数**: ${result.filesReplaced}`);
   lines.push(`- **总替换次数**: ${result.totalReplacements}`);

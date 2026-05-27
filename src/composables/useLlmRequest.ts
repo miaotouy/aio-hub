@@ -7,7 +7,11 @@ import { useLlmProfiles } from "./useLlmProfiles";
 import { useLlmKeyManager } from "./useLlmKeyManager";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import type { LlmRequestOptions, LlmResponse, MediaGenerationOptions } from "../llm-apis/common";
+import type {
+  LlmRequestOptions,
+  LlmResponse,
+  MediaGenerationOptions,
+} from "../llm-apis/common";
 import { TimeoutError, isAbortError, isTimeoutError } from "../llm-apis/common";
 import { adapters } from "../llm-apis/adapters";
 import { filterParametersByCapabilities } from "../llm-apis/request-builder";
@@ -31,18 +35,28 @@ export function useLlmRequest() {
   /**
    * 发送 LLM 请求
    */
-  const sendRequest = async (options: LlmRequestOptions | MediaGenerationOptions): Promise<LlmResponse> => {
+  const sendRequest = async (
+    options: LlmRequestOptions | MediaGenerationOptions
+  ): Promise<LlmResponse> => {
     let selectedApiKey: string | undefined;
 
     // 自动包装 prompt 为 messages（仅对非媒体生成请求）
     // 如果是媒体生成请求（带有 prompt 且目标模型有生成能力），我们保持 prompt 独立以便适配器处理
     const isMediaRequest = !!(
       (options as MediaGenerationOptions).prompt &&
-      ((options as any).inputAttachments || (options as any).mask || (options as any).attachments)
+      ((options as any).inputAttachments ||
+        (options as any).mask ||
+        (options as any).attachments)
     );
 
-    if ((options as MediaGenerationOptions).prompt && !options.messages && !isMediaRequest) {
-      options.messages = [{ role: "user", content: (options as MediaGenerationOptions).prompt! }];
+    if (
+      (options as MediaGenerationOptions).prompt &&
+      !options.messages &&
+      !isMediaRequest
+    ) {
+      options.messages = [
+        { role: "user", content: (options as MediaGenerationOptions).prompt! },
+      ];
     }
 
     try {
@@ -56,7 +70,9 @@ export function useLlmRequest() {
       const profile: LlmProfile | undefined = getProfileById(options.profileId);
       if (!profile) {
         const error = new Error(`未找到配置 ID: ${options.profileId}`);
-        errorHandler.error(error, "配置不存在", { context: { profileId: options.profileId } });
+        errorHandler.error(error, "配置不存在", {
+          context: { profileId: options.profileId },
+        });
         throw error;
       }
       // 检查配置是否启用
@@ -125,7 +141,11 @@ export function useLlmRequest() {
       // 自动分发特种请求 (Rerank)
       // Rerank 比较特殊，通常是自定义端点或者特定的 Provider (如 Cohere)
       // 如果是 OpenAI 类型的 Provider 但显式标记了 Rerank 且提供了 rerankQuery
-      if (model.capabilities?.rerank && options.rerankQuery && profile.type === "openai") {
+      if (
+        model.capabilities?.rerank &&
+        options.rerankQuery &&
+        profile.type === "openai"
+      ) {
         // 这里我们可以透传给 callOpenAiCompatibleApi，但需要注意它内部默认拼接了 chat/completions
         // 更好的做法是增加一个 callOpenAiRerankApi 或者让 openAiUrlHandler 处理
         // 鉴于目前是测试用途，我们暂且返回一个模拟成功，或者之后在 adapter 里完善
@@ -155,7 +175,9 @@ export function useLlmRequest() {
             return content.some((item) => hasLocalFileProtocol(item));
           }
           if (content && typeof content === "object") {
-            return Object.values(content).some((val) => hasLocalFileProtocol(val));
+            return Object.values(content).some((val) =>
+              hasLocalFileProtocol(val)
+            );
           }
           return false;
         };
@@ -167,7 +189,11 @@ export function useLlmRequest() {
 
       // 根据 Provider 和 Model 能力智能过滤参数
       // 使用 any 避开 LlmRequestOptions 和 MediaGenerationOptions 之间 responseFormat 的类型冲突
-      let filteredOptions = filterParametersByCapabilities(options, effectiveProfile, model) as any;
+      let filteredOptions = filterParametersByCapabilities(
+        options,
+        effectiveProfile,
+        model
+      ) as any;
 
       // 确保 signal 被透传，filterParametersByCapabilities 可能会漏掉它
       if (options.signal) {
@@ -249,16 +275,42 @@ export function useLlmRequest() {
 
       // 检查是否为强制对话模式 (例如在媒体生成中心中，用户选择了“对话迭代”模式)
       // 或者模型能力中显式指定了偏好 Chat 接口 (如原生多模态生图模型)
-      const forceChatMode = (options as any)._forceChatMode === true || model.capabilities?.preferChat === true;
+      const forceChatMode =
+        (options as any)._forceChatMode === true ||
+        model.capabilities?.preferChat === true;
 
-      if (!forceChatMode && model.capabilities?.videoGeneration && adapter.video) {
-        response = await adapter.video(effectiveProfile, filteredOptions as MediaGenerationOptions);
-      } else if (!forceChatMode && model.capabilities?.imageGeneration && adapter.image) {
-        response = await adapter.image(effectiveProfile, filteredOptions as MediaGenerationOptions);
-      } else if (!forceChatMode && model.capabilities?.audioGeneration && adapter.audio) {
-        response = await adapter.audio(effectiveProfile, filteredOptions as MediaGenerationOptions);
+      if (
+        !forceChatMode &&
+        model.capabilities?.videoGeneration &&
+        adapter.video
+      ) {
+        response = await adapter.video(
+          effectiveProfile,
+          filteredOptions as MediaGenerationOptions
+        );
+      } else if (
+        !forceChatMode &&
+        model.capabilities?.imageGeneration &&
+        adapter.image
+      ) {
+        response = await adapter.image(
+          effectiveProfile,
+          filteredOptions as MediaGenerationOptions
+        );
+      } else if (
+        !forceChatMode &&
+        model.capabilities?.audioGeneration &&
+        adapter.audio
+      ) {
+        response = await adapter.audio(
+          effectiveProfile,
+          filteredOptions as MediaGenerationOptions
+        );
       } else {
-        response = await adapter.chat(effectiveProfile, filteredOptions as LlmRequestOptions);
+        response = await adapter.chat(
+          effectiveProfile,
+          filteredOptions as LlmRequestOptions
+        );
       }
 
       logger.info("LLM 请求成功", {
@@ -297,7 +349,10 @@ export function useLlmRequest() {
         const isTimeout = isTimeoutError(error, options.signal);
 
         if (isTimeout) {
-          const timeoutErr = error instanceof TimeoutError ? error : new TimeoutError("请求超时");
+          const timeoutErr =
+            error instanceof TimeoutError
+              ? error
+              : new TimeoutError("请求超时");
           logger.warn("LLM 请求超时 (通过信号识别)", {
             profileId: options.profileId,
             modelId: options.modelId,
@@ -324,7 +379,10 @@ export function useLlmRequest() {
               ? `${profile.baseUrl}v1/interrupt`
               : `${profile.baseUrl}/v1/interrupt`;
 
-            logger.debug("发送主动停止信号到上游", { requestId: options.requestId, url: interruptUrl });
+            logger.debug("发送主动停止信号到上游", {
+              requestId: options.requestId,
+              url: interruptUrl,
+            });
 
             // 补发停止请求，不等待结果，不使用原有的 signal
             window
@@ -333,14 +391,19 @@ export function useLlmRequest() {
                 headers: {
                   "Content-Type": "application/json",
                   // 如果有 API Key 也带上，虽然 interrupt 通常是内部接口
-                  ...(selectedApiKey ? { Authorization: `Bearer ${selectedApiKey}` } : {}),
+                  ...(selectedApiKey
+                    ? { Authorization: `Bearer ${selectedApiKey}` }
+                    : {}),
                 },
                 body: JSON.stringify({
                   requestId: options.requestId, // 使用 camelCase 匹配上游的参数名
                 }),
               })
               .catch((e) => {
-                logger.warn("发送主动停止信号失败", { error: String(e), requestId: options.requestId });
+                logger.warn("发送主动停止信号失败", {
+                  error: String(e),
+                  requestId: options.requestId,
+                });
               });
           }
         }

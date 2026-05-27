@@ -1,7 +1,7 @@
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
-import { createModuleLogger } from '@utils/logger';
-import { createModuleErrorHandler } from '@utils/errorHandler';
-import { customMessage } from '@utils/customMessage';
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
+import { createModuleLogger } from "@utils/logger";
+import { createModuleErrorHandler } from "@utils/errorHandler";
+import { customMessage } from "@utils/customMessage";
 import {
   startInspectorService,
   stopInspectorService,
@@ -10,20 +10,20 @@ import {
   onRequestEvent,
   onResponseEvent,
   onStreamUpdateEvent,
-  clearAllEventListeners
-} from '../core/proxyService';
-import { useRecordManager } from '../core/recordManager';
-import { useStreamProcessor } from '../core/streamProcessor';
+  clearAllEventListeners,
+} from "../core/proxyService";
+import { useRecordManager } from "../core/recordManager";
+import { useStreamProcessor } from "../core/streamProcessor";
 import {
   loadSettings,
   saveSettings,
-  validateInspectorConfig
-} from '../core/configManager';
-import { maskSensitiveData, copyToClipboard } from '../core/utils';
-import type { InspectorConfig, LlmInspectorSettings } from '../types';
+  validateInspectorConfig,
+} from "../core/configManager";
+import { maskSensitiveData, copyToClipboard } from "../core/utils";
+import type { InspectorConfig, LlmInspectorSettings } from "../types";
 
-const logger = createModuleLogger('LlmInspector/InspectorManager');
-const errorHandler = createModuleErrorHandler('LlmInspector/InspectorManager');
+const logger = createModuleLogger("LlmInspector/InspectorManager");
+const errorHandler = createModuleErrorHandler("LlmInspector/InspectorManager");
 
 /**
  * LLM 检查器管理器组合式函数
@@ -31,11 +31,11 @@ const errorHandler = createModuleErrorHandler('LlmInspector/InspectorManager');
 export function useInspectorManager() {
   // 基础状态
   const isRunning = ref(false);
-  const currentTargetUrl = ref('');
+  const currentTargetUrl = ref("");
   const config = ref<InspectorConfig>({
     port: 8999,
-    target_url: 'https://api.openai.com',
-    header_override_rules: []
+    target_url: "https://api.openai.com",
+    header_override_rules: [],
   });
 
   // UI 状态
@@ -59,14 +59,16 @@ export function useInspectorManager() {
     port: config.value.port,
     targetUrl: currentTargetUrl.value,
     recordCount: recordManager.getRecords().length,
-    activeStreams: streamProcessor.activeStreamCount.value
+    activeStreams: streamProcessor.activeStreamCount.value,
   }));
 
   const canStartInspector = computed(() => {
-    return !isRunning.value &&
+    return (
+      !isRunning.value &&
       config.value.port > 0 &&
       config.value.target_url &&
-      !isLoading.value;
+      !isLoading.value
+    );
   });
 
   const canStopInspector = computed(() => {
@@ -86,7 +88,7 @@ export function useInspectorManager() {
       // 验证配置
       const validation = validateInspectorConfig(config.value);
       if (!validation.valid) {
-        throw new Error(validation.errors.join(', '));
+        throw new Error(validation.errors.join(", "));
       }
 
       await startInspectorService(config.value);
@@ -99,14 +101,16 @@ export function useInspectorManager() {
       // 设置事件监听器
       await setupEventListeners();
 
-      logger.info('代理服务启动成功', {
+      logger.info("代理服务启动成功", {
         port: config.value.port,
-        targetUrl: config.value.target_url
+        targetUrl: config.value.target_url,
       });
-
     } catch (err) {
-      error.value = err instanceof Error ? err.message : '启动失败';
-      errorHandler.handle(err, { userMessage: '启动代理服务失败', showToUser: false });
+      error.value = err instanceof Error ? err.message : "启动失败";
+      errorHandler.handle(err, {
+        userMessage: "启动代理服务失败",
+        showToUser: false,
+      });
       throw err;
     } finally {
       isLoading.value = false;
@@ -124,16 +128,18 @@ export function useInspectorManager() {
 
       await stopInspectorService();
       isRunning.value = false;
-      currentTargetUrl.value = '';
+      currentTargetUrl.value = "";
 
       // 清理事件监听器
       cleanupEventListeners();
 
-      logger.info('代理服务停止成功');
-
+      logger.info("代理服务停止成功");
     } catch (err) {
-      error.value = err instanceof Error ? err.message : '停止失败';
-      errorHandler.handle(err, { userMessage: '停止代理服务失败', showToUser: false });
+      error.value = err instanceof Error ? err.message : "停止失败";
+      errorHandler.handle(err, {
+        userMessage: "停止代理服务失败",
+        showToUser: false,
+      });
       throw err;
     } finally {
       isLoading.value = false;
@@ -155,15 +161,17 @@ export function useInspectorManager() {
       // 添加到历史记录
       addUrlToHistory(config.value.target_url);
 
-      logger.info('代理目标地址更新成功', {
-        newTargetUrl: config.value.target_url
+      logger.info("代理目标地址更新成功", {
+        newTargetUrl: config.value.target_url,
       });
 
-      customMessage.success('代理目标地址已更新');
-
+      customMessage.success("代理目标地址已更新");
     } catch (err) {
-      error.value = err instanceof Error ? err.message : '更新失败';
-      errorHandler.handle(err, { userMessage: '更新代理目标地址失败', showToUser: false });
+      error.value = err instanceof Error ? err.message : "更新失败";
+      errorHandler.handle(err, {
+        userMessage: "更新代理目标地址失败",
+        showToUser: false,
+      });
       throw err;
     } finally {
       isLoading.value = false;
@@ -185,14 +193,16 @@ export function useInspectorManager() {
           await setupEventListeners();
         }
 
-        logger.info('检测到代理服务正在运行', {
+        logger.info("检测到代理服务正在运行", {
           port: status.port,
-          targetUrl: status.target_url
+          targetUrl: status.target_url,
         });
       }
-
     } catch (err) {
-      errorHandler.handle(err, { userMessage: '检查代理状态失败', showToUser: false });
+      errorHandler.handle(err, {
+        userMessage: "检查代理状态失败",
+        showToUser: false,
+      });
       isRunning.value = false;
     }
   }
@@ -214,10 +224,12 @@ export function useInspectorManager() {
         streamProcessor.processStreamUpdate(update);
       });
 
-      logger.debug('事件监听器设置完成');
-
+      logger.debug("事件监听器设置完成");
     } catch (err) {
-      errorHandler.handle(err, { userMessage: '设置事件监听器失败', showToUser: false });
+      errorHandler.handle(err, {
+        userMessage: "设置事件监听器失败",
+        showToUser: false,
+      });
       cleanupEventListeners();
       throw err;
     }
@@ -238,7 +250,7 @@ export function useInspectorManager() {
     }
 
     clearAllEventListeners();
-    logger.debug('事件监听器已清理');
+    logger.debug("事件监听器已清理");
   }
 
   // 配置管理
@@ -248,19 +260,21 @@ export function useInspectorManager() {
       config.value = settings.config;
       recordManager.updateFilterOptions({
         searchQuery: settings.searchQuery,
-        filterStatus: settings.filterStatus
+        filterStatus: settings.filterStatus,
       });
       maskApiKeys.value = settings.maskApiKeys ?? true;
       targetUrlHistory.value = settings.targetUrlHistory || [];
 
-      logger.info('配置加载成功', {
+      logger.info("配置加载成功", {
         port: settings.config.port,
         targetUrl: settings.config.target_url,
-        historyCount: targetUrlHistory.value.length
+        historyCount: targetUrlHistory.value.length,
       });
-
     } catch (err) {
-      errorHandler.handle(err, { userMessage: '加载配置失败', showToUser: false });
+      errorHandler.handle(err, {
+        userMessage: "加载配置失败",
+        showToUser: false,
+      });
       throw err;
     }
   }
@@ -272,25 +286,27 @@ export function useInspectorManager() {
         searchQuery: recordManager.getFilterOptions().searchQuery,
         filterStatus: recordManager.getFilterOptions().filterStatus,
         maskApiKeys: maskApiKeys.value,
-        targetUrlHistory: targetUrlHistory.value
+        targetUrlHistory: targetUrlHistory.value,
       };
 
       await saveSettings(settings);
-      logger.debug('配置已保存');
-
+      logger.debug("配置已保存");
     } catch (err) {
-      errorHandler.handle(err, { userMessage: '保存配置失败', showToUser: false });
+      errorHandler.handle(err, {
+        userMessage: "保存配置失败",
+        showToUser: false,
+      });
       throw err;
     }
   }
 
   // 复制功能
-  async function copyWithMask(text: string, message: string = '已复制') {
+  async function copyWithMask(text: string, message: string = "已复制") {
     try {
       const textToCopy = maskApiKeys.value ? maskSensitiveData(text) : text;
       await copyToClipboard(textToCopy, message);
     } catch (err) {
-      error.value = err instanceof Error ? err.message : '复制失败';
+      error.value = err instanceof Error ? err.message : "复制失败";
       throw err;
     }
   }
@@ -308,29 +324,39 @@ export function useInspectorManager() {
 
     history.unshift(url);
     targetUrlHistory.value = history.slice(0, 10);
-    logger.debug('已添加到历史记录', { url });
+    logger.debug("已添加到历史记录", { url });
   }
 
   // 清理功能
   function clearRecords() {
     recordManager.clearAllRecords();
     streamProcessor.clearAllStreamBuffers();
-    logger.info('已清空所有记录和缓冲');
+    logger.info("已清空所有记录和缓冲");
   }
 
   // 监听配置变化并自动保存
-  watch([config, maskApiKeys, targetUrlHistory], () => {
-    saveConfig().catch(err =>
-      errorHandler.handle(err, { userMessage: '自动保存配置失败', showToUser: false })
-    );
-  }, { deep: true });
+  watch(
+    [config, maskApiKeys, targetUrlHistory],
+    () => {
+      saveConfig().catch((err) =>
+        errorHandler.handle(err, {
+          userMessage: "自动保存配置失败",
+          showToUser: false,
+        })
+      );
+    },
+    { deep: true }
+  );
 
   // 监听过滤选项变化并自动保存
   watch(
     () => recordManager.getFilterOptions(),
     () => {
-      saveConfig().catch(err =>
-        errorHandler.handle(err, { userMessage: '自动保存过滤选项失败', showToUser: false })
+      saveConfig().catch((err) =>
+        errorHandler.handle(err, {
+          userMessage: "自动保存过滤选项失败",
+          showToUser: false,
+        })
       );
     },
     { deep: true }
@@ -393,6 +419,8 @@ export function useInspectorManager() {
     canShowTextMode: streamProcessor.canShowTextMode,
 
     // 工具方法
-    clearError: () => { error.value = null; }
+    clearError: () => {
+      error.value = null;
+    },
   };
 }

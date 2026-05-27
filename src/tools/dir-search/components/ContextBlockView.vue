@@ -15,9 +15,13 @@
           'context-block-view__line--context': line.matchInfo === null,
         }"
         @click="line.matchInfo && $emit('selectMatch', line.lineNumber)"
-        @contextmenu="line.matchInfo && $emit('contextmenu', $event, line.lineNumber)"
+        @contextmenu="
+          line.matchInfo && $emit('contextmenu', $event, line.lineNumber)
+        "
       >
-        <span class="context-block-view__line-number">{{ line.lineNumber }}</span>
+        <span class="context-block-view__line-number">{{
+          line.lineNumber
+        }}</span>
         <el-tooltip
           :content="line.content"
           :show-after="500"
@@ -27,9 +31,14 @@
         >
           <span class="context-block-view__line-content">
             <template v-if="line.matchInfo">
-              <span>{{ line.content.slice(0, line.matchInfo.matchStart) }}</span>
+              <span>{{
+                line.content.slice(0, line.matchInfo.matchStart)
+              }}</span>
               <span class="context-block-view__highlight">{{
-                line.content.slice(line.matchInfo.matchStart, line.matchInfo.matchEnd)
+                line.content.slice(
+                  line.matchInfo.matchStart,
+                  line.matchInfo.matchEnd
+                )
               }}</span>
               <span>{{ line.content.slice(line.matchInfo.matchEnd) }}</span>
             </template>
@@ -89,7 +98,10 @@ defineEmits<{
 }
 
 .context-block-view__line--match:hover {
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.06));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.06)
+  );
 }
 
 .context-block-view__line--context {
@@ -115,7 +127,10 @@ defineEmits<{
 
 .context-block-view__highlight {
   color: var(--el-color-primary);
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.15));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.15)
+  );
   border-radius: 2px;
   padding: 0 1px;
 }

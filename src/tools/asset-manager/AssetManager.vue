@@ -23,15 +23,16 @@
     <!-- 重建索引进度条 -->
     <div v-if="rebuildProgress.total > 0" class="progress-container">
       <el-progress
-        :percentage="Math.round((rebuildProgress.current / rebuildProgress.total) * 100)"
+        :percentage="
+          Math.round((rebuildProgress.current / rebuildProgress.total) * 100)
+        "
         :stroke-width="12"
         striped
         striped-flow
       >
         <span
-          >重建索引: {{ rebuildProgress.current }} / {{ rebuildProgress.total }} ({{
-            rebuildProgress.currentType
-          }})</span
+          >重建索引: {{ rebuildProgress.current }} /
+          {{ rebuildProgress.total }} ({{ rebuildProgress.currentType }})</span
         >
       </el-progress>
     </div>
@@ -39,7 +40,11 @@
     <!-- 主体区域 -->
     <el-container class="main-container">
       <!-- 左侧边栏 -->
-      <el-aside v-if="!isSidebarCollapsed" width="220px" class="sidebar-container">
+      <el-aside
+        v-if="!isSidebarCollapsed"
+        width="220px"
+        class="sidebar-container"
+      >
         <Sidebar
           v-model:selected-type="listPayload.filterType"
           v-model:selected-source-module="listPayload.filterSourceModule"
@@ -67,7 +72,10 @@
         </el-alert>
 
         <!-- 空状态 -->
-        <el-empty v-else-if="assets.length === 0" description="还没有任何资产" />
+        <el-empty
+          v-else-if="assets.length === 0"
+          description="还没有任何资产"
+        />
 
         <!-- 资产分组视图 -->
         <template v-else>
@@ -123,7 +131,10 @@ import { invoke } from "@tauri-apps/api/core";
 import { join } from "@tauri-apps/api/path";
 import { Loading } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
-import { useAssetManager, assetManagerEngine } from "@/composables/useAssetManager";
+import {
+  useAssetManager,
+  assetManagerEngine,
+} from "@/composables/useAssetManager";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { useVideoViewer } from "@/composables/useVideoViewer";
 import { useAudioViewer } from "@/composables/useAudioViewer";
@@ -137,7 +148,11 @@ import type {
   AssetSortBy,
 } from "@/types/asset-management";
 import { useInfiniteScroll, useDebounceFn } from "@vueuse/core";
-import { assetManagerConfigManager, debouncedSaveConfig, createDefaultConfig } from "./config";
+import {
+  assetManagerConfigManager,
+  debouncedSaveConfig,
+  createDefaultConfig,
+} from "./config";
 import Toolbar from "./components/Toolbar.vue";
 import Sidebar from "./components/Sidebar.vue";
 import AssetGroup from "./components/AssetGroup.vue";
@@ -306,7 +321,9 @@ const totalSize = computed(() => assetStats.value.totalSize);
 const typeCounts = computed(() => assetStats.value.typeCounts);
 
 // 使用后端提供的全局来源模块统计
-const sourceModuleCounts = computed(() => assetStats.value.sourceModuleCounts || {});
+const sourceModuleCounts = computed(
+  () => assetStats.value.sourceModuleCounts || {}
+);
 const originCounts = computed(() => assetStats.value.originCounts || {});
 
 // 事件处理
@@ -399,7 +416,9 @@ const handleAssetSelection = (asset: Asset, event: MouseEvent) => {
   const currentIds = new Set(selectedAssetIds.value);
 
   if (event.shiftKey && lastSelectedAssetId.value) {
-    const lastIndex = assets.value.findIndex((a) => a.id === lastSelectedAssetId.value);
+    const lastIndex = assets.value.findIndex(
+      (a) => a.id === lastSelectedAssetId.value
+    );
     const currentIndex = assets.value.findIndex((a) => a.id === assetId);
 
     if (lastIndex !== -1 && currentIndex !== -1) {
@@ -443,7 +462,7 @@ const handleDeleteSelected = async () => {
         cancelButtonText: "取消",
         type: "warning",
         lockScroll: false,
-      },
+      }
     );
 
     // 使用新的批量完全删除命令
@@ -474,7 +493,9 @@ const handleDeleteSelected = async () => {
     if (failedIds.length === 0) {
       customMessage.success(`已成功删除 ${successIds.length} 个资产`);
     } else {
-      customMessage.warning(`已删除 ${successIds.length} 个资产，${failedIds.length} 个失败`);
+      customMessage.warning(
+        `已删除 ${successIds.length} 个资产，${failedIds.length} 个失败`
+      );
     }
   } catch (err) {
     // 用户取消操作
@@ -520,11 +541,16 @@ const handleSelectRedundantDuplicates = () => {
       .filter((id) => allAssetIds.has(id)); // 确保文件仍在当前列表中
 
     // 找到这些 ID 对应的 Asset 对象
-    const groupAssets = assets.value.filter((asset) => groupAssetIds.includes(asset.id));
+    const groupAssets = assets.value.filter((asset) =>
+      groupAssetIds.includes(asset.id)
+    );
 
     // 按创建时间排序，保留最新的一个
     if (groupAssets.length > 1) {
-      groupAssets.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      groupAssets.sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
 
       // 第一个之后的所有文件都视为多余副本
       for (let i = 1; i < groupAssets.length; i++) {
@@ -539,7 +565,9 @@ const handleSelectRedundantDuplicates = () => {
   }
 
   selectedAssetIds.value = idsToSelect;
-  customMessage.success(`已自动选中 ${idsToSelect.size} 个多余的重复文件，请确认后删除。`);
+  customMessage.success(
+    `已自动选中 ${idsToSelect.size} 个多余的重复文件，请确认后删除。`
+  );
 };
 
 // --- 分组逻辑 ---

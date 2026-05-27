@@ -4,7 +4,11 @@
  * URL 构建、请求头构建、响应解析等通用工具。
  */
 
-import { fetchWithTimeout, ensureResponseOk, type LlmResponse } from "@/llm-apis/common";
+import {
+  fetchWithTimeout,
+  ensureResponseOk,
+  type LlmResponse,
+} from "@/llm-apis/common";
 import type { SunoClientConfig, SunoClipInfo } from "./types";
 
 /** Suno API 默认路径 */
@@ -51,7 +55,9 @@ export function buildSunoUrl(baseUrl: string, path: string): string {
  * @param config - 客户端配置
  * @returns 请求头对象
  */
-export function buildSunoHeaders(config: SunoClientConfig): Record<string, string> {
+export function buildSunoHeaders(
+  config: SunoClientConfig
+): Record<string, string> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${config.apiKey}`,
@@ -105,7 +111,12 @@ export async function sunoFetch<T>(
     fetchOptions.body = JSON.stringify(body);
   }
 
-  const response = await fetchWithTimeout(url, fetchOptions, timeout, config.signal);
+  const response = await fetchWithTimeout(
+    url,
+    fetchOptions,
+    timeout,
+    config.signal
+  );
 
   await ensureResponseOk(response);
 
@@ -186,9 +197,15 @@ export const sunoNewApiUrlHandler = {
  * @param taskId - 任务 ID
  * @returns 标准化的 LlmResponse
  */
-export function clipsToLlmResponse(clips: SunoClipInfo[], _taskId?: string): LlmResponse {
+export function clipsToLlmResponse(
+  clips: SunoClipInfo[],
+  _taskId?: string
+): LlmResponse {
   const titles = clips.map((c) => c.title).filter(Boolean);
-  const summary = titles.length > 0 ? `🎵 ${titles.join(" / ")}` : "Music generated successfully.";
+  const summary =
+    titles.length > 0
+      ? `🎵 ${titles.join(" / ")}`
+      : "Music generated successfully.";
 
   return {
     content: summary,

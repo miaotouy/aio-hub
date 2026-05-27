@@ -1,5 +1,9 @@
 <template>
-  <div class="video-node-container" :class="{ 'is-streaming': isStreaming }" :title="title">
+  <div
+    class="video-node-container"
+    :class="{ 'is-streaming': isStreaming }"
+    :title="title"
+  >
     <VideoPlayer
       :src="resolvedSrc"
       :title="displayTitle"

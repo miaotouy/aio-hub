@@ -13,7 +13,7 @@ export function convertConfig(
   input: string,
   from: ConfigFormat,
   to: ConfigFormat,
-  options: ConvertOptions = {},
+  options: ConvertOptions = {}
 ): ConvertResult {
   const warnings: string[] = [];
 

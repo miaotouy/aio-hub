@@ -88,9 +88,11 @@ export default class DirectoryTreeRegistry implements ToolRegistry {
       showSize: args.showSize === true || args.showSize === "true",
       showDirSize: args.showDirSize === true || args.showDirSize === "true",
       maxDepth: args.maxDepth !== undefined ? Number(args.maxDepth) : 5,
-      filterMode: (args.filterMode as GenerateTreeOptions["filterMode"]) || "none",
+      filterMode:
+        (args.filterMode as GenerateTreeOptions["filterMode"]) || "none",
       customPattern: String(args.customPattern || ""),
-      includeMetadata: args.includeMetadata === true || args.includeMetadata === "true",
+      includeMetadata:
+        args.includeMetadata === true || args.includeMetadata === "true",
     };
     const result = await generateTree(options);
     return renderTree(
@@ -162,14 +164,16 @@ export default class DirectoryTreeRegistry implements ToolRegistry {
             {
               name: "filterMode",
               type: "'none' | 'gitignore' | 'custom' | 'both'",
-              description: "过滤模式：none-不过滤，gitignore-使用.gitignore规则，custom-自定义规则，both-同时使用两者",
+              description:
+                "过滤模式：none-不过滤，gitignore-使用.gitignore规则，custom-自定义规则，both-同时使用两者",
               required: false,
               defaultValue: "none",
             },
             {
               name: "customPattern",
               type: "string",
-              description: "自定义过滤规则（当 filterMode 为 custom 或 both 时使用，支持 glob 模式）",
+              description:
+                "自定义过滤规则（当 filterMode 为 custom 或 both 时使用，支持 glob 模式）",
               required: false,
             },
             {

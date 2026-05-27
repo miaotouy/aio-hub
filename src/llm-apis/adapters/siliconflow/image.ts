@@ -43,8 +43,10 @@ export async function callSiliconFlowImageApi(
   if (negativePrompt) body.negative_prompt = negativePrompt;
   // 硅基流动 seed 必须是正整数，-1 代表随机，但最好直接不传让服务端处理
   if (seed !== undefined && seed !== null && seed !== -1) body.seed = seed;
-  if (numInferenceSteps !== undefined && numInferenceSteps !== null) body.num_inference_steps = numInferenceSteps;
-  if (guidanceScale !== undefined && guidanceScale !== null) body.guidance_scale = guidanceScale;
+  if (numInferenceSteps !== undefined && numInferenceSteps !== null)
+    body.num_inference_steps = numInferenceSteps;
+  if (guidanceScale !== undefined && guidanceScale !== null)
+    body.guidance_scale = guidanceScale;
 
   // 根据文档，Qwen-Image-Edit 系列不支持 image_size 字段
   const isQwenEdit = modelId.includes("Qwen-Image-Edit");
@@ -79,7 +81,10 @@ export async function callSiliconFlowImageApi(
     }
   }
 
-  logger.info("发送 SiliconFlow 图片生成请求", { url, body: { ...body, image: body.image ? "(image data)" : undefined } });
+  logger.info("发送 SiliconFlow 图片生成请求", {
+    url,
+    body: { ...body, image: body.image ? "(image data)" : undefined },
+  });
 
   const response = await fetchWithTimeout(
     url,
@@ -106,7 +111,10 @@ export async function callSiliconFlowImageApi(
   }));
 
   return {
-    content: images.length > 0 ? `Generated ${images.length} images.` : "No images generated.",
+    content:
+      images.length > 0
+        ? `Generated ${images.length} images.`
+        : "No images generated.",
     images,
     seed: data.seed,
     timings: data.timings,

@@ -15,14 +15,21 @@
     >
       <span class="result-item__content">
         <template v-for="(part, idx) in highlightParts" :key="idx">
-          <span v-if="part.isMatch" class="result-item__highlight">{{ part.text }}</span>
+          <span v-if="part.isMatch" class="result-item__highlight">{{
+            part.text
+          }}</span>
           <span v-else>{{ part.text }}</span>
         </template>
       </span>
     </el-tooltip>
     <!-- 悬停操作图标 -->
     <span class="result-item__actions">
-      <el-tooltip v-if="showReplace" content="替换此匹配" placement="top" :show-after="500">
+      <el-tooltip
+        v-if="showReplace"
+        content="替换此匹配"
+        placement="top"
+        :show-after="500"
+      >
         <Replace
           :size="16"
           class="result-item__action-icon"
@@ -62,7 +69,10 @@ const tooltipContent = computed(() => {
   const content = props.match.lineContent;
   const MAX_LENGTH = 300;
   if (content.length <= MAX_LENGTH) return content;
-  return content.slice(0, MAX_LENGTH) + `... (省略 ${content.length - MAX_LENGTH} 字符)`;
+  return (
+    content.slice(0, MAX_LENGTH) +
+    `... (省略 ${content.length - MAX_LENGTH} 字符)`
+  );
 });
 
 const highlightParts = computed<HighlightPart[]>(() => {
@@ -109,11 +119,17 @@ const highlightParts = computed<HighlightPart[]>(() => {
 }
 
 .result-item:hover {
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.06));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.06)
+  );
 }
 
 .result-item.selected {
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.1));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
 }
 
 .result-item__line-number {
@@ -137,7 +153,10 @@ const highlightParts = computed<HighlightPart[]>(() => {
 
 .result-item__highlight {
   color: var(--el-color-primary);
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.15));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.15)
+  );
   border-radius: 2px;
   padding: 0 1px;
 }

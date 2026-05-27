@@ -56,7 +56,9 @@
         <el-tooltip content="删除已选中的资产文件" placement="bottom">
           <el-button type="danger" plain @click="emit('deleteSelected')">
             <el-icon><Delete /></el-icon>
-            <span v-if="layoutMode !== 'compact'">删除选中 ({{ props.selectedCount }})</span>
+            <span v-if="layoutMode !== 'compact'"
+              >删除选中 ({{ props.selectedCount }})</span
+            >
             <span v-else>({{ props.selectedCount }})</span>
           </el-button>
         </el-tooltip>
@@ -196,7 +198,9 @@ const emit = defineEmits<{
   "update:viewMode": [value: "grid" | "list"];
   "update:searchQuery": [value: string];
   "update:sortBy": [value: "name" | "date" | "size"];
-  "update:groupBy": [value: "month" | "type" | "origin" | "source-module" | "none"];
+  "update:groupBy": [
+    value: "month" | "type" | "origin" | "source-module" | "none",
+  ];
   "update:gridCardSize": [value: "large" | "medium" | "small"];
   rebuildIndex: [];
   findDuplicates: [];
@@ -281,7 +285,9 @@ const handleSortChange = (value: "name" | "date" | "size") => {
   emit("update:sortBy", value);
 };
 
-const handleGroupByChange = (value: "month" | "type" | "origin" | "source-module" | "none") => {
+const handleGroupByChange = (
+  value: "month" | "type" | "origin" | "source-module" | "none"
+) => {
   emit("update:groupBy", value);
 };
 

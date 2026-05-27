@@ -36,7 +36,11 @@ export class DanmakuEngine {
   /** 预计算的密度哈希值，key 为弹幕 id */
   private danmakuHashMap = new Map<string, number>();
 
-  constructor(canvas: HTMLCanvasElement, config: DanmakuConfig, scriptInfo: AssScriptInfo) {
+  constructor(
+    canvas: HTMLCanvasElement,
+    config: DanmakuConfig,
+    scriptInfo: AssScriptInfo
+  ) {
     this.canvas = canvas;
     const context = canvas.getContext("2d", { alpha: true });
     if (!context) throw new Error("Canvas context not available");
@@ -118,7 +122,10 @@ export class DanmakuEngine {
       }
 
       // 屏蔽词（仅在有屏蔽词时检查）
-      if (this.config.blockKeywords.length > 0 && this.config.blockKeywords.some((kw) => dm.text.includes(kw)))
+      if (
+        this.config.blockKeywords.length > 0 &&
+        this.config.blockKeywords.some((kw) => dm.text.includes(kw))
+      )
         continue;
 
       // 计算位置（内联减少函数调用）
@@ -126,7 +133,8 @@ export class DanmakuEngine {
 
       if (dm.type === "scroll" && dm.x2 !== undefined && dm.y2 !== undefined) {
         const startTimeMs = dm.startTime * 1000 + (dm.t1 || 0);
-        const endTimeMs = dm.startTime * 1000 + (dm.t2 || (dm.endTime - dm.startTime) * 1000);
+        const endTimeMs =
+          dm.startTime * 1000 + (dm.t2 || (dm.endTime - dm.startTime) * 1000);
         const adjustedDuration = (endTimeMs - startTimeMs) / this.config.speed;
         const elapsed = currentTime * 1000 - startTimeMs;
 

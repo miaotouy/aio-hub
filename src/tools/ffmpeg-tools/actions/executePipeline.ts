@@ -3,7 +3,13 @@
  */
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { basename, dirname, extname, join, appDataDir } from "@tauri-apps/api/path";
+import {
+  basename,
+  dirname,
+  extname,
+  join,
+  appDataDir,
+} from "@tauri-apps/api/path";
 import { useFFmpegStore } from "../ffmpegStore";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -11,7 +17,9 @@ import type { ToolContext } from "@/services/types";
 import type { FFmpegParams, FFmpegProgress } from "../types";
 
 const logger = createModuleLogger("ffmpeg-tools/actions/executePipeline");
-const errorHandler = createModuleErrorHandler("ffmpeg-tools/actions/executePipeline");
+const errorHandler = createModuleErrorHandler(
+  "ffmpeg-tools/actions/executePipeline"
+);
 
 export interface PipelineStep {
   /** 步骤名称（用于进度显示） */
@@ -44,7 +52,10 @@ export interface ExecutePipelineArgs {
 /**
  * 生成临时文件路径
  */
-async function generateTempPath(stepIndex: number, ext: string): Promise<string> {
+async function generateTempPath(
+  stepIndex: number,
+  ext: string
+): Promise<string> {
   const appData = await appDataDir();
   const tempDir = await join(appData, "ffmpeg-temp");
   // 确保临时目录存在
@@ -69,27 +80,46 @@ async function cleanupTempFiles(paths: string[]): Promise<void> {
   }
 }
 
-export async function executePipeline(args: ExecutePipelineArgs, context?: ToolContext): Promise<string> {
-  const { steps, pipelineName = "FFmpeg 管道", cleanupIntermediates = true } = args;
+export async function executePipeline(
+  args: ExecutePipelineArgs,
+  context?: ToolContext
+): Promise<string> {
+  const {
+    steps,
+    pipelineName = "FFmpeg 管道",
+    cleanupIntermediates = true,
+  } = args;
 
   // 参数验证
   if (!steps || !Array.isArray(steps) || steps.length === 0) {
-    return JSON.stringify({ success: false, error: "缺少必需参数: steps（管道步骤列表）" });
+    return JSON.stringify({
+      success: false,
+      error: "缺少必需参数: steps（管道步骤列表）",
+    });
   }
 
   if (steps[0].inputPath === "$prev") {
-    return JSON.stringify({ success: false, error: "第一步的 inputPath 不能是 $prev" });
+    return JSON.stringify({
+      success: false,
+      error: "第一步的 inputPath 不能是 $prev",
+    });
   }
 
   for (let i = 0; i < steps.length; i++) {
     const step = steps[i];
     if (!step.args || !Array.isArray(step.args) || step.args.length === 0) {
-      return JSON.stringify({ success: false, error: `步骤 ${i + 1} (${step.name}) 缺少 args 参数` });
+      return JSON.stringify({
+        success: false,
+        error: `步骤 ${i + 1} (${step.name}) 缺少 args 参数`,
+      });
     }
   }
 
   if (!context?.isAsync) {
-    return JSON.stringify({ success: false, error: "此方法必须作为异步任务执行" });
+    return JSON.stringify({
+      success: false,
+      error: "此方法必须作为异步任务执行",
+    });
   }
 
   const result = await errorHandler.wrapAsync(
@@ -97,17 +127,33 @@ export async function executePipeline(args: ExecutePipelineArgs, context?: ToolC
       const store = useFFmpegStore();
       const startTime = Date.now();
       const intermediateFiles: string[] = [];
-      const stepResults: Array<{ name: string; status: string; outputPath?: string; error?: string }> = [];
+      const stepResults: Array<{
+        name: string;
+        status: string;
+        outputPath?: string;
+        error?: string;
+      }> = [];
       let prevOutputPath = "";
 
       // 验证第一步输入文件存在
-      const firstInputExists = await invoke<boolean>("path_exists", { path: steps[0].inputPath });
+      const firstInputExists = await invoke<boolean>("path_exists", {
+        path: steps[0].inputPath,
+      });
       if (!firstInputExists) {
-        return JSON.stringify({ success: false, error: `输入文件不存在: ${steps[0].inputPath}` });
+        return JSON.stringify({
+          success: false,
+          error: `输入文件不存在: ${steps[0].inputPath}`,
+        });
       }
 
-      context.reportStatus(`开始执行管道: ${pipelineName} (${steps.length} 步)`, 0);
-      logger.info("Agent 启动 FFmpeg 管道", { pipelineName, stepCount: steps.length });
+      context.reportStatus(
+        `开始执行管道: ${pipelineName} (${steps.length} 步)`,
+        0
+      );
+      logger.info("Agent 启动 FFmpeg 管道", {
+        pipelineName,
+        stepCount: steps.length,
+      });
 
       for (let i = 0; i < steps.length; i++) {
         const step = steps[i];
@@ -125,9 +171,14 @@ export async function executePipeline(args: ExecutePipelineArgs, context?: ToolC
         }
 
         // 解析输入路径
-        const inputPath = step.inputPath === "$prev" ? prevOutputPath : step.inputPath;
+        const inputPath =
+          step.inputPath === "$prev" ? prevOutputPath : step.inputPath;
         if (!inputPath) {
-          stepResults.push({ name: step.name, status: "failed", error: "输入路径为空" });
+          stepResults.push({
+            name: step.name,
+            status: "failed",
+            error: "输入路径为空",
+          });
           break;
         }
 
@@ -171,36 +222,44 @@ export async function executePipeline(args: ExecutePipelineArgs, context?: ToolC
         const stepProgress = (percent: number) => {
           // 计算整体进度：每步占 100/totalSteps 的比例
           const stepWeight = 100 / steps.length;
-          const overallPercent = Math.floor(i * stepWeight + (percent / 100) * stepWeight);
+          const overallPercent = Math.floor(
+            i * stepWeight + (percent / 100) * stepWeight
+          );
           context.reportStatus(
             `步骤 ${i + 1}/${steps.length}: ${step.name} (${percent.toFixed(1)}%)`,
-            overallPercent,
+            overallPercent
           );
         };
 
         stepProgress(0);
 
         // 监听进度
-        const unlistenProgress = await listen<{ taskId: string; progress: FFmpegProgress }>(
-          "ffmpeg-progress",
-          (event) => {
-            if (event.payload.taskId === task.id) {
-              const p = event.payload.progress;
-              store.updateTaskProgress(task.id, p);
-              stepProgress(p.percent);
-            }
-          },
-        );
-
-        const unlistenLog = await listen<{ taskId: string; message: string }>("ffmpeg-log", (event) => {
+        const unlistenProgress = await listen<{
+          taskId: string;
+          progress: FFmpegProgress;
+        }>("ffmpeg-progress", (event) => {
           if (event.payload.taskId === task.id) {
-            store.addTaskLog(task.id, event.payload.message);
+            const p = event.payload.progress;
+            store.updateTaskProgress(task.id, p);
+            stepProgress(p.percent);
           }
         });
 
+        const unlistenLog = await listen<{ taskId: string; message: string }>(
+          "ffmpeg-log",
+          (event) => {
+            if (event.payload.taskId === task.id) {
+              store.addTaskLog(task.id, event.payload.message);
+            }
+          }
+        );
+
         try {
           store.updateTask(task.id, { status: "processing" });
-          store.addTaskLog(task.id, `[Pipeline] 步骤 ${i + 1}/${steps.length}: ${step.name}`);
+          store.addTaskLog(
+            task.id,
+            `[Pipeline] 步骤 ${i + 1}/${steps.length}: ${step.name}`
+          );
           store.addTaskLog(task.id, `[Pipeline] 参数: ${step.args.join(" ")}`);
 
           const outputResult = await invoke<string>("process_media", {
@@ -208,9 +267,16 @@ export async function executePipeline(args: ExecutePipelineArgs, context?: ToolC
             params,
           });
 
-          store.updateTask(task.id, { status: "completed", outputPath: outputResult });
+          store.updateTask(task.id, {
+            status: "completed",
+            outputPath: outputResult,
+          });
           prevOutputPath = outputResult;
-          stepResults.push({ name: step.name, status: "completed", outputPath: outputResult });
+          stepResults.push({
+            name: step.name,
+            status: "completed",
+            outputPath: outputResult,
+          });
           stepProgress(100);
         } catch (error: any) {
           if (error.name === "AbortError") {
@@ -229,7 +295,11 @@ export async function executePipeline(args: ExecutePipelineArgs, context?: ToolC
           const errorMsg = error?.toString() || "未知错误";
           store.updateTask(task.id, { status: "failed", error: errorMsg });
           store.addTaskLog(task.id, `[Error] ${errorMsg}`);
-          stepResults.push({ name: step.name, status: "failed", error: errorMsg });
+          stepResults.push({
+            name: step.name,
+            status: "failed",
+            error: errorMsg,
+          });
 
           // 管道中断
           logger.error("管道步骤失败", error, { step: i, stepName: step.name });
@@ -247,15 +317,21 @@ export async function executePipeline(args: ExecutePipelineArgs, context?: ToolC
       }
 
       // 构建结果
-      const completedSteps = stepResults.filter((r) => r.status === "completed").length;
+      const completedSteps = stepResults.filter(
+        (r) => r.status === "completed"
+      ).length;
       const totalSteps = steps.length;
       const allSuccess = completedSteps === totalSteps;
       const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-      const finalOutputPath = allSuccess ? stepResults[stepResults.length - 1]?.outputPath : undefined;
+      const finalOutputPath = allSuccess
+        ? stepResults[stepResults.length - 1]?.outputPath
+        : undefined;
 
       context.reportStatus(
-        allSuccess ? "管道处理完成" : `管道处理中断: ${completedSteps}/${totalSteps} 步完成`,
-        allSuccess ? 100 : Math.floor((completedSteps / totalSteps) * 100),
+        allSuccess
+          ? "管道处理完成"
+          : `管道处理中断: ${completedSteps}/${totalSteps} 步完成`,
+        allSuccess ? 100 : Math.floor((completedSteps / totalSteps) * 100)
       );
 
       return JSON.stringify(
@@ -272,10 +348,10 @@ export async function executePipeline(args: ExecutePipelineArgs, context?: ToolC
           stepResults,
         },
         null,
-        2,
+        2
       );
     },
-    { userMessage: "执行 FFmpeg 管道失败" },
+    { userMessage: "执行 FFmpeg 管道失败" }
   );
 
   return result ?? JSON.stringify({ success: false, error: "管道执行失败" });

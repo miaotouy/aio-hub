@@ -2,7 +2,13 @@
 import { computed } from "vue";
 import { formatDistanceToNow } from "date-fns";
 import { zhCN } from "date-fns/locale";
-import { MoreHorizontal, Edit2, Trash2, FileJson, FileText } from "lucide-vue-next";
+import {
+  MoreHorizontal,
+  Edit2,
+  Trash2,
+  FileJson,
+  FileText,
+} from "lucide-vue-next";
 import type { CookieProfile } from "../../types";
 
 interface Props {
@@ -22,7 +28,9 @@ const emit = defineEmits<{
 
 const hasExpiredCookies = computed(() => {
   const now = new Date();
-  return props.profile.cookies.some((c) => c.expires && new Date(c.expires) < now);
+  return props.profile.cookies.some(
+    (c) => c.expires && new Date(c.expires) < now
+  );
 });
 
 const lastUsedText = computed(() => {
@@ -61,7 +69,10 @@ function handleExportNetscape() {
 <template>
   <div
     class="profile-card"
-    :class="{ 'is-active': isActive, 'has-expired': hasExpiredCookies && !isActive }"
+    :class="{
+      'is-active': isActive,
+      'has-expired': hasExpiredCookies && !isActive,
+    }"
     role="button"
     :aria-pressed="isActive"
     :aria-label="`${profile.name}，${isActive ? '已激活' : '未激活'}`"
@@ -72,7 +83,12 @@ function handleExportNetscape() {
       <span class="radio-indicator" :class="{ active: isActive }">
         {{ isActive ? "◉" : "○" }}
       </span>
-      <span v-if="hasExpiredCookies" class="expired-badge" title="有 Cookie 已过期">⚠️</span>
+      <span
+        v-if="hasExpiredCookies"
+        class="expired-badge"
+        title="有 Cookie 已过期"
+        >⚠️</span
+      >
       <div class="card-actions" @click.stop>
         <el-dropdown trigger="click" placement="bottom-end">
           <div>
@@ -94,7 +110,11 @@ function handleExportNetscape() {
                 <FileText :size="12" class="dropdown-icon" />
                 导出 Netscape
               </el-dropdown-item>
-              <el-dropdown-item divided class="danger-item" @click="handleDelete">
+              <el-dropdown-item
+                divided
+                class="danger-item"
+                @click="handleDelete"
+              >
                 <Trash2 :size="12" class="dropdown-icon" />
                 删除
               </el-dropdown-item>

@@ -162,7 +162,10 @@ export type WindowMessage =
 /**
  * 消息处理器
  */
-export type MessageHandler<T = any> = (payload: T, message: BaseMessage<T>) => void | Promise<void>;
+export type MessageHandler<T = any> = (
+  payload: T,
+  message: BaseMessage<T>
+) => void | Promise<void>;
 
 /**
  * 取消监听函数
@@ -172,12 +175,19 @@ export type UnlistenFn = () => void;
 /**
  * 连接事件处理器
  */
-export type ConnectionHandler = (windowLabel: string, windowInfo: WindowInfo) => void;
+export type ConnectionHandler = (
+  windowLabel: string,
+  windowInfo: WindowInfo
+) => void;
 
 /**
  * 操作处理器（主窗口使用）
  */
-export type ActionHandler = (action: string, params: any, requestId: string) => Promise<any>;
+export type ActionHandler = (
+  action: string,
+  params: any,
+  requestId: string
+) => Promise<any>;
 
 /**
  * 初始状态请求处理器（主窗口使用）

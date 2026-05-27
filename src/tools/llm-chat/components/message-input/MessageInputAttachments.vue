@@ -51,7 +51,11 @@ const handleClear = async () => {
     </div>
     <!-- 附件数量浮动显示 -->
     <div class="attachments-info-container">
-      <el-dropdown trigger="click" placement="top-end" class="attachments-dropdown">
+      <el-dropdown
+        trigger="click"
+        placement="top-end"
+        class="attachments-dropdown"
+      >
         <div class="attachments-info clickable" title="批量附件操作">
           <span class="attachment-count"> {{ count }} / {{ maxCount }} </span>
         </div>
@@ -79,7 +83,13 @@ const handleClear = async () => {
 
       <div class="divider"></div>
 
-      <el-button type="danger" link class="clear-btn" title="清空所有附件" @click="handleClear">
+      <el-button
+        type="danger"
+        link
+        class="clear-btn"
+        title="清空所有附件"
+        @click="handleClear"
+      >
         <template #icon>
           <Trash2 :size="12" />
         </template>

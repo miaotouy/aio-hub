@@ -29,7 +29,14 @@ const emit = defineEmits<Emits>();
       </div>
       <div class="header-actions">
         <slot name="extra-actions" />
-        <el-button v-if="showSave" type="primary" size="small" @click="emit('save')"> 保存 </el-button>
+        <el-button
+          v-if="showSave"
+          type="primary"
+          size="small"
+          @click="emit('save')"
+        >
+          保存
+        </el-button>
         <el-button
           v-if="showDelete"
           type="danger"

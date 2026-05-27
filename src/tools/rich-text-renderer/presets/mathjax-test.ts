@@ -1,8 +1,8 @@
-import { RenderPreset } from '../types';
+import { RenderPreset } from "../types";
 
 export const mathjaxTestPreset: RenderPreset = {
-  id: 'mathjax-test',
-  name: 'MathJax 测试 (Yang-Baxter)',
+  id: "mathjax-test",
+  name: "MathJax 测试 (Yang-Baxter)",
   content: `
 我们考虑二维向量空间 \\(V\\)，基为 \\(|0\\rangle, |1\\rangle\\)。给定 \\(R: V\\otimes V\\to V\\otimes V\\)，在基 \\(|00\\rangle,|01\\rangle,|10\\rangle,|11\\rangle\\)（按此顺序）下的矩阵为
 
@@ -149,5 +149,5 @@ R_{13}|abc\\rangle = \\sum_{a',c'} R_{ac}^{a'c'}\\,|a'\\,b\\,c'\\rangle,
    \\end{aligned}
    \\]
    所以 LHS = \\(q^{2}(q-q^{-1})|001\\rangle + q(q-q^{-1})|010\\rangle + q|100\\rangle\\).
-`
+`,
 };

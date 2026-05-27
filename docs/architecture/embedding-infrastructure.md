@@ -22,9 +22,14 @@ export interface EmbeddingRequestOptions {
   modelId: string;
   input: string | string[]; // 支持批量
   dimensions?: number; // OpenAI text-embedding-3 支持
-  taskType?: 'RETRIEVAL_QUERY' | 'RETRIEVAL_DOCUMENT' | 'SEMANTIC_SIMILARITY' | 'CLASSIFICATION' | 'CLUSTERING';
+  taskType?:
+    | "RETRIEVAL_QUERY"
+    | "RETRIEVAL_DOCUMENT"
+    | "SEMANTIC_SIMILARITY"
+    | "CLASSIFICATION"
+    | "CLUSTERING";
   title?: string; // Gemini 专用
-  encodingFormat?: 'float' | 'int8' | 'uint8' | 'binary' | 'ubinary'; // Cohere 专用
+  encodingFormat?: "float" | "int8" | "uint8" | "binary" | "ubinary"; // Cohere 专用
   timeout?: number;
   signal?: AbortSignal;
 }
@@ -34,9 +39,9 @@ export interface EmbeddingRequestOptions {
 
 ```typescript
 export interface EmbeddingResponse {
-  object: 'list';
+  object: "list";
   data: Array<{
-    object: 'embedding';
+    object: "embedding";
     index: number;
     embedding: number[];
   }>;
@@ -51,18 +56,22 @@ export interface EmbeddingResponse {
 ## 3. 适配器实现现状
 
 ### 3.1 OpenAI 兼容适配器 (`adapters/openai/embedding.ts`)
+
 - **端点**: `/v1/embeddings`。
 - **特性**: 支持 `dimensions` 参数。
 
 ### 3.2 Gemini 适配器 (`adapters/gemini/embedding.ts`)
+
 - **端点**: `embedContent` (单条) 或 `batchEmbedContents` (批量)。
 - **特性**: 完整支持 `taskType` 和 `title` 参数。
 
 ### 3.3 Cohere 适配器 (`adapters/cohere/embedding.ts`)
+
 - **端点**: `/v2/embed`。
 - **特性**: 支持 `input_type` (映射自 `taskType`) 和 `embedding_types` (映射自 `encodingFormat`)。
 
 ### 3.4 Vertex AI 适配器 (`adapters/vertexai/google.ts`)
+
 - **端点**: `:predict`。
 - **特性**: 针对 Google 的 Vertex AI 平台进行了端点适配，功能与 Gemini 适配器对齐。
 
@@ -71,11 +80,11 @@ export interface EmbeddingResponse {
 ### 4.1 基础调用
 
 ```typescript
-import { callEmbeddingApi } from '@/llm-apis/embedding';
+import { callEmbeddingApi } from "@/llm-apis/embedding";
 
 const response = await callEmbeddingApi(profile, {
-  modelId: 'text-embedding-3-small',
-  input: '这是一段测试文本'
+  modelId: "text-embedding-3-small",
+  input: "这是一段测试文本",
 });
 
 const vector = response.data[0].embedding;
@@ -86,17 +95,17 @@ const vector = response.data[0].embedding;
 ```typescript
 // 检索查询
 const queryRes = await callEmbeddingApi(geminiProfile, {
-  modelId: 'text-embedding-004',
-  input: '如何使用 AIO Hub?',
-  taskType: 'RETRIEVAL_QUERY'
+  modelId: "text-embedding-004",
+  input: "如何使用 AIO Hub?",
+  taskType: "RETRIEVAL_QUERY",
 });
 
 // 文档索引
 const docRes = await callEmbeddingApi(geminiProfile, {
-  modelId: 'text-embedding-004',
-  input: 'AIO Hub 是一个一站式 AI 工具箱...',
-  taskType: 'RETRIEVAL_DOCUMENT',
-  title: '产品介绍'
+  modelId: "text-embedding-004",
+  input: "AIO Hub 是一个一站式 AI 工具箱...",
+  taskType: "RETRIEVAL_DOCUMENT",
+  title: "产品介绍",
 });
 ```
 

@@ -47,17 +47,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, type Ref } from 'vue';
-import { customMessage } from '@/utils/customMessage';
-import { createModuleErrorHandler } from '@/utils/errorHandler';
-import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager';
-import { useTokenCalculator } from '@/tools/token-calculator/composables/useTokenCalculatorState';
-import { usePanelResize } from './composables/usePanelResize';
-import ToolBar from './components/ToolBar.vue';
-import InputPanel from './components/InputPanel.vue';
-import ResultPanel from './components/ResultPanel.vue';
+import { ref, onMounted, onUnmounted, type Ref } from "vue";
+import { customMessage } from "@/utils/customMessage";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { useTokenCalculator } from "@/tools/token-calculator/composables/useTokenCalculatorState";
+import { usePanelResize } from "./composables/usePanelResize";
+import ToolBar from "./components/ToolBar.vue";
+import InputPanel from "./components/InputPanel.vue";
+import ResultPanel from "./components/ResultPanel.vue";
 
-const errorHandler = createModuleErrorHandler('TokenCalculator');
+const errorHandler = createModuleErrorHandler("TokenCalculator");
 
 // 使用 composable
 const {
@@ -86,11 +86,12 @@ const inputPanel = ref<InstanceType<typeof InputPanel> | null>(null);
 const resultPanel = ref<InstanceType<typeof ResultPanel> | null>(null);
 
 // 使用面板调整大小 composable
-const { startResize, cleanup, isDragging, initializePanelWidth } = usePanelResize({
-  contentContainer,
-  inputPanel: inputPanel as Ref<{ rootEl: HTMLElement | null } | null>,
-  resultPanel: resultPanel as Ref<{ rootEl: HTMLElement | null } | null>,
-});
+const { startResize, cleanup, isDragging, initializePanelWidth } =
+  usePanelResize({
+    contentContainer,
+    inputPanel: inputPanel as Ref<{ rootEl: HTMLElement | null } | null>,
+    resultPanel: resultPanel as Ref<{ rootEl: HTMLElement | null } | null>,
+  });
 
 // 初始化
 onMounted(async () => {
@@ -110,23 +111,23 @@ const pasteText = async () => {
   try {
     const text = await readText();
     setInputText(text);
-    customMessage.success('已从剪贴板粘贴内容');
+    customMessage.success("已从剪贴板粘贴内容");
   } catch (error: any) {
-    errorHandler.error(error, '粘贴失败');
+    errorHandler.error(error, "粘贴失败");
   }
 };
 
 // 复制文本
 const copyText = async () => {
   if (!inputText.value) {
-    customMessage.warning('没有可复制的内容');
+    customMessage.warning("没有可复制的内容");
     return;
   }
   try {
     await writeText(inputText.value);
-    customMessage.success('已复制到剪贴板');
+    customMessage.success("已复制到剪贴板");
   } catch (error: any) {
-    errorHandler.error(error, '复制失败');
+    errorHandler.error(error, "复制失败");
   }
 };
 </script>
@@ -174,7 +175,7 @@ const copyText = async () => {
 }
 
 .divider::before {
-  content: '';
+  content: "";
   position: absolute;
   left: 50%;
   top: 0;

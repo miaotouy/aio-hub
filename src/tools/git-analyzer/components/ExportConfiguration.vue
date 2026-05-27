@@ -94,15 +94,15 @@
     </el-form-item>
 
     <el-form-item label="文件变更" v-if="config.includeCommits">
-        <el-checkbox v-model="config.includeFiles">
-          包含文件变更详情
-        </el-checkbox>
-        <el-checkbox
-          v-model="config.includeStats"
-          :disabled="!config.includeFiles"
-        >
-          包含行级统计
-        </el-checkbox>
+      <el-checkbox v-model="config.includeFiles">
+        包含文件变更详情
+      </el-checkbox>
+      <el-checkbox
+        v-model="config.includeStats"
+        :disabled="!config.includeFiles"
+      >
+        包含行级统计
+      </el-checkbox>
     </el-form-item>
   </el-form>
 </template>
@@ -124,7 +124,7 @@ watch(
     if (!includeFiles) {
       config.value.includeStats = false;
     }
-  },
+  }
 );
 
 watch(
@@ -134,7 +134,7 @@ watch(
       config.value.includeFiles = true;
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 </script>
 

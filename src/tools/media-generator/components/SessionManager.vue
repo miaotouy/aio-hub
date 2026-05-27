@@ -118,7 +118,10 @@ const handleAiNaming = async (sessionId: string) => {
 
 const formatTime = (timeStr: string) => {
   try {
-    return formatDistanceToNow(new Date(timeStr), { addSuffix: true, locale: zhCN });
+    return formatDistanceToNow(new Date(timeStr), {
+      addSuffix: true,
+      locale: zhCN,
+    });
   } catch (e) {
     return timeStr;
   }
@@ -153,19 +156,29 @@ const toggleSortOrder = () => {
           </template>
         </el-input>
 
-        <el-dropdown trigger="click" size="small" @command="(c: any) => (sortBy = c)">
+        <el-dropdown
+          trigger="click"
+          size="small"
+          @command="(c: any) => (sortBy = c)"
+        >
           <el-button size="small" class="tool-btn">
             <el-icon><ArrowUpDown /></el-icon>
           </el-button>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item command="updatedAt" :disabled="sortBy === 'updatedAt'">
+              <el-dropdown-item
+                command="updatedAt"
+                :disabled="sortBy === 'updatedAt'"
+              >
                 按更新时间
               </el-dropdown-item>
               <el-dropdown-item command="name" :disabled="sortBy === 'name'">
                 按名称
               </el-dropdown-item>
-              <el-dropdown-item command="taskCount" :disabled="sortBy === 'taskCount'">
+              <el-dropdown-item
+                command="taskCount"
+                :disabled="sortBy === 'taskCount'"
+              >
                 按任务数
               </el-dropdown-item>
               <el-dropdown-item divided @click="toggleSortOrder">
@@ -179,7 +192,10 @@ const toggleSortOrder = () => {
 
     <el-scrollbar class="session-scroll-area">
       <div v-if="filteredSessions.length === 0" class="empty-state">
-        <el-empty :image-size="60" :description="searchQuery ? '未找到匹配会话' : '暂无历史会话'" />
+        <el-empty
+          :image-size="60"
+          :description="searchQuery ? '未找到匹配会话' : '暂无历史会话'"
+        />
       </div>
 
       <div v-else class="session-list">
@@ -199,7 +215,9 @@ const toggleSortOrder = () => {
               <span class="name" :title="session.name">{{ session.name }}</span>
             </div>
             <div class="session-meta">
-              <span class="task-count">{{ getSessionTaskCount(session) }} 任务</span>
+              <span class="task-count"
+                >{{ getSessionTaskCount(session) }} 任务</span
+              >
               <span class="dot">·</span>
               <span class="time">{{ formatTime(session.updatedAt) }}</span>
             </div>
@@ -210,7 +228,8 @@ const toggleSortOrder = () => {
               trigger="click"
               @command="
                 (cmd: any) => {
-                  if (cmd === 'rename') openRenameDialog(session.id, session.name);
+                  if (cmd === 'rename')
+                    openRenameDialog(session.id, session.name);
                   if (cmd === 'ai-rename') handleAiNaming(session.id);
                   if (cmd === 'delete') handleDelete(session.id, session.name);
                 }
@@ -222,7 +241,9 @@ const toggleSortOrder = () => {
                 class="more-btn"
                 :loading="namingSessionId === session.id"
               >
-                <el-icon v-if="namingSessionId !== session.id"><MoreVertical /></el-icon>
+                <el-icon v-if="namingSessionId !== session.id"
+                  ><MoreVertical
+                /></el-icon>
               </el-button>
               <template #dropdown>
                 <el-dropdown-menu>
@@ -230,13 +251,21 @@ const toggleSortOrder = () => {
                     command="ai-rename"
                     :icon="Wand2"
                     :disabled="
-                      getSessionTaskCount(session) === 0 || !!namingSessionId || store.isNaming
+                      getSessionTaskCount(session) === 0 ||
+                      !!namingSessionId ||
+                      store.isNaming
                     "
                   >
                     AI 自动命名
                   </el-dropdown-item>
-                  <el-dropdown-item command="rename" :icon="Edit2">重命名</el-dropdown-item>
-                  <el-dropdown-item command="delete" :icon="Trash2" class="delete-item">
+                  <el-dropdown-item command="rename" :icon="Edit2"
+                    >重命名</el-dropdown-item
+                  >
+                  <el-dropdown-item
+                    command="delete"
+                    :icon="Trash2"
+                    class="delete-item"
+                  >
                     删除
                   </el-dropdown-item>
                 </el-dropdown-menu>
@@ -263,8 +292,12 @@ const toggleSortOrder = () => {
       />
       <template #footer>
         <div class="dialog-footer">
-          <el-button size="small" @click="renameDialogVisible = false">取消</el-button>
-          <el-button size="small" type="primary" @click="handleRename">确定</el-button>
+          <el-button size="small" @click="renameDialogVisible = false"
+            >取消</el-button
+          >
+          <el-button size="small" type="primary" @click="handleRename"
+            >确定</el-button
+          >
         </div>
       </template>
     </el-dialog>
@@ -341,7 +374,11 @@ const toggleSortOrder = () => {
 }
 
 .session-item.active {
-  background-color: color-mix(in srgb, var(--el-color-primary), transparent 92%);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-primary),
+    transparent 92%
+  );
   border-color: color-mix(in srgb, var(--el-color-primary), transparent 60%);
 }
 

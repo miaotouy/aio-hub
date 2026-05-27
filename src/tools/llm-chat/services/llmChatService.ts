@@ -12,7 +12,12 @@ import { useUserProfileStore } from "../stores/userProfileStore";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
 import type { Asset } from "@/types/asset-management";
-import type { ChatSessionIndex, ChatSessionDetail, ChatAgent, UserProfile } from "../types";
+import type {
+  ChatSessionIndex,
+  ChatSessionDetail,
+  ChatAgent,
+  UserProfile,
+} from "../types";
 
 const logger = createModuleLogger("services/llm-chat-service");
 const errorHandler = createModuleErrorHandler("services/llm-chat-service");
@@ -42,7 +47,8 @@ export class LlmChatService {
   private _inputManager: ReturnType<typeof useChatInputManager> | null = null;
   private _chatStore: ReturnType<typeof useLlmChatStore> | null = null;
   private _agentStore: ReturnType<typeof useAgentStore> | null = null;
-  private _userProfileStore: ReturnType<typeof useUserProfileStore> | null = null;
+  private _userProfileStore: ReturnType<typeof useUserProfileStore> | null =
+    null;
 
   /**
    * 获取输入管理器实例（惰性初始化）
@@ -91,7 +97,10 @@ export class LlmChatService {
    * @param content 要添加的内容
    * @param options 添加选项
    */
-  public addContentToInput(content: string, options: AddContentOptions = {}): InputOperationResult {
+  public addContentToInput(
+    content: string,
+    options: AddContentOptions = {}
+  ): InputOperationResult {
     return errorHandler.wrapSync(
       () => {
         const { position = "append" } = options;
@@ -314,7 +323,9 @@ export class LlmChatService {
    *
    * @param processor 处理函数，接收当前内容，返回处理后的内容
    */
-  public async processContent(processor: (content: string) => string | Promise<string>): Promise<InputOperationResult> {
+  public async processContent(
+    processor: (content: string) => string | Promise<string>
+  ): Promise<InputOperationResult> {
     const result = await errorHandler.wrapAsync(
       async () => {
         const originalContent = this.getInputContent();
@@ -427,7 +438,9 @@ export class LlmChatService {
    * 获取当前生效的用户档案（优先使用智能体绑定的档案）
    * @param agentUserProfileId 智能体绑定的档案 ID
    */
-  public getEffectiveUserProfile(agentUserProfileId?: string | null): UserProfile | null {
+  public getEffectiveUserProfile(
+    agentUserProfileId?: string | null
+  ): UserProfile | null {
     return this.userProfileStore.getEffectiveProfile(agentUserProfileId);
   }
 
@@ -445,7 +458,10 @@ export class LlmChatService {
    * @param content 要发送的内容
    * @param options 发送选项
    */
-  public async sendMessage(content: string, options?: { parentId?: string }): Promise<void> {
+  public async sendMessage(
+    content: string,
+    options?: { parentId?: string }
+  ): Promise<void> {
     await errorHandler.wrapAsync(
       async () => {
         logger.info("通过 Service 发送消息", { contentLength: content.length });
@@ -457,7 +473,9 @@ export class LlmChatService {
           if (store.sessions.length > 0) {
             // 情况1：有历史会话但未选中 -> 自动切换到最近使用的会话
             const sortedSessions = [...store.sessions].sort(
-              (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+              (a, b) =>
+                new Date(b.updatedAt).getTime() -
+                new Date(a.updatedAt).getTime()
             );
             const targetSession = sortedSessions[0];
             logger.info("自动切换到最近使用的会话", {

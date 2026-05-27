@@ -29,7 +29,9 @@ const { startDetaching, detachByClick } = useDetachable();
 
 // 从路径提取工具 ID
 const getToolIdFromPath = (path: string): string => {
-  return path.substring(1).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+  return path
+    .substring(1)
+    .replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
 };
 
 // 使用 ref 管理拖拽列表，参考 PipelineConfig.vue 的模式
@@ -41,9 +43,12 @@ watch(
   () => {
     displayTools.value = toolsStore.openedToolPaths
       .map((path) => toolsStore.tools.find((t) => t.path === path))
-      .filter((tool): tool is ToolConfig => !!tool && !props.isDetached(getToolIdFromPath(tool.path)));
+      .filter(
+        (tool): tool is ToolConfig =>
+          !!tool && !props.isDetached(getToolIdFromPath(tool.path))
+      );
   },
-  { immediate: true, deep: true },
+  { immediate: true, deep: true }
 );
 
 // 拖拽结束处理
@@ -142,7 +147,12 @@ const handleCloseTool = async (event: MouseEvent, toolPath: string) => {
 </script>
 
 <template>
-  <el-menu :default-active="route.path" class="sidebar-menu-component" :collapse="collapsed" @select="handleSelect">
+  <el-menu
+    :default-active="route.path"
+    class="sidebar-menu-component"
+    :collapse="collapsed"
+    @select="handleSelect"
+  >
     <el-menu-item index="/">
       <span class="icon-wrapper">
         <i-ep-home-filled />
@@ -190,14 +200,22 @@ const handleCloseTool = async (event: MouseEvent, toolPath: string) => {
             style="padding: 0"
             @mousedown.left="handleDragStart($event, tool)"
           >
-            <el-dropdown trigger="contextmenu" placement="bottom-start" style="width: 100%; height: 100%">
+            <el-dropdown
+              trigger="contextmenu"
+              placement="bottom-start"
+              style="width: 100%; height: 100%"
+            >
               <span class="menu-item-trigger">
                 <span class="icon-wrapper">
                   <component :is="tool.icon" />
                 </span>
                 <template v-if="!collapsed">
                   <span class="menu-item-title-text">{{ tool.name }}</span>
-                  <el-icon class="close-tab-btn" @click.stop="handleCloseTool($event, tool.path)" @mousedown.stop>
+                  <el-icon
+                    class="close-tab-btn"
+                    @click.stop="handleCloseTool($event, tool.path)"
+                    @mousedown.stop
+                  >
                     <Close />
                   </el-icon>
                 </template>
@@ -208,7 +226,10 @@ const handleCloseTool = async (event: MouseEvent, toolPath: string) => {
                     <el-icon><Promotion /></el-icon>
                     <span>在新窗口中打开</span>
                   </el-dropdown-item>
-                  <el-dropdown-item divided @click="handleCloseTool($event, tool.path)">
+                  <el-dropdown-item
+                    divided
+                    @click="handleCloseTool($event, tool.path)"
+                  >
                     <el-icon><Close /></el-icon>
                     <span>关闭标签页</span>
                   </el-dropdown-item>

@@ -20,7 +20,9 @@
 
     <div class="section">
       <h2 class="section-title">CustomMessage 自定义消息提示</h2>
-      <p class="note">使用项目封装的 customMessage，会自动添加 offset 避免被标题栏遮挡</p>
+      <p class="note">
+        使用项目封装的 customMessage，会自动添加 offset 避免被标题栏遮挡
+      </p>
       <div class="message-demo">
         <el-button @click="showCustomMessage('success')">成功消息</el-button>
         <el-button @click="showCustomMessage('info')">信息消息</el-button>
@@ -39,10 +41,18 @@
         <el-button @click="showNotification('error')">错误通知</el-button>
       </div>
       <div class="notification-demo">
-        <el-button @click="showNotification('success', 'top-right')">右上角</el-button>
-        <el-button @click="showNotification('info', 'top-left')">左上角</el-button>
-        <el-button @click="showNotification('warning', 'bottom-right')">右下角</el-button>
-        <el-button @click="showNotification('error', 'bottom-left')">左下角</el-button>
+        <el-button @click="showNotification('success', 'top-right')"
+          >右上角</el-button
+        >
+        <el-button @click="showNotification('info', 'top-left')"
+          >左上角</el-button
+        >
+        <el-button @click="showNotification('warning', 'bottom-right')"
+          >右下角</el-button
+        >
+        <el-button @click="showNotification('error', 'bottom-left')"
+          >左下角</el-button
+        >
       </div>
       <div class="notification-demo">
         <el-button @click="showHTMLNotification">HTML 通知</el-button>
@@ -70,17 +80,27 @@
       <h2 class="section-title">Notification System 消息通知系统</h2>
       <p class="note">使用持久化消息通知系统，支持历史记录和通知中心</p>
       <div class="notification-demo">
-        <el-button type="primary" @click="testNotification('info')">发送 Info</el-button>
-        <el-button type="success" @click="testNotification('success')">发送 Success</el-button>
-        <el-button type="warning" @click="testNotification('warning')">发送 Warning</el-button>
-        <el-button type="danger" @click="testNotification('error')">发送 Error</el-button>
+        <el-button type="primary" @click="testNotification('info')"
+          >发送 Info</el-button
+        >
+        <el-button type="success" @click="testNotification('success')"
+          >发送 Success</el-button
+        >
+        <el-button type="warning" @click="testNotification('warning')"
+          >发送 Warning</el-button
+        >
+        <el-button type="danger" @click="testNotification('error')"
+          >发送 Error</el-button
+        >
         <el-button @click="testNotification('system')">发送 System</el-button>
         <el-button @click="testNotification('long')">发送长消息</el-button>
       </div>
       <div class="notification-demo">
         <el-button @click="toggleCenter()">切换通知中心面板</el-button>
         <el-button @click="markAllRead">全部标记已读</el-button>
-        <el-button @click="clearAll" type="danger" plain>清空所有消息</el-button>
+        <el-button @click="clearAll" type="danger" plain
+          >清空所有消息</el-button
+        >
       </div>
     </div>
 
@@ -90,7 +110,11 @@
         <el-button @click="showFullscreenLoading">全屏加载</el-button>
         <el-button @click="showCustomLoading">自定义文本</el-button>
         <el-button @click="showBackgroundLoading">自定义背景</el-button>
-        <div class="loading-target" v-loading="targetLoading" element-loading-text="加载中...">
+        <div
+          class="loading-target"
+          v-loading="targetLoading"
+          element-loading-text="加载中..."
+        >
           <el-button @click="toggleTargetLoading">容器加载</el-button>
           <p>这是一个可以被加载遮罩覆盖的容器</p>
         </div>
@@ -129,7 +153,9 @@ const LONG_TEXT =
   "这是一段非常长的测试文本，旨在测试消息提示组件在处理大量内容时的表现。通常情况下，消息提示应该能够正确换行，而不会超出屏幕边界或导致 UI 布局崩溃。在 AIO Hub 项目中，我们需要确保所有的反馈机制（包括 ElMessage, ElNotification, ElMessageBox 以及我们自定义的通知系统）都能优雅地展示这些长文本。如果文本过长，可能需要考虑截断或提供滚动条，但在简单的消息提示中，自动换行通常是最佳实践。";
 
 // Message 消息提示
-const showMessage = (type: "success" | "info" | "warning" | "error" | "default") => {
+const showMessage = (
+  type: "success" | "info" | "warning" | "error" | "default"
+) => {
   const messages = {
     success: "恭喜你，这是一条成功消息",
     info: "这是一条消息提示",
@@ -209,7 +235,11 @@ const showLongCustomMessage = () => {
 // Notification 通知
 const showNotification = (
   type: "success" | "info" | "warning" | "error",
-  position: "top-right" | "top-left" | "bottom-right" | "bottom-left" = "top-right"
+  position:
+    | "top-right"
+    | "top-left"
+    | "bottom-right"
+    | "bottom-left" = "top-right"
 ) => {
   const titles = {
     success: "成功",
@@ -316,11 +346,15 @@ const showCustomIcon = async () => {
 
 const showHTMLContent = async () => {
   try {
-    await ElMessageBox.confirm("<strong>这是 <i>HTML</i> 片段</strong>", "提示", {
-      confirmButtonText: "确定",
-      cancelButtonText: "取消",
-      dangerouslyUseHTMLString: true,
-    });
+    await ElMessageBox.confirm(
+      "<strong>这是 <i>HTML</i> 片段</strong>",
+      "提示",
+      {
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+        dangerouslyUseHTMLString: true,
+      }
+    );
     lastResult.value = "HTML 内容已确认";
   } catch {
     lastResult.value = "HTML 内容已取消";

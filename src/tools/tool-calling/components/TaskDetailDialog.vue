@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { Copy, Ban, RotateCcw, CheckCircle, XCircle, AlertTriangle, Clock } from "lucide-vue-next";
+import {
+  Copy,
+  Ban,
+  RotateCcw,
+  CheckCircle,
+  XCircle,
+  AlertTriangle,
+  Clock,
+} from "lucide-vue-next";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import type { AsyncTaskMetadata, TaskStatus } from "../core/async-task/types";
@@ -45,8 +53,13 @@ const formattedResult = computed(() => {
 });
 
 // 获取状态类型
-function getStatusType(status: TaskStatus): "info" | "primary" | "success" | "danger" | "warning" {
-  const typeMap: Record<TaskStatus, "info" | "primary" | "success" | "danger" | "warning"> = {
+function getStatusType(
+  status: TaskStatus
+): "info" | "primary" | "success" | "danger" | "warning" {
+  const typeMap: Record<
+    TaskStatus,
+    "info" | "primary" | "success" | "danger" | "warning"
+  > = {
     pending: "info",
     running: "primary",
     completed: "success",
@@ -163,7 +176,10 @@ function handleRetry() {
               {{ getStatusText(task.status) }}
             </el-tag>
           </div>
-          <div v-if="task.status === 'running' && task.progress !== undefined" class="info-item full-width">
+          <div
+            v-if="task.status === 'running' && task.progress !== undefined"
+            class="info-item full-width"
+          >
             <span class="label">进度:</span>
             <div class="value progress-value">
               <el-progress :percentage="task.progress" :stroke-width="8" />
@@ -184,7 +200,9 @@ function handleRetry() {
             <div class="timeline-content">
               <div class="timeline-label">创建时间</div>
               <div class="timeline-value">{{ formatTime(task.createdAt) }}</div>
-              <div class="timeline-relative">{{ formatRelativeTime(task.createdAt) }}</div>
+              <div class="timeline-relative">
+                {{ formatRelativeTime(task.createdAt) }}
+              </div>
             </div>
           </div>
           <div v-if="task.startedAt" class="timeline-item">
@@ -192,19 +210,31 @@ function handleRetry() {
             <div class="timeline-content">
               <div class="timeline-label">开始时间</div>
               <div class="timeline-value">{{ formatTime(task.startedAt) }}</div>
-              <div class="timeline-relative">{{ formatRelativeTime(task.startedAt) }}</div>
+              <div class="timeline-relative">
+                {{ formatRelativeTime(task.startedAt) }}
+              </div>
             </div>
           </div>
           <div v-if="task.completedAt" class="timeline-item">
             <component
-              :is="task.status === 'completed' ? CheckCircle : task.status === 'failed' ? XCircle : AlertTriangle"
+              :is="
+                task.status === 'completed'
+                  ? CheckCircle
+                  : task.status === 'failed'
+                    ? XCircle
+                    : AlertTriangle
+              "
               :size="16"
               class="timeline-icon"
             />
             <div class="timeline-content">
               <div class="timeline-label">完成时间</div>
-              <div class="timeline-value">{{ formatTime(task.completedAt) }}</div>
-              <div class="timeline-relative">{{ formatRelativeTime(task.completedAt) }}</div>
+              <div class="timeline-value">
+                {{ formatTime(task.completedAt) }}
+              </div>
+              <div class="timeline-relative">
+                {{ formatRelativeTime(task.completedAt) }}
+              </div>
             </div>
           </div>
           <div v-if="task.startedAt" class="timeline-item">
@@ -221,7 +251,12 @@ function handleRetry() {
       <div class="section">
         <div class="section-title">请求参数</div>
         <div class="code-container">
-          <RichCodeEditor :model-value="formattedArgs" language="json" :readonly="true" :height="200" />
+          <RichCodeEditor
+            :model-value="formattedArgs"
+            language="json"
+            :readonly="true"
+            :height="200"
+          />
         </div>
       </div>
 
@@ -229,12 +264,18 @@ function handleRetry() {
       <div v-if="task.result" class="section">
         <div class="section-title">
           执行结果
-          <el-button :icon="Copy" size="small" text @click="copyResult">复制</el-button>
+          <el-button :icon="Copy" size="small" text @click="copyResult"
+            >复制</el-button
+          >
         </div>
         <div class="code-container">
           <RichCodeEditor
             :model-value="formattedResult"
-            :language="formattedResult.startsWith('{') || formattedResult.startsWith('[') ? 'json' : 'text'"
+            :language="
+              formattedResult.startsWith('{') || formattedResult.startsWith('[')
+                ? 'json'
+                : 'text'
+            "
             :readonly="true"
             :height="300"
           />
@@ -250,10 +291,17 @@ function handleRetry() {
       </div>
 
       <!-- 进度日志 -->
-      <div v-if="task.progressLogs && task.progressLogs.length > 0" class="section">
+      <div
+        v-if="task.progressLogs && task.progressLogs.length > 0"
+        class="section"
+      >
         <div class="section-title">进度日志</div>
         <div class="progress-logs">
-          <div v-for="(log, index) in task.progressLogs" :key="index" class="log-item">
+          <div
+            v-for="(log, index) in task.progressLogs"
+            :key="index"
+            class="log-item"
+          >
             <span class="log-time">{{ formatTime(log.timestamp) }}</span>
             <span class="log-percent">{{ log.percent }}%</span>
             <span class="log-message">{{ log.message }}</span>
@@ -264,8 +312,22 @@ function handleRetry() {
 
     <template #footer>
       <div class="dialog-footer">
-        <el-button v-if="canCancel" :icon="Ban" type="warning" @click="handleCancel"> 取消任务 </el-button>
-        <el-button v-if="canRetry" :icon="RotateCcw" type="primary" @click="handleRetry"> 重试任务 </el-button>
+        <el-button
+          v-if="canCancel"
+          :icon="Ban"
+          type="warning"
+          @click="handleCancel"
+        >
+          取消任务
+        </el-button>
+        <el-button
+          v-if="canRetry"
+          :icon="RotateCcw"
+          type="primary"
+          @click="handleRetry"
+        >
+          重试任务
+        </el-button>
         <el-button @click="dialogVisible = false">关闭</el-button>
       </div>
     </template>

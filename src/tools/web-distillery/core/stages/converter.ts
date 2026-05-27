@@ -32,7 +32,9 @@ export class Converter {
     // 防止嵌套链接
     this.turndown.addRule("no-nested-links", {
       filter: (node) => {
-        return node.nodeName === "A" && !!(node as HTMLElement).querySelector("a");
+        return (
+          node.nodeName === "A" && !!(node as HTMLElement).querySelector("a")
+        );
       },
       replacement: (content) => content,
     });
@@ -50,7 +52,10 @@ export class Converter {
       filter: "img",
       replacement: (_content, node) => {
         const el = node as HTMLElement;
-        const src = el.getAttribute("src") || el.getAttribute("data-src") || el.getAttribute("data-actualsrc");
+        const src =
+          el.getAttribute("src") ||
+          el.getAttribute("data-src") ||
+          el.getAttribute("data-actualsrc");
         const alt = el.getAttribute("alt") || "image";
         if (!src) return "";
         return `![${alt}](${src})`;
@@ -127,10 +132,12 @@ export class Converter {
 
     if (thead || hasThInFirstRow) {
       hasHeader = true;
-      const headerRow = thead ? Array.from(thead.querySelectorAll("tr"))[0] : firstRow;
+      const headerRow = thead
+        ? Array.from(thead.querySelectorAll("tr"))[0]
+        : firstRow;
       if (headerRow) {
-        const headers = Array.from(headerRow.querySelectorAll("th, td")).map((cell) =>
-          this.getCellText(cell as HTMLElement),
+        const headers = Array.from(headerRow.querySelectorAll("th, td")).map(
+          (cell) => this.getCellText(cell as HTMLElement)
         );
         rows.push(headers);
       }
@@ -147,7 +154,9 @@ export class Converter {
             : allRows;
 
     for (const row of dataRows) {
-      const cells = Array.from(row.querySelectorAll("td, th")).map((cell) => this.getCellText(cell as HTMLElement));
+      const cells = Array.from(row.querySelectorAll("td, th")).map((cell) =>
+        this.getCellText(cell as HTMLElement)
+      );
       if (cells.length > 0) {
         rows.push(cells);
       }

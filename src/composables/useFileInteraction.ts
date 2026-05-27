@@ -13,7 +13,10 @@ const logger = createModuleLogger("useFileInteraction");
 const errorHandler = createModuleErrorHandler("useFileInteraction");
 
 // 文件交互选项接口
-export interface FileInteractionOptions extends Omit<FileDropOptions, "onDrop"> {
+export interface FileInteractionOptions extends Omit<
+  FileDropOptions,
+  "onDrop"
+> {
   // 是否启用粘贴功能
   enablePaste?: boolean;
   // 粘贴时的文件处理方式
@@ -119,7 +122,10 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
         let filename = file.name;
         if (!filename || filename === "image.png") {
           // 使用应用时区生成时间戳
-          const timestamp = formatDateTime(new Date(), "yyyy-MM-ddTHH-mm-ss-SSS");
+          const timestamp = formatDateTime(
+            new Date(),
+            "yyyy-MM-ddTHH-mm-ss-SSS"
+          );
           const extension = file.type.split("/")[1] || "bin";
           const typePrefix = file.type.startsWith("image/") ? "image" : "file";
           filename = `pasted-${typePrefix}-${timestamp}.${extension}`;
@@ -163,21 +169,26 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
               try {
                 const hash = await calculateFileHash(file);
                 // 查找并尝试添加来源
-                const existingAsset = await invoke<Asset | null>("find_asset_by_hash", {
-                  hash,
-                  sourceToAdd: {
-                    type: "clipboard",
-                    source: "clipboard",
-                    sourceModule,
-                  },
-                });
+                const existingAsset = await invoke<Asset | null>(
+                  "find_asset_by_hash",
+                  {
+                    hash,
+                    sourceToAdd: {
+                      type: "clipboard",
+                      source: "clipboard",
+                      sourceModule,
+                    },
+                  }
+                );
 
                 if (existingAsset) {
                   realAsset = existingAsset;
                   logger.info("秒传成功", { filename, assetId: realAsset.id });
                 }
               } catch (e) {
-                errorHandler.warn(e, "秒传检测失败，降级为普通上传", { filename: file.name });
+                errorHandler.warn(e, "秒传检测失败，降级为普通上传", {
+                  filename: file.name,
+                });
               }
             }
 
@@ -234,7 +245,8 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
           } catch (error) {
             // 处理上传失败
             tempAsset.importStatus = "error";
-            tempAsset.importError = error instanceof Error ? error.message : "上传失败";
+            tempAsset.importError =
+              error instanceof Error ? error.message : "上传失败";
 
             errorHandler.handle(error, {
               userMessage: `文件 ${filename} 上传失败`,
@@ -264,8 +276,10 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
     // 类型断言为 ClipboardEvent
     const clipboardEvent = e as ClipboardEvent;
     // 检查是否禁用
-    if (typeof dropOptions.disabled === "boolean" && dropOptions.disabled) return;
-    if (typeof dropOptions.disabled === "object" && dropOptions.disabled.value) return;
+    if (typeof dropOptions.disabled === "boolean" && dropOptions.disabled)
+      return;
+    if (typeof dropOptions.disabled === "object" && dropOptions.disabled.value)
+      return;
 
     const items = clipboardEvent.clipboardData?.items;
     if (!items) return;
@@ -312,7 +326,10 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
         await onAssets(assets);
 
         if (showPasteMessage && assets.length > 0) {
-          const message = assets.length === 1 ? `已粘贴文件: ${pastedFiles[0].name}` : `已粘贴 ${assets.length} 个文件`;
+          const message =
+            assets.length === 1
+              ? `已粘贴文件: ${pastedFiles[0].name}`
+              : `已粘贴 ${assets.length} 个文件`;
           customMessage.success(message);
         }
       } else if (onFiles) {
@@ -321,7 +338,9 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
 
         if (showPasteMessage) {
           const message =
-            pastedFiles.length === 1 ? `已粘贴文件: ${pastedFiles[0].name}` : `已粘贴 ${pastedFiles.length} 个文件`;
+            pastedFiles.length === 1
+              ? `已粘贴文件: ${pastedFiles[0].name}`
+              : `已粘贴 ${pastedFiles.length} 个文件`;
           customMessage.success(message);
         }
       }
@@ -488,7 +507,9 @@ export function useChatFileInteraction(
  *   }
  * })
  */
-export function useImageFileInteraction(options: Omit<FileInteractionOptions, "imageOnly">) {
+export function useImageFileInteraction(
+  options: Omit<FileInteractionOptions, "imageOnly">
+) {
   return useFileInteraction({
     ...options,
     imageOnly: true,

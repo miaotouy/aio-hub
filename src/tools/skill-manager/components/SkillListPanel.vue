@@ -6,7 +6,13 @@
     </div>
 
     <!-- 搜索框 -->
-    <el-input v-model="searchQuery" placeholder="搜索技能..." size="small" clearable class="search-input">
+    <el-input
+      v-model="searchQuery"
+      placeholder="搜索技能..."
+      size="small"
+      clearable
+      class="search-input"
+    >
       <template #prefix>
         <Search :size="14" />
       </template>
@@ -35,13 +41,22 @@
             />
             <component :is="FolderArchive" :size="14" class="bundle-icon" />
             <div class="bundle-meta-info">
-              <span class="bundle-name" :title="group.name">{{ group.name }}</span>
-              <span class="bundle-version" v-if="group.version">v{{ group.version }}</span>
+              <span class="bundle-name" :title="group.name">{{
+                group.name
+              }}</span>
+              <span class="bundle-version" v-if="group.version"
+                >v{{ group.version }}</span
+              >
             </div>
           </div>
 
           <div class="bundle-actions">
-            <el-switch :model-value="group.enabled" size="small" @change="toggleBundle(group.id)" @click.stop />
+            <el-switch
+              :model-value="group.enabled"
+              size="small"
+              @change="toggleBundle(group.id)"
+              @click.stop
+            />
             <el-dropdown trigger="click" @click.stop>
               <component :is="MoreVertical" :size="14" class="more-btn" />
               <template #dropdown>
@@ -56,36 +71,59 @@
         </div>
 
         <!-- Standalone 分组头部 -->
-        <div v-else-if="groupedSkills.length > 1" class="standalone-group-header">
+        <div
+          v-else-if="groupedSkills.length > 1"
+          class="standalone-group-header"
+        >
           <component :is="FileCode" :size="14" />
           <span>独立技能</span>
         </div>
 
         <!-- 技能列表项 -->
         <el-collapse-transition>
-          <div v-show="group.type === 'standalone' || !isCollapsed(group.id)" class="group-items">
+          <div
+            v-show="group.type === 'standalone' || !isCollapsed(group.id)"
+            class="group-items"
+          >
             <div
               v-for="manifest in group.skills"
               :key="manifest.name"
               class="skill-item"
               :class="{
                 selected: selectedName === manifest.name,
-                'is-disabled': !isSkillEnabled(manifest.name) || (group.type === 'bundle' && !group.enabled),
+                'is-disabled':
+                  !isSkillEnabled(manifest.name) ||
+                  (group.type === 'bundle' && !group.enabled),
               }"
               @click="$emit('select', manifest)"
             >
               <div class="skill-item-header">
                 <span class="skill-name">{{ manifest.name }}</span>
-                <span class="skill-source-tag" :class="getSourceClass(manifest)">
+                <span
+                  class="skill-source-tag"
+                  :class="getSourceClass(manifest)"
+                >
                   {{ getSourceLabel(manifest) }}
                 </span>
               </div>
               <div class="skill-desc">{{ manifest.description }}</div>
               <div class="skill-meta">
-                <span v-if="manifest.scripts.length > 0" class="meta-item"> {{ manifest.scripts.length }} 个脚本 </span>
-                <span v-if="isActive(manifest.name)" class="meta-item active">已激活</span>
-                <span v-if="!isSkillEnabled(manifest.name)" class="meta-item disabled-tag">已禁用</span>
-                <span v-if="group.type === 'bundle' && !group.enabled" class="meta-item disabled-tag">包已禁用</span>
+                <span v-if="manifest.scripts.length > 0" class="meta-item">
+                  {{ manifest.scripts.length }} 个脚本
+                </span>
+                <span v-if="isActive(manifest.name)" class="meta-item active"
+                  >已激活</span
+                >
+                <span
+                  v-if="!isSkillEnabled(manifest.name)"
+                  class="meta-item disabled-tag"
+                  >已禁用</span
+                >
+                <span
+                  v-if="group.type === 'bundle' && !group.enabled"
+                  class="meta-item disabled-tag"
+                  >包已禁用</span
+                >
               </div>
             </div>
           </div>
@@ -99,7 +137,13 @@
 
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import { Search, ChevronDown, FolderArchive, FileCode, MoreVertical } from "lucide-vue-next";
+import {
+  Search,
+  ChevronDown,
+  FolderArchive,
+  FileCode,
+  MoreVertical,
+} from "lucide-vue-next";
 import { useSkillManagerStore } from "../stores/skillManagerStore";
 import { useSkillManager } from "../composables/useSkillManager";
 import { ElMessageBox } from "element-plus";
@@ -139,12 +183,16 @@ function toggleBundle(bundleId: string) {
 
 async function handleUninstallBundle(bundleId: string) {
   try {
-    await ElMessageBox.confirm(`确定要卸载技能包 "${bundleId}" 吗？这将删除该包下的所有技能。`, "提示", {
-      confirmButtonText: "确定",
-      cancelButtonText: "取消",
-      type: "warning",
-      lockScroll: false,
-    });
+    await ElMessageBox.confirm(
+      `确定要卸载技能包 "${bundleId}" 吗？这将删除该包下的所有技能。`,
+      "提示",
+      {
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+        type: "warning",
+        lockScroll: false,
+      }
+    );
     await uninstallBundle(bundleId);
     customMessage.success("技能包卸载成功");
   } catch (err: any) {
@@ -194,7 +242,11 @@ const filteredManifests = computed(() => {
   // 搜索过滤
   if (searchQuery.value.trim()) {
     const q = searchQuery.value.toLowerCase();
-    list = list.filter((m) => m.name.toLowerCase().includes(q) || m.description.toLowerCase().includes(q));
+    list = list.filter(
+      (m) =>
+        m.name.toLowerCase().includes(q) ||
+        m.description.toLowerCase().includes(q)
+    );
   }
 
   return list;
@@ -342,13 +394,22 @@ function isSkillEnabled(name: string): boolean {
 }
 
 .skill-item:hover {
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.05));
-  border-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.15));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.05)
+  );
+  border-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.15)
+  );
 }
 
 .skill-item.selected {
   border-color: var(--el-color-primary);
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.08));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.08)
+  );
 }
 
 .skill-item-header {
@@ -369,17 +430,26 @@ function isSkillEnabled(name: string): boolean {
   padding: 2px 8px;
   border-radius: 4px;
   font-weight: 500;
-  background-color: rgba(var(--el-color-info-rgb), calc(var(--card-opacity) * 0.12));
+  background-color: rgba(
+    var(--el-color-info-rgb),
+    calc(var(--card-opacity) * 0.12)
+  );
   color: var(--el-color-info);
 }
 
 .skill-source-tag.user {
-  background-color: rgba(var(--el-color-success-rgb), calc(var(--card-opacity) * 0.12));
+  background-color: rgba(
+    var(--el-color-success-rgb),
+    calc(var(--card-opacity) * 0.12)
+  );
   color: var(--el-color-success);
 }
 
 .skill-source-tag.builtin {
-  background-color: rgba(var(--el-color-info-rgb), calc(var(--card-opacity) * 0.12));
+  background-color: rgba(
+    var(--el-color-info-rgb),
+    calc(var(--card-opacity) * 0.12)
+  );
   color: var(--el-color-info);
 }
 

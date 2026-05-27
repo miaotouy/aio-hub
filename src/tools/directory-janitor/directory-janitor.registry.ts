@@ -68,7 +68,9 @@ export default class DirectoryJanitorRegistry implements ToolRegistry {
    * [Agent Friendly] 扫描目录并返回格式化结果
    * 一次性调用，返回符合条件的文件和目录列表
    */
-  public async scanDirectory(options: ScanDirectoryOptions): Promise<FormattedScanResult | null> {
+  public async scanDirectory(
+    options: ScanDirectoryOptions
+  ): Promise<FormattedScanResult | null> {
     const { includeDetails = false, ...scanOptions } = options;
     logger.info("开始扫描目录 (Agent 调用)", scanOptions);
 
@@ -118,7 +120,9 @@ export default class DirectoryJanitorRegistry implements ToolRegistry {
    * [Agent Friendly] 清理指定的文件和目录
    * 将项目移动到回收站
    */
-  public async cleanupItems(options: CleanupItemsOptions): Promise<FormattedCleanupResult | null> {
+  public async cleanupItems(
+    options: CleanupItemsOptions
+  ): Promise<FormattedCleanupResult | null> {
     const { paths } = options;
     logger.info("开始清理项目 (Agent 调用)", {
       pathsCount: paths.length,
@@ -267,7 +271,8 @@ export default class DirectoryJanitorRegistry implements ToolRegistry {
           name: "scanDirectory",
           displayName: "扫描目录",
           agentCallable: true,
-          description: "扫描目录并返回符合条件的文件和目录列表，支持按名称模式、日期、大小过滤",
+          description:
+            "扫描目录并返回符合条件的文件和目录列表，支持按名称模式、日期、大小过滤",
           parameters: [
             {
               name: "options",
@@ -308,7 +313,8 @@ export default class DirectoryJanitorRegistry implements ToolRegistry {
                 {
                   name: "includeDetails",
                   type: "boolean",
-                  description: "（可选）是否返回详细信息（包含完整的项目列表），默认 false",
+                  description:
+                    "（可选）是否返回详细信息（包含完整的项目列表），默认 false",
                   required: false,
                   defaultValue: false,
                 },
@@ -343,7 +349,8 @@ export default class DirectoryJanitorRegistry implements ToolRegistry {
           name: "scanAndCleanup",
           displayName: "扫描并清理",
           agentCallable: true,
-          description: "一步到位：先扫描目录找出符合条件的文件，然后全部移动到回收站",
+          description:
+            "一步到位：先扫描目录找出符合条件的文件，然后全部移动到回收站",
           parameters: [
             {
               name: "options",
@@ -384,7 +391,8 @@ export default class DirectoryJanitorRegistry implements ToolRegistry {
               ],
             },
           ],
-          returnType: "Promise<{ scanResult: FormattedScanResult; cleanupResult: FormattedCleanupResult } | null>",
+          returnType:
+            "Promise<{ scanResult: FormattedScanResult; cleanupResult: FormattedCleanupResult } | null>",
         },
       ],
     };

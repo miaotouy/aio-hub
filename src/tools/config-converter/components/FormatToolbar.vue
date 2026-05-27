@@ -26,12 +26,36 @@
 
           <span class="label">目标格式:</span>
           <el-select v-model="singleTo" size="default" style="width: 110px">
-            <el-option label="JSON" value="json" :disabled="singleFrom === 'json'" />
-            <el-option label="YAML" value="yaml" :disabled="singleFrom === 'yaml'" />
-            <el-option label="TOML" value="toml" :disabled="singleFrom === 'toml'" />
-            <el-option label="INI" value="ini" :disabled="singleFrom === 'ini'" />
-            <el-option label="XML" value="xml" :disabled="singleFrom === 'xml'" />
-            <el-option label="Properties/.env" value="env" :disabled="singleFrom === 'env'" />
+            <el-option
+              label="JSON"
+              value="json"
+              :disabled="singleFrom === 'json'"
+            />
+            <el-option
+              label="YAML"
+              value="yaml"
+              :disabled="singleFrom === 'yaml'"
+            />
+            <el-option
+              label="TOML"
+              value="toml"
+              :disabled="singleFrom === 'toml'"
+            />
+            <el-option
+              label="INI"
+              value="ini"
+              :disabled="singleFrom === 'ini'"
+            />
+            <el-option
+              label="XML"
+              value="xml"
+              :disabled="singleFrom === 'xml'"
+            />
+            <el-option
+              label="Properties/.env"
+              value="env"
+              :disabled="singleFrom === 'env'"
+            />
           </el-select>
         </div>
       </template>
@@ -54,14 +78,22 @@
       <!-- 高级选项配置 -->
       <el-popover placement="bottom" :width="320" trigger="click">
         <template #reference>
-          <el-button size="default" :icon="Settings" class="options-btn">高级选项</el-button>
+          <el-button size="default" :icon="Settings" class="options-btn"
+            >高级选项</el-button
+          >
         </template>
         <div class="advanced-options">
           <h4 class="options-title">格式化选项</h4>
 
           <div class="option-item">
             <span class="option-label">JSON 缩进:</span>
-            <el-input-number v-model="currentOptions.jsonIndent" :min="1" :max="8" size="small" style="width: 100px" />
+            <el-input-number
+              v-model="currentOptions.jsonIndent"
+              :min="1"
+              :max="8"
+              size="small"
+              style="width: 100px"
+            />
           </div>
 
           <div class="option-item">
@@ -78,12 +110,22 @@
 
           <div class="option-item">
             <span class="option-label">INI 展平分隔符:</span>
-            <el-input v-model="currentOptions.iniDelimiter" size="small" style="width: 100px" placeholder="." />
+            <el-input
+              v-model="currentOptions.iniDelimiter"
+              size="small"
+              style="width: 100px"
+              placeholder="."
+            />
           </div>
 
           <div class="option-item">
             <span class="option-label">XML 根节点名:</span>
-            <el-input v-model="currentOptions.xmlRootName" size="small" style="width: 100px" placeholder="root" />
+            <el-input
+              v-model="currentOptions.xmlRootName"
+              size="small"
+              style="width: 100px"
+              placeholder="root"
+            />
           </div>
 
           <div class="option-item">
@@ -106,7 +148,11 @@
             <el-option label="深度 3" :value="3" />
           </el-select>
 
-          <el-checkbox v-model="scanShowHidden" label="包含隐藏文件" size="default" />
+          <el-checkbox
+            v-model="scanShowHidden"
+            label="包含隐藏文件"
+            size="default"
+          />
 
           <div class="divider"></div>
 
@@ -132,7 +178,13 @@
             </el-input>
           </template>
 
-          <el-button type="primary" size="default" :loading="isConverting" :icon="Play" @click="emit('convert')">
+          <el-button
+            type="primary"
+            size="default"
+            :loading="isConverting"
+            :icon="Play"
+            @click="emit('convert')"
+          >
             开始转换
           </el-button>
         </div>
@@ -172,7 +224,8 @@ const emit = defineEmits<{
 
 // 统一处理高级选项的双向绑定
 const currentOptions = computed({
-  get: () => (mode.value === "single" ? props.singleOptions : props.batchOptions),
+  get: () =>
+    mode.value === "single" ? props.singleOptions : props.batchOptions,
   set: () => {
     // 实际上 computed 内部属性是响应式的，直接修改即可
   },
@@ -200,12 +253,14 @@ const outputMode = computed({
 
 const scanMaxDepth = computed({
   get: () => props.scanOptions.maxDepth,
-  set: (val) => emit("update:scanOptions", { ...props.scanOptions, maxDepth: val }),
+  set: (val) =>
+    emit("update:scanOptions", { ...props.scanOptions, maxDepth: val }),
 });
 
 const scanShowHidden = computed({
   get: () => props.scanOptions.showHidden,
-  set: (val) => emit("update:scanOptions", { ...props.scanOptions, showHidden: val }),
+  set: (val) =>
+    emit("update:scanOptions", { ...props.scanOptions, showHidden: val }),
 });
 
 const selectOutputDirectory = () => {

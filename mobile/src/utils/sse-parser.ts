@@ -17,17 +17,17 @@ export async function parseSSEStream(
   signal?: AbortSignal
 ): Promise<void> {
   const decoder = new TextDecoder();
-  let buffer = '';
+  let buffer = "";
 
   try {
     while (true) {
       if (signal?.aborted) {
         await reader.cancel();
-        throw new DOMException('The operation was aborted.', 'AbortError');
+        throw new DOMException("The operation was aborted.", "AbortError");
       }
-      
+
       const { done, value } = await reader.read();
-      
+
       if (done) {
         break;
       }
@@ -36,21 +36,21 @@ export async function parseSSEStream(
       buffer += decoder.decode(value, { stream: true });
 
       // 按行分割
-      const lines = buffer.split('\n');
-      
+      const lines = buffer.split("\n");
+
       // 保留最后一个不完整的行
-      buffer = lines.pop() || '';
+      buffer = lines.pop() || "";
 
       // 处理完整的行
       for (const line of lines) {
         const trimmedLine = line.trim();
         if (!trimmedLine) continue;
 
-        if (trimmedLine.startsWith('data: ')) {
+        if (trimmedLine.startsWith("data: ")) {
           const data = trimmedLine.slice(6);
-          
+
           // 跳过 [DONE] 标记
-          if (data === '[DONE]') {
+          if (data === "[DONE]") {
             continue;
           }
 
@@ -71,22 +71,25 @@ export async function parseSSEStream(
  * 从 SSE 数据中提取文本内容
  * 移动端版本：逻辑与桌面端对齐，但作为全局工具提供
  */
-export function extractTextFromSSE(data: string, providerType: string): string | null {
+export function extractTextFromSSE(
+  data: string,
+  providerType: string
+): string | null {
   try {
     const json = JSON.parse(data);
 
     switch (providerType) {
-      case 'openai':
-      case 'deepseek':
-      case 'oneapi':
+      case "openai":
+      case "deepseek":
+      case "oneapi":
         return json.choices?.[0]?.delta?.content || null;
 
-      case 'gemini':
-      case 'vertexai':
+      case "gemini":
+      case "vertexai":
         return json.candidates?.[0]?.content?.parts?.[0]?.text || null;
 
-      case 'claude':
-        if (json.type === 'content_block_delta') {
+      case "claude":
+        if (json.type === "content_block_delta") {
           return json.delta?.text || null;
         }
         return null;
@@ -102,13 +105,16 @@ export function extractTextFromSSE(data: string, providerType: string): string |
 /**
  * 从 SSE 数据中提取推理内容
  */
-export function extractReasoningFromSSE(data: string, providerType: string): string | null {
+export function extractReasoningFromSSE(
+  data: string,
+  providerType: string
+): string | null {
   try {
     const json = JSON.parse(data);
 
     switch (providerType) {
-      case 'openai':
-      case 'deepseek':
+      case "openai":
+      case "deepseek":
         return (
           json.choices?.[0]?.delta?.reasoning_content ||
           json.choices?.[0]?.delta?.reasoning ||

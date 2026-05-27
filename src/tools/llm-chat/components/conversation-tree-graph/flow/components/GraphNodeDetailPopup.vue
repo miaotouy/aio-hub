@@ -2,12 +2,20 @@
 import { computed, ref, watch, nextTick } from "vue";
 import { X } from "lucide-vue-next";
 import { useDraggable } from "@vueuse/core";
-import type { ChatMessageNode, ChatSessionIndex, ChatSessionDetail, MessageRole } from "../../../../types";
+import type {
+  ChatMessageNode,
+  ChatSessionIndex,
+  ChatSessionDetail,
+  MessageRole,
+} from "../../../../types";
 import type { Asset } from "@/types/asset-management";
 import ChatMessage from "../../../message/ChatMessage.vue";
 import CompressionMessage from "../../../message/CompressionMessage.vue";
 import { useLlmChatStore } from "../../../../stores/llmChatStore";
-import type { LlmThinkRule, RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
+import type {
+  LlmThinkRule,
+  RichTextRendererStyleOptions,
+} from "@/tools/rich-text-renderer/types";
 
 interface Props {
   sessionIndex: ChatSessionIndex | null;

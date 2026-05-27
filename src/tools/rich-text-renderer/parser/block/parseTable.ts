@@ -27,7 +27,7 @@ export function parseTable(
   if (tempIndex < tokens.length) tempIndex++; // 跳过表头后的换行
 
   // 提取分隔符行
-  const aligns: ('left' | 'center' | 'right')[] = [];
+  const aligns: ("left" | "center" | "right")[] = [];
   let separatorLine = "";
   while (tempIndex < tokens.length) {
     const t = tokens[tempIndex];
@@ -42,7 +42,7 @@ export function parseTable(
 
   // 解析分隔符以确定对齐方式
   // 格式: |:---|:---:|---:| 或 |---|---|---|
-  const separatorCells = separatorLine.split("|").filter(cell => cell.trim());
+  const separatorCells = separatorLine.split("|").filter((cell) => cell.trim());
   for (const cell of separatorCells) {
     const trimmed = cell.trim();
     if (trimmed.startsWith(":") && trimmed.endsWith(":")) {

@@ -114,13 +114,20 @@ export function customJsonStringify(
         if (typeof item === "object" && item !== null) {
           return JSON.stringify(item);
         }
-        return customJsonStringify(item, expandDepth, indentSize, currentDepth + 1);
+        return customJsonStringify(
+          item,
+          expandDepth,
+          indentSize,
+          currentDepth + 1
+        );
       });
       return `[${compactItems.join(", ")}]`;
     }
 
     const items = obj.map(
-      (item) => nextIndent + customJsonStringify(item, expandDepth, indentSize, currentDepth + 1)
+      (item) =>
+        nextIndent +
+        customJsonStringify(item, expandDepth, indentSize, currentDepth + 1)
     );
     return `[\n${items.join(",\n")}\n${indent}]`;
   }
@@ -134,7 +141,12 @@ export function customJsonStringify(
     }
 
     const items = keys.map((key) => {
-      const value = customJsonStringify(obj[key], expandDepth, indentSize, currentDepth + 1);
+      const value = customJsonStringify(
+        obj[key],
+        expandDepth,
+        indentSize,
+        currentDepth + 1
+      );
       return `${nextIndent}${JSON.stringify(key)}: ${value}`;
     });
     return `{\n${items.join(",\n")}\n${indent}}`;
@@ -149,7 +161,10 @@ export function customJsonStringify(
  * @param options 格式化选项
  * @returns 格式化结果
  */
-export function formatJson(text: string, options: FormatOptions = {}): FormatResult {
+export function formatJson(
+  text: string,
+  options: FormatOptions = {}
+): FormatResult {
   const { expandDepth = 3, indentSize = 2 } = options;
 
   logger.debug("开始格式化 JSON", {
@@ -169,7 +184,12 @@ export function formatJson(text: string, options: FormatOptions = {}): FormatRes
   }
 
   try {
-    const formatted = customJsonStringify(parseResult.data, expandDepth, indentSize, 0);
+    const formatted = customJsonStringify(
+      parseResult.data,
+      expandDepth,
+      indentSize,
+      0
+    );
 
     logger.info("JSON 格式化成功", {
       inputLength: text.length,
@@ -238,9 +258,13 @@ export async function readFile(file: File): Promise<FileReadResult> {
 
     reader.onerror = (e) => {
       const error = `读取文件失败: ${e.target?.error?.message || "未知错误"}`;
-      errorHandler.error(e.target?.error || new Error("Unknown error"), "文件读取失败", {
-        context: { fileName: file.name },
-      });
+      errorHandler.error(
+        e.target?.error || new Error("Unknown error"),
+        "文件读取失败",
+        {
+          context: { fileName: file.name },
+        }
+      );
       resolve({
         content: "",
         fileName: file.name,
@@ -262,7 +286,9 @@ export async function readFile(file: File): Promise<FileReadResult> {
  * @param args 扁平化参数对象
  * @returns 格式化结果
  */
-export async function formatJsonAgent(args: Record<string, string>): Promise<FormatResult> {
+export async function formatJsonAgent(
+  args: Record<string, string>
+): Promise<FormatResult> {
   const { text, filePath } = args;
   const expandDepth = args.expandDepth ? Number(args.expandDepth) : 3;
   const indentSize = args.indentSize ? Number(args.indentSize) : 2;
@@ -272,10 +298,10 @@ export async function formatJsonAgent(args: Record<string, string>): Promise<For
   // 如果提供了文件路径，优先从文件读取
   if (filePath) {
     logger.info("从文件路径读取 JSON", { filePath });
-    const content = await errorHandler.wrapAsync(
-      () => readTextFile(filePath),
-      { userMessage: `读取文件失败: ${filePath}`, showToUser: false },
-    );
+    const content = await errorHandler.wrapAsync(() => readTextFile(filePath), {
+      userMessage: `读取文件失败: ${filePath}`,
+      showToUser: false,
+    });
     if (content === null) {
       return {
         formatted: "",

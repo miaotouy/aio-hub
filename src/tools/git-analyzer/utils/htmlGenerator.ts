@@ -13,12 +13,12 @@ interface HtmlGeneratorOptions {
   commits: GitCommit[];
   getCommitsToExport: () => GitCommit[];
   getContributorStats: (
-    commits: GitCommit[],
+    commits: GitCommit[]
   ) => Array<{ name: string; count: number }>;
   formatDate: (date: string, format: string) => string;
   escapeHtml: (text: string) => string;
   generateTimelineData?: (
-    commits: GitCommit[],
+    commits: GitCommit[]
   ) => Array<{ date: string; count: number }>;
   generateChartData?: (commits: GitCommit[]) => {
     frequency: Array<{ date: string; count: number }>;

@@ -82,7 +82,10 @@ defineProps<{
 const emit = defineEmits<{
   (e: "update-prop", key: string, value: any): void;
   (e: "update-props", data: Record<string, any>): void;
-  (e: "align", direction: "left" | "right" | "top" | "bottom" | "center-h" | "center-v"): void;
+  (
+    e: "align",
+    direction: "left" | "right" | "top" | "bottom" | "center-h" | "center-v"
+  ): void;
   (e: "distribute", direction: "horizontal" | "vertical"): void;
   (e: "delete-selected"): void;
 }>();

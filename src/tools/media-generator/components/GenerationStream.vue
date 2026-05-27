@@ -27,7 +27,7 @@ watch(
   () => store.messages.length,
   () => {
     scrollToBottom();
-  },
+  }
 );
 
 const displayPrompts = ref<string[]>([]);
@@ -77,7 +77,7 @@ watch(
       }
     }
   },
-  { deep: true, immediate: true },
+  { deep: true, immediate: true }
 );
 </script>
 
@@ -106,7 +106,9 @@ watch(
               </div>
             </transition>
             <el-button class="refresh-tips-btn" link @click="refreshPrompts">
-              <el-icon :class="{ 'rotating-icon': isRefreshing }"><RefreshCw /></el-icon>
+              <el-icon :class="{ 'rotating-icon': isRefreshing }"
+                ><RefreshCw
+              /></el-icon>
               <span>换一批</span>
             </el-button>
           </div>

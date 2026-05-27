@@ -1,5 +1,11 @@
 import { Token, ParserContext } from "../types";
-import { ActionButtonNode, AstNode, GenericHtmlNode, VideoNode, AudioNode } from "../../types";
+import {
+  ActionButtonNode,
+  AstNode,
+  GenericHtmlNode,
+  VideoNode,
+  AudioNode,
+} from "../../types";
 import { createTextNode, computeFingerprint } from "../utils/text-utils";
 
 // 媒体文件后缀定义
@@ -106,7 +112,11 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
       }
 
       if (tagName === "button") {
-        const action = token.attributes.type as "send" | "input" | "copy" | undefined;
+        const action = token.attributes.type as
+          | "send"
+          | "input"
+          | "copy"
+          | undefined;
 
         // 安全性检查：只处理白名单内的 action 类型
         if (action && ["send", "input", "copy"].includes(action)) {
@@ -130,9 +140,16 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
               if (i >= tokens.length) break;
               const t = tokens[i];
 
-              if (t.type === "html_open" && t.tagName.toLowerCase() === "button" && !t.selfClosing) {
+              if (
+                t.type === "html_open" &&
+                t.tagName.toLowerCase() === "button" &&
+                !t.selfClosing
+              ) {
                 depth++;
-              } else if (t.type === "html_close" && t.tagName.toLowerCase() === "button") {
+              } else if (
+                t.type === "html_close" &&
+                t.tagName.toLowerCase() === "button"
+              ) {
                 depth--;
                 if (depth === 0) {
                   break;
@@ -297,7 +314,11 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
           if (t === closingToken) {
             // 如果是 triple_delimiter，我们需要把剩余的 ** 放回 innerTokens
             if (t.type === "triple_delimiter") {
-              innerTokens.push({ type: "strong_delimiter", marker: "**", raw: "**" });
+              innerTokens.push({
+                type: "strong_delimiter",
+                marker: "**",
+                raw: "**",
+              });
             }
             i++;
             break;
@@ -349,7 +370,9 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
       if (hasClosing) {
         i++;
         // 既然 *** 视为 <em><strong>，那么 innerTokens 应该以 <strong> 开始
-        const innerTokens: Token[] = [{ type: "strong_delimiter", marker: "**", raw: "**" }];
+        const innerTokens: Token[] = [
+          { type: "strong_delimiter", marker: "**", raw: "**" },
+        ];
 
         while (i < tokens.length) {
           const t = tokens[i];
@@ -357,7 +380,11 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
             // 如果闭合是 ***，它提供了 * (em close) 和 ** (strong close)
             // 我们需要把 ** (strong close) 放入 innerTokens
             if (t.type === "triple_delimiter") {
-              innerTokens.push({ type: "strong_delimiter", marker: "**", raw: "**" });
+              innerTokens.push({
+                type: "strong_delimiter",
+                marker: "**",
+                raw: "**",
+              });
             }
             i++;
             break;
@@ -848,7 +875,8 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
       // 2. www. 开头的链接
       // 3. 邮箱地址
       // 注意：排除末尾的标点符号
-      const urlRegex = /((?:https?:\/\/|www\.)[^\s<]+)|([a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6})/g;
+      const urlRegex =
+        /((?:https?:\/\/|www\.)[^\s<]+)|([a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6})/g;
 
       let match;
       let lastIndex = 0;
@@ -950,9 +978,18 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
     }
 
     // 处理未被消费的特殊字符 (如孤立的括号)
-    if (token.type === "link_url_open" || token.type === "link_url_close" || token.type === "link_text_close") {
+    if (
+      token.type === "link_url_open" ||
+      token.type === "link_url_close" ||
+      token.type === "link_text_close"
+    ) {
       accumulatedText +=
-        token.raw || (token.type === "link_url_open" ? "(" : token.type === "link_url_close" ? ")" : "]");
+        token.raw ||
+        (token.type === "link_url_open"
+          ? "("
+          : token.type === "link_url_close"
+            ? ")"
+            : "]");
       i++;
       continue;
     }

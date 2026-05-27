@@ -17,7 +17,16 @@ const props = defineProps<Props>();
 
 const emit = defineEmits<{
   (e: "update:show", value: boolean): void;
-  (e: "select", value: { value: string; profileId: string; modelId: string; label: string; model: LlmModelInfo }): void;
+  (
+    e: "select",
+    value: {
+      value: string;
+      profileId: string;
+      modelId: string;
+      label: string;
+      model: LlmModelInfo;
+    }
+  ): void;
 }>();
 
 const router = useRouter();
@@ -34,11 +43,14 @@ const isVisible = computed({
 });
 
 // 当弹窗打开时重置搜索
-watch(() => props.show, (newVal) => {
-  if (newVal) {
-    searchQuery.value = "";
+watch(
+  () => props.show,
+  (newVal) => {
+    if (newVal) {
+      searchQuery.value = "";
+    }
   }
-});
+);
 
 // 格式化所有可用模型
 const availableModels = computed(() => {
@@ -129,7 +141,9 @@ const handleSelect = (item: (typeof availableModels.value)[0]) => {
   <var-popup position="bottom" v-model:show="isVisible" round>
     <div class="model-select-popup">
       <div class="popup-header">
-        <div class="popup-title">{{ tRaw("tools.llm-api.common.选择模型") }}</div>
+        <div class="popup-title">
+          {{ tRaw("tools.llm-api.common.选择模型") }}
+        </div>
         <div class="search-bar">
           <var-input
             v-model="searchQuery"
@@ -147,7 +161,11 @@ const handleSelect = (item: (typeof availableModels.value)[0]) => {
       <div class="popup-content">
         <div v-if="modelGroups.length === 0" class="empty-state">
           <p>{{ tRaw("tools.llm-api.common.未配置模型") }}</p>
-          <var-button type="primary" size="small" @click="router.push('/tools/llm-api')">
+          <var-button
+            type="primary"
+            size="small"
+            @click="router.push('/tools/llm-api')"
+          >
             {{ tRaw("tools.llm-api.common.去配置") }}
           </var-button>
         </div>

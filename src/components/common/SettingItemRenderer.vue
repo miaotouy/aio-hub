@@ -2,7 +2,10 @@
   <el-form-item
     :label="resolvedLabel"
     :data-setting-id="item.id"
-    :class="['setting-item-renderer-form-item', { 'setting-item-highlight': isHighlighted }]"
+    :class="[
+      'setting-item-renderer-form-item',
+      { 'setting-item-highlight': isHighlighted },
+    ]"
   >
     <!-- Block layout (default) -->
     <template v-if="item.layout !== 'inline'">
@@ -10,7 +13,10 @@
         <!-- Collapsible Component Template -->
         <div v-if="item.collapsible" class="full-width" style="width: 100%">
           <el-collapse v-model="activeCollapseNames">
-            <el-collapse-item :title="item.collapsible.title" :name="item.collapsible.name">
+            <el-collapse-item
+              :title="item.collapsible.title"
+              :name="item.collapsible.name"
+            >
               <div :style="item.collapsible.style">
                 <component
                   v-if="isComponentLoaded"
@@ -35,7 +41,11 @@
           class="full-width"
         >
           <template #append>
-            <el-button @click="handleAction" title="选择文件" style="padding: 8px">
+            <el-button
+              @click="handleAction"
+              title="选择文件"
+              style="padding: 8px"
+            >
               <el-icon><FolderOpened /></el-icon>
             </el-button>
           </template>
@@ -82,12 +92,21 @@
             >
               <div class="select-option-with-tags">
                 <span>{{ option.label }}</span>
-                <div v-if="option.tags && option.tags.length > 0" class="tags-container">
+                <div
+                  v-if="option.tags && option.tags.length > 0"
+                  class="tags-container"
+                >
                   <el-tag
                     v-for="tag in option.tags"
                     :key="tag"
                     size="small"
-                    :type="tag === '基础' ? 'success' : tag === '高级' ? 'warning' : 'info'"
+                    :type="
+                      tag === '基础'
+                        ? 'success'
+                        : tag === '高级'
+                          ? 'warning'
+                          : 'info'
+                    "
                     class="option-tag"
                   >
                     {{ tag }}
@@ -99,7 +118,10 @@
         </component>
 
         <!-- SliderWithInput Custom Composite Component -->
-        <div v-if="item.component === 'SliderWithInput'" class="slider-with-input">
+        <div
+          v-if="item.component === 'SliderWithInput'"
+          class="slider-with-input"
+        >
           <el-slider
             :model-value="modelValue"
             @update:model-value="handleUpdate"
@@ -115,7 +137,11 @@
           />
         </div>
 
-        <div v-if="item.slots?.append" class="append-slot" @click="handleAction">
+        <div
+          v-if="item.slots?.append"
+          class="append-slot"
+          @click="handleAction"
+        >
           <component :is="item.slots.append" />
         </div>
       </div>
@@ -138,7 +164,11 @@
           @update:modelValue="handleUpdate"
           v-bind="resolvedProps"
         />
-        <div v-if="item.hint" class="form-hint-inline" v-html="resolvedHint"></div>
+        <div
+          v-if="item.hint"
+          class="form-hint-inline"
+          v-html="resolvedHint"
+        ></div>
       </div>
     </template>
   </el-form-item>
@@ -256,7 +286,9 @@ const resolvedOptions = computed(() => {
 
 const selectedOptionDescription = computed(() => {
   if (props.item.component === "ElSelect" && resolvedOptions.value) {
-    const option = resolvedOptions.value.find((opt: any) => opt.value === modelValue.value);
+    const option = resolvedOptions.value.find(
+      (opt: any) => opt.value === modelValue.value
+    );
     return option?.description;
   }
   return undefined;
@@ -267,7 +299,9 @@ const renderTemplate = (tpl: string) => {
   return tpl.replace(/\{\{ (.*?) \}\}/g, (_, expression) => {
     try {
       // eslint-disable-next-line no-new-func
-      return new Function("localSettings", `return ${expression}`)(props.settings);
+      return new Function("localSettings", `return ${expression}`)(
+        props.settings
+      );
     } catch (e) {
       return `{{ ${expression} }}`;
     }
@@ -445,7 +479,11 @@ if (!props.item.collapsible) {
 
 /* 高亮样式 */
 .setting-item-highlight {
-  background-color: color-mix(in srgb, var(--el-color-primary) 10%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-primary) 10%,
+    transparent
+  );
   border-radius: 4px;
   transition: background-color 0.3s ease-in-out;
   padding: 4px 8px;

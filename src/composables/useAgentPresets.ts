@@ -1,19 +1,19 @@
 /**
  * 智能体预设管理 Composable
- * 
+ *
  * 从 src/config/agent-presets/ 目录自动加载所有预设配置文件
  */
 
-import { ref, computed } from 'vue';
-import type { AgentPreset } from '@/tools/llm-chat/types';
-import { createModuleLogger } from '@/utils/logger';
-import { createModuleErrorHandler } from '@/utils/errorHandler';
-import yaml from 'js-yaml';
-import agentConfigWizard from '@/config/agent-presets/agent-config-wizard';
-import { builtinPresets } from '@/config/agent-presets';
+import { ref, computed } from "vue";
+import type { AgentPreset } from "@/tools/llm-chat/types";
+import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
+import yaml from "js-yaml";
+import agentConfigWizard from "@/config/agent-presets/agent-config-wizard";
+import { builtinPresets } from "@/config/agent-presets";
 
-const logger = createModuleLogger('AgentPresets');
-const errorHandler = createModuleErrorHandler('AgentPresets');
+const logger = createModuleLogger("AgentPresets");
+const errorHandler = createModuleErrorHandler("AgentPresets");
 
 // 全局状态
 const presets = ref<AgentPreset[]>([]);
@@ -27,10 +27,10 @@ export function useAgentPresets() {
    */
   const loadPresets = async () => {
     if (isLoading.value) return;
-    
+
     try {
       isLoading.value = true;
-      logger.info('开始加载智能体预设');
+      logger.info("开始加载智能体预设");
 
       const loadedPresets: AgentPreset[] = [];
 
@@ -38,13 +38,17 @@ export function useAgentPresets() {
       const loadTasks = builtinPresets.map(async (metadata) => {
         try {
           const response = await fetch(metadata.configUrl);
-          if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-          
-          const content = await response.text();
-          let parsed: Omit<AgentPreset, 'id'>;
+          if (!response.ok)
+            throw new Error(`HTTP error! status: ${response.status}`);
 
-          if (metadata.configUrl.endsWith('.yaml') || metadata.configUrl.endsWith('.yml')) {
-            parsed = yaml.load(content) as Omit<AgentPreset, 'id'>;
+          const content = await response.text();
+          let parsed: Omit<AgentPreset, "id">;
+
+          if (
+            metadata.configUrl.endsWith(".yaml") ||
+            metadata.configUrl.endsWith(".yml")
+          ) {
+            parsed = yaml.load(content) as Omit<AgentPreset, "id">;
           } else {
             parsed = JSON.parse(content);
           }
@@ -58,25 +62,28 @@ export function useAgentPresets() {
             } as AgentPreset;
           }
         } catch (e) {
-          logger.error(`加载预设配置失败: ${metadata.id} (${metadata.configUrl})`, e as Error);
+          logger.error(
+            `加载预设配置失败: ${metadata.id} (${metadata.configUrl})`,
+            e as Error
+          );
           // 如果加载失败，至少保留元数据信息（用于 UI 展示占位）
           return {
             ...metadata,
             presetMessages: [],
-            parameters: { temperature: 1, maxTokens: 4096 }
+            parameters: { temperature: 1, maxTokens: 4096 },
           } as AgentPreset;
         }
         return null;
       });
 
       const results = await Promise.all(loadTasks);
-      results.forEach(p => {
+      results.forEach((p) => {
         if (p) loadedPresets.push(p);
       });
 
       // 2. 添加动态生成的预设
       loadedPresets.push({
-        id: 'agent-config-wizard',
+        id: "agent-config-wizard",
         ...agentConfigWizard,
       } as AgentPreset);
 
@@ -84,13 +91,16 @@ export function useAgentPresets() {
       isLoaded.value = true;
 
       if (loadedPresets.length > 0) {
-        const presetInfo = loadedPresets.map(p => ({ id: p.id, name: p.name }));
-        logger.debug('加载的智能体预设列表', { presets: presetInfo });
+        const presetInfo = loadedPresets.map((p) => ({
+          id: p.id,
+          name: p.name,
+        }));
+        logger.debug("加载的智能体预设列表", { presets: presetInfo });
       }
 
-      logger.info('智能体预设加载成功', { presetCount: loadedPresets.length });
+      logger.info("智能体预设加载成功", { presetCount: loadedPresets.length });
     } catch (error) {
-      errorHandler.error(error, '加载智能体预设失败');
+      errorHandler.error(error, "加载智能体预设失败");
       presets.value = [];
       isLoaded.value = true;
     } finally {
@@ -141,11 +151,11 @@ export function useAgentPresets() {
    */
   const presetsByTag = computed(() => {
     const grouped: Record<string, AgentPreset[]> = {};
-    
+
     allTags.value.forEach((tag) => {
       grouped[tag] = getPresetsByTag(tag);
     });
-    
+
     return grouped;
   });
 

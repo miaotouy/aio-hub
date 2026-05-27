@@ -2,7 +2,10 @@
   <div class="dir-search">
     <!-- 顶部目录栏 -->
     <div class="dir-search__topbar">
-      <el-tooltip :content="isPanelCollapsed ? '展开搜索面板' : '收起搜索面板'" :show-after="500">
+      <el-tooltip
+        :content="isPanelCollapsed ? '展开搜索面板' : '收起搜索面板'"
+        :show-after="500"
+      >
         <button
           class="dir-search__collapse-btn"
           :class="{ collapsed: isPanelCollapsed }"
@@ -12,13 +15,21 @@
           <PanelLeftOpen v-else :size="16" />
         </button>
       </el-tooltip>
-      <DirectoryBar v-model="search.rootPath.value" class="dir-search__directory-bar" @search="search.executeSearch" />
+      <DirectoryBar
+        v-model="search.rootPath.value"
+        class="dir-search__directory-bar"
+        @search="search.executeSearch"
+      />
     </div>
 
     <!-- 主体分栏 -->
     <div class="dir-search__body">
       <!-- 左栏：搜索面板 -->
-      <div v-show="!isPanelCollapsed" class="dir-search__left" :style="{ width: panelWidth + 'px' }">
+      <div
+        v-show="!isPanelCollapsed"
+        class="dir-search__left"
+        :style="{ width: panelWidth + 'px' }"
+      >
         <SearchPanel
           ref="searchPanelRef"
           v-model:pattern="search.pattern.value"
@@ -56,7 +67,11 @@
       </div>
 
       <!-- 拖拽分隔条 -->
-      <div v-show="!isPanelCollapsed" class="dir-search__resize-handle" @mousedown="startResize" />
+      <div
+        v-show="!isPanelCollapsed"
+        class="dir-search__resize-handle"
+        @mousedown="startResize"
+      />
 
       <!-- 右栏：文件预览 -->
       <div class="dir-search__right">
@@ -70,7 +85,11 @@
     </div>
 
     <!-- 右键菜单 -->
-    <ContextMenu :state="contextMenu.state.value" @select="handleContextMenuSelect" @hide="contextMenu.hide" />
+    <ContextMenu
+      :state="contextMenu.state.value"
+      @select="handleContextMenuSelect"
+      @hide="contextMenu.hide"
+    />
   </div>
 </template>
 
@@ -85,7 +104,10 @@ import FilePreview from "./components/FilePreview.vue";
 import ContextMenu from "./components/ContextMenu.vue";
 import { useDirSearch } from "./composables/useDirSearch";
 import { useDirSearchUiState } from "./composables/useDirSearchUiState";
-import { useContextMenu, type ContextMenuItem } from "./composables/useContextMenu";
+import {
+  useContextMenu,
+  type ContextMenuItem,
+} from "./composables/useContextMenu";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { SearchMatch, TargetMatch } from "./types";
@@ -116,7 +138,7 @@ watch(
     if (newPath) {
       uiState.lastRootPath.value = newPath;
     }
-  },
+  }
 );
 
 // 计算属性
@@ -156,12 +178,14 @@ async function handleReplaceAll() {
         cancelButtonText: "取消",
         type: "warning",
         lockScroll: false,
-      },
+      }
     );
 
     const result = await search.executeReplace();
     if (result) {
-      customMessage.success(`替换完成：${result.filesReplaced} 文件，${result.totalReplacements} 处`);
+      customMessage.success(
+        `替换完成：${result.filesReplaced} 文件，${result.totalReplacements} 处`
+      );
       if (result.filesFailed > 0) {
         customMessage.warning(`${result.filesFailed} 个文件替换失败`);
       }
@@ -189,17 +213,26 @@ async function handleReplaceFile(filePath: string) {
 async function handleReplaceMatch(filePath: string, matchIndex: number) {
   const result = await search.replaceSingleMatch(filePath, matchIndex);
   if (result?.success) {
-    customMessage.success(`已替换: "${result.originalText}" → "${result.replacedText}"`);
+    customMessage.success(
+      `已替换: "${result.originalText}" → "${result.replacedText}"`
+    );
   }
 }
 
 /** 处理右键菜单触发 */
-function handleContextMenu(event: MouseEvent, items: ContextMenuItem[], context: Record<string, unknown>) {
+function handleContextMenu(
+  event: MouseEvent,
+  items: ContextMenuItem[],
+  context: Record<string, unknown>
+) {
   contextMenu.show(event, items, context);
 }
 
 /** 处理右键菜单项选择 */
-async function handleContextMenuSelect(itemId: string, context: Record<string, unknown>) {
+async function handleContextMenuSelect(
+  itemId: string,
+  context: Record<string, unknown>
+) {
   const filePath = context.filePath as string;
   const relativePath = context.relativePath as string;
 
@@ -249,7 +282,9 @@ async function handleContextMenuSelect(itemId: string, context: Record<string, u
     case "copy-all-matches": {
       const fileResult = search.results.value.get(filePath);
       if (fileResult) {
-        const lines = fileResult.matches.map((m) => `  ${m.lineNumber},${m.matchStart + 1}: ${m.lineContent}`);
+        const lines = fileResult.matches.map(
+          (m) => `  ${m.lineNumber},${m.matchStart + 1}: ${m.lineContent}`
+        );
         const text = `${filePath}\n${lines.join("\n")}`;
         await navigator.clipboard.writeText(text);
         customMessage.success("已复制当前文件所有匹配");
@@ -264,13 +299,17 @@ async function handleContextMenuSelect(itemId: string, context: Record<string, u
         let totalMatches = 0;
         for (const fileResult of results) {
           if (fileResult.matches.length > 0) {
-            const lines = fileResult.matches.map((m) => `  ${m.lineNumber},${m.matchStart + 1}: ${m.lineContent}`);
+            const lines = fileResult.matches.map(
+              (m) => `  ${m.lineNumber},${m.matchStart + 1}: ${m.lineContent}`
+            );
             sections.push(`${fileResult.filePath}\n${lines.join("\n")}`);
             totalMatches += fileResult.matches.length;
           }
         }
         await navigator.clipboard.writeText(sections.join("\n\n"));
-        customMessage.success(`已复制全部 ${results.length} 个文件的 ${totalMatches} 个结果`);
+        customMessage.success(
+          `已复制全部 ${results.length} 个文件的 ${totalMatches} 个结果`
+        );
       }
       break;
     }
@@ -376,7 +415,9 @@ async function handleContextMenuSelect(itemId: string, context: Record<string, u
       const dirPath3 = context.dirPath as string;
       if (dirPath3) {
         // 复制完整路径：rootPath + dirPath
-        const fullPath = search.rootPath.value ? `${search.rootPath.value}/${dirPath3}` : dirPath3;
+        const fullPath = search.rootPath.value
+          ? `${search.rootPath.value}/${dirPath3}`
+          : dirPath3;
         await navigator.clipboard.writeText(fullPath);
         customMessage.success("已复制路径");
       }
@@ -392,7 +433,9 @@ async function handleContextMenuSelect(itemId: string, context: Record<string, u
         for (const fp of dirFilePaths3) {
           const fileResult = search.results.value.get(fp);
           if (fileResult && fileResult.matches.length > 0) {
-            const matchLines = fileResult.matches.map((m) => `  ${m.lineNumber},${m.matchStart + 1}: ${m.lineContent}`);
+            const matchLines = fileResult.matches.map(
+              (m) => `  ${m.lineNumber},${m.matchStart + 1}: ${m.lineContent}`
+            );
             sections.push(`${fp}\n${matchLines.join("\n")}`);
             totalLines += fileResult.matches.length;
           }
@@ -517,7 +560,10 @@ onUnmounted(() => {
 .dir-search__collapse-btn:hover {
   color: var(--el-color-primary);
   border-color: var(--el-color-primary);
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.1));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
 }
 
 .dir-search__collapse-btn.collapsed {

@@ -31,7 +31,11 @@ export function useContextMenu() {
     context: {},
   });
 
-  function show(event: MouseEvent, items: ContextMenuItem[], context: Record<string, unknown> = {}) {
+  function show(
+    event: MouseEvent,
+    items: ContextMenuItem[],
+    context: Record<string, unknown> = {}
+  ) {
     event.preventDefault();
     event.stopPropagation();
 

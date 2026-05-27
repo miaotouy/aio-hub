@@ -1,7 +1,10 @@
 <template>
   <InfoCard title="扫描结果" class="result-card">
     <template #headerExtra>
-      <div v-if="filteredItems.length > 0 && !showProgress" class="header-actions">
+      <div
+        v-if="filteredItems.length > 0 && !showProgress"
+        class="header-actions"
+      >
         <el-tag type="info" size="large">
           {{ selectedItems.length }} / {{ filteredItems.length }} 项
         </el-tag>
@@ -25,12 +28,16 @@
         <span class="progress-title">正在扫描...</span>
         <span v-if="scanProgress" class="progress-stats">
           已扫描: {{ scanProgress.scannedCount }} 项
-          <span v-if="scanProgress.foundItems > 0">| 找到: {{ scanProgress.foundItems }} 项</span>
+          <span v-if="scanProgress.foundItems > 0"
+            >| 找到: {{ scanProgress.foundItems }} 项</span
+          >
         </span>
       </div>
 
       <div v-if="scanProgress" class="progress-details">
-        <div class="current-path">当前: {{ formatCurrentPath(scanProgress.currentPath) }}</div>
+        <div class="current-path">
+          当前: {{ formatCurrentPath(scanProgress.currentPath) }}
+        </div>
         <div class="depth-info">深度: {{ scanProgress.currentDepth }} 层</div>
       </div>
     </div>
@@ -41,9 +48,14 @@
         <span class="progress-title">正在清理...</span>
         <div class="progress-header-right">
           <span v-if="cleanupProgress" class="progress-stats">
-            进度: {{ cleanupProgress.processedCount }} / {{ cleanupProgress.totalCount }}
-            <span v-if="cleanupProgress.successCount > 0">| 成功: {{ cleanupProgress.successCount }}</span>
-            <span v-if="cleanupProgress.errorCount > 0" class="error-count">| 失败: {{ cleanupProgress.errorCount }}</span>
+            进度: {{ cleanupProgress.processedCount }} /
+            {{ cleanupProgress.totalCount }}
+            <span v-if="cleanupProgress.successCount > 0"
+              >| 成功: {{ cleanupProgress.successCount }}</span
+            >
+            <span v-if="cleanupProgress.errorCount > 0" class="error-count"
+              >| 失败: {{ cleanupProgress.errorCount }}</span
+            >
           </span>
           <el-button type="danger" size="small" @click="handleStopCleanup">
             停止清理
@@ -52,16 +64,26 @@
       </div>
 
       <div v-if="cleanupProgress" class="progress-details">
-        <div class="current-path">当前: {{ formatCurrentPath(cleanupProgress.currentItem) }}</div>
+        <div class="current-path">
+          当前: {{ formatCurrentPath(cleanupProgress.currentItem) }}
+        </div>
         <el-progress
-          :percentage="Math.round((cleanupProgress.processedCount / cleanupProgress.totalCount) * 100)"
+          :percentage="
+            Math.round(
+              (cleanupProgress.processedCount / cleanupProgress.totalCount) *
+                100
+            )
+          "
           :status="cleanupProgress.errorCount > 0 ? 'exception' : undefined"
         />
       </div>
     </div>
 
     <!-- 空状态：未开始分析 -->
-    <div v-if="!hasAnalyzed && !showProgress && !isCleaning" class="empty-state">
+    <div
+      v-if="!hasAnalyzed && !showProgress && !isCleaning"
+      class="empty-state"
+    >
       <el-empty description="配置过滤条件并点击分析按钮">
         <template #image>
           <el-icon :size="64">
@@ -72,7 +94,15 @@
     </div>
 
     <!-- 空状态：未找到结果 -->
-    <div v-else-if="filteredItems.length === 0 && !hasActiveFilters && !showProgress && !isCleaning" class="empty-state">
+    <div
+      v-else-if="
+        filteredItems.length === 0 &&
+        !hasActiveFilters &&
+        !showProgress &&
+        !isCleaning
+      "
+      class="empty-state"
+    >
       <el-empty description="未找到符合条件的项目">
         <template #image>
           <el-icon :size="64">
@@ -83,7 +113,10 @@
     </div>
 
     <!-- 结果列表 -->
-    <div v-if="hasAnalyzed && (filteredItems.length > 0 || hasActiveFilters)" class="result-content">
+    <div
+      v-if="hasAnalyzed && (filteredItems.length > 0 || hasActiveFilters)"
+      class="result-content"
+    >
       <!-- 二次筛选区域 -->
       <div class="result-filters">
         <div class="filter-row">
@@ -100,7 +133,7 @@
               </el-icon>
             </template>
           </el-input>
-          
+
           <div class="filter-item">
             <span class="filter-label">最小天数</span>
             <el-input-number
@@ -112,7 +145,7 @@
               style="width: 100px"
             />
           </div>
-          
+
           <div class="filter-item">
             <span class="filter-label">最小大小</span>
             <el-input-number
@@ -124,19 +157,29 @@
               style="width: 100px"
             />
           </div>
-          <el-button size="small" @click="clearFilters" :disabled="!props.hasActiveFilters">
+          <el-button
+            size="small"
+            @click="clearFilters"
+            :disabled="!props.hasActiveFilters"
+          >
             清除筛选
           </el-button>
         </div>
       </div>
 
       <div class="result-header">
-        <el-checkbox v-model="selectAll" @change="handleSelectAll" :indeterminate="isIndeterminate">
+        <el-checkbox
+          v-model="selectAll"
+          @change="handleSelectAll"
+          :indeterminate="isIndeterminate"
+        >
           全选
         </el-checkbox>
         <div class="stats-info">
           <span>显示: {{ filteredItems.length }} / {{ allItemsCount }} 项</span>
-          <span>总大小: {{ formatBytes(props.filteredStatistics.totalSize) }}</span>
+          <span
+            >总大小: {{ formatBytes(props.filteredStatistics.totalSize) }}</span
+          >
           <span>目录: {{ props.filteredStatistics.totalDirs }}</span>
           <span>文件: {{ props.filteredStatistics.totalFiles }}</span>
         </div>
@@ -150,14 +193,19 @@
             class="item-row"
             :class="{ selected: selectedPaths.has(item.path) }"
           >
-            <el-checkbox :model-value="selectedPaths.has(item.path)" @change="toggleItem(item)" />
+            <el-checkbox
+              :model-value="selectedPaths.has(item.path)"
+              @change="toggleItem(item)"
+            />
             <el-icon class="item-icon" :class="{ 'is-dir': item.isDir }">
               <component :is="item.isDir ? Folder : Document" />
             </el-icon>
             <div class="item-info">
               <div class="item-name" :title="item.name">{{ item.name }}</div>
               <div class="item-meta">
-                <span class="item-path" :title="item.path">{{ item.path }}</span>
+                <span class="item-path" :title="item.path">{{
+                  item.path
+                }}</span>
                 <span class="item-size">{{ formatBytes(item.size) }}</span>
                 <span class="item-age">{{ formatAge(item.modified) }}</span>
               </div>
@@ -182,7 +230,12 @@ import {
 } from "@element-plus/icons-vue";
 import InfoCard from "@components/common/InfoCard.vue";
 import { formatBytes, formatAge, formatCurrentPath } from "../utils/utils";
-import type { ItemInfo, DirectoryScanProgress, DirectoryCleanupProgress, Statistics } from "../types";
+import type {
+  ItemInfo,
+  DirectoryScanProgress,
+  DirectoryCleanupProgress,
+  Statistics,
+} from "../types";
 
 interface Props {
   filteredItems: ItemInfo[];
@@ -218,7 +271,9 @@ const localFilterMinAgeDays = ref(props.filterMinAgeDays);
 const localFilterMinSizeMB = ref(props.filterMinSizeMB);
 
 // 同步筛选状态到父组件（Context）
-watch(localFilterNamePattern, (value) => emit("update:filterNamePattern", value));
+watch(localFilterNamePattern, (value) =>
+  emit("update:filterNamePattern", value)
+);
 watch(localFilterMinAgeDays, (value) => emit("update:filterMinAgeDays", value));
 watch(localFilterMinSizeMB, (value) => emit("update:filterMinSizeMB", value));
 
@@ -245,17 +300,24 @@ const clearFilters = () => {
 
 // 选中的项目
 const selectedItems = computed(() =>
-  props.filteredItems.filter((item: ItemInfo) => props.selectedPaths.has(item.path))
+  props.filteredItems.filter((item: ItemInfo) =>
+    props.selectedPaths.has(item.path)
+  )
 );
 
 const selectedSize = computed(() =>
-  selectedItems.value.reduce((sum: number, item: ItemInfo) => sum + item.size, 0)
+  selectedItems.value.reduce(
+    (sum: number, item: ItemInfo) => sum + item.size,
+    0
+  )
 );
 
 // 全选状态
 const selectAll = ref(false);
 const isIndeterminate = computed(
-  () => props.selectedPaths.size > 0 && props.selectedPaths.size < props.filteredItems.length
+  () =>
+    props.selectedPaths.size > 0 &&
+    props.selectedPaths.size < props.filteredItems.length
 );
 
 // 切换项目选择
@@ -417,7 +479,11 @@ const handleStopCleanup = () => {
 }
 
 .item-row.selected {
-  background-color: color-mix(in srgb, var(--el-color-primary) 10%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-primary) 10%,
+    transparent
+  );
 }
 
 .item-icon {
@@ -514,7 +580,11 @@ const handleStopCleanup = () => {
 
 .cleanup-progress {
   border-color: var(--el-color-primary);
-  background-color: color-mix(in srgb, var(--el-color-primary) 5%, var(--container-bg));
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-primary) 5%,
+    var(--container-bg)
+  );
 }
 
 .error-count {

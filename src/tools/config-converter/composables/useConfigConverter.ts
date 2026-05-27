@@ -4,7 +4,12 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { useDebounceFn } from "@vueuse/core";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import type { ConfigFormat, ConvertOptions, BatchFileItem, ScanOptions } from "../types";
+import type {
+  ConfigFormat,
+  ConvertOptions,
+  BatchFileItem,
+  ScanOptions,
+} from "../types";
 import { convertConfig } from "../logic/converter";
 import { detectFormat, detectFormatByPath } from "../logic/detect";
 
@@ -75,7 +80,9 @@ export function useConfigConverter() {
       singleFrom.value = detected;
 
       singleInput.value = content;
-      const fileName = filePath.substring(Math.max(filePath.lastIndexOf("/"), filePath.lastIndexOf("\\")) + 1);
+      const fileName = filePath.substring(
+        Math.max(filePath.lastIndexOf("/"), filePath.lastIndexOf("\\")) + 1
+      );
       customMessage.success(`已成功加载文件: ${fileName}`);
     } catch (error: any) {
       errorHandler.error(error, `加载文件失败: ${filePath}`);
@@ -109,7 +116,12 @@ export function useConfigConverter() {
       return;
     }
 
-    const result = convertConfig(singleInput.value, singleFrom.value, singleTo.value, singleOptions.value);
+    const result = convertConfig(
+      singleInput.value,
+      singleFrom.value,
+      singleTo.value,
+      singleOptions.value
+    );
 
     if (result.success) {
       singleOutput.value = result.output;
@@ -155,7 +167,7 @@ export function useConfigConverter() {
   const collectFilesFromTree = (
     node: any,
     currentPath: string,
-    files: { name: string; path: string; size: number }[] = [],
+    files: { name: string; path: string; size: number }[] = []
   ) => {
     // 拼接当前节点的完整路径
     // 注意：Rust 返回的根节点 name 是目录名，子节点 name 是文件名/子目录名
@@ -170,7 +182,11 @@ export function useConfigConverter() {
     } else if (node.children) {
       for (const child of node.children) {
         // 递归时传递当前节点的路径
-        collectFilesFromTree(child, currentPath ? `${currentPath}/${node.name}` : currentPath, files);
+        collectFilesFromTree(
+          child,
+          currentPath ? `${currentPath}/${node.name}` : currentPath,
+          files
+        );
       }
     }
     return files;
@@ -196,8 +212,14 @@ export function useConfigConverter() {
 
           if (result && result.structure) {
             // 获取父目录路径，用于拼接完整路径
-            const parentDir = p.substring(0, p.lastIndexOf(result.structure.name));
-            const files = collectFilesFromTree(result.structure, parentDir.replace(/\\/g, "/"));
+            const parentDir = p.substring(
+              0,
+              p.lastIndexOf(result.structure.name)
+            );
+            const files = collectFilesFromTree(
+              result.structure,
+              parentDir.replace(/\\/g, "/")
+            );
 
             for (const file of files) {
               addSingleFileToBatch(file.path, file.name, file.size);
@@ -206,7 +228,9 @@ export function useConfigConverter() {
         } else {
           // 单个文件
           const metadata = await invoke<any>("get_file_metadata", { path: p });
-          const name = p.substring(Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\")) + 1);
+          const name = p.substring(
+            Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\")) + 1
+          );
           addSingleFileToBatch(p, name, metadata.size);
         }
       } catch (error: any) {
@@ -218,7 +242,11 @@ export function useConfigConverter() {
   /**
    * 辅助函数：添加单个文件到批量列表
    */
-  const addSingleFileToBatch = (filePath: string, name: string, size: number) => {
+  const addSingleFileToBatch = (
+    filePath: string,
+    name: string,
+    size: number
+  ) => {
     // 避免重复添加
     if (batchItems.value.some((item) => item.path === filePath)) {
       return;
@@ -295,7 +323,12 @@ export function useConfigConverter() {
           }
 
           // 3. 执行转换
-          const result = convertConfig(content, fromFormat, item.targetFormat, batchOptions.value);
+          const result = convertConfig(
+            content,
+            fromFormat,
+            item.targetFormat,
+            batchOptions.value
+          );
 
           if (result.success) {
             item.convertedContent = result.output;
@@ -306,7 +339,8 @@ export function useConfigConverter() {
             if (outputMode.value === "inplace") {
               // 原地生成：替换扩展名
               const dotIndex = item.path.lastIndexOf(".");
-              const basePath = dotIndex !== -1 ? item.path.substring(0, dotIndex) : item.path;
+              const basePath =
+                dotIndex !== -1 ? item.path.substring(0, dotIndex) : item.path;
               const targetPath = `${basePath}.${item.targetFormat}`;
 
               await invoke("write_text_file_force", {
@@ -316,7 +350,8 @@ export function useConfigConverter() {
             } else if (outputMode.value === "directory") {
               // 写入指定目录：保持文件名，替换扩展名
               const dotIndex = item.name.lastIndexOf(".");
-              const baseName = dotIndex !== -1 ? item.name.substring(0, dotIndex) : item.name;
+              const baseName =
+                dotIndex !== -1 ? item.name.substring(0, dotIndex) : item.name;
               const targetPath = `${outputDirectory.value}/${baseName}.${item.targetFormat}`;
 
               await invoke("write_text_file_force", {

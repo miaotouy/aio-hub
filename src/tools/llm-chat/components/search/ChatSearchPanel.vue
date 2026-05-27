@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from "vue";
-import { Search, X, User, Bot, Clock, ChevronRight, Filter } from "lucide-vue-next";
+import {
+  Search,
+  X,
+  User,
+  Bot,
+  Clock,
+  ChevronRight,
+  Filter,
+} from "lucide-vue-next";
 import type { ChatMessageNode } from "../../types";
 import { format } from "date-fns";
 
@@ -62,7 +70,9 @@ const searchResults = computed(() => {
       let displayName = "";
       if (msg.role === "user") {
         displayName =
-          msg.metadata?.userProfileDisplayName || msg.metadata?.userProfileName || "用户";
+          msg.metadata?.userProfileDisplayName ||
+          msg.metadata?.userProfileName ||
+          "用户";
       } else if (msg.role === "assistant") {
         displayName =
           msg.metadata?.agentDisplayName ||
@@ -106,12 +116,14 @@ const handleKeyDown = (e: KeyboardEvent) => {
     emit("close");
   } else if (e.key === "ArrowDown") {
     e.preventDefault();
-    selectedIndex.value = (selectedIndex.value + 1) % searchResults.value.length;
+    selectedIndex.value =
+      (selectedIndex.value + 1) % searchResults.value.length;
     scrollToSelected();
   } else if (e.key === "ArrowUp") {
     e.preventDefault();
     selectedIndex.value =
-      (selectedIndex.value - 1 + searchResults.value.length) % searchResults.value.length;
+      (selectedIndex.value - 1 + searchResults.value.length) %
+      searchResults.value.length;
     scrollToSelected();
   } else if (e.key === "Enter") {
     if (searchResults.value[selectedIndex.value]) {
@@ -122,7 +134,9 @@ const handleKeyDown = (e: KeyboardEvent) => {
 
 const scrollToSelected = () => {
   nextTick(() => {
-    const activeItem = resultsList.value?.querySelector(".search-result-item.active");
+    const activeItem = resultsList.value?.querySelector(
+      ".search-result-item.active"
+    );
     if (activeItem) {
       activeItem.scrollIntoView({ block: "nearest" });
     }
@@ -157,7 +171,9 @@ const highlightText = (text: string, query: string) => {
   const parts = text.split(new RegExp(`(${query})`, "gi"));
   return parts
     .map((part) =>
-      part.toLowerCase() === query.toLowerCase() ? `<mark class="highlight">${part}</mark>` : part
+      part.toLowerCase() === query.toLowerCase()
+        ? `<mark class="highlight">${part}</mark>`
+        : part
     )
     .join("");
 };
@@ -166,7 +182,10 @@ const highlightText = (text: string, query: string) => {
 <template>
   <Transition name="search-fade" appear>
     <div class="search-overlay" @click.self="emit('close')">
-      <div class="search-container" :class="{ 'has-results': searchQuery.trim() }">
+      <div
+        class="search-container"
+        :class="{ 'has-results': searchQuery.trim() }"
+      >
         <!-- 简洁搜索框 -->
         <div class="search-bar">
           <div class="search-input-wrapper">
@@ -182,8 +201,15 @@ const highlightText = (text: string, query: string) => {
 
           <div class="search-actions">
             <!-- 角色筛选 -->
-            <el-dropdown trigger="click" @command="(c: any) => (filterRole = c)">
-              <button class="action-btn" :class="{ active: filterRole }" title="筛选角色">
+            <el-dropdown
+              trigger="click"
+              @command="(c: any) => (filterRole = c)"
+            >
+              <button
+                class="action-btn"
+                :class="{ active: filterRole }"
+                title="筛选角色"
+              >
                 <Filter :size="18" />
                 <span v-if="filterRole" class="filter-dot"></span>
               </button>
@@ -193,14 +219,20 @@ const highlightText = (text: string, query: string) => {
                     >全部角色</el-dropdown-item
                   >
                   <el-dropdown-item command="user">仅用户</el-dropdown-item>
-                  <el-dropdown-item command="assistant">仅助手</el-dropdown-item>
+                  <el-dropdown-item command="assistant"
+                    >仅助手</el-dropdown-item
+                  >
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
 
             <div class="divider"></div>
 
-            <button class="action-btn close" @click="emit('close')" title="关闭 (Esc)">
+            <button
+              class="action-btn close"
+              @click="emit('close')"
+              title="关闭 (Esc)"
+            >
               <X :size="18" />
             </button>
           </div>
@@ -211,7 +243,9 @@ const highlightText = (text: string, query: string) => {
           <div ref="resultsList" class="search-results">
             <div v-if="searchResults.length === 0" class="no-results">
               <p>未找到与 "{{ searchQuery }}" 匹配的内容</p>
-              <span v-if="filterRole" class="filter-hint">当前已开启角色筛选</span>
+              <span v-if="filterRole" class="filter-hint"
+                >当前已开启角色筛选</span
+              >
             </div>
 
             <div
@@ -233,7 +267,10 @@ const highlightText = (text: string, query: string) => {
                   {{ formatTime(result.timestamp) }}
                 </span>
               </div>
-              <div class="result-snippet" v-html="highlightText(result.snippet, searchQuery)"></div>
+              <div
+                class="result-snippet"
+                v-html="highlightText(result.snippet, searchQuery)"
+              ></div>
               <ChevronRight class="arrow-icon" :size="16" />
             </div>
           </div>

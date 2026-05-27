@@ -1,7 +1,8 @@
 import mammoth from "mammoth";
 import DOMPurify from "dompurify";
 
-export const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+export const DOCX_MIME =
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
 export interface DocxImage {
   index: number;
@@ -24,9 +25,14 @@ interface MammothMessage {
   message: string;
 }
 
-function toStandaloneArrayBuffer(buffer: ArrayBuffer | Uint8Array): ArrayBuffer {
+function toStandaloneArrayBuffer(
+  buffer: ArrayBuffer | Uint8Array
+): ArrayBuffer {
   if (buffer instanceof Uint8Array) {
-    return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+    return buffer.buffer.slice(
+      buffer.byteOffset,
+      buffer.byteOffset + buffer.byteLength
+    );
   }
   return buffer.slice(0);
 }
@@ -35,7 +41,10 @@ function normalizeDocxText(text: string): string {
   return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
 }
 
-function htmlToTextWithImagePlaceholders(html: string, images: DocxImage[]): string {
+function htmlToTextWithImagePlaceholders(
+  html: string,
+  images: DocxImage[]
+): string {
   if (images.length === 0 || typeof DOMParser === "undefined") {
     return "";
   }
@@ -116,7 +125,9 @@ function appendMessages(html: string, messages: MammothMessage[]): string {
   const warnings = messages.filter((message) => message.type === "warning");
   if (warnings.length === 0) return html;
 
-  const list = warnings.map((warning) => `<li>${warning.message}</li>`).join("");
+  const list = warnings
+    .map((warning) => `<li>${warning.message}</li>`)
+    .join("");
   return `${html}<section class="docx-conversion-warnings"><h3>转换提示</h3><ul>${list}</ul></section>`;
 }
 
@@ -131,13 +142,21 @@ export function isDocxMime(mimeType?: string | null): boolean {
   return mimeType === DOCX_MIME;
 }
 
-export function isDocxAssetLike(asset: { type?: string; mimeType?: string; name?: string }): boolean {
+export function isDocxAssetLike(asset: {
+  type?: string;
+  mimeType?: string;
+  name?: string;
+}): boolean {
   return (
-    asset.type === "document" && (isDocxMime(asset.mimeType) || asset.name?.toLowerCase().endsWith(".docx") === true)
+    asset.type === "document" &&
+    (isDocxMime(asset.mimeType) ||
+      asset.name?.toLowerCase().endsWith(".docx") === true)
   );
 }
 
-export async function parseDocx(buffer: ArrayBuffer | Uint8Array): Promise<DocxParseResult> {
+export async function parseDocx(
+  buffer: ArrayBuffer | Uint8Array
+): Promise<DocxParseResult> {
   const arrayBuffer = toStandaloneArrayBuffer(buffer);
   const images: DocxImage[] = [];
 
@@ -162,23 +181,30 @@ export async function parseDocx(buffer: ArrayBuffer | Uint8Array): Promise<DocxP
           src: `data:${mimeType};base64,${base64}`,
         };
       }),
-    },
+    }
   );
 
   const rawTextResult = await mammoth.extractRawText({ arrayBuffer });
   let text = normalizeDocxText(rawTextResult.value);
 
   if (images.length > 0) {
-    const positionedText = htmlToTextWithImagePlaceholders(htmlResult.value, images);
+    const positionedText = htmlToTextWithImagePlaceholders(
+      htmlResult.value,
+      images
+    );
     if (positionedText) {
       text = positionedText;
     } else {
-      const placeholders = images.map((image) => image.placeholder).join("\n\n");
+      const placeholders = images
+        .map((image) => image.placeholder)
+        .join("\n\n");
       text = text ? `${text}\n\n${placeholders}` : placeholders;
     }
   }
 
-  const html = sanitizeDocxHtml(appendMessages(htmlResult.value, htmlResult.messages as MammothMessage[]));
+  const html = sanitizeDocxHtml(
+    appendMessages(htmlResult.value, htmlResult.messages as MammothMessage[])
+  );
 
   return {
     text,
@@ -188,6 +214,8 @@ export async function parseDocx(buffer: ArrayBuffer | Uint8Array): Promise<DocxP
   };
 }
 
-export async function docxToHtml(buffer: ArrayBuffer | Uint8Array): Promise<string> {
+export async function docxToHtml(
+  buffer: ArrayBuffer | Uint8Array
+): Promise<string> {
   return (await parseDocx(buffer)).html;
 }

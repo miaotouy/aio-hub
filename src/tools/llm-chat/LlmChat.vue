@@ -1,5 +1,11 @@
 <script setup lang="ts">
-import { onMounted, computed, ref, onUnmounted, defineAsyncComponent } from "vue";
+import {
+  onMounted,
+  computed,
+  ref,
+  onUnmounted,
+  defineAsyncComponent,
+} from "vue";
 import { useLlmChatStore } from "./stores/llmChatStore";
 import { useAgentStore } from "./stores/agentStore";
 import { useUserProfileStore } from "./stores/userProfileStore";
@@ -13,7 +19,9 @@ import { CHAT_STATE_KEYS, createChatSyncConfig } from "./types/sync";
 import ChatArea from "./components/ChatArea.vue";
 import SidebarToggleIcon from "@/components/icons/SidebarToggleIcon.vue";
 import LlmChatSkeleton from "./components/LlmChatSkeleton.vue";
-const LeftSidebar = defineAsyncComponent(() => import("./components/sidebar/LeftSidebar.vue"));
+const LeftSidebar = defineAsyncComponent(
+  () => import("./components/sidebar/LeftSidebar.vue")
+);
 const SessionsSidebar = defineAsyncComponent(
   () => import("./components/sidebar/SessionsSidebar.vue")
 );
@@ -41,7 +49,10 @@ const { open: openModelSelectDialog } = useModelSelectDialog();
 
 // 检测当前窗口类型
 const isInDetachedToolWindow = bus.windowType === "detached-tool";
-logger.info("LlmChat 窗口类型", { windowType: bus.windowType, isInDetachedToolWindow });
+logger.info("LlmChat 窗口类型", {
+  windowType: bus.windowType,
+  isInDetachedToolWindow,
+});
 
 // 初始化状态同步引擎（智能体、会话、设置等）
 // 该 Composable 现在会自动管理其生命周期，无需手动初始化
@@ -235,7 +246,6 @@ const handleAbortSending = () => {
   store.abortSending();
 };
 
-
 // 处理输入补全
 const handleCompleteInput = (
   content: string,
@@ -253,7 +263,9 @@ const handleSelectContinuationModel = async () => {
     const { getProfileById } = useLlmProfiles();
     const profile = getProfileById(continuationModel.profileId);
     if (profile) {
-      const model = profile.models.find((m: any) => m.id === continuationModel.modelId);
+      const model = profile.models.find(
+        (m: any) => m.id === continuationModel.modelId
+      );
       if (model) {
         currentSelection = { profile, model };
       }
@@ -271,7 +283,6 @@ const handleSelectContinuationModel = async () => {
     });
   }
 };
-
 
 // 处理新建会话
 const handleNewSession = (data: { agentId: string; name?: string }) => {
@@ -341,9 +352,17 @@ useStateSyncEngine(parametersToSync, {
           ></div>
 
           <!-- 折叠按钮 -->
-          <div class="collapse-button left-collapse" @click="isLeftSidebarCollapsed = true">
+          <div
+            class="collapse-button left-collapse"
+            @click="isLeftSidebarCollapsed = true"
+          >
             <SidebarToggleIcon class="collapse-icon trapezoid" />
-            <svg class="arrow-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <svg
+              class="arrow-icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+            >
               <polyline
                 points="15 18 9 12 15 6"
                 stroke-width="2"
@@ -363,7 +382,12 @@ useStateSyncEngine(parametersToSync, {
             @click="isLeftSidebarCollapsed = false"
           >
             <SidebarToggleIcon class="expand-icon trapezoid" />
-            <svg class="arrow-icon expanded" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <svg
+              class="arrow-icon expanded"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+            >
               <polyline
                 points="9 18 15 12 9 6"
                 stroke-width="2"
@@ -395,8 +419,20 @@ useStateSyncEngine(parametersToSync, {
           <!-- 分离后的占位提示 -->
           <div v-else class="detached-placeholder">
             <div class="placeholder-content">
-              <svg class="placeholder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <rect x="3" y="3" width="18" height="18" rx="2" stroke-width="2" />
+              <svg
+                class="placeholder-icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+              >
+                <rect
+                  x="3"
+                  y="3"
+                  width="18"
+                  height="18"
+                  rx="2"
+                  stroke-width="2"
+                />
                 <path d="M9 3v18M3 9h18M3 15h6M15 15h6" stroke-width="2" />
               </svg>
               <h3 class="placeholder-title">对话区域已分离</h3>
@@ -411,7 +447,12 @@ useStateSyncEngine(parametersToSync, {
             @click="isRightSidebarCollapsed = false"
           >
             <SidebarToggleIcon class="expand-icon trapezoid" flip />
-            <svg class="arrow-icon expanded" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <svg
+              class="arrow-icon expanded"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+            >
               <polyline
                 points="15 18 9 12 15 6"
                 stroke-width="2"
@@ -429,9 +470,17 @@ useStateSyncEngine(parametersToSync, {
           :style="{ width: `${rightSidebarWidth}px` }"
         >
           <!-- 折叠按钮 -->
-          <div class="collapse-button right-collapse" @click="isRightSidebarCollapsed = true">
+          <div
+            class="collapse-button right-collapse"
+            @click="isRightSidebarCollapsed = true"
+          >
             <SidebarToggleIcon class="collapse-icon trapezoid" flip />
-            <svg class="arrow-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <svg
+              class="arrow-icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+            >
               <polyline
                 points="9 18 15 12 9 6"
                 stroke-width="2"
@@ -463,7 +512,12 @@ useStateSyncEngine(parametersToSync, {
     </div>
 
     <!-- 智能体自定义样式注入 -->
-    <component is="style" v-if="agentCustomStyles" id="agent-custom-styles" type="text/css">
+    <component
+      is="style"
+      v-if="agentCustomStyles"
+      id="agent-custom-styles"
+      type="text/css"
+    >
       {{ agentCustomStyles }}
     </component>
 

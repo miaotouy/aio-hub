@@ -360,12 +360,15 @@ export default class FileReaderRegistry implements ToolRegistry {
   /**
    * 读取文件内容（Agent facade）
    */
-  public async readFile(args: Record<string, unknown>): Promise<ReadFileResult | null> {
+  public async readFile(
+    args: Record<string, unknown>
+  ): Promise<ReadFileResult | null> {
     const options: ReadFileOptions = {
       path: String(args.path || ""),
       encoding: args.encoding ? String(args.encoding) : "utf-8",
       maxLines: args.maxLines !== undefined ? Number(args.maxLines) : undefined,
-      includeMetadata: args.includeMetadata === true || args.includeMetadata === "true",
+      includeMetadata:
+        args.includeMetadata === true || args.includeMetadata === "true",
     };
     return readFile(options);
   }

@@ -52,7 +52,10 @@ const componentProps = computed(() => {
 onMounted(() => {
   const id = componentId.value;
   if (id) {
-    logger.info("正在加载可分离组件", { componentId: id, props: componentProps.value });
+    logger.info("正在加载可分离组件", {
+      componentId: id,
+      props: componentProps.value,
+    });
     const component = loadDetachableComponent(id);
     if (component) {
       componentToRender.value = component;

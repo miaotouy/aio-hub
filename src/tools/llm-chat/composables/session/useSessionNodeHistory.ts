@@ -1,6 +1,6 @@
-import { computed, type Ref } from 'vue';
-import { createModuleLogger } from '@/utils/logger';
-import { createModuleErrorHandler } from '@/utils/errorHandler';
+import { computed, type Ref } from "vue";
+import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type {
   ChatSessionDetail,
   HistoryEntry,
@@ -11,8 +11,8 @@ import type {
   ChatMessageNode,
 } from "../../types";
 
-const logger = createModuleLogger('useSessionNodeHistory');
-const errorHandler = createModuleErrorHandler('useSessionNodeHistory');
+const logger = createModuleLogger("useSessionNodeHistory");
+const errorHandler = createModuleErrorHandler("useSessionNodeHistory");
 
 /**
  * 创建一个节点的纯净克隆，只包含 ChatMessageNode 中定义的字段。
@@ -22,7 +22,9 @@ const errorHandler = createModuleErrorHandler('useSessionNodeHistory');
  * @param nodes - 要克隆的节点记录。
  * @returns 节点的纯净深度克隆。
  */
-function cloneNodes(nodes: Record<string, ChatMessageNode>): Record<string, ChatMessageNode> {
+function cloneNodes(
+  nodes: Record<string, ChatMessageNode>
+): Record<string, ChatMessageNode> {
   try {
     return JSON.parse(JSON.stringify(nodes));
   } catch (error) {
@@ -46,7 +48,9 @@ const SNAPSHOT_INTERVAL = 15;
  * @param sessionRef 对当前 ChatSessionDetail 的 Ref 引用。
  * @see UNDO_REDO_DESIGN.md
  */
-export function useSessionNodeHistory(sessionRef: Ref<ChatSessionDetail | null>) {
+export function useSessionNodeHistory(
+  sessionRef: Ref<ChatSessionDetail | null>
+) {
   /**
    * 应用关系变化。
    * @param session - 当前会话。
@@ -56,17 +60,17 @@ export function useSessionNodeHistory(sessionRef: Ref<ChatSessionDetail | null>)
   function applyRelationChange(
     session: ChatSessionDetail,
     change: NodeRelationChange,
-    direction: 'forward' | 'backward'
+    direction: "forward" | "backward"
   ): void {
     if (!session.nodes) return;
     const node = session.nodes[change.nodeId];
     if (!node) {
-      logger.warn('在应用关系变更时未找到节点', { nodeId: change.nodeId });
+      logger.warn("在应用关系变更时未找到节点", { nodeId: change.nodeId });
       return;
     }
 
     // 恢复节点的 parentId
-    if (direction === 'forward') {
+    if (direction === "forward") {
       node.parentId = change.newParentId;
     } else {
       node.parentId = change.oldParentId;
@@ -74,14 +78,16 @@ export function useSessionNodeHistory(sessionRef: Ref<ChatSessionDetail | null>)
 
     // 恢复受影响父节点的 childrenIds
     if (change.affectedParents) {
-      for (const [parentId, childrenChange] of Object.entries(change.affectedParents)) {
+      for (const [parentId, childrenChange] of Object.entries(
+        change.affectedParents
+      )) {
         const parentNode = session.nodes[parentId];
         if (!parentNode) {
-          logger.warn('在关系变更期间未找到父节点', { parentId });
+          logger.warn("在关系变更期间未找到父节点", { parentId });
           continue;
         }
 
-        if (direction === 'forward') {
+        if (direction === "forward") {
           parentNode.childrenIds = [...childrenChange.newChildren];
         } else {
           parentNode.childrenIds = [...childrenChange.oldChildren];
@@ -96,49 +102,65 @@ export function useSessionNodeHistory(sessionRef: Ref<ChatSessionDetail | null>)
    * @param delta - 增量历史记录对象。
    * @param direction - 'forward' 表示重做, 'backward' 表示撤销。
    */
-  function applyDelta(session: ChatSessionDetail, delta: HistoryDelta, direction: 'forward' | 'backward'): void {
+  function applyDelta(
+    session: ChatSessionDetail,
+    delta: HistoryDelta,
+    direction: "forward" | "backward"
+  ): void {
     if (!session.nodes) return;
 
-    if (delta.type === 'create') {
-      if (direction === 'forward') {
-        session.nodes[delta.payload.node.id] = cloneNodes({ [delta.payload.node.id]: delta.payload.node })[delta.payload.node.id];
-        applyRelationChange(session, delta.payload.relationChange, 'forward');
+    if (delta.type === "create") {
+      if (direction === "forward") {
+        session.nodes[delta.payload.node.id] = cloneNodes({
+          [delta.payload.node.id]: delta.payload.node,
+        })[delta.payload.node.id];
+        applyRelationChange(session, delta.payload.relationChange, "forward");
       } else {
-        applyRelationChange(session, delta.payload.relationChange, 'backward');
+        applyRelationChange(session, delta.payload.relationChange, "backward");
         delete session.nodes[delta.payload.node.id];
       }
-    } else if (delta.type === 'delete') {
-      if (direction === 'forward') {
-        applyRelationChange(session, delta.payload.relationChange, 'forward');
+    } else if (delta.type === "delete") {
+      if (direction === "forward") {
+        applyRelationChange(session, delta.payload.relationChange, "forward");
         delete session.nodes[delta.payload.deletedNode.id];
       } else {
-        session.nodes[delta.payload.deletedNode.id] = cloneNodes({ [delta.payload.deletedNode.id]: delta.payload.deletedNode })[delta.payload.deletedNode.id];
-        applyRelationChange(session, delta.payload.relationChange, 'backward');
+        session.nodes[delta.payload.deletedNode.id] = cloneNodes({
+          [delta.payload.deletedNode.id]: delta.payload.deletedNode,
+        })[delta.payload.deletedNode.id];
+        applyRelationChange(session, delta.payload.relationChange, "backward");
       }
-    } else if (delta.type === 'update') {
+    } else if (delta.type === "update") {
       const node = session.nodes[delta.payload.nodeId];
       if (!node) {
-        logger.warn('未找到用于更新增量的节点', { nodeId: delta.payload.nodeId });
+        logger.warn("未找到用于更新增量的节点", {
+          nodeId: delta.payload.nodeId,
+        });
         return;
       }
-      if (direction === 'forward') {
-        session.nodes[delta.payload.nodeId] = cloneNodes({ [delta.payload.nodeId]: delta.payload.finalNodeState })[delta.payload.nodeId];
+      if (direction === "forward") {
+        session.nodes[delta.payload.nodeId] = cloneNodes({
+          [delta.payload.nodeId]: delta.payload.finalNodeState,
+        })[delta.payload.nodeId];
       } else {
-        session.nodes[delta.payload.nodeId] = cloneNodes({ [delta.payload.nodeId]: delta.payload.previousNodeState })[delta.payload.nodeId];
+        session.nodes[delta.payload.nodeId] = cloneNodes({
+          [delta.payload.nodeId]: delta.payload.previousNodeState,
+        })[delta.payload.nodeId];
       }
-    } else if (delta.type === 'relation') {
+    } else if (delta.type === "relation") {
       for (const change of delta.payload.changes) {
         applyRelationChange(session, change, direction);
       }
-    } else if (delta.type === 'active_leaf_change') {
+    } else if (delta.type === "active_leaf_change") {
       // 切换活动节点
-      if (direction === 'forward') {
+      if (direction === "forward") {
         session.activeLeafId = delta.payload.newLeafId;
       } else {
         session.activeLeafId = delta.payload.oldLeafId;
       }
     } else {
-      logger.warn('未知的 delta 类型', { deltaType: (delta as { type: unknown }).type });
+      logger.warn("未知的 delta 类型", {
+        deltaType: (delta as { type: unknown }).type,
+      });
     }
   }
 
@@ -152,7 +174,7 @@ export function useSessionNodeHistory(sessionRef: Ref<ChatSessionDetail | null>)
     const initialEntry: HistoryEntry = {
       isSnapshot: true,
       snapshot: cloneNodes(session.nodes || {}),
-      actionTag: 'INITIAL_STATE',
+      actionTag: "INITIAL_STATE",
       timestamp: Date.now(),
       context: {},
     };
@@ -160,7 +182,7 @@ export function useSessionNodeHistory(sessionRef: Ref<ChatSessionDetail | null>)
     session.history = [initialEntry];
     session.historyIndex = 0;
 
-    logger.info('历史堆栈已清空并重置。');
+    logger.info("历史堆栈已清空并重置。");
   }
 
   /**
@@ -169,8 +191,13 @@ export function useSessionNodeHistory(sessionRef: Ref<ChatSessionDetail | null>)
    */
   function jumpToState(targetIndex: number): void {
     const session = sessionRef.value;
-    if (!session || !session.history || targetIndex < 0 || targetIndex >= session.history.length) {
-      logger.warn('无效的历史索引，无法跳转状态。', {
+    if (
+      !session ||
+      !session.history ||
+      targetIndex < 0 ||
+      targetIndex >= session.history.length
+    ) {
+      logger.warn("无效的历史索引，无法跳转状态。", {
         targetIndex,
         historyLength: session?.history?.length,
       });
@@ -186,8 +213,8 @@ export function useSessionNodeHistory(sessionRef: Ref<ChatSessionDetail | null>)
     }
 
     if (snapshotIndex < 0) {
-      errorHandler.handle(new Error('Anchor snapshot not found'), {
-        userMessage: '找不到锚点快照，历史数据可能已损坏。',
+      errorHandler.handle(new Error("Anchor snapshot not found"), {
+        userMessage: "找不到锚点快照，历史数据可能已损坏。",
         showToUser: false,
         context: { targetIndex },
       });
@@ -195,7 +222,9 @@ export function useSessionNodeHistory(sessionRef: Ref<ChatSessionDetail | null>)
       return;
     }
 
-    const snapshotEntry = session.history[snapshotIndex] as HistoryEntry & { isSnapshot: true };
+    const snapshotEntry = session.history[snapshotIndex] as HistoryEntry & {
+      isSnapshot: true;
+    };
     session.nodes = cloneNodes(snapshotEntry.snapshot);
 
     for (let i = snapshotIndex + 1; i <= targetIndex; i++) {
@@ -204,14 +233,14 @@ export function useSessionNodeHistory(sessionRef: Ref<ChatSessionDetail | null>)
         session.nodes = cloneNodes(entry.snapshot);
       } else {
         for (const delta of entry.deltas) {
-          applyDelta(session, delta, 'forward');
+          applyDelta(session, delta, "forward");
         }
       }
     }
 
     session.historyIndex = targetIndex;
 
-    logger.info('成功跳转到状态', {
+    logger.info("成功跳转到状态", {
       targetIndex,
       snapshotIndex,
       currentNodeCount: Object.keys(session.nodes).length,
@@ -232,7 +261,11 @@ export function useSessionNodeHistory(sessionRef: Ref<ChatSessionDetail | null>)
     const session = sessionRef.value;
     if (!session) return;
 
-    if (session.history === undefined || session.historyIndex === undefined || session.history.length === 0) {
+    if (
+      session.history === undefined ||
+      session.historyIndex === undefined ||
+      session.history.length === 0
+    ) {
       clearHistory();
     }
 
@@ -241,7 +274,10 @@ export function useSessionNodeHistory(sessionRef: Ref<ChatSessionDetail | null>)
       session.historyIndex = session.history!.length - 1;
     }
 
-    if (session.historyIndex! < session.history!.length - 1 && session.historyIndex! >= 0) {
+    if (
+      session.historyIndex! < session.history!.length - 1 &&
+      session.historyIndex! >= 0
+    ) {
       session.history = session.history!.slice(0, session.historyIndex! + 1);
     }
 
@@ -251,24 +287,27 @@ export function useSessionNodeHistory(sessionRef: Ref<ChatSessionDetail | null>)
     for (let i = session.historyIndex!; i >= 0; i--) {
       const entry = session.history![i];
       if (!entry) continue;
-      
+
       if (entry.isSnapshot) break;
 
       deltasSinceLastSnapshot++;
       if (!entry.isSnapshot) {
         affectedNodesCount += (entry.deltas || []).reduce((count, delta) => {
-          if (delta.type === 'create' || delta.type === 'delete') return count + 1;
-          if (delta.type === 'update') return count + 1;
-          if (delta.type === 'relation') return count + delta.payload.changes.length;
+          if (delta.type === "create" || delta.type === "delete")
+            return count + 1;
+          if (delta.type === "update") return count + 1;
+          if (delta.type === "relation")
+            return count + delta.payload.changes.length;
           return count;
         }, 0);
       }
     }
 
     const currentAffectedCount = deltas.reduce((count, delta) => {
-      if (delta.type === 'create' || delta.type === 'delete') return count + 1;
-      if (delta.type === 'update') return count + 1;
-      if (delta.type === 'relation') return count + delta.payload.changes.length;
+      if (delta.type === "create" || delta.type === "delete") return count + 1;
+      if (delta.type === "update") return count + 1;
+      if (delta.type === "relation")
+        return count + delta.payload.changes.length;
       return count;
     }, 0);
 
@@ -281,19 +320,19 @@ export function useSessionNodeHistory(sessionRef: Ref<ChatSessionDetail | null>)
 
     const newEntry: HistoryEntry = shouldCreateSnapshot
       ? {
-        isSnapshot: true,
-        snapshot: cloneNodes(session.nodes || {}),
-        actionTag,
-        timestamp: Date.now(),
-        context: { ...context, affectedNodeCount: currentAffectedCount },
-      }
+          isSnapshot: true,
+          snapshot: cloneNodes(session.nodes || {}),
+          actionTag,
+          timestamp: Date.now(),
+          context: { ...context, affectedNodeCount: currentAffectedCount },
+        }
       : {
-        isSnapshot: false,
-        deltas,
-        actionTag,
-        timestamp: Date.now(),
-        context: { ...context, affectedNodeCount: currentAffectedCount },
-      };
+          isSnapshot: false,
+          deltas,
+          actionTag,
+          timestamp: Date.now(),
+          context: { ...context, affectedNodeCount: currentAffectedCount },
+        };
 
     session.history!.push(newEntry);
 
@@ -345,7 +384,9 @@ export function useSessionNodeHistory(sessionRef: Ref<ChatSessionDetail | null>)
 
   const canUndo = computed(() => (sessionRef.value?.historyIndex ?? 0) > 0);
   const canRedo = computed(
-    () => (sessionRef.value?.historyIndex ?? -1) < (sessionRef.value?.history?.length ?? 0) - 1
+    () =>
+      (sessionRef.value?.historyIndex ?? -1) <
+      (sessionRef.value?.history?.length ?? 0) - 1
   );
   const historyStack = computed(() => sessionRef.value?.history ?? []);
 

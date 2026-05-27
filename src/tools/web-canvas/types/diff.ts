@@ -42,7 +42,7 @@ export interface FuzzyMatchCandidate {
 export class DiffFuzzyMatchError extends Error {
   constructor(public readonly bestMatch: FuzzyMatchCandidate) {
     super(
-      `无法精确匹配代码块，但在第 ${bestMatch.lineRange[0]}-${bestMatch.lineRange[1]} 行找到 ${(bestMatch.confidence * 100).toFixed(0)}% 相似的片段：\n${bestMatch.preview}\n请检查 search 内容是否需要更新。`,
+      `无法精确匹配代码块，但在第 ${bestMatch.lineRange[0]}-${bestMatch.lineRange[1]} 行找到 ${(bestMatch.confidence * 100).toFixed(0)}% 相似的片段：\n${bestMatch.preview}\n请检查 search 内容是否需要更新。`
     );
     this.name = "DiffFuzzyMatchError";
   }

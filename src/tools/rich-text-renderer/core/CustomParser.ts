@@ -14,7 +14,10 @@ import type { AstNode, LlmThinkRule } from "../types";
 import { Tokenizer } from "../parser/Tokenizer";
 import { tokenizerService } from "../parser/tokenizerService";
 import { Token, ParserContext, ParserOptions } from "../parser/types";
-import { optimizeBadgeLineBreaks, computeFingerprint } from "../parser/utils/text-utils";
+import {
+  optimizeBadgeLineBreaks,
+  computeFingerprint,
+} from "../parser/utils/text-utils";
 import { isTableStart, BLOCK_LEVEL_TAGS } from "../parser/utils/block-utils";
 
 // 导入解析器
@@ -158,7 +161,10 @@ export class CustomParser implements ParserContext {
       }
 
       // LLM 思考块（优先处理，在 HTML 块之前）
-      if (token.type === "html_open" && this.llmThinkTagNames.has(token.tagName)) {
+      if (
+        token.type === "html_open" &&
+        this.llmThinkTagNames.has(token.tagName)
+      ) {
         const { node, nextIndex } = parseLlmThinkBlock(this, tokens, i);
         if (node) blocks.push(node);
         i = nextIndex;
@@ -224,7 +230,10 @@ export class CustomParser implements ParserContext {
             resultContent: vcpToken.resultContent,
             collapsedByDefault: this.defaultToolCallCollapsed,
           },
-          meta: { range: { start: 0, end: 0 }, status: vcpToken.closed ? "stable" : "pending" },
+          meta: {
+            range: { start: 0, end: 0 },
+            status: vcpToken.closed ? "stable" : "pending",
+          },
           _fp: computeFingerprint(vcpToken.raw),
         });
         i++;
@@ -254,7 +263,11 @@ export class CustomParser implements ParserContext {
 
 // ============ 导出工具函数 ============
 
-export function parseText(text: string, llmThinkTagNames?: Set<string>, llmThinkRules?: LlmThinkRule[]): AstNode[] {
+export function parseText(
+  text: string,
+  llmThinkTagNames?: Set<string>,
+  llmThinkRules?: LlmThinkRule[]
+): AstNode[] {
   const parser = new CustomParser(llmThinkTagNames, llmThinkRules);
   return parser.parse(text);
 }

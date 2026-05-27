@@ -82,12 +82,20 @@ html.dark .btn-secondary:hover {
 }
 
 html.dark .btn-warning {
-  background-color: color-mix(in srgb, var(--el-color-warning) 15%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-warning) 15%,
+    transparent
+  );
   border-color: var(--el-color-warning);
   color: var(--el-color-warning);
 }
 html.dark .btn-warning:hover {
-  background-color: color-mix(in srgb, var(--el-color-warning) 25%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-warning) 25%,
+    transparent
+  );
 }
 
 html.dark .btn-danger {

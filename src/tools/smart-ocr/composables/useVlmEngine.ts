@@ -29,7 +29,10 @@ export function useVlmEngine() {
   /**
    * 使用 VLM 识别单个图片
    */
-  const recognizeSingle = async (canvas: HTMLCanvasElement, config: VlmEngineConfig): Promise<string> => {
+  const recognizeSingle = async (
+    canvas: HTMLCanvasElement,
+    config: VlmEngineConfig
+  ): Promise<string> => {
     const { sendRequest } = useLlmRequest();
     const { getProfileById } = useLlmProfiles();
 
@@ -39,7 +42,9 @@ export function useVlmEngine() {
     const maxDim = model?.capabilities?.maxImageDimension;
 
     // 将 canvas 转换为 ArrayBuffer 进行处理
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/png")
+    );
     if (!blob) throw new Error("Canvas 转换为 Blob 失败");
 
     let imageBuffer = await blob.arrayBuffer();
@@ -63,7 +68,12 @@ export function useVlmEngine() {
       }
     }
 
-    const imageBase64 = btoa(new Uint8Array(imageBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ""));
+    const imageBase64 = btoa(
+      new Uint8Array(imageBuffer).reduce(
+        (data, byte) => data + String.fromCharCode(byte),
+        ""
+      )
+    );
 
     // 调用通用 LLM 请求中间件
     const response = await sendRequest({
@@ -99,7 +109,7 @@ export function useVlmEngine() {
   const recognizeBatch = async (
     blocks: ImageBlock[],
     config: VlmEngineConfig,
-    onProgress?: (results: OcrResult[]) => void,
+    onProgress?: (results: OcrResult[]) => void
   ): Promise<OcrResult[]> => {
     const results: OcrResult[] = blocks.map((block) => ({
       blockId: block.id,
@@ -183,7 +193,10 @@ export function useVlmEngine() {
     const inProgress = new Set<Promise<void>>();
 
     // 处理单个块的包装函数
-    const processWithQueue = async (index: number, isInitial: boolean = false) => {
+    const processWithQueue = async (
+      index: number,
+      isInitial: boolean = false
+    ) => {
       await processBlock(index, isInitial);
 
       // 任务完成后，如果队列还有任务，立即启动下一个

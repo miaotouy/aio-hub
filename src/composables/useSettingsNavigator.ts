@@ -20,7 +20,10 @@ export function useSettingsNavigator() {
    */
   const isInDetachedWindow = (): boolean => {
     const path = route.path;
-    return path.startsWith("/detached-window/") || path.startsWith("/detached-component/");
+    return (
+      path.startsWith("/detached-window/") ||
+      path.startsWith("/detached-component/")
+    );
   };
 
   /**
@@ -40,10 +43,10 @@ export function useSettingsNavigator() {
       if (isInDetachedWindow()) {
         // 在分离窗口中，需要聚焦主窗口并在主窗口中导航
         logger.info("从分离窗口导航到设置页面", { sectionId });
-        
+
         // 通过 Tauri 命令在主窗口中打开设置页面
         await invoke("navigate_main_window_to_settings", { sectionId });
-        
+
         logger.info("已请求主窗口导航到设置页面", { sectionId });
       } else {
         // 在主窗口中，直接使用路由导航
@@ -51,7 +54,9 @@ export function useSettingsNavigator() {
         router.push({ path: "/settings", query: { section: sectionId } });
       }
     } catch (error) {
-      errorHandler.error(error, "导航到设置页面失败", { context: { sectionId } });
+      errorHandler.error(error, "导航到设置页面失败", {
+        context: { sectionId },
+      });
       // 降级处理：尝试直接使用路由导航
       router.push({ path: "/settings", query: { section: sectionId } });
     }

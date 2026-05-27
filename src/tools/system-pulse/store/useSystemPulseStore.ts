@@ -31,7 +31,9 @@ export type PulseUiSize = "small" | "medium" | "large";
 
 export const useSystemPulseStore = defineStore("systemPulse", () => {
   // UI 尺寸/密度
-  const uiSize = ref<PulseUiSize>((localStorage.getItem("pulse-ui-size") as PulseUiSize) || "medium");
+  const uiSize = ref<PulseUiSize>(
+    (localStorage.getItem("pulse-ui-size") as PulseUiSize) || "medium"
+  );
 
   function setUiSize(size: PulseUiSize) {
     uiSize.value = size;
@@ -48,13 +50,20 @@ export const useSystemPulseStore = defineStore("systemPulse", () => {
   const memHistory = new RingBuffer<number>(HISTORY_SIZE, 0);
 
   // 网络总速率历史（取所有接口之和）
-  const networkHistory = new RingBuffer<{ up: number; down: number }>(HISTORY_SIZE, { up: 0, down: 0 });
+  const networkHistory = new RingBuffer<{ up: number; down: number }>(
+    HISTORY_SIZE,
+    { up: 0, down: 0 }
+  );
 
   // 磁盘 I/O 历史（按 mountPoint 存储）
-  const diskHistory = reactive<Map<string, RingBuffer<{ read: number; write: number }>>>(new Map());
+  const diskHistory = reactive<
+    Map<string, RingBuffer<{ read: number; write: number }>>
+  >(new Map());
 
   // GPU 历史（按 index 存储）
-  const gpuHistory = reactive<Map<number, RingBuffer<{ usage: number; temp: number }>>>(new Map());
+  const gpuHistory = reactive<
+    Map<number, RingBuffer<{ usage: number; temp: number }>>
+  >(new Map());
 
   // 完整快照历史（用于导出）
   const fullHistory = new RingBuffer<SystemSnapshot | null>(HISTORY_SIZE, null);
@@ -62,9 +71,15 @@ export const useSystemPulseStore = defineStore("systemPulse", () => {
   // 响应式历史数组（供组件直接绑定）
   const cpuHistoryArray = ref<number[]>(cpuHistory.toArray());
   const memHistoryArray = ref<number[]>(memHistory.toArray());
-  const networkHistoryArray = ref<{ up: number; down: number }[]>(networkHistory.toArray());
-  const diskHistoryArrays = reactive<Map<string, { read: number; write: number }[]>>(new Map());
-  const gpuHistoryArrays = reactive<Map<number, { usage: number; temp: number }[]>>(new Map());
+  const networkHistoryArray = ref<{ up: number; down: number }[]>(
+    networkHistory.toArray()
+  );
+  const diskHistoryArrays = reactive<
+    Map<string, { read: number; write: number }[]>
+  >(new Map());
+  const gpuHistoryArrays = reactive<
+    Map<number, { usage: number; temp: number }[]>
+  >(new Map());
   const fullHistoryArray = ref<SystemSnapshot[]>([]);
 
   function applySnapshot(snapshot: SystemSnapshot) {
@@ -72,7 +87,9 @@ export const useSystemPulseStore = defineStore("systemPulse", () => {
 
     // 更新完整历史
     fullHistory.push(snapshot);
-    fullHistoryArray.value = fullHistory.toArray().filter((s): s is SystemSnapshot => s !== null);
+    fullHistoryArray.value = fullHistory
+      .toArray()
+      .filter((s): s is SystemSnapshot => s !== null);
 
     // 更新 CPU 历史
     cpuHistory.push(snapshot.cpu.globalUsage);
@@ -80,20 +97,31 @@ export const useSystemPulseStore = defineStore("systemPulse", () => {
 
     // 更新内存历史（转换为百分比）
     const memPercent =
-      snapshot.memory.totalBytes > 0 ? (snapshot.memory.usedBytes / snapshot.memory.totalBytes) * 100 : 0;
+      snapshot.memory.totalBytes > 0
+        ? (snapshot.memory.usedBytes / snapshot.memory.totalBytes) * 100
+        : 0;
     memHistory.push(memPercent);
     memHistoryArray.value = memHistory.toArray();
 
     // 更新网络历史（所有接口求和）
-    const totalUp = snapshot.networks.reduce((s, n) => s + n.uploadBytesPerSec, 0);
-    const totalDown = snapshot.networks.reduce((s, n) => s + n.downloadBytesPerSec, 0);
+    const totalUp = snapshot.networks.reduce(
+      (s, n) => s + n.uploadBytesPerSec,
+      0
+    );
+    const totalDown = snapshot.networks.reduce(
+      (s, n) => s + n.downloadBytesPerSec,
+      0
+    );
     networkHistory.push({ up: totalUp, down: totalDown });
     networkHistoryArray.value = networkHistory.toArray();
 
     // 更新磁盘历史
     snapshot.disks.forEach((disk) => {
       if (!diskHistory.has(disk.mountPoint)) {
-        const buf = new RingBuffer<{ read: number; write: number }>(HISTORY_SIZE, { read: 0, write: 0 });
+        const buf = new RingBuffer<{ read: number; write: number }>(
+          HISTORY_SIZE,
+          { read: 0, write: 0 }
+        );
         diskHistory.set(disk.mountPoint, buf);
         diskHistoryArrays.set(disk.mountPoint, buf.toArray());
       }
@@ -108,7 +136,10 @@ export const useSystemPulseStore = defineStore("systemPulse", () => {
     // 更新 GPU 历史
     snapshot.gpus.forEach((gpu: GpuSnapshot) => {
       if (!gpuHistory.has(gpu.index)) {
-        const buf = new RingBuffer<{ usage: number; temp: number }>(HISTORY_SIZE, { usage: 0, temp: 0 });
+        const buf = new RingBuffer<{ usage: number; temp: number }>(
+          HISTORY_SIZE,
+          { usage: 0, temp: 0 }
+        );
         gpuHistory.set(gpu.index, buf);
         gpuHistoryArrays.set(gpu.index, buf.toArray());
       }

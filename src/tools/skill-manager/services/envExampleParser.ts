@@ -95,7 +95,10 @@ export function parseEnvExample(content: string): EnvVarDefinition[] {
  * 如果提供了 definitions，会按其顺序输出并附带注释和分组。
  * 不在 definitions 中的自定义变量会追加到末尾。
  */
-export function serializeEnvFile(vars: Record<string, string>, definitions?: EnvVarDefinition[]): string {
+export function serializeEnvFile(
+  vars: Record<string, string>,
+  definitions?: EnvVarDefinition[]
+): string {
   const lines: string[] = [];
 
   if (definitions && definitions.length > 0) {
@@ -124,7 +127,9 @@ export function serializeEnvFile(vars: Record<string, string>, definitions?: Env
 
     // 追加不在 definitions 中的自定义变量
     const definedKeys = new Set(definitions.map((d) => d.key));
-    const customVars = Object.entries(vars).filter(([k]) => !definedKeys.has(k));
+    const customVars = Object.entries(vars).filter(
+      ([k]) => !definedKeys.has(k)
+    );
     if (customVars.length > 0) {
       lines.push("");
       lines.push("# --- 自定义变量 ---");
@@ -165,5 +170,7 @@ export function parseEnvFile(content: string): Record<string, string> {
  */
 export function isSensitiveVar(key: string): boolean {
   const upper = key.toUpperCase();
-  return ["PASSWORD", "SECRET", "TOKEN", "KEY", "CREDENTIAL", "AUTH"].some((s) => upper.includes(s));
+  return ["PASSWORD", "SECRET", "TOKEN", "KEY", "CREDENTIAL", "AUTH"].some(
+    (s) => upper.includes(s)
+  );
 }

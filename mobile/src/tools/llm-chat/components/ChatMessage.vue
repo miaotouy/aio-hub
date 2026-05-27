@@ -22,14 +22,22 @@ const chatStore = useLlmChatStore();
 </script>
 
 <template>
-  <div class="message-item" :class="[message.role, message.status, { 'is-active': isActive }]">
+  <div
+    class="message-item"
+    :class="[message.role, message.status, { 'is-active': isActive }]"
+  >
     <!-- 头部：头像 + 信息 -->
     <div class="message-header">
       <div class="avatar">
         <User v-if="message.role === 'user'" :size="14" />
         <Bot v-else :size="14" />
       </div>
-      <div v-if="message.role === 'assistant' && message.metadata?.modelDisplayName" class="model-info">
+      <div
+        v-if="
+          message.role === 'assistant' && message.metadata?.modelDisplayName
+        "
+        class="model-info"
+      >
         {{ message.metadata.modelDisplayName }}
       </div>
     </div>

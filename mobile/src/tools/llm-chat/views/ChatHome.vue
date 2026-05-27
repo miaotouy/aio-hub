@@ -1,12 +1,18 @@
 <script setup lang="ts">
-import { onMounted } from 'vue';
-import { useRouter } from 'vue-router';
-import { MessageSquare, Users, UserCircle, Plus, Settings } from 'lucide-vue-next';
-import { useI18n } from '@/i18n';
-import SafeTop from '@/components/SafeTop.vue';
-import { useLlmChatStore } from '../stores/llmChatStore';
-import { useLlmProfilesStore } from '../../llm-api/stores/llmProfiles';
-import { useChatSettings } from '../composables/useChatSettings';
+import { onMounted } from "vue";
+import { useRouter } from "vue-router";
+import {
+  MessageSquare,
+  Users,
+  UserCircle,
+  Plus,
+  Settings,
+} from "lucide-vue-next";
+import { useI18n } from "@/i18n";
+import SafeTop from "@/components/SafeTop.vue";
+import { useLlmChatStore } from "../stores/llmChatStore";
+import { useLlmProfilesStore } from "../../llm-api/stores/llmProfiles";
+import { useChatSettings } from "../composables/useChatSettings";
 
 const router = useRouter();
 const { tRaw } = useI18n();
@@ -25,7 +31,7 @@ onMounted(async () => {
   if (!chatStore.isLoaded) {
     await chatStore.init();
   }
-  
+
   // 确保有选中的模型且模型有效
   chatStore.syncSelectedModel();
 });
@@ -36,11 +42,11 @@ const handleNewChat = async () => {
 };
 
 const goToSessions = () => {
-  router.push('/tools/llm-chat/sessions');
+  router.push("/tools/llm-chat/sessions");
 };
 
 const goToSettings = () => {
-  router.push('/tools/llm-chat/settings');
+  router.push("/tools/llm-chat/settings");
 };
 </script>
 
@@ -49,12 +55,14 @@ const goToSettings = () => {
     <safe-top />
     <div class="header">
       <div class="header-main">
-        <h1>{{ tRaw('tools.llm-chat.common.AI 对话') }}</h1>
+        <h1>{{ tRaw("tools.llm-chat.common.AI 对话") }}</h1>
         <var-button round text color="transparent" @click="goToSettings">
           <Settings :size="24" />
         </var-button>
       </div>
-      <p>{{ tRaw('tools.llm-chat.ChatHome.开始一段新的对话或继续历史会话') }}</p>
+      <p>
+        {{ tRaw("tools.llm-chat.ChatHome.开始一段新的对话或继续历史会话") }}
+      </p>
     </div>
 
     <div class="action-grid">
@@ -63,8 +71,8 @@ const goToSettings = () => {
           <Plus :size="32" />
         </div>
         <div class="text-box">
-          <h3>{{ tRaw('tools.llm-chat.ChatHome.开启新对话') }}</h3>
-          <p>{{ tRaw('tools.llm-chat.ChatHome.即刻开始即时交流') }}</p>
+          <h3>{{ tRaw("tools.llm-chat.ChatHome.开启新对话") }}</h3>
+          <p>{{ tRaw("tools.llm-chat.ChatHome.即刻开始即时交流") }}</p>
         </div>
       </div>
 
@@ -73,8 +81,8 @@ const goToSettings = () => {
           <MessageSquare :size="24" />
         </div>
         <div class="text-box">
-          <h3>{{ tRaw('tools.llm-chat.common.历史会话') }}</h3>
-          <p>{{ tRaw('tools.llm-chat.ChatHome.查看并继续之前的交流') }}</p>
+          <h3>{{ tRaw("tools.llm-chat.common.历史会话") }}</h3>
+          <p>{{ tRaw("tools.llm-chat.ChatHome.查看并继续之前的交流") }}</p>
         </div>
       </div>
 
@@ -83,8 +91,8 @@ const goToSettings = () => {
           <Users :size="24" />
         </div>
         <div class="text-box">
-          <h3>{{ tRaw('tools.llm-chat.ChatHome.角色大厅') }}</h3>
-          <p>{{ tRaw('tools.llm-chat.ChatHome.敬请期待') }}</p>
+          <h3>{{ tRaw("tools.llm-chat.ChatHome.角色大厅") }}</h3>
+          <p>{{ tRaw("tools.llm-chat.ChatHome.敬请期待") }}</p>
         </div>
       </div>
 
@@ -93,8 +101,8 @@ const goToSettings = () => {
           <UserCircle :size="24" />
         </div>
         <div class="text-box">
-          <h3>{{ tRaw('tools.llm-chat.ChatHome.用户档案') }}</h3>
-          <p>{{ tRaw('tools.llm-chat.ChatHome.敬请期待') }}</p>
+          <h3>{{ tRaw("tools.llm-chat.ChatHome.用户档案") }}</h3>
+          <p>{{ tRaw("tools.llm-chat.ChatHome.敬请期待") }}</p>
         </div>
       </div>
     </div>
@@ -142,7 +150,9 @@ const goToSettings = () => {
   display: flex;
   align-items: center;
   gap: 16px;
-  transition: transform 0.2s, background-color 0.2s;
+  transition:
+    transform 0.2s,
+    background-color 0.2s;
 }
 
 .action-card:active {

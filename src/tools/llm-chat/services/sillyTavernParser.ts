@@ -13,7 +13,10 @@ import { ANCHOR_IDS } from "../types/context";
 import type { LlmParameters } from "../types/llm";
 import { pick } from "lodash-es";
 import type { ChatRegexConfig } from "../types/chatRegex";
-import { convertSillyTavernArrayToPreset, type SillyTavernRegexScript } from "../utils/chatRegexUtils";
+import {
+  convertSillyTavernArrayToPreset,
+  type SillyTavernRegexScript,
+} from "../utils/chatRegexUtils";
 import type { STWorldbook } from "../types/worldbook";
 
 const logger = createModuleLogger("llm-chat/sillyTavernParser");
@@ -168,7 +171,9 @@ export interface ParsedPromptFile {
  * @param card 角色卡 JSON 对象
  * @returns 解析后的 Agent 部分数据和预设消息
  */
-export function parseCharacterCard(card: SillyTavernCharacterCard): ParsedCharacterCard {
+export function parseCharacterCard(
+  card: SillyTavernCharacterCard
+): ParsedCharacterCard {
   // 标准化数据，统一处理 v2 和 v3
   const data: NormalizedCardData = card.data
     ? { ...card, ...card.data }
@@ -178,38 +183,71 @@ export function parseCharacterCard(card: SillyTavernCharacterCard): ParsedCharac
 
   // 1. System Prompt (v3)
   if (data.system_prompt) {
-    presetMessages.push(createPresetMessage("system", convertMacros(data.system_prompt), "System Prompt"));
+    presetMessages.push(
+      createPresetMessage(
+        "system",
+        convertMacros(data.system_prompt),
+        "System Prompt"
+      )
+    );
   }
 
   // 2. Description
   if (data.description) {
-    presetMessages.push(createPresetMessage("system", `[角色描述]\n${convertMacros(data.description)}`, "Description"));
+    presetMessages.push(
+      createPresetMessage(
+        "system",
+        `[角色描述]\n${convertMacros(data.description)}`,
+        "Description"
+      )
+    );
   }
 
   // 3. Personality
   if (data.personality) {
-    presetMessages.push(createPresetMessage("system", `[角色性格]\n${convertMacros(data.personality)}`, "Personality"));
+    presetMessages.push(
+      createPresetMessage(
+        "system",
+        `[角色性格]\n${convertMacros(data.personality)}`,
+        "Personality"
+      )
+    );
   }
 
   // 4. Scenario
   if (data.scenario) {
-    presetMessages.push(createPresetMessage("system", `[场景设定]\n${convertMacros(data.scenario)}`, "Scenario"));
+    presetMessages.push(
+      createPresetMessage(
+        "system",
+        `[场景设定]\n${convertMacros(data.scenario)}`,
+        "Scenario"
+      )
+    );
   }
 
   // 5. Example Messages
   if (data.mes_example) {
     presetMessages.push(
-      createPresetMessage("system", `[对话示例]\n${convertMacros(data.mes_example)}`, "Example Messages"),
+      createPresetMessage(
+        "system",
+        `[对话示例]\n${convertMacros(data.mes_example)}`,
+        "Example Messages"
+      )
     );
   }
 
   // 6. Post History Instructions (v3) - 通常作为深度注入
   if (data.post_history_instructions) {
     presetMessages.push(
-      createPresetMessage("system", convertMacros(data.post_history_instructions), "Post History Instructions", {
-        depth: 0, // 紧跟最新消息
-        order: 100,
-      }),
+      createPresetMessage(
+        "system",
+        convertMacros(data.post_history_instructions),
+        "Post History Instructions",
+        {
+          depth: 0, // 紧跟最新消息
+          order: 100,
+        }
+      )
     );
   }
 
@@ -217,17 +255,23 @@ export function parseCharacterCard(card: SillyTavernCharacterCard): ParsedCharac
   const depthPrompt = data.extensions?.depth_prompt;
   if (depthPrompt && depthPrompt.prompt) {
     presetMessages.push(
-      createPresetMessage(depthPrompt.role || "system", convertMacros(depthPrompt.prompt), "Depth Prompt", {
-        depth: depthPrompt.depth ?? 4,
-        order: 100,
-      }),
+      createPresetMessage(
+        depthPrompt.role || "system",
+        convertMacros(depthPrompt.prompt),
+        "Depth Prompt",
+        {
+          depth: depthPrompt.depth ?? 4,
+          order: 100,
+        }
+      )
     );
   }
 
   // 8. First Message & Alternate Greetings (开场白)
-  const greetings = [data.first_mes, ...(data.alternate_greetings || [])].filter(
-    (g) => typeof g === "string" && g.trim(),
-  );
+  const greetings = [
+    data.first_mes,
+    ...(data.alternate_greetings || []),
+  ].filter((g) => typeof g === "string" && g.trim());
 
   if (greetings.length > 0) {
     greetings.forEach((greeting, index) => {
@@ -237,8 +281,8 @@ export function parseCharacterCard(card: SillyTavernCharacterCard): ParsedCharac
           convertMacros(greeting),
           index === 0 ? "First Message" : `Alternate Greeting ${index}`,
           undefined,
-          index === 0, // 只启用第一个
-        ),
+          index === 0 // 只启用第一个
+        )
       );
     });
   }
@@ -248,11 +292,18 @@ export function parseCharacterCard(card: SillyTavernCharacterCard): ParsedCharac
   // 兼容性处理：regex_scripts 可能直接位于 data 下，也可能位于 extensions 下
   const rawRegexScripts = data.regex_scripts || data.extensions?.regex_scripts;
 
-  if (rawRegexScripts && Array.isArray(rawRegexScripts) && rawRegexScripts.length > 0) {
+  if (
+    rawRegexScripts &&
+    Array.isArray(rawRegexScripts) &&
+    rawRegexScripts.length > 0
+  ) {
     try {
       // 将所有脚本合并为一个以角色名命名的预设
       const presetName = `${data.name} - 导入正则`;
-      const preset = convertSillyTavernArrayToPreset(rawRegexScripts, presetName);
+      const preset = convertSillyTavernArrayToPreset(
+        rawRegexScripts,
+        presetName
+      );
       regexConfig = { presets: [preset] };
     } catch (e) {
       logger.warn("解析正则脚本失败", { error: e });
@@ -284,7 +335,10 @@ export function parseCharacterCard(card: SillyTavernCharacterCard): ParsedCharac
  * @param characterId 要使用的角色配置 ID (默认使用第一个)
  * @returns 解析后的预设消息列表
  */
-export function parsePromptFile(file: SillyTavernPromptFile, characterId?: number): ParsedPromptFile {
+export function parsePromptFile(
+  file: SillyTavernPromptFile,
+  characterId?: number
+): ParsedPromptFile {
   const systemPrompts: ChatMessageNode[] = [];
   const injectionPrompts: ChatMessageNode[] = [];
   const unorderedPrompts: ChatMessageNode[] = [];
@@ -294,10 +348,14 @@ export function parsePromptFile(file: SillyTavernPromptFile, characterId?: numbe
   // 查找指定的 order 配置。
   // 优先使用 characterId 查找，如果找不到或未提供，则默认使用最后一个配置
   // (根据用户反馈，最后一个通常是当前激活的)
-  let orderConfig: SillyTavernPromptFile["prompt_order"][number]["order"] | undefined;
+  let orderConfig:
+    | SillyTavernPromptFile["prompt_order"][number]["order"]
+    | undefined;
 
   if (characterId !== undefined) {
-    orderConfig = file.prompt_order?.find((po) => po.character_id === characterId)?.order;
+    orderConfig = file.prompt_order?.find(
+      (po) => po.character_id === characterId
+    )?.order;
   }
 
   if (!orderConfig && file.prompt_order && file.prompt_order.length > 0) {
@@ -317,7 +375,9 @@ export function parsePromptFile(file: SillyTavernPromptFile, characterId?: numbe
   }
 
   // 以 chatHistory 为界，分离 system 和 injection prompts
-  const historyIndex = orderConfig.findIndex((item) => item.identifier === "chatHistory");
+  const historyIndex = orderConfig.findIndex(
+    (item) => item.identifier === "chatHistory"
+  );
   const splitIndex = historyIndex === -1 ? orderConfig.length : historyIndex;
 
   const preHistoryOrder = orderConfig.slice(0, splitIndex);
@@ -335,7 +395,7 @@ export function parsePromptFile(file: SillyTavernPromptFile, characterId?: numbe
       convertMacros(prompt.content),
       prompt.name, // 传入名称
       undefined, // 前置消息不应有注入策略
-      item.enabled,
+      item.enabled
     );
     systemPrompts.push(message);
   }
@@ -353,7 +413,7 @@ export function parsePromptFile(file: SillyTavernPromptFile, characterId?: numbe
       convertMacros(prompt.content),
       prompt.name,
       injectionStrategy,
-      item.enabled,
+      item.enabled
     );
     injectionPrompts.push(message);
   }
@@ -361,7 +421,11 @@ export function parsePromptFile(file: SillyTavernPromptFile, characterId?: numbe
   // 解析未在 order 中配置的消息
   for (const prompt of file.prompts) {
     // 跳过已处理的、marker 类型的、或没有内容的 prompt
-    if (processedIdentifiers.has(prompt.identifier) || prompt.marker || !prompt.content?.trim()) {
+    if (
+      processedIdentifiers.has(prompt.identifier) ||
+      prompt.marker ||
+      !prompt.content?.trim()
+    ) {
       continue;
     }
     const injectionStrategy = convertInjectionStrategy(prompt);
@@ -370,7 +434,7 @@ export function parsePromptFile(file: SillyTavernPromptFile, characterId?: numbe
       convertMacros(prompt.content),
       prompt.name,
       injectionStrategy,
-      false, // 默认禁用，让用户选择
+      false // 默认禁用，让用户选择
     );
     unorderedPrompts.push(message);
   }
@@ -425,7 +489,9 @@ export function isPromptFile(obj: any): obj is SillyTavernPromptFile {
 /**
  * 将 ST 的注入配置转换为我们的 InjectionStrategy
  */
-function convertInjectionStrategy(prompt: SillyTavernPrompt): InjectionStrategy | undefined {
+function convertInjectionStrategy(
+  prompt: SillyTavernPrompt
+): InjectionStrategy | undefined {
   // 优先使用 injection_depth (如果存在)
   if (prompt.injection_depth !== undefined && prompt.injection_depth > 0) {
     return {
@@ -474,7 +540,7 @@ function createPresetMessage(
   content: string,
   name?: string,
   injectionStrategy?: InjectionStrategy,
-  isEnabled: boolean = true,
+  isEnabled: boolean = true
 ): ChatMessageNode {
   const metadata = name ? { stPromptName: name } : undefined;
   return {

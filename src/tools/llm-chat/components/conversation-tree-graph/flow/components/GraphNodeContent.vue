@@ -3,31 +3,54 @@
     <!-- 节点头部 -->
     <div class="node-header">
       <!-- 压缩节点特殊头部 -->
-      <div v-if="data.isCompressionNode" class="compression-header" @click.stop="emit('toggle-expand')">
+      <div
+        v-if="data.isCompressionNode"
+        class="compression-header"
+        @click.stop="emit('toggle-expand')"
+      >
         <div class="compression-icon">
-          <component :is="data.isExpanded ? 'span' : 'span'" class="icon-wrapper"> 📦 </component>
+          <component
+            :is="data.isExpanded ? 'span' : 'span'"
+            class="icon-wrapper"
+          >
+            📦
+          </component>
         </div>
         <div class="node-info">
           <div class="node-name-row">
             <span class="node-name">上下文压缩</span>
-            <span class="compression-badge">{{ data.isExpanded ? "已展开" : "已折叠" }}</span>
+            <span class="compression-badge">{{
+              data.isExpanded ? "已展开" : "已折叠"
+            }}</span>
           </div>
           <div class="node-subtitle">
-            <span class="subtitle-text">包含 {{ data.originalMessageCount || 0 }} 条消息</span>
+            <span class="subtitle-text"
+              >包含 {{ data.originalMessageCount || 0 }} 条消息</span
+            >
           </div>
         </div>
       </div>
 
       <!-- 普通节点头部 -->
       <template v-else>
-        <Avatar v-if="data.avatar" :src="data.avatar" :alt="data.name" :size="48" shape="square" :radius="6" />
+        <Avatar
+          v-if="data.avatar"
+          :src="data.avatar"
+          :alt="data.name"
+          :size="48"
+          shape="square"
+          :radius="6"
+        />
         <div class="node-info">
           <div class="node-name-row">
             <span class="node-name">{{ data.name }}</span>
             <span v-if="data.isActiveLeaf" class="active-indicator">🎯</span>
           </div>
           <!-- 副标题：模型和渠道信息 -->
-          <div v-if="shouldShowSubtitle && data.subtitleInfo" class="node-subtitle">
+          <div
+            v-if="shouldShowSubtitle && data.subtitleInfo"
+            class="node-subtitle"
+          >
             <!-- 模型信息 -->
             <div class="subtitle-item">
               <DynamicIcon
@@ -35,7 +58,9 @@
                 :alt="data.subtitleInfo.modelName"
                 class="subtitle-icon"
               />
-              <span class="subtitle-text">{{ data.subtitleInfo.modelName }}</span>
+              <span class="subtitle-text">{{
+                data.subtitleInfo.modelName
+              }}</span>
             </div>
             <!-- 分隔符 -->
             <span class="subtitle-separator">·</span>
@@ -46,18 +71,26 @@
                 :alt="data.subtitleInfo.profileName"
                 class="subtitle-icon"
               />
-              <span class="subtitle-text">{{ data.subtitleInfo.profileName }}</span>
+              <span class="subtitle-text">{{
+                data.subtitleInfo.profileName
+              }}</span>
             </div>
           </div>
           <!-- 时间戳和 Token 信息 -->
           <div
-            v-if="settings.uiPreferences.showTimestamp || (settings.uiPreferences.showTokenCount && data.tokens)"
+            v-if="
+              settings.uiPreferences.showTimestamp ||
+              (settings.uiPreferences.showTokenCount && data.tokens)
+            "
             class="node-meta"
           >
             <span v-if="settings.uiPreferences.showTimestamp" class="meta-item">
               {{ formatRelativeTime(data.timestamp) }}
             </span>
-            <span v-if="settings.uiPreferences.showTokenCount && data.tokens" class="meta-item">
+            <span
+              v-if="settings.uiPreferences.showTokenCount && data.tokens"
+              class="meta-item"
+            >
               {{ formatTokens(data.tokens) }}
             </span>
           </div>
@@ -66,10 +99,16 @@
     </div>
 
     <!-- 思考内容标签 -->
-    <div v-if="data.hasThinking" class="thinking-tag" :title="data.thinkingPreview || '包含思考内容'">
+    <div
+      v-if="data.hasThinking"
+      class="thinking-tag"
+      :title="data.thinkingPreview || '包含思考内容'"
+    >
       <span class="thinking-icon">💭</span>
       <span class="thinking-label">思考</span>
-      <span v-if="data.thinkingPreview" class="thinking-preview">{{ data.thinkingPreview }}</span>
+      <span v-if="data.thinkingPreview" class="thinking-preview">{{
+        data.thinkingPreview
+      }}</span>
     </div>
 
     <!-- 内容预览 -->
@@ -84,7 +123,10 @@
     </div>
 
     <!-- 附件列表 -->
-    <div v-if="data.attachments && data.attachments.length > 0" class="node-attachments">
+    <div
+      v-if="data.attachments && data.attachments.length > 0"
+      class="node-attachments"
+    >
       <AttachmentCard
         v-for="asset in data.attachments"
         :key="asset.id"
@@ -178,11 +220,19 @@ const errorCopied = ref(false);
 
 // 是否显示副标题
 const shouldShowSubtitle = computed(() => {
-  return settings.value.uiPreferences.showModelInfo && props.data.role === "assistant" && !!props.data.subtitleInfo;
+  return (
+    settings.value.uiPreferences.showModelInfo &&
+    props.data.role === "assistant" &&
+    !!props.data.subtitleInfo
+  );
 });
 
 // 格式化 Token 信息
-const formatTokens = (tokens: { total: number; prompt?: number; completion?: number }) => {
+const formatTokens = (tokens: {
+  total: number;
+  prompt?: number;
+  completion?: number;
+}) => {
   if (tokens.prompt !== undefined && tokens.completion !== undefined) {
     return `${tokens.total} tokens (${tokens.prompt}+${tokens.completion})`;
   }
@@ -324,7 +374,10 @@ const copyError = async () => {
   align-items: center;
   gap: 4px;
   padding: 3px 8px;
-  background-color: rgba(var(--el-color-warning-rgb, 230, 162, 60), calc(var(--card-opacity, 1) * 0.12));
+  background-color: rgba(
+    var(--el-color-warning-rgb, 230, 162, 60),
+    calc(var(--card-opacity, 1) * 0.12)
+  );
   border-radius: 4px;
   font-size: 11px;
   color: var(--el-color-warning);

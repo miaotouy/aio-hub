@@ -5,7 +5,10 @@ import { Loading } from "@element-plus/icons-vue";
 import { useRoute } from "vue-router";
 import { useTheme } from "../composables/useTheme";
 import { createModuleLogger } from "../utils/logger";
-import { getDetachableComponentConfig, loadDetachableComponent } from "../config/detachable-components";
+import {
+  getDetachableComponentConfig,
+  loadDetachableComponent,
+} from "../config/detachable-components";
 import { useAppInitStore } from "../stores/appInitStore";
 import { useRootInit } from "../composables/useRootInit";
 import { useDetachedPreview } from "../composables/useDetachedPreview";
@@ -91,7 +94,7 @@ onMounted(async () => {
             (newProps) => {
               componentProps.value = newProps;
             },
-            { deep: true },
+            { deep: true }
           );
 
           logger.info("组件加载成功", { id });
@@ -124,14 +127,21 @@ onMounted(async () => {
 <template>
   <div
     class="detached-component-container"
-    :class="[`theme-${currentTheme}`, { 'preview-mode': isPreview, 'final-mode': !isPreview }]"
+    :class="[
+      `theme-${currentTheme}`,
+      { 'preview-mode': isPreview, 'final-mode': !isPreview },
+    ]"
   >
     <GlobalProviders>
       <template v-if="appInitStore.isReady">
         <!-- 组件渲染区域 -->
         <div class="component-wrapper">
           <Suspense v-if="componentToRender">
-            <component :is="componentToRender" v-bind="componentProps" v-on="componentEventListeners" />
+            <component
+              :is="componentToRender"
+              v-bind="componentProps"
+              v-on="componentEventListeners"
+            />
             <template #fallback>
               <div class="loading-message">
                 <el-icon class="is-loading"><Loading /></el-icon>

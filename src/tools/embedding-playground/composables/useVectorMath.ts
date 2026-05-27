@@ -3,7 +3,7 @@
  * 提供常用的向量相似度和距离计算算法
  */
 
-export type SimilarityAlgorithm = 'cosine' | 'euclidean' | 'dot' | 'manhattan';
+export type SimilarityAlgorithm = "cosine" | "euclidean" | "dot" | "manhattan";
 
 export function useVectorMath() {
   /**
@@ -61,18 +61,18 @@ export function useVectorMath() {
   const calculateSimilarity = (
     vecA: number[],
     vecB: number[],
-    algo: SimilarityAlgorithm = 'cosine'
+    algo: SimilarityAlgorithm = "cosine"
   ): number => {
     switch (algo) {
-      case 'cosine':
+      case "cosine":
         return cosineSimilarity(vecA, vecB);
-      case 'dot':
+      case "dot":
         return dotProduct(vecA, vecB);
-      case 'euclidean': {
+      case "euclidean": {
         const d = euclideanDistance(vecA, vecB);
         return 1 / (1 + d); // 转换为 [0, 1] 范围的相似度分数
       }
-      case 'manhattan': {
+      case "manhattan": {
         const d = manhattanDistance(vecA, vecB);
         return 1 / (1 + d); // 转换为 [0, 1] 范围的相似度分数
       }

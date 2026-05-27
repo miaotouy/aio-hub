@@ -1,7 +1,7 @@
 <template>
-  <a 
-    :href="href" 
-    :title="title" 
+  <a
+    :href="href"
+    :title="title"
     class="markdown-link"
     target="_blank"
     rel="noopener noreferrer"
@@ -30,7 +30,9 @@ defineProps<{
   box-shadow: var(--md-link-box-shadow, none);
   padding: 0 2px;
   font-style: var(--md-link-font-style, inherit);
-  transition: color 0.2s, border-color 0.2s;
+  transition:
+    color 0.2s,
+    border-color 0.2s;
 }
 
 .markdown-link:hover {

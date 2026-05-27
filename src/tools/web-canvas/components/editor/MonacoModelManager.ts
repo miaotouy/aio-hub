@@ -27,7 +27,7 @@ class MonacoModelManager {
     const uriString = uri.toString();
 
     let model = monaco.editor.getModel(uri);
-    
+
     if (model) {
       // 如果已存在且内容不同，同步内容（通常发生在外部修改如 AI 写入）
       if (model.getValue() !== content) {
@@ -43,9 +43,9 @@ class MonacoModelManager {
     // 创建新 Model
     model = monaco.editor.createModel(content, language, uri);
     this.models.set(uriString, model);
-    
+
     logger.debug("Model created", { uri: uriString, language });
-    
+
     return model;
   }
 
@@ -56,7 +56,7 @@ class MonacoModelManager {
     const uri = this.generateUri(canvasId, filepath);
     const uriString = uri.toString();
     const model = this.models.get(uriString);
-    
+
     if (model) {
       model.dispose();
       this.models.delete(uriString);

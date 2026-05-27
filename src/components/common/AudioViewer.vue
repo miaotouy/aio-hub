@@ -45,9 +45,12 @@ const emit = defineEmits<{
 
 const displayTitle = computed(() => {
   if (props.title) return props.title;
-  if (!props.src && (!props.playlist || props.playlist.length === 0)) return "音频预览";
+  if (!props.src && (!props.playlist || props.playlist.length === 0))
+    return "音频预览";
 
-  const targetSrc = props.src || (props.playlist && props.playlist[props.initialIndex || 0]?.src);
+  const targetSrc =
+    props.src ||
+    (props.playlist && props.playlist[props.initialIndex || 0]?.src);
   if (!targetSrc) return "音频预览";
 
   try {

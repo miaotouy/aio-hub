@@ -8,14 +8,15 @@ import type { useEditorExport } from "./useEditorExport";
  */
 export function useEditorKeyboard(
   session: EditorSession,
-  exportActions: ReturnType<typeof useEditorExport>,
+  exportActions: ReturnType<typeof useEditorExport>
 ) {
   const { state, runtime, actions } = session;
 
   function handleGlobalKeyDown(e: KeyboardEvent): void {
     // 文本编辑状态下，只保留带修饰键的快捷键
     const isTextEditing =
-      document.activeElement?.tagName === "TEXTAREA" || document.activeElement?.tagName === "INPUT";
+      document.activeElement?.tagName === "TEXTAREA" ||
+      document.activeElement?.tagName === "INPUT";
 
     // 带修饰键的快捷键（始终生效）
     if (e.ctrlKey || e.metaKey) {
@@ -30,7 +31,10 @@ export function useEditorKeyboard(
     handleSingleKeyShortcuts(e);
   }
 
-  function handleModifierShortcuts(e: KeyboardEvent, isTextEditing: boolean): void {
+  function handleModifierShortcuts(
+    e: KeyboardEvent,
+    isTextEditing: boolean
+  ): void {
     switch (e.key.toLowerCase()) {
       case "s":
         e.preventDefault();

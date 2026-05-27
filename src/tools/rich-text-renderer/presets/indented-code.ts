@@ -1,4 +1,4 @@
-import { RenderPreset } from '../types';
+import { RenderPreset } from "../types";
 
 export const indentedCodePreset: RenderPreset = {
   id: "indented-code",

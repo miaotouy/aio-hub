@@ -5,7 +5,12 @@
       <div class="toolbar">
         <!-- 语言选择 -->
         <div class="toolbar-group">
-          <el-select v-model="language" placeholder="选择语言" size="small" style="width: 150px">
+          <el-select
+            v-model="language"
+            placeholder="选择语言"
+            size="small"
+            style="width: 150px"
+          >
             <el-option label="纯文本" value="plaintext" />
             <el-option label="JavaScript" value="javascript" />
             <el-option label="TypeScript" value="typescript" />
@@ -29,13 +34,26 @@
 
         <!-- 比对选项 -->
         <div class="toolbar-group">
-          <el-checkbox v-model="ignoreWhitespace" size="small">忽略行尾空白</el-checkbox>
-          <el-checkbox v-model="renderOverviewRuler" size="small">只看变更</el-checkbox>
+          <el-checkbox v-model="ignoreWhitespace" size="small"
+            >忽略行尾空白</el-checkbox
+          >
+          <el-checkbox v-model="renderOverviewRuler" size="small"
+            >只看变更</el-checkbox
+          >
           <el-checkbox v-model="wordWrap" size="small">自动换行</el-checkbox>
           <div class="checkbox-with-tip">
-            <el-checkbox v-model="ignoreCaseInDiffComputing" size="small"> 忽略大小写 </el-checkbox>
-            <el-tooltip content="实验性功能：仅影响导航计数，不改变可视差异" placement="top">
-              <el-icon class="experimental-icon" :size="16" color="var(--el-color-info)">
+            <el-checkbox v-model="ignoreCaseInDiffComputing" size="small">
+              忽略大小写
+            </el-checkbox>
+            <el-tooltip
+              content="实验性功能：仅影响导航计数，不改变可视差异"
+              placement="top"
+            >
+              <el-icon
+                class="experimental-icon"
+                :size="16"
+                color="var(--el-color-info)"
+              >
                 <QuestionFilled />
               </el-icon>
             </el-tooltip>
@@ -77,9 +95,15 @@
                   <el-icon><Document /></el-icon>
                   打开右侧
                 </el-dropdown-item>
-                <el-dropdown-item divided @click="saveFile('left')">保存左侧</el-dropdown-item>
-                <el-dropdown-item @click="saveFile('right')">保存右侧</el-dropdown-item>
-                <el-dropdown-item @click="saveFile('both')">保存两侧</el-dropdown-item>
+                <el-dropdown-item divided @click="saveFile('left')"
+                  >保存左侧</el-dropdown-item
+                >
+                <el-dropdown-item @click="saveFile('right')"
+                  >保存右侧</el-dropdown-item
+                >
+                <el-dropdown-item @click="saveFile('both')"
+                  >保存两侧</el-dropdown-item
+                >
                 <el-dropdown-item divided @click="exportPatch">
                   <el-icon><Download /></el-icon>
                   导出 .patch
@@ -98,13 +122,21 @@
             </el-button>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item @click="copyToClipboard('left')">复制左侧</el-dropdown-item>
-                <el-dropdown-item @click="copyToClipboard('right')">复制右侧</el-dropdown-item>
-                <el-dropdown-item @click="copyToClipboard('patch')">复制补丁</el-dropdown-item>
+                <el-dropdown-item @click="copyToClipboard('left')"
+                  >复制左侧</el-dropdown-item
+                >
+                <el-dropdown-item @click="copyToClipboard('right')"
+                  >复制右侧</el-dropdown-item
+                >
+                <el-dropdown-item @click="copyToClipboard('patch')"
+                  >复制补丁</el-dropdown-item
+                >
                 <el-dropdown-item divided @click="pasteFromClipboard('left')"
                   >粘贴到左侧</el-dropdown-item
                 >
-                <el-dropdown-item @click="pasteFromClipboard('right')">粘贴到右侧</el-dropdown-item>
+                <el-dropdown-item @click="pasteFromClipboard('right')"
+                  >粘贴到右侧</el-dropdown-item
+                >
               </el-dropdown-menu>
             </template>
           </el-dropdown>
@@ -121,7 +153,9 @@
               <el-dropdown-menu>
                 <el-dropdown-item command="left">清空左侧</el-dropdown-item>
                 <el-dropdown-item command="right">清空右侧</el-dropdown-item>
-                <el-dropdown-item command="all" divided>清空全部</el-dropdown-item>
+                <el-dropdown-item command="all" divided
+                  >清空全部</el-dropdown-item
+                >
               </el-dropdown-menu>
             </template>
           </el-dropdown>

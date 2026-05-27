@@ -69,10 +69,14 @@ const validateTool = (toolName: string) => {
       <div class="header-left">
         <ScanText :size="16" class="header-icon" />
         <span class="header-title">解析器验证</span>
-        <span class="header-desc">将包含 VCP 请求块的混合文本输入左侧，点击运行查看解析结果</span>
+        <span class="header-desc"
+          >将包含 VCP 请求块的混合文本输入左侧，点击运行查看解析结果</span
+        >
       </div>
       <div class="header-actions">
-        <el-button type="primary" :icon="Play" @click="runParserTest"> 运行解析引擎 </el-button>
+        <el-button type="primary" :icon="Play" @click="runParserTest">
+          运行解析引擎
+        </el-button>
       </div>
     </div>
 
@@ -83,12 +87,18 @@ const validateTool = (toolName: string) => {
         <div class="section-header">
           <div class="section-label">
             输入 LLM 混合文本
-            <span class="protocol-badge">{{ props.protocol?.id ?? "VCP" }}</span>
+            <span class="protocol-badge">{{
+              props.protocol?.id ?? "VCP"
+            }}</span>
           </div>
         </div>
         <div class="config-content">
           <div class="editor-wrapper">
-            <RichCodeEditor v-model="testText" language="plaintext" height="100%" />
+            <RichCodeEditor
+              v-model="testText"
+              language="plaintext"
+              height="100%"
+            />
           </div>
         </div>
       </div>
@@ -98,11 +108,23 @@ const validateTool = (toolName: string) => {
         <div class="section-header">
           <span class="result-label">
             解析结果
-            <el-tag v-if="parsedRequests.length" size="small" type="primary" round>
+            <el-tag
+              v-if="parsedRequests.length"
+              size="small"
+              type="primary"
+              round
+            >
               {{ parsedRequests.length }}
             </el-tag>
           </span>
-          <el-button v-if="parsedRequests.length" link type="danger" size="small" :icon="Trash2" @click="clearResults">
+          <el-button
+            v-if="parsedRequests.length"
+            link
+            type="danger"
+            size="small"
+            :icon="Trash2"
+            @click="clearResults"
+          >
             清空
           </el-button>
         </div>
@@ -111,7 +133,10 @@ const validateTool = (toolName: string) => {
           <div v-if="!parsedRequests.length" class="empty-results">
             <Search :size="48" />
             <p>等待解析结果...</p>
-            <span class="empty-hint">在左侧输入包含 <code>TOOL_REQUEST</code> 块的文本，然后点击运行</span>
+            <span class="empty-hint"
+              >在左侧输入包含
+              <code>TOOL_REQUEST</code> 块的文本，然后点击运行</span
+            >
           </div>
 
           <div
@@ -119,7 +144,8 @@ const validateTool = (toolName: string) => {
             :key="idx"
             class="req-card"
             :class="{
-              'is-invalid': !req.validation?.isValid || !validateTool(req.toolName).exists,
+              'is-invalid':
+                !req.validation?.isValid || !validateTool(req.toolName).exists,
               'has-format-error': !req.validation?.isValid,
             }"
           >
@@ -135,31 +161,51 @@ const validateTool = (toolName: string) => {
                       <div class="error-tooltip-content">
                         <strong>格式解析错误:</strong>
                         <ul>
-                          <li v-for="(err, eIdx) in req.validation?.errors" :key="eIdx">{{ err }}</li>
+                          <li
+                            v-for="(err, eIdx) in req.validation?.errors"
+                            :key="eIdx"
+                          >
+                            {{ err }}
+                          </li>
                         </ul>
                       </div>
                     </template>
-                    <el-tag size="small" effect="dark" type="danger">格式错误</el-tag>
+                    <el-tag size="small" effect="dark" type="danger"
+                      >格式错误</el-tag
+                    >
                   </el-tooltip>
                 </template>
                 <template v-else-if="validateTool(req.toolName).exists">
-                  <el-tag size="small" effect="plain" type="success">已就绪</el-tag>
+                  <el-tag size="small" effect="plain" type="success"
+                    >已就绪</el-tag
+                  >
                 </template>
                 <template v-else>
-                  <el-tooltip content="该工具或方法未在系统中注册，无法执行" placement="top">
-                    <el-tag size="small" effect="light" type="danger">工具不存在</el-tag>
+                  <el-tooltip
+                    content="该工具或方法未在系统中注册，无法执行"
+                    placement="top"
+                  >
+                    <el-tag size="small" effect="light" type="danger"
+                      >工具不存在</el-tag
+                    >
                   </el-tooltip>
                 </template>
               </div>
             </div>
             <div class="req-body">
               <div v-if="req.validation?.errors?.length" class="req-errors">
-                <div class="error-item" v-for="(err, eIdx) in req.validation.errors" :key="eIdx">
+                <div
+                  class="error-item"
+                  v-for="(err, eIdx) in req.validation.errors"
+                  :key="eIdx"
+                >
                   <span class="error-bullet">•</span> {{ err }}
                 </div>
               </div>
               <div class="req-args-label">提取参数</div>
-              <pre class="req-args">{{ JSON.stringify(req.args, null, 2) }}</pre>
+              <pre class="req-args">{{
+                JSON.stringify(req.args, null, 2)
+              }}</pre>
             </div>
           </div>
         </div>
@@ -250,7 +296,10 @@ const validateTool = (toolName: string) => {
   font-size: 11px;
   font-family: var(--el-font-family-mono);
   color: var(--el-color-primary);
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.1));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
   padding: 2px 8px;
   border-radius: 10px;
   border: 1px solid rgba(var(--el-color-primary-rgb), 0.2);
@@ -361,7 +410,10 @@ const validateTool = (toolName: string) => {
 
 .req-head {
   padding: 8px 12px;
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.08));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.08)
+  );
   border-bottom: var(--border-width) solid var(--border-color);
   display: flex;
   align-items: center;
@@ -369,7 +421,10 @@ const validateTool = (toolName: string) => {
 }
 
 .is-invalid .req-head {
-  background-color: rgba(var(--el-color-danger-rgb), calc(var(--card-opacity) * 0.05));
+  background-color: rgba(
+    var(--el-color-danger-rgb),
+    calc(var(--card-opacity) * 0.05)
+  );
 }
 
 .req-head-left {

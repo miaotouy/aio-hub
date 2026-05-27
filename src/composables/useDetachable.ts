@@ -121,7 +121,8 @@ export function useDetachable() {
     if (dragState.isPreparing && !isDragging.value) {
       const shouldTrigger =
         // 条件1：移动距离超过阈值且按下时间超过最小时间
-        (distance >= DRAG_THRESHOLD.DISTANCE && elapsed >= DRAG_THRESHOLD.TIME_MIN) ||
+        (distance >= DRAG_THRESHOLD.DISTANCE &&
+          elapsed >= DRAG_THRESHOLD.TIME_MIN) ||
         // 条件2：按下时间超过最大时间阈值（即使移动距离小）
         (elapsed >= DRAG_THRESHOLD.TIME_MAX && distance >= 3);
 
@@ -165,7 +166,9 @@ export function useDetachable() {
 
       invoke<boolean>("end_drag_session")
         .then((created) => {
-          console.log(`[DETACH] 拖拽会话结束，窗口${created ? "已" : "未"}创建`);
+          console.log(
+            `[DETACH] 拖拽会话结束，窗口${created ? "已" : "未"}创建`
+          );
         })
         .catch((error) => {
           const errorStr = error.toString();
@@ -232,7 +235,10 @@ export function useDetachable() {
    * @param config 分离配置
    */
   const detachByClick = async (
-    config: Omit<DetachableConfig, "mouseX" | "mouseY" | "handleOffsetX" | "handleOffsetY">,
+    config: Omit<
+      DetachableConfig,
+      "mouseX" | "mouseY" | "handleOffsetX" | "handleOffsetY"
+    >
   ): Promise<boolean> => {
     try {
       console.log("[DETACH] 通过点击分离窗口", config);

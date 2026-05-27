@@ -54,7 +54,11 @@ export class RecipeStore {
 
     // 用户配方覆盖内置配方 (如果 domain + pathPattern 相同)
     for (const userRecipe of this.recipes) {
-      const index = merged.findIndex((r) => r.domain === userRecipe.domain && r.pathPattern === userRecipe.pathPattern);
+      const index = merged.findIndex(
+        (r) =>
+          r.domain === userRecipe.domain &&
+          r.pathPattern === userRecipe.pathPattern
+      );
 
       if (index >= 0) {
         // 替换内置配方
@@ -83,7 +87,10 @@ export class RecipeStore {
   }
 
   /** 根据 URL 匹配最有优势的配方 */
-  public async findBestMatch(url: string, content?: string): Promise<SiteRecipe | null> {
+  public async findBestMatch(
+    url: string,
+    content?: string
+  ): Promise<SiteRecipe | null> {
     await this.load();
     try {
       const isLocalFile = url.startsWith("file://");
@@ -97,7 +104,9 @@ export class RecipeStore {
 
         // 如果是本地文件，且配方没有指定 domain 或者 domain 匹配了 path 中的关键字
         if (isLocalFile) {
-          return !r.domain || path.toLowerCase().includes(r.domain.toLowerCase());
+          return (
+            !r.domain || path.toLowerCase().includes(r.domain.toLowerCase())
+          );
         }
 
         return r.domain === domain;
@@ -131,7 +140,10 @@ export class RecipeStore {
           });
         });
         if (contentMatch) {
-          logger.info("Matched recipe via content sniffing", { id: contentMatch.id, name: contentMatch.name });
+          logger.info("Matched recipe via content sniffing", {
+            id: contentMatch.id,
+            name: contentMatch.name,
+          });
           return contentMatch;
         }
       }
@@ -148,7 +160,11 @@ export class RecipeStore {
     await this.load();
     const index = this.recipes.findIndex((r) => r.id === recipe.id);
     if (index >= 0) {
-      this.recipes[index] = { ...this.recipes[index], ...recipe, updatedAt: getLocalISOString() };
+      this.recipes[index] = {
+        ...this.recipes[index],
+        ...recipe,
+        updatedAt: getLocalISOString(),
+      };
     } else {
       // 检查是否是内置配方的 ID
       const isBuiltin = recipe.id.startsWith("builtin-");

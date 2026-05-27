@@ -250,7 +250,9 @@ const handleLoadRecord = async (recordId: string) => {
     }
 
     const assetBinary = await getAssetBinary(fullRecord.assetPath);
-    const file = new File([assetBinary], fullRecord.id, { type: fullRecord.assetMimeType });
+    const file = new File([assetBinary], fullRecord.id, {
+      type: fullRecord.assetMimeType,
+    });
 
     const uploadedImage = await createUploadedImageFromFile(file);
     addImages([uploadedImage]);
@@ -280,7 +282,9 @@ const handleReRecognize = async (recordId: string) => {
     }
 
     const assetBinary = await getAssetBinary(fullRecord.assetPath);
-    const file = new File([assetBinary], fullRecord.id, { type: fullRecord.assetMimeType });
+    const file = new File([assetBinary], fullRecord.id, {
+      type: fullRecord.assetMimeType,
+    });
 
     const uploadedImage = await createUploadedImageFromFile(file);
     addImages([uploadedImage]);
@@ -336,9 +340,17 @@ const handleReRecognize = async (recordId: string) => {
         ></div>
 
         <!-- 折叠按钮 -->
-        <div class="collapse-button left-collapse" @click="isLeftPanelCollapsed = true">
+        <div
+          class="collapse-button left-collapse"
+          @click="isLeftPanelCollapsed = true"
+        >
           <SidebarToggleIcon class="collapse-icon trapezoid" />
-          <svg class="arrow-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <svg
+            class="arrow-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+          >
             <polyline
               points="15 18 9 12 15 6"
               stroke-width="2"
@@ -358,7 +370,12 @@ const handleReRecognize = async (recordId: string) => {
           @click="isLeftPanelCollapsed = false"
         >
           <SidebarToggleIcon class="expand-icon trapezoid" />
-          <svg class="arrow-icon expanded" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <svg
+            class="arrow-icon expanded"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+          >
             <polyline
               points="9 18 15 12 9 6"
               stroke-width="2"
@@ -388,7 +405,12 @@ const handleReRecognize = async (recordId: string) => {
           @click="isRightPanelCollapsed = false"
         >
           <SidebarToggleIcon class="expand-icon trapezoid" flip />
-          <svg class="arrow-icon expanded" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <svg
+            class="arrow-icon expanded"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+          >
             <polyline
               points="15 18 9 12 15 6"
               stroke-width="2"
@@ -406,9 +428,17 @@ const handleReRecognize = async (recordId: string) => {
         :style="{ width: `${rightPanelWidth}px` }"
       >
         <!-- 折叠按钮 -->
-        <div class="collapse-button right-collapse" @click="isRightPanelCollapsed = true">
+        <div
+          class="collapse-button right-collapse"
+          @click="isRightPanelCollapsed = true"
+        >
           <SidebarToggleIcon class="collapse-icon trapezoid" flip />
-          <svg class="arrow-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <svg
+            class="arrow-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+          >
             <polyline
               points="9 18 15 12 9 6"
               stroke-width="2"

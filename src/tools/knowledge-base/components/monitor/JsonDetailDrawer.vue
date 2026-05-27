@@ -28,9 +28,19 @@ const jsonString = computed(() => {
 </script>
 
 <template>
-  <BaseDialog v-model="visible" :title="title || '原始数据'" width="800px" height="70vh">
+  <BaseDialog
+    v-model="visible"
+    :title="title || '原始数据'"
+    width="800px"
+    height="70vh"
+  >
     <div class="json-detail-container">
-      <RichCodeEditor v-model="jsonString" language="json" readonly height="100%" />
+      <RichCodeEditor
+        v-model="jsonString"
+        language="json"
+        readonly
+        height="100%"
+      />
     </div>
   </BaseDialog>
 </template>

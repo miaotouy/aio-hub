@@ -38,38 +38,72 @@ defineProps<{
               <!-- 智能体头像 + 名称 -->
               <el-skeleton-item
                 variant="rect"
-                style="width: 28px; height: 28px; border-radius: 6px; flex-shrink: 0"
+                style="
+                  width: 28px;
+                  height: 28px;
+                  border-radius: 6px;
+                  flex-shrink: 0;
+                "
               />
-              <el-skeleton-item variant="text" style="width: 72px; height: 16px" />
+              <el-skeleton-item
+                variant="text"
+                style="width: 72px; height: 16px"
+              />
               <!-- 模型图标 + 名称 -->
               <div class="skeleton-model-badge">
                 <el-skeleton-item
                   variant="circle"
                   style="width: 20px; height: 20px; flex-shrink: 0"
                 />
-                <el-skeleton-item variant="text" style="width: 90px; height: 14px" />
+                <el-skeleton-item
+                  variant="text"
+                  style="width: 90px; height: 14px"
+                />
               </div>
             </div>
             <div class="skeleton-header-right">
               <!-- 用户名 + 头像 -->
-              <el-skeleton-item variant="text" style="width: 48px; height: 14px" />
+              <el-skeleton-item
+                variant="text"
+                style="width: 48px; height: 14px"
+              />
               <el-skeleton-item
                 variant="rect"
-                style="width: 28px; height: 28px; border-radius: 4px; flex-shrink: 0"
+                style="
+                  width: 28px;
+                  height: 28px;
+                  border-radius: 4px;
+                  flex-shrink: 0;
+                "
               />
               <!-- 视图切换器占位 -->
               <el-skeleton-item
                 variant="rect"
-                style="width: 64px; height: 28px; border-radius: 6px; flex-shrink: 0"
+                style="
+                  width: 64px;
+                  height: 28px;
+                  border-radius: 6px;
+                  flex-shrink: 0;
+                "
               />
               <!-- 搜索 + 设置按钮 -->
               <el-skeleton-item
                 variant="rect"
-                style="width: 32px; height: 32px; border-radius: 6px; flex-shrink: 0"
+                style="
+                  width: 32px;
+                  height: 32px;
+                  border-radius: 6px;
+                  flex-shrink: 0;
+                "
               />
               <el-skeleton-item
                 variant="rect"
-                style="width: 32px; height: 32px; border-radius: 6px; flex-shrink: 0"
+                style="
+                  width: 32px;
+                  height: 32px;
+                  border-radius: 6px;
+                  flex-shrink: 0;
+                "
               />
             </div>
           </div>
@@ -81,19 +115,44 @@ defineProps<{
               <div class="skeleton-msg-header">
                 <el-skeleton-item
                   variant="rect"
-                  style="width: 32px; height: 32px; border-radius: 6px; flex-shrink: 0"
+                  style="
+                    width: 32px;
+                    height: 32px;
+                    border-radius: 6px;
+                    flex-shrink: 0;
+                  "
                 />
-                <el-skeleton-item variant="text" style="width: 80px; height: 14px" />
                 <el-skeleton-item
                   variant="text"
-                  style="width: 120px; height: 12px; margin-left: auto; opacity: 0.4"
+                  style="width: 80px; height: 14px"
+                />
+                <el-skeleton-item
+                  variant="text"
+                  style="
+                    width: 120px;
+                    height: 12px;
+                    margin-left: auto;
+                    opacity: 0.4;
+                  "
                 />
               </div>
               <div class="skeleton-msg-body">
-                <el-skeleton-item variant="text" style="width: 92%; height: 14px" />
-                <el-skeleton-item variant="text" style="width: 78%; height: 14px" />
-                <el-skeleton-item variant="text" style="width: 85%; height: 14px" />
-                <el-skeleton-item variant="text" style="width: 55%; height: 14px" />
+                <el-skeleton-item
+                  variant="text"
+                  style="width: 92%; height: 14px"
+                />
+                <el-skeleton-item
+                  variant="text"
+                  style="width: 78%; height: 14px"
+                />
+                <el-skeleton-item
+                  variant="text"
+                  style="width: 85%; height: 14px"
+                />
+                <el-skeleton-item
+                  variant="text"
+                  style="width: 55%; height: 14px"
+                />
               </div>
             </div>
 
@@ -102,17 +161,36 @@ defineProps<{
               <div class="skeleton-msg-header">
                 <el-skeleton-item
                   variant="rect"
-                  style="width: 32px; height: 32px; border-radius: 6px; flex-shrink: 0"
+                  style="
+                    width: 32px;
+                    height: 32px;
+                    border-radius: 6px;
+                    flex-shrink: 0;
+                  "
                 />
-                <el-skeleton-item variant="text" style="width: 48px; height: 14px" />
                 <el-skeleton-item
                   variant="text"
-                  style="width: 100px; height: 12px; margin-left: auto; opacity: 0.4"
+                  style="width: 48px; height: 14px"
+                />
+                <el-skeleton-item
+                  variant="text"
+                  style="
+                    width: 100px;
+                    height: 12px;
+                    margin-left: auto;
+                    opacity: 0.4;
+                  "
                 />
               </div>
               <div class="skeleton-msg-body">
-                <el-skeleton-item variant="text" style="width: 70%; height: 14px" />
-                <el-skeleton-item variant="text" style="width: 40%; height: 14px" />
+                <el-skeleton-item
+                  variant="text"
+                  style="width: 70%; height: 14px"
+                />
+                <el-skeleton-item
+                  variant="text"
+                  style="width: 40%; height: 14px"
+                />
               </div>
             </div>
 
@@ -121,20 +199,48 @@ defineProps<{
               <div class="skeleton-msg-header">
                 <el-skeleton-item
                   variant="rect"
-                  style="width: 32px; height: 32px; border-radius: 6px; flex-shrink: 0"
+                  style="
+                    width: 32px;
+                    height: 32px;
+                    border-radius: 6px;
+                    flex-shrink: 0;
+                  "
                 />
-                <el-skeleton-item variant="text" style="width: 80px; height: 14px" />
                 <el-skeleton-item
                   variant="text"
-                  style="width: 140px; height: 12px; margin-left: auto; opacity: 0.4"
+                  style="width: 80px; height: 14px"
+                />
+                <el-skeleton-item
+                  variant="text"
+                  style="
+                    width: 140px;
+                    height: 12px;
+                    margin-left: auto;
+                    opacity: 0.4;
+                  "
                 />
               </div>
               <div class="skeleton-msg-body">
-                <el-skeleton-item variant="text" style="width: 95%; height: 14px" />
-                <el-skeleton-item variant="text" style="width: 82%; height: 14px" />
-                <el-skeleton-item variant="text" style="width: 90%; height: 14px" />
-                <el-skeleton-item variant="text" style="width: 76%; height: 14px" />
-                <el-skeleton-item variant="text" style="width: 60%; height: 14px" />
+                <el-skeleton-item
+                  variant="text"
+                  style="width: 95%; height: 14px"
+                />
+                <el-skeleton-item
+                  variant="text"
+                  style="width: 82%; height: 14px"
+                />
+                <el-skeleton-item
+                  variant="text"
+                  style="width: 90%; height: 14px"
+                />
+                <el-skeleton-item
+                  variant="text"
+                  style="width: 76%; height: 14px"
+                />
+                <el-skeleton-item
+                  variant="text"
+                  style="width: 60%; height: 14px"
+                />
               </div>
             </div>
 
@@ -143,16 +249,32 @@ defineProps<{
               <div class="skeleton-msg-header">
                 <el-skeleton-item
                   variant="rect"
-                  style="width: 32px; height: 32px; border-radius: 6px; flex-shrink: 0"
+                  style="
+                    width: 32px;
+                    height: 32px;
+                    border-radius: 6px;
+                    flex-shrink: 0;
+                  "
                 />
-                <el-skeleton-item variant="text" style="width: 48px; height: 14px" />
                 <el-skeleton-item
                   variant="text"
-                  style="width: 100px; height: 12px; margin-left: auto; opacity: 0.4"
+                  style="width: 48px; height: 14px"
+                />
+                <el-skeleton-item
+                  variant="text"
+                  style="
+                    width: 100px;
+                    height: 12px;
+                    margin-left: auto;
+                    opacity: 0.4;
+                  "
                 />
               </div>
               <div class="skeleton-msg-body">
-                <el-skeleton-item variant="text" style="width: 50%; height: 14px" />
+                <el-skeleton-item
+                  variant="text"
+                  style="width: 50%; height: 14px"
+                />
               </div>
             </div>
           </div>
@@ -160,10 +282,19 @@ defineProps<{
           <!-- 输入框区域：模拟真实 MessageInput -->
           <div class="skeleton-input-wrapper">
             <div class="skeleton-input-box">
-              <el-skeleton-item variant="text" style="width: 200px; height: 14px; opacity: 0.4" />
+              <el-skeleton-item
+                variant="text"
+                style="width: 200px; height: 14px; opacity: 0.4"
+              />
               <div class="skeleton-input-actions">
-                <el-skeleton-item variant="circle" style="width: 28px; height: 28px" />
-                <el-skeleton-item variant="circle" style="width: 28px; height: 28px" />
+                <el-skeleton-item
+                  variant="circle"
+                  style="width: 28px; height: 28px"
+                />
+                <el-skeleton-item
+                  variant="circle"
+                  style="width: 28px; height: 28px"
+                />
                 <el-skeleton-item
                   variant="rect"
                   style="width: 56px; height: 32px; border-radius: 8px"
@@ -184,13 +315,25 @@ defineProps<{
   >
     <el-skeleton animated :loading="true" :throttle="0">
       <template #template>
-        <div class="skeleton-search-bar" style="padding: 12px; display: flex; gap: 8px">
-          <el-skeleton-item variant="rect" style="flex: 1; height: 32px; border-radius: 4px" />
-          <el-skeleton-item variant="circle" style="width: 32px; height: 32px" />
+        <div
+          class="skeleton-search-bar"
+          style="padding: 12px; display: flex; gap: 8px"
+        >
+          <el-skeleton-item
+            variant="rect"
+            style="flex: 1; height: 32px; border-radius: 4px"
+          />
+          <el-skeleton-item
+            variant="circle"
+            style="width: 32px; height: 32px"
+          />
         </div>
         <div class="sidebar-content" style="padding: 0 12px">
           <div v-for="i in 8" :key="i" style="margin-bottom: 12px">
-            <el-skeleton-item variant="text" style="width: 60%; height: 16px; margin-bottom: 8px" />
+            <el-skeleton-item
+              variant="text"
+              style="width: 60%; height: 16px; margin-bottom: 8px"
+            />
             <el-skeleton-item variant="text" style="width: 40%; height: 12px" />
           </div>
         </div>

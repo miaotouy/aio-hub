@@ -8,7 +8,12 @@
     <div class="property-item">
       <div class="label-row">
         <span class="label">内容</span>
-        <el-button class="expand-btn" type="primary" link @click="isEditorOpen = true">
+        <el-button
+          class="expand-btn"
+          type="primary"
+          link
+          @click="isEditorOpen = true"
+        >
           <Maximize2 :size="12" />
         </el-button>
       </div>
@@ -23,7 +28,12 @@
     </div>
 
     <!-- 文本放大编辑器弹窗 -->
-    <BaseDialog v-model="isEditorOpen" title="编辑文本内容" width="600px" height="70vh">
+    <BaseDialog
+      v-model="isEditorOpen"
+      title="编辑文本内容"
+      width="600px"
+      height="70vh"
+    >
       <div class="large-editor-container">
         <el-input
           type="textarea"
@@ -80,7 +90,11 @@
       @update:model-value="(v) => emitProp('fontSize', v)"
     />
 
-    <PropertyColorPicker label="文字颜色" :model-value="obj.color" @update:model-value="(v) => emitProp('color', v)" />
+    <PropertyColorPicker
+      label="文字颜色"
+      :model-value="obj.color"
+      @update:model-value="(v) => emitProp('color', v)"
+    />
 
     <!-- 字体样式 -->
     <div class="property-item">
@@ -89,14 +103,24 @@
         <button
           class="style-btn"
           :class="{ active: obj.fontWeight === 'bold' }"
-          @click="emitProp('fontWeight', obj.fontWeight === 'bold' ? 'normal' : 'bold')"
+          @click="
+            emitProp(
+              'fontWeight',
+              obj.fontWeight === 'bold' ? 'normal' : 'bold'
+            )
+          "
         >
           B
         </button>
         <button
           class="style-btn italic"
           :class="{ active: obj.fontStyle === 'italic' }"
-          @click="emitProp('fontStyle', obj.fontStyle === 'italic' ? 'normal' : 'italic')"
+          @click="
+            emitProp(
+              'fontStyle',
+              obj.fontStyle === 'italic' ? 'normal' : 'italic'
+            )
+          "
         >
           I
         </button>
@@ -107,7 +131,11 @@
     <div class="property-item">
       <span class="label">对齐</span>
       <div class="align-buttons">
-        <button class="style-btn" :class="{ active: obj.textAlign === 'left' }" @click="emitProp('textAlign', 'left')">
+        <button
+          class="style-btn"
+          :class="{ active: obj.textAlign === 'left' }"
+          @click="emitProp('textAlign', 'left')"
+        >
           <AlignLeft :size="14" />
         </button>
         <button
@@ -144,7 +172,11 @@
       <span class="label">背景色</span>
       <div class="fill-row">
         <label class="custom-checkbox">
-          <input type="checkbox" :checked="obj.backgroundColor !== null" @change="toggleBg" />
+          <input
+            type="checkbox"
+            :checked="obj.backgroundColor !== null"
+            @change="toggleBg"
+          />
           <span class="checkmark" />
           <span>启用</span>
         </label>

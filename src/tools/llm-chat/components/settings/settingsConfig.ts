@@ -24,15 +24,30 @@ import { DEFAULT_SETTINGS } from "../../types/settings";
 
 // 异步加载大型业务组件
 const MarkdownStyleEditor = defineAsyncComponent(
-  () => import("@/tools/rich-text-renderer/components/style-editor/MarkdownStyleEditor.vue"),
+  () =>
+    import("@/tools/rich-text-renderer/components/style-editor/MarkdownStyleEditor.vue")
 );
-const ChatRegexEditor = defineAsyncComponent(() => import("@/tools/llm-chat/components/common/ChatRegexEditor.vue"));
-const PipelineConfig = defineAsyncComponent(() => import("./PipelineConfig.vue"));
-const WorldbookManager = defineAsyncComponent(() => import("../worldbook/WorldbookManager.vue"));
-const WorldbookSelector = defineAsyncComponent(() => import("../worldbook/WorldbookSelector.vue"));
-const KbEmbeddingInfo = defineAsyncComponent(() => import("./KbEmbeddingInfo.vue"));
-const QuickActionFullManager = defineAsyncComponent(() => import("../quick-action/QuickActionFullManager.vue"));
-const QuickActionSelector = defineAsyncComponent(() => import("../quick-action/QuickActionSelector.vue"));
+const ChatRegexEditor = defineAsyncComponent(
+  () => import("@/tools/llm-chat/components/common/ChatRegexEditor.vue")
+);
+const PipelineConfig = defineAsyncComponent(
+  () => import("./PipelineConfig.vue")
+);
+const WorldbookManager = defineAsyncComponent(
+  () => import("../worldbook/WorldbookManager.vue")
+);
+const WorldbookSelector = defineAsyncComponent(
+  () => import("../worldbook/WorldbookSelector.vue")
+);
+const KbEmbeddingInfo = defineAsyncComponent(
+  () => import("./KbEmbeddingInfo.vue")
+);
+const QuickActionFullManager = defineAsyncComponent(
+  () => import("../quick-action/QuickActionFullManager.vue")
+);
+const QuickActionSelector = defineAsyncComponent(
+  () => import("../quick-action/QuickActionSelector.vue")
+);
 
 export const settingsConfig: SettingsSection<ChatSettings>[] = [
   {
@@ -150,7 +165,8 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       },
       {
         id: "contentMaxWidth",
-        label: "内容最大宽度 ({{ localSettings.uiPreferences.contentMaxWidth }}px)",
+        label:
+          "内容最大宽度 ({{ localSettings.uiPreferences.contentMaxWidth }}px)",
         component: "ElSlider",
         props: {
           min: 300,
@@ -184,7 +200,8 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       },
       {
         id: "autoScrollThreshold",
-        label: "触底吸附距离 ({{ localSettings.uiPreferences.autoScrollThreshold }}px)",
+        label:
+          "触底吸附距离 ({{ localSettings.uiPreferences.autoScrollThreshold }}px)",
         component: "ElSlider",
         props: {
           min: 50,
@@ -217,7 +234,8 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       },
       {
         id: "headerBackgroundOpacity",
-        label: "头部背景不透明度 ({{ (localSettings.uiPreferences.headerBackgroundOpacity * 100).toFixed(0) }}%)",
+        label:
+          "头部背景不透明度 ({{ (localSettings.uiPreferences.headerBackgroundOpacity * 100).toFixed(0) }}%)",
         component: "ElSlider",
         props: { min: 0, max: 1, step: 0.05 },
         modelPath: "uiPreferences.headerBackgroundOpacity",
@@ -226,7 +244,8 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       },
       {
         id: "headerBlurIntensity",
-        label: "头部背景模糊 ({{ localSettings.uiPreferences.headerBlurIntensity }}px)",
+        label:
+          "头部背景模糊 ({{ localSettings.uiPreferences.headerBlurIntensity }}px)",
         component: "ElSlider",
         props: {
           min: 0,
@@ -309,7 +328,8 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       },
       {
         id: "rendererThrottleMs",
-        label: "渲染节流 ({{ localSettings.uiPreferences.rendererThrottleMs }}ms)",
+        label:
+          "渲染节流 ({{ localSettings.uiPreferences.rendererThrottleMs }}ms)",
         component: "ElSlider",
         props: {
           min: 16,
@@ -332,7 +352,8 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       },
       {
         id: "virtualListOverscan",
-        label: "消息列表渲染 ({{ localSettings.uiPreferences.virtualListOverscan }}条)",
+        label:
+          "消息列表渲染 ({{ localSettings.uiPreferences.virtualListOverscan }}条)",
         component: "ElSlider",
         props: {
           min: 5,
@@ -445,7 +466,8 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       },
       {
         id: "htmlFreezerKeepAliveCount",
-        label: "消息保持活动数 ({{ localSettings.uiPreferences.htmlFreezerKeepAliveCount }}条)",
+        label:
+          "消息保持活动数 ({{ localSettings.uiPreferences.htmlFreezerKeepAliveCount }}条)",
         component: "ElSlider",
         props: {
           min: 1,
@@ -460,7 +482,8 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       },
       {
         id: "globalMediaVolume",
-        label: "媒体主音量 ({{ localSettings.uiPreferences.globalMediaVolume }}%)",
+        label:
+          "媒体主音量 ({{ localSettings.uiPreferences.globalMediaVolume }}%)",
         component: "ElSlider",
         props: {
           min: 0,
@@ -797,7 +820,12 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         label: "兜底转写模型",
         component: LlmModelSelector,
         props: {
-          capabilities: { vision: true, audio: true, embedding: false, rerank: false },
+          capabilities: {
+            vision: true,
+            audio: true,
+            embedding: false,
+            rerank: false,
+          },
         },
         modelPath: "transcription.modelIdentifier",
         hint: "当具体分类（如图片、视频）未配置独立模型时，将使用此模型作为保底",
@@ -817,23 +845,28 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       },
       {
         id: "transRepetitionConsecutiveThreshold",
-        label: "连续重复阈值 ({{ localSettings.transcription.repetitionConfig.consecutiveThreshold }}次)",
+        label:
+          "连续重复阈值 ({{ localSettings.transcription.repetitionConfig.consecutiveThreshold }}次)",
         component: "SliderWithInput",
         props: { min: 2, max: 10, step: 1 },
         modelPath: "transcription.repetitionConfig.consecutiveThreshold",
         hint: "同一行或同一句话连续出现的次数超过此值将视为复读",
-        keywords: "transcription repetition threshold consecutive 复读 阈值 连续",
-        visible: (s) => s.transcription.enabled && s.transcription.enableRepetitionDetection,
+        keywords:
+          "transcription repetition threshold consecutive 复读 阈值 连续",
+        visible: (s) =>
+          s.transcription.enabled && s.transcription.enableRepetitionDetection,
       },
       {
         id: "transRepetitionGlobalThreshold",
-        label: "全局片段阈值 ({{ localSettings.transcription.repetitionConfig.globalThreshold }}次)",
+        label:
+          "全局片段阈值 ({{ localSettings.transcription.repetitionConfig.globalThreshold }}次)",
         component: "SliderWithInput",
         props: { min: 2, max: 20, step: 1 },
         modelPath: "transcription.repetitionConfig.globalThreshold",
         hint: "文本中任意片段出现的总次数超过此值将视为复读",
         keywords: "transcription repetition threshold global 复读 阈值 全局",
-        visible: (s) => s.transcription.enabled && s.transcription.enableRepetitionDetection,
+        visible: (s) =>
+          s.transcription.enabled && s.transcription.enableRepetitionDetection,
       },
       {
         id: "transRepetitionWhitelist",
@@ -849,7 +882,8 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "transcription.repetitionConfig.whitelist",
         hint: "包含这些片段的内容将不会被判定为复读（常用于固定格式的转写）",
         keywords: "transcription repetition whitelist 复读 白名单",
-        visible: (s) => s.transcription.enabled && s.transcription.enableRepetitionDetection,
+        visible: (s) =>
+          s.transcription.enabled && s.transcription.enableRepetitionDetection,
       },
       {
         id: "transStrategy",
@@ -860,7 +894,8 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
           {
             label: "智能判断 (Smart)",
             value: "smart",
-            description: "根据当前模型能力判断：模型支持该附件类型则直接发送，不支持则自动转写",
+            description:
+              "根据当前模型能力判断：模型支持该附件类型则直接发送，不支持则自动转写",
           },
           {
             label: "总是转写 (Always)",
@@ -874,18 +909,22 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       },
       {
         id: "transForceAfter",
-        label: "强制转写阈值 ({{ localSettings.transcription.forceTranscriptionAfter }}条)",
+        label:
+          "强制转写阈值 ({{ localSettings.transcription.forceTranscriptionAfter }}条)",
         component: "SliderWithInput",
         props: {
           min: 0,
           max: 50,
           step: 1,
-          "format-tooltip": (val: number) => (val > 0 ? `倒数${val}条后` : "不启用"),
+          "format-tooltip": (val: number) =>
+            val > 0 ? `倒数${val}条后` : "不启用",
         },
         modelPath: "transcription.forceTranscriptionAfter",
         hint: "在智能模式下，强制转写早于最新 N 条消息的附件。0 表示不启用。",
         keywords: "transcription force smart 强制 智能",
-        visible: (settings) => settings.transcription.enabled && settings.transcription.strategy === "smart",
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.strategy === "smart",
       },
       {
         id: "transSmartPrioritizeTranscription",
@@ -895,7 +934,9 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "transcription.smartPrioritizeTranscription",
         hint: "在智能模式下，若附件已有转写结果，是否优先发送转写文本（而非原文件）。关闭后，若模型原生支持该模态，将优先发送原文件。",
         keywords: "transcription smart prioritize transcription 智能 优先 转写",
-        visible: (settings) => settings.transcription.enabled && settings.transcription.strategy === "smart",
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.strategy === "smart",
       },
       {
         id: "transAutoStartOnImport",
@@ -920,7 +961,8 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       // 2. 性能与并发控制
       {
         id: "transMaxConcurrentTasks",
-        label: "最大并发任务数 ({{ localSettings.transcription.maxConcurrentTasks }})",
+        label:
+          "最大并发任务数 ({{ localSettings.transcription.maxConcurrentTasks }})",
         component: "ElSlider",
         props: {
           min: 1,
@@ -932,11 +974,15 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         hint: "同时进行的转写任务数量，建议不要设置过高以免影响性能",
         keywords: "transcription concurrent task 并发 任务",
         visible: (settings) => settings.transcription.enabled,
-        groupCollapsible: { name: "concurrencyConfig", title: "并发与性能控制" },
+        groupCollapsible: {
+          name: "concurrencyConfig",
+          title: "并发与性能控制",
+        },
       },
       {
         id: "transExecutionDelay",
-        label: "任务执行延迟 ({{ localSettings.transcription.executionDelay }}ms)",
+        label:
+          "任务执行延迟 ({{ localSettings.transcription.executionDelay }}ms)",
         component: "ElSlider",
         props: {
           min: 0,
@@ -948,7 +994,10 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         hint: "每个任务开始前的等待时间，用于控制请求频率，避免触发 API 速率限制 (429 错误)",
         keywords: "transcription delay rate limit 延迟 速率",
         visible: (settings) => settings.transcription.enabled,
-        groupCollapsible: { name: "concurrencyConfig", title: "并发与性能控制" },
+        groupCollapsible: {
+          name: "concurrencyConfig",
+          title: "并发与性能控制",
+        },
       },
       {
         id: "transMaxRetries",
@@ -964,7 +1013,10 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         hint: "转写失败时的自动重试次数",
         keywords: "transcription retry 重试",
         visible: (settings) => settings.transcription.enabled,
-        groupCollapsible: { name: "concurrencyConfig", title: "并发与性能控制" },
+        groupCollapsible: {
+          name: "concurrencyConfig",
+          title: "并发与性能控制",
+        },
       },
       {
         id: "transTimeout",
@@ -980,7 +1032,10 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         hint: "转写任务的最大等待时间。在“等待发送”模式下，超时将直接发送原始附件；在“先发送”模式下，超时将停止后台等待并标记为超时。",
         keywords: "transcription timeout 超时",
         visible: (settings) => settings.transcription.enabled,
-        groupCollapsible: { name: "concurrencyConfig", title: "并发与性能控制" },
+        groupCollapsible: {
+          name: "concurrencyConfig",
+          title: "并发与性能控制",
+        },
       },
 
       // 3. 图片转写配置
@@ -1048,24 +1103,30 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       },
       {
         id: "transSlicerAspectRatio",
-        label: "切图长宽比阈值 ({{ localSettings.transcription.imageSlicerConfig.aspectRatioThreshold }}:1)",
+        label:
+          "切图长宽比阈值 ({{ localSettings.transcription.imageSlicerConfig.aspectRatioThreshold }}:1)",
         component: "SliderWithInput",
         props: { min: 1, max: 10, step: 0.5 },
         modelPath: "transcription.imageSlicerConfig.aspectRatioThreshold",
         hint: "图片的长宽比超过此值时才会触发智能切图",
         keywords: "transcription slicer aspect ratio 长宽比",
-        visible: (settings) => settings.transcription.enabled && !!settings.transcription.enableImageSlicer,
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          !!settings.transcription.enableImageSlicer,
         groupCollapsible: { name: "imageConfig", title: "图片转写配置" },
       },
       {
         id: "transSlicerMinCutHeight",
-        label: "最小切片高度 ({{ localSettings.transcription.imageSlicerConfig.minCutHeight }}px)",
+        label:
+          "最小切片高度 ({{ localSettings.transcription.imageSlicerConfig.minCutHeight }}px)",
         component: "SliderWithInput",
         props: { min: 100, max: 2000, step: 20 },
         modelPath: "transcription.imageSlicerConfig.minCutHeight",
         hint: "控制切片的最小高度。设置较大的值可以防止切图太碎，保持上下文连贯。建议 400-800px。",
         keywords: "transcription slicer min height 切片 高度",
-        visible: (settings) => settings.transcription.enabled && !!settings.transcription.enableImageSlicer,
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          !!settings.transcription.enableImageSlicer,
         groupCollapsible: { name: "imageConfig", title: "图片转写配置" },
       },
 
@@ -1134,13 +1195,16 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       },
       {
         id: "transAudioMaxDirectSize",
-        label: "音频体积限制 ({{ localSettings.transcription.audio.maxDirectSizeMB }}MB)",
+        label:
+          "音频体积限制 ({{ localSettings.transcription.audio.maxDirectSizeMB }}MB)",
         component: "SliderWithInput",
         props: { min: 1, max: 50, step: 1 },
         modelPath: "transcription.audio.maxDirectSizeMB",
         hint: "音频体积限制，超过将尝试压缩。",
         keywords: "transcription audio size 体积 限制",
-        visible: (settings) => settings.transcription.enabled && settings.transcription.audio.enableCompression,
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.audio.enableCompression,
         groupCollapsible: { name: "audioConfig", title: "音频转写配置" },
       },
       {
@@ -1158,7 +1222,9 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "transcription.audio.bitrate",
         hint: "压缩后的音频比特率。较低的比特率可以显著减小体积，但会损失音质。",
         keywords: "transcription audio bitrate 比特率",
-        visible: (settings) => settings.transcription.enabled && settings.transcription.audio.enableCompression,
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.audio.enableCompression,
         groupCollapsible: { name: "audioConfig", title: "音频转写配置" },
       },
 
@@ -1234,14 +1300,16 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         keywords: "transcription ffmpeg path video 视频 路径",
         visible: (settings) =>
           settings.transcription.enabled &&
-          (settings.transcription.video.enableCompression || settings.transcription.audio.enableCompression),
+          (settings.transcription.video.enableCompression ||
+            settings.transcription.audio.enableCompression),
         defaultValue: "",
         action: "selectFFmpegPath",
         groupCollapsible: { name: "videoConfig", title: "视频转写配置" },
       },
       {
         id: "transVideoMaxDirectSize",
-        label: "视频体积限制 ({{ localSettings.transcription.video.maxDirectSizeMB }}MB)",
+        label:
+          "视频体积限制 ({{ localSettings.transcription.video.maxDirectSizeMB }}MB)",
         component: "SliderWithInput",
         props: {
           min: 1,
@@ -1252,12 +1320,15 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "transcription.video.maxDirectSizeMB",
         hint: "视频的体积阈值。小于此大小直接上传；启用压缩后，超过此大小将尝试压缩至此体积以内。<br /><span style='color: var(--el-color-warning)'>注意：Base64 编码会使上传体积增加约 33%，建议设置略低于 API 的实际限制。</span>",
         keywords: "transcription video size limit 视频 大小 阈值 限制",
-        visible: (settings) => settings.transcription.enabled && settings.transcription.video.enableCompression,
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.video.enableCompression,
         groupCollapsible: { name: "videoConfig", title: "视频转写配置" },
       },
       {
         id: "transVideoMaxFps",
-        label: "视频帧率限制 ({{ localSettings.transcription.video.maxFps }} FPS)",
+        label:
+          "视频帧率限制 ({{ localSettings.transcription.video.maxFps }} FPS)",
         component: "SliderWithInput",
         props: {
           min: 1,
@@ -1268,12 +1339,15 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "transcription.video.maxFps",
         hint: "限制视频的最大帧率。较低的帧率（如 5 FPS）可显著减小体积且通常不影响 AI 理解。",
         keywords: "transcription video fps frame rate 视频 帧率",
-        visible: (settings) => settings.transcription.enabled && settings.transcription.video.enableCompression,
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.video.enableCompression,
         groupCollapsible: { name: "videoConfig", title: "视频转写配置" },
       },
       {
         id: "transVideoMaxResolution",
-        label: "视频尺寸限制 ({{ localSettings.transcription.video.maxResolution }}p)",
+        label:
+          "视频尺寸限制 ({{ localSettings.transcription.video.maxResolution }}p)",
         component: "SliderWithInput",
         props: {
           min: 360,
@@ -1284,7 +1358,9 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "transcription.video.maxResolution",
         hint: "限制视频的最大短边尺寸（如 720p）。超过此尺寸的视频将被等比缩放。",
         keywords: "transcription video resolution size 视频 分辨率 尺寸",
-        visible: (settings) => settings.transcription.enabled && settings.transcription.video.enableCompression,
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.video.enableCompression,
         groupCollapsible: { name: "videoConfig", title: "视频转写配置" },
       },
       {
@@ -1295,7 +1371,9 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "transcription.video.enableGpu",
         hint: "使用 NVIDIA GPU (h264_nvenc) 加速压缩，需硬件支持。",
         keywords: "transcription video gpu hardware acceleration 硬件加速",
-        visible: (settings) => settings.transcription.enabled && settings.transcription.video.enableCompression,
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.video.enableCompression,
         groupCollapsible: { name: "videoConfig", title: "视频转写配置" },
       },
       {
@@ -1306,7 +1384,9 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "transcription.video.autoAdjustResolution",
         hint: "当目标体积过小时，自动降低分辨率以保持画质清晰度。",
         keywords: "transcription video auto resolution 自动 分辨率",
-        visible: (settings) => settings.transcription.enabled && settings.transcription.video.enableCompression,
+        visible: (settings) =>
+          settings.transcription.enabled &&
+          settings.transcription.video.enableCompression,
         groupCollapsible: { name: "videoConfig", title: "视频转写配置" },
       },
 
@@ -1342,7 +1422,8 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       },
       {
         id: "transDocumentTemperature",
-        label: "文档温度 ({{ localSettings.transcription.document.temperature }})",
+        label:
+          "文档温度 ({{ localSettings.transcription.document.temperature }})",
         component: "SliderWithInput",
         props: { min: 0, max: 2, step: 0.1, "show-tooltip": true },
         modelPath: "transcription.document.temperature",
@@ -1379,13 +1460,15 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       },
       {
         id: "htmlToMdLastMessages",
-        label: "转换阈值 ({{ localSettings.contextOptimization.htmlToMdLastMessages }}条)",
+        label:
+          "转换阈值 ({{ localSettings.contextOptimization.htmlToMdLastMessages }}条)",
         component: "ElSlider",
         props: {
           min: 0,
           max: 50,
           step: 1,
-          "format-tooltip": (val: number) => (val > 0 ? `倒数${val}条后转换` : "全部转换"),
+          "format-tooltip": (val: number) =>
+            val > 0 ? `倒数${val}条后转换` : "全部转换",
         },
         modelPath: "contextOptimization.htmlToMdLastMessages",
         hint: "设置保持原始 HTML 的最近消息数量。例如设为 5，则最近 5 条消息保持原样，更早的消息如果包含 HTML 将被转换。设为 0 则转换所有包含 HTML 的历史消息。",
@@ -1438,7 +1521,8 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       },
       {
         id: "embeddingCacheMaxItems",
-        label: "向量缓存容量 ({{ localSettings.knowledgeBase.embeddingCacheMaxItems }}条)",
+        label:
+          "向量缓存容量 ({{ localSettings.knowledgeBase.embeddingCacheMaxItems }}条)",
         component: "ElSlider",
         props: {
           min: 10,
@@ -1452,7 +1536,8 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       },
       {
         id: "retrievalCacheMaxItems",
-        label: "检索结果缓存容量 ({{ localSettings.knowledgeBase.retrievalCacheMaxItems }}条)",
+        label:
+          "检索结果缓存容量 ({{ localSettings.knowledgeBase.retrievalCacheMaxItems }}条)",
         component: "ElSlider",
         props: {
           min: 5,
@@ -1490,7 +1575,8 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       },
       {
         id: "worldbookDefaultScanDepth",
-        label: "默认扫描深度 ({{ localSettings.worldbook.defaultScanDepth }}条)",
+        label:
+          "默认扫描深度 ({{ localSettings.worldbook.defaultScanDepth }}条)",
         component: "ElSlider",
         props: { min: 0, max: 100, step: 1 },
         modelPath: "worldbook.defaultScanDepth",
@@ -1580,7 +1666,8 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
     items: [
       {
         id: "timeout",
-        label: "请求超时 ({{ (localSettings.requestSettings.timeout / 1000).toFixed(0) }}秒)",
+        label:
+          "请求超时 ({{ (localSettings.requestSettings.timeout / 1000).toFixed(0) }}秒)",
         component: "ElSlider",
         props: {
           min: 10000,
@@ -1594,7 +1681,8 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       },
       {
         id: "maxRetries",
-        label: "最大重试次数 ({{ localSettings.requestSettings.maxRetries }}次)",
+        label:
+          "最大重试次数 ({{ localSettings.requestSettings.maxRetries }}次)",
         component: "ElSlider",
         props: {
           min: 0,
@@ -1643,7 +1731,8 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
       },
       {
         id: "incrementalSaveInterval",
-        label: "自动保存间隔 ({{ localSettings.requestSettings.incrementalSaveInterval }}ms)",
+        label:
+          "自动保存间隔 ({{ localSettings.requestSettings.incrementalSaveInterval }}ms)",
         component: "ElSlider",
         props: {
           min: 500,

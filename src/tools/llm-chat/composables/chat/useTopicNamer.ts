@@ -4,7 +4,11 @@
  */
 
 import { ref } from "vue";
-import type { ChatMessageNode, ChatSessionIndex, ChatSessionDetail } from "../../types";
+import type {
+  ChatMessageNode,
+  ChatSessionIndex,
+  ChatSessionDetail,
+} from "../../types";
 import { useChatSettings } from "../settings/useChatSettings";
 import { useSessionManager } from "../session/useSessionManager";
 import { useNodeManager } from "../session/useNodeManager";
@@ -39,7 +43,11 @@ export function useTopicNamer() {
     session: ChatSessionDetail,
     sessionIndexMap: Map<string, ChatSessionIndex>,
     sessionDetailMap: Map<string, ChatSessionDetail>,
-    persistSession?: (index: ChatSessionIndex, detail: ChatSessionDetail, currentSessionId: string | null) => void,
+    persistSession?: (
+      index: ChatSessionIndex,
+      detail: ChatSessionDetail,
+      currentSessionId: string | null
+    ) => void
   ): Promise<string | null> => {
     // 防止重复生成
     if (generatingSessionIds.value.has(session.id)) {
@@ -66,7 +74,9 @@ export function useTopicNamer() {
       }
 
       // 确定使用的模型标识符
-      let modelIdentifier = namingConfig.modelIdentifier || settings.value.modelPreferences.defaultModel;
+      let modelIdentifier =
+        namingConfig.modelIdentifier ||
+        settings.value.modelPreferences.defaultModel;
 
       // 检查模型配置
       if (!modelIdentifier) {
@@ -88,15 +98,26 @@ export function useTopicNamer() {
 
       // 获取会话的最新消息作为上下文
       const nodeManager = useNodeManager();
-      const activePath = nodeManager.getNodePath(session, session.activeLeafId || "");
+      const activePath = nodeManager.getNodePath(
+        session,
+        session.activeLeafId || ""
+      );
 
       // 过滤消息
       const validMessages = activePath
-        .filter((node: ChatMessageNode) => node.role !== "system" && node.isEnabled !== false)
-        .filter((node: ChatMessageNode) => node.role === "user" || node.role === "assistant");
+        .filter(
+          (node: ChatMessageNode) =>
+            node.role !== "system" && node.isEnabled !== false
+        )
+        .filter(
+          (node: ChatMessageNode) =>
+            node.role === "user" || node.role === "assistant"
+        );
 
       // 取最新的 N 条消息
-      const contextMessages = validMessages.slice(-namingConfig.contextMessageCount);
+      const contextMessages = validMessages.slice(
+        -namingConfig.contextMessageCount
+      );
 
       if (contextMessages.length === 0) {
         logger.warn("会话中没有可用的消息", { sessionId: session.id });
@@ -135,7 +156,9 @@ export function useTopicNamer() {
       ) {
         generatedTitle = generatedTitle.slice(1, -1).trim();
       }
-      generatedTitle = generatedTitle.replace(/[。！？，、；：""''（）《》【】…—·\.,!?;:\(\)\[\]<>]$/g, "").trim();
+      generatedTitle = generatedTitle
+        .replace(/[。！？，、；：""''（）《》【】…—·\.,!?;:\(\)\[\]<>]$/g, "")
+        .trim();
 
       const maxTitleLength = 50;
       if (generatedTitle.length > maxTitleLength) {
@@ -146,11 +169,19 @@ export function useTopicNamer() {
         generatedTitle = `会话 ${formatDateTime(new Date(), "yyyy-MM-dd HH:mm:ss")}`;
       }
 
-      logger.info("会话标题生成成功", { sessionId: session.id, newName: generatedTitle });
+      logger.info("会话标题生成成功", {
+        sessionId: session.id,
+        newName: generatedTitle,
+      });
 
       // 更新会话名称
       const sessionManager = useSessionManager();
-      sessionManager.updateSession(session.id, { name: generatedTitle }, sessionIndexMap, sessionDetailMap);
+      sessionManager.updateSession(
+        session.id,
+        { name: generatedTitle },
+        sessionIndexMap,
+        sessionDetailMap
+      );
 
       // 如果提供了持久化回调，执行持久化
       if (persistSession) {
@@ -175,13 +206,18 @@ export function useTopicNamer() {
   /**
    * 检查会话是否需要自动命名
    */
-  const shouldAutoName = (session: ChatSessionDetail, sessionIndexMap: Map<string, ChatSessionIndex>): boolean => {
+  const shouldAutoName = (
+    session: ChatSessionDetail,
+    sessionIndexMap: Map<string, ChatSessionIndex>
+  ): boolean => {
     const { settings } = useChatSettings();
     const namingConfig = settings.value.topicNaming;
 
     if (!namingConfig.enabled) return false;
 
-    const modelIdentifier = namingConfig.modelIdentifier || settings.value.modelPreferences.defaultModel;
+    const modelIdentifier =
+      namingConfig.modelIdentifier ||
+      settings.value.modelPreferences.defaultModel;
     if (!modelIdentifier) return false;
 
     const index = sessionIndexMap.get(session.id);
@@ -190,9 +226,13 @@ export function useTopicNamer() {
     }
 
     const nodeManager = useNodeManager();
-    const activePath = nodeManager.getNodePath(session, session.activeLeafId || "");
+    const activePath = nodeManager.getNodePath(
+      session,
+      session.activeLeafId || ""
+    );
     const userMessageCount = activePath.filter(
-      (node: ChatMessageNode) => node.role === "user" && node.isEnabled !== false,
+      (node: ChatMessageNode) =>
+        node.role === "user" && node.isEnabled !== false
     ).length;
 
     return userMessageCount >= namingConfig.autoTriggerThreshold;

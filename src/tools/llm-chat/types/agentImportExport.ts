@@ -1,5 +1,14 @@
-import type { ChatMessageNode, LlmParameters, AgentCategory, AgentAsset, AssetGroup } from "../types";
-import type { LlmThinkRule, RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
+import type {
+  ChatMessageNode,
+  LlmParameters,
+  AgentCategory,
+  AgentAsset,
+  AssetGroup,
+} from "../types";
+import type {
+  LlmThinkRule,
+  RichTextRendererStyleOptions,
+} from "@/tools/rich-text-renderer/types";
 
 /**
  * 随包导出的世界书定义
@@ -68,14 +77,22 @@ export interface AgentImportPreflightResult {
   /** 待导入的世界书内容 { agentId: STWorldbook } (针对角色卡中嵌入的世界书) */
   embeddedWorldbooks?: Record<string, import("./worldbook").STWorldbook>;
   /** 模型不匹配的 Agent { agentIndex: number, agentName: string, modelId: string } */
-  unmatchedModels: Array<{ agentIndex: number; agentName: string; modelId: string }>;
+  unmatchedModels: Array<{
+    agentIndex: number;
+    agentName: string;
+    modelId: string;
+  }>;
   /** 名称冲突的 Agent { agentIndex: number, agentName: string } */
   nameConflicts: Array<{ agentIndex: number; agentName: string }>;
   /** 世界书查重结果 { agentId: { bundled: Array<{ name, isDuplicate, hasNameConflict }>, embedded? } } */
   worldbookConflicts?: Record<
     string,
     {
-      bundled: Array<{ name: string; isDuplicate: boolean; hasNameConflict: boolean }>;
+      bundled: Array<{
+        name: string;
+        isDuplicate: boolean;
+        hasNameConflict: boolean;
+      }>;
       embedded?: { isDuplicate: boolean; hasNameConflict: boolean };
     }
   >;

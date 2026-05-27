@@ -6,21 +6,26 @@
  * - history/{recordId}.json: 存储单条记录的完整数据
  */
 
-import { exists, readTextFile, writeTextFile, remove } from '@tauri-apps/plugin-fs';
-import { join } from '@tauri-apps/api/path';
-import { getAppConfigDir } from '@/utils/appPath';
-import { createConfigManager } from '@/utils/configManager';
-import { useAssetManager } from '@/composables/useAssetManager';
-import { createModuleLogger } from '@/utils/logger';
-import { createModuleErrorHandler } from '@/utils/errorHandler';
-import { nanoid } from 'nanoid';
-import type { ColorAnalysisResult, ManualColor } from '../colorPicker.store';
+import {
+  exists,
+  readTextFile,
+  writeTextFile,
+  remove,
+} from "@tauri-apps/plugin-fs";
+import { join } from "@tauri-apps/api/path";
+import { getAppConfigDir } from "@/utils/appPath";
+import { createConfigManager } from "@/utils/configManager";
+import { useAssetManager } from "@/composables/useAssetManager";
+import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { nanoid } from "nanoid";
+import type { ColorAnalysisResult, ManualColor } from "../colorPicker.store";
 
-const logger = createModuleLogger('color-picker/history');
-const errorHandler = createModuleErrorHandler('color-picker/history');
+const logger = createModuleLogger("color-picker/history");
+const errorHandler = createModuleErrorHandler("color-picker/history");
 
-const MODULE_NAME = 'color-picker';
-const HISTORY_SUBDIR = 'history';
+const MODULE_NAME = "color-picker";
+const HISTORY_SUBDIR = "history";
 
 /**
  * 历史记录索引项（用于列表展示的轻量数据）
@@ -61,7 +66,7 @@ interface HistoryIndex {
  */
 function createDefaultIndex(): HistoryIndex {
   return {
-    version: '1.0.0',
+    version: "1.0.0",
     records: [],
   };
 }
@@ -71,8 +76,8 @@ function createDefaultIndex(): HistoryIndex {
  */
 const indexManager = createConfigManager<HistoryIndex>({
   moduleName: MODULE_NAME,
-  fileName: 'history-index.json',
-  version: '1.0.0',
+  fileName: "history-index.json",
+  version: "1.0.0",
   createDefault: createDefaultIndex,
 });
 
@@ -105,9 +110,9 @@ export function useColorHistory() {
   async function ensureHistoryDir(): Promise<void> {
     const historyDir = await getHistoryDir();
     if (!(await exists(historyDir))) {
-      const { mkdir } = await import('@tauri-apps/plugin-fs');
+      const { mkdir } = await import("@tauri-apps/plugin-fs");
       await mkdir(historyDir, { recursive: true });
-      logger.debug('创建 history 目录', { historyDir });
+      logger.debug("创建 history 目录", { historyDir });
     }
   }
 
@@ -128,17 +133,19 @@ export function useColorHistory() {
   /**
    * 加载单个历史记录的完整数据
    */
-  async function loadFullRecord(recordId: string): Promise<ColorHistoryRecord | null> {
+  async function loadFullRecord(
+    recordId: string
+  ): Promise<ColorHistoryRecord | null> {
     try {
       const recordPath = await getHistoryRecordPath(recordId);
       if (!(await exists(recordPath))) {
-        logger.warn('历史记录文件不存在', { recordId });
+        logger.warn("历史记录文件不存在", { recordId });
         return null;
       }
       const content = await readTextFile(recordPath);
       return JSON.parse(content);
     } catch (error) {
-      errorHandler.error(error, '加载历史记录失败', { context: { recordId } });
+      errorHandler.error(error, "加载历史记录失败", { context: { recordId } });
       return null;
     }
   }
@@ -148,12 +155,12 @@ export function useColorHistory() {
    */
   function extractPreviewColors(result: ColorAnalysisResult): string[] {
     const colors: string[] = [];
-    
+
     // 优先从 quantize 提取
     if (result.quantize?.colors) {
       colors.push(...result.quantize.colors.slice(0, 6));
     }
-    
+
     // 如果不足 6 个，从 vibrant 补充
     if (colors.length < 6 && result.vibrant) {
       const vibrantColors = Object.values(result.vibrant).filter(
@@ -161,12 +168,12 @@ export function useColorHistory() {
       );
       colors.push(...vibrantColors.slice(0, 6 - colors.length));
     }
-    
+
     // 如果还不足，从 average 补充
     if (colors.length < 6 && result.average?.color) {
       colors.push(result.average.color);
     }
-    
+
     return colors.slice(0, 6); // 最多 6 个
   }
 
@@ -174,8 +181,8 @@ export function useColorHistory() {
    * 添加一条新的历史记录
    */
   async function addRecord(
-    recordData: Omit<ColorHistoryRecord, 'id' | 'assetPath'>,
-    asset: import('@/types/asset-management').Asset
+    recordData: Omit<ColorHistoryRecord, "id" | "assetPath">,
+    asset: import("@/types/asset-management").Asset
   ): Promise<ColorHistoryRecord> {
     const record: ColorHistoryRecord = {
       ...recordData,
@@ -206,7 +213,7 @@ export function useColorHistory() {
       // 4. 更新索引文件
       const index = await loadHistoryIndex();
       index.records.unshift(indexItem); // 新记录放在最前面
-      
+
       // 限制历史记录数量（最多保留 50 条）
       if (index.records.length > 50) {
         // 删除超出部分的记录文件
@@ -222,18 +229,20 @@ export function useColorHistory() {
               // 忽略错误，可能已被其他来源使用
             });
           } catch (error) {
-            logger.warn('清理旧记录失败', { recordId: item.id });
+            logger.warn("清理旧记录失败", { recordId: item.id });
           }
         }
         index.records = index.records.slice(0, 50);
       }
-      
+
       await saveHistoryIndex(index);
 
-      logger.info('新的颜色分析历史记录已添加', { recordId: record.id });
+      logger.info("新的颜色分析历史记录已添加", { recordId: record.id });
       return record;
     } catch (error) {
-      errorHandler.error(error, '添加历史记录失败', { context: { recordId: record.id } });
+      errorHandler.error(error, "添加历史记录失败", {
+        context: { recordId: record.id },
+      });
       throw error;
     }
   }
@@ -243,16 +252,16 @@ export function useColorHistory() {
    */
   async function updateRecord(
     recordId: string,
-    updates: Partial<Omit<ColorHistoryRecord, 'id' | 'createdAt'>>
+    updates: Partial<Omit<ColorHistoryRecord, "id" | "createdAt">>
   ): Promise<void> {
     try {
       // 1. 读取现有记录
       const recordPath = await getHistoryRecordPath(recordId);
       if (!(await exists(recordPath))) {
-        logger.warn('尝试更新不存在的记录', { recordId });
+        logger.warn("尝试更新不存在的记录", { recordId });
         return;
       }
-      
+
       const content = await readTextFile(recordPath);
       const record: ColorHistoryRecord = JSON.parse(content);
 
@@ -268,16 +277,18 @@ export function useColorHistory() {
       // 4. 如果更新了影响索引的字段（如 analysisResult），也更新索引
       if (updates.analysisResult) {
         const index = await loadHistoryIndex();
-        const indexItem = index.records.find(r => r.id === recordId);
+        const indexItem = index.records.find((r) => r.id === recordId);
         if (indexItem) {
-          indexItem.colorPreview = extractPreviewColors(updatedRecord.analysisResult);
+          indexItem.colorPreview = extractPreviewColors(
+            updatedRecord.analysisResult
+          );
           await saveHistoryIndex(index);
         }
       }
 
-      logger.debug('历史记录已更新', { recordId });
+      logger.debug("历史记录已更新", { recordId });
     } catch (error) {
-      errorHandler.error(error, '更新历史记录失败', { context: { recordId } });
+      errorHandler.error(error, "更新历史记录失败", { context: { recordId } });
       throw error;
     }
   }
@@ -290,7 +301,7 @@ export function useColorHistory() {
       const index = await loadHistoryIndex();
       const recordIndex = index.records.findIndex((r) => r.id === recordId);
       if (recordIndex === -1) {
-        logger.warn('尝试删除一个不存在的记录', { recordId });
+        logger.warn("尝试删除一个不存在的记录", { recordId });
         return;
       }
 
@@ -301,9 +312,11 @@ export function useColorHistory() {
       // 如果资产没有其他来源使用，后端会自动删除物理文件
       try {
         await removeSourceFromAsset(assetId, MODULE_NAME);
-        logger.info('已从资产移除 color-picker 来源', { assetId });
+        logger.info("已从资产移除 color-picker 来源", { assetId });
       } catch (assetError) {
-        errorHandler.error(assetError, '移除资产来源失败', { context: { assetId } });
+        errorHandler.error(assetError, "移除资产来源失败", {
+          context: { assetId },
+        });
         // 即使资产来源移除失败，也继续删除记录
       }
 
@@ -316,9 +329,9 @@ export function useColorHistory() {
       // 3. 保存更新后的索引
       await saveHistoryIndex(index);
 
-      logger.info('历史记录已删除', { recordId });
+      logger.info("历史记录已删除", { recordId });
     } catch (error) {
-      errorHandler.error(error, '删除历史记录失败', { context: { recordId } });
+      errorHandler.error(error, "删除历史记录失败", { context: { recordId } });
       throw error;
     }
   }
@@ -329,7 +342,7 @@ export function useColorHistory() {
   async function clearAllRecords(): Promise<void> {
     try {
       const index = await loadHistoryIndex();
-      
+
       // 删除所有记录文件和资产来源
       for (const item of index.records) {
         try {
@@ -341,17 +354,17 @@ export function useColorHistory() {
             // 忽略错误
           });
         } catch (error) {
-          logger.warn('清理记录失败', { recordId: item.id });
+          logger.warn("清理记录失败", { recordId: item.id });
         }
       }
-      
+
       // 清空索引
       index.records = [];
       await saveHistoryIndex(index);
-      
-      logger.info('已清空所有历史记录');
+
+      logger.info("已清空所有历史记录");
     } catch (error) {
-      errorHandler.error(error, '清空历史记录失败');
+      errorHandler.error(error, "清空历史记录失败");
       throw error;
     }
   }

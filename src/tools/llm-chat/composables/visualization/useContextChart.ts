@@ -1,14 +1,17 @@
-import { ref, onUnmounted, watch, type Ref } from 'vue';
-import { useDark } from '@vueuse/core';
-import * as echarts from 'echarts';
+import { ref, onUnmounted, watch, type Ref } from "vue";
+import { useDark } from "@vueuse/core";
+import * as echarts from "echarts";
 import type { ContextPreviewData } from "../../types/context";
-import { createModuleLogger } from '@/utils/logger';
+import { createModuleLogger } from "@/utils/logger";
 
-const logger = createModuleLogger('llm-chat/context-chart');
+const logger = createModuleLogger("llm-chat/context-chart");
 
-export type ChartMode = 'token' | 'char';
+export type ChartMode = "token" | "char";
 
-export function useContextChart(contextData: ContextPreviewData, mode: Ref<ChartMode> = ref('token')) {
+export function useContextChart(
+  contextData: ContextPreviewData,
+  mode: Ref<ChartMode> = ref("token")
+) {
   // 图表 DOM 引用
   const chartRef = ref<HTMLDivElement>();
 
@@ -24,15 +27,23 @@ export function useContextChart(contextData: ContextPreviewData, mode: Ref<Chart
   function getThemeColors() {
     const root = getComputedStyle(document.documentElement);
     return {
-      textColor: root.getPropertyValue('--el-text-color-primary').trim() || '#303133',
-      textColorLight: root.getPropertyValue('--el-text-color-secondary').trim() || '#909399',
-      borderColor: root.getPropertyValue('--el-border-color').trim() || '#dcdfe6',
-      primaryColor: root.getPropertyValue('--el-color-primary').trim() || '#409eff',
-      successColor: root.getPropertyValue('--el-color-success').trim() || '#67c23a',
-      warningColor: root.getPropertyValue('--el-color-warning').trim() || '#e6a23c',
-      dangerColor: root.getPropertyValue('--el-color-danger').trim() || '#f56c6c',
-      bgColor: root.getPropertyValue('--el-bg-color').trim() || '#ffffff',
-      containerBg: root.getPropertyValue('--el-fill-color-light').trim() || '#f5f7fa',
+      textColor:
+        root.getPropertyValue("--el-text-color-primary").trim() || "#303133",
+      textColorLight:
+        root.getPropertyValue("--el-text-color-secondary").trim() || "#909399",
+      borderColor:
+        root.getPropertyValue("--el-border-color").trim() || "#dcdfe6",
+      primaryColor:
+        root.getPropertyValue("--el-color-primary").trim() || "#409eff",
+      successColor:
+        root.getPropertyValue("--el-color-success").trim() || "#67c23a",
+      warningColor:
+        root.getPropertyValue("--el-color-warning").trim() || "#e6a23c",
+      dangerColor:
+        root.getPropertyValue("--el-color-danger").trim() || "#f56c6c",
+      bgColor: root.getPropertyValue("--el-bg-color").trim() || "#ffffff",
+      containerBg:
+        root.getPropertyValue("--el-fill-color-light").trim() || "#f5f7fa",
     };
   }
 
@@ -58,34 +69,58 @@ export function useContextChart(contextData: ContextPreviewData, mode: Ref<Chart
 
     const colors = getThemeColors();
     const stats = contextData.statistics;
-    const isTokenMode = mode.value === 'token';
-    const unit = isTokenMode ? 'tokens' : '字符';
+    const isTokenMode = mode.value === "token";
+    const unit = isTokenMode ? "tokens" : "字符";
 
     // 准备数据（按上下文构建顺序）- 根据模式选择数据源
-    const categories = ['上下文内容构成'];
+    const categories = ["上下文内容构成"];
     const presetMessagesData = isTokenMode
-      ? (stats.presetMessagesTokenCount && stats.presetMessagesTokenCount > 0 ? [stats.presetMessagesTokenCount] : [0])
-      : (stats.presetMessagesCharCount > 0 ? [stats.presetMessagesCharCount] : [0]);
+      ? stats.presetMessagesTokenCount && stats.presetMessagesTokenCount > 0
+        ? [stats.presetMessagesTokenCount]
+        : [0]
+      : stats.presetMessagesCharCount > 0
+        ? [stats.presetMessagesCharCount]
+        : [0];
     const worldbookData = isTokenMode
-      ? (stats.worldbookTokenCount && stats.worldbookTokenCount > 0 ? [stats.worldbookTokenCount] : [0])
-      : (stats.worldbookCharCount && stats.worldbookCharCount > 0 ? [stats.worldbookCharCount] : [0]);
+      ? stats.worldbookTokenCount && stats.worldbookTokenCount > 0
+        ? [stats.worldbookTokenCount]
+        : [0]
+      : stats.worldbookCharCount && stats.worldbookCharCount > 0
+        ? [stats.worldbookCharCount]
+        : [0];
     const chatHistoryData = isTokenMode
-      ? (stats.chatHistoryTokenCount && stats.chatHistoryTokenCount > 0 ? [stats.chatHistoryTokenCount] : [0])
-      : (stats.chatHistoryCharCount > 0 ? [stats.chatHistoryCharCount] : [0]);
+      ? stats.chatHistoryTokenCount && stats.chatHistoryTokenCount > 0
+        ? [stats.chatHistoryTokenCount]
+        : [0]
+      : stats.chatHistoryCharCount > 0
+        ? [stats.chatHistoryCharCount]
+        : [0];
     const postProcessingData = isTokenMode
-      ? (stats.postProcessingTokenCount && stats.postProcessingTokenCount > 0 ? [stats.postProcessingTokenCount] : [0])
-      : (stats.postProcessingCharCount && stats.postProcessingCharCount > 0 ? [stats.postProcessingCharCount] : [0]);
+      ? stats.postProcessingTokenCount && stats.postProcessingTokenCount > 0
+        ? [stats.postProcessingTokenCount]
+        : [0]
+      : stats.postProcessingCharCount && stats.postProcessingCharCount > 0
+        ? [stats.postProcessingCharCount]
+        : [0];
 
     // 计算每个系列在堆叠中的位置，用于正确设置圆角
     const seriesData = [
-      { name: '预设消息', data: presetMessagesData, color: colors.primaryColor },
-      { name: '世界书', data: worldbookData, color: colors.warningColor },
-      { name: '会话历史', data: chatHistoryData, color: colors.successColor },
-      { name: '后处理消耗', data: postProcessingData, color: colors.dangerColor }
+      {
+        name: "预设消息",
+        data: presetMessagesData,
+        color: colors.primaryColor,
+      },
+      { name: "世界书", data: worldbookData, color: colors.warningColor },
+      { name: "会话历史", data: chatHistoryData, color: colors.successColor },
+      {
+        name: "后处理消耗",
+        data: postProcessingData,
+        color: colors.dangerColor,
+      },
     ];
 
     // 过滤出有数据的系列
-    const activeSeries = seriesData.filter(item => item.data[0] > 0);
+    const activeSeries = seriesData.filter((item) => item.data[0] > 0);
 
     // 为每个系列计算正确的圆角（横向柱状图）
     // borderRadius 格式: [左上, 右上, 右下, 左下]
@@ -107,13 +142,13 @@ export function useContextChart(contextData: ContextPreviewData, mode: Ref<Chart
     };
 
     const option = {
-      backgroundColor: 'transparent',
+      backgroundColor: "transparent",
       textStyle: {
         color: colors.textColor,
       },
       title: {
-        text: `上下文内容分布 (${isTokenMode ? 'Token' : '字符'}占比)`,
-        left: 'center',
+        text: `上下文内容分布 (${isTokenMode ? "Token" : "字符"}占比)`,
+        left: "center",
         top: 20,
         textStyle: {
           color: colors.textColor,
@@ -122,9 +157,9 @@ export function useContextChart(contextData: ContextPreviewData, mode: Ref<Chart
         },
       },
       tooltip: {
-        trigger: 'axis',
+        trigger: "axis",
         axisPointer: {
-          type: 'none'
+          type: "none",
         },
         formatter: (params: any) => {
           let result = `${params[0].axisValue}<br/>`;
@@ -133,9 +168,12 @@ export function useContextChart(contextData: ContextPreviewData, mode: Ref<Chart
             total += item.value;
           });
           params.forEach((item: any) => {
-            const percent = total > 0 ? ((item.value / total) * 100).toFixed(1) : '0.0';
+            const percent =
+              total > 0 ? ((item.value / total) * 100).toFixed(1) : "0.0";
             // 使用纯色的自定义marker（从seriesData中获取原始颜色）
-            const seriesColor = seriesData.find(s => s.name === item.seriesName)?.color || item.color;
+            const seriesColor =
+              seriesData.find((s) => s.name === item.seriesName)?.color ||
+              item.color;
             const customMarker = `<span style="display:inline-block;margin-right:4px;border-radius:50%;width:10px;height:10px;background-color:${seriesColor};"></span>`;
             result += `${customMarker}${item.seriesName}: ${item.value.toLocaleString()} ${unit} (${percent}%)<br/>`;
           });
@@ -149,26 +187,26 @@ export function useContextChart(contextData: ContextPreviewData, mode: Ref<Chart
         },
       },
       legend: {
-        data: activeSeries.map(item => item.name),
+        data: activeSeries.map((item) => item.name),
         top: 60,
         textStyle: {
           color: colors.textColor,
         },
       },
       grid: {
-        left: '3%',
-        right: '4%',
-        bottom: '3%',
+        left: "3%",
+        right: "4%",
+        bottom: "3%",
         top: 110,
         containLabel: true,
       },
       xAxis: {
-        type: 'value',
+        type: "value",
         axisLabel: {
           color: colors.textColorLight,
           formatter: (value: number) => {
             if (value >= 1000) {
-              return (value / 1000).toFixed(1) + 'k';
+              return (value / 1000).toFixed(1) + "k";
             }
             return value;
           },
@@ -181,12 +219,12 @@ export function useContextChart(contextData: ContextPreviewData, mode: Ref<Chart
         splitLine: {
           lineStyle: {
             color: colors.borderColor,
-            type: 'dashed',
+            type: "dashed",
           },
         },
       },
       yAxis: {
-        type: 'category',
+        type: "category",
         data: categories,
         axisLabel: {
           color: colors.textColor,
@@ -199,21 +237,21 @@ export function useContextChart(contextData: ContextPreviewData, mode: Ref<Chart
       },
       series: activeSeries.map((item, index) => ({
         name: item.name,
-        type: 'bar',
-        stack: 'total',
+        type: "bar",
+        stack: "total",
         data: item.data,
         itemStyle: {
           // 半透明背景 + 描边效果（参考 Element Plus 按钮样式）
           color: {
-            type: 'linear',
+            type: "linear",
             x: 0,
             y: 0,
             x2: 0,
             y2: 1,
             colorStops: [
               { offset: 0, color: `${item.color}26` }, // 15% 不透明度
-              { offset: 1, color: `${item.color}1a` }  // 10% 不透明度
-            ]
+              { offset: 1, color: `${item.color}1a` }, // 10% 不透明度
+            ],
           },
           borderColor: item.color,
           borderWidth: 2,
@@ -221,28 +259,28 @@ export function useContextChart(contextData: ContextPreviewData, mode: Ref<Chart
         },
         label: {
           show: true,
-          position: 'inside',
+          position: "inside",
           formatter: (params: any) => {
-            if (params.value === 0) return '';
+            if (params.value === 0) return "";
             return params.value.toLocaleString();
           },
           color: item.color, // 使用主题色而不是白色
           fontWeight: 600,
         },
         emphasis: {
-          focus: 'series',
+          focus: "series",
           itemStyle: {
             // 悬停时增加不透明度
             color: {
-              type: 'linear',
+              type: "linear",
               x: 0,
               y: 0,
               x2: 0,
               y2: 1,
               colorStops: [
                 { offset: 0, color: `${item.color}40` }, // 25% 不透明度
-                { offset: 1, color: `${item.color}33` }  // 20% 不透明度
-              ]
+                { offset: 1, color: `${item.color}33` }, // 20% 不透明度
+              ],
             },
             borderColor: item.color,
             borderWidth: 2,
@@ -253,21 +291,21 @@ export function useContextChart(contextData: ContextPreviewData, mode: Ref<Chart
           label: {
             show: true,
             fontSize: 16,
-            fontWeight: 'bold',
+            fontWeight: "bold",
             color: item.color,
           },
         },
         animationDelay: (idx: number) => idx * 100 + index * 100,
       })),
-      animationEasing: 'elasticOut' as const,
-      animationEasingUpdate: 'elasticOut' as const,
+      animationEasing: "elasticOut" as const,
+      animationEasingUpdate: "elasticOut" as const,
       animationDuration: 1000,
       animationDurationUpdate: 500,
     };
 
     chart.setOption(option, { notMerge: true });
 
-    logger.debug('图表渲染完成', {
+    logger.debug("图表渲染完成", {
       totalChars: stats.totalCharCount,
       presetMessages: stats.presetMessagesCharCount,
       chatHistory: stats.chatHistoryCharCount,
@@ -289,14 +327,18 @@ export function useContextChart(contextData: ContextPreviewData, mode: Ref<Chart
    */
   function setupResizeObserver(containerElement: Element | null) {
     if (!containerElement || !window.ResizeObserver) {
-      logger.warn('ResizeObserver 不可用或容器元素为空');
+      logger.warn("ResizeObserver 不可用或容器元素为空");
       return;
     }
 
     resizeObserver = new ResizeObserver(() => {
       // 延迟调整以确保容器尺寸已更新
       setTimeout(() => {
-        if (chartRef.value && chartRef.value.clientWidth > 0 && chartRef.value.clientHeight > 0) {
+        if (
+          chartRef.value &&
+          chartRef.value.clientWidth > 0 &&
+          chartRef.value.clientHeight > 0
+        ) {
           // 如果容器已经有有效尺寸，尝试绘制图表
           drawChart();
         }
@@ -304,7 +346,7 @@ export function useContextChart(contextData: ContextPreviewData, mode: Ref<Chart
     });
 
     resizeObserver.observe(containerElement);
-    logger.debug('ResizeObserver 已设置');
+    logger.debug("ResizeObserver 已设置");
   }
 
   /**

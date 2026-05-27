@@ -1,12 +1,19 @@
 import { ref, computed, watch } from "vue";
 import type { ChatSessionIndex } from "../../types";
 import { useAgentStore } from "../../stores/agentStore";
-import { useLlmSearch, type MatchDetail } from "../../composables/chat/useLlmSearch";
+import {
+  useLlmSearch,
+  type MatchDetail,
+} from "../../composables/chat/useLlmSearch";
 import { useTopicNamer } from "../../composables/chat/useTopicNamer";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
 import { customMessage } from "@/utils/customMessage";
 import { ElMessageBox } from "element-plus";
-import type { SortBy, SortOrder, TimeFilter } from "../../components/sidebar/FilterPanel.vue";
+import type {
+  SortBy,
+  SortOrder,
+  TimeFilter,
+} from "../../components/sidebar/FilterPanel.vue";
 
 interface SidebarEmits {
   (e: "switch", sessionId: string): void;
@@ -24,7 +31,10 @@ interface UseSessionsSidebarLogicOptions {
   emit: SidebarEmits;
 }
 
-export function useSessionsSidebarLogic({ props, emit }: UseSessionsSidebarLogicOptions) {
+export function useSessionsSidebarLogic({
+  props,
+  emit,
+}: UseSessionsSidebarLogicOptions) {
   const agentStore = useAgentStore();
   const searchQuery = ref("");
   const { isGenerating } = useTopicNamer();
@@ -120,7 +130,9 @@ export function useSessionsSidebarLogic({ props, emit }: UseSessionsSidebarLogic
 
   const filterByAgent = (sessions: ChatSessionIndex[]) => {
     if (filterAgent.value === "all") return sessions;
-    return sessions.filter((session) => session.displayAgentId === filterAgent.value);
+    return sessions.filter(
+      (session) => session.displayAgentId === filterAgent.value
+    );
   };
 
   const sortSessions = (sessions: ChatSessionIndex[]) => {
@@ -128,10 +140,12 @@ export function useSessionsSidebarLogic({ props, emit }: UseSessionsSidebarLogic
       let comparison = 0;
       switch (sortBy.value) {
         case "updatedAt":
-          comparison = new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+          comparison =
+            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
           break;
         case "createdAt":
-          comparison = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+          comparison =
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
           break;
         case "messageCount":
           comparison = (b.messageCount ?? 0) - (a.messageCount ?? 0);
@@ -148,7 +162,9 @@ export function useSessionsSidebarLogic({ props, emit }: UseSessionsSidebarLogic
     let sessions = props.sessions;
     if (searchQuery.value.trim()) {
       const query = searchQuery.value.toLowerCase();
-      sessions = sessions.filter((session) => session.name.toLowerCase().includes(query));
+      sessions = sessions.filter((session) =>
+        session.name.toLowerCase().includes(query)
+      );
     }
     sessions = filterByAgent(sessions);
     sessions = filterByTime(sessions);
@@ -163,7 +179,10 @@ export function useSessionsSidebarLogic({ props, emit }: UseSessionsSidebarLogic
     for (const result of sessionResults.value) {
       const session = sessionMap.get(result.id);
       if (session) {
-        if (filterAgent.value === "all" || session.displayAgentId === filterAgent.value) {
+        if (
+          filterAgent.value === "all" ||
+          session.displayAgentId === filterAgent.value
+        ) {
           sessions.push(session);
         }
       }
@@ -173,7 +192,8 @@ export function useSessionsSidebarLogic({ props, emit }: UseSessionsSidebarLogic
 
   const displaySessions = computed(() => {
     if (isInSearchMode.value) {
-      if (searchResultSessions.value.length > 0) return searchResultSessions.value;
+      if (searchResultSessions.value.length > 0)
+        return searchResultSessions.value;
       if (isSearching.value) return filteredSessions.value;
       return [];
     }
@@ -215,7 +235,9 @@ export function useSessionsSidebarLogic({ props, emit }: UseSessionsSidebarLogic
   };
 
   const handleGenerateName = async (session: ChatSessionIndex) => {
-    const llmChatStore = (await import("../../stores/llmChatStore")).useLlmChatStore();
+    const llmChatStore = (
+      await import("../../stores/llmChatStore")
+    ).useLlmChatStore();
     await llmChatStore.generateSessionTopic(session.id);
     const result = llmChatStore.sessionIndexMap.get(session.id)?.name;
     if (result && result !== session.name) {

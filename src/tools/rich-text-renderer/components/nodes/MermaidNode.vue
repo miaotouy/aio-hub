@@ -34,17 +34,29 @@
 
         <!-- 缩放控制 -->
         <el-tooltip content="缩小" :show-after="300">
-          <button class="action-btn" :disabled="currentScale <= scaleMin" @click="decreaseScale">
+          <button
+            class="action-btn"
+            :disabled="currentScale <= scaleMin"
+            @click="decreaseScale"
+          >
             <Minus :size="14" />
           </button>
         </el-tooltip>
         <el-tooltip content="重置缩放" :show-after="300">
-          <button class="action-btn" :disabled="currentScale === defaultScale" @click="resetScale">
+          <button
+            class="action-btn"
+            :disabled="currentScale === defaultScale"
+            @click="resetScale"
+          >
             <RotateCcw :size="14" />
           </button>
         </el-tooltip>
         <el-tooltip content="放大" :show-after="300">
-          <button class="action-btn" :disabled="currentScale >= scaleMax" @click="increaseScale">
+          <button
+            class="action-btn"
+            :disabled="currentScale >= scaleMax"
+            @click="increaseScale"
+          >
             <Plus :size="14" />
           </button>
         </el-tooltip>
@@ -65,7 +77,11 @@
 
         <!-- 复制按钮 -->
         <el-tooltip :content="copied ? '已复制' : '复制代码'" :show-after="300">
-          <button class="action-btn" :class="{ 'action-btn-active': copied }" @click="copyCode">
+          <button
+            class="action-btn"
+            :class="{ 'action-btn-active': copied }"
+            @click="copyCode"
+          >
             <Check v-if="copied" :size="14" />
             <Copy v-else :size="14" />
           </button>
@@ -80,19 +96,30 @@
         </el-tooltip>
       </div>
     </div>
-    <div class="mermaid-container" :class="{ expanded: isExpanded }" ref="containerRef">
+    <div
+      class="mermaid-container"
+      :class="{ expanded: isExpanded }"
+      ref="containerRef"
+    >
       <!-- 错误状态：只有在稳定状态下的错误才显示 -->
       <div v-if="error && nodeStatus === 'stable'" class="mermaid-error">
         <div class="error-title">图表渲染失败</div>
         <div class="error-message">{{ error }}</div>
         <details class="error-details">
-          <summary>查看源代码{{ showOriginal ? "" : wasFixed ? " (已尝试自动修复)" : "" }}</summary>
+          <summary>
+            查看源代码{{
+              showOriginal ? "" : wasFixed ? " (已尝试自动修复)" : ""
+            }}
+          </summary>
           <pre class="error-code">{{ activeContent }}</pre>
         </details>
       </div>
 
       <!-- 加载状态：只有在 pending 且从未渲染成功过时显示 -->
-      <div v-else-if="nodeStatus === 'pending' && !hasRendered" class="mermaid-pending">
+      <div
+        v-else-if="nodeStatus === 'pending' && !hasRendered"
+        class="mermaid-pending"
+      >
         <div class="pending-icon">
           <Loader2 class="animate-spin" :size="24" />
         </div>
@@ -109,13 +136,27 @@
   </div>
 
   <!-- 交互式查看器对话框 -->
-  <BaseDialog v-model="showViewer" title="Mermaid 图表查看器" width="95%" height="85vh">
+  <BaseDialog
+    v-model="showViewer"
+    title="Mermaid 图表查看器"
+    width="95%"
+    height="85vh"
+  >
     <MermaidInteractiveViewer :content="activeContent" />
   </BaseDialog>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick, useAttrs, inject } from "vue";
+import {
+  ref,
+  computed,
+  onMounted,
+  onBeforeUnmount,
+  watch,
+  nextTick,
+  useAttrs,
+  inject,
+} from "vue";
 
 // 禁用属性继承以避免警告
 defineOptions({
@@ -218,7 +259,9 @@ const trimLastLine = (content: string): string => {
 const renderableContent = computed(() => {
   // 如果用户选择显示原始内容，则始终用原始内容
   if (showOriginal.value) {
-    return nodeStatus.value === "pending" ? trimLastLine(props.content) : props.content;
+    return nodeStatus.value === "pending"
+      ? trimLastLine(props.content)
+      : props.content;
   }
 
   // 如果有修复后的内容，直接使用它（不再进行裁剪，因为修复是基于已裁剪的内容进行的）
@@ -287,7 +330,9 @@ const copyCode = async () => {
     // 复制当前显示的代码
     await navigator.clipboard.writeText(activeContent.value);
     copied.value = true;
-    customMessage.success(showOriginal.value ? "已复制原始代码" : "已复制修复后的代码");
+    customMessage.success(
+      showOriginal.value ? "已复制原始代码" : "已复制修复后的代码"
+    );
     if (copiedTimer) clearTimeout(copiedTimer);
     copiedTimer = setTimeout(() => {
       copied.value = false;
@@ -385,7 +430,8 @@ const renderDiagramWithContent = async (
     const { svg } = await mermaid.render(id, content);
 
     // 检查并发
-    if (isUnmounted || currentRenderId !== lastRenderId.value) return { success: false };
+    if (isUnmounted || currentRenderId !== lastRenderId.value)
+      return { success: false };
 
     // 渲染成功，清理之前的状态
     if (renderCleanup) {
@@ -449,7 +495,8 @@ const renderDiagram = async () => {
 
     // 如果用户选择显示原始内容，直接用处理后的原始内容渲染
     if (showOriginal.value) {
-      const { success, error: renderError } = await renderDiagramWithContent(contentToRender);
+      const { success, error: renderError } =
+        await renderDiagramWithContent(contentToRender);
       if (!success && nodeStatus.value === "stable") {
         error.value =
           renderError instanceof Error
@@ -467,7 +514,8 @@ const renderDiagram = async () => {
     // 如果已经有修复后的代码，直接用它渲染，不再尝试原始代码
     // 这样可以避免切换显示模式时丢失修复状态
     if (fixedContent.value !== null) {
-      const { success, error: fixedError } = await renderDiagramWithContent(contentToRender);
+      const { success, error: fixedError } =
+        await renderDiagramWithContent(contentToRender);
 
       // 检查并发
       if (currentRenderId !== lastRenderId.value) return;
@@ -525,7 +573,8 @@ const renderDiagram = async () => {
     }
 
     // 步骤 3: 尝试用修复后的代码渲染
-    const { success: fixedSuccess, error: fixedError } = await renderDiagramWithContent(fixed);
+    const { success: fixedSuccess, error: fixedError } =
+      await renderDiagramWithContent(fixed);
 
     // 检查并发
     if (currentRenderId !== lastRenderId.value) return;
@@ -593,7 +642,10 @@ const initMermaid = async () => {
     // 渲染图表
     await renderDiagram();
   } catch (err) {
-    errorHandler.handle(err, { userMessage: "Mermaid 初始化失败", showToUser: false });
+    errorHandler.handle(err, {
+      userMessage: "Mermaid 初始化失败",
+      showToUser: false,
+    });
     error.value = "Mermaid 库加载失败";
   }
 };
@@ -617,7 +669,10 @@ watch(isDark, async (dark) => {
     // 重新渲染
     await renderDiagram();
   } catch (err) {
-    errorHandler.handle(err, { userMessage: "主题切换失败", showToUser: false });
+    errorHandler.handle(err, {
+      userMessage: "主题切换失败",
+      showToUser: false,
+    });
   }
 });
 

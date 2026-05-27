@@ -87,7 +87,9 @@ const stats = computed(() => {
 
   const enabled = statuses.filter((s) => s.isEnabled && !s.isBroken).length;
   const manuallyDisabled = statuses.filter((s) => !s.isEnabled).length;
-  const automaticallyDisabled = statuses.filter((s) => s.isEnabled && s.isBroken).length;
+  const automaticallyDisabled = statuses.filter(
+    (s) => s.isEnabled && s.isBroken
+  ).length;
 
   return {
     total: allKeys.length,
@@ -95,8 +97,12 @@ const stats = computed(() => {
     manuallyDisabled,
     automaticallyDisabled,
     enabledPercent: allKeys.length ? (enabled / allKeys.length) * 100 : 0,
-    manualPercent: allKeys.length ? (manuallyDisabled / allKeys.length) * 100 : 0,
-    autoPercent: allKeys.length ? (automaticallyDisabled / allKeys.length) * 100 : 0,
+    manualPercent: allKeys.length
+      ? (manuallyDisabled / allKeys.length) * 100
+      : 0,
+    autoPercent: allKeys.length
+      ? (automaticallyDisabled / allKeys.length) * 100
+      : 0,
   };
 });
 
@@ -117,13 +123,18 @@ const filteredTableData = computed(() => {
     })
     .filter((item) => {
       // 搜索过滤
-      if (searchQuery.value && !item.key.toLowerCase().includes(searchQuery.value.toLowerCase())) {
+      if (
+        searchQuery.value &&
+        !item.key.toLowerCase().includes(searchQuery.value.toLowerCase())
+      ) {
         return false;
       }
       // 状态过滤
-      if (statusFilter.value === "enabled") return item.isEnabled && !item.isBroken;
+      if (statusFilter.value === "enabled")
+        return item.isEnabled && !item.isBroken;
       if (statusFilter.value === "manual_disabled") return !item.isEnabled;
-      if (statusFilter.value === "auto_disabled") return item.isEnabled && item.isBroken;
+      if (statusFilter.value === "auto_disabled")
+        return item.isEnabled && item.isBroken;
       return true;
     });
 });
@@ -174,7 +185,9 @@ const handleBatchTest = async () => {
   if (selectedKeys.value.length === 0 || !selectedTestModelId.value) return;
 
   const keysToTest = [...selectedKeys.value];
-  customMessage.success(`已开始批量测试 ${keysToTest.length} 个密钥，请稍候...`);
+  customMessage.success(
+    `已开始批量测试 ${keysToTest.length} 个密钥，请稍候...`
+  );
 
   for (const item of keysToTest) {
     emit("test-key", { key: item.key, modelId: selectedTestModelId.value });
@@ -187,7 +200,9 @@ const handleBatchDelete = () => {
   if (selectedKeys.value.length === 0) return;
 
   const keysToRemove = selectedKeys.value.map((item) => item.key);
-  const newKeys = props.profile.apiKeys.filter((k) => !keysToRemove.includes(k));
+  const newKeys = props.profile.apiKeys.filter(
+    (k) => !keysToRemove.includes(k)
+  );
 
   keysToRemove.forEach((k) => removeKeyStatus(props.profile.id, k));
   emit("update:profile", { ...props.profile, apiKeys: newKeys });
@@ -234,13 +249,17 @@ const handleDisableAll = () => {
 };
 
 const handleDeleteAllBroken = () => {
-  const brokenKeys = props.profile.apiKeys.filter((key) => keyStatuses.value[key]?.isBroken);
+  const brokenKeys = props.profile.apiKeys.filter(
+    (key) => keyStatuses.value[key]?.isBroken
+  );
   if (brokenKeys.length === 0) {
     customMessage.info("没有需要清理的损坏密钥");
     return;
   }
 
-  const newKeys = props.profile.apiKeys.filter((key) => !keyStatuses.value[key]?.isBroken);
+  const newKeys = props.profile.apiKeys.filter(
+    (key) => !keyStatuses.value[key]?.isBroken
+  );
   emit("update:profile", { ...props.profile, apiKeys: newKeys });
   customMessage.success(`已清理 ${brokenKeys.length} 个自动禁用的密钥`);
 };
@@ -274,7 +293,9 @@ const maskKey = (key: string) => {
         <el-tag size="small" type="info" effect="plain" class="header-tag">
           总数: {{ stats.total }}
         </el-tag>
-        <el-tooltip content="当配置了多个密钥时，系统将采用轮询策略并在出错时自动熔断">
+        <el-tooltip
+          content="当配置了多个密钥时，系统将采用轮询策略并在出错时自动熔断"
+        >
           <el-icon class="info-icon"><Warning /></el-icon>
         </el-tooltip>
       </div>
@@ -343,9 +364,16 @@ const maskKey = (key: string) => {
           </el-tooltip>
         </div>
 
-        <el-divider direction="vertical" class="hide-sm" style="height: 20px; margin: 0 16px" />
+        <el-divider
+          direction="vertical"
+          class="hide-sm"
+          style="height: 20px; margin: 0 16px"
+        />
 
-        <div class="setting-item" :style="{ opacity: enableAutoDisable ? 1 : 0.6 }">
+        <div
+          class="setting-item"
+          :style="{ opacity: enableAutoDisable ? 1 : 0.6 }"
+        >
           <span class="label">自动恢复时长</span>
           <el-select
             v-model="currentRecoveryTime"
@@ -360,7 +388,9 @@ const maskKey = (key: string) => {
               :value="opt.value"
             />
           </el-select>
-          <el-tooltip content="针对 429 频率限制或临时错误，系统将在指定时间后尝试重新启用该密钥">
+          <el-tooltip
+            content="针对 429 频率限制或临时错误，系统将在指定时间后尝试重新启用该密钥"
+          >
             <el-icon class="info-icon"><Warning /></el-icon>
           </el-tooltip>
         </div>
@@ -369,7 +399,11 @@ const maskKey = (key: string) => {
       <!-- 操作栏 -->
       <div class="toolbar">
         <div class="left">
-          <el-select v-model="statusFilter" size="default" class="filter-select">
+          <el-select
+            v-model="statusFilter"
+            size="default"
+            class="filter-select"
+          >
             <el-option label="全部状态" value="all" />
             <el-option label="健康可用" value="enabled" />
             <el-option label="手动禁用" value="manual_disabled" />
@@ -384,7 +418,11 @@ const maskKey = (key: string) => {
           />
           <el-divider direction="vertical" />
           <span class="label">测试模型:</span>
-          <el-select v-model="selectedTestModelId" placeholder="选择测试模型" style="width: 150px">
+          <el-select
+            v-model="selectedTestModelId"
+            placeholder="选择测试模型"
+            style="width: 150px"
+          >
             <el-option
               v-for="model in profile.models"
               :key="model.id"
@@ -411,7 +449,9 @@ const maskKey = (key: string) => {
             </el-button>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item :icon="Check" @click="handleEnableAll">启用全部</el-dropdown-item>
+                <el-dropdown-item :icon="Check" @click="handleEnableAll"
+                  >启用全部</el-dropdown-item
+                >
                 <el-dropdown-item :icon="Close" @click="handleDisableAll"
                   >禁用全部</el-dropdown-item
                 >
@@ -461,11 +501,23 @@ const maskKey = (key: string) => {
 
         <el-table-column label="状态" width="110">
           <template #default="{ row }">
-            <el-tag v-if="!row.isEnabled" type="info" size="small" effect="light">手动禁用</el-tag>
-            <el-tag v-else-if="row.isBroken" type="danger" size="small" effect="light"
+            <el-tag
+              v-if="!row.isEnabled"
+              type="info"
+              size="small"
+              effect="light"
+              >手动禁用</el-tag
+            >
+            <el-tag
+              v-else-if="row.isBroken"
+              type="danger"
+              size="small"
+              effect="light"
               >已熔断</el-tag
             >
-            <el-tag v-else type="success" size="small" effect="light">可用</el-tag>
+            <el-tag v-else type="success" size="small" effect="light"
+              >可用</el-tag
+            >
           </template>
         </el-table-column>
 
@@ -493,7 +545,9 @@ const maskKey = (key: string) => {
               </span>
               <span class="time-hint">{{ formatTime(row.disabledTime) }}</span>
             </div>
-            <span v-else-if="!row.isEnabled" class="info-text">手动暂停使用</span>
+            <span v-else-if="!row.isEnabled" class="info-text"
+              >手动暂停使用</span
+            >
             <span v-else-if="row.lastUsedTime" class="success-text">
               上次使用: {{ formatTime(row.lastUsedTime) }}
             </span>
@@ -511,11 +565,20 @@ const maskKey = (key: string) => {
                   :icon="VideoPlay"
                   :loading="testLoading?.[row.key]"
                   :disabled="!selectedTestModelId"
-                  @click="emit('test-key', { key: row.key, modelId: selectedTestModelId })"
+                  @click="
+                    emit('test-key', {
+                      key: row.key,
+                      modelId: selectedTestModelId,
+                    })
+                  "
                 />
               </el-tooltip>
 
-              <el-tooltip v-if="row.isBroken" content="重置熔断状态" placement="top">
+              <el-tooltip
+                v-if="row.isBroken"
+                content="重置熔断状态"
+                placement="top"
+              >
                 <el-button
                   size="small"
                   type="warning"
@@ -526,7 +589,10 @@ const maskKey = (key: string) => {
               </el-tooltip>
 
               <template v-else>
-                <el-tooltip :content="row.isEnabled ? '禁用密钥' : '启用密钥'" placement="top">
+                <el-tooltip
+                  :content="row.isEnabled ? '禁用密钥' : '启用密钥'"
+                  placement="top"
+                >
                   <el-button
                     size="small"
                     :type="row.isEnabled ? 'info' : 'success'"
@@ -563,13 +629,24 @@ const maskKey = (key: string) => {
       class="import-dialog"
     >
       <div class="import-container">
-        <p class="import-tip">请输入 API 密钥，支持换行或逗号分隔。重复的密钥将被自动过滤。</p>
-        <el-input v-model="importText" type="textarea" :rows="10" placeholder="sk-..., sk-..." />
+        <p class="import-tip">
+          请输入 API 密钥，支持换行或逗号分隔。重复的密钥将被自动过滤。
+        </p>
+        <el-input
+          v-model="importText"
+          type="textarea"
+          :rows="10"
+          placeholder="sk-..., sk-..."
+        />
       </div>
       <template #footer>
         <div class="dialog-footer">
           <el-button @click="isImporting = false">取消</el-button>
-          <el-button type="primary" @click="handleImport" :disabled="!importText.trim()">
+          <el-button
+            type="primary"
+            @click="handleImport"
+            :disabled="!importText.trim()"
+          >
             确认导入
           </el-button>
         </div>

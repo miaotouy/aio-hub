@@ -75,7 +75,9 @@ const toggleSelectionMode = () => {
 
 const handleSelectAllEntries = () => {
   if (kbStore.activeBaseMeta?.entries) {
-    selectedEntryIds.value = new Set(kbStore.activeBaseMeta.entries.map((e) => e.id));
+    selectedEntryIds.value = new Set(
+      kbStore.activeBaseMeta.entries.map((e) => e.id)
+    );
   }
 };
 
@@ -87,10 +89,17 @@ const handleDeselectAllEntries = () => {
 <template>
   <div class="workspace-view" ref="containerRef" :class="[`is-${layoutMode}`]">
     <!-- 向量化进度条 -->
-    <div v-if="kbStore.indexingProgress.isIndexing" class="indexing-progress-bar">
+    <div
+      v-if="kbStore.indexingProgress.isIndexing"
+      class="indexing-progress-bar"
+    >
       <el-progress
         :percentage="
-          Math.round((kbStore.indexingProgress.current / kbStore.indexingProgress.total) * 100)
+          Math.round(
+            (kbStore.indexingProgress.current /
+              kbStore.indexingProgress.total) *
+              100
+          )
         "
         :stroke-width="4"
         :show-text="false"
@@ -99,7 +108,10 @@ const handleDeselectAllEntries = () => {
       <div class="progress-info">
         <div class="info-left">
           <span>正在同步向量...</span>
-          <span>{{ kbStore.indexingProgress.current }} / {{ kbStore.indexingProgress.total }}</span>
+          <span
+            >{{ kbStore.indexingProgress.current }} /
+            {{ kbStore.indexingProgress.total }}</span
+          >
         </div>
         <el-button
           v-if="!kbStore.indexingProgress.shouldStop"
@@ -116,7 +128,10 @@ const handleDeselectAllEntries = () => {
 
     <div class="manager-content">
       <!-- 左侧：知识库列表 (仅在 large 模式下常驻，或在 small/medium 且未选中库时显示) -->
-      <aside v-if="layoutMode === 'large' || !kbStore.activeBaseId" class="kb-list-sidebar">
+      <aside
+        v-if="layoutMode === 'large' || !kbStore.activeBaseId"
+        class="kb-list-sidebar"
+      >
         <KnowledgeBaseList @manage="showSettings = true" />
       </aside>
 
@@ -125,7 +140,9 @@ const handleDeselectAllEntries = () => {
         class="manager-main"
         v-if="layoutMode !== 'large' ? !!kbStore.activeBaseId : true"
         v-loading="kbStore.loading"
-        :element-loading-text="kbStore.activeBaseId ? '正在处理...' : '正在初始化知识库...'"
+        :element-loading-text="
+          kbStore.activeBaseId ? '正在处理...' : '正在初始化知识库...'
+        "
         element-loading-background="rgba(var(--container-bg-rgb), 0.7)"
       >
         <template v-if="kbStore.activeBaseId">
@@ -149,7 +166,9 @@ const handleDeselectAllEntries = () => {
               :is-selection-mode="isSelectionMode"
               :selected-entry-ids="selectedEntryIds"
               :layout-mode="layoutMode"
-              @update:selected-entry-ids="(val: Set<string>) => (selectedEntryIds = val)"
+              @update:selected-entry-ids="
+                (val: Set<string>) => (selectedEntryIds = val)
+              "
               @back="kbStore.activeBaseId = null"
               :key="kbStore.activeBaseId"
               class="detail-view"
@@ -193,7 +212,12 @@ const handleDeselectAllEntries = () => {
     </BaseDialog>
 
     <!-- 创建对话框 -->
-    <el-dialog v-model="showCreateDialog" title="创建知识库" width="400px" append-to-body>
+    <el-dialog
+      v-model="showCreateDialog"
+      title="创建知识库"
+      width="400px"
+      append-to-body
+    >
       <el-form label-position="top">
         <el-form-item label="名称">
           <el-input v-model="newBaseForm.name" placeholder="请输入知识库名称" />
@@ -209,7 +233,11 @@ const handleDeselectAllEntries = () => {
       </el-form>
       <template #footer>
         <el-button @click="showCreateDialog = false">取消</el-button>
-        <el-button type="primary" @click="handleCreate" :disabled="!newBaseForm.name">
+        <el-button
+          type="primary"
+          @click="handleCreate"
+          :disabled="!newBaseForm.name"
+        >
           创建
         </el-button>
       </template>

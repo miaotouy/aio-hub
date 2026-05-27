@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { ElTooltip, ElDropdown, ElDropdownMenu, ElDropdownItem } from "element-plus";
+import {
+  ElTooltip,
+  ElDropdown,
+  ElDropdownMenu,
+  ElDropdownItem,
+} from "element-plus";
 import {
   Play,
   FileText,
@@ -16,7 +21,10 @@ import { useImageViewer } from "@/composables/useImageViewer";
 import { useVideoViewer } from "@/composables/useVideoViewer";
 import { useAudioViewer } from "@/composables/useAudioViewer";
 import { useTranscriptionViewer } from "@/composables/useTranscriptionViewer";
-import { useAssetManager, assetManagerEngine } from "@/composables/useAssetManager";
+import {
+  useAssetManager,
+  assetManagerEngine,
+} from "@/composables/useAssetManager";
 import { useTranscriptionManager } from "../composables/features/useTranscriptionManager";
 import { useChatInputManager } from "../composables/input/useChatInputManager";
 import { generateAssetPlaceholder } from "../core/context-processors/transcription-processor";
@@ -118,8 +126,11 @@ const showDocumentPreview = ref(false);
 // 预览文件的路径
 const previewFilePath = computed(() => {
   const isPending =
-    props.asset.importStatus === "pending" || props.asset.importStatus === "importing";
-  return isPending ? props.asset.originalPath || props.asset.path : props.asset.path;
+    props.asset.importStatus === "pending" ||
+    props.asset.importStatus === "importing";
+  return isPending
+    ? props.asset.originalPath || props.asset.path
+    : props.asset.path;
 });
 
 // 格式化文件大小
@@ -127,7 +138,8 @@ const formattedSize = computed(() => {
   const bytes = props.asset.size;
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes < 1024 * 1024 * 1024)
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 });
 
@@ -159,7 +171,10 @@ const transcriptionStatus = computed(() => {
 });
 
 const isTranscribable = computed(
-  () => props.asset.type === "image" || props.asset.type === "audio" || props.asset.type === "video"
+  () =>
+    props.asset.type === "image" ||
+    props.asset.type === "audio" ||
+    props.asset.type === "video"
 );
 
 // 判断当前模型是否需要使用转写（模型不支持该媒体类型时需要转写）
@@ -274,7 +289,8 @@ const loadAssetUrl = async () => {
   try {
     // 判断是否为 pending/importing 状态
     const isPending =
-      props.asset.importStatus === "pending" || props.asset.importStatus === "importing";
+      props.asset.importStatus === "pending" ||
+      props.asset.importStatus === "importing";
 
     if (!basePath.value && !isPending) {
       basePath.value = await assetManagerEngine.getAssetBasePath();
@@ -325,7 +341,10 @@ const loadAssetUrl = async () => {
           assetUrl.value = base64;
           // 异步保存到后端
           saveAssetThumbnail(props.asset.id, base64).catch((err) => {
-            logger.warn("保存视频缩略图失败", { error: err, assetId: props.asset.id });
+            logger.warn("保存视频缩略图失败", {
+              error: err,
+              assetId: props.asset.id,
+            });
           });
         } catch (e) {
           logger.warn("生成视频缩略图失败", { error: e, asset: props.asset });
@@ -346,7 +365,9 @@ const loadAssetUrl = async () => {
 
 // 是否正在导入
 const isImporting = computed(
-  () => props.asset.importStatus === "pending" || props.asset.importStatus === "importing"
+  () =>
+    props.asset.importStatus === "pending" ||
+    props.asset.importStatus === "importing"
 );
 
 // 是否导入失败
@@ -388,10 +409,15 @@ const handleAudioPreview = async () => {
     const audioAssets = allAssets.filter((asset) => asset.type === "audio");
 
     // 查找当前音频在音频列表中的索引
-    const currentIndex = audioAssets.findIndex((asset) => asset.id === props.asset.id);
+    const currentIndex = audioAssets.findIndex(
+      (asset) => asset.id === props.asset.id
+    );
 
     // 传递音频数组和当前索引给音频查看器
-    await previewAudioPlaylist(audioAssets, currentIndex >= 0 ? currentIndex : 0);
+    await previewAudioPlaylist(
+      audioAssets,
+      currentIndex >= 0 ? currentIndex : 0
+    );
   } catch (error) {
     errorHandler.error(error, "打开音频预览失败");
   }
@@ -405,7 +431,9 @@ const handleImagePreview = async () => {
     const imageAssets = allAssets.filter((asset) => asset.type === "image");
 
     // 查找当前图片在图片列表中的索引
-    const currentIndex = imageAssets.findIndex((asset) => asset.id === props.asset.id);
+    const currentIndex = imageAssets.findIndex(
+      (asset) => asset.id === props.asset.id
+    );
 
     // 确保有 basePath
     if (!basePath.value) {
@@ -416,7 +444,8 @@ const handleImagePreview = async () => {
     const imageUrls: string[] = [];
     for (const imageAsset of imageAssets) {
       const isPending =
-        imageAsset.importStatus === "pending" || imageAsset.importStatus === "importing";
+        imageAsset.importStatus === "pending" ||
+        imageAsset.importStatus === "importing";
 
       if (isPending) {
         // pending 状态：使用 convertFileSrc 创建 URL
@@ -430,7 +459,10 @@ const handleImagePreview = async () => {
         }
       } else {
         // 已导入状态：使用 asset:// 协议
-        const url = assetManagerEngine.convertToAssetProtocol(imageAsset.path, basePath.value);
+        const url = assetManagerEngine.convertToAssetProtocol(
+          imageAsset.path,
+          basePath.value
+        );
         imageUrls.push(url);
       }
     }
@@ -498,7 +530,11 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <el-dropdown trigger="contextmenu" class="attachment-card-dropdown" placement="bottom-start">
+  <el-dropdown
+    trigger="contextmenu"
+    class="attachment-card-dropdown"
+    placement="bottom-start"
+  >
     <div
       class="attachment-card"
       :class="[
@@ -537,7 +573,11 @@ onUnmounted(() => {
                 </div>
               </div>
               <div v-else class="file-type-badge" :data-type="asset.type">
-                <FileIcon :file-name="asset.name" :file-type="asset.type" :size="20" />
+                <FileIcon
+                  :file-name="asset.name"
+                  :file-type="asset.type"
+                  :size="20"
+                />
               </div>
             </template>
 
@@ -550,7 +590,11 @@ onUnmounted(() => {
           <!-- 文件信息区域 -->
           <div class="bar-info-wrapper">
             <div class="bar-header">
-              <el-tooltip :content="asset.name" placement="top" :show-after="500">
+              <el-tooltip
+                :content="asset.name"
+                placement="top"
+                :show-after="500"
+              >
                 <div class="bar-file-name">{{ asset.name }}</div>
               </el-tooltip>
             </div>
@@ -572,11 +616,18 @@ onUnmounted(() => {
                   placement="top"
                   :show-after="500"
                 >
-                  <span class="bar-token-tag" :class="isHardTokenError ? 'error' : 'warning'">
+                  <span
+                    class="bar-token-tag"
+                    :class="isHardTokenError ? 'error' : 'warning'"
+                  >
                     {{ isHardTokenError ? "Token 错误" : "Token 未知" }}
                   </span>
                 </el-tooltip>
-                <span v-else class="bar-token-tag" :class="{ estimated: tokenEstimated }">
+                <span
+                  v-else
+                  class="bar-token-tag"
+                  :class="{ estimated: tokenEstimated }"
+                >
                   {{ tokenCount!.toLocaleString() }} tokens
                 </span>
               </template>
@@ -584,7 +635,11 @@ onUnmounted(() => {
               <!-- 转写状态 (长条模式) -->
               <template v-if="isTranscribable">
                 <span class="bar-meta-divider">·</span>
-                <el-tooltip :content="transcriptionStatusText" placement="top" :show-after="500">
+                <el-tooltip
+                  :content="transcriptionStatusText"
+                  placement="top"
+                  :show-after="500"
+                >
                   <div
                     class="transcription-status-icon bar-mode"
                     :class="[
@@ -605,9 +660,18 @@ onUnmounted(() => {
                       "
                       class="spinner-micro"
                     />
-                    <FileText v-else-if="transcriptionStatus === 'success'" :size="12" />
-                    <TriangleAlert v-else-if="transcriptionStatus === 'warning'" :size="12" />
-                    <AlertCircle v-else-if="transcriptionStatus === 'error'" :size="12" />
+                    <FileText
+                      v-else-if="transcriptionStatus === 'success'"
+                      :size="12"
+                    />
+                    <TriangleAlert
+                      v-else-if="transcriptionStatus === 'warning'"
+                      :size="12"
+                    />
+                    <AlertCircle
+                      v-else-if="transcriptionStatus === 'error'"
+                      :size="12"
+                    />
                     <!-- None 状态图标 -->
                     <FilePenLine v-else :size="12" class="icon-none" />
                   </div>
@@ -630,7 +694,9 @@ onUnmounted(() => {
           <template v-else-if="loadError || hasImportError">
             <div class="error-placeholder">
               <TriangleAlert class="icon" />
-              <span class="text">{{ hasImportError ? "导入失败" : "加载失败" }}</span>
+              <span class="text">{{
+                hasImportError ? "导入失败" : "加载失败"
+              }}</span>
             </div>
           </template>
           <template v-else>
@@ -642,7 +708,11 @@ onUnmounted(() => {
               :class="{ clickable: isImage }"
             />
             <div v-else class="file-icon">
-              <FileIcon :file-name="asset.name" :file-type="asset.type" :size="36" />
+              <FileIcon
+                :file-name="asset.name"
+                :file-type="asset.type"
+                :size="36"
+              />
             </div>
           </template>
 
@@ -656,13 +726,28 @@ onUnmounted(() => {
           </div>
 
           <!-- Token 信息标签（方形布局专用） -->
-          <div v-if="!isBarLayout && (tokenError || tokenCount !== undefined)" class="token-badge">
-            <el-tooltip v-if="tokenError" :content="tokenError" placement="top" :show-after="500">
-              <span class="token-tag" :class="isHardTokenError ? 'error' : 'warning'">
+          <div
+            v-if="!isBarLayout && (tokenError || tokenCount !== undefined)"
+            class="token-badge"
+          >
+            <el-tooltip
+              v-if="tokenError"
+              :content="tokenError"
+              placement="top"
+              :show-after="500"
+            >
+              <span
+                class="token-tag"
+                :class="isHardTokenError ? 'error' : 'warning'"
+              >
                 {{ isHardTokenError ? "Token 错误" : "?" }}
               </span>
             </el-tooltip>
-            <span v-else class="token-tag" :class="{ estimated: tokenEstimated }">
+            <span
+              v-else
+              class="token-tag"
+              :class="{ estimated: tokenEstimated }"
+            >
               {{ tokenCount!.toLocaleString() }}
             </span>
           </div>
@@ -671,7 +756,8 @@ onUnmounted(() => {
           <div
             v-if="
               !isBarLayout &&
-              (transcriptionStatus === 'processing' || transcriptionStatus === 'pending')
+              (transcriptionStatus === 'processing' ||
+                transcriptionStatus === 'pending')
             "
             class="transcription-progress-bar"
           >
@@ -683,12 +769,19 @@ onUnmounted(() => {
 
         <!-- 转写操作/状态按钮 (方形模式 - 右下角) -->
         <div v-if="!isBarLayout && isTranscribable">
-          <el-tooltip :content="transcriptionStatusText" placement="top" :show-after="500">
+          <el-tooltip
+            :content="transcriptionStatusText"
+            placement="top"
+            :show-after="500"
+          >
             <div
               class="transcription-action-btn"
               :class="[
                 transcriptionStatus,
-                { 'will-use': willUseTranscription, 'wont-use': !willUseTranscription },
+                {
+                  'will-use': willUseTranscription,
+                  'wont-use': !willUseTranscription,
+                },
               ]"
               @click="handleTranscriptionClick"
             >
@@ -702,20 +795,37 @@ onUnmounted(() => {
                 class="spinner-micro"
               />
               <!-- Success: 文档图标 -->
-              <FileText v-else-if="transcriptionStatus === 'success'" :size="14" />
+              <FileText
+                v-else-if="transcriptionStatus === 'success'"
+                :size="14"
+              />
               <!-- Warning: 警告图标 -->
-              <TriangleAlert v-else-if="transcriptionStatus === 'warning'" :size="14" />
+              <TriangleAlert
+                v-else-if="transcriptionStatus === 'warning'"
+                :size="14"
+              />
               <!-- Error: 警示图标 -->
-              <AlertCircle v-else-if="transcriptionStatus === 'error'" :size="14" />
+              <AlertCircle
+                v-else-if="transcriptionStatus === 'error'"
+                :size="14"
+              />
               <!-- None: 编辑/转写图标 -->
-              <FilePenLine v-else-if="transcriptionStatus === 'none'" :size="14" />
+              <FilePenLine
+                v-else-if="transcriptionStatus === 'none'"
+                :size="14"
+              />
             </div>
           </el-tooltip>
         </div>
       </template>
 
       <!-- 移除按钮 (统一使用外部悬浮按钮) -->
-      <el-tooltip v-if="removable" content="移除附件" placement="top" :show-after="500">
+      <el-tooltip
+        v-if="removable"
+        content="移除附件"
+        placement="top"
+        :show-after="500"
+      >
         <button class="remove-button" @click="handleRemove">
           <X :size="12" />
         </button>
@@ -741,18 +851,27 @@ onUnmounted(() => {
 
     <template #dropdown>
       <el-dropdown-menu>
-        <el-dropdown-item v-if="isDocument || isVideo || isAudio" @click="handlePreview">
+        <el-dropdown-item
+          v-if="isDocument || isVideo || isAudio"
+          @click="handlePreview"
+        >
           预览文件
         </el-dropdown-item>
 
         <template v-if="isTranscribable">
           <el-dropdown-item
-            v-if="transcriptionStatus === 'success' || transcriptionStatus === 'warning'"
+            v-if="
+              transcriptionStatus === 'success' ||
+              transcriptionStatus === 'warning'
+            "
             @click="handleTranscriptionClick"
           >
             查看/编辑转写
           </el-dropdown-item>
-          <el-dropdown-item v-if="transcriptionStatus === 'none'" @click="handleTranscriptionClick">
+          <el-dropdown-item
+            v-if="transcriptionStatus === 'none'"
+            @click="handleTranscriptionClick"
+          >
             开始转写
           </el-dropdown-item>
           <el-dropdown-item
@@ -766,7 +885,10 @@ onUnmounted(() => {
             重新转写
           </el-dropdown-item>
           <el-dropdown-item
-            v-if="transcriptionStatus === 'processing' || transcriptionStatus === 'pending'"
+            v-if="
+              transcriptionStatus === 'processing' ||
+              transcriptionStatus === 'pending'
+            "
             @click="handleCancelTranscription"
           >
             取消转写
@@ -774,9 +896,15 @@ onUnmounted(() => {
         </template>
 
         <el-dropdown-item divided @click="handleInsertPlaceholder">
-          {{ insertPlaceholderHandler ? "插入占位符到编辑框" : "插入占位符到输入框" }}
+          {{
+            insertPlaceholderHandler
+              ? "插入占位符到编辑框"
+              : "插入占位符到输入框"
+          }}
         </el-dropdown-item>
-        <el-dropdown-item @click="handleCopyPlaceholder"> 复制占位符 </el-dropdown-item>
+        <el-dropdown-item @click="handleCopyPlaceholder">
+          复制占位符
+        </el-dropdown-item>
 
         <el-dropdown-item divided class="remove-item" @click="handleRemove">
           移除附件

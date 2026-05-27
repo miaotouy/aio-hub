@@ -52,9 +52,9 @@
 手动保存指定窗口的配置。
 
 ```typescript
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from "@tauri-apps/api/core";
 
-await invoke('save_window_config', { label: 'main' });
+await invoke("save_window_config", { label: "main" });
 ```
 
 ### `apply_window_config`
@@ -62,11 +62,11 @@ await invoke('save_window_config', { label: 'main' });
 手动应用保存的配置到当前窗口。
 
 ```typescript
-import { invoke } from '@tauri-apps/api/core';
-import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
+import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 
 const window = getCurrentWebviewWindow();
-const applied = await invoke('apply_window_config', { window });
+const applied = await invoke("apply_window_config", { window });
 // 返回 true 表示应用了配置，false 表示没有保存的配置
 ```
 
@@ -75,7 +75,7 @@ const applied = await invoke('apply_window_config', { window });
 删除指定窗口的配置。
 
 ```typescript
-await invoke('delete_window_config', { label: 'detached-jsonFormatter' });
+await invoke("delete_window_config", { label: "detached-jsonFormatter" });
 ```
 
 ### `clear_all_window_configs`
@@ -83,7 +83,7 @@ await invoke('delete_window_config', { label: 'detached-jsonFormatter' });
 清除所有窗口配置。
 
 ```typescript
-await invoke('clear_all_window_configs');
+await invoke("clear_all_window_configs");
 ```
 
 ### `get_saved_window_labels`
@@ -91,8 +91,8 @@ await invoke('clear_all_window_configs');
 获取所有已保存配置的窗口标签列表。
 
 ```typescript
-const labels: string[] = await invoke('get_saved_window_labels');
-console.log('已保存配置的窗口:', labels);
+const labels: string[] = await invoke("get_saved_window_labels");
+console.log("已保存配置的窗口:", labels);
 ```
 
 ## 自动集成
@@ -113,9 +113,9 @@ console.log('已保存配置的窗口:', labels);
 如果需要在用户移动或调整窗口尺寸时实时保存配置（而不仅在关闭时），可以在前端添加以下代码：
 
 ```typescript
-import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
-import { invoke } from '@tauri-apps/api/core';
-import { debounce } from 'lodash-es';
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { invoke } from "@tauri-apps/api/core";
+import { debounce } from "lodash-es";
 
 const appWindow = getCurrentWebviewWindow();
 const windowLabel = appWindow.label;
@@ -123,10 +123,10 @@ const windowLabel = appWindow.label;
 // 使用防抖函数，避免频繁保存
 const debouncedSave = debounce(async () => {
   try {
-    await invoke('save_window_config', { label: windowLabel });
+    await invoke("save_window_config", { label: windowLabel });
     console.log(`[WINDOW_CONFIG] 已保存窗口配置: ${windowLabel}`);
   } catch (error) {
-    console.error('[WINDOW_CONFIG] 保存配置失败:', error);
+    console.error("[WINDOW_CONFIG] 保存配置失败:", error);
   }
 }, 500); // 500ms 防抖
 
@@ -135,42 +135,44 @@ onMounted(() => {
   const unlistenMoved = appWindow.onMoved(() => {
     debouncedSave();
   });
-  
+
   const unlistenResized = appWindow.onResized(() => {
     debouncedSave();
   });
 
   // 清理监听器
   onUnmounted(() => {
-    unlistenMoved.then(fn => fn());
-    unlistenResized.then(fn => fn());
+    unlistenMoved.then((fn) => fn());
+    unlistenResized.then((fn) => fn());
   });
 });
 ```
 
 **建议的使用位置**：
+
 - `src/components/TitleBar.vue`（如果所有窗口都有标题栏）
 - 或在各个窗口组件中单独添加
 
 ## 与旧插件的对比
 
-| 特性 | 旧插件 (tauri-plugin-window-state) | 新系统 (window_config) |
-|------|-----------------------------------|----------------------|
-| 自动保存 | ✅ 全局自动 | ✅ 关闭时自动 + 可选实时 |
-| 自动恢复 | ✅ 全局自动 | ✅ 创建时自动 |
-| 可控性 | ❌ 黑箱，无法干预 | ✅ 完全透明，可手动控制 |
-| 意外恢复 | ❌ 存在意外恢复问题 | ✅ 无意外行为 |
-| 排除窗口 | ❌ 不支持 | ✅ 可通过代码逻辑控制 |
-| 调试友好 | ❌ 难以追踪 | ✅ 所有操作都有日志 |
+| 特性     | 旧插件 (tauri-plugin-window-state) | 新系统 (window_config)   |
+| -------- | ---------------------------------- | ------------------------ |
+| 自动保存 | ✅ 全局自动                        | ✅ 关闭时自动 + 可选实时 |
+| 自动恢复 | ✅ 全局自动                        | ✅ 创建时自动            |
+| 可控性   | ❌ 黑箱，无法干预                  | ✅ 完全透明，可手动控制  |
+| 意外恢复 | ❌ 存在意外恢复问题                | ✅ 无意外行为            |
+| 排除窗口 | ❌ 不支持                          | ✅ 可通过代码逻辑控制    |
+| 调试友好 | ❌ 难以追踪                        | ✅ 所有操作都有日志      |
 
 ## 故障排除
 
 ### 配置未生效
 
 1. 检查配置文件是否存在：
+
    ```typescript
-   const labels = await invoke('get_saved_window_labels');
-   console.log('已保存的窗口:', labels);
+   const labels = await invoke("get_saved_window_labels");
+   console.log("已保存的窗口:", labels);
    ```
 
 2. 检查配置文件内容：打开 `AppData/com.mty.aiohub/window-configs.json`
@@ -183,8 +185,9 @@ onMounted(() => {
 
 1. **配置文件被污染**：在窗口最小化或隐藏时错误地保存了配置
    - **解决方法**：清除所有配置并重新保存
+
    ```typescript
-   await invoke('clear_all_window_configs');
+   await invoke("clear_all_window_configs");
    ```
 
 2. **多显示器配置变化**：拔掉外接显示器后窗口位置失效
@@ -196,15 +199,18 @@ onMounted(() => {
 ### 重置所有配置
 
 方法一：使用托盘菜单
+
 1. 右键点击系统托盘中的 AIO Hub 图标
 2. 选择"清除窗口配置"
 
 方法二：使用命令
+
 ```typescript
-await invoke('clear_all_window_configs');
+await invoke("clear_all_window_configs");
 ```
 
 方法三：手动删除配置文件
+
 - 路径：`%AppData%/com.mty.aiohub/window-configs.json`
 
 ## 迁移指南

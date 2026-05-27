@@ -7,7 +7,10 @@
 import { defineAsyncComponent, type Component } from "vue";
 
 // --- 1. 自动扫描通用组件 (src/components/common/*.vue) ---
-const commonModules = import.meta.glob<Record<string, any>>("../components/common/*.vue", { eager: true });
+const commonModules = import.meta.glob<Record<string, any>>(
+  "../components/common/*.vue",
+  { eager: true }
+);
 const commonComponents: Record<string, Component> = {};
 
 for (const path in commonModules) {
@@ -18,7 +21,10 @@ for (const path in commonModules) {
 }
 
 // --- 2. 自动扫描工具组件 (通过 registry.ts 注册的组件) ---
-const toolRegistryModules = import.meta.glob<Record<string, any>>("../tools/**/*.registry.ts", { eager: true });
+const toolRegistryModules = import.meta.glob<Record<string, any>>(
+  "../tools/**/*.registry.ts",
+  { eager: true }
+);
 const toolComponents: Record<string, Component> = {};
 
 for (const path in toolRegistryModules) {
@@ -34,14 +40,18 @@ for (const path in toolRegistryModules) {
       .join("");
 
     toolComponents[componentName] =
-      typeof componentLoader === "function" ? defineAsyncComponent(componentLoader) : componentLoader;
+      typeof componentLoader === "function"
+        ? defineAsyncComponent(componentLoader)
+        : componentLoader;
   }
 }
 
 // --- 3. 手动补充或重写 ---
 const manualComponents: Record<string, Component> = {
   // 修正 RichTextRenderer 的指向，registry 中注册的是测试器，插件需要的是渲染器本体
-  RichTextRenderer: defineAsyncComponent(() => import("../tools/rich-text-renderer/RichTextRenderer.vue")),
+  RichTextRenderer: defineAsyncComponent(
+    () => import("../tools/rich-text-renderer/RichTextRenderer.vue")
+  ),
 };
 
 // 汇总所有组件 Map，供插件 SDK 动态查询

@@ -18,7 +18,10 @@ onMounted(async () => {
 const count = computed(() => worldbookStore.worldbooks.length);
 const recentBooks = computed(() =>
   [...worldbookStore.worldbooks]
-    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+    .sort(
+      (a, b) =>
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    )
     .slice(0, 3)
 );
 
@@ -43,8 +46,15 @@ const handleQuickImport = async () => {
 <template>
   <div class="worldbook-overview">
     <div class="actions-section">
-      <el-button :icon="Plus" plain size="small" @click="handleQuickImport"> 快速导入 </el-button>
-      <el-button type="primary" :icon="Settings2" size="small" @click="emit('manage')">
+      <el-button :icon="Plus" plain size="small" @click="handleQuickImport">
+        快速导入
+      </el-button>
+      <el-button
+        type="primary"
+        :icon="Settings2"
+        size="small"
+        @click="emit('manage')"
+      >
         管理库
       </el-button>
     </div>

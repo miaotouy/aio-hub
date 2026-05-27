@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import { useResizeObserver } from "@vueuse/core";
-import type { ChatMessageNode, ChatSessionIndex, ChatSessionDetail } from "../../types";
+import type {
+  ChatMessageNode,
+  ChatSessionIndex,
+  ChatSessionDetail,
+} from "../../types";
 import type { Asset } from "@/types/asset-management";
 import MessageHeader from "./MessageHeader.vue";
 import MessageContent from "./MessageContent.vue";
@@ -38,11 +42,16 @@ interface Emits {
   (e: "continue", options?: { modelId?: string; profileId?: string }): void;
   (e: "create-branch"): void;
   (e: "analyze-context"): void;
-  (e: "reparse-tools", options?: { modelId?: string; profileId?: string }): void;
+  (
+    e: "reparse-tools",
+    options?: { modelId?: string; profileId?: string }
+  ): void;
   (e: "save-to-branch", newContent: string, attachments?: Asset[]): void;
   (
     e: "update-translation",
-    translation: NonNullable<NonNullable<ChatMessageNode["metadata"]>["translation"]> | undefined,
+    translation:
+      | NonNullable<NonNullable<ChatMessageNode["metadata"]>["translation"]>
+      | undefined
   ): void;
 }
 
@@ -59,8 +68,12 @@ const translationContent = ref("");
 const isEditing = ref(false);
 
 // 计算属性
-const isDisabled = computed(() => props.message.isEnabled === false || props.isCompressed);
-const isPresetDisplay = computed(() => props.message.metadata?.isPresetDisplay === true);
+const isDisabled = computed(
+  () => props.message.isEnabled === false || props.isCompressed
+);
+const isPresetDisplay = computed(
+  () => props.message.metadata?.isPresetDisplay === true
+);
 
 // ===== 背景分块渲染逻辑 (解决超长消息 backdrop-filter 失效问题) =====
 const messageRef = ref<HTMLElement | null>(null);
@@ -97,9 +110,12 @@ const onSaveToBranch = (newContent: string, attachments?: Asset[]) => {
 };
 
 // 事件处理函数（避免模板中的隐式 any）
-const onRegenerate = (options?: { modelId?: string; profileId?: string }) => emit("regenerate", options);
-const onContinue = (options?: { modelId?: string; profileId?: string }) => emit("continue", options);
-const onSwitchSibling = (direction: "prev" | "next") => emit("switch-sibling", direction);
+const onRegenerate = (options?: { modelId?: string; profileId?: string }) =>
+  emit("regenerate", options);
+const onContinue = (options?: { modelId?: string; profileId?: string }) =>
+  emit("continue", options);
+const onSwitchSibling = (direction: "prev" | "next") =>
+  emit("switch-sibling", direction);
 const onSwitchBranch = (nodeId: string) => emit("switch-branch", nodeId);
 
 // 取消编辑
@@ -131,7 +147,8 @@ const handleTranslate = async (targetLang?: string) => {
   }
 
   // 确定目标语言
-  const lang = targetLang || settings.value.translation.messageTargetLang || "Chinese";
+  const lang =
+    targetLang || settings.value.translation.messageTargetLang || "Chinese";
 
   isTranslating.value = true;
   translationContent.value = "";
@@ -143,7 +160,7 @@ const handleTranslate = async (targetLang?: string) => {
         translationContent.value += chunk;
       },
       undefined,
-      lang, // 传递目标语言
+      lang // 传递目标语言
     );
 
     // 翻译完成，发射事件更新消息节点

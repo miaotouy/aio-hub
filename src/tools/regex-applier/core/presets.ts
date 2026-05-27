@@ -3,11 +3,11 @@
  * 负责预设的持久化、加载、保存和管理
  */
 
-import type { RegexPreset, PresetsConfig, RegexRule } from '../types';
-import { generateId } from './engine';
-import { createConfigManager, type ConfigManager } from '@/utils/configManager';
+import type { RegexPreset, PresetsConfig, RegexRule } from "../types";
+import { generateId } from "./engine";
+import { createConfigManager, type ConfigManager } from "@/utils/configManager";
 
-const CONFIG_VERSION = '1.0.0';
+const CONFIG_VERSION = "1.0.0";
 
 /**
  * 创建默认预设
@@ -15,19 +15,19 @@ const CONFIG_VERSION = '1.0.0';
 function createDefaultPreset(): RegexPreset {
   const now = Date.now();
   return {
-    id: generateId('preset'),
-    name: '默认预设',
-    description: '空白预设，可以开始添加你的规则',
+    id: generateId("preset"),
+    name: "默认预设",
+    description: "空白预设，可以开始添加你的规则",
     rules: [
       {
-        id: generateId('rule'),
+        id: generateId("rule"),
         enabled: true,
-        regex: '',
-        replacement: ''
-      }
+        regex: "",
+        replacement: "",
+      },
     ],
     createdAt: now,
-    updatedAt: now
+    updatedAt: now,
   };
 }
 
@@ -39,7 +39,7 @@ function createDefaultConfig(): PresetsConfig {
   return {
     presets: [defaultPreset],
     activePresetId: defaultPreset.id,
-    version: CONFIG_VERSION
+    version: CONFIG_VERSION,
   };
 }
 
@@ -47,37 +47,43 @@ function createDefaultConfig(): PresetsConfig {
  * 自定义配置合并逻辑
  * 确保预设数据结构完整
  */
-function mergePresetsConfig(defaultConfig: PresetsConfig, loadedConfig: Partial<PresetsConfig>): PresetsConfig {
+function mergePresetsConfig(
+  defaultConfig: PresetsConfig,
+  loadedConfig: Partial<PresetsConfig>
+): PresetsConfig {
   // 确保预设数组存在且有效
-  const presets = loadedConfig.presets && Array.isArray(loadedConfig.presets)
-    ? loadedConfig.presets.map(preset => ({
-      ...preset,
-      id: preset.id || generateId('preset'),
-      rules: preset.rules || []
-    }))
-    : defaultConfig.presets;
+  const presets =
+    loadedConfig.presets && Array.isArray(loadedConfig.presets)
+      ? loadedConfig.presets.map((preset) => ({
+          ...preset,
+          id: preset.id || generateId("preset"),
+          rules: preset.rules || [],
+        }))
+      : defaultConfig.presets;
 
   // 确保有激活的预设
-  const activePresetId = loadedConfig.activePresetId ||
+  const activePresetId =
+    loadedConfig.activePresetId ||
     (presets.length > 0 ? presets[0].id : defaultConfig.activePresetId);
 
   return {
     presets,
     activePresetId,
-    version: CONFIG_VERSION
+    version: CONFIG_VERSION,
   };
 }
 
 /**
  * 创建配置管理器实例
  */
-export const presetsConfigManager: ConfigManager<PresetsConfig> = createConfigManager({
-  moduleName: 'regex_applier',
-  fileName: 'presets.json',
-  version: CONFIG_VERSION,
-  createDefault: createDefaultConfig,
-  mergeConfig: mergePresetsConfig
-});
+export const presetsConfigManager: ConfigManager<PresetsConfig> =
+  createConfigManager({
+    moduleName: "regex_applier",
+    fileName: "presets.json",
+    version: CONFIG_VERSION,
+    createDefault: createDefaultConfig,
+    mergeConfig: mergePresetsConfig,
+  });
 
 /**
  * 加载所有预设
@@ -104,19 +110,19 @@ export async function savePresets(config: PresetsConfig): Promise<void> {
 export function createPreset(name: string, description?: string): RegexPreset {
   const now = Date.now();
   return {
-    id: generateId('preset'),
+    id: generateId("preset"),
     name,
     description,
     rules: [
       {
-        id: generateId('rule'),
+        id: generateId("rule"),
         enabled: true,
-        regex: '',
-        replacement: ''
-      }
+        regex: "",
+        replacement: "",
+      },
     ],
     createdAt: now,
-    updatedAt: now
+    updatedAt: now,
   };
 }
 
@@ -128,13 +134,18 @@ export function createPreset(name: string, description?: string): RegexPreset {
  * @param name 规则名称
  * @returns 新创建的规则
  */
-export function createRule(regex: string = '', replacement: string = '', enabled: boolean = true, name?: string): RegexRule {
+export function createRule(
+  regex: string = "",
+  replacement: string = "",
+  enabled: boolean = true,
+  name?: string
+): RegexRule {
   return {
-    id: generateId('rule'),
+    id: generateId("rule"),
     enabled,
     regex,
     replacement,
-    name
+    name,
   };
 }
 
@@ -144,18 +155,21 @@ export function createRule(regex: string = '', replacement: string = '', enabled
  * @param newName 新预设名称
  * @returns 复制后的新预设
  */
-export function duplicatePreset(preset: RegexPreset, newName?: string): RegexPreset {
+export function duplicatePreset(
+  preset: RegexPreset,
+  newName?: string
+): RegexPreset {
   const now = Date.now();
   return {
     ...preset,
-    id: generateId('preset'),
+    id: generateId("preset"),
     name: newName || `${preset.name} (副本)`,
-    rules: preset.rules.map(rule => ({
+    rules: preset.rules.map((rule) => ({
       ...rule,
-      id: generateId('rule')
+      id: generateId("rule"),
     })),
     createdAt: now,
-    updatedAt: now
+    updatedAt: now,
   };
 }
 

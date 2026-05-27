@@ -5,7 +5,13 @@ import { LogicalPosition, LogicalSize } from "@tauri-apps/api/dpi";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import type { ParsedDanmaku, AssScriptInfo, DanmakuConfig, ExternalPlayerConfig, WindowRect } from "../types";
+import type {
+  ParsedDanmaku,
+  AssScriptInfo,
+  DanmakuConfig,
+  ExternalPlayerConfig,
+  WindowRect,
+} from "../types";
 
 const logger = createModuleLogger("danmaku-player/danmakuOverlay");
 const errorHandler = createModuleErrorHandler("danmaku-player/danmakuOverlay");
@@ -41,7 +47,10 @@ export function useDanmakuOverlay() {
     return await WebviewWindow.getByLabel(label);
   }
 
-  function hasRectChanged(current: WindowRect, previous: WindowRect | null): boolean {
+  function hasRectChanged(
+    current: WindowRect,
+    previous: WindowRect | null
+  ): boolean {
     if (!previous) {
       return true;
     }
@@ -56,18 +65,28 @@ export function useDanmakuOverlay() {
     );
   }
 
-  function toLogicalOverlayRect(rect: WindowRect, config: ExternalPlayerConfig): LogicalOverlayRect {
+  function toLogicalOverlayRect(
+    rect: WindowRect,
+    config: ExternalPlayerConfig
+  ): LogicalOverlayRect {
     const scaleFactor = rect.scaleFactor || 1;
     const logicalX = rect.x / scaleFactor;
     const logicalY = rect.y / scaleFactor;
     const logicalW = rect.width / scaleFactor;
     const logicalH = rect.height / scaleFactor;
 
-    const cropTop = rect.isFullscreen ? config.fullscreenOffsetTop : config.offsetTop;
-    const cropBottom = rect.isFullscreen ? config.fullscreenOffsetBottom : config.offsetBottom;
+    const cropTop = rect.isFullscreen
+      ? config.fullscreenOffsetTop
+      : config.offsetTop;
+    const cropBottom = rect.isFullscreen
+      ? config.fullscreenOffsetBottom
+      : config.offsetBottom;
 
     const finalY = logicalY + cropTop / scaleFactor;
-    const finalH = Math.max(MIN_OVERLAY_SIZE, logicalH - (cropTop + cropBottom) / scaleFactor);
+    const finalH = Math.max(
+      MIN_OVERLAY_SIZE,
+      logicalH - (cropTop + cropBottom) / scaleFactor
+    );
 
     return {
       x: logicalX,
@@ -77,7 +96,11 @@ export function useDanmakuOverlay() {
     };
   }
 
-  async function refreshZOrder(isFullscreen: boolean, enableBoost: boolean, targetHwnd: number): Promise<void> {
+  async function refreshZOrder(
+    isFullscreen: boolean,
+    enableBoost: boolean,
+    targetHwnd: number
+  ): Promise<void> {
     const shouldTopmost = isFullscreen && enableBoost;
     try {
       await invoke("set_danmaku_overlay_zorder", {
@@ -106,7 +129,9 @@ export function useDanmakuOverlay() {
 
   async function createOverlay(targetHwnd: number): Promise<string | null> {
     try {
-      const label = await invoke<string>("create_danmaku_overlay_window", { targetHwnd });
+      const label = await invoke<string>("create_danmaku_overlay_window", {
+        targetHwnd,
+      });
       overlayLabel.value = label;
       overlayActive.value = true;
 
@@ -137,7 +162,9 @@ export function useDanmakuOverlay() {
       await invoke("close_danmaku_overlay_window");
       logger.info("弹幕覆盖窗口已关闭", { label: overlayLabel.value });
     } catch (error) {
-      errorHandler.error(error, "关闭弹幕覆盖窗口失败", { label: overlayLabel.value });
+      errorHandler.error(error, "关闭弹幕覆盖窗口失败", {
+        label: overlayLabel.value,
+      });
     } finally {
       overlayLabel.value = null;
       overlayActive.value = false;
@@ -150,10 +177,15 @@ export function useDanmakuOverlay() {
     danmakus: ParsedDanmaku[],
     scriptInfo: AssScriptInfo,
     config: DanmakuConfig,
-    port: number,
+    port: number
   ): Promise<void> {
     try {
-      await tauriEmit("danmaku-overlay:init", { danmakus, scriptInfo, config, port });
+      await tauriEmit("danmaku-overlay:init", {
+        danmakus,
+        scriptInfo,
+        config,
+        port,
+      });
       logger.info("弹幕覆盖窗口初始化事件已发送", {
         danmakuCount: danmakus.length,
         port,
@@ -174,10 +206,18 @@ export function useDanmakuOverlay() {
     }
   }
 
-  async function syncDanmakus(danmakus: ParsedDanmaku[], scriptInfo: AssScriptInfo): Promise<void> {
+  async function syncDanmakus(
+    danmakus: ParsedDanmaku[],
+    scriptInfo: AssScriptInfo
+  ): Promise<void> {
     try {
-      await tauriEmit("danmaku-overlay:danmaku-update", { danmakus, scriptInfo });
-      logger.debug("弹幕覆盖窗口数据同步事件已发送", { danmakuCount: danmakus.length });
+      await tauriEmit("danmaku-overlay:danmaku-update", {
+        danmakus,
+        scriptInfo,
+      });
+      logger.debug("弹幕覆盖窗口数据同步事件已发送", {
+        danmakuCount: danmakus.length,
+      });
     } catch (error) {
       errorHandler.error(error, "同步弹幕覆盖窗口数据失败", {
         danmakuCount: danmakus.length,
@@ -201,7 +241,12 @@ export function useDanmakuOverlay() {
   }
 
   async function runPositionSyncOnce(): Promise<void> {
-    if (!positionSyncRunning || positionSyncBusy || targetHwndForSync === null || !playerConfigForSync) {
+    if (
+      !positionSyncRunning ||
+      positionSyncBusy ||
+      targetHwndForSync === null ||
+      !playerConfigForSync
+    ) {
       if (positionSyncRunning) {
         scheduleNextPositionSync(DEFAULT_SYNC_INTERVAL);
       }
@@ -211,27 +256,41 @@ export function useDanmakuOverlay() {
     positionSyncBusy = true;
 
     try {
-      const valid = await invoke<boolean>("is_window_valid", { hwnd: targetHwndForSync });
+      const valid = await invoke<boolean>("is_window_valid", {
+        hwnd: targetHwndForSync,
+      });
       if (!valid) {
-        logger.warn("目标播放器窗口已失效，自动关闭弹幕覆盖窗口", { hwnd: targetHwndForSync });
+        logger.warn("目标播放器窗口已失效，自动关闭弹幕覆盖窗口", {
+          hwnd: targetHwndForSync,
+        });
         await closeOverlay();
         return;
       }
 
-      const physicalRect = await invoke<WindowRect>("get_player_window_rect", { hwnd: targetHwndForSync });
+      const physicalRect = await invoke<WindowRect>("get_player_window_rect", {
+        hwnd: targetHwndForSync,
+      });
       const changed = hasRectChanged(physicalRect, lastPhysicalRect);
 
       if (changed) {
         activeUntil = Date.now() + ACTIVE_SYNC_DURATION;
-        const logicalRect = toLogicalOverlayRect(physicalRect, playerConfigForSync);
+        const logicalRect = toLogicalOverlayRect(
+          physicalRect,
+          playerConfigForSync
+        );
         await applyOverlayRect(logicalRect);
         lastPhysicalRect = physicalRect;
       }
 
       // 无论位置是否变化，都刷新 Z-order，确保播放器被激活时弹幕层能及时跟进
-      await refreshZOrder(physicalRect.isFullscreen, playerConfigForSync.enableFullscreenBoost, targetHwndForSync);
+      await refreshZOrder(
+        physicalRect.isFullscreen,
+        playerConfigForSync.enableFullscreenBoost,
+        targetHwndForSync
+      );
 
-      const nextDelay = Date.now() < activeUntil ? ACTIVE_SYNC_INTERVAL : DEFAULT_SYNC_INTERVAL;
+      const nextDelay =
+        Date.now() < activeUntil ? ACTIVE_SYNC_INTERVAL : DEFAULT_SYNC_INTERVAL;
       scheduleNextPositionSync(nextDelay);
     } catch (error) {
       errorHandler.handle(error, {
@@ -245,7 +304,10 @@ export function useDanmakuOverlay() {
     }
   }
 
-  function startPositionSync(targetHwnd: number, playerConfig: ExternalPlayerConfig): void {
+  function startPositionSync(
+    targetHwnd: number,
+    playerConfig: ExternalPlayerConfig
+  ): void {
     stopPositionSync();
 
     targetHwndForSync = targetHwnd;

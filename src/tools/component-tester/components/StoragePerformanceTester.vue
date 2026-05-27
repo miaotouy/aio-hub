@@ -25,7 +25,12 @@
           />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="runAllTests" :loading="testing" size="small">
+          <el-button
+            type="primary"
+            @click="runAllTests"
+            :loading="testing"
+            size="small"
+          >
             <template #icon><Play :size="14" /></template>
             运行全部方案
           </el-button>
@@ -38,8 +43,15 @@
     </div>
     <div class="main-content">
       <div class="comparison-card" v-if="comparisonData.length > 0">
-        <div class="card-header"><BarChart3 :size="16" /><span>方案对比总览</span></div>
-        <el-table :data="comparisonData" style="width: 100%" class="custom-table" row-key="tag">
+        <div class="card-header">
+          <BarChart3 :size="16" /><span>方案对比总览</span>
+        </div>
+        <el-table
+          :data="comparisonData"
+          style="width: 100%"
+          class="custom-table"
+          row-key="tag"
+        >
           <el-table-column type="expand">
             <template #default="{ row }">
               <div class="expand-steps">
@@ -47,7 +59,9 @@
                 <div class="step-item" v-for="(s, i) in row.steps" :key="i">
                   <span class="step-index">{{ i + 1 }}</span>
                   <span class="step-name">{{ s.step }}</span>
-                  <span class="duration-tag" :class="getDurationClass(s.duration)"
+                  <span
+                    class="duration-tag"
+                    :class="getDurationClass(s.duration)"
                     >{{ s.duration.toFixed(2) }} ms</span
                   >
                   <span class="step-details">{{ s.details }}</span>
@@ -58,9 +72,11 @@
           <el-table-column prop="scheme" label="方案" width="280">
             <template #default="{ row }">
               <div class="scheme-cell">
-                <span class="scheme-tag" :style="{ backgroundColor: row.color }">{{
-                  row.tag
-                }}</span>
+                <span
+                  class="scheme-tag"
+                  :style="{ backgroundColor: row.color }"
+                  >{{ row.tag }}</span
+                >
                 <span>{{ row.scheme }}</span>
               </div>
             </template>
@@ -72,30 +88,38 @@
           </el-table-column>
           <el-table-column label="写入 (ms)" width="120">
             <template #default="{ row }"
-              ><span class="duration-tag" :class="getDurationClass(row.writeTime)">{{
-                row.writeTime.toFixed(1)
-              }}</span></template
+              ><span
+                class="duration-tag"
+                :class="getDurationClass(row.writeTime)"
+                >{{ row.writeTime.toFixed(1) }}</span
+              ></template
             >
           </el-table-column>
           <el-table-column label="读取 (ms)" width="120">
             <template #default="{ row }"
-              ><span class="duration-tag" :class="getDurationClass(row.readTime)">{{
-                row.readTime.toFixed(1)
-              }}</span></template
+              ><span
+                class="duration-tag"
+                :class="getDurationClass(row.readTime)"
+                >{{ row.readTime.toFixed(1) }}</span
+              ></template
             >
           </el-table-column>
           <el-table-column label="序列化 (ms)" width="120">
             <template #default="{ row }"
-              ><span class="duration-tag" :class="getDurationClass(row.serializeTime)">{{
-                row.serializeTime.toFixed(1)
-              }}</span></template
+              ><span
+                class="duration-tag"
+                :class="getDurationClass(row.serializeTime)"
+                >{{ row.serializeTime.toFixed(1) }}</span
+              ></template
             >
           </el-table-column>
           <el-table-column label="反序列化 (ms)" width="120">
             <template #default="{ row }"
-              ><span class="duration-tag" :class="getDurationClass(row.deserializeTime)">{{
-                row.deserializeTime.toFixed(1)
-              }}</span></template
+              ><span
+                class="duration-tag"
+                :class="getDurationClass(row.deserializeTime)"
+                >{{ row.deserializeTime.toFixed(1) }}</span
+              ></template
             >
           </el-table-column>
           <el-table-column label="总耗时 (ms)" width="120">
@@ -110,7 +134,9 @@
           </el-table-column>
           <el-table-column label="相对基准" width="110">
             <template #default="{ row }">
-              <span v-if="row.relativePercent === 100" class="baseline-tag">基准</span>
+              <span v-if="row.relativePercent === 100" class="baseline-tag"
+                >基准</span
+              >
               <span
                 v-else
                 class="relative-tag"
@@ -128,15 +154,29 @@
           <Terminal :size="16" />
           <span>实时执行日志</span>
           <div class="log-actions">
-            <el-button link size="small" @click.stop="logs = []">清空</el-button>
-            <el-button link size="small" @click.stop="logCollapsed = !logCollapsed">
-              <component :is="logCollapsed ? ChevronDown : ChevronUp" :size="14" />
+            <el-button link size="small" @click.stop="logs = []"
+              >清空</el-button
+            >
+            <el-button
+              link
+              size="small"
+              @click.stop="logCollapsed = !logCollapsed"
+            >
+              <component
+                :is="logCollapsed ? ChevronDown : ChevronUp"
+                :size="14"
+              />
             </el-button>
           </div>
         </div>
         <div class="log-area" ref="logContainer" v-show="!logCollapsed">
           <div v-if="logs.length === 0" class="empty-log">等待测试开始...</div>
-          <div v-for="(log, i) in logs" :key="i" class="log-entry" :class="log.type">
+          <div
+            v-for="(log, i) in logs"
+            :key="i"
+            class="log-entry"
+            :class="log.type"
+          >
             <span class="log-time">{{ log.time }}</span>
             <span class="log-type-tag">[{{ log.type.toUpperCase() }}]</span>
             <span class="log-msg">{{ log.message }}</span>
@@ -212,10 +252,14 @@ const estimatedSize = computed(() =>
   ((config.messageCount * config.contentSizeKB) / 1024).toFixed(2)
 );
 
-function addLog(message: string, type: "info" | "warn" | "error" | "success" = "info") {
+function addLog(
+  message: string,
+  type: "info" | "warn" | "error" | "success" = "info"
+) {
   logs.value.push({ time: new Date().toLocaleTimeString(), message, type });
   nextTick(() => {
-    if (logContainer.value) logContainer.value.scrollTop = logContainer.value.scrollHeight;
+    if (logContainer.value)
+      logContainer.value.scrollTop = logContainer.value.scrollHeight;
   });
 }
 function getDurationClass(d: number) {
@@ -242,7 +286,11 @@ async function runSchemeA(
   const t0 = performance.now();
   const js = JSON.stringify(session, null, 2);
   const t1 = performance.now();
-  r.steps.push({ step: "JSON.stringify (美化)", duration: t1 - t0, details: `长度: ${js.length}` });
+  r.steps.push({
+    step: "JSON.stringify (美化)",
+    duration: t1 - t0,
+    details: `长度: ${js.length}`,
+  });
   const enc = new TextEncoder();
   const buf = enc.encode(js);
   const t2 = performance.now();
@@ -257,7 +305,11 @@ async function runSchemeA(
   const t4 = performance.now();
   const txt = await invoke<string>("read_text_file_force", { path: p });
   const t5 = performance.now();
-  r.steps.push({ step: "read_text_file_force", duration: t5 - t4, details: `${txt.length} chars` });
+  r.steps.push({
+    step: "read_text_file_force",
+    duration: t5 - t4,
+    details: `${txt.length} chars`,
+  });
   const t6 = performance.now();
   const pd = JSON.parse(txt) as Record<string, unknown>;
   const t7 = performance.now();
@@ -297,7 +349,11 @@ async function runSchemeB(
   const t0 = performance.now();
   const js = JSON.stringify(session);
   const t1 = performance.now();
-  r.steps.push({ step: "JSON.stringify (紧凑)", duration: t1 - t0, details: `长度: ${js.length}` });
+  r.steps.push({
+    step: "JSON.stringify (紧凑)",
+    duration: t1 - t0,
+    details: `长度: ${js.length}`,
+  });
   const t2 = performance.now();
   await invoke("write_text_file_force", { path: p, content: js });
   const t3 = performance.now();
@@ -306,11 +362,17 @@ async function runSchemeB(
     duration: t3 - t2,
     details: `${js.length} chars (零膨胀)`,
   });
-  addLog(`[B] 写入 ${(new TextEncoder().encode(js).length / 1048576).toFixed(2)} MB`);
+  addLog(
+    `[B] 写入 ${(new TextEncoder().encode(js).length / 1048576).toFixed(2)} MB`
+  );
   const t4 = performance.now();
   const txt = await invoke<string>("read_text_file_force", { path: p });
   const t5 = performance.now();
-  r.steps.push({ step: "read_text_file_force", duration: t5 - t4, details: `${txt.length} chars` });
+  r.steps.push({
+    step: "read_text_file_force",
+    duration: t5 - t4,
+    details: `${txt.length} chars`,
+  });
   const t6 = performance.now();
   const pd = JSON.parse(txt) as Record<string, unknown>;
   const t7 = performance.now();
@@ -350,13 +412,21 @@ async function runSchemeC(
   const t0 = performance.now();
   const js = JSON.stringify(session);
   const t1 = performance.now();
-  r.steps.push({ step: "JSON.stringify (紧凑)", duration: t1 - t0, details: `长度: ${js.length}` });
+  r.steps.push({
+    step: "JSON.stringify (紧凑)",
+    duration: t1 - t0,
+    details: `长度: ${js.length}`,
+  });
   const enc = new TextEncoder();
   const buf = enc.encode(js);
   const t2 = performance.now();
   await invoke("write_file_force", { path: p, content: Array.from(buf) });
   const t3 = performance.now();
-  r.steps.push({ step: "write_file_force", duration: t3 - t2, details: `${buf.length} bytes` });
+  r.steps.push({
+    step: "write_file_force",
+    duration: t3 - t2,
+    details: `${buf.length} bytes`,
+  });
   addLog(`[C] 写入 ${(buf.length / 1048576).toFixed(2)} MB`);
   // 二进制读取: read_file_binary 返回 Vec<u8> → Tauri IPC 序列化为 number[]
   const t4 = performance.now();
@@ -414,7 +484,11 @@ async function runSchemeD(
   const t0 = performance.now();
   const js = JSON.stringify(session);
   const t1 = performance.now();
-  r.steps.push({ step: "JSON.stringify (紧凑)", duration: t1 - t0, details: `长度: ${js.length}` });
+  r.steps.push({
+    step: "JSON.stringify (紧凑)",
+    duration: t1 - t0,
+    details: `长度: ${js.length}`,
+  });
   // 文本直传写入: 直接传 String，零膨胀
   const t2 = performance.now();
   await invoke("write_text_file_force", { path: p, content: js });
@@ -428,7 +502,9 @@ async function runSchemeD(
   addLog(`[D] 写入 ${(fileSizeBytes / 1048576).toFixed(2)} MB`);
   // 真二进制读取: read_file_binary_raw 返回 tauri::ipc::Response → 前端收到 ArrayBuffer
   const t4 = performance.now();
-  const rawBuffer = await invoke<ArrayBuffer>("read_file_binary_raw", { path: p });
+  const rawBuffer = await invoke<ArrayBuffer>("read_file_binary_raw", {
+    path: p,
+  });
   const t5 = performance.now();
   r.steps.push({
     step: "read_file_binary_raw (IPC Response)",
@@ -489,7 +565,11 @@ async function runSchemeE(
   newSession.nodes[targetId].content += " (Patched!)";
   newSession.updatedAt = new Date().toISOString();
   const t1 = performance.now();
-  r.steps.push({ step: "模拟业务修改", duration: t1 - t0, details: `修改节点: ${targetId}` });
+  r.steps.push({
+    step: "模拟业务修改",
+    duration: t1 - t0,
+    details: `修改节点: ${targetId}`,
+  });
 
   // 2. 生成 Patch
   const t2 = performance.now();
@@ -516,13 +596,20 @@ async function runSchemeE(
 
   // 4. 读取并应用 Patch
   const t6 = performance.now();
-  const readPatchStr = await invoke<string>("read_text_file_force", { path: p });
+  const readPatchStr = await invoke<string>("read_text_file_force", {
+    path: p,
+  });
   const readPatch = JSON.parse(readPatchStr);
   const t7 = performance.now();
-  r.steps.push({ step: "读取 Patch", duration: t7 - t6, details: `耗时包含 IPC` });
+  r.steps.push({
+    step: "读取 Patch",
+    duration: t7 - t6,
+    details: `耗时包含 IPC`,
+  });
 
   const t8 = performance.now();
-  const patchedSession = jsonpatch.applyPatch(session, readPatch).newDocument as any;
+  const patchedSession = jsonpatch.applyPatch(session, readPatch)
+    .newDocument as any;
   const t9 = performance.now();
   r.steps.push({
     step: "fast-json-patch.applyPatch",
@@ -538,7 +625,10 @@ async function runSchemeE(
     serializeTime: t3 - t2,
     deserializeTime: t9 - t8,
   };
-  addLog(`[E] 完成 ${r.summary.totalTime.toFixed(1)} ms (仅计算 Patch 相关耗时)`, "success");
+  addLog(
+    `[E] 完成 ${r.summary.totalTime.toFixed(1)} ms (仅计算 Patch 相关耗时)`,
+    "success"
+  );
   return r;
 }
 
@@ -631,31 +721,56 @@ async function runAllTests() {
   allSchemeResults.value = [];
   comparisonData.value = [];
   try {
-    addLog(`多方案对比: ${config.messageCount} 条, 每条 ~${config.contentSizeKB} KB`);
+    addLog(
+      `多方案对比: ${config.messageCount} 条, 每条 ~${config.contentSizeKB} KB`
+    );
     const g0 = performance.now();
-    const session = generateMockSession(config.messageCount, config.contentSizeKB);
+    const session = generateMockSession(
+      config.messageCount,
+      config.contentSizeKB
+    );
     const g1 = performance.now();
-    addLog(`数据生成: ${Object.keys(session.nodes).length} 节点, ${(g1 - g0).toFixed(1)} ms`);
+    addLog(
+      `数据生成: ${Object.keys(session.nodes).length} 节点, ${(g1 - g0).toFixed(1)} ms`
+    );
     const appDir = await getAppConfigDir();
     const bp = await join(appDir, "component-tester/perf-tests");
     addLog("--- 方案 A ---");
     await yieldToUI();
-    const rA = await runSchemeA(session as unknown as Record<string, unknown>, bp);
+    const rA = await runSchemeA(
+      session as unknown as Record<string, unknown>,
+      bp
+    );
     addLog("--- 方案 B ---");
     await yieldToUI();
-    const rB = await runSchemeB(session as unknown as Record<string, unknown>, bp);
+    const rB = await runSchemeB(
+      session as unknown as Record<string, unknown>,
+      bp
+    );
     addLog("--- 方案 C (伪二进制传输) ---");
     await yieldToUI();
-    const rC = await runSchemeC(session as unknown as Record<string, unknown>, bp);
+    const rC = await runSchemeC(
+      session as unknown as Record<string, unknown>,
+      bp
+    );
     addLog("--- 方案 D (直传写入 + 二进制读取) ---");
     await yieldToUI();
-    const rD = await runSchemeD(session as unknown as Record<string, unknown>, bp);
+    const rD = await runSchemeD(
+      session as unknown as Record<string, unknown>,
+      bp
+    );
     addLog("--- 方案 E (增量更新: JSON Patch) ---");
     await yieldToUI();
-    const rE = await runSchemeE(session as unknown as Record<string, unknown>, bp);
+    const rE = await runSchemeE(
+      session as unknown as Record<string, unknown>,
+      bp
+    );
     addLog("--- 方案 F (生产环境模拟: plugin-fs) ---");
     await yieldToUI();
-    const rF = await runSchemeF(session as unknown as Record<string, unknown>, bp);
+    const rF = await runSchemeF(
+      session as unknown as Record<string, unknown>,
+      bp
+    );
     const results = [rA, rB, rC, rD, rE, rF];
     allSchemeResults.value = results;
     logCollapsed.value = true; // 完成时自动收起日志
@@ -700,7 +815,8 @@ function generateRandomContent(targetBytes: number): string {
     "性能优化建议：考虑使用 Web Worker 将 JSON 序列化移出主线程。",
     '```json\n{\n  "model": "gpt-4",\n  "temperature": 0.7,\n  "stream": true\n}\n```\n',
   ];
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .,;:!?-_=+\n";
+  const chars =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .,;:!?-_=+\n";
   const parts: string[] = [];
   let cur = 0;
   while (cur < targetBytes) {
@@ -709,7 +825,8 @@ function generateRandomContent(targetBytes: number): string {
     cur += f.length * 1.5;
     const gl = 20 + Math.floor(Math.random() * 80);
     let g = "";
-    for (let i = 0; i < gl; i++) g += chars[Math.floor(Math.random() * chars.length)];
+    for (let i = 0; i < gl; i++)
+      g += chars[Math.floor(Math.random() * chars.length)];
     parts.push(g);
     cur += gl;
   }
@@ -720,7 +837,8 @@ function generateMockSession(count: number, sizeKB: number) {
   const rootId = `node-${Date.now()}-root`;
   const nodes: Record<string, Record<string, unknown>> = {};
   const tgt = Math.max(0, sizeKB * 1024 - 500);
-  const gid = (pre = "node") => `${pre}-${Math.random().toString(36).substring(2, 11)}`;
+  const gid = (pre = "node") =>
+    `${pre}-${Math.random().toString(36).substring(2, 11)}`;
   nodes[rootId] = {
     id: rootId,
     parentId: null,
@@ -738,7 +856,10 @@ function generateMockSession(count: number, sizeKB: number) {
     const pid = leaves[Math.floor(Math.random() * leaves.length)];
     const id = gid();
     const isA = Math.random() > 0.5;
-    const meta: Record<string, unknown> = { isEnabled: true, timestamp: new Date().toISOString() };
+    const meta: Record<string, unknown> = {
+      isEnabled: true,
+      timestamp: new Date().toISOString(),
+    };
     if (isA) {
       meta.agentId = "agent-gugu";
       meta.modelId = "gemini-3-flash";
@@ -769,7 +890,10 @@ function generateMockSession(count: number, sizeKB: number) {
     };
     (nodes[pid].childrenIds as string[]).push(id);
     nodes[pid].lastSelectedChildId = id;
-    if ((nodes[pid].childrenIds as string[]).length > 2 || Math.random() > 0.8) {
+    if (
+      (nodes[pid].childrenIds as string[]).length > 2 ||
+      Math.random() > 0.8
+    ) {
       const idx = leaves.indexOf(pid);
       if (idx > -1) leaves.splice(idx, 1);
     }

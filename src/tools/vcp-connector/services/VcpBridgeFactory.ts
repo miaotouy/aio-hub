@@ -3,7 +3,11 @@ import type { ToolRegistry, ToolRegistryFactory } from "@/services/types";
 import { createModuleLogger } from "@/utils/logger";
 import { VcpToolProxy } from "./VcpToolProxy";
 import { useVcpDistributedStore } from "../stores/vcpDistributedStore";
-import type { VcpBridgeManifest, VcpToolExecutionResult, VcpToolStatusData } from "../types/distributed";
+import type {
+  VcpBridgeManifest,
+  VcpToolExecutionResult,
+  VcpToolStatusData,
+} from "../types/distributed";
 import { taskManager } from "../../tool-calling/core/async-task/task-manager";
 
 const logger = createModuleLogger("vcp-connector/bridge-factory");
@@ -60,7 +64,10 @@ export class VcpBridgeFactory implements ToolRegistryFactory {
           // 因为在应用启动阶段，WS 可能尚未连接，这是正常的
           await this.refreshManifests();
         } catch (error) {
-          logger.debug("Silent failure: Could not fetch VCP manifests during early registration", error);
+          logger.debug(
+            "Silent failure: Could not fetch VCP manifests during early registration",
+            error
+          );
         }
       }
     }
@@ -69,9 +76,14 @@ export class VcpBridgeFactory implements ToolRegistryFactory {
 
     const registries = this.currentManifests
       .filter((m) => !disabledIds.includes(m.name)) // 过滤掉整个被禁用的工具
-      .map((manifest) => new VcpToolProxy(manifest, this.executeRemote.bind(this), disabledIds));
+      .map(
+        (manifest) =>
+          new VcpToolProxy(manifest, this.executeRemote.bind(this), disabledIds)
+      );
 
-    logger.info(`Factory created ${registries.length} tool registries from ${this.currentManifests.length} manifests`);
+    logger.info(
+      `Factory created ${registries.length} tool registries from ${this.currentManifests.length} manifests`
+    );
     return registries;
   }
 
@@ -106,7 +118,9 @@ export class VcpBridgeFactory implements ToolRegistryFactory {
           // 超时不再抛出 Error 而是 resolve 空清单，避免上层逻辑崩溃
           // 并在日志中记录警告
           // 清单请求通常很快，如果超时说明对方没准备好，我们 resolve 当前已有的清单
-          logger.warn(`Timeout waiting for VCP tool manifests (Req: ${requestId}), using current cache`);
+          logger.warn(
+            `Timeout waiting for VCP tool manifests (Req: ${requestId}), using current cache`
+          );
           resolve();
         }
       }, 3000); // 缩短超时时间到 3s，清单请求不应阻塞太久
@@ -141,7 +155,10 @@ export class VcpBridgeFactory implements ToolRegistryFactory {
   /**
    * 处理从 VCP 返回的清单响应
    */
-  public handleManifestsResponse(requestId: string, manifests: VcpBridgeManifest[]) {
+  public handleManifestsResponse(
+    requestId: string,
+    manifests: VcpBridgeManifest[]
+  ) {
     const pending = this.pendingRequests.get(requestId);
 
     // 同步更新本地缓存，确保 createRegistries 能拿到最新数据
@@ -156,10 +173,14 @@ export class VcpBridgeFactory implements ToolRegistryFactory {
       clearTimeout(pending.timeout);
       this.pendingRequests.delete(requestId);
       pending.resolve(manifests);
-      logger.info(`Received ${manifests.length} tool manifests from VCP (Request ID: ${requestId})`);
+      logger.info(
+        `Received ${manifests.length} tool manifests from VCP (Request ID: ${requestId})`
+      );
     } else {
       // 可能是超时后才返回的数据，或者主动推送的数据
-      logger.info(`Received ${manifests.length} tool manifests from VCP (Async/Late update)`);
+      logger.info(
+        `Received ${manifests.length} tool manifests from VCP (Async/Late update)`
+      );
 
       // 如果没有挂起的请求，说明可能是超时了，此时我们需要手动触发一次注册表刷新
       // 否则虽然数据到了，但工具并没有被注册到系统中
@@ -187,7 +208,11 @@ export class VcpBridgeFactory implements ToolRegistryFactory {
   /**
    * 转发工具执行请求到 VCP
    */
-  private async executeRemote(toolName: string, command: string, args: Record<string, any>): Promise<any> {
+  private async executeRemote(
+    toolName: string,
+    command: string,
+    args: Record<string, any>
+  ): Promise<any> {
     if (!this.sendJson) {
       throw new Error("VCP connection lost, cannot execute remote tool");
     }
@@ -199,7 +224,14 @@ export class VcpBridgeFactory implements ToolRegistryFactory {
         reject(new Error(`VCP tool execution timeout: ${toolName}.${command}`));
       }, 30000);
 
-      this.pendingRequests.set(requestId, { resolve, reject, timeout, toolName, command, args });
+      this.pendingRequests.set(requestId, {
+        resolve,
+        reject,
+        timeout,
+        toolName,
+        command,
+        args,
+      });
 
       this.sendJson!({
         type: "execute_vcp_tool",
@@ -218,15 +250,24 @@ export class VcpBridgeFactory implements ToolRegistryFactory {
   /**
    * 处理从 VCP 返回的执行结果
    */
-  public async handleToolResult(requestId: string, response: VcpToolExecutionResult) {
+  public async handleToolResult(
+    requestId: string,
+    response: VcpToolExecutionResult
+  ) {
     const pending = this.pendingRequests.get(requestId);
     if (pending) {
       // 如果 VCP 返回了 taskId，说明这是一个异步任务启动成功
-      if (response.status === "success" && response.result && response.result.taskId) {
+      if (
+        response.status === "success" &&
+        response.result &&
+        response.result.taskId
+      ) {
         const vcpTaskId = response.result.taskId;
         const aioTaskId = `vcp_${vcpTaskId}`;
 
-        logger.info(`VCP task started: ${vcpTaskId}, registering as AIO task: ${aioTaskId}`);
+        logger.info(
+          `VCP task started: ${vcpTaskId}, registering as AIO task: ${aioTaskId}`
+        );
 
         // 在 AIO 侧登记外部任务
         await taskManager.submitExternalTask({
@@ -261,7 +302,10 @@ export class VcpBridgeFactory implements ToolRegistryFactory {
         if (response.status === "success") {
           await taskManager.completeExternalTask(aioTaskId, response.result);
         } else {
-          await taskManager.failExternalTask(aioTaskId, response.error || "VCP task failed");
+          await taskManager.failExternalTask(
+            aioTaskId,
+            response.error || "VCP task failed"
+          );
         }
         this.vcpToAioTaskMap.delete(requestId);
       }
@@ -282,7 +326,10 @@ export class VcpBridgeFactory implements ToolRegistryFactory {
         if (response.status === "success") {
           await taskManager.completeExternalTask(aioTaskId, response.result);
         } else {
-          await taskManager.failExternalTask(aioTaskId, response.error || "VCP task failed");
+          await taskManager.failExternalTask(
+            aioTaskId,
+            response.error || "VCP task failed"
+          );
         }
         this.vcpToAioTaskMap.delete(requestId);
       }
@@ -305,7 +352,8 @@ export class VcpBridgeFactory implements ToolRegistryFactory {
 
     if (data.bridgeType === "log" || data.bridgeType === "info") {
       const message = data.content || data.message || "";
-      const progress = typeof data.progress === "number" ? data.progress : undefined;
+      const progress =
+        typeof data.progress === "number" ? data.progress : undefined;
 
       taskManager.reportExternalProgress(aioTaskId, progress ?? 0, message);
     }
@@ -313,7 +361,11 @@ export class VcpBridgeFactory implements ToolRegistryFactory {
     // 如果状态指示已完成或失败
     if (data.status === "completed" || data.status === "success") {
       // 理论上应该等 vcp_tool_result，但如果 status 明确了也可以更新
-      taskManager.reportExternalProgress(aioTaskId, 100, data.content || "任务完成");
+      taskManager.reportExternalProgress(
+        aioTaskId,
+        100,
+        data.content || "任务完成"
+      );
     } else if (data.status === "error" || data.status === "failed") {
       taskManager.failExternalTask(aioTaskId, data.content || "VCP 侧执行失败");
     }

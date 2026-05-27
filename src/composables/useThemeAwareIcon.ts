@@ -15,7 +15,13 @@ const svgCache = new Map<string, string>();
 function isBlackColor(color: string): boolean {
   if (!color) return false;
   const c = color.toLowerCase().trim();
-  return c === "#000" || c === "#000000" || c === "black" || c === "rgb(0,0,0)" || c === "rgb(0, 0, 0)";
+  return (
+    c === "#000" ||
+    c === "#000000" ||
+    c === "black" ||
+    c === "rgb(0,0,0)" ||
+    c === "rgb(0, 0, 0)"
+  );
 }
 
 /**
@@ -24,7 +30,13 @@ function isBlackColor(color: string): boolean {
 function isWhiteColor(color: string): boolean {
   if (!color) return false;
   const c = color.toLowerCase().trim();
-  return c === "#fff" || c === "#ffffff" || c === "white" || c === "rgb(255,255,255)" || c === "rgb(255, 255, 255)";
+  return (
+    c === "#fff" ||
+    c === "#ffffff" ||
+    c === "white" ||
+    c === "rgb(255,255,255)" ||
+    c === "rgb(255, 255, 255)"
+  );
 }
 
 /**
@@ -40,30 +52,38 @@ function isMonochromeColor(color: string): boolean {
 export function processSvgContent(svgText: string): string {
   // 安全清洗：移除可能存在的 meta、script 等标签，防止 CSP 警告和 XSS 风险
   // 如果 fetch 返回了 HTML 页面（如 404），这也能防止渲染出奇怪的东西
-  let processed = svgText.replace(/<meta[^>]*>/gi, "").replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "");
+  let processed = svgText
+    .replace(/<meta[^>]*>/gi, "")
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "");
 
   // 替换 fill 和 stroke 属性中的黑白颜色
-  processed = processed.replace(/\b(fill|stroke)\s*=\s*["']([^"']+)["']/gi, (match, attr, color) => {
-    if (isMonochromeColor(color)) {
-      return `${attr}="currentColor"`;
+  processed = processed.replace(
+    /\b(fill|stroke)\s*=\s*["']([^"']+)["']/gi,
+    (match, attr, color) => {
+      if (isMonochromeColor(color)) {
+        return `${attr}="currentColor"`;
+      }
+      return match;
     }
-    return match;
-  });
+  );
 
   // 替换 style 属性中的颜色
-  processed = processed.replace(/style\s*=\s*["']([^"']*?)["']/gi, (_match, styleContent) => {
-    const updatedStyle = styleContent.replace(
-      /\b(fill|stroke)\s*:\s*([^;]+)/gi,
-      (styleMatch: string, prop: string, value: string) => {
-        const trimmedValue = value.trim();
-        if (isMonochromeColor(trimmedValue)) {
-          return `${prop}: currentColor`;
+  processed = processed.replace(
+    /style\s*=\s*["']([^"']*?)["']/gi,
+    (_match, styleContent) => {
+      const updatedStyle = styleContent.replace(
+        /\b(fill|stroke)\s*:\s*([^;]+)/gi,
+        (styleMatch: string, prop: string, value: string) => {
+          const trimmedValue = value.trim();
+          if (isMonochromeColor(trimmedValue)) {
+            return `${prop}: currentColor`;
+          }
+          return styleMatch;
         }
-        return styleMatch;
-      }
-    );
-    return `style="${updatedStyle}"`;
-  });
+      );
+      return `style="${updatedStyle}"`;
+    }
+  );
 
   return processed;
 }
@@ -93,7 +113,10 @@ async function fetchAndProcessSvg(url: string): Promise<string> {
 
     // 二次检查内容特征，确保它是 SVG 而不是 HTML 页面
     const trimmed = svgText.trim();
-    if (trimmed.toLowerCase().startsWith("<!doctype html") || trimmed.toLowerCase().startsWith("<html")) {
+    if (
+      trimmed.toLowerCase().startsWith("<!doctype html") ||
+      trimmed.toLowerCase().startsWith("<html")
+    ) {
       throw new Error(`Content looks like HTML, not SVG for: ${url}`);
     }
 

@@ -7,8 +7,12 @@
       </div>
       <div class="header-actions">
         <el-button-group>
-          <el-button :icon="Copy" size="small" @click="copyAsText">复制文本</el-button>
-          <el-button :icon="Code" size="small" @click="copyAsJson">复制 JSON</el-button>
+          <el-button :icon="Copy" size="small" @click="copyAsText"
+            >复制文本</el-button
+          >
+          <el-button :icon="Code" size="small" @click="copyAsJson"
+            >复制 JSON</el-button
+          >
         </el-button-group>
       </div>
     </div>
@@ -27,7 +31,9 @@
           </div>
           <div class="info-item">
             <span class="label">时长</span>
-            <span class="value">{{ formatFullDuration(info.format.duration) }}</span>
+            <span class="value">{{
+              formatFullDuration(info.format.duration)
+            }}</span>
           </div>
           <div class="info-item">
             <span class="label">总码率</span>
@@ -36,9 +42,15 @@
         </div>
       </div>
 
-      <div v-for="stream in info.streams" :key="stream.index" class="info-section">
+      <div
+        v-for="stream in info.streams"
+        :key="stream.index"
+        class="info-section"
+      >
         <div class="section-title">
-          {{ stream.codec_type === "video" ? "视频流" : "音频流" }} ({{ stream.index }})
+          {{ stream.codec_type === "video" ? "视频流" : "音频流" }} ({{
+            stream.index
+          }})
         </div>
         <div class="info-grid">
           <div class="info-item">

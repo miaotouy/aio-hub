@@ -1,62 +1,70 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { LogLevel, type LogEntry } from '@/utils/logger'
-import { useI18n } from '@/i18n'
-import { Copy, ChevronRight, ChevronDown } from 'lucide-vue-next'
-import { Snackbar } from '@varlet/ui'
+import { ref } from "vue";
+import { LogLevel, type LogEntry } from "@/utils/logger";
+import { useI18n } from "@/i18n";
+import { Copy, ChevronRight, ChevronDown } from "lucide-vue-next";
+import { Snackbar } from "@varlet/ui";
 
 const props = defineProps<{
-  log: LogEntry
-}>()
+  log: LogEntry;
+}>();
 
-const { tRaw } = useI18n()
-const t = (key: string) => tRaw(`tools.log-manager.LogEntryItem.${key}`)
+const { tRaw } = useI18n();
+const t = (key: string) => tRaw(`tools.log-manager.LogEntryItem.${key}`);
 
-const expanded = ref(false)
+const expanded = ref(false);
 
 const getLevelType = (level: LogLevel) => {
   switch (level) {
-    case LogLevel.DEBUG: return 'default'
-    case LogLevel.INFO: return 'info'
-    case LogLevel.WARN: return 'warning'
-    case LogLevel.ERROR: return 'danger'
-    default: return 'default'
+    case LogLevel.DEBUG:
+      return "default";
+    case LogLevel.INFO:
+      return "info";
+    case LogLevel.WARN:
+      return "warning";
+    case LogLevel.ERROR:
+      return "danger";
+    default:
+      return "default";
   }
-}
+};
 
 const getLevelName = (level: LogLevel) => {
-  return LogLevel[level]
-}
+  return LogLevel[level];
+};
 
 const handleCopy = async (e: Event) => {
-  e.stopPropagation()
-  let text = `[${props.log.timestamp}] [${getLevelName(props.log.level)}] [${props.log.module}] ${props.log.message}`
+  e.stopPropagation();
+  let text = `[${props.log.timestamp}] [${getLevelName(props.log.level)}] [${props.log.module}] ${props.log.message}`;
   if (props.log.data) {
-    text += `\nData: ${JSON.stringify(props.log.data, null, 2)}`
+    text += `\nData: ${JSON.stringify(props.log.data, null, 2)}`;
   }
   if (props.log.stack) {
-    text += `\nStack: ${props.log.stack}`
+    text += `\nStack: ${props.log.stack}`;
   }
-  
+
   try {
-    await navigator.clipboard.writeText(text)
-    Snackbar.success(t('复制成功'))
+    await navigator.clipboard.writeText(text);
+    Snackbar.success(t("复制成功"));
   } catch (err) {
-    Snackbar.error(t('common.失败'))
+    Snackbar.error(t("common.失败"));
   }
-}
+};
 
 const toggleExpand = () => {
   if (props.log.data || props.log.stack) {
-    expanded.value = !expanded.value
+    expanded.value = !expanded.value;
   }
-}
+};
 </script>
 
 <template>
-  <div 
-    class="log-entry-item" 
-    :class="[`level-${getLevelName(log.level).toLowerCase()}`, { 'is-expandable': log.data || log.stack }]"
+  <div
+    class="log-entry-item"
+    :class="[
+      `level-${getLevelName(log.level).toLowerCase()}`,
+      { 'is-expandable': log.data || log.stack },
+    ]"
     @click="toggleExpand"
   >
     <div class="entry-header">
@@ -64,7 +72,7 @@ const toggleExpand = () => {
         <div class="level-badge" :class="getLevelType(log.level)">
           {{ getLevelName(log.level) }}
         </div>
-        <span class="timestamp">{{ log.timestamp.split(' ')[1] }}</span>
+        <span class="timestamp">{{ log.timestamp.split(" ")[1] }}</span>
         <span class="module">[{{ log.module }}]</span>
       </div>
       <div class="header-right">
@@ -85,7 +93,9 @@ const toggleExpand = () => {
     <div v-if="expanded" class="entry-details">
       <div v-if="log.data" class="detail-section">
         <div class="detail-label">Data:</div>
-        <pre class="detail-content">{{ JSON.stringify(log.data, null, 2) }}</pre>
+        <pre class="detail-content">{{
+          JSON.stringify(log.data, null, 2)
+        }}</pre>
       </div>
       <div v-if="log.stack" class="detail-section">
         <div class="detail-label">Stack:</div>
@@ -99,7 +109,9 @@ const toggleExpand = () => {
 .log-entry-item {
   padding: 8px 12px;
   border-bottom: 1px solid var(--color-outline-variant);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
   transition: background-color 0.2s;
 }
 
@@ -134,10 +146,22 @@ const toggleExpand = () => {
   text-align: center;
 }
 
-.level-badge.default { background-color: var(--color-outline); color: var(--color-on-surface); }
-.level-badge.info { background-color: var(--color-info); color: white; }
-.level-badge.warning { background-color: var(--color-warning); color: white; }
-.level-badge.danger { background-color: var(--color-danger); color: white; }
+.level-badge.default {
+  background-color: var(--color-outline);
+  color: var(--color-on-surface);
+}
+.level-badge.info {
+  background-color: var(--color-info);
+  color: white;
+}
+.level-badge.warning {
+  background-color: var(--color-warning);
+  color: white;
+}
+.level-badge.danger {
+  background-color: var(--color-danger);
+  color: white;
+}
 
 .timestamp {
   font-size: 11px;

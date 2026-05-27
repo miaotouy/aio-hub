@@ -87,7 +87,10 @@ export interface UserProfile {
  * 用户档案编辑/创建数据
  * 剔除系统生成的只读字段
  */
-export type UserProfileEditData = Omit<UserProfile, "id" | "createdAt" | "lastUsedAt">;
+export type UserProfileEditData = Omit<
+  UserProfile,
+  "id" | "createdAt" | "lastUsedAt"
+>;
 
 /**
  * 用户档案更新数据（编辑模式）

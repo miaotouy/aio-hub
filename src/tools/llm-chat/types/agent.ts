@@ -1,4 +1,7 @@
-import type { LlmThinkRule, RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
+import type {
+  LlmThinkRule,
+  RichTextRendererStyleOptions,
+} from "@/tools/rich-text-renderer/types";
 import type { LlmParameters } from "./llm";
 import type { ChatMessageNode } from "./message";
 import type { VariableConfig } from "./sessionVariable";

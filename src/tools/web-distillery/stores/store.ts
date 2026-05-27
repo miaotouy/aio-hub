@@ -132,12 +132,17 @@ export const useWebDistilleryStore = defineStore("web-distillery", {
       this.currentRecipe = recipe;
     },
 
-    setPickerMode(mode: "idle" | "include" | "exclude" | "action", actionIndex: number | null = null) {
+    setPickerMode(
+      mode: "idle" | "include" | "exclude" | "action",
+      actionIndex: number | null = null
+    ) {
       this.pickerMode = mode;
       this.pickerActionIndex = actionIndex;
     },
 
-    setHoveredElement(element: { selector: string; tagName: string; textPreview: string } | null) {
+    setHoveredElement(
+      element: { selector: string; tagName: string; textPreview: string } | null
+    ) {
       this.hoveredElement = element;
     },
 

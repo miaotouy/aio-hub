@@ -53,14 +53,22 @@
             <el-icon><CircleCheck /></el-icon>
             已关联渠道：{{ matchedProfile.name }}
           </span>
-          <el-button link type="primary" size="small" @click="goToEditProfile"> 编辑渠道 </el-button>
+          <el-button link type="primary" size="small" @click="goToEditProfile">
+            编辑渠道
+          </el-button>
         </div>
         <div v-else class="channel-status unlinked">
           <span class="channel-status-text">
             <el-icon><CircleClose /></el-icon>
             未关联 LLM 渠道
           </span>
-          <el-button link type="primary" size="small" :disabled="!store.config.vcpKey" @click="addAsLlmProfile">
+          <el-button
+            link
+            type="primary"
+            size="small"
+            :disabled="!store.config.vcpKey"
+            @click="addAsLlmProfile"
+          >
             一键添加
           </el-button>
         </div>
@@ -128,12 +136,21 @@
       </div>
 
       <div class="form-item">
-        <el-button type="primary" size="small" :loading="isConnecting" @click="handleConnect" style="width: 100%">
+        <el-button
+          type="primary"
+          size="small"
+          :loading="isConnecting"
+          @click="handleConnect"
+          style="width: 100%"
+        >
           {{ isConnected ? "断开连接" : "连接" }}
         </el-button>
       </div>
 
-      <div class="connection-info" v-if="connection.lastPingLatency !== undefined">
+      <div
+        class="connection-info"
+        v-if="connection.lastPingLatency !== undefined"
+      >
         <span class="latency"> 延迟: {{ connection.lastPingLatency }}ms </span>
         <span class="reconnect" v-if="connection.reconnectAttempts > 0">
           重连次数: {{ connection.reconnectAttempts }}
@@ -156,7 +173,8 @@ import { open } from "@tauri-apps/plugin-dialog";
 
 const store = useVcpStore();
 const router = useRouter();
-const { connect, disconnect, isConnecting, connectionStatus } = useVcpWebSocket();
+const { connect, disconnect, isConnecting, connectionStatus } =
+  useVcpWebSocket();
 const { profiles, saveProfile, generateId } = useLlmProfiles();
 
 const isConnected = computed(() => connectionStatus.value === "connected");
@@ -173,7 +191,9 @@ const matchedProfile = computed(() => {
   return (
     profiles.value.find((p) => {
       const url = p.baseUrl || "";
-      return url.includes(`localhost:${port}`) || url.includes(`127.0.0.1:${port}`);
+      return (
+        url.includes(`localhost:${port}`) || url.includes(`127.0.0.1:${port}`)
+      );
     }) ?? null
   );
 });
@@ -375,11 +395,17 @@ function goToEditProfile() {
 }
 
 .channel-status.linked {
-  background-color: rgba(var(--el-color-success-rgb), calc(var(--card-opacity) * 0.1));
+  background-color: rgba(
+    var(--el-color-success-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
 }
 
 .channel-status.unlinked {
-  background-color: rgba(var(--el-color-warning-rgb), calc(var(--card-opacity) * 0.1));
+  background-color: rgba(
+    var(--el-color-warning-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
 }
 
 .channel-status-text {

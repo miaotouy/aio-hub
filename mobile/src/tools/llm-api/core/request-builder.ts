@@ -51,7 +51,9 @@ export interface ParsedMessageContent {
 /**
  * 解析消息内容数组
  */
-export function parseMessageContents(messages: LlmMessageContent[]): ParsedMessageContent {
+export function parseMessageContents(
+  messages: LlmMessageContent[]
+): ParsedMessageContent {
   const result: ParsedMessageContent = {
     textParts: [],
     imageParts: [],
@@ -173,15 +175,20 @@ export interface CommonParameters {
 /**
  * 从 LlmRequestOptions 中提取通用参数
  */
-export function extractCommonParameters(options: LlmRequestOptions): CommonParameters {
+export function extractCommonParameters(
+  options: LlmRequestOptions
+): CommonParameters {
   const params: CommonParameters = {};
 
-  if (options.temperature !== undefined) params.temperature = options.temperature;
+  if (options.temperature !== undefined)
+    params.temperature = options.temperature;
   if (options.topP !== undefined) params.topP = options.topP;
   if (options.topK !== undefined) params.topK = options.topK;
   if (options.maxTokens !== undefined) params.maxTokens = options.maxTokens;
-  if (options.frequencyPenalty !== undefined) params.frequencyPenalty = options.frequencyPenalty;
-  if (options.presencePenalty !== undefined) params.presencePenalty = options.presencePenalty;
+  if (options.frequencyPenalty !== undefined)
+    params.frequencyPenalty = options.frequencyPenalty;
+  if (options.presencePenalty !== undefined)
+    params.presencePenalty = options.presencePenalty;
   if (options.seed !== undefined) params.seed = options.seed;
   if (options.stop !== undefined) params.stop = options.stop;
 
@@ -191,7 +198,11 @@ export function extractCommonParameters(options: LlmRequestOptions): CommonParam
 /**
  * 工具选择策略类型
  */
-export type ToolChoiceType = "auto" | "none" | "required" | { functionName: string };
+export type ToolChoiceType =
+  | "auto"
+  | "none"
+  | "required"
+  | { functionName: string };
 
 /**
  * 解析工具选择策略
@@ -215,7 +226,10 @@ export function parseToolChoice(
 /**
  * 推断图片的 MIME 类型
  */
-export function inferImageMimeType(base64Data?: string, fileExt?: string): string {
+export function inferImageMimeType(
+  base64Data?: string,
+  fileExt?: string
+): string {
   if (fileExt) {
     const extMap: Record<string, string> = {
       png: "image/png",
@@ -244,7 +258,10 @@ export function inferImageMimeType(base64Data?: string, fileExt?: string): strin
 /**
  * 推断媒体的 MIME 类型
  */
-export function inferMediaMimeType(base64Data?: string, fileExt?: string): string {
+export function inferMediaMimeType(
+  base64Data?: string,
+  fileExt?: string
+): string {
   const imageMimeType = inferImageMimeType(base64Data, fileExt);
   if (imageMimeType !== "image/png" || !fileExt) return imageMimeType;
 
@@ -272,7 +289,10 @@ export function inferMediaMimeType(base64Data?: string, fileExt?: string): strin
 /**
  * 构建 Base64 Data URL
  */
-export function buildBase64DataUrl(base64Data: string, mimeType?: string): string {
+export function buildBase64DataUrl(
+  base64Data: string,
+  mimeType?: string
+): string {
   const finalMimeType = mimeType || inferImageMimeType(base64Data);
   return `data:${finalMimeType};base64,${base64Data}`;
 }
@@ -280,25 +300,46 @@ export function buildBase64DataUrl(base64Data: string, mimeType?: string): strin
 /**
  * 获取模型所属的家族
  */
-export function getModelFamily(modelId: string, provider?: string): ModelFamily {
+export function getModelFamily(
+  modelId: string,
+  provider?: string
+): ModelFamily {
   const props = getMatchedModelProperties(modelId, provider);
   const group = props?.group?.toLowerCase();
 
   if (!group) {
     if (provider) {
       const lowerProvider = provider.toLowerCase();
-      if (lowerProvider === "anthropic" || lowerProvider === "claude") return "claude";
-      if (lowerProvider === "google" || lowerProvider === "gemini" || lowerProvider === "vertexai") return "gemini";
+      if (lowerProvider === "anthropic" || lowerProvider === "claude")
+        return "claude";
+      if (
+        lowerProvider === "google" ||
+        lowerProvider === "gemini" ||
+        lowerProvider === "vertexai"
+      )
+        return "gemini";
       if (lowerProvider === "cohere") return "cohere";
       if (lowerProvider === "deepseek") return "deepseek";
-      if (lowerProvider === "qwen" || lowerProvider === "alibaba") return "qwen";
+      if (lowerProvider === "qwen" || lowerProvider === "alibaba")
+        return "qwen";
     }
     return "unknown";
   }
 
-  if (group === "openai" || group === "openai responses" || group.startsWith("gpt")) return "openai";
+  if (
+    group === "openai" ||
+    group === "openai responses" ||
+    group.startsWith("gpt")
+  )
+    return "openai";
   if (group === "claude" || group.startsWith("claude")) return "claude";
-  if (group === "gemini" || group === "gemma" || group.startsWith("gemini") || group.startsWith("gemma")) return "gemini";
+  if (
+    group === "gemini" ||
+    group === "gemma" ||
+    group.startsWith("gemini") ||
+    group.startsWith("gemma")
+  )
+    return "gemini";
   if (group === "cohere" || group === "command") return "cohere";
   if (group === "deepseek") return "deepseek";
   if (group === "qwen" || group.startsWith("qwen")) return "qwen";
@@ -359,10 +400,16 @@ export const KNOWN_NON_MODEL_OPTIONS_KEYS = new Set([
 /**
  * 将未知的自定义参数合并到请求体中
  */
-export function applyCustomParameters(body: any, options: LlmRequestOptions): any {
+export function applyCustomParameters(
+  body: any,
+  options: LlmRequestOptions
+): any {
   for (const key in options) {
     if (Object.prototype.hasOwnProperty.call(options, key)) {
-      if (!KNOWN_NON_MODEL_OPTIONS_KEYS.has(key) && (options as any)[key] !== undefined) {
+      if (
+        !KNOWN_NON_MODEL_OPTIONS_KEYS.has(key) &&
+        (options as any)[key] !== undefined
+      ) {
         const value = (options as any)[key];
         if (
           body[key] &&

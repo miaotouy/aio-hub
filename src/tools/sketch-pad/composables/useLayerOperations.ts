@@ -91,7 +91,8 @@ export function useLayerOperations(session: EditorSession) {
     if (!stage) return;
 
     const upperIndex = state.layers.value.findIndex((l) => l.id === id);
-    if (upperIndex === -1 || upperIndex === state.layers.value.length - 1) return;
+    if (upperIndex === -1 || upperIndex === state.layers.value.length - 1)
+      return;
 
     const lowerIndex = upperIndex + 1;
     const upperLayer = state.layers.value[upperIndex];
@@ -117,11 +118,19 @@ export function useLayerOperations(session: EditorSession) {
     }
     // 3. Raster + Object (不支持)
     else if (upperLayer.type === "raster" && lowerLayer.type === "object") {
-      customMessage.warning("不支持将位图图层合并到对象图层，请先将对象图层栅格化，或者调整图层顺序");
+      customMessage.warning(
+        "不支持将位图图层合并到对象图层，请先将对象图层栅格化，或者调整图层顺序"
+      );
     }
     // 4. Object + Object
     else if (upperLayer.type === "object" && lowerLayer.type === "object") {
-      mergeObjectToObject(upperLayer as ObjectLayer, lowerLayer as ObjectLayer, upperKonvaLayer, lowerKonvaLayer, stage);
+      mergeObjectToObject(
+        upperLayer as ObjectLayer,
+        lowerLayer as ObjectLayer,
+        upperKonvaLayer,
+        lowerKonvaLayer,
+        stage
+      );
     }
   }
 
@@ -130,7 +139,7 @@ export function useLayerOperations(session: EditorSession) {
   function mergeRasterToRaster(
     upperLayer: RasterLayer,
     lowerLayer: RasterLayer,
-    stage: Konva.Stage,
+    stage: Konva.Stage
   ): void {
     const canvases = runtime.capabilities.getCanvases();
     const upperCanvas = canvases.get(upperLayer.id);
@@ -157,7 +166,7 @@ export function useLayerOperations(session: EditorSession) {
     upperLayer: ObjectLayer,
     lowerLayer: RasterLayer,
     upperKonvaLayer: Konva.Layer,
-    stage: Konva.Stage,
+    stage: Konva.Stage
   ): void {
     const canvases = runtime.capabilities.getCanvases();
     const lowerCanvas = canvases.get(lowerLayer.id);
@@ -189,7 +198,7 @@ export function useLayerOperations(session: EditorSession) {
     lowerLayer: ObjectLayer,
     upperKonvaLayer: Konva.Layer,
     lowerKonvaLayer: Konva.Layer,
-    stage: Konva.Stage,
+    stage: Konva.Stage
   ): void {
     // 将上层的所有 Konva 节点移动到下层
     const children = [...upperKonvaLayer.getChildren()];

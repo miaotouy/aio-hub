@@ -9,7 +9,11 @@
       class="prompt-textarea"
     />
     <div class="prompt-actions">
-      <el-popconfirm title="确定要重置为默认提示词吗？" @confirm="handleReset" width="200">
+      <el-popconfirm
+        title="确定要重置为默认提示词吗？"
+        @confirm="handleReset"
+        width="200"
+      >
         <template #reference>
           <el-button type="default" plain size="small">
             <el-icon><RefreshLeft /></el-icon>

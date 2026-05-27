@@ -17,7 +17,7 @@ const errorHandler = createModuleErrorHandler("llm-chat/asset-resolver");
 async function processImageAsset(
   asset: any,
   buffer: ArrayBuffer,
-  context: PipelineContext,
+  context: PipelineContext
 ): Promise<LlmMessageContent[]> {
   let imageBuffer: ArrayBuffer = buffer;
 
@@ -38,7 +38,10 @@ async function processImageAsset(
         });
       }
     } catch (e) {
-      logger.warn("模型安全约束缩放失败，保持原始图片", { assetId: asset.id, error: e });
+      logger.warn("模型安全约束缩放失败，保持原始图片", {
+        assetId: asset.id,
+        error: e,
+      });
     }
   }
 
@@ -57,7 +60,10 @@ async function processImageAsset(
       imageBuffer = await resizeImage(imageBuffer, resizeOpts);
       logger.debug("用户压缩策略已应用", { assetId: asset.id, ...imgConfig });
     } catch (e) {
-      logger.warn("用户压缩策略失败，保持当前图片", { assetId: asset.id, error: e });
+      logger.warn("用户压缩策略失败，保持当前图片", {
+        assetId: asset.id,
+        error: e,
+      });
     }
   }
 
@@ -71,20 +77,33 @@ async function processImageAsset(
 async function processDocumentAsset(
   asset: any,
   buffer: ArrayBuffer,
-  context: PipelineContext,
+  context: PipelineContext
 ): Promise<LlmMessageContent[]> {
   const capabilities = context.capabilities;
 
   // 核心改进：如果模型【完全不支持】原生文档，但支持视觉，且是 PDF，则现场转图片序列
-  if (asset.mimeType === "application/pdf" && !capabilities?.document && capabilities?.vision) {
-    logger.info("模型不支持原生 PDF 但支持视觉，正在现场将 PDF 转换为图片序列...", { assetName: asset.name });
+  if (
+    asset.mimeType === "application/pdf" &&
+    !capabilities?.document &&
+    capabilities?.vision
+  ) {
+    logger.info(
+      "模型不支持原生 PDF 但支持视觉，正在现场将 PDF 转换为图片序列...",
+      { assetName: asset.name }
+    );
     try {
       const pdfImages = await convertPdfToImages(buffer);
       if (pdfImages.length > 0) {
-        return pdfImages.map((img) => ({ type: "image", imageBase64: img.base64 }));
+        return pdfImages.map((img) => ({
+          type: "image",
+          imageBase64: img.base64,
+        }));
       }
     } catch (pdfError) {
-      logger.error("现场 PDF 转图片失败，回退到原始文档模式", pdfError as Error);
+      logger.error(
+        "现场 PDF 转图片失败，回退到原始文档模式",
+        pdfError as Error
+      );
     }
   }
 
@@ -112,7 +131,7 @@ async function processDocumentAsset(
 async function processMediaAsset(
   asset: any,
   buffer: ArrayBuffer,
-  type: "audio" | "video",
+  type: "audio" | "video"
 ): Promise<LlmMessageContent[]> {
   const base64 = await convertArrayBufferToBase64(buffer);
   return [
@@ -144,7 +163,8 @@ export const assetResolver: ContextProcessor = {
 
       // 1. 保留原有内容
       if (typeof msg.content === "string") {
-        if (msg.content.trim()) newContentParts.push({ type: "text", text: msg.content });
+        if (msg.content.trim())
+          newContentParts.push({ type: "text", text: msg.content });
       } else if (Array.isArray(msg.content)) {
         newContentParts.push(...msg.content);
       }
@@ -153,7 +173,10 @@ export const assetResolver: ContextProcessor = {
       for (const asset of msg._attachments) {
         try {
           if (!["image", "document", "audio", "video"].includes(asset.type)) {
-            logger.warn("跳过不支持的附件类型", { assetType: asset.type, assetName: asset.name });
+            logger.warn("跳过不支持的附件类型", {
+              assetType: asset.type,
+              assetName: asset.name,
+            });
             continue;
           }
 

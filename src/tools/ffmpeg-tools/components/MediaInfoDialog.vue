@@ -1,5 +1,11 @@
 <template>
-  <BaseDialog v-model="visible" :title="title" width="800px" height="70vh" :loading="loading">
+  <BaseDialog
+    v-model="visible"
+    :title="title"
+    width="800px"
+    height="70vh"
+    :loading="loading"
+  >
     <MediaInfoPanel v-if="info" :info="info" />
     <div v-else-if="!loading" class="no-data">
       <el-empty description="无法获取媒体信息" />

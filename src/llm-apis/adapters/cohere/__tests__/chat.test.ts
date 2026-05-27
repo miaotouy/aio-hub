@@ -44,9 +44,7 @@ describe("Cohere Adapter - Chat", () => {
     const options: LlmRequestOptions = {
       profileId: "test-profile-cohere",
       modelId: "command-r-plus",
-      messages: [
-        { role: "user", content: "Hello" },
-      ],
+      messages: [{ role: "user", content: "Hello" }],
       temperature: 0.3,
       topP: 0.9,
     };
@@ -108,9 +106,14 @@ describe("Cohere Adapter - Chat", () => {
     const body = JSON.parse(fetchOptions.body);
 
     expect(body.messages[0].content).toHaveLength(2);
-    expect(body.messages[0].content[0]).toEqual({ type: "text", text: "Look at this." });
+    expect(body.messages[0].content[0]).toEqual({
+      type: "text",
+      text: "Look at this.",
+    });
     expect(body.messages[0].content[1].type).toBe("image_url");
-    expect(body.messages[0].content[1].image_url.url).toContain("data:image/png;base64,img_data");
+    expect(body.messages[0].content[1].image_url.url).toContain(
+      "data:image/png;base64,img_data"
+    );
   });
 
   it("should handle thinking enabled", async () => {

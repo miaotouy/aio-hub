@@ -1,5 +1,8 @@
 import type { LlmParameters } from "../types";
-import type { LlmParameterSupport, ModelCapabilities } from "@/types/llm-profiles";
+import type {
+  LlmParameterSupport,
+  ModelCapabilities,
+} from "@/types/llm-profiles";
 
 /**
  * 所有支持发送给 LLM 的参数键列表（白名单）
@@ -92,7 +95,8 @@ export const parameterConfigs: ParameterConfig[] = [
     key: "temperature",
     label: "Temperature",
     type: "slider",
-    description: "控制输出的随机性（0-2）。值越高，输出越随机；值越低，输出越确定。",
+    description:
+      "控制输出的随机性（0-2）。值越高，输出越随机；值越低，输出越确定。",
     group: "basic",
     supportedKey: "temperature",
     min: 0,
@@ -199,7 +203,8 @@ export const parameterConfigs: ParameterConfig[] = [
       return val || "";
     },
     // parse string back to array
-    parse: (val: string) => (val ? val.split(",").map((s) => s.trim()) : undefined),
+    parse: (val: string) =>
+      val ? val.split(",").map((s) => s.trim()) : undefined,
   },
   {
     key: "maxCompletionTokens",
@@ -244,7 +249,8 @@ export const parameterConfigs: ParameterConfig[] = [
     key: "webSearchEnabled",
     label: "联网搜索",
     type: "switch",
-    description: "启用后模型将自动调用搜索引擎获取实时信息。注意：此功能可能产生额外费用（如 Gemini ~$35/1000次）。",
+    description:
+      "启用后模型将自动调用搜索引擎获取实时信息。注意：此功能可能产生额外费用（如 Gemini ~$35/1000次）。",
     group: "special",
     supportedKey: "webSearch",
     defaultValue: false,
@@ -284,7 +290,8 @@ export const parameterConfigs: ParameterConfig[] = [
     key: "includeThoughts",
     label: "包含思考摘要",
     type: "switch",
-    description: "是否在响应中包含思考摘要（Gemini）。启用后，模型会返回思考过程。",
+    description:
+      "是否在响应中包含思考摘要（Gemini）。启用后，模型会返回思考过程。",
     group: "special",
     supportedKey: "thinkingConfig", // 使用 thinkingConfig，因为这是 Gemini 特有的配置
     defaultValue: false,
@@ -298,7 +305,7 @@ export const parameterConfigs: ParameterConfig[] = [
 export function isParameterSupportedByModel(
   key: keyof LlmParameters,
   supportedParameters: LlmParameterSupport,
-  capabilities?: ModelCapabilities,
+  capabilities?: ModelCapabilities
 ): boolean {
   const config = parameterConfigs.find((c) => c.key === key);
   if (!config) {
@@ -343,7 +350,7 @@ export function isParameterSupportedByModel(
 export function filterParametersForModel(
   parameters: LlmParameters,
   supportedParameters: LlmParameterSupport,
-  capabilities?: ModelCapabilities,
+  capabilities?: ModelCapabilities
 ): LlmParameters {
   const filteredParams: LlmParameters & Record<string, any> = {};
 
@@ -363,15 +370,26 @@ export function filterParametersForModel(
     }
 
     // 检查参数是否被目标模型支持
-    if (isParameterSupportedByModel(key as keyof LlmParameters, supportedParameters, capabilities)) {
+    if (
+      isParameterSupportedByModel(
+        key as keyof LlmParameters,
+        supportedParameters,
+        capabilities
+      )
+    ) {
       filteredParams[key] = value;
     }
   }
 
   // 更新 enabledParameters 列表，只保留支持的参数
   if (filteredParams.enabledParameters) {
-    filteredParams.enabledParameters = filteredParams.enabledParameters.filter((paramKey) =>
-      isParameterSupportedByModel(paramKey as keyof LlmParameters, supportedParameters, capabilities),
+    filteredParams.enabledParameters = filteredParams.enabledParameters.filter(
+      (paramKey) =>
+        isParameterSupportedByModel(
+          paramKey as keyof LlmParameters,
+          supportedParameters,
+          capabilities
+        )
     );
   }
 
@@ -385,7 +403,9 @@ export function filterParametersForModel(
  * @param params 智能体配置中的原始参数
  * @returns 扁平化的、可直接传给 API 的参数对象
  */
-export function buildEffectiveParameters(params: LlmParameters): Record<string, any> {
+export function buildEffectiveParameters(
+  params: LlmParameters
+): Record<string, any> {
   const effectiveParams: Record<string, any> = {};
 
   // 1. 处理标准参数

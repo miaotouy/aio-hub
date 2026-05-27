@@ -52,7 +52,8 @@ export interface SingleNodeExecuteResult {
 }
 
 export function useSingleNodeExecutor() {
-  const { handleStreamUpdate, validateAndFixUsage, finalizeNode } = useChatResponseHandler();
+  const { handleStreamUpdate, validateAndFixUsage, finalizeNode } =
+    useChatResponseHandler();
   const { checkAndCompress } = useContextCompressor();
   const { sendRequest } = useLlmRequest();
   const contextPipelineStore = useContextPipelineStore();
@@ -60,7 +61,9 @@ export function useSingleNodeExecutor() {
   /**
    * 执行单次 LLM 请求
    */
-  const execute = async (params: SingleNodeExecuteParams): Promise<SingleNodeExecuteResult> => {
+  const execute = async (
+    params: SingleNodeExecuteParams
+  ): Promise<SingleNodeExecuteResult> => {
     const {
       session,
       assistantNode,
@@ -119,11 +122,17 @@ export function useSingleNodeExecutor() {
 
     // 填充额外数据
     pipelineContext.sharedData.set("pathToUserNode", currentPathToUserNode);
-    pipelineContext.sharedData.set("transcriptionConfig", settings.value.transcription);
+    pipelineContext.sharedData.set(
+      "transcriptionConfig",
+      settings.value.transcription
+    );
 
     // 获取锚点定义
     const anchorRegistry = useAnchorRegistry();
-    pipelineContext.sharedData.set("anchorDefinitions", anchorRegistry.getAvailableAnchors());
+    pipelineContext.sharedData.set(
+      "anchorDefinitions",
+      anchorRegistry.getAvailableAnchors()
+    );
 
     // 预加载世界书
     const worldbookStore = import.meta.env.SSR
@@ -134,31 +143,45 @@ export function useSingleNodeExecutor() {
         ...(settings.value.worldbookIds || []),
         ...(effectiveUserProfile?.worldbookIds || []),
         ...(executionAgent.worldbookIds || []),
-      ]),
+      ])
     );
 
     if (worldbookStore && allWorldbookIds.length > 0) {
-      const loadedWorldbooks = await worldbookStore.getEntriesForAgent(allWorldbookIds);
+      const loadedWorldbooks =
+        await worldbookStore.getEntriesForAgent(allWorldbookIds);
       pipelineContext.sharedData.set("loadedWorldbooks", loadedWorldbooks);
     }
 
     // 处理转写任务预处理
     const transcriptionManager = useTranscriptionManager();
-    const allAttachments = currentPathToUserNode.flatMap((node) => node.attachments || []);
+    const allAttachments = currentPathToUserNode.flatMap(
+      (node) => node.attachments || []
+    );
 
     if (allAttachments.length > 0) {
       try {
         const forceAssetIds = new Set<string>();
         const config = settings.value.transcription;
 
-        if (config.enabled && config.strategy === "smart" && config.forceTranscriptionAfter > 0) {
+        if (
+          config.enabled &&
+          config.strategy === "smart" &&
+          config.forceTranscriptionAfter > 0
+        ) {
           for (let i = 0; i < currentPathToUserNode.length; i++) {
             const node = currentPathToUserNode[i];
             const nodeDepth = currentPathToUserNode.length - 1 - i;
 
-            if (nodeDepth >= config.forceTranscriptionAfter && node.attachments) {
+            if (
+              nodeDepth >= config.forceTranscriptionAfter &&
+              node.attachments
+            ) {
               for (const asset of node.attachments) {
-                if (asset.type === "image" || asset.type === "audio" || asset.type === "video") {
+                if (
+                  asset.type === "image" ||
+                  asset.type === "audio" ||
+                  asset.type === "video"
+                ) {
                   forceAssetIds.add(asset.id);
                 }
               }
@@ -166,12 +189,13 @@ export function useSingleNodeExecutor() {
           }
         }
 
-        const updatedAssetsMap = await transcriptionManager.ensureTranscriptions(
-          allAttachments,
-          agentConfig.modelId,
-          agentConfig.profileId,
-          forceAssetIds.size > 0 ? forceAssetIds : undefined,
-        );
+        const updatedAssetsMap =
+          await transcriptionManager.ensureTranscriptions(
+            allAttachments,
+            agentConfig.modelId,
+            agentConfig.profileId,
+            forceAssetIds.size > 0 ? forceAssetIds : undefined
+          );
         pipelineContext.sharedData.set("updatedAssetsMap", updatedAssetsMap);
       } catch (error) {
         logger.warn("等待转写任务完成时出错或超时", error);
@@ -234,7 +258,9 @@ export function useSingleNodeExecutor() {
                 if (!session.nodes || !session.nodes[assistantNode.id]) return;
                 const node = session.nodes[assistantNode.id];
                 if (!node.metadata) node.metadata = {};
-                const previews = [...(node.metadata.partialImagePreviews || [])];
+                const previews = [
+                  ...(node.metadata.partialImagePreviews || []),
+                ];
                 previews[index] = base64;
                 node.metadata.partialImagePreviews = previews;
               }
@@ -248,10 +274,18 @@ export function useSingleNodeExecutor() {
           error &&
           typeof error === "object" &&
           (("code" in error && (error as any).code === 400) ||
-            ("status" in error && (error as any).status === "INVALID_ARGUMENT"));
-        const shouldRetry = !isAbort && !isBadRequest && !hasReceivedStreamData && attempt < maxRetries;
+            ("status" in error &&
+              (error as any).status === "INVALID_ARGUMENT"));
+        const shouldRetry =
+          !isAbort &&
+          !isBadRequest &&
+          !hasReceivedStreamData &&
+          attempt < maxRetries;
         if (shouldRetry) {
-          const delayTime = retryMode === "exponential" ? retryInterval * Math.pow(2, attempt) : retryInterval;
+          const delayTime =
+            retryMode === "exponential"
+              ? retryInterval * Math.pow(2, attempt)
+              : retryInterval;
           await new Promise((resolve) => setTimeout(resolve, delayTime));
           continue;
         }
@@ -260,8 +294,17 @@ export function useSingleNodeExecutor() {
     }
 
     if (response) {
-      await validateAndFixUsage(response, agentConfig.modelId, messagesForRequest as any);
-      await finalizeNode(session, assistantNode.id, response, agentStore.currentAgentId || "");
+      await validateAndFixUsage(
+        response,
+        agentConfig.modelId,
+        messagesForRequest as any
+      );
+      await finalizeNode(
+        session,
+        assistantNode.id,
+        response,
+        agentStore.currentAgentId || ""
+      );
 
       try {
         const sessionIndex = chatStore.sessionIndexMap.get(session.id);

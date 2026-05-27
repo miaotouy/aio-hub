@@ -49,7 +49,9 @@ export class ConfigManager<T extends Record<string, any>> {
 
   constructor(options: ConfigManagerOptions<T>) {
     this.moduleName = options.moduleName;
-    this.fileName = options.fileName || `${this.moduleName.replace(/[/\\?%*:|"<>]/g, "_")}.json`;
+    this.fileName =
+      options.fileName ||
+      `${this.moduleName.replace(/[/\\?%*:|"<>]/g, "_")}.json`;
     this.version = options.version || "1.0.0";
     this.createDefault = options.createDefault;
     this.mergeConfig = options.mergeConfig;
@@ -83,7 +85,10 @@ export class ConfigManager<T extends Record<string, any>> {
   private async getStore(): Promise<Store> {
     if (!this.storePromise) {
       // Tauri V2 plugin-store 需要 defaults 属性
-      this.storePromise = loadStore(this.fileName, { autoSave: true, defaults: {} });
+      this.storePromise = loadStore(this.fileName, {
+        autoSave: true,
+        defaults: {},
+      });
     }
     return this.storePromise;
   }
@@ -108,7 +113,9 @@ export class ConfigManager<T extends Record<string, any>> {
         // 确保版本号更新
         (mergedConfig as any).version = this.version;
       } else {
-        logger.info(`配置文件不存在，使用默认配置`, { moduleName: this.moduleName });
+        logger.info(`配置文件不存在，使用默认配置`, {
+          moduleName: this.moduleName,
+        });
         mergedConfig = { ...defaultConfig };
         (mergedConfig as any).version = this.version;
         await this.save(mergedConfig);

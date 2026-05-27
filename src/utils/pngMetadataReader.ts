@@ -1,7 +1,7 @@
-import { createModuleLogger } from '@/utils/logger';
-import yaml from 'js-yaml';
+import { createModuleLogger } from "@/utils/logger";
+import yaml from "js-yaml";
 
-const logger = createModuleLogger('utils/pngMetadataReader');
+const logger = createModuleLogger("utils/pngMetadataReader");
 
 /**
  * PNG 元数据解析结果
@@ -20,12 +20,18 @@ export interface PngMetadataPayload {
  * @param buffer 图片 buffer
  * @returns 关键字到文本内容的映射对象
  */
-export const extractPngTextChunks = async (buffer: Uint8Array | ArrayBuffer): Promise<Record<string, string>> => {
+export const extractPngTextChunks = async (
+  buffer: Uint8Array | ArrayBuffer
+): Promise<Record<string, string>> => {
   const chunks: Record<string, string> = {};
   try {
-    const uint8Buffer = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+    const uint8Buffer =
+      buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
     const dataView = new DataView(uint8Buffer.buffer);
-    if (dataView.getUint32(0) !== 0x89504E47 || dataView.getUint32(4) !== 0x0D0A1A0A) {
+    if (
+      dataView.getUint32(0) !== 0x89504e47 ||
+      dataView.getUint32(4) !== 0x0d0a1a0a
+    ) {
       return chunks;
     }
 
@@ -33,23 +39,31 @@ export const extractPngTextChunks = async (buffer: Uint8Array | ArrayBuffer): Pr
     while (offset < uint8Buffer.length) {
       const length = dataView.getUint32(offset);
       offset += 4;
-      const type = new TextDecoder().decode(uint8Buffer.subarray(offset, offset + 4));
+      const type = new TextDecoder().decode(
+        uint8Buffer.subarray(offset, offset + 4)
+      );
       offset += 4;
 
-      if (type === 'tEXt') {
+      if (type === "tEXt") {
         const chunkData = uint8Buffer.subarray(offset, offset + length);
         const nullSeparatorIndex = chunkData.indexOf(0);
         if (nullSeparatorIndex !== -1) {
-          const keyword = new TextDecoder().decode(chunkData.subarray(0, nullSeparatorIndex));
-          const text = new TextDecoder().decode(chunkData.subarray(nullSeparatorIndex + 1));
+          const keyword = new TextDecoder().decode(
+            chunkData.subarray(0, nullSeparatorIndex)
+          );
+          const text = new TextDecoder().decode(
+            chunkData.subarray(nullSeparatorIndex + 1)
+          );
           chunks[keyword] = text;
         }
-      } else if (type === 'iTXt') {
+      } else if (type === "iTXt") {
         const chunkData = uint8Buffer.subarray(offset, offset + length);
         let ptr = 0;
         const keywordEnd = chunkData.indexOf(0, ptr);
         if (keywordEnd !== -1) {
-          const keyword = new TextDecoder('latin1').decode(chunkData.subarray(ptr, keywordEnd));
+          const keyword = new TextDecoder("latin1").decode(
+            chunkData.subarray(ptr, keywordEnd)
+          );
           ptr = keywordEnd + 1;
           if (ptr + 2 <= chunkData.length) {
             const compressionFlag = chunkData[ptr++];
@@ -61,7 +75,9 @@ export const extractPngTextChunks = async (buffer: Uint8Array | ArrayBuffer): Pr
               if (transKeywordEnd !== -1) {
                 ptr = transKeywordEnd + 1;
                 if (compressionFlag === 0) {
-                  const text = new TextDecoder('utf-8').decode(chunkData.subarray(ptr));
+                  const text = new TextDecoder("utf-8").decode(
+                    chunkData.subarray(ptr)
+                  );
                   chunks[keyword] = text;
                 }
               }
@@ -72,10 +88,10 @@ export const extractPngTextChunks = async (buffer: Uint8Array | ArrayBuffer): Pr
 
       offset += length;
       offset += 4; // Skip CRC
-      if (type === 'IEND') break;
+      if (type === "IEND") break;
     }
   } catch (error) {
-    logger.warn('提取 PNG 文本块失败', error);
+    logger.warn("提取 PNG 文本块失败", error);
   }
   return chunks;
 };
@@ -83,36 +99,38 @@ export const extractPngTextChunks = async (buffer: Uint8Array | ArrayBuffer): Pr
 /**
  * 统一解析 PNG 中的所有相关元数据
  */
-export const parsePngMetadata = async (buffer: Uint8Array | ArrayBuffer): Promise<PngMetadataPayload> => {
+export const parsePngMetadata = async (
+  buffer: Uint8Array | ArrayBuffer
+): Promise<PngMetadataPayload> => {
   const chunks = await extractPngTextChunks(buffer);
   const result: PngMetadataPayload = { chunks };
 
   // 1. 解析 AIO Bundle (aiob) - 优先级最高
-  if (chunks['aiob']) {
+  if (chunks["aiob"]) {
     try {
       const decodedStr = new TextDecoder().decode(
-        Uint8Array.from(atob(chunks['aiob']), c => c.charCodeAt(0))
+        Uint8Array.from(atob(chunks["aiob"]), (c) => c.charCodeAt(0))
       );
-      if (decodedStr.trim().startsWith('{')) {
+      if (decodedStr.trim().startsWith("{")) {
         result.aioBundle = JSON.parse(decodedStr);
       } else {
         result.aioBundle = yaml.load(decodedStr);
       }
     } catch (e) {
-      logger.warn('解析 PNG aiob 块失败', e);
+      logger.warn("解析 PNG aiob 块失败", e);
     }
   }
 
   // 2. 解析 ST 角色卡 (ccv3 / chara)
-  const stChunk = chunks['ccv3'] || chunks['chara'];
+  const stChunk = chunks["ccv3"] || chunks["chara"];
   if (stChunk) {
     try {
       const jsonStr = new TextDecoder().decode(
-        Uint8Array.from(atob(stChunk), c => c.charCodeAt(0))
+        Uint8Array.from(atob(stChunk), (c) => c.charCodeAt(0))
       );
       result.stCharacter = JSON.parse(jsonStr);
     } catch (e) {
-      logger.warn('解析 ST 角色卡数据失败', e);
+      logger.warn("解析 ST 角色卡数据失败", e);
     }
   }
 
@@ -123,11 +141,12 @@ export const parsePngMetadata = async (buffer: Uint8Array | ArrayBuffer): Promis
  * [兼容性函数] 解析 PNG 图片中的角色卡数据（SillyTavern 格式）
  * 建议优先使用 parsePngMetadata
  */
-export const parseCharacterDataFromPng = async (buffer: Uint8Array | ArrayBuffer): Promise<object | null> => {
+export const parseCharacterDataFromPng = async (
+  buffer: Uint8Array | ArrayBuffer
+): Promise<object | null> => {
   const { stCharacter } = await parsePngMetadata(buffer);
   return stCharacter || null;
 };
-
 
 /**
  * 从 PNG 文件的 tEXt chunk 中提取数据。
@@ -145,17 +164,25 @@ export function extractDataFromPng(
     const dataView = new DataView(uint8Buffer.buffer);
 
     // 检查签名
-    if (dataView.getUint32(0) !== 0x89504E47 || dataView.getUint32(4) !== 0x0D0A1A0A) {
+    if (
+      dataView.getUint32(0) !== 0x89504e47 ||
+      dataView.getUint32(4) !== 0x0d0a1a0a
+    ) {
       return null;
     }
 
     let currentOffset = 8;
     while (currentOffset < uint8Buffer.length) {
       const len = dataView.getUint32(currentOffset, false);
-      const type = new TextDecoder().decode(uint8Buffer.subarray(currentOffset + 4, currentOffset + 8));
+      const type = new TextDecoder().decode(
+        uint8Buffer.subarray(currentOffset + 4, currentOffset + 8)
+      );
 
-      if (type === 'tEXt') {
-        const chunkData = uint8Buffer.subarray(currentOffset + 8, currentOffset + 8 + len);
+      if (type === "tEXt") {
+        const chunkData = uint8Buffer.subarray(
+          currentOffset + 8,
+          currentOffset + 8 + len
+        );
         // 查找 null 分隔符
         let nullPos = -1;
         for (let i = 0; i < chunkData.length; i++) {
@@ -166,7 +193,9 @@ export function extractDataFromPng(
         }
 
         if (nullPos !== -1) {
-          const foundKeyword = new TextDecoder().decode(chunkData.subarray(0, nullPos));
+          const foundKeyword = new TextDecoder().decode(
+            chunkData.subarray(0, nullPos)
+          );
           if (foundKeyword === keyword) {
             const textBytes = chunkData.subarray(nullPos + 1);
             const base64Data = new TextDecoder().decode(textBytes);
@@ -180,13 +209,13 @@ export function extractDataFromPng(
         }
       }
 
-      if (type === 'IEND') break;
+      if (type === "IEND") break;
       currentOffset += 4 + 4 + len + 4;
     }
 
     return null;
   } catch (error) {
-    logger.error('从 PNG 提取数据失败', error as Error);
+    logger.error("从 PNG 提取数据失败", error as Error);
     return null;
   }
 }

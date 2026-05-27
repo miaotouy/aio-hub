@@ -12,15 +12,21 @@
         <div class="export-summary">
           <div class="summary-item summary-item-full">
             <span class="summary-label">会话名称:</span>
-            <span class="summary-value">{{ sessionIndex?.name || "未命名" }}</span>
+            <span class="summary-value">{{
+              sessionIndex?.name || "未命名"
+            }}</span>
           </div>
           <div class="summary-item">
             <span class="summary-label">创建时间:</span>
-            <span class="summary-value">{{ formatDate(sessionIndex?.createdAt) }}</span>
+            <span class="summary-value">{{
+              formatDate(sessionIndex?.createdAt)
+            }}</span>
           </div>
           <div class="summary-item">
             <span class="summary-label">更新时间:</span>
-            <span class="summary-value">{{ formatDate(sessionIndex?.updatedAt) }}</span>
+            <span class="summary-value">{{
+              formatDate(sessionIndex?.updatedAt)
+            }}</span>
           </div>
           <div class="summary-item">
             <span class="summary-label">总消息数:</span>
@@ -53,7 +59,9 @@
 
     <template #footer>
       <el-button @click="localVisible = false">取消</el-button>
-      <el-button type="primary" @click="handleExport" :loading="exporting"> 导出 </el-button>
+      <el-button type="primary" @click="handleExport" :loading="exporting">
+        导出
+      </el-button>
     </template>
   </BaseDialog>
 </template>
@@ -80,7 +88,6 @@ interface Props {
   sessionIndex: ChatSessionIndex | null;
   sessionDetail?: ChatSessionDetail | null;
 }
-
 
 interface Emits {
   (e: "update:visible", value: boolean): void;
@@ -140,7 +147,7 @@ const previewContent = computed(() => {
   if (!props.sessionIndex) {
     return "暂无会话数据";
   }
-  
+
   if (!props.sessionDetail) {
     return "正在加载会话详情...";
   }
@@ -156,10 +163,14 @@ const previewContent = computed(() => {
   };
 
   if (exportFormat.value === "raw") {
-    return JSON.stringify({
-      index: props.sessionIndex,
-      detail: props.sessionDetail
-    }, null, 2);
+    return JSON.stringify(
+      {
+        index: props.sessionIndex,
+        detail: props.sessionDetail,
+      },
+      null,
+      2
+    );
   } else if (exportFormat.value === "json") {
     // 简化的 JSON 导出（包含完整节点树）
     const jsonData = {
@@ -176,7 +187,11 @@ const previewContent = computed(() => {
     };
     return JSON.stringify(jsonData, null, 2);
   } else {
-    return exportSessionAsMarkdownTree(props.sessionIndex, props.sessionDetail, options);
+    return exportSessionAsMarkdownTree(
+      props.sessionIndex,
+      props.sessionDetail,
+      options
+    );
   }
 });
 
@@ -217,11 +232,14 @@ const handleExport = async () => {
     // 生成默认文件名 (使用本地时间)
     const timestamp = formatDateTime(new Date(), "yyyy-MM-dd");
 
-    const isJson = exportFormat.value === "json" || exportFormat.value === "raw";
+    const isJson =
+      exportFormat.value === "json" || exportFormat.value === "raw";
     const extension = isJson ? "json" : "md";
 
     // 对会话名称和时间戳分别清理并合并，确保万无一失
-    const safeSessionName = sanitizeFilename(props.sessionIndex.name || "未命名会话");
+    const safeSessionName = sanitizeFilename(
+      props.sessionIndex.name || "未命名会话"
+    );
     const defaultFileName = `${safeSessionName}-${timestamp}.${extension}`;
 
     // 打开保存对话框

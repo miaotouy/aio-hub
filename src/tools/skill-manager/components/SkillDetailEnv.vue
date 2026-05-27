@@ -18,15 +18,36 @@
 
       <!-- 操作按钮栏 -->
       <div class="env-toolbar">
-        <el-button type="primary" size="small" :icon="Save" @click="handleSaveEnv" :loading="envSaving">
+        <el-button
+          type="primary"
+          size="small"
+          :icon="Save"
+          @click="handleSaveEnv"
+          :loading="envSaving"
+        >
           保存配置
         </el-button>
-        <el-button size="small" :icon="Plus" plain @click="addCustomEnvEntry"> 添加自定义变量 </el-button>
+        <el-button size="small" :icon="Plus" plain @click="addCustomEnvEntry">
+          添加自定义变量
+        </el-button>
         <template v-if="envExampleResult.exists">
-          <el-button size="small" :icon="RefreshCw" plain @click="handleSyncFromExample" :loading="envSyncing">
+          <el-button
+            size="small"
+            :icon="RefreshCw"
+            plain
+            @click="handleSyncFromExample"
+            :loading="envSyncing"
+          >
             同步变量项
           </el-button>
-          <el-button size="small" :icon="RotateCcw" plain @click="handleResetDefaults"> 还原默认值 </el-button>
+          <el-button
+            size="small"
+            :icon="RotateCcw"
+            plain
+            @click="handleResetDefaults"
+          >
+            还原默认值
+          </el-button>
         </template>
       </div>
     </div>
@@ -35,7 +56,11 @@
     <div class="env-list-scroll">
       <div class="env-scroll-content">
         <!-- 有 .env.example 时：分组展示 -->
-        <template v-if="envExampleResult.exists && envExampleResult.definitions.length > 0">
+        <template
+          v-if="
+            envExampleResult.exists && envExampleResult.definitions.length > 0
+          "
+        >
           <template v-for="(group, groupIndex) in envGroups" :key="groupIndex">
             <!-- 分组标题 -->
             <div v-if="group.name" class="env-group-header">
@@ -46,10 +71,14 @@
             <div v-for="def in group.items" :key="def.key" class="env-var-card">
               <div class="env-var-header">
                 <span class="env-var-key">{{ def.key }}</span>
-                <span v-if="def.defaultValue" class="env-var-default">默认: {{ def.defaultValue }}</span>
+                <span v-if="def.defaultValue" class="env-var-default"
+                  >默认: {{ def.defaultValue }}</span
+                >
                 <span v-else class="env-var-default empty">默认: (空)</span>
               </div>
-              <div v-if="def.description" class="env-var-description">{{ def.description }}</div>
+              <div v-if="def.description" class="env-var-description">
+                {{ def.description }}
+              </div>
               <el-input
                 v-model="envValues[def.key]"
                 :placeholder="def.defaultValue || '请输入值'"
@@ -63,13 +92,20 @@
         </template>
 
         <!-- 自定义变量区域 -->
-        <div v-if="customEnvEntries.length > 0 || !envExampleResult.exists" class="env-custom-section">
+        <div
+          v-if="customEnvEntries.length > 0 || !envExampleResult.exists"
+          class="env-custom-section"
+        >
           <div v-if="envExampleResult.exists" class="env-group-header">
             <span class="env-group-title">自定义变量</span>
           </div>
 
           <div class="env-list">
-            <div v-for="(_, index) in customEnvEntries" :key="index" class="env-row">
+            <div
+              v-for="(_, index) in customEnvEntries"
+              :key="index"
+              class="env-row"
+            >
               <el-input
                 v-model="customEnvEntries[index].key"
                 placeholder="变量名 (如 ENDPOINT)"
@@ -82,9 +118,20 @@
                 size="small"
                 class="env-value-input"
                 :show-password="isSensitiveVar(customEnvEntries[index].key)"
-                :type="isSensitiveVar(customEnvEntries[index].key) ? 'password' : 'text'"
+                :type="
+                  isSensitiveVar(customEnvEntries[index].key)
+                    ? 'password'
+                    : 'text'
+                "
               />
-              <el-button size="small" :icon="X" circle plain type="danger" @click="removeCustomEnvEntry(index)" />
+              <el-button
+                size="small"
+                :icon="X"
+                circle
+                plain
+                type="danger"
+                @click="removeCustomEnvEntry(index)"
+              />
             </div>
           </div>
         </div>
@@ -99,7 +146,10 @@ import { Plus, RotateCcw, RefreshCw, X, Save } from "lucide-vue-next";
 import { ElMessageBox } from "element-plus";
 import { useSkillManagerStore } from "../stores/skillManagerStore";
 import { customMessage } from "@/utils/customMessage";
-import { isSensitiveVar, type EnvVarDefinition } from "../services/envExampleParser";
+import {
+  isSensitiveVar,
+  type EnvVarDefinition,
+} from "../services/envExampleParser";
 import {
   loadEnvExample,
   loadEnvFile,
@@ -123,7 +173,10 @@ interface EnvEntry {
 }
 
 /** .env.example 解析结果 */
-const envExampleResult = ref<EnvExampleParseResult>({ definitions: [], exists: false });
+const envExampleResult = ref<EnvExampleParseResult>({
+  definitions: [],
+  exists: false,
+});
 /** 基于 definitions 的变量值（key -> value） */
 const envValues = ref<Record<string, string>>({});
 /** 自定义变量（不在 .env.example 中的） */
@@ -139,7 +192,10 @@ const envSaving = ref(false);
 const envGroups = computed(() => {
   const defs = envExampleResult.value.definitions;
   const groups: { name: string | undefined; items: EnvVarDefinition[] }[] = [];
-  let currentGroup: { name: string | undefined; items: EnvVarDefinition[] } | null = null;
+  let currentGroup: {
+    name: string | undefined;
+    items: EnvVarDefinition[];
+  } | null = null;
 
   for (const def of defs) {
     if (!currentGroup || def.group !== currentGroup.name) {
@@ -162,7 +218,11 @@ async function loadEnvData() {
   // 2. 尝试迁移旧数据
   const configVars = store.getSkillEnvVars(skillId);
   if (Object.keys(configVars).length > 0) {
-    const migrated = await migrateFromConfig(skillId, configVars, envExampleResult.value.definitions);
+    const migrated = await migrateFromConfig(
+      skillId,
+      configVars,
+      envExampleResult.value.definitions
+    );
     if (migrated) {
       envMigrated.value = true;
       // 清理 config 中的旧数据
@@ -174,7 +234,9 @@ async function loadEnvData() {
   const fileVars = await loadEnvFile(skillId);
 
   // 4. 分离 definitions 中的变量和自定义变量
-  const definedKeys = new Set(envExampleResult.value.definitions.map((d) => d.key));
+  const definedKeys = new Set(
+    envExampleResult.value.definitions.map((d) => d.key)
+  );
 
   // 填充 definitions 对应的值
   const values: Record<string, string> = {};
@@ -214,7 +276,9 @@ async function handleSaveEnv() {
       }
     }
 
-    const defs = envExampleResult.value.exists ? envExampleResult.value.definitions : undefined;
+    const defs = envExampleResult.value.exists
+      ? envExampleResult.value.definitions
+      : undefined;
     const success = await saveEnvFile(props.manifest.name, allVars, defs);
     if (success) {
       customMessage.success("环境变量已保存到 .env 文件");
@@ -228,7 +292,10 @@ async function handleSaveEnv() {
 async function handleSyncFromExample() {
   envSyncing.value = true;
   try {
-    const addedKeys = await syncFromExample(props.manifest.name, envExampleResult.value.definitions);
+    const addedKeys = await syncFromExample(
+      props.manifest.name,
+      envExampleResult.value.definitions
+    );
     if (addedKeys.length > 0) {
       customMessage.success(`已补充 ${addedKeys.length} 个新变量`);
       await loadEnvData();
@@ -251,10 +318,13 @@ async function handleResetDefaults() {
         cancelButtonText: "取消",
         type: "warning",
         lockScroll: false,
-      },
+      }
     );
 
-    const success = await resetToDefaults(props.manifest.name, envExampleResult.value.definitions);
+    const success = await resetToDefaults(
+      props.manifest.name,
+      envExampleResult.value.definitions
+    );
     if (success) {
       customMessage.success("已还原为默认值");
       await loadEnvData();
@@ -271,7 +341,7 @@ watch(
     envMigrated.value = false;
     loadEnvData();
   },
-  { immediate: true },
+  { immediate: true }
 );
 </script>
 

@@ -1,7 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { filterParametersForModel, buildEffectiveParameters } from "../parameter-config";
+import {
+  filterParametersForModel,
+  buildEffectiveParameters,
+} from "../parameter-config";
 import type { LlmParameters } from "../../types";
-import type { LlmParameterSupport, ModelCapabilities } from "@/types/llm-profiles";
+import type {
+  LlmParameterSupport,
+  ModelCapabilities,
+} from "@/types/llm-profiles";
 
 describe("parameter-config", () => {
   describe("filterParametersForModel", () => {
@@ -53,7 +59,11 @@ describe("parameter-config", () => {
         thinkingConfigType: "budget",
       };
 
-      const result = filterParametersForModel(mockParameters, supported, capabilities);
+      const result = filterParametersForModel(
+        mockParameters,
+        supported,
+        capabilities
+      );
 
       expect(result.thinkingEnabled).toBe(true);
       expect(result.thinkingBudget).toBe(4000);
@@ -72,7 +82,11 @@ describe("parameter-config", () => {
         thinkingConfigType: "effort",
       };
 
-      const result = filterParametersForModel(mockParameters, supported, capabilities);
+      const result = filterParametersForModel(
+        mockParameters,
+        supported,
+        capabilities
+      );
 
       expect(result.thinkingEnabled).toBeUndefined();
       expect(result.thinkingBudget).toBeUndefined();
@@ -91,7 +105,11 @@ describe("parameter-config", () => {
         thinkingConfigType: "none",
       };
 
-      const result = filterParametersForModel(mockParameters, supported, capabilities);
+      const result = filterParametersForModel(
+        mockParameters,
+        supported,
+        capabilities
+      );
 
       expect(result.thinkingEnabled).toBeUndefined();
       expect(result.thinkingBudget).toBeUndefined();
@@ -105,7 +123,10 @@ describe("parameter-config", () => {
       const supported: LlmParameterSupport = {};
       const result = filterParametersForModel(mockParameters, supported);
 
-      expect(result.custom).toEqual({ enabled: true, params: { key: "value" } });
+      expect(result.custom).toEqual({
+        enabled: true,
+        params: { key: "value" },
+      });
       expect(result.contextManagement).toEqual({
         enabled: true,
         maxContextTokens: 4096,
@@ -117,13 +138,19 @@ describe("parameter-config", () => {
       const supportedWithThinkingConfig: LlmParameterSupport = {
         thinkingConfig: true,
       };
-      const resultWith = filterParametersForModel(mockParameters, supportedWithThinkingConfig);
+      const resultWith = filterParametersForModel(
+        mockParameters,
+        supportedWithThinkingConfig
+      );
       expect(resultWith.includeThoughts).toBe(true);
 
       const supportedWithoutThinkingConfig: LlmParameterSupport = {
         thinkingConfig: false,
       };
-      const resultWithout = filterParametersForModel(mockParameters, supportedWithoutThinkingConfig);
+      const resultWithout = filterParametersForModel(
+        mockParameters,
+        supportedWithoutThinkingConfig
+      );
       expect(resultWithout.includeThoughts).toBeUndefined();
     });
   });

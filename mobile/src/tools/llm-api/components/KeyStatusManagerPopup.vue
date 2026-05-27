@@ -4,7 +4,14 @@ import { useI18n } from "@/i18n";
 import { useLlmKeyManager } from "../composables/useLlmKeyManager";
 import { useLlmProfilesStore } from "../stores/llmProfiles";
 import type { LlmProfile } from "../types";
-import { ChevronLeft, ShieldCheck, RotateCcw, Clock, AlertCircle, Plus } from "lucide-vue-next";
+import {
+  ChevronLeft,
+  ShieldCheck,
+  RotateCcw,
+  Clock,
+  AlertCircle,
+  Plus,
+} from "lucide-vue-next";
 import { Snackbar, Dialog } from "@varlet/ui";
 
 const props = defineProps<{
@@ -104,7 +111,11 @@ const handleBatchImport = () => {
       apiKeys: updatedKeys,
     });
 
-    Snackbar.success(tRaw("tools.llm-api.KeyManager.导入成功N个", { count: uniqueNewKeys.length }));
+    Snackbar.success(
+      tRaw("tools.llm-api.KeyManager.导入成功N个", {
+        count: uniqueNewKeys.length,
+      })
+    );
   }
 
   importText.value = "";
@@ -120,7 +131,11 @@ const handleBatchImport = () => {
     style="width: 100%; height: 100%"
   >
     <div class="manager-popup">
-      <var-app-bar :title="tRaw('tools.llm-api.KeyManager.多Key状态管理')" fixed safe-area>
+      <var-app-bar
+        :title="tRaw('tools.llm-api.KeyManager.多Key状态管理')"
+        fixed
+        safe-area
+      >
         <template #left>
           <var-button round text @click="emit('update:show', false)">
             <ChevronLeft :size="24" />
@@ -149,32 +164,54 @@ const handleBatchImport = () => {
         </div>
 
         <div class="settings-group">
-          <div class="section-header">{{ tRaw("tools.llm-api.KeyManager.策略设置") }}</div>
+          <div class="section-header">
+            {{ tRaw("tools.llm-api.KeyManager.策略设置") }}
+          </div>
           <div class="config-card">
             <var-cell>
               {{ tRaw("tools.llm-api.KeyManager.自动熔断") }}
-              <template #description>{{ tRaw("tools.llm-api.KeyManager.自动熔断说明") }}</template>
+              <template #description>{{
+                tRaw("tools.llm-api.KeyManager.自动熔断说明")
+              }}</template>
               <template #extra>
                 <var-switch
                   :model-value="keyManager.getEnableAutoDisable()"
-                  @update:model-value="(val) => keyManager.setEnableAutoDisable(val as boolean)"
+                  @update:model-value="
+                    (val) => keyManager.setEnableAutoDisable(val as boolean)
+                  "
                 />
               </template>
             </var-cell>
             <var-cell>
               {{ tRaw("tools.llm-api.KeyManager.自动恢复时长") }}
-              <template #description>{{ tRaw("tools.llm-api.KeyManager.自动恢复说明") }}</template>
+              <template #description>{{
+                tRaw("tools.llm-api.KeyManager.自动恢复说明")
+              }}</template>
               <template #extra>
                 <var-select
                   :model-value="keyManager.getAutoRecoveryTime()"
-                  @update:model-value="(val) => keyManager.setAutoRecoveryTime(val as number)"
+                  @update:model-value="
+                    (val) => keyManager.setAutoRecoveryTime(val as number)
+                  "
                   size="small"
                   style="width: 100px"
                 >
-                  <var-option :label="tRaw('tools.llm-api.KeyManager.1分钟')" :value="60000" />
-                  <var-option :label="tRaw('tools.llm-api.KeyManager.5分钟')" :value="300000" />
-                  <var-option :label="tRaw('tools.llm-api.KeyManager.30分钟')" :value="1800000" />
-                  <var-option :label="tRaw('tools.llm-api.KeyManager.从不')" :value="0" />
+                  <var-option
+                    :label="tRaw('tools.llm-api.KeyManager.1分钟')"
+                    :value="60000"
+                  />
+                  <var-option
+                    :label="tRaw('tools.llm-api.KeyManager.5分钟')"
+                    :value="300000"
+                  />
+                  <var-option
+                    :label="tRaw('tools.llm-api.KeyManager.30分钟')"
+                    :value="1800000"
+                  />
+                  <var-option
+                    :label="tRaw('tools.llm-api.KeyManager.从不')"
+                    :value="0"
+                  />
                 </var-select>
               </template>
             </var-cell>
@@ -187,18 +224,28 @@ const handleBatchImport = () => {
         </div>
 
         <div v-else class="key-list">
-          <div class="section-header">{{ tRaw("tools.llm-api.KeyManager.Key列表") }}</div>
+          <div class="section-header">
+            {{ tRaw("tools.llm-api.KeyManager.Key列表") }}
+          </div>
           <div
             v-for="status in keyStatuses"
             :key="status.key"
             class="key-item-card"
-            :class="{ 'is-broken': status.isBroken, 'is-disabled': !status.isEnabled }"
+            :class="{
+              'is-broken': status.isBroken,
+              'is-disabled': !status.isEnabled,
+            }"
           >
             <div class="key-header">
               <div class="key-info">
                 <div class="key-name-row">
                   <span class="key-text mono">{{ maskKey(status.key) }}</span>
-                  <var-chip v-if="status.isBroken" type="danger" size="mini" class="status-chip">
+                  <var-chip
+                    v-if="status.isBroken"
+                    type="danger"
+                    size="mini"
+                    class="status-chip"
+                  >
                     {{ tRaw("tools.llm-api.KeyManager.已熔断") }}
                   </var-chip>
                   <var-chip
@@ -209,7 +256,12 @@ const handleBatchImport = () => {
                   >
                     {{ t("common.已禁用") }}
                   </var-chip>
-                  <var-chip v-else type="success" size="mini" class="status-chip">
+                  <var-chip
+                    v-else
+                    type="success"
+                    size="mini"
+                    class="status-chip"
+                  >
                     {{ t("common.正常") }}
                   </var-chip>
                 </div>
@@ -219,23 +271,30 @@ const handleBatchImport = () => {
                   </span>
                   <span v-if="status.errorCount > 0" class="meta-item error">
                     <AlertCircle :size="12" />
-                    {{ tRaw("tools.llm-api.KeyManager.N次失败", { count: status.errorCount }) }}
+                    {{
+                      tRaw("tools.llm-api.KeyManager.N次失败", {
+                        count: status.errorCount,
+                      })
+                    }}
                   </span>
                 </div>
               </div>
               <var-switch
                 :model-value="status.isEnabled"
-                @update:model-value="toggleKeyEnabled(status.key, status.isEnabled)"
+                @update:model-value="
+                  toggleKeyEnabled(status.key, status.isEnabled)
+                "
                 size="20"
               />
             </div>
 
-            <div v-if="status.isBroken || status.lastErrorMessage" class="key-footer">
+            <div
+              v-if="status.isBroken || status.lastErrorMessage"
+              class="key-footer"
+            >
               <div class="error-msg text-truncate" @click="showDetails(status)">
                 {{
-                  status.lastErrorMessage ||
-                  status.note ||
-                  t("common.未知错误")
+                  status.lastErrorMessage || status.note || t("common.未知错误")
                 }}
               </div>
               <var-button
@@ -250,7 +309,6 @@ const handleBatchImport = () => {
             </div>
           </div>
         </div>
-
       </div>
     </div>
 
@@ -261,7 +319,9 @@ const handleBatchImport = () => {
       @confirm="handleBatchImport"
     >
       <div class="import-dialog-content">
-        <p class="import-tip">{{ tRaw("tools.llm-api.KeyManager.批量导入提示") }}</p>
+        <p class="import-tip">
+          {{ tRaw("tools.llm-api.KeyManager.批量导入提示") }}
+        </p>
         <var-input
           v-model="importText"
           textarea

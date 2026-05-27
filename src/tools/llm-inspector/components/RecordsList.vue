@@ -5,14 +5,24 @@
       <div class="filter-controls">
         <input
           :value="searchQuery"
-          @input="$emit('update:searchQuery', ($event.target as HTMLInputElement).value)"
+          @input="
+            $emit(
+              'update:searchQuery',
+              ($event.target as HTMLInputElement).value
+            )
+          "
           type="text"
           placeholder="搜索URL或内容..."
           class="search-input"
         />
         <select
           :value="filterStatus"
-          @change="$emit('update:filterStatus', ($event.target as HTMLSelectElement).value)"
+          @change="
+            $emit(
+              'update:filterStatus',
+              ($event.target as HTMLSelectElement).value
+            )
+          "
           class="filter-select"
         >
           <option value="">全部状态</option>
@@ -40,8 +50,12 @@
           </span>
         </div>
         <div class="record-meta">
-          <span class="timestamp">{{ formatTime(record.request.timestamp) }}</span>
-          <span class="duration" v-if="record.response"> {{ record.response.duration_ms }}ms </span>
+          <span class="timestamp">{{
+            formatTime(record.request.timestamp)
+          }}</span>
+          <span class="duration" v-if="record.response">
+            {{ record.response.duration_ms }}ms
+          </span>
           <span class="size">
             ↑ {{ formatSize(record.request.request_size) }}
             <template v-if="record.response">

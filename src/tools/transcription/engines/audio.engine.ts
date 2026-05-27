@@ -9,7 +9,11 @@ import type { Asset } from "@/types/asset-management";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import { getModelParams, getEffectiveConfig } from "./base";
 import { cleanLlmOutput, detectRepetition } from "../utils/text";
-import type { ITranscriptionEngine, EngineContext, EngineResult } from "../types";
+import type {
+  ITranscriptionEngine,
+  EngineContext,
+  EngineResult,
+} from "../types";
 
 const logger = createModuleLogger("transcription/engines/audio");
 
@@ -26,7 +30,14 @@ export class AudioTranscriptionEngine implements ITranscriptionEngine {
     const config = getEffectiveConfig(ctx);
     const { sendRequest, getNetworkStrategy } = useLlmRequest();
 
-    const { modelIdentifier, prompt, temperature, maxTokens, timeout, enableRepetitionDetection } = getModelParams(ctx, "audio");
+    const {
+      modelIdentifier,
+      prompt,
+      temperature,
+      maxTokens,
+      timeout,
+      enableRepetitionDetection,
+    } = getModelParams(ctx, "audio");
     const [profileId, modelId] = parseModelCombo(modelIdentifier);
 
     // 1. 获取资产对象以检查文件大小并处理压缩逻辑
@@ -38,11 +49,17 @@ export class AudioTranscriptionEngine implements ITranscriptionEngine {
     if (task.tempFilePath) {
       try {
         const basePath = await assetManagerEngine.getAssetBasePath();
-        const tempFullPath = `${basePath}/${task.tempFilePath}`.replace(/\\/g, "/");
+        const tempFullPath = `${basePath}/${task.tempFilePath}`.replace(
+          /\\/g,
+          "/"
+        );
         await stat(tempFullPath);
         finalPath = task.tempFilePath;
         reuseTempFile = true;
-        logger.info("复用已有的压缩音频文件", { assetId: task.assetId, path: finalPath });
+        logger.info("复用已有的压缩音频文件", {
+          assetId: task.assetId,
+          path: finalPath,
+        });
       } catch (e) {
         task.tempFilePath = undefined;
       }
@@ -57,14 +74,19 @@ export class AudioTranscriptionEngine implements ITranscriptionEngine {
 
       let shouldCompress = false;
       if (config.audio?.enableCompression && ffmpegPath) {
-        const isFFmpegAvailable = await invoke<boolean>("check_ffmpeg_availability", { path: ffmpegPath });
+        const isFFmpegAvailable = await invoke<boolean>(
+          "check_ffmpeg_availability",
+          { path: ffmpegPath }
+        );
         if (isFFmpegAvailable) {
           try {
             const fileStat = await stat(fullPath);
             const sizeMB = fileStat.size / (1024 * 1024);
             if (sizeMB > maxDirectSizeMB) {
               shouldCompress = true;
-              logger.info(`音频大小 (${sizeMB.toFixed(2)}MB) 超过阈值 (${maxDirectSizeMB}MB)，将尝试压缩`);
+              logger.info(
+                `音频大小 (${sizeMB.toFixed(2)}MB) 超过阈值 (${maxDirectSizeMB}MB)，将尝试压缩`
+              );
             }
           } catch (e) {
             logger.warn("无法获取音频文件大小，将尝试直接处理", e);
@@ -78,14 +100,14 @@ export class AudioTranscriptionEngine implements ITranscriptionEngine {
           const outputPath = `${fullPath}_compressed.m4a`;
 
           // 监听进度
-          const unlisten = await listen<{ task_id: string; progress: { percent: number } }>(
-            "ffmpeg-progress",
-            (event) => {
-              if (event.payload.task_id === task.id) {
-                task.progress = event.payload.progress.percent;
-              }
+          const unlisten = await listen<{
+            task_id: string;
+            progress: { percent: number };
+          }>("ffmpeg-progress", (event) => {
+            if (event.payload.task_id === task.id) {
+              task.progress = event.payload.progress.percent;
             }
-          );
+          });
 
           try {
             await invoke("process_media", {
@@ -97,7 +119,7 @@ export class AudioTranscriptionEngine implements ITranscriptionEngine {
                 ffmpegPath: ffmpegPath,
                 hwaccel: false,
                 audioBitrate: bitrate,
-              }
+              },
             });
           } finally {
             unlisten();
@@ -115,12 +137,14 @@ export class AudioTranscriptionEngine implements ITranscriptionEngine {
 
     // 2. 发送请求
     // 让出主线程执行权
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 50));
 
     const basePath = await assetManagerEngine.getAssetBasePath();
     const fullFullPath = `${basePath}/${finalPath}`.replace(/\\/g, "/");
 
-    const finalPrompt = task.filename ? prompt.replace(/\{filename\}/g, task.filename) : prompt;
+    const finalPrompt = task.filename
+      ? prompt.replace(/\{filename\}/g, task.filename)
+      : prompt;
 
     let audioData: string;
     let hasLocalFile = false;
@@ -130,7 +154,10 @@ export class AudioTranscriptionEngine implements ITranscriptionEngine {
       const finalStat = await stat(fullFullPath);
       const networkStrategy = getNetworkStrategy(profileId);
 
-      if (networkStrategy !== "native" && finalStat.size > FILE_SIZE_THRESHOLD) {
+      if (
+        networkStrategy !== "native" &&
+        finalStat.size > FILE_SIZE_THRESHOLD
+      ) {
         audioData = `local-file://${fullFullPath}`;
         hasLocalFile = true;
       } else {
@@ -148,9 +175,9 @@ export class AudioTranscriptionEngine implements ITranscriptionEngine {
         source: {
           type: "base64",
           media_type: task.mimeType || "audio/mpeg",
-          data: audioData
-        }
-      }
+          data: audioData,
+        },
+      },
     ];
 
     const response = await sendRequest({
@@ -174,7 +201,7 @@ export class AudioTranscriptionEngine implements ITranscriptionEngine {
 
     return {
       text: cleanedText,
-      isEmpty: !cleanedText || cleanedText.trim().length === 0
+      isEmpty: !cleanedText || cleanedText.trim().length === 0,
     };
   }
 }

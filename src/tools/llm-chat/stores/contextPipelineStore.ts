@@ -1,6 +1,9 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
-import type { ContextProcessor, PipelineContext } from "@/tools/llm-chat/types/pipeline";
+import type {
+  ContextProcessor,
+  PipelineContext,
+} from "@/tools/llm-chat/types/pipeline";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createConfigManager } from "@/utils/configManager";
@@ -70,9 +73,14 @@ export const useContextPipelineStore = defineStore("contextPipeline", () => {
       const settings = await settingsManager.load();
 
       // 1. 恢复启用状态
-      if (settings.enabledProcessorIds && settings.enabledProcessorIds.length > 0) {
+      if (
+        settings.enabledProcessorIds &&
+        settings.enabledProcessorIds.length > 0
+      ) {
         // 过滤掉已不存在的处理器 ID
-        const validIds = settings.enabledProcessorIds.filter((id) => processors.value.some((p) => p.id === id));
+        const validIds = settings.enabledProcessorIds.filter((id) =>
+          processors.value.some((p) => p.id === id)
+        );
         // 如果有有效的保存配置，则使用它；否则保留默认值
         if (validIds.length > 0) {
           enabledProcessorIds.value = validIds;
@@ -80,7 +88,10 @@ export const useContextPipelineStore = defineStore("contextPipeline", () => {
       }
 
       // 2. 恢复顺序
-      if (settings.orderedProcessorIds && settings.orderedProcessorIds.length > 0) {
+      if (
+        settings.orderedProcessorIds &&
+        settings.orderedProcessorIds.length > 0
+      ) {
         reorderProcessors(settings.orderedProcessorIds, false); // false 表示不触发保存，避免循环
       }
 
@@ -119,7 +130,10 @@ export const useContextPipelineStore = defineStore("contextPipeline", () => {
     if (processors.value.some((p) => p.id === processor.id)) {
       logger.warn("处理器已注册，将进行覆盖", { id: processor.id });
     }
-    processors.value = [...processors.value.filter((p) => p.id !== processor.id), processor];
+    processors.value = [
+      ...processors.value.filter((p) => p.id !== processor.id),
+      processor,
+    ];
     if (processor.defaultEnabled !== false) {
       setProcessorEnabled(processor.id, true);
     }
@@ -128,7 +142,9 @@ export const useContextPipelineStore = defineStore("contextPipeline", () => {
 
   function unregisterProcessor(processorId: string) {
     processors.value = processors.value.filter((p) => p.id !== processorId);
-    enabledProcessorIds.value = enabledProcessorIds.value.filter((id) => id !== processorId);
+    enabledProcessorIds.value = enabledProcessorIds.value.filter(
+      (id) => id !== processorId
+    );
     saveSettings();
     logger.info("处理器已卸载", { id: processorId });
   }
@@ -139,7 +155,9 @@ export const useContextPipelineStore = defineStore("contextPipeline", () => {
       enabledProcessorIds.value.push(processorId);
       saveSettings();
     } else if (!enabled && exists) {
-      enabledProcessorIds.value = enabledProcessorIds.value.filter((id) => id !== processorId);
+      enabledProcessorIds.value = enabledProcessorIds.value.filter(
+        (id) => id !== processorId
+      );
       saveSettings();
     }
   }
@@ -183,12 +201,16 @@ export const useContextPipelineStore = defineStore("contextPipeline", () => {
   function resetToDefaults() {
     const initial = getInitialProcessors();
     processors.value = [...initial];
-    enabledProcessorIds.value = initial.filter((p) => p.defaultEnabled !== false).map((p) => p.id);
+    enabledProcessorIds.value = initial
+      .filter((p) => p.defaultEnabled !== false)
+      .map((p) => p.id);
     saveSettings();
     logger.info("上下文管道已重置为默认设置");
   }
 
-  async function executePipeline(context: PipelineContext): Promise<PipelineContext> {
+  async function executePipeline(
+    context: PipelineContext
+  ): Promise<PipelineContext> {
     logger.info("开始执行上下文管道", {
       processorCount: sortedAndEnabledProcessors.value.length,
       processors: sortedAndEnabledProcessors.value.map((p) => p.id),

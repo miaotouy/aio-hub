@@ -9,7 +9,7 @@
 <script setup lang="ts">
 defineProps<{
   nodeId: string;
-  align?: ('left' | 'center' | 'right')[];
+  align?: ("left" | "center" | "right")[];
 }>();
 </script>
 

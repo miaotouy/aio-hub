@@ -7,8 +7,14 @@ function sanitizeForAgent(obj: any): any {
   if (obj === null || typeof obj !== "object") {
     if (typeof obj === "string" && obj.length > 100) {
       // 检查是否看起来像 Base64 (简单启发式：长字符串且无空格，或带有 data:image 前缀)
-      if (obj.startsWith("data:") || (/^[A-Za-z0-9+/=]+$/.test(obj) && !obj.includes(" "))) {
-        return obj.substring(0, 50) + `... [已截断 Base64 数据, 共 ${obj.length} 字符]`;
+      if (
+        obj.startsWith("data:") ||
+        (/^[A-Za-z0-9+/=]+$/.test(obj) && !obj.includes(" "))
+      ) {
+        return (
+          obj.substring(0, 50) +
+          `... [已截断 Base64 数据, 共 ${obj.length} 字符]`
+        );
       }
     }
     return obj;
@@ -28,7 +34,9 @@ function sanitizeForAgent(obj: any): any {
 /**
  * 格式化图片媒体元数据为 Markdown 文本（Agent 专用）
  */
-export function formatMetadataResult(result: ImageMetadataResult | null): string {
+export function formatMetadataResult(
+  result: ImageMetadataResult | null
+): string {
   if (!result) {
     return "❌ 未能解析到有效的 AI 元数据";
   }
@@ -50,13 +58,18 @@ export function formatMetadataResult(result: ImageMetadataResult | null): string
       lines.push("- **生成参数**: " + result.webuiInfo.generationInfo);
     }
 
-    if (result.webuiInfo.civitaiResources && result.webuiInfo.civitaiResources.length > 0) {
+    if (
+      result.webuiInfo.civitaiResources &&
+      result.webuiInfo.civitaiResources.length > 0
+    ) {
       lines.push("");
       lines.push("#### Civitai 资源");
       lines.push("| 类型 | 模型名称 | 版本 | 权重 |");
       lines.push("|------|----------|------|------|");
       for (const res of result.webuiInfo.civitaiResources) {
-        lines.push(`| ${res.type} | ${res.modelName} | ${res.modelVersionName} | ${res.weight ?? "-"} |`);
+        lines.push(
+          `| ${res.type} | ${res.modelName} | ${res.modelVersionName} | ${res.weight ?? "-"} |`
+        );
       }
     }
     lines.push("");
@@ -81,7 +94,9 @@ export function formatMetadataResult(result: ImageMetadataResult | null): string
     lines.push("### SillyTavern 角色信息");
     lines.push("");
     lines.push("```json");
-    lines.push(JSON.stringify(sanitizeForAgent(result.stCharacterInfo), null, 2));
+    lines.push(
+      JSON.stringify(sanitizeForAgent(result.stCharacterInfo), null, 2)
+    );
     lines.push("```");
     lines.push("");
   }
@@ -92,10 +107,15 @@ export function formatMetadataResult(result: ImageMetadataResult | null): string
     lines.push(`- **格式**: ${result.aioInfo.format}`);
     lines.push("");
     const content = result.aioInfo.content;
-    const sanitizedContent = typeof content === "object" ? sanitizeForAgent(content) : content;
+    const sanitizedContent =
+      typeof content === "object" ? sanitizeForAgent(content) : content;
 
     lines.push("```" + result.aioInfo.format);
-    lines.push(typeof sanitizedContent === "string" ? sanitizedContent : JSON.stringify(sanitizedContent, null, 2));
+    lines.push(
+      typeof sanitizedContent === "string"
+        ? sanitizedContent
+        : JSON.stringify(sanitizedContent, null, 2)
+    );
     lines.push("```");
     lines.push("");
   }

@@ -28,13 +28,17 @@ const displayData = computed(() => {
 });
 
 const hasParams = computed(() => {
-  return displayData.value?.params && Object.keys(displayData.value.params).length > 0;
+  return (
+    displayData.value?.params &&
+    Object.keys(displayData.value.params).length > 0
+  );
 });
 
 const filteredParams = computed(() => {
   if (!displayData.value?.params) return {};
   // 过滤掉已经在上方显示的参数
-  const { prompt, negativePrompt, seed, modelId, ...rest } = displayData.value.params;
+  const { prompt, negativePrompt, seed, modelId, ...rest } =
+    displayData.value.params;
   return rest;
 });
 
@@ -73,7 +77,7 @@ watch(
       loadGenerationInfo();
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 // 监听显示状态
@@ -89,11 +93,14 @@ const handleRemix = async () => {
   visible.value = false;
 
   // 1. 准备参数还原逻辑
-  const type = (data.genType as any) || (props.asset?.type === "image" ? "image" : "video");
+  const type =
+    (data.genType as any) ||
+    (props.asset?.type === "image" ? "image" : "video");
 
   const applyConfig = () => {
     mediaStore.currentConfig.activeType = type;
-    const config = mediaStore.currentConfig.types[type as "image" | "video" | "audio"];
+    const config =
+      mediaStore.currentConfig.types[type as "image" | "video" | "audio"];
 
     if (config) {
       // 还原基础参数
@@ -138,7 +145,13 @@ const handleRemix = async () => {
 </script>
 
 <template>
-  <BaseDialog v-model="visible" title="生成参数信息" maxWidth="800px" height="auto" max-height="80vh">
+  <BaseDialog
+    v-model="visible"
+    title="生成参数信息"
+    maxWidth="800px"
+    height="auto"
+    max-height="80vh"
+  >
     <div class="generation-info-container">
       <div v-if="isLoading" class="loading-state">
         <el-icon class="is-loading"><Loader2 /></el-icon>
@@ -153,12 +166,22 @@ const handleRemix = async () => {
 
         <div class="info-section" v-if="displayData.negativePrompt">
           <div class="section-title">负面提示词 (Negative Prompt)</div>
-          <div class="content-box prompt-box negative">{{ displayData.negativePrompt }}</div>
+          <div class="content-box prompt-box negative">
+            {{ displayData.negativePrompt }}
+          </div>
         </div>
 
-        <div class="info-section" v-if="displayData.revisedPrompt && displayData.revisedPrompt !== displayData.prompt">
+        <div
+          class="info-section"
+          v-if="
+            displayData.revisedPrompt &&
+            displayData.revisedPrompt !== displayData.prompt
+          "
+        >
           <div class="section-title">优化后提示词 (Revised Prompt)</div>
-          <div class="content-box prompt-box revised">{{ displayData.revisedPrompt }}</div>
+          <div class="content-box prompt-box revised">
+            {{ displayData.revisedPrompt }}
+          </div>
         </div>
 
         <div class="info-grid">
@@ -175,7 +198,11 @@ const handleRemix = async () => {
         <div class="info-section" v-if="hasParams">
           <div class="section-title">其他参数</div>
           <div class="params-list">
-            <div v-for="(val, key) in filteredParams" :key="key" class="param-item">
+            <div
+              v-for="(val, key) in filteredParams"
+              :key="key"
+              class="param-item"
+            >
               <span class="p-key">{{ key }}:</span>
               <span class="p-val">{{ val }}</span>
             </div>
@@ -191,7 +218,12 @@ const handleRemix = async () => {
     <template #footer>
       <div class="dialog-footer">
         <el-button @click="visible = false">关闭</el-button>
-        <el-button type="primary" @click="handleRemix" :icon="Sparkles" :disabled="isLoading || !displayData.prompt">
+        <el-button
+          type="primary"
+          @click="handleRemix"
+          :icon="Sparkles"
+          :disabled="isLoading || !displayData.prompt"
+        >
           二次创作 (Remix)
         </el-button>
       </div>

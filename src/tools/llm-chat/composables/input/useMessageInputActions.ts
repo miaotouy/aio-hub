@@ -65,7 +65,11 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
     const content = options.inputText.value.trim();
     const hasAttachments = options.inputManager.hasAttachments.value;
 
-    if ((!content && !hasAttachments) || options.props.disabled || options.isCurrentBranchGenerating.value) {
+    if (
+      (!content && !hasAttachments) ||
+      options.props.disabled ||
+      options.isCurrentBranchGenerating.value
+    ) {
       logger.info("发送被阻止", {
         hasContent: !!content,
         hasAttachments,
@@ -93,11 +97,18 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
     options.onBeforeSend?.();
 
     const attachments =
-      options.inputManager.attachmentCount.value > 0 ? [...options.inputManager.attachments.value] : undefined;
+      options.inputManager.attachmentCount.value > 0
+        ? [...options.inputManager.attachments.value]
+        : undefined;
     const temporaryModel = options.inputManager.temporaryModel.value;
     const disableMacroParsing = !options.inputSettings.value.enableMacroParsing;
 
-    const payload = { content, attachments, temporaryModel, disableMacroParsing };
+    const payload = {
+      content,
+      attachments,
+      temporaryModel,
+      disableMacroParsing,
+    };
 
     if (options.props.isDetached) {
       options.bus.requestAction("llm-chat:send-message", payload);
@@ -114,7 +125,11 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
     }
 
     const detail = chatStore.currentSessionDetail;
-    if (detail && detail.activeLeafId && options.isCurrentBranchGenerating.value) {
+    if (
+      detail &&
+      detail.activeLeafId &&
+      options.isCurrentBranchGenerating.value
+    ) {
       chatStore.abortNodeGeneration(detail.activeLeafId);
     } else {
       options.emit("abort");
@@ -137,8 +152,12 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
     try {
       // 准备完整的宏上下文
       const session = chatStore.currentFullSession;
-      const agent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
-      const userProfile = profileStore.getEffectiveProfile(agent?.userProfileId);
+      const agent = agentStore.currentAgentId
+        ? agentStore.getAgentById(agentStore.currentAgentId)
+        : null;
+      const userProfile = profileStore.getEffectiveProfile(
+        agent?.userProfileId
+      );
 
       const context = createMacroContext({
         userName: userProfile?.name,
@@ -153,12 +172,20 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
 
       // 使用宏引擎处理模板
       const processor = new MacroProcessor();
-      const result = await processor.process(action.content, context, { silent: true });
+      const result = await processor.process(action.content, context, {
+        silent: true,
+      });
       let outputText = result.output;
 
       // 文本后处理 (每一行)
       if (action.lineProcessing?.enabled) {
-        const { prefix = "", suffix = "", regexPattern, regexReplace = "", regexFlags = "g" } = action.lineProcessing;
+        const {
+          prefix = "",
+          suffix = "",
+          regexPattern,
+          regexReplace = "",
+          regexFlags = "g",
+        } = action.lineProcessing;
 
         const lines = outputText.split("\n");
         const processedLines = lines.map((line) => {
@@ -220,7 +247,9 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
     // 直接从 inputManager 获取当前状态
     const pendingInput: PendingInputData = {
       text: options.inputManager.inputText.value,
-      attachments: options.inputManager.hasAttachments.value ? [...options.inputManager.attachments.value] : undefined,
+      attachments: options.inputManager.hasAttachments.value
+        ? [...options.inputManager.attachments.value]
+        : undefined,
       temporaryModel: options.inputManager.temporaryModel.value,
       enableMacroParsing: options.inputSettings.value.enableMacroParsing,
     };
@@ -240,13 +269,21 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
 
     isTranslatingInput.value = true;
     const textarea = options.textareaRef.value;
-    const { start, end } = textarea ? textarea.getSelectionRange() : { start: 0, end: 0 };
+    const { start, end } = textarea
+      ? textarea.getSelectionRange()
+      : { start: 0, end: 0 };
     const hasSelection = start !== end;
     const textToTranslate = hasSelection ? text.substring(start, end) : text;
-    const targetLang = options.settings.value.translation.inputTargetLang || "English";
+    const targetLang =
+      options.settings.value.translation.inputTargetLang || "English";
 
     try {
-      const translatedText = await translateText(textToTranslate, undefined, undefined, targetLang);
+      const translatedText = await translateText(
+        textToTranslate,
+        undefined,
+        undefined,
+        targetLang
+      );
       if (translatedText) {
         if (hasSelection) {
           textarea?.insertText(translatedText, start, end);
@@ -261,7 +298,10 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
           setTimeout(() => {
             if (textarea) {
               textarea.focus();
-              textarea.setSelectionRange(translatedText.length, translatedText.length);
+              textarea.setSelectionRange(
+                translatedText.length,
+                translatedText.length
+              );
             }
           }, 0);
         }
@@ -282,11 +322,16 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
 
     isCompressing.value = true;
     try {
-      const result = await manualCompress(fullSession.index, fullSession.detail);
+      const result = await manualCompress(
+        fullSession.index,
+        fullSession.detail
+      );
       if (result.success) {
         const msg =
           `上下文压缩成功：已压缩 ${result.messageCount} 条消息` +
-          (result.savedTokenCount ? `，节省约 ${result.savedTokenCount.toLocaleString()} Token` : "");
+          (result.savedTokenCount
+            ? `，节省约 ${result.savedTokenCount.toLocaleString()} Token`
+            : "");
         customMessage.success(msg);
         options.debouncedCalculateTokens();
       } else {
@@ -315,7 +360,9 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
       if (agent) {
         const profile = getProfileById(agent.profileId);
         if (profile) {
-          const m = profile.models.find((item: any) => item.id === agent.modelId);
+          const m = profile.models.find(
+            (item: any) => item.id === agent.modelId
+          );
           if (m) currentSelection = { profile, model: m };
         }
       }
@@ -325,7 +372,9 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
 
   // 处理临时模型选择
   const handleSelectTemporaryModel = async () => {
-    const currentSelection = getCurrentModelSelection(options.inputManager.temporaryModel);
+    const currentSelection = getCurrentModelSelection(
+      options.inputManager.temporaryModel
+    );
     const result = await openModelSelectDialog({
       current: currentSelection,
       initialCapabilities: { embedding: false, rerank: false },
@@ -346,7 +395,9 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
       return;
     }
 
-    const currentSelection = getCurrentModelSelection(options.inputManager.continuationModel);
+    const currentSelection = getCurrentModelSelection(
+      options.inputManager.continuationModel
+    );
     const result = await openModelSelectDialog({
       current: currentSelection,
       initialCapabilities: { embedding: false, rerank: false },
@@ -369,15 +420,19 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
       });
       if (selected) {
         const paths = Array.isArray(selected) ? selected : [selected];
-        const beforeIds = new Set(options.inputManager.attachments.value.map((a) => a.id));
+        const beforeIds = new Set(
+          options.inputManager.attachments.value.map((a) => a.id)
+        );
 
         await options.inputManager.addAttachments(paths);
 
-        const newAssets = options.inputManager.attachments.value.filter((a) => !beforeIds.has(a.id));
+        const newAssets = options.inputManager.attachments.value.filter(
+          (a) => !beforeIds.has(a.id)
+        );
         options.inputManager.handleAssetsAddition(
           newAssets,
           options.textareaRef.value,
-          options.settings.value.transcription.autoInsertPlaceholder,
+          options.settings.value.transcription.autoInsertPlaceholder
         );
       }
     } catch (error) {
@@ -427,7 +482,9 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
       });
       if (newAssets.length > 0) {
         options.inputManager.addAssets(newAssets);
-        customMessage.success(`已自动转换 ${newAssets.length} 个粘贴的图像为附件`);
+        customMessage.success(
+          `已自动转换 ${newAssets.length} 个粘贴的图像为附件`
+        );
       }
       if (textarea) {
         textarea.insertText(processedText, selection.start, selection.end);
@@ -454,7 +511,10 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
       : undefined;
 
     if (options.props.isDetached) {
-      options.bus.requestAction("llm-chat:complete-input", { content, options: options_ });
+      options.bus.requestAction("llm-chat:complete-input", {
+        content,
+        options: options_,
+      });
       customMessage.info("正在主窗口中执行智能补全...");
     } else {
       options.emit("complete-input", content, options_);
@@ -502,7 +562,12 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
         profileId = agent.profileId;
       }
     }
-    return transcriptionManager.computeWillUseTranscription(asset, modelId, profileId, undefined);
+    return transcriptionManager.computeWillUseTranscription(
+      asset,
+      modelId,
+      profileId,
+      undefined
+    );
   };
 
   return {
@@ -525,7 +590,8 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
     handleNewSession,
     handleCleanupPlaceholders: () => {
       try {
-        const { removedCount } = options.inputManager.cleanupInvalidPlaceholders();
+        const { removedCount } =
+          options.inputManager.cleanupInvalidPlaceholders();
         if (removedCount > 0) {
           customMessage.success(`已清理 ${removedCount} 个无效占位符`);
         } else {

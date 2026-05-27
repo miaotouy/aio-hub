@@ -1,16 +1,16 @@
-import { ref, computed, watch, nextTick, shallowRef, toRaw } from 'vue';
-import type { editor } from 'monaco-editor';
-import { createModuleLogger } from '@/utils/logger';
-import { createModuleErrorHandler } from '@/utils/errorHandler';
-import { customMessage } from '@/utils/customMessage';
-import { open, save } from '@tauri-apps/plugin-dialog';
-import { writeTextFile } from '@tauri-apps/plugin-fs';
-import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager';
-import { loadFile, generatePatch } from '../engine';
-import type { FileReadResult } from '../types';
+import { ref, computed, watch, nextTick, shallowRef, toRaw } from "vue";
+import type { editor } from "monaco-editor";
+import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { customMessage } from "@/utils/customMessage";
+import { open, save } from "@tauri-apps/plugin-dialog";
+import { writeTextFile } from "@tauri-apps/plugin-fs";
+import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { loadFile, generatePatch } from "../engine";
+import type { FileReadResult } from "../types";
 
-const logger = createModuleLogger('tools/text-diff/composable');
-const errorHandler = createModuleErrorHandler('tools/text-diff/composable');
+const logger = createModuleLogger("tools/text-diff/composable");
+const errorHandler = createModuleErrorHandler("tools/text-diff/composable");
 
 /**
  * 文本差异对比 Composable
@@ -18,14 +18,14 @@ const errorHandler = createModuleErrorHandler('tools/text-diff/composable');
  */
 export function useTextDiff() {
   // ====== 文本内容与文件状态 ======
-  const textA = ref('');
-  const textB = ref('');
-  const language = ref<string>('plaintext');
+  const textA = ref("");
+  const textB = ref("");
+  const language = ref<string>("plaintext");
 
-  const leftFilePath = ref<string>('');
-  const leftFileName = ref<string>('');
-  const rightFilePath = ref<string>('');
-  const rightFileName = ref<string>('');
+  const leftFilePath = ref<string>("");
+  const leftFileName = ref<string>("");
+  const rightFilePath = ref<string>("");
+  const rightFileName = ref<string>("");
 
   // ====== 编辑器配置选项 ======
   const renderSideBySide = ref(true); // 并排/内联
@@ -40,7 +40,7 @@ export function useTextDiff() {
   const diffEditor = shallowRef<editor.IStandaloneDiffEditor | null>(null);
 
   // ====== 计算属性 ======
-  
+
   /**
    * 编辑器配置（计算属性）
    */
@@ -50,17 +50,17 @@ export function useTextDiff() {
     renderSideBySide: renderSideBySide.value,
     automaticLayout: true,
     fontSize: 14,
-    lineNumbers: 'on' as const,
+    lineNumbers: "on" as const,
     minimap: { enabled: true },
     scrollBeyondLastLine: false,
-    wordWrap: (wordWrap.value ? 'on' : 'off') as 'on' | 'off',
+    wordWrap: (wordWrap.value ? "on" : "off") as "on" | "off",
     folding: true,
-    renderWhitespace: 'selection' as const,
-    diffWordWrap: (wordWrap.value ? 'on' : 'off') as 'on' | 'off',
+    renderWhitespace: "selection" as const,
+    diffWordWrap: (wordWrap.value ? "on" : "off") as "on" | "off",
     ignoreTrimWhitespace: ignoreWhitespace.value,
     renderOverviewRuler: !renderOverviewRuler.value,
     renderIndicators: !renderOverviewRuler.value,
-    diffAlgorithm: 'advanced' as const,
+    diffAlgorithm: "advanced" as const,
   }));
 
   /**
@@ -79,7 +79,7 @@ export function useTextDiff() {
     if (diffEditor.value) {
       // onDidUpdateDiff 是最可靠的更新时机，它在差异计算完成后触发
       diffEditor.value.onDidUpdateDiff(() => {
-        logger.debug('Monaco onDidUpdateDiff event fired.');
+        logger.debug("Monaco onDidUpdateDiff event fired.");
         updateDiffCount();
       });
     }
@@ -97,11 +97,17 @@ export function useTextDiff() {
 
     try {
       const lineChanges = diffEditor.value.getLineChanges() || [];
-      logger.debug('Line changes detected', { count: lineChanges.length, changes: lineChanges });
+      logger.debug("Line changes detected", {
+        count: lineChanges.length,
+        changes: lineChanges,
+      });
       totalDiffs.value = lineChanges.length;
       currentDiffIndex.value = 0;
     } catch (error) {
-      errorHandler.handle(error as Error, { userMessage: 'Failed to get line changes', showToUser: false });
+      errorHandler.handle(error as Error, {
+        userMessage: "Failed to get line changes",
+        showToUser: false,
+      });
       totalDiffs.value = 0;
     }
   };
@@ -110,21 +116,24 @@ export function useTextDiff() {
    * 上一处差异
    */
   const goToPreviousDiff = () => {
-    logger.debug('Attempting to go to previous diff', {
+    logger.debug("Attempting to go to previous diff", {
       canNavigate: canNavigate.value,
       editor: !!diffEditor.value,
     });
     if (!diffEditor.value || !canNavigate.value) return;
 
     try {
-      toRaw(diffEditor.value).goToDiff('previous');
+      toRaw(diffEditor.value).goToDiff("previous");
       if (currentDiffIndex.value > 0) {
         currentDiffIndex.value--;
       } else {
         currentDiffIndex.value = totalDiffs.value - 1;
       }
     } catch (error) {
-      errorHandler.handle(error as Error, { userMessage: 'goToPreviousDiff failed', showToUser: false });
+      errorHandler.handle(error as Error, {
+        userMessage: "goToPreviousDiff failed",
+        showToUser: false,
+      });
     }
   };
 
@@ -132,21 +141,24 @@ export function useTextDiff() {
    * 下一处差异
    */
   const goToNextDiff = () => {
-    logger.debug('Attempting to go to next diff', {
+    logger.debug("Attempting to go to next diff", {
       canNavigate: canNavigate.value,
       editor: !!diffEditor.value,
     });
     if (!diffEditor.value || !canNavigate.value) return;
 
     try {
-      toRaw(diffEditor.value).goToDiff('next');
+      toRaw(diffEditor.value).goToDiff("next");
       if (currentDiffIndex.value < totalDiffs.value - 1) {
         currentDiffIndex.value++;
       } else {
         currentDiffIndex.value = 0;
       }
     } catch (error) {
-      errorHandler.handle(error as Error, { userMessage: 'goToNextDiff failed', showToUser: false });
+      errorHandler.handle(error as Error, {
+        userMessage: "goToNextDiff failed",
+        showToUser: false,
+      });
     }
   };
 
@@ -155,23 +167,23 @@ export function useTextDiff() {
   /**
    * 清空文本
    */
-  const clearTexts = (side: 'left' | 'right' | 'all') => {
-    if (side === 'left' || side === 'all') {
-      textA.value = '';
-      leftFilePath.value = '';
-      leftFileName.value = '';
+  const clearTexts = (side: "left" | "right" | "all") => {
+    if (side === "left" || side === "all") {
+      textA.value = "";
+      leftFilePath.value = "";
+      leftFileName.value = "";
       // 使用 nextTick 确保在响应式更新后再操作编辑器
       nextTick(() => {
-        diffEditor.value?.getOriginalEditor().setValue('');
+        diffEditor.value?.getOriginalEditor().setValue("");
       });
     }
-    if (side === 'right' || side === 'all') {
-      textB.value = '';
-      rightFilePath.value = '';
-      rightFileName.value = '';
+    if (side === "right" || side === "all") {
+      textB.value = "";
+      rightFilePath.value = "";
+      rightFileName.value = "";
       // 使用 nextTick 确保在响应式更新后再操作编辑器
       nextTick(() => {
-        diffEditor.value?.getModifiedEditor().setValue('');
+        diffEditor.value?.getModifiedEditor().setValue("");
       });
     }
   };
@@ -198,48 +210,48 @@ export function useTextDiff() {
   /**
    * 打开文件对话框并读取文件
    */
-  const openFile = async (side: 'left' | 'right'): Promise<FileReadResult> => {
-    logger.debug('打开文件对话框', { side });
+  const openFile = async (side: "left" | "right"): Promise<FileReadResult> => {
+    logger.debug("打开文件对话框", { side });
 
     const result = await errorHandler.wrapAsync(
       async () => {
         const filePath = await open({
           multiple: false,
-          title: `打开文件到${side === 'left' ? '左侧' : '右侧'}`,
+          title: `打开文件到${side === "left" ? "左侧" : "右侧"}`,
         });
 
         if (!filePath) {
           return {
-            content: '',
-            filePath: '',
-            fileName: '',
-            language: 'plaintext',
+            content: "",
+            filePath: "",
+            fileName: "",
+            language: "plaintext",
             success: false,
-            error: '用户取消操作',
+            error: "用户取消操作",
           };
         }
 
         return await loadFile(filePath as string);
       },
       {
-        userMessage: '打开文件失败',
+        userMessage: "打开文件失败",
         showToUser: false, // 由调用方处理提示
       }
     );
 
     if (result === null) {
       return {
-        content: '',
-        filePath: '',
-        fileName: '',
-        language: 'plaintext',
+        content: "",
+        filePath: "",
+        fileName: "",
+        language: "plaintext",
         success: false,
-        error: '打开文件失败',
+        error: "打开文件失败",
       };
     }
 
     if (result.success) {
-      if (side === 'left') {
+      if (side === "left") {
         textA.value = result.content;
         leftFilePath.value = result.filePath;
         leftFileName.value = result.fileName;
@@ -251,10 +263,10 @@ export function useTextDiff() {
       language.value = result.language;
 
       if (result.content.length > 10 * 1024 * 1024) {
-        customMessage.warning('文件较大（>10MB），可能影响性能');
+        customMessage.warning("文件较大（>10MB），可能影响性能");
       }
       customMessage.success(`已加载: ${result.fileName}`);
-    } else if (result.error && result.error !== '用户取消操作') {
+    } else if (result.error && result.error !== "用户取消操作") {
       customMessage.error(result.error);
     }
 
@@ -264,11 +276,11 @@ export function useTextDiff() {
   /**
    * 加载文件到指定侧
    */
-  const loadFileToSide = async (filePath: string, side: 'left' | 'right') => {
+  const loadFileToSide = async (filePath: string, side: "left" | "right") => {
     const result = await loadFile(filePath);
 
     if (result.success) {
-      if (side === 'left') {
+      if (side === "left") {
         textA.value = result.content;
         leftFilePath.value = result.filePath;
         leftFileName.value = result.fileName;
@@ -281,52 +293,53 @@ export function useTextDiff() {
       language.value = result.language;
 
       if (result.content.length > 10 * 1024 * 1024) {
-        customMessage.warning('文件较大（>10MB），可能影响性能');
+        customMessage.warning("文件较大（>10MB），可能影响性能");
       }
     } else {
-      customMessage.error(result.error || '加载文件失败');
+      customMessage.error(result.error || "加载文件失败");
     }
   };
 
   /**
    * 保存文件
    */
-  const saveFile = async (side: 'left' | 'right' | 'both'): Promise<void> => {
-    if (side === 'both') {
-      await saveFile('left');
-      await saveFile('right');
+  const saveFile = async (side: "left" | "right" | "both"): Promise<void> => {
+    if (side === "both") {
+      await saveFile("left");
+      await saveFile("right");
       return;
     }
 
-    const content = side === 'left' ? textA.value : textB.value;
-    const currentName = side === 'left' ? leftFileName.value : rightFileName.value;
+    const content = side === "left" ? textA.value : textB.value;
+    const currentName =
+      side === "left" ? leftFileName.value : rightFileName.value;
 
     if (!content) {
-      customMessage.warning(`${side === 'left' ? '左侧' : '右侧'}内容为空`);
+      customMessage.warning(`${side === "left" ? "左侧" : "右侧"}内容为空`);
       return;
     }
 
     const result = await errorHandler.wrapAsync(
       async () => {
         const filePath = await save({
-          defaultPath: currentName || 'untitled.txt',
-          title: `保存${side === 'left' ? '左侧' : '右侧'}文件`,
+          defaultPath: currentName || "untitled.txt",
+          title: `保存${side === "left" ? "左侧" : "右侧"}文件`,
         });
 
         if (!filePath) {
           return {
-            filePath: '',
-            fileName: '',
+            filePath: "",
+            fileName: "",
             success: false,
-            error: '用户取消操作',
+            error: "用户取消操作",
           };
         }
 
         await writeTextFile(filePath, content);
 
-        const fileName = filePath.split(/[/\\]/).pop() || '';
+        const fileName = filePath.split(/[/\\]/).pop() || "";
 
-        logger.info('文件保存成功', {
+        logger.info("文件保存成功", {
           filePath,
           fileName,
           size: content.length,
@@ -339,7 +352,7 @@ export function useTextDiff() {
         };
       },
       {
-        userMessage: '保存文件失败',
+        userMessage: "保存文件失败",
         showToUser: false,
       }
     );
@@ -347,7 +360,7 @@ export function useTextDiff() {
     if (result === null) return;
 
     if (result.success) {
-      if (side === 'left') {
+      if (side === "left") {
         leftFilePath.value = result.filePath;
         leftFileName.value = result.fileName;
       } else {
@@ -356,7 +369,7 @@ export function useTextDiff() {
       }
 
       customMessage.success(`已保存: ${result.fileName}`);
-    } else if (result.error && result.error !== '用户取消操作') {
+    } else if (result.error && result.error !== "用户取消操作") {
       customMessage.error(result.error);
     }
   };
@@ -364,27 +377,27 @@ export function useTextDiff() {
   /**
    * 处理文件拖放
    */
-  const handleFileDrop = async (paths: string[], side: 'left' | 'right') => {
+  const handleFileDrop = async (paths: string[], side: "left" | "right") => {
     if (paths.length === 0) return;
 
     // 如果拖入两个文件，分配到左右
     if (paths.length === 2) {
       const [path1, path2] = paths.sort();
-      await loadFileToSide(path1, 'left');
-      await loadFileToSide(path2, 'right');
+      await loadFileToSide(path1, "left");
+      await loadFileToSide(path2, "right");
       return;
     }
 
     // 单文件：优先填充空侧，否则填充目标侧
     if (paths.length === 1) {
-      if (!textA.value && side === 'left') {
-        await loadFileToSide(paths[0], 'left');
-      } else if (!textB.value && side === 'right') {
-        await loadFileToSide(paths[0], 'right');
+      if (!textA.value && side === "left") {
+        await loadFileToSide(paths[0], "left");
+      } else if (!textB.value && side === "right") {
+        await loadFileToSide(paths[0], "right");
       } else if (!textA.value) {
-        await loadFileToSide(paths[0], 'left');
+        await loadFileToSide(paths[0], "left");
       } else if (!textB.value) {
-        await loadFileToSide(paths[0], 'right');
+        await loadFileToSide(paths[0], "right");
       } else {
         await loadFileToSide(paths[0], side);
       }
@@ -396,25 +409,25 @@ export function useTextDiff() {
   /**
    * 复制到剪贴板
    */
-  const copyToClipboard = async (type: 'left' | 'right' | 'patch') => {
-    let content = '';
-    let label = '';
+  const copyToClipboard = async (type: "left" | "right" | "patch") => {
+    let content = "";
+    let label = "";
 
-    if (type === 'left') {
+    if (type === "left") {
       content = textA.value;
-      label = '左侧内容';
+      label = "左侧内容";
       if (!content) {
-        customMessage.warning('左侧内容为空');
+        customMessage.warning("左侧内容为空");
         return;
       }
-    } else if (type === 'right') {
+    } else if (type === "right") {
       content = textB.value;
-      label = '右侧内容';
+      label = "右侧内容";
       if (!content) {
-        customMessage.warning('右侧内容为空');
+        customMessage.warning("右侧内容为空");
         return;
       }
-    } else if (type === 'patch') {
+    } else if (type === "patch") {
       const patchResult = generatePatch(textA.value, textB.value, {
         oldFileName: leftFileName.value,
         newFileName: rightFileName.value,
@@ -422,12 +435,12 @@ export function useTextDiff() {
       });
 
       if (!patchResult.success) {
-        customMessage.warning(patchResult.error || '无法生成补丁');
+        customMessage.warning(patchResult.error || "无法生成补丁");
         return;
       }
 
       content = patchResult.patch;
-      label = '补丁';
+      label = "补丁";
     }
 
     const result = await errorHandler.wrapAsync(
@@ -436,13 +449,13 @@ export function useTextDiff() {
         return { success: true };
       },
       {
-        userMessage: '复制失败',
+        userMessage: "复制失败",
         showToUser: false,
       }
     );
 
     if (result === null) {
-      customMessage.error('复制失败');
+      customMessage.error("复制失败");
       return;
     }
 
@@ -452,20 +465,20 @@ export function useTextDiff() {
   /**
    * 从剪贴板粘贴
    */
-  const pasteFromClipboard = async (side: 'left' | 'right') => {
+  const pasteFromClipboard = async (side: "left" | "right") => {
     const result = await errorHandler.wrapAsync(
       async () => {
         const content = await readText();
 
         if (!content) {
           return {
-            content: '',
+            content: "",
             success: false,
-            error: '剪贴板为空',
+            error: "剪贴板为空",
           };
         }
 
-        logger.info('从剪贴板粘贴成功', { length: content.length });
+        logger.info("从剪贴板粘贴成功", { length: content.length });
 
         return {
           content,
@@ -473,27 +486,27 @@ export function useTextDiff() {
         };
       },
       {
-        userMessage: '粘贴失败',
+        userMessage: "粘贴失败",
         showToUser: false,
       }
     );
 
     if (result === null || !result.success) {
-      customMessage.error(result?.error || '粘贴失败');
+      customMessage.error(result?.error || "粘贴失败");
       return;
     }
 
-    if (side === 'left') {
+    if (side === "left") {
       textA.value = result.content;
-      leftFilePath.value = '';
-      leftFileName.value = '';
+      leftFilePath.value = "";
+      leftFileName.value = "";
     } else {
       textB.value = result.content;
-      rightFilePath.value = '';
-      rightFileName.value = '';
+      rightFilePath.value = "";
+      rightFileName.value = "";
     }
 
-    customMessage.success(`已粘贴到${side === 'left' ? '左侧' : '右侧'}`);
+    customMessage.success(`已粘贴到${side === "left" ? "左侧" : "右侧"}`);
   };
 
   // ====== 补丁生成与导出 ======
@@ -510,15 +523,15 @@ export function useTextDiff() {
     });
 
     if (!patchResult.success) {
-      customMessage.warning(patchResult.error || '无法生成补丁');
+      customMessage.warning(patchResult.error || "无法生成补丁");
       return;
     }
 
     // 生成默认文件名
-    let defaultName = 'diff.patch';
+    let defaultName = "diff.patch";
     if (leftFileName.value && rightFileName.value) {
-      const leftBase = leftFileName.value.replace(/\.[^.]+$/, '');
-      const rightBase = rightFileName.value.replace(/\.[^.]+$/, '');
+      const leftBase = leftFileName.value.replace(/\.[^.]+$/, "");
+      const rightBase = rightFileName.value.replace(/\.[^.]+$/, "");
       defaultName = `${leftBase}_vs_${rightBase}.patch`;
     }
 
@@ -527,29 +540,29 @@ export function useTextDiff() {
       async () => {
         const filePath = await save({
           defaultPath: defaultName,
-          title: '导出补丁文件',
+          title: "导出补丁文件",
           filters: [
             {
-              name: 'Patch 文件',
-              extensions: ['patch', 'diff'],
+              name: "Patch 文件",
+              extensions: ["patch", "diff"],
             },
           ],
         });
 
         if (!filePath) {
           return {
-            filePath: '',
-            fileName: '',
+            filePath: "",
+            fileName: "",
             success: false,
-            error: '用户取消操作',
+            error: "用户取消操作",
           };
         }
 
         await writeTextFile(filePath, patchResult.patch);
 
-        const fileName = filePath.split(/[/\\]/).pop() || '';
+        const fileName = filePath.split(/[/\\]/).pop() || "";
 
-        logger.info('补丁导出成功', {
+        logger.info("补丁导出成功", {
           filePath,
           fileName,
           size: patchResult.patch.length,
@@ -562,7 +575,7 @@ export function useTextDiff() {
         };
       },
       {
-        userMessage: '导出补丁失败',
+        userMessage: "导出补丁失败",
         showToUser: false,
       }
     );
@@ -571,7 +584,7 @@ export function useTextDiff() {
 
     if (result.success) {
       customMessage.success(`补丁已导出: ${result.fileName}`);
-    } else if (result.error && result.error !== '用户取消操作') {
+    } else if (result.error && result.error !== "用户取消操作") {
       customMessage.error(result.error);
     }
   };
@@ -586,7 +599,7 @@ export function useTextDiff() {
         updateDiffCount();
       });
     },
-    { flush: 'post' }
+    { flush: "post" }
   );
 
   // 监听比对选项变化，重新计算差异

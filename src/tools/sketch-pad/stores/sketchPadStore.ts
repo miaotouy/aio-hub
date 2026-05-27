@@ -13,7 +13,8 @@ export const useSketchPadStore = defineStore("sketchPad", () => {
   const projects = ref<SketchProject[]>([]);
 
   // ─── 全局设置 ───
-  const { settings, loadSettings, saveSettings, resetSettings } = useSketchSettings();
+  const { settings, loadSettings, saveSettings, resetSettings } =
+    useSketchSettings();
 
   // ─── 多实例管理预留 ───
   const activeSessionId = ref<string | null>(null);
@@ -68,7 +69,7 @@ export const useSketchPadStore = defineStore("sketchPad", () => {
         await loadIndex();
         return true;
       },
-      { userMessage: "重命名项目失败" },
+      { userMessage: "重命名项目失败" }
     );
 
     if (result) {

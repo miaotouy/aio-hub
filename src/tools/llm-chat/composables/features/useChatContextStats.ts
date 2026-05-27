@@ -55,10 +55,12 @@ export function useChatContextStats(
         detail.activeLeafId,
         agentStore.currentAgentId ?? undefined,
         {
-          pendingInput: temporaryModel ? {
-            text: "", // 不传递实际文本，仅用于传递模型信息
-            temporaryModel,
-          } : undefined
+          pendingInput: temporaryModel
+            ? {
+                text: "", // 不传递实际文本，仅用于传递模型信息
+                temporaryModel,
+              }
+            : undefined,
         }
       );
 
@@ -109,7 +111,8 @@ export function useChatContextStats(
     ],
     (newValues, oldValues) => {
       const [newSessionId, newLeafId, newUpdatedAt, isSending] = newValues;
-      const [oldSessionId, oldLeafId, oldUpdatedAt, oldIsSending] = oldValues || [];
+      const [oldSessionId, oldLeafId, oldUpdatedAt, oldIsSending] =
+        oldValues || [];
 
       logger.debug(`[ContextStats] Watch 触发`, {
         isSending,
@@ -126,7 +129,9 @@ export function useChatContextStats(
         // 特殊情况：如果是 activeLeafId 变了（说明新消息上屏了，或者切换了分支）
         // 这种情况下即使正在发送（刚开始发送），也应该触发一次刷新，以包含最新的用户消息
         if (newLeafId !== oldLeafId || newSessionId !== oldSessionId) {
-          logger.debug(`[ContextStats] 发送期间检测到 LeafId 变化，触发防抖刷新`);
+          logger.debug(
+            `[ContextStats] 发送期间检测到 LeafId 变化，触发防抖刷新`
+          );
           debouncedRefreshContextStats();
           return;
         }
@@ -147,7 +152,7 @@ export function useChatContextStats(
       logger.debug(`[ContextStats] 非发送状态变化，防抖刷新`);
       debouncedRefreshContextStats();
     },
-    { deep: true, immediate: true },
+    { deep: true, immediate: true }
   );
 
   return {

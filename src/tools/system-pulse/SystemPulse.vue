@@ -4,18 +4,28 @@
     <!-- 顶部工具栏 -->
     <div class="pulse-toolbar">
       <div class="toolbar-left">
-        <el-icon class="pulse-icon" :class="{ 'is-active': isActive }"><Activity /></el-icon>
+        <el-icon class="pulse-icon" :class="{ 'is-active': isActive }"
+          ><Activity
+        /></el-icon>
         <span class="toolbar-title">系统脉搏</span>
       </div>
       <div class="toolbar-right">
         <div class="toolbar-actions">
           <el-tooltip content="复制当前状态" placement="bottom">
-            <el-button circle @click="copyCurrentStats" :disabled="!store.latest">
+            <el-button
+              circle
+              @click="copyCurrentStats"
+              :disabled="!store.latest"
+            >
               <el-icon><Copy /></el-icon>
             </el-button>
           </el-tooltip>
           <el-tooltip content="导出历史记录 (JSON)" placement="bottom">
-            <el-button circle @click="exportHistory" :disabled="store.fullHistoryArray.length === 0">
+            <el-button
+              circle
+              @click="exportHistory"
+              :disabled="store.fullHistoryArray.length === 0"
+            >
               <el-icon><Download /></el-icon>
             </el-button>
           </el-tooltip>
@@ -26,13 +36,22 @@
             </el-button>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item command="small" :disabled="store.uiSize === 'small'">
+                <el-dropdown-item
+                  command="small"
+                  :disabled="store.uiSize === 'small'"
+                >
                   紧凑 (Small)
                 </el-dropdown-item>
-                <el-dropdown-item command="medium" :disabled="store.uiSize === 'medium'">
+                <el-dropdown-item
+                  command="medium"
+                  :disabled="store.uiSize === 'medium'"
+                >
                   标准 (Medium)
                 </el-dropdown-item>
-                <el-dropdown-item command="large" :disabled="store.uiSize === 'large'">
+                <el-dropdown-item
+                  command="large"
+                  :disabled="store.uiSize === 'large'"
+                >
                   宽大 (Large)
                 </el-dropdown-item>
               </el-dropdown-menu>
@@ -42,7 +61,9 @@
 
         <el-divider direction="vertical" />
 
-        <span class="status-text">{{ isActive ? "正在监控" : "监控已暂停" }}</span>
+        <span class="status-text">{{
+          isActive ? "正在监控" : "监控已暂停"
+        }}</span>
 
         <el-switch
           :model-value="isActive"
@@ -81,7 +102,11 @@
             :uptime="store.latest.uptime"
             class="grid-cpu"
           />
-          <MemoryCard :memory="store.latest.memory" :mem-history="store.memHistoryArray" class="grid-mem" />
+          <MemoryCard
+            :memory="store.latest.memory"
+            :mem-history="store.memHistoryArray"
+            class="grid-mem"
+          />
           <StorageGrid :disks="store.latest.disks" class="grid-disk" />
           <NetworkCard
             :networks="store.latest.networks"
@@ -113,7 +138,14 @@ import NetworkCard from "./components/NetworkCard.vue";
 import GpuCard from "./components/GpuCard.vue";
 import StatusBar from "./components/StatusBar.vue";
 
-const { store, isActive, start, handleToggle, copyCurrentStats, exportHistory } = useSystemPulse();
+const {
+  store,
+  isActive,
+  start,
+  handleToggle,
+  copyCurrentStats,
+  exportHistory,
+} = useSystemPulse();
 </script>
 
 <style scoped>
@@ -224,7 +256,10 @@ const { store, isActive, start, handleToggle, copyCurrentStats, exportHistory } 
 
 .monitor-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(var(--pulse-grid-min-width), 1fr));
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(var(--pulse-grid-min-width), 1fr)
+  );
   grid-auto-flow: dense;
   gap: 12px;
 }

@@ -34,7 +34,7 @@ export async function resolveAttachmentContent(
   asset: Asset,
   modelId: string,
   profileId: string,
-  options: { force?: boolean; silent?: boolean; messageDepth?: number } = {},
+  options: { force?: boolean; silent?: boolean; messageDepth?: number } = {}
 ): Promise<ResolvedAttachment> {
   const transcriptionManager = useTranscriptionManager();
 
@@ -71,7 +71,7 @@ export async function resolveAttachmentContent(
       asset,
       modelId,
       profileId,
-      options.messageDepth,
+      options.messageDepth
     );
 
     // 如果外部强制要求，则覆盖判断
@@ -80,7 +80,8 @@ export async function resolveAttachmentContent(
     }
 
     // 3. 尝试获取转写内容
-    const transcriptionText = await transcriptionManager.getTranscriptionText(asset);
+    const transcriptionText =
+      await transcriptionManager.getTranscriptionText(asset);
 
     // 决策逻辑：
     // 只有在有转写内容且确实需要转写时，才使用转写内容
@@ -127,7 +128,7 @@ export async function resolveAttachmentsBatch(
   assets: Asset[],
   modelId: string,
   profileId: string,
-  options: { force?: boolean; silent?: boolean; messageDepth?: number } = {},
+  options: { force?: boolean; silent?: boolean; messageDepth?: number } = {}
 ): Promise<ResolvedAttachment[]> {
   const results: ResolvedAttachment[] = [];
   const missingTranscriptions: Asset[] = [];
@@ -149,10 +150,18 @@ export async function resolveAttachmentsBatch(
       ).useTranscriptionManager();
       const shouldTranscribe =
         options.force ||
-        transcriptionManager.computeWillUseTranscription(asset, modelId, profileId, options.messageDepth);
+        transcriptionManager.computeWillUseTranscription(
+          asset,
+          modelId,
+          profileId,
+          options.messageDepth
+        );
 
       // 文本文档读取失败不重复警告；DOCX 这类二进制文档需要转写提示。
-      if (shouldTranscribe && (asset.type !== "document" || isDocxAssetLike(asset))) {
+      if (
+        shouldTranscribe &&
+        (asset.type !== "document" || isDocxAssetLike(asset))
+      ) {
         missingTranscriptions.push(asset);
       }
     }
@@ -160,9 +169,12 @@ export async function resolveAttachmentsBatch(
 
   // 统一输出警告
   if (missingTranscriptions.length > 0 && !options.silent) {
-    logger.warn(`有 ${missingTranscriptions.length} 个附件需要转写但未找到结果，将保留原始附件`, {
-      assets: missingTranscriptions.map((a) => ({ id: a.id, name: a.name })),
-    });
+    logger.warn(
+      `有 ${missingTranscriptions.length} 个附件需要转写但未找到结果，将保留原始附件`,
+      {
+        assets: missingTranscriptions.map((a) => ({ id: a.id, name: a.name })),
+      }
+    );
   }
 
   return results;

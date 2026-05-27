@@ -51,11 +51,14 @@ const syncPersistentHighlights = async () => {
 
 // 监听规则变化，同步高亮
 watch(
-  [() => store.recipeDraft?.extractSelectors, () => store.recipeDraft?.excludeSelectors],
+  [
+    () => store.recipeDraft?.extractSelectors,
+    () => store.recipeDraft?.excludeSelectors,
+  ],
   () => {
     syncPersistentHighlights();
   },
-  { deep: true },
+  { deep: true }
 );
 
 // 监听主题变化
@@ -68,7 +71,7 @@ watch(
   () => store.isWebviewCreated,
   (created) => {
     if (created) syncTheme();
-  },
+  }
 );
 </script>
 

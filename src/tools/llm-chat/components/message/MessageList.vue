@@ -1,7 +1,20 @@
 <script setup lang="ts">
-import { ref, watch, nextTick, computed, onActivated, onDeactivated, onMounted, onBeforeUnmount } from "vue";
+import {
+  ref,
+  watch,
+  nextTick,
+  computed,
+  onActivated,
+  onDeactivated,
+  onMounted,
+  onBeforeUnmount,
+} from "vue";
 import { useThrottleFn } from "@vueuse/core";
-import type { ChatMessageNode, ChatSessionIndex, ChatSessionDetail } from "../../types";
+import type {
+  ChatMessageNode,
+  ChatSessionIndex,
+  ChatSessionDetail,
+} from "../../types";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
 import ChatMessage from "./ChatMessage.vue";
@@ -58,8 +71,13 @@ onActivated(() => {
       shouldStickToBottom.value = false;
       nextTick(() => {
         if (!messagesContainer.value) return;
-        const maxScroll = messagesContainer.value.scrollHeight - messagesContainer.value.clientHeight;
-        messagesContainer.value.scrollTop = Math.min(lastKnownScrollTop.value, maxScroll);
+        const maxScroll =
+          messagesContainer.value.scrollHeight -
+          messagesContainer.value.clientHeight;
+        messagesContainer.value.scrollTop = Math.min(
+          lastKnownScrollTop.value,
+          maxScroll
+        );
       });
     }
   }
@@ -92,7 +110,9 @@ const getMessageSiblings = (messageId: string) => {
   }
 
   const siblings = store.getSiblings(messageId);
-  const currentIndex = siblings.findIndex((s: ChatMessageNode) => store.isNodeInActivePath(s.id));
+  const currentIndex = siblings.findIndex((s: ChatMessageNode) =>
+    store.isNodeInActivePath(s.id)
+  );
   return {
     siblings,
     currentIndex,
@@ -180,9 +200,14 @@ const scrollToBottom = useThrottleFn((forceInstant = false) => {
       const targetTop = container.scrollHeight;
 
       // 如果已经非常接近底部，或者强制立即跳转，或者关闭了平滑滚动
-      const isAlreadyAtBottom = Math.abs(container.scrollTop + container.clientHeight - targetTop) < 12;
+      const isAlreadyAtBottom =
+        Math.abs(container.scrollTop + container.clientHeight - targetTop) < 12;
 
-      if (forceInstant || isAlreadyAtBottom || !settings.value.uiPreferences.smoothAutoScroll) {
+      if (
+        forceInstant ||
+        isAlreadyAtBottom ||
+        !settings.value.uiPreferences.smoothAutoScroll
+      ) {
         container.scrollTop = targetTop;
       } else {
         container.scrollTo({ top: targetTop, behavior: "smooth" });
@@ -194,7 +219,9 @@ const scrollToBottom = useThrottleFn((forceInstant = false) => {
 // 滚动到底部（供 Navigator 使用）
 const scrollToEnd = () => {
   if (messagesContainer.value) {
-    const maxScroll = messagesContainer.value.scrollHeight - messagesContainer.value.clientHeight;
+    const maxScroll =
+      messagesContainer.value.scrollHeight -
+      messagesContainer.value.clientHeight;
     messagesContainer.value.scrollTop = Math.max(0, maxScroll);
   }
 };
@@ -209,11 +236,14 @@ const scrollToTop = () => {
 const scrollToMessageId = (id: string) => {
   const container = messagesContainer.value;
   if (!container) return;
-  const messageEl = container.querySelector(`[data-message-id="${id}"]`) as HTMLElement;
+  const messageEl = container.querySelector(
+    `[data-message-id="${id}"]`
+  ) as HTMLElement;
   if (messageEl) {
     const containerRect = container.getBoundingClientRect();
     const messageRect = messageEl.getBoundingClientRect();
-    const targetScrollTop = container.scrollTop + (messageRect.top - containerRect.top) - 84; // 84是padding-top
+    const targetScrollTop =
+      container.scrollTop + (messageRect.top - containerRect.top) - 84; // 84是padding-top
     const maxScroll = container.scrollHeight - container.clientHeight;
     const clampedScrollTop = Math.max(0, Math.min(targetScrollTop, maxScroll));
     container.scrollTo({ top: clampedScrollTop, behavior: "smooth" });
@@ -231,12 +261,16 @@ const scrollToNext = () => {
   const nextMsg = messageEls.find((el) => {
     const rect = el.getBoundingClientRect();
     // 寻找第一个顶部在视口中心下方的消息，或者底部在视口下方的消息
-    return rect.top > containerRect.top + containerRect.height / 2 || rect.bottom > containerRect.bottom + 10;
+    return (
+      rect.top > containerRect.top + containerRect.height / 2 ||
+      rect.bottom > containerRect.bottom + 10
+    );
   }) as HTMLElement;
 
   if (nextMsg) {
     const rect = nextMsg.getBoundingClientRect();
-    const targetScrollTop = container.scrollTop + (rect.top - containerRect.top) - 84;
+    const targetScrollTop =
+      container.scrollTop + (rect.top - containerRect.top) - 84;
     const maxScroll = container.scrollHeight - container.clientHeight;
     const clampedScrollTop = Math.max(0, Math.min(targetScrollTop, maxScroll));
     container.scrollTo({ top: clampedScrollTop, behavior: "smooth" });
@@ -259,7 +293,8 @@ const scrollToPrev = () => {
 
   if (prevMsg) {
     const rect = prevMsg.getBoundingClientRect();
-    const targetScrollTop = container.scrollTop + (rect.top - containerRect.top) - 84;
+    const targetScrollTop =
+      container.scrollTop + (rect.top - containerRect.top) - 84;
     const maxScroll = container.scrollHeight - container.clientHeight;
     const clampedScrollTop = Math.max(0, Math.min(targetScrollTop, maxScroll));
     container.scrollTo({ top: clampedScrollTop, behavior: "smooth" });
@@ -350,12 +385,15 @@ watch(
       }
     }
   },
-  { flush: "post" },
+  { flush: "post" }
 );
 
 // 监听消息变化，自动滚动
 watch(
-  [() => props.messages.length, () => props.messages[props.messages.length - 1]?.content],
+  [
+    () => props.messages.length,
+    () => props.messages[props.messages.length - 1]?.content,
+  ],
   ([newLength, newLastContent], [oldLength, oldLastContent]) => {
     if (!settings.value.uiPreferences.autoScroll) return;
 
@@ -380,7 +418,7 @@ watch(
         scrollToBottom();
       }
     }
-  },
+  }
 );
 
 // 监听消息列表引用变化，处理分支切换等场景的位置保持
@@ -406,16 +444,21 @@ watch(
     if (isAtBottom) {
       scrollToBottom();
     }
-  },
+  }
 );
 
 // 事件处理
-const handleReparseTools = async (nodeId: string, options?: { modelId?: string; profileId?: string }) => {
+const handleReparseTools = async (
+  nodeId: string,
+  options?: { modelId?: string; profileId?: string }
+) => {
   try {
     const { customMessage } = await import("@/utils/customMessage");
     customMessage.info("正在重新解析工具...");
     const temporaryModel =
-      options?.modelId && options?.profileId ? { modelId: options.modelId, profileId: options.profileId } : null;
+      options?.modelId && options?.profileId
+        ? { modelId: options.modelId, profileId: options.profileId }
+        : null;
     await store.reparseNodeTools(nodeId, { temporaryModel });
     customMessage.success("工具重新解析完成");
   } catch (error) {
@@ -434,7 +477,9 @@ const captureSwitchingMessagePosition = (messageId: string) => {
   const container = messagesContainer.value;
   if (!container) return;
 
-  const messageEl = container.querySelector(`[data-message-id="${messageId}"]`) as HTMLElement;
+  const messageEl = container.querySelector(
+    `[data-message-id="${messageId}"]`
+  ) as HTMLElement;
   if (!messageEl) return;
 
   const containerRect = container.getBoundingClientRect();
@@ -455,7 +500,9 @@ const restoreSwitchingMessagePosition = () => {
   const container = messagesContainer.value;
   if (!container) return;
 
-  const messageEl = container.querySelector(`[data-message-id="${switchingMessageId.value}"]`) as HTMLElement;
+  const messageEl = container.querySelector(
+    `[data-message-id="${switchingMessageId.value}"]`
+  ) as HTMLElement;
 
   if (!messageEl) return;
 
@@ -510,7 +557,9 @@ defineExpose({
             :message-depth="messages.length - 1 - messages.indexOf(msg)"
             @toggle-enabled="store.toggleNodeEnabled(msg.id)"
             @delete="store.deleteMessage(msg.id)"
-            @update-content="(content: string) => store.editMessage(msg.id, content)"
+            @update-content="
+              (content: string) => store.editMessage(msg.id, content)
+            "
             @update-role="(role: any) => store.updateNodeData(msg.id, { role })"
           />
 
@@ -539,7 +588,10 @@ defineExpose({
               }
             "
             @toggle-enabled="store.toggleNodeEnabled(msg.id)"
-            @edit="(newContent: any, attachments: any) => store.editMessage(msg.id, newContent, attachments)"
+            @edit="
+              (newContent: any, attachments: any) =>
+                store.editMessage(msg.id, newContent, attachments)
+            "
             @copy="() => {}"
             @abort="store.abortNodeGeneration(msg.id)"
             @continue="store.continueGeneration(msg.id, $event)"
@@ -557,9 +609,13 @@ defineExpose({
             "
             @reparse-tools="(opts: any) => handleReparseTools(msg.id, opts)"
             @save-to-branch="
-              (newContent: any, attachments: any) => store.createBranchFromEdit(msg.id, newContent, attachments)
+              (newContent: any, attachments: any) =>
+                store.createBranchFromEdit(msg.id, newContent, attachments)
             "
-            @update-translation="(translation: any) => store.updateMessageTranslation(msg.id, translation)"
+            @update-translation="
+              (translation: any) =>
+                store.updateMessageTranslation(msg.id, translation)
+            "
           />
 
           <!-- 普通消息渲染 -->
@@ -575,7 +631,9 @@ defineExpose({
             :current-sibling-index="getMessageSiblings(msg.id).currentIndex"
             :llm-think-rules="llmThinkRules"
             :rich-text-style-options="
-              msg.role === 'user' ? userRichTextStyleOptions || richTextStyleOptions : richTextStyleOptions
+              msg.role === 'user'
+                ? userRichTextStyleOptions || richTextStyleOptions
+                : richTextStyleOptions
             "
             @delete="store.deleteMessage(msg.id)"
             @regenerate="store.regenerateFromNode(msg.id, $event)"
@@ -592,9 +650,13 @@ defineExpose({
               }
             "
             @toggle-enabled="store.toggleNodeEnabled(msg.id)"
-            @edit="(newContent: any, attachments: any) => store.editMessage(msg.id, newContent, attachments)"
+            @edit="
+              (newContent: any, attachments: any) =>
+                store.editMessage(msg.id, newContent, attachments)
+            "
             @save-to-branch="
-              (newContent: any, attachments: any) => store.createBranchFromEdit(msg.id, newContent, attachments)
+              (newContent: any, attachments: any) =>
+                store.createBranchFromEdit(msg.id, newContent, attachments)
             "
             @copy="() => {}"
             @abort="store.abortNodeGeneration(msg.id)"
@@ -612,7 +674,10 @@ defineExpose({
               }
             "
             @reparse-tools="(opts: any) => handleReparseTools(msg.id, opts)"
-            @update-translation="(translation: any) => store.updateMessageTranslation(msg.id, translation)"
+            @update-translation="
+              (translation: any) =>
+                store.updateMessageTranslation(msg.id, translation)
+            "
           />
         </template>
       </div>

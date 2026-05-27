@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch, onBeforeUnmount } from "vue";
-import { acquireBlobUrl, releaseBlobUrl, acquireBlobUrlSync } from "@/utils/avatarImageCache";
+import {
+  acquireBlobUrl,
+  releaseBlobUrl,
+  acquireBlobUrlSync,
+} from "@/utils/avatarImageCache";
 import { useIntersectionObserver } from "@vueuse/core";
 import { LOBE_ICONS_MAP, LOCAL_ICONS_MAP } from "@/config/preset-icons";
 import { normalizeIconPath } from "@/config/model-metadata";
@@ -108,7 +112,11 @@ const processSrc = async () => {
   if (LOBE_ICONS_MAP[currentSrc] || LOCAL_ICONS_MAP[currentSrc]) {
     const rawSvg = LOBE_ICONS_MAP[currentSrc] || LOCAL_ICONS_MAP[currentSrc];
     // 如果内容已经是 data: 或者是 URL 则通过 img 渲染，否则视为 SVG 源码以内联模式渲染
-    if (rawSvg.startsWith("data:") || rawSvg.startsWith("http") || rawSvg.startsWith("/")) {
+    if (
+      rawSvg.startsWith("data:") ||
+      rawSvg.startsWith("http") ||
+      rawSvg.startsWith("/")
+    ) {
       processedSrc.value = rawSvg;
       isSvg.value = false;
       svgContent.value = "";
@@ -124,7 +132,11 @@ const processSrc = async () => {
   }
 
   // 2. HTTP/HTTPS/Base64/Public 相对路径 - 直接使用
-  if (currentSrc.startsWith("http") || currentSrc.startsWith("data:") || currentSrc.startsWith("/")) {
+  if (
+    currentSrc.startsWith("http") ||
+    currentSrc.startsWith("data:") ||
+    currentSrc.startsWith("/")
+  ) {
     processedSrc.value = currentSrc;
     isSvg.value = false;
     svgContent.value = "";
@@ -135,7 +147,8 @@ const processSrc = async () => {
   }
 
   // 3. appdata:// 协议 或 本地绝对路径 - 使用缓存获取 Blob URL
-  const isLocalPath = /^[a-zA-Z]:[\\/]/.test(currentSrc) || currentSrc.startsWith("\\\\");
+  const isLocalPath =
+    /^[a-zA-Z]:[\\/]/.test(currentSrc) || currentSrc.startsWith("\\\\");
   if (currentSrc.startsWith("appdata://") || isLocalPath) {
     // 如果启用了懒加载且尚未进入视口，则暂停加载
     if (props.lazy && !shouldLoad.value) {
@@ -189,7 +202,9 @@ const processSrc = async () => {
       }
       managedSrc.value = currentSrc; // 标记为已管理
     } else {
-      console.error(`[Avatar Debug] FAILED: Could not acquire blob url for src: ${currentSrc}`);
+      console.error(
+        `[Avatar Debug] FAILED: Could not acquire blob url for src: ${currentSrc}`
+      );
       imageLoadFailed.value = true;
     }
     isSrcReady.value = true;
@@ -208,7 +223,12 @@ watch(
   (_newSrc, oldSrc) => {
     _currentProcessingSrc = _newSrc;
     // 如果旧的 src 是我们管理的路径，则释放它
-    if (oldSrc && (oldSrc.startsWith("appdata://") || /^[a-zA-Z]:[\\/]/.test(oldSrc) || oldSrc.startsWith("\\\\"))) {
+    if (
+      oldSrc &&
+      (oldSrc.startsWith("appdata://") ||
+        /^[a-zA-Z]:[\\/]/.test(oldSrc) ||
+        oldSrc.startsWith("\\\\"))
+    ) {
       releaseBlobUrl(oldSrc);
     }
     processSrc();
@@ -238,14 +258,17 @@ const isEmoji = computed(() => {
   // 简单的 emoji 检测：长度较短且包含非 ASCII 字符
   return (
     sanitizedSrc.value.length <= 4 &&
-    /[\u{1F000}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u.test(sanitizedSrc.value)
+    /[\u{1F000}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u.test(
+      sanitizedSrc.value
+    )
   );
 });
 
 // 获取 fallback 文字（取 alt 的首字符或 src 的首字符）
 const fallbackText = computed(() => {
   if (props.alt) return props.alt.charAt(0).toUpperCase();
-  if (sanitizedSrc.value && !isImagePath.value) return sanitizedSrc.value.charAt(0).toUpperCase();
+  if (sanitizedSrc.value && !isImagePath.value)
+    return sanitizedSrc.value.charAt(0).toUpperCase();
   return "?";
 });
 
@@ -277,12 +300,17 @@ const fallbackFontSize = computed(() => `${Math.floor(props.size * 0.4)}px`);
 
 // 图片加载成功处理
 const handleImageLoad = () => {
-  console.log(`[Avatar Debug] 5. SUCCESS: Image loaded successfully for src: ${processedSrc.value}`);
+  console.log(
+    `[Avatar Debug] 5. SUCCESS: Image loaded successfully for src: ${processedSrc.value}`
+  );
 };
 
 // 图片加载错误处理
 const handleImageError = (event: Event) => {
-  console.error(`[Avatar Debug] 5. FAILED: Image failed to load for src: ${processedSrc.value}`, event);
+  console.error(
+    `[Avatar Debug] 5. FAILED: Image failed to load for src: ${processedSrc.value}`,
+    event
+  );
   imageLoadFailed.value = true;
 };
 </script>
@@ -291,7 +319,9 @@ const handleImageError = (event: Event) => {
   <div class="avatar-container" :style="containerStyle" ref="containerRef">
     <!-- 图片模式：内联 SVG (支持主题适配) -->
     <div
-      v-if="isImagePath && !imageLoadFailed && isSrcReady && isSvg && svgContent"
+      v-if="
+        isImagePath && !imageLoadFailed && isSrcReady && isSvg && svgContent
+      "
       class="avatar-svg"
       v-html="svgContent"
     ></div>
@@ -305,11 +335,19 @@ const handleImageError = (event: Event) => {
       @error="handleImageError"
     />
     <!-- Emoji 模式 -->
-    <span v-else-if="isEmoji" class="avatar-emoji" :style="{ fontSize: emojiFontSize }">
+    <span
+      v-else-if="isEmoji"
+      class="avatar-emoji"
+      :style="{ fontSize: emojiFontSize }"
+    >
       {{ sanitizedSrc }}
     </span>
     <!-- Fallback 模式 -->
-    <span v-else class="avatar-fallback" :style="{ fontSize: fallbackFontSize }">
+    <span
+      v-else
+      class="avatar-fallback"
+      :style="{ fontSize: fallbackFontSize }"
+    >
       {{ fallbackText }}
     </span>
   </div>

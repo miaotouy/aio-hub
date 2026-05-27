@@ -1,6 +1,15 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { Play, X, ShieldCheck, Terminal, ChevronRight, AlertCircle, Volume2, VolumeX } from "lucide-vue-next";
+import {
+  Play,
+  X,
+  ShieldCheck,
+  Terminal,
+  ChevronRight,
+  AlertCircle,
+  Volume2,
+  VolumeX,
+} from "lucide-vue-next";
 import { useToolCallingStore } from "../../stores/toolCallingStore";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { execute } from "@/services/executor";
@@ -15,7 +24,7 @@ const isSilent = ref(false);
 
 const currentSessionPendingRequests = computed(() => {
   return toolCallingStore.pendingRequests.filter(
-    (r) => r.sessionId === llmChatStore.currentSessionId || !!r.externalId,
+    (r) => r.sessionId === llmChatStore.currentSessionId || !!r.externalId
   );
 });
 
@@ -31,7 +40,9 @@ watch(
       (node) =>
         node.role === "tool" &&
         node.status === "generating" &&
-        node.metadata?.toolCalls?.some((tc) => tc.status === "awaiting_approval"),
+        node.metadata?.toolCalls?.some(
+          (tc) => tc.status === "awaiting_approval"
+        )
     );
 
     if (pendingNode?.metadata?.isSilent !== undefined) {
@@ -40,7 +51,7 @@ watch(
       isSilent.value = false;
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 // 监听静默开关，同步到相关的工具节点元数据中
@@ -50,7 +61,8 @@ watch(isSilent, (val) => {
   if (!sessionId || !detail || !detail.nodes) return;
 
   // 找到当前正在等待审批的工具节点 (通常是活动路径上的最后一个 role: 'tool' 节点)
-  const pendingNodeId = currentSessionPendingRequests.value[0]?.request.requestId;
+  const pendingNodeId =
+    currentSessionPendingRequests.value[0]?.request.requestId;
   if (!pendingNodeId) return;
 
   // 遍历节点找到对应的工具消息节点
@@ -66,28 +78,50 @@ watch(isSilent, (val) => {
   });
 });
 
-const hasRequests = computed(() => currentSessionPendingRequests.value.length > 0);
+const hasRequests = computed(
+  () => currentSessionPendingRequests.value.length > 0
+);
 
-const hasExternalRequests = computed(() => currentSessionPendingRequests.value.some((r) => !!r.externalId));
-const hasLocalRequests = computed(() => currentSessionPendingRequests.value.some((r) => !r.externalId));
+const hasExternalRequests = computed(() =>
+  currentSessionPendingRequests.value.some((r) => !!r.externalId)
+);
+const hasLocalRequests = computed(() =>
+  currentSessionPendingRequests.value.some((r) => !r.externalId)
+);
 
 const handleApprove = (id: string) => {
-  execute({ service: "tool-calling", method: "approveRequest", params: { requestId: id } });
+  execute({
+    service: "tool-calling",
+    method: "approveRequest",
+    params: { requestId: id },
+  });
 };
 
 const handleReject = (id: string) => {
-  execute({ service: "tool-calling", method: "rejectRequest", params: { requestId: id } });
+  execute({
+    service: "tool-calling",
+    method: "rejectRequest",
+    params: { requestId: id },
+  });
 };
 
 const handleApproveAll = () => {
   if (llmChatStore.currentSessionId) {
-    execute({ service: "tool-calling", method: "approveAll", params: { sessionId: llmChatStore.currentSessionId } });
+    execute({
+      service: "tool-calling",
+      method: "approveAll",
+      params: { sessionId: llmChatStore.currentSessionId },
+    });
   }
 };
 
 const handleRejectAll = () => {
   if (llmChatStore.currentSessionId) {
-    execute({ service: "tool-calling", method: "rejectAll", params: { sessionId: llmChatStore.currentSessionId } });
+    execute({
+      service: "tool-calling",
+      method: "rejectAll",
+      params: { sessionId: llmChatStore.currentSessionId },
+    });
   }
 };
 </script>
@@ -99,7 +133,9 @@ const handleRejectAll = () => {
         <div class="header-left">
           <ShieldCheck :size="16" class="security-icon" />
           <span class="header-title">工具调用申请</span>
-          <span class="request-count">{{ currentSessionPendingRequests.length }} 个待处理</span>
+          <span class="request-count"
+            >{{ currentSessionPendingRequests.length }} 个待处理</span
+          >
         </div>
         <div class="header-actions">
           <el-button-group size="small">
@@ -115,7 +151,14 @@ const handleRejectAll = () => {
 
           <div class="divider"></div>
 
-          <el-tooltip :content="isSilent ? '静默模式：执行完后停止循环' : '常规模式：执行完后继续循环'" placement="top">
+          <el-tooltip
+            :content="
+              isSilent
+                ? '静默模式：执行完后停止循环'
+                : '常规模式：执行完后继续循环'
+            "
+            placement="top"
+          >
             <el-button
               size="small"
               :type="isSilent ? 'warning' : 'info'"
@@ -133,15 +176,31 @@ const handleRejectAll = () => {
       </div>
 
       <div class="request-list">
-        <div v-for="item in currentSessionPendingRequests" :key="item.id" class="request-item">
+        <div
+          v-for="item in currentSessionPendingRequests"
+          :key="item.id"
+          class="request-item"
+        >
           <div class="item-info">
             <div class="item-main">
-              <div class="tool-tag" :class="{ 'is-invalid': item.request.validation?.isValid === false }">
+              <div
+                class="tool-tag"
+                :class="{
+                  'is-invalid': item.request.validation?.isValid === false,
+                }"
+              >
                 <Terminal :size="12" />
                 {{ item.request.methodDisplayName || item.request.toolName }}
-                <AlertCircle v-if="item.request.validation?.isValid === false" :size="12" class="error-icon" />
+                <AlertCircle
+                  v-if="item.request.validation?.isValid === false"
+                  :size="12"
+                  class="error-icon"
+                />
               </div>
-              <div v-if="item.request.validation?.isValid === false" class="validation-error">
+              <div
+                v-if="item.request.validation?.isValid === false"
+                class="validation-error"
+              >
                 {{ item.request.validation.reason || "解析或验证错误" }}
               </div>
             </div>
@@ -162,18 +221,33 @@ const handleRejectAll = () => {
               content="该工具调用可能存在错误，是否仍要尝试执行？"
               placement="top"
             >
-              <el-button size="small" circle type="warning" @click="handleApprove(item.id)">
+              <el-button
+                size="small"
+                circle
+                type="warning"
+                @click="handleApprove(item.id)"
+              >
                 <template #icon><Play :size="12" /></template>
               </el-button>
             </el-tooltip>
             <el-tooltip v-else content="允许" placement="top">
-              <el-button size="small" circle type="primary" @click="handleApprove(item.id)">
+              <el-button
+                size="small"
+                circle
+                type="primary"
+                @click="handleApprove(item.id)"
+              >
                 <template #icon><Play :size="12" /></template>
               </el-button>
             </el-tooltip>
 
             <el-tooltip content="拒绝" placement="top">
-              <el-button size="small" circle type="danger" @click="handleReject(item.id)">
+              <el-button
+                size="small"
+                circle
+                type="danger"
+                @click="handleReject(item.id)"
+              >
                 <template #icon><X :size="12" /></template>
               </el-button>
             </el-tooltip>
@@ -183,9 +257,15 @@ const handleRejectAll = () => {
 
       <div class="bar-footer">
         <AlertCircle :size="12" />
-        <span v-if="hasExternalRequests && hasLocalRequests"> 包含本地和远程工具调用请求，请确认安全后再允许。 </span>
-        <span v-else-if="hasExternalRequests"> 这些工具将在远程 VCP 节点执行，请确认安全后再允许。 </span>
-        <span v-else> 这些工具将以你的身份在本地执行，请确认安全后再允许。 </span>
+        <span v-if="hasExternalRequests && hasLocalRequests">
+          包含本地和远程工具调用请求，请确认安全后再允许。
+        </span>
+        <span v-else-if="hasExternalRequests">
+          这些工具将在远程 VCP 节点执行，请确认安全后再允许。
+        </span>
+        <span v-else>
+          这些工具将以你的身份在本地执行，请确认安全后再允许。
+        </span>
       </div>
     </div>
   </transition>
@@ -258,7 +338,10 @@ const handleRejectAll = () => {
   font-size: 11px;
   font-weight: 600;
   color: var(--el-color-primary);
-  background: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.15));
+  background: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.15)
+  );
   padding: 2px 10px;
   border-radius: 20px;
   border: 1px solid rgba(var(--el-color-primary-rgb), 0.1);
@@ -322,7 +405,10 @@ const handleRejectAll = () => {
 
 .request-item:hover {
   border-color: rgba(var(--el-color-primary-rgb), 0.4);
-  background: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.05));
+  background: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.05)
+  );
   transform: translateX(2px);
 }
 

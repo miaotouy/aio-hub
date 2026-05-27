@@ -11,7 +11,11 @@ import type {
 } from "../types/agentImportExport";
 import { AgentCategory, AgentCategoryLabels } from "../types";
 import { STWorldbook } from "../types/worldbook";
-import { isCharacterCard, parseCharacterCard, SillyTavernCharacterCard } from "./sillyTavernParser";
+import {
+  isCharacterCard,
+  parseCharacterCard,
+  SillyTavernCharacterCard,
+} from "./sillyTavernParser";
 import { parsePngMetadata } from "@/utils/pngMetadataReader";
 import { normalizeWorldbook } from "./worldbookImportService";
 import { useWorldbookStore } from "../stores/worldbookStore";
@@ -70,13 +74,17 @@ export async function preflightImportAgents(
           const agentYamlText = await agentYamlFile.async("text");
           agentExportFile = yaml.load(agentYamlText) as AgentExportFile;
         } else {
-          throw new Error(`ZIP 文件 ${file.name} 中未找到 agent.json 或 agent.yaml`);
+          throw new Error(
+            `ZIP 文件 ${file.name} 中未找到 agent.json 或 agent.yaml`
+          );
         }
 
         // 获取配置文件所在的目录（可能在根目录或子文件夹中）
         const configFile = agentJsonFile || agentYamlFile;
         const configPath = configFile.name;
-        const agentSubDir = configPath.includes("/") ? configPath.substring(0, configPath.lastIndexOf("/") + 1) : "";
+        const agentSubDir = configPath.includes("/")
+          ? configPath.substring(0, configPath.lastIndexOf("/") + 1)
+          : "";
 
         // 收集所有资产文件（支持新旧两种结构）
         // 新结构：[agentSubDir]/avatar.png, [agentSubDir]/assets/xxx
@@ -87,7 +95,11 @@ export async function preflightImportAgents(
           if (zipEntry.dir) continue;
 
           // 跳过配置文件和世界书
-          if (filePath.endsWith(".agent.json") || filePath.endsWith(".agent.yaml") || filePath.endsWith(".agent.yml"))
+          if (
+            filePath.endsWith(".agent.json") ||
+            filePath.endsWith(".agent.yaml") ||
+            filePath.endsWith(".agent.yml")
+          )
             continue;
           if (filePath.includes("worldbooks/")) continue;
 
@@ -98,10 +110,15 @@ export async function preflightImportAgents(
           if (agentSubDir && filePath.startsWith(agentSubDir)) {
             // 新结构：在智能体子目录下
             const relativePath = filePath.substring(agentSubDir.length);
-            if (relativePath.startsWith("assets/") || !relativePath.includes("/")) {
+            if (
+              relativePath.startsWith("assets/") ||
+              !relativePath.includes("/")
+            ) {
               // assets/ 子目录下的文件，或根目录下的文件（如头像）
               isAsset = true;
-              normalizedPath = relativePath.startsWith("assets/") ? relativePath : `assets/${relativePath}`;
+              normalizedPath = relativePath.startsWith("assets/")
+                ? relativePath
+                : `assets/${relativePath}`;
             }
           } else if (filePath.startsWith("assets/")) {
             // 旧结构：根目录的 assets/
@@ -121,7 +138,10 @@ export async function preflightImportAgents(
           if (!wbFile.dir) {
             const text = await wbFile.async("text");
             try {
-              if (wbFile.name.endsWith(".yaml") || wbFile.name.endsWith(".yml")) {
+              if (
+                wbFile.name.endsWith(".yaml") ||
+                wbFile.name.endsWith(".yml")
+              ) {
                 fileWorldbooks[wbFile.name] = yaml.load(text) as STWorldbook;
               } else {
                 fileWorldbooks[wbFile.name] = JSON.parse(text);
@@ -137,7 +157,8 @@ export async function preflightImportAgents(
 
         if (isCharacterCard(jsonData)) {
           // 这是酒馆角色卡
-          const { agent: parsedAgent, presetMessages } = parseCharacterCard(jsonData);
+          const { agent: parsedAgent, presetMessages } =
+            parseCharacterCard(jsonData);
 
           if (!parsedAgent.name) {
             throw new Error(`角色卡文件 ${file.name} 缺少 'name' 字段。`);
@@ -148,7 +169,9 @@ export async function preflightImportAgents(
           if (finalIcon && finalIcon.startsWith("data:image")) {
             try {
               const base64Data = finalIcon.split(",")[1];
-              const buffer = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0)).buffer;
+              const buffer = Uint8Array.from(atob(base64Data), (c) =>
+                c.charCodeAt(0)
+              ).buffer;
               const assetPath = `assets/avatar-${Date.now()}.png`;
               fileAssets[assetPath] = buffer;
               finalIcon = assetPath; // 更新 icon 路径为临时资产路径
@@ -177,7 +200,8 @@ export async function preflightImportAgents(
           };
 
           // 提取嵌入的世界书
-          const characterBook = jsonData.character_book || jsonData.data?.character_book;
+          const characterBook =
+            jsonData.character_book || jsonData.data?.character_book;
           if (characterBook && characterBook.entries) {
             (exportableAgent as any)._tempWorldbook = characterBook;
           }
@@ -191,7 +215,12 @@ export async function preflightImportAgents(
         const buffer = await file.arrayBuffer();
         const { aioBundle, stCharacter } = await parsePngMetadata(buffer);
 
-        if (aioBundle && aioBundle.type === "AIO_Agent_Bundle" && aioBundle.compressed && aioBundle.data) {
+        if (
+          aioBundle &&
+          aioBundle.type === "AIO_Agent_Bundle" &&
+          aioBundle.compressed &&
+          aioBundle.data
+        ) {
           const jsonData = aioBundle;
           const zipBase64 = jsonData.data;
           const zipBinaryString = atob(zipBase64);
@@ -213,13 +242,17 @@ export async function preflightImportAgents(
             const agentYamlText = await agentYamlFile.async("text");
             agentExportFile = yaml.load(agentYamlText) as AgentExportFile;
           } else {
-            throw new Error(`PNG 包中的 ZIP 数据未包含 agent.json 或 agent.yaml`);
+            throw new Error(
+              `PNG 包中的 ZIP 数据未包含 agent.json 或 agent.yaml`
+            );
           }
 
           // 获取配置文件所在的目录
           const configFile = agentJsonFile || agentYamlFile;
           const configPath = configFile.name;
-          const agentSubDir = configPath.includes("/") ? configPath.substring(0, configPath.lastIndexOf("/") + 1) : "";
+          const agentSubDir = configPath.includes("/")
+            ? configPath.substring(0, configPath.lastIndexOf("/") + 1)
+            : "";
 
           // 收集所有资产文件（支持新旧两种结构）
           const allFiles = Object.keys(zipContent.files);
@@ -227,7 +260,11 @@ export async function preflightImportAgents(
             const zipEntry = zipContent.files[filePath];
             if (zipEntry.dir) continue;
 
-            if (filePath.endsWith(".agent.json") || filePath.endsWith(".agent.yaml") || filePath.endsWith(".agent.yml"))
+            if (
+              filePath.endsWith(".agent.json") ||
+              filePath.endsWith(".agent.yaml") ||
+              filePath.endsWith(".agent.yml")
+            )
               continue;
             if (filePath.includes("worldbooks/")) continue;
 
@@ -236,9 +273,14 @@ export async function preflightImportAgents(
 
             if (agentSubDir && filePath.startsWith(agentSubDir)) {
               const relativePath = filePath.substring(agentSubDir.length);
-              if (relativePath.startsWith("assets/") || !relativePath.includes("/")) {
+              if (
+                relativePath.startsWith("assets/") ||
+                !relativePath.includes("/")
+              ) {
                 isAsset = true;
-                normalizedPath = relativePath.startsWith("assets/") ? relativePath : `assets/${relativePath}`;
+                normalizedPath = relativePath.startsWith("assets/")
+                  ? relativePath
+                  : `assets/${relativePath}`;
               }
             } else if (filePath.startsWith("assets/")) {
               isAsset = true;
@@ -257,7 +299,10 @@ export async function preflightImportAgents(
             if (!wbFile.dir) {
               const text = await wbFile.async("text");
               try {
-                if (wbFile.name.endsWith(".yaml") || wbFile.name.endsWith(".yml")) {
+                if (
+                  wbFile.name.endsWith(".yaml") ||
+                  wbFile.name.endsWith(".yml")
+                ) {
                   fileWorldbooks[wbFile.name] = yaml.load(text) as STWorldbook;
                 } else {
                   fileWorldbooks[wbFile.name] = JSON.parse(text);
@@ -271,7 +316,9 @@ export async function preflightImportAgents(
           agentExportFile = aioBundle;
         } else if (stCharacter && isCharacterCard(stCharacter)) {
           const jsonData = stCharacter;
-          const { agent: parsedAgent, presetMessages } = parseCharacterCard(jsonData as SillyTavernCharacterCard);
+          const { agent: parsedAgent, presetMessages } = parseCharacterCard(
+            jsonData as SillyTavernCharacterCard
+          );
 
           if (!parsedAgent.name) {
             throw new Error(`角色卡文件 ${file.name} 缺少 'name' 字段。`);
@@ -298,12 +345,15 @@ export async function preflightImportAgents(
           };
 
           // 提取嵌入的世界书
-          const characterBook = jsonData.character_book || jsonData.data?.character_book;
+          const characterBook =
+            jsonData.character_book || jsonData.data?.character_book;
           if (characterBook && characterBook.entries) {
             (exportableAgent as any)._tempWorldbook = characterBook;
           }
         } else {
-          throw new Error(`无法从 PNG 文件 ${file.name} 中解析出支持的格式 (AIO Bundle 或 SillyTavern)。`);
+          throw new Error(
+            `无法从 PNG 文件 ${file.name} 中解析出支持的格式 (AIO Bundle 或 SillyTavern)。`
+          );
         }
       } else {
         throw new Error(`不支持的文件格式: ${file.name}`);
@@ -377,7 +427,9 @@ export async function preflightImportAgents(
     const { availableModelIds } = context;
     const nameConflicts: AgentImportPreflightResult["nameConflicts"] = [];
     const unmatchedModels: AgentImportPreflightResult["unmatchedModels"] = [];
-    const worldbookConflicts: NonNullable<AgentImportPreflightResult["worldbookConflicts"]> = {};
+    const worldbookConflicts: NonNullable<
+      AgentImportPreflightResult["worldbookConflicts"]
+    > = {};
 
     // 预检世界书重复情况
     const worldbookStoreForPreflight = useWorldbookStore();
@@ -385,12 +437,20 @@ export async function preflightImportAgents(
       content: STWorldbook,
       name: string
     ): Promise<{ isDuplicate: boolean; hasNameConflict: boolean }> => {
-      const candidates = worldbookStoreForPreflight.worldbooks.filter((wb) => wb.name === name);
-      if (candidates.length === 0) return { isDuplicate: false, hasNameConflict: false };
+      const candidates = worldbookStoreForPreflight.worldbooks.filter(
+        (wb) => wb.name === name
+      );
+      if (candidates.length === 0)
+        return { isDuplicate: false, hasNameConflict: false };
 
       for (const candidate of candidates) {
-        const existingContent = await worldbookStoreForPreflight.getWorldbookContent(candidate.id);
-        if (existingContent && JSON.stringify(existingContent.entries) === JSON.stringify(content.entries)) {
+        const existingContent =
+          await worldbookStoreForPreflight.getWorldbookContent(candidate.id);
+        if (
+          existingContent &&
+          JSON.stringify(existingContent.entries) ===
+            JSON.stringify(content.entries)
+        ) {
           return { isDuplicate: true, hasNameConflict: true };
         }
       }
@@ -412,10 +472,17 @@ export async function preflightImportAgents(
         })
       );
 
-      let embeddedResult: { isDuplicate: boolean; hasNameConflict: boolean } | undefined = undefined;
+      let embeddedResult:
+        | { isDuplicate: boolean; hasNameConflict: boolean }
+        | undefined = undefined;
       if (embedded) {
-        const wbName = embedded.metadata?.name || `${agent.displayName || agent.name} 的世界书`;
-        embeddedResult = await checkWorldbookDuplicate(normalizeWorldbook(embedded), wbName);
+        const wbName =
+          embedded.metadata?.name ||
+          `${agent.displayName || agent.name} 的世界书`;
+        embeddedResult = await checkWorldbookDuplicate(
+          normalizeWorldbook(embedded),
+          wbName
+        );
       }
 
       if (bundledResults.length > 0 || embeddedResult) {
@@ -432,14 +499,20 @@ export async function preflightImportAgents(
         if (availableModelIds.includes(agent.modelId)) {
           isMatched = true;
         } else if (agent.modelId.includes(":")) {
-          const pureModelId = agent.modelId.substring(agent.modelId.indexOf(":") + 1);
+          const pureModelId = agent.modelId.substring(
+            agent.modelId.indexOf(":") + 1
+          );
           if (pureModelId && availableModelIds.includes(pureModelId)) {
             isMatched = true;
           }
         }
       }
       if (!isMatched) {
-        unmatchedModels.push({ agentIndex: index, agentName: agent.name, modelId: agent.modelId });
+        unmatchedModels.push({
+          agentIndex: index,
+          agentName: agent.name,
+          modelId: agent.modelId,
+        });
       }
     });
 
@@ -468,8 +541,15 @@ export async function preflightImportAgents(
 /**
  * 提交导入请求，处理资产并持久化 Agent
  */
-export async function commitImportAgents(params: ConfirmImportParams): Promise<void> {
-  const { resolvedAgents, assets: allAssets, bundledWorldbooks = {}, embeddedWorldbooks = {} } = params;
+export async function commitImportAgents(
+  params: ConfirmImportParams
+): Promise<void> {
+  const {
+    resolvedAgents,
+    assets: allAssets,
+    bundledWorldbooks = {},
+    embeddedWorldbooks = {},
+  } = params;
   const agentStore = useAgentStore();
   const worldbookStore = useWorldbookStore();
   logger.info("开始提交导入", { agentCount: resolvedAgents.length });
@@ -497,7 +577,10 @@ export async function commitImportAgents(params: ConfirmImportParams): Promise<v
             let assetPath: string | null = null;
             if (value.startsWith("assets/")) {
               assetPath = value;
-            } else if ((key === "icon" || parentKey === "avatarHistory") && agentAssets[`assets/${value}`]) {
+            } else if (
+              (key === "icon" || parentKey === "avatarHistory") &&
+              agentAssets[`assets/${value}`]
+            ) {
               // 头像可能没有 assets/ 前缀，尝试添加前缀查找
               assetPath = `assets/${value}`;
             }
@@ -528,7 +611,9 @@ export async function commitImportAgents(params: ConfirmImportParams): Promise<v
         if (Object.values(AgentCategory).includes(category as AgentCategory)) {
           validCategory = category as AgentCategory;
         } else {
-          const entry = Object.entries(AgentCategoryLabels).find(([_, label]) => label === category);
+          const entry = Object.entries(AgentCategoryLabels).find(
+            ([_, label]) => label === category
+          );
           if (entry) {
             validCategory = entry[0] as AgentCategory;
           } else {
@@ -574,13 +659,24 @@ export async function commitImportAgents(params: ConfirmImportParams): Promise<v
       clearAssetRefs(cleanRestOptions);
 
       // 辅助函数：查找内容完全一致的现有世界书
-      const findDuplicateWorldbook = async (content: STWorldbook, name: string): Promise<string | null> => {
+      const findDuplicateWorldbook = async (
+        content: STWorldbook,
+        name: string
+      ): Promise<string | null> => {
         // 先按名字筛选候选
-        const candidates = worldbookStore.worldbooks.filter((wb) => wb.name === name);
+        const candidates = worldbookStore.worldbooks.filter(
+          (wb) => wb.name === name
+        );
 
         for (const candidate of candidates) {
-          const existingContent = await worldbookStore.getWorldbookContent(candidate.id);
-          if (existingContent && JSON.stringify(existingContent.entries) === JSON.stringify(content.entries)) {
+          const existingContent = await worldbookStore.getWorldbookContent(
+            candidate.id
+          );
+          if (
+            existingContent &&
+            JSON.stringify(existingContent.entries) ===
+              JSON.stringify(content.entries)
+          ) {
             logger.info("发现内容完全一致的世界书，复用现有 ID", {
               existingId: candidate.id,
               name,
@@ -593,7 +689,9 @@ export async function commitImportAgents(params: ConfirmImportParams): Promise<v
 
       // 辅助函数：获取不冲突的世界书名称
       const getUniqueWorldbookName = (name: string): string => {
-        const existingNames = new Set(worldbookStore.worldbooks.map((wb) => wb.name));
+        const existingNames = new Set(
+          worldbookStore.worldbooks.map((wb) => wb.name)
+        );
         if (!existingNames.has(name)) return name;
 
         let counter = 1;
@@ -610,17 +708,24 @@ export async function commitImportAgents(params: ConfirmImportParams): Promise<v
       const importedWorldbookIds: string[] = [];
 
       if (worldbookContent) {
-        const baseWbName = worldbookContent.metadata?.name || `${agentName} 的世界书`;
+        const baseWbName =
+          worldbookContent.metadata?.name || `${agentName} 的世界书`;
         const normalizedWb = normalizeWorldbook(worldbookContent);
 
         // 先检查是否有内容完全一致的重复
-        const existingId = await findDuplicateWorldbook(normalizedWb, baseWbName);
+        const existingId = await findDuplicateWorldbook(
+          normalizedWb,
+          baseWbName
+        );
         if (existingId) {
           importedWorldbookIds.push(existingId);
         } else {
           // 如果内容不一致但名字冲突，则重命名
           const uniqueName = getUniqueWorldbookName(baseWbName);
-          const wbId = await worldbookStore.importWorldbook(uniqueName, normalizedWb);
+          const wbId = await worldbookStore.importWorldbook(
+            uniqueName,
+            normalizedWb
+          );
           importedWorldbookIds.push(wbId);
         }
       }
@@ -631,13 +736,19 @@ export async function commitImportAgents(params: ConfirmImportParams): Promise<v
         for (const bundled of bundledList) {
           if (bundled.content) {
             // 先检查是否有内容完全一致的重复
-            const existingId = await findDuplicateWorldbook(bundled.content, bundled.name);
+            const existingId = await findDuplicateWorldbook(
+              bundled.content,
+              bundled.name
+            );
             if (existingId) {
               importedWorldbookIds.push(existingId);
             } else {
               // 如果内容不一致但名字冲突，则重命名
               const uniqueName = getUniqueWorldbookName(bundled.name);
-              const wbId = await worldbookStore.importWorldbook(uniqueName, bundled.content);
+              const wbId = await worldbookStore.importWorldbook(
+                uniqueName,
+                bundled.content
+              );
               importedWorldbookIds.push(wbId);
             }
           }
@@ -649,12 +760,17 @@ export async function commitImportAgents(params: ConfirmImportParams): Promise<v
         icon: originalIcon?.startsWith("assets/") ? undefined : originalIcon,
         assets: originalAssets?.filter((a) => !a.path.startsWith("assets/")),
         category: validCategory,
-        worldbookIds: importedWorldbookIds.length > 0 ? importedWorldbookIds : resolvedAgent.worldbookIds,
+        worldbookIds:
+          importedWorldbookIds.length > 0
+            ? importedWorldbookIds
+            : resolvedAgent.worldbookIds,
       };
 
       let finalAgentId: string;
       if (resolvedAgent.overwriteExisting) {
-        const existingAgent = agentStore.agents.find((a) => a.name === resolvedAgent.name);
+        const existingAgent = agentStore.agents.find(
+          (a) => a.name === resolvedAgent.name
+        );
         if (existingAgent) {
           finalAgentId = existingAgent.id;
           agentStore.updateAgent(existingAgent.id, {
@@ -686,12 +802,19 @@ export async function commitImportAgents(params: ConfirmImportParams): Promise<v
           const assetPathMapping: Record<string, string> = {};
 
           for (const assetInfo of pendingAssets) {
-            const rawRelativePath = assetInfo.originalPath.replace(/^assets[/\\]/, "");
+            const rawRelativePath = assetInfo.originalPath.replace(
+              /^assets[/\\]/,
+              ""
+            );
             const pathParts = rawRelativePath.split(/[/\\]/);
             const filename = pathParts.pop() || "file";
             const relativeSubDir = pathParts.join("/");
 
-            const subdirectory = `llm-chat/agents/${finalAgentId}/${relativeSubDir}`.replace(/\/+$/, "");
+            const subdirectory =
+              `llm-chat/agents/${finalAgentId}/${relativeSubDir}`.replace(
+                /\/+$/,
+                ""
+              );
             const bytes = new Uint8Array(assetInfo.binary);
 
             await invoke("save_uploaded_file", {
@@ -700,7 +823,9 @@ export async function commitImportAgents(params: ConfirmImportParams): Promise<v
               filename: filename,
             });
 
-            const finalRefPath = relativeSubDir ? `${relativeSubDir}/${filename}` : filename;
+            const finalRefPath = relativeSubDir
+              ? `${relativeSubDir}/${filename}`
+              : filename;
             assetPathMapping[assetInfo.originalPath] = finalRefPath;
 
             if (assetInfo.objectRef && assetInfo.keyRef) {
@@ -710,14 +835,24 @@ export async function commitImportAgents(params: ConfirmImportParams): Promise<v
 
           // 最终更新 Agent 配置，确保包含已处理的资产路径
           // 排除导入过程中的临时控制字段
-          const excludeKeys = ["finalProfileId", "finalModelId", "overwriteExisting", "newName", "id"];
+          const excludeKeys = [
+            "finalProfileId",
+            "finalModelId",
+            "overwriteExisting",
+            "newName",
+            "id",
+          ];
           const finalUpdate: any = {};
 
           Object.keys(resolvedAgent).forEach((key) => {
             if (!excludeKeys.includes(key)) {
               let value = (resolvedAgent as any)[key];
               // 如果是 icon 字段且以 assets/ 开头，替换为处理后的路径
-              if (key === "icon" && typeof value === "string" && value.startsWith("assets/")) {
+              if (
+                key === "icon" &&
+                typeof value === "string" &&
+                value.startsWith("assets/")
+              ) {
                 value = assetPathMapping[value] || value;
               }
               finalUpdate[key] = value;
@@ -731,11 +866,15 @@ export async function commitImportAgents(params: ConfirmImportParams): Promise<v
             assetCount: pendingAssets.length,
           });
         } catch (assetError) {
-          errorHandler.handle(assetError, { userMessage: `为 Agent "${agentName}" 导入资产失败` });
+          errorHandler.handle(assetError, {
+            userMessage: `为 Agent "${agentName}" 导入资产失败`,
+          });
         }
       }
     } catch (error) {
-      errorHandler.handle(error, { userMessage: `持久化 Agent "${resolvedAgent.name}" 失败` });
+      errorHandler.handle(error, {
+        userMessage: `持久化 Agent "${resolvedAgent.name}" 失败`,
+      });
     }
   }
   logger.info("导入流程全部完成");

@@ -1,4 +1,4 @@
-import type { MessageRole, MessageStatus, MessageType } from './common';
+import type { MessageRole, MessageStatus, MessageType } from "./common";
 
 /**
  * 消息节点（树形结构基础版）

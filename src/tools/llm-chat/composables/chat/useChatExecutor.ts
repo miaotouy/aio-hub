@@ -3,7 +3,12 @@
  * 负责核心的 LLM 请求执行逻辑，消除重复代码
  */
 
-import type { ChatSessionDetail, ChatMessageNode, LlmParameters, ChatAgent } from "../../types";
+import type {
+  ChatSessionDetail,
+  ChatMessageNode,
+  LlmParameters,
+  ChatAgent,
+} from "../../types";
 import type { Asset } from "@/types/asset-management";
 import type { LlmModelInfo } from "@/types/llm-profiles";
 import { useAgentStore } from "../../stores/agentStore";
@@ -80,7 +85,9 @@ export function useChatExecutor() {
           })
         : null);
 
-    const currentAgent = agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
+    const currentAgent = agentStore.currentAgentId
+      ? agentStore.getAgentById(agentStore.currentAgentId)
+      : null;
 
     if (!agentConfigSnippet || !currentAgent) {
       errorHandler.handle(new Error("Agent config not found"), {
@@ -96,11 +103,15 @@ export function useChatExecutor() {
     };
 
     const userProfileStore = useUserProfileStore();
-    const effectiveUserProfile = userProfileStore.getEffectiveProfile(currentAgent?.userProfileId);
+    const effectiveUserProfile = userProfileStore.getEffectiveProfile(
+      currentAgent?.userProfileId
+    );
 
     const { getProfileById } = useLlmProfiles();
     const profile = getProfileById(agentConfigSnippet.profileId);
-    const model: LlmModelInfo | undefined = profile?.models.find((m) => m.id === agentConfigSnippet.modelId);
+    const model: LlmModelInfo | undefined = profile?.models.find(
+      (m) => m.id === agentConfigSnippet.modelId
+    );
 
     assistantNode.metadata = {
       ...assistantNode.metadata,
@@ -113,7 +124,9 @@ export function useChatExecutor() {
 
     const vcpStore = useVcpStore();
     const isVcpChannel =
-      profile?.baseUrl && vcpStore.config.wsUrl ? isSameHost(profile.baseUrl, vcpStore.config.wsUrl) : false;
+      profile?.baseUrl && vcpStore.config.wsUrl
+        ? isSameHost(profile.baseUrl, vcpStore.config.wsUrl)
+        : false;
 
     // 委托给 Orchestrator
     const { orchestrate } = useToolCallOrchestrator();
@@ -131,23 +144,31 @@ export function useChatExecutor() {
     });
   };
 
-  const waitForAssetsImport = async (assets: Asset[], timeout: number = 30000): Promise<boolean> => {
+  const waitForAssetsImport = async (
+    assets: Asset[],
+    timeout: number = 30000
+  ): Promise<boolean> => {
     const startTime = Date.now();
     const pendingAssets = assets.filter(
-      (asset) => asset.importStatus === "pending" || asset.importStatus === "importing",
+      (asset) =>
+        asset.importStatus === "pending" || asset.importStatus === "importing"
     );
 
     if (pendingAssets.length === 0) return true;
 
     while (Date.now() - startTime < timeout) {
       const stillPending = assets.filter(
-        (asset) => asset.importStatus === "pending" || asset.importStatus === "importing",
+        (asset) =>
+          asset.importStatus === "pending" || asset.importStatus === "importing"
       );
       if (stillPending.length === 0) return true;
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
 
-    errorHandler.handle(new Error("资产导入超时"), { userMessage: "资产导入超时", showToUser: false });
+    errorHandler.handle(new Error("资产导入超时"), {
+      userMessage: "资产导入超时",
+      showToUser: false,
+    });
     return false;
   };
 
@@ -155,7 +176,7 @@ export function useChatExecutor() {
     userNode: ChatMessageNode,
     session: ChatSessionDetail,
     attachments: Asset[] | undefined,
-    pathUserNode?: ChatMessageNode,
+    pathUserNode?: ChatMessageNode
   ): Promise<void> => {
     if (!attachments || attachments.length === 0) return;
     const allImported = await waitForAssetsImport(attachments);
@@ -172,17 +193,23 @@ export function useChatExecutor() {
     content: string,
     modelId: string,
     attachments?: Asset[],
-    isContinuation: boolean = false,
+    isContinuation: boolean = false
   ): Promise<void> => {
     try {
       let combinedText = content;
       const mediaAttachments: Asset[] = [];
       const { profiles } = useLlmProfiles();
-      const profile = profiles.value.find((p) => p.models.some((m) => m.id === modelId));
+      const profile = profiles.value.find((p) =>
+        p.models.some((m) => m.id === modelId)
+      );
       const profileId = profile?.id || "";
 
       if (attachments && attachments.length > 0) {
-        const resolvedResults = await resolveAttachmentsBatch(attachments, modelId, profileId);
+        const resolvedResults = await resolveAttachmentsBatch(
+          attachments,
+          modelId,
+          profileId
+        );
         for (const result of resolvedResults) {
           if (result.type === "text" && result.content) {
             combinedText += result.content;
@@ -192,7 +219,11 @@ export function useChatExecutor() {
         }
       }
 
-      const tokenResult = await tokenCalculatorService.calculateMessageTokens(combinedText, modelId, mediaAttachments);
+      const tokenResult = await tokenCalculatorService.calculateMessageTokens(
+        combinedText,
+        modelId,
+        mediaAttachments
+      );
       const node = session.nodes ? session.nodes[userNode.id] : undefined;
       if (node) {
         if (!node.metadata) node.metadata = {};
@@ -206,14 +237,20 @@ export function useChatExecutor() {
 
   const saveUserProfileSnapshot = (
     userNode: ChatMessageNode,
-    effectiveUserProfile: { id: string; name: string; displayName?: string; icon?: string } | null,
+    effectiveUserProfile: {
+      id: string;
+      name: string;
+      displayName?: string;
+      icon?: string;
+    } | null
   ): void => {
     if (!effectiveUserProfile) return;
     userNode.metadata = {
       ...userNode.metadata,
       userProfileId: effectiveUserProfile.id,
       userProfileName: effectiveUserProfile.name,
-      userProfileDisplayName: effectiveUserProfile.displayName || effectiveUserProfile.name,
+      userProfileDisplayName:
+        effectiveUserProfile.displayName || effectiveUserProfile.name,
       userProfileIcon: effectiveUserProfile.icon,
     };
     const userProfileStore = useUserProfileStore();
@@ -225,7 +262,7 @@ export function useChatExecutor() {
     targetNodeId: string,
     agentId?: string,
     parameterOverrides?: LlmParameters,
-    options?: { pendingInput?: any },
+    options?: { pendingInput?: any }
   ): Promise<ContextPreviewData | null> => {
     const agentStore = useAgentStore();
     const nodeManager = useNodeManager();
@@ -247,17 +284,24 @@ export function useChatExecutor() {
 
     if (!currentAgentFromStore) return null;
 
-    const agentConfigSnippet = agentStore.getAgentConfig(currentAgentFromStore.id, {
-      parameterOverrides,
-    });
+    const agentConfigSnippet = agentStore.getAgentConfig(
+      currentAgentFromStore.id,
+      {
+        parameterOverrides,
+      }
+    );
 
     if (!agentConfigSnippet) return null;
 
     // 优先使用待发送消息中指定的临时模型，否则使用节点元数据中的历史模型，最后回退到 Agent 默认配置
     const effectiveProfileId =
-      options?.pendingInput?.temporaryModel?.profileId || historicalProfileId || agentConfigSnippet.profileId;
+      options?.pendingInput?.temporaryModel?.profileId ||
+      historicalProfileId ||
+      agentConfigSnippet.profileId;
     const effectiveModelId =
-      options?.pendingInput?.temporaryModel?.modelId || historicalModelId || agentConfigSnippet.modelId;
+      options?.pendingInput?.temporaryModel?.modelId ||
+      historicalModelId ||
+      agentConfigSnippet.modelId;
 
     const executionAgent: ChatAgent = {
       ...currentAgentFromStore,
@@ -266,10 +310,14 @@ export function useChatExecutor() {
       modelId: effectiveModelId,
     };
 
-    const effectiveUserProfile = userProfileStore.getEffectiveProfile(currentAgentFromStore?.userProfileId);
+    const effectiveUserProfile = userProfileStore.getEffectiveProfile(
+      currentAgentFromStore?.userProfileId
+    );
 
     const profile = getProfileById(effectiveProfileId);
-    const model: LlmModelInfo | undefined = profile?.models.find((m) => m.id === effectiveModelId);
+    const model: LlmModelInfo | undefined = profile?.models.find(
+      (m) => m.id === effectiveModelId
+    );
     const capabilities = model?.capabilities;
 
     const { settings } = useChatSettings();
@@ -285,7 +333,9 @@ export function useChatExecutor() {
       agentConfig: executionAgent,
       settings: settings.value,
       capabilities: capabilities || {},
-      timestamp: targetNode?.timestamp ? new Date(targetNode.timestamp).getTime() : Date.now(),
+      timestamp: targetNode?.timestamp
+        ? new Date(targetNode.timestamp).getTime()
+        : Date.now(),
       sharedData: new Map<string, any>(),
       logs: [],
     };
@@ -299,7 +349,10 @@ export function useChatExecutor() {
     if (profile) {
       pipelineContext.sharedData.set("profile", profile);
     }
-    pipelineContext.sharedData.set("transcriptionConfig", settings.value.transcription);
+    pipelineContext.sharedData.set(
+      "transcriptionConfig",
+      settings.value.transcription
+    );
 
     const worldbookStore = import.meta.env.SSR
       ? null
@@ -309,11 +362,12 @@ export function useChatExecutor() {
         ...(settings.value.worldbookIds || []),
         ...(effectiveUserProfile?.worldbookIds || []),
         ...(executionAgent.worldbookIds || []),
-      ]),
+      ])
     );
 
     if (worldbookStore && allWorldbookIds.length > 0) {
-      const loadedWorldbooks = await worldbookStore.getEntriesForAgent(allWorldbookIds);
+      const loadedWorldbooks =
+        await worldbookStore.getEntriesForAgent(allWorldbookIds);
       pipelineContext.sharedData.set("loadedWorldbooks", loadedWorldbooks);
     }
 
@@ -322,35 +376,52 @@ export function useChatExecutor() {
       pipelineContext.sharedData.set("pendingInput", options.pendingInput);
     }
     const anchorRegistry = useAnchorRegistry();
-    pipelineContext.sharedData.set("anchorDefinitions", anchorRegistry.getAvailableAnchors());
+    pipelineContext.sharedData.set(
+      "anchorDefinitions",
+      anchorRegistry.getAvailableAnchors()
+    );
     pipelineContext.sharedData.set("isPreviewMode", true);
 
     const transcriptionManager = useTranscriptionManager();
-    const allAttachments = pathToUserNode.flatMap((node) => node.attachments || []);
+    const allAttachments = pathToUserNode.flatMap(
+      (node) => node.attachments || []
+    );
 
     if (allAttachments.length > 0) {
       try {
         const forceAssetIds = new Set<string>();
         const config = settings.value.transcription;
-        if (config.enabled && config.strategy === "smart" && config.forceTranscriptionAfter > 0) {
+        if (
+          config.enabled &&
+          config.strategy === "smart" &&
+          config.forceTranscriptionAfter > 0
+        ) {
           for (let i = 0; i < pathToUserNode.length; i++) {
             const node = pathToUserNode[i];
             const nodeDepth = pathToUserNode.length - 1 - i;
-            if (nodeDepth >= config.forceTranscriptionAfter && node.attachments) {
+            if (
+              nodeDepth >= config.forceTranscriptionAfter &&
+              node.attachments
+            ) {
               for (const asset of node.attachments) {
-                if (asset.type === "image" || asset.type === "audio" || asset.type === "video") {
+                if (
+                  asset.type === "image" ||
+                  asset.type === "audio" ||
+                  asset.type === "video"
+                ) {
                   forceAssetIds.add(asset.id);
                 }
               }
             }
           }
         }
-        const updatedAssetsMap = await transcriptionManager.ensureTranscriptions(
-          allAttachments,
-          effectiveModelId,
-          effectiveProfileId,
-          forceAssetIds.size > 0 ? forceAssetIds : undefined,
-        );
+        const updatedAssetsMap =
+          await transcriptionManager.ensureTranscriptions(
+            allAttachments,
+            effectiveModelId,
+            effectiveProfileId,
+            forceAssetIds.size > 0 ? forceAssetIds : undefined
+          );
         pipelineContext.sharedData.set("updatedAssetsMap", updatedAssetsMap);
       } catch (error) {
         const fallbackMap = new Map<string, Asset>();
@@ -377,19 +448,25 @@ export function useChatExecutor() {
       const tokenResult = await tokenCalculatorService.calculateMessageTokens(
         contentText,
         effectiveModelId,
-        (msg as any)._attachments || [],
+        (msg as any)._attachments || []
       );
       return tokenResult.count;
     });
     const finalTokenCounts = await Promise.all(finalTokenPromises);
     const finalTotalTokenCount = finalTokenCounts.reduce((a, b) => a + b, 0);
 
-    const postProcessingTokenDelta = (pipelineContext.sharedData.get("postProcessingTokenDelta") as number) || 0;
-    const postProcessingCharDelta = (pipelineContext.sharedData.get("postProcessingCharDelta") as number) || 0;
+    const postProcessingTokenDelta =
+      (pipelineContext.sharedData.get("postProcessingTokenDelta") as number) ||
+      0;
+    const postProcessingCharDelta =
+      (pipelineContext.sharedData.get("postProcessingCharDelta") as number) ||
+      0;
 
     const previewData: ContextPreviewData = {
       ...basePreviewData,
-      finalMessages: pipelineContext.messages.filter((msg): msg is any => msg.role !== "tool"),
+      finalMessages: pipelineContext.messages.filter(
+        (msg): msg is any => msg.role !== "tool"
+      ),
       statistics: {
         ...basePreviewData.statistics,
         totalTokenCount: finalTotalTokenCount,

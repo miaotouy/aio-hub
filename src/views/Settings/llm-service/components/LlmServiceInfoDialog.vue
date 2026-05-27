@@ -6,10 +6,14 @@ import { customMessage } from "@/utils/customMessage";
 
 const visible = defineModel<boolean>({ required: true });
 
-const NEW_API_CONFIG = '{ "AIO Hub": "aiohub://add-profile?key={key}&address={address}&name=New API 渠道" }';
-const BASIC_LINK = "aiohub://add-profile?key=sk-xxx&address=https://api.example.com&name=我的服务";
-const DEEPSEEK_LINK = "aiohub://add-profile?key=sk-xxx&address=https://api.deepseek.com&type=deepseek";
-const FORMAT_LINK = "aiohub://add-profile?key=YOUR_API_KEY&address=API_BASE_URL&name=渠道名称&type=提供商类型";
+const NEW_API_CONFIG =
+  '{ "AIO Hub": "aiohub://add-profile?key={key}&address={address}&name=New API 渠道" }';
+const BASIC_LINK =
+  "aiohub://add-profile?key=sk-xxx&address=https://api.example.com&name=我的服务";
+const DEEPSEEK_LINK =
+  "aiohub://add-profile?key=sk-xxx&address=https://api.deepseek.com&type=deepseek";
+const FORMAT_LINK =
+  "aiohub://add-profile?key=YOUR_API_KEY&address=API_BASE_URL&name=渠道名称&type=提供商类型";
 
 const copiedText = ref("");
 
@@ -30,20 +34,37 @@ const copyToClipboard = async (text: string) => {
 </script>
 
 <template>
-  <BaseDialog v-model="visible" title="LLM 服务帮助" width="700px" height="70vh">
+  <BaseDialog
+    v-model="visible"
+    title="LLM 服务帮助"
+    width="700px"
+    height="70vh"
+  >
     <template #content>
       <div class="deep-link-info">
-        <p class="info-section">AIO Hub 支持通过网页链接快速添加 LLM 服务渠道</p>
+        <p class="info-section">
+          AIO Hub 支持通过网页链接快速添加 LLM 服务渠道
+        </p>
 
         <el-divider />
 
         <h4 class="info-title">链接格式</h4>
         <div class="code-block-wrapper">
           <div class="code-block">
-            <code>aiohub://add-profile?key=YOUR_API_KEY&address=API_BASE_URL&name=渠道名称&type=提供商类型</code>
+            <code
+              >aiohub://add-profile?key=YOUR_API_KEY&address=API_BASE_URL&name=渠道名称&type=提供商类型</code
+            >
           </div>
-          <el-tooltip :content="copiedText === FORMAT_LINK ? '已复制' : '复制链接'" placement="top">
-            <el-button class="copy-button" circle size="small" @click="copyToClipboard(FORMAT_LINK)">
+          <el-tooltip
+            :content="copiedText === FORMAT_LINK ? '已复制' : '复制链接'"
+            placement="top"
+          >
+            <el-button
+              class="copy-button"
+              circle
+              size="small"
+              @click="copyToClipboard(FORMAT_LINK)"
+            >
               <Check v-if="copiedText === FORMAT_LINK" :size="14" />
               <Copy v-else :size="14" />
             </el-button>
@@ -55,7 +76,9 @@ const copyToClipboard = async (text: string) => {
           <li><strong>key</strong> (必需): API 密钥</li>
           <li><strong>address</strong> (必需): API 基础地址</li>
           <li><strong>name</strong> (可选): 渠道名称，不提供时自动生成</li>
-          <li><strong>type</strong> (可选): 提供商类型，不提供时根据地址自动推断</li>
+          <li>
+            <strong>type</strong> (可选): 提供商类型，不提供时根据地址自动推断
+          </li>
         </ul>
 
         <el-divider />
@@ -63,17 +86,30 @@ const copyToClipboard = async (text: string) => {
         <h4 class="info-title">在 New API 中配置</h4>
         <div class="newapi-config-section">
           <p class="config-description">
-            如果你使用 New API 管理 API 密钥，可以在"聊天设置"中添加以下配置，让用户一键添加到 AIO Hub：
+            如果你使用 New API 管理 API
+            密钥，可以在"聊天设置"中添加以下配置，让用户一键添加到 AIO Hub：
           </p>
 
           <div class="config-example">
             <p class="example-label">配置示例（JSON 格式）：</p>
             <div class="code-block-wrapper highlight">
               <div class="code-block">
-                <code>{ "AIO Hub": "aiohub://add-profile?key={key}&address={address}&name=New API 渠道" }</code>
+                <code
+                  >{ "AIO Hub":
+                  "aiohub://add-profile?key={key}&address={address}&name=New API
+                  渠道" }</code
+                >
               </div>
-              <el-tooltip :content="copiedText === NEW_API_CONFIG ? '已复制' : '复制配置'" placement="top">
-                <el-button class="copy-button" circle size="small" @click="copyToClipboard(NEW_API_CONFIG)">
+              <el-tooltip
+                :content="copiedText === NEW_API_CONFIG ? '已复制' : '复制配置'"
+                placement="top"
+              >
+                <el-button
+                  class="copy-button"
+                  circle
+                  size="small"
+                  @click="copyToClipboard(NEW_API_CONFIG)"
+                >
                   <Check v-if="copiedText === NEW_API_CONFIG" :size="14" />
                   <Copy v-else :size="14" />
                 </el-button>
@@ -84,8 +120,13 @@ const copyToClipboard = async (text: string) => {
           <div class="config-note">
             <p><strong>变量说明：</strong></p>
             <ul>
-              <li><code>{key}</code> - 自动替换为用户的 API 密钥（如 sk-xxxx）</li>
-              <li><code>{address}</code> - 自动替换为 New API 服务器地址（末尾不带 / 和 /v1）</li>
+              <li>
+                <code>{key}</code> - 自动替换为用户的 API 密钥（如 sk-xxxx）
+              </li>
+              <li>
+                <code>{address}</code> - 自动替换为 New API 服务器地址（末尾不带
+                / 和 /v1）
+              </li>
             </ul>
           </div>
 
@@ -110,8 +151,16 @@ const copyToClipboard = async (text: string) => {
             <div class="code-block">
               <code>{{ BASIC_LINK }}</code>
             </div>
-            <el-tooltip :content="copiedText === BASIC_LINK ? '已复制' : '复制链接'" placement="top">
-              <el-button class="copy-button" circle size="small" @click="copyToClipboard(BASIC_LINK)">
+            <el-tooltip
+              :content="copiedText === BASIC_LINK ? '已复制' : '复制链接'"
+              placement="top"
+            >
+              <el-button
+                class="copy-button"
+                circle
+                size="small"
+                @click="copyToClipboard(BASIC_LINK)"
+              >
                 <Check v-if="copiedText === BASIC_LINK" :size="14" />
                 <Copy v-else :size="14" />
               </el-button>
@@ -125,8 +174,16 @@ const copyToClipboard = async (text: string) => {
             <div class="code-block">
               <code>{{ DEEPSEEK_LINK }}</code>
             </div>
-            <el-tooltip :content="copiedText === DEEPSEEK_LINK ? '已复制' : '复制链接'" placement="top">
-              <el-button class="copy-button" circle size="small" @click="copyToClipboard(DEEPSEEK_LINK)">
+            <el-tooltip
+              :content="copiedText === DEEPSEEK_LINK ? '已复制' : '复制链接'"
+              placement="top"
+            >
+              <el-button
+                class="copy-button"
+                circle
+                size="small"
+                @click="copyToClipboard(DEEPSEEK_LINK)"
+              >
                 <Check v-if="copiedText === DEEPSEEK_LINK" :size="14" />
                 <Copy v-else :size="14" />
               </el-button>

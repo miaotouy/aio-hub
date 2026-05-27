@@ -58,7 +58,9 @@ export function useImageAsset() {
    * 通过文件选择对话框导入图片
    * @returns 导入成功的 ImageObject 数据，或 null
    */
-  async function importImageFromDialog(context: ImageAssetContext): Promise<ImageObject | null> {
+  async function importImageFromDialog(
+    context: ImageAssetContext
+  ): Promise<ImageObject | null> {
     return (
       (await errorHandler.wrapAsync(
         async () => {
@@ -67,7 +69,16 @@ export function useImageAsset() {
             filters: [
               {
                 name: "图片文件",
-                extensions: ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "avif"],
+                extensions: [
+                  "png",
+                  "jpg",
+                  "jpeg",
+                  "gif",
+                  "webp",
+                  "bmp",
+                  "svg",
+                  "avif",
+                ],
               },
             ],
           });
@@ -80,9 +91,13 @@ export function useImageAsset() {
           const fileBytes = await readFile(filePath);
           const fileName = filePath.split(/[/\\]/).pop() || "image.png";
 
-          return await importImageFromBytes(fileBytes.buffer as ArrayBuffer, fileName, context);
+          return await importImageFromBytes(
+            fileBytes.buffer as ArrayBuffer,
+            fileName,
+            context
+          );
         },
-        { userMessage: "导入图片失败" },
+        { userMessage: "导入图片失败" }
       )) ?? null
     );
   }
@@ -93,7 +108,7 @@ export function useImageAsset() {
   async function importImageFromBytes(
     buffer: ArrayBuffer,
     fileName: string,
-    context: ImageAssetContext,
+    context: ImageAssetContext
   ): Promise<ImageObject | null> {
     return (
       (await errorHandler.wrapAsync(
@@ -101,13 +116,20 @@ export function useImageAsset() {
           isImporting.value = true;
 
           // 1. 注册到资产管理器
-          const asset = await assetManagerEngine.importAssetFromBytes(buffer, fileName, {
-            sourceModule: "sketch-pad",
-            generateThumbnail: true,
-            enableDeduplication: true,
-          });
+          const asset = await assetManagerEngine.importAssetFromBytes(
+            buffer,
+            fileName,
+            {
+              sourceModule: "sketch-pad",
+              generateThumbnail: true,
+              enableDeduplication: true,
+            }
+          );
 
-          logger.info("图片已注册到资产管理器", { assetId: asset.id, name: asset.name });
+          logger.info("图片已注册到资产管理器", {
+            assetId: asset.id,
+            name: asset.name,
+          });
 
           // 2. 获取图片自然尺寸
           const { width, height } = await getImageNaturalSize(asset);
@@ -135,7 +157,7 @@ export function useImageAsset() {
           isImporting.value = false;
           return imageObj;
         },
-        { userMessage: "导入图片失败" },
+        { userMessage: "导入图片失败" }
       )) ?? null
     );
   }
@@ -145,7 +167,7 @@ export function useImageAsset() {
    */
   async function importImageFromPaste(
     clipboardData: DataTransfer,
-    context: ImageAssetContext,
+    context: ImageAssetContext
   ): Promise<ImageObject | null> {
     const items = clipboardData.items;
     for (let i = 0; i < items.length; i++) {
@@ -166,7 +188,9 @@ export function useImageAsset() {
   /**
    * 加载图片资产并创建 Konva.Image 节点
    */
-  async function loadImageNode(imageObj: ImageObject): Promise<Konva.Image | null> {
+  async function loadImageNode(
+    imageObj: ImageObject
+  ): Promise<Konva.Image | null> {
     try {
       const asset = await assetManagerEngine.getAssetById(imageObj.assetId);
 
@@ -206,7 +230,9 @@ export function useImageAsset() {
 
       return konvaImage;
     } catch (error) {
-      errorHandler.error(error, "加载图片节点失败", { assetId: imageObj.assetId });
+      errorHandler.error(error, "加载图片节点失败", {
+        assetId: imageObj.assetId,
+      });
       return createBrokenImageNode(imageObj);
     }
   }
@@ -270,7 +296,11 @@ export function useImageAsset() {
   /**
    * 添加资产引用
    */
-  function addAssetRef(context: ImageAssetContext, asset: Asset, objectId: string) {
+  function addAssetRef(
+    context: ImageAssetContext,
+    asset: Asset,
+    objectId: string
+  ) {
     const existing = context.assetRefs.find((r) => r.assetId === asset.id);
     if (existing) {
       // 已存在，追加使用者
@@ -291,7 +321,11 @@ export function useImageAsset() {
   /**
    * 移除资产引用（当图片对象被删除时调用）
    */
-  function removeAssetRef(context: ImageAssetContext, assetId: string, objectId: string) {
+  function removeAssetRef(
+    context: ImageAssetContext,
+    assetId: string,
+    objectId: string
+  ) {
     const refIndex = context.assetRefs.findIndex((r) => r.assetId === assetId);
     if (refIndex === -1) return;
 
@@ -308,7 +342,9 @@ export function useImageAsset() {
    * 检查并清理无效的资产引用
    * 返回断链的 assetId 列表
    */
-  async function validateAssetRefs(context: ImageAssetContext): Promise<string[]> {
+  async function validateAssetRefs(
+    context: ImageAssetContext
+  ): Promise<string[]> {
     const brokenIds: string[] = [];
 
     for (const ref of context.assetRefs) {
@@ -319,7 +355,10 @@ export function useImageAsset() {
     }
 
     if (brokenIds.length > 0) {
-      logger.warn("检测到断链资产", { count: brokenIds.length, ids: brokenIds });
+      logger.warn("检测到断链资产", {
+        count: brokenIds.length,
+        ids: brokenIds,
+      });
     }
 
     return brokenIds;
@@ -328,13 +367,19 @@ export function useImageAsset() {
   /**
    * 尝试通过 hash 重新关联断链资产
    */
-  async function tryRelinkAsset(context: ImageAssetContext, brokenAssetId: string): Promise<string | null> {
+  async function tryRelinkAsset(
+    context: ImageAssetContext,
+    brokenAssetId: string
+  ): Promise<string | null> {
     const ref = context.assetRefs.find((r) => r.assetId === brokenAssetId);
     if (!ref || !ref.hash) return null;
 
     // 目前资产管理器没有按 hash 搜索的接口，预留此方法
     // 未来可以通过 listAssetsPaginated + hash 过滤来实现
-    logger.info("尝试通过 hash 重新关联资产", { hash: ref.hash, assetId: brokenAssetId });
+    logger.info("尝试通过 hash 重新关联资产", {
+      hash: ref.hash,
+      assetId: brokenAssetId,
+    });
     return null;
   }
 
@@ -343,7 +388,9 @@ export function useImageAsset() {
   /**
    * 获取图片的自然尺寸
    */
-  async function getImageNaturalSize(asset: Asset): Promise<{ width: number; height: number }> {
+  async function getImageNaturalSize(
+    asset: Asset
+  ): Promise<{ width: number; height: number }> {
     // 优先从 metadata 获取
     if (asset.metadata?.width && asset.metadata?.height) {
       return { width: asset.metadata.width, height: asset.metadata.height };

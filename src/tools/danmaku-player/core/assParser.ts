@@ -17,7 +17,9 @@ function parseAssTime(timeStr: string): number {
  */
 function assBgrToRgb(color: string): string {
   // \c&HBBGGRR& -> #RRGGBB
-  const match = color.match(/&H([0-9A-Fa-f]{2})([0-9A-Fa-f]{2})([0-9A-Fa-f]{2})&/);
+  const match = color.match(
+    /&H([0-9A-Fa-f]{2})([0-9A-Fa-f]{2})([0-9A-Fa-f]{2})&/
+  );
   if (!match) return "#FFFFFF";
   return `#${match[3]}${match[2]}${match[1]}`;
 }
@@ -97,7 +99,9 @@ export function parseAss(content: string): {
         let t1: number | undefined, t2: number | undefined;
 
         // 解析 \move(x1,y1,x2,y2,t1,t2)
-        const moveMatch = tags.match(/\\move\(([^,]+),([^,]+),([^,]+),([^,]+)(?:,([^,]+),([^,]+))?\)/);
+        const moveMatch = tags.match(
+          /\\move\(([^,]+),([^,]+),([^,]+),([^,]+)(?:,([^,]+),([^,]+))?\)/
+        );
         if (moveMatch) {
           type = "scroll";
           x1 = parseFloat(moveMatch[1]);
@@ -105,7 +109,9 @@ export function parseAss(content: string): {
           x2 = parseFloat(moveMatch[3]);
           y2 = parseFloat(moveMatch[4]);
           t1 = moveMatch[5] ? parseFloat(moveMatch[5]) : 0;
-          t2 = moveMatch[6] ? parseFloat(moveMatch[6]) : (endTime - startTime) * 1000;
+          t2 = moveMatch[6]
+            ? parseFloat(moveMatch[6])
+            : (endTime - startTime) * 1000;
         } else {
           // 解析 \pos(x,y)
           const posMatch = tags.match(/\\pos\(([^,]+),([^,]+)\)/);

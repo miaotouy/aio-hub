@@ -11,7 +11,8 @@ import type { SettingItem } from "@/types/settings-renderer";
 import { ElButton } from "element-plus";
 
 const QuickActionManagerDialog = defineAsyncComponent(
-  () => import("@/tools/llm-chat/components/quick-action/QuickActionManagerDialog.vue"),
+  () =>
+    import("@/tools/llm-chat/components/quick-action/QuickActionManagerDialog.vue")
 );
 
 const editForm = inject<any>("agent-edit-form");
@@ -111,7 +112,7 @@ const personalitySettings = computed<SettingItem[]>(() => [
               minWidth: "unset",
             },
           },
-          () => "管理用户档案",
+          () => "管理用户档案"
         ),
     },
     action: "manageUserProfile",
@@ -139,7 +140,7 @@ const personalitySettings = computed<SettingItem[]>(() => [
               minWidth: "unset",
             },
           },
-          () => "管理快捷操作",
+          () => "管理快捷操作"
         ),
     },
     action: "manageQuickAction",
@@ -167,7 +168,7 @@ const personalitySettings = computed<SettingItem[]>(() => [
               minWidth: "unset",
             },
           },
-          () => "管理世界书",
+          () => "管理世界书"
         ),
     },
     action: "manageWorldbook",

@@ -1,5 +1,9 @@
 <template>
-  <div class="chat-regex-editor" ref="containerRef" :class="{ 'is-compact': isMobile }">
+  <div
+    class="chat-regex-editor"
+    ref="containerRef"
+    :class="{ 'is-compact': isMobile }"
+  >
     <!-- 顶部操作栏 -->
     <div class="editor-header">
       <div class="header-left">
@@ -15,8 +19,12 @@
         </el-button>
       </div>
       <div class="header-actions">
-        <el-button @click="addPreset" size="small" :icon="Plus"> 新建预设 </el-button>
-        <el-button @click="pastePreset" size="small" :icon="ClipboardPaste"> 粘贴预设 </el-button>
+        <el-button @click="addPreset" size="small" :icon="Plus">
+          新建预设
+        </el-button>
+        <el-button @click="pastePreset" size="small" :icon="ClipboardPaste">
+          粘贴预设
+        </el-button>
         <el-dropdown trigger="click" @command="handleImportCommand">
           <el-button size="small" :icon="Download">
             导入预设
@@ -24,12 +32,18 @@
           </el-button>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item command="json">导入 AIO 的预设</el-dropdown-item>
-              <el-dropdown-item command="sillytavern">导入 SillyTavern 的预设</el-dropdown-item>
+              <el-dropdown-item command="json"
+                >导入 AIO 的预设</el-dropdown-item
+              >
+              <el-dropdown-item command="sillytavern"
+                >导入 SillyTavern 的预设</el-dropdown-item
+              >
             </el-dropdown-menu>
           </template>
         </el-dropdown>
-        <el-button @click="exportAllPresets" size="small" :icon="FileJson"> 导出全部 </el-button>
+        <el-button @click="exportAllPresets" size="small" :icon="FileJson">
+          导出全部
+        </el-button>
       </div>
     </div>
 
@@ -50,25 +64,40 @@
             :force-fallback="true"
             :fallback-tolerance="3"
           >
-            <div v-for="(preset, index) in presetsForDraggable" :key="preset.id">
+            <div
+              v-for="(preset, index) in presetsForDraggable"
+              :key="preset.id"
+            >
               <el-collapse-item :name="preset.id" class="preset-item">
                 <template #title>
-                  <div class="preset-header" @click.stop="togglePreset(preset.id)">
-                    <el-icon class="preset-drag-handle" @click.stop><GripVertical /></el-icon>
+                  <div
+                    class="preset-header"
+                    @click.stop="togglePreset(preset.id)"
+                  >
+                    <el-icon class="preset-drag-handle" @click.stop
+                      ><GripVertical
+                    /></el-icon>
                     <el-switch
                       :model-value="preset.enabled"
                       size="small"
-                      @update:model-value="updatePresetField(Number(index), 'enabled', $event)"
+                      @update:model-value="
+                        updatePresetField(Number(index), 'enabled', $event)
+                      "
                       @click.stop
                     />
                     <span class="preset-name">{{ preset.name }}</span>
                     <el-tag size="small" type="info" style="margin-right: 8px">
                       {{ preset.rules.length }} 条规则
                     </el-tag>
-                    <el-tooltip content="执行优先级：数值越小越先执行 (默认 100)" placement="top">
+                    <el-tooltip
+                      content="执行优先级：数值越小越先执行 (默认 100)"
+                      placement="top"
+                    >
                       <el-input-number
                         :model-value="preset.priority ?? 100"
-                        @update:model-value="updatePresetField(Number(index), 'priority', $event)"
+                        @update:model-value="
+                          updatePresetField(Number(index), 'priority', $event)
+                        "
                         @click.stop
                         size="small"
                         controls-position="right"
@@ -117,7 +146,9 @@
                   <div class="preset-info">
                     <el-input
                       :model-value="preset.name"
-                      @update:model-value="updatePresetField(Number(index), 'name', $event)"
+                      @update:model-value="
+                        updatePresetField(Number(index), 'name', $event)
+                      "
                       placeholder="预设名称"
                       size="small"
                     >
@@ -125,7 +156,9 @@
                     </el-input>
                     <el-input
                       :model-value="preset.description"
-                      @update:model-value="updatePresetField(Number(index), 'description', $event)"
+                      @update:model-value="
+                        updatePresetField(Number(index), 'description', $event)
+                      "
                       placeholder="预设描述（可选）"
                       size="small"
                     >
@@ -138,7 +171,10 @@
                   <div class="rules-section">
                     <div
                       class="rules-container"
-                      :class="{ 'is-mobile': isMobile, 'show-editor': showMobileEditor }"
+                      :class="{
+                        'is-mobile': isMobile,
+                        'show-editor': showMobileEditor,
+                      }"
                     >
                       <!-- 左侧：规则列表 -->
                       <div class="rules-sidebar">
@@ -166,10 +202,15 @@
                         </div>
 
                         <div class="rules-list-scroll">
-                          <div class="rules-list" v-if="preset.rules.length > 0">
+                          <div
+                            class="rules-list"
+                            v-if="preset.rules.length > 0"
+                          >
                             <VueDraggableNext
                               :model-value="preset.rules"
-                              @update:model-value="updateRulesOrder(Number(index), $event)"
+                              @update:model-value="
+                                updateRulesOrder(Number(index), $event)
+                              "
                               item-key="id"
                               handle=".rule-drag-handle"
                               ghost-class="drag-ghost"
@@ -182,16 +223,26 @@
                                 v-for="(rule, ruleIndex) in preset.rules"
                                 :key="rule.id"
                                 class="rule-item"
-                                :class="{ 'is-selected': selectedRule?.id === rule.id }"
+                                :class="{
+                                  'is-selected': selectedRule?.id === rule.id,
+                                }"
                                 @click="selectRule(preset, rule)"
                               >
                                 <div class="rule-item-main">
                                   <div class="rule-item-header">
-                                    <el-icon class="rule-drag-handle"><GripVertical /></el-icon>
-                                    <span class="rule-name">{{ rule.name || "未命名规则" }}</span>
+                                    <el-icon class="rule-drag-handle"
+                                      ><GripVertical
+                                    /></el-icon>
+                                    <span class="rule-name">{{
+                                      rule.name || "未命名规则"
+                                    }}</span>
                                     <div
                                       @click.stop
-                                      style="display: flex; align-items: center; gap: 4px"
+                                      style="
+                                        display: flex;
+                                        align-items: center;
+                                        gap: 4px;
+                                      "
                                     >
                                       <el-switch
                                         :model-value="rule.enabled"
@@ -215,7 +266,12 @@
                                       />
                                       <el-popconfirm
                                         title="确定要删除这条规则吗？"
-                                        @confirm="deleteRule(Number(index), Number(ruleIndex))"
+                                        @confirm="
+                                          deleteRule(
+                                            Number(index),
+                                            Number(ruleIndex)
+                                          )
+                                        "
                                         width="200"
                                       >
                                         <template #reference>
@@ -231,13 +287,17 @@
                                       </el-popconfirm>
                                     </div>
                                   </div>
-                                  <code class="rule-preview">{{ truncateRegex(rule.regex) }}</code>
+                                  <code class="rule-preview">{{
+                                    truncateRegex(rule.regex)
+                                  }}</code>
                                 </div>
                               </div>
                             </VueDraggableNext>
                           </div>
                           <div v-else class="empty-rules">
-                            <span class="text-muted">暂无规则，点击上方 + 添加</span>
+                            <span class="text-muted"
+                              >暂无规则，点击上方 + 添加</span
+                            >
                           </div>
                         </div>
                       </div>
@@ -246,23 +306,33 @@
                       <div class="rules-editor-panel">
                         <!-- 移动端返回按钮 -->
                         <div v-if="isMobile" class="mobile-editor-header">
-                          <el-button link @click="backToRuleList" :icon="ArrowLeft">
+                          <el-button
+                            link
+                            @click="backToRuleList"
+                            :icon="ArrowLeft"
+                          >
                             返回列表
                           </el-button>
                           <span class="mobile-title">编辑规则</span>
                         </div>
 
                         <div
-                          v-if="selectedPreset?.id === preset.id && selectedRule"
+                          v-if="
+                            selectedPreset?.id === preset.id && selectedRule
+                          "
                           class="editor-wrapper"
                         >
                           <ChatRegexRuleForm
                             :model-value="selectedRule"
-                            @update:model-value="handleRuleUpdate(Number(index), $event)"
+                            @update:model-value="
+                              handleRuleUpdate(Number(index), $event)
+                            "
                           />
                         </div>
                         <div v-else class="editor-placeholder">
-                          <el-icon :size="48" class="placeholder-icon"><InfoIcon /></el-icon>
+                          <el-icon :size="48" class="placeholder-icon"
+                            ><InfoIcon
+                          /></el-icon>
                           <p>请从左侧选择一条规则进行编辑</p>
                         </div>
                       </div>
@@ -301,7 +371,11 @@ import {
   ClipboardPaste,
   FileJson,
 } from "lucide-vue-next";
-import type { ChatRegexConfig, ChatRegexPreset, ChatRegexRule } from "../../types/chatRegex";
+import type {
+  ChatRegexConfig,
+  ChatRegexPreset,
+  ChatRegexRule,
+} from "../../types/chatRegex";
 import {
   createDefaultChatRegexConfig,
   createChatRegexPreset,
@@ -382,7 +456,10 @@ const presetsForDraggable = computed({
   get: () => presets.value,
   set: (newPresets: ChatRegexPreset[]) => {
     const reorderedPresets = newPresets.map((p, i) => ({ ...p, order: i }));
-    emit("update:modelValue", { ...props.modelValue, presets: reorderedPresets });
+    emit("update:modelValue", {
+      ...props.modelValue,
+      presets: reorderedPresets,
+    });
   },
 });
 
@@ -456,7 +533,9 @@ async function pastePreset() {
 }
 
 function deletePreset(index: number) {
-  const newPresets = presets.value.filter((_: ChatRegexPreset, i: number) => i !== index);
+  const newPresets = presets.value.filter(
+    (_: ChatRegexPreset, i: number) => i !== index
+  );
   emit("update:modelValue", { ...props.modelValue, presets: newPresets });
 }
 
@@ -475,7 +554,9 @@ function updatePresetField<K extends keyof ChatRegexPreset>(
 // =====================
 
 function addRule(preset: ChatRegexPreset) {
-  const presetIndex = presets.value.findIndex((p: ChatRegexPreset) => p.id === preset.id);
+  const presetIndex = presets.value.findIndex(
+    (p: ChatRegexPreset) => p.id === preset.id
+  );
   if (presetIndex === -1) return;
 
   const newRule = createChatRegexRule({
@@ -513,7 +594,12 @@ async function pasteRule(presetIndex: number) {
     }
 
     // 简单的格式检查：必须包含 regex, replacement
-    if (!data || typeof data !== "object" || !("regex" in data) || !("replacement" in data)) {
+    if (
+      !data ||
+      typeof data !== "object" ||
+      !("regex" in data) ||
+      !("replacement" in data)
+    ) {
       customMessage.error("剪贴板内容不是有效的规则");
       return;
     }
@@ -535,7 +621,9 @@ async function pasteRule(presetIndex: number) {
 function deleteRule(presetIndex: number, ruleIndex: number) {
   const preset = presets.value[presetIndex];
   const deletedRuleId = preset.rules[ruleIndex]?.id;
-  const newRules = preset.rules.filter((_: ChatRegexRule, i: number) => i !== ruleIndex);
+  const newRules = preset.rules.filter(
+    (_: ChatRegexRule, i: number) => i !== ruleIndex
+  );
   updatePresetField(presetIndex, "rules", newRules);
 
   if (selectedRule.value?.id === deletedRuleId) {
@@ -557,7 +645,9 @@ function backToRuleList() {
 
 function handleRuleUpdate(presetIndex: number, updatedRule: ChatRegexRule) {
   const preset = presets.value[presetIndex];
-  const ruleIndex = preset.rules.findIndex((r: ChatRegexRule) => r.id === updatedRule.id);
+  const ruleIndex = preset.rules.findIndex(
+    (r: ChatRegexRule) => r.id === updatedRule.id
+  );
   if (ruleIndex === -1) return;
 
   const newRules = [...preset.rules];
@@ -640,11 +730,15 @@ async function executeImport(jsonContent: string) {
               ? "警告：此预设包含疑似恶意的自定义脚本（检测到敏感词），请确保来源绝对可靠！是否继续导入？"
               : "提示：此预设包含自定义脚本，请确保来源可靠。是否继续导入？";
 
-          await ElMessageBox.confirm(message, riskLevel === 2 ? "安全警告" : "安全提示", {
-            confirmButtonText: "继续导入",
-            cancelButtonText: "取消",
-            type: riskLevel === 2 ? "error" : "warning",
-          });
+          await ElMessageBox.confirm(
+            message,
+            riskLevel === 2 ? "安全警告" : "安全提示",
+            {
+              confirmButtonText: "继续导入",
+              cancelButtonText: "取消",
+              type: riskLevel === 2 ? "error" : "warning",
+            }
+          );
         } catch {
           customMessage.info("已取消导入");
           return;

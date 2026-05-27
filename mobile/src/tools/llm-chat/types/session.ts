@@ -1,4 +1,4 @@
-import type { ChatMessageNode } from './message';
+import type { ChatMessageNode } from "./message";
 
 /**
  * 聊天会话

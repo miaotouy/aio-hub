@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from "vue";
 
 /**
  * 右键上下文菜单组件
@@ -23,7 +23,7 @@ interface Props {
 
 const props = defineProps<Props>();
 const emit = defineEmits<{
-  'update:visible': [value: boolean];
+  "update:visible": [value: boolean];
 }>();
 
 const menuRef = ref<HTMLElement | null>(null);
@@ -59,22 +59,22 @@ const menuStyle = computed(() => {
 const handleItemClick = (item: MenuItem) => {
   if (item.disabled) return;
   item.action();
-  emit('update:visible', false);
+  emit("update:visible", false);
 };
 
 // 点击外部关闭菜单
 const handleClickOutside = (event: MouseEvent) => {
   if (menuRef.value && !menuRef.value.contains(event.target as Node)) {
-    emit('update:visible', false);
+    emit("update:visible", false);
   }
 };
 
 onMounted(() => {
-  document.addEventListener('click', handleClickOutside);
+  document.addEventListener("click", handleClickOutside);
 });
 
 onUnmounted(() => {
-  document.removeEventListener('click', handleClickOutside);
+  document.removeEventListener("click", handleClickOutside);
 });
 </script>
 

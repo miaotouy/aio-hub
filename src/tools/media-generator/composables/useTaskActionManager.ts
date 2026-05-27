@@ -63,7 +63,10 @@ export function useTaskActionManager(context: {
 
     // 2. 挂载点判断
     // 移除复杂的重试挂载逻辑，新消息始终挂在当前活跃节点下
-    if (currentNode?.role === "user" && currentNode.content === task.input.prompt) {
+    if (
+      currentNode?.role === "user" &&
+      currentNode.content === task.input.prompt
+    ) {
       // 情况 A: 当前活跃节点就是同一个 Prompt 的 User 节点，直接挂在它下面
       parentUserNodeId = currentNode.id;
       logger.debug("在现有 User 节点下直接追加生成", { parentUserNodeId });
@@ -79,7 +82,10 @@ export function useTaskActionManager(context: {
       nodeManager.addNodeToSession(sessionContext, userNode);
       syncActiveLeaf(sessionContext);
       parentUserNodeId = userNode.id;
-      logger.debug("创建了新的 User 节点", { userNodeId: userNode.id, parentId: userNode.parentId });
+      logger.debug("创建了新的 User 节点", {
+        userNodeId: userNode.id,
+        parentId: userNode.parentId,
+      });
     }
 
     // 3. 创建助手消息节点（绑定任务）
@@ -124,7 +130,9 @@ export function useTaskActionManager(context: {
     } else if (node.role === "user") {
       // 优先找关联了任务的助手子节点
       const assistantId = node.childrenIds.find(
-        (id) => nodes.value[id]?.role === "assistant" && nodes.value[id]?.metadata?.isMediaTask,
+        (id) =>
+          nodes.value[id]?.role === "assistant" &&
+          nodes.value[id]?.metadata?.isMediaTask
       );
       if (assistantId) {
         task = nodes.value[assistantId].metadata?.taskSnapshot;

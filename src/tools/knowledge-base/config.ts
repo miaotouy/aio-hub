@@ -208,7 +208,8 @@ export const knowledgeSettingsConfig: SettingsSection<WorkspaceConfig>[] = [
       },
       {
         id: "tagGenMaxConcurrent",
-        label: "批量生成并发数 ({{ localSettings.tagGeneration.requestSettings.maxConcurrent }})",
+        label:
+          "批量生成并发数 ({{ localSettings.tagGeneration.requestSettings.maxConcurrent }})",
         component: "SliderWithInput",
         props: { min: 1, max: 10, step: 1 },
         modelPath: "tagGeneration.requestSettings.maxConcurrent",
@@ -218,7 +219,8 @@ export const knowledgeSettingsConfig: SettingsSection<WorkspaceConfig>[] = [
       },
       {
         id: "tagGenBatchSize",
-        label: "批量生成批次大小 ({{ localSettings.tagGeneration.requestSettings.batchSize }})",
+        label:
+          "批量生成批次大小 ({{ localSettings.tagGeneration.requestSettings.batchSize }})",
         component: "SliderWithInput",
         props: { min: 1, max: 100, step: 1 },
         modelPath: "tagGeneration.requestSettings.batchSize",
@@ -276,7 +278,8 @@ export const knowledgeSettingsConfig: SettingsSection<WorkspaceConfig>[] = [
     items: [
       {
         id: "requestMaxConcurrent",
-        label: "最大并发请求数 ({{ localSettings.embeddingRequestSettings.maxConcurrent }})",
+        label:
+          "最大并发请求数 ({{ localSettings.embeddingRequestSettings.maxConcurrent }})",
         component: "SliderWithInput",
         props: { min: 1, max: 20, step: 1 },
         modelPath: "embeddingRequestSettings.maxConcurrent",
@@ -285,7 +288,8 @@ export const knowledgeSettingsConfig: SettingsSection<WorkspaceConfig>[] = [
       },
       {
         id: "requestBatchSize",
-        label: "单次请求批次大小 ({{ localSettings.embeddingRequestSettings.batchSize }})",
+        label:
+          "单次请求批次大小 ({{ localSettings.embeddingRequestSettings.batchSize }})",
         component: "SliderWithInput",
         props: { min: 1, max: 100, step: 1 },
         modelPath: "embeddingRequestSettings.batchSize",
@@ -294,7 +298,8 @@ export const knowledgeSettingsConfig: SettingsSection<WorkspaceConfig>[] = [
       },
       {
         id: "requestMaxContentLength",
-        label: "内容长度限制 ({{ localSettings.embeddingRequestSettings.maxContentLength }})",
+        label:
+          "内容长度限制 ({{ localSettings.embeddingRequestSettings.maxContentLength }})",
         component: "SliderWithInput",
         props: { min: 1000, max: 100000, step: 1000 },
         modelPath: "embeddingRequestSettings.maxContentLength",
@@ -378,7 +383,10 @@ export function getKnowledgeSettingsConfig(
         }
 
         // 默认布局
-        if (!item.layout && (item.component === "ElSwitch" || item.component === "ElCheckbox")) {
+        if (
+          !item.layout &&
+          (item.component === "ElSwitch" || item.component === "ElCheckbox")
+        ) {
           item.layout = "inline";
         }
 

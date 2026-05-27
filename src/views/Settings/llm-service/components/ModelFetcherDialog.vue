@@ -16,7 +16,8 @@ const props = defineProps<{
 
 const emit = defineEmits(["update:visible", "add-models"]);
 
-const { getDisplayIconPath, getIconPath, getModelGroup, getMatchedProperties } = useModelMetadata();
+const { getDisplayIconPath, getIconPath, getModelGroup, getMatchedProperties } =
+  useModelMetadata();
 
 const searchQuery = ref("");
 const selectedCapabilities = ref<string[]>([]);
@@ -57,12 +58,17 @@ const filteredGroups = computed(() => {
   for (const group in groupedModels.value) {
     const filtered = groupedModels.value[group].filter((model) => {
       // 1. 搜索词匹配
-      const matchesQuery = !query || model.id.toLowerCase().includes(query) || model.name.toLowerCase().includes(query);
+      const matchesQuery =
+        !query ||
+        model.id.toLowerCase().includes(query) ||
+        model.name.toLowerCase().includes(query);
       if (!matchesQuery) return false;
 
       // 2. 能力匹配 (AND 逻辑：必须包含所有选中的能力)
       if (caps.length > 0) {
-        const modelCaps = getActiveCapabilities(model).map((c) => c.key) as string[];
+        const modelCaps = getActiveCapabilities(model).map(
+          (c) => c.key
+        ) as string[];
         const hasAllCaps = caps.every((cap) => modelCaps.includes(cap));
         if (!hasAllCaps) return false;
       }
@@ -90,7 +96,9 @@ const isModelSelected = (model: LlmModelInfo) => {
 // 切换单个模型的选择状态
 const toggleModelSelection = (model: LlmModelInfo) => {
   if (isModelExisting(model.id)) return;
-  const index = selectedModels.value.findIndex((m: LlmModelInfo) => m.id === model.id);
+  const index = selectedModels.value.findIndex(
+    (m: LlmModelInfo) => m.id === model.id
+  );
   if (index > -1) {
     selectedModels.value.splice(index, 1);
   } else {
@@ -100,7 +108,9 @@ const toggleModelSelection = (model: LlmModelInfo) => {
 
 // 切换整个分组的选择状态
 const toggleGroupSelection = (groupModels: LlmModelInfo[]) => {
-  const allSelected = groupModels.every((m) => isModelSelected(m) || isModelExisting(m.id));
+  const allSelected = groupModels.every(
+    (m) => isModelSelected(m) || isModelExisting(m.id)
+  );
   if (allSelected) {
     // 全部取消选择
     selectedModels.value = selectedModels.value.filter(
@@ -136,7 +146,9 @@ const allVisibleModels = computed(() => {
 // 判断当前可见模型是否已全部选择
 const isAllSelected = computed(() => {
   if (allVisibleModels.value.length === 0) return false;
-  return allVisibleModels.value.every((m) => isModelSelected(m) || isModelExisting(m.id));
+  return allVisibleModels.value.every(
+    (m) => isModelSelected(m) || isModelExisting(m.id)
+  );
 });
 
 // 切换全部模型的选择状态
@@ -144,7 +156,9 @@ const toggleSelectAll = () => {
   if (isAllSelected.value) {
     // 全部取消选择
     const visibleIds = new Set(allVisibleModels.value.map((m) => m.id));
-    selectedModels.value = selectedModels.value.filter((m) => !visibleIds.has(m.id));
+    selectedModels.value = selectedModels.value.filter(
+      (m) => !visibleIds.has(m.id)
+    );
   } else {
     // 全部添加
     for (const model of allVisibleModels.value) {
@@ -217,7 +231,8 @@ const formatModelName = (modelId: string): string => {
   const lastSlashIndex = modelId.lastIndexOf("/");
 
   // 如果找到 /，取后面的部分，否则使用整个 ID
-  let name = lastSlashIndex !== -1 ? modelId.substring(lastSlashIndex + 1) : modelId;
+  let name =
+    lastSlashIndex !== -1 ? modelId.substring(lastSlashIndex + 1) : modelId;
 
   // 将 - 替换为空格
   name = name.replace(/-/g, " ");
@@ -250,7 +265,9 @@ const getModelCapabilities = (model: LlmModelInfo) => {
 // 获取激活的能力列表
 const getActiveCapabilities = (model: LlmModelInfo) => {
   const capabilities = getModelCapabilities(model);
-  return MODEL_CAPABILITIES.filter((cap) => capabilities[cap.key as keyof typeof capabilities]);
+  return MODEL_CAPABILITIES.filter(
+    (cap) => capabilities[cap.key as keyof typeof capabilities]
+  );
 };
 </script>
 
@@ -265,7 +282,12 @@ const getActiveCapabilities = (model: LlmModelInfo) => {
     <template #content>
       <div class="model-fetcher-dialog">
         <div class="search-bar-container">
-          <el-input v-model="searchQuery" placeholder="搜索模型 ID 或名称" clearable class="search-input" />
+          <el-input
+            v-model="searchQuery"
+            placeholder="搜索模型 ID 或名称"
+            clearable
+            class="search-input"
+          />
           <el-select
             v-model="selectedCapabilities"
             multiple
@@ -275,16 +297,26 @@ const getActiveCapabilities = (model: LlmModelInfo) => {
             style="width: 160px"
             clearable
           >
-            <el-option v-for="cap in MODEL_CAPABILITIES" :key="cap.key" :label="cap.label" :value="cap.key">
+            <el-option
+              v-for="cap in MODEL_CAPABILITIES"
+              :key="cap.key"
+              :label="cap.label"
+              :value="cap.key"
+            >
               <div style="display: flex; align-items: center">
-                <el-icon style="margin-right: 8px" :style="{ color: cap.color }">
+                <el-icon
+                  style="margin-right: 8px"
+                  :style="{ color: cap.color }"
+                >
                   <component :is="cap.icon" />
                 </el-icon>
                 <span>{{ cap.label }}</span>
               </div>
             </el-option>
           </el-select>
-          <el-button @click="toggleSelectAll">{{ isAllSelected ? "取消全选" : "全选" }}</el-button>
+          <el-button @click="toggleSelectAll">{{
+            isAllSelected ? "取消全选" : "全选"
+          }}</el-button>
           <el-dropdown trigger="click">
             <el-button>
               <el-icon class="el-icon--left"><i-ep-copy-document /></el-icon>
@@ -293,28 +325,53 @@ const getActiveCapabilities = (model: LlmModelInfo) => {
             </el-button>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item @click="copyModelsJson">复制适配后 JSON</el-dropdown-item>
-                <el-dropdown-item @click="copyRawResponse">复制原始响应</el-dropdown-item>
+                <el-dropdown-item @click="copyModelsJson"
+                  >复制适配后 JSON</el-dropdown-item
+                >
+                <el-dropdown-item @click="copyRawResponse"
+                  >复制原始响应</el-dropdown-item
+                >
               </el-dropdown-menu>
             </template>
           </el-dropdown>
         </div>
 
         <div class="model-list-container">
-          <div v-if="Object.keys(filteredGroups).length === 0" class="empty-state">
+          <div
+            v-if="Object.keys(filteredGroups).length === 0"
+            class="empty-state"
+          >
             <p>没有找到匹配的模型</p>
           </div>
-          <div v-else v-for="(groupModels, groupName) in filteredGroups" :key="groupName" class="model-group">
+          <div
+            v-else
+            v-for="(groupModels, groupName) in filteredGroups"
+            :key="groupName"
+            class="model-group"
+          >
             <div class="group-header">
               <div class="group-title" @click="toggleGroupExpand(groupName)">
-                <el-icon class="expand-icon" :class="{ expanded: isGroupExpanded(groupName) }">
+                <el-icon
+                  class="expand-icon"
+                  :class="{ expanded: isGroupExpanded(groupName) }"
+                >
                   <i-ep-arrow-right />
                 </el-icon>
                 <span class="group-name">{{ groupName }}</span>
                 <span class="group-count">{{ groupModels.length }}</span>
               </div>
-              <el-button link size="small" @click.stop="toggleGroupSelection(groupModels)">
-                {{ groupModels.every((m) => isModelSelected(m) || isModelExisting(m.id)) ? "取消全选" : "全选" }}
+              <el-button
+                link
+                size="small"
+                @click.stop="toggleGroupSelection(groupModels)"
+              >
+                {{
+                  groupModels.every(
+                    (m) => isModelSelected(m) || isModelExisting(m.id)
+                  )
+                    ? "取消全选"
+                    : "全选"
+                }}
               </el-button>
             </div>
             <transition name="group-collapse">
@@ -323,14 +380,26 @@ const getActiveCapabilities = (model: LlmModelInfo) => {
                   v-for="model in groupModels"
                   :key="model.id"
                   class="model-item"
-                  :class="{ selected: isModelSelected(model), disabled: isModelExisting(model.id) }"
+                  :class="{
+                    selected: isModelSelected(model),
+                    disabled: isModelExisting(model.id),
+                  }"
                   @click="toggleModelSelection(model)"
                 >
-                  <DynamicIcon :src="getModelIcon(model) || ''" :alt="formatModelName(model.id)" class="model-icon" />
+                  <DynamicIcon
+                    :src="getModelIcon(model) || ''"
+                    :alt="formatModelName(model.id)"
+                    class="model-icon"
+                  />
                   <div class="model-info">
                     <div class="model-name-row">
-                      <span class="model-name">{{ formatModelName(model.id) }}</span>
-                      <div v-if="getActiveCapabilities(model).length > 0" class="model-capabilities">
+                      <span class="model-name">{{
+                        formatModelName(model.id)
+                      }}</span>
+                      <div
+                        v-if="getActiveCapabilities(model).length > 0"
+                        class="model-capabilities"
+                      >
                         <el-tooltip
                           v-for="cap in getActiveCapabilities(model)"
                           :key="cap.key"
@@ -338,7 +407,10 @@ const getActiveCapabilities = (model: LlmModelInfo) => {
                           placement="top"
                           effect="dark"
                         >
-                          <el-icon :style="{ color: cap.color }" class="capability-icon">
+                          <el-icon
+                            :style="{ color: cap.color }"
+                            class="capability-icon"
+                          >
                             <component :is="cap.icon" />
                           </el-icon>
                         </el-tooltip>
@@ -347,8 +419,15 @@ const getActiveCapabilities = (model: LlmModelInfo) => {
                     <div class="model-id">{{ model.id }}</div>
                   </div>
                   <div class="model-status">
-                    <el-tag v-if="isModelExisting(model.id)" type="info" size="small">已存在</el-tag>
-                    <el-icon v-else-if="isModelSelected(model)"><i-ep-check /></el-icon>
+                    <el-tag
+                      v-if="isModelExisting(model.id)"
+                      type="info"
+                      size="small"
+                      >已存在</el-tag
+                    >
+                    <el-icon v-else-if="isModelSelected(model)"
+                      ><i-ep-check
+                    /></el-icon>
                     <el-icon v-else><i-ep-plus /></el-icon>
                   </div>
                 </div>
@@ -360,9 +439,17 @@ const getActiveCapabilities = (model: LlmModelInfo) => {
     </template>
 
     <template #footer>
-      <span style="padding-right: 24px">已选择 {{ selectedModels.length }} 个模型</span>
+      <span style="padding-right: 24px"
+        >已选择 {{ selectedModels.length }} 个模型</span
+      >
       <el-button @click="closeDialog">取消</el-button>
-      <el-button type="primary" @click="handleConfirm" :disabled="selectedModels.length === 0"> 添加 </el-button>
+      <el-button
+        type="primary"
+        @click="handleConfirm"
+        :disabled="selectedModels.length === 0"
+      >
+        添加
+      </el-button>
     </template>
   </BaseDialog>
 </template>
@@ -487,7 +574,11 @@ const getActiveCapabilities = (model: LlmModelInfo) => {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 .model-item.selected {
-  background-color: color-mix(in srgb, var(--el-color-primary) 10%, var(--card-bg));
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-primary) 10%,
+    var(--card-bg)
+  );
   border-color: var(--el-color-primary);
 }
 .model-item.disabled {

@@ -21,7 +21,9 @@ export class TaskExecutor {
       throw new Error(`工具不存在: ${toolId}`);
     }
 
-    const toolInstance = toolRegistryManager.getRegistry(toolId) as unknown as Record<string, unknown>;
+    const toolInstance = toolRegistryManager.getRegistry(
+      toolId
+    ) as unknown as Record<string, unknown>;
     const method = toolInstance[methodName];
 
     if (typeof method !== "function") {
@@ -44,12 +46,15 @@ export class TaskExecutor {
     };
 
     try {
-      const result = await (method as (args: Record<string, unknown>, context?: ToolContext) => unknown).call(
-        toolInstance,
-        args,
-        toolContext
-      );
-      return typeof result === "string" ? result : JSON.stringify(result ?? null);
+      const result = await (
+        method as (
+          args: Record<string, unknown>,
+          context?: ToolContext
+        ) => unknown
+      ).call(toolInstance, args, toolContext);
+      return typeof result === "string"
+        ? result
+        : JSON.stringify(result ?? null);
     } catch (error) {
       if (context.signal.aborted) {
         const abortError = new Error("任务已取消");
@@ -64,7 +69,9 @@ export class TaskExecutor {
     toolInstance: Record<string, unknown>,
     methodName: string
   ): { agentCallable?: boolean } | null {
-    const getMetadata = toolInstance.getMetadata as (() => ServiceMetadata) | undefined;
+    const getMetadata = toolInstance.getMetadata as
+      | (() => ServiceMetadata)
+      | undefined;
     if (typeof getMetadata !== "function") {
       return null;
     }

@@ -2,23 +2,23 @@
  * 云端 OCR 配置管理 Composable
  */
 
-import { ref, computed } from 'vue';
-import type { OcrProfile } from '../types/ocr-profiles';
-import type { OcrPreset } from '../config/ocr-providers';
-import { createConfigManager } from '@utils/configManager';
-import { createModuleLogger } from '@utils/logger';
-import { createModuleErrorHandler } from '@/utils/errorHandler';
+import { ref, computed } from "vue";
+import type { OcrProfile } from "../types/ocr-profiles";
+import type { OcrPreset } from "../config/ocr-providers";
+import { createConfigManager } from "@utils/configManager";
+import { createModuleLogger } from "@utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 
-const logger = createModuleLogger('OcrProfiles');
-const errorHandler = createModuleErrorHandler('OcrProfiles');
+const logger = createModuleLogger("OcrProfiles");
+const errorHandler = createModuleErrorHandler("OcrProfiles");
 
-const STORAGE_KEY = 'ocr-profiles'; // 用于 localStorage 数据迁移
+const STORAGE_KEY = "ocr-profiles"; // 用于 localStorage 数据迁移
 
 // 配置文件管理器
 const configManager = createConfigManager<{ profiles: OcrProfile[] }>({
-  moduleName: 'ocr-service',
-  fileName: 'profiles.json',
-  version: '1.0.0',
+  moduleName: "ocr-service",
+  fileName: "profiles.json",
+  version: "1.0.0",
   createDefault: () => ({ profiles: [] }),
 });
 
@@ -32,8 +32,8 @@ export function useOcrProfiles() {
    */
   const loadProfiles = async () => {
     try {
-      logger.info('开始加载 OCR 配置');
-      
+      logger.info("开始加载 OCR 配置");
+
       // 尝试从文件系统加载
       const config = await configManager.load();
       let loadedProfiles = config.profiles || [];
@@ -42,27 +42,32 @@ export function useOcrProfiles() {
       if (loadedProfiles.length === 0) {
         const stored = localStorage.getItem(STORAGE_KEY);
         if (stored) {
-          logger.info('检测到 localStorage 数据，开始迁移到文件系统');
+          logger.info("检测到 localStorage 数据，开始迁移到文件系统");
           try {
             loadedProfiles = JSON.parse(stored);
-            
+
             // 保存到文件系统
             await configManager.save({ profiles: loadedProfiles });
-            
+
             // 清除 localStorage 数据
             localStorage.removeItem(STORAGE_KEY);
-            logger.info('数据迁移完成', { profileCount: loadedProfiles.length });
+            logger.info("数据迁移完成", {
+              profileCount: loadedProfiles.length,
+            });
           } catch (parseError) {
-            errorHandler.handle(parseError, { userMessage: '解析 localStorage 数据失败', showToUser: false });
+            errorHandler.handle(parseError, {
+              userMessage: "解析 localStorage 数据失败",
+              showToUser: false,
+            });
           }
         }
       }
 
       profiles.value = loadedProfiles;
       isLoaded.value = true;
-      logger.info('OCR 配置加载成功', { profileCount: loadedProfiles.length });
+      logger.info("OCR 配置加载成功", { profileCount: loadedProfiles.length });
     } catch (error) {
-      errorHandler.error(error, '加载 OCR 配置失败');
+      errorHandler.error(error, "加载 OCR 配置失败");
       profiles.value = [];
       isLoaded.value = true;
     }
@@ -73,11 +78,15 @@ export function useOcrProfiles() {
    */
   const saveToStorage = async () => {
     try {
-      logger.debug('保存 OCR 配置到文件系统', { profileCount: profiles.value.length });
+      logger.debug("保存 OCR 配置到文件系统", {
+        profileCount: profiles.value.length,
+      });
       await configManager.save({ profiles: profiles.value });
-      logger.info('OCR 配置保存成功');
+      logger.info("OCR 配置保存成功");
     } catch (error) {
-      errorHandler.error(error, '保存 OCR 配置失败', { context: { profileCount: profiles.value.length } });
+      errorHandler.error(error, "保存 OCR 配置失败", {
+        context: { profileCount: profiles.value.length },
+      });
       throw error;
     }
   };
@@ -87,23 +96,29 @@ export function useOcrProfiles() {
    */
   const saveProfile = async (profile: OcrProfile) => {
     try {
-      const index = profiles.value.findIndex(p => p.id === profile.id);
+      const index = profiles.value.findIndex((p) => p.id === profile.id);
       if (index !== -1) {
         // 更新现有配置
-        logger.info('更新 OCR 配置', { profileId: profile.id, profileName: profile.name });
+        logger.info("更新 OCR 配置", {
+          profileId: profile.id,
+          profileName: profile.name,
+        });
         profiles.value[index] = profile;
       } else {
         // 添加新配置
-        logger.info('添加新 OCR 配置', { profileId: profile.id, profileName: profile.name });
+        logger.info("添加新 OCR 配置", {
+          profileId: profile.id,
+          profileName: profile.name,
+        });
         profiles.value.push(profile);
       }
       await saveToStorage();
     } catch (error) {
-      errorHandler.error(error, '保存 OCR 配置失败', {
+      errorHandler.error(error, "保存 OCR 配置失败", {
         context: {
           profileId: profile.id,
-          profileName: profile.name
-        }
+          profileName: profile.name,
+        },
       });
       throw error;
     }
@@ -114,17 +129,19 @@ export function useOcrProfiles() {
    */
   const deleteProfile = async (id: string) => {
     try {
-      const index = profiles.value.findIndex(p => p.id === id);
+      const index = profiles.value.findIndex((p) => p.id === id);
       if (index !== -1) {
         const profileName = profiles.value[index].name;
-        logger.info('删除 OCR 配置', { profileId: id, profileName });
+        logger.info("删除 OCR 配置", { profileId: id, profileName });
         profiles.value.splice(index, 1);
         await saveToStorage();
       } else {
-        logger.warn('尝试删除不存在的配置', { profileId: id });
+        logger.warn("尝试删除不存在的配置", { profileId: id });
       }
     } catch (error) {
-      errorHandler.error(error, '删除 OCR 配置失败', { context: { profileId: id } });
+      errorHandler.error(error, "删除 OCR 配置失败", {
+        context: { profileId: id },
+      });
       throw error;
     }
   };
@@ -133,14 +150,14 @@ export function useOcrProfiles() {
    * 根据 ID 获取配置
    */
   const getProfileById = (id: string): OcrProfile | undefined => {
-    return profiles.value.find(p => p.id === id);
+    return profiles.value.find((p) => p.id === id);
   };
 
   /**
    * 获取所有启用的配置
    */
   const enabledProfiles = computed(() => {
-    return profiles.value.filter(p => p.enabled);
+    return profiles.value.filter((p) => p.enabled);
   });
 
   /**
@@ -148,20 +165,22 @@ export function useOcrProfiles() {
    */
   const toggleProfileEnabled = async (id: string) => {
     try {
-      const profile = profiles.value.find(p => p.id === id);
+      const profile = profiles.value.find((p) => p.id === id);
       if (profile) {
         profile.enabled = !profile.enabled;
-        logger.info('切换 OCR 配置状态', {
+        logger.info("切换 OCR 配置状态", {
           profileId: id,
           profileName: profile.name,
-          enabled: profile.enabled
+          enabled: profile.enabled,
         });
         await saveToStorage();
       } else {
-        logger.warn('尝试切换不存在的配置', { profileId: id });
+        logger.warn("尝试切换不存在的配置", { profileId: id });
       }
     } catch (error) {
-      errorHandler.error(error, '切换配置状态失败', { context: { profileId: id } });
+      errorHandler.error(error, "切换配置状态失败", {
+        context: { profileId: id },
+      });
       throw error;
     }
   };
@@ -171,11 +190,11 @@ export function useOcrProfiles() {
    */
   const updateProfilesOrder = async (newProfiles: OcrProfile[]) => {
     try {
-      logger.info('更新 OCR 配置顺序', { count: newProfiles.length });
+      logger.info("更新 OCR 配置顺序", { count: newProfiles.length });
       profiles.value = newProfiles;
       await saveToStorage();
     } catch (error) {
-      errorHandler.error(error, '更新 OCR 配置顺序失败');
+      errorHandler.error(error, "更新 OCR 配置顺序失败");
       throw error;
     }
   };
@@ -197,8 +216,8 @@ export function useOcrProfiles() {
       provider: preset.provider,
       endpoint: preset.endpoint,
       credentials: {
-        apiKey: '',
-        apiSecret: '',
+        apiKey: "",
+        apiSecret: "",
       },
       enabled: true,
       concurrency: 3,

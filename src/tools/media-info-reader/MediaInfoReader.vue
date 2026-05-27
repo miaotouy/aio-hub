@@ -30,18 +30,29 @@
         <el-empty description="未检测到 AI 生成信息" />
       </div>
 
-      <el-tabs v-else v-model="state.activeTab" class="info-tabs" type="border-card">
+      <el-tabs
+        v-else
+        v-model="state.activeTab"
+        class="info-tabs"
+        type="border-card"
+      >
         <!-- WebUI Tab -->
         <el-tab-pane
           label="WebUI Info"
           name="webui"
-          v-if="state.webuiInfo.positivePrompt || state.webuiInfo.negativePrompt"
+          v-if="
+            state.webuiInfo.positivePrompt || state.webuiInfo.negativePrompt
+          "
         >
           <WebUIInfoTab :info="state.webuiInfo" />
         </el-tab-pane>
 
         <!-- ComfyUI Tab -->
-        <el-tab-pane label="ComfyUI Workflow" name="comfyui" v-if="state.comfyuiWorkflow">
+        <el-tab-pane
+          label="ComfyUI Workflow"
+          name="comfyui"
+          v-if="state.comfyuiWorkflow"
+        >
           <div class="editor-container">
             <RichCodeEditor
               :model-value="state.comfyuiWorkflow"
@@ -86,7 +97,9 @@
         <el-tab-pane label="AIO 源码" name="aio_raw" v-if="state.aioInfo">
           <div class="full-info-wrapper">
             <div class="section-header full-info-header">
-              <span class="label">AIO Manifest ({{ state.aioFormat?.toUpperCase() }})</span>
+              <span class="label"
+                >AIO Manifest ({{ state.aioFormat?.toUpperCase() }})</span
+              >
               <CopyButton :text="state.aioInfo" />
             </div>
             <div class="editor-container-flex">
@@ -147,9 +160,14 @@ const errorHandler = createModuleErrorHandler("MediaInfoReader");
 
 // 使用 composable
 const { parseImageBuffer } = useMediaInfoParser();
-const { importAssetFromPath, importAssetFromBytes, getAssetUrl, getAssetBinary } =
-  useAssetManager();
-const { state, hasData, clearWorkspace, updateFromResult, setError } = useMediaInfoState();
+const {
+  importAssetFromPath,
+  importAssetFromBytes,
+  getAssetUrl,
+  getAssetBinary,
+} = useAssetManager();
+const { state, hasData, clearWorkspace, updateFromResult, setError } =
+  useMediaInfoState();
 
 const handleAsset = async (asset: Asset) => {
   try {
@@ -216,13 +234,22 @@ const openFilePicker = async () => {
       // 1. 并行：立即开始解析（不等待资产导入）
       fetch(previewUrl)
         .then((res) => res.arrayBuffer())
-        .then((buffer) => parseImageFromBuffer(new Uint8Array(buffer), path.split(/[/\\]/).pop()))
+        .then((buffer) =>
+          parseImageFromBuffer(
+            new Uint8Array(buffer),
+            path.split(/[/\\]/).pop()
+          )
+        )
         .catch((err) => logger.error("直接解析本地文件失败", err));
 
       // 2. 并行：异步导入资产
       importAssetFromPath(path, {
         sourceModule: "media-info-reader",
-        origin: { type: "local", source: path, sourceModule: "media-info-reader" },
+        origin: {
+          type: "local",
+          source: path,
+          sourceModule: "media-info-reader",
+        },
       })
         .then(handleAsset)
         .catch((err) => {
@@ -248,7 +275,9 @@ const handlePaths = async (paths: string[]) => {
   // 1. 并行：立即开始解析
   fetch(previewUrl)
     .then((res) => res.arrayBuffer())
-    .then((buffer) => parseImageFromBuffer(new Uint8Array(buffer), path.split(/[/\\]/).pop()))
+    .then((buffer) =>
+      parseImageFromBuffer(new Uint8Array(buffer), path.split(/[/\\]/).pop())
+    )
     .catch((err) => logger.error("直接解析路径文件失败", err));
 
   // 2. 并行：异步导入资产
@@ -281,13 +310,19 @@ const handleFiles = async (files: File[]) => {
     // 异步导入资产
     importAssetFromBytes(buffer, file.name, {
       sourceModule: "media-info-reader",
-      origin: { type: "clipboard", source: "paste", sourceModule: "media-info-reader" },
+      origin: {
+        type: "clipboard",
+        source: "paste",
+        sourceModule: "media-info-reader",
+      },
     }).then((asset) => {
       // 此时已经解析过了，只需要保存资产引用，不需要再次调用 handleAsset (handleAsset 会再次解析)
       state.value.currentAsset = asset;
     });
   } catch (error) {
-    errorHandler.error(error, "导入粘贴文件失败", { context: { fileName: file.name } });
+    errorHandler.error(error, "导入粘贴文件失败", {
+      context: { fileName: file.name },
+    });
   }
 };
 
@@ -340,7 +375,9 @@ const sendToChat = async () => {
 
       const label = tabLabelMap[activeTab] || "Metadata";
       const header = `来自图片的 ${label} 信息：\n`;
-      const wrappedContent = language ? `\`\`\`${language}\n${content}\n\`\`\`` : content;
+      const wrappedContent = language
+        ? `\`\`\`${language}\n${content}\n\`\`\``
+        : content;
 
       llmChatRegistry.addContentToInput(header + wrappedContent);
     }

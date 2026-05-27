@@ -37,10 +37,15 @@ const logic = useSymlinkMoverLogic();
         <div v-for="(log, index) in logs" :key="index" class="log-item">
           <div class="log-item-header">
             <div class="log-item-title">
-              <el-tag :type="log.errorCount > 0 ? 'warning' : 'success'" size="small">
+              <el-tag
+                :type="log.errorCount > 0 ? 'warning' : 'success'"
+                size="small"
+              >
                 {{ logic.getOperationTypeLabel(log.operationType) }}
               </el-tag>
-              <span class="log-item-time">{{ logic.formatTimestamp(log.timestamp) }}</span>
+              <span class="log-item-time">{{
+                logic.formatTimestamp(log.timestamp)
+              }}</span>
             </div>
             <div class="log-item-meta">
               <span>{{ logic.getLinkTypeLabel(log.linkType) }}</span>
@@ -50,22 +55,35 @@ const logic = useSymlinkMoverLogic();
           <div class="log-item-stats">
             <span>处理: {{ log.sourceCount }} 个</span>
             <span class="success-text">成功: {{ log.successCount }}</span>
-            <span v-if="log.errorCount > 0" class="error-text">失败: {{ log.errorCount }}</span>
+            <span v-if="log.errorCount > 0" class="error-text"
+              >失败: {{ log.errorCount }}</span
+            >
             <span>大小: {{ logic.formatBytes(log.totalSize) }}</span>
           </div>
           <div class="log-item-details">
             <div class="detail-item">
               <span class="detail-label">目标目录:</span>
-              <span class="detail-value" :title="log.targetDirectory">{{ log.targetDirectory }}</span>
+              <span class="detail-value" :title="log.targetDirectory">{{
+                log.targetDirectory
+              }}</span>
             </div>
-            <div v-if="log.processedFiles && log.processedFiles.length > 0" class="detail-item">
+            <div
+              v-if="log.processedFiles && log.processedFiles.length > 0"
+              class="detail-item"
+            >
               <span class="detail-label">成功文件:</span>
-              <span class="detail-value">{{ log.processedFiles.join(", ") }}</span>
+              <span class="detail-value">{{
+                log.processedFiles.join(", ")
+              }}</span>
             </div>
           </div>
           <div v-if="log.errors.length > 0" class="log-item-errors">
             <div class="error-title">错误详情:</div>
-            <div v-for="(error, errIdx) in log.errors" :key="errIdx" class="error-message">
+            <div
+              v-for="(error, errIdx) in log.errors"
+              :key="errIdx"
+              class="error-message"
+            >
               {{ error }}
             </div>
           </div>
@@ -147,7 +165,10 @@ const logic = useSymlinkMoverLogic();
 .log-item-errors {
   margin-top: 12px;
   padding: 12px;
-  background-color: rgba(var(--el-color-error-rgb), calc(var(--card-opacity) * 0.1));
+  background-color: rgba(
+    var(--el-color-error-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
   border-radius: 4px;
   border-left: 3px solid var(--el-color-error);
 }

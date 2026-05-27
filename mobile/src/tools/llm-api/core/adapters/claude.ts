@@ -1,5 +1,10 @@
 import type { LlmProfile } from "../../types";
-import type { LlmRequestOptions, LlmResponse, LlmMessageContent, LlmMessage } from "../common";
+import type {
+  LlmRequestOptions,
+  LlmResponse,
+  LlmMessageContent,
+  LlmMessage,
+} from "../common";
 import { fetchWithTimeout, ensureResponseOk } from "../common";
 import { useI18n } from "@/i18n";
 import { createModuleLogger } from "@/utils/logger";
@@ -22,14 +27,16 @@ const errorHandler = createModuleErrorHandler("ClaudeApi");
  */
 export const claudeUrlHandler = {
   buildUrl: (baseUrl: string, endpoint?: string): string => {
-    const host = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
-    const versionedHost = host.includes('/v1') ? host : `${host}v1/`;
-    return endpoint ? `${versionedHost}${endpoint}` : `${versionedHost}messages`;
+    const host = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+    const versionedHost = host.includes("/v1") ? host : `${host}v1/`;
+    return endpoint
+      ? `${versionedHost}${endpoint}`
+      : `${versionedHost}messages`;
   },
   getHint: (): string => {
     const { tRaw } = useI18n();
-    return tRaw('tools.llm-api.Adapters.Claude提示');
-  }
+    return tRaw("tools.llm-api.Adapters.Claude提示");
+  },
 };
 
 /**
@@ -69,7 +76,11 @@ interface ClaudeMessage {
  * Claude API 工具定义
  */
 interface ClaudeTool {
-  type?: "custom" | "computer_20241022" | "bash_20241022" | "text_editor_20241022";
+  type?:
+    | "custom"
+    | "computer_20241022"
+    | "bash_20241022"
+    | "text_editor_20241022";
   name: string;
   description?: string;
   input_schema?: Record<string, any>;
@@ -139,14 +150,14 @@ interface ClaudeResponse {
  */
 interface ClaudeStreamEvent {
   type:
-  | "message_start"
-  | "content_block_start"
-  | "content_block_delta"
-  | "content_block_stop"
-  | "message_delta"
-  | "message_stop"
-  | "ping"
-  | "error";
+    | "message_start"
+    | "content_block_start"
+    | "content_block_delta"
+    | "content_block_stop"
+    | "message_delta"
+    | "message_stop"
+    | "ping"
+    | "error";
   message?: Partial<ClaudeResponse>;
   index?: number;
   content_block?: Partial<ClaudeContentBlock>;
@@ -167,9 +178,7 @@ interface ClaudeStreamEvent {
 /**
  * 将内部消息格式转换为 Claude API 格式
  */
-const convertToClaudeMessages = (
-  messages: LlmMessage[]
-): ClaudeMessage[] => {
+const convertToClaudeMessages = (messages: LlmMessage[]): ClaudeMessage[] => {
   const claudeMessages: ClaudeMessage[] = [];
 
   for (const msg of messages) {
@@ -196,7 +205,9 @@ const convertToClaudeMessages = (
  * 转换内容块
  * 使用共享的 parseMessageContents 辅助函数，然后转换为 Claude 特定格式
  */
-const convertContentBlocks = (messages: LlmMessageContent[]): ClaudeContentBlock[] => {
+const convertContentBlocks = (
+  messages: LlmMessageContent[]
+): ClaudeContentBlock[] => {
   const parsed = parseMessageContents(messages);
   const blocks: ClaudeContentBlock[] = [];
 
@@ -257,7 +268,8 @@ const convertContentBlocks = (messages: LlmMessageContent[]): ClaudeContentBlock
         type: "document",
         source: {
           type: "base64",
-          media_type: source.media_type || (source as any).mimeType || "application/pdf",
+          media_type:
+            source.media_type || (source as any).mimeType || "application/pdf",
           data: source.data || (source as any).base64 || "",
         },
       });
@@ -289,7 +301,9 @@ const convertContentBlocks = (messages: LlmMessageContent[]): ClaudeContentBlock
  * 转换工具定义
  * 使用共享的 extractToolDefinitions 辅助函数
  */
-const convertTools = (tools?: LlmRequestOptions["tools"]): ClaudeTool[] | undefined => {
+const convertTools = (
+  tools?: LlmRequestOptions["tools"]
+): ClaudeTool[] | undefined => {
   const commonTools = extractToolDefinitions(tools);
   if (!commonTools) return undefined;
 
@@ -351,7 +365,8 @@ const parseClaudeSSE = async (
   let stopReason: string | undefined;
   let stopSequence: string | null | undefined;
   const toolCalls: LlmResponse["toolCalls"] = [];
-  let currentToolCall: { id: string; name: string; input: string } | null = null;
+  let currentToolCall: { id: string; name: string; input: string } | null =
+    null;
 
   // 使用通用 SSE 解析器处理底层字节流
   await parseSSEStream(
@@ -424,7 +439,8 @@ const parseClaudeSSE = async (
               usage = {
                 promptTokens: event.usage.input_tokens,
                 completionTokens: event.usage.output_tokens,
-                totalTokens: event.usage.input_tokens + event.usage.output_tokens,
+                totalTokens:
+                  event.usage.input_tokens + event.usage.output_tokens,
               };
             }
             break;
@@ -468,8 +484,10 @@ export const callClaudeApi = async (
   const url = claudeUrlHandler.buildUrl(profile.baseUrl, "messages");
 
   // 从 messages 中提取 system 消息
-  const systemMessages = options.messages.filter(m => m.role === 'system');
-  const userAssistantMessages = options.messages.filter(m => m.role !== 'system');
+  const systemMessages = options.messages.filter((m) => m.role === "system");
+  const userAssistantMessages = options.messages.filter(
+    (m) => m.role !== "system"
+  );
 
   // 构建消息
   const messages = convertToClaudeMessages(userAssistantMessages);
@@ -499,8 +517,10 @@ export const callClaudeApi = async (
   if (systemMessages.length > 0) {
     // 合并所有 system 消息的内容
     const systemContent = systemMessages
-      .map(m => typeof m.content === 'string' ? m.content : JSON.stringify(m.content))
-      .join('\n\n');
+      .map((m) =>
+        typeof m.content === "string" ? m.content : JSON.stringify(m.content)
+      )
+      .join("\n\n");
     body.system = systemContent;
   }
   if (options.stopSequences && options.stopSequences.length > 0) {
@@ -525,7 +545,10 @@ export const callClaudeApi = async (
   if (tools) {
     body.tools = tools;
   }
-  const toolChoice = convertToolChoice(options.toolChoice, options.parallelToolCalls);
+  const toolChoice = convertToolChoice(
+    options.toolChoice,
+    options.parallelToolCalls
+  );
   if (toolChoice) {
     body.tool_choice = toolChoice;
   }
@@ -537,7 +560,8 @@ export const callClaudeApi = async (
   cleanPayload(body);
 
   // 获取 API Key
-  const apiKey = profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
+  const apiKey =
+    profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
 
   // 构建请求头
   const headers: Record<string, string> = {
@@ -593,7 +617,11 @@ export const callClaudeApi = async (
     }
 
     const reader = response.body.getReader();
-    const result = await parseClaudeSSE(reader, options.onStream, options.signal);
+    const result = await parseClaudeSSE(
+      reader,
+      options.onStream,
+      options.signal
+    );
 
     return {
       content: result.fullContent,

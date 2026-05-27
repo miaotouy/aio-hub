@@ -1,6 +1,16 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { Terminal, Loader, CheckCircle, XCircle, Ban, AlertTriangle, Copy, RotateCcw, Trash2 } from "lucide-vue-next";
+import {
+  Terminal,
+  Loader,
+  CheckCircle,
+  XCircle,
+  Ban,
+  AlertTriangle,
+  Copy,
+  RotateCcw,
+  Trash2,
+} from "lucide-vue-next";
 import type { AsyncTaskMetadata, TaskStatus } from "../core/async-task/types";
 import { formatDistanceToNow } from "date-fns";
 import { zhCN } from "date-fns/locale";
@@ -31,8 +41,13 @@ function getShortId(taskId: string): string {
 }
 
 // 获取状态类型
-function getStatusType(status: TaskStatus): "info" | "primary" | "success" | "danger" | "warning" {
-  const typeMap: Record<TaskStatus, "info" | "primary" | "success" | "danger" | "warning"> = {
+function getStatusType(
+  status: TaskStatus
+): "info" | "primary" | "success" | "danger" | "warning" {
+  const typeMap: Record<
+    TaskStatus,
+    "info" | "primary" | "success" | "danger" | "warning"
+  > = {
     pending: "info",
     running: "primary",
     completed: "success",
@@ -111,7 +126,13 @@ function canRetry(status: TaskStatus): boolean {
           <el-tooltip :content="row.taskId" placement="top">
             <div class="task-id-cell">
               <span class="task-id">{{ getShortId(row.taskId) }}</span>
-              <el-button :icon="Copy" size="small" text @click.stop="copyTaskId(row.taskId)" class="copy-btn" />
+              <el-button
+                :icon="Copy"
+                size="small"
+                text
+                @click.stop="copyTaskId(row.taskId)"
+                class="copy-btn"
+              />
             </div>
           </el-tooltip>
         </template>
@@ -130,13 +151,41 @@ function canRetry(status: TaskStatus): boolean {
       <!-- 状态 -->
       <el-table-column prop="status" label="状态" width="120">
         <template #default="{ row }">
-          <el-tag :type="getStatusType(row.status)" :effect="row.status === 'running' ? 'dark' : 'plain'">
+          <el-tag
+            :type="getStatusType(row.status)"
+            :effect="row.status === 'running' ? 'dark' : 'plain'"
+          >
             <div class="status-content">
-              <component v-if="row.status === 'running'" :is="Loader" :size="14" class="status-icon spinning" />
-              <component v-else-if="row.status === 'completed'" :is="CheckCircle" :size="14" class="status-icon" />
-              <component v-else-if="row.status === 'failed'" :is="XCircle" :size="14" class="status-icon" />
-              <component v-else-if="row.status === 'cancelled'" :is="Ban" :size="14" class="status-icon" />
-              <component v-else-if="row.status === 'interrupted'" :is="AlertTriangle" :size="14" class="status-icon" />
+              <component
+                v-if="row.status === 'running'"
+                :is="Loader"
+                :size="14"
+                class="status-icon spinning"
+              />
+              <component
+                v-else-if="row.status === 'completed'"
+                :is="CheckCircle"
+                :size="14"
+                class="status-icon"
+              />
+              <component
+                v-else-if="row.status === 'failed'"
+                :is="XCircle"
+                :size="14"
+                class="status-icon"
+              />
+              <component
+                v-else-if="row.status === 'cancelled'"
+                :is="Ban"
+                :size="14"
+                class="status-icon"
+              />
+              <component
+                v-else-if="row.status === 'interrupted'"
+                :is="AlertTriangle"
+                :size="14"
+                class="status-icon"
+              />
               <span>{{ getStatusText(row.status) }}</span>
             </div>
           </el-tag>
@@ -147,7 +196,11 @@ function canRetry(status: TaskStatus): boolean {
       <el-table-column prop="progress" label="进度" width="150">
         <template #default="{ row }">
           <div v-if="row.status === 'running'" class="progress-cell">
-            <el-progress :percentage="row.progress || 0" :show-text="true" :stroke-width="6" />
+            <el-progress
+              :percentage="row.progress || 0"
+              :show-text="true"
+              :stroke-width="6"
+            />
             <div v-if="row.progressMessage" class="progress-message">
               {{ row.progressMessage }}
             </div>
@@ -159,7 +212,10 @@ function canRetry(status: TaskStatus): boolean {
       <!-- 创建时间 -->
       <el-table-column prop="createdAt" label="创建时间" width="120">
         <template #default="{ row }">
-          <el-tooltip :content="new Date(row.createdAt).toLocaleString('zh-CN')" placement="top">
+          <el-tooltip
+            :content="new Date(row.createdAt).toLocaleString('zh-CN')"
+            placement="top"
+          >
             <span>{{ formatRelativeTime(row.createdAt) }}</span>
           </el-tooltip>
         </template>
@@ -194,7 +250,14 @@ function canRetry(status: TaskStatus): boolean {
             >
               重试
             </el-button>
-            <el-button :icon="Trash2" size="small" type="danger" @click="emit('delete', row.taskId)"> 删除 </el-button>
+            <el-button
+              :icon="Trash2"
+              size="small"
+              type="danger"
+              @click="emit('delete', row.taskId)"
+            >
+              删除
+            </el-button>
           </div>
         </template>
       </el-table-column>

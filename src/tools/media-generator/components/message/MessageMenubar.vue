@@ -76,7 +76,11 @@ const handleSwitchToBranch = (nodeId: string) => {
     <!-- Branch control -->
     <div v-if="siblings.length > 1" class="branch-control">
       <el-tooltip content="上一个版本" placement="top" :show-after="500">
-        <button class="menu-btn" :disabled="currentSiblingIndex === 0" @click="emit('switch', 'prev')">
+        <button
+          class="menu-btn"
+          :disabled="currentSiblingIndex === 0"
+          @click="emit('switch', 'prev')"
+        >
           <ChevronLeft :size="16" />
         </button>
       </el-tooltip>
@@ -91,8 +95,15 @@ const handleSwitchToBranch = (nodeId: string) => {
       >
         <template #reference>
           <div class="branch-indicator-wrapper">
-            <el-tooltip content="点击查看分支列表" placement="top" :show-after="500">
-              <div class="branch-indicator clickable" :class="{ 'popover-active': showBranchPopover }">
+            <el-tooltip
+              content="点击查看分支列表"
+              placement="top"
+              :show-after="500"
+            >
+              <div
+                class="branch-indicator clickable"
+                :class="{ 'popover-active': showBranchPopover }"
+              >
                 {{ currentSiblingIndex + 1 }} / {{ siblings.length }}
               </div>
             </el-tooltip>
@@ -151,7 +162,11 @@ const handleSwitchToBranch = (nodeId: string) => {
 
     <!-- 复制 -->
     <el-tooltip content="复制提示词" placement="top" :show-after="500">
-      <button class="menu-btn" :class="{ 'menu-btn-active': copied }" @click.stop="copyMessage">
+      <button
+        class="menu-btn"
+        :class="{ 'menu-btn-active': copied }"
+        @click.stop="copyMessage"
+      >
         <Check v-if="copied" :size="16" />
         <Copy v-else :size="16" />
       </button>
@@ -171,7 +186,11 @@ const handleSwitchToBranch = (nodeId: string) => {
         </button>
       </el-tooltip>
 
-      <el-tooltip content="查看/编辑 Raw 数据" placement="top" :show-after="500">
+      <el-tooltip
+        content="查看/编辑 Raw 数据"
+        placement="top"
+        :show-after="500"
+      >
         <button class="menu-btn" @click.stop="emit('edit-raw')">
           <Code :size="16" />
         </button>
@@ -199,7 +218,10 @@ const handleSwitchToBranch = (nodeId: string) => {
 
     <!-- 删除 -->
     <el-tooltip content="移除" placement="top" :show-after="500">
-      <button class="menu-btn menu-btn-danger" @click.stop="emit('delete', message.id)">
+      <button
+        class="menu-btn menu-btn-danger"
+        @click.stop="emit('delete', message.id)"
+      >
         <Trash2 :size="16" />
       </button>
     </el-tooltip>
@@ -256,7 +278,10 @@ const handleSwitchToBranch = (nodeId: string) => {
 }
 
 .mode-switch-btn.active {
-  background-color: var(--primary-color-alpha, rgba(var(--primary-color-rgb), 0.1));
+  background-color: var(
+    --primary-color-alpha,
+    rgba(var(--primary-color-rgb), 0.1)
+  );
   color: var(--primary-color);
   border-color: var(--primary-color);
 }

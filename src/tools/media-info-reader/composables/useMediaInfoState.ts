@@ -50,9 +50,10 @@ export function useMediaInfoState() {
       : "";
     if (result.aioInfo) {
       state.value.aioFormat = result.aioInfo.format;
-      state.value.aioInfo = typeof result.aioInfo.content === "object"
-        ? JSON.stringify(result.aioInfo.content, null, 2)
-        : result.aioInfo.content;
+      state.value.aioInfo =
+        typeof result.aioInfo.content === "object"
+          ? JSON.stringify(result.aioInfo.content, null, 2)
+          : result.aioInfo.content;
     } else {
       state.value.aioInfo = "";
       state.value.aioFormat = "json";
@@ -79,7 +80,11 @@ export function useMediaInfoState() {
   };
 
   const setError = (message: string) => {
-    state.value.webuiInfo = { positivePrompt: "", negativePrompt: "", generationInfo: "" };
+    state.value.webuiInfo = {
+      positivePrompt: "",
+      negativePrompt: "",
+      generationInfo: "",
+    };
     state.value.comfyuiWorkflow = "";
     state.value.stCharacterInfo = "";
     state.value.aioInfo = "";

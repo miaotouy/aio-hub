@@ -13,7 +13,7 @@ export function useGraphSubtreeDrag(
   settings: Ref<any>,
   simulationRef: Ref<any>,
   layoutMode: Ref<string>,
-  nodes: Ref<any[]>,
+  nodes: Ref<any[]>
 ) {
   const nodeManager = useNodeManager();
 
@@ -48,8 +48,13 @@ export function useGraphSubtreeDrag(
         const descendants = nodeManager.getAllDescendants(session, nodeId);
         subtreeDragState.isDragging = true;
         subtreeDragState.rootNodeId = nodeId;
-        subtreeDragState.descendantIds = new Set(descendants.map((d: ChatMessageNode) => d.id));
-        logger.info(`准备拖拽子树，包含 ${subtreeDragState.descendantIds.size} 个子孙节点`, { rootNodeId: nodeId });
+        subtreeDragState.descendantIds = new Set(
+          descendants.map((d: ChatMessageNode) => d.id)
+        );
+        logger.info(
+          `准备拖拽子树，包含 ${subtreeDragState.descendantIds.size} 个子孙节点`,
+          { rootNodeId: nodeId }
+        );
 
         // 记录初始位置，用于手动计算位移
         dragPositionState.lastPosition = { ...node.position };
@@ -85,14 +90,21 @@ export function useGraphSubtreeDrag(
       nodes.value[localNodeIndex] = node;
     }
 
-    if (subtreeDragState.isDragging && subtreeDragState.rootNodeId && dragPositionState.lastPosition) {
+    if (
+      subtreeDragState.isDragging &&
+      subtreeDragState.rootNodeId &&
+      dragPositionState.lastPosition
+    ) {
       // 手动计算位移增量
       const movement = {
         x: node.position.x - dragPositionState.lastPosition.x,
         y: node.position.y - dragPositionState.lastPosition.y,
       };
 
-      const allNodeIds = [subtreeDragState.rootNodeId, ...subtreeDragState.descendantIds];
+      const allNodeIds = [
+        subtreeDragState.rootNodeId,
+        ...subtreeDragState.descendantIds,
+      ];
 
       simulation.nodes().forEach((d3Node: any) => {
         if (allNodeIds.includes(d3Node.id)) {
@@ -135,9 +147,15 @@ export function useGraphSubtreeDrag(
 
     if (subtreeDragState.isDragging) {
       if (shouldRebound) {
-        const allNodeIds = [subtreeDragState.rootNodeId, ...subtreeDragState.descendantIds];
+        const allNodeIds = [
+          subtreeDragState.rootNodeId,
+          ...subtreeDragState.descendantIds,
+        ];
         simulation.nodes().forEach((d3Node: any) => {
-          if (allNodeIds.includes(d3Node.id) && (!session.rootNodeId || d3Node.id !== session.rootNodeId)) {
+          if (
+            allNodeIds.includes(d3Node.id) &&
+            (!session.rootNodeId || d3Node.id !== session.rootNodeId)
+          ) {
             d3Node.fx = null;
             d3Node.fy = null;
           }
@@ -149,7 +167,9 @@ export function useGraphSubtreeDrag(
       dragPositionState.lastPosition = null;
       logger.info("子树拖拽结束");
     } else {
-      const d3Node = simulation.nodes().find((n: any) => n.id === draggedNodeId);
+      const d3Node = simulation
+        .nodes()
+        .find((n: any) => n.id === draggedNodeId);
       if (d3Node) {
         d3Node.x = event.node.position.x + d3Node.width / 2;
         d3Node.y = event.node.position.y + d3Node.height / 2;

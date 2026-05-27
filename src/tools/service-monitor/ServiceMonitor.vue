@@ -5,11 +5,14 @@
       <el-aside width="300px" class="service-list-panel">
         <div class="panel-header">
           <h3>已注册工具</h3>
-          <el-tag :type="registries.length > 0 ? 'success' : 'info'" size="small">
+          <el-tag
+            :type="registries.length > 0 ? 'success' : 'info'"
+            size="small"
+          >
             {{ registries.length }} 个工具
           </el-tag>
         </div>
-        
+
         <el-scrollbar class="service-list-scrollbar">
           <div class="service-list">
             <div
@@ -29,7 +32,7 @@
                 {{ registry.description }}
               </div>
             </div>
-            
+
             <el-empty
               v-if="registries.length === 0"
               description="暂无已注册的工具"
@@ -48,10 +51,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { toolRegistryManager } from '@/services/registry';
-import type { ToolRegistry } from '@/services/types';
-import ServiceDetailPanel from './components/ServiceDetailPanel.vue';
+import { ref, onMounted } from "vue";
+import { toolRegistryManager } from "@/services/registry";
+import type { ToolRegistry } from "@/services/types";
+import ServiceDetailPanel from "./components/ServiceDetailPanel.vue";
 
 // 工具列表
 const registries = ref<ToolRegistry[]>([]);
@@ -67,7 +70,7 @@ const selectRegistry = (registry: ToolRegistry) => {
 // 加载工具列表
 const loadRegistries = () => {
   registries.value = toolRegistryManager.getAllTools();
-  
+
   // 如果有工具，默认选中第一个
   if (registries.value.length > 0 && !selectedRegistry.value) {
     selectedRegistry.value = registries.value[0];
@@ -144,7 +147,8 @@ onMounted(() => {
 .service-item.active {
   border-color: var(--el-color-primary);
   background: color-mix(in srgb, var(--el-color-primary) 15%, transparent);
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--el-color-primary) 30%, transparent);
+  box-shadow: 0 2px 8px
+    color-mix(in srgb, var(--el-color-primary) 30%, transparent);
 }
 
 .service-item-header {
@@ -155,7 +159,7 @@ onMounted(() => {
 }
 
 .service-id {
-  font-family: 'Consolas', 'Monaco', monospace;
+  font-family: "Consolas", "Monaco", monospace;
   font-weight: 600;
   color: var(--el-color-primary);
   font-size: 14px;

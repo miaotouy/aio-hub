@@ -18,7 +18,9 @@ import { createModuleLogger } from "@/utils/logger";
 import { customMessage } from "@/utils/customMessage";
 
 const store = useWebDistilleryStore();
-const errorHandler = createModuleErrorHandler("web-distillery/interactive-workbench");
+const errorHandler = createModuleErrorHandler(
+  "web-distillery/interactive-workbench"
+);
 const logger = createModuleLogger("web-distillery/interactive-workbench");
 
 const viewportRef = ref<InstanceType<typeof BrowserViewport> | null>(null);
@@ -33,7 +35,9 @@ let unsubNavigation: (() => void) | null = null;
 /**
  * 从 iframe 中采集 localStorage 快照（静默，失败返回 undefined）
  */
-async function captureLocalStorage(): Promise<Record<string, string> | undefined> {
+async function captureLocalStorage(): Promise<
+  Record<string, string> | undefined
+> {
   if (!store.isWebviewCreated) return undefined;
   try {
     return await iframeBridge.getLocalStorage();
@@ -50,7 +54,9 @@ async function captureLocalStorage(): Promise<Record<string, string> | undefined
  */
 async function syncProxyCookiesToProfile() {
   try {
-    const proxyCookies = await invoke<string | null>("distillery_get_proxy_cookies");
+    const proxyCookies = await invoke<string | null>(
+      "distillery_get_proxy_cookies"
+    );
 
     if (!proxyCookies || proxyCookies === lastKnownCookies) {
       return; // 没有变化
@@ -61,7 +67,8 @@ async function syncProxyCookiesToProfile() {
     if (!url) return;
 
     await cookieProfileStore.load();
-    const existingProfile = await cookieProfileStore.getActiveProfileForUrl(url);
+    const existingProfile =
+      await cookieProfileStore.getActiveProfileForUrl(url);
 
     let hostname = "";
     try {
@@ -103,7 +110,9 @@ async function syncProxyCookiesToProfile() {
           nameMap.set(c.name, merged.length - 1);
         }
       }
-      const updates: Parameters<typeof cookieProfileStore.update>[1] = { cookies: merged };
+      const updates: Parameters<typeof cookieProfileStore.update>[1] = {
+        cookies: merged,
+      };
       if (localStorageData && Object.keys(localStorageData).length > 0) {
         updates.localStorage = localStorageData;
       }
@@ -111,22 +120,33 @@ async function syncProxyCookiesToProfile() {
       logger.info("Auto-synced proxy cookies to existing profile", {
         profileName: existingProfile.name,
         cookieCount: parsed.length,
-        localStorageKeys: localStorageData ? Object.keys(localStorageData).length : 0,
+        localStorageKeys: localStorageData
+          ? Object.keys(localStorageData).length
+          : 0,
       });
     } else {
       // 自动创建新 Profile
       const cookieStr = parsed.map((c) => `${c.name}=${c.value}`).join("; ");
-      const profile = await cookieProfileStore.captureFromBrowser(cookieStr, url);
+      const profile = await cookieProfileStore.captureFromBrowser(
+        cookieStr,
+        url
+      );
       // 如果有 localStorage，也保存到新 Profile 中
       if (localStorageData && Object.keys(localStorageData).length > 0) {
-        await cookieProfileStore.update(profile.id, { localStorage: localStorageData });
+        await cookieProfileStore.update(profile.id, {
+          localStorage: localStorageData,
+        });
       }
       await cookieProfileStore.toggleActive(profile.id);
-      customMessage.success(`检测到登录成功，已自动创建身份卡片 "${profile.name}"`);
+      customMessage.success(
+        `检测到登录成功，已自动创建身份卡片 "${profile.name}"`
+      );
       logger.info("Auto-created identity card from proxy cookies", {
         profileName: profile.name,
         cookieCount: profile.cookies.length,
-        localStorageKeys: localStorageData ? Object.keys(localStorageData).length : 0,
+        localStorageKeys: localStorageData
+          ? Object.keys(localStorageData).length
+          : 0,
       });
     }
   } catch (err) {
@@ -165,11 +185,16 @@ const handleLoadUrl = async (url: string) => {
     await cookieProfileStore.load();
     const activeProfile = await cookieProfileStore.getActiveProfileForUrl(url);
     if (activeProfile) {
-      const cookieStr = activeProfile.cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+      const cookieStr = activeProfile.cookies
+        .map((c) => `${c.name}=${c.value}`)
+        .join("; ");
       await invoke("distillery_set_proxy_cookies", { cookies: cookieStr });
 
       // 同步 localStorage 到代理层
-      if (activeProfile.localStorage && Object.keys(activeProfile.localStorage).length > 0) {
+      if (
+        activeProfile.localStorage &&
+        Object.keys(activeProfile.localStorage).length > 0
+      ) {
         await invoke("distillery_set_proxy_local_storage", {
           data: JSON.stringify(activeProfile.localStorage),
         });
@@ -181,7 +206,9 @@ const handleLoadUrl = async (url: string) => {
         profileName: activeProfile.name,
         domain: activeProfile.domain,
         cookieCount: activeProfile.cookies.length,
-        localStorageKeys: activeProfile.localStorage ? Object.keys(activeProfile.localStorage).length : 0,
+        localStorageKeys: activeProfile.localStorage
+          ? Object.keys(activeProfile.localStorage).length
+          : 0,
       });
     } else {
       await invoke("distillery_set_proxy_cookies", { cookies: null });
@@ -222,17 +249,23 @@ const handleSaveCookies = async () => {
     ]);
 
     // 即使没有 document.cookie，也可能有代理层 Cookie Jar + localStorage
-    const proxyCookies = await invoke<string | null>("distillery_get_proxy_cookies");
+    const proxyCookies = await invoke<string | null>(
+      "distillery_get_proxy_cookies"
+    );
     const effectiveCookies = result.cookies || proxyCookies || "";
 
-    if (!effectiveCookies && (!localStorageData || Object.keys(localStorageData).length === 0)) {
+    if (
+      !effectiveCookies &&
+      (!localStorageData || Object.keys(localStorageData).length === 0)
+    ) {
       customMessage.info("当前页面没有可保存的身份数据");
       return;
     }
 
     const url = result.url || store.url;
     await cookieProfileStore.load();
-    const existingProfile = await cookieProfileStore.getActiveProfileForUrl(url);
+    const existingProfile =
+      await cookieProfileStore.getActiveProfileForUrl(url);
 
     if (existingProfile) {
       // 更新已有 Profile：合并 cookies（按 name 去重，新值覆盖旧值）
@@ -270,7 +303,9 @@ const handleSaveCookies = async () => {
         }
       }
 
-      const updates: Parameters<typeof cookieProfileStore.update>[1] = { cookies: merged };
+      const updates: Parameters<typeof cookieProfileStore.update>[1] = {
+        cookies: merged,
+      };
       if (localStorageData && Object.keys(localStorageData).length > 0) {
         updates.localStorage = localStorageData;
       }
@@ -279,32 +314,48 @@ const handleSaveCookies = async () => {
       const savedItems: string[] = [];
       if (parsed.length > 0) savedItems.push(`${parsed.length} 条 Cookie`);
       if (localStorageData && Object.keys(localStorageData).length > 0) {
-        savedItems.push(`${Object.keys(localStorageData).length} 条 localStorage`);
+        savedItems.push(
+          `${Object.keys(localStorageData).length} 条 localStorage`
+        );
       }
-      customMessage.success(`已更新身份卡片 "${existingProfile.name}"（${savedItems.join("，")}）`);
+      customMessage.success(
+        `已更新身份卡片 "${existingProfile.name}"（${savedItems.join("，")}）`
+      );
 
       // 同步更新代理
       const cookieStr = merged.map((c) => `${c.name}=${c.value}`).join("; ");
       await invoke("distillery_set_proxy_cookies", { cookies: cookieStr });
     } else {
       // 创建新 Profile
-      const profile = await cookieProfileStore.captureFromBrowser(effectiveCookies, url);
+      const profile = await cookieProfileStore.captureFromBrowser(
+        effectiveCookies,
+        url
+      );
       // 保存 localStorage
       if (localStorageData && Object.keys(localStorageData).length > 0) {
-        await cookieProfileStore.update(profile.id, { localStorage: localStorageData });
+        await cookieProfileStore.update(profile.id, {
+          localStorage: localStorageData,
+        });
       }
       // 自动激活
       await cookieProfileStore.toggleActive(profile.id);
 
       const savedItems: string[] = [];
-      if (profile.cookies.length > 0) savedItems.push(`${profile.cookies.length} 条 Cookie`);
+      if (profile.cookies.length > 0)
+        savedItems.push(`${profile.cookies.length} 条 Cookie`);
       if (localStorageData && Object.keys(localStorageData).length > 0) {
-        savedItems.push(`${Object.keys(localStorageData).length} 条 localStorage`);
+        savedItems.push(
+          `${Object.keys(localStorageData).length} 条 localStorage`
+        );
       }
-      customMessage.success(`已创建并激活身份卡片 "${profile.name}"（${savedItems.join("，")}）`);
+      customMessage.success(
+        `已创建并激活身份卡片 "${profile.name}"（${savedItems.join("，")}）`
+      );
 
       // 同步更新代理
-      const cookieStr = profile.cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+      const cookieStr = profile.cookies
+        .map((c) => `${c.name}=${c.value}`)
+        .join("; ");
       await invoke("distillery_set_proxy_cookies", { cookies: cookieStr });
     }
   } catch (err) {
@@ -360,12 +411,22 @@ onUnmounted(async () => {
     <RecipeMetaDrawer v-model="metaDrawerVisible" />
 
     <!-- Cookie 实验室弹窗 -->
-    <BaseDialog v-model="cookieDialogVisible" title="身份卡片 (Cookie Lab)" width="900px" height="70vh">
+    <BaseDialog
+      v-model="cookieDialogVisible"
+      title="身份卡片 (Cookie Lab)"
+      width="900px"
+      height="70vh"
+    >
       <CookieLab />
     </BaseDialog>
 
     <!-- API 嗅探弹窗 -->
-    <BaseDialog v-model="apiDialogVisible" title="API 嗅探 (API Sniffer)" width="1000px" height="80vh">
+    <BaseDialog
+      v-model="apiDialogVisible"
+      title="API 嗅探 (API Sniffer)"
+      width="1000px"
+      height="80vh"
+    >
       <ApiSniffer />
     </BaseDialog>
   </div>

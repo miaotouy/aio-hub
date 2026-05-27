@@ -71,7 +71,10 @@ export interface InspectorServiceState {
 }
 
 // 事件类型
-export type InspectorEventType = 'inspector-request' | 'inspector-response' | 'inspector-stream-update';
+export type InspectorEventType =
+  | "inspector-request"
+  | "inspector-response"
+  | "inspector-stream-update";
 
 export interface InspectorEvent<T = any> {
   type: InspectorEventType;
@@ -90,4 +93,4 @@ export interface CopyOptions {
 }
 
 // 视图模式
-export type ViewMode = 'raw' | 'text';
+export type ViewMode = "raw" | "text";

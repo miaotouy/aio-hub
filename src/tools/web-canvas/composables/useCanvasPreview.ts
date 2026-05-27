@@ -47,18 +47,18 @@ export function useCanvasPreview(options: {
     // 构建物理基础路径的 asset:// URL
     // 在 Windows 上，确保路径以盘符开头且格式正确
     let normalizedBase = path.replace(/\\/g, "/");
-    
+
     // 关键修复：Tauri 的 convertFileSrc 在 Windows 上如果路径不包含盘符前缀可能会解析失败
     // 我们确保它是一个绝对路径
     const baseUrl = convertFileSrc(normalizedBase);
-    
+
     // 确保 baseUrl 以 / 结尾，这样 <base> 标签才能正确拼接相对路径
     const finalBaseUrl = baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
 
     logger.info("预览 Base URL 已构建", {
       originalPath: path,
       normalizedBase,
-      finalBaseUrl
+      finalBaseUrl,
     });
 
     // 注入 <base> 标签以解决相对路径问题
@@ -157,12 +157,18 @@ export function useCanvasPreview(options: {
     `;
 
     const baseTag = `<base href="${finalBaseUrl}">`;
-    
+
     // 注入到 <head> 开头
     if (content.includes("<head>")) {
-      content = content.replace("<head>", `<head>\n    ${baseTag}\n    ${injectedScript}`);
+      content = content.replace(
+        "<head>",
+        `<head>\n    ${baseTag}\n    ${injectedScript}`
+      );
     } else if (content.includes("<html>")) {
-      content = content.replace("<html>", `<html>\n<head>\n    ${baseTag}\n    ${injectedScript}\n</head>`);
+      content = content.replace(
+        "<html>",
+        `<html>\n<head>\n    ${baseTag}\n    ${injectedScript}\n</head>`
+      );
     } else {
       content = `${baseTag}\n${injectedScript}\n${content}`;
     }

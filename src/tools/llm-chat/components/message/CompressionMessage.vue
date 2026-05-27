@@ -1,8 +1,22 @@
 <script setup lang="ts">
 import { computed, ref, watch, provide, nextTick } from "vue";
 import { useResizeObserver } from "@vueuse/core";
-import type { ChatMessageNode, MessageRole, ChatSessionIndex, ChatSessionDetail } from "../../types";
-import { Database, Edit2, Check, X, User, Bot, Settings, Trash2 } from "lucide-vue-next";
+import type {
+  ChatMessageNode,
+  MessageRole,
+  ChatSessionIndex,
+  ChatSessionDetail,
+} from "../../types";
+import {
+  Database,
+  Edit2,
+  Check,
+  X,
+  User,
+  Bot,
+  Settings,
+  Trash2,
+} from "lucide-vue-next";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
 import { useAgentStore } from "../../stores/agentStore";
 import { useUserProfileStore } from "../../stores/userProfileStore";
@@ -82,13 +96,17 @@ function getAgentAndUserProfileIds(metadata: any): {
   let userProfileId = metadata?.userProfileId;
   if (!userProfileId) {
     const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
-    userProfileId = userProfileStore.getEffectiveProfile(agent?.userProfileId)?.id;
+    userProfileId = userProfileStore.getEffectiveProfile(
+      agent?.userProfileId
+    )?.id;
   }
   return { agentId, userProfileId };
 }
 
 const activeRules = computed(() => {
-  const { agentId, userProfileId } = getAgentAndUserProfileIds(props.message.metadata);
+  const { agentId, userProfileId } = getAgentAndUserProfileIds(
+    props.message.metadata
+  );
   const agent = agentId ? agentStore.getAgentById(agentId) : undefined;
   const userProfile = userProfileStore.getEffectiveProfile(userProfileId);
   const globalConfig = settings.value.regexConfig;
@@ -106,7 +124,12 @@ const activeRules = computed(() => {
 
 const processedRules = ref<ChatRegexRule[]>([]);
 watch(
-  [activeRules, () => props.sessionIndex, () => props.sessionDetail, () => props.message.metadata],
+  [
+    activeRules,
+    () => props.sessionIndex,
+    () => props.sessionDetail,
+    () => props.message.metadata,
+  ],
   async ([rules, sessionIndex, sessionDetail, metadata]) => {
     if (!rules || rules.length === 0) {
       processedRules.value = [];
@@ -234,7 +257,10 @@ defineExpose({
         <div class="header-left">
           <el-dropdown trigger="click" @command="handleRoleChange">
             <span class="role-badge" :class="message.role">
-              <component :is="roles.find((r) => r.value === message.role)?.icon" :size="12" />
+              <component
+                :is="roles.find((r) => r.value === message.role)?.icon"
+                :size="12"
+              />
               {{ roles.find((r) => r.value === message.role)?.label }}
             </span>
             <template #dropdown>
@@ -245,7 +271,11 @@ defineExpose({
                   :command="role.value"
                   :disabled="message.role === role.value"
                 >
-                  <component :is="role.icon" :size="14" style="margin-right: 8px" />
+                  <component
+                    :is="role.icon"
+                    :size="14"
+                    style="margin-right: 8px"
+                  />
                   {{ role.label }}
                 </el-dropdown-item>
               </el-dropdown-menu>
@@ -257,10 +287,18 @@ defineExpose({
         <div class="header-right">
           <!-- 编辑模式按钮 -->
           <template v-if="isEditing">
-            <button class="action-btn success" title="保存修改" @click="saveEdit">
+            <button
+              class="action-btn success"
+              title="保存修改"
+              @click="saveEdit"
+            >
               <Check :size="14" />
             </button>
-            <button class="action-btn danger" title="取消编辑" @click="cancelEdit">
+            <button
+              class="action-btn danger"
+              title="取消编辑"
+              @click="cancelEdit"
+            >
               <X :size="14" />
             </button>
           </template>
@@ -273,13 +311,20 @@ defineExpose({
 
             <button
               class="action-btn"
-              :title="isEnabled ? '禁用压缩 (恢复原始消息)' : '启用压缩 (隐藏原始消息)'"
+              :title="
+                isEnabled
+                  ? '禁用压缩 (恢复原始消息)'
+                  : '启用压缩 (隐藏原始消息)'
+              "
               @click="emit('toggle-enabled')"
             >
               <Database :size="14" :class="{ 'text-primary': isEnabled }" />
             </button>
 
-            <el-popconfirm title="确定删除此压缩节点吗？" @confirm="emit('delete')">
+            <el-popconfirm
+              title="确定删除此压缩节点吗？"
+              @confirm="emit('delete')"
+            >
               <template #reference>
                 <button class="action-btn danger-hover" title="删除">
                   <Trash2 :size="14" />
@@ -307,7 +352,9 @@ defineExpose({
             :version="settings.uiPreferences.rendererVersion"
             :default-render-html="settings.uiPreferences.defaultRenderHtml"
             :throttle-ms="settings.uiPreferences.rendererThrottleMs"
-            :enable-enter-animation="settings.uiPreferences.enableEnterAnimation"
+            :enable-enter-animation="
+              settings.uiPreferences.enableEnterAnimation
+            "
             :code-editor-engine="settings.uiPreferences.codeEditorEngine"
           />
         </template>
@@ -315,7 +362,9 @@ defineExpose({
 
       <!-- 底部统计 -->
       <div class="compression-footer">
-        <span class="stat-item" title="原始消息数量"> 包含 {{ stats.msgCount }} 条消息 </span>
+        <span class="stat-item" title="原始消息数量">
+          包含 {{ stats.msgCount }} 条消息
+        </span>
       </div>
     </div>
   </div>

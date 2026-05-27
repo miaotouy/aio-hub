@@ -18,7 +18,7 @@ export interface ImageMetadataResult {
   webuiInfo: WebUIInfo;
   comfyuiWorkflow: string | object;
   stCharacterInfo: object | null;
-  aioInfo: { content: string | object, format: 'json' | 'yaml' } | null;
+  aioInfo: { content: string | object; format: "json" | "yaml" } | null;
   fullExifInfo: object | null;
 }
 

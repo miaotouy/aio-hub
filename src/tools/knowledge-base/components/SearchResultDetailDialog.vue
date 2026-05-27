@@ -1,11 +1,18 @@
 <template>
-  <BaseDialog v-model="visible" :title="result?.caiu.key || '条目详情'" width="800px" height="70vh">
+  <BaseDialog
+    v-model="visible"
+    :title="result?.caiu.key || '条目详情'"
+    width="800px"
+    height="70vh"
+  >
     <div v-if="result" class="detail-content custom-scrollbar">
       <div class="detail-header">
         <div class="meta-info">
           <div class="meta-item">
             <span class="label">匹配分值:</span>
-            <span class="value score">{{ (result.score * 100).toFixed(2) }}%</span>
+            <span class="value score"
+              >{{ (result.score * 100).toFixed(2) }}%</span
+            >
           </div>
           <div class="meta-item">
             <span class="label">知识库:</span>
@@ -17,7 +24,10 @@
           </div>
         </div>
 
-        <div v-if="result.caiu.tags && result.caiu.tags.length > 0" class="tags-row">
+        <div
+          v-if="result.caiu.tags && result.caiu.tags.length > 0"
+          class="tags-row"
+        >
           <el-tag
             v-for="tag in result.caiu.tags"
             :key="tag.name"
@@ -26,7 +36,9 @@
             class="detail-tag"
           >
             {{ tag.name }}
-            <span v-if="tag.weight !== 1" class="weight">({{ tag.weight }})</span>
+            <span v-if="tag.weight !== 1" class="weight"
+              >({{ tag.weight }})</span
+            >
           </el-tag>
         </div>
       </div>

@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
-import { Upload, Document, Refresh, Warning, FolderOpened, Files } from "@element-plus/icons-vue";
+import {
+  Upload,
+  Document,
+  Refresh,
+  Warning,
+  FolderOpened,
+  Files,
+} from "@element-plus/icons-vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import { customMessage } from "@/utils/customMessage";
 import type { ChatAgent } from "../../../types";
@@ -59,14 +66,20 @@ const parseTextConfig = (text: string) => {
   }
 
   try {
-    const data = text.trim().startsWith("{") ? JSON.parse(text) : jsYaml.load(text);
+    const data = text.trim().startsWith("{")
+      ? JSON.parse(text)
+      : jsYaml.load(text);
 
     if (!data || typeof data !== "object") {
       throw new Error("无效的配置文件格式");
     }
 
     // 自动识别 AIO 导出包格式
-    if (data.type === "AIO_Agent_Export" && Array.isArray(data.agents) && data.agents.length > 0) {
+    if (
+      data.type === "AIO_Agent_Export" &&
+      Array.isArray(data.agents) &&
+      data.agents.length > 0
+    ) {
       parsedConfig.value = data.agents[0];
       if (data.assets) {
         logger.debug("从导出包中识别到资产定义");
@@ -134,7 +147,11 @@ const collectFilesFromDirectory = async (
 ): Promise<File[]> => {
   const files: File[] = [];
 
-  const processDir = async (currentPath: string, depth: number, relativePrefix = "") => {
+  const processDir = async (
+    currentPath: string,
+    depth: number,
+    relativePrefix = ""
+  ) => {
     if (depth > maxDepth) return;
 
     const entries = await readDir(currentPath);
@@ -143,7 +160,11 @@ const collectFilesFromDirectory = async (
 
       const entryPath = `${currentPath}/${entry.name}`;
       if (entry.isDirectory) {
-        await processDir(entryPath, depth + 1, `${relativePrefix}${entry.name}/`);
+        await processDir(
+          entryPath,
+          depth + 1,
+          `${relativePrefix}${entry.name}/`
+        );
       } else if (entry.isFile) {
         const ext = entry.name.split(".").pop()?.toLowerCase() || "";
         if (allowedExts.includes(ext)) {
@@ -172,7 +193,12 @@ const handleSelectFile = async () => {
   try {
     const selected = await open({
       multiple: true,
-      filters: [{ name: "智能体配置", extensions: ["json", "yaml", "yml", "zip", "png"] }],
+      filters: [
+        {
+          name: "智能体配置",
+          extensions: ["json", "yaml", "yml", "zip", "png"],
+        },
+      ],
     });
 
     if (!selected) return;
@@ -217,10 +243,15 @@ const handleSelectDirectory = async () => {
 // ========== 世界书处理 ==========
 
 /** 查找内容完全一致的现有世界书 */
-const findDuplicateWorldbook = async (content: any, name: string): Promise<string | null> => {
+const findDuplicateWorldbook = async (
+  content: any,
+  name: string
+): Promise<string | null> => {
   const candidates = worldbookStore.worldbooks.filter((wb) => wb.name === name);
   for (const candidate of candidates) {
-    const existingContent = await worldbookStore.getWorldbookContent(candidate.id);
+    const existingContent = await worldbookStore.getWorldbookContent(
+      candidate.id
+    );
     if (existingContent && isEqual(existingContent.entries, content.entries)) {
       return candidate.id;
     }
@@ -229,14 +260,19 @@ const findDuplicateWorldbook = async (content: any, name: string): Promise<strin
 };
 
 /** 导入单个世界书，返回其 ID（去重或新建） */
-const importSingleWorldbook = async (content: any, name: string): Promise<string> => {
+const importSingleWorldbook = async (
+  content: any,
+  name: string
+): Promise<string> => {
   const existingId = await findDuplicateWorldbook(content, name);
   if (existingId) return existingId;
   return await worldbookStore.importWorldbook(name, content);
 };
 
 /** 处理所有世界书导入，返回导入的 ID 列表 */
-const processWorldbookImports = async (agentName: string): Promise<string[]> => {
+const processWorldbookImports = async (
+  agentName: string
+): Promise<string[]> => {
   const importedIds: string[] = [];
 
   // 处理嵌入的世界书
@@ -270,10 +306,13 @@ const buildMergeUpdate = (
   presetMessages: newConfig.presetMessages ?? currentAgent.presetMessages,
   parameters: { ...currentAgent.parameters, ...(newConfig.parameters || {}) },
   llmThinkRules: newConfig.llmThinkRules ?? currentAgent.llmThinkRules,
-  richTextStyleOptions: newConfig.richTextStyleOptions ?? currentAgent.richTextStyleOptions,
+  richTextStyleOptions:
+    newConfig.richTextStyleOptions ?? currentAgent.richTextStyleOptions,
   regexConfig: newConfig.regexConfig ?? currentAgent.regexConfig,
-  interactionConfig: newConfig.interactionConfig ?? currentAgent.interactionConfig,
-  virtualTimeConfig: newConfig.virtualTimeConfig ?? currentAgent.virtualTimeConfig,
+  interactionConfig:
+    newConfig.interactionConfig ?? currentAgent.interactionConfig,
+  virtualTimeConfig:
+    newConfig.virtualTimeConfig ?? currentAgent.virtualTimeConfig,
   worldbookIds: [
     ...new Set([
       ...(currentAgent.worldbookIds || []),
@@ -282,7 +321,8 @@ const buildMergeUpdate = (
     ]),
   ],
   agentVersion: newConfig.agentVersion ?? currentAgent.agentVersion,
-  worldbookSettings: newConfig.worldbookSettings ?? currentAgent.worldbookSettings,
+  worldbookSettings:
+    newConfig.worldbookSettings ?? currentAgent.worldbookSettings,
   assetGroups: newConfig.assetGroups ?? currentAgent.assetGroups,
   assets: newConfig.assets ?? currentAgent.assets,
   tags: [...new Set([...(currentAgent.tags || []), ...(newConfig.tags || [])])],
@@ -296,7 +336,9 @@ const buildOverwriteUpdate = (
   const { id, createdAt, lastUsedAt, ...rest } = newConfig as any;
   return {
     ...rest,
-    worldbookIds: [...new Set([...(newConfig.worldbookIds || []), ...importedWorldbookIds])],
+    worldbookIds: [
+      ...new Set([...(newConfig.worldbookIds || []), ...importedWorldbookIds]),
+    ],
   };
 };
 
@@ -315,7 +357,10 @@ const processAssetUpdates = async (agentId: string) => {
     const filename = pathParts.pop() || "file";
     const relativeSubDir = pathParts.join("/");
 
-    const subdirectory = `llm-chat/agents/${agentId}/${relativeSubDir}`.replace(/\/+$/, "");
+    const subdirectory = `llm-chat/agents/${agentId}/${relativeSubDir}`.replace(
+      /\/+$/,
+      ""
+    );
 
     await invoke("save_uploaded_file", {
       fileData: new Uint8Array(buffer),
@@ -325,7 +370,9 @@ const processAssetUpdates = async (agentId: string) => {
 
     // 如果是头像，自动同步 icon 字段
     if (path.includes("avatar_for_") || parsedConfig.value?.icon === path) {
-      const finalIconPath = relativeSubDir ? `${relativeSubDir}/${filename}` : filename;
+      const finalIconPath = relativeSubDir
+        ? `${relativeSubDir}/${filename}`
+        : filename;
       agentStore.updateAgent(agentId, { icon: finalIconPath });
     }
   }
@@ -340,7 +387,8 @@ const handleConfirm = async () => {
   try {
     const currentAgent = props.agent;
     const newConfig = parsedConfig.value;
-    const agentName = newConfig.displayName || newConfig.name || currentAgent.name;
+    const agentName =
+      newConfig.displayName || newConfig.name || currentAgent.name;
 
     // 1. 处理世界书
     const importedWorldbookIds = await processWorldbookImports(agentName);
@@ -390,7 +438,9 @@ const previewInfo = computed(() => {
     presetCount: config.presetMessages?.length || 0,
     hasParams: !!config.parameters,
     hasRules: !!config.llmThinkRules?.length,
-    hasRegex: !!config.regexConfig?.presets?.some((p) => (p.rules?.length ?? 0) > 0),
+    hasRegex: !!config.regexConfig?.presets?.some(
+      (p) => (p.rules?.length ?? 0) > 0
+    ),
     hasIcon: !!config.icon,
     worldbookCount: config.worldbookIds?.length || 0,
     assetCount: config.assets?.length || 0,
@@ -409,7 +459,9 @@ const previewInfo = computed(() => {
       <div class="agent-target-info">
         <span class="label">正在覆盖：</span>
         <span class="name">{{ agent.displayName || agent.name }}</span>
-        <span class="version-tag" v-if="agent.agentVersion">v{{ agent.agentVersion }}</span>
+        <span class="version-tag" v-if="agent.agentVersion"
+          >v{{ agent.agentVersion }}</span
+        >
       </div>
 
       <div
@@ -433,8 +485,14 @@ const previewInfo = computed(() => {
           <span>支持拖拽文件上传</span>
         </div>
         <div class="import-actions">
-          <el-button :icon="Files" @click="handleSelectFile" size="small">选择文件</el-button>
-          <el-button :icon="FolderOpened" @click="handleSelectDirectory" size="small">
+          <el-button :icon="Files" @click="handleSelectFile" size="small"
+            >选择文件</el-button
+          >
+          <el-button
+            :icon="FolderOpened"
+            @click="handleSelectDirectory"
+            size="small"
+          >
             选择目录
           </el-button>
         </div>
@@ -455,7 +513,9 @@ const previewInfo = computed(() => {
           <div class="preview-item" v-if="previewInfo.agentVersion">
             <span class="p-label">配置版本:</span>
             <span class="p-value">
-              <el-tag size="small" type="info">{{ previewInfo.agentVersion }}</el-tag>
+              <el-tag size="small" type="info">{{
+                previewInfo.agentVersion
+              }}</el-tag>
             </span>
           </div>
           <div class="preview-item">
@@ -464,16 +524,22 @@ const previewInfo = computed(() => {
           </div>
           <div class="preview-item">
             <span class="p-label">包含参数:</span>
-            <span class="p-value">{{ previewInfo.hasParams ? "是" : "否" }}</span>
+            <span class="p-value">{{
+              previewInfo.hasParams ? "是" : "否"
+            }}</span>
           </div>
           <div class="preview-item">
             <span class="p-label">思考规则:</span>
-            <span class="p-value">{{ previewInfo.hasRules ? "是" : "否" }}</span>
+            <span class="p-value">{{
+              previewInfo.hasRules ? "是" : "否"
+            }}</span>
           </div>
           <div class="preview-item">
             <span class="p-label">世界书引用:</span>
             <span class="p-value">{{
-              previewInfo.worldbookCount > 0 ? `${previewInfo.worldbookCount} 个` : "无"
+              previewInfo.worldbookCount > 0
+                ? `${previewInfo.worldbookCount} 个`
+                : "无"
             }}</span>
           </div>
           <div class="preview-item">
@@ -517,7 +583,11 @@ const previewInfo = computed(() => {
 
     <template #footer>
       <el-button @click="handleClose">取消</el-button>
-      <el-button type="primary" :disabled="!parsedConfig" @click="handleConfirm">
+      <el-button
+        type="primary"
+        :disabled="!parsedConfig"
+        @click="handleConfirm"
+      >
         确认覆盖
       </el-button>
     </template>

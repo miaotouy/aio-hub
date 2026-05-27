@@ -37,15 +37,21 @@ const isDetached = () => {
  * @param priorityToolId - 可选的优先级工具 ID。如果提供，将首先加载该工具。
  * @returns Promise，返回一个函数 `loadRemaining`，调用该函数可继续异步加载剩余工具和插件。
  */
-export async function autoRegisterServices(priorityToolId?: string): Promise<() => Promise<void>> {
+export async function autoRegisterServices(
+  priorityToolId?: string
+): Promise<() => Promise<void>> {
   logger.info("开始自动扫描和注册服务", { priorityToolId });
 
   try {
     // 使用 Vite 的 import.meta.glob 匹配 src/tools/ 目录下所有以 .registry.ts 结尾的文件
-    const serviceModules = import.meta.glob<ServiceModule>("../tools/**/*.registry.ts");
+    const serviceModules = import.meta.glob<ServiceModule>(
+      "../tools/**/*.registry.ts"
+    );
 
     const modulePaths = Object.keys(serviceModules);
-    logger.info(`发现 ${modulePaths.length} 个服务模块文件`, { paths: modulePaths });
+    logger.info(`发现 ${modulePaths.length} 个服务模块文件`, {
+      paths: modulePaths,
+    });
 
     const toolsStore = useToolsStore();
     const remainingPaths: string[] = [...modulePaths];
@@ -76,7 +82,10 @@ export async function autoRegisterServices(priorityToolId?: string): Promise<() 
       return items;
     }
 
-    async function loadAndRegisterModule(path: string, isRemainingPhase = false) {
+    async function loadAndRegisterModule(
+      path: string,
+      isRemainingPhase = false
+    ) {
       const module = await serviceModules[path]();
       const exported = module.default;
       const registerItems = normalizeExported(exported);
@@ -122,18 +131,24 @@ export async function autoRegisterServices(priorityToolId?: string): Promise<() 
     // 如果有优先级工具，先加载它
     if (priorityToolId) {
       const priorityPath = modulePaths.find(
-        (p) => p.includes(`/${priorityToolId}/`) || p.endsWith(`${priorityToolId}.registry.ts`),
+        (p) =>
+          p.includes(`/${priorityToolId}/`) ||
+          p.endsWith(`${priorityToolId}.registry.ts`)
       );
 
       if (priorityPath) {
-        logger.info(`正在优先加载工具: ${priorityToolId}`, { path: priorityPath });
+        logger.info(`正在优先加载工具: ${priorityToolId}`, {
+          path: priorityPath,
+        });
         try {
           await loadAndRegisterModule(priorityPath);
           // 从剩余路径中移除已加载的优先级路径
           const index = remainingPaths.indexOf(priorityPath);
           if (index !== -1) remainingPaths.splice(index, 1);
         } catch (error) {
-          errorHandler.error(error, "优先加载工具模块失败", { context: { path: priorityPath } });
+          errorHandler.error(error, "优先加载工具模块失败", {
+            context: { path: priorityPath },
+          });
           failedModules.push({ path: priorityPath, error });
         }
       }

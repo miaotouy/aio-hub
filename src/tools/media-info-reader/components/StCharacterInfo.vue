@@ -8,7 +8,9 @@
             <div class="header-main">
               <div class="info-container">
                 <div class="name-line">
-                  <h2 class="st-name">{{ stDisplayData.name || "Unknown Character" }}</h2>
+                  <h2 class="st-name">
+                    {{ stDisplayData.name || "Unknown Character" }}
+                  </h2>
                   <span v-if="stDisplayData.version" class="version-badge"
                     >v{{ stDisplayData.version }}</span
                   >
@@ -72,7 +74,10 @@
             <!-- 2. Prompts & Instructions -->
             <div
               class="content-section"
-              v-if="stDisplayData.system_prompt || stDisplayData.post_history_instructions"
+              v-if="
+                stDisplayData.system_prompt ||
+                stDisplayData.post_history_instructions
+              "
             >
               <div class="section-header">
                 <Settings :size="18" />
@@ -84,12 +89,19 @@
                     <span class="card-label">System Prompt</span>
                     <CopyButton :text="stDisplayData.system_prompt" />
                   </div>
-                  <div class="card-text code-font">{{ stDisplayData.system_prompt }}</div>
+                  <div class="card-text code-font">
+                    {{ stDisplayData.system_prompt }}
+                  </div>
                 </div>
-                <div class="info-card" v-if="stDisplayData.post_history_instructions">
+                <div
+                  class="info-card"
+                  v-if="stDisplayData.post_history_instructions"
+                >
                   <div class="card-header">
                     <span class="card-label">Post History Instructions</span>
-                    <CopyButton :text="stDisplayData.post_history_instructions" />
+                    <CopyButton
+                      :text="stDisplayData.post_history_instructions"
+                    />
                   </div>
                   <div class="card-text code-font">
                     {{ stDisplayData.post_history_instructions }}
@@ -119,17 +131,24 @@
                     <span class="card-label">First Message / 首条消息</span>
                     <CopyButton :text="stDisplayData.first_mes" />
                   </div>
-                  <div class="card-text assistant-msg">{{ stDisplayData.first_mes }}</div>
+                  <div class="card-text assistant-msg">
+                    {{ stDisplayData.first_mes }}
+                  </div>
                 </div>
 
-                <div v-if="stDisplayData.alternate_greetings?.length" class="alternate-greetings">
+                <div
+                  v-if="stDisplayData.alternate_greetings?.length"
+                  class="alternate-greetings"
+                >
                   <div
                     v-for="(greet, idx) in stDisplayData.alternate_greetings"
                     :key="idx"
                     class="info-card mini"
                   >
                     <div class="card-header">
-                      <span class="card-label">Alternate Greeting {{ Number(idx) + 1 }}</span>
+                      <span class="card-label"
+                        >Alternate Greeting {{ Number(idx) + 1 }}</span
+                      >
                       <CopyButton :text="greet" />
                     </div>
                     <div class="card-text assistant-msg">{{ greet }}</div>
@@ -141,7 +160,9 @@
                     <span class="card-label">Message Examples / 对话示例</span>
                     <CopyButton :text="stDisplayData.mes_example" />
                   </div>
-                  <div class="card-text example-box">{{ stDisplayData.mes_example }}</div>
+                  <div class="card-text example-box">
+                    {{ stDisplayData.mes_example }}
+                  </div>
                 </div>
               </div>
             </div>
@@ -168,7 +189,15 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { ElTag, ElScrollbar } from "element-plus";
-import { User, Tags, Fingerprint, MessageSquare, Settings, Info, Zap } from "lucide-vue-next";
+import {
+  User,
+  Tags,
+  Fingerprint,
+  MessageSquare,
+  Settings,
+  Info,
+  Zap,
+} from "lucide-vue-next";
 import CopyButton from "./CopyButton.vue";
 
 const props = defineProps<{
@@ -181,7 +210,10 @@ const stDisplayData = computed(() => {
 
   try {
     const data = JSON.parse(props.stCharacterInfo);
-    const isV2V3 = data.spec === "chara_card_v2" || data.spec === "chara_card_v3" || data.data;
+    const isV2V3 =
+      data.spec === "chara_card_v2" ||
+      data.spec === "chara_card_v3" ||
+      data.data;
     const core = isV2V3 ? data.data : data;
 
     return {
@@ -198,7 +230,8 @@ const stDisplayData = computed(() => {
       post_history_instructions: core?.post_history_instructions,
       alternate_greetings: core?.alternate_greetings || [],
       creator_notes: core?.creator_notes || core?.creatorcomment,
-      regexCount: (core?.regex_scripts || core?.extensions?.regex_scripts)?.length || 0,
+      regexCount:
+        (core?.regex_scripts || core?.extensions?.regex_scripts)?.length || 0,
     };
   } catch (e) {
     return null;

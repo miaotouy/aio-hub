@@ -4,7 +4,17 @@ import { useKnowledgeBaseStore } from "../stores/knowledgeBaseStore";
 import { useKnowledgeBase } from "../composables/useKnowledgeBase";
 import { createModuleLogger } from "@/utils/logger";
 import { useVirtualizer } from "@tanstack/vue-virtual";
-import { Search, RotateCw, Plus, Zap, Clock, FileUp, ArrowUpDown, Check, Coins } from "lucide-vue-next";
+import {
+  Search,
+  RotateCw,
+  Plus,
+  Zap,
+  Clock,
+  FileUp,
+  ArrowUpDown,
+  Check,
+  Coins,
+} from "lucide-vue-next";
 import { useFileInteraction } from "@/composables/useFileInteraction";
 import { isTextFile } from "@/utils/fileTypeDetector";
 import { customMessage } from "@/utils/customMessage";
@@ -23,7 +33,8 @@ const emit = defineEmits<{
 
 const kbStore = useKnowledgeBaseStore();
 const logger = createModuleLogger("knowledge-base/CaiuList");
-const { switchBase, addEntries, batchImportFiles, batchUpdateEntries } = useKnowledgeBase();
+const { switchBase, addEntries, batchImportFiles, batchUpdateEntries } =
+  useKnowledgeBase();
 const listContainerRef = ref<HTMLElement>();
 const fileInputRef = ref<HTMLInputElement>();
 
@@ -49,7 +60,7 @@ watch(
     debounceTimer = setTimeout(() => {
       debouncedSearchQuery.value = val;
     }, 300);
-  },
+  }
 );
 
 // 监听搜索词变化，触发后端搜索
@@ -67,7 +78,11 @@ watch(debouncedSearchQuery, async (val) => {
   try {
     const results = await kbStore.search(val, 50);
     const duration = Date.now() - startTime;
-    logger.info("后端检索完成", { query: val, count: results.length, duration: `${duration}ms` });
+    logger.info("后端检索完成", {
+      query: val,
+      count: results.length,
+      duration: `${duration}ms`,
+    });
 
     // 提取条目信息并附加分数
     // 注意：后端返回结构是 SearchResult { caiu: Caiu, score: f32, ... }
@@ -79,7 +94,9 @@ watch(debouncedSearchQuery, async (val) => {
         return {
           ...entry,
           // 关键：将后端的对象标签数组转为前端模板需要的字符串数组
-          tags: Array.isArray(entry.tags) ? entry.tags.map((t: any) => (typeof t === "string" ? t : t.name)) : [],
+          tags: Array.isArray(entry.tags)
+            ? entry.tags.map((t: any) => (typeof t === "string" ? t : t.name))
+            : [],
           searchScore: r.score,
         };
       })
@@ -119,11 +136,17 @@ const processFiles = async (files: File[]) => {
   });
 
   const results = await Promise.all(readPromises);
-  const tasks = results.filter((t): t is { key: string; content: string } => t !== null);
+  const tasks = results.filter(
+    (t): t is { key: string; content: string } => t !== null
+  );
   let skippedCount = textFiles.length - tasks.length;
 
   if (tasks.length > 0) {
-    const { ids, dupeCount, skippedCount: addErrorCount } = await addEntries(tasks);
+    const {
+      ids,
+      dupeCount,
+      skippedCount: addErrorCount,
+    } = await addEntries(tasks);
     if (ids.length > 0) {
       customMessage.success(`成功导入 ${ids.length} 个条目`);
     }
@@ -137,7 +160,9 @@ const processFiles = async (files: File[]) => {
 
   if (skippedCount > 0 || textFiles.length < files.length) {
     const totalSkipped = skippedCount + (files.length - textFiles.length);
-    customMessage.warning(`${totalSkipped} 个文件（过大、非文本或读取失败）已跳过`);
+    customMessage.warning(
+      `${totalSkipped} 个文件（过大、非文本或读取失败）已跳过`
+    );
   }
 };
 
@@ -189,7 +214,9 @@ const localFilteredEntries = computed(() => {
   if (!debouncedSearchQuery.value.trim()) return [];
   const q = debouncedSearchQuery.value.toLowerCase();
   return kbStore.sortedEntries.filter(
-    (e) => e.key.toLowerCase().includes(q) || (e.summary || "").toLowerCase().includes(q),
+    (e) =>
+      e.key.toLowerCase().includes(q) ||
+      (e.summary || "").toLowerCase().includes(q)
   );
 });
 
@@ -277,7 +304,11 @@ const handleSelect = (id: string) => {
 </script>
 
 <template>
-  <div ref="listContainerRef" class="caiu-list-container" :class="{ 'is-dragging': isDraggingOver }">
+  <div
+    ref="listContainerRef"
+    class="caiu-list-container"
+    :class="{ 'is-dragging': isDraggingOver }"
+  >
     <div class="drag-overlay" v-if="isDraggingOver">
       <div class="drag-hint">
         <FileUp :size="32" />
@@ -288,7 +319,13 @@ const handleSelect = (id: string) => {
     <div class="sidebar-header">
       <!-- 搜索栏 -->
       <div class="search-bar">
-        <el-input v-model="searchQueryModel" placeholder="搜索条目..." :prefix-icon="Search" clearable size="default" />
+        <el-input
+          v-model="searchQueryModel"
+          placeholder="搜索条目..."
+          :prefix-icon="Search"
+          clearable
+          size="default"
+        />
       </div>
 
       <!-- 工具栏 -->
@@ -299,22 +336,40 @@ const handleSelect = (id: string) => {
               <template v-if="isSearching && remoteSearchResults.length === 0">
                 本地匹配 {{ entryList.length }} 项，正在检索...
               </template>
-              <template v-else-if="isSearching"> 找到 {{ entryList.length }} 项，正在同步... </template>
+              <template v-else-if="isSearching">
+                找到 {{ entryList.length }} 项，正在同步...
+              </template>
               <template v-else> 找到 {{ entryList.length }} 个匹配项 </template>
             </template>
-            <template v-else> {{ entryList.length }} / {{ kbStore.sortedEntries.length }} </template>
+            <template v-else>
+              {{ entryList.length }} / {{ kbStore.sortedEntries.length }}
+            </template>
           </span>
-          <el-icon v-if="isSearching" class="is-loading" style="margin-left: 4px">
+          <el-icon
+            v-if="isSearching"
+            class="is-loading"
+            style="margin-left: 4px"
+          >
             <RotateCw :size="12" />
           </el-icon>
         </div>
 
         <div class="toolbar-right">
-          <input ref="fileInputRef" type="file" multiple style="display: none" @change="handleFileChange" />
+          <input
+            ref="fileInputRef"
+            type="file"
+            multiple
+            style="display: none"
+            @change="handleFileChange"
+          />
           <div class="toolbar-group">
             <el-dropdown trigger="click" size="small">
               <div>
-                <el-tooltip content="排序方式" placement="bottom" :show-after="500">
+                <el-tooltip
+                  content="排序方式"
+                  placement="bottom"
+                  :show-after="500"
+                >
                   <el-button link class="icon-btn">
                     <ArrowUpDown :size="16" />
                   </el-button>
@@ -333,19 +388,31 @@ const handleSelect = (id: string) => {
                   >
                     <div class="sort-menu-item">
                       <span>{{ item.label }}</span>
-                      <Check v-if="kbStore.entrySort.field === item.value" :size="14" />
+                      <Check
+                        v-if="kbStore.entrySort.field === item.value"
+                        :size="14"
+                      />
                     </div>
                   </el-dropdown-item>
-                  <el-dropdown-item divided @click="kbStore.entrySort.order = 'asc'">
+                  <el-dropdown-item
+                    divided
+                    @click="kbStore.entrySort.order = 'asc'"
+                  >
                     <div class="sort-menu-item">
                       <span>升序</span>
-                      <Check v-if="kbStore.entrySort.order === 'asc'" :size="14" />
+                      <Check
+                        v-if="kbStore.entrySort.order === 'asc'"
+                        :size="14"
+                      />
                     </div>
                   </el-dropdown-item>
                   <el-dropdown-item @click="kbStore.entrySort.order = 'desc'">
                     <div class="sort-menu-item">
                       <span>降序</span>
-                      <Check v-if="kbStore.entrySort.order === 'desc'" :size="14" />
+                      <Check
+                        v-if="kbStore.entrySort.order === 'desc'"
+                        :size="14"
+                      />
                     </div>
                   </el-dropdown-item>
                 </el-dropdown-menu>
@@ -401,7 +468,9 @@ const handleSelect = (id: string) => {
             v-if="entryList[virtualItem.index]"
             class="entry-card"
             :class="{
-              active: !isSelectionMode && kbStore.activeEntryId === entryList[virtualItem.index].id,
+              active:
+                !isSelectionMode &&
+                kbStore.activeEntryId === entryList[virtualItem.index].id,
               'is-selecting': isSelectionMode,
               'is-disabled': !entryList[virtualItem.index].enabled,
             }"
@@ -411,13 +480,19 @@ const handleSelect = (id: string) => {
               <div class="title-row">
                 <el-checkbox
                   v-if="isSelectionMode"
-                  :model-value="selectedEntryIds.has(entryList[virtualItem.index].id)"
+                  :model-value="
+                    selectedEntryIds.has(entryList[virtualItem.index].id)
+                  "
                   @click.stop
                   @change="() => handleSelect(entryList[virtualItem.index].id)"
                   class="entry-checkbox"
                 />
                 <span class="card-title">
-                  <span v-if="!entryList[virtualItem.index].enabled" class="disabled-prefix">[已禁用]</span>
+                  <span
+                    v-if="!entryList[virtualItem.index].enabled"
+                    class="disabled-prefix"
+                    >[已禁用]</span
+                  >
                   {{ entryList[virtualItem.index].key }}
                 </span>
               </div>
@@ -427,15 +502,20 @@ const handleSelect = (id: string) => {
                   size="small"
                   class="enabled-switch"
                   @click.stop
-                  @change="() => handleToggleEnabled(entryList[virtualItem.index])"
+                  @change="
+                    () => handleToggleEnabled(entryList[virtualItem.index])
+                  "
                 />
                 <el-tooltip
                   :content="
-                    getEntryVectorStatus(entryList[virtualItem.index]) === 'ready'
+                    getEntryVectorStatus(entryList[virtualItem.index]) ===
+                    'ready'
                       ? '已向量化'
-                      : getEntryVectorStatus(entryList[virtualItem.index]) === 'pending'
+                      : getEntryVectorStatus(entryList[virtualItem.index]) ===
+                          'pending'
                         ? '正在执行向量化'
-                        : getEntryVectorStatus(entryList[virtualItem.index]) === 'error'
+                        : getEntryVectorStatus(entryList[virtualItem.index]) ===
+                            'error'
                           ? '向量化失败'
                           : '未向量化'
                   "
@@ -447,36 +527,55 @@ const handleSelect = (id: string) => {
                     :class="[
                       getEntryVectorStatus(entryList[virtualItem.index]),
                       {
-                        'is-spinning': getEntryVectorStatus(entryList[virtualItem.index]) === 'pending',
+                        'is-spinning':
+                          getEntryVectorStatus(entryList[virtualItem.index]) ===
+                          'pending',
                       },
                     ]"
                   />
                 </el-tooltip>
                 <template v-if="entryList[virtualItem.index].totalTokens">
                   <Coins :size="12" />
-                  <span>{{ formatTokens(entryList[virtualItem.index].totalTokens) }}</span>
+                  <span>{{
+                    formatTokens(entryList[virtualItem.index].totalTokens)
+                  }}</span>
                 </template>
                 <Clock :size="12" />
-                <span>{{ new Date(entryList[virtualItem.index].updatedAt).toLocaleDateString() }}</span>
+                <span>{{
+                  new Date(
+                    entryList[virtualItem.index].updatedAt
+                  ).toLocaleDateString()
+                }}</span>
               </div>
             </div>
             <div class="card-preview">
               {{ entryList[virtualItem.index].summary || "无内容预览" }}
             </div>
             <div class="card-footer">
-              <div class="tags-row" v-if="entryList[virtualItem.index]?.tags?.length > 0">
+              <div
+                class="tags-row"
+                v-if="entryList[virtualItem.index]?.tags?.length > 0"
+              >
                 <el-tag
-                  v-for="tagName in entryList[virtualItem.index].tags.slice(0, 3)"
+                  v-for="tagName in entryList[virtualItem.index].tags.slice(
+                    0,
+                    3
+                  )"
                   :key="tagName"
                   size="small"
                   effect="plain"
                   >{{ tagName }}</el-tag
                 >
-                <span v-if="entryList[virtualItem.index].tags.length > 3" class="more-tags"
+                <span
+                  v-if="entryList[virtualItem.index].tags.length > 3"
+                  class="more-tags"
                   >+{{ entryList[virtualItem.index].tags.length - 3 }}</span
                 >
               </div>
-              <div class="priority-badge" v-if="entryList[virtualItem.index]?.priority !== 100">
+              <div
+                class="priority-badge"
+                v-if="entryList[virtualItem.index]?.priority !== 100"
+              >
                 P{{ entryList[virtualItem.index].priority }}
               </div>
             </div>
@@ -705,12 +804,20 @@ const handleSelect = (id: string) => {
 }
 
 .entry-card.is-selecting:hover {
-  background-color: color-mix(in srgb, var(--el-color-primary), transparent 95%);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-primary),
+    transparent 95%
+  );
   border-color: rgba(var(--el-color-primary-rgb), 0.2);
 }
 
 .entry-card.is-selecting.active {
-  background-color: color-mix(in srgb, var(--el-color-primary), transparent 90%);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-primary),
+    transparent 90%
+  );
   border-color: rgba(var(--el-color-primary-rgb), 0.3);
 }
 

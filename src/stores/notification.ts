@@ -58,7 +58,9 @@ export const useNotificationStore = defineStore("notification", () => {
   );
 
   // Getters
-  const unreadCount = computed(() => notifications.value.filter((n) => !n.read).length);
+  const unreadCount = computed(
+    () => notifications.value.filter((n) => !n.read).length
+  );
 
   const sortedNotifications = computed(() =>
     [...notifications.value].sort((a, b) => b.timestamp - a.timestamp)
@@ -108,7 +110,8 @@ export const useNotificationStore = defineStore("notification", () => {
   };
 
   const toggleCenter = (visible?: boolean) => {
-    centerVisible.value = visible !== undefined ? visible : !centerVisible.value;
+    centerVisible.value =
+      visible !== undefined ? visible : !centerVisible.value;
   };
 
   // 执行加载

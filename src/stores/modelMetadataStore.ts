@@ -1,7 +1,16 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
-import type { ModelMetadataRule, ModelMetadataStore, PresetIconInfo } from "../types/model-metadata";
-import { DEFAULT_METADATA_RULES, isValidIconPath, normalizeIconPath, testRuleMatch } from "../config/model-metadata";
+import type {
+  ModelMetadataRule,
+  ModelMetadataStore,
+  PresetIconInfo,
+} from "../types/model-metadata";
+import {
+  DEFAULT_METADATA_RULES,
+  isValidIconPath,
+  normalizeIconPath,
+  testRuleMatch,
+} from "../config/model-metadata";
 import { PRESET_ICONS } from "../config/preset-icons";
 import { createConfigManager } from "@utils/configManager";
 import { createModuleLogger } from "@utils/logger";
@@ -35,12 +44,15 @@ export const useModelMetadataStore = defineStore("modelMetadata", () => {
 
   // --- 计算属性 ---
   const presetIcons = computed<PresetIconInfo[]>(() => PRESET_ICONS);
-  const enabledCount = computed(() => rules.value.filter((r) => r.enabled !== false).length);
+  const enabledCount = computed(
+    () => rules.value.filter((r) => r.enabled !== false).length
+  );
 
   /** 内置预设中尚未合并到用户规则的新规则数量 */
   const pendingUpdatesCount = computed(() => {
     const currentRuleIds = new Set(rules.value.map((r) => r.id));
-    return DEFAULT_METADATA_RULES.filter((r) => !currentRuleIds.has(r.id)).length;
+    return DEFAULT_METADATA_RULES.filter((r) => !currentRuleIds.has(r.id))
+      .length;
   });
 
   // --- 核心操作 ---
@@ -56,7 +68,9 @@ export const useModelMetadataStore = defineStore("modelMetadata", () => {
       if (data.rules.length === DEFAULT_METADATA_RULES.length) {
         const stored = localStorage.getItem(STORAGE_KEY);
         if (stored) {
-          logger.info("检测到 localStorage 中的旧版数据，开始迁移", { storageKey: STORAGE_KEY });
+          logger.info("检测到 localStorage 中的旧版数据，开始迁移", {
+            storageKey: STORAGE_KEY,
+          });
           try {
             const oldData: { configs: any[] } = JSON.parse(stored);
             if (oldData.configs && Array.isArray(oldData.configs)) {
@@ -76,10 +90,15 @@ export const useModelMetadataStore = defineStore("modelMetadata", () => {
               data.updatedAt = new Date().toISOString();
               await configManager.save(data);
               localStorage.removeItem(STORAGE_KEY);
-              logger.info("localStorage 数据迁移完成", { ruleCount: data.rules.length });
+              logger.info("localStorage 数据迁移完成", {
+                ruleCount: data.rules.length,
+              });
             }
           } catch (e) {
-            errorHandler.handle(e, { userMessage: "localStorage 数据迁移失败", showToUser: false });
+            errorHandler.handle(e, {
+              userMessage: "localStorage 数据迁移失败",
+              showToUser: false,
+            });
           }
         }
       }
@@ -89,7 +108,9 @@ export const useModelMetadataStore = defineStore("modelMetadata", () => {
         ...rule,
         properties: {
           ...rule.properties,
-          icon: rule.properties.icon ? normalizeIconPath(rule.properties.icon) : undefined,
+          icon: rule.properties.icon
+            ? normalizeIconPath(rule.properties.icon)
+            : undefined,
         },
       }));
       isLoaded.value = true;
@@ -123,7 +144,9 @@ export const useModelMetadataStore = defineStore("modelMetadata", () => {
   /**
    * 添加规则
    */
-  async function addRule(rule: Omit<ModelMetadataRule, "id">): Promise<boolean> {
+  async function addRule(
+    rule: Omit<ModelMetadataRule, "id">
+  ): Promise<boolean> {
     try {
       const newRule: ModelMetadataRule = {
         ...rule,
@@ -132,11 +155,16 @@ export const useModelMetadataStore = defineStore("modelMetadata", () => {
         createdAt: new Date().toISOString(),
         properties: {
           ...rule.properties,
-          icon: rule.properties.icon ? normalizeIconPath(rule.properties.icon) : undefined,
+          icon: rule.properties.icon
+            ? normalizeIconPath(rule.properties.icon)
+            : undefined,
         },
       };
 
-      if (newRule.properties.icon && !isValidIconPath(newRule.properties.icon)) {
+      if (
+        newRule.properties.icon &&
+        !isValidIconPath(newRule.properties.icon)
+      ) {
         throw new Error("无效的图标路径");
       }
       rules.value.push(newRule);
@@ -151,17 +179,25 @@ export const useModelMetadataStore = defineStore("modelMetadata", () => {
   /**
    * 更新规则
    */
-  async function updateRule(id: string, updates: Partial<ModelMetadataRule>): Promise<boolean> {
+  async function updateRule(
+    id: string,
+    updates: Partial<ModelMetadataRule>
+  ): Promise<boolean> {
     try {
       const index = rules.value.findIndex((r) => r.id === id);
       if (index === -1) throw new Error("规则不存在");
 
       const processedUpdates = { ...updates };
       if (processedUpdates.properties?.icon) {
-        processedUpdates.properties.icon = normalizeIconPath(processedUpdates.properties.icon);
+        processedUpdates.properties.icon = normalizeIconPath(
+          processedUpdates.properties.icon
+        );
       }
 
-      if (processedUpdates.properties?.icon && !isValidIconPath(processedUpdates.properties.icon)) {
+      if (
+        processedUpdates.properties?.icon &&
+        !isValidIconPath(processedUpdates.properties.icon)
+      ) {
         throw new Error("无效的图标路径");
       }
 
@@ -215,7 +251,10 @@ export const useModelMetadataStore = defineStore("modelMetadata", () => {
   async function resetToDefaults(): Promise<boolean> {
     try {
       const now = new Date().toISOString();
-      rules.value = DEFAULT_METADATA_RULES.map((rule) => ({ ...rule, createdAt: now }));
+      rules.value = DEFAULT_METADATA_RULES.map((rule) => ({
+        ...rule,
+        createdAt: now,
+      }));
       await saveRules();
       return true;
     } catch (error) {
@@ -227,7 +266,10 @@ export const useModelMetadataStore = defineStore("modelMetadata", () => {
   /**
    * 合并内置
    */
-  async function mergeWithDefaults(): Promise<{ added: number; updated: number }> {
+  async function mergeWithDefaults(): Promise<{
+    added: number;
+    updated: number;
+  }> {
     try {
       const now = new Date().toISOString();
       const currentRules = [...rules.value];
@@ -253,7 +295,10 @@ export const useModelMetadataStore = defineStore("modelMetadata", () => {
   /**
    * 获取匹配规则
    */
-  function getMatchedRule(modelId: string, provider?: string): ModelMetadataRule | undefined {
+  function getMatchedRule(
+    modelId: string,
+    provider?: string
+  ): ModelMetadataRule | undefined {
     const enabledRules = rules.value
       .filter((r) => r.enabled !== false)
       .sort((a, b) => (b.priority || 0) - (a.priority || 0));

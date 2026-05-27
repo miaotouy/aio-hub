@@ -37,7 +37,10 @@ export const tokenLimiter: ContextProcessor = {
         } else if (Array.isArray(msg.content)) {
           // 简单地将所有 text 部分拼接起来计算 token
           contentText = msg.content
-            .filter((p): p is { type: "text"; text: string } => p.type === "text" && !!p.text)
+            .filter(
+              (p): p is { type: "text"; text: string } =>
+                p.type === "text" && !!p.text
+            )
             .map((p) => p.text)
             .join("\n");
         }
@@ -46,10 +49,10 @@ export const tokenLimiter: ContextProcessor = {
         const { count } = await tokenCalculatorService.calculateMessageTokens(
           contentText,
           modelId,
-          msg._attachments, // 传入附件列表
+          msg._attachments // 传入附件列表
         );
         return { ...msg, tokenCount: count, charCount: contentText.length };
-      }),
+      })
     );
 
     // 2. 区分历史消息和预设消息
@@ -68,7 +71,8 @@ export const tokenLimiter: ContextProcessor = {
     }
 
     // 3. 计算历史消息可用预算
-    const availableForHistory = contextManagement.maxContextTokens - presetTokens;
+    const availableForHistory =
+      contextManagement.maxContextTokens - presetTokens;
 
     if (availableForHistory <= 0) {
       const message = `预设消息 (${presetTokens} tokens) 已耗尽所有预算 (${contextManagement.maxContextTokens})，历史消息被完全截断。`;
@@ -79,7 +83,9 @@ export const tokenLimiter: ContextProcessor = {
         message,
       });
       // 只保留预设消息
-      context.messages = messages.filter((m) => m.sourceType !== "session_history");
+      context.messages = messages.filter(
+        (m) => m.sourceType !== "session_history"
+      );
       return;
     }
 
@@ -105,20 +111,25 @@ export const tokenLimiter: ContextProcessor = {
         currentHistoryChars += msg.charCount;
         keepCount++;
         const msgIndex = messagesWithTokens.indexOf(msg);
-        finalHistoryMessages.unshift({ original: messages[msgIndex], final: msg });
+        finalHistoryMessages.unshift({
+          original: messages[msgIndex],
+          final: msg,
+        });
       } else {
         // 预算不足，尝试截断保留开头
         if (retainedCharacters > 0 && typeof msg.content === "string") {
           const originalContent = msg.content;
           // 截取开头，并添加提示
-          const truncatedContent = originalContent.slice(0, retainedCharacters) + "\n...(已截断)";
+          const truncatedContent =
+            originalContent.slice(0, retainedCharacters) + "\n...(已截断)";
 
           // 重新计算截断后的 Token
-          const { count: truncatedTokens } = await tokenCalculatorService.calculateMessageTokens(
-            truncatedContent,
-            modelId,
-            msg._attachments,
-          );
+          const { count: truncatedTokens } =
+            await tokenCalculatorService.calculateMessageTokens(
+              truncatedContent,
+              modelId,
+              msg._attachments
+            );
 
           // 如果截断后能放得下
           if (currentHistoryTokens + truncatedTokens <= availableForHistory) {
@@ -138,7 +149,10 @@ export const tokenLimiter: ContextProcessor = {
             currentHistoryChars += truncatedMsg.charCount;
             keepCount++;
             const msgIndex = messagesWithTokens.indexOf(msg);
-            finalHistoryMessages.unshift({ original: messages[msgIndex], final: truncatedMsg });
+            finalHistoryMessages.unshift({
+              original: messages[msgIndex],
+              final: truncatedMsg,
+            });
           }
         }
 
@@ -147,7 +161,12 @@ export const tokenLimiter: ContextProcessor = {
         // 计算那些被完全丢弃的消息所节省的 Token
         for (
           let j = 0;
-          j <= i - (partialTruncatedCount > 0 && finalHistoryMessages[0].final.isTruncated ? 0 : 0);
+          j <=
+          i -
+            (partialTruncatedCount > 0 &&
+            finalHistoryMessages[0].final.isTruncated
+              ? 0
+              : 0);
           j++
         ) {
           // 这里逻辑有点绕，直接重算更清晰
@@ -157,9 +176,18 @@ export const tokenLimiter: ContextProcessor = {
     }
 
     // 计算总节省 Token 和 字符
-    const originalHistoryTokens = historyMessages.reduce((sum, m) => sum + m.tokenCount, 0);
-    const originalHistoryChars = historyMessages.reduce((sum, m) => sum + m.charCount, 0);
-    const originalPresetChars = presetMessages.reduce((sum, m) => sum + m.charCount, 0);
+    const originalHistoryTokens = historyMessages.reduce(
+      (sum, m) => sum + m.tokenCount,
+      0
+    );
+    const originalHistoryChars = historyMessages.reduce(
+      (sum, m) => sum + m.charCount,
+      0
+    );
+    const originalPresetChars = presetMessages.reduce(
+      (sum, m) => sum + m.charCount,
+      0
+    );
 
     totalSavedTokens = originalHistoryTokens - currentHistoryTokens;
     const totalSavedChars = originalHistoryChars - currentHistoryChars;
@@ -183,7 +211,9 @@ export const tokenLimiter: ContextProcessor = {
 
     // 按照原始 messages 的顺序构造最终列表
     // 这样可以保持预设消息和历史消息的相对顺序（虽然通常预设在前，历史在后）
-    const newContextMessages = messages.filter((m) => finalMsgMap.has(m)).map((m) => finalMsgMap.get(m));
+    const newContextMessages = messages
+      .filter((m) => finalMsgMap.has(m))
+      .map((m) => finalMsgMap.get(m));
 
     const originalHistoryCount = historyMessages.length;
     const finalHistoryCount = keepCount;

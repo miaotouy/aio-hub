@@ -5,10 +5,16 @@
  */
 export const generateUuid = (): string => {
   try {
-    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    if (
+      typeof crypto !== "undefined" &&
+      typeof crypto.randomUUID === "function"
+    ) {
       return crypto.randomUUID();
     }
-    if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
+    if (
+      typeof crypto !== "undefined" &&
+      typeof crypto.getRandomValues === "function"
+    ) {
       return Array.from(crypto.getRandomValues(new Uint8Array(16)))
         .map((b, i) =>
           (i === 6 ? (b & 0x0f) | 0x40 : i === 8 ? (b & 0x3f) | 0x80 : b)

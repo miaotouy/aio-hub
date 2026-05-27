@@ -30,9 +30,9 @@ export const useUserProfileStore = defineStore("llmChatUserProfile", {
      */
     getProfileById:
       (state) =>
-        (id: string): UserProfile | undefined => {
-          return state.profiles.find((profile) => profile.id === id);
-        },
+      (id: string): UserProfile | undefined => {
+        return state.profiles.find((profile) => profile.id === id);
+      },
 
     /**
      * 按最后使用时间排序的档案列表
@@ -52,7 +52,7 @@ export const useUserProfileStore = defineStore("llmChatUserProfile", {
       if (!state.globalProfileId) return null;
       return (
         state.profiles.find(
-          (profile) => profile.id === state.globalProfileId,
+          (profile) => profile.id === state.globalProfileId
         ) || null
       );
     },
@@ -72,12 +72,16 @@ export const useUserProfileStore = defineStore("llmChatUserProfile", {
       (state) =>
       (agentUserProfileId?: string | null): UserProfile | null => {
         if (agentUserProfileId) {
-          const profile = state.profiles.find((p) => p.id === agentUserProfileId);
+          const profile = state.profiles.find(
+            (p) => p.id === agentUserProfileId
+          );
           if (profile) return profile;
         }
         // 回退到全局档案
         if (!state.globalProfileId) return null;
-        return state.profiles.find((p) => p.id === state.globalProfileId) || null;
+        return (
+          state.profiles.find((p) => p.id === state.globalProfileId) || null
+        );
       },
   },
 
@@ -94,7 +98,7 @@ export const useUserProfileStore = defineStore("llmChatUserProfile", {
         richTextStyleOptions?: import("@/tools/rich-text-renderer/types").RichTextRendererStyleOptions;
         richTextStyleBehavior?: "follow_agent" | "custom";
         regexConfig?: import("../types").ChatRegexConfig;
-      },
+      }
     ): string {
       const profileId = `user-profile-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       const now = new Date().toISOString();
@@ -132,7 +136,7 @@ export const useUserProfileStore = defineStore("llmChatUserProfile", {
      */
     async updateProfile(
       profileId: string,
-      updates: Partial<Omit<UserProfile, "id" | "createdAt">>,
+      updates: Partial<Omit<UserProfile, "id" | "createdAt">>
     ): Promise<void> {
       const profile = this.profiles.find((p) => p.id === profileId);
       if (!profile) {
@@ -170,7 +174,7 @@ export const useUserProfileStore = defineStore("llmChatUserProfile", {
           userMessage: "删除用户档案文件失败",
           showToUser: false,
           context: { profileId },
-        }),
+        })
       );
 
       this.profiles.splice(index, 1);
@@ -272,7 +276,7 @@ export const useUserProfileStore = defineStore("llmChatUserProfile", {
           userMessage: "持久化用户档案失败",
           showToUser: false,
           context: { profileCount: this.profiles.length },
-        }),
+        })
       );
     },
 
@@ -292,7 +296,7 @@ export const useUserProfileStore = defineStore("llmChatUserProfile", {
           userMessage: "持久化单个用户档案失败",
           showToUser: false,
           context: { profileId },
-        }),
+        })
       );
     },
 
@@ -306,7 +310,7 @@ export const useUserProfileStore = defineStore("llmChatUserProfile", {
           errorHandler.handle(error as Error, {
             userMessage: "持久化用户档案设置失败",
             showToUser: false,
-          }),
+          })
       );
     },
 
@@ -315,20 +319,26 @@ export const useUserProfileStore = defineStore("llmChatUserProfile", {
      */
     async loadProfiles(): Promise<void> {
       try {
-        const { loadProfilesIndex, loadProfile, loadSettings } = useUserProfileStorage();
+        const { loadProfilesIndex, loadProfile, loadSettings } =
+          useUserProfileStorage();
 
         // 1. 加载档案索引（轻量级）
         const { profiles: indexItems } = await loadProfilesIndex();
 
         if (indexItems.length > 0) {
           // 2. 将元数据转换为轻量档案对象放入 store
-          this.profiles = indexItems.map(item => ({
-            ...item,
-            // 详情字段设为 undefined，待按需加载
-            content: undefined,
-          } as any));
+          this.profiles = indexItems.map(
+            (item) =>
+              ({
+                ...item,
+                // 详情字段设为 undefined，待按需加载
+                content: undefined,
+              }) as any
+          );
 
-          logger.info("加载用户档案索引成功", { profileCount: this.profiles.length });
+          logger.info("加载用户档案索引成功", {
+            profileCount: this.profiles.length,
+          });
 
           // 3. 加载设置（获取当前选中的档案 ID）
           const settings = await loadSettings();
@@ -338,10 +348,14 @@ export const useUserProfileStore = defineStore("llmChatUserProfile", {
             // 4. 核心优化：只针对当前活跃档案加载完整详情
             const fullProfile = await loadProfile(settings.globalProfileId);
             if (fullProfile) {
-              const index = this.profiles.findIndex(p => p.id === settings.globalProfileId);
+              const index = this.profiles.findIndex(
+                (p) => p.id === settings.globalProfileId
+              );
               if (index !== -1) {
                 this.profiles[index] = fullProfile;
-                logger.info("当前活跃用户档案详情加载完成", { profileId: settings.globalProfileId });
+                logger.info("当前活跃用户档案详情加载完成", {
+                  profileId: settings.globalProfileId,
+                });
               }
             }
           }

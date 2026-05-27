@@ -35,7 +35,9 @@ import {
  */
 export interface CapabilityConfig {
   /** 能力键名（对应 LlmModelInfo.capabilities 中的字段） */
-  key: keyof NonNullable<import("../types/llm-profiles").LlmModelInfo["capabilities"]>;
+  key: keyof NonNullable<
+    import("../types/llm-profiles").LlmModelInfo["capabilities"]
+  >;
   /** 显示标签 */
   label: string;
   /** 能力描述 */

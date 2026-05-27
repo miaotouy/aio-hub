@@ -68,10 +68,14 @@
         <div class="panel-header">
           <div class="title-group">
             <span class="panel-title">运行结果</span>
-            <span v-if="executionTime" class="panel-subtitle">耗时: {{ executionTime }}ms</span>
+            <span v-if="executionTime" class="panel-subtitle"
+              >耗时: {{ executionTime }}ms</span
+            >
           </div>
           <div v-if="lastResponse" class="header-tags">
-            <el-tag effect="plain" size="small" type="info">维度: {{ vectorDimension }}</el-tag>
+            <el-tag effect="plain" size="small" type="info"
+              >维度: {{ vectorDimension }}</el-tag
+            >
             <el-tag effect="plain" size="small" type="success"
               >Tokens: {{ lastResponse.usage?.totalTokens || 0 }}</el-tag
             >
@@ -132,9 +136,12 @@ import { createModuleLogger } from "@/utils/logger";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 
 const store = useEmbeddingPlaygroundStore();
-const { isLoading, lastResponse, executionTime, runEmbedding } = useEmbeddingRunner();
+const { isLoading, lastResponse, executionTime, runEmbedding } =
+  useEmbeddingRunner();
 
-const errorHandler = createModuleErrorHandler("embedding-playground/RawDebugger");
+const errorHandler = createModuleErrorHandler(
+  "embedding-playground/RawDebugger"
+);
 const logger = createModuleLogger("embedding-playground/RawDebugger");
 
 // 常用维度预设

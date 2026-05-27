@@ -1,5 +1,10 @@
 <template>
-  <div ref="galleryRef" class="sketch-gallery" @mousemove="handleGridMouseMove" @mouseleave="handleGridMouseLeave">
+  <div
+    ref="galleryRef"
+    class="sketch-gallery"
+    @mousemove="handleGridMouseMove"
+    @mouseleave="handleGridMouseLeave"
+  >
     <div class="gallery-header">
       <div class="title-section">
         <h2 class="title">草图画板</h2>
@@ -7,20 +12,33 @@
       </div>
       <div class="action-section">
         <el-tooltip content="画板设置" placement="bottom">
-          <el-button :icon="Settings2" circle @click="ctx.showSettings.value = true" />
+          <el-button
+            :icon="Settings2"
+            circle
+            @click="ctx.showSettings.value = true"
+          />
         </el-tooltip>
         <el-tooltip content="刷新索引" placement="bottom">
           <el-button :icon="RefreshCw" circle @click="store.syncIndex()" />
         </el-tooltip>
-        <el-button type="primary" :icon="Plus" @click="openCreateDialog">新建草图</el-button>
-        <el-button :icon="Upload" @click="handleImport">导入草图 (.aiosk)</el-button>
+        <el-button type="primary" :icon="Plus" @click="openCreateDialog"
+          >新建草图</el-button
+        >
+        <el-button :icon="Upload" @click="handleImport"
+          >导入草图 (.aiosk)</el-button
+        >
       </div>
     </div>
 
     <!-- 草图列表（独立滚动区域） -->
     <div class="gallery-body">
       <div v-if="projects.length > 0" ref="gridRef" class="project-grid">
-        <div v-for="project in projects" :key="project.id" class="project-card" @click="selectProject(project.id)">
+        <div
+          v-for="project in projects"
+          :key="project.id"
+          class="project-card"
+          @click="selectProject(project.id)"
+        >
           <div class="card-glow-border" />
           <div class="card-glow-bg" />
           <div class="thumbnail-container">
@@ -38,8 +56,19 @@
             <div class="project-name-row">
               <span class="project-name">{{ project.name }}</span>
               <div class="project-actions" @click.stop>
-                <el-button :icon="Edit" link size="small" @click="startRename(project)" />
-                <el-button :icon="Trash2" link type="danger" size="small" @click="confirmDelete(project)" />
+                <el-button
+                  :icon="Edit"
+                  link
+                  size="small"
+                  @click="startRename(project)"
+                />
+                <el-button
+                  :icon="Trash2"
+                  link
+                  type="danger"
+                  size="small"
+                  @click="confirmDelete(project)"
+                />
               </div>
             </div>
             <div class="project-meta">
@@ -47,7 +76,9 @@
                 <component :is="Calendar" class="meta-icon" />
                 {{ formatDate(project.updatedAt) }}
               </span>
-              <span class="meta-item"> {{ project.width }} × {{ project.height }} </span>
+              <span class="meta-item">
+                {{ project.width }} × {{ project.height }}
+              </span>
             </div>
           </div>
         </div>
@@ -56,7 +87,9 @@
       <div v-else class="empty-state">
         <component :is="Image" class="empty-icon" />
         <p class="empty-text">还没有草图，快来新建一个吧！</p>
-        <el-button type="primary" :icon="Plus" @click="showCreateDialog = true">新建草图</el-button>
+        <el-button type="primary" :icon="Plus" @click="showCreateDialog = true"
+          >新建草图</el-button
+        >
       </div>
     </div>
 
@@ -81,7 +114,10 @@
               @click="selectPreset(preset.id)"
             >
               <div class="ratio-block-wrapper">
-                <div class="ratio-block" :style="getRatioBlockStyle(preset.ratio)" />
+                <div
+                  class="ratio-block"
+                  :style="getRatioBlockStyle(preset.ratio)"
+                />
               </div>
               <span class="ratio-name">{{ preset.name }}</span>
               <span class="ratio-value">{{ preset.ratioLabel }}</span>
@@ -94,7 +130,13 @@
           <div v-if="createForm.preset === 'custom'" class="custom-size-row">
             <div class="size-input-group">
               <label class="size-label">宽</label>
-              <el-input-number v-model="createForm.width" :min="100" :max="8192" :step="10" controls-position="right" />
+              <el-input-number
+                v-model="createForm.width"
+                :min="100"
+                :max="8192"
+                :step="10"
+                controls-position="right"
+              />
             </div>
             <span class="size-separator">×</span>
             <div class="size-input-group">
@@ -119,15 +161,24 @@
           <Transition name="expand">
             <div v-if="createForm.createBackgroundLayer" class="bg-color-row">
               <label class="size-label">背景色</label>
-              <el-color-picker v-model="createForm.backgroundLayerColor" :predefine="BG_COLOR_PRESETS" show-alpha />
-              <span class="color-hint">{{ createForm.backgroundLayerColor || "透明" }}</span>
+              <el-color-picker
+                v-model="createForm.backgroundLayerColor"
+                :predefine="BG_COLOR_PRESETS"
+                show-alpha
+              />
+              <span class="color-hint">{{
+                createForm.backgroundLayerColor || "透明"
+              }}</span>
             </div>
           </Transition>
         </div>
 
         <!-- 尺寸预览 -->
         <div class="size-preview">
-          最终尺寸：<strong>{{ createForm.width }} × {{ createForm.height }}</strong> px
+          最终尺寸：<strong
+            >{{ createForm.width }} × {{ createForm.height }}</strong
+          >
+          px
         </div>
       </div>
       <template #footer>
@@ -154,7 +205,16 @@
 <script setup lang="ts">
 import { ref, reactive, inject, computed } from "vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
-import { Plus, Upload, Trash2, Edit, Calendar, Image, RefreshCw, Settings2 } from "lucide-vue-next";
+import {
+  Plus,
+  Upload,
+  Trash2,
+  Edit,
+  Calendar,
+  Image,
+  RefreshCw,
+  Settings2,
+} from "lucide-vue-next";
 import type { SketchProject } from "../types";
 import { generateDefaultSketchName } from "../constants";
 import { useSketchSettings } from "../composables/useSketchSettings";
@@ -231,19 +291,77 @@ function handleGridMouseLeave() {
 
 // 画布预设定义
 const CANVAS_PRESETS = [
-  { id: "ultrawide", name: "超宽", ratioLabel: "2.39:1", ratio: 2.39, width: 2390, height: 1000 },
-  { id: "wide", name: "宽屏", ratioLabel: "1.85:1", ratio: 1.85, width: 1850, height: 1000 },
-  { id: "hd", name: "HD", ratioLabel: "16:9", ratio: 16 / 9, width: 1920, height: 1080 },
-  { id: "old", name: "传统", ratioLabel: "4:3", ratio: 4 / 3, width: 1600, height: 1200 },
-  { id: "square", name: "方形", ratioLabel: "1:1", ratio: 1, width: 1024, height: 1024 },
-  { id: "vertical", name: "竖屏", ratioLabel: "9:16", ratio: 9 / 16, width: 1080, height: 1920 },
-  { id: "custom", name: "自定义", ratioLabel: "自由", ratio: 0, width: 1920, height: 1080 },
+  {
+    id: "ultrawide",
+    name: "超宽",
+    ratioLabel: "2.39:1",
+    ratio: 2.39,
+    width: 2390,
+    height: 1000,
+  },
+  {
+    id: "wide",
+    name: "宽屏",
+    ratioLabel: "1.85:1",
+    ratio: 1.85,
+    width: 1850,
+    height: 1000,
+  },
+  {
+    id: "hd",
+    name: "HD",
+    ratioLabel: "16:9",
+    ratio: 16 / 9,
+    width: 1920,
+    height: 1080,
+  },
+  {
+    id: "old",
+    name: "传统",
+    ratioLabel: "4:3",
+    ratio: 4 / 3,
+    width: 1600,
+    height: 1200,
+  },
+  {
+    id: "square",
+    name: "方形",
+    ratioLabel: "1:1",
+    ratio: 1,
+    width: 1024,
+    height: 1024,
+  },
+  {
+    id: "vertical",
+    name: "竖屏",
+    ratioLabel: "9:16",
+    ratio: 9 / 16,
+    width: 1080,
+    height: 1920,
+  },
+  {
+    id: "custom",
+    name: "自定义",
+    ratioLabel: "自由",
+    ratio: 0,
+    width: 1920,
+    height: 1080,
+  },
 ] as const;
 
 const { settings: sketchSettings } = useSketchSettings();
 
 // 背景色预设
-const BG_COLOR_PRESETS = ["#ffffff", "#f5f5f5", "#e8e8e8", "#1a1a1a", "#2d2d2d", "#000000", "#fffbe6", "#f0f5ff"];
+const BG_COLOR_PRESETS = [
+  "#ffffff",
+  "#f5f5f5",
+  "#e8e8e8",
+  "#1a1a1a",
+  "#2d2d2d",
+  "#000000",
+  "#fffbe6",
+  "#f0f5ff",
+];
 
 // 新建草图状态
 const showCreateDialog = ref(false);
@@ -323,7 +441,9 @@ function handleCreate() {
     width: createForm.width,
     height: createForm.height,
     createBackgroundLayer: createForm.createBackgroundLayer,
-    backgroundLayerColor: createForm.createBackgroundLayer ? createForm.backgroundLayerColor : null,
+    backgroundLayerColor: createForm.createBackgroundLayer
+      ? createForm.backgroundLayerColor
+      : null,
   });
   showCreateDialog.value = false;
 }
@@ -347,12 +467,16 @@ function handleRename() {
 
 async function confirmDelete(project: SketchProject) {
   try {
-    await ElMessageBox.confirm(`确定要删除草图 "${project.name}" 吗？此操作不可恢复。`, "提示", {
-      confirmButtonText: "确定",
-      cancelButtonText: "取消",
-      type: "warning",
-      lockScroll: false,
-    });
+    await ElMessageBox.confirm(
+      `确定要删除草图 "${project.name}" 吗？此操作不可恢复。`,
+      "提示",
+      {
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+        type: "warning",
+        lockScroll: false,
+      }
+    );
     ctx.lifecycle.deleteProject(project.id);
   } catch {
     // 取消删除
@@ -455,7 +579,10 @@ function formatDate(dateStr: string) {
 /* 鼠标在卡片内部时的完整边框高亮 */
 .project-card:hover {
   border-color: rgba(var(--primary-color-rgb, 64, 158, 255), 0.6);
-  background-color: rgba(var(--primary-color-rgb, 64, 158, 255), calc(var(--card-opacity, 1) * 0.03));
+  background-color: rgba(
+    var(--primary-color-rgb, 64, 158, 255),
+    calc(var(--card-opacity, 1) * 0.03)
+  );
 }
 
 /* 边框发光层 - 模拟 Win10 Reveal Border（仅在鼠标不在卡片内部时显示径向渐变） */
@@ -509,7 +636,8 @@ function formatDate(dateStr: string) {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  border-radius: var(--el-border-radius-base, 8px) var(--el-border-radius-base, 8px) 0 0;
+  border-radius: var(--el-border-radius-base, 8px)
+    var(--el-border-radius-base, 8px) 0 0;
   border-bottom: var(--border-width) solid var(--border-color);
 }
 
@@ -647,16 +775,25 @@ function formatDate(dateStr: string) {
   transition: all 0.2s;
   border: 2px solid transparent;
   min-width: 76px;
-  background-color: rgba(var(--primary-color-rgb, 64, 158, 255), calc(var(--card-opacity, 1) * 0.04));
+  background-color: rgba(
+    var(--primary-color-rgb, 64, 158, 255),
+    calc(var(--card-opacity, 1) * 0.04)
+  );
 }
 
 .ratio-card:hover {
-  background-color: rgba(var(--primary-color-rgb, 64, 158, 255), calc(var(--card-opacity, 1) * 0.08));
+  background-color: rgba(
+    var(--primary-color-rgb, 64, 158, 255),
+    calc(var(--card-opacity, 1) * 0.08)
+  );
 }
 
 .ratio-card.active {
   border-color: var(--primary-color);
-  background-color: rgba(var(--primary-color-rgb, 64, 158, 255), calc(var(--card-opacity, 1) * 0.1));
+  background-color: rgba(
+    var(--primary-color-rgb, 64, 158, 255),
+    calc(var(--card-opacity, 1) * 0.1)
+  );
 }
 
 .ratio-block-wrapper {
@@ -695,7 +832,10 @@ function formatDate(dateStr: string) {
   gap: 12px;
   padding: 12px 16px;
   border-radius: 8px;
-  background-color: rgba(var(--primary-color-rgb, 64, 158, 255), calc(var(--card-opacity, 1) * 0.04));
+  background-color: rgba(
+    var(--primary-color-rgb, 64, 158, 255),
+    calc(var(--card-opacity, 1) * 0.04)
+  );
 }
 
 .size-input-group {
@@ -722,7 +862,10 @@ function formatDate(dateStr: string) {
   gap: 10px;
   padding: 12px 16px;
   border-radius: 8px;
-  background-color: rgba(var(--primary-color-rgb, 64, 158, 255), calc(var(--card-opacity, 1) * 0.04));
+  background-color: rgba(
+    var(--primary-color-rgb, 64, 158, 255),
+    calc(var(--card-opacity, 1) * 0.04)
+  );
 }
 
 .bg-switch-row {

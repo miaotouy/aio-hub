@@ -2,7 +2,9 @@
 import { defineAsyncComponent } from "vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 
-const QuickActionFullManager = defineAsyncComponent(() => import("./QuickActionFullManager.vue"));
+const QuickActionFullManager = defineAsyncComponent(
+  () => import("./QuickActionFullManager.vue")
+);
 
 interface Props {
   visible: boolean;

@@ -13,8 +13,9 @@
     <div class="section">
       <h2 class="section-title">文本元素</h2>
       <p>
-        这是一个普通段落，包含一些 <strong>加粗文本</strong>、<em>斜体文本</em>、<u>下划线文本</u>
-        和 <del>删除线文本</del>。
+        这是一个普通段落，包含一些
+        <strong>加粗文本</strong>、<em>斜体文本</em>、<u>下划线文本</u> 和
+        <del>删除线文本</del>。
       </p>
       <p>这是一个包含 <a href="#">链接</a> 和 <code>行内代码</code> 的段落。</p>
       <blockquote>这是一个引用块，用于展示引用的文本内容。</blockquote>
@@ -347,9 +348,9 @@ button {
   backdrop-filter: blur(var(--ui-blur));
 }
 
-button:hover:not(:disabled):not(.primary):not(.success):not(.info):not(.warning):not(.danger):not(
-    .text
-  ) {
+button:hover:not(:disabled):not(.primary):not(.success):not(.info):not(
+    .warning
+  ):not(.danger):not(.text) {
   background-color: var(--el-fill-color-light);
   border-color: var(--el-border-color-hover);
 }
@@ -361,23 +362,39 @@ button:disabled {
 
 /* 按钮颜色变体 */
 button.primary {
-  background-color: color-mix(in srgb, var(--el-color-primary) 10%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-primary) 10%,
+    transparent
+  );
   color: var(--el-color-primary);
   border-color: var(--el-color-primary);
 }
 
 button.primary:hover:not(:disabled) {
-  background-color: color-mix(in srgb, var(--el-color-primary) 20%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-primary) 20%,
+    transparent
+  );
 }
 
 button.success {
-  background-color: color-mix(in srgb, var(--el-color-success) 10%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-success) 10%,
+    transparent
+  );
   color: var(--el-color-success);
   border-color: var(--el-color-success);
 }
 
 button.success:hover:not(:disabled) {
-  background-color: color-mix(in srgb, var(--el-color-success) 20%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-success) 20%,
+    transparent
+  );
 }
 
 button.info {
@@ -391,13 +408,21 @@ button.info:hover:not(:disabled) {
 }
 
 button.warning {
-  background-color: color-mix(in srgb, var(--el-color-warning) 10%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-warning) 10%,
+    transparent
+  );
   color: var(--el-color-warning);
   border-color: var(--el-color-warning);
 }
 
 button.warning:hover:not(:disabled) {
-  background-color: color-mix(in srgb, var(--el-color-warning) 20%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-warning) 20%,
+    transparent
+  );
 }
 
 button.danger {
@@ -424,11 +449,19 @@ button.primary.plain {
 }
 
 button.primary.plain:hover:not(:disabled) {
-  background-color: color-mix(in srgb, var(--el-color-primary) 10%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-primary) 10%,
+    transparent
+  );
 }
 
 button.success.plain:hover:not(:disabled) {
-  background-color: color-mix(in srgb, var(--el-color-success) 10%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-success) 10%,
+    transparent
+  );
 }
 
 button.info.plain:hover:not(:disabled) {
@@ -436,7 +469,11 @@ button.info.plain:hover:not(:disabled) {
 }
 
 button.warning.plain:hover:not(:disabled) {
-  background-color: color-mix(in srgb, var(--el-color-warning) 10%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-warning) 10%,
+    transparent
+  );
 }
 
 button.danger.plain:hover:not(:disabled) {
@@ -492,19 +529,35 @@ button.small {
 
 /* 暗色模式下的按钮样式 */
 html.dark button.primary {
-  background-color: color-mix(in srgb, var(--el-color-primary) 15%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-primary) 15%,
+    transparent
+  );
 }
 
 html.dark button.primary:hover:not(:disabled) {
-  background-color: color-mix(in srgb, var(--el-color-primary) 25%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-primary) 25%,
+    transparent
+  );
 }
 
 html.dark button.success {
-  background-color: color-mix(in srgb, var(--el-color-success) 15%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-success) 15%,
+    transparent
+  );
 }
 
 html.dark button.success:hover:not(:disabled) {
-  background-color: color-mix(in srgb, var(--el-color-success) 25%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-success) 25%,
+    transparent
+  );
 }
 
 html.dark button.info {
@@ -516,11 +569,19 @@ html.dark button.info:hover:not(:disabled) {
 }
 
 html.dark button.warning {
-  background-color: color-mix(in srgb, var(--el-color-warning) 15%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-warning) 15%,
+    transparent
+  );
 }
 
 html.dark button.warning:hover:not(:disabled) {
-  background-color: color-mix(in srgb, var(--el-color-warning) 25%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-warning) 25%,
+    transparent
+  );
 }
 
 html.dark button.danger {

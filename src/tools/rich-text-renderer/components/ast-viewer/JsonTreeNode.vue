@@ -1,8 +1,15 @@
 <template>
-  <div class="json-tree-node" :style="{ paddingLeft: depth > 0 ? '16px' : '0' }">
+  <div
+    class="json-tree-node"
+    :style="{ paddingLeft: depth > 0 ? '16px' : '0' }"
+  >
     <!-- 对象/数组节点 -->
     <div v-if="isObject || isArray" class="node-header">
-      <div class="toggle-icon" @click="toggle" :class="{ expanded: isExpanded }">
+      <div
+        class="toggle-icon"
+        @click="toggle"
+        :class="{ expanded: isExpanded }"
+      >
         <component :is="ChevronRight" :size="14" />
       </div>
 
@@ -45,7 +52,13 @@
       <span class="node-value" :class="valueType">{{ formattedValue }}</span>
 
       <div class="node-actions">
-        <el-button link size="small" class="copy-btn" @click.stop="copyContent" title="复制值">
+        <el-button
+          link
+          size="small"
+          class="copy-btn"
+          @click.stop="copyContent"
+          title="复制值"
+        >
           <component :is="Copy" :size="12" />
         </el-button>
       </div>
@@ -72,7 +85,10 @@ const props = withDefaults(
 const isExpanded = ref(props.depth < 2); // 默认展开前两层
 
 const isObject = computed(
-  () => props.data !== null && typeof props.data === "object" && !Array.isArray(props.data)
+  () =>
+    props.data !== null &&
+    typeof props.data === "object" &&
+    !Array.isArray(props.data)
 );
 const isArray = computed(() => Array.isArray(props.data));
 
@@ -99,7 +115,9 @@ const toggle = () => {
 const copyContent = async () => {
   try {
     const text =
-      typeof props.data === "object" ? JSON.stringify(props.data, null, 2) : String(props.data);
+      typeof props.data === "object"
+        ? JSON.stringify(props.data, null, 2)
+        : String(props.data);
     await navigator.clipboard.writeText(text);
     customMessage.success("复制成功");
   } catch (err) {

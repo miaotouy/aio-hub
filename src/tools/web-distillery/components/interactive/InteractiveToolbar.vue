@@ -1,10 +1,23 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
-import { RotateCw, Save, Cookie, Network, ExternalLink, HardDriveDownload } from "lucide-vue-next";
+import {
+  RotateCw,
+  Save,
+  Cookie,
+  Network,
+  ExternalLink,
+  HardDriveDownload,
+} from "lucide-vue-next";
 import { useWebDistilleryStore } from "../../stores/store";
 import { openUrl } from "@tauri-apps/plugin-opener";
 
-const emit = defineEmits(["save", "open-cookie", "open-api", "load-url", "save-cookies"]);
+const emit = defineEmits([
+  "save",
+  "open-cookie",
+  "open-api",
+  "load-url",
+  "save-cookies",
+]);
 const store = useWebDistilleryStore();
 const urlInput = ref(store.url);
 
@@ -34,17 +47,29 @@ watch(
   () => store.url,
   (newUrl) => {
     urlInput.value = newUrl;
-  },
+  }
 );
 </script>
 
 <template>
   <div class="interactive-toolbar">
     <div class="toolbar-center">
-      <el-input v-model="urlInput" placeholder="输入网址开始交互式提取..." @keyup.enter="handleGo">
+      <el-input
+        v-model="urlInput"
+        placeholder="输入网址开始交互式提取..."
+        @keyup.enter="handleGo"
+      >
         <template #prefix>
-          <el-tooltip content="在系统浏览器中打开" placement="top" :show-after="500">
-            <el-button link @click="openInBrowser" :disabled="!urlInput && !store.url">
+          <el-tooltip
+            content="在系统浏览器中打开"
+            placement="top"
+            :show-after="500"
+          >
+            <el-button
+              link
+              @click="openInBrowser"
+              :disabled="!urlInput && !store.url"
+            >
               <el-icon><ExternalLink /></el-icon>
             </el-button>
           </el-tooltip>
@@ -59,8 +84,15 @@ watch(
 
     <div class="toolbar-right">
       <el-button-group>
-        <el-tooltip content="保存当前页面的 Cookie 到身份卡片" placement="bottom" :show-after="500">
-          <el-button @click="emit('save-cookies')" :disabled="!store.isWebviewCreated">
+        <el-tooltip
+          content="保存当前页面的 Cookie 到身份卡片"
+          placement="bottom"
+          :show-after="500"
+        >
+          <el-button
+            @click="emit('save-cookies')"
+            :disabled="!store.isWebviewCreated"
+          >
             <el-icon><HardDriveDownload /></el-icon>
             <span>保存 Cookie</span>
           </el-button>

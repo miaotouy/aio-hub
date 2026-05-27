@@ -14,7 +14,10 @@ export function useMediaGenParamRules() {
   /**
    * 获取指定模型的生成参数规则
    */
-  function getParamRules(modelId: string, provider?: string): MediaGenParamRules | undefined {
+  function getParamRules(
+    modelId: string,
+    provider?: string
+  ): MediaGenParamRules | undefined {
     const props = getMatchedProperties(modelId, provider);
     return props?.mediaGenParams as MediaGenParamRules | undefined;
   }
@@ -46,7 +49,7 @@ export function useMediaGenParamRules() {
   function sanitizeParams(
     params: Record<string, any>,
     rules: MediaGenParamRules,
-    options: { fillDefaults?: boolean } = {},
+    options: { fillDefaults?: boolean } = {}
   ): Record<string, any> {
     const clean = { ...params };
     const { fillDefaults = false } = options;
@@ -112,7 +115,10 @@ export function useMediaGenParamRules() {
         const validValues = rules.background.options.map((o) => o.value);
         if (fillDefaults && rules.background.options[0]) {
           clean.background = rules.background.options[0].value;
-        } else if (clean.background && !validValues.includes(clean.background)) {
+        } else if (
+          clean.background &&
+          !validValues.includes(clean.background)
+        ) {
           // 用户选了不支持的值（如 transparent），重置为第一个有效选项
           clean.background = validValues[0];
         }
@@ -187,7 +193,10 @@ export function useMediaGenParamRules() {
    * 构建 xAI aspect_ratio + resolution 参数
    * 将 UI 状态映射为 xAI API 所需的格式
    */
-  function buildXaiSizeParams(aspectRatio: string, resolution: string): { aspect_ratio: string; resolution: string } {
+  function buildXaiSizeParams(
+    aspectRatio: string,
+    resolution: string
+  ): { aspect_ratio: string; resolution: string } {
     return {
       aspect_ratio: aspectRatio,
       resolution: resolution.toLowerCase(), // xAI 要求小写 k

@@ -1,6 +1,9 @@
 import type { LlmProfile } from "@/types/llm-profiles";
 import type { LlmRequestOptions, LlmResponse } from "@/llm-apis/common";
-import type { EmbeddingRequestOptions, EmbeddingResponse } from "@/llm-apis/embedding-types";
+import type {
+  EmbeddingRequestOptions,
+  EmbeddingResponse,
+} from "@/llm-apis/embedding-types";
 import { createModuleLogger } from "@utils/logger";
 import type { LlmAdapter } from "../index";
 import { vertexAiUrlHandler, detectPublisher } from "./utils";
@@ -14,7 +17,10 @@ const logger = createModuleLogger("VertexAiAdapter");
  * 自动检测模型发布者类型（Google/Anthropic）并分发请求
  */
 export const vertexAiAdapter: LlmAdapter = {
-  chat: async (profile: LlmProfile, options: LlmRequestOptions): Promise<LlmResponse> => {
+  chat: async (
+    profile: LlmProfile,
+    options: LlmRequestOptions
+  ): Promise<LlmResponse> => {
     const apiKey = profile.apiKeys?.[0] || "";
     const publisher = detectPublisher(options.modelId);
 
@@ -47,12 +53,15 @@ export const vertexAiAdapter: LlmAdapter = {
     }
   },
 
-  embedding: async (profile: LlmProfile, options: EmbeddingRequestOptions): Promise<EmbeddingResponse> => {
+  embedding: async (
+    profile: LlmProfile,
+    options: EmbeddingRequestOptions
+  ): Promise<EmbeddingResponse> => {
     const apiKey = profile.apiKeys?.[0] || "";
     // 目前 Vertex AI 仅支持 Google 模型的向量化
     const endpoint = `publishers/google/models/${options.modelId}:predict`;
     const url = vertexAiUrlHandler.buildUrl(profile.baseUrl, endpoint);
 
     return callVertexAiEmbeddingApi(profile, options, url, apiKey);
-  }
+  },
 };

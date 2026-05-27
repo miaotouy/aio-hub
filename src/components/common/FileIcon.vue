@@ -1,5 +1,10 @@
 <template>
-  <DynamicIcon :src="iconSrc" :alt="fileName" :style="containerStyle" v-bind="$attrs" />
+  <DynamicIcon
+    :src="iconSrc"
+    :alt="fileName"
+    :style="containerStyle"
+    v-bind="$attrs"
+  />
 </template>
 
 <script setup lang="ts">
@@ -41,8 +46,10 @@ const iconSrc = computed(() => {
   if (props.fileName) {
     const iconName = getIconForFilePath(props.fileName);
     if (iconName) {
-      return new URL(`../../../node_modules/vscode-material-icons/generated/icons/${iconName}.svg`, import.meta.url)
-        .href;
+      return new URL(
+        `../../../node_modules/vscode-material-icons/generated/icons/${iconName}.svg`,
+        import.meta.url
+      ).href;
     }
   }
 
@@ -65,8 +72,10 @@ const iconSrc = computed(() => {
     }
   }
 
-  return new URL(`../../../node_modules/vscode-material-icons/generated/icons/${fallbackIcon}.svg`, import.meta.url)
-    .href;
+  return new URL(
+    `../../../node_modules/vscode-material-icons/generated/icons/${fallbackIcon}.svg`,
+    import.meta.url
+  ).href;
 });
 </script>
 

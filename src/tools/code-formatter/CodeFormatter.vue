@@ -51,7 +51,9 @@
               <span>输出代码</span>
               <div class="header-actions">
                 <el-button text @click="copyFormattedCode">复制</el-button>
-                <el-button text type="success" @click="sendToChat">发送到聊天</el-button>
+                <el-button text type="success" @click="sendToChat"
+                  >发送到聊天</el-button
+                >
               </div>
             </div>
           </template>
@@ -108,7 +110,10 @@ const formatCodeInternal = async () => {
     return;
   }
 
-  const result = await formatterCore.formatCode(rawCodeInput.value, language.value);
+  const result = await formatterCore.formatCode(
+    rawCodeInput.value,
+    language.value
+  );
 
   if (result.success) {
     formattedCodeOutput.value = result.formatted;

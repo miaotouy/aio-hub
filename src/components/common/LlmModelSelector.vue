@@ -3,7 +3,11 @@ import { computed } from "vue";
 import { useRouter } from "vue-router";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
-import type { LlmProfile, LlmModelInfo, ModelCapabilities } from "@/types/llm-profiles";
+import type {
+  LlmProfile,
+  LlmModelInfo,
+  ModelCapabilities,
+} from "@/types/llm-profiles";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
 
 interface Props {
@@ -52,7 +56,9 @@ const availableModels = computed(() => {
     profile.models.forEach((model) => {
       // 根据能力要求进行筛选
       const capabilities = props.capabilities ?? {};
-      const requiredCaps = Object.keys(capabilities) as Array<keyof ModelCapabilities>;
+      const requiredCaps = Object.keys(capabilities) as Array<
+        keyof ModelCapabilities
+      >;
 
       const meetsRequirements = requiredCaps.every((key) => {
         const requiredValue = capabilities[key];
@@ -152,9 +158,19 @@ const modelGroups = computed(() => {
           :value="item.value"
         >
           <div class="option-item">
-            <DynamicIcon :src="getModelIcon(item.model) || ''" :alt="item.label" class="model-icon" lazy />
+            <DynamicIcon
+              :src="getModelIcon(item.model) || ''"
+              :alt="item.label"
+              class="model-icon"
+              lazy
+            />
             <span class="model-name">{{ item.label }}</span>
-            <el-text v-if="item.model.group" size="small" type="info" class="model-group-tag">
+            <el-text
+              v-if="item.model.group"
+              size="small"
+              type="info"
+              class="model-group-tag"
+            >
               {{ item.model.group }}
             </el-text>
           </div>

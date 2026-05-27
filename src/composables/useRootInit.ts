@@ -1,7 +1,10 @@
 import { onMounted, onUnmounted, watch } from "vue";
 import { useTheme } from "./useTheme";
 import { useDark } from "@vueuse/core";
-import { initThemeAppearance, cleanupThemeAppearance } from "./useThemeAppearance";
+import {
+  initThemeAppearance,
+  cleanupThemeAppearance,
+} from "./useThemeAppearance";
 import { useAppSettingsStore } from "@/stores/appSettingsStore";
 import { applyThemeColors } from "@/utils/themeColors";
 import { createModuleLogger } from "@/utils/logger";
@@ -38,7 +41,7 @@ export function useRootInit(options?: RootInitOptions) {
           danger: appSettingsStore.settings.dangerColor,
           info: appSettingsStore.settings.infoColor,
         },
-        isDark.value,
+        isDark.value
       );
     }
   };
@@ -57,7 +60,7 @@ export function useRootInit(options?: RootInitOptions) {
     () => {
       applyCurrentColors();
     },
-    { immediate: false }, // initCommon 会手动调用一次
+    { immediate: false } // initCommon 会手动调用一次
   );
 
   // === onMounted 阶段（异步） ===

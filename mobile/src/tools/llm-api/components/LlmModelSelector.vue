@@ -62,7 +62,11 @@ const selectedInfo = computed(() => {
   return availableModels.value.find((m) => m.value === props.modelValue);
 });
 
-const handleSelect = (item: { value: string; profileId: string; modelId: string }) => {
+const handleSelect = (item: {
+  value: string;
+  profileId: string;
+  modelId: string;
+}) => {
   emit("update:modelValue", item.value);
   emit("change", { profileId: item.profileId, modelId: item.modelId });
 };
@@ -90,7 +94,11 @@ const togglePopup = () => {
           <span class="placeholder-text">{{ displayPlaceholder }}</span>
         </template>
       </div>
-      <ChevronDown :size="16" class="arrow-icon" :class="{ active: showPopup }" />
+      <ChevronDown
+        :size="16"
+        class="arrow-icon"
+        :class="{ active: showPopup }"
+      />
     </div>
 
     <!-- 模型选择弹窗 -->

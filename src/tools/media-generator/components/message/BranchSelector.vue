@@ -4,11 +4,21 @@ import { ElScrollbar } from "element-plus";
 import type { MediaMessage } from "../../types";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
-import { useAssetManager, assetManagerEngine } from "@/composables/useAssetManager";
+import {
+  useAssetManager,
+  assetManagerEngine,
+} from "@/composables/useAssetManager";
 import { useUserProfileStore } from "@/tools/llm-chat/stores/userProfileStore";
 import Avatar from "@/components/common/Avatar.vue";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
-import { Bot, Image as ImageIcon, Film, Music, Play, Volume2 } from "lucide-vue-next";
+import {
+  Bot,
+  Image as ImageIcon,
+  Film,
+  Music,
+  Play,
+  Volume2,
+} from "lucide-vue-next";
 
 interface Props {
   message: MediaMessage;
@@ -64,7 +74,8 @@ onMounted(async () => {
       if (!scrollbarEl) return;
       const scrollbarHeight = scrollbarEl.clientHeight;
       const itemHeight = currentItemEl.clientHeight;
-      const scrollTop = currentItemEl.offsetTop - scrollbarHeight / 2 + itemHeight / 2;
+      const scrollTop =
+        currentItemEl.offsetTop - scrollbarHeight / 2 + itemHeight / 2;
       scrollbarRef.value.setScrollTop(Math.max(0, scrollTop));
     }
   });
@@ -91,13 +102,18 @@ const siblingsWithDisplayInfo = computed(() => {
 
     if (sibling.role === "user") {
       displayName =
-        userProfileStore.globalProfile?.displayName || userProfileStore.globalProfile?.name || "你";
+        userProfileStore.globalProfile?.displayName ||
+        userProfileStore.globalProfile?.name ||
+        "你";
       avatarSrc = userProfileStore.globalProfile?.icon || "";
     } else {
       // 助手侧逻辑
       const modelId = metadata?.modelId || task?.input?.modelId;
       displayName =
-        metadata?.modelDisplayName || metadata?.modelName || task?.input?.modelId || "AI";
+        metadata?.modelDisplayName ||
+        metadata?.modelName ||
+        task?.input?.modelId ||
+        "AI";
 
       if (modelId) {
         const iconPath = getIconPath(modelId);
@@ -116,7 +132,8 @@ const siblingsWithDisplayInfo = computed(() => {
         mediaType = task.type;
         if (task.status === "completed") {
           // 统一获取资产列表 (多资产范式)
-          const assets = task.resultAssets || (task.resultAsset ? [task.resultAsset] : []);
+          const assets =
+            task.resultAssets || (task.resultAsset ? [task.resultAsset] : []);
 
           if (assets.length > 0) {
             previewUrls = assets.slice(0, 3).map((asset) => {
@@ -125,7 +142,10 @@ const siblingsWithDisplayInfo = computed(() => {
 
               // 如果缩略图还没加载完，回退到 path 转换
               if (!url && asset.path && assetBasePath.value) {
-                url = assetManagerEngine.convertToAssetProtocol(asset.path, assetBasePath.value);
+                url = assetManagerEngine.convertToAssetProtocol(
+                  asset.path,
+                  assetBasePath.value
+                );
               }
 
               return { url, assetId: asset.id };
@@ -134,7 +154,8 @@ const siblingsWithDisplayInfo = computed(() => {
 
           // 如果依然没有预览图，尝试从 previewUrls 兜底 (兼容生成过程中的临时预览)
           if (previewUrls.length === 0 || previewUrls.every((p) => !p.url)) {
-            const rawPreviews = task.previewUrls || (task.previewUrl ? [task.previewUrl] : []);
+            const rawPreviews =
+              task.previewUrls || (task.previewUrl ? [task.previewUrl] : []);
             previewUrls = rawPreviews.slice(0, 3).map((rawPath) => {
               let url = rawPath;
               if (
@@ -143,7 +164,10 @@ const siblingsWithDisplayInfo = computed(() => {
                 !rawPath.startsWith("asset://") &&
                 assetBasePath.value
               ) {
-                url = assetManagerEngine.convertToAssetProtocol(rawPath, assetBasePath.value);
+                url = assetManagerEngine.convertToAssetProtocol(
+                  rawPath,
+                  assetBasePath.value
+                );
               }
               return { url };
             });
@@ -197,7 +221,9 @@ const handleSwitchToBranch = (nodeId: string) => {
                 <div class="header-left">
                   <span
                     class="branch-number"
-                    :class="{ 'is-current-number': index === currentSiblingIndex }"
+                    :class="{
+                      'is-current-number': index === currentSiblingIndex,
+                    }"
                   >
                     #{{ index + 1 }}
                   </span>
@@ -224,11 +250,17 @@ const handleSwitchToBranch = (nodeId: string) => {
 
                   <span class="branch-name">{{ item.displayName }}</span>
                 </div>
-                <span v-if="item.taskStatus" class="status-dot" :class="item.taskStatus"></span>
+                <span
+                  v-if="item.taskStatus"
+                  class="status-dot"
+                  :class="item.taskStatus"
+                ></span>
               </div>
             </div>
 
-            <div class="branch-preview">{{ getMessagePreview(item.content) }}</div>
+            <div class="branch-preview">
+              {{ getMessagePreview(item.content) }}
+            </div>
 
             <!-- 媒体预览图 (单独一行) -->
             <div
@@ -243,11 +275,21 @@ const handleSwitchToBranch = (nodeId: string) => {
                   class="media-preview-box"
                   :class="[`is-${item.mediaType}`]"
                 >
-                  <img v-if="preview.url" :src="preview.url" class="preview-img" />
-                  <div v-if="item.mediaType === 'video'" class="media-type-overlay">
+                  <img
+                    v-if="preview.url"
+                    :src="preview.url"
+                    class="preview-img"
+                  />
+                  <div
+                    v-if="item.mediaType === 'video'"
+                    class="media-type-overlay"
+                  >
                     <Play :size="16" fill="currentColor" />
                   </div>
-                  <div v-else-if="item.mediaType === 'audio'" class="media-type-overlay">
+                  <div
+                    v-else-if="item.mediaType === 'audio'"
+                    class="media-type-overlay"
+                  >
                     <Volume2 :size="16" />
                   </div>
                 </div>
@@ -368,7 +410,11 @@ const handleSwitchToBranch = (nodeId: string) => {
 }
 
 .branch-number.is-current-number {
-  background-color: color-mix(in srgb, var(--el-color-primary) 15%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-primary) 15%,
+    transparent
+  );
   color: var(--el-color-primary);
   border: 1px solid var(--el-color-primary);
 }

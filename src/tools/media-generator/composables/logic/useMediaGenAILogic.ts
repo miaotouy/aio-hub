@@ -1,5 +1,9 @@
 import { ref } from "vue";
-import type { MediaMessage, MediaGeneratorSettings, GenerationSession } from "../../types";
+import type {
+  MediaMessage,
+  MediaGeneratorSettings,
+  GenerationSession,
+} from "../../types";
 import { createModuleLogger } from "@/utils/logger";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { parseModelCombo } from "@/utils/modelIdUtils";
@@ -24,7 +28,10 @@ export function useMediaGenAILogic(options: {
   /**
    * AI 自动命名会话
    */
-  const generateSessionName = async (sessionId: string, currentName: string) => {
+  const generateSessionName = async (
+    sessionId: string,
+    currentName: string
+  ) => {
     if (isNaming.value || generatingSessionIds.value.has(sessionId)) return;
 
     const namingConfig = settings.value.topicNaming;
@@ -39,10 +46,17 @@ export function useMediaGenAILogic(options: {
       activeLeafId: activeLeafId.value,
     } as GenerationSession;
 
-    const activePath = nodeManager.getNodePath(tempSession, tempSession.activeLeafId);
-    
+    const activePath = nodeManager.getNodePath(
+      tempSession,
+      tempSession.activeLeafId
+    );
+
     const context = activePath
-      .filter((n) => n.role === "user" || (n.role === "assistant" && n.metadata?.isMediaTask))
+      .filter(
+        (n) =>
+          n.role === "user" ||
+          (n.role === "assistant" && n.metadata?.isMediaTask)
+      )
       .map((n) => {
         if (n.role === "user") return `用户输入: ${n.content}`;
         return `生成任务: ${n.metadata?.taskSnapshot?.input?.prompt || n.content}`;
@@ -62,7 +76,7 @@ export function useMediaGenAILogic(options: {
     try {
       isNaming.value = true;
       generatingSessionIds.value.add(sessionId);
-      
+
       const prompt = namingConfig.prompt.replace("{context}", context);
       const response = await sendRequest({
         profileId,
@@ -74,12 +88,15 @@ export function useMediaGenAILogic(options: {
 
       // 提取名称：去掉引号、去掉“标题：”或“Title:”前缀、去掉 Markdown 粗体等格式
       let newName = response.content.trim();
-      
+
       // 移除包围的引号
-      if ((newName.startsWith('"') && newName.endsWith('"')) || (newName.startsWith("'") && newName.endsWith("'"))) {
+      if (
+        (newName.startsWith('"') && newName.endsWith('"')) ||
+        (newName.startsWith("'") && newName.endsWith("'"))
+      ) {
         newName = newName.slice(1, -1).trim();
       }
-      
+
       // 移除常见的前缀和 Markdown 符号
       newName = newName
         .replace(/^(标题|名称|Title|Name)[:：]\s*/i, "")

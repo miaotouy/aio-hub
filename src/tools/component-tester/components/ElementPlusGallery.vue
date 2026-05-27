@@ -74,10 +74,28 @@
       <div class="input-demo">
         <el-input v-model="inputValue" placeholder="请输入内容" />
         <el-input v-model="inputValue" placeholder="带清除按钮" clearable />
-        <el-input v-model="inputValue" placeholder="带图标" :prefix-icon="Search" />
-        <el-input v-model="inputValue" placeholder="带图标" :suffix-icon="Calendar" />
-        <el-input v-model="inputValue" type="password" placeholder="密码输入框" show-password />
-        <el-input v-model="inputValue" type="textarea" placeholder="文本域" :rows="3" />
+        <el-input
+          v-model="inputValue"
+          placeholder="带图标"
+          :prefix-icon="Search"
+        />
+        <el-input
+          v-model="inputValue"
+          placeholder="带图标"
+          :suffix-icon="Calendar"
+        />
+        <el-input
+          v-model="inputValue"
+          type="password"
+          placeholder="密码输入框"
+          show-password
+        />
+        <el-input
+          v-model="inputValue"
+          type="textarea"
+          placeholder="文本域"
+          :rows="3"
+        />
       </div>
     </div>
 
@@ -106,8 +124,16 @@
       <h2 class="section-title">开关 Switch</h2>
       <div class="switch-demo">
         <el-switch v-model="switchValue" />
-        <el-switch v-model="switchValue" active-text="开启" inactive-text="关闭" />
-        <el-switch v-model="switchValue" active-color="#13ce66" inactive-color="#ff4949" />
+        <el-switch
+          v-model="switchValue"
+          active-text="开启"
+          inactive-text="关闭"
+        />
+        <el-switch
+          v-model="switchValue"
+          active-color="#13ce66"
+          inactive-color="#ff4949"
+        />
         <el-switch v-model="switchValue" disabled />
       </div>
     </div>
@@ -133,8 +159,15 @@
       </div>
       <h3 class="subsection-title">分段控制器 Segmented</h3>
       <div class="radio-demo">
-        <el-segmented v-model="segmentedValue" :options="['选项1', '选项2', '选项3']" />
-        <el-segmented v-model="segmentedValue" :options="['选项1', '选项2', '选项3']" block />
+        <el-segmented
+          v-model="segmentedValue"
+          :options="['选项1', '选项2', '选项3']"
+        />
+        <el-segmented
+          v-model="segmentedValue"
+          :options="['选项1', '选项2', '选项3']"
+          block
+        />
       </div>
     </div>
 
@@ -163,8 +196,16 @@
     <div class="section">
       <h2 class="section-title">日期选择器 DatePicker</h2>
       <div class="date-demo">
-        <el-date-picker v-model="dateValue" type="date" placeholder="选择日期" />
-        <el-date-picker v-model="dateValue" type="datetime" placeholder="选择日期时间" />
+        <el-date-picker
+          v-model="dateValue"
+          type="date"
+          placeholder="选择日期"
+        />
+        <el-date-picker
+          v-model="dateValue"
+          type="datetime"
+          placeholder="选择日期时间"
+        />
         <el-date-picker
           v-model="dateRangeValue"
           type="daterange"
@@ -303,7 +344,9 @@
           <InfoCard :class="['timeline-card', { clickable: event.clickable }]">
             <div class="timeline-header">
               <span class="timeline-sequence">#{{ event.id }}</span>
-              <el-tag :type="event.tagType" size="small">{{ event.category }}</el-tag>
+              <el-tag :type="event.tagType" size="small">{{
+                event.category
+              }}</el-tag>
               <el-tag v-if="event.branch" type="success" size="small">
                 {{ event.branch }}
               </el-tag>
@@ -313,9 +356,15 @@
             <div class="timeline-description">{{ event.description }}</div>
             <div v-if="event.stats" class="timeline-stats">
               <el-space size="small">
-                <span class="stat-item additions">+{{ event.stats.additions }}</span>
-                <span class="stat-item deletions">-{{ event.stats.deletions }}</span>
-                <span class="stat-item files">{{ event.stats.files }} 个文件</span>
+                <span class="stat-item additions"
+                  >+{{ event.stats.additions }}</span
+                >
+                <span class="stat-item deletions"
+                  >-{{ event.stats.deletions }}</span
+                >
+                <span class="stat-item files"
+                  >{{ event.stats.files }} 个文件</span
+                >
               </el-space>
             </div>
           </InfoCard>
@@ -353,8 +402,12 @@
         <el-step title="步骤 3" />
       </el-steps>
       <div style="margin-top: 12px">
-        <el-button @click="stepsActive = Math.max(0, stepsActive - 1)">上一步</el-button>
-        <el-button @click="stepsActive = Math.min(3, stepsActive + 1)">下一步</el-button>
+        <el-button @click="stepsActive = Math.max(0, stepsActive - 1)"
+          >上一步</el-button
+        >
+        <el-button @click="stepsActive = Math.min(3, stepsActive + 1)"
+          >下一步</el-button
+        >
       </div>
     </div>
 
@@ -369,20 +422,26 @@
             <template #footer>
               <div class="dialog-footer">
                 <el-button @click="dialogVisible = false">取消</el-button>
-                <el-button type="primary" @click="dialogVisible = false">确定</el-button>
+                <el-button type="primary" @click="dialogVisible = false"
+                  >确定</el-button
+                >
               </div>
             </template>
           </BaseDialog>
         </div>
         <div>
           <h3 class="subsection-title">原生 el-dialog 组件</h3>
-          <el-button @click="nativeDialogVisible = true">打开 el-dialog</el-button>
+          <el-button @click="nativeDialogVisible = true"
+            >打开 el-dialog</el-button
+          >
           <el-dialog v-model="nativeDialogVisible" title="提示" width="500">
             <span>这是一段信息（el-dialog）</span>
             <template #footer>
               <div class="dialog-footer">
                 <el-button @click="nativeDialogVisible = false">取消</el-button>
-                <el-button type="primary" @click="nativeDialogVisible = false">确定</el-button>
+                <el-button type="primary" @click="nativeDialogVisible = false"
+                  >确定</el-button
+                >
               </div>
             </template>
           </el-dialog>
@@ -393,7 +452,12 @@
     <div class="section">
       <h2 class="section-title">抽屉 Drawer</h2>
       <el-button @click="drawerVisible = true">打开抽屉</el-button>
-      <el-drawer v-model="drawerVisible" title="我是标题" direction="rtl" size="30%">
+      <el-drawer
+        v-model="drawerVisible"
+        title="我是标题"
+        direction="rtl"
+        size="30%"
+      >
         <span>我来自抽屉</span>
       </el-drawer>
     </div>
@@ -427,12 +491,24 @@
 
     <div class="section">
       <h2 class="section-title">气泡卡片 Popover</h2>
-      <el-popover placement="top" title="标题" :width="200" trigger="hover" content="这是一段内容">
+      <el-popover
+        placement="top"
+        title="标题"
+        :width="200"
+        trigger="hover"
+        content="这是一段内容"
+      >
         <template #reference>
           <el-button>鼠标悬浮</el-button>
         </template>
       </el-popover>
-      <el-popover placement="bottom" title="标题" :width="200" trigger="click" content="这是一段内容">
+      <el-popover
+        placement="bottom"
+        title="标题"
+        :width="200"
+        trigger="click"
+        content="这是一段内容"
+      >
         <template #reference>
           <el-button>点击激活</el-button>
         </template>
@@ -441,7 +517,11 @@
 
     <div class="section">
       <h2 class="section-title">树形控件 Tree</h2>
-      <el-tree :data="treeData" :props="{ children: 'children', label: 'label' }" default-expand-all />
+      <el-tree
+        :data="treeData"
+        :props="{ children: 'children', label: 'label' }"
+        default-expand-all
+      />
     </div>
 
     <div class="section">
@@ -464,7 +544,11 @@
     <div class="section">
       <h2 class="section-title">结果 Result</h2>
       <div class="result-demo">
-        <el-result icon="success" title="成功提示" sub-title="请根据提示进行操作">
+        <el-result
+          icon="success"
+          title="成功提示"
+          sub-title="请根据提示进行操作"
+        >
           <template #extra>
             <el-button type="primary">返回</el-button>
           </template>
@@ -477,7 +561,17 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import InfoCard from "@/components/common/InfoCard.vue";
-import { Search, Edit, Check, Message, Star, Delete, Calendar, ArrowLeft, ArrowRight } from "@element-plus/icons-vue";
+import {
+  Search,
+  Edit,
+  Check,
+  Message,
+  Star,
+  Delete,
+  Calendar,
+  ArrowLeft,
+  ArrowRight,
+} from "@element-plus/icons-vue";
 
 // 表单数据
 const inputValue = ref("");

@@ -7,17 +7,25 @@ import Base64Worker from "@/workers/base64.worker?worker";
  * @param buffer 要转换的二进制数据（支持 ArrayBuffer 或 Uint8Array）
  * @returns Base64 字符串
  */
-export const convertArrayBufferToBase64 = (buffer: ArrayBuffer | Uint8Array): Promise<string> => {
+export const convertArrayBufferToBase64 = (
+  buffer: ArrayBuffer | Uint8Array
+): Promise<string> => {
   // 如果是 Uint8Array，需要提取其底层的 ArrayBuffer
   // 注意：Uint8Array 可能只是 ArrayBuffer 的一个视图（有 byteOffset），需要正确处理
   let actualBuffer: ArrayBuffer;
   if (buffer instanceof Uint8Array) {
-    if (buffer.byteOffset === 0 && buffer.byteLength === buffer.buffer.byteLength) {
+    if (
+      buffer.byteOffset === 0 &&
+      buffer.byteLength === buffer.buffer.byteLength
+    ) {
       // Uint8Array 占据整个 buffer，直接使用其底层 ArrayBuffer
       actualBuffer = buffer.buffer;
     } else {
       // Uint8Array 是一个视图（slice），需要创建新的 ArrayBuffer
-      actualBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+      actualBuffer = buffer.buffer.slice(
+        buffer.byteOffset,
+        buffer.byteOffset + buffer.byteLength
+      );
     }
   } else {
     actualBuffer = buffer;

@@ -133,7 +133,9 @@ Vite 会自动处理组件之间的依赖关系，无论你的项目结构如何
   <div class="container">
     <InfoCard title="🎉 Hello World 插件">
       <el-input v-model="name" placeholder="输入你的名字" />
-      <el-button @click="doGreet" :loading="isLoading" type="primary">打招呼</el-button>
+      <el-button @click="doGreet" :loading="isLoading" type="primary"
+        >打招呼</el-button
+      >
       <p v-if="greeting" class="greeting">{{ greeting }}</p>
     </InfoCard>
   </div>

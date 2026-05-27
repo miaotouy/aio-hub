@@ -2,7 +2,12 @@
 import { onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { useLlmChatStore } from "../stores/llmChatStore";
-import { MessageSquare, ChevronRight, Trash2, ChevronLeft } from "lucide-vue-next";
+import {
+  MessageSquare,
+  ChevronRight,
+  Trash2,
+  ChevronLeft,
+} from "lucide-vue-next";
 
 const router = useRouter();
 const chatStore = useLlmChatStore();
@@ -64,7 +69,9 @@ const deleteSession = async (event: Event, id: string) => {
         </div>
         <div class="session-info">
           <div class="session-name">{{ session.name }}</div>
-          <div class="session-time">{{ new Date(session.updatedAt).toLocaleString() }}</div>
+          <div class="session-time">
+            {{ new Date(session.updatedAt).toLocaleString() }}
+          </div>
         </div>
         <div class="actions">
           <button class="delete-btn" @click="deleteSession($event, session.id)">

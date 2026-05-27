@@ -59,7 +59,10 @@ export const useWorldbookStore = defineStore("llmChatWorldbook", {
             const oldWb = oldWbs.find((w) => w.id === newWb.id);
             if (oldWb && oldWb.updatedAt !== newWb.updatedAt) {
               if (this.loadedWorldbooks.has(newWb.id)) {
-                logger.info("检测到世界书更新，清除缓存以重新加载", { id: newWb.id, name: newWb.name });
+                logger.info("检测到世界书更新，清除缓存以重新加载", {
+                  id: newWb.id,
+                  name: newWb.name,
+                });
                 this.loadedWorldbooks.delete(newWb.id);
               }
             }
@@ -81,7 +84,9 @@ export const useWorldbookStore = defineStore("llmChatWorldbook", {
         this.worldbooks = await storage.syncIndex(index);
         logger.info("世界书索引加载成功", { count: this.worldbooks.length });
       } catch (error) {
-        errorHandler.handle(error as Error, { userMessage: "加载世界书索引失败" });
+        errorHandler.handle(error as Error, {
+          userMessage: "加载世界书索引失败",
+        });
       }
     },
 
@@ -138,7 +143,11 @@ export const useWorldbookStore = defineStore("llmChatWorldbook", {
     /**
      * 创建或导入世界书
      */
-    async importWorldbook(name: string, content: STWorldbook, description?: string): Promise<string> {
+    async importWorldbook(
+      name: string,
+      content: STWorldbook,
+      description?: string
+    ): Promise<string> {
       const id = `wb-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
       const now = getLocalISOString();
 
@@ -176,7 +185,11 @@ export const useWorldbookStore = defineStore("llmChatWorldbook", {
     /**
      * 更新世界书内容
      */
-    async updateWorldbook(id: string, content: STWorldbook, updates?: Partial<WorldbookMetadata>) {
+    async updateWorldbook(
+      id: string,
+      content: STWorldbook,
+      updates?: Partial<WorldbookMetadata>
+    ) {
       const index = this.worldbooks.findIndex((wb) => wb.id === id);
       if (index === -1) return;
 
@@ -237,7 +250,9 @@ export const useWorldbookStore = defineStore("llmChatWorldbook", {
         await storage.saveIndex(indexConfig);
         logger.info("世界书重命名成功", { id, newName });
       } catch (error) {
-        errorHandler.handle(error as Error, { userMessage: "重命名世界书失败" });
+        errorHandler.handle(error as Error, {
+          userMessage: "重命名世界书失败",
+        });
       }
     },
 
@@ -298,7 +313,9 @@ export const useWorldbookStore = defineStore("llmChatWorldbook", {
 
         logger.info("批量删除世界书成功", { count: ids.length });
       } catch (error) {
-        errorHandler.handle(error as Error, { userMessage: "批量删除世界书失败" });
+        errorHandler.handle(error as Error, {
+          userMessage: "批量删除世界书失败",
+        });
       }
     },
   },

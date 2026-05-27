@@ -30,19 +30,28 @@ import type { ToolContext } from "@/services/types";
  * 解析蒸馏时应使用的 Cookie Profile
  * 优先级：配方绑定的 cookieProfile > URL 匹配的激活 Profile
  */
-async function resolveProfileForUrl(url: string, recipeCookieProfileId?: string): Promise<CookieProfile | null> {
+async function resolveProfileForUrl(
+  url: string,
+  recipeCookieProfileId?: string
+): Promise<CookieProfile | null> {
   await cookieProfileStore.load();
 
   // 优先使用配方绑定的身份卡片
   if (recipeCookieProfileId) {
     const bound = await cookieProfileStore.getById(recipeCookieProfileId);
     if (bound) {
-      logger.info("Using recipe-bound cookie profile", { profileId: bound.id, profileName: bound.name });
+      logger.info("Using recipe-bound cookie profile", {
+        profileId: bound.id,
+        profileName: bound.name,
+      });
       return bound;
     }
-    logger.warn("Recipe-bound cookie profile not found, falling back to URL match", {
-      profileId: recipeCookieProfileId,
-    });
+    logger.warn(
+      "Recipe-bound cookie profile not found, falling back to URL match",
+      {
+        profileId: recipeCookieProfileId,
+      }
+    );
   }
 
   // 回退到 URL 匹配的激活 Profile
@@ -87,15 +96,23 @@ function detectShouldUpgrade(payload: RawFetchPayload): string | null {
  * 快速获取并蒸馏（基于 HTTP 请求，无浏览器）
  * 使用 wreq 进行 TLS/H2 指纹模拟，并在质量不足时自动升级到 smartExtract
  */
-export async function quickFetch(options: QuickFetchOptions, context?: ToolContext): Promise<FetchResult> {
+export async function quickFetch(
+  options: QuickFetchOptions,
+  context?: ToolContext
+): Promise<FetchResult> {
   logger.info("Starting quickFetch", { url: options.url });
   context?.reportStatus("正在通过 HTTP 获取网页内容...");
   return (await errorHandler.wrapAsync(
     async () => {
       // 先尝试通过 URL 匹配配方（不需要 HTML 内容），以获取绑定的身份卡片
       const preMatchedRecipe = await recipeStore.findBestMatch(options.url);
-      const activeProfile = await resolveProfileForUrl(options.url, preMatchedRecipe?.cookieProfile);
-      const cookieStr = activeProfile ? activeProfile.cookies.map((c) => `${c.name}=${c.value}`).join("; ") : undefined;
+      const activeProfile = await resolveProfileForUrl(
+        options.url,
+        preMatchedRecipe?.cookieProfile
+      );
+      const cookieStr = activeProfile
+        ? activeProfile.cookies.map((c) => `${c.name}=${c.value}`).join("; ")
+        : undefined;
 
       // 获取当前 WebView 的真实浏览器指纹
       const fingerprint = getWebViewFingerprint();
@@ -117,24 +134,36 @@ export async function quickFetch(options: QuickFetchOptions, context?: ToolConte
           profileName: activeProfile.name,
           domain: activeProfile.domain,
         });
-        cookieProfileStore.update(activeProfile.id, { lastUsedAt: getLocalISOString() });
+        cookieProfileStore.update(activeProfile.id, {
+          lastUsedAt: getLocalISOString(),
+        });
       }
 
       // 质量门控：检测是否需要自动升级到 smartExtract
       const upgradeReason = detectShouldUpgrade(payload);
       if (upgradeReason && !(options as any)._noUpgrade) {
-        logger.warn("quickFetch quality insufficient, upgrading to smartExtract", {
-          reason: upgradeReason,
-          statusCode: payload.statusCode,
-          contentLength: payload.contentLength,
-        });
-        context?.reportStatus(`快速获取受阻(${upgradeReason})，正在切换到智能提取...`);
-        return (await smartExtract({ ...options, _noUpgrade: true } as any, context)) as unknown as FetchResult;
+        logger.warn(
+          "quickFetch quality insufficient, upgrading to smartExtract",
+          {
+            reason: upgradeReason,
+            statusCode: payload.statusCode,
+            contentLength: payload.contentLength,
+          }
+        );
+        context?.reportStatus(
+          `快速获取受阻(${upgradeReason})，正在切换到智能提取...`
+        );
+        return (await smartExtract(
+          { ...options, _noUpgrade: true } as any,
+          context
+        )) as unknown as FetchResult;
       }
 
       context?.reportStatus("内容获取成功，正在蒸馏提取...");
       // 用 HTML 内容做更精确的配方匹配（内容嗅探）
-      const matchedRecipe = (await recipeStore.findBestMatch(options.url, payload.html)) || preMatchedRecipe;
+      const matchedRecipe =
+        (await recipeStore.findBestMatch(options.url, payload.html)) ||
+        preMatchedRecipe;
       const result = await transformer.transform(
         payload.html,
         {
@@ -142,7 +171,7 @@ export async function quickFetch(options: QuickFetchOptions, context?: ToolConte
           cleanMode: options.cleanMode,
         },
         matchedRecipe || undefined,
-        "fast",
+        "fast"
       );
 
       // 保存原始 HTML 用于源码查看
@@ -153,29 +182,43 @@ export async function quickFetch(options: QuickFetchOptions, context?: ToolConte
     },
     {
       userMessage: "网页内容获取失败，请重试",
-    },
+    }
   )) as FetchResult;
 }
 /**
  * 智能提取（使用隐藏 Iframe 渲染 JS，支持动态内容）
  */
-export async function smartExtract(options: SmartExtractOptions, context?: ToolContext): Promise<ExtractResult> {
-  logger.info("Starting smartExtract", { url: options.url, waitFor: options.waitFor });
+export async function smartExtract(
+  options: SmartExtractOptions,
+  context?: ToolContext
+): Promise<ExtractResult> {
+  logger.info("Starting smartExtract", {
+    url: options.url,
+    waitFor: options.waitFor,
+  });
   context?.reportStatus("准备启动浏览器引擎...");
   return (await errorHandler.wrapAsync(
     async () => {
       // 1. 查找是否有匹配的配方
       const matchedRecipe = await recipeStore.findBestMatch(options.url);
       if (matchedRecipe) {
-        logger.info("Found matched recipe", { id: matchedRecipe.id, name: matchedRecipe.name });
+        logger.info("Found matched recipe", {
+          id: matchedRecipe.id,
+          name: matchedRecipe.name,
+        });
       }
 
       // 查找匹配的 Cookie Profile 并设置代理 cookie
       // 优先使用配方绑定的身份卡片
-      const activeProfile = await resolveProfileForUrl(options.url, matchedRecipe?.cookieProfile);
+      const activeProfile = await resolveProfileForUrl(
+        options.url,
+        matchedRecipe?.cookieProfile
+      );
 
       if (activeProfile) {
-        const cookieStr = activeProfile.cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+        const cookieStr = activeProfile.cookies
+          .map((c) => `${c.name}=${c.value}`)
+          .join("; ");
         await invoke("distillery_set_proxy_cookies", { cookies: cookieStr });
         logger.info("Using cookie profile for smartExtract", {
           profileName: activeProfile.name,
@@ -205,21 +248,28 @@ export async function smartExtract(options: SmartExtractOptions, context?: ToolC
 
         // 注入非 HttpOnly cookie 到 document.cookie
         if (activeProfile) {
-          for (const cookie of activeProfile.cookies.filter((c) => !c.httpOnly)) {
+          for (const cookie of activeProfile.cookies.filter(
+            (c) => !c.httpOnly
+          )) {
             const parts = [`${cookie.name}=${cookie.value}`];
             if (cookie.domain) parts.push(`domain=${cookie.domain}`);
             if (cookie.path) parts.push(`path=${cookie.path}`);
-            if (cookie.expires) parts.push(`expires=${new Date(cookie.expires).toUTCString()}`);
+            if (cookie.expires)
+              parts.push(`expires=${new Date(cookie.expires).toUTCString()}`);
             if (cookie.secure) parts.push("secure");
             await iframeBridge.setCookie(parts.join("; "));
           }
           // 更新 lastUsedAt（非关键，不阻塞主流程）
-          cookieProfileStore.update(activeProfile.id, { lastUsedAt: getLocalISOString() });
+          cookieProfileStore.update(activeProfile.id, {
+            lastUsedAt: getLocalISOString(),
+          });
         }
 
         // 执行配方动作（如果有）
         if (matchedRecipe?.actions?.length) {
-          logger.info("Executing recipe actions", { count: matchedRecipe.actions.length });
+          logger.info("Executing recipe actions", {
+            count: matchedRecipe.actions.length,
+          });
           await actionRunner.runSequence(matchedRecipe.actions);
         }
 
@@ -234,12 +284,21 @@ export async function smartExtract(options: SmartExtractOptions, context?: ToolC
 
         // 6. 并行等待：DOM 提取触发 + 超时
         // 优先级：options > recipe > 默认值
-        const waitTimeout = options.waitTimeout || matchedRecipe?.waitTimeout || 15000;
-        logger.debug("Extraction parameters", { waitTimeout, waitFor: options.waitFor || matchedRecipe?.waitFor });
-        const combinedWaitFor = options.waitFor || matchedRecipe?.waitFor || matchedRecipe?.extractSelectors?.[0];
+        const waitTimeout =
+          options.waitTimeout || matchedRecipe?.waitTimeout || 15000;
+        logger.debug("Extraction parameters", {
+          waitTimeout,
+          waitFor: options.waitFor || matchedRecipe?.waitFor,
+        });
+        const combinedWaitFor =
+          options.waitFor ||
+          matchedRecipe?.waitFor ||
+          matchedRecipe?.extractSelectors?.[0];
 
         // 预先启动等待事件监听（避免时序竞态条件丢失消息）
-        const extractPromise = iframeBridge.waitForDomExtracted(waitTimeout + 3000);
+        const extractPromise = iframeBridge.waitForDomExtracted(
+          waitTimeout + 3000
+        );
 
         // 触发带 selector 的提取命令
         context?.reportStatus("正在分析页面结构...");
@@ -257,8 +316,10 @@ export async function smartExtract(options: SmartExtractOptions, context?: ToolC
         // 这里的 include/exclude 优先级：options > recipe
         const finalOptions = {
           ...options,
-          includeSelectors: options.extractSelectors || matchedRecipe?.extractSelectors,
-          excludeSelectors: options.excludeSelectors || matchedRecipe?.excludeSelectors,
+          includeSelectors:
+            options.extractSelectors || matchedRecipe?.extractSelectors,
+          excludeSelectors:
+            options.excludeSelectors || matchedRecipe?.excludeSelectors,
         };
 
         context?.reportStatus("内容抓取成功，正在进行高纯度蒸馏...");
@@ -268,7 +329,7 @@ export async function smartExtract(options: SmartExtractOptions, context?: ToolC
             ...finalOptions,
             cleanMode: options.cleanMode,
           },
-          matchedRecipe || undefined,
+          matchedRecipe || undefined
         );
 
         return {
@@ -280,7 +341,9 @@ export async function smartExtract(options: SmartExtractOptions, context?: ToolC
         } as ExtractResult;
       } finally {
         // 清除代理 cookie，避免影响后续请求
-        await invoke("distillery_set_proxy_cookies", { cookies: null }).catch(() => {});
+        await invoke("distillery_set_proxy_cookies", { cookies: null }).catch(
+          () => {}
+        );
         // 无论成功失败，都清理
         await iframeBridge.destroy().catch(() => {});
         tempContainer.remove();
@@ -288,7 +351,7 @@ export async function smartExtract(options: SmartExtractOptions, context?: ToolC
     },
     {
       userMessage: "智能提取失败，目标页面可能需要更长加载时间或需要授权",
-    },
+    }
   )) as ExtractResult;
 }
 
@@ -298,9 +361,12 @@ export async function smartExtract(options: SmartExtractOptions, context?: ToolC
 export async function processLocalContent(
   content: string,
   fileName: string,
-  options?: Partial<QuickFetchOptions>,
+  options?: Partial<QuickFetchOptions>
 ): Promise<FetchResult> {
-  logger.info("Processing local content", { fileName, contentLength: content.length });
+  logger.info("Processing local content", {
+    fileName,
+    contentLength: content.length,
+  });
   return (await errorHandler.wrapAsync(
     async () => {
       const url = `file://${fileName}`;
@@ -313,7 +379,7 @@ export async function processLocalContent(
           ...options,
           cleanMode: options?.cleanMode,
         },
-        matchedRecipe || undefined,
+        matchedRecipe || undefined
       );
 
       return {
@@ -323,7 +389,7 @@ export async function processLocalContent(
     },
     {
       userMessage: "本地内容处理失败，请检查文件格式",
-    },
+    }
   )) as FetchResult;
 }
 

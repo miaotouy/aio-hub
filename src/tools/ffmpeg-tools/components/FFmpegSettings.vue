@@ -10,15 +10,24 @@
             <el-button @click="testFFmpeg">测试</el-button>
           </template>
         </el-input>
-        <div class="help-text">如果 FFmpeg 已加入系统环境变量，直接填写 "ffmpeg" 即可。</div>
+        <div class="help-text">
+          如果 FFmpeg 已加入系统环境变量，直接填写 "ffmpeg" 即可。
+        </div>
       </el-form-item>
 
       <el-form-item label="默认工作目录">
-        <el-input v-model="store.config.defaultWorkDir" placeholder="留空则使用输入文件所在目录" />
+        <el-input
+          v-model="store.config.defaultWorkDir"
+          placeholder="留空则使用输入文件所在目录"
+        />
       </el-form-item>
 
       <el-form-item label="最大并发任务数">
-        <el-input-number v-model="store.config.maxConcurrentTasks" :min="1" :max="8" />
+        <el-input-number
+          v-model="store.config.maxConcurrentTasks"
+          :min="1"
+          :max="8"
+        />
       </el-form-item>
 
       <el-form-item label="硬件加速 (NVENC/QSV/VideoToolbox)">
@@ -30,7 +39,9 @@
       </el-form-item>
 
       <div class="actions">
-        <el-button type="warning" @click="store.resetConfig">重置默认</el-button>
+        <el-button type="warning" @click="store.resetConfig"
+          >重置默认</el-button
+        >
       </div>
     </el-form>
   </div>

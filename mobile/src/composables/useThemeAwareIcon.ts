@@ -126,13 +126,13 @@ export function useThemeAwareIcon(iconSrcRef: Ref<string | undefined>) {
 
   const isSvg = computed(() => {
     const src = iconSrcRef?.value;
-    return src && typeof src === 'string' && src.toLowerCase().endsWith(".svg");
+    return src && typeof src === "string" && src.toLowerCase().endsWith(".svg");
   });
   const iconUrl = computed(() => {
     if (isSvg.value) return "";
 
     const src = iconSrcRef?.value;
-    if (src && typeof src === 'string') {
+    if (src && typeof src === "string") {
       return normalizeIconPath(src);
     }
     return src;

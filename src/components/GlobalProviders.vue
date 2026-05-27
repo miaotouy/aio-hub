@@ -74,7 +74,10 @@ onMounted(() => {
 
   <!-- 全局转写编辑器 -->
   <TranscriptionDialog
-    v-if="transcriptionViewer.state.value.visible && transcriptionViewer.state.value.asset"
+    v-if="
+      transcriptionViewer.state.value.visible &&
+      transcriptionViewer.state.value.asset
+    "
     :model-value="transcriptionViewer.state.value.visible"
     :asset="transcriptionViewer.state.value.asset"
     :initial-content="transcriptionViewer.state.value.initialContent"

@@ -59,11 +59,14 @@ export const useLlmProfilesStore = defineStore("llm-profiles", () => {
   }
 
   const selectedProfile = computed(() => {
-    if (!selectedProfileId.value) return profiles.value.find(p => p.enabled) || null;
-    return profiles.value.find(p => p.id === selectedProfileId.value) || null;
+    if (!selectedProfileId.value)
+      return profiles.value.find((p) => p.enabled) || null;
+    return profiles.value.find((p) => p.id === selectedProfileId.value) || null;
   });
 
-  const enabledProfiles = computed(() => profiles.value.filter(p => p.enabled));
+  const enabledProfiles = computed(() =>
+    profiles.value.filter((p) => p.enabled)
+  );
 
   function addProfile(profile: LlmProfile) {
     // 确保必要字段存在
@@ -80,7 +83,7 @@ export const useLlmProfilesStore = defineStore("llm-profiles", () => {
   }
 
   function updateProfile(id: string, updates: Partial<LlmProfile>) {
-    const index = profiles.value.findIndex(p => p.id === id);
+    const index = profiles.value.findIndex((p) => p.id === id);
     if (index !== -1) {
       profiles.value[index] = { ...profiles.value[index], ...updates };
       save();
@@ -88,7 +91,7 @@ export const useLlmProfilesStore = defineStore("llm-profiles", () => {
   }
 
   function deleteProfile(id: string) {
-    profiles.value = profiles.value.filter(p => p.id !== id);
+    profiles.value = profiles.value.filter((p) => p.id !== id);
     if (selectedProfileId.value === id) {
       selectedProfileId.value = profiles.value[0]?.id || null;
     }

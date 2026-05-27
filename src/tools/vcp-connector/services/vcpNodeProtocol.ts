@@ -68,9 +68,15 @@ export class VcpNodeProtocol {
   /**
    * VCP -> AIO: 处理工具调用批准请求
    */
-  public async handleToolApprovalRequest(data: VcpToolApprovalRequest): Promise<void> {
+  public async handleToolApprovalRequest(
+    data: VcpToolApprovalRequest
+  ): Promise<void> {
     const { requestId, toolName, args, maid } = data;
-    logger.info(`Received tool approval request from VCP: ${toolName}`, { requestId, maid, args });
+    logger.info(`Received tool approval request from VCP: ${toolName}`, {
+      requestId,
+      maid,
+      args,
+    });
 
     const toolCallingStore = useToolCallingStore();
 
@@ -89,7 +95,11 @@ export class VcpNodeProtocol {
     const sessionId = `vcp-${maid}`;
 
     // 3. 调用 toolCallingStore.requestApproval 并等待用户操作
-    const result = await toolCallingStore.requestApproval(sessionId, parsedRequest as any, requestId);
+    const result = await toolCallingStore.requestApproval(
+      sessionId,
+      parsedRequest as any,
+      requestId
+    );
 
     // 4. 发送响应回 VCP
     // AIO 的结果有多种，映射为布尔值
@@ -101,7 +111,9 @@ export class VcpNodeProtocol {
    * AIO -> VCP: 发送工具调用批准响应
    */
   public sendToolApprovalResponse(requestId: string, approved: boolean): void {
-    logger.info(`Sending tool approval response to VCP: ${requestId}`, { approved });
+    logger.info(`Sending tool approval response to VCP: ${requestId}`, {
+      approved,
+    });
     this.sendJson({
       type: "tool_approval_response",
       data: { requestId, approved },
@@ -152,7 +164,7 @@ export class VcpNodeProtocol {
       if (!rawToolId || !rawMethodName) {
         throw new Error(
           `Invalid tool call: toolName="${toolName}", command="${rawMethodName}". ` +
-            `VCP protocol requires toolArgs.command to be provided.`,
+            `VCP protocol requires toolArgs.command to be provided.`
         );
       }
 
@@ -171,13 +183,17 @@ export class VcpNodeProtocol {
         if (toolRegistryManager.hasTool(hyphenId)) {
           toolId = hyphenId;
           registry = toolRegistryManager.getRegistry(toolId);
-          logger.debug(`Resolved toolId through hyphen conversion: ${rawToolId} -> ${toolId}`);
+          logger.debug(
+            `Resolved toolId through hyphen conversion: ${rawToolId} -> ${toolId}`
+          );
         }
       }
 
       if (!registry) {
         const availableTools = toolRegistryManager.getAllToolIds().join(", ");
-        throw new Error(`工具 "${rawToolId}" 尚未注册。可用的工具: ${availableTools}`);
+        throw new Error(
+          `工具 "${rawToolId}" 尚未注册。可用的工具: ${availableTools}`
+        );
       }
 
       const methodName = rawMethodName;
@@ -195,16 +211,24 @@ export class VcpNodeProtocol {
       // 注意：store 中的 fullId 依然使用冒号分隔符，这里需要保持一致
       const fullId = `${toolId}:${methodName}`;
       const isAutoRegister = distStore.config.autoRegisterTools;
-      const isDisabled = (distStore.config.disabledToolIds || []).includes(fullId);
-      const isManuallyExposed = (distStore.config.exposedToolIds || []).includes(fullId);
+      const isDisabled = (distStore.config.disabledToolIds || []).includes(
+        fullId
+      );
+      const isManuallyExposed = (
+        distStore.config.exposedToolIds || []
+      ).includes(fullId);
 
       // 判定是否允许暴露：
       // A. 是自动发现的 AI 工具且未被禁用
       // B. 是手动添加的工具
-      const isAllowed = (isAutoRegister && method.agentCallable && !isDisabled) || isManuallyExposed;
+      const isAllowed =
+        (isAutoRegister && method.agentCallable && !isDisabled) ||
+        isManuallyExposed;
 
       if (!isAllowed) {
-        throw new Error(`Method ${methodName} in tool ${toolId} is not exposed or is disabled for distributed calling`);
+        throw new Error(
+          `Method ${methodName} in tool ${toolId} is not exposed or is disabled for distributed calling`
+        );
       }
 
       // 4. 执行工具
@@ -212,7 +236,9 @@ export class VcpNodeProtocol {
       // 在 AIO 架构中，通常 registry 就是服务本身
       const service = registry as any;
       if (typeof service[methodName] !== "function") {
-        throw new Error(`Method ${methodName} not implemented in tool ${toolId}`);
+        throw new Error(
+          `Method ${methodName} not implemented in tool ${toolId}`
+        );
       }
 
       const result = await service[methodName](toolArgs);
@@ -224,7 +250,9 @@ export class VcpNodeProtocol {
         result,
       });
     } catch (error: any) {
-      errorHandler.error(error, "Tool execution failed", { context: { requestId, toolName } });
+      errorHandler.error(error, "Tool execution failed", {
+        context: { requestId, toolName },
+      });
 
       // 6. 回传错误
       this.sendToolResult({
@@ -243,15 +271,21 @@ export class VcpNodeProtocol {
     if (!fileUrl) throw new Error("Missing fileUrl in internal_request_file");
 
     // 移除 file:/// 前缀
-    const filePath = fileUrl.replace(/^file:\/\/\//, "").replace(/^file:\/\//, "");
+    const filePath = fileUrl
+      .replace(/^file:\/\/\//, "")
+      .replace(/^file:\/\//, "");
 
     logger.info(`Handling internal_request_file: ${filePath}`);
 
     // 1. 读取文件为 Base64
-    const fileData = await invoke<string>("read_file_as_base64", { path: filePath });
+    const fileData = await invoke<string>("read_file_as_base64", {
+      path: filePath,
+    });
 
     // 2. 检测 MIME 类型 (使用后端能力)
-    const mimeType = await invoke<string>("get_file_mime_type", { path: filePath });
+    const mimeType = await invoke<string>("get_file_mime_type", {
+      path: filePath,
+    });
 
     // 3. 回传结果
     this.sendToolResult({

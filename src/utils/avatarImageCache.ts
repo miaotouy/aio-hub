@@ -4,7 +4,11 @@ import { invoke } from "@tauri-apps/api/core";
 const cache = reactive(
   new Map<
     string,
-    { blobUrl: string; refCount: number; timeoutId?: ReturnType<typeof setTimeout> }
+    {
+      blobUrl: string;
+      refCount: number;
+      timeoutId?: ReturnType<typeof setTimeout>;
+    }
   >()
 );
 

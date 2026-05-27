@@ -1,13 +1,17 @@
 <template>
-  <div :id="containerId" class="markdown-html-block" v-html="processedContent"></div>
+  <div
+    :id="containerId"
+    class="markdown-html-block"
+    v-html="processedContent"
+  ></div>
 </template>
 
 <script setup lang="ts">
-import { computed, inject, type ComputedRef } from 'vue';
-import DOMPurify from 'dompurify';
-import { processMessageAssetsSync } from '@/tools/llm-chat/utils/agentAssetUtils';
-import type { ChatAgent } from '@/tools/llm-chat/types';
-import { processHtmlStyles, generateSimpleId } from '../../utils/cssUtils';
+import { computed, inject, type ComputedRef } from "vue";
+import DOMPurify from "dompurify";
+import { processMessageAssetsSync } from "@/tools/llm-chat/utils/agentAssetUtils";
+import type { ChatAgent } from "@/tools/llm-chat/types";
+import { processHtmlStyles, generateSimpleId } from "../../utils/cssUtils";
 
 const props = defineProps<{
   nodeId: string;
@@ -17,10 +21,13 @@ const props = defineProps<{
 }>();
 
 // 优先使用外部传入的 ID，否则生成唯一 ID 用于样式隔离
-const containerId = props.id || generateSimpleId('html-block');
+const containerId = props.id || generateSimpleId("html-block");
 
 // 注入当前 Agent（由 MessageContent 提供，用于解析 agent-asset:// URL）
-const currentAgent = inject<ComputedRef<ChatAgent | undefined> | null>("currentAgent", null);
+const currentAgent = inject<ComputedRef<ChatAgent | undefined> | null>(
+  "currentAgent",
+  null
+);
 
 // 净化 HTML 内容以防止 XSS 攻击
 // 块级 HTML 允许更多标签，但仍然严格过滤危险内容
@@ -29,68 +36,246 @@ const sanitizedContent = computed(() => {
   const MAX_HTML_LENGTH = 1000 * 1000 * 10; // 最大 10MB HTML
 
   if (props.content.length > MAX_HTML_LENGTH) {
-    console.warn(`[HtmlBlockNode] HTML content too large (${props.content.length} chars), truncating to ${MAX_HTML_LENGTH}`);
-    return `<div style="color: var(--el-color-warning); padding: 12px; border: 1px solid var(--el-color-warning); border-radius: 4px;">
+    console.warn(
+      `[HtmlBlockNode] HTML content too large (${props.content.length} chars), truncating to ${MAX_HTML_LENGTH}`
+    );
+    return (
+      `<div style="color: var(--el-color-warning); padding: 12px; border: 1px solid var(--el-color-warning); border-radius: 4px;">
       ⚠️ HTML 内容过大 (${(props.content.length / 1024).toFixed(1)}KB)，已截断显示前 ${(MAX_HTML_LENGTH / 1024).toFixed(1)}KB 以保护性能。
-    </div>` + DOMPurify.sanitize(props.content.slice(0, MAX_HTML_LENGTH), {
-      ALLOWED_TAGS: ['div', 'p', 'span', 'b', 'i', 'u', 'em', 'strong', 'br', 'hr'],
-      ALLOWED_ATTR: ['class', 'style'],
-    });
+    </div>` +
+      DOMPurify.sanitize(props.content.slice(0, MAX_HTML_LENGTH), {
+        ALLOWED_TAGS: [
+          "div",
+          "p",
+          "span",
+          "b",
+          "i",
+          "u",
+          "em",
+          "strong",
+          "br",
+          "hr",
+        ],
+        ALLOWED_ATTR: ["class", "style"],
+      })
+    );
   }
 
   const config = {
     ALLOWED_TAGS: [
       // 结构与语义
-      'div', 'p', 'section', 'article', 'aside', 'header', 'footer', 'nav', 'main',
-      'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-      'blockquote', 'figure', 'figcaption',
+      "div",
+      "p",
+      "section",
+      "article",
+      "aside",
+      "header",
+      "footer",
+      "nav",
+      "main",
+      "h1",
+      "h2",
+      "h3",
+      "h4",
+      "h5",
+      "h6",
+      "blockquote",
+      "figure",
+      "figcaption",
       // 文本格式
-      'span', 'b', 'i', 'u', 's', 'em', 'strong', 'code', 'pre', 'br', 'hr',
-      'mark', 'small', 'del', 'ins', 'sub', 'sup', 'abbr', 'kbd', 'q', 'cite', 'time',
+      "span",
+      "b",
+      "i",
+      "u",
+      "s",
+      "em",
+      "strong",
+      "code",
+      "pre",
+      "br",
+      "hr",
+      "mark",
+      "small",
+      "del",
+      "ins",
+      "sub",
+      "sup",
+      "abbr",
+      "kbd",
+      "q",
+      "cite",
+      "time",
       // 链接与媒体
-      'a', 'img', 'audio', 'video', 'source', 'iframe',
+      "a",
+      "img",
+      "audio",
+      "video",
+      "source",
+      "iframe",
       // 列表
-      'ul', 'ol', 'li', 'dl', 'dt', 'dd',
+      "ul",
+      "ol",
+      "li",
+      "dl",
+      "dt",
+      "dd",
       // 表格
-      'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'caption', 'colgroup', 'col',
+      "table",
+      "thead",
+      "tbody",
+      "tfoot",
+      "tr",
+      "th",
+      "td",
+      "caption",
+      "colgroup",
+      "col",
       // 表单
-      'form', 'fieldset', 'legend', 'label', 'input', 'button', 'select', 'option', 'textarea',
+      "form",
+      "fieldset",
+      "legend",
+      "label",
+      "input",
+      "button",
+      "select",
+      "option",
+      "textarea",
       // 交互式
-      'details', 'summary',
+      "details",
+      "summary",
       // 仪表与进度
-      'progress', 'meter',
+      "progress",
+      "meter",
       // 样式
-      'style',
+      "style",
       // 用于测试的自定义 XML
-      'user', 'name', 'age', 'email', 'config', 'setting'
+      "user",
+      "name",
+      "age",
+      "email",
+      "config",
+      "setting",
     ],
     // 允许所有 SVG 相关的标签和属性
-    ADD_TAGS: ['svg', 'path', 'circle', 'rect', 'line', 'polyline', 'polygon', 'ellipse', 'g', 'defs', 'symbol', 'use', 'animate', 'animateTransform', 'animateMotion', 'mpath', 'set'],
-    ADD_ATTR: ['d', 'viewBox', 'fill', 'stroke', 'stroke-width', 'cx', 'cy', 'r', 'x', 'y', 'width', 'height', 'points', 'transform', 'opacity', 'xlink:href'],
+    ADD_TAGS: [
+      "svg",
+      "path",
+      "circle",
+      "rect",
+      "line",
+      "polyline",
+      "polygon",
+      "ellipse",
+      "g",
+      "defs",
+      "symbol",
+      "use",
+      "animate",
+      "animateTransform",
+      "animateMotion",
+      "mpath",
+      "set",
+    ],
+    ADD_ATTR: [
+      "d",
+      "viewBox",
+      "fill",
+      "stroke",
+      "stroke-width",
+      "cx",
+      "cy",
+      "r",
+      "x",
+      "y",
+      "width",
+      "height",
+      "points",
+      "transform",
+      "opacity",
+      "xlink:href",
+    ],
     ALLOWED_ATTR: [
       // 通用
-      'class', 'id', 'style', 'title', 'lang', 'dir',
+      "class",
+      "id",
+      "style",
+      "title",
+      "lang",
+      "dir",
       // Links
-      'href', 'target', 'rel', 'download',
+      "href",
+      "target",
+      "rel",
+      "download",
       // Media
-      'src', 'alt', 'width', 'height', 'poster', 'preload', 'controls', 'autoplay', 'loop', 'muted',
+      "src",
+      "alt",
+      "width",
+      "height",
+      "poster",
+      "preload",
+      "controls",
+      "autoplay",
+      "loop",
+      "muted",
       // iframe - 谨慎使用
-      'allowfullscreen', 'frameborder',
+      "allowfullscreen",
+      "frameborder",
       // Tables
-      'colspan', 'rowspan', 'scope', 'align', 'valign',
+      "colspan",
+      "rowspan",
+      "scope",
+      "align",
+      "valign",
       // Forms
-      'type', 'name', 'value', 'placeholder', 'disabled', 'checked', 'selected', 'readonly',
-      'action', 'method', 'for', 'min', 'max', 'step', 'rows', 'cols',
+      "type",
+      "name",
+      "value",
+      "placeholder",
+      "disabled",
+      "checked",
+      "selected",
+      "readonly",
+      "action",
+      "method",
+      "for",
+      "min",
+      "max",
+      "step",
+      "rows",
+      "cols",
       // Interactive
-      'open',
+      "open",
       // Meter & Progress
-      'low', 'high', 'optimum',
+      "low",
+      "high",
+      "optimum",
       // 其他
-      'datetime', 'cite', 'loading', 'decoding', 'aria-label', 'aria-pressed'
+      "datetime",
+      "cite",
+      "loading",
+      "decoding",
+      "aria-label",
+      "aria-pressed",
     ],
     ALLOW_DATA_ATTR: true,
-    FORBID_TAGS: ['script', 'object', 'embed', 'applet', 'link', 'meta', 'base'],
-    FORBID_ATTR: ['onerror', 'onload', 'onmouseover', 'onmouseout', 'onfocus', 'onblur'],
+    FORBID_TAGS: [
+      "script",
+      "object",
+      "embed",
+      "applet",
+      "link",
+      "meta",
+      "base",
+    ],
+    FORBID_ATTR: [
+      "onerror",
+      "onload",
+      "onmouseover",
+      "onmouseout",
+      "onfocus",
+      "onblur",
+    ],
     // 强制 body 模式有助于保留 style 标签
     FORCE_BODY: true,
   };
@@ -103,12 +288,12 @@ const processedContent = computed(() => {
   let content = sanitizedContent.value;
 
   // 1. 处理样式隔离
-  if (content.includes('<style')) {
+  if (content.includes("<style")) {
     content = processHtmlStyles(content, containerId);
   }
 
   // 2. 如果内容中包含 agent-asset:// URL，且有 Agent 上下文，则进行转换
-  if (content.includes('agent-asset://') && currentAgent?.value) {
+  if (content.includes("agent-asset://") && currentAgent?.value) {
     return processMessageAssetsSync(content, currentAgent.value);
   }
 

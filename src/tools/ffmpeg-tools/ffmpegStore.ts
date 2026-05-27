@@ -1,8 +1,17 @@
 import { defineStore } from "pinia";
 import { ref, watch, computed } from "vue";
-import type { FFmpegTask, FFmpegConfig, FFmpegPreset, FFmpegParams } from "./types";
+import type {
+  FFmpegTask,
+  FFmpegConfig,
+  FFmpegPreset,
+  FFmpegParams,
+} from "./types";
 import { DEFAULT_FFMPEG_CONFIG, BUILTIN_PRESETS } from "./config";
-import { ffmpegConfigManager, ffmpegTasksManager, ffmpegPresetsManager } from "./utils/persistence";
+import {
+  ffmpegConfigManager,
+  ffmpegTasksManager,
+  ffmpegPresetsManager,
+} from "./utils/persistence";
 import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("ffmpegStore");
@@ -80,7 +89,7 @@ export const useFFmpegStore = defineStore("ffmpeg-tools", () => {
       if (!isInitialized.value) return;
       saveConfig();
     },
-    { deep: true },
+    { deep: true }
   );
 
   // 监听任务变化
@@ -90,7 +99,7 @@ export const useFFmpegStore = defineStore("ffmpeg-tools", () => {
       if (!isInitialized.value) return;
       saveTasks();
     },
-    { deep: true },
+    { deep: true }
   );
 
   // 监听预设变化
@@ -100,13 +109,19 @@ export const useFFmpegStore = defineStore("ffmpeg-tools", () => {
       if (!isInitialized.value) return;
       savePresets();
     },
-    { deep: true },
+    { deep: true }
   );
 
   // Getters
-  const pendingTasks = computed(() => tasks.value.filter((t) => t.status === "pending"));
-  const activeTasks = computed(() => tasks.value.filter((t) => t.status === "processing"));
-  const completedTasks = computed(() => tasks.value.filter((t) => t.status === "completed"));
+  const pendingTasks = computed(() =>
+    tasks.value.filter((t) => t.status === "pending")
+  );
+  const activeTasks = computed(() =>
+    tasks.value.filter((t) => t.status === "processing")
+  );
+  const completedTasks = computed(() =>
+    tasks.value.filter((t) => t.status === "completed")
+  );
 
   // 初始化
   const init = async () => {
@@ -117,7 +132,9 @@ export const useFFmpegStore = defineStore("ffmpeg-tools", () => {
   };
 
   // Actions
-  const addTask = (task: Omit<FFmpegTask, "id" | "status" | "progress" | "createdAt">) => {
+  const addTask = (
+    task: Omit<FFmpegTask, "id" | "status" | "progress" | "createdAt">
+  ) => {
     const newTask: FFmpegTask = {
       ...task,
       id: crypto.randomUUID(),
@@ -138,13 +155,20 @@ export const useFFmpegStore = defineStore("ffmpeg-tools", () => {
     const task = tasks.value.find((t) => t.id === id);
     if (task) {
       Object.assign(task, updates);
-      if (updates.status === "completed" || updates.status === "failed" || updates.status === "cancelled") {
+      if (
+        updates.status === "completed" ||
+        updates.status === "failed" ||
+        updates.status === "cancelled"
+      ) {
         task.completedAt = Date.now();
       }
     }
   };
 
-  const updateTaskProgress = (id: string, progress: Partial<FFmpegTask["progress"]>) => {
+  const updateTaskProgress = (
+    id: string,
+    progress: Partial<FFmpegTask["progress"]>
+  ) => {
     const task = tasks.value.find((t) => t.id === id);
     if (task) {
       task.progress = { ...task.progress, ...progress };
@@ -181,7 +205,11 @@ export const useFFmpegStore = defineStore("ffmpeg-tools", () => {
   // --- 预设操作 ---
 
   /** 将当前参数保存为新预设 */
-  const saveAsPreset = (name: string, description: string, params: Partial<FFmpegParams>) => {
+  const saveAsPreset = (
+    name: string,
+    description: string,
+    params: Partial<FFmpegParams>
+  ) => {
     const newPreset: FFmpegPreset = {
       id: crypto.randomUUID(),
       name,

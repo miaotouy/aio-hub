@@ -20,7 +20,14 @@ const DEFAULT_NORMALIZE: NormalizeOptions = {
 /** 默认配置 */
 export const DEFAULT_CONFIG: SimilarityConfig = {
   extensions: [],
-  ignorePatterns: ["node_modules", ".git", "dist", "build", "__pycache__", ".venv"],
+  ignorePatterns: [
+    "node_modules",
+    ".git",
+    "dist",
+    "build",
+    "__pycache__",
+    ".venv",
+  ],
   maxFileSizeMb: 50,
   sizeDiffThreshold: 0.05,
   minSimilarity: 0.85,

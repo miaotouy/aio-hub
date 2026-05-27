@@ -24,7 +24,15 @@ const logic = useSymlinkMoverLogic();
         {{ logic.formatLogTicker(log) }}
       </div>
     </div>
-    <el-button :icon="View" text size="small" @click="emit('open-log')" class="log-ticker-btn"> 详情 </el-button>
+    <el-button
+      :icon="View"
+      text
+      size="small"
+      @click="emit('open-log')"
+      class="log-ticker-btn"
+    >
+      详情
+    </el-button>
   </div>
 </template>
 

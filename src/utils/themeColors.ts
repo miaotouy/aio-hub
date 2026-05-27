@@ -70,7 +70,8 @@ export const hexToOklch = (hex: string): OKLCH | null => {
   const g = rgb.g / 255;
   const b = rgb.b / 255;
 
-  const toLinear = (c: number) => (c > 0.04045 ? Math.pow((c + 0.055) / 1.055, 2.4) : c / 12.92);
+  const toLinear = (c: number) =>
+    c > 0.04045 ? Math.pow((c + 0.055) / 1.055, 2.4) : c / 12.92;
   const lr = toLinear(r);
   const lg = toLinear(g);
   const lb = toLinear(b);
@@ -85,9 +86,12 @@ export const hexToOklch = (hex: string): OKLCH | null => {
   const m_root = Math.cbrt(m_);
   const s_root = Math.cbrt(s_);
 
-  const lab_l = 0.2104542553 * l_root + 0.793617785 * m_root - 0.0040720401 * s_root;
-  const lab_a = 1.9779984951 * l_root - 2.428592205 * m_root + 0.4505937099 * s_root;
-  const lab_b = 0.0259040371 * l_root + 0.7827717662 * m_root - 0.808675766 * s_root;
+  const lab_l =
+    0.2104542553 * l_root + 0.793617785 * m_root - 0.0040720401 * s_root;
+  const lab_a =
+    1.9779984951 * l_root - 2.428592205 * m_root + 0.4505937099 * s_root;
+  const lab_b =
+    0.0259040371 * l_root + 0.7827717662 * m_root - 0.808675766 * s_root;
 
   // 4. Oklab to OKLCH
   const chroma = Math.sqrt(lab_a * lab_a + lab_b * lab_b);
@@ -120,7 +124,15 @@ export const oklchToHex = (oklch: OKLCH): string => {
   const toSRGB = (comp: number) =>
     Math.max(
       0,
-      Math.min(255, Math.round(255 * (comp <= 0.0031308 ? 12.92 * comp : 1.055 * Math.pow(comp, 1 / 2.4) - 0.055))),
+      Math.min(
+        255,
+        Math.round(
+          255 *
+            (comp <= 0.0031308
+              ? 12.92 * comp
+              : 1.055 * Math.pow(comp, 1 / 2.4) - 0.055)
+        )
+      )
     );
 
   const resR = toSRGB(lr);
@@ -177,7 +189,7 @@ export const applyThemeColors = (
     danger?: string;
     info?: string;
   },
-  darkOverride?: boolean,
+  darkOverride?: boolean
 ) => {
   // 优先使用传入的 darkOverride，否则使用 useDark 的实时值
   const activeIsDark = darkOverride !== undefined ? darkOverride : isDark.value;
@@ -192,11 +204,17 @@ export const applyThemeColors = (
     root.style.setProperty("--primary-color", colors.primary);
     const rgb = hexToRgb(colors.primary);
     if (rgb) {
-      root.style.setProperty("--primary-color-rgb", `${rgb.r}, ${rgb.g}, ${rgb.b}`);
+      root.style.setProperty(
+        "--primary-color-rgb",
+        `${rgb.r}, ${rgb.g}, ${rgb.b}`
+      );
     }
     root.style.setProperty("--el-color-primary", colors.primary);
     for (let i = 1; i <= 9; i++) {
-      root.style.setProperty(`--el-color-primary-light-${i}`, adjustColor(colors.primary, i * 10));
+      root.style.setProperty(
+        `--el-color-primary-light-${i}`,
+        adjustColor(colors.primary, i * 10)
+      );
     }
 
     // hover 颜色根据当前主题模式调整
@@ -209,7 +227,10 @@ export const applyThemeColors = (
   if (colors.success && /^#[0-9A-F]{6}$/i.test(colors.success)) {
     root.style.setProperty("--el-color-success", colors.success);
     for (let i = 1; i <= 9; i++) {
-      root.style.setProperty(`--el-color-success-light-${i}`, adjustColor(colors.success, i * 10));
+      root.style.setProperty(
+        `--el-color-success-light-${i}`,
+        adjustColor(colors.success, i * 10)
+      );
     }
   }
 
@@ -217,7 +238,10 @@ export const applyThemeColors = (
   if (colors.warning && /^#[0-9A-F]{6}$/i.test(colors.warning)) {
     root.style.setProperty("--el-color-warning", colors.warning);
     for (let i = 1; i <= 9; i++) {
-      root.style.setProperty(`--el-color-warning-light-${i}`, adjustColor(colors.warning, i * 10));
+      root.style.setProperty(
+        `--el-color-warning-light-${i}`,
+        adjustColor(colors.warning, i * 10)
+      );
     }
   }
 
@@ -225,7 +249,10 @@ export const applyThemeColors = (
   if (colors.danger && /^#[0-9A-F]{6}$/i.test(colors.danger)) {
     root.style.setProperty("--el-color-danger", colors.danger);
     for (let i = 1; i <= 9; i++) {
-      root.style.setProperty(`--el-color-danger-light-${i}`, adjustColor(colors.danger, i * 10));
+      root.style.setProperty(
+        `--el-color-danger-light-${i}`,
+        adjustColor(colors.danger, i * 10)
+      );
     }
   }
 
@@ -233,15 +260,20 @@ export const applyThemeColors = (
   if (colors.info && /^#[0-9A-F]{6}$/i.test(colors.info)) {
     root.style.setProperty("--el-color-info", colors.info);
     for (let i = 1; i <= 9; i++) {
-      root.style.setProperty(`--el-color-info-light-${i}`, adjustColor(colors.info, i * 10));
+      root.style.setProperty(
+        `--el-color-info-light-${i}`,
+        adjustColor(colors.info, i * 10)
+      );
     }
   }
 
   // 缓存到 localStorage 以避免下次启动时的闪烁
   try {
     if (colors.primary) localStorage.setItem("app-theme-color", colors.primary);
-    if (colors.success) localStorage.setItem("app-success-color", colors.success);
-    if (colors.warning) localStorage.setItem("app-warning-color", colors.warning);
+    if (colors.success)
+      localStorage.setItem("app-success-color", colors.success);
+    if (colors.warning)
+      localStorage.setItem("app-warning-color", colors.warning);
     if (colors.danger) localStorage.setItem("app-danger-color", colors.danger);
     if (colors.info) localStorage.setItem("app-info-color", colors.info);
   } catch (error) {

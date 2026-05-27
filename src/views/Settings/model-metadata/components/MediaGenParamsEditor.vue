@@ -26,29 +26,55 @@
         </el-form-item>
 
         <el-form-item label="默认尺寸">
-          <el-select v-model="localParams.size.default" placeholder="选择默认值" clearable style="width: 100%">
-            <el-option v-for="p in localParams.size.presets" :key="p.value" :label="p.label" :value="p.value" />
+          <el-select
+            v-model="localParams.size.default"
+            placeholder="选择默认值"
+            clearable
+            style="width: 100%"
+          >
+            <el-option
+              v-for="p in localParams.size.presets"
+              :key="p.value"
+              :label="p.label"
+              :value="p.value"
+            />
           </el-select>
         </el-form-item>
 
-        <template v-if="localParams.size.mode === 'free' && localParams.size.constraints">
+        <template
+          v-if="
+            localParams.size.mode === 'free' && localParams.size.constraints
+          "
+        >
           <el-divider border-style="dashed">自由模式约束</el-divider>
           <el-row :gutter="20">
             <el-col :span="12">
               <el-form-item label="最大宽度">
-                <el-input-number v-model="localParams.size.constraints.maxWidth" :min="0" style="width: 100%" />
+                <el-input-number
+                  v-model="localParams.size.constraints.maxWidth"
+                  :min="0"
+                  style="width: 100%"
+                />
               </el-form-item>
             </el-col>
             <el-col :span="12">
               <el-form-item label="最大高度">
-                <el-input-number v-model="localParams.size.constraints.maxHeight" :min="0" style="width: 100%" />
+                <el-input-number
+                  v-model="localParams.size.constraints.maxHeight"
+                  :min="0"
+                  style="width: 100%"
+                />
               </el-form-item>
             </el-col>
           </el-row>
           <el-row :gutter="20">
             <el-col :span="12">
               <el-form-item label="步长 (Step)">
-                <el-input-number v-model="localParams.size.constraints.stepSize" :min="1" style="width: 100%" />
+                <el-input-number
+                  v-model="localParams.size.constraints.stepSize"
+                  :min="1"
+                  style="width: 100%"
+                />
               </el-form-item>
             </el-col>
             <el-col :span="12">
@@ -66,45 +92,76 @@
       </template>
 
       <!-- 宽高比模式配置 -->
-      <template v-else-if="sizeMode === 'aspectRatio' && localParams.aspectRatioMode">
+      <template
+        v-else-if="sizeMode === 'aspectRatio' && localParams.aspectRatioMode"
+      >
         <el-form-item label="宽高比列表">
           <OptionListEditor v-model="localParams.aspectRatioMode.ratios" />
         </el-form-item>
         <el-form-item label="分辨率列表">
-          <OptionListEditor v-model="localParams.aspectRatioMode.resolutions!" />
+          <OptionListEditor
+            v-model="localParams.aspectRatioMode.resolutions!"
+          />
         </el-form-item>
       </template>
 
       <!-- Gemini 模式配置 -->
-      <template v-else-if="sizeMode === 'gemini' && localParams.geminiImageConfig">
+      <template
+        v-else-if="sizeMode === 'gemini' && localParams.geminiImageConfig"
+      >
         <el-form-item label="宽高比列表">
-          <OptionListEditor v-model="localParams.geminiImageConfig.aspectRatios" />
+          <OptionListEditor
+            v-model="localParams.geminiImageConfig.aspectRatios"
+          />
         </el-form-item>
         <el-form-item label="尺寸等级">
-          <OptionListEditor v-model="localParams.geminiImageConfig.imageSizes!" />
-          <div class="form-hint">Gemini 的 imageSize 值为 "512" / "1K" / "2K" / "4K"</div>
+          <OptionListEditor
+            v-model="localParams.geminiImageConfig.imageSizes!"
+          />
+          <div class="form-hint">
+            Gemini 的 imageSize 值为 "512" / "1K" / "2K" / "4K"
+          </div>
         </el-form-item>
       </template>
 
       <!-- 参数支持开关组 -->
-      <el-divider content-position="left">参数支持 (Parameter Support)</el-divider>
+      <el-divider content-position="left"
+        >参数支持 (Parameter Support)</el-divider
+      >
 
       <div class="param-support-grid">
-        <div v-for="param in supportableParams" :key="param.key" class="param-card">
+        <div
+          v-for="param in supportableParams"
+          :key="param.key"
+          class="param-card"
+        >
           <div class="param-header">
             <span class="param-name">{{ param.label }}</span>
-            <el-radio-group v-model="paramStates[param.key]" size="small" @change="handleParamStateChange(param.key)">
+            <el-radio-group
+              v-model="paramStates[param.key]"
+              size="small"
+              @change="handleParamStateChange(param.key)"
+            >
               <el-radio-button value="unlimited">不限</el-radio-button>
               <el-radio-button value="supported">支持</el-radio-button>
               <el-radio-button value="unsupported">禁用</el-radio-button>
             </el-radio-group>
           </div>
 
-          <div v-if="paramStates[param.key] === 'supported'" class="param-config-area">
+          <div
+            v-if="paramStates[param.key] === 'supported'"
+            class="param-config-area"
+          >
             <!-- 选项类参数 -->
             <template v-if="param.type === 'options'">
-              <OptionListEditor v-model="(localParams[param.key] as any).options" />
-              <el-form-item label="默认值" label-width="60px" style="margin-top: 10px; margin-bottom: 0">
+              <OptionListEditor
+                v-model="(localParams[param.key] as any).options"
+              />
+              <el-form-item
+                label="默认值"
+                label-width="60px"
+                style="margin-top: 10px; margin-bottom: 0"
+              >
                 <el-select
                   v-model="(localParams[param.key] as any).default"
                   placeholder="选择默认值"
@@ -124,12 +181,27 @@
             <!-- 数值类参数 -->
             <template v-else-if="param.type === 'number'">
               <div class="number-range">
-                <el-input-number v-model="(localParams[param.key] as any).min" placeholder="最小" size="small" />
+                <el-input-number
+                  v-model="(localParams[param.key] as any).min"
+                  placeholder="最小"
+                  size="small"
+                />
                 <span>-</span>
-                <el-input-number v-model="(localParams[param.key] as any).max" placeholder="最大" size="small" />
+                <el-input-number
+                  v-model="(localParams[param.key] as any).max"
+                  placeholder="最大"
+                  size="small"
+                />
               </div>
-              <el-form-item label="默认值" label-width="60px" style="margin-top: 10px; margin-bottom: 0">
-                <el-input-number v-model="(localParams[param.key] as any).default" size="small" />
+              <el-form-item
+                label="默认值"
+                label-width="60px"
+                style="margin-top: 10px; margin-bottom: 0"
+              >
+                <el-input-number
+                  v-model="(localParams[param.key] as any).default"
+                  size="small"
+                />
               </el-form-item>
             </template>
 
@@ -164,7 +236,9 @@ const localParams = ref<MediaGenParamRules>({});
 const sizeMode = ref<"none" | "size" | "aspectRatio" | "gemini">("none");
 
 // 参数状态映射 (unlimited | supported | unsupported)
-const paramStates = ref<Record<string, "unlimited" | "supported" | "unsupported">>({});
+const paramStates = ref<
+  Record<string, "unlimited" | "supported" | "unsupported">
+>({});
 
 const supportableParams = [
   { key: "quality", label: "质量 (quality)", type: "options" },
@@ -208,16 +282,19 @@ watch(
     });
     paramStates.value = newStates;
   },
-  { immediate: true, deep: true },
+  { immediate: true, deep: true }
 );
 
 // 监听本地状态变化并同步回父组件
 watch(
   localParams,
   (newVal) => {
-    emit("update:modelValue", Object.keys(newVal).length > 0 ? newVal : undefined);
+    emit(
+      "update:modelValue",
+      Object.keys(newVal).length > 0 ? newVal : undefined
+    );
   },
-  { deep: true },
+  { deep: true }
 );
 
 // 处理尺寸模式切换
@@ -228,7 +305,11 @@ watch(sizeMode, (newMode) => {
   delete localParams.value.geminiImageConfig;
 
   if (newMode === "size") {
-    localParams.value.size = { mode: "preset", presets: [], constraints: { stepSize: 8 } };
+    localParams.value.size = {
+      mode: "preset",
+      presets: [],
+      constraints: { stepSize: 8 },
+    };
   } else if (newMode === "aspectRatio") {
     localParams.value.aspectRatioMode = { ratios: [] };
   } else if (newMode === "gemini") {

@@ -78,7 +78,9 @@ const getCategoryLabel = (category: string | "all") => {
       <div class="preset-options">
         <div class="preset-section">
           <h4>从预设模板创建</h4>
-          <p class="preset-section-desc">选择一个预设模板，快速开始你的对话。</p>
+          <p class="preset-section-desc">
+            选择一个预设模板，快速开始你的对话。
+          </p>
 
           <!-- 搜索框 -->
           <div class="search-bar">
@@ -127,8 +129,14 @@ const getCategoryLabel = (category: string | "all") => {
                   :radius="6"
                 />
                 <div class="preset-info">
-                  <div class="preset-name">{{ preset.displayName || preset.name }}</div>
-                  <el-tooltip :content="preset.description" placement="top" :show-after="500">
+                  <div class="preset-name">
+                    {{ preset.displayName || preset.name }}
+                  </div>
+                  <el-tooltip
+                    :content="preset.description"
+                    placement="top"
+                    :show-after="500"
+                  >
                     <div class="preset-desc">{{ preset.description }}</div>
                   </el-tooltip>
                 </div>
@@ -141,7 +149,9 @@ const getCategoryLabel = (category: string | "all") => {
 
         <div class="preset-section">
           <h4>自定义配置</h4>
-          <el-button style="width: 100%" @click="handleCreateFromBlank"> 从空白创建 </el-button>
+          <el-button style="width: 100%" @click="handleCreateFromBlank">
+            从空白创建
+          </el-button>
         </div>
       </div>
     </template>

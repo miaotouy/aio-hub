@@ -33,13 +33,17 @@ const canvasList = computed(() => canvasStore?.canvasList || []);
 const currentAgentId = computed(() => agentStore.currentAgentId);
 
 const boundCanvasId = computed(() => {
-  const agent = currentAgentId.value ? agentStore.getAgentById(currentAgentId.value) : null;
+  const agent = currentAgentId.value
+    ? agentStore.getAgentById(currentAgentId.value)
+    : null;
   return agent?.toolCallConfig?.toolSettings?.["web-canvas"]?.canvasId || null;
 });
 
 const pendingChangesCount = computed(() => {
   if (!canvasStore || !boundCanvasId.value) return 0;
-  const canvas = canvasStore.canvasList.find((c) => c.metadata.id === boundCanvasId.value);
+  const canvas = canvasStore.canvasList.find(
+    (c) => c.metadata.id === boundCanvasId.value
+  );
   return canvas?.dirtyFileCount || 0;
 });
 
@@ -47,7 +51,9 @@ const pendingChangesCount = computed(() => {
  * 绑定画布到当前 Agent
  */
 function bindCanvas(canvasId: string | null) {
-  const agent = currentAgentId.value ? agentStore.getAgentById(currentAgentId.value) : null;
+  const agent = currentAgentId.value
+    ? agentStore.getAgentById(currentAgentId.value)
+    : null;
   if (!agent) return;
 
   if (!agent.toolCallConfig) {
@@ -144,7 +150,13 @@ onMounted(() => {
             <div class="empty-hint">暂无可用画布</div>
           </template>
         </el-select>
-        <el-button v-if="boundCanvasId" type="info" link @click="bindCanvas(null)" class="unbind-btn">
+        <el-button
+          v-if="boundCanvasId"
+          type="info"
+          link
+          @click="bindCanvas(null)"
+          class="unbind-btn"
+        >
           <X :size="14" />
         </el-button>
       </div>

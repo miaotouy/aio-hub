@@ -8,7 +8,11 @@ import { parseModelCombo } from "@/utils/modelIdUtils";
 import type { Asset } from "@/types/asset-management";
 import { getModelParams, getEffectiveConfig } from "./base";
 import { cleanLlmOutput, detectRepetition } from "../utils/text";
-import type { ITranscriptionEngine, EngineContext, EngineResult } from "../types";
+import type {
+  ITranscriptionEngine,
+  EngineContext,
+  EngineResult,
+} from "../types";
 
 const logger = createModuleLogger("transcription/engines/video");
 
@@ -22,7 +26,14 @@ export class VideoTranscriptionEngine implements ITranscriptionEngine {
     const config = getEffectiveConfig(ctx);
     const { sendRequest, getNetworkStrategy } = useLlmRequest();
 
-    const { modelIdentifier, prompt, temperature, maxTokens, timeout, enableRepetitionDetection } = getModelParams(ctx, "video");
+    const {
+      modelIdentifier,
+      prompt,
+      temperature,
+      maxTokens,
+      timeout,
+      enableRepetitionDetection,
+    } = getModelParams(ctx, "video");
     const [profileId, modelId] = parseModelCombo(modelIdentifier);
 
     // 1. 获取二进制数据 (处理视频压缩逻辑)
@@ -34,11 +45,17 @@ export class VideoTranscriptionEngine implements ITranscriptionEngine {
     if (task.tempFilePath) {
       try {
         const basePath = await assetManagerEngine.getAssetBasePath();
-        const tempFullPath = `${basePath}/${task.tempFilePath}`.replace(/\\/g, "/");
+        const tempFullPath = `${basePath}/${task.tempFilePath}`.replace(
+          /\\/g,
+          "/"
+        );
         await stat(tempFullPath);
         finalPath = task.tempFilePath;
         reuseTempFile = true;
-        logger.info("复用已有的压缩视频文件", { assetId: task.assetId, path: finalPath });
+        logger.info("复用已有的压缩视频文件", {
+          assetId: task.assetId,
+          path: finalPath,
+        });
       } catch (e) {
         task.tempFilePath = undefined;
       }
@@ -53,14 +70,19 @@ export class VideoTranscriptionEngine implements ITranscriptionEngine {
 
       let shouldCompress = false;
       if (config.video?.enableCompression && ffmpegPath) {
-        const isFFmpegAvailable = await invoke<boolean>("check_ffmpeg_availability", { path: ffmpegPath });
+        const isFFmpegAvailable = await invoke<boolean>(
+          "check_ffmpeg_availability",
+          { path: ffmpegPath }
+        );
         if (isFFmpegAvailable) {
           try {
             const fileStat = await stat(fullPath);
             const sizeMB = fileStat.size / (1024 * 1024);
             if (sizeMB > maxDirectSizeMB) {
               shouldCompress = true;
-              logger.info(`视频大小 (${sizeMB.toFixed(2)}MB) 超过阈值 (${maxDirectSizeMB}MB)，将尝试压缩`);
+              logger.info(
+                `视频大小 (${sizeMB.toFixed(2)}MB) 超过阈值 (${maxDirectSizeMB}MB)，将尝试压缩`
+              );
             }
           } catch (e) {
             logger.warn("无法获取视频文件大小，将尝试直接处理", e);
@@ -73,18 +95,19 @@ export class VideoTranscriptionEngine implements ITranscriptionEngine {
           const maxFps = config.video?.maxFps || 12;
           const maxResolution = config.video?.maxResolution || 720;
           const enableGpu = config.video?.enableGpu || false;
-          const autoAdjustResolution = config.video?.autoAdjustResolution ?? true;
+          const autoAdjustResolution =
+            config.video?.autoAdjustResolution ?? true;
           const outputPath = `${fullPath}_compressed.mp4`;
 
           // 监听进度
-          const unlisten = await listen<{ task_id: string; progress: { percent: number } }>(
-            "ffmpeg-progress",
-            (event) => {
-              if (event.payload.task_id === task.id) {
-                task.progress = event.payload.progress.percent;
-              }
+          const unlisten = await listen<{
+            task_id: string;
+            progress: { percent: number };
+          }>("ffmpeg-progress", (event) => {
+            if (event.payload.task_id === task.id) {
+              task.progress = event.payload.progress.percent;
             }
-          );
+          });
 
           try {
             await invoke("process_media", {
@@ -98,8 +121,10 @@ export class VideoTranscriptionEngine implements ITranscriptionEngine {
                 maxSizeMb: maxDirectSizeMB,
                 fps: maxFps,
                 // 注意：后端目前 scale 接受的是字符串，如 "1280:-2"
-                scale: autoAdjustResolution ? `min(${maxResolution},iw):-2` : undefined,
-              }
+                scale: autoAdjustResolution
+                  ? `min(${maxResolution},iw):-2`
+                  : undefined,
+              },
             });
           } finally {
             unlisten();
@@ -118,7 +143,7 @@ export class VideoTranscriptionEngine implements ITranscriptionEngine {
     // 2. 发送请求
     // 让出主线程执行权，确保 UI 状态（如转圈动画）能优先渲染
     // 增加延迟到 50ms，确保在大文件处理前，浏览器有足够时间完成 UI 渲染（转圈动画等）
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 50));
 
     const basePath = await assetManagerEngine.getAssetBasePath();
     const fullPath = `${basePath}/${finalPath}`.replace(/\\/g, "/");
@@ -137,25 +162,29 @@ export class VideoTranscriptionEngine implements ITranscriptionEngine {
       videoData = await assetManagerEngine.getAssetBinary(finalPath);
     }
 
-    const finalPrompt = task.filename ? prompt.replace(/\{filename\}/g, task.filename) : prompt;
+    const finalPrompt = task.filename
+      ? prompt.replace(/\{filename\}/g, task.filename)
+      : prompt;
 
     const response = await sendRequest({
       profileId,
       modelId,
-      messages: [{
-        role: "user",
-        content: [
-          { type: "text", text: finalPrompt },
-          {
-            type: "video",
-            source: {
-              type: "base64",
-              media_type: task.mimeType || "video/mp4",
-              data: videoData
-            }
-          }
-        ]
-      }],
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: finalPrompt },
+            {
+              type: "video",
+              source: {
+                type: "base64",
+                media_type: task.mimeType || "video/mp4",
+                data: videoData,
+              },
+            },
+          ],
+        },
+      ],
       stream: false,
       temperature,
       maxTokens,
@@ -173,7 +202,7 @@ export class VideoTranscriptionEngine implements ITranscriptionEngine {
 
     return {
       text: cleanedText,
-      isEmpty: !cleanedText || cleanedText.trim().length === 0
+      isEmpty: !cleanedText || cleanedText.trim().length === 0,
     };
   }
 }

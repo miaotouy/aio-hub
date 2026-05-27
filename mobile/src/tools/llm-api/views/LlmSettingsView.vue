@@ -39,7 +39,9 @@ const applyPreset = (preset: any) => {
     baseUrl: preset.defaultBaseUrl,
     apiKeys: [""],
     enabled: true,
-    models: preset.defaultModels ? JSON.parse(JSON.stringify(preset.defaultModels)) : [],
+    models: preset.defaultModels
+      ? JSON.parse(JSON.stringify(preset.defaultModels))
+      : [],
     icon: preset.logoUrl,
     customHeaders: {},
     customEndpoints: {},
@@ -105,7 +107,11 @@ const handleToggleMultiSelect = (id: string) => {
 
 <template>
   <div class="llm-settings-view">
-    <var-app-bar :title="tRaw('tools.llm-api.common.LLM 渠道管理')" fixed safe-area>
+    <var-app-bar
+      :title="tRaw('tools.llm-api.common.LLM 渠道管理')"
+      fixed
+      safe-area
+    >
       <template #left>
         <var-button round text @click="router.back()">
           <ChevronLeft :size="24" />
@@ -132,7 +138,11 @@ const handleToggleMultiSelect = (id: string) => {
           :is-selected="false"
           :is-management-mode="isManagementMode"
           :is-multi-selected="multiSelectedIds.has(profile.id)"
-          @click="isManagementMode ? handleToggleMultiSelect(profile.id) : openEdit(profile)"
+          @click="
+            isManagementMode
+              ? handleToggleMultiSelect(profile.id)
+              : openEdit(profile)
+          "
           @toggle-enabled="(val) => handleToggleEnabled(profile.id, val)"
           @toggle-multi-select="handleToggleMultiSelect(profile.id)"
         />

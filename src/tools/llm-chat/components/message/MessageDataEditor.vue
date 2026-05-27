@@ -14,7 +14,9 @@
           <span v-if="messageId" class="id-hint">ID: {{ messageId }}</span>
         </div>
         <div class="right-buttons">
-          <el-button :icon="Copy" size="small" @click="handleCopy"> 复制 JSON </el-button>
+          <el-button :icon="Copy" size="small" @click="handleCopy">
+            复制 JSON
+          </el-button>
         </div>
       </div>
       <RichCodeEditor

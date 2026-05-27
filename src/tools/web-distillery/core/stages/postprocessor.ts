@@ -15,7 +15,7 @@ export class Postprocessor {
     url: string,
     format: any,
     metadata: any,
-    mode: DistillMode = "fast",
+    mode: DistillMode = "fast"
   ): FetchResult {
     // 1. 简单的质量评估
     const quality = this.calculateQuality(content, metadata);
@@ -24,7 +24,10 @@ export class Postprocessor {
     if (quality < 0.3) {
       warnings.push("内容质量较低，可能提取不完整。");
     }
-    if (content.toLowerCase().includes("captcha") || content.includes("验证码")) {
+    if (
+      content.toLowerCase().includes("captcha") ||
+      content.includes("验证码")
+    ) {
       warnings.push("检测到反爬验证码。");
     }
 

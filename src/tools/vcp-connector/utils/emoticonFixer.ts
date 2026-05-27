@@ -1,4 +1,8 @@
-import { getEmoticonLibrary, getHttpBaseUrl, type EmoticonItem } from "../services/vcpEmoticonService";
+import {
+  getEmoticonLibrary,
+  getHttpBaseUrl,
+  type EmoticonItem,
+} from "../services/vcpEmoticonService";
 import { useVcpStore } from "../stores/vcpConnectorStore";
 
 /**
@@ -23,7 +27,9 @@ export function fixVcpEmoticonUrl(input: string): string {
 
   // 全文本模式：替换所有匹配的 URL
   // 匹配 http(s)://... 中包含"表情包"的 URL
-  return input.replace(/https?:\/\/[^\s"')\]]+/g, (url) => fixSingleUrl(url, baseUrl));
+  return input.replace(/https?:\/\/[^\s"')\]]+/g, (url) =>
+    fixSingleUrl(url, baseUrl)
+  );
 }
 
 /**
@@ -66,7 +72,10 @@ function fixSingleUrl(url: string, baseUrl: string): string {
  *   Layer 2: `decodeURIComponent` + `split`（非标 URL 的降级）
  *   Layer 3: 原始 `split`（最终兜底，绝不抛出）
  */
-function extractEmoticonInfo(url: string): { filename: string | null; packageName: string | null } {
+function extractEmoticonInfo(url: string): {
+  filename: string | null;
+  packageName: string | null;
+} {
   let filename: string | null = null;
   let packageName: string | null = null;
 
@@ -103,8 +112,12 @@ function extractEmoticonInfo(url: string): { filename: string | null; packageNam
  * 从 URL 中提取 packageName（倒数第 2 段路径）和 filename（最后一段），
  * 与清单中的条目计算加权相似度。
  */
-function findBestMatch(decodedUrl: string, library: EmoticonItem[]): EmoticonItem | null {
-  const { filename: urlFilename, packageName: urlPackage } = extractEmoticonInfo(decodedUrl);
+function findBestMatch(
+  decodedUrl: string,
+  library: EmoticonItem[]
+): EmoticonItem | null {
+  const { filename: urlFilename, packageName: urlPackage } =
+    extractEmoticonInfo(decodedUrl);
 
   if (!urlFilename) return null;
 
@@ -114,7 +127,11 @@ function findBestMatch(decodedUrl: string, library: EmoticonItem[]): EmoticonIte
   return findBestMatchWithSegments(cleanPackage ?? "", urlFilename, library);
 }
 
-function findBestMatchWithSegments(category: string, filename: string, library: EmoticonItem[]): EmoticonItem | null {
+function findBestMatchWithSegments(
+  category: string,
+  filename: string,
+  library: EmoticonItem[]
+): EmoticonItem | null {
   let bestScore = 0;
   let bestItem: EmoticonItem | null = null;
 
@@ -122,7 +139,10 @@ function findBestMatchWithSegments(category: string, filename: string, library: 
   const filenameLower = filename.replace(/\.[^.]+$/, "").toLowerCase();
 
   for (const item of library) {
-    const catSim = jaroWinklerSimilarity(categoryLower, item.category.toLowerCase());
+    const catSim = jaroWinklerSimilarity(
+      categoryLower,
+      item.category.toLowerCase()
+    );
     const fileSim = jaroWinklerSimilarity(filenameLower, item.searchKey);
     const score = 0.7 * catSim + 0.3 * fileSim;
 
@@ -171,7 +191,11 @@ function jaroWinklerSimilarity(s1: string, s2: string): number {
     k++;
   }
 
-  const jaro = (matches / s1.length + matches / s2.length + (matches - transpositions / 2) / matches) / 3;
+  const jaro =
+    (matches / s1.length +
+      matches / s2.length +
+      (matches - transpositions / 2) / matches) /
+    3;
 
   // Winkler 前缀加成
   let prefix = 0;

@@ -39,7 +39,9 @@ const categories: { label: string; value: TemplateCategory | "all" }[] = [
 
 const availableCategories = computed(() => {
   const usedCategories = new Set(templates.value.map((t) => t.category));
-  return categories.filter((cat) => cat.value === "all" || usedCategories.has(cat.value as any));
+  return categories.filter(
+    (cat) => cat.value === "all" || usedCategories.has(cat.value as any)
+  );
 });
 
 const filteredTemplates = computed(() => {
@@ -69,7 +71,10 @@ const handleCreate = async () => {
 
   isCreating.value = true;
   try {
-    const metadata = await store.createCanvas(title.value.trim(), selectedTemplateId.value);
+    const metadata = await store.createCanvas(
+      title.value.trim(),
+      selectedTemplateId.value
+    );
     if (metadata) {
       customMessage.success("画布创建成功");
       emit("created", metadata);
@@ -84,11 +89,22 @@ const handleCreate = async () => {
 </script>
 
 <template>
-  <BaseDialog v-model="visible" title="新建画布" width="500px" :loading="isCreating" @open="handleOpen">
+  <BaseDialog
+    v-model="visible"
+    title="新建画布"
+    width="500px"
+    :loading="isCreating"
+    @open="handleOpen"
+  >
     <div class="create-canvas-form">
       <div class="form-item">
         <label>项目名称</label>
-        <el-input ref="titleInputRef" v-model="title" placeholder="输入画布标题..." @keyup.enter="handleCreate" />
+        <el-input
+          ref="titleInputRef"
+          v-model="title"
+          placeholder="输入画布标题..."
+          @keyup.enter="handleCreate"
+        />
       </div>
 
       <div class="form-item">
@@ -116,12 +132,19 @@ const handleCreate = async () => {
             @click="selectedTemplateId = template.id"
           >
             <div class="template-icon">
-              <span>{{ template.icon || (template.id.includes("html") ? "🎨" : "📄") }}</span>
+              <span>{{
+                template.icon || (template.id.includes("html") ? "🎨" : "📄")
+              }}</span>
             </div>
             <div class="template-info">
               <div class="template-name-row">
                 <span class="template-name">{{ template.name }}</span>
-                <el-tag v-if="template.source === 'user'" size="small" type="info" effect="plain" class="source-tag"
+                <el-tag
+                  v-if="template.source === 'user'"
+                  size="small"
+                  type="info"
+                  effect="plain"
+                  class="source-tag"
                   >用户</el-tag
                 >
               </div>
@@ -132,14 +155,18 @@ const handleCreate = async () => {
             </div>
           </div>
 
-          <div v-if="filteredTemplates.length === 0" class="empty-templates">暂无该分类下的模板</div>
+          <div v-if="filteredTemplates.length === 0" class="empty-templates">
+            暂无该分类下的模板
+          </div>
         </div>
       </div>
     </div>
 
     <template #footer>
       <el-button @click="visible = false">取消</el-button>
-      <el-button type="primary" :loading="isCreating" @click="handleCreate"> 创建 </el-button>
+      <el-button type="primary" :loading="isCreating" @click="handleCreate">
+        创建
+      </el-button>
     </template>
   </BaseDialog>
 </template>
@@ -195,7 +222,10 @@ const handleCreate = async () => {
     color: var(--el-text-color-primary);
   }
   &.active {
-    background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.1));
+    background-color: rgba(
+      var(--el-color-primary-rgb),
+      calc(var(--card-opacity) * 0.1)
+    );
     color: var(--el-color-primary);
     font-weight: 500;
   }
@@ -229,7 +259,10 @@ const handleCreate = async () => {
 
   &.active {
     border-color: var(--el-color-primary);
-    background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.1));
+    background-color: rgba(
+      var(--el-color-primary-rgb),
+      calc(var(--card-opacity) * 0.1)
+    );
   }
 }
 

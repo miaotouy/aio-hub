@@ -1,16 +1,16 @@
-import prettier from 'prettier/standalone';
-import parserBabel from 'prettier/plugins/babel';
-import parserHtml from 'prettier/plugins/html';
-import parserCss from 'prettier/plugins/postcss';
-import parserMarkdown from 'prettier/plugins/markdown';
-import parserTypeScript from 'prettier/plugins/typescript';
-import parserEstree from 'prettier/plugins/estree';
-import { createModuleLogger } from '@/utils/logger';
-import { createModuleErrorHandler } from '@/utils/errorHandler';
-import type { FormatOptions, FormatResult, SupportedLanguage } from '../types';
+import prettier from "prettier/standalone";
+import parserBabel from "prettier/plugins/babel";
+import parserHtml from "prettier/plugins/html";
+import parserCss from "prettier/plugins/postcss";
+import parserMarkdown from "prettier/plugins/markdown";
+import parserTypeScript from "prettier/plugins/typescript";
+import parserEstree from "prettier/plugins/estree";
+import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
+import type { FormatOptions, FormatResult, SupportedLanguage } from "../types";
 
-const logger = createModuleLogger('tools/code-formatter/logic');
-const errorHandler = createModuleErrorHandler('tools/code-formatter/logic');
+const logger = createModuleLogger("tools/code-formatter/logic");
+const errorHandler = createModuleErrorHandler("tools/code-formatter/logic");
 
 // 缓存动态加载的插件
 let prettierPluginPhp: any = null;
@@ -39,7 +39,7 @@ export class FormatterCore {
     language: SupportedLanguage,
     options: FormatOptions = {}
   ): Promise<FormatResult> {
-    logger.debug('开始格式化代码', {
+    logger.debug("开始格式化代码", {
       codeLength: code.length,
       language,
       options,
@@ -47,7 +47,7 @@ export class FormatterCore {
 
     if (!code.trim()) {
       return {
-        formatted: '',
+        formatted: "",
         success: true,
       };
     }
@@ -56,7 +56,7 @@ export class FormatterCore {
       const config = await this.getLanguageConfig(language);
 
       if (config.unsupported) {
-        logger.warn('语言格式化不支持', { language });
+        logger.warn("语言格式化不支持", { language });
         return {
           formatted: code,
           success: true,
@@ -68,14 +68,14 @@ export class FormatterCore {
         parser: config.parser,
         plugins: config.plugins,
         singleQuote: options.singleQuote ?? true,
-        trailingComma: options.trailingComma ?? 'es5',
+        trailingComma: options.trailingComma ?? "es5",
         ...config.additionalOptions,
         ...options,
       };
 
       const formatted = await prettier.format(code, formatOptions);
 
-      logger.info('代码格式化成功', {
+      logger.info("代码格式化成功", {
         language,
         inputLength: code.length,
         outputLength: formatted.length,
@@ -87,7 +87,7 @@ export class FormatterCore {
       };
     } catch (error: any) {
       const errorMessage = `格式化错误: ${error.message}`;
-      errorHandler.error(error, '代码格式化失败', { context: { language } });
+      errorHandler.error(error, "代码格式化失败", { context: { language } });
 
       return {
         formatted: code,
@@ -104,91 +104,91 @@ export class FormatterCore {
     language: SupportedLanguage
   ): Promise<LanguageConfig> {
     switch (language) {
-      case 'javascript':
-      case 'typescript':
+      case "javascript":
+      case "typescript":
         return {
           plugins: [parserBabel, parserEstree, parserTypeScript],
-          parser: language === 'typescript' ? 'typescript' : 'babel',
+          parser: language === "typescript" ? "typescript" : "babel",
         };
 
-      case 'json':
+      case "json":
         return {
           plugins: [parserBabel, parserEstree],
-          parser: 'json',
+          parser: "json",
         };
 
-      case 'html':
+      case "html":
         return {
           plugins: [parserHtml],
-          parser: 'html',
+          parser: "html",
         };
 
-      case 'css':
+      case "css":
         return {
           plugins: [parserCss],
-          parser: 'css',
+          parser: "css",
         };
 
-      case 'markdown':
+      case "markdown":
         return {
           plugins: [parserMarkdown],
-          parser: 'markdown',
+          parser: "markdown",
         };
 
-      case 'php':
+      case "php":
         if (!prettierPluginPhp) {
           try {
-            prettierPluginPhp = await import('@prettier/plugin-php/standalone');
-            logger.info('PHP 插件加载成功');
+            prettierPluginPhp = await import("@prettier/plugin-php/standalone");
+            logger.info("PHP 插件加载成功");
           } catch (e) {
-            errorHandler.error(e, 'PHP 插件加载失败');
+            errorHandler.error(e, "PHP 插件加载失败");
             return {
               plugins: [],
-              parser: '',
+              parser: "",
               unsupported: true,
-              warningMessage: 'PHP 格式化插件加载失败',
+              warningMessage: "PHP 格式化插件加载失败",
             };
           }
         }
         return {
           plugins: [prettierPluginPhp],
-          parser: 'php',
+          parser: "php",
         };
 
-      case 'xml':
+      case "xml":
         if (!prettierPluginXml) {
           try {
-            prettierPluginXml = await import('@prettier/plugin-xml');
-            logger.info('XML 插件加载成功');
+            prettierPluginXml = await import("@prettier/plugin-xml");
+            logger.info("XML 插件加载成功");
           } catch (e) {
-            errorHandler.error(e, 'XML 插件加载失败');
+            errorHandler.error(e, "XML 插件加载失败");
             return {
               plugins: [],
-              parser: '',
+              parser: "",
               unsupported: true,
-              warningMessage: 'XML 格式化插件加载失败（模块格式不兼容）',
+              warningMessage: "XML 格式化插件加载失败（模块格式不兼容）",
             };
           }
         }
         return {
           plugins: [prettierPluginXml],
-          parser: 'xml',
+          parser: "xml",
           additionalOptions: {
-            xmlWhitespaceSensitivity: 'ignore',
+            xmlWhitespaceSensitivity: "ignore",
           },
         };
 
-      case 'yaml':
+      case "yaml":
         return {
           plugins: [parserBabel, parserEstree],
-          parser: 'yaml',
+          parser: "yaml",
         };
 
       default:
-        logger.warn('不支持的语言', { language });
+        logger.warn("不支持的语言", { language });
         return {
           plugins: [],
-          parser: '',
+          parser: "",
           unsupported: true,
           warningMessage: `不支持的语言: ${language}`,
         };
@@ -202,54 +202,57 @@ export class FormatterCore {
     const trimmedCode = code.trim();
 
     if (
-      (trimmedCode.startsWith('{') && trimmedCode.endsWith('}')) ||
-      (trimmedCode.startsWith('[') && trimmedCode.endsWith(']'))
+      (trimmedCode.startsWith("{") && trimmedCode.endsWith("}")) ||
+      (trimmedCode.startsWith("[") && trimmedCode.endsWith("]"))
     ) {
       try {
         JSON.parse(trimmedCode);
-        return 'json';
+        return "json";
       } catch {
         // ignore
       }
     }
 
-    if (trimmedCode.startsWith('<!DOCTYPE') || trimmedCode.startsWith('<html')) {
-      return 'html';
+    if (
+      trimmedCode.startsWith("<!DOCTYPE") ||
+      trimmedCode.startsWith("<html")
+    ) {
+      return "html";
     }
 
-    if (trimmedCode.startsWith('<?xml')) {
-      return 'xml';
+    if (trimmedCode.startsWith("<?xml")) {
+      return "xml";
     }
 
-    if (trimmedCode.startsWith('<?php')) {
-      return 'php';
+    if (trimmedCode.startsWith("<?php")) {
+      return "php";
     }
 
-    if (trimmedCode.includes('# ') || trimmedCode.includes('## ')) {
-      return 'markdown';
+    if (trimmedCode.includes("# ") || trimmedCode.includes("## ")) {
+      return "markdown";
     }
 
     if (
-      trimmedCode.includes('{') &&
-      trimmedCode.includes('}') &&
-      (trimmedCode.includes(':') || trimmedCode.includes(';'))
+      trimmedCode.includes("{") &&
+      trimmedCode.includes("}") &&
+      (trimmedCode.includes(":") || trimmedCode.includes(";"))
     ) {
       const hasSelectors = /[.#]\w+\s*\{/.test(trimmedCode);
       if (hasSelectors) {
-        return 'css';
+        return "css";
       }
     }
 
     if (
-      trimmedCode.includes('interface ') ||
-      trimmedCode.includes('type ') ||
-      trimmedCode.includes(': string') ||
-      trimmedCode.includes(': number')
+      trimmedCode.includes("interface ") ||
+      trimmedCode.includes("type ") ||
+      trimmedCode.includes(": string") ||
+      trimmedCode.includes(": number")
     ) {
-      return 'typescript';
+      return "typescript";
     }
 
-    return 'javascript';
+    return "javascript";
   }
 
   /**
@@ -261,15 +264,15 @@ export class FormatterCore {
     group: string;
   }> {
     return [
-      { value: 'javascript', label: 'JavaScript', group: '前端语言' },
-      { value: 'typescript', label: 'TypeScript', group: '前端语言' },
-      { value: 'json', label: 'JSON', group: '前端语言' },
-      { value: 'html', label: 'HTML', group: '前端语言' },
-      { value: 'css', label: 'CSS', group: '前端语言' },
-      { value: 'php', label: 'PHP', group: '后端语言' },
-      { value: 'xml', label: 'XML', group: '配置/数据' },
-      { value: 'yaml', label: 'YAML', group: '配置/数据' },
-      { value: 'markdown', label: 'Markdown', group: '标记语言' },
+      { value: "javascript", label: "JavaScript", group: "前端语言" },
+      { value: "typescript", label: "TypeScript", group: "前端语言" },
+      { value: "json", label: "JSON", group: "前端语言" },
+      { value: "html", label: "HTML", group: "前端语言" },
+      { value: "css", label: "CSS", group: "前端语言" },
+      { value: "php", label: "PHP", group: "后端语言" },
+      { value: "xml", label: "XML", group: "配置/数据" },
+      { value: "yaml", label: "YAML", group: "配置/数据" },
+      { value: "markdown", label: "Markdown", group: "标记语言" },
     ];
   }
 }

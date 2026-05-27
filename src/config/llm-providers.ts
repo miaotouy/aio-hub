@@ -206,7 +206,8 @@ export const providerTypes: ProviderTypeInfo[] = [
   {
     type: "openai-responses",
     name: "OpenAI Responses",
-    description: "OpenAI Responses API - 新一代有状态交互接口，支持工具调用、推理、网络搜索、文件搜索等高级功能",
+    description:
+      "OpenAI Responses API - 新一代有状态交互接口，支持工具调用、推理、网络搜索、文件搜索等高级功能",
     defaultBaseUrl: "https://api.openai.com",
     supportsModelList: true,
     modelListEndpoint: "models",
@@ -259,7 +260,8 @@ export const providerTypes: ProviderTypeInfo[] = [
     type: "azure",
     name: "Azure OpenAI",
     description: "微软 Azure OpenAI 服务",
-    defaultBaseUrl: "https://{resource}.openai.azure.com/openai/deployments/{deployment}",
+    defaultBaseUrl:
+      "https://{resource}.openai.azure.com/openai/deployments/{deployment}",
     supportsModelList: false,
     supportedParameters: {
       temperature: true,
@@ -391,6 +393,8 @@ export const providerTypes: ProviderTypeInfo[] = [
 /**
  * 根据类型获取提供商信息
  */
-export function getProviderTypeInfo(type: ProviderType): ProviderTypeInfo | undefined {
+export function getProviderTypeInfo(
+  type: ProviderType
+): ProviderTypeInfo | undefined {
   return providerTypes.find((p) => p.type === type);
 }

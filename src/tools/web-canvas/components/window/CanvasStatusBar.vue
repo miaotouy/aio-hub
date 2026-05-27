@@ -14,7 +14,13 @@
       </div>
 
       <!-- 运行时错误计数器 -->
-      <el-popover v-if="errorCount > 0" placement="top-end" :width="400" trigger="click" popper-class="canvas-error-popover">
+      <el-popover
+        v-if="errorCount > 0"
+        placement="top-end"
+        :width="400"
+        trigger="click"
+        popper-class="canvas-error-popover"
+      >
         <template #reference>
           <div class="error-badge">
             <AlertCircle :size="12" />
@@ -25,16 +31,24 @@
         <div class="error-details">
           <div class="error-header">
             <span>Runtime Errors ({{ errorCount }})</span>
-            <el-button link type="primary" size="small" @click="clearErrors">Clear</el-button>
+            <el-button link type="primary" size="small" @click="clearErrors"
+              >Clear</el-button
+            >
           </div>
           <el-scrollbar max-height="300px">
             <div v-for="err in errors" :key="err.id" class="error-item">
               <div class="error-main">
-                <span class="error-level" :class="err.level">{{ err.level.toUpperCase() }}</span>
+                <span class="error-level" :class="err.level">{{
+                  err.level.toUpperCase()
+                }}</span>
                 <span class="error-msg">{{ err.message }}</span>
               </div>
-              <div v-if="err.filename" class="error-location">{{ err.filename }}:{{ err.lineno }}:{{ err.colno }}</div>
-              <div class="error-time">{{ new Date(err.timestamp).toLocaleTimeString() }}</div>
+              <div v-if="err.filename" class="error-location">
+                {{ err.filename }}:{{ err.lineno }}:{{ err.colno }}
+              </div>
+              <div class="error-time">
+                {{ new Date(err.timestamp).toLocaleTimeString() }}
+              </div>
             </div>
           </el-scrollbar>
         </div>
@@ -56,7 +70,9 @@ const props = defineProps<{
 }>();
 
 const canvasStore = useCanvasStore();
-const errors = computed(() => canvasStore.getActiveRuntimeErrors(props.canvasId));
+const errors = computed(() =>
+  canvasStore.getActiveRuntimeErrors(props.canvasId)
+);
 const errorCount = computed(() => errors.value.length);
 
 function clearErrors() {

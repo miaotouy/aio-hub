@@ -26,14 +26,22 @@
       <div class="header-actions-top">
         <slot name="actions"></slot>
       </div>
-      <div class="cover-wrapper" :style="{ '--ripple-color': posterColor || 'var(--el-color-primary)' }">
+      <div
+        class="cover-wrapper"
+        :style="{ '--ripple-color': posterColor || 'var(--el-color-primary)' }"
+      >
         <div v-if="isPlaying" class="ripples">
           <div class="ripple"></div>
           <div class="ripple"></div>
           <div class="ripple"></div>
         </div>
         <div class="cover-container" :class="{ rotating: isPlaying }">
-          <img v-if="audioPoster" :src="audioPoster" class="cover-image" alt="poster" />
+          <img
+            v-if="audioPoster"
+            :src="audioPoster"
+            class="cover-image"
+            alt="poster"
+          />
           <div v-else class="cover-placeholder">
             <Music :size="48" />
           </div>
@@ -43,7 +51,10 @@
         <h3 class="audio-title">{{ audioName }}</h3>
         <p class="audio-artist">
           {{ audioArtist }}
-          <span v-if="effectivePlaylist.length > 1" style="opacity: 0.5; font-size: 12px">
+          <span
+            v-if="effectivePlaylist.length > 1"
+            style="opacity: 0.5; font-size: 12px"
+          >
             ({{ currentIndex + 1 }}/{{ effectivePlaylist.length }})
           </span>
         </p>
@@ -64,8 +75,16 @@
 
       <!-- Minimal 模式下的精简控制按钮 -->
       <div v-if="effectiveLayout === 'minimal'" class="minimal-controls">
-        <button class="control-btn main-btn" @click="togglePlay" :title="isPlaying ? '暂停' : '播放'">
-          <component :is="isPlaying ? Pause : Play" :size="16" fill="currentColor" />
+        <button
+          class="control-btn main-btn"
+          @click="togglePlay"
+          :title="isPlaying ? '暂停' : '播放'"
+        >
+          <component
+            :is="isPlaying ? Pause : Play"
+            :size="16"
+            fill="currentColor"
+          />
         </button>
         <!-- 音量控制 -->
         <div class="volume-control">
@@ -108,12 +127,19 @@
         <div class="playhead" :style="{ left: progressPercentage + '%' }"></div>
 
         <!-- 悬停预览线 -->
-        <div v-if="showHoverPreview" class="hover-line" :style="{ left: hoverPosition + '%' }">
+        <div
+          v-if="showHoverPreview"
+          class="hover-line"
+          :style="{ left: hoverPosition + '%' }"
+        >
           <span class="hover-time">{{ formattedHoverTime }}</span>
         </div>
 
         <!-- 缓冲进度 -->
-        <div class="buffer-bar" :style="{ width: bufferedPercentage + '%' }"></div>
+        <div
+          class="buffer-bar"
+          :style="{ width: bufferedPercentage + '%' }"
+        ></div>
       </div>
 
       <!-- 时间显示 -->
@@ -150,19 +176,37 @@
       </div>
 
       <div class="controls-center">
-        <button v-if="effectivePlaylist.length > 1" class="control-btn" @click="prev" title="上一曲">
+        <button
+          v-if="effectivePlaylist.length > 1"
+          class="control-btn"
+          @click="prev"
+          title="上一曲"
+        >
           <SkipBack :size="20" fill="currentColor" />
         </button>
         <button class="control-btn" @click="skip(-5)" title="快退 5s (←)">
           <Rewind :size="20" />
         </button>
-        <button class="control-btn main-btn" @click="togglePlay" :title="isPlaying ? '暂停 (Space)' : '播放 (Space)'">
-          <component :is="isPlaying ? Pause : Play" :size="28" fill="currentColor" />
+        <button
+          class="control-btn main-btn"
+          @click="togglePlay"
+          :title="isPlaying ? '暂停 (Space)' : '播放 (Space)'"
+        >
+          <component
+            :is="isPlaying ? Pause : Play"
+            :size="28"
+            fill="currentColor"
+          />
         </button>
         <button class="control-btn" @click="skip(5)" title="快进 5s (→)">
           <FastForward :size="20" />
         </button>
-        <button v-if="effectivePlaylist.length > 1" class="control-btn" @click="next" title="下一曲">
+        <button
+          v-if="effectivePlaylist.length > 1"
+          class="control-btn"
+          @click="next"
+          title="下一曲"
+        >
           <SkipForward :size="20" fill="currentColor" />
         </button>
       </div>
@@ -241,10 +285,15 @@
               </div>
               <div class="item-info">
                 <span class="item-title">{{ item.title || "未知音频" }}</span>
-                <span class="item-artist">{{ item.artist || "未知艺术家" }}</span>
+                <span class="item-artist">{{
+                  item.artist || "未知艺术家"
+                }}</span>
               </div>
             </div>
-            <div v-if="currentIndex === index && isPlaying" class="playing-icon">
+            <div
+              v-if="currentIndex === index && isPlaying"
+              class="playing-icon"
+            >
               <div class="bar"></div>
               <div class="bar"></div>
               <div class="bar"></div>
@@ -311,7 +360,7 @@ const props = withDefaults(
     layout: undefined,
     playlist: () => [],
     initialIndex: 0,
-  },
+  }
 );
 
 const emit = defineEmits<{
@@ -491,8 +540,12 @@ function updateBuffered() {
   const buffered = audioRef.value.buffered;
   if (buffered.length > 0) {
     for (let i = 0; i < buffered.length; i++) {
-      if (buffered.start(i) <= audioRef.value.currentTime && buffered.end(i) >= audioRef.value.currentTime) {
-        bufferedPercentage.value = (buffered.end(i) / audioRef.value.duration) * 100;
+      if (
+        buffered.start(i) <= audioRef.value.currentTime &&
+        buffered.end(i) >= audioRef.value.currentTime
+      ) {
+        bufferedPercentage.value =
+          (buffered.end(i) / audioRef.value.duration) * 100;
         break;
       }
     }
@@ -638,7 +691,9 @@ async function initWaveform() {
       return;
     }
 
-    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const audioCtx = new (
+      window.AudioContext || (window as any).webkitAudioContext
+    )();
     const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
 
     const channelData = audioBuffer.getChannelData(0);
@@ -696,7 +751,8 @@ function drawWaveform() {
 
   // 获取主题色
   const computedStyle = getComputedStyle(document.documentElement);
-  const primaryColor = computedStyle.getPropertyValue("--el-color-primary").trim() || "#409eff";
+  const primaryColor =
+    computedStyle.getPropertyValue("--el-color-primary").trim() || "#409eff";
 
   // 绘制背景波形（未播放部分）
   drawWaveformPath(ctx, data, width, height, "rgba(255, 255, 255, 0.15)", 0, 1);
@@ -724,7 +780,7 @@ function drawWaveformPath(
   height: number,
   fillStyle: string | CanvasGradient,
   startRatio: number,
-  endRatio: number,
+  endRatio: number
 ) {
   if (data.length === 0) return;
 
@@ -882,11 +938,18 @@ function toggleLoop() {
 
 function skip(seconds: number) {
   if (!audioRef.value) return;
-  audioRef.value.currentTime = Math.min(Math.max(audioRef.value.currentTime + seconds, 0), duration.value);
+  audioRef.value.currentTime = Math.min(
+    Math.max(audioRef.value.currentTime + seconds, 0),
+    duration.value
+  );
 }
 
 function handleKeydown(e: KeyboardEvent) {
-  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+  if (
+    e.target instanceof HTMLInputElement ||
+    e.target instanceof HTMLTextAreaElement
+  )
+    return;
 
   switch (e.code) {
     case "Space":
@@ -937,7 +1000,9 @@ async function extractPosterColor() {
     if (color) {
       // color-thief-ts 可能返回 HEX 字符串或 RGB 数组
       if (typeof color === "string") {
-        posterColor.value = (color as string).startsWith("#") ? color : `#${color}`;
+        posterColor.value = (color as string).startsWith("#")
+          ? color
+          : `#${color}`;
       } else if (Array.isArray(color)) {
         posterColor.value = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
       }
@@ -955,7 +1020,7 @@ watch(
     error.value = false;
     isLoading.value = true;
     initWaveform();
-  },
+  }
 );
 
 // 监听封面变化

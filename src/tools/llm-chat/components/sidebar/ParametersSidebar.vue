@@ -14,7 +14,11 @@ import ModelParametersEditor from "../agent/parameters/ModelParametersEditor.vue
 import ModelEditDialog from "@/views/Settings/llm-service/components/ModelEditDialog.vue";
 import ConfigSection from "../common/ConfigSection.vue";
 import { customMessage } from "@/utils/customMessage";
-import type { ChatMessageNode, LlmParameters, AgentEditData } from "../../types";
+import type {
+  ChatMessageNode,
+  LlmParameters,
+  AgentEditData,
+} from "../../types";
 import type { LlmModelInfo } from "@/types/llm-profiles";
 import { Edit, Setting, ChatLineRound } from "@element-plus/icons-vue";
 
@@ -33,7 +37,9 @@ const agentAvatarSrc = useResolvedAvatar(currentAgent, "agent");
 // 获取当前选中的 profile
 const currentProfile = computed(() => {
   if (!currentAgent.value) return null;
-  return enabledProfiles.value.find((p) => p.id === currentAgent.value!.profileId);
+  return enabledProfiles.value.find(
+    (p) => p.id === currentAgent.value!.profileId
+  );
 });
 
 // 获取当前渠道类型
@@ -41,7 +47,10 @@ const currentProviderType = computed(() => {
   const type = currentProfile.value?.type;
   // 特殊处理：如果是 OpenAI 兼容接口，但模型名包含 gemini，强制识别为 gemini 类型
   // 这样可以激活 Gemini 专属的 UI 配置（如安全设置）
-  if (type === "openai" && currentAgent.value?.modelId.toLowerCase().includes("gemini")) {
+  if (
+    type === "openai" &&
+    currentAgent.value?.modelId.toLowerCase().includes("gemini")
+  ) {
     return "gemini";
   }
   return type;
@@ -50,7 +59,9 @@ const currentProviderType = computed(() => {
 // 获取当前选中的模型
 const currentModel = computed(() => {
   if (!currentProfile.value || !currentAgent.value) return null;
-  const model = currentProfile.value.models.find((m) => m.id === currentAgent.value!.modelId);
+  const model = currentProfile.value.models.find(
+    (m) => m.id === currentAgent.value!.modelId
+  );
   return model || null;
 });
 
@@ -123,7 +134,10 @@ const openEditDialog = () => {
 };
 
 // 保存编辑的智能体
-const handleSaveEdit = (data: AgentEditData, options: { silent?: boolean; agentId?: string } = {}) => {
+const handleSaveEdit = (
+  data: AgentEditData,
+  options: { silent?: boolean; agentId?: string } = {}
+) => {
   const targetId = options.agentId || agentStore.currentAgentId;
   if (!targetId) return;
 
@@ -164,7 +178,11 @@ const handleSaveModelEdit = async (updatedModel: LlmModelInfo) => {
   // 创建更新后的 profile
   const updatedProfile = {
     ...profile,
-    models: [...profile.models.slice(0, modelIndex), updatedModel, ...profile.models.slice(modelIndex + 1)],
+    models: [
+      ...profile.models.slice(0, modelIndex),
+      updatedModel,
+      ...profile.models.slice(modelIndex + 1),
+    ],
   };
 
   try {
@@ -237,9 +255,18 @@ const handleSaveModelEdit = async (updatedModel: LlmModelInfo) => {
         </div>
 
         <!-- 预设消息分组 -->
-        <ConfigSection title="预设消息" :icon="ChatLineRound" v-model:expanded="presetMessagesExpanded">
+        <ConfigSection
+          title="预设消息"
+          :icon="ChatLineRound"
+          v-model:expanded="presetMessagesExpanded"
+        >
           <div class="preset-messages-compact">
-            <AgentPresetEditor v-model="presetMessages" :compact="true" :agent="currentAgent" height="400px" />
+            <AgentPresetEditor
+              v-model="presetMessages"
+              :compact="true"
+              :agent="currentAgent"
+              height="400px"
+            />
           </div>
         </ConfigSection>
 

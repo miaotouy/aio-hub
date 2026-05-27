@@ -1,10 +1,24 @@
 import { ref } from "vue";
 import { appDataDir, join } from "@tauri-apps/api/path";
-import { readTextFile, readFile, writeTextFile, mkdir, exists, writeFile, readDir } from "@tauri-apps/plugin-fs";
+import {
+  readTextFile,
+  readFile,
+  writeTextFile,
+  mkdir,
+  exists,
+  writeFile,
+  readDir,
+} from "@tauri-apps/plugin-fs";
 import { invoke } from "@tauri-apps/api/core";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import type { SketchProject, HybridSketchFile, HybridLayer, SketchIndex, AssetRef } from "../types";
+import type {
+  SketchProject,
+  HybridSketchFile,
+  HybridLayer,
+  SketchIndex,
+  AssetRef,
+} from "../types";
 import type Konva from "konva";
 
 const logger = createModuleLogger("SketchPad/Storage");
@@ -73,7 +87,9 @@ export function useSketchStorage() {
       await mkdir(sketchesDir, { recursive: true });
       // 如果目录都不存在，索引中的项目全是孤儿
       if (index.projects.length > 0) {
-        logger.warn("sketches 目录不存在，清理所有索引记录", { count: index.projects.length });
+        logger.warn("sketches 目录不存在，清理所有索引记录", {
+          count: index.projects.length,
+        });
         index.projects = [];
         await saveIndex(index);
       }
@@ -89,7 +105,10 @@ export function useSketchStorage() {
       if (await exists(projectDir)) {
         validProjects.push(project);
       } else {
-        logger.warn("索引中的项目目录不存在，移除孤儿记录", { id: project.id, name: project.name });
+        logger.warn("索引中的项目目录不存在，移除孤儿记录", {
+          id: project.id,
+          name: project.name,
+        });
         dirty = true;
       }
     }
@@ -112,7 +131,10 @@ export function useSketchStorage() {
             const manifest = JSON.parse(content) as HybridSketchFile;
             if (manifest.project) {
               validProjects.push(manifest.project);
-              logger.info("从目录恢复未索引的项目", { id: dirId, name: manifest.project.name });
+              logger.info("从目录恢复未索引的项目", {
+                id: dirId,
+                name: manifest.project.name,
+              });
               dirty = true;
             }
           } catch {
@@ -127,7 +149,10 @@ export function useSketchStorage() {
     }
 
     // 3. 修正 lastOpenedId
-    if (index.lastOpenedId && !validProjects.some((p) => p.id === index.lastOpenedId)) {
+    if (
+      index.lastOpenedId &&
+      !validProjects.some((p) => p.id === index.lastOpenedId)
+    ) {
       index.lastOpenedId = validProjects[0]?.id || undefined;
       dirty = true;
     }
@@ -159,7 +184,7 @@ export function useSketchStorage() {
     layers: HybridLayer[],
     canvases: Map<string, HTMLCanvasElement>,
     stage: Konva.Stage,
-    assetRefs: AssetRef[] = [],
+    assetRefs: AssetRef[] = []
   ) {
     return await errorHandler.wrapAsync(
       async () => {
@@ -171,17 +196,30 @@ export function useSketchStorage() {
             const canvas = canvases.get(layer.id);
             if (canvas) {
               // 将 canvas 转换为 Uint8Array
-              const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+              const blob = await new Promise<Blob | null>((resolve) =>
+                canvas.toBlob(resolve, "image/png")
+              );
               if (blob) {
                 const buffer = await blob.arrayBuffer();
                 const uint8 = new Uint8Array(buffer);
-                const layerPath = await join(basePath, "layers", `${layer.id}.png`);
+                const layerPath = await join(
+                  basePath,
+                  "layers",
+                  `${layer.id}.png`
+                );
                 await writeFile(layerPath, uint8);
               }
             }
           } else if (layer.type === "object") {
-            const layerPath = await join(basePath, "layers", `${layer.id}.json`);
-            await writeTextFile(layerPath, JSON.stringify(layer.objects, null, 2));
+            const layerPath = await join(
+              basePath,
+              "layers",
+              `${layer.id}.json`
+            );
+            await writeTextFile(
+              layerPath,
+              JSON.stringify(layer.objects, null, 2)
+            );
           }
         }
 
@@ -222,7 +260,9 @@ export function useSketchStorage() {
 
         // 4. 更新索引
         const index = await loadIndex();
-        const existingIndex = index.projects.findIndex((p) => p.id === project.id);
+        const existingIndex = index.projects.findIndex(
+          (p) => p.id === project.id
+        );
         if (existingIndex !== -1) {
           index.projects[existingIndex] = project;
         } else {
@@ -234,7 +274,7 @@ export function useSketchStorage() {
         logger.info("项目保存成功", { id: project.id });
         return true;
       },
-      { userMessage: "保存项目失败" },
+      { userMessage: "保存项目失败" }
     );
   }
 
@@ -254,7 +294,7 @@ export function useSketchStorage() {
         currentProjectId.value = id;
         return manifest;
       },
-      { userMessage: "加载项目失败" },
+      { userMessage: "加载项目失败" }
     );
   }
 
@@ -262,7 +302,10 @@ export function useSketchStorage() {
    * 加载项目中所有位图图层的像素数据
    * 返回 Map<layerId, Uint8Array>
    */
-  async function loadRasterLayers(id: string, layers: HybridLayer[]): Promise<Map<string, Uint8Array>> {
+  async function loadRasterLayers(
+    id: string,
+    layers: HybridLayer[]
+  ): Promise<Map<string, Uint8Array>> {
     const result = new Map<string, Uint8Array>();
 
     const basePath = await getSketchBasePath(id);
@@ -317,7 +360,7 @@ export function useSketchStorage() {
         logger.info("项目已成功删除", { id });
         return true;
       },
-      { userMessage: "删除项目失败" },
+      { userMessage: "删除项目失败" }
     );
   }
 

@@ -26,7 +26,8 @@ const toggleDebugMode = async () => {
 };
 
 const testUpdateLanguage = async () => {
-  const newLang = settingsStore.settings.language === "zh-CN" ? "en-US" : "zh-CN";
+  const newLang =
+    settingsStore.settings.language === "zh-CN" ? "en-US" : "zh-CN";
   await settingsStore.updateSettings({ language: newLang });
   Snackbar.info(`语言已切换为: ${newLang}`);
 };
@@ -59,11 +60,13 @@ const updateViewportInfo = (event?: Event) => {
   viewportInfo.value.windowInnerHeight = window.innerHeight;
   if (window.visualViewport) {
     viewportInfo.value.visualViewportHeight = window.visualViewport.height;
-    viewportInfo.value.visualViewportOffsetTop = window.visualViewport.offsetTop;
+    viewportInfo.value.visualViewportOffsetTop =
+      window.visualViewport.offsetTop;
   }
 
   if (event?.type === "resize") viewportInfo.value.resizeCount++;
-  if (event?.type === "scroll" || !event) viewportInfo.value.viewportEventCount++;
+  if (event?.type === "scroll" || !event)
+    viewportInfo.value.viewportEventCount++;
 
   logger.debug("Viewport updated", {
     event: event?.type || "manual",
@@ -123,7 +126,8 @@ const testFileSystem = async () => {
 
   try {
     fsTestResult.value = "正在尝试写入测试文件...";
-    const { writeTextFile, readTextFile, BaseDirectory } = await import("@tauri-apps/plugin-fs");
+    const { writeTextFile, readTextFile, BaseDirectory } =
+      await import("@tauri-apps/plugin-fs");
 
     const fileName = `aio_mobile_test.txt`;
     const content = `Hello from AIO Hub Mobile! Time: ${new Date().toLocaleString()}`;
@@ -144,7 +148,10 @@ const testFileSystem = async () => {
   } catch (err: any) {
     fsTestResult.value = `FS 测试失败: ${err.message}`;
     logger.error("FS Test Failed", err);
-    errorHandler.handle(err, { userMessage: "文件系统测试失败", showToUser: true });
+    errorHandler.handle(err, {
+      userMessage: "文件系统测试失败",
+      showToUser: true,
+    });
   }
 };
 
@@ -159,10 +166,16 @@ const testTauriStore = async () => {
     const { load } = await import("@tauri-apps/plugin-store");
 
     // 加载或创建 store
-    const store = await load("test_settings.json", { autoSave: true, defaults: {} });
+    const store = await load("test_settings.json", {
+      autoSave: true,
+      defaults: {},
+    });
 
     // 写入
-    await store.set("test-key", { value: storeValueInput.value, time: Date.now() });
+    await store.set("test-key", {
+      value: storeValueInput.value,
+      time: Date.now(),
+    });
 
     // 读取验证
     const val: any = await store.get("test-key");
@@ -174,7 +187,10 @@ const testTauriStore = async () => {
   } catch (err: any) {
     storeTestResult.value = `Store 测试失败: ${err.message}`;
     logger.error("Store Test Failed", err);
-    errorHandler.handle(err, { userMessage: "Store 测试失败", showToUser: true });
+    errorHandler.handle(err, {
+      userMessage: "Store 测试失败",
+      showToUser: true,
+    });
   }
 };
 
@@ -186,7 +202,9 @@ const triggerError = () => {
 };
 
 const triggerCritical = () => {
-  errorHandler.critical("这是一个严重错误", "系统可能需要重启", { fatal: true });
+  errorHandler.critical("这是一个严重错误", "系统可能需要重启", {
+    fatal: true,
+  });
 };
 
 // --- UUID 测试 ---
@@ -209,8 +227,12 @@ onMounted(() => {
     updateViewportInfo({ type: "resize" } as any);
   });
   if (window.visualViewport) {
-    window.visualViewport.addEventListener("resize", (e) => updateViewportInfo(e));
-    window.visualViewport.addEventListener("scroll", (e) => updateViewportInfo(e));
+    window.visualViewport.addEventListener("resize", (e) =>
+      updateViewportInfo(e)
+    );
+    window.visualViewport.addEventListener("scroll", (e) =>
+      updateViewportInfo(e)
+    );
   }
 });
 </script>
@@ -231,15 +253,29 @@ onMounted(() => {
       </template>
     </var-app-bar>
 
-    <div class="content has-fixed-app-bar safe-area-bottom keyboard-aware-scroll">
+    <div
+      class="content has-fixed-app-bar safe-area-bottom keyboard-aware-scroll"
+    >
       <!-- 避让数值测试 -->
       <var-card title="安全区域避让测试 (Safe Area)" class="mt-4" elevation="2">
         <template #description>
           <div class="card-content">
-            <var-cell title="Top (Status Bar)" :description="safeAreaInsets.top" border />
-            <var-cell title="Bottom (Home Indicator)" :description="safeAreaInsets.bottom" border />
+            <var-cell
+              title="Top (Status Bar)"
+              :description="safeAreaInsets.top"
+              border
+            />
+            <var-cell
+              title="Bottom (Home Indicator)"
+              :description="safeAreaInsets.bottom"
+              border
+            />
             <var-cell title="Left" :description="safeAreaInsets.left" border />
-            <var-cell title="Right" :description="safeAreaInsets.right" border />
+            <var-cell
+              title="Right"
+              :description="safeAreaInsets.right"
+              border
+            />
 
             <div class="mt-4 p-3 bg-secondary rounded text-xs">
               <div class="text-hint mb-1">CSS 变量值:</div>
@@ -247,7 +283,9 @@ onMounted(() => {
                 <span>--app-safe-area-top:</span>
                 <span class="text-primary">var(--app-safe-area-top)</span>
               </div>
-              <div class="text-hint italic mt-2">提示：在真机或模拟器上，Top 值通常 > 0。</div>
+              <div class="text-hint italic mt-2">
+                提示：在真机或模拟器上，Top 值通常 > 0。
+              </div>
             </div>
 
             <var-button
@@ -287,7 +325,11 @@ onMounted(() => {
       </var-card>
 
       <!-- Settings Store 测试 -->
-      <var-card title="应用配置系统测试 (SettingsStore)" class="mt-4" elevation="2">
+      <var-card
+        title="应用配置系统测试 (SettingsStore)"
+        class="mt-4"
+        elevation="2"
+      >
         <template #description>
           <div class="card-content">
             <var-cell title="调试模式">
@@ -295,14 +337,28 @@ onMounted(() => {
                 <var-switch v-model="debugMode" @change="toggleDebugMode" />
               </template>
             </var-cell>
-            <var-cell title="当前语言" :description="settingsStore.settings.language" />
-            <var-cell title="主题模式" :description="settingsStore.settings.appearance.theme" />
+            <var-cell
+              title="当前语言"
+              :description="settingsStore.settings.language"
+            />
+            <var-cell
+              title="主题模式"
+              :description="settingsStore.settings.appearance.theme"
+            />
 
             <var-space :size="[12, 12]" class="mt-4">
-              <var-button type="primary" size="small" @click="testUpdateLanguage">
+              <var-button
+                type="primary"
+                size="small"
+                @click="testUpdateLanguage"
+              >
                 切换语言
               </var-button>
-              <var-button type="info" size="small" @click="themeStore.toggleTheme">
+              <var-button
+                type="info"
+                size="small"
+                @click="themeStore.toggleTheme"
+              >
                 切换主题
               </var-button>
             </var-space>
@@ -323,19 +379,36 @@ onMounted(() => {
           <div class="pb-2">
             <var-cell title="是否在 Tauri 环境" border>
               <template #extra>
-                <var-chip :type="isTauri ? 'success' : 'danger'" size="small" variant="block">
+                <var-chip
+                  :type="isTauri ? 'success' : 'danger'"
+                  size="small"
+                  variant="block"
+                >
                   {{ isTauri ? "YES" : "NO" }}
                 </var-chip>
               </template>
             </var-cell>
-            <var-cell v-if="isTauri" title="Tauri 版本" :description="tauriVersion" border />
+            <var-cell
+              v-if="isTauri"
+              title="Tauri 版本"
+              :description="tauriVersion"
+              border
+            />
           </div>
 
           <div class="card-content">
-            <var-button type="primary" block size="small" @click="testFileSystem">
+            <var-button
+              type="primary"
+              block
+              size="small"
+              @click="testFileSystem"
+            >
               测试文件读写 (FS Plugin)
             </var-button>
-            <div v-if="fsTestResult" class="mt-2 p-2 bg-secondary rounded text-xs break-all">
+            <div
+              v-if="fsTestResult"
+              class="mt-2 p-2 bg-secondary rounded text-xs break-all"
+            >
               {{ fsTestResult }}
             </div>
 
@@ -347,7 +420,13 @@ onMounted(() => {
               label="Store 测试值"
               variant="standard"
             />
-            <var-button type="info" block size="small" class="mt-4" @click="testTauriStore">
+            <var-button
+              type="info"
+              block
+              size="small"
+              class="mt-4"
+              @click="testTauriStore"
+            >
               测试 Tauri Store (Store Plugin)
             </var-button>
 
@@ -356,7 +435,9 @@ onMounted(() => {
               class="mt-3 p-3 bg-secondary rounded text-xs break-all border-l-4"
             >
               <div class="font-bold mb-1">状态: {{ storeTestResult }}</div>
-              <div v-if="storeReadValue" class="mt-1 opacity-80">读取到: {{ storeReadValue }}</div>
+              <div v-if="storeReadValue" class="mt-1 opacity-80">
+                读取到: {{ storeReadValue }}
+              </div>
             </div>
           </div>
 
@@ -369,11 +450,25 @@ onMounted(() => {
       <!-- 原生 UI 组件预览 -->
       <var-card title="常用移动端组件预览" class="mt-4" elevation="2">
         <template #description>
-          <var-cell title="Snackbar 测试" ripple border @click="Snackbar.info('消息提示')">
-            <template #extra><var-icon name="chevron-right" size="20" /></template>
+          <var-cell
+            title="Snackbar 测试"
+            ripple
+            border
+            @click="Snackbar.info('消息提示')"
+          >
+            <template #extra
+              ><var-icon name="chevron-right" size="20"
+            /></template>
           </var-cell>
-          <var-cell title="Dialog 测试" ripple border @click="Dialog('确认对话框')">
-            <template #extra><var-icon name="chevron-right" size="20" /></template>
+          <var-cell
+            title="Dialog 测试"
+            ripple
+            border
+            @click="Dialog('确认对话框')"
+          >
+            <template #extra
+              ><var-icon name="chevron-right" size="20"
+            /></template>
           </var-cell>
           <div class="card-content flex justify-center py-6">
             <var-loading type="cube" size="large" />
@@ -385,13 +480,26 @@ onMounted(() => {
       <var-card title="工具类测试 (Utils)" class="mt-4" elevation="2">
         <template #description>
           <div class="card-content">
-            <var-cell title="UUID 生成测试" description="测试 generateUuid 工具函数" />
-            <div class="mt-2 p-3 bg-secondary rounded text-xs font-mono break-all">
+            <var-cell
+              title="UUID 生成测试"
+              description="测试 generateUuid 工具函数"
+            />
+            <div
+              class="mt-2 p-3 bg-secondary rounded text-xs font-mono break-all"
+            >
               <div class="text-hint mb-1">生成的 ID:</div>
-              <div v-if="lastGeneratedUuid" class="text-primary">{{ lastGeneratedUuid }}</div>
+              <div v-if="lastGeneratedUuid" class="text-primary">
+                {{ lastGeneratedUuid }}
+              </div>
               <div v-else class="text-hint italic">尚未生成</div>
             </div>
-            <var-button type="primary" block size="small" class="mt-4" @click="generateNewUuid">
+            <var-button
+              type="primary"
+              block
+              size="small"
+              class="mt-4"
+              @click="generateNewUuid"
+            >
               生成新 UUID
             </var-button>
           </div>
@@ -405,11 +513,15 @@ onMounted(() => {
             <div class="grid grid-cols-2 gap-2 text-xs mb-4">
               <div class="p-2 bg-secondary rounded">
                 <div class="text-hint">Window InnerHeight</div>
-                <div class="text-primary font-bold">{{ viewportInfo.windowInnerHeight }}px</div>
+                <div class="text-primary font-bold">
+                  {{ viewportInfo.windowInnerHeight }}px
+                </div>
               </div>
               <div class="p-2 bg-secondary rounded">
                 <div class="text-hint">Visual Viewport H</div>
-                <div class="text-primary font-bold">{{ viewportInfo.visualViewportHeight }}px</div>
+                <div class="text-primary font-bold">
+                  {{ viewportInfo.visualViewportHeight }}px
+                </div>
               </div>
               <div class="p-2 bg-secondary rounded">
                 <div class="text-hint">Real Keyboard H</div>
@@ -433,8 +545,12 @@ onMounted(() => {
             </div>
 
             <div class="flex gap-2 mb-4">
-              <var-chip size="mini">Resize: {{ viewportInfo.resizeCount }}</var-chip>
-              <var-chip size="mini">Viewport: {{ viewportInfo.viewportEventCount }}</var-chip>
+              <var-chip size="mini"
+                >Resize: {{ viewportInfo.resizeCount }}</var-chip
+              >
+              <var-chip size="mini"
+                >Viewport: {{ viewportInfo.viewportEventCount }}</var-chip
+              >
             </div>
 
             <var-input

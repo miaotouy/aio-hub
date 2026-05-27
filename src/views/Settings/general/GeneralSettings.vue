@@ -10,7 +10,11 @@ import { formatDateTime } from "@/utils/time";
 import { open as openDialog, save } from "@tauri-apps/plugin-dialog";
 import { writeFile } from "@tauri-apps/plugin-fs";
 import { getAppConfigDir } from "@/utils/appPath";
-import type { ProxySettings, ProxyMode, DownloadSettings } from "@/utils/appSettings";
+import type {
+  ProxySettings,
+  ProxyMode,
+  DownloadSettings,
+} from "@/utils/appSettings";
 
 const logger = createModuleLogger("GeneralSettings");
 const errorHandler = createModuleErrorHandler("GeneralSettings");
@@ -65,12 +69,14 @@ const sidebarMode = computed({
 
 const proxyMode = computed({
   get: () => props.proxy.mode,
-  set: (value: ProxyMode) => emit("update:proxy", { ...props.proxy, mode: value }),
+  set: (value: ProxyMode) =>
+    emit("update:proxy", { ...props.proxy, mode: value }),
 });
 
 const proxyUrl = computed({
   get: () => props.proxy.customUrl,
-  set: (value: string) => emit("update:proxy", { ...props.proxy, customUrl: value }),
+  set: (value: string) =>
+    emit("update:proxy", { ...props.proxy, customUrl: value }),
 });
 
 const timezone = computed({
@@ -82,22 +88,38 @@ const downloadSettings = computed(() => props.download);
 
 const alwaysAskSavePath = computed({
   get: () => downloadSettings.value?.alwaysAskSavePath ?? false,
-  set: (value) => emit("update:download", { ...downloadSettings.value, alwaysAskSavePath: value }),
+  set: (value) =>
+    emit("update:download", {
+      ...downloadSettings.value,
+      alwaysAskSavePath: value,
+    }),
 });
 
 const showNotification = computed({
   get: () => downloadSettings.value?.showNotification ?? true,
-  set: (value) => emit("update:download", { ...downloadSettings.value, showNotification: value }),
+  set: (value) =>
+    emit("update:download", {
+      ...downloadSettings.value,
+      showNotification: value,
+    }),
 });
 
 const showDownloadButtonInTitleBar = computed({
   get: () => downloadSettings.value?.showDownloadButtonInTitleBar ?? true,
-  set: (value) => emit("update:download", { ...downloadSettings.value, showDownloadButtonInTitleBar: value }),
+  set: (value) =>
+    emit("update:download", {
+      ...downloadSettings.value,
+      showDownloadButtonInTitleBar: value,
+    }),
 });
 
 const defaultDownloadPath = computed({
   get: () => downloadSettings.value?.defaultDownloadPath || "",
-  set: (value) => emit("update:download", { ...downloadSettings.value, defaultDownloadPath: value || undefined }),
+  set: (value) =>
+    emit("update:download", {
+      ...downloadSettings.value,
+      defaultDownloadPath: value || undefined,
+    }),
 });
 
 /**
@@ -121,16 +143,22 @@ const handleSelectDownloadPath = async () => {
 
 // 获取系统支持的所有时区
 // @ts-ignore - TypeScript lib definitions might be outdated for this relatively new API
-const timezones = Intl.supportedValuesOf ? Intl.supportedValuesOf("timeZone") : [];
+const timezones = Intl.supportedValuesOf
+  ? Intl.supportedValuesOf("timeZone")
+  : [];
 
 // 清除窗口状态
 const handleClearWindowState = async () => {
   try {
-    await ElMessageBox.confirm("确定要清除所有窗口的位置和大小记忆吗？下次打开窗口时将恢复默认位置。", "清除窗口状态", {
-      confirmButtonText: "确定",
-      cancelButtonText: "取消",
-      type: "warning",
-    });
+    await ElMessageBox.confirm(
+      "确定要清除所有窗口的位置和大小记忆吗？下次打开窗口时将恢复默认位置。",
+      "清除窗口状态",
+      {
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+        type: "warning",
+      }
+    );
 
     await invoke("clear_window_state");
     customMessage.success("窗口状态已清除");
@@ -153,13 +181,18 @@ const handleOpenConfigDir = async () => {
       // 备用方案：复制路径到剪贴板
       logger.warn("无法直接打开目录，尝试复制路径", openError);
 
-      const { writeText } = await import("@tauri-apps/plugin-clipboard-manager");
+      const { writeText } =
+        await import("@tauri-apps/plugin-clipboard-manager");
       await writeText(appDir);
 
-      ElMessageBox.alert(`无法自动打开目录，路径已复制到剪贴板：\n${appDir}`, "提示", {
-        confirmButtonText: "确定",
-        type: "info",
-      });
+      ElMessageBox.alert(
+        `无法自动打开目录，路径已复制到剪贴板：\n${appDir}`,
+        "提示",
+        {
+          confirmButtonText: "确定",
+          type: "info",
+        }
+      );
     }
   } catch (error) {
     errorHandler.error(error as Error, "获取配置目录路径失败");
@@ -271,14 +304,19 @@ const handleImportConfig = async () => {
   <div class="setting-item">
     <div class="setting-label">
       <span>配置管理</span>
-      <el-tooltip content="打开配置文件目录、导出或导入配置文件" placement="top">
+      <el-tooltip
+        content="打开配置文件目录、导出或导入配置文件"
+        placement="top"
+      >
         <el-icon class="info-icon">
           <InfoFilled />
         </el-icon>
       </el-tooltip>
     </div>
     <div class="config-actions">
-      <el-button @click="handleOpenConfigDir" size="small"> 打开配置目录 </el-button>
+      <el-button @click="handleOpenConfigDir" size="small">
+        打开配置目录
+      </el-button>
       <el-button @click="handleExportConfig" size="small"> 导出配置 </el-button>
       <el-button @click="handleImportConfig" size="small"> 导入配置 </el-button>
     </div>
@@ -290,7 +328,10 @@ const handleImportConfig = async () => {
     <div class="setting-item">
       <div class="setting-label">
         <span>显示托盘图标</span>
-        <el-tooltip content="是否在系统托盘显示应用图标，可实时生效" placement="top">
+        <el-tooltip
+          content="是否在系统托盘显示应用图标，可实时生效"
+          placement="top"
+        >
           <el-icon class="info-icon">
             <InfoFilled />
           </el-icon>
@@ -302,12 +343,17 @@ const handleImportConfig = async () => {
     <div class="setting-item">
       <div class="setting-label">
         <span>关闭到托盘</span>
-        <el-tooltip content="启用后，点击关闭按钮时会最小化到系统托盘而不是退出程序" placement="top">
+        <el-tooltip
+          content="启用后，点击关闭按钮时会最小化到系统托盘而不是退出程序"
+          placement="top"
+        >
           <el-icon class="info-icon">
             <InfoFilled />
           </el-icon>
         </el-tooltip>
-        <span v-if="!showTrayIcon" class="setting-hint warning"> 需要先启用【显示托盘图标】 </span>
+        <span v-if="!showTrayIcon" class="setting-hint warning">
+          需要先启用【显示托盘图标】
+        </span>
       </div>
       <el-switch v-model="minimizeToTray" :disabled="!showTrayIcon" />
     </div>
@@ -347,19 +393,27 @@ const handleImportConfig = async () => {
     <div class="setting-item">
       <div class="setting-label">
         <span>窗口位置记忆</span>
-        <el-tooltip content="清除所有窗口的位置和大小记忆，恢复默认状态" placement="top">
+        <el-tooltip
+          content="清除所有窗口的位置和大小记忆，恢复默认状态"
+          placement="top"
+        >
           <el-icon class="info-icon">
             <InfoFilled />
           </el-icon>
         </el-tooltip>
       </div>
-      <el-button @click="handleClearWindowState" size="small"> 清除窗口状态 </el-button>
+      <el-button @click="handleClearWindowState" size="small">
+        清除窗口状态
+      </el-button>
     </div>
 
     <div class="setting-item">
       <div class="setting-label">
         <span>自动调整窗口位置</span>
-        <el-tooltip content="当工具窗口移动到屏幕外时，自动将其拉回可见区域" placement="top">
+        <el-tooltip
+          content="当工具窗口移动到屏幕外时，自动将其拉回可见区域"
+          placement="top"
+        >
           <el-icon class="info-icon">
             <InfoFilled />
           </el-icon>
@@ -371,13 +425,21 @@ const handleImportConfig = async () => {
     <div class="setting-item">
       <div class="setting-label">
         <span>系统时区</span>
-        <el-tooltip content="设置应用使用的时区，默认为系统本地时区" placement="top">
+        <el-tooltip
+          content="设置应用使用的时区，默认为系统本地时区"
+          placement="top"
+        >
           <el-icon class="info-icon">
             <InfoFilled />
           </el-icon>
         </el-tooltip>
       </div>
-      <el-select v-model="timezone" filterable placeholder="选择时区" style="width: 240px">
+      <el-select
+        v-model="timezone"
+        filterable
+        placeholder="选择时区"
+        style="width: 240px"
+      >
         <el-option label="跟随系统" value="auto" />
         <el-option v-for="tz in timezones" :key="tz" :label="tz" :value="tz" />
       </el-select>
@@ -399,7 +461,12 @@ const handleImportConfig = async () => {
           <el-radio-button value="custom">自定义</el-radio-button>
         </el-radio-group>
         <div v-if="proxyMode === 'custom'" class="proxy-input-wrapper">
-          <el-input v-model="proxyUrl" placeholder="例如 http://127.0.0.1:7890" clearable style="width: 100%" />
+          <el-input
+            v-model="proxyUrl"
+            placeholder="例如 http://127.0.0.1:7890"
+            clearable
+            style="width: 100%"
+          />
         </div>
       </div>
     </div>
@@ -410,14 +477,22 @@ const handleImportConfig = async () => {
       <div class="setting-item">
         <div class="setting-label">
           <span>默认下载路径</span>
-          <el-tooltip content="设置文件自动下载时的存放目录，留空则使用系统默认下载目录" placement="top">
+          <el-tooltip
+            content="设置文件自动下载时的存放目录，留空则使用系统默认下载目录"
+            placement="top"
+          >
             <el-icon class="info-icon">
               <InfoFilled />
             </el-icon>
           </el-tooltip>
         </div>
         <div class="path-selector">
-          <el-input v-model="defaultDownloadPath" placeholder="系统默认下载目录" readonly size="small">
+          <el-input
+            v-model="defaultDownloadPath"
+            placeholder="系统默认下载目录"
+            readonly
+            size="small"
+          >
             <template #append>
               <el-button @click="handleSelectDownloadPath">浏览</el-button>
             </template>
@@ -438,7 +513,10 @@ const handleImportConfig = async () => {
       <div class="setting-item">
         <div class="setting-label">
           <span>总是询问保存位置</span>
-          <el-tooltip content="启用后，每次下载都会弹出另存为对话框" placement="top">
+          <el-tooltip
+            content="启用后，每次下载都会弹出另存为对话框"
+            placement="top"
+          >
             <el-icon class="info-icon">
               <InfoFilled />
             </el-icon>
@@ -462,7 +540,10 @@ const handleImportConfig = async () => {
       <div class="setting-item">
         <div class="setting-label">
           <span>标题栏显示下载按钮</span>
-          <el-tooltip content="是否在应用标题栏显示下载管理器按钮" placement="top">
+          <el-tooltip
+            content="是否在应用标题栏显示下载管理器按钮"
+            placement="top"
+          >
             <el-icon class="info-icon">
               <InfoFilled />
             </el-icon>

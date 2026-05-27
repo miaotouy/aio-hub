@@ -1,9 +1,20 @@
 import { appDataDir, join, resolveResource } from "@tauri-apps/api/path";
-import { readDir, readTextFile, mkdir, exists, readFile, writeFile } from "@tauri-apps/plugin-fs";
+import {
+  readDir,
+  readTextFile,
+  mkdir,
+  exists,
+  readFile,
+  writeFile,
+} from "@tauri-apps/plugin-fs";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import type { CanvasTemplateDef, ResolvedTemplate, TemplateSource } from "../types/template";
+import type {
+  CanvasTemplateDef,
+  ResolvedTemplate,
+  TemplateSource,
+} from "../types/template";
 
 const logger = createModuleLogger("canvas/useTemplateRegistry");
 const errorHandler = createModuleErrorHandler("canvas/useTemplateRegistry");
@@ -48,13 +59,16 @@ export function useTemplateRegistry() {
         const entries = await readDir(builtinSrc);
         for (const entry of entries) {
           if (entry.isDirectory) {
-            await syncTemplateFolder(await join(builtinSrc, entry.name), await join(builtinDest, entry.name));
+            await syncTemplateFolder(
+              await join(builtinSrc, entry.name),
+              await join(builtinDest, entry.name)
+            );
           }
         }
 
         logger.info("内置模板初始化完成");
       },
-      { userMessage: "初始化内置模板失败" },
+      { userMessage: "初始化内置模板失败" }
     );
   }
 
@@ -72,8 +86,12 @@ export function useTemplateRegistry() {
     let shouldUpdate = true;
     if (await exists(destJsonPath)) {
       try {
-        const srcJson = JSON.parse(await readTextFile(srcJsonPath)) as CanvasTemplateDef;
-        const destJson = JSON.parse(await readTextFile(destJsonPath)) as CanvasTemplateDef;
+        const srcJson = JSON.parse(
+          await readTextFile(srcJsonPath)
+        ) as CanvasTemplateDef;
+        const destJson = JSON.parse(
+          await readTextFile(destJsonPath)
+        ) as CanvasTemplateDef;
         // 简单版本比较，如果不一致则更新
         shouldUpdate = srcJson.version !== destJson.version;
       } catch (e) {
@@ -130,7 +148,10 @@ export function useTemplateRegistry() {
             const entries = await readDir(sourceDir);
             for (const entry of entries) {
               if (entry.isDirectory) {
-                const template = await loadTemplate(source, await join(sourceDir, entry.name));
+                const template = await loadTemplate(
+                  source,
+                  await join(sourceDir, entry.name)
+                );
                 if (template) results.push(template);
               }
             }
@@ -138,7 +159,7 @@ export function useTemplateRegistry() {
 
           return results;
         },
-        { userMessage: "加载模板列表失败" },
+        { userMessage: "加载模板列表失败" }
       )) ?? []
     );
   }
@@ -146,7 +167,10 @@ export function useTemplateRegistry() {
   /**
    * 加载单个模板元数据
    */
-  async function loadTemplate(source: TemplateSource, bundlePath: string): Promise<ResolvedTemplate | null> {
+  async function loadTemplate(
+    source: TemplateSource,
+    bundlePath: string
+  ): Promise<ResolvedTemplate | null> {
     const jsonPath = await join(bundlePath, "template.json");
     if (!(await exists(jsonPath))) return null;
 
@@ -193,16 +217,25 @@ export function useTemplateRegistry() {
    * 将模板的 files/ 目录递归复制到目标画布目录
    * 返回复制的文件列表（相对路径）
    */
-  async function copyTemplateFiles(template: ResolvedTemplate, targetDir: string): Promise<string[]> {
+  async function copyTemplateFiles(
+    template: ResolvedTemplate,
+    targetDir: string
+  ): Promise<string[]> {
     const copiedFiles: string[] = [];
 
     // 简化版递归复制，专门用于 copyTemplateFiles
-    const copyTask = async (src: string, dest: string, relPath: string = "") => {
+    const copyTask = async (
+      src: string,
+      dest: string,
+      relPath: string = ""
+    ) => {
       const entries = await readDir(src);
       for (const entry of entries) {
         const srcPath = await join(src, entry.name);
         const destPath = await join(dest, entry.name);
-        const currentRelPath = relPath ? relPath + "/" + entry.name : entry.name;
+        const currentRelPath = relPath
+          ? relPath + "/" + entry.name
+          : entry.name;
 
         if (entry.isDirectory) {
           if (!(await exists(destPath))) {
@@ -224,7 +257,7 @@ export function useTemplateRegistry() {
         }
         await copyTask(template.filesPath, targetDir);
       },
-      { userMessage: "复制模板文件失败" },
+      { userMessage: "复制模板文件失败" }
     );
 
     return copiedFiles;
@@ -233,7 +266,9 @@ export function useTemplateRegistry() {
   /**
    * 获取模板缩略图的可访问 URL
    */
-  async function getPreviewUrl(template: ResolvedTemplate): Promise<string | null> {
+  async function getPreviewUrl(
+    template: ResolvedTemplate
+  ): Promise<string | null> {
     if (!template.previewPath || !(await exists(template.previewPath))) {
       return null;
     }

@@ -11,7 +11,7 @@
 - **位置**: `Asset` 和 `AssetOrigin` 对象
 - **类型**: `string`
 - **格式**: 使用工具的路由路径（去掉开头的 `/`）
-  - ✅ `"llm-chat"` 
+  - ✅ `"llm-chat"`
   - ✅ `"smart-ocr"`
   - ✅ `"asset-manager"`
   - ❌ `"/llm-chat"`（错误格式）
@@ -24,24 +24,24 @@
 在调用任何资产导入方法时，通过 `AssetImportOptions` 传入 `sourceModule`：
 
 ```typescript
-import { assetManagerEngine } from '@/composables/useAssetManager';
+import { assetManagerEngine } from "@/composables/useAssetManager";
 
 // 示例 1: 从路径导入
 const asset = await assetManagerEngine.importAssetFromPath(filePath, {
   generateThumbnail: true,
   enableDeduplication: true,
-  sourceModule: 'your-tool-id', // 🔑 关键：使用你的工具 ID
+  sourceModule: "your-tool-id", // 🔑 关键：使用你的工具 ID
 });
 
 // 示例 2: 从字节导入（如剪贴板、拖拽）
 const asset = await assetManagerEngine.importAssetFromBytes(bytes, fileName, {
-  sourceModule: 'your-tool-id',
+  sourceModule: "your-tool-id",
 });
 
 // 示例 3: 使用 composable
 const { importAssetFromPath } = useAssetManager();
 const asset = await importAssetFromPath(path, {
-  sourceModule: 'your-tool-id',
+  sourceModule: "your-tool-id",
 });
 ```
 
@@ -56,9 +56,9 @@ const asset = await importAssetFromPath(path, {
 // 可以通过工具配置确认
 // src/tools/my-awesome-tool/config.ts
 export const myAwesomeToolConfig: ToolConfig = {
-  id: 'my-awesome-tool',  // ✅ 使用这个 ID
-  name: '我的工具',
-  path: '/my-awesome-tool', // 路由路径
+  id: "my-awesome-tool", // ✅ 使用这个 ID
+  name: "我的工具",
+  path: "/my-awesome-tool", // 路由路径
   // ...
 };
 ```
@@ -82,9 +82,13 @@ const asset = await assetManagerEngine.importAssetFromPath(path, {
 
 ```typescript
 // src/tools/llm-chat/agentStore.ts
-const asset = await assetManagerEngine.importAssetFromBytes(binary, originalName, {
-  sourceModule: 'llm-chat', // ✅ 智能体图标也来自 llm-chat
-});
+const asset = await assetManagerEngine.importAssetFromBytes(
+  binary,
+  originalName,
+  {
+    sourceModule: "llm-chat", // ✅ 智能体图标也来自 llm-chat
+  }
+);
 ```
 
 #### 示例 C: 从剪贴板导入（通用场景）
@@ -95,7 +99,7 @@ const { importAssetFromClipboard } = useAssetManager();
 
 // 用户粘贴图片时
 const asset = await importAssetFromClipboard({
-  sourceModule: 'your-tool-id', // ✅ 标识是从你的工具粘贴的
+  sourceModule: "your-tool-id", // ✅ 标识是从你的工具粘贴的
 });
 ```
 
@@ -108,6 +112,7 @@ const asset = await importAssetFromClipboard({
 3. **查看统计**: 每个模块的资产数量统计
 
 侧边栏会自动显示：
+
 - 工具的图标（从 `toolsStore` 动态获取）
 - 工具的名称（从 `toolsStore` 动态获取）
 - 该模块的资产数量
@@ -123,12 +128,12 @@ const asset = await importAssetFromClipboard({
 ```typescript
 // ✅ 好的实践
 {
-  sourceModule: 'llm-chat'
+  sourceModule: "llm-chat";
 }
 
 // ❌ 避免的做法
 {
-  sourceModule: 'LLMChat'  // 不符合命名规范
+  sourceModule: "LLMChat"; // 不符合命名规范
 }
 {
   // 没有指定，会变成 'unknown'
@@ -138,15 +143,17 @@ const asset = await importAssetFromClipboard({
 ### ⚠️ 注意事项
 
 1. **不要使用路径格式**: `sourceModule` 是 ID，不是路径
+
    ```typescript
    // ❌ 错误
-   sourceModule: '/llm-chat'
-   
+   sourceModule: "/llm-chat";
+
    // ✅ 正确
-   sourceModule: 'llm-chat'
+   sourceModule: "llm-chat";
    ```
 
 2. **避免重复导入**: 启用 `enableDeduplication` 以避免重复导入相同文件
+
    ```typescript
    {
      enableDeduplication: true,  // ✅ 推荐
@@ -163,6 +170,7 @@ const asset = await importAssetFromClipboard({
 ### 步骤 1: 识别所有导入点
 
 搜索你的代码中所有调用以下方法的地方：
+
 - `assetManagerEngine.importAssetFromPath`
 - `assetManagerEngine.importAssetFromBytes`
 - `useAssetManager().importAssetFromPath`
@@ -182,7 +190,7 @@ const asset = await importAssetFromPath(path, {
 // 迁移后
 const asset = await importAssetFromPath(path, {
   generateThumbnail: true,
-  sourceModule: 'your-tool-id', // 🆕 添加这一行
+  sourceModule: "your-tool-id", // 🆕 添加这一行
 });
 ```
 
@@ -202,11 +210,11 @@ const asset = await importAssetFromPath(path, {
 ```typescript
 interface Asset {
   // ... 其他字段
-  sourceModule: string;  // 顶层字段，便于索引和筛选
+  sourceModule: string; // 顶层字段，便于索引和筛选
   origin?: {
     type: AssetOriginType;
     source: string;
-    sourceModule: string;  // 嵌套字段，与 origin 信息一起存储
+    sourceModule: string; // 嵌套字段，与 origin 信息一起存储
   };
 }
 ```
@@ -214,6 +222,7 @@ interface Asset {
 ### 后端处理
 
 Rust 后端在导入时会：
+
 1. 从 `AssetImportOptions.sourceModule` 读取值
 2. 如果未提供，使用 `"unknown"` 作为默认值
 3. 同时设置 `Asset.sourceModule` 和 `Asset.origin.sourceModule`
@@ -226,7 +235,7 @@ Rust 后端在导入时会：
 const payload = {
   page: 1,
   pageSize: 50,
-  filterSourceModule: 'llm-chat', // 只显示 LLM Chat 的资产
+  filterSourceModule: "llm-chat", // 只显示 LLM Chat 的资产
   // ... 其他参数
 };
 ```

@@ -112,7 +112,13 @@ const PLACEHOLDER_PATTERNS = [
 /**
  * 标准请求头（不需要作为 customHeaders 保存的）
  */
-const STANDARD_HEADERS = new Set(["content-type", "authorization", "accept", "user-agent", "x-api-key"]);
+const STANDARD_HEADERS = new Set([
+  "content-type",
+  "authorization",
+  "accept",
+  "user-agent",
+  "x-api-key",
+]);
 
 /**
  * 预处理 curl 命令字符串
@@ -240,7 +246,10 @@ function extractBaseUrl(url: string): { baseUrl: string; endpoint?: string } {
     }
 
     // 无法识别路径结构，返回去掉路径的 origin
-    return { baseUrl: urlObj.origin, endpoint: pathname !== "/" ? pathname : undefined };
+    return {
+      baseUrl: urlObj.origin,
+      endpoint: pathname !== "/" ? pathname : undefined,
+    };
   } catch {
     return { baseUrl: url };
   }
@@ -249,7 +258,10 @@ function extractBaseUrl(url: string): { baseUrl: string; endpoint?: string } {
 /**
  * 从 URL 推断 ProviderType
  */
-function inferProviderType(url: string, headers: Record<string, string>): ProviderType {
+function inferProviderType(
+  url: string,
+  headers: Record<string, string>
+): ProviderType {
   try {
     const urlObj = new URL(url);
     const hostname = urlObj.hostname;
@@ -298,11 +310,25 @@ function inferName(url: string): string {
     if (parts.length >= 2) {
       // 取主域名部分（去掉 www、api 前缀和 TLD）
       const meaningful = parts.filter(
-        (p) => !["www", "api", "com", "cn", "ai", "io", "org", "net", "co", "cloud"].includes(p),
+        (p) =>
+          ![
+            "www",
+            "api",
+            "com",
+            "cn",
+            "ai",
+            "io",
+            "org",
+            "net",
+            "co",
+            "cloud",
+          ].includes(p)
       );
       if (meaningful.length > 0) {
         // 首字母大写
-        return meaningful.map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ");
+        return meaningful
+          .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+          .join(" ");
       }
     }
 
@@ -322,7 +348,10 @@ function isPlaceholderKey(key: string): boolean {
 /**
  * 从 headers 中提取 API Key
  */
-function extractApiKey(headers: Record<string, string>): { key?: string; isPlaceholder: boolean } {
+function extractApiKey(headers: Record<string, string>): {
+  key?: string;
+  isPlaceholder: boolean;
+} {
   // 优先从 Authorization: Bearer xxx 提取
   const auth = headers["authorization"];
   if (auth) {
@@ -345,7 +374,9 @@ function extractApiKey(headers: Record<string, string>): { key?: string; isPlace
 /**
  * 提取自定义请求头（排除标准头）
  */
-function extractCustomHeaders(headers: Record<string, string>): Record<string, string> | undefined {
+function extractCustomHeaders(
+  headers: Record<string, string>
+): Record<string, string> | undefined {
   const custom: Record<string, string> = {};
   for (const [key, value] of Object.entries(headers)) {
     if (!STANDARD_HEADERS.has(key.toLowerCase())) {
@@ -388,7 +419,8 @@ export function parseCurlCommand(input: string): ParsedCurlResult | null {
   const { baseUrl, endpoint } = extractBaseUrl(url);
 
   // 提取 API Key
-  const { key: apiKey, isPlaceholder: apiKeyIsPlaceholder } = extractApiKey(headers);
+  const { key: apiKey, isPlaceholder: apiKeyIsPlaceholder } =
+    extractApiKey(headers);
 
   // 提取模型名
   const model = body?.model || undefined;
@@ -403,8 +435,14 @@ export function parseCurlCommand(input: string): ParsedCurlResult | null {
   const customHeaders = extractCustomHeaders(headers);
 
   // 判断是否为非标准端点
-  const standardEndpoints = ["/v1/chat/completions", "/chat/completions", "/v1/messages", "/v1/responses"];
-  const chatEndpoint = endpoint && !standardEndpoints.includes(endpoint) ? endpoint : undefined;
+  const standardEndpoints = [
+    "/v1/chat/completions",
+    "/chat/completions",
+    "/v1/messages",
+    "/v1/responses",
+  ];
+  const chatEndpoint =
+    endpoint && !standardEndpoints.includes(endpoint) ? endpoint : undefined;
 
   return {
     baseUrl,

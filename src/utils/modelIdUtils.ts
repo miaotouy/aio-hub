@@ -1,6 +1,6 @@
 /**
  * 模型 ID 处理工具函数
- * 
+ *
  * 解决模型 ID 中可能包含冒号 (如 local:llama3:latest) 导致的分割问题。
  * 标准格式为: profileId:modelId
  */
@@ -8,7 +8,12 @@
 /**
  * 已知的 Profile ID 前缀
  */
-const KNOWN_PROFILE_PREFIXES = ["llm-profile-", "ocr-profile-", "embedding-profile-", "tts-profile-"];
+const KNOWN_PROFILE_PREFIXES = [
+  "llm-profile-",
+  "ocr-profile-",
+  "embedding-profile-",
+  "tts-profile-",
+];
 
 /**
  * 从 comboId (profileId:modelId) 中提取纯模型 ID
@@ -21,7 +26,9 @@ export function getPureModelId(comboId: string | null | undefined): string {
   if (!comboId) return "";
 
   // 检查是否包含已知前缀
-  const hasKnownPrefix = KNOWN_PROFILE_PREFIXES.some((prefix) => comboId.startsWith(prefix));
+  const hasKnownPrefix = KNOWN_PROFILE_PREFIXES.some((prefix) =>
+    comboId.startsWith(prefix)
+  );
 
   if (hasKnownPrefix) {
     const firstColonIndex = comboId.indexOf(":");
@@ -67,7 +74,9 @@ export function buildModelCombo(profileId: string, modelId: string): string {
 /**
  * 解析组合 ID，返回 [profileId, modelId]
  */
-export function parseModelCombo(comboId: string | null | undefined): [string, string] {
+export function parseModelCombo(
+  comboId: string | null | undefined
+): [string, string] {
   if (!comboId) return ["", ""];
   return [getProfileId(comboId), getPureModelId(comboId)];
 }
@@ -78,5 +87,8 @@ export function parseModelCombo(comboId: string | null | undefined): [string, st
 export function isModelCombo(id: string | null | undefined): boolean {
   if (!id) return false;
   // 简单检查是否包含冒号且符合前缀规范
-  return id.includes(":") && KNOWN_PROFILE_PREFIXES.some(prefix => id.startsWith(prefix));
+  return (
+    id.includes(":") &&
+    KNOWN_PROFILE_PREFIXES.some((prefix) => id.startsWith(prefix))
+  );
 }

@@ -4,7 +4,10 @@
  */
 
 export { MacroProcessor } from "./MacroProcessor";
-export type { MacroProcessResult, MacroValidationResult } from "./MacroProcessor";
+export type {
+  MacroProcessResult,
+  MacroValidationResult,
+} from "./MacroProcessor";
 
 export { MacroRegistry, MacroPhase, MacroType } from "./MacroRegistry";
 export type { MacroDefinition } from "./MacroRegistry";

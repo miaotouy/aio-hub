@@ -58,7 +58,9 @@ export interface SunoInspirationMusicRequest {
 }
 
 /** 音乐生成请求（联合类型） */
-export type SunoMusicRequest = SunoCustomMusicRequest | SunoInspirationMusicRequest;
+export type SunoMusicRequest =
+  | SunoCustomMusicRequest
+  | SunoInspirationMusicRequest;
 
 /** 歌词生成请求 */
 export interface SunoLyricsRequest {

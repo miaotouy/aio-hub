@@ -1,9 +1,19 @@
-import type { AgentExtensionContext, MethodMetadata, ToolRegistry } from "@/services/types";
+import type {
+  AgentExtensionContext,
+  MethodMetadata,
+  ToolRegistry,
+} from "@/services/types";
 import { toolRegistryManager } from "@/services/registry";
 import { useToolsStore } from "@/stores/tools";
-import type { AgentExtensionConfig, ToolCallConfig } from "@/tools/llm-chat/types/agent";
+import type {
+  AgentExtensionConfig,
+  ToolCallConfig,
+} from "@/tools/llm-chat/types/agent";
 import { createModuleLogger } from "@/utils/logger";
-import type { ToolCallingProtocol, ToolDefinitionInput } from "./protocols/base";
+import type {
+  ToolCallingProtocol,
+  ToolDefinitionInput,
+} from "./protocols/base";
 import { VcpToolCallingProtocol } from "./protocols/vcp-protocol";
 
 const logger = createModuleLogger("tool-calling/discovery");
@@ -51,7 +61,10 @@ function resolveToolEnabled(toolId: string, config: ToolCallConfig): boolean {
   return config.defaultToolEnabled;
 }
 
-function resolveExtensionEnabled(extensionId: string, config?: AgentExtensionConfig): boolean {
+function resolveExtensionEnabled(
+  extensionId: string,
+  config?: AgentExtensionConfig
+): boolean {
   if (!config) return false;
   if (!config.enabled) return false;
   const toggle = config.extensionToggles?.[extensionId];
@@ -145,8 +158,14 @@ export function createToolDiscoveryService(): {
    * 兼容旧版调用
    * @deprecated 使用 getAgentContexts 替代
    */
-  getToolContexts(options: { config: ToolCallConfig; agentId?: string; includeToolIds?: string[] }): Promise<string>;
-  getDiscoveredMethods(filter?: (method: MethodMetadata) => boolean): DiscoveredToolMethods[];
+  getToolContexts(options: {
+    config: ToolCallConfig;
+    agentId?: string;
+    includeToolIds?: string[];
+  }): Promise<string>;
+  getDiscoveredMethods(
+    filter?: (method: MethodMetadata) => boolean
+  ): DiscoveredToolMethods[];
   getDiscoveredExtensions(): DiscoveredExtension[];
   invalidateCache(): void;
 } {
@@ -159,7 +178,9 @@ export function createToolDiscoveryService(): {
     return allTools
       .filter((ext) => typeof ext.getExtraPromptContext === "function")
       .map((ext) => {
-        const toolConfig = toolsStore.tools.find((t) => t.path.includes(ext.id));
+        const toolConfig = toolsStore.tools.find((t) =>
+          t.path.includes(ext.id)
+        );
         return {
           id: ext.id,
           name: ext.name || ext.id,
@@ -170,7 +191,9 @@ export function createToolDiscoveryService(): {
       });
   }
 
-  function getDiscoveredMethods(filter?: (method: MethodMetadata) => boolean): DiscoveredToolMethods[] {
+  function getDiscoveredMethods(
+    filter?: (method: MethodMetadata) => boolean
+  ): DiscoveredToolMethods[] {
     const allTools = toolRegistryManager.getAllTools();
     const toolsStore = useToolsStore();
     const discovered: DiscoveredToolMethods[] = [];
@@ -198,7 +221,10 @@ export function createToolDiscoveryService(): {
 
       // 获取工厂 ID
       let factoryId: string | undefined;
-      const allFactories = (toolRegistryManager as any).factoryToolIds as Map<string, string[]>;
+      const allFactories = (toolRegistryManager as any).factoryToolIds as Map<
+        string,
+        string[]
+      >;
       if (allFactories) {
         for (const [fid, ids] of allFactories.entries()) {
           if (ids.includes(tool.id)) {
@@ -244,7 +270,10 @@ export function createToolDiscoveryService(): {
       return cached;
     }
 
-    if (!options.config.enabled && (!options.includeToolIds || options.includeToolIds.length === 0)) {
+    if (
+      !options.config.enabled &&
+      (!options.includeToolIds || options.includeToolIds.length === 0)
+    ) {
       promptCache.set(cacheKey, "");
       return "";
     }
@@ -280,44 +309,52 @@ export function createToolDiscoveryService(): {
       return "";
     }
 
-    const protocolInput: ToolDefinitionInput[] = enabledToolsWithMethods.map((tool) => {
-      const toolOverride = options.config.overrides?.[tool.toolId];
+    const protocolInput: ToolDefinitionInput[] = enabledToolsWithMethods.map(
+      (tool) => {
+        const toolOverride = options.config.overrides?.[tool.toolId];
 
-      return {
-        toolId: tool.toolId,
-        toolName: toolOverride?.enabled ? toolOverride.displayName || tool.toolName : tool.toolName,
-        toolDescription: toolOverride?.enabled
-          ? toolOverride.description || tool.toolDescription
-          : tool.toolDescription,
-        methods: tool.methods.map((method) => {
-          const methodKey = `${tool.toolId}:${method.name}`;
-          const methodOverride = options.config.overrides?.[methodKey];
+        return {
+          toolId: tool.toolId,
+          toolName: toolOverride?.enabled
+            ? toolOverride.displayName || tool.toolName
+            : tool.toolName,
+          toolDescription: toolOverride?.enabled
+            ? toolOverride.description || tool.toolDescription
+            : tool.toolDescription,
+          methods: tool.methods.map((method) => {
+            const methodKey = `${tool.toolId}:${method.name}`;
+            const methodOverride = options.config.overrides?.[methodKey];
 
-          let baseMethod = { ...method };
-          if (methodOverride?.enabled) {
-            baseMethod = {
-              ...method,
-              displayName: methodOverride.displayName || method.displayName,
-              description: methodOverride.description || method.description,
-              example: methodOverride.example || method.example,
-            };
-          }
+            let baseMethod = { ...method };
+            if (methodOverride?.enabled) {
+              baseMethod = {
+                ...method,
+                displayName: methodOverride.displayName || method.displayName,
+                description: methodOverride.description || method.description,
+                example: methodOverride.example || method.example,
+              };
+            }
 
-          // 为异步方法添加标注
-          if (baseMethod.executionMode === "async") {
-            const asyncNote = "[异步方法] 此方法会立即返回任务ID，需要使用 tool-calling_getTaskStatus 查询结果";
-            const estimatedDuration = method.asyncConfig?.estimatedDuration;
-            const durationNote = estimatedDuration ? ` (预计耗时: ${estimatedDuration}秒)` : "";
+            // 为异步方法添加标注
+            if (baseMethod.executionMode === "async") {
+              const asyncNote =
+                "[异步方法] 此方法会立即返回任务ID，需要使用 tool-calling_getTaskStatus 查询结果";
+              const estimatedDuration = method.asyncConfig?.estimatedDuration;
+              const durationNote = estimatedDuration
+                ? ` (预计耗时: ${estimatedDuration}秒)`
+                : "";
 
-            return {
-              ...baseMethod,
-              description: `${asyncNote}${durationNote}\n${baseMethod.description || ""}`.trim(),
-            };
-          }
-          return baseMethod;
-        }),
-      };
-    });
+              return {
+                ...baseMethod,
+                description:
+                  `${asyncNote}${durationNote}\n${baseMethod.description || ""}`.trim(),
+              };
+            }
+            return baseMethod;
+          }),
+        };
+      }
+    );
 
     const prompt = protocolImpl.generateToolDefinitions(protocolInput);
 
@@ -340,7 +377,8 @@ export function createToolDiscoveryService(): {
     const { toolConfig, extensionConfig, includeToolIds } = options;
 
     // 如果两个开关都关了，且没有强制包含列表，则直接返回
-    const toolsEnabled = toolConfig.enabled || (includeToolIds && includeToolIds.length > 0);
+    const toolsEnabled =
+      toolConfig.enabled || (includeToolIds && includeToolIds.length > 0);
     const extensionsEnabled = extensionConfig?.enabled;
 
     if (!toolsEnabled && !extensionsEnabled) {
@@ -352,16 +390,24 @@ export function createToolDiscoveryService(): {
     // 筛选出已启用的扩展（包括工具和纯扩展）
     const enabledExtensions = allExtensions.filter((ext) => {
       // 1. 检查是否在强制包含列表中
-      if (includeToolIds && includeToolIds.length > 0 && includeToolIds.includes(ext.id)) {
+      if (
+        includeToolIds &&
+        includeToolIds.length > 0 &&
+        includeToolIds.includes(ext.id)
+      ) {
         return true;
       }
 
       // 2. 检查是否作为工具启用
-      const isEnabledAsTool = toolConfig.enabled && resolveToolEnabled(ext.id, toolConfig);
+      const isEnabledAsTool =
+        toolConfig.enabled && resolveToolEnabled(ext.id, toolConfig);
       if (isEnabledAsTool) return true;
 
       // 3. 检查是否作为环境扩展启用
-      const isEnabledAsExtension = resolveExtensionEnabled(ext.id, extensionConfig);
+      const isEnabledAsExtension = resolveExtensionEnabled(
+        ext.id,
+        extensionConfig
+      );
       if (isEnabledAsExtension) return true;
 
       return false;

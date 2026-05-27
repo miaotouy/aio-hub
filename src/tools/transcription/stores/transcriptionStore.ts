@@ -6,7 +6,10 @@ import { useTranscriptionManager } from "../composables/useTranscriptionManager"
 import { sanitizeErrorMessage } from "../utils/text";
 import { createModuleLogger } from "@/utils/logger";
 import type { Asset } from "@/types/asset-management";
-import { transcriptionConfigManager, transcriptionTasksManager } from "../utils/persistence";
+import {
+  transcriptionConfigManager,
+  transcriptionTasksManager,
+} from "../utils/persistence";
 
 const logger = createModuleLogger("transcriptionStore");
 
@@ -104,7 +107,9 @@ export const useTranscriptionStore = defineStore("transcription", () => {
 
   // 任务管理
   const addTask = (task: TranscriptionTask) => {
-    const existingIndex = tasks.value.findIndex((t) => t.assetId === task.assetId);
+    const existingIndex = tasks.value.findIndex(
+      (t) => t.assetId === task.assetId
+    );
     if (existingIndex !== -1) {
       const existing = tasks.value[existingIndex];
       if (existing.status === "processing" || existing.status === "pending") {
@@ -132,7 +137,10 @@ export const useTranscriptionStore = defineStore("transcription", () => {
     }
   };
 
-  const updateTaskByAssetId = (assetId: string, updates: Partial<TranscriptionTask>) => {
+  const updateTaskByAssetId = (
+    assetId: string,
+    updates: Partial<TranscriptionTask>
+  ) => {
     const task = tasks.value.find((t) => t.assetId === assetId);
     if (task) {
       Object.assign(task, updates);
@@ -153,7 +161,10 @@ export const useTranscriptionStore = defineStore("transcription", () => {
   /**
    * 提交转写任务
    */
-  const submitTask = (asset: Asset, overrideConfig?: Partial<TranscriptionConfig>) => {
+  const submitTask = (
+    asset: Asset,
+    overrideConfig?: Partial<TranscriptionConfig>
+  ) => {
     const manager = useTranscriptionManager();
     return manager.addTask(asset, overrideConfig);
   };

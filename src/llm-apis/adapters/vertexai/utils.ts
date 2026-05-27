@@ -2,9 +2,13 @@ import {
   parseMessageContents,
   inferImageMimeType,
   extractToolDefinitions,
-  parseToolChoice
+  parseToolChoice,
 } from "@/llm-apis/request-builder";
-import type { LlmRequestOptions, LlmMessageContent, LlmMessage } from "@/llm-apis/common";
+import type {
+  LlmRequestOptions,
+  LlmMessageContent,
+  LlmMessage,
+} from "@/llm-apis/common";
 import type { LlmModelInfo } from "@/types/llm-profiles";
 import { DEFAULT_METADATA_RULES, testRuleMatch } from "@/config/model-metadata";
 
@@ -13,13 +17,15 @@ import { DEFAULT_METADATA_RULES, testRuleMatch } from "@/config/model-metadata";
  */
 export const vertexAiUrlHandler = {
   buildUrl: (baseUrl: string, endpoint?: string): string => {
-    const host = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
-    const versionedHost = host.includes('/v1') ? host : `${host}v1/`;
-    return endpoint ? `${versionedHost}${endpoint}` : `${versionedHost}projects/{project}/locations/{location}/publishers/google/models/{model}:generateContent`;
+    const host = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+    const versionedHost = host.includes("/v1") ? host : `${host}v1/`;
+    return endpoint
+      ? `${versionedHost}${endpoint}`
+      : `${versionedHost}projects/{project}/locations/{location}/publishers/google/models/{model}:generateContent`;
   },
   getHint: (): string => {
-    return '将自动添加 /v1/projects/{project}/locations/{location}/publishers/google/models/{model}:generateContent';
-  }
+    return "将自动添加 /v1/projects/{project}/locations/{location}/publishers/google/models/{model}:generateContent";
+  },
 };
 
 /**
@@ -99,16 +105,16 @@ export interface VertexAiClaudeRequest {
   messages: Array<{
     role: "user" | "assistant";
     content:
-    | string
-    | Array<{
-      type: "text" | "image";
-      text?: string;
-      source?: {
-        type: "base64";
-        media_type: string;
-        data: string | ArrayBuffer;
-      };
-    }>;
+      | string
+      | Array<{
+          type: "text" | "image";
+          text?: string;
+          source?: {
+            type: "base64";
+            media_type: string;
+            data: string | ArrayBuffer;
+          };
+        }>;
   }>;
   max_tokens: number;
   temperature?: number;
@@ -123,7 +129,9 @@ export interface VertexAiClaudeRequest {
 /**
  * 构建 Vertex AI Parts（Gemini 格式）
  */
-export function buildVertexAiParts(messages: LlmMessageContent[]): VertexAiPart[] {
+export function buildVertexAiParts(
+  messages: LlmMessageContent[]
+): VertexAiPart[] {
   const parsed = parseMessageContents(messages);
   const parts: VertexAiPart[] = [];
 
@@ -173,14 +181,18 @@ export function buildVertexAiParts(messages: LlmMessageContent[]): VertexAiPart[
 /**
  * 构建多轮对话 Contents（Gemini 格式）
  */
-export function buildVertexAiContents(messages: LlmMessage[]): VertexAiContent[] {
+export function buildVertexAiContents(
+  messages: LlmMessage[]
+): VertexAiContent[] {
   const contents: VertexAiContent[] = [];
 
   for (const msg of messages) {
     if (msg.role === "system") continue;
 
     const parts =
-      typeof msg.content === "string" ? [{ text: msg.content }] : buildVertexAiParts(msg.content);
+      typeof msg.content === "string"
+        ? [{ text: msg.content }]
+        : buildVertexAiParts(msg.content);
 
     contents.push({
       role: msg.role === "assistant" ? "model" : "user",
@@ -194,7 +206,9 @@ export function buildVertexAiContents(messages: LlmMessage[]): VertexAiContent[]
 /**
  * 构建工具配置（Gemini 格式）
  */
-export function buildVertexAiTools(options: LlmRequestOptions): VertexAiTool[] | undefined {
+export function buildVertexAiTools(
+  options: LlmRequestOptions
+): VertexAiTool[] | undefined {
   const commonTools = extractToolDefinitions(options.tools);
   if (!commonTools) return undefined;
 
@@ -210,7 +224,9 @@ export function buildVertexAiTools(options: LlmRequestOptions): VertexAiTool[] |
 /**
  * 构建工具调用配置（Gemini 格式）
  */
-export function buildVertexAiToolConfig(options: LlmRequestOptions): VertexAiToolConfig | undefined {
+export function buildVertexAiToolConfig(
+  options: LlmRequestOptions
+): VertexAiToolConfig | undefined {
   const parsed = parseToolChoice(options.toolChoice);
   if (!parsed) return undefined;
 
@@ -235,7 +251,9 @@ export function buildVertexAiToolConfig(options: LlmRequestOptions): VertexAiToo
 /**
  * 构建 Claude 格式的消息（Anthropic Publisher）
  */
-export function buildClaudeMessages(messages: LlmMessage[]): VertexAiClaudeRequest["messages"] {
+export function buildClaudeMessages(
+  messages: LlmMessage[]
+): VertexAiClaudeRequest["messages"] {
   const claudeMessages: VertexAiClaudeRequest["messages"] = [];
 
   for (const msg of messages) {
@@ -261,7 +279,8 @@ export function buildClaudeMessages(messages: LlmMessage[]): VertexAiClaudeReque
           type: "image",
           source: {
             type: "base64",
-            media_type: imagePart.mimeType || inferImageMimeType(imagePart.base64),
+            media_type:
+              imagePart.mimeType || inferImageMimeType(imagePart.base64),
             data: imagePart.base64,
           },
         });
@@ -310,7 +329,10 @@ function extractModelCapabilities(modelId: string, provider?: string) {
   ).sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
   for (const rule of rules) {
-    if (testRuleMatch(rule, modelId, provider) && rule.properties?.capabilities) {
+    if (
+      testRuleMatch(rule, modelId, provider) &&
+      rule.properties?.capabilities
+    ) {
       return rule.properties.capabilities;
     }
   }

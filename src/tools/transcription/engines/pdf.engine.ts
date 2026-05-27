@@ -7,7 +7,11 @@ import type { Asset } from "@/types/asset-management";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import { getModelParams } from "./base";
 import { cleanLlmOutput, detectRepetition } from "../utils/text";
-import type { ITranscriptionEngine, EngineContext, EngineResult } from "../types";
+import type {
+  ITranscriptionEngine,
+  EngineContext,
+  EngineResult,
+} from "../types";
 
 // 文件大小阈值：超过此值使用 Rust 代理，避免 IPC 阻塞（10MB）
 const FILE_SIZE_THRESHOLD = 10 * 1024 * 1024;
@@ -22,7 +26,14 @@ export class PdfTranscriptionEngine implements ITranscriptionEngine {
     const { sendRequest, getNetworkStrategy } = useLlmRequest();
     const { getProfileById } = useLlmProfiles();
 
-    const { modelIdentifier, prompt, temperature, maxTokens, timeout, enableRepetitionDetection } = getModelParams(ctx, "document");
+    const {
+      modelIdentifier,
+      prompt,
+      temperature,
+      maxTokens,
+      timeout,
+      enableRepetitionDetection,
+    } = getModelParams(ctx, "document");
     const [profileId, modelId] = parseModelCombo(modelIdentifier);
 
     const profile = getProfileById(profileId);
@@ -33,7 +44,9 @@ export class PdfTranscriptionEngine implements ITranscriptionEngine {
     const asset = await assetManagerEngine.getAssetById(task.assetId);
     const fileSize = asset?.size || 0;
 
-    const finalPrompt = task.filename ? prompt.replace(/\{filename\}/g, task.filename) : prompt;
+    const finalPrompt = task.filename
+      ? prompt.replace(/\{filename\}/g, task.filename)
+      : prompt;
 
     let transcriptionText: string;
 
@@ -41,8 +54,9 @@ export class PdfTranscriptionEngine implements ITranscriptionEngine {
     if (capabilities.document) {
       let pdfData: string;
       const networkStrategy = getNetworkStrategy(profileId);
-      const useLocalFile = networkStrategy !== "native" && fileSize > FILE_SIZE_THRESHOLD;
-      
+      const useLocalFile =
+        networkStrategy !== "native" && fileSize > FILE_SIZE_THRESHOLD;
+
       // 智能选择数据传输方式
       if (useLocalFile) {
         // 大文件：使用 local-file:// 协议，让 Rust 代理处理
@@ -63,7 +77,7 @@ export class PdfTranscriptionEngine implements ITranscriptionEngine {
             media_type: "application/pdf",
             data: pdfData,
           },
-        }
+        },
       ];
       const response = await sendRequest({
         profileId,
@@ -90,7 +104,9 @@ export class PdfTranscriptionEngine implements ITranscriptionEngine {
       // 这里为了简化，暂不支持分批处理，只取前几页或全部
       const PDF_BATCH_SIZE = 5;
       if (images.length <= PDF_BATCH_SIZE) {
-        const content: LlmMessageContent[] = [{ type: "text", text: finalPrompt }];
+        const content: LlmMessageContent[] = [
+          { type: "text", text: finalPrompt },
+        ];
         for (const img of images) {
           content.push({ type: "image", imageBase64: img.base64 });
         }
@@ -134,16 +150,23 @@ export class PdfTranscriptionEngine implements ITranscriptionEngine {
             timeout: timeout * 1000,
             signal: ctx.signal,
           });
-          batchResults.push(`## ${startLabel}-${endLabel}\n\n${response.content}`);
+          batchResults.push(
+            `## ${startLabel}-${endLabel}\n\n${response.content}`
+          );
         }
         transcriptionText = batchResults.join("\n---\n\n");
       }
     } else {
-      throw new Error("无法处理 PDF：模型既不支持原生 PDF，也不支持视觉（图片）");
+      throw new Error(
+        "无法处理 PDF：模型既不支持原生 PDF，也不支持视觉（图片）"
+      );
     }
 
     const cleanedText = cleanLlmOutput(transcriptionText);
-    const repetition = detectRepetition(cleanedText, ctx.config.repetitionConfig);
+    const repetition = detectRepetition(
+      cleanedText,
+      ctx.config.repetitionConfig
+    );
 
     if (enableRepetitionDetection && repetition.isRepetitive) {
       throw new Error(`检测到模型回复存在严重复读: ${repetition.reason}`);
@@ -151,7 +174,7 @@ export class PdfTranscriptionEngine implements ITranscriptionEngine {
 
     return {
       text: cleanedText,
-      isEmpty: !cleanedText || cleanedText.trim().length === 0
+      isEmpty: !cleanedText || cleanedText.trim().length === 0,
     };
   }
 }

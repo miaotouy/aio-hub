@@ -1,4 +1,10 @@
-import type { ChatSessionDetail, ChatMessageNode, LlmParameters, UserProfile, ChatAgent } from "../../types";
+import type {
+  ChatSessionDetail,
+  ChatMessageNode,
+  LlmParameters,
+  UserProfile,
+  ChatAgent,
+} from "../../types";
 import { useSingleNodeExecutor } from "./useSingleNodeExecutor";
 import { useToolCalling } from "@/tools/tool-calling/composables/useToolCalling";
 import { useToolCallingStore } from "../../stores/toolCallingStore";
@@ -39,7 +45,8 @@ export interface OrchestrateParams {
 
 export function useToolCallOrchestrator() {
   const { execute: executeSingleNode } = useSingleNodeExecutor();
-  const { resolveProtocol, processCycle, formatCycleResults } = useToolCalling();
+  const { resolveProtocol, processCycle, formatCycleResults } =
+    useToolCalling();
   const { handleNodeError } = useChatResponseHandler();
 
   const toolCallingStore = useToolCallingStore();
@@ -129,7 +136,11 @@ export function useToolCallOrchestrator() {
           let toolNode: ChatMessageNode | null = null;
 
           const ensureNodesCreated = async (
-            parsedRequests: Array<{ requestId: string; toolName: string; args: any }>,
+            parsedRequests: Array<{
+              requestId: string;
+              toolName: string;
+              args: any;
+            }>
           ) => {
             if (toolNode) return;
 
@@ -140,7 +151,9 @@ export function useToolCallOrchestrator() {
             if (toolNode) return;
 
             const logPrefix = isReparse ? "🛠️ 重新解析：" : "🛠️";
-            logger.info(`${logPrefix}检测到 ${parsedRequests.length} 个工具请求，准备执行...`);
+            logger.info(
+              `${logPrefix}检测到 ${parsedRequests.length} 个工具请求，准备执行...`
+            );
 
             // 1. 更新助手节点的元数据，记录请求
             currentAssistantNode.metadata = {
@@ -190,8 +203,13 @@ export function useToolCallOrchestrator() {
           };
 
           // --- 提前解析并创建节点 ---
-          const protocol = resolveProtocol(executionAgent.toolCallConfig?.protocol || "vcp");
-          const preParsedRequests = parseToolRequests(responseContent, protocol);
+          const protocol = resolveProtocol(
+            executionAgent.toolCallConfig?.protocol || "vcp"
+          );
+          const preParsedRequests = parseToolRequests(
+            responseContent,
+            protocol
+          );
 
           if (preParsedRequests.length > 0) {
             await ensureNodesCreated(
@@ -199,27 +217,31 @@ export function useToolCallOrchestrator() {
                 requestId: req.requestId,
                 toolName: req.toolName,
                 args: req.args,
-              })),
+              }))
             );
           }
 
           const cycleResult = await processCycle(
             responseContent,
             executionAgent.toolCallConfig,
-            async (request) => await toolCallingStore.requestApproval(session.id, request),
+            async (request) =>
+              await toolCallingStore.requestApproval(session.id, request),
             async (requestId, status) => {
               // 简化回调：仅更新已有节点的元数据状态
               if (toolNode && session.nodes?.[toolNode.id]) {
                 const node = session.nodes[toolNode.id];
                 if (node.metadata?.toolCalls) {
-                  const tc = node.metadata.toolCalls.find((t) => t.requestId === requestId);
+                  const tc = node.metadata.toolCalls.find(
+                    (t) => t.requestId === requestId
+                  );
                   if (tc) {
                     tc.status = status;
 
                     // 同步更新助手节点的请求状态
-                    const req = currentAssistantNode.metadata?.toolCallsRequested?.find(
-                      (r) => r.requestId === requestId,
-                    );
+                    const req =
+                      currentAssistantNode.metadata?.toolCallsRequested?.find(
+                        (r) => r.requestId === requestId
+                      );
                     if (req) req.status = status;
 
                     // 持久化以触发 UI 更新
@@ -230,13 +252,13 @@ export function useToolCallOrchestrator() {
                   }
                 }
               }
-            },
+            }
           );
 
           if (cycleResult.hasToolRequests) {
             const toolResultText = formatCycleResults(
               cycleResult.executionResults,
-              executionAgent.toolCallConfig.protocol,
+              executionAgent.toolCallConfig.protocol
             );
 
             if (toolNode) {
@@ -282,15 +304,19 @@ export function useToolCallOrchestrator() {
             }
 
             if (currentAssistantNode.metadata?.toolCallsRequested) {
-              currentAssistantNode.metadata.toolCallsRequested.forEach((req) => {
-                req.status = "completed";
-              });
+              currentAssistantNode.metadata.toolCallsRequested.forEach(
+                (req) => {
+                  req.status = "completed";
+                }
+              );
             }
 
             // 检查是否需要停止循环
             // 如果节点元数据中标记了 isSilent (由 UI 层控制)，或者所有请求都被拒绝，则停止循环
             const isSilent = toolNode?.metadata?.isSilent;
-            const isAllDenied = cycleResult.executionResults.every((r) => r.status === "denied");
+            const isAllDenied = cycleResult.executionResults.every(
+              (r) => r.status === "denied"
+            );
 
             if (isSilent || isAllDenied) {
               logger.info(`🛠️ 停止工具调用循环`, { isSilent, isAllDenied });
@@ -318,7 +344,8 @@ export function useToolCallOrchestrator() {
               },
             };
 
-            if (session.nodes) session.nodes[nextAssistantNode.id] = nextAssistantNode;
+            if (session.nodes)
+              session.nodes[nextAssistantNode.id] = nextAssistantNode;
             toolNode!.childrenIds.push(nextAssistantNode.id);
             generatingNodes.add(nextAssistantNode.id);
             abortControllers.set(nextAssistantNode.id, abortController);
@@ -329,7 +356,11 @@ export function useToolCallOrchestrator() {
               sessionManager.persistSession(index, session, session.id);
             }
 
-            currentPathToUserNode = [...currentPathToUserNode, currentAssistantNode, toolNode!];
+            currentPathToUserNode = [
+              ...currentPathToUserNode,
+              currentAssistantNode,
+              toolNode!,
+            ];
             currentAssistantNode = nextAssistantNode;
             continue;
           }
@@ -340,7 +371,12 @@ export function useToolCallOrchestrator() {
       // 4. 自动命名
       llmChatStore.generateSessionTopic(session.id);
     } catch (error) {
-      handleNodeError(session, assistantNode.id, error, isReparse ? "重新解析执行" : "请求执行");
+      handleNodeError(
+        session,
+        assistantNode.id,
+        error,
+        isReparse ? "重新解析执行" : "请求执行"
+      );
     } finally {
       // 5. 清理状态
       abortControllers.delete(assistantNode.id);
@@ -358,7 +394,9 @@ export function useToolCallOrchestrator() {
    * 重新解析已有节点中的工具调用并继续执行
    * 这是 orchestrate 的便捷包装，设置 isReparse=true
    */
-  const reparseAndOrchestrate = async (params: OrchestrateParams): Promise<void> => {
+  const reparseAndOrchestrate = async (
+    params: OrchestrateParams
+  ): Promise<void> => {
     return orchestrate({ ...params, isReparse: true });
   };
 

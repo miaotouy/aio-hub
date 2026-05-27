@@ -1,14 +1,15 @@
 <script setup lang="ts">
-import { onMounted } from 'vue';
-import { useRouter } from 'vue-router';
-import { useChatSettings } from '../composables/useChatSettings';
-import { useI18n } from '@/i18n';
-import { ChevronLeft, RotateCcw } from 'lucide-vue-next';
-import LlmModelSelector from '../../llm-api/components/LlmModelSelector.vue';
+import { onMounted } from "vue";
+import { useRouter } from "vue-router";
+import { useChatSettings } from "../composables/useChatSettings";
+import { useI18n } from "@/i18n";
+import { ChevronLeft, RotateCcw } from "lucide-vue-next";
+import LlmModelSelector from "../../llm-api/components/LlmModelSelector.vue";
 
 const router = useRouter();
 const { tRaw } = useI18n();
-const { settings, loadSettings, updateSettingItem, resetSettings } = useChatSettings();
+const { settings, loadSettings, updateSettingItem, resetSettings } =
+  useChatSettings();
 
 onMounted(async () => {
   await loadSettings();
@@ -47,39 +48,85 @@ const handleReset = async () => {
     <div class="view-content">
       <!-- UI 偏好 -->
       <div class="section">
-        <div class="section-title">{{ tRaw('tools.llm-chat.ChatSettingsView.界面偏好') }}</div>
+        <div class="section-title">
+          {{ tRaw("tools.llm-chat.ChatSettingsView.界面偏好") }}
+        </div>
         <div class="section-card">
           <var-cell :title="tRaw('tools.llm-chat.ChatSettingsView.流式输出')">
             <template #extra>
-              <var-switch v-model="settings.uiPreferences.isStreaming" @change="updateSettingItem('uiPreferences', { isStreaming: settings.uiPreferences.isStreaming })" />
+              <var-switch
+                v-model="settings.uiPreferences.isStreaming"
+                @change="
+                  updateSettingItem('uiPreferences', {
+                    isStreaming: settings.uiPreferences.isStreaming,
+                  })
+                "
+              />
             </template>
           </var-cell>
 
           <var-cell :title="tRaw('tools.llm-chat.ChatSettingsView.显示时间戳')">
             <template #extra>
-              <var-switch v-model="settings.uiPreferences.showTimestamp" @change="updateSettingItem('uiPreferences', { showTimestamp: settings.uiPreferences.showTimestamp })" />
+              <var-switch
+                v-model="settings.uiPreferences.showTimestamp"
+                @change="
+                  updateSettingItem('uiPreferences', {
+                    showTimestamp: settings.uiPreferences.showTimestamp,
+                  })
+                "
+              />
             </template>
           </var-cell>
 
-          <var-cell :title="tRaw('tools.llm-chat.ChatSettingsView.显示 Token 统计')">
+          <var-cell
+            :title="tRaw('tools.llm-chat.ChatSettingsView.显示 Token 统计')"
+          >
             <template #extra>
-              <var-switch v-model="settings.uiPreferences.showTokenCount" @change="updateSettingItem('uiPreferences', { showTokenCount: settings.uiPreferences.showTokenCount })" />
+              <var-switch
+                v-model="settings.uiPreferences.showTokenCount"
+                @change="
+                  updateSettingItem('uiPreferences', {
+                    showTokenCount: settings.uiPreferences.showTokenCount,
+                  })
+                "
+              />
             </template>
           </var-cell>
 
-          <var-cell :title="tRaw('tools.llm-chat.ChatSettingsView.显示模型信息')">
+          <var-cell
+            :title="tRaw('tools.llm-chat.ChatSettingsView.显示模型信息')"
+          >
             <template #extra>
-              <var-switch v-model="settings.uiPreferences.showModelInfo" @change="updateSettingItem('uiPreferences', { showModelInfo: settings.uiPreferences.showModelInfo })" />
+              <var-switch
+                v-model="settings.uiPreferences.showModelInfo"
+                @change="
+                  updateSettingItem('uiPreferences', {
+                    showModelInfo: settings.uiPreferences.showModelInfo,
+                  })
+                "
+              />
             </template>
           </var-cell>
 
           <var-cell :title="tRaw('tools.llm-chat.ChatSettingsView.自动滚动')">
             <template #extra>
-              <var-switch v-model="settings.uiPreferences.autoScroll" @change="updateSettingItem('uiPreferences', { autoScroll: settings.uiPreferences.autoScroll })" />
+              <var-switch
+                v-model="settings.uiPreferences.autoScroll"
+                @change="
+                  updateSettingItem('uiPreferences', {
+                    autoScroll: settings.uiPreferences.autoScroll,
+                  })
+                "
+              />
             </template>
           </var-cell>
 
-          <var-cell :title="tRaw('tools.llm-chat.ChatSettingsView.聊天字体缩放') + ` (${Math.round(settings.uiPreferences.fontSize * 100)}%)`">
+          <var-cell
+            :title="
+              tRaw('tools.llm-chat.ChatSettingsView.聊天字体缩放') +
+              ` (${Math.round(settings.uiPreferences.fontSize * 100)}%)`
+            "
+          >
             <template #description>
               <div class="slider-container">
                 <var-slider
@@ -87,7 +134,11 @@ const handleReset = async () => {
                   :min="0.8"
                   :max="1.5"
                   :step="0.05"
-                  @change="updateSettingItem('uiPreferences', { fontSize: settings.uiPreferences.fontSize })"
+                  @change="
+                    updateSettingItem('uiPreferences', {
+                      fontSize: settings.uiPreferences.fontSize,
+                    })
+                  "
                 />
               </div>
             </template>
@@ -97,14 +148,21 @@ const handleReset = async () => {
 
       <!-- 模型偏好 -->
       <div class="section">
-        <div class="section-title">{{ tRaw('tools.llm-chat.ChatSettingsView.模型偏好') }}</div>
+        <div class="section-title">
+          {{ tRaw("tools.llm-chat.ChatSettingsView.模型偏好") }}
+        </div>
         <div class="section-card">
           <var-cell :title="tRaw('tools.llm-chat.ChatSettingsView.默认模型')">
             <template #description>
               <div class="selector-container">
                 <llm-model-selector
                   v-model="settings.modelPreferences.defaultModel"
-                  @update:model-value="(val) => updateSettingItem('modelPreferences', { defaultModel: val })"
+                  @update:model-value="
+                    (val) =>
+                      updateSettingItem('modelPreferences', {
+                        defaultModel: val,
+                      })
+                  "
                 />
               </div>
             </template>
@@ -114,23 +172,55 @@ const handleReset = async () => {
 
       <!-- 消息管理 -->
       <div class="section">
-        <div class="section-title">{{ tRaw('tools.llm-chat.ChatSettingsView.消息管理') }}</div>
+        <div class="section-title">
+          {{ tRaw("tools.llm-chat.ChatSettingsView.消息管理") }}
+        </div>
         <div class="section-card">
-          <var-cell :title="tRaw('tools.llm-chat.ChatSettingsView.删除消息前确认')">
+          <var-cell
+            :title="tRaw('tools.llm-chat.ChatSettingsView.删除消息前确认')"
+          >
             <template #extra>
-              <var-switch v-model="settings.messageManagement.confirmBeforeDeleteMessage" @change="updateSettingItem('messageManagement', { confirmBeforeDeleteMessage: settings.messageManagement.confirmBeforeDeleteMessage })" />
+              <var-switch
+                v-model="settings.messageManagement.confirmBeforeDeleteMessage"
+                @change="
+                  updateSettingItem('messageManagement', {
+                    confirmBeforeDeleteMessage:
+                      settings.messageManagement.confirmBeforeDeleteMessage,
+                  })
+                "
+              />
             </template>
           </var-cell>
 
-          <var-cell :title="tRaw('tools.llm-chat.ChatSettingsView.删除会话前确认')">
+          <var-cell
+            :title="tRaw('tools.llm-chat.ChatSettingsView.删除会话前确认')"
+          >
             <template #extra>
-              <var-switch v-model="settings.messageManagement.confirmBeforeDeleteSession" @change="updateSettingItem('messageManagement', { confirmBeforeDeleteSession: settings.messageManagement.confirmBeforeDeleteSession })" />
+              <var-switch
+                v-model="settings.messageManagement.confirmBeforeDeleteSession"
+                @change="
+                  updateSettingItem('messageManagement', {
+                    confirmBeforeDeleteSession:
+                      settings.messageManagement.confirmBeforeDeleteSession,
+                  })
+                "
+              />
             </template>
           </var-cell>
 
-          <var-cell :title="tRaw('tools.llm-chat.ChatSettingsView.清空会话前确认')">
+          <var-cell
+            :title="tRaw('tools.llm-chat.ChatSettingsView.清空会话前确认')"
+          >
             <template #extra>
-              <var-switch v-model="settings.messageManagement.confirmBeforeClearAll" @change="updateSettingItem('messageManagement', { confirmBeforeClearAll: settings.messageManagement.confirmBeforeClearAll })" />
+              <var-switch
+                v-model="settings.messageManagement.confirmBeforeClearAll"
+                @change="
+                  updateSettingItem('messageManagement', {
+                    confirmBeforeClearAll:
+                      settings.messageManagement.confirmBeforeClearAll,
+                  })
+                "
+              />
             </template>
           </var-cell>
         </div>
@@ -138,9 +228,16 @@ const handleReset = async () => {
 
       <!-- 请求设置 -->
       <div class="section">
-        <div class="section-title">{{ tRaw('tools.llm-chat.ChatSettingsView.请求设置') }}</div>
+        <div class="section-title">
+          {{ tRaw("tools.llm-chat.ChatSettingsView.请求设置") }}
+        </div>
         <div class="section-card">
-          <var-cell :title="tRaw('tools.llm-chat.ChatSettingsView.请求超时时间') + ` (${settings.requestSettings.timeout / 1000}s)`">
+          <var-cell
+            :title="
+              tRaw('tools.llm-chat.ChatSettingsView.请求超时时间') +
+              ` (${settings.requestSettings.timeout / 1000}s)`
+            "
+          >
             <template #description>
               <div class="slider-container">
                 <var-slider
@@ -148,13 +245,22 @@ const handleReset = async () => {
                   :min="10000"
                   :max="120000"
                   :step="5000"
-                  @change="updateSettingItem('requestSettings', { timeout: settings.requestSettings.timeout })"
+                  @change="
+                    updateSettingItem('requestSettings', {
+                      timeout: settings.requestSettings.timeout,
+                    })
+                  "
                 />
               </div>
             </template>
           </var-cell>
 
-          <var-cell :title="tRaw('tools.llm-chat.ChatSettingsView.最大重试次数') + ` (${settings.requestSettings.maxRetries})`">
+          <var-cell
+            :title="
+              tRaw('tools.llm-chat.ChatSettingsView.最大重试次数') +
+              ` (${settings.requestSettings.maxRetries})`
+            "
+          >
             <template #description>
               <div class="slider-container">
                 <var-slider
@@ -162,7 +268,11 @@ const handleReset = async () => {
                   :min="0"
                   :max="5"
                   :step="1"
-                  @change="updateSettingItem('requestSettings', { maxRetries: settings.requestSettings.maxRetries })"
+                  @change="
+                    updateSettingItem('requestSettings', {
+                      maxRetries: settings.requestSettings.maxRetries,
+                    })
+                  "
                 />
               </div>
             </template>

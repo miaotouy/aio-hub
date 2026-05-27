@@ -47,7 +47,8 @@ onMounted(() => {
       const itemHeight = currentItemEl.clientHeight;
 
       // 计算期望的滚动位置以使项目居中
-      const scrollTop = currentItemEl.offsetTop - scrollbarHeight / 2 + itemHeight / 2;
+      const scrollTop =
+        currentItemEl.offsetTop - scrollbarHeight / 2 + itemHeight / 2;
 
       // 确保滚动位置不为负
       const finalScrollTop = Math.max(0, scrollTop);
@@ -85,19 +86,27 @@ const siblingsWithDisplayInfo = computed(() => {
       if (sibling.metadata?.userProfileName) {
         displayName = sibling.metadata.userProfileName;
       } else {
-        const effectiveProfile = userProfileStore.getEffectiveProfile(sibling.metadata?.userProfileId);
-        displayName = effectiveProfile?.displayName || effectiveProfile?.name || "你";
+        const effectiveProfile = userProfileStore.getEffectiveProfile(
+          sibling.metadata?.userProfileId
+        );
+        displayName =
+          effectiveProfile?.displayName || effectiveProfile?.name || "你";
       }
 
       // 解析头像
       const avatarTarget = computed(() => {
-        if (sibling.metadata?.userProfileIcon && sibling.metadata.userProfileId) {
+        if (
+          sibling.metadata?.userProfileIcon &&
+          sibling.metadata.userProfileId
+        ) {
           return {
             id: sibling.metadata.userProfileId,
             icon: sibling.metadata.userProfileIcon,
           };
         }
-        return userProfileStore.getEffectiveProfile(sibling.metadata?.userProfileId);
+        return userProfileStore.getEffectiveProfile(
+          sibling.metadata?.userProfileId
+        );
       });
       avatarSrc = useResolvedAvatar(avatarTarget, "user-profile").value;
     } else if (sibling.role === "assistant") {
@@ -105,7 +114,11 @@ const siblingsWithDisplayInfo = computed(() => {
       const agentId = sibling.metadata?.agentId;
       const agent = agentId ? agentStore.getAgentById(agentId) : null;
 
-      displayName = sibling.metadata?.agentName || agent?.displayName || agent?.name || "助手";
+      displayName =
+        sibling.metadata?.agentName ||
+        agent?.displayName ||
+        agent?.name ||
+        "助手";
 
       // 解析头像
       const avatarTarget = computed(() => {
@@ -132,7 +145,8 @@ const siblingsWithDisplayInfo = computed(() => {
 
           // 优先使用元数据快照中的名称，如果没有则尝试从当前配置获取，最后回退到 ID
           const displayModelName = metadata.modelName || model?.name || modelId;
-          const displayProfileName = metadata.profileName || profile?.name || profileId;
+          const displayProfileName =
+            metadata.profileName || profile?.name || profileId;
 
           // 获取模型图标路径
           let modelIconPath: string | undefined;
@@ -198,7 +212,9 @@ const siblingsWithDisplayInfo = computed(() => {
         >
           <div class="branch-item-header">
             <span class="branch-number">#{{ index + 1 }}</span>
-            <span v-if="index === currentSiblingIndex" class="current-badge">当前</span>
+            <span v-if="index === currentSiblingIndex" class="current-badge"
+              >当前</span
+            >
 
             <!-- 头像 -->
             <Avatar
@@ -215,7 +231,9 @@ const siblingsWithDisplayInfo = computed(() => {
           </div>
 
           <!-- 消息预览 -->
-          <div class="branch-preview">{{ getMessagePreview(item.content) }}</div>
+          <div class="branch-preview">
+            {{ getMessagePreview(item.content) }}
+          </div>
 
           <!-- 模型信息（仅助手消息） -->
           <div v-if="item.modelInfo" class="branch-meta">

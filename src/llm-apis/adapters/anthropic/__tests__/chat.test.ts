@@ -73,7 +73,10 @@ describe("Anthropic Adapter - Chat", () => {
     expect(body.model).toBe("claude-3-5-sonnet-20241022");
     expect(body.system).toBe("You are a coding expert.");
     expect(body.messages).toHaveLength(1);
-    expect(body.messages[0]).toEqual({ role: "user", content: "Write a test." });
+    expect(body.messages[0]).toEqual({
+      role: "user",
+      content: "Write a test.",
+    });
     expect(body.temperature).toBe(0.5);
 
     expect(result.content).toBe("Here is your test.");
@@ -90,9 +93,13 @@ describe("Anthropic Adapter - Chat", () => {
           content: [
             { type: "text", text: "Analyze this image and PDF." },
             { type: "image", imageBase64: "img_data" },
-            { 
-              type: "document", 
-              source: { type: "base64", media_type: "application/pdf", data: "pdf_data" } 
+            {
+              type: "document",
+              source: {
+                type: "base64",
+                media_type: "application/pdf",
+                data: "pdf_data",
+              },
             },
           ],
         },
@@ -114,14 +121,21 @@ describe("Anthropic Adapter - Chat", () => {
     const body = JSON.parse(fetchOptions.body);
 
     expect(body.messages[0].content).toHaveLength(3);
-    expect(body.messages[0].content[0]).toEqual({ type: "text", text: "Analyze this image and PDF." });
+    expect(body.messages[0].content[0]).toEqual({
+      type: "text",
+      text: "Analyze this image and PDF.",
+    });
     expect(body.messages[0].content[1]).toEqual({
       type: "image",
       source: { type: "base64", media_type: "image/png", data: "img_data" },
     });
     expect(body.messages[0].content[2]).toEqual({
       type: "document",
-      source: { type: "base64", media_type: "application/pdf", data: "pdf_data" },
+      source: {
+        type: "base64",
+        media_type: "application/pdf",
+        data: "pdf_data",
+      },
     });
   });
 
@@ -150,7 +164,9 @@ describe("Anthropic Adapter - Chat", () => {
 
     expect(body.thinking).toEqual({ type: "enabled", budget_tokens: 2000 });
     expect(body.temperature).toBeUndefined(); // Thinking mode usually disables temperature
-    expect(fetchOptions.headers["anthropic-beta"]).toContain("thinking-2025-12-05");
+    expect(fetchOptions.headers["anthropic-beta"]).toContain(
+      "thinking-2025-12-05"
+    );
   });
 
   it("should handle tool calls in response", async () => {
@@ -163,7 +179,10 @@ describe("Anthropic Adapter - Chat", () => {
           type: "function",
           function: {
             name: "get_weather",
-            parameters: { type: "object", properties: { location: { type: "string" } } },
+            parameters: {
+              type: "object",
+              properties: { location: { type: "string" } },
+            },
           },
         },
       ],
@@ -174,7 +193,12 @@ describe("Anthropic Adapter - Chat", () => {
       json: async () => ({
         content: [
           { type: "text", text: "Let me check." },
-          { type: "tool_use", id: "tool_1", name: "get_weather", input: { location: "London" } },
+          {
+            type: "tool_use",
+            id: "tool_1",
+            name: "get_weather",
+            input: { location: "London" },
+          },
         ],
         stop_reason: "tool_use",
         usage: { input_tokens: 50, output_tokens: 20 },

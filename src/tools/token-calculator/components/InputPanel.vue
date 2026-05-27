@@ -8,7 +8,9 @@
   >
     <div class="panel-header">
       <span class="panel-title">输入内容</span>
-      <el-tag type="info" size="small" effect="plain">{{ sanitizedCharacterCount }} 字符</el-tag>
+      <el-tag type="info" size="small" effect="plain"
+        >{{ sanitizedCharacterCount }} 字符</el-tag
+      >
     </div>
 
     <div class="panel-content">
@@ -45,12 +47,17 @@
           <div v-for="item in mediaItems" :key="item.id" class="media-item">
             <div class="media-icon">
               <el-icon v-if="item.type === 'image'"><Picture /></el-icon>
-              <el-icon v-else-if="item.type === 'video'"><VideoCamera /></el-icon>
+              <el-icon v-else-if="item.type === 'video'"
+                ><VideoCamera
+              /></el-icon>
               <el-icon v-else><Microphone /></el-icon>
             </div>
             <div class="media-info">
               <div class="media-name">{{ getMediaDescription(item) }}</div>
-              <div class="media-token-count" v-if="item.tokenCount !== undefined">
+              <div
+                class="media-token-count"
+                v-if="item.tokenCount !== undefined"
+              >
                 {{ item.tokenCount }} tokens
               </div>
             </div>
@@ -68,7 +75,12 @@
     </div>
 
     <!-- 添加媒体对话框 -->
-    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="400px" destroy-on-close>
+    <el-dialog
+      v-model="dialogVisible"
+      :title="dialogTitle"
+      width="400px"
+      destroy-on-close
+    >
       <el-form :model="mediaForm" label-width="80px">
         <template v-if="currentMediaType === 'image'">
           <el-form-item label="宽度 (px)">
@@ -98,11 +110,19 @@
 <script setup lang="ts">
 import { ref, computed, reactive } from "vue";
 import { invoke } from "@tauri-apps/api/core";
-import { Picture, VideoCamera, Microphone, Close } from "@element-plus/icons-vue";
+import {
+  Picture,
+  VideoCamera,
+  Microphone,
+  Close,
+} from "@element-plus/icons-vue";
 import { useFileDrop } from "@/composables/useFileDrop";
 import { customMessage } from "@/utils/customMessage";
 import { detectFileType } from "@/utils/fileTypeDetector";
-import type { MediaItem, MediaType } from "../composables/useTokenCalculatorState";
+import type {
+  MediaItem,
+  MediaType,
+} from "../composables/useTokenCalculatorState";
 
 interface Props {
   inputText: string;
@@ -208,7 +228,9 @@ const { isDraggingOver } = useFileDrop({
       // 1. 文本文件处理
       if (fileInfo.isText) {
         try {
-          const content = await invoke<string>("read_text_file_force", { path });
+          const content = await invoke<string>("read_text_file_force", {
+            path,
+          });
           if (content) {
             const separator = accumulatedText ? "\n\n" : "";
             accumulatedText += separator + content;
@@ -229,9 +251,12 @@ const { isDraggingOver } = useFileDrop({
       const audioExtensions = [".mp3", ".wav", ".ogg", ".m4a", ".flac"];
 
       let mediaType: MediaType | null = null;
-      if (imgExtensions.some((ext) => lowerPath.endsWith(ext))) mediaType = "image";
-      else if (videoExtensions.some((ext) => lowerPath.endsWith(ext))) mediaType = "video";
-      else if (audioExtensions.some((ext) => lowerPath.endsWith(ext))) mediaType = "audio";
+      if (imgExtensions.some((ext) => lowerPath.endsWith(ext)))
+        mediaType = "image";
+      else if (videoExtensions.some((ext) => lowerPath.endsWith(ext)))
+        mediaType = "video";
+      else if (audioExtensions.some((ext) => lowerPath.endsWith(ext)))
+        mediaType = "audio";
 
       if (mediaType) {
         const fileName = path.split(/[/\\]/).pop() || "";
@@ -243,9 +268,12 @@ const { isDraggingOver } = useFileDrop({
 
         try {
           if (mediaType === "image") {
-            const dims = await invoke<{ width: number; height: number }>("get_image_dimensions", {
-              path,
-            });
+            const dims = await invoke<{ width: number; height: number }>(
+              "get_image_dimensions",
+              {
+                path,
+              }
+            );
             item.params = { width: dims.width, height: dims.height };
             item.name = `${fileName} (${dims.width}x${dims.height})`;
           } else {
@@ -304,7 +332,11 @@ const { isDraggingOver } = useFileDrop({
   outline: 2px dashed var(--el-color-primary);
   outline-offset: -4px;
   /* 使用 color-mix 混合透明度，让背景色更自然 */
-  background-color: color-mix(in srgb, var(--el-color-primary), transparent 90%);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-primary),
+    transparent 90%
+  );
   backdrop-filter: blur(4px);
   border-radius: 12px;
 }

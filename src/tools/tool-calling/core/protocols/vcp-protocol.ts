@@ -15,7 +15,8 @@ export const TOOL_DEFINITION_END = "<<<[END_TOOL_DEFINITION]>>>";
 // 复用 Tokenizer 中 VCP 模式的语义，但在此创建非 sticky 的专用实例。
 // 允许冒号后有可选空格
 // 变体优先级: ESCAPE > exp > 标准
-const RE_VCP_ARG_ESCAPE = /([a-zA-Z0-9_-]+):\s*「始ESCAPE」([\s\S]*?)「末ESCAPE」/g;
+const RE_VCP_ARG_ESCAPE =
+  /([a-zA-Z0-9_-]+):\s*「始ESCAPE」([\s\S]*?)「末ESCAPE」/g;
 const RE_VCP_ARG_EXP = /([a-zA-Z0-9_-]+):\s*「始exp」([\s\S]*?)「末exp」/g;
 const RE_VCP_ARG = /([a-zA-Z0-9_-]+):\s*「始」([\s\S]*?)「末」/g;
 const RE_VCP_PENDING = /([a-zA-Z0-9_-]+):\s*「始(?:ESCAPE|exp)?」([\s\S]*)$/;
@@ -69,7 +70,10 @@ function buildParamDescription(param: MethodParameter): string {
   return parts.join(" ");
 }
 
-export function buildMethodDescription(method: MethodMetadata, toolId: string): string {
+export function buildMethodDescription(
+  method: MethodMetadata,
+  toolId: string
+): string {
   const command = pickCommandName(method);
 
   const lines: string[] = [];
@@ -86,7 +90,11 @@ export function buildMethodDescription(method: MethodMetadata, toolId: string): 
   return lines.join("\n");
 }
 
-function parseSingleToolRequest(rawBlock: string, content: string, requestIndex: number): ParsedToolRequest[] {
+function parseSingleToolRequest(
+  rawBlock: string,
+  content: string,
+  requestIndex: number
+): ParsedToolRequest[] {
   const allParams: Record<string, string> = {};
   const errors: string[] = [];
 
@@ -112,7 +120,10 @@ function parseSingleToolRequest(rawBlock: string, content: string, requestIndex:
   let maskedContent = content;
   for (let ri = matchedRanges.length - 1; ri >= 0; ri--) {
     const [start, end] = matchedRanges[ri];
-    maskedContent = maskedContent.slice(0, start) + " ".repeat(end - start) + maskedContent.slice(end);
+    maskedContent =
+      maskedContent.slice(0, start) +
+      " ".repeat(end - start) +
+      maskedContent.slice(end);
   }
 
   RE_VCP_ARG.lastIndex = 0;
@@ -125,7 +136,9 @@ function parseSingleToolRequest(rawBlock: string, content: string, requestIndex:
     const realValueMatch = content
       .slice(match.index, RE_VCP_ARG.lastIndex)
       .match(/([a-zA-Z0-9_-]+):\s*「始」([\s\S]*?)「末」/);
-    const value = realValueMatch ? sanitizeValue(realValueMatch[2]) : sanitizeValue(match[2]);
+    const value = realValueMatch
+      ? sanitizeValue(realValueMatch[2])
+      : sanitizeValue(match[2]);
 
     if (!(key in allParams)) {
       allParams[key] = value;
@@ -158,13 +171,16 @@ function parseSingleToolRequest(rawBlock: string, content: string, requestIndex:
   }
 
   // 检查是否存在索引化的 command (command1, command2, ...)
-  const hasIndexedCommands = Object.keys(allParams).some((key) => /^command\d+$/.test(key));
+  const hasIndexedCommands = Object.keys(allParams).some((key) =>
+    /^command\d+$/.test(key)
+  );
 
   if (!command && !hasIndexedCommands) {
     errors.push("缺少关键字段: command");
   }
 
-  const baseRequestId = allParams.request_id?.trim() || `req_${requestIndex + 1}`;
+  const baseRequestId =
+    allParams.request_id?.trim() || `req_${requestIndex + 1}`;
 
   // 识别分组参数 (keyN)
   const commonArgs: Record<string, string> = {};
@@ -185,7 +201,9 @@ function parseSingleToolRequest(rawBlock: string, content: string, requestIndex:
     }
   }
 
-  const indices = Object.keys(indexedGroups).sort((a, b) => Number(a) - Number(b));
+  const indices = Object.keys(indexedGroups).sort(
+    (a, b) => Number(a) - Number(b)
+  );
 
   // 如果没有索引参数，按单条处理
   if (indices.length === 0) {
@@ -215,7 +233,8 @@ function parseSingleToolRequest(rawBlock: string, content: string, requestIndex:
   return indices.map((index) => {
     const groupArgs = indexedGroups[index];
     const finalToolId = toolId || "unknown_tool";
-    const finalMethodName = groupArgs.command?.trim() || command || "unknown_command";
+    const finalMethodName =
+      groupArgs.command?.trim() || command || "unknown_command";
     const flatToolName = `${finalToolId}_${finalMethodName}`;
 
     const mergedArgs = { ...commonArgs, ...groupArgs };
@@ -329,7 +348,9 @@ export class VcpToolCallingProtocol implements ToolCallingProtocol {
       const foundMarker = match[1] || match[2];
 
       if (foundMarker) {
-        const startMarker = isEscape ? TOOL_REQUEST_ESCAPE_START : TOOL_REQUEST_START;
+        const startMarker = isEscape
+          ? TOOL_REQUEST_ESCAPE_START
+          : TOOL_REQUEST_START;
         const endMarker = isEscape ? TOOL_REQUEST_ESCAPE_END : TOOL_REQUEST_END;
 
         const blockStart = match.index + (match[0].startsWith("\n") ? 1 : 0);
@@ -339,14 +360,21 @@ export class VcpToolCallingProtocol implements ToolCallingProtocol {
         if (blockEnd === -1) {
           logger.warn(`发现未闭合的 ${startMarker} 块，已丢弃`, {
             blockStart,
-            preview: text.slice(blockStart, Math.min(blockStart + 200, text.length)),
+            preview: text.slice(
+              blockStart,
+              Math.min(blockStart + 200, text.length)
+            ),
           });
           break;
         }
 
         const rawBlock = text.slice(blockStart, blockEnd + endMarker.length);
         const content = text.slice(contentStart, blockEnd);
-        const parsedList = parseSingleToolRequest(rawBlock, content, requestIndex);
+        const parsedList = parseSingleToolRequest(
+          rawBlock,
+          content,
+          requestIndex
+        );
         requests.push(...parsedList);
 
         // 更新正则指针，跳过已处理的工具块
@@ -364,7 +392,8 @@ export class VcpToolCallingProtocol implements ToolCallingProtocol {
     const lines = [`[[AIO工具调用结果信息汇总:`];
 
     results.forEach((result, index) => {
-      const statusIcon = result.status === "success" ? "✅ SUCCESS" : "❌ ERROR";
+      const statusIcon =
+        result.status === "success" ? "✅ SUCCESS" : "❌ ERROR";
       lines.push(`### 结果 ${index + 1}`);
       lines.push(`- 工具名称: ${result.toolName}`);
       lines.push(`- 执行状态: ${statusIcon}`);
@@ -382,7 +411,11 @@ export class VcpToolCallingProtocol implements ToolCallingProtocol {
   /**
    * 生成单个 VCP 工具请求块
    */
-  public formatToolRequest(toolId: string, command: string, args: Record<string, any>): string {
+  public formatToolRequest(
+    toolId: string,
+    command: string,
+    args: Record<string, any>
+  ): string {
     const lines = [TOOL_REQUEST_START];
     lines.push(buildArgBlock("tool_name", toolId) + ",");
     lines.push(buildArgBlock("command", command) + ",");
@@ -390,7 +423,8 @@ export class VcpToolCallingProtocol implements ToolCallingProtocol {
     const argKeys = Object.keys(args);
     argKeys.forEach((key, index) => {
       const value = args[key];
-      const valStr = typeof value === "object" ? JSON.stringify(value) : String(value);
+      const valStr =
+        typeof value === "object" ? JSON.stringify(value) : String(value);
       const suffix = index === argKeys.length - 1 ? "" : ",";
       lines.push(buildArgBlock(key, valStr) + suffix);
     });

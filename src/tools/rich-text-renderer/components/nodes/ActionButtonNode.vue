@@ -14,7 +14,8 @@ const props = defineProps<{
 }>();
 
 // 通过 Registry 获取服务实例，避免直接依赖内部实现
-const getChatService = () => toolRegistryManager.getRegistry<LlmChatRegistry>("llm-chat");
+const getChatService = () =>
+  toolRegistryManager.getRegistry<LlmChatRegistry>("llm-chat");
 // 使用 computed 确保响应式
 // 只有在 copy 时才使用原始 content，其他操作使用 safeContent
 const clipboardSource = computed(() => props.content);
@@ -22,10 +23,9 @@ const { copy, copied } = useClipboard({ source: clipboardSource });
 
 // 注入来自父组件（MessageContent）的消息 ID 和设置
 const messageId = inject<string | undefined>("messageId", undefined);
-const agentInteractionConfig = inject<Ref<{ sendButtonCreateBranch?: boolean } | undefined> | undefined>(
-  "agentInteractionConfig",
-  undefined,
-);
+const agentInteractionConfig = inject<
+  Ref<{ sendButtonCreateBranch?: boolean } | undefined> | undefined
+>("agentInteractionConfig", undefined);
 
 // 安全过滤内容：防止控制字符和超长文本
 const safeContent = computed(() => {
@@ -58,7 +58,14 @@ const safeStyle = computed(() => {
         if (!key) return false;
         const trimmedKey = key.trim().toLowerCase();
         // 禁止定位属性和过大的层级
-        return !["position", "z-index", "top", "left", "right", "bottom"].includes(trimmedKey);
+        return ![
+          "position",
+          "z-index",
+          "top",
+          "left",
+          "right",
+          "bottom",
+        ].includes(trimmedKey);
       })
       .join(";") + "; position: relative; z-index: 1;"
   ); // 强制重置为安全值
@@ -78,8 +85,10 @@ const handleClick = async () => {
     case "send":
       if (llmChatService) {
         // 检查 Agent 配置：是否作为新分支发送
-        const createBranch = agentInteractionConfig?.value?.sendButtonCreateBranch ?? false;
-        const options = createBranch && messageId ? { parentId: messageId } : undefined;
+        const createBranch =
+          agentInteractionConfig?.value?.sendButtonCreateBranch ?? false;
+        const options =
+          createBranch && messageId ? { parentId: messageId } : undefined;
 
         await llmChatService.sendMessage(safeContent.value, options);
       } else {
@@ -104,14 +113,22 @@ const titleMap = {
 
 <template>
   <button
-    :class="['hover-effect', { 'action-button': !props.style, [`action-${props.action}`]: !props.style }]"
+    :class="[
+      'hover-effect',
+      {
+        'action-button': !props.style,
+        [`action-${props.action}`]: !props.style,
+      },
+    ]"
     :style="safeStyle"
     :title="titleMap[props.action]"
     @click="handleClick"
   >
     <!-- 如果没有内联样式，使用带图标的默认布局 -->
     <template v-if="!props.style">
-      <span class="action-icon" v-if="props.action === 'copy' && copied">✅</span>
+      <span class="action-icon" v-if="props.action === 'copy' && copied"
+        >✅</span
+      >
       <span class="action-label">{{ props.label }}</span>
     </template>
     <!-- 如果有内联样式，只显示文本内容，完全由 style 控制外观 -->

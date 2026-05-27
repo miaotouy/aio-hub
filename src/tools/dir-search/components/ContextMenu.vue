@@ -1,7 +1,14 @@
 <template>
   <Teleport to="body">
     <Transition name="context-menu-fade">
-      <div v-if="state.visible" ref="menuRef" class="context-menu" :style="menuStyle" @click.stop @contextmenu.prevent>
+      <div
+        v-if="state.visible"
+        ref="menuRef"
+        class="context-menu"
+        :style="menuStyle"
+        @click.stop
+        @contextmenu.prevent
+      >
         <template v-for="item in state.items" :key="item.id">
           <div v-if="item.separator" class="context-menu__separator" />
           <button
@@ -21,7 +28,10 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from "vue";
-import type { ContextMenuState, ContextMenuItem } from "../composables/useContextMenu";
+import type {
+  ContextMenuState,
+  ContextMenuItem,
+} from "../composables/useContextMenu";
 
 const props = defineProps<{
   state: ContextMenuState;
@@ -79,7 +89,7 @@ watch(
         }
       }
     }
-  },
+  }
 );
 
 function handleItemClick(item: ContextMenuItem) {
@@ -123,7 +133,10 @@ function handleItemClick(item: ContextMenuItem) {
 }
 
 .context-menu__item:hover:not(.disabled) {
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.1));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
 }
 
 .context-menu__item.disabled {

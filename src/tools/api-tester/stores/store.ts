@@ -3,7 +3,13 @@
  */
 
 import { defineStore } from "pinia";
-import type { ApiPreset, RequestProfile, ApiResponse, HttpMethod, Variable } from "../types";
+import type {
+  ApiPreset,
+  RequestProfile,
+  ApiResponse,
+  HttpMethod,
+  Variable,
+} from "../types";
 import { presets } from "../config/presets";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler, ErrorLevel } from "@utils/errorHandler";
@@ -300,7 +306,8 @@ export const useApiTesterStore = defineStore("apiTester", {
           }
         } else {
           // 其他错误，使用 errorHandler 处理
-          const errorMessage = error instanceof Error ? error.message : String(error);
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
           this.lastResponse = {
             status: 0,
             statusText: "Error",
@@ -430,7 +437,10 @@ export const useApiTesterStore = defineStore("apiTester", {
     // 持久化配置到 localStorage
     persistProfiles(): void {
       try {
-        localStorage.setItem("api-tester-profiles", JSON.stringify(this.savedProfiles));
+        localStorage.setItem(
+          "api-tester-profiles",
+          JSON.stringify(this.savedProfiles)
+        );
       } catch (error) {
         errorHandler.error(error, "保存 Profile 配置失败", {
           context: {

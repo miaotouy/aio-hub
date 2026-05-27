@@ -37,9 +37,16 @@ const emit = defineEmits<{
 }>();
 
 const kbStore = useKnowledgeBaseStore();
-const { updateVectors, syncAllBases, deleteEntries, switchBase, batchGenerateTags, batchUpdateEntries } =
-  useKnowledgeBase();
-const { getIconPath, getDisplayIconPath, getMatchedProperties } = useModelMetadata();
+const {
+  updateVectors,
+  syncAllBases,
+  deleteEntries,
+  switchBase,
+  batchGenerateTags,
+  batchUpdateEntries,
+} = useKnowledgeBase();
+const { getIconPath, getDisplayIconPath, getMatchedProperties } =
+  useModelMetadata();
 
 /**
  * 向量化状态统计
@@ -62,7 +69,15 @@ const vectorStatusInfo = computed(() => {
   const rawIcon = modelId ? getIconPath(modelId) : "";
   const modelIcon = rawIcon ? getDisplayIconPath(rawIcon) : "";
 
-  return { total, ready, pending, isAligned, currentModel, modelName, modelIcon };
+  return {
+    total,
+    ready,
+    pending,
+    isAligned,
+    currentModel,
+    modelName,
+    modelIcon,
+  };
 });
 
 const isAllSelected = computed(() => {
@@ -79,7 +94,9 @@ const isAllSelected = computed(() => {
     <template v-if="!isSelectionMode">
       <div class="header-left">
         <template v-if="layoutMode === 'large'">
-          <h2 class="base-name">{{ kbStore.activeBaseMeta?.name || "未选择知识库" }}</h2>
+          <h2 class="base-name">
+            {{ kbStore.activeBaseMeta?.name || "未选择知识库" }}
+          </h2>
         </template>
         <template v-else>
           <div class="kb-selector-wrapper">
@@ -94,16 +111,29 @@ const isAllSelected = computed(() => {
               <template #prefix>
                 <Search :size="14" />
               </template>
-              <el-option v-for="base in kbStore.bases" :key="base.id" :label="base.name" :value="base.id" />
+              <el-option
+                v-for="base in kbStore.bases"
+                :key="base.id"
+                :label="base.name"
+                :value="base.id"
+              />
             </el-select>
-            <el-button class="kb-list-btn" size="default" @click="emit('toggle-kb-list')" title="管理知识库列表">
+            <el-button
+              class="kb-list-btn"
+              size="default"
+              @click="emit('toggle-kb-list')"
+              title="管理知识库列表"
+            >
               <template #icon><Library :size="16" /></template>
             </el-button>
           </div>
         </template>
 
         <!-- 向量化状态简报 -->
-        <div v-if="vectorStatusInfo && kbStore.activeBaseId" class="vector-status-brief">
+        <div
+          v-if="vectorStatusInfo && kbStore.activeBaseId"
+          class="vector-status-brief"
+        >
           <el-tooltip effect="dark" placement="bottom" :show-after="200">
             <template #content>
               <div class="kb-status-tooltip">
@@ -118,18 +148,31 @@ const isAllSelected = computed(() => {
                 </div>
                 <div class="tooltip-row">
                   <span class="label">已向量化:</span>
-                  <span class="value">{{ vectorStatusInfo.ready }} / {{ vectorStatusInfo.total }}</span>
+                  <span class="value"
+                    >{{ vectorStatusInfo.ready }} /
+                    {{ vectorStatusInfo.total }}</span
+                  >
                 </div>
-                <div v-if="!vectorStatusInfo.isAligned" class="tooltip-row warning">
+                <div
+                  v-if="!vectorStatusInfo.isAligned"
+                  class="tooltip-row warning"
+                >
                   <ShieldAlert :size="12" />
                   <span>有 {{ vectorStatusInfo.pending }} 项待向量化</span>
                 </div>
               </div>
             </template>
-            <div class="status-tag" :class="{ 'is-aligned': vectorStatusInfo.isAligned }">
+            <div
+              class="status-tag"
+              :class="{ 'is-aligned': vectorStatusInfo.isAligned }"
+            >
               <ShieldCheck v-if="vectorStatusInfo.isAligned" :size="14" />
               <ShieldAlert v-else :size="14" />
-              <span>{{ vectorStatusInfo.isAligned ? "向量已就绪" : `${vectorStatusInfo.pending} 项待处理` }}</span>
+              <span>{{
+                vectorStatusInfo.isAligned
+                  ? "向量已就绪"
+                  : `${vectorStatusInfo.pending} 项待处理`
+              }}</span>
             </div>
           </el-tooltip>
 
@@ -185,7 +228,10 @@ const isAllSelected = computed(() => {
           <el-checkbox
             :model-value="isAllSelected"
             :indeterminate="selectedEntryIds.size > 0 && !isAllSelected"
-            @change="(val: any) => (val ? emit('select-all-entries') : emit('deselect-all-entries'))"
+            @change="
+              (val: any) =>
+                val ? emit('select-all-entries') : emit('deselect-all-entries')
+            "
             style="margin-right: 12px"
           />
           <span class="count">已选 {{ selectedEntryIds.size }} 个条目</span>
@@ -213,7 +259,9 @@ const isAllSelected = computed(() => {
             :disabled="selectedEntryIds.size === 0"
             @click="
               async () => {
-                await batchUpdateEntries(Array.from(selectedEntryIds), { enabled: true });
+                await batchUpdateEntries(Array.from(selectedEntryIds), {
+                  enabled: true,
+                });
                 emit('toggle-selection');
               }
             "
@@ -227,7 +275,9 @@ const isAllSelected = computed(() => {
             :disabled="selectedEntryIds.size === 0"
             @click="
               async () => {
-                await batchUpdateEntries(Array.from(selectedEntryIds), { enabled: false });
+                await batchUpdateEntries(Array.from(selectedEntryIds), {
+                  enabled: false,
+                });
                 emit('toggle-selection');
               }
             "
@@ -239,7 +289,12 @@ const isAllSelected = computed(() => {
           <el-dropdown
             trigger="click"
             v-if="kbStore.config.tagGeneration?.enabled"
-            @command="(cmd: string) => batchGenerateTags(Array.from(selectedEntryIds), { force: cmd === 'force' })"
+            @command="
+              (cmd: string) =>
+                batchGenerateTags(Array.from(selectedEntryIds), {
+                  force: cmd === 'force',
+                })
+            "
           >
             <el-button
               type="primary"
@@ -253,8 +308,12 @@ const isAllSelected = computed(() => {
             </el-button>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item command="suggest">为无标签条目补充</el-dropdown-item>
-                <el-dropdown-item command="force">强制为所有条目生成</el-dropdown-item>
+                <el-dropdown-item command="suggest"
+                  >为无标签条目补充</el-dropdown-item
+                >
+                <el-dropdown-item command="force"
+                  >强制为所有条目生成</el-dropdown-item
+                >
               </el-dropdown-menu>
             </template>
           </el-dropdown>
@@ -301,7 +360,11 @@ const isAllSelected = computed(() => {
 }
 
 .workspace-header.selection-mode {
-  background-color: color-mix(in srgb, var(--el-color-primary), transparent 92%);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-primary),
+    transparent 92%
+  );
 }
 
 .header-left {

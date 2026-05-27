@@ -6,7 +6,13 @@ import { parseModelCombo } from "@/utils/modelIdUtils";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
-import { Image as ImageIcon, Info, Sparkles, MessageSquare, Target } from "lucide-vue-next";
+import {
+  Image as ImageIcon,
+  Info,
+  Sparkles,
+  MessageSquare,
+  Target,
+} from "lucide-vue-next";
 
 const logger = createModuleLogger("media-generator/InputToolbar");
 
@@ -45,7 +51,7 @@ watch(
       optimizePrompt.value = "";
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 const handleOptimizePrompt = async () => {
@@ -121,7 +127,10 @@ const cancelOptimize = () => {
   <div class="input-toolbar">
     <div class="toolbar-left">
       <template v-if="props.showContextToggle !== false">
-        <el-tooltip content="开启后将携带历史对话上下文，支持多轮迭代生成" placement="top">
+        <el-tooltip
+          content="开启后将携带历史对话上下文，支持多轮迭代生成"
+          placement="top"
+        >
           <button
             class="tool-btn"
             :class="{ 'is-active': props.includeContext }"
@@ -134,7 +143,12 @@ const cancelOptimize = () => {
         </el-tooltip>
         <div class="v-divider" />
       </template>
-      <button class="tool-btn" :disabled="props.disabled" @click="emit('trigger-attachment')" title="添加参考图">
+      <button
+        class="tool-btn"
+        :disabled="props.disabled"
+        @click="emit('trigger-attachment')"
+        title="添加参考图"
+      >
         <el-icon><ImageIcon /></el-icon>
         <span>参考图</span>
       </button>
@@ -147,8 +161,14 @@ const cancelOptimize = () => {
         popper-class="optimize-popover"
       >
         <template #reference>
-          <button class="tool-btn" :disabled="props.disabled" title="提示词优化">
-            <el-icon :class="{ 'is-loading': isOptimizing }"><Sparkles /></el-icon>
+          <button
+            class="tool-btn"
+            :disabled="props.disabled"
+            title="提示词优化"
+          >
+            <el-icon :class="{ 'is-loading': isOptimizing }"
+              ><Sparkles
+            /></el-icon>
             <span>提示词优化</span>
           </button>
         </template>
@@ -197,13 +217,26 @@ const cancelOptimize = () => {
           <div class="form-actions">
             <template v-if="!optimizedResult">
               <el-button size="small" @click="cancelOptimize">取消</el-button>
-              <el-button size="small" type="primary" :loading="isOptimizing" @click="handleOptimizePrompt">
+              <el-button
+                size="small"
+                type="primary"
+                :loading="isOptimizing"
+                @click="handleOptimizePrompt"
+              >
                 开始优化
               </el-button>
             </template>
             <template v-else>
-              <el-button size="small" @click="optimizedResult = ''">重新生成</el-button>
-              <el-button size="small" type="primary" @click="applyOptimizedPrompt"> 确认并应用 </el-button>
+              <el-button size="small" @click="optimizedResult = ''"
+                >重新生成</el-button
+              >
+              <el-button
+                size="small"
+                type="primary"
+                @click="applyOptimizedPrompt"
+              >
+                确认并应用
+              </el-button>
             </template>
           </div>
         </div>
@@ -214,7 +247,9 @@ const cancelOptimize = () => {
       <button
         v-if="!props.isGenerating"
         class="btn-send"
-        :disabled="props.disabled || (!props.promptText.trim() && !props.hasAttachments)"
+        :disabled="
+          props.disabled || (!props.promptText.trim() && !props.hasAttachments)
+        "
         @click="emit('send')"
         title="发送 (Ctrl + Enter)"
       >

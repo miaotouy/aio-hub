@@ -16,13 +16,23 @@
           >
             发送到聊天
           </el-button>
-          <el-button :icon="FolderOpened" size="small" @click.stop="$emit('openPicker')">
+          <el-button
+            :icon="FolderOpened"
+            size="small"
+            @click.stop="$emit('openPicker')"
+          >
             替换
           </el-button>
-          <el-button :icon="Delete" size="small" @click.stop="$emit('clear')"> 清除 </el-button>
+          <el-button :icon="Delete" size="small" @click.stop="$emit('clear')">
+            清除
+          </el-button>
         </div>
       </template>
-      <div ref="dropAreaRef" class="image-preview-area" :class="{ highlight: isDraggingOver }">
+      <div
+        ref="dropAreaRef"
+        class="image-preview-area"
+        :class="{ highlight: isDraggingOver }"
+      >
         <div v-if="!previewSrc" class="upload-prompt">
           <el-icon :size="64"><Upload /></el-icon>
           <p>拖放图片到此处，或粘贴图片</p>

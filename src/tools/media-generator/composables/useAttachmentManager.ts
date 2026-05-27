@@ -13,7 +13,9 @@ export function useAttachmentManager() {
 
   const attachmentCount = computed(() => attachments.value.length);
   const hasAttachments = computed(() => attachments.value.length > 0);
-  const isAttachmentsFull = computed(() => attachments.value.length >= maxAttachmentCount);
+  const isAttachmentsFull = computed(
+    () => attachments.value.length >= maxAttachmentCount
+  );
 
   /**
    * 添加资产到附件列表
@@ -41,7 +43,9 @@ export function useAttachmentManager() {
     try {
       for (const path of paths) {
         if (isAttachmentsFull.value) break;
-        const asset = await importAssetFromPath(path, { sourceModule: "media-generator" });
+        const asset = await importAssetFromPath(path, {
+          sourceModule: "media-generator",
+        });
         if (asset) {
           addAsset(asset);
         }

@@ -7,7 +7,12 @@
  * 3. CustomParser 只负责解析完整文本，本类负责流式管理
  */
 
-import type { AstNode, Patch, StreamProcessorOptions, LlmThinkRule } from "../types";
+import type {
+  AstNode,
+  Patch,
+  StreamProcessorOptions,
+  LlmThinkRule,
+} from "../types";
 import { CustomParser } from "./CustomParser";
 
 /**
@@ -90,7 +95,11 @@ class MarkdownBoundaryDetector {
     let count = 0;
     let i = 0;
     while (i < cleanText.length) {
-      if (cleanText[i] === "$" && i + 1 < cleanText.length && cleanText[i + 1] === "$") {
+      if (
+        cleanText[i] === "$" &&
+        i + 1 < cleanText.length &&
+        cleanText[i + 1] === "$"
+      ) {
         count++;
         i += 2; // 跳过这两个 $
       } else {
@@ -140,7 +149,14 @@ class MarkdownBoundaryDetector {
   private hasUnclosedHtmlTags(text: string): boolean {
     const tagStack: string[] = [];
     const thinkTagStack: string[] = [];
-    const selfClosingTags = new Set(["br", "hr", "img", "input", "meta", "link"]);
+    const selfClosingTags = new Set([
+      "br",
+      "hr",
+      "img",
+      "input",
+      "meta",
+      "link",
+    ]);
 
     // 匹配所有 HTML 标签
     const tagRegex = /<\/?([a-zA-Z0-9]+)(?:\s[^>]*)?\/?>/g;
@@ -157,7 +173,10 @@ class MarkdownBoundaryDetector {
 
         if (fullTag.startsWith("</")) {
           // 闭合标签
-          if (thinkTagStack.length > 0 && thinkTagStack[thinkTagStack.length - 1] === tagName) {
+          if (
+            thinkTagStack.length > 0 &&
+            thinkTagStack[thinkTagStack.length - 1] === tagName
+          ) {
             thinkTagStack.pop();
           }
         } else {
@@ -235,21 +254,27 @@ class MarkdownBoundaryDetector {
    */
   private hasUnclosedVcpBlock(text: string): boolean {
     // 检查标准工具请求块
-    const requestOpenCount = (text.match(/<<<\[TOOL_REQUEST\]>>>/g) || []).length;
-    const requestCloseCount = (text.match(/<<<\[END_TOOL_REQUEST\]>>>/g) || []).length;
+    const requestOpenCount = (text.match(/<<<\[TOOL_REQUEST\]>>>/g) || [])
+      .length;
+    const requestCloseCount = (text.match(/<<<\[END_TOOL_REQUEST\]>>>/g) || [])
+      .length;
     if (requestOpenCount !== requestCloseCount) {
       return true;
     }
 
     // 检查块级转义工具请求块（TOOL_REQUEST_ESCAPE）
-    const escapeOpenCount = (text.match(/<<<\[TOOL_REQUEST_ESCAPE\]>>>/g) || []).length;
-    const escapeCloseCount = (text.match(/<<<\[END_TOOL_REQUEST_ESCAPE\]>>>/g) || []).length;
+    const escapeOpenCount = (text.match(/<<<\[TOOL_REQUEST_ESCAPE\]>>>/g) || [])
+      .length;
+    const escapeCloseCount = (
+      text.match(/<<<\[END_TOOL_REQUEST_ESCAPE\]>>>/g) || []
+    ).length;
     if (escapeOpenCount !== escapeCloseCount) {
       return true;
     }
 
     // 检查调用结果块
-    const resultOpenCount = (text.match(/\[\[VCP调用结果信息汇总:/g) || []).length;
+    const resultOpenCount = (text.match(/\[\[VCP调用结果信息汇总:/g) || [])
+      .length;
     const resultCloseCount = (text.match(/VCP调用结果结束\]\]/g) || []).length;
     if (resultOpenCount !== resultCloseCount) {
       return true;
@@ -332,7 +357,10 @@ class MarkdownBoundaryDetector {
       const suffix = text.slice(lastHtmlBracket);
       // 如果这个 < 之后没有 >，且看起来像标签开始或属性开始，则回退
       if (!suffix.includes(">")) {
-        if (this.hasIncompleteHtmlTag(text) || this.isLikelyInsideHtmlAttribute(text)) {
+        if (
+          this.hasIncompleteHtmlTag(text) ||
+          this.isLikelyInsideHtmlAttribute(text)
+        ) {
           return lastHtmlBracket;
         }
       }
@@ -351,7 +379,9 @@ class MarkdownBoundaryDetector {
           const lastBracket = textBeforeParen.lastIndexOf("[");
           if (lastBracket !== -1) {
             // 如果前面有 !，也一起截断
-            return lastBracket > 0 && text[lastBracket - 1] === "!" ? lastBracket - 1 : lastBracket;
+            return lastBracket > 0 && text[lastBracket - 1] === "!"
+              ? lastBracket - 1
+              : lastBracket;
           }
         }
       }
@@ -363,7 +393,9 @@ class MarkdownBoundaryDetector {
       const suffix = text.slice(lastBracket);
       if (!suffix.includes("]")) {
         // 如果前面有 !，也一起截断
-        return lastBracket > 0 && text[lastBracket - 1] === "!" ? lastBracket - 1 : lastBracket;
+        return lastBracket > 0 && text[lastBracket - 1] === "!"
+          ? lastBracket - 1
+          : lastBracket;
       }
     }
 
@@ -460,7 +492,11 @@ export class StreamProcessorV2 {
     this.llmThinkRules = options.llmThinkRules || [];
 
     const llmThinkTagNames = options.llmThinkTagNames || new Set();
-    this.parser = new CustomParser(llmThinkTagNames, this.llmThinkRules, options.defaultToolCallCollapsed);
+    this.parser = new CustomParser(
+      llmThinkTagNames,
+      this.llmThinkRules,
+      options.defaultToolCallCollapsed
+    );
     this.boundaryDetector = new MarkdownBoundaryDetector(llmThinkTagNames);
     this.safetyGuardEnabled = options.safetyGuardEnabled !== false;
   }
@@ -530,7 +566,9 @@ export class StreamProcessorV2 {
 
     if (lastNode) {
       // 在末尾追加警告
-      this.onPatch([{ op: "insert-after", id: lastNode.id, newNode: degradedNode }]);
+      this.onPatch([
+        { op: "insert-after", id: lastNode.id, newNode: degradedNode },
+      ]);
     } else {
       // 如果之前没有任何内容，则作为根节点显示
       this.onPatch([{ op: "replace-root", newRoot: [degradedNode] }]);
@@ -631,10 +669,15 @@ export class StreamProcessorV2 {
         const iterationStart = performance.now();
 
         // 1. 划分稳定区和待定区
-        const { stable: stableText, pending: pendingText } = this.boundaryDetector.splitByBlockBoundary(this.buffer);
+        const { stable: stableText, pending: pendingText } =
+          this.boundaryDetector.splitByBlockBoundary(this.buffer);
 
         // 安全护栏：边界停滞检测
-        if (this.safetyGuardEnabled && stableText.length === this.lastStableLength && stableText.length > 0) {
+        if (
+          this.safetyGuardEnabled &&
+          stableText.length === this.lastStableLength &&
+          stableText.length > 0
+        ) {
           this.stallCount++;
           if (this.stallCount >= this.MAX_STALL_ITERATIONS) {
             this.enterDegradedMode("内容边界解析停滞，可能存在病态嵌套结构");
@@ -660,8 +703,13 @@ export class StreamProcessorV2 {
 
           // 安全护栏：单次解析超时检查
           const stableElapsed = performance.now() - stableParseStart;
-          if (this.safetyGuardEnabled && stableElapsed > this.MAX_SINGLE_PARSE_MS) {
-            this.enterDegradedMode(`稳定区解析超时 (${stableElapsed.toFixed(0)}ms)，内容可能包含病态结构`);
+          if (
+            this.safetyGuardEnabled &&
+            stableElapsed > this.MAX_SINGLE_PARSE_MS
+          ) {
+            this.enterDegradedMode(
+              `稳定区解析超时 (${stableElapsed.toFixed(0)}ms)，内容可能包含病态结构`
+            );
             break;
           }
         }
@@ -674,8 +722,13 @@ export class StreamProcessorV2 {
 
         // 安全护栏：单次解析超时检查
         const pendingElapsed = performance.now() - pendingParseStart;
-        if (this.safetyGuardEnabled && pendingElapsed > this.MAX_SINGLE_PARSE_MS) {
-          this.enterDegradedMode(`待定区解析超时 (${pendingElapsed.toFixed(0)}ms)，内容可能包含病态结构`);
+        if (
+          this.safetyGuardEnabled &&
+          pendingElapsed > this.MAX_SINGLE_PARSE_MS
+        ) {
+          this.enterDegradedMode(
+            `待定区解析超时 (${pendingElapsed.toFixed(0)}ms)，内容可能包含病态结构`
+          );
           break;
         }
 
@@ -709,8 +762,13 @@ export class StreamProcessorV2 {
 
         // 安全护栏：单次迭代总时长检查（包括 diff）
         const iterationElapsed = performance.now() - iterationStart;
-        if (this.safetyGuardEnabled && iterationElapsed > this.MAX_ITERATION_TIME_MS) {
-          this.enterDegradedMode(`单次迭代超时 (${iterationElapsed.toFixed(0)}ms)，内容过于复杂`);
+        if (
+          this.safetyGuardEnabled &&
+          iterationElapsed > this.MAX_ITERATION_TIME_MS
+        ) {
+          this.enterDegradedMode(
+            `单次迭代超时 (${iterationElapsed.toFixed(0)}ms)，内容过于复杂`
+          );
           break;
         }
 
@@ -746,7 +804,10 @@ export class StreamProcessorV2 {
           this.resolveProcessing = resolve;
         });
         // 增加超时保护，防止死等
-        await Promise.race([processingPromise, new Promise((resolve) => setTimeout(resolve, 1000))]);
+        await Promise.race([
+          processingPromise,
+          new Promise((resolve) => setTimeout(resolve, 1000)),
+        ]);
       }
     }
 
@@ -806,14 +867,20 @@ export class StreamProcessorV2 {
       return node.props.raw;
     }
     if (!node.children) return "";
-    return node.children.map((child) => this.getNodeTextContent(child)).join("");
+    return node.children
+      .map((child) => this.getNodeTextContent(child))
+      .join("");
   }
 
   /**
    * 解耦后的 diffAst 方法
    * @param isRoot 是否是根节点列表（根节点列表为空时允许发送 replace-root）
    */
-  private diffAst(oldNodes: AstNode[], newNodes: AstNode[], isRoot: boolean = false): Patch[] {
+  private diffAst(
+    oldNodes: AstNode[],
+    newNodes: AstNode[],
+    isRoot: boolean = false
+  ): Patch[] {
     const patches: Patch[] = [];
 
     // 如果旧节点为空且新节点不为空
@@ -863,7 +930,11 @@ export class StreamProcessorV2 {
 
       let currentAnchor = insertAnchorId;
       for (let i = minLen; i < newNodes.length; i++) {
-        patches.push({ op: "insert-after", id: currentAnchor, newNode: newNodes[i] });
+        patches.push({
+          op: "insert-after",
+          id: currentAnchor,
+          newNode: newNodes[i],
+        });
         currentAnchor = newNodes[i].id;
       }
     }
@@ -901,7 +972,8 @@ export class StreamProcessorV2 {
         }
       } else {
         // 没有指纹，回退到旧的比较方式
-        contentChanged = this.getNodeTextContent(oldNode) !== this.getNodeTextContent(newNode);
+        contentChanged =
+          this.getNodeTextContent(oldNode) !== this.getNodeTextContent(newNode);
       }
 
       if (statusChanged || contentChanged) {
@@ -919,7 +991,11 @@ export class StreamProcessorV2 {
         if (oldNode.children && newNode.children) {
           this.syncChildrenIds(oldNode.children, newNode.children);
         }
-        return this.diffAst(oldNode.children || [], newNode.children || [], false);
+        return this.diffAst(
+          oldNode.children || [],
+          newNode.children || [],
+          false
+        );
       }
 
       return [];
@@ -956,13 +1032,19 @@ export class StreamProcessorV2 {
   /**
    * 同步子节点的 ID（从旧节点树复制到新节点树）
    */
-  private syncChildrenIds(oldChildren: AstNode[], newChildren: AstNode[]): void {
+  private syncChildrenIds(
+    oldChildren: AstNode[],
+    newChildren: AstNode[]
+  ): void {
     const minLen = Math.min(oldChildren.length, newChildren.length);
     for (let i = 0; i < minLen; i++) {
       if (this.canReuseNode(oldChildren[i], newChildren[i])) {
         newChildren[i].id = oldChildren[i].id;
         if (oldChildren[i].children && newChildren[i].children) {
-          this.syncChildrenIds(oldChildren[i].children!, newChildren[i].children!);
+          this.syncChildrenIds(
+            oldChildren[i].children!,
+            newChildren[i].children!
+          );
         }
       }
     }
@@ -979,7 +1061,10 @@ export class StreamProcessorV2 {
     }
   }
 
-  private markNodesStatus(nodes: AstNode[], status: "stable" | "pending"): void {
+  private markNodesStatus(
+    nodes: AstNode[],
+    status: "stable" | "pending"
+  ): void {
     for (const node of nodes) {
       node.meta.status = status;
       // 只有在 pending 区的未闭合节点才显示执行/思考中动画

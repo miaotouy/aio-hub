@@ -2,7 +2,10 @@ import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import type { ChatSession, ChatMessageNode } from "../types";
 import { useLlmProfilesStore } from "../../llm-api/stores/llmProfiles";
-import { useSessionManager, type SessionIndexItem } from "../composables/useSessionManager";
+import {
+  useSessionManager,
+  type SessionIndexItem,
+} from "../composables/useSessionManager";
 import { useNodeManager } from "../composables/useNodeManager";
 import { BranchNavigator } from "../utils/BranchNavigator";
 import { v4 as uuidv4 } from "uuid";
@@ -54,7 +57,8 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   async function init() {
     if (isLoaded.value) return;
 
-    const { sessionMetas: metas, currentSessionId: lastId } = await sessionManager.loadSessions();
+    const { sessionMetas: metas, currentSessionId: lastId } =
+      await sessionManager.loadSessions();
     sessionMetas.value = metas;
 
     if (lastId) {
@@ -112,7 +116,8 @@ export const useLlmChatStore = defineStore("llmChat", () => {
    * 切换会话
    */
   async function switchSession(sessionId: string) {
-    if (currentSessionId.value === sessionId && currentSessionDetail.value) return;
+    if (currentSessionId.value === sessionId && currentSessionDetail.value)
+      return;
 
     const session = await sessionManager.loadSession(sessionId);
     if (session) {
@@ -121,7 +126,9 @@ export const useLlmChatStore = defineStore("llmChat", () => {
       await sessionManager.updateCurrentSessionId(sessionId);
       logger.info("Switched to session", { sessionId });
     } else {
-      logger.warn("Failed to switch session: not found or load failed", { sessionId });
+      logger.warn("Failed to switch session: not found or load failed", {
+        sessionId,
+      });
     }
   }
 
@@ -150,7 +157,10 @@ export const useLlmChatStore = defineStore("llmChat", () => {
    */
   async function persistCurrentSession() {
     if (currentSessionDetail.value) {
-      await sessionManager.persistSession(currentSessionDetail.value, currentSessionId.value);
+      await sessionManager.persistSession(
+        currentSessionDetail.value,
+        currentSessionId.value
+      );
     }
   }
 
@@ -183,7 +193,11 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   async function switchSibling(nodeId: string, direction: "prev" | "next") {
     if (!currentSessionDetail.value) return;
 
-    const newLeafId = BranchNavigator.switchToSibling(currentSessionDetail.value, nodeId, direction);
+    const newLeafId = BranchNavigator.switchToSibling(
+      currentSessionDetail.value,
+      nodeId,
+      direction
+    );
     if (newLeafId !== currentSessionDetail.value.activeLeafId) {
       nodeManager.updateActiveLeaf(currentSessionDetail.value, newLeafId);
       await persistCurrentSession();

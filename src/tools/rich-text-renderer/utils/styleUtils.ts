@@ -23,14 +23,20 @@ export function mergeStyleOptions(
   }
   // 如果只有一方有，直接返回那一方的深拷贝
   if (!globalOptions) {
-    return overrideOptions ? JSON.parse(JSON.stringify(overrideOptions)) : undefined;
+    return overrideOptions
+      ? JSON.parse(JSON.stringify(overrideOptions))
+      : undefined;
   }
   if (!overrideOptions) {
-    return globalOptions ? JSON.parse(JSON.stringify(globalOptions)) : undefined;
+    return globalOptions
+      ? JSON.parse(JSON.stringify(globalOptions))
+      : undefined;
   }
 
   // 创建一个最终结果对象，从全局配置的深拷贝开始
-  const mergedOptions: RichTextRendererStyleOptions = JSON.parse(JSON.stringify(globalOptions));
+  const mergedOptions: RichTextRendererStyleOptions = JSON.parse(
+    JSON.stringify(globalOptions)
+  );
 
   // 遍历覆盖配置的每个分类（如 H1, H2, p, blockquote 等）
   for (const key in overrideOptions) {

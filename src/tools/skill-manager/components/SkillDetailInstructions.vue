@@ -1,7 +1,11 @@
 <template>
   <div class="tab-scroll-container no-padding">
     <div v-if="manifest.instructions" class="instructions-wrapper">
-      <DocumentViewer :content="strippedInstructions" file-name="SKILL.md" file-type-hint="markdown" />
+      <DocumentViewer
+        :content="strippedInstructions"
+        file-name="SKILL.md"
+        file-type-hint="markdown"
+      />
     </div>
     <el-empty v-else description="暂无指令说明" :image-size="80" />
   </div>

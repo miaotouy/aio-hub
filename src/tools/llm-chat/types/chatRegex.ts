@@ -1,4 +1,4 @@
-import type { MessageRole } from './common';
+import type { MessageRole } from "./common";
 
 /**
  * Chat 正则管道类型定义
@@ -8,10 +8,10 @@ import type { MessageRole } from './common';
  */
 
 // 重导出 MessageRole 类型 (避免类型冲突)
-export type { MessageRole } from './common';
+export type { MessageRole } from "./common";
 
 // === 宏替换模式 ===
-export type SubstitutionMode = 'NONE' | 'RAW' | 'ESCAPED';
+export type SubstitutionMode = "NONE" | "RAW" | "ESCAPED";
 
 /**
  * 单条正则规则 (聊天场景扩展)
@@ -102,7 +102,7 @@ export interface ChatRegexConfig {
    * - 'session': 所有消息使用当前会话的 Agent/User 配置（会话绑定）
    * @default 'message'
    */
-  bindingMode?: 'message' | 'session';
+  bindingMode?: "message" | "session";
 }
 
 // === 工厂函数 ===
@@ -113,7 +113,7 @@ export interface ChatRegexConfig {
 export function createDefaultChatRegexConfig(): ChatRegexConfig {
   return {
     presets: [],
-    bindingMode: 'message',
+    bindingMode: "message",
   };
 }
 
@@ -122,7 +122,7 @@ export function createDefaultChatRegexConfig(): ChatRegexConfig {
  */
 export function createChatRegexPreset(
   name: string,
-  partial?: Partial<ChatRegexPreset>,
+  partial?: Partial<ChatRegexPreset>
 ): ChatRegexPreset {
   return {
     id: crypto.randomUUID(),
@@ -139,21 +139,23 @@ export function createChatRegexPreset(
 /**
  * 创建新的正则规则
  */
-export function createChatRegexRule(partial?: Partial<ChatRegexRule>): ChatRegexRule {
+export function createChatRegexRule(
+  partial?: Partial<ChatRegexRule>
+): ChatRegexRule {
   return {
     id: crypto.randomUUID(),
     enabled: true,
-    regex: '',
-    replacement: '',
-    flags: 'gm',
+    regex: "",
+    replacement: "",
+    flags: "gm",
     applyTo: {
       render: true,
       request: false,
     },
-    targetRoles: ['system', 'user', 'assistant'],
-    substitutionMode: 'NONE',
-    replacementType: 'regex',
-    scriptContent: '',
+    targetRoles: ["system", "user", "assistant"],
+    substitutionMode: "NONE",
+    replacementType: "regex",
+    scriptContent: "",
     applyInStreaming: false,
     ...partial,
   };

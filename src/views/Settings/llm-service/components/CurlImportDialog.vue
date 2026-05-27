@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
-import { parseCurlCommand, type ParsedCurlResult } from "@/utils/parseCurlCommand";
+import {
+  parseCurlCommand,
+  type ParsedCurlResult,
+} from "@/utils/parseCurlCommand";
 import { providerTypes } from "@/config/llm-providers";
 import type { ProviderType } from "@/types/llm-profiles";
 import { ClipboardPaste, Check, AlertCircle, Terminal } from "lucide-vue-next";
@@ -43,7 +46,9 @@ watch(curlInput, (val) => {
 // 获取渠道类型显示名称
 const providerTypeName = computed(() => {
   if (!parseResult.value) return "";
-  const info = providerTypes.find((p: { type: ProviderType }) => p.type === parseResult.value!.providerType);
+  const info = providerTypes.find(
+    (p: { type: ProviderType }) => p.type === parseResult.value!.providerType
+  );
   return info?.name || parseResult.value.providerType;
 });
 
@@ -80,7 +85,7 @@ const pasteFromClipboard = async () => {
 watch(
   () => curlInput.value,
   () => {},
-  { flush: "post" },
+  { flush: "post" }
 );
 </script>
 
@@ -95,7 +100,9 @@ watch(
     <template #content>
       <div class="curl-import-container">
         <!-- 说明 -->
-        <p class="import-desc">粘贴从 API 平台复制的 curl 命令，自动解析出渠道配置信息。</p>
+        <p class="import-desc">
+          粘贴从 API 平台复制的 curl 命令，自动解析出渠道配置信息。
+        </p>
 
         <!-- 输入区域 -->
         <div class="input-section">
@@ -151,7 +158,10 @@ watch(
               <span class="result-label">API Key</span>
               <span class="result-value mono">{{ maskedApiKey }}</span>
             </div>
-            <div class="result-item" v-else-if="parseResult.apiKeyIsPlaceholder">
+            <div
+              class="result-item"
+              v-else-if="parseResult.apiKeyIsPlaceholder"
+            >
               <span class="result-label">API Key</span>
               <span class="result-value placeholder">需要手动填写</span>
             </div>
@@ -161,11 +171,15 @@ watch(
             </div>
             <div class="result-item" v-if="parseResult.chatEndpoint">
               <span class="result-label">自定义端点</span>
-              <span class="result-value mono">{{ parseResult.chatEndpoint }}</span>
+              <span class="result-value mono">{{
+                parseResult.chatEndpoint
+              }}</span>
             </div>
             <div class="result-item" v-if="parseResult.customHeaders">
               <span class="result-label">自定义头</span>
-              <span class="result-value mono">{{ Object.keys(parseResult.customHeaders).join(", ") }}</span>
+              <span class="result-value mono">{{
+                Object.keys(parseResult.customHeaders).join(", ")
+              }}</span>
             </div>
           </div>
         </div>
@@ -173,7 +187,13 @@ watch(
         <!-- 操作按钮 -->
         <div class="action-bar">
           <el-button @click="emit('update:visible', false)">取消</el-button>
-          <el-button type="primary" :disabled="!parseResult" @click="handleImport"> 确认导入 </el-button>
+          <el-button
+            type="primary"
+            :disabled="!parseResult"
+            @click="handleImport"
+          >
+            确认导入
+          </el-button>
         </div>
       </div>
     </template>

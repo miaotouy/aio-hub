@@ -16,7 +16,9 @@ export function useDetachedPreview() {
     try {
       const currentWindow = getCurrentWebviewWindow();
       const label = currentWindow.label;
-      const windows = await invoke<Array<{ id: string; label: string }>>("get_all_detached_windows");
+      const windows = await invoke<Array<{ id: string; label: string }>>(
+        "get_all_detached_windows"
+      );
 
       // 如果当前窗口标签不在已记录的 windows 列表中，说明它还是预览模式（未持久化）
       isPreview.value = !windows.some((w) => w.label === label);

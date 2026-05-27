@@ -1,29 +1,29 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref } from "vue";
 
 interface Emits {
-  (e: 'confirm', name: string): void;
-  (e: 'cancel'): void;
+  (e: "confirm", name: string): void;
+  (e: "cancel"): void;
 }
 
 const emit = defineEmits<Emits>();
 
-const visible = defineModel<boolean>('visible', { required: true });
-const presetName = ref('');
+const visible = defineModel<boolean>("visible", { required: true });
+const presetName = ref("");
 
 function handleConfirm() {
   if (!presetName.value.trim()) {
     return;
   }
-  emit('confirm', presetName.value.trim());
-  presetName.value = '';
+  emit("confirm", presetName.value.trim());
+  presetName.value = "";
   visible.value = false;
 }
 
 function handleCancel() {
-  presetName.value = '';
+  presetName.value = "";
   visible.value = false;
-  emit('cancel');
+  emit("cancel");
 }
 </script>
 

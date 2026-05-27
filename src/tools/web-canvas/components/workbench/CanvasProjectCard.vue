@@ -1,6 +1,15 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { MoreVertical, ExternalLink, Trash2, FileText, Clock, Monitor, AlertCircle, RefreshCw } from "lucide-vue-next";
+import {
+  MoreVertical,
+  ExternalLink,
+  Trash2,
+  FileText,
+  Clock,
+  Monitor,
+  AlertCircle,
+  RefreshCw,
+} from "lucide-vue-next";
 import { formatDistanceToNow } from "date-fns";
 import { zhCN } from "date-fns/locale";
 import type { CanvasListItem } from "../../types";
@@ -74,12 +83,16 @@ const healthStatus = computed(() => {
 
 const handleDelete = async () => {
   try {
-    await ElMessageBox.confirm(`确定要删除画布 "${props.canvas.metadata.name}" 吗？此操作不可撤销。`, "删除确认", {
-      confirmButtonText: "确定删除",
-      cancelButtonText: "取消",
-      type: "warning",
-      confirmButtonClass: "el-button--danger",
-    });
+    await ElMessageBox.confirm(
+      `确定要删除画布 "${props.canvas.metadata.name}" 吗？此操作不可撤销。`,
+      "删除确认",
+      {
+        confirmButtonText: "确定删除",
+        cancelButtonText: "取消",
+        type: "warning",
+        confirmButtonClass: "el-button--danger",
+      }
+    );
     emit("delete");
   } catch {
     // 用户取消
@@ -88,35 +101,61 @@ const handleDelete = async () => {
 </script>
 
 <template>
-  <div class="canvas-project-card" :class="[viewMode, { 'is-active': canvas.status === 'open' }]" @click="emit('open')">
+  <div
+    class="canvas-project-card"
+    :class="[viewMode, { 'is-active': canvas.status === 'open' }]"
+    @click="emit('open')"
+  >
     <!-- 卡片模式 -->
     <template v-if="viewMode === 'grid'">
       <div class="card-header">
         <div class="title-area">
           <span class="emoji">🎨</span>
-          <h3 class="title" :title="canvas.metadata.name">{{ canvas.metadata.name }}</h3>
+          <h3 class="title" :title="canvas.metadata.name">
+            {{ canvas.metadata.name }}
+          </h3>
         </div>
         <div class="header-right">
           <el-dropdown v-if="healthStatus" trigger="click" @click.stop>
-            <el-tag :type="healthStatus.type" size="small" effect="dark" class="status-tag health-warning">
+            <el-tag
+              :type="healthStatus.type"
+              size="small"
+              effect="dark"
+              class="status-tag health-warning"
+            >
               <el-icon><AlertCircle /></el-icon>
               {{ healthStatus.label }}
             </el-tag>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item v-if="canvas.health === 'missing'" @click="emit('repair', 'remove_index')">
+                <el-dropdown-item
+                  v-if="canvas.health === 'missing'"
+                  @click="emit('repair', 'remove_index')"
+                >
                   <el-icon><Trash2 /></el-icon> 移除孤儿索引
                 </el-dropdown-item>
-                <el-dropdown-item v-if="canvas.health === 'unindexed'" @click="emit('repair', 'reindex')">
+                <el-dropdown-item
+                  v-if="canvas.health === 'unindexed'"
+                  @click="emit('repair', 'reindex')"
+                >
                   <el-icon><RefreshCw /></el-icon> 重新建立索引
                 </el-dropdown-item>
-                <el-dropdown-item v-if="canvas.health === 'corrupted'" @click="emit('repair', 'restore_metadata')">
+                <el-dropdown-item
+                  v-if="canvas.health === 'corrupted'"
+                  @click="emit('repair', 'restore_metadata')"
+                >
                   <el-icon><RefreshCw /></el-icon> 尝试恢复元数据
                 </el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
-          <el-tag v-else :type="statusType" size="small" effect="plain" class="status-tag">
+          <el-tag
+            v-else
+            :type="statusType"
+            size="small"
+            effect="plain"
+            class="status-tag"
+          >
             {{ statusLabel }}
           </el-tag>
         </div>
@@ -141,7 +180,9 @@ const handleDelete = async () => {
 
       <div class="card-footer" @click.stop>
         <div class="footer-left">
-          <el-button size="small" type="primary" @click="emit('open')"> 编辑 </el-button>
+          <el-button size="small" type="primary" @click="emit('open')">
+            编辑
+          </el-button>
           <el-button size="small" type="primary" plain @click="emit('preview')">
             <template #icon>
               <el-icon><Monitor /></el-icon>
@@ -160,7 +201,11 @@ const handleDelete = async () => {
                 <el-icon><ExternalLink :size="14" /></el-icon>
                 <span>在 VSCode 中打开</span>
               </el-dropdown-item>
-              <el-dropdown-item divided @click="handleDelete" class="delete-item">
+              <el-dropdown-item
+                divided
+                @click="handleDelete"
+                class="delete-item"
+              >
                 <el-icon><Trash2 :size="14" /></el-icon>
                 <span>删除项目</span>
               </el-dropdown-item>
@@ -174,11 +219,18 @@ const handleDelete = async () => {
     <template v-else>
       <div class="list-item-content">
         <span class="emoji">🎨</span>
-        <div class="list-title" :title="canvas.metadata.name">{{ canvas.metadata.name }}</div>
+        <div class="list-title" :title="canvas.metadata.name">
+          {{ canvas.metadata.name }}
+        </div>
 
         <div class="list-stats">
           <span class="file-count">{{ canvas.metadata.fileCount }} files</span>
-          <el-tag v-if="canvas.dirtyFileCount > 0" type="warning" size="small" class="pending-tag">
+          <el-tag
+            v-if="canvas.dirtyFileCount > 0"
+            type="warning"
+            size="small"
+            class="pending-tag"
+          >
             {{ canvas.dirtyFileCount }} dirty
           </el-tag>
         </div>
@@ -241,7 +293,10 @@ const handleDelete = async () => {
 
   &.is-active {
     border-color: var(--el-color-primary);
-    background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.05));
+    background-color: rgba(
+      var(--el-color-primary-rgb),
+      calc(var(--card-opacity) * 0.05)
+    );
   }
 
   /* Grid Mode */
@@ -444,7 +499,10 @@ const handleDelete = async () => {
   color: var(--el-color-danger) !important;
 
   &:hover {
-    background-color: rgba(var(--el-color-danger-rgb), calc(var(--card-opacity) * 0.1)) !important;
+    background-color: rgba(
+      var(--el-color-danger-rgb),
+      calc(var(--card-opacity) * 0.1)
+    ) !important;
   }
 }
 </style>

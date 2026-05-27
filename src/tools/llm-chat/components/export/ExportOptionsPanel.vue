@@ -3,13 +3,19 @@
     <div class="options-section">
       <div class="section-title">导出格式</div>
       <el-radio-group v-model="format" class="format-group separated-group">
-        <el-radio-button value="markdown">Markdown{{ isSession ? " (树状)" : "" }}</el-radio-button>
+        <el-radio-button value="markdown"
+          >Markdown{{ isSession ? " (树状)" : "" }}</el-radio-button
+        >
         <el-radio-button value="json">JSON</el-radio-button>
         <el-radio-button value="raw">Raw (JSON)</el-radio-button>
       </el-radio-group>
     </div>
 
-    <div v-if="!isSession" class="options-section" :class="{ 'is-disabled': useContextPipeline }">
+    <div
+      v-if="!isSession"
+      class="options-section"
+      :class="{ 'is-disabled': useContextPipeline }"
+    >
       <div class="section-title">
         导出范围
         <el-tooltip
@@ -58,10 +64,16 @@
       <div class="section-title">包含内容</div>
       <div class="options-grid">
         <template v-if="!isSession">
-          <el-checkbox v-model="includePreset" class="option-checkbox" :disabled="useContextPipeline">
+          <el-checkbox
+            v-model="includePreset"
+            class="option-checkbox"
+            :disabled="useContextPipeline"
+          >
             <span class="option-label">
               智能体预设消息
-              <span v-if="presetCount > 0" class="option-hint">（{{ presetCount }} 条）</span>
+              <span v-if="presetCount > 0" class="option-hint"
+                >（{{ presetCount }} 条）</span
+              >
             </span>
           </el-checkbox>
 
@@ -98,10 +110,17 @@
           <span class="option-label">错误信息</span>
         </el-checkbox>
 
-        <el-checkbox v-if="!isSession" v-model="useContextPipeline" class="option-checkbox">
+        <el-checkbox
+          v-if="!isSession"
+          v-model="useContextPipeline"
+          class="option-checkbox"
+        >
           <span class="option-label">
             使用上下文管道处理
-            <el-tooltip content="将导出经过宏解析、世界书注入、Token 裁剪等处理后的真实 Payload 内容" placement="top">
+            <el-tooltip
+              content="将导出经过宏解析、世界书注入、Token 裁剪等处理后的真实 Payload 内容"
+              placement="top"
+            >
               <span class="option-hint"> (真实 Payload) </span>
             </el-tooltip>
           </span>
@@ -112,7 +131,13 @@
 </template>
 
 <script setup lang="ts">
-import { ElCheckbox, ElRadioGroup, ElRadioButton, ElSlider, ElInputNumber } from "element-plus";
+import {
+  ElCheckbox,
+  ElRadioGroup,
+  ElRadioButton,
+  ElSlider,
+  ElInputNumber,
+} from "element-plus";
 
 interface Props {
   isSession?: boolean;
@@ -126,18 +151,35 @@ withDefaults(defineProps<Props>(), {
   maxRange: 1,
 });
 
-const format = defineModel<"markdown" | "json" | "raw">("format", { required: true });
-const includeUserProfile = defineModel<boolean>("includeUserProfile", { default: true });
-const includeAgentInfo = defineModel<boolean>("includeAgentInfo", { default: true });
-const includeModelInfo = defineModel<boolean>("includeModelInfo", { default: true });
-const includeTokenUsage = defineModel<boolean>("includeTokenUsage", { default: true });
-const includeAttachments = defineModel<boolean>("includeAttachments", { default: true });
+const format = defineModel<"markdown" | "json" | "raw">("format", {
+  required: true,
+});
+const includeUserProfile = defineModel<boolean>("includeUserProfile", {
+  default: true,
+});
+const includeAgentInfo = defineModel<boolean>("includeAgentInfo", {
+  default: true,
+});
+const includeModelInfo = defineModel<boolean>("includeModelInfo", {
+  default: true,
+});
+const includeTokenUsage = defineModel<boolean>("includeTokenUsage", {
+  default: true,
+});
+const includeAttachments = defineModel<boolean>("includeAttachments", {
+  default: true,
+});
 const includeErrors = defineModel<boolean>("includeErrors", { default: true });
-const useContextPipeline = defineModel<boolean>("useContextPipeline", { default: false });
+const useContextPipeline = defineModel<boolean>("useContextPipeline", {
+  default: false,
+});
 
 // 仅 Branch 模式使用的选项
 const includePreset = defineModel<boolean>("includePreset", { default: false });
-const mergePresetIntoMessages = defineModel<boolean>("mergePresetIntoMessages", { default: true });
+const mergePresetIntoMessages = defineModel<boolean>(
+  "mergePresetIntoMessages",
+  { default: true }
+);
 const range = defineModel<[number, number]>("range", { default: () => [1, 1] });
 </script>
 

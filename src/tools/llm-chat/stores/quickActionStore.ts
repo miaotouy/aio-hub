@@ -4,7 +4,10 @@
 
 import { defineStore } from "pinia";
 import { useQuickActionStorage } from "../composables/storage/useQuickActionStorage";
-import type { QuickActionSet, QuickActionSetMetadata } from "../types/quick-action";
+import type {
+  QuickActionSet,
+  QuickActionSetMetadata,
+} from "../types/quick-action";
 import { DEFAULT_QUICK_ACTION_SETS } from "../config/defaultQuickActions";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -103,12 +106,16 @@ export const useQuickActionStore = defineStore("llmChatQuickAction", {
         }
 
         // 自动预加载已启用的组内容
-        const enabledIds = this.quickActionSets.filter((s) => s.isEnabled).map((s) => s.id);
+        const enabledIds = this.quickActionSets
+          .filter((s) => s.isEnabled)
+          .map((s) => s.id);
         if (enabledIds.length > 0) {
           await this.ensureSetsLoaded(enabledIds);
         }
       } catch (error) {
-        errorHandler.handle(error as Error, { userMessage: "加载快捷操作索引失败" });
+        errorHandler.handle(error as Error, {
+          userMessage: "加载快捷操作索引失败",
+        });
       }
     },
 
@@ -160,20 +167,22 @@ export const useQuickActionStore = defineStore("llmChatQuickAction", {
       try {
         const storage = useQuickActionStorage();
         // 构造新的索引
-        const sets: QuickActionSetMetadata[] = this.quickActionSets.map((meta) => {
-          const loaded = this.loadedSets.get(meta.id);
-          if (loaded) {
-            return {
-              id: loaded.id,
-              name: loaded.name,
-              description: loaded.description,
-              actionCount: loaded.actions.length,
-              isEnabled: loaded.isEnabled,
-              updatedAt: loaded.updatedAt,
-            };
+        const sets: QuickActionSetMetadata[] = this.quickActionSets.map(
+          (meta) => {
+            const loaded = this.loadedSets.get(meta.id);
+            if (loaded) {
+              return {
+                id: loaded.id,
+                name: loaded.name,
+                description: loaded.description,
+                actionCount: loaded.actions.length,
+                isEnabled: loaded.isEnabled,
+                updatedAt: loaded.updatedAt,
+              };
+            }
+            return meta;
           }
-          return meta;
-        });
+        );
 
         // 检查是否有新创建的组在 loadedSets 中但不在 sets 中
         for (const [id, content] of this.loadedSets.entries()) {

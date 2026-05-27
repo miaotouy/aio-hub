@@ -114,7 +114,9 @@ export class StreamController {
     if (this.chunkArrivalTimes.length >= 2) {
       const intervals: number[] = [];
       for (let i = 1; i < this.chunkArrivalTimes.length; i++) {
-        intervals.push(this.chunkArrivalTimes[i] - this.chunkArrivalTimes[i - 1]);
+        intervals.push(
+          this.chunkArrivalTimes[i] - this.chunkArrivalTimes[i - 1]
+        );
       }
 
       // 加权平均：最近的间隔权重更高（指数加权）
@@ -200,7 +202,10 @@ export class StreamController {
     let consumed = 0;
     let blocksConsumed = 0;
 
-    while (this.semanticQueue.length > 0 && blocksConsumed < this.blocksPerEmit) {
+    while (
+      this.semanticQueue.length > 0 &&
+      blocksConsumed < this.blocksPerEmit
+    ) {
       const chunk = this.semanticQueue[0];
 
       if (!this.isInsideCodeBlock) {
@@ -244,7 +249,10 @@ export class StreamController {
     }
 
     // 紧急冲刷：如果积压过多，直接处理所有数据
-    const totalBacklog = this.semanticQueue.reduce((acc, c) => acc + c.length, 0);
+    const totalBacklog = this.semanticQueue.reduce(
+      (acc, c) => acc + c.length,
+      0
+    );
     if (totalBacklog > this.emergencyFlushThreshold) {
       this.flushAll();
       this.rafHandle = requestAnimationFrame(this.tick);
@@ -256,13 +264,17 @@ export class StreamController {
 
     // 时间控制：只有达到目标间隔才 emit
     const now = performance.now();
-    const timeSinceLastEmit = this.lastEmitTime ? now - this.lastEmitTime : Infinity;
+    const timeSinceLastEmit = this.lastEmitTime
+      ? now - this.lastEmitTime
+      : Infinity;
 
     if (timeSinceLastEmit >= this.targetEmitIntervalMs) {
       this.consumeChars();
 
       if (this.displayBuffer.length > 0) {
-        const interval = this.lastEmitTime ? (now - this.lastEmitTime).toFixed(1) : 0;
+        const interval = this.lastEmitTime
+          ? (now - this.lastEmitTime).toFixed(1)
+          : 0;
         const emitLen = this.displayBuffer.length;
         this.totalEmittedChars += emitLen;
 
@@ -332,7 +344,9 @@ export class StreamController {
 
     this.chunkCount++;
     if (this.verboseLogging) {
-      console.debug(`[StreamController] Chunk #${this.chunkCount} received: ${chunk.length} chars`);
+      console.debug(
+        `[StreamController] Chunk #${this.chunkCount} received: ${chunk.length} chars`
+      );
     }
 
     if (!this.smoothingEnabled) {
@@ -376,7 +390,10 @@ export class StreamController {
         if (totalLen > this.accelerationThreshold) {
           const targetInitial = Math.min(totalLen, 500);
           let initialContent = "";
-          while (this.semanticQueue.length > 0 && initialContent.length < targetInitial) {
+          while (
+            this.semanticQueue.length > 0 &&
+            initialContent.length < targetInitial
+          ) {
             initialContent += this.semanticQueue.shift()!;
           }
           for (const char of initialContent) {
@@ -440,6 +457,8 @@ export class StreamController {
 /**
  * 创建 StreamController 的工厂函数
  */
-export function createStreamController(options: StreamControllerOptions): StreamController {
+export function createStreamController(
+  options: StreamControllerOptions
+): StreamController {
   return new StreamController(options);
 }

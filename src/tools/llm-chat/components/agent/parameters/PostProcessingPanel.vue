@@ -22,14 +22,20 @@ const isRuleEnabled = (processorId: string) => {
  * 将实际换行符转换为转义字符串以便在输入框中显示
  */
 const serializeEscapes = (value: string): string => {
-  return value.replace(/\n/g, "\\n").replace(/\t/g, "\\t").replace(/\r/g, "\\r");
+  return value
+    .replace(/\n/g, "\\n")
+    .replace(/\t/g, "\\t")
+    .replace(/\r/g, "\\r");
 };
 
 /**
  * 将转义字符串转换为实际换行符以便存储
  */
 const deserializeEscapes = (value: string): string => {
-  return value.replace(/\\n/g, "\n").replace(/\\t/g, "\t").replace(/\\r/g, "\r");
+  return value
+    .replace(/\\n/g, "\n")
+    .replace(/\\t/g, "\t")
+    .replace(/\\r/g, "\r");
 };
 
 const getRuleConfigValue = (processorId: string, key: string) => {
@@ -148,13 +154,19 @@ const resetRuleConfig = (processorId: string, key: string) => {
           v-if="isRuleEnabled(processor.id) && processor.configFields?.length"
           class="rule-configs"
         >
-          <div v-for="field in processor.configFields" :key="field.key" class="config-item">
+          <div
+            v-for="field in processor.configFields"
+            :key="field.key"
+            class="config-item"
+          >
             <label class="config-label">{{ field.label }}</label>
             <div class="config-input-wrapper">
               <el-input
                 v-if="!field.type || field.type === 'text'"
                 :model-value="getRuleConfigValue(processor.id, field.key)"
-                @update:model-value="updateRuleConfig(processor.id, field.key, $event)"
+                @update:model-value="
+                  updateRuleConfig(processor.id, field.key, $event)
+                "
                 :placeholder="field.placeholder"
                 size="small"
               />
@@ -166,7 +178,11 @@ const resetRuleConfig = (processorId: string, key: string) => {
               >
                 <template #reference>
                   <span class="reset-btn-wrapper">
-                    <el-tooltip effect="dark" content="重置为默认值" placement="top">
+                    <el-tooltip
+                      effect="dark"
+                      content="重置为默认值"
+                      placement="top"
+                    >
                       <el-button :icon="RotateCcw" text circle size="small" />
                     </el-tooltip>
                   </span>

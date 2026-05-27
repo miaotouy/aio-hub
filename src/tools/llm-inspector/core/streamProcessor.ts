@@ -1,7 +1,13 @@
 import { ref, computed, watch } from "vue";
 import { createModuleLogger } from "@utils/logger";
 import type { StreamUpdate, StreamBuffer } from "../types";
-import { formatStreamingResponse, extractStreamContent, extractJsonContent, isJson, formatJson } from "./utils";
+import {
+  formatStreamingResponse,
+  extractStreamContent,
+  extractJsonContent,
+  isJson,
+  formatJson,
+} from "./utils";
 
 const logger = createModuleLogger("LlmInspector/StreamProcessor");
 
@@ -102,7 +108,11 @@ export function isStreamingRecord(recordId: string): boolean {
 /**
  * 获取显示的响应体内容
  */
-export function getDisplayResponseBody(recordId: string, originalBody?: string, isStreamingResponse?: boolean): string {
+export function getDisplayResponseBody(
+  recordId: string,
+  originalBody?: string,
+  isStreamingResponse?: boolean
+): string {
   // 优先使用流式缓冲内容
   const bufferedContent = streamBuffer.value[recordId];
   const body = bufferedContent || originalBody || "";
@@ -129,7 +139,7 @@ export function extractContent(
   recordId: string,
   originalBody?: string,
   isStreamingResponse?: boolean,
-  requestUrl?: string,
+  requestUrl?: string
 ): string {
   const body = streamBuffer.value[recordId] || originalBody || "";
 
@@ -150,7 +160,10 @@ export function extractContent(
 /**
  * 检查记录是否可以显示正文模式
  */
-export function canShowTextMode(recordId: string, originalBody?: string): boolean {
+export function canShowTextMode(
+  recordId: string,
+  originalBody?: string
+): boolean {
   // 如果正在流式传输，始终允许显示正文模式
   if (isStreamingRecord(recordId)) {
     return true;
@@ -173,7 +186,10 @@ export function getStreamStats() {
   const stats = {
     activeStreams: activeStreamIds.value.size,
     totalBuffered: Object.keys(streamBuffer.value).length,
-    bufferSize: Object.values(streamBuffer.value).reduce((total, content) => total + content.length, 0),
+    bufferSize: Object.values(streamBuffer.value).reduce(
+      (total, content) => total + content.length,
+      0
+    ),
     currentStreamId: currentStreamId.value,
   };
 
@@ -290,6 +306,8 @@ export class StreamContentProcessor {
 /**
  * 创建流式内容处理器
  */
-export function createStreamProcessor(recordId: string): StreamContentProcessor {
+export function createStreamProcessor(
+  recordId: string
+): StreamContentProcessor {
   return new StreamContentProcessor(recordId);
 }

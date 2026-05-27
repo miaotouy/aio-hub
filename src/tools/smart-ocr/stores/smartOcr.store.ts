@@ -1,12 +1,22 @@
-import { defineStore } from 'pinia';
-import type { UploadedImage, CutLine, ImageBlock, OcrResult, OcrEngineConfig, SlicerConfig } from '../types';
-import type { SmartOcrConfig } from '../config/config';
-import { defaultSmartOcrConfig, getCurrentEngineConfig } from '../config/config';
-import { createModuleLogger } from '@/utils/logger';
+import { defineStore } from "pinia";
+import type {
+  UploadedImage,
+  CutLine,
+  ImageBlock,
+  OcrResult,
+  OcrEngineConfig,
+  SlicerConfig,
+} from "../types";
+import type { SmartOcrConfig } from "../config/config";
+import {
+  defaultSmartOcrConfig,
+  getCurrentEngineConfig,
+} from "../config/config";
+import { createModuleLogger } from "@/utils/logger";
 
-const logger = createModuleLogger('smart-ocr/store');
+const logger = createModuleLogger("smart-ocr/store");
 
-export const useSmartOcrStore = defineStore('smart-ocr', {
+export const useSmartOcrStore = defineStore("smart-ocr", {
   state: () => ({
     fullConfig: { ...defaultSmartOcrConfig } as SmartOcrConfig,
     uploadedImages: [] as UploadedImage[],
@@ -17,7 +27,8 @@ export const useSmartOcrStore = defineStore('smart-ocr', {
   }),
 
   getters: {
-    engineConfig: (state): OcrEngineConfig => getCurrentEngineConfig(state.fullConfig),
+    engineConfig: (state): OcrEngineConfig =>
+      getCurrentEngineConfig(state.fullConfig),
     slicerConfig: (state): SlicerConfig => state.fullConfig.slicerConfig,
   },
 
@@ -39,8 +50,8 @@ export const useSmartOcrStore = defineStore('smart-ocr', {
         this.cutLinesMap.delete(imageId);
         this.imageBlocksMap.delete(imageId);
         // 级联删除相关的 OCR 结果
-        this.ocrResults = this.ocrResults.filter(r => r.imageId !== imageId);
-        logger.info('已从 store 中删除图片及其关联数据', { imageId });
+        this.ocrResults = this.ocrResults.filter((r) => r.imageId !== imageId);
+        logger.info("已从 store 中删除图片及其关联数据", { imageId });
       }
     },
     updateImageBlocks(imageId: string, blocks: ImageBlock[]) {
@@ -54,27 +65,27 @@ export const useSmartOcrStore = defineStore('smart-ocr', {
     },
     // 用于替换或添加单个/多个结果
     updateOcrResults(results: OcrResult[]) {
-        const newResults = [...this.ocrResults];
-        for (const result of results) {
-            const index = newResults.findIndex(r => r.blockId === result.blockId);
-            if (index !== -1) {
-                newResults[index] = result;
-            } else {
-                newResults.push(result);
-            }
+      const newResults = [...this.ocrResults];
+      for (const result of results) {
+        const index = newResults.findIndex((r) => r.blockId === result.blockId);
+        if (index !== -1) {
+          newResults[index] = result;
+        } else {
+          newResults.push(result);
         }
-        this.ocrResults = newResults;
+      }
+      this.ocrResults = newResults;
     },
     clearOcrResults(imageIds?: string[]) {
-        if (imageIds && imageIds.length > 0) {
-            const idSet = new Set(imageIds);
-            this.ocrResults = this.ocrResults.filter(r => !idSet.has(r.imageId));
-        } else {
-            this.ocrResults = [];
-        }
+      if (imageIds && imageIds.length > 0) {
+        const idSet = new Set(imageIds);
+        this.ocrResults = this.ocrResults.filter((r) => !idSet.has(r.imageId));
+      } else {
+        this.ocrResults = [];
+      }
     },
     toggleBlockIgnore(blockId: string) {
-      const newResults = this.ocrResults.map(r => {
+      const newResults = this.ocrResults.map((r) => {
         if (r.blockId === blockId) {
           return { ...r, ignored: !r.ignored };
         }
@@ -83,7 +94,7 @@ export const useSmartOcrStore = defineStore('smart-ocr', {
       this.ocrResults = newResults;
     },
     updateBlockText(blockId: string, text: string) {
-      const newResults = this.ocrResults.map(r => {
+      const newResults = this.ocrResults.map((r) => {
         if (r.blockId === blockId) {
           return { ...r, text };
         }
@@ -97,7 +108,7 @@ export const useSmartOcrStore = defineStore('smart-ocr', {
       this.imageBlocksMap.clear();
       this.ocrResults = [];
       this.isProcessing = false;
-      logger.info('SmartOcr Store 已重置');
+      logger.info("SmartOcr Store 已重置");
     },
   },
 });

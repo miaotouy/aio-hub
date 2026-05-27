@@ -25,8 +25,8 @@ const handleToolClick = (tool: ToolRegistry) => {
   <div class="app-view app-view--safe-top home-container">
     <div class="content">
       <div class="header">
-        <h2 class="greeting">{{ t('home.欢迎使用') }}</h2>
-        <p class="subtitle">{{ t('home.副标题') }}</p>
+        <h2 class="greeting">{{ t("home.欢迎使用") }}</h2>
+        <p class="subtitle">{{ t("home.副标题") }}</p>
       </div>
 
       <div class="tools-grid">

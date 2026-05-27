@@ -7,21 +7,34 @@
       </div>
       <div class="header-right">
         <el-button link @click="copyLogs">
-          <template #icon><el-icon><Copy /></el-icon></template>
+          <template #icon
+            ><el-icon><Copy /></el-icon
+          ></template>
           复制
         </el-button>
         <el-button link @click="clearLogs">
-          <template #icon><el-icon><Trash /></el-icon></template>
+          <template #icon
+            ><el-icon><Trash /></el-icon
+          ></template>
           清空
         </el-button>
-        <el-button link :icon="autoScroll ? Check : X" @click="autoScroll = !autoScroll">
+        <el-button
+          link
+          :icon="autoScroll ? Check : X"
+          @click="autoScroll = !autoScroll"
+        >
           自动滚动
         </el-button>
       </div>
     </div>
     <div class="console-body" ref="bodyRef">
       <div v-if="!logs.length" class="empty-state">等待任务执行日志...</div>
-      <div v-for="(log, idx) in logs" :key="idx" class="log-line" :class="getLogClass(log)">
+      <div
+        v-for="(log, idx) in logs"
+        :key="idx"
+        class="log-line"
+        :class="getLogClass(log)"
+      >
         <span class="line-num">{{ idx + 1 }}</span>
         <span class="line-content">{{ log }}</span>
       </div>
@@ -62,7 +75,11 @@ const getLogClass = (log: string) => {
   const lower = log.toLowerCase();
   if (lower.includes("error") || lower.includes("failed")) return "log-error";
   if (lower.includes("warning")) return "log-warn";
-  if (lower.includes("duration:") || lower.includes("video:") || lower.includes("audio:"))
+  if (
+    lower.includes("duration:") ||
+    lower.includes("video:") ||
+    lower.includes("audio:")
+  )
     return "log-info";
   return "";
 };

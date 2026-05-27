@@ -41,7 +41,10 @@ export function useMediaGenBatchMode(options: {
     const msg = nodes.value[messageId];
     if (msg) {
       msg.isSelected = !msg.isSelected;
-      logger.debug("消息选中状态变更", { messageId, isSelected: msg.isSelected });
+      logger.debug("消息选中状态变更", {
+        messageId,
+        isSelected: msg.isSelected,
+      });
     }
   };
 

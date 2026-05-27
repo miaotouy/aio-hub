@@ -76,7 +76,9 @@ onUnmounted(() => {
       'main-sidebar',
       {
         'is-collapsed': isCollapsed,
-        'has-glass-effect': appearanceSettings?.enableUiEffects && appearanceSettings?.enableUiBlur,
+        'has-glass-effect':
+          appearanceSettings?.enableUiEffects &&
+          appearanceSettings?.enableUiBlur,
       },
     ]"
   >
@@ -84,7 +86,11 @@ onUnmounted(() => {
     <div class="sidebar-top">
       <div class="menu-wrapper">
         <div class="menu-container" ref="menuContainerRef">
-          <SidebarMenu :collapsed="isCollapsed" :tools-visible="toolsVisible" :is-detached="isDetached" />
+          <SidebarMenu
+            :collapsed="isCollapsed"
+            :tools-visible="toolsVisible"
+            :is-detached="isDetached"
+          />
         </div>
       </div>
     </div>

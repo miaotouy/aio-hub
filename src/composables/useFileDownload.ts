@@ -10,7 +10,10 @@ import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { emit } from "@tauri-apps/api/event";
 import { customMessage } from "@/utils/customMessage";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { DOWNLOAD_EVENTS, type DownloadCompletedPayload } from "@/types/download";
+import {
+  DOWNLOAD_EVENTS,
+  type DownloadCompletedPayload,
+} from "@/types/download";
 
 const logger = createModuleLogger("useFileDownload");
 const errorHandler = createModuleErrorHandler("useFileDownload");
@@ -38,7 +41,10 @@ export function useFileDownload() {
   /**
    * 获取不冲突的文件名
    */
-  const getUniquePath = async (dir: string, filename: string): Promise<string> => {
+  const getUniquePath = async (
+    dir: string,
+    filename: string
+  ): Promise<string> => {
     let targetPath = await join(dir, filename);
     if (!(await exists(targetPath))) {
       return targetPath;
@@ -65,7 +71,13 @@ export function useFileDownload() {
    * 下载文件
    */
   const downloadFile = async (options: DownloadOptions) => {
-    const { content, filename: rawFilename, mode = "auto", type: forcedType, autoRename = true } = options;
+    const {
+      content,
+      filename: rawFilename,
+      mode = "auto",
+      type: forcedType,
+      autoRename = true,
+    } = options;
 
     const filename = sanitizeFilename(rawFilename);
     let finalPath = "";
@@ -73,7 +85,9 @@ export function useFileDownload() {
 
     try {
       const downloadSettings = appSettingsStore.settings.download;
-      const effectiveMode = downloadSettings?.alwaysAskSavePath ? "manual" : mode;
+      const effectiveMode = downloadSettings?.alwaysAskSavePath
+        ? "manual"
+        : mode;
 
       // 1. 确定保存路径
       if (effectiveMode === "manual") {
@@ -86,7 +100,8 @@ export function useFileDownload() {
         }
         finalPath = selectedPath;
       } else {
-        const baseDir = downloadSettings?.defaultDownloadPath || (await downloadDir());
+        const baseDir =
+          downloadSettings?.defaultDownloadPath || (await downloadDir());
         if (autoRename) {
           finalPath = await getUniquePath(baseDir, filename);
         } else {
@@ -120,7 +135,10 @@ export function useFileDownload() {
       const record = await downloadStore.addDownload({
         filename: filename,
         filepath: finalPath,
-        size: data instanceof Uint8Array ? data.length : new TextEncoder().encode(data).length,
+        size:
+          data instanceof Uint8Array
+            ? data.length
+            : new TextEncoder().encode(data).length,
         status: "pending",
       });
 
@@ -161,7 +179,11 @@ export function useFileDownload() {
         logger.info("文件下载成功", { filename, path: finalPath });
         return finalPath;
       } catch (writeError) {
-        await downloadStore.updateStatus(record.id, "failed", (writeError as Error).message);
+        await downloadStore.updateStatus(
+          record.id,
+          "failed",
+          (writeError as Error).message
+        );
         throw writeError;
       }
     } catch (error) {

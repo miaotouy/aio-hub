@@ -2,7 +2,11 @@
   <div class="workspace-toolbar">
     <div class="toolbar-left">
       <!-- 侧边栏折叠按钮 -->
-      <el-tooltip :content="isConfigCollapsed ? '展开配置栏' : '折叠配置栏'" placement="bottom" :show-after="300">
+      <el-tooltip
+        :content="isConfigCollapsed ? '展开配置栏' : '折叠配置栏'"
+        placement="bottom"
+        :show-after="300"
+      >
         <el-button
           :icon="isConfigCollapsed ? DArrowRight : DArrowLeft"
           @click="$emit('update:isConfigCollapsed', !isConfigCollapsed)"
@@ -11,17 +15,37 @@
       </el-tooltip>
 
       <!-- 样式配置按钮 -->
-      <el-tooltip content="配置 Markdown 渲染样式" placement="bottom" :show-after="300">
-        <el-button :icon="Brush" @click="$emit('openStyleEditor')" size="small" />
+      <el-tooltip
+        content="配置 Markdown 渲染样式"
+        placement="bottom"
+        :show-after="300"
+      >
+        <el-button
+          :icon="Brush"
+          @click="$emit('openStyleEditor')"
+          size="small"
+        />
       </el-tooltip>
 
       <!-- 正则规则配置按钮 -->
-      <el-tooltip content="配置正则处理管道" placement="bottom" :show-after="300">
-        <el-button :icon="MagicStick" @click="$emit('openRegexConfig')" size="small" />
+      <el-tooltip
+        content="配置正则处理管道"
+        placement="bottom"
+        :show-after="300"
+      >
+        <el-button
+          :icon="MagicStick"
+          @click="$emit('openRegexConfig')"
+          size="small"
+        />
       </el-tooltip>
 
       <!-- 查看 AST 按钮 -->
-      <el-tooltip content="查看当前渲染的 AST 结构" placement="bottom" :show-after="300">
+      <el-tooltip
+        content="查看当前渲染的 AST 结构"
+        placement="bottom"
+        :show-after="300"
+      >
         <el-button :icon="Atom" @click="$emit('openAstViewer')" size="small" />
       </el-tooltip>
 
@@ -64,7 +88,11 @@
         </el-button>
       </el-tooltip>
       <el-tooltip
-        :content="syncInputProgress && cachedInputContent ? '清空输出并重置输入内容' : '清空渲染输出'"
+        :content="
+          syncInputProgress && cachedInputContent
+            ? '清空输出并重置输入内容'
+            : '清空渲染输出'
+        "
         placement="bottom"
         :show-after="300"
       >
@@ -78,11 +106,17 @@
         </el-button>
       </el-tooltip>
       <el-button-group>
-        <el-tooltip content="复制原文和渲染后的 HTML" placement="bottom" :show-after="300">
+        <el-tooltip
+          content="复制原文和渲染后的 HTML"
+          placement="bottom"
+          :show-after="300"
+        >
           <el-button
             :icon="CopyDocument"
             @click="$emit('copyComparison')"
-            :disabled="!inputContent.trim() || (!currentContent && !streamSource)"
+            :disabled="
+              !inputContent.trim() || (!currentContent && !streamSource)
+            "
             size="small"
           >
             复制对比
@@ -94,14 +128,30 @@
           </template>
           <div class="copy-options">
             <div class="option-header">复制内容配置</div>
-            <el-checkbox v-model="copyOptions.includeConfig">测试配置</el-checkbox>
-            <el-checkbox v-model="copyOptions.includeOriginal">Markdown 原文</el-checkbox>
-            <el-checkbox v-model="copyOptions.includeHtml">渲染后的 HTML</el-checkbox>
-            <el-checkbox v-model="copyOptions.includeNormalizedOriginal">规范化后的原文</el-checkbox>
-            <el-checkbox v-model="copyOptions.includeNormalizedRendered">规范化后的渲染文本</el-checkbox>
-            <el-checkbox v-model="copyOptions.includeComparison">对比信息</el-checkbox>
-            <el-checkbox v-model="copyOptions.includeStyleConfig">MD 样式配置</el-checkbox>
-            <el-checkbox v-model="copyOptions.includeBlockInfo">块信息属性</el-checkbox>
+            <el-checkbox v-model="copyOptions.includeConfig"
+              >测试配置</el-checkbox
+            >
+            <el-checkbox v-model="copyOptions.includeOriginal"
+              >Markdown 原文</el-checkbox
+            >
+            <el-checkbox v-model="copyOptions.includeHtml"
+              >渲染后的 HTML</el-checkbox
+            >
+            <el-checkbox v-model="copyOptions.includeNormalizedOriginal"
+              >规范化后的原文</el-checkbox
+            >
+            <el-checkbox v-model="copyOptions.includeNormalizedRendered"
+              >规范化后的渲染文本</el-checkbox
+            >
+            <el-checkbox v-model="copyOptions.includeComparison"
+              >对比信息</el-checkbox
+            >
+            <el-checkbox v-model="copyOptions.includeStyleConfig"
+              >MD 样式配置</el-checkbox
+            >
+            <el-checkbox v-model="copyOptions.includeBlockInfo"
+              >块信息属性</el-checkbox
+            >
           </div>
         </el-popover>
       </el-button-group>
@@ -146,14 +196,19 @@ defineEmits<{
 }>();
 
 // Local state models
-const isConfigCollapsed = defineModel<boolean>("isConfigCollapsed", { required: true });
-const layoutMode = defineModel<"split" | "input-only" | "preview-only" | "curtain">("layoutMode", {
+const isConfigCollapsed = defineModel<boolean>("isConfigCollapsed", {
+  required: true,
+});
+const layoutMode = defineModel<
+  "split" | "input-only" | "preview-only" | "curtain"
+>("layoutMode", {
   required: true,
 });
 
 // Store
 const store = useRichTextRendererStore();
-const { inputContent, streamEnabled, syncInputProgress, copyOptions } = storeToRefs(store);
+const { inputContent, streamEnabled, syncInputProgress, copyOptions } =
+  storeToRefs(store);
 </script>
 
 <style scoped>

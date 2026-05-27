@@ -89,7 +89,11 @@ const updateWeight = (tag: TagWithWeight, delta: number) => {
         </div>
         <span v-else class="weight-value-readonly">{{ tag.weight }}</span>
 
-        <button v-if="!disabled" @click="handleClose(tag.name)" class="close-btn">
+        <button
+          v-if="!disabled"
+          @click="handleClose(tag.name)"
+          class="close-btn"
+        >
           <X :size="10" />
         </button>
       </div>

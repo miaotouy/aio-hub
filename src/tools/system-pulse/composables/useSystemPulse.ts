@@ -21,9 +21,12 @@ export function useSystemPulse() {
   async function start() {
     if (isActive.value) return;
     try {
-      unlisten = await listen<SystemSnapshot>("system-pulse:snapshot", (event) => {
-        store.applySnapshot(event.payload);
-      });
+      unlisten = await listen<SystemSnapshot>(
+        "system-pulse:snapshot",
+        (event) => {
+          store.applySnapshot(event.payload);
+        }
+      );
       await invoke("start_pulse");
       isActive.value = true;
     } catch (e) {

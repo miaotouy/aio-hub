@@ -120,7 +120,10 @@ class MarkdownBoundaryDetector {
 
       if (fullTag.startsWith("</")) {
         // 闭合标签
-        if (thinkTagStack.length > 0 && thinkTagStack[thinkTagStack.length - 1] === tagName) {
+        if (
+          thinkTagStack.length > 0 &&
+          thinkTagStack[thinkTagStack.length - 1] === tagName
+        ) {
           thinkTagStack.pop();
         }
       } else {
@@ -250,7 +253,10 @@ export class StreamProcessor {
         const processingPromise = new Promise<void>((resolve) => {
           this.resolveProcessing = resolve;
         });
-        await Promise.race([processingPromise, new Promise((resolve) => setTimeout(resolve, 1000))]);
+        await Promise.race([
+          processingPromise,
+          new Promise((resolve) => setTimeout(resolve, 1000)),
+        ]);
       }
     }
 
@@ -296,7 +302,8 @@ export class StreamProcessor {
         const allPatches: Patch[] = [];
 
         // 1. 划分稳定区和待定区
-        const { stable: stableText, pending: pendingText } = this.boundaryDetector.splitByBlockBoundary(this.buffer);
+        const { stable: stableText, pending: pendingText } =
+          this.boundaryDetector.splitByBlockBoundary(this.buffer);
 
         // 2. 处理稳定区 (如果有新的稳定内容)
         if (stableText.length > this.stableTextLength) {
@@ -317,7 +324,10 @@ export class StreamProcessor {
         this.assignIds(newPendingAst);
         this.markNodesStatus(newPendingAst, "pending");
 
-        const pendingPatches = this.replacePendingRegion(this.pendingAst, newPendingAst);
+        const pendingPatches = this.replacePendingRegion(
+          this.pendingAst,
+          newPendingAst
+        );
         allPatches.push(...pendingPatches);
         this.pendingAst = newPendingAst;
 
@@ -345,7 +355,10 @@ export class StreamProcessor {
   /**
    * 生成替换待定区的 Patch 指令
    */
-  private replacePendingRegion(oldPending: AstNode[], newPending: AstNode[]): Patch[] {
+  private replacePendingRegion(
+    oldPending: AstNode[],
+    newPending: AstNode[]
+  ): Patch[] {
     const patches: Patch[] = [];
 
     if (oldPending.length === 0 && newPending.length === 0) {
@@ -394,7 +407,10 @@ export class StreamProcessor {
       if (newText.startsWith(oldText)) {
         // 这是最常见的打字机场景，需要进行更精细的 diff
         newPending[0].id = oldPending[0].id;
-        this.preserveExistingIds(newPending[0].children!, oldPending[0].children!);
+        this.preserveExistingIds(
+          newPending[0].children!,
+          oldPending[0].children!
+        );
         return this.diffSingleNode(oldPending[0], newPending[0]);
       }
     }
@@ -408,7 +424,10 @@ export class StreamProcessor {
     // 插入所有新的待定节点
     if (newPending.length > 0) {
       // 锚点是最后一个稳定节点
-      let anchorId = this.stableAst.length > 0 ? this.stableAst[this.stableAst.length - 1].id : undefined;
+      let anchorId =
+        this.stableAst.length > 0
+          ? this.stableAst[this.stableAst.length - 1].id
+          : undefined;
 
       if (anchorId) {
         // 在最后一个稳定节点后插入
@@ -442,7 +461,9 @@ export class StreamProcessor {
       return (node as HtmlInlineNode | HtmlBlockNode).props.content;
     }
     if (!node.children) return "";
-    return node.children.map((child) => this.getNodeTextContent(child)).join("");
+    return node.children
+      .map((child) => this.getNodeTextContent(child))
+      .join("");
   }
 
   private preserveExistingIds(newNodes: AstNode[], oldNodes: AstNode[]): void {
@@ -480,13 +501,19 @@ export class StreamProcessor {
     // 2. 处理新增节点
     if (newNodes.length > oldNodes.length) {
       let anchorId =
-        oldNodes.length > 0 ? oldNodes[oldNodes.length - 1].id : this.stableAst[this.stableAst.length - 1]?.id;
+        oldNodes.length > 0
+          ? oldNodes[oldNodes.length - 1].id
+          : this.stableAst[this.stableAst.length - 1]?.id;
       if (!anchorId) {
         // 如果没有锚点，说明是首次创建，应使用 replace-root
         return [{ op: "replace-root", newRoot: newNodes }];
       }
       for (let i = minLen; i < newNodes.length; i++) {
-        patches.push({ op: "insert-after", id: anchorId, newNode: newNodes[i] });
+        patches.push({
+          op: "insert-after",
+          id: anchorId,
+          newNode: newNodes[i],
+        });
         anchorId = newNodes[i].id;
       }
     }
@@ -507,7 +534,8 @@ export class StreamProcessor {
 
     // 检查类型、内容或状态是否发生变化
     const typeChanged = oldNode.type !== newNode.type;
-    const contentChanged = this.getNodeTextContent(oldNode) !== this.getNodeTextContent(newNode);
+    const contentChanged =
+      this.getNodeTextContent(oldNode) !== this.getNodeTextContent(newNode);
     const statusChanged = oldNode.meta.status !== newNode.meta.status;
 
     if (typeChanged || contentChanged || statusChanged) {
@@ -538,7 +566,10 @@ export class StreamProcessor {
     }
   }
 
-  private markNodesStatus(nodes: AstNode[], status: "stable" | "pending"): void {
+  private markNodesStatus(
+    nodes: AstNode[],
+    status: "stable" | "pending"
+  ): void {
     for (const node of nodes) {
       node.meta.status = status;
       if (node.children) {
@@ -581,7 +612,11 @@ export class StreamProcessor {
         }
         ast.push(node);
         if (token.type.endsWith("_open")) {
-          i = this.skipToClosingToken(tokens, i, token.type.replace("_open", ""));
+          i = this.skipToClosingToken(
+            tokens,
+            i,
+            token.type.replace("_open", "")
+          );
         }
       }
       i++;
@@ -601,7 +636,8 @@ export class StreamProcessor {
         let currentPos = i;
         while (
           currentPos < tokens.length &&
-          (tokens[currentPos].type === "text" || tokens[currentPos].type === "html_inline")
+          (tokens[currentPos].type === "text" ||
+            tokens[currentPos].type === "html_inline")
         ) {
           buffer += tokens[currentPos].content;
           currentPos++;
@@ -632,7 +668,11 @@ export class StreamProcessor {
       // 处理其他非文本/html的令牌
       switch (token.type) {
         case "strong_open": {
-          const { innerTokens, nextIndex } = this.extractInnerTokens(tokens, i, "strong_close");
+          const { innerTokens, nextIndex } = this.extractInnerTokens(
+            tokens,
+            i,
+            "strong_close"
+          );
           nodes.push({
             id: this.generateNodeId(),
             type: "strong",
@@ -644,7 +684,11 @@ export class StreamProcessor {
           break;
         }
         case "em_open": {
-          const { innerTokens, nextIndex } = this.extractInnerTokens(tokens, i, "em_close");
+          const { innerTokens, nextIndex } = this.extractInnerTokens(
+            tokens,
+            i,
+            "em_close"
+          );
           nodes.push({
             id: this.generateNodeId(),
             type: "em",
@@ -656,7 +700,11 @@ export class StreamProcessor {
           break;
         }
         case "s_open": {
-          const { innerTokens, nextIndex } = this.extractInnerTokens(tokens, i, "s_close");
+          const { innerTokens, nextIndex } = this.extractInnerTokens(
+            tokens,
+            i,
+            "s_close"
+          );
           nodes.push({
             id: this.generateNodeId(),
             type: "strikethrough",
@@ -687,7 +735,11 @@ export class StreamProcessor {
           break;
         }
         case "link_open": {
-          const { innerTokens, nextIndex } = this.extractInnerTokens(tokens, i, "link_close");
+          const { innerTokens, nextIndex } = this.extractInnerTokens(
+            tokens,
+            i,
+            "link_close"
+          );
           const href = token.attrGet("href") || "";
           const title = token.attrGet("title") || undefined;
           nodes.push({
@@ -709,7 +761,7 @@ export class StreamProcessor {
   private extractInnerTokens(
     tokens: any[],
     startIndex: number,
-    closingType: string,
+    closingType: string
   ): { innerTokens: any[]; nextIndex: number } {
     const innerTokens: any[] = [];
     let i = startIndex + 1;
@@ -720,26 +772,51 @@ export class StreamProcessor {
     return { innerTokens, nextIndex: i };
   }
 
-  private tokenToNode(token: any, tokens: any[], index: number): AstNode | null {
+  private tokenToNode(
+    token: any,
+    tokens: any[],
+    index: number
+  ): AstNode | null {
     const meta: NodeMeta = { range: { start: 0, end: 0 } };
     switch (token.type) {
       case "paragraph_open": {
         const contentToken = tokens[index + 1];
-        const children = contentToken?.children ? this.parseInlineTokens(contentToken.children) : [];
-        return { id: this.generateNodeId(), type: "paragraph", props: {}, children, meta } as ParagraphNode;
+        const children = contentToken?.children
+          ? this.parseInlineTokens(contentToken.children)
+          : [];
+        return {
+          id: this.generateNodeId(),
+          type: "paragraph",
+          props: {},
+          children,
+          meta,
+        } as ParagraphNode;
       }
       case "heading_open": {
         const level = parseInt(token.tag.substring(1));
         const contentToken = tokens[index + 1];
-        const children = contentToken?.children ? this.parseInlineTokens(contentToken.children) : [];
-        return { id: this.generateNodeId(), type: "heading", props: { level }, children, meta } as HeadingNode;
+        const children = contentToken?.children
+          ? this.parseInlineTokens(contentToken.children)
+          : [];
+        return {
+          id: this.generateNodeId(),
+          type: "heading",
+          props: { level },
+          children,
+          meta,
+        } as HeadingNode;
       }
       case "code_block":
       case "fence": {
         const language = token.info || undefined;
         // 如果语言标记为 mermaid，则生成 MermaidNode
         if (language === "mermaid") {
-          return { id: this.generateNodeId(), type: "mermaid", props: { content: token.content }, meta } as MermaidNode;
+          return {
+            id: this.generateNodeId(),
+            type: "mermaid",
+            props: { content: token.content },
+            meta,
+          } as MermaidNode;
         }
         return {
           id: this.generateNodeId(),
@@ -761,14 +838,35 @@ export class StreamProcessor {
         } as ListNode;
       }
       case "blockquote_open": {
-        const children = this.extractContainerContent(tokens, index, "blockquote_close");
-        return { id: this.generateNodeId(), type: "blockquote", props: {}, children, meta } as BlockquoteNode;
+        const children = this.extractContainerContent(
+          tokens,
+          index,
+          "blockquote_close"
+        );
+        return {
+          id: this.generateNodeId(),
+          type: "blockquote",
+          props: {},
+          children,
+          meta,
+        } as BlockquoteNode;
       }
       case "hr":
-        return { id: this.generateNodeId(), type: "hr", props: {}, meta } as HrNode;
+        return {
+          id: this.generateNodeId(),
+          type: "hr",
+          props: {},
+          meta,
+        } as HrNode;
       case "table_open": {
         const children = this.extractTableContent(tokens, index);
-        return { id: this.generateNodeId(), type: "table", props: {}, children, meta } as TableNode;
+        return {
+          id: this.generateNodeId(),
+          type: "table",
+          props: {},
+          children,
+          meta,
+        } as TableNode;
       }
       case "html_block": {
         // 检查是否是 LLM 思考块
@@ -821,7 +919,10 @@ export class StreamProcessor {
 
     // 提取内容（去除开始和结束标签）
     const closeTagRegex = new RegExp(`</${tagName}\\s*>`, "i");
-    let content = htmlContent.replace(openTagRegex, "").replace(closeTagRegex, "").trim();
+    let content = htmlContent
+      .replace(openTagRegex, "")
+      .replace(closeTagRegex, "")
+      .trim();
 
     // 检查标签是否闭合
     const isThinking = !closeTagRegex.test(htmlContent);
@@ -846,7 +947,11 @@ export class StreamProcessor {
     } as LlmThinkNode;
   }
 
-  private extractContainerContent(tokens: any[], startIndex: number, closingType: string): AstNode[] {
+  private extractContainerContent(
+    tokens: any[],
+    startIndex: number,
+    closingType: string
+  ): AstNode[] {
     const content: AstNode[] = [];
     let i = startIndex + 1;
     while (i < tokens.length && tokens[i].type !== closingType) {
@@ -854,7 +959,11 @@ export class StreamProcessor {
       if (node) {
         content.push(node);
         if (tokens[i].type.endsWith("_open")) {
-          i = this.skipToClosingToken(tokens, i, tokens[i].type.replace("_open", ""));
+          i = this.skipToClosingToken(
+            tokens,
+            i,
+            tokens[i].type.replace("_open", "")
+          );
         }
       }
       i++;
@@ -865,10 +974,17 @@ export class StreamProcessor {
   private extractListItems(tokens: any[], startIndex: number): AstNode[] {
     const items: AstNode[] = [];
     let i = startIndex + 1;
-    const closingType = tokens[startIndex].type === "bullet_list_open" ? "bullet_list_close" : "ordered_list_close";
+    const closingType =
+      tokens[startIndex].type === "bullet_list_open"
+        ? "bullet_list_close"
+        : "ordered_list_close";
     while (i < tokens.length && tokens[i].type !== closingType) {
       if (tokens[i].type === "list_item_open") {
-        const children = this.extractContainerContent(tokens, i, "list_item_close");
+        const children = this.extractContainerContent(
+          tokens,
+          i,
+          "list_item_close"
+        );
         items.push({
           id: this.generateNodeId(),
           type: "list_item",
@@ -894,7 +1010,9 @@ export class StreamProcessor {
         while (j < tokens.length && tokens[j].type !== "tr_close") {
           if (tokens[j].type === "th_open" || tokens[j].type === "td_open") {
             const contentToken = tokens[j + 1];
-            const children = contentToken?.children ? this.parseInlineTokens(contentToken.children) : [];
+            const children = contentToken?.children
+              ? this.parseInlineTokens(contentToken.children)
+              : [];
             cells.push({
               id: this.generateNodeId(),
               type: "table_cell",
@@ -919,7 +1037,11 @@ export class StreamProcessor {
     return rows;
   }
 
-  private skipToClosingToken(tokens: any[], startIndex: number, baseType: string): number {
+  private skipToClosingToken(
+    tokens: any[],
+    startIndex: number,
+    baseType: string
+  ): number {
     let depth = 1;
     let i = startIndex + 1;
     const openType = `${baseType}_open`;

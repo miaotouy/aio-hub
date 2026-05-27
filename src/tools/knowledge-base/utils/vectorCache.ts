@@ -55,7 +55,11 @@ export class VectorCacheManager {
   /**
    * 获取查询向量（带缓存管理）
    */
-  async getVector(query: string, profile: any, modelId: string): Promise<number[]> {
+  async getVector(
+    query: string,
+    profile: any,
+    modelId: string
+  ): Promise<number[]> {
     await this.ensureInitialized();
 
     const rawKey = `${modelId}:${query}`;
@@ -72,10 +76,13 @@ export class VectorCacheManager {
 
     // 2. 尝试二级缓存 (Rust 后端，跨窗口共享)
     try {
-      const remoteVector = await invoke<number[] | null>("kb_get_embedding_cache", {
-        modelId,
-        text: query,
-      });
+      const remoteVector = await invoke<number[] | null>(
+        "kb_get_embedding_cache",
+        {
+          modelId,
+          text: query,
+        }
+      );
 
       if (remoteVector) {
         logger.debug("命中向量后端缓存", {
@@ -94,7 +101,10 @@ export class VectorCacheManager {
       throw new Error(`模型提供商 ${profile.type} 不支持 Embedding`);
     }
 
-    logger.info("生成查询向量", { modelId, query: query.substring(0, 20) + "..." });
+    logger.info("生成查询向量", {
+      modelId,
+      query: query.substring(0, 20) + "...",
+    });
     const startTime = Date.now();
     const response = await adapter.embedding(profile, {
       modelId: modelId,

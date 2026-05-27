@@ -13,7 +13,10 @@ import type {
   KbMonitorMessage,
   KbMessageType,
 } from "../types";
-import { DEFAULT_WORKSPACE_CONFIG, getKnowledgeSettingsConfig } from "../config";
+import {
+  DEFAULT_WORKSPACE_CONFIG,
+  getKnowledgeSettingsConfig,
+} from "../config";
 import { kbStorage, type WorkspaceData } from "../utils/kbStorage";
 import { getPureModelId, getProfileId } from "@/utils/modelIdUtils";
 import { vectorCacheManager } from "../utils/vectorCache";
@@ -243,7 +246,10 @@ export const useKnowledgeBaseStore = defineStore("knowledgeBase", {
           () => this.config.defaultEmbeddingModel,
           (newModel, oldModel) => {
             if (newModel && newModel !== oldModel) {
-              logger.info("检测到默认模型变化，触发状态校验", { newModel, oldModel });
+              logger.info("检测到默认模型变化，触发状态校验", {
+                newModel,
+                oldModel,
+              });
               this.validateVectorStatus();
             }
           }
@@ -281,11 +287,15 @@ export const useKnowledgeBaseStore = defineStore("knowledgeBase", {
 
       await kbStorage.saveBaseMeta(this.activeBaseId, this.activeBaseMeta);
 
-      const idx = this.workspace.bases.findIndex((b) => b.id === this.activeBaseId);
+      const idx = this.workspace.bases.findIndex(
+        (b) => b.id === this.activeBaseId
+      );
       if (idx !== -1) {
-        this.workspace.bases[idx].entryCount = this.activeBaseMeta.entries.length;
+        this.workspace.bases[idx].entryCount =
+          this.activeBaseMeta.entries.length;
         this.workspace.bases[idx].updatedAt = now;
-        this.workspace.bases[idx].totalTokens = this.activeBaseMeta.vectorization.totalTokens;
+        this.workspace.bases[idx].totalTokens =
+          this.activeBaseMeta.vectorization.totalTokens;
         await kbStorage.saveWorkspace(this.workspace);
       }
     },
@@ -300,7 +310,11 @@ export const useKnowledgeBaseStore = defineStore("knowledgeBase", {
       if (!this.activeBaseId) return null;
 
       const modelId = getPureModelId(this.config.defaultEmbeddingModel);
-      const entry = await kbStorage.loadEntry(this.activeBaseId, entryId, modelId);
+      const entry = await kbStorage.loadEntry(
+        this.activeBaseId,
+        entryId,
+        modelId
+      );
       if (entry) {
         this.entriesCache.set(entryId, entry);
       }
@@ -329,7 +343,9 @@ export const useKnowledgeBaseStore = defineStore("knowledgeBase", {
 
         const profileId = getProfileId(comboId);
         const { profiles } = useLlmProfiles();
-        const profile = profiles.value.find((p: LlmProfile) => p.id === profileId);
+        const profile = profiles.value.find(
+          (p: LlmProfile) => p.id === profileId
+        );
         if (!profile) {
           customMessage.error("未找到对应的模型配置 Profile");
           return [];
@@ -339,7 +355,11 @@ export const useKnowledgeBaseStore = defineStore("knowledgeBase", {
           const startTime = Date.now();
           const modelId = getPureModelId(comboId);
           // 使用预处理后的查询生成或获取缓存的查询向量
-          const vector = await vectorCacheManager.getVector(cleanedQuery, profile, modelId);
+          const vector = await vectorCacheManager.getVector(
+            cleanedQuery,
+            profile,
+            modelId
+          );
 
           // 调用编排器执行搜索流程
           const results = await searchOrchestrator.search({
@@ -353,7 +373,10 @@ export const useKnowledgeBaseStore = defineStore("knowledgeBase", {
             extraFilters: {
               texture: this.searchSettings.texture,
               refractionIndex: this.searchSettings.refractionIndex,
-              requiredTags: [...this.searchSettings.requiredTags, ...matchedTags],
+              requiredTags: [
+                ...this.searchSettings.requiredTags,
+                ...matchedTags,
+              ],
               enabledOnly: true,
             },
             skipPrep: false, // 自动处理环境准备
@@ -429,10 +452,13 @@ export const useKnowledgeBaseStore = defineStore("knowledgeBase", {
 
       try {
         // 直接从后端加载带模型匹配的元数据
-        const meta = await invoke<KnowledgeBaseMeta | null>("kb_load_base_meta", {
-          kbId: this.activeBaseId,
-          modelId: modelId,
-        });
+        const meta = await invoke<KnowledgeBaseMeta | null>(
+          "kb_load_base_meta",
+          {
+            kbId: this.activeBaseId,
+            modelId: modelId,
+          }
+        );
 
         if (meta) {
           this.activeBaseMeta = meta;
@@ -460,7 +486,11 @@ export const useKnowledgeBaseStore = defineStore("knowledgeBase", {
 
       logger.info(`[STATS] 开始批量加载所有库的向量数据: model=${modelId}`);
       // 并行加载，提高效率
-      await Promise.allSettled(this.bases.map((base) => invoke("kb_load_model_vectors", { kbId: base.id, modelId })));
+      await Promise.allSettled(
+        this.bases.map((base) =>
+          invoke("kb_load_model_vectors", { kbId: base.id, modelId })
+        )
+      );
     },
 
     /**
@@ -469,7 +499,9 @@ export const useKnowledgeBaseStore = defineStore("knowledgeBase", {
      */
     async updateGlobalStats(force = false, targetModelId?: string) {
       // 统一提取 pureId
-      const modelId = getPureModelId(targetModelId || this.config.defaultEmbeddingModel);
+      const modelId = getPureModelId(
+        targetModelId || this.config.defaultEmbeddingModel
+      );
       if (!modelId) return;
 
       // 如果是强制刷新，先触发一次全量向量加载，确保后端内存数据是最新的
@@ -478,7 +510,11 @@ export const useKnowledgeBaseStore = defineStore("knowledgeBase", {
       }
 
       // 1秒缓存逻辑
-      if (!force && this.globalStats.lastModelId === modelId && Date.now() - this.globalStats.lastUpdated < 1000) {
+      if (
+        !force &&
+        this.globalStats.lastModelId === modelId &&
+        Date.now() - this.globalStats.lastUpdated < 1000
+      ) {
         return;
       }
 
@@ -497,7 +533,8 @@ export const useKnowledgeBaseStore = defineStore("knowledgeBase", {
           this.globalStats.allDiscoveredTags = stats.allDiscoveredTags ?? [];
           this.globalStats.tagUsageStats = stats.tagUsageStats ?? {};
           this.globalStats.basesStats = stats.basesStats ?? {};
-          this.globalStats.totalTags = this.globalStats.allDiscoveredTags.length;
+          this.globalStats.totalTags =
+            this.globalStats.allDiscoveredTags.length;
         }
 
         if (poolStats.status === "fulfilled") {
@@ -512,10 +549,13 @@ export const useKnowledgeBaseStore = defineStore("knowledgeBase", {
         // 如果是强制刷新且有激活库，顺便刷新一下当前库的条目向量状态集合
         // 这样可以确保统计信息和列表状态图标同步
         if (force && this.activeBaseId) {
-          const meta = await invoke<KnowledgeBaseMeta | null>("kb_load_base_meta", {
-            kbId: this.activeBaseId,
-            modelId: modelId,
-          });
+          const meta = await invoke<KnowledgeBaseMeta | null>(
+            "kb_load_base_meta",
+            {
+              kbId: this.activeBaseId,
+              modelId: modelId,
+            }
+          );
           if (meta) {
             this.activeBaseMeta = meta;
             const newVectorizedIds = new Set<string>();

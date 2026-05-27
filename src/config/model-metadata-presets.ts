@@ -168,7 +168,8 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
   {
     id: "capability-video-generation",
     matchType: "modelPrefix",
-    matchValue: "video-gen|txt2vid|sora|kling|video|happyhorse|seedance|vidu|skyreels|veo",
+    matchValue:
+      "video-gen|txt2vid|sora|kling|video|happyhorse|seedance|vidu|skyreels|veo",
     useRegex: true,
     properties: {
       capabilities: {
@@ -881,7 +882,8 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     },
     priority: 25, // 更高优先级，优先匹配 gpt-4o
     enabled: true,
-    description: "GPT-4o 系列模型（使用 o200k_base 编码，支持视觉、工具调用和文档处理）",
+    description:
+      "GPT-4o 系列模型（使用 o200k_base 编码，支持视觉、工具调用和文档处理）",
   },
   {
     id: "model-prefix-gpt-5.4",
@@ -912,7 +914,8 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     },
     priority: 26, // 优先级高于 gpt-5
     enabled: true,
-    description: "GPT-5.4 系列模型（最先进的智能模型，支持视觉、工具调用和文档处理）",
+    description:
+      "GPT-5.4 系列模型（最先进的智能模型，支持视觉、工具调用和文档处理）",
   },
   {
     id: "model-prefix-gpt-5",
@@ -943,7 +946,8 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     },
     priority: 25,
     enabled: true,
-    description: "GPT-5 系列模型（包括 mini/nano 等变体，支持视觉、工具调用和文档处理）",
+    description:
+      "GPT-5 系列模型（包括 mini/nano 等变体，支持视觉、工具调用和文档处理）",
   },
   {
     id: "model-prefix-gpt-image",
@@ -1032,7 +1036,8 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     },
     priority: 25, // 更高优先级以优先匹配 gpt-4.1
     enabled: true,
-    description: "GPT-4.1 系列模型（最智能的非推理模型，支持视觉、工具调用和文档处理）",
+    description:
+      "GPT-4.1 系列模型（最智能的非推理模型，支持视觉、工具调用和文档处理）",
   },
   {
     id: "model-prefix-gpt-4.1",
@@ -1063,7 +1068,8 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     },
     priority: 25, // 更高优先级以优先匹配 gpt-4.1
     enabled: true,
-    description: "GPT-4.1 系列模型（最智能的非推理模型，支持视觉、工具调用和文档处理）",
+    description:
+      "GPT-4.1 系列模型（最智能的非推理模型，支持视觉、工具调用和文档处理）",
   },
   {
     id: "model-prefix-gpt-4",
@@ -1128,7 +1134,8 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     },
     priority: 25,
     enabled: true,
-    description: "o1 系列推理模型（使用 o200k_base 编码，支持推理、视觉和文档处理）",
+    description:
+      "o1 系列推理模型（使用 o200k_base 编码，支持推理、视觉和文档处理）",
   },
   {
     id: "model-prefix-o4-mini",
@@ -1244,7 +1251,8 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     },
     priority: 25,
     enabled: true,
-    description: "Claude 4 系列模型（Sonnet 4 / Opus 4，原生支持视觉与深度思考）",
+    description:
+      "Claude 4 系列模型（Sonnet 4 / Opus 4，原生支持视觉与深度思考）",
   },
   {
     id: "model-prefix-claude-3-7",
@@ -1362,7 +1370,8 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     },
     priority: 24,
     enabled: true,
-    description: "Gemini 3.5 系列模型分组（3.5 Flash 已 GA，强 agentic & coding 能力，1M 上下文）",
+    description:
+      "Gemini 3.5 系列模型分组（3.5 Flash 已 GA，强 agentic & coding 能力，1M 上下文）",
   },
   // Gemini 3.1 系列（独立分组，优先级高于 gemini-3）
   {
@@ -1380,7 +1389,8 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     },
     priority: 23,
     enabled: true,
-    description: "Gemini 3.1 系列模型分组（3.1 Pro / 3.1 Flash / 3.1 Flash-Lite / 3.1 Flash Live / 3.1 Flash TTS）",
+    description:
+      "Gemini 3.1 系列模型分组（3.1 Pro / 3.1 Flash / 3.1 Flash-Lite / 3.1 Flash Live / 3.1 Flash TTS）",
   },
   {
     id: "model-prefix-gemini-2.5",
@@ -1417,7 +1427,8 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     },
     priority: 22,
     enabled: true,
-    description: "Gemini 2.0 系列模型分组（已废弃，Gemini 2.0 Flash / Flash-Lite 即将关闭，请迁移至 2.5 系列）",
+    description:
+      "Gemini 2.0 系列模型分组（已废弃，Gemini 2.0 Flash / Flash-Lite 即将关闭，请迁移至 2.5 系列）",
   },
   {
     id: "model-prefix-gemini-1.5",
@@ -1520,7 +1531,8 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     },
     priority: 25,
     enabled: true,
-    description: "Gemini Live 实时对话模型（覆盖 2.5 Flash Live / 3.1 Flash Live，支持思考与联网搜索）",
+    description:
+      "Gemini Live 实时对话模型（覆盖 2.5 Flash Live / 3.1 Flash Live，支持思考与联网搜索）",
   },
   // Gemini TTS 语音生成模型（覆盖 2.5 和 3.x 的 TTS 变体）
   {
@@ -1535,7 +1547,8 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     },
     priority: 26,
     enabled: true,
-    description: "Gemini TTS 语音生成模型（覆盖 2.5 Flash TTS / 2.5 Pro TTS / 3.1 Flash TTS）",
+    description:
+      "Gemini TTS 语音生成模型（覆盖 2.5 Flash TTS / 2.5 Pro TTS / 3.1 Flash TTS）",
   },
 
   {
@@ -1566,7 +1579,8 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     },
     priority: 20,
     enabled: true,
-    description: "Gemini 系列模型（基础配置：支持视觉、工具调用、文档处理和前缀续写）",
+    description:
+      "Gemini 系列模型（基础配置：支持视觉、工具调用、文档处理和前缀续写）",
   },
   {
     id: "model-prefix-gemma3",
@@ -1916,7 +1930,10 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       icon: `/model-icons/yi-color.svg`,
       group: "Yi",
       tokenizer: "llama3_2", // Yi 系列基于 Llama 架构
-      defaultPostProcessingRules: ["convert-system-to-user", "merge-consecutive-roles"],
+      defaultPostProcessingRules: [
+        "convert-system-to-user",
+        "merge-consecutive-roles",
+      ],
     },
     priority: 20,
     enabled: true,
@@ -1932,7 +1949,10 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       icon: `/model-icons/baichuan-color.svg`,
       group: "Baichuan",
       tokenizer: "llama3_2", // 百川系列基于 Llama 架构
-      defaultPostProcessingRules: ["convert-system-to-user", "merge-consecutive-roles"],
+      defaultPostProcessingRules: [
+        "convert-system-to-user",
+        "merge-consecutive-roles",
+      ],
     },
     priority: 20,
     enabled: true,
@@ -1948,7 +1968,10 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       icon: `/model-icons/internlm-color.svg`,
       group: "InternLM",
       tokenizer: "llama3_2", // InternLM 系列基于 Llama 架构
-      defaultPostProcessingRules: ["convert-system-to-user", "merge-consecutive-roles"],
+      defaultPostProcessingRules: [
+        "convert-system-to-user",
+        "merge-consecutive-roles",
+      ],
     },
     priority: 20,
     enabled: true,
@@ -1964,7 +1987,10 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       icon: `/model-icons/minicpm-color.svg`,
       group: "MiniCPM",
       tokenizer: "llama3_2", // MiniCPM 使用 llama3_2 分词器
-      defaultPostProcessingRules: ["convert-system-to-user", "merge-consecutive-roles"],
+      defaultPostProcessingRules: [
+        "convert-system-to-user",
+        "merge-consecutive-roles",
+      ],
     },
     priority: 20,
     enabled: true,
@@ -2054,7 +2080,10 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       icon: `/model-icons/meta-color.svg`,
       group: "Meta",
       tokenizer: "llama3_2", // Llama 3.2 使用专用分词器
-      defaultPostProcessingRules: ["convert-system-to-user", "merge-consecutive-roles"],
+      defaultPostProcessingRules: [
+        "convert-system-to-user",
+        "merge-consecutive-roles",
+      ],
     },
     priority: 25, // 更高优先级以优先匹配 Llama 3.2
     enabled: true,
@@ -2069,7 +2098,10 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       icon: `/model-icons/meta-color.svg`,
       group: "Meta",
       tokenizer: "llama3_2", // Llama 系列使用 llama3_2 分词器
-      defaultPostProcessingRules: ["convert-system-to-user", "merge-consecutive-roles"],
+      defaultPostProcessingRules: [
+        "convert-system-to-user",
+        "merge-consecutive-roles",
+      ],
     },
     priority: 20,
     enabled: true,
@@ -2085,7 +2117,10 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       icon: `/model-icons/mistral-color.svg`,
       group: "Mistral",
       tokenizer: "llama3_2", // Mistral 系列基于 Llama 架构
-      defaultPostProcessingRules: ["convert-system-to-user", "merge-consecutive-roles"],
+      defaultPostProcessingRules: [
+        "convert-system-to-user",
+        "merge-consecutive-roles",
+      ],
     },
     priority: 20,
     enabled: true,
@@ -2099,7 +2134,10 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       icon: `/model-icons/mistral-color.svg`,
       group: "Mistral",
       tokenizer: "llama3_2", // Mixtral 系列基于 Llama 架构
-      defaultPostProcessingRules: ["convert-system-to-user", "merge-consecutive-roles"],
+      defaultPostProcessingRules: [
+        "convert-system-to-user",
+        "merge-consecutive-roles",
+      ],
     },
     priority: 20,
     enabled: true,
@@ -2115,7 +2153,10 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       icon: `/model-icons/cohere-color.svg`,
       group: "Cohere",
       tokenizer: "gpt4", // Command 系列使用类似 GPT-4 的分词器
-      defaultPostProcessingRules: ["convert-system-to-user", "merge-consecutive-roles"],
+      defaultPostProcessingRules: [
+        "convert-system-to-user",
+        "merge-consecutive-roles",
+      ],
     },
     priority: 20,
     enabled: true,
@@ -2144,7 +2185,10 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       icon: `/model-icons/aionlabs-color.svg`,
       group: "AI21",
       tokenizer: "llama3_2", // Jamba 系列基于混合架构，使用 llama3_2 分词器
-      defaultPostProcessingRules: ["convert-system-to-user", "merge-consecutive-roles"],
+      defaultPostProcessingRules: [
+        "convert-system-to-user",
+        "merge-consecutive-roles",
+      ],
     },
     priority: 20,
     enabled: true,
@@ -2309,7 +2353,8 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     },
     priority: 25,
     enabled: true,
-    description: "万象（Wan）视频生成系列（图生视频 / 参考视频 / 文生视频 / 视频编辑）",
+    description:
+      "万象（Wan）视频生成系列（图生视频 / 参考视频 / 文生视频 / 视频编辑）",
   },
 
   // 万象图片生成系列（T2I / Image）
@@ -2859,7 +2904,8 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     },
     priority: 35,
     enabled: true,
-    description: "Qwen Image Edit 官方图片编辑系列（qwen-image-edit-max / qwen-image-edit-plus，支持迭代修改）",
+    description:
+      "Qwen Image Edit 官方图片编辑系列（qwen-image-edit-max / qwen-image-edit-plus，支持迭代修改）",
   },
 
   // 通义千问 Qwen Image 官方图片生成系列
@@ -2876,7 +2922,8 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     },
     priority: 30,
     enabled: true,
-    description: "Qwen Image 官方图片生成系列（qwen-image-2.0 / qwen-image-max / qwen-image-plus）",
+    description:
+      "Qwen Image 官方图片生成系列（qwen-image-2.0 / qwen-image-max / qwen-image-plus）",
   },
 
   // Z AI 图像生成系列（Z-Image-Turbo 等）
@@ -3096,7 +3143,8 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     },
     priority: 16, // 高于 gpt-image-1，确保 gpt-image-2 优先匹配
     enabled: true,
-    description: "GPT Image 2 生成参数规则（background 仅支持 opaque/auto，不含 transparent）",
+    description:
+      "GPT Image 2 生成参数规则（background 仅支持 opaque/auto，不含 transparent）",
   },
 
   // FLUX 系列（SiliconFlow 等 OpenAI 兼容代理）
@@ -3120,7 +3168,13 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         negativePrompt: { supported: true },
         seed: { supported: true, min: -1 },
         steps: { supported: true, min: 1, max: 50, default: 20 },
-        guidanceScale: { supported: true, min: 1, max: 20, step: 0.5, default: 7.5 },
+        guidanceScale: {
+          supported: true,
+          min: 1,
+          max: 20,
+          step: 0.5,
+          default: 7.5,
+        },
         quality: { supported: false },
         style: { supported: false },
         background: { supported: false },
@@ -3156,7 +3210,13 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         negativePrompt: { supported: true },
         seed: { supported: true, min: -1 },
         steps: { supported: true, min: 1, max: 100, default: 25 },
-        guidanceScale: { supported: true, min: 1, max: 20, step: 0.5, default: 5 },
+        guidanceScale: {
+          supported: true,
+          min: 1,
+          max: 20,
+          step: 0.5,
+          default: 5,
+        },
         quality: { supported: false },
         style: { supported: false },
         background: { supported: false },
@@ -3190,7 +3250,13 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         negativePrompt: { supported: true },
         seed: { supported: true, min: -1 },
         steps: { supported: true, min: 1, max: 50, default: 28 },
-        guidanceScale: { supported: true, min: 1, max: 20, step: 0.5, default: 7 },
+        guidanceScale: {
+          supported: true,
+          min: 1,
+          max: 20,
+          step: 0.5,
+          default: 7,
+        },
         quality: { supported: false },
         style: { supported: false },
         background: { supported: false },
@@ -3281,7 +3347,8 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     },
     priority: 15,
     enabled: true,
-    description: "xAI grok-imagine-image 生成参数规则（使用 aspect_ratio + resolution）",
+    description:
+      "xAI grok-imagine-image 生成参数规则（使用 aspect_ratio + resolution）",
   },
 
   // Gemini 图像模型（规则先上，适配器延期）
@@ -3317,7 +3384,8 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     },
     priority: 15,
     enabled: true,
-    description: "Gemini 2.5 Flash Image 参数规则（@future: 需要 Gemini Image Adapter）",
+    description:
+      "Gemini 2.5 Flash Image 参数规则（@future: 需要 Gemini Image Adapter）",
   },
 
   {
@@ -3357,7 +3425,8 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     },
     priority: 15,
     enabled: true,
-    description: "Gemini 3 Pro Image 参数规则（@future: 需要 Gemini Image Adapter）",
+    description:
+      "Gemini 3 Pro Image 参数规则（@future: 需要 Gemini Image Adapter）",
   },
 
   // === 图片输入尺寸限制预设 ===
@@ -3458,6 +3527,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     },
     priority: 15,
     enabled: true,
-    description: "Gemini 3.1 Flash Image 参数规则（@future: 需要 Gemini Image Adapter）",
+    description:
+      "Gemini 3.1 Flash Image 参数规则（@future: 需要 Gemini Image Adapter）",
   },
 ];

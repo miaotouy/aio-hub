@@ -152,7 +152,7 @@ const statistics = computed<RepoStatistics>(() => {
   const minDate = new Date(Math.min(...dates));
   const maxDate = new Date(Math.max(...dates));
   const days = Math.ceil(
-    (maxDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24),
+    (maxDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24)
   );
 
   return {
@@ -202,7 +202,7 @@ function updateLoadConfig(nextConfig: GitLoadConfig) {
   includeFiles.value = loadConfig.value.includeFilePaths;
   localStorage.setItem(
     LOAD_CONFIG_STORAGE_KEY,
-    JSON.stringify(loadConfig.value),
+    JSON.stringify(loadConfig.value)
   );
 }
 

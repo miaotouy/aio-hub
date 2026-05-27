@@ -1,7 +1,15 @@
 import git from "isomorphic-git";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import { readFile, writeFile, mkdir, remove, stat, readDir, exists } from "@tauri-apps/plugin-fs";
+import {
+  readFile,
+  writeFile,
+  mkdir,
+  remove,
+  stat,
+  readDir,
+  exists,
+} from "@tauri-apps/plugin-fs";
 
 const logger = createModuleLogger("Canvas/GitService");
 const errorHandler = createModuleErrorHandler("Canvas/GitService");
@@ -21,7 +29,11 @@ export class GitInternalService {
         return await fn();
       } catch (err: any) {
         const errorMsg = String(err);
-        if (errorMsg.includes("os error 2") || errorMsg.includes("os error 3") || errorMsg.includes("系统找不到指定的路径")) {
+        if (
+          errorMsg.includes("os error 2") ||
+          errorMsg.includes("os error 3") ||
+          errorMsg.includes("系统找不到指定的路径")
+        ) {
           const error = new Error(errorMsg);
           (error as any).code = "ENOENT";
           throw error;
@@ -41,7 +53,8 @@ export class GitInternalService {
           return data;
         },
         writeFile: async (path: string, data: Uint8Array | string) => {
-          const uint8 = typeof data === "string" ? new TextEncoder().encode(data) : data;
+          const uint8 =
+            typeof data === "string" ? new TextEncoder().encode(data) : data;
           return await writeFile(path, uint8);
         },
         mkdir: async (path: string) => {
@@ -125,7 +138,7 @@ export class GitInternalService {
         logger.info("正在初始化 Git 仓库", { path: this.basePath });
         await git.init({ fs: this.fs, dir: this.basePath });
       },
-      { userMessage: "初始化版本控制失败" },
+      { userMessage: "初始化版本控制失败" }
     );
   }
 
@@ -140,14 +153,17 @@ export class GitInternalService {
           await git.add({ fs: this.fs, dir: this.basePath, filepath: file });
         }
       },
-      { userMessage: "添加文件到版本控制失败" },
+      { userMessage: "添加文件到版本控制失败" }
     );
   }
 
   /**
    * 提交更改
    */
-  async commit(message: string, author = { name: "AIO Hub Canvas", email: "canvas@aiohub.internal" }) {
+  async commit(
+    message: string,
+    author = { name: "AIO Hub Canvas", email: "canvas@aiohub.internal" }
+  ) {
     return await errorHandler.wrapAsync(
       async () => {
         logger.info("正在提交更改", { message });
@@ -158,7 +174,7 @@ export class GitInternalService {
           author,
         });
       },
-      { userMessage: "提交更改失败" },
+      { userMessage: "提交更改失败" }
     );
   }
 
@@ -174,7 +190,7 @@ export class GitInternalService {
           depth,
         });
       },
-      { userMessage: "获取版本历史失败" },
+      { userMessage: "获取版本历史失败" }
     );
   }
 
@@ -193,7 +209,7 @@ export class GitInternalService {
           force: true,
         });
       },
-      { userMessage: "回退文件失败" },
+      { userMessage: "回退文件失败" }
     );
   }
 
@@ -201,16 +217,19 @@ export class GitInternalService {
    * 获取工作区的文件状态矩阵
    * @returns 状态矩阵数组 [filepath, HEAD, WORKDIR, STAGE]
    */
-  async statusMatrix(): Promise<Array<[string, number, number, number]> | null> {
+  async statusMatrix(): Promise<Array<
+    [string, number, number, number]
+  > | null> {
     return await errorHandler.wrapAsync(
       async () => {
         return await git.statusMatrix({
           fs: this.fs,
           dir: this.basePath,
-          filter: (f: string) => !f.startsWith(".canvas") && !f.startsWith(".git"),
+          filter: (f: string) =>
+            !f.startsWith(".canvas") && !f.startsWith(".git"),
         });
       },
-      { userMessage: "获取工作区状态失败" },
+      { userMessage: "获取工作区状态失败" }
     );
   }
 }

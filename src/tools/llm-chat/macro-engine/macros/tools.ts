@@ -11,7 +11,8 @@ export function registerToolMacros(registry: MacroRegistry): void {
       name: "tools",
       type: MacroType.VALUE,
       phase: MacroPhase.SUBSTITUTE,
-      description: "注入当前 Agent 可用工具定义。支持通过参数指定工具 ID 列表（无视启用开关）",
+      description:
+        "注入当前 Agent 可用工具定义。支持通过参数指定工具 ID 列表（无视启用开关）",
       example: "{{tools::toolId1::toolId2}}",
       acceptsArgs: true,
       priority: 95,
@@ -19,9 +20,15 @@ export function registerToolMacros(registry: MacroRegistry): void {
       contextFree: false,
       execute: async (context, args) => {
         const config = context.agent?.toolCallConfig;
-        const includeToolIds = args && args.length > 0 ? args.map((a) => a.trim()).filter(Boolean) : undefined;
+        const includeToolIds =
+          args && args.length > 0
+            ? args.map((a) => a.trim()).filter(Boolean)
+            : undefined;
 
-        if (!config?.enabled && (!includeToolIds || includeToolIds.length === 0)) {
+        if (
+          !config?.enabled &&
+          (!includeToolIds || includeToolIds.length === 0)
+        ) {
           return "";
         }
 
@@ -52,7 +59,8 @@ export function registerToolMacros(registry: MacroRegistry): void {
       name: "tool_context",
       type: MacroType.VALUE,
       phase: MacroPhase.SUBSTITUTE,
-      description: "注入当前已启用工具的实时运行时上下文。支持通过参数指定工具 ID 列表",
+      description:
+        "注入当前已启用工具的实时运行时上下文。支持通过参数指定工具 ID 列表",
       example: "{{tool_context::toolId1}}",
       acceptsArgs: true,
       priority: 90,
@@ -61,9 +69,13 @@ export function registerToolMacros(registry: MacroRegistry): void {
       execute: async (context, args) => {
         const toolConfig = context.agent?.toolCallConfig;
         const extensionConfig = context.agent?.extensionConfig;
-        const includeToolIds = args && args.length > 0 ? args.map((a) => a.trim()).filter(Boolean) : undefined;
+        const includeToolIds =
+          args && args.length > 0
+            ? args.map((a) => a.trim()).filter(Boolean)
+            : undefined;
 
-        const toolsEnabled = toolConfig?.enabled || (includeToolIds && includeToolIds.length > 0);
+        const toolsEnabled =
+          toolConfig?.enabled || (includeToolIds && includeToolIds.length > 0);
         const extensionsEnabled = extensionConfig?.enabled;
 
         if (!toolsEnabled && !extensionsEnabled) {

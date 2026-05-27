@@ -56,7 +56,8 @@ const isCanvasWindow = () => {
 };
 
 // 为所有需要透明背景的窗口添加类名
-const needsTransparentBackground = isDetachedComponentLoader() || isCanvasWindow();
+const needsTransparentBackground =
+  isDetachedComponentLoader() || isCanvasWindow();
 if (needsTransparentBackground) {
   document.documentElement.classList.add("transparent-window");
   document.body.classList.add("transparent-window");
@@ -135,7 +136,11 @@ window.addEventListener("unhandledrejection", (event) => {
 // 全局错误捕获
 window.addEventListener("error", (event) => {
   // 过滤良性的 ResizeObserver 警告
-  if (event.message?.includes("ResizeObserver loop completed with undelivered notifications")) {
+  if (
+    event.message?.includes(
+      "ResizeObserver loop completed with undelivered notifications"
+    )
+  ) {
     event.preventDefault();
     return;
   }
@@ -171,7 +176,11 @@ const mountApp = async () => {
     logger.info("应用挂载完成");
 
     // 4. 主窗口挂载后显示（避免窗口位置或白屏闪烁，窗口在 Rust 端以 visible(false) 创建）
-    if (!isDetachedWindow() && !isDetachedComponentLoader() && !isCanvasWindow()) {
+    if (
+      !isDetachedWindow() &&
+      !isDetachedComponentLoader() &&
+      !isCanvasWindow()
+    ) {
       const { getCurrentWindow } = await import("@tauri-apps/api/window");
       await getCurrentWindow().show();
       logger.info("主窗口已显示");

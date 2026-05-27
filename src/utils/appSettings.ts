@@ -118,7 +118,11 @@ export interface AppearanceSettings {
   // --- 主题色提取 ---
   autoExtractThemeColorFromWallpaper?: boolean; // 是否自动从壁纸提取主题色
   wallpaperExtractedThemeColor?: string; // 从壁纸提取的主题色
-  themeColorExtractionStrategy?: "vibrant" | "light-vibrant" | "dark-vibrant" | "muted"; // 提取策略
+  themeColorExtractionStrategy?:
+    | "vibrant"
+    | "light-vibrant"
+    | "dark-vibrant"
+    | "muted"; // 提取策略
 }
 
 export interface AppSettings {

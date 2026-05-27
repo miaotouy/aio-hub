@@ -28,7 +28,10 @@
           </el-tab-pane>
 
           <el-tab-pane label="内容分析" name="analysis">
-            <AnalysisChartView :context-data="contextData" :is-active="activeTab === 'analysis'" />
+            <AnalysisChartView
+              :context-data="contextData"
+              :is-active="activeTab === 'analysis'"
+            />
           </el-tab-pane>
 
           <el-tab-pane label="宏调试" name="macro">
@@ -57,14 +60,19 @@ import RawRequestView from "./RawRequestView.vue";
 import AnalysisChartView from "./AnalysisChartView.vue";
 import MacroDebugView from "./MacroDebugView.vue";
 import VariablesView from "./VariablesView.vue";
-import { useChatHandler, type ContextPreviewData } from "../../composables/chat/useChatHandler";
+import {
+  useChatHandler,
+  type ContextPreviewData,
+} from "../../composables/chat/useChatHandler";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import type { ChatSessionIndex, ChatSessionDetail } from "../../types/session";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 
 const logger = createModuleLogger("llm-chat/context-analyzer-dialog");
-const errorHandler = createModuleErrorHandler("llm-chat/context-analyzer-dialog");
+const errorHandler = createModuleErrorHandler(
+  "llm-chat/context-analyzer-dialog"
+);
 
 const props = defineProps<{
   visible: boolean;
@@ -82,19 +90,30 @@ const localVisible = computed({
   set: (value) => emit("update:visible", value),
 });
 
-const activeTab = ref<"structured" | "raw" | "analysis" | "macro" | "variables">("structured");
+const activeTab = ref<
+  "structured" | "raw" | "analysis" | "macro" | "variables"
+>("structured");
 const loading = ref(false);
 const error = ref<string | null>(null);
 const contextData = ref<ContextPreviewData | null>(null);
 
 // 当对话框打开或分析目标变化时，重新分析
 watch(
-  [() => props.visible, () => props.nodeId, () => useLlmChatStore().contextAnalyzerPendingInput],
-  async ([newVisible, newNodeId, newPendingInput], [oldVisible, oldNodeId, oldPendingInput]) => {
+  [
+    () => props.visible,
+    () => props.nodeId,
+    () => useLlmChatStore().contextAnalyzerPendingInput,
+  ],
+  async (
+    [newVisible, newNodeId, newPendingInput],
+    [oldVisible, oldNodeId, oldPendingInput]
+  ) => {
     if (newVisible && newNodeId && props.sessionDetail) {
       // 只有在 visible 变为 true，或者在 visible 为 true 时 nodeId 或 pendingInput 发生变化才重新分析
       const isVisibleOpened = newVisible && !oldVisible;
-      const isTargetChanged = newVisible && (newNodeId !== oldNodeId || newPendingInput !== oldPendingInput);
+      const isTargetChanged =
+        newVisible &&
+        (newNodeId !== oldNodeId || newPendingInput !== oldPendingInput);
 
       if (isVisibleOpened || isTargetChanged) {
         await analyzeContext();
@@ -126,7 +145,9 @@ const analyzeContext = async () => {
     const historicalAgentId = node?.metadata?.agentId;
 
     if (!historicalAgentId) {
-      logger.warn("在消息节点元数据中找不到 agentId，将回退到当前智能体", { nodeId: props.nodeId });
+      logger.warn("在消息节点元数据中找不到 agentId，将回退到当前智能体", {
+        nodeId: props.nodeId,
+      });
     }
 
     // 从 store 获取待发送输入

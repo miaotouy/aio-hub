@@ -4,13 +4,22 @@ import { customMessage } from "@/utils/customMessage";
 import JSZip from "jszip";
 import yaml from "js-yaml";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { writeTextFile, writeFile, readFile, exists } from "@tauri-apps/plugin-fs";
+import {
+  writeTextFile,
+  writeFile,
+  readFile,
+  exists,
+} from "@tauri-apps/plugin-fs";
 import { join } from "@tauri-apps/api/path";
 import { getAppConfigDir } from "@/utils/appPath";
 import { invoke } from "@tauri-apps/api/core";
 import { formatDateTime } from "@/utils/time";
 import type { ChatAgent, ChatMessageNode } from "../types";
-import type { ExportableAgent, AgentExportFile, BundledWorldbook } from "../types/agentImportExport";
+import type {
+  ExportableAgent,
+  AgentExportFile,
+  BundledWorldbook,
+} from "../types/agentImportExport";
 import { embedDataIntoPng } from "@/utils/pngMetadataWriter";
 import { convertArrayBufferToBase64 } from "@/utils/base64";
 import { sanitizeFilename } from "@/utils/fileUtils";
@@ -35,12 +44,18 @@ export interface ExportAgentsOptions {
 /**
  * 清理消息节点中的运行时元数据
  */
-function cleanMessageMetadata(messages?: ChatMessageNode[]): ChatMessageNode[] | undefined {
+function cleanMessageMetadata(
+  messages?: ChatMessageNode[]
+): ChatMessageNode[] | undefined {
   if (!messages) return messages;
   return messages.map((msg) => {
     if (!msg.metadata) return msg;
     // 移除运行时属性
-    const { lastCalcHash: _, contentTokens: __, ...restMetadata } = msg.metadata;
+    const {
+      lastCalcHash: _,
+      contentTokens: __,
+      ...restMetadata
+    } = msg.metadata;
     const cleanedMsg = { ...msg };
     if (Object.keys(restMetadata).length > 0) {
       cleanedMsg.metadata = restMetadata;
@@ -56,7 +71,10 @@ function cleanMessageMetadata(messages?: ChatMessageNode[]): ChatMessageNode[] |
  * @param agents 要导出的智能体列表
  * @param options 导出选项
  */
-export async function exportAgents(agents: ChatAgent[], options: ExportAgentsOptions): Promise<void> {
+export async function exportAgents(
+  agents: ChatAgent[],
+  options: ExportAgentsOptions
+): Promise<void> {
   try {
     const agentIds = agents.map((a) => a.id);
     logger.info("开始导出智能体", { agentIds, options });
@@ -71,7 +89,8 @@ export async function exportAgents(agents: ChatAgent[], options: ExportAgentsOpt
     const timestamp = formatDateTime(new Date(), "yyyyMMdd_HHmmss");
 
     // 获取智能体的显示名称，优先使用 displayName，回退到 name
-    const getAgentDisplayName = (agent: ChatAgent) => agent.displayName || agent.name;
+    const getAgentDisplayName = (agent: ChatAgent) =>
+      agent.displayName || agent.name;
 
     // 特殊处理：批量导出且为 file 模式 -> 分离导出到文件夹
     if (exportType === "file" && agents.length > 1) {
@@ -116,7 +135,9 @@ export async function exportAgents(agents: ChatAgent[], options: ExportAgentsOpt
 
         // 清理预设消息中的运行时元数据
         if (exportableAgent.presetMessages) {
-          exportableAgent.presetMessages = cleanMessageMetadata(exportableAgent.presetMessages);
+          exportableAgent.presetMessages = cleanMessageMetadata(
+            exportableAgent.presetMessages
+          );
         }
 
         const exportData: AgentExportFile = {
@@ -125,7 +146,10 @@ export async function exportAgents(agents: ChatAgent[], options: ExportAgentsOpt
           agents: [exportableAgent as ExportableAgent],
         };
 
-        const contentString = format === "yaml" ? yaml.dump(exportData) : JSON.stringify(exportData, null, 2);
+        const contentString =
+          format === "yaml"
+            ? yaml.dump(exportData)
+            : JSON.stringify(exportData, null, 2);
 
         const uniqueName = getUniqueName(getAgentDisplayName(agent));
         const fileName = `${uniqueName}.agent.${format}`;
@@ -154,8 +178,10 @@ export async function exportAgents(agents: ChatAgent[], options: ExportAgentsOpt
 
     // 下面是常规导出逻辑（ZIP, Folder, File 或 PNG）
     const shouldIncludeAssets = options.includeAssets && exportType !== "file";
-    const shouldIncludeWorldbooks = options.includeWorldbooks && exportType !== "file";
-    const shouldEmbedWorldbooks = options.embedWorldbooks && shouldIncludeWorldbooks;
+    const shouldIncludeWorldbooks =
+      options.includeWorldbooks && exportType !== "file";
+    const shouldEmbedWorldbooks =
+      options.embedWorldbooks && shouldIncludeWorldbooks;
     const separateFolders = options.separateFolders || false;
 
     // 生成基础名称（用于文件名或文件夹名）
@@ -165,7 +191,9 @@ export async function exportAgents(agents: ChatAgent[], options: ExportAgentsOpt
     if (count === 1) {
       baseName = sanitizeFilename(getAgentDisplayName(agents[0]));
     } else if (count > 1 && count <= 3) {
-      baseName = agents.map((a) => sanitizeFilename(getAgentDisplayName(a))).join(" & ");
+      baseName = agents
+        .map((a) => sanitizeFilename(getAgentDisplayName(a)))
+        .join(" & ");
     } else if (count > 3) {
       baseName = `${agents
         .slice(0, 2)
@@ -176,7 +204,8 @@ export async function exportAgents(agents: ChatAgent[], options: ExportAgentsOpt
     // 添加时间戳后缀，方便管理和避免冲突
     baseName = `${baseName}_${timestamp}`;
 
-    const zip = exportType === "zip" || exportType === "png" ? new JSZip() : null;
+    const zip =
+      exportType === "zip" || exportType === "png" ? new JSZip() : null;
     let targetDir = "";
 
     if (exportType === "folder") {
@@ -224,7 +253,10 @@ export async function exportAgents(agents: ChatAgent[], options: ExportAgentsOpt
       } = agent;
       const exportableAgent: ExportableAgent = {
         ...exportableAgentBase,
-        parameters: exportableAgentBase.parameters || { temperature: 1, maxTokens: 4096 }
+        parameters: exportableAgentBase.parameters || {
+          temperature: 1,
+          maxTokens: 4096,
+        },
       };
 
       // 清理预设消息中的运行时元数据
@@ -234,17 +266,34 @@ export async function exportAgents(agents: ChatAgent[], options: ExportAgentsOpt
         ) as typeof exportableAgent.presetMessages;
       }
 
-      const agentPrivateDir = await join(await getAppConfigDir(), "llm-chat", "agents", agent.id);
+      const agentPrivateDir = await join(
+        await getAppConfigDir(),
+        "llm-chat",
+        "agents",
+        agent.id
+      );
 
       const isAgentPrivateAsset = (path: string): boolean => {
         if (!path || typeof path !== "string") return false;
-        if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("blob:")) return false;
+        if (
+          path.startsWith("http://") ||
+          path.startsWith("https://") ||
+          path.startsWith("blob:")
+        )
+          return false;
         if (path.startsWith("appdata://")) return false;
-        if (/^[A-Za-z]:[\/\\]/.test(path) || path.startsWith("\\\\") || path.startsWith("/")) return false;
+        if (
+          /^[A-Za-z]:[\/\\]/.test(path) ||
+          path.startsWith("\\\\") ||
+          path.startsWith("/")
+        )
+          return false;
         return true;
       };
 
-      const readAgentAsset = async (relativePath: string): Promise<Uint8Array | null> => {
+      const readAgentAsset = async (
+        relativePath: string
+      ): Promise<Uint8Array | null> => {
         try {
           const fullPath = await join(agentPrivateDir, relativePath);
           if (await exists(fullPath)) {
@@ -261,7 +310,9 @@ export async function exportAgents(agents: ChatAgent[], options: ExportAgentsOpt
         relativePath: string,
         isIcon: boolean = false
       ): Promise<string> => {
-        const cleanPath = relativePath.replace(/\.\./g, "__").replace(/^[/\\]+/, "");
+        const cleanPath = relativePath
+          .replace(/\.\./g, "__")
+          .replace(/^[/\\]+/, "");
 
         // 头像文件直接放在智能体根目录，其他资产放 assets/ 子目录
         let exportPath: string;
@@ -271,12 +322,16 @@ export async function exportAgents(agents: ChatAgent[], options: ExportAgentsOpt
           exportPath = filename;
         } else {
           // 其他资产：确保在 assets/ 目录下
-          exportPath = cleanPath.startsWith("assets/") ? cleanPath : `assets/${cleanPath}`;
+          exportPath = cleanPath.startsWith("assets/")
+            ? cleanPath
+            : `assets/${cleanPath}`;
         }
 
         // 根据智能体数量决定是否需要子文件夹
         const needSubFolder = agents.length > 1 || separateFolders;
-        const finalPath = needSubFolder ? `${uniqueName}/${exportPath}` : exportPath;
+        const finalPath = needSubFolder
+          ? `${uniqueName}/${exportPath}`
+          : exportPath;
 
         if (exportType === "zip" || exportType === "png") {
           if (zip) {
@@ -290,17 +345,24 @@ export async function exportAgents(agents: ChatAgent[], options: ExportAgentsOpt
               content: binary,
             });
           } catch (writeError) {
-            logger.error("写入资产文件失败", writeError as Error, { assetPath });
+            logger.error("写入资产文件失败", writeError as Error, {
+              assetPath,
+            });
             throw writeError;
           }
         }
         return exportPath;
       };
 
-      const processAssetsRecursively = async (obj: any, parentKey: string = ""): Promise<any> => {
+      const processAssetsRecursively = async (
+        obj: any,
+        parentKey: string = ""
+      ): Promise<any> => {
         if (!obj || typeof obj !== "object") return obj;
         if (Array.isArray(obj)) {
-          return Promise.all(obj.map((item) => processAssetsRecursively(item, parentKey)));
+          return Promise.all(
+            obj.map((item) => processAssetsRecursively(item, parentKey))
+          );
         }
         const newObj = { ...obj };
         for (const [key, value] of Object.entries(newObj)) {
@@ -328,7 +390,11 @@ export async function exportAgents(agents: ChatAgent[], options: ExportAgentsOpt
       }
 
       // 处理世界书导出
-      if (shouldIncludeWorldbooks && agent.worldbookIds && agent.worldbookIds.length > 0) {
+      if (
+        shouldIncludeWorldbooks &&
+        agent.worldbookIds &&
+        agent.worldbookIds.length > 0
+      ) {
         const bundledWorldbooks: BundledWorldbook[] = [];
         for (const wbId of agent.worldbookIds) {
           const content = await worldbookStore.getWorldbookContent(wbId);
@@ -345,7 +411,10 @@ export async function exportAgents(agents: ChatAgent[], options: ExportAgentsOpt
               const wbFileName = `worldbooks/${sanitizeFilename(metadata.name)}.${format}`;
               bundled.fileName = wbFileName;
 
-              const wbContentString = format === "yaml" ? yaml.dump(content) : JSON.stringify(content, null, 2);
+              const wbContentString =
+                format === "yaml"
+                  ? yaml.dump(content)
+                  : JSON.stringify(content, null, 2);
               if ((exportType === "zip" || exportType === "png") && zip) {
                 if (separateFolders) {
                   zip.folder(uniqueName)?.file(wbFileName, wbContentString);
@@ -378,7 +447,10 @@ export async function exportAgents(agents: ChatAgent[], options: ExportAgentsOpt
         agents: [exportableAgent],
       };
 
-      const contentString = format === "yaml" ? yaml.dump(exportData) : JSON.stringify(exportData, null, 2);
+      const contentString =
+        format === "yaml"
+          ? yaml.dump(exportData)
+          : JSON.stringify(exportData, null, 2);
 
       lastContentString = contentString;
       const configFileName = `${uniqueName}.agent.${format}`;
@@ -424,7 +496,10 @@ export async function exportAgents(agents: ChatAgent[], options: ExportAgentsOpt
 
       if (savePath) {
         await writeFile(savePath, content);
-        logger.info("智能体导出成功 (ZIP)", { count: agents.length, fileName: savePath });
+        logger.info("智能体导出成功 (ZIP)", {
+          count: agents.length,
+          fileName: savePath,
+        });
       } else {
         logger.info("用户取消了 ZIP 导出");
         return;
@@ -475,7 +550,11 @@ export async function exportAgents(agents: ChatAgent[], options: ExportAgentsOpt
         };
 
         const bundleString = JSON.stringify(bundleData);
-        const newPngBuffer = await embedDataIntoPng(pngBuffer, "aiob", bundleString);
+        const newPngBuffer = await embedDataIntoPng(
+          pngBuffer,
+          "aiob",
+          bundleString
+        );
 
         const fileName = `${baseName}.agent.png`;
         const savePath = await save({
@@ -493,7 +572,10 @@ export async function exportAgents(agents: ChatAgent[], options: ExportAgentsOpt
             path: savePath,
             content: new Uint8Array(newPngBuffer),
           });
-          logger.info("智能体导出成功 (PNG)", { count: agents.length, fileName: savePath });
+          logger.info("智能体导出成功 (PNG)", {
+            count: agents.length,
+            fileName: savePath,
+          });
         } else {
           logger.info("用户取消了 PNG 导出");
           return;
@@ -503,7 +585,10 @@ export async function exportAgents(agents: ChatAgent[], options: ExportAgentsOpt
         throw error;
       }
     } else if (exportType === "folder" && targetDir) {
-      logger.info("智能体导出成功 (Folder)", { count: agents.length, targetDir });
+      logger.info("智能体导出成功 (Folder)", {
+        count: agents.length,
+        targetDir,
+      });
     } else if (exportType === "file") {
       const fileName = `${baseName}.agent.${format}`;
       const savePath = await save({
@@ -518,7 +603,10 @@ export async function exportAgents(agents: ChatAgent[], options: ExportAgentsOpt
 
       if (savePath) {
         await writeTextFile(savePath, lastContentString);
-        logger.info("智能体导出成功 (File)", { count: agents.length, fileName: savePath });
+        logger.info("智能体导出成功 (File)", {
+          count: agents.length,
+          fileName: savePath,
+        });
       } else {
         logger.info("用户取消了文件导出");
         return;
@@ -527,6 +615,8 @@ export async function exportAgents(agents: ChatAgent[], options: ExportAgentsOpt
 
     customMessage.success(`成功导出 ${agents.length} 个智能体`);
   } catch (error) {
-    errorHandler.error(error as Error, "导出智能体失败", { context: { agentCount: agents.length } });
+    errorHandler.error(error as Error, "导出智能体失败", {
+      context: { agentCount: agents.length },
+    });
   }
 }

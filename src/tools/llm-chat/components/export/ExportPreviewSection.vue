@@ -75,7 +75,8 @@ const previewLanguage = computed(() => {
 const previewStats = computed(() => {
   const lines = props.content.split("\n").length;
   const chars = props.content.length;
-  const formatLabel = props.format === "raw" ? "Raw JSON" : props.format.toUpperCase();
+  const formatLabel =
+    props.format === "raw" ? "Raw JSON" : props.format.toUpperCase();
   return `${lines} 行 · ${chars} 字符 · ${formatLabel} 格式`;
 });
 

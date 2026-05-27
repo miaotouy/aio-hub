@@ -16,7 +16,10 @@
     </div>
 
     <!-- 分类标签 -->
-    <div v-if="showCategories && categories.length > 1" class="category-tabs-container">
+    <div
+      v-if="showCategories && categories.length > 1"
+      class="category-tabs-container"
+    >
       <var-tabs
         v-if="categories.includes(selectedCategory)"
         v-model:active="selectedCategory"
@@ -26,7 +29,11 @@
         active-color="var(--color-primary)"
         inactive-color="var(--color-text-secondary)"
       >
-        <var-tab v-for="category in categories" :key="category" :name="category">
+        <var-tab
+          v-for="category in categories"
+          :key="category"
+          :name="category"
+        >
           {{ category }}
         </var-tab>
       </var-tabs>
@@ -34,7 +41,11 @@
 
     <!-- 图标网格区域 -->
     <div class="presets-scroll-area">
-      <div v-if="filteredIcons.length > 0" class="presets-grid" :class="gridClass">
+      <div
+        v-if="filteredIcons.length > 0"
+        class="presets-grid"
+        :class="gridClass"
+      >
         <div
           v-for="icon in filteredIcons"
           :key="icon.path"
@@ -48,7 +59,11 @@
           <div class="preset-info">
             <div class="preset-name">{{ icon.name }}</div>
             <div v-if="showTags && icon.suggestedFor" class="preset-tags">
-              <span v-for="tag in icon.suggestedFor.slice(0, 2)" :key="tag" class="tag">
+              <span
+                v-for="tag in icon.suggestedFor.slice(0, 2)"
+                :key="tag"
+                class="tag"
+              >
                 {{ tag }}
               </span>
             </div>
@@ -58,7 +73,11 @@
 
       <!-- 空状态 -->
       <div v-else class="empty-state">
-        <var-result type="empty" title="未找到匹配的图标" description="尝试更换搜索词或分类" />
+        <var-result
+          type="empty"
+          title="未找到匹配的图标"
+          description="尝试更换搜索词或分类"
+        />
       </div>
     </div>
   </div>

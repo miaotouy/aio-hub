@@ -110,7 +110,9 @@ export interface AsyncTaskContext {
   log: (message: string, data?: Record<string, unknown>) => void;
 
   /** 任务元数据（只读） */
-  readonly metadata: Readonly<Pick<AsyncTaskMetadata, "toolName" | "toolId" | "methodName">>;
+  readonly metadata: Readonly<
+    Pick<AsyncTaskMetadata, "toolName" | "toolId" | "methodName">
+  >;
 }
 
 /**

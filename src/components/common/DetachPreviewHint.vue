@@ -27,24 +27,27 @@ onBeforeMount(async () => {
   logger.info("DetachPreviewHint 开始初始化");
 
   // 立即设置监听器,避免错过早期事件
-  unlisten = await listen<{ canDetach: boolean }>("detach-status-update", (event) => {
-    const newCanDetach = event.payload.canDetach;
+  unlisten = await listen<{ canDetach: boolean }>(
+    "detach-status-update",
+    (event) => {
+      const newCanDetach = event.payload.canDetach;
 
-    // 初始状态或状态发生变化时才输出日志
-    if (lastCanDetach.value === null) {
-      logger.info("初始拖拽状态", {
-        canDetach: newCanDetach,
-      });
-    } else if (lastCanDetach.value !== newCanDetach) {
-      logger.info("拖拽状态变化", {
-        from: lastCanDetach.value,
-        to: newCanDetach,
-      });
+      // 初始状态或状态发生变化时才输出日志
+      if (lastCanDetach.value === null) {
+        logger.info("初始拖拽状态", {
+          canDetach: newCanDetach,
+        });
+      } else if (lastCanDetach.value !== newCanDetach) {
+        logger.info("拖拽状态变化", {
+          from: lastCanDetach.value,
+          to: newCanDetach,
+        });
+      }
+
+      lastCanDetach.value = newCanDetach;
+      canDetach.value = newCanDetach;
     }
-
-    lastCanDetach.value = newCanDetach;
-    canDetach.value = newCanDetach;
-  });
+  );
 
   logger.info("DetachPreviewHint 监听器已设置");
 });
@@ -67,10 +70,16 @@ onUnmounted(() => {
 
 <template>
   <Teleport to="body">
-    <div v-if="visible" class="preview-hint" :class="canDetach ? 'can-detach' : 'cannot-detach'">
+    <div
+      v-if="visible"
+      class="preview-hint"
+      :class="canDetach ? 'can-detach' : 'cannot-detach'"
+    >
       <div class="hint-content">
         <span class="hint-icon">{{ canDetach ? "✓" : "✗" }}</span>
-        <span class="hint-text">{{ canDetach ? "松手创建窗口" : "继续拖动或取消" }}</span>
+        <span class="hint-text">{{
+          canDetach ? "松手创建窗口" : "继续拖动或取消"
+        }}</span>
       </div>
     </div>
   </Teleport>

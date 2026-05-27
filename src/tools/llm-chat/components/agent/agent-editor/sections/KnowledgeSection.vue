@@ -21,7 +21,9 @@ const kbStore = useKnowledgeBaseStore();
 // 确保配置存在
 const ensureConfig = () => {
   if (!editForm.knowledgeBaseConfig) {
-    editForm.knowledgeBaseConfig = JSON.parse(JSON.stringify(DEFAULT_KB_CONFIG));
+    editForm.knowledgeBaseConfig = JSON.parse(
+      JSON.stringify(DEFAULT_KB_CONFIG)
+    );
   }
   if (!editForm.knowledgeBaseConfig.bindings) {
     editForm.knowledgeBaseConfig.bindings = [];
@@ -51,10 +53,16 @@ if (!editForm.knowledgeSettings) {
   // 数据迁移：从旧版 aggregation 子对象提升字段到顶层
   const legacy = (editForm.knowledgeSettings as any).aggregation;
   if (legacy) {
-    if (editForm.knowledgeSettings.contextWindow === undefined && legacy.contextWindow !== undefined) {
+    if (
+      editForm.knowledgeSettings.contextWindow === undefined &&
+      legacy.contextWindow !== undefined
+    ) {
       editForm.knowledgeSettings.contextWindow = legacy.contextWindow;
     }
-    if (editForm.knowledgeSettings.enableCache === undefined && legacy.enableCache !== undefined) {
+    if (
+      editForm.knowledgeSettings.enableCache === undefined &&
+      legacy.enableCache !== undefined
+    ) {
       editForm.knowledgeSettings.enableCache = legacy.enableCache;
     }
     // 清理旧字段
@@ -110,7 +118,8 @@ const filteredBindings = computed(() => {
   if (!searchQuery.value) return bindings;
   const q = searchQuery.value.toLowerCase();
   return bindings.filter(
-    (b: AgentKnowledgeBaseBinding) => b.kbName.toLowerCase().includes(q) || b.kbId.toLowerCase().includes(q),
+    (b: AgentKnowledgeBaseBinding) =>
+      b.kbName.toLowerCase().includes(q) || b.kbId.toLowerCase().includes(q)
   );
 });
 
@@ -125,7 +134,9 @@ const toggleExpand = (kbId: string) => {
 const showAddSelector = ref(false);
 const availableBases = computed(() => {
   const existingIds = new Set(
-    (editForm.knowledgeBaseConfig?.bindings || []).map((b: AgentKnowledgeBaseBinding) => b.kbId),
+    (editForm.knowledgeBaseConfig?.bindings || []).map(
+      (b: AgentKnowledgeBaseBinding) => b.kbId
+    )
   );
   return kbStore.bases.filter((b) => !existingIds.has(b.id));
 });
@@ -144,7 +155,9 @@ const addKnowledgeBase = (base: { id: string; name: string }) => {
 // 移除知识库
 const removeBinding = (kbId: string) => {
   ensureConfig();
-  const idx = editForm.knowledgeBaseConfig.bindings.findIndex((b: AgentKnowledgeBaseBinding) => b.kbId === kbId);
+  const idx = editForm.knowledgeBaseConfig.bindings.findIndex(
+    (b: AgentKnowledgeBaseBinding) => b.kbId === kbId
+  );
   if (idx !== -1) {
     editForm.knowledgeBaseConfig.bindings.splice(idx, 1);
   }
@@ -152,7 +165,9 @@ const removeBinding = (kbId: string) => {
 
 // 切换单个知识库的启用状态
 const toggleBinding = (kbId: string, enabled: boolean) => {
-  const binding = editForm.knowledgeBaseConfig.bindings.find((b: AgentKnowledgeBaseBinding) => b.kbId === kbId);
+  const binding = editForm.knowledgeBaseConfig.bindings.find(
+    (b: AgentKnowledgeBaseBinding) => b.kbId === kbId
+  );
   if (binding) {
     binding.enabled = enabled;
   }
@@ -301,7 +316,10 @@ onMounted(() => {
     <div class="section-group" data-setting-id="knowledgeBase">
       <div class="section-header">
         <div class="section-group-title">知识库 (RAG)</div>
-        <el-switch v-model="editForm.knowledgeBaseConfig.enabled" @change="ensureConfig" />
+        <el-switch
+          v-model="editForm.knowledgeBaseConfig.enabled"
+          @change="ensureConfig"
+        />
       </div>
       <div class="form-hint">
         关联知识库后，智能体可在对话中自动检索相关知识。通过
@@ -317,31 +335,52 @@ onMounted(() => {
       <transition name="el-zoom-in-top">
         <div v-if="isKbMacroMissing" class="macro-warning-alert">
           <el-alert
-            :type="editForm.knowledgeBaseConfig.autoInjectIfMacroMissing ? 'info' : 'warning'"
+            :type="
+              editForm.knowledgeBaseConfig.autoInjectIfMacroMissing
+                ? 'info'
+                : 'warning'
+            "
             :closable="false"
             show-icon
           >
             <template #title>
               <div class="alert-title-content">
-                <span v-if="editForm.knowledgeBaseConfig.autoInjectIfMacroMissing"> 自动注入已启用 </span>
+                <span
+                  v-if="editForm.knowledgeBaseConfig.autoInjectIfMacroMissing"
+                >
+                  自动注入已启用
+                </span>
                 <span v-else>
                   提示词中未发现 <code>{{ kbMacro }}</code> 宏
                 </span>
                 <div class="alert-actions">
                   <el-button
-                    v-if="!editForm.knowledgeBaseConfig.autoInjectIfMacroMissing"
+                    v-if="
+                      !editForm.knowledgeBaseConfig.autoInjectIfMacroMissing
+                    "
                     type="primary"
                     size="small"
-                    @click="editForm.knowledgeBaseConfig.autoInjectIfMacroMissing = true"
+                    @click="
+                      editForm.knowledgeBaseConfig.autoInjectIfMacroMissing = true
+                    "
                   >
                     立即开启保底注入
                   </el-button>
-                  <el-button link type="primary" size="small" @click="switchToPersonality"> 前往编辑提示词 </el-button>
+                  <el-button
+                    link
+                    type="primary"
+                    size="small"
+                    @click="switchToPersonality"
+                  >
+                    前往编辑提示词
+                  </el-button>
                 </div>
               </div>
             </template>
             <template #default>
-              <span v-if="editForm.knowledgeBaseConfig.autoInjectIfMacroMissing">
+              <span
+                v-if="editForm.knowledgeBaseConfig.autoInjectIfMacroMissing"
+              >
                 检索结果将自动注入到对话历史之前。你也可以在"角色设定"中手动添加
                 <code>{{ kbMacro }}</code> 宏以精确控制注入位置。
               </span>
@@ -368,11 +407,16 @@ onMounted(() => {
                 </div>
               </el-tooltip>
             </template>
-            <el-switch v-model="editForm.knowledgeBaseConfig.autoInjectIfMacroMissing" />
+            <el-switch
+              v-model="editForm.knowledgeBaseConfig.autoInjectIfMacroMissing"
+            />
           </el-form-item>
 
           <el-form-item label="注入位置">
-            <el-select v-model="editForm.knowledgeBaseConfig.autoInjectPosition" size="small">
+            <el-select
+              v-model="editForm.knowledgeBaseConfig.autoInjectPosition"
+              size="small"
+            >
               <el-option label="上下文最前方" value="context_head" />
               <el-option label="最后用户消息之前" value="before_last_user" />
             </el-select>
@@ -384,12 +428,17 @@ onMounted(() => {
           <div class="box-header">
             <div class="box-title-group">
               <span class="box-title">已关联知识库</span>
-              <el-tag size="small" type="info"> {{ editForm.knowledgeBaseConfig.bindings.length }} 个 </el-tag>
+              <el-tag size="small" type="info">
+                {{ editForm.knowledgeBaseConfig.bindings.length }} 个
+              </el-tag>
             </div>
           </div>
 
           <!-- 搜索栏 -->
-          <div v-if="editForm.knowledgeBaseConfig.bindings.length > 3" class="box-search-bar">
+          <div
+            v-if="editForm.knowledgeBaseConfig.bindings.length > 3"
+            class="box-search-bar"
+          >
             <el-input
               v-model="searchQuery"
               placeholder="搜索知识库名称..."
@@ -400,9 +449,17 @@ onMounted(() => {
           </div>
 
           <!-- 空状态 -->
-          <div v-if="editForm.knowledgeBaseConfig.bindings.length === 0" class="empty-kb">
+          <div
+            v-if="editForm.knowledgeBaseConfig.bindings.length === 0"
+            class="empty-kb"
+          >
             <el-empty :image-size="40" description="尚未关联任何知识库">
-              <el-popover v-model:visible="showAddSelector" placement="bottom" :width="320" trigger="click">
+              <el-popover
+                v-model:visible="showAddSelector"
+                placement="bottom"
+                :width="320"
+                trigger="click"
+              >
                 <template #reference>
                   <el-button type="primary" size="small">
                     <el-icon><Plus /></el-icon>
@@ -410,7 +467,9 @@ onMounted(() => {
                   </el-button>
                 </template>
                 <div class="add-kb-popover">
-                  <div v-if="availableBases.length === 0" class="add-kb-empty">所有知识库已关联</div>
+                  <div v-if="availableBases.length === 0" class="add-kb-empty">
+                    所有知识库已关联
+                  </div>
                   <div
                     v-for="base in availableBases"
                     :key="base.id"
@@ -439,8 +498,16 @@ onMounted(() => {
           </div>
 
           <!-- 添加按钮 -->
-          <div v-if="editForm.knowledgeBaseConfig.bindings.length > 0" class="box-footer">
-            <el-popover v-model:visible="showAddSelector" placement="bottom" :width="320" trigger="click">
+          <div
+            v-if="editForm.knowledgeBaseConfig.bindings.length > 0"
+            class="box-footer"
+          >
+            <el-popover
+              v-model:visible="showAddSelector"
+              placement="bottom"
+              :width="320"
+              trigger="click"
+            >
               <template #reference>
                 <el-button type="primary" link size="small">
                   <el-icon><Plus /></el-icon>
@@ -448,8 +515,15 @@ onMounted(() => {
                 </el-button>
               </template>
               <div class="add-kb-popover">
-                <div v-if="availableBases.length === 0" class="add-kb-empty">所有知识库已关联</div>
-                <div v-for="base in availableBases" :key="base.id" class="add-kb-item" @click="addKnowledgeBase(base)">
+                <div v-if="availableBases.length === 0" class="add-kb-empty">
+                  所有知识库已关联
+                </div>
+                <div
+                  v-for="base in availableBases"
+                  :key="base.id"
+                  class="add-kb-item"
+                  @click="addKnowledgeBase(base)"
+                >
                   <span class="add-kb-name">{{ base.name }}</span>
                   <span class="add-kb-count">{{ base.entryCount }} 条</span>
                 </div>

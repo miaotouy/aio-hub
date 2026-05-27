@@ -68,7 +68,10 @@ export function formatJson(str: string): string {
 /**
  * 过滤记录列表
  */
-export function filterRecords(records: CombinedRecord[], options: FilterOptions): CombinedRecord[] {
+export function filterRecords(
+  records: CombinedRecord[],
+  options: FilterOptions
+): CombinedRecord[] {
   let filtered = records;
 
   // 按搜索词过滤
@@ -132,7 +135,9 @@ export function maskSensitiveData(text: string): string {
       if (match.length <= 10) return match;
       const prefix = match.substring(0, 6);
       const suffix = match.length > 15 ? match.substring(match.length - 4) : "";
-      const stars = "*".repeat(Math.min(20, match.length - prefix.length - suffix.length));
+      const stars = "*".repeat(
+        Math.min(20, match.length - prefix.length - suffix.length)
+      );
       return `${prefix}${stars}${suffix}`;
     });
   });
@@ -143,7 +148,10 @@ export function maskSensitiveData(text: string): string {
 /**
  * 复制文本到剪贴板
  */
-export async function copyToClipboard(text: string, message: string = "已复制到剪贴板"): Promise<void> {
+export async function copyToClipboard(
+  text: string,
+  message: string = "已复制到剪贴板"
+): Promise<void> {
   try {
     await navigator.clipboard.writeText(text);
   } catch (err) {
@@ -220,19 +228,25 @@ export function detectApiFormat(url: string): ApiFormat {
   // OpenAI 系列
   if (path.includes("/chat/completions")) return "openai-chat";
   if (path.includes("/responses")) return "openai-responses";
-  if (path.includes("/completions") && !path.includes("/chat/")) return "openai-completions";
+  if (path.includes("/completions") && !path.includes("/chat/"))
+    return "openai-completions";
 
   // Anthropic
   if (path.includes("/messages")) return "anthropic";
 
   // Google Gemini
-  if (path.includes(":generateContent") || path.includes(":streamGenerateContent")) return "gemini";
+  if (
+    path.includes(":generateContent") ||
+    path.includes(":streamGenerateContent")
+  )
+    return "gemini";
 
   // Cohere
   if (path.match(/\/v[12]\/chat/)) return "cohere";
 
   // Ollama
-  if (path.includes("/api/chat") || path.includes("/api/generate")) return "ollama";
+  if (path.includes("/api/chat") || path.includes("/api/generate"))
+    return "ollama";
 
   return "unknown";
 }
@@ -248,7 +262,10 @@ function extractPath(url: string): string {
 /**
  * 从流式响应中提取正文内容
  */
-export function extractStreamContent(body: string, requestUrl?: string): string {
+export function extractStreamContent(
+  body: string,
+  requestUrl?: string
+): string {
   const format = requestUrl ? detectApiFormat(requestUrl) : "unknown";
   const contents: string[] = [];
   const lines = body.split("\n");
@@ -288,20 +305,29 @@ function extractDeltaByFormat(parsed: any, format: ApiFormat): string {
     case "openai-responses":
       // Responses API 使用不同的事件结构
       // output_text.delta 事件
-      if (parsed.type === "response.output_text.delta") return parsed.delta ?? "";
+      if (parsed.type === "response.output_text.delta")
+        return parsed.delta ?? "";
       // content_part.delta 事件
-      if (parsed.type === "response.content_part.delta") return parsed.delta?.text ?? "";
+      if (parsed.type === "response.content_part.delta")
+        return parsed.delta?.text ?? "";
       // 兼容简化格式
-      if (parsed.delta) return typeof parsed.delta === "string" ? parsed.delta : (parsed.delta?.text ?? "");
+      if (parsed.delta)
+        return typeof parsed.delta === "string"
+          ? parsed.delta
+          : (parsed.delta?.text ?? "");
       return "";
 
     case "anthropic":
       // content_block_delta 事件
-      if (parsed.type === "content_block_delta") return parsed.delta?.text ?? "";
+      if (parsed.type === "content_block_delta")
+        return parsed.delta?.text ?? "";
       // 简化格式
       if (parsed.delta?.text) return parsed.delta.text;
       // thinking block
-      if (parsed.type === "content_block_delta" && parsed.delta?.type === "thinking_delta")
+      if (
+        parsed.type === "content_block_delta" &&
+        parsed.delta?.type === "thinking_delta"
+      )
         return parsed.delta?.thinking ?? "";
       return "";
 
@@ -310,7 +336,8 @@ function extractDeltaByFormat(parsed: any, format: ApiFormat): string {
 
     case "cohere":
       // Cohere v2 stream
-      if (parsed.type === "content-delta") return parsed.delta?.message?.content?.text ?? "";
+      if (parsed.type === "content-delta")
+        return parsed.delta?.message?.content?.text ?? "";
       // Cohere v1 stream
       return parsed.text ?? "";
 
@@ -358,7 +385,11 @@ function extractResponseByFormat(parsed: any, format: ApiFormat): string {
       return extractGeminiResponse(parsed);
 
     case "cohere":
-      return parsed.text ?? parsed.message?.content?.[0]?.text ?? JSON.stringify(parsed, null, 2);
+      return (
+        parsed.text ??
+        parsed.message?.content?.[0]?.text ??
+        JSON.stringify(parsed, null, 2)
+      );
 
     case "ollama":
       return parsed.message?.content ?? parsed.response ?? "";
@@ -389,13 +420,17 @@ function extractOpenAIChatResponse(parsed: any): string {
     // tool_calls
     if (msg.tool_calls?.length) {
       for (const tc of msg.tool_calls) {
-        parts.push(`[Tool Call: ${tc.function?.name ?? tc.type}]\n${tc.function?.arguments ?? JSON.stringify(tc)}`);
+        parts.push(
+          `[Tool Call: ${tc.function?.name ?? tc.type}]\n${tc.function?.arguments ?? JSON.stringify(tc)}`
+        );
       }
     }
 
     // function_call (legacy)
     if (msg.function_call) {
-      parts.push(`[Function Call: ${msg.function_call.name}]\n${msg.function_call.arguments}`);
+      parts.push(
+        `[Function Call: ${msg.function_call.name}]\n${msg.function_call.arguments}`
+      );
     }
   }
 
@@ -411,7 +446,8 @@ function extractOpenAIResponsesResponse(parsed: any): string {
     if (output.type === "message") {
       for (const content of output.content ?? []) {
         if (content.type === "output_text") parts.push(content.text);
-        else if (content.type === "refusal") parts.push(`[Refusal] ${content.refusal}`);
+        else if (content.type === "refusal")
+          parts.push(`[Refusal] ${content.refusal}`);
       }
     }
     // reasoning items
@@ -440,9 +476,12 @@ function extractAnthropicResponse(parsed: any): string {
   const blocks = parsed.content ?? [];
   for (const block of blocks) {
     if (block.type === "text") parts.push(block.text);
-    if (block.type === "thinking") parts.push(`[Thinking]\n${block.thinking}\n[/Thinking]`);
+    if (block.type === "thinking")
+      parts.push(`[Thinking]\n${block.thinking}\n[/Thinking]`);
     if (block.type === "tool_use") {
-      parts.push(`[Tool Use: ${block.name}]\n${JSON.stringify(block.input, null, 2)}`);
+      parts.push(
+        `[Tool Use: ${block.name}]\n${JSON.stringify(block.input, null, 2)}`
+      );
     }
   }
 
@@ -458,7 +497,9 @@ function extractGeminiResponse(parsed: any): string {
     for (const part of contentParts) {
       if (part.text) parts.push(part.text);
       if (part.functionCall) {
-        parts.push(`[Function Call: ${part.functionCall.name}]\n${JSON.stringify(part.functionCall.args, null, 2)}`);
+        parts.push(
+          `[Function Call: ${part.functionCall.name}]\n${JSON.stringify(part.functionCall.args, null, 2)}`
+        );
       }
     }
   }

@@ -3,7 +3,11 @@
     <el-row :gutter="10" align="middle">
       <!-- 变量名 -->
       <el-col :span="6">
-        <el-input v-model="editableVariable.key" placeholder="变量名" @change="emitUpdate" />
+        <el-input
+          v-model="editableVariable.key"
+          placeholder="变量名"
+          @change="emitUpdate"
+        />
       </el-col>
 
       <!-- 类型 -->
@@ -38,7 +42,13 @@
               :value="option"
             />
             <template #footer>
-              <el-button text bg size="small" class="edit-options-btn" @click="emit('edit-enum')">
+              <el-button
+                text
+                bg
+                size="small"
+                class="edit-options-btn"
+                @click="emit('edit-enum')"
+              >
                 编辑选项
               </el-button>
             </template>
@@ -60,7 +70,13 @@
 
       <!-- 操作 -->
       <el-col :span="2">
-        <el-button type="danger" :icon="Delete" circle plain @click="emit('remove')" />
+        <el-button
+          type="danger"
+          :icon="Delete"
+          circle
+          plain
+          @click="emit('remove')"
+        />
       </el-col>
     </el-row>
   </div>
@@ -68,7 +84,15 @@
 
 <script setup lang="ts">
 import { ref, watch, computed } from "vue";
-import { ElRow, ElCol, ElInput, ElSelect, ElOption, ElSwitch, ElButton } from "element-plus";
+import {
+  ElRow,
+  ElCol,
+  ElInput,
+  ElSelect,
+  ElOption,
+  ElSwitch,
+  ElButton,
+} from "element-plus";
 import { Delete } from "@element-plus/icons-vue";
 import type { Variable } from "../types";
 
@@ -85,7 +109,10 @@ const emit = defineEmits<{
 const editableVariable = ref<Variable>({ ...props.modelValue });
 
 const stringValue = computed({
-  get: () => (typeof editableVariable.value.value === "string" ? editableVariable.value.value : ""),
+  get: () =>
+    typeof editableVariable.value.value === "string"
+      ? editableVariable.value.value
+      : "",
   set: (val) => {
     editableVariable.value.value = val;
   },
@@ -93,7 +120,9 @@ const stringValue = computed({
 
 const booleanValue = computed({
   get: () =>
-    typeof editableVariable.value.value === "boolean" ? editableVariable.value.value : false,
+    typeof editableVariable.value.value === "boolean"
+      ? editableVariable.value.value
+      : false,
   set: (val) => {
     editableVariable.value.value = val;
   },

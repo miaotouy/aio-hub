@@ -1,6 +1,13 @@
 import type { LlmProfile } from "@/types/llm-profiles";
-import type { LlmRequestOptions, LlmResponse, MediaGenerationOptions } from "@/llm-apis/common";
-import type { EmbeddingRequestOptions, EmbeddingResponse } from "@/llm-apis/embedding-types";
+import type {
+  LlmRequestOptions,
+  LlmResponse,
+  MediaGenerationOptions,
+} from "@/llm-apis/common";
+import type {
+  EmbeddingRequestOptions,
+  EmbeddingResponse,
+} from "@/llm-apis/embedding-types";
 import { openAiAdapter, openAiResponsesAdapter } from "./openai";
 import { geminiAdapter } from "./gemini";
 import { anthropicAdapter } from "./anthropic";
@@ -22,22 +29,34 @@ export interface LlmAdapter {
   /**
    * 向量嵌入 (可选)
    */
-  embedding?(profile: LlmProfile, options: EmbeddingRequestOptions): Promise<EmbeddingResponse>;
+  embedding?(
+    profile: LlmProfile,
+    options: EmbeddingRequestOptions
+  ): Promise<EmbeddingResponse>;
 
   /**
    * 图片生成
    */
-  image?(profile: LlmProfile, options: MediaGenerationOptions): Promise<LlmResponse>;
+  image?(
+    profile: LlmProfile,
+    options: MediaGenerationOptions
+  ): Promise<LlmResponse>;
 
   /**
    * 音频生成 (TTS)
    */
-  audio?(profile: LlmProfile, options: MediaGenerationOptions): Promise<LlmResponse>;
+  audio?(
+    profile: LlmProfile,
+    options: MediaGenerationOptions
+  ): Promise<LlmResponse>;
 
   /**
    * 视频生成
    */
-  video?(profile: LlmProfile, options: MediaGenerationOptions): Promise<LlmResponse>;
+  video?(
+    profile: LlmProfile,
+    options: MediaGenerationOptions
+  ): Promise<LlmResponse>;
 }
 
 /**

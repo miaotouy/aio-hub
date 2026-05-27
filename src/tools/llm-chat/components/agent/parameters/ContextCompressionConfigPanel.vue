@@ -83,17 +83,22 @@ const resetPrompt = (key?: "summaryPrompt" | "continueSummaryPrompt") => {
       tempPromptValue.value = DEFAULT_CONTEXT_COMPRESSION_CONFIG[key] || "";
     }
   } else {
-    config.value.summaryPrompt = DEFAULT_CONTEXT_COMPRESSION_CONFIG.summaryPrompt;
-    config.value.continueSummaryPrompt = DEFAULT_CONTEXT_COMPRESSION_CONFIG.continueSummaryPrompt;
+    config.value.summaryPrompt =
+      DEFAULT_CONTEXT_COMPRESSION_CONFIG.summaryPrompt;
+    config.value.continueSummaryPrompt =
+      DEFAULT_CONTEXT_COMPRESSION_CONFIG.continueSummaryPrompt;
     if (promptEditorVisible.value) {
-      tempPromptValue.value = DEFAULT_CONTEXT_COMPRESSION_CONFIG[editingPromptKey.value] || "";
+      tempPromptValue.value =
+        DEFAULT_CONTEXT_COMPRESSION_CONFIG[editingPromptKey.value] || "";
     }
   }
 };
 
 // 弹窗编辑器相关
 const promptEditorVisible = ref(false);
-const editingPromptKey = ref<"summaryPrompt" | "continueSummaryPrompt">("summaryPrompt");
+const editingPromptKey = ref<"summaryPrompt" | "continueSummaryPrompt">(
+  "summaryPrompt"
+);
 const tempPromptValue = ref("");
 
 const editorTitle = computed(() => {
@@ -132,7 +137,8 @@ const handleSavePrompt = () => {
               </div>
             </div>
             <div class="form-helper">
-              开启后，系统将根据策略自动或手动将历史消息压缩为摘要，以节省 Token 并保持上下文连贯。
+              开启后，系统将根据策略自动或手动将历史消息压缩为摘要，以节省 Token
+              并保持上下文连贯。
             </div>
           </div>
 
@@ -143,7 +149,9 @@ const handleSavePrompt = () => {
                 <span class="label-text">自动触发压缩</span>
               </div>
             </div>
-            <div class="form-helper">当达到触发阈值时，自动在发送消息前执行压缩。</div>
+            <div class="form-helper">
+              当达到触发阈值时，自动在发送消息前执行压缩。
+            </div>
           </div>
         </div>
       </div>
@@ -200,7 +208,9 @@ const handleSavePrompt = () => {
                 style="width: 100%"
                 placeholder="默认: 15"
               />
-              <div class="form-helper">至少积累多少条历史消息才允许触发压缩</div>
+              <div class="form-helper">
+                至少积累多少条历史消息才允许触发压缩
+              </div>
             </el-form-item>
           </div>
         </div>
@@ -219,7 +229,9 @@ const handleSavePrompt = () => {
                 style="width: 100%"
                 placeholder="默认: 10"
               />
-              <div class="form-helper">最近的 N 条消息将不会被压缩，以保持短期记忆清晰。</div>
+              <div class="form-helper">
+                最近的 N 条消息将不会被压缩，以保持短期记忆清晰。
+              </div>
             </el-form-item>
 
             <el-form-item label="每次压缩条数">
@@ -231,7 +243,8 @@ const handleSavePrompt = () => {
                 placeholder="默认: 20"
               />
               <div class="form-helper">
-                触发压缩时，将最旧的 N 条消息合并为一个摘要节点。 不包括旧的摘要。
+                触发压缩时，将最旧的 N 条消息合并为一个摘要节点。
+                不包括旧的摘要。
               </div>
             </el-form-item>
           </div>
@@ -254,12 +267,19 @@ const handleSavePrompt = () => {
                 <el-option label="Assistant (助手)" value="assistant" />
                 <el-option label="User (用户)" value="user" />
               </el-select>
-              <div class="form-helper">压缩后的摘要节点将以什么角色插入对话历史</div>
+              <div class="form-helper">
+                压缩后的摘要节点将以什么角色插入对话历史
+              </div>
             </el-form-item>
 
             <el-form-item label="摘要生成模型">
-              <LlmModelSelector v-model="summaryModelValue" :disabled="disabled" />
-              <div class="form-helper">指定用于生成摘要的模型，留空则使用当前对话模型</div>
+              <LlmModelSelector
+                v-model="summaryModelValue"
+                :disabled="disabled"
+              />
+              <div class="form-helper">
+                指定用于生成摘要的模型，留空则使用当前对话模型
+              </div>
             </el-form-item>
 
             <el-form-item label="摘要生成温度">
@@ -272,7 +292,9 @@ const handleSavePrompt = () => {
                 show-input
                 :input-size="'small'"
               />
-              <div class="form-helper">控制摘要生成的随机性，建议保持较低值以获得稳定的结果。</div>
+              <div class="form-helper">
+                控制摘要生成的随机性，建议保持较低值以获得稳定的结果。
+              </div>
             </el-form-item>
 
             <el-form-item label="摘要最大 Token 数">
@@ -283,7 +305,9 @@ const handleSavePrompt = () => {
                 :step="100"
                 style="width: 100%"
               />
-              <div class="form-helper">限制生成摘要的最大长度，防止内容被截断。</div>
+              <div class="form-helper">
+                限制生成摘要的最大长度，防止内容被截断。
+              </div>
             </el-form-item>
           </div>
 
@@ -318,7 +342,9 @@ const handleSavePrompt = () => {
               :rows="4"
               placeholder="输入提示词模板..."
             />
-            <div class="form-helper">用于首次压缩。使用 <code>{context}</code> 代表对话内容。</div>
+            <div class="form-helper">
+              用于首次压缩。使用 <code>{context}</code> 代表对话内容。
+            </div>
           </el-form-item>
 
           <el-form-item>
@@ -353,9 +379,8 @@ const handleSavePrompt = () => {
               placeholder="输入续写提示词模板..."
             />
             <div class="form-helper">
-              用于在已有摘要基础上追加。使用 <code>{previous_summary}</code> 代表旧摘要，<code
-                >{context}</code
-              >
+              用于在已有摘要基础上追加。使用
+              <code>{previous_summary}</code> 代表旧摘要，<code>{context}</code>
               代表新内容。
             </div>
           </el-form-item>
@@ -370,13 +395,21 @@ const handleSavePrompt = () => {
     </el-form>
 
     <!-- 提示词编辑弹窗 -->
-    <BaseDialog v-model="promptEditorVisible" :title="editorTitle" width="80vw" height="75vh">
+    <BaseDialog
+      v-model="promptEditorVisible"
+      :title="editorTitle"
+      width="80vw"
+      height="75vh"
+    >
       <div class="prompt-editor-container">
         <div class="editor-helper" v-if="editingPromptKey === 'summaryPrompt'">
           使用 <code>{context}</code> 代表对话内容。
         </div>
         <div class="editor-helper" v-else>
-          使用 <code>{previous_summary}</code> 代表旧摘要，<code>{context}</code> 代表新内容。
+          使用 <code>{previous_summary}</code> 代表旧摘要，<code
+            >{context}</code
+          >
+          代表新内容。
         </div>
         <div class="editor-main">
           <RichCodeEditor
@@ -398,7 +431,9 @@ const handleSavePrompt = () => {
             恢复默认
           </el-button>
           <el-button @click="promptEditorVisible = false">取消</el-button>
-          <el-button type="primary" @click="handleSavePrompt">保存修改</el-button>
+          <el-button type="primary" @click="handleSavePrompt"
+            >保存修改</el-button
+          >
         </div>
       </template>
     </BaseDialog>

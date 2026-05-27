@@ -15,7 +15,7 @@ export function calculateStatistics(commits: GitCommit[]): RepoStatistics {
   const authors = new Set(commits.map((c) => c.author));
   const dates = commits.map((c) => new Date(c.date).getTime());
   const days = Math.ceil(
-    (Math.max(...dates) - Math.min(...dates)) / (1000 * 60 * 60 * 24),
+    (Math.max(...dates) - Math.min(...dates)) / (1000 * 60 * 60 * 24)
   );
   return {
     totalCommits: commits.length,
@@ -30,7 +30,7 @@ export function calculateStatistics(commits: GitCommit[]): RepoStatistics {
  * 避免 registry.ts 中手动构造不相关字段
  */
 export function createAgentExportConfig(
-  overrides?: Partial<ExportConfig>,
+  overrides?: Partial<ExportConfig>
 ): ExportConfig {
   return {
     format: "markdown",
@@ -90,7 +90,7 @@ export const formatters = {
       additions: number;
       deletions: number;
     },
-    includeLineStats = false,
+    includeLineStats = false
   ) => {
     const base = `\`${file.path}\`${file.status ? ` (${file.status})` : ""}`;
     return includeLineStats
@@ -110,7 +110,7 @@ export const reportComponents = {
     title: string,
     path: string,
     branch: string,
-    format: "md" | "text" = "md",
+    format: "md" | "text" = "md"
   ) => {
     const time = formatDateTime(new Date(), "yyyy-MM-dd HH:mm:ss");
     if (format === "md") {
@@ -163,7 +163,7 @@ export const reportComponents = {
     data: Array<{ name: string; count: number }>,
     totalCommits: number,
     format: "md" | "text" = "md",
-    showPercentage = true,
+    showPercentage = true
   ) => {
     if (format === "md") {
       if (showPercentage) {
@@ -203,7 +203,7 @@ export const reportComponents = {
 
   timeline: (
     data: Array<{ date: string; count: number }>,
-    format: "md" | "text" = "md",
+    format: "md" | "text" = "md"
   ) => {
     if (format === "md") {
       const lines = ["| 日期 | 提交数 |", "|------|--------|"];
@@ -220,7 +220,7 @@ export const reportComponents = {
   commitItem: (
     commit: GitCommit,
     options: ExportConfig,
-    format: "md" | "text" = "md",
+    format: "md" | "text" = "md"
   ) => {
     const lines: string[] = [];
     const {
@@ -243,7 +243,7 @@ export const reportComponents = {
 
       if (includeAuthor) {
         lines.push(
-          `**作者**: ${formatters.author(commit.author, includeEmail ? commit.email : undefined)}`,
+          `**作者**: ${formatters.author(commit.author, includeEmail ? commit.email : undefined)}`
         );
         lines.push("");
       }
@@ -251,7 +251,7 @@ export const reportComponents = {
       const msg = formatters.message(
         commit.message,
         commit.full_message,
-        includeFullMessage,
+        includeFullMessage
       );
       if (includeFullMessage && commit.full_message) {
         lines.push(`**提交信息**:`);
@@ -292,14 +292,14 @@ export const reportComponents = {
 
       if (includeAuthor) {
         lines.push(
-          `作者: ${formatters.author(commit.author, includeEmail ? commit.email : undefined)}`,
+          `作者: ${formatters.author(commit.author, includeEmail ? commit.email : undefined)}`
         );
       }
 
       const msg = formatters.message(
         commit.message,
         commit.full_message,
-        includeFullMessage,
+        includeFullMessage
       );
       if (includeFullMessage && commit.full_message) {
         lines.push(`提交信息:`);
@@ -346,7 +346,7 @@ export const reportComponents = {
 export function formatCommitList(
   commits: GitCommit[],
   options: ExportConfig,
-  format: "md" | "text" = "md",
+  format: "md" | "text" = "md"
 ): string {
   if (commits.length === 0) {
     return "没有找到匹配的提交记录。";

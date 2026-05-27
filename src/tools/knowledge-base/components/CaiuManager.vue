@@ -29,10 +29,14 @@ const isSingleColumn = computed(() => props.layoutMode === "small");
 const showDetail = computed(() => !!kbStore.activeEntryId);
 
 const handleAddEntry = async () => {
-  const entryId = await addEntry(`新条目_${new Date().toLocaleTimeString()}`, "", {
-    select: true,
-    sync: true,
-  });
+  const entryId = await addEntry(
+    `新条目_${new Date().toLocaleTimeString()}`,
+    "",
+    {
+      select: true,
+      sync: true,
+    }
+  );
   if (entryId) {
     customMessage.success("新条目已创建");
   }
@@ -47,14 +51,19 @@ const handleAddEntry = async () => {
         v-model:search-query="searchQuery"
         :is-selection-mode="isSelectionMode"
         :selected-entry-ids="selectedEntryIds"
-        @update:selected-entry-ids="(val) => emit('update:selectedEntryIds', val)"
+        @update:selected-entry-ids="
+          (val) => emit('update:selectedEntryIds', val)
+        "
         @add="handleAddEntry"
       />
     </aside>
 
     <!-- 详情栏 (在非单栏模式下常驻，单栏模式下选中详情时显示) -->
     <main v-if="!isSingleColumn || showDetail" class="detail-main">
-      <CaiuDetail :is-wide="!isSingleColumn" @close="kbStore.activeEntryId = null" />
+      <CaiuDetail
+        :is-wide="!isSingleColumn"
+        @close="kbStore.activeEntryId = null"
+      />
     </main>
   </div>
 </template>

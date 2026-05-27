@@ -20,25 +20,36 @@ const logger = createModuleLogger("llm-chat/agentAssetService");
  * @param agent 待检查的智能体对象
  * @returns 是否有数据发生了变更（需要持久化）
  */
-export async function ensurePresetAssetsImported(agent: ChatAgent): Promise<boolean> {
+export async function ensurePresetAssetsImported(
+  agent: ChatAgent
+): Promise<boolean> {
   let hasChanges = false;
 
   // 1. 处理图标
   // 同时支持新旧内置路径
-  const isPresetIcon = agent.icon && (agent.icon.startsWith("/agent-presets/") || agent.icon.startsWith("/agent-icons/"));
+  const isPresetIcon =
+    agent.icon &&
+    (agent.icon.startsWith("/agent-presets/") ||
+      agent.icon.startsWith("/agent-icons/"));
 
   if (isPresetIcon) {
     try {
       // 如果是旧路径，先进行逻辑转换以便 fetch 能拿到新位置的资源
       let fetchUrl = agent.icon!;
       if (fetchUrl.startsWith("/agent-icons/")) {
-        const agentIdMatch = fetchUrl.match(/\/agent-icons\/(.+)\.(jpg|png|webp|gif)$/);
+        const agentIdMatch = fetchUrl.match(
+          /\/agent-icons\/(.+)\.(jpg|png|webp|gif)$/
+        );
         if (agentIdMatch) {
           fetchUrl = `/agent-presets/${agentIdMatch[1]}/icon.jpg`;
         }
       }
 
-      logger.info("检测到内置预设图标，开始导入", { agentId: agent.id, icon: agent.icon, fetchUrl });
+      logger.info("检测到内置预设图标，开始导入", {
+        agentId: agent.id,
+        icon: agent.icon,
+        fetchUrl,
+      });
       const response = await fetch(fetchUrl);
       if (response.ok) {
         const buffer = await response.arrayBuffer();
@@ -64,7 +75,10 @@ export async function ensurePresetAssetsImported(agent: ChatAgent): Promise<bool
   // 2. 处理资产列表
   if (agent.assets && agent.assets.length > 0) {
     for (const asset of agent.assets) {
-      const isPresetAsset = asset.path && (asset.path.startsWith("/agent-presets/") || asset.path.startsWith("/agent-icons/"));
+      const isPresetAsset =
+        asset.path &&
+        (asset.path.startsWith("/agent-presets/") ||
+          asset.path.startsWith("/agent-icons/"));
 
       if (isPresetAsset) {
         try {
@@ -76,14 +90,21 @@ export async function ensurePresetAssetsImported(agent: ChatAgent): Promise<bool
             }
           }
 
-          logger.info("检测到内置预设资产，开始导入", { agentId: agent.id, assetPath: asset.path, fetchUrl });
+          logger.info("检测到内置预设资产，开始导入", {
+            agentId: agent.id,
+            assetPath: asset.path,
+            fetchUrl,
+          });
           const response = await fetch(fetchUrl);
           if (response.ok) {
             const buffer = await response.arrayBuffer();
-            const filename = asset.path.split("/").pop() || asset.filename || "file";
+            const filename =
+              asset.path.split("/").pop() || asset.filename || "file";
 
             // 确定存储子目录 (保持 assets/ 结构)
-            const relativeSubDir = asset.path.includes("/assets/") ? "assets" : "";
+            const relativeSubDir = asset.path.includes("/assets/")
+              ? "assets"
+              : "";
             const subdirectory = `llm-chat/agents/${agent.id}${relativeSubDir ? "/" + relativeSubDir : ""}`;
 
             const bytes = new Uint8Array(buffer);
@@ -94,7 +115,9 @@ export async function ensurePresetAssetsImported(agent: ChatAgent): Promise<bool
               filename,
             });
 
-            asset.path = relativeSubDir ? `${relativeSubDir}/${filename}` : filename;
+            asset.path = relativeSubDir
+              ? `${relativeSubDir}/${filename}`
+              : filename;
             hasChanges = true;
           }
         } catch (e) {

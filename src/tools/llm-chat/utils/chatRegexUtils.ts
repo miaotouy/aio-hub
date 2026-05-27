@@ -43,7 +43,7 @@ export function collectRulesForPipeline(
     for (const preset of enabledPresets) {
       // 过滤出启用的、且适用于当前阶段的规则
       const applicableRules = preset.rules.filter(
-        (rule) => rule.enabled && rule.applyTo[stage],
+        (rule) => rule.enabled && rule.applyTo[stage]
       );
       allRules.push(...applicableRules);
     }
@@ -77,7 +77,7 @@ export function resolveRawRules(
  */
 export function filterRulesByRole(
   rules: ChatRegexRule[],
-  role: MessageRole,
+  role: MessageRole
 ): ChatRegexRule[] {
   return rules.filter((rule) => rule.targetRoles.includes(role));
 }
@@ -91,7 +91,7 @@ export function filterRulesByRole(
  */
 export function filterRulesByDepth(
   rules: ChatRegexRule[],
-  depth: number,
+  depth: number
 ): ChatRegexRule[] {
   return rules.filter((rule) => {
     if (!rule.depthRange) return true;
@@ -141,7 +141,7 @@ export function resolveRulesForMessage(
  */
 export async function processRulesWithMacros(
   rules: ChatRegexRule[],
-  macroContext: MacroContext,
+  macroContext: MacroContext
 ): Promise<ChatRegexRule[]> {
   const processor = new MacroProcessor();
   const processedRules: ChatRegexRule[] = [];
@@ -153,7 +153,8 @@ export async function processRulesWithMacros(
     if (newRule.substitutionMode && newRule.substitutionMode !== "NONE") {
       const transform =
         newRule.substitutionMode === "ESCAPED"
-          ? (value: unknown) => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+          ? (value: unknown) =>
+              String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
           : undefined;
 
       // 处理 regex 字段
@@ -164,7 +165,7 @@ export async function processRulesWithMacros(
         {
           valueTransformer: transform,
           silent: true, // 静默处理，避免在循环中刷屏
-        },
+        }
       );
 
       // 处理 trimStrings 字段
@@ -174,8 +175,8 @@ export async function processRulesWithMacros(
             processMacros(processor, str, macroContext, {
               valueTransformer: transform, // 同样对 trimStrings 中的宏应用转义
               silent: true, // 静默处理
-            }),
-          ),
+            })
+          )
         );
       }
     }
@@ -215,7 +216,7 @@ export function executeReplacementScript(
     groups: string[];
     index: number;
     source: string;
-  },
+  }
 ): string {
   try {
     let fn = scriptCache.get(scriptContent);
@@ -250,7 +251,7 @@ export function executeReplacementScript(
         } catch (e) {
           throw e;
         }
-        `,
+        `
       );
       scriptCache.set(scriptContent, fn);
     }
@@ -274,7 +275,7 @@ export function executeReplacementScript(
         log: console.log.bind(console),
         warn: console.warn.bind(console),
         error: console.error.bind(console),
-      },
+      }
     );
 
     return String(result ?? context.match);
@@ -299,7 +300,7 @@ export function executeReplacementScript(
 export function applyRegexRules(
   content: string,
   rules: ChatRegexRule[],
-  isStreaming: boolean = false,
+  isStreaming: boolean = false
 ): string {
   let result = content;
 
@@ -355,11 +356,11 @@ export function applyRegexRules(
                 processedReplacement = processedReplacement
                   .replace(
                     new RegExp(`\\$${index + 1}(?!\\d)`, "g"),
-                    trimmedGroup,
+                    trimmedGroup
                   )
                   .replace(
                     new RegExp(`\\$\\{${index + 1}\\}`, "g"),
-                    trimmedGroup,
+                    trimmedGroup
                   );
               }
             });
@@ -378,7 +379,7 @@ export function applyRegexRules(
       // 规则执行失败，跳过此规则
       console.warn(
         `[ChatRegex] 规则 "${rule.name || rule.id}" 执行失败:`,
-        error,
+        error
       );
     }
   }
@@ -441,7 +442,7 @@ export function parseRegexString(regexString: string): {
  * 将 SillyTavern 的 RegexScript 转换为本系统的 ChatRegexRule
  */
 export function convertSillyTavernScriptToRule(
-  st: SillyTavernRegexScript,
+  st: SillyTavernRegexScript
 ): ChatRegexRule | null {
   if (!st.findRegex) return null;
 
@@ -478,7 +479,7 @@ export function convertSillyTavernScriptToRule(
  * 将 SilyTavern 的 RegexScript 转换为本系统的 ChatRegexPreset
  */
 export function convertFromSillyTavern(
-  st: SillyTavernRegexScript,
+  st: SillyTavernRegexScript
 ): ChatRegexPreset {
   const rule = convertSillyTavernScriptToRule(st);
   const rules = rule ? [rule] : [];
@@ -500,7 +501,7 @@ export function convertFromSillyTavern(
  */
 export function convertSillyTavernArrayToPreset(
   scripts: SillyTavernRegexScript[],
-  presetName?: string,
+  presetName?: string
 ): ChatRegexPreset {
   const rules: ChatRegexRule[] = [];
 
@@ -532,7 +533,7 @@ export function convertSillyTavernArrayToPreset(
  * @see SillyTavern: public/scripts/extensions/regex/engine.js
  */
 function convertSubstituteRegex(
-  value: number | undefined,
+  value: number | undefined
 ): "NONE" | "RAW" | "ESCAPED" {
   switch (value) {
     case 1:
@@ -578,7 +579,7 @@ function convertPlacementToApplyTo(script: SillyTavernRegexScript): {
  * - REASONING = 6 → assistant (推理内容属于 AI 输出)
  */
 function convertPlacementToTargetRoles(
-  script: SillyTavernRegexScript,
+  script: SillyTavernRegexScript
 ): MessageRole[] {
   if (!Array.isArray(script.placement) || script.placement.length === 0) {
     // 如果没有 placement，默认应用于所有角色
@@ -669,7 +670,9 @@ export function scanScriptForRisks(scriptContent?: string): 0 | 1 | 2 {
  */
 export function checkPresetHasScript(preset: ChatRegexPreset): boolean {
   return preset.rules.some(
-    (rule) => rule.replacementType === "script" || (rule.scriptContent && rule.scriptContent.trim() !== ""),
+    (rule) =>
+      rule.replacementType === "script" ||
+      (rule.scriptContent && rule.scriptContent.trim() !== "")
   );
 }
 
@@ -678,7 +681,7 @@ export function checkPresetHasScript(preset: ChatRegexPreset): boolean {
  * @deprecated 建议使用 convertSillyTavernArrayToPreset 将其合并为一个预设
  */
 export function convertMultipleFromSillyTavern(
-  scripts: SillyTavernRegexScript[],
+  scripts: SillyTavernRegexScript[]
 ): ChatRegexPreset[] {
   return scripts.map(convertFromSillyTavern);
 }

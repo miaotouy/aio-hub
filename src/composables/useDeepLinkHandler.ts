@@ -2,7 +2,10 @@
  * Deep Link 处理器
  * 负责监听 aiohub:// 协议并处理相关操作
  */
-import { onOpenUrl, getCurrent as getCurrentDeepLinkUrls } from "@tauri-apps/plugin-deep-link";
+import {
+  onOpenUrl,
+  getCurrent as getCurrentDeepLinkUrls,
+} from "@tauri-apps/plugin-deep-link";
 import { listen } from "@tauri-apps/api/event";
 import { onMounted, onUnmounted } from "vue";
 import { customMessage } from "@/utils/customMessage";
@@ -70,7 +73,10 @@ export function useDeepLinkHandler() {
   /**
    * 推断提供商类型
    */
-  const inferProviderType = (address: string, typeParam?: string): ProviderType => {
+  const inferProviderType = (
+    address: string,
+    typeParam?: string
+  ): ProviderType => {
     // 1. 优先使用传进来的 type 参数并进行映射
     if (typeParam) {
       const normalizedType = typeParam.toLowerCase();
@@ -83,7 +89,8 @@ export function useDeepLinkHandler() {
     const addr = address.toLowerCase();
     if (addr.includes("api.openai.com")) return "openai";
     if (addr.includes("api.deepseek.com")) return "deepseek";
-    if (addr.includes("anthropic.com") || addr.includes("claude.ai")) return "claude";
+    if (addr.includes("anthropic.com") || addr.includes("claude.ai"))
+      return "claude";
     if (addr.includes("googleapis.com")) {
       if (addr.includes("aiplatform")) return "vertexai";
       return "gemini";
@@ -115,7 +122,9 @@ export function useDeepLinkHandler() {
     try {
       // 查找预设以获取默认模型
       const preset = llmPresets.find(
-        (p) => p.type === providerType || p.name.toLowerCase() === providerType.toLowerCase()
+        (p) =>
+          p.type === providerType ||
+          p.name.toLowerCase() === providerType.toLowerCase()
       );
 
       const newProfile: LlmProfile = {
@@ -145,7 +154,10 @@ export function useDeepLinkHandler() {
   const processUrl = async (url: string) => {
     // 防抖去重逻辑
     const now = Date.now();
-    if (url === lastProcessedUrl && now - lastProcessedTime < DUPLICATE_THRESHOLD) {
+    if (
+      url === lastProcessedUrl &&
+      now - lastProcessedTime < DUPLICATE_THRESHOLD
+    ) {
       logger.info("忽略重复的 Deep Link 请求", { url });
       return;
     }
@@ -198,7 +210,9 @@ export function useDeepLinkHandler() {
 
       // 3. 监听 Rust 端转发的自定义事件
       unlistenEvent = await listen<string[]>("deep-link://opened", (event) => {
-        logger.info("收到 Rust 转发的 deep-link://opened 事件", { payload: event.payload });
+        logger.info("收到 Rust 转发的 deep-link://opened 事件", {
+          payload: event.payload,
+        });
         const urls = event.payload;
         if (Array.isArray(urls)) {
           for (const url of urls) {
@@ -235,7 +249,9 @@ export function useDeepLinkHandler() {
               processUrl(url);
             }
           } else {
-            logger.warn("所有原始参数中均未找到 aiohub:// 协议", { allPossibleArgs });
+            logger.warn("所有原始参数中均未找到 aiohub:// 协议", {
+              allPossibleArgs,
+            });
           }
         }
       });

@@ -3,7 +3,13 @@
  * 使用 ConfigManager 管理索引文件，每个会话存储为独立文件
  */
 
-import { exists, readTextFile, writeTextFile, remove, mkdir } from "@tauri-apps/plugin-fs";
+import {
+  exists,
+  readTextFile,
+  writeTextFile,
+  remove,
+  mkdir,
+} from "@tauri-apps/plugin-fs";
 import { join } from "@tauri-apps/api/path";
 import { getAppConfigDir } from "@/utils/appPath";
 import { createConfigManager } from "@/utils/configManager";
@@ -137,7 +143,10 @@ export function useSessionManager() {
   /**
    * 保存单个会话内容
    */
-  async function saveSessionFile(session: ChatSession, forceWrite: boolean = false): Promise<void> {
+  async function saveSessionFile(
+    session: ChatSession,
+    forceWrite: boolean = false
+  ): Promise<void> {
     try {
       await ensureSessionsDir();
       const sessionPath = await getSessionPath(session.id);
@@ -206,7 +215,10 @@ export function useSessionManager() {
   /**
    * 持久化会话并更新索引
    */
-  async function persistSession(session: ChatSession, currentSessionId: string | null): Promise<void> {
+  async function persistSession(
+    session: ChatSession,
+    currentSessionId: string | null
+  ): Promise<void> {
     try {
       // 1. 保存文件
       await saveSessionFile(session, true);
@@ -215,7 +227,7 @@ export function useSessionManager() {
       const index = await loadIndex();
       index.currentSessionId = currentSessionId;
 
-      const idx = index.sessions.findIndex(s => s.id === session.id);
+      const idx = index.sessions.findIndex((s) => s.id === session.id);
       const item = createIndexItem(session);
 
       if (idx >= 0) {
@@ -241,7 +253,7 @@ export function useSessionManager() {
       const index = await loadIndex();
       return {
         sessionMetas: index.sessions,
-        currentSessionId: index.currentSessionId
+        currentSessionId: index.currentSessionId,
       };
     } catch (error) {
       logger.error("加载会话索引失败", error);
@@ -256,12 +268,12 @@ export function useSessionManager() {
     try {
       await deleteSessionFile(sessionId);
       const index = await loadIndex();
-      index.sessions = index.sessions.filter(s => s.id !== sessionId);
-      
+      index.sessions = index.sessions.filter((s) => s.id !== sessionId);
+
       if (index.currentSessionId === sessionId) {
         index.currentSessionId = index.sessions[0]?.id || null;
       }
-      
+
       await saveIndex(index);
       return index.currentSessionId;
     } catch (error) {
@@ -283,9 +295,12 @@ export function useSessionManager() {
    * 防抖保存
    */
   function createDebouncedSave(delay: number = 1000) {
-    return debounce(async (session: ChatSession, currentSessionId: string | null) => {
-      await persistSession(session, currentSessionId);
-    }, delay);
+    return debounce(
+      async (session: ChatSession, currentSessionId: string | null) => {
+        await persistSession(session, currentSessionId);
+      },
+      delay
+    );
   }
 
   return {

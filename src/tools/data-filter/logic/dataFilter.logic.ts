@@ -9,7 +9,17 @@ const errorHandler = createModuleErrorHandler("tools/data-filter/logic");
 
 export interface FilterCondition {
   key: string;
-  operator: "eq" | "ne" | "contains" | "truthy" | "falsy" | "gt" | "ge" | "lt" | "le" | "custom";
+  operator:
+    | "eq"
+    | "ne"
+    | "contains"
+    | "truthy"
+    | "falsy"
+    | "gt"
+    | "ge"
+    | "lt"
+    | "le"
+    | "custom";
   value?: any;
   customScript?: string;
   enabled?: boolean; // 是否启用此条件，默认为 true
@@ -37,14 +47,21 @@ export function applyFilter(input: any, options: FilterOptions): FilterResult {
 
     // 1. 定位目标数组
     if (options.dataPath) {
-      logger.debug("使用 dataPath 定位目标数组", { dataPath: options.dataPath });
+      logger.debug("使用 dataPath 定位目标数组", {
+        dataPath: options.dataPath,
+      });
       target = get(input, options.dataPath);
     }
 
     if (!Array.isArray(target)) {
       if (typeof target === "object" && target !== null) {
         // 如果不是数组但是对象，尝试自动找数组字段（可选增强）
-        return { data: target, total: 0, filtered: 0, error: "目标路径不是一个数组" };
+        return {
+          data: target,
+          total: 0,
+          filtered: 0,
+          error: "目标路径不是一个数组",
+        };
       }
       return { data: target, total: 0, filtered: 0, error: "输入数据不是数组" };
     }
@@ -100,7 +117,11 @@ export function applyFilter(input: any, options: FilterOptions): FilterResult {
         if (cond.operator === "custom") {
           if (!cond.customScript) return true;
           try {
-            const fn = new Function("item", "value", `return ${cond.customScript}`);
+            const fn = new Function(
+              "item",
+              "value",
+              `return ${cond.customScript}`
+            );
             return fn(item, cond.value);
           } catch (e) {
             errorHandler.handle(e, {
@@ -173,7 +194,9 @@ export function parseFilterOptions(args: Record<string, string>): {
 /**
  * 加载并解析文件（JSON 或 YAML）
  */
-export async function loadDataFile(path: string): Promise<{ data: any; error?: string }> {
+export async function loadDataFile(
+  path: string
+): Promise<{ data: any; error?: string }> {
   try {
     logger.debug("开始加载数据文件", { path });
     const content = await readTextFile(path);
@@ -202,7 +225,9 @@ export async function loadDataFile(path: string): Promise<{ data: any; error?: s
 /**
  * Agent 专用：从文件路径和参数字典执行完整过滤流程
  */
-export async function applyFilterFromFile(args: Record<string, string>): Promise<FilterResult> {
+export async function applyFilterFromFile(
+  args: Record<string, string>
+): Promise<FilterResult> {
   const path = args.path;
   if (!path) {
     return {

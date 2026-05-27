@@ -3,16 +3,16 @@
  * 适配新的主题外观系统 (ThemeAppearance)
  */
 
-import type { CssPreset } from '@/types/css-override';
+import type { CssPreset } from "@/types/css-override";
 
 /**
  * 内置 CSS 预设列表
  */
 export const builtInCssPresets: CssPreset[] = [
   {
-    id: 'acrylic-blur',
-    name: '通透毛玻璃',
-    description: '增强UI的通透感和模糊效果，现代感十足',
+    id: "acrylic-blur",
+    name: "通透毛玻璃",
+    description: "增强UI的通透感和模糊效果，现代感十足",
     content: `/* 通透毛玻璃预设 */
 :root {
   /* 强制开启高斯模糊 */
@@ -36,9 +36,9 @@ export const builtInCssPresets: CssPreset[] = [
 }`,
   },
   {
-    id: 'color-overlay-sunset',
-    name: '日落光辉',
-    description: '模拟日落时的暖色调光辉叠加在UI上',
+    id: "color-overlay-sunset",
+    name: "日落光辉",
+    description: "模拟日落时的暖色调光辉叠加在UI上",
     content: `/* 日落光辉颜色叠加预设 */
 body::after {
   content: '';
@@ -59,9 +59,9 @@ html.dark body::after {
 }`,
   },
   {
-    id: 'cyberpunk-enhanced',
-    name: '赛博朋克 (增强)',
-    description: '未来感科技风格，通过滤镜增强霓虹色彩',
+    id: "cyberpunk-enhanced",
+    name: "赛博朋克 (增强)",
+    description: "未来感科技风格，通过滤镜增强霓虹色彩",
     content: `/* 赛博朋克增强预设 */
 :root {
   /* 使用滤镜增强主题色，使其更亮，而不是直接覆盖 */
@@ -87,9 +87,9 @@ html.dark body::after {
 }`,
   },
   {
-    id: 'minimalist-pure',
-    name: '简约纯净',
-    description: '去除所有阴影和不必要的装饰，极简设计',
+    id: "minimalist-pure",
+    name: "简约纯净",
+    description: "去除所有阴影和不必要的装饰，极简设计",
     content: `/* 简约纯净预设 */
 * {
   box-shadow: none !important;
@@ -110,9 +110,9 @@ html.dark body::after {
 }`,
   },
   {
-    id: 'high-contrast-accessible',
-    name: '高对比度 (可访问性)',
-    description: '通过滤镜提升对比度，强化文本，适用于亮暗两种模式',
+    id: "high-contrast-accessible",
+    name: "高对比度 (可访问性)",
+    description: "通过滤镜提升对比度，强化文本，适用于亮暗两种模式",
     content: `/* 高对比度可访问性预设 */
 :root {
   filter: contrast(1.15);
@@ -132,9 +132,9 @@ body {
 }`,
   },
   {
-    id: 'retro-terminal-v2',
-    name: '复古终端 v2',
-    description: '经典的绿色终端风格，适配新主题系统',
+    id: "retro-terminal-v2",
+    name: "复古终端 v2",
+    description: "经典的绿色终端风格，适配新主题系统",
     content: `/* 复古终端 v2 预设 */
 @import url('https://fonts.googleapis.com/css2?family=Fira+Code&display=swap');
 :root {
@@ -176,9 +176,9 @@ body::before {
 }`,
   },
   {
-    id: 'dynamic-starry-sky',
-    name: '动态星空',
-    description: '使用纯CSS动画在背景中生成一片动态的星空',
+    id: "dynamic-starry-sky",
+    name: "动态星空",
+    description: "使用纯CSS动画在背景中生成一片动态的星空",
     content: `/* 动态星空背景预设 */
 @keyframes move-twink-back {
     from {background-position:0 0;}
@@ -243,5 +243,5 @@ export function getPresetById(id: string): CssPreset | undefined {
 export const defaultUserCssSettings = {
   enabled: false,
   basedOnPresetId: null,
-  customContent: '',
+  customContent: "",
 };

@@ -8,16 +8,17 @@
  * 使用分块处理策略，平衡性能和栈安全
  */
 const bufferToBase64 = (buffer: ArrayBuffer | ArrayBufferView): string => {
-  const bytes = buffer instanceof Uint8Array
-    ? buffer
-    : (ArrayBuffer.isView(buffer)
-      ? new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength)
-      : new Uint8Array(buffer));
+  const bytes =
+    buffer instanceof Uint8Array
+      ? buffer
+      : ArrayBuffer.isView(buffer)
+        ? new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength)
+        : new Uint8Array(buffer);
 
-  let binary = '';
+  let binary = "";
   const len = bytes.byteLength;
   const chunkSize = 8192; // 8KB 分块，避免栈溢出且保持高性能
-  
+
   // 分块处理：使用扩展运算符批量转换，避免逐字符拼接的 O(n²) 复杂度
   for (let i = 0; i < len; i += chunkSize) {
     const end = Math.min(i + chunkSize, len);
@@ -25,7 +26,7 @@ const bufferToBase64 = (buffer: ArrayBuffer | ArrayBufferView): string => {
     // 使用扩展运算符代替 apply，更现代且安全
     binary += String.fromCharCode(...chunk);
   }
-  
+
   return btoa(binary);
 };
 
@@ -38,7 +39,8 @@ const processBinaryData = (obj: any): any => {
   // 处理 AIO 特殊资产结构 (如 Data URL 标记)
   if (obj.__AIO_ASSET_TYPE__ === "data_url") {
     // 如果已经是字符串，直接使用；否则转换二进制
-    const base64 = typeof obj.data === "string" ? obj.data : bufferToBase64(obj.data);
+    const base64 =
+      typeof obj.data === "string" ? obj.data : bufferToBase64(obj.data);
     if (obj.rawBase64) {
       return base64;
     }
@@ -75,22 +77,25 @@ self.onmessage = (e: MessageEvent<any>) => {
     // 2. 在 Worker 线程执行序列化
     const serializeStart = performance.now();
     const json = JSON.stringify(processedBody);
-    
+
     // 3. 进一步优化：在 Worker 侧完成 UTF-8 编码，避免主线程在 fetch 时进行大字符串编码
     const encoder = new TextEncoder();
     const uint8Array = encoder.encode(json);
     const serializeEnd = performance.now();
 
     // 使用 Transferable Objects 转移内存所有权，主线程接收耗时将降至 0ms
-    (self as any).postMessage({
-      status: 'success',
-      data: uint8Array,
-      workerMetrics: {
-        serializeTime: serializeEnd - serializeStart,
-        jsonSize: json.length
-      }
-    }, [uint8Array.buffer]);
+    (self as any).postMessage(
+      {
+        status: "success",
+        data: uint8Array,
+        workerMetrics: {
+          serializeTime: serializeEnd - serializeStart,
+          jsonSize: json.length,
+        },
+      },
+      [uint8Array.buffer]
+    );
   } catch (error) {
-    self.postMessage({ status: 'error', error: String(error) });
+    self.postMessage({ status: "error", error: String(error) });
   }
 };

@@ -19,8 +19,18 @@
       </div>
     </div>
     <template #footer>
-      <el-button v-if="status === 'exception'" type="primary" @click="visible = false">关闭</el-button>
-      <el-button v-else-if="percentage === 100" type="primary" @click="visible = false">完成</el-button>
+      <el-button
+        v-if="status === 'exception'"
+        type="primary"
+        @click="visible = false"
+        >关闭</el-button
+      >
+      <el-button
+        v-else-if="percentage === 100"
+        type="primary"
+        @click="visible = false"
+        >完成</el-button
+      >
       <el-button v-else @click="cancel">取消</el-button>
     </template>
   </BaseDialog>

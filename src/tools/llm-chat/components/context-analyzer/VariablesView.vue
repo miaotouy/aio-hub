@@ -35,7 +35,7 @@ const variables = computed(() => {
   return Object.entries(snapshot.values).map(([path, value]) => ({
     path,
     value,
-    type: typeof value
+    type: typeof value,
   }));
 });
 </script>
@@ -45,11 +45,16 @@ const variables = computed(() => {
     <div v-if="variables.length === 0" class="empty-state">
       <el-empty description="当前会话中没有活动的变量" />
     </div>
-    
+
     <div v-else class="variables-container">
       <div class="header">
         <h3>当前变量状态</h3>
-        <el-tag size="small" type="info">快照时间: {{ new Date(latestSnapshot?.timestamp || Date.now()).toLocaleString() }}</el-tag>
+        <el-tag size="small" type="info"
+          >快照时间:
+          {{
+            new Date(latestSnapshot?.timestamp || Date.now()).toLocaleString()
+          }}</el-tag
+        >
       </div>
 
       <el-table :data="variables" style="width: 100%" border stripe>
@@ -60,12 +65,20 @@ const variables = computed(() => {
         </el-table-column>
         <el-table-column prop="value" label="当前值">
           <template #default="{ row }">
-            <pre class="variable-value">{{ typeof row.value === 'object' ? JSON.stringify(row.value, null, 2) : row.value }}</pre>
+            <pre class="variable-value">{{
+              typeof row.value === "object"
+                ? JSON.stringify(row.value, null, 2)
+                : row.value
+            }}</pre>
           </template>
         </el-table-column>
         <el-table-column prop="type" label="类型" width="100">
           <template #default="{ row }">
-            <el-tag size="small" :type="row.type === 'number' ? 'success' : 'warning'">{{ row.type }}</el-tag>
+            <el-tag
+              size="small"
+              :type="row.type === 'number' ? 'success' : 'warning'"
+              >{{ row.type }}</el-tag
+            >
           </template>
         </el-table-column>
       </el-table>

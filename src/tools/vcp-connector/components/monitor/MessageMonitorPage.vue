@@ -1,5 +1,8 @@
 <template>
-  <div class="message-monitor-page" :class="{ 'detached-mode': isActuallyDetached }">
+  <div
+    class="message-monitor-page"
+    :class="{ 'detached-mode': isActuallyDetached }"
+  >
     <!-- 分离模式下的壁纸层 -->
     <div v-if="isActuallyDetached" class="detached-wallpaper"></div>
 
@@ -27,12 +30,20 @@
       <div class="monitor-controls">
         <div class="header-left">
           <div class="connection-status-wrapper">
-            <el-tag :type="connectionStatusTagType" size="small" effect="dark" round>
+            <el-tag
+              :type="connectionStatusTagType"
+              size="small"
+              effect="dark"
+              round
+            >
               {{ connectionStatusText }}
             </el-tag>
             <template v-if="isActuallyDetached">
               <el-button
-                v-if="connectionStatus === 'disconnected' || connectionStatus === 'error'"
+                v-if="
+                  connectionStatus === 'disconnected' ||
+                  connectionStatus === 'error'
+                "
                 type="primary"
                 size="small"
                 circle
@@ -43,7 +54,10 @@
                 @click="store.connect()"
               />
               <el-button
-                v-if="connectionStatus === 'connected' || connectionStatus === 'connecting'"
+                v-if="
+                  connectionStatus === 'connected' ||
+                  connectionStatus === 'connecting'
+                "
                 type="danger"
                 size="small"
                 circle
@@ -55,18 +69,35 @@
               />
             </template>
           </div>
-          <span class="message-count"> {{ filteredMessages.length }} 条消息 </span>
+          <span class="message-count">
+            {{ filteredMessages.length }} 条消息
+          </span>
           <span class="msg-rate"> {{ stats.messagesPerMinute }} msg/min </span>
 
           <!-- 快速筛选入口 -->
-          <el-popover placement="bottom-start" :width="240" trigger="click" popper-class="vcp-filter-popover">
+          <el-popover
+            placement="bottom-start"
+            :width="240"
+            trigger="click"
+            popper-class="vcp-filter-popover"
+          >
             <template #reference>
-              <el-button size="small" :type="isAnyFilterActive ? 'primary' : ''" :icon="Filter" circle plain />
+              <el-button
+                size="small"
+                :type="isAnyFilterActive ? 'primary' : ''"
+                :icon="Filter"
+                circle
+                plain
+              />
             </template>
             <div class="filter-popover-content">
               <div class="filter-header">
                 <span class="filter-title">类型筛选</span>
-                <el-link type="primary" underline="never" @click="toggleAllTypes">
+                <el-link
+                  type="primary"
+                  underline="never"
+                  @click="toggleAllTypes"
+                >
                   {{ isAllTypesSelected ? "全不选" : "全选" }}
                 </el-link>
               </div>
@@ -75,13 +106,20 @@
                   v-for="type in typeOptions"
                   :key="type.value"
                   class="type-filter-option"
-                  :class="[type.class, { active: store.filter.types.includes(type.value) }]"
+                  :class="[
+                    type.class,
+                    { active: store.filter.types.includes(type.value) },
+                  ]"
                   @click="toggleType(type.value)"
                 >
                   <div class="type-indicator"></div>
                   <span class="type-name">{{ type.label }}</span>
                   <span class="type-desc">{{ type.desc }}</span>
-                  <el-icon v-if="store.filter.types.includes(type.value)" class="check-icon"><Check /></el-icon>
+                  <el-icon
+                    v-if="store.filter.types.includes(type.value)"
+                    class="check-icon"
+                    ><Check
+                  /></el-icon>
                 </div>
               </div>
             </div>
@@ -113,8 +151,12 @@
             >
               {{ filter.paused ? "继续" : "暂停" }}
             </el-button>
-            <el-button size="small" :icon="Trash2" @click="clearMessages"> 清空 </el-button>
-            <el-button size="small" :icon="Download" @click="exportMessages"> 导出 </el-button>
+            <el-button size="small" :icon="Trash2" @click="clearMessages">
+              清空
+            </el-button>
+            <el-button size="small" :icon="Download" @click="exportMessages">
+              导出
+            </el-button>
           </el-button-group>
 
           <!-- 在非分离模式下，将 ComponentHeader 作为工具栏的一部分 -->
@@ -163,7 +205,10 @@
           }"
           class="message-item"
         >
-          <BroadcastCard :message="filteredMessages[virtualItem.index]" @show-json="emit('show-json', $event)" />
+          <BroadcastCard
+            :message="filteredMessages[virtualItem.index]"
+            @show-json="emit('show-json', $event)"
+          />
         </div>
       </div>
 
@@ -194,7 +239,17 @@ import { useDetachedManager } from "@/composables/useDetachedManager";
 import { useWindowResize } from "@/composables/useWindowResize";
 import { customMessage } from "@/utils/customMessage";
 import { getBlendedBackgroundColor } from "@/composables/useThemeAppearance";
-import { Pause, Play, Trash2, Download, Search, Link, Link2Off, Filter, Check } from "lucide-vue-next";
+import {
+  Pause,
+  Play,
+  Trash2,
+  Download,
+  Search,
+  Link,
+  Link2Off,
+  Filter,
+  Check,
+} from "lucide-vue-next";
 import ComponentHeader from "@/components/ComponentHeader.vue";
 import VcpConnectorIcon from "@/components/icons/VcpConnectorIcon.vue";
 import BroadcastCard from "./BroadcastCard.vue";
@@ -215,7 +270,9 @@ const emit = defineEmits<{
 const store = useVcpStore();
 
 // 统一的分离状态判断：优先使用 prop (由容器注入)，其次使用 store (由 URL 判断)
-const isActuallyDetached = computed(() => props.isDetached || store.isDetachedMonitor);
+const isActuallyDetached = computed(
+  () => props.isDetached || store.isDetachedMonitor
+);
 const { connectionStatus } = useVcpWebSocket();
 const { startDetaching, detachByClick } = useDetachable();
 const { closeWindow } = useDetachedManager();
@@ -228,16 +285,45 @@ const filter = computed(() => store.filter);
 const stats = computed(() => store.stats);
 
 const typeOptions = [
-  { value: "RAG_RETRIEVAL_DETAILS", label: "RAG", desc: "检索详情", class: "rag" },
-  { value: "META_THINKING_CHAIN", label: "Chain", desc: "思考链", class: "chain" },
-  { value: "AGENT_PRIVATE_CHAT_PREVIEW", label: "Agent", desc: "私聊预览", class: "agent" },
-  { value: "AI_MEMO_RETRIEVAL", label: "Memo", desc: "记忆回溯", class: "memo" },
-  { value: "PLUGIN_STEP_STATUS", label: "Plugin", desc: "插件步骤", class: "plugin" },
+  {
+    value: "RAG_RETRIEVAL_DETAILS",
+    label: "RAG",
+    desc: "检索详情",
+    class: "rag",
+  },
+  {
+    value: "META_THINKING_CHAIN",
+    label: "Chain",
+    desc: "思考链",
+    class: "chain",
+  },
+  {
+    value: "AGENT_PRIVATE_CHAT_PREVIEW",
+    label: "Agent",
+    desc: "私聊预览",
+    class: "agent",
+  },
+  {
+    value: "AI_MEMO_RETRIEVAL",
+    label: "Memo",
+    desc: "记忆回溯",
+    class: "memo",
+  },
+  {
+    value: "PLUGIN_STEP_STATUS",
+    label: "Plugin",
+    desc: "插件步骤",
+    class: "plugin",
+  },
   { value: "vcp_log", label: "Log", desc: "运行日志", class: "log" },
 ] as const;
 
-const isAnyFilterActive = computed(() => store.filter.types.length < typeOptions.length);
-const isAllTypesSelected = computed(() => store.filter.types.length === typeOptions.length);
+const isAnyFilterActive = computed(
+  () => store.filter.types.length < typeOptions.length
+);
+const isAllTypesSelected = computed(
+  () => store.filter.types.length === typeOptions.length
+);
 
 function toggleType(type: any) {
   const current = [...store.filter.types];
@@ -269,7 +355,7 @@ watch(
   () => store.filter.keyword,
   (kw) => {
     searchKeyword.value = kw;
-  },
+  }
 );
 
 /**
@@ -333,7 +419,7 @@ watch(
     if (newLength > oldLength && isNearTop.value) {
       scrollToTop();
     }
-  },
+  }
 );
 
 const connectionStatusTagType = computed(() => {

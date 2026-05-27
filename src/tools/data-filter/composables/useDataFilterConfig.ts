@@ -36,7 +36,10 @@ const configManager = createConfigManager<DataFilterConfig>({
     version: "1.0.0",
     lastState: {
       inputText: "",
-      options: { ...DEFAULT_OPTIONS, conditions: [...DEFAULT_OPTIONS.conditions] },
+      options: {
+        ...DEFAULT_OPTIONS,
+        conditions: [...DEFAULT_OPTIONS.conditions],
+      },
     },
     presets: [],
   }),
@@ -51,7 +54,10 @@ const configManager = createConfigManager<DataFilterConfig>({
 export function useDataFilterConfig() {
   const presets = ref<DataFilterPreset[]>([]);
 
-  async function loadConfig(): Promise<{ inputText: string; options: FilterOptions }> {
+  async function loadConfig(): Promise<{
+    inputText: string;
+    options: FilterOptions;
+  }> {
     const config = await configManager.load();
     presets.value = config.presets ?? [];
     logger.debug("配置加载完成", { presetsCount: presets.value.length });
@@ -66,7 +72,10 @@ export function useDataFilterConfig() {
     });
   }
 
-  async function savePreset(name: string, options: FilterOptions): Promise<string> {
+  async function savePreset(
+    name: string,
+    options: FilterOptions
+  ): Promise<string> {
     const preset: DataFilterPreset = {
       id: `preset_${Date.now()}`,
       name,
@@ -83,7 +92,10 @@ export function useDataFilterConfig() {
     return preset.id;
   }
 
-  async function updatePreset(id: string, options: FilterOptions): Promise<void> {
+  async function updatePreset(
+    id: string,
+    options: FilterOptions
+  ): Promise<void> {
     const preset = presets.value.find((p) => p.id === id);
     if (preset) {
       preset.options = JSON.parse(JSON.stringify(options));

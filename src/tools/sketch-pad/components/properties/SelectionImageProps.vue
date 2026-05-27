@@ -8,7 +8,9 @@
     <div class="property-item">
       <span class="label">原始尺寸</span>
       <div class="info-row">
-        <span class="info-value">{{ obj.naturalWidth }} × {{ obj.naturalHeight }}</span>
+        <span class="info-value"
+          >{{ obj.naturalWidth }} × {{ obj.naturalHeight }}</span
+        >
       </div>
     </div>
 

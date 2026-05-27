@@ -1,4 +1,7 @@
-import type { VariableTreeNode, FlatVariableDefinition } from "../types/sessionVariable";
+import type {
+  VariableTreeNode,
+  FlatVariableDefinition,
+} from "../types/sessionVariable";
 
 /**
  * 将树形变量定义扁平化为路径映射
@@ -24,7 +27,7 @@ export function flattenDefinitions(
         min: node.min,
         max: node.max,
         description: node.description,
-        hidden: node.hidden
+        hidden: node.hidden,
       });
     } else if (node.type === "group" && node.children) {
       // 分组节点：递归处理子节点
@@ -43,5 +46,5 @@ export function flattenDefinitions(
 export function createDefinitionMap(
   definitions: FlatVariableDefinition[]
 ): Map<string, FlatVariableDefinition> {
-  return new Map(definitions.map(def => [def.path, def]));
+  return new Map(definitions.map((def) => [def.path, def]));
 }

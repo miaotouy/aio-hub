@@ -57,13 +57,21 @@ const initEditMode = () => {
 
 const saveEdit = () => {
   if (editingContent.value.trim() || attachmentManager.hasAttachments.value) {
-    emit("save-edit", editingContent.value, attachmentManager.attachments.value);
+    emit(
+      "save-edit",
+      editingContent.value,
+      attachmentManager.attachments.value
+    );
   }
 };
 
 const saveToBranch = () => {
   if (editingContent.value.trim() || attachmentManager.hasAttachments.value) {
-    emit("save-to-branch", editingContent.value, attachmentManager.attachments.value);
+    emit(
+      "save-to-branch",
+      editingContent.value,
+      attachmentManager.attachments.value
+    );
   }
 };
 
@@ -97,7 +105,7 @@ watch(
     } else {
       attachmentManager.clearAttachments();
     }
-  },
+  }
 );
 
 const task = computed(() => {
@@ -133,14 +141,18 @@ const updateResultUrls = async () => {
   const assets = effectiveAssets.value;
   if (assets.length > 0) {
     try {
-      const urls = await Promise.all(assets.map((asset: Asset) => getAssetUrl(asset)));
+      const urls = await Promise.all(
+        assets.map((asset: Asset) => getAssetUrl(asset))
+      );
       resultUrls.value = urls.filter(Boolean) as string[];
       logger.debug("Result URLs updated", {
         taskId: task.value?.id,
         count: resultUrls.value.length,
       });
     } catch (error) {
-      logger.error("Failed to get asset URLs", error, { taskId: task.value?.id });
+      logger.error("Failed to get asset URLs", error, {
+        taskId: task.value?.id,
+      });
       resultUrls.value = [];
     }
   } else {
@@ -167,7 +179,7 @@ watch(
       updateResultUrls();
     }
   },
-  { immediate: true, deep: true },
+  { immediate: true, deep: true }
 );
 
 // 推理状态计算
@@ -200,7 +212,10 @@ const generationMetaForRenderer = computed(() => {
 <template>
   <div class="message-content">
     <!-- 附件展示区域 - 非编辑模式 -->
-    <div v-if="!isEditing && message.attachments?.length" class="attachments-section">
+    <div
+      v-if="!isEditing && message.attachments?.length"
+      class="attachments-section"
+    >
       <div class="attachments-list">
         <AttachmentCard
           v-for="attachment in message.attachments"
@@ -232,9 +247,17 @@ const generationMetaForRenderer = computed(() => {
     />
 
     <!-- 编辑模式 -->
-    <div v-if="isEditing" ref="editAreaRef" class="edit-mode" :class="{ 'is-dragging': isDraggingOver }">
+    <div
+      v-if="isEditing"
+      ref="editAreaRef"
+      class="edit-mode"
+      :class="{ 'is-dragging': isDraggingOver }"
+    >
       <!-- 编辑模式的附件展示 -->
-      <div v-if="attachmentManager.hasAttachments.value" class="attachments-section edit-attachments">
+      <div
+        v-if="attachmentManager.hasAttachments.value"
+        class="attachments-section edit-attachments"
+      >
         <div class="attachments-list">
           <AttachmentCard
             v-for="attachment in attachmentManager.attachments.value"
@@ -258,14 +281,21 @@ const generationMetaForRenderer = computed(() => {
       />
       <div class="edit-actions">
         <div class="edit-info">
-          <span v-if="attachmentManager.attachmentCount.value > 0" class="attachment-count">
+          <span
+            v-if="attachmentManager.attachmentCount.value > 0"
+            class="attachment-count"
+          >
             {{ attachmentManager.attachmentCount.value }} 个附件
           </span>
           <span class="drag-tip">拖拽文件到此区域添加附件</span>
         </div>
         <div class="edit-buttons">
-          <el-button @click="saveEdit" type="primary" size="small">保存 (Ctrl+Enter)</el-button>
-          <el-button @click="saveToBranch" size="small" :icon="GitBranch">保存到新分支</el-button>
+          <el-button @click="saveEdit" type="primary" size="small"
+            >保存 (Ctrl+Enter)</el-button
+          >
+          <el-button @click="saveToBranch" size="small" :icon="GitBranch"
+            >保存到新分支</el-button
+          >
           <el-button @click="cancelEdit" size="small">取消 (Esc)</el-button>
         </div>
       </div>
@@ -275,10 +305,15 @@ const generationMetaForRenderer = computed(() => {
     <div v-else class="generation-content">
       <!-- 任务状态展示 -->
       <div v-if="task && task.status !== 'completed'" class="task-status">
-        <div v-if="task.status === 'processing' || task.status === 'pending'" class="status-loading">
+        <div
+          v-if="task.status === 'processing' || task.status === 'pending'"
+          class="status-loading"
+        >
           <Loader2 class="animate-spin" :size="20" />
           <span>{{ task.statusText || "正在生成中..." }}</span>
-          <span v-if="task.progress > 0" class="progress-text">{{ task.progress }}%</span>
+          <span v-if="task.progress > 0" class="progress-text"
+            >{{ task.progress }}%</span
+          >
         </div>
         <!-- 流式预览图（gpt-image-2 partial_images 特性） -->
         <div
@@ -290,8 +325,17 @@ const generationMetaForRenderer = computed(() => {
           class="partial-image-previews"
         >
           <div class="partial-image-grid">
-            <div v-for="(url, idx) in task.previewUrls" :key="idx" class="partial-image-item">
-              <img :src="url" :alt="`预览图 ${idx + 1}`" class="partial-image" @click="handleImageClick(url)" />
+            <div
+              v-for="(url, idx) in task.previewUrls"
+              :key="idx"
+              class="partial-image-item"
+            >
+              <img
+                :src="url"
+                :alt="`预览图 ${idx + 1}`"
+                class="partial-image"
+                @click="handleImageClick(url)"
+              />
               <div class="partial-image-badge">
                 <Loader2 class="animate-spin" :size="10" />
                 <span>渐进预览</span>
@@ -314,18 +358,29 @@ const generationMetaForRenderer = computed(() => {
         v-if="task?.status === 'completed'"
         class="media-result"
         :class="{
-          'is-multi': resultUrls.length > 1 || (task.previewUrls && task.previewUrls.length > 1),
+          'is-multi':
+            resultUrls.length > 1 ||
+            (task.previewUrls && task.previewUrls.length > 1),
         }"
       >
         <!-- 图像 -->
         <template v-if="task.type === 'image'">
           <div v-if="resultUrls.length > 0" class="image-grid">
             <div v-for="url in resultUrls" :key="url" class="media-item">
-              <img :src="url" :alt="task.input.prompt" class="media-preview clickable" @click="handleImageClick(url)" />
+              <img
+                :src="url"
+                :alt="task.input.prompt"
+                class="media-preview clickable"
+                @click="handleImageClick(url)"
+              />
             </div>
           </div>
           <div v-else-if="task.previewUrls?.length" class="image-grid">
-            <div v-for="url in task.previewUrls" :key="url" class="media-item preview-placeholder">
+            <div
+              v-for="url in task.previewUrls"
+              :key="url"
+              class="media-item preview-placeholder"
+            >
               <img :src="url" class="media-preview opacity-50" />
             </div>
           </div>
@@ -416,7 +471,8 @@ const generationMetaForRenderer = computed(() => {
   outline: none;
   border-color: var(--primary-color);
   background-color: var(--input-bg);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 15%, transparent);
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--primary-color) 15%, transparent);
 }
 
 .edit-actions {

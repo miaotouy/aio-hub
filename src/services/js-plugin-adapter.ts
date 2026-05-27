@@ -5,7 +5,11 @@
  */
 
 import type { ServiceMetadata, ToolContext } from "./types";
-import type { PluginProxy, PluginManifest, JsPluginExport } from "./plugin-types";
+import type {
+  PluginProxy,
+  PluginManifest,
+  JsPluginExport,
+} from "./plugin-types";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { pluginManager } from "./plugin-manager";
@@ -30,7 +34,11 @@ export class JsPluginAdapter implements PluginProxy {
 
   public pluginExport: JsPluginExport | null = null;
 
-  constructor(manifest: PluginManifest, installPath: string, devMode: boolean = false) {
+  constructor(
+    manifest: PluginManifest,
+    installPath: string,
+    devMode: boolean = false
+  ) {
     this.manifest = manifest;
     this.installPath = installPath;
     // 开发模式下为 ID 添加后缀，避免与生产版本冲突
@@ -52,7 +60,9 @@ export class JsPluginAdapter implements PluginProxy {
     }
 
     if (!context) {
-      logger.error(`启用插件 ${this.id} 时未提供 context，这可能会导致插件初始化失败`);
+      logger.error(
+        `启用插件 ${this.id} 时未提供 context，这可能会导致插件初始化失败`
+      );
     }
 
     logger.info(`启用 JS 插件: ${this.id}`);
@@ -86,7 +96,10 @@ export class JsPluginAdapter implements PluginProxy {
     logger.info(`禁用 JS 插件: ${this.id}`);
 
     // 1. 调用 deactivate 钩子
-    if (this.pluginExport && typeof this.pluginExport.deactivate === "function") {
+    if (
+      this.pluginExport &&
+      typeof this.pluginExport.deactivate === "function"
+    ) {
       try {
         logger.info(`调用插件 ${this.id} 的 deactivate 钩子`);
         await this.pluginExport.deactivate();
@@ -132,11 +145,17 @@ export class JsPluginAdapter implements PluginProxy {
    */
   getMetadata(): ServiceMetadata {
     // 1. 优先使用插件导出的 getMetadata()
-    if (this.pluginExport && typeof this.pluginExport.getMetadata === "function") {
+    if (
+      this.pluginExport &&
+      typeof this.pluginExport.getMetadata === "function"
+    ) {
       try {
         return this.pluginExport.getMetadata();
       } catch (error) {
-        logger.warn(`调用插件 ${this.id} 的 getMetadata 失败，回退到 manifest`, { error });
+        logger.warn(
+          `调用插件 ${this.id} 的 getMetadata 失败，回退到 manifest`,
+          { error }
+        );
       }
     }
 
@@ -158,7 +177,7 @@ export class JsPluginAdapter implements PluginProxy {
               !existingMethodNames.has(key) &&
               key !== "activate" &&
               key !== "deactivate" &&
-              key !== "getMetadata",
+              key !== "getMetadata"
           )
           .map((key) => ({
             name: key,
@@ -184,7 +203,7 @@ export class JsPluginAdapter implements PluginProxy {
           typeof (this.pluginExport as any)[key] === "function" &&
           key !== "activate" &&
           key !== "deactivate" &&
-          key !== "getMetadata",
+          key !== "getMetadata"
       )
       .map((key) => ({
         name: key,
@@ -204,10 +223,16 @@ export class JsPluginAdapter implements PluginProxy {
    * 使用 Proxy 来拦截所有方法调用,转发到插件的实际实现
    * @internal 此方法通过 Proxy 动态调用
    */
-  public callPluginMethod(methodName: string, params: any, toolContext?: ToolContext): any {
+  public callPluginMethod(
+    methodName: string,
+    params: any,
+    toolContext?: ToolContext
+  ): any {
     if (!this.enabled || !this.pluginExport) {
       const status = !this.enabled ? "已禁用" : "未正确加载";
-      const err = new Error(`无法调用方法 ${methodName}: 插件 ${this.id} ${status}`);
+      const err = new Error(
+        `无法调用方法 ${methodName}: 插件 ${this.id} ${status}`
+      );
       logger.warn(err.message);
       throw err;
     }
@@ -224,7 +249,9 @@ export class JsPluginAdapter implements PluginProxy {
       // 插件应该在 activate 时保存自己的 context，而不是依赖这里注入
       return method(params, toolContext);
     } catch (error) {
-      errorHandler.error(error, "插件方法调用失败", { context: { pluginId: this.id, methodName } });
+      errorHandler.error(error, "插件方法调用失败", {
+        context: { pluginId: this.id, methodName },
+      });
       throw error;
     }
   }
@@ -242,7 +269,7 @@ export class JsPluginAdapter implements PluginProxy {
 export function createJsPluginProxy(
   manifest: PluginManifest,
   installPath: string,
-  devMode: boolean = false,
+  devMode: boolean = false
 ): PluginProxy {
   const adapter = new JsPluginAdapter(manifest, installPath, devMode);
 
@@ -258,13 +285,21 @@ export function createJsPluginProxy(
       }
 
       // 2. 排除生命周期钩子和元数据方法
-      if (propStr === "activate" || propStr === "deactivate" || propStr === "getMetadata") {
+      if (
+        propStr === "activate" ||
+        propStr === "deactivate" ||
+        propStr === "getMetadata"
+      ) {
         return undefined;
       }
 
       // 3. 检查是否为有效方法（manifest 声明 或 动态导出）
-      const hasMethodInManifest = target.manifest.methods?.some((m) => m.name === propStr);
-      const hasMethodInExport = target.pluginExport && typeof (target.pluginExport as any)[propStr] === "function";
+      const hasMethodInManifest = target.manifest.methods?.some(
+        (m) => m.name === propStr
+      );
+      const hasMethodInExport =
+        target.pluginExport &&
+        typeof (target.pluginExport as any)[propStr] === "function";
 
       if (hasMethodInManifest || hasMethodInExport) {
         // 返回一个函数，调用插件的实际方法

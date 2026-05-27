@@ -7,16 +7,22 @@
         <span>
           搜索中... {{ progress?.filesScanned ?? 0 }} 文件已扫描
           <template v-if="progress && progress.totalMatches > 0">
-            · {{ progress.totalMatches }} 个结果 · {{ progress.filesMatched }} 文件
+            · {{ progress.totalMatches }} 个结果 ·
+            {{ progress.filesMatched }} 文件
           </template>
         </span>
-        <button class="results-tree__cancel-btn" @click="$emit('cancel')">取消</button>
+        <button class="results-tree__cancel-btn" @click="$emit('cancel')">
+          取消
+        </button>
       </template>
       <template v-else-if="summary">
         <span class="results-tree__summary">
-          {{ summary.totalMatches }} 个结果 · {{ summary.filesMatched }} 文件 · {{ summary.durationMs.toFixed(0) }}ms
+          {{ summary.totalMatches }} 个结果 · {{ summary.filesMatched }} 文件 ·
+          {{ summary.durationMs.toFixed(0) }}ms
         </span>
-        <span v-if="summary.cancelled" class="results-tree__cancelled">(已取消)</span>
+        <span v-if="summary.cancelled" class="results-tree__cancelled"
+          >(已取消)</span
+        >
       </template>
     </div>
 
@@ -48,7 +54,11 @@
 
       <!-- 列表视图 -->
       <template v-else-if="viewMode === 'list'">
-        <div v-for="fileResult in results" :key="fileResult.filePath" class="results-tree__file">
+        <div
+          v-for="fileResult in results"
+          :key="fileResult.filePath"
+          class="results-tree__file"
+        >
           <!-- 文件头 -->
           <div
             class="results-tree__file-header"
@@ -61,23 +71,37 @@
               :class="{ expanded: expandedFiles.has(fileResult.filePath) }"
             />
             <FileIcon :size="14" class="results-tree__file-icon" />
-            <span class="results-tree__file-name" :title="fileResult.relativePath">
+            <span
+              class="results-tree__file-name"
+              :title="fileResult.relativePath"
+            >
               {{ getFileName(fileResult.relativePath) }}
             </span>
             <span class="results-tree__file-dir">
               {{ getFileDir(fileResult.relativePath) }}
             </span>
-            <span class="results-tree__match-count">{{ fileResult.matches.length }}</span>
+            <span class="results-tree__match-count">{{
+              fileResult.matches.length
+            }}</span>
             <!-- 文件级悬停操作图标 -->
             <span class="results-tree__file-actions">
-              <el-tooltip v-if="showReplace" content="替换该文件所有匹配" placement="top" :show-after="500">
+              <el-tooltip
+                v-if="showReplace"
+                content="替换该文件所有匹配"
+                placement="top"
+                :show-after="500"
+              >
                 <Replace
                   :size="16"
                   class="results-tree__file-action-icon"
                   @click.stop="$emit('replaceFile', fileResult.filePath)"
                 />
               </el-tooltip>
-              <el-tooltip content="从结果中移除该文件" placement="top" :show-after="500">
+              <el-tooltip
+                content="从结果中移除该文件"
+                placement="top"
+                :show-after="500"
+              >
                 <X
                   :size="16"
                   class="results-tree__file-action-icon results-tree__file-action-icon--dismiss"
@@ -88,13 +112,21 @@
           </div>
 
           <!-- 匹配项列表 -->
-          <div v-if="expandedFiles.has(fileResult.filePath)" class="results-tree__matches">
+          <div
+            v-if="expandedFiles.has(fileResult.filePath)"
+            class="results-tree__matches"
+          >
             <!-- 上下文块模式 -->
             <ContextBlockView
               v-if="contextEnabled && hasContextData(fileResult)"
               :blocks="getContextBlocks(fileResult)"
-              @select-match="(lineNum) => onContextMatchSelect(fileResult, lineNum)"
-              @contextmenu="(ev, lineNum) => onContextMatchContextMenu(ev, fileResult, lineNum)"
+              @select-match="
+                (lineNum) => onContextMatchSelect(fileResult, lineNum)
+              "
+              @contextmenu="
+                (ev, lineNum) =>
+                  onContextMatchContextMenu(ev, fileResult, lineNum)
+              "
             />
             <!-- 普通单行模式 -->
             <template v-else>
@@ -103,7 +135,10 @@
                 :key="`${fileResult.filePath}-${idx}`"
                 :match="match"
                 :show-replace="showReplace"
-                :is-selected="selectedFilePath === fileResult.filePath && selectedLine === match.lineNumber"
+                :is-selected="
+                  selectedFilePath === fileResult.filePath &&
+                  selectedLine === match.lineNumber
+                "
                 @select="onMatchSelect(fileResult.filePath, match)"
                 @dismiss="$emit('dismissMatch', fileResult.filePath, idx)"
                 @replace-match="$emit('replaceMatch', fileResult.filePath, idx)"
@@ -125,7 +160,14 @@ import { FileIcon } from "lucide-vue-next";
 import ResultItem from "./ResultItem.vue";
 import ContextBlockView from "./ContextBlockView.vue";
 import DirectoryTreeView from "./DirectoryTreeView.vue";
-import type { FileSearchResult, SearchMatch, SearchProgress, SearchSummary, ViewMode, ContextBlock } from "../types";
+import type {
+  FileSearchResult,
+  SearchMatch,
+  SearchProgress,
+  SearchSummary,
+  ViewMode,
+  ContextBlock,
+} from "../types";
 import type { ContextMenuItem } from "../composables/useContextMenu";
 import { buildContextBlocks } from "../composables/useContextBlocks";
 import { useDirSearchUiState } from "../composables/useDirSearchUiState";
@@ -157,7 +199,11 @@ const emit = defineEmits<{
   dismissMatch: [filePath: string, matchIndex: number];
   replaceFile: [filePath: string];
   replaceMatch: [filePath: string, matchIndex: number];
-  contextMenu: [event: MouseEvent, items: ContextMenuItem[], context: Record<string, unknown>];
+  contextMenu: [
+    event: MouseEvent,
+    items: ContextMenuItem[],
+    context: Record<string, unknown>,
+  ];
 }>();
 
 const selectedLine = ref<number | null>(null);
@@ -201,7 +247,10 @@ function onMatchSelect(filePath: string, match: SearchMatch) {
 }
 
 /** 上下文块中点击匹配行 */
-function onContextMatchSelect(fileResult: FileSearchResult, lineNumber: number) {
+function onContextMatchSelect(
+  fileResult: FileSearchResult,
+  lineNumber: number
+) {
   const match = fileResult.matches.find((m) => m.lineNumber === lineNumber);
   if (match) {
     selectedLine.value = lineNumber;
@@ -210,8 +259,14 @@ function onContextMatchSelect(fileResult: FileSearchResult, lineNumber: number) 
 }
 
 /** 上下文块中右键匹配行 */
-function onContextMatchContextMenu(event: MouseEvent, fileResult: FileSearchResult, lineNumber: number) {
-  const matchIndex = fileResult.matches.findIndex((m) => m.lineNumber === lineNumber);
+function onContextMatchContextMenu(
+  event: MouseEvent,
+  fileResult: FileSearchResult,
+  lineNumber: number
+) {
+  const matchIndex = fileResult.matches.findIndex(
+    (m) => m.lineNumber === lineNumber
+  );
   if (matchIndex >= 0) {
     onMatchContextMenu(event, fileResult, matchIndex);
   }
@@ -248,7 +303,11 @@ function onFileContextMenu(event: MouseEvent, fileResult: FileSearchResult) {
 }
 
 /** 匹配项级右键菜单 */
-function onMatchContextMenu(event: MouseEvent, fileResult: FileSearchResult, matchIndex: number) {
+function onMatchContextMenu(
+  event: MouseEvent,
+  fileResult: FileSearchResult,
+  matchIndex: number
+) {
   event.preventDefault();
   event.stopPropagation();
 
@@ -369,7 +428,10 @@ defineExpose({ expandAllTree, collapseAllTree, expandDirs });
 }
 
 .results-tree__file-header:hover {
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.06));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.06)
+  );
 }
 
 .results-tree__chevron {
@@ -408,7 +470,10 @@ defineExpose({ expandAllTree, collapseAllTree, expandDirs });
   flex-shrink: 0;
   padding: 0 6px;
   border-radius: 8px;
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.12));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.12)
+  );
   color: var(--el-color-primary);
   font-size: 11px;
   font-weight: 500;

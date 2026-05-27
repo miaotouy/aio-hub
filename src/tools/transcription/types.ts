@@ -3,7 +3,12 @@ import type { Asset } from "@/types/asset-management";
 /**
  * 转写任务状态
  */
-export type TranscriptionTaskStatus = "pending" | "processing" | "completed" | "error" | "cancelled";
+export type TranscriptionTaskStatus =
+  | "pending"
+  | "processing"
+  | "completed"
+  | "error"
+  | "cancelled";
 
 /**
  * 转写任务接口

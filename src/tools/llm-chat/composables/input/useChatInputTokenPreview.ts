@@ -5,7 +5,10 @@ import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useAgentStore } from "../../stores/agentStore";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { MacroProcessor } from "../../macro-engine/MacroProcessor";
-import { buildMacroContext, processMacros } from "../../core/context-utils/macro";
+import {
+  buildMacroContext,
+  processMacros,
+} from "../../core/context-utils/macro";
 import { prepareMessageForTokenCalc } from "@/tools/llm-chat/utils/chatTokenUtils";
 import { tokenCalculatorService } from "@/tools/token-calculator/token-calculator.registry";
 import { useTranscriptionManager } from "../features/useTranscriptionManager";
@@ -122,7 +125,9 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
         detail: session || undefined,
         agent,
       });
-      return await processMacros(macroProcessor, text, context, { silent: true });
+      return await processMacros(macroProcessor, text, context, {
+        silent: true,
+      });
     } catch (e) {
       logger.warn("输入框 Token 预览宏展开失败", e);
       return text;
@@ -175,11 +180,12 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
       const processedText = await preprocessMacros(inputText.value);
 
       // 3. 准备 Token 计算所需的消息格式
-      const { combinedText, mediaAttachments } = await prepareMessageForTokenCalc(
-        processedText,
-        latestAttachments,
-        modelId
-      );
+      const { combinedText, mediaAttachments } =
+        await prepareMessageForTokenCalc(
+          processedText,
+          latestAttachments,
+          modelId
+        );
 
       // 4. 调用底层服务计算
       const result = await tokenCalculatorService.calculateMessageTokens(
@@ -208,9 +214,13 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
 
   // 监听所有可能影响 Token 计算的状态
   // 注意：attachments 监听引用变化即可，内部元数据变化通过转写任务监听器处理
-  watch([inputText, () => attachments.value, temporaryModel], () => {
-    triggerCalculation();
-  }, { deep: false });
+  watch(
+    [inputText, () => attachments.value, temporaryModel],
+    () => {
+      triggerCalculation();
+    },
+    { deep: false }
+  );
 
   // 监听会话或智能体变更（可能导致模型 ID 变化）
   watch(
@@ -252,7 +262,10 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
     },
     (newVal, oldVal) => {
       if (newVal && newVal !== oldVal) {
-        logger.debug("转写任务状态变化，触发 token 重新计算", { newVal, oldVal });
+        logger.debug("转写任务状态变化，触发 token 重新计算", {
+          newVal,
+          oldVal,
+        });
         triggerCalculation();
       }
     }
@@ -266,4 +279,3 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
     triggerCalculation, // 防抖触发
   };
 }
-

@@ -1,9 +1,10 @@
-import { RenderPreset } from '../types';
+import { RenderPreset } from "../types";
 
 export const complexRenderingTestPreset: RenderPreset = {
   id: "complex-rendering-test",
   name: "模拟科幻感量子协议监控台",
-  description: "高强度渲染测试：SVG绘图、CSS变量深度集成、复杂Grid布局、KaTeX、Mermaid、嵌套HTML与思考链混合",
+  description:
+    "高强度渲染测试：SVG绘图、CSS变量深度集成、复杂Grid布局、KaTeX、Mermaid、嵌套HTML与思考链混合",
   content: `<think>
 正在初始化渲染引擎压力测试协议...
 [系统自检] 核心温度正常

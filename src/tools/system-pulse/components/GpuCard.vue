@@ -19,13 +19,19 @@
     <div class="card-stats">
       <div class="stat-item" v-if="gpu.temperatureCelsius !== null">
         <span class="stat-label">温度</span>
-        <span class="stat-val" :style="{ color: tempColor(gpu.temperatureCelsius) }">
+        <span
+          class="stat-val"
+          :style="{ color: tempColor(gpu.temperatureCelsius) }"
+        >
           {{ gpu.temperatureCelsius?.toFixed(0) }}°C
         </span>
       </div>
       <div class="stat-item">
         <span class="stat-label">显存</span>
-        <span class="stat-val"> {{ formatBytes(gpu.memoryUsedBytes) }} / {{ formatBytes(gpu.memoryTotalBytes) }} </span>
+        <span class="stat-val">
+          {{ formatBytes(gpu.memoryUsedBytes) }} /
+          {{ formatBytes(gpu.memoryTotalBytes) }}
+        </span>
       </div>
       <div class="stat-item" v-if="gpu.encoderUsage !== null">
         <span class="stat-label">编码</span>
@@ -61,7 +67,9 @@ const props = defineProps<{
 const gpuUsageHistory = computed(() => props.gpuHistory.map((h) => h.usage));
 
 const memPercent = computed(() =>
-  props.gpu.memoryTotalBytes > 0 ? (props.gpu.memoryUsedBytes / props.gpu.memoryTotalBytes) * 100 : 0,
+  props.gpu.memoryTotalBytes > 0
+    ? (props.gpu.memoryUsedBytes / props.gpu.memoryTotalBytes) * 100
+    : 0
 );
 </script>
 

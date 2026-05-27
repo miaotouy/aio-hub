@@ -35,7 +35,10 @@
     <!-- 非 bare 模式下，正常渲染 body -->
     <template v-if="!bare">
       <slot>
-        <pre v-if="isCode && content" class="content-code"><code>{{ content }}</code></pre>
+        <pre
+          v-if="isCode && content"
+          class="content-code"
+        ><code>{{ content }}</code></pre>
         <div v-else-if="content" class="content-text">{{ content }}</div>
       </slot>
     </template>

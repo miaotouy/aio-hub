@@ -1,4 +1,4 @@
-import { RenderPreset } from '../types';
+import { RenderPreset } from "../types";
 
 export const htmlScriptTestPreset: RenderPreset = {
   id: "html-script-test",

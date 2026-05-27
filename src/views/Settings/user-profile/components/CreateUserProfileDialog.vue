@@ -25,18 +25,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import BaseDialog from '@/components/common/BaseDialog.vue';
-import UserProfileForm from './UserProfileForm.vue';
-import { customMessage } from '@/utils/customMessage';
+import { ref, computed } from "vue";
+import BaseDialog from "@/components/common/BaseDialog.vue";
+import UserProfileForm from "./UserProfileForm.vue";
+import { customMessage } from "@/utils/customMessage";
 
 interface Props {
   visible: boolean;
 }
 
 interface Emits {
-  (e: 'update:visible', value: boolean): void;
-  (e: 'create', data: { name: string; displayName?: string; content: string; icon?: string }): void;
+  (e: "update:visible", value: boolean): void;
+  (
+    e: "create",
+    data: { name: string; displayName?: string; content: string; icon?: string }
+  ): void;
 }
 
 defineProps<Props>();
@@ -44,15 +47,15 @@ const emit = defineEmits<Emits>();
 
 // 表单数据
 const form = ref({
-  name: '',
-  displayName: '',
-  icon: '',
-  content: ''
+  name: "",
+  displayName: "",
+  icon: "",
+  content: "",
 });
 
 // 验证表单是否有效
 const isValid = computed(() => {
-  return form.value.name.trim() !== '' && form.value.content.trim() !== '';
+  return form.value.name.trim() !== "" && form.value.content.trim() !== "";
 });
 
 // 处理对话框显示状态变化
@@ -60,29 +63,29 @@ const handleVisibleChange = (value: boolean) => {
   if (!value) {
     // 关闭时重置表单
     form.value = {
-      name: '',
-      displayName: '',
-      icon: '',
-      content: ''
+      name: "",
+      displayName: "",
+      icon: "",
+      content: "",
     };
   }
-  emit('update:visible', value);
+  emit("update:visible", value);
 };
 
 // 处理创建
 const handleCreate = () => {
   if (!isValid.value) {
-    customMessage.error('请填写所有必填字段');
+    customMessage.error("请填写所有必填字段");
     return;
   }
 
-  emit('create', {
+  emit("create", {
     name: form.value.name.trim(),
     displayName: form.value.displayName?.trim() || undefined,
     content: form.value.content.trim(),
-    icon: form.value.icon?.trim() || undefined
+    icon: form.value.icon?.trim() || undefined,
   });
-  
+
   handleVisibleChange(false);
 };
 </script>

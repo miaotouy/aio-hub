@@ -32,7 +32,10 @@ const agentProfileInfo = computed(() => {
   // 1. 获取模型信息
   const modelId = metadata?.modelId || taskData?.input?.modelId;
   const modelName =
-    metadata?.modelDisplayName || metadata?.modelName || taskData?.input?.modelId || "";
+    metadata?.modelDisplayName ||
+    metadata?.modelName ||
+    taskData?.input?.modelId ||
+    "";
 
   let modelIcon: string | null = null;
   if (modelId) {
@@ -43,7 +46,8 @@ const agentProfileInfo = computed(() => {
   // 2. 获取渠道信息
   const profileId = metadata?.profileId || taskData?.input?.profileId;
   const profile = profileId ? getProfileById(profileId) : null;
-  const profileName = metadata?.profileDisplayName || profile?.name || profileId;
+  const profileName =
+    metadata?.profileDisplayName || profile?.name || profileId;
   const profileIcon = profile?.icon || profile?.logoUrl || null;
 
   return {
@@ -57,7 +61,9 @@ const agentProfileInfo = computed(() => {
 const displayName = computed(() => {
   if (props.message.role === "user") {
     return (
-      userProfileStore.globalProfile?.displayName || userProfileStore.globalProfile?.name || "你"
+      userProfileStore.globalProfile?.displayName ||
+      userProfileStore.globalProfile?.name ||
+      "你"
     );
   }
 
@@ -108,9 +114,15 @@ const duration = computed(() => {
       <div class="message-info-row">
         <span class="message-name">{{ displayName }}</span>
 
-        <div v-if="message.role === 'assistant' && agentProfileInfo" class="assistant-meta">
+        <div
+          v-if="message.role === 'assistant' && agentProfileInfo"
+          class="assistant-meta"
+        >
           <!-- 渠道信息 -->
-          <div v-if="agentProfileInfo.profileName" class="meta-item profile-tag">
+          <div
+            v-if="agentProfileInfo.profileName"
+            class="meta-item profile-tag"
+          >
             <DynamicIcon
               :src="agentProfileInfo.profileIcon || ''"
               :alt="agentProfileInfo.profileName"
@@ -129,7 +141,9 @@ const duration = computed(() => {
     </div>
 
     <div class="header-right">
-      <span class="message-time">{{ format(displayTimestamp, "MM-dd HH:mm") }}</span>
+      <span class="message-time">{{
+        format(displayTimestamp, "MM-dd HH:mm")
+      }}</span>
       <!-- 预留给其他操作 -->
     </div>
   </div>

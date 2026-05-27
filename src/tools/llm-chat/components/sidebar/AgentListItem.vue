@@ -16,7 +16,10 @@ import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
 import { useAgentStorageSeparated } from "../../composables/storage/useAgentStorageSeparated";
 import { customMessage } from "@/utils/customMessage";
 import type { ChatAgent } from "../../types";
-import { useLlmSearch, type MatchDetail } from "../../composables/chat/useLlmSearch";
+import {
+  useLlmSearch,
+  type MatchDetail,
+} from "../../composables/chat/useLlmSearch";
 import AgentUpgradeDialog from "../agent/management/AgentUpgradeDialog.vue";
 
 const props = defineProps<{
@@ -93,15 +96,26 @@ const handleOpenDirectory = async () => {
     @mouseenter="isHovered = true"
     @mouseleave="isHovered = false"
   >
-    <Avatar :src="avatarSrc || ''" :alt="agent.displayName || agent.name" :class="['agent-icon', { selected }]" />
+    <Avatar
+      :src="avatarSrc || ''"
+      :alt="agent.displayName || agent.name"
+      :class="['agent-icon', { selected }]"
+    />
 
     <div class="agent-info">
       <div class="agent-name">{{ agent.displayName || agent.name }}</div>
 
       <!-- 搜索匹配详情 -->
       <div v-if="filteredMatches.length > 0" class="match-details">
-        <div v-for="(match, index) in filteredMatches" :key="index" class="match-item">
-          <span class="match-field">{{ getFieldLabel(match.field) }}{{ match.role ? `(${match.role})` : "" }}:</span>
+        <div
+          v-for="(match, index) in filteredMatches"
+          :key="index"
+          class="match-item"
+        >
+          <span class="match-field"
+            >{{ getFieldLabel(match.field)
+            }}{{ match.role ? `(${match.role})` : "" }}:</span
+          >
           <div class="match-context" :title="match.context">
             <template v-for="(part, pIdx) in match.parts" :key="pIdx">
               <span v-if="part.isMatch" class="highlight">{{ part.text }}</span>
@@ -109,7 +123,9 @@ const handleOpenDirectory = async () => {
             </template>
           </div>
         </div>
-        <div v-if="matches && matches.length > 3" class="match-more">+{{ matches.length - 3 }} 处匹配</div>
+        <div v-if="matches && matches.length > 3" class="match-more">
+          +{{ matches.length - 3 }} 处匹配
+        </div>
       </div>
 
       <!-- 只在选中且无搜索结果时显示详细信息 -->
@@ -143,7 +159,10 @@ const handleOpenDirectory = async () => {
             <el-icon><Refresh /></el-icon>
             覆盖配置升级...
           </el-dropdown-item>
-          <el-dropdown-item @click="$emit('copy-config', agent, 'json')" divided>
+          <el-dropdown-item
+            @click="$emit('copy-config', agent, 'json')"
+            divided
+          >
             <el-icon><DocumentCopy /></el-icon>
             复制为 JSON
           </el-dropdown-item>
@@ -190,7 +209,10 @@ const handleOpenDirectory = async () => {
               <el-icon><Refresh /></el-icon>
               覆盖配置升级...
             </el-dropdown-item>
-            <el-dropdown-item @click="$emit('copy-config', agent, 'json')" divided>
+            <el-dropdown-item
+              @click="$emit('copy-config', agent, 'json')"
+              divided
+            >
               <el-icon><DocumentCopy /></el-icon>
               复制为 JSON
             </el-dropdown-item>

@@ -18,9 +18,20 @@
               <div class="loading-spinner"></div>
             </template>
             <template v-else>
-              <img v-if="isImage" :src="previewUrl" class="preview-image" alt="预览" @click="handleImagePreview" />
+              <img
+                v-if="isImage"
+                :src="previewUrl"
+                class="preview-image"
+                alt="预览"
+                @click="handleImagePreview"
+              />
               <div v-else-if="isVideo" class="video-player-wrapper">
-                <VideoPlayer v-if="previewUrl" :src="previewUrl" :title="asset.name" :autoplay="false" />
+                <VideoPlayer
+                  v-if="previewUrl"
+                  :src="previewUrl"
+                  :title="asset.name"
+                  :autoplay="false"
+                />
               </div>
               <div v-else-if="isAudio" class="audio-player-wrapper">
                 <AudioPlayer
@@ -38,7 +49,11 @@
                 class="document-preview"
               />
               <div v-else class="generic-preview">
-                <FileIcon :file-name="asset.name" :file-type="asset.type" :size="64" />
+                <FileIcon
+                  :file-name="asset.name"
+                  :file-type="asset.type"
+                  :size="64"
+                />
               </div>
             </template>
           </div>
@@ -70,14 +85,22 @@
     <template #footer>
       <div class="dialog-footer-content">
         <div class="left-actions">
-          <button v-if="showRegenerate" class="btn btn-secondary btn-danger-hover" @click.stop="openRegenerateConfirm">
+          <button
+            v-if="showRegenerate"
+            class="btn btn-secondary btn-danger-hover"
+            @click.stop="openRegenerateConfirm"
+          >
             <RefreshCw :size="16" class="btn-icon" />
             重新生成
           </button>
         </div>
         <div class="right-actions">
           <button class="btn btn-secondary" @click="handleClose">取消</button>
-          <button class="btn btn-primary" @click="handleSave" :disabled="isSaving">
+          <button
+            class="btn btn-primary"
+            @click="handleSave"
+            :disabled="isSaving"
+          >
             <span v-if="isSaving" class="spinner-mini"></span>
             <span v-else>保存修改</span>
           </button>
@@ -87,7 +110,13 @@
   </BaseDialog>
 
   <!-- 重新生成配置弹窗 (套娃弹窗) -->
-  <BaseDialog v-model="showRegenerateConfirm" title="重新生成转写" width="500px" height="auto" :z-index="2100">
+  <BaseDialog
+    v-model="showRegenerateConfirm"
+    title="重新生成转写"
+    width="500px"
+    height="auto"
+    :z-index="2100"
+  >
     <template #content>
       <div class="regenerate-form">
         <div class="form-item">
@@ -127,8 +156,18 @@
     </template>
     <template #footer>
       <div class="confirm-footer">
-        <button class="btn btn-secondary" @click="showRegenerateConfirm = false">取消</button>
-        <button class="btn btn-primary btn-danger" @click="handleConfirmRegenerate">确认重新生成</button>
+        <button
+          class="btn btn-secondary"
+          @click="showRegenerateConfirm = false"
+        >
+          取消
+        </button>
+        <button
+          class="btn btn-primary btn-danger"
+          @click="handleConfirmRegenerate"
+        >
+          确认重新生成
+        </button>
       </div>
     </template>
   </BaseDialog>
@@ -165,7 +204,7 @@ const props = withDefaults(
   }>(),
   {
     showRegenerate: true,
-  },
+  }
 );
 
 const emit = defineEmits<{
@@ -178,7 +217,7 @@ const emit = defineEmits<{
       prompt: string;
       enableRepetitionDetection: boolean;
       overrideConfig?: any;
-    },
+    }
   ): void;
 }>();
 
@@ -224,19 +263,30 @@ const loadPreviewUrl = async () => {
 
     // 1. 加载主资源 URL
     // 如果是 pending 状态，使用 originalPath
-    if (props.asset.importStatus === "pending" || props.asset.importStatus === "importing") {
+    if (
+      props.asset.importStatus === "pending" ||
+      props.asset.importStatus === "importing"
+    ) {
       const originalPath = props.asset.originalPath || props.asset.path;
       if (originalPath) {
-        previewUrl.value = originalPath.startsWith("blob:") ? originalPath : convertFileSrc(originalPath);
+        previewUrl.value = originalPath.startsWith("blob:")
+          ? originalPath
+          : convertFileSrc(originalPath);
       }
     } else {
       // 已导入状态
-      previewUrl.value = assetManagerEngine.convertToAssetProtocol(props.asset.path, basePath);
+      previewUrl.value = assetManagerEngine.convertToAssetProtocol(
+        props.asset.path,
+        basePath
+      );
     }
 
     // 2. 加载缩略图/封面 URL (如有)
     if (props.asset.thumbnailPath) {
-      posterUrl.value = assetManagerEngine.convertToAssetProtocol(props.asset.thumbnailPath, basePath);
+      posterUrl.value = assetManagerEngine.convertToAssetProtocol(
+        props.asset.thumbnailPath,
+        basePath
+      );
     } else {
       posterUrl.value = "";
     }
@@ -253,7 +303,7 @@ watch(
   () => {
     loadPreviewUrl();
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 // 监听 initialContent 变化
@@ -262,7 +312,7 @@ watch(
   (newVal) => {
     currentContent.value = newVal || "";
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 const openRegenerateConfirm = () => {
@@ -276,7 +326,8 @@ const openRegenerateConfirm = () => {
     }
     // 只恢复附加提示词，不混入主提示词
     tempPrompt.value = props.previousConfig.additionalPrompt || "";
-    enableRepetitionDetection.value = props.previousConfig.enableRepetitionDetection !== false;
+    enableRepetitionDetection.value =
+      props.previousConfig.enableRepetitionDetection !== false;
   } else {
     selectedModelId.value = "";
     tempPrompt.value = "";
@@ -304,7 +355,9 @@ const handleConfirmRegenerate = () => {
   // 构建新的覆盖配置，保留原有的 customPrompt
   const newConfig = {
     ...(props.previousConfig || {}),
-    modelIdentifier: selectedModelId.value ? `custom:${selectedModelId.value}` : undefined,
+    modelIdentifier: selectedModelId.value
+      ? `custom:${selectedModelId.value}`
+      : undefined,
     additionalPrompt: tempPrompt.value || undefined,
     enableRepetitionDetection: enableRepetitionDetection.value,
   };

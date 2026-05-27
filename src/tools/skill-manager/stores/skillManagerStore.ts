@@ -111,7 +111,9 @@ export const useSkillManagerStore = defineStore("skill-manager", () => {
   });
 
   /** 已安装的 Skill 名称列表 */
-  const installedSkillNames = computed(() => manifests.value.map((m) => m.name));
+  const installedSkillNames = computed(() =>
+    manifests.value.map((m) => m.name)
+  );
 
   /** 加载配置（含深度合并默认值，确保新字段有默认值） */
   async function loadConfig() {
@@ -121,22 +123,28 @@ export const useSkillManagerStore = defineStore("skill-manager", () => {
       ...loaded,
       disabledBundleIds: loaded.disabledBundleIds ?? [],
       runtimeSettings: {
-        javascript: { command: loaded.runtimeSettings?.javascript?.command ?? "" },
+        javascript: {
+          command: loaded.runtimeSettings?.javascript?.command ?? "",
+        },
         python: { command: loaded.runtimeSettings?.python?.command ?? "" },
         shell: { command: loaded.runtimeSettings?.shell?.command ?? "" },
-        powershell: { command: loaded.runtimeSettings?.powershell?.command ?? "" },
+        powershell: {
+          command: loaded.runtimeSettings?.powershell?.command ?? "",
+        },
       },
       terminalPreferences: {
         defaultShell: loaded.terminalPreferences?.defaultShell ?? "auto-detect",
-        commandChainStyle: loaded.terminalPreferences?.commandChainStyle ?? "auto",
+        commandChainStyle:
+          loaded.terminalPreferences?.commandChainStyle ?? "auto",
       },
       // 清洗 externalScanPaths：剔除缺少 path 的无效旧数据
       externalScanPaths: (loaded.externalScanPaths ?? []).filter(
-        (p) => typeof p.path === "string" && p.path.trim().length > 0,
+        (p) => typeof p.path === "string" && p.path.trim().length > 0
       ),
       skillEnvVars: loaded.skillEnvVars ?? {},
       sources: loaded.sources ?? [...defaultSources],
-      builtinInstallRecords: loaded.builtinInstallRecords ?? (loaded as any).ejectedBuiltins ?? {},
+      builtinInstallRecords:
+        loaded.builtinInstallRecords ?? (loaded as any).ejectedBuiltins ?? {},
     };
   }
 
@@ -278,7 +286,10 @@ export const useSkillManagerStore = defineStore("skill-manager", () => {
   }
 
   /** 更新安装记录 */
-  async function updateInstallRecord(skillName: string, info: BuiltinInstallInfo) {
+  async function updateInstallRecord(
+    skillName: string,
+    info: BuiltinInstallInfo
+  ) {
     config.value.builtinInstallRecords[skillName] = info;
     await saveConfig();
   }

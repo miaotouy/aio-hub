@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import { ElMessageBox, ElTooltip, ElDropdown, ElDropdownMenu, ElDropdownItem, ElPopover } from "element-plus";
+import {
+  ElMessageBox,
+  ElTooltip,
+  ElDropdown,
+  ElDropdownMenu,
+  ElDropdownItem,
+  ElPopover,
+} from "element-plus";
 import BranchSelector from "./BranchSelector.vue";
 import {
   Copy,
@@ -27,7 +34,11 @@ import {
   Variable,
   Wand2,
 } from "lucide-vue-next";
-import type { ChatMessageNode, ButtonVisibility, TranslationDisplayMode } from "../../types";
+import type {
+  ChatMessageNode,
+  ButtonVisibility,
+  TranslationDisplayMode,
+} from "../../types";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
 import { useAgentStore } from "../../stores/agentStore";
@@ -62,7 +73,10 @@ interface Emits {
   (e: "translate", targetLang?: string): void;
   (e: "toggle-translation-visible"): void;
   (e: "change-translation-mode", mode: TranslationDisplayMode): void;
-  (e: "reparse-tools", options?: { modelId?: string; profileId?: string }): void;
+  (
+    e: "reparse-tools",
+    options?: { modelId?: string; profileId?: string }
+  ): void;
 }
 
 const agentStore = useAgentStore();
@@ -105,10 +119,14 @@ const isUserMessage = computed(() => props.message.role === "user");
 const isAssistantMessage = computed(() => props.message.role === "assistant");
 const isToolMessage = computed(() => props.message.role === "tool");
 const isGenerating = computed(() => store.isNodeGenerating(props.message.id));
-const isPresetDisplay = computed(() => props.message.metadata?.isPresetDisplay === true);
+const isPresetDisplay = computed(
+  () => props.message.metadata?.isPresetDisplay === true
+);
 
 // 变量快照
-const sessionVariableSnapshot = computed(() => props.message.metadata?.sessionVariableSnapshot);
+const sessionVariableSnapshot = computed(
+  () => props.message.metadata?.sessionVariableSnapshot
+);
 const hasVariables = computed(() => !!sessionVariableSnapshot.value);
 
 // 复制消息
@@ -130,12 +148,16 @@ const handleCreateBranch = () => emit("create-branch");
 const handleDelete = async () => {
   // 硬删除需要二次确认
   try {
-    await ElMessageBox.confirm("删除后将无法恢复，且所有分支回复也会被删除。", "确定要永久删除这条消息吗？", {
-      confirmButtonText: "确定删除",
-      cancelButtonText: "取消",
-      type: "warning",
-      confirmButtonClass: "el-button--danger",
-    });
+    await ElMessageBox.confirm(
+      "删除后将无法恢复，且所有分支回复也会被删除。",
+      "确定要永久删除这条消息吗？",
+      {
+        confirmButtonText: "确定删除",
+        cancelButtonText: "取消",
+        type: "warning",
+        confirmButtonClass: "el-button--danger",
+      }
+    );
     // 用户确认后才执行删除
     emit("delete");
   } catch {
@@ -323,7 +345,11 @@ const handleRecalculateTokens = async () => {
   logger.info("重新计算 Token", { nodeId: props.message.id });
 
   try {
-    await store.recalculateNodeTokens(fullSession.index, fullSession.detail, props.message.id);
+    await store.recalculateNodeTokens(
+      fullSession.index,
+      fullSession.detail,
+      props.message.id
+    );
     customMessage.success("Token 重新计算完成");
     logger.info("Token 重新计算完成", { nodeId: props.message.id });
   } catch (error) {
@@ -337,7 +363,10 @@ const currentPresetMessages = computed(() => {
   if (!agentStore.currentAgentId) return [];
   const agent = agentStore.getAgentById(agentStore.currentAgentId);
   if (!agent?.presetMessages) return [];
-  return agent.presetMessages.filter((msg: ChatMessageNode) => msg.isEnabled !== false && msg.type !== "chat_history");
+  return agent.presetMessages.filter(
+    (msg: ChatMessageNode) =>
+      msg.isEnabled !== false && msg.type !== "chat_history"
+  );
 });
 
 // 计算预设消息数量
@@ -359,7 +388,9 @@ const handleTranslateClick = (e: MouseEvent) => {
   // 如果按下了 Shift/Ctrl/Alt 键，直接触发默认翻译
   if (e.shiftKey || e.ctrlKey || e.altKey) {
     e.stopPropagation(); // 阻止 Dropdown 展开
-    customMessage.success(`快速翻译中 (${settings.value.translation.messageTargetLang})`);
+    customMessage.success(
+      `快速翻译中 (${settings.value.translation.messageTargetLang})`
+    );
     emit("translate");
     return;
   }
@@ -372,7 +403,11 @@ const handleTranslateClick = (e: MouseEvent) => {
     <!-- Branch control (if applicable) -->
     <div v-if="siblings.length > 1" class="branch-control">
       <el-tooltip content="上一个版本" placement="top" :show-after="500">
-        <button class="menu-btn" :disabled="currentSiblingIndex === 0" @click="emit('switch', 'prev')">
+        <button
+          class="menu-btn"
+          :disabled="currentSiblingIndex === 0"
+          @click="emit('switch', 'prev')"
+        >
           <ChevronLeft :size="16" />
         </button>
       </el-tooltip>
@@ -387,8 +422,15 @@ const handleTranslateClick = (e: MouseEvent) => {
       >
         <template #reference>
           <div class="branch-indicator-wrapper">
-            <el-tooltip content="点击查看分支列表" placement="top" :show-after="500">
-              <div class="branch-indicator clickable" :class="{ 'popover-active': showBranchPopover }">
+            <el-tooltip
+              content="点击查看分支列表"
+              placement="top"
+              :show-after="500"
+            >
+              <div
+                class="branch-indicator clickable"
+                :class="{ 'popover-active': showBranchPopover }"
+              >
                 {{ currentSiblingIndex + 1 }} / {{ siblings.length }}
               </div>
             </el-tooltip>
@@ -423,8 +465,17 @@ const handleTranslateClick = (e: MouseEvent) => {
     >
       <template #reference>
         <div>
-          <el-tooltip content="查看会话变量状态" placement="top" :show-after="500">
-            <button class="menu-btn" :class="{ 'menu-btn-active': !!sessionVariableSnapshot?.changes?.length }">
+          <el-tooltip
+            content="查看会话变量状态"
+            placement="top"
+            :show-after="500"
+          >
+            <button
+              class="menu-btn"
+              :class="{
+                'menu-btn-active': !!sessionVariableSnapshot?.changes?.length,
+              }"
+            >
               <Variable :size="16" />
             </button>
           </el-tooltip>
@@ -434,7 +485,12 @@ const handleTranslateClick = (e: MouseEvent) => {
     </el-popover>
 
     <!-- 更多菜单 -->
-    <el-tooltip v-if="props.buttonVisibility.moreMenu" content="更多" placement="top" :show-after="500">
+    <el-tooltip
+      v-if="props.buttonVisibility.moreMenu"
+      content="更多"
+      placement="top"
+      :show-after="500"
+    >
       <el-dropdown trigger="click" placement="top">
         <button class="menu-btn">
           <Menu :size="16" />
@@ -442,7 +498,10 @@ const handleTranslateClick = (e: MouseEvent) => {
         <template #dropdown>
           <el-dropdown-menu>
             <el-dropdown-item
-              v-if="(isUserMessage || isAssistantMessage || isToolMessage) && !isGenerating"
+              v-if="
+                (isUserMessage || isAssistantMessage || isToolMessage) &&
+                !isGenerating
+              "
               @click="handleContinue"
             >
               <div class="dropdown-item-content">
@@ -451,7 +510,10 @@ const handleTranslateClick = (e: MouseEvent) => {
               </div>
             </el-dropdown-item>
             <el-dropdown-item
-              v-if="(isUserMessage || isAssistantMessage || isToolMessage) && !isGenerating"
+              v-if="
+                (isUserMessage || isAssistantMessage || isToolMessage) &&
+                !isGenerating
+              "
               @click="handleContinueWithModel"
             >
               <div class="dropdown-item-content">
@@ -459,20 +521,29 @@ const handleTranslateClick = (e: MouseEvent) => {
                 <span>选择模型续写</span>
               </div>
             </el-dropdown-item>
-            <el-dropdown-item v-if="props.buttonVisibility.analyzeContext" @click="handleAnalyzeContext">
+            <el-dropdown-item
+              v-if="props.buttonVisibility.analyzeContext"
+              @click="handleAnalyzeContext"
+            >
               <div class="dropdown-item-content">
                 <BarChart3 :size="16" />
                 <span>上下文分析</span>
               </div>
             </el-dropdown-item>
-            <el-dropdown-item v-if="props.buttonVisibility.exportBranch" @click="showExportDialog = true">
+            <el-dropdown-item
+              v-if="props.buttonVisibility.exportBranch"
+              @click="showExportDialog = true"
+            >
               <div class="dropdown-item-content">
                 <Download :size="16" />
                 <span>导出分支</span>
               </div>
             </el-dropdown-item>
             <el-dropdown-item
-              v-if="(isUserMessage || isAssistantMessage || isToolMessage) && !isGenerating"
+              v-if="
+                (isUserMessage || isAssistantMessage || isToolMessage) &&
+                !isGenerating
+              "
               @click="handleRecalculateTokens"
             >
               <div class="dropdown-item-content">
@@ -480,14 +551,21 @@ const handleTranslateClick = (e: MouseEvent) => {
                 <span>重新计算 Token</span>
               </div>
             </el-dropdown-item>
-            <el-dropdown-item v-if="isAssistantMessage && !isGenerating" @click="handleReparseTools">
+            <el-dropdown-item
+              v-if="isAssistantMessage && !isGenerating"
+              @click="handleReparseTools"
+            >
               <div class="dropdown-item-content">
                 <Wand2 :size="16" />
                 <span>重新解析工具</span>
               </div>
             </el-dropdown-item>
             <el-dropdown-item
-              v-if="(isUserMessage || isAssistantMessage || isToolMessage) && !isPresetDisplay && !isGenerating"
+              v-if="
+                (isUserMessage || isAssistantMessage || isToolMessage) &&
+                !isPresetDisplay &&
+                !isGenerating
+              "
               @click="showDataEditor = true"
             >
               <div class="dropdown-item-content">
@@ -501,14 +579,27 @@ const handleTranslateClick = (e: MouseEvent) => {
     </el-tooltip>
     <!-- 翻译 -->
     <el-tooltip
-      v-if="!isGenerating && !isPresetDisplay && settings.translation.enabled && props.buttonVisibility.translate"
+      v-if="
+        !isGenerating &&
+        !isPresetDisplay &&
+        settings.translation.enabled &&
+        props.buttonVisibility.translate
+      "
       :content="`翻译 (按住 Shift 点击可快速翻译为 ${settings.translation.messageTargetLang})`"
       placement="top"
       :show-after="500"
     >
-      <el-dropdown trigger="click" placement="top" @command="handleTranslationCommand">
+      <el-dropdown
+        trigger="click"
+        placement="top"
+        @command="handleTranslationCommand"
+      >
         <div class="dropdown-trigger-wrapper">
-          <button class="menu-btn" :class="{ 'menu-btn-active': isTranslationVisible }" @click="handleTranslateClick">
+          <button
+            class="menu-btn"
+            :class="{ 'menu-btn-active': isTranslationVisible }"
+            @click="handleTranslateClick"
+          >
             <Languages :size="16" />
           </button>
         </div>
@@ -519,10 +610,18 @@ const handleTranslateClick = (e: MouseEvent) => {
               <span style="font-size: 12px; opacity: 0.7">目标语言</span>
             </el-dropdown-item>
 
-            <el-dropdown-item v-for="lang in settings.translation.targetLangList" :key="lang" :command="'lang-' + lang">
+            <el-dropdown-item
+              v-for="lang in settings.translation.targetLangList"
+              :key="lang"
+              :command="'lang-' + lang"
+            >
               <div class="dropdown-item-content">
                 <span>{{ lang }}</span>
-                <Check v-if="message.metadata?.translation?.targetLang === lang" :size="14" class="mode-active-icon" />
+                <Check
+                  v-if="message.metadata?.translation?.targetLang === lang"
+                  :size="14"
+                  class="mode-active-icon"
+                />
               </div>
             </el-dropdown-item>
 
@@ -559,10 +658,20 @@ const handleTranslateClick = (e: MouseEvent) => {
                 @click.stop="handleTranslationCommand('toggle-visible')"
               >
                 <Languages :size="14" />
-                <span>{{ hasTranslation ? (isTranslationVisible ? "隐藏" : "显示") : "翻译" }}</span>
+                <span>{{
+                  hasTranslation
+                    ? isTranslationVisible
+                      ? "隐藏"
+                      : "显示"
+                    : "翻译"
+                }}</span>
               </div>
 
-              <div class="action-btn retry-btn" @click.stop="handleTranslationCommand('retry')" title="重新翻译">
+              <div
+                class="action-btn retry-btn"
+                @click.stop="handleTranslationCommand('retry')"
+                title="重新翻译"
+              >
                 <RefreshCw :size="14" />
               </div>
             </div>
@@ -571,8 +680,17 @@ const handleTranslateClick = (e: MouseEvent) => {
       </el-dropdown>
     </el-tooltip>
     <!-- 复制 -->
-    <el-tooltip v-if="props.buttonVisibility.copy" content="复制" placement="top" :show-after="500">
-      <button class="menu-btn" :class="{ 'menu-btn-active': copied }" @click="copyMessage">
+    <el-tooltip
+      v-if="props.buttonVisibility.copy"
+      content="复制"
+      placement="top"
+      :show-after="500"
+    >
+      <button
+        class="menu-btn"
+        :class="{ 'menu-btn-active': copied }"
+        @click="copyMessage"
+      >
         <Check v-if="copied" :size="16" />
         <Copy v-else :size="16" />
       </button>
@@ -592,7 +710,11 @@ const handleTranslateClick = (e: MouseEvent) => {
 
     <!-- 编辑（用户、助手和工具消息都可以，生成中不可编辑） -->
     <el-tooltip
-      v-if="(isUserMessage || isAssistantMessage || isToolMessage) && !isGenerating && props.buttonVisibility.edit"
+      v-if="
+        (isUserMessage || isAssistantMessage || isToolMessage) &&
+        !isGenerating &&
+        props.buttonVisibility.edit
+      "
       content="编辑"
       placement="top"
       :show-after="500"
@@ -621,7 +743,11 @@ const handleTranslateClick = (e: MouseEvent) => {
 
     <!-- 预设消息的提示（需要等预设系统树化后才能支持分支） -->
     <el-tooltip
-      v-if="(isUserMessage || isAssistantMessage) && !isGenerating && isPresetDisplay"
+      v-if="
+        (isUserMessage || isAssistantMessage) &&
+        !isGenerating &&
+        isPresetDisplay
+      "
       content="预设消息暂不支持创建分支，需等预设系统树化后才能对接"
       placement="top"
       :show-after="500"
@@ -634,7 +760,9 @@ const handleTranslateClick = (e: MouseEvent) => {
     <!-- 重新生成（用户、助手和工具消息都可以，不禁用以支持并行生成，预设消息不可重新生成） -->
     <el-tooltip
       v-if="
-        (isUserMessage || isAssistantMessage || isToolMessage) && !isPresetDisplay && props.buttonVisibility.regenerate
+        (isUserMessage || isAssistantMessage || isToolMessage) &&
+        !isPresetDisplay &&
+        props.buttonVisibility.regenerate
       "
       :content="isUserMessage ? '重新生成回复' : '重新生成'"
       placement="top"
@@ -648,7 +776,9 @@ const handleTranslateClick = (e: MouseEvent) => {
     <!-- 切换模型重新生成（用户、助手和工具消息都可以，预设消息不可） -->
     <el-tooltip
       v-if="
-        (isUserMessage || isAssistantMessage || isToolMessage) && !isPresetDisplay && props.buttonVisibility.regenerate
+        (isUserMessage || isAssistantMessage || isToolMessage) &&
+        !isPresetDisplay &&
+        props.buttonVisibility.regenerate
       "
       content="切换模型重新生成"
       placement="top"
@@ -678,7 +808,11 @@ const handleTranslateClick = (e: MouseEvent) => {
       placement="top"
       :show-after="500"
     >
-      <button class="menu-btn" :class="{ 'menu-btn-highlight': isDisabled }" @click="handleToggleEnabled">
+      <button
+        class="menu-btn"
+        :class="{ 'menu-btn-highlight': isDisabled }"
+        @click="handleToggleEnabled"
+      >
         <Eye v-if="isDisabled" :size="16" />
         <EyeOff v-else :size="16" />
       </button>
@@ -719,7 +853,10 @@ const handleTranslateClick = (e: MouseEvent) => {
     />
 
     <!-- 数据编辑对话框 -->
-    <MessageDataEditor v-model="showDataEditor" :message-id="props.message.id" />
+    <MessageDataEditor
+      v-model="showDataEditor"
+      :message-id="props.message.id"
+    />
   </div>
 </template>
 
@@ -771,7 +908,10 @@ const handleTranslateClick = (e: MouseEvent) => {
 }
 
 .mode-switch-btn.active {
-  background-color: var(--primary-color-alpha, rgba(var(--primary-color-rgb), 0.1));
+  background-color: var(
+    --primary-color-alpha,
+    rgba(var(--primary-color-rgb), 0.1)
+  );
   color: var(--primary-color);
   border-color: var(--primary-color);
 }

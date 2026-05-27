@@ -334,7 +334,9 @@ export class BilibiliPlayerController {
    * 获取当前视频的状态
    * @returns { paused: boolean, currentTime: number } | undefined
    */
-  public getVideoStatus(): { paused: boolean; currentTime: number } | undefined {
+  public getVideoStatus():
+    | { paused: boolean; currentTime: number }
+    | undefined {
     const video = this.getVideoElement();
     if (video) {
       return {
@@ -349,7 +351,9 @@ export class BilibiliPlayerController {
    * @param force - 是否强制刷新
    * @returns BilibiliVideoInfo | null
    */
-  public async fetchVideoInfo(force: boolean = false): Promise<BilibiliVideoInfo | null> {
+  public async fetchVideoInfo(
+    force: boolean = false
+  ): Promise<BilibiliVideoInfo | null> {
     if (force) {
       this.lastAidOrBvid = null;
     }
@@ -379,10 +383,15 @@ export class BilibiliPlayerController {
     try {
       // 统一处理流程：无论是 av 号还是 bv 号，都先调用 view 接口获取最全的信息
       const isAv = aidOrBvid.toLowerCase().startsWith("av");
-      const queryParam = isAv ? `aid=${aidOrBvid.slice(2)}` : `bvid=${aidOrBvid}`;
-      const viewRes = await fetch(`https://api.bilibili.com/x/web-interface/view?${queryParam}`, {
-        credentials: "include",
-      }).then((res) => res.json());
+      const queryParam = isAv
+        ? `aid=${aidOrBvid.slice(2)}`
+        : `bvid=${aidOrBvid}`;
+      const viewRes = await fetch(
+        `https://api.bilibili.com/x/web-interface/view?${queryParam}`,
+        {
+          credentials: "include",
+        }
+      ).then((res) => res.json());
 
       if (viewRes.code !== 0) {
         throw new Error(`Failed to fetch video view info: ${viewRes.message}`);
@@ -432,7 +441,10 @@ export class BilibiliPlayerController {
         subtitles,
       };
     } catch (error) {
-      console.error("[BilibiliPlayerController] Failed to fetch video info:", error);
+      console.error(
+        "[BilibiliPlayerController] Failed to fetch video info:",
+        error
+      );
       this.lastAidOrBvid = null; // 失败后允许重试
       return null;
     }
@@ -458,10 +470,15 @@ export class BilibiliPlayerController {
         }
       ).then((res) => res.json());
 
-      const subtitles = res.data.subtitle.subtitles.filter((item: any) => item.subtitle_url);
+      const subtitles = res.data.subtitle.subtitles.filter(
+        (item: any) => item.subtitle_url
+      );
       return subtitles.length > 0 ? subtitles : null;
     } catch (error) {
-      console.error("[BilibiliPlayerController] Failed to fetch subtitles:", error);
+      console.error(
+        "[BilibiliPlayerController] Failed to fetch subtitles:",
+        error
+      );
       return null;
     }
   }
@@ -471,7 +488,9 @@ export class BilibiliPlayerController {
    * @param subtitleInfo - 从 fetchVideoInfo 或 fetchCurrentPartSubtitles 获取的单条字幕信息
    * @returns 字幕内容JSON | null
    */
-  public async fetchSubtitleContent(subtitleInfo: { subtitle_url: string }): Promise<any | null> {
+  public async fetchSubtitleContent(subtitleInfo: {
+    subtitle_url: string;
+  }): Promise<any | null> {
     if (!subtitleInfo?.subtitle_url) return null;
 
     let url = subtitleInfo.subtitle_url;
@@ -481,7 +500,10 @@ export class BilibiliPlayerController {
     try {
       return await fetch(url).then((res) => res.json());
     } catch (error) {
-      console.error("[BilibiliPlayerController] Failed to fetch subtitle content:", error);
+      console.error(
+        "[BilibiliPlayerController] Failed to fetch subtitle content:",
+        error
+      );
       return null;
     }
   }

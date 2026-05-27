@@ -13,7 +13,9 @@ const filteredApis = computed(() => {
   return store.discoveredApis
     .filter((api) => {
       const url = api.url.toLowerCase();
-      return !url.endsWith(".js") && !url.endsWith(".css") && !url.endsWith(".ico");
+      return (
+        !url.endsWith(".js") && !url.endsWith(".css") && !url.endsWith(".ico")
+      );
     })
     .reverse(); // 最新的在上面
 });
@@ -50,7 +52,12 @@ onErrorCaptured((err) => {
         <Network :size="14" class="title-icon" />
         <span>发现的 API ({{ filteredApis.length }})</span>
       </div>
-      <el-button v-if="filteredApis.length" text size="small" @click="clearApis">
+      <el-button
+        v-if="filteredApis.length"
+        text
+        size="small"
+        @click="clearApis"
+      >
         <Trash2 :size="14" />
       </el-button>
     </div>
@@ -61,9 +68,16 @@ onErrorCaptured((err) => {
     </div>
 
     <div v-else class="api-list">
-      <div v-for="api in filteredApis" :key="api.timestamp + api.url" class="api-card">
+      <div
+        v-for="api in filteredApis"
+        :key="api.timestamp + api.url"
+        class="api-card"
+      >
         <div class="api-meta">
-          <el-tag size="small" :type="api.method === 'GET' ? 'success' : 'primary'">
+          <el-tag
+            size="small"
+            :type="api.method === 'GET' ? 'success' : 'primary'"
+          >
             {{ api.method }}
           </el-tag>
           <el-tag size="small" type="info" class="timestamp">

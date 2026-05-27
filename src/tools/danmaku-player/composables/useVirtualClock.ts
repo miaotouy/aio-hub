@@ -46,7 +46,8 @@ export function useVirtualClock() {
     }
 
     if (isPlaying.value) {
-      const delta = ((frameTime - lastFrameTimestamp) / 1000) * playbackRate.value;
+      const delta =
+        ((frameTime - lastFrameTimestamp) / 1000) * playbackRate.value;
       virtualTime.value += delta;
     }
 

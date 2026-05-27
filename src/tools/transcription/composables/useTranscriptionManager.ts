@@ -13,7 +13,11 @@ import { smartDecode } from "@/utils/encoding";
 import { getPureModelId } from "@/utils/modelIdUtils";
 import { remove } from "@tauri-apps/plugin-fs";
 import type { Asset } from "@/types/asset-management";
-import type { TranscriptionTask, ITranscriptionEngine, TranscriptionConfig } from "../types";
+import type {
+  TranscriptionTask,
+  ITranscriptionEngine,
+  TranscriptionConfig,
+} from "../types";
 
 const logger = createModuleLogger("transcription/manager");
 const errorHandler = createModuleErrorHandler("transcription/manager");
@@ -59,9 +63,10 @@ export function useTranscriptionManager() {
           type: pendingTask.assetType,
           mimeType: pendingTask.mimeType,
           name: pendingTask.filename,
-        } as any),
+        } as any)
       );
-      if (!engine) throw new Error(`未找到支持 ${pendingTask.assetType} 的引擎`);
+      if (!engine)
+        throw new Error(`未找到支持 ${pendingTask.assetType} 的引擎`);
 
       logger.info(`开始执行转写任务: ${pendingTask.id}`, {
         assetId: pendingTask.assetId,
@@ -92,7 +97,9 @@ export function useTranscriptionManager() {
         return;
       }
 
-      const modelIdentifier = pendingTask.overrideConfig?.modelIdentifier || store.config.modelIdentifier;
+      const modelIdentifier =
+        pendingTask.overrideConfig?.modelIdentifier ||
+        store.config.modelIdentifier;
       const modelId = getPureModelId(modelIdentifier);
 
       const resultPath = await saveTranscriptionResult(
@@ -100,7 +107,7 @@ export function useTranscriptionManager() {
         pendingTask.path,
         result.text,
         modelId,
-        result.isEmpty,
+        result.isEmpty
       );
 
       pendingTask.resultPath = resultPath;
@@ -115,7 +122,8 @@ export function useTranscriptionManager() {
     } catch (e) {
       const rawErrorMessage = e instanceof Error ? e.message : String(e);
       const errorMessage = sanitizeErrorMessage(rawErrorMessage);
-      const isRepetitionError = store.config.enableRepetitionDetection && errorMessage.includes("复读");
+      const isRepetitionError =
+        store.config.enableRepetitionDetection && errorMessage.includes("复读");
 
       logger.error(`转写任务失败: ${pendingTask.id}`, e, {
         assetId: pendingTask.assetId,
@@ -126,7 +134,8 @@ export function useTranscriptionManager() {
       // 如果是复读错误，重试时依然允许重试，但在 execute 中我们会自动放宽阈值
       // 这里的策略是：复读错误依然允许重试，但如果重试一次还不行，就直接失败，避免无限循环
       const canRetry =
-        pendingTask.retryCount < store.config.maxRetries && (!isRepetitionError || pendingTask.retryCount < 1);
+        pendingTask.retryCount < store.config.maxRetries &&
+        (!isRepetitionError || pendingTask.retryCount < 1);
 
       // 如果任务已被标记为取消，则不再处理错误逻辑
       if ((pendingTask.status as string) === "cancelled") {
@@ -179,7 +188,9 @@ export function useTranscriptionManager() {
         store.lastTaskStartTime = now;
         return;
       }
-      await new Promise((resolve) => setTimeout(resolve, executionDelay - timeSinceLastStart));
+      await new Promise((resolve) =>
+        setTimeout(resolve, executionDelay - timeSinceLastStart)
+      );
     }
   };
 
@@ -194,18 +205,32 @@ export function useTranscriptionManager() {
   /**
    * 添加任务
    */
-  const addTask = (asset: Asset, overrideConfig?: Partial<TranscriptionConfig>) => {
-    if (asset.path.startsWith("blob:") || (asset as any).importStatus === "importing") {
-      logger.debug("拒绝为尚未上传完成的资产添加转写任务", { assetId: asset.id });
+  const addTask = (
+    asset: Asset,
+    overrideConfig?: Partial<TranscriptionConfig>
+  ) => {
+    if (
+      asset.path.startsWith("blob:") ||
+      (asset as any).importStatus === "importing"
+    ) {
+      logger.debug("拒绝为尚未上传完成的资产添加转写任务", {
+        assetId: asset.id,
+      });
       return null;
     }
 
     // 检查是否支持该类型
-    const isText = asset.mimeType?.startsWith("text/") || asset.name.endsWith(".txt") || asset.name.endsWith(".md");
+    const isText =
+      asset.mimeType?.startsWith("text/") ||
+      asset.name.endsWith(".txt") ||
+      asset.name.endsWith(".md");
     const isSupported = engines.some((e) => e.canHandle(asset)) || isText;
 
     if (!isSupported) {
-      logger.warn("不支持的资产类型，无法添加转写任务", { type: asset.type, mime: asset.mimeType });
+      logger.warn("不支持的资产类型，无法添加转写任务", {
+        type: asset.type,
+        mime: asset.mimeType,
+      });
       return null;
     }
 
@@ -233,7 +258,9 @@ export function useTranscriptionManager() {
    */
   const getTranscriptionText = async (asset: Asset): Promise<string | null> => {
     // 查找该资产的任务，只要有 resultPath 就可以尝试读取（可能是继承自旧任务的）
-    const task = store.tasks.find((t) => t.assetId === asset.id && t.resultPath);
+    const task = store.tasks.find(
+      (t) => t.assetId === asset.id && t.resultPath
+    );
     let path = task?.resultPath || asset.metadata?.derived?.transcription?.path;
 
     if (!path) return null;

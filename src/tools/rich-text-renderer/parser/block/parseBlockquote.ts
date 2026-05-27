@@ -77,26 +77,27 @@ export function parseBlockquote(
   // 检查是否是 GitHub 风格的 Alert
   // 格式: > [!NOTE]
   // Token 序列: link_text_open([), text(!), text(NOTE), link_text_close(])
-  let alertType: 'note' | 'tip' | 'important' | 'warning' | 'caution' | null = null;
+  let alertType: "note" | "tip" | "important" | "warning" | "caution" | null =
+    null;
 
   if (quoteLines.length > 0) {
     const firstLine = quoteLines[0];
     // 匹配 [!TYPE] 格式，允许 Token 分割差异
-    if (firstLine.length >= 3 && firstLine[0].type === 'link_text_open') {
+    if (firstLine.length >= 3 && firstLine[0].type === "link_text_open") {
       // 寻找闭合的 ]
       let closeIndex = -1;
-      let contentText = '';
-      
+      let contentText = "";
+
       // 限制搜索范围，避免过度搜索
       const searchLimit = Math.min(firstLine.length, 6);
-      
+
       for (let k = 1; k < searchLimit; k++) {
         const t = firstLine[k];
-        if (t.type === 'link_text_close') {
+        if (t.type === "link_text_close") {
           closeIndex = k;
           break;
         }
-        if (t.type === 'text') {
+        if (t.type === "text") {
           contentText += t.content;
         } else {
           // 如果遇到非文本节点（如加粗等），则不是标准的 Alert 格式
@@ -104,12 +105,17 @@ export function parseBlockquote(
         }
       }
 
-      if (closeIndex !== -1 && contentText.startsWith('!')) {
+      if (closeIndex !== -1 && contentText.startsWith("!")) {
         const type = contentText.substring(1).toUpperCase(); // 去掉 !
-        const validTypes = ['NOTE', 'TIP', 'IMPORTANT', 'WARNING', 'CAUTION'];
+        const validTypes = ["NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"];
 
         if (validTypes.includes(type)) {
-          alertType = type.toLowerCase() as 'note' | 'tip' | 'important' | 'warning' | 'caution';
+          alertType = type.toLowerCase() as
+            | "note"
+            | "tip"
+            | "important"
+            | "warning"
+            | "caution";
           // 移除 Alert 标记 tokens (从 [ 到 ])
           firstLine.splice(0, closeIndex + 1);
         }

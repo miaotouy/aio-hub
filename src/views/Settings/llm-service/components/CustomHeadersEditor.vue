@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
-import { getName, getVersion } from '@tauri-apps/api/app';
-import { Plus, Delete, DocumentCopy } from '@element-plus/icons-vue';
-import { customMessage } from '@/utils/customMessage';
-import BaseDialog from '@/components/common/BaseDialog.vue';
+import { ref, computed, watch, onMounted } from "vue";
+import { getName, getVersion } from "@tauri-apps/api/app";
+import { Plus, Delete, DocumentCopy } from "@element-plus/icons-vue";
+import { customMessage } from "@/utils/customMessage";
+import BaseDialog from "@/components/common/BaseDialog.vue";
 
 interface Props {
   visible: boolean;
@@ -11,8 +11,8 @@ interface Props {
 }
 
 interface Emits {
-  (e: 'update:visible', value: boolean): void;
-  (e: 'update:modelValue', value: Record<string, string>): void;
+  (e: "update:visible", value: boolean): void;
+  (e: "update:modelValue", value: Record<string, string>): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -34,19 +34,25 @@ const tempHeaders = ref<HeaderItem[]>([]);
 
 // 初始化临时编辑状态
 function initTempHeaders() {
-  tempHeaders.value = Object.entries(props.modelValue || {}).map(([key, value], index) => ({
-    key,
-    value,
-    id: `${Date.now()}_${index}`,
-  }));
+  tempHeaders.value = Object.entries(props.modelValue || {}).map(
+    ([key, value], index) => ({
+      key,
+      value,
+      id: `${Date.now()}_${index}`,
+    })
+  );
 }
 
 // 监听弹窗打开
-watch(() => props.visible, (visible) => {
-  if (visible) {
-    initTempHeaders();
-  }
-}, { immediate: true });
+watch(
+  () => props.visible,
+  (visible) => {
+    if (visible) {
+      initTempHeaders();
+    }
+  },
+  { immediate: true }
+);
 
 // 为 navigator.userAgentData 添加类型定义
 interface NavigatorUAData {
@@ -56,7 +62,9 @@ interface NavigatorUAData {
 }
 
 // 动态生成请求头
-const userAgent = ref('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/5.36 (KHTML, like Gecko) YourApp/1.0.0 Chrome/134.0.0.0 Safari/537.36');
+const userAgent = ref(
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/5.36 (KHTML, like Gecko) YourApp/1.0.0 Chrome/134.0.0.0 Safari/537.36"
+);
 const secChUa = ref('"Not:A-Brand";v="24", "Chromium";v="134"');
 const secChUaPlatform = ref('"Windows"');
 
@@ -75,7 +83,9 @@ onMounted(async () => {
       secChUaPlatform.value = `"${uaData.platform}"`;
 
       if (uaData.brands) {
-        secChUa.value = uaData.brands.map(b => `"${b.brand}";v="${b.version}"`).join(', ');
+        secChUa.value = uaData.brands
+          .map((b) => `"${b.brand}";v="${b.version}"`)
+          .join(", ");
       }
     } else {
       const platformMatch = baseUa.match(/Windows|Mac|Linux/);
@@ -84,7 +94,7 @@ onMounted(async () => {
       }
     }
   } catch (error) {
-    console.error('Failed to get system info for User-Agent:', error);
+    console.error("Failed to get system info for User-Agent:", error);
     userAgent.value = navigator.userAgent;
   }
 });
@@ -92,41 +102,41 @@ onMounted(async () => {
 // 预设模板
 const presets = computed(() => [
   {
-    name: '丰富的信息',
-    description: '模仿市面上常见客户端的请求头',
+    name: "丰富的信息",
+    description: "模仿市面上常见客户端的请求头",
     headers: {
-      'User-Agent': userAgent.value,
-      'sec-ch-ua': secChUa.value,
-      'sec-ch-ua-mobile': '?0',
-      'sec-ch-ua-platform': secChUaPlatform.value,
-      'sec-fetch-site': 'cross-site',
-      'sec-fetch-mode': 'cors',
-      'sec-fetch-dest': 'empty',
-      'accept-language': 'zh-CN',
-      'x-title': 'AIO Hub',
+      "User-Agent": userAgent.value,
+      "sec-ch-ua": secChUa.value,
+      "sec-ch-ua-mobile": "?0",
+      "sec-ch-ua-platform": secChUaPlatform.value,
+      "sec-fetch-site": "cross-site",
+      "sec-fetch-mode": "cors",
+      "sec-fetch-dest": "empty",
+      "accept-language": "zh-CN",
+      "x-title": "AIO Hub",
     },
   },
   {
-    name: '超时控制',
-    description: '添加自定义超时时间（类似 Stainless SDK）',
+    name: "超时控制",
+    description: "添加自定义超时时间（类似 Stainless SDK）",
     headers: {
-      'x-stainless-timeout': '600',
-      'x-stainless-retry-count': '0',
+      "x-stainless-timeout": "600",
+      "x-stainless-retry-count": "0",
     },
   },
   {
-    name: '压缩支持',
-    description: '启用多种压缩算法',
+    name: "压缩支持",
+    description: "启用多种压缩算法",
     headers: {
-      'accept-encoding': 'gzip, deflate, br, zstd',
+      "accept-encoding": "gzip, deflate, br, zstd",
     },
   },
   {
-    name: '来源标识',
-    description: '标识请求来源（用户填自己的）',
+    name: "来源标识",
+    description: "标识请求来源（用户填自己的）",
     headers: {
-      'http-referer': 'https://your-app.com',
-      'origin': 'https://your-app.com',
+      "http-referer": "https://your-app.com",
+      origin: "https://your-app.com",
     },
   },
 ]);
@@ -134,8 +144,8 @@ const presets = computed(() => [
 // 添加新请求头
 function addHeader() {
   tempHeaders.value.push({
-    key: '',
-    value: '',
+    key: "",
+    value: "",
     id: `${Date.now()}_${tempHeaders.value.length}`,
   });
 }
@@ -149,7 +159,7 @@ function removeHeader(id: string) {
 }
 
 // 应用预设
-function applyPreset(preset: typeof presets.value[0]) {
+function applyPreset(preset: (typeof presets.value)[0]) {
   // 合并预设到现有请求头
   Object.entries(preset.headers).forEach(([key, value]) => {
     const existing = tempHeaders.value.find((h) => h.key === key);
@@ -174,7 +184,9 @@ function clearAll() {
 // 计算统计信息
 const stats = computed(() => {
   const total = tempHeaders.value.length;
-  const filled = tempHeaders.value.filter((h) => h.key.trim() && h.value.trim()).length;
+  const filled = tempHeaders.value.filter(
+    (h) => h.key.trim() && h.value.trim()
+  ).length;
   return { total, filled };
 });
 
@@ -186,14 +198,14 @@ function handleConfirm() {
       result[h.key.trim()] = h.value;
     }
   });
-  emit('update:modelValue', result);
-  emit('update:visible', false);
-  customMessage.success('自定义请求头已保存');
+  emit("update:modelValue", result);
+  emit("update:visible", false);
+  customMessage.success("自定义请求头已保存");
 }
 
 // 取消
 function handleCancel() {
-  emit('update:visible', false);
+  emit("update:visible", false);
 }
 </script>
 
@@ -208,84 +220,100 @@ function handleCancel() {
   >
     <template #content>
       <div class="custom-headers-editor">
-    <!-- 预设模板 -->
-    <div class="presets-section">
-      <div class="section-header">
-        <h4>预设模板</h4>
-        <span class="section-subtitle">快速应用常用请求头配置</span>
-      </div>
-      <div class="presets-grid">
-        <div
-          v-for="preset in presets"
-          :key="preset.name"
-          class="preset-card"
-          @click="applyPreset(preset)"
-        >
-          <div class="preset-name">
-            <el-icon><DocumentCopy /></el-icon>
-            {{ preset.name }}
+        <!-- 预设模板 -->
+        <div class="presets-section">
+          <div class="section-header">
+            <h4>预设模板</h4>
+            <span class="section-subtitle">快速应用常用请求头配置</span>
           </div>
-          <div class="preset-desc">{{ preset.description }}</div>
+          <div class="presets-grid">
+            <div
+              v-for="preset in presets"
+              :key="preset.name"
+              class="preset-card"
+              @click="applyPreset(preset)"
+            >
+              <div class="preset-name">
+                <el-icon><DocumentCopy /></el-icon>
+                {{ preset.name }}
+              </div>
+              <div class="preset-desc">{{ preset.description }}</div>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
 
-    <!-- 自定义请求头列表 -->
-    <div class="headers-section">
-      <div class="section-header">
-        <h4>自定义请求头</h4>
-        <div class="section-actions">
-          <span class="stats">{{ stats.filled }}/{{ stats.total }} 已填写</span>
-          <el-button type="primary" :icon="Plus" size="small" @click="addHeader">
-            添加
-          </el-button>
-          <el-button v-if="tempHeaders.length > 0" size="small" @click="clearAll">
-            清空
-          </el-button>
+        <!-- 自定义请求头列表 -->
+        <div class="headers-section">
+          <div class="section-header">
+            <h4>自定义请求头</h4>
+            <div class="section-actions">
+              <span class="stats"
+                >{{ stats.filled }}/{{ stats.total }} 已填写</span
+              >
+              <el-button
+                type="primary"
+                :icon="Plus"
+                size="small"
+                @click="addHeader"
+              >
+                添加
+              </el-button>
+              <el-button
+                v-if="tempHeaders.length > 0"
+                size="small"
+                @click="clearAll"
+              >
+                清空
+              </el-button>
+            </div>
+          </div>
+
+          <div v-if="tempHeaders.length === 0" class="empty-state">
+            <p>暂无自定义请求头</p>
+            <el-button type="primary" :icon="Plus" @click="addHeader"
+              >添加第一个</el-button
+            >
+          </div>
+
+          <div v-else class="headers-list">
+            <div
+              v-for="header in tempHeaders"
+              :key="header.id"
+              class="header-item"
+            >
+              <el-input
+                v-model="header.key"
+                placeholder="请求头名称（如 User-Agent）"
+              >
+                <template #prepend>Key</template>
+              </el-input>
+              <el-input v-model="header.value" placeholder="请求头值">
+                <template #prepend>Value</template>
+              </el-input>
+              <el-button
+                type="danger"
+                :icon="Delete"
+                circle
+                @click="removeHeader(header.id)"
+              />
+            </div>
+          </div>
         </div>
-      </div>
 
-      <div v-if="tempHeaders.length === 0" class="empty-state">
-        <p>暂无自定义请求头</p>
-        <el-button type="primary" :icon="Plus" @click="addHeader">添加第一个</el-button>
-      </div>
-
-      <div v-else class="headers-list">
-        <div v-for="header in tempHeaders" :key="header.id" class="header-item">
-          <el-input
-            v-model="header.key"
-            placeholder="请求头名称（如 User-Agent）"
-          >
-            <template #prepend>Key</template>
-          </el-input>
-          <el-input
-            v-model="header.value"
-            placeholder="请求头值"
-          >
-            <template #prepend>Value</template>
-          </el-input>
-          <el-button
-            type="danger"
-            :icon="Delete"
-            circle
-            @click="removeHeader(header.id)"
-          />
+        <!-- 说明提示 -->
+        <div class="info-alert">
+          <div class="alert-content">
+            <div>💡 <strong>提示：</strong></div>
+            <ul>
+              <li>自定义请求头会添加到所有 API 请求中</li>
+              <li>某些请求头可能会被 API 提供商忽略或覆盖</li>
+              <li>建议仅添加必要的请求头，避免潜在的兼容性问题</li>
+              <li>
+                Cherry Studio 风格的请求头可以让 API 提供商更好地识别客户端类型
+              </li>
+            </ul>
+          </div>
         </div>
-      </div>
-    </div>
-
-    <!-- 说明提示 -->
-    <div class="info-alert">
-      <div class="alert-content">
-        <div>💡 <strong>提示：</strong></div>
-        <ul>
-          <li>自定义请求头会添加到所有 API 请求中</li>
-          <li>某些请求头可能会被 API 提供商忽略或覆盖</li>
-          <li>建议仅添加必要的请求头，避免潜在的兼容性问题</li>
-          <li>Cherry Studio 风格的请求头可以让 API 提供商更好地识别客户端类型</li>
-        </ul>
-      </div>
-    </div>
       </div>
     </template>
 

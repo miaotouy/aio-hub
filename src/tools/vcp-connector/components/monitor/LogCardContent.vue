@@ -8,16 +8,27 @@
         <span v-if="message.data.source" class="source-tag">
           {{ message.data.source }}
         </span>
-        <el-tag v-if="message.data.status" :type="statusTagType" size="small" effect="plain" class="status-tag">
+        <el-tag
+          v-if="message.data.status"
+          :type="statusTagType"
+          size="small"
+          effect="plain"
+          class="status-tag"
+        >
           {{ message.data.status }}
         </el-tag>
       </div>
-      <div class="content-text" :class="{ 'is-error': message.data.status === 'error' }">
+      <div
+        class="content-text"
+        :class="{ 'is-error': message.data.status === 'error' }"
+      >
         {{ message.data.content }}
       </div>
     </div>
     <div class="log-actions">
-      <el-button size="small" text @click="$emit('show-json', message)"> 查看 JSON </el-button>
+      <el-button size="small" text @click="$emit('show-json', message)">
+        查看 JSON
+      </el-button>
     </div>
   </div>
 </template>

@@ -11,20 +11,23 @@ import type {
   TextProcessResult,
   FileProcessOptions,
   FileProcessResult,
-} from '../types';
-import { createModuleLogger } from '@/utils/logger';
-import { createModuleErrorHandler, ErrorLevel } from '@/utils/errorHandler';
-import { invoke } from '@tauri-apps/api/core';
+} from "../types";
+import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
+import { invoke } from "@tauri-apps/api/core";
 
-const logger = createModuleLogger('services/regex-applier/engine');
-const errorHandler = createModuleErrorHandler('services/regex-applier/engine');
+const logger = createModuleLogger("services/regex-applier/engine");
+const errorHandler = createModuleErrorHandler("services/regex-applier/engine");
 
 /**
  * 解析正则表达式字符串，支持 /pattern/flags 格式
  * @param pattern 正则表达式字符串，可以是纯模式或 /pattern/flags 格式
  * @returns { pattern: string, flags: string } 解析后的模式和标志
  */
-export function parseRegexPattern(pattern: string): { pattern: string; flags: string } {
+export function parseRegexPattern(pattern: string): {
+  pattern: string;
+  flags: string;
+} {
   // 检查是否是 /pattern/flags 格式
   const match = pattern.match(/^\/(.+?)\/([gimsuvy]*)$/);
 
@@ -32,14 +35,18 @@ export function parseRegexPattern(pattern: string): { pattern: string; flags: st
     return {
       pattern: match[1],
       // 修正: 确保 g 标志总是存在,同时保留用户指定的其他标志
-      flags: match[2] ? (match[2].includes('g') ? match[2] : `${match[2]}g`) : 'g'
+      flags: match[2]
+        ? match[2].includes("g")
+          ? match[2]
+          : `${match[2]}g`
+        : "g",
     };
   }
 
   // 默认使用 gm 标志以支持多行匹配
   return {
     pattern: pattern,
-    flags: 'gm'
+    flags: "gm",
   };
 }
 
@@ -52,20 +59,20 @@ export function parseRegexPattern(pattern: string): { pattern: string; flags: st
 export function applyRules(text: string, rules: RegexRule[]): ApplyResult {
   if (!text) {
     return {
-      text: '',
+      text: "",
       appliedRulesCount: 0,
-      logs: []
+      logs: [],
     };
   }
 
   const startTime = performance.now();
-  const enabledRules = rules.filter(r => r.enabled);
+  const enabledRules = rules.filter((r) => r.enabled);
 
   // 记录处理开始
-  logger.info('开始处理文本', {
+  logger.info("开始处理文本", {
     textLength: text.length,
     totalRules: rules.length,
-    enabledRules: enabledRules.length
+    enabledRules: enabledRules.length,
   });
 
   let processed = text;
@@ -73,11 +80,11 @@ export function applyRules(text: string, rules: RegexRule[]): ApplyResult {
   let totalMatches = 0;
   const logs: LogEntry[] = [];
 
-  const addLog = (message: string, type: LogEntry['type'] = 'info') => {
+  const addLog = (message: string, type: LogEntry["type"] = "info") => {
     logs.push({
       time: new Date().toLocaleTimeString(),
       message,
-      type
+      type,
     });
   };
 
@@ -98,7 +105,9 @@ export function applyRules(text: string, rules: RegexRule[]): ApplyResult {
       processed = processed.replace(regex, rule.replacement);
 
       if (originalProcessed !== processed) {
-        addLog(`应用规则 ${index + 1}: /${pattern}/${flags} -> "${rule.replacement}"`);
+        addLog(
+          `应用规则 ${index + 1}: /${pattern}/${flags} -> "${rule.replacement}"`
+        );
         appliedRulesCount++;
         totalMatches += matchCount;
 
@@ -107,13 +116,13 @@ export function applyRules(text: string, rules: RegexRule[]): ApplyResult {
           pattern,
           flags,
           matchCount,
-          replacement: rule.replacement
+          replacement: rule.replacement,
         });
       }
     } catch (e: any) {
       addLog(
         `规则 ${index + 1} 错误: 无效的正则表达式 "${rule.regex}" - ${e.message}`,
-        'error'
+        "error"
       );
       errorHandler.handle(e, {
         userMessage: `规则 ${index + 1} 应用失败`,
@@ -135,20 +144,20 @@ export function applyRules(text: string, rules: RegexRule[]): ApplyResult {
   const textChanged = text !== processed;
 
   // 记录处理完成统计
-  logger.info('文本处理完成', {
+  logger.info("文本处理完成", {
     appliedRulesCount,
     totalMatches,
     duration: `${duration.toFixed(2)}ms`,
     originalLength: text.length,
     processedLength: processed.length,
     lengthDiff: processed.length - text.length,
-    textChanged
+    textChanged,
   });
 
   return {
     text: processed,
     appliedRulesCount,
-    logs
+    logs,
   };
 }
 
@@ -157,7 +166,10 @@ export function applyRules(text: string, rules: RegexRule[]): ApplyResult {
  * @param pattern 正则表达式字符串
  * @returns 验证结果，包含是否有效和错误信息
  */
-export function validateRegex(pattern: string): { valid: boolean; error?: string } {
+export function validateRegex(pattern: string): {
+  valid: boolean;
+  error?: string;
+} {
   try {
     new RegExp(pattern);
     return { valid: true };
@@ -171,7 +183,7 @@ export function validateRegex(pattern: string): { valid: boolean; error?: string
  * @param prefix 前缀
  * @returns 唯一ID字符串
  */
-export function generateId(prefix: string = 'item'): string {
+export function generateId(prefix: string = "item"): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 }
 
@@ -184,7 +196,7 @@ export async function processText(
   options: TextProcessOptions,
   getPresetById: (id: string) => { rules: RegexRule[] } | undefined
 ): Promise<TextProcessResult | null> {
-  logger.info('开始处理文本', {
+  logger.info("开始处理文本", {
     textLength: options.sourceText.length,
     presetCount: options.presetIds.length,
   });
@@ -193,7 +205,7 @@ export async function processText(
     async () => {
       if (!options.sourceText) {
         return {
-          text: '',
+          text: "",
           totalRulesApplied: 0,
           logs: [],
         };
@@ -225,7 +237,7 @@ export async function processText(
         }
       }
 
-      logger.info('文本处理完成', {
+      logger.info("文本处理完成", {
         totalRulesApplied,
         logCount: allLogs.length,
         resultLength: result.length,
@@ -239,7 +251,7 @@ export async function processText(
     },
     {
       level: ErrorLevel.ERROR,
-      userMessage: '文本处理失败',
+      userMessage: "文本处理失败",
       context: options,
     }
   );
@@ -252,9 +264,11 @@ export async function processText(
  */
 export async function processFiles(
   options: FileProcessOptions,
-  getPresetById: (id: string) => { name: string; rules: RegexRule[] } | undefined
+  getPresetById: (
+    id: string
+  ) => { name: string; rules: RegexRule[] } | undefined
 ): Promise<FileProcessResult | null> {
-  logger.info('开始处理文件', {
+  logger.info("开始处理文件", {
     fileCount: options.filePaths.length,
     presetCount: options.presetIds.length,
     outputDir: options.outputDir,
@@ -277,7 +291,7 @@ export async function processFiles(
       }
 
       if (allRules.length === 0) {
-        throw new Error('所选预设中没有启用的规则');
+        throw new Error("所选预设中没有启用的规则");
       }
 
       // 准备调用后端的规则数据
@@ -288,21 +302,24 @@ export async function processFiles(
         preset_name: r.preset_name,
       }));
 
-      logger.debug('调用 Rust 后端处理文件', {
+      logger.debug("调用 Rust 后端处理文件", {
         fileCount: options.filePaths.length,
         ruleCount: rulesForBackend.length,
       });
 
       // 调用 Tauri 后端
-      const result = await invoke<FileProcessResult>('process_files_with_regex', {
-        filePaths: options.filePaths,
-        outputDir: options.outputDir,
-        rules: rulesForBackend,
-        forceTxt: options.forceTxt ?? false,
-        filenameSuffix: options.filenameSuffix ?? '',
-      });
+      const result = await invoke<FileProcessResult>(
+        "process_files_with_regex",
+        {
+          filePaths: options.filePaths,
+          outputDir: options.outputDir,
+          rules: rulesForBackend,
+          forceTxt: options.forceTxt ?? false,
+          filenameSuffix: options.filenameSuffix ?? "",
+        }
+      );
 
-      logger.info('文件处理完成', {
+      logger.info("文件处理完成", {
         successCount: result.success_count,
         errorCount: result.error_count,
         totalMatches: result.total_matches,
@@ -313,7 +330,7 @@ export async function processFiles(
     },
     {
       level: ErrorLevel.ERROR,
-      userMessage: '文件处理失败',
+      userMessage: "文件处理失败",
       context: options,
     }
   );

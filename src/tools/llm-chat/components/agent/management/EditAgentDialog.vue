@@ -9,10 +9,17 @@ import { useChatSettings } from "../../../composables/settings/useChatSettings";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useAgentStore } from "../../../stores/agentStore";
 import { resolveAvatarPath } from "../../../composables/ui/useResolvedAvatar";
-import { createDefaultChatRegexConfig, DEFAULT_TOOL_CALL_CONFIG, DEFAULT_KB_CONFIG } from "../../../types";
+import {
+  createDefaultChatRegexConfig,
+  DEFAULT_TOOL_CALL_CONFIG,
+  DEFAULT_KB_CONFIG,
+} from "../../../types";
 import AgentEditor from "../agent-editor/AgentEditor.vue";
 import MiniAgentList from "./MiniAgentList.vue";
-import type { LlmThinkRule, RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
+import type {
+  LlmThinkRule,
+  RichTextRendererStyleOptions,
+} from "@/tools/rich-text-renderer/types";
 
 interface Props {
   visible: boolean;
@@ -35,7 +42,11 @@ interface Props {
 }
 interface Emits {
   (e: "update:visible", value: boolean): void;
-  (e: "save", data: AgentEditData, options?: { silent?: boolean; agentId?: string }): void;
+  (
+    e: "save",
+    data: AgentEditData,
+    options?: { silent?: boolean; agentId?: string }
+  ): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -77,9 +88,11 @@ const defaultFormState = {
   },
   assets: [] as import("../../../types").AgentAsset[],
   assetGroups: [] as import("../../../types").AssetGroup[],
-  virtualTimeConfig: null as
-    | { virtualBaseTime: string; realBaseTime: string; timeScale: number }
-    | null,
+  virtualTimeConfig: null as {
+    virtualBaseTime: string;
+    realBaseTime: string;
+    timeScale: number;
+  } | null,
   interactionConfig: {
     sendButtonCreateBranch: false,
     defaultMediaVolume: 100,
@@ -119,7 +132,9 @@ const loadFormData = () => {
 
   // 确定数据源：编辑模式用当前编辑的对象，创建模式用 initialData
   const sourceData =
-    props.mode === "edit" && currentEditingAgent.value ? currentEditingAgent.value : props.initialData || {};
+    props.mode === "edit" && currentEditingAgent.value
+      ? currentEditingAgent.value
+      : props.initialData || {};
 
   // 2. 动态合并数据
   for (const key of Object.keys(editForm)) {
@@ -159,7 +174,6 @@ const loadFormData = () => {
   if (editForm.profileId && editForm.modelId) {
     editForm.modelCombo = `${editForm.profileId}:${editForm.modelId}`;
   }
-
 };
 
 const agentListVisible = ref(false);
@@ -239,7 +253,9 @@ const handleClose = () => {
 };
 
 // 保存智能体
-const handleSave = (options: { silent?: boolean; overrideAgentId?: string } = {}) => {
+const handleSave = (
+  options: { silent?: boolean; overrideAgentId?: string } = {}
+) => {
   // 如果正在切换中，且不是显式指定的 override 保存，则忽略
   if (isSwitching.value && !options.overrideAgentId) return;
 
@@ -340,7 +356,11 @@ const handleSave = (options: { silent?: boolean; overrideAgentId?: string } = {}
               <template #reference>
                 <el-button :icon="Users" circle plain title="切换智能体" />
               </template>
-              <MiniAgentList :currentAgentId="localAgentId" @switch="switchToAgent" @create="handleClose" />
+              <MiniAgentList
+                :currentAgentId="localAgentId"
+                @switch="switchToAgent"
+                @create="handleClose"
+              />
             </el-popover>
             <div v-if="currentEditingAgent" class="current-editing-info">
               <Avatar
@@ -349,7 +369,10 @@ const handleSave = (options: { silent?: boolean; overrideAgentId?: string } = {}
                 :size="24"
               />
               <span class="current-editing-label">
-                正在编辑: <b>{{ currentEditingAgent.displayName || currentEditingAgent.name }}</b>
+                正在编辑:
+                <b>{{
+                  currentEditingAgent.displayName || currentEditingAgent.name
+                }}</b>
               </span>
             </div>
           </template>

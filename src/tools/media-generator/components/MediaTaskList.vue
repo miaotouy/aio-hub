@@ -39,12 +39,18 @@ const stats = taskManager.stats;
 
 // 过滤后的任务列表，按时间倒序排列
 const filteredTasks = computed(() => {
-  let list = Array.isArray(taskManager.tasks.value) ? [...taskManager.tasks.value] : [];
+  let list = Array.isArray(taskManager.tasks.value)
+    ? [...taskManager.tasks.value]
+    : [];
 
   // 搜索过滤
   if (searchQuery.value) {
     const q = searchQuery.value.toLowerCase();
-    list = list.filter((t) => t.input.prompt.toLowerCase().includes(q) || t.input.modelId.toLowerCase().includes(q));
+    list = list.filter(
+      (t) =>
+        t.input.prompt.toLowerCase().includes(q) ||
+        t.input.modelId.toLowerCase().includes(q)
+    );
   }
 
   // 类型过滤
@@ -112,7 +118,7 @@ watch(
       resizeObserver.observe(container);
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 onBeforeUnmount(() => {
@@ -152,7 +158,9 @@ const handleRetryTask = (task: MediaTask) => {
 
   // 恢复参考图附件
   store.clearAttachments();
-  const inputAttachments = task.input.params?.inputAttachments as any[] | undefined;
+  const inputAttachments = task.input.params?.inputAttachments as
+    | any[]
+    | undefined;
   if (inputAttachments && inputAttachments.length > 0) {
     for (const att of inputAttachments) {
       if (att && (att.id || att.path)) {
@@ -188,7 +196,12 @@ const handleDownloadTask = async (task: MediaTask) => {
       defaultPath: asset.name,
       filters: [
         {
-          name: task.type === "image" ? "图片" : task.type === "video" ? "视频" : "音频",
+          name:
+            task.type === "image"
+              ? "图片"
+              : task.type === "video"
+                ? "视频"
+                : "音频",
           extensions: [asset.path.split(".").pop() || "*"],
         },
       ],
@@ -229,7 +242,9 @@ const handleCopyResult = async (task: MediaTask) => {
       customMessage.success("图片已复制到剪贴板");
     } else {
       await navigator.clipboard.writeText(url);
-      customMessage.success(`${task.type === "video" ? "视频" : "音频"}链接已复制`);
+      customMessage.success(
+        `${task.type === "video" ? "视频" : "音频"}链接已复制`
+      );
     }
   } catch (err) {
     logger.error("复制失败", err);
@@ -296,13 +311,21 @@ const handleOpenAsset = async (task: MediaTask) => {
           :prefix-icon="Search"
           class="search-input"
         />
-        <el-select v-model="filterType" placeholder="任务类型" class="filter-select">
+        <el-select
+          v-model="filterType"
+          placeholder="任务类型"
+          class="filter-select"
+        >
           <el-option label="全部类型" value="all" />
           <el-option label="图片" value="image" />
           <el-option label="视频" value="video" />
           <el-option label="音频" value="audio" />
         </el-select>
-        <el-select v-model="filterStatus" placeholder="任务状态" class="filter-select">
+        <el-select
+          v-model="filterStatus"
+          placeholder="任务状态"
+          class="filter-select"
+        >
           <el-option label="全部状态" value="all" />
           <el-option label="生成中" value="processing" />
           <el-option label="已完成" value="completed" />
@@ -311,7 +334,9 @@ const handleOpenAsset = async (task: MediaTask) => {
         </el-select>
       </div>
       <div class="toolbar-right">
-        <el-button :icon="TrashIcon" link @click="clearFinishedTasks"> 清空已结束任务 </el-button>
+        <el-button :icon="TrashIcon" link @click="clearFinishedTasks">
+          清空已结束任务
+        </el-button>
       </div>
     </div>
 

@@ -73,7 +73,9 @@ const form = ref<CaiuInput>({
 // 用于平滑切换，避免闪烁
 const isDetailLoading = ref(false);
 const hasValidEntry = computed(
-  () => !!kbStore.activeEntryId && (form.value.key || form.value.content || isDetailLoading.value)
+  () =>
+    !!kbStore.activeEntryId &&
+    (form.value.key || form.value.content || isDetailLoading.value)
 );
 
 // 自动保存逻辑
@@ -153,7 +155,6 @@ watch(
   },
   { deep: true }
 );
-
 
 const handleDelete = async () => {
   if (!kbStore.activeEntryId) return;
@@ -345,7 +346,11 @@ const handleDetailFileChange = (e: Event) => {
           <el-button v-if="!isWide" link @click="emit('close')">
             <ChevronLeft :size="16" />
           </el-button>
-          <el-input v-model="form.key" placeholder="条目标题 (Key)" class="title-input" />
+          <el-input
+            v-model="form.key"
+            placeholder="条目标题 (Key)"
+            class="title-input"
+          />
         </div>
         <div style="width: 8px"></div>
         <div class="header-actions">
@@ -376,7 +381,9 @@ const handleDetailFileChange = (e: Event) => {
                 :type="isVectorReady ? 'success' : 'warning'"
                 size="small"
                 :loading="isEmbedding || isDetailLoading"
-                :disabled="!kbStore.config.defaultEmbeddingModel || !kbStore.activeEntry"
+                :disabled="
+                  !kbStore.config.defaultEmbeddingModel || !kbStore.activeEntry
+                "
                 @click="handleEmbedding"
                 class="vector-action-btn"
                 :class="{ 'is-ready': isVectorReady }"

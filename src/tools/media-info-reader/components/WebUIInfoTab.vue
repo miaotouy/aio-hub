@@ -46,12 +46,19 @@
       </div>
     </div>
 
-    <div class="info-section" v-if="info.civitaiResources && info.civitaiResources.length > 0">
+    <div
+      class="info-section"
+      v-if="info.civitaiResources && info.civitaiResources.length > 0"
+    >
       <div class="section-header">
         <span class="label">Civitai Resources</span>
       </div>
       <div class="resources-grid">
-        <div v-for="(resource, idx) in info.civitaiResources" :key="idx" class="resource-card">
+        <div
+          v-for="(resource, idx) in info.civitaiResources"
+          :key="idx"
+          class="resource-card"
+        >
           <div class="card-header">
             <el-tag
               size="small"

@@ -80,47 +80,61 @@ class MediaGenInputManager {
     );
 
     // 监听来自其他窗口的状态同步
-    this.unlistenStateSync = this.bus.onMessage<StateSyncPayload>("state-sync", (payload) => {
-      if (payload.stateType !== MEDIA_GEN_STATE_KEYS.INPUT_STATE) return;
+    this.unlistenStateSync = this.bus.onMessage<StateSyncPayload>(
+      "state-sync",
+      (payload) => {
+        if (payload.stateType !== MEDIA_GEN_STATE_KEYS.INPUT_STATE) return;
 
-      if (payload.version <= this.stateVersion) {
-        return;
+        if (payload.version <= this.stateVersion) {
+          return;
+        }
+
+        this.isApplyingSyncState = true;
+        try {
+          let newState;
+          if (payload.isFull) {
+            newState = payload.data;
+          } else {
+            newState = applyPatches(
+              {
+                prompt: this.store.inputPrompt,
+                attachments: [...this.store.attachments],
+              },
+              payload.patches as JsonPatchOperation[]
+            );
+          }
+
+          // 更新 store
+          if (newState.prompt !== undefined) {
+            this.store.inputPrompt = newState.prompt;
+          }
+          if (newState.attachments !== undefined) {
+            // 简单的附件同步，实际应用中可能需要更复杂的合并逻辑
+            this.store.attachments = newState.attachments;
+          }
+
+          this.stateVersion = payload.version;
+          this.lastSyncedValue = JSON.parse(JSON.stringify(newState));
+
+          logger.debug("已应用来自其他窗口的输入状态", {
+            version: payload.version,
+          });
+        } catch (error) {
+          errorHandler.handle(error as Error, {
+            userMessage: "应用同步状态失败",
+            showToUser: false,
+          });
+        } finally {
+          this.isApplyingSyncState = false;
+        }
       }
-
-      this.isApplyingSyncState = true;
-      try {
-        let newState;
-        if (payload.isFull) {
-          newState = payload.data;
-        } else {
-          newState = applyPatches(
-            { prompt: this.store.inputPrompt, attachments: [...this.store.attachments] },
-            payload.patches as JsonPatchOperation[]
-          );
-        }
-
-        // 更新 store
-        if (newState.prompt !== undefined) {
-          this.store.inputPrompt = newState.prompt;
-        }
-        if (newState.attachments !== undefined) {
-          // 简单的附件同步，实际应用中可能需要更复杂的合并逻辑
-          this.store.attachments = newState.attachments;
-        }
-
-        this.stateVersion = payload.version;
-        this.lastSyncedValue = JSON.parse(JSON.stringify(newState));
-
-        logger.debug("已应用来自其他窗口的输入状态", { version: payload.version });
-      } catch (error) {
-        errorHandler.handle(error as Error, { userMessage: "应用同步状态失败", showToUser: false });
-      } finally {
-        this.isApplyingSyncState = false;
-      }
-    });
+    );
 
     // 注册到全局同步源（仅主窗口和工具窗口）
-    if (this.bus.windowType === "main" || this.bus.windowType === "detached-tool") {
+    if (
+      this.bus.windowType === "main" ||
+      this.bus.windowType === "detached-tool"
+    ) {
       this.unregisterSyncSource = registerSyncSource({
         pushState: async (isFullSync, targetWindowLabel, silent) => {
           this.pushState(isFullSync, targetWindowLabel, silent);
@@ -160,7 +174,11 @@ class MediaGenInputManager {
   /**
    * 推送状态到其他窗口
    */
-  public pushState(isFullSync = false, targetWindowLabel?: string, silent = false): void {
+  public pushState(
+    isFullSync = false,
+    targetWindowLabel?: string,
+    silent = false
+  ): void {
     if (this.isApplyingSyncState) return;
 
     const newValue = {
@@ -169,7 +187,8 @@ class MediaGenInputManager {
     };
 
     const newVersion = VersionGenerator.next();
-    const shouldForceFullSync = isFullSync || !shouldUseDelta([], newValue, 0.5);
+    const shouldForceFullSync =
+      isFullSync || !shouldUseDelta([], newValue, 0.5);
 
     if (shouldForceFullSync) {
       this.bus.syncState(
@@ -218,12 +237,18 @@ class MediaGenInputManager {
 
 export function useMediaGenInputManager() {
   const store = useMediaGenStore();
-  const manager = getOrCreateInstance("MediaGenInputManager", () => new MediaGenInputManager());
+  const manager = getOrCreateInstance(
+    "MediaGenInputManager",
+    () => new MediaGenInputManager()
+  );
 
   /**
    * 向输入框添加内容
    */
-  const addContent = (content: string, position: "append" | "prepend" = "append") => {
+  const addContent = (
+    content: string,
+    position: "append" | "prepend" = "append"
+  ) => {
     if (!content) return;
 
     if (position === "append") {
@@ -283,7 +308,10 @@ export function useMediaGenInputManager() {
         successCount++;
       }
     }
-    logger.info("批量添加资产", { count: assets.length, success: successCount });
+    logger.info("批量添加资产", {
+      count: assets.length,
+      success: successCount,
+    });
     return successCount;
   };
 

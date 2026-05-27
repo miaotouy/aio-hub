@@ -1,7 +1,12 @@
 <template>
   <div class="agent-preset-editor" :class="{ compact: props.compact }">
     <!-- 头部操作栏 -->
-    <div v-if="!props.compact" ref="headerRef" class="editor-header" :class="{ 'is-narrow': isNarrow }">
+    <div
+      v-if="!props.compact"
+      ref="headerRef"
+      class="editor-header"
+      :class="{ 'is-narrow': isNarrow }"
+    >
       <div class="header-title" @click="isCollapsed = !isCollapsed">
         <el-button link size="small" class="collapse-btn">
           <el-icon :class="{ 'is-collapsed': isCollapsed }">
@@ -9,7 +14,10 @@
           </el-icon>
         </el-button>
         <span class="title-text">预设消息配置</span>
-        <el-tooltip content="预设消息将作为所有对话的上下文基础" placement="top">
+        <el-tooltip
+          content="预设消息将作为所有对话的上下文基础"
+          placement="top"
+        >
           <el-icon><QuestionFilled /></el-icon>
         </el-tooltip>
         <!-- Token 统计 -->
@@ -23,7 +31,11 @@
       <div class="header-actions">
         <el-dropdown trigger="click" @command="handleExport">
           <div>
-            <el-tooltip content="将当前预设导出为文件" placement="top" :show-after="300">
+            <el-tooltip
+              content="将当前预设导出为文件"
+              placement="top"
+              :show-after="300"
+            >
               <el-button size="small">
                 <el-icon><Download /></el-icon>
                 导出
@@ -41,7 +53,11 @@
 
         <el-dropdown trigger="click" @command="handleCopy">
           <div>
-            <el-tooltip content="将当前预设复制到剪贴板" placement="top" :show-after="300">
+            <el-tooltip
+              content="将当前预设复制到剪贴板"
+              placement="top"
+              :show-after="300"
+            >
               <el-button size="small">
                 <el-icon><CopyDocument /></el-icon>
                 复制
@@ -56,7 +72,11 @@
             </el-dropdown-menu>
           </template>
         </el-dropdown>
-        <el-tooltip content="从剪贴板粘贴并覆盖整个预设" placement="top" :show-after="300">
+        <el-tooltip
+          content="从剪贴板粘贴并覆盖整个预设"
+          placement="top"
+          :show-after="300"
+        >
           <el-button size="small" @click="handlePaste">
             <el-icon><DocumentCopy /></el-icon>
             粘贴
@@ -68,13 +88,21 @@
             导入
           </el-button>
         </el-tooltip>
-        <el-tooltip content="批量管理消息（移动/删除/启用）" placement="top" :show-after="300">
+        <el-tooltip
+          content="批量管理消息（移动/删除/启用）"
+          placement="top"
+          :show-after="300"
+        >
           <el-button size="small" @click="handleOpenBatchManager">
             <el-icon><Operation /></el-icon>
             批量管理
           </el-button>
         </el-tooltip>
-        <el-tooltip content="添加一条新的预设消息" placement="top" :show-after="300">
+        <el-tooltip
+          content="添加一条新的预设消息"
+          placement="top"
+          :show-after="300"
+        >
           <el-button type="primary" size="small" @click="handleAddMessage">
             <el-icon><Plus /></el-icon>
             添加消息
@@ -84,7 +112,11 @@
     </div>
 
     <!-- 消息列表滚动容器 --><Transition name="collapse">
-      <div v-show="!isCollapsed || props.compact" class="messages-container" :style="{ height: containerHeight }">
+      <div
+        v-show="!isCollapsed || props.compact"
+        class="messages-container"
+        :style="{ height: containerHeight }"
+      >
         <div class="messages-scroll-wrapper">
           <VueDraggableNext
             v-model="currentPageMessages"
@@ -115,9 +147,14 @@
             >
               <!-- 纯占位符锚点 - 紧凑模式 -->
               <div
-                v-if="isPurePlaceholderAnchorType(element.type) && props.compact"
+                v-if="
+                  isPurePlaceholderAnchorType(element.type) && props.compact
+                "
                 class="message-card message-card-compact placeholder-card-compact"
-                :class="[{ disabled: element.isEnabled === false }, `placeholder-${element.type}`]"
+                :class="[
+                  { disabled: element.isEnabled === false },
+                  `placeholder-${element.type}`,
+                ]"
               >
                 <div class="drag-handle">
                   <el-icon><Rank /></el-icon>
@@ -145,14 +182,21 @@
               <div
                 v-else-if="isPurePlaceholderAnchorType(element.type)"
                 class="message-card placeholder-card"
-                :class="[{ disabled: element.isEnabled === false }, `placeholder-${element.type}`]"
+                :class="[
+                  { disabled: element.isEnabled === false },
+                  `placeholder-${element.type}`,
+                ]"
               >
                 <div class="drag-handle">
                   <el-icon><Rank /></el-icon>
                 </div>
                 <div class="message-content">
                   <div class="message-role">
-                    <el-tag :type="getAnchorTagType(element.type)" size="small" effect="plain">
+                    <el-tag
+                      :type="getAnchorTagType(element.type)"
+                      size="small"
+                      effect="plain"
+                    >
                       <el-icon style="margin-right: 4px">
                         <component :is="getAnchorIcon(element.type)" />
                       </el-icon>
@@ -180,7 +224,9 @@
                 class="message-card message-card-compact"
                 :class="{
                   disabled: element.isEnabled === false,
-                  'template-anchor-card-compact': isTemplateAnchorType(element.type),
+                  'template-anchor-card-compact': isTemplateAnchorType(
+                    element.type
+                  ),
                 }"
                 @click="handleEditMessage(element)"
               >
@@ -203,7 +249,8 @@
                 <span
                   v-if="
                     element.injectionStrategy?.type === 'advanced_depth' ||
-                    (!element.injectionStrategy?.type && element.injectionStrategy?.depthConfig)
+                    (!element.injectionStrategy?.type &&
+                      element.injectionStrategy?.depthConfig)
                   "
                   class="injection-badge-compact"
                   :title="`高级深度: ${element.injectionStrategy.depthConfig}`"
@@ -212,7 +259,8 @@
                 <span
                   v-else-if="
                     element.injectionStrategy?.type === 'depth' ||
-                    (!element.injectionStrategy?.type && element.injectionStrategy?.depth !== undefined)
+                    (!element.injectionStrategy?.type &&
+                      element.injectionStrategy?.depth !== undefined)
                   "
                   class="injection-badge-compact"
                   title="深度注入"
@@ -221,27 +269,46 @@
                 <span
                   v-else-if="
                     element.injectionStrategy?.type === 'anchor' ||
-                    (!element.injectionStrategy?.type && element.injectionStrategy?.anchorTarget)
+                    (!element.injectionStrategy?.type &&
+                      element.injectionStrategy?.anchorTarget)
                   "
                   class="injection-badge-compact"
                   title="锚点注入"
                   >⚓</span
                 >
-                <span v-if="element.modelMatch?.enabled" class="model-match-badge-compact" title="仅特定模型生效"
+                <span
+                  v-if="element.modelMatch?.enabled"
+                  class="model-match-badge-compact"
+                  title="仅特定模型生效"
                   >🎯</span
                 >
 
                 <div class="message-text-compact">
-                  {{ element.name ? truncateText(element.name, 60) : truncateText(element.content, 60) }}
+                  {{
+                    element.name
+                      ? truncateText(element.name, 60)
+                      : truncateText(element.content, 60)
+                  }}
                 </div>
 
-                <div v-if="props.modelId && messageTokens.has(element.id)" class="token-compact">
+                <div
+                  v-if="props.modelId && messageTokens.has(element.id)"
+                  class="token-compact"
+                >
                   {{ messageTokens.get(element.id) }}
                 </div>
 
                 <div class="message-actions-compact" @click.stop>
-                  <el-tooltip content="编辑消息" placement="top" :show-after="500">
-                    <el-button link size="small" @click="handleEditMessage(element)">
+                  <el-tooltip
+                    content="编辑消息"
+                    placement="top"
+                    :show-after="500"
+                  >
+                    <el-button
+                      link
+                      size="small"
+                      @click="handleEditMessage(element)"
+                    >
                       <el-icon><Edit /></el-icon>
                     </el-button>
                   </el-tooltip>
@@ -271,7 +338,11 @@
                 <div class="message-content">
                   <div class="message-role">
                     <div class="role-tags">
-                      <el-tag :type="getRoleTagType(element.role)" size="small" effect="plain">
+                      <el-tag
+                        :type="getRoleTagType(element.role)"
+                        size="small"
+                        effect="plain"
+                      >
                         <el-icon style="margin-right: 4px">
                           <component :is="getRoleIcon(element.role)" />
                         </el-icon>
@@ -293,8 +364,10 @@
                       <!-- 注入策略标签 -->
                       <el-tag
                         v-if="
-                          element.injectionStrategy?.type === 'advanced_depth' ||
-                          (!element.injectionStrategy?.type && element.injectionStrategy?.depthConfig)
+                          element.injectionStrategy?.type ===
+                            'advanced_depth' ||
+                          (!element.injectionStrategy?.type &&
+                            element.injectionStrategy?.depthConfig)
                         "
                         size="small"
                         type="warning"
@@ -306,7 +379,8 @@
                       <el-tag
                         v-else-if="
                           element.injectionStrategy?.type === 'depth' ||
-                          (!element.injectionStrategy?.type && element.injectionStrategy?.depth !== undefined)
+                          (!element.injectionStrategy?.type &&
+                            element.injectionStrategy?.depth !== undefined)
                         "
                         size="small"
                         type="warning"
@@ -318,7 +392,8 @@
                       <el-tag
                         v-else-if="
                           element.injectionStrategy?.type === 'anchor' ||
-                          (!element.injectionStrategy?.type && element.injectionStrategy?.anchorTarget)
+                          (!element.injectionStrategy?.type &&
+                            element.injectionStrategy?.anchorTarget)
                         "
                         size="small"
                         type="success"
@@ -326,7 +401,11 @@
                         class="injection-tag"
                       >
                         ⚓ {{ element.injectionStrategy.anchorTarget }}
-                        {{ element.injectionStrategy.anchorPosition === "before" ? "前" : "后" }}
+                        {{
+                          element.injectionStrategy.anchorPosition === "before"
+                            ? "前"
+                            : "后"
+                        }}
                       </el-tag>
                       <!-- 模型匹配标签 -->
                       <el-tag
@@ -351,17 +430,37 @@
                     </div>
 
                     <div class="message-actions">
-                      <el-tooltip content="编辑消息" placement="top" :show-after="500">
-                        <el-button link size="small" @click="handleEditMessage(element)">
+                      <el-tooltip
+                        content="编辑消息"
+                        placement="top"
+                        :show-after="500"
+                      >
+                        <el-button
+                          link
+                          size="small"
+                          @click="handleEditMessage(element)"
+                        >
                           <el-icon><Edit /></el-icon>
                         </el-button>
                       </el-tooltip>
-                      <el-tooltip content="复制消息配置" placement="top" :show-after="500">
-                        <el-button link size="small" @click="handleCopyMessage(element)">
+                      <el-tooltip
+                        content="复制消息配置"
+                        placement="top"
+                        :show-after="500"
+                      >
+                        <el-button
+                          link
+                          size="small"
+                          @click="handleCopyMessage(element)"
+                        >
                           <el-icon><CopyDocument /></el-icon>
                         </el-button>
                       </el-tooltip>
-                      <el-tooltip content="粘贴并覆盖" placement="top" :show-after="500">
+                      <el-tooltip
+                        content="粘贴并覆盖"
+                        placement="top"
+                        :show-after="500"
+                      >
                         <span>
                           <el-popconfirm
                             title="确定要用剪贴板内容覆盖这条消息吗？"
@@ -421,13 +520,18 @@
           <!-- 空状态 -->
           <div v-if="localMessages.length === 0" class="empty-state">
             <el-empty description="暂无预设消息，点击上方按钮添加">
-              <el-button type="primary" @click="handleAddMessage"> 添加第一条消息 </el-button>
+              <el-button type="primary" @click="handleAddMessage">
+                添加第一条消息
+              </el-button>
             </el-empty>
           </div>
         </div>
 
         <!-- 分页控制 -->
-        <div v-if="localMessages.length > pageSize" class="pagination-container">
+        <div
+          v-if="localMessages.length > pageSize"
+          class="pagination-container"
+        >
           <el-pagination
             v-model:current-page="currentPage"
             :page-size="pageSize"
@@ -478,7 +582,11 @@
     />
 
     <!-- 批量管理对话框 -->
-    <AgentPresetBatchDialog v-model:visible="showBatchManager" :messages="localMessages" @save="handleBatchSave" />
+    <AgentPresetBatchDialog
+      v-model:visible="showBatchManager"
+      :messages="localMessages"
+      @save="handleBatchSave"
+    />
   </div>
 </template>
 
@@ -493,9 +601,20 @@ import yaml from "js-yaml";
 import { useUserProfileStore } from "../../../stores/userProfileStore";
 import { useLlmChatStore } from "../../../stores/llmChatStore";
 import type { ChatMessageNode, MessageRole, UserProfile } from "../../../types";
-import { MacroProcessor, createMacroContext, extractContextFromSession } from "../../../macro-engine";
-import { isPromptFile, parsePromptFile, convertMacros } from "../../../services/sillyTavernParser";
-import { useAnchorRegistry, type AnchorDefinition } from "../../../composables/ui/useAnchorRegistry";
+import {
+  MacroProcessor,
+  createMacroContext,
+  extractContextFromSession,
+} from "../../../macro-engine";
+import {
+  isPromptFile,
+  parsePromptFile,
+  convertMacros,
+} from "../../../services/sillyTavernParser";
+import {
+  useAnchorRegistry,
+  type AnchorDefinition,
+} from "../../../composables/ui/useAnchorRegistry";
 import {
   QuestionFilled,
   Download,
@@ -521,7 +640,10 @@ import PresetMessageEditor from "../editors/PresetMessageEditor.vue";
 import EditUserProfileDialog from "../../user-profile/EditUserProfileDialog.vue";
 import STPresetImportDialog from "./STPresetImportDialog.vue";
 import AgentPresetBatchDialog from "./AgentPresetBatchDialog.vue";
-import type { LlmThinkRule, RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
+import type {
+  LlmThinkRule,
+  RichTextRendererStyleOptions,
+} from "@/tools/rich-text-renderer/types";
 import type { ParsedPromptFile } from "../../../services/sillyTavernParser";
 
 interface Props {
@@ -564,7 +686,9 @@ const anchorRegistry = useAnchorRegistry();
 // 容器宽度监测
 const headerRef = ref<HTMLElement | null>(null);
 const { width: headerWidth } = useElementSize(headerRef);
-const isNarrow = computed(() => headerWidth.value > 0 && headerWidth.value < 800);
+const isNarrow = computed(
+  () => headerWidth.value > 0 && headerWidth.value < 800
+);
 
 // 折叠状态，默认展开
 const isCollapsed = ref(false);
@@ -669,7 +793,10 @@ const isCalculatingTokens = ref(false);
  * @param tasks 任务数组（每个任务是一个返回 Promise 的函数）
  * @param concurrency 最大并发数
  */
-async function runWithConcurrency<T>(tasks: (() => Promise<T>)[], concurrency: number): Promise<T[]> {
+async function runWithConcurrency<T>(
+  tasks: (() => Promise<T>)[],
+  concurrency: number
+): Promise<T[]> {
   const results: T[] = [];
   let index = 0;
 
@@ -714,7 +841,7 @@ const calculateAllTokens = async () => {
       chatStore.currentFullSession.index,
       chatStore.currentFullSession.detail,
       props.agent as any,
-      effectiveUserProfile.value || undefined,
+      effectiveUserProfile.value || undefined
     );
     Object.assign(baseContext, sessionContext);
   }
@@ -723,7 +850,10 @@ const calculateAllTokens = async () => {
   const macroProcessor = new MacroProcessor();
 
   // 1. 先获取分词器元数据，确定缓存标识符（使用 tokenizer 名称而不是 modelId，因为不同模型可能使用相同分词器）
-  const tokenizerResult = await tokenCalculatorEngine.calculateTokens("", props.modelId);
+  const tokenizerResult = await tokenCalculatorEngine.calculateTokens(
+    "",
+    props.modelId
+  );
   const tokenizerName = tokenizerResult.tokenizerName;
 
   // 2. 构建任务列表，使用并发控制（限制同时计算的消息数量，避免 100+ 条消息同时计算导致卡顿）
@@ -749,25 +879,40 @@ const calculateAllTokens = async () => {
           const rawHashKey = `v3:${tokenizerName}:${template}:${contextKey}`;
           const contentHash = `v3:${tokenizerName}:${await calculateShortHash(rawHashKey)}`;
 
-          if (message.metadata?.lastCalcHash === contentHash && message.metadata?.contentTokens !== undefined) {
+          if (
+            message.metadata?.lastCalcHash === contentHash &&
+            message.metadata?.contentTokens !== undefined
+          ) {
             newTokens.set(message.id, message.metadata.contentTokens);
             return;
           }
 
-          const processed = await macroProcessor.process(template, macroContext);
-          const result = await tokenCalculatorEngine.calculateTokens(processed.output, props.modelId);
+          const processed = await macroProcessor.process(
+            template,
+            macroContext
+          );
+          const result = await tokenCalculatorEngine.calculateTokens(
+            processed.output,
+            props.modelId
+          );
           newTokens.set(message.id, result.count);
 
           // 同步更新到消息的 metadata
           if (!message.metadata) message.metadata = {};
-          if (message.metadata.contentTokens !== result.count || message.metadata.lastCalcHash !== contentHash) {
+          if (
+            message.metadata.contentTokens !== result.count ||
+            message.metadata.lastCalcHash !== contentHash
+          ) {
             message.metadata.contentTokens = result.count;
             message.metadata.lastCalcHash = contentHash;
             hasChanges = true;
           }
         }
       } catch (error) {
-        console.error(`Failed to calculate tokens for message ${message.id}:`, error);
+        console.error(
+          `Failed to calculate tokens for message ${message.id}:`,
+          error
+        );
       }
     }
   });
@@ -794,13 +939,14 @@ const totalTokens = computed(() => {
 });
 
 watch(
-  () => [localMessages.value, props.modelId, effectiveUserProfile.value] as const,
+  () =>
+    [localMessages.value, props.modelId, effectiveUserProfile.value] as const,
   () => {
     if (props.modelId) {
       debouncedCalculateTokens();
     }
   },
-  { deep: true, immediate: true },
+  { deep: true, immediate: true }
 );
 
 // #endregion
@@ -844,7 +990,7 @@ watch(
       emit("update:modelValue", existingMessages);
     }
   },
-  { immediate: true, deep: true },
+  { immediate: true, deep: true }
 );
 
 function onDragStart() {}
@@ -898,7 +1044,9 @@ function getRoleColor(role: MessageRole): string {
   return colorMap[role];
 }
 
-function getAnchorTagType(type?: string): "success" | "primary" | "info" | "warning" | "danger" {
+function getAnchorTagType(
+  type?: string
+): "success" | "primary" | "info" | "warning" | "danger" {
   return getAnchorDef(type)?.tagType || "success";
 }
 
@@ -966,7 +1114,9 @@ function handleSaveMessage(form: typeof editForm.value) {
       isEnabled: true,
       timestamp: new Date().toISOString(),
     };
-    const historyIndex = localMessages.value.findIndex((m) => m.type === "chat_history");
+    const historyIndex = localMessages.value.findIndex(
+      (m) => m.type === "chat_history"
+    );
     if (historyIndex !== -1) {
       localMessages.value.splice(historyIndex, 0, newMessage);
     } else {
@@ -1010,7 +1160,8 @@ async function handlePasteMessage(message: ChatMessageNode) {
       message.role = data.role || message.role;
       message.content = convertMacros(data.content ?? message.content);
       message.name = data.name || message.name;
-      message.injectionStrategy = data.injectionStrategy || message.injectionStrategy;
+      message.injectionStrategy =
+        data.injectionStrategy || message.injectionStrategy;
       message.modelMatch = data.modelMatch || message.modelMatch;
       customMessage.success("已粘贴并覆盖消息");
     } else {
@@ -1141,21 +1292,30 @@ async function handlePaste() {
     // 处理宏转换
     const processedImported = imported.map((m) => ({
       ...m,
-      content: typeof m.content === "string" ? convertMacros(m.content) : m.content,
+      content:
+        typeof m.content === "string" ? convertMacros(m.content) : m.content,
     }));
 
-    const hasRealMessages = localMessages.value.some((m) => !isAnchorType(m.type));
+    const hasRealMessages = localMessages.value.some(
+      (m) => !isAnchorType(m.type)
+    );
     if (hasRealMessages) {
-      await ElMessageBox.confirm("这将覆盖当前所有非锚点消息，确定吗？", "确认粘贴", {
-        type: "warning",
-        confirmButtonText: "覆盖",
-        cancelButtonText: "取消",
-      }).catch(() => {
+      await ElMessageBox.confirm(
+        "这将覆盖当前所有非锚点消息，确定吗？",
+        "确认粘贴",
+        {
+          type: "warning",
+          confirmButtonText: "覆盖",
+          cancelButtonText: "取消",
+        }
+      ).catch(() => {
         throw new Error("User cancelled");
       });
     }
 
-    const nonAnchorMessages = localMessages.value.filter((m) => isAnchorType(m.type));
+    const nonAnchorMessages = localMessages.value.filter((m) =>
+      isAnchorType(m.type)
+    );
     localMessages.value = [...nonAnchorMessages, ...processedImported];
     syncToParent();
     customMessage.success("粘贴成功");
@@ -1190,9 +1350,13 @@ async function handleFileSelected(event: Event) {
       // 普通数组导入也处理宏
       const processed = parsed.map((m) => ({
         ...m,
-        content: typeof m.content === "string" ? convertMacros(m.content) : m.content,
+        content:
+          typeof m.content === "string" ? convertMacros(m.content) : m.content,
       }));
-      localMessages.value = [...localMessages.value.filter((m) => isAnchorType(m.type)), ...processed];
+      localMessages.value = [
+        ...localMessages.value.filter((m) => isAnchorType(m.type)),
+        ...processed,
+      ];
       syncToParent();
       customMessage.success("导入成功");
     } else {
@@ -1207,9 +1371,15 @@ async function handleFileSelected(event: Event) {
 
 function handleConfirmSTImport(data: ParsedPromptFile) {
   const { systemPrompts, injectionPrompts, unorderedPrompts } = data;
-  const newMessages = [...systemPrompts, ...injectionPrompts, ...unorderedPrompts];
+  const newMessages = [
+    ...systemPrompts,
+    ...injectionPrompts,
+    ...unorderedPrompts,
+  ];
   if (newMessages.length > 0) {
-    const historyIndex = localMessages.value.findIndex((m) => m.type === "chat_history");
+    const historyIndex = localMessages.value.findIndex(
+      (m) => m.type === "chat_history"
+    );
     if (historyIndex !== -1) {
       localMessages.value.splice(historyIndex, 0, ...newMessages);
     } else {
@@ -1240,7 +1410,9 @@ function handleBatchSave(newMessages: ChatMessageNode[]) {
 // #endregion
 
 // #region 用户档案
-function handleSaveUserProfile(updates: Partial<Omit<UserProfile, "id" | "createdAt">>) {
+function handleSaveUserProfile(
+  updates: Partial<Omit<UserProfile, "id" | "createdAt">>
+) {
   if (effectiveUserProfile.value) {
     userProfileStore.updateProfile(effectiveUserProfile.value.id, updates);
   }

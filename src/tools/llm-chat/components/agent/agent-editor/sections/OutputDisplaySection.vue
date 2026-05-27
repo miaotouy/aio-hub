@@ -3,14 +3,19 @@ import { inject, defineAsyncComponent, computed, markRaw } from "vue";
 import SettingListRenderer from "@/components/common/SettingListRenderer.vue";
 import type { SettingItem } from "@/types/settings-renderer";
 
-const ChatRegexEditor = defineAsyncComponent(() => import("../../../common/ChatRegexEditor.vue"));
+const ChatRegexEditor = defineAsyncComponent(
+  () => import("../../../common/ChatRegexEditor.vue")
+);
 const LlmThinkRulesEditor = defineAsyncComponent(
-  () => import("@/tools/rich-text-renderer/components/LlmThinkRulesEditor.vue"),
+  () => import("@/tools/rich-text-renderer/components/LlmThinkRulesEditor.vue")
 );
 const MarkdownStyleEditor = defineAsyncComponent(
-  () => import("@/tools/rich-text-renderer/components/style-editor/MarkdownStyleEditor.vue"),
+  () =>
+    import("@/tools/rich-text-renderer/components/style-editor/MarkdownStyleEditor.vue")
 );
-const VisualGuidelineEditor = defineAsyncComponent(() => import("../components/VisualGuidelineEditor.vue"));
+const VisualGuidelineEditor = defineAsyncComponent(
+  () => import("../components/VisualGuidelineEditor.vue")
+);
 
 const editForm = inject<any>("agent-edit-form");
 
@@ -35,7 +40,8 @@ const outputSettings = computed<SettingItem[]>(() => [
   },
   {
     id: "defaultMediaVolume",
-    label: "媒体音量 ({{ localSettings.interactionConfig.defaultMediaVolume ?? 100 }}%)",
+    label:
+      "媒体音量 ({{ localSettings.interactionConfig.defaultMediaVolume ?? 100 }}%)",
     component: "ElSlider",
     modelPath: "interactionConfig.defaultMediaVolume",
     hint: "调节该智能体输出音频（如 BGM）的初始音量百分比。最终音量 = 原始内容音量 * 全局音量 * 智能体音量。",

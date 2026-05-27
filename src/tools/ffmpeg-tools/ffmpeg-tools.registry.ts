@@ -1,6 +1,11 @@
 import { markRaw } from "vue";
 import { Video } from "lucide-vue-next";
-import type { ToolRegistry, ToolConfig, ServiceMetadata, ToolContext } from "@/services/types";
+import type {
+  ToolRegistry,
+  ToolConfig,
+  ServiceMetadata,
+  ToolContext,
+} from "@/services/types";
 import { createModuleLogger } from "@/utils/logger";
 import * as actions from "./actions";
 
@@ -9,7 +14,8 @@ const logger = createModuleLogger("ffmpeg-tools/registry");
 export default class FFmpegToolsRegistry implements ToolRegistry {
   public readonly id = "ffmpeg-tools";
   public readonly name = "FFmpeg 多媒体工作台";
-  public readonly description = "高效的音视频压缩、转换与处理工具，支持任意 FFmpeg 命令编排";
+  public readonly description =
+    "高效的音视频压缩、转换与处理工具，支持任意 FFmpeg 命令编排";
 
   public async initialize() {
     logger.info("FFmpeg 工具初始化");
@@ -20,14 +26,20 @@ export default class FFmpegToolsRegistry implements ToolRegistry {
   /**
    * [Agent] 执行单条 FFmpeg 命令
    */
-  public executeCommand(args: actions.ExecuteCommandArgs, context?: ToolContext): Promise<string> {
+  public executeCommand(
+    args: actions.ExecuteCommandArgs,
+    context?: ToolContext
+  ): Promise<string> {
     return actions.executeCommand(args, context);
   }
 
   /**
    * [Agent] 执行多步串行 FFmpeg 管道
    */
-  public executePipeline(args: actions.ExecutePipelineArgs, context?: ToolContext): Promise<string> {
+  public executePipeline(
+    args: actions.ExecutePipelineArgs,
+    context?: ToolContext
+  ): Promise<string> {
     return actions.executePipeline(args, context);
   }
 
@@ -71,7 +83,8 @@ export default class FFmpegToolsRegistry implements ToolRegistry {
                 {
                   name: "outputPath",
                   type: "string",
-                  description: "输出文件路径（可选，不填则在输入文件同目录自动生成 _processed 后缀文件）",
+                  description:
+                    "输出文件路径（可选，不填则在输入文件同目录自动生成 _processed 后缀文件）",
                   required: false,
                   uiHint: "path",
                 },

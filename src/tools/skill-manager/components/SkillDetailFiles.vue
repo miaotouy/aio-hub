@@ -3,7 +3,12 @@
     <div class="file-tree">
       <!-- 根文件 (SKILL.md 始终置顶) -->
       <div class="tree-item file clickable" @click="openFileEditor('SKILL.md')">
-        <FileIcon file-name="SKILL.md" file-type="document" :size="14" class="icon" />
+        <FileIcon
+          file-name="SKILL.md"
+          file-type="document"
+          :size="14"
+          class="icon"
+        />
         <span class="name">SKILL.md</span>
       </div>
 
@@ -14,7 +19,12 @@
         class="tree-item file clickable"
         @click="openFileEditor(f.relativePath)"
       >
-        <FileIcon :file-name="f.name" :file-type="determineAssetType(f.mimeType)" :size="14" class="icon" />
+        <FileIcon
+          :file-name="f.name"
+          :file-type="determineAssetType(f.mimeType)"
+          :size="14"
+          class="icon"
+        />
         <span class="name">{{ f.name }}</span>
         <span class="size">{{ formatSize(f.size) }}</span>
       </div>
@@ -33,7 +43,12 @@
               class="tree-item file clickable"
               @click="openFileEditor(f.relativePath)"
             >
-              <FileIcon :file-name="f.name" :file-type="determineAssetType(f.mimeType)" :size="14" class="icon" />
+              <FileIcon
+                :file-name="f.name"
+                :file-type="determineAssetType(f.mimeType)"
+                :size="14"
+                class="icon"
+              />
               <span class="name">{{ f.name }}</span>
               <span class="size">{{ formatSize(f.size) }}</span>
             </div>
@@ -78,7 +93,8 @@ function formatSize(bytes: number) {
 const rootFiles = computed(() => {
   const files = props.manifest.files || [];
   return files.filter((f) => {
-    const isRoot = !f.relativePath.includes("/") && !f.relativePath.includes("\\");
+    const isRoot =
+      !f.relativePath.includes("/") && !f.relativePath.includes("\\");
     return isRoot && f.name.toLowerCase() !== "skill.md";
   });
 });
@@ -88,7 +104,9 @@ const rootFiles = computed(() => {
  */
 const fileGroups = computed(() => {
   const files = props.manifest.files || [];
-  const subDirFiles = files.filter((f) => f.relativePath.includes("/") || f.relativePath.includes("\\"));
+  const subDirFiles = files.filter(
+    (f) => f.relativePath.includes("/") || f.relativePath.includes("\\")
+  );
   return groupBy(subDirFiles, (f) => {
     const parts = f.relativePath.split(/[\\/]/);
     return parts[0];

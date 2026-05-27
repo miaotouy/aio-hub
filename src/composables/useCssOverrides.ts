@@ -37,7 +37,10 @@ export function useCssOverrides() {
   /**
    * 合并后的所有预设列表（内置 + 用户自定义）
    */
-  const allPresets = computed(() => [...builtInPresets.value, ...userSettings.value.userPresets]);
+  const allPresets = computed(() => [
+    ...builtInPresets.value,
+    ...userSettings.value.userPresets,
+  ]);
 
   /**
    * 编辑器当前内容（与编辑器双向绑定）
@@ -63,7 +66,8 @@ export function useCssOverrides() {
    * 显示的内容（预览模式显示预览内容，否则显示编辑器内容）
    */
   const displayContent = computed({
-    get: () => (isPreviewMode.value ? previewContent.value : editorContent.value),
+    get: () =>
+      isPreviewMode.value ? previewContent.value : editorContent.value,
     set: (value: string) => {
       if (!isPreviewMode.value) {
         editorContent.value = value;
@@ -113,7 +117,8 @@ export function useCssOverrides() {
         // 向后兼容：将旧的 customContent 迁移到 pureCustomContent
         if (typeof userSettings.value.pureCustomContent === "undefined") {
           if (userSettings.value.basedOnPresetId === null) {
-            userSettings.value.pureCustomContent = userSettings.value.customContent;
+            userSettings.value.pureCustomContent =
+              userSettings.value.customContent;
             userSettings.value.customContent = ""; // Clear old field if it was pure custom
           } else {
             userSettings.value.pureCustomContent = ""; // Initialize for preset-based users
@@ -232,7 +237,9 @@ export function useCssOverrides() {
 
     const preset = getPreset(userSettings.value.selectedPresetId);
     if (!preset) {
-      moduleLogger.warn("预设不存在", { presetId: userSettings.value.selectedPresetId });
+      moduleLogger.warn("预设不存在", {
+        presetId: userSettings.value.selectedPresetId,
+      });
       customMessage.warning("预设不存在");
       return;
     }
@@ -278,7 +285,9 @@ export function useCssOverrides() {
    * 删除用户自定义预设
    */
   function deleteUserPreset(presetId: string) {
-    const index = userSettings.value.userPresets.findIndex((p) => p.id === presetId);
+    const index = userSettings.value.userPresets.findIndex(
+      (p) => p.id === presetId
+    );
     if (index === -1) {
       customMessage.warning("预设不存在");
       return;
@@ -348,7 +357,9 @@ export function useCssOverrides() {
    */
   function applyCssToPage() {
     const styleId = "custom-css-override";
-    let styleElement = document.getElementById(styleId) as HTMLStyleElement | null;
+    let styleElement = document.getElementById(
+      styleId
+    ) as HTMLStyleElement | null;
 
     // 如果未启用或内容为空，移除 style 标签
     if (!userSettings.value.enabled || !editorContent.value.trim()) {

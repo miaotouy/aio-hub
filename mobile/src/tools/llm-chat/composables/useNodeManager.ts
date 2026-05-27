@@ -3,22 +3,22 @@
  * 负责树形对话历史的节点操作逻辑
  */
 
-import { toRaw } from 'vue';
-import type { ChatSession, ChatMessageNode } from '../types';
-import { BranchNavigator } from '../utils/BranchNavigator';
-import { createModuleLogger } from '@/utils/logger';
-import { v4 as uuidv4 } from 'uuid';
+import { toRaw } from "vue";
+import type { ChatSession, ChatMessageNode } from "../types";
+import { BranchNavigator } from "../utils/BranchNavigator";
+import { createModuleLogger } from "@/utils/logger";
+import { v4 as uuidv4 } from "uuid";
 
-const logger = createModuleLogger('llm-chat/node-manager');
+const logger = createModuleLogger("llm-chat/node-manager");
 
 /**
  * 创建节点的配置
  */
 export interface CreateNodeConfig {
-  role: 'user' | 'assistant' | 'system';
+  role: "user" | "assistant" | "system";
   content: string;
   parentId: string | null;
-  status?: 'complete' | 'generating' | 'error';
+  status?: "complete" | "generating" | "error";
   metadata?: Record<string, any>;
   name?: string;
 }
@@ -47,7 +47,7 @@ export function useNodeManager() {
       childrenIds: [],
       content: config.content,
       role: config.role,
-      status: config.status || 'complete',
+      status: config.status || "complete",
       timestamp: now,
       metadata: config.metadata,
     };
@@ -71,7 +71,7 @@ export function useNodeManager() {
       }
     }
 
-    logger.debug('节点已添加到会话', {
+    logger.debug("节点已添加到会话", {
       sessionId: session.id,
       nodeId: node.id,
       role: node.role,
@@ -82,13 +82,10 @@ export function useNodeManager() {
   /**
    * 更新活跃叶节点
    */
-  const updateActiveLeaf = (
-    session: ChatSession,
-    nodeId: string
-  ): boolean => {
+  const updateActiveLeaf = (session: ChatSession, nodeId: string): boolean => {
     const node = session.nodes[nodeId];
     if (!node) {
-      logger.warn('更新活跃叶节点失败：节点不存在', {
+      logger.warn("更新活跃叶节点失败：节点不存在", {
         sessionId: session.id,
         nodeId,
       });
@@ -102,7 +99,7 @@ export function useNodeManager() {
     // 更新路径上所有父节点的选择记忆
     BranchNavigator.updateSelectionMemory(session, nodeId);
 
-    logger.debug('活跃叶节点已更新', {
+    logger.debug("活跃叶节点已更新", {
       sessionId: session.id,
       previousLeafId,
       newLeafId: nodeId,
@@ -118,16 +115,25 @@ export function useNodeManager() {
     session: ChatSession,
     nodeId: string
   ): { success: boolean; deletedNodes: ChatMessageNode[] } => {
-    logger.info('🗑️ [硬删除] 开始硬删除节点', { sessionId: session.id, nodeId });
+    logger.info("🗑️ [硬删除] 开始硬删除节点", {
+      sessionId: session.id,
+      nodeId,
+    });
 
     const node = session.nodes[nodeId];
     if (!node) {
-      logger.warn('🗑️ [硬删除] 失败：节点不存在', { sessionId: session.id, nodeId });
+      logger.warn("🗑️ [硬删除] 失败：节点不存在", {
+        sessionId: session.id,
+        nodeId,
+      });
       return { success: false, deletedNodes: [] };
     }
 
     if (node.id === session.rootNodeId) {
-      logger.warn('🗑️ [硬删除] 失败：不能删除根节点', { sessionId: session.id, nodeId });
+      logger.warn("🗑️ [硬删除] 失败：不能删除根节点", {
+        sessionId: session.id,
+        nodeId,
+      });
       return { success: false, deletedNodes: [] };
     }
 
@@ -135,7 +141,7 @@ export function useNodeManager() {
     const collectDescendants = (id: string) => {
       const currentNode = session.nodes[id];
       if (!currentNode) return;
-      currentNode.childrenIds.forEach(childId => {
+      currentNode.childrenIds.forEach((childId) => {
         nodesToDeleteIds.add(childId);
         collectDescendants(childId);
       });
@@ -143,14 +149,19 @@ export function useNodeManager() {
     collectDescendants(nodeId);
 
     if (nodesToDeleteIds.has(session.activeLeafId)) {
-      const siblings = node.parentId ? session.nodes[node.parentId]?.childrenIds || [] : [];
+      const siblings = node.parentId
+        ? session.nodes[node.parentId]?.childrenIds || []
+        : [];
       const siblingNodes = siblings
-        .filter(id => id !== nodeId)
-        .map(id => session.nodes[id])
+        .filter((id) => id !== nodeId)
+        .map((id) => session.nodes[id])
         .filter((n): n is ChatMessageNode => !!n);
 
       if (siblingNodes.length > 0) {
-        session.activeLeafId = BranchNavigator.findLeafOfBranch(session, siblingNodes[0].id);
+        session.activeLeafId = BranchNavigator.findLeafOfBranch(
+          session,
+          siblingNodes[0].id
+        );
         BranchNavigator.updateSelectionMemory(session, session.activeLeafId);
       } else {
         session.activeLeafId = node.parentId || session.rootNodeId;
@@ -161,12 +172,14 @@ export function useNodeManager() {
     if (node.parentId) {
       const parentNode = session.nodes[node.parentId];
       if (parentNode) {
-        parentNode.childrenIds = parentNode.childrenIds.filter(id => id !== nodeId);
+        parentNode.childrenIds = parentNode.childrenIds.filter(
+          (id) => id !== nodeId
+        );
       }
     }
 
     const deletedNodes: ChatMessageNode[] = [];
-    nodesToDeleteIds.forEach(id => {
+    nodesToDeleteIds.forEach((id) => {
       if (session.nodes[id]) {
         deletedNodes.push({ ...toRaw(session.nodes[id]) });
         delete session.nodes[id];

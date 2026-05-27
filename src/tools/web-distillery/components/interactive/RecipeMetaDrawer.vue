@@ -51,19 +51,34 @@ const handleSave = async () => {
 </script>
 
 <template>
-  <el-drawer v-model="visible" title="保存配方" size="400px" direction="rtl" append-to-body>
+  <el-drawer
+    v-model="visible"
+    title="保存配方"
+    size="400px"
+    direction="rtl"
+    append-to-body
+  >
     <div class="meta-drawer-content" v-if="store.recipeDraft">
       <el-form label-position="top">
         <el-form-item label="配方名称" required>
-          <el-input v-model="store.recipeDraft.name" placeholder="例如：简书文章提取" />
+          <el-input
+            v-model="store.recipeDraft.name"
+            placeholder="例如：简书文章提取"
+          />
         </el-form-item>
 
         <el-form-item label="目标域名 (Domain)" required>
-          <el-input v-model="store.recipeDraft.domain" placeholder="例如：jianshu.com" />
+          <el-input
+            v-model="store.recipeDraft.domain"
+            placeholder="例如：jianshu.com"
+          />
         </el-form-item>
 
         <el-form-item label="路径匹配模式 (Path Pattern)">
-          <el-input v-model="store.recipeDraft.pathPattern" placeholder="例如：/p/*" />
+          <el-input
+            v-model="store.recipeDraft.pathPattern"
+            placeholder="例如：/p/*"
+          />
           <div class="form-tip">支持 Glob 模式，* 匹配所有路径</div>
         </el-form-item>
 
@@ -87,7 +102,9 @@ const handleSave = async () => {
               </div>
             </el-option>
           </el-select>
-          <div class="form-tip">绑定后，使用此配方蒸馏时将自动携带指定身份的 Cookie</div>
+          <div class="form-tip">
+            绑定后，使用此配方蒸馏时将自动携带指定身份的 Cookie
+          </div>
         </el-form-item>
 
         <el-divider>规则摘要</el-divider>
@@ -95,15 +112,21 @@ const handleSave = async () => {
         <div class="summary-stats">
           <div class="stat-item">
             <span class="stat-label">包含规则:</span>
-            <span class="stat-value">{{ store.recipeDraft.extractSelectors?.length || 0 }} 条</span>
+            <span class="stat-value"
+              >{{ store.recipeDraft.extractSelectors?.length || 0 }} 条</span
+            >
           </div>
           <div class="stat-item">
             <span class="stat-label">排除规则:</span>
-            <span class="stat-value">{{ store.recipeDraft.excludeSelectors?.length || 0 }} 条</span>
+            <span class="stat-value"
+              >{{ store.recipeDraft.excludeSelectors?.length || 0 }} 条</span
+            >
           </div>
           <div class="stat-item">
             <span class="stat-label">动作序列:</span>
-            <span class="stat-value">{{ store.recipeDraft.actions?.length || 0 }} 步</span>
+            <span class="stat-value"
+              >{{ store.recipeDraft.actions?.length || 0 }} 步</span
+            >
           </div>
         </div>
 

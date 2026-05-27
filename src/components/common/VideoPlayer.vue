@@ -1,5 +1,8 @@
 <template>
-  <div class="video-player-host" :class="{ 'is-web-fullscreen': isWebFullscreen }">
+  <div
+    class="video-player-host"
+    :class="{ 'is-web-fullscreen': isWebFullscreen }"
+  >
     <Teleport to="body" :disabled="!isWebFullscreen">
       <div
         ref="playerContainer"
@@ -63,7 +66,10 @@
         </div>
 
         <!-- 播放按钮覆盖层 (暂停时显示) -->
-        <div v-if="!isPlaying && !isLoading && !error && showPlayIconOnPause" class="play-overlay">
+        <div
+          v-if="!isPlaying && !isLoading && !error && showPlayIconOnPause"
+          class="play-overlay"
+        >
           <div class="play-icon-circle">
             <component :is="Play" class="play-icon-large" />
           </div>
@@ -85,33 +91,56 @@
             @mouseleave="showHoverPreview = false"
           >
             <!-- 悬停时间预览 -->
-            <div v-if="showHoverPreview" class="hover-time-tooltip" :style="{ left: hoverPosition + '%' }">
+            <div
+              v-if="showHoverPreview"
+              class="hover-time-tooltip"
+              :style="{ left: hoverPosition + '%' }"
+            >
               {{ formattedHoverTime }}
             </div>
 
             <!-- 悬停指示器 (上下三角) -->
-            <div v-if="showHoverPreview" class="hover-indicator" :style="{ left: hoverPosition + '%' }">
+            <div
+              v-if="showHoverPreview"
+              class="hover-indicator"
+              :style="{ left: hoverPosition + '%' }"
+            >
               <div class="indicator-top"></div>
               <div class="indicator-bottom"></div>
             </div>
 
             <div class="progress-background"></div>
-            <div class="progress-buffered" :style="{ transform: `scaleX(${bufferedPercentage / 100})` }"></div>
-            <div class="progress-current" :style="{ transform: `scaleX(${progressPercentage / 100})` }"></div>
-            <div class="progress-handle" :style="{ left: progressPercentage + '%' }"></div>
+            <div
+              class="progress-buffered"
+              :style="{ transform: `scaleX(${bufferedPercentage / 100})` }"
+            ></div>
+            <div
+              class="progress-current"
+              :style="{ transform: `scaleX(${progressPercentage / 100})` }"
+            ></div>
+            <div
+              class="progress-handle"
+              :style="{ left: progressPercentage + '%' }"
+            ></div>
           </div>
 
           <div class="controls-row">
             <!-- 左侧：播放控制与时间 -->
             <div class="controls-left">
-              <button class="control-btn" @click="togglePlay" title="播放/暂停 (Space)">
+              <button
+                class="control-btn"
+                @click="togglePlay"
+                title="播放/暂停 (Space)"
+              >
                 <component :is="isPlaying ? Pause : Play" />
               </button>
 
               <span v-if="!isUltraNarrow" class="time-display">
                 {{ formattedCurrentTime }} / {{ formattedDuration }}
               </span>
-              <span v-else class="time-display">{{ formattedCurrentTime }}</span>
+              <span v-else class="time-display">{{
+                formattedCurrentTime
+              }}</span>
             </div>
 
             <!-- 中间：帧控制与截图 -->
@@ -146,7 +175,10 @@
               <slot name="controls-extra"></slot>
 
               <!-- 倍速控制 -->
-              <div class="menu-container" @mouseleave="showPlaybackRateMenu = false">
+              <div
+                class="menu-container"
+                @mouseleave="showPlaybackRateMenu = false"
+              >
                 <button
                   class="control-btn text-btn"
                   @click="showPlaybackRateMenu = !showPlaybackRateMenu"
@@ -168,13 +200,22 @@
               </div>
 
               <!-- 音量控制 -->
-              <div class="menu-container" @mouseleave="showVolumeSlider = false">
-                <button class="control-btn" @click="toggleMute" @mouseenter="showVolumeSlider = true">
+              <div
+                class="menu-container"
+                @mouseleave="showVolumeSlider = false"
+              >
+                <button
+                  class="control-btn"
+                  @click="toggleMute"
+                  @mouseenter="showVolumeSlider = true"
+                >
                   <component :is="volumeIcon" />
                 </button>
                 <div v-if="showVolumeSlider" class="popup-menu volume-menu">
                   <div class="volume-slider-wrapper">
-                    <span class="volume-percentage">{{ Math.round(volume * 100) }}%</span>
+                    <span class="volume-percentage"
+                      >{{ Math.round(volume * 100) }}%</span
+                    >
                     <input
                       type="range"
                       min="0"
@@ -190,7 +231,10 @@
               </div>
 
               <!-- 设置菜单 -->
-              <div class="menu-container" @mouseleave="showSettingsMenu = false">
+              <div
+                class="menu-container"
+                @mouseleave="showSettingsMenu = false"
+              >
                 <button
                   class="control-btn"
                   @click="showSettingsMenu = !showSettingsMenu"
@@ -211,28 +255,55 @@
                   </div>
                   <div class="menu-item" @click="cycleObjectFit">
                     <Monitor :size="16" />
-                    <span>画面: {{ objectFit === "contain" ? "适应" : objectFit === "cover" ? "填充" : "拉伸" }}</span>
+                    <span
+                      >画面:
+                      {{
+                        objectFit === "contain"
+                          ? "适应"
+                          : objectFit === "cover"
+                            ? "填充"
+                            : "拉伸"
+                      }}</span
+                    >
                   </div>
                   <div class="menu-item" @click="toggleShowPlayIconOnPause">
                     <PlayCircle :size="16" />
                     <span>暂停显示图标</span>
-                    <Check v-if="showPlayIconOnPause" :size="16" class="check-icon" />
+                    <Check
+                      v-if="showPlayIconOnPause"
+                      :size="16"
+                      class="check-icon"
+                    />
                   </div>
                 </div>
               </div>
 
               <!-- 网页全屏 -->
-              <button v-if="!isUltraNarrow" class="control-btn" @click="toggleWebFullscreen" title="网页全屏">
+              <button
+                v-if="!isUltraNarrow"
+                class="control-btn"
+                @click="toggleWebFullscreen"
+                title="网页全屏"
+              >
                 <component :is="isWebFullscreen ? Shrink : Expand" :size="20" />
               </button>
 
               <!-- 画中画模式 -->
-              <button v-if="!isUltraNarrow" class="control-btn" @click="togglePiP" title="画中画">
+              <button
+                v-if="!isUltraNarrow"
+                class="control-btn"
+                @click="togglePiP"
+                title="画中画"
+              >
                 <PictureInPicture2 :size="20" />
               </button>
 
               <!-- 全屏模式 -->
-              <button class="control-btn" @click="toggleFullscreen" title="全屏 (F)">
+              <button
+                class="control-btn"
+                @click="toggleFullscreen"
+                title="全屏 (F)"
+              >
                 <component :is="isFullscreen ? Minimize : Maximize" />
               </button>
             </div>
@@ -244,7 +315,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, watch, onActivated, onDeactivated } from "vue";
+import {
+  ref,
+  computed,
+  onMounted,
+  onBeforeUnmount,
+  watch,
+  onActivated,
+  onDeactivated,
+} from "vue";
 import { useElementSize } from "@vueuse/core";
 import {
   Play,
@@ -293,7 +372,7 @@ const props = withDefaults(
     loop: false,
     muted: false,
     globalHotkey: false,
-  },
+  }
 );
 
 // 引用
@@ -335,7 +414,9 @@ const error = ref(false);
 const isPiP = ref(false);
 const isMirrored = ref(false);
 const objectFit = ref<"contain" | "cover" | "fill">("contain");
-const showPlayIconOnPause = ref(savedShowPlayIcon !== null ? savedShowPlayIcon === "true" : true);
+const showPlayIconOnPause = ref(
+  savedShowPlayIcon !== null ? savedShowPlayIcon === "true" : true
+);
 const isActive = ref(true);
 
 // 拖拽状态
@@ -348,8 +429,12 @@ const showHoverPreview = ref(false);
 let controlsTimer: number | null = null;
 
 // 计算属性
-const isNarrow = computed(() => containerWidth.value > 0 && containerWidth.value < 650);
-const isUltraNarrow = computed(() => containerWidth.value > 0 && containerWidth.value < 450);
+const isNarrow = computed(
+  () => containerWidth.value > 0 && containerWidth.value < 650
+);
+const isUltraNarrow = computed(
+  () => containerWidth.value > 0 && containerWidth.value < 450
+);
 
 const progressPercentage = computed(() => {
   if (duration.value === 0) return 0;
@@ -460,8 +545,12 @@ function updateBuffered() {
   const buffered = videoRef.value.buffered;
   if (buffered.length > 0) {
     for (let i = 0; i < buffered.length; i++) {
-      if (buffered.start(i) <= videoRef.value.currentTime && buffered.end(i) >= videoRef.value.currentTime) {
-        bufferedPercentage.value = (buffered.end(i) / videoRef.value.duration) * 100;
+      if (
+        buffered.start(i) <= videoRef.value.currentTime &&
+        buffered.end(i) >= videoRef.value.currentTime
+      ) {
+        bufferedPercentage.value =
+          (buffered.end(i) / videoRef.value.duration) * 100;
         break;
       }
     }
@@ -619,7 +708,7 @@ function stepFrame(frames: number) {
   const frameDuration = 1 / 30;
   videoRef.value.currentTime = Math.min(
     Math.max(videoRef.value.currentTime + frames * frameDuration, 0),
-    duration.value,
+    duration.value
   );
 }
 
@@ -673,7 +762,10 @@ function toggleMirror() {
 
 function toggleShowPlayIconOnPause() {
   showPlayIconOnPause.value = !showPlayIconOnPause.value;
-  localStorage.setItem(STORAGE_KEY_SHOW_PLAY_ICON, showPlayIconOnPause.value.toString());
+  localStorage.setItem(
+    STORAGE_KEY_SHOW_PLAY_ICON,
+    showPlayIconOnPause.value.toString()
+  );
 }
 
 function cycleObjectFit() {
@@ -708,7 +800,11 @@ function handleKeydown(e: KeyboardEvent) {
   if (!isActive.value) return;
 
   // 如果用户正在输入，则忽略
-  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+  if (
+    e.target instanceof HTMLInputElement ||
+    e.target instanceof HTMLTextAreaElement
+  )
+    return;
 
   // 检查播放器是否可见且在文档中
   // 如果 offsetParent 为 null，说明元素或其祖先被设置为 display: none (通常是标签页切换)
@@ -760,7 +856,10 @@ function handleKeydown(e: KeyboardEvent) {
 
 function skip(seconds: number) {
   if (!videoRef.value) return;
-  videoRef.value.currentTime = Math.min(Math.max(videoRef.value.currentTime + seconds, 0), duration.value);
+  videoRef.value.currentTime = Math.min(
+    Math.max(videoRef.value.currentTime + seconds, 0),
+    duration.value
+  );
 }
 
 function adjustVolume(delta: number) {
@@ -858,7 +957,9 @@ defineExpose({
   display: flex;
   justify-content: center;
   align-items: center;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif;
   user-select: none;
   outline: none;
 }

@@ -1,5 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
-import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
+import {
+  open as openDialog,
+  save as saveDialog,
+} from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -85,8 +88,12 @@ export function buildMetadataHeader(
     `- 目标路径: ${options.path}`,
     `- 显示文件: ${options.showFiles ? "是" : "否"}`,
     `- 显示隐藏: ${options.showHidden ? "是" : "否"}`,
-    options.showSize !== undefined ? `- 显示文件大小: ${options.showSize ? "是" : "否"}` : "",
-    options.showDirSize !== undefined ? `- 显示目录大小: ${options.showDirSize ? "是" : "否"}` : "",
+    options.showSize !== undefined
+      ? `- 显示文件大小: ${options.showSize ? "是" : "否"}`
+      : "",
+    options.showDirSize !== undefined
+      ? `- 显示目录大小: ${options.showDirSize ? "是" : "否"}`
+      : "",
     `- 过滤模式: ${
       options.filterMode === "gitignore"
         ? "使用 .gitignore"
@@ -97,7 +104,8 @@ export function buildMetadataHeader(
             : "无"
     }`,
     `- 最大深度: ${options.maxDepth === 0 ? "无限制" : options.maxDepth}`,
-    (options.filterMode === "custom" || options.filterMode === "both") && options.customPattern?.trim()
+    (options.filterMode === "custom" || options.filterMode === "both") &&
+    options.customPattern?.trim()
       ? `- 自定义规则:\n${options.customPattern
           .split("\n")
           .filter((l: string) => l.trim())
@@ -109,10 +117,18 @@ export function buildMetadataHeader(
     ...(filterInfo?.includeFilterInfo
       ? [
           "## 视图筛选",
-          filterInfo.secondaryMaxDepth !== undefined ? `- 显示深度: ${filterInfo.secondaryMaxDepth}` : "",
-          filterInfo.secondaryIncludePath ? `- 包含路径: ${filterInfo.secondaryIncludePath}` : "",
-          filterInfo.secondaryExcludePattern ? `- 排除内容: ${filterInfo.secondaryExcludePattern}` : "",
-          filterInfo.viewShowFiles !== undefined ? `- 显示文件: ${filterInfo.viewShowFiles ? "是" : "否"}` : "",
+          filterInfo.secondaryMaxDepth !== undefined
+            ? `- 显示深度: ${filterInfo.secondaryMaxDepth}`
+            : "",
+          filterInfo.secondaryIncludePath
+            ? `- 包含路径: ${filterInfo.secondaryIncludePath}`
+            : "",
+          filterInfo.secondaryExcludePattern
+            ? `- 排除内容: ${filterInfo.secondaryExcludePattern}`
+            : "",
+          filterInfo.viewShowFiles !== undefined
+            ? `- 显示文件: ${filterInfo.viewShowFiles ? "是" : "否"}`
+            : "",
           "",
         ]
       : []),
@@ -154,7 +170,9 @@ export function formatSize(size: number): string {
     s /= 1024;
     unitIndex++;
   }
-  return unitIndex === 0 ? `${s} ${units[unitIndex]}` : `${s.toFixed(2)} ${units[unitIndex]}`;
+  return unitIndex === 0
+    ? `${s} ${units[unitIndex]}`
+    : `${s.toFixed(2)} ${units[unitIndex]}`;
 }
 
 /** 递归计算树的实际最大深度 */
@@ -172,8 +190,16 @@ export function calculateMaxDepth(node: TreeNode, currentDepth = 0): number {
  * @param root 根节点
  * @param targetPath 目标路径（支持 / 或 \ 分隔）
  */
-export function findNodeAndPath(root: TreeNode, targetPath: string): { node: TreeNode; path: string[] } | null {
-  if (!targetPath || targetPath.trim() === "" || targetPath === "." || targetPath === "./") {
+export function findNodeAndPath(
+  root: TreeNode,
+  targetPath: string
+): { node: TreeNode; path: string[] } | null {
+  if (
+    !targetPath ||
+    targetPath.trim() === "" ||
+    targetPath === "." ||
+    targetPath === "./"
+  ) {
     return { node: root, path: [root.name] };
   }
 
@@ -194,7 +220,9 @@ export function findNodeAndPath(root: TreeNode, targetPath: string): { node: Tre
 
   for (let i = startIndex; i < parts.length; i++) {
     const part = parts[i];
-    const found: TreeNode | undefined = current!.children.find((child) => child.name === part);
+    const found: TreeNode | undefined = current!.children.find(
+      (child) => child.name === part
+    );
     if (!found) {
       exactMatch = false;
       break;
@@ -214,8 +242,16 @@ export function findNodeAndPath(root: TreeNode, targetPath: string): { node: Tre
  * @param root 根节点
  * @param targetPath 目标路径
  */
-export function findAllNodesAndPaths(root: TreeNode, targetPath: string): { node: TreeNode; path: string[] }[] {
-  if (!targetPath || targetPath.trim() === "" || targetPath === "." || targetPath === "./") {
+export function findAllNodesAndPaths(
+  root: TreeNode,
+  targetPath: string
+): { node: TreeNode; path: string[] }[] {
+  if (
+    !targetPath ||
+    targetPath.trim() === "" ||
+    targetPath === "." ||
+    targetPath === "./"
+  ) {
     return [{ node: root, path: [root.name] }];
   }
 
@@ -239,7 +275,9 @@ export function findAllNodesAndPaths(root: TreeNode, targetPath: string): { node
 
   for (let i = startIndex; i < parts.length; i++) {
     const part = parts[i];
-    const found: TreeNode | undefined = current!.children.find((child) => child.name === part);
+    const found: TreeNode | undefined = current!.children.find(
+      (child) => child.name === part
+    );
     if (!found) {
       exactMatch = false;
       break;
@@ -261,7 +299,10 @@ export function findAllNodesAndPaths(root: TreeNode, targetPath: string): { node
 /**
  * 兼容旧接口
  */
-export function findNodeByPath(root: TreeNode, targetPath: string): TreeNode | null {
+export function findNodeByPath(
+  root: TreeNode,
+  targetPath: string
+): TreeNode | null {
   const result = findNodeAndPath(root, targetPath);
   return result ? result.node : null;
 }
@@ -277,13 +318,18 @@ function searchNodeAndPathByFragment(
   if (parts.length === 0) return null;
 
   // 检查从起始节点开始是否匹配整个路径序列
-  const matchFromHere = (startNode: TreeNode, pathParts: string[]): { node: TreeNode; path: string[] } | null => {
+  const matchFromHere = (
+    startNode: TreeNode,
+    pathParts: string[]
+  ): { node: TreeNode; path: string[] } | null => {
     let curr = startNode;
     const path = [...currentPath];
     // 路径的第一部分就是 startNode 自己的名字，已经包含在 currentPath 传入前了
     for (let i = 1; i < pathParts.length; i++) {
       const part = pathParts[i];
-      const found: TreeNode | undefined = curr.children.find((c) => c.name === part);
+      const found: TreeNode | undefined = curr.children.find(
+        (c) => c.name === part
+      );
       if (!found) return null;
       curr = found;
       path.push(part);
@@ -297,12 +343,17 @@ function searchNodeAndPathByFragment(
   for (const child of node.children) {
     if (child.name === firstPart) {
       const result =
-        parts.length === 1 ? { node: child, path: [...currentPath, child.name] } : matchFromHere(child, parts);
+        parts.length === 1
+          ? { node: child, path: [...currentPath, child.name] }
+          : matchFromHere(child, parts);
       if (result) return result;
     }
 
     // 递归向下搜索
-    const found = searchNodeAndPathByFragment(child, parts, [...currentPath, child.name]);
+    const found = searchNodeAndPathByFragment(child, parts, [
+      ...currentPath,
+      child.name,
+    ]);
     if (found) return found;
   }
 
@@ -321,12 +372,17 @@ function searchAllNodesAndPathsByFragment(
   if (parts.length === 0) return;
 
   // 检查从起始节点开始是否匹配整个路径序列
-  const matchFromHere = (startNode: TreeNode, pathParts: string[]): { node: TreeNode; path: string[] } | null => {
+  const matchFromHere = (
+    startNode: TreeNode,
+    pathParts: string[]
+  ): { node: TreeNode; path: string[] } | null => {
     let curr = startNode;
     const path = [...currentPath];
     for (let i = 1; i < pathParts.length; i++) {
       const part = pathParts[i];
-      const found: TreeNode | undefined = curr.children.find((c) => c.name === part);
+      const found: TreeNode | undefined = curr.children.find(
+        (c) => c.name === part
+      );
       if (!found) return null;
       curr = found;
       path.push(part);
@@ -339,7 +395,9 @@ function searchAllNodesAndPathsByFragment(
   for (const child of node.children) {
     if (child.name === firstPart) {
       const match =
-        parts.length === 1 ? { node: child, path: [...currentPath, child.name] } : matchFromHere(child, parts);
+        parts.length === 1
+          ? { node: child, path: [...currentPath, child.name] }
+          : matchFromHere(child, parts);
       if (match) {
         // 避免重复（如果精确匹配已经找过了）
         const pathKey = match.path.join("/");
@@ -350,7 +408,12 @@ function searchAllNodesAndPathsByFragment(
     }
 
     // 递归向下搜索
-    searchAllNodesAndPathsByFragment(child, parts, [...currentPath, child.name], results);
+    searchAllNodesAndPathsByFragment(
+      child,
+      parts,
+      [...currentPath, child.name],
+      results
+    );
   }
 }
 
@@ -377,15 +440,15 @@ export function renderTreeRecursive(
   isInsideIncludedPath = false
 ): void {
   if (!node.is_dir && !options.showFiles) return;
-  
+
   // 支持逗号分隔的多个排除条件（OR 逻辑）
   if (options.excludePattern) {
     const patterns = options.excludePattern
-      .split(',')
-      .map(p => p.trim())
-      .filter(p => p.length > 0);
-    
-    if (patterns.some(pattern => node.name.includes(pattern))) {
+      .split(",")
+      .map((p) => p.trim())
+      .filter((p) => p.length > 0);
+
+    if (patterns.some((pattern) => node.name.includes(pattern))) {
       return;
     }
   }
@@ -393,7 +456,11 @@ export function renderTreeRecursive(
   let currentlyInside = isInsideIncludedPath;
 
   // 路径包含过滤逻辑
-  if (!currentlyInside && options.includePathChains && options.includePathChains.length > 0) {
+  if (
+    !currentlyInside &&
+    options.includePathChains &&
+    options.includePathChains.length > 0
+  ) {
     let onPath = false;
     let reachedTarget = false;
 
@@ -412,27 +479,37 @@ export function renderTreeRecursive(
   }
 
   if (isRoot) {
-    const sizeStr = options.showDirSize && node.size > 0 ? ` (${formatSize(node.size)})` : "";
-    const itemCountStr = options.showDirItemCount ? getDirItemCountStr(node) : "";
+    const sizeStr =
+      options.showDirSize && node.size > 0 ? ` (${formatSize(node.size)})` : "";
+    const itemCountStr = options.showDirItemCount
+      ? getDirItemCountStr(node)
+      : "";
     output.push(`${node.name}${sizeStr}${itemCountStr}`);
   } else {
     if (currentDepth > options.maxDepth) return;
     const connector = isLast ? "└── " : "├── ";
     let sizeStr = "";
     if (node.size > 0) {
-      if (node.is_dir && options.showDirSize) sizeStr = ` (${formatSize(node.size)})`;
-      else if (!node.is_dir && options.showSize) sizeStr = ` (${formatSize(node.size)})`;
+      if (node.is_dir && options.showDirSize)
+        sizeStr = ` (${formatSize(node.size)})`;
+      else if (!node.is_dir && options.showSize)
+        sizeStr = ` (${formatSize(node.size)})`;
     }
-    const itemCountStr = node.is_dir && options.showDirItemCount ? getDirItemCountStr(node) : "";
+    const itemCountStr =
+      node.is_dir && options.showDirItemCount ? getDirItemCountStr(node) : "";
     const errorStr = node.error ? ` ${node.error}` : "";
     const slash = node.is_dir ? "/" : "";
-    output.push(`${prefix}${connector}${node.name}${slash}${sizeStr}${itemCountStr}${errorStr}`);
+    output.push(
+      `${prefix}${connector}${node.name}${slash}${sizeStr}${itemCountStr}${errorStr}`
+    );
   }
 
   if (node.is_dir && node.children.length > 0) {
     if (!isRoot && currentDepth >= options.maxDepth) return;
     const newPrefix = isRoot ? "" : prefix + (isLast ? "    " : "│   ");
-    const filteredChildren = options.showFiles ? node.children : node.children.filter((child) => child.is_dir);
+    const filteredChildren = options.showFiles
+      ? node.children
+      : node.children.filter((child) => child.is_dir);
     for (let i = 0; i < filteredChildren.length; i++) {
       renderTreeRecursive(
         filteredChildren[i],
@@ -479,7 +556,9 @@ export function renderTree(
 /**
  * 生成目录树
  */
-export async function generateTree(options: GenerateTreeOptions): Promise<TreeGenerationResult> {
+export async function generateTree(
+  options: GenerateTreeOptions
+): Promise<TreeGenerationResult> {
   logger.info("开始生成目录树", { path: options.path });
 
   try {
@@ -505,13 +584,16 @@ export async function generateTree(options: GenerateTreeOptions): Promise<TreeGe
     }
 
     // 调用 Rust 后端生成目录树
-    const result: TreeGenerationResult = await invoke("generate_directory_tree", {
-      path: options.path,
-      showFiles: options.showFiles,
-      showHidden: options.showHidden,
-      maxDepth: options.maxDepth,
-      ignorePatterns,
-    });
+    const result: TreeGenerationResult = await invoke(
+      "generate_directory_tree",
+      {
+        path: options.path,
+        showFiles: options.showFiles,
+        showHidden: options.showHidden,
+        maxDepth: options.maxDepth,
+        ignorePatterns,
+      }
+    );
 
     const statsWithTime = {
       ...result.stats,
@@ -542,7 +624,9 @@ export async function generateTree(options: GenerateTreeOptions): Promise<TreeGe
 /**
  * 选择目录
  */
-export async function selectDirectory(title = "选择要分析的目录"): Promise<string | null> {
+export async function selectDirectory(
+  title = "选择要分析的目录"
+): Promise<string | null> {
   try {
     const selected = await openDialog({
       directory: true,
@@ -557,7 +641,10 @@ export async function selectDirectory(title = "选择要分析的目录"): Promi
 
     return null;
   } catch (error) {
-    errorHandler.handle(error, { userMessage: "选择目录失败", showToUser: false });
+    errorHandler.handle(error, {
+      userMessage: "选择目录失败",
+      showToUser: false,
+    });
     throw error;
   }
 }
@@ -565,7 +652,10 @@ export async function selectDirectory(title = "选择要分析的目录"): Promi
 /**
  * 导出目录树到文件
  */
-export async function exportToFile(content: string, targetPath: string): Promise<void> {
+export async function exportToFile(
+  content: string,
+  targetPath: string
+): Promise<void> {
   try {
     const getDirName = (path: string) => {
       const normalized = path.replace(/\\/g, "/");
@@ -591,7 +681,10 @@ export async function exportToFile(content: string, targetPath: string): Promise
       logger.info("文件保存成功", { path: savePath });
     }
   } catch (error) {
-    errorHandler.handle(error, { userMessage: "保存文件失败", showToUser: false });
+    errorHandler.handle(error, {
+      userMessage: "保存文件失败",
+      showToUser: false,
+    });
     throw error;
   }
 }
@@ -605,7 +698,10 @@ export async function loadConfig(): Promise<DirectoryTreeConfig> {
     logger.debug("配置加载成功");
     return config;
   } catch (error) {
-    errorHandler.handle(error, { userMessage: "加载配置失败", showToUser: false });
+    errorHandler.handle(error, {
+      userMessage: "加载配置失败",
+      showToUser: false,
+    });
     throw error;
   }
 }
@@ -618,7 +714,10 @@ export async function saveConfig(config: DirectoryTreeConfig): Promise<void> {
     await saveConfigToStore(config);
     logger.debug("配置保存成功");
   } catch (error) {
-    errorHandler.handle(error, { userMessage: "保存配置失败", showToUser: false });
+    errorHandler.handle(error, {
+      userMessage: "保存配置失败",
+      showToUser: false,
+    });
     throw error;
   }
 }

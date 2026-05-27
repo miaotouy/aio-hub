@@ -13,7 +13,9 @@
         :alt="resolvedInfo.profile.name"
         class="info-icon"
       />
-      <span class="info-text profile-text">{{ resolvedInfo.profile.name }}</span>
+      <span class="info-text profile-text">{{
+        resolvedInfo.profile.name
+      }}</span>
     </div>
   </div>
   <div v-else class="model-info-display empty">

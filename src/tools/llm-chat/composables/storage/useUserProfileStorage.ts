@@ -141,7 +141,12 @@ export function useUserProfileStorage() {
       const isWindowsPath = /^[a-zA-Z]:\\/.test(icon || "");
       const isFileProtocol = icon?.startsWith("file://");
 
-      const shouldMigrate = icon && !isAppData && !isNetwork && !isWebRelative && (isWindowsPath || isFileProtocol);
+      const shouldMigrate =
+        icon &&
+        !isAppData &&
+        !isNetwork &&
+        !isWebRelative &&
+        (isWindowsPath || isFileProtocol);
 
       if (shouldMigrate) {
         try {
@@ -162,9 +167,17 @@ export function useUserProfileStorage() {
             profile.avatarHistory.push(newAvatarName);
           }
           isDirty = true;
-          logger.info("用户档案头像绝对路径已迁移", { profileId, oldPath: icon, newName: newAvatarName });
+          logger.info("用户档案头像绝对路径已迁移", {
+            profileId,
+            oldPath: icon,
+            newName: newAvatarName,
+          });
         } catch (e) {
-          logger.warn("用户档案头像绝对路径迁移失败", { profileId, icon, error: e });
+          logger.warn("用户档案头像绝对路径迁移失败", {
+            profileId,
+            icon,
+            error: e,
+          });
         }
       }
 
@@ -175,11 +188,20 @@ export function useUserProfileStorage() {
           const profileDir = await getProfileDirPath(profileId);
           if (await exists(profileDir)) {
             const entries = await readDir(profileDir);
-            const imageExts = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"];
+            const imageExts = [
+              ".png",
+              ".jpg",
+              ".jpeg",
+              ".gif",
+              ".webp",
+              ".svg",
+            ];
             profile.avatarHistory = entries
               .filter(
                 (e) =>
-                  e.isFile && imageExts.some((ext) => e.name.toLowerCase().endsWith(ext)) && e.name !== "profile.json",
+                  e.isFile &&
+                  imageExts.some((ext) => e.name.toLowerCase().endsWith(ext)) &&
+                  e.name !== "profile.json"
               )
               .map((e) => e.name);
             isDirty = true;
@@ -208,7 +230,10 @@ export function useUserProfileStorage() {
   /**
    * 校验用户档案是否完整，防止损坏的文件覆盖磁盘
    */
-  function validateProfile(profile: UserProfile): { valid: boolean; reason?: string } {
+  function validateProfile(profile: UserProfile): {
+    valid: boolean;
+    reason?: string;
+  } {
     if (!profile.id) return { valid: false, reason: "缺少 id" };
     if (!profile.name) return { valid: false, reason: "缺少 name (档案名称)" };
     if (!profile.createdAt) return { valid: false, reason: "缺少 createdAt" };
@@ -219,7 +244,8 @@ export function useUserProfileStorage() {
     }
 
     // 结构检查：检查关键配置项是否存在（即使是空的）
-    if (!profile.regexConfig) return { valid: false, reason: "缺少 regexConfig 结构" };
+    if (!profile.regexConfig)
+      return { valid: false, reason: "缺少 regexConfig 结构" };
 
     return { valid: true };
   }
@@ -239,7 +265,10 @@ export function useUserProfileStorage() {
   /**
    * 保存单个用户档案（仅在内容变化时写入）
    */
-  async function saveProfile(profile: UserProfile, forceWrite: boolean = false): Promise<void> {
+  async function saveProfile(
+    profile: UserProfile,
+    forceWrite: boolean = false
+  ): Promise<void> {
     try {
       // 保存前的严格校验
       const validation = validateProfile(profile);
@@ -279,11 +308,15 @@ export function useUserProfileStorage() {
             const oldContent = await readTextFile(profilePath);
             // 内容相同则跳过写入
             if (oldContent === newContent) {
-              logger.debug("用户档案内容未变化，跳过写入", { profileId: profile.id });
+              logger.debug("用户档案内容未变化，跳过写入", {
+                profileId: profile.id,
+              });
               return;
             }
           } catch (readError) {
-            logger.warn("读取现有用户档案文件失败，继续写入", { profileId: profile.id });
+            logger.warn("读取现有用户档案文件失败，继续写入", {
+              profileId: profile.id,
+            });
           }
         }
       }
@@ -310,14 +343,22 @@ export function useUserProfileStorage() {
   async function deleteProfileDirectory(profileId: string): Promise<void> {
     try {
       const profileDir = await getProfileDirPath(profileId);
-      const relativePath = (await join(MODULE_NAME, PROFILES_SUBDIR, profileId)).replace(/\\/g, "/");
+      const relativePath = (
+        await join(MODULE_NAME, PROFILES_SUBDIR, profileId)
+      ).replace(/\\/g, "/");
 
       const dirExists = await exists(profileDir);
       if (dirExists) {
         await invoke<string>("delete_directory_in_app_data", { relativePath });
-        logger.info("用户档案目录已移入回收站", { profileId, path: profileDir });
+        logger.info("用户档案目录已移入回收站", {
+          profileId,
+          path: profileDir,
+        });
       } else {
-        logger.warn("用户档案目录不存在，跳过删除", { profileId, path: profileDir });
+        logger.warn("用户档案目录不存在，跳过删除", {
+          profileId,
+          path: profileDir,
+        });
       }
     } catch (error) {
       errorHandler.handle(error as Error, {
@@ -346,12 +387,17 @@ export function useUserProfileStorage() {
 
       const entries = await readDir(profilesDir);
       // 过滤出目录项，目录名即为 profileId
-      const profileIds = entries.filter((entry) => entry.isDirectory && entry.name).map((entry) => entry.name!);
+      const profileIds = entries
+        .filter((entry) => entry.isDirectory && entry.name)
+        .map((entry) => entry.name!);
 
       logger.debug("扫描用户档案目录完成", { count: profileIds.length });
       return profileIds;
     } catch (error) {
-      errorHandler.handle(error as Error, { userMessage: "扫描用户档案目录失败", showToUser: false });
+      errorHandler.handle(error as Error, {
+        userMessage: "扫描用户档案目录失败",
+        showToUser: false,
+      });
       return [];
     }
   }
@@ -425,13 +471,17 @@ export function useUserProfileStorage() {
     }
 
     const entries = await readDir(profilesDir);
-    const oldJsonFiles = entries.filter((entry) => entry.name?.endsWith(".json") && !entry.isDirectory);
+    const oldJsonFiles = entries.filter(
+      (entry) => entry.name?.endsWith(".json") && !entry.isDirectory
+    );
 
     if (oldJsonFiles.length === 0) {
       return; // 没有旧格式文件，无需迁移
     }
 
-    logger.info(`检测到 ${oldJsonFiles.length} 个旧版用户档案文件，开始迁移...`);
+    logger.info(
+      `检测到 ${oldJsonFiles.length} 个旧版用户档案文件，开始迁移...`
+    );
 
     for (const fileEntry of oldJsonFiles) {
       const oldPath = await join(profilesDir, fileEntry.name!);
@@ -524,7 +574,10 @@ export function useUserProfileStorage() {
         globalProfileId: index.globalProfileId,
       };
     } catch (error) {
-      errorHandler.handle(error as Error, { userMessage: "加载用户档案索引失败", showToUser: false });
+      errorHandler.handle(error as Error, {
+        userMessage: "加载用户档案索引失败",
+        showToUser: false,
+      });
       return { profiles: [], globalProfileId: null };
     }
   };
@@ -545,12 +598,17 @@ export function useUserProfileStorage() {
       const profileResults = await Promise.all(profilePromises);
 
       // 3. 过滤掉加载失败的档案
-      const profiles = profileResults.filter((p): p is UserProfile => p !== null);
+      const profiles = profileResults.filter(
+        (p): p is UserProfile => p !== null
+      );
 
       logger.info(`全量加载了 ${profiles.length} 个用户档案`);
       return profiles;
     } catch (error) {
-      errorHandler.handle(error as Error, { userMessage: "全量加载用户档案失败", showToUser: false });
+      errorHandler.handle(error as Error, {
+        userMessage: "全量加载用户档案失败",
+        showToUser: false,
+      });
       return [];
     }
   };
@@ -604,7 +662,9 @@ export function useUserProfileStorage() {
   const saveProfiles = async (profiles: UserProfile[]): Promise<void> => {
     try {
       // 过滤掉详情未加载的用户档案，防止空数据覆盖磁盘文件
-      const profilesWithDetails = profiles.filter((p) => p.content !== undefined);
+      const profilesWithDetails = profiles.filter(
+        (p) => p.content !== undefined
+      );
 
       logger.debug("开始批量保存用户档案", {
         total: profiles.length,
@@ -612,7 +672,9 @@ export function useUserProfileStorage() {
       });
 
       // 1. 并行保存已加载详情的档案文件
-      await Promise.all(profilesWithDetails.map((profile) => saveProfile(profile, true)));
+      await Promise.all(
+        profilesWithDetails.map((profile) => saveProfile(profile, true))
+      );
 
       // 2. 更新索引
       const index = await loadIndex();
@@ -672,7 +734,10 @@ export function useUserProfileStorage() {
         globalProfileId: index.globalProfileId,
       };
     } catch (error) {
-      errorHandler.handle(error as Error, { userMessage: "加载用户档案设置失败", showToUser: false });
+      errorHandler.handle(error as Error, {
+        userMessage: "加载用户档案设置失败",
+        showToUser: false,
+      });
       return { globalProfileId: null };
     }
   };
@@ -680,7 +745,9 @@ export function useUserProfileStorage() {
   /**
    * 保存用户档案设置
    */
-  const saveSettings = async (settings: Partial<UserProfileSettings>): Promise<void> => {
+  const saveSettings = async (
+    settings: Partial<UserProfileSettings>
+  ): Promise<void> => {
     try {
       const index = await loadIndex();
       if (settings.globalProfileId !== undefined) {
@@ -689,7 +756,10 @@ export function useUserProfileStorage() {
       await saveIndex(index);
       logger.debug("保存用户档案设置成功", settings);
     } catch (error) {
-      errorHandler.handle(error as Error, { userMessage: "保存用户档案设置失败", showToUser: false });
+      errorHandler.handle(error as Error, {
+        userMessage: "保存用户档案设置失败",
+        showToUser: false,
+      });
       throw error;
     }
   };

@@ -119,19 +119,34 @@ onMounted(() => {
       <div class="setting-item">
         <div class="setting-label">
           <span>自定义路径</span>
-          <el-tooltip content="指定一个自定义的资产存储位置，留空则使用默认路径" placement="top">
+          <el-tooltip
+            content="指定一个自定义的资产存储位置，留空则使用默认路径"
+            placement="top"
+          >
             <el-icon class="info-icon">
               <InfoFilled />
             </el-icon>
           </el-tooltip>
         </div>
         <div class="path-input-group">
-          <el-input v-model="customAssetPath" placeholder="留空使用默认路径" readonly>
+          <el-input
+            v-model="customAssetPath"
+            placeholder="留空使用默认路径"
+            readonly
+          >
             <template #append>
-              <el-button :icon="FolderOpened" @click="selectCustomPath"> 选择目录 </el-button>
+              <el-button :icon="FolderOpened" @click="selectCustomPath">
+                选择目录
+              </el-button>
             </template>
           </el-input>
-          <el-button v-if="customAssetPath" @click="resetToDefault" type="warning" plain style="margin-top: 8px">
+          <el-button
+            v-if="customAssetPath"
+            @click="resetToDefault"
+            type="warning"
+            plain
+            style="margin-top: 8px"
+          >
             重置为默认
           </el-button>
         </div>
@@ -148,7 +163,9 @@ onMounted(() => {
         </div>
         <div class="current-path-display">
           <el-input :model-value="currentAssetPath" readonly />
-          <el-button @click="openAssetDirectory" type="primary" plain> 打开目录 </el-button>
+          <el-button @click="openAssetDirectory" type="primary" plain>
+            打开目录
+          </el-button>
         </div>
       </div>
     </div>

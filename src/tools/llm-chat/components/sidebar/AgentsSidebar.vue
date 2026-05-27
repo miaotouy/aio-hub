@@ -6,16 +6,31 @@ import yaml from "js-yaml";
 import { useAgentStore } from "../../stores/agentStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useLlmChatUiState } from "../../composables/ui/useLlmChatUiState";
-import { useLlmSearch, type MatchDetail, type SearchMatchMode } from "../../composables/chat/useLlmSearch";
+import {
+  useLlmSearch,
+  type MatchDetail,
+  type SearchMatchMode,
+} from "../../composables/chat/useLlmSearch";
 import { useFileDrop } from "@/composables/useFileDrop";
-import { Plus, Search, Download, Upload, DocumentAdd, Loading, Notebook } from "@element-plus/icons-vue";
+import {
+  Plus,
+  Search,
+  Download,
+  Upload,
+  DocumentAdd,
+  Loading,
+  Notebook,
+} from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { ChatAgent, AgentEditData } from "../../types";
 import type { AgentPreset } from "../../types";
 import { AgentCategory, AgentCategoryLabels } from "../../types";
-import type { ExportableAgent, AgentExportFile } from "../../types/agentImportExport";
+import type {
+  ExportableAgent,
+  AgentExportFile,
+} from "../../types/agentImportExport";
 import AgentListItem from "./AgentListItem.vue";
 
 // 创建模块错误处理器
@@ -23,11 +38,21 @@ const errorHandler = createModuleErrorHandler("llm-chat/AgentsSidebar");
 
 console.log("[AgentsSidebar] Setup started");
 
-const CreateAgentDialog = defineAsyncComponent(() => import("../agent/management/CreateAgentDialog.vue"));
-const EditAgentDialog = defineAsyncComponent(() => import("../agent/management/EditAgentDialog.vue"));
-const ExportAgentDialog = defineAsyncComponent(() => import("../export/ExportAgentDialog.vue"));
-const ImportAgentDialog = defineAsyncComponent(() => import("../export/ImportAgentDialog.vue"));
-const WorldbookManagerDialog = defineAsyncComponent(() => import("../worldbook/WorldbookManagerDialog.vue"));
+const CreateAgentDialog = defineAsyncComponent(
+  () => import("../agent/management/CreateAgentDialog.vue")
+);
+const EditAgentDialog = defineAsyncComponent(
+  () => import("../agent/management/EditAgentDialog.vue")
+);
+const ExportAgentDialog = defineAsyncComponent(
+  () => import("../export/ExportAgentDialog.vue")
+);
+const ImportAgentDialog = defineAsyncComponent(
+  () => import("../export/ImportAgentDialog.vue")
+);
+const WorldbookManagerDialog = defineAsyncComponent(
+  () => import("../worldbook/WorldbookManagerDialog.vue")
+);
 
 const agentStore = useAgentStore();
 
@@ -35,19 +60,33 @@ const agentStore = useAgentStore();
 const { agentSortBy } = useLlmChatUiState();
 
 // 后端搜索功能
-const { isSearching, showLoadingIndicator, agentResults, matchMode, search, clearSearch } = useLlmSearch({
+const {
+  isSearching,
+  showLoadingIndicator,
+  agentResults,
+  matchMode,
+  search,
+  clearSearch,
+} = useLlmSearch({
   debounceMs: 300,
   scope: "agent",
 });
 
 // 搜索模式配置
-const matchModeOptions: { value: SearchMatchMode; label: string; desc: string }[] = [
+const matchModeOptions: {
+  value: SearchMatchMode;
+  label: string;
+  desc: string;
+}[] = [
   { value: "exact", label: "精确", desc: "完整短语匹配" },
   { value: "and", label: "全部", desc: "所有关键词都须出现" },
   { value: "or", label: "任一", desc: "任一关键词出现即可" },
 ];
 
-const currentModeLabel = computed(() => matchModeOptions.find((o) => o.value === matchMode.value)?.label ?? "精确");
+const currentModeLabel = computed(
+  () =>
+    matchModeOptions.find((o) => o.value === matchMode.value)?.label ?? "精确"
+);
 
 // 切换搜索模式
 const handleMatchModeChange = (mode: SearchMatchMode) => {
@@ -108,7 +147,9 @@ const filteredAndSortedAgents = computed(() => {
 
   // 1. 分类过滤
   if (selectedCategory.value !== "all") {
-    agents = agents.filter((agent) => agent.category === selectedCategory.value);
+    agents = agents.filter(
+      (agent) => agent.category === selectedCategory.value
+    );
   }
 
   // 2. 本地搜索过滤（始终生效，作为后端搜索的补充或过渡）
@@ -117,13 +158,18 @@ const filteredAndSortedAgents = computed(() => {
     agents = agents.filter((agent) => {
       return (
         agent.name.toLowerCase().includes(query) ||
-        (agent.displayName && agent.displayName.toLowerCase().includes(query)) ||
-        (agent.description && agent.description.toLowerCase().includes(query)) ||
+        (agent.displayName &&
+          agent.displayName.toLowerCase().includes(query)) ||
+        (agent.description &&
+          agent.description.toLowerCase().includes(query)) ||
         (agent.icon && agent.icon.toLowerCase().includes(query)) ||
         (agent.category &&
           (agent.category.toLowerCase().includes(query) ||
-            (AgentCategoryLabels[agent.category as AgentCategory] || "").toLowerCase().includes(query))) ||
-        (agent.tags && agent.tags.some((tag) => tag.toLowerCase().includes(query)))
+            (AgentCategoryLabels[agent.category as AgentCategory] || "")
+              .toLowerCase()
+              .includes(query))) ||
+        (agent.tags &&
+          agent.tags.some((tag) => tag.toLowerCase().includes(query)))
       );
     });
   }
@@ -168,7 +214,10 @@ const searchResultAgents = computed(() => {
     const agent = agentStore.getAgentById(result.id);
     if (agent) {
       // 如果有分类筛选，也需要应用
-      if (selectedCategory.value === "all" || agent.category === selectedCategory.value) {
+      if (
+        selectedCategory.value === "all" ||
+        agent.category === selectedCategory.value
+      ) {
         agents.push(agent);
       }
     }
@@ -362,7 +411,10 @@ const handleOpenCreateDialog = () => {
 // 从空白创建
 const handleCreateFromBlank = () => {
   const { enabledProfiles } = useLlmProfiles();
-  if (enabledProfiles.value.length === 0 || enabledProfiles.value[0].models.length === 0) {
+  if (
+    enabledProfiles.value.length === 0 ||
+    enabledProfiles.value[0].models.length === 0
+  ) {
     customMessage.error("没有可用的模型配置，无法创建智能体");
     return;
   }
@@ -401,7 +453,10 @@ const handleCreateFromBlank = () => {
 // 从预设创建
 const handleCreateFromPreset = (preset: AgentPreset) => {
   const { enabledProfiles } = useLlmProfiles();
-  if (enabledProfiles.value.length === 0 || enabledProfiles.value[0].models.length === 0) {
+  if (
+    enabledProfiles.value.length === 0 ||
+    enabledProfiles.value[0].models.length === 0
+  ) {
     customMessage.error("没有可用的模型配置，无法创建智能体");
     return;
   }
@@ -429,7 +484,9 @@ const handleCreateFromPreset = (preset: AgentPreset) => {
     // 兼容处理 parameters (扁平化映射到 editDialogInitialData)
     // 注意：EditAgentDialog 内部已经支持处理嵌套的 parameters 对象，
     // 但为了保险和统一，这里我们保留 parameters 对象传递，让 Dialog 内部去解构
-    parameters: parameters ? JSON.parse(JSON.stringify(parameters)) : { temperature: 1, maxTokens: 8192 },
+    parameters: parameters
+      ? JSON.parse(JSON.stringify(parameters))
+      : { temperature: 1, maxTokens: 8192 },
 
     // 深度复制 presetMessages，并确保它们有唯一的 ID，同时保持引用关系
     presetMessages: (() => {
@@ -447,7 +504,9 @@ const handleCreateFromPreset = (preset: AgentPreset) => {
         const newId = idMap.get(msg.id)!;
 
         // 更新 parentId
-        const newParentId = msg.parentId ? idMap.get(msg.parentId) || null : null;
+        const newParentId = msg.parentId
+          ? idMap.get(msg.parentId) || null
+          : null;
 
         // 更新 childrenIds
         const newChildrenIds = (msg.childrenIds || [])
@@ -481,7 +540,10 @@ const handleEdit = (agent: ChatAgent) => {
 
 // 保存智能体
 // 使用统一的 AgentEditData 类型，确保字段完整传递
-const handleSaveAgent = (data: AgentEditData, options: { silent?: boolean; agentId?: string } = {}) => {
+const handleSaveAgent = (
+  data: AgentEditData,
+  options: { silent?: boolean; agentId?: string } = {}
+) => {
   if (editDialogMode.value === "edit") {
     const targetId = options.agentId || editingAgent.value?.id;
     if (!targetId) return;
@@ -493,7 +555,12 @@ const handleSaveAgent = (data: AgentEditData, options: { silent?: boolean; agent
     }
   } else {
     // 创建模式
-    const newAgentId = agentStore.createAgent(data.name, data.profileId, data.modelId, data);
+    const newAgentId = agentStore.createAgent(
+      data.name,
+      data.profileId,
+      data.modelId,
+      data
+    );
     customMessage.success(`智能体 "${data.name}" 创建成功`);
 
     // 异步处理预设资产导入
@@ -509,11 +576,15 @@ const handleSaveAgent = (data: AgentEditData, options: { silent?: boolean; agent
 // 删除智能体
 const handleDelete = (agent: ChatAgent) => {
   const name = agent.displayName || agent.name;
-  ElMessageBox.confirm(`确定要删除智能体 "${name}" 吗？文件将被移入回收站。`, "确认删除", {
-    confirmButtonText: "删除",
-    cancelButtonText: "取消",
-    type: "warning",
-  })
+  ElMessageBox.confirm(
+    `确定要删除智能体 "${name}" 吗？文件将被移入回收站。`,
+    "确认删除",
+    {
+      confirmButtonText: "删除",
+      cancelButtonText: "取消",
+      type: "warning",
+    }
+  )
     .then(async () => {
       try {
         await agentStore.deleteAgent(agent.id);
@@ -553,11 +624,16 @@ const handleCopyConfig = async (agent: ChatAgent, format: "json" | "yaml") => {
       agents: [exportableAgent],
     };
 
-    const contentString = format === "yaml" ? yaml.dump(exportData) : JSON.stringify(exportData, null, 2);
+    const contentString =
+      format === "yaml"
+        ? yaml.dump(exportData)
+        : JSON.stringify(exportData, null, 2);
 
     await navigator.clipboard.writeText(contentString);
     const name = agent.displayName || agent.name;
-    customMessage.success(`智能体 "${name}" 的 ${format.toUpperCase()} 配置已复制到剪贴板`);
+    customMessage.success(
+      `智能体 "${name}" 的 ${format.toUpperCase()} 配置已复制到剪贴板`
+    );
   } catch (error) {
     errorHandler.error(error, "复制配置失败");
   }
@@ -577,10 +653,14 @@ const handleImportFromClipboard = async () => {
 
     // 简单判断是 JSON 还是 YAML
     if (trimmedText.startsWith("{") && trimmedText.endsWith("}")) {
-      file = new File([text], "from-clipboard.agent.json", { type: "application/json" });
+      file = new File([text], "from-clipboard.agent.json", {
+        type: "application/json",
+      });
     } else {
       // 否则尝试作为 YAML 处理
-      file = new File([text], "from-clipboard.agent.yaml", { type: "application/x-yaml" });
+      file = new File([text], "from-clipboard.agent.yaml", {
+        type: "application/x-yaml",
+      });
     }
 
     importLoading.value = true;
@@ -652,14 +732,23 @@ const handleImportFromTavernCard = async () => {
             <el-icon class="is-loading"><Loading /></el-icon>
           </template>
         </el-input>
-        <el-dropdown trigger="click" @command="handleMatchModeChange" placement="bottom-end">
+        <el-dropdown
+          trigger="click"
+          @command="handleMatchModeChange"
+          placement="bottom-end"
+        >
           <div>
             <el-tooltip
               :content="`搜索模式: ${matchModeOptions.find((o) => o.value === matchMode)?.desc}`"
               placement="top"
               :show-after="400"
             >
-              <el-button size="small" :type="matchMode !== 'exact' ? 'primary' : ''" plain class="match-mode-btn">
+              <el-button
+                size="small"
+                :type="matchMode !== 'exact' ? 'primary' : ''"
+                plain
+                class="match-mode-btn"
+              >
                 {{ currentModeLabel }}
               </el-button>
             </el-tooltip>
@@ -688,9 +777,18 @@ const handleImportFromTavernCard = async () => {
           style="flex: 1"
         >
           <el-option label="全部分类" value="all" />
-          <el-option v-for="cat in allCategories" :key="cat.value" :label="cat.label" :value="cat.value" />
+          <el-option
+            v-for="cat in allCategories"
+            :key="cat.value"
+            :label="cat.label"
+            :value="cat.value"
+          />
         </el-select>
-        <el-select v-model="agentSortBy" size="small" :style="{ width: allCategories.length > 0 ? '110px' : '100%' }">
+        <el-select
+          v-model="agentSortBy"
+          size="small"
+          :style="{ width: allCategories.length > 0 ? '110px' : '100%' }"
+        >
           <el-option label="最近使用" value="lastUsed" />
           <el-option label="按名称" value="name" />
           <el-option label="创建时间" value="createdAt" />
@@ -699,7 +797,10 @@ const handleImportFromTavernCard = async () => {
     </div>
 
     <div class="agents-list" ref="parentRef">
-      <div v-if="displayAgents.length === 0 && !searchQuery" class="empty-state">
+      <div
+        v-if="displayAgents.length === 0 && !searchQuery"
+        class="empty-state"
+      >
         <p>暂无智能体</p>
         <p class="hint">点击下方按钮创建智能体</p>
       </div>
@@ -707,7 +808,11 @@ const handleImportFromTavernCard = async () => {
       <div v-else-if="displayAgents.length === 0" class="empty-state">
         <p>没有找到匹配的智能体</p>
         <p class="hint">
-          {{ isInSearchMode ? "尝试其他搜索关键词，或减少筛选条件" : "尝试其他搜索关键词" }}
+          {{
+            isInSearchMode
+              ? "尝试其他搜索关键词，或减少筛选条件"
+              : "尝试其他搜索关键词"
+          }}
         </p>
       </div>
 
@@ -749,7 +854,9 @@ const handleImportFromTavernCard = async () => {
 
     <!-- 底部常驻添加按钮 -->
     <div class="agents-footer">
-      <el-button type="primary" @click="handleOpenCreateDialog" :icon="Plus"> 添加智能体 </el-button>
+      <el-button type="primary" @click="handleOpenCreateDialog" :icon="Plus">
+        添加智能体
+      </el-button>
       <!-- 导入导出下拉菜单 -->
       <el-dropdown trigger="click">
         <el-button type="info">更多</el-button>

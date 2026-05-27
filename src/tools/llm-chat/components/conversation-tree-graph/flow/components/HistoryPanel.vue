@@ -10,7 +10,11 @@
     </div>
 
     <!-- 历史记录列表 -->
-    <div v-if="historyStack.length > 0" ref="historyListRef" class="history-list">
+    <div
+      v-if="historyStack.length > 0"
+      ref="historyListRef"
+      class="history-list"
+    >
       <div
         v-for="(entry, index) in historyStack"
         :key="index"
@@ -36,7 +40,11 @@
           <!-- 操作类型和时间 -->
           <div class="item-header">
             <div class="action-info">
-              <el-tag :type="getActionTagType(entry.actionTag)" size="small" effect="plain">
+              <el-tag
+                :type="getActionTagType(entry.actionTag)"
+                size="small"
+                effect="plain"
+              >
                 {{ getActionLabel(entry.actionTag) }}
               </el-tag>
               <el-tag v-if="entry.isSnapshot" size="small" type="info">
@@ -60,7 +68,10 @@
           </div>
 
           <!-- 快照摘要 -->
-          <div v-if="entry.isSnapshot && entry.snapshot" class="snapshot-summary">
+          <div
+            v-if="entry.isSnapshot && entry.snapshot"
+            class="snapshot-summary"
+          >
             <el-icon><DataAnalysis /></el-icon>
             <span>包含 {{ Object.keys(entry.snapshot).length }} 个节点</span>
           </div>
@@ -92,7 +103,12 @@
         <span>总计 {{ historyStack.length }} 条记录</span>
         <span>当前位置: {{ currentIndex + 1 }}/{{ historyStack.length }}</span>
       </div>
-      <el-button v-if="currentIndex > 0" size="small" text @click="handleJumpTo(0)">
+      <el-button
+        v-if="currentIndex > 0"
+        size="small"
+        text
+        @click="handleJumpTo(0)"
+      >
         <el-icon><Back /></el-icon>
         返回初始状态
       </el-button>
@@ -102,7 +118,11 @@
 
 <script setup lang="ts">
 import { nextTick, ref, onMounted } from "vue";
-import type { HistoryEntry, HistoryActionTag, HistoryDelta } from "../../../../types";
+import type {
+  HistoryEntry,
+  HistoryActionTag,
+  HistoryDelta,
+} from "../../../../types";
 import {
   Clock,
   Close,

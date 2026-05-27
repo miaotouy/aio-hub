@@ -1,8 +1,12 @@
-import type { ChatSessionDetail, ChatMessageNode, NodeRelationChange } from "../types";
+import type {
+  ChatSessionDetail,
+  ChatMessageNode,
+  NodeRelationChange,
+} from "../types";
 
 /**
  * 提取节点关系变更（用于历史记录）
- * 
+ *
  * 计算节点在创建或删除操作前后的父子关系变化
  */
 export function extractRelationChange(
@@ -10,8 +14,8 @@ export function extractRelationChange(
   node: ChatMessageNode,
   operation: "delete" | "create"
 ): NodeRelationChange {
-  const oldParentId = operation === 'delete' ? node.parentId : null;
-  const newParentId = operation === 'create' ? node.parentId : null;
+  const oldParentId = operation === "delete" ? node.parentId : null;
+  const newParentId = operation === "create" ? node.parentId : null;
   const affectedParents: NodeRelationChange["affectedParents"] = {};
 
   if (oldParentId && session.nodes) {
@@ -74,12 +78,14 @@ export function captureRelationChangesForGraft(
     };
   }
 
-  return [{
-    nodeId,
-    oldParentId,
-    newParentId,
-    affectedParents,
-  }];
+  return [
+    {
+      nodeId,
+      oldParentId,
+      newParentId,
+      affectedParents,
+    },
+  ];
 }
 
 /**

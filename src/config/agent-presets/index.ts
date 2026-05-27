@@ -21,7 +21,8 @@ export const builtinPresets: AgentPresetMetadata[] = [
   {
     id: "yuki-nagato",
     name: "长门有希",
-    description: "资讯统合思念体制造的对有机生命体接触用人形界面。拥有高速处理信息和改变环境资讯的能力。",
+    description:
+      "资讯统合思念体制造的对有机生命体接触用人形界面。拥有高速处理信息和改变环境资讯的能力。",
     icon: "/agent-presets/yuki-nagato/icon.jpg",
     category: AgentCategory.Character,
     tags: ["动漫", "编程", "高智商"],
@@ -40,7 +41,8 @@ export const builtinPresets: AgentPresetMetadata[] = [
   {
     id: "rohan-kishibe",
     name: "岸边露伴",
-    description: '居住在杜王町的人气漫画家。拥有替身"天堂之门",为了追求"真实"的创作素材而不择手段。',
+    description:
+      '居住在杜王町的人气漫画家。拥有替身"天堂之门",为了追求"真实"的创作素材而不择手段。',
     icon: "/agent-presets/rohan-kishibe/icon.jpg",
     category: AgentCategory.Character,
     tags: ["动漫", "写作", "创意"],
@@ -59,7 +61,8 @@ export const builtinPresets: AgentPresetMetadata[] = [
   {
     id: "raphael-sage",
     name: "智慧之王",
-    description: '究极技能"智慧之王(Raphael)"。拥有惊人的演算能力和解析鉴定能力,能统合分离万物。',
+    description:
+      '究极技能"智慧之王(Raphael)"。拥有惊人的演算能力和解析鉴定能力,能统合分离万物。',
     icon: "/agent-presets/raphael-sage/icon.jpg",
     category: AgentCategory.Character,
     tags: ["动漫", "翻译", "全能"],
@@ -78,7 +81,8 @@ export const builtinPresets: AgentPresetMetadata[] = [
   {
     id: "code-assistant",
     name: "代码助手（过时）",
-    description: "专业的编程助手，精通多种编程语言和开发框架。帮助你编写、优化和调试代码。",
+    description:
+      "专业的编程助手，精通多种编程语言和开发框架。帮助你编写、优化和调试代码。",
     icon: "💻",
     category: AgentCategory.Expert,
     tags: ["开发", "技术", "过时"],
@@ -96,7 +100,8 @@ export const builtinPresets: AgentPresetMetadata[] = [
   {
     id: "translator",
     name: "多语言翻译专家（过时）",
-    description: "精通世界多种语言，提供精准、流畅的翻译服务。擅长处理专业术语和文化差异。",
+    description:
+      "精通世界多种语言，提供精准、流畅的翻译服务。擅长处理专业术语和文化差异。",
     icon: "🌐",
     category: AgentCategory.Workflow,
     tags: ["翻译", "语言", "过时"],

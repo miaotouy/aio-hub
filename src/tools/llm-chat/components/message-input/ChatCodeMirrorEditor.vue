@@ -1,15 +1,38 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, shallowRef, nextTick } from "vue";
-import { EditorView, keymap, tooltips, placeholder as cmPlaceholder } from "@codemirror/view";
+import {
+  EditorView,
+  keymap,
+  tooltips,
+  placeholder as cmPlaceholder,
+} from "@codemirror/view";
 import { EditorState, Compartment, Prec } from "@codemirror/state";
 import { useTheme } from "@/composables/useTheme";
 import { useChatInputManager } from "../../composables/input/useChatInputManager";
 import { markdown } from "@codemirror/lang-markdown";
 import { vscodeLight, vscodeDark } from "@uiw/codemirror-theme-vscode";
-import { autocompletion, CompletionContext, CompletionResult, Completion } from "@codemirror/autocomplete";
-import { defaultKeymap, history, historyKeymap, insertNewline } from "@codemirror/commands";
-import { highlightSelectionMatches, searchKeymap, search } from "@codemirror/search";
-import { MacroRegistry, initializeMacroEngine, type MacroDefinition } from "../../macro-engine";
+import {
+  autocompletion,
+  CompletionContext,
+  CompletionResult,
+  Completion,
+} from "@codemirror/autocomplete";
+import {
+  defaultKeymap,
+  history,
+  historyKeymap,
+  insertNewline,
+} from "@codemirror/commands";
+import {
+  highlightSelectionMatches,
+  searchKeymap,
+  search,
+} from "@codemirror/search";
+import {
+  MacroRegistry,
+  initializeMacroEngine,
+  type MacroDefinition,
+} from "../../macro-engine";
 import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("ChatCodeMirrorEditor");
@@ -85,7 +108,9 @@ const zhCnPhrases: Record<string, string> = {
 };
 
 // 宏补全源
-const macroCompletionSource = (context: CompletionContext): CompletionResult | null => {
+const macroCompletionSource = (
+  context: CompletionContext
+): CompletionResult | null => {
   // 获取当前行光标前的文本
   const line = context.state.doc.lineAt(context.pos);
   const textBefore = line.text.slice(0, context.pos - line.from);
@@ -102,13 +127,22 @@ const macroCompletionSource = (context: CompletionContext): CompletionResult | n
 
   const options: Completion[] = (macros as MacroDefinition[])
     .filter((m) => m.supported !== false)
-    .filter((m) => m.name.toLowerCase().includes(prefix) || m.description.toLowerCase().includes(prefix))
+    .filter(
+      (m) =>
+        m.name.toLowerCase().includes(prefix) ||
+        m.description.toLowerCase().includes(prefix)
+    )
     .map((m) => ({
       label: m.name,
       type: "variable",
       detail: m.description,
       info: m.example ? `示例: ${m.example}` : undefined,
-      apply: (view: EditorView, completion: Completion, from: number, to: number) => {
+      apply: (
+        view: EditorView,
+        completion: Completion,
+        from: number,
+        to: number
+      ) => {
         // 插入完整的宏格式 {{name}}，注意此时 from 是前缀开始的位置
         // 我们需要把前面的 {{ 也替换掉
         const wordStart = from - 2; // 减去 {{ 的长度
@@ -227,7 +261,7 @@ onMounted(() => {
             },
             shift: insertNewline,
           },
-        ]),
+        ])
       ),
       history(),
       editableConf.of(EditorView.editable.of(!props.disabled)),
@@ -271,7 +305,10 @@ onMounted(() => {
       EditorView.domEventHandlers({
         keydown: (event) => {
           // 阻止搜索快捷键冒泡到外层 chat 搜索
-          if ((event.ctrlKey || event.metaKey) && (event.key === "f" || event.key === "h")) {
+          if (
+            (event.ctrlKey || event.metaKey) &&
+            (event.key === "f" || event.key === "h")
+          ) {
             event.stopPropagation();
           }
           emit("keydown", event);
@@ -316,7 +353,7 @@ watch(
         }
       }
     }
-  },
+  }
 );
 
 // 监听禁用状态
@@ -328,7 +365,7 @@ watch(
         effects: editableConf.reconfigure(EditorView.editable.of(!disabled)),
       });
     }
-  },
+  }
 );
 
 // 监听主题变化
@@ -349,7 +386,7 @@ watch(
         effects: placeholderConf.reconfigure(cmPlaceholder(placeholder || "")),
       });
     }
-  },
+  }
 );
 
 // 暴露方法给父组件

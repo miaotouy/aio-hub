@@ -1,16 +1,21 @@
-import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
-import type { ItemInfo, DirectoryScanProgress, DirectoryCleanupProgress, Statistics } from '../types';
+import { defineStore } from "pinia";
+import { ref, computed } from "vue";
+import type {
+  ItemInfo,
+  DirectoryScanProgress,
+  DirectoryCleanupProgress,
+  Statistics,
+} from "../types";
 
 /**
  * 目录清道夫 Pinia Store
- * 
+ *
  * 使用 Pinia 确保状态单例，避免重复创建响应式引用
  */
-export const useDirectoryJanitorStore = defineStore('directory-janitor', () => {
+export const useDirectoryJanitorStore = defineStore("directory-janitor", () => {
   // ==================== 扫描配置状态 ====================
-  const scanPath = ref('');
-  const namePattern = ref('');
+  const scanPath = ref("");
+  const namePattern = ref("");
   const minAgeDays = ref<number | undefined>(undefined);
   const minSizeMB = ref<number | undefined>(undefined);
   const maxDepth = ref(5);
@@ -21,7 +26,7 @@ export const useDirectoryJanitorStore = defineStore('directory-janitor', () => {
   const hasAnalyzed = ref(false);
 
   // ==================== 二次筛选条件 ====================
-  const filterNamePattern = ref('');
+  const filterNamePattern = ref("");
   const filterMinAgeDays = ref<number | undefined>(undefined);
   const filterMinSizeMB = ref<number | undefined>(undefined);
 
@@ -52,7 +57,8 @@ export const useDirectoryJanitorStore = defineStore('directory-janitor', () => {
 
     // 年龄筛选
     if (filterMinAgeDays.value !== undefined && filterMinAgeDays.value > 0) {
-      const minTimestamp = Math.floor(Date.now() / 1000) - filterMinAgeDays.value * 86400;
+      const minTimestamp =
+        Math.floor(Date.now() / 1000) - filterMinAgeDays.value * 86400;
       filtered = filtered.filter((item) => item.modified < minTimestamp);
     }
 
@@ -106,7 +112,7 @@ export const useDirectoryJanitorStore = defineStore('directory-janitor', () => {
    * 清除所有筛选条件
    */
   function clearFilters() {
-    filterNamePattern.value = '';
+    filterNamePattern.value = "";
     filterMinAgeDays.value = undefined;
     filterMinSizeMB.value = undefined;
   }
@@ -115,8 +121,8 @@ export const useDirectoryJanitorStore = defineStore('directory-janitor', () => {
    * 重置所有状态
    */
   function reset() {
-    scanPath.value = '';
-    namePattern.value = '';
+    scanPath.value = "";
+    namePattern.value = "";
     minAgeDays.value = undefined;
     minSizeMB.value = undefined;
     maxDepth.value = 5;

@@ -15,7 +15,11 @@ export interface StepResult {
   error?: string;
 }
 
-export type StepProgressCallback = (index: number, status: "running" | "success" | "error", error?: string) => void;
+export type StepProgressCallback = (
+  index: number,
+  status: "running" | "success" | "error",
+  error?: string
+) => void;
 
 export class ActionRunner {
   /** 执行单步动作 */
@@ -95,7 +99,9 @@ export class ActionRunner {
 
       case "wait-idle":
         // 简单等待一段时间，真闲置检测较复杂，这里先等 2s
-        await new Promise((resolve) => setTimeout(resolve, step.timeout || 2000));
+        await new Promise((resolve) =>
+          setTimeout(resolve, step.timeout || 2000)
+        );
         break;
 
       default:
@@ -118,7 +124,10 @@ export class ActionRunner {
   }
 
   /** 执行整个动作序列（带逐步进度反馈） */
-  public async runSequenceWithProgress(steps: ActionStep[], onProgress: StepProgressCallback): Promise<StepResult[]> {
+  public async runSequenceWithProgress(
+    steps: ActionStep[],
+    onProgress: StepProgressCallback
+  ): Promise<StepResult[]> {
     const results: StepResult[] = [];
 
     for (let i = 0; i < steps.length; i++) {

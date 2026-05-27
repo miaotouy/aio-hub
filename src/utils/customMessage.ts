@@ -3,7 +3,7 @@
  * 解决无边框窗口中消息被标题栏遮挡的问题
  */
 
-import { ElMessage, MessageOptions } from 'element-plus';
+import { ElMessage, MessageOptions } from "element-plus";
 
 /**
  * 标题栏高度 (来自 TitleBar.vue)
@@ -15,12 +15,13 @@ const DEFAULT_OFFSET = 54;
 /**
  * 包装 ElMessage 方法，自动添加 offset
  */
-function createMessageWrapper(type: 'info' | 'success' | 'warning' | 'error') {
+function createMessageWrapper(type: "info" | "success" | "warning" | "error") {
   return (options: string | MessageOptions) => {
-    const finalOptions: MessageOptions = typeof options === 'string' 
-      ? { message: options, offset: DEFAULT_OFFSET }
-      : { ...options, offset: options.offset ?? DEFAULT_OFFSET };
-    
+    const finalOptions: MessageOptions =
+      typeof options === "string"
+        ? { message: options, offset: DEFAULT_OFFSET }
+        : { ...options, offset: options.offset ?? DEFAULT_OFFSET };
+
     return ElMessage[type](finalOptions);
   };
 }
@@ -31,7 +32,7 @@ function createMessageWrapper(type: 'info' | 'success' | 'warning' | 'error') {
 function message(options: MessageOptions) {
   const finalOptions = {
     ...options,
-    offset: options.offset ?? DEFAULT_OFFSET
+    offset: options.offset ?? DEFAULT_OFFSET,
   };
   return ElMessage(finalOptions);
 }
@@ -41,10 +42,10 @@ function message(options: MessageOptions) {
  * 保持与 ElMessage 完全一致的调用方式
  */
 export const customMessage = Object.assign(message, {
-  info: createMessageWrapper('info'),
-  success: createMessageWrapper('success'),
-  warning: createMessageWrapper('warning'),
-  error: createMessageWrapper('error'),
+  info: createMessageWrapper("info"),
+  success: createMessageWrapper("success"),
+  warning: createMessageWrapper("warning"),
+  error: createMessageWrapper("error"),
   closeAll: ElMessage.closeAll,
 });
 

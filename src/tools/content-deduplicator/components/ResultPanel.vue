@@ -2,7 +2,9 @@
   <InfoCard title="扫描结果" class="result-card">
     <template #header-extra>
       <div v-if="store.result" class="header-actions">
-        <el-tag type="info" size="small"> {{ store.result.statistics.totalGroups }} 组 </el-tag>
+        <el-tag type="info" size="small">
+          {{ store.result.statistics.totalGroups }} 组
+        </el-tag>
         <el-tag type="warning" size="small">
           {{ store.result.statistics.totalDuplicates }} 个冗余
         </el-tag>
@@ -24,7 +26,8 @@
         <Loading />
       </el-icon>
       <p v-if="store.scanProgress">
-        {{ stageLabel(store.scanProgress.stage) }} {{ store.scanProgress.stageProgress.current }}/{{
+        {{ stageLabel(store.scanProgress.stage) }}
+        {{ store.scanProgress.stageProgress.current }}/{{
           store.scanProgress.stageProgress.total
         }}
         <template v-if="store.scanProgress.foundGroups > 0">
@@ -38,10 +41,15 @@
     </div>
 
     <!-- 无结果 -->
-    <div v-else-if="store.result && store.result.groups.length === 0" class="empty-state">
+    <div
+      v-else-if="store.result && store.result.groups.length === 0"
+      class="empty-state"
+    >
       <CircleCheck :size="48" class="empty-icon success" />
       <p>未发现重复文件</p>
-      <p class="sub-text">共扫描 {{ store.result.statistics.totalFilesScanned }} 个文件</p>
+      <p class="sub-text">
+        共扫描 {{ store.result.statistics.totalFilesScanned }} 个文件
+      </p>
     </div>
 
     <!-- 结果列表 -->
@@ -60,7 +68,11 @@
               <Search :size="14" />
             </template>
           </el-input>
-          <el-select v-model="store.filterMatchType" size="small" style="width: 120px">
+          <el-select
+            v-model="store.filterMatchType"
+            size="small"
+            style="width: 120px"
+          >
             <el-option label="全部类型" value="all" />
             <el-option label="精确匹配" value="exact" />
             <el-option label="规范化匹配" value="normalized" />
@@ -72,7 +84,11 @@
           </el-select>
         </div>
         <div class="toolbar-right">
-          <el-button size="small" @click="store.selectAllDuplicates()" :disabled="store.isDeleting">
+          <el-button
+            size="small"
+            @click="store.selectAllDuplicates()"
+            :disabled="store.isDeleting"
+          >
             全选冗余
           </el-button>
           <el-button
@@ -114,18 +130,31 @@
                 :class="{ expanded: store.activeGroupId === group.id }"
               />
               <FileIcon :file-name="group.representativeFile.name" :size="18" />
-              <span class="group-rep-name" :title="group.representativeFile.path">
+              <span
+                class="group-rep-name"
+                :title="group.representativeFile.path"
+              >
                 {{ group.representativeFile.name }}
               </span>
               <el-tag
                 size="small"
-                :type="group.similarFiles[0]?.matchType === 'exact' ? 'danger' : 'warning'"
+                :type="
+                  group.similarFiles[0]?.matchType === 'exact'
+                    ? 'danger'
+                    : 'warning'
+                "
               >
-                {{ group.similarFiles[0]?.matchType === "exact" ? "精确" : "规范化" }}
+                {{
+                  group.similarFiles[0]?.matchType === "exact"
+                    ? "精确"
+                    : "规范化"
+                }}
               </el-tag>
             </div>
             <div class="group-header-right">
-              <span class="group-meta">{{ group.similarFiles.length }} 个冗余</span>
+              <span class="group-meta"
+                >{{ group.similarFiles.length }} 个冗余</span
+              >
               <span class="group-meta waste">{{
                 formatBytes(group.metadata.totalWastedBytes)
               }}</span>
@@ -150,16 +179,24 @@
               </div>
               <div class="file-meta">
                 <span>{{ formatBytes(group.representativeFile.size) }}</span>
-                <span class="file-date">{{ formatDate(group.representativeFile.modified) }}</span>
+                <span class="file-date">{{
+                  formatDate(group.representativeFile.modified)
+                }}</span>
               </div>
             </div>
 
             <!-- 相似文件 -->
-            <div v-for="sf in group.similarFiles" :key="sf.file.path" class="file-row duplicate">
+            <div
+              v-for="sf in group.similarFiles"
+              :key="sf.file.path"
+              class="file-row duplicate"
+            >
               <div class="file-info">
                 <el-checkbox
                   :model-value="store.selectedPaths.has(sf.file.path)"
-                  @change="(val: boolean) => toggleFileSelection(sf.file.path, val)"
+                  @change="
+                    (val: boolean) => toggleFileSelection(sf.file.path, val)
+                  "
                 />
                 <span class="file-name" :title="sf.file.path">
                   {{ sf.file.path }}
@@ -167,11 +204,15 @@
               </div>
               <div class="file-meta">
                 <span>{{ formatBytes(sf.file.size) }}</span>
-                <span class="file-date">{{ formatDate(sf.file.modified) }}</span>
+                <span class="file-date">{{
+                  formatDate(sf.file.modified)
+                }}</span>
                 <el-button
                   text
                   size="small"
-                  @click="emit('diff', group.representativeFile.path, sf.file.path)"
+                  @click="
+                    emit('diff', group.representativeFile.path, sf.file.path)
+                  "
                 >
                   <GitCompareArrows :size="14" />
                 </el-button>
@@ -184,7 +225,9 @@
       <!-- 跳过的文件 -->
       <div v-if="store.result.skippedFiles.length > 0" class="skipped-section">
         <el-collapse>
-          <el-collapse-item :title="`跳过的文件 (${store.result.skippedFiles.length})`">
+          <el-collapse-item
+            :title="`跳过的文件 (${store.result.skippedFiles.length})`"
+          >
             <div
               v-for="sf in store.result.skippedFiles.slice(0, 50)"
               :key="sf.path"
@@ -193,7 +236,10 @@
               <span class="skipped-path">{{ sf.path }}</span>
               <span class="skipped-reason">{{ sf.reason }}</span>
             </div>
-            <p v-if="store.result.skippedFiles.length > 50" class="skipped-more">
+            <p
+              v-if="store.result.skippedFiles.length > 50"
+              class="skipped-more"
+            >
               ... 还有 {{ store.result.skippedFiles.length - 50 }} 个
             </p>
           </el-collapse-item>
@@ -264,11 +310,15 @@ function toggleGroup(groupId: string) {
 }
 
 function isGroupAllSelected(group: DuplicateGroup): boolean {
-  return group.similarFiles.every((sf) => store.selectedPaths.has(sf.file.path));
+  return group.similarFiles.every((sf) =>
+    store.selectedPaths.has(sf.file.path)
+  );
 }
 
 function isGroupPartialSelected(group: DuplicateGroup): boolean {
-  const selected = group.similarFiles.filter((sf) => store.selectedPaths.has(sf.file.path)).length;
+  const selected = group.similarFiles.filter((sf) =>
+    store.selectedPaths.has(sf.file.path)
+  ).length;
   return selected > 0 && selected < group.similarFiles.length;
 }
 
@@ -394,7 +444,10 @@ function toggleFileSelection(path: string, selected: boolean) {
 }
 
 .group-header:hover {
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity, 1) * 0.04));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity, 1) * 0.04)
+  );
 }
 
 .group-header-left {
@@ -458,11 +511,17 @@ function toggleFileSelection(path: string, selected: boolean) {
 }
 
 .file-row.representative {
-  background-color: rgba(var(--el-color-success-rgb), calc(var(--card-opacity, 1) * 0.05));
+  background-color: rgba(
+    var(--el-color-success-rgb),
+    calc(var(--card-opacity, 1) * 0.05)
+  );
 }
 
 .file-row.duplicate:hover {
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity, 1) * 0.03));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity, 1) * 0.03)
+  );
 }
 
 .file-info {

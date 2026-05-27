@@ -112,7 +112,9 @@ const progress = computed(() => {
 
 const tagProgress = computed(() => {
   if (store.globalStats.totalTags === 0) return 0;
-  const rate = Math.round((store.globalStats.vectorizedTags / store.globalStats.totalTags) * 100);
+  const rate = Math.round(
+    (store.globalStats.vectorizedTags / store.globalStats.totalTags) * 100
+  );
   return Math.min(rate, 100);
 });
 
@@ -233,7 +235,9 @@ function getBaseProgress(baseId: string): number {
               <div class="stat-icon"><Tags :size="16" /></div>
               <div class="stat-content">
                 <div class="stat-label">标签总数</div>
-                <div class="stat-value">{{ store.globalStats.totalTags || 0 }}</div>
+                <div class="stat-value">
+                  {{ store.globalStats.totalTags || 0 }}
+                </div>
               </div>
             </div>
             <div class="stat-item has-progress">
@@ -256,7 +260,9 @@ function getBaseProgress(baseId: string): number {
               <div class="stat-icon"><HardDrive :size="16" /></div>
               <div class="stat-content">
                 <div class="stat-label">存储占用</div>
-                <div class="stat-value">{{ formatSize(store.globalStats.tagPoolSize || 0) }}</div>
+                <div class="stat-value">
+                  {{ formatSize(store.globalStats.tagPoolSize || 0) }}
+                </div>
               </div>
             </div>
           </div>
@@ -267,14 +273,23 @@ function getBaseProgress(baseId: string): number {
           <div class="active-task-card">
             <div class="task-info">
               <span>向量同步中</span>
-              <span>{{ store.indexingProgress.current }} / {{ store.indexingProgress.total }}</span>
+              <span
+                >{{ store.indexingProgress.current }} /
+                {{ store.indexingProgress.total }}</span
+              >
             </div>
             <el-progress
               :percentage="
-                Math.round((store.indexingProgress.current / store.indexingProgress.total) * 100)
+                Math.round(
+                  (store.indexingProgress.current /
+                    store.indexingProgress.total) *
+                    100
+                )
               "
               :stroke-width="6"
-              :status="store.indexingProgress.shouldStop ? 'exception' : 'warning'"
+              :status="
+                store.indexingProgress.shouldStop ? 'exception' : 'warning'
+              "
             />
             <div class="task-footer">
               <el-button
@@ -346,7 +361,9 @@ function getBaseProgress(baseId: string): number {
                 <div class="stat-icon-mini"><Activity :size="14" /></div>
                 <div class="stat-content">
                   <div class="stat-label">总数</div>
-                  <div class="stat-value">{{ store.globalStats.totalTags || 0 }}</div>
+                  <div class="stat-value">
+                    {{ store.globalStats.totalTags || 0 }}
+                  </div>
                 </div>
               </div>
               <div class="stat-item-mini">
@@ -360,20 +377,32 @@ function getBaseProgress(baseId: string): number {
                 <div class="stat-icon-mini"><HardDrive :size="14" /></div>
                 <div class="stat-content">
                   <div class="stat-label">占用</div>
-                  <div class="stat-value">{{ formatSize(store.globalStats.tagPoolSize || 0) }}</div>
+                  <div class="stat-value">
+                    {{ formatSize(store.globalStats.tagPoolSize || 0) }}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
-          <div v-if="store.indexingProgress.isIndexing" class="sidebar-section active-task-mini">
+          <div
+            v-if="store.indexingProgress.isIndexing"
+            class="sidebar-section active-task-mini"
+          >
             <div class="section-title">索引中</div>
             <div class="task-info">
-              <span>{{ store.indexingProgress.current }} / {{ store.indexingProgress.total }}</span>
+              <span
+                >{{ store.indexingProgress.current }} /
+                {{ store.indexingProgress.total }}</span
+              >
             </div>
             <el-progress
               :percentage="
-                Math.round((store.indexingProgress.current / store.indexingProgress.total) * 100)
+                Math.round(
+                  (store.indexingProgress.current /
+                    store.indexingProgress.total) *
+                    100
+                )
               "
               :stroke-width="4"
               status="warning"
@@ -385,7 +414,11 @@ function getBaseProgress(baseId: string): number {
         <section class="monitor-section">
           <div class="section-title">知识库详情统计</div>
           <div class="kb-stats-list">
-            <div v-for="base in store.bases" :key="base.id" class="kb-stat-card">
+            <div
+              v-for="base in store.bases"
+              :key="base.id"
+              class="kb-stat-card"
+            >
               <div class="kb-info">
                 <div class="kb-name-row">
                   <Database :size="16" class="kb-icon" />
@@ -394,7 +427,8 @@ function getBaseProgress(baseId: string): number {
                 <div class="kb-meta">
                   {{ base.entryCount }} 条目 ·
                   <template v-if="store.globalStats.basesStats[base.id]">
-                    {{ store.globalStats.basesStats[base.id].vectorized }} 已向量化
+                    {{ store.globalStats.basesStats[base.id].vectorized }}
+                    已向量化
                   </template>
                   <template v-else> - 已向量化 </template>
                 </div>
@@ -489,7 +523,8 @@ function getBaseProgress(baseId: string): number {
 
 .model-selector-section {
   background: var(--card-bg);
-  border: 1px solid rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.2));
+  border: 1px solid
+    rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.2));
 }
 
 .model-selector {
@@ -542,7 +577,10 @@ function getBaseProgress(baseId: string): number {
   width: 28px;
   height: 28px;
   border-radius: 6px;
-  background: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.1));
+  background: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
   color: var(--el-color-primary);
   flex-shrink: 0;
 }
@@ -584,7 +622,10 @@ function getBaseProgress(baseId: string): number {
   width: 24px;
   height: 24px;
   border-radius: 4px;
-  background: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.1));
+  background: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
   color: var(--el-color-primary);
   flex-shrink: 0;
 }
@@ -611,8 +652,12 @@ function getBaseProgress(baseId: string): number {
 }
 
 .active-task-card {
-  background: rgba(var(--el-color-warning-rgb), calc(var(--card-opacity) * 0.1));
-  border: 1px solid rgba(var(--el-color-warning-rgb), calc(var(--card-opacity) * 0.3));
+  background: rgba(
+    var(--el-color-warning-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
+  border: 1px solid
+    rgba(var(--el-color-warning-rgb), calc(var(--card-opacity) * 0.3));
   border-radius: 8px;
   padding: 12px;
 }

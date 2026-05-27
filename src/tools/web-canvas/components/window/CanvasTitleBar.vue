@@ -19,8 +19,15 @@
           <RefreshCw :size="14" />
         </button>
       </el-tooltip>
-      <el-tooltip :content="showStatusBar ? '隐藏状态栏' : '显示状态栏'" placement="bottom">
-        <button class="icon-btn" :class="{ 'is-active': showStatusBar }" @click="$emit('toggle-status-bar')">
+      <el-tooltip
+        :content="showStatusBar ? '隐藏状态栏' : '显示状态栏'"
+        placement="bottom"
+      >
+        <button
+          class="icon-btn"
+          :class="{ 'is-active': showStatusBar }"
+          @click="$emit('toggle-status-bar')"
+        >
           <PanelBottom :size="14" />
         </button>
       </el-tooltip>
@@ -30,8 +37,15 @@
         </button>
       </el-tooltip>
       <div class="divider" />
-      <el-tooltip :content="pinned ? '取消置顶' : '固定标题栏'" placement="bottom">
-        <button class="icon-btn" :class="{ 'is-active': pinned }" @click="$emit('update:pinned', !pinned)">
+      <el-tooltip
+        :content="pinned ? '取消置顶' : '固定标题栏'"
+        placement="bottom"
+      >
+        <button
+          class="icon-btn"
+          :class="{ 'is-active': pinned }"
+          @click="$emit('update:pinned', !pinned)"
+        >
           <Pin :size="14" :fill="pinned ? 'currentColor' : 'none'" />
         </button>
       </el-tooltip>
@@ -40,10 +54,18 @@
     <!-- 右侧：窗口控制按钮（no-drag，按钮可点击） -->
     <div class="bar-right">
       <template v-if="!isMacOS">
-        <button class="win-btn minimize-btn" title="最小化" @click="minimizeWindow">
+        <button
+          class="win-btn minimize-btn"
+          title="最小化"
+          @click="minimizeWindow"
+        >
           <Minus :size="16" />
         </button>
-        <button class="win-btn maximize-btn" :title="isMaximized ? '还原' : '最大化'" @click="toggleMaximize">
+        <button
+          class="win-btn maximize-btn"
+          :title="isMaximized ? '还原' : '最大化'"
+          @click="toggleMaximize"
+        >
           <Layers v-if="isMaximized" :size="14" />
           <Square v-else :size="14" />
         </button>
@@ -57,7 +79,17 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from "vue";
-import { Brush, RefreshCw, PanelBottom, ExternalLink, X, Pin, Minus, Square, Layers } from "lucide-vue-next";
+import {
+  Brush,
+  RefreshCw,
+  PanelBottom,
+  ExternalLink,
+  X,
+  Pin,
+  Minus,
+  Square,
+  Layers,
+} from "lucide-vue-next";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { platform } from "@tauri-apps/plugin-os";
 
@@ -254,7 +286,10 @@ const toggleMaximize = () => appWindow.toggleMaximize();
   }
 
   &.is-active {
-    background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.1));
+    background-color: rgba(
+      var(--el-color-primary-rgb),
+      calc(var(--card-opacity) * 0.1)
+    );
     color: var(--el-color-primary);
   }
 }

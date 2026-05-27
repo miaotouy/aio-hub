@@ -15,7 +15,9 @@ export class CanvasAgentService {
   /**
    * 为 Agent 提供额外的上下文信息
    */
-  async getExtraPromptContext(context?: AgentExtensionContext): Promise<string> {
+  async getExtraPromptContext(
+    context?: AgentExtensionContext
+  ): Promise<string> {
     let canvasStore;
     try {
       canvasStore = useCanvasStore();
@@ -24,10 +26,13 @@ export class CanvasAgentService {
     }
 
     // 优先级：Agent 绑定的 ID > UI 激活的 ID
-    const canvasId = context?.toolSettings?.canvasId || canvasStore.activeCanvasId;
+    const canvasId =
+      context?.toolSettings?.canvasId || canvasStore.activeCanvasId;
     if (!canvasId) return "";
 
-    const activeCanvas = canvasStore.canvasList.find((c) => c.metadata.id === canvasId);
+    const activeCanvas = canvasStore.canvasList.find(
+      (c) => c.metadata.id === canvasId
+    );
     if (!activeCanvas) return "";
 
     try {
@@ -46,7 +51,9 @@ export class CanvasAgentService {
                     ? " (deleted)"
                     : "";
             if (node.isDirectory) {
-              const children = node.children ? buildFileList(node.children, indent + "  ") : "";
+              const children = node.children
+                ? buildFileList(node.children, indent + "  ")
+                : "";
               return `${indent}- ${node.name}/${children ? "\n" + children : ""}`;
             }
             return `${indent}- ${node.name}${statusTag}`;
@@ -73,7 +80,10 @@ ${changesStr}`;
 
       // 注入运行时错误信息
       if (canvasStore.config.autoIncludeErrors) {
-        const errorContext = canvasStore.getFormattedErrorContext(canvasId, canvasStore.config.maxRuntimeErrors);
+        const errorContext = canvasStore.getFormattedErrorContext(
+          canvasId,
+          canvasStore.config.maxRuntimeErrors
+        );
         if (errorContext) {
           context += `\n\n--- RUNTIME ERRORS ---\n${errorContext}\n----------------------`;
         }
@@ -91,17 +101,26 @@ ${changesStr}`;
   /**
    * 读取文件内容并添加行号
    */
-  async readFileWithLineNumbers(path: string, canvasId?: string): Promise<string> {
+  async readFileWithLineNumbers(
+    path: string,
+    canvasId?: string
+  ): Promise<string> {
     const canvasStore = useCanvasStore();
     const id = canvasId || canvasStore.activeCanvasId;
-    if (!id) throw new Error("No active canvas. Please open or create a canvas first.");
+    if (!id)
+      throw new Error(
+        "No active canvas. Please open or create a canvas first."
+      );
 
     const content = await canvasStore.readCanvasFileAsync(id, path);
     if (content === null) throw new Error(`File not found: ${path}`);
 
     return content
       .split(/\r?\n/)
-      .map((line: string, index: number) => `${String(index + 1).padStart(4, " ")} | ${line}`)
+      .map(
+        (line: string, index: number) =>
+          `${String(index + 1).padStart(4, " ")} | ${line}`
+      )
       .join("\n");
   }
 
@@ -123,7 +142,7 @@ ${changesStr}`;
       args.path,
       args.search,
       args.replace,
-      args.start_line,
+      args.start_line
     )) as DiffResult;
 
     return this.formatDiffFeedback(result, args.path);
@@ -148,7 +167,9 @@ ${changesStr}`;
     parts.push(`at lines ${result.matchRange[0]}-${result.matchRange[1]}`);
 
     if (result.warnings.length > 0) {
-      parts.push(`\nWarnings:\n${result.warnings.map((w) => `- ${w}`).join("\n")}`);
+      parts.push(
+        `\nWarnings:\n${result.warnings.map((w) => `- ${w}`).join("\n")}`
+      );
     }
 
     return parts.join(" ");
@@ -157,7 +178,11 @@ ${changesStr}`;
   /**
    * 写入文件
    */
-  async writeFile(args: { path: string; content: string; canvasId?: string }): Promise<string> {
+  async writeFile(args: {
+    path: string;
+    content: string;
+    canvasId?: string;
+  }): Promise<string> {
     const canvasStore = useCanvasStore();
     const canvasId = args.canvasId || (await canvasStore.ensureActiveCanvas());
     await canvasStore.writeFilePhysical(canvasId, args.path, args.content);
@@ -167,7 +192,10 @@ ${changesStr}`;
   /**
    * 提交更改
    */
-  async commitChanges(args: { message?: string; canvasId?: string }): Promise<string> {
+  async commitChanges(args: {
+    message?: string;
+    canvasId?: string;
+  }): Promise<string> {
     const canvasStore = useCanvasStore();
     const canvasId = args.canvasId || canvasStore.activeCanvasId;
     if (!canvasId) throw new Error("No active canvas to commit.");
@@ -199,9 +227,15 @@ ${changesStr}`;
   /**
    * 创建画布
    */
-  async createCanvas(args: { title: string; templateId?: string }): Promise<any> {
+  async createCanvas(args: {
+    title: string;
+    templateId?: string;
+  }): Promise<any> {
     const canvasStore = useCanvasStore();
-    const metadata = await canvasStore.createCanvas(args.title, args.templateId);
+    const metadata = await canvasStore.createCanvas(
+      args.title,
+      args.templateId
+    );
     return { success: !!metadata, canvasId: metadata?.id };
   }
 
@@ -219,17 +253,34 @@ ${changesStr}`;
   /**
    * 审批预览钩子
    */
-  async onToolCallPreview(requestId: string, methodName: string, args: Record<string, any>) {
+  async onToolCallPreview(
+    requestId: string,
+    methodName: string,
+    args: Record<string, any>
+  ) {
     const canvasStore = useCanvasStore();
 
-    if (methodName === "apply_canvas_diff" && args.path && args.search !== undefined && args.replace !== undefined) {
-      const canvasId = args.canvasId || (await canvasStore.ensureActiveCanvas());
-      await canvasStore.applyDiff(canvasId, args.path, args.search, args.replace, args.start_line);
+    if (
+      methodName === "apply_canvas_diff" &&
+      args.path &&
+      args.search !== undefined &&
+      args.replace !== undefined
+    ) {
+      const canvasId =
+        args.canvasId || (await canvasStore.ensureActiveCanvas());
+      await canvasStore.applyDiff(
+        canvasId,
+        args.path,
+        args.search,
+        args.replace,
+        args.start_line
+      );
       canvasStore.registerPreviewRequest(requestId, canvasId, [args.path]);
     }
 
     if (methodName === "write_canvas_file" && args.path && args.content) {
-      const canvasId = args.canvasId || (await canvasStore.ensureActiveCanvas());
+      const canvasId =
+        args.canvasId || (await canvasStore.ensureActiveCanvas());
       await canvasStore.writeFilePhysical(canvasId, args.path, args.content);
       canvasStore.registerPreviewRequest(requestId, canvasId, [args.path]);
     }
@@ -259,7 +310,9 @@ ${changesStr}`;
     }
 
     canvasStore.removePreviewRequest(requestId);
-    request.affectedFiles.forEach((f) => canvasStore.emitFileChanged(request.canvasId, f));
+    request.affectedFiles.forEach((f) =>
+      canvasStore.emitFileChanged(request.canvasId, f)
+    );
     await canvasStore.refreshGitStatus(request.canvasId);
   }
 }

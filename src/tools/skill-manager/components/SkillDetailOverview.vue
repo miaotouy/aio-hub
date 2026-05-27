@@ -13,44 +13,71 @@
     </div>
 
     <!-- 脚本列表 -->
-    <div class="content-section" v-if="manifest.scripts && manifest.scripts.length > 0">
+    <div
+      class="content-section"
+      v-if="manifest.scripts && manifest.scripts.length > 0"
+    >
       <div class="section-header">
         <Terminal :size="16" />
         <span>可用脚本</span>
       </div>
       <div class="script-grid">
-        <div v-for="script in manifest.scripts" :key="script.relativePath" class="script-card">
+        <div
+          v-for="script in manifest.scripts"
+          :key="script.relativePath"
+          class="script-card"
+        >
           <div class="script-card-header">
             <span class="script-name">{{ script.name }}</span>
-            <span class="lang-badge" :class="script.language">{{ script.language }}</span>
+            <span class="lang-badge" :class="script.language">{{
+              script.language
+            }}</span>
           </div>
           <div class="script-path">{{ script.relativePath }}</div>
-          <div class="script-description" v-if="script.description">{{ script.description }}</div>
+          <div class="script-description" v-if="script.description">
+            {{ script.description }}
+          </div>
         </div>
       </div>
     </div>
 
     <!-- 允许的工具 -->
-    <div class="content-section" v-if="manifest.allowedTools && manifest.allowedTools.length > 0">
+    <div
+      class="content-section"
+      v-if="manifest.allowedTools && manifest.allowedTools.length > 0"
+    >
       <div class="section-header">
         <Wrench :size="16" />
         <span>允许使用的工具</span>
       </div>
       <div class="tag-group">
-        <el-tag v-for="tool in manifest.allowedTools" :key="tool" size="small" effect="plain" round>
+        <el-tag
+          v-for="tool in manifest.allowedTools"
+          :key="tool"
+          size="small"
+          effect="plain"
+          round
+        >
           {{ tool }}
         </el-tag>
       </div>
     </div>
 
     <!-- 元数据 -->
-    <div class="content-section" v-if="manifest.metadata && Object.keys(manifest.metadata).length > 0">
+    <div
+      class="content-section"
+      v-if="manifest.metadata && Object.keys(manifest.metadata).length > 0"
+    >
       <div class="section-header">
         <Database :size="16" />
         <span>元数据</span>
       </div>
       <div class="metadata-table">
-        <div v-for="(value, key) in manifest.metadata" :key="key" class="metadata-row">
+        <div
+          v-for="(value, key) in manifest.metadata"
+          :key="key"
+          class="metadata-row"
+        >
           <span class="meta-key">{{ key }}</span>
           <span class="meta-value">{{ value }}</span>
         </div>

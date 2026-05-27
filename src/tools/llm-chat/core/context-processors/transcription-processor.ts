@@ -7,7 +7,9 @@ import type { Asset } from "@/types/asset-management";
 import type { ChatTranscriptionConfig } from "../../types/settings";
 
 const logger = createModuleLogger("llm-chat/transcription-processor");
-const errorHandler = createModuleErrorHandler("llm-chat/transcription-processor");
+const errorHandler = createModuleErrorHandler(
+  "llm-chat/transcription-processor"
+);
 
 /**
  * 占位符正则表达式：匹配 【file::assetId】
@@ -18,7 +20,10 @@ const PLACEHOLDER_REGEX = /【file::([^\s】]+)】/g;
 /**
  * 根据 assetId 查找附件
  */
-function findAttachmentById(attachments: Asset[], assetId: string): Asset | undefined {
+function findAttachmentById(
+  attachments: Asset[],
+  assetId: string
+): Asset | undefined {
   return attachments.find((a) => a.id === assetId);
 }
 
@@ -39,13 +44,22 @@ function generateAttachmentLabel(index: number, name: string): string {
 function replacePlaceholders(
   text: string,
   assets: Asset[],
-  transcriptionResults: Map<string, string>,
-): { content: string; claimedAssets: Set<string>; unmatchedPlaceholders: string[] } {
+  transcriptionResults: Map<string, string>
+): {
+  content: string;
+  claimedAssets: Set<string>;
+  unmatchedPlaceholders: string[];
+} {
   const claimedAssets = new Set<string>();
   const unmatchedPlaceholders: string[] = [];
 
   // 先解析所有占位符，收集所有需要替换的位置
-  const replacements: { start: number; end: number; assetId: string; replacement: string }[] = [];
+  const replacements: {
+    start: number;
+    end: number;
+    assetId: string;
+    replacement: string;
+  }[] = [];
 
   // 使用 exec 循环查找所有占位符
   let match: RegExpExecArray | null;
@@ -90,7 +104,10 @@ function replacePlaceholders(
 
   let result = text;
   for (const rep of replacements) {
-    result = result.substring(0, rep.start) + rep.replacement + result.substring(rep.end);
+    result =
+      result.substring(0, rep.start) +
+      rep.replacement +
+      result.substring(rep.end);
   }
 
   logger.debug("占位符替换完成", {
@@ -107,7 +124,7 @@ function replacePlaceholders(
  */
 function buildAttachmentContent(
   unclaimedAssets: Asset[],
-  transcriptionResults: Map<string, string>,
+  transcriptionResults: Map<string, string>
 ): LlmMessageContent[] {
   const contents: LlmMessageContent[] = [];
 
@@ -136,7 +153,9 @@ export const transcriptionProcessor: ContextProcessor = {
   defaultEnabled: true,
   execute: async (context: PipelineContext) => {
     const agentConfig = context.agentConfig;
-    const transcriptionConfig = context.sharedData.get("transcriptionConfig") as ChatTranscriptionConfig | undefined;
+    const transcriptionConfig = context.sharedData.get(
+      "transcriptionConfig"
+    ) as ChatTranscriptionConfig | undefined;
 
     // 如果转写功能未启用，则跳过此处理器的核心逻辑（占位符替换除外，但占位符通常配合转写使用）
     // 注意：即使关闭转写，我们也可能需要处理已经存在的转写结果或简单的占位符标注，
@@ -153,7 +172,8 @@ export const transcriptionProcessor: ContextProcessor = {
     // 1. 从 sharedData 获取预处理阶段准备好的 Asset 映射
     // 转写等待逻辑已在管道执行前由 useChatExecutor 完成
     const updatedAssetsMap =
-      (context.sharedData.get("updatedAssetsMap") as Map<string, Asset>) || new Map<string, Asset>();
+      (context.sharedData.get("updatedAssetsMap") as Map<string, Asset>) ||
+      new Map<string, Asset>();
 
     const totalMessages = context.messages.length;
     for (let i = 0; i < totalMessages; i++) {
@@ -170,21 +190,33 @@ export const transcriptionProcessor: ContextProcessor = {
 
       // 预先处理所有附件，获取转写结果
       // 使用预处理阶段获取的最新 Asset，避免重复异步调用
-      const assetsToProcess = msg._attachments.map((asset) => updatedAssetsMap.get(asset.id) || asset);
+      const assetsToProcess = msg._attachments.map(
+        (asset) => updatedAssetsMap.get(asset.id) || asset
+      );
 
       // 检查是否需要强制转写
       let forceTranscription = false;
-      if (transcriptionConfig?.strategy === "smart" && transcriptionConfig.forceTranscriptionAfter > 0) {
+      if (
+        transcriptionConfig?.strategy === "smart" &&
+        transcriptionConfig.forceTranscriptionAfter > 0
+      ) {
         const messageIndexFromEnd = totalMessages - 1 - i;
-        if (messageIndexFromEnd >= transcriptionConfig.forceTranscriptionAfter) {
+        if (
+          messageIndexFromEnd >= transcriptionConfig.forceTranscriptionAfter
+        ) {
           forceTranscription = true;
         }
       }
 
       try {
-        const resolvedResults = await resolveAttachmentsBatch(assetsToProcess, modelId, profileId, {
-          force: forceTranscription,
-        });
+        const resolvedResults = await resolveAttachmentsBatch(
+          assetsToProcess,
+          modelId,
+          profileId,
+          {
+            force: forceTranscription,
+          }
+        );
 
         for (const result of resolvedResults) {
           if (result.type === "text" && result.content) {
@@ -216,7 +248,11 @@ export const transcriptionProcessor: ContextProcessor = {
 
       // 处理字符串类型的内容
       if (typeof msg.content === "string" && msg.content) {
-        const result = replacePlaceholders(msg.content, currentAttachments, transcriptionResults);
+        const result = replacePlaceholders(
+          msg.content,
+          currentAttachments,
+          transcriptionResults
+        );
 
         if (result.claimedAssets.size > 0) {
           // 有占位符被替换
@@ -243,7 +279,11 @@ export const transcriptionProcessor: ContextProcessor = {
 
         for (const part of msg.content) {
           if (part.type === "text" && part.text) {
-            const result = replacePlaceholders(part.text, currentAttachments, transcriptionResults);
+            const result = replacePlaceholders(
+              part.text,
+              currentAttachments,
+              transcriptionResults
+            );
 
             if (result.claimedAssets.size > 0) {
               // 有占位符被替换
@@ -273,12 +313,15 @@ export const transcriptionProcessor: ContextProcessor = {
       // 3. 处理未被占位符认领的转写附件
       // 从原始附件列表中找出"有转写结果但未被占位符认领"的附件
       const unclaimedWithTranscription = currentAttachments.filter(
-        (a) => transcriptionResults.has(a.id) && !allClaimedAssetIds.has(a.id),
+        (a) => transcriptionResults.has(a.id) && !allClaimedAssetIds.has(a.id)
       );
 
       // 如果有需要追加的内容（回退到末尾追加模式）
       if (unclaimedWithTranscription.length > 0) {
-        const additionalContent = buildAttachmentContent(unclaimedWithTranscription, transcriptionResults);
+        const additionalContent = buildAttachmentContent(
+          unclaimedWithTranscription,
+          transcriptionResults
+        );
 
         // 过滤出文本类型的 content
         const textContent = additionalContent
@@ -291,7 +334,10 @@ export const transcriptionProcessor: ContextProcessor = {
           if (typeof msg.content === "string") {
             msg.content = msg.content + textToAppend;
           } else if (Array.isArray(msg.content)) {
-            msg.content = [...(Array.isArray(msg.content) ? msg.content : []), ...additionalContent];
+            msg.content = [
+              ...(Array.isArray(msg.content) ? msg.content : []),
+              ...additionalContent,
+            ];
           }
           contentModified = true;
         }
@@ -302,7 +348,9 @@ export const transcriptionProcessor: ContextProcessor = {
       // - 如果占位符只是做了标注（没有转写结果），则必须保留原始附件以供多模态模型使用。
       if (contentModified) {
         // 找出那些“确实被转写为文本”的已认领附件
-        const claimedWithTranscription = new Set([...allClaimedAssetIds].filter((id) => transcriptionResults.has(id)));
+        const claimedWithTranscription = new Set(
+          [...allClaimedAssetIds].filter((id) => transcriptionResults.has(id))
+        );
 
         // 最终需要从附件列表中移除的集合：
         // 1. 被占位符认领且有转写结果的
@@ -312,7 +360,9 @@ export const transcriptionProcessor: ContextProcessor = {
           ...unclaimedWithTranscription.map((a) => a.id),
         ]);
 
-        msg._attachments = remainingAttachments.filter((a) => !processedAssetIds.has(a.id));
+        msg._attachments = remainingAttachments.filter(
+          (a) => !processedAssetIds.has(a.id)
+        );
       }
     }
 

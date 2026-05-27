@@ -108,7 +108,11 @@ export function useGitAnalyzerRunner() {
   /**
    * 处理进度事件
    */
-  function handleProgressEvent(event: GitProgressEvent, isIncremental: boolean, initialCount: number) {
+  function handleProgressEvent(
+    event: GitProgressEvent,
+    isIncremental: boolean,
+    initialCount: number
+  ) {
     switch (event.type) {
       case "start": {
         state.progress.value.total = event.total || state.limitCount.value;
@@ -120,7 +124,9 @@ export function useGitAnalyzerRunner() {
           }
         }
         const loadType = state.batchSize.value === 0 ? "" : "流式";
-        logger.info(`开始${isIncremental ? "增量" : ""}${loadType}加载，目标总数 ${event.total}`);
+        logger.info(
+          `开始${isIncremental ? "增量" : ""}${loadType}加载，目标总数 ${event.total}`
+        );
         break;
       }
 
@@ -129,15 +135,24 @@ export function useGitAnalyzerRunner() {
           state.commits.value = [...state.commits.value, ...event.commits];
 
           // 如果 commit 自带 files，直接存入缓存
-          if (state.includeFiles.value && event.commits.some((c: GitCommit) => c.files)) {
+          if (
+            state.includeFiles.value &&
+            event.commits.some((c: GitCommit) => c.files)
+          ) {
             const repoPath = state.repoPath.value;
             const branch = state.selectedBranch.value;
-            const existing = commitCache.getBatchCommits(repoPath, branch) || [];
-            commitCache.setBatchCommits(repoPath, branch, [...existing, ...event.commits]);
+            const existing =
+              commitCache.getBatchCommits(repoPath, branch) || [];
+            commitCache.setBatchCommits(repoPath, branch, [
+              ...existing,
+              ...event.commits,
+            ]);
           }
 
           if (state.loadConfig.value.includeLineStats) {
-            event.commits.forEach((commit) => state.enrichedHashes.value.add(commit.hash));
+            event.commits.forEach((commit) =>
+              state.enrichedHashes.value.add(commit.hash)
+            );
             state.enrichedHashes.value = new Set(state.enrichedHashes.value);
           }
 
@@ -151,7 +166,9 @@ export function useGitAnalyzerRunner() {
           // 实时更新已加载限制，以便终止后能继续增量加载
           state.lastLoadedLimit.value = state.progress.value.loaded;
 
-          logger.debug(`加载进度: ${event.loaded} / ${state.progress.value.total}`);
+          logger.debug(
+            `加载进度: ${event.loaded} / ${state.progress.value.total}`
+          );
         }
         break;
 
@@ -171,13 +188,15 @@ export function useGitAnalyzerRunner() {
           state.lastLoadedLimit.value = state.limitCount.value;
           const newCount = state.commits.value.length - initialCount;
           customMessage.success(
-            `增量${loadType}加载完成，新增 ${newCount} 条记录，共 ${state.commits.value.length} 条`,
+            `增量${loadType}加载完成，新增 ${newCount} 条记录，共 ${state.commits.value.length} 条`
           );
         } else {
           state.lastLoadedRepo.value = state.repoPath.value;
           state.lastLoadedBranch.value = state.selectedBranch.value;
           state.lastLoadedLimit.value = state.limitCount.value;
-          customMessage.success(`${loadType}加载完成，共 ${state.commits.value.length} 条提交记录`);
+          customMessage.success(
+            `${loadType}加载完成，共 ${state.commits.value.length} 条提交记录`
+          );
         }
 
         // 现在文件信息已经默认包含或动态获取，不再需要额外的后台补充逻辑
@@ -205,7 +224,10 @@ export function useGitAnalyzerRunner() {
         state.progress.value.loading = false;
         state.loading.value = false;
         const errorMsg = `${isIncremental ? "增量" : ""}加载失败: ${event.message}`;
-        errorHandler.error(new Error(event.message || "Unknown error"), errorMsg);
+        errorHandler.error(
+          new Error(event.message || "Unknown error"),
+          errorMsg
+        );
         break;
       }
     }
@@ -233,20 +255,27 @@ export function useGitAnalyzerRunner() {
       isSameRepo &&
       isSameBranch &&
       state.lastLoadedLimit.value > 0 &&
-      (state.limitCount.value > state.lastLoadedLimit.value || state.limitCount.value === 0);
+      (state.limitCount.value > state.lastLoadedLimit.value ||
+        state.limitCount.value === 0);
 
     if (isIncrementalLoad) {
       // 增量加载
       const skip = state.lastLoadedLimit.value;
       // 如果 limitCount 为 0，则 newLimit 也设为 0（表示加载剩余全部）
-      const newLimit = state.limitCount.value === 0 ? 0 : state.limitCount.value - state.lastLoadedLimit.value;
+      const newLimit =
+        state.limitCount.value === 0
+          ? 0
+          : state.limitCount.value - state.lastLoadedLimit.value;
       const initialCommitCount = state.commits.value.length;
 
       state.loading.value = true;
       state.progress.value = {
         loading: true,
         loaded: skip,
-        total: state.limitCount.value === 0 ? state.progress.value.total : state.limitCount.value,
+        total:
+          state.limitCount.value === 0
+            ? state.progress.value.total
+            : state.limitCount.value,
       };
 
       try {
@@ -259,9 +288,10 @@ export function useGitAnalyzerRunner() {
             batchSize: state.batchSize.value,
             includeFiles: state.loadConfig.value.includeFilePaths,
             includeLineStats: state.loadConfig.value.includeLineStats,
-            includeBranchInference: state.loadConfig.value.includeBranchInference,
+            includeBranchInference:
+              state.loadConfig.value.includeBranchInference,
           },
-          (event) => handleProgressEvent(event, true, initialCommitCount),
+          (event) => handleProgressEvent(event, true, initialCommitCount)
         );
         return true;
       } catch (error) {
@@ -291,7 +321,7 @@ export function useGitAnalyzerRunner() {
           includeLineStats: state.loadConfig.value.includeLineStats,
           includeBranchInference: state.loadConfig.value.includeBranchInference,
         },
-        (event) => handleProgressEvent(event, false, 0),
+        (event) => handleProgressEvent(event, false, 0)
       );
       return true;
     } catch (error) {
@@ -330,7 +360,9 @@ export function useGitAnalyzerRunner() {
         const branch = state.selectedBranch.value;
 
         for (const enrichment of event.enriched || []) {
-          const commit = state.commits.value.find((c) => c.hash === enrichment.hash);
+          const commit = state.commits.value.find(
+            (c) => c.hash === enrichment.hash
+          );
           if (!commit) continue;
 
           if (enrichment.stats) commit.stats = enrichment.stats;
@@ -344,9 +376,10 @@ export function useGitAnalyzerRunner() {
         commitCache.setBatchCommits(
           repoPath,
           branch,
-          state.commits.value.filter((commit) => commit.files),
+          state.commits.value.filter((commit) => commit.files)
         );
-        state.enrichProgress.value.loaded = event.progress || state.enrichProgress.value.loaded;
+        state.enrichProgress.value.loaded =
+          event.progress || state.enrichProgress.value.loaded;
         filterCommits();
         break;
       }
@@ -367,7 +400,10 @@ export function useGitAnalyzerRunner() {
       case "error":
         state.enriching.value = false;
         state.loadingFiles.value = false;
-        errorHandler.error(new Error(event.message || "Unknown error"), `补充数据失败: ${event.message}`);
+        errorHandler.error(
+          new Error(event.message || "Unknown error"),
+          `补充数据失败: ${event.message}`
+        );
         break;
     }
   }
@@ -386,7 +422,9 @@ export function useGitAnalyzerRunner() {
 
     const hashesToEnrich =
       options?.hashes ??
-      state.commits.value.filter((commit) => !state.enrichedHashes.value.has(commit.hash)).map((commit) => commit.hash);
+      state.commits.value
+        .filter((commit) => !state.enrichedHashes.value.has(commit.hash))
+        .map((commit) => commit.hash);
 
     if (hashesToEnrich.length === 0) {
       customMessage.info("当前提交数据已完整");
@@ -407,7 +445,7 @@ export function useGitAnalyzerRunner() {
           includeFiles: options?.includeFiles ?? true,
           includeBranches: options?.includeBranches ?? false,
         },
-        handleEnrichEvent,
+        handleEnrichEvent
       );
       return true;
     } catch (error) {
@@ -433,7 +471,10 @@ export function useGitAnalyzerRunner() {
     }
     // 首先根据范围选择器从原始列表中切片
     // slice 的 end 参数不包含该索引，所以需要 +1 来包含结束位置的提交
-    const rangedCommits = state.commits.value.slice(state.commitRange.value[0], state.commitRange.value[1] + 1);
+    const rangedCommits = state.commits.value.slice(
+      state.commitRange.value[0],
+      state.commitRange.value[1] + 1
+    );
 
     // 应用筛选
     const filtered = processFilter(rangedCommits, {
@@ -472,7 +513,11 @@ export function useGitAnalyzerRunner() {
 
     state.loading.value = true;
     try {
-      const result = await apiUpdateCommitMessage(currentRepoPath, hash, message);
+      const result = await apiUpdateCommitMessage(
+        currentRepoPath,
+        hash,
+        message
+      );
       customMessage.success(result);
 
       // 更新本地状态中的提交记录

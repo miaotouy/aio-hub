@@ -1,32 +1,51 @@
 /**
  * 状态同步引擎 Composable
- * 
+ *
  * 封装了与 WindowSyncBus 交互的状态同步逻辑，
  * 实现了自动的状态推送和接收，并支持增量更新。
  */
-import { ref, onUnmounted, type Ref, isRef, watch, nextTick, getCurrentInstance } from 'vue';
-import { useWindowSyncBus } from './useWindowSyncBus';
-import { calculateDiff, applyPatches, shouldUseDelta, debounce, VersionGenerator, deepEqual } from '@/utils/sync-helpers';
-import { createModuleLogger } from '@/utils/logger';
-import { createModuleErrorHandler } from '@/utils/errorHandler';
+import {
+  ref,
+  onUnmounted,
+  type Ref,
+  isRef,
+  watch,
+  nextTick,
+  getCurrentInstance,
+} from "vue";
+import { useWindowSyncBus } from "./useWindowSyncBus";
+import {
+  calculateDiff,
+  applyPatches,
+  shouldUseDelta,
+  debounce,
+  VersionGenerator,
+  deepEqual,
+} from "@/utils/sync-helpers";
+import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type {
   StateSyncConfig,
   StateSyncPayload,
   JsonPatchOperation,
   BaseMessage,
   StateKey,
-  StateSyncBatchPayload
-} from '@/types/window-sync';
+  StateSyncBatchPayload,
+} from "@/types/window-sync";
 
-const logger = createModuleLogger('StateSyncEngine');
-const errorHandler = createModuleErrorHandler('StateSyncEngine');
+const logger = createModuleLogger("StateSyncEngine");
+const errorHandler = createModuleErrorHandler("StateSyncEngine");
 
 // ==========================================
 // 全局同步源注册中心
 // ==========================================
 
 type SyncSource = {
-  pushState: (isFullSync?: boolean, targetWindowLabel?: string, silent?: boolean) => Promise<void>;
+  pushState: (
+    isFullSync?: boolean,
+    targetWindowLabel?: string,
+    silent?: boolean
+  ) => Promise<void>;
   getStatePayload: (isFullSync?: boolean) => Promise<StateSyncPayload | null>;
   stateKey: string;
 };
@@ -40,20 +59,22 @@ let isRegistryInitialized = false;
  */
 function initRegistryListeners() {
   if (isRegistryInitialized) return;
-  
+
   const bus = useWindowSyncBus();
-  
+
   // 仅主窗口和工具窗口需要响应同步请求
-  if (bus.windowType !== 'main' && bus.windowType !== 'detached-tool') {
+  if (bus.windowType !== "main" && bus.windowType !== "detached-tool") {
     return;
   }
 
   // 1. 监听初始状态请求，批量推送所有注册源的全量状态
   bus.onInitialStateRequest(async (requesterLabel) => {
-    logger.info(`[${bus.windowType}] 收到来自 ${requesterLabel} 的初始状态请求，开始打包批量推送...`);
-    
+    logger.info(
+      `[${bus.windowType}] 收到来自 ${requesterLabel} 的初始状态请求，开始打包批量推送...`
+    );
+
     const batchStates: StateSyncPayload[] = [];
-    
+
     for (const source of syncRegistry) {
       try {
         // 获取全量状态载荷
@@ -63,39 +84,48 @@ function initRegistryListeners() {
         }
       } catch (err) {
         errorHandler.handle(err, {
-          userMessage: '获取批量同步状态失败',
+          userMessage: "获取批量同步状态失败",
           context: { stateKey: source.stateKey },
-          showToUser: false
+          showToUser: false,
         });
       }
     }
-    
+
     if (batchStates.length > 0) {
       await bus.syncStateBatch(batchStates, requesterLabel);
-      logger.info(`[${bus.windowType}] 已向 ${requesterLabel} 发送批量状态同步包`, {
-        statesCount: batchStates.length
-      });
+      logger.info(
+        `[${bus.windowType}] 已向 ${requesterLabel} 发送批量状态同步包`,
+        {
+          statesCount: batchStates.length,
+        }
+      );
     } else {
-      logger.warn(`[${bus.windowType}] 初始状态请求没有可用的状态源`, { requesterLabel });
+      logger.warn(`[${bus.windowType}] 初始状态请求没有可用的状态源`, {
+        requesterLabel,
+      });
     }
   });
 
   // 2. 监听重连事件，广播所有注册源的全量状态
   bus.onReconnect(() => {
     logger.info(`[${bus.windowType}] 窗口重新获得焦点，开始广播所有状态...`);
-    
+
     for (const source of syncRegistry) {
       // 广播全量状态（静默模式）
-      source.pushState(true, undefined, true).catch(err => {
-        errorHandler.handle(err, { userMessage: '广播状态失败', context: { stateKey: source.stateKey }, showToUser: false });
+      source.pushState(true, undefined, true).catch((err) => {
+        errorHandler.handle(err, {
+          userMessage: "广播状态失败",
+          context: { stateKey: source.stateKey },
+          showToUser: false,
+        });
       });
     }
-    
+
     logger.info(`[${bus.windowType}] 所有状态广播完成`);
   });
 
   isRegistryInitialized = true;
-  logger.info('StateSyncEngine 全局注册中心已初始化');
+  logger.info("StateSyncEngine 全局注册中心已初始化");
 }
 
 /**
@@ -105,9 +135,9 @@ function initRegistryListeners() {
 export function registerSyncSource(source: SyncSource) {
   // 确保监听器已初始化
   initRegistryListeners();
-  
+
   syncRegistry.add(source);
-  
+
   return () => {
     syncRegistry.delete(source);
   };
@@ -129,7 +159,7 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
   const bus = useWindowSyncBus();
   const state = isRef(stateSource) ? stateSource : ref(stateSource);
   const stateVersion = ref(0);
-  
+
   // 安全地深拷贝值，处理 undefined 情况
   const safeDeepClone = <V>(value: V): V => {
     if (value === undefined || value === null) {
@@ -137,82 +167,107 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
     }
     return JSON.parse(JSON.stringify(value));
   };
-  
+
   let lastSyncedValue: T = safeDeepClone(state.value);
   let isInitialized = true;
   let isApplyingExternalState = false;
   let unlistenStateSync: (() => void) | null = null;
   let stopWatching: (() => void) | null = null;
 
-    /**
-     * 获取当前状态的同步载荷
-     */
-    const getStatePayload = async (isFullSync = false): Promise<StateSyncPayload | null> => {
-      if (!isInitialized) return null;
+  /**
+   * 获取当前状态的同步载荷
+   */
+  const getStatePayload = async (
+    isFullSync = false
+  ): Promise<StateSyncPayload | null> => {
+    if (!isInitialized) return null;
 
-      const newValue = state.value;
-      const newVersion = VersionGenerator.next();
+    const newValue = state.value;
+    const newVersion = VersionGenerator.next();
 
-      const shouldForceFullSync = isFullSync || !enableDelta ||
-        newValue === null || newValue === undefined ||
-        lastSyncedValue === null || lastSyncedValue === undefined;
+    const shouldForceFullSync =
+      isFullSync ||
+      !enableDelta ||
+      newValue === null ||
+      newValue === undefined ||
+      lastSyncedValue === null ||
+      lastSyncedValue === undefined;
 
-      if (shouldForceFullSync) {
-        return { stateType: stateKey, version: newVersion, isFull: true, data: newValue };
+    if (shouldForceFullSync) {
+      return {
+        stateType: stateKey,
+        version: newVersion,
+        isFull: true,
+        data: newValue,
+      };
+    } else {
+      const patches = calculateDiff(lastSyncedValue, newValue);
+      if (patches.length === 0) return null;
+
+      if (shouldUseDelta(patches, newValue, deltaThreshold)) {
+        return {
+          stateType: stateKey,
+          version: newVersion,
+          isFull: false,
+          patches,
+        };
       } else {
-        const patches = calculateDiff(lastSyncedValue, newValue);
-        if (patches.length === 0) return null;
+        return {
+          stateType: stateKey,
+          version: newVersion,
+          isFull: true,
+          data: newValue,
+        };
+      }
+    }
+  };
 
-        if (shouldUseDelta(patches, newValue, deltaThreshold)) {
-          return { stateType: stateKey, version: newVersion, isFull: false, patches };
-        } else {
-          return { stateType: stateKey, version: newVersion, isFull: true, data: newValue };
-        }
-      }
-    };
+  const pushState = async (
+    isFullSync = false,
+    targetWindowLabel?: string,
+    silent = false
+  ) => {
+    // 如果没有目标窗口，且没有下游消费者，则跳过同步
+    if (!targetWindowLabel && !bus.hasDownstreamWindows.value) {
+      return;
+    }
 
-    const pushState = async (isFullSync = false, targetWindowLabel?: string, silent = false) => {
-      // 如果没有目标窗口，且没有下游消费者，则跳过同步
-      if (!targetWindowLabel && !bus.hasDownstreamWindows.value) {
-        return;
-      }
-      
-      if (!isInitialized) {
-        logger.warn('无法推送状态，因为未初始化', { stateKey });
-        return;
-      }
+    if (!isInitialized) {
+      logger.warn("无法推送状态，因为未初始化", { stateKey });
+      return;
+    }
 
-      // 【关键修复】如果正在应用外部状态，则跳过推送，防止无限循环
-      if (isApplyingExternalState) {
-        logger.debug('正在应用外部状态，跳过推送', { stateKey });
-        return;
-      }
-  
-      const payload = await getStatePayload(isFullSync);
-      if (!payload) {
-        if (!silent) logger.debug('状态无变化，跳过同步', { stateKey });
-        return;
-      }
+    // 【关键修复】如果正在应用外部状态，则跳过推送，防止无限循环
+    if (isApplyingExternalState) {
+      logger.debug("正在应用外部状态，跳过推送", { stateKey });
+      return;
+    }
 
-      if (!silent) {
-        logger.debug(`执行${payload.isFull ? '全量' : '增量'}同步`, {
-          stateKey,
-          version: payload.version,
-          targetWindow: targetWindowLabel
-        });
-      }
-  
-      await bus.syncState(
+    const payload = await getStatePayload(isFullSync);
+    if (!payload) {
+      if (!silent) logger.debug("状态无变化，跳过同步", { stateKey });
+      return;
+    }
+
+    if (!silent) {
+      logger.debug(`执行${payload.isFull ? "全量" : "增量"}同步`, {
         stateKey,
-        payload.isFull ? payload.data : payload.patches,
-        payload.version,
-        payload.isFull,
-        targetWindowLabel
-      );
-      
-      stateVersion.value = payload.version;
-      lastSyncedValue = safeDeepClone(state.value);
-    };
+        version: payload.version,
+        targetWindow: targetWindowLabel,
+      });
+    }
+
+    await bus.syncState(
+      stateKey,
+      payload.isFull ? payload.data : payload.patches,
+      payload.version,
+      payload.isFull,
+      targetWindowLabel
+    );
+
+    stateVersion.value = payload.version;
+    lastSyncedValue = safeDeepClone(state.value);
+  };
 
   let currentDebounceDelay = debounceDelay;
   let debouncedPushState = debounce(pushState, currentDebounceDelay);
@@ -222,16 +277,16 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
     currentDebounceDelay = newDelay;
     debouncedPushState.cancel();
     debouncedPushState = debounce(pushState, currentDebounceDelay);
-    logger.debug('同步引擎 Debounce 已更新', { stateKey, newDelay });
+    logger.debug("同步引擎 Debounce 已更新", { stateKey, newDelay });
   };
 
   const receiveState = (payload: StateSyncPayload, _message: BaseMessage) => {
     if (payload.stateType !== stateKey) return;
     if (payload.version <= stateVersion.value) {
-      logger.debug('收到旧版本状态，已忽略', {
+      logger.debug("收到旧版本状态，已忽略", {
         stateKey,
         currentVersion: stateVersion.value,
-        receivedVersion: payload.version
+        receivedVersion: payload.version,
       });
       return;
     }
@@ -243,7 +298,10 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
       if (deepEqual(state.value, newData)) {
         // 数据没有变化，只更新版本号，不触发响应式更新
         stateVersion.value = payload.version;
-        logger.debug('全量状态数据无变化，跳过更新', { stateKey, version: payload.version });
+        logger.debug("全量状态数据无变化，跳过更新", {
+          stateKey,
+          version: payload.version,
+        });
         return;
       }
     }
@@ -252,25 +310,35 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
     try {
       if (payload.isFull) {
         state.value = payload.data;
-        logger.debug('已应用全量状态', { stateKey, version: payload.version });
+        logger.debug("已应用全量状态", { stateKey, version: payload.version });
       } else {
         // 对于增量更新，也检查应用后的结果是否真的变化
-        const patchedValue = applyPatches(state.value, payload.patches as JsonPatchOperation[]);
+        const patchedValue = applyPatches(
+          state.value,
+          payload.patches as JsonPatchOperation[]
+        );
         if (deepEqual(state.value, patchedValue)) {
           stateVersion.value = payload.version;
           lastSyncedValue = safeDeepClone(state.value);
-          logger.debug('增量状态应用后无变化，跳过更新', { stateKey, version: payload.version });
+          logger.debug("增量状态应用后无变化，跳过更新", {
+            stateKey,
+            version: payload.version,
+          });
           // 注意：这里不需要重置 isApplyingExternalState，因为没有触发响应式更新
           isApplyingExternalState = false;
           return;
         }
         state.value = patchedValue;
-        logger.debug('已应用增量状态', { stateKey, version: payload.version });
+        logger.debug("已应用增量状态", { stateKey, version: payload.version });
       }
       stateVersion.value = payload.version;
       lastSyncedValue = safeDeepClone(state.value);
     } catch (error) {
-      errorHandler.handle(error as Error, { userMessage: '应用状态更新失败', context: { stateKey }, showToUser: false });
+      errorHandler.handle(error as Error, {
+        userMessage: "应用状态更新失败",
+        context: { stateKey },
+        showToUser: false,
+      });
     } finally {
       // 【关键修复】使用 nextTick 延迟重置标志位
       // 确保在 Vue 的响应式系统完成更新、watch 回调执行之后再允许推送
@@ -283,48 +351,72 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
   // 自动推送：main 窗口和 detached-tool 窗口都需要
   // - main 和 detached-tool: 作为状态源头，监听 Store 变化并广播给所有下游（如 detached-component）
   // - detached-component: 不需要推送，只接收
-  if (autoPush && (bus.windowType === 'main' || bus.windowType === 'detached-tool')) {
+  if (
+    autoPush &&
+    (bus.windowType === "main" || bus.windowType === "detached-tool")
+  ) {
     stopWatching = watch(
       state,
       (newVal) => {
         if (isApplyingExternalState) return;
-        
+
         // 针对会话相关的关键 Key 添加诊断日志
-        if (stateKey === 'chat-current-session-id' || stateKey === 'chat-current-session-data') {
+        if (
+          stateKey === "chat-current-session-id" ||
+          stateKey === "chat-current-session-data"
+        ) {
           logger.debug(`[诊断] 监听到状态变更: ${stateKey}`, {
             hasNewVal: !!newVal,
-            isId: stateKey === 'chat-current-session-id' ? newVal : (newVal as any)?.id
+            isId:
+              stateKey === "chat-current-session-id"
+                ? newVal
+                : (newVal as any)?.id,
           });
         }
-        
+
         debouncedPushState();
       },
       { deep: true }
     );
-    logger.debug('已启动自动推送', { stateKey, windowType: bus.windowType });
+    logger.debug("已启动自动推送", { stateKey, windowType: bus.windowType });
   }
 
   if (autoReceive) {
     // 监听单条状态同步
-    const unlistenSingle = bus.onMessage<StateSyncPayload>('state-sync', receiveState);
-    
+    const unlistenSingle = bus.onMessage<StateSyncPayload>(
+      "state-sync",
+      receiveState
+    );
+
     // 监听批量状态同步
-    const unlistenBatch = bus.onMessage<StateSyncBatchPayload>('state-sync-batch', (payload, message) => {
-      const statePayload = payload.states.find(s => s.stateType === stateKey);
-      if (statePayload) {
-        receiveState(statePayload, message);
+    const unlistenBatch = bus.onMessage<StateSyncBatchPayload>(
+      "state-sync-batch",
+      (payload, message) => {
+        const statePayload = payload.states.find(
+          (s) => s.stateType === stateKey
+        );
+        if (statePayload) {
+          receiveState(statePayload, message);
+        }
       }
-    });
+    );
 
     unlistenStateSync = () => {
       unlistenSingle();
       unlistenBatch();
     };
 
-    logger.debug('已启动自动接收（含批量模式）', { stateKey, windowType: bus.windowType });
+    logger.debug("已启动自动接收（含批量模式）", {
+      stateKey,
+      windowType: bus.windowType,
+    });
   }
 
-  const manualPush = (isFullSync = true, targetWindowLabel?: string, silent = false) => {
+  const manualPush = (
+    isFullSync = true,
+    targetWindowLabel?: string,
+    silent = false
+  ) => {
     debouncedPushState.cancel();
     return pushState(isFullSync, targetWindowLabel, silent);
   };
@@ -332,11 +424,14 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
   // 注册到全局注册中心
   // 只有配置了 autoPush 的引擎才需要响应全局请求
   let unregister: (() => void) | null = null;
-  if (autoPush && (bus.windowType === 'main' || bus.windowType === 'detached-tool')) {
+  if (
+    autoPush &&
+    (bus.windowType === "main" || bus.windowType === "detached-tool")
+  ) {
     unregister = registerSyncSource({
       pushState: manualPush,
       getStatePayload: (isFull) => getStatePayload(isFull),
-      stateKey
+      stateKey,
     });
   }
 
@@ -344,11 +439,11 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
   const cleanup = () => {
     if (isCleaned) return;
     isCleaned = true;
-    
+
     stopWatching?.();
     unlistenStateSync?.();
     unregister?.();
-    logger.info('StateSyncEngine 已清理', { stateKey });
+    logger.info("StateSyncEngine 已清理", { stateKey });
   };
 
   // 仅在有活跃组件实例时自动注册清理

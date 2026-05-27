@@ -41,7 +41,10 @@ onMounted(async () => {
   };
 
   // 使用 capture 阶段拦截，并尝试阻止默认行为
-  window.addEventListener("scroll", resetScroll, { capture: true, passive: false });
+  window.addEventListener("scroll", resetScroll, {
+    capture: true,
+    passive: false,
+  });
   // 某些情况下聚焦输入框也会触发位移，定期检查
   const interval = setInterval(resetScroll, 500);
 

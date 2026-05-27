@@ -27,7 +27,9 @@ async function executeWithRetry<T>(
 
       return await Promise.race([
         task(),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`${label} 请求超时`)), timeout)),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(`${label} 请求超时`)), timeout)
+        ),
       ]);
     } catch (error) {
       lastError = error;
@@ -72,7 +74,8 @@ export async function performGenerateTags(params: {
   let newTags: TagWithWeight[] = [];
   try {
     // 提取 JSON 部分（防止模型返回 Markdown 代码块）
-    const jsonStr = response.content.match(/\[[\s\S]*\]/)?.[0] || response.content;
+    const jsonStr =
+      response.content.match(/\[[\s\S]*\]/)?.[0] || response.content;
     newTags = JSON.parse(jsonStr);
   } catch (e) {
     console.error("解析标签失败:", response.content);
@@ -89,8 +92,13 @@ export async function performGenerateTags(params: {
 /**
  * 合并新生成的标签到现有标签中（去重）
  */
-export function mergeTags(existingTags: TagWithWeight[], newTags: TagWithWeight[]): TagWithWeight[] {
+export function mergeTags(
+  existingTags: TagWithWeight[],
+  newTags: TagWithWeight[]
+): TagWithWeight[] {
   const existingNames = new Set(existingTags.map((t) => t.name));
-  const filteredNew = newTags.filter((t) => t.name && !existingNames.has(t.name));
+  const filteredNew = newTags.filter(
+    (t) => t.name && !existingNames.has(t.name)
+  );
   return [...existingTags, ...filteredNew];
 }

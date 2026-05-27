@@ -67,7 +67,11 @@ const handleChange = (value: string | number) => {
     variant
     active-color="var(--primary-color)"
   >
-    <var-bottom-navigation-item :label="t('nav.首页')" name="home" icon="home" />
+    <var-bottom-navigation-item
+      :label="t('nav.首页')"
+      name="home"
+      icon="home"
+    />
 
     <var-bottom-navigation-item
       name="tools"
@@ -79,6 +83,10 @@ const handleChange = (value: string | number) => {
       </template>
     </var-bottom-navigation-item>
 
-    <var-bottom-navigation-item :label="t('nav.设置')" name="settings" icon="cog" />
+    <var-bottom-navigation-item
+      :label="t('nav.设置')"
+      name="settings"
+      icon="cog"
+    />
   </var-bottom-navigation>
 </template>

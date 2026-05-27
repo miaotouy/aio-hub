@@ -3,15 +3,18 @@
  */
 
 import type { PresetIconInfo } from "../types/model-metadata";
-import { MANUAL_PRESET_ICONS, USER_ADDED_ICONS } from "@shared/config/preset-icons-data";
+import {
+  MANUAL_PRESET_ICONS,
+  USER_ADDED_ICONS,
+} from "@shared/config/preset-icons-data";
 
 /**
  * 所有可用图标的路径列表
  */
 export const AVAILABLE_ICONS = [
   ...new Set([
-    ...MANUAL_PRESET_ICONS.map(i => i.path),
-    ...USER_ADDED_ICONS.map(i => i.path),
+    ...MANUAL_PRESET_ICONS.map((i) => i.path),
+    ...USER_ADDED_ICONS.map((i) => i.path),
   ]),
 ].sort();
 
@@ -22,7 +25,9 @@ function ensureModelIconPrefix(icons: any[]): PresetIconInfo[] {
   const PRESET_PREFIX = "/model-icons/";
   return icons.map((icon) => ({
     ...icon,
-    path: icon.path.startsWith("/") ? icon.path : `${PRESET_PREFIX}${icon.path}`,
+    path: icon.path.startsWith("/")
+      ? icon.path
+      : `${PRESET_PREFIX}${icon.path}`,
   })) as unknown as PresetIconInfo[];
 }
 

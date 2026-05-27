@@ -57,11 +57,17 @@ export function useOcrRunner() {
           finalResults = await runCloudEngine(blocks, config, onProgress);
           break;
         default:
-          throw new Error(`不支持的引擎类型: ${(config as { type: unknown }).type}`);
+          throw new Error(
+            `不支持的引擎类型: ${(config as { type: unknown }).type}`
+          );
       }
 
-      const successCount = finalResults.filter((r) => r.status === "success").length;
-      const errorCount = finalResults.filter((r) => r.status === "error").length;
+      const successCount = finalResults.filter(
+        (r) => r.status === "success"
+      ).length;
+      const errorCount = finalResults.filter(
+        (r) => r.status === "error"
+      ).length;
 
       logger.info(`OCR 识别完成 [${config.type}]`, {
         totalBlocks: blocks.length,
@@ -93,7 +99,12 @@ export function useOcrRunner() {
   ): Promise<OcrResult[]> => {
     const { recognizeBatch } = useTesseractEngine();
     const workerCount = config.concurrency ?? 4; // 默认 4 个并发
-    return await recognizeBatch(blocks, config.language, onProgress, workerCount);
+    return await recognizeBatch(
+      blocks,
+      config.language,
+      onProgress,
+      workerCount
+    );
   };
 
   /**
@@ -153,11 +164,14 @@ export function useOcrRunner() {
       throw new Error(errorMsg);
     }
 
-    logger.info(`使用云端 OCR 引擎识别 [${profile.provider}] (${blocks.length} 块)`, {
-      profileId: profile.id,
-      profileName: profile.name,
-      provider: profile.provider,
-    });
+    logger.info(
+      `使用云端 OCR 引擎识别 [${profile.provider}] (${blocks.length} 块)`,
+      {
+        profileId: profile.id,
+        profileName: profile.name,
+        provider: profile.provider,
+      }
+    );
 
     // 使用云端 OCR 运行器
     const { runCloudOcr } = useCloudOcrRunner();
@@ -169,13 +183,17 @@ export function useOcrRunner() {
       status: "pending" as const,
     }));
 
-    const cloudResults = await runCloudOcr(blocks, profile, (updatedResults: OcrResult[]) => {
-      // 更新结果数组
-      updatedResults.forEach((result, index) => {
-        results[index] = result;
-      });
-      onProgress?.([...results]);
-    });
+    const cloudResults = await runCloudOcr(
+      blocks,
+      profile,
+      (updatedResults: OcrResult[]) => {
+        // 更新结果数组
+        updatedResults.forEach((result, index) => {
+          results[index] = result;
+        });
+        onProgress?.([...results]);
+      }
+    );
 
     // 最终更新
     cloudResults.forEach((result, index) => {

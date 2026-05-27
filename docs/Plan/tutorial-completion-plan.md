@@ -56,14 +56,15 @@
 
 子任务中**仅允许**使用以下命令，禁止自造任何不在列表中的命令：
 
-| 允许的命令 | 用途 |
-|---|---|
-| `bun run docs:build` | 验证 VitePress 构建 |
-| `bun run docs:dev` | VitePress 开发服务器（不推荐在子任务中用） |
-| `bun run docs:preview` | 预览构建产物（不推荐在子任务中用） |
-| `bun run check` / `check:frontend` | 类型检查 |
+| 允许的命令                         | 用途                                       |
+| ---------------------------------- | ------------------------------------------ |
+| `bun run docs:build`               | 验证 VitePress 构建                        |
+| `bun run docs:dev`                 | VitePress 开发服务器（不推荐在子任务中用） |
+| `bun run docs:preview`             | 预览构建产物（不推荐在子任务中用）         |
+| `bun run check` / `check:frontend` | 类型检查                                   |
 
 **禁止任何不在 package.json scripts 中的命令**，尤其禁止：
+
 - `npx vitepress build docs`（必须用 `bun run docs:build`）
 - 任何自造的 `vitepress` 命令变体
 - 任何 `npm` / `yarn` / `pnpm` 命令

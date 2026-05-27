@@ -1,7 +1,11 @@
 import type { ContextProcessor, PipelineContext } from "../../types/pipeline";
 import { createModuleLogger } from "@/utils/logger";
 import { get, set } from "lodash-es";
-import type { VariableChange, VariableOperator, FlatVariableDefinition } from "../../types/sessionVariable";
+import type {
+  VariableChange,
+  VariableOperator,
+  FlatVariableDefinition,
+} from "../../types/sessionVariable";
 import { flattenDefinitions } from "../../utils/variableUtils";
 
 const logger = createModuleLogger("primary:variable-processor");
@@ -26,7 +30,11 @@ export const variableProcessor: ContextProcessor = {
   priority: 500,
   execute: async (context: PipelineContext) => {
     const { messages, agentConfig } = context;
-    if (!messages || messages.length === 0 || !agentConfig.variableConfig?.enabled) {
+    if (
+      !messages ||
+      messages.length === 0 ||
+      !agentConfig.variableConfig?.enabled
+    ) {
       return;
     }
 
@@ -52,7 +60,9 @@ export const variableProcessor: ContextProcessor = {
     for (let i = messages.length - 1; i >= 0; i--) {
       const msg = messages[i];
       if (msg.metadata?.sessionVariableSnapshot) {
-        currentState = structuredClone(msg.metadata.sessionVariableSnapshot.values);
+        currentState = structuredClone(
+          msg.metadata.sessionVariableSnapshot.values
+        );
         snapshotStartIndex = i;
         break;
       }
@@ -85,7 +95,10 @@ export const variableProcessor: ContextProcessor = {
         if (!path) continue;
 
         // 尝试解析 JSON
-        if (typeof val === "string" && (val.startsWith("{") || val.startsWith("["))) {
+        if (
+          typeof val === "string" &&
+          (val.startsWith("{") || val.startsWith("["))
+        ) {
           try {
             val = JSON.parse(val);
           } catch (e) {
@@ -106,17 +119,25 @@ export const variableProcessor: ContextProcessor = {
             break;
           case "+":
           case "add":
-            newValue = (typeof oldValue === "number" ? oldValue : 0) + (typeof val === "number" ? val : 0);
+            newValue =
+              (typeof oldValue === "number" ? oldValue : 0) +
+              (typeof val === "number" ? val : 0);
             break;
           case "-":
           case "sub":
-            newValue = (typeof oldValue === "number" ? oldValue : 0) - (typeof val === "number" ? val : 0);
+            newValue =
+              (typeof oldValue === "number" ? oldValue : 0) -
+              (typeof val === "number" ? val : 0);
             break;
           case "*":
-            newValue = (typeof oldValue === "number" ? oldValue : 0) * (typeof val === "number" ? val : 1);
+            newValue =
+              (typeof oldValue === "number" ? oldValue : 0) *
+              (typeof val === "number" ? val : 1);
             break;
           case "/":
-            newValue = (typeof oldValue === "number" ? oldValue : 0) / (typeof val === "number" ? val : 1);
+            newValue =
+              (typeof oldValue === "number" ? oldValue : 0) /
+              (typeof val === "number" ? val : 1);
             break;
         }
 
@@ -160,14 +181,17 @@ export const variableProcessor: ContextProcessor = {
       }
 
       // 3. 执行内置替换 $[...]
-      message.content = message.content.replace(REPLACE_REGEX, (fullMatch, key) => {
-        if (key.startsWith("svars::")) {
-          const format = key.split("::")[1] || "json";
-          return formatVariables(currentState, definitions, format);
+      message.content = message.content.replace(
+        REPLACE_REGEX,
+        (fullMatch, key) => {
+          if (key.startsWith("svars::")) {
+            const format = key.split("::")[1] || "json";
+            return formatVariables(currentState, definitions, format);
+          }
+          const val = get(currentState, key);
+          return val !== undefined ? String(val) : fullMatch;
         }
-        const val = get(currentState, key);
-        return val !== undefined ? String(val) : fullMatch;
-      });
+      );
     }
 
     if (totalChanges > 0) {
@@ -185,7 +209,11 @@ export const variableProcessor: ContextProcessor = {
 /**
  * 格式化变量列表
  */
-function formatVariables(state: Record<string, any>, definitions: FlatVariableDefinition[], format: string): string {
+function formatVariables(
+  state: Record<string, any>,
+  definitions: FlatVariableDefinition[],
+  format: string
+): string {
   const visibleVars = definitions
     .filter((d) => !d.hidden)
     .map((d) => ({
@@ -203,7 +231,12 @@ function formatVariables(state: Record<string, any>, definitions: FlatVariableDe
       });
       return table;
     case "list":
-      return visibleVars.map((v) => `- ${v.name}: ${v.value}${v.description ? ` (${v.description})` : ""}`).join("\n");
+      return visibleVars
+        .map(
+          (v) =>
+            `- ${v.name}: ${v.value}${v.description ? ` (${v.description})` : ""}`
+        )
+        .join("\n");
     case "json":
     default:
       // 仅导出可见变量的键值对

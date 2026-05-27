@@ -3,7 +3,7 @@
  */
 
 // 变量类型
-export type VariableType = 'string' | 'enum' | 'boolean';
+export type VariableType = "string" | "enum" | "boolean";
 
 // 变量定义
 export interface Variable {
@@ -18,7 +18,7 @@ export interface Variable {
 }
 
 // HTTP 方法
-export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+export type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
 
 // API 预设
 export interface ApiPreset {

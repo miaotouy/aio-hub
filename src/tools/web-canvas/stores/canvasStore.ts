@@ -40,7 +40,9 @@ export const useCanvasStore = defineStore("canvas", () => {
   const isLoading = ref(false);
 
   // --- 配置 ---
-  const config = useLocalStorage<CanvasConfig>("aio-canvas-config", { ...DEFAULT_CANVAS_CONFIG });
+  const config = useLocalStorage<CanvasConfig>("aio-canvas-config", {
+    ...DEFAULT_CANVAS_CONFIG,
+  });
 
   /**
    * 重置配置
@@ -67,7 +69,9 @@ export const useCanvasStore = defineStore("canvas", () => {
   // --- 计算属性 ---
 
   // 当前激活的画布对象
-  const activeCanvas = computed(() => canvasList.value.find((c) => c.metadata.id === activeCanvasId.value));
+  const activeCanvas = computed(() =>
+    canvasList.value.find((c) => c.metadata.id === activeCanvasId.value)
+  );
 
   // 当前激活画布是否有未提交的更改
   const hasPendingChanges = computed(() => dirtyFiles.value.size > 0);
@@ -200,7 +204,9 @@ export const useCanvasStore = defineStore("canvas", () => {
   async function ensureActiveCanvas(): Promise<string> {
     if (activeCanvasId.value) return activeCanvasId.value;
 
-    const metadata = await createCanvas(`canvas_${formatDateTime(new Date(), "yyyyMMdd_HHmmss")}`);
+    const metadata = await createCanvas(
+      `canvas_${formatDateTime(new Date(), "yyyyMMdd_HHmmss")}`
+    );
     if (!metadata) {
       throw new Error("自动创建画布失败");
     }
@@ -209,7 +215,7 @@ export const useCanvasStore = defineStore("canvas", () => {
     window.dispatchEvent(
       new CustomEvent("canvas:auto-created", {
         detail: { canvasId: metadata.id },
-      }),
+      })
     );
 
     return metadata.id;
@@ -229,7 +235,7 @@ export const useCanvasStore = defineStore("canvas", () => {
 
         return metadata;
       },
-      { userMessage: "创建画布失败" },
+      { userMessage: "创建画布失败" }
     );
   }
 
@@ -274,7 +280,7 @@ export const useCanvasStore = defineStore("canvas", () => {
     window.dispatchEvent(
       new CustomEvent("canvas:request-window", {
         detail: { canvasId },
-      }),
+      })
     );
     logger.info("已请求打开预览窗口", { canvasId });
   }
@@ -297,21 +303,28 @@ export const useCanvasStore = defineStore("canvas", () => {
         }
         await loadCanvasList();
       },
-      { userMessage: "删除画布失败" },
+      { userMessage: "删除画布失败" }
     );
   }
 
   /**
    * 异步读取物理文件内容
    */
-  async function readCanvasFileAsync(canvasId: string, filepath: string): Promise<string | null> {
+  async function readCanvasFileAsync(
+    canvasId: string,
+    filepath: string
+  ): Promise<string | null> {
     return await storage.readPhysicalFile(canvasId, filepath);
   }
 
   /**
    * 直接物理写入
    */
-  async function writeFilePhysical(canvasId: string, filepath: string, content: string) {
+  async function writeFilePhysical(
+    canvasId: string,
+    filepath: string,
+    content: string
+  ) {
     await storage.writePhysicalFile(canvasId, filepath, content);
     emitFileChanged(canvasId, filepath);
 
@@ -324,13 +337,25 @@ export const useCanvasStore = defineStore("canvas", () => {
   /**
    * 应用 Search/Replace Diff 到物理文件
    */
-  async function applyDiff(canvasId: string, filepath: string, search: string, replace: string, startLine?: number) {
+  async function applyDiff(
+    canvasId: string,
+    filepath: string,
+    search: string,
+    replace: string,
+    startLine?: number
+  ) {
     return await errorHandler.wrapAsync(
       async () => {
-        const originalContent = (await storage.readPhysicalFile(canvasId, filepath)) || "";
-        const result = applySearchReplaceDiff(originalContent, search, replace, {
-          startLine,
-        });
+        const originalContent =
+          (await storage.readPhysicalFile(canvasId, filepath)) || "";
+        const result = applySearchReplaceDiff(
+          originalContent,
+          search,
+          replace,
+          {
+            startLine,
+          }
+        );
         const newContent = result.content;
 
         if (newContent === originalContent) {
@@ -354,7 +379,7 @@ export const useCanvasStore = defineStore("canvas", () => {
 
         return result;
       },
-      { userMessage: "应用更改失败" },
+      { userMessage: "应用更改失败" }
     );
   }
   /**
@@ -369,7 +394,9 @@ export const useCanvasStore = defineStore("canvas", () => {
 
         if (!matrix) return;
 
-        const filesToAdd = matrix.filter(([_, head, workdir]) => head !== workdir).map(([filepath]) => filepath);
+        const filesToAdd = matrix
+          .filter(([_, head, workdir]) => head !== workdir)
+          .map(([filepath]) => filepath);
 
         if (filesToAdd.length === 0) return;
 
@@ -406,7 +433,7 @@ export const useCanvasStore = defineStore("canvas", () => {
         await refreshGitStatus(canvasId);
         await loadCanvasList();
       },
-      { userMessage: "保存更改失败" },
+      { userMessage: "保存更改失败" }
     );
   }
 
@@ -423,7 +450,7 @@ export const useCanvasStore = defineStore("canvas", () => {
         emitFileChanged(canvasId, "*");
         logger.info("已丢弃未提交的更改", { canvasId });
       },
-      { userMessage: "丢弃更改失败" },
+      { userMessage: "丢弃更改失败" }
     );
   }
 
@@ -448,7 +475,11 @@ export const useCanvasStore = defineStore("canvas", () => {
   /**
    * 审批系统支持
    */
-  function registerPreviewRequest(requestId: string, canvasId: string, files: string[]) {
+  function registerPreviewRequest(
+    requestId: string,
+    canvasId: string,
+    files: string[]
+  ) {
     previewRequests[requestId] = { canvasId, affectedFiles: files };
   }
 
@@ -463,13 +494,16 @@ export const useCanvasStore = defineStore("canvas", () => {
   /**
    * 修复项目
    */
-  async function repairProject(canvasId: string, action: "remove_index" | "reindex" | "restore_metadata") {
+  async function repairProject(
+    canvasId: string,
+    action: "remove_index" | "reindex" | "restore_metadata"
+  ) {
     return await errorHandler.wrapAsync(
       async () => {
         await canvasService.repairProject(canvasId, action);
         await loadCanvasList();
       },
-      { userMessage: "修复项目失败" },
+      { userMessage: "修复项目失败" }
     );
   }
 
@@ -485,7 +519,11 @@ export const useCanvasStore = defineStore("canvas", () => {
         }
 
         const basePath = await storage.getCanvasBasePath(canvasId);
-        logger.info("正在 VSCode 中打开项目", { canvasId, basePath, vscodePath: config.value.vscodePath });
+        logger.info("正在 VSCode 中打开项目", {
+          canvasId,
+          basePath,
+          vscodePath: config.value.vscodePath,
+        });
 
         // 使用 Command 启动 VSCode
         // 注意：code.cmd / code.exe 后面跟路径即可
@@ -495,7 +533,7 @@ export const useCanvasStore = defineStore("canvas", () => {
         logger.info("VSCode 已启动", { pid: child.pid });
         customMessage.success("正在打开 VSCode...");
       },
-      { userMessage: "打开 VSCode 失败，请检查路径配置是否正确" },
+      { userMessage: "打开 VSCode 失败，请检查路径配置是否正确" }
     );
   }
 

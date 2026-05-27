@@ -3,7 +3,10 @@
   <div class="status-bar">
     <div class="status-item">
       <span class="status-label">CPU</span>
-      <span class="status-val" :style="{ color: usageColor(latest.cpu.globalUsage) }">
+      <span
+        class="status-val"
+        :style="{ color: usageColor(latest.cpu.globalUsage) }"
+      >
         {{ latest.cpu.globalUsage.toFixed(0) }}%
       </span>
     </div>
@@ -25,7 +28,10 @@
       <div class="status-sep" />
       <div class="status-item" v-for="gpu in latest.gpus" :key="gpu.index">
         <span class="status-label">GPU{{ gpu.index }}</span>
-        <span class="status-val" :style="{ color: usageColor(gpu.usagePercent) }">
+        <span
+          class="status-val"
+          :style="{ color: usageColor(gpu.usagePercent) }"
+        >
           {{ gpu.usagePercent.toFixed(0) }}%
         </span>
       </div>
@@ -42,11 +48,17 @@ import type { SystemSnapshot } from "../types/snapshot";
 const props = defineProps<{ latest: SystemSnapshot }>();
 
 const memPercent = computed(() =>
-  props.latest.memory.totalBytes > 0 ? (props.latest.memory.usedBytes / props.latest.memory.totalBytes) * 100 : 0,
+  props.latest.memory.totalBytes > 0
+    ? (props.latest.memory.usedBytes / props.latest.memory.totalBytes) * 100
+    : 0
 );
 
-const totalUp = computed(() => props.latest.networks.reduce((s, n) => s + n.uploadBytesPerSec, 0));
-const totalDown = computed(() => props.latest.networks.reduce((s, n) => s + n.downloadBytesPerSec, 0));
+const totalUp = computed(() =>
+  props.latest.networks.reduce((s, n) => s + n.uploadBytesPerSec, 0)
+);
+const totalDown = computed(() =>
+  props.latest.networks.reduce((s, n) => s + n.downloadBytesPerSec, 0)
+);
 
 const timeStr = ref(new Date().toLocaleTimeString());
 let timer: ReturnType<typeof setInterval> | null = null;

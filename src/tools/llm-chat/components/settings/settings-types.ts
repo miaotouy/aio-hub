@@ -2,7 +2,10 @@
  * @deprecated 请使用 "@/types/settings-renderer" 中的定义
  */
 export * from "@/types/settings-renderer";
-import type { SettingItem as GenericSettingItem, SettingsSection as GenericSettingsSection } from "@/types/settings-renderer";
+import type {
+  SettingItem as GenericSettingItem,
+  SettingsSection as GenericSettingsSection,
+} from "@/types/settings-renderer";
 import type { ChatSettings } from "../../types/settings";
 
 /**

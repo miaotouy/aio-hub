@@ -13,7 +13,9 @@ interface Props {
 const props = defineProps<Props>();
 
 const isBroken = computed(() => (props.plugin as any).isBroken);
-const brokenError = computed(() => (props.plugin as any).error?.message || '未知错误');
+const brokenError = computed(
+  () => (props.plugin as any).error?.message || "未知错误"
+);
 
 // Emits
 const emit = defineEmits<{
@@ -38,7 +40,11 @@ const pluginTypeInfo = computed(() => {
 </script>
 
 <template>
-  <div class="plugin-card" :class="{ selected: selected }" @click="emit('select')">
+  <div
+    class="plugin-card"
+    :class="{ selected: selected }"
+    @click="emit('select')"
+  >
     <!-- 左侧：图标 + 开关 -->
     <div class="plugin-left">
       <Avatar
@@ -50,7 +56,10 @@ const pluginTypeInfo = computed(() => {
         :style="{ filter: isBroken ? 'grayscale(1) opacity(0.6)' : 'none' }"
       />
       <div v-if="!isBroken" class="plugin-toggle" @click.stop>
-        <el-tooltip :content="plugin.enabled ? '禁用插件' : '启用插件'" placement="right">
+        <el-tooltip
+          :content="plugin.enabled ? '禁用插件' : '启用插件'"
+          placement="right"
+        >
           <el-switch :model-value="plugin.enabled" @change="emit('toggle')" />
         </el-tooltip>
       </div>
@@ -69,8 +78,17 @@ const pluginTypeInfo = computed(() => {
             <el-tag :type="pluginTypeInfo.type" size="small" effect="plain">
               {{ pluginTypeInfo.text }}
             </el-tag>
-            <el-tag v-if="plugin.devMode" type="info" size="small" effect="plain"> Dev </el-tag>
-            <el-tag v-if="isBroken" type="danger" size="small" effect="plain"> 损坏 </el-tag>
+            <el-tag
+              v-if="plugin.devMode"
+              type="info"
+              size="small"
+              effect="plain"
+            >
+              Dev
+            </el-tag>
+            <el-tag v-if="isBroken" type="danger" size="small" effect="plain">
+              损坏
+            </el-tag>
           </div>
         </div>
 
@@ -91,7 +109,9 @@ const pluginTypeInfo = computed(() => {
             content="开发模式插件无法卸载，请手动删除源码目录"
             placement="top"
           >
-            <el-button :icon="Delete" size="small" type="danger" text disabled> 卸载 </el-button>
+            <el-button :icon="Delete" size="small" type="danger" text disabled>
+              卸载
+            </el-button>
           </el-tooltip>
           <el-button
             v-else
@@ -114,7 +134,10 @@ const pluginTypeInfo = computed(() => {
       </div>
 
       <!-- 标签 -->
-      <div v-if="plugin.manifest.tags && plugin.manifest.tags.length > 0" class="plugin-tags">
+      <div
+        v-if="plugin.manifest.tags && plugin.manifest.tags.length > 0"
+        class="plugin-tags"
+      >
         <el-tag
           v-for="tag in plugin.manifest.tags"
           :key="tag"
@@ -128,7 +151,9 @@ const pluginTypeInfo = computed(() => {
       </div>
 
       <!-- 描述 -->
-      <p v-if="!isBroken" class="plugin-description" @click.stop>{{ plugin.description }}</p>
+      <p v-if="!isBroken" class="plugin-description" @click.stop>
+        {{ plugin.description }}
+      </p>
       <p v-else class="plugin-description broken-error" @click.stop>
         加载失败: {{ brokenError }}
       </p>
@@ -257,7 +282,8 @@ const pluginTypeInfo = computed(() => {
   overflow: hidden;
 }
 
-.plugin-toggle, .plugin-status-tag {
+.plugin-toggle,
+.plugin-status-tag {
   display: flex;
   justify-content: center;
 }

@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from "vue";
-import { Search, Info, Download, Trash2, Video as VideoIcon, Music as AudioIcon, RefreshCw } from "lucide-vue-next";
+import {
+  Search,
+  Info,
+  Download,
+  Trash2,
+  Video as VideoIcon,
+  Music as AudioIcon,
+  RefreshCw,
+} from "lucide-vue-next";
 import { useAssetManager, type Asset } from "@/composables/useAssetManager";
 import { invoke } from "@tauri-apps/api/core";
 import { useImageViewer } from "@/composables/useImageViewer";
@@ -10,7 +18,14 @@ import { useGenerationInfoViewer } from "../composables/useGenerationInfoViewer"
 import type { MediaTaskType } from "../types";
 import { useInfiniteScroll } from "@vueuse/core";
 
-const { assets, isLoading, hasMore, loadAssetsPaginated, getAssetUrl, removeSourceFromAsset } = useAssetManager();
+const {
+  assets,
+  isLoading,
+  hasMore,
+  loadAssetsPaginated,
+  getAssetUrl,
+  removeSourceFromAsset,
+} = useAssetManager();
 const { show: showImageViewer } = useImageViewer();
 const { previewVideo } = useVideoViewer();
 const { previewAudio } = useAudioViewer();
@@ -43,7 +58,9 @@ const loadData = async (append = false) => {
       });
 
       // 提取所有关联的资产 ID
-      const assetIds = searchResults.map((r) => r.asset_id).filter((id): id is string => !!id);
+      const assetIds = searchResults
+        .map((r) => r.asset_id)
+        .filter((id): id is string => !!id);
 
       if (assetIds.length > 0) {
         // 去重
@@ -53,10 +70,15 @@ const loadData = async (append = false) => {
         const matchedAssets: Asset[] = [];
         for (const id of uniqueAssetIds) {
           try {
-            const asset = await invoke<Asset>("get_asset_by_id", { assetId: id });
+            const asset = await invoke<Asset>("get_asset_by_id", {
+              assetId: id,
+            });
             if (asset) {
               // 检查类型过滤
-              if (filterType.value !== "all" && asset.type !== filterType.value) {
+              if (
+                filterType.value !== "all" &&
+                asset.type !== filterType.value
+              ) {
                 continue;
               }
               matchedAssets.push(asset);
@@ -75,7 +97,7 @@ const loadData = async (append = false) => {
             if (!assetUrls.value[asset.id]) {
               assetUrls.value[asset.id] = await getAssetUrl(asset);
             }
-          }),
+          })
         );
         return;
       }
@@ -97,7 +119,7 @@ const loadData = async (append = false) => {
       sortBy: "date",
       sortOrder: "desc",
     },
-    append,
+    append
   );
 
   // 并行加载可见资产的 URL
@@ -106,7 +128,7 @@ const loadData = async (append = false) => {
       if (!assetUrls.value[asset.id]) {
         assetUrls.value[asset.id] = await getAssetUrl(asset);
       }
-    }),
+    })
   );
 };
 
@@ -129,7 +151,7 @@ useInfiniteScroll(
       loadData(true);
     }
   },
-  { distance: 10 },
+  { distance: 10 }
 );
 
 const handlePreview = (asset: Asset) => {
@@ -199,15 +221,28 @@ const handleRefresh = () => {
         </el-radio-group>
 
         <div class="stats">
-          <el-tag type="info" effect="plain"> 共 {{ assets.length }} 个结果 </el-tag>
-          <el-button :icon="RefreshCw" circle size="small" @click="handleRefresh" :loading="isLoading" />
+          <el-tag type="info" effect="plain">
+            共 {{ assets.length }} 个结果
+          </el-tag>
+          <el-button
+            :icon="RefreshCw"
+            circle
+            size="small"
+            @click="handleRefresh"
+            :loading="isLoading"
+          />
         </div>
       </div>
     </div>
 
     <!-- 瀑布流/网格内容 -->
     <div v-if="assets.length > 0" ref="galleryContainer" class="gallery-grid">
-      <div v-for="asset in assets" :key="asset.id" class="gallery-item" @click="handlePreview(asset)">
+      <div
+        v-for="asset in assets"
+        :key="asset.id"
+        class="gallery-item"
+        @click="handlePreview(asset)"
+      >
         <!-- 预览图 -->
         <div class="item-preview">
           <template v-if="asset.type === 'image'">
@@ -240,23 +275,40 @@ const handleRefresh = () => {
           <div class="item-overlay">
             <div class="overlay-top">
               <p class="prompt-hint">
-                {{ (asset.metadata as any)?.generation?.prompt || (asset.metadata as any)?.prompt || asset.name }}
+                {{
+                  (asset.metadata as any)?.generation?.prompt ||
+                  (asset.metadata as any)?.prompt ||
+                  asset.name
+                }}
               </p>
             </div>
             <div class="overlay-bottom">
               <div class="action-buttons">
                 <el-tooltip content="查看参数" placement="top">
-                  <el-button circle size="small" @click.stop="handleViewInfo(asset)">
+                  <el-button
+                    circle
+                    size="small"
+                    @click.stop="handleViewInfo(asset)"
+                  >
                     <el-icon><Info /></el-icon>
                   </el-button>
                 </el-tooltip>
                 <el-tooltip content="下载" placement="top">
-                  <el-button circle size="small" @click.stop="handleDownload(asset)">
+                  <el-button
+                    circle
+                    size="small"
+                    @click.stop="handleDownload(asset)"
+                  >
                     <el-icon><Download /></el-icon>
                   </el-button>
                 </el-tooltip>
                 <el-tooltip content="删除" placement="top">
-                  <el-button circle size="small" type="danger" @click.stop="handleRemove(asset)">
+                  <el-button
+                    circle
+                    size="small"
+                    type="danger"
+                    @click.stop="handleRemove(asset)"
+                  >
                     <el-icon><Trash2 /></el-icon>
                   </el-button>
                 </el-tooltip>
@@ -275,7 +327,9 @@ const handleRefresh = () => {
 
     <!-- 空状态 -->
     <div v-else-if="!isLoading" class="empty-state">
-      <el-empty :description="searchQuery ? '未找到匹配的结果' : '暂无生成结果'">
+      <el-empty
+        :description="searchQuery ? '未找到匹配的结果' : '暂无生成结果'"
+      >
         <template v-if="!searchQuery" #extra>
           <p>去工作台创作一些作品吧！</p>
         </template>

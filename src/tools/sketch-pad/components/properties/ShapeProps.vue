@@ -14,7 +14,10 @@
       @update:model-value="(v) => emitUpdate({ strokeColor: v })"
     />
 
-    <div v-if="activeTool === 'rect' || activeTool === 'ellipse'" class="property-item">
+    <div
+      v-if="activeTool === 'rect' || activeTool === 'ellipse'"
+      class="property-item"
+    >
       <span class="label">填充</span>
       <div class="fill-row">
         <label class="custom-checkbox">
@@ -22,7 +25,12 @@
           <span class="checkmark" />
           <span>启用</span>
         </label>
-        <el-color-picker :model-value="localFillColor" size="small" :disabled="!hasFill" @change="onFillColorChange" />
+        <el-color-picker
+          :model-value="localFillColor"
+          size="small"
+          :disabled="!hasFill"
+          @change="onFillColorChange"
+        />
       </div>
     </div>
 
@@ -54,7 +62,12 @@ const props = defineProps<{
 const emit = defineEmits<{
   (
     e: "update",
-    data: { strokeWidth?: number; strokeColor?: string; fillColor?: string | null; cornerRadius?: number },
+    data: {
+      strokeWidth?: number;
+      strokeColor?: string;
+      fillColor?: string | null;
+      cornerRadius?: number;
+    }
   ): void;
 }>();
 
@@ -66,7 +79,7 @@ watch(
   (val) => {
     hasFill.value = val !== null;
     if (val) localFillColor.value = val;
-  },
+  }
 );
 
 function emitUpdate(data: {

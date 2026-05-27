@@ -13,7 +13,9 @@ const props = withDefaults(defineProps<Props>(), {
   size: 24,
 });
 
-const iconSize = computed(() => (typeof props.size === "number" ? `${props.size}px` : props.size));
+const iconSize = computed(() =>
+  typeof props.size === "number" ? `${props.size}px` : props.size
+);
 
 const iconData = computed(() => {
   const icon = props.icon;
@@ -77,7 +79,10 @@ const iconData = computed(() => {
 </script>
 
 <template>
-  <div class="tool-icon-wrapper" :style="{ width: iconSize, height: iconSize, color: color }">
+  <div
+    class="tool-icon-wrapper"
+    :style="{ width: iconSize, height: iconSize, color: color }"
+  >
     <!-- 组件模式 (Lucide 或自定义组件) -->
     <component
       v-if="iconData.type === 'component'"
@@ -97,7 +102,11 @@ const iconData = computed(() => {
     />
 
     <!-- 文本/Emoji 模式 -->
-    <span v-else-if="iconData.type === 'text'" class="icon-text" :style="{ fontSize: iconSize }">
+    <span
+      v-else-if="iconData.type === 'text'"
+      class="icon-text"
+      :style="{ fontSize: iconSize }"
+    >
       {{ iconData.value }}
     </span>
   </div>
@@ -123,6 +132,7 @@ const iconData = computed(() => {
 
 .icon-text {
   line-height: 1;
-  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  font-family:
+    "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
 }
 </style>

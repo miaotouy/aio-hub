@@ -25,7 +25,8 @@
           :asset-urls="assetUrls"
           :grid-card-size="props.gridCardSize"
           @selection-change="
-            (asset: Asset, event: MouseEvent) => emit('selection-change', asset, event)
+            (asset: Asset, event: MouseEvent) =>
+              emit('selection-change', asset, event)
           "
           @select="(asset) => emit('select', asset)"
           @delete="(assetId) => emit('delete', assetId)"
@@ -88,7 +89,10 @@ const loadAssetUrls = async () => {
       try {
         // 优先使用缩略图，如果没有缩略图（或者是图片/视频且没生成缩略图）则使用原路径
         const path = asset.thumbnailPath || asset.path;
-        const url = assetManagerEngine.convertToAssetProtocol(path, basePath.value);
+        const url = assetManagerEngine.convertToAssetProtocol(
+          path,
+          basePath.value
+        );
         newUrls.set(asset.id, url);
       } catch (error) {
         console.error("生成资产 URL 失败:", asset.id, error);

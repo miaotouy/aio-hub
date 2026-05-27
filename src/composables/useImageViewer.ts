@@ -22,17 +22,21 @@ export interface ImageViewerState {
 
 export interface UseImageViewerReturn {
   /** 图片查看器状态 */
-  state: Ref<ImageViewerState>
+  state: Ref<ImageViewerState>;
   /** 显示图片查看器 */
-  show: (images: string | string[], index?: number, options?: Viewer.Options) => void
+  show: (
+    images: string | string[],
+    index?: number,
+    options?: Viewer.Options
+  ) => void;
   /** 隐藏图片查看器 */
-  hide: () => void
+  hide: () => void;
   /** 显示下一张 */
-  next: () => void
+  next: () => void;
   /** 显示上一张 */
-  prev: () => void
+  prev: () => void;
   /** 更新图片列表 */
-  updateImages: (images: string[]) => void
+  updateImages: (images: string[]) => void;
 }
 
 // 全局状态
@@ -47,23 +51,23 @@ const globalState = ref<ImageViewerState>({
 /**
  * 图片查看器 Composable
  * 提供全局的图片查看功能
- * 
+ *
  * @example
  * ```vue
  * <script setup>
  * import { useImageViewer } from '@/composables/useImageViewer'
- * 
+ *
  * const imageViewer = useImageViewer()
- * 
+ *
  * // 显示单张图片
  * imageViewer.show('https://example.com/image.jpg')
- * 
+ *
  * // 显示图片列表
  * imageViewer.show([
  *   'https://example.com/image1.jpg',
  *   'https://example.com/image2.jpg'
  * ], 0) // 从第一张开始显示
- * 
+ *
  * // 自定义配置
  * imageViewer.show(images, 0, {
  *   navbar: false,
@@ -102,14 +106,11 @@ export function useImageViewer(): UseImageViewerReturn {
             logger.debug(`路径 ${sanitizedSrc} 成功转换为 Blob URL`);
             return blobUrl;
           } else {
-            errorHandler.handle(
-              new Error("Conversion failed"),
-              {
-                userMessage: "路径转换为 Blob URL 失败",
-                context: { path: sanitizedSrc },
-                showToUser: false,
-              }
-            );
+            errorHandler.handle(new Error("Conversion failed"), {
+              userMessage: "路径转换为 Blob URL 失败",
+              context: { path: sanitizedSrc },
+              showToUser: false,
+            });
             return src; // 转换失败，返回原始路径，让其自然裂开
           }
         }
@@ -160,30 +161,30 @@ export function useImageViewer(): UseImageViewerReturn {
    */
   const next = () => {
     if (globalState.value.currentIndex < globalState.value.images.length - 1) {
-      globalState.value.currentIndex++
+      globalState.value.currentIndex++;
     }
-  }
+  };
 
   /**
    * 显示上一张图片
    */
   const prev = () => {
     if (globalState.value.currentIndex > 0) {
-      globalState.value.currentIndex--
+      globalState.value.currentIndex--;
     }
-  }
+  };
 
   /**
    * 更新图片列表
    * @param images 新的图片列表
    */
   const updateImages = (images: string[]) => {
-    globalState.value.images = images
+    globalState.value.images = images;
     // 确保当前索引在有效范围内
     if (globalState.value.currentIndex >= images.length) {
-      globalState.value.currentIndex = Math.max(0, images.length - 1)
+      globalState.value.currentIndex = Math.max(0, images.length - 1);
     }
-  }
+  };
 
   return {
     state: globalState,
@@ -191,6 +192,6 @@ export function useImageViewer(): UseImageViewerReturn {
     hide,
     next,
     prev,
-    updateImages
-  }
+    updateImages,
+  };
 }

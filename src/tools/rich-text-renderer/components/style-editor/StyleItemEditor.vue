@@ -2,7 +2,12 @@
   <div ref="editorRef" class="style-item-editor">
     <!-- 启用开关 -->
     <div class="enable-switch-row">
-      <el-switch v-model="isEnabled" active-text="启用" inactive-text="禁用" inline-prompt />
+      <el-switch
+        v-model="isEnabled"
+        active-text="启用"
+        inactive-text="禁用"
+        inline-prompt
+      />
     </div>
 
     <!-- 预览区域 -->
@@ -30,8 +35,17 @@
         <el-col :span="colSpan">
           <el-form-item label="文本颜色">
             <div class="color-picker-row">
-              <el-color-picker v-model="localValue.color" show-alpha size="small" />
-              <el-input v-model="localValue.color" placeholder="继承默认" size="small" clearable />
+              <el-color-picker
+                v-model="localValue.color"
+                show-alpha
+                size="small"
+              />
+              <el-input
+                v-model="localValue.color"
+                placeholder="继承默认"
+                size="small"
+                clearable
+              />
             </div>
           </el-form-item>
         </el-col>
@@ -40,7 +54,11 @@
         <el-col :span="colSpan">
           <el-form-item label="背景颜色">
             <div class="color-picker-row">
-              <el-color-picker v-model="localValue.backgroundColor" show-alpha size="small" />
+              <el-color-picker
+                v-model="localValue.backgroundColor"
+                show-alpha
+                size="small"
+              />
               <el-input
                 v-model="localValue.backgroundColor"
                 placeholder="无背景"
@@ -54,7 +72,12 @@
         <!-- 3. 字体粗细 -->
         <el-col :span="colSpan">
           <el-form-item label="字体粗细">
-            <el-select v-model="localValue.fontWeight" placeholder="默认" clearable size="small">
+            <el-select
+              v-model="localValue.fontWeight"
+              placeholder="默认"
+              clearable
+              size="small"
+            >
               <el-option label="默认" value="" />
               <el-option label="正常 (400)" value="400" />
               <el-option label="粗体 (600)" value="600" />
@@ -66,7 +89,12 @@
         <!-- 4. 字体样式 -->
         <el-col :span="colSpan">
           <el-form-item label="字体样式">
-            <el-select v-model="localValue.fontStyle" placeholder="默认" clearable size="small">
+            <el-select
+              v-model="localValue.fontStyle"
+              placeholder="默认"
+              clearable
+              size="small"
+            >
               <el-option label="默认" value="" />
               <el-option label="正常" value="normal" />
               <el-option label="斜体" value="italic" />
@@ -95,7 +123,11 @@
         <el-col :span="colSpan">
           <el-form-item label="边框颜色">
             <div class="color-picker-row">
-              <el-color-picker v-model="localValue.borderColor" show-alpha size="small" />
+              <el-color-picker
+                v-model="localValue.borderColor"
+                show-alpha
+                size="small"
+              />
               <el-input
                 v-model="localValue.borderColor"
                 placeholder="无边框"
@@ -111,16 +143,30 @@
           <el-form-item label="文本发光 (Text Shadow)">
             <div class="shadow-editor">
               <div class="shadow-inputs">
-                <el-input v-model.trim="textShadowValues.offsetX" size="small" placeholder="X" />
-                <el-input v-model.trim="textShadowValues.offsetY" size="small" placeholder="Y" />
-                <el-input v-model.trim="textShadowValues.blur" size="small" placeholder="模糊" />
+                <el-input
+                  v-model.trim="textShadowValues.offsetX"
+                  size="small"
+                  placeholder="X"
+                />
+                <el-input
+                  v-model.trim="textShadowValues.offsetY"
+                  size="small"
+                  placeholder="Y"
+                />
+                <el-input
+                  v-model.trim="textShadowValues.blur"
+                  size="small"
+                  placeholder="模糊"
+                />
               </div>
               <div class="color-picker-row">
                 <el-color-picker
                   v-model="textShadowValues.color"
                   show-alpha
                   size="small"
-                  @change="(v: string | null) => (textShadowValues.color = v || '')"
+                  @change="
+                    (v: string | null) => (textShadowValues.color = v || '')
+                  "
                 />
                 <el-input
                   v-model="textShadowValues.color"
@@ -137,7 +183,11 @@
         <el-col :span="colSpanAdvanced">
           <el-form-item label="圆角 (Border Radius)">
             <div class="border-radius-editor">
-              <el-radio-group v-model="borderRadiusMode" size="small" class="radius-mode-group">
+              <el-radio-group
+                v-model="borderRadiusMode"
+                size="small"
+                class="radius-mode-group"
+              >
                 <el-tooltip content="统一设置" placement="top">
                   <el-radio-button value="uniform">统一</el-radio-button>
                 </el-tooltip>
@@ -155,7 +205,11 @@
                 </el-tooltip>
               </el-radio-group>
               <div class="radius-inputs-grid">
-                <el-input v-model="borderRadiusValues.tl" size="small" placeholder="左上" />
+                <el-input
+                  v-model="borderRadiusValues.tl"
+                  size="small"
+                  placeholder="左上"
+                />
                 <el-input
                   v-model="borderRadiusValues.tr"
                   size="small"
@@ -184,10 +238,26 @@
           <el-form-item label="盒阴影 (Box Shadow)">
             <div class="shadow-editor">
               <div class="shadow-inputs shadow-inputs-box">
-                <el-input v-model.trim="boxShadowValues.offsetX" size="small" placeholder="X" />
-                <el-input v-model.trim="boxShadowValues.offsetY" size="small" placeholder="Y" />
-                <el-input v-model.trim="boxShadowValues.blur" size="small" placeholder="模糊" />
-                <el-input v-model.trim="boxShadowValues.spread" size="small" placeholder="扩散" />
+                <el-input
+                  v-model.trim="boxShadowValues.offsetX"
+                  size="small"
+                  placeholder="X"
+                />
+                <el-input
+                  v-model.trim="boxShadowValues.offsetY"
+                  size="small"
+                  placeholder="Y"
+                />
+                <el-input
+                  v-model.trim="boxShadowValues.blur"
+                  size="small"
+                  placeholder="模糊"
+                />
+                <el-input
+                  v-model.trim="boxShadowValues.spread"
+                  size="small"
+                  placeholder="扩散"
+                />
               </div>
               <div class="shadow-controls">
                 <div class="color-picker-row">
@@ -195,7 +265,9 @@
                     v-model="boxShadowValues.color"
                     show-alpha
                     size="small"
-                    @change="(v: string | null) => (boxShadowValues.color = v || '')"
+                    @change="
+                      (v: string | null) => (boxShadowValues.color = v || '')
+                    "
                   />
                   <el-input
                     v-model="boxShadowValues.color"
@@ -204,7 +276,9 @@
                     clearable
                   />
                 </div>
-                <el-checkbox v-model="boxShadowValues.inset">内阴影</el-checkbox>
+                <el-checkbox v-model="boxShadowValues.inset"
+                  >内阴影</el-checkbox
+                >
               </div>
             </div>
           </el-form-item>
@@ -380,7 +454,9 @@ let isParsingBorderRadius = false;
  * 根据当前模式，计算各个圆角输入框是否应被禁用
  */
 const isTrDisabled = computed(
-  () => borderRadiusMode.value === "uniform" || borderRadiusMode.value === "vertical"
+  () =>
+    borderRadiusMode.value === "uniform" ||
+    borderRadiusMode.value === "vertical"
 );
 const isBlDisabled = computed(
   () =>
@@ -429,7 +505,10 @@ watch(borderRadiusMode, () => {
   const { tl, tr, bl } = borderRadiusValues;
   switch (borderRadiusMode.value) {
     case "uniform":
-      borderRadiusValues.tr = borderRadiusValues.bl = borderRadiusValues.br = tl;
+      borderRadiusValues.tr =
+        borderRadiusValues.bl =
+        borderRadiusValues.br =
+          tl;
       break;
     case "horizontal":
       borderRadiusValues.bl = tl;
@@ -556,7 +635,12 @@ watch(
 // ==============================
 // 阴影 (Shadow) 编辑器逻辑
 
-const textShadowValues = reactive({ offsetX: "", offsetY: "", blur: "", color: "" });
+const textShadowValues = reactive({
+  offsetX: "",
+  offsetY: "",
+  blur: "",
+  color: "",
+});
 const boxShadowValues = reactive({
   offsetX: "",
   offsetY: "",
@@ -599,7 +683,8 @@ const parseSingleShadow = (value: string | null | undefined) => {
 
   // 2. 提取颜色 (改进的正则，支持 rgb/rgba/hsl/hsla/hex/named-color)
   // 优先匹配末尾的颜色，然后是开头的颜色
-  const colorRegex = /((?:rgba?|hsla?|color)\s*\([^\)]+\)|#[0-9a-fA-F]+|[a-z]+)/i;
+  const colorRegex =
+    /((?:rgba?|hsla?|color)\s*\([^\)]+\)|#[0-9a-fA-F]+|[a-z]+)/i;
 
   let colorMatch = shadowStr.match(new RegExp(colorRegex.source + "$", "i"));
   if (!colorMatch) {
@@ -714,14 +799,14 @@ watch(
     isEnabled.value = safeNewVal.enabled !== false;
 
     // 1. 找出需要删除的 key
-    const keysToRemove = (Object.keys(localValue) as Array<keyof MarkdownStyleOption>).filter(
-      (key) => !(key in safeNewVal)
-    );
+    const keysToRemove = (
+      Object.keys(localValue) as Array<keyof MarkdownStyleOption>
+    ).filter((key) => !(key in safeNewVal));
 
     // 2. 找出需要更新的 key
-    const keysToUpdate = (Object.keys(safeNewVal) as Array<keyof MarkdownStyleOption>).filter(
-      (key) => localValue[key] !== safeNewVal[key]
-    );
+    const keysToUpdate = (
+      Object.keys(safeNewVal) as Array<keyof MarkdownStyleOption>
+    ).filter((key) => localValue[key] !== safeNewVal[key]);
 
     // 如果没有变化，直接返回，打断循环
     if (keysToRemove.length === 0 && keysToUpdate.length === 0) {
@@ -760,11 +845,13 @@ const emitValue = () => {
   const cleanVal: MarkdownStyleOption = {};
 
   if (localValue.color) cleanVal.color = localValue.color;
-  if (localValue.backgroundColor) cleanVal.backgroundColor = localValue.backgroundColor;
+  if (localValue.backgroundColor)
+    cleanVal.backgroundColor = localValue.backgroundColor;
   if (localValue.textShadow) cleanVal.textShadow = localValue.textShadow;
   if (localValue.fontWeight) cleanVal.fontWeight = localValue.fontWeight;
   if (localValue.fontStyle) cleanVal.fontStyle = localValue.fontStyle;
-  if (localValue.textDecoration) cleanVal.textDecoration = localValue.textDecoration;
+  if (localValue.textDecoration)
+    cleanVal.textDecoration = localValue.textDecoration;
   if (localValue.borderColor) cleanVal.borderColor = localValue.borderColor;
   if (localValue.borderRadius) cleanVal.borderRadius = localValue.borderRadius;
   if (localValue.boxShadow) cleanVal.boxShadow = localValue.boxShadow;

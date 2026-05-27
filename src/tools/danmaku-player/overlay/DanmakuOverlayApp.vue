@@ -138,7 +138,10 @@ function handleInit(payload: OverlayInitPayload) {
     startRender();
   }
 
-  console.log("[DanmakuOverlay] 初始化完成", { danmakuCount: danmakus.length, port });
+  console.log("[DanmakuOverlay] 初始化完成", {
+    danmakuCount: danmakus.length,
+    port,
+  });
 }
 
 function handleConfigUpdate(config: DanmakuConfig) {
@@ -172,7 +175,9 @@ function handleDanmakuUpdate(payload: OverlayDanmakuUpdatePayload) {
     clearCanvas();
   }
 
-  console.log("[DanmakuOverlay] 弹幕数据已更新", { danmakuCount: payload.danmakus.length });
+  console.log("[DanmakuOverlay] 弹幕数据已更新", {
+    danmakuCount: payload.danmakus.length,
+  });
 }
 
 onMounted(async () => {
@@ -180,19 +185,28 @@ onMounted(async () => {
   window.addEventListener("resize", resizeCanvas);
 
   try {
-    const unInit = await listen<OverlayInitPayload>("danmaku-overlay:init", (event) => {
-      handleInit(event.payload);
-    });
+    const unInit = await listen<OverlayInitPayload>(
+      "danmaku-overlay:init",
+      (event) => {
+        handleInit(event.payload);
+      }
+    );
     unlisteners.push(unInit);
 
-    const unConfigUpdate = await listen<DanmakuConfig>("danmaku-overlay:config-update", (event) => {
-      handleConfigUpdate(event.payload);
-    });
+    const unConfigUpdate = await listen<DanmakuConfig>(
+      "danmaku-overlay:config-update",
+      (event) => {
+        handleConfigUpdate(event.payload);
+      }
+    );
     unlisteners.push(unConfigUpdate);
 
-    const unDanmakuUpdate = await listen<OverlayDanmakuUpdatePayload>("danmaku-overlay:danmaku-update", (event) => {
-      handleDanmakuUpdate(event.payload);
-    });
+    const unDanmakuUpdate = await listen<OverlayDanmakuUpdatePayload>(
+      "danmaku-overlay:danmaku-update",
+      (event) => {
+        handleDanmakuUpdate(event.payload);
+      }
+    );
     unlisteners.push(unDanmakuUpdate);
 
     const unStop = await listen("danmaku-overlay:stop", () => {

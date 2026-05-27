@@ -34,9 +34,11 @@ export const getOriginLabel = (type: string): string => {
  */
 export const getSourceModuleLabel = (module: string): string => {
   const toolsStore = useToolsStore();
-  
+
   // tool.path 通常是 '/module-name' 格式，而 module 是 'module-name'
-  const tool = toolsStore.tools.find((t) => t.path === `/${module}` || t.path === module);
+  const tool = toolsStore.tools.find(
+    (t) => t.path === `/${module}` || t.path === module
+  );
   if (tool) {
     return tool.name;
   }
@@ -46,18 +48,18 @@ export const getSourceModuleLabel = (module: string): string => {
     "asset-manager": "资产库",
     "llm-chat": "LLM 聊天",
     "smart-ocr": "智能 OCR",
-    "unknown": "未知模块"
+    unknown: "未知模块",
   };
-  
+
   if (fallbackLabels[module]) {
     return fallbackLabels[module];
   }
 
   // 将 kebab-case 转换为友好的标题
   return module
-    .split('-')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
+    .split("-")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
 };
 
 /**
@@ -67,7 +69,11 @@ export const getSourceModuleLabel = (module: string): string => {
 export const getOriginDisplayText = (origin: AssetOrigin): string => {
   const typeLabel = getOriginLabel(origin.type);
 
-  if (!origin.sourceModule || origin.sourceModule === "asset-manager" || origin.sourceModule === "unknown") {
+  if (
+    !origin.sourceModule ||
+    origin.sourceModule === "asset-manager" ||
+    origin.sourceModule === "unknown"
+  ) {
     return typeLabel;
   }
 

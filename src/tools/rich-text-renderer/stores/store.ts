@@ -14,7 +14,10 @@ import type {
   RichTextRendererStyleOptions,
   CopyOptions,
 } from "../types";
-import type { ChatRegexConfig, ChatRegexRule } from "@/tools/llm-chat/types/chatRegex";
+import type {
+  ChatRegexConfig,
+  ChatRegexRule,
+} from "@/tools/llm-chat/types/chatRegex";
 import { createDefaultChatRegexConfig } from "@/tools/llm-chat/types/chatRegex";
 import { RendererVersion } from "../types";
 import { createConfigManager } from "@/utils/configManager";
@@ -32,14 +35,16 @@ export const availableVersions: RendererVersionMeta[] = [
   {
     version: RendererVersion.V1_MARKDOWN_IT,
     name: "V1 - Markdown-it",
-    description: "【已过时】基于 markdown-it 的旧版解析器。功能受限，不支持思考块与工具调用，仅作参考",
+    description:
+      "【已过时】基于 markdown-it 的旧版解析器。功能受限，不支持思考块与工具调用，仅作参考",
     enabled: true,
     tags: ["基础", "过时", "不推荐"],
   },
   {
     version: RendererVersion.V2_CUSTOM_PARSER,
     name: "V2 - Custom Parser",
-    description: "自研AST解析器，支持复杂 HTML 嵌套和 LLM 思考块，工具调用相关，以及更多高级功能",
+    description:
+      "自研AST解析器，支持复杂 HTML 嵌套和 LLM 思考块，工具调用相关，以及更多高级功能",
     enabled: true,
     tags: ["高级", "HTML", "推荐"],
   },
@@ -186,7 +191,11 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       const configValue = (config as unknown as Record<string, unknown>)[key];
       const defaultValue = defaults[key];
 
-      if (key === "delayFluctuation" || key === "charsFluctuation" || key === "copyOptions") {
+      if (
+        key === "delayFluctuation" ||
+        key === "charsFluctuation" ||
+        key === "copyOptions"
+      ) {
         // 嵌套对象: 逐属性合并
         const target = state[key] as Record<string, unknown>;
         const source = (configValue ?? defaultValue) as Record<string, unknown>;
@@ -201,8 +210,14 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
     }
 
     // 特殊校验: charsFluctuation 范围限制（token模式：1-20）
-    state.charsFluctuation.min = Math.max(1, Math.min(state.charsFluctuation.min, 20));
-    state.charsFluctuation.max = Math.max(1, Math.min(state.charsFluctuation.max, 20));
+    state.charsFluctuation.min = Math.max(
+      1,
+      Math.min(state.charsFluctuation.min, 20)
+    );
+    state.charsFluctuation.max = Math.max(
+      1,
+      Math.min(state.charsFluctuation.max, 20)
+    );
     if (state.charsFluctuation.min > state.charsFluctuation.max) {
       state.charsFluctuation.min = 1;
       state.charsFluctuation.max = 10;
@@ -237,7 +252,10 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       isConfigLoaded.value = true;
       logger.info("配置加载成功");
     } catch (error) {
-      errorHandler.handle(error, { userMessage: "加载配置失败", showToUser: false });
+      errorHandler.handle(error, {
+        userMessage: "加载配置失败",
+        showToUser: false,
+      });
       // 加载失败时使用默认值（已在 reactive 初始化时设置）
       isConfigLoaded.value = true;
     }
@@ -251,7 +269,10 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
       await configManager.save(toSnapshot());
       logger.debug("配置保存成功");
     } catch (error) {
-      errorHandler.handle(error, { userMessage: "保存配置失败", showToUser: false });
+      errorHandler.handle(error, {
+        userMessage: "保存配置失败",
+        showToUser: false,
+      });
     }
   }
 
@@ -270,7 +291,11 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
     const defaults = createDefaultState();
     // 简单值直接赋值
     for (const key of Object.keys(defaults) as (keyof StoreState)[]) {
-      if (key === "delayFluctuation" || key === "charsFluctuation" || key === "copyOptions") {
+      if (
+        key === "delayFluctuation" ||
+        key === "charsFluctuation" ||
+        key === "copyOptions"
+      ) {
         // 嵌套对象: 逐属性赋值保持 reactive 引用
         const target = state[key] as Record<string, unknown>;
         const source = defaults[key] as Record<string, unknown>;
@@ -278,7 +303,9 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
           target[subKey] = source[subKey];
         }
       } else {
-        (state as Record<string, unknown>)[key] = (defaults as Record<string, unknown>)[key];
+        (state as Record<string, unknown>)[key] = (
+          defaults as Record<string, unknown>
+        )[key];
       }
     }
     saveConfig();
@@ -294,10 +321,16 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
   /**
    * 更新思考规则
    */
-  function updateLlmThinkRule(ruleId: string, updates: Partial<LlmThinkRule>): void {
+  function updateLlmThinkRule(
+    ruleId: string,
+    updates: Partial<LlmThinkRule>
+  ): void {
     const index = state.llmThinkRules.findIndex((r) => r.id === ruleId);
     if (index !== -1) {
-      state.llmThinkRules[index] = { ...state.llmThinkRules[index], ...updates };
+      state.llmThinkRules[index] = {
+        ...state.llmThinkRules[index],
+        ...updates,
+      };
     }
   }
 
@@ -335,7 +368,7 @@ export const useRichTextRendererStore = defineStore("richTextRenderer", () => {
     () => {
       autoSaveConfig();
     },
-    { deep: true },
+    { deep: true }
   );
 
   // ===== 导出 =====

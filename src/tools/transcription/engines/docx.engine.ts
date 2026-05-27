@@ -7,7 +7,11 @@ import type { Asset } from "@/types/asset-management";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import { getModelParams } from "./base";
 import { cleanLlmOutput, detectRepetition } from "../utils/text";
-import type { EngineContext, EngineResult, ITranscriptionEngine } from "../types";
+import type {
+  EngineContext,
+  EngineResult,
+  ITranscriptionEngine,
+} from "../types";
 
 /**
  * 小图阈值：base64 解码后 < 50KB 的图片视为小图，可以合并请求
@@ -28,12 +32,20 @@ function buildBatchPrompt(images: DocxImage[]): string {
     `以下是 DOCX 文档中的 ${images.length} 张内嵌图片（编号 ${indices}）。` +
     `请逐张描述每张图片的内容。如果图片包含文字，请准确提取文字；如果是图表，请说明关键数据和结构。\n\n` +
     `请严格按照以下格式输出，每张图片用围栏分隔：\n\n` +
-    images.map((img) => `---[图片 ${img.index}]---\n（此处输出图片 ${img.index} 的描述）`).join("\n\n") +
+    images
+      .map(
+        (img) =>
+          `---[图片 ${img.index}]---\n（此处输出图片 ${img.index} 的描述）`
+      )
+      .join("\n\n") +
     `\n\n仅输出上述格式的内容，不要添加额外说明。`
   );
 }
 
-function parseBatchResponse(response: string, images: DocxImage[]): Map<number, string> {
+function parseBatchResponse(
+  response: string,
+  images: DocxImage[]
+): Map<number, string> {
   const descriptions = new Map<number, string>();
 
   for (let i = 0; i < images.length; i++) {
@@ -73,10 +85,13 @@ export class DocxTranscriptionEngine implements ITranscriptionEngine {
     const { task } = ctx;
     const { sendRequest } = useLlmRequest();
     const { getProfileById } = useLlmProfiles();
-    const { modelIdentifier, temperature, maxTokens, timeout, enableRepetitionDetection } = getModelParams(
-      ctx,
-      "document",
-    );
+    const {
+      modelIdentifier,
+      temperature,
+      maxTokens,
+      timeout,
+      enableRepetitionDetection,
+    } = getModelParams(ctx, "document");
 
     const buffer = await assetManagerEngine.getAssetBinary(task.path);
     const parsed = await parseDocx(buffer);
@@ -100,15 +115,23 @@ export class DocxTranscriptionEngine implements ITranscriptionEngine {
           signal: ctx.signal,
           sendRequest,
         });
-        transcriptionText = this.replaceImagePlaceholders(transcriptionText, parsed.images, descriptions);
+        transcriptionText = this.replaceImagePlaceholders(
+          transcriptionText,
+          parsed.images,
+          descriptions
+        );
       } else {
-        warning = "DOCX 包含图片，但当前文档转写模型不支持视觉能力，已保留图片占位说明。";
+        warning =
+          "DOCX 包含图片，但当前文档转写模型不支持视觉能力，已保留图片占位说明。";
       }
     }
 
     // 复读检测仅在有图片转写时才有意义（纯文本提取不会复读）
     if (parsed.hasImages && enableRepetitionDetection) {
-      const repetition = detectRepetition(transcriptionText, ctx.config.repetitionConfig);
+      const repetition = detectRepetition(
+        transcriptionText,
+        ctx.config.repetitionConfig
+      );
       if (repetition.isRepetitive) {
         throw new Error(`检测到模型回复存在严重复读: ${repetition.reason}`);
       }
@@ -134,7 +157,7 @@ export class DocxTranscriptionEngine implements ITranscriptionEngine {
       timeout: number;
       signal?: AbortSignal;
       sendRequest: ReturnType<typeof useLlmRequest>["sendRequest"];
-    },
+    }
   ): Promise<Map<number, string>> {
     const descriptions = new Map<number, string>();
 
@@ -166,7 +189,10 @@ export class DocxTranscriptionEngine implements ITranscriptionEngine {
         descriptions.set(batch[0].index, description);
       } else {
         // 多张小图合并请求
-        const batchDescriptions = await this.describeBatchImages(batch, options);
+        const batchDescriptions = await this.describeBatchImages(
+          batch,
+          options
+        );
         for (const [index, desc] of batchDescriptions) {
           descriptions.set(index, desc);
         }
@@ -189,7 +215,7 @@ export class DocxTranscriptionEngine implements ITranscriptionEngine {
       timeout: number;
       signal?: AbortSignal;
       sendRequest: ReturnType<typeof useLlmRequest>["sendRequest"];
-    },
+    }
   ): Promise<string> {
     try {
       const content: LlmMessageContent[] = [
@@ -228,12 +254,15 @@ export class DocxTranscriptionEngine implements ITranscriptionEngine {
       timeout: number;
       signal?: AbortSignal;
       sendRequest: ReturnType<typeof useLlmRequest>["sendRequest"];
-    },
+    }
   ): Promise<Map<number, string>> {
     try {
       const content: LlmMessageContent[] = [
         { type: "text", text: buildBatchPrompt(images) },
-        ...images.map((img) => ({ type: "image" as const, imageBase64: img.base64 })),
+        ...images.map((img) => ({
+          type: "image" as const,
+          imageBase64: img.base64,
+        })),
       ];
 
       const response = await options.sendRequest({
@@ -262,11 +291,16 @@ export class DocxTranscriptionEngine implements ITranscriptionEngine {
     }
   }
 
-  private replaceImagePlaceholders(text: string, images: DocxImage[], descriptions: Map<number, string>): string {
+  private replaceImagePlaceholders(
+    text: string,
+    images: DocxImage[],
+    descriptions: Map<number, string>
+  ): string {
     let result = text;
 
     for (const image of images) {
-      const description = descriptions.get(image.index)?.trim() || "未返回图片描述";
+      const description =
+        descriptions.get(image.index)?.trim() || "未返回图片描述";
       const replacement = `> **[图片 ${image.index} 转写]**\n> ${description.replace(/\n/g, "\n> ")}`;
       result = result.replace(image.placeholder, replacement);
     }

@@ -4,7 +4,9 @@ import type { ChatSessionDetail } from "../../../../types";
 import { useNodeManager } from "../../../../composables/session/useNodeManager";
 import { createModuleLogger } from "@/utils/logger";
 
-const logger = createModuleLogger("llm-chat/composables/useGraphConnectionPreview");
+const logger = createModuleLogger(
+  "llm-chat/composables/useGraphConnectionPreview"
+);
 
 /**
  * 连接预览状态
@@ -24,7 +26,7 @@ export function useGraphConnectionPreview(
   sessionRef: () => ChatSessionDetail | null,
   settings: Ref<any>,
   store: any,
-  errorHandler: any,
+  errorHandler: any
 ) {
   const { shift, alt, ctrl } = useMagicKeys();
   const nodeManager = useNodeManager();
@@ -41,7 +43,10 @@ export function useGraphConnectionPreview(
   /**
    * 核心预检函数，检查连接的有效性
    */
-  function checkConnectionValidity(nodeIdToMove: string, newParentId: string): boolean {
+  function checkConnectionValidity(
+    nodeIdToMove: string,
+    newParentId: string
+  ): boolean {
     const session = sessionRef();
     if (!session) return false;
 
@@ -54,7 +59,8 @@ export function useGraphConnectionPreview(
     if (!nodeToMove || !newParent) return false;
 
     // 规则 2: 不能操作预设消息节点
-    if (nodeIdToMove.startsWith("preset-") || newParentId.startsWith("preset-")) return false;
+    if (nodeIdToMove.startsWith("preset-") || newParentId.startsWith("preset-"))
+      return false;
 
     // 规则 3: 不能将节点移动到其自身的子孙节点下（防止循环依赖）
     const descendants = nodeManager.getAllDescendants(session, nodeIdToMove);
@@ -72,7 +78,12 @@ export function useGraphConnectionPreview(
   /**
    * 处理连接开始事件
    */
-  function handleConnectionStart({ nodeId }: { event?: MouseEvent; nodeId?: string }): void {
+  function handleConnectionStart({
+    nodeId,
+  }: {
+    event?: MouseEvent;
+    nodeId?: string;
+  }): void {
     if (!nodeId) return;
 
     const graftSubtreeModifier = settings.value.graphViewShortcuts.graftSubtree;
@@ -109,9 +120,16 @@ export function useGraphConnectionPreview(
    * 处理鼠标进入节点事件（连接时）
    */
   function handleNodeMouseEnter(nodeId: string): void {
-    if (!connectionPreviewState.isConnecting || !connectionPreviewState.sourceNodeId) return;
+    if (
+      !connectionPreviewState.isConnecting ||
+      !connectionPreviewState.sourceNodeId
+    )
+      return;
 
-    const isValid = checkConnectionValidity(connectionPreviewState.sourceNodeId, nodeId);
+    const isValid = checkConnectionValidity(
+      connectionPreviewState.sourceNodeId,
+      nodeId
+    );
     connectionPreviewState.targetNodeId = nodeId;
     connectionPreviewState.isTargetValid = isValid;
     logger.debug("连接时鼠标进入节点", { targetNodeId: nodeId, isValid });

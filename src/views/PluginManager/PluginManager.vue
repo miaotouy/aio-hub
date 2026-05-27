@@ -19,7 +19,9 @@ const activeTab = ref<"installed" | "market">("installed");
 // 右侧面板状态
 const isPanelCollapsed = ref(true);
 // 从设置中加载面板宽度
-const panelWidthPercent = ref(appSettingsStore.settings.pluginManagerPanelWidth || 50); // 使用百分比存储（默认50%）
+const panelWidthPercent = ref(
+  appSettingsStore.settings.pluginManagerPanelWidth || 50
+); // 使用百分比存储（默认50%）
 const selectedPlugin = ref<PluginProxy | null>(null);
 const initialTab = ref<string>("detail");
 
@@ -77,7 +79,10 @@ onUnmounted(() => {
 });
 
 // 处理插件选择 - 显示详情（支持取消选中）
-const handlePluginSelect = (plugin: PluginProxy | null, tab: string = "detail") => {
+const handlePluginSelect = (
+  plugin: PluginProxy | null,
+  tab: string = "detail"
+) => {
   if (plugin === null) {
     // 取消选中，折叠面板
     selectedPlugin.value = null;
@@ -99,7 +104,9 @@ const handleTogglePlugin = async () => {
       await selectedPlugin.value.disable();
       customMessage.success(`已禁用插件: ${selectedPlugin.value.name}`);
     } else {
-      await selectedPlugin.value.enable(pluginManager.createPluginContext(selectedPlugin.value.id));
+      await selectedPlugin.value.enable(
+        pluginManager.createPluginContext(selectedPlugin.value.id)
+      );
       customMessage.success(`已启用插件: ${selectedPlugin.value.name}`);
     }
   } catch (error) {
@@ -114,12 +121,16 @@ const handleUninstallPlugin = async () => {
   const plugin = selectedPlugin.value;
 
   try {
-    await ElMessageBox.confirm(`确定要卸载插件"${plugin.name}"吗？插件文件将被移入回收站。`, "卸载插件", {
-      confirmButtonText: "确定卸载",
-      cancelButtonText: "取消",
-      type: "warning",
-      lockScroll: false,
-    });
+    await ElMessageBox.confirm(
+      `确定要卸载插件"${plugin.name}"吗？插件文件将被移入回收站。`,
+      "卸载插件",
+      {
+        confirmButtonText: "确定卸载",
+        cancelButtonText: "取消",
+        type: "warning",
+        lockScroll: false,
+      }
+    );
 
     // 调用插件管理器执行卸载
     await pluginManager.uninstallPlugin(plugin.id);
@@ -155,9 +166,17 @@ const handleUninstallPlugin = async () => {
       </div>
 
       <!-- 右侧面板 -->
-      <div v-if="!isPanelCollapsed" class="side-panel" :style="{ width: `${panelWidthPercent}%` }">
+      <div
+        v-if="!isPanelCollapsed"
+        class="side-panel"
+        :style="{ width: `${panelWidthPercent}%` }"
+      >
         <!-- 拖拽分隔条 -->
-        <div class="resize-handle" @mousedown="handleDragStart" :class="{ dragging: isDragging }"></div>
+        <div
+          class="resize-handle"
+          @mousedown="handleDragStart"
+          :class="{ dragging: isDragging }"
+        ></div>
 
         <div class="panel-content">
           <PluginDetailPanel

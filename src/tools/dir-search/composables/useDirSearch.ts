@@ -110,23 +110,29 @@ export function useDirSearch() {
     await cleanupListeners();
 
     // 监听批量结果事件
-    unlistenResult = await listen<SearchResultBatch>("dir-search-result-batch", (event) => {
-      const batch = event.payload;
+    unlistenResult = await listen<SearchResultBatch>(
+      "dir-search-result-batch",
+      (event) => {
+        const batch = event.payload;
 
-      // 前端侧上限防护：如果已有结果数超过 maxResults，丢弃后续 batch
-      const maxR = uiState.maxResults.value;
-      if (maxR > 0 && totalMatches.value >= maxR) {
-        return;
+        // 前端侧上限防护：如果已有结果数超过 maxResults，丢弃后续 batch
+        const maxR = uiState.maxResults.value;
+        if (maxR > 0 && totalMatches.value >= maxR) {
+          return;
+        }
+
+        // 先存入缓冲区，不立即触发响应式
+        pendingResults.push(...batch.results);
+        scheduleFlush();
       }
+    );
 
-      // 先存入缓冲区，不立即触发响应式
-      pendingResults.push(...batch.results);
-      scheduleFlush();
-    });
-
-    unlistenProgress = await listen<SearchProgress>("dir-search-progress", (event) => {
-      progress.value = event.payload;
-    });
+    unlistenProgress = await listen<SearchProgress>(
+      "dir-search-progress",
+      (event) => {
+        progress.value = event.payload;
+      }
+    );
   }
 
   /** 清理事件监听 */
@@ -188,9 +194,12 @@ export function useDirSearch() {
       includeGlobs: parseGlobs(includeGlobs.value),
       excludeGlobs: parseGlobs(excludeGlobs.value),
       useGitignore: useGitignore.value,
-      contextLines: uiState.contextLinesEnabled.value ? uiState.contextLinesCount.value : 0,
+      contextLines: uiState.contextLinesEnabled.value
+        ? uiState.contextLinesCount.value
+        : 0,
       maxResults:
-        Number.isFinite(uiState.maxResults.value) && uiState.maxResults.value > 0
+        Number.isFinite(uiState.maxResults.value) &&
+        uiState.maxResults.value > 0
           ? uiState.maxResults.value
           : undefined,
     };
@@ -319,7 +328,10 @@ export function useDirSearch() {
     };
 
     try {
-      const freshResults = await invoke<FileSearchResult[]>("dir_replace_preview", { request });
+      const freshResults = await invoke<FileSearchResult[]>(
+        "dir_replace_preview",
+        { request }
+      );
       const map = results.value;
 
       if (freshResults.length > 0 && freshResults[0].matches.length > 0) {
@@ -367,7 +379,9 @@ export function useDirSearch() {
     };
 
     try {
-      const result = await invoke<ReplaceSingleResult>("dir_replace_single", { request });
+      const result = await invoke<ReplaceSingleResult>("dir_replace_single", {
+        request,
+      });
       if (result.success) {
         // 替换成功后重新搜索该文件，刷新所有匹配的位置信息
         await refreshFileResults(filePath);
@@ -421,7 +435,16 @@ export function useDirSearch() {
   // === 自动搜索：输入即搜索，300ms 节流 ===
   // 将 rootPath 也纳入 debounced watch，避免状态恢复时重复触发
   watchDebounced(
-    [pattern, rootPath, isRegex, caseSensitive, wholeWord, includeGlobs, excludeGlobs, useGitignore],
+    [
+      pattern,
+      rootPath,
+      isRegex,
+      caseSensitive,
+      wholeWord,
+      includeGlobs,
+      excludeGlobs,
+      useGitignore,
+    ],
     () => {
       // 状态恢复期间不触发自动搜索
       if (!autoSearchReady.value) return;
@@ -433,7 +456,7 @@ export function useDirSearch() {
         clearResults();
       }
     },
-    { debounce: 300 },
+    { debounce: 300 }
   );
 
   /** 清理资源 */

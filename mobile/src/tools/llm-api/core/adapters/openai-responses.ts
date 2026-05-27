@@ -15,15 +15,23 @@ import {
  */
 export const openAiResponsesUrlHandler = {
   buildUrl: (baseUrl: string, endpoint?: string): string => {
-    const host = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+    const host = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
     // 智能添加 v1 版本路径（如果没加的话），同时兼容 v2, v3 等
-    const versionedHost = (host.includes('/v1') || host.includes('/v2') || host.includes('/v3') || host.includes('/api/v')) ? host : `${host}v1/`;
-    return endpoint ? `${versionedHost}${endpoint}` : `${versionedHost}responses`;
+    const versionedHost =
+      host.includes("/v1") ||
+      host.includes("/v2") ||
+      host.includes("/v3") ||
+      host.includes("/api/v")
+        ? host
+        : `${host}v1/`;
+    return endpoint
+      ? `${versionedHost}${endpoint}`
+      : `${versionedHost}responses`;
   },
   getHint: (): string => {
     const { tRaw } = useI18n();
-    return tRaw('tools.llm-api.Adapters.OpenAIResponses提示');
-  }
+    return tRaw("tools.llm-api.Adapters.OpenAIResponses提示");
+  },
 };
 
 /**
@@ -50,8 +58,10 @@ export const callOpenAiResponsesApi = async (
   }
 
   // 从 messages 中提取 system 消息
-  const systemMessages = options.messages.filter(m => m.role === 'system');
-  const userAssistantMessages = options.messages.filter(m => m.role !== 'system');
+  const systemMessages = options.messages.filter((m) => m.role === "system");
+  const userAssistantMessages = options.messages.filter(
+    (m) => m.role !== "system"
+  );
 
   // 构建输入内容 - Responses API 使用多轮对话格式
   const messages: any[] = [];
@@ -120,8 +130,7 @@ export const callOpenAiResponsesApi = async (
 
   // 如果只有一条消息且是纯文本，可以使用简化格式
   const input =
-    messages.length === 1 &&
-      typeof messages[0].content === "string"
+    messages.length === 1 && typeof messages[0].content === "string"
       ? messages[0].content
       : messages;
 
@@ -142,8 +151,10 @@ export const callOpenAiResponsesApi = async (
   if (systemMessages.length > 0) {
     // 合并所有 system 消息的内容
     const systemContent = systemMessages
-      .map(m => typeof m.content === 'string' ? m.content : JSON.stringify(m.content))
-      .join('\n\n');
+      .map((m) =>
+        typeof m.content === "string" ? m.content : JSON.stringify(m.content)
+      )
+      .join("\n\n");
     body.instructions = systemContent;
   }
 
@@ -228,74 +239,80 @@ export const callOpenAiResponsesApi = async (
     const toolCalls: LlmResponse["toolCalls"] = [];
     const annotations: LlmResponse["annotations"] = [];
 
-    await parseSSEStream(reader, (data) => {
-      try {
-        const json = JSON.parse(data);
+    await parseSSEStream(
+      reader,
+      (data) => {
+        try {
+          const json = JSON.parse(data);
 
-        // 提取文本内容（从 delta 事件）
-        if (json.type === "response.output_text.delta" && json.delta) {
-          const text = json.delta;
-          fullContent += text;
-          options.onStream!(text);
-        }
-
-        // 从完成事件中提取 usage 信息
-        if (json.type === "response.completed" && json.response) {
-          const resp = json.response;
-          if (resp.usage) {
-            usage = {
-              promptTokens: resp.usage.input_tokens,
-              completionTokens: resp.usage.output_tokens,
-              totalTokens: resp.usage.total_tokens,
-            };
+          // 提取文本内容（从 delta 事件）
+          if (json.type === "response.output_text.delta" && json.delta) {
+            const text = json.delta;
+            fullContent += text;
+            options.onStream!(text);
           }
 
-          // 提取状态信息
-          if (resp.status === "completed") {
-            finishReason = "stop";
-          } else if (resp.status === "incomplete") {
-            finishReason = "length";
-          }
+          // 从完成事件中提取 usage 信息
+          if (json.type === "response.completed" && json.response) {
+            const resp = json.response;
+            if (resp.usage) {
+              usage = {
+                promptTokens: resp.usage.input_tokens,
+                completionTokens: resp.usage.output_tokens,
+                totalTokens: resp.usage.total_tokens,
+              };
+            }
 
-          // 检查输出中的工具调用和 annotations
-          if (resp.output && Array.isArray(resp.output)) {
-            for (const item of resp.output) {
-              if (item.type === "function_call") {
-                toolCalls.push({
-                  id: item.call_id || item.id,
-                  type: "function",
-                  function: {
-                    name: item.name,
-                    arguments: item.arguments,
-                  },
-                });
-                finishReason = "tool_calls";
-              }
-              // 提取 message 中的 annotations
-              else if (item.type === "message" && item.content) {
-                for (const contentItem of item.content) {
-                  if (contentItem.type === "output_text" && contentItem.annotations) {
-                    for (const annotation of contentItem.annotations) {
-                      if (annotation.type === "url_citation") {
-                        annotations.push({
-                          type: "url_citation",
-                          urlCitation: {
-                            startIndex: annotation.start_index,
-                            endIndex: annotation.end_index,
-                            url: annotation.url,
-                            title: annotation.title,
-                          },
-                        });
-                      } else if (annotation.type === "file_citation") {
-                        annotations.push({
-                          type: "file_citation",
-                          fileCitation: {
-                            startIndex: annotation.start_index,
-                            endIndex: annotation.end_index,
-                            fileId: annotation.file_id,
-                            quote: annotation.quote,
-                          },
-                        });
+            // 提取状态信息
+            if (resp.status === "completed") {
+              finishReason = "stop";
+            } else if (resp.status === "incomplete") {
+              finishReason = "length";
+            }
+
+            // 检查输出中的工具调用和 annotations
+            if (resp.output && Array.isArray(resp.output)) {
+              for (const item of resp.output) {
+                if (item.type === "function_call") {
+                  toolCalls.push({
+                    id: item.call_id || item.id,
+                    type: "function",
+                    function: {
+                      name: item.name,
+                      arguments: item.arguments,
+                    },
+                  });
+                  finishReason = "tool_calls";
+                }
+                // 提取 message 中的 annotations
+                else if (item.type === "message" && item.content) {
+                  for (const contentItem of item.content) {
+                    if (
+                      contentItem.type === "output_text" &&
+                      contentItem.annotations
+                    ) {
+                      for (const annotation of contentItem.annotations) {
+                        if (annotation.type === "url_citation") {
+                          annotations.push({
+                            type: "url_citation",
+                            urlCitation: {
+                              startIndex: annotation.start_index,
+                              endIndex: annotation.end_index,
+                              url: annotation.url,
+                              title: annotation.title,
+                            },
+                          });
+                        } else if (annotation.type === "file_citation") {
+                          annotations.push({
+                            type: "file_citation",
+                            fileCitation: {
+                              startIndex: annotation.start_index,
+                              endIndex: annotation.end_index,
+                              fileId: annotation.file_id,
+                              quote: annotation.quote,
+                            },
+                          });
+                        }
                       }
                     }
                   }
@@ -303,11 +320,13 @@ export const callOpenAiResponsesApi = async (
               }
             }
           }
+        } catch (e) {
+          // 忽略解析错误，可能是非 JSON 数据
         }
-      } catch (e) {
-        // 忽略解析错误，可能是非 JSON 数据
-      }
-    }, undefined, options.signal);
+      },
+      undefined,
+      options.signal
+    );
 
     return {
       content: fullContent,
@@ -352,7 +371,10 @@ export const callOpenAiResponsesApi = async (
             content += contentItem.text;
 
             // 提取 annotations
-            if (contentItem.annotations && Array.isArray(contentItem.annotations)) {
+            if (
+              contentItem.annotations &&
+              Array.isArray(contentItem.annotations)
+            ) {
               for (const annotation of contentItem.annotations) {
                 if (annotation.type === "url_citation") {
                   annotations.push({
@@ -416,10 +438,10 @@ export const callOpenAiResponsesApi = async (
     annotations: annotations.length > 0 ? annotations : undefined,
     usage: data.usage
       ? {
-        promptTokens: data.usage.input_tokens,
-        completionTokens: data.usage.output_tokens,
-        totalTokens: data.usage.total_tokens,
-      }
+          promptTokens: data.usage.input_tokens,
+          completionTokens: data.usage.output_tokens,
+          totalTokens: data.usage.total_tokens,
+        }
       : undefined,
   };
 };

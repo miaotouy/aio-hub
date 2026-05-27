@@ -39,9 +39,13 @@ const removeSelector = (mode: "include" | "exclude", index: number) => {
   if (!store.recipeDraft) return;
   const draft = { ...store.recipeDraft };
   if (mode === "include") {
-    draft.extractSelectors = draft.extractSelectors?.filter((_, i) => i !== index);
+    draft.extractSelectors = draft.extractSelectors?.filter(
+      (_, i) => i !== index
+    );
   } else {
-    draft.excludeSelectors = draft.excludeSelectors?.filter((_, i) => i !== index);
+    draft.excludeSelectors = draft.excludeSelectors?.filter(
+      (_, i) => i !== index
+    );
   }
   store.updateRecipeDraft(draft);
 };
@@ -57,7 +61,11 @@ const addManualSelector = (mode: "include" | "exclude") => {
   store.updateRecipeDraft(draft);
 };
 
-const updateSelector = (mode: "include" | "exclude", index: number, value: string) => {
+const updateSelector = (
+  mode: "include" | "exclude",
+  index: number,
+  value: string
+) => {
   if (!store.recipeDraft) return;
   const draft = { ...store.recipeDraft };
   if (mode === "include" && draft.extractSelectors) {
@@ -90,18 +98,31 @@ const updateSelector = (mode: "include" | "exclude", index: number, value: strin
       </div>
 
       <div class="selectors-list">
-        <div v-for="(_, index) in store.recipeDraft?.extractSelectors" :key="'inc-' + index" class="selector-item">
+        <div
+          v-for="(_, index) in store.recipeDraft?.extractSelectors"
+          :key="'inc-' + index"
+          class="selector-item"
+        >
           <el-input
             v-model="store.recipeDraft!.extractSelectors![index]"
             size="small"
             placeholder="CSS 选择器"
             @input="(val: string) => updateSelector('include', index, val)"
           />
-          <el-button link type="danger" @click="removeSelector('include', index)">
+          <el-button
+            link
+            type="danger"
+            @click="removeSelector('include', index)"
+          >
             <el-icon><Trash2 /></el-icon>
           </el-button>
         </div>
-        <el-button class="add-btn" dashed size="small" @click="addManualSelector('include')">
+        <el-button
+          class="add-btn"
+          dashed
+          size="small"
+          @click="addManualSelector('include')"
+        >
           <el-icon><Plus /></el-icon>
           <span>手动添加</span>
         </el-button>
@@ -129,18 +150,31 @@ const updateSelector = (mode: "include" | "exclude", index: number, value: strin
       </div>
 
       <div class="selectors-list">
-        <div v-for="(_, index) in store.recipeDraft?.excludeSelectors" :key="'exc-' + index" class="selector-item">
+        <div
+          v-for="(_, index) in store.recipeDraft?.excludeSelectors"
+          :key="'exc-' + index"
+          class="selector-item"
+        >
           <el-input
             v-model="store.recipeDraft!.excludeSelectors![index]"
             size="small"
             placeholder="CSS 选择器"
             @input="(val: string) => updateSelector('exclude', index, val)"
           />
-          <el-button link type="danger" @click="removeSelector('exclude', index)">
+          <el-button
+            link
+            type="danger"
+            @click="removeSelector('exclude', index)"
+          >
             <el-icon><Trash2 /></el-icon>
           </el-button>
         </div>
-        <el-button class="add-btn" dashed size="small" @click="addManualSelector('exclude')">
+        <el-button
+          class="add-btn"
+          dashed
+          size="small"
+          @click="addManualSelector('exclude')"
+        >
           <el-icon><Plus /></el-icon>
           <span>手动添加</span>
         </el-button>

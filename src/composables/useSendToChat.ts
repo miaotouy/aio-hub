@@ -75,7 +75,10 @@ export function useSendToChat() {
   /**
    * 格式化内容
    */
-  const formatContent = (content: string, options: SendToChatOptions): string => {
+  const formatContent = (
+    content: string,
+    options: SendToChatOptions
+  ): string => {
     const { format = "plain", language = "" } = options;
 
     switch (format) {
@@ -99,7 +102,10 @@ export function useSendToChat() {
    * @param options 发送选项
    * @returns 是否发送成功
    */
-  const sendToChat = (content: string, options: SendToChatOptions = {}): boolean => {
+  const sendToChat = (
+    content: string,
+    options: SendToChatOptions = {}
+  ): boolean => {
     // 检查内容是否为空
     if (!content || !content.trim()) {
       const errorMsg = options.errorMessage || "没有可发送的内容";
@@ -140,7 +146,7 @@ export function useSendToChat() {
   const sendCodeToChat = (
     code: string,
     language: string = "",
-    options: Omit<SendToChatOptions, "format" | "language"> = {},
+    options: Omit<SendToChatOptions, "format" | "language"> = {}
   ): boolean => {
     return sendToChat(code, {
       ...options,
@@ -152,7 +158,10 @@ export function useSendToChat() {
   /**
    * 便捷方法：发送引用到聊天
    */
-  const sendQuoteToChat = (text: string, options: Omit<SendToChatOptions, "format"> = {}): boolean => {
+  const sendQuoteToChat = (
+    text: string,
+    options: Omit<SendToChatOptions, "format"> = {}
+  ): boolean => {
     return sendToChat(text, {
       ...options,
       format: "quote",

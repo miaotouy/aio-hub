@@ -4,7 +4,11 @@
 
 import { ref } from "vue";
 import type { LlmProfile } from "../types";
-import type { ApiKeyStatus, KeyStatesStorage, ProfileKeyStatusMap } from "../types/key-manager";
+import type {
+  ApiKeyStatus,
+  KeyStatesStorage,
+  ProfileKeyStatusMap,
+} from "../types/key-manager";
 import { createConfigManager } from "@/utils/configManager";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -21,7 +25,7 @@ const configManager = createConfigManager<KeyStatesStorage>({
     states: {},
     lastUsedIndices: {},
     enableAutoDisable: true,
-    autoRecoveryTime: 60000 // 默认 1 分钟恢复
+    autoRecoveryTime: 60000, // 默认 1 分钟恢复
   }),
 });
 
@@ -30,7 +34,7 @@ const keyStates = ref<KeyStatesStorage>({
   states: {},
   lastUsedIndices: {},
   enableAutoDisable: true,
-  autoRecoveryTime: 60000
+  autoRecoveryTime: 60000,
 });
 const isLoaded = ref(false);
 
@@ -46,7 +50,10 @@ export function useLlmKeyManager() {
       isLoaded.value = true;
       logger.debug("LLM Key 状态加载成功");
     } catch (error) {
-      errorHandler.handle(error, { userMessage: "加载 Key 状态失败", showToUser: false });
+      errorHandler.handle(error, {
+        userMessage: "加载 Key 状态失败",
+        showToUser: false,
+      });
       isLoaded.value = true;
     }
   };
@@ -113,11 +120,19 @@ export function useLlmKeyManager() {
       const state = profileStates[key];
 
       // 检查自动恢复
-      if (state.isEnabled && state.isBroken && state.disabledTime && autoRecoveryTime > 0) {
+      if (
+        state.isEnabled &&
+        state.isBroken &&
+        state.disabledTime &&
+        autoRecoveryTime > 0
+      ) {
         if (now - state.disabledTime > autoRecoveryTime) {
           state.isBroken = false;
           state.errorCount = 0;
-          logger.info("API Key 已自动恢复可用", { profileId: profile.id, key: key.substring(0, 8) + "..." });
+          logger.info("API Key 已自动恢复可用", {
+            profileId: profile.id,
+            key: key.substring(0, 8) + "...",
+          });
           return true;
         }
       }
@@ -126,7 +141,9 @@ export function useLlmKeyManager() {
     });
 
     if (availableKeys.length === 0) {
-      logger.warn("配置下没有可用的 API Key (可能全部被禁用或熔断)", { profileId: profile.id });
+      logger.warn("配置下没有可用的 API Key (可能全部被禁用或熔断)", {
+        profileId: profile.id,
+      });
       return profile.apiKeys[0];
     }
 
@@ -157,7 +174,7 @@ export function useLlmKeyManager() {
       logger.debug("选择了 API Key", {
         profileId: profile.id,
         index: lastIndex,
-        isRotated: availableKeys.length > 1
+        isRotated: availableKeys.length > 1,
       });
       return nextKey;
     }
@@ -196,14 +213,23 @@ export function useLlmKeyManager() {
         state.lastErrorMessage?.includes("429") ||
         state.lastErrorMessage?.toLowerCase().includes("rate limit");
 
-      if (keyStates.value.enableAutoDisable && !state.isBroken && (isRateLimit || state.errorCount >= 3)) {
+      if (
+        keyStates.value.enableAutoDisable &&
+        !state.isBroken &&
+        (isRateLimit || state.errorCount >= 3)
+      ) {
         state.isBroken = true;
         state.disabledTime = Date.now();
-        state.note = isRateLimit ? "触发频率限制 (429)，已自动熔断" : "连续多次请求失败，已自动熔断";
-        logger.error(isRateLimit ? "API Key 触发 429 熔断" : "API Key 连续失败熔断", {
-          profileId,
-          key: key.substring(0, 8) + "..."
-        });
+        state.note = isRateLimit
+          ? "触发频率限制 (429)，已自动熔断"
+          : "连续多次请求失败，已自动熔断";
+        logger.error(
+          isRateLimit ? "API Key 触发 429 熔断" : "API Key 连续失败熔断",
+          {
+            profileId,
+            key: key.substring(0, 8) + "...",
+          }
+        );
       }
       saveKeyStates();
     }
@@ -219,8 +245,15 @@ export function useLlmKeyManager() {
   /**
    * 手动更新 Key 状态
    */
-  const updateKeyStatus = (profileId: string, key: string, updates: Partial<ApiKeyStatus>) => {
-    if (keyStates.value.states[profileId] && keyStates.value.states[profileId][key]) {
+  const updateKeyStatus = (
+    profileId: string,
+    key: string,
+    updates: Partial<ApiKeyStatus>
+  ) => {
+    if (
+      keyStates.value.states[profileId] &&
+      keyStates.value.states[profileId][key]
+    ) {
       Object.assign(keyStates.value.states[profileId][key], updates);
       saveKeyStates();
     }
@@ -230,7 +263,10 @@ export function useLlmKeyManager() {
    * 移除某个 Key 的状态记录
    */
   const removeKeyStatus = (profileId: string, key: string) => {
-    if (keyStates.value.states[profileId] && keyStates.value.states[profileId][key]) {
+    if (
+      keyStates.value.states[profileId] &&
+      keyStates.value.states[profileId][key]
+    ) {
       delete keyStates.value.states[profileId][key];
       saveKeyStates();
     }

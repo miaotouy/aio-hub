@@ -5,7 +5,9 @@ import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import { DEFAULT_VISUAL_GUIDELINE } from "../../../../config/visualGuidelinePresets";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 
-const errorHandler = createModuleErrorHandler("llm-chat/agent-editor/VisualGuidelineEditor");
+const errorHandler = createModuleErrorHandler(
+  "llm-chat/agent-editor/VisualGuidelineEditor"
+);
 
 const props = defineProps<{
   modelValue?: string;
@@ -33,11 +35,11 @@ const handleResetToDefault = async () => {
           confirmButtonText: "确定恢复",
           cancelButtonText: "取消",
           type: "warning",
-        },
+        }
       );
       return true;
     },
-    { showToUser: false },
+    { showToUser: false }
   );
 
   if (confirmed) {
@@ -47,23 +49,41 @@ const handleResetToDefault = async () => {
 </script>
 
 <template>
-  <div class="visual-guideline-editor-wrapper" data-setting-id="visualGuideline">
+  <div
+    class="visual-guideline-editor-wrapper"
+    data-setting-id="visualGuideline"
+  >
     <el-collapse v-model="activeCollapse" class="visual-guideline-collapse">
       <el-collapse-item name="visual-guideline">
         <template #title>
           <div class="collapse-title-container">
             <span class="title-text">视觉化输出指南</span>
-            <el-tag v-if="isInherited" size="small" type="info" effect="plain" class="status-tag">
+            <el-tag
+              v-if="isInherited"
+              size="small"
+              type="info"
+              effect="plain"
+              class="status-tag"
+            >
               继承系统默认
             </el-tag>
-            <el-tag v-else size="small" type="warning" effect="plain" class="status-tag"> 已自定义 </el-tag>
+            <el-tag
+              v-else
+              size="small"
+              type="warning"
+              effect="plain"
+              class="status-tag"
+            >
+              已自定义
+            </el-tag>
           </div>
         </template>
 
         <div class="block-header">
           <div class="block-hint">
             配置该智能体遵循的 HTML/CSS/JS 渲染规范。在 Prompt 中使用
-            <code v-pre>{{ visual_guideline }}</code> 宏即可注入此内容。如果留空，系统将回退使用内置的默认规范。
+            <code v-pre>{{ visual_guideline }}</code>
+            宏即可注入此内容。如果留空，系统将回退使用内置的默认规范。
           </div>
         </div>
 
@@ -72,16 +92,29 @@ const handleResetToDefault = async () => {
             <div class="status-header">
               <div class="status-info">
                 <el-icon class="info-icon"><InfoFilled /></el-icon>
-                <span>当前正在使用系统默认规范，将随 AIO Hub 更新而自动升级</span>
+                <span
+                  >当前正在使用系统默认规范，将随 AIO Hub 更新而自动升级</span
+                >
               </div>
-              <el-button type="primary" plain size="small" :icon="MagicStick" @click="handleStartCustomizing">
+              <el-button
+                type="primary"
+                plain
+                size="small"
+                :icon="MagicStick"
+                @click="handleStartCustomizing"
+              >
                 切换使用自定义
               </el-button>
             </div>
 
             <div class="preview-container">
               <div class="preview-label">当前默认规范预览 (只读)</div>
-              <RichCodeEditor :model-value="DEFAULT_VISUAL_GUIDELINE" language="markdown" read-only height="400px" />
+              <RichCodeEditor
+                :model-value="DEFAULT_VISUAL_GUIDELINE"
+                language="markdown"
+                read-only
+                height="400px"
+              />
             </div>
           </div>
 
@@ -91,7 +124,13 @@ const handleResetToDefault = async () => {
                 <el-icon class="info-icon"><MagicStick /></el-icon>
                 <span>正在使用自定义规范，系统更新将不会覆盖此内容</span>
               </div>
-              <el-button type="danger" plain size="small" :icon="RefreshLeft" @click="handleResetToDefault">
+              <el-button
+                type="danger"
+                plain
+                size="small"
+                :icon="RefreshLeft"
+                @click="handleResetToDefault"
+              >
                 恢复使用系统默认规范
               </el-button>
             </div>

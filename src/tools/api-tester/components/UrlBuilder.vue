@@ -17,7 +17,11 @@
           spellcheck="false"
         >
           <template #append>
-            <el-button :icon="DocumentCopy" @click="copyUrl" title="复制完整 URL" />
+            <el-button
+              :icon="DocumentCopy"
+              @click="copyUrl"
+              title="复制完整 URL"
+            />
           </template>
         </el-input>
         <div class="url-preview">{{ store.buildUrl }}</div>

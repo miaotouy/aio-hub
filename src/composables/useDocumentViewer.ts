@@ -65,7 +65,7 @@ export function useDocumentViewer(options: UseDocumentViewerOptions) {
         "\\s(v-[\\w-]+|@[\\w-]+)=", // 明确的 Vue 指令 (v-if, @click)，确保是作为属性
         "\\{\\{", // Vue 插值语法的起始部分
         "<script[^>]*src\\s*=\\s*[\"'][^\"']+\\.tsx?", // 加载 TypeScript 的脚本
-      ].join("|"),
+      ].join("|")
     );
     return !nonRenderablePattern.test(decodedContent.value);
   });
@@ -85,7 +85,9 @@ export function useDocumentViewer(options: UseDocumentViewerOptions) {
       if (typeof options.content === "string") {
         // 如果内容是字符串，直接使用，并编码以获取原始数据和MIME类型
         // 规范化换行符：Windows CRLF → LF，避免 \r 残留破坏 Markdown 解析器
-        decodedContent.value = options.content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+        decodedContent.value = options.content
+          .replace(/\r\n/g, "\n")
+          .replace(/\r/g, "\n");
         buffer = new TextEncoder().encode(options.content);
         rawContent.value = buffer;
 
@@ -126,7 +128,10 @@ export function useDocumentViewer(options: UseDocumentViewerOptions) {
 
       let detectedMime: string;
       // 优先基于文件扩展名判断 Markdown，避免内容嗅探误判
-      if (options.fileName?.toLowerCase().endsWith(".md") || options.fileName?.toLowerCase().endsWith(".markdown")) {
+      if (
+        options.fileName?.toLowerCase().endsWith(".md") ||
+        options.fileName?.toLowerCase().endsWith(".markdown")
+      ) {
         detectedMime = "text/markdown";
         logger.debug("Forced markdown mode", { fileName: options.fileName });
       } else {
@@ -134,7 +139,9 @@ export function useDocumentViewer(options: UseDocumentViewerOptions) {
       }
       mimeType.value = detectedMime;
 
-      const detectedLanguage = isDocxMime(detectedMime) ? "html" : mapMimeToLanguage(detectedMime) || "plaintext";
+      const detectedLanguage = isDocxMime(detectedMime)
+        ? "html"
+        : mapMimeToLanguage(detectedMime) || "plaintext";
       language.value = detectedLanguage;
 
       logger.debug("Document details", {
@@ -151,10 +158,15 @@ export function useDocumentViewer(options: UseDocumentViewerOptions) {
       }
 
       // 只有在 decodedContent 尚未被设置时才解码
-      if (decodedContent.value === null && (isTextContent.value || detectedMime === "application/octet-stream")) {
+      if (
+        decodedContent.value === null &&
+        (isTextContent.value || detectedMime === "application/octet-stream")
+      ) {
         // 规范化换行符：Windows CRLF → LF，避免 \r 残留破坏 Markdown 解析器
         const decoded = smartDecode(buffer);
-        decodedContent.value = decoded.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+        decodedContent.value = decoded
+          .replace(/\r\n/g, "\n")
+          .replace(/\r/g, "\n");
       }
     } catch (e: any) {
       logger.debug("Error details", {
@@ -177,7 +189,8 @@ export function useDocumentViewer(options: UseDocumentViewerOptions) {
         // 对于其他未知类型，尝试转换为字符串
         const rawString = String(e);
         // 避免显示无意义的 "[object Object]"
-        errorMessage = rawString === "[object Object]" ? "发生未知错误。" : rawString;
+        errorMessage =
+          rawString === "[object Object]" ? "发生未知错误。" : rawString;
       }
 
       // 避免显示空的 "{}", "[]" 或 "null"
@@ -187,13 +200,19 @@ export function useDocumentViewer(options: UseDocumentViewerOptions) {
 
       error.value = errorMessage;
       // 由于已经手动设置了 error.value，这里可以选择静默处理
-      errorHandler.handle(e, { userMessage: "加载文档失败", showToUser: false });
+      errorHandler.handle(e, {
+        userMessage: "加载文档失败",
+        showToUser: false,
+      });
     } finally {
       isLoading.value = false;
     }
   }
 
-  watch(() => [options.content, options.filePath], loadDocument, { immediate: true, deep: true });
+  watch(() => [options.content, options.filePath], loadDocument, {
+    immediate: true,
+    deep: true,
+  });
 
   return {
     isLoading,

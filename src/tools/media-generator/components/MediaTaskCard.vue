@@ -35,7 +35,8 @@ const emit = defineEmits<{
   (e: "open", task: MediaTask): void;
 }>();
 
-const { getAssetUrl, getAssetBasePath, convertToAssetProtocol } = useAssetManager();
+const { getAssetUrl, getAssetBasePath, convertToAssetProtocol } =
+  useAssetManager();
 const imageViewer = useImageViewer();
 
 // 结果多图支持
@@ -93,7 +94,8 @@ const prevResult = () => {
   if (activeResultIndex.value > 0) activeResultIndex.value--;
 };
 const nextResult = () => {
-  if (activeResultIndex.value < resultAssetUrls.value.length - 1) activeResultIndex.value++;
+  if (activeResultIndex.value < resultAssetUrls.value.length - 1)
+    activeResultIndex.value++;
 };
 
 onMounted(() => {
@@ -106,7 +108,7 @@ watch(
   () => {
     loadResultUrls();
   },
-  { deep: true },
+  { deep: true }
 );
 
 watch(
@@ -114,7 +116,7 @@ watch(
   () => {
     loadReferenceUrls();
   },
-  { deep: true },
+  { deep: true }
 );
 
 const getTaskIcon = (type: string) => {
@@ -193,7 +195,12 @@ const getTaskResolution = (task: MediaTask) => {
           {{ task.input.prompt }}
         </div>
         <el-tooltip content="复制提示词" placement="top">
-          <el-button :icon="Copy" link class="copy-prompt-btn" @click="emit('copyPrompt', task.input.prompt)" />
+          <el-button
+            :icon="Copy"
+            link
+            class="copy-prompt-btn"
+            @click="emit('copyPrompt', task.input.prompt)"
+          />
         </el-tooltip>
       </div>
 
@@ -201,7 +208,9 @@ const getTaskResolution = (task: MediaTask) => {
       <div class="result-row" :class="{ 'has-reference': hasReferenceImages }">
         <!-- 参考图区域：竖向排列，超过3个可滚动 -->
         <div v-if="hasReferenceImages" class="reference-panel">
-          <div class="reference-label">参考图 ({{ referenceAssetUrls.length }})</div>
+          <div class="reference-label">
+            参考图 ({{ referenceAssetUrls.length }})
+          </div>
           <div class="reference-list">
             <div
               v-for="(url, idx) in referenceAssetUrls"
@@ -245,10 +254,17 @@ const getTaskResolution = (task: MediaTask) => {
             </div>
             <!-- 多图切换指示器 -->
             <div v-if="hasMultipleResults" class="result-nav">
-              <button class="nav-btn" :disabled="activeResultIndex === 0" @click.stop="prevResult">
+              <button
+                class="nav-btn"
+                :disabled="activeResultIndex === 0"
+                @click.stop="prevResult"
+              >
                 <el-icon><ChevronLeft /></el-icon>
               </button>
-              <span class="nav-indicator">{{ activeResultIndex + 1 }} / {{ resultAssetUrls.length }}</span>
+              <span class="nav-indicator"
+                >{{ activeResultIndex + 1 }} /
+                {{ resultAssetUrls.length }}</span
+              >
               <button
                 class="nav-btn"
                 :disabled="activeResultIndex === resultAssetUrls.length - 1"
@@ -264,8 +280,16 @@ const getTaskResolution = (task: MediaTask) => {
             <div class="status-container processing">
               <el-icon class="is-loading"><Loader2 /></el-icon>
               <div class="progress-info">
-                <el-progress :percentage="task.progress" :stroke-width="4" striped striped-flow :show-text="false" />
-                <span class="status-text">{{ task.statusText || "正在生成中..." }}</span>
+                <el-progress
+                  :percentage="task.progress"
+                  :stroke-width="4"
+                  striped
+                  striped-flow
+                  :show-text="false"
+                />
+                <span class="status-text">{{
+                  task.statusText || "正在生成中..."
+                }}</span>
               </div>
             </div>
           </template>
@@ -291,25 +315,74 @@ const getTaskResolution = (task: MediaTask) => {
 
     <!-- 卡片底部操作栏 -->
     <div class="task-footer">
-      <el-tag :type="getStatusType(task.status)" size="small" class="status-tag">
+      <el-tag
+        :type="getStatusType(task.status)"
+        size="small"
+        class="status-tag"
+      >
         {{ getStatusLabel(task.status) }}
       </el-tag>
 
       <div class="actions">
-        <el-tooltip v-if="task.status === 'processing' || task.status === 'pending'" content="取消任务" placement="top">
-          <el-button :icon="Trash2" circle size="small" type="warning" plain @click="emit('cancel', task.id)" />
+        <el-tooltip
+          v-if="task.status === 'processing' || task.status === 'pending'"
+          content="取消任务"
+          placement="top"
+        >
+          <el-button
+            :icon="Trash2"
+            circle
+            size="small"
+            type="warning"
+            plain
+            @click="emit('cancel', task.id)"
+          />
         </el-tooltip>
-        <el-tooltip v-if="task.status !== 'processing' && task.status !== 'pending'" content="重新生成" placement="top">
-          <el-button :icon="RefreshCcw" circle size="small" @click="emit('retry', task)" />
+        <el-tooltip
+          v-if="task.status !== 'processing' && task.status !== 'pending'"
+          content="重新生成"
+          placement="top"
+        >
+          <el-button
+            :icon="RefreshCcw"
+            circle
+            size="small"
+            @click="emit('retry', task)"
+          />
         </el-tooltip>
-        <el-tooltip v-if="task.status === 'completed'" content="复制结果" placement="top">
-          <el-button :icon="Copy" circle size="small" @click="emit('copyResult', task)" />
+        <el-tooltip
+          v-if="task.status === 'completed'"
+          content="复制结果"
+          placement="top"
+        >
+          <el-button
+            :icon="Copy"
+            circle
+            size="small"
+            @click="emit('copyResult', task)"
+          />
         </el-tooltip>
-        <el-tooltip v-if="task.status === 'completed'" content="下载" placement="top">
-          <el-button :icon="Download" circle size="small" @click="emit('download', task)" />
+        <el-tooltip
+          v-if="task.status === 'completed'"
+          content="下载"
+          placement="top"
+        >
+          <el-button
+            :icon="Download"
+            circle
+            size="small"
+            @click="emit('download', task)"
+          />
         </el-tooltip>
         <el-tooltip content="删除" placement="top">
-          <el-button :icon="TrashIcon" circle size="small" type="danger" plain @click="emit('remove', task.id)" />
+          <el-button
+            :icon="TrashIcon"
+            circle
+            size="small"
+            type="danger"
+            plain
+            @click="emit('remove', task.id)"
+          />
         </el-tooltip>
       </div>
     </div>

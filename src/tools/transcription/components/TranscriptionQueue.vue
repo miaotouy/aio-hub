@@ -155,7 +155,8 @@ const handleRetry = async (task: TranscriptionTask) => {
   retryModelId.value = oldConfig?.modelIdentifier || "";
   // 只恢复附加提示词，不混入主提示词
   retryPrompt.value = oldConfig?.additionalPrompt || "";
-  retryEnableRepetitionDetection.value = oldConfig?.enableRepetitionDetection !== false;
+  retryEnableRepetitionDetection.value =
+    oldConfig?.enableRepetitionDetection !== false;
 
   showRetryConfirm.value = true;
 };
@@ -163,7 +164,9 @@ const handleRetry = async (task: TranscriptionTask) => {
 const handleConfirmRetry = async () => {
   if (!retryingTask.value) return;
 
-  const asset = await assetManagerEngine.getAssetById(retryingTask.value.assetId);
+  const asset = await assetManagerEngine.getAssetById(
+    retryingTask.value.assetId
+  );
   if (asset) {
     // 构建覆盖配置，保留原有的 customPrompt 覆盖（如果有）
     const overrideConfig: Record<string, any> = {
@@ -178,10 +181,14 @@ const handleConfirmRetry = async () => {
 
     // 更新附加提示词
     overrideConfig.additionalPrompt = retryPrompt.value || undefined;
-    overrideConfig.enableRepetitionDetection = retryEnableRepetitionDetection.value;
+    overrideConfig.enableRepetitionDetection =
+      retryEnableRepetitionDetection.value;
 
     // 调用 addTask 并传入覆盖配置
-    addTask(asset, Object.keys(overrideConfig).length > 0 ? overrideConfig : undefined);
+    addTask(
+      asset,
+      Object.keys(overrideConfig).length > 0 ? overrideConfig : undefined
+    );
   }
 
   // 关闭弹窗并重置状态
@@ -241,7 +248,12 @@ const handleViewResult = async (task: TranscriptionTask) => {
         }
         transcriptionViewer.close();
       },
-      onRegenerate: ({ modelId, prompt, enableRepetitionDetection, overrideConfig }) => {
+      onRegenerate: ({
+        modelId,
+        prompt,
+        enableRepetitionDetection,
+        overrideConfig,
+      }) => {
         // 优先使用传入的完整 overrideConfig，确保保留了 customPrompt 等
         // 注意：modelId 此时已经是 profileId:modelId 格式（由查看器传回）
         const finalConfig = overrideConfig || {
@@ -258,7 +270,10 @@ const handleViewResult = async (task: TranscriptionTask) => {
 
 const clearFinishedTasks = () => {
   const finished = store.tasks.filter(
-    (t) => t.status === "completed" || t.status === "cancelled" || t.status === "error"
+    (t) =>
+      t.status === "completed" ||
+      t.status === "cancelled" ||
+      t.status === "error"
   );
   finished.forEach((t) => store.removeTask(t.id));
 };
@@ -289,7 +304,11 @@ const getTaskDuration = (task: TranscriptionTask) => {
   if (!task.startedAt) return null;
 
   // 如果任务已结束（完成、失败、取消），必须有完成时间才显示
-  if (task.status === "completed" || task.status === "error" || task.status === "cancelled") {
+  if (
+    task.status === "completed" ||
+    task.status === "error" ||
+    task.status === "cancelled"
+  ) {
     if (task.completedAt) {
       return task.completedAt - task.startedAt;
     }
@@ -339,19 +358,28 @@ const getTaskDuration = (task: TranscriptionTask) => {
         <span class="title">任务监控列表</span>
       </div>
       <div class="header-right">
-        <el-button :icon="Trash2" link @click="clearFinishedTasks"> 清空已结束任务 </el-button>
+        <el-button :icon="Trash2" link @click="clearFinishedTasks">
+          清空已结束任务
+        </el-button>
       </div>
     </div>
 
     <!-- 任务表格 -->
     <div class="queue-content">
-      <el-table :data="tasks" style="width: 100%" height="100%" class="custom-table">
+      <el-table
+        :data="tasks"
+        style="width: 100%"
+        height="100%"
+        class="custom-table"
+      >
         <el-table-column label="文件名称" min-width="200">
           <template #default="{ row }">
             <div class="file-cell" @click="handlePreviewAsset(row.assetId)">
               <el-icon class="file-icon"><FileText /></el-icon>
               <div class="file-info">
-                <span class="filename" :title="row.filename">{{ row.filename }}</span>
+                <span class="filename" :title="row.filename">{{
+                  row.filename
+                }}</span>
                 <span class="asset-id">{{ row.assetId }}</span>
               </div>
             </div>
@@ -362,11 +390,19 @@ const getTaskDuration = (task: TranscriptionTask) => {
           <template #default="{ row }">
             <el-tooltip
               :disabled="row.status !== 'error' || !row.error"
-              :content="row.error?.length > 200 ? row.error.substring(0, 200) + '...' : row.error"
+              :content="
+                row.error?.length > 200
+                  ? row.error.substring(0, 200) + '...'
+                  : row.error
+              "
               placement="top"
               :show-after="300"
             >
-              <el-tag :type="getStatusType(row.status)" size="small" class="status-tag">
+              <el-tag
+                :type="getStatusType(row.status)"
+                size="small"
+                class="status-tag"
+              >
                 <el-icon :class="{ 'is-loading': row.status === 'processing' }">
                   <component :is="getStatusIcon(row.status)" />
                 </el-icon>
@@ -431,7 +467,12 @@ const getTaskDuration = (task: TranscriptionTask) => {
                 content="重试任务"
                 placement="top"
               >
-                <el-button :icon="RotateCcw" circle size="small" @click="handleRetry(row)" />
+                <el-button
+                  :icon="RotateCcw"
+                  circle
+                  size="small"
+                  @click="handleRetry(row)"
+                />
               </el-tooltip>
               <el-tooltip
                 v-if="row.status === 'processing' || row.status === 'pending'"
@@ -448,8 +489,13 @@ const getTaskDuration = (task: TranscriptionTask) => {
                 />
               </el-tooltip>
               <el-tooltip
-                v-if="row.status === 'completed' || (row.status === 'error' && row.resultPath)"
-                :content="row.status === 'error' ? '查看旧转写结果' : '查看结果'"
+                v-if="
+                  row.status === 'completed' ||
+                  (row.status === 'error' && row.resultPath)
+                "
+                :content="
+                  row.status === 'error' ? '查看旧转写结果' : '查看结果'
+                "
                 placement="top"
               >
                 <el-button
@@ -468,7 +514,12 @@ const getTaskDuration = (task: TranscriptionTask) => {
     </div>
 
     <!-- 重试确认弹窗 -->
-    <BaseDialog v-model="showRetryConfirm" title="重试转写任务" width="500px" height="auto">
+    <BaseDialog
+      v-model="showRetryConfirm"
+      title="重试转写任务"
+      width="500px"
+      height="auto"
+    >
       <template #content>
         <div class="retry-form">
           <div class="retry-task-info" v-if="retryingTask">
@@ -512,14 +563,23 @@ const getTaskDuration = (task: TranscriptionTask) => {
       </template>
       <template #footer>
         <div class="confirm-footer">
-          <button class="btn btn-secondary" @click="handleCancelRetryConfirm">取消</button>
-          <button class="btn btn-primary" @click="handleConfirmRetry">确认重试</button>
+          <button class="btn btn-secondary" @click="handleCancelRetryConfirm">
+            取消
+          </button>
+          <button class="btn btn-primary" @click="handleConfirmRetry">
+            确认重试
+          </button>
         </div>
       </template>
     </BaseDialog>
 
     <!-- 错误信息查看弹窗 -->
-    <BaseDialog v-model="showErrorDialog" title="任务错误详情" width="560px" height="auto">
+    <BaseDialog
+      v-model="showErrorDialog"
+      title="任务错误详情"
+      width="560px"
+      height="auto"
+    >
       <template #content>
         <div class="error-detail" v-if="errorDialogTask">
           <div class="error-task-info">
@@ -533,7 +593,9 @@ const getTaskDuration = (task: TranscriptionTask) => {
       </template>
       <template #footer>
         <div class="confirm-footer">
-          <button class="btn btn-secondary" @click="showErrorDialog = false">关闭</button>
+          <button class="btn btn-secondary" @click="showErrorDialog = false">
+            关闭
+          </button>
           <button
             class="btn btn-primary"
             @click="
@@ -729,7 +791,10 @@ const getTaskDuration = (task: TranscriptionTask) => {
 }
 
 .error-message-box {
-  background: rgba(var(--el-color-danger-rgb), calc(var(--card-opacity) * 0.06));
+  background: rgba(
+    var(--el-color-danger-rgb),
+    calc(var(--card-opacity) * 0.06)
+  );
   border: 1px solid rgba(var(--el-color-danger-rgb), 0.2);
   border-radius: 6px;
   padding: 16px;

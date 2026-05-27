@@ -7,11 +7,11 @@ const logger = createModuleLogger("utils/encoding");
  * 涵盖了中文(GBK/Big5)、日韩(Shift-JIS/EUC)、以及西欧常用编码
  */
 const FALLBACK_ENCODINGS = [
-  "gbk",          // 简体中文 Windows
-  "big5",         // 繁体中文
-  "shift-jis",    // 日语
-  "euc-jp",       // 日语
-  "euc-kr",       // 韩语
+  "gbk", // 简体中文 Windows
+  "big5", // 繁体中文
+  "shift-jis", // 日语
+  "euc-jp", // 日语
+  "euc-kr", // 韩语
   "windows-1252", // 西欧语言 (Latin-1)
 ];
 
@@ -27,7 +27,8 @@ const FALLBACK_ENCODINGS = [
  * @returns 解码后的字符串
  */
 export function smartDecode(buffer: Uint8Array | ArrayBuffer): string {
-  const uint8Array = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+  const uint8Array =
+    buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
 
   if (uint8Array.length === 0) return "";
 

@@ -14,7 +14,11 @@
             <el-icon><CopyDocument /></el-icon>
             复制结果
           </el-button>
-          <el-button @click="handleSendToChat" size="small" :disabled="!resultText">
+          <el-button
+            @click="handleSendToChat"
+            size="small"
+            :disabled="!resultText"
+          >
             <el-icon><Send /></el-icon>
             发送到聊天
           </el-button>
@@ -35,7 +39,9 @@
           <div class="editor-panel input-panel">
             <div class="panel-header">
               <span class="panel-title">原始数据</span>
-              <el-tag size="small" type="info" effect="plain">{{ inputType }}</el-tag>
+              <el-tag size="small" type="info" effect="plain">{{
+                inputType
+              }}</el-tag>
             </div>
             <div class="editor-content">
               <RichCodeEditor
@@ -65,10 +71,18 @@
                     <template #prefix>
                       <el-icon><BookmarkIcon /></el-icon>
                     </template>
-                    <el-option v-for="preset in presets" :key="preset.id" :label="preset.name" :value="preset.id">
+                    <el-option
+                      v-for="preset in presets"
+                      :key="preset.id"
+                      :label="preset.name"
+                      :value="preset.id"
+                    >
                       <div class="preset-option-item">
                         <span>{{ preset.name }}</span>
-                        <el-icon class="delete-icon" @click.stop="handleDeletePreset(preset.id)">
+                        <el-icon
+                          class="delete-icon"
+                          @click.stop="handleDeletePreset(preset.id)"
+                        >
                           <CloseIcon />
                         </el-icon>
                       </div>
@@ -77,22 +91,39 @@
 
                   <div class="preset-actions" v-if="activePresetId">
                     <el-tooltip content="更新当前预设" placement="top">
-                      <el-button :icon="SaveIcon" circle size="small" @click="handleUpdatePreset" />
+                      <el-button
+                        :icon="SaveIcon"
+                        circle
+                        size="small"
+                        @click="handleUpdatePreset"
+                      />
                     </el-tooltip>
                     <el-tooltip content="另存为/重命名" placement="top">
-                      <el-dropdown trigger="click" @command="handlePresetMoreCommand">
+                      <el-dropdown
+                        trigger="click"
+                        @command="handlePresetMoreCommand"
+                      >
                         <el-button :icon="PlusIcon" circle size="small" />
                         <template #dropdown>
                           <el-dropdown-menu>
-                            <el-dropdown-item :icon="EditIcon" command="rename">重命名</el-dropdown-item>
-                            <el-dropdown-item :icon="CopyIcon" command="saveAs">另存为新预设</el-dropdown-item>
+                            <el-dropdown-item :icon="EditIcon" command="rename"
+                              >重命名</el-dropdown-item
+                            >
+                            <el-dropdown-item :icon="CopyIcon" command="saveAs"
+                              >另存为新预设</el-dropdown-item
+                            >
                           </el-dropdown-menu>
                         </template>
                       </el-dropdown>
                     </el-tooltip>
                   </div>
                   <el-tooltip content="保存为预设" placement="top" v-else>
-                    <el-button :icon="PlusIcon" circle size="small" @click="handleSaveAsPreset" />
+                    <el-button
+                      :icon="PlusIcon"
+                      circle
+                      size="small"
+                      @click="handleSaveAsPreset"
+                    />
                   </el-tooltip>
                 </div>
               </div>
@@ -105,15 +136,30 @@
                     <span class="section-label">数据路径 (可选)</span>
                   </div>
                   <el-form-item>
-                    <el-input v-model="options.dataPath" placeholder="例如: data.items" clearable />
+                    <el-input
+                      v-model="options.dataPath"
+                      placeholder="例如: data.items"
+                      clearable
+                    />
                   </el-form-item>
 
                   <div class="config-section-header">
                     <span class="section-label">筛选条件</span>
-                    <el-button :icon="Plus" type="primary" link size="small" @click="addCondition">添加条件</el-button>
+                    <el-button
+                      :icon="Plus"
+                      type="primary"
+                      link
+                      size="small"
+                      @click="addCondition"
+                      >添加条件</el-button
+                    >
                   </div>
 
-                  <div v-for="(cond, index) in options.conditions" :key="index" class="condition-card">
+                  <div
+                    v-for="(cond, index) in options.conditions"
+                    :key="index"
+                    class="condition-card"
+                  >
                     <div class="cond-row cond-header-row">
                       <el-switch v-model="cond.enabled" size="small" />
                       <el-input
@@ -153,7 +199,11 @@
                     </div>
 
                     <div v-if="showValueInput(cond.operator)" class="cond-row">
-                      <el-input v-model="cond.value" placeholder="目标值" :disabled="!cond.enabled" />
+                      <el-input
+                        v-model="cond.value"
+                        placeholder="目标值"
+                        :disabled="!cond.enabled"
+                      />
                     </div>
 
                     <div v-if="cond.operator === 'custom'" class="cond-row">
@@ -171,7 +221,13 @@
             </el-scrollbar>
 
             <div class="config-footer">
-              <el-button type="primary" :icon="Filter" @click="doExecuteFilter" class="execute-btn">执行筛选</el-button>
+              <el-button
+                type="primary"
+                :icon="Filter"
+                @click="doExecuteFilter"
+                class="execute-btn"
+                >执行筛选</el-button
+              >
             </div>
           </div>
 
@@ -197,7 +253,11 @@
     </div>
 
     <!-- 保存预设对话框 -->
-    <BaseDialog v-model="savePresetDialogVisible" title="保存筛选规则预设" width="400px">
+    <BaseDialog
+      v-model="savePresetDialogVisible"
+      title="保存筛选规则预设"
+      width="400px"
+    >
       <el-form label-position="top" size="small">
         <el-form-item label="预设名称">
           <el-input
@@ -216,7 +276,11 @@
     </BaseDialog>
 
     <!-- 重命名预设对话框 -->
-    <BaseDialog v-model="renamePresetDialogVisible" title="重命名预设" width="400px">
+    <BaseDialog
+      v-model="renamePresetDialogVisible"
+      title="重命名预设"
+      width="400px"
+    >
       <el-form label-position="top" size="small">
         <el-form-item label="新的预设名称">
           <el-input
@@ -240,8 +304,23 @@
 import { ref, computed, reactive, watch, onMounted, nextTick } from "vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
-import { Plus, Delete, Filter, Send, Bookmark, Save, X, Edit3, Copy } from "lucide-vue-next";
-import { DocumentCopy, CopyDocument, Delete as DeleteIcon, Plus as PlusIcon } from "@element-plus/icons-vue";
+import {
+  Plus,
+  Delete,
+  Filter,
+  Send,
+  Bookmark,
+  Save,
+  X,
+  Edit3,
+  Copy,
+} from "lucide-vue-next";
+import {
+  DocumentCopy,
+  CopyDocument,
+  Delete as DeleteIcon,
+  Plus as PlusIcon,
+} from "@element-plus/icons-vue";
 import { customMessage } from "@/utils/customMessage";
 import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -259,8 +338,15 @@ const CopyIcon = Copy;
 
 const errorHandler = createModuleErrorHandler("DataFilter");
 const { sendCodeToChat } = useSendToChat();
-const { presets, loadConfig, saveLastState, savePreset, updatePreset, deletePreset, renamePreset } =
-  useDataFilterConfig();
+const {
+  presets,
+  loadConfig,
+  saveLastState,
+  savePreset,
+  updatePreset,
+  deletePreset,
+  renamePreset,
+} = useDataFilterConfig();
 
 const inputText = ref("");
 const resultText = ref("");
@@ -269,14 +355,20 @@ const savePresetDialogVisible = ref(false);
 const renamePresetDialogVisible = ref(false);
 const saveAsName = ref("");
 const renameName = ref("");
-const saveAsInputRef = ref<InstanceType<(typeof import("element-plus"))["ElInput"]> | null>(null);
-const renameInputRef = ref<InstanceType<(typeof import("element-plus"))["ElInput"]> | null>(null);
+const saveAsInputRef = ref<InstanceType<
+  (typeof import("element-plus"))["ElInput"]
+> | null>(null);
+const renameInputRef = ref<InstanceType<
+  (typeof import("element-plus"))["ElInput"]
+> | null>(null);
 const activePresetId = ref<string | null>(null);
 const activePresetName = ref("");
 
 const options = reactive<logic.FilterOptions>({
   dataPath: "",
-  conditions: [{ key: "enabled", operator: "eq", value: "true", enabled: true }],
+  conditions: [
+    { key: "enabled", operator: "eq", value: "true", enabled: true },
+  ],
 });
 
 // 自动识别输入类型
@@ -296,7 +388,10 @@ onMounted(async () => {
   if (lastState.options) {
     options.dataPath = lastState.options.dataPath ?? "";
     options.conditions = lastState.options.conditions?.length
-      ? lastState.options.conditions.map((c) => ({ ...c, enabled: c.enabled ?? true }))
+      ? lastState.options.conditions.map((c) => ({
+          ...c,
+          enabled: c.enabled ?? true,
+        }))
       : [{ key: "enabled", operator: "eq", value: "true", enabled: true }];
   }
 });
@@ -305,13 +400,21 @@ onMounted(async () => {
 watch(
   [inputText, () => JSON.stringify(options)],
   () => {
-    saveLastState(inputText.value, { ...options, conditions: [...options.conditions] });
+    saveLastState(inputText.value, {
+      ...options,
+      conditions: [...options.conditions],
+    });
   },
   { deep: true }
 );
 
 function addCondition() {
-  options.conditions.push({ key: "", operator: "eq", value: "", enabled: true });
+  options.conditions.push({
+    key: "",
+    operator: "eq",
+    value: "",
+    enabled: true,
+  });
 }
 
 function removeCondition(index: number) {
@@ -368,7 +471,9 @@ function handlePresetChange(id: string | null) {
   const preset = presets.value.find((p) => p.id === id);
   if (preset) {
     options.dataPath = preset.options.dataPath ?? "";
-    options.conditions = JSON.parse(JSON.stringify(preset.options.conditions)).map((c: any) => ({
+    options.conditions = JSON.parse(
+      JSON.stringify(preset.options.conditions)
+    ).map((c: any) => ({
       ...c,
       enabled: c.enabled ?? true,
     }));
@@ -388,7 +493,9 @@ async function handleUpdatePreset() {
 }
 
 function handleSaveAsPreset() {
-  saveAsName.value = activePresetId.value ? `${activePresetName.value} (副本)` : "";
+  saveAsName.value = activePresetId.value
+    ? `${activePresetName.value} (副本)`
+    : "";
   savePresetDialogVisible.value = true;
   nextTick(() => {
     saveAsInputRef.value?.focus();
@@ -474,7 +581,8 @@ function doExecuteFilter() {
         let val = c.value;
         if (val === "true") val = true;
         else if (val === "false") val = false;
-        else if (!isNaN(Number(val)) && val !== "" && typeof val === "string") val = Number(val);
+        else if (!isNaN(Number(val)) && val !== "" && typeof val === "string")
+          val = Number(val);
         return { ...c, value: val };
       }),
     };

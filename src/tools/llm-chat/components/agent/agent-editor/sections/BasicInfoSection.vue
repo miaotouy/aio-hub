@@ -5,7 +5,7 @@ import { AgentCategoryLabels } from "../../../../types";
 import { useAgentStore } from "../../../../stores/agentStore";
 
 // 宏示例常量（避免格式化工具添加空格）
-const charMacro = '{{char}}';
+const charMacro = "{{char}}";
 
 const editForm = inject<any>("agent-edit-form");
 const agent = inject<any>("agent-instance");
@@ -24,15 +24,24 @@ const allTags = computed(() => {
 <template>
   <div class="agent-section">
     <el-form-item label="ID/名称">
-      <el-input v-model="editForm.name" placeholder="输入智能体名称（用作 ID 和宏替换）" />
+      <el-input
+        v-model="editForm.name"
+        placeholder="输入智能体名称（用作 ID 和宏替换）"
+      />
       <div class="setting-hint">
-        此名称将作为宏替换的 ID（如 <code>{{ charMacro }}</code>），请使用简洁的名称。
+        此名称将作为宏替换的 ID（如 <code>{{ charMacro }}</code
+        >），请使用简洁的名称。
       </div>
     </el-form-item>
 
     <el-form-item label="显示名称">
-      <el-input v-model="editForm.displayName" placeholder="UI 显示名称（可选）" />
-      <div class="setting-hint">在界面上显示的名称。如果不填，则显示上面的 ID/名称。</div>
+      <el-input
+        v-model="editForm.displayName"
+        placeholder="UI 显示名称（可选）"
+      />
+      <div class="setting-hint">
+        在界面上显示的名称。如果不填，则显示上面的 ID/名称。
+      </div>
     </el-form-item>
 
     <el-form-item label="配置版本">
@@ -51,7 +60,12 @@ const allTags = computed(() => {
     </el-form-item>
 
     <el-form-item label="分类">
-      <el-select v-model="editForm.category" placeholder="选择分类（可选）" clearable style="width: 100%">
+      <el-select
+        v-model="editForm.category"
+        placeholder="选择分类（可选）"
+        clearable
+        style="width: 100%"
+      >
         <el-option
           v-for="[value, label] in Object.entries(AgentCategoryLabels)"
           :key="value"
@@ -73,13 +87,25 @@ const allTags = computed(() => {
         style="width: 100%"
         :reserve-keyword="false"
       >
-        <el-option v-for="tag in allTags" :key="tag" :label="tag" :value="tag" />
+        <el-option
+          v-for="tag in allTags"
+          :key="tag"
+          :label="tag"
+          :value="tag"
+        />
       </el-select>
-      <div class="setting-hint">为智能体添加标签，便于筛选和搜索。按 Enter 键创建新标签。</div>
+      <div class="setting-hint">
+        为智能体添加标签，便于筛选和搜索。按 Enter 键创建新标签。
+      </div>
     </el-form-item>
 
     <el-form-item label="描述">
-      <el-input v-model="editForm.description" type="textarea" :rows="4" placeholder="智能体的简短描述..." />
+      <el-input
+        v-model="editForm.description"
+        type="textarea"
+        :rows="4"
+        placeholder="智能体的简短描述..."
+      />
     </el-form-item>
   </div>
 </template>

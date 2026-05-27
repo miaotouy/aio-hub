@@ -1,5 +1,10 @@
 import type { LlmProfile } from "../../types";
-import type { LlmRequestOptions, LlmResponse, LlmMessageContent, LlmMessage } from "../common";
+import type {
+  LlmRequestOptions,
+  LlmResponse,
+  LlmMessageContent,
+  LlmMessage,
+} from "../common";
 // import type { EmbeddingRequestOptions, EmbeddingResponse } from "./embedding-types";
 import { fetchWithTimeout, ensureResponseOk } from "../common";
 import { createModuleLogger } from "@/utils/logger";
@@ -22,14 +27,16 @@ const logger = createModuleLogger("VertexAiApi");
  */
 export const vertexAiUrlHandler = {
   buildUrl: (baseUrl: string, endpoint?: string): string => {
-    const host = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
-    const versionedHost = host.includes('/v1') ? host : `${host}v1/`;
-    return endpoint ? `${versionedHost}${endpoint}` : `${versionedHost}projects/{project}/locations/{location}/publishers/google/models/{model}:generateContent`;
+    const host = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+    const versionedHost = host.includes("/v1") ? host : `${host}v1/`;
+    return endpoint
+      ? `${versionedHost}${endpoint}`
+      : `${versionedHost}projects/{project}/locations/{location}/publishers/google/models/{model}:generateContent`;
   },
   getHint: (): string => {
     const { tRaw } = useI18n();
-    return tRaw('tools.llm-api.Adapters.VertexAI提示');
-  }
+    return tRaw("tools.llm-api.Adapters.VertexAI提示");
+  },
 };
 
 /**
@@ -110,16 +117,16 @@ interface VertexAiClaudeRequest {
   messages: Array<{
     role: "user" | "assistant";
     content:
-    | string
-    | Array<{
-      type: "text" | "image";
-      text?: string;
-      source?: {
-        type: "base64";
-        media_type: string;
-        data: string;
-      };
-    }>;
+      | string
+      | Array<{
+          type: "text" | "image";
+          text?: string;
+          source?: {
+            type: "base64";
+            media_type: string;
+            data: string;
+          };
+        }>;
   }>;
   max_tokens: number;
   temperature?: number;
@@ -203,7 +210,9 @@ function buildVertexAiContents(messages: LlmMessage[]): VertexAiContent[] {
     if (msg.role === "system") continue;
 
     const parts =
-      typeof msg.content === "string" ? [{ text: msg.content }] : buildVertexAiParts(msg.content);
+      typeof msg.content === "string"
+        ? [{ text: msg.content }]
+        : buildVertexAiParts(msg.content);
 
     contents.push({
       role: msg.role === "assistant" ? "model" : "user",
@@ -217,7 +226,9 @@ function buildVertexAiContents(messages: LlmMessage[]): VertexAiContent[] {
 /**
  * 构建工具配置（Gemini 格式）
  */
-function buildVertexAiTools(options: LlmRequestOptions): VertexAiTool[] | undefined {
+function buildVertexAiTools(
+  options: LlmRequestOptions
+): VertexAiTool[] | undefined {
   const commonTools = extractToolDefinitions(options.tools);
   if (!commonTools) return undefined;
 
@@ -233,7 +244,9 @@ function buildVertexAiTools(options: LlmRequestOptions): VertexAiTool[] | undefi
 /**
  * 构建工具调用配置（Gemini 格式）
  */
-function buildVertexAiToolConfig(options: LlmRequestOptions): VertexAiToolConfig | undefined {
+function buildVertexAiToolConfig(
+  options: LlmRequestOptions
+): VertexAiToolConfig | undefined {
   const parsed = parseToolChoice(options.toolChoice);
   if (!parsed) return undefined;
 
@@ -259,7 +272,9 @@ function buildVertexAiToolConfig(options: LlmRequestOptions): VertexAiToolConfig
  * 构建 Claude 格式的消息（Anthropic Publisher）
  * 注意：system 消息会被单独提取，不包含在 messages 中
  */
-function buildClaudeMessages(messages: LlmMessage[]): VertexAiClaudeRequest["messages"] {
+function buildClaudeMessages(
+  messages: LlmMessage[]
+): VertexAiClaudeRequest["messages"] {
   const claudeMessages: VertexAiClaudeRequest["messages"] = [];
 
   // 过滤掉 system 消息
@@ -287,7 +302,8 @@ function buildClaudeMessages(messages: LlmMessage[]): VertexAiClaudeRequest["mes
           type: "image",
           source: {
             type: "base64",
-            media_type: imagePart.mimeType || inferImageMimeType(imagePart.base64),
+            media_type:
+              imagePart.mimeType || inferImageMimeType(imagePart.base64),
             data: imagePart.base64,
           },
         });
@@ -315,7 +331,7 @@ async function callVertexAiGemini(
   const commonParams = extractCommonParameters(options);
 
   // 从 messages 中提取 system 消息
-  const systemMessages = options.messages.filter(m => m.role === 'system');
+  const systemMessages = options.messages.filter((m) => m.role === "system");
 
   // 构建 generationConfig
   const generationConfig: VertexAiGenerationConfig = {
@@ -333,7 +349,9 @@ async function callVertexAiGemini(
   // 添加思考配置（从 gemini.ts 借鉴）
   const extendedOptions = options as any;
   // 如果 includeThoughts 为 true 或 thinkingEnabled 为 true（向后兼容），则创建 thinkingConfig
-  const shouldIncludeThoughts = extendedOptions.includeThoughts === true || extendedOptions.thinkingEnabled === true;
+  const shouldIncludeThoughts =
+    extendedOptions.includeThoughts === true ||
+    extendedOptions.thinkingEnabled === true;
   const hasThinkingBudget = extendedOptions.thinkingBudget !== undefined;
   const hasReasoningEffort = extendedOptions.reasoningEffort !== undefined;
 
@@ -355,7 +373,8 @@ async function callVertexAiGemini(
 
     // 注意：API 文档显示 thinkingLevel 应该使用小写值
     if (extendedOptions.reasoningEffort) {
-      thinkingConfig.thinkingLevel = extendedOptions.reasoningEffort.toLowerCase();
+      thinkingConfig.thinkingLevel =
+        extendedOptions.reasoningEffort.toLowerCase();
     }
 
     // @ts-ignore - a little hacky but works
@@ -372,8 +391,10 @@ async function callVertexAiGemini(
   if (systemMessages.length > 0) {
     // 合并所有 system 消息的内容
     const systemContent = systemMessages
-      .map(m => typeof m.content === 'string' ? m.content : JSON.stringify(m.content))
-      .join('\n\n');
+      .map((m) =>
+        typeof m.content === "string" ? m.content : JSON.stringify(m.content)
+      )
+      .join("\n\n");
     body.systemInstruction = {
       parts: [{ text: systemContent }],
     };
@@ -440,62 +461,69 @@ async function callVertexAiGemini(
 
     let reasoningContent = "";
 
-    await parseSSEStream(reader, (data) => {
-      // 提取元数据
-      try {
-        const json = JSON.parse(data);
+    await parseSSEStream(
+      reader,
+      (data) => {
+        // 提取元数据
+        try {
+          const json = JSON.parse(data);
 
-        if (json.usageMetadata) {
-          usage = {
-            promptTokens: json.usageMetadata.promptTokenCount || 0,
-            completionTokens: json.usageMetadata.candidatesTokenCount || 0,
-            totalTokens: json.usageMetadata.totalTokenCount || 0,
-          };
-        }
+          if (json.usageMetadata) {
+            usage = {
+              promptTokens: json.usageMetadata.promptTokenCount || 0,
+              completionTokens: json.usageMetadata.candidatesTokenCount || 0,
+              totalTokens: json.usageMetadata.totalTokenCount || 0,
+            };
+          }
 
-        if (json.candidates?.[0]?.finishReason) {
-          finishReason = mapVertexAiFinishReason(json.candidates[0].finishReason);
-        }
+          if (json.candidates?.[0]?.finishReason) {
+            finishReason = mapVertexAiFinishReason(
+              json.candidates[0].finishReason
+            );
+          }
 
-        // 遍历 parts 处理文本和思考摘要
-        const parts = json.candidates?.[0]?.content?.parts;
-        if (parts && Array.isArray(parts)) {
-          for (const part of parts) {
-            if (part.text) {
-              // 检查是否为思考摘要
-              if (part.thought) {
-                reasoningContent += part.text;
-                if (options.onReasoningStream) {
-                  options.onReasoningStream(part.text);
+          // 遍历 parts 处理文本和思考摘要
+          const parts = json.candidates?.[0]?.content?.parts;
+          if (parts && Array.isArray(parts)) {
+            for (const part of parts) {
+              if (part.text) {
+                // 检查是否为思考摘要
+                if (part.thought) {
+                  reasoningContent += part.text;
+                  if (options.onReasoningStream) {
+                    options.onReasoningStream(part.text);
+                  }
+                } else {
+                  fullContent += part.text;
+                  options.onStream!(part.text);
                 }
-              } else {
-                fullContent += part.text;
-                options.onStream!(part.text);
-              }
-            } else if (part.functionCall) {
-              // 提取函数调用
-              toolCalls = [
-                {
-                  id: `call_${Date.now()}`,
-                  type: "function",
-                  function: {
-                    name: part.functionCall.name,
-                    arguments: JSON.stringify(part.functionCall.args || {}),
+              } else if (part.functionCall) {
+                // 提取函数调用
+                toolCalls = [
+                  {
+                    id: `call_${Date.now()}`,
+                    type: "function",
+                    function: {
+                      name: part.functionCall.name,
+                      arguments: JSON.stringify(part.functionCall.args || {}),
+                    },
                   },
-                },
-              ];
+                ];
+              }
             }
           }
+        } catch {
+          // 如果不是 JSON，尝试使用旧的文本提取方式
+          const text = extractTextFromSSE(data, "gemini");
+          if (text) {
+            fullContent += text;
+            options.onStream!(text);
+          }
         }
-      } catch {
-        // 如果不是 JSON，尝试使用旧的文本提取方式
-        const text = extractTextFromSSE(data, "gemini");
-        if (text) {
-          fullContent += text;
-          options.onStream!(text);
-        }
-      }
-    }, undefined, options.signal);
+      },
+      undefined,
+      options.signal
+    );
 
     const result: LlmResponse = {
       content: fullContent,
@@ -577,10 +605,10 @@ async function callVertexAiGemini(
     content,
     usage: data.usageMetadata
       ? {
-        promptTokens: data.usageMetadata.promptTokenCount || 0,
-        completionTokens: data.usageMetadata.candidatesTokenCount || 0,
-        totalTokens: data.usageMetadata.totalTokenCount || 0,
-      }
+          promptTokens: data.usageMetadata.promptTokenCount || 0,
+          completionTokens: data.usageMetadata.candidatesTokenCount || 0,
+          totalTokens: data.usageMetadata.totalTokenCount || 0,
+        }
       : undefined,
     finishReason: mapVertexAiFinishReason(candidate.finishReason),
     toolCalls,
@@ -606,7 +634,7 @@ async function callVertexAiClaude(
   const commonParams = extractCommonParameters(options);
 
   // 从 messages 中提取 system 消息
-  const systemMessages = options.messages.filter(m => m.role === 'system');
+  const systemMessages = options.messages.filter((m) => m.role === "system");
 
   // 构建请求体
   const body: VertexAiClaudeRequest = {
@@ -630,8 +658,10 @@ async function callVertexAiClaude(
   if (systemMessages.length > 0) {
     // 合并所有 system 消息的内容
     const systemContent = systemMessages
-      .map(m => typeof m.content === 'string' ? m.content : JSON.stringify(m.content))
-      .join('\n\n');
+      .map((m) =>
+        typeof m.content === "string" ? m.content : JSON.stringify(m.content)
+      )
+      .join("\n\n");
     body.system = systemContent;
   }
 
@@ -687,35 +717,45 @@ async function callVertexAiClaude(
     let usage: LlmResponse["usage"] | undefined;
     let stopReason: string | undefined;
 
-    await parseSSEStream(reader, (data) => {
-      try {
-        const event = JSON.parse(data);
+    await parseSSEStream(
+      reader,
+      (data) => {
+        try {
+          const event = JSON.parse(data);
 
-        // Claude 流式事件处理
-        if (event.type === "content_block_delta" && event.delta?.type === "text_delta") {
-          const text = event.delta.text;
-          if (text) {
-            fullContent += text;
-            options.onStream!(text);
+          // Claude 流式事件处理
+          if (
+            event.type === "content_block_delta" &&
+            event.delta?.type === "text_delta"
+          ) {
+            const text = event.delta.text;
+            if (text) {
+              fullContent += text;
+              options.onStream!(text);
+            }
+          } else if (event.type === "message_delta") {
+            if (event.delta?.stop_reason) {
+              stopReason = event.delta.stop_reason;
+            }
+            if (event.usage) {
+              usage = {
+                promptTokens: event.usage.input_tokens || 0,
+                completionTokens: event.usage.output_tokens || 0,
+                totalTokens:
+                  (event.usage.input_tokens || 0) +
+                  (event.usage.output_tokens || 0),
+              };
+            }
+          } else if (event.type === "error") {
+            throw new Error(`Vertex AI Claude 错误: ${event.error?.message}`);
           }
-        } else if (event.type === "message_delta") {
-          if (event.delta?.stop_reason) {
-            stopReason = event.delta.stop_reason;
-          }
-          if (event.usage) {
-            usage = {
-              promptTokens: event.usage.input_tokens || 0,
-              completionTokens: event.usage.output_tokens || 0,
-              totalTokens: (event.usage.input_tokens || 0) + (event.usage.output_tokens || 0),
-            };
-          }
-        } else if (event.type === "error") {
-          throw new Error(`Vertex AI Claude 错误: ${event.error?.message}`);
+        } catch (parseError) {
+          logger.warn("解析 Claude 流数据失败", { data, error: parseError });
         }
-      } catch (parseError) {
-        logger.warn("解析 Claude 流数据失败", { data, error: parseError });
-      }
-    }, undefined, options.signal);
+      },
+      undefined,
+      options.signal
+    );
 
     return {
       content: fullContent,
@@ -764,10 +804,11 @@ async function callVertexAiClaude(
     content: textContent,
     usage: data.usage
       ? {
-        promptTokens: data.usage.input_tokens || 0,
-        completionTokens: data.usage.output_tokens || 0,
-        totalTokens: (data.usage.input_tokens || 0) + (data.usage.output_tokens || 0),
-      }
+          promptTokens: data.usage.input_tokens || 0,
+          completionTokens: data.usage.output_tokens || 0,
+          totalTokens:
+            (data.usage.input_tokens || 0) + (data.usage.output_tokens || 0),
+        }
       : undefined,
     finishReason: data.stop_reason,
     stopSequence: data.stop_sequence,
@@ -777,7 +818,9 @@ async function callVertexAiClaude(
 /**
  * 映射 Vertex AI finishReason 到通用格式
  */
-function mapVertexAiFinishReason(reason: string | undefined): LlmResponse["finishReason"] {
+function mapVertexAiFinishReason(
+  reason: string | undefined
+): LlmResponse["finishReason"] {
   if (!reason) return null;
 
   const reasonMap: Record<string, LlmResponse["finishReason"]> = {
@@ -800,7 +843,8 @@ export const callVertexAiApi = async (
   options: LlmRequestOptions
 ): Promise<LlmResponse> => {
   // 获取 Access Token
-  const apiKey = profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
+  const apiKey =
+    profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
 
   // 检测发布者类型
   const publisher = detectPublisher(options.modelId);

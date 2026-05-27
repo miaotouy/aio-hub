@@ -1,4 +1,4 @@
-import { RenderPreset } from '../types';
+import { RenderPreset } from "../types";
 
 export const v2ParserTestPreset: RenderPreset = {
   id: "v2-parser-test",

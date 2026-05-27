@@ -3,13 +3,13 @@
  * 负责界面设置的持久化、加载和保存
  */
 
-import { createConfigManager, type ConfigManager } from '@/utils/configManager';
+import { createConfigManager, type ConfigManager } from "@/utils/configManager";
 
-const APP_CONFIG_VERSION = '1.0.0';
+const APP_CONFIG_VERSION = "1.0.0";
 
 export interface AppConfig {
   // 处理模式
-  processingMode: 'text' | 'file';
+  processingMode: "text" | "file";
   // 选中的预设ID列表
   selectedPresetIds: string[];
   // 是否显示预设选择区域
@@ -30,16 +30,16 @@ export interface AppConfig {
  */
 function createDefaultAppConfig(): AppConfig {
   return {
-    processingMode: 'text',
+    processingMode: "text",
     selectedPresetIds: [],
     showPresetSection: true,
     fileMode: {
-      outputDirectory: '',
+      outputDirectory: "",
       forceTxt: false,
-      filenameSuffix: '',
-      clearProcessedFiles: false
+      filenameSuffix: "",
+      clearProcessedFiles: false,
     },
-    version: APP_CONFIG_VERSION
+    version: APP_CONFIG_VERSION,
   };
 }
 
@@ -47,15 +47,18 @@ function createDefaultAppConfig(): AppConfig {
  * 自定义配置合并逻辑
  * 确保嵌套对象正确合并
  */
-function mergeAppConfig(defaultConfig: AppConfig, loadedConfig: Partial<AppConfig>): AppConfig {
+function mergeAppConfig(
+  defaultConfig: AppConfig,
+  loadedConfig: Partial<AppConfig>
+): AppConfig {
   return {
     ...defaultConfig,
     ...loadedConfig,
     fileMode: {
       ...defaultConfig.fileMode,
-      ...(loadedConfig.fileMode || {})
+      ...(loadedConfig.fileMode || {}),
     },
-    version: APP_CONFIG_VERSION
+    version: APP_CONFIG_VERSION,
   };
 }
 
@@ -63,11 +66,11 @@ function mergeAppConfig(defaultConfig: AppConfig, loadedConfig: Partial<AppConfi
  * 创建配置管理器实例
  */
 export const appConfigManager: ConfigManager<AppConfig> = createConfigManager({
-  moduleName: 'regex_applier',
-  fileName: 'app_config.json',
+  moduleName: "regex_applier",
+  fileName: "app_config.json",
   version: APP_CONFIG_VERSION,
   createDefault: createDefaultAppConfig,
-  mergeConfig: mergeAppConfig
+  mergeConfig: mergeAppConfig,
 });
 
 /**

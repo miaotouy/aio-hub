@@ -9,9 +9,13 @@
             content="此技能从内置模板安装，你可以自由修改或重置为默认版本"
             placement="top"
           >
-            <div class="skill-badge" :class="sourceInfo.class">{{ sourceInfo.label }}</div>
+            <div class="skill-badge" :class="sourceInfo.class">
+              {{ sourceInfo.label }}
+            </div>
           </el-tooltip>
-          <div v-else class="skill-badge" :class="sourceInfo.class">{{ sourceInfo.label }}</div>
+          <div v-else class="skill-badge" :class="sourceInfo.class">
+            {{ sourceInfo.label }}
+          </div>
           <div v-if="isEditingName" class="name-edit-box">
             <el-input
               v-model="editingName"
@@ -22,26 +26,60 @@
               ref="nameInputRef"
             />
             <div class="edit-actions">
-              <el-button size="small" :icon="Check" circle type="primary" @click="submitRename" />
+              <el-button
+                size="small"
+                :icon="Check"
+                circle
+                type="primary"
+                @click="submitRename"
+              />
               <el-button size="small" :icon="X" circle @click="cancelRename" />
             </div>
           </div>
           <template v-else>
             <h3 class="skill-title">{{ manifest.name }}</h3>
-            <el-tooltip v-if="manifest.source === 'user' && !isFromBuiltin" content="重命名技能" placement="top">
-              <el-button size="small" :icon="PencilLine" link class="edit-btn" @click="startRename" />
+            <el-tooltip
+              v-if="manifest.source === 'user' && !isFromBuiltin"
+              content="重命名技能"
+              placement="top"
+            >
+              <el-button
+                size="small"
+                :icon="PencilLine"
+                link
+                class="edit-btn"
+                @click="startRename"
+              />
             </el-tooltip>
           </template>
         </div>
-        <p class="skill-description" :title="manifest.description">{{ manifest.description }}</p>
+        <p class="skill-description" :title="manifest.description">
+          {{ manifest.description }}
+        </p>
       </div>
 
       <div class="header-actions">
-        <el-tooltip v-if="isFromBuiltin" content="重置为内置默认版本" placement="top">
-          <el-button size="small" :icon="RotateCcw" circle plain @click="handleReset" />
+        <el-tooltip
+          v-if="isFromBuiltin"
+          content="重置为内置默认版本"
+          placement="top"
+        >
+          <el-button
+            size="small"
+            :icon="RotateCcw"
+            circle
+            plain
+            @click="handleReset"
+          />
         </el-tooltip>
         <el-tooltip content="打开所在目录" placement="top">
-          <el-button size="small" :icon="FolderOpen" circle plain @click="handleOpenDirectory" />
+          <el-button
+            size="small"
+            :icon="FolderOpen"
+            circle
+            plain
+            @click="handleOpenDirectory"
+          />
         </el-tooltip>
         <el-switch
           :model-value="isEnabled"
@@ -50,8 +88,19 @@
           inactive-text="禁用"
           inline-prompt
         />
-        <el-tooltip v-if="manifest.source === 'user'" content="卸载技能" placement="top">
-          <el-button size="small" :icon="Trash2" circle plain type="danger" @click="handleUninstall" />
+        <el-tooltip
+          v-if="manifest.source === 'user'"
+          content="卸载技能"
+          placement="top"
+        >
+          <el-button
+            size="small"
+            :icon="Trash2"
+            circle
+            plain
+            type="danger"
+            @click="handleUninstall"
+          />
         </el-tooltip>
       </div>
     </div>
@@ -97,9 +146,16 @@
       </div>
       <template #footer>
         <div class="editor-footer">
-          <span v-if="isBuiltin" class="readonly-tip">内置技能文件为只读模式</span>
+          <span v-if="isBuiltin" class="readonly-tip"
+            >内置技能文件为只读模式</span
+          >
           <el-button @click="editorDialogVisible = false">取消</el-button>
-          <el-button type="primary" :loading="isSaving" :disabled="isBuiltin" @click="handleSaveFile">
+          <el-button
+            type="primary"
+            :loading="isSaving"
+            :disabled="isBuiltin"
+            @click="handleSaveFile"
+          >
             保存修改
           </el-button>
         </div>
@@ -110,7 +166,14 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick, watch } from "vue";
-import { Trash2, PencilLine, Check, X, FolderOpen, RotateCcw } from "lucide-vue-next";
+import {
+  Trash2,
+  PencilLine,
+  Check,
+  X,
+  FolderOpen,
+  RotateCcw,
+} from "lucide-vue-next";
 import { ElMessageBox } from "element-plus";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import BaseDialog from "@/components/common/BaseDialog.vue";
@@ -176,7 +239,7 @@ watch(
   () => props.manifest.name,
   () => {
     isEditingName.value = false;
-  },
+  }
 );
 
 // 打开 Skill 所在目录
@@ -193,7 +256,7 @@ const isFromBuiltin = computed(
   () =>
     props.manifest.source === "builtin" ||
     props.manifest.metadata?.installedFrom === "builtin" ||
-    store.isBuiltinInstalled(props.manifest.name),
+    store.isBuiltinInstalled(props.manifest.name)
 );
 const isBuiltin = computed(() => props.manifest.source === "builtin");
 
@@ -210,12 +273,16 @@ const sourceInfo = computed(() => {
 
 async function handleUninstall() {
   try {
-    await ElMessageBox.confirm(`确定要卸载技能 "${props.manifest.name}" 吗？此操作将删除其目录。`, "卸载确认", {
-      confirmButtonText: "卸载",
-      cancelButtonText: "取消",
-      type: "warning",
-      lockScroll: false,
-    });
+    await ElMessageBox.confirm(
+      `确定要卸载技能 "${props.manifest.name}" 吗？此操作将删除其目录。`,
+      "卸载确认",
+      {
+        confirmButtonText: "卸载",
+        cancelButtonText: "取消",
+        type: "warning",
+        lockScroll: false,
+      }
+    );
     emit("uninstall", props.manifest.name);
   } catch {
     // 用户取消
@@ -232,7 +299,7 @@ async function handleReset() {
         cancelButtonText: "取消",
         type: "warning",
         lockScroll: false,
-      },
+      }
     );
 
     await SkillService.resetSkillToBuiltin(props.manifest.name);
@@ -284,7 +351,7 @@ async function handleSaveFile() {
     const success = await SkillService.writeResource(
       props.manifest.name,
       editingFilePath.value,
-      editingFileContent.value,
+      editingFileContent.value
     );
     if (success) {
       // 标记用户已修改
@@ -330,7 +397,11 @@ async function handleSaveFile() {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  background: linear-gradient(to bottom, rgba(var(--el-color-primary-rgb), 0.03), transparent);
+  background: linear-gradient(
+    to bottom,
+    rgba(var(--el-color-primary-rgb), 0.03),
+    transparent
+  );
   border-bottom: var(--border-width) solid var(--border-color);
 }
 

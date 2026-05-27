@@ -22,24 +22,30 @@ export function useFFmpegCore() {
    * 获取媒体元数据
    */
   const getMetadata = async (inputPath: string) => {
-    return await errorHandler.wrapAsync(async () => {
-      return await invoke<MediaMetadata>("get_media_metadata", {
-        ffmpegPath: store.config.ffmpegPath,
-        inputPath,
-      });
-    }, { userMessage: "获取媒体元数据失败" });
+    return await errorHandler.wrapAsync(
+      async () => {
+        return await invoke<MediaMetadata>("get_media_metadata", {
+          ffmpegPath: store.config.ffmpegPath,
+          inputPath,
+        });
+      },
+      { userMessage: "获取媒体元数据失败" }
+    );
   };
 
   /**
    * 获取详细媒体信息 (ffprobe)
    */
   const getFullMediaInfo = async (inputPath: string) => {
-    return await errorHandler.wrapAsync(async () => {
-      return await invoke<any>("get_full_media_info", {
-        ffmpegPath: store.config.ffmpegPath,
-        inputPath,
-      });
-    }, { userMessage: "获取详细媒体信息失败" });
+    return await errorHandler.wrapAsync(
+      async () => {
+        return await invoke<any>("get_full_media_info", {
+          ffmpegPath: store.config.ffmpegPath,
+          inputPath,
+        });
+      },
+      { userMessage: "获取详细媒体信息失败" }
+    );
   };
 
   /**
@@ -88,13 +94,13 @@ export function useFFmpegCore() {
    * 监听进度与日志事件
    */
   const setupListeners = async () => {
-    const unlistenProgress = await listen<{ taskId: string; progress: FFmpegProgress }>(
-      "ffmpeg-progress",
-      (event) => {
-        const { taskId, progress } = event.payload;
-        store.updateTaskProgress(taskId, progress);
-      }
-    );
+    const unlistenProgress = await listen<{
+      taskId: string;
+      progress: FFmpegProgress;
+    }>("ffmpeg-progress", (event) => {
+      const { taskId, progress } = event.payload;
+      store.updateTaskProgress(taskId, progress);
+    });
 
     const unlistenLog = await listen<{ taskId: string; message: string }>(
       "ffmpeg-log",

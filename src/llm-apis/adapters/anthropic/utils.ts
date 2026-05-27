@@ -1,4 +1,8 @@
-import type { LlmRequestOptions, LlmMessageContent, LlmMessage } from "@/llm-apis/common";
+import type {
+  LlmRequestOptions,
+  LlmMessageContent,
+  LlmMessage,
+} from "@/llm-apis/common";
 import type { LlmModelInfo } from "@/types/llm-profiles";
 import { DEFAULT_METADATA_RULES, testRuleMatch } from "@/config/model-metadata";
 import {
@@ -35,7 +39,11 @@ export interface ClaudeMessage {
 }
 
 export interface ClaudeTool {
-  type?: "custom" | "computer_20241022" | "bash_20241022" | "text_editor_20241022";
+  type?:
+    | "custom"
+    | "computer_20241022"
+    | "bash_20241022"
+    | "text_editor_20241022";
   name: string;
   description?: string;
   input_schema?: Record<string, any>;
@@ -78,24 +86,32 @@ export interface ClaudeRequest {
  */
 export const claudeUrlHandler = {
   buildUrl: (baseUrl: string, endpoint?: string): string => {
-    const host = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
-    const versionedHost = host.includes('/v1') ? host : `${host}v1/`;
-    return endpoint ? `${versionedHost}${endpoint}` : `${versionedHost}messages`;
+    const host = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+    const versionedHost = host.includes("/v1") ? host : `${host}v1/`;
+    return endpoint
+      ? `${versionedHost}${endpoint}`
+      : `${versionedHost}messages`;
   },
   getHint: (): string => {
-    return '将自动添加 /v1/messages';
-  }
+    return "将自动添加 /v1/messages";
+  },
 };
 
 /**
  * 转换内容块
  */
-export const convertContentBlocks = (messages: LlmMessageContent[]): ClaudeContentBlock[] => {
+export const convertContentBlocks = (
+  messages: LlmMessageContent[]
+): ClaudeContentBlock[] => {
   const parsed = parseMessageContents(messages);
   const blocks: ClaudeContentBlock[] = [];
 
   for (const textPart of parsed.textParts) {
-    blocks.push({ type: "text", text: textPart.text, cache_control: textPart.cacheControl });
+    blocks.push({
+      type: "text",
+      text: textPart.text,
+      cache_control: textPart.cacheControl,
+    });
   }
 
   for (const imagePart of parsed.imageParts) {
@@ -111,7 +127,12 @@ export const convertContentBlocks = (messages: LlmMessageContent[]): ClaudeConte
   }
 
   for (const toolUse of parsed.toolUseParts) {
-    blocks.push({ type: "tool_use", id: toolUse.id, name: toolUse.name, input: toolUse.input });
+    blocks.push({
+      type: "tool_use",
+      id: toolUse.id,
+      name: toolUse.name,
+      input: toolUse.input,
+    });
   }
 
   for (const toolResult of parsed.toolResultParts) {
@@ -120,26 +141,39 @@ export const convertContentBlocks = (messages: LlmMessageContent[]): ClaudeConte
       tool_use_id: toolResult.id,
       is_error: toolResult.isError,
     };
-    if (typeof toolResult.content === "string") toolResultBlock.content = toolResult.content;
-    else if (Array.isArray(toolResult.content)) toolResultBlock.content = convertContentBlocks(toolResult.content);
+    if (typeof toolResult.content === "string")
+      toolResultBlock.content = toolResult.content;
+    else if (Array.isArray(toolResult.content))
+      toolResultBlock.content = convertContentBlocks(toolResult.content);
     blocks.push(toolResultBlock);
   }
 
   for (const doc of parsed.documentParts) {
     const source = doc.source;
-    if (source.type === "base64" || (source as any).data || (source as any).base64) {
+    if (
+      source.type === "base64" ||
+      (source as any).data ||
+      (source as any).base64
+    ) {
       blocks.push({
         type: "document",
         source: {
           type: "base64",
-          media_type: source.media_type || (source as any).mimeType || "application/pdf",
+          media_type:
+            source.media_type || (source as any).mimeType || "application/pdf",
           data: ((source as any).data || (source as any).base64) as any,
         },
       });
     } else if (source.type === "file") {
-      blocks.push({ type: "document", source: { type: "file", file_id: (source as any).file_id } as any });
+      blocks.push({
+        type: "document",
+        source: { type: "file", file_id: (source as any).file_id } as any,
+      });
     } else if (source.type === "url") {
-      blocks.push({ type: "document", source: { type: "url", url: (source as any).url } as any });
+      blocks.push({
+        type: "document",
+        source: { type: "url", url: (source as any).url } as any,
+      });
     }
   }
 
@@ -149,17 +183,24 @@ export const convertContentBlocks = (messages: LlmMessageContent[]): ClaudeConte
 /**
  * 将内部消息格式转换为 Claude API 格式
  */
-export const convertToClaudeMessages = (messages: LlmMessage[]): ClaudeMessage[] => {
-  return messages.map(msg => ({
+export const convertToClaudeMessages = (
+  messages: LlmMessage[]
+): ClaudeMessage[] => {
+  return messages.map((msg) => ({
     role: msg.role === "assistant" ? "assistant" : "user",
-    content: typeof msg.content === "string" ? msg.content : convertContentBlocks(msg.content),
+    content:
+      typeof msg.content === "string"
+        ? msg.content
+        : convertContentBlocks(msg.content),
   }));
 };
 
 /**
  * 转换工具定义
  */
-export const convertTools = (tools?: LlmRequestOptions["tools"]): ClaudeTool[] | undefined => {
+export const convertTools = (
+  tools?: LlmRequestOptions["tools"]
+): ClaudeTool[] | undefined => {
   const commonTools = extractToolDefinitions(tools);
   if (!commonTools) return undefined;
   return commonTools.map((tool) => ({
@@ -180,10 +221,16 @@ export const convertToolChoice = (
   const parsed = parseToolChoice(toolChoice);
   if (!parsed) return undefined;
   const disableParallel = parallelToolCalls === false;
-  if (parsed === "auto") return { type: "auto", disable_parallel_tool_use: disableParallel };
-  else if (parsed === "required") return { type: "any", disable_parallel_tool_use: disableParallel };
+  if (parsed === "auto")
+    return { type: "auto", disable_parallel_tool_use: disableParallel };
+  else if (parsed === "required")
+    return { type: "any", disable_parallel_tool_use: disableParallel };
   else if (typeof parsed === "object" && "functionName" in parsed) {
-    return { type: "tool", name: parsed.functionName, disable_parallel_tool_use: disableParallel };
+    return {
+      type: "tool",
+      name: parsed.functionName,
+      disable_parallel_tool_use: disableParallel,
+    };
   }
   return undefined;
 };
@@ -197,7 +244,10 @@ export function parseAnthropicModelsResponse(data: any): LlmModelInfo[] {
   if (data.data && Array.isArray(data.data)) {
     for (const model of data.data) {
       if (model.type === "model") {
-        const presetCapabilities = extractModelCapabilities(model.id, "anthropic");
+        const presetCapabilities = extractModelCapabilities(
+          model.id,
+          "anthropic"
+        );
 
         models.push({
           id: model.id,
@@ -226,7 +276,10 @@ function extractModelCapabilities(modelId: string, provider?: string) {
   ).sort((a: any, b: any) => (b.priority || 0) - (a.priority || 0));
 
   for (const rule of rules) {
-    if (testRuleMatch(rule, modelId, provider) && rule.properties?.capabilities) {
+    if (
+      testRuleMatch(rule, modelId, provider) &&
+      rule.properties?.capabilities
+    ) {
       return rule.properties.capabilities;
     }
   }

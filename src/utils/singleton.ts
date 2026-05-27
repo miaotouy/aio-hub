@@ -1,6 +1,6 @@
 /**
  * 单例模式工具
- * 
+ *
  * 提供类型安全的单例模式实现
  * 用于确保 WindowSyncBus 等核心组件的全局唯一性
  */
@@ -12,15 +12,12 @@ const singletonInstances = new Map<string, any>();
 
 /**
  * 单例工厂函数
- * 
+ *
  * @param key 单例的唯一标识符
  * @param factory 创建实例的工厂函数
  * @returns 单例实例
  */
-export function getOrCreateInstance<T>(
-  key: string,
-  factory: () => T
-): T {
+export function getOrCreateInstance<T>(key: string, factory: () => T): T {
   // 如果实例已存在，直接返回
   if (singletonInstances.has(key)) {
     return singletonInstances.get(key);
@@ -34,7 +31,7 @@ export function getOrCreateInstance<T>(
 
 /**
  * 获取已存在的单例实例
- * 
+ *
  * @param key 单例的唯一标识符
  * @returns 单例实例，如果不存在则返回 undefined
  */
@@ -44,7 +41,7 @@ export function getInstance<T>(key: string): T | undefined {
 
 /**
  * 清除指定单例实例
- * 
+ *
  * @param key 单例的唯一标识符
  * @returns 是否成功清除
  */
@@ -62,7 +59,7 @@ export function clearAllInstances(): void {
 
 /**
  * 检查单例实例是否存在
- * 
+ *
  * @param key 单例的唯一标识符
  * @returns 是否存在
  */

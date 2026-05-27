@@ -27,13 +27,21 @@
         <!-- 缩放控制 -->
         <div class="scale-controls" v-if="viewMode !== 'source'">
           <el-tooltip content="缩小 (Ctrl -)" placement="bottom">
-            <button class="tool-btn" :disabled="currentScale <= scaleMin" @click="decreaseScale">
+            <button
+              class="tool-btn"
+              :disabled="currentScale <= scaleMin"
+              @click="decreaseScale"
+            >
               <Minus :size="16" />
             </button>
           </el-tooltip>
           <span class="scale-value">{{ Math.round(currentScale * 100) }}%</span>
           <el-tooltip content="放大 (Ctrl +)" placement="bottom">
-            <button class="tool-btn" :disabled="currentScale >= scaleMax" @click="increaseScale">
+            <button
+              class="tool-btn"
+              :disabled="currentScale >= scaleMax"
+              @click="increaseScale"
+            >
               <Plus :size="16" />
             </button>
           </el-tooltip>
@@ -75,7 +83,10 @@
               <span>PNG</span>
             </button>
           </el-tooltip>
-          <el-tooltip :content="imageCopied ? '已复制图片' : '复制图片'" placement="bottom">
+          <el-tooltip
+            :content="imageCopied ? '已复制图片' : '复制图片'"
+            placement="bottom"
+          >
             <button
               class="tool-btn"
               :class="{ active: imageCopied }"
@@ -87,8 +98,15 @@
               <span>{{ imageCopied ? "已复制" : "复制图片" }}</span>
             </button>
           </el-tooltip>
-          <el-tooltip :content="copied ? '已复制源码' : '复制源码'" placement="bottom">
-            <button class="tool-btn" :class="{ active: copied }" @click="copyCode">
+          <el-tooltip
+            :content="copied ? '已复制源码' : '复制源码'"
+            placement="bottom"
+          >
+            <button
+              class="tool-btn"
+              :class="{ active: copied }"
+              @click="copyCode"
+            >
               <Check v-if="copied" :size="16" />
               <Copy v-else :size="16" />
               <span>{{ copied ? "已复制源码" : "复制源码" }}</span>
@@ -146,7 +164,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, onMounted, onBeforeUnmount, computed } from "vue";
+import {
+  ref,
+  watch,
+  nextTick,
+  onMounted,
+  onBeforeUnmount,
+  computed,
+} from "vue";
 import {
   Copy,
   Check,
@@ -213,7 +238,9 @@ let mermaid: any = null;
 let renderCleanup: (() => void) | null = null;
 
 // 计算属性
-const hasPan = computed(() => panOffset.value.x !== 0 || panOffset.value.y !== 0);
+const hasPan = computed(
+  () => panOffset.value.x !== 0 || panOffset.value.y !== 0
+);
 const lineCount = computed(() => fixedContent.value.split("\n").length);
 const charCount = computed(() => fixedContent.value.length);
 
@@ -291,7 +318,10 @@ const handleMouseUp = () => {
 // 滚轮缩放
 const handleWheel = (e: WheelEvent) => {
   const delta = e.deltaY > 0 ? -scaleStep : scaleStep;
-  const newScale = Math.max(scaleMin, Math.min(scaleMax, currentScale.value + delta));
+  const newScale = Math.max(
+    scaleMin,
+    Math.min(scaleMax, currentScale.value + delta)
+  );
   currentScale.value = Math.round(newScale * 10) / 10;
   applyTransform();
 };
@@ -543,7 +573,9 @@ const downloadPng = async () => {
         // 捕获 Canvas 污染错误
         if (err instanceof DOMException && err.name === "SecurityError") {
           logger.warn("Canvas 被污染，无法导出 PNG", err);
-          customMessage.error("图表包含外部资源，无法导出为 PNG，请尝试下载 SVG 格式");
+          customMessage.error(
+            "图表包含外部资源，无法导出为 PNG，请尝试下载 SVG 格式"
+          );
         } else {
           throw err;
         }
@@ -592,7 +624,10 @@ const renderDiagram = async () => {
       };
     }
   } catch (err: any) {
-    errorHandler.handle(err, { userMessage: "Mermaid 渲染失败", showToUser: false });
+    errorHandler.handle(err, {
+      userMessage: "Mermaid 渲染失败",
+      showToUser: false,
+    });
     error.value = err?.message || "未知错误";
     errorDetails.value = err?.stack || JSON.stringify(err, null, 2);
   }
@@ -616,7 +651,10 @@ const initMermaid = async () => {
 
     await renderDiagram();
   } catch (err) {
-    errorHandler.handle(err, { userMessage: "Mermaid 初始化失败", showToUser: false });
+    errorHandler.handle(err, {
+      userMessage: "Mermaid 初始化失败",
+      showToUser: false,
+    });
     error.value = "Mermaid 库加载失败";
     errorDetails.value = String(err);
   }
@@ -639,7 +677,10 @@ watch(isDark, async (dark) => {
 
     await renderDiagram();
   } catch (err) {
-    errorHandler.handle(err, { userMessage: "主题切换失败", showToUser: false });
+    errorHandler.handle(err, {
+      userMessage: "主题切换失败",
+      showToUser: false,
+    });
   }
 });
 

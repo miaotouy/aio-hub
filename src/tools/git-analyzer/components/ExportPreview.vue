@@ -2,16 +2,37 @@
   <div class="preview-section">
     <div class="preview-header">
       <span>内容预览</span>
-      <el-tag v-if="loadingFiles" type="warning" size="small" style="margin-left: 10px">
+      <el-tag
+        v-if="loadingFiles"
+        type="warning"
+        size="small"
+        style="margin-left: 10px"
+      >
         正在加载文件信息...
       </el-tag>
       <el-button-group>
-        <el-button size="small" @click="$emit('refresh')" :icon="RefreshRight" :loading="generating">
+        <el-button
+          size="small"
+          @click="$emit('refresh')"
+          :icon="RefreshRight"
+          :loading="generating"
+        >
           刷新预览
         </el-button>
-        <el-button size="small" @click="$emit('copy')" :icon="CopyDocument"> 复制 </el-button>
-        <el-button size="small" type="success" @click="$emit('sendToChat')" :icon="ChatDotRound"> 发送到聊天 </el-button>
-        <el-button size="small" @click="$emit('download')" :icon="Download"> 下载 </el-button>
+        <el-button size="small" @click="$emit('copy')" :icon="CopyDocument">
+          复制
+        </el-button>
+        <el-button
+          size="small"
+          type="success"
+          @click="$emit('sendToChat')"
+          :icon="ChatDotRound"
+        >
+          发送到聊天
+        </el-button>
+        <el-button size="small" @click="$emit('download')" :icon="Download">
+          下载
+        </el-button>
       </el-button-group>
     </div>
     <div class="preview-content" v-loading="generating">
@@ -24,21 +45,26 @@
 </template>
 
 <script setup lang="ts">
-import { CopyDocument, Download, RefreshRight, ChatDotRound } from '@element-plus/icons-vue'
+import {
+  CopyDocument,
+  Download,
+  RefreshRight,
+  ChatDotRound,
+} from "@element-plus/icons-vue";
 
 defineProps<{
-  content: string
-  format: string
-  generating: boolean
-  loadingFiles: boolean
-}>()
+  content: string;
+  format: string;
+  generating: boolean;
+  loadingFiles: boolean;
+}>();
 
 defineEmits<{
-  refresh: []
-  copy: []
-  download: []
-  sendToChat: []
-}>()
+  refresh: [];
+  copy: [];
+  download: [];
+  sendToChat: [];
+}>();
 </script>
 
 <style scoped>
@@ -81,12 +107,7 @@ defineEmits<{
   padding: 16px;
   margin: 0;
   font-family:
-    'SF Mono',
-    Monaco,
-    'Cascadia Code',
-    'Roboto Mono',
-    Consolas,
-    'Courier New',
+    "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New",
     monospace;
   font-size: 13px;
   line-height: 1.5;

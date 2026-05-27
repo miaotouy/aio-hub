@@ -26,7 +26,9 @@ export function useMediaGenPersistence(options: {
   activeLeafId: { value: string };
   currentSessionId: { value: string | null };
   inputPrompt: { value: string };
-  currentConfig: { value: { activeType: MediaTaskType; includeContext: boolean; types: any } };
+  currentConfig: {
+    value: { activeType: MediaTaskType; includeContext: boolean; types: any };
+  };
   settings: { value: MediaGeneratorSettings };
   tasks: { value: MediaTask[] };
 }) {
@@ -59,9 +61,13 @@ export function useMediaGenPersistence(options: {
     try {
       // 加载全局设置
       const loadedSettings = await storage.loadSettings();
-      settings.value = { ...DEFAULT_MEDIA_GENERATOR_SETTINGS, ...loadedSettings };
+      settings.value = {
+        ...DEFAULT_MEDIA_GENERATOR_SETTINGS,
+        ...loadedSettings,
+      };
 
-      const { sessions: loadedIndexItems, currentSessionId: savedSessionId } = await sessionManager.loadSessionsIndex();
+      const { sessions: loadedIndexItems, currentSessionId: savedSessionId } =
+        await sessionManager.loadSessionsIndex();
 
       // 填充索引 Map
       sessionIndexMap.value.clear();
@@ -84,7 +90,8 @@ export function useMediaGenPersistence(options: {
           const firstId = loadedIndexItems[0].id;
           session = await storage.loadSession(firstId);
         } else {
-          const { index, detail } = sessionManager.createSessionObject("默认生成会话");
+          const { index, detail } =
+            sessionManager.createSessionObject("默认生成会话");
           sessionIndexMap.value.set(index.id, index);
           sessionDetailMap.value.set(detail.id, detail);
           session = { ...index, ...detail };
@@ -146,7 +153,10 @@ export function useMediaGenPersistence(options: {
             rootNodeId: rootNodeId.value,
             activeLeafId: activeLeafId.value,
           } as GenerationSession;
-          activeLeafId.value = nodeManager.findDeepestLeaf(tempSession, activeLeafId.value);
+          activeLeafId.value = nodeManager.findDeepestLeaf(
+            tempSession,
+            activeLeafId.value
+          );
           logger.warn("检测到 activeLeafId 指向中间节点，已自动修复", {
             sessionId: session.id,
             fixedId: activeLeafId.value,
@@ -171,7 +181,8 @@ export function useMediaGenPersistence(options: {
 
       inputPrompt.value = session.inputPrompt || "";
       if (session.generationConfig) {
-        currentConfig.value.activeType = session.generationConfig.activeType || "image";
+        currentConfig.value.activeType =
+          session.generationConfig.activeType || "image";
         if (session.generationConfig.types) {
           currentConfig.value.types = {
             ...currentConfig.value.types,
@@ -181,7 +192,10 @@ export function useMediaGenPersistence(options: {
       }
 
       isInitialized.value = true;
-      logger.info("Store 初始化完成", { sessionId: session.id, taskCount: tasks.value.length });
+      logger.info("Store 初始化完成", {
+        sessionId: session.id,
+        taskCount: tasks.value.length,
+      });
     } catch (error) {
       logger.error("Store 初始化失败", error);
     }
@@ -215,9 +229,16 @@ export function useMediaGenPersistence(options: {
     detail.activeLeafId = activeLeafId.value;
 
     // 更新任务计数
-    sessionManager.updateTaskCount(currentSessionId.value, nodes.value, sessionIndexMap.value);
+    sessionManager.updateTaskCount(
+      currentSessionId.value,
+      nodes.value,
+      sessionIndexMap.value
+    );
 
-    await storage.persistSession({ ...index, ...detail }, currentSessionId.value);
+    await storage.persistSession(
+      { ...index, ...detail },
+      currentSessionId.value
+    );
   };
 
   // 创建 Store 级防抖保存
@@ -244,7 +265,7 @@ export function useMediaGenPersistence(options: {
 
       debouncedPersist();
     },
-    { deep: true },
+    { deep: true }
   );
 
   // 监听全局设置变化自动保存
@@ -254,7 +275,7 @@ export function useMediaGenPersistence(options: {
       if (!isInitialized.value) return;
       storage.saveSettingsDebounced(newSettings);
     },
-    { deep: true },
+    { deep: true }
   );
 
   /**

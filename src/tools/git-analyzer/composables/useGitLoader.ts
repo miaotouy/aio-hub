@@ -103,7 +103,7 @@ export async function fetchBranches(path: string): Promise<GitBranch[]> {
 export async function fetchBranchCommits(
   path: string,
   branch: string,
-  limit: number,
+  limit: number
 ): Promise<GitCommit[]> {
   logger.info("获取分支提交", { path, branch, limit });
 
@@ -130,7 +130,7 @@ export async function fetchBranchCommits(
  */
 export async function fetchCommitDetail(
   path: string,
-  hash: string,
+  hash: string
 ): Promise<GitCommit> {
   logger.info("获取提交详情", { path, hash });
 
@@ -157,7 +157,7 @@ export async function fetchCommitDetail(
 export async function updateCommitMessage(
   path: string,
   hash: string,
-  message: string,
+  message: string
 ): Promise<string> {
   logger.info("修改提交消息", { path, hash, messageLength: message.length });
 
@@ -212,7 +212,7 @@ export async function cancelEnrich(): Promise<void> {
  */
 export async function streamLoadRepository(
   options: StreamLoadOptions,
-  onProgress: (event: GitProgressEvent) => void,
+  onProgress: (event: GitProgressEvent) => void
 ): Promise<void> {
   const { path, limit, batchSize } = options;
   logger.info("开始流式加载仓库", { path, limit, batchSize });
@@ -273,7 +273,7 @@ export async function streamLoadRepository(
  */
 export async function streamIncrementalLoad(
   options: IncrementalLoadOptions,
-  onProgress: (event: GitProgressEvent) => void,
+  onProgress: (event: GitProgressEvent) => void
 ): Promise<void> {
   const { path, branch, skip, limit, batchSize } = options;
   logger.info("开始增量流式加载", { path, branch, skip, limit, batchSize });
@@ -333,7 +333,7 @@ export async function streamIncrementalLoad(
 
 export async function streamEnrichCommits(
   options: EnrichOptions,
-  onProgress: (event: GitEnrichEvent) => void,
+  onProgress: (event: GitEnrichEvent) => void
 ): Promise<void> {
   const {
     path,
@@ -375,7 +375,7 @@ export async function streamEnrichCommits(
             }
             reject(new Error(payload.message || "Unknown error"));
           }
-        },
+        }
       );
 
       await invoke("git_enrich_commits_stream", {

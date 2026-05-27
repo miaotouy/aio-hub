@@ -4,7 +4,11 @@
       <div class="title-row">
         <div class="title-with-switch">
           <h4 class="title">从 VCP 桥接的工具</h4>
-          <el-switch v-model="distStore.config.enableBridge" size="small" @change="handleBridgeToggle" />
+          <el-switch
+            v-model="distStore.config.enableBridge"
+            size="small"
+            @change="handleBridgeToggle"
+          />
         </div>
         <div class="header-actions" v-if="distStore.config.enableBridge">
           <el-button
@@ -18,18 +22,27 @@
           </el-button>
         </div>
       </div>
-      <div class="description-text">开启后，AIO 将自动发现并注册 VCP 服务器提供的工具，使其可被 Agent 直接调用。</div>
+      <div class="description-text">
+        开启后，AIO 将自动发现并注册 VCP 服务器提供的工具，使其可被 Agent
+        直接调用。
+      </div>
     </div>
 
     <div v-if="!distStore.config.enableBridge" class="bridge-disabled-state">
       <el-empty description="桥接功能已关闭" :image-size="80">
         <template #extra>
-          <el-button type="primary" @click="handleBridgeToggle(true)">开启桥接功能</el-button>
+          <el-button type="primary" @click="handleBridgeToggle(true)"
+            >开启桥接功能</el-button
+          >
         </template>
       </el-empty>
     </div>
 
-    <div v-else v-loading="distStore.bridgeStatus === 'fetching'" class="tools-container">
+    <div
+      v-else
+      v-loading="distStore.bridgeStatus === 'fetching'"
+      class="tools-container"
+    >
       <div
         v-for="tool in distStore.bridgeManifests"
         :key="tool.name"
@@ -38,7 +51,10 @@
       >
         <div class="tool-main" @click="toggleExpand(tool.name)">
           <div class="tool-info">
-            <el-icon class="expand-icon" :class="{ 'is-active': expandedTools.has(tool.name) }">
+            <el-icon
+              class="expand-icon"
+              :class="{ 'is-active': expandedTools.has(tool.name) }"
+            >
               <ChevronRight :size="14" />
             </el-icon>
             <div class="tool-name-wrapper">
@@ -50,7 +66,13 @@
               </div>
             </div>
             <div class="tool-tags">
-              <el-tag size="small" type="primary" effect="plain" class="mini-tag">远程</el-tag>
+              <el-tag
+                size="small"
+                type="primary"
+                effect="plain"
+                class="mini-tag"
+                >远程</el-tag
+              >
               <el-tag size="small" type="info" effect="plain" class="mini-tag">
                 {{ tool.capabilities.invocationCommands.length }} 命令
               </el-tag>
@@ -68,27 +90,42 @@
 
         <el-collapse-transition>
           <div v-if="expandedTools.has(tool.name)" class="tool-detail">
-            <div class="tool-desc" v-if="tool.description">{{ tool.description }}</div>
+            <div class="tool-desc" v-if="tool.description">
+              {{ tool.description }}
+            </div>
 
             <!-- 命令列表 -->
             <div class="methods-management-section">
               <div class="section-label">可用命令 (Commands)</div>
               <div class="methods-list">
-                <div v-for="cmd in tool.capabilities.invocationCommands" :key="cmd.command" class="method-item">
+                <div
+                  v-for="cmd in tool.capabilities.invocationCommands"
+                  :key="cmd.command"
+                  class="method-item"
+                >
                   <div class="method-info">
                     <div class="method-header">
                       <div class="method-title-group">
-                        <span class="method-name">{{ cmd.displayName || cmd.command }}</span>
+                        <span class="method-name">{{
+                          cmd.displayName || cmd.command
+                        }}</span>
                         <code class="method-raw-name">{{ cmd.command }}</code>
                       </div>
                       <el-switch
                         v-if="cmd.command"
-                        :model-value="!isCommandDisabled(tool.name, cmd.command!)"
+                        :model-value="
+                          !isCommandDisabled(tool.name, cmd.command!)
+                        "
                         size="small"
-                        @change="(val: boolean) => toggleCommand(tool.name, cmd.command!, val)"
+                        @change="
+                          (val: boolean) =>
+                            toggleCommand(tool.name, cmd.command!, val)
+                        "
                       />
                     </div>
-                    <span v-if="cmd.description" class="method-desc">{{ cmd.description }}</span>
+                    <span v-if="cmd.description" class="method-desc">{{
+                      cmd.description
+                    }}</span>
 
                     <div v-if="cmd.example" class="method-example">
                       <div class="example-label">示例:</div>
@@ -103,12 +140,17 @@
       </div>
 
       <el-empty
-        v-if="distStore.bridgeManifests.length === 0 && distStore.bridgeStatus !== 'fetching'"
+        v-if="
+          distStore.bridgeManifests.length === 0 &&
+          distStore.bridgeStatus !== 'fetching'
+        "
         description="暂无桥接工具"
         :image-size="60"
       >
         <template #extra>
-          <el-button type="primary" plain @click="handleRefresh">尝试刷新</el-button>
+          <el-button type="primary" plain @click="handleRefresh"
+            >尝试刷新</el-button
+          >
         </template>
       </el-empty>
     </div>
@@ -171,7 +213,9 @@ const isToolDisabled = (toolName: string) => {
 };
 
 const isCommandDisabled = (toolName: string, command: string) => {
-  return distStore.config.disabledBridgeToolIds?.includes(`${toolName}:${command}`);
+  return distStore.config.disabledBridgeToolIds?.includes(
+    `${toolName}:${command}`
+  );
 };
 
 const toggleTool = async (toolName: string, enabled: boolean) => {
@@ -180,7 +224,11 @@ const toggleTool = async (toolName: string, enabled: boolean) => {
   await vcpBridgeFactory.refresh();
 };
 
-const toggleCommand = async (toolName: string, command: string, enabled: boolean) => {
+const toggleCommand = async (
+  toolName: string,
+  command: string,
+  enabled: boolean
+) => {
   distStore.toggleBridgeToolDisabled(`${toolName}:${command}`, !enabled);
   // 变更后立即刷新工厂以生效
   await vcpBridgeFactory.refresh();

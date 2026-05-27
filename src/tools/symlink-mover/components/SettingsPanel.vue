@@ -1,5 +1,11 @@
 <script setup lang="ts">
-import { FolderOpened, Rank, FolderAdd, InfoFilled, Close } from "@element-plus/icons-vue";
+import {
+  FolderOpened,
+  Rank,
+  FolderAdd,
+  InfoFilled,
+  Close,
+} from "@element-plus/icons-vue";
 import InfoCard from "@components/common/InfoCard.vue";
 import DropZone from "@components/common/DropZone.vue";
 import ProgressDisplay from "./ProgressDisplay.vue";
@@ -45,7 +51,10 @@ const emit = defineEmits<{
     <div class="settings-content">
       <div class="setting-group">
         <label>操作模式</label>
-        <el-radio-group :model-value="operationMode" @update:model-value="emit('update:operationMode', $event)">
+        <el-radio-group
+          :model-value="operationMode"
+          @update:model-value="emit('update:operationMode', $event)"
+        >
           <el-radio-button value="move">
             <el-icon>
               <Rank />
@@ -61,7 +70,9 @@ const emit = defineEmits<{
         </el-radio-group>
         <div class="mode-description">
           {{
-            operationMode === "move" ? "将文件移动到目标目录，并在原位置创建链接" : "在目标目录创建链接，保持原文件不动"
+            operationMode === "move"
+              ? "将文件移动到目标目录，并在原位置创建链接"
+              : "在目标目录创建链接，保持原文件不动"
           }}
         </div>
       </div>
@@ -69,9 +80,14 @@ const emit = defineEmits<{
       <div class="setting-group">
         <div class="setting-header">
           <label>镜像搬家模式</label>
-          <el-switch :model-value="mirrorMode" @update:model-value="emit('update:mirrorMode', $event)" />
+          <el-switch
+            :model-value="mirrorMode"
+            @update:model-value="emit('update:mirrorMode', $event)"
+          />
         </div>
-        <div class="mode-description">开启后，搬家的内容会同时复刻其在基准目录下的层级结构</div>
+        <div class="mode-description">
+          开启后，搬家的内容会同时复刻其在基准目录下的层级结构
+        </div>
       </div>
 
       <div v-if="mirrorMode" class="setting-group animate-fade-in">
@@ -90,7 +106,9 @@ const emit = defineEmits<{
               @update:model-value="emit('update:baseSourceDir', $event)"
               placeholder="待搬家内容的上层基准目录"
             />
-            <el-button @click="emit('select-base-dir')" :icon="FolderOpened">选择</el-button>
+            <el-button @click="emit('select-base-dir')" :icon="FolderOpened"
+              >选择</el-button
+            >
           </div>
         </DropZone>
       </div>
@@ -109,9 +127,15 @@ const emit = defineEmits<{
             <el-input
               :model-value="targetDirectory"
               @update:model-value="emit('update:targetDirectory', $event)"
-              :placeholder="operationMode === 'move' ? '输入、拖拽或点击选择目标目录' : '输入、拖拽或点击选择链接目录'"
+              :placeholder="
+                operationMode === 'move'
+                  ? '输入、拖拽或点击选择目标目录'
+                  : '输入、拖拽或点击选择链接目录'
+              "
             />
-            <el-button @click="emit('select-target-dir')" :icon="FolderOpened">选择</el-button>
+            <el-button @click="emit('select-target-dir')" :icon="FolderOpened"
+              >选择</el-button
+            >
           </div>
         </DropZone>
       </div>
@@ -148,11 +172,21 @@ const emit = defineEmits<{
             </el-icon>
           </el-tooltip>
         </label>
-        <el-radio-group :model-value="linkType" @update:model-value="emit('update:linkType', $event)">
+        <el-radio-group
+          :model-value="linkType"
+          @update:model-value="emit('update:linkType', $event)"
+        >
           <el-radio-button value="symlink">符号链接</el-radio-button>
-          <el-radio-button value="link" :disabled="operationMode === 'link-only'">硬链接</el-radio-button>
+          <el-radio-button
+            value="link"
+            :disabled="operationMode === 'link-only'"
+            >硬链接</el-radio-button
+          >
         </el-radio-group>
-        <div v-if="operationMode === 'link-only' && linkType === 'link'" class="warning-text">
+        <div
+          v-if="operationMode === 'link-only' && linkType === 'link'"
+          class="warning-text"
+        >
           <el-icon>
             <InfoFilled />
           </el-icon>
@@ -173,7 +207,12 @@ const emit = defineEmits<{
         :is-processing="isProcessing"
       />
 
-      <LogTicker v-if="latestLog" :log="latestLog" :ticker-key="tickerKey" @open-log="emit('open-log')" />
+      <LogTicker
+        v-if="latestLog"
+        :log="latestLog"
+        :ticker-key="tickerKey"
+        @open-log="emit('open-log')"
+      />
 
       <el-button
         v-if="!isProcessing"
@@ -188,7 +227,13 @@ const emit = defineEmits<{
         </el-icon>
         {{ operationMode === "move" ? "开始搬家" : "创建链接" }}
       </el-button>
-      <el-button v-else type="danger" @click="emit('cancel')" class="execute-btn" size="large">
+      <el-button
+        v-else
+        type="danger"
+        @click="emit('cancel')"
+        class="execute-btn"
+        size="large"
+      >
         <el-icon>
           <Close />
         </el-icon>

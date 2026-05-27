@@ -54,8 +54,8 @@ export function useReportGenerator(options: ReportGeneratorOptions) {
       reportComponents.header(
         "Git 仓库分析报告",
         repoPath.value || "当前目录",
-        branch.value,
-      ),
+        branch.value
+      )
     );
 
     // 2. 筛选信息 (积木2)
@@ -68,8 +68,8 @@ export function useReportGenerator(options: ReportGeneratorOptions) {
       lines.push(
         reportComponents.section(
           "📊 统计信息",
-          reportComponents.statistics(statistics),
-        ),
+          reportComponents.statistics(statistics)
+        )
       );
     }
 
@@ -79,8 +79,8 @@ export function useReportGenerator(options: ReportGeneratorOptions) {
       lines.push(
         reportComponents.section(
           "👥 贡献者统计",
-          reportComponents.contributors(contributors, statistics.totalCommits),
-        ),
+          reportComponents.contributors(contributors, statistics.totalCommits)
+        )
       );
     }
 
@@ -90,8 +90,8 @@ export function useReportGenerator(options: ReportGeneratorOptions) {
       lines.push(
         reportComponents.section(
           "📅 提交时间线",
-          reportComponents.timeline(timelineData),
-        ),
+          reportComponents.timeline(timelineData)
+        )
       );
     }
 
@@ -111,7 +111,7 @@ export function useReportGenerator(options: ReportGeneratorOptions) {
         "### 贡献者分布\n\n" +
         reportComponents.contributors(
           chartData.contributors.slice(0, 10),
-          statistics.totalCommits,
+          statistics.totalCommits
         ) +
         "\n\n";
 
@@ -127,7 +127,7 @@ export function useReportGenerator(options: ReportGeneratorOptions) {
         .slice(0, 20)
         .forEach((item) => {
           heatmapLines.push(
-            `| ${weekDays[item.day]} | ${item.hour}:00 | ${item.count} |`,
+            `| ${weekDays[item.day]} | ${item.hour}:00 | ${item.count} |`
           );
         });
       chartContent +=
@@ -141,8 +141,8 @@ export function useReportGenerator(options: ReportGeneratorOptions) {
       lines.push(
         reportComponents.section(
           "📝 提交记录",
-          formatCommitList(commitsToExport, cfg),
-        ),
+          formatCommitList(commitsToExport, cfg)
+        )
       );
     }
 
@@ -258,7 +258,7 @@ export function useReportGenerator(options: ReportGeneratorOptions) {
 
         row.push(
           formatDate(commit.date, cfg.dateFormat),
-          `"${commit.message.replace(/"/g, '""')}"`,
+          `"${commit.message.replace(/"/g, '""')}"`
         );
 
         if (cfg.includeStats && commit.stats) {
@@ -271,7 +271,7 @@ export function useReportGenerator(options: ReportGeneratorOptions) {
           row.push(
             commit.branches && commit.branches.length > 0
               ? `"${commit.branches.join(", ")}"`
-              : "",
+              : ""
           );
         }
 
@@ -302,14 +302,14 @@ export function useReportGenerator(options: ReportGeneratorOptions) {
         "Git 仓库分析报告",
         repoPath.value || "当前目录",
         branch.value,
-        fmt,
-      ),
+        fmt
+      )
     );
 
     // 2. 筛选信息
     if (cfg.includeFilterInfo && hasActiveFilters.value) {
       lines.push(
-        reportComponents.section("筛选条件", filterSummary.value, fmt),
+        reportComponents.section("筛选条件", filterSummary.value, fmt)
       );
     }
 
@@ -319,8 +319,8 @@ export function useReportGenerator(options: ReportGeneratorOptions) {
         reportComponents.section(
           "统计信息",
           reportComponents.statistics(statistics, fmt),
-          fmt,
-        ),
+          fmt
+        )
       );
     }
 
@@ -333,10 +333,10 @@ export function useReportGenerator(options: ReportGeneratorOptions) {
           reportComponents.contributors(
             contributors,
             statistics.totalCommits,
-            fmt,
+            fmt
           ),
-          fmt,
-        ),
+          fmt
+        )
       );
     }
 
@@ -347,8 +347,8 @@ export function useReportGenerator(options: ReportGeneratorOptions) {
         reportComponents.section(
           "提交时间线",
           reportComponents.timeline(timelineData, fmt),
-          fmt,
-        ),
+          fmt
+        )
       );
     }
 
@@ -386,8 +386,8 @@ export function useReportGenerator(options: ReportGeneratorOptions) {
         reportComponents.section(
           `提交记录 (${commitsToExport.length} 条)`,
           formatCommitList(commitsToExport, cfg, fmt),
-          fmt,
-        ),
+          fmt
+        )
       );
     }
 

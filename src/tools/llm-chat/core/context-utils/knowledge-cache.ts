@@ -126,7 +126,10 @@ const sessionCaches = new Map<string, SessionCacheData>();
 /**
  * 获取指定会话的检索缓存（懒初始化）
  */
-export function getSessionRetrievalCache(sessionId: string, maxItems = 20): KBSessionCache {
+export function getSessionRetrievalCache(
+  sessionId: string,
+  maxItems = 20
+): KBSessionCache {
   let data = sessionCaches.get(sessionId);
   if (!data) {
     data = {
@@ -178,7 +181,11 @@ export async function clearAllCaches(): Promise<void> {
  */
 export function getCacheStats(): {
   sessionCount: number;
-  sessions: Array<{ sessionId: string; retrievalCacheSize: number; historySize: number }>;
+  sessions: Array<{
+    sessionId: string;
+    retrievalCacheSize: number;
+    historySize: number;
+  }>;
 } {
   return {
     sessionCount: sessionCaches.size,

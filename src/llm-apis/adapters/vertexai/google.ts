@@ -1,13 +1,20 @@
 import type { LlmProfile } from "@/types/llm-profiles";
-import type { LlmRequestOptions, LlmResponse, LlmMessage } from "@/llm-apis/common";
-import type { EmbeddingRequestOptions, EmbeddingResponse } from "@/llm-apis/embedding-types";
+import type {
+  LlmRequestOptions,
+  LlmResponse,
+  LlmMessage,
+} from "@/llm-apis/common";
+import type {
+  EmbeddingRequestOptions,
+  EmbeddingResponse,
+} from "@/llm-apis/embedding-types";
 import { fetchWithTimeout, ensureResponseOk } from "@/llm-apis/common";
 import { createModuleLogger } from "@utils/logger";
 import { parseSSEStream, extractTextFromSSE } from "@utils/sse-parser";
 import {
   extractCommonParameters,
   applyCustomParameters,
-  cleanPayload
+  cleanPayload,
 } from "@/llm-apis/request-builder";
 import { asyncJsonStringify } from "@/utils/serialization";
 import {
@@ -15,7 +22,7 @@ import {
   VertexAiGeminiRequest,
   buildVertexAiContents,
   buildVertexAiTools,
-  buildVertexAiToolConfig
+  buildVertexAiToolConfig,
 } from "./utils";
 
 const logger = createModuleLogger("VertexAiGoogle");
@@ -23,7 +30,9 @@ const logger = createModuleLogger("VertexAiGoogle");
 /**
  * 映射 Vertex AI finishReason 到通用格式
  */
-function mapVertexAiFinishReason(reason: string | undefined): LlmResponse["finishReason"] {
+function mapVertexAiFinishReason(
+  reason: string | undefined
+): LlmResponse["finishReason"] {
   if (!reason) return null;
 
   const reasonMap: Record<string, LlmResponse["finishReason"]> = {
@@ -49,7 +58,9 @@ export async function callVertexAiGemini(
   const commonParams = extractCommonParameters(options);
 
   // 从 messages 中提取 system 消息
-  const systemMessages = (options.messages || []).filter((m: LlmMessage) => m.role === 'system');
+  const systemMessages = (options.messages || []).filter(
+    (m: LlmMessage) => m.role === "system"
+  );
 
   // 构建 generationConfig
   const generationConfig: VertexAiGenerationConfig = {
@@ -66,14 +77,19 @@ export async function callVertexAiGemini(
 
   // 添加思考配置
   const extendedOptions = options as any;
-  const shouldIncludeThoughts = extendedOptions.includeThoughts === true || extendedOptions.thinkingEnabled === true;
+  const shouldIncludeThoughts =
+    extendedOptions.includeThoughts === true ||
+    extendedOptions.thinkingEnabled === true;
   const hasThinkingBudget = extendedOptions.thinkingBudget !== undefined;
   const hasReasoningEffort = extendedOptions.reasoningEffort !== undefined;
 
   if (shouldIncludeThoughts || hasThinkingBudget || hasReasoningEffort) {
     const thinkingConfig: any = {};
 
-    if (extendedOptions.includeThoughts === true || extendedOptions.thinkingEnabled === true) {
+    if (
+      extendedOptions.includeThoughts === true ||
+      extendedOptions.thinkingEnabled === true
+    ) {
       thinkingConfig.includeThoughts = true;
     }
 
@@ -82,7 +98,8 @@ export async function callVertexAiGemini(
     }
 
     if (extendedOptions.reasoningEffort) {
-      thinkingConfig.thinkingLevel = extendedOptions.reasoningEffort.toLowerCase();
+      thinkingConfig.thinkingLevel =
+        extendedOptions.reasoningEffort.toLowerCase();
     }
 
     generationConfig.thinkingConfig = thinkingConfig;
@@ -97,8 +114,10 @@ export async function callVertexAiGemini(
   // 系统指令
   if (systemMessages.length > 0) {
     const systemContent = systemMessages
-      .map((m: LlmMessage) => typeof m.content === 'string' ? m.content : JSON.stringify(m.content))
-      .join('\n\n');
+      .map((m: LlmMessage) =>
+        typeof m.content === "string" ? m.content : JSON.stringify(m.content)
+      )
+      .join("\n\n");
     body.systemInstruction = {
       parts: [{ text: systemContent }],
     };
@@ -164,57 +183,64 @@ export async function callVertexAiGemini(
     let toolCalls: LlmResponse["toolCalls"] = undefined;
     let reasoningContent = "";
 
-    await parseSSEStream(reader, (data) => {
-      try {
-        const json = JSON.parse(data);
+    await parseSSEStream(
+      reader,
+      (data) => {
+        try {
+          const json = JSON.parse(data);
 
-        if (json.usageMetadata) {
-          usage = {
-            promptTokens: json.usageMetadata.promptTokenCount || 0,
-            completionTokens: json.usageMetadata.candidatesTokenCount || 0,
-            totalTokens: json.usageMetadata.totalTokenCount || 0,
-          };
-        }
+          if (json.usageMetadata) {
+            usage = {
+              promptTokens: json.usageMetadata.promptTokenCount || 0,
+              completionTokens: json.usageMetadata.candidatesTokenCount || 0,
+              totalTokens: json.usageMetadata.totalTokenCount || 0,
+            };
+          }
 
-        if (json.candidates?.[0]?.finishReason) {
-          finishReason = mapVertexAiFinishReason(json.candidates[0].finishReason);
-        }
+          if (json.candidates?.[0]?.finishReason) {
+            finishReason = mapVertexAiFinishReason(
+              json.candidates[0].finishReason
+            );
+          }
 
-        const parts = json.candidates?.[0]?.content?.parts;
-        if (parts && Array.isArray(parts)) {
-          for (const part of parts) {
-            if (part.text) {
-              if (part.thought) {
-                reasoningContent += part.text;
-                if (options.onReasoningStream) {
-                  options.onReasoningStream(part.text);
+          const parts = json.candidates?.[0]?.content?.parts;
+          if (parts && Array.isArray(parts)) {
+            for (const part of parts) {
+              if (part.text) {
+                if (part.thought) {
+                  reasoningContent += part.text;
+                  if (options.onReasoningStream) {
+                    options.onReasoningStream(part.text);
+                  }
+                } else {
+                  fullContent += part.text;
+                  options.onStream!(part.text);
                 }
-              } else {
-                fullContent += part.text;
-                options.onStream!(part.text);
-              }
-            } else if (part.functionCall) {
-              toolCalls = [
-                {
-                  id: `call_${Date.now()}`,
-                  type: "function",
-                  function: {
-                    name: part.functionCall.name,
-                    arguments: JSON.stringify(part.functionCall.args || {}),
+              } else if (part.functionCall) {
+                toolCalls = [
+                  {
+                    id: `call_${Date.now()}`,
+                    type: "function",
+                    function: {
+                      name: part.functionCall.name,
+                      arguments: JSON.stringify(part.functionCall.args || {}),
+                    },
                   },
-                },
-              ];
+                ];
+              }
             }
           }
+        } catch {
+          const text = extractTextFromSSE(data, "gemini");
+          if (text) {
+            fullContent += text;
+            options.onStream!(text);
+          }
         }
-      } catch {
-        const text = extractTextFromSSE(data, "gemini");
-        if (text) {
-          fullContent += text;
-          options.onStream!(text);
-        }
-      }
-    }, undefined, options.signal);
+      },
+      undefined,
+      options.signal
+    );
 
     const result: LlmResponse = {
       content: fullContent,
@@ -295,10 +321,10 @@ export async function callVertexAiGemini(
     content,
     usage: data.usageMetadata
       ? {
-        promptTokens: data.usageMetadata.promptTokenCount || 0,
-        completionTokens: data.usageMetadata.candidatesTokenCount || 0,
-        totalTokens: data.usageMetadata.totalTokenCount || 0,
-      }
+          promptTokens: data.usageMetadata.promptTokenCount || 0,
+          completionTokens: data.usageMetadata.candidatesTokenCount || 0,
+          totalTokens: data.usageMetadata.totalTokenCount || 0,
+        }
       : undefined,
     finishReason: mapVertexAiFinishReason(candidate.finishReason),
     toolCalls,
@@ -329,15 +355,17 @@ export async function callVertexAiEmbeddingApi(
     Object.assign(headers, profile.customHeaders);
   }
 
-  const taskType = options.taskType || 'RETRIEVAL_QUERY';
+  const taskType = options.taskType || "RETRIEVAL_QUERY";
   const inputs = Array.isArray(options.input) ? options.input : [options.input];
 
   const body = {
     instances: inputs.map((text: string) => ({
       content: text,
       task_type: taskType,
-      ...(options.title && taskType === 'RETRIEVAL_DOCUMENT' ? { title: options.title } : {})
-    }))
+      ...(options.title && taskType === "RETRIEVAL_DOCUMENT"
+        ? { title: options.title }
+        : {}),
+    })),
   };
 
   const response = await fetchWithTimeout(

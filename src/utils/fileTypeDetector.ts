@@ -303,23 +303,36 @@ function matchTextFeatures(buffer: Uint8Array): string | null {
   // 转换为字符串进行前缀匹配（只取前 128 字节就够了）
   // 尝试几种常见的编码，或者直接用 TextDecoder 宽松模式
   try {
-    const headerText = new TextDecoder("utf-8").decode(buffer.slice(0, 128)).trim().toLowerCase();
+    const headerText = new TextDecoder("utf-8")
+      .decode(buffer.slice(0, 128))
+      .trim()
+      .toLowerCase();
 
     // 1. 脚本 Shebang
     if (headerText.startsWith("#!")) {
       if (headerText.includes("python")) return "text/x-python";
-      if (headerText.includes("sh") || headerText.includes("bash")) return "text/x-sh";
+      if (headerText.includes("sh") || headerText.includes("bash"))
+        return "text/x-sh";
       if (headerText.includes("node")) return "text/javascript";
       return "text/plain";
     }
 
     // 2. XML / HTML
     if (headerText.startsWith("<?xml")) return "text/xml";
-    if (headerText.startsWith("<!doctype html") || headerText.startsWith("<html")) return "text/html";
+    if (
+      headerText.startsWith("<!doctype html") ||
+      headerText.startsWith("<html")
+    )
+      return "text/html";
 
     // 3. JSON / Array
-    if (headerText.startsWith("{") && (headerText.includes('"') || headerText.includes(":"))) return "application/json";
-    if (headerText.startsWith("[") && headerText.includes("{")) return "application/json";
+    if (
+      headerText.startsWith("{") &&
+      (headerText.includes('"') || headerText.includes(":"))
+    )
+      return "application/json";
+    if (headerText.startsWith("[") && headerText.includes("{"))
+      return "application/json";
 
     // 4. YAML
     if (headerText.startsWith("---")) return "text/yaml";
@@ -340,9 +353,17 @@ function isBufferLikelyText(buffer: Uint8Array): boolean {
   if (buffer.length === 0) return true;
 
   // 1. 检查 BOM
-  if (buffer.length >= 3 && buffer[0] === 0xef && buffer[1] === 0xbb && buffer[2] === 0xbf) return true;
-  if (buffer.length >= 2 && buffer[0] === 0xff && buffer[1] === 0xfe) return true;
-  if (buffer.length >= 2 && buffer[0] === 0xfe && buffer[1] === 0xff) return true;
+  if (
+    buffer.length >= 3 &&
+    buffer[0] === 0xef &&
+    buffer[1] === 0xbb &&
+    buffer[2] === 0xbf
+  )
+    return true;
+  if (buffer.length >= 2 && buffer[0] === 0xff && buffer[1] === 0xfe)
+    return true;
+  if (buffer.length >= 2 && buffer[0] === 0xfe && buffer[1] === 0xff)
+    return true;
 
   // 2. 检查控制字符
   const checkLength = Math.min(buffer.length, 1024);
@@ -375,7 +396,10 @@ function isBufferLikelyText(buffer: Uint8Array): boolean {
  * @param fileNameHint - 可选的文件名，用于扩展名后备检测
  * @returns MIME 类型字符串
  */
-export async function detectMimeTypeFromBuffer(buffer: Uint8Array, fileNameHint?: string): Promise<string> {
+export async function detectMimeTypeFromBuffer(
+  buffer: Uint8Array,
+  fileNameHint?: string
+): Promise<string> {
   // 1. 文本特征识别 (Fast Path)
   const featureMime = matchTextFeatures(buffer);
   if (featureMime) {
@@ -444,7 +468,10 @@ export function inferMimeTypeFromHint(hint: string): string | null {
  * @param fileName - 文件名（用于扩展名后备检测）
  * @returns MIME 类型字符串
  */
-export async function detectMimeType(filePath: string, fileName: string): Promise<string> {
+export async function detectMimeType(
+  filePath: string,
+  fileName: string
+): Promise<string> {
   const fileHeader = await readFileHeader(filePath);
   if (fileHeader) {
     // 复用 buffer 检测逻辑

@@ -51,7 +51,11 @@ const macroRef = computed(() => `{{kb::${props.binding.kbName}}}`);
         <el-tooltip content="移除关联" placement="top" :show-after="500">
           <el-button link :icon="Delete" size="small" @click="emit('remove')" />
         </el-tooltip>
-        <el-switch :model-value="binding.enabled" size="small" @change="emit('toggle-enabled', $event as boolean)" />
+        <el-switch
+          :model-value="binding.enabled"
+          size="small"
+          @change="emit('toggle-enabled', $event as boolean)"
+        />
       </div>
     </div>
 
@@ -84,7 +88,9 @@ const macroRef = computed(() => `{{kb::${props.binding.kbName}}}`);
           <!-- turn 模式参数 -->
           <el-form-item v-if="binding.mode === 'turn'" label="轮次间隔">
             <el-input-number
-              :model-value="binding.modeParams?.[0] ? parseInt(binding.modeParams[0]) : 1"
+              :model-value="
+                binding.modeParams?.[0] ? parseInt(binding.modeParams[0]) : 1
+              "
               :min="1"
               :max="100"
               controls-position="right"

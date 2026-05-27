@@ -50,7 +50,9 @@ const currentThemeIcon = computed(() => {
 const handleThemeChange = async (value: any) => {
   await settingsStore.updateAppearance({ theme: value });
   Snackbar.success(
-    t("settings.已切换至", { theme: themeOptions.value.find((opt) => opt.value === value)?.label })
+    t("settings.已切换至", {
+      theme: themeOptions.value.find((opt) => opt.value === value)?.label,
+    })
   );
 };
 
@@ -58,7 +60,9 @@ const handleLanguageChange = async (value: any) => {
   await settingsStore.updateSettings({ language: value });
   locale.value = value;
   Snackbar.success(
-    t("settings.语言已切换至", { lang: languageOptions.find((opt) => opt.value === value)?.label })
+    t("settings.语言已切换至", {
+      lang: languageOptions.find((opt) => opt.value === value)?.label,
+    })
   );
 };
 
@@ -155,8 +159,9 @@ const handleRefresh = async () => {
                 <div class="selected-value">
                   <component :is="currentThemeIcon" :size="16" class="mr-1" />
                   {{
-                    themeOptions.find((o) => o.value === settingsStore.settings.appearance.theme)
-                      ?.label
+                    themeOptions.find(
+                      (o) => o.value === settingsStore.settings.appearance.theme
+                    )?.label
                   }}
                 </div>
               </template>
@@ -209,7 +214,9 @@ const handleRefresh = async () => {
           </template>
           <div class="cell-content">
             <div class="cell-label">{{ t("settings.触感反馈") }}</div>
-            <div class="cell-desc">{{ t("settings.触感反馈描述") }} (暂未实现)</div>
+            <div class="cell-desc">
+              {{ t("settings.触感反馈描述") }} (暂未实现)
+            </div>
           </div>
           <template #extra>
             <var-switch
@@ -219,7 +226,6 @@ const handleRefresh = async () => {
             />
           </template>
         </var-cell>
-
       </var-paper>
 
       <!-- 3. 系统与网络 -->
@@ -305,7 +311,10 @@ const handleRefresh = async () => {
             <div class="cell-desc">{{ t("settings.调试模式描述") }}</div>
           </div>
           <template #extra>
-            <var-switch v-model="settingsStore.settings.debugMode" @change="handleDebugChange" />
+            <var-switch
+              v-model="settingsStore.settings.debugMode"
+              @change="handleDebugChange"
+            />
           </template>
         </var-cell>
       </var-paper>
@@ -322,7 +331,9 @@ const handleRefresh = async () => {
           </template>
           <div class="cell-content">
             <div class="cell-label">{{ t("settings.版本信息") }}</div>
-            <div class="cell-desc">{{ t("settings.当前版本", { version: "0.1.0" }) }}</div>
+            <div class="cell-desc">
+              {{ t("settings.当前版本", { version: "0.1.0" }) }}
+            </div>
           </div>
           <template #extra>
             <ChevronRight :size="20" class="text-hint" />

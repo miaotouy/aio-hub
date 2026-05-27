@@ -46,7 +46,10 @@ const internalValue = computed({
       finalVal = props.config.parse(val);
     }
     // 特殊处理：如果是空字符串且是 select/number，可能需要转为 undefined
-    if (val === "" && (props.config.type === "select" || props.config.type === "number")) {
+    if (
+      val === "" &&
+      (props.config.type === "select" || props.config.type === "number")
+    ) {
       finalVal = undefined;
     }
     emit("update:modelValue", finalVal);
@@ -63,7 +66,8 @@ const handleEnabledChange = (val: boolean) => {
   emit("update:enabled", val);
   // 如果启用且当前值为 undefined，尝试设置默认值
   if (val && props.modelValue === undefined) {
-    const defaultVal = activeConfig.value.defaultValue ?? activeConfig.value.min ?? 0;
+    const defaultVal =
+      activeConfig.value.defaultValue ?? activeConfig.value.min ?? 0;
     emit("update:modelValue", defaultVal);
   }
 };
@@ -83,7 +87,10 @@ const showReset = computed(() => {
   // 简单比较，对于对象类型可能需要深度比较，但这里参数大多是基本类型
   // 对于 thinking 这种对象类型，需要特殊处理
   if (typeof activeConfig.value.defaultValue === "object") {
-    return JSON.stringify(props.modelValue) !== JSON.stringify(activeConfig.value.defaultValue);
+    return (
+      JSON.stringify(props.modelValue) !==
+      JSON.stringify(activeConfig.value.defaultValue)
+    );
   }
 
   return props.modelValue !== activeConfig.value.defaultValue;
@@ -97,9 +104,22 @@ const showReset = computed(() => {
       <span class="param-label">{{ activeConfig.label }}</span>
       <div class="param-controls">
         <!-- Reset Button -->
-        <el-popconfirm v-if="showReset" title="确定要重置为默认值吗？" @confirm="handleReset" width="200">
+        <el-popconfirm
+          v-if="showReset"
+          title="确定要重置为默认值吗？"
+          @confirm="handleReset"
+          width="200"
+        >
           <template #reference>
-            <el-button link size="small" type="info" class="reset-btn" :icon="RefreshLeft"> 重置 </el-button>
+            <el-button
+              link
+              size="small"
+              type="info"
+              class="reset-btn"
+              :icon="RefreshLeft"
+            >
+              重置
+            </el-button>
           </template>
         </el-popconfirm>
 
@@ -129,7 +149,12 @@ const showReset = computed(() => {
           :disabled="disabled"
           size="small"
         >
-          <el-option v-for="item in activeConfig.suggestions" :key="item.value" :label="item.label" :value="item.value">
+          <el-option
+            v-for="item in activeConfig.suggestions"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          >
             <div class="suggestion-item">
               <span class="label">{{ item.label }}</span>
               <span class="value">{{ item.value }}</span>
@@ -174,7 +199,12 @@ const showReset = computed(() => {
           :disabled="disabled"
           size="small"
         >
-          <el-option v-for="item in activeConfig.suggestions" :key="item.value" :label="item.label" :value="item.value">
+          <el-option
+            v-for="item in activeConfig.suggestions"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          >
             <div class="suggestion-item">
               <span class="label">{{ item.label }}</span>
               <span class="value">{{ item.value }}</span>
@@ -212,7 +242,12 @@ const showReset = computed(() => {
           class="full-width"
           :disabled="disabled"
         >
-          <el-option v-for="opt in activeConfig.options" :key="opt.value" :label="opt.label" :value="opt.value" />
+          <el-option
+            v-for="opt in activeConfig.options"
+            :key="opt.value"
+            :label="opt.label"
+            :value="opt.value"
+          />
         </el-select>
       </template>
 
@@ -234,7 +269,9 @@ const showReset = computed(() => {
     </div>
 
     <!-- Disabled State Description Hint -->
-    <div v-else class="param-desc disabled-hint">{{ activeConfig.description }} (使用模型默认值)</div>
+    <div v-else class="param-desc disabled-hint">
+      {{ activeConfig.description }} (使用模型默认值)
+    </div>
   </div>
 </template>
 

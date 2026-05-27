@@ -36,7 +36,7 @@ defineProps<{
 }>();
 
 defineEmits<{
-  'show-json': [message: any];
+  "show-json": [message: any];
 }>();
 
 function truncateText(text: string, maxLength: number): string {

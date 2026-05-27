@@ -9,9 +9,16 @@ import BaseDialog from "@/components/common/BaseDialog.vue";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
 import { MODEL_CAPABILITIES } from "@/config/model-capabilities";
 
-const { isDialogVisible, currentSelection, initialCapabilities, select, cancel } = useModelSelectDialog();
+const {
+  isDialogVisible,
+  currentSelection,
+  initialCapabilities,
+  select,
+  cancel,
+} = useModelSelectDialog();
 const { enabledProfiles } = useLlmProfiles();
-const { getModelIcon, getMatchedProperties, getModelGroup } = useModelMetadata();
+const { getModelIcon, getMatchedProperties, getModelGroup } =
+  useModelMetadata();
 
 const searchQuery = ref("");
 const selectedCapabilities = ref<string[]>([]);
@@ -56,7 +63,9 @@ function getModelCapabilities(model: LlmModelInfo) {
 // 获取激活的能力列表
 function getActiveCapabilities(model: LlmModelInfo) {
   const capabilities = getModelCapabilities(model);
-  return MODEL_CAPABILITIES.filter((cap) => capabilities[cap.key as keyof typeof capabilities]);
+  return MODEL_CAPABILITIES.filter(
+    (cap) => capabilities[cap.key as keyof typeof capabilities]
+  );
 }
 
 // 组合并筛选所有可用模型
@@ -89,19 +98,27 @@ const allModels = computed(() => {
 
     // 2. 能力匹配 (AND 逻辑：必须包含所有选中的能力)
     if (caps.length > 0) {
-      const modelCaps = getActiveCapabilities(model).map((c) => c.key) as string[];
+      const modelCaps = getActiveCapabilities(model).map(
+        (c) => c.key
+      ) as string[];
       const hasAllCaps = caps.every((cap) => modelCaps.includes(cap));
       if (!hasAllCaps) return false;
     }
 
     // 3. 初始强制能力匹配 (支持排除逻辑)
-    if (initialCapabilities.value && Object.keys(initialCapabilities.value).length > 0) {
-      const requiredCaps = Object.keys(initialCapabilities.value) as Array<keyof typeof model.capabilities>;
+    if (
+      initialCapabilities.value &&
+      Object.keys(initialCapabilities.value).length > 0
+    ) {
+      const requiredCaps = Object.keys(initialCapabilities.value) as Array<
+        keyof typeof model.capabilities
+      >;
       const meetsInitialRequirements = requiredCaps.every((key) => {
         const requiredValue = initialCapabilities.value![key as string];
         if (requiredValue === undefined) return true;
 
-        const modelHasCap = !!model.capabilities?.[key as keyof typeof model.capabilities];
+        const modelHasCap =
+          !!model.capabilities?.[key as keyof typeof model.capabilities];
         if (requiredValue === true) return modelHasCap;
         return !modelHasCap; // requiredValue === false
       });
@@ -114,7 +131,8 @@ const allModels = computed(() => {
 });
 // 按 profile 分组
 const modelGroups = computed(() => {
-  const groups: Map<string, { profile: LlmProfile; models: LlmModelInfo[] }> = new Map();
+  const groups: Map<string, { profile: LlmProfile; models: LlmModelInfo[] }> =
+    new Map();
 
   allModels.value.forEach(({ profile, model }) => {
     if (!groups.has(profile.id)) {
@@ -147,7 +165,10 @@ const modelGroups = computed(() => {
 // 判断是否为当前选中的模型
 function isCurrentModel(profile: LlmProfile, model: LlmModelInfo): boolean {
   if (!currentSelection.value) return false;
-  return currentSelection.value.profile.id === profile.id && currentSelection.value.model.id === model.id;
+  return (
+    currentSelection.value.profile.id === profile.id &&
+    currentSelection.value.model.id === model.id
+  );
 }
 
 // 生成模型的唯一 key
@@ -184,13 +205,21 @@ watch(isDialogVisible, async (visible) => {
       // 等待对话框动画完成和布局稳定后再计算滚动位置
       await new Promise((resolve) => setTimeout(resolve, 150));
 
-      const currentKey = getModelKey(currentSelection.value.profile, currentSelection.value.model);
-      const currentElement = document.querySelector(`[data-model-key="${currentKey}"]`) as HTMLElement;
+      const currentKey = getModelKey(
+        currentSelection.value.profile,
+        currentSelection.value.model
+      );
+      const currentElement = document.querySelector(
+        `[data-model-key="${currentKey}"]`
+      ) as HTMLElement;
       const container = modelListWrapperRef.value;
 
       if (currentElement && container) {
         // 直接使用 offsetTop，因为 container 设置了 position: relative 作为 offsetParent
-        const targetScrollTop = currentElement.offsetTop - container.clientHeight / 2 + currentElement.offsetHeight / 2;
+        const targetScrollTop =
+          currentElement.offsetTop -
+          container.clientHeight / 2 +
+          currentElement.offsetHeight / 2;
 
         container.scrollTo({
           top: Math.max(0, targetScrollTop),
@@ -203,11 +232,21 @@ watch(isDialogVisible, async (visible) => {
 </script>
 
 <template>
-  <BaseDialog v-model="isDialogVisible" title="搜索模型" width="700px" @close="handleClose">
+  <BaseDialog
+    v-model="isDialogVisible"
+    title="搜索模型"
+    width="700px"
+    @close="handleClose"
+  >
     <template #content>
       <div class="model-select-content">
         <div class="search-bar">
-          <el-input v-model="searchQuery" placeholder="搜索模型名称或服务商..." clearable class="search-input" />
+          <el-input
+            v-model="searchQuery"
+            placeholder="搜索模型名称或服务商..."
+            clearable
+            class="search-input"
+          />
           <el-select
             v-model="selectedCapabilities"
             multiple
@@ -217,9 +256,17 @@ watch(isDialogVisible, async (visible) => {
             class="capability-select"
             clearable
           >
-            <el-option v-for="cap in MODEL_CAPABILITIES" :key="cap.key" :label="cap.label" :value="cap.key">
+            <el-option
+              v-for="cap in MODEL_CAPABILITIES"
+              :key="cap.key"
+              :label="cap.label"
+              :value="cap.key"
+            >
               <div style="display: flex; align-items: center">
-                <el-icon style="margin-right: 8px" :style="{ color: cap.color }">
+                <el-icon
+                  style="margin-right: 8px"
+                  :style="{ color: cap.color }"
+                >
                   <component :is="cap.icon" />
                 </el-icon>
                 <span>{{ cap.label }}</span>
@@ -228,24 +275,44 @@ watch(isDialogVisible, async (visible) => {
           </el-select>
         </div>
         <div ref="modelListWrapperRef" class="model-list-wrapper">
-          <div v-if="allModels.length > 0" :class="['model-list', { 'is-narrow': isNarrow }]">
-            <div v-for="group in modelGroups" :key="group.profile.id" class="model-group">
+          <div
+            v-if="allModels.length > 0"
+            :class="['model-list', { 'is-narrow': isNarrow }]"
+          >
+            <div
+              v-for="group in modelGroups"
+              :key="group.profile.id"
+              class="model-group"
+            >
               <h3 class="group-title">{{ group.profile.name }}</h3>
               <div
                 v-for="model in group.models"
                 :key="model.id"
                 :data-model-key="getModelKey(group.profile, model)"
-                :class="['model-item', { 'is-current': isCurrentModel(group.profile, model) }]"
+                :class="[
+                  'model-item',
+                  { 'is-current': isCurrentModel(group.profile, model) },
+                ]"
                 @click="handleSelectModel(group.profile, model)"
               >
                 <div class="model-item-content">
-                  <DynamicIcon class="model-avatar" :src="getModelIcon(model) || ''" :alt="model.name" />
+                  <DynamicIcon
+                    class="model-avatar"
+                    :src="getModelIcon(model) || ''"
+                    :alt="model.name"
+                  />
                   <div class="model-info">
                     <div class="model-header">
                       <span class="model-name-text">{{ model.name }}</span>
                       <div class="model-capabilities">
-                        <template v-for="capability in getActiveCapabilities(model)" :key="capability.key">
-                          <el-tooltip :content="capability.description" placement="top">
+                        <template
+                          v-for="capability in getActiveCapabilities(model)"
+                          :key="capability.key"
+                        >
+                          <el-tooltip
+                            :content="capability.description"
+                            placement="top"
+                          >
                             <el-icon
                               class="capability-icon"
                               :class="capability.className"

@@ -15,7 +15,12 @@ interface PresetColor {
 interface ColorConfig {
   type: ColorType;
   label: string;
-  modelKey: "themeColor" | "successColor" | "warningColor" | "dangerColor" | "infoColor";
+  modelKey:
+    | "themeColor"
+    | "successColor"
+    | "warningColor"
+    | "dangerColor"
+    | "infoColor";
   defaultColor: string;
   description: string;
   presets: PresetColor[];
@@ -134,11 +139,21 @@ const colorConfigs: ColorConfig[] = [
 ];
 
 // Props - 使用 v-model 绑定所有颜色，支持可选类型
-const themeColor = defineModel<string | undefined>("themeColor", { required: true });
-const successColor = defineModel<string | undefined>("successColor", { required: true });
-const warningColor = defineModel<string | undefined>("warningColor", { required: true });
-const dangerColor = defineModel<string | undefined>("dangerColor", { required: true });
-const infoColor = defineModel<string | undefined>("infoColor", { required: true });
+const themeColor = defineModel<string | undefined>("themeColor", {
+  required: true,
+});
+const successColor = defineModel<string | undefined>("successColor", {
+  required: true,
+});
+const warningColor = defineModel<string | undefined>("warningColor", {
+  required: true,
+});
+const dangerColor = defineModel<string | undefined>("dangerColor", {
+  required: true,
+});
+const infoColor = defineModel<string | undefined>("infoColor", {
+  required: true,
+});
 
 // 自定义颜色输入状态 - 为每种颜色类型维护独立状态
 const customColors = ref<Record<ColorType, string>>({
@@ -276,7 +291,11 @@ const getDisplayColor = (type: ColorType): string => {
 
 <template>
   <div class="theme-color-settings">
-    <div v-for="config in colorConfigs" :key="config.type" class="color-config-item">
+    <div
+      v-for="config in colorConfigs"
+      :key="config.type"
+      class="color-config-item"
+    >
       <div class="color-config-header">
         <div class="setting-label">
           <span>{{ config.label }}</span>
@@ -288,7 +307,13 @@ const getDisplayColor = (type: ColorType): string => {
         </div>
         <div class="current-color-info">
           <template v-if="config.type === 'primary' && isThemeColorExtracted">
-            <el-tag size="small" type="info" effect="plain" class="extracted-tag">壁纸提取中</el-tag>
+            <el-tag
+              size="small"
+              type="info"
+              effect="plain"
+              class="extracted-tag"
+              >壁纸提取中</el-tag
+            >
           </template>
           <span class="color-label">当前：</span>
           <span class="color-value">{{ getDisplayColor(config.type) }}</span>
@@ -297,14 +322,23 @@ const getDisplayColor = (type: ColorType): string => {
 
       <div class="theme-color-selector">
         <div class="preset-colors">
-          <el-tooltip v-for="preset in config.presets" :key="preset.color" :content="preset.name" placement="top">
+          <el-tooltip
+            v-for="preset in config.presets"
+            :key="preset.color"
+            :content="preset.name"
+            placement="top"
+          >
             <button
               class="color-item"
               :class="{ active: getCurrentColor(config.type) === preset.color }"
               :style="{ backgroundColor: preset.color }"
               @click="selectPresetColor(config.type, preset.color)"
             >
-              <span v-if="getCurrentColor(config.type) === preset.color" class="check-mark">✓</span>
+              <span
+                v-if="getCurrentColor(config.type) === preset.color"
+                class="check-mark"
+                >✓</span
+              >
             </button>
           </el-tooltip>
 
@@ -324,13 +358,30 @@ const getDisplayColor = (type: ColorType): string => {
                   backgroundColor: !getSelectedPresetColor(config.type)
                     ? getCurrentColor(config.type)
                     : lastCustomColors[config.type],
-                  border: !getSelectedPresetColor(config.type) ? 'none' : '2px dashed var(--border-color)',
+                  border: !getSelectedPresetColor(config.type)
+                    ? 'none'
+                    : '2px dashed var(--border-color)',
                 }"
-                :title="!getSelectedPresetColor(config.type) ? '当前自定义颜色' : '自定义颜色'"
+                :title="
+                  !getSelectedPresetColor(config.type)
+                    ? '当前自定义颜色'
+                    : '自定义颜色'
+                "
               >
-                <span v-if="!getSelectedPresetColor(config.type)" class="check-mark">✓</span>
+                <span
+                  v-if="!getSelectedPresetColor(config.type)"
+                  class="check-mark"
+                  >✓</span
+                >
                 <span v-else class="custom-icon">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
                     <circle cx="13.5" cy="6.5" r="3.5" />
                     <circle cx="8.5" cy="11.5" r="3.5" />
                     <circle cx="15.5" cy="11.5" r="3.5" />
@@ -349,21 +400,41 @@ const getDisplayColor = (type: ColorType): string => {
                   maxlength="7"
                 >
                   <template #prepend>
-                    <input type="color" v-model="customColors[config.type]" class="native-color-picker" />
+                    <input
+                      type="color"
+                      v-model="customColors[config.type]"
+                      class="native-color-picker"
+                    />
                   </template>
                 </el-input>
               </div>
-              <div class="color-preview" :style="{ backgroundColor: customColors[config.type] }"></div>
+              <div
+                class="color-preview"
+                :style="{ backgroundColor: customColors[config.type] }"
+              ></div>
               <div class="picker-actions">
-                <el-button size="small" @click="showColorPickers[config.type] = false">取消</el-button>
-                <el-button type="primary" size="small" @click="applyCustomColor(config.type)"> 应用 </el-button>
+                <el-button
+                  size="small"
+                  @click="showColorPickers[config.type] = false"
+                  >取消</el-button
+                >
+                <el-button
+                  type="primary"
+                  size="small"
+                  @click="applyCustomColor(config.type)"
+                >
+                  应用
+                </el-button>
               </div>
             </div>
           </el-popover>
 
           <!-- 重置按钮 -->
           <el-tooltip :content="`重置为默认${config.label}`" placement="top">
-            <button class="color-item reset-btn" @click="resetColor(config.type, config.defaultColor)">
+            <button
+              class="color-item reset-btn"
+              @click="resetColor(config.type, config.defaultColor)"
+            >
               <el-icon>
                 <Refresh />
               </el-icon>

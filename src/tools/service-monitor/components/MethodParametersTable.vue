@@ -10,11 +10,18 @@
     >
       <el-table-column type="expand" width="40">
         <template #default="{ row }">
-          <div v-if="row.properties && row.properties.length > 0" class="nested-properties">
+          <div
+            v-if="row.properties && row.properties.length > 0"
+            class="nested-properties"
+          >
             <div class="properties-header">
               <el-text type="info" size="small">对象属性：</el-text>
             </div>
-            <el-table :data="row.properties" size="small" class="properties-table">
+            <el-table
+              :data="row.properties"
+              size="small"
+              class="properties-table"
+            >
               <el-table-column prop="name" label="属性名" width="150" />
               <el-table-column label="必填" width="80" align="center">
                 <template #default="{ row: prop }">
@@ -26,12 +33,7 @@
                   >
                     必填
                   </el-tag>
-                  <el-tag
-                    v-else
-                    size="small"
-                    type="info"
-                    effect="plain"
-                  >
+                  <el-tag v-else size="small" type="info" effect="plain">
                     可选
                   </el-tag>
                 </template>
@@ -72,20 +74,15 @@
           >
             必填
           </el-tag>
-          <el-tag
-            v-else
-            size="small"
-            type="info"
-            effect="plain"
-          >
-            可选
-          </el-tag>
+          <el-tag v-else size="small" type="info" effect="plain"> 可选 </el-tag>
         </template>
       </el-table-column>
       <el-table-column prop="type" label="类型" width="200">
         <template #default="{ row }">
           <div class="type-cell">
-            <el-tag size="small" type="warning" effect="light" round>{{ row.type }}</el-tag>
+            <el-tag size="small" type="warning" effect="light" round>{{
+              row.type
+            }}</el-tag>
             <el-tag
               v-if="row.properties && row.properties.length > 0"
               size="small"
@@ -102,7 +99,12 @@
       <el-table-column prop="description" label="描述" />
       <el-table-column prop="defaultValue" label="默认值" width="120">
         <template #default="{ row }">
-          <el-tag v-if="row.defaultValue !== undefined" size="small" effect="light" round>
+          <el-tag
+            v-if="row.defaultValue !== undefined"
+            size="small"
+            effect="light"
+            round
+          >
             {{ String(row.defaultValue) }}
           </el-tag>
           <span v-else class="no-default">-</span>
@@ -116,7 +118,7 @@
 </template>
 
 <script setup lang="ts">
-import type { MethodParameter } from '@/services/types';
+import type { MethodParameter } from "@/services/types";
 
 defineProps<{
   parameters: MethodParameter[];

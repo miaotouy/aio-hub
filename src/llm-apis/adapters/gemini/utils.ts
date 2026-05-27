@@ -1,4 +1,9 @@
-import type { LlmRequestOptions, LlmMessageContent, LlmMessage, MediaGenerationOptions } from "@/llm-apis/common";
+import type {
+  LlmRequestOptions,
+  LlmMessageContent,
+  LlmMessage,
+  MediaGenerationOptions,
+} from "@/llm-apis/common";
 import type { LlmModelInfo, LlmProfile } from "@/types/llm-profiles";
 import { DEFAULT_METADATA_RULES, testRuleMatch } from "@/config/model-metadata";
 import {
@@ -36,7 +41,11 @@ export interface GeminiPart {
     code: string;
   };
   codeExecutionResult?: {
-    outcome: "OUTCOME_OK" | "OUTCOME_FAILED" | "OUTCOME_DEADLINE_EXCEEDED" | "OUTCOME_UNSPECIFIED";
+    outcome:
+      | "OUTCOME_OK"
+      | "OUTCOME_FAILED"
+      | "OUTCOME_DEADLINE_EXCEEDED"
+      | "OUTCOME_UNSPECIFIED";
     output: string;
   };
   videoMetadata?: {
@@ -74,7 +83,14 @@ export interface GeminiSafetySetting {
 }
 
 export interface GeminiSchema {
-  type: "STRING" | "NUMBER" | "INTEGER" | "BOOLEAN" | "ARRAY" | "OBJECT" | "TYPE_UNSPECIFIED";
+  type:
+    | "STRING"
+    | "NUMBER"
+    | "INTEGER"
+    | "BOOLEAN"
+    | "ARRAY"
+    | "OBJECT"
+    | "TYPE_UNSPECIFIED";
   description?: string;
   enum?: string[];
   example?: any;
@@ -123,7 +139,10 @@ export interface GeminiRequest {
  /**
   * 构建 Gemini 请求头
   */
-export function buildGeminiHeaders(profile: LlmProfile, requestId?: string): Record<string, string> {
+export function buildGeminiHeaders(
+  profile: LlmProfile,
+  requestId?: string
+): Record<string, string> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
@@ -147,8 +166,14 @@ export function buildGeminiHeaders(profile: LlmProfile, requestId?: string): Rec
 /**
  * 构建 Gemini 完整的 URL
  */
-export function buildGeminiUrl(baseUrl: string, modelId: string, action: string, profile: LlmProfile): string {
-  const apiKey = profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
+export function buildGeminiUrl(
+  baseUrl: string,
+  modelId: string,
+  action: string,
+  profile: LlmProfile
+): string {
+  const apiKey =
+    profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
   const endpoint = `models/${modelId}:${action}`;
   const base = geminiUrlHandler.buildUrl(baseUrl, endpoint);
   return `${base}?key=${apiKey}`;
@@ -161,7 +186,9 @@ export const geminiUrlHandler = {
   buildUrl: (baseUrl: string, endpoint?: string): string => {
     const host = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
     const versionedHost = host.includes("/v1") ? host : `${host}v1beta/`;
-    return endpoint ? `${versionedHost}${endpoint}` : `${versionedHost}models/{model}:generateContent`;
+    return endpoint
+      ? `${versionedHost}${endpoint}`
+      : `${versionedHost}models/{model}:generateContent`;
   },
   getHint: (): string => {
     return "将自动添加 /v1beta/models/{model}:generateContent";
@@ -229,7 +256,9 @@ export function buildGeminiParts(messages: LlmMessageContent[]): GeminiPart[] {
 
   for (const doc of parsed.documentParts) {
     if (doc.source.type === "base64") {
-      const data = buildBase64DataUrl(doc.source.data, doc.source.media_type, { rawBase64: true });
+      const data = buildBase64DataUrl(doc.source.data, doc.source.media_type, {
+        rawBase64: true,
+      });
       parts.push({
         inlineData: {
           mimeType: doc.source.media_type,
@@ -278,7 +307,10 @@ export function buildGeminiContents(messages: LlmMessage[]): GeminiContent[] {
   const contents: GeminiContent[] = [];
   for (const msg of messages) {
     if (msg.role === "system") continue;
-    const parts = typeof msg.content === "string" ? [{ text: msg.content }] : buildGeminiParts(msg.content);
+    const parts =
+      typeof msg.content === "string"
+        ? [{ text: msg.content }]
+        : buildGeminiParts(msg.content);
     contents.push({
       role: msg.role === "assistant" ? "model" : "user",
       parts,
@@ -290,7 +322,9 @@ export function buildGeminiContents(messages: LlmMessage[]): GeminiContent[] {
 /**
  * 构建工具配置
  */
-export function buildGeminiTools(options: LlmRequestOptions): GeminiTool[] | undefined {
+export function buildGeminiTools(
+  options: LlmRequestOptions
+): GeminiTool[] | undefined {
   const tools: GeminiTool[] = [];
   const commonTools = extractToolDefinitions(options.tools);
   if (commonTools) {
@@ -313,7 +347,9 @@ export function buildGeminiTools(options: LlmRequestOptions): GeminiTool[] | und
 /**
  * 构建工具调用配置
  */
-export function buildGeminiToolConfig(options: LlmRequestOptions): GeminiToolConfig | undefined {
+export function buildGeminiToolConfig(
+  options: LlmRequestOptions
+): GeminiToolConfig | undefined {
   const parsed = parseToolChoice(options.toolChoice);
   if (!parsed) return undefined;
   const config: GeminiToolConfig = { functionCallingConfig: {} };
@@ -330,7 +366,9 @@ export function buildGeminiToolConfig(options: LlmRequestOptions): GeminiToolCon
 /**
  * 构建安全设置
  */
-export function buildGeminiSafetySettings(options: LlmRequestOptions): GeminiSafetySetting[] | undefined {
+export function buildGeminiSafetySettings(
+  options: LlmRequestOptions
+): GeminiSafetySetting[] | undefined {
   const defaultSettings: GeminiSafetySetting[] = [
     { category: "HARM_CATEGORY_HARASSMENT", threshold: "OFF" },
     { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "OFF" },
@@ -341,15 +379,19 @@ export function buildGeminiSafetySettings(options: LlmRequestOptions): GeminiSaf
   const customSettings = (options as any).safetySettings;
   if (!customSettings || customSettings.length === 0) return defaultSettings;
   const settingsMap = new Map<string, GeminiSafetySetting>();
-  for (const setting of defaultSettings) settingsMap.set(setting.category, setting);
-  for (const setting of customSettings) settingsMap.set(setting.category, setting);
+  for (const setting of defaultSettings)
+    settingsMap.set(setting.category, setting);
+  for (const setting of customSettings)
+    settingsMap.set(setting.category, setting);
   return Array.from(settingsMap.values());
 }
 
 /**
  * 构建生成配置
  */
-export function buildGeminiGenerationConfig(options: LlmRequestOptions): GeminiGenerationConfig {
+export function buildGeminiGenerationConfig(
+  options: LlmRequestOptions
+): GeminiGenerationConfig {
   const commonParams = extractCommonParameters(options);
   const config: GeminiGenerationConfig = {
     maxOutputTokens: commonParams.maxTokens || 8192,
@@ -357,29 +399,41 @@ export function buildGeminiGenerationConfig(options: LlmRequestOptions): GeminiG
   };
   if (commonParams.topP !== undefined) config.topP = commonParams.topP;
   if (commonParams.topK !== undefined) config.topK = commonParams.topK;
-  if (commonParams.presencePenalty !== undefined) config.presencePenalty = commonParams.presencePenalty;
-  if (commonParams.frequencyPenalty !== undefined) config.frequencyPenalty = commonParams.frequencyPenalty;
+  if (commonParams.presencePenalty !== undefined)
+    config.presencePenalty = commonParams.presencePenalty;
+  if (commonParams.frequencyPenalty !== undefined)
+    config.frequencyPenalty = commonParams.frequencyPenalty;
   if (commonParams.seed !== undefined) config.seed = commonParams.seed;
   if (commonParams.stop)
-    config.stopSequences = Array.isArray(commonParams.stop) ? commonParams.stop : [commonParams.stop];
+    config.stopSequences = Array.isArray(commonParams.stop)
+      ? commonParams.stop
+      : [commonParams.stop];
 
   if (options.responseFormat) {
-    if (options.responseFormat.type === "json_object") config.responseMimeType = "application/json";
-    else if (options.responseFormat.type === "json_schema" && options.responseFormat.json_schema) {
+    if (options.responseFormat.type === "json_object")
       config.responseMimeType = "application/json";
-      config.responseSchema = convertToGeminiSchema(options.responseFormat.json_schema.schema);
+    else if (
+      options.responseFormat.type === "json_schema" &&
+      options.responseFormat.json_schema
+    ) {
+      config.responseMimeType = "application/json";
+      config.responseSchema = convertToGeminiSchema(
+        options.responseFormat.json_schema.schema
+      );
     }
   }
 
   if (options.logprobs) {
     config.responseLogprobs = true;
-    if (options.topLogprobs !== undefined) config.logprobs = options.topLogprobs;
+    if (options.topLogprobs !== undefined)
+      config.logprobs = options.topLogprobs;
   }
 
   // 思考配置
   const ext = options as any;
   const isGemini3 = options.modelId.includes("gemini-3");
-  const shouldIncludeThoughts = ext.includeThoughts === true || ext.thinkingEnabled === true;
+  const shouldIncludeThoughts =
+    ext.includeThoughts === true || ext.thinkingEnabled === true;
   if (
     ext.thinkingLevel !== undefined ||
     ext.reasoningEffort !== undefined ||
@@ -390,8 +444,10 @@ export function buildGeminiGenerationConfig(options: LlmRequestOptions): GeminiG
     if (shouldIncludeThoughts) thinkingConfig.includeThoughts = true;
     if (isGemini3) {
       const level = (ext.thinkingLevel || ext.reasoningEffort)?.toLowerCase();
-      if (level && ["minimal", "low", "medium", "high"].includes(level)) thinkingConfig.thinkingLevel = level;
-      else if (level) thinkingConfig.thinkingLevel = level === "max" ? "high" : "low";
+      if (level && ["minimal", "low", "medium", "high"].includes(level))
+        thinkingConfig.thinkingLevel = level;
+      else if (level)
+        thinkingConfig.thinkingLevel = level === "max" ? "high" : "low";
       if (!thinkingConfig.thinkingLevel && ext.thinkingBudget !== undefined)
         thinkingConfig.thinkingBudget = ext.thinkingBudget;
     } else if (ext.thinkingBudget !== undefined) {
@@ -405,7 +461,10 @@ export function buildGeminiGenerationConfig(options: LlmRequestOptions): GeminiG
   // 自动设置响应模态
   if (ext.responseModalities) {
     config.responseModalities = ext.responseModalities;
-  } else if (options.modelId.includes("imagen") || options.modelId.includes("veo")) {
+  } else if (
+    options.modelId.includes("imagen") ||
+    options.modelId.includes("veo")
+  ) {
     // 针对特定模型自动开启媒体输出
     config.responseModalities = ["IMAGE"];
   }
@@ -414,7 +473,8 @@ export function buildGeminiGenerationConfig(options: LlmRequestOptions): GeminiG
   if (ext.mediaResolution || mediaOptions.size) {
     config.mediaResolution = ext.mediaResolution || mediaOptions.size;
   }
-  if (ext.enableEnhancedCivicAnswers !== undefined) config.enableEnhancedCivicAnswers = ext.enableEnhancedCivicAnswers;
+  if (ext.enableEnhancedCivicAnswers !== undefined)
+    config.enableEnhancedCivicAnswers = ext.enableEnhancedCivicAnswers;
 
   return config;
 }
@@ -424,7 +484,8 @@ function convertToGeminiSchema(schema: Record<string, any>): GeminiSchema {
   if (schema.description) geminiSchema.description = schema.description;
   if (schema.enum) geminiSchema.enum = schema.enum;
   if (schema.nullable) geminiSchema.nullable = schema.nullable;
-  if (schema.type === "array" && schema.items) geminiSchema.items = convertToGeminiSchema(schema.items);
+  if (schema.type === "array" && schema.items)
+    geminiSchema.items = convertToGeminiSchema(schema.items);
   if (schema.type === "object") {
     if (schema.properties) {
       geminiSchema.properties = {};
@@ -458,7 +519,8 @@ export function parseGeminiModelsResponse(data: any): LlmModelInfo[] {
     for (const model of data.models) {
       const modelId = model.name.replace("models/", "");
       const supportsVision =
-        model.supportedGenerationMethods?.includes("generateContent") && !modelId.includes("embedding");
+        model.supportedGenerationMethods?.includes("generateContent") &&
+        !modelId.includes("embedding");
 
       const presetCapabilities = extractModelCapabilities(modelId, "gemini");
 
@@ -495,12 +557,15 @@ export function parseGeminiModelsResponse(data: any): LlmModelInfo[] {
 }
 
 function extractModelCapabilities(modelId: string, provider?: string) {
-  const rules = DEFAULT_METADATA_RULES.filter((r) => r.enabled !== false && r.properties?.capabilities).sort(
-    (a, b) => (b.priority || 0) - (a.priority || 0),
-  );
+  const rules = DEFAULT_METADATA_RULES.filter(
+    (r) => r.enabled !== false && r.properties?.capabilities
+  ).sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
   for (const rule of rules) {
-    if (testRuleMatch(rule, modelId, provider) && rule.properties?.capabilities) {
+    if (
+      testRuleMatch(rule, modelId, provider) &&
+      rule.properties?.capabilities
+    ) {
       return rule.properties.capabilities;
     }
   }
@@ -508,9 +573,9 @@ function extractModelCapabilities(modelId: string, provider?: string) {
 }
 
 function extractModelGroup(modelId: string, provider?: string): string {
-  const rules = DEFAULT_METADATA_RULES.filter((r) => r.enabled !== false && r.properties?.group).sort(
-    (a, b) => (b.priority || 0) - (a.priority || 0),
-  );
+  const rules = DEFAULT_METADATA_RULES.filter(
+    (r) => r.enabled !== false && r.properties?.group
+  ).sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
   for (const rule of rules) {
     if (testRuleMatch(rule, modelId, provider) && rule.properties?.group) {

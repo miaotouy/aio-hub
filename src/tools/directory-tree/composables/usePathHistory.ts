@@ -9,14 +9,18 @@ export function usePathHistory() {
 
   // 排序后的历史记录（按访问时间倒序）
   const sortedPathHistory = computed(() => {
-    return [...pathHistory.value].sort((a, b) => b.lastAccessTime - a.lastAccessTime);
+    return [...pathHistory.value].sort(
+      (a, b) => b.lastAccessTime - a.lastAccessTime
+    );
   });
 
   // 添加路径到历史记录
   const addToHistory = (path: string) => {
     if (!path) return;
 
-    const existingIndex = pathHistory.value.findIndex((item) => item.path === path);
+    const existingIndex = pathHistory.value.findIndex(
+      (item) => item.path === path
+    );
     if (existingIndex !== -1) {
       // 更新已存在的记录
       pathHistory.value[existingIndex].lastAccessTime = Date.now();
@@ -32,7 +36,9 @@ export function usePathHistory() {
 
     // 限制历史记录数量为 20 条
     if (pathHistory.value.length > 20) {
-      pathHistory.value = pathHistory.value.sort((a, b) => b.lastAccessTime - a.lastAccessTime).slice(0, 20);
+      pathHistory.value = pathHistory.value
+        .sort((a, b) => b.lastAccessTime - a.lastAccessTime)
+        .slice(0, 20);
     }
   };
 

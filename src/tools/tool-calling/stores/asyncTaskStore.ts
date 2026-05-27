@@ -19,16 +19,34 @@ export const useAsyncTaskStore = defineStore("asyncTask", () => {
 
   // 计算属性
   const taskList = computed(() => {
-    return Array.from(tasks.value.values()).sort((a, b) => b.createdAt - a.createdAt);
+    return Array.from(tasks.value.values()).sort(
+      (a, b) => b.createdAt - a.createdAt
+    );
   });
 
-  const pendingTasks = computed(() => taskList.value.filter((t) => t.status === "pending"));
-  const runningTasks = computed(() => taskList.value.filter((t) => t.status === "running"));
-  const completedTasks = computed(() => taskList.value.filter((t) => t.status === "completed"));
-  const failedTasks = computed(() => taskList.value.filter((t) => t.status === "failed"));
-  const cancelledTasks = computed(() => taskList.value.filter((t) => t.status === "cancelled"));
-  const interruptedTasks = computed(() => taskList.value.filter((t) => t.status === "interrupted"));
-  const activeTasks = computed(() => taskList.value.filter((t) => t.status === "pending" || t.status === "running"));
+  const pendingTasks = computed(() =>
+    taskList.value.filter((t) => t.status === "pending")
+  );
+  const runningTasks = computed(() =>
+    taskList.value.filter((t) => t.status === "running")
+  );
+  const completedTasks = computed(() =>
+    taskList.value.filter((t) => t.status === "completed")
+  );
+  const failedTasks = computed(() =>
+    taskList.value.filter((t) => t.status === "failed")
+  );
+  const cancelledTasks = computed(() =>
+    taskList.value.filter((t) => t.status === "cancelled")
+  );
+  const interruptedTasks = computed(() =>
+    taskList.value.filter((t) => t.status === "interrupted")
+  );
+  const activeTasks = computed(() =>
+    taskList.value.filter(
+      (t) => t.status === "pending" || t.status === "running"
+    )
+  );
   const activeTaskCount = computed(() => activeTasks.value.length);
 
   // 方法
@@ -62,7 +80,9 @@ export const useAsyncTaskStore = defineStore("asyncTask", () => {
       });
 
       isInitialized.value = true;
-      logger.info("异步任务 Store 初始化完成（实时同步已激活）", { taskCount: tasks.value.size });
+      logger.info("异步任务 Store 初始化完成（实时同步已激活）", {
+        taskCount: tasks.value.size,
+      });
     } catch (error) {
       logger.error("异步任务 Store 初始化失败", error);
       throw error;

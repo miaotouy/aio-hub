@@ -7,7 +7,9 @@
  * @param videoUrl 视频文件的 URL
  * @returns Promise<string> Base64 格式的图片数据
  */
-export const generateVideoThumbnail = async (videoUrl: string): Promise<string> => {
+export const generateVideoThumbnail = async (
+  videoUrl: string
+): Promise<string> => {
   return new Promise((resolve, reject) => {
     const video = document.createElement("video");
     video.crossOrigin = "anonymous";
@@ -45,7 +47,7 @@ export const generateVideoThumbnail = async (videoUrl: string): Promise<string> 
         const MAX_SIZE = 400;
         let width = video.videoWidth;
         let height = video.videoHeight;
-        
+
         if (width > height) {
           if (width > MAX_SIZE) {
             height = height * (MAX_SIZE / width);

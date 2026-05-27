@@ -18,7 +18,11 @@ export function useChatExecutor() {
   /**
    * 执行对话请求
    */
-  async function execute(session: ChatSession, userContent: string, parentNodeId?: string) {
+  async function execute(
+    session: ChatSession,
+    userContent: string,
+    parentNodeId?: string
+  ) {
     if (chatStore.isSending) return;
 
     // 解析当前选中的模型
@@ -143,7 +147,10 @@ export function useChatExecutor() {
   /**
    * 重新生成（基于指定节点的父节点）
    */
-  async function regenerate(session: ChatSession, messageNode: ChatMessageNode) {
+  async function regenerate(
+    session: ChatSession,
+    messageNode: ChatMessageNode
+  ) {
     if (chatStore.isSending) return;
 
     // 如果是 assistant 消息，使用其父节点 (通常是 user)

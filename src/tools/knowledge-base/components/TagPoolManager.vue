@@ -65,7 +65,8 @@ const vectorizedTagsSet = ref(new Set<string>());
 
 // 合并所有标签并计算显示列表
 const allTagsWithStatus = computed(() => {
-  const result: Array<{ tag: string; isVectorized: boolean; count: number }> = [];
+  const result: Array<{ tag: string; isVectorized: boolean; count: number }> =
+    [];
   const allDiscovered = store.globalStats.allDiscoveredTags || [];
   const usageStats = store.globalStats.tagUsageStats || {};
 
@@ -116,7 +117,9 @@ const filteredTags = computed(() => {
 const vectorizedCount = computed(() => store.globalStats.vectorizedTags);
 // 注意：对于标签池展示，总数应该是所有库发现的标签总数
 const totalCount = computed(() => store.globalStats.allDiscoveredTags.length);
-const missingCount = computed(() => Math.max(0, totalCount.value - vectorizedCount.value));
+const missingCount = computed(() =>
+  Math.max(0, totalCount.value - vectorizedCount.value)
+);
 
 // 暴露图标给模板
 const Icons = {
@@ -153,7 +156,9 @@ async function loadStats() {
 
     // 2. 获取当前已向量化的标签列表
     const pureId = getPureModelId(props.modelId);
-    const vectorizedTags = await invoke<string[]>("kb_list_all_tags", { modelId: pureId });
+    const vectorizedTags = await invoke<string[]>("kb_list_all_tags", {
+      modelId: pureId,
+    });
     vectorizedTagsSet.value = new Set(vectorizedTags);
   } catch (e) {
     console.error("加载标签池数据失败", e);
@@ -171,7 +176,9 @@ async function loadStatsSilently() {
 
     // 2. 获取当前已向量化的标签列表
     const pureId = getPureModelId(props.modelId);
-    const vectorizedTags = await invoke<string[]>("kb_list_all_tags", { modelId: pureId });
+    const vectorizedTags = await invoke<string[]>("kb_list_all_tags", {
+      modelId: pureId,
+    });
     vectorizedTagsSet.value = new Set(vectorizedTags);
   } catch (e) {
     console.error("静默刷新标签池数据失败", e);
@@ -342,16 +349,27 @@ async function handleClearOtherModels() {
               @click="filterStatus = 'missing'"
               :plain="filterStatus !== 'missing'"
             >
-              <component :is="Icons.AlertCircle" :size="14" style="margin-right: 4px" />
+              <component
+                :is="Icons.AlertCircle"
+                :size="14"
+                style="margin-right: 4px"
+              />
               未向量化 ({{ missingCount }})
             </el-button>
           </div>
 
           <div class="sort-options">
-            <el-dropdown trigger="click" @command="(cmd: any) => (sortType = cmd)">
+            <el-dropdown
+              trigger="click"
+              @command="(cmd: any) => (sortType = cmd)"
+            >
               <el-button size="small" text bg>
                 <component
-                  :is="sortType === 'usage' ? Icons.ArrowDownWideNarrow : Icons.SortAsc"
+                  :is="
+                    sortType === 'usage'
+                      ? Icons.ArrowDownWideNarrow
+                      : Icons.SortAsc
+                  "
                   :size="14"
                   style="margin-right: 4px"
                 />
@@ -359,11 +377,17 @@ async function handleClearOtherModels() {
               </el-button>
               <template #dropdown>
                 <el-dropdown-menu>
-                  <el-dropdown-item command="usage" :disabled="sortType === 'usage'">
+                  <el-dropdown-item
+                    command="usage"
+                    :disabled="sortType === 'usage'"
+                  >
                     <component :is="Icons.ArrowDownWideNarrow" :size="14" />
                     <span style="margin-left: 8px">按使用量排序</span>
                   </el-dropdown-item>
-                  <el-dropdown-item command="name" :disabled="sortType === 'name'">
+                  <el-dropdown-item
+                    command="name"
+                    :disabled="sortType === 'name'"
+                  >
                     <component :is="Icons.SortAsc" :size="14" />
                     <span style="margin-left: 8px">按名称排序</span>
                   </el-dropdown-item>
@@ -378,7 +402,10 @@ async function handleClearOtherModels() {
       <div v-if="store.indexingProgress.isIndexing" class="header-progress">
         <el-progress
           :percentage="
-            Math.round((store.indexingProgress.current / store.indexingProgress.total) * 100)
+            Math.round(
+              (store.indexingProgress.current / store.indexingProgress.total) *
+                100
+            )
           "
           :stroke-width="4"
           :show-text="false"
@@ -386,7 +413,8 @@ async function handleClearOtherModels() {
         />
         <div class="progress-info">
           <div class="info-left">
-            正在处理: {{ store.indexingProgress.current }} / {{ store.indexingProgress.total }}
+            正在处理: {{ store.indexingProgress.current }} /
+            {{ store.indexingProgress.total }}
           </div>
           <div class="info-right">
             <el-button
@@ -408,7 +436,10 @@ async function handleClearOtherModels() {
           v-for="item in filteredTags"
           :key="item.tag"
           class="custom-tag"
-          :class="{ 'is-vectorized': item.isVectorized, 'is-missing': !item.isVectorized }"
+          :class="{
+            'is-vectorized': item.isVectorized,
+            'is-missing': !item.isVectorized,
+          }"
           @click="handleCopyTag(item.tag)"
           :title="`使用量: ${item.count} | 点击复制: ${item.tag}`"
         >
@@ -566,8 +597,12 @@ async function handleClearOtherModels() {
   gap: 12px;
   margin-bottom: 12px;
   padding: 12px;
-  background: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.05));
-  border: 1px solid rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.15));
+  background: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.05)
+  );
+  border: 1px solid
+    rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.15));
   border-radius: 6px;
 }
 
@@ -632,15 +667,27 @@ async function handleClearOtherModels() {
 }
 
 .custom-tag.is-vectorized {
-  background: rgba(var(--el-color-success-rgb), calc(var(--card-opacity) * 0.08));
+  background: rgba(
+    var(--el-color-success-rgb),
+    calc(var(--card-opacity) * 0.08)
+  );
   color: var(--el-color-success);
-  border-color: rgba(var(--el-color-success-rgb), calc(var(--card-opacity) * 0.15));
+  border-color: rgba(
+    var(--el-color-success-rgb),
+    calc(var(--card-opacity) * 0.15)
+  );
 }
 
 .custom-tag.is-missing {
-  background: rgba(var(--el-color-warning-rgb), calc(var(--card-opacity) * 0.08));
+  background: rgba(
+    var(--el-color-warning-rgb),
+    calc(var(--card-opacity) * 0.08)
+  );
   color: var(--el-color-warning);
-  border-color: rgba(var(--el-color-warning-rgb), calc(var(--card-opacity) * 0.15));
+  border-color: rgba(
+    var(--el-color-warning-rgb),
+    calc(var(--card-opacity) * 0.15)
+  );
 }
 
 .custom-tag:hover {
@@ -655,13 +702,25 @@ async function handleClearOtherModels() {
 }
 
 .custom-tag.is-vectorized:hover {
-  background: rgba(var(--el-color-success-rgb), calc(var(--card-opacity) * 0.12));
-  border-color: rgba(var(--el-color-success-rgb), calc(var(--card-opacity) * 0.3));
+  background: rgba(
+    var(--el-color-success-rgb),
+    calc(var(--card-opacity) * 0.12)
+  );
+  border-color: rgba(
+    var(--el-color-success-rgb),
+    calc(var(--card-opacity) * 0.3)
+  );
 }
 
 .custom-tag.is-missing:hover {
-  background: rgba(var(--el-color-warning-rgb), calc(var(--card-opacity) * 0.12));
-  border-color: rgba(var(--el-color-warning-rgb), calc(var(--card-opacity) * 0.3));
+  background: rgba(
+    var(--el-color-warning-rgb),
+    calc(var(--card-opacity) * 0.12)
+  );
+  border-color: rgba(
+    var(--el-color-warning-rgb),
+    calc(var(--card-opacity) * 0.3)
+  );
 }
 
 .tag-count {

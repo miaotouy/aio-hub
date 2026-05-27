@@ -23,7 +23,14 @@
           <p class="drop-zone__text">{{ placeholder }}</p>
           <p v-if="hint" class="drop-zone__hint">{{ hint }}</p>
           <div v-if="clickable" class="drop-zone__actions">
-            <el-button type="primary" plain size="small" @click.stop="openFileDialog"> 选择文件 </el-button>
+            <el-button
+              type="primary"
+              plain
+              size="small"
+              @click.stop="openFileDialog"
+            >
+              选择文件
+            </el-button>
           </div>
         </div>
       </slot>
@@ -35,7 +42,10 @@
     </template>
 
     <!-- 拖拽时的覆盖层 (可选，如果用户需要简单的视觉反馈) -->
-    <div v-if="isDraggingOver && showOverlayOnDrag" class="drop-zone__drag-overlay">
+    <div
+      v-if="isDraggingOver && showOverlayOnDrag"
+      class="drop-zone__drag-overlay"
+    >
       <el-icon :size="48"><Upload /></el-icon>
       <span>松开以添加</span>
     </div>
@@ -162,7 +172,9 @@ const openFileDialog = async () => {
           ? [
               {
                 name: "Supported Files",
-                extensions: props.accept.map((ext) => (ext.startsWith(".") ? ext.slice(1) : ext)),
+                extensions: props.accept.map((ext) =>
+                  ext.startsWith(".") ? ext.slice(1) : ext
+                ),
               },
             ]
           : undefined,
@@ -247,12 +259,20 @@ defineExpose({
 
 .drop-zone--clickable.drop-zone--click-zone:hover:not(.drop-zone--dragging) {
   border-color: color-mix(in srgb, var(--el-color-primary) 40%, transparent);
-  background-color: color-mix(in srgb, var(--el-color-primary) 10%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-primary) 10%,
+    transparent
+  );
 }
 
 .drop-zone--dragging {
   border-color: var(--el-color-primary) !important;
-  background-color: color-mix(in srgb, var(--el-color-primary) 10%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-primary) 10%,
+    transparent
+  );
   overflow: hidden;
 }
 
@@ -322,7 +342,9 @@ defineExpose({
 .drop-zone--dragging .drop-zone__icon {
   transform: translateY(-5px) scale(1.1);
   color: var(--el-color-primary);
-  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--el-color-primary) 50%, transparent));
+  filter: drop-shadow(
+    0 0 8px color-mix(in srgb, var(--el-color-primary) 50%, transparent)
+  );
 }
 
 .drop-zone__text {

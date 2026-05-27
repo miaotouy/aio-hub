@@ -17,7 +17,7 @@ export function useBranchManager() {
    */
   const deleteMessage = (
     session: GenerationSession,
-    nodeId: string,
+    nodeId: string
   ): { success: boolean; deletedNodes: MediaMessage[] } => {
     const nodeManager = useNodeManager();
     const result = nodeManager.hardDeleteNode(session, nodeId);
@@ -36,7 +36,10 @@ export function useBranchManager() {
   /**
    * 切换到指定分支（将某个节点设为活跃叶节点）
    */
-  const switchBranch = (session: GenerationSession, nodeId: string): boolean => {
+  const switchBranch = (
+    session: GenerationSession,
+    nodeId: string
+  ): boolean => {
     const nodeManager = useNodeManager();
     const success = nodeManager.updateActiveLeaf(session, nodeId);
 
@@ -50,9 +53,17 @@ export function useBranchManager() {
   /**
    * 切换到兄弟分支
    */
-  const switchToSiblingBranch = (session: GenerationSession, nodeId: string, direction: "prev" | "next"): string => {
+  const switchToSiblingBranch = (
+    session: GenerationSession,
+    nodeId: string,
+    direction: "prev" | "next"
+  ): string => {
     const nodeManager = useNodeManager();
-    const newBranchRootId = BranchNavigator.switchToSibling(session as any, nodeId, direction);
+    const newBranchRootId = BranchNavigator.switchToSibling(
+      session as any,
+      nodeId,
+      direction
+    );
 
     // 寻找目标分支的最深叶子节点
     const newLeafId = nodeManager.findDeepestLeaf(session, newBranchRootId);
@@ -81,11 +92,14 @@ export function useBranchManager() {
     session: GenerationSession,
     nodeId: string,
     newContent: string,
-    attachments?: Asset[],
+    attachments?: Asset[]
   ): boolean => {
     const node = session.nodes[nodeId];
     if (!node) {
-      logger.warn("编辑消息失败：节点不存在", { sessionId: session.id, nodeId });
+      logger.warn("编辑消息失败：节点不存在", {
+        sessionId: session.id,
+        nodeId,
+      });
       return false;
     }
 
@@ -119,7 +133,10 @@ export function useBranchManager() {
    * 这里的语义现在纯粹是“复制”，不再自动触发重试逻辑。
    * 特别注意：如果复制的是 Assistant 节点，状态应设为 complete，避免僵死。
    */
-  const createBranch = (session: GenerationSession, sourceNodeId: string): string | null => {
+  const createBranch = (
+    session: GenerationSession,
+    sourceNodeId: string
+  ): string | null => {
     const sourceNode = session.nodes[sourceNodeId];
     if (!sourceNode) return null;
 
@@ -130,7 +147,9 @@ export function useBranchManager() {
       parentId: sourceNode.parentId,
       role: sourceNode.role,
       content: sourceNode.content,
-      attachments: sourceNode.attachments ? [...sourceNode.attachments] : undefined,
+      attachments: sourceNode.attachments
+        ? [...sourceNode.attachments]
+        : undefined,
       isEnabled: true,
       status: sourceNode.role === "assistant" ? "complete" : sourceNode.status,
       metadata: sourceNode.metadata ? { ...sourceNode.metadata } : undefined,
@@ -154,21 +173,33 @@ export function useBranchManager() {
   /**
    * 获取某个节点的兄弟节点（包括自己）
    */
-  const getSiblings = (session: GenerationSession, nodeId: string): MediaMessage[] => {
-    return BranchNavigator.getSiblings(session as any, nodeId) as MediaMessage[];
+  const getSiblings = (
+    session: GenerationSession,
+    nodeId: string
+  ): MediaMessage[] => {
+    return BranchNavigator.getSiblings(
+      session as any,
+      nodeId
+    ) as MediaMessage[];
   };
 
   /**
    * 判断节点是否在当前活动路径上
    */
-  const isNodeInActivePath = (session: GenerationSession, nodeId: string): boolean => {
+  const isNodeInActivePath = (
+    session: GenerationSession,
+    nodeId: string
+  ): boolean => {
     return BranchNavigator.isNodeInActivePath(session as any, nodeId);
   };
 
   /**
    * 获取当前节点在兄弟节点中的索引
    */
-  const getSiblingIndex = (session: GenerationSession, nodeId: string): { index: number; total: number } => {
+  const getSiblingIndex = (
+    session: GenerationSession,
+    nodeId: string
+  ): { index: number; total: number } => {
     return BranchNavigator.getSiblingIndex(session as any, nodeId);
   };
 

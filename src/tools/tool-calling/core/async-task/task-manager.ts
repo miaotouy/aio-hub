@@ -72,7 +72,7 @@ export class TaskManager {
     toolId: string,
     methodName: string,
     args: Record<string, unknown>,
-    requestId: string,
+    requestId: string
   ): Promise<string> {
     await this.waitForInitialization();
 
@@ -154,7 +154,12 @@ export class TaskManager {
       };
 
       // 执行任务
-      const result = await this.executor.execute(task.toolId, task.methodName, task.args, context);
+      const result = await this.executor.execute(
+        task.toolId,
+        task.methodName,
+        task.args,
+        context
+      );
 
       // 更新状态为 completed
       await this.updateTask(taskId, {
@@ -166,7 +171,8 @@ export class TaskManager {
 
       logger.info("任务执行成功", { taskId });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
 
       // 检查是否为取消操作
       if (error instanceof Error && error.name === "AbortError") {
@@ -201,13 +207,17 @@ export class TaskManager {
    */
   async getAllTasks(): Promise<AsyncTaskMetadata[]> {
     await this.waitForInitialization();
-    return Array.from(this.tasks.values()).sort((a, b) => b.createdAt - a.createdAt);
+    return Array.from(this.tasks.values()).sort(
+      (a, b) => b.createdAt - a.createdAt
+    );
   }
 
   /**
    * 提交外部托管任务（任务已在外部系统如 VCP 中启动）
    */
-  async submitExternalTask(metadata: Omit<AsyncTaskMetadata, "createdAt" | "status">): Promise<string> {
+  async submitExternalTask(
+    metadata: Omit<AsyncTaskMetadata, "createdAt" | "status">
+  ): Promise<string> {
     await this.waitForInitialization();
 
     const fullMetadata: AsyncTaskMetadata = {
@@ -221,14 +231,21 @@ export class TaskManager {
     await this.persistImmediately();
     this.notifyUpdate(fullMetadata);
 
-    logger.info("外部任务已登记", { taskId: metadata.taskId, toolName: metadata.toolName });
+    logger.info("外部任务已登记", {
+      taskId: metadata.taskId,
+      toolName: metadata.toolName,
+    });
     return metadata.taskId;
   }
 
   /**
    * 更新任务进度（公共接口）
    */
-  async reportExternalProgress(taskId: string, progress: number, message?: string): Promise<void> {
+  async reportExternalProgress(
+    taskId: string,
+    progress: number,
+    message?: string
+  ): Promise<void> {
     await this.updateProgress(taskId, progress, message);
   }
 
@@ -244,7 +261,7 @@ export class TaskManager {
         result,
         progress: 100,
       },
-      true,
+      true
     );
   }
 
@@ -259,14 +276,18 @@ export class TaskManager {
         completedAt: Date.now(),
         error,
       },
-      true,
+      true
     );
   }
 
   /**
    * 更新任务（内部使用）
    */
-  private async updateTask(taskId: string, updates: Partial<AsyncTaskMetadata>, immediate = false): Promise<void> {
+  private async updateTask(
+    taskId: string,
+    updates: Partial<AsyncTaskMetadata>,
+    immediate = false
+  ): Promise<void> {
     const task = this.tasks.get(taskId);
     if (!task) return;
 
@@ -292,7 +313,11 @@ export class TaskManager {
     const task = this.tasks.get(taskId);
     if (!task) return false;
 
-    if (task.status === "completed" || task.status === "failed" || task.status === "cancelled") {
+    if (
+      task.status === "completed" ||
+      task.status === "failed" ||
+      task.status === "cancelled"
+    ) {
       return false;
     }
 
@@ -308,7 +333,7 @@ export class TaskManager {
           status: "cancelled",
           completedAt: Date.now(),
         },
-        true,
+        true
       );
     }
 
@@ -328,7 +353,12 @@ export class TaskManager {
       throw new Error(`只能重试失败或中断的任务，当前状态: ${task.status}`);
     }
 
-    const newTaskId = await this.submitTask(task.toolId, task.methodName, task.args, task.requestId);
+    const newTaskId = await this.submitTask(
+      task.toolId,
+      task.methodName,
+      task.args,
+      task.requestId
+    );
     await this.updateTask(newTaskId, { retriedFrom: taskId }, true);
 
     logger.info("任务重试已提交", { originalTaskId: taskId, newTaskId });
@@ -353,7 +383,11 @@ export class TaskManager {
   /**
    * 更新任务进度
    */
-  private async updateProgress(taskId: string, progress: number, message?: string): Promise<void> {
+  private async updateProgress(
+    taskId: string,
+    progress: number,
+    message?: string
+  ): Promise<void> {
     const task = this.tasks.get(taskId);
     if (!task) return;
 
@@ -376,14 +410,21 @@ export class TaskManager {
   /**
    * 清理过期任务
    */
-  async cleanupExpiredTasks(maxAgeMs: number = 7 * 24 * 60 * 60 * 1000): Promise<number> {
+  async cleanupExpiredTasks(
+    maxAgeMs: number = 7 * 24 * 60 * 60 * 1000
+  ): Promise<number> {
     await this.waitForInitialization();
     const now = Date.now();
     let cleanedCount = 0;
 
     for (const [taskId, task] of this.tasks.entries()) {
       const age = now - task.createdAt;
-      const isFinished = ["completed", "failed", "cancelled", "interrupted"].includes(task.status);
+      const isFinished = [
+        "completed",
+        "failed",
+        "cancelled",
+        "interrupted",
+      ].includes(task.status);
 
       if (isFinished && age > maxAgeMs) {
         this.tasks.delete(taskId);

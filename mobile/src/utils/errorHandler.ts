@@ -3,16 +3,16 @@
  * 对接 Varlet UI
  */
 
-import { Snackbar, Dialog } from '@varlet/ui';
-import { createModuleLogger } from './logger';
+import { Snackbar, Dialog } from "@varlet/ui";
+import { createModuleLogger } from "./logger";
 
-const logger = createModuleLogger('ErrorHandler');
+const logger = createModuleLogger("ErrorHandler");
 
 export enum ErrorLevel {
-  INFO = 'info',
-  WARNING = 'warning',
-  ERROR = 'error',
-  CRITICAL = 'critical',
+  INFO = "info",
+  WARNING = "warning",
+  ERROR = "error",
+  CRITICAL = "critical",
 }
 
 export interface ErrorHandlerOptions {
@@ -35,19 +35,26 @@ export interface StandardError {
 }
 
 class GlobalErrorHandler {
-  private standardizeError(error: any, options: ErrorHandlerOptions = {}): StandardError {
-    const { level = ErrorLevel.ERROR, context = {}, module = 'Unknown' } = options;
-    let message = '未知错误';
+  private standardizeError(
+    error: any,
+    options: ErrorHandlerOptions = {}
+  ): StandardError {
+    const {
+      level = ErrorLevel.ERROR,
+      context = {},
+      module = "Unknown",
+    } = options;
+    let message = "未知错误";
     let stack: string | undefined;
     let code: string | undefined;
 
     if (error instanceof Error) {
-      message = error.message || '未知错误';
+      message = error.message || "未知错误";
       stack = error.stack;
       code = (error as any).code;
-    } else if (typeof error === 'string') {
+    } else if (typeof error === "string") {
       message = error;
-    } else if (error && typeof error === 'object') {
+    } else if (error && typeof error === "object") {
       message = error.message || JSON.stringify(error);
       code = error.code;
       stack = error.stack;
@@ -66,9 +73,15 @@ class GlobalErrorHandler {
   }
 
   handle(error: any, options: ErrorHandlerOptions = {}): StandardError {
-    if (error instanceof Error && error.name === 'AbortError') {
-      const standardError = this.standardizeError(error, { ...options, level: ErrorLevel.INFO });
-      logger.info('操作已取消', { module: options.module || 'Unknown', context: options.context });
+    if (error instanceof Error && error.name === "AbortError") {
+      const standardError = this.standardizeError(error, {
+        ...options,
+        level: ErrorLevel.INFO,
+      });
+      logger.info("操作已取消", {
+        module: options.module || "Unknown",
+        context: options.context,
+      });
       return standardError;
     }
 
@@ -87,16 +100,22 @@ class GlobalErrorHandler {
     const msg = `[${error.module}] ${error.message}`;
 
     switch (error.level) {
-      case ErrorLevel.INFO: logger.info(msg, logData); break;
-      case ErrorLevel.WARNING: logger.warn(msg, logData); break;
+      case ErrorLevel.INFO:
+        logger.info(msg, logData);
+        break;
+      case ErrorLevel.WARNING:
+        logger.warn(msg, logData);
+        break;
       case ErrorLevel.ERROR:
-      case ErrorLevel.CRITICAL: logger.error(msg, error.originalError, logData); break;
+      case ErrorLevel.CRITICAL:
+        logger.error(msg, error.originalError, logData);
+        break;
     }
   }
 
   private showToUser(error: StandardError, userMessage?: string): void {
     const displayMsg = userMessage || error.message;
-    
+
     if (error.level === ErrorLevel.CRITICAL) {
       Dialog({
         title: `严重错误 [${error.module}]`,
@@ -104,19 +123,22 @@ class GlobalErrorHandler {
       });
     } else {
       const typeMap: Record<string, any> = {
-        [ErrorLevel.INFO]: 'info',
-        [ErrorLevel.WARNING]: 'warning',
-        [ErrorLevel.ERROR]: 'error',
+        [ErrorLevel.INFO]: "info",
+        [ErrorLevel.WARNING]: "warning",
+        [ErrorLevel.ERROR]: "error",
       };
-      
+
       Snackbar({
         content: `[${error.module}] ${displayMsg}`,
-        type: typeMap[error.level] || 'error',
+        type: typeMap[error.level] || "error",
       });
     }
   }
 
-  async wrapAsync<T>(fn: () => Promise<T>, options: ErrorHandlerOptions = {}): Promise<T | null> {
+  async wrapAsync<T>(
+    fn: () => Promise<T>,
+    options: ErrorHandlerOptions = {}
+  ): Promise<T | null> {
     try {
       return await fn();
     } catch (error) {
@@ -139,19 +161,47 @@ export const errorHandler = new GlobalErrorHandler();
 
 export function createModuleErrorHandler(moduleName: string) {
   return {
-    handle: (error: any, options: Omit<ErrorHandlerOptions, 'module'> = {}) =>
+    handle: (error: any, options: Omit<ErrorHandlerOptions, "module"> = {}) =>
       errorHandler.handle(error, { ...options, module: moduleName }),
-    wrapAsync: <T>(fn: () => Promise<T>, options: Omit<ErrorHandlerOptions, 'module'> = {}) =>
-      errorHandler.wrapAsync(fn, { ...options, module: moduleName }),
-    wrapSync: <T>(fn: () => T, options: Omit<ErrorHandlerOptions, 'module'> = {}) =>
-      errorHandler.wrapSync(fn, { ...options, module: moduleName }),
+    wrapAsync: <T>(
+      fn: () => Promise<T>,
+      options: Omit<ErrorHandlerOptions, "module"> = {}
+    ) => errorHandler.wrapAsync(fn, { ...options, module: moduleName }),
+    wrapSync: <T>(
+      fn: () => T,
+      options: Omit<ErrorHandlerOptions, "module"> = {}
+    ) => errorHandler.wrapSync(fn, { ...options, module: moduleName }),
     info: (error: any, userMessage?: string, context?: Record<string, any>) =>
-      errorHandler.handle(error, { module: moduleName, level: ErrorLevel.INFO, userMessage, context }),
+      errorHandler.handle(error, {
+        module: moduleName,
+        level: ErrorLevel.INFO,
+        userMessage,
+        context,
+      }),
     warn: (error: any, userMessage?: string, context?: Record<string, any>) =>
-      errorHandler.handle(error, { module: moduleName, level: ErrorLevel.WARNING, userMessage, context }),
+      errorHandler.handle(error, {
+        module: moduleName,
+        level: ErrorLevel.WARNING,
+        userMessage,
+        context,
+      }),
     error: (error: any, userMessage?: string, context?: Record<string, any>) =>
-      errorHandler.handle(error, { module: moduleName, level: ErrorLevel.ERROR, userMessage, context }),
-    critical: (error: any, userMessage?: string, context?: Record<string, any>) =>
-      errorHandler.handle(error, { module: moduleName, level: ErrorLevel.CRITICAL, userMessage, context }),
+      errorHandler.handle(error, {
+        module: moduleName,
+        level: ErrorLevel.ERROR,
+        userMessage,
+        context,
+      }),
+    critical: (
+      error: any,
+      userMessage?: string,
+      context?: Record<string, any>
+    ) =>
+      errorHandler.handle(error, {
+        module: moduleName,
+        level: ErrorLevel.CRITICAL,
+        userMessage,
+        context,
+      }),
   };
 }

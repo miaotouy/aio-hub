@@ -63,7 +63,10 @@ export function parseXml(text: string): Record<string, any> {
 /**
  * 统一解析入口
  */
-export function parseConfig(text: string, format: ConfigFormat): Record<string, any> {
+export function parseConfig(
+  text: string,
+  format: ConfigFormat
+): Record<string, any> {
   const trimmed = text.trim();
   if (!trimmed) {
     return {};

@@ -1,6 +1,11 @@
 import { ref } from "vue";
 import { appDataDir, join } from "@tauri-apps/api/path";
-import { readTextFile, writeTextFile, mkdir, exists } from "@tauri-apps/plugin-fs";
+import {
+  readTextFile,
+  writeTextFile,
+  mkdir,
+  exists,
+} from "@tauri-apps/plugin-fs";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { SketchPadSettings } from "../types";
@@ -76,7 +81,7 @@ export function useSketchSettings() {
         // 合并默认值，确保新增字段有回退
         return { ...DEFAULT_SKETCH_SETTINGS, ...parsed };
       },
-      { userMessage: "加载画板设置失败" },
+      { userMessage: "加载画板设置失败" }
     );
 
     if (result) {
@@ -97,7 +102,7 @@ export function useSketchSettings() {
         await writeTextFile(path, JSON.stringify(settings.value, null, 2));
         logger.info("画板设置已保存");
       },
-      { userMessage: "保存画板设置失败" },
+      { userMessage: "保存画板设置失败" }
     );
   }
 

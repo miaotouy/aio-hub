@@ -3,12 +3,18 @@
     <template #header>
       <div class="card-header">
         <span>可用方法</span>
-        <el-tag size="small" effect="light" round>{{ methods.length }} 个</el-tag>
+        <el-tag size="small" effect="light" round
+          >{{ methods.length }} 个</el-tag
+        >
       </div>
     </template>
 
     <div class="methods-list">
-      <el-collapse v-model="activeMethodName" accordion class="methods-collapse">
+      <el-collapse
+        v-model="activeMethodName"
+        accordion
+        class="methods-collapse"
+      >
         <el-collapse-item
           v-for="method in methods"
           :key="method.name"
@@ -16,7 +22,9 @@
         >
           <template #title>
             <div class="method-title">
-              <el-tag type="success" size="small" effect="light" round>方法</el-tag>
+              <el-tag type="success" size="small" effect="light" round
+                >方法</el-tag
+              >
               <span class="method-name">{{ method.name }}</span>
             </div>
           </template>
@@ -35,7 +43,9 @@
             <!-- 返回值 -->
             <div class="method-section">
               <h4 class="section-title">返回值</h4>
-              <el-tag type="primary" effect="light" round>{{ method.returnType }}</el-tag>
+              <el-tag type="primary" effect="light" round>{{
+                method.returnType
+              }}</el-tag>
             </div>
 
             <!-- 使用示例 -->
@@ -58,17 +68,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
-import type { MethodMetadata } from '@/services/types';
-import MethodParametersTable from './MethodParametersTable.vue';
-import RichCodeEditor from '@/components/common/RichCodeEditor.vue';
-import InfoCard from '@/components/common/InfoCard.vue';
+import { ref } from "vue";
+import type { MethodMetadata } from "@/services/types";
+import MethodParametersTable from "./MethodParametersTable.vue";
+import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
+import InfoCard from "@/components/common/InfoCard.vue";
 
 defineProps<{
   methods: MethodMetadata[];
 }>();
 
-const activeMethodName = ref<string>('');
+const activeMethodName = ref<string>("");
 </script>
 
 <style scoped>
@@ -142,7 +152,7 @@ const activeMethodName = ref<string>('');
 }
 
 .method-name {
-  font-family: 'Consolas', 'Monaco', monospace;
+  font-family: "Consolas", "Monaco", monospace;
   font-weight: 600;
   font-size: 14px;
 }

@@ -3,7 +3,12 @@
  * 使用 ConfigManager 管理索引文件，每个世界书存储为独立文件
  */
 
-import { exists, readTextFile, writeTextFile, remove } from "@tauri-apps/plugin-fs";
+import {
+  exists,
+  readTextFile,
+  writeTextFile,
+  remove,
+} from "@tauri-apps/plugin-fs";
 import { join } from "@tauri-apps/api/path";
 import { getAppConfigDir } from "@/utils/appPath";
 import { createConfigManager } from "@/utils/configManager";
@@ -110,7 +115,10 @@ export function useWorldbookStorageSeparated() {
   /**
    * 保存单个世界书内容
    */
-  async function saveWorldbookContent(id: string, content: STWorldbook): Promise<void> {
+  async function saveWorldbookContent(
+    id: string,
+    content: STWorldbook
+  ): Promise<void> {
     try {
       await ensureWorldbooksDir();
       const path = await getWorldbookPath(id);
@@ -147,7 +155,9 @@ export function useWorldbookStorageSeparated() {
   /**
    * 扫描目录并同步索引
    */
-  async function syncIndex(currentIndex: WorldbooksIndex): Promise<WorldbookMetadata[]> {
+  async function syncIndex(
+    currentIndex: WorldbooksIndex
+  ): Promise<WorldbookMetadata[]> {
     try {
       const { readDir } = await import("@tauri-apps/plugin-fs");
       const appDir = await getAppConfigDir();
@@ -160,7 +170,9 @@ export function useWorldbookStorageSeparated() {
         .filter((e) => e.name?.endsWith(".json"))
         .map((e) => e.name!.replace(".json", ""));
 
-      const indexMap = new Map(currentIndex.worldbooks.map((item) => [item.id, item]));
+      const indexMap = new Map(
+        currentIndex.worldbooks.map((item) => [item.id, item])
+      );
       const fileIdSet = new Set(fileIds);
 
       // 找出新增的文件
@@ -171,7 +183,8 @@ export function useWorldbookStorageSeparated() {
         const content = await loadWorldbookContent(id);
         if (content) {
           // 尝试从 metadata 或 entries 推断名称
-          const name = content.metadata?.name || `Worldbook ${id.substring(0, 6)}`;
+          const name =
+            content.metadata?.name || `Worldbook ${id.substring(0, 6)}`;
           newItems.push({
             id,
             name,
@@ -184,11 +197,16 @@ export function useWorldbookStorageSeparated() {
       }
 
       // 过滤已删除的文件
-      const validItems = currentIndex.worldbooks.filter((item) => fileIdSet.has(item.id));
+      const validItems = currentIndex.worldbooks.filter((item) =>
+        fileIdSet.has(item.id)
+      );
 
       const syncedItems = [...validItems, ...newItems];
 
-      if (newItems.length > 0 || validItems.length !== currentIndex.worldbooks.length) {
+      if (
+        newItems.length > 0 ||
+        validItems.length !== currentIndex.worldbooks.length
+      ) {
         currentIndex.worldbooks = syncedItems;
         await saveIndex(currentIndex);
         logger.info("世界书索引已同步", {
@@ -200,7 +218,10 @@ export function useWorldbookStorageSeparated() {
 
       return syncedItems;
     } catch (error) {
-      errorHandler.handle(error as Error, { userMessage: "同步世界书索引失败", showToUser: false });
+      errorHandler.handle(error as Error, {
+        userMessage: "同步世界书索引失败",
+        showToUser: false,
+      });
       return currentIndex.worldbooks;
     }
   }

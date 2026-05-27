@@ -16,7 +16,9 @@
               size="small"
               :loading="isLoading"
               @click="handleBatchEmbedding"
-              :disabled="!store.selectedProfile || store.knowledgeBase.length === 0"
+              :disabled="
+                !store.selectedProfile || store.knowledgeBase.length === 0
+              "
             >
               一键向量化
             </el-button>
@@ -36,7 +38,9 @@
         <div class="panel-content scrollbar-custom">
           <div v-if="store.knowledgeBase.length === 0" class="empty-docs">
             <el-empty :image-size="60" description="暂无文档">
-              <el-button type="primary" plain size="small" @click="addDocument">立即添加</el-button>
+              <el-button type="primary" plain size="small" @click="addDocument"
+                >立即添加</el-button
+              >
             </el-empty>
           </div>
           <div v-else class="doc-list">
@@ -48,7 +52,9 @@
               @click="openEditDialog(index)"
             >
               <div class="doc-item-header">
-                <div class="doc-index">#{{ store.knowledgeBase.length - index }}</div>
+                <div class="doc-index">
+                  #{{ store.knowledgeBase.length - index }}
+                </div>
                 <div class="doc-meta">
                   <span class="char-count">{{ item.text.length }} 字符</span>
                   <el-tag
@@ -67,11 +73,19 @@
                     :icon="Edit3"
                     @click.stop="openEditDialog(index)"
                   />
-                  <el-button type="danger" link :icon="X" @click.stop="removeDocument(index)" />
+                  <el-button
+                    type="danger"
+                    link
+                    :icon="X"
+                    @click.stop="removeDocument(index)"
+                  />
                 </div>
               </div>
               <div class="doc-content-wrapper">
-                <div class="doc-preview" :class="{ 'is-empty': !item.text.trim() }">
+                <div
+                  class="doc-preview"
+                  :class="{ 'is-empty': !item.text.trim() }"
+                >
                   {{ item.text.trim() || "点击输入文档内容..." }}
                 </div>
               </div>
@@ -106,7 +120,13 @@
                 <el-icon><Search /></el-icon>
               </template>
             </el-input>
-            <el-button type="primary" :loading="isLoading" @click="handleSearch"> 检索 </el-button>
+            <el-button
+              type="primary"
+              :loading="isLoading"
+              @click="handleSearch"
+            >
+              检索
+            </el-button>
           </div>
 
           <!-- 检索结果 -->
@@ -125,7 +145,11 @@
               </div>
               <div class="config-item">
                 <span class="config-label">相似度算法</span>
-                <el-select v-model="store.similarityAlgorithm" size="small" style="width: 110px">
+                <el-select
+                  v-model="store.similarityAlgorithm"
+                  size="small"
+                  style="width: 110px"
+                >
                   <el-option value="cosine" label="余弦相似度" />
                   <el-option value="euclidean" label="欧氏距离" />
                   <el-option value="dot" label="内积" />
@@ -134,7 +158,8 @@
               </div>
               <div class="config-item threshold-item">
                 <span class="config-label"
-                  >搜索阈值: {{ (store.searchThreshold * 100).toFixed(0) }}%</span
+                  >搜索阈值:
+                  {{ (store.searchThreshold * 100).toFixed(0) }}%</span
                 >
                 <el-slider
                   v-model="store.searchThreshold"
@@ -148,16 +173,25 @@
             </div>
 
             <div v-if="searchResults.length" class="hit-list">
-              <div v-for="(item, index) in searchResults" :key="index" class="hit-card">
+              <div
+                v-for="(item, index) in searchResults"
+                :key="index"
+                class="hit-card"
+              >
                 <div class="hit-header">
                   <div class="hit-rank">TOP {{ index + 1 }}</div>
                   <div class="hit-score-wrapper">
                     <div class="hit-score">
                       <span class="label">Similarity</span>
-                      <span class="value">{{ (item.score * 100).toFixed(2) }}%</span>
+                      <span class="value"
+                        >{{ (item.score * 100).toFixed(2) }}%</span
+                      >
                     </div>
                     <div class="score-bar-bg">
-                      <div class="score-bar-fill" :style="{ width: `${item.score * 100}%` }"></div>
+                      <div
+                        class="score-bar-fill"
+                        :style="{ width: `${item.score * 100}%` }"
+                      ></div>
                     </div>
                   </div>
                 </div>
@@ -186,10 +220,14 @@
           height="400px"
         />
       </div>
-      <div class="edit-dialog-tip">修改内容后，需要重新点击“一键向量化”以更新检索索引。</div>
+      <div class="edit-dialog-tip">
+        修改内容后，需要重新点击“一键向量化”以更新检索索引。
+      </div>
     </div>
     <template #footer>
-      <el-button type="primary" @click="isEditDialogVisible = false">完成</el-button>
+      <el-button type="primary" @click="isEditDialogVisible = false"
+        >完成</el-button
+      >
     </template>
   </BaseDialog>
 </template>
@@ -239,11 +277,15 @@ const removeDocument = (index: number) => {
 
 const clearKnowledgeBase = async () => {
   try {
-    await ElMessageBox.confirm("确定要清空所有文档吗？此操作不可撤销。", "提示", {
-      confirmButtonText: "确定",
-      cancelButtonText: "取消",
-      type: "warning",
-    });
+    await ElMessageBox.confirm(
+      "确定要清空所有文档吗？此操作不可撤销。",
+      "提示",
+      {
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+        type: "warning",
+      }
+    );
     store.knowledgeBase = [];
     searchResults.value = [];
     lastQueryEmbedding.value = null;
@@ -664,7 +706,11 @@ const handleSearch = async () => {
 
 .score-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--primary-color-light), var(--el-color-success));
+  background: linear-gradient(
+    90deg,
+    var(--primary-color-light),
+    var(--el-color-success)
+  );
   border-radius: 2px;
   transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
@@ -701,5 +747,4 @@ const handleSearch = async () => {
 .empty-state span {
   font-size: 13px;
 }
-
 </style>

@@ -15,7 +15,9 @@ const errorHandler = createModuleErrorHandler("ModelFetcher");
 /**
  * 从 API 获取模型列表
  */
-export async function fetchModelsFromApi(profile: LlmProfile): Promise<LlmModelInfo[]> {
+export async function fetchModelsFromApi(
+  profile: LlmProfile
+): Promise<LlmModelInfo[]> {
   const providerInfo = getProviderTypeInfo(profile.type);
 
   if (!providerInfo?.supportsModelList || !providerInfo.modelListEndpoint) {
@@ -42,7 +44,11 @@ export async function fetchModelsFromApi(profile: LlmProfile): Promise<LlmModelI
   ].includes(profile.type);
 
   if (isOpenAiCompatible) {
-    url = openAiUrlHandler.buildUrl(profile.baseUrl, providerInfo.modelListEndpoint, profile);
+    url = openAiUrlHandler.buildUrl(
+      profile.baseUrl,
+      providerInfo.modelListEndpoint,
+      profile
+    );
   } else {
     url = profile.baseUrl;
     if (!url.endsWith("/")) url += "/";
@@ -51,7 +57,8 @@ export async function fetchModelsFromApi(profile: LlmProfile): Promise<LlmModelI
       : providerInfo.modelListEndpoint;
   }
 
-  const apiKey = profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
+  const apiKey =
+    profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
   const headers = buildRequestHeaders(profile.type, apiKey);
 
   try {
@@ -89,7 +96,10 @@ export async function fetchModelsFromApi(profile: LlmProfile): Promise<LlmModelI
 /**
  * 根据提供商类型构建请求头
  */
-function buildRequestHeaders(providerType: ProviderType, apiKey: string): Record<string, string> {
+function buildRequestHeaders(
+  providerType: ProviderType,
+  apiKey: string
+): Record<string, string> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
@@ -135,7 +145,10 @@ function buildRequestHeaders(providerType: ProviderType, apiKey: string): Record
 /**
  * 解析不同提供商的模型列表响应
  */
-function parseModelsResponse(data: any, providerType: ProviderType): LlmModelInfo[] {
+function parseModelsResponse(
+  data: any,
+  providerType: ProviderType
+): LlmModelInfo[] {
   const models: LlmModelInfo[] = [];
 
   switch (providerType) {
@@ -150,10 +163,13 @@ function parseModelsResponse(data: any, providerType: ProviderType): LlmModelInf
       if (data.data && Array.isArray(data.data)) {
         for (const model of data.data) {
           // 检测是否为增强格式（有更多字段，如 OpenRouter）
-          const isEnhancedFormat = model.context_length || model.architecture || model.pricing;
+          const isEnhancedFormat =
+            model.context_length || model.architecture || model.pricing;
 
           const modelId = model.id;
-          const provider = model.owned_by || (providerType === "openai" ? "openai" : providerType);
+          const provider =
+            model.owned_by ||
+            (providerType === "openai" ? "openai" : providerType);
 
           // 获取匹配的元数据
           const metadata = getMatchedModelProperties(modelId, provider);
@@ -174,7 +190,8 @@ function parseModelsResponse(data: any, providerType: ProviderType): LlmModelInf
             if (model.context_length) {
               modelInfo.tokenLimits = { contextLength: model.context_length };
               if (model.top_provider?.max_completion_tokens) {
-                modelInfo.tokenLimits.output = model.top_provider.max_completion_tokens;
+                modelInfo.tokenLimits.output =
+                  model.top_provider.max_completion_tokens;
               }
             }
 
@@ -205,7 +222,9 @@ function parseModelsResponse(data: any, providerType: ProviderType): LlmModelInf
             }
 
             if (model.supported_parameters) {
-              modelInfo.supportedFeatures = { parameters: model.supported_parameters };
+              modelInfo.supportedFeatures = {
+                parameters: model.supported_parameters,
+              };
             }
 
             if (model.default_parameters) {

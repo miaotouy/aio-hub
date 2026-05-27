@@ -28,7 +28,14 @@ const emit = defineEmits<{
         {{ file.warning }}
       </div>
     </div>
-    <el-button @click="emit('remove')" :icon="Delete" text circle size="small" class="remove-btn" />
+    <el-button
+      @click="emit('remove')"
+      :icon="Delete"
+      text
+      circle
+      size="small"
+      class="remove-btn"
+    />
   </div>
 </template>
 
@@ -84,7 +91,10 @@ const emit = defineEmits<{
 
 .file-item.has-warning {
   border-left: 3px solid var(--el-color-warning);
-  background-color: rgba(var(--el-color-warning-rgb), calc(var(--card-opacity) * 0.1));
+  background-color: rgba(
+    var(--el-color-warning-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
 }
 
 .file-warning {

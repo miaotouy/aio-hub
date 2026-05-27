@@ -17,7 +17,10 @@
               <el-select v-model="localConfig.matchType" style="width: 100%">
                 <el-option label="Provider (提供商)" value="provider" />
                 <el-option label="Model (精确模型)" value="model" />
-                <el-option label="Model Prefix (模型前缀)" value="modelPrefix" />
+                <el-option
+                  label="Model Prefix (模型前缀)"
+                  value="modelPrefix"
+                />
                 <el-option label="Model Group (模型分组)" value="modelGroup" />
               </el-select>
             </el-form-item>
@@ -36,38 +39,56 @@
         </el-row>
 
         <el-form-item label="匹配值">
-          <el-input v-model="localConfig.matchValue" :placeholder="matchValuePlaceholder" clearable>
+          <el-input
+            v-model="localConfig.matchValue"
+            :placeholder="matchValuePlaceholder"
+            clearable
+          >
             <template #append v-if="canUseRegex">
               <el-checkbox v-model="localConfig.useRegex" label="正则" />
             </template>
           </el-input>
           <div class="form-hint" v-if="localConfig.useRegex">
-            使用正则表达式匹配。例如：<code>^gpt-4o</code> 可匹配所有以 gpt-4o 开头的模型
+            使用正则表达式匹配。例如：<code>^gpt-4o</code> 可匹配所有以 gpt-4o
+            开头的模型
           </div>
         </el-form-item>
 
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="分组名称">
-              <el-input v-model="localConfig.properties!.group" placeholder="显示的分组名称" />
+              <el-input
+                v-model="localConfig.properties!.group"
+                placeholder="显示的分组名称"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="启用状态">
-              <el-switch v-model="localConfig.enabled" active-text="启用" inactive-text="禁用" />
+              <el-switch
+                v-model="localConfig.enabled"
+                active-text="启用"
+                inactive-text="禁用"
+              />
             </el-form-item>
           </el-col>
         </el-row>
 
         <el-form-item label="规则描述">
-          <el-input v-model="localConfig.description" placeholder="配置说明（可选）" />
+          <el-input
+            v-model="localConfig.description"
+            placeholder="配置说明（可选）"
+          />
         </el-form-item>
 
         <!-- 图标设置 -->
         <el-divider content-position="left">图标设置</el-divider>
         <el-form-item label="图标路径">
           <div class="icon-input-wrapper">
-            <el-input v-model="localConfig.properties!.icon" placeholder="自定义图标路径或URL">
+            <el-input
+              v-model="localConfig.properties!.icon"
+              placeholder="自定义图标路径或URL"
+            >
               <template #append>
                 <el-button-group>
                   <el-button @click="handleSelectFile">文件</el-button>
@@ -91,9 +112,22 @@
         <el-collapse v-model="activeSections">
           <el-collapse-item title="模型能力 (Capabilities)" name="capabilities">
             <div class="capabilities-grid">
-              <div v-for="capability in MODEL_CAPABILITIES" :key="capability.key" class="capability-item">
-                <el-switch v-model="localConfig.properties!.capabilities![capability.key]" size="small" />
-                <el-icon v-if="capability.icon" class="capability-icon" :style="{ color: capability.color }">
+              <div
+                v-for="capability in MODEL_CAPABILITIES"
+                :key="capability.key"
+                class="capability-item"
+              >
+                <el-switch
+                  v-model="
+                    localConfig.properties!.capabilities![capability.key]
+                  "
+                  size="small"
+                />
+                <el-icon
+                  v-if="capability.icon"
+                  class="capability-icon"
+                  :style="{ color: capability.color }"
+                >
                   <component :is="capability.icon" />
                 </el-icon>
                 <span class="capability-label">{{ capability.label }}</span>
@@ -108,7 +142,11 @@
           </el-collapse-item>
 
           <!-- 媒体生成参数规则 (条件显示) -->
-          <el-collapse-item v-if="showMediaGenParams" title="媒体生成参数规则 (Media Gen Params)" name="mediaGenParams">
+          <el-collapse-item
+            v-if="showMediaGenParams"
+            title="媒体生成参数规则 (Media Gen Params)"
+            name="mediaGenParams"
+          >
             <div class="placeholder-editor">
               <MediaGenParamsEditor
                 v-model="localConfig.properties!.mediaGenParams"
@@ -118,7 +156,10 @@
           </el-collapse-item>
 
           <!-- 扩展属性 -->
-          <el-collapse-item title="扩展属性 (Extended Properties)" name="extended">
+          <el-collapse-item
+            title="扩展属性 (Extended Properties)"
+            name="extended"
+          >
             <el-row :gutter="20">
               <el-col :span="12">
                 <el-form-item label="上下文长度">
@@ -178,7 +219,9 @@
               />
               <div v-if="jsonError" class="json-error">{{ jsonError }}</div>
             </div>
-            <div class="section-hint">⚠️ 直接编辑 properties 对象的 JSON 内容。修改后将同步到上方表单。</div>
+            <div class="section-hint">
+              ⚠️ 直接编辑 properties 对象的 JSON 内容。修改后将同步到上方表单。
+            </div>
           </el-collapse-item>
         </el-collapse>
       </el-form>
@@ -198,7 +241,10 @@ import { ref, computed, watch } from "vue";
 import { open } from "@tauri-apps/plugin-dialog";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { InfoFilled } from "@element-plus/icons-vue";
-import type { ModelMetadataRule, ModelMetadataProperties } from "@/types/model-metadata";
+import type {
+  ModelMetadataRule,
+  ModelMetadataProperties,
+} from "@/types/model-metadata";
 import { MODEL_CAPABILITIES } from "@/config/model-capabilities";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";
@@ -259,11 +305,14 @@ watch(
       localConfig.value = config;
     }
   },
-  { immediate: true, deep: true },
+  { immediate: true, deep: true }
 );
 
 const canUseRegex = computed(() => {
-  return localConfig.value.matchType !== "provider" && localConfig.value.matchType !== "modelGroup";
+  return (
+    localConfig.value.matchType !== "provider" &&
+    localConfig.value.matchType !== "modelGroup"
+  );
 });
 
 const matchValuePlaceholder = computed(() => {
@@ -325,12 +374,16 @@ function handleSave() {
   emit("save", configToSave);
 }
 
-function cleanProperties(props: ModelMetadataProperties): ModelMetadataProperties {
+function cleanProperties(
+  props: ModelMetadataProperties
+): ModelMetadataProperties {
   const cleaned = { ...props };
 
   // 移除空的 capabilities (如果全是 false)
   if (cleaned.capabilities) {
-    const hasActive = Object.values(cleaned.capabilities).some((v) => v === true);
+    const hasActive = Object.values(cleaned.capabilities).some(
+      (v) => v === true
+    );
     if (!hasActive) delete cleaned.capabilities;
   }
 
@@ -338,9 +391,13 @@ function cleanProperties(props: ModelMetadataProperties): ModelMetadataPropertie
   if (!cleaned.icon) delete cleaned.icon;
   if (!cleaned.group) delete cleaned.group;
   if (!cleaned.tokenizer) delete cleaned.tokenizer;
-  if (cleaned.contextLength === undefined || cleaned.contextLength === null) delete cleaned.contextLength;
+  if (cleaned.contextLength === undefined || cleaned.contextLength === null)
+    delete cleaned.contextLength;
 
-  if (Array.isArray(cleaned.recommendedFor) && cleaned.recommendedFor.length === 0) {
+  if (
+    Array.isArray(cleaned.recommendedFor) &&
+    cleaned.recommendedFor.length === 0
+  ) {
     delete cleaned.recommendedFor;
   }
 
@@ -370,7 +427,8 @@ async function handleSelectFile() {
 function getDisplayIconPath(iconPath: string): string {
   if (!iconPath) return "";
   const isWindowsAbsolutePath = /^[A-Za-z]:[\\/]/.test(iconPath);
-  const isUnixAbsolutePath = iconPath.startsWith("/") && !iconPath.startsWith("/model-icons");
+  const isUnixAbsolutePath =
+    iconPath.startsWith("/") && !iconPath.startsWith("/model-icons");
   if (isWindowsAbsolutePath || isUnixAbsolutePath) {
     return convertFileSrc(iconPath);
   }

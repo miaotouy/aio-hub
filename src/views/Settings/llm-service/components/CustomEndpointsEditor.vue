@@ -47,12 +47,14 @@ watch(
 function handleConfirm() {
   // 清理空字符串
   const result: CustomEndpoints = {};
-  (Object.keys(tempEndpoints.value) as Array<keyof CustomEndpoints>).forEach((key) => {
-    const val = tempEndpoints.value[key];
-    if (val && val.trim()) {
-      result[key] = val.trim();
+  (Object.keys(tempEndpoints.value) as Array<keyof CustomEndpoints>).forEach(
+    (key) => {
+      const val = tempEndpoints.value[key];
+      if (val && val.trim()) {
+        result[key] = val.trim();
+      }
     }
-  });
+  );
 
   emit("update:modelValue", result);
   emit("update:visible", false);
@@ -91,14 +93,19 @@ function handleReset() {
                 <code>/v1/chat/completions</code>），将拼接到基础地址。
               </li>
               <li>
-                如果填写<strong>完整 URL</strong>（以 <code>http</code> 开头），将直接使用该地址。
+                如果填写<strong>完整 URL</strong>（以
+                <code>http</code> 开头），将直接使用该地址。
               </li>
               <li>留空则使用系统默认计算的端点。</li>
             </ul>
           </div>
         </div>
 
-        <el-form :model="tempEndpoints" label-width="160px" label-position="left">
+        <el-form
+          :model="tempEndpoints"
+          label-width="160px"
+          label-position="left"
+        >
           <el-divider content-position="left">核心功能</el-divider>
           <el-form-item label="聊天补全 (Chat)">
             <el-input
@@ -108,13 +115,25 @@ function handleReset() {
             />
           </el-form-item>
           <el-form-item label="文本补全 (Completions)">
-            <el-input v-model="tempEndpoints.completions" placeholder="/v1/completions" clearable />
+            <el-input
+              v-model="tempEndpoints.completions"
+              placeholder="/v1/completions"
+              clearable
+            />
           </el-form-item>
           <el-form-item label="模型列表 (Models)">
-            <el-input v-model="tempEndpoints.models" placeholder="/v1/models" clearable />
+            <el-input
+              v-model="tempEndpoints.models"
+              placeholder="/v1/models"
+              clearable
+            />
           </el-form-item>
           <el-form-item label="嵌入 (Embeddings)">
-            <el-input v-model="tempEndpoints.embeddings" placeholder="/v1/embeddings" clearable />
+            <el-input
+              v-model="tempEndpoints.embeddings"
+              placeholder="/v1/embeddings"
+              clearable
+            />
           </el-form-item>
 
           <el-divider content-position="left">图像功能 (Images)</el-divider>
@@ -165,7 +184,11 @@ function handleReset() {
 
           <el-divider content-position="left">视频与高级功能</el-divider>
           <el-form-item label="视频生成 (Videos)">
-            <el-input v-model="tempEndpoints.videos" placeholder="/v1/videos" clearable />
+            <el-input
+              v-model="tempEndpoints.videos"
+              placeholder="/v1/videos"
+              clearable
+            />
           </el-form-item>
           <el-form-item label="视频状态查询">
             <el-input
@@ -173,15 +196,25 @@ function handleReset() {
               placeholder="/v1/videos/{video_id}"
               clearable
             />
-            <div class="field-hint">支持 <code>{video_id}</code> 占位符替换</div>
+            <div class="field-hint">
+              支持 <code>{video_id}</code> 占位符替换
+            </div>
           </el-form-item>
           <el-form-item label="重排 (Rerank)">
-            <el-input v-model="tempEndpoints.rerank" placeholder="/v1/rerank" clearable />
+            <el-input
+              v-model="tempEndpoints.rerank"
+              placeholder="/v1/rerank"
+              clearable
+            />
           </el-form-item>
 
           <el-divider content-position="left">其他</el-divider>
           <el-form-item label="内容审查">
-            <el-input v-model="tempEndpoints.moderations" placeholder="/v1/moderations" clearable />
+            <el-input
+              v-model="tempEndpoints.moderations"
+              placeholder="/v1/moderations"
+              clearable
+            />
           </el-form-item>
         </el-form>
       </div>

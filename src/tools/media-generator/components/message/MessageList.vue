@@ -23,7 +23,9 @@ const store = useMediaGenStore();
 const getMessageSiblings = (messageId: string) => {
   const siblings = store.getSiblings(messageId);
   // 找到在当前活动路径上的兄弟节点索引
-  const currentIndex = siblings.findIndex((s: MediaMessage) => store.isNodeInActivePath(s.id));
+  const currentIndex = siblings.findIndex((s: MediaMessage) =>
+    store.isNodeInActivePath(s.id)
+  );
   return {
     siblings,
     currentIndex: currentIndex >= 0 ? currentIndex : 0,
@@ -60,7 +62,7 @@ watch(
     } else if (isNearBottom.value) {
       scrollToBottom();
     }
-  },
+  }
 );
 
 const handleSwitchSibling = (messageId: string, direction: "prev" | "next") => {

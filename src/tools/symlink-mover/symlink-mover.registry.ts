@@ -13,7 +13,8 @@ export default class SymlinkMoverRegistry implements ToolRegistry {
   public readonly id = "symlink-mover";
   public readonly runMode = "main-only";
   public readonly name = "符号链接移动工具";
-  public readonly description = "将文件移动到目标目录并在原位置创建链接，或仅创建链接";
+  public readonly description =
+    "将文件移动到目标目录并在原位置创建链接，或仅创建链接";
 
   private logic = useSymlinkMoverLogic();
 

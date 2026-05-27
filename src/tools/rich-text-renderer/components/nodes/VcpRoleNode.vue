@@ -1,5 +1,8 @@
 <template>
-  <div class="vcp-role-fence" :class="[`role-${role}`, { 'is-pending': !closed }]">
+  <div
+    class="vcp-role-fence"
+    :class="[`role-${role}`, { 'is-pending': !closed }]"
+  >
     <div class="vcp-role-badge">
       <component :is="roleIcon" class="role-icon" :size="10" />
       <span class="role-name">VCP {{ roleLabel }}</span>

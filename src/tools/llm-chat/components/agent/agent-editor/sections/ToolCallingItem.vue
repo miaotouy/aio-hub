@@ -35,12 +35,18 @@ const ensureConfig = () => {
     // 这里依赖父组件初始化，但为了健壮性还是做下检查
     return;
   }
-  if (!editForm.toolCallConfig.toolToggles) editForm.toolCallConfig.toolToggles = {};
-  if (!editForm.toolCallConfig.autoApproveTools) editForm.toolCallConfig.autoApproveTools = {};
-  if (!editForm.toolCallConfig.toolSettings) editForm.toolCallConfig.toolSettings = {};
-  if (!editForm.toolCallConfig.methodToggles) editForm.toolCallConfig.methodToggles = {};
-  if (!editForm.toolCallConfig.autoApproveMethods) editForm.toolCallConfig.autoApproveMethods = {};
-  if (!editForm.toolCallConfig.overrides) editForm.toolCallConfig.overrides = {};
+  if (!editForm.toolCallConfig.toolToggles)
+    editForm.toolCallConfig.toolToggles = {};
+  if (!editForm.toolCallConfig.autoApproveTools)
+    editForm.toolCallConfig.autoApproveTools = {};
+  if (!editForm.toolCallConfig.toolSettings)
+    editForm.toolCallConfig.toolSettings = {};
+  if (!editForm.toolCallConfig.methodToggles)
+    editForm.toolCallConfig.methodToggles = {};
+  if (!editForm.toolCallConfig.autoApproveMethods)
+    editForm.toolCallConfig.autoApproveMethods = {};
+  if (!editForm.toolCallConfig.overrides)
+    editForm.toolCallConfig.overrides = {};
 };
 
 const getOverride = (id: string) => {
@@ -56,8 +62,10 @@ const startEditingOverride = (id: string, original: any) => {
   editingOverrideId.value = id;
   const existing = getOverride(id);
 
-  const originalDisplayName = original.displayName || original.toolName || original.name || "";
-  const originalDescription = original.description || original.toolDescription || "";
+  const originalDisplayName =
+    original.displayName || original.toolName || original.name || "";
+  const originalDescription =
+    original.description || original.toolDescription || "";
 
   overrideForm.value = {
     enabled: existing.enabled ?? false,
@@ -74,7 +82,9 @@ const cancelOverride = () => {
 const saveOverride = () => {
   if (!editingOverrideId.value) return;
   ensureConfig();
-  editForm.toolCallConfig.overrides[editingOverrideId.value] = { ...overrideForm.value };
+  editForm.toolCallConfig.overrides[editingOverrideId.value] = {
+    ...overrideForm.value,
+  };
   customMessage.success("覆盖配置已保存");
   editingOverrideId.value = null;
 };
@@ -89,19 +99,28 @@ const removeOverride = (id: string) => {
 // 工具开关逻辑
 const isToolEnabled = computed(() => {
   if (!editForm.toolCallConfig) return false;
-  return editForm.toolCallConfig.toolToggles?.[props.tool.toolId] ?? editForm.toolCallConfig.defaultToolEnabled;
+  return (
+    editForm.toolCallConfig.toolToggles?.[props.tool.toolId] ??
+    editForm.toolCallConfig.defaultToolEnabled
+  );
 });
 
 const isAutoApproveEnabled = computed(() => {
   if (!editForm.toolCallConfig) return false;
-  return editForm.toolCallConfig.autoApproveTools?.[props.tool.toolId] ?? editForm.toolCallConfig.defaultAutoApprove;
+  return (
+    editForm.toolCallConfig.autoApproveTools?.[props.tool.toolId] ??
+    editForm.toolCallConfig.defaultAutoApprove
+  );
 });
 
 const toggleTool = () => {
   ensureConfig();
   const currentValue = isToolEnabled.value;
   editForm.toolCallConfig.toolToggles[props.tool.toolId] = !currentValue;
-  if (!editForm.toolCallConfig.toolToggles[props.tool.toolId] && props.expanded) {
+  if (
+    !editForm.toolCallConfig.toolToggles[props.tool.toolId] &&
+    props.expanded
+  ) {
     emit("toggle-expand");
   }
 };
@@ -142,7 +161,9 @@ const toggleMethodAutoApprove = (methodName: string) => {
 // 统计
 const enabledMethodsCount = computed(() => {
   const total = props.tool.methods.length;
-  const enabled = props.tool.methods.filter((m: any) => isMethodEnabled(m.name)).length;
+  const enabled = props.tool.methods.filter((m: any) =>
+    isMethodEnabled(m.name)
+  ).length;
   return { enabled, total };
 });
 
@@ -174,7 +195,9 @@ const getToolIcon = () => {
 const vcpProtocol = new VcpToolCallingProtocol();
 const toolPromptPreview = computed(() => {
   const toolOverride = getOverride(props.tool.toolId);
-  const toolName = toolOverride?.enabled ? toolOverride.displayName || props.tool.toolName : props.tool.toolName;
+  const toolName = toolOverride?.enabled
+    ? toolOverride.displayName || props.tool.toolName
+    : props.tool.toolName;
   const toolDescription = toolOverride?.enabled
     ? toolOverride.description || props.tool.toolDescription
     : props.tool.toolDescription;
@@ -230,7 +253,10 @@ const pasteToolSettings = async () => {
 
 <template>
   <div class="tool-item-wrapper">
-    <div class="tool-item tool-item--expandable" @click="$emit('toggle-expand')">
+    <div
+      class="tool-item tool-item--expandable"
+      @click="$emit('toggle-expand')"
+    >
       <div class="tool-info">
         <div class="tool-name-row">
           <el-icon>
@@ -241,7 +267,11 @@ const pasteToolSettings = async () => {
           <el-tag
             v-if="editForm.toolCallConfig.showMethodsCount"
             size="small"
-            :type="enabledMethodsCount.enabled === enabledMethodsCount.total ? 'success' : 'warning'"
+            :type="
+              enabledMethodsCount.enabled === enabledMethodsCount.total
+                ? 'success'
+                : 'warning'
+            "
             effect="plain"
             class="methods-count-tag"
           >
@@ -272,7 +302,11 @@ const pasteToolSettings = async () => {
         </template>
 
         <el-tooltip
-          :content="getOverride(tool.toolId).enabled ? '编辑工具覆盖' : '点击配置工具覆盖'"
+          :content="
+            getOverride(tool.toolId).enabled
+              ? '编辑工具覆盖'
+              : '点击配置工具覆盖'
+          "
           placement="top"
           :show-after="500"
         >
@@ -293,7 +327,9 @@ const pasteToolSettings = async () => {
         </el-icon>
         <div class="tool-switch-group">
           <el-tooltip
-            :content="isAutoApproveEnabled ? '已开启自动批准' : '点击开启自动批准'"
+            :content="
+              isAutoApproveEnabled ? '已开启自动批准' : '点击开启自动批准'
+            "
             placement="top"
             :show-after="500"
           >
@@ -305,11 +341,23 @@ const pasteToolSettings = async () => {
               }"
               @click.stop="toggleAutoApprove"
             >
-              <Zap :size="16" class="toggle-icon" :fill="isAutoApproveEnabled ? 'currentColor' : 'none'" />
+              <Zap
+                :size="16"
+                class="toggle-icon"
+                :fill="isAutoApproveEnabled ? 'currentColor' : 'none'"
+              />
             </div>
           </el-tooltip>
-          <el-tooltip :content="isToolEnabled ? '工具已启用' : '工具已禁用'" placement="top" :show-after="500">
-            <div class="icon-toggle icon-toggle--power" :class="{ active: isToolEnabled }" @click.stop="toggleTool">
+          <el-tooltip
+            :content="isToolEnabled ? '工具已启用' : '工具已禁用'"
+            placement="top"
+            :show-after="500"
+          >
+            <div
+              class="icon-toggle icon-toggle--power"
+              :class="{ active: isToolEnabled }"
+              @click.stop="toggleTool"
+            >
               <Power :size="16" class="toggle-icon" />
             </div>
           </el-tooltip>
@@ -322,11 +370,16 @@ const pasteToolSettings = async () => {
       <div v-if="expanded" class="tool-settings-container">
         <!-- 工具级覆盖编辑表单 -->
         <el-collapse-transition>
-          <div v-if="editingOverrideId === tool.toolId" class="tool-override-form">
+          <div
+            v-if="editingOverrideId === tool.toolId"
+            class="tool-override-form"
+          >
             <div class="form-header">
               <span class="form-title">工具模块提示词覆盖</span>
               <div class="form-switch">
-                <span class="switch-label">{{ overrideForm.enabled ? "已启用" : "已禁用" }}</span>
+                <span class="switch-label">{{
+                  overrideForm.enabled ? "已启用" : "已禁用"
+                }}</span>
                 <el-switch v-model="overrideForm.enabled" size="small" />
               </div>
             </div>
@@ -354,7 +407,9 @@ const pasteToolSettings = async () => {
             </div>
             <div class="form-actions">
               <el-button size="small" @click="cancelOverride">收起</el-button>
-              <el-button type="primary" size="small" @click="saveOverride">保存配置</el-button>
+              <el-button type="primary" size="small" @click="saveOverride"
+                >保存配置</el-button
+              >
               <el-button
                 v-if="getOverride(tool.toolId).enabled !== undefined"
                 type="danger"
@@ -371,25 +426,35 @@ const pasteToolSettings = async () => {
           </div>
         </el-collapse-transition>
 
-        <el-divider v-if="editingOverrideId === tool.toolId" style="margin: 12px 0" />
+        <el-divider
+          v-if="editingOverrideId === tool.toolId"
+          style="margin: 12px 0"
+        />
 
         <!-- 方法管理列表 -->
         <div class="methods-management-section">
           <div class="section-label">方法管理</div>
           <div class="methods-list">
-            <div v-for="method in tool.methods" :key="method.name" class="method-item-container">
+            <div
+              v-for="method in tool.methods"
+              :key="method.name"
+              class="method-item-container"
+            >
               <div class="method-item">
                 <div class="method-info">
                   <div class="method-name-row">
                     <span class="method-name">
                       {{
                         (getOverride(`${tool.toolId}:${method.name}`).enabled &&
-                          getOverride(`${tool.toolId}:${method.name}`).displayName) ||
+                          getOverride(`${tool.toolId}:${method.name}`)
+                            .displayName) ||
                         method.name
                       }}
                     </span>
                     <el-tag
-                      v-if="getOverride(`${tool.toolId}:${method.name}`).enabled"
+                      v-if="
+                        getOverride(`${tool.toolId}:${method.name}`).enabled
+                      "
                       size="small"
                       type="warning"
                       effect="light"
@@ -401,7 +466,8 @@ const pasteToolSettings = async () => {
                   <el-tooltip
                     :content="
                       (getOverride(`${tool.toolId}:${method.name}`).enabled &&
-                        getOverride(`${tool.toolId}:${method.name}`).description) ||
+                        getOverride(`${tool.toolId}:${method.name}`)
+                          .description) ||
                       method.description
                     "
                     placement="top"
@@ -409,7 +475,8 @@ const pasteToolSettings = async () => {
                     <span class="method-desc">
                       {{
                         (getOverride(`${tool.toolId}:${method.name}`).enabled &&
-                          getOverride(`${tool.toolId}:${method.name}`).description) ||
+                          getOverride(`${tool.toolId}:${method.name}`)
+                            .description) ||
                         method.description ||
                         ""
                       }}
@@ -418,23 +485,39 @@ const pasteToolSettings = async () => {
                 </div>
                 <div class="method-actions" @click.stop>
                   <el-tooltip
-                    :content="getOverride(`${tool.toolId}:${method.name}`).enabled ? '编辑覆盖内容' : '点击配置覆盖'"
+                    :content="
+                      getOverride(`${tool.toolId}:${method.name}`).enabled
+                        ? '编辑覆盖内容'
+                        : '点击配置覆盖'
+                    "
                     placement="top"
                     :show-after="500"
                   >
                     <div
                       class="icon-toggle icon-toggle--edit icon-toggle--small"
                       :class="{
-                        active: editingOverrideId === `${tool.toolId}:${method.name}`,
-                        'is-overridden': !!getOverride(`${tool.toolId}:${method.name}`).enabled,
+                        active:
+                          editingOverrideId === `${tool.toolId}:${method.name}`,
+                        'is-overridden': !!getOverride(
+                          `${tool.toolId}:${method.name}`
+                        ).enabled,
                       }"
-                      @click="startEditingOverride(`${tool.toolId}:${method.name}`, method)"
+                      @click="
+                        startEditingOverride(
+                          `${tool.toolId}:${method.name}`,
+                          method
+                        )
+                      "
                     >
                       <Edit style="width: 12px; height: 12px" />
                     </div>
                   </el-tooltip>
                   <el-tooltip
-                    :content="isMethodAutoApproveEnabled(method.name) ? '已开启自动批准' : '点击开启自动批准'"
+                    :content="
+                      isMethodAutoApproveEnabled(method.name)
+                        ? '已开启自动批准'
+                        : '点击开启自动批准'
+                    "
                     placement="top"
                     :show-after="500"
                   >
@@ -442,19 +525,26 @@ const pasteToolSettings = async () => {
                       class="icon-toggle icon-toggle--auto icon-toggle--small"
                       :class="{
                         active: isMethodAutoApproveEnabled(method.name),
-                        'is-ineffective': editForm.toolCallConfig.mode !== 'auto',
+                        'is-ineffective':
+                          editForm.toolCallConfig.mode !== 'auto',
                       }"
                       @click="toggleMethodAutoApprove(method.name)"
                     >
                       <Zap
                         :size="14"
                         class="toggle-icon"
-                        :fill="isMethodAutoApproveEnabled(method.name) ? 'currentColor' : 'none'"
+                        :fill="
+                          isMethodAutoApproveEnabled(method.name)
+                            ? 'currentColor'
+                            : 'none'
+                        "
                       />
                     </div>
                   </el-tooltip>
                   <el-tooltip
-                    :content="isMethodEnabled(method.name) ? '方法已启用' : '方法已禁用'"
+                    :content="
+                      isMethodEnabled(method.name) ? '方法已启用' : '方法已禁用'
+                    "
                     placement="top"
                     :show-after="500"
                   >
@@ -471,11 +561,16 @@ const pasteToolSettings = async () => {
 
               <!-- 方法级覆盖编辑表单 -->
               <el-collapse-transition>
-                <div v-if="editingOverrideId === `${tool.toolId}:${method.name}`" class="method-override-form">
+                <div
+                  v-if="editingOverrideId === `${tool.toolId}:${method.name}`"
+                  class="method-override-form"
+                >
                   <div class="form-header">
                     <span class="form-title">方法提示词覆盖</span>
                     <div class="form-switch">
-                      <span class="switch-label">{{ overrideForm.enabled ? "已启用" : "已禁用" }}</span>
+                      <span class="switch-label">{{
+                        overrideForm.enabled ? "已启用" : "已禁用"
+                      }}</span>
                       <el-switch v-model="overrideForm.enabled" size="small" />
                     </div>
                   </div>
@@ -512,10 +607,17 @@ const pasteToolSettings = async () => {
                     />
                   </div>
                   <div class="form-actions">
-                    <el-button size="small" @click="cancelOverride">收起</el-button>
-                    <el-button type="primary" size="small" @click="saveOverride">保存配置</el-button>
+                    <el-button size="small" @click="cancelOverride"
+                      >收起</el-button
+                    >
+                    <el-button type="primary" size="small" @click="saveOverride"
+                      >保存配置</el-button
+                    >
                     <el-button
-                      v-if="getOverride(`${tool.toolId}:${method.name}`).enabled !== undefined"
+                      v-if="
+                        getOverride(`${tool.toolId}:${method.name}`).enabled !==
+                        undefined
+                      "
                       type="danger"
                       plain
                       size="small"
@@ -539,7 +641,9 @@ const pasteToolSettings = async () => {
         <div class="prompt-preview-section">
           <div class="preview-header">
             <span class="preview-label">提示词注入预览</span>
-            <el-tag size="small" type="info" effect="plain">VCP 纯文本协议</el-tag>
+            <el-tag size="small" type="info" effect="plain"
+              >VCP 纯文本协议</el-tag
+            >
           </div>
           <pre class="preview-content">{{ toolPromptPreview }}</pre>
         </div>
@@ -576,7 +680,10 @@ const pasteToolSettings = async () => {
 }
 
 .tool-item--expandable:hover {
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.05));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.05)
+  );
 }
 
 .tool-name-row {
@@ -614,7 +721,10 @@ const pasteToolSettings = async () => {
 
 .tool-settings-container {
   padding: 12px;
-  background: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.03));
+  background: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.03)
+  );
   border-bottom: var(--border-width) solid var(--border-color);
 }
 
@@ -763,7 +873,10 @@ const pasteToolSettings = async () => {
 }
 
 .method-item:hover {
-  background: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.05));
+  background: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.05)
+  );
   border-color: var(--el-color-primary-light-7);
 }
 

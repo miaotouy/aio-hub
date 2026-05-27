@@ -1,37 +1,37 @@
-import { createConfigManager } from '@utils/configManager';
-import { createModuleLogger } from '@utils/logger';
-import { createModuleErrorHandler } from '@utils/errorHandler';
-import type { LlmInspectorSettings, InspectorConfig } from '../types';
+import { createConfigManager } from "@utils/configManager";
+import { createModuleLogger } from "@utils/logger";
+import { createModuleErrorHandler } from "@utils/errorHandler";
+import type { LlmInspectorSettings, InspectorConfig } from "../types";
 
-const logger = createModuleLogger('LlmInspector/ConfigManager');
-const errorHandler = createModuleErrorHandler('LlmInspector/ConfigManager');
+const logger = createModuleLogger("LlmInspector/ConfigManager");
+const errorHandler = createModuleErrorHandler("LlmInspector/ConfigManager");
 
 // 默认配置创建函数
 function createDefaultSettings(): LlmInspectorSettings {
   return {
     config: {
       port: 8999,
-      target_url: 'https://api.openai.com',
-      header_override_rules: []
+      target_url: "https://api.openai.com",
+      header_override_rules: [],
     },
-    searchQuery: '',
-    filterStatus: '',
+    searchQuery: "",
+    filterStatus: "",
     maskApiKeys: true,
     targetUrlHistory: [
-      'https://api.openai.com',
-      'https://api.anthropic.com',
-      'https://generativelanguage.googleapis.com'
+      "https://api.openai.com",
+      "https://api.anthropic.com",
+      "https://generativelanguage.googleapis.com",
     ],
-    version: '1.0.0'
+    version: "1.0.0",
   };
 }
 
 // 创建配置管理器
 const configManager = createConfigManager<LlmInspectorSettings>({
-  moduleName: 'llm-inspector',
-  fileName: 'settings.json',
-  version: '1.0.0',
-  createDefault: createDefaultSettings
+  moduleName: "llm-inspector",
+  fileName: "settings.json",
+  version: "1.0.0",
+  createDefault: createDefaultSettings,
 });
 
 /**
@@ -40,13 +40,16 @@ const configManager = createConfigManager<LlmInspectorSettings>({
 export async function loadSettings(): Promise<LlmInspectorSettings> {
   try {
     const settings = await configManager.load();
-    logger.info('配置加载成功', {
+    logger.info("配置加载成功", {
       port: settings.config.port,
-      targetUrl: settings.config.target_url
+      targetUrl: settings.config.target_url,
     });
     return settings;
   } catch (error) {
-    errorHandler.handle(error, { userMessage: '加载配置失败', showToUser: false });
+    errorHandler.handle(error, {
+      userMessage: "加载配置失败",
+      showToUser: false,
+    });
     // 返回默认配置
     return createDefaultSettings();
   }
@@ -55,12 +58,17 @@ export async function loadSettings(): Promise<LlmInspectorSettings> {
 /**
  * 保存配置
  */
-export async function saveSettings(settings: LlmInspectorSettings): Promise<void> {
+export async function saveSettings(
+  settings: LlmInspectorSettings
+): Promise<void> {
   try {
     configManager.saveDebounced(settings);
-    logger.debug('配置保存请求已提交');
+    logger.debug("配置保存请求已提交");
   } catch (error) {
-    errorHandler.handle(error, { userMessage: '保存配置失败', showToUser: false });
+    errorHandler.handle(error, {
+      userMessage: "保存配置失败",
+      showToUser: false,
+    });
     throw error;
   }
 }
@@ -68,12 +76,17 @@ export async function saveSettings(settings: LlmInspectorSettings): Promise<void
 /**
  * 立即保存配置（不使用防抖）
  */
-export async function saveSettingsImmediate(settings: LlmInspectorSettings): Promise<void> {
+export async function saveSettingsImmediate(
+  settings: LlmInspectorSettings
+): Promise<void> {
   try {
     await configManager.save(settings);
-    logger.info('配置已立即保存');
+    logger.info("配置已立即保存");
   } catch (error) {
-    errorHandler.handle(error, { userMessage: '立即保存配置失败', showToUser: false });
+    errorHandler.handle(error, {
+      userMessage: "立即保存配置失败",
+      showToUser: false,
+    });
     throw error;
   }
 }
@@ -85,10 +98,13 @@ export async function resetSettings(): Promise<LlmInspectorSettings> {
   try {
     const defaultSettings = createDefaultSettings();
     await saveSettingsImmediate(defaultSettings);
-    logger.info('配置已重置为默认值');
+    logger.info("配置已重置为默认值");
     return defaultSettings;
   } catch (error) {
-    errorHandler.handle(error, { userMessage: '重置配置失败', showToUser: false });
+    errorHandler.handle(error, {
+      userMessage: "重置配置失败",
+      showToUser: false,
+    });
     throw error;
   }
 }
@@ -99,49 +115,55 @@ export async function resetSettings(): Promise<LlmInspectorSettings> {
 export function getDefaultInspectorConfig(): InspectorConfig {
   return {
     port: 8999,
-    target_url: 'https://api.openai.com',
-    header_override_rules: []
+    target_url: "https://api.openai.com",
+    header_override_rules: [],
   };
 }
 
 /**
  * 验证代理配置
  */
-export function validateInspectorConfig(config: InspectorConfig): { valid: boolean; errors: string[] } {
+export function validateInspectorConfig(config: InspectorConfig): {
+  valid: boolean;
+  errors: string[];
+} {
   const errors: string[] = [];
 
   // 验证端口
   if (!config.port || config.port < 1024 || config.port > 65535) {
-    errors.push('端口必须在 1024-65535 范围内');
+    errors.push("端口必须在 1024-65535 范围内");
   }
 
   // 验证目标 URL
   try {
     const url = new URL(config.target_url);
-    if (!['http:', 'https:'].includes(url.protocol)) {
-      errors.push('目标 URL 必须使用 HTTP 或 HTTPS 协议');
+    if (!["http:", "https:"].includes(url.protocol)) {
+      errors.push("目标 URL 必须使用 HTTP 或 HTTPS 协议");
     }
   } catch {
-    errors.push('目标 URL 格式无效');
+    errors.push("目标 URL 格式无效");
   }
 
   return {
     valid: errors.length === 0,
-    errors
+    errors,
   };
 }
 
 /**
  * 合并配置（用于更新部分配置）
  */
-export function mergeSettings(base: LlmInspectorSettings, updates: Partial<LlmInspectorSettings>): LlmInspectorSettings {
+export function mergeSettings(
+  base: LlmInspectorSettings,
+  updates: Partial<LlmInspectorSettings>
+): LlmInspectorSettings {
   return {
     ...base,
     ...updates,
     config: {
       ...base.config,
-      ...(updates.config || {})
-    }
+      ...(updates.config || {}),
+    },
   };
 }
 
@@ -160,7 +182,7 @@ export function addToTargetUrlHistory(
   const history = settings.targetUrlHistory || [];
 
   // 移除重复项（如果存在）
-  const filteredHistory = history.filter(item => item !== url);
+  const filteredHistory = history.filter((item) => item !== url);
 
   // 将新 URL 添加到开头
   const newHistory = [url, ...filteredHistory];
@@ -170,7 +192,7 @@ export function addToTargetUrlHistory(
 
   return {
     ...settings,
-    targetUrlHistory: limitedHistory
+    targetUrlHistory: limitedHistory,
   };
 }
 
@@ -184,6 +206,6 @@ export function removeFromTargetUrlHistory(
   const history = settings.targetUrlHistory || [];
   return {
     ...settings,
-    targetUrlHistory: history.filter(item => item !== url)
+    targetUrlHistory: history.filter((item) => item !== url),
   };
 }

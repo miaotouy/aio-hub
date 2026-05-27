@@ -4,7 +4,14 @@ import { useKnowledgeBaseStore } from "../stores/knowledgeBaseStore";
 import { useKnowledgeBase } from "../composables/useKnowledgeBase";
 import { getPureModelId, getProfileId } from "@/utils/modelIdUtils";
 import { useKbIndexer } from "../composables/useKbIndexer";
-import { ChevronLeft, BarChart3, Save, RefreshCw, Zap, Bot } from "lucide-vue-next";
+import {
+  ChevronLeft,
+  BarChart3,
+  Save,
+  RefreshCw,
+  Zap,
+  Bot,
+} from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
 import TagEditor from "./TagEditor.vue";
 import InfoCard from "@/components/common/InfoCard.vue";
@@ -122,15 +129,21 @@ const embeddingModelInfo = computed(() => {
         <div class="tab-content scrollbar-hidden">
           <div class="stats-grid">
             <div class="stat-card">
-              <div class="stat-value">{{ kbStore.activeBaseStats?.total || 0 }}</div>
+              <div class="stat-value">
+                {{ kbStore.activeBaseStats?.total || 0 }}
+              </div>
               <div class="stat-label">总条目数</div>
             </div>
             <div class="stat-card">
-              <div class="stat-value">{{ kbStore.activeBaseStats?.indexed || 0 }}</div>
+              <div class="stat-value">
+                {{ kbStore.activeBaseStats?.indexed || 0 }}
+              </div>
               <div class="stat-label">已向量化</div>
             </div>
             <div class="stat-card">
-              <div class="stat-value">{{ kbStore.activeBaseStats?.indexedRate.toFixed(1) }}%</div>
+              <div class="stat-value">
+                {{ kbStore.activeBaseStats?.indexedRate.toFixed(1) }}%
+              </div>
               <div class="stat-label">覆盖率</div>
             </div>
             <div class="stat-card">
@@ -142,7 +155,10 @@ const embeddingModelInfo = computed(() => {
           </div>
 
           <!-- 向量化进度条 -->
-          <div v-if="kbStore.indexingProgress.isIndexing" class="indexing-progress">
+          <div
+            v-if="kbStore.indexingProgress.isIndexing"
+            class="indexing-progress"
+          >
             <div class="progress-header">
               <span class="progress-text">
                 正在补齐向量... ({{ kbStore.indexingProgress.current }} /
@@ -151,7 +167,9 @@ const embeddingModelInfo = computed(() => {
               <span class="progress-percent">
                 {{
                   Math.round(
-                    (kbStore.indexingProgress.current / kbStore.indexingProgress.total) * 100
+                    (kbStore.indexingProgress.current /
+                      kbStore.indexingProgress.total) *
+                      100
                   )
                 }}%
               </span>
@@ -159,7 +177,9 @@ const embeddingModelInfo = computed(() => {
             <el-progress
               :percentage="
                 Math.round(
-                  (kbStore.indexingProgress.current / kbStore.indexingProgress.total) * 100
+                  (kbStore.indexingProgress.current /
+                    kbStore.indexingProgress.total) *
+                    100
                 )
               "
               :show-text="false"
@@ -183,7 +203,10 @@ const embeddingModelInfo = computed(() => {
                 />
               </el-form-item>
               <el-form-item label="库标签">
-                <TagEditor v-model="formData.tags" placeholder="为知识库添加标签..." />
+                <TagEditor
+                  v-model="formData.tags"
+                  placeholder="为知识库添加标签..."
+                />
               </el-form-item>
             </el-form>
           </InfoCard>
@@ -193,7 +216,10 @@ const embeddingModelInfo = computed(() => {
               <span class="label">创建时间：</span>
               <span class="value">{{
                 kbStore.activeBaseStats?.createdAt
-                  ? format(kbStore.activeBaseStats.createdAt, "yyyy-MM-dd HH:mm:ss")
+                  ? format(
+                      kbStore.activeBaseStats.createdAt,
+                      "yyyy-MM-dd HH:mm:ss"
+                    )
                   : "-"
               }}</span>
             </div>
@@ -201,7 +227,10 @@ const embeddingModelInfo = computed(() => {
               <span class="label">最后更新：</span>
               <span class="value">{{
                 kbStore.activeBaseStats?.updatedAt
-                  ? format(kbStore.activeBaseStats.updatedAt, "yyyy-MM-dd HH:mm:ss")
+                  ? format(
+                      kbStore.activeBaseStats.updatedAt,
+                      "yyyy-MM-dd HH:mm:ss"
+                    )
                   : "-"
               }}</span>
             </div>
@@ -226,9 +255,14 @@ const embeddingModelInfo = computed(() => {
                     :max="50"
                     style="flex: 1"
                   />
-                  <span class="slider-value">{{ formData.config.searchTopK }}</span>
+                  <span class="slider-value">{{
+                    formData.config.searchTopK
+                  }}</span>
                 </div>
-                <div class="form-tip">检索结果的最大返回数量。实际截断以最低分数为主要依据——即使设为 50，只有超过分数阈值的条目才会被召回。</div>
+                <div class="form-tip">
+                  检索结果的最大返回数量。实际截断以最低分数为主要依据——即使设为
+                  50，只有超过分数阈值的条目才会被召回。
+                </div>
               </el-form-item>
 
               <el-form-item label="最小分数">
@@ -240,9 +274,13 @@ const embeddingModelInfo = computed(() => {
                     :step="0.01"
                     style="flex: 1"
                   />
-                  <span class="slider-value">{{ formData.config.minScore.toFixed(2) }}</span>
+                  <span class="slider-value">{{
+                    formData.config.minScore.toFixed(2)
+                  }}</span>
                 </div>
-                <div class="form-tip">低于此分数的检索结果将被过滤（0 为不限制）。</div>
+                <div class="form-tip">
+                  低于此分数的检索结果将被过滤（0 为不限制）。
+                </div>
               </el-form-item>
             </el-form>
           </InfoCard>
@@ -262,17 +300,24 @@ const embeddingModelInfo = computed(() => {
                       />
                       <Bot v-else :size="14" class="fallback-icon" />
                     </div>
-                    <span class="model-name">{{ embeddingModelInfo.modelName }}</span>
+                    <span class="model-name">{{
+                      embeddingModelInfo.modelName
+                    }}</span>
                   </div>
 
-                  <div v-if="embeddingModelInfo.profileName" class="profile-tag">
+                  <div
+                    v-if="embeddingModelInfo.profileName"
+                    class="profile-tag"
+                  >
                     <DynamicIcon
                       v-if="embeddingModelInfo.profileIcon"
                       :src="embeddingModelInfo.profileIcon"
                       :alt="embeddingModelInfo.profileName"
                       class="meta-icon"
                     />
-                    <span class="meta-text">{{ embeddingModelInfo.profileName }}</span>
+                    <span class="meta-text">{{
+                      embeddingModelInfo.profileName
+                    }}</span>
                   </div>
                 </div>
                 <el-tag v-else size="small" type="info">未设置</el-tag>
@@ -285,7 +330,12 @@ const embeddingModelInfo = computed(() => {
                 <el-button size="small" plain @click="indexAllPendingEntries">
                   <RefreshCw :size="12" /> 补齐待向量化项
                 </el-button>
-                <el-button size="small" plain type="danger" @click="kbStore.clearLegacyVectors">
+                <el-button
+                  size="small"
+                  plain
+                  type="danger"
+                  @click="kbStore.clearLegacyVectors"
+                >
                   清理冗余向量
                 </el-button>
               </div>
@@ -521,7 +571,10 @@ const embeddingModelInfo = computed(() => {
   gap: 4px;
   font-size: 11px;
   color: var(--el-color-primary);
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.1));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
   padding: 2px 6px;
   border-radius: 4px;
   line-height: 1.2;

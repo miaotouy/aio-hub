@@ -50,7 +50,10 @@ export const useSettingsStore = defineStore("settings", () => {
    */
   function syncThemeToLocalStorage() {
     try {
-      localStorage.setItem("aio_hub_theme_cache", settings.value.appearance.theme);
+      localStorage.setItem(
+        "aio_hub_theme_cache",
+        settings.value.appearance.theme
+      );
     } catch (e) {
       // 忽略
     }
@@ -83,7 +86,9 @@ export const useSettingsStore = defineStore("settings", () => {
   /**
    * 更新外观设置
    */
-  async function updateAppearance(updates: Partial<MobileAppSettings["appearance"]>) {
+  async function updateAppearance(
+    updates: Partial<MobileAppSettings["appearance"]>
+  ) {
     settings.value.appearance = {
       ...settings.value.appearance,
       ...updates,

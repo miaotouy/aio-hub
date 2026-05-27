@@ -1,7 +1,10 @@
 <template>
   <div class="palette-display">
     <!-- 主色调模式 (Quantize) -->
-    <div v-if="algorithm === 'quantize' && quantizeResult" class="quantize-palette">
+    <div
+      v-if="algorithm === 'quantize' && quantizeResult"
+      class="quantize-palette"
+    >
       <div class="color-grid">
         <div
           v-for="(color, index) in quantizeResult.colors"
@@ -20,7 +23,10 @@
     </div>
 
     <!-- 设计感模式 (Vibrant) -->
-    <div v-if="algorithm === 'vibrant' && vibrantResult" class="vibrant-palette">
+    <div
+      v-if="algorithm === 'vibrant' && vibrantResult"
+      class="vibrant-palette"
+    >
       <div class="vibrant-grid">
         <div
           v-for="[label, color] in Object.entries(vibrantResult)"
@@ -48,14 +54,20 @@
     </div>
 
     <!-- 平均色模式 (Average) -->
-    <div v-if="algorithm === 'average' && averageResult" class="average-palette">
+    <div
+      v-if="algorithm === 'average' && averageResult"
+      class="average-palette"
+    >
       <div
         class="average-color"
         :style="{ backgroundColor: averageResult.color }"
         @click="copyColor(averageResult.color)"
       >
         <div class="color-overlay">
-          <span class="color-text large" :style="{ color: getTextColor(averageResult.color) }">
+          <span
+            class="color-text large"
+            :style="{ color: getTextColor(averageResult.color) }"
+          >
             {{ formatColor(averageResult.color) }}
           </span>
         </div>
@@ -70,17 +82,21 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed } from "vue";
 import type {
   AnalysisAlgorithm,
   QuantizeResult,
   VibrantResult,
   AverageResult,
   ColorFormat,
-} from '../colorPicker.store';
-import { useColorConverter, getContrastColor, copyToClipboard } from '../composables/useColorConverter';
-import { customMessage } from '@/utils/customMessage';
-import { createModuleErrorHandler } from '@/utils/errorHandler';
+} from "../colorPicker.store";
+import {
+  useColorConverter,
+  getContrastColor,
+  copyToClipboard,
+} from "../composables/useColorConverter";
+import { customMessage } from "@/utils/customMessage";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 
 interface Props {
   algorithm: AnalysisAlgorithm;
@@ -91,18 +107,18 @@ interface Props {
 }
 
 const props = defineProps<Props>();
-const errorHandler = createModuleErrorHandler('ColorPicker/PaletteDisplay');
+const errorHandler = createModuleErrorHandler("ColorPicker/PaletteDisplay");
 
 /**
  * 是否有分析结果
  */
 const hasResult = computed(() => {
   switch (props.algorithm) {
-    case 'quantize':
+    case "quantize":
       return !!props.quantizeResult;
-    case 'vibrant':
+    case "vibrant":
       return !!props.vibrantResult;
-    case 'average':
+    case "average":
       return !!props.averageResult;
     default:
       return false;
@@ -135,7 +151,7 @@ async function copyColor(hexColor: string) {
       customMessage.success(`已复制: ${formattedColor}`);
     },
     (error) => {
-      errorHandler.error(error, '复制失败');
+      errorHandler.error(error, "复制失败");
     }
   );
 }
@@ -145,12 +161,12 @@ async function copyColor(hexColor: string) {
  */
 function translateLabel(label: string): string {
   const labelMap: Record<string, string> = {
-    Vibrant: '鲜艳',
-    Muted: '柔和',
-    DarkVibrant: '暗色鲜艳',
-    DarkMuted: '暗色柔和',
-    LightVibrant: '亮色鲜艳',
-    LightMuted: '亮色柔和',
+    Vibrant: "鲜艳",
+    Muted: "柔和",
+    DarkVibrant: "暗色鲜艳",
+    DarkMuted: "暗色柔和",
+    LightVibrant: "亮色鲜艳",
+    LightMuted: "亮色柔和",
   };
   return labelMap[label] || label;
 }
@@ -181,7 +197,9 @@ function translateLabel(label: string): string {
   cursor: pointer;
   position: relative;
   overflow: hidden;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
   border: var(--border-width) solid var(--border-color);
 }
 
@@ -243,7 +261,9 @@ function translateLabel(label: string): string {
   cursor: pointer;
   position: relative;
   overflow: hidden;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
   border: var(--border-width) solid var(--border-color);
 }
 
@@ -286,7 +306,9 @@ function translateLabel(label: string): string {
   cursor: pointer;
   position: relative;
   overflow: hidden;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
   border: var(--border-width) solid var(--border-color);
 }
 

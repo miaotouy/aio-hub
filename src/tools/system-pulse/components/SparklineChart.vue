@@ -36,7 +36,8 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const containerStyle = computed(() => {
-  const h = typeof props.height === "number" ? `${props.height}px` : props.height;
+  const h =
+    typeof props.height === "number" ? `${props.height}px` : props.height;
   return { height: h, width: "100%" };
 });
 
@@ -44,7 +45,11 @@ const container = ref<HTMLElement | null>(null);
 let chart: echarts.ECharts | null = null;
 
 const datasets = computed<Dataset[]>(() => {
-  if (Array.isArray(props.data) && props.data.length > 0 && typeof props.data[0] === "number") {
+  if (
+    Array.isArray(props.data) &&
+    props.data.length > 0 &&
+    typeof props.data[0] === "number"
+  ) {
     return [
       {
         data: props.data as number[],
@@ -54,7 +59,8 @@ const datasets = computed<Dataset[]>(() => {
   }
   return (props.data as Dataset[]).map((d, i) => ({
     ...d,
-    color: d.color || (Array.isArray(props.color) ? props.color[i] : props.color),
+    color:
+      d.color || (Array.isArray(props.color) ? props.color[i] : props.color),
   }));
 });
 
@@ -102,7 +108,7 @@ watch(
   () => {
     chart?.setOption(option.value, false, true);
   },
-  { deep: true },
+  { deep: true }
 );
 
 let resizeObserver: ResizeObserver | null = null;

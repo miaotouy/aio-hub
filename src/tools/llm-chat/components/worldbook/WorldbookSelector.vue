@@ -45,7 +45,9 @@ const selectedIds = computed({
 });
 
 const selectedWorldbooks = computed(() => {
-  return worldbookStore.worldbooks.filter((wb) => selectedIds.value.includes(wb.id));
+  return worldbookStore.worldbooks.filter((wb) =>
+    selectedIds.value.includes(wb.id)
+  );
 });
 
 /**
@@ -59,7 +61,8 @@ const invalidIds = computed(() => {
 const availableWorldbooks = computed(() => {
   const q = searchQuery.value.toLowerCase();
   return worldbookStore.worldbooks.filter(
-    (wb) => !selectedIds.value.includes(wb.id) && wb.name.toLowerCase().includes(q)
+    (wb) =>
+      !selectedIds.value.includes(wb.id) && wb.name.toLowerCase().includes(q)
   );
 });
 
@@ -108,7 +111,14 @@ const addWb = (id: string) => {
         <el-icon class="mr-1"><Book /></el-icon>
         已失效 ({{ id.substring(0, 8) }}...)
       </el-tag>
-      <el-button size="small" :icon="Plus" @click="showDialog = true" class="add-btn"> 关联世界书 </el-button>
+      <el-button
+        size="small"
+        :icon="Plus"
+        @click="showDialog = true"
+        class="add-btn"
+      >
+        关联世界书
+      </el-button>
     </div>
 
     <BaseDialog v-model="showDialog" title="选择要关联的世界书" width="80vw">
@@ -122,9 +132,17 @@ const addWb = (id: string) => {
         />
 
         <div class="wb-list" v-loading="isLoading">
-          <el-empty v-if="!isLoading && availableWorldbooks.length === 0" description="没有可选的世界书" />
+          <el-empty
+            v-if="!isLoading && availableWorldbooks.length === 0"
+            description="没有可选的世界书"
+          />
 
-          <div v-for="wb in availableWorldbooks" :key="wb.id" class="wb-item" @click="addWb(wb.id)">
+          <div
+            v-for="wb in availableWorldbooks"
+            :key="wb.id"
+            class="wb-item"
+            @click="addWb(wb.id)"
+          >
             <div class="wb-info">
               <el-icon class="wb-icon"><Book /></el-icon>
               <span class="wb-name">{{ wb.name }}</span>

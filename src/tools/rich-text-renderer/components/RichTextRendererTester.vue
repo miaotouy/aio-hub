@@ -1,5 +1,9 @@
 <template>
-  <div ref="containerRef" class="rich-text-renderer-tester" :class="{ 'is-narrow': isNarrow, 'is-mobile': isMobile }">
+  <div
+    ref="containerRef"
+    class="rich-text-renderer-tester"
+    :class="{ 'is-narrow': isNarrow, 'is-mobile': isMobile }"
+  >
     <div class="tester-layout">
       <!-- 左侧配置栏 -->
       <TesterConfigSidebar
@@ -28,9 +32,15 @@
         />
 
         <!-- 工作区内容 -->
-        <div class="workspace-content" :class="[layoutMode, { 'is-compact': isWorkspaceCompact }]">
+        <div
+          class="workspace-content"
+          :class="[layoutMode, { 'is-compact': isWorkspaceCompact }]"
+        >
           <!-- 输入区 -->
-          <div v-show="layoutMode === 'split' || layoutMode === 'input-only'" class="input-area">
+          <div
+            v-show="layoutMode === 'split' || layoutMode === 'input-only'"
+            class="input-area"
+          >
             <div class="area-header">
               <h4>Markdown 内容</h4>
               <div class="header-actions">
@@ -41,7 +51,9 @@
                   @confirm="resetToPresetContent"
                 >
                   <template #reference>
-                    <el-button size="small" :disabled="!selectedPreset"> 重置 </el-button>
+                    <el-button size="small" :disabled="!selectedPreset">
+                      重置
+                    </el-button>
                   </template>
                 </el-popconfirm>
               </div>
@@ -58,13 +70,22 @@
           </div>
 
           <!-- 预览区 -->
-          <div v-show="layoutMode === 'split' || layoutMode === 'preview-only'" class="preview-area">
+          <div
+            v-show="layoutMode === 'split' || layoutMode === 'preview-only'"
+            class="preview-area"
+          >
             <div class="area-header" ref="previewHeaderRef">
               <h4 style="min-width: 80px">渲染预览</h4>
-              <div class="preview-header-controls" :class="{ 'is-compact': isHeaderCompact }">
+              <div
+                class="preview-header-controls"
+                :class="{ 'is-compact': isHeaderCompact }"
+              >
                 <div class="render-stats" v-if="renderStats.totalTokens > 0">
                   <el-tag size="small" type="info">
-                    {{ renderStats.renderedTokens }}/{{ renderStats.totalTokens }} token
+                    {{ renderStats.renderedTokens }}/{{
+                      renderStats.totalTokens
+                    }}
+                    token
                   </el-tag>
                   <el-tag
                     v-if="streamEnabled && renderStats.speed > 0"
@@ -73,25 +94,43 @@
                   >
                     {{ renderStats.speed.toFixed(1) }} token/秒
                   </el-tag>
-                  <el-tag v-if="renderStats.elapsedTime > 0" size="small" :type="isRendering ? 'warning' : 'info'">
+                  <el-tag
+                    v-if="renderStats.elapsedTime > 0"
+                    size="small"
+                    :type="isRendering ? 'warning' : 'info'"
+                  >
                     {{ formatElapsedTime(renderStats.elapsedTime) }}
                   </el-tag>
-                  <el-tag size="small" type="success">{{ renderStats.totalChars }} 字符 </el-tag>
+                  <el-tag size="small" type="success"
+                    >{{ renderStats.totalChars }} 字符
+                  </el-tag>
                 </div>
                 <div class="visualizer-toggle">
-                  <el-tooltip content="渲染时自动滚动到底部" placement="top" :show-after="300">
+                  <el-tooltip
+                    content="渲染时自动滚动到底部"
+                    placement="top"
+                    :show-after="300"
+                  >
                     <el-switch v-model="autoScroll" size="small" />
                   </el-tooltip>
                   <span>自动滚动</span>
                 </div>
                 <div class="visualizer-toggle">
-                  <el-tooltip content="可视化稳定区和待定区" placement="top" :show-after="300">
+                  <el-tooltip
+                    content="可视化稳定区和待定区"
+                    placement="top"
+                    :show-after="300"
+                  >
                     <el-switch v-model="visualizeBlockStatus" size="small" />
                   </el-tooltip>
                   <span>可视化块状态</span>
                 </div>
                 <div class="visualizer-toggle">
-                  <el-tooltip content="切换样式逃逸检测器" placement="top" :show-after="300">
+                  <el-tooltip
+                    content="切换样式逃逸检测器"
+                    placement="top"
+                    :show-after="300"
+                  >
                     <el-button
                       circle
                       size="small"
@@ -107,9 +146,14 @@
             <div class="escape-detection-bar" v-if="showEscapeDetector">
               <div class="detection-label">外部逃逸检测区：</div>
               <div class="test-escape-detector">
-                <span>🛡️ 我只是普通文本，如果我具有非一般的样式，说明样式逃逸了！</span>
+                <span
+                  >🛡️
+                  我只是普通文本，如果我具有非一般的样式，说明样式逃逸了！</span
+                >
               </div>
-              <div class="detection-hint">(此容器在渲染器组件外部，不应受其内部 style 影响)</div>
+              <div class="detection-hint">
+                (此容器在渲染器组件外部，不应受其内部 style 影响)
+              </div>
             </div>
             <div
               class="render-container"
@@ -152,10 +196,16 @@
           <div v-show="layoutMode === 'curtain'" class="curtain-area">
             <div class="area-header">
               <h4>帘幕预览</h4>
-              <div class="preview-header-controls" :class="{ 'is-compact': isHeaderCompact }">
+              <div
+                class="preview-header-controls"
+                :class="{ 'is-compact': isHeaderCompact }"
+              >
                 <div class="render-stats" v-if="renderStats.totalTokens > 0">
                   <el-tag size="small" type="info">
-                    {{ renderStats.renderedTokens }}/{{ renderStats.totalTokens }} token
+                    {{ renderStats.renderedTokens }}/{{
+                      renderStats.totalTokens
+                    }}
+                    token
                   </el-tag>
                   <el-tag
                     v-if="streamEnabled && renderStats.speed > 0"
@@ -164,10 +214,16 @@
                   >
                     {{ renderStats.speed.toFixed(1) }} token/秒
                   </el-tag>
-                  <el-tag size="small" type="success">{{ renderStats.totalChars }} 字符</el-tag>
+                  <el-tag size="small" type="success"
+                    >{{ renderStats.totalChars }} 字符</el-tag
+                  >
                 </div>
                 <div class="visualizer-toggle">
-                  <el-tooltip content="渲染时自动滚动到底部" placement="top" :show-after="300">
+                  <el-tooltip
+                    content="渲染时自动滚动到底部"
+                    placement="top"
+                    :show-after="300"
+                  >
                     <el-switch v-model="autoScroll" size="small" />
                   </el-tooltip>
                   <span>自动滚动</span>
@@ -203,7 +259,9 @@
                   :code-editor-engine="codeEditorEngine"
                 />
                 <div v-else class="empty-placeholder">
-                  <el-empty description="暂无内容，请输入或选择预设后开始渲染" />
+                  <el-empty
+                    description="暂无内容，请输入或选择预设后开始渲染"
+                  />
                 </div>
               </div>
 
@@ -211,11 +269,19 @@
               <div v-if="hasCurtainRemaining" class="curtain-karaoke">
                 <!-- 当前行（卡拉OK效果） -->
                 <div class="karaoke-line karaoke-current">
-                  <span class="karaoke-consumed">{{ currentLineConsumed }}</span>
-                  <span class="karaoke-pending">{{ currentLineRemaining }}</span>
+                  <span class="karaoke-consumed">{{
+                    currentLineConsumed
+                  }}</span>
+                  <span class="karaoke-pending">{{
+                    currentLineRemaining
+                  }}</span>
                 </div>
                 <!-- 未来行（淡色） -->
-                <div v-for="(line, idx) in futureLines" :key="idx" class="karaoke-line karaoke-future">
+                <div
+                  v-for="(line, idx) in futureLines"
+                  :key="idx"
+                  class="karaoke-line karaoke-future"
+                >
                   {{ line || "\u200B" }}
                 </div>
               </div>
@@ -237,7 +303,10 @@
       :destroy-on-close="false"
       persistence-key="markdown-style-editor-panel"
     >
-      <MarkdownStyleEditor v-model="richTextStyleOptions" :loading="isStyleLoading" />
+      <MarkdownStyleEditor
+        v-model="richTextStyleOptions"
+        :loading="isStyleLoading"
+      />
     </DraggablePanel>
 
     <!-- 正则配置悬浮窗 -->
@@ -259,12 +328,25 @@
     </DraggablePanel>
 
     <!-- AST 查看器悬浮窗 -->
-    <AstViewer ref="astViewerPanelRef" v-model="isAstViewerVisible" :data="rendererRef?.ast" />
+    <AstViewer
+      ref="astViewerPanelRef"
+      v-model="isAstViewerVisible"
+      :data="rendererRef?.ast"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, shallowRef, onMounted, watch, nextTick, computed, provide } from "vue";
+import {
+  ref,
+  reactive,
+  shallowRef,
+  onMounted,
+  watch,
+  nextTick,
+  computed,
+  provide,
+} from "vue";
 import { useElementSize } from "@vueuse/core";
 import { ShieldAlert } from "lucide-vue-next";
 import RichTextRenderer from "../RichTextRenderer.vue";
@@ -274,7 +356,10 @@ import { useRichTextRendererStore } from "../stores/store";
 import { storeToRefs } from "pinia";
 import { llmChatRegistry } from "@/tools/llm-chat/llm-chat.registry";
 import { useAgentPresets } from "@/composables/useAgentPresets";
-import { processMessageAssetsSync, initAgentAssetCache } from "@/tools/llm-chat/utils/agentAssetUtils";
+import {
+  processMessageAssetsSync,
+  initAgentAssetCache,
+} from "@/tools/llm-chat/utils/agentAssetUtils";
 import type { ChatAgent } from "@/tools/llm-chat/types";
 import customMessage from "@/utils/customMessage";
 import MarkdownStyleEditor from "./style-editor/MarkdownStyleEditor.vue";
@@ -379,11 +464,17 @@ const resolveAsset = (content: string): string => {
   if (!content) return content;
 
   // 兼容 agent:// 前缀（测试器特有，自动转换为标准的 agent-asset://）
-  let processedContent = content.replace(/agent:\/\/([^"'\s<>\)]+)/g, "agent-asset://$1");
+  let processedContent = content.replace(
+    /agent:\/\/([^"'\s<>\)]+)/g,
+    "agent-asset://$1"
+  );
 
   // 使用标准的资产解析逻辑
   // 注意：processMessageAssetsSync 需要 ChatAgent 类型，这里进行适配
-  return processMessageAssetsSync(processedContent, currentAgent.value as unknown as ChatAgent);
+  return processMessageAssetsSync(
+    processedContent,
+    currentAgent.value as unknown as ChatAgent
+  );
 };
 // 修复 v-model 类型转换导致的构建错误
 const typedRegexConfig = computed({
@@ -559,7 +650,10 @@ const futureLines = computed(() => {
 
 // 是否还有剩余原文未被消费
 const hasCurtainRemaining = computed(() => {
-  return curtainFullContent.value && streamedChars.value < curtainFullContent.value.length;
+  return (
+    curtainFullContent.value &&
+    streamedChars.value < curtainFullContent.value.length
+  );
 });
 
 // 创建流式数据源（基于 token）
@@ -627,7 +721,7 @@ const createStreamSource = (content: string): StreamSource => {
       const tokenized = await tokenCalculatorEngine.getTokenizedText(
         content,
         selectedTokenizer.value,
-        true, // 使用分词器名称
+        true // 使用分词器名称
       );
 
       if (!tokenized || !tokenized.tokens.length) {
@@ -649,7 +743,8 @@ const createStreamSource = (content: string): StreamSource => {
           renderStats.renderedTokens = i + 1;
 
           const elapsed = (Date.now() - renderStats.startTime) / 1000;
-          renderStats.speed = elapsed > 0 ? renderStats.renderedTokens / elapsed : 0;
+          renderStats.speed =
+            elapsed > 0 ? renderStats.renderedTokens / elapsed : 0;
 
           // 固定延迟
           const delay = 1000 / streamSpeed.value;
@@ -686,10 +781,14 @@ const createStreamSource = (content: string): StreamSource => {
 
             // 随机 token 数量（在设定范围内波动）
             const randomTokens = Math.floor(
-              Math.random() * (charsFluctuation.value.max - charsFluctuation.value.min + 1) +
-                charsFluctuation.value.min,
+              Math.random() *
+                (charsFluctuation.value.max - charsFluctuation.value.min + 1) +
+                charsFluctuation.value.min
             );
-            const actualTokens = Math.min(randomTokens, tokens.length - tokenIndex);
+            const actualTokens = Math.min(
+              randomTokens,
+              tokens.length - tokenIndex
+            );
 
             // 根据token边界从原文中截取字符
             const endCharIndex = tokenCharPositions[tokenIndex + actualTokens];
@@ -701,7 +800,8 @@ const createStreamSource = (content: string): StreamSource => {
             renderStats.renderedTokens = tokenIndex;
 
             const elapsed = (Date.now() - renderStats.startTime) / 1000;
-            renderStats.speed = elapsed > 0 ? renderStats.renderedTokens / elapsed : 0;
+            renderStats.speed =
+              elapsed > 0 ? renderStats.renderedTokens / elapsed : 0;
 
             if (tokenIndex < tokens.length) {
               // 理论上应该花费的时间（基于目标速度）
@@ -709,27 +809,42 @@ const createStreamSource = (content: string): StreamSource => {
 
               // 随机延迟（在波动范围内）
               const randomDelay = Math.floor(
-                Math.random() * (delayFluctuation.value.max - delayFluctuation.value.min + 1) +
-                  delayFluctuation.value.min,
+                Math.random() *
+                  (delayFluctuation.value.max -
+                    delayFluctuation.value.min +
+                    1) +
+                  delayFluctuation.value.min
               );
 
               // 计算本次实际应该延迟的时间（考虑累计偏差进行补偿）
               // 如果之前延迟过长，这次就缩短；如果之前过短，这次就延长
-              const compensatedDelay = Math.max(1, randomDelay - accumulatedDebt);
+              const compensatedDelay = Math.max(
+                1,
+                randomDelay - accumulatedDebt
+              );
 
               // 更新累计偏差：实际延迟 - 理想延迟
               accumulatedDebt += compensatedDelay - idealDelay;
 
-              await new Promise((resolve) => setTimeout(resolve, compensatedDelay));
+              await new Promise((resolve) =>
+                setTimeout(resolve, compensatedDelay)
+              );
             }
           }
         } else {
           // 固定模式：使用固定的 token 速度
-          const tokensPerInterval = Math.max(1, Math.floor(streamSpeed.value / 10)); // 每100ms发送的token数
+          const tokensPerInterval = Math.max(
+            1,
+            Math.floor(streamSpeed.value / 10)
+          ); // 每100ms发送的token数
           const intervalMs = 100;
 
           let lastCharIndex = 0;
-          for (let tokenIndex = 0; tokenIndex < tokens.length; tokenIndex += tokensPerInterval) {
+          for (
+            let tokenIndex = 0;
+            tokenIndex < tokens.length;
+            tokenIndex += tokensPerInterval
+          ) {
             if (signal.aborted) break;
 
             // 模拟 firstTokenTime
@@ -737,16 +852,23 @@ const createStreamSource = (content: string): StreamSource => {
               generationMeta.firstTokenTime = Date.now();
             }
 
-            const actualTokens = Math.min(tokensPerInterval, tokens.length - tokenIndex);
+            const actualTokens = Math.min(
+              tokensPerInterval,
+              tokens.length - tokenIndex
+            );
             const endCharIndex = tokenCharPositions[tokenIndex + actualTokens];
             const chunk = content.substring(lastCharIndex, endCharIndex);
             subscribers.forEach((cb) => cb(chunk));
 
             lastCharIndex = endCharIndex;
-            renderStats.renderedTokens = Math.min(tokenIndex + tokensPerInterval, tokens.length);
+            renderStats.renderedTokens = Math.min(
+              tokenIndex + tokensPerInterval,
+              tokens.length
+            );
 
             const elapsed = (Date.now() - renderStats.startTime) / 1000;
-            renderStats.speed = elapsed > 0 ? renderStats.renderedTokens / elapsed : 0;
+            renderStats.speed =
+              elapsed > 0 ? renderStats.renderedTokens / elapsed : 0;
 
             if (tokenIndex + tokensPerInterval < tokens.length) {
               await new Promise((resolve) => setTimeout(resolve, intervalMs));
@@ -771,9 +893,12 @@ const createStreamSource = (content: string): StreamSource => {
       generationMeta.requestEndTime = Date.now();
       // 计算 TPS
       if (generationMeta.requestStartTime) {
-        const durationSeconds = (generationMeta.requestEndTime - generationMeta.requestStartTime) / 1000;
+        const durationSeconds =
+          (generationMeta.requestEndTime - generationMeta.requestStartTime) /
+          1000;
         if (durationSeconds > 0) {
-          generationMeta.tokensPerSecond = renderStats.totalTokens / durationSeconds;
+          generationMeta.tokensPerSecond =
+            renderStats.totalTokens / durationSeconds;
         }
       }
     }
@@ -952,7 +1077,10 @@ const copyComparison = async () => {
   }
 
   let htmlContent = renderContainerRef.value.innerHTML;
-  if (!htmlContent.trim() || renderContainerRef.value.querySelector(".empty-placeholder")) {
+  if (
+    !htmlContent.trim() ||
+    renderContainerRef.value.querySelector(".empty-placeholder")
+  ) {
     customMessage.warning("没有可复制的 HTML 内容");
     return;
   }
@@ -1000,7 +1128,9 @@ const copyComparison = async () => {
 
   // 计算差异
   const rawDiff = Math.abs(cleanedInput.length - renderedText.length);
-  const normalizedDiff = Math.abs(normalizedInput.length - normalizedRendered.length);
+  const normalizedDiff = Math.abs(
+    normalizedInput.length - normalizedRendered.length
+  );
   const isMatched = normalizedDiff === 0;
 
   // 构建对比内容
@@ -1029,7 +1159,12 @@ ${configInfo}
         if (key === "globalEnabled") continue; // 跳过已处理的总开关
 
         // 检查是否为带有 enabled: true 的样式对象
-        if (typeof value === "object" && value !== null && "enabled" in value && value.enabled) {
+        if (
+          typeof value === "object" &&
+          value !== null &&
+          "enabled" in value &&
+          value.enabled
+        ) {
           enabledStyles[key] = value;
         }
       }
@@ -1116,13 +1251,16 @@ const scrollToBottom = () => {
     nextTick(() => {
       // 预览区滚动
       if (renderContainerRef.value) {
-        renderContainerRef.value.scrollTop = renderContainerRef.value.scrollHeight;
+        renderContainerRef.value.scrollTop =
+          renderContainerRef.value.scrollHeight;
       }
 
       // 帘幕模式容器滚动：让分界点（卡拉OK区顶部）保持在可视区域中间
       if (curtainContainerRef.value && layoutMode.value === "curtain") {
         const container = curtainContainerRef.value;
-        const karaokeEl = container.querySelector(".curtain-karaoke") as HTMLElement | null;
+        const karaokeEl = container.querySelector(
+          ".curtain-karaoke"
+        ) as HTMLElement | null;
         if (karaokeEl) {
           // 让分界点位于容器可视区域的垂直中心
           const containerHeight = container.clientHeight;
@@ -1152,7 +1290,7 @@ watch(
     if (isRendering.value) {
       scrollToBottom();
     }
-  },
+  }
 );
 
 // 组件挂载时加载配置
@@ -1225,12 +1363,14 @@ onMounted(async () => {
   opacity: 0.7;
 }
 
-.render-container.visualize-block-status :deep([data-node-status="stable"]::before) {
+.render-container.visualize-block-status
+  :deep([data-node-status="stable"]::before) {
   background-color: #67c23a; /* Element Plus Success color */
   color: white;
 }
 
-.render-container.visualize-block-status :deep([data-node-status="pending"]::before) {
+.render-container.visualize-block-status
+  :deep([data-node-status="pending"]::before) {
   background-color: #e6a23c; /* Element Plus Warning color */
   color: white;
 }

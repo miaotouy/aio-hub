@@ -1,8 +1,17 @@
 <template>
-  <BaseDialog v-model="visible" title="向量覆盖率检查" width="480px" :show-footer="!loading">
+  <BaseDialog
+    v-model="visible"
+    title="向量覆盖率检查"
+    width="480px"
+    :show-footer="!loading"
+  >
     <div v-loading="loading" class="coverage-content">
       <div class="batch-list">
-        <div v-for="(item, index) in batchItems" :key="index" class="batch-item">
+        <div
+          v-for="(item, index) in batchItems"
+          :key="index"
+          class="batch-item"
+        >
           <div class="item-header">
             <span class="model-name">{{ item.modelName }}</span>
             <span class="missing-count">缺失 {{ item.missingEntries }} 条</span>
@@ -12,8 +21,16 @@
       </div>
 
       <div v-if="totalMissing > 0" class="action-hint">
-        <el-alert title="需要补全向量" type="warning" :closable="false" show-icon>
-          <p>检测到共有 {{ totalMissing }} 个条目缺失向量。补全后可获得更精准的检索结果。</p>
+        <el-alert
+          title="需要补全向量"
+          type="warning"
+          :closable="false"
+          show-icon
+        >
+          <p>
+            检测到共有
+            {{ totalMissing }} 个条目缺失向量。补全后可获得更精准的检索结果。
+          </p>
           <p class="cost-hint">预计将调用 Embedding API 进行补全。</p>
         </el-alert>
       </div>
@@ -28,11 +45,15 @@
       <template v-if="totalMissing > 0">
         <el-button @click="handleAction('cancel')">取消</el-button>
         <el-button @click="handleAction('ignore')">忽略并检索</el-button>
-        <el-button type="primary" @click="handleAction('fill')"> 全部补全 </el-button>
+        <el-button type="primary" @click="handleAction('fill')">
+          全部补全
+        </el-button>
       </template>
       <template v-else>
         <el-button @click="handleAction('cancel')">取消</el-button>
-        <el-button type="primary" @click="handleAction('fill')"> 确定 </el-button>
+        <el-button type="primary" @click="handleAction('fill')">
+          确定
+        </el-button>
       </template>
     </template>
   </BaseDialog>

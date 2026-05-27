@@ -52,7 +52,9 @@ const editForm = ref<ActionStep | null>(null);
 
 // 执行状态
 const isRunning = ref(false);
-const stepStatuses = ref<Record<number, "running" | "success" | "error" | "idle">>({});
+const stepStatuses = ref<
+  Record<number, "running" | "success" | "error" | "idle">
+>({});
 const stepErrors = ref<Record<number, string>>({});
 
 // 获取步骤描述
@@ -144,10 +146,13 @@ const runTest = async () => {
   stepErrors.value = {};
 
   try {
-    await actionRunner.runSequenceWithProgress(actions.value, (index, status, error) => {
-      stepStatuses.value[index] = status;
-      if (error) stepErrors.value[index] = error;
-    });
+    await actionRunner.runSequenceWithProgress(
+      actions.value,
+      (index, status, error) => {
+        stepStatuses.value[index] = status;
+        if (error) stepErrors.value[index] = error;
+      }
+    );
     // 回放成功后自动触发实时预览（强制刷新 DOM）
     triggerLivePreview(true);
   } finally {
@@ -165,7 +170,12 @@ const runTest = async () => {
     <div class="actions-header">
       <div class="title">动作序列 (Actions)</div>
       <div class="header-ops">
-        <el-button type="primary" size="small" :loading="isRunning" @click="runTest">
+        <el-button
+          type="primary"
+          size="small"
+          :loading="isRunning"
+          @click="runTest"
+        >
           <template #icon><Play /></template>
           回放测试
         </el-button>
@@ -177,7 +187,11 @@ const runTest = async () => {
           </el-button>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item v-for="item in ACTION_TYPES" :key="item.type" :command="item.type">
+              <el-dropdown-item
+                v-for="item in ACTION_TYPES"
+                :key="item.type"
+                :command="item.type"
+              >
                 <div class="action-menu-item">
                   <el-icon :style="{ color: item.color }">
                     <component :is="item.icon" />
@@ -219,7 +233,10 @@ const runTest = async () => {
 
             <div
               class="action-icon"
-              :style="{ backgroundColor: getActionColor(step.type) + '20', color: getActionColor(step.type) }"
+              :style="{
+                backgroundColor: getActionColor(step.type) + '20',
+                color: getActionColor(step.type),
+              }"
             >
               <component :is="getActionIcon(step.type)" :size="16" />
             </div>
@@ -234,18 +251,35 @@ const runTest = async () => {
             </div>
 
             <div class="action-status-icon">
-              <el-icon v-if="stepStatuses[index] === 'running'" class="is-loading"><Loader2 /></el-icon>
-              <el-icon v-else-if="stepStatuses[index] === 'success'" color="var(--el-color-success)"
+              <el-icon
+                v-if="stepStatuses[index] === 'running'"
+                class="is-loading"
+                ><Loader2
+              /></el-icon>
+              <el-icon
+                v-else-if="stepStatuses[index] === 'success'"
+                color="var(--el-color-success)"
                 ><CheckCircle2
               /></el-icon>
-              <el-tooltip v-else-if="stepStatuses[index] === 'error'" :content="stepErrors[index]" placement="top">
+              <el-tooltip
+                v-else-if="stepStatuses[index] === 'error'"
+                :content="stepErrors[index]"
+                placement="top"
+              >
                 <el-icon color="var(--el-color-danger)"><XCircle /></el-icon>
               </el-tooltip>
             </div>
 
             <div class="action-ops">
-              <el-button link size="small" @click="handleEditAction(index)">编辑</el-button>
-              <el-button link type="danger" size="small" @click="handleRemoveAction(index)">
+              <el-button link size="small" @click="handleEditAction(index)"
+                >编辑</el-button
+              >
+              <el-button
+                link
+                type="danger"
+                size="small"
+                @click="handleRemoveAction(index)"
+              >
                 <Trash2 :size="14" />
               </el-button>
             </div>
@@ -257,18 +291,33 @@ const runTest = async () => {
               <div class="edit-header">
                 <span class="edit-title">编辑步骤 {{ index + 1 }}</span>
                 <div class="edit-ops">
-                  <el-button size="small" @click="handleCancelEdit">取消</el-button>
-                  <el-button size="small" type="primary" @click="handleSaveEdit">保存</el-button>
+                  <el-button size="small" @click="handleCancelEdit"
+                    >取消</el-button
+                  >
+                  <el-button size="small" type="primary" @click="handleSaveEdit"
+                    >保存</el-button
+                  >
                 </div>
               </div>
 
               <el-form :model="editForm" label-position="top" size="small">
                 <!-- 选择器字段 -->
-                <el-form-item v-if="'selector' in editForm" label="选择器 (Selector)">
+                <el-form-item
+                  v-if="'selector' in editForm"
+                  label="选择器 (Selector)"
+                >
                   <div class="selector-input">
-                    <el-input v-model="editForm.selector" placeholder="请输入 CSS 选择器" />
+                    <el-input
+                      v-model="editForm.selector"
+                      placeholder="请输入 CSS 选择器"
+                    />
                     <el-button
-                      :type="store.pickerMode === 'action' && store.pickerActionIndex === index ? 'primary' : 'default'"
+                      :type="
+                        store.pickerMode === 'action' &&
+                        store.pickerActionIndex === index
+                          ? 'primary'
+                          : 'default'
+                      "
                       @click="startPick(index)"
                     >
                       <template #icon><Target :size="14" /></template>
@@ -278,29 +327,57 @@ const runTest = async () => {
                 </el-form-item>
                 <!-- 距离字段 (scroll) -->
                 <el-form-item
-                  v-if="editForm.type === 'scroll' && !('selector' in editForm && editForm.selector)"
+                  v-if="
+                    editForm.type === 'scroll' &&
+                    !('selector' in editForm && editForm.selector)
+                  "
                   label="滚动距离 (px)"
                 >
-                  <el-input-number v-model="(editForm as any).distance" :min="0" :step="100" />
-                  <el-checkbox v-model="(editForm as any).toBottom" style="margin-left: 12px">到底部</el-checkbox>
+                  <el-input-number
+                    v-model="(editForm as any).distance"
+                    :min="0"
+                    :step="100"
+                  />
+                  <el-checkbox
+                    v-model="(editForm as any).toBottom"
+                    style="margin-left: 12px"
+                    >到底部</el-checkbox
+                  >
                 </el-form-item>
 
                 <!-- 等待时长 (wait) -->
                 <el-form-item
-                  v-if="editForm.type === 'wait' && !('selector' in editForm && editForm.selector)"
+                  v-if="
+                    editForm.type === 'wait' &&
+                    !('selector' in editForm && editForm.selector)
+                  "
                   label="等待时间 (ms)"
                 >
-                  <el-input-number v-model="(editForm as any).value" :min="0" :step="500" />
+                  <el-input-number
+                    v-model="(editForm as any).value"
+                    :min="0"
+                    :step="500"
+                  />
                 </el-form-item>
 
                 <!-- 超时时间 (wait/wait-idle) -->
-                <el-form-item v-if="['wait', 'wait-idle'].includes(editForm.type)" label="超时限制 (ms)">
-                  <el-input-number v-model="(editForm as any).timeout" :min="0" :step="1000" />
+                <el-form-item
+                  v-if="['wait', 'wait-idle'].includes(editForm.type)"
+                  label="超时限制 (ms)"
+                >
+                  <el-input-number
+                    v-model="(editForm as any).timeout"
+                    :min="0"
+                    :step="1000"
+                  />
                 </el-form-item>
 
                 <!-- 输入内容 (input) -->
                 <el-form-item v-if="editForm.type === 'input'" label="输入文本">
-                  <el-input v-model="(editForm as any).value" placeholder="请输入要输入的内容" />
+                  <el-input
+                    v-model="(editForm as any).value"
+                    placeholder="请输入要输入的内容"
+                  />
                 </el-form-item>
               </el-form>
             </div>

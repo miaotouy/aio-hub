@@ -1,10 +1,17 @@
 <template>
-  <div class="html-interactive-viewer" :class="{ 'no-border': !isBorderVisible }">
+  <div
+    class="html-interactive-viewer"
+    :class="{ 'no-border': !isBorderVisible }"
+  >
     <!-- 工具栏 -->
     <div class="viewer-toolbar" v-if="isToolbarVisible">
       <div class="toolbar-left">
         <span class="title-text">{{ title }}</span>
-        <el-tooltip v-if="!immediate" content="内容生成中..." placement="bottom">
+        <el-tooltip
+          v-if="!immediate"
+          content="内容生成中..."
+          placement="bottom"
+        >
           <div class="streaming-indicator">
             <Loader2 class="animate-spin" :size="14" />
           </div>
@@ -14,7 +21,12 @@
       <div class="toolbar-right">
         <!-- 错误提示按钮 -->
         <div v-if="iframeErrors.length > 0" class="error-toolbar-item">
-          <el-popover placement="bottom-end" :width="400" trigger="click" popper-class="iframe-error-popper">
+          <el-popover
+            placement="bottom-end"
+            :width="400"
+            trigger="click"
+            popper-class="iframe-error-popper"
+          >
             <template #reference>
               <button class="tool-btn error-btn">
                 <AlertCircle :size="12" />
@@ -24,24 +36,34 @@
 
             <div class="error-details-container">
               <div class="error-details-header">
-                <span class="error-title">渲染错误 ({{ iframeErrors.length }})</span>
+                <span class="error-title"
+                  >渲染错误 ({{ iframeErrors.length }})</span
+                >
                 <div class="error-header-actions">
                   <el-button size="small" link @click="copyAllErrors">
                     <template #icon><Copy :size="14" /></template>
                     复制全部
                   </el-button>
-                  <el-button size="small" link @click="clearErrors"> 清空 </el-button>
+                  <el-button size="small" link @click="clearErrors">
+                    清空
+                  </el-button>
                 </div>
               </div>
               <div class="error-list">
-                <div v-for="(err, index) in iframeErrors" :key="index" class="error-item">
+                <div
+                  v-for="(err, index) in iframeErrors"
+                  :key="index"
+                  class="error-item"
+                >
                   <div class="error-item-main">
                     <span class="error-msg">{{ err.message }}</span>
                     <el-button size="small" link @click="copyError(err)">
                       <Copy :size="12" />
                     </el-button>
                   </div>
-                  <div v-if="err.stack" class="error-stack">{{ err.stack }}</div>
+                  <div v-if="err.stack" class="error-stack">
+                    {{ err.stack }}
+                  </div>
                   <div class="error-time">{{ err.time }}</div>
                 </div>
               </div>
@@ -55,8 +77,15 @@
           </button>
         </el-tooltip>
 
-        <el-tooltip :content="!immediate ? '内容生成中...' : '在浏览器中打开'" placement="bottom">
-          <button class="tool-btn" :disabled="!immediate" @click="openInBrowser">
+        <el-tooltip
+          :content="!immediate ? '内容生成中...' : '在浏览器中打开'"
+          placement="bottom"
+        >
+          <button
+            class="tool-btn"
+            :disabled="!immediate"
+            @click="openInBrowser"
+          >
             <ExternalLink :size="14" />
           </button>
         </el-tooltip>
@@ -70,9 +99,13 @@
         autoHeight
           ? {
               height: contentHeight + 'px',
-              maxHeight: typeof maxHeight === 'number' ? maxHeight + 'px' : maxHeight,
+              maxHeight:
+                typeof maxHeight === 'number' ? maxHeight + 'px' : maxHeight,
               flex: 'none',
-              overflow: contentHeight > (parseInt(String(maxHeight)) || Infinity) ? 'auto' : 'hidden',
+              overflow:
+                contentHeight > (parseInt(String(maxHeight)) || Infinity)
+                  ? 'auto'
+                  : 'hidden',
             }
           : {}
       "
@@ -93,7 +126,12 @@
 
       <!-- 错误提示浮窗 -->
       <div v-if="iframeErrors.length > 0" class="error-floating-indicator">
-        <el-popover placement="top-end" :width="400" trigger="click" popper-class="iframe-error-popper">
+        <el-popover
+          placement="top-end"
+          :width="400"
+          trigger="click"
+          popper-class="iframe-error-popper"
+        >
           <template #reference>
             <div class="error-trigger">
               <div class="error-capsule">
@@ -105,17 +143,25 @@
 
           <div class="error-details-container">
             <div class="error-details-header">
-              <span class="error-title">渲染错误 ({{ iframeErrors.length }})</span>
+              <span class="error-title"
+                >渲染错误 ({{ iframeErrors.length }})</span
+              >
               <div class="error-header-actions">
                 <el-button size="small" link @click="copyAllErrors">
                   <template #icon><Copy :size="14" /></template>
                   复制全部
                 </el-button>
-                <el-button size="small" link @click="clearErrors"> 清空 </el-button>
+                <el-button size="small" link @click="clearErrors">
+                  清空
+                </el-button>
               </div>
             </div>
             <div class="error-list">
-              <div v-for="(err, index) in iframeErrors" :key="index" class="error-item">
+              <div
+                v-for="(err, index) in iframeErrors"
+                :key="index"
+                class="error-item"
+              >
                 <div class="error-item-main">
                   <span class="error-msg">{{ err.message }}</span>
                   <el-button size="small" link @click="copyError(err)">
@@ -135,7 +181,13 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, inject } from "vue";
-import { RotateCw, ExternalLink, Loader2, AlertCircle, Copy } from "lucide-vue-next";
+import {
+  RotateCw,
+  ExternalLink,
+  Loader2,
+  AlertCircle,
+  Copy,
+} from "lucide-vue-next";
 import { useThrottleFn } from "@vueuse/core";
 import { localizeCdnLinks } from "../utils/cdnLocalizer";
 import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
@@ -145,7 +197,9 @@ import { RICH_TEXT_CONTEXT_KEY, type RichTextContext } from "../types";
 import { useIframeTheme } from "@/composables/useIframeTheme";
 
 const errorHandler = createModuleErrorHandler("HtmlInteractiveViewer");
-const iframeErrorHandler = createModuleErrorHandler("HtmlInteractiveViewer:Iframe");
+const iframeErrorHandler = createModuleErrorHandler(
+  "HtmlInteractiveViewer:Iframe"
+);
 const logger = createModuleLogger("HtmlInteractiveViewer:Iframe");
 
 // 注入上下文以获取全局设置
@@ -187,7 +241,7 @@ const props = withDefaults(
     immediate: false,
     autoHeight: false,
     allowExternalScripts: false,
-  },
+  }
 );
 
 const isToolbarVisible = computed(() => props.showToolbar && !props.seamless);
@@ -230,7 +284,8 @@ const throttledUpdateContent = useThrottleFn((newContent: string) => {
 const { themedContent } = useIframeTheme(() => renderContent.value);
 
 const cspContent = computed(() => {
-  const allowExternal = props.allowExternalScripts ?? contextAllowExternalScripts?.value ?? false;
+  const allowExternal =
+    props.allowExternalScripts ?? contextAllowExternalScripts?.value ?? false;
   if (allowExternal) {
     // 允许外部脚本时，放开限制
     return "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; media-src * 'self' asset: agent-asset: http://asset.localhost https://asset.localhost blob: data:; img-src * 'self' asset: agent-asset: http://asset.localhost https://asset.localhost data: blob:; frame-src *; script-src * 'unsafe-inline' 'unsafe-eval' blob: data:;";
@@ -366,7 +421,10 @@ const srcDoc = computed(() => {
   let content = themedContent.value;
   if (!content) return "";
 
-  const processedLogCaptureScript = logCaptureScript.replace("__AUTO_HEIGHT__", String(props.autoHeight));
+  const processedLogCaptureScript = logCaptureScript.replace(
+    "__AUTO_HEIGHT__",
+    String(props.autoHeight)
+  );
 
   if (enableCdnLocalizer?.value !== false) {
     const { html: localizedContent } = localizeCdnLinks(content);
@@ -428,7 +486,10 @@ const handleIframeMessage = (event: MessageEvent) => {
   if (!event.data || !iframeRef.value) return;
   if (event.source !== iframeRef.value.contentWindow) return;
 
-  if (event.data.type === "iframe-mousemove" || event.data.type === "iframe-mouseenter") {
+  if (
+    event.data.type === "iframe-mousemove" ||
+    event.data.type === "iframe-mouseenter"
+  ) {
     emit("content-hover", true);
     return;
   }
@@ -460,9 +521,12 @@ const handleIframeMessage = (event: MessageEvent) => {
         break;
       case "error":
         // 记录到内部错误列表，并限制数量，避免高频 console/error 页面撑爆宿主内存
-        const stack = event.data.stack || (extraData?.length ? extraData.join(" ") : "");
+        const stack =
+          event.data.stack || (extraData?.length ? extraData.join(" ") : "");
         if (iframeErrors.value.length >= MAX_IFRAME_ERRORS) {
-          iframeErrors.value = iframeErrors.value.slice(-(MAX_IFRAME_ERRORS - 1));
+          iframeErrors.value = iframeErrors.value.slice(
+            -(MAX_IFRAME_ERRORS - 1)
+          );
         }
         iframeErrors.value.push({
           message,
@@ -528,7 +592,10 @@ const copyError = (err: IframeError) => {
 
 const copyAllErrors = () => {
   const text = iframeErrors.value
-    .map((err, i) => `[${i + 1}] ${err.message}\nStack: ${err.stack || "N/A"}\nTime: ${err.time}`)
+    .map(
+      (err, i) =>
+        `[${i + 1}] ${err.message}\nStack: ${err.stack || "N/A"}\nTime: ${err.time}`
+    )
     .join("\n\n---\n\n");
   navigator.clipboard.writeText(text);
   customMessage.success("已复制全部错误");
@@ -559,7 +626,7 @@ watch(
       throttledUpdateContent(newContent);
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 </script>
 

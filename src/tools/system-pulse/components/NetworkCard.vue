@@ -33,8 +33,12 @@
     <div class="net-interfaces">
       <div v-for="iface in networks" :key="iface.name" class="iface-row">
         <span class="iface-name">{{ iface.name }}</span>
-        <span class="iface-up">↑ {{ formatBytesPerSec(iface.uploadBytesPerSec) }}</span>
-        <span class="iface-down">↓ {{ formatBytesPerSec(iface.downloadBytesPerSec) }}</span>
+        <span class="iface-up"
+          >↑ {{ formatBytesPerSec(iface.uploadBytesPerSec) }}</span
+        >
+        <span class="iface-down"
+          >↓ {{ formatBytesPerSec(iface.downloadBytesPerSec) }}</span
+        >
       </div>
     </div>
   </div>
@@ -51,8 +55,12 @@ const props = defineProps<{
   networkHistory: { up: number; down: number }[];
 }>();
 
-const totalUp = computed(() => props.networks.reduce((s, n) => s + n.uploadBytesPerSec, 0));
-const totalDown = computed(() => props.networks.reduce((s, n) => s + n.downloadBytesPerSec, 0));
+const totalUp = computed(() =>
+  props.networks.reduce((s, n) => s + n.uploadBytesPerSec, 0)
+);
+const totalDown = computed(() =>
+  props.networks.reduce((s, n) => s + n.downloadBytesPerSec, 0)
+);
 const upHistory = computed(() => props.networkHistory.map((h) => h.up));
 const downHistory = computed(() => props.networkHistory.map((h) => h.down));
 </script>

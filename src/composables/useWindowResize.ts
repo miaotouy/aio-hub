@@ -1,4 +1,8 @@
-import { getCurrentWindow, PhysicalSize, PhysicalPosition } from "@tauri-apps/api/window";
+import {
+  getCurrentWindow,
+  PhysicalSize,
+  PhysicalPosition,
+} from "@tauri-apps/api/window";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@utils/errorHandler";
 
@@ -91,7 +95,10 @@ export function useWindowResize() {
    * @param direction 调整方向
    * @param event 鼠标事件（可选，用于阻止默认行为）
    */
-  const startResize = async (direction: ResizeDirection, event?: MouseEvent) => {
+  const startResize = async (
+    direction: ResizeDirection,
+    event?: MouseEvent
+  ) => {
     if (event) {
       event.preventDefault();
       event.stopPropagation();
@@ -108,7 +115,9 @@ export function useWindowResize() {
       }
 
       // 使用 Tauri v2 原生 API
-      await (window as unknown as TauriWindowExtended).startResizeDragging(direction);
+      await (window as unknown as TauriWindowExtended).startResizeDragging(
+        direction
+      );
       logger.info("窗口调整完成", { direction });
     } catch (error: any) {
       errorHandler.error(error, "窗口调整失败", { context: { direction } });
@@ -138,16 +147,23 @@ export function useWindowResize() {
 
     try {
       const win = getCurrentWindow();
-      const [size, pos] = await Promise.all([win.innerSize(), win.outerPosition()]);
+      const [size, pos] = await Promise.all([
+        win.innerSize(),
+        win.outerPosition(),
+      ]);
 
       const targetWidth = width !== undefined ? Math.round(width) : size.width;
-      const targetHeight = height !== undefined ? Math.round(height) : size.height;
+      const targetHeight =
+        height !== undefined ? Math.round(height) : size.height;
 
       const deltaWidth = targetWidth - size.width;
       const deltaHeight = targetHeight - size.height;
 
       // 如果变化非常小，忽略以减少抖动
-      if (Math.abs(deltaWidth) <= threshold && Math.abs(deltaHeight) <= threshold) {
+      if (
+        Math.abs(deltaWidth) <= threshold &&
+        Math.abs(deltaHeight) <= threshold
+      ) {
         return;
       }
 

@@ -129,7 +129,8 @@ const handleCopy = () => emit("copy");
 const handleToggleEnabled = () => emit("toggle-enabled");
 const handleDelete = () => emit("delete");
 const handleViewDetail = (event: MouseEvent) => emit("view-detail", event);
-const handleRegenerate = (options?: { modelId?: string; profileId?: string }) => emit("regenerate", options);
+const handleRegenerate = (options?: { modelId?: string; profileId?: string }) =>
+  emit("regenerate", options);
 const handleCreateBranch = () => emit("create-branch");
 </script>
 
@@ -194,7 +195,11 @@ const handleCreateBranch = () => emit("create-branch");
     0 0 0 1px var(--el-color-success),
     0 0 16px 4px color-mix(in srgb, var(--el-color-success) 40%, transparent),
     inset 0 0 20px color-mix(in srgb, var(--el-color-success) 15%, transparent);
-  background-color: color-mix(in srgb, var(--el-color-success) 8%, var(--card-bg));
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-success) 8%,
+    var(--card-bg)
+  );
 }
 
 .graph-node.connection-invalid {
@@ -204,7 +209,11 @@ const handleCreateBranch = () => emit("create-branch");
     0 0 0 1px var(--el-color-danger),
     0 0 16px 4px color-mix(in srgb, var(--el-color-danger) 50%, transparent),
     inset 0 20px color-mix(in srgb, var(--el-color-danger) 10%, transparent);
-  background-color: color-mix(in srgb, var(--el-color-danger) 5%, var(--card-bg));
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-danger) 5%,
+    var(--card-bg)
+  );
 }
 
 /* 压缩节点样式 */

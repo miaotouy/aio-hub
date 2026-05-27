@@ -6,7 +6,10 @@
  */
 
 import { DEFAULT_METADATA_RULES } from "@/config/model-metadata-presets";
-import type { ModelMetadataRule, ModelMetadataProperties } from "@/types/model-metadata";
+import type {
+  ModelMetadataRule,
+  ModelMetadataProperties,
+} from "@/types/model-metadata";
 import type { VisionTokenCost } from "@/types/llm-profiles";
 
 // 使用 any 类型暂时绕过类型导出问题
@@ -41,7 +44,11 @@ function simpleMerge(target: any, source: any): any {
   if (!source) return target;
   const result = { ...target };
   for (const key in source) {
-    if (source[key] && typeof source[key] === "object" && !Array.isArray(source[key])) {
+    if (
+      source[key] &&
+      typeof source[key] === "object" &&
+      !Array.isArray(source[key])
+    ) {
       result[key] = simpleMerge(result[key] || {}, source[key]);
     } else {
       result[key] = source[key];
@@ -53,7 +60,11 @@ function simpleMerge(target: any, source: any): any {
 /**
  * 轻量级模型规则匹配逻辑
  */
-function testRuleMatch(rule: ModelMetadataRule, modelId: string, provider?: string): boolean {
+function testRuleMatch(
+  rule: ModelMetadataRule,
+  modelId: string,
+  provider?: string
+): boolean {
   switch (rule.matchType) {
     case "model":
       if (rule.useRegex) {
@@ -76,7 +87,9 @@ function testRuleMatch(rule: ModelMetadataRule, modelId: string, provider?: stri
       return modelId.toLowerCase().includes(rule.matchValue.toLowerCase());
 
     case "provider":
-      return !!(provider && provider.toLowerCase() === rule.matchValue.toLowerCase());
+      return !!(
+        provider && provider.toLowerCase() === rule.matchValue.toLowerCase()
+      );
 
     default:
       return false;
@@ -102,18 +115,25 @@ function getMatchedModelProperties(
   let finalRules = matchedRules;
   if (highestExclusiveRule) {
     const exclusivePriority = highestExclusiveRule.priority || 0;
-    finalRules = matchedRules.filter((r) => (r.priority || 0) >= exclusivePriority);
+    finalRules = matchedRules.filter(
+      (r) => (r.priority || 0) >= exclusivePriority
+    );
   }
 
   return finalRules
     .reverse()
-    .reduce((acc, rule) => simpleMerge(acc, rule.properties), {} as ModelMetadataProperties);
+    .reduce(
+      (acc, rule) => simpleMerge(acc, rule.properties),
+      {} as ModelMetadataProperties
+    );
 }
 
 /**
  * 模型到 tokenizer 加载器的映射
  */
-type TokenizerLoader = () => Promise<{ fromPreTrained: () => PreTrainedTokenizer }>;
+type TokenizerLoader = () => Promise<{
+  fromPreTrained: () => PreTrainedTokenizer;
+}>;
 
 interface TokenizerMapping {
   pattern: RegExp;
@@ -143,8 +163,16 @@ export class TokenCalculatorEngine {
       loader: () => import("@lenml/tokenizer-gpt4o"),
       name: "gpt4o",
     },
-    { pattern: /^gpt-4(?!o)/i, loader: () => import("@lenml/tokenizer-gpt4"), name: "gpt4" },
-    { pattern: /^claude-/i, loader: () => import("@lenml/tokenizer-claude"), name: "claude" },
+    {
+      pattern: /^gpt-4(?!o)/i,
+      loader: () => import("@lenml/tokenizer-gpt4"),
+      name: "gpt4",
+    },
+    {
+      pattern: /^claude-/i,
+      loader: () => import("@lenml/tokenizer-claude"),
+      name: "claude",
+    },
     {
       pattern: /^(gemini-|gemma|veo-)/i,
       loader: () => import("@lenml/tokenizer-gemini"),
@@ -160,12 +188,19 @@ export class TokenCalculatorEngine {
       loader: () => import("@lenml/tokenizer-deepseek_v3"),
       name: "deepseek_v3",
     },
-    { pattern: /^(qwen|qwq-)/i, loader: () => import("@lenml/tokenizer-qwen3"), name: "qwen3" },
+    {
+      pattern: /^(qwen|qwq-)/i,
+      loader: () => import("@lenml/tokenizer-qwen3"),
+      name: "qwen3",
+    },
   ];
 
-  async getTokenizerByName(tokenizerName: string): Promise<PreTrainedTokenizer | null> {
+  async getTokenizerByName(
+    tokenizerName: string
+  ): Promise<PreTrainedTokenizer | null> {
     const cacheKey = `tokenizer:${tokenizerName}`;
-    if (this.tokenizerCache.has(cacheKey)) return this.tokenizerCache.get(cacheKey)!;
+    if (this.tokenizerCache.has(cacheKey))
+      return this.tokenizerCache.get(cacheKey)!;
 
     const loader = this.tokenizerLoaders[tokenizerName];
     if (!loader) return null;
@@ -176,19 +211,25 @@ export class TokenCalculatorEngine {
       this.tokenizerCache.set(cacheKey, tokenizer);
       return tokenizer;
     } catch (error) {
-      console.error(`[TokenCalculator] Failed to load tokenizer ${tokenizerName}:`, error);
+      console.error(
+        `[TokenCalculator] Failed to load tokenizer ${tokenizerName}:`,
+        error
+      );
       return null;
     }
   }
 
   async getTokenizer(modelId: string): Promise<PreTrainedTokenizer | null> {
-    if (this.tokenizerCache.has(modelId)) return this.tokenizerCache.get(modelId)!;
+    if (this.tokenizerCache.has(modelId))
+      return this.tokenizerCache.get(modelId)!;
 
     const metadata = getMatchedModelProperties(modelId);
     let tokenizerName: string | undefined = metadata?.tokenizer;
 
     if (!tokenizerName) {
-      const mapping = this.tokenizerMappings.find((m) => m.pattern.test(modelId));
+      const mapping = this.tokenizerMappings.find((m) =>
+        m.pattern.test(modelId)
+      );
       tokenizerName = mapping?.name;
     }
 
@@ -203,7 +244,10 @@ export class TokenCalculatorEngine {
     return null;
   }
 
-  async calculateTokens(text: string, modelId: string): Promise<TokenCalculationResult> {
+  async calculateTokens(
+    text: string,
+    modelId: string
+  ): Promise<TokenCalculationResult> {
     if (!text) return { count: 0, isEstimated: false, tokenizerName: "none" };
 
     const sanitizedText = this._sanitizeText(text);
@@ -217,10 +261,15 @@ export class TokenCalculatorEngine {
         "unknown";
 
       try {
-        const encoded = tokenizer.encode(sanitizedText, undefined, { add_special_tokens: true });
+        const encoded = tokenizer.encode(sanitizedText, undefined, {
+          add_special_tokens: true,
+        });
         return { count: encoded.length, isEstimated: false, tokenizerName };
       } catch (error) {
-        console.error(`[TokenCalculator] Error encoding text with ${tokenizerName}:`, error);
+        console.error(
+          `[TokenCalculator] Error encoding text with ${tokenizerName}:`,
+          error
+        );
         return this.estimateTokens(sanitizedText);
       }
     }
@@ -231,12 +280,19 @@ export class TokenCalculatorEngine {
   estimateTokens(text: string): TokenCalculationResult {
     const sanitizedText = this._sanitizeText(text);
     const chineseChars = (sanitizedText.match(/[\u4e00-\u9fa5]/g) || []).length;
-    const specialChars = (sanitizedText.match(/[^\w\s\u4e00-\u9fa5]/g) || []).length;
+    const specialChars = (sanitizedText.match(/[^\w\s\u4e00-\u9fa5]/g) || [])
+      .length;
     const otherChars = sanitizedText.length - chineseChars - specialChars;
 
-    const estimatedCount = Math.ceil(chineseChars / 1.5 + otherChars / 4 + specialChars);
+    const estimatedCount = Math.ceil(
+      chineseChars / 1.5 + otherChars / 4 + specialChars
+    );
 
-    return { count: estimatedCount, isEstimated: true, tokenizerName: "estimator" };
+    return {
+      count: estimatedCount,
+      isEstimated: true,
+      tokenizerName: "estimator",
+    };
   }
 
   async calculateTokensByTokenizer(
@@ -250,10 +306,15 @@ export class TokenCalculatorEngine {
 
     if (tokenizer) {
       try {
-        const encoded = tokenizer.encode(sanitizedText, undefined, { add_special_tokens: true });
+        const encoded = tokenizer.encode(sanitizedText, undefined, {
+          add_special_tokens: true,
+        });
         return { count: encoded.length, isEstimated: false, tokenizerName };
       } catch (error) {
-        console.error(`[TokenCalculator] Error encoding text with ${tokenizerName}:`, error);
+        console.error(
+          `[TokenCalculator] Error encoding text with ${tokenizerName}:`,
+          error
+        );
         return this.estimateTokens(sanitizedText);
       }
     }
@@ -276,11 +337,15 @@ export class TokenCalculatorEngine {
     if (!tokenizer) return null;
 
     try {
-      const encoded = tokenizer.encode(sanitizedText, undefined, { add_special_tokens: true });
+      const encoded = tokenizer.encode(sanitizedText, undefined, {
+        add_special_tokens: true,
+      });
       const tokens: Array<{ text: string; id: number }> = [];
       for (const tokenId of encoded) {
         try {
-          const tokenText = tokenizer.decode([tokenId], { skip_special_tokens: false });
+          const tokenText = tokenizer.decode([tokenId], {
+            skip_special_tokens: false,
+          });
           tokens.push({ text: tokenText, id: tokenId });
         } catch {
           tokens.push({ text: `[Token ${tokenId}]`, id: tokenId });
@@ -319,7 +384,11 @@ export class TokenCalculatorEngine {
     return this.tokenizerCache.size;
   }
 
-  calculateImageTokens(width: number, height: number, visionTokenCost: VisionTokenCost): number {
+  calculateImageTokens(
+    width: number,
+    height: number,
+    visionTokenCost: VisionTokenCost
+  ): number {
     const { calculationMethod, parameters } = visionTokenCost;
     switch (calculationMethod) {
       case "fixed":
@@ -348,7 +417,11 @@ export class TokenCalculatorEngine {
     return Math.ceil(durationSeconds) * 32;
   }
 
-  private calculateOpenAITileTokens(width: number, height: number, parameters: any): number {
+  private calculateOpenAITileTokens(
+    width: number,
+    height: number,
+    parameters: any
+  ): number {
     const baseCost = parameters.baseCost || 85;
     const tileCost = parameters.tileCost || 170;
     const tileSize = parameters.tileSize || 512;
@@ -368,11 +441,16 @@ export class TokenCalculatorEngine {
       sh = Math.floor(sh * scale);
     }
 
-    return baseCost + Math.ceil(sw / tileSize) * Math.ceil(sh / tileSize) * tileCost;
+    return (
+      baseCost + Math.ceil(sw / tileSize) * Math.ceil(sh / tileSize) * tileCost
+    );
   }
 
   private _sanitizeText(text: string): string {
-    return text.replace(/!\[.*?\]\(data:image\/[a-zA-Z0-9-+.]+;base64,.*?\)/g, "[IMAGE]");
+    return text.replace(
+      /!\[.*?\]\(data:image\/[a-zA-Z0-9-+.]+;base64,.*?\)/g,
+      "[IMAGE]"
+    );
   }
 }
 

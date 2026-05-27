@@ -34,7 +34,10 @@ const tickerKey = ref(0);
 
 // 计算属性
 const canExecute = computed(() => {
-  return sourceFiles.value.length > 0 && (operationMode.value === "link-only" || !!targetDirectory.value);
+  return (
+    sourceFiles.value.length > 0 &&
+    (operationMode.value === "link-only" || !!targetDirectory.value)
+  );
 });
 
 // 生命周期钩子

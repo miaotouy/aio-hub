@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useRouter } from "vue-router";
-import { AlertTriangle, ShieldCheck, Globe, Key, Tag, Fingerprint } from "lucide-vue-next";
+import {
+  AlertTriangle,
+  ShieldCheck,
+  Globe,
+  Key,
+  Tag,
+  Fingerprint,
+} from "lucide-vue-next";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import { useDeepLinkStore } from "@/stores/deepLink";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
@@ -19,8 +26,9 @@ const profile = computed(() => deepLinkStore.pendingProfile);
 const isDuplicate = computed(() => {
   if (!profile.value) return false;
   return profiles.value.some(
-    (p) => 
-      p.baseUrl.replace(/\/+$/, "") === profile.value!.baseUrl.replace(/\/+$/, "") && 
+    (p) =>
+      p.baseUrl.replace(/\/+$/, "") ===
+        profile.value!.baseUrl.replace(/\/+$/, "") &&
       p.apiKeys[0] === profile.value!.apiKeys[0]
   );
 });
@@ -119,7 +127,11 @@ const handleCancel = () => {
     <template #footer>
       <div class="dialog-footer">
         <el-button @click="handleCancel">取消</el-button>
-        <el-button type="primary" :disabled="isDuplicate" @click="handleConfirm">
+        <el-button
+          type="primary"
+          :disabled="isDuplicate"
+          @click="handleConfirm"
+        >
           确认添加
         </el-button>
       </div>

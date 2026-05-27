@@ -5,7 +5,7 @@ import zhCN from "./locales/zh-CN.json";
  */
 type NestedKeyOf<T, Prefix extends string = ""> = {
   [K in keyof T & string]: T[K] extends object
-    ? `${Prefix}${K}` | NestedKeyOf<T[K], `${Prefix}${K}.` >
+    ? `${Prefix}${K}` | NestedKeyOf<T[K], `${Prefix}${K}.`>
     : `${Prefix}${K}`;
 }[keyof T & string];
 

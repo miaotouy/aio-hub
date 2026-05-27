@@ -13,7 +13,11 @@
       </div>
       <el-collapse-transition>
         <div v-show="presetsExpanded" class="presets-content">
-          <div class="preset-category" v-for="category in presetCategories" :key="category.name">
+          <div
+            class="preset-category"
+            v-for="category in presetCategories"
+            :key="category.name"
+          >
             <div class="category-name">{{ category.name }}</div>
             <div class="preset-tags">
               <el-tooltip
@@ -22,7 +26,11 @@
                 :content="preset.description"
                 placement="top"
               >
-                <el-tag class="preset-tag" size="small" @click="applyPreset(preset)">
+                <el-tag
+                  class="preset-tag"
+                  size="small"
+                  @click="applyPreset(preset)"
+                >
                   {{ preset.name }}
                 </el-tag>
               </el-tooltip>
@@ -57,7 +65,10 @@
           </el-radio-group>
         </el-form-item>
 
-        <el-form-item v-if="localRule.replacementType === 'regex'" label="替换内容">
+        <el-form-item
+          v-if="localRule.replacementType === 'regex'"
+          label="替换内容"
+        >
           <el-input
             v-model="localRule.replacement"
             type="textarea"
@@ -76,16 +87,22 @@
               placeholder="// 脚本必须通过 return 返回一个字符串&#10;// 可用变量: match, groups, index, source&#10;return match.toUpperCase();"
             />
             <div class="script-hint">
-              可用变量: <code>match</code> (完整匹配), <code>groups</code> (捕获组数组),
-              <code>index</code> (偏移位置), <code>source</code> (原始输入)
+              可用变量: <code>match</code> (完整匹配),
+              <code>groups</code> (捕获组数组), <code>index</code> (偏移位置),
+              <code>source</code> (原始输入)
             </div>
           </div>
         </el-form-item>
 
         <el-form-item label="正则标志">
-          <el-input v-model="localRule.flags" placeholder="默认 gm" style="width: 100px" />
+          <el-input
+            v-model="localRule.flags"
+            placeholder="默认 gm"
+            style="width: 100px"
+          />
           <span class="form-hint"
-            >支持: g(全局) i(忽略大小写) m(多行) s(点号通配) u(Unicode) y(粘连)</span
+            >支持: g(全局) i(忽略大小写) m(多行) s(点号通配) u(Unicode)
+            y(粘连)</span
           >
         </el-form-item>
       </el-form>
@@ -147,7 +164,9 @@
 
         <el-form-item label="流式处理">
           <el-switch v-model="localRule.applyInStreaming" />
-          <span class="form-hint">是否在流式输出过程中实时应用。复杂脚本建议关闭以提高性能。</span>
+          <span class="form-hint"
+            >是否在流式输出过程中实时应用。复杂脚本建议关闭以提高性能。</span
+          >
         </el-form-item>
 
         <el-form-item label="目标角色">
@@ -191,7 +210,9 @@
             <el-radio-button value="RAW">原始值</el-radio-button>
             <el-radio-button value="ESCAPED">转义值</el-radio-button>
           </el-radio-group>
-          <div class="form-hint">RAW: 将宏替换为文本值；ESCAPED: 替换后转义正则特殊字符</div>
+          <div class="form-hint">
+            RAW: 将宏替换为文本值；ESCAPED: 替换后转义正则特殊字符
+          </div>
         </el-form-item>
 
         <el-form-item label="后处理移除字符串">
@@ -215,7 +236,10 @@ import { computed, ref, reactive } from "vue";
 import { ChevronRight } from "lucide-vue-next";
 import type { ChatRegexRule } from "../../types/chatRegex";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
-import { executeReplacementScript, parseRegexString } from "../../utils/chatRegexUtils";
+import {
+  executeReplacementScript,
+  parseRegexString,
+} from "../../utils/chatRegexUtils";
 
 // 预制规则类型
 interface PresetRule {
@@ -238,14 +262,17 @@ const presetCategories: PresetCategory[] = [
     presets: [
       {
         name: "折叠思考块",
-        description: "将 <think>...</think> 或 <thinking>...</thinking> 转换为可折叠的详情块",
+        description:
+          "将 <think>...</think> 或 <thinking>...</thinking> 转换为可折叠的详情块",
         regex: "<think(?:ing)?>(.*?)</think(?:ing)?>",
-        replacement: "<details><summary>💭 思考过程</summary>\n\n$1\n\n</details>",
+        replacement:
+          "<details><summary>💭 思考过程</summary>\n\n$1\n\n</details>",
         flags: "gms",
       },
       {
         name: "移除思考块",
-        description: "完全移除 <think>...</think> 或 <thinking>...</thinking> 标签及其内容",
+        description:
+          "完全移除 <think>...</think> 或 <thinking>...</thinking> 标签及其内容",
         regex: "<think(?:ing)?>.*?</think(?:ing)?>",
         replacement: "",
         flags: "gms",
@@ -443,7 +470,10 @@ const depthMin = computed({
       const { depthRange, ...rest } = props.modelValue;
       emit("update:modelValue", rest);
     } else {
-      emit("update:modelValue", { ...props.modelValue, depthRange: newDepthRange });
+      emit("update:modelValue", {
+        ...props.modelValue,
+        depthRange: newDepthRange,
+      });
     }
   },
 });
@@ -456,7 +486,10 @@ const depthMax = computed({
       const { depthRange, ...rest } = props.modelValue;
       emit("update:modelValue", rest);
     } else {
-      emit("update:modelValue", { ...props.modelValue, depthRange: newDepthRange });
+      emit("update:modelValue", {
+        ...props.modelValue,
+        depthRange: newDepthRange,
+      });
     }
   },
 });
@@ -520,7 +553,9 @@ const highlightedOutput = computed(() => {
 
     // 如果有替换内容，显示替换结果并高亮被替换的部分
     if (
-      (replacementType === "regex" && replacement !== undefined && replacement !== "") ||
+      (replacementType === "regex" &&
+        replacement !== undefined &&
+        replacement !== "") ||
       (replacementType === "script" && scriptContent)
     ) {
       // 收集所有替换信息：原始位置、匹配长度、替换后的内容
@@ -553,7 +588,13 @@ const highlightedOutput = computed(() => {
             if (actualReplacement === match && scriptContent?.trim()) {
               // 再次执行以捕获错误（由于 cache 存在，开销较小）
               try {
-                const fn = new Function("match", "groups", "index", "source", scriptContent!);
+                const fn = new Function(
+                  "match",
+                  "groups",
+                  "index",
+                  "source",
+                  scriptContent!
+                );
                 fn(match, groups, offset, source);
               } catch (e) {
                 actualReplacement = `[Error: ${e instanceof Error ? e.message : String(e)}]`;
@@ -565,7 +606,9 @@ const highlightedOutput = computed(() => {
         } else {
           // 计算实际的替换内容（处理 $1, $2 等捕获组引用）
           // 同时处理常用的转义序列，如 \n, \t
-          const finalReplacement = replacement!.replace(/\\n/g, "\n").replace(/\\t/g, "\t");
+          const finalReplacement = replacement!
+            .replace(/\\n/g, "\n")
+            .replace(/\\t/g, "\t");
           actualReplacement = match.replace(tempRegex, finalReplacement);
         }
 
@@ -725,7 +768,11 @@ const highlightedOutput = computed(() => {
 .preset-tag {
   cursor: pointer;
   transition: all 0.2s ease;
-  background-color: color-mix(in srgb, var(--primary-color) 15%, transparent) !important;
+  background-color: color-mix(
+    in srgb,
+    var(--primary-color) 15%,
+    transparent
+  ) !important;
   border-color: var(--primary-color) !important;
   color: var(--primary-color) !important;
 }
@@ -733,7 +780,11 @@ const highlightedOutput = computed(() => {
 .preset-tag:hover {
   transform: translateY(-1px);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  background-color: color-mix(in srgb, var(--primary-color) 25%, transparent) !important;
+  background-color: color-mix(
+    in srgb,
+    var(--primary-color) 25%,
+    transparent
+  ) !important;
 }
 
 .preset-tag:active {

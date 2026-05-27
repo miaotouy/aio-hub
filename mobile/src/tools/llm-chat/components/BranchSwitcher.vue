@@ -13,7 +13,10 @@ const chatStore = useLlmChatStore();
 
 const branchInfo = computed(() => {
   if (!chatStore.currentSession) return { index: 0, total: 0 };
-  return BranchNavigator.getSiblingIndex(chatStore.currentSession, props.message.id);
+  return BranchNavigator.getSiblingIndex(
+    chatStore.currentSession,
+    props.message.id
+  );
 });
 
 const hasMultipleBranches = computed(() => branchInfo.value.total > 1);
@@ -32,7 +35,9 @@ const handleNext = () => {
     <button class="nav-btn" @click="handlePrev">
       <ChevronLeft :size="14" />
     </button>
-    <span class="branch-info"> {{ branchInfo.index + 1 }} / {{ branchInfo.total }} </span>
+    <span class="branch-info">
+      {{ branchInfo.index + 1 }} / {{ branchInfo.total }}
+    </span>
     <button class="nav-btn" @click="handleNext">
       <ChevronRight :size="14" />
     </button>

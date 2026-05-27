@@ -37,7 +37,9 @@ const paramsEnabled = computed({
 const internalParams = computed(() => props.modelValue?.params ?? {});
 
 // 是否配置了内部参数（用于UI显示，如“编辑” vs “添加”）
-const hasInternalParams = computed(() => Object.keys(internalParams.value).length > 0);
+const hasInternalParams = computed(
+  () => Object.keys(internalParams.value).length > 0
+);
 
 // 打开弹窗时，初始化 JSON 字符串
 const openCustomParamsDialog = () => {
@@ -75,7 +77,9 @@ const saveCustomParams = () => {
       </div>
 
       <template v-if="paramsEnabled">
-        <div class="param-hint">你可以在这里添加自定义参数。参数将以 JSON 格式合并到请求体中。</div>
+        <div class="param-hint">
+          你可以在这里添加自定义参数。参数将以 JSON 格式合并到请求体中。
+        </div>
         <el-button
           :type="hasInternalParams ? 'primary' : 'default'"
           :plain="hasInternalParams"
@@ -103,7 +107,9 @@ const saveCustomParams = () => {
     >
       <div class="dialog-content">
         <p class="dialog-hint">
-          请以 JSON 格式输入您想添加或覆盖的参数。这些参数将与标准参数合并后发送给 LLM API。
+          请以 JSON
+          格式输入您想添加或覆盖的参数。这些参数将与标准参数合并后发送给 LLM
+          API。
         </p>
         <RichCodeEditor
           v-model="customParamsJsonString"
@@ -115,7 +121,9 @@ const saveCustomParams = () => {
       </div>
       <template #footer>
         <div class="dialog-footer">
-          <el-button @click="isCustomParamsDialogVisible = false">取消</el-button>
+          <el-button @click="isCustomParamsDialogVisible = false"
+            >取消</el-button
+          >
           <el-button type="primary" @click="saveCustomParams">保存</el-button>
         </div>
       </template>

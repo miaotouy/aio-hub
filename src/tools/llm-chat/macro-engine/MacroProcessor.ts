@@ -3,13 +3,17 @@
  * 核心处理引擎，协调三阶段执行管道
  */
 
-import type { MacroContext } from './MacroContext';
-import { MacroRegistry, MacroPhase, type MacroDefinition } from './MacroRegistry';
-import { createModuleLogger } from '@/utils/logger';
-import { createModuleErrorHandler } from '@/utils/errorHandler';
+import type { MacroContext } from "./MacroContext";
+import {
+  MacroRegistry,
+  MacroPhase,
+  type MacroDefinition,
+} from "./MacroRegistry";
+import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 
-const logger = createModuleLogger('llm-chat/macro-processor');
-const errorHandler = createModuleErrorHandler('llm-chat/macro-processor');
+const logger = createModuleLogger("llm-chat/macro-processor");
+const errorHandler = createModuleErrorHandler("llm-chat/macro-processor");
 
 /**
  * 宏验证结果
@@ -79,10 +83,10 @@ export class MacroProcessor {
     const silent = options?.silent ?? false;
 
     // 检查是否包含宏（使用简单的字符串检查，避免正则状态问题）
-    const hasMacros = text.includes('{{');
+    const hasMacros = text.includes("{{");
     if (!hasMacros) {
       if (!silent) {
-        logger.debug('文本不包含宏，跳过处理');
+        logger.debug("文本不包含宏，跳过处理");
       }
       return {
         output: text,
@@ -92,7 +96,7 @@ export class MacroProcessor {
     }
 
     if (!silent) {
-      logger.debug('开始宏处理', { textLength: text.length });
+      logger.debug("开始宏处理", { textLength: text.length });
     }
 
     // 三阶段处理
@@ -111,7 +115,7 @@ export class MacroProcessor {
     current = afterPreProcess.output;
     macroCount += afterPreProcess.count;
     if (!silent) {
-      logger.debug('预处理完成', { macroCount: afterPreProcess.count });
+      logger.debug("预处理完成", { macroCount: afterPreProcess.count });
     }
 
     // 阶段二：替换（静态值）
@@ -125,7 +129,7 @@ export class MacroProcessor {
     current = afterSubstitute.output;
     macroCount += afterSubstitute.count;
     if (!silent) {
-      logger.debug('替换完成', { macroCount: afterSubstitute.count });
+      logger.debug("替换完成", { macroCount: afterSubstitute.count });
     }
 
     // 阶段三：后处理（动态函数）
@@ -139,25 +143,25 @@ export class MacroProcessor {
     current = afterPostProcess.output;
     macroCount += afterPostProcess.count;
     if (!silent) {
-      logger.debug('后处理完成', { macroCount: afterPostProcess.count });
+      logger.debug("后处理完成", { macroCount: afterPostProcess.count });
     }
 
     // 处理 trim 标记
     // 将 __TRIM__ 及其前后的空白字符全部移除
     // 这允许在模板中使用 {{trim}} 来消除为了代码可读性而添加的换行符
-    if (current.includes('__TRIM__')) {
-      current = current.replace(/\s*__TRIM__\s*/g, '');
+    if (current.includes("__TRIM__")) {
+      current = current.replace(/\s*__TRIM__\s*/g, "");
     }
 
     // 最后一步：处理转义字符
     // 将 \{{ 替换回 {{
-    if (current.includes('\\{{')) {
-      current = current.replace(/\\\{\{/g, '{{');
+    if (current.includes("\\{{")) {
+      current = current.replace(/\\\{\{/g, "{{");
     }
 
     const duration = Date.now() - startTime;
     if (!silent) {
-      logger.debug('宏处理完成', {
+      logger.debug("宏处理完成", {
         macroCount,
         duration: `${duration}ms`,
         originalLength: original.length,
@@ -206,11 +210,11 @@ export class MacroProcessor {
     const startTime = Date.now();
 
     // 快速过滤：找出包含宏的文本
-    const textsWithMacros = texts.filter(t => t.includes('{{'));
+    const textsWithMacros = texts.filter((t) => t.includes("{{"));
     const skippedCount = texts.length - textsWithMacros.length;
 
     if (textsWithMacros.length === 0) {
-      logger.debug('批量处理：所有文本均不包含宏，跳过处理', {
+      logger.debug("批量处理：所有文本均不包含宏，跳过处理", {
         totalCount: texts.length,
       });
       return {
@@ -221,7 +225,7 @@ export class MacroProcessor {
       };
     }
 
-    logger.debug('批量宏处理开始', {
+    logger.debug("批量宏处理开始", {
       totalCount: texts.length,
       withMacrosCount: textsWithMacros.length,
       skippedCount,
@@ -229,18 +233,20 @@ export class MacroProcessor {
 
     // 并行处理所有文本（静默模式）
     const results = await Promise.all(
-      texts.map(text => this.process(text, context, {
-        valueTransformer: options?.valueTransformer,
-        silent: true,
-      }))
+      texts.map((text) =>
+        this.process(text, context, {
+          valueTransformer: options?.valueTransformer,
+          silent: true,
+        })
+      )
     );
 
-    const outputs = results.map(r => r.output);
+    const outputs = results.map((r) => r.output);
     const totalMacroCount = results.reduce((sum, r) => sum + r.macroCount, 0);
-    const processedCount = results.filter(r => r.hasMacros).length;
+    const processedCount = results.filter((r) => r.hasMacros).length;
 
     const duration = Date.now() - startTime;
-    logger.debug('批量宏处理完成', {
+    logger.debug("批量宏处理完成", {
       totalCount: texts.length,
       processedCount,
       skippedCount,
@@ -271,11 +277,15 @@ export class MacroProcessor {
 
     // 获取该阶段的所有宏
     const phaseMacros = this.registry.getMacrosByPhase(phase);
-    const macroNames = new Set(phaseMacros.map(m => m.name));
+    const macroNames = new Set(phaseMacros.map((m) => m.name));
 
     // 创建替换映射表，用于批量替换
     const replacements = new Map<string, string>();
-    const executedMacros: Array<{ name: string; args?: string[]; resultLength: number }> = [];
+    const executedMacros: Array<{
+      name: string;
+      args?: string[];
+      resultLength: number;
+    }> = [];
     const unknownMacros: string[] = [];
 
     // 首先收集所有需要替换的宏及其结果（每次创建新的正则实例）
@@ -323,7 +333,7 @@ export class MacroProcessor {
         });
       } catch (error) {
         errorHandler.handle(error as Error, {
-          userMessage: '宏执行失败',
+          userMessage: "宏执行失败",
           showToUser: false,
           context: { phase, name, args },
         });
@@ -352,10 +362,10 @@ export class MacroProcessor {
     // 一次性替换所有宏（使用正则全局替换确保替换所有出现）
     for (const [macro, result] of replacements) {
       // 转义特殊字符，因为宏中包含 {{}}
-      const escapedMacro = macro.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const escapedMacro = macro.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       // 使用负向后瞻确保只替换未转义的宏
       // 注意：这会防止 \{{char}} 被替换，但也会导致 \\{{char}} 不被替换（已知限制，暂不处理复杂转义链）
-      const regex = new RegExp(`(?<!\\\\)${escapedMacro}`, 'g');
+      const regex = new RegExp(`(?<!\\\\)${escapedMacro}`, "g");
       output = output.replace(regex, result);
     }
 
@@ -367,11 +377,11 @@ export class MacroProcessor {
    */
   private parseMacro(content: string): { name: string; args?: string[] } {
     // 检查是否包含参数分隔符 ::
-    if (!content.includes('::')) {
+    if (!content.includes("::")) {
       return { name: content.trim() };
     }
 
-    const parts = content.split('::').map(p => p.trim());
+    const parts = content.split("::").map((p) => p.trim());
     return {
       name: parts[0],
       args: parts.slice(1),
@@ -396,13 +406,13 @@ export class MacroProcessor {
       // 查找相似的宏名（用于建议）
       const allMacros = registry.getAllMacros();
       const similar = allMacros
-        .filter(m => m.name.toLowerCase().includes(name.toLowerCase()))
+        .filter((m) => m.name.toLowerCase().includes(name.toLowerCase()))
         .slice(0, 3);
 
       return {
         valid: false,
         error: `未知的宏: ${name}`,
-        suggestions: similar.map(m => ({
+        suggestions: similar.map((m) => ({
           label: m.name,
           value: m.acceptsArgs ? `${m.name}::` : m.name,
         })),
@@ -418,7 +428,10 @@ export class MacroProcessor {
         };
       }
 
-      if (macroDef.argCount !== undefined && args.length !== macroDef.argCount) {
+      if (
+        macroDef.argCount !== undefined &&
+        args.length !== macroDef.argCount
+      ) {
         return {
           valid: false,
           error: `宏 ${name} 需要 ${macroDef.argCount} 个参数，但提供了 ${args.length} 个`,
@@ -437,9 +450,11 @@ export class MacroProcessor {
   /**
    * 提取文本中的所有宏
    */
-  static extractMacros(text: string): Array<{ name: string; args?: string[]; fullMatch: string }> {
+  static extractMacros(
+    text: string
+  ): Array<{ name: string; args?: string[]; fullMatch: string }> {
     const matches = Array.from(text.matchAll(MacroProcessor.getMacroPattern()));
-    return matches.map(match => {
+    return matches.map((match) => {
       const fullMatch = match[0];
       const macroContent = match[1];
       const { name, args } = MacroProcessor.prototype.parseMacro.call(
@@ -467,31 +482,35 @@ export class MacroProcessor {
     const macroDef = registry.getMacro(macroName);
 
     if (!macroDef) {
-      logger.warn('尝试直接执行不存在的宏', { macroName });
+      logger.warn("尝试直接执行不存在的宏", { macroName });
       return null;
     }
 
     if (!macroDef.contextFree) {
-      logger.warn('尝试直接执行依赖上下文的宏', { macroName });
+      logger.warn("尝试直接执行依赖上下文的宏", { macroName });
       return null;
     }
 
     try {
       // 创建一个最小化的空上下文，并合并额外上下文
       const minimalContext: MacroContext = {
-        userName: '',
-        charName: '',
+        userName: "",
+        charName: "",
         variables: new Map(),
         globalVariables: new Map(),
         ...extraContext,
       };
 
       const result = await macroDef.execute(minimalContext, args);
-      logger.debug('直接执行宏成功', { macroName, args, resultLength: result.length });
+      logger.debug("直接执行宏成功", {
+        macroName,
+        args,
+        resultLength: result.length,
+      });
       return result;
     } catch (error) {
       errorHandler.handle(error as Error, {
-        userMessage: '直接执行宏失败',
+        userMessage: "直接执行宏失败",
         showToUser: false,
         context: { macroName, args },
       });
@@ -504,7 +523,7 @@ export class MacroProcessor {
    */
   static getContextFreeMacros(): MacroDefinition[] {
     const registry = MacroRegistry.getInstance();
-    return registry.getAllMacros().filter(m => m.contextFree === true);
+    return registry.getAllMacros().filter((m) => m.contextFree === true);
   }
 
   /**

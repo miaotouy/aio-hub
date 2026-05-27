@@ -53,7 +53,9 @@ const filteredPresets = computed(() => {
   if (selectedProviderType.value === "all") {
     return llmPresets;
   }
-  return llmPresets.filter((p: LlmPreset) => p.type === selectedProviderType.value);
+  return llmPresets.filter(
+    (p: LlmPreset) => p.type === selectedProviderType.value
+  );
 });
 
 // 从预设创建配置
@@ -104,10 +106,14 @@ const getCategoryLabel = (category: ProviderType | "all") => {
                 <Terminal :size="14" style="margin-right: 4px" />
                 从 curl 导入
               </el-button>
-              <el-button size="small" type="primary" @click="createFromBlank"> 从空白创建 </el-button>
+              <el-button size="small" type="primary" @click="createFromBlank">
+                从空白创建
+              </el-button>
             </div>
           </div>
-          <p class="preset-section-desc">选择常用服务商快速创建配置，或粘贴 curl 命令自动解析</p>
+          <p class="preset-section-desc">
+            选择常用服务商快速创建配置，或粘贴 curl 命令自动解析
+          </p>
 
           <!-- 分类标签 -->
           <div class="category-tabs">
@@ -133,12 +139,20 @@ const getCategoryLabel = (category: ProviderType | "all") => {
               >
                 <DynamicIcon
                   class="preset-icon"
-                  :src="preset.logoUrl || getProviderIconForPreset(preset.type) || ''"
+                  :src="
+                    preset.logoUrl ||
+                    getProviderIconForPreset(preset.type) ||
+                    ''
+                  "
                   :alt="preset.name"
                 />
                 <div class="preset-info">
                   <div class="preset-name">{{ preset.name }}</div>
-                  <el-tooltip :content="preset.description" placement="top" :show-after="500">
+                  <el-tooltip
+                    :content="preset.description"
+                    placement="top"
+                    :show-after="500"
+                  >
                     <div class="preset-desc">{{ preset.description }}</div>
                   </el-tooltip>
                 </div>
@@ -151,7 +165,10 @@ const getCategoryLabel = (category: ProviderType | "all") => {
   </BaseDialog>
 
   <!-- curl 导入对话框 -->
-  <CurlImportDialog v-model:visible="showCurlImportDialog" @import="handleCurlImport" />
+  <CurlImportDialog
+    v-model:visible="showCurlImportDialog"
+    @import="handleCurlImport"
+  />
 </template>
 
 <style scoped>

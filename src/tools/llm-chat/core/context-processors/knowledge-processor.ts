@@ -4,7 +4,11 @@ import { createModuleLogger } from "@/utils/logger";
 import { searchKnowledge } from "../../services/knowledge-service";
 import type { SearchResult } from "../../../knowledge-base/types/search";
 import type { ChatAgent, AgentKnowledgeBaseConfig } from "../../types/agent";
-import { TurnRecord, getSessionRetrievalCache, getSessionHistory } from "../context-utils/knowledge-cache";
+import {
+  TurnRecord,
+  getSessionRetrievalCache,
+  getSessionHistory,
+} from "../context-utils/knowledge-cache";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
 import { invoke } from "@tauri-apps/api/core";
@@ -53,7 +57,11 @@ const KB_PLACEHOLDER_REGEX = /【(?:kb|knowledge)(?:::([^【】]*?))?】/g;
  * 参数解析函数：将链式字符串解析为结构化对象
  * 格式: kbName::limit::minScore::mode::modeParams
  */
-export function parseKBParams(raw: string, paramStr: string, messageIndex: number): KBPlaceholder {
+export function parseKBParams(
+  raw: string,
+  paramStr: string,
+  messageIndex: number
+): KBPlaceholder {
   const parts = (paramStr || "").split("::");
   return {
     raw,
@@ -70,7 +78,9 @@ export function parseKBParams(raw: string, paramStr: string, messageIndex: numbe
 /**
  * 扫描消息中的占位符
  */
-export function scanPlaceholders(messages: ProcessableMessage[]): KBPlaceholder[] {
+export function scanPlaceholders(
+  messages: ProcessableMessage[]
+): KBPlaceholder[] {
   const placeholders: KBPlaceholder[] = [];
   messages.forEach((msg, index) => {
     if (typeof msg.content !== "string") return;
@@ -101,10 +111,15 @@ export class KnowledgeProcessor implements ContextProcessor {
     if (placeholders.length === 0) {
       const kbConfig = agentConfig.knowledgeBaseConfig;
       if (kbConfig?.enabled && kbConfig.autoInjectIfMacroMissing) {
-        const autoPlaceholders = this.generateAutoPlaceholders(kbConfig, messages);
+        const autoPlaceholders = this.generateAutoPlaceholders(
+          kbConfig,
+          messages
+        );
         if (autoPlaceholders.length > 0) {
           placeholders = autoPlaceholders;
-          logger.debug("知识库自动注入已触发", { count: autoPlaceholders.length });
+          logger.debug("知识库自动注入已触发", {
+            count: autoPlaceholders.length,
+          });
         }
       }
     }
@@ -116,7 +131,10 @@ export class KnowledgeProcessor implements ContextProcessor {
     // 初始化缓存与历史（模块级持久化，跨请求存活）
     const { settings } = useChatSettings();
     const sessionId = context.detail.id;
-    const sessionCache = getSessionRetrievalCache(sessionId, settings.value.knowledgeBase.retrievalCacheMaxItems);
+    const sessionCache = getSessionRetrievalCache(
+      sessionId,
+      settings.value.knowledgeBase.retrievalCacheMaxItems
+    );
     const history = getSessionHistory(sessionId);
 
     logger.debug("发现知识库占位符", { count: placeholders.length });
@@ -142,7 +160,9 @@ export class KnowledgeProcessor implements ContextProcessor {
         const knowledgeSettings = agentConfig.knowledgeSettings;
         // 数据迁移兼容：从旧版 aggregation 中读取 enableCache
         const enableCache =
-          knowledgeSettings?.enableCache ?? (agentConfig.knowledgeSettings as any)?.aggregation?.enableCache ?? false;
+          knowledgeSettings?.enableCache ??
+          (agentConfig.knowledgeSettings as any)?.aggregation?.enableCache ??
+          false;
 
         // 缓存 key：基于 user + AI 文本组合
         const cacheKey = `${userText}|||${aiText}`;
@@ -150,7 +170,10 @@ export class KnowledgeProcessor implements ContextProcessor {
 
         // 确定最终使用的引擎 ID (优先级: 宏参数 > Agent 默认 > 全局默认)
         const engineId =
-          ph.engineId || knowledgeSettings?.defaultEngineId || settings.value.knowledgeBase.defaultEngineId || "vector";
+          ph.engineId ||
+          knowledgeSettings?.defaultEngineId ||
+          settings.value.knowledgeBase.defaultEngineId ||
+          "vector";
 
         // 确定是否需要向量化 (vector 和 hybrid 引擎需要)
         const isVectorNeeded = engineId === "vector" || engineId === "hybrid";
@@ -164,7 +187,9 @@ export class KnowledgeProcessor implements ContextProcessor {
         let cached = enableCache ? sessionCache.findByText(cacheKey) : null;
 
         if (cached) {
-          logger.debug("命中知识库检索缓存 (精确文本匹配)", { cacheKey: cacheKey.slice(0, 80) });
+          logger.debug("命中知识库检索缓存 (精确文本匹配)", {
+            cacheKey: cacheKey.slice(0, 80),
+          });
           results = cached.results;
           vector = cached.vector || null;
         } else {
@@ -189,7 +214,7 @@ export class KnowledgeProcessor implements ContextProcessor {
             vector = await this.buildContextQueryVector(
               queryTextForSearch, // user 侧使用清洗后的文本
               aiText, // AI 侧直接使用原文
-              effectiveComboId,
+              effectiveComboId
             );
           }
 
@@ -200,7 +225,9 @@ export class KnowledgeProcessor implements ContextProcessor {
             const enabledBindings = kbConfig.bindings.filter((b) => b.enabled);
             if (ph.kbName) {
               // 如果占位符指定了知识库名称，只匹配对应的 kbId
-              const matched = enabledBindings.find((b) => b.kbName === ph.kbName);
+              const matched = enabledBindings.find(
+                (b) => b.kbName === ph.kbName
+              );
               if (matched) kbIds = [matched.kbId];
             } else {
               // 未指定名称时使用所有已启用的知识库
@@ -289,7 +316,11 @@ export class KnowledgeProcessor implements ContextProcessor {
   /**
    * 检查占位符是否应该激活
    */
-  private shouldActivate(ph: KBPlaceholder, context: PipelineContext, _history: TurnRecord[]): boolean {
+  private shouldActivate(
+    ph: KBPlaceholder,
+    context: PipelineContext,
+    _history: TurnRecord[]
+  ): boolean {
     const { agentConfig, messages } = context;
     const settings = agentConfig.knowledgeSettings;
 
@@ -310,7 +341,9 @@ export class KnowledgeProcessor implements ContextProcessor {
         const scanDepth = settings?.gateScanDepth || 3;
         const recentMessages = messages.slice(-scanDepth);
         return recentMessages.some(
-          (msg) => typeof msg.content === "string" && keywords.some((kw) => (msg.content as string).includes(kw)),
+          (msg) =>
+            typeof msg.content === "string" &&
+            keywords.some((kw) => (msg.content as string).includes(kw))
         );
       }
       default:
@@ -386,11 +419,15 @@ export class KnowledgeProcessor implements ContextProcessor {
         if (!meta?.entries) continue;
 
         // 收集所有已启用条目的 ID
-        const enabledIds = meta.entries.filter((e: any) => e.vectorStatus !== "error").map((e: any) => e.id);
+        const enabledIds = meta.entries
+          .filter((e: any) => e.vectorStatus !== "error")
+          .map((e: any) => e.id);
 
         if (enabledIds.length === 0) continue;
 
-        const entries = await invoke<any[]>("kb_get_entries", { ids: enabledIds });
+        const entries = await invoke<any[]>("kb_get_entries", {
+          ids: enabledIds,
+        });
         for (const e of entries) {
           results.push({
             score: 1.0,
@@ -430,7 +467,10 @@ export class KnowledgeProcessor implements ContextProcessor {
     *
     * 不在文本层面拼接角色标记，而是分别提取 → 分别净化 → 分别 embed → 向量空间加权平均。
     */
-  private extractContextParts(context: PipelineContext): { userText: string; aiText: string } {
+  private extractContextParts(context: PipelineContext): {
+    userText: string;
+    aiText: string;
+  } {
     const { messages, agentConfig } = context;
     // 数据迁移兼容：优先读取顶层 contextWindow，回退到旧版 aggregation.contextWindow
     const windowSize =
@@ -494,7 +534,7 @@ export class KnowledgeProcessor implements ContextProcessor {
   private async buildContextQueryVector(
     userText: string,
     aiText: string,
-    effectiveComboId: string | undefined,
+    effectiveComboId: string | undefined
   ): Promise<number[] | null> {
     if (!effectiveComboId) {
       logger.warn("未配置 Embedding 模型，无法执行向量检索");
@@ -518,9 +558,13 @@ export class KnowledgeProcessor implements ContextProcessor {
 
     try {
       // 分别 embed user 和 AI 文本
-      const userVector = userText ? await vectorCacheManager.getVector(userText, profile, pureModelId) : null;
+      const userVector = userText
+        ? await vectorCacheManager.getVector(userText, profile, pureModelId)
+        : null;
 
-      const aiVector = aiText ? await vectorCacheManager.getVector(aiText, profile, pureModelId) : null;
+      const aiVector = aiText
+        ? await vectorCacheManager.getVector(aiText, profile, pureModelId)
+        : null;
 
       // 向量空间加权平均
       if (userVector && aiVector) {
@@ -538,7 +582,10 @@ export class KnowledgeProcessor implements ContextProcessor {
   /**
    * 向量加权平均
    */
-  private weightedAverageVector(vectors: number[][], weights: number[]): number[] {
+  private weightedAverageVector(
+    vectors: number[][],
+    weights: number[]
+  ): number[] {
     const dim = vectors[0].length;
     const result = new Array<number>(dim).fill(0);
     const totalWeight = weights.reduce((sum, w) => sum + w, 0);
@@ -563,7 +610,7 @@ export class KnowledgeProcessor implements ContextProcessor {
    */
   private generateAutoPlaceholders(
     kbConfig: AgentKnowledgeBaseConfig,
-    messages: ProcessableMessage[],
+    messages: ProcessableMessage[]
   ): KBPlaceholder[] {
     const enabledBindings = kbConfig.bindings.filter((b) => b.enabled);
     if (enabledBindings.length === 0) return [];
@@ -591,7 +638,11 @@ export class KnowledgeProcessor implements ContextProcessor {
         }
       }
 
-      placeholderRaws.push(parts.length > 0 ? `【kb::${parts.join("::")}】` : `【kb::${binding.kbName}】`);
+      placeholderRaws.push(
+        parts.length > 0
+          ? `【kb::${parts.join("::")}】`
+          : `【kb::${binding.kbName}】`
+      );
     }
 
     // 确定注入方式和位置
@@ -660,7 +711,8 @@ export class KnowledgeProcessor implements ContextProcessor {
       const targetMsg = messages[targetIndex];
       if (targetMsg && typeof targetMsg.content === "string") {
         if (!targetMsg.content.includes(placeholderTexts)) {
-          targetMsg.content = targetMsg.content.trimEnd() + "\n\n" + placeholderTexts;
+          targetMsg.content =
+            targetMsg.content.trimEnd() + "\n\n" + placeholderTexts;
         }
       }
     }
@@ -686,7 +738,10 @@ export class KnowledgeProcessor implements ContextProcessor {
   /**
    * 格式化检索结果
    */
-  private formatResults(results: SearchResult[], agentConfig: ChatAgent): string {
+  private formatResults(
+    results: SearchResult[],
+    agentConfig: ChatAgent
+  ): string {
     const settings = agentConfig.knowledgeSettings;
     if (results.length === 0) {
       return settings?.emptyText || "（未检索到相关知识）";
@@ -714,7 +769,10 @@ export class KnowledgeProcessor implements ContextProcessor {
 
         // 处理标签
         if (r.caiu.tags && r.caiu.tags.length > 0) {
-          item = item.replace(/{tags}/g, r.caiu.tags.map((t) => t.name).join(", "));
+          item = item.replace(
+            /{tags}/g,
+            r.caiu.tags.map((t) => t.name).join(", ")
+          );
         } else {
           item = item.replace(/{tags}/g, "");
         }
@@ -723,7 +781,9 @@ export class KnowledgeProcessor implements ContextProcessor {
       })
       .join("\n\n");
 
-    return template.replace(/{count}/g, results.length.toString()).replace(/{items}/g, itemsContent);
+    return template
+      .replace(/{count}/g, results.length.toString())
+      .replace(/{items}/g, itemsContent);
   }
 }
 

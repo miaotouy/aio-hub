@@ -39,7 +39,8 @@ export default class DataFilterRegistry implements ToolRegistry {
             {
               name: "dataPath",
               type: "string",
-              description: '目标数组在对象中的路径 (例如 "data.items")，如果文件本身就是数组则留空',
+              description:
+                '目标数组在对象中的路径 (例如 "data.items")，如果文件本身就是数组则留空',
               required: false,
             },
             {
@@ -52,7 +53,8 @@ export default class DataFilterRegistry implements ToolRegistry {
             {
               name: "keepUnmatched",
               type: "string",
-              description: "是否保留不匹配的项，传入 'true' 或 'false' (默认 'false')",
+              description:
+                "是否保留不匹配的项，传入 'true' 或 'false' (默认 'false')",
               required: false,
             },
           ],

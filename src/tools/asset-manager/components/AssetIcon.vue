@@ -31,13 +31,21 @@
         <div class="spinner-small"></div>
       </div>
       <div v-else class="file-icon-wrapper fallback">
-        <FileIcon :file-name="asset.name" :file-type="asset.type" :size="iconSize" />
+        <FileIcon
+          :file-name="asset.name"
+          :file-type="asset.type"
+          :size="iconSize"
+        />
       </div>
     </template>
 
     <!-- 文件类型图标 fallback -->
     <div v-else class="file-icon-wrapper">
-      <FileIcon :file-name="asset.name" :file-type="asset.type" :size="iconSize" />
+      <FileIcon
+        :file-name="asset.name"
+        :file-type="asset.type"
+        :size="iconSize"
+      />
     </div>
   </div>
 </template>

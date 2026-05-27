@@ -92,7 +92,9 @@ const emit = defineEmits<{
     </div>
 
     <div class="filter-footer" v-if="hasActiveFilters">
-      <el-button size="small" link type="primary" @click="emit('reset')">重置所有筛选</el-button>
+      <el-button size="small" link type="primary" @click="emit('reset')"
+        >重置所有筛选</el-button
+      >
     </div>
   </div>
 </template>

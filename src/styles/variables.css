@@ -39,12 +39,18 @@
   --card-bg-rgb: 247, 247, 247;
   --backdrop-bg-rgb: 0, 0, 0; /* 遮罩层背景 */
   --border-color-light-rgb: 238, 238, 238; /* 浅色边框 RGB (#eee) */
-  --border-color-light: rgba(var(--border-color-light-rgb), var(--border-opacity));
+  --border-color-light: rgba(
+    var(--border-color-light-rgb),
+    var(--border-opacity)
+  );
   --scrollbar-thumb-color-rgb: 193, 193, 193;
   --scrollbar-thumb-hover-color-rgb: 168, 168, 168;
   --scrollbar-thumb-opacity: 0.5;
   --scrollbar-thumb-hover-opacity: 0.7;
-  --scrollbar-thumb-color: rgba(var(--scrollbar-thumb-color-rgb), var(--scrollbar-thumb-opacity));
+  --scrollbar-thumb-color: rgba(
+    var(--scrollbar-thumb-color-rgb),
+    var(--scrollbar-thumb-opacity)
+  );
   --scrollbar-thumb-hover-color: rgba(
     var(--scrollbar-thumb-hover-color-rgb),
     var(--scrollbar-thumb-hover-opacity)
@@ -91,7 +97,10 @@ html.dark {
   --border-color-rgb: 58, 58, 58;
   --border-color: rgba(var(--border-color-rgb), var(--border-opacity));
   --border-color-light-rgb: 47, 47, 47; /* 浅边框颜色 RGB (#2f2f2f) */
-  --border-color-light: rgba(var(--border-color-light-rgb), var(--border-opacity));
+  --border-color-light: rgba(
+    var(--border-color-light-rgb),
+    var(--border-opacity)
+  );
   --primary-color: #409eff; /* 主色调 - 保持 Element Plus 蓝色 */
   --primary-hover-color: #66b1ff; /* 主色调悬停色 */
   --error-color: #ff6b6b; /* 错误色 */

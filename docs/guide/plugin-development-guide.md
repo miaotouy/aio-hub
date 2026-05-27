@@ -137,7 +137,14 @@ function getMetadata(): ServiceMetadata {
         displayName: "添加时间戳",
         description: "为输入的文本添加当前 ISO 格式的时间戳前缀",
         agentCallable: true,
-        parameters: [{ name: "text", type: "string", description: "目标文本", required: true }],
+        parameters: [
+          {
+            name: "text",
+            type: "string",
+            description: "目标文本",
+            required: true,
+          },
+        ],
         returnType: "Promise<string>",
       },
     ],
@@ -457,8 +464,18 @@ export function getMetadata(): ServiceMetadata {
           estimatedDuration: 30000, // 预估耗时 30 秒（毫秒）
         },
         parameters: [
-          { name: "filePath", type: "string", description: "文件路径", required: true },
-          { name: "options", type: "object", description: "处理选项", required: false },
+          {
+            name: "filePath",
+            type: "string",
+            description: "文件路径",
+            required: true,
+          },
+          {
+            name: "options",
+            type: "object",
+            description: "处理选项",
+            required: false,
+          },
         ],
         returnType: "Promise<ProcessResult>",
       },
@@ -483,7 +500,10 @@ export interface ToolContext {
 **完整示例**：
 
 ```typescript
-async function processLargeFile(args: { filePath: string; options?: any }, context?: ToolContext) {
+async function processLargeFile(
+  args: { filePath: string; options?: any },
+  context?: ToolContext
+) {
   // 如果没有上下文，说明是普通同步调用
   const isAsync = context?.isAsync ?? false;
 

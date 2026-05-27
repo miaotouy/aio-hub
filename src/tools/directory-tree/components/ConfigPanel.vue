@@ -4,14 +4,21 @@
       <div class="config-section">
         <div class="label-with-action">
           <label>目标路径</label>
-          <el-popover v-if="sortedPathHistory.length > 0" placement="bottom-start" :width="400" trigger="click">
+          <el-popover
+            v-if="sortedPathHistory.length > 0"
+            placement="bottom-start"
+            :width="400"
+            trigger="click"
+          >
             <template #reference>
               <el-button :icon="Clock" title="路径历史" text size="small" />
             </template>
             <div class="history-menu">
               <div class="history-header">
                 <span class="history-title">路径历史</span>
-                <el-button text size="small" @click="onClearHistory">清空</el-button>
+                <el-button text size="small" @click="onClearHistory"
+                  >清空</el-button
+                >
               </div>
               <div class="history-list">
                 <div
@@ -23,10 +30,16 @@
                   <div class="history-item-content">
                     <el-icon class="history-icon"><FolderOpened /></el-icon>
                     <div class="history-path">
-                      <div class="path-text" :title="item.path">{{ item.path }}</div>
+                      <div class="path-text" :title="item.path">
+                        {{ item.path }}
+                      </div>
                       <div class="path-meta">
-                        <span class="access-count">{{ item.accessCount }} 次</span>
-                        <span class="access-time">{{ formatHistoryTime(item.lastAccessTime) }}</span>
+                        <span class="access-count"
+                          >{{ item.accessCount }} 次</span
+                        >
+                        <span class="access-time">{{
+                          formatHistoryTime(item.lastAccessTime)
+                        }}</span>
                       </div>
                     </div>
                   </div>
@@ -42,7 +55,13 @@
             </div>
           </el-popover>
         </div>
-        <DropZone variant="input" :directory-only="true" :multiple="false" hide-content @drop="handlePathDrop">
+        <DropZone
+          variant="input"
+          :directory-only="true"
+          :multiple="false"
+          hide-content
+          @drop="handlePathDrop"
+        >
           <div class="path-input-group">
             <el-input
               :model-value="targetPath"
@@ -50,7 +69,9 @@
               placeholder="输入或选择目录路径（支持拖拽）"
               @keyup.enter="$emit('generate')"
             />
-            <el-button @click="$emit('selectDirectory')" :icon="FolderOpened">选择</el-button>
+            <el-button @click="$emit('selectDirectory')" :icon="FolderOpened"
+              >选择</el-button
+            >
           </div>
         </DropZone>
       </div>
@@ -58,10 +79,16 @@
       <div class="config-section">
         <label>显示选项</label>
         <div class="checkbox-group">
-          <el-checkbox :model-value="showFiles" @update:model-value="$emit('update:showFiles', $event)">
+          <el-checkbox
+            :model-value="showFiles"
+            @update:model-value="$emit('update:showFiles', $event)"
+          >
             显示文件
           </el-checkbox>
-          <el-checkbox :model-value="showHidden" @update:model-value="$emit('update:showHidden', $event)">
+          <el-checkbox
+            :model-value="showHidden"
+            @update:model-value="$emit('update:showHidden', $event)"
+          >
             显示隐藏文件
           </el-checkbox>
           <el-checkbox
@@ -119,7 +146,9 @@
             class="depth-input"
           />
         </div>
-        <div class="depth-info">当前深度: {{ maxDepth === 0 ? "无限制" : maxDepth }}</div>
+        <div class="depth-info">
+          当前深度: {{ maxDepth === 0 ? "无限制" : maxDepth }}
+        </div>
       </div>
     </div>
 
@@ -139,7 +168,12 @@
 </template>
 
 <script setup lang="ts">
-import { FolderOpened, Histogram, Clock, Delete } from "@element-plus/icons-vue";
+import {
+  FolderOpened,
+  Histogram,
+  Clock,
+  Delete,
+} from "@element-plus/icons-vue";
 import { customMessage } from "@/utils/customMessage";
 import InfoCard from "@components/common/InfoCard.vue";
 import DropZone from "@components/common/DropZone.vue";

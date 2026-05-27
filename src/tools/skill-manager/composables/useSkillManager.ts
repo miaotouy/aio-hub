@@ -58,7 +58,7 @@ export function useSkillManager() {
       async () => {
         await skillLoader.uninstallSkill(name);
       },
-      { userMessage: `卸载技能 "${name}" 失败`, showToUser: false },
+      { userMessage: `卸载技能 "${name}" 失败`, showToUser: false }
     );
 
     if (result === null) return false;
@@ -69,7 +69,10 @@ export function useSkillManager() {
   }
 
   /** 重命名技能（仅 user 来源） */
-  async function renameSkill(oldName: string, newName: string): Promise<boolean> {
+  async function renameSkill(
+    oldName: string,
+    newName: string
+  ): Promise<boolean> {
     const manifest = store.manifests.find((m) => m.name === oldName);
     if (!manifest || manifest.source !== "user") return false;
 
@@ -77,7 +80,7 @@ export function useSkillManager() {
       async () => {
         await skillLoader.renameSkill(oldName, newName);
       },
-      { userMessage: `重命名技能 "${oldName}" 失败`, showToUser: false },
+      { userMessage: `重命名技能 "${oldName}" 失败`, showToUser: false }
     );
 
     if (result === null) return false;
@@ -99,7 +102,7 @@ export function useSkillManager() {
       async () => {
         await skillLoader.uninstallBundle(bundleName);
       },
-      { userMessage: `卸载技能包 "${bundleName}" 失败`, showToUser: false },
+      { userMessage: `卸载技能包 "${bundleName}" 失败`, showToUser: false }
     );
 
     if (result === null) return false;

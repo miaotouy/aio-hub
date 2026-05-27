@@ -8,7 +8,7 @@
 export interface FileItem {
   path: string;
   name: string;
-  status: 'pending' | 'processing' | 'success' | 'error';
+  status: "pending" | "processing" | "success" | "error";
   error?: string;
   isDirectory?: boolean;
   isCrossDevice?: boolean;
@@ -55,12 +55,12 @@ export interface CopyProgress {
 /**
  * 链接类型
  */
-export type LinkType = 'symlink' | 'link';
+export type LinkType = "symlink" | "link";
 
 /**
  * 操作模式
  */
-export type OperationMode = 'move' | 'link-only';
+export type OperationMode = "move" | "link-only";
 
 /**
  * 移动和链接选项
@@ -98,7 +98,7 @@ export interface FormattedLogSummary {
   time: string;
   operationType: string;
   linkType: string;
-  status: 'success' | 'partial' | 'failed';
+  status: "success" | "partial" | "failed";
   summary: string;
   details: {
     totalFiles: number;

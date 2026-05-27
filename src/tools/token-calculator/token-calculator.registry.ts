@@ -4,7 +4,10 @@
  */
 
 import type { ToolRegistry, ToolConfig } from "@/services/types";
-import { tokenCalculatorEngine, type TokenCalculationResult } from "./composables/useTokenCalculator";
+import {
+  tokenCalculatorEngine,
+  type TokenCalculationResult,
+} from "./composables/useTokenCalculator";
 import { calculatorProxy } from "./worker/calculator.proxy";
 import type { Asset } from "@/types/asset-management";
 import { getActiveModelProperties } from "@/config/model-metadata";
@@ -34,7 +37,10 @@ class TokenCalculatorRegistry implements ToolRegistry {
    * @param modelId - 模型ID
    * @returns Token 计算结果
    */
-  async calculateTokens(text: string, modelId: string): Promise<TokenCalculationResult> {
+  async calculateTokens(
+    text: string,
+    modelId: string
+  ): Promise<TokenCalculationResult> {
     return calculatorProxy.calculateTokens(text, modelId);
   }
 
@@ -44,7 +50,10 @@ class TokenCalculatorRegistry implements ToolRegistry {
    * @param tokenizerName - 分词器名称
    * @returns Token 计算结果
    */
-  async calculateTokensByTokenizer(text: string, tokenizerName: string): Promise<TokenCalculationResult> {
+  async calculateTokensByTokenizer(
+    text: string,
+    tokenizerName: string
+  ): Promise<TokenCalculationResult> {
     return calculatorProxy.calculateTokensByTokenizer(text, tokenizerName);
   }
 
@@ -66,7 +75,7 @@ class TokenCalculatorRegistry implements ToolRegistry {
   async getTokenizedText(
     text: string,
     identifier: string,
-    useTokenizerName: boolean = false,
+    useTokenizerName: boolean = false
   ): Promise<{ tokens: { text: string; id: number }[] } | null> {
     return calculatorProxy.getTokenizedText(text, identifier, useTokenizerName);
   }
@@ -92,7 +101,11 @@ class TokenCalculatorRegistry implements ToolRegistry {
    * @param attachments - 附件列表（可选）
    * @returns Token 计算结果
    */
-  async calculateMessageTokens(text: string, modelId: string, attachments?: Asset[]): Promise<TokenCalculationResult> {
+  async calculateMessageTokens(
+    text: string,
+    modelId: string,
+    attachments?: Asset[]
+  ): Promise<TokenCalculationResult> {
     // 1. 计算文本 Token (通过 Worker 代理)
     const textResult = await calculatorProxy.calculateTokens(text, modelId);
     let totalTokens = textResult.count;
@@ -109,8 +122,12 @@ class TokenCalculatorRegistry implements ToolRegistry {
 
       // 如果模型未定义视觉规则，默认使用 Gemini 2.0 规则作为参考
       // 这样即使在未配置的模型上也能得到一个估算值
-      const defaultVisionCost = { calculationMethod: "gemini_2_0", parameters: {} } as const;
-      const visionTokenCost = metadata?.capabilities?.visionTokenCost || defaultVisionCost;
+      const defaultVisionCost = {
+        calculationMethod: "gemini_2_0",
+        parameters: {},
+      } as const;
+      const visionTokenCost =
+        metadata?.capabilities?.visionTokenCost || defaultVisionCost;
 
       const mediaPromises = attachments.map(async (asset) => {
         // 处理图片
@@ -118,7 +135,11 @@ class TokenCalculatorRegistry implements ToolRegistry {
           const width = asset.metadata?.width || 1024;
           const height = asset.metadata?.height || 1024;
 
-          const imageTokens = await calculatorProxy.calculateImageTokens(width, height, visionTokenCost);
+          const imageTokens = await calculatorProxy.calculateImageTokens(
+            width,
+            height,
+            visionTokenCost
+          );
           imageTokenCount += imageTokens;
           mediaTokenCount += imageTokens;
           totalTokens += imageTokens;
@@ -126,7 +147,9 @@ class TokenCalculatorRegistry implements ToolRegistry {
         // 处理视频
         else if (asset.type === "video") {
           if (asset.metadata?.duration) {
-            const videoTokens = await calculatorProxy.calculateVideoTokens(asset.metadata.duration);
+            const videoTokens = await calculatorProxy.calculateVideoTokens(
+              asset.metadata.duration
+            );
             videoTokenCount += videoTokens;
             mediaTokenCount += videoTokens;
             totalTokens += videoTokens;
@@ -135,7 +158,9 @@ class TokenCalculatorRegistry implements ToolRegistry {
         // 处理音频
         else if (asset.type === "audio") {
           if (asset.metadata?.duration) {
-            const audioTokens = await calculatorProxy.calculateAudioTokens(asset.metadata.duration);
+            const audioTokens = await calculatorProxy.calculateAudioTokens(
+              asset.metadata.duration
+            );
             audioTokenCount += audioTokens;
             mediaTokenCount += audioTokens;
             totalTokens += audioTokens;
@@ -152,8 +177,10 @@ class TokenCalculatorRegistry implements ToolRegistry {
       attachments &&
       attachments.length > 0 &&
       attachments.some((a) => {
-        if (a.type === "image") return !a.metadata?.width || !a.metadata?.height;
-        if (a.type === "video" || a.type === "audio") return !a.metadata?.duration;
+        if (a.type === "image")
+          return !a.metadata?.width || !a.metadata?.height;
+        if (a.type === "video" || a.type === "audio")
+          return !a.metadata?.duration;
         return false;
       });
 
@@ -164,7 +191,8 @@ class TokenCalculatorRegistry implements ToolRegistry {
       imageTokenCount,
       videoTokenCount,
       audioTokenCount,
-      isEstimated: (textResult.isEstimated ?? false) || !!hasAttachmentsWithoutMetadata,
+      isEstimated:
+        (textResult.isEstimated ?? false) || !!hasAttachmentsWithoutMetadata,
       tokenizerName: textResult.tokenizerName,
     };
   }

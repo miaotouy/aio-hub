@@ -10,13 +10,23 @@
       :show-replace="showReplace"
       @toggle-dir="toggleDir"
       @toggle-file="(p: string) => $emit('toggleFile', p)"
-      @select-match="(fp: string, m: SearchMatch) => $emit('selectMatch', fp, m)"
+      @select-match="
+        (fp: string, m: SearchMatch) => $emit('selectMatch', fp, m)
+      "
       @dismiss-file="(fp: string) => $emit('dismissFile', fp)"
-      @dismiss-match="(fp: string, idx: number) => $emit('dismissMatch', fp, idx)"
+      @dismiss-match="
+        (fp: string, idx: number) => $emit('dismissMatch', fp, idx)
+      "
       @replace-file="(fp: string) => $emit('replaceFile', fp)"
-      @replace-match="(fp: string, idx: number) => $emit('replaceMatch', fp, idx)"
+      @replace-match="
+        (fp: string, idx: number) => $emit('replaceMatch', fp, idx)
+      "
       @context-menu="
-        (ev: MouseEvent, items: ContextMenuItem[], ctx: Record<string, unknown>) => $emit('contextMenu', ev, items, ctx)
+        (
+          ev: MouseEvent,
+          items: ContextMenuItem[],
+          ctx: Record<string, unknown>
+        ) => $emit('contextMenu', ev, items, ctx)
       "
     />
   </div>
@@ -42,7 +52,11 @@ defineEmits<{
   dismissMatch: [filePath: string, matchIndex: number];
   replaceFile: [filePath: string];
   replaceMatch: [filePath: string, matchIndex: number];
-  contextMenu: [event: MouseEvent, items: ContextMenuItem[], context: Record<string, unknown>];
+  contextMenu: [
+    event: MouseEvent,
+    items: ContextMenuItem[],
+    context: Record<string, unknown>,
+  ];
 }>();
 
 // 目录展开状态（独立于文件展开状态）
@@ -77,7 +91,7 @@ watch(
       }
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 function toggleDir(dirPath: string) {
@@ -160,8 +174,14 @@ function buildDirectoryTree(results: FileSearchResult[]): DirectoryNode[] {
     });
 
     // 计算总匹配数
-    const fileTotalMatches = files.reduce((sum, f) => sum + f.matches.length, 0);
-    const childTotalMatches = children.reduce((sum, c) => sum + c.totalMatches, 0);
+    const fileTotalMatches = files.reduce(
+      (sum, f) => sum + f.matches.length,
+      0
+    );
+    const childTotalMatches = children.reduce(
+      (sum, c) => sum + c.totalMatches,
+      0
+    );
 
     return {
       name: node.name,

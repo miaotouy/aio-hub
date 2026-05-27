@@ -65,7 +65,9 @@ function gravityForce(strength: number) {
 /**
  * 计算每个节点的直接子节点数
  */
-function calculateDirectChildrenCount(nodes: Record<string, ChatMessageNode> | undefined): Map<string, number> {
+function calculateDirectChildrenCount(
+  nodes: Record<string, ChatMessageNode> | undefined
+): Map<string, number> {
   const counts = new Map<string, number>();
   if (!nodes) return counts;
 
@@ -90,7 +92,7 @@ export function useGraphD3Simulation(
   layoutMode: Ref<LayoutMode>,
   debugMode: Ref<boolean>,
   nodes: Ref<any[]>,
-  edges: Ref<any[]>,
+  edges: Ref<any[]>
 ) {
   // D3 力模拟实例
   const simulation = ref<d3Force.Simulation<D3Node, D3Link> | null>(null);
@@ -98,7 +100,9 @@ export function useGraphD3Simulation(
   const d3Links = ref<D3Link[]>([]);
 
   // 节点真实尺寸缓存
-  const measuredDimensions = reactive(new Map<string, { width: number; height: number }>());
+  const measuredDimensions = reactive(
+    new Map<string, { width: number; height: number }>()
+  );
   // 是否正在等待节点尺寸更新
   const isWaitingForDimensions = ref(false);
   // 等待尺寸更新的节点 ID 集合
@@ -117,7 +121,9 @@ export function useGraphD3Simulation(
 
     // 准备 D3 数据
     d3Nodes.value = nodes.value.map((n) => {
-      const existingD3Node = simulation.value?.nodes().find((d) => d.id === n.id);
+      const existingD3Node = simulation.value
+        ?.nodes()
+        .find((d) => d.id === n.id);
       const measured = measuredDimensions.get(n.id);
 
       const baseHeight = 140;
@@ -125,7 +131,8 @@ export function useGraphD3Simulation(
       const estimatedHeight = baseHeight + attachmentHeight;
 
       const finalWidth = measured?.width || existingD3Node?.width || 220;
-      const finalHeight = measured?.height || existingD3Node?.height || estimatedHeight;
+      const finalHeight =
+        measured?.height || existingD3Node?.height || estimatedHeight;
 
       return {
         id: n.id,
@@ -136,7 +143,8 @@ export function useGraphD3Simulation(
         isEnabled: n.data.isEnabled,
         x: n.position.x + finalWidth / 2,
         y: n.position.y + finalHeight / 2,
-        ...(!n.position.x && !n.position.y && { y: (n.data._nodeDepth || 0) * levelGap }),
+        ...(!n.position.x &&
+          !n.position.y && { y: (n.data._nodeDepth || 0) * levelGap }),
       };
     });
 
@@ -151,9 +159,14 @@ export function useGraphD3Simulation(
     if (!session.nodes) return;
     const rootHierarchy = stratify<ChatMessageNode>()
       .id((d: ChatMessageNode) => d.id)
-      .parentId((d: ChatMessageNode) => d.parentId)(Object.values(session.nodes));
+      .parentId((d: ChatMessageNode) => d.parentId)(
+      Object.values(session.nodes)
+    );
 
-    const treeLayout = tree<ChatMessageNode>().nodeSize([nodeWidth + nodeHorizontalPadding, levelGap]);
+    const treeLayout = tree<ChatMessageNode>().nodeSize([
+      nodeWidth + nodeHorizontalPadding,
+      levelGap,
+    ]);
     treeLayout(rootHierarchy);
 
     const calculatedPositions = new Map<string, { x: number; y: number }>();
@@ -170,12 +183,17 @@ export function useGraphD3Simulation(
       const baseDistance = isPhysics ? 180 : 80;
       const extraDistancePerNode = 30;
       const maxExtraDistance = 420;
-      const distance = baseDistance + Math.min(weight * extraDistancePerNode, maxExtraDistance);
+      const distance =
+        baseDistance +
+        Math.min(weight * extraDistancePerNode, maxExtraDistance);
 
       return {
         source: e.source,
         target: e.target,
-        _debug: { strength: isPhysics ? 0.4 : 0.2, distance: Math.round(distance) },
+        _debug: {
+          strength: isPhysics ? 0.4 : 0.2,
+          distance: Math.round(distance),
+        },
       };
     });
 
@@ -188,14 +206,19 @@ export function useGraphD3Simulation(
     sim.nodes(d3Nodes.value);
 
     // --- 4. 配置力 ---
-    sim.force("collide", d3Force.forceCollide<D3Node>((d) => Math.max(d.width, d.height) / 2 + 40).strength(1));
+    sim.force(
+      "collide",
+      d3Force
+        .forceCollide<D3Node>((d) => Math.max(d.width, d.height) / 2 + 40)
+        .strength(1)
+    );
     sim.force(
       "link",
       d3Force
         .forceLink<D3Node, D3Link>(d3Links.value)
         .id((d) => d.id)
         .distance((link) => link._debug?.distance ?? 150)
-        .strength((link) => link._debug?.strength ?? 0.4),
+        .strength((link) => link._debug?.strength ?? 0.4)
     );
 
     if (layoutMode.value === "static") {
@@ -215,7 +238,10 @@ export function useGraphD3Simulation(
       const layerMaxHeights = new Map<number, number>();
       for (let depth = 0; depth <= maxDepth; depth++) {
         const group = depthGroups.get(depth) || [];
-        const maxHeight = group.reduce((max, node) => Math.max(max, node.height), 140);
+        const maxHeight = group.reduce(
+          (max, node) => Math.max(max, node.height),
+          140
+        );
         layerMaxHeights.set(depth, maxHeight);
       }
 
@@ -255,8 +281,18 @@ export function useGraphD3Simulation(
         .alphaDecay(0.04)
         .velocityDecay(0.5)
         .force("charge", null)
-        .force("x", d3Force.forceX<D3Node>((d) => calculatedPositions.get(d.id)?.x ?? d.x ?? 0).strength(0.15))
-        .force("y", d3Force.forceY<D3Node>((d) => calculatedPositions.get(d.id)?.y ?? d.y ?? 0).strength(0.25));
+        .force(
+          "x",
+          d3Force
+            .forceX<D3Node>((d) => calculatedPositions.get(d.id)?.x ?? d.x ?? 0)
+            .strength(0.15)
+        )
+        .force(
+          "y",
+          d3Force
+            .forceY<D3Node>((d) => calculatedPositions.get(d.id)?.y ?? d.y ?? 0)
+            .strength(0.25)
+        );
 
       sim.nodes().forEach((n) => {
         n.fx = null;
@@ -280,7 +316,9 @@ export function useGraphD3Simulation(
         }
       });
       const rootNode = sim.nodes().find((n) => n.id === session.rootNodeId);
-      const rootPos = session.rootNodeId ? calculatedPositions.get(session.rootNodeId) : null;
+      const rootPos = session.rootNodeId
+        ? calculatedPositions.get(session.rootNodeId)
+        : null;
       if (rootNode && rootPos) {
         rootNode.fx = rootPos.x;
         rootNode.fy = rootPos.y;
@@ -308,7 +346,9 @@ export function useGraphD3Simulation(
   /**
    * 更新节点尺寸
    */
-  function updateNodeDimensions(dimensions: Map<string, { width: number; height: number }>) {
+  function updateNodeDimensions(
+    dimensions: Map<string, { width: number; height: number }>
+  ) {
     for (const [id, dim] of dimensions) {
       measuredDimensions.set(id, dim);
     }

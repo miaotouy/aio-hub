@@ -7,7 +7,13 @@
           <input type="checkbox" :checked="hasFill" @change="toggleFill" />
           <span>启用</span>
         </label>
-        <el-color-picker :model-value="localFillColor" size="small" show-alpha :disabled="!hasFill" @change="onFillColorChange" />
+        <el-color-picker
+          :model-value="localFillColor"
+          size="small"
+          show-alpha
+          :disabled="!hasFill"
+          @change="onFillColorChange"
+        />
       </div>
     </div>
   </div>
@@ -32,7 +38,7 @@ watch(
   (val) => {
     hasFill.value = val !== null;
     if (val) localFillColor.value = val;
-  },
+  }
 );
 
 function toggleFill() {

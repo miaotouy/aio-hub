@@ -13,7 +13,9 @@ const props = withDefaults(defineProps<CanvasMonacoEditorProps>(), {
 const emit = defineEmits<CanvasMonacoEditorEmits>();
 
 const containerRef = ref<HTMLDivElement | null>(null);
-const editorInstance = shallowRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+const editorInstance = shallowRef<monaco.editor.IStandaloneCodeEditor | null>(
+  null
+);
 
 const { isDark } = useTheme();
 const monacoTheme = computed(() => (isDark.value ? "vs-dark" : "vs"));
@@ -95,7 +97,7 @@ watch(
       props.modelValue,
       props.language
     );
-    
+
     editorInstance.value.setModel(model);
   }
 );
@@ -175,12 +177,27 @@ defineExpose({
 
   /* 适配主题外观：复用 RichCodeEditor 的样式逻辑 */
   :deep(.monaco-editor) {
-    --vscode-editor-background: var(--code-block-bg, var(--input-bg)) !important;
-    --vscode-editorGutter-background: var(--code-block-bg, var(--input-bg)) !important;
-    --vscode-editorStickyScrollGutter-background: var(--code-block-bg, var(--card-bg)) !important;
-    --vscode-editorStickyScroll-background: var(--code-block-bg, var(--card-bg)) !important;
-    --vscode-editorStickyScroll-shadow: var(--code-block-bg, var(--card-bg)) !important;
-    
+    --vscode-editor-background: var(
+      --code-block-bg,
+      var(--input-bg)
+    ) !important;
+    --vscode-editorGutter-background: var(
+      --code-block-bg,
+      var(--input-bg)
+    ) !important;
+    --vscode-editorStickyScrollGutter-background: var(
+      --code-block-bg,
+      var(--card-bg)
+    ) !important;
+    --vscode-editorStickyScroll-background: var(
+      --code-block-bg,
+      var(--card-bg)
+    ) !important;
+    --vscode-editorStickyScroll-shadow: var(
+      --code-block-bg,
+      var(--card-bg)
+    ) !important;
+
     background-color: var(--vscode-editor-background) !important;
   }
 

@@ -6,12 +6,12 @@
  * - CLASSIFICATION: 用于文本分类
  * - CLUSTERING: 用于聚类
  */
-export type EmbeddingTaskType = 
-  | 'RETRIEVAL_QUERY' 
-  | 'RETRIEVAL_DOCUMENT' 
-  | 'SEMANTIC_SIMILARITY' 
-  | 'CLASSIFICATION' 
-  | 'CLUSTERING';
+export type EmbeddingTaskType =
+  | "RETRIEVAL_QUERY"
+  | "RETRIEVAL_DOCUMENT"
+  | "SEMANTIC_SIMILARITY"
+  | "CLASSIFICATION"
+  | "CLUSTERING";
 
 /**
  * Embedding 请求选项
@@ -19,30 +19,30 @@ export type EmbeddingTaskType =
 export interface EmbeddingRequestOptions {
   /** 模型 ID */
   modelId: string;
-  
-  /** 
+
+  /**
    * 输入文本
    * 支持单个字符串或字符串数组（批量处理）
    */
   input: string | string[];
-  
-  /** 
-   * 期望的维度 (OpenAI text-embedding-3 等模型支持) 
+
+  /**
+   * 期望的维度 (OpenAI text-embedding-3 等模型支持)
    */
   dimensions?: number;
-  
-  /** 
-   * 用户标识 
+
+  /**
+   * 用户标识
    */
   user?: string;
-  
-  /** 
+
+  /**
    * 任务类型 (Gemini/Cohere 专用)
    * 默认为 'RETRIEVAL_QUERY'
    * 建议上层根据场景显式指定
    */
   taskType?: EmbeddingTaskType;
-  
+
   /**
    * 文档标题 (Gemini 专用，仅当 taskType 为 RETRIEVAL_DOCUMENT 时有效)
    */
@@ -56,11 +56,11 @@ export interface EmbeddingRequestOptions {
    * - 'binary': 二进制量化
    * - 'ubinary': 无符号二进制量化
    */
-  encodingFormat?: 'float' | 'int8' | 'uint8' | 'binary' | 'ubinary';
+  encodingFormat?: "float" | "int8" | "uint8" | "binary" | "ubinary";
 
   /** 超时时间 (毫秒) */
   timeout?: number;
-  
+
   /** AbortSignal */
   signal?: AbortSignal;
 
@@ -84,7 +84,7 @@ export interface EmbeddingObject {
   /** 在输入列表中的索引 */
   index: number;
   /** 对象类型，固定为 'embedding' */
-  object: 'embedding';
+  object: "embedding";
 }
 
 /**
@@ -95,13 +95,13 @@ export interface EmbeddingResponse {
   data: EmbeddingObject[];
   /** 模型名称 */
   model: string;
-  
+
   /** Token 使用情况 */
   usage: {
     promptTokens: number;
     totalTokens: number;
   };
-  
+
   /** 对象类型，固定为 'list' */
-  object: 'list';
+  object: "list";
 }

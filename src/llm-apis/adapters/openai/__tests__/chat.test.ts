@@ -84,15 +84,18 @@ describe("OpenAI Adapter - Chat", () => {
     // Verify fetch call
     expect(fetchWithTimeout).toHaveBeenCalled();
     const [url, fetchOptions] = (fetchWithTimeout as any).mock.calls[0];
-    
+
     expect(url).toContain("chat/completions");
-    
+
     const body = JSON.parse(fetchOptions.body);
     expect(body.model).toBe("gpt-4");
     expect(body.temperature).toBe(0.7);
     expect(body.max_tokens).toBe(100);
     expect(body.messages).toHaveLength(2);
-    expect(body.messages[0]).toEqual({ role: "system", content: "You are a helpful assistant." });
+    expect(body.messages[0]).toEqual({
+      role: "system",
+      content: "You are a helpful assistant.",
+    });
     expect(body.messages[1]).toEqual({ role: "user", content: "Hello!" });
 
     // Verify result
@@ -118,7 +121,9 @@ describe("OpenAI Adapter - Chat", () => {
     const mockResponse = {
       ok: true,
       json: async () => ({
-        choices: [{ message: { content: "It's a cat." }, finish_reason: "stop" }],
+        choices: [
+          { message: { content: "It's a cat." }, finish_reason: "stop" },
+        ],
       }),
     };
     (fetchWithTimeout as any).mockResolvedValue(mockResponse);
@@ -129,9 +134,14 @@ describe("OpenAI Adapter - Chat", () => {
     const body = JSON.parse(fetchOptions.body);
 
     expect(body.messages[0].content).toHaveLength(2);
-    expect(body.messages[0].content[0]).toEqual({ type: "text", text: "What is in this image?" });
+    expect(body.messages[0].content[0]).toEqual({
+      type: "text",
+      text: "What is in this image?",
+    });
     expect(body.messages[0].content[1].type).toBe("image_url");
-    expect(body.messages[0].content[1].image_url.url).toContain("data:image/png;base64,base64data");
+    expect(body.messages[0].content[1].image_url.url).toContain(
+      "data:image/png;base64,base64data"
+    );
   });
 
   it("should handle reasoning content from models like DeepSeek", async () => {
@@ -170,11 +180,17 @@ describe("OpenAI Adapter - Chat", () => {
       messages: [{ role: "user", content: "Hi" }],
     };
 
-    (fetchWithTimeout as any).mockResolvedValue({ ok: false, status: 401, statusText: "Unauthorized" });
+    (fetchWithTimeout as any).mockResolvedValue({
+      ok: false,
+      status: 401,
+      statusText: "Unauthorized",
+    });
     (ensureResponseOk as any).mockImplementation(async (res: any) => {
       if (!res.ok) throw new Error("API Error");
     });
 
-    await expect(callOpenAiChatApi(mockProfile, options)).rejects.toThrow("API Error");
+    await expect(callOpenAiChatApi(mockProfile, options)).rejects.toThrow(
+      "API Error"
+    );
   });
 });

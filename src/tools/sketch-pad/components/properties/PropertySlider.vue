@@ -2,7 +2,9 @@
   <div class="property-item">
     <div class="slider-header">
       <span class="label">{{ label }}</span>
-      <span v-if="!isEditing" class="value clickable" @click="startEdit">{{ displayValue }}</span>
+      <span v-if="!isEditing" class="value clickable" @click="startEdit">{{
+        displayValue
+      }}</span>
       <input
         v-else
         ref="inputRef"
@@ -54,7 +56,7 @@ const props = withDefaults(
     decimals: 0,
     displayTransform: undefined,
     inputTransform: undefined,
-  },
+  }
 );
 
 const emit = defineEmits<{
@@ -66,14 +68,22 @@ const editValue = ref(0);
 const inputRef = ref<HTMLInputElement | null>(null);
 
 const displayValue = computed(() => {
-  const val = props.displayTransform ? props.displayTransform(props.modelValue) : props.modelValue;
-  const formatted = props.decimals > 0 ? val.toFixed(props.decimals) : String(Math.round(val));
+  const val = props.displayTransform
+    ? props.displayTransform(props.modelValue)
+    : props.modelValue;
+  const formatted =
+    props.decimals > 0 ? val.toFixed(props.decimals) : String(Math.round(val));
   return `${formatted}${props.suffix}`;
 });
 
 function startEdit() {
-  const val = props.displayTransform ? props.displayTransform(props.modelValue) : props.modelValue;
-  editValue.value = props.decimals > 0 ? parseFloat(val.toFixed(props.decimals)) : Math.round(val);
+  const val = props.displayTransform
+    ? props.displayTransform(props.modelValue)
+    : props.modelValue;
+  editValue.value =
+    props.decimals > 0
+      ? parseFloat(val.toFixed(props.decimals))
+      : Math.round(val);
   isEditing.value = true;
   nextTick(() => {
     inputRef.value?.focus();

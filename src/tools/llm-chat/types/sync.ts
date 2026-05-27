@@ -104,7 +104,8 @@ export const CHAT_ACTIONS = {
  */
 export function createChatSyncConfig<K extends LlmChatStateKey>(stateKey: K) {
   // 核心性能优化：对于大数据量的会话列表，禁用增量 diff 计算，因为 1000+ 条会话的 diff 计算开销远大于全量传输
-  const isLargeArray = stateKey === "chat-sessions" || stateKey === "chat-agents";
+  const isLargeArray =
+    stateKey === "chat-sessions" || stateKey === "chat-agents";
 
   return {
     stateKey,

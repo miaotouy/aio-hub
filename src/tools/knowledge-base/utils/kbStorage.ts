@@ -72,7 +72,10 @@ export class KnowledgeStorage {
   /**
    * 加载知识库元数据
    */
-  async loadBaseMeta(baseId: string, modelId?: string): Promise<KnowledgeBaseMeta | null> {
+  async loadBaseMeta(
+    baseId: string,
+    modelId?: string
+  ): Promise<KnowledgeBaseMeta | null> {
     return await errorHandler.wrapAsync(
       async () => {
         return await invoke<KnowledgeBaseMeta | null>("kb_load_base_meta", {
@@ -99,7 +102,10 @@ export class KnowledgeStorage {
   /**
    * 创建新知识库
    */
-  async createBase(name: string, description: string | null = null): Promise<string> {
+  async createBase(
+    name: string,
+    description: string | null = null
+  ): Promise<string> {
     return (
       (await errorHandler.wrapAsync(
         async () => {
@@ -230,7 +236,11 @@ export class KnowledgeStorage {
   /**
    * 加载单个条目
    */
-  async loadEntry(baseId: string, entryId: string, modelId?: string): Promise<Caiu | null> {
+  async loadEntry(
+    baseId: string,
+    entryId: string,
+    modelId?: string
+  ): Promise<Caiu | null> {
     return await errorHandler.wrapAsync(
       async () => {
         return await invoke<Caiu | null>("kb_load_entry", {

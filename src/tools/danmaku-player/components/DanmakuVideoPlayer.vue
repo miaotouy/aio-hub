@@ -33,7 +33,12 @@
           </button>
 
           <!-- 弹幕设置 -->
-          <el-popover placement="top" :width="280" trigger="click" popper-class="danmaku-settings-popper">
+          <el-popover
+            placement="top"
+            :width="280"
+            trigger="click"
+            popper-class="danmaku-settings-popper"
+          >
             <template #reference>
               <button class="control-btn settings-toggle" title="弹幕设置">
                 <Settings2 :size="20" />
@@ -69,8 +74,15 @@ const playerRef = ref<any>(null);
 const canvasComponentRef = ref<any>(null);
 const hasDanmakus = computed(() => props.danmakus.length > 0);
 
-const { initEngine, setDanmakus, updateConfig, updateScriptInfo, startRender, stopRender, clearCanvas } =
-  useDanmakuRenderer();
+const {
+  initEngine,
+  setDanmakus,
+  updateConfig,
+  updateScriptInfo,
+  startRender,
+  stopRender,
+  clearCanvas,
+} = useDanmakuRenderer();
 
 onMounted(() => {
   tryInitEngine();
@@ -86,7 +98,11 @@ onBeforeUnmount(() => {
  */
 function handleGlobalKeydown(e: KeyboardEvent) {
   // 如果用户正在输入，则忽略
-  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+  if (
+    e.target instanceof HTMLInputElement ||
+    e.target instanceof HTMLTextAreaElement
+  )
+    return;
 
   if (e.key.toLowerCase() === "d") {
     e.preventDefault();
@@ -115,7 +131,7 @@ watch(
   (newVal) => {
     setDanmakus(newVal);
   },
-  { deep: true },
+  { deep: true }
 );
 
 // 当弹幕数据从无到有时，canvas 刚挂载，需要重新初始化引擎
@@ -131,7 +147,7 @@ watch(
   (newVal) => {
     updateConfig(newVal);
   },
-  { deep: true },
+  { deep: true }
 );
 
 watch(
@@ -139,7 +155,7 @@ watch(
   (newVal) => {
     updateScriptInfo(newVal);
   },
-  { deep: true },
+  { deep: true }
 );
 
 // 同步播放状态

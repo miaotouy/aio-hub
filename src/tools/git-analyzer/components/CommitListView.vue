@@ -10,16 +10,27 @@
         >
           <InfoCard @click="$emit('select-commit', commit)" class="commit-card">
             <div class="commit-header">
-              <span class="commit-sequence">#{{ getOriginalIndex(commit) }}</span>
+              <span class="commit-sequence"
+                >#{{ getOriginalIndex(commit) }}</span
+              >
               <el-tag size="small">
                 {{ commit.hash.substring(0, 7) }}
               </el-tag>
               <!-- 分支数 <= 2 时直接显示，无需 popover -->
               <span
-                v-if="commit.branches && commit.branches.length > 0 && commit.branches.length <= 2"
+                v-if="
+                  commit.branches &&
+                  commit.branches.length > 0 &&
+                  commit.branches.length <= 2
+                "
                 style="display: inline-flex; gap: 4px; align-items: center"
               >
-                <el-tag v-for="branch in commit.branches" :key="branch" type="success" size="small">
+                <el-tag
+                  v-for="branch in commit.branches"
+                  :key="branch"
+                  type="success"
+                  size="small"
+                >
                   {{ branch }}
                 </el-tag>
               </span>
@@ -31,8 +42,15 @@
                 :width="'auto'"
               >
                 <template #reference>
-                  <span style="display: inline-flex; gap: 4px; align-items: center">
-                    <el-tag v-for="branch in commit.branches.slice(0, 2)" :key="branch" type="success" size="small">
+                  <span
+                    style="display: inline-flex; gap: 4px; align-items: center"
+                  >
+                    <el-tag
+                      v-for="branch in commit.branches.slice(0, 2)"
+                      :key="branch"
+                      type="success"
+                      size="small"
+                    >
                       {{ branch }}
                     </el-tag>
                     <el-tag type="info" size="small">
@@ -41,13 +59,27 @@
                     </el-tag>
                   </span>
                 </template>
-                <div style="display: flex; flex-wrap: wrap; gap: 4px; max-width: 400px">
-                  <el-tag v-for="branch in commit.branches" :key="branch" type="success">
+                <div
+                  style="
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 4px;
+                    max-width: 400px;
+                  "
+                >
+                  <el-tag
+                    v-for="branch in commit.branches"
+                    :key="branch"
+                    type="success"
+                  >
                     {{ branch }}
                   </el-tag>
                 </div>
               </el-popover>
-              <el-popover v-if="commit.tags && commit.tags.length > 0" placement="top">
+              <el-popover
+                v-if="commit.tags && commit.tags.length > 0"
+                placement="top"
+              >
                 <template #reference>
                   <el-tag type="warning" size="small">
                     <el-icon>
@@ -57,14 +89,28 @@
                   </el-tag>
                 </template>
                 <div>
-                  <el-tag v-for="tag in commit.tags" :key="tag" style="margin: 2px">
+                  <el-tag
+                    v-for="tag in commit.tags"
+                    :key="tag"
+                    style="margin: 2px"
+                  >
                     {{ tag }}
                   </el-tag>
                 </div>
               </el-popover>
               <span class="commit-author">{{ commit.author }}</span>
-              <el-dropdown trigger="click" @click.stop class="commit-menu-dropdown">
-                <el-button size="small" circle :icon="MoreFilled" @click.stop class="commit-menu-btn" />
+              <el-dropdown
+                trigger="click"
+                @click.stop
+                class="commit-menu-dropdown"
+              >
+                <el-button
+                  size="small"
+                  circle
+                  :icon="MoreFilled"
+                  @click.stop
+                  class="commit-menu-btn"
+                />
                 <template #dropdown>
                   <el-dropdown-menu>
                     <el-dropdown-item @click="setAsRangeStart(commit)">
@@ -82,9 +128,15 @@
             <div class="commit-message">{{ commit.message }}</div>
             <div class="commit-stats" v-if="commit.stats">
               <el-space size="small">
-                <span class="stat-item additions">+{{ commit.stats.additions }}</span>
-                <span class="stat-item deletions">-{{ commit.stats.deletions }}</span>
-                <span class="stat-item files">{{ commit.stats.files }} 文件</span>
+                <span class="stat-item additions"
+                  >+{{ commit.stats.additions }}</span
+                >
+                <span class="stat-item deletions"
+                  >-{{ commit.stats.deletions }}</span
+                >
+                <span class="stat-item files"
+                  >{{ commit.stats.files }} 文件</span
+                >
               </el-space>
             </div>
           </InfoCard>

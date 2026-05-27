@@ -44,7 +44,10 @@ defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: "update", data: { size?: number; color?: string; opacity?: number }): void;
+  (
+    e: "update",
+    data: { size?: number; color?: string; opacity?: number }
+  ): void;
 }>();
 </script>
 

@@ -22,7 +22,11 @@ defineEmits<{
 </script>
 
 <template>
-  <div class="profile-card" :class="{ 'is-disabled': !profile.enabled }" @click="$emit('click')">
+  <div
+    class="profile-card"
+    :class="{ 'is-disabled': !profile.enabled }"
+    @click="$emit('click')"
+  >
     <div class="card-content">
       <div class="icon-wrapper">
         <DynamicIcon :src="profile.icon || ''" :alt="profile.name" />
@@ -31,7 +35,9 @@ defineEmits<{
       <div class="info-wrapper">
         <div class="title-row">
           <span class="profile-name">{{ profile.name }}</span>
-          <var-chip size="mini" type="primary" plain>{{ profile.type }}</var-chip>
+          <var-chip size="mini" type="primary" plain>{{
+            profile.type
+          }}</var-chip>
         </div>
         <div class="profile-url">{{ profile.baseUrl }}</div>
       </div>

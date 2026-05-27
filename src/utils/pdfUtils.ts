@@ -67,7 +67,9 @@ export async function convertPdfToImages(
     const results: PdfPageImage[] = [];
 
     if (totalPages > maxPages) {
-      logger.warn(`PDF 页数 (${totalPages}) 超过最大限制 (${maxPages})，只处理前 ${maxPages} 页`);
+      logger.warn(
+        `PDF 页数 (${totalPages}) 超过最大限制 (${maxPages})，只处理前 ${maxPages} 页`
+      );
     }
 
     logger.debug("开始转换 PDF 为图片", { totalPages, numPages, scale });
@@ -88,10 +90,16 @@ export async function convertPdfToImages(
 
             // 先获取原始尺寸以计算安全的缩放比例
             const originalViewport = page.getViewport({ scale: 1 });
-            const safeScale = computeSafeScale(originalViewport.width, originalViewport.height, scale);
+            const safeScale = computeSafeScale(
+              originalViewport.width,
+              originalViewport.height,
+              scale
+            );
 
             if (safeScale < scale) {
-              logger.debug(`第 ${pageNum} 页分辨率超限，scale 从 ${scale} 降至 ${safeScale.toFixed(2)}`);
+              logger.debug(
+                `第 ${pageNum} 页分辨率超限，scale 从 ${scale} 降至 ${safeScale.toFixed(2)}`
+              );
             }
 
             const viewport = page.getViewport({ scale: safeScale });
@@ -109,7 +117,7 @@ export async function convertPdfToImages(
             await page.render({
               canvasContext: context,
               viewport: viewport,
-              canvas: canvas
+              canvas: canvas,
             }).promise;
 
             // 转换为 Base64 (image/png)
@@ -140,7 +148,7 @@ export async function convertPdfToImages(
       );
 
       // 收集成功的结果
-      chunkResults.forEach(res => {
+      chunkResults.forEach((res) => {
         if (res) results.push(res);
       });
     }
@@ -151,4 +159,3 @@ export async function convertPdfToImages(
     throw error;
   }
 }
-

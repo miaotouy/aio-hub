@@ -1,5 +1,9 @@
 import { toRaw, type Ref } from "vue";
-import type { ChatSessionDetail, HistoryDelta, ChatSessionIndex } from "../../types";
+import type {
+  ChatSessionDetail,
+  HistoryDelta,
+  ChatSessionIndex,
+} from "../../types";
 import type { Asset } from "@/types/asset-management";
 import { useBranchManager } from "../session/useBranchManager";
 import { useSessionManager } from "../session/useSessionManager";
@@ -29,7 +33,7 @@ export function useGraphActions(
   currentSession: Ref<ChatSessionDetail | null>,
   currentSessionId: Ref<string | null>,
   historyManager: HistoryManager,
-  sessionIndexMap?: Ref<Map<string, ChatSessionIndex>>, // 传入索引 Map 以便更新
+  sessionIndexMap?: Ref<Map<string, ChatSessionIndex>> // 传入索引 Map 以便更新
 ) {
   const branchManager = useBranchManager();
   const sessionManager = useSessionManager();
@@ -38,7 +42,10 @@ export function useGraphActions(
    * 全量更新消息节点数据（高级功能）
    * 仅允许更新非结构性字段，防止破坏树结构
    */
-  async function updateNodeData(nodeId: string, updates: Partial<ChatMessageNode>): Promise<void> {
+  async function updateNodeData(
+    nodeId: string,
+    updates: Partial<ChatMessageNode>
+  ): Promise<void> {
     const session = currentSession.value;
     if (!session) return;
 
@@ -71,7 +78,9 @@ export function useGraphActions(
       payload: { nodeId, previousNodeState, finalNodeState },
     };
     // 使用自定义的操作类型名称，或者复用 NODE_EDIT
-    historyManager.recordHistory("NODE_DATA_UPDATE", [delta], { targetNodeId: nodeId });
+    historyManager.recordHistory("NODE_DATA_UPDATE", [delta], {
+      targetNodeId: nodeId,
+    });
 
     // 4. 重新计算 token (因为 content 或 metadata 可能变了)
     if (sessionIndexMap?.value) {
@@ -83,7 +92,11 @@ export function useGraphActions(
 
     // 5. 持久化
     if (sessionIndexMap?.value) {
-      sessionManager.updateMessageCount(session.id, session.nodes!, sessionIndexMap.value);
+      sessionManager.updateMessageCount(
+        session.id,
+        session.nodes!,
+        sessionIndexMap.value
+      );
       const index = sessionIndexMap.value.get(session.id);
       if (index) {
         sessionManager.persistSession(index, session, currentSessionId.value);
@@ -96,30 +109,49 @@ export function useGraphActions(
   /**
    * 编辑消息
    */
-  async function editMessage(nodeId: string, newContent: string, attachments?: Asset[]): Promise<void> {
+  async function editMessage(
+    nodeId: string,
+    newContent: string,
+    attachments?: Asset[]
+  ): Promise<void> {
     const session = currentSession.value;
     if (!session) return;
 
     if (nodeId.startsWith("preset-")) {
       const agentStore = useAgentStore();
       if (!agentStore.currentAgentId) return;
-      agentStore.updatePresetMessage(agentStore.currentAgentId, nodeId, newContent);
+      agentStore.updatePresetMessage(
+        agentStore.currentAgentId,
+        nodeId,
+        newContent
+      );
       return;
     }
 
     // 使用 JSON 序列化来创建快照，避免 structuredClone 处理 Vue Proxy 或特殊对象时出错
-    const previousNodeState = JSON.parse(JSON.stringify(toRaw(session.nodes![nodeId])));
-    const success = branchManager.editMessage(session, nodeId, newContent, attachments);
+    const previousNodeState = JSON.parse(
+      JSON.stringify(toRaw(session.nodes![nodeId]))
+    );
+    const success = branchManager.editMessage(
+      session,
+      nodeId,
+      newContent,
+      attachments
+    );
 
     if (success) {
       // 手动更新时间戳
       session.nodes![nodeId].updatedAt = new Date().toISOString();
-      const finalNodeState = JSON.parse(JSON.stringify(toRaw(session.nodes![nodeId])));
+      const finalNodeState = JSON.parse(
+        JSON.stringify(toRaw(session.nodes![nodeId]))
+      );
       const delta: HistoryDelta = {
         type: "update",
         payload: { nodeId, previousNodeState, finalNodeState },
       };
-      historyManager.recordHistory("NODE_EDIT", [delta], { targetNodeId: nodeId });
+      historyManager.recordHistory("NODE_EDIT", [delta], {
+        targetNodeId: nodeId,
+      });
 
       if (sessionIndexMap?.value) {
         const index = sessionIndexMap.value.get(session.id);
@@ -129,7 +161,11 @@ export function useGraphActions(
       }
 
       if (sessionIndexMap?.value) {
-        sessionManager.updateMessageCount(session.id, session.nodes!, sessionIndexMap.value);
+        sessionManager.updateMessageCount(
+          session.id,
+          session.nodes!,
+          sessionIndexMap.value
+        );
         const index = sessionIndexMap.value.get(session.id);
         if (index) {
           sessionManager.persistSession(index, session, currentSessionId.value);
@@ -145,7 +181,10 @@ export function useGraphActions(
     const session = currentSession.value;
     if (!session) return;
 
-    const { success, deletedNodes } = branchManager.deleteMessage(session, nodeId);
+    const { success, deletedNodes } = branchManager.deleteMessage(
+      session,
+      nodeId
+    );
 
     if (success && deletedNodes.length > 0) {
       const deltas: HistoryDelta[] = deletedNodes.map((node) => {
@@ -162,8 +201,16 @@ export function useGraphActions(
       });
 
       if (sessionIndexMap?.value) {
-        sessionManager.updateMessageCount(session.id, session.nodes!, sessionIndexMap.value);
-        sessionManager.updateSessionDisplayAgent(session.id, session, sessionIndexMap.value);
+        sessionManager.updateMessageCount(
+          session.id,
+          session.nodes!,
+          sessionIndexMap.value
+        );
+        sessionManager.updateSessionDisplayAgent(
+          session.id,
+          session,
+          sessionIndexMap.value
+        );
         const index = sessionIndexMap.value.get(session.id);
         if (index) {
           sessionManager.persistSession(index, session, currentSessionId.value);
@@ -198,8 +245,16 @@ export function useGraphActions(
       }
 
       if (sessionIndexMap?.value) {
-        sessionManager.updateMessageCount(session.id, session.nodes!, sessionIndexMap.value);
-        sessionManager.updateSessionDisplayAgent(session.id, session, sessionIndexMap.value);
+        sessionManager.updateMessageCount(
+          session.id,
+          session.nodes!,
+          sessionIndexMap.value
+        );
+        sessionManager.updateSessionDisplayAgent(
+          session.id,
+          session,
+          sessionIndexMap.value
+        );
         const index = sessionIndexMap.value.get(session.id);
         if (index) {
           sessionManager.persistSession(index, session, currentSessionId.value);
@@ -211,16 +266,31 @@ export function useGraphActions(
   /**
    * 切换到兄弟分支
    */
-  function switchToSiblingBranch(nodeId: string, direction: "prev" | "next"): void {
+  function switchToSiblingBranch(
+    nodeId: string,
+    direction: "prev" | "next"
+  ): void {
     const session = currentSession.value;
     if (!session) return;
 
-    const newLeafId = branchManager.switchToSiblingBranch(session, nodeId, direction);
+    const newLeafId = branchManager.switchToSiblingBranch(
+      session,
+      nodeId,
+      direction
+    );
 
     if (newLeafId !== session.activeLeafId) {
       if (sessionIndexMap?.value) {
-        sessionManager.updateMessageCount(session.id, session.nodes!, sessionIndexMap.value);
-        sessionManager.updateSessionDisplayAgent(session.id, session, sessionIndexMap.value);
+        sessionManager.updateMessageCount(
+          session.id,
+          session.nodes!,
+          sessionIndexMap.value
+        );
+        sessionManager.updateSessionDisplayAgent(
+          session.id,
+          session,
+          sessionIndexMap.value
+        );
         const index = sessionIndexMap.value.get(session.id);
         if (index) {
           sessionManager.persistSession(index, session, currentSessionId.value);
@@ -241,17 +311,31 @@ export function useGraphActions(
     if (newNodeId) {
       const newNode = session.nodes ? session.nodes[newNodeId] : undefined;
       if (newNode) {
-        const relationChange = extractRelationChange(session, newNode, "create");
+        const relationChange = extractRelationChange(
+          session,
+          newNode,
+          "create"
+        );
         const delta: HistoryDelta = {
           type: "create",
           payload: { node: newNode, relationChange },
         };
-        historyManager.recordHistory("BRANCH_CREATE", [delta], { targetNodeId: newNodeId });
+        historyManager.recordHistory("BRANCH_CREATE", [delta], {
+          targetNodeId: newNodeId,
+        });
       }
 
       if (sessionIndexMap?.value) {
-        sessionManager.updateMessageCount(session.id, session.nodes!, sessionIndexMap.value);
-        sessionManager.updateSessionDisplayAgent(session.id, session, sessionIndexMap.value);
+        sessionManager.updateMessageCount(
+          session.id,
+          session.nodes!,
+          sessionIndexMap.value
+        );
+        sessionManager.updateSessionDisplayAgent(
+          session.id,
+          session,
+          sessionIndexMap.value
+        );
         const index = sessionIndexMap.value.get(session.id);
         if (index) {
           sessionManager.persistSession(index, session, currentSessionId.value);
@@ -274,19 +358,29 @@ export function useGraphActions(
       return;
     }
 
-    const previousNodeState = JSON.parse(JSON.stringify(toRaw(session.nodes![nodeId])));
+    const previousNodeState = JSON.parse(
+      JSON.stringify(toRaw(session.nodes![nodeId]))
+    );
     const success = branchManager.toggleNodeEnabled(session, nodeId);
 
     if (success) {
-      const finalNodeState = JSON.parse(JSON.stringify(toRaw(session.nodes![nodeId])));
+      const finalNodeState = JSON.parse(
+        JSON.stringify(toRaw(session.nodes![nodeId]))
+      );
       const delta: HistoryDelta = {
         type: "update",
         payload: { nodeId, previousNodeState, finalNodeState },
       };
-      historyManager.recordHistory("NODE_TOGGLE_ENABLED", [delta], { targetNodeId: nodeId });
+      historyManager.recordHistory("NODE_TOGGLE_ENABLED", [delta], {
+        targetNodeId: nodeId,
+      });
 
       if (sessionIndexMap?.value) {
-        sessionManager.updateMessageCount(session.id, session.nodes!, sessionIndexMap.value);
+        sessionManager.updateMessageCount(
+          session.id,
+          session.nodes!,
+          sessionIndexMap.value
+        );
         const index = sessionIndexMap.value.get(session.id);
         if (index) {
           sessionManager.persistSession(index, session, currentSessionId.value);
@@ -302,7 +396,11 @@ export function useGraphActions(
     const session = currentSession.value;
     if (!session) return;
 
-    const relationChanges = captureRelationChangesForGraft(session, nodeId, newParentId);
+    const relationChanges = captureRelationChangesForGraft(
+      session,
+      nodeId,
+      newParentId
+    );
     const success = branchManager.graftBranch(session, nodeId, newParentId);
 
     if (success) {
@@ -316,8 +414,16 @@ export function useGraphActions(
       });
 
       if (sessionIndexMap?.value) {
-        sessionManager.updateMessageCount(session.id, session.nodes!, sessionIndexMap.value);
-        sessionManager.updateSessionDisplayAgent(session.id, session, sessionIndexMap.value);
+        sessionManager.updateMessageCount(
+          session.id,
+          session.nodes!,
+          sessionIndexMap.value
+        );
+        sessionManager.updateSessionDisplayAgent(
+          session.id,
+          session,
+          sessionIndexMap.value
+        );
         const index = sessionIndexMap.value.get(session.id);
         if (index) {
           sessionManager.persistSession(index, session, currentSessionId.value);
@@ -333,7 +439,11 @@ export function useGraphActions(
     const session = currentSession.value;
     if (!session) return;
 
-    const relationChanges = captureRelationChangesForMove(session, nodeId, newParentId);
+    const relationChanges = captureRelationChangesForMove(
+      session,
+      nodeId,
+      newParentId
+    );
     const success = branchManager.moveNode(session, nodeId, newParentId);
 
     if (success) {
@@ -347,8 +457,16 @@ export function useGraphActions(
       });
 
       if (sessionIndexMap?.value) {
-        sessionManager.updateMessageCount(session.id, session.nodes!, sessionIndexMap.value);
-        sessionManager.updateSessionDisplayAgent(session.id, session, sessionIndexMap.value);
+        sessionManager.updateMessageCount(
+          session.id,
+          session.nodes!,
+          sessionIndexMap.value
+        );
+        sessionManager.updateSessionDisplayAgent(
+          session.id,
+          session,
+          sessionIndexMap.value
+        );
         const index = sessionIndexMap.value.get(session.id);
         if (index) {
           sessionManager.persistSession(index, session, currentSessionId.value);
@@ -377,7 +495,11 @@ export function useGraphActions(
 
     // 持久化
     if (sessionIndexMap?.value) {
-      sessionManager.updateMessageCount(session.id, session.nodes!, sessionIndexMap.value);
+      sessionManager.updateMessageCount(
+        session.id,
+        session.nodes!,
+        sessionIndexMap.value
+      );
       const index = sessionIndexMap.value.get(session.id);
       if (index) {
         sessionManager.persistSession(index, session, currentSessionId.value);
@@ -389,14 +511,23 @@ export function useGraphActions(
    * 从编辑内容创建新分支（保存编辑到分支）
    * 本质上是 createBranch + editMessage 的组合
    */
-  async function createBranchFromEdit(sourceNodeId: string, newContent: string, attachments?: Asset[]): Promise<void> {
+  async function createBranchFromEdit(
+    sourceNodeId: string,
+    newContent: string,
+    attachments?: Asset[]
+  ): Promise<void> {
     const session = currentSession.value;
     if (!session) return;
 
     const nodeManager = useNodeManager();
 
     // 使用 nodeManager 创建新分支节点（保留源节点角色，附件已包含在内）
-    const newNode = nodeManager.createBranchFromEdit(session, sourceNodeId, newContent, attachments);
+    const newNode = nodeManager.createBranchFromEdit(
+      session,
+      sourceNodeId,
+      newContent,
+      attachments
+    );
 
     if (!newNode) {
       return;
@@ -426,8 +557,16 @@ export function useGraphActions(
 
     // 持久化
     if (sessionIndexMap?.value) {
-      sessionManager.updateMessageCount(session.id, session.nodes!, sessionIndexMap.value);
-      sessionManager.updateSessionDisplayAgent(session.id, session, sessionIndexMap.value);
+      sessionManager.updateMessageCount(
+        session.id,
+        session.nodes!,
+        sessionIndexMap.value
+      );
+      sessionManager.updateSessionDisplayAgent(
+        session.id,
+        session,
+        sessionIndexMap.value
+      );
       const index = sessionIndexMap.value.get(session.id);
       if (index) {
         sessionManager.persistSession(index, session, currentSessionId.value);

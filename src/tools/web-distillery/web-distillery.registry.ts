@@ -1,4 +1,9 @@
-import type { ToolRegistry, ToolConfig, ServiceMetadata, ToolContext } from "@/services/types";
+import type {
+  ToolRegistry,
+  ToolConfig,
+  ServiceMetadata,
+  ToolContext,
+} from "@/services/types";
 import { markRaw } from "vue";
 import { GlassWater } from "lucide-vue-next";
 import { quickFetch, smartExtract } from "./actions";
@@ -8,12 +13,16 @@ export default class WebDistilleryRegistry implements ToolRegistry {
   public readonly id = "web-distillery";
   public readonly runMode = "any";
   public readonly name = "网页蒸馏室";
-  public readonly description = "高纯度网页内容提取方案，支持从快速 HTTP 获取到交互式浏览器爬取。";
+  public readonly description =
+    "高纯度网页内容提取方案，支持从快速 HTTP 获取到交互式浏览器爬取。";
 
   /**
    * 快速获取网页内容（Agent Facade）
    */
-  public async quickFetch(args: Record<string, unknown>, context?: ToolContext): Promise<string> {
+  public async quickFetch(
+    args: Record<string, unknown>,
+    context?: ToolContext
+  ): Promise<string> {
     const result = await quickFetch(
       {
         url: String(args.url || ""),
@@ -26,7 +35,10 @@ export default class WebDistilleryRegistry implements ToolRegistry {
     return formatFetchResult(result);
   }
 
-  public async smartExtract(args: Record<string, unknown>, context?: ToolContext): Promise<string> {
+  public async smartExtract(
+    args: Record<string, unknown>,
+    context?: ToolContext
+  ): Promise<string> {
     const result = await smartExtract(
       {
         url: String(args.url || ""),
@@ -36,7 +48,8 @@ export default class WebDistilleryRegistry implements ToolRegistry {
       },
       context
     );
-    if (!result) return "错误: 智能提取失败。目标页面可能需要更长加载时间或需要授权。建议尝试打开交互式 UI 处理。";
+    if (!result)
+      return "错误: 智能提取失败。目标页面可能需要更长加载时间或需要授权。建议尝试打开交互式 UI 处理。";
     return formatFetchResult(result);
   }
 
@@ -66,7 +79,8 @@ export default class WebDistilleryRegistry implements ToolRegistry {
             {
               name: "cleanMode",
               type: "boolean",
-              description: "纯净模式：过滤掉所有链接，只保留纯文本内容。适用于链接过多影响阅读的场景",
+              description:
+                "纯净模式：过滤掉所有链接，只保留纯文本内容。适用于链接过多影响阅读的场景",
               required: false,
               defaultValue: false,
             },
@@ -76,7 +90,8 @@ export default class WebDistilleryRegistry implements ToolRegistry {
         {
           name: "smartExtract",
           displayName: "智能提取网页内容",
-          description: "启动真实浏览器渲染页面。适用于 SPA、动态内容、需要登录的页面。支持等待特定元素加载。",
+          description:
+            "启动真实浏览器渲染页面。适用于 SPA、动态内容、需要登录的页面。支持等待特定元素加载。",
           agentCallable: true,
           parameters: [
             {
@@ -94,7 +109,8 @@ export default class WebDistilleryRegistry implements ToolRegistry {
             {
               name: "cleanMode",
               type: "boolean",
-              description: "纯净模式：过滤掉所有链接，只保留纯文本内容。适用于链接过多影响阅读的场景",
+              description:
+                "纯净模式：过滤掉所有链接，只保留纯文本内容。适用于链接过多影响阅读的场景",
               required: false,
               defaultValue: false,
             },

@@ -11,6 +11,7 @@ export const toolConfig: ToolConfig = {
   path: "/config-converter",
   icon: markRaw(RefreshCw),
   component: () => import("./ConfigConverter.vue"),
-  description: "支持 JSON, YAML, TOML, INI, XML, .env 格式的语法级互转与批量处理",
+  description:
+    "支持 JSON, YAML, TOML, INI, XML, .env 格式的语法级互转与批量处理",
   category: ["文本处理"],
 };

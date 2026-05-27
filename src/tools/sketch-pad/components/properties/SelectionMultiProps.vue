@@ -9,19 +9,35 @@
         <button class="align-btn" title="左对齐" @click="emit('align', 'left')">
           <AlignStartVertical :size="14" />
         </button>
-        <button class="align-btn" title="水平居中" @click="emit('align', 'center-h')">
+        <button
+          class="align-btn"
+          title="水平居中"
+          @click="emit('align', 'center-h')"
+        >
           <AlignCenterVertical :size="14" />
         </button>
-        <button class="align-btn" title="右对齐" @click="emit('align', 'right')">
+        <button
+          class="align-btn"
+          title="右对齐"
+          @click="emit('align', 'right')"
+        >
           <AlignEndVertical :size="14" />
         </button>
         <button class="align-btn" title="顶对齐" @click="emit('align', 'top')">
           <AlignStartHorizontal :size="14" />
         </button>
-        <button class="align-btn" title="垂直居中" @click="emit('align', 'center-v')">
+        <button
+          class="align-btn"
+          title="垂直居中"
+          @click="emit('align', 'center-v')"
+        >
           <AlignCenterHorizontal :size="14" />
         </button>
-        <button class="align-btn" title="底对齐" @click="emit('align', 'bottom')">
+        <button
+          class="align-btn"
+          title="底对齐"
+          @click="emit('align', 'bottom')"
+        >
           <AlignEndHorizontal :size="14" />
         </button>
       </div>
@@ -31,11 +47,19 @@
     <div v-if="count >= 3" class="property-item">
       <span class="label">分布</span>
       <div class="distribute-row">
-        <button class="dist-btn" title="水平等距" @click="emit('distribute', 'horizontal')">
+        <button
+          class="dist-btn"
+          title="水平等距"
+          @click="emit('distribute', 'horizontal')"
+        >
           <AlignHorizontalSpaceAround :size="14" />
           <span>水平等距</span>
         </button>
-        <button class="dist-btn" title="垂直等距" @click="emit('distribute', 'vertical')">
+        <button
+          class="dist-btn"
+          title="垂直等距"
+          @click="emit('distribute', 'vertical')"
+        >
           <AlignVerticalSpaceAround :size="14" />
           <span>垂直等距</span>
         </button>
@@ -103,7 +127,10 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: "align", direction: "left" | "right" | "top" | "bottom" | "center-h" | "center-v"): void;
+  (
+    e: "align",
+    direction: "left" | "right" | "top" | "bottom" | "center-h" | "center-v"
+  ): void;
   (e: "distribute", direction: "horizontal" | "vertical"): void;
   (e: "update-common", key: string, value: any): void;
   (e: "delete"): void;

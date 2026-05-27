@@ -14,14 +14,21 @@ import { getLocalISOString } from "@/utils/time";
 import type { ChatAgent, ChatMessageNode } from "../types";
 
 const logger = createModuleLogger("llm-chat/agentManagementService");
-const errorHandler = createModuleErrorHandler("llm-chat/agentManagementService");
+const errorHandler = createModuleErrorHandler(
+  "llm-chat/agentManagementService"
+);
 
 // ============================================================
 // 常量定义
 // ============================================================
 
 /** 字段权限黑名单：禁止修改的字段 */
-const FIELD_BLACKLIST = new Set(["id", "createdAt", "lastUsedAt", "avatarHistory"]);
+const FIELD_BLACKLIST = new Set([
+  "id",
+  "createdAt",
+  "lastUsedAt",
+  "avatarHistory",
+]);
 
 /** section 分段映射 */
 const SECTION_FIELDS: Record<string, string[]> = {
@@ -112,7 +119,10 @@ function parsePathSegments(path: string): PathSegment[] {
  * 根据路径解析对象中的字段位置
  * @returns { parent, key, value } 或抛出错误
  */
-export function resolveFieldPath(obj: any, path: string): { parent: any; key: string; value: any } {
+export function resolveFieldPath(
+  obj: any,
+  path: string
+): { parent: any; key: string; value: any } {
   const segments = parsePathSegments(path);
 
   let current = obj;
@@ -132,7 +142,9 @@ export function resolveFieldPath(obj: any, path: string): { parent: any; key: st
       if (segment.arrayAccess.type === "index") {
         const idx = segment.arrayAccess.index;
         if (idx < 0 || idx >= arr.length) {
-          throw new Error(`路径 "${path}" 中索引 [${idx}] 超出范围 (数组长度: ${arr.length})`);
+          throw new Error(
+            `路径 "${path}" 中索引 [${idx}] 超出范围 (数组长度: ${arr.length})`
+          );
         }
         item = arr[idx];
 
@@ -157,7 +169,11 @@ export function resolveFieldPath(obj: any, path: string): { parent: any; key: st
     } else {
       // 普通字段访问
       if (isLast) {
-        return { parent: current, key: segment.key, value: current[segment.key] };
+        return {
+          parent: current,
+          key: segment.key,
+          value: current[segment.key],
+        };
       }
 
       if (current[segment.key] === undefined || current[segment.key] === null) {
@@ -195,7 +211,10 @@ function inferValueType(value: string): any {
   if (value === "null") return null;
 
   // JSON 对象或数组
-  if ((value.startsWith("{") && value.endsWith("}")) || (value.startsWith("[") && value.endsWith("]"))) {
+  if (
+    (value.startsWith("{") && value.endsWith("}")) ||
+    (value.startsWith("[") && value.endsWith("]"))
+  ) {
     try {
       return JSON.parse(value);
     } catch {
@@ -239,10 +258,15 @@ function getAgentSummary(agent: ChatAgent) {
 /**
  * 提取指定 section 的配置数据
  */
-function extractSection(agent: ChatAgent, section: string): Record<string, any> {
+function extractSection(
+  agent: ChatAgent,
+  section: string
+): Record<string, any> {
   const fields = SECTION_FIELDS[section];
   if (!fields) {
-    throw new Error(`未知的 section: "${section}"，可选值: ${Object.keys(SECTION_FIELDS).join(", ")}`);
+    throw new Error(
+      `未知的 section: "${section}"，可选值: ${Object.keys(SECTION_FIELDS).join(", ")}`
+    );
   }
 
   const result: Record<string, any> = {};
@@ -283,7 +307,9 @@ function formatValueForDisplay(value: any, maxLength = 80): string {
 /**
  * 1. list_agents - 列出所有智能体摘要
  */
-export async function list_agents(params: { filter?: string }): Promise<string> {
+export async function list_agents(params: {
+  filter?: string;
+}): Promise<string> {
   try {
     const agentStore = useAgentStore();
     let agents = [...agentStore.agents];
@@ -312,7 +338,9 @@ export async function list_agents(params: { filter?: string }): Promise<string> 
 /**
  * 2. search_agents - 按关键词搜索智能体
  */
-export async function search_agents(params: { query: string }): Promise<string> {
+export async function search_agents(params: {
+  query: string;
+}): Promise<string> {
   try {
     const agentStore = useAgentStore();
     const query = params.query.toLowerCase().trim();
@@ -322,7 +350,12 @@ export async function search_agents(params: { query: string }): Promise<string> 
     }
 
     const matched = agentStore.agents.filter((agent) => {
-      const searchFields = [agent.name, agent.displayName || "", agent.description || "", ...(agent.tags || [])];
+      const searchFields = [
+        agent.name,
+        agent.displayName || "",
+        agent.description || "",
+        ...(agent.tags || []),
+      ];
       return searchFields.some((field) => field.toLowerCase().includes(query));
     });
 
@@ -337,7 +370,10 @@ export async function search_agents(params: { query: string }): Promise<string> 
 /**
  * 3. read_agent_config - 读取智能体配置（YAML 格式）
  */
-export async function read_agent_config(params: { agentId: string; section?: string }): Promise<string> {
+export async function read_agent_config(params: {
+  agentId: string;
+  section?: string;
+}): Promise<string> {
   try {
     const agentStore = useAgentStore();
     const agent = await agentStore.ensureAgentLoaded(params.agentId);
@@ -350,7 +386,14 @@ export async function read_agent_config(params: { agentId: string; section?: str
 
     if (!params.section || params.section === "all") {
       // 导出完整配置（排除系统字段）
-      const { id: _id, createdAt: _ca, lastUsedAt: _lu, avatarHistory: _ah, profileId: _pid, ...rest } = agent;
+      const {
+        id: _id,
+        createdAt: _ca,
+        lastUsedAt: _lu,
+        avatarHistory: _ah,
+        profileId: _pid,
+        ...rest
+      } = agent;
       data = rest;
     } else {
       data = extractSection(agent, params.section);
@@ -370,7 +413,10 @@ export async function read_agent_config(params: { agentId: string; section?: str
 /**
  * 4. export_agent_as_text - 导出智能体为完整文本
  */
-export async function export_agent_as_text(params: { agentId: string; format?: string }): Promise<string> {
+export async function export_agent_as_text(params: {
+  agentId: string;
+  format?: string;
+}): Promise<string> {
   try {
     const agentStore = useAgentStore();
     const agent = await agentStore.ensureAgentLoaded(params.agentId);
@@ -380,7 +426,13 @@ export async function export_agent_as_text(params: { agentId: string; format?: s
     }
 
     // 排除系统维护字段
-    const { id: _id, createdAt: _ca, lastUsedAt: _lu, avatarHistory: _ah, ...exportData } = agent;
+    const {
+      id: _id,
+      createdAt: _ca,
+      lastUsedAt: _lu,
+      avatarHistory: _ah,
+      ...exportData
+    } = agent;
 
     const format = params.format || "yaml";
 
@@ -402,7 +454,11 @@ export async function export_agent_as_text(params: { agentId: string; format?: s
 /**
  * 5. set_agent_field - 路径式设置字段值（核心编辑方法）
  */
-export async function set_agent_field(params: { agentId: string; path: string; value: string }): Promise<string> {
+export async function set_agent_field(params: {
+  agentId: string;
+  path: string;
+  value: string;
+}): Promise<string> {
   try {
     const agentStore = useAgentStore();
 
@@ -509,7 +565,9 @@ export async function find_replace_in_presets(params: {
       try {
         searchPattern = new RegExp(params.search, "g");
       } catch (e) {
-        return JSON.stringify({ error: `无效的正则表达式: ${(e as Error).message}` });
+        return JSON.stringify({
+          error: `无效的正则表达式: ${(e as Error).message}`,
+        });
       }
     } else {
       searchPattern = params.search;
@@ -535,7 +593,10 @@ export async function find_replace_in_presets(params: {
       if (useRegex) {
         const matches = msg.content.match(searchPattern as RegExp);
         count = matches ? matches.length : 0;
-        newContent = msg.content.replace(searchPattern as RegExp, params.replace);
+        newContent = msg.content.replace(
+          searchPattern as RegExp,
+          params.replace
+        );
       } else {
         // 全局字符串替换
         const parts = msg.content.split(params.search);
@@ -564,7 +625,9 @@ export async function find_replace_in_presets(params: {
     return JSON.stringify({ replacedCount, affectedMessages });
   } catch (error) {
     errorHandler.error(error, "查找替换失败");
-    return JSON.stringify({ error: String(error instanceof Error ? error.message : error) });
+    return JSON.stringify({
+      error: String(error instanceof Error ? error.message : error),
+    });
   }
 }
 
@@ -633,14 +696,18 @@ export async function add_preset_message(params: {
     } else if (position === "end") {
       messages.push(newMessage);
     } else if (position === "before:chat_history") {
-      const chatHistoryIndex = messages.findIndex((m) => m.type === "chat_history");
+      const chatHistoryIndex = messages.findIndex(
+        (m) => m.type === "chat_history"
+      );
       if (chatHistoryIndex !== -1) {
         messages.splice(chatHistoryIndex, 0, newMessage);
       } else {
         messages.push(newMessage);
       }
     } else if (position === "after:chat_history") {
-      const chatHistoryIndex = messages.findIndex((m) => m.type === "chat_history");
+      const chatHistoryIndex = messages.findIndex(
+        (m) => m.type === "chat_history"
+      );
       if (chatHistoryIndex !== -1) {
         messages.splice(chatHistoryIndex + 1, 0, newMessage);
       } else {
@@ -686,7 +753,10 @@ export async function add_preset_message(params: {
 /**
  * 8. delete_preset_message - 删除指定预设消息
  */
-export async function delete_preset_message(params: { agentId: string; messageId: string }): Promise<string> {
+export async function delete_preset_message(params: {
+  agentId: string;
+  messageId: string;
+}): Promise<string> {
   try {
     const agentStore = useAgentStore();
     const agent = await agentStore.ensureAgentLoaded(params.agentId);
@@ -699,7 +769,9 @@ export async function delete_preset_message(params: { agentId: string; messageId
       return `错误: 该智能体没有预设消息`;
     }
 
-    const targetIndex = agent.presetMessages.findIndex((m) => m.id === params.messageId);
+    const targetIndex = agent.presetMessages.findIndex(
+      (m) => m.id === params.messageId
+    );
     if (targetIndex === -1) {
       return `错误: 未找到预设消息 (id: ${params.messageId})`;
     }
@@ -761,7 +833,10 @@ export async function move_preset_message(params: {
     const position = params.position;
 
     // 防止无意义操作：移动到自身的 before/after
-    if (position === `before:${params.messageId}` || position === `after:${params.messageId}`) {
+    if (
+      position === `before:${params.messageId}` ||
+      position === `after:${params.messageId}`
+    ) {
       return `提示: 消息已在目标位置，无需移动`;
     }
 
@@ -775,14 +850,18 @@ export async function move_preset_message(params: {
     } else if (position === "end") {
       messages.push(message);
     } else if (position === "before:chat_history") {
-      const chatHistoryIndex = messages.findIndex((m) => m.type === "chat_history");
+      const chatHistoryIndex = messages.findIndex(
+        (m) => m.type === "chat_history"
+      );
       if (chatHistoryIndex !== -1) {
         messages.splice(chatHistoryIndex, 0, message);
       } else {
         messages.push(message);
       }
     } else if (position === "after:chat_history") {
-      const chatHistoryIndex = messages.findIndex((m) => m.type === "chat_history");
+      const chatHistoryIndex = messages.findIndex(
+        (m) => m.type === "chat_history"
+      );
       if (chatHistoryIndex !== -1) {
         messages.splice(chatHistoryIndex + 1, 0, message);
       } else {
@@ -834,7 +913,10 @@ export async function move_preset_message(params: {
 /**
  * 10. import_agent_from_text - 从 YAML/JSON 文本创建新智能体
  */
-export async function import_agent_from_text(params: { text: string; format?: string }): Promise<string> {
+export async function import_agent_from_text(params: {
+  text: string;
+  format?: string;
+}): Promise<string> {
   try {
     const agentStore = useAgentStore();
 
@@ -873,19 +955,34 @@ export async function import_agent_from_text(params: { text: string; format?: st
     }
 
     // 提取创建参数
-    const { name, profileId, modelId, id: _id, createdAt: _ca, lastUsedAt: _lu, ...options } = parsed;
+    const {
+      name,
+      profileId,
+      modelId,
+      id: _id,
+      createdAt: _ca,
+      lastUsedAt: _lu,
+      ...options
+    } = parsed;
 
     // 使用 store 中第一个可用的 profileId（如果未指定）
     const agents = agentStore.agents;
-    const fallbackProfileId = profileId || (agents.length > 0 ? agents[0].profileId : "");
-    const fallbackModelId = modelId || (agents.length > 0 ? agents[0].modelId : "");
+    const fallbackProfileId =
+      profileId || (agents.length > 0 ? agents[0].profileId : "");
+    const fallbackModelId =
+      modelId || (agents.length > 0 ? agents[0].modelId : "");
 
     if (!fallbackProfileId || !fallbackModelId) {
       return `错误: 无法确定 profileId 或 modelId，请确保至少有一个已配置的智能体`;
     }
 
     // 创建智能体
-    const newAgentId = agentStore.createAgent(name, fallbackProfileId, fallbackModelId, options);
+    const newAgentId = agentStore.createAgent(
+      name,
+      fallbackProfileId,
+      fallbackModelId,
+      options
+    );
 
     logger.info("import_agent_from_text 成功", {
       agentId: newAgentId,

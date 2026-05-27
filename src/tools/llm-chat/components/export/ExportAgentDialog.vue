@@ -5,7 +5,12 @@ import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
 
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import Avatar from "@/components/common/Avatar.vue";
-import { ElCheckbox, ElCheckboxGroup, ElRadioGroup, ElRadio } from "element-plus";
+import {
+  ElCheckbox,
+  ElCheckboxGroup,
+  ElRadioGroup,
+  ElRadio,
+} from "element-plus";
 import type { CheckboxValueType } from "element-plus";
 
 const props = defineProps<{
@@ -73,7 +78,10 @@ const isIndeterminate = computed(() => {
   return selectedCount > 0 && selectedCount < agents.value.length;
 });
 const isAllSelected = computed(() => {
-  return selectedAgentIds.value.length === agents.value.length && agents.value.length > 0;
+  return (
+    selectedAgentIds.value.length === agents.value.length &&
+    agents.value.length > 0
+  );
 });
 
 const handleCheckAllChange = (val: CheckboxValueType) => {
@@ -97,7 +105,10 @@ const handleExport = async () => {
         // 如果没有头像，可能需要提示用户
         // 这里暂时不做处理，后端会报错
       }
-    } else if (previewImageSource.value === "custom" && customPreviewFile.value) {
+    } else if (
+      previewImageSource.value === "custom" &&
+      customPreviewFile.value
+    ) {
       previewImage = customPreviewFile.value;
     } else {
       // 必填项检查
@@ -214,7 +225,10 @@ const canExport = computed(() => {
           >
             全选
           </el-checkbox>
-          <el-checkbox-group v-model="selectedAgentIds" class="agent-checkbox-group">
+          <el-checkbox-group
+            v-model="selectedAgentIds"
+            class="agent-checkbox-group"
+          >
             <el-checkbox
               v-for="agent in agents"
               :key="agent.id"
@@ -230,7 +244,9 @@ const canExport = computed(() => {
                   :radius="3"
                   class="agent-icon-avatar"
                 />
-                <span class="agent-name">{{ agent.displayName || agent.name }}</span>
+                <span class="agent-name">{{
+                  agent.displayName || agent.name
+                }}</span>
               </div>
             </el-checkbox>
           </el-checkbox-group>
@@ -246,7 +262,9 @@ const canExport = computed(() => {
             :radius="8"
           />
           <div class="info-text">
-            <div class="name">{{ singleTargetAgent.displayName || singleTargetAgent.name }}</div>
+            <div class="name">
+              {{ singleTargetAgent.displayName || singleTargetAgent.name }}
+            </div>
             <div class="desc" v-if="singleTargetAgent.description">
               {{ singleTargetAgent.description }}
             </div>
@@ -271,7 +289,11 @@ const canExport = computed(() => {
           <div v-if="exportType === 'png'" class="option-item preview-setting">
             <span class="label">预览图设置：</span>
             <div class="preview-options">
-              <el-radio-group v-model="previewImageSource" size="small" :disabled="!isSingleMode">
+              <el-radio-group
+                v-model="previewImageSource"
+                size="small"
+                :disabled="!isSingleMode"
+              >
                 <el-radio value="avatar">使用头像</el-radio>
                 <el-radio value="custom">自定义图片</el-radio>
               </el-radio-group>
@@ -295,7 +317,10 @@ const canExport = computed(() => {
           </div>
 
           <div class="option-item">
-            <el-checkbox v-model="includeAssets" :disabled="exportType === 'file'">
+            <el-checkbox
+              v-model="includeAssets"
+              :disabled="exportType === 'file'"
+            >
               包含头像、表情、背景等私有资产文件
             </el-checkbox>
           </div>
@@ -306,18 +331,25 @@ const canExport = computed(() => {
               :disabled="exportType === 'file' || !hasWorldbooks"
             >
               包含关联的世界书
-              <span v-if="!hasWorldbooks" class="disabled-reason"> (所选智能体未关联世界书) </span>
+              <span v-if="!hasWorldbooks" class="disabled-reason">
+                (所选智能体未关联世界书)
+              </span>
             </el-checkbox>
           </div>
 
-          <div class="option-item sub-option" v-if="includeWorldbooks && exportType !== 'file'">
+          <div
+            class="option-item sub-option"
+            v-if="includeWorldbooks && exportType !== 'file'"
+          >
             <el-checkbox v-model="embedWorldbooks">
               将世界书内嵌到配置文件中 (默认打包为独立文件)
             </el-checkbox>
           </div>
 
           <div class="option-item" v-if="!isSingleMode">
-            <el-checkbox v-model="separateFolders">为每个智能体创建独立文件夹</el-checkbox>
+            <el-checkbox v-model="separateFolders"
+              >为每个智能体创建独立文件夹</el-checkbox
+            >
           </div>
 
           <div class="option-item format-select">

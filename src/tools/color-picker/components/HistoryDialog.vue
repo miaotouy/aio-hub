@@ -1,29 +1,29 @@
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue';
-import { ElMessageBox, ElAvatar, ElIcon } from 'element-plus';
-import { Loading } from '@element-plus/icons-vue';
-import { useColorHistory } from '../composables/useColorHistory';
-import type { ColorHistoryIndexItem } from '../composables/useColorHistory';
-import { calculateColorDistance } from '../composables/useColorConverter';
-import { useAssetManager } from '@/composables/useAssetManager';
-import { useImageViewer } from '@/composables/useImageViewer';
-import { createModuleLogger } from '@/utils/logger';
-import { createModuleErrorHandler } from '@/utils/errorHandler';
-import { customMessage } from '@/utils/customMessage';
-import { format } from 'date-fns';
-import BaseDialog from '@/components/common/BaseDialog.vue';
+import { ref, watch, computed } from "vue";
+import { ElMessageBox, ElAvatar, ElIcon } from "element-plus";
+import { Loading } from "@element-plus/icons-vue";
+import { useColorHistory } from "../composables/useColorHistory";
+import type { ColorHistoryIndexItem } from "../composables/useColorHistory";
+import { calculateColorDistance } from "../composables/useColorConverter";
+import { useAssetManager } from "@/composables/useAssetManager";
+import { useImageViewer } from "@/composables/useImageViewer";
+import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { customMessage } from "@/utils/customMessage";
+import { format } from "date-fns";
+import BaseDialog from "@/components/common/BaseDialog.vue";
 
 const props = defineProps<{
   visible: boolean;
 }>();
 
 const emit = defineEmits<{
-  (e: 'update:visible', value: boolean): void;
-  (e: 'load-record', recordId: string): void;
+  (e: "update:visible", value: boolean): void;
+  (e: "load-record", recordId: string): void;
 }>();
 
-const logger = createModuleLogger('ColorPickerHistoryDialog');
-const errorHandler = createModuleErrorHandler('ColorPickerHistoryDialog');
+const logger = createModuleLogger("ColorPickerHistoryDialog");
+const errorHandler = createModuleErrorHandler("ColorPickerHistoryDialog");
 const { loadHistoryIndex, deleteRecord, clearAllRecords } = useColorHistory();
 const { getAssetBasePath, convertToAssetProtocol } = useAssetManager();
 const imageViewer = useImageViewer();
@@ -36,16 +36,16 @@ const currentPage = ref(1);
 const hasMore = ref(true);
 const isLoadingMore = ref(false);
 const thumbnailUrls = ref<Record<string, string>>({});
-const assetBasePath = ref('');
+const assetBasePath = ref("");
 
 // 搜索状态
-const searchQuery = ref('');
-const searchColor = ref('');
+const searchQuery = ref("");
+const searchColor = ref("");
 const colorThreshold = ref(60);
 
 const isDialogVisible = computed({
   get: () => props.visible,
-  set: (val) => emit('update:visible', val),
+  set: (val) => emit("update:visible", val),
 });
 
 // 过滤后的历史记录
@@ -55,7 +55,7 @@ const filteredHistory = computed(() => {
   // 文本搜索
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase();
-    result = result.filter(item =>
+    result = result.filter((item) =>
       item.sourceImageName.toLowerCase().includes(query)
     );
   }
@@ -64,10 +64,10 @@ const filteredHistory = computed(() => {
   if (searchColor.value && /^#[0-9A-F]{6}$/i.test(searchColor.value)) {
     const targetColor = searchColor.value;
     const THRESHOLD = colorThreshold.value;
-    
-    result = result.filter(item => {
+
+    result = result.filter((item) => {
       // 检查预览颜色中是否有相似的颜色
-      return item.colorPreview.some(color => {
+      return item.colorPreview.some((color) => {
         const distance = calculateColorDistance(color, targetColor);
         return distance < THRESHOLD;
       });
@@ -93,7 +93,7 @@ async function fetchHistory() {
     allHistory.value = index.records;
     // hasMore 的初始状态会在 watch(filteredHistory) 中被正确设置，因为 allHistory 赋值会触发 computed 更新
   } catch (error) {
-    errorHandler.error(error, '加载历史记录索引失败');
+    errorHandler.error(error, "加载历史记录索引失败");
   }
 }
 
@@ -115,7 +115,7 @@ async function loadPage(page: number) {
   } else {
     displayedHistory.value.push(...pageRecords);
   }
-  
+
   updateImageUrls(pageRecords);
 
   hasMore.value = end < filteredHistory.value.length;
@@ -129,7 +129,7 @@ async function loadMore() {
   try {
     await loadPage(currentPage.value + 1);
   } catch (error) {
-    errorHandler.error(error, '加载更多历史记录失败');
+    errorHandler.error(error, "加载更多历史记录失败");
   } finally {
     isLoadingMore.value = false;
   }
@@ -149,13 +149,16 @@ function handleScroll(event: Event) {
 
 function updateImageUrls(records: ColorHistoryIndexItem[]) {
   if (!assetBasePath.value) return;
-  
+
   records.forEach((record) => {
     if (record.assetId && !thumbnailUrls.value[record.id]) {
       // 默认尝试使用缩略图路径 (.thumbnails/{uuid}.jpg)
       // 使用 convertToAssetProtocol 直接生成 asset:// 链接，无需异步读取文件
       const thumbPath = `.thumbnails/${record.assetId}.jpg`;
-      thumbnailUrls.value[record.id] = convertToAssetProtocol(thumbPath, assetBasePath.value);
+      thumbnailUrls.value[record.id] = convertToAssetProtocol(
+        thumbPath,
+        assetBasePath.value
+      );
     }
   });
 }
@@ -164,16 +167,19 @@ function handleImageError(record: ColorHistoryIndexItem) {
   if (!record.assetId || !record.assetPath || !assetBasePath.value) return true;
 
   const currentSrc = thumbnailUrls.value[record.id];
-  const originalSrc = convertToAssetProtocol(record.assetPath, assetBasePath.value);
+  const originalSrc = convertToAssetProtocol(
+    record.assetPath,
+    assetBasePath.value
+  );
 
   // 如果当前是缩略图（包含 .thumbnails），尝试降级到原图
-  if (currentSrc && currentSrc.includes('.thumbnails')) {
+  if (currentSrc && currentSrc.includes(".thumbnails")) {
     thumbnailUrls.value[record.id] = originalSrc;
     // 返回 false 阻止默认的 error 行为（显示 fallback slot），
     // 因为我们修改了 src，el-avatar 会尝试加载新 URL
     return false;
   }
-  
+
   // 如果已经是原图还报错，则显示默认的 fallback slot
   return true;
 }
@@ -182,29 +188,34 @@ function handlePreview(record: ColorHistoryIndexItem) {
   if (!record.assetId || !record.assetPath || !assetBasePath.value) return;
 
   try {
-    const fullImageUrl = convertToAssetProtocol(record.assetPath, assetBasePath.value);
+    const fullImageUrl = convertToAssetProtocol(
+      record.assetPath,
+      assetBasePath.value
+    );
     if (fullImageUrl) {
       imageViewer.show(fullImageUrl);
     }
   } catch (error) {
-    errorHandler.error(error, '预览图片失败', { context: { recordId: record.id } });
+    errorHandler.error(error, "预览图片失败", {
+      context: { recordId: record.id },
+    });
   }
 }
 
 async function handleLoad(record: ColorHistoryIndexItem) {
-  emit('load-record', record.id);
+  emit("load-record", record.id);
   isDialogVisible.value = false;
 }
 
 async function handleDelete(record: ColorHistoryIndexItem) {
   try {
     await ElMessageBox.confirm(
-      '确定要删除这条历史记录吗？如果关联的图片未被其他记录引用，它将被移入回收站。',
-      '确认删除',
+      "确定要删除这条历史记录吗？如果关联的图片未被其他记录引用，它将被移入回收站。",
+      "确认删除",
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning',
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+        type: "warning",
         lockScroll: false,
       }
     );
@@ -213,18 +224,22 @@ async function handleDelete(record: ColorHistoryIndexItem) {
     // 从所有记录中移除
     allHistory.value = allHistory.value.filter((r) => r.id !== record.id);
     // 从显示记录中移除
-    displayedHistory.value = displayedHistory.value.filter((r) => r.id !== record.id);
+    displayedHistory.value = displayedHistory.value.filter(
+      (r) => r.id !== record.id
+    );
     // 移除缩略图
     delete thumbnailUrls.value[record.id];
 
     // 更新 hasMore 状态
     hasMore.value = displayedHistory.value.length < allHistory.value.length;
 
-    customMessage.success('已删除历史记录');
-    logger.info('历史记录已删除', { recordId: record.id });
+    customMessage.success("已删除历史记录");
+    logger.info("历史记录已删除", { recordId: record.id });
   } catch (error) {
-    if (error !== 'cancel') {
-      errorHandler.error(error, '删除历史记录失败', { context: { recordId: record.id } });
+    if (error !== "cancel") {
+      errorHandler.error(error, "删除历史记录失败", {
+        context: { recordId: record.id },
+      });
     }
   }
 }
@@ -232,26 +247,26 @@ async function handleDelete(record: ColorHistoryIndexItem) {
 async function handleClearAll() {
   try {
     await ElMessageBox.confirm(
-      '确定要清空所有历史记录吗？此操作不可恢复。',
-      '确认清空',
+      "确定要清空所有历史记录吗？此操作不可恢复。",
+      "确认清空",
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning',
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+        type: "warning",
       }
     );
-    
+
     await clearAllRecords();
     allHistory.value = [];
     displayedHistory.value = [];
     thumbnailUrls.value = {};
     hasMore.value = false;
-    
-    customMessage.success('已清空所有历史记录');
-    logger.info('已清空所有历史记录');
+
+    customMessage.success("已清空所有历史记录");
+    logger.info("已清空所有历史记录");
   } catch (error) {
-    if (error !== 'cancel') {
-      errorHandler.error(error, '清空历史记录失败');
+    if (error !== "cancel") {
+      errorHandler.error(error, "清空历史记录失败");
     }
   }
 }
@@ -264,7 +279,7 @@ watch(
         try {
           assetBasePath.value = await getAssetBasePath();
         } catch (error) {
-          errorHandler.error(error, '获取资产根目录失败');
+          errorHandler.error(error, "获取资产根目录失败");
         }
       }
       fetchHistory();
@@ -296,9 +311,17 @@ watch(
           <el-color-picker
             v-model="searchColor"
             size="default"
-            :predefine="['#ff4500', '#ff8c00', '#ffd700', '#90ee90', '#00ced1', '#1e90ff', '#c71585']"
+            :predefine="[
+              '#ff4500',
+              '#ff8c00',
+              '#ffd700',
+              '#90ee90',
+              '#00ced1',
+              '#1e90ff',
+              '#c71585',
+            ]"
           />
-          
+
           <template v-if="searchColor">
             <div class="threshold-control">
               <span class="label">容差: {{ colorThreshold }}</span>
@@ -311,12 +334,18 @@ watch(
                 style="width: 120px"
               />
             </div>
-            <el-button link @click="searchColor = ''" size="small">清除</el-button>
+            <el-button link @click="searchColor = ''" size="small"
+              >清除</el-button
+            >
           </template>
         </div>
       </div>
 
-      <div v-if="displayedHistory.length > 0" class="history-list-container" @scroll="handleScroll">
+      <div
+        v-if="displayedHistory.length > 0"
+        class="history-list-container"
+        @scroll="handleScroll"
+      >
         <el-scrollbar>
           <div class="history-grid">
             <div
@@ -325,7 +354,11 @@ watch(
               class="history-card"
             >
               <div class="card-image">
-                <el-icon v-if="record.assetId && !thumbnailUrls[record.id]" class="is-loading" :size="28">
+                <el-icon
+                  v-if="record.assetId && !thumbnailUrls[record.id]"
+                  class="is-loading"
+                  :size="28"
+                >
                   <Loading />
                 </el-icon>
                 <el-avatar
@@ -340,17 +373,17 @@ watch(
                   🖼️
                 </el-avatar>
               </div>
-              
+
               <div class="card-content">
                 <div class="card-header">
                   <div class="file-name" :title="record.sourceImageName">
                     {{ record.sourceImageName }}
                   </div>
                   <div class="timestamp">
-                    {{ format(new Date(record.createdAt), 'yyyy-MM-dd HH:mm') }}
+                    {{ format(new Date(record.createdAt), "yyyy-MM-dd HH:mm") }}
                   </div>
                 </div>
-                
+
                 <div class="color-preview">
                   <div
                     v-for="(color, index) in record.colorPreview"
@@ -360,12 +393,16 @@ watch(
                     :title="color"
                   ></div>
                 </div>
-                
+
                 <div class="card-actions">
                   <el-button size="small" @click="handleLoad(record)">
                     加载
                   </el-button>
-                  <el-button size="small" type="danger" @click="handleDelete(record)">
+                  <el-button
+                    size="small"
+                    type="danger"
+                    @click="handleDelete(record)"
+                  >
                     删除
                   </el-button>
                 </div>
@@ -380,20 +417,27 @@ watch(
             </el-icon>
             <span>加载中...</span>
           </div>
-          <div v-else-if="!hasMore && displayedHistory.length > 0" class="no-more">
+          <div
+            v-else-if="!hasMore && displayedHistory.length > 0"
+            class="no-more"
+          >
             已加载全部 {{ allHistory.length }} 条记录
           </div>
         </el-scrollbar>
       </div>
       <div v-else class="empty-state">
-        <el-empty :description="searchQuery || searchColor ? '没有找到匹配的记录' : '暂无历史记录'" />
+        <el-empty
+          :description="
+            searchQuery || searchColor ? '没有找到匹配的记录' : '暂无历史记录'
+          "
+        />
       </div>
     </div>
 
     <template #footer>
-      <el-button 
-        type="danger" 
-        plain 
+      <el-button
+        type="danger"
+        plain
         :disabled="displayedHistory.length === 0"
         @click="handleClearAll"
       >

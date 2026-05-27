@@ -58,7 +58,7 @@ export function useEditorExport(session: EditorSession) {
       state.layers.value,
       canvases,
       stage,
-      state.assetRefs.value,
+      state.assetRefs.value
     );
 
     if (success) {
@@ -91,7 +91,13 @@ export function useEditorExport(session: EditorSession) {
       height: state.project.value.height,
     };
 
-    const success = await storage.saveProject(newProj, state.layers.value, canvases, stage, state.assetRefs.value);
+    const success = await storage.saveProject(
+      newProj,
+      state.layers.value,
+      canvases,
+      stage,
+      state.assetRefs.value
+    );
     if (success) {
       state.project.value = newProj;
       state.isDirty.value = false;
@@ -103,7 +109,9 @@ export function useEditorExport(session: EditorSession) {
   /**
    * 导出为指定格式
    */
-  async function handleExport(format: "aiosk" | "png" | "jpg" | "webp"): Promise<void> {
+  async function handleExport(
+    format: "aiosk" | "png" | "jpg" | "webp"
+  ): Promise<void> {
     if (!state.project.value) return;
 
     const stage = runtime.capabilities.getStage();
@@ -120,12 +128,20 @@ export function useEditorExport(session: EditorSession) {
   /**
    * 导出为 .aiosk 项目文件
    */
-  async function handleExportAiosk(stage: Konva.Stage, canvases: Map<string, HTMLCanvasElement>): Promise<void> {
+  async function handleExportAiosk(
+    stage: Konva.Stage,
+    canvases: Map<string, HTMLCanvasElement>
+  ): Promise<void> {
     if (!state.project.value) return;
 
     syncObjectLayersBeforeSave();
 
-    const bytes = await packageSketch(state.project.value, state.layers.value, canvases, stage);
+    const bytes = await packageSketch(
+      state.project.value,
+      state.layers.value,
+      canvases,
+      stage
+    );
     if (bytes) {
       const filePath = await save({
         filters: [{ name: "AIO Hub Sketch File", extensions: ["aiosk"] }],
@@ -142,7 +158,10 @@ export function useEditorExport(session: EditorSession) {
   /**
    * 导出为图片格式 (png / jpg / webp)
    */
-  async function handleExportImage(format: "png" | "jpg" | "webp", stage: Konva.Stage): Promise<void> {
+  async function handleExportImage(
+    format: "png" | "jpg" | "webp",
+    stage: Konva.Stage
+  ): Promise<void> {
     if (!state.project.value) return;
 
     // 隐藏 overlay 层（Transformer 等辅助元素）和边界层
@@ -169,7 +188,11 @@ export function useEditorExport(session: EditorSession) {
         height: state.project.value.height,
         pixelRatio: 2,
       });
-      blob = await canvasToBlob(canvas, mimeType, format === "png" ? undefined : 0.92);
+      blob = await canvasToBlob(
+        canvas,
+        mimeType,
+        format === "png" ? undefined : 0.92
+      );
     } finally {
       // 恢复隐藏的层
       if (overlay) overlay.show();
@@ -197,10 +220,14 @@ export function useEditorExport(session: EditorSession) {
   async function handleSendToChat(): Promise<void> {
     const stage = runtime.capabilities.getStage();
     if (stage) {
-      await sendToChat(stage, state.project.value?.name || generateDefaultSketchName(), {
-        width: state.project.value?.width,
-        height: state.project.value?.height,
-      });
+      await sendToChat(
+        stage,
+        state.project.value?.name || generateDefaultSketchName(),
+        {
+          width: state.project.value?.width,
+          height: state.project.value?.height,
+        }
+      );
     }
   }
 
@@ -243,7 +270,13 @@ export function useEditorExport(session: EditorSession) {
     syncObjectLayersBeforeSave();
 
     state.project.value.updatedAt = new Date().toISOString();
-    await storage.saveProject(state.project.value, state.layers.value, canvases, stage, state.assetRefs.value);
+    await storage.saveProject(
+      state.project.value,
+      state.layers.value,
+      canvases,
+      stage,
+      state.assetRefs.value
+    );
     state.isDirty.value = false;
   }
 

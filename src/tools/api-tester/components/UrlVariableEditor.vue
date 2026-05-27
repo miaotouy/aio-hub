@@ -2,11 +2,17 @@
   <div class="section variables-section">
     <div class="section-header">
       <h3>URL 变量</h3>
-      <el-button @click="addNewVariable" type="primary" plain>+ 添加变量</el-button>
+      <el-button @click="addNewVariable" type="primary" plain
+        >+ 添加变量</el-button
+      >
     </div>
 
     <div class="variables-list">
-      <div v-for="(variable, index) in editableVariables" :key="index" class="variable-item">
+      <div
+        v-for="(variable, index) in editableVariables"
+        :key="index"
+        class="variable-item"
+      >
         <VariableEditor
           v-model="editableVariables[index]"
           @remove="removeVariable(index)"
@@ -130,7 +136,9 @@ function saveEnumOptions() {
     updatedVariable.value = "";
   }
 
-  const index = editableVariables.value.findIndex((v: any) => v.key === updatedVariable.key);
+  const index = editableVariables.value.findIndex(
+    (v: any) => v.key === updatedVariable.key
+  );
   if (index !== -1) {
     updateVariable(index, updatedVariable);
   }

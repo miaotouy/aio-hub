@@ -27,7 +27,9 @@
         <div class="diff-panel">
           <div class="diff-panel-header">
             <Crown :size="14" class="crown-icon" />
-            <span class="diff-path" :title="pathA">{{ truncatePath(pathA) }}</span>
+            <span class="diff-path" :title="pathA">{{
+              truncatePath(pathA)
+            }}</span>
           </div>
           <div class="diff-panel-body">
             <pre class="diff-content"><code>{{ contentA }}</code></pre>
@@ -36,7 +38,9 @@
         <div class="diff-panel">
           <div class="diff-panel-header">
             <Copy :size="14" class="dup-icon" />
-            <span class="diff-path" :title="pathB">{{ truncatePath(pathB) }}</span>
+            <span class="diff-path" :title="pathB">{{
+              truncatePath(pathB)
+            }}</span>
           </div>
           <div class="diff-panel-body">
             <pre class="diff-content"><code>{{ contentB }}</code></pre>
@@ -77,7 +81,10 @@ watch(visible, async (val) => {
   contentB.value = "";
 
   try {
-    const [a, b] = await Promise.all([readFileForDiff(props.pathA), readFileForDiff(props.pathB)]);
+    const [a, b] = await Promise.all([
+      readFileForDiff(props.pathA),
+      readFileForDiff(props.pathB),
+    ]);
     contentA.value = a ?? "";
     contentB.value = b ?? "";
   } catch (e) {

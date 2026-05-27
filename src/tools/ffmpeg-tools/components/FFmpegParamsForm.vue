@@ -12,7 +12,10 @@
     <!-- 自定义命令模式 -->
     <template v-if="params.mode === 'custom'">
       <el-divider content-position="left">自定义命令</el-divider>
-      <FFmpegCustomCommand :params="params" @save-as-preset="emit('save-as-preset')" />
+      <FFmpegCustomCommand
+        :params="params"
+        @save-as-preset="emit('save-as-preset')"
+      />
 
       <el-divider content-position="left">通用选项</el-divider>
       <div class="advanced-options">
@@ -28,7 +31,9 @@
     </template>
 
     <!-- 视频配置区 -->
-    <template v-if="params.mode !== 'extract_audio' && params.mode !== 'custom'">
+    <template
+      v-if="params.mode !== 'extract_audio' && params.mode !== 'custom'"
+    >
       <el-divider content-position="left">视频配置</el-divider>
 
       <!-- 简单模式：质量预设 -->
@@ -42,7 +47,11 @@
               <el-option label="禁用视频流 (-vn)" value="none" />
             </el-select>
           </el-form-item>
-          <el-form-item label="输出质量" class="flex-1" v-if="params.videoEncoder !== 'copy'">
+          <el-form-item
+            label="输出质量"
+            class="flex-1"
+            v-if="params.videoEncoder !== 'copy'"
+          >
             <el-select v-model="qualityPreset" placeholder="选择质量">
               <el-option label="极高 (CRF 18)" value="high" />
               <el-option label="平衡 (CRF 23)" value="medium" />
@@ -68,7 +77,11 @@
       <template v-else>
         <div class="form-row">
           <el-form-item label="视频编码器" class="flex-1">
-            <el-select v-model="params.videoEncoder" placeholder="自动选择" clearable>
+            <el-select
+              v-model="params.videoEncoder"
+              placeholder="自动选择"
+              clearable
+            >
               <el-option label="H.264 (libx264)" value="libx264" />
               <el-option label="H.265 (libx265)" value="libx265" />
               <el-option label="AV1 (libaom-av1)" value="libaom-av1" />
@@ -104,14 +117,26 @@
             </el-radio-group>
           </el-form-item>
 
-          <el-form-item v-if="strategy === 'crf'" label="CRF 值 (0-51)" class="flex-1">
+          <el-form-item
+            v-if="strategy === 'crf'"
+            label="CRF 值 (0-51)"
+            class="flex-1"
+          >
             <el-input-number v-model="params.crf" :min="0" :max="51" />
           </el-form-item>
-          <el-form-item v-else-if="strategy === 'bitrate'" label="视频码率" class="flex-1">
+          <el-form-item
+            v-else-if="strategy === 'bitrate'"
+            label="视频码率"
+            class="flex-1"
+          >
             <el-input v-model="params.videoBitrate" placeholder="e.g. 4000k" />
           </el-form-item>
           <el-form-item v-else label="目标大小 (MB)" class="flex-1">
-            <el-input-number v-model="params.maxSizeMb" :min="1" :precision="1" />
+            <el-input-number
+              v-model="params.maxSizeMb"
+              :min="1"
+              :precision="1"
+            />
           </el-form-item>
         </div>
 
@@ -126,12 +151,21 @@
             </el-select>
           </el-form-item>
           <el-form-item label="帧率 (FPS)" class="flex-1">
-            <el-input-number v-model="params.fps" :min="1" :max="120" placeholder="默认" />
+            <el-input-number
+              v-model="params.fps"
+              :min="1"
+              :max="120"
+              placeholder="默认"
+            />
           </el-form-item>
         </div>
 
         <el-form-item label="像素格式 (Pixel Format)">
-          <el-select v-model="params.pixelFormat" clearable placeholder="自动选择">
+          <el-select
+            v-model="params.pixelFormat"
+            clearable
+            placeholder="自动选择"
+          >
             <el-option label="yuv420p (兼容性最好)" value="yuv420p" />
             <el-option label="yuv422p" value="yuv422p" />
             <el-option label="yuv444p" value="yuv444p" />
@@ -158,7 +192,11 @@
               <el-option label="禁用音频流 (-an)" value="none" />
             </el-select>
           </el-form-item>
-          <el-form-item v-if="params.audioEncoder !== 'copy'" label="音频质量" class="flex-1">
+          <el-form-item
+            v-if="params.audioEncoder !== 'copy'"
+            label="音频质量"
+            class="flex-1"
+          >
             <el-select v-model="params.audioBitrate">
               <el-option label="标准 (128 kbps)" value="128k" />
               <el-option label="高音质 (192 kbps)" value="192k" />
@@ -182,7 +220,11 @@
               <el-option label="禁用音频流 (None)" value="none" />
             </el-select>
           </el-form-item>
-          <el-form-item v-if="params.audioEncoder !== 'copy'" label="音频比特率" class="flex-1">
+          <el-form-item
+            v-if="params.audioEncoder !== 'copy'"
+            label="音频比特率"
+            class="flex-1"
+          >
             <el-select v-model="params.audioBitrate">
               <el-option label="64 kbps" value="64k" />
               <el-option label="128 kbps" value="128k" />
@@ -193,14 +235,22 @@
         </div>
         <div class="form-row" v-if="params.audioEncoder !== 'copy'">
           <el-form-item label="采样率" class="flex-1">
-            <el-select v-model="params.sampleRate" clearable placeholder="保持原始">
+            <el-select
+              v-model="params.sampleRate"
+              clearable
+              placeholder="保持原始"
+            >
               <el-option label="44100 Hz" value="44100" />
               <el-option label="48000 Hz" value="48000" />
               <el-option label="96000 Hz" value="96000" />
             </el-select>
           </el-form-item>
           <el-form-item label="声道" class="flex-1">
-            <el-select v-model="params.audioChannels" clearable placeholder="保持原始">
+            <el-select
+              v-model="params.audioChannels"
+              clearable
+              placeholder="保持原始"
+            >
               <el-option label="单声道 (Mono)" :value="1" />
               <el-option label="双声道 (Stereo)" :value="2" />
               <el-option label="5.1 声道" :value="6" />
@@ -222,7 +272,12 @@
           <el-switch v-model="params.appendParamsToName" />
         </div>
         <el-form-item label="附加参数 (Custom Arguments)">
-          <el-input v-model="customArgsStr" type="textarea" :rows="2" placeholder="例如: -threads 4 -aspect 16:9" />
+          <el-input
+            v-model="customArgsStr"
+            type="textarea"
+            :rows="2"
+            placeholder="例如: -threads 4 -aspect 16:9"
+          />
           <div class="help-text">额外参数，会追加到自动生成的命令之后</div>
         </el-form-item>
       </div>
@@ -273,7 +328,7 @@ watch(
       props.params.maxSizeMb = undefined;
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 // 监听策略变化，清除互斥参数
@@ -281,7 +336,8 @@ watch(strategy, (s) => {
   if (s === "crf") {
     props.params.maxSizeMb = undefined;
     props.params.videoBitrate = undefined;
-    if (props.params.crf === undefined) props.params.crf = qualityMap[qualityPreset.value] || 23;
+    if (props.params.crf === undefined)
+      props.params.crf = qualityMap[qualityPreset.value] || 23;
   } else if (s === "bitrate") {
     props.params.maxSizeMb = undefined;
     props.params.crf = undefined;
@@ -322,7 +378,7 @@ watch(
         props.params.audioEncoder = "aac";
       }
     }
-  },
+  }
 );
 
 // 监听音频编码器变化，如果是 copy，清除比特率
@@ -336,7 +392,7 @@ watch(
     } else if (!props.params.audioBitrate) {
       props.params.audioBitrate = "128k";
     }
-  },
+  }
 );
 </script>
 

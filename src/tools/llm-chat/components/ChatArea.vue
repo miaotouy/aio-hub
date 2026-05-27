@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { ref, computed, toRef, onMounted, watch, shallowRef, defineAsyncComponent } from "vue";
+import {
+  ref,
+  computed,
+  toRef,
+  onMounted,
+  watch,
+  shallowRef,
+  defineAsyncComponent,
+} from "vue";
 import { useElementSize, onLongPress } from "@vueuse/core";
 import { invoke } from "@tauri-apps/api/core";
 import { ElTooltip, ElIcon } from "element-plus";
@@ -22,7 +30,9 @@ import ChatSettingsDialog from "./settings/ChatSettingsDialog.vue";
 import ViewModeSwitcher from "./message/ViewModeSwitcher.vue";
 import FlowTreeGraph from "./conversation-tree-graph/flow/FlowTreeGraph.vue";
 import ChatSearchPanel from "./search/ChatSearchPanel.vue";
-const QuickActionManagerDialog = defineAsyncComponent(() => import("./quick-action/QuickActionManagerDialog.vue"));
+const QuickActionManagerDialog = defineAsyncComponent(
+  () => import("./quick-action/QuickActionManagerDialog.vue")
+);
 import { Settings2, Search, AlertCircle } from "lucide-vue-next";
 // import { Setting } from "@element-plus/icons-vue";
 
@@ -46,10 +56,14 @@ interface Emits {
       attachments?: Asset[];
       temporaryModel?: any; // 保持与 LlmChat.vue 一致
       disableMacroParsing?: boolean;
-    },
+    }
   ): void;
   (e: "abort"): void;
-  (e: "complete-input", content: string, options?: { modelId?: string; profileId?: string }): void;
+  (
+    e: "complete-input",
+    content: string,
+    options?: { modelId?: string; profileId?: string }
+  ): void;
   (e: "select-continuation-model"): void;
   (e: "clear-continuation-model"): void;
 }
@@ -76,7 +90,10 @@ import { useChatSettings } from "../composables/settings/useChatSettings";
 import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
 import Avatar from "@/components/common/Avatar.vue";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
-import { useThemeAppearance, getBlendedBackgroundColor } from "@/composables/useThemeAppearance";
+import {
+  useThemeAppearance,
+  getBlendedBackgroundColor,
+} from "@/composables/useThemeAppearance";
 import { useResolvedAvatar } from "../composables/ui/useResolvedAvatar";
 import { useLlmChatUiState } from "../composables/ui/useLlmChatUiState";
 import { useLlmChatStore } from "../stores/llmChatStore";
@@ -122,10 +139,15 @@ const modelIcon = computed(() => {
 
 // 当前生效的用户档案（智能体绑定 > 全局配置）
 const effectiveUserProfile = computed(() => {
-  return userProfileStore.getEffectiveProfile(currentAgent.value?.userProfileId);
+  return userProfileStore.getEffectiveProfile(
+    currentAgent.value?.userProfileId
+  );
 });
 
-const userProfileAvatarSrc = useResolvedAvatar(effectiveUserProfile, "user-profile");
+const userProfileAvatarSrc = useResolvedAvatar(
+  effectiveUserProfile,
+  "user-profile"
+);
 
 // 计算用户消息的样式配置
 const userRichTextStyleOptions = computed(() => {
@@ -200,7 +222,11 @@ const handleSearchSelect = (messageId: string) => {
 
 const handleEditAgent = (tab?: string, section?: string) => {
   if (currentAgent.value) {
-    logger.info("打开智能体编辑对话框", { agentId: currentAgent.value.id, tab, section });
+    logger.info("打开智能体编辑对话框", {
+      agentId: currentAgent.value.id,
+      tab,
+      section,
+    });
     initialEditTab.value = tab;
     initialEditSection.value = section;
     showEditAgentDialog.value = true;
@@ -263,10 +289,17 @@ const handleSelectModel = async () => {
   }
 };
 
-const handleSaveAgent = async (data: AgentEditData, options: { silent?: boolean; agentId?: string } = {}) => {
+const handleSaveAgent = async (
+  data: AgentEditData,
+  options: { silent?: boolean; agentId?: string } = {}
+) => {
   const targetId = options.agentId || currentAgent.value?.id;
   if (targetId) {
-    logger.info("保存智能体", { agentId: targetId, data, silent: options.silent });
+    logger.info("保存智能体", {
+      agentId: targetId,
+      data,
+      silent: options.silent,
+    });
 
     // 直接使用 data 作为 updates，避免手动枚举字段导致遗漏
     // EditAgentDialog 已经负责清洗数据，确保只传递有效的业务字段
@@ -293,7 +326,9 @@ const handleSaveAgent = async (data: AgentEditData, options: { silent?: boolean;
 
 const handleEditUserProfile = () => {
   if (effectiveUserProfile.value) {
-    logger.info("打开用户档案编辑对话框", { profileId: effectiveUserProfile.value.id });
+    logger.info("打开用户档案编辑对话框", {
+      profileId: effectiveUserProfile.value.id,
+    });
     showEditProfileDialog.value = true;
   } else {
     logger.warn("无法编辑用户档案：未找到有效的用户档案");
@@ -325,7 +360,7 @@ onLongPress(
 
     isAgentSwitchVisible.value = true;
   },
-  { delay: 500 },
+  { delay: 500 }
 );
 
 // 每次按下时重置拦截标记
@@ -365,9 +400,14 @@ const handleQuickSwitchAgent = async (agentId: string) => {
   }
 };
 
-const handleSaveUserProfile = async (updates: Partial<Omit<UserProfile, "id" | "createdAt">>) => {
+const handleSaveUserProfile = async (
+  updates: Partial<Omit<UserProfile, "id" | "createdAt">>
+) => {
   if (effectiveUserProfile.value) {
-    logger.info("保存用户档案", { profileId: effectiveUserProfile.value.id, updates });
+    logger.info("保存用户档案", {
+      profileId: effectiveUserProfile.value.id,
+      updates,
+    });
     if (bus.windowType === "detached-component") {
       try {
         await bus.requestAction("llm-chat:update-user-profile", {
@@ -397,7 +437,9 @@ const handleContainerScroll = (e: Event) => {
 
 const isInputVisible = computed(() => {
   // 只要输入框被独立分离出去，无论 ChatArea 在主窗口还是悬浮窗，都应隐藏内部的输入框。
-  const isInputDetached = detachedComponents.value.includes("llm-chat:chat-input");
+  const isInputDetached = detachedComponents.value.includes(
+    "llm-chat:chat-input"
+  );
   logger.info("MessageInput 分离状态检查", {
     isInputDetached,
     isChatAreaDetached: props.isDetached,
@@ -445,7 +487,10 @@ const handleDetach = async () => {
       });
       logger.info("通过菜单分离窗口成功", { sessionId });
     } else {
-      errorHandler.error(new Error("Session ID is null"), "开始分离会话失败，未返回会话 ID");
+      errorHandler.error(
+        new Error("Session ID is null"),
+        "开始分离会话失败，未返回会话 ID"
+      );
     }
   } catch (error) {
     errorHandler.error(error, "通过菜单分离窗口失败");
@@ -471,7 +516,7 @@ watch(
       stableLlmThinkRules.value = newRules;
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 const stableMessageStyleOptions = shallowRef(finalMessageStyleOptions.value);
@@ -481,7 +526,9 @@ watch(finalMessageStyleOptions, (newOptions) => {
   }
 });
 
-const stableUserRichTextStyleOptions = shallowRef(userRichTextStyleOptions.value);
+const stableUserRichTextStyleOptions = shallowRef(
+  userRichTextStyleOptions.value
+);
 watch(userRichTextStyleOptions, (newOptions) => {
   if (!isEqual(newOptions, stableUserRichTextStyleOptions.value)) {
     stableUserRichTextStyleOptions.value = newOptions;
@@ -495,8 +542,10 @@ const handleSendMessage = (payload: {
   disableMacroParsing?: boolean;
 }) => emit("send", payload);
 const handleAbort = () => emit("abort");
-const handleCompleteInput = (content: string, options?: { modelId?: string; profileId?: string }) =>
-  emit("complete-input", content, options);
+const handleCompleteInput = (
+  content: string,
+  options?: { modelId?: string; profileId?: string }
+) => emit("complete-input", content, options);
 
 // ===== 响应式显示控制 =====
 // 阈值设定原则：空间不足时优先去掉文字显示，保住图标和关键操作
@@ -561,7 +610,7 @@ watch(
       }
     }
     previousMessageCount.value = newCount;
-  },
+  }
 );
 
 // 导航器事件处理
@@ -603,7 +652,10 @@ const handleKeyDown = (e: KeyboardEvent) => {
 
   // 检查焦点是否在输入框或其他可编辑元素上
   const target = e.target as HTMLElement;
-  const isEditableElement = target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable;
+  const isEditableElement =
+    target.tagName === "INPUT" ||
+    target.tagName === "TEXTAREA" ||
+    target.isContentEditable;
 
   // 如果焦点在可编辑元素上，不拦截键盘事件
   if (isEditableElement) {
@@ -674,10 +726,13 @@ onMounted(async () => {
       logger.debug("ChatArea props.messages 数量更新", {
         newCount,
         // 只打印第一条消息的内容以避免日志过长
-        firstMessageContent: props.messages && props.messages.length > 0 ? props.messages[0].content : "N/A",
+        firstMessageContent:
+          props.messages && props.messages.length > 0
+            ? props.messages[0].content
+            : "N/A",
       });
     },
-    { immediate: true },
+    { immediate: true }
   );
 });
 </script>
@@ -692,7 +747,10 @@ onMounted(async () => {
     @scroll="handleContainerScroll"
   >
     <!-- 分离模式下的壁纸层 -->
-    <div v-if="isDetached && settings.uiPreferences.showWallpaperInDetachedMode" class="detached-wallpaper"></div>
+    <div
+      v-if="isDetached && settings.uiPreferences.showWallpaperInDetachedMode"
+      class="detached-wallpaper"
+    ></div>
 
     <!-- 头部区域 -->
     <div class="chat-header" :style="chatHeaderStyle">
@@ -713,7 +771,11 @@ onMounted(async () => {
 
       <!-- 左侧：智能体和模型信息 (主要展示区) -->
       <div class="agent-model-info">
-        <el-tooltip v-if="currentAgent" content="点击编辑 / 长按快捷切换" placement="bottom">
+        <el-tooltip
+          v-if="currentAgent"
+          content="点击编辑 / 长按快捷切换"
+          placement="bottom"
+        >
           <div
             ref="agentInfoRef"
             class="agent-info clickable"
@@ -728,7 +790,9 @@ onMounted(async () => {
               shape="square"
               :radius="6"
             />
-            <span v-if="showAgentName" class="agent-name">{{ currentAgent.displayName || currentAgent.name }}</span>
+            <span v-if="showAgentName" class="agent-name">{{
+              currentAgent.displayName || currentAgent.name
+            }}</span>
           </div>
         </el-tooltip>
 
@@ -744,19 +808,34 @@ onMounted(async () => {
         />
         <el-tooltip
           v-if="currentAgent && settings.uiPreferences.showModelSelector"
-          :content="currentModel ? '点击选择模型' : '模型未选择或已失效，点击重新选择'"
+          :content="
+            currentModel ? '点击选择模型' : '模型未选择或已失效，点击重新选择'
+          "
           placement="bottom"
         >
-          <div :class="['model-info', 'clickable', { 'model-invalid': !currentModel }]" @click="handleSelectModel">
+          <div
+            :class="[
+              'model-info',
+              'clickable',
+              { 'model-invalid': !currentModel },
+            ]"
+            @click="handleSelectModel"
+          >
             <DynamicIcon
               v-if="currentModel"
               :src="modelIcon || ''"
               class="model-icon"
               :alt="currentModel?.name || currentModel?.id || ''"
             />
-            <el-icon v-else class="model-icon-fallback" :size="16"><AlertCircle /></el-icon>
+            <el-icon v-else class="model-icon-fallback" :size="16"
+              ><AlertCircle
+            /></el-icon>
             <span v-if="showModelName" class="model-name">
-              {{ currentModel ? currentModel.name || currentModel.id : "未选择模型" }}
+              {{
+                currentModel
+                  ? currentModel.name || currentModel.id
+                  : "未选择模型"
+              }}
             </span>
           </div>
         </el-tooltip>
@@ -765,14 +844,20 @@ onMounted(async () => {
       <!-- 右侧：功能操作区 (切换器 + 用户档案 + 设置) -->
       <div class="header-actions">
         <!-- 用户档案信息 -->
-        <el-tooltip v-if="effectiveUserProfile" content="点击编辑用户档案" placement="bottom">
+        <el-tooltip
+          v-if="effectiveUserProfile"
+          content="点击编辑用户档案"
+          placement="bottom"
+        >
           <div class="user-profile-info" @click="handleEditUserProfile">
             <span v-if="showProfileName" class="profile-name">{{
               effectiveUserProfile.displayName || effectiveUserProfile.name
             }}</span>
             <Avatar
               :src="userProfileAvatarSrc || ''"
-              :alt="effectiveUserProfile.displayName || effectiveUserProfile.name"
+              :alt="
+                effectiveUserProfile.displayName || effectiveUserProfile.name
+              "
               :size="28"
               shape="square"
               :radius="4"
@@ -785,7 +870,10 @@ onMounted(async () => {
 
         <!-- 搜索按钮 -->
         <el-tooltip content="搜索聊天记录 (Ctrl+F)" placement="bottom">
-          <div class="header-action-button" @click="showSearchPanel = !showSearchPanel">
+          <div
+            class="header-action-button"
+            @click="showSearchPanel = !showSearchPanel"
+          >
             <el-icon :size="18">
               <Search />
             </el-icon>
@@ -848,7 +936,10 @@ onMounted(async () => {
         </div>
 
         <!-- 工具调用确认栏 -->
-        <ToolCallingApprovalBar v-if="isInputVisible" :style="contentWidthStyle" />
+        <ToolCallingApprovalBar
+          v-if="isInputVisible"
+          :style="contentWidthStyle"
+        />
 
         <!-- 输入框 -->
         <MessageInput
@@ -899,7 +990,10 @@ onMounted(async () => {
     />
 
     <!-- 聊天设置对话框 -->
-    <ChatSettingsDialog :visible="showChatSettings" @update:visible="showChatSettings = $event" />
+    <ChatSettingsDialog
+      :visible="showChatSettings"
+      @update:visible="showChatSettings = $event"
+    />
 
     <!-- 搜索面板 -->
     <ChatSearchPanel
@@ -970,7 +1064,11 @@ onMounted(async () => {
   min-height: 64px; /* 增加高度 */
   /* 背景色和模糊效果由 chatHeaderStyle 计算属性动态提供 */
   /* 不再使用 var(--card-bg) 和 var(--ui-blur)，而是独立配置 */
-  mask-image: linear-gradient(to bottom, black 60%, transparent 100%); /* 底部虚化遮罩 */
+  mask-image: linear-gradient(
+    to bottom,
+    black 60%,
+    transparent 100%
+  ); /* 底部虚化遮罩 */
   -webkit-mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
 }
 
@@ -1278,7 +1376,9 @@ onMounted(async () => {
   opacity: 1;
 }
 
-.chat-area-container.detached-mode .indicator-handle:active ~ .indicator-border {
+.chat-area-container.detached-mode
+  .indicator-handle:active
+  ~ .indicator-border {
   opacity: 0.5;
 }
 /* MessageInput 两侧边距，增强层次感 */

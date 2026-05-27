@@ -6,13 +6,13 @@ import { DEFAULT_METADATA_RULES, testRuleMatch } from "@/config/model-metadata";
  */
 export const cohereUrlHandler = {
   buildUrl: (baseUrl: string, endpoint?: string): string => {
-    const host = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
-    const versionedHost = host.includes('/v2') ? host : `${host}v2/`;
+    const host = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+    const versionedHost = host.includes("/v2") ? host : `${host}v2/`;
     return endpoint ? `${versionedHost}${endpoint}` : `${versionedHost}chat`;
   },
   getHint: (): string => {
-    return '将自动添加 /v2/chat';
-  }
+    return "将自动添加 /v2/chat";
+  },
 };
 
 /**
@@ -45,7 +45,10 @@ function extractModelCapabilities(modelId: string, provider?: string) {
   ).sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
   for (const rule of rules) {
-    if (testRuleMatch(rule, modelId, provider) && rule.properties?.capabilities) {
+    if (
+      testRuleMatch(rule, modelId, provider) &&
+      rule.properties?.capabilities
+    ) {
       return rule.properties.capabilities;
     }
   }

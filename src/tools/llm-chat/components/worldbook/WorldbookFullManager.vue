@@ -2,7 +2,10 @@
 import { ref, onMounted, watch, computed } from "vue";
 import { useWorldbookStore } from "../../stores/worldbookStore";
 import { importSTWorldbook } from "../../services/worldbookImportService";
-import { exportWorldbook, exportWorldbooksBatch } from "../../services/worldbookExportService";
+import {
+  exportWorldbook,
+  exportWorldbooksBatch,
+} from "../../services/worldbookExportService";
 import { customMessage } from "@/utils/customMessage";
 import {
   Book,
@@ -43,7 +46,10 @@ const allSelected = computed(() => {
 });
 
 const isIndeterminate = computed(() => {
-  return selectedIds.value.size > 0 && selectedIds.value.size < worldbookStore.worldbooks.length;
+  return (
+    selectedIds.value.size > 0 &&
+    selectedIds.value.size < worldbookStore.worldbooks.length
+  );
 });
 
 onMounted(async () => {
@@ -58,7 +64,8 @@ watch(
   () => worldbookStore.worldbooks.length,
   (newLen, oldLen) => {
     if (newLen > oldLen) {
-      selectedWbId.value = worldbookStore.worldbooks[worldbookStore.worldbooks.length - 1].id;
+      selectedWbId.value =
+        worldbookStore.worldbooks[worldbookStore.worldbooks.length - 1].id;
     }
   }
 );
@@ -66,7 +73,9 @@ watch(
 const processImportFile = async (file: File) => {
   const id = await importSTWorldbook(file);
   if (id) {
-    customMessage.success(`世界书《${file.name.replace(/\.[^/.]+$/, "")}》导入成功`);
+    customMessage.success(
+      `世界书《${file.name.replace(/\.[^/.]+$/, "")}》导入成功`
+    );
     await worldbookStore.loadWorldbooks();
     selectedWbId.value = id;
   }
@@ -102,12 +111,16 @@ const handleFilesDrop = async (paths: string[]) => {
 
 const handleCreate = async () => {
   try {
-    const { value: name } = await ElMessageBox.prompt("请输入世界书名称", "新建世界书", {
-      confirmButtonText: "确定",
-      cancelButtonText: "取消",
-      inputPattern: /\S+/,
-      inputErrorMessage: "名称不能为空",
-    });
+    const { value: name } = await ElMessageBox.prompt(
+      "请输入世界书名称",
+      "新建世界书",
+      {
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+        inputPattern: /\S+/,
+        inputErrorMessage: "名称不能为空",
+      }
+    );
     if (name) {
       const id = await worldbookStore.createWorldbook(name);
       selectedWbId.value = id;
@@ -124,13 +137,17 @@ const handleRename = async () => {
   if (!wb) return;
 
   try {
-    const { value: newName } = await ElMessageBox.prompt("请输入新的名称", "重命名世界书", {
-      confirmButtonText: "确定",
-      cancelButtonText: "取消",
-      inputValue: wb.name,
-      inputPattern: /\S+/,
-      inputErrorMessage: "名称不能为空",
-    });
+    const { value: newName } = await ElMessageBox.prompt(
+      "请输入新的名称",
+      "重命名世界书",
+      {
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+        inputValue: wb.name,
+        inputPattern: /\S+/,
+        inputErrorMessage: "名称不能为空",
+      }
+    );
     if (newName && newName !== wb.name) {
       await worldbookStore.renameWorldbook(wb.id, newName);
       customMessage.success("已重命名");
@@ -160,7 +177,9 @@ const handleDelete = async () => {
     await worldbookStore.deleteWorldbook(id);
     customMessage.success("世界书已删除");
     selectedWbId.value =
-      worldbookStore.worldbooks.length > 0 ? worldbookStore.worldbooks[0].id : null;
+      worldbookStore.worldbooks.length > 0
+        ? worldbookStore.worldbooks[0].id
+        : null;
   } catch (error) {
     customMessage.error("删除失败");
   }
@@ -175,7 +194,11 @@ const handleExport = async () => {
 const toggleSelectionMode = () => {
   isSelectionMode.value = !isSelectionMode.value;
   selectedIds.value.clear();
-  if (!isSelectionMode.value && worldbookStore.worldbooks.length > 0 && !selectedWbId.value) {
+  if (
+    !isSelectionMode.value &&
+    worldbookStore.worldbooks.length > 0 &&
+    !selectedWbId.value
+  ) {
     // 退出选择模式时，如果没有选中项，默认选中第一个
     selectedWbId.value = worldbookStore.worldbooks[0].id;
   }
@@ -219,7 +242,9 @@ const handleBatchDelete = async () => {
     // 如果当前选中的被删除了，重置
     if (selectedWbId.value && idsToDelete.includes(selectedWbId.value)) {
       selectedWbId.value =
-        worldbookStore.worldbooks.length > 0 ? worldbookStore.worldbooks[0].id : null;
+        worldbookStore.worldbooks.length > 0
+          ? worldbookStore.worldbooks[0].id
+          : null;
     }
   } catch (error) {
     // 取消或失败
@@ -236,7 +261,11 @@ const handleBatchExport = async () => {
 </script>
 
 <template>
-  <div class="worldbook-full-manager" ref="containerRef" :class="{ 'is-narrow': !isWide }">
+  <div
+    class="worldbook-full-manager"
+    ref="containerRef"
+    :class="{ 'is-narrow': !isWide }"
+  >
     <!-- 顶部操作栏 -->
     <div class="manager-header" :class="{ 'selection-mode': isSelectionMode }">
       <!-- 正常模式 -->
@@ -266,7 +295,9 @@ const handleBatchExport = async () => {
 
         <div class="actions-section">
           <el-button-group>
-            <el-button :icon="CheckSquare" @click="toggleSelectionMode">批量管理</el-button>
+            <el-button :icon="CheckSquare" @click="toggleSelectionMode"
+              >批量管理</el-button
+            >
             <el-button :icon="Plus" @click="handleCreate">新建</el-button>
             <el-button :icon="Upload" @click="handleImport">导入</el-button>
           </el-button-group>
@@ -323,7 +354,9 @@ const handleBatchExport = async () => {
               active: !isSelectionMode && selectedWbId === wb.id,
               'is-selecting': isSelectionMode,
             }"
-            @click="isSelectionMode ? toggleSelection(wb.id) : (selectedWbId = wb.id)"
+            @click="
+              isSelectionMode ? toggleSelection(wb.id) : (selectedWbId = wb.id)
+            "
           >
             <div class="wb-item-icon" v-if="!isSelectionMode">
               <FileJson :size="18" />
@@ -343,8 +376,13 @@ const handleBatchExport = async () => {
             <ChevronRight v-if="!isSelectionMode" class="arrow" :size="16" />
           </div>
 
-          <div v-if="worldbookStore.worldbooks.length === 0" class="empty-state">
-            <el-button type="primary" link @click="handleImport">导入第一本世界书</el-button>
+          <div
+            v-if="worldbookStore.worldbooks.length === 0"
+            class="empty-state"
+          >
+            <el-button type="primary" link @click="handleImport"
+              >导入第一本世界书</el-button
+            >
           </div>
         </div>
 
@@ -364,7 +402,10 @@ const handleBatchExport = async () => {
       </aside>
 
       <!-- 窄屏批量模式：显示列表 -->
-      <div v-if="!isWide && isSelectionMode" class="narrow-selection-list custom-scrollbar">
+      <div
+        v-if="!isWide && isSelectionMode"
+        class="narrow-selection-list custom-scrollbar"
+      >
         <div
           v-for="wb in worldbookStore.worldbooks"
           :key="wb.id"
@@ -401,11 +442,18 @@ const handleBatchExport = async () => {
         >
           <el-empty description="请选择或导入一本世界书">
             <el-button type="primary" :icon="Upload">立即导入</el-button>
-            <el-button :icon="Plus" @click.stop="handleCreate">新建世界书</el-button>
+            <el-button :icon="Plus" @click.stop="handleCreate"
+              >新建世界书</el-button
+            >
           </el-empty>
         </DropZone>
 
-        <WorldbookDetail v-else :id="selectedWbId" :key="selectedWbId" class="detail-view" />
+        <WorldbookDetail
+          v-else
+          :id="selectedWbId"
+          :key="selectedWbId"
+          class="detail-view"
+        />
       </main>
     </div>
   </div>
@@ -437,7 +485,11 @@ const handleBatchExport = async () => {
 }
 
 .manager-header.selection-mode {
-  background-color: color-mix(in srgb, var(--el-color-primary), transparent 90%);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-primary),
+    transparent 90%
+  );
 }
 
 .header-title {

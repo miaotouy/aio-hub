@@ -1,5 +1,8 @@
 import type { LlmProfile } from "@/types/llm-profiles";
-import type { EmbeddingRequestOptions, EmbeddingResponse } from "@/llm-apis/embedding-types";
+import type {
+  EmbeddingRequestOptions,
+  EmbeddingResponse,
+} from "@/llm-apis/embedding-types";
 import { fetchWithTimeout, ensureResponseOk } from "@/llm-apis/common";
 import { asyncJsonStringify } from "@/utils/serialization";
 import { geminiUrlHandler, buildGeminiHeaders } from "./utils";
@@ -11,9 +14,12 @@ export const callGeminiEmbeddingApi = async (
   profile: LlmProfile,
   options: EmbeddingRequestOptions
 ): Promise<EmbeddingResponse> => {
-  const apiKey = profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
+  const apiKey =
+    profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
   const isBatch = Array.isArray(options.input);
-  const endpoint = isBatch ? `models/${options.modelId}:batchEmbedContents` : `models/${options.modelId}:embedContent`;
+  const endpoint = isBatch
+    ? `models/${options.modelId}:batchEmbedContents`
+    : `models/${options.modelId}:embedContent`;
 
   const baseUrl = geminiUrlHandler.buildUrl(profile.baseUrl, endpoint);
   const url = `${baseUrl}?key=${apiKey}`;
@@ -21,24 +27,28 @@ export const callGeminiEmbeddingApi = async (
   const headers = buildGeminiHeaders(profile, options.requestId);
 
   // 映射 TaskType
-  const taskType = options.taskType || 'RETRIEVAL_QUERY';
+  const taskType = options.taskType || "RETRIEVAL_QUERY";
 
   let body: any;
   if (isBatch) {
     body = {
-      requests: (options.input as string[]).map(text => ({
+      requests: (options.input as string[]).map((text) => ({
         model: `models/${options.modelId}`,
         content: { parts: [{ text }] },
         taskType,
-        ...(options.title && taskType === 'RETRIEVAL_DOCUMENT' ? { title: options.title } : {})
-      }))
+        ...(options.title && taskType === "RETRIEVAL_DOCUMENT"
+          ? { title: options.title }
+          : {}),
+      })),
     };
   } else {
     body = {
       model: `models/${options.modelId}`,
       content: { parts: [{ text: options.input as string }] },
       taskType,
-      ...(options.title && taskType === 'RETRIEVAL_DOCUMENT' ? { title: options.title } : {})
+      ...(options.title && taskType === "RETRIEVAL_DOCUMENT"
+        ? { title: options.title }
+        : {}),
     };
   }
 

@@ -118,7 +118,10 @@ function clearAllFilters() {
 
 function exportLogs(format: "json" | "md" = "json") {
   try {
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    const timestamp = new Date()
+      .toISOString()
+      .replace(/[:.]/g, "-")
+      .slice(0, 19);
     let blob: Blob;
     let fileName: string;
 
@@ -133,7 +136,9 @@ function exportLogs(format: "json" | "md" = "json") {
         },
         logs: filteredLogs.value,
       };
-      blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+      blob = new Blob([JSON.stringify(exportData, null, 2)], {
+        type: "application/json",
+      });
       fileName = `kb-monitor-export-${timestamp}.json`;
     } else {
       let md = `# 知识库监控日志导出\n\n`;
@@ -189,14 +194,22 @@ function exportLogs(format: "json" | "md" = "json") {
             <span class="stat-divider">·</span>
             <span class="stat-item">{{ stats.logsPerMinute }} LPM</span>
             <span class="stat-divider">·</span>
-            <span class="stat-item" :class="{ 'has-error': stats.errorRate > 0 }">
+            <span
+              class="stat-item"
+              :class="{ 'has-error': stats.errorRate > 0 }"
+            >
               错误率 {{ (stats.errorRate * 100).toFixed(1) }}%
             </span>
           </div>
         </div>
 
         <div class="toolbar-right">
-          <el-button size="small" :icon="BarChart3" @click="showStatsDrawer = true" text>
+          <el-button
+            size="small"
+            :icon="BarChart3"
+            @click="showStatsDrawer = true"
+            text
+          >
             统计
           </el-button>
           <el-button
@@ -207,7 +220,9 @@ function exportLogs(format: "json" | "md" = "json") {
           >
             {{ store.monitor.isPaused ? "继续" : "暂停" }}
           </el-button>
-          <el-button size="small" :icon="Trash2" @click="clearLogs">清空</el-button>
+          <el-button size="small" :icon="Trash2" @click="clearLogs"
+            >清空</el-button
+          >
           <el-dropdown trigger="click" @command="exportLogs">
             <el-button size="small" :icon="Download">导出</el-button>
             <template #dropdown>
@@ -266,7 +281,11 @@ function exportLogs(format: "json" | "md" = "json") {
         </el-select>
 
         <div class="filter-actions">
-          <el-badge :value="activeFiltersCount" :hidden="activeFiltersCount === 0" type="primary">
+          <el-badge
+            :value="activeFiltersCount"
+            :hidden="activeFiltersCount === 0"
+            type="primary"
+          >
             <el-button
               size="small"
               :icon="Filter"
@@ -283,7 +302,11 @@ function exportLogs(format: "json" | "md" = "json") {
       <!-- 日志列表 -->
       <div class="log-list" v-bind="containerProps">
         <div v-bind="wrapperProps">
-          <div v-for="item in virtualList" :key="item.data.id" class="log-item-wrapper">
+          <div
+            v-for="item in virtualList"
+            :key="item.data.id"
+            class="log-item-wrapper"
+          >
             <KbLogCard :message="item.data">
               <template #content>
                 <RagTraceContent
@@ -324,17 +347,29 @@ function exportLogs(format: "json" | "md" = "json") {
             <span>消息类型分布</span>
           </div>
           <div class="distribution-list">
-            <div v-for="(count, type) in stats.typeDistribution" :key="type" class="dist-item">
+            <div
+              v-for="(count, type) in stats.typeDistribution"
+              :key="type"
+              class="dist-item"
+            >
               <div class="dist-header">
                 <span class="type-name">{{ type }}</span>
                 <span class="type-count">{{ count }}</span>
               </div>
               <el-progress
                 :percentage="
-                  store.monitor.logs.length > 0 ? (count / store.monitor.logs.length) * 100 : 0
+                  store.monitor.logs.length > 0
+                    ? (count / store.monitor.logs.length) * 100
+                    : 0
                 "
                 :stroke-width="6"
-                :color="type === 'RAG' ? '#409eff' : type === 'Index' ? '#67c23a' : '#909399'"
+                :color="
+                  type === 'RAG'
+                    ? '#409eff'
+                    : type === 'Index'
+                      ? '#67c23a'
+                      : '#909399'
+                "
               />
             </div>
           </div>
@@ -381,7 +416,11 @@ function exportLogs(format: "json" | "md" = "json") {
               :width="120"
               :stroke-width="8"
               :color="
-                stats.errorRate > 0.2 ? '#f56c6c' : stats.errorRate > 0.05 ? '#e6a23c' : '#67c23a'
+                stats.errorRate > 0.2
+                  ? '#f56c6c'
+                  : stats.errorRate > 0.05
+                    ? '#e6a23c'
+                    : '#67c23a'
               "
             >
               <template #default="{ percentage }">
@@ -402,14 +441,18 @@ function exportLogs(format: "json" | "md" = "json") {
                           : "运行良好"
                     }}
                   </div>
-                  <div class="status-value">{{ percentage.toFixed(0) }}% 健康</div>
+                  <div class="status-value">
+                    {{ percentage.toFixed(0) }}% 健康
+                  </div>
                 </div>
               </template>
             </el-progress>
             <div class="health-info">
               <div class="info-item">
                 <span class="label">当前错误率:</span>
-                <span class="value">{{ (stats.errorRate * 100).toFixed(2) }}%</span>
+                <span class="value"
+                  >{{ (stats.errorRate * 100).toFixed(2) }}%</span
+                >
               </div>
               <div class="info-item">
                 <span class="label">日志吞吐量:</span>
@@ -438,7 +481,9 @@ function exportLogs(format: "json" | "md" = "json") {
               <span class="info-label">最后心跳时间:</span>
               <span class="info-value">
                 {{
-                  stats.lastUpdate ? new Date(stats.lastUpdate).toLocaleTimeString() : "尚未更新"
+                  stats.lastUpdate
+                    ? new Date(stats.lastUpdate).toLocaleTimeString()
+                    : "尚未更新"
                 }}
               </span>
             </div>

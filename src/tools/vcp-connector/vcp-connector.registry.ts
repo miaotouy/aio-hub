@@ -12,7 +12,10 @@ export class VcpConnectorRegistry implements ToolRegistry {
   public readonly runMode = "main-only";
   public readonly name = "VCP 连接器";
   public readonly description = "VCP 分布式连接与监控中心";
-  public readonly detachableComponents: Record<string, DetachableComponentRegistration> = {
+  public readonly detachableComponents: Record<
+    string,
+    DetachableComponentRegistration
+  > = {
     "vcp-connector:monitor": {
       component: () => import("./components/monitor/MessageMonitorPage.vue"),
       logicHook: () => ({
@@ -63,6 +66,7 @@ export const toolConfig: ToolConfig = {
   runMode: "main-only",
   icon: markRaw(VcpConnectorIcon),
   component: () => import("./VcpConnector.vue"),
-  description: "VCP 分布式连接中心 - 支持跨节点工具共享、RAG 监控及 Agent 消息广播",
+  description:
+    "VCP 分布式连接中心 - 支持跨节点工具共享、RAG 监控及 Agent 消息广播",
   category: ["开发工具", "VCP", "AI 工具"],
 };

@@ -5,7 +5,10 @@
  * 当前主要包含图标和分组信息，未来可以扩展更多属性。
  */
 
-import type { ModelMetadataRule, ModelMetadataProperties } from "../types/model-metadata";
+import type {
+  ModelMetadataRule,
+  ModelMetadataProperties,
+} from "../types/model-metadata";
 import { createModuleLogger } from "@utils/logger";
 import { merge } from "lodash-es";
 import { PRESET_ICONS, AVAILABLE_ICONS } from "./preset-icons";
@@ -32,7 +35,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = PRESET_RULES;
  * @param provider 提供商（可选）
  * @returns 是否匹配
  */
-export function testRuleMatch(rule: ModelMetadataRule, modelId: string, provider?: string): boolean {
+export function testRuleMatch(
+  rule: ModelMetadataRule,
+  modelId: string,
+  provider?: string
+): boolean {
   let matched = false;
 
   switch (rule.matchType) {
@@ -76,7 +83,10 @@ export function testRuleMatch(rule: ModelMetadataRule, modelId: string, provider
       break;
 
     case "provider":
-      if (provider && provider.toLowerCase() === rule.matchValue.toLowerCase()) {
+      if (
+        provider &&
+        provider.toLowerCase() === rule.matchValue.toLowerCase()
+      ) {
         matched = true;
       }
       break;
@@ -95,7 +105,7 @@ export function testRuleMatch(rule: ModelMetadataRule, modelId: string, provider
 export function getMatchedModelProperties(
   rules: ModelMetadataRule[],
   modelId: string,
-  provider?: string,
+  provider?: string
 ): ModelMetadataProperties | undefined {
   // 1. 过滤启用的规则并按优先级排序
   const sortedEnabledRules = rules
@@ -103,7 +113,9 @@ export function getMatchedModelProperties(
     .sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
   // 2. 找出所有匹配的规则
-  let matchedRules = sortedEnabledRules.filter((rule) => testRuleMatch(rule, modelId, provider));
+  let matchedRules = sortedEnabledRules.filter((rule) =>
+    testRuleMatch(rule, modelId, provider)
+  );
 
   // 如果没有匹配的规则，直接返回
   if (matchedRules.length === 0) {
@@ -115,13 +127,18 @@ export function getMatchedModelProperties(
 
   if (highestExclusiveRule) {
     const exclusivePriority = highestExclusiveRule.priority || 0;
-    matchedRules = matchedRules.filter((r) => (r.priority || 0) >= exclusivePriority);
+    matchedRules = matchedRules.filter(
+      (r) => (r.priority || 0) >= exclusivePriority
+    );
   }
 
   // 4. 按优先级从低到高合并属性
   const finalProperties = matchedRules
     .reverse()
-    .reduce((acc, rule) => merge(acc, rule.properties), {} as ModelMetadataProperties);
+    .reduce(
+      (acc, rule) => merge(acc, rule.properties),
+      {} as ModelMetadataProperties
+    );
 
   return finalProperties;
 }
@@ -132,7 +149,10 @@ export function getMatchedModelProperties(
  * @param modelId 模型 ID
  * @param provider 提供商
  */
-export function getActiveModelProperties(modelId: string, provider?: string): ModelMetadataProperties | undefined {
+export function getActiveModelProperties(
+  modelId: string,
+  provider?: string
+): ModelMetadataProperties | undefined {
   const rules = getActiveRules();
   return getMatchedModelProperties(rules, modelId, provider);
 }
@@ -144,7 +164,11 @@ export function getActiveModelProperties(modelId: string, provider?: string): Mo
  * @param provider 提供商
  * @returns 图标路径或 undefined
  */
-export function getModelIconPath(rules: ModelMetadataRule[], modelId: string, provider?: string): string | undefined {
+export function getModelIconPath(
+  rules: ModelMetadataRule[],
+  modelId: string,
+  provider?: string
+): string | undefined {
   // 1. 尝试使用规则匹配
   const properties = getMatchedModelProperties(rules, modelId, provider);
   if (properties?.icon) {
@@ -220,7 +244,9 @@ export function isValidIconPath(iconPath: string): boolean {
   }
 
   const validExtensions = [".svg", ".png", ".jpg", ".jpeg", ".webp", ".gif"];
-  const hasValidExtension = validExtensions.some((ext) => iconPath.toLowerCase().endsWith(ext));
+  const hasValidExtension = validExtensions.some((ext) =>
+    iconPath.toLowerCase().endsWith(ext)
+  );
 
   return hasValidExtension;
 }

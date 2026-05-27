@@ -12,7 +12,9 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 interface ToolsVisible {
   [key: string]: boolean;
 }
-const toolsVisible = defineModel<ToolsVisible>("toolsVisible", { required: true });
+const toolsVisible = defineModel<ToolsVisible>("toolsVisible", {
+  required: true,
+});
 const toolsStore = useToolsStore();
 const appSettingsStore = useAppSettingsStore();
 const errorHandler = createModuleErrorHandler("Settings/ToolsSettings");
@@ -20,7 +22,9 @@ const errorHandler = createModuleErrorHandler("Settings/ToolsSettings");
 // 从路径提取工具ID
 const getToolIdFromPath = (path: string): string => {
   // 从 /regex-applier 转换为 regexApply
-  return path.substring(1).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+  return path
+    .substring(1)
+    .replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
 };
 
 // 可排序的工具列表（使用 ref 而不是 computed）
@@ -69,7 +73,9 @@ const onDragEnd = () => {
   const newOrder = sortedTools.value.map((tool) => tool.path);
 
   // 检查顺序是否真的发生了变化
-  const hasChanged = !orderBeforeDrag.value.every((path, index) => path === newOrder[index]);
+  const hasChanged = !orderBeforeDrag.value.every(
+    (path, index) => path === newOrder[index]
+  );
 
   if (!hasChanged) {
     // 顺序没有变化，可能只是点击，不执行保存
@@ -117,7 +123,9 @@ const enabledToolsCount = computed(() => {
     <div class="setting-item">
       <div class="setting-label">
         <span class="label-text">工具模块显示</span>
-        <span class="count-badge">{{ enabledToolsCount }}/{{ totalToolsCount }}</span>
+        <span class="count-badge"
+          >{{ enabledToolsCount }}/{{ totalToolsCount }}</span
+        >
         <el-tooltip content="选择要在主页显示的工具模块" placement="top">
           <el-icon class="info-icon">
             <InfoFilled />
@@ -125,10 +133,24 @@ const enabledToolsCount = computed(() => {
         </el-tooltip>
       </div>
       <div class="batch-actions">
-        <el-button size="small" @click="Object.keys(toolsVisible || {}).forEach((k) => (toolsVisible![k] = true))">
+        <el-button
+          size="small"
+          @click="
+            Object.keys(toolsVisible || {}).forEach(
+              (k) => (toolsVisible![k] = true)
+            )
+          "
+        >
           全选
         </el-button>
-        <el-button size="small" @click="Object.keys(toolsVisible || {}).forEach((k) => (toolsVisible![k] = false))">
+        <el-button
+          size="small"
+          @click="
+            Object.keys(toolsVisible || {}).forEach(
+              (k) => (toolsVisible![k] = false)
+            )
+          "
+        >
           全不选
         </el-button>
         <el-button size="small" @click="resetOrder"> 重置顺序 </el-button>
@@ -153,9 +175,15 @@ const enabledToolsCount = computed(() => {
         v-for="tool in sortedTools"
         :key="tool.path"
         class="tool-item"
-        :class="{ 'is-active': toolsVisible && toolsVisible[getToolIdFromPath(tool.path)] }"
+        :class="{
+          'is-active':
+            toolsVisible && toolsVisible[getToolIdFromPath(tool.path)],
+        }"
       >
-        <el-checkbox v-if="toolsVisible" v-model="toolsVisible[getToolIdFromPath(tool.path)]">
+        <el-checkbox
+          v-if="toolsVisible"
+          v-model="toolsVisible[getToolIdFromPath(tool.path)]"
+        >
           <div class="tool-checkbox-content">
             <div class="icon-column">
               <span class="icon-wrapper">
@@ -167,7 +195,9 @@ const enabledToolsCount = computed(() => {
             </div>
             <div class="tool-info">
               <span class="tool-name">{{ tool.name }}</span>
-              <span v-if="tool.description" class="tool-description">{{ tool.description }}</span>
+              <span v-if="tool.description" class="tool-description">{{
+                tool.description
+              }}</span>
             </div>
           </div>
         </el-checkbox>

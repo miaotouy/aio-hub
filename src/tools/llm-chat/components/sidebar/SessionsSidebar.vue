@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import { useVirtualizer } from "@tanstack/vue-virtual";
-import { Plus, Search, Operation, Loading, Position } from "@element-plus/icons-vue";
+import {
+  Plus,
+  Search,
+  Operation,
+  Loading,
+  Position,
+} from "@element-plus/icons-vue";
 import type { SearchMatchMode } from "../../composables/chat/useLlmSearch";
 import { invoke } from "@tauri-apps/api/core";
 import { useChatStorageSeparated } from "../../composables/storage/useChatStorageSeparated";
@@ -60,13 +66,20 @@ const {
 } = useSessionsSidebarLogic({ props, emit });
 
 // 搜索模式配置
-const matchModeOptions: { value: SearchMatchMode; label: string; desc: string }[] = [
+const matchModeOptions: {
+  value: SearchMatchMode;
+  label: string;
+  desc: string;
+}[] = [
   { value: "exact", label: "精确", desc: "完整短语匹配" },
   { value: "and", label: "全部", desc: "所有关键词都须出现" },
   { value: "or", label: "任一", desc: "任一关键词出现即可" },
 ];
 
-const currentModeLabel = computed(() => matchModeOptions.find((o) => o.value === matchMode.value)?.label ?? "精确");
+const currentModeLabel = computed(
+  () =>
+    matchModeOptions.find((o) => o.value === matchMode.value)?.label ?? "精确"
+);
 
 const handleMatchModeChange = (mode: SearchMatchMode) => {
   matchMode.value = mode;
@@ -102,12 +115,15 @@ const confirmRename = (newName: string) => {
 };
 // 打开导出会话对话框
 const openExportDialog = async (sessionIndex: ChatSessionIndex) => {
-  const llmChatStore = (await import("../../stores/llmChatStore")).useLlmChatStore();
+  const llmChatStore = (
+    await import("../../stores/llmChatStore")
+  ).useLlmChatStore();
 
   // 确保详情已加载
   let detail = llmChatStore.sessionDetailMap.get(sessionIndex.id);
   if (!detail) {
-    const { useChatStorageSeparated } = await import("../../composables/storage/useChatStorageSeparated");
+    const { useChatStorageSeparated } =
+      await import("../../composables/storage/useChatStorageSeparated");
     const storage = useChatStorageSeparated();
     const fullSession = await storage.loadSession(sessionIndex.id);
     if (fullSession && fullSession.detail.nodes) {
@@ -164,7 +180,9 @@ const handleMenuCommand = (command: string, session: ChatSessionIndex) => {
 // 定位到当前激活的会话
 const scrollToCurrentSession = () => {
   if (!props.currentSessionId) return;
-  const index = displaySessions.value.findIndex((s) => s.id === props.currentSessionId);
+  const index = displaySessions.value.findIndex(
+    (s) => s.id === props.currentSessionId
+  );
   if (index !== -1) {
     virtualizer.value.scrollToIndex(index, { align: "center" });
   } else {
@@ -174,7 +192,10 @@ const scrollToCurrentSession = () => {
 
 // 处理会话点击
 const handleSessionClick = (session: ChatSessionIndex) => {
-  if (settings.value.uiPreferences.autoSwitchAgentOnSessionChange && session.displayAgentId) {
+  if (
+    settings.value.uiPreferences.autoSwitchAgentOnSessionChange &&
+    session.displayAgentId
+  ) {
     const agent = agentStore.getAgentById(session.displayAgentId);
     if (agent) {
       agentStore.selectAgent(session.displayAgentId);
@@ -201,10 +222,23 @@ const handleSessionClick = (session: ChatSessionIndex) => {
           </template>
         </el-input>
 
-        <el-dropdown trigger="click" @command="handleMatchModeChange" placement="bottom-end">
+        <el-dropdown
+          trigger="click"
+          @command="handleMatchModeChange"
+          placement="bottom-end"
+        >
           <div>
-            <el-tooltip :content="`搜索模式: ${matchModeOptions.find(o => o.value === matchMode)?.desc}`" placement="bottom" :show-after="400">
-              <el-button size="default" :type="matchMode !== 'exact' ? 'primary' : ''" plain class="match-mode-btn">
+            <el-tooltip
+              :content="`搜索模式: ${matchModeOptions.find((o) => o.value === matchMode)?.desc}`"
+              placement="bottom"
+              :show-after="400"
+            >
+              <el-button
+                size="default"
+                :type="matchMode !== 'exact' ? 'primary' : ''"
+                plain
+                class="match-mode-btn"
+              >
                 {{ currentModeLabel }}
               </el-button>
             </el-tooltip>
@@ -225,7 +259,12 @@ const handleSessionClick = (session: ChatSessionIndex) => {
         </el-dropdown>
 
         <el-tooltip content="新建对话" placement="bottom" :show-after="500">
-          <el-button type="primary" :icon="Plus" @click="handleQuickNewSession" circle />
+          <el-button
+            type="primary"
+            :icon="Plus"
+            @click="handleQuickNewSession"
+            circle
+          />
         </el-tooltip>
       </div>
 
@@ -234,7 +273,11 @@ const handleSessionClick = (session: ChatSessionIndex) => {
           <el-popover trigger="click" width="320" popper-class="filter-popover">
             <template #reference>
               <div>
-                <el-tooltip content="排序与筛选" placement="bottom" :show-after="500">
+                <el-tooltip
+                  content="排序与筛选"
+                  placement="bottom"
+                  :show-after="500"
+                >
                   <el-button
                     :icon="Operation"
                     circle
@@ -256,7 +299,11 @@ const handleSessionClick = (session: ChatSessionIndex) => {
             />
           </el-popover>
 
-          <el-tooltip content="定位当前会话" placement="bottom" :show-after="500">
+          <el-tooltip
+            content="定位当前会话"
+            placement="bottom"
+            :show-after="500"
+          >
             <el-button
               :icon="Position"
               @click="scrollToCurrentSession"
@@ -267,7 +314,9 @@ const handleSessionClick = (session: ChatSessionIndex) => {
           </el-tooltip>
         </div>
 
-        <div class="session-count">{{ displaySessions.length }} / {{ sessions.length }}</div>
+        <div class="session-count">
+          {{ displaySessions.length }} / {{ sessions.length }}
+        </div>
       </div>
     </div>
 
@@ -307,7 +356,9 @@ const handleSessionClick = (session: ChatSessionIndex) => {
             :session="displaySessions[virtualItem.index]"
             :active="displaySessions[virtualItem.index].id === currentSessionId"
             :is-generating="isGenerating(displaySessions[virtualItem.index].id)"
-            :matches="searchMatchesMap.get(displaySessions[virtualItem.index].id)"
+            :matches="
+              searchMatchesMap.get(displaySessions[virtualItem.index].id)
+            "
             :get-field-label="getFieldLabel"
             :get-role-label="getRoleLabel"
             @click="handleSessionClick"

@@ -14,7 +14,8 @@
         @input="handleInput"
       />
       <div class="form-hint">
-        此名称将作为宏替换的 ID（如 <code>{{ userMacro }}</code>），请使用简洁的名称。
+        此名称将作为宏替换的 ID（如 <code>{{ userMacro }}</code
+        >），请使用简洁的名称。
       </div>
     </el-form-item>
 
@@ -26,7 +27,9 @@
         show-word-limit
         @input="handleInput"
       />
-      <div class="form-hint">在界面上显示的名称。如果不填，则显示上面的 ID/名称。</div>
+      <div class="form-hint">
+        在界面上显示的名称。如果不填，则显示上面的 ID/名称。
+      </div>
     </el-form-item>
 
     <el-form-item label="头像">
@@ -34,12 +37,16 @@
         :model-value="formData.icon || ''"
         :avatar-history="formData.avatarHistory"
         :entity-id="profileId"
-        :storage-subdirectory="profileId ? `llm-chat/user-profiles/${profileId}` : ''"
+        :storage-subdirectory="
+          profileId ? `llm-chat/user-profiles/${profileId}` : ''
+        "
         :name-for-fallback="formData.name"
         @update:model-value="handleIconUpdate"
         @update:avatar-history="handleHistoryUpdate"
       />
-      <div class="form-hint">上传的头像将与该档案绑定存储，删除档案时会一并清除。</div>
+      <div class="form-hint">
+        上传的头像将与该档案绑定存储，删除档案时会一并清除。
+      </div>
     </el-form-item>
 
     <el-form-item label="描述" :required="required">
@@ -85,7 +92,11 @@
       />
       <div class="form-hint-with-action">
         <span>关联的快捷操作组将在此 Profile 激活时显示在输入框工具栏。</span>
-        <el-button type="primary" link @click="quickActionManagerVisible = true">
+        <el-button
+          type="primary"
+          link
+          @click="quickActionManagerVisible = true"
+        >
           管理快捷操作
         </el-button>
       </div>
@@ -94,13 +105,19 @@
     <el-divider />
 
     <el-form-item label="消息样式">
-      <el-radio-group v-model="formData.richTextStyleBehavior" @change="handleBehaviorChange">
+      <el-radio-group
+        v-model="formData.richTextStyleBehavior"
+        @change="handleBehaviorChange"
+      >
         <el-radio-button value="follow_agent">跟随智能体</el-radio-button>
         <el-radio-button value="custom">自定义</el-radio-button>
       </el-radio-group>
     </el-form-item>
 
-    <div v-if="formData.richTextStyleBehavior === 'custom'" class="style-editor-container">
+    <div
+      v-if="formData.richTextStyleBehavior === 'custom'"
+      class="style-editor-container"
+    >
       <Suspense>
         <template #default>
           <MarkdownStyleEditor
@@ -133,7 +150,10 @@
 
     <el-collapse>
       <el-collapse-item title="文本替换规则" name="regexConfig">
-        <ChatRegexEditor v-model="formData.regexConfig" @update:model-value="handleInput" />
+        <ChatRegexEditor
+          v-model="formData.regexConfig"
+          @update:model-value="handleInput"
+        />
       </el-collapse-item>
     </el-collapse>
 
@@ -167,19 +187,22 @@ import type { RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/ty
 import type { ChatRegexConfig } from "@/tools/llm-chat/types";
 
 // 宏示例常量（避免格式化工具添加空格）
-const userMacro = '{{user}}';
+const userMacro = "{{user}}";
 
 const MarkdownStyleEditor = defineAsyncComponent(
-  () => import("@/tools/rich-text-renderer/components/style-editor/MarkdownStyleEditor.vue")
+  () =>
+    import("@/tools/rich-text-renderer/components/style-editor/MarkdownStyleEditor.vue")
 );
 const ChatRegexEditor = defineAsyncComponent(
   () => import("@/tools/llm-chat/components/common/ChatRegexEditor.vue")
 );
 const WorldbookManagerDialog = defineAsyncComponent(
-  () => import("@/tools/llm-chat/components/worldbook/WorldbookManagerDialog.vue")
+  () =>
+    import("@/tools/llm-chat/components/worldbook/WorldbookManagerDialog.vue")
 );
 const QuickActionManagerDialog = defineAsyncComponent(
-  () => import("@/tools/llm-chat/components/quick-action/QuickActionManagerDialog.vue")
+  () =>
+    import("@/tools/llm-chat/components/quick-action/QuickActionManagerDialog.vue")
 );
 
 interface UserProfileFormData {
@@ -238,7 +261,8 @@ const emit = defineEmits<{
 const formData = ref<UserProfileFormData>({
   ...props.modelValue,
   avatarHistory: props.modelValue.avatarHistory || [],
-  richTextStyleBehavior: props.modelValue.richTextStyleBehavior || "follow_agent",
+  richTextStyleBehavior:
+    props.modelValue.richTextStyleBehavior || "follow_agent",
   richTextStyleOptions: props.modelValue.richTextStyleOptions || {},
   regexConfig: props.modelValue.regexConfig || { presets: [] },
   worldbookIds: props.modelValue.worldbookIds || [],

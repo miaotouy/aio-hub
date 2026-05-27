@@ -2,18 +2,28 @@
   <div class="section response-section">
     <h3>响应结果</h3>
     <div class="response-header">
-      <span class="status-badge" :class="getStatusClass(store.lastResponse!.status)">
+      <span
+        class="status-badge"
+        :class="getStatusClass(store.lastResponse!.status)"
+      >
         {{ store.lastResponse!.status }} {{ store.lastResponse!.statusText }}
       </span>
       <span v-if="store.lastResponse!.isStreaming" class="streaming-badge">
-        {{ store.lastResponse!.isStreamComplete ? "✅ 流式完成" : "📡 流式接收中..." }}
+        {{
+          store.lastResponse!.isStreamComplete
+            ? "✅ 流式完成"
+            : "📡 流式接收中..."
+        }}
       </span>
       <span class="response-time">⏱️ {{ store.lastResponse!.duration }}ms</span>
       <span class="response-timestamp"
         >🕒 {{ formatTimestamp(store.lastResponse!.timestamp) }}</span
       >
       <el-button
-        v-if="store.lastResponse!.isStreaming && !store.lastResponse!.isStreamComplete"
+        v-if="
+          store.lastResponse!.isStreaming &&
+          !store.lastResponse!.isStreamComplete
+        "
         @click="handleAbort"
         type="danger"
         size="small"
@@ -38,8 +48,13 @@
 
     <div v-else class="response-body">
       <div v-if="store.lastResponse!.isStreaming" class="stream-info">
-        <span>📦 已接收数据块: {{ store.lastResponse!.streamChunks?.length || 0 }}</span>
-        <span>📏 总大小: {{ formatSize(store.lastResponse!.body.length) }}</span>
+        <span
+          >📦 已接收数据块:
+          {{ store.lastResponse!.streamChunks?.length || 0 }}</span
+        >
+        <span
+          >📏 总大小: {{ formatSize(store.lastResponse!.body.length) }}</span
+        >
       </div>
       <pre
         :class="{ 'wrap-text': wrapText }"
@@ -84,7 +99,11 @@ function handleAbort() {
 watch(
   () => store.lastResponse?.body,
   async () => {
-    if (store.lastResponse?.isStreaming && autoScroll.value && responsePreRef.value) {
+    if (
+      store.lastResponse?.isStreaming &&
+      autoScroll.value &&
+      responsePreRef.value
+    ) {
       await nextTick();
       const container = responsePreRef.value.parentElement;
       if (container) {

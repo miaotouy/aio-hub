@@ -14,10 +14,16 @@
         </div>
         <div class="actions" :class="{ disabled: selectedRows.length === 0 }">
           <el-button-group>
-            <el-button :disabled="selectedRows.length === 0" @click="handleBatchEnable(true)">
+            <el-button
+              :disabled="selectedRows.length === 0"
+              @click="handleBatchEnable(true)"
+            >
               启用
             </el-button>
-            <el-button :disabled="selectedRows.length === 0" @click="handleBatchEnable(false)">
+            <el-button
+              :disabled="selectedRows.length === 0"
+              @click="handleBatchEnable(false)"
+            >
               禁用
             </el-button>
           </el-button-group>
@@ -84,8 +90,14 @@
                   </div>
                 </div>
                 <div class="popover-footer">
-                  <el-button size="small" @click="showMovePopover = false">取消</el-button>
-                  <el-button type="primary" size="small" @click="handleMoveToSpecific">
+                  <el-button size="small" @click="showMovePopover = false"
+                    >取消</el-button
+                  >
+                  <el-button
+                    type="primary"
+                    size="small"
+                    @click="handleMoveToSpecific"
+                  >
                     确认移动
                   </el-button>
                 </div>
@@ -119,7 +131,12 @@
           row-key="id"
           @selection-change="handleSelectionChange"
         >
-          <el-table-column type="selection" width="45" align="center" :selectable="isSelectable" />
+          <el-table-column
+            type="selection"
+            width="45"
+            align="center"
+            :selectable="isSelectable"
+          />
           <el-table-column label="#" width="60" align="center">
             <template #default="{ $index }">
               <span class="index-badge">{{ $index + 1 }}</span>
@@ -127,7 +144,11 @@
           </el-table-column>
           <el-table-column label="角色" width="100" align="center">
             <template #default="{ row }">
-              <el-tag :type="getRoleTagType(row.role)" size="small" effect="plain">
+              <el-tag
+                :type="getRoleTagType(row.role)"
+                size="small"
+                effect="plain"
+              >
                 {{ row.role }}
               </el-tag>
             </template>
@@ -138,7 +159,10 @@
                 <span v-if="isAnchorType(row.type)" class="anchor-badge">
                   [{{ getAnchorName(row.type) }}]
                 </span>
-                <span class="content-text" :class="{ 'is-placeholder': isAnchorType(row.type) }">
+                <span
+                  class="content-text"
+                  :class="{ 'is-placeholder': isAnchorType(row.type) }"
+                >
                   {{ truncateText(row.content || row.name || "(无内容)", 60) }}
                 </span>
               </div>
@@ -267,7 +291,9 @@ function handleBatchEnable(enabled: boolean) {
   selectedRows.value.forEach((row) => {
     row.isEnabled = enabled;
   });
-  customMessage.success(`已${enabled ? "启用" : "禁用"} ${selectedRows.value.length} 项`);
+  customMessage.success(
+    `已${enabled ? "启用" : "禁用"} ${selectedRows.value.length} 项`
+  );
 }
 
 // 单个开关变更（主要为了触发响应式更新，虽然 v-model 应该够了）
@@ -280,7 +306,9 @@ function handleBatchDelete() {
   const idsToDelete = new Set(selectedRows.value.map((r) => r.id));
 
   // 过滤掉不可删除的锚点
-  const anchorsCount = selectedRows.value.filter((r) => isAnchorType(r.type)).length;
+  const anchorsCount = selectedRows.value.filter((r) =>
+    isAnchorType(r.type)
+  ).length;
   if (anchorsCount > 0) {
     customMessage.warning(`${anchorsCount} 个锚点消息不可删除，已跳过`);
   }
@@ -314,7 +342,9 @@ function handleMoveTo(position: "top" | "bottom") {
     localData.value = [...remainingItems, ...itemsToMove];
   }
 
-  customMessage.success(`已移动 ${itemsToMove.length} 项到${position === "top" ? "顶部" : "底部"}`);
+  customMessage.success(
+    `已移动 ${itemsToMove.length} 项到${position === "top" ? "顶部" : "底部"}`
+  );
 }
 
 function handleMoveToSpecific() {

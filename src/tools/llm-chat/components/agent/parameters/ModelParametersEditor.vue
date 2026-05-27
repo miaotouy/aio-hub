@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from "vue";
 import type { LlmParameters } from "../../../types";
-import type { ProviderType, LlmParameterSupport, LlmModelInfo } from "@/types/llm-profiles";
+import type {
+  ProviderType,
+  LlmParameterSupport,
+  LlmModelInfo,
+} from "@/types/llm-profiles";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useLlmChatUiState } from "../../../composables/ui/useLlmChatUiState";
 import { useLlmChatStore } from "../../../stores/llmChatStore";
@@ -12,7 +16,10 @@ import { getModelFamily } from "@/llm-apis/request-builder";
 import ConfigSection from "../../common/ConfigSection.vue";
 import ParameterItem from "./ParameterItem.vue";
 import ContextCompressionConfigPanel from "./ContextCompressionConfigPanel.vue";
-import { ParameterConfig, parameterConfigs } from "../../../config/parameter-config";
+import {
+  ParameterConfig,
+  parameterConfigs,
+} from "../../../config/parameter-config";
 import { DEFAULT_CONTEXT_COMPRESSION_CONFIG } from "../../../types/llm";
 
 // New Components
@@ -20,7 +27,15 @@ import SafetySettingsPanel from "./SafetySettingsPanel.vue";
 import PostProcessingPanel from "./PostProcessingPanel.vue";
 import CustomParamsPanel from "./CustomParamsPanel.vue";
 import ContextStatsCard from "./ContextStatsCard.vue";
-import { Setting, Tools, Document, Files, Connection, MagicStick, CirclePlus } from "@element-plus/icons-vue";
+import {
+  Setting,
+  Tools,
+  Document,
+  Files,
+  Connection,
+  MagicStick,
+  CirclePlus,
+} from "@element-plus/icons-vue";
 import { Shield, Image } from "lucide-vue-next";
 
 /**
@@ -77,12 +92,16 @@ const initLocalParams = (params: LlmParameters): LlmParameters => {
   if (!newParams.enabledParameters) {
     // 获取所有非 undefined 的参数键作为启用的参数
     // 这样既兼容了旧数据（有值的参数保持启用），又满足了新需求（没值的高级参数默认关闭）
-    const enabledKeys = (Object.keys(newParams) as Array<keyof LlmParameters>).filter((key) => {
+    const enabledKeys = (
+      Object.keys(newParams) as Array<keyof LlmParameters>
+    ).filter((key) => {
       if (key === "enabledParameters" || key === "custom") return false;
       return newParams[key] !== undefined;
     });
 
-    newParams.enabledParameters = enabledKeys as Array<keyof Omit<LlmParameters, "custom">>;
+    newParams.enabledParameters = enabledKeys as Array<
+      keyof Omit<LlmParameters, "custom">
+    >;
   }
 
   return newParams;
@@ -98,11 +117,14 @@ watch(
     // 使用相同的初始化逻辑，确保外部更新也能正确处理启用状态
     localParams.value = initLocalParams(newVal);
   },
-  { deep: true },
+  { deep: true }
 );
 
 // 更新参数的通用方法
-const updateParameter = <K extends keyof LlmParameters>(key: K, value: LlmParameters[K]) => {
+const updateParameter = <K extends keyof LlmParameters>(
+  key: K,
+  value: LlmParameters[K]
+) => {
   localParams.value = {
     ...localParams.value,
     [key]: value,
@@ -131,7 +153,9 @@ const toggleParameterEnabled = (key: keyof LlmParameters, enabled: boolean) => {
       newEnabled = currentEnabled as Array<keyof Omit<LlmParameters, "custom">>;
     }
   } else {
-    newEnabled = currentEnabled.filter((k) => k !== key) as Array<keyof Omit<LlmParameters, "custom">>;
+    newEnabled = currentEnabled.filter((k) => k !== key) as Array<
+      keyof Omit<LlmParameters, "custom">
+    >;
   }
 
   localParams.value = {
@@ -171,15 +195,21 @@ const updateImageCompression = (path: string, value: any) => {
 // --- 参数配置分组 ---
 
 const basicConfigs = computed(() =>
-  processedConfigs.value.filter((c) => c.group === "basic" && shouldShowParameter(c.key)),
+  processedConfigs.value.filter(
+    (c) => c.group === "basic" && shouldShowParameter(c.key)
+  )
 );
 
 const advancedConfigs = computed(() =>
-  processedConfigs.value.filter((c) => c.group === "advanced" && shouldShowParameter(c.key)),
+  processedConfigs.value.filter(
+    (c) => c.group === "advanced" && shouldShowParameter(c.key)
+  )
 );
 
 const specialConfigs = computed(() =>
-  processedConfigs.value.filter((c) => c.group === "special" && shouldShowParameter(c.key)),
+  processedConfigs.value.filter(
+    (c) => c.group === "special" && shouldShowParameter(c.key)
+  )
 );
 
 // --- 动态参数处理 ---
@@ -198,11 +228,17 @@ const processedConfigs = computed(() => {
       };
     }
 
-    if (config.key === "reasoningEffort" && cap?.thinkingConfigType === "effort") {
+    if (
+      config.key === "reasoningEffort" &&
+      cap?.thinkingConfigType === "effort"
+    ) {
       const options = props.capabilities?.reasoningEffortOptions || [];
       return {
         ...config,
-        options: [{ label: "默认", value: "" }, ...options.map((opt) => ({ label: opt, value: opt }))],
+        options: [
+          { label: "默认", value: "" },
+          ...options.map((opt) => ({ label: opt, value: opt })),
+        ],
       };
     }
     return config;
@@ -223,7 +259,10 @@ const shouldShowParameter = (key: keyof LlmParameters): boolean => {
         return thinkingType === "switch" || thinkingType === "budget";
       case "thinkingBudget":
         // 只有在预算模式且启用了思考时才显示
-        return thinkingType === "budget" && localParams.value.thinkingEnabled === true;
+        return (
+          thinkingType === "budget" &&
+          localParams.value.thinkingEnabled === true
+        );
       case "reasoningEffort":
         return thinkingType === "effort";
       default:
@@ -259,7 +298,11 @@ const overrides = computed(() => ({
 watch(
   () => props.contextLengthLimit,
   (newLimit) => {
-    if (newLimit && localParams.value.maxTokens !== undefined && localParams.value.maxTokens > newLimit) {
+    if (
+      newLimit &&
+      localParams.value.maxTokens !== undefined &&
+      localParams.value.maxTokens > newLimit
+    ) {
       // 如果当前值超过了新的限制，自动调整到最大值
       updateParameter("maxTokens", newLimit);
     }
@@ -275,7 +318,7 @@ watch(
         maxContextTokens: newLimit,
       });
     }
-  },
+  }
 );
 
 // --- Thinking Budget 与 Max Tokens 联动逻辑 ---
@@ -286,7 +329,11 @@ watch(
   () => localParams.value.thinkingBudget,
   (newBudget) => {
     // 仅当启用了思考模式且是 budget 类型时才处理
-    if (!localParams.value.thinkingEnabled || props.capabilities?.thinkingConfigType !== "budget" || !newBudget) {
+    if (
+      !localParams.value.thinkingEnabled ||
+      props.capabilities?.thinkingConfigType !== "budget" ||
+      !newBudget
+    ) {
       return;
     }
 
@@ -304,7 +351,7 @@ watch(
         // 可选：显示轻量提示，但这可能会在拖动滑块时频繁触发，所以暂时不加
       }
     }
-  },
+  }
 );
 
 watch(
@@ -333,7 +380,7 @@ watch(
         updateParameter("thinkingBudget", targetBudget);
       }
     }
-  },
+  }
 );
 
 // 监听 thinkingEnabled 开启时，进行一次初始检查
@@ -353,7 +400,7 @@ watch(
         }
       }
     }
-  },
+  }
 );
 
 // --- Gemini 安全设置逻辑 ---
@@ -405,7 +452,8 @@ const retainedCharactersConfig: ParameterConfig = {
   key: "retainedCharacters" as any,
   label: "截断保留字符数",
   type: "slider",
-  description: "截断消息时保留的开头字符数。0 表示完全删除，推荐 100-200 让消息保留简略开头。",
+  description:
+    "截断消息时保留的开头字符数。0 表示完全删除，推荐 100-200 让消息保留简略开头。",
   group: "basic",
   supportedKey: "maxTokens",
   min: 0,
@@ -449,7 +497,7 @@ const loadContextStats = async () => {
       agentStore.currentAgentId ?? undefined,
       {
         parameterOverrides: localParams.value,
-      },
+      }
     );
 
     if (previewData) {
@@ -492,7 +540,7 @@ watch(
     if (JSON.stringify(newVal) === JSON.stringify(oldVal)) return;
     if (props.externalStats === undefined) setTimeout(loadContextStats, 300);
   },
-  { deep: true },
+  { deep: true }
 );
 // 注意：contextCompression 是运行时压缩配置，不影响预览结构，无需触发预览更新
 watch(
@@ -501,7 +549,7 @@ watch(
     if (JSON.stringify(newVal) === JSON.stringify(oldVal)) return;
     if (props.externalStats === undefined) setTimeout(loadContextStats, 300);
   },
-  { deep: true },
+  { deep: true }
 );
 watch(
   () => chatStore.generatingNodes.size,
@@ -510,7 +558,7 @@ watch(
       handleStateChange();
     }
     previousGeneratingCount = newSize;
-  },
+  }
 );
 watch(
   () => {
@@ -519,7 +567,7 @@ watch(
     return agent?.presetMessages;
   },
   handleStateChange,
-  { deep: true },
+  { deep: true }
 );
 watch(
   () => chatStore.currentSession?.updatedAt, // 索引中的 updatedAt 变化也触发
@@ -527,7 +575,7 @@ watch(
     if (chatStore.generatingNodes.size === 0 && newTime !== oldTime) {
       handleStateChange();
     }
-  },
+  }
 );
 
 // 计算是否有开启的后处理规则 (用于 ContextStatsCard 传递)
@@ -540,7 +588,11 @@ const hasActivePostProcessingRules = computed(() => {
 <template>
   <div class="model-parameters-editor" :class="{ compact }">
     <!-- 基础参数分组 -->
-    <ConfigSection title="基础参数" :icon="Setting" v-model:expanded="basicParamsExpanded">
+    <ConfigSection
+      title="基础参数"
+      :icon="Setting"
+      v-model:expanded="basicParamsExpanded"
+    >
       <ParameterItem
         v-for="config in basicConfigs"
         :key="config.key"
@@ -551,7 +603,9 @@ const hasActivePostProcessingRules = computed(() => {
         @update:enabled="toggleParameterEnabled(config.key, $event)"
         :overrides="overrides[config.key as keyof typeof overrides]"
       />
-      <div v-if="basicConfigs.length === 0" class="empty-hint">此模型没有可配置的基础参数</div>
+      <div v-if="basicConfigs.length === 0" class="empty-hint">
+        此模型没有可配置的基础参数
+      </div>
     </ConfigSection>
 
     <!-- 高级参数分组 -->
@@ -574,11 +628,17 @@ const hasActivePostProcessingRules = computed(() => {
     </ConfigSection>
 
     <!-- 上下文管理分组 -->
-    <ConfigSection title="上下文管理" :icon="Document" v-model:expanded="contextManagementExpanded">
+    <ConfigSection
+      title="上下文管理"
+      :icon="Document"
+      v-model:expanded="contextManagementExpanded"
+    >
       <!-- 当前上下文统计 -->
       <ContextStatsCard
         :stats="contextStats"
-        :max-context-tokens="localParams.contextManagement?.maxContextTokens ?? 0"
+        :max-context-tokens="
+          localParams.contextManagement?.maxContextTokens ?? 0
+        "
         :enabled="localParams.contextManagement?.enabled ?? false"
         :has-active-post-processing-rules="hasActivePostProcessingRules"
       />
@@ -592,13 +652,17 @@ const hasActivePostProcessingRules = computed(() => {
             @update:model-value="
               updateParameter('contextManagement', {
                 enabled: $event,
-                maxContextTokens: localParams.contextManagement?.maxContextTokens ?? 128000,
-                retainedCharacters: localParams.contextManagement?.retainedCharacters ?? 200,
+                maxContextTokens:
+                  localParams.contextManagement?.maxContextTokens ?? 128000,
+                retainedCharacters:
+                  localParams.contextManagement?.retainedCharacters ?? 200,
               })
             "
           />
         </label>
-        <div class="param-desc">启用后，会在发送前截断过长的会话历史，防止超出模型上下文窗口。</div>
+        <div class="param-desc">
+          启用后，会在发送前截断过长的会话历史，防止超出模型上下文窗口。
+        </div>
       </div>
 
       <!-- 最大上下文 Token 数 -->
@@ -627,7 +691,9 @@ const hasActivePostProcessingRules = computed(() => {
         v-if="localParams.contextManagement?.enabled"
         :config="retainedCharactersConfig"
         :model-value="localParams.contextManagement?.retainedCharacters"
-        :enabled="localParams.contextManagement?.retainedCharacters !== undefined"
+        :enabled="
+          localParams.contextManagement?.retainedCharacters !== undefined
+        "
         @update:enabled="
           updateParameter('contextManagement', {
             ...localParams.contextManagement!,
@@ -644,7 +710,11 @@ const hasActivePostProcessingRules = computed(() => {
     </ConfigSection>
 
     <!-- 上下文压缩分组 -->
-    <ConfigSection title="上下文压缩" :icon="Files" v-model:expanded="contextCompressionExpanded">
+    <ConfigSection
+      title="上下文压缩"
+      :icon="Files"
+      v-model:expanded="contextCompressionExpanded"
+    >
       <ContextCompressionConfigPanel
         :model-value="localParams.contextCompression || {}"
         @update:model-value="updateParameter('contextCompression', $event)"
@@ -652,15 +722,25 @@ const hasActivePostProcessingRules = computed(() => {
     </ConfigSection>
 
     <!-- 上下文后处理管道分组 -->
-    <ConfigSection title="上下文后处理" :icon="Connection" v-model:expanded="postProcessingExpanded">
+    <ConfigSection
+      title="上下文后处理"
+      :icon="Connection"
+      v-model:expanded="postProcessingExpanded"
+    >
       <PostProcessingPanel
         :model-value="localParams.contextPostProcessing?.rules"
-        @update:model-value="(rules: any) => updateParameter('contextPostProcessing', { rules })"
+        @update:model-value="
+          (rules: any) => updateParameter('contextPostProcessing', { rules })
+        "
       />
     </ConfigSection>
 
     <!-- 图片压缩分组 -->
-    <ConfigSection title="图片压缩" :icon="Image" v-model:expanded="imageCompressionExpanded">
+    <ConfigSection
+      title="图片压缩"
+      :icon="Image"
+      v-model:expanded="imageCompressionExpanded"
+    >
       <div class="param-group">
         <label class="param-label">
           <span>启用图片压缩</span>
@@ -669,7 +749,9 @@ const hasActivePostProcessingRules = computed(() => {
             @update:model-value="updateImageCompression('.enabled', $event)"
           />
         </label>
-        <div class="param-desc">开启后，发送图片给 LLM 时自动进行压缩处理，节省 Token 和带宽。</div>
+        <div class="param-desc">
+          开启后，发送图片给 LLM 时自动进行压缩处理，节省 Token 和带宽。
+        </div>
       </div>
 
       <template v-if="localParams.imageCompression?.enabled">
@@ -677,7 +759,11 @@ const hasActivePostProcessingRules = computed(() => {
         <div class="param-group">
           <label class="param-label">
             <span>目标最大尺寸</span>
-            <span class="param-value">{{ localParams.imageCompression?.maxDimension || "不限" }}px</span>
+            <span class="param-value"
+              >{{
+                localParams.imageCompression?.maxDimension || "不限"
+              }}px</span
+            >
           </label>
           <el-slider
             :model-value="localParams.imageCompression?.maxDimension"
@@ -686,17 +772,32 @@ const hasActivePostProcessingRules = computed(() => {
             :step="128"
             :show-stops="false"
             style="width: 100%"
-            @update:model-value="updateImageCompression('.maxDimension', $event || undefined)"
+            @update:model-value="
+              updateImageCompression('.maxDimension', $event || undefined)
+            "
           />
-          <div class="param-desc">图片宽高的最大像素值。超出将等比缩小。设为 0 或清空则不额外缩小。</div>
-          <div style="display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap">
-            <el-tag size="small" style="cursor: pointer" @click="updateImageCompression('.maxDimension', 1024)"
+          <div class="param-desc">
+            图片宽高的最大像素值。超出将等比缩小。设为 0 或清空则不额外缩小。
+          </div>
+          <div
+            style="display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap"
+          >
+            <el-tag
+              size="small"
+              style="cursor: pointer"
+              @click="updateImageCompression('.maxDimension', 1024)"
               >1024</el-tag
             >
-            <el-tag size="small" style="cursor: pointer" @click="updateImageCompression('.maxDimension', 2048)"
+            <el-tag
+              size="small"
+              style="cursor: pointer"
+              @click="updateImageCompression('.maxDimension', 2048)"
               >2048</el-tag
             >
-            <el-tag size="small" style="cursor: pointer" @click="updateImageCompression('.maxDimension', 4096)"
+            <el-tag
+              size="small"
+              style="cursor: pointer"
+              @click="updateImageCompression('.maxDimension', 4096)"
               >4096</el-tag
             >
           </div>
@@ -717,10 +818,18 @@ const hasActivePostProcessingRules = computed(() => {
             <el-option label="WebP（有损，支持透明）" value="webp" />
           </el-select>
           <div class="param-desc">
-            <template v-if="(localParams.imageCompression?.format || 'original') === 'jpeg'">
+            <template
+              v-if="
+                (localParams.imageCompression?.format || 'original') === 'jpeg'
+              "
+            >
               JPEG 不支持透明通道，会丢失透明度。
             </template>
-            <template v-else-if="(localParams.imageCompression?.format || 'original') === 'webp'">
+            <template
+              v-else-if="
+                (localParams.imageCompression?.format || 'original') === 'webp'
+              "
+            >
               WebP 支持透明通道，兼容性良好。
             </template>
             <template v-else> 保持图片原有的格式不变，仅做尺寸缩放。 </template>
@@ -728,10 +837,21 @@ const hasActivePostProcessingRules = computed(() => {
         </div>
 
         <!-- 质量（仅非 original 时显示） -->
-        <div v-if="(localParams.imageCompression?.format || 'original') !== 'original'" class="param-group">
+        <div
+          v-if="
+            (localParams.imageCompression?.format || 'original') !== 'original'
+          "
+          class="param-group"
+        >
           <label class="param-label">
             <span>图片质量</span>
-            <span class="param-value">{{ Math.round((localParams.imageCompression?.quality ?? 0.85) * 100) }}%</span>
+            <span class="param-value"
+              >{{
+                Math.round(
+                  (localParams.imageCompression?.quality ?? 0.85) * 100
+                )
+              }}%</span
+            >
           </label>
           <el-slider
             :model-value="localParams.imageCompression?.quality ?? 0.85"
@@ -741,7 +861,9 @@ const hasActivePostProcessingRules = computed(() => {
             style="width: 100%"
             @update:model-value="updateImageCompression('.quality', $event)"
           />
-          <div class="param-desc">值越高画质越好，文件也越大。85% 是较好的平衡点。</div>
+          <div class="param-desc">
+            值越高画质越好，文件也越大。85% 是较好的平衡点。
+          </div>
         </div>
       </template>
     </ConfigSection>
@@ -777,12 +899,21 @@ const hasActivePostProcessingRules = computed(() => {
         :overrides="overrides[config.key as keyof typeof overrides]"
       />
 
-      <div class="param-hint">其他高级功能（如 Response Format、Tools）需要通过代码配置。</div>
+      <div class="param-hint">
+        其他高级功能（如 Response Format、Tools）需要通过代码配置。
+      </div>
     </ConfigSection>
 
     <!-- 自定义参数分组 -->
-    <ConfigSection title="自定义参数" :icon="CirclePlus" v-model:expanded="customParamsExpanded">
-      <CustomParamsPanel :model-value="localParams.custom" @update:model-value="updateParameter('custom', $event)" />
+    <ConfigSection
+      title="自定义参数"
+      :icon="CirclePlus"
+      v-model:expanded="customParamsExpanded"
+    >
+      <CustomParamsPanel
+        :model-value="localParams.custom"
+        @update:model-value="updateParameter('custom', $event)"
+      />
     </ConfigSection>
   </div>
 </template>

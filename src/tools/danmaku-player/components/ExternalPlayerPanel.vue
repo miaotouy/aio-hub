@@ -8,7 +8,12 @@
               <Monitor :size="16" />
               <span>播放器连接</span>
             </div>
-            <span class="connection-status" :class="{ 'connection-status--connected': overlayState.connected }">
+            <span
+              class="connection-status"
+              :class="{
+                'connection-status--connected': overlayState.connected,
+              }"
+            >
               <Circle :size="8" fill="currentColor" />
               {{ overlayState.connected ? "已连接" : "未连接" }}
             </span>
@@ -17,7 +22,11 @@
           <el-form class="connection-form" label-position="top">
             <div class="form-grid">
               <el-form-item label="播放器类型">
-                <el-select v-model="playerConfig.playerType" size="small" class="full-width">
+                <el-select
+                  v-model="playerConfig.playerType"
+                  size="small"
+                  class="full-width"
+                >
                   <el-option label="MPC-BE" value="mpc-be" />
                 </el-select>
               </el-form-item>
@@ -37,7 +46,11 @@
 
             <div class="action-row">
               <el-button-group>
-                <el-button :loading="scanning" size="small" @click="handleScanPlayerWindows(true)">
+                <el-button
+                  :loading="scanning"
+                  size="small"
+                  @click="handleScanPlayerWindows(true)"
+                >
                   <Search :size="14" />
                   扫描播放器
                 </el-button>
@@ -47,13 +60,23 @@
                   </el-button>
                   <template #dropdown>
                     <el-dropdown-menu>
-                      <el-dropdown-item command="default">仅扫描 MPC-BE</el-dropdown-item>
-                      <el-dropdown-item command="all">扫描所有窗口</el-dropdown-item>
+                      <el-dropdown-item command="default"
+                        >仅扫描 MPC-BE</el-dropdown-item
+                      >
+                      <el-dropdown-item command="all"
+                        >扫描所有窗口</el-dropdown-item
+                      >
                     </el-dropdown-menu>
                   </template>
                 </el-dropdown>
               </el-button-group>
-              <el-button :loading="testingConnection" size="small" type="primary" plain @click="handleTestConnection">
+              <el-button
+                :loading="testingConnection"
+                size="small"
+                type="primary"
+                plain
+                @click="handleTestConnection"
+              >
                 <Link :size="14" />
                 测试连接
               </el-button>
@@ -68,7 +91,11 @@
               class="window-radio-group"
               @change="handleWindowChange"
             >
-              <el-radio v-for="windowInfo in playerWindows" :key="windowInfo.hwnd" :value="windowInfo.hwnd">
+              <el-radio
+                v-for="windowInfo in playerWindows"
+                :key="windowInfo.hwnd"
+                :value="windowInfo.hwnd"
+              >
                 <span class="window-item">
                   <span class="window-item__title" :title="windowInfo.title">{{
                     windowInfo.title || "未命名播放器窗口"
@@ -136,7 +163,12 @@
               <Play :size="15" />
               启动弹幕覆盖
             </el-button>
-            <el-button v-else type="danger" :loading="closingOverlay" @click="handleCloseOverlay">
+            <el-button
+              v-else
+              type="danger"
+              :loading="closingOverlay"
+              @click="handleCloseOverlay"
+            >
               <Square :size="15" />
               关闭覆盖
             </el-button>
@@ -151,24 +183,38 @@
             <div class="status-line">
               <component :is="playbackIcon" :size="15" />
               <span>{{ playbackStateLabel }}</span>
-              <span class="status-line__time">{{ formattedPosition }} / {{ formattedDuration }}</span>
+              <span class="status-line__time"
+                >{{ formattedPosition }} / {{ formattedDuration }}</span
+              >
             </div>
             <div class="status-line">
-              <Circle :size="10" fill="currentColor" :class="overlayActive ? 'status-success' : 'status-danger'" />
+              <Circle
+                :size="10"
+                fill="currentColor"
+                :class="overlayActive ? 'status-success' : 'status-danger'"
+              />
               <span :class="overlayActive ? 'status-success' : 'status-danger'">
                 {{ overlayActive ? "覆盖窗口已激活" : "覆盖窗口未启动" }}
               </span>
-              <span v-if="overlayActive" class="status-line__muted">窗口位置同步中</span>
+              <span v-if="overlayActive" class="status-line__muted"
+                >窗口位置同步中</span
+              >
             </div>
 
             <div class="status-line extra-options">
-              <el-checkbox v-model="playerConfig.enableFullscreenBoost" size="small">
+              <el-checkbox
+                v-model="playerConfig.enableFullscreenBoost"
+                size="small"
+              >
                 全屏覆盖增强 (强制置顶)
               </el-checkbox>
             </div>
           </div>
 
-          <p v-if="!canStartOverlay && !overlayState.overlayCreated" class="start-requirements">
+          <p
+            v-if="!canStartOverlay && !overlayState.overlayCreated"
+            class="start-requirements"
+          >
             需要先加载 ASS 弹幕、选择播放器窗口，并通过 Web 端口连接测试。
           </p>
         </section>
@@ -218,7 +264,9 @@ const props = defineProps<{
   config: DanmakuConfig;
 }>();
 
-const errorHandler = createModuleErrorHandler("danmaku-player/externalPlayerPanel");
+const errorHandler = createModuleErrorHandler(
+  "danmaku-player/externalPlayerPanel"
+);
 
 const {
   playerWindows,
@@ -232,8 +280,15 @@ const {
   stopStatusPreview,
 } = useExternalPlayer();
 
-const { overlayActive, createOverlay, closeOverlay, initOverlay, syncConfig, syncDanmakus, startPositionSync } =
-  useDanmakuOverlay();
+const {
+  overlayActive,
+  createOverlay,
+  closeOverlay,
+  initOverlay,
+  syncConfig,
+  syncDanmakus,
+  startPositionSync,
+} = useDanmakuOverlay();
 
 const testingConnection = ref(false);
 const startingOverlay = ref(false);
@@ -241,11 +296,16 @@ const closingOverlay = ref(false);
 
 const canStartOverlay = computed(() => {
   return (
-    props.danmakus.length > 0 && overlayState.targetHwnd !== null && overlayState.connected && !startingOverlay.value
+    props.danmakus.length > 0 &&
+    overlayState.targetHwnd !== null &&
+    overlayState.connected &&
+    !startingOverlay.value
   );
 });
 
-const currentFileLabel = computed(() => overlayState.currentFile || "未获取到播放文件");
+const currentFileLabel = computed(
+  () => overlayState.currentFile || "未获取到播放文件"
+);
 
 const playbackStateLabel = computed(() => {
   switch (overlayState.playbackState) {
@@ -265,8 +325,12 @@ const playbackIcon = computed(() => {
   return overlayState.playbackState === "Playing" ? Play : Pause;
 });
 
-const formattedPosition = computed(() => formatDuration(overlayState.currentPosition));
-const formattedDuration = computed(() => formatDuration(overlayState.totalDuration));
+const formattedPosition = computed(() =>
+  formatDuration(overlayState.currentPosition)
+);
+const formattedDuration = computed(() =>
+  formatDuration(overlayState.totalDuration)
+);
 
 function formatDuration(milliseconds: number): string {
   if (!Number.isFinite(milliseconds) || milliseconds <= 0) {
@@ -278,17 +342,25 @@ function formatDuration(milliseconds: number): string {
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
 
-  return [hours, minutes, seconds].map((value) => value.toString().padStart(2, "0")).join(":");
+  return [hours, minutes, seconds]
+    .map((value) => value.toString().padStart(2, "0"))
+    .join(":");
 }
 
 async function handleScanPlayerWindows(useDefault = true): Promise<void> {
   try {
     // 默认扫描支持多种常见的 MPC 类名
-    const classNames = useDefault ? ["MediaPlayerClassicW", "MPC-BE"] : undefined;
+    const classNames = useDefault
+      ? ["MediaPlayerClassicW", "MPC-BE"]
+      : undefined;
     const windows = await scanPlayerWindows(classNames);
 
     if (windows.length === 0) {
-      customMessage.warning(useDefault ? "未发现 MPC-BE 窗口，请尝试“扫描所有窗口”" : "未发现任何可见窗口");
+      customMessage.warning(
+        useDefault
+          ? "未发现 MPC-BE 窗口，请尝试“扫描所有窗口”"
+          : "未发现任何可见窗口"
+      );
       return;
     }
 
@@ -326,7 +398,9 @@ async function handleTestConnection(): Promise<void> {
   }
 }
 
-function handleWindowChange(value: string | number | boolean | undefined): void {
+function handleWindowChange(
+  value: string | number | boolean | undefined
+): void {
   const hwnd = Number(value);
 
   if (!Number.isFinite(hwnd)) {
@@ -357,7 +431,12 @@ async function handleStartOverlay(): Promise<void> {
       return;
     }
 
-    await initOverlay(props.danmakus, props.scriptInfo, props.config, playerConfig.webPort);
+    await initOverlay(
+      props.danmakus,
+      props.scriptInfo,
+      props.config,
+      playerConfig.webPort
+    );
     startPositionSync(overlayState.targetHwnd, playerConfig);
     overlayState.overlayCreated = true;
     customMessage.success("弹幕覆盖已启动");
@@ -398,7 +477,7 @@ watch(
 
     await syncConfig(config);
   },
-  { deep: true },
+  { deep: true }
 );
 
 watch(
@@ -410,7 +489,7 @@ watch(
 
     await syncDanmakus(danmakus, scriptInfo);
   },
-  { deep: true },
+  { deep: true }
 );
 
 watch(
@@ -427,7 +506,7 @@ watch(
     }
 
     startPositionSync(overlayState.targetHwnd, playerConfig);
-  },
+  }
 );
 
 onMounted(() => {

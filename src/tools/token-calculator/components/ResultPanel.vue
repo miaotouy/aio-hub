@@ -38,7 +38,8 @@
                   <span class="item-label">文本</span>
                   <span class="item-value">{{
                     calculationResult.textTokenCount ||
-                    calculationResult.count - (calculationResult.mediaTokenCount || 0)
+                    calculationResult.count -
+                      (calculationResult.mediaTokenCount || 0)
                   }}</span>
                 </div>
                 <div class="progress-bg">
@@ -47,7 +48,8 @@
                     :style="{
                       width: getPercentage(
                         calculationResult.textTokenCount ||
-                          calculationResult.count - (calculationResult.mediaTokenCount || 0)
+                          calculationResult.count -
+                            (calculationResult.mediaTokenCount || 0)
                       ),
                     }"
                   ></div>
@@ -56,57 +58,78 @@
             </div>
 
             <!-- 图片 -->
-            <div class="breakdown-item" :class="{ 'is-empty': !calculationResult.imageTokenCount }">
+            <div
+              class="breakdown-item"
+              :class="{ 'is-empty': !calculationResult.imageTokenCount }"
+            >
               <div class="item-icon image-icon">
                 <el-icon><Picture /></el-icon>
               </div>
               <div class="item-content">
                 <div class="item-header">
                   <span class="item-label">图片</span>
-                  <span class="item-value">{{ calculationResult.imageTokenCount || 0 }}</span>
+                  <span class="item-value">{{
+                    calculationResult.imageTokenCount || 0
+                  }}</span>
                 </div>
                 <div class="progress-bg">
                   <div
                     class="progress-bar image-bar"
-                    :style="{ width: getPercentage(calculationResult.imageTokenCount) }"
+                    :style="{
+                      width: getPercentage(calculationResult.imageTokenCount),
+                    }"
                   ></div>
                 </div>
               </div>
             </div>
 
             <!-- 视频 -->
-            <div class="breakdown-item" :class="{ 'is-empty': !calculationResult.videoTokenCount }">
+            <div
+              class="breakdown-item"
+              :class="{ 'is-empty': !calculationResult.videoTokenCount }"
+            >
               <div class="item-icon video-icon">
                 <el-icon><VideoPlay /></el-icon>
               </div>
               <div class="item-content">
                 <div class="item-header">
                   <span class="item-label">视频</span>
-                  <span class="item-value">{{ calculationResult.videoTokenCount || 0 }}</span>
+                  <span class="item-value">{{
+                    calculationResult.videoTokenCount || 0
+                  }}</span>
                 </div>
                 <div class="progress-bg">
                   <div
                     class="progress-bar video-bar"
-                    :style="{ width: getPercentage(calculationResult.videoTokenCount) }"
+                    :style="{
+                      width: getPercentage(calculationResult.videoTokenCount),
+                    }"
                   ></div>
                 </div>
               </div>
             </div>
 
             <!-- 音频 -->
-            <div class="breakdown-item" :class="{ 'is-empty': !calculationResult.audioTokenCount }">
+            <div
+              class="breakdown-item"
+              :class="{ 'is-empty': !calculationResult.audioTokenCount }"
+            >
               <div class="item-icon audio-icon">
                 <el-icon><Microphone /></el-icon>
               </div>
               <div class="item-content">
                 <div class="item-header">
                   <span class="item-label">音频</span>
-                  <span class="item-value">{{ calculationResult.audioTokenCount || 0 }}</span>
+                  <span class="item-value">{{
+                    calculationResult.audioTokenCount || 0
+                  }}</span>
                 </div>
                 <div class="progress-bg">
                   <div
                     class="progress-bar audio-bar"
-                    :style="{ width: getPercentage(calculationResult.audioTokenCount) }"
+                    :style="{
+                      width: getPercentage(calculationResult.audioTokenCount),
+                    }"
                   ></div>
                 </div>
               </div>
@@ -118,7 +141,10 @@
         <div class="details-grid">
           <div class="detail-card">
             <div class="detail-label">分词器</div>
-            <div class="detail-value tokenizer-name" :title="calculationResult.tokenizerName">
+            <div
+              class="detail-value tokenizer-name"
+              :title="calculationResult.tokenizerName"
+            >
               {{ calculationResult.tokenizerName }}
             </div>
           </div>
@@ -133,7 +159,8 @@
                 characterCount > 0
                   ? (
                       (calculationResult.textTokenCount ||
-                        calculationResult.count - (calculationResult.mediaTokenCount || 0)) /
+                        calculationResult.count -
+                          (calculationResult.mediaTokenCount || 0)) /
                       characterCount
                     ).toFixed(3)
                   : "0"
@@ -164,7 +191,8 @@
             v-if="
               tokenizedText.length > 0 &&
               (calculationResult.textTokenCount ||
-                calculationResult.count - (calculationResult.mediaTokenCount || 0)) >
+                calculationResult.count -
+                  (calculationResult.mediaTokenCount || 0)) >
                 tokenizedText.length
             "
             class="truncation-notice"
@@ -180,7 +208,11 @@
             个文本 Token
           </div>
         </div>
-        <div v-if="tokenizedText.length > 0" ref="tokenBlocksContainer" class="token-blocks">
+        <div
+          v-if="tokenizedText.length > 0"
+          ref="tokenBlocksContainer"
+          class="token-blocks"
+        >
           <!-- 虚拟滚动容器 -->
           <div
             :style="{
@@ -220,7 +252,9 @@
                 :title="`ID: ${token.id}\nIndex: ${getGlobalTokenIndex(virtualItem.index, localIndex)}\nText: ${token.text}`"
               >
                 <span class="token-text">{{ token.text }}</span>
-                <span v-if="token.id !== undefined" class="token-id">{{ token.id }}</span>
+                <span v-if="token.id !== undefined" class="token-id">{{
+                  token.id
+                }}</span>
               </span>
             </div>
           </div>
@@ -323,7 +357,9 @@ const calculateOptimalBlockSize = (containerWidth: number): number => {
 };
 
 // 动态计算的分组大小
-const dynamicBlockSize = computed(() => calculateOptimalBlockSize(containerWidth.value));
+const dynamicBlockSize = computed(() =>
+  calculateOptimalBlockSize(containerWidth.value)
+);
 
 // 根据动态分组大小切分 token
 const virtualBlocks = computed(() => {
@@ -402,7 +438,8 @@ const virtualBlocks = computed(() => {
       }
     }
 
-    const estimatedHeight = Math.max(ROW_HEIGHT, rows * ROW_HEIGHT) + STYLE_CONSTANTS.GROUP_MARGIN;
+    const estimatedHeight =
+      Math.max(ROW_HEIGHT, rows * ROW_HEIGHT) + STYLE_CONSTANTS.GROUP_MARGIN;
     blocks.push({ start, end, estimatedHeight });
     start = end;
   }

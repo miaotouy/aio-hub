@@ -61,8 +61,18 @@ function handleSearch() {
       <!-- 状态筛选 -->
       <div class="filter-group">
         <el-icon class="filter-icon"><Filter /></el-icon>
-        <el-select v-model="selectedStatus" placeholder="筛选状态" style="width: 140px" @change="handleStatusChange">
-          <el-option v-for="option in statusOptions" :key="option.value" :label="option.label" :value="option.value" />
+        <el-select
+          v-model="selectedStatus"
+          placeholder="筛选状态"
+          style="width: 140px"
+          @change="handleStatusChange"
+        >
+          <el-option
+            v-for="option in statusOptions"
+            :key="option.value"
+            :label="option.label"
+            :value="option.value"
+          />
         </el-select>
       </div>
 
@@ -80,9 +90,15 @@ function handleSearch() {
       <!-- 统计信息 -->
       <div class="stats">
         <el-tag type="info" size="small">总计: {{ statusCounts.all }}</el-tag>
-        <el-tag type="primary" size="small">活跃: {{ statusCounts.active }}</el-tag>
-        <el-tag type="success" size="small">完成: {{ statusCounts.completed }}</el-tag>
-        <el-tag type="danger" size="small">失败: {{ statusCounts.failed }}</el-tag>
+        <el-tag type="primary" size="small"
+          >活跃: {{ statusCounts.active }}</el-tag
+        >
+        <el-tag type="success" size="small"
+          >完成: {{ statusCounts.completed }}</el-tag
+        >
+        <el-tag type="danger" size="small"
+          >失败: {{ statusCounts.failed }}</el-tag
+        >
       </div>
     </div>
 
@@ -95,17 +111,29 @@ function handleSearch() {
       <el-dropdown trigger="click">
         <el-button :icon="Trash2" type="danger">
           批量清理
-          <el-icon class="el-icon--right"><component :is="'arrow-down'" /></el-icon>
+          <el-icon class="el-icon--right"
+            ><component :is="'arrow-down'"
+          /></el-icon>
         </el-button>
         <template #dropdown>
           <el-dropdown-menu>
-            <el-dropdown-item :disabled="completedCount === 0" @click="emit('clear-completed')">
+            <el-dropdown-item
+              :disabled="completedCount === 0"
+              @click="emit('clear-completed')"
+            >
               清理已完成 ({{ completedCount }})
             </el-dropdown-item>
-            <el-dropdown-item :disabled="failedCount === 0" @click="emit('clear-failed')">
+            <el-dropdown-item
+              :disabled="failedCount === 0"
+              @click="emit('clear-failed')"
+            >
               清理失败 ({{ failedCount }})
             </el-dropdown-item>
-            <el-dropdown-item divided :disabled="totalCount === 0" @click="emit('clear-all')">
+            <el-dropdown-item
+              divided
+              :disabled="totalCount === 0"
+              @click="emit('clear-all')"
+            >
               清理全部 ({{ totalCount }})
             </el-dropdown-item>
           </el-dropdown-menu>

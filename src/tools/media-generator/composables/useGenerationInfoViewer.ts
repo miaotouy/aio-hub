@@ -1,5 +1,5 @@
-import { ref } from 'vue';
-import type { Asset } from '@/types/asset-management';
+import { ref } from "vue";
+import type { Asset } from "@/types/asset-management";
 
 const visible = ref(false);
 const currentAsset = ref<Asset | null>(null);
@@ -21,6 +21,6 @@ export function useGenerationInfoViewer() {
     currentAsset,
     generationData,
     show,
-    hide
+    hide,
   };
 }

@@ -1,5 +1,10 @@
 import { Token, ParserContext } from "../types";
-import { ActionButtonNode, AstNode, GenericHtmlNode, SessionVariableNode } from "../../types";
+import {
+  ActionButtonNode,
+  AstNode,
+  GenericHtmlNode,
+  SessionVariableNode,
+} from "../../types";
 
 /**
  * 从 AST 节点数组中提取纯文本内容
@@ -25,7 +30,10 @@ export function parseInlineHtmlTag(
   ctx: ParserContext,
   tokens: Token[],
   start: number
-): { node: GenericHtmlNode | ActionButtonNode | SessionVariableNode | null; nextIndex: number } {
+): {
+  node: GenericHtmlNode | ActionButtonNode | SessionVariableNode | null;
+  nextIndex: number;
+} {
   const openToken = tokens[start];
   if (openToken.type !== "html_open") {
     return { node: null, nextIndex: start + 1 };
@@ -35,7 +43,11 @@ export function parseInlineHtmlTag(
 
   // --- 特殊处理：<button> 标签可能是 ActionButton ---
   if (tagName === "button") {
-    const action = openToken.attributes.type as "send" | "input" | "copy" | undefined;
+    const action = openToken.attributes.type as
+      | "send"
+      | "input"
+      | "copy"
+      | undefined;
 
     // 安全性检查：只处理白名单内的 action 类型
     if (action && ["send", "input", "copy"].includes(action)) {
@@ -58,10 +70,17 @@ export function parseInlineHtmlTag(
         while (i < tokens.length && depth > 0) {
           const t = tokens[i];
 
-          if (t.type === "html_open" && t.tagName.toLowerCase() === "button" && !t.selfClosing) {
+          if (
+            t.type === "html_open" &&
+            t.tagName.toLowerCase() === "button" &&
+            !t.selfClosing
+          ) {
             depth++;
             innerTokens.push(t);
-          } else if (t.type === "html_close" && t.tagName.toLowerCase() === "button") {
+          } else if (
+            t.type === "html_close" &&
+            t.tagName.toLowerCase() === "button"
+          ) {
             depth--;
             if (depth === 0) {
               i++; // 跳过闭合标签

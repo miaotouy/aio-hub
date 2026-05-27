@@ -1,6 +1,15 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from "vue";
-import { ArrowLeft, Save, X, ExternalLink, ChevronLeft, ChevronRight, FileCode, History } from "lucide-vue-next";
+import {
+  ArrowLeft,
+  Save,
+  X,
+  ExternalLink,
+  ChevronLeft,
+  ChevronRight,
+  FileCode,
+  History,
+} from "lucide-vue-next";
 import { useCanvasStore } from "../../stores/canvasStore";
 import type { CanvasFileNode } from "../../types";
 import CanvasFileTree from "../sidebar/CanvasFileTree.vue";
@@ -89,7 +98,10 @@ const loadActiveFileContent = async () => {
 
   isFileLoading.value = true;
   try {
-    const content = await store.readCanvasFileAsync(props.canvasId, activeTab.value);
+    const content = await store.readCanvasFileAsync(
+      props.canvasId,
+      activeTab.value
+    );
     fileContent.value = content || "";
   } finally {
     isFileLoading.value = false;
@@ -130,7 +142,10 @@ const handlePreview = async () => {
   const canvasId = props.canvasId;
   if (!canvasId) return;
 
-  await windowManager.openPreviewWindow(canvasId, `Canvas: ${activeCanvas.value?.metadata.name || "Preview"}`);
+  await windowManager.openPreviewWindow(
+    canvasId,
+    `Canvas: ${activeCanvas.value?.metadata.name || "Preview"}`
+  );
 };
 
 // --- 生命周期与监听 ---
@@ -183,30 +198,47 @@ watch(activeTab, (newTab) => {
             @click="activeTab = path"
           >
             <span class="tab-name">{{ path.split("/").pop() }}</span>
-            <el-icon class="close-icon" @click.stop="closeTab(path)"><X :size="12" /></el-icon>
+            <el-icon class="close-icon" @click.stop="closeTab(path)"
+              ><X :size="12"
+            /></el-icon>
           </div>
         </div>
       </div>
 
       <div class="header-right">
         <el-button-group>
-          <el-button type="primary" :icon="Save" :disabled="!store.hasPendingChanges" @click="handleCommit">
+          <el-button
+            type="primary"
+            :icon="Save"
+            :disabled="!store.hasPendingChanges"
+            @click="handleCommit"
+          >
             Commit All
           </el-button>
-          <el-button :icon="ExternalLink" @click="handlePreview"> 独立预览 </el-button>
+          <el-button :icon="ExternalLink" @click="handlePreview">
+            独立预览
+          </el-button>
         </el-button-group>
       </div>
     </header>
 
     <div class="editor-body">
       <!-- 左侧边栏 -->
-      <aside v-if="isSidebarVisible" class="editor-sidebar" :style="{ width: sidebarWidth + 'px' }">
+      <aside
+        v-if="isSidebarVisible"
+        class="editor-sidebar"
+        :style="{ width: sidebarWidth + 'px' }"
+      >
         <div class="sidebar-section explorer">
           <div class="section-header">
             <span>资源管理器</span>
           </div>
           <div class="section-content">
-            <CanvasFileTree :nodes="fileTree" :active-file="activeTab" @select="handleSelectFile" />
+            <CanvasFileTree
+              :nodes="fileTree"
+              :active-file="activeTab"
+              @select="handleSelectFile"
+            />
           </div>
         </div>
 
@@ -249,10 +281,14 @@ watch(activeTab, (newTab) => {
     <!-- 底部状态栏 -->
     <footer class="editor-footer">
       <div class="footer-left">
-        <span v-if="activeTab" class="status-item"> <FileCode :size="12" /> {{ activeTab }} </span>
+        <span v-if="activeTab" class="status-item">
+          <FileCode :size="12" /> {{ activeTab }}
+        </span>
       </div>
       <div class="footer-right">
-        <span class="status-item"> <History :size="12" /> {{ store.dirtyFiles.size }} 个未提交更改 </span>
+        <span class="status-item">
+          <History :size="12" /> {{ store.dirtyFiles.size }} 个未提交更改
+        </span>
       </div>
     </footer>
   </div>
@@ -328,7 +364,10 @@ watch(activeTab, (newTab) => {
     display: flex;
     align-items: center;
     gap: 8px;
-    background-color: rgba(var(--el-fill-color-light-rgb), calc(var(--card-opacity) * 0.3));
+    background-color: rgba(
+      var(--el-fill-color-light-rgb),
+      calc(var(--card-opacity) * 0.3)
+    );
     border: var(--border-width) solid var(--border-color);
     border-bottom: none;
     border-radius: 6px 6px 0 0;
@@ -340,7 +379,10 @@ watch(activeTab, (newTab) => {
     transition: all 0.2s;
 
     &:hover {
-      background-color: rgba(var(--el-fill-color-light-rgb), calc(var(--card-opacity) * 0.5));
+      background-color: rgba(
+        var(--el-fill-color-light-rgb),
+        calc(var(--card-opacity) * 0.5)
+      );
 
       .close-icon {
         opacity: 1;
@@ -397,7 +439,10 @@ watch(activeTab, (newTab) => {
     padding: 0 12px;
     display: flex;
     align-items: center;
-    background-color: rgba(var(--el-fill-color-light-rgb), calc(var(--card-opacity) * 0.3));
+    background-color: rgba(
+      var(--el-fill-color-light-rgb),
+      calc(var(--card-opacity) * 0.3)
+    );
     font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
@@ -440,7 +485,6 @@ watch(activeTab, (newTab) => {
     overflow: hidden;
     display: flex;
     flex-direction: column;
-
   }
 
   .empty-editor {

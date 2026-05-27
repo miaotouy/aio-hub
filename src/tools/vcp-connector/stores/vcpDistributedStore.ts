@@ -2,7 +2,11 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import { createModuleLogger } from "@/utils/logger";
 import { createConfigManager } from "@/utils/configManager";
-import type { VcpDistributedConfig, VcpToolManifest, VcpBridgeManifest } from "../types/distributed";
+import type {
+  VcpDistributedConfig,
+  VcpToolManifest,
+  VcpBridgeManifest,
+} from "../types/distributed";
 
 const logger = createModuleLogger("vcp-connector/distributed-store");
 
@@ -36,7 +40,9 @@ export const useVcpDistributedStore = defineStore("vcp-distributed", () => {
   });
 
   const nodeId = ref<string | null>(null);
-  const status = ref<"disconnected" | "connecting" | "connected" | "error">("disconnected");
+  const status = ref<"disconnected" | "connecting" | "connected" | "error">(
+    "disconnected"
+  );
   const exposedTools = ref<VcpToolManifest[]>([]);
   const lastHeartbeat = ref<number | null>(null);
 
@@ -93,7 +99,9 @@ export const useVcpDistributedStore = defineStore("vcp-distributed", () => {
 
   function unregisterToolFromVcp(toolId: string, methodName: string) {
     const fullId = `${toolId}:${methodName}`;
-    config.value.exposedToolIds = config.value.exposedToolIds.filter((id) => id !== fullId);
+    config.value.exposedToolIds = config.value.exposedToolIds.filter(
+      (id) => id !== fullId
+    );
     configManager.saveDebounced(config.value);
   }
 

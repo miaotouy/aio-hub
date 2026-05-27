@@ -13,7 +13,10 @@
   <div
     v-else
     class="generic-node-wrapper"
-    :class="{ 'has-hidden-audio': isHiddenAudio, 'is-transparent': !isHiddenAudio }"
+    :class="{
+      'has-hidden-audio': isHiddenAudio,
+      'is-transparent': !isHiddenAudio,
+    }"
   >
     <component
       :is="safeTagName"
@@ -33,7 +36,12 @@
           <span class="label">{{ audioDisplayName }}</span>
         </div>
         <div class="ctrl-btns">
-          <el-button @click="togglePlay" circle size="small" :title="isPlaying ? '暂停' : '播放'">
+          <el-button
+            @click="togglePlay"
+            circle
+            size="small"
+            :title="isPlaying ? '暂停' : '播放'"
+          >
             <component :is="isPlaying ? Pause : Play" :size="12" />
           </el-button>
           <el-button @click="stopAudio" circle size="small" title="停止">
@@ -67,7 +75,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject, ref, onMounted, onBeforeUnmount, watch, type ComponentPublicInstance } from "vue";
+import {
+  computed,
+  inject,
+  ref,
+  onMounted,
+  onBeforeUnmount,
+  watch,
+  type ComponentPublicInstance,
+} from "vue";
 import { RICH_TEXT_CONTEXT_KEY, type RichTextContext } from "../../types";
 import { Play, Pause, Square, Volume2 } from "lucide-vue-next";
 import { resolveLocalPath } from "../../utils/path-utils";
@@ -159,8 +175,10 @@ const isHiddenAudio = computed(() => {
   if (!isAudio.value) return false;
   const style = props.attributes.style || "";
   const hasNoControls = props.attributes.controls === undefined;
-  const isDisplayNone = style.includes("display: none") || style.includes("display:none");
-  const isVisibilityHidden = style.includes("visibility: hidden") || style.includes("visibility:hidden");
+  const isDisplayNone =
+    style.includes("display: none") || style.includes("display:none");
+  const isVisibilityHidden =
+    style.includes("visibility: hidden") || style.includes("visibility:hidden");
 
   return isDisplayNone || isVisibilityHidden || hasNoControls;
 });
@@ -172,11 +190,14 @@ const updateAudioVolume = () => {
   // 1. 获取原始内容自带的音量 (HTML 属性 volume 范围是 0.0 到 1.0)
   // 如果未设置，则基数为 1.0
   const rawVolumeAttr = props.attributes.volume;
-  const baseVolume = rawVolumeAttr !== undefined ? parseFloat(rawVolumeAttr) : 1.0;
+  const baseVolume =
+    rawVolumeAttr !== undefined ? parseFloat(rawVolumeAttr) : 1.0;
 
   // 2. 获取全局和智能体配置 (0-100)
-  const globalVolume = chatSettings.value.uiPreferences?.globalMediaVolume ?? 80;
-  const agentVolume = currentAgent?.value?.interactionConfig?.defaultMediaVolume ?? 100;
+  const globalVolume =
+    chatSettings.value.uiPreferences?.globalMediaVolume ?? 80;
+  const agentVolume =
+    currentAgent?.value?.interactionConfig?.defaultMediaVolume ?? 100;
 
   // 3. 计算最终音量并限流在 [0, 1] 之间
   const finalVolume = baseVolume * (globalVolume / 100) * (agentVolume / 100);
@@ -228,7 +249,7 @@ watch(
   () => chatSettings?.value?.uiPreferences?.globalMediaVolume,
   () => {
     updateAudioVolume();
-  },
+  }
 );
 
 const togglePlay = () => {
@@ -311,11 +332,12 @@ const safeTagName = computed(() => {
 
   // 检查是否在黑名单中
   // 仅在未显式允许危险 HTML 时进行检查
-  const isDangerousAllowed = props.allowDangerousHtml ?? context?.allowDangerousHtml?.value ?? false;
+  const isDangerousAllowed =
+    props.allowDangerousHtml ?? context?.allowDangerousHtml?.value ?? false;
 
   if (DANGEROUS_TAGS.has(tag) && !isDangerousAllowed) {
     console.warn(
-      `[GenericHtmlNode] Dangerous tag blocked: "${props.tagName}", fallback to <span>. Set allowDangerousHtml to true to bypass.`,
+      `[GenericHtmlNode] Dangerous tag blocked: "${props.tagName}", fallback to <span>. Set allowDangerousHtml to true to bypass.`
     );
     return "span";
   }
@@ -325,7 +347,9 @@ const safeTagName = computed(() => {
   }
 
   // 非法标签名，使用 span 包裹，并在控制台警告
-  console.warn(`[GenericHtmlNode] Invalid tag name detected: "${props.tagName}", fallback to <span>`);
+  console.warn(
+    `[GenericHtmlNode] Invalid tag name detected: "${props.tagName}", fallback to <span>`
+  );
   return "span";
 });
 
@@ -379,9 +403,17 @@ const filteredAttributes = computed(() => {
     }
 
     // 过滤 javascript: 协议的 URL 属性
-    const isUrlAttr = ["src", "href", "action", "formaction", "data"].includes(lowerKey);
-    if (isUrlAttr && typeof value === "string" && value.toLowerCase().trim().startsWith("javascript:")) {
-      console.warn(`[GenericHtmlNode] Blocked javascript: URL in attribute "${key}"`);
+    const isUrlAttr = ["src", "href", "action", "formaction", "data"].includes(
+      lowerKey
+    );
+    if (
+      isUrlAttr &&
+      typeof value === "string" &&
+      value.toLowerCase().trim().startsWith("javascript:")
+    ) {
+      console.warn(
+        `[GenericHtmlNode] Blocked javascript: URL in attribute "${key}"`
+      );
       continue;
     }
 

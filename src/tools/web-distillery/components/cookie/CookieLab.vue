@@ -65,9 +65,12 @@ async function refreshProfiles() {
 
 // =========== 激活切换 ===========
 async function handleToggleActive(id: string) {
-  const result = await errorHandler.wrapAsync(() => cookieProfileStore.toggleActive(id), {
-    userMessage: "切换激活状态失败",
-  });
+  const result = await errorHandler.wrapAsync(
+    () => cookieProfileStore.toggleActive(id),
+    {
+      userMessage: "切换激活状态失败",
+    }
+  );
   if (result !== null) {
     await refreshProfiles();
   }
@@ -145,12 +148,14 @@ async function saveProfile() {
         await cookieProfileStore.update(editingProfileId.value!, profileData);
       }
     },
-    { userMessage: isCreating.value ? "创建失败" : "保存失败" },
+    { userMessage: isCreating.value ? "创建失败" : "保存失败" }
   );
 
   isSaving.value = false;
   if (result !== null) {
-    customMessage.success(isCreating.value ? "身份卡片已创建" : "身份卡片已保存");
+    customMessage.success(
+      isCreating.value ? "身份卡片已创建" : "身份卡片已保存"
+    );
     showDetailDialog.value = false;
     await refreshProfiles();
   }
@@ -161,19 +166,26 @@ async function handleDeleteProfile(id: string) {
   if (!profile) return;
 
   try {
-    await ElMessageBox.confirm(`确定要删除身份卡片 "${profile.name}" 吗？此操作不可撤销。`, "删除确认", {
-      confirmButtonText: "删除",
-      cancelButtonText: "取消",
-      type: "warning",
-      lockScroll: false,
-    });
+    await ElMessageBox.confirm(
+      `确定要删除身份卡片 "${profile.name}" 吗？此操作不可撤销。`,
+      "删除确认",
+      {
+        confirmButtonText: "删除",
+        cancelButtonText: "取消",
+        type: "warning",
+        lockScroll: false,
+      }
+    );
   } catch {
     return;
   }
 
-  const result = await errorHandler.wrapAsync(() => cookieProfileStore.delete(id), {
-    userMessage: "删除失败",
-  });
+  const result = await errorHandler.wrapAsync(
+    () => cookieProfileStore.delete(id),
+    {
+      userMessage: "删除失败",
+    }
+  );
   if (result !== null) {
     customMessage.success("身份卡片已删除");
     if (showDetailDialog.value && editingProfileId.value === id) {
@@ -184,9 +196,12 @@ async function handleDeleteProfile(id: string) {
 }
 
 async function handleExportProfile(id: string) {
-  const result = await errorHandler.wrapAsync(() => cookieProfileStore.exportAsJson(id), {
-    userMessage: "导出失败",
-  });
+  const result = await errorHandler.wrapAsync(
+    () => cookieProfileStore.exportAsJson(id),
+    {
+      userMessage: "导出失败",
+    }
+  );
   if (result === null) return;
 
   const profile = profiles.value.find((p) => p.id === id);
@@ -201,9 +216,12 @@ async function handleExportAll() {
     return;
   }
 
-  const result = await errorHandler.wrapAsync(() => cookieProfileStore.exportAllAsJson(), {
-    userMessage: "导出失败",
-  });
+  const result = await errorHandler.wrapAsync(
+    () => cookieProfileStore.exportAllAsJson(),
+    {
+      userMessage: "导出失败",
+    }
+  );
   if (result === null) return;
 
   const filename = `cookie-profiles-all-${new Date().toISOString().slice(0, 10)}.json`;
@@ -212,9 +230,12 @@ async function handleExportAll() {
 }
 
 async function handleExportAsNetscape(id: string) {
-  const result = await errorHandler.wrapAsync(() => cookieProfileStore.exportAsNetscape(id), {
-    userMessage: "导出失败",
-  });
+  const result = await errorHandler.wrapAsync(
+    () => cookieProfileStore.exportAsNetscape(id),
+    {
+      userMessage: "导出失败",
+    }
+  );
   if (result === null) return;
 
   const profile = profiles.value.find((p) => p.id === id);
@@ -223,7 +244,11 @@ async function handleExportAsNetscape(id: string) {
   customMessage.success("已导出为 Netscape 格式");
 }
 
-async function downloadTextFile(content: string, filename: string, _mimeType: string) {
+async function downloadTextFile(
+  content: string,
+  filename: string,
+  _mimeType: string
+) {
   const ext = filename.split(".").pop() ?? "txt";
   const filePath = await save({
     defaultPath: filename,
@@ -317,7 +342,9 @@ async function captureFromCurrentPage() {
     const url = result.url;
 
     if (!cookieStr) {
-      customMessage.info("当前页面没有可读取的 Cookie（HttpOnly Cookie 无法通过此方式获取）");
+      customMessage.info(
+        "当前页面没有可读取的 Cookie（HttpOnly Cookie 无法通过此方式获取）"
+      );
       return;
     }
 
@@ -338,7 +365,12 @@ async function captureFromCurrentPage() {
         const name = pair.slice(0, eqIndex).trim();
         const value = pair.slice(eqIndex + 1).trim();
         if (!name) return null;
-        return { name, value, domain: hostname, path: "/" } satisfies CookieEntry;
+        return {
+          name,
+          value,
+          domain: hostname,
+          path: "/",
+        } satisfies CookieEntry;
       })
       .filter((c): c is CookieEntry => c !== null);
 
@@ -405,8 +437,13 @@ async function handleImportFromBrowser() {
       return;
     }
 
-    const profile = await cookieProfileStore.captureFromBrowser(result.cookies, result.url);
-    customMessage.success(`已从浏览器抓取 ${profile.cookies.length} 条 Cookie，创建了新身份卡片`);
+    const profile = await cookieProfileStore.captureFromBrowser(
+      result.cookies,
+      result.url
+    );
+    customMessage.success(
+      `已从浏览器抓取 ${profile.cookies.length} 条 Cookie，创建了新身份卡片`
+    );
     showImportDialog.value = false;
     await refreshProfiles();
   } catch (err) {
@@ -434,7 +471,9 @@ async function handleImportFromJson() {
     }
 
     const { imported, skipped } = await cookieProfileStore.importFromJson(data);
-    customMessage.success(`导入成功：${imported} 个身份卡片${skipped > 0 ? `，跳过 ${skipped} 个` : ""}`);
+    customMessage.success(
+      `导入成功：${imported} 个身份卡片${skipped > 0 ? `，跳过 ${skipped} 个` : ""}`
+    );
     showImportDialog.value = false;
     await refreshProfiles();
   } catch (err) {
@@ -463,7 +502,7 @@ async function handleImportFromNetscape() {
     const profile = await cookieProfileStore.importFromNetscape(
       importNetscapeText.value,
       importNetscapeName.value.trim(),
-      importNetscapeDomain.value.trim(),
+      importNetscapeDomain.value.trim()
     );
     customMessage.success(`已导入 ${profile.cookies.length} 条 Cookie`);
     showImportDialog.value = false;
@@ -508,7 +547,13 @@ onMounted(async () => {
         <span>身份卡片</span>
       </div>
       <div class="toolbar-actions">
-        <el-button text size="small" :loading="isLoading" title="刷新" @click="refreshProfiles">
+        <el-button
+          text
+          size="small"
+          :loading="isLoading"
+          title="刷新"
+          @click="refreshProfiles"
+        >
           <RefreshCw :size="13" />
         </el-button>
         <el-button type="primary" size="small" @click="openCreateDialog()">
@@ -539,9 +584,17 @@ onMounted(async () => {
             </el-dropdown-menu>
           </template>
         </el-dropdown>
-        <el-dropdown trigger="click" placement="bottom-end" :disabled="profiles.length === 0">
+        <el-dropdown
+          trigger="click"
+          placement="bottom-end"
+          :disabled="profiles.length === 0"
+        >
           <div>
-            <el-tooltip content="没有可导出的身份卡片" :disabled="profiles.length > 0" placement="top">
+            <el-tooltip
+              content="没有可导出的身份卡片"
+              :disabled="profiles.length > 0"
+              placement="top"
+            >
               <el-button size="small" :disabled="profiles.length === 0">
                 <Download :size="13" style="margin-right: 4px" />
                 导出
@@ -588,7 +641,13 @@ onMounted(async () => {
         <div class="domain-header">
           <Globe :size="12" class="domain-icon" />
           <span class="domain-name">{{ domain }}</span>
-          <el-button text size="small" class="domain-add-btn" title="在此域名下新建" @click="openCreateDialog(domain)">
+          <el-button
+            text
+            size="small"
+            class="domain-add-btn"
+            title="在此域名下新建"
+            @click="openCreateDialog(domain)"
+          >
             <Plus :size="12" />
           </el-button>
         </div>
@@ -628,20 +687,34 @@ onMounted(async () => {
             <el-row :gutter="12">
               <el-col :span="12">
                 <el-form-item label="名称" required>
-                  <el-input v-model="editForm.name" placeholder="如：知乎-主号" />
+                  <el-input
+                    v-model="editForm.name"
+                    placeholder="如：知乎-主号"
+                  />
                 </el-form-item>
               </el-col>
               <el-col :span="12">
                 <el-form-item label="域名" required>
-                  <el-input v-model="editForm.domain" placeholder="如：zhihu.com" />
+                  <el-input
+                    v-model="editForm.domain"
+                    placeholder="如：zhihu.com"
+                  />
                 </el-form-item>
               </el-col>
             </el-row>
             <el-form-item label="域名别名（逗号分隔）">
-              <el-input v-model="editForm.domainAliases" placeholder="如：www.zhihu.com, zhuanlan.zhihu.com" />
+              <el-input
+                v-model="editForm.domainAliases"
+                placeholder="如：www.zhihu.com, zhuanlan.zhihu.com"
+              />
             </el-form-item>
             <el-form-item label="备注">
-              <el-input v-model="editForm.notes" type="textarea" :rows="2" placeholder="可选备注信息" />
+              <el-input
+                v-model="editForm.notes"
+                type="textarea"
+                :rows="2"
+                placeholder="可选备注信息"
+              />
             </el-form-item>
           </el-form>
 
@@ -653,7 +726,11 @@ onMounted(async () => {
                 size="small"
                 :loading="isCaptureLoading"
                 :disabled="!store.isWebviewCreated"
-                :title="store.isWebviewCreated ? '从当前浏览器页面抓取' : '请先在蒸馏工作台打开页面'"
+                :title="
+                  store.isWebviewCreated
+                    ? '从当前浏览器页面抓取'
+                    : '请先在蒸馏工作台打开页面'
+                "
                 @click="captureFromCurrentPage"
               >
                 <MonitorDown :size="12" style="margin-right: 4px" />
@@ -667,8 +744,19 @@ onMounted(async () => {
           </div>
 
           <div class="cookie-table-wrap">
-            <el-table :data="editCookies" size="small" empty-text="暂无 Cookie" class="cookie-table" :max-height="280">
-              <el-table-column label="名称" prop="name" min-width="120" show-overflow-tooltip />
+            <el-table
+              :data="editCookies"
+              size="small"
+              empty-text="暂无 Cookie"
+              class="cookie-table"
+              :max-height="280"
+            >
+              <el-table-column
+                label="名称"
+                prop="name"
+                min-width="120"
+                show-overflow-tooltip
+              />
               <el-table-column label="值" min-width="140">
                 <template #default="{ row, $index }">
                   <div class="value-cell">
@@ -679,7 +767,9 @@ onMounted(async () => {
                       text
                       size="small"
                       class="reveal-btn"
-                      :aria-label="revealedValues.has($index) ? '隐藏值' : '显示值'"
+                      :aria-label="
+                        revealedValues.has($index) ? '隐藏值' : '显示值'
+                      "
                       @click="toggleValueReveal($index)"
                     >
                       <Eye v-if="!revealedValues.has($index)" :size="12" />
@@ -688,12 +778,28 @@ onMounted(async () => {
                   </div>
                 </template>
               </el-table-column>
-              <el-table-column label="域名" prop="domain" min-width="100" show-overflow-tooltip />
-              <el-table-column label="路径" prop="path" width="70" show-overflow-tooltip />
+              <el-table-column
+                label="域名"
+                prop="domain"
+                min-width="100"
+                show-overflow-tooltip
+              />
+              <el-table-column
+                label="路径"
+                prop="path"
+                width="70"
+                show-overflow-tooltip
+              />
               <el-table-column label="过期时间" min-width="100">
                 <template #default="{ row }">
                   <span v-if="!row.expires" class="text-placeholder">永久</span>
-                  <span v-else :class="{ 'text-danger': new Date(row.expires) < new Date() }" :title="row.expires">
+                  <span
+                    v-else
+                    :class="{
+                      'text-danger': new Date(row.expires) < new Date(),
+                    }"
+                    :title="row.expires"
+                  >
                     {{ new Date(row.expires).toLocaleDateString() }}
                   </span>
                 </template>
@@ -701,15 +807,26 @@ onMounted(async () => {
               <el-table-column label="标志" width="80">
                 <template #default="{ row }">
                   <span v-if="row.httpOnly" class="flag-badge">H</span>
-                  <span v-if="row.secure" class="flag-badge flag-secure">S</span>
+                  <span v-if="row.secure" class="flag-badge flag-secure"
+                    >S</span
+                  >
                 </template>
               </el-table-column>
               <el-table-column label="操作" width="80" fixed="right">
                 <template #default="{ $index }">
-                  <el-button text size="small" @click="openEditCookieDialog($index)">
+                  <el-button
+                    text
+                    size="small"
+                    @click="openEditCookieDialog($index)"
+                  >
                     <Edit2 :size="12" />
                   </el-button>
-                  <el-button text size="small" class="danger-btn" @click="removeCookie($index)">
+                  <el-button
+                    text
+                    size="small"
+                    class="danger-btn"
+                    @click="removeCookie($index)"
+                  >
                     <Trash2 :size="12" />
                   </el-button>
                 </template>
@@ -717,7 +834,9 @@ onMounted(async () => {
             </el-table>
           </div>
 
-          <div class="cookie-count-hint">共 {{ editCookies.length }} 条 Cookie</div>
+          <div class="cookie-count-hint">
+            共 {{ editCookies.length }} 条 Cookie
+          </div>
         </div>
       </template>
 
@@ -734,7 +853,11 @@ onMounted(async () => {
               <Trash2 :size="12" style="margin-right: 4px" />
               删除此卡片
             </el-button>
-            <el-dropdown v-if="!isCreating && editingProfileId" trigger="click" placement="top-start">
+            <el-dropdown
+              v-if="!isCreating && editingProfileId"
+              trigger="click"
+              placement="top-start"
+            >
               <div>
                 <el-button size="small">
                   <Download :size="12" style="margin-right: 4px" />
@@ -743,11 +866,15 @@ onMounted(async () => {
               </div>
               <template #dropdown>
                 <el-dropdown-menu>
-                  <el-dropdown-item @click="handleExportProfile(editingProfileId!)">
+                  <el-dropdown-item
+                    @click="handleExportProfile(editingProfileId!)"
+                  >
                     <FileJson :size="12" class="dropdown-icon" />
                     导出 JSON
                   </el-dropdown-item>
-                  <el-dropdown-item @click="handleExportAsNetscape(editingProfileId!)">
+                  <el-dropdown-item
+                    @click="handleExportAsNetscape(editingProfileId!)"
+                  >
                     <FileText :size="12" class="dropdown-icon" />
                     导出 Netscape
                   </el-dropdown-item>
@@ -756,8 +883,15 @@ onMounted(async () => {
             </el-dropdown>
           </div>
           <div class="footer-right">
-            <el-button size="small" @click="showDetailDialog = false">取消</el-button>
-            <el-button type="primary" size="small" :loading="isSaving" @click="saveProfile">
+            <el-button size="small" @click="showDetailDialog = false"
+              >取消</el-button
+            >
+            <el-button
+              type="primary"
+              size="small"
+              :loading="isSaving"
+              @click="saveProfile"
+            >
               {{ isCreating ? "创建" : "保存" }}
             </el-button>
           </div>
@@ -786,14 +920,20 @@ onMounted(async () => {
             </el-col>
             <el-col :span="12">
               <el-form-item label="值">
-                <el-input v-model="cookieForm.value" placeholder="cookie_value" />
+                <el-input
+                  v-model="cookieForm.value"
+                  placeholder="cookie_value"
+                />
               </el-form-item>
             </el-col>
           </el-row>
           <el-row :gutter="12">
             <el-col :span="12">
               <el-form-item label="域名">
-                <el-input v-model="cookieForm.domain" placeholder="example.com" />
+                <el-input
+                  v-model="cookieForm.domain"
+                  placeholder="example.com"
+                />
               </el-form-item>
             </el-col>
             <el-col :span="12">
@@ -803,12 +943,18 @@ onMounted(async () => {
             </el-col>
           </el-row>
           <el-form-item label="过期时间（ISO 格式，留空表示永久）">
-            <el-input v-model="cookieForm.expires" placeholder="2026-12-31T00:00:00.000Z" clearable />
+            <el-input
+              v-model="cookieForm.expires"
+              placeholder="2026-12-31T00:00:00.000Z"
+              clearable
+            />
           </el-form-item>
           <el-row :gutter="12">
             <el-col :span="12">
               <el-form-item>
-                <el-checkbox v-model="cookieForm.httpOnly">HttpOnly</el-checkbox>
+                <el-checkbox v-model="cookieForm.httpOnly"
+                  >HttpOnly</el-checkbox
+                >
               </el-form-item>
             </el-col>
             <el-col :span="12">
@@ -820,7 +966,9 @@ onMounted(async () => {
         </el-form>
       </template>
       <template #footer>
-        <el-button size="small" @click="showCookieEditDialog = false">取消</el-button>
+        <el-button size="small" @click="showCookieEditDialog = false"
+          >取消</el-button
+        >
         <el-button type="primary" size="small" @click="saveCookieEdit">
           {{ editingCookieIndex >= 0 ? "保存" : "添加" }}
         </el-button>
@@ -840,15 +988,27 @@ onMounted(async () => {
       <template #content>
         <!-- 导入模式切换 -->
         <div class="import-tabs">
-          <button class="import-tab" :class="{ active: importMode === 'browser' }" @click="importMode = 'browser'">
+          <button
+            class="import-tab"
+            :class="{ active: importMode === 'browser' }"
+            @click="importMode = 'browser'"
+          >
             <MonitorDown :size="13" style="margin-right: 4px" />
             从浏览器抓取
           </button>
-          <button class="import-tab" :class="{ active: importMode === 'json' }" @click="importMode = 'json'">
+          <button
+            class="import-tab"
+            :class="{ active: importMode === 'json' }"
+            @click="importMode = 'json'"
+          >
             <FileJson :size="13" style="margin-right: 4px" />
             JSON 文件
           </button>
-          <button class="import-tab" :class="{ active: importMode === 'netscape' }" @click="importMode = 'netscape'">
+          <button
+            class="import-tab"
+            :class="{ active: importMode === 'netscape' }"
+            @click="importMode = 'netscape'"
+          >
             <FileText :size="13" style="margin-right: 4px" />
             Netscape 格式
           </button>
@@ -857,8 +1017,13 @@ onMounted(async () => {
         <!-- 从浏览器抓取 -->
         <div v-if="importMode === 'browser'" class="import-panel">
           <div class="import-desc">
-            <p>从当前蒸馏工作台中打开的页面抓取所有可读 Cookie，自动创建新的身份卡片。</p>
-            <p class="import-note">注意：HttpOnly Cookie 无法通过此方式读取。</p>
+            <p>
+              从当前蒸馏工作台中打开的页面抓取所有可读
+              Cookie，自动创建新的身份卡片。
+            </p>
+            <p class="import-note">
+              注意：HttpOnly Cookie 无法通过此方式读取。
+            </p>
           </div>
           <div v-if="!store.isWebviewCreated" class="import-warning">
             <span>⚠️ 请先在蒸馏工作台打开一个页面，再使用此功能。</span>
@@ -879,7 +1044,10 @@ onMounted(async () => {
         <!-- JSON 导入 -->
         <div v-else-if="importMode === 'json'" class="import-panel">
           <div class="import-desc">
-            <p>粘贴 JSON 格式的身份卡片数据，或选择本地 JSON 文件。兼容 EditThisCookie 导出格式。</p>
+            <p>
+              粘贴 JSON 格式的身份卡片数据，或选择本地 JSON 文件。兼容
+              EditThisCookie 导出格式。
+            </p>
           </div>
           <el-input
             v-model="importJsonText"
@@ -890,28 +1058,48 @@ onMounted(async () => {
           />
           <div class="import-actions">
             <label class="file-select-btn">
-              <input type="file" accept=".json" style="display: none" @change="handleJsonFileSelect" />
+              <input
+                type="file"
+                accept=".json"
+                style="display: none"
+                @change="handleJsonFileSelect"
+              />
               <el-button size="small">选择文件</el-button>
             </label>
-            <el-button type="primary" :loading="isImporting" @click="handleImportFromJson"> 导入 </el-button>
+            <el-button
+              type="primary"
+              :loading="isImporting"
+              @click="handleImportFromJson"
+            >
+              导入
+            </el-button>
           </div>
         </div>
 
         <!-- Netscape 格式导入 -->
         <div v-else-if="importMode === 'netscape'" class="import-panel">
           <div class="import-desc">
-            <p>粘贴 Netscape HTTP Cookie File 格式内容（以 <code># Netscape HTTP Cookie File</code> 开头）。</p>
+            <p>
+              粘贴 Netscape HTTP Cookie File 格式内容（以
+              <code># Netscape HTTP Cookie File</code> 开头）。
+            </p>
           </div>
           <el-form label-position="top" size="small" style="margin-bottom: 8px">
             <el-row :gutter="12">
               <el-col :span="12">
                 <el-form-item label="身份卡片名称" required>
-                  <el-input v-model="importNetscapeName" placeholder="如：GitHub 个人" />
+                  <el-input
+                    v-model="importNetscapeName"
+                    placeholder="如：GitHub 个人"
+                  />
                 </el-form-item>
               </el-col>
               <el-col :span="12">
                 <el-form-item label="域名" required>
-                  <el-input v-model="importNetscapeDomain" placeholder="如：github.com" />
+                  <el-input
+                    v-model="importNetscapeDomain"
+                    placeholder="如：github.com"
+                  />
                 </el-form-item>
               </el-col>
             </el-row>
@@ -924,7 +1112,13 @@ onMounted(async () => {
             class="import-textarea"
           />
           <div class="import-actions">
-            <el-button type="primary" :loading="isImporting" @click="handleImportFromNetscape"> 导入 </el-button>
+            <el-button
+              type="primary"
+              :loading="isImporting"
+              @click="handleImportFromNetscape"
+            >
+              导入
+            </el-button>
           </div>
         </div>
       </template>
@@ -987,15 +1181,23 @@ onMounted(async () => {
 }
 
 .crypto-warning-banner {
-  background-color: rgba(var(--el-color-warning-rgb), calc(var(--card-opacity) * 0.08));
+  background-color: rgba(
+    var(--el-color-warning-rgb),
+    calc(var(--card-opacity) * 0.08)
+  );
   color: var(--el-color-warning);
-  border-bottom: var(--border-width) solid rgba(var(--el-color-warning-rgb), 0.2);
+  border-bottom: var(--border-width) solid
+    rgba(var(--el-color-warning-rgb), 0.2);
 }
 
 .crypto-ok-banner {
-  background-color: rgba(var(--el-color-success-rgb), calc(var(--card-opacity) * 0.06));
+  background-color: rgba(
+    var(--el-color-success-rgb),
+    calc(var(--card-opacity) * 0.06)
+  );
   color: var(--el-color-success);
-  border-bottom: var(--border-width) solid rgba(var(--el-color-success-rgb), 0.15);
+  border-bottom: var(--border-width) solid
+    rgba(var(--el-color-success-rgb), 0.15);
 }
 
 .crypto-icon {
@@ -1168,13 +1370,19 @@ onMounted(async () => {
   border-radius: 3px;
   font-size: 10px;
   font-weight: 700;
-  background-color: rgba(var(--el-color-info-rgb), calc(var(--card-opacity) * 0.15));
+  background-color: rgba(
+    var(--el-color-info-rgb),
+    calc(var(--card-opacity) * 0.15)
+  );
   color: var(--el-color-info);
   margin-right: 3px;
 }
 
 .flag-secure {
-  background-color: rgba(var(--el-color-success-rgb), calc(var(--card-opacity) * 0.15));
+  background-color: rgba(
+    var(--el-color-success-rgb),
+    calc(var(--card-opacity) * 0.15)
+  );
   color: var(--el-color-success);
 }
 
@@ -1243,7 +1451,10 @@ onMounted(async () => {
 
 .import-tab:hover {
   color: var(--el-text-color-primary);
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.05));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.05)
+  );
 }
 
 .import-tab.active {
@@ -1275,7 +1486,10 @@ onMounted(async () => {
 
 .import-warning {
   padding: 8px 12px;
-  background-color: rgba(var(--el-color-warning-rgb), calc(var(--card-opacity) * 0.1));
+  background-color: rgba(
+    var(--el-color-warning-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
   border: var(--border-width) solid var(--el-color-warning-light-5);
   border-radius: 6px;
   font-size: 12px;

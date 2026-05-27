@@ -18,7 +18,13 @@
                 v-for="tag in versionMeta.tags"
                 :key="tag"
                 size="small"
-                :type="tag === '基础' ? 'success' : tag === '高级' ? 'warning' : 'info'"
+                :type="
+                  tag === '基础'
+                    ? 'success'
+                    : tag === '高级'
+                      ? 'warning'
+                      : 'info'
+                "
                 style="margin-left: 4px"
               >
                 {{ tag }}
@@ -32,7 +38,11 @@
       <div class="control-section">
         <label class="control-label">测试角色 (用于资产解析)</label>
         <div class="profile-selector">
-          <el-radio-group v-model="profileType" size="small" class="profile-type-radio">
+          <el-radio-group
+            v-model="profileType"
+            size="small"
+            class="profile-type-radio"
+          >
             <el-radio-button value="agent">智能体</el-radio-button>
             <el-radio-button value="user">用户</el-radio-button>
           </el-radio-group>
@@ -117,8 +127,13 @@
         <!-- 调试：强制预览模式 -->
         <div class="control-item" style="margin-top: 4px">
           <div class="control-header">
-            <el-tooltip content="开启后将强制保持在 PreCodeNode 预览状态，不初始化正式编辑器，方便调试样式" placement="right">
-              <label style="color: var(--el-color-warning)">调试：锁定预览模式</label>
+            <el-tooltip
+              content="开启后将强制保持在 PreCodeNode 预览状态，不初始化正式编辑器，方便调试样式"
+              placement="right"
+            >
+              <label style="color: var(--el-color-warning)"
+                >调试：锁定预览模式</label
+              >
             </el-tooltip>
             <el-switch v-model="debugPreFallback" size="small" />
           </div>
@@ -129,7 +144,10 @@
       <div class="control-section">
         <div class="control-header">
           <label class="control-label">HTML 预览</label>
-          <el-tooltip content="开启后，HTML 代码块将默认以预览模式显示" placement="left">
+          <el-tooltip
+            content="开启后，HTML 代码块将默认以预览模式显示"
+            placement="left"
+          >
             <el-switch v-model="defaultRenderHtml" />
           </el-tooltip>
         </div>
@@ -139,7 +157,10 @@
       <div class="control-section">
         <div class="control-header">
           <label class="control-label">代码块默认展开</label>
-          <el-tooltip content="开启后，消息中的代码块将默认处于展开状态" placement="left">
+          <el-tooltip
+            content="开启后，消息中的代码块将默认处于展开状态"
+            placement="left"
+          >
             <el-switch v-model="defaultCodeBlockExpanded" />
           </el-tooltip>
         </div>
@@ -149,7 +170,10 @@
       <div class="control-section">
         <div class="control-header">
           <label class="control-label">工具调用默认折叠</label>
-          <el-tooltip content="开启后，消息中的工具调用将默认处于折叠状态" placement="left">
+          <el-tooltip
+            content="开启后，消息中的工具调用将默认处于折叠状态"
+            placement="left"
+          >
             <el-switch v-model="defaultToolCallCollapsed" />
           </el-tooltip>
         </div>
@@ -184,7 +208,9 @@
       <!-- 危险 HTML 控制 -->
       <div class="control-section">
         <div class="control-header">
-          <label class="control-label" style="color: var(--el-color-danger)">允许危险 HTML</label>
+          <label class="control-label" style="color: var(--el-color-danger)"
+            >允许危险 HTML</label
+          >
           <el-tooltip
             content="允许渲染黑名单中的标签（如 script, iframe 等），开启后可能存在安全风险"
             placement="left"
@@ -202,7 +228,7 @@
             <el-switch v-model="enableEnterAnimation" />
           </el-tooltip>
         </div>
-  
+
         <!-- 安全护栏控制 -->
         <div class="control-section">
           <div class="control-header">
@@ -221,7 +247,10 @@
       <div class="control-section">
         <div class="control-header">
           <label class="control-label">流式输出</label>
-          <el-tooltip content="开启后将模拟流式输出效果，逐字符渲染内容" placement="left">
+          <el-tooltip
+            content="开启后将模拟流式输出效果，逐字符渲染内容"
+            placement="left"
+          >
             <el-switch v-model="streamEnabled" />
           </el-tooltip>
         </div>
@@ -280,10 +309,17 @@
 
           <!-- 分词器选择 -->
           <div class="control-item">
-            <el-tooltip content="选择用于分词的模型，影响 token 分隔的准确性" placement="right">
+            <el-tooltip
+              content="选择用于分词的模型，影响 token 分隔的准确性"
+              placement="right"
+            >
               <label>分词器</label>
             </el-tooltip>
-            <el-select v-model="selectedTokenizer" size="small" style="width: 100%">
+            <el-select
+              v-model="selectedTokenizer"
+              size="small"
+              style="width: 100%"
+            >
               <el-option
                 v-for="tokenizer in availableTokenizers"
                 :key="tokenizer.name"
@@ -295,7 +331,10 @@
 
           <div class="control-item">
             <div class="item-header">
-              <el-tooltip content="控制流式输出的速度，数值越大输出越快" placement="right">
+              <el-tooltip
+                content="控制流式输出的速度，数值越大输出越快"
+                placement="right"
+              >
                 <label>输出速度</label>
               </el-tooltip>
               <span class="unit">token/秒</span>
@@ -314,7 +353,10 @@
 
           <div class="control-item">
             <div class="item-header">
-              <el-tooltip content="开始渲染前的等待时间，用于模拟真实场景" placement="right">
+              <el-tooltip
+                content="开始渲染前的等待时间，用于模拟真实场景"
+                placement="right"
+              >
                 <label>初始延迟</label>
               </el-tooltip>
               <span class="unit">毫秒</span>
@@ -397,7 +439,10 @@
 
             <div class="control-item">
               <div class="item-header">
-                <el-tooltip content="每次输出的 token 数量范围" placement="right">
+                <el-tooltip
+                  content="每次输出的 token 数量范围"
+                  placement="right"
+                >
                   <label>Token 数波动范围</label>
                 </el-tooltip>
                 <span class="unit">token</span>
@@ -429,7 +474,10 @@
       <!-- 元数据模拟 -->
       <div class="control-section">
         <div class="control-header">
-          <el-tooltip content="模拟生成元数据（如开始时间等），用于测试计时功能" placement="right">
+          <el-tooltip
+            content="模拟生成元数据（如开始时间等），用于测试计时功能"
+            placement="right"
+          >
             <label class="control-label">元数据模拟</label>
           </el-tooltip>
           <el-switch v-model="simulateMeta" />
@@ -439,7 +487,8 @@
           <div class="control-item">
             <label>模拟项</label>
             <div style="font-size: 12px; color: var(--text-color-secondary)">
-              将在流式开始时自动注入 requestStartTime，结束时注入 requestEndTime。
+              将在流式开始时自动注入 requestStartTime，结束时注入
+              requestEndTime。
             </div>
           </div>
         </template>
@@ -456,16 +505,24 @@
 <script setup lang="ts">
 import { onMounted, computed } from "vue";
 import { storeToRefs } from "pinia";
-import { useRichTextRendererStore, availableVersions } from "../../stores/store";
+import {
+  useRichTextRendererStore,
+  availableVersions,
+} from "../../stores/store";
 import { presets } from "../../config/presets";
-import { llmChatRegistry, resolveAvatarPath } from "@/tools/llm-chat/llm-chat.registry";
+import {
+  llmChatRegistry,
+  resolveAvatarPath,
+} from "@/tools/llm-chat/llm-chat.registry";
 import { tokenCalculatorRegistry } from "@/tools/token-calculator/token-calculator.registry";
 import Avatar from "@/components/common/Avatar.vue";
 import InfoCard from "@/components/common/InfoCard.vue";
 import LlmThinkRulesEditor from "../../components/LlmThinkRulesEditor.vue";
 
 // Props for local state
-const selectedTokenizer = defineModel<string>("selectedTokenizer", { required: true });
+const selectedTokenizer = defineModel<string>("selectedTokenizer", {
+  required: true,
+});
 const simulateMeta = defineModel<boolean>("simulateMeta", { required: true });
 
 // Store
@@ -503,7 +560,9 @@ const {
 // Computed
 const agentPresets = computed(() => llmChatRegistry.getAgents());
 const userProfiles = computed(() => llmChatRegistry.getUserProfiles());
-const enabledVersions = computed(() => availableVersions.filter((v: any) => v.enabled));
+const enabledVersions = computed(() =>
+  availableVersions.filter((v: any) => v.enabled)
+);
 const availableTokenizers = tokenCalculatorRegistry.getAvailableTokenizers();
 
 // Methods

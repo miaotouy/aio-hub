@@ -1,9 +1,10 @@
-import { RenderPreset } from '../types';
+import { RenderPreset } from "../types";
 
 export const mermaidDiagramsPreset: RenderPreset = {
   id: "mermaid-diagrams",
   name: "Mermaid 图表测试",
-  description: "测试 Mermaid 图表渲染功能，包含流程图、时序图、甘特图等多种图表类型",
+  description:
+    "测试 Mermaid 图表渲染功能，包含流程图、时序图、甘特图等多种图表类型",
   content: `# Mermaid 图表渲染测试
 
 ## 1. 流程图 (Flowchart)

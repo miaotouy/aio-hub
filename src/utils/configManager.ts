@@ -87,7 +87,10 @@ export class ConfigManager<T extends Record<string, any>> {
               showToUser: false,
             });
           });
-          logger.debug(`已触发防抖保存`, { moduleName: this.moduleName, delay });
+          logger.debug(`已触发防抖保存`, {
+            moduleName: this.moduleName,
+            delay,
+          });
         } catch (error) {
           errorHandler.handle(error as Error, {
             userMessage: `防抖保存失败`,
@@ -121,7 +124,9 @@ export class ConfigManager<T extends Record<string, any>> {
         },
         showToUser: false,
       });
-      throw new Error(`获取配置路径失败: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `获取配置路径失败: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
@@ -136,9 +141,13 @@ export class ConfigManager<T extends Record<string, any>> {
       const appDir = await getAppConfigDir();
       const moduleDir = await join(appDir, this.moduleName);
 
-      const isExists = await invoke<boolean>("path_exists", { path: moduleDir });
+      const isExists = await invoke<boolean>("path_exists", {
+        path: moduleDir,
+      });
       if (!isExists) {
-        logger.info(`创建模块目录: ${moduleDir}`, { moduleName: this.moduleName });
+        logger.info(`创建模块目录: ${moduleDir}`, {
+          moduleName: this.moduleName,
+        });
         await invoke("create_dir_force", { path: moduleDir });
       }
       this._dirEnsured = true;
@@ -148,7 +157,9 @@ export class ConfigManager<T extends Record<string, any>> {
         context: { moduleName: this.moduleName },
         showToUser: false,
       });
-      throw new Error(`创建模块目录失败: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `创建模块目录失败: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
@@ -160,16 +171,23 @@ export class ConfigManager<T extends Record<string, any>> {
       await this.ensureModuleDir();
       const configPath = await this.getConfigPath();
 
-      const isExists = await invoke<boolean>("path_exists", { path: configPath });
+      const isExists = await invoke<boolean>("path_exists", {
+        path: configPath,
+      });
       if (!isExists) {
         // 配置文件不存在，创建默认配置
-        logger.info(`配置文件不存在，创建默认配置`, { moduleName: this.moduleName, configPath });
+        logger.info(`配置文件不存在，创建默认配置`, {
+          moduleName: this.moduleName,
+          configPath,
+        });
         const defaultConfig = this.createDefault();
         await this.save(defaultConfig);
         return defaultConfig;
       }
 
-      const content = await invoke<string>("read_text_file_force", { path: configPath });
+      const content = await invoke<string>("read_text_file_force", {
+        path: configPath,
+      });
       let loadedConfig: Partial<T> = {};
 
       switch (this.fileType) {
@@ -180,7 +198,9 @@ export class ConfigManager<T extends Record<string, any>> {
           loadedConfig = yaml.load(content) as Partial<T>;
           break;
         case "jsonl":
-          const lines = content.split("\n").filter((line) => line.trim() !== "");
+          const lines = content
+            .split("\n")
+            .filter((line) => line.trim() !== "");
           const objects = lines.map((line) => JSON.parse(line));
           loadedConfig = Object.assign({}, ...objects);
           break;
@@ -258,11 +278,14 @@ export class ConfigManager<T extends Record<string, any>> {
       await writeTextFile(configPath, content);
       const invokeEnd = performance.now();
       if (invokeEnd - invokeStart > 300) {
-        logger.warn(`[Perf] writeTextFile 耗时过长: ${(invokeEnd - invokeStart).toFixed(2)}ms`, {
-          moduleName: this.moduleName,
-          path: configPath,
-          contentLength: content.length,
-        });
+        logger.warn(
+          `[Perf] writeTextFile 耗时过长: ${(invokeEnd - invokeStart).toFixed(2)}ms`,
+          {
+            moduleName: this.moduleName,
+            path: configPath,
+            contentLength: content.length,
+          }
+        );
       }
 
       // 保存成功时输出简洁日志
@@ -305,6 +328,8 @@ export class ConfigManager<T extends Record<string, any>> {
 /**
  * 创建配置管理器的工厂函数
  */
-export function createConfigManager<T extends Record<string, any>>(options: ConfigManagerOptions<T>): ConfigManager<T> {
+export function createConfigManager<T extends Record<string, any>>(
+  options: ConfigManagerOptions<T>
+): ConfigManager<T> {
   return new ConfigManager(options);
 }

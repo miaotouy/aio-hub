@@ -38,7 +38,10 @@ export function getWebViewFingerprint(): BrowserFingerprint {
 
   cachedFingerprint = {
     userAgent: navigator.userAgent,
-    acceptLanguage: navigator.languages?.join(",") || navigator.language || "zh-CN,zh;q=0.9,en;q=0.8",
+    acceptLanguage:
+      navigator.languages?.join(",") ||
+      navigator.language ||
+      "zh-CN,zh;q=0.9,en;q=0.8",
     platform: navigator.platform || "Win32",
     secChUa,
     secChUaPlatform,

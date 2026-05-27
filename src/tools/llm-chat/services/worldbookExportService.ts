@@ -13,7 +13,9 @@ import { writeFile } from "@tauri-apps/plugin-fs";
 import JSZip from "jszip";
 
 const logger = createModuleLogger("llm-chat/worldbookExportService");
-const errorHandler = createModuleErrorHandler("llm-chat/worldbookExportService");
+const errorHandler = createModuleErrorHandler(
+  "llm-chat/worldbookExportService"
+);
 
 /**
  * 导出单个世界书
@@ -32,7 +34,9 @@ export async function exportWorldbook(id: string): Promise<void> {
 
     const savePath = await save({
       defaultPath: `${wbMeta.name}.json`,
-      filters: [{ name: "SillyTavern Worldbook", extensions: ["json", "lorebook"] }],
+      filters: [
+        { name: "SillyTavern Worldbook", extensions: ["json", "lorebook"] },
+      ],
     });
     if (savePath) {
       const encoder = new TextEncoder();
@@ -40,7 +44,6 @@ export async function exportWorldbook(id: string): Promise<void> {
       logger.info("世界书导出成功", { id, savePath });
       customMessage.success(`世界书《${wbMeta.name}》导出成功`);
     }
-
   } catch (error) {
     errorHandler.error(error as Error, "导出世界书失败");
   }
@@ -117,13 +120,13 @@ export function denormalizeWorldbook(data: STWorldbook): any {
     // 对比 world-info.js:3234 (updatePosOrdDisplayHelper)
     const positionStrings = [
       "before_char", // 0
-      "after_char",  // 1
-      "before_an",   // 2
-      "after_an",    // 3
-      "at_depth",    // 4
-      "before_em",   // 5
-      "after_em",    // 6
-      "outlet"       // 7
+      "after_char", // 1
+      "before_an", // 2
+      "after_an", // 3
+      "at_depth", // 4
+      "before_em", // 5
+      "after_em", // 6
+      "outlet", // 7
     ];
     const posString = positionStrings[e.position] || "before_char";
 

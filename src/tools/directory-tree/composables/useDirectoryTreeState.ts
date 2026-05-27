@@ -6,7 +6,10 @@ import { debounce } from "lodash-es";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { DirectoryTreeConfig, TreeNode, TreeStats } from "../config";
-import { loadConfig as loadConfigFromStore, saveConfig as saveConfigToStore } from "../config";
+import {
+  loadConfig as loadConfigFromStore,
+  saveConfig as saveConfigToStore,
+} from "../config";
 import type { GenerateTreeOptions } from "../actions";
 import { generateTree as generateTreeAction } from "../actions";
 
@@ -74,7 +77,10 @@ export function useDirectoryTreeState() {
 
       return config;
     } catch (error) {
-      errorHandler.handle(error, { userMessage: "加载配置失败", showToUser: false });
+      errorHandler.handle(error, {
+        userMessage: "加载配置失败",
+        showToUser: false,
+      });
       throw error;
     } finally {
       isLoadingConfig.value = false;

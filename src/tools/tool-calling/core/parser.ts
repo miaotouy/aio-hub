@@ -10,7 +10,10 @@ const errorHandler = createModuleErrorHandler("tool-calling/parser");
 /**
  * 从完整的 assistant 回复文本中解析工具调用请求
  */
-export function parseToolRequests(fullText: string, protocol: ToolCallingProtocol): ParsedToolRequest[] {
+export function parseToolRequests(
+  fullText: string,
+  protocol: ToolCallingProtocol
+): ParsedToolRequest[] {
   if (!fullText) {
     return [];
   }
@@ -25,7 +28,9 @@ export function parseToolRequests(fullText: string, protocol: ToolCallingProtoco
           const registry = toolRegistryManager.getRegistry(req.toolId);
           if (registry.getMetadata) {
             const metadata = registry.getMetadata();
-            const method = metadata.methods?.find((m) => m.name === req.methodName);
+            const method = metadata.methods?.find(
+              (m) => m.name === req.methodName
+            );
             if (method?.displayName) {
               req.methodDisplayName = method.displayName;
             }
@@ -33,7 +38,10 @@ export function parseToolRequests(fullText: string, protocol: ToolCallingProtoco
         }
       } catch (e) {
         // 忽略元数据查找错误，不影响核心流程
-        logger.warn("查找工具显示名称失败", { toolId: req.toolId, methodName: req.methodName });
+        logger.warn("查找工具显示名称失败", {
+          toolId: req.toolId,
+          methodName: req.methodName,
+        });
       }
     }
 

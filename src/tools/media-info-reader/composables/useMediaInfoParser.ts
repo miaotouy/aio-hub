@@ -1,10 +1,10 @@
-import { createModuleLogger } from '@/utils/logger';
-import * as exifr from 'exifr';
-import { parsePngMetadata } from '@/utils/pngMetadataReader';
-import type { WebUIInfo, ImageMetadataResult } from '../types';
-import JSZip from 'jszip';
+import { createModuleLogger } from "@/utils/logger";
+import * as exifr from "exifr";
+import { parsePngMetadata } from "@/utils/pngMetadataReader";
+import type { WebUIInfo, ImageMetadataResult } from "../types";
+import JSZip from "jszip";
 
-const logger = createModuleLogger('composables/media-info-parser');
+const logger = createModuleLogger("composables/media-info-parser");
 
 // ==================== 可组合函数 ====================
 
@@ -18,16 +18,23 @@ export function useMediaInfoParser() {
    * @param buffer 图片文件的 Uint8Array buffer
    * @returns 解析后的元数据
    */
-  const parseImageBuffer = async (buffer: Uint8Array): Promise<ImageMetadataResult> => {
-    const output = await exifr.parse(buffer, true).catch(err => {
-      logger.warn('exifr 解析失败，将继续尝试其他方法', err);
+  const parseImageBuffer = async (
+    buffer: Uint8Array
+  ): Promise<ImageMetadataResult> => {
+    const output = await exifr.parse(buffer, true).catch((err) => {
+      logger.warn("exifr 解析失败，将继续尝试其他方法", err);
       return null;
     });
 
-    let webuiInfo: WebUIInfo = { positivePrompt: '', negativePrompt: '', generationInfo: '' };
-    let comfyuiWorkflow: string | object = '';
+    let webuiInfo: WebUIInfo = {
+      positivePrompt: "",
+      negativePrompt: "",
+      generationInfo: "",
+    };
+    let comfyuiWorkflow: string | object = "";
     let stCharacterInfo: object | null = null;
-    let aioInfo: { content: string | object, format: 'json' | 'yaml' } | null = null;
+    let aioInfo: { content: string | object; format: "json" | "yaml" } | null =
+      null;
 
     // --- 预处理：清洗数据 ---
     // 在进行任何解析之前，先确保 output 中的 UserComment/parameters 是正确解码的字符串
@@ -36,7 +43,7 @@ export function useMediaInfoParser() {
       let rawParams = output.parameters || output.userComment;
 
       // 1. 处理类数组对象或 Uint8Array
-      if (rawParams && typeof rawParams === 'object') {
+      if (rawParams && typeof rawParams === "object") {
         const buffer = convertToUint8Array(rawParams);
         if (buffer) {
           rawParams = decodeUserComment(buffer);
@@ -44,14 +51,14 @@ export function useMediaInfoParser() {
       }
 
       // 2. 处理被错误解码的字符串 (回滚并重解码)
-      if (typeof rawParams === 'string' && rawParams.startsWith('UNICODE')) {
+      if (typeof rawParams === "string" && rawParams.startsWith("UNICODE")) {
         const recoveredBuffer = stringToBuffer(rawParams);
         rawParams = decodeUserComment(recoveredBuffer);
       }
 
       // 3. 清理字符串
-      if (typeof rawParams === 'string') {
-        rawParams = rawParams.replace(/\0/g, '').trim();
+      if (typeof rawParams === "string") {
+        rawParams = rawParams.replace(/\0/g, "").trim();
 
         // 4. 回写清洗后的数据到 output
         // 优先更新来源字段，确保 fullExifInfo 显示正确
@@ -67,7 +74,11 @@ export function useMediaInfoParser() {
 
     // 1. 处理 AIO Bundle
     if (aioBundle) {
-      if (aioBundle.type === 'AIO_Agent_Bundle' && aioBundle.compressed && aioBundle.data) {
+      if (
+        aioBundle.type === "AIO_Agent_Bundle" &&
+        aioBundle.compressed &&
+        aioBundle.data
+      ) {
         // 解压 AIO Bundle
         try {
           const zipBinaryString = atob(aioBundle.data);
@@ -83,20 +94,20 @@ export function useMediaInfoParser() {
           const agentYamlFile = zipContent.file(/\.agent\.(yaml|yml)$/)[0];
 
           if (agentJsonFile) {
-            const agentJsonText = await agentJsonFile.async('text');
-            aioInfo = { content: JSON.parse(agentJsonText), format: 'json' };
+            const agentJsonText = await agentJsonFile.async("text");
+            aioInfo = { content: JSON.parse(agentJsonText), format: "json" };
           } else if (agentYamlFile) {
-            const agentYamlText = await agentYamlFile.async('text');
-            aioInfo = { content: agentYamlText, format: 'yaml' };
+            const agentYamlText = await agentYamlFile.async("text");
+            aioInfo = { content: agentYamlText, format: "yaml" };
           } else {
-            aioInfo = { content: aioBundle, format: 'json' }; // 回退
+            aioInfo = { content: aioBundle, format: "json" }; // 回退
           }
         } catch (e) {
-          logger.warn('解压 AIO Bundle 失败', e);
-          aioInfo = { content: aioBundle, format: 'json' };
+          logger.warn("解压 AIO Bundle 失败", e);
+          aioInfo = { content: aioBundle, format: "json" };
         }
       } else {
-        aioInfo = { content: aioBundle, format: 'json' };
+        aioInfo = { content: aioBundle, format: "json" };
       }
     }
 
@@ -106,7 +117,7 @@ export function useMediaInfoParser() {
     // --- WebUI 信息解析 ---
     // 现在可以直接从 output 中安全获取已清洗的字符串
     const parameters = output?.parameters || output?.userComment;
-    if (parameters && typeof parameters === 'string') {
+    if (parameters && typeof parameters === "string") {
       webuiInfo = parseWebUIInfo(parameters);
     }
 
@@ -134,10 +145,10 @@ export function useMediaInfoParser() {
   const convertToUint8Array = (data: any): Uint8Array | null => {
     if (data instanceof Uint8Array) return data;
     // 处理类数组对象 { "0": 85, "1": 78 ... }
-    if (data && typeof data === 'object' && !Array.isArray(data)) {
+    if (data && typeof data === "object" && !Array.isArray(data)) {
       const keys = Object.keys(data);
       // 简单检查：key 都是数字
-      if (keys.length > 0 && keys.every(k => !isNaN(Number(k)))) {
+      if (keys.length > 0 && keys.every((k) => !isNaN(Number(k)))) {
         const len = Math.max(...keys.map(Number)) + 1;
         const arr = new Uint8Array(len);
         for (const key of keys) {
@@ -175,10 +186,10 @@ export function useMediaInfoParser() {
     }
 
     const prefixData = buffer.slice(0, 8);
-    const prefix = new TextDecoder('ascii').decode(prefixData);
+    const prefix = new TextDecoder("ascii").decode(prefixData);
 
     // 检查 UNICODE 前缀 (55 4E 49 43 4F 44 45 00)
-    if (prefix.startsWith('UNICODE')) {
+    if (prefix.startsWith("UNICODE")) {
       const payload = buffer.slice(8);
       // 检测字节序: 统计奇数位和偶数位的 0x00 数量
       // 英文文本在 UTF-16 中会有大量的 0x00
@@ -193,22 +204,25 @@ export function useMediaInfoParser() {
         }
       }
 
-      const encoding = evenNulls > oddNulls ? 'utf-16be' : 'utf-16le';
-      logger.debug(`检测到 UNICODE 编码，判定为 ${encoding}`, { evenNulls, oddNulls });
+      const encoding = evenNulls > oddNulls ? "utf-16be" : "utf-16le";
+      logger.debug(`检测到 UNICODE 编码，判定为 ${encoding}`, {
+        evenNulls,
+        oddNulls,
+      });
 
       try {
         return new TextDecoder(encoding).decode(payload);
       } catch (e) {
         logger.warn(`尝试使用 ${encoding} 解码失败`, e);
         // Fallback
-        return new TextDecoder('utf-16le').decode(payload);
+        return new TextDecoder("utf-16le").decode(payload);
       }
     }
 
     // 检查 ASCII 前缀 (41 53 43 49 49 00 00 00)
-    if (prefix.startsWith('ASCII')) {
+    if (prefix.startsWith("ASCII")) {
       const payload = buffer.slice(8);
-      return new TextDecoder('utf-8').decode(payload);
+      return new TextDecoder("utf-8").decode(payload);
     }
 
     // 默认回退到 UTF-8
@@ -221,9 +235,9 @@ export function useMediaInfoParser() {
    * @returns WebUI 信息对象
    */
   const parseWebUIInfo = (parameters: string): WebUIInfo => {
-    const parts = parameters.split('Negative prompt:');
+    const parts = parameters.split("Negative prompt:");
     const positivePrompt = parts[0].trim();
-    const rest = parts[1] || '';
+    const rest = parts[1] || "";
     const fields = [
       "Steps",
       "Sampler",
@@ -241,18 +255,21 @@ export function useMediaInfoParser() {
       "Clip skip",
       "Created Date",
     ];
-    const regex = new RegExp(`(${fields.join('|')}):\\s*(.*?)\\s*(?=(${fields.join('|')}):|$)`, 'g');
+    const regex = new RegExp(
+      `(${fields.join("|")}):\\s*(.*?)\\s*(?=(${fields.join("|")}):|$)`,
+      "g"
+    );
 
     const genInfoObject: { [key: string]: string } = {};
     let match;
     while ((match = regex.exec(rest)) !== null) {
       const key = match[1].trim();
-      const value = match[2].trim().replace(/,$/, '');
+      const value = match[2].trim().replace(/,$/, "");
       genInfoObject[key] = value;
     }
 
     let civitaiResources: any[] | undefined;
-    const rawResources = genInfoObject['Civitai resources'];
+    const rawResources = genInfoObject["Civitai resources"];
     if (rawResources) {
       try {
         civitaiResources = JSON.parse(rawResources);
@@ -263,32 +280,41 @@ export function useMediaInfoParser() {
           try {
             civitaiResources = JSON.parse(jsonMatch[0]);
           } catch (e2) {
-            logger.warn('尝试提取并解析 Civitai resources 失败', e2);
+            logger.warn("尝试提取并解析 Civitai resources 失败", e2);
           }
         } else {
-          logger.warn('解析 Civitai resources 失败', e);
+          logger.warn("解析 Civitai resources 失败", e);
         }
       }
 
       if (civitaiResources) {
         // 从 generationInfo 中移除 Civitai resources，因为它太长了，单独展示更好
-        delete genInfoObject['Civitai resources'];
+        delete genInfoObject["Civitai resources"];
       }
     }
 
     // 移除空的 Civitai metadata
-    const civitaiMetadata = genInfoObject['Civitai metadata'];
-    if (civitaiMetadata && (civitaiMetadata.trim() === '{}' || civitaiMetadata.trim() === '')) {
-      delete genInfoObject['Civitai metadata'];
+    const civitaiMetadata = genInfoObject["Civitai metadata"];
+    if (
+      civitaiMetadata &&
+      (civitaiMetadata.trim() === "{}" || civitaiMetadata.trim() === "")
+    ) {
+      delete genInfoObject["Civitai metadata"];
     }
 
     const generationInfo = Object.entries(genInfoObject)
       .map(([key, value]) => `${key}: ${value}`)
-      .join('\n');
+      .join("\n");
 
     // 提取负面提示时，需要考虑到它可能不存在，或者后面直接就是生成参数
-    const negativePromptEndIndex = rest.search(new RegExp(`(${fields.join('|')}):`));
-    const negativePrompt = (negativePromptEndIndex === -1 ? rest : rest.substring(0, negativePromptEndIndex)).trim();
+    const negativePromptEndIndex = rest.search(
+      new RegExp(`(${fields.join("|")}):`)
+    );
+    const negativePrompt = (
+      negativePromptEndIndex === -1
+        ? rest
+        : rest.substring(0, negativePromptEndIndex)
+    ).trim();
 
     return { positivePrompt, negativePrompt, generationInfo, civitaiResources };
   };

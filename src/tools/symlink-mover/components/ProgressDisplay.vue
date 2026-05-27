@@ -29,7 +29,9 @@ const logic = useSymlinkMoverLogic();
     </div>
     <el-progress
       :percentage="showProgress ? currentProgress : 100"
-      :status="showProgress ? (isProcessing ? undefined : 'success') : undefined"
+      :status="
+        showProgress ? (isProcessing ? undefined : 'success') : undefined
+      "
       :striped="!showProgress"
       :striped-flow="!showProgress"
       :stroke-width="12"

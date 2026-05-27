@@ -1,4 +1,8 @@
-import type { ServiceMetadata, ToolRegistry, ToolConfig } from "@/services/types";
+import type {
+  ServiceMetadata,
+  ToolRegistry,
+  ToolConfig,
+} from "@/services/types";
 import { markRaw } from "vue";
 import { Pipette } from "lucide-vue-next";
 

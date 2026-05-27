@@ -8,7 +8,8 @@ import type { SystemSnapshot } from "../types/snapshot";
 export function formatBytesPerSec(bytes: number): string {
   if (bytes < 1024) return `${bytes} B/s`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB/s`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB/s`;
+  if (bytes < 1024 * 1024 * 1024)
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB/s`;
   return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB/s`;
 }
 
@@ -20,7 +21,8 @@ export function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  if (bytes < 1024 * 1024 * 1024)
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
   return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
 }
 
@@ -75,20 +77,25 @@ export function usageColor(percent: number): string {
  */
 export function formatSnapshotToText(snapshot: SystemSnapshot): string {
   const date = new Date(snapshot.timestamp).toLocaleString();
-  const memPercent = ((snapshot.memory.usedBytes / snapshot.memory.totalBytes) * 100).toFixed(1);
+  const memPercent = (
+    (snapshot.memory.usedBytes / snapshot.memory.totalBytes) *
+    100
+  ).toFixed(1);
 
   const lines = [
     `--- 系统脉搏快照(${date}) ---`,
     `运行时间: ${formatUptime(snapshot.uptime)}`,
     `CPU: ${snapshot.cpu.brand} | 使用率: ${snapshot.cpu.globalUsage.toFixed(1)}% | 频率: ${formatFrequency(
-      snapshot.cpu.frequencyMhz,
+      snapshot.cpu.frequencyMhz
     )}`,
     `内存: ${formatBytes(snapshot.memory.usedBytes)} / ${formatBytes(snapshot.memory.totalBytes)} (${memPercent}%)`,
   ];
 
   if (snapshot.gpus.length > 0) {
     snapshot.gpus.forEach((gpu) => {
-      lines.push(`GPU[${gpu.index}]: ${gpu.name} | 使用率: ${gpu.usagePercent}% | 温度: ${gpu.temperatureCelsius}°C`);
+      lines.push(
+        `GPU[${gpu.index}]: ${gpu.name} | 使用率: ${gpu.usagePercent}% | 温度: ${gpu.temperatureCelsius}°C`
+      );
     });
   }
 
@@ -96,13 +103,21 @@ export function formatSnapshotToText(snapshot: SystemSnapshot): string {
   snapshot.disks.forEach((disk) => {
     const diskPercent = ((disk.usedBytes / disk.totalBytes) * 100).toFixed(1);
     lines.push(
-      `  - ${disk.mountPoint} (${disk.name}): ${formatBytes(disk.usedBytes)} / ${formatBytes(disk.totalBytes)} (${diskPercent}%)`,
+      `  - ${disk.mountPoint} (${disk.name}): ${formatBytes(disk.usedBytes)} / ${formatBytes(disk.totalBytes)} (${diskPercent}%)`
     );
   });
 
-  const totalUp = snapshot.networks.reduce((s, n) => s + n.uploadBytesPerSec, 0);
-  const totalDown = snapshot.networks.reduce((s, n) => s + n.downloadBytesPerSec, 0);
-  lines.push(`网络速率: ↑ ${formatBytesPerSec(totalUp)} | ↓ ${formatBytesPerSec(totalDown)}`);
+  const totalUp = snapshot.networks.reduce(
+    (s, n) => s + n.uploadBytesPerSec,
+    0
+  );
+  const totalDown = snapshot.networks.reduce(
+    (s, n) => s + n.downloadBytesPerSec,
+    0
+  );
+  lines.push(
+    `网络速率: ↑ ${formatBytesPerSec(totalUp)} | ↓ ${formatBytesPerSec(totalDown)}`
+  );
 
   return lines.join("\n");
 }

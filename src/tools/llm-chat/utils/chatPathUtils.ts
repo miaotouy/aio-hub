@@ -2,7 +2,12 @@
  * 会话路径计算工具
  */
 
-import type { ChatMessageNode, ChatAgent, ChatSessionIndex, ChatSessionDetail } from "../types";
+import type {
+  ChatMessageNode,
+  ChatAgent,
+  ChatSessionIndex,
+  ChatSessionDetail,
+} from "../types";
 
 /**
  * 计算包含智能体预设展示的消息路径
@@ -18,7 +23,14 @@ export function getActivePathWithPresets(
   detail: ChatSessionDetail | null,
   agent: ChatAgent | null
 ): ChatMessageNode[] {
-  if (!index || !detail || !agent || !agent.presetMessages || !agent.displayPresetCount || agent.displayPresetCount <= 0) {
+  if (
+    !index ||
+    !detail ||
+    !agent ||
+    !agent.presetMessages ||
+    !agent.displayPresetCount ||
+    agent.displayPresetCount <= 0
+  ) {
     return activePath;
   }
 
@@ -40,7 +52,9 @@ export function getActivePathWithPresets(
     );
 
   // 取最后 N 条进行展示
-  const displayPresets = presetsBeforePlaceholder.slice(-agent.displayPresetCount);
+  const displayPresets = presetsBeforePlaceholder.slice(
+    -agent.displayPresetCount
+  );
 
   const markedPresets = displayPresets.map((msg: ChatMessageNode) => ({
     ...msg,

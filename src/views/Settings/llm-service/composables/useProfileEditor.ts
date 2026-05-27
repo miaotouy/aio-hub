@@ -71,12 +71,15 @@ export function useProfileEditor() {
           editForm.value.options = {};
         }
         typeInfo.configFields.forEach((field) => {
-          if (field.modelPath && editForm.value.options![field.modelPath] === undefined) {
+          if (
+            field.modelPath &&
+            editForm.value.options![field.modelPath] === undefined
+          ) {
             editForm.value.options![field.modelPath] = field.defaultValue;
           }
         });
       }
-    },
+    }
   );
 
   // 将分隔的 API Key 字符串转换为数组
@@ -103,7 +106,7 @@ export function useProfileEditor() {
         apiKeyInput.value = newKeys.join(", ");
       }
     },
-    { deep: true },
+    { deep: true }
   );
 
   // 选择配置
@@ -180,7 +183,7 @@ export function useProfileEditor() {
         autoSave();
       }
     },
-    { deep: true },
+    { deep: true }
   );
 
   // 删除配置
@@ -188,11 +191,15 @@ export function useProfileEditor() {
     if (!selectedProfile.value) return;
 
     try {
-      await ElMessageBox.confirm(`确定要删除渠道 "${selectedProfile.value.name}" 吗？此操作不可撤销。`, "删除确认", {
-        confirmButtonText: "确定",
-        cancelButtonText: "取消",
-        type: "warning",
-      });
+      await ElMessageBox.confirm(
+        `确定要删除渠道 "${selectedProfile.value.name}" 吗？此操作不可撤销。`,
+        "删除确认",
+        {
+          confirmButtonText: "确定",
+          cancelButtonText: "取消",
+          type: "warning",
+        }
+      );
       deleteProfile(selectedProfile.value.id);
       selectedProfileId.value = profiles.value[0]?.id || null;
       if (selectedProfileId.value) {

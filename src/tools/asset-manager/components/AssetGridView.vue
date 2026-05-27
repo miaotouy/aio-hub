@@ -62,8 +62,14 @@
                       打开所在目录
                     </el-dropdown-item>
                     <!-- 动态附属操作 -->
-                    <template v-for="action in getSidecarActions(asset)" :key="action.id">
-                      <el-dropdown-item :divided="action.divided" @click="action.handler(asset)">
+                    <template
+                      v-for="action in getSidecarActions(asset)"
+                      :key="action.id"
+                    >
+                      <el-dropdown-item
+                        :divided="action.divided"
+                        @click="action.handler(asset)"
+                      >
                         <el-icon v-if="action.icon">
                           <component :is="action.icon" />
                         </el-icon>
@@ -86,9 +92,17 @@
 </template>
 
 <script setup lang="ts">
-import { MoreFilled, View, Delete, FolderOpened } from "@element-plus/icons-vue";
+import {
+  MoreFilled,
+  View,
+  Delete,
+  FolderOpened,
+} from "@element-plus/icons-vue";
 import type { Asset } from "@/types/asset-management";
-import { useAssetManager, assetManagerEngine } from "@/composables/useAssetManager";
+import {
+  useAssetManager,
+  assetManagerEngine,
+} from "@/composables/useAssetManager";
 import AssetIcon from "./AssetIcon.vue";
 
 interface Props {
@@ -182,10 +196,12 @@ const formatFileSize = (bytes: number) => {
 
 .asset-card.is-selected {
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 30%, transparent);
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--primary-color) 30%, transparent);
 }
 .asset-card.is-selected:hover {
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 40%, transparent);
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--primary-color) 40%, transparent);
 }
 .asset-card.is-selected .selection-checkbox {
   opacity: 1;
@@ -193,7 +209,11 @@ const formatFileSize = (bytes: number) => {
 
 .asset-card.is-duplicate {
   border-color: var(--el-color-warning);
-  background-color: color-mix(in srgb, var(--el-color-warning) 15%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-warning) 15%,
+    transparent
+  );
 }
 
 .asset-preview {

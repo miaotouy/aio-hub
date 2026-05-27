@@ -1,7 +1,11 @@
 import type { LlmProfile } from "@/types/llm-profiles";
 import type { LlmRequestOptions, LlmResponse } from "@/llm-apis/common";
 import { fetchWithTimeout, ensureResponseOk } from "@/llm-apis/common";
-import { parseSSEStream, extractTextFromSSE, extractReasoningFromSSE } from "@utils/sse-parser";
+import {
+  parseSSEStream,
+  extractTextFromSSE,
+  extractReasoningFromSSE,
+} from "@utils/sse-parser";
 import {
   parseMessageContents,
   extractCommonParameters,
@@ -18,8 +22,15 @@ import { openAiUrlHandler, buildOpenAiHeaders } from "./utils";
 /**
  * 调用 OpenAI 兼容格式的 Chat API
  */
-export const callOpenAiChatApi = async (profile: LlmProfile, options: LlmRequestOptions): Promise<LlmResponse> => {
-  const url = openAiUrlHandler.buildUrl(profile.baseUrl, "chat/completions", profile);
+export const callOpenAiChatApi = async (
+  profile: LlmProfile,
+  options: LlmRequestOptions
+): Promise<LlmResponse> => {
+  const url = openAiUrlHandler.buildUrl(
+    profile.baseUrl,
+    "chat/completions",
+    profile
+  );
   const headers = buildOpenAiHeaders(profile, options.requestId);
 
   const messages: any[] = [];
@@ -34,7 +45,10 @@ export const callOpenAiChatApi = async (profile: LlmProfile, options: LlmRequest
       };
       // 支持回传推理内容（DeepSeek 等模型多轮对话需要）
       // ⚠️ 只有 DeepSeek 模型才支持 reasoning_content 回传，非 DS 模型传此字段可能会报错
-      if (msg.reasoningContent && options.modelId.toLowerCase().includes("deepseek")) {
+      if (
+        msg.reasoningContent &&
+        options.modelId.toLowerCase().includes("deepseek")
+      ) {
         messageObj.reasoning_content = msg.reasoningContent;
       }
       // 支持 DeepSeek prefix 模式
@@ -98,7 +112,8 @@ export const callOpenAiChatApi = async (profile: LlmProfile, options: LlmRequest
             type: "input_audio",
             input_audio: {
               data: audioPart.source.data as any,
-              format: audioPart.source.media_type === "audio/wav" ? "wav" : "mp3",
+              format:
+                audioPart.source.media_type === "audio/wav" ? "wav" : "mp3",
             },
           });
         }
@@ -110,7 +125,10 @@ export const callOpenAiChatApi = async (profile: LlmProfile, options: LlmRequest
           const part: any = {
             type: "image_url",
             image_url: {
-              url: buildBase64DataUrl(videoPart.source.data, videoPart.source.media_type),
+              url: buildBase64DataUrl(
+                videoPart.source.data,
+                videoPart.source.media_type
+              ),
             },
           };
           if (videoPart.videoMetadata) {
@@ -125,7 +143,10 @@ export const callOpenAiChatApi = async (profile: LlmProfile, options: LlmRequest
         content: contentArray,
       };
       // 支持回传推理内容
-      if (msg.reasoningContent && options.modelId.toLowerCase().includes("deepseek")) {
+      if (
+        msg.reasoningContent &&
+        options.modelId.toLowerCase().includes("deepseek")
+      ) {
         messageObj.reasoning_content = msg.reasoningContent;
       }
       if (msg.prefix) {
@@ -148,39 +169,51 @@ export const callOpenAiChatApi = async (profile: LlmProfile, options: LlmRequest
   }
 
   if (commonParams.topP !== undefined) body.top_p = commonParams.topP;
-  if (commonParams.frequencyPenalty !== undefined) body.frequency_penalty = commonParams.frequencyPenalty;
-  if (commonParams.presencePenalty !== undefined) body.presence_penalty = commonParams.presencePenalty;
-  if (commonParams.repetitionPenalty !== undefined) body.repetition_penalty = commonParams.repetitionPenalty;
+  if (commonParams.frequencyPenalty !== undefined)
+    body.frequency_penalty = commonParams.frequencyPenalty;
+  if (commonParams.presencePenalty !== undefined)
+    body.presence_penalty = commonParams.presencePenalty;
+  if (commonParams.repetitionPenalty !== undefined)
+    body.repetition_penalty = commonParams.repetitionPenalty;
   if (commonParams.stop !== undefined) body.stop = commonParams.stop;
   if (commonParams.seed !== undefined) body.seed = commonParams.seed;
 
   if (options.n !== undefined) body.n = options.n;
   if (options.logprobs !== undefined) body.logprobs = options.logprobs;
-  if (options.topLogprobs !== undefined) body.top_logprobs = options.topLogprobs;
-  if (options.responseFormat !== undefined) body.response_format = options.responseFormat;
+  if (options.topLogprobs !== undefined)
+    body.top_logprobs = options.topLogprobs;
+  if (options.responseFormat !== undefined)
+    body.response_format = options.responseFormat;
   if (options.tools !== undefined) body.tools = options.tools;
   if (options.toolChoice !== undefined) body.tool_choice = options.toolChoice;
-  if (options.parallelToolCalls !== undefined) body.parallel_tool_calls = options.parallelToolCalls;
+  if (options.parallelToolCalls !== undefined)
+    body.parallel_tool_calls = options.parallelToolCalls;
   if (options.user !== undefined) body.user = options.user;
   if (options.logitBias !== undefined) body.logit_bias = options.logitBias;
   if (options.store !== undefined) body.store = options.store;
-  if (options.reasoningEffort !== undefined) body.reasoning_effort = options.reasoningEffort;
+  if (options.reasoningEffort !== undefined)
+    body.reasoning_effort = options.reasoningEffort;
   if (options.metadata !== undefined) body.metadata = options.metadata;
   if (options.modalities !== undefined) body.modalities = options.modalities;
   if (options.prediction !== undefined) body.prediction = options.prediction;
   if (options.audio !== undefined) body.audio = options.audio;
-  if (options.serviceTier !== undefined) body.service_tier = options.serviceTier;
+  if (options.serviceTier !== undefined)
+    body.service_tier = options.serviceTier;
   if (options.webSearchOptions !== undefined) {
     body.web_search_options = options.webSearchOptions;
   } else if ((options as any).webSearchEnabled) {
     // 统一联网开关：自动注入默认的 web_search_options
     body.web_search_options = { search_context_size: "medium" };
   }
-  if (options.streamOptions !== undefined) body.stream_options = options.streamOptions;
+  if (options.streamOptions !== undefined)
+    body.stream_options = options.streamOptions;
 
   // 注入 extra_body (DeepSeek 思考模式等需要)
   // 如果同时存在 options.extraBody 和 thinkingEnabled，进行合并
-  if (options.thinkingEnabled && options.modelId.toLowerCase().includes("deepseek")) {
+  if (
+    options.thinkingEnabled &&
+    options.modelId.toLowerCase().includes("deepseek")
+  ) {
     body.extra_body = {
       thinking: { type: "enabled" },
       ...(options.extraBody || {}),
@@ -204,7 +237,7 @@ export const callOpenAiChatApi = async (profile: LlmProfile, options: LlmRequest
     const serializedBody = await asyncJsonStringify(body);
     const stringifyEnd = performance.now();
     console.log(
-      `[OpenAI-Stream] 序列化总耗时: ${(stringifyEnd - stringifyStart).toFixed(2)}ms, 类型: ${typeof serializedBody === "string" ? "string" : "Uint8Array"}`,
+      `[OpenAI-Stream] 序列化总耗时: ${(stringifyEnd - stringifyStart).toFixed(2)}ms, 类型: ${typeof serializedBody === "string" ? "string" : "Uint8Array"}`
     );
 
     const fetchStart = performance.now();
@@ -221,10 +254,12 @@ export const callOpenAiChatApi = async (profile: LlmProfile, options: LlmRequest
         isStreaming: true,
       },
       options.timeout,
-      options.signal,
+      options.signal
     );
     const fetchEnd = performance.now();
-    console.log(`[OpenAI-Stream] fetch 调用耗时: ${(fetchEnd - fetchStart).toFixed(2)}ms`);
+    console.log(
+      `[OpenAI-Stream] fetch 调用耗时: ${(fetchEnd - fetchStart).toFixed(2)}ms`
+    );
 
     await ensureResponseOk(response);
 
@@ -247,7 +282,8 @@ export const callOpenAiChatApi = async (profile: LlmProfile, options: LlmRequest
         const reasoningText = extractReasoningFromSSE(data, "openai");
         if (reasoningText) {
           fullReasoningContent += reasoningText;
-          if (options.onReasoningStream) options.onReasoningStream(reasoningText);
+          if (options.onReasoningStream)
+            options.onReasoningStream(reasoningText);
         }
 
         try {
@@ -259,16 +295,23 @@ export const callOpenAiChatApi = async (profile: LlmProfile, options: LlmRequest
               totalTokens: json.usage.total_tokens,
               promptTokensDetails: json.usage.prompt_tokens_details
                 ? {
-                    cachedTokens: json.usage.prompt_tokens_details.cached_tokens,
+                    cachedTokens:
+                      json.usage.prompt_tokens_details.cached_tokens,
                     audioTokens: json.usage.prompt_tokens_details.audio_tokens,
                   }
                 : undefined,
               completionTokensDetails: json.usage.completion_tokens_details
                 ? {
-                    reasoningTokens: json.usage.completion_tokens_details.reasoning_tokens,
-                    audioTokens: json.usage.completion_tokens_details.audio_tokens,
-                    acceptedPredictionTokens: json.usage.completion_tokens_details.accepted_prediction_tokens,
-                    rejectedPredictionTokens: json.usage.completion_tokens_details.rejected_prediction_tokens,
+                    reasoningTokens:
+                      json.usage.completion_tokens_details.reasoning_tokens,
+                    audioTokens:
+                      json.usage.completion_tokens_details.audio_tokens,
+                    acceptedPredictionTokens:
+                      json.usage.completion_tokens_details
+                        .accepted_prediction_tokens,
+                    rejectedPredictionTokens:
+                      json.usage.completion_tokens_details
+                        .rejected_prediction_tokens,
                   }
                 : undefined,
             };
@@ -278,7 +321,7 @@ export const callOpenAiChatApi = async (profile: LlmProfile, options: LlmRequest
         }
       },
       undefined,
-      options.signal,
+      options.signal
     );
 
     return {
@@ -293,7 +336,7 @@ export const callOpenAiChatApi = async (profile: LlmProfile, options: LlmRequest
   const serializedBody = await asyncJsonStringify(body);
   const stringifyEnd = performance.now();
   console.log(
-    `[OpenAI] 序列化总耗时: ${(stringifyEnd - stringifyStart).toFixed(2)}ms, 类型: ${typeof serializedBody === "string" ? "string" : "Uint8Array"}`,
+    `[OpenAI] 序列化总耗时: ${(stringifyEnd - stringifyStart).toFixed(2)}ms, 类型: ${typeof serializedBody === "string" ? "string" : "Uint8Array"}`
   );
 
   const fetchStart = performance.now();
@@ -309,16 +352,19 @@ export const callOpenAiChatApi = async (profile: LlmProfile, options: LlmRequest
       http1Only: options.http1Only,
     },
     options.timeout,
-    options.signal,
+    options.signal
   );
   const fetchEnd = performance.now();
-  console.log(`[OpenAI] fetch 调用耗时: ${(fetchEnd - fetchStart).toFixed(2)}ms`);
+  console.log(
+    `[OpenAI] fetch 调用耗时: ${(fetchEnd - fetchStart).toFixed(2)}ms`
+  );
 
   await ensureResponseOk(response);
   const data = await response.json();
 
   const choice = data.choices?.[0];
-  if (!choice) throw new Error(`OpenAI API 响应格式异常: ${JSON.stringify(data)}`);
+  if (!choice)
+    throw new Error(`OpenAI API 响应格式异常: ${JSON.stringify(data)}`);
 
   const message = choice.message;
   const annotations = message?.annotations?.map((ann: any) => ({
@@ -353,10 +399,13 @@ export const callOpenAiChatApi = async (profile: LlmProfile, options: LlmRequest
           : undefined,
         completionTokensDetails: data.usage.completion_tokens_details
           ? {
-              reasoningTokens: data.usage.completion_tokens_details.reasoning_tokens,
+              reasoningTokens:
+                data.usage.completion_tokens_details.reasoning_tokens,
               audioTokens: data.usage.completion_tokens_details.audio_tokens,
-              acceptedPredictionTokens: data.usage.completion_tokens_details.accepted_prediction_tokens,
-              rejectedPredictionTokens: data.usage.completion_tokens_details.rejected_prediction_tokens,
+              acceptedPredictionTokens:
+                data.usage.completion_tokens_details.accepted_prediction_tokens,
+              rejectedPredictionTokens:
+                data.usage.completion_tokens_details.rejected_prediction_tokens,
             }
           : undefined,
       }
@@ -376,11 +425,17 @@ export const callOpenAiChatApi = async (profile: LlmProfile, options: LlmRequest
   return {
     content: message?.content || "",
     reasoningContent:
-      message?.reasoning_content || message?.reasoning || message?.thinking || message?.thought || undefined,
+      message?.reasoning_content ||
+      message?.reasoning ||
+      message?.thinking ||
+      message?.thought ||
+      undefined,
     refusal: message?.refusal || null,
     finishReason: choice.finish_reason,
     toolCalls: message?.tool_calls,
-    logprobs: choice.logprobs ? { content: choice.logprobs.content, refusal: choice.logprobs.refusal } : undefined,
+    logprobs: choice.logprobs
+      ? { content: choice.logprobs.content, refusal: choice.logprobs.refusal }
+      : undefined,
     annotations,
     audio,
     systemFingerprint: data.system_fingerprint,

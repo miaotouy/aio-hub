@@ -23,7 +23,11 @@
             发送到聊天
           </el-button>
           <el-tooltip
-            :content="isClipboardListening ? '关闭剪贴板监听' : '开启剪贴板监听 (自动识别 JSON)'"
+            :content="
+              isClipboardListening
+                ? '关闭剪贴板监听'
+                : '开启剪贴板监听 (自动识别 JSON)'
+            "
             placement="bottom"
           >
             <el-button
@@ -78,7 +82,9 @@
         <div class="editor-panel input-panel" ref="inputPanel">
           <div class="panel-header">
             <span class="panel-title">输入 JSON</span>
-            <div v-if="rawJsonInput" class="char-count">{{ rawJsonInput.length }} 字符</div>
+            <div v-if="rawJsonInput" class="char-count">
+              {{ rawJsonInput.length }} 字符
+            </div>
           </div>
           <div
             class="editor-content"
@@ -176,43 +182,52 @@ const setupClipboardMonitor = async () => {
     await invoke("start_clipboard_monitor");
 
     // 监听前端事件
-    unlistenClipboard = await listen("clipboard-changed", async (event: { payload: string }) => {
-      const content = event.payload;
-      // 避免处理自己的复制操作（简单的防抖/循环检测）
-      if (content === formattedJsonOutput.value || content === rawJsonInput.value) {
-        return;
-      }
-
-      try {
-        // 调用 Tauri 命令识别剪贴板内容类型
-        const contentType: string = await invoke("get_clipboard_content_type", { content });
-
-        if (contentType === "json") {
-          // 如果当前输入框为空，直接填入
-          if (!rawJsonInput.value.trim()) {
-            rawJsonInput.value = content;
-            handleFormatJson();
-            customMessage.success("已自动检测并粘贴 JSON 内容");
-          } else {
-            // 如果不为空，提示用户
-            ElNotification({
-              title: "检测到新 JSON",
-              message: "剪贴板中有新的 JSON 内容，是否替换当前内容？",
-              type: "info",
-              duration: 5000,
-              position: "bottom-right",
-              onClick: () => {
-                rawJsonInput.value = content;
-                handleFormatJson();
-                customMessage.success("已替换为剪贴板内容");
-              },
-            });
-          }
+    unlistenClipboard = await listen(
+      "clipboard-changed",
+      async (event: { payload: string }) => {
+        const content = event.payload;
+        // 避免处理自己的复制操作（简单的防抖/循环检测）
+        if (
+          content === formattedJsonOutput.value ||
+          content === rawJsonInput.value
+        ) {
+          return;
         }
-      } catch (error) {
-        console.error("Clipboard check failed:", error);
+
+        try {
+          // 调用 Tauri 命令识别剪贴板内容类型
+          const contentType: string = await invoke(
+            "get_clipboard_content_type",
+            { content }
+          );
+
+          if (contentType === "json") {
+            // 如果当前输入框为空，直接填入
+            if (!rawJsonInput.value.trim()) {
+              rawJsonInput.value = content;
+              handleFormatJson();
+              customMessage.success("已自动检测并粘贴 JSON 内容");
+            } else {
+              // 如果不为空，提示用户
+              ElNotification({
+                title: "检测到新 JSON",
+                message: "剪贴板中有新的 JSON 内容，是否替换当前内容？",
+                type: "info",
+                duration: 5000,
+                position: "bottom-right",
+                onClick: () => {
+                  rawJsonInput.value = content;
+                  handleFormatJson();
+                  customMessage.success("已替换为剪贴板内容");
+                },
+              });
+            }
+          }
+        } catch (error) {
+          console.error("Clipboard check failed:", error);
+        }
       }
-    });
+    );
 
     isClipboardListening.value = true;
     customMessage.success("剪贴板监听已开启");
@@ -338,7 +353,13 @@ const startResize = (e: MouseEvent) => {
 };
 
 const onMouseMove = (e: MouseEvent) => {
-  if (!isResizing || !editorContainer.value || !inputPanel.value || !outputPanel.value) return;
+  if (
+    !isResizing ||
+    !editorContainer.value ||
+    !inputPanel.value ||
+    !outputPanel.value
+  )
+    return;
 
   const dx = e.clientX - startX;
   const containerWidth = editorContainer.value.offsetWidth;

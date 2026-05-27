@@ -79,7 +79,11 @@ export async function refresh(config: VcpConfig): Promise<void> {
   isRefreshing = true;
   try {
     httpBaseUrl = deriveHttpBaseUrl(config.wsUrl);
-    const scanned = await scanLocalEmoticonLibrary(config.vcpPath, config.vcpImageKey, httpBaseUrl);
+    const scanned = await scanLocalEmoticonLibrary(
+      config.vcpPath,
+      config.vcpImageKey,
+      httpBaseUrl
+    );
 
     library = scanned;
     logger.info("表情包清单扫描完成", { count: scanned.length });
@@ -115,7 +119,11 @@ function deriveHttpBaseUrl(wsUrl: string): string {
 /**
  * 扫描 {vcpPath}/image/ 目录，找出所有表情包分类并建立清单
  */
-async function scanLocalEmoticonLibrary(vcpPath: string, imageKey: string, baseUrl: string): Promise<EmoticonItem[]> {
+async function scanLocalEmoticonLibrary(
+  vcpPath: string,
+  imageKey: string,
+  baseUrl: string
+): Promise<EmoticonItem[]> {
   const imagePath = `${vcpPath}/image`;
   const result: EmoticonItem[] = [];
 

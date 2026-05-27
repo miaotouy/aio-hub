@@ -1,7 +1,15 @@
 <script setup lang="ts">
 import { computed, markRaw, ref } from "vue";
 import { ElSwitch, ElEmpty, ElIcon, ElTooltip, ElInput } from "element-plus";
-import { Cpu, Settings2, Power, Zap, Share2, ChevronDown, Search } from "lucide-vue-next";
+import {
+  Cpu,
+  Settings2,
+  Power,
+  Zap,
+  Share2,
+  ChevronDown,
+  Search,
+} from "lucide-vue-next";
 import { useAgentStore } from "../../stores/agentStore";
 import { useToolCalling } from "@/tools/tool-calling/composables/useToolCalling";
 import { useToolSearch } from "@/tools/tool-calling/composables/useToolSearch";
@@ -19,7 +27,9 @@ const expandedToolId = ref<string | null>(null);
 const searchQuery = ref("");
 
 const currentAgent = computed(() => {
-  return agentStore.currentAgentId ? agentStore.getAgentById(agentStore.currentAgentId) : null;
+  return agentStore.currentAgentId
+    ? agentStore.getAgentById(agentStore.currentAgentId)
+    : null;
 });
 
 const config = computed(() => {
@@ -36,7 +46,9 @@ const { filteredTools } = useToolSearch(discoveredTools, searchQuery);
 const ensureConfig = () => {
   if (!currentAgent.value) return;
   if (!currentAgent.value.toolCallConfig) {
-    currentAgent.value.toolCallConfig = JSON.parse(JSON.stringify(DEFAULT_TOOL_CALL_CONFIG));
+    currentAgent.value.toolCallConfig = JSON.parse(
+      JSON.stringify(DEFAULT_TOOL_CALL_CONFIG)
+    );
     return;
   }
   if (!currentAgent.value.toolCallConfig.methodToggles) {
@@ -62,7 +74,9 @@ const isToolEnabled = (toolId: string) => {
 };
 
 const isAutoApproveEnabled = (toolId: string) => {
-  return config.value.autoApproveTools?.[toolId] ?? config.value.defaultAutoApprove;
+  return (
+    config.value.autoApproveTools?.[toolId] ?? config.value.defaultAutoApprove
+  );
 };
 
 const toggleTool = (toolId: string) => {
@@ -139,7 +153,9 @@ const getEnabledMethodsCount = (toolId: string) => {
   if (!tool) return { enabled: 0, total: 0 };
 
   const total = tool.methods.length;
-  const enabled = tool.methods.filter((method) => isMethodEnabled(toolId, method.name)).length;
+  const enabled = tool.methods.filter((method) =>
+    isMethodEnabled(toolId, method.name)
+  ).length;
 
   return { enabled, total };
 };
@@ -173,12 +189,20 @@ const effectiveIsVcp = computed(() => {
         <span>工具调用 (Agent)</span>
       </div>
       <div class="header-actions">
-        <el-switch :model-value="config.enabled" @update:model-value="toggleGlobal" size="small" />
+        <el-switch
+          :model-value="config.enabled"
+          @update:model-value="toggleGlobal"
+          size="small"
+        />
       </div>
     </div>
 
     <!-- VCP 渠道提示条 -->
-    <el-tooltip v-if="effectiveIsVcp && config.enabled" placement="bottom" :show-after="400">
+    <el-tooltip
+      v-if="effectiveIsVcp && config.enabled"
+      placement="bottom"
+      :show-after="400"
+    >
       <template #content>
         <div style="max-width: 260px; line-height: 1.5">
           当前渠道由 <strong>VCP 后端</strong>管理工具调用和工具执行。<br />
@@ -194,16 +218,28 @@ const effectiveIsVcp = computed(() => {
 
     <!-- 搜索框移到列表外部，固定在上方 -->
     <div v-if="config.enabled" class="search-container">
-      <el-input v-model="searchQuery" placeholder="搜索工具或方法..." size="small" clearable :prefix-icon="Search" />
+      <el-input
+        v-model="searchQuery"
+        placeholder="搜索工具或方法..."
+        size="small"
+        clearable
+        :prefix-icon="Search"
+      />
     </div>
 
     <div v-if="config.enabled" class="tools-mini-list">
       <div v-if="filteredTools.length === 0" class="empty-hint">
-        <el-empty :image-size="30" :description="searchQuery ? '未找到匹配结果' : '未发现可用工具'" />
+        <el-empty
+          :image-size="30"
+          :description="searchQuery ? '未找到匹配结果' : '未发现可用工具'"
+        />
       </div>
       <div v-else class="tool-items-container">
         <template v-for="tool in filteredTools" :key="tool.toolId">
-          <div class="mini-tool-item" :class="{ disabled: !isToolEnabled(tool.toolId) }">
+          <div
+            class="mini-tool-item"
+            :class="{ disabled: !isToolEnabled(tool.toolId) }"
+          >
             <div class="tool-main" @click="toggleToolExpand(tool.toolId)">
               <el-icon class="tool-icon">
                 <component :is="getToolIcon(tool.toolId)" />
@@ -214,24 +250,35 @@ const effectiveIsVcp = computed(() => {
                 class="methods-count"
                 :class="{
                   'methods-count--full':
-                    getEnabledMethodsCount(tool.toolId).enabled === getEnabledMethodsCount(tool.toolId).total,
+                    getEnabledMethodsCount(tool.toolId).enabled ===
+                    getEnabledMethodsCount(tool.toolId).total,
                   'methods-count--partial':
                     getEnabledMethodsCount(tool.toolId).enabled > 0 &&
-                    getEnabledMethodsCount(tool.toolId).enabled < getEnabledMethodsCount(tool.toolId).total,
-                  'methods-count--none': getEnabledMethodsCount(tool.toolId).enabled === 0,
+                    getEnabledMethodsCount(tool.toolId).enabled <
+                      getEnabledMethodsCount(tool.toolId).total,
+                  'methods-count--none':
+                    getEnabledMethodsCount(tool.toolId).enabled === 0,
                 }"
               >
-                {{ getEnabledMethodsCount(tool.toolId).enabled }}/{{ getEnabledMethodsCount(tool.toolId).total }}
+                {{ getEnabledMethodsCount(tool.toolId).enabled }}/{{
+                  getEnabledMethodsCount(tool.toolId).total
+                }}
               </span>
               <ChevronDown
                 :size="12"
                 class="expand-chevron"
-                :class="{ 'expand-chevron--open': expandedToolId === tool.toolId }"
+                :class="{
+                  'expand-chevron--open': expandedToolId === tool.toolId,
+                }"
               />
             </div>
             <div class="tool-switches" @click.stop>
               <el-tooltip
-                :content="isAutoApproveEnabled(tool.toolId) ? '已开启自动批准' : '点击开启自动批准'"
+                :content="
+                  isAutoApproveEnabled(tool.toolId)
+                    ? '已开启自动批准'
+                    : '点击开启自动批准'
+                "
                 placement="top"
                 :show-after="800"
               >
@@ -246,12 +293,18 @@ const effectiveIsVcp = computed(() => {
                   <Zap
                     :size="14"
                     class="toggle-icon"
-                    :fill="isAutoApproveEnabled(tool.toolId) ? 'currentColor' : 'none'"
+                    :fill="
+                      isAutoApproveEnabled(tool.toolId)
+                        ? 'currentColor'
+                        : 'none'
+                    "
                   />
                 </div>
               </el-tooltip>
               <el-tooltip
-                :content="isToolEnabled(tool.toolId) ? '工具已启用' : '工具已禁用'"
+                :content="
+                  isToolEnabled(tool.toolId) ? '工具已启用' : '工具已禁用'
+                "
                 placement="top"
                 :show-after="800"
               >
@@ -269,12 +322,20 @@ const effectiveIsVcp = computed(() => {
           <!-- 方法列表（展开时显示） -->
           <transition name="el-zoom-in-top">
             <div v-if="expandedToolId === tool.toolId" class="methods-submenu">
-              <div v-for="method in tool.methods" :key="method.name" class="method-subitem">
-                <span class="method-subname">{{ method.displayName || method.name }}</span>
+              <div
+                v-for="method in tool.methods"
+                :key="method.name"
+                class="method-subitem"
+              >
+                <span class="method-subname">{{
+                  method.displayName || method.name
+                }}</span>
                 <div class="method-switches" @click.stop>
                   <el-tooltip
                     :content="
-                      isMethodAutoApproveEnabled(tool.toolId, method.name) ? '已开启自动批准' : '点击开启自动批准'
+                      isMethodAutoApproveEnabled(tool.toolId, method.name)
+                        ? '已开启自动批准'
+                        : '点击开启自动批准'
                     "
                     placement="top"
                     :show-after="800"
@@ -282,7 +343,10 @@ const effectiveIsVcp = computed(() => {
                     <div
                       class="icon-toggle icon-toggle--auto icon-toggle--small"
                       :class="{
-                        active: isMethodAutoApproveEnabled(tool.toolId, method.name),
+                        active: isMethodAutoApproveEnabled(
+                          tool.toolId,
+                          method.name
+                        ),
                         'is-ineffective': config.mode !== 'auto',
                       }"
                       @click="toggleMethodAutoApprove(tool.toolId, method.name)"
@@ -290,18 +354,28 @@ const effectiveIsVcp = computed(() => {
                       <Zap
                         :size="12"
                         class="toggle-icon"
-                        :fill="isMethodAutoApproveEnabled(tool.toolId, method.name) ? 'currentColor' : 'none'"
+                        :fill="
+                          isMethodAutoApproveEnabled(tool.toolId, method.name)
+                            ? 'currentColor'
+                            : 'none'
+                        "
                       />
                     </div>
                   </el-tooltip>
                   <el-tooltip
-                    :content="isMethodEnabled(tool.toolId, method.name) ? '方法已启用' : '方法已禁用'"
+                    :content="
+                      isMethodEnabled(tool.toolId, method.name)
+                        ? '方法已启用'
+                        : '方法已禁用'
+                    "
                     placement="top"
                     :show-after="800"
                   >
                     <div
                       class="icon-toggle icon-toggle--power icon-toggle--small"
-                      :class="{ active: isMethodEnabled(tool.toolId, method.name) }"
+                      :class="{
+                        active: isMethodEnabled(tool.toolId, method.name),
+                      }"
                       @click="toggleMethod(tool.toolId, method.name)"
                     >
                       <Power :size="12" class="toggle-icon" />
@@ -318,13 +392,24 @@ const effectiveIsVcp = computed(() => {
     <div class="settings-footer">
       <div class="footer-left">
         <span class="footer-label">自动批准</span>
-        <el-switch :model-value="config.mode === 'auto'" @update:model-value="toggleAutoMode" size="small" />
+        <el-switch
+          :model-value="config.mode === 'auto'"
+          @update:model-value="toggleAutoMode"
+          size="small"
+        />
       </div>
       <div class="footer-left">
         <span class="footer-label">显示统计</span>
-        <el-switch :model-value="config.showMethodsCount" @update:model-value="toggleShowMethodsCount" size="small" />
+        <el-switch
+          :model-value="config.showMethodsCount"
+          @update:model-value="toggleShowMethodsCount"
+          size="small"
+        />
       </div>
-      <button class="advanced-btn" @click="emit('open-advanced', 'tool-calling')">
+      <button
+        class="advanced-btn"
+        @click="emit('open-advanced', 'tool-calling')"
+      >
         <Settings2 :size="12" />
         <span>高级设置</span>
       </button>
@@ -559,7 +644,8 @@ const effectiveIsVcp = computed(() => {
     color-mix(in srgb, var(--el-color-primary) 12%, transparent),
     color-mix(in srgb, #8b5cf6 8%, transparent)
   );
-  border-bottom: 1px solid color-mix(in srgb, var(--el-color-primary) 20%, transparent);
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--el-color-primary) 20%, transparent);
   color: var(--el-color-primary);
   font-size: 11px;
   font-weight: 500;

@@ -7,10 +7,23 @@
           <div class="card-header">
             <span class="header-title">输入内容</span>
             <div class="header-actions">
-              <el-button v-if="input" type="danger" link size="small" :icon="Trash2" @click="clearInput">
+              <el-button
+                v-if="input"
+                type="danger"
+                link
+                size="small"
+                :icon="Trash2"
+                @click="clearInput"
+              >
                 清空
               </el-button>
-              <el-button type="primary" link size="small" :icon="Clipboard" @click="pasteFromClipboard">
+              <el-button
+                type="primary"
+                link
+                size="small"
+                :icon="Clipboard"
+                @click="pasteFromClipboard"
+              >
                 粘贴
               </el-button>
             </div>
@@ -32,10 +45,24 @@
           <div class="card-header">
             <span class="header-title">转换结果</span>
             <div class="header-actions">
-              <el-button v-if="output" type="success" link size="small" :icon="Send" @click="sendToChat">
+              <el-button
+                v-if="output"
+                type="success"
+                link
+                size="small"
+                :icon="Send"
+                @click="sendToChat"
+              >
                 发送到聊天
               </el-button>
-              <el-button v-if="output" type="primary" link size="small" :icon="Copy" @click="copyOutput">
+              <el-button
+                v-if="output"
+                type="primary"
+                link
+                size="small"
+                :icon="Copy"
+                @click="copyOutput"
+              >
                 复制
               </el-button>
             </div>
@@ -60,10 +87,16 @@
           <div v-else-if="warnings.length > 0" class="warning-panel">
             <div class="warning-header">
               <el-icon class="warning-icon"><InfoFilled /></el-icon>
-              <span class="warning-title">转换警告 ({{ warnings.length }})</span>
+              <span class="warning-title"
+                >转换警告 ({{ warnings.length }})</span
+              >
             </div>
             <ul class="warning-list">
-              <li v-for="(warn, idx) in warnings" :key="idx" class="warning-item">
+              <li
+                v-for="(warn, idx) in warnings"
+                :key="idx"
+                class="warning-item"
+              >
                 {{ warn }}
               </li>
             </ul>
@@ -189,7 +222,10 @@ const sendToChat = () => {
   align-items: center;
   padding: 12px 16px;
   border-bottom: 1px solid var(--border-color);
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.02));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.02)
+  );
   flex-shrink: 0;
 }
 

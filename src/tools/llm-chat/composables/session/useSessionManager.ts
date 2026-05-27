@@ -3,7 +3,11 @@
  * 负责会话的生命周期管理和持久化
  */
 
-import type { ChatSessionIndex, ChatSessionDetail, ChatMessageNode } from "../../types";
+import type {
+  ChatSessionIndex,
+  ChatSessionDetail,
+  ChatMessageNode,
+} from "../../types";
 import { useAgentStore } from "../../stores/agentStore";
 import { useChatStorageSeparated as useChatStorage } from "../storage/useChatStorageSeparated";
 import { createModuleLogger } from "@/utils/logger";
@@ -21,13 +25,16 @@ export function useSessionManager() {
   const updateMessageCount = (
     sessionId: string,
     nodes: Record<string, ChatMessageNode>,
-    sessionIndexMap: Map<string, ChatSessionIndex>,
+    sessionIndexMap: Map<string, ChatSessionIndex>
   ): void => {
     const index = sessionIndexMap.get(sessionId);
     if (index) {
       // 增加 Math.max(0, ...) 保护，防止根节点丢失或其他异常导致负数
       index.messageCount = Math.max(0, Object.keys(nodes).length - 1); // 排除根节点
-      logger.debug("更新消息计数", { sessionId, messageCount: index.messageCount });
+      logger.debug("更新消息计数", {
+        sessionId,
+        messageCount: index.messageCount,
+      });
     }
   };
 
@@ -37,7 +44,7 @@ export function useSessionManager() {
   const updateSessionDisplayAgent = (
     sessionId: string,
     detail: ChatSessionDetail,
-    sessionIndexMap: Map<string, ChatSessionIndex>,
+    sessionIndexMap: Map<string, ChatSessionIndex>
   ): void => {
     const index = sessionIndexMap.get(sessionId);
     if (!index || !detail.nodes || !detail.activeLeafId) return;
@@ -63,7 +70,10 @@ export function useSessionManager() {
 
     // 更新索引中的 displayAgentId
     index.displayAgentId = foundAgentId;
-    logger.debug("更新会话显示智能体", { sessionId, displayAgentId: foundAgentId });
+    logger.debug("更新会话显示智能体", {
+      sessionId,
+      displayAgentId: foundAgentId,
+    });
   };
 
   /**
@@ -71,7 +81,7 @@ export function useSessionManager() {
    */
   const createSession = (
     agentId: string,
-    name?: string,
+    name?: string
   ): {
     index: ChatSessionIndex;
     detail: ChatSessionDetail;
@@ -153,7 +163,7 @@ export function useSessionManager() {
   const deleteSession = async (
     sessions: ChatSessionIndex[],
     sessionId: string,
-    currentSessionId: string | null,
+    currentSessionId: string | null
   ): Promise<{
     updatedSessions: ChatSessionIndex[];
     newCurrentSessionId: string | null;
@@ -161,7 +171,10 @@ export function useSessionManager() {
     const index = sessions.findIndex((s) => s.id === sessionId);
     if (index === -1) {
       logger.warn("删除会话失败：会话不存在", { sessionId });
-      return { updatedSessions: sessions, newCurrentSessionId: currentSessionId };
+      return {
+        updatedSessions: sessions,
+        newCurrentSessionId: currentSessionId,
+      };
     }
 
     const session = sessions[index];
@@ -204,7 +217,7 @@ export function useSessionManager() {
     sessionId: string,
     updates: Partial<ChatSessionIndex> & Partial<ChatSessionDetail>,
     sessionIndexMap: Map<string, ChatSessionIndex>,
-    sessionDetailMap: Map<string, ChatSessionDetail>,
+    sessionDetailMap: Map<string, ChatSessionDetail>
   ): void => {
     const index = sessionIndexMap.get(sessionId);
     const detail = sessionDetailMap.get(sessionId);
@@ -213,8 +226,10 @@ export function useSessionManager() {
     if (index) {
       const indexUpdates: Partial<ChatSessionIndex> = {};
       if (updates.name !== undefined) indexUpdates.name = updates.name;
-      if (updates.displayAgentId !== undefined) indexUpdates.displayAgentId = updates.displayAgentId;
-      if (updates.messageCount !== undefined) indexUpdates.messageCount = updates.messageCount;
+      if (updates.displayAgentId !== undefined)
+        indexUpdates.displayAgentId = updates.displayAgentId;
+      if (updates.messageCount !== undefined)
+        indexUpdates.messageCount = updates.messageCount;
 
       Object.assign(index, indexUpdates, { updatedAt: now });
     }
@@ -222,12 +237,18 @@ export function useSessionManager() {
     if (detail) {
       const detailUpdates: Partial<ChatSessionDetail> = {};
       if (updates.nodes !== undefined) detailUpdates.nodes = updates.nodes;
-      if (updates.rootNodeId !== undefined) detailUpdates.rootNodeId = updates.rootNodeId;
-      if (updates.activeLeafId !== undefined) detailUpdates.activeLeafId = updates.activeLeafId;
-      if (updates.parameterOverrides !== undefined) detailUpdates.parameterOverrides = updates.parameterOverrides;
-      if (updates.history !== undefined) detailUpdates.history = updates.history;
-      if (updates.historyIndex !== undefined) detailUpdates.historyIndex = updates.historyIndex;
-      if (updates.agentUsage !== undefined) detailUpdates.agentUsage = updates.agentUsage;
+      if (updates.rootNodeId !== undefined)
+        detailUpdates.rootNodeId = updates.rootNodeId;
+      if (updates.activeLeafId !== undefined)
+        detailUpdates.activeLeafId = updates.activeLeafId;
+      if (updates.parameterOverrides !== undefined)
+        detailUpdates.parameterOverrides = updates.parameterOverrides;
+      if (updates.history !== undefined)
+        detailUpdates.history = updates.history;
+      if (updates.historyIndex !== undefined)
+        detailUpdates.historyIndex = updates.historyIndex;
+      if (updates.agentUsage !== undefined)
+        detailUpdates.agentUsage = updates.agentUsage;
 
       Object.assign(detail, detailUpdates, { updatedAt: now });
     }
@@ -247,7 +268,10 @@ export function useSessionManager() {
       const { sessions, currentSessionId } = await loadIndexFromStorage();
       return { sessions: sessions as ChatSessionIndex[], currentSessionId };
     } catch (error) {
-      errorHandler.handle(error as Error, { userMessage: "加载会话索引失败", showToUser: false });
+      errorHandler.handle(error as Error, {
+        userMessage: "加载会话索引失败",
+        showToUser: false,
+      });
       return { sessions: [], currentSessionId: null };
     }
   };
@@ -258,7 +282,7 @@ export function useSessionManager() {
   const persistSession = (
     index: ChatSessionIndex,
     detail: ChatSessionDetail,
-    currentSessionId: string | null,
+    currentSessionId: string | null
   ): void => {
     const { persistSession: persistSessionToStorage } = useChatStorage();
     const now = getLocalISOString();
@@ -281,7 +305,7 @@ export function useSessionManager() {
    */
   const persistSessions = (
     sessions: Array<{ index: ChatSessionIndex; detail?: ChatSessionDetail }>,
-    currentSessionId: string | null,
+    currentSessionId: string | null
   ): void => {
     const { saveSessions } = useChatStorage();
 
@@ -296,14 +320,21 @@ export function useSessionManager() {
 
   // 使用 useExportManager 提供导出功能
   const exportManager = useExportManager();
-  const { exportSessionAsMarkdown, exportBranchAsMarkdown, exportBranchAsJson, exportSessionAsMarkdownTree } =
-    exportManager;
+  const {
+    exportSessionAsMarkdown,
+    exportBranchAsMarkdown,
+    exportBranchAsJson,
+    exportSessionAsMarkdownTree,
+  } = exportManager;
 
   /**
    * 更新当前会话 ID（轻量级持久化）
    */
-  const updateCurrentSessionId = async (currentSessionId: string | null): Promise<void> => {
-    const { updateCurrentSessionId: updateCurrentSessionIdInStorage } = useChatStorage();
+  const updateCurrentSessionId = async (
+    currentSessionId: string | null
+  ): Promise<void> => {
+    const { updateCurrentSessionId: updateCurrentSessionIdInStorage } =
+      useChatStorage();
     try {
       await updateCurrentSessionIdInStorage(currentSessionId);
       logger.debug("当前会话 ID 已持久化", { currentSessionId });

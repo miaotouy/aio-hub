@@ -13,7 +13,7 @@ const logger = createModuleLogger("SketchPad/AutoSave");
  */
 export function useAutoSave(
   session: EditorSession,
-  exportActions: ReturnType<typeof useEditorExport>,
+  exportActions: ReturnType<typeof useEditorExport>
 ) {
   const { state } = session;
   const store = useSketchPadStore();
@@ -27,7 +27,11 @@ export function useAutoSave(
 
     const intervalMs = store.settings.autoSaveInterval * 1000;
     autoSaveTimer = setInterval(() => {
-      if (state.isDirty.value && state.project.value && state.currentView.value === "editor") {
+      if (
+        state.isDirty.value &&
+        state.project.value &&
+        state.currentView.value === "editor"
+      ) {
         exportActions.handleAutoSave();
       }
     }, intervalMs);
@@ -51,7 +55,7 @@ export function useAutoSave(
         state.isDirty.value = true;
       }
     },
-    { deep: true },
+    { deep: true }
   );
 
   // 智能图层切换提示
@@ -62,9 +66,14 @@ export function useAutoSave(
 
       const rasterTools = ["pencil", "marker", "eraser"];
       const objectTools = ["rect", "ellipse", "line", "arrow", "text"];
-      if (rasterTools.includes(newTool) && state.activeLayer.value.type !== "raster") {
+      if (
+        rasterTools.includes(newTool) &&
+        state.activeLayer.value.type !== "raster"
+      ) {
         if (store.settings.showToolSwitchHint) {
-          customMessage.info("提示：画笔工具需要位图图层，已自动为您切换/创建位图图层");
+          customMessage.info(
+            "提示：画笔工具需要位图图层，已自动为您切换/创建位图图层"
+          );
         }
         // 寻找最近的位图图层
         const rasterLayer = state.layers.value.find((l) => l.type === "raster");
@@ -73,9 +82,14 @@ export function useAutoSave(
         } else {
           session.actions.addLayer("raster");
         }
-      } else if (objectTools.includes(newTool) && state.activeLayer.value.type !== "object") {
+      } else if (
+        objectTools.includes(newTool) &&
+        state.activeLayer.value.type !== "object"
+      ) {
         if (store.settings.showToolSwitchHint) {
-          customMessage.info("提示：形状/文字工具需要对象图层，已自动为您切换/创建对象图层");
+          customMessage.info(
+            "提示：形状/文字工具需要对象图层，已自动为您切换/创建对象图层"
+          );
         }
         // 寻找最近的对象图层
         const objectLayer = state.layers.value.find((l) => l.type === "object");
@@ -85,7 +99,7 @@ export function useAutoSave(
           session.actions.addLayer("object");
         }
       }
-    },
+    }
   );
 
   // 组件卸载时清理定时器

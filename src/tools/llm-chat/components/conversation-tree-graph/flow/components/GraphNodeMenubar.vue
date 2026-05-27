@@ -17,7 +17,13 @@ import {
   Database,
   StepForward,
 } from "lucide-vue-next";
-import { ElTooltip, ElPopconfirm, ElDropdown, ElDropdownMenu, ElDropdownItem } from "element-plus";
+import {
+  ElTooltip,
+  ElPopconfirm,
+  ElDropdown,
+  ElDropdownMenu,
+  ElDropdownItem,
+} from "element-plus";
 import { useChatInputManager } from "@/tools/llm-chat/composables/input/useChatInputManager";
 import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
@@ -55,7 +61,10 @@ const emit = defineEmits<Emits>();
 
 const store = useLlmChatStore();
 
-const isUserOrAssistant = computed(() => props.role === "user" || props.role === "assistant" || props.role === "tool");
+const isUserOrAssistant = computed(
+  () =>
+    props.role === "user" || props.role === "assistant" || props.role === "tool"
+);
 const isAssistantMessage = computed(() => props.role === "assistant");
 
 // 导出对话框
@@ -128,7 +137,11 @@ const handleRecalculateTokens = async () => {
 
   logger.info("重新计算 Token", { nodeId: props.messageId });
   try {
-    await store.recalculateNodeTokens(fullSession.index, fullSession.detail, props.messageId);
+    await store.recalculateNodeTokens(
+      fullSession.index,
+      fullSession.detail,
+      props.messageId
+    );
     customMessage.success("Token 重新计算完成");
   } catch (error) {
     logger.error("重新计算 Token 失败", error, { nodeId: props.messageId });
@@ -144,7 +157,9 @@ const handleReparseTools = () => {
   const temporaryModelPayload = temporaryModel
     ? { modelId: temporaryModel.modelId, profileId: temporaryModel.profileId }
     : null;
-  store.reparseNodeTools(props.messageId, { temporaryModel: temporaryModelPayload });
+  store.reparseNodeTools(props.messageId, {
+    temporaryModel: temporaryModelPayload,
+  });
 };
 
 // 获取当前预设消息列表
@@ -152,7 +167,10 @@ const currentPresetMessages = computed(() => {
   if (!agentStore.currentAgentId) return [];
   const agent = agentStore.getAgentById(agentStore.currentAgentId);
   if (!agent?.presetMessages) return [];
-  return agent.presetMessages.filter((msg: ChatMessageNode) => msg.isEnabled !== false && msg.type !== "chat_history");
+  return agent.presetMessages.filter(
+    (msg: ChatMessageNode) =>
+      msg.isEnabled !== false && msg.type !== "chat_history"
+  );
 });
 
 // 计算预设消息数量
@@ -249,13 +267,19 @@ const handleSelectModelAndRegenerate = async () => {
                 <span>导出分支</span>
               </div>
             </el-dropdown-item>
-            <el-dropdown-item v-if="isUserOrAssistant" @click="handleRecalculateTokens">
+            <el-dropdown-item
+              v-if="isUserOrAssistant"
+              @click="handleRecalculateTokens"
+            >
               <div class="dropdown-item-content">
                 <Hash :size="16" />
                 <span>重新计算 Token</span>
               </div>
             </el-dropdown-item>
-            <el-dropdown-item v-if="isAssistantMessage" @click="handleReparseTools">
+            <el-dropdown-item
+              v-if="isAssistantMessage"
+              @click="handleReparseTools"
+            >
               <div class="dropdown-item-content">
                 <Wand2 :size="16" />
                 <span>重新解析工具</span>
@@ -280,7 +304,12 @@ const handleSelectModelAndRegenerate = async () => {
     </el-tooltip>
 
     <!-- 创建分支 -->
-    <el-tooltip v-if="isUserOrAssistant" content="创建分支" placement="bottom" :show-after="300">
+    <el-tooltip
+      v-if="isUserOrAssistant"
+      content="创建分支"
+      placement="bottom"
+      :show-after="300"
+    >
       <button class="menu-btn" @click="handleCreateBranch">
         <GitFork :size="16" />
       </button>
@@ -299,15 +328,28 @@ const handleSelectModelAndRegenerate = async () => {
     </el-tooltip>
 
     <!-- 指定模型重新生成 -->
-    <el-tooltip v-if="isUserOrAssistant" content="指定模型重新生成" placement="bottom" :show-after="300">
+    <el-tooltip
+      v-if="isUserOrAssistant"
+      content="指定模型重新生成"
+      placement="bottom"
+      :show-after="300"
+    >
       <button class="menu-btn" @click="handleSelectModelAndRegenerate">
         <AtSign :size="16" />
       </button>
     </el-tooltip>
 
     <!-- 启用/禁用 -->
-    <el-tooltip :content="isEnabled ? '禁用此消息' : '启用此消息'" placement="bottom" :show-after="300">
-      <button class="menu-btn" :class="{ 'menu-btn-highlight': !isEnabled }" @click="handleToggleEnabled">
+    <el-tooltip
+      :content="isEnabled ? '禁用此消息' : '启用此消息'"
+      placement="bottom"
+      :show-after="300"
+    >
+      <button
+        class="menu-btn"
+        :class="{ 'menu-btn-highlight': !isEnabled }"
+        @click="handleToggleEnabled"
+      >
         <Eye v-if="!isEnabled" :size="16" />
         <EyeOff v-else :size="16" />
       </button>

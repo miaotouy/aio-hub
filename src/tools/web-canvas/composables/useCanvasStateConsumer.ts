@@ -41,7 +41,7 @@ export function useCanvasStateConsumer() {
         logger.info("收到文件变更通知", {
           canvasId: payload.data.canvasId,
           filepath: payload.data.filepath,
-          timestamp: payload.data.timestamp
+          timestamp: payload.data.timestamp,
         });
       }
     });
@@ -74,6 +74,6 @@ export function useCanvasStateConsumer() {
     activeCanvasId,
     lastFileChangeTimestamp,
     initialize,
-    cleanup
+    cleanup,
   };
 }

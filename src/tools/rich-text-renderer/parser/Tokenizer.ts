@@ -6,13 +6,18 @@ import { Token } from "./types";
  * 辅助函数：使用 sticky 正则匹配
  * Sticky 模式允许正则直接从指定位置开始匹配，避免了创建字符串切片的开销。
  */
-function stickyMatch(regex: RegExp, text: string, pos: number): RegExpExecArray | null {
+function stickyMatch(
+  regex: RegExp,
+  text: string,
+  pos: number
+): RegExpExecArray | null {
   regex.lastIndex = pos;
   return regex.exec(text);
 }
 
 // 预编译正则表达式（带 sticky 标志，提升匹配性能）
-const RE_HTML_TAG = /<(\/?)([a-zA-Z][a-zA-Z0-9_-]*)\s*((?:"[^"]*"|'[^']*'|[^>/"'])*)\s*(\/?)\>/y;
+const RE_HTML_TAG =
+  /<(\/?)([a-zA-Z][a-zA-Z0-9_-]*)\s*((?:"[^"]*"|'[^']*'|[^>/"'])*)\s*(\/?)\>/y;
 const RE_MATHJAX_INLINE = /\\\((.*?)\\\)/y;
 const RE_ESCAPE_PUNCT = /[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~]/;
 const RE_AUTOLINK = /<((?:https?|ftps?|mailto):[^\s>]+)>/y;
@@ -29,7 +34,8 @@ const RE_ATTR = /([a-zA-Z0-9_-]+)(?:=(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
 const RE_SPECIAL_CHARS = /[<`*_~^!\[\]()#>\n$“"”\\]/g;
 // VCP (Variable & Command Protocol) 协议相关正则: https://github.com/lioensky/VCPToolBox
 // 变体优先级: ESCAPE > exp > 标准，ESCAPE/exp 内容中可包含标准 VCP 协议字符（如 「始」/「末」）
-const RE_VCP_ARG_ESCAPE = /([a-zA-Z0-9_-]+):「始ESCAPE」([\s\S]*?)「末ESCAPE」/g;
+const RE_VCP_ARG_ESCAPE =
+  /([a-zA-Z0-9_-]+):「始ESCAPE」([\s\S]*?)「末ESCAPE」/g;
 const RE_VCP_ARG_EXP = /([a-zA-Z0-9_-]+):「始exp」([\s\S]*?)「末exp」/g;
 const RE_VCP_ARG = /([a-zA-Z0-9_-]+):「始」([\s\S]*?)「末」/g;
 const RE_VCP_PENDING = /([a-zA-Z0-9_-]+):「始(?:ESCAPE|exp)?」([\s\S]*)$/;
@@ -57,7 +63,12 @@ export class Tokenizer {
     "wbr",
   ]);
 
-  private static readonly rawElements = new Set(["code", "pre", "script", "style"]);
+  private static readonly rawElements = new Set([
+    "code",
+    "pre",
+    "script",
+    "style",
+  ]);
 
   /**
    * 将完整文本转换为令牌序列
@@ -161,7 +172,11 @@ export class Tokenizer {
             let endIdx = startIdx;
             let found = false;
             while (endIdx < len) {
-              if (text.charCodeAt(endIdx) === 92 && endIdx + 1 < len && text.charCodeAt(endIdx + 1) === 93) {
+              if (
+                text.charCodeAt(endIdx) === 92 &&
+                endIdx + 1 < len &&
+                text.charCodeAt(endIdx + 1) === 93
+              ) {
                 found = true;
                 break;
               }
@@ -172,9 +187,10 @@ export class Tokenizer {
             // 启发式判断：如果包含盘符特征（如 G:\ 或 C:/），则极大概率是 Windows 路径而不是公式
             const isWindowsPath = /^[a-zA-Z]:[\\/]/.test(formulaContent);
             // 如果包含大量的反斜杠且没有 LaTeX 关键字，也倾向于是路径
-            const hasLatexKeywords = /\\(?:frac|sum|sqrt|alpha|beta|gamma|delta|theta|pi|infty|int)/.test(
-              formulaContent,
-            );
+            const hasLatexKeywords =
+              /\\(?:frac|sum|sqrt|alpha|beta|gamma|delta|theta|pi|infty|int)/.test(
+                formulaContent
+              );
 
             if (
               found &&
@@ -183,7 +199,10 @@ export class Tokenizer {
               (hasLatexKeywords || !formulaContent.includes("\\"))
             ) {
               i = endIdx + 2;
-              tokens.push({ type: "katex_block", content: formulaContent.trim() });
+              tokens.push({
+                type: "katex_block",
+                content: formulaContent.trim(),
+              });
               atLineStart = false;
               continue;
             }
@@ -194,7 +213,11 @@ export class Tokenizer {
             const mathjaxMatch = stickyMatch(RE_MATHJAX_INLINE, text, i);
             if (mathjaxMatch) {
               const formulaContent = mathjaxMatch[1];
-              if (!formulaContent.includes("\n") && !formulaContent.includes("\\") && formulaContent.length < 500) {
+              if (
+                !formulaContent.includes("\n") &&
+                !formulaContent.includes("\\") &&
+                formulaContent.length < 500
+              ) {
                 tokens.push({ type: "katex_inline", content: formulaContent });
                 i += mathjaxMatch[0].length;
                 atLineStart = false;
@@ -206,7 +229,8 @@ export class Tokenizer {
           // 否则，作为普通转义字符
           // 启发式：如果后面跟着 [ 且前面看起来像 Windows 盘符，则不转义，保留反斜杠
           // 这样可以保护像 G:\[... 这样的路径
-          const isWindowsPathEscape = text[i + 1] === "[" && i > 1 && text[i - 1] === ":";
+          const isWindowsPathEscape =
+            text[i + 1] === "[" && i > 1 && text[i - 1] === ":";
           if (isWindowsPathEscape) {
             tokens.push({ type: "text", content: "\\" });
             i += 1;
@@ -245,7 +269,11 @@ export class Tokenizer {
         // '<'
         const autolinkMatch = stickyMatch(RE_AUTOLINK, text, i);
         if (autolinkMatch) {
-          tokens.push({ type: "autolink", url: autolinkMatch[1], raw: autolinkMatch[0] });
+          tokens.push({
+            type: "autolink",
+            url: autolinkMatch[1],
+            raw: autolinkMatch[0],
+          });
           i += autolinkMatch[0].length;
           atLineStart = false;
           continue;
@@ -253,7 +281,11 @@ export class Tokenizer {
 
         const commentMatch = stickyMatch(RE_HTML_COMMENT, text, i);
         if (commentMatch) {
-          tokens.push({ type: "html_comment", content: commentMatch[0].slice(4, -3), raw: commentMatch[0] });
+          tokens.push({
+            type: "html_comment",
+            content: commentMatch[0].slice(4, -3),
+            raw: commentMatch[0],
+          });
           i += commentMatch[0].length;
           atLineStart = false;
           continue;
@@ -265,7 +297,8 @@ export class Tokenizer {
           const isClosing = !!htmlMatch[1];
           const tagName = htmlMatch[2].toLowerCase();
           const attributes = this.parseAttributes(htmlMatch[3]);
-          const isSelfClosing = !!htmlMatch[4] || Tokenizer.voidElements.has(tagName);
+          const isSelfClosing =
+            !!htmlMatch[4] || Tokenizer.voidElements.has(tagName);
 
           if (isClosing) {
             tokens.push({ type: "html_close", tagName, raw: rawTag });
@@ -274,11 +307,19 @@ export class Tokenizer {
             // 这可以防止孤立的 <style> 标签吞噬掉后续的所有 Markdown 内容
             if (!isSelfClosing && Tokenizer.rawElements.has(tagName)) {
               const closeTag = `</${tagName}>`;
-              if (text.toLowerCase().indexOf(closeTag, i + rawTag.length) !== -1) {
+              if (
+                text.toLowerCase().indexOf(closeTag, i + rawTag.length) !== -1
+              ) {
                 rawTagStack.push(tagName);
               }
             }
-            tokens.push({ type: "html_open", tagName, attributes, selfClosing: isSelfClosing, raw: rawTag });
+            tokens.push({
+              type: "html_open",
+              tagName,
+              attributes,
+              selfClosing: isSelfClosing,
+              raw: rawTag,
+            });
           }
           i += rawTag.length;
           atLineStart = false;
@@ -303,7 +344,10 @@ export class Tokenizer {
             text.charCodeAt(posAfterIndent + 1) === 36
           ) {
             // 启发式：如果后面紧跟数字（如 $$1.85），极大概率是金额而非公式起始
-            const nextChar = posAfterIndent + 2 < len ? text.charCodeAt(posAfterIndent + 2) : -1;
+            const nextChar =
+              posAfterIndent + 2 < len
+                ? text.charCodeAt(posAfterIndent + 2)
+                : -1;
             const isMoneyPattern = nextChar >= 48 && nextChar <= 57;
 
             if (!isMoneyPattern) {
@@ -314,15 +358,23 @@ export class Tokenizer {
               // 寻找闭合的 $$，但不能跨越段落或 VCP 边界
               while (endIdx < len) {
                 // 检查闭合标记
-                if (text.charCodeAt(endIdx) === 36 && endIdx + 1 < len && text.charCodeAt(endIdx + 1) === 36) {
+                if (
+                  text.charCodeAt(endIdx) === 36 &&
+                  endIdx + 1 < len &&
+                  text.charCodeAt(endIdx + 1) === 36
+                ) {
                   found = true;
                   break;
                 }
                 // 检查边界：段落分隔、VCP 角色切换、工具请求
                 if (text.charCodeAt(endIdx) === 10) {
-                  if (endIdx + 1 < len && text.charCodeAt(endIdx + 1) === 10) break; // \n\n
+                  if (endIdx + 1 < len && text.charCodeAt(endIdx + 1) === 10)
+                    break; // \n\n
                 }
-                if (text.startsWith("<<<", endIdx) || text.startsWith("[[VCP", endIdx)) {
+                if (
+                  text.startsWith("<<<", endIdx) ||
+                  text.startsWith("[[VCP", endIdx)
+                ) {
                   break;
                 }
                 endIdx++;
@@ -340,8 +392,16 @@ export class Tokenizer {
           }
 
           // 代码围栏 ```
-          if (indent < 20 && charAfterIndent === 96 && text.startsWith("```", posAfterIndent)) {
-            const openMatch = stickyMatch(RE_CODE_FENCE_OPEN, text, posAfterIndent);
+          if (
+            indent < 20 &&
+            charAfterIndent === 96 &&
+            text.startsWith("```", posAfterIndent)
+          ) {
+            const openMatch = stickyMatch(
+              RE_CODE_FENCE_OPEN,
+              text,
+              posAfterIndent
+            );
             if (openMatch) {
               const language = openMatch[1] || "";
               let currentPos = posAfterIndent + openMatch[0].length;
@@ -406,7 +466,12 @@ export class Tokenizer {
           }
 
           // 水平线 ---, ***, ___
-          if (indent < 4 && (charAfterIndent === 45 || charAfterIndent === 42 || charAfterIndent === 95)) {
+          if (
+            indent < 4 &&
+            (charAfterIndent === 45 ||
+              charAfterIndent === 42 ||
+              charAfterIndent === 95)
+          ) {
             const hrMatch = stickyMatch(RE_HR, text, posAfterIndent);
             if (hrMatch) {
               tokens.push({ type: "hr_marker", raw: hrMatch[0] });
@@ -442,10 +507,20 @@ export class Tokenizer {
           }
 
           // VCP 角色分割围栏 <<<[ROLE_DIVIDE_XXX]>>> / <<<[END_ROLE_DIVIDE_XXX]>>>
-          if (charAfterIndent === 60 && text.startsWith("<<<[ROLE_DIVIDE_", posAfterIndent)) {
-            const roleMatch = stickyMatch(RE_VCP_ROLE_OPEN, text, posAfterIndent);
+          if (
+            charAfterIndent === 60 &&
+            text.startsWith("<<<[ROLE_DIVIDE_", posAfterIndent)
+          ) {
+            const roleMatch = stickyMatch(
+              RE_VCP_ROLE_OPEN,
+              text,
+              posAfterIndent
+            );
             if (roleMatch) {
-              const role = roleMatch[1].toLowerCase() as "user" | "assistant" | "system";
+              const role = roleMatch[1].toLowerCase() as
+                | "user"
+                | "assistant"
+                | "system";
               const startMarker = roleMatch[0];
               const endMarker = `<<<[END_ROLE_DIVIDE_${roleMatch[1]}]>>>`;
 
@@ -479,10 +554,20 @@ export class Tokenizer {
 
           // VCP 工具请求块 <<<[TOOL_REQUEST]>>> / <<<[TOOL_REQUEST_ESCAPE]>>> (Protocol: https://github.com/lioensky/VCPToolBox)
           // TOOL_REQUEST_ESCAPE 用于嵌套工具调用，其内容中的 <<<[TOOL_REQUEST]>>> 不会被再次解析
-          const isEscapeBlock = text.startsWith("<<<[TOOL_REQUEST_ESCAPE]>>>", posAfterIndent);
-          if (isEscapeBlock || text.startsWith("<<<[TOOL_REQUEST]>>>", posAfterIndent)) {
-            const startMarker = isEscapeBlock ? "<<<[TOOL_REQUEST_ESCAPE]>>>" : "<<<[TOOL_REQUEST]>>>";
-            const endMarker = isEscapeBlock ? "<<<[END_TOOL_REQUEST_ESCAPE]>>>" : "<<<[END_TOOL_REQUEST]>>>";
+          const isEscapeBlock = text.startsWith(
+            "<<<[TOOL_REQUEST_ESCAPE]>>>",
+            posAfterIndent
+          );
+          if (
+            isEscapeBlock ||
+            text.startsWith("<<<[TOOL_REQUEST]>>>", posAfterIndent)
+          ) {
+            const startMarker = isEscapeBlock
+              ? "<<<[TOOL_REQUEST_ESCAPE]>>>"
+              : "<<<[TOOL_REQUEST]>>>";
+            const endMarker = isEscapeBlock
+              ? "<<<[END_TOOL_REQUEST_ESCAPE]>>>"
+              : "<<<[END_TOOL_REQUEST]>>>";
             let currentPos = posAfterIndent + startMarker.length;
 
             const endIdx = text.indexOf(endMarker, currentPos);
@@ -531,7 +616,10 @@ export class Tokenizer {
             // 从后往前替换，避免偏移量变化
             for (let ri = matchedRanges.length - 1; ri >= 0; ri--) {
               const [start, end] = matchedRanges[ri];
-              maskedContent = maskedContent.slice(0, start) + " ".repeat(end - start) + maskedContent.slice(end);
+              maskedContent =
+                maskedContent.slice(0, start) +
+                " ".repeat(end - start) +
+                maskedContent.slice(end);
             }
 
             let match;
@@ -557,9 +645,16 @@ export class Tokenizer {
             if (pendingMatch) {
               const key = pendingMatch[1];
               // pending 情形取原始内容中对应的值
-              const pendingStart = maskedContent.lastIndexOf(pendingMatch[0].trim());
-              const rawPendingMatch = pendingStart >= 0 ? vcpContent.slice(pendingStart).match(RE_VCP_PENDING) : null;
-              const value = rawPendingMatch ? rawPendingMatch[2] : pendingMatch[2];
+              const pendingStart = maskedContent.lastIndexOf(
+                pendingMatch[0].trim()
+              );
+              const rawPendingMatch =
+                pendingStart >= 0
+                  ? vcpContent.slice(pendingStart).match(RE_VCP_PENDING)
+                  : null;
+              const value = rawPendingMatch
+                ? rawPendingMatch[2]
+                : pendingMatch[2];
               if (key === "tool_name") tool_name = tool_name || value;
               else if (key === "command") command = command || value;
               else if (key === "maid") maid = maid || value;
@@ -581,7 +676,11 @@ export class Tokenizer {
           }
 
           // 日记围栏 <<<DailyNoteStart>>> / <<<DailyNoteEnd>>>
-          const dailyNoteMatch = stickyMatch(RE_VCP_DAILY_NOTE_OPEN, text, posAfterIndent);
+          const dailyNoteMatch = stickyMatch(
+            RE_VCP_DAILY_NOTE_OPEN,
+            text,
+            posAfterIndent
+          );
           if (dailyNoteMatch) {
             const startMarker = dailyNoteMatch[0];
             const endMarker = "<<<DailyNoteEnd>>>";
@@ -720,7 +819,11 @@ export class Tokenizer {
           if (isWordCharacter(prevChar) && isWordCharacter(nextNextChar)) {
             tokens.push({ type: "text", content: "~~" });
           } else {
-            tokens.push({ type: "strikethrough_delimiter", marker: "~~", raw: "~~" });
+            tokens.push({
+              type: "strikethrough_delimiter",
+              marker: "~~",
+              raw: "~~",
+            });
           }
           i += 2;
         } else {
@@ -753,7 +856,11 @@ export class Tokenizer {
 
       if (char === 42) {
         // *
-        if (i + 2 < len && text.charCodeAt(i + 1) === 42 && text.charCodeAt(i + 2) === 42) {
+        if (
+          i + 2 < len &&
+          text.charCodeAt(i + 1) === 42 &&
+          text.charCodeAt(i + 2) === 42
+        ) {
           tokens.push({ type: "triple_delimiter", marker: "***", raw: "***" });
           i += 3;
         } else if (i + 1 < len && text.charCodeAt(i + 1) === 42) {
@@ -827,7 +934,12 @@ export class Tokenizer {
 
         if (contentEndIndex !== -1) {
           let content = text.slice(i + tickCount, contentEndIndex);
-          if (content.length >= 2 && content.startsWith(" ") && content.endsWith(" ") && content.trim().length > 0) {
+          if (
+            content.length >= 2 &&
+            content.startsWith(" ") &&
+            content.endsWith(" ") &&
+            content.trim().length > 0
+          ) {
             content = content.slice(1, -1);
           }
           tokens.push({ type: "inline_code", content });
@@ -857,15 +969,23 @@ export class Tokenizer {
 
             // 寻找闭合的 $$，但不能跨越段落或 VCP 边界
             while (endIdx < len) {
-              if (text.charCodeAt(endIdx) === 36 && endIdx + 1 < len && text.charCodeAt(endIdx + 1) === 36) {
+              if (
+                text.charCodeAt(endIdx) === 36 &&
+                endIdx + 1 < len &&
+                text.charCodeAt(endIdx + 1) === 36
+              ) {
                 found = true;
                 break;
               }
               // 检查边界
               if (text.charCodeAt(endIdx) === 10) {
-                if (endIdx + 1 < len && text.charCodeAt(endIdx + 1) === 10) break; // \n\n
+                if (endIdx + 1 < len && text.charCodeAt(endIdx + 1) === 10)
+                  break; // \n\n
               }
-              if (text.startsWith("<<<", endIdx) || text.startsWith("[[VCP", endIdx)) {
+              if (
+                text.startsWith("<<<", endIdx) ||
+                text.startsWith("[[VCP", endIdx)
+              ) {
                 break;
               }
               endIdx++;

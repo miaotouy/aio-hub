@@ -51,8 +51,10 @@ const handleSelectDownloadPath = async () => {
         download: {
           alwaysAskSavePath: downloadSettings.value?.alwaysAskSavePath ?? false,
           showNotification: downloadSettings.value?.showNotification ?? true,
-          openFolderAfterDownload: downloadSettings.value?.openFolderAfterDownload ?? false,
-          showDownloadButtonInTitleBar: downloadSettings.value?.showDownloadButtonInTitleBar ?? true,
+          openFolderAfterDownload:
+            downloadSettings.value?.openFolderAfterDownload ?? false,
+          showDownloadButtonInTitleBar:
+            downloadSettings.value?.showDownloadButtonInTitleBar ?? true,
           ...downloadSettings.value,
           defaultDownloadPath: selected as string,
         },
@@ -192,7 +194,10 @@ const downloadDroppedFile = async () => {
 
           <div class="config-item path-config">
             <span class="label">下载目录</span>
-            <div class="path-display" :title="downloadSettings?.defaultDownloadPath || '系统默认'">
+            <div
+              class="path-display"
+              :title="downloadSettings?.defaultDownloadPath || '系统默认'"
+            >
               {{ downloadSettings?.defaultDownloadPath || "系统默认" }}
             </div>
             <el-button circle size="small" @click="handleSelectDownloadPath">
@@ -245,9 +250,16 @@ const downloadDroppedFile = async () => {
             <div class="file-meta">
               <FileText :size="14" />
               <span>{{ lastDroppedFile.name }}</span>
-              <span class="size">({{ (lastDroppedFile.content.length / 1024).toFixed(2) }} KB)</span>
+              <span class="size"
+                >({{
+                  (lastDroppedFile.content.length / 1024).toFixed(2)
+                }}
+                KB)</span
+              >
             </div>
-            <el-button type="primary" size="small" @click="downloadDroppedFile"> 重新下载此文件 </el-button>
+            <el-button type="primary" size="small" @click="downloadDroppedFile">
+              重新下载此文件
+            </el-button>
           </div>
         </div>
       </div>
@@ -259,7 +271,13 @@ const downloadDroppedFile = async () => {
             <History class="icon" />
             <span>下载历史</span>
           </div>
-          <el-button v-if="hasHistory" type="danger" link size="small" @click="handleClearHistory">
+          <el-button
+            v-if="hasHistory"
+            type="danger"
+            link
+            size="small"
+            @click="handleClearHistory"
+          >
             清空历史
           </el-button>
         </div>

@@ -9,12 +9,21 @@
     <!-- 文件头 -->
     <div v-else class="file-preview__header">
       <div class="file-preview__path-wrapper">
-        <span class="file-preview__path" :title="filePath">{{ relativePath || filePath }}</span>
-        <span v-if="isDirty" class="file-preview__dirty-dot" title="已修改，未保存" />
+        <span class="file-preview__path" :title="filePath">{{
+          relativePath || filePath
+        }}</span>
+        <span
+          v-if="isDirty"
+          class="file-preview__dirty-dot"
+          title="已修改，未保存"
+        />
       </div>
       <div class="file-preview__actions">
         <el-tooltip v-if="isDirty" content="保存 (Ctrl+S)" :show-after="500">
-          <button class="file-preview__action-btn file-preview__action-btn--save" @click="saveFile">
+          <button
+            class="file-preview__action-btn file-preview__action-btn--save"
+            @click="saveFile"
+          >
             <Save :size="14" />
           </button>
         </el-tooltip>
@@ -91,24 +100,25 @@ let matchMarkDecorations: string[] = [];
 const isDirty = computed(() => editedContent.value !== fileContent.value);
 
 // Monaco 编辑器选项，开启缩略图
-const monacoEditorOptions = computed<MonacoEditorType.IStandaloneEditorConstructionOptions>(() => ({
-  minimap: {
-    enabled: true,
-    scale: 1,
-    showSlider: "mouseover",
-  },
-  scrollBeyondLastLine: false,
-  wordWrap: "off",
-  folding: true,
-  foldingStrategy: "indentation",
-  showFoldingControls: "always",
-  renderLineHighlight: "all",
-  occurrencesHighlight: "multiFile",
-  selectionHighlight: true,
-  find: {
-    addExtraSpaceOnTop: false,
-  },
-}));
+const monacoEditorOptions =
+  computed<MonacoEditorType.IStandaloneEditorConstructionOptions>(() => ({
+    minimap: {
+      enabled: true,
+      scale: 1,
+      showSlider: "mouseover",
+    },
+    scrollBeyondLastLine: false,
+    wordWrap: "off",
+    folding: true,
+    foldingStrategy: "indentation",
+    showFoldingControls: "always",
+    renderLineHighlight: "all",
+    occurrencesHighlight: "multiFile",
+    selectionHighlight: true,
+    find: {
+      addExtraSpaceOnTop: false,
+    },
+  }));
 
 function handleContentChange(value: string) {
   editedContent.value = value;
@@ -160,7 +170,9 @@ const fileLanguage = computed(() => {
   if (specialFiles[fileName]) return specialFiles[fileName];
 
   // 按扩展名推断
-  const ext = fileName.includes(".") ? fileName.split(".").pop()?.toLowerCase() : undefined;
+  const ext = fileName.includes(".")
+    ? fileName.split(".").pop()?.toLowerCase()
+    : undefined;
   return ext || undefined;
 });
 
@@ -168,9 +180,18 @@ const fileLanguage = computed(() => {
 
 function clearDecorations() {
   if (!monacoEditor) return;
-  matchLineDecorations = monacoEditor.deltaDecorations(matchLineDecorations, []);
-  targetLineDecorations = monacoEditor.deltaDecorations(targetLineDecorations, []);
-  matchMarkDecorations = monacoEditor.deltaDecorations(matchMarkDecorations, []);
+  matchLineDecorations = monacoEditor.deltaDecorations(
+    matchLineDecorations,
+    []
+  );
+  targetLineDecorations = monacoEditor.deltaDecorations(
+    targetLineDecorations,
+    []
+  );
+  matchMarkDecorations = monacoEditor.deltaDecorations(
+    matchMarkDecorations,
+    []
+  );
 }
 
 function applyMatchHighlights() {
@@ -180,23 +201,28 @@ function applyMatchHighlights() {
 
   // 整行高亮装饰（去重行号）
   const uniqueLines = [...new Set(matchList.map((m) => m.lineNumber))];
-  const lineDecos: MonacoEditorType.IModelDeltaDecoration[] = uniqueLines.map((lineNum) => ({
-    range: {
-      startLineNumber: lineNum,
-      startColumn: 1,
-      endLineNumber: lineNum,
-      endColumn: 1,
-    },
-    options: {
-      isWholeLine: true,
-      className: "monaco-highlight-match-line",
-      overviewRuler: {
-        color: "rgba(64, 158, 255, 0.4)",
-        position: 1, // OverviewRulerLane.Left
+  const lineDecos: MonacoEditorType.IModelDeltaDecoration[] = uniqueLines.map(
+    (lineNum) => ({
+      range: {
+        startLineNumber: lineNum,
+        startColumn: 1,
+        endLineNumber: lineNum,
+        endColumn: 1,
       },
-    },
-  }));
-  matchLineDecorations = monacoEditor.deltaDecorations(matchLineDecorations, lineDecos);
+      options: {
+        isWholeLine: true,
+        className: "monaco-highlight-match-line",
+        overviewRuler: {
+          color: "rgba(64, 158, 255, 0.4)",
+          position: 1, // OverviewRulerLane.Left
+        },
+      },
+    })
+  );
+  matchLineDecorations = monacoEditor.deltaDecorations(
+    matchLineDecorations,
+    lineDecos
+  );
 
   // 关键字文本高亮装饰
   const markDecos: MonacoEditorType.IModelDeltaDecoration[] = matchList
@@ -225,7 +251,10 @@ function applyMatchHighlights() {
     })
     .filter((d): d is MonacoEditorType.IModelDeltaDecoration => d !== null);
 
-  matchMarkDecorations = monacoEditor.deltaDecorations(matchMarkDecorations, markDecos);
+  matchMarkDecorations = monacoEditor.deltaDecorations(
+    matchMarkDecorations,
+    markDecos
+  );
 }
 
 function applyTargetMatch() {
@@ -233,7 +262,10 @@ function applyTargetMatch() {
 
   const target = props.targetMatch || null;
   if (!target) {
-    targetLineDecorations = monacoEditor.deltaDecorations(targetLineDecorations, []);
+    targetLineDecorations = monacoEditor.deltaDecorations(
+      targetLineDecorations,
+      []
+    );
     return;
   }
 
@@ -242,7 +274,10 @@ function applyTargetMatch() {
 
   const lineCount = model.getLineCount();
   if (target.lineNumber < 1 || target.lineNumber > lineCount) {
-    targetLineDecorations = monacoEditor.deltaDecorations(targetLineDecorations, []);
+    targetLineDecorations = monacoEditor.deltaDecorations(
+      targetLineDecorations,
+      []
+    );
     return;
   }
 
@@ -282,7 +317,10 @@ function applyTargetMatch() {
     },
   ];
 
-  targetLineDecorations = monacoEditor.deltaDecorations(targetLineDecorations, decos);
+  targetLineDecorations = monacoEditor.deltaDecorations(
+    targetLineDecorations,
+    decos
+  );
 
   // 滚动到目标行，并设置光标
   // 强制布局更新，确保滚动位置计算准确（特别是新打开文件时）
@@ -296,7 +334,9 @@ function applyTargetMatch() {
   });
 }
 
-function handleEditorMount(editor: MonacoEditorType.IStandaloneCodeEditor | any) {
+function handleEditorMount(
+  editor: MonacoEditorType.IStandaloneCodeEditor | any
+) {
   monacoEditor = editor as MonacoEditorType.IStandaloneCodeEditor;
 
   // 挂载后立即应用高亮
@@ -353,21 +393,21 @@ watch(
       fileContent.value = "";
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 watch(
   () => props.matches,
   () => {
     nextTick(() => applyMatchHighlights());
-  },
+  }
 );
 
 watch(
   () => props.targetMatch,
   () => {
     nextTick(() => applyTargetMatch());
-  },
+  }
 );
 </script>
 
@@ -456,7 +496,10 @@ watch(
 }
 
 .file-preview__action-btn:hover {
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.1));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
   color: var(--el-color-primary);
 }
 
@@ -465,7 +508,10 @@ watch(
 }
 
 .file-preview__action-btn--save:hover {
-  background-color: rgba(var(--el-color-warning-rgb, 230, 162, 60), calc(var(--card-opacity) * 0.1));
+  background-color: rgba(
+    var(--el-color-warning-rgb, 230, 162, 60),
+    calc(var(--card-opacity) * 0.1)
+  );
   color: var(--el-color-warning);
 }
 

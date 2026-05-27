@@ -37,7 +37,9 @@
               placeholder="输入或拖拽目录路径"
               @keyup.enter="emit('scan')"
             />
-            <el-button @click="selectDirectory" :icon="FolderOpened">选择</el-button>
+            <el-button @click="selectDirectory" :icon="FolderOpened"
+              >选择</el-button
+            >
           </div>
         </DropZone>
       </div>
@@ -49,13 +51,17 @@
           <el-checkbox v-model="store.config.normalizeOptions.ignoreWhitespace">
             忽略空白字符
           </el-checkbox>
-          <el-checkbox v-model="store.config.normalizeOptions.ignorePunctuation">
+          <el-checkbox
+            v-model="store.config.normalizeOptions.ignorePunctuation"
+          >
             忽略标点符号
           </el-checkbox>
           <el-checkbox v-model="store.config.normalizeOptions.caseSensitive">
             区分大小写
           </el-checkbox>
-          <el-checkbox v-model="store.config.normalizeOptions.preserveLineBreaks">
+          <el-checkbox
+            v-model="store.config.normalizeOptions.preserveLineBreaks"
+          >
             保留换行结构
           </el-checkbox>
         </div>
@@ -65,7 +71,9 @@
       <el-collapse v-model="advancedOpen" class="config-section">
         <el-collapse-item name="advanced" title="高级选项">
           <div class="filter-item">
-            <span class="filter-label">扩展名白名单（留空扫描所有文本文件）</span>
+            <span class="filter-label"
+              >扩展名白名单（留空扫描所有文本文件）</span
+            >
             <el-input
               v-model="extensionsInput"
               placeholder="例如: ts,js,vue,py（逗号分隔）"
@@ -133,7 +141,14 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { FolderOpened } from "@element-plus/icons-vue";
-import { Search, Square, FileText, ShieldCheck, Code, BookOpen } from "lucide-vue-next";
+import {
+  Search,
+  Square,
+  FileText,
+  ShieldCheck,
+  Code,
+  BookOpen,
+} from "lucide-vue-next";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import InfoCard from "@components/common/InfoCard.vue";
 import DropZone from "@components/common/DropZone.vue";
@@ -142,7 +157,9 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useContentDeduplicatorStore } from "../stores/store";
 import { PRESETS } from "../config/presets";
 
-const errorHandler = createModuleErrorHandler("tools/content-deduplicator/ConfigPanel");
+const errorHandler = createModuleErrorHandler(
+  "tools/content-deduplicator/ConfigPanel"
+);
 
 const emit = defineEmits<{
   (e: "scan"): void;
@@ -186,7 +203,9 @@ function handlePresetChange(presetId: string) {
   extensionsInput.value = store.config.extensions.join(",");
   ignorePatternsInput.value = store.config.ignorePatterns.join(",");
   sizeDiffPercent.value = Math.round(store.config.sizeDiffThreshold * 100);
-  customMessage.success(`已应用预设: ${presets.find((p) => p.id === presetId)?.label}`);
+  customMessage.success(
+    `已应用预设: ${presets.find((p) => p.id === presetId)?.label}`
+  );
 }
 
 function handlePathDrop(paths: string[]) {
@@ -280,7 +299,10 @@ async function selectDirectory() {
 
 .preset-item.active {
   border-color: var(--el-color-primary);
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity, 1) * 0.08));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity, 1) * 0.08)
+  );
 }
 
 .preset-info {

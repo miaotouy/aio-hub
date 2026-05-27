@@ -1,12 +1,12 @@
-import { invoke, convertFileSrc } from '@tauri-apps/api/core';
-import { getAppConfigDir } from '@/utils/appPath';
-import type { ChatAgent, AgentAsset } from '../types';
-import { createModuleLogger } from '@/utils/logger';
+import { invoke, convertFileSrc } from "@tauri-apps/api/core";
+import { getAppConfigDir } from "@/utils/appPath";
+import type { ChatAgent, AgentAsset } from "../types";
+import { createModuleLogger } from "@/utils/logger";
 
-const logger = createModuleLogger('agentAssetUtils');
+const logger = createModuleLogger("agentAssetUtils");
 
 /** 智能体资产协议前缀 */
-const AGENT_ASSET_PROTOCOL = 'agent-asset://';
+const AGENT_ASSET_PROTOCOL = "agent-asset://";
 
 // ============================================================================
 // 字符串相似度算法 (Fuzzy Matching)
@@ -36,8 +36,8 @@ function levenshteinDistance(a: string, b: string): number {
     for (let j = 1; j <= a.length; j++) {
       const cost = a[j - 1] === b[i - 1] ? 0 : 1;
       matrix[i][j] = Math.min(
-        matrix[i - 1][j] + 1,      // deletion
-        matrix[i][j - 1] + 1,      // insertion
+        matrix[i - 1][j] + 1, // deletion
+        matrix[i][j - 1] + 1, // insertion
         matrix[i - 1][j - 1] + cost // substitution
       );
     }
@@ -94,31 +94,31 @@ function getMissingTextureUrl(): string {
 
   try {
     const size = 32;
-    const canvas = document.createElement('canvas');
+    const canvas = document.createElement("canvas");
     canvas.width = size;
     canvas.height = size;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext("2d");
 
     if (ctx) {
       const half = size / 2;
       // 紫色部分
-      ctx.fillStyle = '#FF00FF';
+      ctx.fillStyle = "#FF00FF";
       ctx.fillRect(0, 0, half, half);
       ctx.fillRect(half, half, half, half);
       // 黑色部分
-      ctx.fillStyle = '#000000';
+      ctx.fillStyle = "#000000";
       ctx.fillRect(half, 0, half, half);
       ctx.fillRect(0, half, half, half);
 
-      _missingTextureDataUrl = canvas.toDataURL('image/png');
+      _missingTextureDataUrl = canvas.toDataURL("image/png");
       return _missingTextureDataUrl;
     }
   } catch (e) {
-    logger.error('生成缺失贴图失败', e as Error);
+    logger.error("生成缺失贴图失败", e as Error);
   }
 
   // 回退到 2x2 的简单 Base64
-  return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAAZSURBVBhXY/zPw/AfEDMw/AfSDEAMYwYGBgZZSAn78AAAAABJRU5ErkJggg==';
+  return "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAAZSURBVBhXY/zPw/AfEDMw/AfSDEAMYwYGBgZZSAn78AAAAABJRU5ErkJggg==";
 }
 
 // ============================================================================
@@ -148,21 +148,25 @@ export async function initAgentAssetCache(): Promise<void> {
       _cachedAppDataDir = await getAppConfigDir();
 
       // 在 Windows 上，保持反斜杠以确保 convertFileSrc 能正确处理盘符
-      const isWindows = _cachedAppDataDir.includes('\\') || _cachedAppDataDir.includes(':');
+      const isWindows =
+        _cachedAppDataDir.includes("\\") || _cachedAppDataDir.includes(":");
       if (isWindows) {
-        _cachedAppDataDir = _cachedAppDataDir.replace(/\//g, '\\');
-        if (_cachedAppDataDir.endsWith('\\')) {
+        _cachedAppDataDir = _cachedAppDataDir.replace(/\//g, "\\");
+        if (_cachedAppDataDir.endsWith("\\")) {
           _cachedAppDataDir = _cachedAppDataDir.slice(0, -1);
         }
       } else {
-        if (_cachedAppDataDir.endsWith('/')) {
+        if (_cachedAppDataDir.endsWith("/")) {
           _cachedAppDataDir = _cachedAppDataDir.slice(0, -1);
         }
       }
 
-      logger.info('Agent 资产缓存已初始化', { appDataDir: _cachedAppDataDir, isWindows });
+      logger.info("Agent 资产缓存已初始化", {
+        appDataDir: _cachedAppDataDir,
+        isWindows,
+      });
     } catch (error) {
-      logger.error('初始化 agent 资产缓存失败', error as Error);
+      logger.error("初始化 agent 资产缓存失败", error as Error);
       throw error;
     }
   })();
@@ -184,7 +188,8 @@ export function getCachedAppDataDir(): string | null {
  */
 export function resetAgentAssetCache(): void {
   _cachedAppDataDir = null;
-  _cacheInitPromise = null; logger.info('Agent 资产缓存已重置');
+  _cacheInitPromise = null;
+  logger.info("Agent 资产缓存已重置");
 }
 
 /**
@@ -194,17 +199,20 @@ export function resetAgentAssetCache(): void {
  * @param assetPath 资产相对路径（如 assets/xxx.png）
  * @returns 完整的文件系统路径，如果缓存未初始化则返回 null
  */
-export function buildAgentAssetPath(agentId: string, assetPath: string): string | null {
+export function buildAgentAssetPath(
+  agentId: string,
+  assetPath: string
+): string | null {
   if (!_cachedAppDataDir) {
     return null;
   }
 
   // 统一使用正斜杠构建路径，Tauri 的 convertFileSrc 在所有平台上都能很好地处理正斜杠
   // 且正斜杠能避免在 Markdown 环境下被误认为转义符
-  const normalizedAssetPath = assetPath.replace(/\\/g, '/');
-  const normalizedBase = _cachedAppDataDir.replace(/\\/g, '/');
+  const normalizedAssetPath = assetPath.replace(/\\/g, "/");
+  const normalizedBase = _cachedAppDataDir.replace(/\\/g, "/");
 
-  const separator = normalizedBase.endsWith('/') ? '' : '/';
+  const separator = normalizedBase.endsWith("/") ? "" : "/";
   return `${normalizedBase}${separator}llm-chat/agents/${agentId}/${normalizedAssetPath}`;
 }
 
@@ -215,7 +223,10 @@ export function buildAgentAssetPath(agentId: string, assetPath: string): string 
  * @param assetPath 资产相对路径
  * @returns asset:// 协议的 URL，如果缓存未初始化则返回 null
  */
-export function convertAgentAssetToUrl(agentId: string, assetPath: string): string | null {
+export function convertAgentAssetToUrl(
+  agentId: string,
+  assetPath: string
+): string | null {
   const fullPath = buildAgentAssetPath(agentId, assetPath);
   if (!fullPath) {
     return null;
@@ -234,17 +245,19 @@ export function convertAgentAssetToUrl(agentId: string, assetPath: string): stri
  * @param assetUrl agent-asset:// 格式的 URL
  * @returns 解析后的 group、id、ext，如果解析失败返回 null
  */
-function parseAssetUrl(assetUrl: string): { group: string; id: string; ext: string } | null {
+function parseAssetUrl(
+  assetUrl: string
+): { group: string; id: string; ext: string } | null {
   if (!assetUrl.startsWith(AGENT_ASSET_PROTOCOL)) return null;
 
-  const path = assetUrl.replace(AGENT_ASSET_PROTOCOL, '');
+  const path = assetUrl.replace(AGENT_ASSET_PROTOCOL, "");
 
   // 尝试解析新格式: {group}/{id}.{ext}
-  const slashIndex = path.indexOf('/');
+  const slashIndex = path.indexOf("/");
   if (slashIndex > 0) {
     const group = decodeURIComponent(path.substring(0, slashIndex));
     const rest = path.substring(slashIndex + 1);
-    const lastDotIndex = rest.lastIndexOf('.');
+    const lastDotIndex = rest.lastIndexOf(".");
 
     if (lastDotIndex > 0) {
       const id = decodeURIComponent(rest.substring(0, lastDotIndex));
@@ -253,19 +266,19 @@ function parseAssetUrl(assetUrl: string): { group: string; id: string; ext: stri
     } else {
       // 没有后缀的情况
       const id = decodeURIComponent(rest);
-      return { group, id, ext: '' };
+      return { group, id, ext: "" };
     }
   }
 
   // 旧格式兼容: 只有 id
-  return { group: '', id: decodeURIComponent(path), ext: '' };
+  return { group: "", id: decodeURIComponent(path), ext: "" };
 }
 
 /**
  * 从文件名中提取不带扩展名的部分
  */
 function getFilenameWithoutExt(filename: string): string {
-  const lastDot = filename.lastIndexOf('.');
+  const lastDot = filename.lastIndexOf(".");
   if (lastDot === -1 || lastDot === 0) return filename;
   return filename.substring(0, lastDot);
 }
@@ -291,15 +304,15 @@ function findAsset(
 ): AgentAsset | undefined {
   // 优先精确匹配：group + id
   if (parsed.group) {
-    const exactMatch = assets.find(a => {
-      const assetGroup = a.group || 'default';
+    const exactMatch = assets.find((a) => {
+      const assetGroup = a.group || "default";
       return assetGroup === parsed.group && a.id === parsed.id;
     });
     if (exactMatch) return exactMatch;
     // 尝试 group + filename（不带扩展名）匹配
     // 这支持用户使用原始文件名来引用资产，如 agent-asset://biaoqingbao/盯.png
-    const filenameMatch = assets.find(a => {
-      const assetGroup = a.group || 'default';
+    const filenameMatch = assets.find((a) => {
+      const assetGroup = a.group || "default";
       const filenameWithoutExt = getFilenameWithoutExt(a.filename);
       return assetGroup === parsed.group && filenameWithoutExt === parsed.id;
     });
@@ -307,11 +320,13 @@ function findAsset(
   }
 
   // 回退：只匹配 id（向后兼容旧格式）
-  const idMatch = assets.find(a => a.id === parsed.id);
+  const idMatch = assets.find((a) => a.id === parsed.id);
   if (idMatch) return idMatch;
 
   // 尝试：只匹配 filename（不带扩展名）
-  const filenameOnlyMatch = assets.find(a => getFilenameWithoutExt(a.filename) === parsed.id);
+  const filenameOnlyMatch = assets.find(
+    (a) => getFilenameWithoutExt(a.filename) === parsed.id
+  );
   if (filenameOnlyMatch) return filenameOnlyMatch;
 
   // ============================================================================
@@ -325,7 +340,7 @@ function findAsset(
   const targetGroup = parsed.group || null;
 
   for (const asset of assets) {
-    const assetGroup = asset.group || 'default';
+    const assetGroup = asset.group || "default";
 
     // 如果指定了 group，则只在该 group 内进行模糊匹配
     if (targetGroup && assetGroup !== targetGroup) {
@@ -345,10 +360,14 @@ function findAsset(
   }
 
   if (bestFuzzyMatch) {
-    logger.info('通过模糊匹配找到资产', {
+    logger.info("通过模糊匹配找到资产", {
       query: parsed.id,
-      matchedAsset: { id: bestFuzzyMatch.id, filename: bestFuzzyMatch.filename, group: bestFuzzyMatch.group },
-      score: bestScore.toFixed(2)
+      matchedAsset: {
+        id: bestFuzzyMatch.id,
+        filename: bestFuzzyMatch.filename,
+        group: bestFuzzyMatch.group,
+      },
+      score: bestScore.toFixed(2),
     });
   }
 
@@ -365,18 +384,21 @@ function findAsset(
  * @param agent 当前智能体对象
  * @returns 真实的 URL，如果找不到或缓存未初始化则返回原始 URL
  */
-export function resolveAgentAssetUrlSync(assetUrl: string, agent: ChatAgent): string {
+export function resolveAgentAssetUrlSync(
+  assetUrl: string,
+  agent: ChatAgent
+): string {
   if (!assetUrl.startsWith(AGENT_ASSET_PROTOCOL)) return assetUrl;
 
   // 检查缓存状态
   if (!_cachedAppDataDir) {
-    logger.warn('resolveAgentAssetUrlSync: 缓存未初始化', { assetUrl });
+    logger.warn("resolveAgentAssetUrlSync: 缓存未初始化", { assetUrl });
     return assetUrl;
   }
 
   const parsed = parseAssetUrl(assetUrl);
   if (!parsed) {
-    logger.warn('resolveAgentAssetUrlSync: URL 解析失败', { assetUrl });
+    logger.warn("resolveAgentAssetUrlSync: URL 解析失败", { assetUrl });
     return assetUrl;
   }
 
@@ -406,7 +428,10 @@ export function resolveAgentAssetUrlSync(assetUrl: string, agent: ChatAgent): st
  * @returns 真实的 URL，如果找不到则返回原始 URL
  * @deprecated 推荐使用 resolveAgentAssetUrlSync，它利用缓存实现同步解析
  */
-export async function resolveAgentAssetUrl(assetUrl: string, agent: ChatAgent): Promise<string> {
+export async function resolveAgentAssetUrl(
+  assetUrl: string,
+  agent: ChatAgent
+): Promise<string> {
   if (!assetUrl.startsWith(AGENT_ASSET_PROTOCOL)) return assetUrl;
 
   // 优先尝试同步解析
@@ -421,21 +446,21 @@ export async function resolveAgentAssetUrl(assetUrl: string, agent: ChatAgent): 
 
   const asset = agent.assets ? findAsset(parsed, agent.assets) : undefined;
   if (!asset) {
-    logger.warn('Asset not found', {
+    logger.warn("Asset not found", {
       parsed,
-      availableAssets: agent.assets?.map(a => ({ id: a.id, group: a.group }))
+      availableAssets: agent.assets?.map((a) => ({ id: a.id, group: a.group })),
     });
     return assetUrl;
   }
 
   try {
-    const fullPath = await invoke<string>('get_agent_asset_path', {
+    const fullPath = await invoke<string>("get_agent_asset_path", {
       agentId: agent.id,
-      assetPath: asset.path
+      assetPath: asset.path,
     });
     return convertFileSrc(fullPath);
   } catch (error) {
-    logger.error('Failed to resolve asset path', error as Error);
+    logger.error("Failed to resolve asset path", error as Error);
     return assetUrl;
   }
 }
@@ -450,15 +475,18 @@ export async function resolveAgentAssetUrl(assetUrl: string, agent: ChatAgent): 
  * @param agent 当前智能体对象
  * @returns 替换后的内容
  */
-export function processMessageAssetsSync(content: string, agent?: ChatAgent): string {
-  const hasAgentAsset = content.includes('agent-asset://');
-  const hasFileAsset = content.includes('file://');
+export function processMessageAssetsSync(
+  content: string,
+  agent?: ChatAgent
+): string {
+  const hasAgentAsset = content.includes("agent-asset://");
+  const hasFileAsset = content.includes("file://");
 
   if (!hasAgentAsset && !hasFileAsset) return content;
 
   if (hasAgentAsset && !agent) {
-    logger.warn('processMessageAssetsSync: 发现资产链接但缺失 agent 对象', {
-      contentSnippet: content.slice(0, 100)
+    logger.warn("processMessageAssetsSync: 发现资产链接但缺失 agent 对象", {
+      contentSnippet: content.slice(0, 100),
     });
   }
 
@@ -478,7 +506,11 @@ export function processMessageAssetsSync(content: string, agent?: ChatAgent): st
       if (resolved.startsWith(AGENT_ASSET_PROTOCOL)) {
         // 资产缺失，替换为文本占位符
         const parsed = parseAssetUrl(url);
-        const filename = parsed ? (parsed.group ? `${parsed.group}/${parsed.id}` : parsed.id) : url;
+        const filename = parsed
+          ? parsed.group
+            ? `${parsed.group}/${parsed.id}`
+            : parsed.id
+          : url;
         return `[资产缺失: ${filename}]`;
       }
       return `![${alt}](${resolved})`;
@@ -505,9 +537,9 @@ export function processMessageAssetsSync(content: string, agent?: ChatAgent): st
     result = result.replace(htmlFilePattern, (match, url) => {
       try {
         // 提取路径部分：去掉 file:// 和可能存在的前缀斜杠
-        let path = url.replace(/^file:\/{2,3}/, '');
+        let path = url.replace(/^file:\/{2,3}/, "");
         // 处理 Windows 路径中的反斜杠
-        path = decodeURIComponent(path).replace(/\\/g, '/');
+        path = decodeURIComponent(path).replace(/\\/g, "/");
         const resolved = convertFileSrc(path);
         const quote = match.includes('"') ? '"' : "'";
         return `src=${quote}${resolved}${quote}`;
@@ -522,8 +554,8 @@ export function processMessageAssetsSync(content: string, agent?: ChatAgent): st
     result = result.replace(filePattern, (url) => {
       try {
         // 提取路径部分：支持 file:// 和 file:///
-        let path = url.replace(/^file:\/{2,3}/, '');
-        path = decodeURIComponent(path).replace(/\\/g, '/');
+        let path = url.replace(/^file:\/{2,3}/, "");
+        path = decodeURIComponent(path).replace(/\\/g, "/");
         return convertFileSrc(path);
       } catch (e) {
         return url;
@@ -543,9 +575,12 @@ export function processMessageAssetsSync(content: string, agent?: ChatAgent): st
  * @returns 替换后的内容
  * @deprecated 推荐使用 processMessageAssetsSync
  */
-export async function processMessageAssets(content: string, agent?: ChatAgent): Promise<string> {
-  const hasAgentAsset = content.includes('agent-asset://');
-  const hasFileAsset = content.includes('file://');
+export async function processMessageAssets(
+  content: string,
+  agent?: ChatAgent
+): Promise<string> {
+  const hasAgentAsset = content.includes("agent-asset://");
+  const hasFileAsset = content.includes("file://");
 
   if (!hasAgentAsset && !hasFileAsset) return content;
 
@@ -571,7 +606,10 @@ export async function processMessageAssets(content: string, agent?: ChatAgent): 
 
       if (resolvedUrl !== assetUrl) {
         const quote = fullMatch.includes('"') ? '"' : "'";
-        result = result.replace(fullMatch, `src=${quote}${resolvedUrl}${quote}`);
+        result = result.replace(
+          fullMatch,
+          `src=${quote}${resolvedUrl}${quote}`
+        );
       }
     }
 
@@ -596,8 +634,8 @@ export async function processMessageAssets(content: string, agent?: ChatAgent): 
     const htmlFilePattern = /src=["'](file:\/\/[^"']+)["']/g;
     result = result.replace(htmlFilePattern, (match, url) => {
       try {
-        let path = url.replace(/^file:\/{2,3}/, '');
-        path = decodeURIComponent(path).replace(/\\/g, '/');
+        let path = url.replace(/^file:\/{2,3}/, "");
+        path = decodeURIComponent(path).replace(/\\/g, "/");
         const resolved = convertFileSrc(path);
         const quote = match.includes('"') ? '"' : "'";
         return `src=${quote}${resolved}${quote}`;
@@ -609,8 +647,8 @@ export async function processMessageAssets(content: string, agent?: ChatAgent): 
     const filePattern = /file:\/\/[^"'\s<>\)]+?(?=[)\]"'\s<>]|$)/g;
     result = result.replace(filePattern, (url) => {
       try {
-        let path = url.replace(/^file:\/{2,3}/, '');
-        path = decodeURIComponent(path).replace(/\\/g, '/');
+        let path = url.replace(/^file:\/{2,3}/, "");
+        path = decodeURIComponent(path).replace(/\\/g, "/");
         return convertFileSrc(path);
       } catch (e) {
         return url;

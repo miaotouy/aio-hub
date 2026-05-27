@@ -86,7 +86,8 @@ export interface DirectoryTreeConfig {
  */
 function createDefaultConfig(): DirectoryTreeConfig {
   return {
-    customPatterns: "# 自定义过滤规则示例\nnode_modules\n.git\ndist\nbuild\n*.log",
+    customPatterns:
+      "# 自定义过滤规则示例\nnode_modules\n.git\ndist\nbuild\n*.log",
     lastFilterMode: "none",
     lastTargetPath: "",
     showFiles: true,
@@ -134,6 +135,8 @@ export async function saveConfig(config: DirectoryTreeConfig): Promise<void> {
 /**
  * 更新配置的部分字段
  */
-export async function updateConfig(updates: Partial<DirectoryTreeConfig>): Promise<void> {
+export async function updateConfig(
+  updates: Partial<DirectoryTreeConfig>
+): Promise<void> {
   await configManager.update(updates);
 }

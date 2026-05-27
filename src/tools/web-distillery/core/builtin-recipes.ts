@@ -1,6 +1,9 @@
 import type { SiteRecipe } from "../types";
 import { getLocalISOString } from "@/utils/time";
-import { githubRepoEvaluator, githubIssueListEvaluator } from "./builtin-evaluators";
+import {
+  githubRepoEvaluator,
+  githubIssueListEvaluator,
+} from "./builtin-evaluators";
 
 const now = getLocalISOString();
 
@@ -15,7 +18,12 @@ export const builtinRecipes: SiteRecipe[] = [
     domain: "www.bilibili.com",
     pathPattern: "/video/**",
     contentPatterns: ["__INITIAL_STATE__", "bilibili\\.com", "哔哩哔哩"],
-    protectedSelectors: [".up-info--right", ".video-info-meta", ".video-toolbar-container", ".recommend-list-v1"],
+    protectedSelectors: [
+      ".up-info--right",
+      ".video-info-meta",
+      ".video-toolbar-container",
+      ".recommend-list-v1",
+    ],
     waitFor: "h1.video-title",
     waitTimeout: 10000, // 10s 足够了，不需要 15s 那么久
     metadataScrapers: [
@@ -91,7 +99,12 @@ export const builtinRecipes: SiteRecipe[] = [
       "#js_name", // 公众号名称
       "#publish_time", // 发布时间
     ],
-    excludeSelectors: ["#js_pc_qr_code", "#content_bottom_area", ".qr_code_pc", ".rich_media_tool"],
+    excludeSelectors: [
+      "#js_pc_qr_code",
+      "#content_bottom_area",
+      ".qr_code_pc",
+      ".rich_media_tool",
+    ],
     createdAt: now,
     updatedAt: now,
     useCount: 0,
@@ -133,7 +146,14 @@ export const builtinRecipes: SiteRecipe[] = [
       ".blob-wrapper", // 代码正文表格
       ".markdown-body", // Gist 中的 Markdown 渲染区域
     ],
-    excludeSelectors: [".Header", ".gh-header-sticky", ".gist-count-tag", ".gist-footer", ".footer", ".signup-prompt"],
+    excludeSelectors: [
+      ".Header",
+      ".gh-header-sticky",
+      ".gist-count-tag",
+      ".gist-footer",
+      ".footer",
+      ".signup-prompt",
+    ],
     metadataScrapers: [
       {
         type: "meta",
@@ -160,7 +180,14 @@ export const builtinRecipes: SiteRecipe[] = [
       ".react-directory-row", // 文件列表
       ".BorderGrid-cell p", // About 描述
     ],
-    excludeSelectors: [".Header", ".AppHeader", ".footer", "footer", ".js-header-wrapper", "#repos-sticky-header"],
+    excludeSelectors: [
+      ".Header",
+      ".AppHeader",
+      ".footer",
+      "footer",
+      ".js-header-wrapper",
+      "#repos-sticky-header",
+    ],
     metadataScrapers: [
       {
         type: "meta",
@@ -302,7 +329,15 @@ export const builtinRecipes: SiteRecipe[] = [
       ".highlight", // 代码高亮
       ".render-container", // Markdown/HTML 渲染
     ],
-    excludeSelectors: [".header", ".site-nav", ".git-header", "footer", ".footer", ".sidebar", ".repo-directory"],
+    excludeSelectors: [
+      ".header",
+      ".site-nav",
+      ".git-header",
+      "footer",
+      ".footer",
+      ".sidebar",
+      ".repo-directory",
+    ],
     metadataScrapers: [
       {
         type: "meta",
@@ -404,7 +439,13 @@ export const builtinRecipes: SiteRecipe[] = [
       ".project-description", // 完整 README
       ".sidebar-section", // 包元信息（作者、License、链接等）
     ],
-    excludeSelectors: ["header", "footer", ".banner", "#nav-sticky", ".sidebar-search"],
+    excludeSelectors: [
+      "header",
+      "footer",
+      ".banner",
+      "#nav-sticky",
+      ".sidebar-search",
+    ],
     metadataScrapers: [
       {
         type: "meta",

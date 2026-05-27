@@ -29,12 +29,7 @@ export const sunoNewApiAdapter: LlmAdapter = {
     profile: LlmProfile,
     options: MediaGenerationOptions
   ): Promise<LlmResponse> {
-    const {
-      prompt,
-      params = {},
-      signal,
-      timeout,
-    } = options;
+    const { prompt, params = {}, signal, timeout } = options;
 
     // 1. 初始化客户端
     const client = new SunoClient({

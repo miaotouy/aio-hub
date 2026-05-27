@@ -68,14 +68,18 @@ const updateField = (key: keyof CustomEndpoints, val: string) => {
           <var-input
             :model-value="endpoints.models"
             @update:model-value="updateField('models', $event)"
-            :label="tRaw('tools.llm-api.CustomEndpointsEditor.模型列表 (Models)')"
+            :label="
+              tRaw('tools.llm-api.CustomEndpointsEditor.模型列表 (Models)')
+            "
             placeholder="/v1/models"
             variant="outlined"
           />
           <var-input
             :model-value="endpoints.embeddings"
             @update:model-value="updateField('embeddings', $event)"
-            :label="tRaw('tools.llm-api.CustomEndpointsEditor.嵌入 (Embeddings)')"
+            :label="
+              tRaw('tools.llm-api.CustomEndpointsEditor.嵌入 (Embeddings)')
+            "
             placeholder="/v1/embeddings"
             variant="outlined"
           />
@@ -89,7 +93,9 @@ const updateField = (key: keyof CustomEndpoints, val: string) => {
           <var-input
             :model-value="endpoints.audioTranscriptions"
             @update:model-value="updateField('audioTranscriptions', $event)"
-            :label="tRaw('tools.llm-api.CustomEndpointsEditor.语音转文字 (STT)')"
+            :label="
+              tRaw('tools.llm-api.CustomEndpointsEditor.语音转文字 (STT)')
+            "
             placeholder="/v1/audio/transcriptions"
             variant="outlined"
           />

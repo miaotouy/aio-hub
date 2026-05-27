@@ -21,9 +21,14 @@ export interface DetailPopupState {
  */
 export function useGraphNodeActions(
   sessionRef: () => ChatSessionDetail | null,
-  contextMenuState: Ref<{ visible: boolean; x: number; y: number; items: MenuItem[] }>,
+  contextMenuState: Ref<{
+    visible: boolean;
+    x: number;
+    y: number;
+    items: MenuItem[];
+  }>,
   store: any,
-  errorHandler: any,
+  errorHandler: any
 ) {
   // 详情悬浮窗状态
   const detailPopupState = ref<DetailPopupState>({
@@ -60,7 +65,10 @@ export function useGraphNodeActions(
 
     items.push({
       label: node.isEnabled !== false ? "禁用此节点" : "启用此节点",
-      icon: node.isEnabled !== false ? "el-icon-circle-close" : "el-icon-circle-check",
+      icon:
+        node.isEnabled !== false
+          ? "el-icon-circle-close"
+          : "el-icon-circle-check",
       action: () => {
         logger.info("切换节点启用状态", { nodeId: node.id });
         store.toggleNodeEnabled(node.id);
@@ -138,7 +146,10 @@ export function useGraphNodeActions(
   /**
    * 处理重新生成事件
    */
-  function handleNodeRegenerate(nodeId: string, options?: { modelId?: string; profileId?: string }): void {
+  function handleNodeRegenerate(
+    nodeId: string,
+    options?: { modelId?: string; profileId?: string }
+  ): void {
     const session = sessionRef();
     if (!session || !session.nodes) return;
 

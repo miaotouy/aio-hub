@@ -1,9 +1,10 @@
-import { RenderPreset } from '../types';
+import { RenderPreset } from "../types";
 
 export const llmThinkNodesPreset: RenderPreset = {
   id: "llm-think-nodes",
   name: "LLM 思考节点测试",
-  description: "测试自定义 LLM 思考标签的渲染，包括标准的 <think> 和自定义的 <guguthink> 等",
+  description:
+    "测试自定义 LLM 思考标签的渲染，包括标准的 <think> 和自定义的 <guguthink> 等",
   content: `# LLM 思考节点渲染测试
 
 ## 1. 标准思考标签

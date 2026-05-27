@@ -5,7 +5,13 @@
         <el-icon><GitBranch /></el-icon>
         <span>元思考链: {{ message.chainName }}</span>
       </div>
-      <el-button link size="small" class="json-btn" @click.stop="$emit('show-json', message)" title="查看原始 JSON">
+      <el-button
+        link
+        size="small"
+        class="json-btn"
+        @click.stop="$emit('show-json', message)"
+        title="查看原始 JSON"
+      >
         <el-icon><Document /></el-icon>
       </el-button>
     </div>
@@ -13,7 +19,11 @@
     <div class="query-section" v-if="message.query" @click.stop="toggleExpand">
       <div
         class="query-text"
-        :class="{ 'is-truncated': !isExpanded, 'is-pre': isExpanded, 'is-scrollable': isExpanded }"
+        :class="{
+          'is-truncated': !isExpanded,
+          'is-pre': isExpanded,
+          'is-scrollable': isExpanded,
+        }"
       >
         <template v-if="isExpanded">
           <span v-html="formatContent(message.query)"></span>
@@ -27,7 +37,11 @@
     <div class="stages-list" v-if="message.stages && message.stages.length > 0">
       <!-- 阶段路径预览 -->
       <div class="stage-path" @click.stop="toggleExpand">
-        <div v-for="(stage, index) in message.stages" :key="stage.stage" class="path-node-wrapper">
+        <div
+          v-for="(stage, index) in message.stages"
+          :key="stage.stage"
+          class="path-node-wrapper"
+        >
           <div class="path-node" :title="stage.clusterName">
             <span class="node-index">{{ stage.stage }}</span>
             <span class="node-name">{{ stage.clusterName }}</span>
@@ -40,23 +54,38 @@
 
       <!-- 阶段详情列表 -->
       <div class="stages-container">
-        <div v-for="stage in displayStages" :key="stage.stage" class="stage-item" @click.stop="toggleExpand">
+        <div
+          v-for="stage in displayStages"
+          :key="stage.stage"
+          class="stage-item"
+          @click.stop="toggleExpand"
+        >
           <div class="stage-header">
             <span class="stage-number">#{{ stage.stage }}</span>
             <span class="stage-cluster">{{ stage.clusterName }}</span>
             <span class="stage-count">{{ stage.resultCount }} results</span>
           </div>
-          <div class="stage-results" v-if="stage.results && stage.results.length > 0">
+          <div
+            class="stage-results"
+            v-if="stage.results && stage.results.length > 0"
+          >
             <div
-              v-for="(result, idx) in isExpanded ? stage.results : stage.results.slice(0, 1)"
+              v-for="(result, idx) in isExpanded
+                ? stage.results
+                : stage.results.slice(0, 1)"
               :key="idx"
               class="mini-result"
             >
               <div class="result-meta">
                 <span class="mini-score">{{ result.score.toFixed(3) }}</span>
-                <span class="result-source" v-if="result.source">{{ result.source }}</span>
+                <span class="result-source" v-if="result.source">{{
+                  result.source
+                }}</span>
               </div>
-              <div class="mini-text" :class="{ 'is-truncated': !isExpanded, 'is-pre': isExpanded }">
+              <div
+                class="mini-text"
+                :class="{ 'is-truncated': !isExpanded, 'is-pre': isExpanded }"
+              >
                 <template v-if="isExpanded">
                   <span v-html="formatContent(result.text)"></span>
                 </template>
@@ -69,12 +98,18 @@
           <div v-else class="no-results">本阶段无结果</div>
         </div>
 
-        <div v-if="!isExpanded && message.stages.length > 3" class="more-stages-hint" @click.stop="toggleExpand">
+        <div
+          v-if="!isExpanded && message.stages.length > 3"
+          class="more-stages-hint"
+          @click.stop="toggleExpand"
+        >
           ... 还有 {{ message.stages.length - 3 }} 个阶段，点击展开详情
         </div>
 
         <div v-if="isExpanded" class="expand-actions">
-          <el-button link size="small" @click.stop="toggleExpand">收起详情</el-button>
+          <el-button link size="small" @click.stop="toggleExpand"
+            >收起详情</el-button
+          >
         </div>
       </div>
     </div>
@@ -102,7 +137,9 @@ function toggleExpand() {
 }
 
 const displayStages = computed(() => {
-  return isExpanded.value ? props.message.stages : props.message.stages.slice(0, 3);
+  return isExpanded.value
+    ? props.message.stages
+    : props.message.stages.slice(0, 3);
 });
 
 function formatContent(text: string): string {

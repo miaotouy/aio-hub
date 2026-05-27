@@ -1,18 +1,19 @@
 import type { LlmProfile } from "@/types/llm-profiles";
-import type { LlmRequestOptions, LlmResponse, LlmMessage } from "@/llm-apis/common";
+import type {
+  LlmRequestOptions,
+  LlmResponse,
+  LlmMessage,
+} from "@/llm-apis/common";
 import { fetchWithTimeout, ensureResponseOk } from "@/llm-apis/common";
 import { createModuleLogger } from "@utils/logger";
 import { parseSSEStream } from "@utils/sse-parser";
 import {
   extractCommonParameters,
   applyCustomParameters,
-  cleanPayload
+  cleanPayload,
 } from "@/llm-apis/request-builder";
 import { asyncJsonStringify } from "@/utils/serialization";
-import {
-  VertexAiClaudeRequest,
-  buildClaudeMessages
-} from "./utils";
+import { VertexAiClaudeRequest, buildClaudeMessages } from "./utils";
 
 const logger = createModuleLogger("VertexAiAnthropic");
 
@@ -28,7 +29,9 @@ export async function callVertexAiClaude(
   const commonParams = extractCommonParameters(options);
 
   // 从 messages 中提取 system 消息
-  const systemMessages = (options.messages || []).filter((m: LlmMessage) => m.role === 'system');
+  const systemMessages = (options.messages || []).filter(
+    (m: LlmMessage) => m.role === "system"
+  );
 
   // 构建请求体
   const body: VertexAiClaudeRequest = {
@@ -51,8 +54,10 @@ export async function callVertexAiClaude(
   // 系统提示
   if (systemMessages.length > 0) {
     const systemContent = systemMessages
-      .map((m: LlmMessage) => typeof m.content === 'string' ? m.content : JSON.stringify(m.content))
-      .join('\n\n');
+      .map((m: LlmMessage) =>
+        typeof m.content === "string" ? m.content : JSON.stringify(m.content)
+      )
+      .join("\n\n");
     body.system = systemContent;
   }
 
@@ -108,35 +113,45 @@ export async function callVertexAiClaude(
     let usage: LlmResponse["usage"] | undefined;
     let stopReason: string | undefined;
 
-    await parseSSEStream(reader, (data) => {
-      try {
-        const event = JSON.parse(data);
+    await parseSSEStream(
+      reader,
+      (data) => {
+        try {
+          const event = JSON.parse(data);
 
-        // Claude 流式事件处理
-        if (event.type === "content_block_delta" && event.delta?.type === "text_delta") {
-          const text = event.delta.text;
-          if (text) {
-            fullContent += text;
-            options.onStream!(text);
+          // Claude 流式事件处理
+          if (
+            event.type === "content_block_delta" &&
+            event.delta?.type === "text_delta"
+          ) {
+            const text = event.delta.text;
+            if (text) {
+              fullContent += text;
+              options.onStream!(text);
+            }
+          } else if (event.type === "message_delta") {
+            if (event.delta?.stop_reason) {
+              stopReason = event.delta.stop_reason;
+            }
+            if (event.usage) {
+              usage = {
+                promptTokens: event.usage.input_tokens || 0,
+                completionTokens: event.usage.output_tokens || 0,
+                totalTokens:
+                  (event.usage.input_tokens || 0) +
+                  (event.usage.output_tokens || 0),
+              };
+            }
+          } else if (event.type === "error") {
+            throw new Error(`Vertex AI Claude 错误: ${event.error?.message}`);
           }
-        } else if (event.type === "message_delta") {
-          if (event.delta?.stop_reason) {
-            stopReason = event.delta.stop_reason;
-          }
-          if (event.usage) {
-            usage = {
-              promptTokens: event.usage.input_tokens || 0,
-              completionTokens: event.usage.output_tokens || 0,
-              totalTokens: (event.usage.input_tokens || 0) + (event.usage.output_tokens || 0),
-            };
-          }
-        } else if (event.type === "error") {
-          throw new Error(`Vertex AI Claude 错误: ${event.error?.message}`);
+        } catch (parseError) {
+          logger.warn("解析 Claude 流数据失败", { data, error: parseError });
         }
-      } catch (parseError) {
-        logger.warn("解析 Claude 流数据失败", { data, error: parseError });
-      }
-    }, undefined, options.signal);
+      },
+      undefined,
+      options.signal
+    );
 
     return {
       content: fullContent,
@@ -186,10 +201,11 @@ export async function callVertexAiClaude(
     content: textContent,
     usage: data.usage
       ? {
-        promptTokens: data.usage.input_tokens || 0,
-        completionTokens: data.usage.output_tokens || 0,
-        totalTokens: (data.usage.input_tokens || 0) + (data.usage.output_tokens || 0),
-      }
+          promptTokens: data.usage.input_tokens || 0,
+          completionTokens: data.usage.output_tokens || 0,
+          totalTokens:
+            (data.usage.input_tokens || 0) + (data.usage.output_tokens || 0),
+        }
       : undefined,
     finishReason: data.stop_reason,
     stopSequence: data.stop_sequence,

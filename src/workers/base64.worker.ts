@@ -7,9 +7,9 @@ self.onmessage = async (e: MessageEvent<ArrayBuffer>) => {
   try {
     const arrayBuffer = e.data;
     const base64 = await arrayBufferToBase64(arrayBuffer);
-    self.postMessage({ status: 'success', data: base64 });
+    self.postMessage({ status: "success", data: base64 });
   } catch (error) {
-    self.postMessage({ status: 'error', error: String(error) });
+    self.postMessage({ status: "error", error: String(error) });
   }
 };
 
@@ -21,19 +21,19 @@ function arrayBufferToBase64(buffer: ArrayBuffer): Promise<string> {
   return new Promise((resolve, reject) => {
     const blob = new Blob([buffer]);
     const reader = new FileReader();
-    
+
     reader.onload = () => {
       const dataUrl = reader.result as string;
       // dataUrl 格式为 "data:application/octet-stream;base64,......"
       // 我们只需要逗号后面的部分
-      const base64 = dataUrl.split(',')[1];
+      const base64 = dataUrl.split(",")[1];
       resolve(base64);
     };
-    
+
     reader.onerror = () => {
       reject(reader.error);
     };
-    
+
     reader.readAsDataURL(blob);
   });
 }

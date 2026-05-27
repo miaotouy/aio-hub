@@ -1,4 +1,13 @@
-import { ref, shallowRef, provide, inject, type InjectionKey, type Ref, type ComputedRef, type ShallowRef } from "vue";
+import {
+  ref,
+  shallowRef,
+  provide,
+  inject,
+  type InjectionKey,
+  type Ref,
+  type ComputedRef,
+  type ShallowRef,
+} from "vue";
 import { nanoid } from "nanoid";
 import { useLayerStack } from "./useLayerStack";
 import { useHybridHistory, type HistoryEntry } from "./useHybridHistory";
@@ -75,8 +84,12 @@ export interface EditorSessionRuntime {
   capabilities: CanvasCapabilities;
 
   // 历史应用器（由 SketchPad.vue 注册）
-  historyApplicator: ((entry: HistoryEntry, direction: "undo" | "redo") => void) | null;
-  registerHistoryApplicator(fn: (entry: HistoryEntry, direction: "undo" | "redo") => void): void;
+  historyApplicator:
+    | ((entry: HistoryEntry, direction: "undo" | "redo") => void)
+    | null;
+  registerHistoryApplicator(
+    fn: (entry: HistoryEntry, direction: "undo" | "redo") => void
+  ): void;
 }
 
 export interface CanvasCapabilities {
@@ -120,7 +133,11 @@ export interface EditorSessionActions {
   }): void;
 
   // 图层
-  addLayer(type: "background" | "raster" | "object", name?: string, options?: { fillColor?: string | null }): HybridLayer;
+  addLayer(
+    type: "background" | "raster" | "object",
+    name?: string,
+    options?: { fillColor?: string | null }
+  ): HybridLayer;
   deleteLayer(id: string): boolean;
   toggleVisible(id: string): void;
   toggleLocked(id: string): void;
@@ -182,7 +199,9 @@ export function provideEditorSession(session: EditorSession): EditorSession {
 export function useEditorSession(): EditorSession {
   const session = inject(EDITOR_SESSION_KEY);
   if (!session) {
-    throw new Error("useEditorSession must be used within a SketchPad editor (missing provide)");
+    throw new Error(
+      "useEditorSession must be used within a SketchPad editor (missing provide)"
+    );
   }
   return session;
 }
@@ -329,17 +348,22 @@ export function createEditorSession(): EditorSession {
     },
 
     updateShape(data) {
-      if (data.strokeWidth !== undefined) state.strokeWidth.value = data.strokeWidth;
-      if (data.strokeColor !== undefined) state.strokeColor.value = data.strokeColor;
+      if (data.strokeWidth !== undefined)
+        state.strokeWidth.value = data.strokeWidth;
+      if (data.strokeColor !== undefined)
+        state.strokeColor.value = data.strokeColor;
       if (data.fillColor !== undefined) state.fillColor.value = data.fillColor;
-      if (data.cornerRadius !== undefined) state.cornerRadius.value = data.cornerRadius;
+      if (data.cornerRadius !== undefined)
+        state.cornerRadius.value = data.cornerRadius;
     },
 
     updateText(data) {
       if (data.fontSize !== undefined) state.fontSize.value = data.fontSize;
       if (data.color !== undefined) state.textColor.value = data.color;
-      if (data.fontFamily !== undefined) state.fontFamily.value = data.fontFamily;
-      if (data.fontWeight !== undefined) state.fontWeight.value = data.fontWeight;
+      if (data.fontFamily !== undefined)
+        state.fontFamily.value = data.fontFamily;
+      if (data.fontWeight !== undefined)
+        state.fontWeight.value = data.fontWeight;
       if (data.fontStyle !== undefined) state.fontStyle.value = data.fontStyle;
       if (data.textAlign !== undefined) state.textAlign.value = data.textAlign;
     },
@@ -385,7 +409,11 @@ export function createEditorSession(): EditorSession {
       state.isDirty.value = true;
 
       // 同步对象图层数据模型（让 LayerPanel 实时显示对象列表）
-      if (entry.type === "object-add" || entry.type === "object-remove" || entry.type === "object-reorder") {
+      if (
+        entry.type === "object-add" ||
+        entry.type === "object-remove" ||
+        entry.type === "object-reorder"
+      ) {
         const objectData = runtime.capabilities.collectObjectLayerData();
         const objects = objectData.get(entry.layerId);
         if (objects) {

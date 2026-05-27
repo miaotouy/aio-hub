@@ -1,9 +1,22 @@
 <template>
-  <div class="pre-code-node" :class="[{ 'with-line-numbers': lineNumbers }, theme ? `theme-${theme}` : '']">
-    <div v-if="lineNumbers" class="line-numbers-gutter" :style="dynamicGutterStyle">
+  <div
+    class="pre-code-node"
+    :class="[
+      { 'with-line-numbers': lineNumbers },
+      theme ? `theme-${theme}` : '',
+    ]"
+  >
+    <div
+      v-if="lineNumbers"
+      class="line-numbers-gutter"
+      :style="dynamicGutterStyle"
+    >
       <div v-for="n in lineCount" :key="n" class="line-number">
         <span class="num">{{ n }}</span>
-        <span v-if="theme === 'monaco' || theme === 'codemirror'" class="fold-placeholder"></span>
+        <span
+          v-if="theme === 'monaco' || theme === 'codemirror'"
+          class="fold-placeholder"
+        ></span>
       </div>
     </div>
     <pre class="code-content"><code>{{ content }}</code></pre>
@@ -39,7 +52,9 @@ const dynamicGutterStyle = computed(() => {
   display: flex;
   background-color: transparent;
   /* 匹配 Monaco 和 CodeMirror 的字体栈，优先使用 Windows 常用的 Consolas */
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
   font-size: var(--pre-font-size, 13px);
   line-height: var(--pre-line-height, 1.5);
   tab-size: 4;

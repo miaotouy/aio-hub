@@ -28,7 +28,7 @@
               :percentage="
                 enrichProgress.total > 0
                   ? Math.round(
-                      (enrichProgress.loaded / enrichProgress.total) * 100,
+                      (enrichProgress.loaded / enrichProgress.total) * 100
                     )
                   : 0
               "
@@ -225,7 +225,7 @@ const enrichmentRequirementText = computed(() => {
   return requirements.join("、") || "完整提交数据";
 });
 const estimatedSeconds = computed(() =>
-  Math.max(1, Math.ceil(requiredEnrichHashes.value.length / 10)),
+  Math.max(1, Math.ceil(requiredEnrichHashes.value.length / 10))
 );
 
 // 获取合并后的提交数据（优先使用带文件信息的版本）
@@ -329,7 +329,7 @@ async function downloadFile() {
 function handleSendToChat() {
   const format = exportConfig.value.format;
   const isCodeFormat = ["markdown", "json", "html", "csv", "text"].includes(
-    format,
+    format
   );
 
   sendToChat(previewContent.value, {
@@ -405,7 +405,7 @@ watch(
     if (val) {
       updatePreview();
     }
-  },
+  }
 );
 
 // 监听需要补充数据的导出选项变化，更新预览
@@ -414,7 +414,7 @@ watch(
   () => {
     if (!visible.value) return;
     updatePreview();
-  },
+  }
 );
 
 // 监听 loadingFiles 变化，加载完成后自动刷新预览
@@ -431,7 +431,7 @@ watch(
     if (newPath !== oldPath || newBranch !== oldBranch) {
       previewContent.value = "";
     }
-  },
+  }
 );
 </script>
 

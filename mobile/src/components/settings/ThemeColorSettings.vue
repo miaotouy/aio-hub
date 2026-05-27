@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import { useSettingsStore } from "@/stores/settings";
-import { Check, RotateCcw, Pipette, Palette, ChevronRight } from "lucide-vue-next";
+import {
+  Check,
+  RotateCcw,
+  Pipette,
+  Palette,
+  ChevronRight,
+} from "lucide-vue-next";
 import { Snackbar } from "@varlet/ui";
 import { useI18n } from "vue-i18n";
 
@@ -125,7 +131,9 @@ const colorGroups: ColorGroup[] = [
   },
 ];
 
-const currentThemeColor = computed(() => settingsStore.settings.appearance.themeColor || "#409eff");
+const currentThemeColor = computed(
+  () => settingsStore.settings.appearance.themeColor || "#409eff"
+);
 
 // 获取当前颜色名称
 const currentThemeColorName = computed(() => {
@@ -141,7 +149,9 @@ const currentThemeColorName = computed(() => {
 const selectColor = async (color: string, name?: string) => {
   await settingsStore.updateAppearance({ themeColor: color });
   if (name) {
-    Snackbar.success(t("settings.主题色板.切换成功", { name, color: color.toUpperCase() }));
+    Snackbar.success(
+      t("settings.主题色板.切换成功", { name, color: color.toUpperCase() })
+    );
   }
 };
 
@@ -187,7 +197,10 @@ const showDrawer = ref(false);
       </div>
       <template #extra>
         <div class="current-color-preview">
-          <div class="color-dot" :style="{ backgroundColor: currentThemeColor }"></div>
+          <div
+            class="color-dot"
+            :style="{ backgroundColor: currentThemeColor }"
+          ></div>
           <ChevronRight :size="20" class="text-hint" />
         </div>
       </template>
@@ -218,23 +231,38 @@ const showDrawer = ref(false);
           <!-- 当前选中预览 -->
           <div class="current-preview-card">
             <div class="preview-info">
-              <div class="preview-label">{{ t("settings.主题色板.当前主题色") }}</div>
+              <div class="preview-label">
+                {{ t("settings.主题色板.当前主题色") }}
+              </div>
               <div class="preview-value">
                 <span class="color-name">{{ currentThemeColorName }}</span>
-                <span class="color-hex">{{ currentThemeColor.toUpperCase() }}</span>
+                <span class="color-hex">{{
+                  currentThemeColor.toUpperCase()
+                }}</span>
               </div>
             </div>
-            <div class="preview-dot" :style="{ backgroundColor: currentThemeColor }"></div>
+            <div
+              class="preview-dot"
+              :style="{ backgroundColor: currentThemeColor }"
+            ></div>
           </div>
 
-          <div v-for="group in colorGroups" :key="group.label" class="color-group">
+          <div
+            v-for="group in colorGroups"
+            :key="group.label"
+            class="color-group"
+          >
             <div class="group-header">
               <span class="group-title">{{ group.label }}</span>
               <span class="group-desc">{{ group.description }}</span>
             </div>
 
             <div class="preset-grid">
-              <div v-for="preset in group.presets" :key="preset.color" class="color-swatch-wrapper">
+              <div
+                v-for="preset in group.presets"
+                :key="preset.color"
+                class="color-swatch-wrapper"
+              >
                 <var-tooltip :content="preset.name">
                   <button
                     class="color-swatch"
@@ -243,7 +271,10 @@ const showDrawer = ref(false);
                   >
                     <Transition name="fade">
                       <Check
-                        v-if="currentThemeColor.toLowerCase() === preset.color.toLowerCase()"
+                        v-if="
+                          currentThemeColor.toLowerCase() ===
+                          preset.color.toLowerCase()
+                        "
                         :size="16"
                         class="check-icon"
                       />
@@ -265,8 +296,16 @@ const showDrawer = ref(false);
       @confirm="handleCustomColorApply"
     >
       <div class="custom-picker-content">
-        <div class="preview-box" :style="{ backgroundColor: customColor }"></div>
-        <var-input v-model="customColor" placeholder="#RRGGBB" maxlength="7" variant="standard">
+        <div
+          class="preview-box"
+          :style="{ backgroundColor: customColor }"
+        ></div>
+        <var-input
+          v-model="customColor"
+          placeholder="#RRGGBB"
+          maxlength="7"
+          variant="standard"
+        >
           <template #prepend-icon>
             <input type="color" v-model="customColor" class="native-picker" />
           </template>

@@ -11,33 +11,33 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
-import Viewer from 'viewerjs'
+import { ref, onMounted, onBeforeUnmount, watch } from "vue";
+import Viewer from "viewerjs";
 
 export interface ImageViewerProps {
   /** 图片列表 */
-  images?: string[]
+  images?: string[];
   /** 初始显示的图片索引 */
-  initialIndex?: number
+  initialIndex?: number;
   /** viewer.js 配置选项 */
-  options?: Viewer.Options
+  options?: Viewer.Options;
 }
 
 const props = withDefaults(defineProps<ImageViewerProps>(), {
   images: () => [],
   initialIndex: 0,
-  options: () => ({})
-})
+  options: () => ({}),
+});
 
 const emit = defineEmits<{
   /** 查看器关闭事件 */
-  close: []
+  close: [];
   /** 图片切换事件 */
-  change: [index: number]
-}>()
+  change: [index: number];
+}>();
 
-const containerRef = ref<HTMLElement>()
-let viewerInstance: Viewer | null = null
+const containerRef = ref<HTMLElement>();
+let viewerInstance: Viewer | null = null;
 
 // Viewer.js 默认配置
 const defaultOptions: Viewer.Options = {
@@ -53,13 +53,13 @@ const defaultOptions: Viewer.Options = {
     prev: 1,
     play: {
       show: 1,
-      size: 'large'
+      size: "large",
     },
     next: 1,
     rotateLeft: 1,
     rotateRight: 1,
     flipHorizontal: 1,
-    flipVertical: 1
+    flipVertical: 1,
   },
   tooltip: true, // 显示缩放百分比
   movable: true, // 可拖动
@@ -69,17 +69,17 @@ const defaultOptions: Viewer.Options = {
   transition: true, // 使用 CSS3 过渡
   fullscreen: true, // 支持全屏
   keyboard: true, // 支持键盘操作
-  url: 'src', // 大图 URL 属性
-  
+  url: "src", // 大图 URL 属性
+
   // 事件回调
   viewed(event: CustomEvent) {
-    const index = event.detail.index
-    emit('change', index)
+    const index = event.detail.index;
+    emit("change", index);
   },
   hide() {
-    emit('close')
-  }
-}
+    emit("close");
+  },
+};
 
 /**
  * 初始化 Viewer 实例
@@ -91,23 +91,23 @@ const initViewer = () => {
       ...props.options,
       toolbar: {
         ...(defaultOptions.toolbar as Record<string, any>),
-        ...((props.options?.toolbar as Record<string, any>) || {})
-      }
-    }
-    
-    viewerInstance = new Viewer(containerRef.value, mergedOptions)
+        ...((props.options?.toolbar as Record<string, any>) || {}),
+      },
+    };
+
+    viewerInstance = new Viewer(containerRef.value, mergedOptions);
   }
-}
+};
 
 /**
  * 销毁 Viewer 实例
  */
 const destroyViewer = () => {
   if (viewerInstance) {
-    viewerInstance.destroy()
-    viewerInstance = null
+    viewerInstance.destroy();
+    viewerInstance = null;
   }
-}
+};
 
 /**
  * 显示图片查看器
@@ -115,36 +115,36 @@ const destroyViewer = () => {
  */
 const show = (index = props.initialIndex) => {
   if (viewerInstance) {
-    viewerInstance.view(index)
+    viewerInstance.view(index);
   }
-}
+};
 
 /**
  * 隐藏图片查看器
  */
 const hide = () => {
   if (viewerInstance) {
-    viewerInstance.hide()
+    viewerInstance.hide();
   }
-}
+};
 
 /**
  * 显示上一张图片
  */
 const prev = () => {
   if (viewerInstance) {
-    viewerInstance.prev()
+    viewerInstance.prev();
   }
-}
+};
 
 /**
  * 显示下一张图片
  */
 const next = () => {
   if (viewerInstance) {
-    viewerInstance.next()
+    viewerInstance.next();
   }
-}
+};
 
 /**
  * 放大图片
@@ -152,9 +152,9 @@ const next = () => {
  */
 const zoomIn = (ratio = 0.1) => {
   if (viewerInstance) {
-    viewerInstance.zoom(ratio)
+    viewerInstance.zoom(ratio);
   }
-}
+};
 
 /**
  * 缩小图片
@@ -162,18 +162,18 @@ const zoomIn = (ratio = 0.1) => {
  */
 const zoomOut = (ratio = -0.1) => {
   if (viewerInstance) {
-    viewerInstance.zoom(ratio)
+    viewerInstance.zoom(ratio);
   }
-}
+};
 
 /**
  * 重置图片
  */
 const reset = () => {
   if (viewerInstance) {
-    viewerInstance.reset()
+    viewerInstance.reset();
   }
-}
+};
 
 /**
  * 旋转图片
@@ -181,27 +181,27 @@ const reset = () => {
  */
 const rotate = (degree = 90) => {
   if (viewerInstance) {
-    viewerInstance.rotate(degree)
+    viewerInstance.rotate(degree);
   }
-}
+};
 
 /**
  * 进入全屏模式
  */
 const fullscreen = () => {
   if (viewerInstance) {
-    viewerInstance.full()
+    viewerInstance.full();
   }
-}
+};
 
 /**
  * 更新图片列表
  */
 const update = () => {
   if (viewerInstance) {
-    viewerInstance.update()
+    viewerInstance.update();
   }
-}
+};
 
 // 暴露方法给父组件
 defineExpose({
@@ -214,30 +214,34 @@ defineExpose({
   reset,
   rotate,
   fullscreen,
-  update
-})
+  update,
+});
 
 // 监听图片列表变化，重新初始化
-watch(() => props.images, () => {
-  destroyViewer()
-  initViewer()
-}, { deep: true })
+watch(
+  () => props.images,
+  () => {
+    destroyViewer();
+    initViewer();
+  },
+  { deep: true }
+);
 
 onMounted(() => {
-  initViewer()
-  
+  initViewer();
+
   // 组件挂载后如果有初始索引，自动显示
   if (props.images.length > 0 && props.initialIndex >= 0) {
     // 延迟一下确保 DOM 渲染完成
     setTimeout(() => {
-      show(props.initialIndex)
-    }, 100)
+      show(props.initialIndex);
+    }, 100);
   }
-})
+});
 
 onBeforeUnmount(() => {
-  destroyViewer()
-})
+  destroyViewer();
+});
 </script>
 
 <style scoped>
@@ -259,5 +263,4 @@ onBeforeUnmount(() => {
   top: var(--titlebar-height, 36px) !important;
   height: calc(100vh - var(--titlebar-height, 36px)) !important;
 }
-
 </style>

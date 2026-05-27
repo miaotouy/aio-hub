@@ -15,12 +15,18 @@ export function useHistoryApplicator(session: EditorSession) {
   /**
    * 应用一条历史记录（撤销或重做方向）
    */
-  function applyHistoryEntry(entry: HistoryEntry, direction: "undo" | "redo"): void {
+  function applyHistoryEntry(
+    entry: HistoryEntry,
+    direction: "undo" | "redo"
+  ): void {
     const stage = runtime.capabilities.getStage();
     const canvases = runtime.capabilities.getCanvases();
 
     if (!stage) {
-      logger.warn("applyHistoryEntry: stage 不可用", { type: entry.type, direction });
+      logger.warn("applyHistoryEntry: stage 不可用", {
+        type: entry.type,
+        direction,
+      });
       return;
     }
 
@@ -73,7 +79,7 @@ export function useHistoryApplicator(session: EditorSession) {
     entry: Extract<HistoryEntry, { type: "raster-pixels" }>,
     direction: "undo" | "redo",
     canvases: Map<string, HTMLCanvasElement>,
-    stage: Konva.Stage,
+    stage: Konva.Stage
   ): void {
     const canvas = canvases.get(entry.layerId);
     const ctx = canvas?.getContext("2d");
@@ -87,7 +93,7 @@ export function useHistoryApplicator(session: EditorSession) {
   function applyObjectAdd(
     entry: Extract<HistoryEntry, { type: "object-add" }>,
     direction: "undo" | "redo",
-    stage: Konva.Stage,
+    stage: Konva.Stage
   ): void {
     const konvaLayer = stage.findOne(`#${entry.layerId}`) as Konva.Layer;
     if (!konvaLayer) return;
@@ -108,7 +114,7 @@ export function useHistoryApplicator(session: EditorSession) {
   function applyObjectRemove(
     entry: Extract<HistoryEntry, { type: "object-remove" }>,
     direction: "undo" | "redo",
-    stage: Konva.Stage,
+    stage: Konva.Stage
   ): void {
     const konvaLayer = stage.findOne(`#${entry.layerId}`) as Konva.Layer;
     if (!konvaLayer) return;
@@ -129,7 +135,7 @@ export function useHistoryApplicator(session: EditorSession) {
   function applyObjectModify(
     entry: Extract<HistoryEntry, { type: "object-modify" }>,
     direction: "undo" | "redo",
-    stage: Konva.Stage,
+    stage: Konva.Stage
   ): void {
     const konvaLayer = stage.findOne(`#${entry.layerId}`) as Konva.Layer;
     if (!konvaLayer) return;
@@ -158,7 +164,7 @@ export function useHistoryApplicator(session: EditorSession) {
   function applyObjectReorder(
     entry: Extract<HistoryEntry, { type: "object-reorder" }>,
     direction: "undo" | "redo",
-    stage: Konva.Stage,
+    stage: Konva.Stage
   ): void {
     const konvaLayer = stage.findOne(`#${entry.layerId}`) as Konva.Layer;
     if (!konvaLayer) return;
@@ -176,7 +182,7 @@ export function useHistoryApplicator(session: EditorSession) {
 
   function applyLayerAdd(
     entry: Extract<HistoryEntry, { type: "layer-add" }>,
-    direction: "undo" | "redo",
+    direction: "undo" | "redo"
   ): void {
     if (direction === "undo") {
       actions.deleteLayer(entry.layer.id);
@@ -190,7 +196,7 @@ export function useHistoryApplicator(session: EditorSession) {
     entry: Extract<HistoryEntry, { type: "layer-remove" }>,
     direction: "undo" | "redo",
     canvases: Map<string, HTMLCanvasElement>,
-    stage: Konva.Stage,
+    stage: Konva.Stage
   ): void {
     if (direction === "undo") {
       state.layers.value.splice(entry.index, 0, entry.layer);
@@ -216,7 +222,7 @@ export function useHistoryApplicator(session: EditorSession) {
 
   function applyLayerReorder(
     entry: Extract<HistoryEntry, { type: "layer-reorder" }>,
-    direction: "undo" | "redo",
+    direction: "undo" | "redo"
   ): void {
     const order = direction === "undo" ? entry.before : entry.after;
     actions.reorderLayers(order);
@@ -224,7 +230,7 @@ export function useHistoryApplicator(session: EditorSession) {
 
   function applyLayerModify(
     entry: Extract<HistoryEntry, { type: "layer-modify" }>,
-    direction: "undo" | "redo",
+    direction: "undo" | "redo"
   ): void {
     const layer = state.layers.value.find((l) => l.id === entry.layerId);
     if (layer) {
@@ -237,7 +243,7 @@ export function useHistoryApplicator(session: EditorSession) {
     entry: Extract<HistoryEntry, { type: "layer-rasterize" }>,
     direction: "undo" | "redo",
     canvases: Map<string, HTMLCanvasElement>,
-    stage: Konva.Stage,
+    stage: Konva.Stage
   ): void {
     if (direction === "undo") {
       actions.replaceLayer(entry.afterLayer.id, entry.beforeLayer);

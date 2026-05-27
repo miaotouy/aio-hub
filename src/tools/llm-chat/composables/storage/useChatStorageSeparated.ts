@@ -3,7 +3,12 @@
  * 使用 ConfigManager 管理索引文件，每个会话存储为独立文件
  */
 
-import { exists, readTextFile, writeTextFile, remove } from "@tauri-apps/plugin-fs";
+import {
+  exists,
+  readTextFile,
+  writeTextFile,
+  remove,
+} from "@tauri-apps/plugin-fs";
 import { join } from "@tauri-apps/api/path";
 import { getAppConfigDir } from "@/utils/appPath";
 import { createConfigManager } from "@/utils/configManager";
@@ -79,7 +84,9 @@ export function useChatStorageSeparated() {
   /**
    * 加载单个会话
    */
-  async function loadSession(sessionId: string): Promise<{ index: ChatSessionIndex, detail: ChatSessionDetail } | null> {
+  async function loadSession(
+    sessionId: string
+  ): Promise<{ index: ChatSessionIndex; detail: ChatSessionDetail } | null> {
     try {
       const sessionPath = await getSessionPath(sessionId);
       const sessionExists = await exists(sessionPath);
@@ -97,7 +104,9 @@ export function useChatStorageSeparated() {
         id: fullData.id,
         name: fullData.name,
         displayAgentId: fullData.displayAgentId,
-        messageCount: fullData.nodes ? Object.keys(fullData.nodes).length - 1 : (fullData.messageCount || 0),
+        messageCount: fullData.nodes
+          ? Object.keys(fullData.nodes).length - 1
+          : fullData.messageCount || 0,
         createdAt: fullData.createdAt,
         updatedAt: fullData.updatedAt,
       };
@@ -105,8 +114,8 @@ export function useChatStorageSeparated() {
       const detail: ChatSessionDetail = {
         id: fullData.id,
         nodes: fullData.nodes || {},
-        rootNodeId: fullData.rootNodeId || '',
-        activeLeafId: fullData.activeLeafId || '',
+        rootNodeId: fullData.rootNodeId || "",
+        activeLeafId: fullData.activeLeafId || "",
         updatedAt: fullData.updatedAt || fullData.createdAt,
         parameterOverrides: fullData.parameterOverrides,
         history: fullData.history || [],
@@ -145,7 +154,7 @@ export function useChatStorageSeparated() {
    */
   async function saveSession(
     session: ChatSessionIndex & ChatSessionDetail,
-    forceWrite: boolean = false,
+    forceWrite: boolean = false
   ): Promise<void> {
     try {
       await indexManager.ensureModuleDir(); // 使用 ConfigManager 确保模块目录存在
@@ -165,12 +174,16 @@ export function useChatStorageSeparated() {
             const oldContent = await readTextFile(sessionPath);
             // 内容相同则跳过写入
             if (oldContent === newContent) {
-              logger.debug("会话内容未变化，跳过写入", { sessionId: session.id });
+              logger.debug("会话内容未变化，跳过写入", {
+                sessionId: session.id,
+              });
               return;
             }
           } catch (readError) {
             // 读取失败则继续写入
-            logger.warn("读取现有会话文件失败，继续写入", { sessionId: session.id });
+            logger.warn("读取现有会话文件失败，继续写入", {
+              sessionId: session.id,
+            });
           }
         }
       }
@@ -235,7 +248,10 @@ export function useChatStorageSeparated() {
       logger.debug("扫描会话目录完成", { count: sessionIds.length });
       return sessionIds;
     } catch (error) {
-      errorHandler.handle(error as Error, { userMessage: "扫描会话目录失败", showToUser: false });
+      errorHandler.handle(error as Error, {
+        userMessage: "扫描会话目录失败",
+        showToUser: false,
+      });
       return [];
     }
   }
@@ -243,10 +259,14 @@ export function useChatStorageSeparated() {
   /**
    * 从会话创建索引项
    */
-  function createIndexItem(session: ChatSessionIndex & Partial<ChatSessionDetail>): ChatSessionIndex {
+  function createIndexItem(
+    session: ChatSessionIndex & Partial<ChatSessionDetail>
+  ): ChatSessionIndex {
     // 核心修复：只有在 nodes 存在时才重新计算计数
     // 如果 nodes 不存在（详情未加载），必须保留原有的 messageCount，否则会因为 Object.keys({}).length - 1 变成 -1
-    const messageCount = session.nodes ? Math.max(0, Object.keys(session.nodes).length - 1) : session.messageCount || 0;
+    const messageCount = session.nodes
+      ? Math.max(0, Object.keys(session.nodes).length - 1)
+      : session.messageCount || 0;
 
     return {
       id: session.id,
@@ -321,7 +341,10 @@ export function useChatStorageSeparated() {
         const oldIds = (index as unknown as LegacyIndex).sessionIds as string[];
         const sessions = await Promise.all(oldIds.map((id) => loadSession(id)));
         index.sessions = sessions
-          .filter((s): s is { index: ChatSessionIndex; detail: ChatSessionDetail } => s !== null)
+          .filter(
+            (s): s is { index: ChatSessionIndex; detail: ChatSessionDetail } =>
+              s !== null
+          )
           .map((s) => createIndexItem({ ...s.index, ...s.detail }));
         index.version = "1.1.2";
         await saveIndex(index);
@@ -345,7 +368,10 @@ export function useChatStorageSeparated() {
         currentSessionId: index.currentSessionId,
       };
     } catch (error) {
-      errorHandler.handle(error as Error, { userMessage: "加载会话索引失败", showToUser: false });
+      errorHandler.handle(error as Error, {
+        userMessage: "加载会话索引失败",
+        showToUser: false,
+      });
       return { sessions: [], currentSessionId: null };
     }
   }
@@ -362,19 +388,25 @@ export function useChatStorageSeparated() {
       logger.debug("开始全量加载所有会话");
 
       // 1. 先加载索引元数据
-      const { sessions: indexItems, currentSessionId } = await loadSessionsIndex();
+      const { sessions: indexItems, currentSessionId } =
+        await loadSessionsIndex();
 
       // 2. 并行加载所有会话的完整数据
       const sessionPromises = indexItems.map((item) => loadSession(item.id));
       const sessionResults = await Promise.all(sessionPromises);
 
       // 3. 过滤掉加载失败的会话
-      const sessions = sessionResults.filter((s): s is { index: ChatSessionIndex; detail: ChatSessionDetail } => s !== null);
+      const sessions = sessionResults.filter(
+        (s): s is { index: ChatSessionIndex; detail: ChatSessionDetail } =>
+          s !== null
+      );
 
       // 4. 验证数据格式：检查是否是树形结构
       const validSessions = sessions.filter(
         (session) =>
-          session.detail.nodes !== undefined && session.detail.rootNodeId !== undefined && session.detail.activeLeafId !== undefined,
+          session.detail.nodes !== undefined &&
+          session.detail.rootNodeId !== undefined &&
+          session.detail.activeLeafId !== undefined
       );
 
       logger.info(`全量加载了 ${validSessions.length} 个会话`);
@@ -384,7 +416,10 @@ export function useChatStorageSeparated() {
         currentSessionId,
       };
     } catch (error) {
-      errorHandler.handle(error as Error, { userMessage: "全量加载会话失败", showToUser: false });
+      errorHandler.handle(error as Error, {
+        userMessage: "全量加载会话失败",
+        showToUser: false,
+      });
       return { sessions: [], currentSessionId: null };
     }
   }
@@ -404,7 +439,7 @@ export function useChatStorageSeparated() {
   async function persistSession(
     indexItem: ChatSessionIndex,
     detail: ChatSessionDetail,
-    currentSessionId: string | null,
+    currentSessionId: string | null
   ): Promise<void> {
     try {
       logger.debug("保存单个会话", { sessionId: indexItem.id });
@@ -419,7 +454,9 @@ export function useChatStorageSeparated() {
       index.currentSessionId = currentSessionId;
 
       // 更新或添加当前会话的索引项
-      const sessionIndex = index.sessions.findIndex((s) => s.id === indexItem.id);
+      const sessionIndex = index.sessions.findIndex(
+        (s) => s.id === indexItem.id
+      );
       const newIndexItem = createIndexItem(fullSession);
 
       if (sessionIndex >= 0) {
@@ -446,7 +483,7 @@ export function useChatStorageSeparated() {
    */
   async function saveSessions(
     sessions: Array<{ index: ChatSessionIndex; detail?: ChatSessionDetail }>,
-    currentSessionId: string | null,
+    currentSessionId: string | null
   ): Promise<void> {
     try {
       // 过滤掉详情未加载的会话，防止空数据覆盖磁盘文件
@@ -460,13 +497,17 @@ export function useChatStorageSeparated() {
       });
 
       // 1. 并行保存已加载详情的会话文件（强制写入）
-      await Promise.all(sessionsWithDetails.map((session) => saveSession(session, true)));
+      await Promise.all(
+        sessionsWithDetails.map((session) => saveSession(session, true))
+      );
 
       // 2. 更新索引（保存元数据）
       const index: SessionsIndex = {
         version: "1.1.2",
         currentSessionId,
-        sessions: sessions.map((s) => createIndexItem({ ...s.index, ...s.detail })),
+        sessions: sessions.map((s) =>
+          createIndexItem({ ...s.index, ...s.detail })
+        ),
       };
 
       await saveIndex(index);
@@ -518,7 +559,9 @@ export function useChatStorageSeparated() {
   /**
    * 更新当前会话 ID（轻量级操作，只更新索引）
    */
-  async function updateCurrentSessionId(currentSessionId: string | null): Promise<void> {
+  async function updateCurrentSessionId(
+    currentSessionId: string | null
+  ): Promise<void> {
     try {
       const index = await loadIndex();
       index.currentSessionId = currentSessionId;
@@ -541,16 +584,19 @@ export function useChatStorageSeparated() {
     return useDebounceFn(
       async (
         sessions: Array<{ index: ChatSessionIndex; detail: ChatSessionDetail }>,
-        currentSessionId: string | null,
+        currentSessionId: string | null
       ) => {
         try {
           await saveSessions(sessions, currentSessionId);
           logger.debug("防抖保存完成", { delay });
         } catch (error) {
-          errorHandler.handle(error as Error, { userMessage: "防抖保存失败", showToUser: false });
+          errorHandler.handle(error as Error, {
+            userMessage: "防抖保存失败",
+            showToUser: false,
+          });
         }
       },
-      delay,
+      delay
     );
   }
 
@@ -561,7 +607,9 @@ export function useChatStorageSeparated() {
   async function repairIndex(): Promise<{ repairedCount: number }> {
     try {
       const index = await loadIndex();
-      const damagedItems = index.sessions.filter((item) => item.messageCount < 0);
+      const damagedItems = index.sessions.filter(
+        (item) => item.messageCount < 0
+      );
 
       if (damagedItems.length === 0) {
         return { repairedCount: 0 };
@@ -575,7 +623,10 @@ export function useChatStorageSeparated() {
           // 加载完整会话以重新计算计数
           const session = await loadSession(item.id);
           if (session && session.detail.nodes) {
-            const newItem = createIndexItem({ ...session.index, ...session.detail });
+            const newItem = createIndexItem({
+              ...session.index,
+              ...session.detail,
+            });
             const idx = index.sessions.findIndex((s) => s.id === item.id);
             if (idx !== -1) {
               index.sessions[idx] = newItem;

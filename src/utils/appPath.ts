@@ -26,10 +26,15 @@ export async function getAppConfigDir(): Promise<string> {
     try {
       const configDir = await invoke<string>("get_app_config_dir");
       cachedConfigDir = configDir;
-      console.debug("[AppPath] 已通过后端获取应用配置目录", { path: configDir });
+      console.debug("[AppPath] 已通过后端获取应用配置目录", {
+        path: configDir,
+      });
       return configDir;
     } catch (error) {
-      console.warn("[AppPath] 通过后端获取应用配置目录失败，将使用默认路径", error);
+      console.warn(
+        "[AppPath] 通过后端获取应用配置目录失败，将使用默认路径",
+        error
+      );
       const defaultDir = await appDataDir();
       cachedConfigDir = defaultDir;
       return defaultDir;

@@ -1,10 +1,22 @@
-import { ref, shallowRef, reactive, onBeforeUnmount, watch, onMounted } from "vue";
+import {
+  ref,
+  shallowRef,
+  reactive,
+  onBeforeUnmount,
+  watch,
+  onMounted,
+} from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { MpcBeClient } from "../core/mpcBeApi";
 import { createConfigManager } from "@/utils/configManager";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import type { PlayerWindowInfo, ExternalPlayerConfig, OverlayState, MpcBeStatus } from "../types";
+import type {
+  PlayerWindowInfo,
+  ExternalPlayerConfig,
+  OverlayState,
+  MpcBeStatus,
+} from "../types";
 
 const logger = createModuleLogger("danmaku-player/externalPlayer");
 const errorHandler = createModuleErrorHandler("danmaku-player/externalPlayer");
@@ -36,7 +48,9 @@ const configManager = createConfigManager<ExternalPlayerConfig>({
 
 export function useExternalPlayer() {
   const playerWindows = ref<PlayerWindowInfo[]>([]);
-  const playerConfig = reactive<ExternalPlayerConfig>({ ...DEFAULT_PLAYER_CONFIG });
+  const playerConfig = reactive<ExternalPlayerConfig>({
+    ...DEFAULT_PLAYER_CONFIG,
+  });
   const overlayState = reactive<OverlayState>({ ...DEFAULT_OVERLAY_STATE });
   const mpcClient = shallowRef<MpcBeClient | null>(null);
   const scanning = ref(false);
@@ -57,14 +71,16 @@ export function useExternalPlayer() {
         mpcClient.value.setPort(newConfig.webPort);
       }
     },
-    { deep: true },
+    { deep: true }
   );
 
   /**
    * 扫描播放器窗口。
    * @param className 指定 Win32 类名过滤；不传则列出所有可见顶层窗口，供用户手动选择。
    */
-  async function scanPlayerWindows(classNames?: string[]): Promise<PlayerWindowInfo[]> {
+  async function scanPlayerWindows(
+    classNames?: string[]
+  ): Promise<PlayerWindowInfo[]> {
     scanning.value = true;
 
     try {
@@ -73,7 +89,10 @@ export function useExternalPlayer() {
       });
 
       playerWindows.value = windows;
-      logger.info("播放器窗口扫描完成", { count: windows.length, filter: classNames ?? "ALL" });
+      logger.info("播放器窗口扫描完成", {
+        count: windows.length,
+        filter: classNames ?? "ALL",
+      });
       return windows;
     } catch (error) {
       errorHandler.error(error, "扫描播放器窗口失败", { classNames });

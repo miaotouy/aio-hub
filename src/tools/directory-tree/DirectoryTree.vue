@@ -58,7 +58,10 @@ import ResultPanel from "./components/ResultPanel.vue";
 import { useDirectoryTreeState } from "./composables/useDirectoryTreeState";
 import { usePathHistory } from "./composables/usePathHistory";
 import { useTreeRenderer } from "./composables/useTreeRenderer";
-import { selectDirectory as selectDirectoryAction, exportToFile as exportToFileAction } from "./actions";
+import {
+  selectDirectory as selectDirectoryAction,
+  exportToFile as exportToFileAction,
+} from "./actions";
 
 const errorHandler = createModuleErrorHandler("tools/directory-tree");
 const { sendToChat } = useSendToChat();

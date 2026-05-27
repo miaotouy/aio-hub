@@ -3,7 +3,13 @@ import { ref, computed, onMounted, onUnmounted, nextTick, watch } from "vue";
 import { throttle } from "lodash-es";
 import { logger, LogLevel, type LogEntry } from "@/utils/logger";
 import { useI18n } from "@/i18n";
-import { Trash2, Download, Copy, Search, ArrowDownCircle } from "lucide-vue-next";
+import {
+  Trash2,
+  Download,
+  Copy,
+  Search,
+  ArrowDownCircle,
+} from "lucide-vue-next";
 import LogEntryItem from "../components/LogEntryItem.vue";
 import { Snackbar, Dialog } from "@varlet/ui";
 
@@ -34,7 +40,8 @@ const filteredLogs = computed(() => {
       log.message.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
       log.module.toLowerCase().includes(searchQuery.value.toLowerCase());
 
-    const matchesLevel = selectedLevel.value === "ALL" || log.level === selectedLevel.value;
+    const matchesLevel =
+      selectedLevel.value === "ALL" || log.level === selectedLevel.value;
 
     return matchesSearch && matchesLevel;
   });
@@ -174,7 +181,12 @@ watch([searchQuery, selectedLevel], () => {
 
     <!-- 底部操作栏 -->
     <div class="footer-actions">
-      <var-button type="primary" mode="text" :elevation="0" @click="handleClear">
+      <var-button
+        type="primary"
+        mode="text"
+        :elevation="0"
+        @click="handleClear"
+      >
         <template #default>
           <div class="btn-content">
             <Trash2 :size="18" />
@@ -182,7 +194,12 @@ watch([searchQuery, selectedLevel], () => {
           </div>
         </template>
       </var-button>
-      <var-button type="primary" mode="text" :elevation="0" @click="handleExport">
+      <var-button
+        type="primary"
+        mode="text"
+        :elevation="0"
+        @click="handleExport"
+      >
         <template #default>
           <div class="btn-content">
             <Download :size="18" />
@@ -190,7 +207,12 @@ watch([searchQuery, selectedLevel], () => {
           </div>
         </template>
       </var-button>
-      <var-button type="primary" mode="text" :elevation="0" @click="handleCopyAll">
+      <var-button
+        type="primary"
+        mode="text"
+        :elevation="0"
+        @click="handleCopyAll"
+      >
         <template #default>
           <div class="btn-content">
             <Copy :size="18" />

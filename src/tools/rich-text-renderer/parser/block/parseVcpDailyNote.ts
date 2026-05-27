@@ -32,7 +32,10 @@ export function parseVcpDailyNote(
         closed,
       },
       children,
-      meta: { range: { start: 0, end: 0 }, status: closed ? "stable" : "pending" },
+      meta: {
+        range: { start: 0, end: 0 },
+        status: closed ? "stable" : "pending",
+      },
     },
     nextIndex: start + 1,
   };

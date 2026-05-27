@@ -4,7 +4,12 @@
       :model-combo="modelCombo"
       empty-text="未配置默认 Embedding 模型"
     />
-    <el-button type="primary" link @click="goToKnowledgeBase" class="config-link-btn">
+    <el-button
+      type="primary"
+      link
+      @click="goToKnowledgeBase"
+      class="config-link-btn"
+    >
       前往知识库配置 →
     </el-button>
   </div>

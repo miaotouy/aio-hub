@@ -12,7 +12,11 @@
       <div class="detail-header">
         <h3>请求详情</h3>
         <div class="header-actions">
-          <button @click="copyAll" class="btn-copy" :title="maskApiKeys ? '复制全部（API Key将被打码）' : '复制全部'">
+          <button
+            @click="copyAll"
+            class="btn-copy"
+            :title="maskApiKeys ? '复制全部（API Key将被打码）' : '复制全部'"
+          >
             📋 复制全部
             <span v-if="maskApiKeys" class="mask-indicator">🔒</span>
           </button>
@@ -35,17 +39,29 @@
             </div>
             <div class="info-item">
               <label>时间：</label>
-              <span>{{ new Date(record.request.timestamp).toLocaleString() }}</span>
+              <span>{{
+                new Date(record.request.timestamp).toLocaleString()
+              }}</span>
             </div>
           </div>
 
           <div class="subsection">
             <div class="subsection-header">
               <h5>请求头</h5>
-              <button @click="copyRequestHeaders" class="btn-copy-small" title="复制请求头">📋</button>
+              <button
+                @click="copyRequestHeaders"
+                class="btn-copy-small"
+                title="复制请求头"
+              >
+                📋
+              </button>
             </div>
             <div class="headers-list">
-              <div v-for="(value, key) in record.request.headers" :key="key" class="header-item">
+              <div
+                v-for="(value, key) in record.request.headers"
+                :key="key"
+                class="header-item"
+              >
                 <span class="header-key">{{ key }}:</span>
                 <span class="header-value">{{ value }}</span>
               </div>
@@ -55,10 +71,18 @@
           <div v-if="record.request.body" class="subsection">
             <div class="subsection-header">
               <h5>请求体</h5>
-              <button @click="copyRequestBody" class="btn-copy-small" title="复制请求体">📋</button>
+              <button
+                @click="copyRequestBody"
+                class="btn-copy-small"
+                title="复制请求体"
+              >
+                📋
+              </button>
             </div>
             <div class="body-content">
-              <pre v-if="isJson(record.request.body)">{{ formatJson(record.request.body) }}</pre>
+              <pre v-if="isJson(record.request.body)">{{
+                formatJson(record.request.body)
+              }}</pre>
               <pre v-else>{{ record.request.body }}</pre>
             </div>
           </div>
@@ -70,7 +94,12 @@
           <div class="info-grid" v-if="record.response">
             <div class="info-item">
               <label>状态码：</label>
-              <span :class="['status-badge', getStatusClass(record.response.status)]">
+              <span
+                :class="[
+                  'status-badge',
+                  getStatusClass(record.response.status),
+                ]"
+              >
                 {{ record.response.status }}
               </span>
             </div>
@@ -93,38 +122,77 @@
           <div class="subsection" v-if="record.response">
             <div class="subsection-header">
               <h5>响应头</h5>
-              <button @click="copyResponseHeaders" class="btn-copy-small" title="复制响应头">📋</button>
+              <button
+                @click="copyResponseHeaders"
+                class="btn-copy-small"
+                title="复制响应头"
+              >
+                📋
+              </button>
             </div>
             <div class="headers-list">
-              <div v-for="(value, key) in record.response.headers" :key="key" class="header-item">
+              <div
+                v-for="(value, key) in record.response.headers"
+                :key="key"
+                class="header-item"
+              >
                 <span class="header-key">{{ key }}:</span>
                 <span class="header-value">{{ value }}</span>
               </div>
             </div>
           </div>
 
-          <div v-if="(record.response && record.response.body) || isStreamingActive" class="subsection">
+          <div
+            v-if="
+              (record.response && record.response.body) || isStreamingActive
+            "
+            class="subsection"
+          >
             <div class="subsection-header">
               <h5>响应体</h5>
               <div class="response-controls">
-                <span v-if="isStreamingResponse" class="stream-badge" :class="{ active: isStreamingActive }">
-                  {{ isStreamingActive ? '🔴 实时接收中' : '🔄 流式响应' }}
+                <span
+                  v-if="isStreamingResponse"
+                  class="stream-badge"
+                  :class="{ active: isStreamingActive }"
+                >
+                  {{ isStreamingActive ? "🔴 实时接收中" : "🔄 流式响应" }}
                 </span>
 
                 <!-- 显示模式切换 -->
                 <div class="view-mode-toggle">
-                  <button @click="viewMode = 'raw'" class="mode-btn" :class="{ active: viewMode === 'raw' }" title="原始格式">
+                  <button
+                    @click="viewMode = 'raw'"
+                    class="mode-btn"
+                    :class="{ active: viewMode === 'raw' }"
+                    title="原始格式"
+                  >
                     原始
                   </button>
-                  <button @click="viewMode = 'text'" class="mode-btn" :class="{ active: viewMode === 'text' }" title="正文模式" v-if="canShowTextMode">
+                  <button
+                    @click="viewMode = 'text'"
+                    class="mode-btn"
+                    :class="{ active: viewMode === 'text' }"
+                    title="正文模式"
+                    v-if="canShowTextMode"
+                  >
                     正文
                   </button>
                 </div>
 
-                <button @click="copyResponseBody" class="btn-copy-small" title="复制响应体">📋</button>
+                <button
+                  @click="copyResponseBody"
+                  class="btn-copy-small"
+                  title="复制响应体"
+                >
+                  📋
+                </button>
               </div>
             </div>
-            <div class="body-content" :class="{ 'text-mode': viewMode === 'text' }">
+            <div
+              class="body-content"
+              :class="{ 'text-mode': viewMode === 'text' }"
+            >
               <!-- 原始模式 -->
               <pre v-if="viewMode === 'raw'">{{ displayResponseBody }}</pre>
 
@@ -133,9 +201,7 @@
                 <div v-if="extractedContent" class="extracted-text">
                   {{ extractedContent }}
                 </div>
-                <div v-else class="no-content">
-                  无法提取正文内容
-                </div>
+                <div v-else class="no-content">无法提取正文内容</div>
               </div>
             </div>
           </div>
@@ -157,7 +223,7 @@ const props = defineProps<{
 
 // 事件
 defineEmits<{
-  'close': [];
+  close: [];
 }>();
 
 // 使用详情管理器
@@ -352,7 +418,8 @@ const {
 }
 
 @keyframes blink {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
   }
   50% {
@@ -424,7 +491,7 @@ const {
   display: flex;
   gap: 10px;
   margin-bottom: 5px;
-  font-family: 'Courier New', monospace;
+  font-family: "Courier New", monospace;
   font-size: 12px;
 }
 
@@ -445,7 +512,8 @@ const {
 }
 
 @keyframes pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
   }
   50% {
@@ -465,14 +533,16 @@ const {
 .body-content pre {
   margin: 0;
   color: var(--text-color);
-  font-family: 'Courier New', monospace;
+  font-family: "Courier New", monospace;
   font-size: 12px;
   white-space: pre-wrap;
   word-wrap: break-word;
 }
 
 .body-content.text-mode {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
 }
 
 .text-content {

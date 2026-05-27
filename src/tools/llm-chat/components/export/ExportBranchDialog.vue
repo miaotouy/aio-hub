@@ -1,5 +1,11 @@
 <template>
-  <BaseDialog v-model="localVisible" title="导出对话" width="1000px" height="80vh" :close-on-backdrop-click="true">
+  <BaseDialog
+    v-model="localVisible"
+    title="导出对话"
+    width="1000px"
+    height="80vh"
+    :close-on-backdrop-click="true"
+  >
     <template #content>
       <div class="export-container">
         <!-- 导出信息摘要 -->
@@ -7,7 +13,11 @@
           <div class="summary-item summary-item-full">
             <span class="summary-label">参与智能体:</span>
             <div class="summary-value agents-list">
-              <div v-for="agent in participatingAgents" :key="agent.id || agent.name" class="agent-item">
+              <div
+                v-for="agent in participatingAgents"
+                :key="agent.id || agent.name"
+                class="agent-item"
+              >
                 <Avatar
                   v-if="agent.icon"
                   :src="agent.avatarSrc || ''"
@@ -19,12 +29,16 @@
                 />
                 <span class="agent-name">{{ agent.name || "未知" }}</span>
               </div>
-              <span v-if="participatingAgents.length === 0" class="agent-name">未知</span>
+              <span v-if="participatingAgents.length === 0" class="agent-name"
+                >未知</span
+              >
             </div>
           </div>
           <div class="summary-item" v-if="participatingModels.length > 0">
             <span class="summary-label">涉及模型:</span>
-            <span class="summary-value">{{ participatingModels.join(", ") }}</span>
+            <span class="summary-value">{{
+              participatingModels.join(", ")
+            }}</span>
           </div>
           <div class="summary-item">
             <span class="summary-label">对话消息:</span>
@@ -57,15 +71,25 @@
           :max-range="branchMessageCount"
         />
 
-        <div v-loading="isPipelineLoading" element-loading-text="正在执行上下文管道..." class="preview-wrapper">
-          <ExportPreviewSection :content="previewContent" :format="exportFormat" :resolve-asset="resolveAsset" />
+        <div
+          v-loading="isPipelineLoading"
+          element-loading-text="正在执行上下文管道..."
+          class="preview-wrapper"
+        >
+          <ExportPreviewSection
+            :content="previewContent"
+            :format="exportFormat"
+            :resolve-asset="resolveAsset"
+          />
         </div>
       </div>
     </template>
 
     <template #footer>
       <el-button @click="localVisible = false">取消</el-button>
-      <el-button type="primary" @click="handleExport" :loading="exporting"> 导出 </el-button>
+      <el-button type="primary" @click="handleExport" :loading="exporting">
+        导出
+      </el-button>
     </template>
   </BaseDialog>
 </template>
@@ -80,7 +104,10 @@ import Avatar from "@/components/common/Avatar.vue";
 import type { ChatSessionDetail, ChatSessionIndex } from "../../types/session";
 import type { ChatMessageNode } from "../../types/message";
 import type { ContextPreviewData } from "../../types/context";
-import { useExportManager, type ExportOptions } from "../../composables/features/useExportManager";
+import {
+  useExportManager,
+  type ExportOptions,
+} from "../../composables/features/useExportManager";
 import { useAgentStore } from "../../stores/agentStore";
 import { useChatExecutor } from "../../composables/chat/useChatExecutor";
 import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
@@ -142,7 +169,8 @@ const pipelineResult = ref<ContextPreviewData | null>(null);
 const logger = createModuleLogger("ExportBranchDialog");
 const agentStore = useAgentStore();
 const { getContextForPreview } = useChatExecutor();
-const { exportBranchAsMarkdown, exportBranchAsJson, exportBranchAsRaw } = useExportManager();
+const { exportBranchAsMarkdown, exportBranchAsJson, exportBranchAsRaw } =
+  useExportManager();
 
 // 计算路径中的所有参与节点
 const pathNodes = computed(() => {
@@ -162,7 +190,10 @@ const pathNodes = computed(() => {
 
 // 获取所有参与的智能体信息
 const participatingAgents = computed(() => {
-  const agentsMap = new Map<string, { id?: string; name: string; icon?: string; avatarSrc: string | null }>();
+  const agentsMap = new Map<
+    string,
+    { id?: string; name: string; icon?: string; avatarSrc: string | null }
+  >();
 
   pathNodes.value.forEach((node) => {
     if (node.role === "assistant" && node.metadata) {
@@ -172,7 +203,9 @@ const participatingAgents = computed(() => {
 
       if (!agentsMap.has(key)) {
         // 使用 resolveAvatarPath 纯函数解析头像路径
-        const entity = agentId ? { id: agentId, icon: node.metadata.agentIcon } : null;
+        const entity = agentId
+          ? { id: agentId, icon: node.metadata.agentIcon }
+          : null;
         const avatarSrc = entity ? resolveAvatarPath(entity, "agent") : null;
 
         agentsMap.set(key, {
@@ -226,7 +259,9 @@ const branchMessageCount = computed(() => pathNodes.value.length);
 
 // 是否设置了范围过滤
 const isRangeActive = computed(() => {
-  return exportRange.value[0] > 1 || exportRange.value[1] < branchMessageCount.value;
+  return (
+    exportRange.value[0] > 1 || exportRange.value[1] < branchMessageCount.value
+  );
 });
 
 // 监听消息总数变化，重置范围
@@ -237,7 +272,7 @@ watch(
       exportRange.value = [1, newCount];
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 // 处理管道预览
@@ -250,10 +285,16 @@ const refreshPipelinePreview = async () => {
   isPipelineLoading.value = true;
   try {
     // 管道预览总是基于当前选中的节点（作为路径终点）
-    const result = await getContextForPreview(props.session, props.messageId, undefined, undefined, {
-      // 如果有范围限制，管道可能需要特殊处理，但目前 getContextForPreview 主要是基于路径的
-      // 这里我们先获取完整路径的处理结果
-    });
+    const result = await getContextForPreview(
+      props.session,
+      props.messageId,
+      undefined,
+      undefined,
+      {
+        // 如果有范围限制，管道可能需要特殊处理，但目前 getContextForPreview 主要是基于路径的
+        // 这里我们先获取完整路径的处理结果
+      }
+    );
     pipelineResult.value = result;
   } catch (error) {
     logger.error("获取管道预览失败", error);
@@ -289,7 +330,12 @@ const previewContent = computed(() => {
   };
 
   if (exportFormat.value === "raw") {
-    return exportBranchAsRaw(props.sessionIndex, props.session, props.messageId, options);
+    return exportBranchAsRaw(
+      props.sessionIndex,
+      props.session,
+      props.messageId,
+      options
+    );
   } else if (exportFormat.value === "json") {
     const jsonData = exportBranchAsJson(
       props.sessionIndex,
@@ -297,7 +343,7 @@ const previewContent = computed(() => {
       props.messageId,
       includePreset.value,
       props.presetMessages,
-      options,
+      options
     );
     return JSON.stringify(jsonData, null, 2);
   } else {
@@ -308,7 +354,7 @@ const previewContent = computed(() => {
       props.messageId,
       includePreset.value,
       props.presetMessages,
-      options,
+      options
     );
   }
 });
@@ -343,7 +389,9 @@ const handleExport = async () => {
     const timestamp = formatDateTime(new Date(), "yyyy-MM-dd");
 
     // 清理文件名，确保 Windows 下可用
-    const safeSessionName = sanitizeFilename(props.sessionIndex.name || "未命名会话");
+    const safeSessionName = sanitizeFilename(
+      props.sessionIndex.name || "未命名会话"
+    );
     const defaultName = `${safeSessionName}-分支-${timestamp}.${fileExtension}`;
 
     const filePath = await save({
@@ -364,7 +412,9 @@ const handleExport = async () => {
     }
   } catch (error) {
     logger.error("导出分支失败", error, { nodeId: props.messageId });
-    customMessage.error("导出失败：" + (error instanceof Error ? error.message : String(error)));
+    customMessage.error(
+      "导出失败：" + (error instanceof Error ? error.message : String(error))
+    );
   } finally {
     exporting.value = false;
   }

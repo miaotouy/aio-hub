@@ -19,7 +19,9 @@ const logger = createModuleLogger("skill-manager/env-file-manager");
 /**
  * 读取并解析 skill 的 .env.example 文件
  */
-export async function loadEnvExample(skillId: string): Promise<EnvExampleParseResult> {
+export async function loadEnvExample(
+  skillId: string
+): Promise<EnvExampleParseResult> {
   const content = await SkillService.readResource(skillId, ".env.example");
 
   if (!content) {
@@ -33,7 +35,9 @@ export async function loadEnvExample(skillId: string): Promise<EnvExampleParseRe
 /**
  * 读取 skill 的 .env 文件，返回 key-value 对
  */
-export async function loadEnvFile(skillId: string): Promise<Record<string, string>> {
+export async function loadEnvFile(
+  skillId: string
+): Promise<Record<string, string>> {
   const content = await SkillService.readResource(skillId, ".env");
 
   if (!content) {
@@ -49,13 +53,16 @@ export async function loadEnvFile(skillId: string): Promise<Record<string, strin
 export async function saveEnvFile(
   skillId: string,
   vars: Record<string, string>,
-  definitions?: EnvVarDefinition[],
+  definitions?: EnvVarDefinition[]
 ): Promise<boolean> {
   const content = serializeEnvFile(vars, definitions);
   const success = await SkillService.writeResource(skillId, ".env", content);
 
   if (success) {
-    logger.info("环境变量已保存到 .env 文件", { skillId, varCount: Object.keys(vars).length });
+    logger.info("环境变量已保存到 .env 文件", {
+      skillId,
+      varCount: Object.keys(vars).length,
+    });
   }
 
   return success;
@@ -70,7 +77,7 @@ export async function saveEnvFile(
 export async function migrateFromConfig(
   skillId: string,
   configEnvVars: Record<string, string>,
-  definitions?: EnvVarDefinition[],
+  definitions?: EnvVarDefinition[]
 ): Promise<boolean> {
   if (!configEnvVars || Object.keys(configEnvVars).length === 0) {
     return false;
@@ -101,7 +108,10 @@ export async function migrateFromConfig(
  *
  * 返回新增的 key 列表。
  */
-export async function syncFromExample(skillId: string, definitions: EnvVarDefinition[]): Promise<string[]> {
+export async function syncFromExample(
+  skillId: string,
+  definitions: EnvVarDefinition[]
+): Promise<string[]> {
   const currentVars = await loadEnvFile(skillId);
   const addedKeys: string[] = [];
 
@@ -125,7 +135,10 @@ export async function syncFromExample(skillId: string, definitions: EnvVarDefini
  *
  * 保留不在 definitions 中的自定义变量。
  */
-export async function resetToDefaults(skillId: string, definitions: EnvVarDefinition[]): Promise<boolean> {
+export async function resetToDefaults(
+  skillId: string,
+  definitions: EnvVarDefinition[]
+): Promise<boolean> {
   const currentVars = await loadEnvFile(skillId);
 
   // 构建重置后的变量集
@@ -156,7 +169,7 @@ export async function resetToDefaults(skillId: string, definitions: EnvVarDefini
  */
 export async function getEnvVarsForExecution(
   skillId: string,
-  configFallback?: Record<string, string>,
+  configFallback?: Record<string, string>
 ): Promise<Record<string, string>> {
   const envFileVars = await loadEnvFile(skillId);
 

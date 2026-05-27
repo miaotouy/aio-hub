@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import BaseDialog from '@/components/common/BaseDialog.vue';
-import AgentAssetsManager from './AgentAssetsManager.vue';
-import type { AgentAsset, AssetGroup } from '../../../types';
+import { computed } from "vue";
+import BaseDialog from "@/components/common/BaseDialog.vue";
+import AgentAssetsManager from "./AgentAssetsManager.vue";
+import type { AgentAsset, AssetGroup } from "../../../types";
 
 interface Props {
   modelValue: boolean;
@@ -14,25 +14,25 @@ interface Props {
 
 const props = defineProps<Props>();
 const emit = defineEmits<{
-  (e: 'update:modelValue', value: boolean): void;
-  (e: 'update:assets', value: AgentAsset[]): void;
-  (e: 'update:assetGroups', value: AssetGroup[]): void;
-  (e: 'physical-change'): void;
+  (e: "update:modelValue", value: boolean): void;
+  (e: "update:assets", value: AgentAsset[]): void;
+  (e: "update:assetGroups", value: AssetGroup[]): void;
+  (e: "physical-change"): void;
 }>();
 
 const visible = computed({
   get: () => props.modelValue,
-  set: (val) => emit('update:modelValue', val)
+  set: (val) => emit("update:modelValue", val),
 });
 
 const localAssets = computed({
   get: () => props.assets,
-  set: (val) => emit('update:assets', val)
+  set: (val) => emit("update:assets", val),
 });
 
 const localAssetGroups = computed({
   get: () => props.assetGroups || [],
-  set: (val) => emit('update:assetGroups', val)
+  set: (val) => emit("update:assetGroups", val),
 });
 </script>
 
@@ -53,5 +53,4 @@ const localAssetGroups = computed({
   </BaseDialog>
 </template>
 
-<style scoped>
-</style>
+<style scoped></style>

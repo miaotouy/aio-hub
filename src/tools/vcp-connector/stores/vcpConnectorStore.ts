@@ -66,7 +66,9 @@ export const useVcpStore = defineStore("vcp-connector", () => {
 
   // 检查是否为分离的消息监控窗口
   // 路径格式通常为 /detached-component/vcp-connector:monitor
-  const isDetachedMonitor = window.location.pathname.includes("vcp-connector:monitor");
+  const isDetachedMonitor = window.location.pathname.includes(
+    "vcp-connector:monitor"
+  );
 
   // 标记监控面板是否在主窗口中已经分离（由主窗口维护）
   const isMonitorDetached = ref(false);
@@ -78,7 +80,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     (list) => {
       isMonitorDetached.value = list.includes("vcp-connector:monitor");
     },
-    { immediate: true },
+    { immediate: true }
   );
 
   // 初始化完成的 Promise，供外部等待配置加载
@@ -152,11 +154,21 @@ export const useVcpStore = defineStore("vcp-connector", () => {
   function calculateInitialStats() {
     const s = stats.value;
     s.totalCount = messages.value.length;
-    s.ragCount = messages.value.filter((m) => m.type === "RAG_RETRIEVAL_DETAILS").length;
-    s.chainCount = messages.value.filter((m) => m.type === "META_THINKING_CHAIN").length;
-    s.agentCount = messages.value.filter((m) => m.type === "AGENT_PRIVATE_CHAT_PREVIEW").length;
-    s.memoCount = messages.value.filter((m) => m.type === "AI_MEMO_RETRIEVAL").length;
-    s.pluginCount = messages.value.filter((m) => m.type === "PLUGIN_STEP_STATUS").length;
+    s.ragCount = messages.value.filter(
+      (m) => m.type === "RAG_RETRIEVAL_DETAILS"
+    ).length;
+    s.chainCount = messages.value.filter(
+      (m) => m.type === "META_THINKING_CHAIN"
+    ).length;
+    s.agentCount = messages.value.filter(
+      (m) => m.type === "AGENT_PRIVATE_CHAT_PREVIEW"
+    ).length;
+    s.memoCount = messages.value.filter(
+      (m) => m.type === "AI_MEMO_RETRIEVAL"
+    ).length;
+    s.pluginCount = messages.value.filter(
+      (m) => m.type === "PLUGIN_STEP_STATUS"
+    ).length;
     s.logCount = messages.value.filter((m) => m.type === "vcp_log").length;
   }
 
@@ -167,7 +179,8 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     statsInterval = setInterval(() => {
       const elapsedMinutes = (Date.now() - statsStartTime) / 60000;
       if (elapsedMinutes >= 1) {
-        stats.value.messagesPerMinute = stats.value.totalCount - statsMessageCountAtMinute;
+        stats.value.messagesPerMinute =
+          stats.value.totalCount - statsMessageCountAtMinute;
         statsStartTime = Date.now();
         statsMessageCountAtMinute = stats.value.totalCount;
       }
@@ -206,7 +219,10 @@ export const useVcpStore = defineStore("vcp-connector", () => {
           }
           case "META_THINKING_CHAIN": {
             const m = msg as ThinkingChainMessage;
-            return matchesKeyword(m.query, keyword) || matchesKeyword(m.chainName, keyword);
+            return (
+              matchesKeyword(m.query, keyword) ||
+              matchesKeyword(m.chainName, keyword)
+            );
           }
           case "AGENT_PRIVATE_CHAT_PREVIEW": {
             const m = msg as AgentChatPreviewMessage;
@@ -222,7 +238,10 @@ export const useVcpStore = defineStore("vcp-connector", () => {
           }
           case "PLUGIN_STEP_STATUS": {
             const m = msg as PluginStepStatusMessage;
-            return matchesKeyword(m.pluginName, keyword) || matchesKeyword(m.stepName, keyword);
+            return (
+              matchesKeyword(m.pluginName, keyword) ||
+              matchesKeyword(m.stepName, keyword)
+            );
           }
           case "vcp_log": {
             const m = msg as VcpLogMessage;
@@ -251,18 +270,27 @@ export const useVcpStore = defineStore("vcp-connector", () => {
 
     // 如果 vcpPath 或 vcpImageKey 变化，重新刷新表情包清单
     if (
-      (newConfig.vcpPath !== undefined && newConfig.vcpPath !== config.value.vcpPath) ||
-      (newConfig.vcpImageKey !== undefined && newConfig.vcpImageKey !== config.value.vcpImageKey) ||
+      (newConfig.vcpPath !== undefined &&
+        newConfig.vcpPath !== config.value.vcpPath) ||
+      (newConfig.vcpImageKey !== undefined &&
+        newConfig.vcpImageKey !== config.value.vcpImageKey) ||
       (newConfig.wsUrl !== undefined && newConfig.wsUrl !== config.value.wsUrl)
     ) {
       clearEmoticonLibrary();
-      if (config.value.vcpPath && config.value.vcpImageKey && config.value.wsUrl) {
+      if (
+        config.value.vcpPath &&
+        config.value.vcpImageKey &&
+        config.value.wsUrl
+      ) {
         refreshEmoticonLibrary(config.value).catch(() => {});
       }
     }
 
     // 如果 maxHistory 变小，立即裁剪现有消息
-    if (newConfig.maxHistory !== undefined && newConfig.maxHistory < oldMaxHistory) {
+    if (
+      newConfig.maxHistory !== undefined &&
+      newConfig.maxHistory < oldMaxHistory
+    ) {
       if (messages.value.length > newConfig.maxHistory) {
         const excess = messages.value.length - newConfig.maxHistory;
         messages.value.splice(0, excess);
@@ -321,7 +349,8 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     return {
       ...data,
       type: type as VcpMessageType,
-      timestamp: typeof data.timestamp === "number" ? data.timestamp : Date.now(),
+      timestamp:
+        typeof data.timestamp === "number" ? data.timestamp : Date.now(),
       // 不存 raw：...data 已展开所有字段，raw 是完全冗余的副本，会使序列化体积翻倍
       // JsonViewer 使用 `msg.raw || msg` fallback，不受影响
     } as VcpMessage;
@@ -349,7 +378,9 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     if (!wsUrl || !vcpKey) {
       setConnectionStatus("disconnected");
       if (isDetachedMonitor) {
-        customMessage.warning("WebSocket URL 或 VCP Key 为空，请先在主窗口配置");
+        customMessage.warning(
+          "WebSocket URL 或 VCP Key 为空，请先在主窗口配置"
+        );
       }
       return;
     }
@@ -416,7 +447,9 @@ export const useVcpStore = defineStore("vcp-connector", () => {
 
       ws.value.onerror = () => {
         // 连接失败通常是因为后端没开，降级为 warn 且不打印堆栈
-        logger.warn("Observer WebSocket connection failed (VCP backend might be offline)");
+        logger.warn(
+          "Observer WebSocket connection failed (VCP backend might be offline)"
+        );
         setConnectionStatus("error");
         if (config.value.autoConnect) {
           scheduleReconnect();
@@ -428,7 +461,9 @@ export const useVcpStore = defineStore("vcp-connector", () => {
           const rawData = JSON.parse(event.data);
           // 处理 pong 响应
           if (rawData.type === "pong") {
-            const latency = pendingPingTime.value ? Date.now() - pendingPingTime.value : 0;
+            const latency = pendingPingTime.value
+              ? Date.now() - pendingPingTime.value
+              : 0;
             setPingLatency(latency);
             pendingPingTime.value = null;
           } else {
@@ -472,18 +507,24 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     const sessionId = `vcp-${maid || "unknown"}`;
 
     // 调用 toolCallingStore 弹出审批 UI 并等待用户操作
-    const result = await toolCallingStore.requestApproval(sessionId, parsedRequest as any, requestId);
+    const result = await toolCallingStore.requestApproval(
+      sessionId,
+      parsedRequest as any,
+      requestId
+    );
 
     // 通过 VCPLog 连接发送审批响应回 VCP
     const approved = result === "approved";
-    logger.info(`Tool approval response: ${requestId} -> ${approved ? "APPROVED" : "REJECTED"}`);
+    logger.info(
+      `Tool approval response: ${requestId} -> ${approved ? "APPROVED" : "REJECTED"}`
+    );
 
     if (vcpLogWs.value?.readyState === WebSocket.OPEN) {
       vcpLogWs.value.send(
         JSON.stringify({
           type: "tool_approval_response",
           data: { requestId, approved },
-        }),
+        })
       );
     } else {
       logger.warn("VCPLog WebSocket not open, cannot send approval response");
@@ -491,7 +532,11 @@ export const useVcpStore = defineStore("vcp-connector", () => {
   }
 
   function connectVcpLog(baseUrl: string, vcpKey: string) {
-    if (vcpLogWs.value?.readyState === WebSocket.OPEN || isVcpLogConnecting.value) return;
+    if (
+      vcpLogWs.value?.readyState === WebSocket.OPEN ||
+      isVcpLogConnecting.value
+    )
+      return;
 
     let fullUrl = baseUrl;
     if (!fullUrl.includes("/VCPlog/")) {
@@ -528,7 +573,10 @@ export const useVcpStore = defineStore("vcp-connector", () => {
 
           // 处理工具审批请求
           if (rawData.type === "tool_approval_request") {
-            logger.info("Received tool_approval_request via VCPLog channel", rawData.data);
+            logger.info(
+              "Received tool_approval_request via VCPLog channel",
+              rawData.data
+            );
             handleVcpLogApprovalRequest(rawData.data);
             return;
           }
@@ -553,7 +601,11 @@ export const useVcpStore = defineStore("vcp-connector", () => {
   }
 
   function connectDistributed(baseUrl: string, vcpKey: string) {
-    if (distributedWs.value?.readyState === WebSocket.OPEN || isDistributedConnecting.value) return;
+    if (
+      distributedWs.value?.readyState === WebSocket.OPEN ||
+      isDistributedConnecting.value
+    )
+      return;
 
     let fullUrl = baseUrl;
     // 分布式节点端点格式: /vcp-distributed-server/VCP_Key=<key>
@@ -618,7 +670,9 @@ export const useVcpStore = defineStore("vcp-connector", () => {
       };
       distributedWs.value.onerror = () => {
         // 连接失败通常是因为后端没开，降级为 warn 且不打印堆栈
-        logger.warn("Distributed WebSocket connection failed (VCP backend might be offline)");
+        logger.warn(
+          "Distributed WebSocket connection failed (VCP backend might be offline)"
+        );
         isDistributedConnecting.value = false;
 
         const distStore = useVcpDistributedStore();
@@ -655,7 +709,10 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     };
 
     if (data.type === "connection_ack") {
-      logger.info("Distributed connection acknowledged", data.data || data.message || data);
+      logger.info(
+        "Distributed connection acknowledged",
+        data.data || data.message || data
+      );
       const distStore = useVcpDistributedStore();
       const nodeId = extractNodeId(data);
       if (nodeId) {
@@ -699,7 +756,9 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     const jitter = Math.random() * 1000;
     const delay = reconnectDelay + jitter;
 
-    logger.info(`Scheduling reconnect in ${Math.round(delay)}ms (Attempt ${connection.value.reconnectAttempts})`);
+    logger.info(
+      `Scheduling reconnect in ${Math.round(delay)}ms (Attempt ${connection.value.reconnectAttempts})`
+    );
 
     reconnectTimer.value = setTimeout(() => {
       reconnectTimer.value = null;
@@ -803,15 +862,23 @@ export const useVcpStore = defineStore("vcp-connector", () => {
 
     // 优先级 1：后端明确报错 (status === 'error')
     if (status === "error") {
-      notify.error("VCP 执行错误", `${toolName ? toolName + ": " : ""}${content}`, { source: "VCP" });
+      notify.error(
+        "VCP 执行错误",
+        `${toolName ? toolName + ": " : ""}${content}`,
+        { source: "VCP" }
+      );
       return;
     }
 
     // 优先级 2：包含任务 ID
     if (taskId) {
-      notify.info(`VCP 任务通知`, `任务已启动 (ID: ${taskId})${toolName ? ` - ${toolName}` : ""}`, {
-        source: "VCP",
-      });
+      notify.info(
+        `VCP 任务通知`,
+        `任务已启动 (ID: ${taskId})${toolName ? ` - ${toolName}` : ""}`,
+        {
+          source: "VCP",
+        }
+      );
       return;
     }
 
@@ -823,7 +890,11 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     }
 
     // 优先级 4：成功/完成类关键字 -> 即时浮动提示
-    if (content.includes("归档") || content.includes("完成") || content.includes("成功")) {
+    if (
+      content.includes("归档") ||
+      content.includes("完成") ||
+      content.includes("成功")
+    ) {
       customMessage.success(content);
       return;
     }
@@ -880,7 +951,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
           config: config.value,
         },
         0,
-        true,
+        true
       );
     }
   }
@@ -904,7 +975,11 @@ export const useVcpStore = defineStore("vcp-connector", () => {
         }
 
         // 如果是分离窗口，且收到主窗口已连接的消息，且自己还没连，则自动连接
-        if (isDetachedMonitor && mainStatus === "connected" && connection.value.status === "disconnected") {
+        if (
+          isDetachedMonitor &&
+          mainStatus === "connected" &&
+          connection.value.status === "disconnected"
+        ) {
           logger.info("收到主窗口已连接信号，分离窗口自动建立观察者连接");
           connect();
         }
@@ -923,7 +998,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
       // 监听连接状态变化并广播
       watch(
         () => connection.value.status,
-        () => broadcastState(),
+        () => broadcastState()
       );
     } else {
       // 分离窗口请求初始状态
@@ -943,7 +1018,11 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     // 1. 从磁盘加载旧清单（快速恢复，让 resolveAsset 立即有数据）
     await loadEmoticonFromDisk(config.value);
     // 2. 如果 vcpPath/vcpImageKey 有值，后台异步重扫（不阻塞 init）
-    if (config.value.vcpPath && config.value.vcpImageKey && config.value.wsUrl) {
+    if (
+      config.value.vcpPath &&
+      config.value.vcpImageKey &&
+      config.value.wsUrl
+    ) {
       refreshEmoticonLibrary(config.value).catch(() => {
         // 错误已在 service 内部处理
       });

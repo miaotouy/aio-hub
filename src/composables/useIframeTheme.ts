@@ -1,58 +1,58 @@
-import { ref, computed, watch, onMounted } from 'vue';
-import { useTheme } from '@/composables/useTheme';
-import { useThemeAppearance } from '@/composables/useThemeAppearance';
-import { createModuleLogger } from '@/utils/logger';
+import { ref, computed, watch, onMounted } from "vue";
+import { useTheme } from "@/composables/useTheme";
+import { useThemeAppearance } from "@/composables/useThemeAppearance";
+import { createModuleLogger } from "@/utils/logger";
 
-const logger = createModuleLogger('useIframeTheme');
+const logger = createModuleLogger("useIframeTheme");
 
 // 需要传递给 iframe 的核心 CSS 变量列表
 const THEME_VARIABLES = [
   // 基础颜色
-  '--bg-color',
-  '--bg-color-rgb',
-  '--container-bg',
-  '--container-bg-rgb',
-  '--card-bg',
-  '--card-bg-rgb',
-  '--text-color',
-  '--text-color-rgb',
-  '--text-color-light',
+  "--bg-color",
+  "--bg-color-rgb",
+  "--container-bg",
+  "--container-bg-rgb",
+  "--card-bg",
+  "--card-bg-rgb",
+  "--text-color",
+  "--text-color-rgb",
+  "--text-color-light",
 
   // 边框
-  '--border-color',
-  '--border-color-rgb',
-  '--border-color-light',
-  '--border-opacity',
+  "--border-color",
+  "--border-color-rgb",
+  "--border-color-light",
+  "--border-opacity",
 
   // 功能色
-  '--primary-color',
-  '--primary-hover-color',
-  '--success-color',
-  '--warning-color',
-  '--danger-color',
-  '--info-color',
-  '--error-color',
+  "--primary-color",
+  "--primary-hover-color",
+  "--success-color",
+  "--warning-color",
+  "--danger-color",
+  "--info-color",
+  "--error-color",
 
   // 滚动条
-  '--scrollbar-thumb-color',
-  '--scrollbar-thumb-hover-color',
-  '--scrollbar-track-color',
-  '--scrollbar-thumb-opacity',
-  '--scrollbar-thumb-hover-opacity',
+  "--scrollbar-thumb-color",
+  "--scrollbar-thumb-hover-color",
+  "--scrollbar-track-color",
+  "--scrollbar-thumb-opacity",
+  "--scrollbar-thumb-hover-opacity",
 
   // UI 特效
-  '--ui-blur',
+  "--ui-blur",
 
   // 代码块 (如果 iframe 展示代码)
-  '--code-block-bg',
-  '--code-block-opacity',
+  "--code-block-bg",
+  "--code-block-opacity",
 
   // Element Plus 兼容变量 (部分组件可能需要)
-  '--el-text-color-primary',
-  '--el-text-color-regular',
-  '--el-text-color-secondary',
-  '--el-border-color',
-  '--el-color-primary',
+  "--el-text-color-primary",
+  "--el-text-color-regular",
+  "--el-text-color-secondary",
+  "--el-border-color",
+  "--el-color-primary",
 ];
 
 /**
@@ -63,7 +63,7 @@ const THEME_VARIABLES = [
 export function useIframeTheme(contentRef: () => string | undefined) {
   const { isDark } = useTheme();
   const { appearanceSettings } = useThemeAppearance();
-  const themeCssText = ref('');
+  const themeCssText = ref("");
 
   /**
    * 从主文档中提取主题相关的 CSS 变量，并生成样式表文本
@@ -86,12 +86,12 @@ export function useIframeTheme(contentRef: () => string | undefined) {
     const fontSize = bodyStyles.fontSize;
     const lineHeight = bodyStyles.lineHeight;
 
-    const variablesCss = cssLines.join('\n');
+    const variablesCss = cssLines.join("\n");
 
     const finalCss = `
       :root {
         ${variablesCss}
-        color-scheme: ${isDark.value ? 'dark' : 'light'};
+        color-scheme: ${isDark.value ? "dark" : "light"};
       }
       
       html, body {
@@ -177,7 +177,7 @@ export function useIframeTheme(contentRef: () => string | undefined) {
       }
     `;
     themeCssText.value = finalCss;
-    logger.debug('Generated theme CSS for iframe');
+    logger.debug("Generated theme CSS for iframe");
   }
 
   onMounted(() => {
@@ -186,17 +186,21 @@ export function useIframeTheme(contentRef: () => string | undefined) {
     setTimeout(updateThemeCss, 100);
   });
 
-  watch([isDark, appearanceSettings], () => {
-    // 使用 requestAnimationFrame 确保在下一帧样式更新后获取
-    requestAnimationFrame(() => {
-      updateThemeCss();
-    });
-  }, { deep: true });
+  watch(
+    [isDark, appearanceSettings],
+    () => {
+      // 使用 requestAnimationFrame 确保在下一帧样式更新后获取
+      requestAnimationFrame(() => {
+        updateThemeCss();
+      });
+    },
+    { deep: true }
+  );
 
   // 为 HTML 内容注入主题样式
   const themedContent = computed(() => {
     const content = contentRef();
-    if (!content) return '';
+    if (!content) return "";
 
     // 如果没有生成 CSS，先尝试生成一次
     if (!themeCssText.value) {
@@ -209,11 +213,12 @@ export function useIframeTheme(contentRef: () => string | undefined) {
     const styleTag = `<style id="injected-theme-style">${css}</style>`;
 
     // 检查是否已有 </head> 标签
-    if (content.includes('</head>')) {
-      return content.replace('</head>', `${styleTag}</head>`);
-    } else if (content.includes('<head>')) {
-      return content.replace('<head>', `<head>${styleTag}`);
-    } else if (content.includes('<body')) { // 匹配 <body ...> 或 <body>
+    if (content.includes("</head>")) {
+      return content.replace("</head>", `${styleTag}</head>`);
+    } else if (content.includes("<head>")) {
+      return content.replace("<head>", `<head>${styleTag}`);
+    } else if (content.includes("<body")) {
+      // 匹配 <body ...> 或 <body>
       // 在 body 前插入 head
       return content.replace(/<body/i, `<head>${styleTag}</head><body`);
     } else {
@@ -236,6 +241,6 @@ export function useIframeTheme(contentRef: () => string | undefined) {
 
   return {
     themedContent,
-    updateThemeCss
+    updateThemeCss,
   };
 }

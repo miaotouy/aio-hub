@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from "vue";
-import { RefreshCw, Copy, FileText, Hash, Image as ImageIcon } from "lucide-vue-next";
+import {
+  RefreshCw,
+  Copy,
+  FileText,
+  Hash,
+  Image as ImageIcon,
+} from "lucide-vue-next";
 import { useWebDistilleryStore } from "../../stores/store";
 import { useLivePreview } from "../../composables/useLivePreview";
 import { customMessage } from "@/utils/customMessage";
@@ -34,7 +40,9 @@ const updateRenderedHtml = () => {
 
     // 简单统计
     stats.value.words = store.livePreviewContent.length;
-    stats.value.images = (store.livePreviewContent.match(/!\[.*?\]\(.*?\)/g) || []).length;
+    stats.value.images = (
+      store.livePreviewContent.match(/!\[.*?\]\(.*?\)/g) || []
+    ).length;
   } else {
     renderedHtml.value = "";
     stats.value.words = 0;
@@ -52,7 +60,7 @@ watch(
     if (newTab === "preview" && !store.livePreviewContent) {
       triggerLivePreview(true);
     }
-  },
+  }
 );
 
 onMounted(() => {
@@ -103,7 +111,10 @@ const getQualityColor = (quality: number) => {
               ></div>
             </div>
           </el-tooltip>
-          <span class="quality-text" :style="{ color: getQualityColor(store.livePreviewQuality) }">
+          <span
+            class="quality-text"
+            :style="{ color: getQualityColor(store.livePreviewQuality) }"
+          >
             {{ Math.round(store.livePreviewQuality * 100) }}%
           </span>
         </div>
@@ -115,20 +126,34 @@ const getQualityColor = (quality: number) => {
           <el-radio-button value="source">源码</el-radio-button>
         </el-radio-group>
 
-        <el-button circle size="small" :loading="store.livePreviewLoading" @click="handleRefresh">
+        <el-button
+          circle
+          size="small"
+          :loading="store.livePreviewLoading"
+          @click="handleRefresh"
+        >
           <template #icon><RefreshCw :size="14" /></template>
         </el-button>
       </div>
     </div>
 
     <div class="preview-body" v-loading="store.livePreviewLoading">
-      <el-empty v-if="!store.livePreviewContent && !store.livePreviewLoading" description="暂无预览内容">
-        <el-button type="primary" size="small" @click="handleRefresh">生成预览</el-button>
+      <el-empty
+        v-if="!store.livePreviewContent && !store.livePreviewLoading"
+        description="暂无预览内容"
+      >
+        <el-button type="primary" size="small" @click="handleRefresh"
+          >生成预览</el-button
+        >
       </el-empty>
 
       <div v-else class="content-container">
         <!-- 预览模式 -->
-        <div v-if="viewMode === 'preview'" class="markdown-body" v-html="renderedHtml"></div>
+        <div
+          v-if="viewMode === 'preview'"
+          class="markdown-body"
+          v-html="renderedHtml"
+        ></div>
 
         <!-- 源码模式 -->
         <div v-else class="source-view">

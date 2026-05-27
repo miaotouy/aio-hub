@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { Delete, MoreFilled, Edit, MagicStick, FolderOpened, Operation } from "@element-plus/icons-vue";
+import {
+  Delete,
+  MoreFilled,
+  Edit,
+  MagicStick,
+  FolderOpened,
+  Operation,
+} from "@element-plus/icons-vue";
 import type { ChatSessionIndex } from "../../types";
 import type { MatchDetail } from "../../composables/chat/useLlmSearch";
 import { useLlmSearch } from "../../composables/chat/useLlmSearch";
@@ -85,9 +92,14 @@ const handleCommand = (command: string) => {
 
       <!-- 搜索匹配详情 -->
       <div v-if="filteredMatches.length > 0" class="match-details">
-        <div v-for="(match, index) in filteredMatches" :key="index" class="match-item">
+        <div
+          v-for="(match, index) in filteredMatches"
+          :key="index"
+          class="match-item"
+        >
           <span class="match-field">
-            {{ getFieldLabel(match.field) }}{{ match.role ? `(${getRoleLabel(match.role)})` : "" }}:
+            {{ getFieldLabel(match.field)
+            }}{{ match.role ? `(${getRoleLabel(match.role)})` : "" }}:
           </span>
           <div class="match-context" :title="match.context">
             <template v-for="(part, pIdx) in match.parts" :key="pIdx">
@@ -96,27 +108,52 @@ const handleCommand = (command: string) => {
             </template>
           </div>
         </div>
-        <div v-if="matches && matches.length > 3" class="match-more">+{{ matches.length - 3 }} 处匹配</div>
+        <div v-if="matches && matches.length > 3" class="match-more">
+          +{{ matches.length - 3 }} 处匹配
+        </div>
       </div>
 
       <div class="session-info">
         <span class="message-count">{{ messageCount }} 条</span>
-        <span class="session-time">{{ formatRelativeTime(session.updatedAt) }}</span>
-        <el-dropdown @command="handleCommand" trigger="click" class="menu-dropdown">
+        <span class="session-time">{{
+          formatRelativeTime(session.updatedAt)
+        }}</span>
+        <el-dropdown
+          @command="handleCommand"
+          trigger="click"
+          class="menu-dropdown"
+        >
           <div @click.stop>
             <el-tooltip content="更多操作" placement="top" :show-after="500">
-              <el-button :icon="MoreFilled" size="small" text class="btn-menu" />
+              <el-button
+                :icon="MoreFilled"
+                size="small"
+                text
+                class="btn-menu"
+              />
             </el-tooltip>
           </div>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item command="generate-name" :icon="MagicStick" :disabled="isGenerating">
+              <el-dropdown-item
+                command="generate-name"
+                :icon="MagicStick"
+                :disabled="isGenerating"
+              >
                 {{ isGenerating ? "生成中..." : "生成标题" }}
               </el-dropdown-item>
-              <el-dropdown-item command="rename" :icon="Edit"> 重命名 </el-dropdown-item>
-              <el-dropdown-item command="export" :icon="Operation"> 导出会话 </el-dropdown-item>
-              <el-dropdown-item command="open-directory" :icon="FolderOpened"> 打开目录 </el-dropdown-item>
-              <el-dropdown-item command="delete" :icon="Delete"> 删除会话 </el-dropdown-item>
+              <el-dropdown-item command="rename" :icon="Edit">
+                重命名
+              </el-dropdown-item>
+              <el-dropdown-item command="export" :icon="Operation">
+                导出会话
+              </el-dropdown-item>
+              <el-dropdown-item command="open-directory" :icon="FolderOpened">
+                打开目录
+              </el-dropdown-item>
+              <el-dropdown-item command="delete" :icon="Delete">
+                删除会话
+              </el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>

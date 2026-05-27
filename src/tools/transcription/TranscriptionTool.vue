@@ -21,7 +21,10 @@ onMounted(async () => {
   unlistenAssetImport = await listen<Asset>("asset-imported", (event) => {
     const asset = event.payload;
     // 仅处理本模块导入的资产，且开启了自动转写
-    if (asset.sourceModule === "transcription" && store.config.autoStartOnImport) {
+    if (
+      asset.sourceModule === "transcription" &&
+      store.config.autoStartOnImport
+    ) {
       store.submitTask(asset);
     }
   });

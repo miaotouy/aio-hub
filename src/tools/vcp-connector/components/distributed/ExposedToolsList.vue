@@ -23,22 +23,42 @@
           <el-option
             v-for="tool in availableTools"
             :key="tool.fullId"
-            :label="tool.displayName ? `${tool.displayName} (${tool.fullId})` : tool.fullId"
+            :label="
+              tool.displayName
+                ? `${tool.displayName} (${tool.fullId})`
+                : tool.fullId
+            "
             :value="tool.fullId"
           >
             <div class="option-content">
               <div class="option-name-group">
-                <span class="option-display-name">{{ tool.displayName || tool.fullId.split(":")[1] }}</span>
+                <span class="option-display-name">{{
+                  tool.displayName || tool.fullId.split(":")[1]
+                }}</span>
                 <span class="option-full-id">{{ tool.fullId }}</span>
               </div>
               <div class="option-tags">
-                <el-tag v-if="tool.isAgent" size="small" type="success" effect="plain">AI</el-tag>
-                <el-tag v-if="tool.isExposed" size="small" type="info" effect="plain">已暴露</el-tag>
+                <el-tag
+                  v-if="tool.isAgent"
+                  size="small"
+                  type="success"
+                  effect="plain"
+                  >AI</el-tag
+                >
+                <el-tag
+                  v-if="tool.isExposed"
+                  size="small"
+                  type="info"
+                  effect="plain"
+                  >已暴露</el-tag
+                >
               </div>
             </div>
           </el-option>
         </el-select>
-        <el-button type="primary" :disabled="!selectedToolId" @click="addTool"> 添加至列表 </el-button>
+        <el-button type="primary" :disabled="!selectedToolId" @click="addTool">
+          添加至列表
+        </el-button>
       </div>
     </div>
 
@@ -47,11 +67,17 @@
         v-for="tool in displayTools"
         :key="tool.toolId"
         class="tool-item"
-        :class="{ 'is-disabled': !tool.isEnabled, 'is-expanded': expandedTools.has(tool.toolId) }"
+        :class="{
+          'is-disabled': !tool.isEnabled,
+          'is-expanded': expandedTools.has(tool.toolId),
+        }"
       >
         <div class="tool-main" @click="toggleExpand(tool.toolId)">
           <div class="tool-info">
-            <el-icon class="expand-icon" :class="{ 'is-active': expandedTools.has(tool.toolId) }">
+            <el-icon
+              class="expand-icon"
+              :class="{ 'is-active': expandedTools.has(tool.toolId) }"
+            >
               <ChevronRight :size="14" />
             </el-icon>
             <div class="tool-name-wrapper">
@@ -63,13 +89,41 @@
               </div>
             </div>
             <div class="tool-tags">
-              <el-tag v-if="tool.isBuiltin" size="small" type="warning" effect="dark" class="mini-tag">内置</el-tag>
-              <el-tag v-else-if="tool.isAuto" size="small" type="info" effect="plain" class="mini-tag">自动</el-tag>
-              <el-tag v-else size="small" type="success" effect="plain" class="mini-tag">手动</el-tag>
+              <el-tag
+                v-if="tool.isBuiltin"
+                size="small"
+                type="warning"
+                effect="dark"
+                class="mini-tag"
+                >内置</el-tag
+              >
+              <el-tag
+                v-else-if="tool.isAuto"
+                size="small"
+                type="info"
+                effect="plain"
+                class="mini-tag"
+                >自动</el-tag
+              >
+              <el-tag
+                v-else
+                size="small"
+                type="success"
+                effect="plain"
+                class="mini-tag"
+                >手动</el-tag
+              >
 
-              <el-tooltip :content="tool.isSynced ? '已同步至 VCP' : '等待连接同步'">
-                <el-icon :class="['status-dot', tool.isSynced ? 'synced' : 'pending']">
-                  <component :is="tool.isSynced ? CheckCircle2 : Clock" :size="12" />
+              <el-tooltip
+                :content="tool.isSynced ? '已同步至 VCP' : '等待连接同步'"
+              >
+                <el-icon
+                  :class="['status-dot', tool.isSynced ? 'synced' : 'pending']"
+                >
+                  <component
+                    :is="tool.isSynced ? CheckCircle2 : Clock"
+                    :size="12"
+                  />
                 </el-icon>
               </el-tooltip>
             </div>
@@ -88,13 +142,24 @@
         <el-collapse-transition>
           <div v-if="expandedTools.has(tool.toolId)" class="tool-detail">
             <!-- 方法列表 -->
-            <div v-if="tool.methods.length > 0" class="methods-management-section">
+            <div
+              v-if="tool.methods.length > 0"
+              class="methods-management-section"
+            >
               <div class="section-label">方法列表 (Commands)</div>
               <div class="methods-list">
-                <div v-for="method in tool.methods" :key="method.name" class="method-item">
+                <div
+                  v-for="method in tool.methods"
+                  :key="method.name"
+                  class="method-item"
+                >
                   <div class="method-info">
-                    <span class="method-name">{{ method.displayName || method.name }}</span>
-                    <span v-if="method.description" class="method-desc">{{ method.description }}</span>
+                    <span class="method-name">{{
+                      method.displayName || method.name
+                    }}</span>
+                    <span v-if="method.description" class="method-desc">{{
+                      method.description
+                    }}</span>
                   </div>
                   <div class="method-actions" @click.stop>
                     <el-button
@@ -111,7 +176,13 @@
                       :model-value="method.isEnabled"
                       :disabled="tool.isBuiltin"
                       size="small"
-                      @change="handleToggleMethodEnabled(tool.toolId, method.name, $event)"
+                      @change="
+                        handleToggleMethodEnabled(
+                          tool.toolId,
+                          method.name,
+                          $event
+                        )
+                      "
                     />
                   </div>
                 </div>
@@ -124,7 +195,11 @@
         </el-collapse-transition>
       </div>
 
-      <el-empty v-if="displayTools.length === 0" description="暂无暴露工具" :image-size="60" />
+      <el-empty
+        v-if="displayTools.length === 0"
+        description="暂无暴露工具"
+        :image-size="60"
+      />
     </div>
   </div>
 </template>
@@ -134,7 +209,10 @@ import { ref, computed } from "vue";
 import { useVcpDistributedStore } from "../../stores/vcpDistributedStore";
 import { toolRegistryManager } from "@/services/registry";
 import { CheckCircle2, Clock, ChevronRight } from "lucide-vue-next";
-import { BUILTIN_VCP_TOOLS, getExposableTools } from "../../composables/useVcpDistributedNode";
+import {
+  BUILTIN_VCP_TOOLS,
+  getExposableTools,
+} from "../../composables/useVcpDistributedNode";
 
 const distStore = useVcpDistributedStore();
 const selectedToolId = ref("");
@@ -160,7 +238,11 @@ const displayTools = computed(() => {
   const toolMap = new Map<string, any>();
 
   // 辅助函数：获取或创建工具条目
-  const getOrCreateTool = (toolId: string, isBuiltin = false, isAuto = false) => {
+  const getOrCreateTool = (
+    toolId: string,
+    isBuiltin = false,
+    isAuto = false
+  ) => {
     if (!toolMap.has(toolId)) {
       toolMap.set(toolId, {
         toolId,
@@ -227,7 +309,8 @@ const displayTools = computed(() => {
 
     // 检查是否已经被自动发现了
     let entry = toolMap.get(toolId);
-    const alreadyAutoDiscovered = entry && entry.methods.some((m: any) => m.name === methodName);
+    const alreadyAutoDiscovered =
+      entry && entry.methods.some((m: any) => m.name === methodName);
 
     if (!alreadyAutoDiscovered) {
       entry = getOrCreateTool(toolId, false, false);
@@ -308,7 +391,11 @@ function handleToggleToolEnabled(toolId: string, enabled: boolean) {
   });
 }
 
-function handleToggleMethodEnabled(toolId: string, methodName: string, enabled: boolean) {
+function handleToggleMethodEnabled(
+  toolId: string,
+  methodName: string,
+  enabled: boolean
+) {
   const fullId = `${toolId}:${methodName}`;
   distStore.toggleToolDisabled(fullId, !enabled);
 }
@@ -319,7 +406,12 @@ function handleToggleMethodEnabled(toolId: string, methodName: string, enabled: 
  */
 const availableTools = computed(() => {
   const exposableTools = getExposableTools();
-  const options: { fullId: string; displayName: string; isAgent: boolean; isExposed: boolean }[] = [];
+  const options: {
+    fullId: string;
+    displayName: string;
+    isAgent: boolean;
+    isExposed: boolean;
+  }[] = [];
 
   const currentFullIds = new Set();
   displayTools.value.forEach((t) => {
@@ -616,7 +708,10 @@ function addTool() {
 }
 
 .method-item:hover {
-  background: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.05));
+  background: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.05)
+  );
   border-color: var(--el-color-primary-light-7);
 }
 

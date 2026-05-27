@@ -19,10 +19,16 @@
         </div>
         <div class="header-right">
           <el-tooltip content="查看历史记录" placement="bottom">
-            <el-button :icon="Clock" @click="isHistoryDialogVisible = true"> 历史记录 </el-button>
+            <el-button :icon="Clock" @click="isHistoryDialogVisible = true">
+              历史记录
+            </el-button>
           </el-tooltip>
           <el-tooltip content="清除当前图片和结果" placement="bottom">
-            <el-button :icon="Delete" @click="clearWorkspace" :disabled="!imageUrl">
+            <el-button
+              :icon="Delete"
+              @click="clearWorkspace"
+              :disabled="!imageUrl"
+            >
               清除
             </el-button>
           </el-tooltip>
@@ -38,13 +44,27 @@
           <template #headerExtra>
             <div v-if="imageUrl" class="preview-actions">
               <el-text type="info" size="small">拖放或粘贴以替换</el-text>
-              <el-button :icon="FolderOpened" size="small" @click.stop="openFilePicker">
+              <el-button
+                :icon="FolderOpened"
+                size="small"
+                @click.stop="openFilePicker"
+              >
                 替换图片
               </el-button>
-              <el-button :icon="Delete" size="small" @click.stop="clearWorkspace"> 清除 </el-button>
+              <el-button
+                :icon="Delete"
+                size="small"
+                @click.stop="clearWorkspace"
+              >
+                清除
+              </el-button>
             </div>
           </template>
-          <div ref="dropAreaRef" class="image-preview-area" :class="{ highlight: isDraggingOver }">
+          <div
+            ref="dropAreaRef"
+            class="image-preview-area"
+            :class="{ highlight: isDraggingOver }"
+          >
             <div v-if="!imageUrl" class="upload-prompt">
               <el-icon :size="64"><Upload /></el-icon>
               <p>拖放图片到此处，或粘贴图片</p>
@@ -82,7 +102,13 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from "vue";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
-import { Clock, Delete, Upload, FolderOpened, Loading } from "@element-plus/icons-vue";
+import {
+  Clock,
+  Delete,
+  Upload,
+  FolderOpened,
+  Loading,
+} from "@element-plus/icons-vue";
 import { useColorPickerStore, type ManualColor } from "./colorPicker.store";
 import { useColorExtractor } from "./composables/useColorExtractor";
 import { useColorHistory } from "./composables/useColorHistory";
@@ -161,7 +187,10 @@ async function runInitialAnalysis() {
         asset
       );
       store.setCurrentRecordId(record.id);
-      logger.info("已保存分析结果到历史记录", { assetId: asset.id, recordId: record.id });
+      logger.info("已保存分析结果到历史记录", {
+        assetId: asset.id,
+        recordId: record.id,
+      });
     } catch (error) {
       errorHandler.error(error, "保存历史记录失败");
     }
@@ -177,7 +206,10 @@ async function onQuantizeCountChange() {
     store.setAnalyzing(true);
     try {
       if (!currentImageBlob.value) return;
-      const result = await extractQuantizeColors(currentImageBlob.value, store.quantizeColorCount);
+      const result = await extractQuantizeColors(
+        currentImageBlob.value,
+        store.quantizeColorCount
+      );
       if (result) {
         store.updateAlgorithmResult("quantize", result);
       }
@@ -292,7 +324,9 @@ function openFilePicker() {
 // 恢复上次会话
 onMounted(async () => {
   if (store.currentImageAssetUri) {
-    const asset = assetManager.assets.value.find((a) => a.id === store.currentImageAssetUri);
+    const asset = assetManager.assets.value.find(
+      (a) => a.id === store.currentImageAssetUri
+    );
     if (asset) {
       imageUrl.value = await assetManager.getAssetUrl(asset);
     }
@@ -322,7 +356,9 @@ async function handleLoadFromHistory(recordId: string) {
     store.setCurrentRecordId(null); // 暂停记录关联，避免加载过程触发自动保存
 
     // 从资产获取图片
-    const asset = assetManager.assets.value.find((a) => a.id === record.assetId);
+    const asset = assetManager.assets.value.find(
+      (a) => a.id === record.assetId
+    );
     if (!asset) {
       customMessage.error("未找到关联的图片资产");
       return;

@@ -42,7 +42,10 @@ const toggle = () => {
         <component v-if="icon" :is="icon" class="section-icon" />
         <span class="config-section-title">{{ title }}</span>
       </div>
-      <i-ep-arrow-down class="collapse-icon" :class="{ expanded: isExpanded }" />
+      <i-ep-arrow-down
+        class="collapse-icon"
+        :class="{ expanded: isExpanded }"
+      />
     </div>
 
     <div class="config-section-content" :class="{ collapsed: !isExpanded }">
@@ -99,7 +102,8 @@ const toggle = () => {
     color-mix(in srgb, var(--primary-color) 4%, transparent)
   );
   border-color: var(--primary-color);
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--primary-color) 15%, transparent);
+  box-shadow: 0 2px 8px
+    color-mix(in srgb, var(--primary-color) 15%, transparent);
   transform: translateY(-1px);
 }
 

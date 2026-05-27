@@ -7,8 +7,12 @@
         <div class="tools-section">
           <div class="section-tabs-header">
             <el-radio-group v-model="activeView">
-              <el-radio-button value="exposed">暴露工具 (Upstream)</el-radio-button>
-              <el-radio-button value="bridged">桥接工具 (Downstream)</el-radio-button>
+              <el-radio-button value="exposed"
+                >暴露工具 (Upstream)</el-radio-button
+              >
+              <el-radio-button value="bridged"
+                >桥接工具 (Downstream)</el-radio-button
+              >
             </el-radio-group>
           </div>
 

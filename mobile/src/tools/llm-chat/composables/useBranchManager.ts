@@ -3,12 +3,12 @@
  * 负责所有与用户交互的树结构操作：编辑、删除、切换分支等
  */
 
-import type { ChatSession, ChatMessageNode } from '../types';
-import { useNodeManager } from './useNodeManager';
-import { BranchNavigator } from '../utils/BranchNavigator';
-import { createModuleLogger } from '@/utils/logger';
+import type { ChatSession, ChatMessageNode } from "../types";
+import { useNodeManager } from "./useNodeManager";
+import { BranchNavigator } from "../utils/BranchNavigator";
+import { createModuleLogger } from "@/utils/logger";
 
-const logger = createModuleLogger('llm-chat/branch-manager');
+const logger = createModuleLogger("llm-chat/branch-manager");
 
 export function useBranchManager() {
   const nodeManager = useNodeManager();
@@ -23,7 +23,7 @@ export function useBranchManager() {
     const result = nodeManager.hardDeleteNode(session, nodeId);
 
     if (result.success) {
-      logger.info('消息已删除', {
+      logger.info("消息已删除", {
         sessionId: session.id,
         nodeId,
         deletedCount: result.deletedNodes.length,
@@ -40,7 +40,7 @@ export function useBranchManager() {
     const success = nodeManager.updateActiveLeaf(session, nodeId);
 
     if (success) {
-      logger.info('已切换分支', { sessionId: session.id, nodeId });
+      logger.info("已切换分支", { sessionId: session.id, nodeId });
     }
 
     return success;
@@ -52,15 +52,19 @@ export function useBranchManager() {
   const switchToSiblingBranch = (
     session: ChatSession,
     nodeId: string,
-    direction: 'prev' | 'next'
+    direction: "prev" | "next"
   ): string => {
-    const newLeafId = BranchNavigator.switchToSibling(session, nodeId, direction);
+    const newLeafId = BranchNavigator.switchToSibling(
+      session,
+      nodeId,
+      direction
+    );
 
     if (newLeafId !== session.activeLeafId) {
       session.activeLeafId = newLeafId;
       BranchNavigator.updateSelectionMemory(session, newLeafId);
 
-      logger.info('已切换到兄弟分支', {
+      logger.info("已切换到兄弟分支", {
         sessionId: session.id,
         fromNode: nodeId,
         toLeaf: newLeafId,
@@ -81,14 +85,17 @@ export function useBranchManager() {
   ): boolean => {
     const node = session.nodes[nodeId];
     if (!node) {
-      logger.warn('编辑消息失败：节点不存在', { sessionId: session.id, nodeId });
+      logger.warn("编辑消息失败：节点不存在", {
+        sessionId: session.id,
+        nodeId,
+      });
       return false;
     }
 
     node.content = newContent;
     session.updatedAt = new Date().toISOString();
 
-    logger.info('消息已编辑', {
+    logger.info("消息已编辑", {
       sessionId: session.id,
       nodeId,
       contentLength: newContent.length,
@@ -104,13 +111,17 @@ export function useBranchManager() {
   const prepareRegenerate = (
     session: ChatSession,
     nodeId: string
-  ): { shouldRegenerate: boolean; userContent?: string; parentNodeId?: string } => {
+  ): {
+    shouldRegenerate: boolean;
+    userContent?: string;
+    parentNodeId?: string;
+  } => {
     const node = session.nodes[nodeId];
     if (!node) return { shouldRegenerate: false };
 
-    if (node.role === 'assistant') {
+    if (node.role === "assistant") {
       const parentNode = node.parentId ? session.nodes[node.parentId] : null;
-      if (!parentNode || parentNode.role !== 'user') {
+      if (!parentNode || parentNode.role !== "user") {
         return { shouldRegenerate: false };
       }
 
@@ -119,7 +130,7 @@ export function useBranchManager() {
         userContent: parentNode.content,
         parentNodeId: parentNode.id,
       };
-    } else if (node.role === 'user') {
+    } else if (node.role === "user") {
       return {
         shouldRegenerate: true,
         userContent: node.content,

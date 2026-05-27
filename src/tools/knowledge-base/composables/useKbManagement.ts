@@ -91,10 +91,15 @@ export function useKbManagement() {
   /**
    * 更新知识库元数据
    */
-  async function updateBaseMeta(kbId: string, updates: Partial<KnowledgeBaseMeta>) {
+  async function updateBaseMeta(
+    kbId: string,
+    updates: Partial<KnowledgeBaseMeta>
+  ) {
     // 检查重名 (如果修改了名称)
     if (updates.name) {
-      const isDuplicate = store.bases.some((b) => b.name === updates.name && b.id !== kbId);
+      const isDuplicate = store.bases.some(
+        (b) => b.name === updates.name && b.id !== kbId
+      );
       if (isDuplicate) {
         customMessage.error(`知识库名称 [${updates.name}] 已存在`);
         return;
@@ -186,7 +191,9 @@ export function useKbManagement() {
 
       if (filePath) {
         const isYaml = filePath.endsWith(".yaml") || filePath.endsWith(".yml");
-        const content = isYaml ? yaml.dump(fullData) : JSON.stringify(fullData, null, 2);
+        const content = isYaml
+          ? yaml.dump(fullData)
+          : JSON.stringify(fullData, null, 2);
 
         await writeTextFile(filePath, content);
         customMessage.success("知识库导出成功");

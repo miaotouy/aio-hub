@@ -1,4 +1,7 @@
-import { RendererVersion, type RichTextRendererStyleOptions } from "@/tools/rich-text-renderer/types";
+import {
+  RendererVersion,
+  type RichTextRendererStyleOptions,
+} from "@/tools/rich-text-renderer/types";
 import type { TranscriptionConfig as BaseTranscriptionConfig } from "@/tools/transcription/types";
 import { DEFAULT_TRANSCRIPTION_CONFIG } from "@/tools/transcription/config";
 import { createDefaultChatRegexConfig } from "./chatRegex";
@@ -306,7 +309,16 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     modelIdentifier: "", // 需要用户配置
     messageTargetLang: "Chinese",
     inputTargetLang: "English",
-    targetLangList: ["Chinese", "English", "Japanese", "Korean", "French", "German", "Spanish", "Russian"],
+    targetLangList: [
+      "Chinese",
+      "English",
+      "Japanese",
+      "Korean",
+      "French",
+      "German",
+      "Spanish",
+      "Russian",
+    ],
     prompt:
       "Please translate the following text to {targetLang}.\n\nImportant: If the text contains any of the following XML-style tag blocks: {thinkTags}, please keep the XML tags themselves unchanged, but translate the text content inside the tags.\n\nOnly output the translated content without any explanation or additional text:\n\n{text}",
     temperature: 0.3,

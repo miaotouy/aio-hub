@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { ref, watch, computed } from "vue";
 import { pluginConfigService } from "@/services/plugin-config.service";
-import type { PluginProxy, SettingsSchema, SettingsProperty } from "@/services/plugin-types";
+import type {
+  PluginProxy,
+  SettingsSchema,
+  SettingsProperty,
+} from "@/services/plugin-types";
 import type { SettingItem } from "@/types/settings-renderer";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -9,7 +13,9 @@ import { customMessage } from "@/utils/customMessage";
 import SettingListRenderer from "@/components/common/SettingListRenderer.vue";
 
 const logger = createModuleLogger("PluginManager/PluginSettingsPanel");
-const errorHandler = createModuleErrorHandler("PluginManager/PluginSettingsPanel");
+const errorHandler = createModuleErrorHandler(
+  "PluginManager/PluginSettingsPanel"
+);
 
 // Props
 interface Props {
@@ -116,7 +122,9 @@ async function loadConfig() {
       // 如果没有配置，使用默认值
       const defaultConfig: Record<string, any> = {};
       if (settingsSchema.value) {
-        for (const [key, property] of Object.entries(settingsSchema.value.properties)) {
+        for (const [key, property] of Object.entries(
+          settingsSchema.value.properties
+        )) {
           // 兼容新旧格式
           if ("defaultValue" in property) {
             // SettingItem 格式
@@ -130,7 +138,10 @@ async function loadConfig() {
       formData.value = defaultConfig;
       originalData.value = { ...defaultConfig };
     }
-    logger.debug("配置加载完成", { pluginId: props.plugin.id, config: formData.value });
+    logger.debug("配置加载完成", {
+      pluginId: props.plugin.id,
+      config: formData.value,
+    });
   } catch (error) {
     errorHandler.error(error as Error, "加载配置失败", {
       context: { pluginId: props.plugin.id },
@@ -188,7 +199,7 @@ watch(
       loadConfig();
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 </script>
 
@@ -205,7 +216,10 @@ watch(
       <p>加载配置中...</p>
     </div>
 
-    <div v-else-if="!settingsSchema || settingsItems.length === 0" class="empty-state">
+    <div
+      v-else-if="!settingsSchema || settingsItems.length === 0"
+      class="empty-state"
+    >
       <el-empty description="该插件没有可配置项" :image-size="100" />
     </div>
 
@@ -214,13 +228,19 @@ watch(
         <h3 class="settings-title">{{ plugin.name }} - 设置</h3>
         <div class="header-actions">
           <el-button @click="cancelChanges"> 取消 </el-button>
-          <el-button type="primary" :loading="saving" @click="saveConfig"> 保存配置 </el-button>
+          <el-button type="primary" :loading="saving" @click="saveConfig">
+            保存配置
+          </el-button>
         </div>
       </div>
 
       <div class="settings-form-wrapper">
         <el-form :model="formData" label-position="top" class="settings-form">
-          <SettingListRenderer :items="settingsItems" :settings="formData" @update:settings="handleSettingsUpdate" />
+          <SettingListRenderer
+            :items="settingsItems"
+            :settings="formData"
+            @update:settings="handleSettingsUpdate"
+          />
         </el-form>
       </div>
     </div>

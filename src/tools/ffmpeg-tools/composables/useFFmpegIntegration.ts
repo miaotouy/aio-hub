@@ -50,7 +50,9 @@ export function useFFmpegIntegration() {
       if (!asset) throw new Error("资产导入失败");
 
       // 2. 添加转写任务，并请求激活工作台
-      transcriptionRegistry.addTask(asset, undefined, { activateWorkbench: true });
+      transcriptionRegistry.addTask(asset, undefined, {
+        activateWorkbench: true,
+      });
 
       router.push("/transcription");
       customMessage.success("已发送至转写工具");

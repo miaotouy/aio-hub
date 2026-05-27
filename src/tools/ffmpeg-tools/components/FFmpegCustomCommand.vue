@@ -30,13 +30,20 @@
             <el-button :icon="Eraser" size="small" link @click="clearCommand" />
           </el-tooltip>
           <el-tooltip content="格式化（每个参数一行）">
-            <el-button :icon="AlignLeft" size="small" link @click="formatCommand" />
+            <el-button
+              :icon="AlignLeft"
+              size="small"
+              link
+              @click="formatCommand"
+            />
           </el-tooltip>
         </div>
       </div>
       <div class="editor-wrapper">
         <div class="editor-prefix">
-          <code class="prefix-text">ffmpeg -y {{ params.hwaccel ? "-hwaccel auto " : "" }}-i "input" </code>
+          <code class="prefix-text"
+            >ffmpeg -y {{ params.hwaccel ? "-hwaccel auto " : "" }}-i "input"
+          </code>
         </div>
         <el-input
           v-model="commandText"
@@ -51,7 +58,9 @@
           <code class="suffix-text">"output.mp4"</code>
         </div>
       </div>
-      <div class="editor-hint">每个参数用空格分隔。系统会自动拼接 ffmpeg、输入路径和输出路径。</div>
+      <div class="editor-hint">
+        每个参数用空格分隔。系统会自动拼接 ffmpeg、输入路径和输出路径。
+      </div>
     </div>
 
     <!-- 快捷参数片段 -->
@@ -60,7 +69,11 @@
         <span class="section-title">快捷插入</span>
       </div>
       <div class="snippet-groups">
-        <div v-for="group in snippetGroups" :key="group.label" class="snippet-group">
+        <div
+          v-for="group in snippetGroups"
+          :key="group.label"
+          class="snippet-group"
+        >
           <span class="group-label">{{ group.label }}</span>
           <div class="group-chips">
             <el-tag
@@ -70,7 +83,11 @@
               class="snippet-chip"
               @click="insertSnippet(snippet.value)"
             >
-              <el-tooltip :content="snippet.value" placement="top" :show-after="300">
+              <el-tooltip
+                :content="snippet.value"
+                placement="top"
+                :show-after="300"
+              >
                 <span>{{ snippet.label }}</span>
               </el-tooltip>
             </el-tag>
@@ -81,7 +98,12 @@
 
     <!-- 保存为预设 -->
     <div class="save-section">
-      <el-button :icon="Save" size="small" @click="handleSaveAsPreset" :disabled="!commandText.trim()">
+      <el-button
+        :icon="Save"
+        size="small"
+        @click="handleSaveAsPreset"
+        :disabled="!commandText.trim()"
+      >
         保存当前命令为预设
       </el-button>
     </div>
@@ -275,7 +297,11 @@ const formatCommand = () => {
   const formatted: string[] = [];
   let i = 0;
   while (i < args.length) {
-    if (args[i].startsWith("-") && i + 1 < args.length && !args[i + 1].startsWith("-")) {
+    if (
+      args[i].startsWith("-") &&
+      i + 1 < args.length &&
+      !args[i + 1].startsWith("-")
+    ) {
       formatted.push(`${args[i]} ${args[i + 1]}`);
       i += 2;
     } else {
@@ -314,7 +340,13 @@ function parseArgsString(input: string): string[] {
   while ((match = regex.exec(singleLine)) !== null) {
     const value = match[1] ?? match[2] ?? match[3];
     if (value !== undefined) {
-      args.push(match[1] !== undefined ? `"${value}"` : match[2] !== undefined ? `'${value}'` : value);
+      args.push(
+        match[1] !== undefined
+          ? `"${value}"`
+          : match[2] !== undefined
+            ? `'${value}'`
+            : value
+      );
     }
   }
   return args;
@@ -351,7 +383,7 @@ watch(
       }
     }
   },
-  { deep: true },
+  { deep: true }
 );
 </script>
 

@@ -39,7 +39,11 @@
         <div class="divider"></div>
 
         <!-- 复制按钮 -->
-        <el-tooltip content="复制完整 JSON" placement="bottom" :show-after="500">
+        <el-tooltip
+          content="复制完整 JSON"
+          placement="bottom"
+          :show-after="500"
+        >
           <div class="action-btn" @click="copyFullJson">
             <component :is="Copy" :size="14" />
           </div>

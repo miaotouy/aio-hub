@@ -80,7 +80,9 @@ export async function processInlineData(
 ): Promise<ProcessedResult> {
   const newAssets: Asset[] = [];
   let processedText = text;
-  const sizeThresholdBytes = options?.sizeThresholdKB ? options.sizeThresholdKB * 1024 : 0;
+  const sizeThresholdBytes = options?.sizeThresholdKB
+    ? options.sizeThresholdKB * 1024
+    : 0;
 
   const matches = Array.from(text.matchAll(INLINE_BASE64_REGEX));
 
@@ -100,10 +102,13 @@ export async function processInlineData(
     // 检查大小是否超过阈值
     const estimatedSize = estimateDecodedSize(base64Data.length);
     if (sizeThresholdBytes > 0 && estimatedSize < sizeThresholdBytes) {
-      logger.debug(`跳过转换：数据大小（~${(estimatedSize / 1024).toFixed(2)} KB）小于阈值`, {
-        altText,
-        mimeType,
-      });
+      logger.debug(
+        `跳过转换：数据大小（~${(estimatedSize / 1024).toFixed(2)} KB）小于阈值`,
+        {
+          altText,
+          mimeType,
+        }
+      );
       continue; // 小于阈值，不处理
     }
 
@@ -130,7 +135,8 @@ export async function processInlineData(
           origin: options?.assetImportOptions?.origin || {
             type: "clipboard", // 假设来自粘贴或类似操作
             source: "base64-inline",
-            sourceModule: options?.assetImportOptions?.sourceModule || "unknown",
+            sourceModule:
+              options?.assetImportOptions?.sourceModule || "unknown",
           },
         }
       );

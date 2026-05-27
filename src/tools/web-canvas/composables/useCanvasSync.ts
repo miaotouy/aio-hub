@@ -68,7 +68,7 @@ export function useCanvasSync() {
         },
         0,
         false,
-        targetLabel,
+        targetLabel
       );
     });
 
@@ -81,7 +81,7 @@ export function useCanvasSync() {
             logger.info("Canvas 检测到新窗口打开，强制全量广播");
             stateEngines.forEach((e) => e.manualPush(true, undefined, true));
           }
-        },
+        }
       );
     }
 
@@ -90,13 +90,19 @@ export function useCanvasSync() {
   }
 
   // 注册 Action 处理器
-  const handleActionRequest = async (action: string, params: any): Promise<any> => {
+  const handleActionRequest = async (
+    action: string,
+    params: any
+  ): Promise<any> => {
     logger.info("Canvas 收到操作请求", { action, params });
     const canvasId = params.canvasId || store.activeCanvasId;
 
     switch (action) {
       case "open-window": {
-        return windowManager.openPreviewWindow(canvasId, `画布预览 - ${canvasId}`);
+        return windowManager.openPreviewWindow(
+          canvasId,
+          `画布预览 - ${canvasId}`
+        );
       }
       case "open-canvas": {
         if (params.canvasId) {
@@ -106,11 +112,20 @@ export function useCanvasSync() {
       }
       case "write-file": {
         // 重构后调用物理写入
-        await store.writeFilePhysical(canvasId, params.filepath, params.content);
+        await store.writeFilePhysical(
+          canvasId,
+          params.filepath,
+          params.content
+        );
         return Promise.resolve();
       }
       case "apply-diff": {
-        await store.applyDiff(canvasId, params.filepath, params.search, params.replace);
+        await store.applyDiff(
+          canvasId,
+          params.filepath,
+          params.search,
+          params.replace
+        );
         return Promise.resolve();
       }
       case "commit-changes":
@@ -134,7 +149,7 @@ export function useCanvasSync() {
           cleanupEngines();
         }
       },
-      { immediate: true },
+      { immediate: true }
     );
   }
 

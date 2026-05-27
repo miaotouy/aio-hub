@@ -77,7 +77,8 @@ export function useTextEditing() {
     const scale = stage.scaleX();
 
     // 判断是否为 autoSize 模式（Konva 节点未显式设置 width）
-    const nodeIsAutoWidth = node.attrs.width === undefined || node.attrs.width === null;
+    const nodeIsAutoWidth =
+      node.attrs.width === undefined || node.attrs.width === null;
     isAutoWidth.value = nodeIsAutoWidth;
 
     // 计算编辑器尺寸
@@ -149,7 +150,10 @@ export function useTextEditing() {
 
   function stopEditing(): TextEditResult | null {
     if (!isEditing.value || !editingNode) {
-      logger.debug("stopEditing 跳过", { isEditing: isEditing.value, hasEditingNode: !!editingNode });
+      logger.debug("stopEditing 跳过", {
+        isEditing: isEditing.value,
+        hasEditingNode: !!editingNode,
+      });
       return null;
     }
 

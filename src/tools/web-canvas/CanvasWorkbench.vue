@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
-import { Plus, Search, LayoutGrid, List, RefreshCw, Settings, ChevronLeft } from "lucide-vue-next";
+import {
+  Plus,
+  Search,
+  LayoutGrid,
+  List,
+  RefreshCw,
+  Settings,
+  ChevronLeft,
+} from "lucide-vue-next";
 import { useCanvasStore } from "./stores/canvasStore";
 import { useTemplateRegistry } from "./composables/useTemplateRegistry";
 import CanvasProjectList from "./components/workbench/CanvasProjectList.vue";
@@ -43,7 +51,10 @@ const handleOpenVSCode = async (id: string) => {
 const handlePreviewCanvas = async (id: string) => {
   const canvas = store.canvasList.find((c) => c.metadata.id === id);
   if (canvas) {
-    await windowManager.openPreviewWindow(id, `画布预览 - ${canvas.metadata.name}`);
+    await windowManager.openPreviewWindow(
+      id,
+      `画布预览 - ${canvas.metadata.name}`
+    );
   }
 };
 
@@ -51,7 +62,10 @@ const handleCanvasCreated = (_metadata: any) => {
   // 创建成功后自动打开（Store 中已处理）
 };
 
-const handleRepairProject = async (id: string, action: "remove_index" | "reindex" | "restore_metadata") => {
+const handleRepairProject = async (
+  id: string,
+  action: "remove_index" | "reindex" | "restore_metadata"
+) => {
   await store.repairProject(id, action);
   customMessage.success("项目修复成功");
 };
@@ -66,7 +80,10 @@ const handleDeepScan = async () => {
   <div class="canvas-workbench">
     <!-- 编辑视图 -->
     <template v-if="store.activeCanvasId">
-      <CanvasEditorPanel :canvas-id="store.activeCanvasId" @back="store.activeCanvasId = null" />
+      <CanvasEditorPanel
+        :canvas-id="store.activeCanvasId"
+        @back="store.activeCanvasId = null"
+      />
     </template>
 
     <!-- 项目大厅 -->
@@ -74,10 +91,18 @@ const handleDeepScan = async () => {
       <header class="workbench-header">
         <div class="header-left">
           <template v-if="isSettingsVisible">
-            <el-button :icon="ChevronLeft" @click="isSettingsVisible = false"> 返回项目 </el-button>
+            <el-button :icon="ChevronLeft" @click="isSettingsVisible = false">
+              返回项目
+            </el-button>
           </template>
           <template v-else>
-            <el-button type="primary" :icon="Plus" @click="isCreateDialogVisible = true"> 新建画布 </el-button>
+            <el-button
+              type="primary"
+              :icon="Plus"
+              @click="isCreateDialogVisible = true"
+            >
+              新建画布
+            </el-button>
             <el-tooltip content="深度扫描磁盘项目" placement="top">
               <el-button :icon="RefreshCw" circle @click="handleDeepScan" />
             </el-tooltip>
@@ -85,7 +110,12 @@ const handleDeepScan = async () => {
         </div>
 
         <div class="header-center">
-          <el-input v-model="searchQuery" placeholder="搜索画布项目..." clearable class="search-input">
+          <el-input
+            v-model="searchQuery"
+            placeholder="搜索画布项目..."
+            clearable
+            class="search-input"
+          >
             <template #prefix>
               <el-icon><Search /></el-icon>
             </template>
@@ -127,14 +157,19 @@ const handleDeepScan = async () => {
           @repair="handleRepairProject"
         >
           <template #empty-action>
-            <el-button type="primary" @click="isCreateDialogVisible = true"> 立即创建 </el-button>
+            <el-button type="primary" @click="isCreateDialogVisible = true">
+              立即创建
+            </el-button>
           </template>
         </CanvasProjectList>
       </main>
     </template>
 
     <!-- 弹窗 -->
-    <CreateCanvasDialog v-model="isCreateDialogVisible" @created="handleCanvasCreated" />
+    <CreateCanvasDialog
+      v-model="isCreateDialogVisible"
+      @created="handleCanvasCreated"
+    />
   </div>
 </template>
 

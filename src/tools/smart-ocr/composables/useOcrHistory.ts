@@ -6,21 +6,30 @@
  * - history/{recordId}.json: 存储单条记录的完整数据
  */
 
-import { exists, readTextFile, writeTextFile, remove } from '@tauri-apps/plugin-fs';
-import { join } from '@tauri-apps/api/path';
-import { getAppConfigDir } from '@/utils/appPath';
-import { createConfigManager } from '@/utils/configManager';
-import { useAssetManager } from '@/composables/useAssetManager';
-import type { OcrHistoryIndexItem, OcrHistoryRecord, OcrEngineConfig } from '../types';
-import { createModuleErrorHandler } from '@/utils/errorHandler';
-import { createModuleLogger } from '@/utils/logger';
-import { nanoid } from 'nanoid';
+import {
+  exists,
+  readTextFile,
+  writeTextFile,
+  remove,
+} from "@tauri-apps/plugin-fs";
+import { join } from "@tauri-apps/api/path";
+import { getAppConfigDir } from "@/utils/appPath";
+import { createConfigManager } from "@/utils/configManager";
+import { useAssetManager } from "@/composables/useAssetManager";
+import type {
+  OcrHistoryIndexItem,
+  OcrHistoryRecord,
+  OcrEngineConfig,
+} from "../types";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { createModuleLogger } from "@/utils/logger";
+import { nanoid } from "nanoid";
 
-const logger = createModuleLogger('smart-ocr/history');
-const errorHandler = createModuleErrorHandler('smart-ocr/history');
+const logger = createModuleLogger("smart-ocr/history");
+const errorHandler = createModuleErrorHandler("smart-ocr/history");
 
-const MODULE_NAME = 'smart-ocr';
-const HISTORY_SUBDIR = 'history';
+const MODULE_NAME = "smart-ocr";
+const HISTORY_SUBDIR = "history";
 
 /**
  * 历史记录索引配置
@@ -35,7 +44,7 @@ interface HistoryIndex {
  */
 function createDefaultIndex(): HistoryIndex {
   return {
-    version: '1.0.0',
+    version: "1.0.0",
     records: [],
   };
 }
@@ -45,14 +54,14 @@ function createDefaultIndex(): HistoryIndex {
  */
 function getEngineDetail(config: OcrEngineConfig): string {
   switch (config.type) {
-    case 'tesseract':
+    case "tesseract":
       return config.language;
-    case 'vlm':
+    case "vlm":
       return config.modelId;
-    case 'cloud':
+    case "cloud":
       return config.name;
     default:
-      return '';
+      return "";
   }
 }
 
@@ -61,8 +70,8 @@ function getEngineDetail(config: OcrEngineConfig): string {
  */
 const indexManager = createConfigManager<HistoryIndex>({
   moduleName: MODULE_NAME,
-  fileName: 'history-index.json',
-  version: '1.0.0',
+  fileName: "history-index.json",
+  version: "1.0.0",
   createDefault: createDefaultIndex,
 });
 
@@ -95,9 +104,9 @@ export function useOcrHistory() {
   async function ensureHistoryDir(): Promise<void> {
     const historyDir = await getHistoryDir();
     if (!(await exists(historyDir))) {
-      const { mkdir } = await import('@tauri-apps/plugin-fs');
+      const { mkdir } = await import("@tauri-apps/plugin-fs");
       await mkdir(historyDir, { recursive: true });
-      logger.debug('创建 history 目录', { historyDir });
+      logger.debug("创建 history 目录", { historyDir });
     }
   }
 
@@ -118,18 +127,20 @@ export function useOcrHistory() {
   /**
    * 加载单个历史记录的完整数据
    */
-  async function loadFullRecord(recordId: string): Promise<OcrHistoryRecord | null> {
+  async function loadFullRecord(
+    recordId: string
+  ): Promise<OcrHistoryRecord | null> {
     try {
       const recordPath = await getHistoryRecordPath(recordId);
       if (!(await exists(recordPath))) {
-        logger.warn('历史记录文件不存在', { recordId });
+        logger.warn("历史记录文件不存在", { recordId });
         return null;
       }
       const content = await readTextFile(recordPath);
       return JSON.parse(content);
     } catch (error) {
       errorHandler.handle(error as Error, {
-        userMessage: '加载历史记录失败',
+        userMessage: "加载历史记录失败",
         context: { recordId },
         showToUser: false,
       });
@@ -141,8 +152,8 @@ export function useOcrHistory() {
    * 添加一条新的历史记录
    */
   async function addRecord(
-    recordData: Omit<OcrHistoryRecord, 'id'>,
-    asset: import('@/types/asset-management').Asset
+    recordData: Omit<OcrHistoryRecord, "id">,
+    asset: import("@/types/asset-management").Asset
   ): Promise<OcrHistoryRecord> {
     const record: OcrHistoryRecord = {
       ...recordData,
@@ -159,7 +170,7 @@ export function useOcrHistory() {
       await writeTextFile(recordPath, JSON.stringify(record, null, 2));
 
       // 3. 创建索引项
-      const fullText = record.results.map((r) => r.text).join('\n');
+      const fullText = record.results.map((r) => r.text).join("\n");
       const indexItem: OcrHistoryIndexItem = {
         id: record.id,
         assetId: record.assetId,
@@ -176,11 +187,11 @@ export function useOcrHistory() {
       index.records.unshift(indexItem); // 新记录放在最前面
       await saveHistoryIndex(index);
 
-      logger.info('新的 OCR 历史记录已添加', { recordId: record.id });
+      logger.info("新的 OCR 历史记录已添加", { recordId: record.id });
       return record;
     } catch (error) {
       errorHandler.handle(error as Error, {
-        userMessage: '添加历史记录失败',
+        userMessage: "添加历史记录失败",
         context: { recordId: record.id },
         showToUser: false,
       });
@@ -196,7 +207,7 @@ export function useOcrHistory() {
       const index = await loadHistoryIndex();
       const recordIndex = index.records.findIndex((r) => r.id === recordId);
       if (recordIndex === -1) {
-        logger.warn('尝试删除一个不存在的记录', { recordId });
+        logger.warn("尝试删除一个不存在的记录", { recordId });
         return;
       }
 
@@ -206,11 +217,11 @@ export function useOcrHistory() {
       // 1. 从资产中移除 smart-ocr 来源
       // 如果资产没有其他来源使用，后端会自动删除物理文件
       try {
-        await removeSourceFromAsset(assetId, 'smart-ocr');
-        logger.info('已从资产移除 smart-ocr 来源', { assetId });
+        await removeSourceFromAsset(assetId, "smart-ocr");
+        logger.info("已从资产移除 smart-ocr 来源", { assetId });
       } catch (assetError) {
         errorHandler.handle(assetError as Error, {
-          userMessage: '移除资产来源失败',
+          userMessage: "移除资产来源失败",
           context: { assetId },
           showToUser: false,
         });
@@ -226,10 +237,10 @@ export function useOcrHistory() {
       // 4. 保存更新后的索引
       await saveHistoryIndex(index);
 
-      logger.info('历史记录已删除', { recordId });
+      logger.info("历史记录已删除", { recordId });
     } catch (error) {
       errorHandler.handle(error as Error, {
-        userMessage: '删除历史记录失败',
+        userMessage: "删除历史记录失败",
         context: { recordId },
         showToUser: false,
       });

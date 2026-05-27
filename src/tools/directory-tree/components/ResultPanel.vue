@@ -28,7 +28,12 @@
           <el-button :icon="Download" text circle @click="$emit('export')" />
         </el-tooltip>
         <el-tooltip content="发送到聊天" placement="top">
-          <el-button :icon="ChatDotRound" text circle @click="$emit('sendToChat')" />
+          <el-button
+            :icon="ChatDotRound"
+            text
+            circle
+            @click="$emit('sendToChat')"
+          />
         </el-tooltip>
         <el-tooltip content="清空结果" placement="top">
           <el-button :icon="Delete" text circle @click="$emit('reset')" />
@@ -42,7 +47,10 @@
           <el-icon><Filter /></el-icon>
           <span>视图控制与筛选</span>
         </div>
-        <el-icon class="expand-icon" :class="{ 'is-expanded': showResultFilter }">
+        <el-icon
+          class="expand-icon"
+          :class="{ 'is-expanded': showResultFilter }"
+        >
           <ArrowRight />
         </el-icon>
       </div>
@@ -61,7 +69,9 @@
               size="small"
               class="depth-slider"
             />
-            <span class="depth-value">{{ secondaryMaxDepth }} / {{ actualMaxDepth }}</span>
+            <span class="depth-value"
+              >{{ secondaryMaxDepth }} / {{ actualMaxDepth }}</span
+            >
           </div>
           <div class="control-row">
             <span class="control-label">包含路径:</span>
@@ -78,7 +88,9 @@
             <span class="control-label">排除内容:</span>
             <el-input
               :model-value="secondaryExcludePattern"
-              @update:model-value="$emit('update:secondaryExcludePattern', $event)"
+              @update:model-value="
+                $emit('update:secondaryExcludePattern', $event)
+              "
               placeholder="输入关键词隐藏行（及子项），支持逗号分隔多个条件"
               size="small"
               clearable
@@ -110,7 +122,11 @@
               >
                 筛选信息
               </el-checkbox>
-              <el-checkbox :model-value="showSize" @update:model-value="$emit('update:showSize', $event)" size="small">
+              <el-checkbox
+                :model-value="showSize"
+                @update:model-value="$emit('update:showSize', $event)"
+                size="small"
+              >
                 文件大小
               </el-checkbox>
               <el-checkbox

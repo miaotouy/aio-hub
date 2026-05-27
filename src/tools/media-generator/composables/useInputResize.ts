@@ -30,7 +30,10 @@ export function useInputResize(options: UseInputResizeOptions) {
 
     const minHeight = 40;
     const extra = options.extraHeight?.value || 0;
-    const maxHeight = Math.max(minHeight, window.innerHeight * 0.7 - extra - 60);
+    const maxHeight = Math.max(
+      minHeight,
+      window.innerHeight * 0.7 - extra - 60
+    );
     const finalHeight = Math.max(minHeight, Math.min(newHeight, maxHeight));
 
     customHeight.value = finalHeight;

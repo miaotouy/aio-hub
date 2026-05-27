@@ -51,7 +51,8 @@ export const useToolsStore = defineStore("tools", () => {
    */
   const orderedTools = computed<ToolConfig[]>(() => {
     // 优先使用用户手动调整的顺序，如果没有则使用内置默认顺序
-    const activeOrder = toolsOrder.value.length > 0 ? toolsOrder.value : DEFAULT_TOOLS_ORDER;
+    const activeOrder =
+      toolsOrder.value.length > 0 ? toolsOrder.value : DEFAULT_TOOLS_ORDER;
 
     // 创建工具路径到配置的映射
     const toolMap = new Map<string, ToolConfig>();
@@ -113,7 +114,10 @@ export const useToolsStore = defineStore("tools", () => {
    * 保存已打开的工具到缓存
    */
   function saveOpenedTools() {
-    localStorage.setItem("app-opened-tools", JSON.stringify(openedToolPaths.value));
+    localStorage.setItem(
+      "app-opened-tools",
+      JSON.stringify(openedToolPaths.value)
+    );
   }
 
   /**

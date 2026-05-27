@@ -48,7 +48,10 @@ onMounted(() => {
     if (textareaRef.value) {
       textareaRef.value.focus();
       // 将光标移动到文本末尾
-      textareaRef.value.setSelectionRange(props.modelValue.length, props.modelValue.length);
+      textareaRef.value.setSelectionRange(
+        props.modelValue.length,
+        props.modelValue.length
+      );
       // 初始化时调整高度（编辑已有多行文本的场景）
       autoResize();
     }

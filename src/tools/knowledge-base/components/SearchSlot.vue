@@ -2,9 +2,17 @@
   <div class="search-slot">
     <div class="slot-header">
       <div class="engine-select-wrapper">
-        <el-select v-model="engineId" placeholder="选择检索引擎" style="width: 100%">
+        <el-select
+          v-model="engineId"
+          placeholder="选择检索引擎"
+          style="width: 100%"
+        >
           <template #prefix>
-            <Icon :icon="activeEngine?.icon || 'lucide:cpu'" :width="16" :height="16" />
+            <Icon
+              :icon="activeEngine?.icon || 'lucide:cpu'"
+              :width="16"
+              :height="16"
+            />
           </template>
           <el-option
             v-for="engine in kbStore.engines"
@@ -13,7 +21,11 @@
             :value="engine.id"
           >
             <div class="engine-option">
-              <Icon :icon="engine.icon || 'lucide:cpu'" :width="16" :height="16" />
+              <Icon
+                :icon="engine.icon || 'lucide:cpu'"
+                :width="16"
+                :height="16"
+              />
               <div class="engine-option-info">
                 <div class="name">{{ engine.name }}</div>
                 <div class="desc">{{ engine.description }}</div>
@@ -22,7 +34,13 @@
           </el-option>
         </el-select>
       </div>
-      <el-button v-if="canRemove" type="danger" plain circle @click="$emit('remove')">
+      <el-button
+        v-if="canRemove"
+        type="danger"
+        plain
+        circle
+        @click="$emit('remove')"
+      >
         <X :size="14" />
       </el-button>
     </div>
@@ -35,12 +53,16 @@
       <div v-if="hasEngineParams" class="config-section">
         <div class="config-header" @click="configExpanded = !configExpanded">
           <Icon
-            :icon="configExpanded ? 'lucide:chevron-down' : 'lucide:chevron-right'"
+            :icon="
+              configExpanded ? 'lucide:chevron-down' : 'lucide:chevron-right'
+            "
             :width="14"
           />
           <span class="config-title">引擎参数</span>
           <div class="spacer"></div>
-          <span class="config-hint">{{ configExpanded ? "收起" : "展开" }}</span>
+          <span class="config-hint">{{
+            configExpanded ? "收起" : "展开"
+          }}</span>
         </div>
 
         <el-collapse-transition>
@@ -48,7 +70,10 @@
             <div class="config-body">
               <el-form label-position="top">
                 <!-- 如果引擎需要嵌入模型，显式渲染模型选择器 -->
-                <el-form-item v-if="activeEngine?.requiresEmbedding" label="EMBEDDING MODEL">
+                <el-form-item
+                  v-if="activeEngine?.requiresEmbedding"
+                  label="EMBEDDING MODEL"
+                >
                   <LlmModelSelector
                     v-model="config.embeddingModel"
                     :capabilities="{ embedding: true, rerank: false }"
@@ -68,7 +93,11 @@
       </div>
 
       <!-- 结果列表 -->
-      <div v-loading="loading" element-loading-background="rgba(0, 0, 0, 0)" class="results-list">
+      <div
+        v-loading="loading"
+        element-loading-background="rgba(0, 0, 0, 0)"
+        class="results-list"
+      >
         <template v-if="results.length > 0">
           <div
             v-for="(result, index) in results"
@@ -80,17 +109,31 @@
             <div class="result-header">
               <span class="rank">#{{ index + 1 }}</span>
               <span class="score">{{ result.score.toFixed(3) }}</span>
-              <span v-if="sharedResultIds.has(result.caiu.id)" class="shared-tag">共同命中</span>
+              <span
+                v-if="sharedResultIds.has(result.caiu.id)"
+                class="shared-tag"
+                >共同命中</span
+              >
               <div class="spacer"></div>
-              <el-tooltip content="查看完整详情" placement="top" :show-after="500">
+              <el-tooltip
+                content="查看完整详情"
+                placement="top"
+                :show-after="500"
+              >
                 <ExternalLink :size="12" class="detail-icon" />
               </el-tooltip>
             </div>
             <div class="result-key">{{ result.caiu.key }}</div>
-            <div class="result-content">{{ result.caiu.content.substring(0, 100) }}...</div>
+            <div class="result-content">
+              {{ result.caiu.content.substring(0, 100) }}...
+            </div>
           </div>
         </template>
-        <el-empty v-else :description="loading ? '正在检索...' : '暂无结果'" :image-size="60" />
+        <el-empty
+          v-else
+          :description="loading ? '正在检索...' : '暂无结果'"
+          :image-size="60"
+        />
       </div>
     </div>
   </div>
@@ -142,7 +185,8 @@ const configExpanded = ref(true);
 
 const config = ref<any>({
   embeddingModel:
-    props.initialConfig?.embeddingModel ?? (kbStore.config.defaultEmbeddingModel || ""),
+    props.initialConfig?.embeddingModel ??
+    (kbStore.config.defaultEmbeddingModel || ""),
   ...(props.initialConfig || {}),
 });
 
@@ -161,10 +205,14 @@ const displaySettings = computed(() => {
   };
 });
 
-const activeEngine = computed(() => kbStore.engines.find((e) => e.id === engineId.value));
+const activeEngine = computed(() =>
+  kbStore.engines.find((e) => e.id === engineId.value)
+);
 const isVectorEngine = computed(() => activeEngine.value?.requiresEmbedding);
 const hasEngineParams = computed(
-  () => (activeEngine.value?.parameters?.length || 0) > 0 || activeEngine.value?.requiresEmbedding
+  () =>
+    (activeEngine.value?.parameters?.length || 0) > 0 ||
+    activeEngine.value?.requiresEmbedding
 );
 
 // 监听模型变化，重置结果并同步到父组件
@@ -182,7 +230,10 @@ watch(
 
 watch(config, (val) => emit("update:config", { ...val }), { deep: true });
 
-async function search(query: string, options: { skipCoverageCheck?: boolean } = {}) {
+async function search(
+  query: string,
+  options: { skipCoverageCheck?: boolean } = {}
+) {
   try {
     // 将 config 中的所有参数（除 embeddingModel 外）作为 extraFilters 传递
     // 注意：SettingListRenderer 可能会根据 modelPath 写入嵌套的 vectorIndex 对象

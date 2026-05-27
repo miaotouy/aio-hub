@@ -50,7 +50,11 @@
       <span class="label">填充</span>
       <div class="fill-row">
         <label class="custom-checkbox">
-          <input type="checkbox" :checked="obj.fill !== null" @change="toggleFill" />
+          <input
+            type="checkbox"
+            :checked="obj.fill !== null"
+            @change="toggleFill"
+          />
           <span class="checkmark" />
           <span>启用</span>
         </label>

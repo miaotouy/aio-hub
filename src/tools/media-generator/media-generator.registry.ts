@@ -1,6 +1,10 @@
 import { markRaw } from "vue";
 import { Sparkles } from "lucide-vue-next";
-import type { ToolRegistry, ServiceMetadata, ToolConfig } from "@/services/types";
+import type {
+  ToolRegistry,
+  ServiceMetadata,
+  ToolConfig,
+} from "@/services/types";
 import type { AssetSidecarAction, Asset } from "@/types/asset-management";
 import { createModuleLogger } from "@/utils/logger";
 import { extractMetadata } from "@/utils/mediaMetadataManager";
@@ -32,7 +36,8 @@ export default class MediaGeneratorRegistry implements ToolRegistry {
   readonly name = "媒体生成中心";
   readonly description = "一站式媒体生成工作站，支持图片、视频和音频生成。";
 
-  private _inputManager: ReturnType<typeof useMediaGenInputManager> | null = null;
+  private _inputManager: ReturnType<typeof useMediaGenInputManager> | null =
+    null;
 
   /**
    * 获取输入管理器实例（惰性初始化）
@@ -51,11 +56,17 @@ export default class MediaGeneratorRegistry implements ToolRegistry {
    * @param content 要添加的内容
    * @param options 添加选项
    */
-  public addContentToInput(content: string, options: { position?: "append" | "prepend" } = {}) {
+  public addContentToInput(
+    content: string,
+    options: { position?: "append" | "prepend" } = {}
+  ) {
     return errorHandler.wrapSync(
       () => {
         const { position = "append" } = options;
-        logger.info("添加内容到输入框", { contentLength: content.length, position });
+        logger.info("添加内容到输入框", {
+          contentLength: content.length,
+          position,
+        });
         this.inputManager.addContent(content, position);
         return {
           success: true,
@@ -119,7 +130,12 @@ export default class MediaGeneratorRegistry implements ToolRegistry {
           name: "generateMedia",
           description: "根据提示词生成媒体内容",
           parameters: [
-            { name: "prompt", type: "string", description: "生成提示词", required: true },
+            {
+              name: "prompt",
+              type: "string",
+              description: "生成提示词",
+              required: true,
+            },
             {
               name: "type",
               type: "string",
@@ -133,7 +149,12 @@ export default class MediaGeneratorRegistry implements ToolRegistry {
           name: "addContentToInput",
           description: "向输入框添加内容",
           parameters: [
-            { name: "content", type: "string", description: "内容", required: true },
+            {
+              name: "content",
+              type: "string",
+              description: "内容",
+              required: true,
+            },
             { name: "options", type: "object", description: "选项" },
           ],
           returnType: "object",
@@ -141,13 +162,27 @@ export default class MediaGeneratorRegistry implements ToolRegistry {
         {
           name: "setInputContent",
           description: "设置输入框内容",
-          parameters: [{ name: "content", type: "string", description: "内容", required: true }],
+          parameters: [
+            {
+              name: "content",
+              type: "string",
+              description: "内容",
+              required: true,
+            },
+          ],
           returnType: "object",
         },
         {
           name: "addAssets",
           description: "批量添加附件",
-          parameters: [{ name: "assets", type: "Array", description: "资产列表", required: true }],
+          parameters: [
+            {
+              name: "assets",
+              type: "Array",
+              description: "资产列表",
+              required: true,
+            },
+          ],
           returnType: "number",
         },
       ],
@@ -167,7 +202,9 @@ export default class MediaGeneratorRegistry implements ToolRegistry {
         isVisible: (asset: Asset) => {
           // 只要是本模块生成的资产，或者包含衍生数据的资产
           const hasGenerationData = !!asset.metadata?.derived?.["generation"];
-          const isGenerated = asset.origins.some((o) => o.sourceModule === "media-generator");
+          const isGenerated = asset.origins.some(
+            (o) => o.sourceModule === "media-generator"
+          );
           return hasGenerationData || isGenerated;
         },
         handler: async (asset: Asset) => {

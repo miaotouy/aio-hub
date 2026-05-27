@@ -1,5 +1,10 @@
 import { appDataDir, join } from "@tauri-apps/api/path";
-import { readTextFile, writeTextFile, mkdir, exists } from "@tauri-apps/plugin-fs";
+import {
+  readTextFile,
+  writeTextFile,
+  mkdir,
+  exists,
+} from "@tauri-apps/plugin-fs";
 import { invoke } from "@tauri-apps/api/core";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -49,14 +54,18 @@ export function useCanvasStorage() {
         const fullPath = await join(basePath, filepath);
         return await readTextFile(fullPath);
       },
-      { userMessage: "读取文件失败" },
+      { userMessage: "读取文件失败" }
     );
   }
 
   /**
    * 写入物理文件
    */
-  async function writePhysicalFile(canvasId: string, filepath: string, content: string) {
+  async function writePhysicalFile(
+    canvasId: string,
+    filepath: string,
+    content: string
+  ) {
     return await errorHandler.wrapAsync(
       async () => {
         const basePath = await ensureCanvasDir(canvasId);
@@ -65,7 +74,10 @@ export function useCanvasStorage() {
         // 确保父目录存在
         // 处理 Windows 路径分隔符
         const normalizedPath = fullPath.replace(/\\/g, "/");
-        const parentDir = normalizedPath.substring(0, normalizedPath.lastIndexOf("/"));
+        const parentDir = normalizedPath.substring(
+          0,
+          normalizedPath.lastIndexOf("/")
+        );
         if (parentDir && !(await exists(parentDir))) {
           await mkdir(parentDir, { recursive: true });
         }
@@ -73,7 +85,7 @@ export function useCanvasStorage() {
         await writeTextFile(fullPath, content);
         logger.debug("物理文件写入成功", { fullPath });
       },
-      { userMessage: "写入文件失败" },
+      { userMessage: "写入文件失败" }
     );
   }
 
@@ -94,14 +106,16 @@ export function useCanvasStorage() {
           logger.info("物理文件已删除", { fullPath });
         }
       },
-      { userMessage: "删除文件失败" },
+      { userMessage: "删除文件失败" }
     );
   }
 
   /**
    * 读取单个画布的元数据
    */
-  async function readCanvasMetadata(canvasId: string): Promise<CanvasMetadata | null> {
+  async function readCanvasMetadata(
+    canvasId: string
+  ): Promise<CanvasMetadata | null> {
     return await errorHandler.wrapAsync(
       async () => {
         const basePath = await getCanvasBasePath(canvasId);
@@ -114,21 +128,24 @@ export function useCanvasStorage() {
         const content = await readTextFile(metadataPath);
         return JSON.parse(content) as CanvasMetadata;
       },
-      { userMessage: "读取画布元数据失败" },
+      { userMessage: "读取画布元数据失败" }
     );
   }
 
   /**
    * 写入单个画布的元数据
    */
-  async function writeCanvasMetadata(canvasId: string, metadata: CanvasMetadata) {
+  async function writeCanvasMetadata(
+    canvasId: string,
+    metadata: CanvasMetadata
+  ) {
     return await errorHandler.wrapAsync(
       async () => {
         const basePath = await ensureCanvasDir(canvasId);
         const metadataPath = await join(basePath, ".canvas.json");
         await writeTextFile(metadataPath, JSON.stringify(metadata, null, 2));
       },
-      { userMessage: "写入画布元数据失败" },
+      { userMessage: "写入画布元数据失败" }
     );
   }
 
@@ -139,7 +156,8 @@ export function useCanvasStorage() {
   async function listAllCanvases(): Promise<CanvasMetadata[]> {
     const result = await errorHandler.wrapAsync(
       async () => {
-        const { canvasIndexManager } = await import("../services/CanvasIndexManager");
+        const { canvasIndexManager } =
+          await import("../services/CanvasIndexManager");
         const index = await canvasIndexManager.loadIndex();
         const canvases: CanvasMetadata[] = [];
 
@@ -157,7 +175,7 @@ export function useCanvasStorage() {
 
         return canvases.sort((a, b) => b.updatedAt - a.updatedAt);
       },
-      { userMessage: "获取画布列表失败" },
+      { userMessage: "获取画布列表失败" }
     );
     return result ?? [];
   }
@@ -173,39 +191,53 @@ export function useCanvasStorage() {
         });
         logger.info("画布已成功删除（进入回收站）", { canvasId });
       },
-      { userMessage: "删除画布失败" },
+      { userMessage: "删除画布失败" }
     );
   }
 
   /**
    * 获取文件树
    */
-  async function getCanvasFileTree(canvasId: string): Promise<CanvasFileNode[]> {
+  async function getCanvasFileTree(
+    canvasId: string
+  ): Promise<CanvasFileNode[]> {
     const result = await errorHandler.wrapAsync(
       async () => {
         const basePath = await getCanvasBasePath(canvasId);
         // 调用 Rust 后端的高性能目录树生成指令
-        const result = await invoke<{ structure: any }>("generate_directory_tree", {
-          path: basePath,
-          showFiles: true,
-          showHidden: false,
-          maxDepth: 0,
-          ignorePatterns: ["__USE_GITIGNORE__"],
-        });
+        const result = await invoke<{ structure: any }>(
+          "generate_directory_tree",
+          {
+            path: basePath,
+            showFiles: true,
+            showHidden: false,
+            maxDepth: 0,
+            ignorePatterns: ["__USE_GITIGNORE__"],
+          }
+        );
 
         // 过滤掉 .git 和 .canvas.json，并转换 snake_case 为 camelCase，同时拼接相对路径
-        const filterNodes = (nodes: any[], parentPath: string = ""): CanvasFileNode[] => {
+        const filterNodes = (
+          nodes: any[],
+          parentPath: string = ""
+        ): CanvasFileNode[] => {
           if (!nodes) return [];
           return nodes
-            .filter((node) => node.name !== ".git" && node.name !== ".canvas.json")
+            .filter(
+              (node) => node.name !== ".git" && node.name !== ".canvas.json"
+            )
             .map((node) => {
-              const currentPath = parentPath ? `${parentPath}/${node.name}` : node.name;
+              const currentPath = parentPath
+                ? `${parentPath}/${node.name}`
+                : node.name;
               return {
                 name: node.name,
                 path: currentPath,
                 isDirectory: node.is_dir,
                 size: node.size,
-                children: node.children ? filterNodes(node.children, currentPath) : undefined,
+                children: node.children
+                  ? filterNodes(node.children, currentPath)
+                  : undefined,
                 status: "clean" as const,
               };
             });
@@ -214,7 +246,7 @@ export function useCanvasStorage() {
         // 从根节点的子节点开始过滤
         return filterNodes(result.structure.children);
       },
-      { userMessage: "获取文件树失败" },
+      { userMessage: "获取文件树失败" }
     );
     return result ?? [];
   }

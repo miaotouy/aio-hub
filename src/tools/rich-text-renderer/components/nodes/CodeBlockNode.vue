@@ -78,8 +78,22 @@
       <div v-else class="html-preview-frozen">
         <div class="frozen-tip">
           <span class="tip-text">{{ freezeReason }}</span>
-          <el-button v-if="!showDialog" size="small" type="primary" @click="manualActive = true"> 恢复预览 </el-button>
-          <el-button v-else size="small" type="primary" @click="showDialog = false"> 关闭弹窗以恢复 </el-button>
+          <el-button
+            v-if="!showDialog"
+            size="small"
+            type="primary"
+            @click="manualActive = true"
+          >
+            恢复预览
+          </el-button>
+          <el-button
+            v-else
+            size="small"
+            type="primary"
+            @click="showDialog = false"
+          >
+            关闭弹窗以恢复
+          </el-button>
         </div>
       </div>
     </div>
@@ -126,10 +140,12 @@ const props = withDefaults(
   {
     seamless: undefined,
     defaultExpanded: undefined,
-  },
+  }
 );
 
-const errorHandler = createModuleErrorHandler("tools/rich-text-renderer/components/nodes/CodeBlockNode.vue");
+const errorHandler = createModuleErrorHandler(
+  "tools/rich-text-renderer/components/nodes/CodeBlockNode.vue"
+);
 
 // 注入上下文以获取全局设置
 const context = inject<RichTextContext>(RICH_TEXT_CONTEXT_KEY);
@@ -215,7 +231,7 @@ watch(
       viewMode.value = "preview";
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 // 悬停状态管理
@@ -267,7 +283,9 @@ const fontBaselineReady = computed(() => {
 });
 
 // 展开状态
-const isExpanded = ref(props.defaultExpanded ?? context?.defaultCodeBlockExpanded?.value ?? false);
+const isExpanded = ref(
+  props.defaultExpanded ?? context?.defaultCodeBlockExpanded?.value ?? false
+);
 
 const tokenCount = ref<number>(0);
 
@@ -281,7 +299,10 @@ const updateTokenCount = useThrottleFn(async () => {
 
   try {
     const modelId = props.generationMeta?.modelId || "gpt-4o";
-    const result = await calculatorProxy.calculateTokens(props.content, modelId);
+    const result = await calculatorProxy.calculateTokens(
+      props.content,
+      modelId
+    );
     tokenCount.value = result.count;
   } catch (error) {
     console.warn("[CodeBlockNode] Token calculation failed", error);
@@ -296,7 +317,7 @@ watch(
       updateTokenCount();
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 // 监听开关变化
@@ -306,7 +327,7 @@ watch(
     if (show) {
       updateTokenCount();
     }
-  },
+  }
 );
 
 // 复制代码

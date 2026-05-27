@@ -4,7 +4,7 @@ import { useKbVectorSync } from "./useKbVectorSync";
 
 /**
  * 知识库业务逻辑聚合 Composable
- * 
+ *
  * 已拆分为:
  * - useKbManagement: 库级别的 CRUD 与管理
  * - useKbEntryManagement: 条目级别的 CRUD 与导入

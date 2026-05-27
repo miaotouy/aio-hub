@@ -1,17 +1,17 @@
 /**
  * Vitest 全局测试配置
- * 
+ *
  * 此文件在所有测试运行前执行，用于设置全局环境和模拟
  */
 
-import { vi } from 'vitest';
+import { vi } from "vitest";
 
 // 模拟 Tauri API（测试环境中不可用）
-vi.mock('@tauri-apps/api/core', () => ({
+vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
 }));
 
-vi.mock('@tauri-apps/plugin-fs', () => ({
+vi.mock("@tauri-apps/plugin-fs", () => ({
   readTextFile: vi.fn(),
   writeTextFile: vi.fn(),
   exists: vi.fn(),
@@ -20,7 +20,7 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
   remove: vi.fn(),
 }));
 
-vi.mock('@tauri-apps/plugin-dialog', () => ({
+vi.mock("@tauri-apps/plugin-dialog", () => ({
   open: vi.fn(),
   save: vi.fn(),
   message: vi.fn(),
@@ -28,18 +28,18 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
   confirm: vi.fn(),
 }));
 
-vi.mock('@tauri-apps/plugin-shell', () => ({
+vi.mock("@tauri-apps/plugin-shell", () => ({
   Command: vi.fn(),
   open: vi.fn(),
 }));
 
-vi.mock('@tauri-apps/plugin-clipboard-manager', () => ({
+vi.mock("@tauri-apps/plugin-clipboard-manager", () => ({
   writeText: vi.fn(),
   readText: vi.fn(),
 }));
 
 // 模拟 window.matchMedia（jsdom 不支持）
-Object.defineProperty(window, 'matchMedia', {
+Object.defineProperty(window, "matchMedia", {
   writable: true,
   value: vi.fn().mockImplementation((query: string) => ({
     matches: false,

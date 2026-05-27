@@ -19,15 +19,22 @@
     <div class="card-stats">
       <div class="stat-item">
         <span class="stat-label">实时频率</span>
-        <span class="stat-val freq-live">{{ formatFrequency(cpu.frequencyMhz) }}</span>
+        <span class="stat-val freq-live">{{
+          formatFrequency(cpu.frequencyMhz)
+        }}</span>
       </div>
       <div class="stat-item">
         <span class="stat-label">基准频率</span>
-        <span class="stat-val">{{ formatFrequency(cpu.baseFrequencyMhz) }}</span>
+        <span class="stat-val">{{
+          formatFrequency(cpu.baseFrequencyMhz)
+        }}</span>
       </div>
       <div class="stat-item" v-if="cpu.temperatureCelsius !== null">
         <span class="stat-label">温度</span>
-        <span class="stat-val" :style="{ color: tempColor(cpu.temperatureCelsius) }">
+        <span
+          class="stat-val"
+          :style="{ color: tempColor(cpu.temperatureCelsius) }"
+        >
           {{ cpu.temperatureCelsius?.toFixed(0) }}°C
         </span>
       </div>
@@ -59,7 +66,12 @@
 
 <script setup lang="ts">
 import SparklineChart from "./SparklineChart.vue";
-import { formatFrequency, formatUptime, tempColor, usageColor } from "../utils/formatters";
+import {
+  formatFrequency,
+  formatUptime,
+  tempColor,
+  usageColor,
+} from "../utils/formatters";
 import type { CpuSnapshot } from "../types/snapshot";
 
 defineProps<{

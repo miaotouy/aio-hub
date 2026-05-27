@@ -1,9 +1,9 @@
-import { computed, type Ref } from 'vue';
+import { computed, type Ref } from "vue";
 import type { ChatAgent, UserProfile } from "../../types";
 
-type EntityType = 'agent' | 'user-profile';
+type EntityType = "agent" | "user-profile";
 // 兼容智能体、用户档案以及消息元数据中的快照
-type Entity = (ChatAgent | UserProfile | { id: string; icon?: string });
+type Entity = ChatAgent | UserProfile | { id: string; icon?: string };
 
 /**
  * 判断一个图标字符串是否像一个内置的文件名
@@ -12,16 +12,24 @@ type Entity = (ChatAgent | UserProfile | { id: string; icon?: string });
 function isLikelyFilename(icon: string): boolean {
   if (!icon) return false;
   // 排除 DataURL 和 协议头
-  if (icon.startsWith('data:') || icon.includes('://')) return false;
+  if (icon.startsWith("data:") || icon.includes("://")) return false;
   // 一个简单的检查：包含点（用于扩展名）且不包含路径分隔符
   // 注意：Windows 绝对路径包含 : 和 \，Unix 绝对路径包含 /
-  return icon.includes('.') && !icon.includes('/') && !icon.includes('\\') && !icon.includes(':');
+  return (
+    icon.includes(".") &&
+    !icon.includes("/") &&
+    !icon.includes("\\") &&
+    !icon.includes(":")
+  );
 }
 
 /**
  * 解析头像路径的纯函数版本
  */
-export function resolveAvatarPath(entity: Entity | undefined | null, type: EntityType): string | null {
+export function resolveAvatarPath(
+  entity: Entity | undefined | null,
+  type: EntityType
+): string | null {
   if (!entity) {
     return null;
   }
@@ -53,7 +61,10 @@ export function resolveAvatarPath(entity: Entity | undefined | null, type: Entit
  * @param type 实体类型, 'agent' 或 'user-profile'
  * @returns 计算属性，返回最终的 src 字符串或在没有有效图标时返回 null
  */
-export function useResolvedAvatar(entityRef: Ref<Entity | undefined | null>, type: EntityType) {
+export function useResolvedAvatar(
+  entityRef: Ref<Entity | undefined | null>,
+  type: EntityType
+) {
   return computed(() => {
     return resolveAvatarPath(entityRef.value, type);
   });

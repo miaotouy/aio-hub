@@ -8,15 +8,21 @@ import type { Token } from "./types";
 class TokenizerService {
   private worker: Worker | null = null;
   private nextId = 0;
-  private callbacks = new Map<number, { resolve: (tokens: Token[]) => void; reject: (err: any) => void }>();
+  private callbacks = new Map<
+    number,
+    { resolve: (tokens: Token[]) => void; reject: (err: any) => void }
+  >();
 
   private initWorker() {
     if (this.worker) return;
 
     // 使用 Vite 的 Worker 导入方式
-    this.worker = new Worker(new URL("./tokenizer.worker.ts", import.meta.url), {
-      type: "module",
-    });
+    this.worker = new Worker(
+      new URL("./tokenizer.worker.ts", import.meta.url),
+      {
+        type: "module",
+      }
+    );
 
     this.worker.onmessage = (e: MessageEvent<any>) => {
       const { id, status, tokens, error } = e.data;
@@ -57,7 +63,9 @@ class TokenizerService {
     if (this.worker) {
       this.worker.terminate();
       this.worker = null;
-      this.callbacks.forEach((cb) => cb.reject(new Error("Tokenizer Worker terminated")));
+      this.callbacks.forEach((cb) =>
+        cb.reject(new Error("Tokenizer Worker terminated"))
+      );
       this.callbacks.clear();
     }
   }

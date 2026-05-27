@@ -3,7 +3,11 @@
  * 支持从不同提供商 API 获取可用模型列表
  */
 
-import type { LlmProfile, LlmModelInfo, ProviderType } from "../types/llm-profiles";
+import type {
+  LlmProfile,
+  LlmModelInfo,
+  ProviderType,
+} from "../types/llm-profiles";
 import { getProviderTypeInfo } from "../config/llm-providers";
 import { buildLlmApiUrl } from "@/utils/llm-api-url";
 import { fetchWithTimeout, ensureResponseOk } from "./common";
@@ -30,7 +34,9 @@ export interface ModelFetchResult {
 /**
  * 从 API 获取模型列表
  */
-export async function fetchModelsFromApi(profile: LlmProfile): Promise<ModelFetchResult> {
+export async function fetchModelsFromApi(
+  profile: LlmProfile
+): Promise<ModelFetchResult> {
   const providerInfo = getProviderTypeInfo(profile.type);
 
   if (!providerInfo?.supportsModelList || !providerInfo.modelListEndpoint) {
@@ -43,13 +49,9 @@ export async function fetchModelsFromApi(profile: LlmProfile): Promise<ModelFetc
     endpoint: providerInfo.modelListEndpoint,
   });
 
-  const url = buildLlmApiUrl(
-    profile.baseUrl,
-    profile.type,
-    "models",
-    profile
-  );
-  const apiKey = profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
+  const url = buildLlmApiUrl(profile.baseUrl, profile.type, "models", profile);
+  const apiKey =
+    profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
 
   // 根据不同提供商构建请求头
   const headers = buildRequestHeaders(profile.type, apiKey);
@@ -97,7 +99,10 @@ export async function fetchModelsFromApi(profile: LlmProfile): Promise<ModelFetc
 /**
  * 根据提供商类型构建请求头
  */
-function buildRequestHeaders(providerType: ProviderType, apiKey: string): Record<string, string> {
+function buildRequestHeaders(
+  providerType: ProviderType,
+  apiKey: string
+): Record<string, string> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
@@ -148,7 +153,10 @@ function buildRequestHeaders(providerType: ProviderType, apiKey: string): Record
   return headers;
 }
 
-function parseModelsResponse(data: any, providerType: ProviderType): LlmModelInfo[] {
+function parseModelsResponse(
+  data: any,
+  providerType: ProviderType
+): LlmModelInfo[] {
   switch (providerType) {
     case "openai":
     case "openai-compatible":

@@ -2,13 +2,29 @@
 import { ref, computed, watch } from "vue";
 import { useQuickActionStore } from "../../stores/quickActionStore";
 import type { QuickAction, QuickActionSet } from "../../types/quick-action";
-import { Plus, Trash2, Copy, Settings2, ChevronRight, Zap, Save, Info } from "lucide-vue-next";
+import {
+  Plus,
+  Trash2,
+  Copy,
+  Settings2,
+  ChevronRight,
+  Zap,
+  Save,
+  Info,
+} from "lucide-vue-next";
 import { MagicStick } from "@element-plus/icons-vue";
 import { customMessage } from "@/utils/customMessage";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import MacroSelector from "../agent/selectors/MacroSelector.vue";
-import { MacroRegistry, initializeMacroEngine, type MacroDefinition } from "../../macro-engine";
-import type { CompletionContext, CompletionResult } from "@codemirror/autocomplete";
+import {
+  MacroRegistry,
+  initializeMacroEngine,
+  type MacroDefinition,
+} from "../../macro-engine";
+import type {
+  CompletionContext,
+  CompletionResult,
+} from "@codemirror/autocomplete";
 import * as monaco from "monaco-editor";
 import { useDebounceFn } from "@vueuse/core";
 
@@ -30,13 +46,15 @@ watch(
       initializeMacroEngine();
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 /**
  * 宏自动补全源
  */
-const macroCompletionSource = (context: CompletionContext): CompletionResult | null => {
+const macroCompletionSource = (
+  context: CompletionContext
+): CompletionResult | null => {
   const line = context.state.doc.lineAt(context.pos);
   const textBefore = line.text.slice(0, context.pos - line.from);
 
@@ -47,15 +65,23 @@ const macroCompletionSource = (context: CompletionContext): CompletionResult | n
   const startPos = context.pos - macroMatch[1].length;
 
   const registry = MacroRegistry.getInstance();
-  const allMacros = registry.getAllMacros().filter((m) => m.supported !== false);
+  const allMacros = registry
+    .getAllMacros()
+    .filter((m) => m.supported !== false);
 
   const matchedMacros = allMacros.filter(
-    (macro) => macro.name.toLowerCase().includes(prefix) || macro.description.toLowerCase().includes(prefix),
+    (macro) =>
+      macro.name.toLowerCase().includes(prefix) ||
+      macro.description.toLowerCase().includes(prefix)
   );
 
   if (matchedMacros.length === 0) return null;
 
-  const typeOrder: Record<string, number> = { value: 0, variable: 1, function: 2 };
+  const typeOrder: Record<string, number> = {
+    value: 0,
+    variable: 1,
+    function: 2,
+  };
   matchedMacros.sort((a, b) => {
     const priorityA = a.priority ?? 0;
     const priorityB = b.priority ?? 0;
@@ -118,7 +144,12 @@ const handleInsertMacro = (macro: MacroDefinition) => {
     if (position) {
       monacoInstance.executeEdits("", [
         {
-          range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+          range: new monaco.Range(
+            position.lineNumber,
+            position.column,
+            position.lineNumber,
+            position.column
+          ),
           text: insertText,
           forceMoveMarkers: true,
         },
@@ -188,7 +219,10 @@ const handleDeleteAction = (id: string) => {
   if (index !== -1) {
     currentSet.value.actions.splice(index, 1);
     if (selectedActionId.value === id) {
-      selectedActionId.value = currentSet.value.actions.length > 0 ? currentSet.value.actions[0].id : null;
+      selectedActionId.value =
+        currentSet.value.actions.length > 0
+          ? currentSet.value.actions[0].id
+          : null;
     }
     saveChanges();
   }
@@ -218,7 +252,7 @@ watch(
   () => {
     saveChanges();
   },
-  { deep: true },
+  { deep: true }
 );
 
 const handleManualSave = async () => {
@@ -233,7 +267,13 @@ const handleManualSave = async () => {
     <aside class="qa-sidebar">
       <div class="sidebar-header">
         <span class="title">操作列表</span>
-        <el-button :icon="Plus" type="primary" circle size="small" @click="handleAddAction" />
+        <el-button
+          :icon="Plus"
+          type="primary"
+          circle
+          size="small"
+          @click="handleAddAction"
+        />
       </div>
 
       <div class="action-list custom-scrollbar">
@@ -254,21 +294,48 @@ const handleManualSave = async () => {
             <ChevronRight :size="14" />
           </div>
         </div>
-        <el-empty v-if="!currentSet?.actions.length" description="暂无操作" :image-size="40" />
+        <el-empty
+          v-if="!currentSet?.actions.length"
+          description="暂无操作"
+          :image-size="40"
+        />
       </div>
     </aside>
 
     <main class="qa-editor-area" v-if="currentAction">
       <div class="editor-header">
         <div class="header-left">
-          <el-input v-model="currentAction.label" placeholder="操作名称" class="action-name-input" />
+          <el-input
+            v-model="currentAction.label"
+            placeholder="操作名称"
+            class="action-name-input"
+          />
         </div>
         <div class="header-actions">
-          <el-button :icon="Save" circle @click="handleManualSave" title="手动保存" />
-          <el-button :icon="Copy" circle @click="handleDuplicateAction(currentAction)" title="克隆" />
-          <el-popconfirm title="确定删除此操作吗？" @confirm="handleDeleteAction(currentAction.id)">
+          <el-button
+            :icon="Save"
+            circle
+            @click="handleManualSave"
+            title="手动保存"
+          />
+          <el-button
+            :icon="Copy"
+            circle
+            @click="handleDuplicateAction(currentAction)"
+            title="克隆"
+          />
+          <el-popconfirm
+            title="确定删除此操作吗？"
+            @confirm="handleDeleteAction(currentAction.id)"
+          >
             <template #reference>
-              <el-button :icon="Trash2" circle plain type="danger" title="删除" />
+              <el-button
+                :icon="Trash2"
+                circle
+                plain
+                type="danger"
+                title="删除"
+              />
             </template>
           </el-popconfirm>
         </div>
@@ -293,8 +360,14 @@ const handleManualSave = async () => {
                   popper-class="macro-selector-popover"
                 >
                   <template #reference>
-                    <el-button size="small" :type="macroSelectorVisible ? 'primary' : 'default'" plain>
-                      <el-icon style="margin-right: 4px"><MagicStick /></el-icon>
+                    <el-button
+                      size="small"
+                      :type="macroSelectorVisible ? 'primary' : 'default'"
+                      plain
+                    >
+                      <el-icon style="margin-right: 4px"
+                        ><MagicStick
+                      /></el-icon>
                       插入宏
                     </el-button>
                   </template>
@@ -316,7 +389,10 @@ const handleManualSave = async () => {
           <div class="advanced-grid">
             <div class="control-item">
               <span class="label">自动发送</span>
-              <el-switch v-model="currentAction.autoSend" active-text="执行后立即发送" />
+              <el-switch
+                v-model="currentAction.autoSend"
+                active-text="执行后立即发送"
+              />
             </div>
             <div class="control-item full-width">
               <span class="label">描述</span>
@@ -357,23 +433,38 @@ const handleManualSave = async () => {
               style="margin-left: auto"
             />
           </div>
-          <div class="advanced-grid" v-if="currentAction.lineProcessing?.enabled">
+          <div
+            class="advanced-grid"
+            v-if="currentAction.lineProcessing?.enabled"
+          >
             <div class="control-item">
               <span class="label">行前缀</span>
-              <el-input v-model="currentAction.lineProcessing.prefix" placeholder="例如: > " />
+              <el-input
+                v-model="currentAction.lineProcessing.prefix"
+                placeholder="例如: > "
+              />
             </div>
             <div class="control-item">
               <span class="label">行后缀</span>
-              <el-input v-model="currentAction.lineProcessing.suffix" placeholder="结束符" />
+              <el-input
+                v-model="currentAction.lineProcessing.suffix"
+                placeholder="结束符"
+              />
             </div>
             <div class="control-item full-width">
-              <div class="label-row" style="display: flex; align-items: center; gap: 4px">
+              <div
+                class="label-row"
+                style="display: flex; align-items: center; gap: 4px"
+              >
                 <span class="label">正则替换 (可选)</span>
                 <el-tooltip content="对生成的每一行内容进行正则替换">
                   <el-icon class="info-icon"><Info /></el-icon>
                 </el-tooltip>
               </div>
-              <div class="regex-inputs" style="display: flex; gap: 8px; margin-top: 4px">
+              <div
+                class="regex-inputs"
+                style="display: flex; gap: 8px; margin-top: 4px"
+              >
                 <el-input
                   v-model="currentAction.lineProcessing.regexPattern"
                   placeholder="匹配模式 (如: ^)"
@@ -406,11 +497,17 @@ const handleManualSave = async () => {
           <div class="advanced-grid">
             <div class="control-item">
               <span class="label">组启用状态</span>
-              <el-switch v-model="currentSet.isEnabled" active-text="在输入框显示" />
+              <el-switch
+                v-model="currentSet.isEnabled"
+                active-text="在输入框显示"
+              />
             </div>
             <div class="control-item full-width">
               <span class="label">组描述</span>
-              <el-input v-model="currentSet.description" placeholder="此组的用途说明..." />
+              <el-input
+                v-model="currentSet.description"
+                placeholder="此组的用途说明..."
+              />
             </div>
           </div>
         </div>

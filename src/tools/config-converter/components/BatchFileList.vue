@@ -6,20 +6,48 @@
         <span class="header-hint">· 拖放文件到此区域可继续添加</span>
       </div>
       <div class="header-actions">
-        <el-button type="primary" plain size="small" :icon="Plus" @click="emit('selectFiles')">
+        <el-button
+          type="primary"
+          plain
+          size="small"
+          :icon="Plus"
+          @click="emit('selectFiles')"
+        >
           添加文件
         </el-button>
-        <el-button plain size="small" :icon="FolderOpen" @click="emit('selectDirectory')">
+        <el-button
+          plain
+          size="small"
+          :icon="FolderOpen"
+          @click="emit('selectDirectory')"
+        >
           添加目录
         </el-button>
-        <el-button v-if="items.length > 0" type="danger" plain size="small" :icon="Trash2" @click="emit('clear')">
+        <el-button
+          v-if="items.length > 0"
+          type="danger"
+          plain
+          size="small"
+          :icon="Trash2"
+          @click="emit('clear')"
+        >
           清空
         </el-button>
       </div>
     </div>
 
-    <el-table :data="items" style="width: 100%; flex: 1" height="100%" class="file-table">
-      <el-table-column prop="name" label="文件名" min-width="180" show-overflow-tooltip>
+    <el-table
+      :data="items"
+      style="width: 100%; flex: 1"
+      height="100%"
+      class="file-table"
+    >
+      <el-table-column
+        prop="name"
+        label="文件名"
+        min-width="180"
+        show-overflow-tooltip
+      >
         <template #default="{ row }">
           <div class="file-name-cell">
             <FileIcon :filename="row.name" :size="16" class="file-icon" />
@@ -89,20 +117,35 @@
             >
               预览
             </el-button>
-            <el-button type="danger" link size="small" :icon="X" @click="emit('remove', row.id)"> 移除 </el-button>
+            <el-button
+              type="danger"
+              link
+              size="small"
+              :icon="X"
+              @click="emit('remove', row.id)"
+            >
+              移除
+            </el-button>
           </div>
         </template>
       </el-table-column>
     </el-table>
 
     <!-- 预览弹窗 -->
-    <BaseDialog v-model="previewVisible" :title="`预览转换结果 - ${previewingItem?.name}`" width="80%" height="80vh">
+    <BaseDialog
+      v-model="previewVisible"
+      :title="`预览转换结果 - ${previewingItem?.name}`"
+      width="80%"
+      height="80vh"
+    >
       <div class="preview-dialog-content">
         <div class="preview-toolbar">
           <el-tag type="success" effect="dark">
             {{ previewingItem?.targetFormat.toUpperCase() }}
           </el-tag>
-          <el-button type="primary" size="small" @click="copyPreviewContent"> 复制内容 </el-button>
+          <el-button type="primary" size="small" @click="copyPreviewContent">
+            复制内容
+          </el-button>
         </div>
         <div class="editor-wrapper">
           <RichCodeEditor
@@ -196,7 +239,10 @@ const copyPreviewContent = async () => {
   align-items: center;
   padding: 10px 16px;
   border-bottom: 1px solid var(--border-color);
-  background-color: rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.02));
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.02)
+  );
   gap: 12px;
 }
 

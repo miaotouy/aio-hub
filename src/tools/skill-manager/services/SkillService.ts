@@ -1,7 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
-import type { SkillScriptResult, RuntimeSettings, SkillManifest, AvailableSkillInfo } from "../types";
+import type {
+  SkillScriptResult,
+  RuntimeSettings,
+  SkillManifest,
+  AvailableSkillInfo,
+} from "../types";
 
 const errorHandler = createModuleErrorHandler("skill-manager/service");
 const logger = createModuleLogger("skill-manager/service");
@@ -24,7 +29,11 @@ export const SkillService = {
     } catch (error: any) {
       const msg = String(error?.message ?? error ?? "");
       // "文件不存在"属于预期情况，静默处理
-      if (msg.includes("文件不存在") || msg.includes("not found") || msg.includes("No such file")) {
+      if (
+        msg.includes("文件不存在") ||
+        msg.includes("not found") ||
+        msg.includes("No such file")
+      ) {
         logger.debug("资源文件不存在（预期内）", { skillId, relativePath });
         return "";
       }
@@ -37,7 +46,11 @@ export const SkillService = {
   /**
    * 写入 Skill 资源文件
    */
-  async writeResource(skillId: string, relativePath: string, content: string): Promise<boolean> {
+  async writeResource(
+    skillId: string,
+    relativePath: string,
+    content: string
+  ): Promise<boolean> {
     const result = await errorHandler.wrapAsync(async () => {
       await invoke("write_skill_resource", {
         skillId,
@@ -71,7 +84,7 @@ export const SkillService = {
     scriptName: string,
     args: string = "",
     runtimeSettings: RuntimeSettings,
-    envVars?: Record<string, string>,
+    envVars?: Record<string, string>
   ): Promise<SkillScriptResult | null> {
     return await errorHandler.wrapAsync(async () => {
       return await invoke<SkillScriptResult>("run_skill_script", {
@@ -123,7 +136,9 @@ export const SkillService = {
   async getBuiltinSkillVersion(skillId: string): Promise<string | null> {
     return (
       (await errorHandler.wrapAsync(async () => {
-        return await invoke<string | null>("get_builtin_skill_version", { skillId });
+        return await invoke<string | null>("get_builtin_skill_version", {
+          skillId,
+        });
       })) ?? null
     );
   },

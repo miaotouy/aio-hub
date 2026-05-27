@@ -7,7 +7,12 @@
 import { createConfigManager, type ConfigManager } from "@/utils/configManager";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import type { PluginManifest, SettingsSchema, SettingsProperty, PluginSettingsAPI } from "./plugin-types";
+import type {
+  PluginManifest,
+  SettingsSchema,
+  SettingsProperty,
+  PluginSettingsAPI,
+} from "./plugin-types";
 
 const logger = createModuleLogger("PluginConfigService");
 const errorHandler = createModuleErrorHandler("PluginConfigService");
@@ -34,7 +39,10 @@ class PluginConfigService {
    * @param manifest 插件清单
    * @param customId 可选的自定义 ID（例如开发模式下带 -dev 后缀的 ID）
    */
-  async initPluginConfig(manifest: PluginManifest, customId?: string): Promise<void> {
+  async initPluginConfig(
+    manifest: PluginManifest,
+    customId?: string
+  ): Promise<void> {
     const id = customId || manifest.id;
     const { settingsSchema } = manifest;
 
@@ -44,7 +52,10 @@ class PluginConfigService {
       return;
     }
 
-    logger.info(`初始化插件配置`, { pluginId: id, schemaVersion: settingsSchema.version });
+    logger.info(`初始化插件配置`, {
+      pluginId: id,
+      schemaVersion: settingsSchema.version,
+    });
 
     // 保存配置模式
     this.schemas.set(id, settingsSchema);
@@ -118,7 +129,10 @@ class PluginConfigService {
    * @param pluginId 插件 ID
    * @param key 配置键
    */
-  async getValue<T = any>(pluginId: string, key: string): Promise<T | undefined> {
+  async getValue<T = any>(
+    pluginId: string,
+    key: string
+  ): Promise<T | undefined> {
     const manager = this.configManagers.get(pluginId);
     if (!manager) {
       logger.warn(`插件配置管理器不存在`, { pluginId });
@@ -139,7 +153,9 @@ class PluginConfigService {
     const manager = this.configManagers.get(pluginId);
     if (!manager) {
       const err = new Error(`插件 ${pluginId} 的配置管理器不存在`);
-      errorHandler.error(err, `插件配置管理器不存在`, { context: { pluginId } });
+      errorHandler.error(err, `插件配置管理器不存在`, {
+        context: { pluginId },
+      });
       throw err;
     }
 
@@ -154,7 +170,9 @@ class PluginConfigService {
       const oldProp = property as SettingsProperty;
       const valueType = typeof value;
       if (valueType !== oldProp.type) {
-        const err = new Error(`配置值类型不匹配：期望 ${oldProp.type}，实际 ${valueType}`);
+        const err = new Error(
+          `配置值类型不匹配：期望 ${oldProp.type}，实际 ${valueType}`
+        );
         errorHandler.error(err, `配置值类型不匹配`, {
           context: {
             pluginId,
@@ -281,7 +299,9 @@ class PluginConfigService {
       // 只有当原始 ID 没有对应的管理器，或者我们明确想在开发模式下强制重定向时才这样做
       if (this.configManagers.has(devPluginId)) {
         targetPluginId = devPluginId;
-        logger.debug(`[DEV] 配置 API 重定向: ${pluginId} -> ${devPluginId} (为了解决插件内部硬编码 ID 的兼容性)`);
+        logger.debug(
+          `[DEV] 配置 API 重定向: ${pluginId} -> ${devPluginId} (为了解决插件内部硬编码 ID 的兼容性)`
+        );
       }
     }
 

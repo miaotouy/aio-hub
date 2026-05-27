@@ -1,14 +1,23 @@
 <template>
-  <div class="llm-think-node" :class="{ 'is-collapsed': isCollapsed, 'is-thinking': isThinking }">
+  <div
+    class="llm-think-node"
+    :class="{ 'is-collapsed': isCollapsed, 'is-thinking': isThinking }"
+  >
     <div class="llm-think-header" @click="toggleCollapse">
       <div class="llm-think-title">
         <span class="llm-think-icon" :class="{ 'is-expanded': !isCollapsed }">
           <ChevronRight :size="16" />
         </span>
-        <span class="llm-think-label">{{ isThinking ? "思考中" : props.displayName }}</span>
-        <el-tag size="small" type="primary" effect="light">{{ props.rawTagName }}</el-tag>
+        <span class="llm-think-label">{{
+          isThinking ? "思考中" : props.displayName
+        }}</span>
+        <el-tag size="small" type="primary" effect="light">{{
+          props.rawTagName
+        }}</el-tag>
         <!-- 思考用时显示 -->
-        <span v-if="thinkingTimeFormatted" class="thinking-time">{{ thinkingTimeFormatted }}</span>
+        <span v-if="thinkingTimeFormatted" class="thinking-time">{{
+          thinkingTimeFormatted
+        }}</span>
         <!-- 思考中指示器 -->
         <div v-if="isThinking" class="thinking-indicator">
           <span class="thinking-dot"></span>
@@ -24,7 +33,10 @@
 
       <div class="header-actions">
         <!-- 切换渲染/原始视图 -->
-        <el-tooltip :content="showRaw ? '显示渲染内容' : '显示原始文本'" :show-after="300">
+        <el-tooltip
+          :content="showRaw ? '显示渲染内容' : '显示原始文本'"
+          :show-after="300"
+        >
           <button
             class="action-btn"
             :class="{ 'action-btn-active': showRaw }"
@@ -128,7 +140,7 @@ const thinkingTimeFormatted = computed(() => {
   // 2. 尝试从元数据计算（仅限 reasoning-metadata 节点）
   if (props.ruleId === "reasoning-metadata" && props.generationMeta) {
     const meta = props.generationMeta;
-    
+
     // 方案A: 优先使用思考时间戳
     if (meta.reasoningEndTime && meta.reasoningStartTime) {
       return formatDuration(meta.reasoningEndTime - meta.reasoningStartTime);
@@ -161,9 +173,12 @@ const calculateEstimatedTime = async () => {
   if (!tps || !modelId || !props.rawContent) return;
 
   try {
-    const result = await tokenCalculatorService.calculateTokens(props.rawContent, modelId);
+    const result = await tokenCalculatorService.calculateTokens(
+      props.rawContent,
+      modelId
+    );
     const tokenCount = result.count;
-    
+
     if (tokenCount > 0) {
       // 估算耗时 = (Token数 / 每秒Token数) * 1000
       estimatedDurationMs.value = Math.round((tokenCount / tps) * 1000);
@@ -198,7 +213,9 @@ const toggleRawView = () => {
 
 const copyContent = async () => {
   try {
-    const textToCopy = showRaw.value ? props.rawContent || "" : props.rawContent || "";
+    const textToCopy = showRaw.value
+      ? props.rawContent || ""
+      : props.rawContent || "";
     await navigator.clipboard.writeText(textToCopy);
     copied.value = true;
     customMessage.success("内容已复制");
@@ -244,15 +261,17 @@ watch(
 
       // 思考结束时，计算最终时长
       const meta = props.generationMeta;
-      
+
       // 只有元数据节点才尝试从 meta 计算最终时长
       if (props.ruleId === "reasoning-metadata") {
         if (meta?.reasoningEndTime && meta?.reasoningStartTime) {
           // 场景A: 有完整的 reasoning meta 信息，优先使用
-          realtimeDurationMs.value = meta.reasoningEndTime - meta.reasoningStartTime;
+          realtimeDurationMs.value =
+            meta.reasoningEndTime - meta.reasoningStartTime;
         } else if (meta?.requestEndTime && meta?.requestStartTime) {
           // 场景B: 有完整的 request meta 信息，降级使用
-          realtimeDurationMs.value = meta.requestEndTime - meta.requestStartTime;
+          realtimeDurationMs.value =
+            meta.requestEndTime - meta.requestStartTime;
         } else if (localStartTime.value) {
           realtimeDurationMs.value = Date.now() - localStartTime.value;
         }
@@ -498,7 +517,12 @@ onBeforeUnmount(() => {
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(64, 158, 255, 0.15) 50%, transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(64, 158, 255, 0.15) 50%,
+    transparent
+  );
   animation: shimmer 2s infinite;
   pointer-events: none;
   z-index: 1;

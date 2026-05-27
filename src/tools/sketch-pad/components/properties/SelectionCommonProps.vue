@@ -8,7 +8,9 @@
           type="number"
           class="field-input"
           :value="Math.round(obj.x)"
-          @change="(e) => emitProp('x', Number((e.target as HTMLInputElement).value))"
+          @change="
+            (e) => emitProp('x', Number((e.target as HTMLInputElement).value))
+          "
         />
       </div>
       <div class="prop-field">
@@ -17,7 +19,9 @@
           type="number"
           class="field-input"
           :value="Math.round(obj.y)"
-          @change="(e) => emitProp('y', Number((e.target as HTMLInputElement).value))"
+          @change="
+            (e) => emitProp('y', Number((e.target as HTMLInputElement).value))
+          "
         />
       </div>
     </div>
@@ -31,7 +35,13 @@
           class="field-input"
           :value="Math.round(obj.width)"
           min="1"
-          @change="(e) => emitProp('width', Math.max(1, Number((e.target as HTMLInputElement).value)))"
+          @change="
+            (e) =>
+              emitProp(
+                'width',
+                Math.max(1, Number((e.target as HTMLInputElement).value))
+              )
+          "
         />
       </div>
       <div class="prop-field">
@@ -41,7 +51,13 @@
           class="field-input"
           :value="Math.round(obj.height)"
           min="1"
-          @change="(e) => emitProp('height', Math.max(1, Number((e.target as HTMLInputElement).value)))"
+          @change="
+            (e) =>
+              emitProp(
+                'height',
+                Math.max(1, Number((e.target as HTMLInputElement).value))
+              )
+          "
         />
       </div>
     </div>
@@ -54,7 +70,13 @@
           type="number"
           class="field-input"
           :value="Math.round(obj.rotation)"
-          @change="(e) => emitProp('rotation', Number((e.target as HTMLInputElement).value) % 360)"
+          @change="
+            (e) =>
+              emitProp(
+                'rotation',
+                Number((e.target as HTMLInputElement).value) % 360
+              )
+          "
         />
         <span class="field-suffix">°</span>
       </div>
@@ -67,7 +89,14 @@
           min="0"
           max="100"
           @change="
-            (e) => emitProp('opacity', Math.max(0, Math.min(100, Number((e.target as HTMLInputElement).value))) / 100)
+            (e) =>
+              emitProp(
+                'opacity',
+                Math.max(
+                  0,
+                  Math.min(100, Number((e.target as HTMLInputElement).value))
+                ) / 100
+              )
           "
         />
         <span class="field-suffix">%</span>
@@ -83,7 +112,13 @@
           class="field-input"
           :value="Math.round((obj.scaleX ?? 1) * 100)"
           step="1"
-          @change="(e) => emitProp('scaleX', Number((e.target as HTMLInputElement).value) / 100)"
+          @change="
+            (e) =>
+              emitProp(
+                'scaleX',
+                Number((e.target as HTMLInputElement).value) / 100
+              )
+          "
         />
         <span class="field-suffix">%</span>
       </div>
@@ -94,7 +129,13 @@
           class="field-input"
           :value="Math.round((obj.scaleY ?? 1) * 100)"
           step="1"
-          @change="(e) => emitProp('scaleY', Number((e.target as HTMLInputElement).value) / 100)"
+          @change="
+            (e) =>
+              emitProp(
+                'scaleY',
+                Number((e.target as HTMLInputElement).value) / 100
+              )
+          "
         />
         <span class="field-suffix">%</span>
       </div>

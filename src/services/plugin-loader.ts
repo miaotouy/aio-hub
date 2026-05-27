@@ -14,7 +14,13 @@ declare global {
 import { path } from "@tauri-apps/api";
 import { getAppConfigDir } from "@/utils/appPath";
 import { readTextFile, readDir, exists } from "@tauri-apps/plugin-fs";
-import type { PluginManifest, PluginLoadOptions, PluginLoadResult, JsPluginExport, PluginProxy } from "./plugin-types";
+import type {
+  PluginManifest,
+  PluginLoadOptions,
+  PluginLoadResult,
+  JsPluginExport,
+  PluginProxy,
+} from "./plugin-types";
 import { createJsPluginProxy } from "./js-plugin-adapter";
 import type { JsPluginAdapter } from "./js-plugin-adapter";
 import { createSidecarPluginProxy } from "./sidecar-plugin-adapter";
@@ -131,7 +137,9 @@ export class PluginLoader {
 
       // 使用 manifest.json 作为插件发现的基础
       const manifestPaths = Object.keys(manifestModules);
-      logger.info(`发现 ${manifestPaths.length} 个开发插件`, { paths: manifestPaths });
+      logger.info(`发现 ${manifestPaths.length} 个开发插件`, {
+        paths: manifestPaths,
+      });
 
       // 加载每个插件
       for (const manifestPath of manifestPaths) {
@@ -152,12 +160,17 @@ export class PluginLoader {
           // 根据插件类型选择不同的加载方式
           if (manifest.type === "javascript") {
             // 加载 JS 插件
-            const pluginModulePath = manifestPath.replace("/manifest.json", "/index.ts");
+            const pluginModulePath = manifestPath.replace(
+              "/manifest.json",
+              "/index.ts"
+            );
 
             // 检查 index.ts 是否存在
             if (!pluginModules[pluginModulePath]) {
               const err = new Error(`JS 插件必须包含 index.ts 文件`);
-              errorHandler.error(err, "JS 插件缺少 index.ts", { context: { pluginId } });
+              errorHandler.error(err, "JS 插件缺少 index.ts", {
+                context: { pluginId },
+              });
               throw err;
             }
 
@@ -176,7 +189,9 @@ export class PluginLoader {
             // 加载原生插件
             proxy = createNativePluginProxy(manifest, devInstallPath, true);
           } else {
-            logger.warn(`开发模式下跳过未知类型的插件: ${pluginId}, type: ${manifest.type}`);
+            logger.warn(
+              `开发模式下跳过未知类型的插件: ${pluginId}, type: ${manifest.type}`
+            );
             continue;
           }
 
@@ -209,7 +224,9 @@ export class PluginLoader {
           // 将插件代理添加到结果列表
           result.plugins.push(proxy);
         } catch (error) {
-          errorHandler.error(error, "加载开发插件失败", { context: { pluginId } });
+          errorHandler.error(error, "加载开发插件失败", {
+            context: { pluginId },
+          });
           result.failed.push({
             id: pluginId,
             path: manifestPath,
@@ -285,7 +302,10 @@ export class PluginLoader {
             }
           } else if (manifest.type === "sidecar") {
             // 加载 Sidecar 插件
-            const proxy = await this.loadProdSidecarPlugin(manifest, pluginPath);
+            const proxy = await this.loadProdSidecarPlugin(
+              manifest,
+              pluginPath
+            );
             if (proxy) {
               result.plugins.push(proxy);
             }
@@ -299,7 +319,9 @@ export class PluginLoader {
             logger.warn(`未知的插件类型: ${manifest.type}`, { pluginId });
           }
         } catch (error) {
-          errorHandler.error(error, "加载生产插件失败", { context: { pluginId } });
+          errorHandler.error(error, "加载生产插件失败", {
+            context: { pluginId },
+          });
           result.failed.push({
             id: pluginId,
             path: pluginPath,
@@ -324,7 +346,7 @@ export class PluginLoader {
    */
   private async loadProdJsPlugin(
     manifest: PluginManifest,
-    pluginPath: string,
+    pluginPath: string
   ): Promise<import("./plugin-types").PluginProxy | null> {
     try {
       if (!manifest.main) {
@@ -405,12 +427,15 @@ export class PluginLoader {
 
       return proxy;
     } catch (error) {
-      errorHandler.error(error, "加载生产插件失败", { context: { pluginId: manifest.id } });
+      errorHandler.error(error, "加载生产插件失败", {
+        context: { pluginId: manifest.id },
+      });
 
       // 即使执行失败，也返回一个损坏的代理对象，以便在 UI 中卸载
       const proxy = createJsPluginProxy(manifest, pluginPath, false);
       (proxy as any).isBroken = true;
-      (proxy as any).error = error instanceof Error ? error : new Error(String(error));
+      (proxy as any).error =
+        error instanceof Error ? error : new Error(String(error));
       return proxy;
     }
   }
@@ -420,7 +445,7 @@ export class PluginLoader {
    */
   private async loadProdSidecarPlugin(
     manifest: PluginManifest,
-    pluginPath: string,
+    pluginPath: string
   ): Promise<import("./plugin-types").PluginProxy | null> {
     try {
       // 创建 Sidecar 插件代理（标记为生产模式）
@@ -445,7 +470,9 @@ export class PluginLoader {
 
       return proxy;
     } catch (error) {
-      errorHandler.error(error, "加载 Sidecar 插件失败", { context: { pluginId: manifest.id } });
+      errorHandler.error(error, "加载 Sidecar 插件失败", {
+        context: { pluginId: manifest.id },
+      });
       throw error;
     }
   }
@@ -455,7 +482,7 @@ export class PluginLoader {
    */
   private async loadProdNativePlugin(
     manifest: PluginManifest,
-    pluginPath: string,
+    pluginPath: string
   ): Promise<import("./plugin-types").PluginProxy | null> {
     try {
       // 创建原生插件代理（标记为生产模式）
@@ -480,7 +507,9 @@ export class PluginLoader {
 
       return proxy;
     } catch (error) {
-      errorHandler.error(error, "加载原生插件失败", { context: { pluginId: manifest.id } });
+      errorHandler.error(error, "加载原生插件失败", {
+        context: { pluginId: manifest.id },
+      });
       throw error;
     }
   }

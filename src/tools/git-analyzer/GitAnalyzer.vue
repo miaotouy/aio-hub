@@ -206,7 +206,7 @@ const { updateCharts, setupResizeObserver } = useCharts(
         }
       : undefined;
   },
-  isChartTabActive,
+  isChartTabActive
 );
 
 const { selectedCommit, showDetail, selectCommit, copyCommitHash, clearCache } =
@@ -244,7 +244,7 @@ function showExportDialog() {
 
 // 处理导出配置更新
 function handleExportConfigUpdate(
-  newExportConfig: GitAnalyzerConfig["exportConfig"],
+  newExportConfig: GitAnalyzerConfig["exportConfig"]
 ) {
   exportConfig.value = newExportConfig;
   saveCurrentConfig();
@@ -360,7 +360,7 @@ watch(
   () => {
     saveCurrentConfig();
   },
-  { deep: true },
+  { deep: true }
 );
 
 // 监听筛选后的 commits 变化，如果图表可见则更新

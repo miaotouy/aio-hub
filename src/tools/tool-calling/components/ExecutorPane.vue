@@ -16,7 +16,10 @@ const props = defineProps<{
 }>();
 
 const selectedMethod = ref<any>(null);
-const selectedToolKey = useStorage<string>("tool-calling-tester-selected-key", "");
+const selectedToolKey = useStorage<string>(
+  "tool-calling-tester-selected-key",
+  ""
+);
 const testToolName = useStorage<string>("tool-calling-tester-tool-name", "");
 const formArgs = ref<Record<string, any>>({});
 const testArgs = useStorage<string>("tool-calling-tester-args", "{\n  \n}");
@@ -36,7 +39,7 @@ const methodOptions = computed(() =>
       method,
       group,
     })),
-  })),
+  }))
 );
 
 const applyMethod = (group: any, method: any) => {
@@ -46,7 +49,9 @@ const applyMethod = (group: any, method: any) => {
   const argsObj: Record<string, any> = {};
   method.parameters.forEach((p: any) => {
     // 优先从 settingsSchema 中寻找默认值
-    const schemaItem = group.settingsSchema?.find((s: any) => s.modelPath === p.name);
+    const schemaItem = group.settingsSchema?.find(
+      (s: any) => s.modelPath === p.name
+    );
 
     if (p.defaultValue !== undefined) {
       argsObj[p.name] = p.defaultValue;
@@ -130,7 +135,7 @@ watch(
       restoreSelectedMethod();
     }
   },
-  { deep: true },
+  { deep: true }
 );
 
 // 暴露加载方法（供父组件从 DiscoveryPane 跳转调用）
@@ -220,7 +225,10 @@ const runExecutionTest = async () => {
 
     if (result.success) {
       const results = result.data;
-      executionResults.value = [...results, ...executionResults.value].slice(0, 10);
+      executionResults.value = [...results, ...executionResults.value].slice(
+        0,
+        10
+      );
       customMessage.success("执行完成");
     } else {
       throw result.error;
@@ -260,7 +268,11 @@ const generateVcpCommand = () => {
       return;
     }
 
-    const vcpText = vcpProtocol.formatToolRequest(currentGroup.toolId, selectedMethod.value.name, args);
+    const vcpText = vcpProtocol.formatToolRequest(
+      currentGroup.toolId,
+      selectedMethod.value.name,
+      args
+    );
     navigator.clipboard.writeText(vcpText);
     customMessage.success("VCP 指令已复制到剪贴板");
   } catch (e: any) {
@@ -278,11 +290,21 @@ const generateVcpCommand = () => {
           <div class="section-label-row">
             <label>目标工具方法</label>
             <div class="label-actions">
-              <el-tag v-if="selectedMethod" size="small" type="info" class="method-tag">
+              <el-tag
+                v-if="selectedMethod"
+                size="small"
+                type="info"
+                class="method-tag"
+              >
                 {{ selectedMethod.toolName || selectedMethod.name }}
               </el-tag>
               <el-tooltip content="重置配置" placement="top">
-                <el-button link :icon="RotateCcw" class="reset-icon-btn" @click="resetConfig" />
+                <el-button
+                  link
+                  :icon="RotateCcw"
+                  class="reset-icon-btn"
+                  @click="resetConfig"
+                />
               </el-tooltip>
             </div>
           </div>
@@ -293,11 +315,22 @@ const generateVcpCommand = () => {
             class="w-full"
             @change="onMethodSelect"
           >
-            <el-option-group v-for="group in methodOptions" :key="group.toolId" :label="group.label">
-              <el-option v-for="opt in group.options" :key="opt.value" :value="opt.value" :label="opt.label">
+            <el-option-group
+              v-for="group in methodOptions"
+              :key="group.toolId"
+              :label="group.label"
+            >
+              <el-option
+                v-for="opt in group.options"
+                :key="opt.value"
+                :value="opt.value"
+                :label="opt.label"
+              >
                 <div class="opt-item">
                   <span class="opt-label">{{ opt.label }}</span>
-                  <span v-if="opt.subLabel" class="opt-sub">{{ opt.subLabel }}</span>
+                  <span v-if="opt.subLabel" class="opt-sub">{{
+                    opt.subLabel
+                  }}</span>
                 </div>
               </el-option>
             </el-option-group>
@@ -315,10 +348,21 @@ const generateVcpCommand = () => {
 
           <div class="editor-wrapper">
             <!-- 表单模式 -->
-            <ParameterForm v-if="!useJsonMode" v-model="formArgs" :method="selectedMethod" @change="syncFormToJson" />
+            <ParameterForm
+              v-if="!useJsonMode"
+              v-model="formArgs"
+              :method="selectedMethod"
+              @change="syncFormToJson"
+            />
 
             <!-- JSON 模式 -->
-            <RichCodeEditor v-else v-model:value="testArgs" language="json" height="100%" @change="syncJsonToForm" />
+            <RichCodeEditor
+              v-else
+              v-model:value="testArgs"
+              language="json"
+              height="100%"
+              @change="syncJsonToForm"
+            />
           </div>
         </div>
       </div>
@@ -327,28 +371,52 @@ const generateVcpCommand = () => {
       <div class="result-panel">
         <div class="section-header">
           <div class="header-actions">
-            <el-button type="primary" :loading="isExecuting" :icon="Play" @click="runExecutionTest">
+            <el-button
+              type="primary"
+              :loading="isExecuting"
+              :icon="Play"
+              @click="runExecutionTest"
+            >
               触发调用
             </el-button>
-            <el-tooltip content="生成 VCP 格式指令并复制，用于解析器测试" placement="top">
-              <el-button :icon="Copy" @click="generateVcpCommand"> 生成 VCP </el-button>
+            <el-tooltip
+              content="生成 VCP 格式指令并复制，用于解析器测试"
+              placement="top"
+            >
+              <el-button :icon="Copy" @click="generateVcpCommand">
+                生成 VCP
+              </el-button>
             </el-tooltip>
           </div>
           <div class="header-right">
-            <span class="result-label">执行反馈 ({{ executionResults.length }}/10)</span>
-            <el-button v-if="executionResults.length" link type="primary" size="small" @click="clearHistory"
+            <span class="result-label"
+              >执行反馈 ({{ executionResults.length }}/10)</span
+            >
+            <el-button
+              v-if="executionResults.length"
+              link
+              type="primary"
+              size="small"
+              @click="clearHistory"
               >清空</el-button
             >
           </div>
         </div>
 
         <div class="results-list scrollbar-styled">
-          <div v-if="!executionResults.length && !isExecuting" class="empty-results">
+          <div
+            v-if="!executionResults.length && !isExecuting"
+            class="empty-results"
+          >
             <Zap :size="48" />
             <p>等待指令执行...</p>
           </div>
 
-          <ExecutionResultCard v-for="res in executionResults" :key="res.requestId" :res="res" />
+          <ExecutionResultCard
+            v-for="res in executionResults"
+            :key="res.requestId"
+            :res="res"
+          />
         </div>
       </div>
     </div>

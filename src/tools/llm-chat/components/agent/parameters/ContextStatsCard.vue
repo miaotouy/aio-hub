@@ -27,24 +27,37 @@ defineProps<Props>();
       <div class="total-section">
         <div class="stat-label">Total Tokens</div>
         <div class="total-value">
-          <span class="number">{{ stats.totalTokenCount?.toLocaleString() ?? "---" }}</span>
+          <span class="number">{{
+            stats.totalTokenCount?.toLocaleString() ?? "---"
+          }}</span>
         </div>
 
         <!-- 使用率展示 -->
         <div
-          v-if="enabled && maxContextTokens > 0 && stats.totalTokenCount !== undefined"
+          v-if="
+            enabled &&
+            maxContextTokens > 0 &&
+            stats.totalTokenCount !== undefined
+          "
           class="usage-info"
         >
           <div class="usage-text">
             <span>
               使用率
-              {{ Math.round((stats.totalTokenCount / maxContextTokens) * 100) }}%
+              {{
+                Math.round((stats.totalTokenCount / maxContextTokens) * 100)
+              }}%
             </span>
-            <span class="limit-text">/ {{ maxContextTokens.toLocaleString() }}</span>
+            <span class="limit-text"
+              >/ {{ maxContextTokens.toLocaleString() }}</span
+            >
           </div>
           <el-progress
             :percentage="
-              Math.min(100, Math.round((stats.totalTokenCount / maxContextTokens) * 100))
+              Math.min(
+                100,
+                Math.round((stats.totalTokenCount / maxContextTokens) * 100)
+              )
             "
             :color="
               stats.totalTokenCount > maxContextTokens
@@ -87,7 +100,10 @@ defineProps<Props>();
             </div>
             <div
               class="progress-bg"
-              v-if="stats.totalTokenCount && stats.presetMessagesTokenCount !== undefined"
+              v-if="
+                stats.totalTokenCount &&
+                stats.presetMessagesTokenCount !== undefined
+              "
             >
               <div
                 class="progress-bar preset-bar"
@@ -100,7 +116,10 @@ defineProps<Props>();
         </div>
 
         <!-- 世界书 -->
-        <div class="breakdown-item" v-if="stats.worldbookTokenCount || stats.worldbookCharCount">
+        <div
+          class="breakdown-item"
+          v-if="stats.worldbookTokenCount || stats.worldbookCharCount"
+        >
           <div class="item-icon worldbook-icon">
             <el-icon><Reading /></el-icon>
           </div>
@@ -116,7 +135,9 @@ defineProps<Props>();
             </div>
             <div
               class="progress-bg"
-              v-if="stats.totalTokenCount && stats.worldbookTokenCount !== undefined"
+              v-if="
+                stats.totalTokenCount && stats.worldbookTokenCount !== undefined
+              "
             >
               <div
                 class="progress-bar worldbook-bar"
@@ -145,7 +166,10 @@ defineProps<Props>();
             </div>
             <div
               class="progress-bg"
-              v-if="stats.totalTokenCount && stats.chatHistoryTokenCount !== undefined"
+              v-if="
+                stats.totalTokenCount &&
+                stats.chatHistoryTokenCount !== undefined
+              "
             >
               <div
                 class="progress-bar history-bar"
@@ -158,7 +182,10 @@ defineProps<Props>();
         </div>
 
         <!-- Token 截断 -->
-        <div class="breakdown-item" v-if="stats.savedTokenCount && stats.savedTokenCount > 0">
+        <div
+          class="breakdown-item"
+          v-if="stats.savedTokenCount && stats.savedTokenCount > 0"
+        >
           <div class="item-icon saved-icon">
             <el-icon><Scissor /></el-icon>
           </div>
@@ -187,7 +214,10 @@ defineProps<Props>();
       <!-- 后处理消耗 -->
       <div
         class="breakdown-item"
-        v-if="hasActivePostProcessingRules && stats.postProcessingTokenCount !== undefined"
+        v-if="
+          hasActivePostProcessingRules &&
+          stats.postProcessingTokenCount !== undefined
+        "
       >
         <div class="item-icon post-process-icon">
           <el-icon><MagicStick /></el-icon>
@@ -218,7 +248,10 @@ defineProps<Props>();
             {{ stats.totalCharCount.toLocaleString() }}
             <template v-if="stats.savedCharCount && stats.savedCharCount > 0">
               <span class="original-value"
-                >/ {{ (stats.totalCharCount + stats.savedCharCount).toLocaleString() }}</span
+                >/
+                {{
+                  (stats.totalCharCount + stats.savedCharCount).toLocaleString()
+                }}</span
               >
             </template>
           </span>

@@ -5,7 +5,11 @@
         <el-button size="small" @click="copyJson"> 复制 </el-button>
         <el-button size="small" @click="formatJson"> 格式化 </el-button>
       </el-button-group>
-      <span v-if="message" class="json-type" :class="message.type.toLowerCase()">
+      <span
+        v-if="message"
+        class="json-type"
+        :class="message.type.toLowerCase()"
+      >
         {{ message.type }}
       </span>
     </div>

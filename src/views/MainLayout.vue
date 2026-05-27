@@ -24,7 +24,10 @@ const isCollapsed = ref(appSettingsStore.settings.sidebarCollapsed);
 
 // 监听 isCollapsed 变化并保存
 watch(isCollapsed, (newVal) => {
-  if (appSettingsStore.isLoaded && appSettingsStore.settings.sidebarCollapsed !== newVal) {
+  if (
+    appSettingsStore.isLoaded &&
+    appSettingsStore.settings.sidebarCollapsed !== newVal
+  ) {
     appSettingsStore.update({ sidebarCollapsed: newVal });
   }
 });
@@ -39,7 +42,9 @@ const camelToKebab = (str: string): string => {
 
 // 从路径提取工具ID（短横线转驼峰）
 const getToolIdFromPath = (path: string): string => {
-  return path.substring(1).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+  return path
+    .substring(1)
+    .replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
 };
 
 // 存储事件处理函数的引用，用于清理
@@ -50,48 +55,60 @@ let unlistenCloseConfirmation: (() => void) | null = null;
 
 onMounted(async () => {
   // 监听来分窗口的导航请求
-  unlisten = await listen<{ sectionId: string }>("navigate-to-settings", (event) => {
-    const { sectionId } = event.payload;
-    logger.info("收到来自分离窗口的导航请求", { sectionId });
-    router.push({ path: "/settings", query: { section: sectionId } });
-  });
+  unlisten = await listen<{ sectionId: string }>(
+    "navigate-to-settings",
+    (event) => {
+      const { sectionId } = event.payload;
+      logger.info("收到来自分离窗口的导航请求", { sectionId });
+      router.push({ path: "/settings", query: { section: sectionId } });
+    }
+  );
 
   // 监听窗口分离事件，自动导航回主页
-  unlistenDetached = await listen<{ label: string; id: string; type: string }>("window-detached", (event) => {
-    const { id, type } = event.payload;
-    if (type === "tool") {
-      const toolPath = "/" + camelToKebab(id);
-      if (route.path === toolPath) {
-        logger.info("当前页面已分离，导航回主页", { from: toolPath });
-        router.push("/");
+  unlistenDetached = await listen<{ label: string; id: string; type: string }>(
+    "window-detached",
+    (event) => {
+      const { id, type } = event.payload;
+      if (type === "tool") {
+        const toolPath = "/" + camelToKebab(id);
+        if (route.path === toolPath) {
+          logger.info("当前页面已分离，导航回主页", { from: toolPath });
+          router.push("/");
+        }
       }
     }
-  });
+  );
 
   // 监听窗口重新附着事件，自动恢复工具标签
-  unlistenAttached = await listen<{ label: string; id: string; type: string }>("window-attached", (event) => {
-    const { id, type } = event.payload;
-    if (type === "tool") {
-      const toolPath = "/" + camelToKebab(id);
-      logger.info("工具已重新附着，恢复标签页", { toolId: id, toolPath });
-      toolsStore.openTool(toolPath);
+  unlistenAttached = await listen<{ label: string; id: string; type: string }>(
+    "window-attached",
+    (event) => {
+      const { id, type } = event.payload;
+      if (type === "tool") {
+        const toolPath = "/" + camelToKebab(id);
+        logger.info("工具已重新附着，恢复标签页", { toolId: id, toolPath });
+        toolsStore.openTool(toolPath);
+      }
     }
-  });
+  );
 
   // 监听关闭确认请求
-  unlistenCloseConfirmation = await listen("request-close-confirmation", async () => {
-    try {
-      await ElMessageBox.confirm("确定要退出程序吗？", "退出确认", {
-        confirmButtonText: "确定",
-        cancelButtonText: "取消",
-        type: "warning",
-        lockScroll: false,
-      });
-      await invoke("exit_app");
-    } catch {
-      logger.info("用户取消退出操作");
+  unlistenCloseConfirmation = await listen(
+    "request-close-confirmation",
+    async () => {
+      try {
+        await ElMessageBox.confirm("确定要退出程序吗？", "退出确认", {
+          confirmButtonText: "确定",
+          cancelButtonText: "取消",
+          type: "warning",
+          lockScroll: false,
+        });
+        await invoke("exit_app");
+      } catch {
+        logger.info("用户取消退出操作");
+      }
     }
-  });
+  );
 });
 
 // 监听路由变化，自动打开工具标签
@@ -99,7 +116,12 @@ watch(
   () => route.path,
   (newPath, oldPath) => {
     if (newPath === oldPath && oldPath !== undefined) return;
-    if (newPath.startsWith("/") && newPath !== "/" && newPath !== "/settings" && newPath !== "/extensions") {
+    if (
+      newPath.startsWith("/") &&
+      newPath !== "/" &&
+      newPath !== "/settings" &&
+      newPath !== "/extensions"
+    ) {
       if (toolsStore.openedToolPaths.includes(newPath)) return;
       const toolId = getToolIdFromPath(newPath);
       if (!detachedManager.isDetached(toolId)) {
@@ -107,7 +129,7 @@ watch(
       }
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 onUnmounted(() => {
@@ -130,7 +152,10 @@ onUnmounted(() => {
     <el-container class="common-layout">
       <!-- 侧边栏 -->
       <MainSidebar
-        v-if="!appSettingsStore.sidebarMode || appSettingsStore.sidebarMode === 'sidebar'"
+        v-if="
+          !appSettingsStore.sidebarMode ||
+          appSettingsStore.sidebarMode === 'sidebar'
+        "
         v-model:collapsed="isCollapsed"
         :tools-visible="appSettingsStore.toolsVisible || {}"
         :is-detached="detachedManager.isDetached"

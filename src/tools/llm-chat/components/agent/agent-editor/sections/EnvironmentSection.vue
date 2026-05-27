@@ -17,7 +17,9 @@ const discoveredExtensions = computed(() => {
 const ensureConfig = () => {
   if (!editForm) return;
   if (!editForm.extensionConfig) {
-    editForm.extensionConfig = JSON.parse(JSON.stringify(DEFAULT_AGENT_EXTENSION_CONFIG));
+    editForm.extensionConfig = JSON.parse(
+      JSON.stringify(DEFAULT_AGENT_EXTENSION_CONFIG)
+    );
   }
   if (!editForm.extensionConfig.extensionToggles) {
     editForm.extensionConfig.extensionToggles = {};
@@ -42,7 +44,8 @@ const toggleExtension = (id: string, enabled: boolean) => {
 };
 
 const isExtensionEnabled = (id: string) => {
-  if (!editForm?.extensionConfig?.extensionToggles) return editForm?.extensionConfig?.defaultExtensionEnabled ?? true;
+  if (!editForm?.extensionConfig?.extensionToggles)
+    return editForm?.extensionConfig?.defaultExtensionEnabled ?? true;
   const toggle = editForm.extensionConfig.extensionToggles[id];
   if (typeof toggle === "boolean") return toggle;
   return editForm.extensionConfig.defaultExtensionEnabled;
@@ -57,15 +60,20 @@ const isExtensionEnabled = (id: string) => {
         <el-switch v-model="isEnabled" />
       </div>
       <div class="form-hint">
-        允许 Agent 感知当前的运行时环境、用户偏好或其他实时上下文。启用后，相关信息将通过
-        <code style="color: var(--el-color-primary)">{{ toolContextMacro }}</code>
+        允许 Agent
+        感知当前的运行时环境、用户偏好或其他实时上下文。启用后，相关信息将通过
+        <code style="color: var(--el-color-primary)">{{
+          toolContextMacro
+        }}</code>
         宏注入到提示词中。
       </div>
 
       <template v-if="editForm.extensionConfig?.enabled">
         <div class="extension-config-grid">
           <el-form-item label="默认启用新插件">
-            <el-switch v-model="editForm.extensionConfig.defaultExtensionEnabled" />
+            <el-switch
+              v-model="editForm.extensionConfig.defaultExtensionEnabled"
+            />
           </el-form-item>
         </div>
 
@@ -74,20 +82,31 @@ const isExtensionEnabled = (id: string) => {
             <span class="box-title">可用环境增强插件</span>
           </div>
 
-          <div v-if="discoveredExtensions.length === 0" class="empty-extensions">
+          <div
+            v-if="discoveredExtensions.length === 0"
+            class="empty-extensions"
+          >
             <el-empty :image-size="40" description="未发现可用的环境增强插件" />
           </div>
 
           <div v-else class="extensions-list">
-            <div v-for="ext in discoveredExtensions" :key="ext.id" class="extension-item">
+            <div
+              v-for="ext in discoveredExtensions"
+              :key="ext.id"
+              class="extension-item"
+            >
               <div class="extension-info">
                 <div class="extension-icon">
-                  <el-icon v-if="ext.icon"><component :is="ext.icon" /></el-icon>
+                  <el-icon v-if="ext.icon"
+                    ><component :is="ext.icon"
+                  /></el-icon>
                   <el-icon v-else><InfoFilled /></el-icon>
                 </div>
                 <div class="extension-meta">
                   <div class="extension-name">{{ ext.name }}</div>
-                  <div class="extension-desc">{{ ext.description || "提供额外的运行时上下文信息" }}</div>
+                  <div class="extension-desc">
+                    {{ ext.description || "提供额外的运行时上下文信息" }}
+                  </div>
                 </div>
               </div>
               <div class="extension-action">

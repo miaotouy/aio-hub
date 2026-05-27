@@ -49,7 +49,8 @@ export function scopeCss(css: string, scopeId: string): string {
     // depth 为 0 时，内容一定是选择器。
     // depth 为 1 且 inAtRule 为 true 且 skipScopingForAtRule 为 false 时，内容是 @media 内部的选择器。
 
-    const isSelector = depth === 0 || (depth === 1 && inAtRule && !skipScopingForAtRule);
+    const isSelector =
+      depth === 0 || (depth === 1 && inAtRule && !skipScopingForAtRule);
 
     if (isSelector) {
       const selector = m.trim();
@@ -61,12 +62,18 @@ export function scopeCss(css: string, scopeId: string): string {
         const lowerSelector = selector.toLowerCase();
 
         // 检查是否定义了 fadeIn 动画
-        if (lowerSelector.includes("keyframes") && lowerSelector.includes("fadein")) {
+        if (
+          lowerSelector.includes("keyframes") &&
+          lowerSelector.includes("fadein")
+        ) {
           hasFadeInDefinition = true;
         }
 
         // keyframes 内部是百分比或 from/to，不需要加缀
-        if (lowerSelector.includes("keyframes") || lowerSelector.startsWith("@font-face")) {
+        if (
+          lowerSelector.includes("keyframes") ||
+          lowerSelector.startsWith("@font-face")
+        ) {
           skipScopingForAtRule = true;
         }
 
@@ -75,7 +82,8 @@ export function scopeCss(css: string, scopeId: string): string {
       }
 
       // 判定是否需要加缀
-      const shouldScope = (depth === 0 && !inAtRule) || (inAtRule && !skipScopingForAtRule);
+      const shouldScope =
+        (depth === 0 && !inAtRule) || (inAtRule && !skipScopingForAtRule);
 
       if (shouldScope) {
         return m
@@ -88,7 +96,11 @@ export function scopeCss(css: string, scopeId: string): string {
             if (trimmed.startsWith(`#${scopeId}`)) return trimmed;
 
             // 处理 :root, html, body -> 直接指向容器
-            if (trimmed === ":root" || trimmed === "html" || trimmed === "body") {
+            if (
+              trimmed === ":root" ||
+              trimmed === "html" ||
+              trimmed === "body"
+            ) {
               return `#${scopeId}`;
             }
 

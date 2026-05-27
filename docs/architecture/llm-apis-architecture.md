@@ -84,7 +84,13 @@ Mistral AI · AI21 Labs (Jamba) · Suno (via NewAPI) · VCP
 
 ```typescript
 // 核心暴露
-const { profiles, saveProfile, deleteProfile, getProfileById, createFromPreset } = useLlmProfiles();
+const {
+  profiles,
+  saveProfile,
+  deleteProfile,
+  getProfileById,
+  createFromPreset,
+} = useLlmProfiles();
 ```
 
 ### 2.2 多 Key 管理 — [`useLlmKeyManager`](/src/composables/useLlmKeyManager.ts)
@@ -117,7 +123,8 @@ const { profiles, saveProfile, deleteProfile, getProfileById, createFromPreset }
 
 ```typescript
 // 核心暴露
-const { pickKey, reportSuccess, reportFailure, resetAllBroken } = useLlmKeyManager();
+const { pickKey, reportSuccess, reportFailure, resetAllBroken } =
+  useLlmKeyManager();
 ```
 
 ### 2.3 请求编排中间件 — [`useLlmRequest`](/src/composables/useLlmRequest.ts)
@@ -200,10 +207,22 @@ src/llm-apis/
 ```typescript
 export interface LlmAdapter {
   chat(profile: LlmProfile, options: LlmRequestOptions): Promise<LlmResponse>;
-  embedding?(profile: LlmProfile, options: EmbeddingRequestOptions): Promise<EmbeddingResponse>;
-  image?(profile: LlmProfile, options: MediaGenerationOptions): Promise<LlmResponse>;
-  audio?(profile: LlmProfile, options: MediaGenerationOptions): Promise<LlmResponse>;
-  video?(profile: LlmProfile, options: MediaGenerationOptions): Promise<LlmResponse>;
+  embedding?(
+    profile: LlmProfile,
+    options: EmbeddingRequestOptions
+  ): Promise<EmbeddingResponse>;
+  image?(
+    profile: LlmProfile,
+    options: MediaGenerationOptions
+  ): Promise<LlmResponse>;
+  audio?(
+    profile: LlmProfile,
+    options: MediaGenerationOptions
+  ): Promise<LlmResponse>;
+  video?(
+    profile: LlmProfile,
+    options: MediaGenerationOptions
+  ): Promise<LlmResponse>;
 }
 ```
 

@@ -20,7 +20,9 @@ export const DEFAULT_SEPARATOR = "\n\n---\n\n";
 export const DEFAULT_USER_PLACEHOLDER = "继续";
 export const DEFAULT_ASSISTANT_PLACEHOLDER = "好的";
 
-const contentToString = (content: string | LlmMessageContent[] | undefined): string => {
+const contentToString = (
+  content: string | LlmMessageContent[] | undefined
+): string => {
   if (!content) {
     return "";
   }
@@ -29,14 +31,20 @@ const contentToString = (content: string | LlmMessageContent[] | undefined): str
   }
   if (Array.isArray(content)) {
     return content
-      .filter((part): part is { type: "text"; text: string } => part.type === "text" && !!part.text)
+      .filter(
+        (part): part is { type: "text"; text: string } =>
+          part.type === "text" && !!part.text
+      )
       .map((part) => part.text)
       .join("\n");
   }
   return "";
 };
 
-export const handleMergeSystemToHead = (messages: ProcessableMessage[], separator: string): ProcessableMessage[] => {
+export const handleMergeSystemToHead = (
+  messages: ProcessableMessage[],
+  separator: string
+): ProcessableMessage[] => {
   const systemMessages: ProcessableMessage[] = [];
   const nonSystemMessages: ProcessableMessage[] = [];
 
@@ -52,7 +60,9 @@ export const handleMergeSystemToHead = (messages: ProcessableMessage[], separato
     return messages;
   }
 
-  const mergedSystemContent = systemMessages.map((msg) => contentToString(msg.content)).join(separator);
+  const mergedSystemContent = systemMessages
+    .map((msg) => contentToString(msg.content))
+    .join(separator);
 
   const mergedSystemMessage: ProcessableMessage = {
     role: "system",
@@ -72,7 +82,7 @@ export const handleMergeSystemToHead = (messages: ProcessableMessage[], separato
 
 export const handleMergeConsecutiveRoles = (
   messages: ProcessableMessage[],
-  separator: string,
+  separator: string
 ): ProcessableMessage[] => {
   if (messages.length < 2) return messages;
 
@@ -87,7 +97,9 @@ export const handleMergeConsecutiveRoles = (
       currentGroup.push(current);
     } else {
       if (currentGroup.length > 1) {
-        const mergedContent = currentGroup.map((msg) => contentToString(msg.content)).join(separator);
+        const mergedContent = currentGroup
+          .map((msg) => contentToString(msg.content))
+          .join(separator);
         result.push({
           role: currentGroup[0].role,
           content: mergedContent,
@@ -103,7 +115,9 @@ export const handleMergeConsecutiveRoles = (
   }
 
   if (currentGroup.length > 1) {
-    const mergedContent = currentGroup.map((msg) => contentToString(msg.content)).join(separator);
+    const mergedContent = currentGroup
+      .map((msg) => contentToString(msg.content))
+      .join(separator);
     result.push({
       role: currentGroup[0].role,
       content: mergedContent,
@@ -121,7 +135,7 @@ export const handleMergeConsecutiveRoles = (
 export const handleEnsureAlternatingRoles = (
   messages: ProcessableMessage[],
   userPlaceholder: string = DEFAULT_USER_PLACEHOLDER,
-  assistantPlaceholder: string = DEFAULT_ASSISTANT_PLACEHOLDER,
+  assistantPlaceholder: string = DEFAULT_ASSISTANT_PLACEHOLDER
 ): ProcessableMessage[] => {
   if (messages.length < 2) return messages;
   const result: ProcessableMessage[] = [];
@@ -142,7 +156,9 @@ export const handleEnsureAlternatingRoles = (
   return result;
 };
 
-export const handleConvertSystemToUser = (messages: ProcessableMessage[]): ProcessableMessage[] => {
+export const handleConvertSystemToUser = (
+  messages: ProcessableMessage[]
+): ProcessableMessage[] => {
   return messages.map((msg) => {
     if (msg.role === "system") {
       return { ...msg, role: "user" as const };
@@ -194,7 +210,8 @@ const mergeConsecutiveRolesProcessor: ContextProcessor = {
 const convertSystemToUserProcessor: ContextProcessor = {
   id: "post:convert-system-to-user",
   name: "转换 System 为 User",
-  description: "将所有 system 角色转换为 user 角色（适用于不支持 system 角色的模型）。",
+  description:
+    "将所有 system 角色转换为 user 角色（适用于不支持 system 角色的模型）。",
   priority: 830,
   isCore: true,
   defaultEnabled: false,
@@ -251,14 +268,20 @@ export const messageFormatter: ContextProcessor = {
   defaultEnabled: true,
   execute: async (context: PipelineContext) => {
     // 计算 Token 和字符数辅助函数
-    const calculateTotals = async (msgs: ProcessableMessage[], modelId: string) => {
+    const calculateTotals = async (
+      msgs: ProcessableMessage[],
+      modelId: string
+    ) => {
       let totalTokens = 0;
       let totalChars = 0;
       for (const msg of msgs) {
         const contentStr = contentToString(msg.content);
         totalChars += contentStr.length;
         try {
-          const result = await tokenCalculatorService.calculateTokens(contentStr, modelId);
+          const result = await tokenCalculatorService.calculateTokens(
+            contentStr,
+            modelId
+          );
           totalTokens += result.count;
         } catch (error) {
           logger.warn("计算 Token 失败", { error, msg });
@@ -272,25 +295,35 @@ export const messageFormatter: ContextProcessor = {
     let inputChars = 0;
 
     if (isPreview && context.agentConfig.modelId) {
-      const { totalTokens, totalChars } = await calculateTotals(context.messages, context.agentConfig.modelId);
+      const { totalTokens, totalChars } = await calculateTotals(
+        context.messages,
+        context.agentConfig.modelId
+      );
       inputTokens = totalTokens;
       inputChars = totalChars;
     }
 
     // 1. 获取并合并规则配置 (Agent 优先，模型兜底)
-    const agentRules = context.agentConfig.parameters?.contextPostProcessing?.rules || [];
+    const agentRules =
+      context.agentConfig.parameters?.contextPostProcessing?.rules || [];
 
     const model = context.sharedData.get("model") as LlmModelInfo | undefined;
     let modelRules: ContextPostProcessRule[] = [];
 
     if (model?.defaultPostProcessingRules) {
-      if (model.defaultPostProcessingRules.length > 0 && typeof model.defaultPostProcessingRules[0] === "string") {
-        modelRules = (model.defaultPostProcessingRules as unknown as string[]).map((id) => ({
+      if (
+        model.defaultPostProcessingRules.length > 0 &&
+        typeof model.defaultPostProcessingRules[0] === "string"
+      ) {
+        modelRules = (
+          model.defaultPostProcessingRules as unknown as string[]
+        ).map((id) => ({
           type: id,
           enabled: true,
         }));
       } else {
-        modelRules = model.defaultPostProcessingRules as ContextPostProcessRule[];
+        modelRules =
+          model.defaultPostProcessingRules as ContextPostProcessRule[];
       }
     }
 
@@ -330,7 +363,10 @@ export const messageFormatter: ContextProcessor = {
     if (isEnabled("post:merge-consecutive-roles")) {
       const rule = getRule("post:merge-consecutive-roles");
       const separator = rule?.separator || DEFAULT_SEPARATOR;
-      context.messages = handleMergeConsecutiveRoles(context.messages, separator);
+      context.messages = handleMergeConsecutiveRoles(
+        context.messages,
+        separator
+      );
     }
 
     // Step 3: 转换 System 为 User
@@ -342,15 +378,18 @@ export const messageFormatter: ContextProcessor = {
     if (isEnabled("post:ensure-alternating-roles")) {
       const rule = getRule("post:ensure-alternating-roles");
       const userPlaceholder = rule?.userPlaceholder || DEFAULT_USER_PLACEHOLDER;
-      const assistantPlaceholder = rule?.assistantPlaceholder || DEFAULT_ASSISTANT_PLACEHOLDER;
-      context.messages = handleEnsureAlternatingRoles(context.messages, userPlaceholder, assistantPlaceholder);
+      const assistantPlaceholder =
+        rule?.assistantPlaceholder || DEFAULT_ASSISTANT_PLACEHOLDER;
+      context.messages = handleEnsureAlternatingRoles(
+        context.messages,
+        userPlaceholder,
+        assistantPlaceholder
+      );
     }
 
     if (isPreview && context.agentConfig.modelId) {
-      const { totalTokens: outputTokens, totalChars: outputChars } = await calculateTotals(
-        context.messages,
-        context.agentConfig.modelId,
-      );
+      const { totalTokens: outputTokens, totalChars: outputChars } =
+        await calculateTotals(context.messages, context.agentConfig.modelId);
       const tokenDelta = outputTokens - inputTokens;
       const charDelta = outputChars - inputChars;
 

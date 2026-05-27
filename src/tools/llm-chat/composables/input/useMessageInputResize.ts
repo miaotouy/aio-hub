@@ -45,7 +45,9 @@ export function useMessageInputResize(options: UseMessageInputResizeOptions) {
     const minHeight = 40;
     const extra = options.extraHeight?.value || 0;
     // 总高度限制在视口的 70% 或 90%，所以编辑器最大高度要减去 extra
-    const baseMax = options.isDetached ? window.innerHeight * 0.9 : window.innerHeight * 0.7;
+    const baseMax = options.isDetached
+      ? window.innerHeight * 0.9
+      : window.innerHeight * 0.7;
     const maxHeight = Math.max(minHeight, baseMax - extra - 60); // 60 是给 toolbar 和 padding 留的余量
 
     const finalHeight = Math.max(minHeight, Math.min(newHeight, maxHeight));

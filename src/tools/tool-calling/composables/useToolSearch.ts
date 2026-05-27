@@ -27,9 +27,12 @@ const SCORE_WEIGHTS = {
 
 export function useToolSearch(
   tools: Ref<DiscoveredToolMethods[]> | ComputedRef<DiscoveredToolMethods[]>,
-  searchQuery: Ref<string>,
+  searchQuery: Ref<string>
 ) {
-  const calcToolScore = (tool: DiscoveredToolMethods, query: string): number => {
+  const calcToolScore = (
+    tool: DiscoveredToolMethods,
+    query: string
+  ): number => {
     const tName = tool.toolName.toLowerCase();
     const tId = tool.toolId.toLowerCase();
     const tDesc = (tool.toolDescription || "").toLowerCase();

@@ -46,7 +46,7 @@ export function useMediaTaskManager() {
       if (!isInitialized.value) return;
       storage.saveTasksDebounced(newTasks);
     },
-    { deep: true },
+    { deep: true }
   );
 
   /**
@@ -77,7 +77,11 @@ export function useMediaTaskManager() {
   /**
    * 更新任务状态
    */
-  const updateTaskStatus = (taskId: string, status: MediaTaskStatus, updates?: Partial<MediaTask>) => {
+  const updateTaskStatus = (
+    taskId: string,
+    status: MediaTaskStatus,
+    updates?: Partial<MediaTask>
+  ) => {
     const task = globalTasks.value.find((t) => t.id === taskId);
     if (task) {
       task.status = status;

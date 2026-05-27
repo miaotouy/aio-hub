@@ -15,7 +15,10 @@ export interface HttpClientOptions extends RequestInit {
  * 基于 Tauri Http 插件的 Fetch 封装
  * 用于绕过移动端 Webview 的 CORS 限制
  */
-export async function httpClient(url: string, options: HttpClientOptions = {}): Promise<Response> {
+export async function httpClient(
+  url: string,
+  options: HttpClientOptions = {}
+): Promise<Response> {
   const { timeout = 120000, ...fetchOptions } = options;
 
   // 处理超时
@@ -41,10 +44,14 @@ export async function httpClient(url: string, options: HttpClientOptions = {}): 
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      logger.error("请求失败", new Error(`HTTP ${response.status} ${response.statusText}`), {
-        url,
-        status: response.status,
-      });
+      logger.error(
+        "请求失败",
+        new Error(`HTTP ${response.status} ${response.statusText}`),
+        {
+          url,
+          status: response.status,
+        }
+      );
     }
 
     return response;

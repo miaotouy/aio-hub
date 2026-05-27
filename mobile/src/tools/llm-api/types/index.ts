@@ -32,10 +32,12 @@ export interface LlmParameterSupport {
   webSearch?: boolean;
 }
 
-
 import type { LlmProfile as SharedLlmProfile } from "@/../../src/types/llm-profiles";
 
-export interface LlmProfile extends Omit<SharedLlmProfile, 'models' | 'modelGroupsExpandState'> {
+export interface LlmProfile extends Omit<
+  SharedLlmProfile,
+  "models" | "modelGroupsExpandState"
+> {
   models: LlmModelInfo[];
   modelGroupsExpandState?: string[];
 }

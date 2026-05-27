@@ -89,7 +89,10 @@ export function useSyncDemoState() {
    */
   const requestUpdateSyncData = async (key: string, value: any) => {
     if (bus.windowType === "detached-component") {
-      return await bus.requestAction("component-tester:update-sync-data", { key, value });
+      return await bus.requestAction("component-tester:update-sync-data", {
+        key,
+        value,
+      });
     }
     return null;
   };

@@ -17,7 +17,10 @@
 
     <div class="macro-selector-body">
       <!-- 值替换类 -->
-      <div v-if="filteredMacros.value && filteredMacros.value.length > 0" class="macro-group">
+      <div
+        v-if="filteredMacros.value && filteredMacros.value.length > 0"
+        class="macro-group"
+      >
         <div class="macro-group-title">值替换</div>
         <div class="macro-list">
           <el-tooltip
@@ -37,7 +40,10 @@
       </div>
 
       <!-- 变量操作类 -->
-      <div v-if="filteredMacros.variable && filteredMacros.variable.length > 0" class="macro-group">
+      <div
+        v-if="filteredMacros.variable && filteredMacros.variable.length > 0"
+        class="macro-group"
+      >
         <div class="macro-group-title">变量操作</div>
         <div class="macro-list">
           <el-tooltip
@@ -59,7 +65,10 @@
       </div>
 
       <!-- 动态函数类 -->
-      <div v-if="filteredMacros.function && filteredMacros.function.length > 0" class="macro-group">
+      <div
+        v-if="filteredMacros.function && filteredMacros.function.length > 0"
+        class="macro-group"
+      >
         <div class="macro-group-title">动态函数</div>
         <div class="macro-list">
           <el-tooltip
@@ -81,7 +90,9 @@
       </div>
 
       <!-- 无结果提示 -->
-      <div v-if="Object.keys(filteredMacros).length === 0" class="no-results">未找到匹配的宏</div>
+      <div v-if="Object.keys(filteredMacros).length === 0" class="no-results">
+        未找到匹配的宏
+      </div>
     </div>
   </div>
 </template>
@@ -89,7 +100,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { Search, Plus } from "@element-plus/icons-vue";
-import { MacroRegistry, initializeMacroEngine, type MacroDefinition } from "../../../macro-engine";
+import {
+  MacroRegistry,
+  initializeMacroEngine,
+  type MacroDefinition,
+} from "../../../macro-engine";
 
 interface Props {
   /**
@@ -97,7 +112,7 @@ interface Props {
    * - 'all': 显示所有宏（默认）
    * - 'contextFree': 只显示不依赖上下文的宏
    */
-  filter?: 'all' | 'contextFree';
+  filter?: "all" | "contextFree";
 }
 
 interface Emits {
@@ -105,7 +120,7 @@ interface Emits {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  filter: 'all',
+  filter: "all",
 });
 
 const emit = defineEmits<Emits>();
@@ -117,7 +132,7 @@ const searchText = ref("");
 onMounted(() => {
   const registry = MacroRegistry.getInstance();
   const macros = registry.getAllMacros();
-  
+
   // 如果宏列表为空，说明宏引擎未初始化（可能在分离窗口中）
   if (macros.length === 0) {
     initializeMacroEngine();
@@ -133,8 +148,10 @@ const groupedMacros = computed(() => {
   let filteredMacros = macros.filter((macro) => macro.supported !== false);
 
   // 根据 filter prop 进一步筛选
-  if (props.filter === 'contextFree') {
-    filteredMacros = filteredMacros.filter((macro) => macro.contextFree === true);
+  if (props.filter === "contextFree") {
+    filteredMacros = filteredMacros.filter(
+      (macro) => macro.contextFree === true
+    );
   }
 
   return filteredMacros.reduce(
@@ -251,7 +268,11 @@ function handleInsertMacro(macro: MacroDefinition) {
 }
 
 .macro-item:hover {
-  background-color: color-mix(in srgb, var(--el-color-primary-light-5) 20%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-primary-light-5) 20%,
+    transparent
+  );
   transform: translateX(2px);
 }
 

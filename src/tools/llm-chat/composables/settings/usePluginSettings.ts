@@ -4,7 +4,10 @@
  */
 
 import { ref, readonly } from "vue";
-import type { SettingsSection, SettingItem } from "../../components/settings/settings-types";
+import type {
+  SettingsSection,
+  SettingItem,
+} from "../../components/settings/settings-types";
 
 // 模块级存储，确保全局单例
 const pluginSettingsSections = ref<SettingsSection[]>([]);

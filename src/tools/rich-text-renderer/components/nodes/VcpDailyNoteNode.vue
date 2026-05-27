@@ -2,7 +2,10 @@
   <div class="vcp-daily-note-container" :class="{ 'is-pending': !closed }">
     <div class="vcp-daily-note-header" @click="isCollapsed = !isCollapsed">
       <div class="note-title">
-        <span class="vcp-collapse-icon" :class="{ 'is-expanded': !isCollapsed }">
+        <span
+          class="vcp-collapse-icon"
+          :class="{ 'is-expanded': !isCollapsed }"
+        >
           <ChevronRight :size="14" />
         </span>
         <BookOpen class="note-icon" :size="14" />

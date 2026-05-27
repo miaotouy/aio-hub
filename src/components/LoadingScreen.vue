@@ -4,7 +4,13 @@ import { useDark } from "@vueuse/core";
 import { useAppInitStore } from "@/stores/appInitStore";
 import iconBlack from "@/assets/aio-icon-black.svg";
 import iconWhite from "@/assets/aio-icon-white.svg";
-import { RefreshRight, Warning, CopyDocument, ChatLineRound, Link } from "@element-plus/icons-vue";
+import {
+  RefreshRight,
+  Warning,
+  CopyDocument,
+  ChatLineRound,
+  Link,
+} from "@element-plus/icons-vue";
 import { customMessage } from "@/utils/customMessage";
 import { invoke } from "@tauri-apps/api/core";
 
@@ -54,7 +60,12 @@ const openUrl = async (url: string) => {
 
         <!-- 进度条和状态 -->
         <div class="progress-container">
-          <el-progress :percentage="progress" :stroke-width="4" :show-text="false" class="loading-progress" />
+          <el-progress
+            :percentage="progress"
+            :stroke-width="4"
+            :show-text="false"
+            class="loading-progress"
+          />
           <p class="status-text">{{ statusText }}</p>
         </div>
       </template>
@@ -70,17 +81,36 @@ const openUrl = async (url: string) => {
             <el-icon class="error-icon"><Warning /></el-icon>
             <h2 class="error-title">启动失败</h2>
           </div>
-          <p class="error-message">{{ error.message || "启动过程中发生错误" }}</p>
+          <p class="error-message">
+            {{ error.message || "启动过程中发生错误" }}
+          </p>
         </div>
 
         <div class="error-actions">
-          <el-button type="primary" :icon="RefreshRight" class="retry-button" @click="handleRetry"> 重试 </el-button>
+          <el-button
+            type="primary"
+            :icon="RefreshRight"
+            class="retry-button"
+            @click="handleRetry"
+          >
+            重试
+          </el-button>
           <div class="secondary-actions">
-            <el-button :icon="CopyDocument" @click="copyError"> 复制错误 </el-button>
-            <el-button :icon="ChatLineRound" @click="openUrl('https://github.com/miaotouy/aio-hub/issues')">
+            <el-button :icon="CopyDocument" @click="copyError">
+              复制错误
+            </el-button>
+            <el-button
+              :icon="ChatLineRound"
+              @click="openUrl('https://github.com/miaotouy/aio-hub/issues')"
+            >
               提交反馈
             </el-button>
-            <el-button :icon="Link" @click="openUrl('https://www.doubao.com/chat')"> 豆包支持 </el-button>
+            <el-button
+              :icon="Link"
+              @click="openUrl('https://www.doubao.com/chat')"
+            >
+              豆包支持
+            </el-button>
           </div>
         </div>
 

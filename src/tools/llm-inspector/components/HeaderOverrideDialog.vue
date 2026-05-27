@@ -1,112 +1,108 @@
 <template>
-  <BaseDialog
-    v-model="dialogVisible"
-    title="请求头覆盖设置"
-    width="900px"
-  >
+  <BaseDialog v-model="dialogVisible" title="请求头覆盖设置" width="900px">
     <template #content>
       <div class="header-override-dialog">
-      <div class="dialog-description">
-        配置代理转发请求时要覆盖的 HTTP 请求头，可用于伪装客户端信息。
-      </div>
-
-      <div class="toolbar">
-        <div class="toolbar-left">
-          <el-button type="primary" size="small" @click="addRule">
-            <el-icon><Plus /></el-icon>
-            新增规则
-          </el-button>
-          <el-button
-            type="danger"
-            size="small"
-            plain
-            :disabled="localRules.length === 0"
-            @click="handleClearAll"
-          >
-            <el-icon><Delete /></el-icon>
-            清除全部
-          </el-button>
+        <div class="dialog-description">
+          配置代理转发请求时要覆盖的 HTTP 请求头，可用于伪装客户端信息。
         </div>
-        <div class="toolbar-hint">
-          提示：常用的请求头包括 User-Agent、Referer、Origin 等
-        </div>
-      </div>
 
-      <div class="rules-list">
-        <el-empty
-          v-if="localRules.length === 0"
-          description="暂无规则"
-          :image-size="100"
-        />
-        
-        <div v-else class="rules-container">
-          <div
-            v-for="rule in localRules"
-            :key="rule.id"
-            class="rule-item"
-            :class="{ disabled: !rule.enabled }"
-          >
-            <el-switch
-              v-model="rule.enabled"
+        <div class="toolbar">
+          <div class="toolbar-left">
+            <el-button type="primary" size="small" @click="addRule">
+              <el-icon><Plus /></el-icon>
+              新增规则
+            </el-button>
+            <el-button
+              type="danger"
               size="small"
-              class="rule-switch"
-            />
-            
-            <el-input
-              v-model="rule.key"
-              placeholder="请求头键 (如: User-Agent)"
-              size="small"
-              class="rule-key"
-              :disabled="!rule.enabled"
-            />
-            
-            <el-input
-              v-model="rule.value"
-              placeholder="请求头值"
-              size="small"
-              class="rule-value"
-              :disabled="!rule.enabled"
-            />
-            
-            <div class="rule-actions">
-              <el-button
-                type="primary"
+              plain
+              :disabled="localRules.length === 0"
+              @click="handleClearAll"
+            >
+              <el-icon><Delete /></el-icon>
+              清除全部
+            </el-button>
+          </div>
+          <div class="toolbar-hint">
+            提示：常用的请求头包括 User-Agent、Referer、Origin 等
+          </div>
+        </div>
+
+        <div class="rules-list">
+          <el-empty
+            v-if="localRules.length === 0"
+            description="暂无规则"
+            :image-size="100"
+          />
+
+          <div v-else class="rules-container">
+            <div
+              v-for="rule in localRules"
+              :key="rule.id"
+              class="rule-item"
+              :class="{ disabled: !rule.enabled }"
+            >
+              <el-switch
+                v-model="rule.enabled"
                 size="small"
-                :icon="FullScreen"
-                circle
-                @click="openEditDialog(rule)"
-                title="在新窗口中编辑"
+                class="rule-switch"
               />
-              <el-button
-                type="danger"
+
+              <el-input
+                v-model="rule.key"
+                placeholder="请求头键 (如: User-Agent)"
                 size="small"
-                :icon="Delete"
-                circle
-                @click="removeRule(rule.id)"
-                title="删除"
+                class="rule-key"
+                :disabled="!rule.enabled"
               />
+
+              <el-input
+                v-model="rule.value"
+                placeholder="请求头值"
+                size="small"
+                class="rule-value"
+                :disabled="!rule.enabled"
+              />
+
+              <div class="rule-actions">
+                <el-button
+                  type="primary"
+                  size="small"
+                  :icon="FullScreen"
+                  circle
+                  @click="openEditDialog(rule)"
+                  title="在新窗口中编辑"
+                />
+                <el-button
+                  type="danger"
+                  size="small"
+                  :icon="Delete"
+                  circle
+                  @click="removeRule(rule.id)"
+                  title="删除"
+                />
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <div class="preset-section">
-        <div class="preset-title">常用预设</div>
-        <div class="preset-buttons">
-          <el-button size="small" @click="applyPreset('chrome')">
-            Chrome 浏览器
-          </el-button>
-          <el-button size="small" @click="applyPreset('firefox')">
-            Firefox 浏览器
-          </el-button>
-          <el-button size="small" @click="applyPreset('mobile')">
-            移动设备
-          </el-button>
-          <el-button size="small" @click="applyPreset('cherry-studio')">
-            Cherry Studio
-          </el-button>
+        <div class="preset-section">
+          <div class="preset-title">常用预设</div>
+          <div class="preset-buttons">
+            <el-button size="small" @click="applyPreset('chrome')">
+              Chrome 浏览器
+            </el-button>
+            <el-button size="small" @click="applyPreset('firefox')">
+              Firefox 浏览器
+            </el-button>
+            <el-button size="small" @click="applyPreset('mobile')">
+              移动设备
+            </el-button>
+            <el-button size="small" @click="applyPreset('cherry-studio')">
+              Cherry Studio
+            </el-button>
+          </div>
         </div>
-      </div>
       </div>
     </template>
 
@@ -117,11 +113,7 @@
   </BaseDialog>
 
   <!-- 编辑规则弹窗 -->
-  <BaseDialog
-    v-model="editDialogVisible"
-    title="编辑请求头规则"
-    width="600px"
-  >
+  <BaseDialog v-model="editDialogVisible" title="编辑请求头规则" width="600px">
     <template #content>
       <div class="edit-dialog-content">
         <div class="form-item">
@@ -160,12 +152,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
-import { Plus, Delete, FullScreen } from '@element-plus/icons-vue';
-import { ElMessageBox } from 'element-plus';
-import BaseDialog from '@/components/common/BaseDialog.vue';
-import { customMessage } from '@/utils/customMessage';
-import type { HeaderOverrideRule } from '../types';
+import { ref, watch } from "vue";
+import { Plus, Delete, FullScreen } from "@element-plus/icons-vue";
+import { ElMessageBox } from "element-plus";
+import BaseDialog from "@/components/common/BaseDialog.vue";
+import { customMessage } from "@/utils/customMessage";
+import type { HeaderOverrideRule } from "../types";
 
 interface Props {
   modelValue: boolean;
@@ -173,8 +165,8 @@ interface Props {
 }
 
 interface Emits {
-  (e: 'update:modelValue', value: boolean): void;
-  (e: 'save', rules: HeaderOverrideRule[]): void;
+  (e: "update:modelValue", value: boolean): void;
+  (e: "save", rules: HeaderOverrideRule[]): void;
 }
 
 const props = defineProps<Props>();
@@ -186,26 +178,31 @@ const localRules = ref<HeaderOverrideRule[]>([]);
 // 编辑弹窗状态
 const editDialogVisible = ref(false);
 const editingRule = ref<HeaderOverrideRule>({
-  id: '',
+  id: "",
   enabled: true,
-  key: '',
-  value: ''
+  key: "",
+  value: "",
 });
-const editingRuleId = ref<string>('');
+const editingRuleId = ref<string>("");
 
 // 同步 modelValue
-watch(() => props.modelValue, (val) => {
-  dialogVisible.value = val;
-  if (val) {
-    // 打开弹窗时，复制规则到本地状态
-    localRules.value = props.rules ? JSON.parse(JSON.stringify(props.rules)) : [];
+watch(
+  () => props.modelValue,
+  (val) => {
+    dialogVisible.value = val;
+    if (val) {
+      // 打开弹窗时，复制规则到本地状态
+      localRules.value = props.rules
+        ? JSON.parse(JSON.stringify(props.rules))
+        : [];
+    }
   }
-});
+);
 
 // 处理 visible 变化
 function handleVisibleChange(val: boolean) {
   dialogVisible.value = val;
-  emit('update:modelValue', val);
+  emit("update:modelValue", val);
 }
 
 // 生成唯一 ID
@@ -218,14 +215,14 @@ function addRule() {
   localRules.value.push({
     id: generateId(),
     enabled: true,
-    key: '',
-    value: ''
+    key: "",
+    value: "",
   });
 }
 
 // 删除规则
 function removeRule(id: string) {
-  const index = localRules.value.findIndex(r => r.id === id);
+  const index = localRules.value.findIndex((r) => r.id === id);
   if (index !== -1) {
     localRules.value.splice(index, 1);
   }
@@ -233,20 +230,18 @@ function removeRule(id: string) {
 
 // 清除所有规则
 function handleClearAll() {
-  ElMessageBox.confirm(
-    '确定要清除所有请求头覆盖规则吗？',
-    '确认清除',
-    {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    }
-  ).then(() => {
-    localRules.value = [];
-    customMessage.success('已清除所有规则');
-  }).catch(() => {
-    // 用户取消
-  });
+  ElMessageBox.confirm("确定要清除所有请求头覆盖规则吗？", "确认清除", {
+    confirmButtonText: "确定",
+    cancelButtonText: "取消",
+    type: "warning",
+  })
+    .then(() => {
+      localRules.value = [];
+      customMessage.success("已清除所有规则");
+    })
+    .catch(() => {
+      // 用户取消
+    });
 }
 
 // 打开编辑弹窗
@@ -256,92 +251,99 @@ function openEditDialog(rule: HeaderOverrideRule) {
     id: rule.id,
     enabled: rule.enabled,
     key: rule.key,
-    value: rule.value
+    value: rule.value,
   };
   editDialogVisible.value = true;
 }
 
 // 保存编辑
 function saveEdit() {
-  const index = localRules.value.findIndex(r => r.id === editingRuleId.value);
+  const index = localRules.value.findIndex((r) => r.id === editingRuleId.value);
   if (index !== -1) {
     localRules.value[index] = {
       ...editingRule.value,
-      id: editingRuleId.value
+      id: editingRuleId.value,
     };
-    customMessage.success('规则已更新');
+    customMessage.success("规则已更新");
   }
   editDialogVisible.value = false;
 }
 
 // 应用预设
-function applyPreset(type: 'chrome' | 'firefox' | 'mobile' | 'cherry-studio') {
+function applyPreset(type: "chrome" | "firefox" | "mobile" | "cherry-studio") {
   const presets: Record<string, { key: string; value: string }[]> = {
     chrome: [
       {
-        key: 'User-Agent',
-        value: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        key: "User-Agent",
+        value:
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       },
       {
-        key: 'Accept',
-        value: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8'
+        key: "Accept",
+        value:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
       },
       {
-        key: 'Accept-Language',
-        value: 'zh-CN,zh;q=0.9,en;q=0.8'
-      }
+        key: "Accept-Language",
+        value: "zh-CN,zh;q=0.9,en;q=0.8",
+      },
     ],
     firefox: [
       {
-        key: 'User-Agent',
-        value: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0'
+        key: "User-Agent",
+        value:
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
       },
       {
-        key: 'Accept',
-        value: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8'
+        key: "Accept",
+        value:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
       },
       {
-        key: 'Accept-Language',
-        value: 'zh-CN,zh;q=0.8,en-US;q=0.5,en;q=0.3'
-      }
+        key: "Accept-Language",
+        value: "zh-CN,zh;q=0.8,en-US;q=0.5,en;q=0.3",
+      },
     ],
     mobile: [
       {
-        key: 'User-Agent',
-        value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'
+        key: "User-Agent",
+        value:
+          "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
       },
       {
-        key: 'Accept',
-        value: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+        key: "Accept",
+        value:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       },
       {
-        key: 'Accept-Language',
-        value: 'zh-CN,zh;q=0.9'
-      }
+        key: "Accept-Language",
+        value: "zh-CN,zh;q=0.9",
+      },
     ],
-    'cherry-studio': [
+    "cherry-studio": [
       {
-        key: 'User-Agent',
-        value: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        key: "User-Agent",
+        value:
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       },
       {
-        key: 'HTTP-Referer',
-        value: 'https://cherry-ai.com'
+        key: "HTTP-Referer",
+        value: "https://cherry-ai.com",
       },
       {
-        key: 'X-Title',
-        value: 'Cherry Studio'
-      }
-    ]
+        key: "X-Title",
+        value: "Cherry Studio",
+      },
+    ],
   };
 
   const preset = presets[type];
-  preset.forEach(p => {
+  preset.forEach((p) => {
     localRules.value.push({
       id: generateId(),
       enabled: true,
       key: p.key,
-      value: p.value
+      value: p.value,
     });
   });
 }
@@ -350,9 +352,9 @@ function applyPreset(type: 'chrome' | 'firefox' | 'mobile' | 'cherry-studio') {
 function handleSave() {
   // 过滤掉空的规则
   const validRules = localRules.value.filter(
-    rule => rule.key.trim() !== '' && rule.value.trim() !== ''
+    (rule) => rule.key.trim() !== "" && rule.value.trim() !== ""
   );
-  emit('save', validRules);
+  emit("save", validRules);
   handleVisibleChange(false);
 }
 

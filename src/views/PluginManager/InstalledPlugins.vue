@@ -1,23 +1,26 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { ElMessageBox } from 'element-plus';
-import { Refresh, Upload } from '@element-plus/icons-vue';
-import PluginCard from './components/PluginCard.vue';
-import PluginInstallDialog, { type PreflightResult, type InstallType } from './components/PluginInstallDialog.vue';
-import { pluginManager } from '@/services/plugin-manager';
-import type { PluginProxy, PluginManifest } from '@/services/plugin-types';
-import { customMessage } from '@/utils/customMessage';
-import { createModuleLogger } from '@/utils/logger';
-import { createModuleErrorHandler } from '@/utils/errorHandler';
-import { pluginStateService } from '@/services/plugin-state.service';
-import { open } from '@tauri-apps/plugin-dialog';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { invoke } from '@tauri-apps/api/core';
-import { useFileDrop } from '@/composables/useFileDrop';
-import { compareVersions } from 'compare-versions';
+import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ElMessageBox } from "element-plus";
+import { Refresh, Upload } from "@element-plus/icons-vue";
+import PluginCard from "./components/PluginCard.vue";
+import PluginInstallDialog, {
+  type PreflightResult,
+  type InstallType,
+} from "./components/PluginInstallDialog.vue";
+import { pluginManager } from "@/services/plugin-manager";
+import type { PluginProxy, PluginManifest } from "@/services/plugin-types";
+import { customMessage } from "@/utils/customMessage";
+import { createModuleLogger } from "@/utils/logger";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { pluginStateService } from "@/services/plugin-state.service";
+import { open } from "@tauri-apps/plugin-dialog";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
+import { useFileDrop } from "@/composables/useFileDrop";
+import { compareVersions } from "compare-versions";
 
-const logger = createModuleLogger('PluginManager/InstalledPlugins');
-const errorHandler = createModuleErrorHandler('PluginManager/InstalledPlugins');
+const logger = createModuleLogger("PluginManager/InstalledPlugins");
+const errorHandler = createModuleErrorHandler("PluginManager/InstalledPlugins");
 
 // 安装进度相关状态
 interface InstallProgress {
@@ -35,11 +38,11 @@ let progressUnlisten: UnlistenFn | null = null;
 
 // Emits
 const emit = defineEmits<{
-  'select-plugin': [plugin: PluginProxy | null, initialTab?: string];
+  "select-plugin": [plugin: PluginProxy | null, initialTab?: string];
 }>();
 
 // 搜索关键词
-const searchText = ref('');
+const searchText = ref("");
 
 // 所有已安装的插件
 const plugins = ref<PluginProxy[]>([]);
@@ -68,18 +71,18 @@ const filteredPlugins = computed(() => {
   }
 
   const search = searchText.value.toLowerCase();
-  return plugins.value.filter(plugin => {
+  return plugins.value.filter((plugin) => {
     // 搜索名称、描述、作者
     const matchesBasic =
       plugin.name?.toLowerCase().includes(search) ||
       plugin.description?.toLowerCase().includes(search) ||
       plugin.manifest.author?.toLowerCase().includes(search);
-    
+
     // 搜索标签
-    const matchesTags = plugin.manifest.tags?.some(tag =>
+    const matchesTags = plugin.manifest.tags?.some((tag) =>
       tag.toLowerCase().includes(search)
     );
-    
+
     return matchesBasic || matchesTags;
   });
 });
@@ -91,9 +94,9 @@ async function loadPlugins() {
   loading.value = true;
   try {
     plugins.value = pluginManager.getInstalledPlugins();
-    logger.info('已加载插件列表', { count: plugins.value.length });
+    logger.info("已加载插件列表", { count: plugins.value.length });
   } catch (error) {
-    errorHandler.error(error as Error, '加载插件列表失败');
+    errorHandler.error(error as Error, "加载插件列表失败");
   } finally {
     loading.value = false;
   }
@@ -105,15 +108,18 @@ async function togglePlugin(plugin: PluginProxy) {
   try {
     if (plugin.enabled) {
       // 对不可重载的原生插件进行特殊处理
-      if (plugin.manifest.type === 'native' && !plugin.manifest.native?.reloadable) {
+      if (
+        plugin.manifest.type === "native" &&
+        !plugin.manifest.native?.reloadable
+      ) {
         try {
           await ElMessageBox.confirm(
-            '此原生插件不支持运行时卸载。禁用后可能不会完全释放资源，建议重启应用以确保稳定性。',
-            '需要重启',
+            "此原生插件不支持运行时卸载。禁用后可能不会完全释放资源，建议重启应用以确保稳定性。",
+            "需要重启",
             {
-              confirmButtonText: '仍然禁用',
-              cancelButtonText: '取消',
-              type: 'warning',
+              confirmButtonText: "仍然禁用",
+              cancelButtonText: "取消",
+              type: "warning",
             }
           );
         } catch {
@@ -128,12 +134,13 @@ async function togglePlugin(plugin: PluginProxy) {
       await pluginStateService.setEnabled(plugin.id, false);
       // 移除插件 UI（如果有）
       if (plugin.manifest.ui) {
-        const { unregisterPluginUi } = await import('@/services/plugin-manager');
+        const { unregisterPluginUi } =
+          await import("@/services/plugin-manager");
         unregisterPluginUi(plugin.id);
-        logger.info('已移除插件 UI', { pluginId: plugin.id });
+        logger.info("已移除插件 UI", { pluginId: plugin.id });
       }
       customMessage.success(`已禁用插件: ${plugin.name}`);
-      logger.info('插件已禁用', { pluginId: plugin.id });
+      logger.info("插件已禁用", { pluginId: plugin.id });
     } else {
       // 启用插件
       await plugin.enable(pluginManager.createPluginContext(plugin.id));
@@ -145,20 +152,20 @@ async function togglePlugin(plugin: PluginProxy) {
         try {
           // 调用插件管理器重新加载所有插件（会自动注册启用的插件 UI）
           await pluginManager.loadAllPlugins();
-          logger.info('已重新注册插件 UI', { pluginId: plugin.id });
+          logger.info("已重新注册插件 UI", { pluginId: plugin.id });
         } catch (error) {
           errorHandler.handle(error as Error, {
-            userMessage: '重新注册插件 UI 失败',
+            userMessage: "重新注册插件 UI 失败",
             context: { pluginId: plugin.id },
             showToUser: false,
           });
         }
       }
       customMessage.success(`已启用插件: ${plugin.name}`);
-      logger.info('插件已启用', { pluginId: plugin.id });
+      logger.info("插件已启用", { pluginId: plugin.id });
     }
   } catch (error) {
-    errorHandler.error(error as Error, '切换插件状态失败', {
+    errorHandler.error(error as Error, "切换插件状态失败", {
       context: { pluginId: plugin.id },
     });
   }
@@ -171,12 +178,15 @@ function selectPlugin(plugin: PluginProxy) {
   // 如果点击的是当前已选中的插件，则取消选中
   if (selectedPluginId.value === plugin.id) {
     selectedPluginId.value = null;
-    emit('select-plugin', null);
-    logger.debug('取消选择插件', { pluginId: plugin.id, pluginName: plugin.name });
+    emit("select-plugin", null);
+    logger.debug("取消选择插件", {
+      pluginId: plugin.id,
+      pluginName: plugin.name,
+    });
   } else {
     selectedPluginId.value = plugin.id;
-    emit('select-plugin', plugin, 'detail');
-    logger.debug('选择插件', { pluginId: plugin.id, pluginName: plugin.name });
+    emit("select-plugin", plugin, "detail");
+    logger.debug("选择插件", { pluginId: plugin.id, pluginName: plugin.name });
   }
 }
 
@@ -185,8 +195,11 @@ function selectPlugin(plugin: PluginProxy) {
  */
 function selectPluginForSettings(plugin: PluginProxy) {
   selectedPluginId.value = plugin.id;
-  emit('select-plugin', plugin, 'settings');
-  logger.debug('选择插件查看设置', { pluginId: plugin.id, pluginName: plugin.name });
+  emit("select-plugin", plugin, "settings");
+  logger.debug("选择插件查看设置", {
+    pluginId: plugin.id,
+    pluginName: plugin.name,
+  });
 }
 
 /**
@@ -196,28 +209,31 @@ async function uninstallPlugin(plugin: PluginProxy) {
   try {
     await ElMessageBox.confirm(
       `确定要卸载插件"${plugin.name}"吗？插件文件将被移入回收站。`,
-      '卸载插件',
+      "卸载插件",
       {
-        confirmButtonText: '确定卸载',
-        cancelButtonText: '取消',
-        type: 'warning',
+        confirmButtonText: "确定卸载",
+        cancelButtonText: "取消",
+        type: "warning",
       }
     );
 
     // 显示加载状态
     loading.value = true;
-    
+
     try {
       // 调用插件管理器执行卸载
       await pluginManager.uninstallPlugin(plugin.id);
-      
+
       customMessage.success(`插件"${plugin.name}"已成功卸载，文件已移入回收站`);
-      logger.info('插件卸载成功', { pluginId: plugin.id, pluginName: plugin.name });
-      
+      logger.info("插件卸载成功", {
+        pluginId: plugin.id,
+        pluginName: plugin.name,
+      });
+
       // 刷新插件列表
       await loadPlugins();
     } catch (error) {
-      errorHandler.error(error as Error, '卸载插件失败', {
+      errorHandler.error(error as Error, "卸载插件失败", {
         context: { pluginId: plugin.id },
       });
     } finally {
@@ -225,8 +241,11 @@ async function uninstallPlugin(plugin: PluginProxy) {
     }
   } catch (error) {
     // 用户取消操作
-    if (error !== 'cancel') {
-      errorHandler.handle(error as Error, { userMessage: '卸载确认失败', showToUser: false });
+    if (error !== "cancel") {
+      errorHandler.handle(error as Error, {
+        userMessage: "卸载确认失败",
+        showToUser: false,
+      });
     }
   }
 }
@@ -237,13 +256,18 @@ async function uninstallPlugin(plugin: PluginProxy) {
 async function preflightPlugin(zipPath: string): Promise<PreflightResult> {
   try {
     // 调用后端预检命令（这个命令需要在 Rust 端实现）
-    const manifest = await invoke<PluginManifest>('preflight_plugin_zip', { zipPath });
-    
-    logger.info('插件预检成功', { pluginId: manifest.id, version: manifest.version });
-    
+    const manifest = await invoke<PluginManifest>("preflight_plugin_zip", {
+      zipPath,
+    });
+
+    logger.info("插件预检成功", {
+      pluginId: manifest.id,
+      version: manifest.version,
+    });
+
     // 检查与现有插件的关系
     const existingPlugin = pluginManager.getPlugin(manifest.id);
-    
+
     let installType: InstallType;
     let existingVersion: string | undefined;
     const conflicts: string[] = [];
@@ -251,41 +275,49 @@ async function preflightPlugin(zipPath: string): Promise<PreflightResult> {
     // 1. 检查 API 版本兼容性
     const requiredApiVersion = manifest.host.apiVersion;
     if (requiredApiVersion && requiredApiVersion > HOST_PLUGIN_API_VERSION) {
-      conflicts.push(`插件需要的 API 版本 (v${requiredApiVersion}) 高于当前应用支持的版本 (v${HOST_PLUGIN_API_VERSION})。请先升级主应用。`);
+      conflicts.push(
+        `插件需要的 API 版本 (v${requiredApiVersion}) 高于当前应用支持的版本 (v${HOST_PLUGIN_API_VERSION})。请先升级主应用。`
+      );
     }
-    
+
     if (existingPlugin) {
       existingVersion = existingPlugin.manifest.version;
-      
+
       try {
         const comparison = compareVersions(manifest.version, existingVersion);
         if (comparison > 0) {
-          installType = 'upgrade';
+          installType = "upgrade";
         } else if (comparison < 0) {
-          installType = 'downgrade';
+          installType = "downgrade";
         } else {
-          installType = 'reinstall';
+          installType = "reinstall";
         }
       } catch (error) {
         // 版本比较失败，可能是非标准版本号
-        logger.warn('版本比较失败', { error, newVersion: manifest.version, oldVersion: existingVersion });
+        logger.warn("版本比较失败", {
+          error,
+          newVersion: manifest.version,
+          oldVersion: existingVersion,
+        });
         if (manifest.version === existingVersion) {
-          installType = 'reinstall';
+          installType = "reinstall";
         } else {
           // 无法确定升级还是降级，标记为冲突
-          installType = 'conflict';
-          conflicts.push(`无法比较版本号: ${manifest.version} vs ${existingVersion}`);
+          installType = "conflict";
+          conflicts.push(
+            `无法比较版本号: ${manifest.version} vs ${existingVersion}`
+          );
         }
       }
     } else {
-      installType = 'new';
+      installType = "new";
     }
-    
+
     // 如果存在任何冲突，则将安装类型强制设置为 'conflict'
     if (conflicts.length > 0) {
-      installType = 'conflict';
+      installType = "conflict";
     }
-    
+
     return {
       zipPath,
       manifest,
@@ -295,7 +327,7 @@ async function preflightPlugin(zipPath: string): Promise<PreflightResult> {
     };
   } catch (error) {
     errorHandler.handle(error as Error, {
-      userMessage: '插件预检失败',
+      userMessage: "插件预检失败",
       context: { zipPath },
       showToUser: false,
     });
@@ -310,11 +342,11 @@ async function startPreflightFlow(zipPath: string) {
   try {
     preflightLoading.value = true;
     showPreflightDialog.value = true;
-    
+
     const result = await preflightPlugin(zipPath);
     preflightResult.value = result;
   } catch (error) {
-    errorHandler.error(error as Error, '预检失败');
+    errorHandler.error(error as Error, "预检失败");
     showPreflightDialog.value = false;
   } finally {
     preflightLoading.value = false;
@@ -325,47 +357,52 @@ async function startPreflightFlow(zipPath: string) {
  * 处理预检确认
  */
 async function handlePreflightConfirm(result: PreflightResult) {
-  logger.info('用户确认安装', { pluginId: result.manifest.id });
-  
+  logger.info("用户确认安装", { pluginId: result.manifest.id });
+
   // 关闭预检对话框
   showPreflightDialog.value = false;
-  
+
   // 设置安装状态
   loading.value = true;
   isInstalling.value = true;
   installProgress.value = null;
-  
+
   // 监听安装进度事件
-  progressUnlisten = await listen<InstallProgress>('plugin-install-progress', (event) => {
-    installProgress.value = event.payload;
-    logger.debug('安装进度', event.payload);
-  });
-  
+  progressUnlisten = await listen<InstallProgress>(
+    "plugin-install-progress",
+    (event) => {
+      installProgress.value = event.payload;
+      logger.debug("安装进度", event.payload);
+    }
+  );
+
   try {
     // 如果是升级/降级/重新安装，先卸载旧版本
-    if (result.installType !== 'new') {
-      logger.info('卸载旧版本插件', { pluginId: result.manifest.id });
+    if (result.installType !== "new") {
+      logger.info("卸载旧版本插件", { pluginId: result.manifest.id });
       // 传入 true 以进行静默卸载，不显示确认弹窗
       await pluginManager.uninstallPlugin(result.manifest.id, true);
     }
-    
+
     // 调用插件管理器安装插件
-    const installResult = await pluginManager.installPluginFromZip(result.zipPath);
-    
+    const installResult = await pluginManager.installPluginFromZip(
+      result.zipPath
+    );
+
     customMessage.success(`插件"${installResult.pluginName}"安装成功！`);
-    logger.info('插件安装成功', installResult);
-    
+    logger.info("插件安装成功", installResult);
+
     // 刷新插件列表
     await loadPlugins();
   } catch (error) {
-    errorHandler.error(error as Error, '安装插件失败');
+    errorHandler.error(error as Error, "安装插件失败");
   } finally {
     // 清理进度监听器
     if (progressUnlisten) {
       progressUnlisten();
       progressUnlisten = null;
     }
-    
+
     loading.value = false;
     isInstalling.value = false;
     installProgress.value = null;
@@ -377,7 +414,7 @@ async function handlePreflightConfirm(result: PreflightResult) {
  * 处理预检取消
  */
 function handlePreflightCancel() {
-  logger.info('用户取消安装');
+  logger.info("用户取消安装");
   preflightResult.value = null;
 }
 
@@ -389,23 +426,25 @@ async function importPlugin() {
     // 打开文件选择对话框
     const selected = await open({
       multiple: false,
-      filters: [{
-        name: '插件包',
-        extensions: ['zip']
-      }],
-      title: '选择插件 ZIP 文件'
+      filters: [
+        {
+          name: "插件包",
+          extensions: ["zip"],
+        },
+      ],
+      title: "选择插件 ZIP 文件",
     });
 
-    if (!selected || typeof selected !== 'string') {
+    if (!selected || typeof selected !== "string") {
       return;
     }
 
-    logger.info('选择的插件文件', { path: selected });
-    
+    logger.info("选择的插件文件", { path: selected });
+
     // 使用预检流程
     await startPreflightFlow(selected);
   } catch (error) {
-    errorHandler.error(error as Error, '打开文件对话框失败');
+    errorHandler.error(error as Error, "打开文件对话框失败");
   }
 }
 
@@ -414,10 +453,10 @@ async function importPlugin() {
  */
 async function handleDroppedPlugin(paths: string[]) {
   if (paths.length === 0) return;
-  
+
   const zipPath = paths[0];
-  logger.info('拖放插件文件', { path: zipPath });
-  
+  logger.info("拖放插件文件", { path: zipPath });
+
   // 使用预检流程
   await startPreflightFlow(zipPath);
 }
@@ -425,7 +464,7 @@ async function handleDroppedPlugin(paths: string[]) {
 // 设置拖放功能
 const { isDraggingOver } = useFileDrop({
   element: pluginsListRef,
-  accept: ['.zip'],
+  accept: [".zip"],
   fileOnly: true,
   multiple: false,
   onDrop: handleDroppedPlugin,
@@ -481,7 +520,10 @@ onUnmounted(() => {
     </div>
 
     <!-- 安装进度 -->
-    <div v-if="isInstalling && installProgress" class="install-progress-container">
+    <div
+      v-if="isInstalling && installProgress"
+      class="install-progress-container"
+    >
       <div class="progress-header">
         <el-icon class="is-loading" :size="24">
           <i-ep-loading />
@@ -493,9 +535,11 @@ onUnmounted(() => {
           当前文件: {{ installProgress.currentFile }}
         </div>
         <div class="progress-stats">
-          {{ installProgress.processedFiles }} / {{ installProgress.totalFiles }} 个文件
-          ({{ (installProgress.currentBytes / 1024 / 1024).toFixed(2) }} MB /
-          {{ (installProgress.totalBytes / 1024 / 1024).toFixed(2) }} MB)
+          {{ installProgress.processedFiles }} /
+          {{ installProgress.totalFiles }} 个文件 ({{
+            (installProgress.currentBytes / 1024 / 1024).toFixed(2)
+          }}
+          MB / {{ (installProgress.totalBytes / 1024 / 1024).toFixed(2) }} MB)
         </div>
       </div>
       <el-progress

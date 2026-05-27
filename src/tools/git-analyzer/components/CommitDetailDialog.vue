@@ -373,8 +373,6 @@ function handleCopyHash() {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  height: 100%;
-  overflow-y: auto;
 }
 
 .message-display {
@@ -417,7 +415,6 @@ function handleCopyHash() {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  min-height: 0;
 }
 
 .files-header {

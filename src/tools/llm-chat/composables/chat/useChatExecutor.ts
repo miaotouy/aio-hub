@@ -101,6 +101,7 @@ export function useChatExecutor() {
       ...currentAgent,
       ...agentConfigSnippet,
     };
+    agentStore.updateLastUsed(currentAgent.id);
 
     const userProfileStore = useUserProfileStore();
     const effectiveUserProfile = userProfileStore.getEffectiveProfile(

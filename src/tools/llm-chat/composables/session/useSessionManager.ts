@@ -151,9 +151,6 @@ export function useSessionManager() {
     );
     await insertLiveGreetings(index, detail, agent, effectiveUserProfile);
 
-    // 更新智能体的最后使用时间
-    agentStore.updateLastUsed(agentId);
-
     logger.info("创建新会话", {
       sessionId,
       agentId,

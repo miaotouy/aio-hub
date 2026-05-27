@@ -10,6 +10,6 @@ export const toolConfig: ToolConfig = {
   path: "/api-tester",
   icon: markRaw(ConnectorIcon),
   component: () => import("./ApiTester.vue"),
-  description: "测试各类 API 接口，支持 OpenAI、Gemini、Claude 等预设",
+  description: "测试各类 API 接口，内置 REST、GraphQL、主流 LLM 与本地模型预设",
   category: ["开发工具"],
 };

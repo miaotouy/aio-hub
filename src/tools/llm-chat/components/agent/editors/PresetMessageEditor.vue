@@ -58,7 +58,6 @@
         </div>
 
         <!-- 模型匹配配置行 -->
-        <!-- 模型匹配配置行 -->
         <div class="editor-row model-match-row">
           <span class="field-label">过滤</span>
           <div class="model-match-config">
@@ -622,7 +621,7 @@ onMounted(() => {
 
 /**
  * 宏自动补全源
- * 当用户输入 {{ 时触发宏候选   //}}vscode双花括号高亮显示防溢出补丁
+ * 当用户输入 { { 时触发宏候选   //} }vscode双花括号高亮显示防溢出补丁
  */
 const macroCompletionSource = (
   context: CompletionContext
@@ -631,7 +630,7 @@ const macroCompletionSource = (
   const line = context.state.doc.lineAt(context.pos);
   const textBefore = line.text.slice(0, context.pos - line.from);
 
-  // 检查是否在 {{ 之后   //}}vscode双花括号高亮显示防溢出补丁
+  // 检查是否在 { { 之后   //} }vscode双花括号高亮显示防溢出补丁
   const macroMatch = textBefore.match(/\{\{([a-zA-Z0-9_:]*)$/);
   const kbMatch = textBefore.match(/【kb(?:::)?([a-zA-Z0-9_:]*)$/);
 

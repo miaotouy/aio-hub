@@ -327,35 +327,37 @@
               />
             </el-popover>
 
-            <el-button
-              size="small"
-              :type="kbEditorVisible ? 'primary' : 'default'"
-              plain
-              @click="
-                handleKBButtonClick();
-                kbEditorVisible = true;
-              "
-            >
-              <el-icon style="margin-right: 4px"><Book /></el-icon>
-              插入知识库
-            </el-button>
+            <template v-if="!isGreetingMode">
+              <el-button
+                size="small"
+                :type="kbEditorVisible ? 'primary' : 'default'"
+                plain
+                @click="
+                  handleKBButtonClick();
+                  kbEditorVisible = true;
+                "
+              >
+                <el-icon style="margin-right: 4px"><Book /></el-icon>
+                插入知识库
+              </el-button>
 
-            <BaseDialog
-              :modelValue="kbEditorVisible"
-              @update:modelValue="kbEditorVisible = $event"
-              title="插入知识库占位符"
-              width="480px"
-              height="auto"
-              :closeOnBackdropClick="true"
-            >
-              <template #content>
-                <KBPlaceholderEditor
-                  :value="currentKBSelection"
-                  @insert="handleInsertKBPlaceholder"
-                  @cancel="kbEditorVisible = false"
-                />
-              </template>
-            </BaseDialog>
+              <BaseDialog
+                :modelValue="kbEditorVisible"
+                @update:modelValue="kbEditorVisible = $event"
+                title="插入知识库占位符"
+                width="480px"
+                height="auto"
+                :closeOnBackdropClick="true"
+              >
+                <template #content>
+                  <KBPlaceholderEditor
+                    :value="currentKBSelection"
+                    @insert="handleInsertKBPlaceholder"
+                    @cancel="kbEditorVisible = false"
+                  />
+                </template>
+              </BaseDialog>
+            </template>
 
             <el-button size="small" @click="handleCopy" plain title="复制内容">
               <el-icon style="margin-right: 4px"><CopyDocument /></el-icon>

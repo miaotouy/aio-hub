@@ -203,3 +203,66 @@ export async function rebuildLiveGreetings(
 
   return true;
 }
+
+/**
+ * 切换智能体时替换 live greeting
+ *
+ * 与 rebuildLiveGreetings 不同，此函数不检查归属关系，
+ * 直接将所有 live greeting 替换为新智能体的开局消息。
+ * 用于用户在发送消息前切换智能体的场景。
+ */
+export async function switchAgentGreetings(
+  index: ChatSessionIndex,
+  detail: ChatSessionDetail,
+  newAgent: ChatAgent,
+  userProfile?: UserProfile | null
+): Promise<boolean> {
+  const rootNode = detail.nodes?.[detail.rootNodeId];
+  if (!rootNode || isGreetingSolidified(detail)) return false;
+
+  // 如果 root 有非 greeting 的子节点，说明会话已经开始，不应操作
+  const hasNonGreetingChildren = rootNode.childrenIds.some((childId) => {
+    const child = detail.nodes[childId];
+    return child && !child.metadata?.isGreeting;
+  });
+  if (hasNonGreetingChildren) return false;
+
+  // 找到所有 live greeting（不限归属）
+  const liveGreetingIds = rootNode.childrenIds.filter((childId) => {
+    const child = detail.nodes[childId];
+    return child?.metadata?.isGreeting && child.metadata.greetingLive;
+  });
+
+  // 删除旧的 live greeting
+  if (liveGreetingIds.length > 0) {
+    const liveGreetingSet = new Set(liveGreetingIds);
+    rootNode.childrenIds = rootNode.childrenIds.filter(
+      (childId) => !liveGreetingSet.has(childId)
+    );
+    for (const childId of liveGreetingIds) {
+      delete detail.nodes[childId];
+    }
+  }
+
+  // 重置活跃叶节点
+  detail.activeLeafId = detail.rootNodeId;
+  rootNode.lastSelectedChildId = undefined;
+
+  // 插入新智能体的 greeting
+  await insertLiveGreetings(index, detail, newAgent, userProfile);
+
+  // 如果新智能体没有可用的 greeting，保持在 root
+  if (!newAgent.greetings?.some(isUsableGreeting)) {
+    detail.activeLeafId = detail.rootNodeId;
+  }
+
+  logger.info("切换智能体开局消息", {
+    sessionId: detail.id,
+    newAgentId: newAgent.id,
+    removedCount: liveGreetingIds.length,
+    newCount: newAgent.greetings?.filter(isUsableGreeting).length ?? 0,
+  });
+
+  return true;
+}
+

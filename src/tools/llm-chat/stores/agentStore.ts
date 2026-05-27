@@ -185,9 +185,9 @@ export const useAgentStore = defineStore("llmChatAgent", {
               ]);
             const chatStore = useLlmChatStore();
             const userProfileStore = useUserProfileStore();
-            const sessionManager = (await import(
-              "../composables/session/useSessionManager"
-            )).useSessionManager();
+            const sessionManager = (
+              await import("../composables/session/useSessionManager")
+            ).useSessionManager();
             const effectiveUserProfile = userProfileStore.getEffectiveProfile(
               agent.userProfileId
             );
@@ -404,9 +404,61 @@ export const useAgentStore = defineStore("llmChatAgent", {
       }
 
       const { currentAgentId } = useLlmChatUiState();
+      const previousAgentId = currentAgentId.value;
       currentAgentId.value = agentId;
       // 不在这里更新 lastUsedAt，避免选择时改变列表排序
       logger.info("选择智能体", { agentId, name: agent.name });
+
+      // 切换智能体时，替换当前会话中未固化的开局消息
+      if (previousAgentId && previousAgentId !== agentId) {
+        void (async () => {
+          try {
+            const [{ useLlmChatStore }, { switchAgentGreetings }] =
+              await Promise.all([
+                import("./llmChatStore"),
+                import("../services/greetingService"),
+              ]);
+            const chatStore = useLlmChatStore();
+            const userProfileStore = useUserProfileStore();
+
+            const sessionId = chatStore.currentSessionId;
+            if (!sessionId) return;
+
+            const detail = chatStore.sessionDetailMap.get(sessionId);
+            const index = chatStore.sessionIndexMap.get(sessionId);
+            if (!detail || !index) return;
+
+            const effectiveUserProfile = userProfileStore.getEffectiveProfile(
+              agent.userProfileId
+            );
+
+            const changed = await switchAgentGreetings(
+              index,
+              detail,
+              agent,
+              effectiveUserProfile
+            );
+
+            if (changed) {
+              const sessionManager = (
+                await import("../composables/session/useSessionManager")
+              ).useSessionManager();
+              sessionManager.updateMessageCount(
+                sessionId,
+                detail.nodes,
+                chatStore.sessionIndexMap
+              );
+              sessionManager.persistSession(
+                index,
+                detail,
+                chatStore.currentSessionId
+              );
+            }
+          } catch (error) {
+            logger.warn("切换智能体时替换开局消息失败", error);
+          }
+        })();
+      }
     },
 
     /**

@@ -97,7 +97,11 @@ impl ModelTagPool {
             vectors,
             index: None,
         };
-        log::info!("[TagPool] 已从磁盘加载标签数据: {} ({} 个标签)", model_id, pool.registry.len());
+        log::info!(
+            "[TagPool] 已从磁盘加载标签数据: {} ({} 个标签)",
+            model_id,
+            pool.registry.len()
+        );
         Ok(pool)
     }
 
@@ -169,7 +173,11 @@ impl ModelTagPool {
             return;
         }
 
-        log::info!("[TagPool] 开始构筑 HNSW 索引: {} ({} 个标签)", self.model_id, self.registry.len());
+        log::info!(
+            "[TagPool] 开始构筑 HNSW 索引: {} ({} 个标签)",
+            self.model_id,
+            self.registry.len()
+        );
         let start_time = std::time::Instant::now();
 
         let max_elements = self.registry.len();
@@ -190,11 +198,18 @@ impl ModelTagPool {
             .collect();
 
         let ids: Vec<usize> = self.registry.values().cloned().collect();
-        let refs: Vec<(&Vec<f32>, usize)> = data.iter().zip(ids.iter()).map(|(v, &id)| (v, id)).collect();
+        let refs: Vec<(&Vec<f32>, usize)> = data
+            .iter()
+            .zip(ids.iter())
+            .map(|(v, &id)| (v, id))
+            .collect();
 
         hnsw.parallel_insert(&refs);
         self.index = Some(Arc::new(hnsw));
-        log::info!("[TagPool] HNSW 索引构筑完成，耗时: {:?}", start_time.elapsed());
+        log::info!(
+            "[TagPool] HNSW 索引构筑完成，耗时: {:?}",
+            start_time.elapsed()
+        );
     }
 
     /// 搜索邻居

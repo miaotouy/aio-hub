@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use std::time::Duration;
+use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tokio::time::sleep;
 
 /// 画布窗口信息
@@ -94,7 +94,11 @@ pub async fn create_canvas_window(
     sleep(Duration::from_millis(150)).await;
     window.show().map_err(|e| e.to_string())?;
 
-    log::info!("[CANVAS_WINDOW] 已创建画布窗口: label={}, canvasId={}", label, canvas_id);
+    log::info!(
+        "[CANVAS_WINDOW] 已创建画布窗口: label={}, canvasId={}",
+        label,
+        canvas_id
+    );
     Ok(label)
 }
 
@@ -146,6 +150,10 @@ pub fn handle_canvas_window_close(app: &AppHandle, label: &str) {
 
     if let Some(info) = info {
         let _ = app.emit("canvas-window-closed", &info);
-        log::info!("[CANVAS_WINDOW] 画布窗口已关闭: label={}, canvasId={}", label, info.canvas_id);
+        log::info!(
+            "[CANVAS_WINDOW] 画布窗口已关闭: label={}, canvasId={}",
+            label,
+            info.canvas_id
+        );
     }
 }

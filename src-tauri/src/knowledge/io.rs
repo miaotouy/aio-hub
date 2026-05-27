@@ -146,7 +146,7 @@ pub fn save_kb_meta(
     let path = kb_dir.join("meta.json");
     let json =
         serde_json::to_string_pretty(meta).map_err(|e| format!("序列化元数据失败: {}", e))?;
-    
+
     match fs::write(&path, json) {
         Ok(_) => {
             log::debug!("[KB_IO] 成功保存元数据索引: {}", path.display());

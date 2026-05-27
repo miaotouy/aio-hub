@@ -1,5 +1,4 @@
 use futures_util::stream::{self, StreamExt};
-use unicode_segmentation::UnicodeSegmentation;
 use regex::{Regex, RegexBuilder};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
@@ -8,6 +7,7 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 use tauri::AppHandle;
 use tokio::fs;
+use unicode_segmentation::UnicodeSegmentation;
 use walkdir::WalkDir;
 
 // --- 输出数据结构 ---
@@ -175,106 +175,116 @@ impl SearchMatcher {
     /// 提取匹配上下文
     /// 对于 Single 模式，直接使用该正则提取
     /// 对于 All 模式，使用第一个匹配到的正则提取上下文
-        fn extract_context(&self, text: &str, context_len: usize) -> Option<(String, Vec<(usize, usize)>)> {
-            match self {
-                SearchMatcher::Single(re) => extract_context_with_regex(text, std::slice::from_ref(re), context_len),
-                SearchMatcher::All(regexes) => {
-                    // 先确认所有关键词都存在
-                    if !regexes.iter().all(|re| re.is_match(text)) {
-                        return None;
-                    }
-                    // 使用所有正则提取上下文并标记
-                    extract_context_with_regex(text, regexes, context_len)
+    fn extract_context(
+        &self,
+        text: &str,
+        context_len: usize,
+    ) -> Option<(String, Vec<(usize, usize)>)> {
+        match self {
+            SearchMatcher::Single(re) => {
+                extract_context_with_regex(text, std::slice::from_ref(re), context_len)
+            }
+            SearchMatcher::All(regexes) => {
+                // 先确认所有关键词都存在
+                if !regexes.iter().all(|re| re.is_match(text)) {
+                    return None;
                 }
+                // 使用所有正则提取上下文并标记
+                extract_context_with_regex(text, regexes, context_len)
             }
         }
     }
-    
-    // --- 辅助函数 ---
-    
-    /// 使用一组 Regex 提取匹配上下文并返回匹配位置
-    /// text: 原始文本
-    /// regexes: 预编译的正则表达式列表
-    /// context_len: 上下文长度（前后保留的字符数）
-    fn extract_context_with_regex(text: &str, regexes: &[Regex], context_len: usize) -> Option<(String, Vec<(usize, usize)>)> {
-        // 查找第一个匹配项（任意一个正则匹配到的第一个）
-        let mut first_match: Option<regex::Match> = None;
-        for re in regexes {
-            if let Some(mat) = re.find(text) {
-                match first_match {
-                    Some(ref current) if mat.start() < current.start() => first_match = Some(mat),
-                    None => first_match = Some(mat),
-                    _ => {}
-                }
+}
+
+// --- 辅助函数 ---
+
+/// 使用一组 Regex 提取匹配上下文并返回匹配位置
+/// text: 原始文本
+/// regexes: 预编译的正则表达式列表
+/// context_len: 上下文长度（前后保留的字符数）
+fn extract_context_with_regex(
+    text: &str,
+    regexes: &[Regex],
+    context_len: usize,
+) -> Option<(String, Vec<(usize, usize)>)> {
+    // 查找第一个匹配项（任意一个正则匹配到的第一个）
+    let mut first_match: Option<regex::Match> = None;
+    for re in regexes {
+        if let Some(mat) = re.find(text) {
+            match first_match {
+                Some(ref current) if mat.start() < current.start() => first_match = Some(mat),
+                None => first_match = Some(mat),
+                _ => {}
             }
         }
-    
-        let mat = first_match?;
-        let match_start_byte = mat.start();
-        let match_end_byte = mat.end();
-    
-        // --- 向前查找上下文起始字节位置 ---
-        let mut context_start_byte = match_start_byte;
-        let mut chars_before = 0;
-        for (byte_idx, _) in text[..match_start_byte].char_indices().rev() {
-            context_start_byte = byte_idx;
-            chars_before += 1;
-            if chars_before >= context_len {
-                break;
-            }
-        }
-    
-        // --- 向后查找上下文结束字节位置 ---
-        let mut context_end_byte = match_end_byte;
-        let mut chars_after = 0;
-        for (byte_offset, c) in text[match_end_byte..].char_indices() {
-            context_end_byte = match_end_byte + byte_offset + c.len_utf8();
-            chars_after += 1;
-            if chars_after >= context_len {
-                break;
-            }
-        }
-    
-        // --- 构建结果字符串和偏移量 ---
-        let slice = &text[context_start_byte..context_end_byte];
-        let mut context = String::with_capacity(slice.len());
-        // 收集在此上下文范围内的所有匹配项
-        // 注意：我们将字节偏移转换为字符索引，以适配前端 JS 字符串操作
-        let mut match_offsets = Vec::new();
-        for re in regexes {
-            for mat in re.find_iter(slice) {
-                let start_char = slice[..mat.start()].graphemes(true).count();
-                let end_char = start_char + slice[mat.start()..mat.end()].graphemes(true).count();
-                match_offsets.push((start_char, end_char));
-            }
-        }
-        
-        // 排序并合并重叠的偏移量（如果有）
-        match_offsets.sort_by_key(|m| m.0);
-        let mut merged_offsets = Vec::new();
-        if !match_offsets.is_empty() {
-            let mut current = match_offsets[0];
-            for next in match_offsets.into_iter().skip(1) {
-                if next.0 <= current.1 {
-                    current.1 = current.1.max(next.1);
-                } else {
-                    merged_offsets.push(current);
-                    current = next;
-                }
-            }
-            merged_offsets.push(current);
-        }
-    
-        // 替换换行符，同时保持偏移量有效（换行符替换为单空格，长度不变）
-        for c in slice.chars() {
-            match c {
-                '\n' | '\r' => context.push(' '),
-                _ => context.push(c),
-            }
-        }
-    
-        Some((context, merged_offsets))
     }
+
+    let mat = first_match?;
+    let match_start_byte = mat.start();
+    let match_end_byte = mat.end();
+
+    // --- 向前查找上下文起始字节位置 ---
+    let mut context_start_byte = match_start_byte;
+    let mut chars_before = 0;
+    for (byte_idx, _) in text[..match_start_byte].char_indices().rev() {
+        context_start_byte = byte_idx;
+        chars_before += 1;
+        if chars_before >= context_len {
+            break;
+        }
+    }
+
+    // --- 向后查找上下文结束字节位置 ---
+    let mut context_end_byte = match_end_byte;
+    let mut chars_after = 0;
+    for (byte_offset, c) in text[match_end_byte..].char_indices() {
+        context_end_byte = match_end_byte + byte_offset + c.len_utf8();
+        chars_after += 1;
+        if chars_after >= context_len {
+            break;
+        }
+    }
+
+    // --- 构建结果字符串和偏移量 ---
+    let slice = &text[context_start_byte..context_end_byte];
+    let mut context = String::with_capacity(slice.len());
+    // 收集在此上下文范围内的所有匹配项
+    // 注意：我们将字节偏移转换为字符索引，以适配前端 JS 字符串操作
+    let mut match_offsets = Vec::new();
+    for re in regexes {
+        for mat in re.find_iter(slice) {
+            let start_char = slice[..mat.start()].graphemes(true).count();
+            let end_char = start_char + slice[mat.start()..mat.end()].graphemes(true).count();
+            match_offsets.push((start_char, end_char));
+        }
+    }
+
+    // 排序并合并重叠的偏移量（如果有）
+    match_offsets.sort_by_key(|m| m.0);
+    let mut merged_offsets = Vec::new();
+    if !match_offsets.is_empty() {
+        let mut current = match_offsets[0];
+        for next in match_offsets.into_iter().skip(1) {
+            if next.0 <= current.1 {
+                current.1 = current.1.max(next.1);
+            } else {
+                merged_offsets.push(current);
+                current = next;
+            }
+        }
+        merged_offsets.push(current);
+    }
+
+    // 替换换行符，同时保持偏移量有效（换行符替换为单空格，长度不变）
+    for c in slice.chars() {
+        match c {
+            '\n' | '\r' => context.push(' '),
+            _ => context.push(c),
+        }
+    }
+
+    Some((context, merged_offsets))
+}
 
 async fn search_agents(base_dir: &Path, matcher: &SearchMatcher) -> Vec<SearchResult> {
     let agents_dir = base_dir.join("agents");
@@ -306,38 +316,38 @@ async fn search_agents(base_dir: &Path, matcher: &SearchMatcher) -> Vec<SearchRe
             let mut matches = Vec::new();
 
             // 检查名称
-                        if let Some((ctx, offsets)) = matcher.extract_context(&agent.name, 100) {
-                            matches.push(MatchDetail {
-                                field: "name".to_string(),
-                                context: ctx,
-                                role: None,
-                                match_offsets: offsets,
-                            });
-                        }
-            
-                        // 检查显示名称
-                        if let Some(display_name) = &agent.display_name {
-                            if let Some((ctx, offsets)) = matcher.extract_context(display_name, 100) {
-                                matches.push(MatchDetail {
-                                    field: "displayName".to_string(),
-                                    context: ctx,
-                                    role: None,
-                                    match_offsets: offsets,
-                                });
-                            }
-                        }
-            
-                        // 检查描述
-                        if let Some(desc) = &agent.description {
-                            if let Some((ctx, offsets)) = matcher.extract_context(desc, 60) {
-                                matches.push(MatchDetail {
-                                    field: "description".to_string(),
-                                    context: ctx,
-                                    role: None,
-                                    match_offsets: offsets,
-                                });
-                            }
-                        }
+            if let Some((ctx, offsets)) = matcher.extract_context(&agent.name, 100) {
+                matches.push(MatchDetail {
+                    field: "name".to_string(),
+                    context: ctx,
+                    role: None,
+                    match_offsets: offsets,
+                });
+            }
+
+            // 检查显示名称
+            if let Some(display_name) = &agent.display_name {
+                if let Some((ctx, offsets)) = matcher.extract_context(display_name, 100) {
+                    matches.push(MatchDetail {
+                        field: "displayName".to_string(),
+                        context: ctx,
+                        role: None,
+                        match_offsets: offsets,
+                    });
+                }
+            }
+
+            // 检查描述
+            if let Some(desc) = &agent.description {
+                if let Some((ctx, offsets)) = matcher.extract_context(desc, 60) {
+                    matches.push(MatchDetail {
+                        field: "description".to_string(),
+                        context: ctx,
+                        role: None,
+                        match_offsets: offsets,
+                    });
+                }
+            }
 
             // 检查预设消息序列
             if let Some(preset_messages) = &agent.preset_messages {
@@ -348,31 +358,31 @@ async fn search_agents(base_dir: &Path, matcher: &SearchMatcher) -> Vec<SearchRe
                     }
 
                     // 检查预设消息的名称
-                                        if let Some(name) = &msg.name {
-                                            if let Some((ctx, offsets)) = matcher.extract_context(name, 100) {
-                                                matches.push(MatchDetail {
-                                                    field: "presetMessageName".to_string(),
-                                                    context: ctx,
-                                                    role: msg.role.as_ref().map(|r| r.to_string()),
-                                                    match_offsets: offsets,
-                                                });
-                                                matched_count += 1;
-                                                continue;
-                                            }
-                                        }
-                    
-                                        // 检查消息内容
-                                        if let Some(content) = &msg.content {
-                                            if let Some((ctx, offsets)) = matcher.extract_context(content, 60) {
-                                                matches.push(MatchDetail {
-                                                    field: "presetMessage".to_string(),
-                                                    context: ctx,
-                                                    role: msg.role.as_ref().map(|r| r.to_string()),
-                                                    match_offsets: offsets,
-                                                });
-                                                matched_count += 1;
-                                            }
-                                        }
+                    if let Some(name) = &msg.name {
+                        if let Some((ctx, offsets)) = matcher.extract_context(name, 100) {
+                            matches.push(MatchDetail {
+                                field: "presetMessageName".to_string(),
+                                context: ctx,
+                                role: msg.role.as_ref().map(|r| r.to_string()),
+                                match_offsets: offsets,
+                            });
+                            matched_count += 1;
+                            continue;
+                        }
+                    }
+
+                    // 检查消息内容
+                    if let Some(content) = &msg.content {
+                        if let Some((ctx, offsets)) = matcher.extract_context(content, 60) {
+                            matches.push(MatchDetail {
+                                field: "presetMessage".to_string(),
+                                context: ctx,
+                                role: msg.role.as_ref().map(|r| r.to_string()),
+                                match_offsets: offsets,
+                            });
+                            matched_count += 1;
+                        }
+                    }
                 }
             }
 
@@ -436,50 +446,50 @@ async fn search_sessions(base_dir: &Path, matcher: &SearchMatcher) -> Vec<Search
             let mut matches = Vec::new();
 
             // 检查会话名称
-                        if let Some((ctx, offsets)) = matcher.extract_context(&session.name, 100) {
+            if let Some((ctx, offsets)) = matcher.extract_context(&session.name, 100) {
+                matches.push(MatchDetail {
+                    field: "name".to_string(),
+                    context: ctx,
+                    role: None,
+                    match_offsets: offsets,
+                });
+            }
+
+            // 检查消息内容
+            let mut matched_nodes_count = 0;
+            for node in session.nodes.values() {
+                if matched_nodes_count >= 5 {
+                    break;
+                }
+
+                // 检查消息内容
+                if let Some(content) = &node.content {
+                    if let Some((ctx, offsets)) = matcher.extract_context(content, 60) {
+                        matches.push(MatchDetail {
+                            field: "content".to_string(),
+                            context: ctx,
+                            role: node.role.as_ref().map(|r| r.to_string()),
+                            match_offsets: offsets,
+                        });
+                        matched_nodes_count += 1;
+                    }
+                }
+
+                // 检查推理内容
+                if let Some(metadata) = &node.metadata {
+                    if let Some(reasoning) = &metadata.reasoning_content {
+                        if let Some((ctx, offsets)) = matcher.extract_context(reasoning, 60) {
                             matches.push(MatchDetail {
-                                field: "name".to_string(),
+                                field: "reasoningContent".to_string(),
                                 context: ctx,
-                                role: None,
+                                role: node.role.as_ref().map(|r| r.to_string()),
                                 match_offsets: offsets,
                             });
+                            matched_nodes_count += 1;
                         }
-            
-                        // 检查消息内容
-                        let mut matched_nodes_count = 0;
-                        for node in session.nodes.values() {
-                            if matched_nodes_count >= 5 {
-                                break;
-                            }
-            
-                            // 检查消息内容
-                            if let Some(content) = &node.content {
-                                if let Some((ctx, offsets)) = matcher.extract_context(content, 60) {
-                                    matches.push(MatchDetail {
-                                        field: "content".to_string(),
-                                        context: ctx,
-                                        role: node.role.as_ref().map(|r| r.to_string()),
-                                        match_offsets: offsets,
-                                    });
-                                    matched_nodes_count += 1;
-                                }
-                            }
-            
-                            // 检查推理内容
-                            if let Some(metadata) = &node.metadata {
-                                if let Some(reasoning) = &metadata.reasoning_content {
-                                    if let Some((ctx, offsets)) = matcher.extract_context(reasoning, 60) {
-                                        matches.push(MatchDetail {
-                                            field: "reasoningContent".to_string(),
-                                            context: ctx,
-                                            role: node.role.as_ref().map(|r| r.to_string()),
-                                            match_offsets: offsets,
-                                        });
-                                        matched_nodes_count += 1;
-                                    }
-                                }
-                            }
-                        }
+                    }
+                }
+            }
 
             if matches.is_empty() {
                 return None;

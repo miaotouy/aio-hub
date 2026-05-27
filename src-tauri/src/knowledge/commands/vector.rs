@@ -448,13 +448,11 @@ pub async fn kb_set_embedding_cache(
 
     // 容量限制：超过设定上限则删除最旧的 20%
     if cache.len() >= max_items {
-        let mut items: Vec<(String, u64)> = cache
-            .iter()
-            .map(|(k, (_, ts))| (k.clone(), *ts))
-            .collect();
+        let mut items: Vec<(String, u64)> =
+            cache.iter().map(|(k, (_, ts))| (k.clone(), *ts)).collect();
         // 按时间戳升序排序（最旧的在前）
         items.sort_by_key(|(_, ts)| *ts);
-        
+
         // 计算删除数量 (至少删除 1 个，最多删除 20%)
         let delete_count = (max_items / 5).max(1);
         for (k, _) in items.iter().take(delete_count) {

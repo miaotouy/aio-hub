@@ -144,8 +144,8 @@ pub async fn distillery_quick_fetch(
 
 /// 智能编码检测：根据 Content-Type 和 HTML meta 标签确定正确编码
 fn decode_html_bytes(bytes: &[u8], content_type: Option<&str>) -> String {
-    let charset = extract_charset_from_header(content_type)
-        .or_else(|| extract_charset_from_meta(bytes));
+    let charset =
+        extract_charset_from_header(content_type).or_else(|| extract_charset_from_meta(bytes));
 
     match charset.as_deref() {
         Some("gbk") | Some("gb2312") | Some("gb18030") => {

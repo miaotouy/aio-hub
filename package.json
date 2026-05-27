@@ -51,6 +51,7 @@
     "test:run": "vitest --run",
     "test:coverage": "vitest --coverage",
     "lint": "oxlint .",
+    "format": "prettier --write \"src/**/*.{ts,js,vue,json,css,scss}\" \"mobile/src/**/*.{ts,js,vue,json,css,scss}\" \"docs/**/*.md\"",
     "check": "bun run lint ; bun run check:frontend ; bun run check:backend ; bun run check:mobile",
     "check:frontend": "vue-tsc --noEmit",
     "check:backend": "cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings",
@@ -236,3 +237,4 @@
     "@lezer/highlight": "^1.2.1"
   }
 }
+

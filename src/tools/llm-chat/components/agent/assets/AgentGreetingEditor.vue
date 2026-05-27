@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, inject } from "vue";
-import { Plus, Trash2, ArrowUp, ArrowDown, Pencil } from "lucide-vue-next";
+import {
+  Plus,
+  Trash2,
+  ArrowUp,
+  ArrowDown,
+  Pencil,
+  ChevronDown,
+} from "lucide-vue-next";
 import type { GreetingMessage, MessageRole } from "../../../types";
 import PresetMessageEditor from "../editors/PresetMessageEditor.vue";
 import { useUserProfileStore } from "../../../stores/userProfileStore";
@@ -20,6 +27,9 @@ const emit = defineEmits<Emits>();
 
 const editForm = inject<any>("agent-edit-form");
 const userProfileStore = useUserProfileStore();
+
+// 折叠状态
+const isCollapsed = ref(false);
 
 // 当前生效的用户档案
 const effectiveUserProfile = computed(() => {
@@ -133,76 +143,90 @@ function truncateText(text: string, maxLength: number): string {
 <template>
   <div class="greeting-editor">
     <div class="editor-toolbar">
-      <span class="summary">{{ greetings.length }} 条开局</span>
+      <div class="toolbar-title" @click="isCollapsed = !isCollapsed">
+        <ChevronDown
+          :size="14"
+          class="collapse-icon"
+          :class="{ 'is-collapsed': isCollapsed }"
+        />
+        <span class="summary">{{ greetings.length }} 条开局</span>
+      </div>
       <el-button type="primary" size="small" @click="addGreeting">
         <Plus :size="14" />
         添加
       </el-button>
     </div>
 
-    <el-empty
-      v-if="greetings.length === 0"
-      description="暂无开局消息"
-      :image-size="72"
-    />
+    <Transition name="collapse">
+      <div v-show="!isCollapsed" class="greeting-content">
+        <el-empty
+          v-if="greetings.length === 0"
+          description="暂无开局消息"
+          :image-size="48"
+        />
 
-    <div v-else class="greeting-list">
-      <div
-        v-for="(greeting, index) in greetings"
-        :key="greeting.id"
-        class="greeting-item"
-        @click="editGreeting(index)"
-      >
-        <div class="item-header">
-          <div class="item-meta">
-            <el-tag
-              :type="greeting.role === 'assistant' ? 'success' : 'primary'"
-              size="small"
-              effect="plain"
-            >
-              {{ greeting.role === "assistant" ? "助手" : "用户" }}
-            </el-tag>
-            <span v-if="greeting.name" class="item-name">{{
-              greeting.name
-            }}</span>
-          </div>
-          <div class="item-actions" @click.stop>
-            <el-tooltip content="编辑" placement="top">
-              <button class="icon-btn" @click="editGreeting(index)">
-                <Pencil :size="14" />
-              </button>
-            </el-tooltip>
-            <el-tooltip content="上移" placement="top">
-              <button
-                class="icon-btn"
-                :disabled="index === 0"
-                @click="moveGreeting(index, -1)"
-              >
-                <ArrowUp :size="14" />
-              </button>
-            </el-tooltip>
-            <el-tooltip content="下移" placement="top">
-              <button
-                class="icon-btn"
-                :disabled="index === greetings.length - 1"
-                @click="moveGreeting(index, 1)"
-              >
-                <ArrowDown :size="14" />
-              </button>
-            </el-tooltip>
-            <el-tooltip content="删除" placement="top">
-              <button class="icon-btn danger" @click="removeGreeting(index)">
-                <Trash2 :size="14" />
-              </button>
-            </el-tooltip>
-          </div>
-        </div>
+        <div v-else class="greeting-list">
+          <div
+            v-for="(greeting, index) in greetings"
+            :key="greeting.id"
+            class="greeting-item"
+            @click="editGreeting(index)"
+          >
+            <div class="item-header">
+              <div class="item-meta">
+                <el-tag
+                  :type="greeting.role === 'assistant' ? 'success' : 'primary'"
+                  size="small"
+                  effect="plain"
+                >
+                  {{ greeting.role === "assistant" ? "助手" : "用户" }}
+                </el-tag>
+                <span v-if="greeting.name" class="item-name">{{
+                  greeting.name
+                }}</span>
+              </div>
+              <div class="item-actions" @click.stop>
+                <el-tooltip content="编辑" placement="top">
+                  <button class="icon-btn" @click="editGreeting(index)">
+                    <Pencil :size="14" />
+                  </button>
+                </el-tooltip>
+                <el-tooltip content="上移" placement="top">
+                  <button
+                    class="icon-btn"
+                    :disabled="index === 0"
+                    @click="moveGreeting(index, -1)"
+                  >
+                    <ArrowUp :size="14" />
+                  </button>
+                </el-tooltip>
+                <el-tooltip content="下移" placement="top">
+                  <button
+                    class="icon-btn"
+                    :disabled="index === greetings.length - 1"
+                    @click="moveGreeting(index, 1)"
+                  >
+                    <ArrowDown :size="14" />
+                  </button>
+                </el-tooltip>
+                <el-tooltip content="删除" placement="top">
+                  <button
+                    class="icon-btn danger"
+                    @click="removeGreeting(index)"
+                  >
+                    <Trash2 :size="14" />
+                  </button>
+                </el-tooltip>
+              </div>
+            </div>
 
-        <div class="item-content">
-          {{ truncateText(greeting.content, 120) }}
+            <div class="item-content">
+              {{ truncateText(greeting.content, 120) }}
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+    </Transition>
 
     <!-- 消息编辑器 (greeting 模式) -->
     <PresetMessageEditor
@@ -235,9 +259,54 @@ function truncateText(text: string, maxLength: number): string {
   gap: 12px;
 }
 
+.toolbar-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 4px 8px;
+  margin-left: -8px;
+  border-radius: 6px;
+  transition: background-color 0.2s;
+  user-select: none;
+}
+
+.toolbar-title:hover {
+  background-color: var(--el-fill-color-light);
+}
+
+.collapse-icon {
+  transition: transform 0.3s ease;
+  color: var(--el-text-color-secondary);
+  flex-shrink: 0;
+}
+
+.collapse-icon.is-collapsed {
+  transform: rotate(-90deg);
+}
+
 .summary {
   font-size: 12px;
   color: var(--text-color-light);
+}
+
+/* 折叠过渡动画 */
+.collapse-enter-active,
+.collapse-leave-active {
+  transition: all 0.3s ease;
+  overflow: hidden;
+}
+
+.collapse-enter-from,
+.collapse-leave-to {
+  opacity: 0;
+  max-height: 0;
+}
+
+.collapse-enter-to,
+.collapse-leave-from {
+  opacity: 1;
+  max-height: 2000px;
 }
 
 .greeting-list {

@@ -923,17 +923,16 @@ export function filterParametersByCapabilities(
   }
 
   // 2. 将所有未知的自定义参数（不在 KNOWN_NON_MODEL_OPTIONS_KEYS 中的）也保留下来
-  // 这样它们才能在后续的 applyCustomParameters 中被处理
-  for (const key in options) {
-    if (Object.prototype.hasOwnProperty.call(options, key)) {
+  // 这样它们才能在后续 of applyCustomParameters 中被处理
+  const opts = options as Record<string, any>;
+  for (const key in opts) {
+    if (Object.prototype.hasOwnProperty.call(opts, key)) {
       if (
         !KNOWN_NON_MODEL_OPTIONS_KEYS.has(key) &&
         !key.startsWith("_") && // 过滤掉以 _ 开头的内部字段
-        // @ts-expect-error - key is a string
-        options[key] !== undefined
+        opts[key] !== undefined
       ) {
-        // @ts-expect-error - key is a string
-        (filtered as any)[key] = options[key];
+        (filtered as any)[key] = opts[key];
       }
     }
   }
@@ -1071,16 +1070,12 @@ export function applyCustomParameters(
   body: any,
   options: LlmRequestOptions
 ): any {
-  for (const key in options) {
-    if (Object.prototype.hasOwnProperty.call(options, key)) {
-      // @ts-expect-error - key is a string
-      if (
-        !KNOWN_NON_MODEL_OPTIONS_KEYS.has(key) &&
-        options[key] !== undefined
-      ) {
+  const opts = options as Record<string, any>;
+  for (const key in opts) {
+    if (Object.prototype.hasOwnProperty.call(opts, key)) {
+      if (!KNOWN_NON_MODEL_OPTIONS_KEYS.has(key) && opts[key] !== undefined) {
         const rawKey = key;
-        // @ts-expect-error - key is a string
-        const value = options[key];
+        const value = opts[key];
 
         // 检查是否需要合并对象（浅合并）
         // 这对于像 metadata 或 generationConfig 这样的顶层对象很有用

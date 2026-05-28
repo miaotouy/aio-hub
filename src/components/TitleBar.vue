@@ -239,6 +239,50 @@ const closeWindow = async () => {
   }
 };
 
+const isTitleBarInteractiveTarget = (target: EventTarget | null) => {
+  if (!(target instanceof HTMLElement)) return false;
+
+  return Boolean(
+    target.closest(
+      [
+        "button",
+        "a",
+        "input",
+        "textarea",
+        "select",
+        "[role='button']",
+        ".control-btn",
+        ".right-controls",
+        ".menu-dropdown",
+        ".el-dropdown",
+        ".el-popper",
+      ].join(",")
+    )
+  );
+};
+
+const startTitleBarDrag = async (event: MouseEvent) => {
+  if (event.button !== 0 || event.detail > 1) return;
+  if (isTitleBarInteractiveTarget(event.target)) return;
+
+  try {
+    await appWindow.startDragging();
+  } catch (error) {
+    logger.debug("启动窗口拖拽失败", {
+      error,
+      window: appWindow.label,
+    });
+  }
+};
+
+const handleTitleBarDoubleClick = async (event: MouseEvent) => {
+  if (event.button !== 0) return;
+  if (isTitleBarInteractiveTarget(event.target)) return;
+  if (isMacOS.value) return;
+
+  await toggleMaximize();
+};
+
 // 导航到设置页面
 const goToSettings = () => {
   router.push("/settings");
@@ -376,6 +420,8 @@ watch(
         appearanceSettings?.enableUiEffects && appearanceSettings?.enableUiBlur,
     }"
     data-tauri-drag-region
+    @mousedown="startTitleBarDrag"
+    @dblclick="handleTitleBarDoubleClick"
   >
     <div class="title-bar-content">
       <!-- 左侧控制区域 -->
@@ -430,7 +476,7 @@ watch(
       </div>
 
       <!-- 中间标题区域 -->
-      <div class="title-area">
+      <div class="title-area" data-tauri-drag-region>
         <!-- 默认图标用于主页，其他页面显示对应工具图标（在主窗口且为主页时隐藏，因为左侧已有 Logo） -->
         <img
           v-if="useDefaultIcon && !(isMainWindow && route.path === '/')"
@@ -734,7 +780,6 @@ watch(
   width: 20px;
   height: 20px;
   object-fit: contain;
-  -webkit-app-region: no-drag;
 }
 
 /* 统一的图标容器样式 */
@@ -748,7 +793,6 @@ watch(
   color: var(--sidebar-text);
   flex-shrink: 0;
   vertical-align: middle;
-  -webkit-app-region: no-drag;
 }
 
 .icon-wrapper svg,
@@ -768,7 +812,6 @@ watch(
   display: flex;
   align-items: center;
   padding-top: 2px;
-  -webkit-app-region: no-drag;
 }
 
 .right-controls {

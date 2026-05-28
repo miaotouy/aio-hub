@@ -158,7 +158,26 @@ const handleMenuReattach = async () => {
   await handleReattach();
 };
 
+const startWindowDrag = async (event: MouseEvent) => {
+  if (event.button !== 0 || event.detail > 1) return;
+
+  try {
+    const win = getCurrentWebviewWindow();
+    await win.startDragging();
+  } catch (error) {
+    errorHandler.handle(error, {
+      userMessage: "启动窗口拖拽失败",
+      showToUser: false,
+    });
+  }
+};
+
 const handleDragInteraction = (event: MouseEvent) => {
+  if (props.dragMode === "window") {
+    startWindowDrag(event);
+    return;
+  }
+
   if (props.dragMode !== "detach") return;
 
   if (isMac.value) {

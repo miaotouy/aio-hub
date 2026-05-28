@@ -94,8 +94,8 @@
 
         .loading-text {
           font-family:
-            "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "微软雅黑", Arial,
-            sans-serif;
+            "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB",
+            "Microsoft YaHei", "微软雅黑", Arial, sans-serif;
           font-size: 14px;
           color: #909399;
           margin-top: 48px;
@@ -104,8 +104,8 @@
         h1 {
           color: #303133;
           font-family:
-            "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "微软雅黑", Arial,
-            sans-serif;
+            "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB",
+            "Microsoft YaHei", "微软雅黑", Arial, sans-serif;
           font-size: 28px;
           font-weight: 600;
           margin: 0;
@@ -113,7 +113,8 @@
         }
 
         @keyframes pulse {
-          0%, 100% {
+          0%,
+          100% {
             transform: scale(0.8);
             opacity: 0.1;
           }
@@ -142,17 +143,269 @@
             color: #ffffff;
           }
         }
+
+        /* Error container styles */
+        .error-container {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          max-width: 480px;
+          padding: 32px;
+          text-align: center;
+          background: rgba(255, 255, 255, 0.8);
+          border-radius: 16px;
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+          border: 1px solid rgba(235, 238, 245, 0.8);
+          backdrop-filter: blur(10px);
+          margin: 20px;
+          z-index: 10;
+        }
+
+        .error-title {
+          font-size: 20px;
+          color: #f56c6c;
+          font-weight: 600;
+          margin-top: 0;
+          margin-bottom: 16px;
+          font-family:
+            "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB",
+            "Microsoft YaHei", "微软雅黑", Arial, sans-serif;
+        }
+
+        .error-desc {
+          font-size: 14px;
+          color: #606266;
+          line-height: 1.6;
+          margin-bottom: 20px;
+          font-family:
+            "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB",
+            "Microsoft YaHei", "微软雅黑", Arial, sans-serif;
+        }
+
+        .error-features {
+          background: #f5f7fa;
+          border-radius: 8px;
+          padding: 12px 16px;
+          width: 100%;
+          box-sizing: border-box;
+          margin-bottom: 24px;
+          text-align: left;
+        }
+
+        .error-features-title {
+          font-size: 12px;
+          color: #909399;
+          margin-bottom: 8px;
+          font-weight: bold;
+          font-family:
+            "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB",
+            "Microsoft YaHei", "微软雅黑", Arial, sans-serif;
+        }
+
+        .error-features-list {
+          margin: 0;
+          padding-left: 20px;
+          font-size: 13px;
+          color: #f56c6c;
+          font-family: monospace;
+        }
+
+        .error-solutions {
+          text-align: left;
+          width: 100%;
+          font-size: 13px;
+          color: #606266;
+          line-height: 1.8;
+          margin-bottom: 24px;
+          border-top: 1px dashed #dcdfe6;
+          padding-top: 16px;
+          font-family:
+            "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB",
+            "Microsoft YaHei", "微软雅黑", Arial, sans-serif;
+        }
+
+        .error-solutions strong {
+          color: #303133;
+        }
+
+        .error-btn {
+          background-color: #409eff;
+          color: white;
+          border: none;
+          padding: 10px 20px;
+          font-size: 14px;
+          border-radius: 8px;
+          cursor: pointer;
+          transition: background-color 0.2s;
+          font-weight: 500;
+          font-family:
+            "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB",
+            "Microsoft YaHei", "微软雅黑", Arial, sans-serif;
+        }
+
+        .error-btn:hover {
+          background-color: #66b1ff;
+        }
+
+        /* Dark mode support for error container */
+        @media (prefers-color-scheme: dark) {
+          .error-container {
+            background: rgba(30, 30, 30, 0.8);
+            border-color: rgba(75, 75, 75, 0.8);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+          }
+          .error-desc {
+            color: #c0c4cc;
+          }
+          .error-features {
+            background: #1d1d1d;
+          }
+          .error-features-title {
+            color: #888;
+          }
+          .error-solutions {
+            color: #c0c4cc;
+            border-top-color: #4c4d4f;
+          }
+          .error-solutions strong {
+            color: #fff;
+          }
+        }
       </style>
       <div class="loading-container">
         <div class="logo-wrapper">
-          <img src="/src/assets/aio-icon-black.svg" class="logo logo-light" alt="AIO Hub Logo" />
-          <img src="/src/assets/aio-icon-white.svg" class="logo logo-dark" alt="AIO Hub Logo" />
+          <img
+            src="/src/assets/aio-icon-black.svg"
+            class="logo logo-light"
+            alt="AIO Hub Logo"
+          />
+          <img
+            src="/src/assets/aio-icon-white.svg"
+            class="logo logo-dark"
+            alt="AIO Hub Logo"
+          />
           <div class="logo-pulse"></div>
         </div>
         <h1>AIO Hub</h1>
         <p class="loading-text">正在启动...</p>
       </div>
+
+      <div id="error-container" style="display: none" class="error-container">
+        <h2 class="error-title">系统兼容性警告</h2>
+        <p class="error-desc">
+          检测到您的系统浏览器内核（WebView）版本过低，缺少运行 AIO Hub
+          所需的关键现代特性。
+        </p>
+        <div class="error-features">
+          <div class="error-features-title">未通过检测的特性：</div>
+          <ul id="error-features-list" class="error-features-list"></ul>
+        </div>
+        <div class="error-solutions">
+          <strong>建议解决方案：</strong><br />
+          • <strong>Windows:</strong> 请更新 Microsoft Edge
+          浏览器，或下载安装最新的
+          <a
+            href="https://developer.microsoft.com/zh-cn/microsoft-edge/webview2/"
+            target="_blank"
+            style="color: #409eff; text-decoration: none"
+            >WebView2 Runtime</a
+          >。<br />
+          • <strong>macOS:</strong> 请升级系统到 macOS 13 (Ventura)
+          或更高版本。<br />
+          • <strong>Linux:</strong> 请通过包管理器将
+          <code>webkit2gtk</code> 升级到 2.38 或更高版本。
+        </div>
+        <button id="ignore-error-btn" class="error-btn">忽略警告并继续</button>
+      </div>
     </div>
-    <script type="module" src="/src/main.ts"></script>
+    <script>
+      (function () {
+        var failedFeatures = [];
+
+        // 临时冒烟测试：强制触发错误界面以检测样式
+        // failedFeatures.push("SmokeTestFeature (临时冒烟测试强制触发)");
+
+        // 1. 检测 ES Module 支持
+        if (!("noModule" in HTMLScriptElement.prototype)) {
+          failedFeatures.push("ES Modules (noModule)");
+        }
+
+        // 2. 检测 Import Maps 支持
+        var supportsImportMaps = false;
+        try {
+          if (
+            typeof HTMLScriptElement !== "undefined" &&
+            HTMLScriptElement.supports
+          ) {
+            supportsImportMaps = HTMLScriptElement.supports("importmap");
+          }
+        } catch (e) {}
+        if (!supportsImportMaps) {
+          failedFeatures.push("Import Maps");
+        }
+
+        // 3. 检测 structuredClone 支持
+        if (typeof structuredClone !== "function") {
+          failedFeatures.push("structuredClone");
+        }
+
+        // 4. 检测 Web Crypto API 支持
+        if (!(window.crypto && window.crypto.subtle)) {
+          failedFeatures.push("Web Crypto API (crypto.subtle)");
+        }
+
+        // 5. 检测 CSS 变量支持
+        if (
+          !(
+            window.CSS &&
+            window.CSS.supports &&
+            window.CSS.supports("color", "var(--test)")
+          )
+        ) {
+          failedFeatures.push("CSS Custom Properties");
+        }
+
+        if (failedFeatures.length > 0) {
+          // 检测失败：显示错误界面，不加载主应用
+          window.addEventListener("DOMContentLoaded", function () {
+            var loadingContainer = document.querySelector(".loading-container");
+            var errorContainer = document.getElementById("error-container");
+            var featuresList = document.getElementById("error-features-list");
+            var ignoreBtn = document.getElementById("ignore-error-btn");
+
+            if (loadingContainer) loadingContainer.style.display = "none";
+            if (errorContainer) errorContainer.style.display = "flex";
+
+            if (featuresList) {
+              featuresList.innerHTML = "";
+              for (var i = 0; i < failedFeatures.length; i++) {
+                var li = document.createElement("li");
+                li.textContent = failedFeatures[i];
+                featuresList.appendChild(li);
+              }
+            }
+
+            if (ignoreBtn) {
+              ignoreBtn.addEventListener("click", function () {
+                if (errorContainer) errorContainer.style.display = "none";
+                if (loadingContainer) loadingContainer.style.display = "flex";
+                // 用户选择忽略，动态加载主应用
+                var s = document.createElement("script");
+                s.type = "module";
+                s.src = "/src/main.ts";
+                document.body.appendChild(s);
+              });
+            }
+          });
+        } else {
+          // 检测通过：动态加载主应用
+          var s = document.createElement("script");
+          s.type = "module";
+          s.src = "/src/main.ts";
+          document.currentScript.parentNode.appendChild(s);
+        }
+      })();
+    </script>
   </body>
 </html>

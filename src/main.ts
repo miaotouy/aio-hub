@@ -184,6 +184,10 @@ const mountApp = async () => {
       const { getCurrentWindow } = await import("@tauri-apps/api/window");
       await getCurrentWindow().show();
       logger.info("主窗口已显示");
+
+      // 通知 Rust 后端前端已就绪（用于 Linux 白屏检测）
+      const { emit } = await import("@tauri-apps/api/event");
+      await emit("frontend-ready");
     }
   } catch (error) {
     errorHandler.handle(error, {

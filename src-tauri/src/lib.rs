@@ -5,6 +5,7 @@ mod knowledge;
 mod tray;
 mod utils;
 mod web_distillery;
+pub mod webkit_check;
 
 // 导入所需的依赖
 use dirs_next::data_dir;
@@ -318,9 +319,8 @@ pub fn get_app_data_dir(config: &tauri::Config) -> PathBuf {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // 解决 Linux 下 WebKitGTK 渲染崩溃问题 (EGL_BAD_PARAMETER)
-    #[cfg(target_os = "linux")]
-    std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+    // 注意：Linux WebKitGTK 环境变量已在 main.rs 中通过智能检测设置
+    // 不再在此处重复设置 WEBKIT_DISABLE_DMABUF_RENDERER
 
     let context = tauri::generate_context!();
 
@@ -892,6 +892,54 @@ pub fn run() {
             main_window
                 .set_skip_taskbar(false)
                 .expect("Failed to set skip taskbar");
+
+            // Linux 运行时白屏检测：如果前端 15 秒内未发送 ready 信号，注入诊断提示
+            #[cfg(target_os = "linux")]
+            {
+                let app_handle_for_watchdog = app.app_handle().clone();
+                let frontend_ready = Arc::new(std::sync::atomic::AtomicBool::new(false));
+                let frontend_ready_clone = frontend_ready.clone();
+
+                // 监听前端 ready 事件
+                let app_handle_listen = app.app_handle().clone();
+                app_handle_listen.listen("frontend-ready", move |_| {
+                    frontend_ready_clone.store(true, std::sync::atomic::Ordering::SeqCst);
+                    log::info!("[WebKit 监控] 前端已就绪，白屏检测通过");
+                });
+
+                // 启动超时检测任务
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(std::time::Duration::from_secs(15)).await;
+
+                    if !frontend_ready.load(std::sync::atomic::Ordering::SeqCst) {
+                        log::warn!("[WebKit 监控] 前端 15 秒内未响应，疑似白屏");
+
+                        // 尝试向主窗口注入诊断提示
+                        if let Some(window) = app_handle_for_watchdog.get_webview_window("main") {
+                            let diagnostic_js = r#"
+                                (function() {
+                                    if (document.getElementById('webkit-diagnostic-overlay')) return;
+                                    var overlay = document.createElement('div');
+                                    overlay.id = 'webkit-diagnostic-overlay';
+                                    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.9);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999999;font-family:system-ui,sans-serif;padding:40px;text-align:center;';
+                                    overlay.innerHTML = '<h2 style="color:#f56c6c;margin-bottom:16px;">⚠️ 界面加载超时</h2>'
+                                        + '<p style="color:#ccc;max-width:500px;line-height:1.6;">AIO Hub 的前端界面未能在预期时间内加载完成。这通常是由于 WebKitGTK 兼容性问题导致的。</p>'
+                                        + '<div style="background:#1a1a2e;border-radius:8px;padding:16px;margin:20px 0;text-align:left;max-width:500px;width:100%;">'
+                                        + '<p style="color:#909399;font-size:12px;margin:0 0 8px;">建议尝试：</p>'
+                                        + '<code style="color:#67c23a;font-size:13px;display:block;margin:4px 0;">WEBKIT_DISABLE_DMABUF_RENDERER=1 ./aio-hub</code>'
+                                        + '<code style="color:#67c23a;font-size:13px;display:block;margin:4px 0;">WEBKIT_DISABLE_COMPOSITING_MODE=1 ./aio-hub</code>'
+                                        + '<code style="color:#67c23a;font-size:13px;display:block;margin:4px 0;">./aio-hub --diagnose</code>'
+                                        + '</div>'
+                                        + '<p style="color:#909399;font-size:12px;">如需帮助，请运行 <code style="color:#409eff;">--diagnose</code> 并将输出附在 GitHub Issue 中</p>'
+                                        + '<button onclick="this.parentElement.remove()" style="margin-top:16px;background:#409eff;color:#fff;border:none;padding:8px 20px;border-radius:6px;cursor:pointer;font-size:14px;">关闭提示</button>';
+                                    document.body.appendChild(overlay);
+                                })();
+                            "#;
+                            let _ = window.eval(diagnostic_js);
+                        }
+                    }
+                });
+            }
 
             // 只在配置启用时创建系统托盘
             if show_tray_icon {

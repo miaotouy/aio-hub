@@ -14,6 +14,10 @@ struct Args {
     /// Custom data directory path
     #[arg(short, long)]
     data_dir: Option<PathBuf>,
+
+    /// Run system diagnostics and print compatibility report (Linux)
+    #[arg(long)]
+    diagnose: bool,
 }
 
 fn main() {
@@ -110,12 +114,68 @@ fn main() {
         std::env::set_var("AIO_PORTABLE_MODE", "1");
     }
 
+    // Linux: WebKitGTK 兼容性检测与环境变量智能设置
     #[cfg(target_os = "linux")]
     {
-        // 解决 WebKitGTK 在某些 Linux 发行版（如 Arch/CachyOS + Wayland）上的渲染崩溃问题
-        // 主要是因为内置图形库与宿主系统 Mesa 驱动的 ABI 冲突
-        std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
-        std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
+        use aio_hub_lib::webkit_check::linux;
+
+        // --diagnose 模式：输出完整诊断信息后退出
+        if args.diagnose {
+            linux::print_diagnostic_info();
+            std::process::exit(0);
+        }
+
+        // 启动前检测 WebKitGTK 兼容性
+        match linux::check_webkit_compatibility() {
+            Ok(info) => {
+                eprintln!(
+                    "[WebKit 检测] WebKitGTK {}.{}.{} | {} | {}",
+                    info.major, info.minor, info.micro, info.display_server, info.gpu_driver
+                );
+                // 根据环境智能设置最优环境变量
+                linux::apply_optimal_env_vars(&info);
+            }
+            Err(ref e) => {
+                match e {
+                    linux::WebKitError::LibraryNotFound(_) => {
+                        // 致命错误：库缺失，显示对话框后退出
+                        linux::show_error_dialog("AIO Hub - 缺少必要组件", &e.to_string());
+                        std::process::exit(1);
+                    }
+                    linux::WebKitError::VersionTooOld { .. } => {
+                        // 警告：版本过低，显示警告但允许继续
+                        eprintln!(
+                            "\x1b[1;33m[WebKit 警告]\x1b[0m {}",
+                            e.to_string().lines().next().unwrap_or("版本过低")
+                        );
+                        eprintln!(
+                            "\x1b[1;33m[WebKit 警告]\x1b[0m 应用将尝试继续启动，但可能出现白屏或功能异常"
+                        );
+                        eprintln!(
+                            "\x1b[1;33m[WebKit 警告]\x1b[0m 运行 --diagnose 获取详细诊断信息"
+                        );
+                        // 保守设置环境变量
+                        std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+                        std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
+                    }
+                    linux::WebKitError::VersionQueryFailed(_) => {
+                        // 无法确定版本，保守处理
+                        eprintln!(
+                            "\x1b[1;33m[WebKit 警告]\x1b[0m 无法确定 WebKitGTK 版本，使用保守配置"
+                        );
+                        std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+                    }
+                }
+            }
+        }
+    }
+
+    // 非 Linux 平台的 --diagnose 处理
+    #[cfg(not(target_os = "linux"))]
+    if args.diagnose {
+        eprintln!("[诊断] --diagnose 参数仅在 Linux 平台有效");
+        eprintln!("[诊断] 当前平台: {}", std::env::consts::OS);
+        std::process::exit(0);
     }
 
     aio_hub_lib::run()

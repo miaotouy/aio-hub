@@ -12,6 +12,14 @@ export interface AssetManagerConfig {
   groupBy: AssetGroupBy;
   sidebarCollapsed: boolean;
   searchQuery: string;
+  documentConversion: AssetManagerDocumentConversionConfig;
+}
+
+export interface AssetManagerDocumentConversionConfig {
+  autoConvertLegacyDoc: boolean;
+  libreOfficePath: string;
+  timeoutSeconds: number;
+  isolatedProfile: boolean;
 }
 
 /**
@@ -26,6 +34,12 @@ export function createDefaultConfig(): AssetManagerConfig {
     groupBy: "month",
     sidebarCollapsed: false,
     searchQuery: "",
+    documentConversion: {
+      autoConvertLegacyDoc: true,
+      libreOfficePath: "",
+      timeoutSeconds: 120,
+      isolatedProfile: true,
+    },
   };
 }
 
@@ -42,6 +56,10 @@ export const assetManagerConfigManager =
       return {
         ...defaultConfig,
         ...loadedConfig,
+        documentConversion: {
+          ...defaultConfig.documentConversion,
+          ...(loadedConfig.documentConversion ?? {}),
+        },
         version: defaultConfig.version, // 总是使用最新的版本号
       };
     },

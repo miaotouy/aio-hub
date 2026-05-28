@@ -18,6 +18,9 @@
       @clear-selection="clearSelection"
       @toggle-sidebar="isSidebarCollapsed = !isSidebarCollapsed"
       @refresh="handleRefresh"
+      @open-document-conversion-settings="
+        isDocumentConversionSettingsVisible = true
+      "
     />
 
     <!-- 重建索引进度条 -->
@@ -122,6 +125,12 @@
         :show-engine-switch="true"
       />
     </BaseDialog>
+
+    <DocumentConversionSettingsDialog
+      v-model="isDocumentConversionSettingsVisible"
+      :settings="config.documentConversion"
+      @update:settings="handleUpdateDocumentConversionSettings"
+    />
   </div>
 </template>
 
@@ -153,10 +162,12 @@ import {
   assetManagerConfigManager,
   debouncedSaveConfig,
   createDefaultConfig,
+  type AssetManagerDocumentConversionConfig,
 } from "./config";
 import Toolbar from "./components/Toolbar.vue";
 import Sidebar from "./components/Sidebar.vue";
 import AssetGroup from "./components/AssetGroup.vue";
+import DocumentConversionSettingsDialog from "./components/DocumentConversionSettingsDialog.vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import DocumentViewer from "@/components/common/DocumentViewer.vue";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -194,6 +205,7 @@ const selectedAssetIds = ref<Set<string>>(new Set());
 const lastSelectedAssetId = ref<string | null>(null);
 const isSidebarCollapsed = ref(config.value.sidebarCollapsed);
 const isPreviewDialogVisible = ref(false);
+const isDocumentConversionSettingsVisible = ref(false);
 const selectedAssetForPreview = ref<Asset | null>(null);
 
 // 分页与筛选请求载荷
@@ -301,6 +313,13 @@ watch(
     debouncedSaveConfig(config.value);
   }
 );
+
+const handleUpdateDocumentConversionSettings = (
+  value: AssetManagerDocumentConversionConfig
+) => {
+  config.value.documentConversion = value;
+  debouncedSaveConfig(config.value);
+};
 
 // --- 无限滚动 ---
 const mainViewContainerRef = ref<HTMLElement | null>(null);

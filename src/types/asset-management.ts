@@ -168,6 +168,26 @@ export interface Asset {
 }
 
 /**
+ * 资产导入过程中的非阻断提示。
+ *
+ * 导入成功但后端发现用户需要知情的降级路径时返回，例如旧版 DOC 未配置转换程序。
+ */
+export interface AssetImportWarning {
+  code: string;
+  title: string;
+  message: string;
+  sourcePath?: string;
+}
+
+/**
+ * 资产导入结果。
+ */
+export interface AssetImportResult {
+  asset: Asset;
+  warnings: AssetImportWarning[];
+}
+
+/**
  * 资产导入选项
  */
 export interface AssetImportOptions {

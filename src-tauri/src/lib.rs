@@ -29,6 +29,8 @@ use commands::{
     batch_delete_agent_assets,
     begin_detach_session,
     cancel_move_operation,
+    check_asset_manager_document_converter,
+    detect_libreoffice_path,
     check_ffmpeg_availability,
     clean_temp_dir,
     cleanup_items,
@@ -640,6 +642,8 @@ pub fn run() {
             export_all_configs_to_zip,
             import_all_configs_from_zip,
             // 资产管理命令
+            check_asset_manager_document_converter,
+            detect_libreoffice_path,
             get_asset_base_path,
             import_asset_from_path,
             import_asset_from_bytes,

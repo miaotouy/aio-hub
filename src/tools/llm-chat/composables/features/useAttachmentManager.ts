@@ -1,6 +1,7 @@
 import { ref, computed, type Ref, type ComputedRef } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import type { Asset, AssetImportStatus } from "@/types/asset-management";
+import { assetManagerEngine } from "@/composables/useAssetManager";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -365,15 +366,23 @@ export function useAttachmentManager(
       // 更新状态为 importing
       pendingAsset.importStatus = "importing";
 
-      // 调用后端导入
-      const importedAsset = await invoke<Asset>("import_asset_from_path", {
-        originalPath: pendingAsset.originalPath,
-        options: {
+      // 调用资产管理引擎导入
+      const importResult = await assetManagerEngine.importAssetFromPathResult(
+        pendingAsset.originalPath,
+        {
           generateThumbnail,
           enableDeduplication: true,
           sourceModule: "llm-chat",
-        },
-      });
+        }
+      );
+      const importedAsset = importResult.asset;
+      for (const warning of importResult.warnings) {
+        customMessage.warning({
+          message: warning.message || warning.title,
+          duration: 12000,
+          showClose: true,
+        });
+      }
 
       // 检查是否已存在（基于 SHA256）
       const existingIndex = attachments.value.findIndex(

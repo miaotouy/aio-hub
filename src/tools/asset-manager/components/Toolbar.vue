@@ -30,6 +30,12 @@
               重建索引
             </el-dropdown-item>
             <el-dropdown-item
+              :icon="Setting"
+              @click="emit('openDocumentConversionSettings')"
+            >
+              文档转换设置
+            </el-dropdown-item>
+            <el-dropdown-item
               v-if="!props.hasDuplicates"
               :icon="CopyDocument"
               @click="emit('findDuplicates')"
@@ -174,6 +180,7 @@ import {
   Expand,
   Fold,
   MoreFilled,
+  Setting,
 } from "@element-plus/icons-vue";
 
 interface Props {
@@ -210,6 +217,7 @@ const emit = defineEmits<{
   deleteSelected: [];
   "toggle-sidebar": [];
   refresh: [];
+  openDocumentConversionSettings: [];
 }>();
 
 // 容器宽度检测

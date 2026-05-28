@@ -8,12 +8,15 @@ import type {
   AssetType,
   AssetOrigin,
   AssetMetadata,
+  AssetImportWarning,
+  AssetImportResult,
   ListAssetsPaginatedPayload,
   PaginatedAssetsResponse,
   AssetStats,
   AssetSidecarAction,
 } from "@/types/asset-management";
 import { toolRegistryManager } from "@/services/registry";
+import { customMessage } from "@/utils/customMessage";
 
 // 缓存资产根目录，避免重复 IPC 调用
 let _cachedBasePath: string | null = null;
@@ -21,6 +24,18 @@ let _cachedBasePath: string | null = null;
 // 动态注册的附属操作
 const _registeredSidecarActions = ref<AssetSidecarAction[]>([]);
 let _isActionsInitialized = false;
+
+function showAssetImportWarnings(warnings?: AssetImportWarning[]) {
+  if (!warnings?.length) return;
+
+  for (const warning of warnings) {
+    customMessage.warning({
+      message: warning.message || warning.title,
+      duration: 12000,
+      showClose: true,
+    });
+  }
+}
 
 /**
  * 重置资产根目录的缓存。
@@ -47,16 +62,30 @@ export const assetManagerEngine = {
   },
 
   /**
+   * 从文件路径导入资产，并返回完整的后端导入结果
+   */
+  importAssetFromPathResult: async (
+    originalPath: string,
+    options?: AssetImportOptions
+  ): Promise<AssetImportResult> => {
+    return await invoke<AssetImportResult>("import_asset_from_path", {
+      originalPath,
+      options,
+    });
+  },
+
+  /**
    * 从文件路径导入资产
    */
   importAssetFromPath: async (
     originalPath: string,
     options?: AssetImportOptions
   ): Promise<Asset> => {
-    return await invoke<Asset>("import_asset_from_path", {
+    const result = await assetManagerEngine.importAssetFromPathResult(
       originalPath,
-      options,
-    });
+      options
+    );
+    return result.asset;
   },
 
   /**
@@ -487,11 +516,13 @@ export function useAssetManager() {
     options?: AssetImportOptions
   ): Promise<Asset> => {
     try {
-      const promise = assetManagerEngine.importAssetFromPath(
+      const promise = assetManagerEngine.importAssetFromPathResult(
         originalPath,
         options
       );
-      const asset = await withLoading(promise);
+      const result = await withLoading(promise);
+      showAssetImportWarnings(result.warnings);
+      const asset = result.asset;
       await handlePostImport(asset);
       return asset;
     } catch (err) {
@@ -513,10 +544,12 @@ export function useAssetManager() {
     isLoading.value = true;
     for (const path of paths) {
       try {
-        const asset = await assetManagerEngine.importAssetFromPath(
+        const result = await assetManagerEngine.importAssetFromPathResult(
           path,
           options
         );
+        showAssetImportWarnings(result.warnings);
+        const asset = result.asset;
         importedAssets.push(asset);
       } catch (err) {
         console.error(`导入文件 ${path} 失败:`, err);
@@ -957,6 +990,8 @@ export const assetUtils = {
 export type {
   Asset,
   AssetImportOptions,
+  AssetImportWarning,
+  AssetImportResult,
   AssetType,
   AssetOrigin,
   AssetMetadata,

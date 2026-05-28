@@ -17,7 +17,14 @@ export interface AssetManagerConfig {
 
 export interface AssetManagerDocumentConversionConfig {
   autoConvertLegacyDoc: boolean;
+  preferredProvider:
+    | "auto"
+    | "libreOffice"
+    | "microsoftWord"
+    | "abiWord"
+    | "textutil";
   libreOfficePath: string;
+  abiWordPath: string;
   timeoutSeconds: number;
   isolatedProfile: boolean;
 }
@@ -36,7 +43,9 @@ export function createDefaultConfig(): AssetManagerConfig {
     searchQuery: "",
     documentConversion: {
       autoConvertLegacyDoc: true,
+      preferredProvider: "auto",
       libreOfficePath: "",
+      abiWordPath: "",
       timeoutSeconds: 120,
       isolatedProfile: true,
     },

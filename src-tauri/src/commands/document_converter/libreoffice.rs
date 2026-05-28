@@ -137,10 +137,8 @@ pub async fn detect_libreoffice_path() -> Option<String> {
 
     for candidate in &candidates {
         let path = Path::new(candidate);
-        if path.exists() {
-            if run_libreoffice_version(candidate).await.is_ok() {
-                return Some(candidate.clone());
-            }
+        if path.exists() && run_libreoffice_version(candidate).await.is_ok() {
+            return Some(candidate.clone());
         }
     }
 

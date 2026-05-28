@@ -2,13 +2,13 @@
 pub mod agent_asset_manager;
 pub mod asset_manager;
 pub mod canvas_window;
-pub mod document_converter;
 pub mod clipboard;
 pub mod config_manager;
 pub mod content_deduplicator;
 pub mod dir_search;
 pub mod directory_janitor;
 pub mod directory_tree;
+pub mod document_converter;
 #[cfg(windows)]
 pub mod external_player;
 pub mod ffmpeg_processor;
@@ -33,13 +33,16 @@ pub mod window_manager;
 pub use agent_asset_manager::*;
 pub use asset_manager::*;
 pub use canvas_window::*;
-pub use document_converter::{check_asset_manager_document_converter, detect_libreoffice_path};
 pub use clipboard::*;
 pub use config_manager::*;
 pub use content_deduplicator::*;
 pub use dir_search::*;
 pub use directory_janitor::*;
 pub use directory_tree::*;
+pub use document_converter::{
+    check_asset_manager_document_converter, detect_asset_manager_document_converters,
+    detect_libreoffice_path,
+};
 #[cfg(windows)]
 pub use external_player::*;
 pub use ffmpeg_processor::*;

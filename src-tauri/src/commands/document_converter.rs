@@ -1,20 +1,33 @@
 //! 文档转换模块
 //!
 //! 将旧版文档格式（如 .doc）转换为现代格式（如 .docx）。
-//! 当前支持 LibreOffice 作为转换后端，架构上预留了多后端扩展能力。
+//! 支持多个本地转换后端，优先保持导入流程可用。
 
+mod abiword;
 mod config;
 mod libreoffice;
+mod microsoft_word;
+mod textutil;
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 use uuid::Uuid;
 
 // 重新导出供 asset_manager 使用的类型和函数
+use config::DocumentConversionConfig;
 pub use config::{active_document_conversion_config, is_legacy_word_document};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DocumentConverterProvider {
+    Auto,
+    LibreOffice,
+    MicrosoftWord,
+    AbiWord,
+    Textutil,
+}
 
 /// 转换器检测结果
 #[derive(Debug, Serialize)]
@@ -23,6 +36,18 @@ pub struct DocumentConverterCheckResult {
     pub available: bool,
     pub version: Option<String>,
     pub message: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentConverterCandidate {
+    pub provider: String,
+    pub label: String,
+    pub available: bool,
+    pub path: Option<String>,
+    pub version: Option<String>,
+    pub message: Option<String>,
+    pub requires_path: bool,
 }
 
 /// 导入源准备结果（供 asset_manager 使用）
@@ -49,6 +74,69 @@ pub struct ImportWarning {
     pub source_path: Option<String>,
 }
 
+struct ResolvedConverter {
+    provider: DocumentConverterProvider,
+    config: DocumentConversionConfig,
+}
+
+impl DocumentConverterProvider {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Auto => "auto",
+            Self::LibreOffice => "libreOffice",
+            Self::MicrosoftWord => "microsoftWord",
+            Self::AbiWord => "abiWord",
+            Self::Textutil => "textutil",
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::Auto => "自动选择",
+            Self::LibreOffice => "LibreOffice",
+            Self::MicrosoftWord => "Microsoft Word",
+            Self::AbiWord => "AbiWord",
+            Self::Textutil => "macOS textutil",
+        }
+    }
+
+    fn requires_path(self) -> bool {
+        matches!(self, Self::LibreOffice | Self::AbiWord)
+    }
+}
+
+impl<'de> Deserialize<'de> for DocumentConverterProvider {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        Ok(parse_provider(&value))
+    }
+}
+
+fn parse_provider(value: &str) -> DocumentConverterProvider {
+    match value {
+        "libreOffice" | "libreoffice" | "libre_office" => DocumentConverterProvider::LibreOffice,
+        "microsoftWord" | "microsoft_word" | "word" => DocumentConverterProvider::MicrosoftWord,
+        "abiWord" | "abiword" | "abi_word" => DocumentConverterProvider::AbiWord,
+        "textutil" => DocumentConverterProvider::Textutil,
+        _ => DocumentConverterProvider::Auto,
+    }
+}
+
+fn converter_not_configured_warning(file_name: &str, original_path: &str) -> ImportWarning {
+    ImportWarning {
+        code: "legacyDocConverterNotConfigured".to_string(),
+        title: "旧版 DOC 未自动转换".to_string(),
+        message: format!(
+            "检测到旧版 Word DOC 文件「{}」，但资产管理器没有启用可用的文档转换依赖。文件已按原始 .doc 入库，预览、全文解析或后续处理可能受限。请在资产管理器右上角「文件操作」→「文档转换设置」中启用自动转换，并配置 LibreOffice、Microsoft Word、AbiWord 或 macOS textutil；保存后重新导入该文件即可转换为 DOCX。",
+            file_name
+        ),
+        source_path: Some(original_path.to_string()),
+    }
+}
+
 // --- Tauri Commands ---
 
 /// 在常见安装路径中嗅探 LibreOffice 可执行文件
@@ -57,21 +145,129 @@ pub async fn detect_libreoffice_path() -> Result<Option<String>, String> {
     Ok(libreoffice::detect_libreoffice_path().await)
 }
 
+/// 检测当前系统可用的文档转换依赖
+#[tauri::command]
+pub async fn detect_asset_manager_document_converters(
+) -> Result<Vec<DocumentConverterCandidate>, String> {
+    let libre_office_path = libreoffice::detect_libreoffice_path().await;
+    let libre_office = match &libre_office_path {
+        Some(path) => match libreoffice::check_converter(path).await {
+            Ok(version) => candidate(
+                DocumentConverterProvider::LibreOffice,
+                true,
+                Some(path.clone()),
+                Some(version),
+                None,
+            ),
+            Err(message) => candidate(
+                DocumentConverterProvider::LibreOffice,
+                false,
+                Some(path.clone()),
+                None,
+                Some(message),
+            ),
+        },
+        None => candidate(
+            DocumentConverterProvider::LibreOffice,
+            false,
+            None,
+            None,
+            Some("未检测到 LibreOffice soffice".to_string()),
+        ),
+    };
+
+    let microsoft_word = match microsoft_word::check_converter().await {
+        Ok(version) => candidate(
+            DocumentConverterProvider::MicrosoftWord,
+            true,
+            None,
+            Some(version),
+            None,
+        ),
+        Err(message) => candidate(
+            DocumentConverterProvider::MicrosoftWord,
+            false,
+            None,
+            None,
+            Some(message),
+        ),
+    };
+
+    let abi_word_path = abiword::detect_abiword_path().await;
+    let abi_word = match &abi_word_path {
+        Some(path) => match abiword::check_converter(path).await {
+            Ok(version) => candidate(
+                DocumentConverterProvider::AbiWord,
+                true,
+                Some(path.clone()),
+                Some(version),
+                None,
+            ),
+            Err(message) => candidate(
+                DocumentConverterProvider::AbiWord,
+                false,
+                Some(path.clone()),
+                None,
+                Some(message),
+            ),
+        },
+        None => candidate(
+            DocumentConverterProvider::AbiWord,
+            false,
+            None,
+            None,
+            Some("未检测到 AbiWord".to_string()),
+        ),
+    };
+
+    let textutil = match textutil::check_converter().await {
+        Ok(version) => candidate(
+            DocumentConverterProvider::Textutil,
+            true,
+            None,
+            Some(version),
+            None,
+        ),
+        Err(message) => candidate(
+            DocumentConverterProvider::Textutil,
+            false,
+            None,
+            None,
+            Some(message),
+        ),
+    };
+
+    Ok(vec![libre_office, microsoft_word, abi_word, textutil])
+}
+
 /// 检查指定路径的文档转换程序是否可用
 #[tauri::command]
 pub async fn check_asset_manager_document_converter(
-    path: String,
+    provider: Option<String>,
+    path: Option<String>,
 ) -> Result<DocumentConverterCheckResult, String> {
-    let trimmed = path.trim();
-    if trimmed.is_empty() {
-        return Ok(DocumentConverterCheckResult {
-            available: false,
-            version: None,
-            message: Some("未配置 LibreOffice 可执行文件路径".to_string()),
-        });
-    }
+    let provider = provider
+        .as_deref()
+        .map(parse_provider)
+        .unwrap_or(DocumentConverterProvider::LibreOffice);
+    let path = path.unwrap_or_default();
 
-    match libreoffice::check_converter(trimmed).await {
+    let result = match provider {
+        DocumentConverterProvider::Auto => {
+            let detected = detect_asset_manager_document_converters().await?;
+            if let Some(available) = detected.into_iter().find(|item| item.available) {
+                Ok(available.version.unwrap_or(available.label))
+            } else {
+                Err("未检测到可用的文档转换依赖".to_string())
+            }
+        }
+        DocumentConverterProvider::LibreOffice => libreoffice::check_converter(path.trim()).await,
+        DocumentConverterProvider::MicrosoftWord => microsoft_word::check_converter().await,
+        DocumentConverterProvider::AbiWord => abiword::check_converter(path.trim()).await,
+        DocumentConverterProvider::Textutil => textutil::check_converter().await,
+    };
+
+    match result {
         Ok(version) => Ok(DocumentConverterCheckResult {
             available: true,
             version: Some(version),
@@ -86,6 +282,145 @@ pub async fn check_asset_manager_document_converter(
 }
 
 // --- 供 asset_manager 调用的内部 API ---
+
+fn candidate(
+    provider: DocumentConverterProvider,
+    available: bool,
+    path: Option<String>,
+    version: Option<String>,
+    message: Option<String>,
+) -> DocumentConverterCandidate {
+    DocumentConverterCandidate {
+        provider: provider.as_str().to_string(),
+        label: provider.label().to_string(),
+        available,
+        path,
+        version,
+        message,
+        requires_path: provider.requires_path(),
+    }
+}
+
+async fn resolve_specific_converter(
+    provider: DocumentConverterProvider,
+    mut config: DocumentConversionConfig,
+) -> Result<ResolvedConverter, String> {
+    match provider {
+        DocumentConverterProvider::LibreOffice => {
+            if config.libre_office_path.trim().is_empty() {
+                config.libre_office_path = libreoffice::detect_libreoffice_path()
+                    .await
+                    .ok_or_else(|| "未检测到 LibreOffice soffice".to_string())?;
+            }
+            Ok(ResolvedConverter { provider, config })
+        }
+        DocumentConverterProvider::MicrosoftWord => {
+            microsoft_word::check_converter().await?;
+            Ok(ResolvedConverter { provider, config })
+        }
+        DocumentConverterProvider::AbiWord => {
+            if config.abi_word_path.trim().is_empty() {
+                config.abi_word_path = abiword::detect_abiword_path()
+                    .await
+                    .ok_or_else(|| "未检测到 AbiWord".to_string())?;
+            }
+            Ok(ResolvedConverter { provider, config })
+        }
+        DocumentConverterProvider::Textutil => {
+            textutil::check_converter().await?;
+            Ok(ResolvedConverter { provider, config })
+        }
+        DocumentConverterProvider::Auto => resolve_auto_converter(config).await,
+    }
+}
+
+async fn resolve_auto_converter(
+    config: DocumentConversionConfig,
+) -> Result<ResolvedConverter, String> {
+    let mut configured_libre_office = config.clone();
+    if !configured_libre_office.libre_office_path.trim().is_empty()
+        && libreoffice::check_converter(&configured_libre_office.libre_office_path)
+            .await
+            .is_ok()
+    {
+        return Ok(ResolvedConverter {
+            provider: DocumentConverterProvider::LibreOffice,
+            config: configured_libre_office,
+        });
+    }
+
+    if microsoft_word::check_converter().await.is_ok() {
+        return Ok(ResolvedConverter {
+            provider: DocumentConverterProvider::MicrosoftWord,
+            config: config.clone(),
+        });
+    }
+
+    let mut configured_abi_word = config.clone();
+    if !configured_abi_word.abi_word_path.trim().is_empty()
+        && abiword::check_converter(&configured_abi_word.abi_word_path)
+            .await
+            .is_ok()
+    {
+        return Ok(ResolvedConverter {
+            provider: DocumentConverterProvider::AbiWord,
+            config: configured_abi_word,
+        });
+    }
+
+    if let Some(path) = libreoffice::detect_libreoffice_path().await {
+        configured_libre_office.libre_office_path = path;
+        return Ok(ResolvedConverter {
+            provider: DocumentConverterProvider::LibreOffice,
+            config: configured_libre_office,
+        });
+    }
+
+    if let Some(path) = abiword::detect_abiword_path().await {
+        configured_abi_word.abi_word_path = path;
+        return Ok(ResolvedConverter {
+            provider: DocumentConverterProvider::AbiWord,
+            config: configured_abi_word,
+        });
+    }
+
+    if textutil::check_converter().await.is_ok() {
+        return Ok(ResolvedConverter {
+            provider: DocumentConverterProvider::Textutil,
+            config,
+        });
+    }
+
+    Err("未检测到可用的文档转换依赖".to_string())
+}
+
+async fn resolve_converter(config: DocumentConversionConfig) -> Result<ResolvedConverter, String> {
+    let preferred = parse_provider(&config.preferred_provider);
+    resolve_specific_converter(preferred, config).await
+}
+
+async fn convert_legacy_doc_to_docx(
+    source_path: &Path,
+    output_dir: &Path,
+    resolved: &ResolvedConverter,
+) -> Result<PathBuf, String> {
+    match resolved.provider {
+        DocumentConverterProvider::LibreOffice => {
+            libreoffice::convert_legacy_doc_to_docx(source_path, output_dir, &resolved.config).await
+        }
+        DocumentConverterProvider::MicrosoftWord => {
+            microsoft_word::convert_legacy_doc_to_docx(source_path, output_dir, &resolved.config)
+                .await
+        }
+        DocumentConverterProvider::AbiWord => {
+            abiword::convert_legacy_doc_to_docx(source_path, output_dir, &resolved.config).await
+        }
+        DocumentConverterProvider::Textutil => {
+            textutil::convert_legacy_doc_to_docx(source_path, output_dir, &resolved.config).await
+        }
+        DocumentConverterProvider::Auto => Err("未解析文档转换后端".to_string()),
+    }
+}
 
 /// 准备导入源：如果是旧版 DOC 文件且配置了转换器，则自动转换为 DOCX
 pub async fn prepare_import_source(
@@ -115,27 +450,44 @@ pub async fn prepare_import_source(
         return Ok(PreparedImportSource {
             path: original_path.to_path_buf(),
             cleanup_dir: None,
-            warnings: vec![ImportWarning {
-                code: "legacyDocConverterNotConfigured".to_string(),
-                title: "旧版 DOC 未自动转换".to_string(),
-                message: format!(
-                    "检测到旧版 Word DOC 文件「{}」，但资产管理器没有启用可用的 LibreOffice 转换程序。文件已按原始 .doc 入库，预览、全文解析或后续处理可能受限。请在资产管理器右上角「文件操作」→「文档转换设置」中开启自动转换，并配置 LibreOffice 的 soffice 可执行文件路径；保存后重新导入该文件即可转换为 DOCX。",
-                    file_name
-                ),
-                source_path: Some(original_path_str.to_string()),
-            }],
+            warnings: vec![converter_not_configured_warning(
+                &file_name,
+                original_path_str,
+            )],
         });
+    };
+
+    let file_name = original_path
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .unwrap_or_else(|| original_path_str.to_string());
+    let resolved = match resolve_converter(conv_config).await {
+        Ok(resolved) => resolved,
+        Err(message) => {
+            log::info!(
+                "[DocumentConverter] 检测到旧版 DOC，但未找到可用转换依赖，按原文件入库: {} ({})",
+                original_path_str,
+                message
+            );
+            let mut warning = converter_not_configured_warning(&file_name, original_path_str);
+            warning.message = format!("{} 当前检测结果：{}。", warning.message, message);
+            return Ok(PreparedImportSource {
+                path: original_path.to_path_buf(),
+                cleanup_dir: None,
+                warnings: vec![warning],
+            });
+        }
     };
 
     let output_dir = base_dir
         .join(".conversion-cache")
         .join(Uuid::new_v4().to_string());
     log::info!(
-        "[DocumentConverter] 检测到旧版 DOC，入库前转换为 DOCX: {}",
+        "[DocumentConverter] 检测到旧版 DOC，使用 {} 入库前转换为 DOCX: {}",
+        resolved.provider.label(),
         original_path_str
     );
-    let converted_path =
-        libreoffice::convert_legacy_doc_to_docx(original_path, &output_dir, &conv_config).await?;
+    let converted_path = convert_legacy_doc_to_docx(original_path, &output_dir, &resolved).await?;
 
     Ok(PreparedImportSource {
         path: converted_path,

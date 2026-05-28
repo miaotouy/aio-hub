@@ -16,6 +16,10 @@ fn default_conversion_timeout() -> u64 {
     DOCUMENT_CONVERSION_TIMEOUT_SECONDS
 }
 
+fn default_provider() -> String {
+    "auto".to_string()
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct AssetManagerModuleConfig {
@@ -28,8 +32,12 @@ pub(crate) struct AssetManagerModuleConfig {
 pub struct DocumentConversionConfig {
     #[serde(default = "default_true")]
     pub auto_convert_legacy_doc: bool,
+    #[serde(default = "default_provider")]
+    pub preferred_provider: String,
     #[serde(default)]
     pub libre_office_path: String,
+    #[serde(default)]
+    pub abi_word_path: String,
     #[serde(default = "default_conversion_timeout")]
     pub timeout_seconds: u64,
     #[serde(default = "default_true")]
@@ -40,7 +48,9 @@ impl Default for DocumentConversionConfig {
     fn default() -> Self {
         Self {
             auto_convert_legacy_doc: true,
+            preferred_provider: default_provider(),
             libre_office_path: String::new(),
+            abi_word_path: String::new(),
             timeout_seconds: DOCUMENT_CONVERSION_TIMEOUT_SECONDS,
             isolated_profile: true,
         }
@@ -60,10 +70,10 @@ pub fn read_document_conversion_config(app: &AppHandle) -> Option<DocumentConver
     Some(config.document_conversion)
 }
 
-/// 返回已启用且路径非空的转换配置，否则返回 None
+/// 返回已启用的转换配置，否则返回 None
 pub fn active_document_conversion_config(app: &AppHandle) -> Option<DocumentConversionConfig> {
     let config = read_document_conversion_config(app)?;
-    if !config.auto_convert_legacy_doc || config.libre_office_path.trim().is_empty() {
+    if !config.auto_convert_legacy_doc {
         None
     } else {
         Some(config)

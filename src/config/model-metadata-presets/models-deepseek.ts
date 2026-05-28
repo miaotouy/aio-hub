@@ -9,6 +9,7 @@ export const deepseekModelRules: ModelMetadataRule[] = [
     matchType: "model",
     matchValue: "deepseek-v4-pro",
     properties: {
+      icon: `/model-icons/deepseek-color.svg`,
       contextLength: 1024000,
       maxOutputTokens: 384000,
       pricing: {
@@ -27,6 +28,7 @@ export const deepseekModelRules: ModelMetadataRule[] = [
     matchType: "model",
     matchValue: "deepseek-v4-flash",
     properties: {
+      icon: `/model-icons/deepseek-color.svg`,
       contextLength: 1024000,
       maxOutputTokens: 384000,
       pricing: {
@@ -45,6 +47,7 @@ export const deepseekModelRules: ModelMetadataRule[] = [
     matchType: "model",
     matchValue: "deepseek-chat|deepseek-reasoner",
     properties: {
+      icon: `/model-icons/deepseek-color.svg`,
       deprecated: true,
     },
     priority: 30,

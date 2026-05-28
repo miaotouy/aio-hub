@@ -1,9 +1,76 @@
 /**
  * OpenAI 系列模型前缀匹配规则
  *
- * 包括 GPT-4o、GPT-5、GPT-4.1、GPT-4、GPT-3.5、o1/o3/o4 推理系列、ChatGPT 等。
+ * 包括 GPT-4o、GPT-5.5/GPT-5、GPT-4.1、GPT-4、GPT-3.5、o1/o3/o4 推理系列、ChatGPT 等。
  */
 import type { ModelMetadataRule } from "../../types/model-metadata";
+
+// ==========================================
+// OpenAI 能力预设模板
+// ==========================================
+
+// 1. 视觉 Token 计费规则 (OpenAI 瓦片计算法)
+const openaiVisionTokenCost = {
+  calculationMethod: "openai_tile" as const,
+  parameters: {
+    baseCost: 85,
+    tileCost: 170,
+    tileSize: 512,
+  },
+};
+
+// 2. 文档 Token 计费规则 (动态计算)
+const openaiDocumentTokenCost = {
+  calculationMethod: "dynamic" as const,
+};
+
+// 3. 基础文档处理能力
+const openaiDocumentCapabilities = {
+  document: true,
+  documentFormat: "openai_file" as const,
+  documentTokenCost: openaiDocumentTokenCost,
+};
+
+// 4. 基础视觉与工具能力 (GPT-4o, GPT-4.1 级别)
+const openaiBaseCapabilities = {
+  vision: true,
+  toolUse: true,
+  jsonOutput: true, // 支持 JSON 输出模式
+  ...openaiDocumentCapabilities,
+  visionTokenCost: openaiVisionTokenCost,
+};
+
+// 5. 基础推理能力 (o1, o3, o4-mini 级别)
+const openaiReasoningCapabilities = {
+  thinking: true,
+  thinkingConfigType: "effort" as const,
+  reasoningEffortOptions: ["low", "medium", "high"],
+};
+
+// 6. 完整推理能力 (o3, o4-mini 级别，带视觉、工具、JSON、文档，但无 visionTokenCost)
+const openaiReasoningFullCapabilities = {
+  ...openaiReasoningCapabilities,
+  vision: true,
+  toolUse: true,
+  jsonOutput: true,
+  ...openaiDocumentCapabilities,
+};
+
+// 7. 旗舰级能力 (GPT-5.x 级别)
+const openaiFlagshipCapabilities = {
+  ...openaiBaseCapabilities,
+  webSearch: true,
+  fileSearch: true,
+  codeExecution: true,
+  computerUse: true,
+  thinking: true,
+  thinkingConfigType: "effort" as const,
+  reasoningEffortOptions: ["none", "low", "medium", "high", "xhigh"],
+};
+
+// ==========================================
+// OpenAI 模型规则定义
+// ==========================================
 
 export const openaiModelRules: ModelMetadataRule[] = [
   {
@@ -14,30 +81,49 @@ export const openaiModelRules: ModelMetadataRule[] = [
       icon: `/model-icons/openai.svg`,
       group: "OpenAI",
       tokenizer: "gpt4o", // 使用 o200k_base 编码
-      capabilities: {
-        vision: true,
-        toolUse: true,
-        jsonOutput: true, // GPT-4o 支持 JSON 输出模式
-        document: true, // 支持文档（通过 OpenAI Responses API 的 file_data/file_url/file_id）
-        documentFormat: "openai_file", // 使用 OpenAI 的文件格式
-        visionTokenCost: {
-          calculationMethod: "openai_tile",
-          parameters: {
-            baseCost: 85,
-            tileCost: 170,
-            tileSize: 512,
-          },
-        },
-        documentTokenCost: {
-          calculationMethod: "dynamic", // OpenAI 根据页数和内容动态计算
-        },
-      },
+      capabilities: openaiBaseCapabilities,
       description:
         "GPT-4o 系列模型（使用 o200k_base 编码，支持视觉、工具调用和文档处理）",
     },
     priority: 25, // 更高优先级，优先匹配 gpt-4o
     enabled: true,
     description: "模型前缀 gpt-4o 元数据规则",
+  },
+  {
+    id: "model-prefix-gpt-5.5",
+    matchType: "modelPrefix",
+    matchValue: "gpt-5.5",
+    properties: {
+      icon: `/model-icons/openai.svg`,
+      group: "OpenAI",
+      tokenizer: "gpt4o", // GPT-5.5 使用 o200k_base 编码
+      capabilities: openaiFlagshipCapabilities,
+      description: "GPT-5.5 旗舰模型（面向复杂推理、编码和工具密集型工作流）",
+    },
+    priority: 28,
+    enabled: true,
+    description: "模型前缀 gpt-5.5 元数据规则",
+  },
+  {
+    id: "model-prefix-gpt-5.4-small",
+    matchType: "modelPrefix",
+    matchValue: "gpt-5\\.4-(?:mini|nano)",
+    useRegex: true,
+    properties: {
+      icon: `/model-icons/openai.svg`,
+      group: "OpenAI",
+      tokenizer: "gpt4o", // GPT-5.4 mini/nano 使用 o200k_base 编码
+      capabilities: {
+        ...openaiFlagshipCapabilities,
+        computerUse: false, // mini/nano 不支持 computerUse
+        reasoningEffortOptions: ["none", "low", "medium", "high"], // 不支持 xhigh
+      },
+      description:
+        "GPT-5.4 mini/nano 系列模型（低延迟、低成本，支持视觉和工具工作流）",
+    },
+    priority: 27,
+    enabled: true,
+    description: "模型正则 gpt-5\\.4-(?:mini|nano) 元数据规则",
   },
   {
     id: "model-prefix-gpt-5.4",
@@ -47,26 +133,8 @@ export const openaiModelRules: ModelMetadataRule[] = [
       icon: `/model-icons/openai.svg`,
       group: "OpenAI",
       tokenizer: "gpt4o", // GPT-5.4 使用 o200k_base 编码
-      capabilities: {
-        vision: true,
-        toolUse: true,
-        jsonOutput: true,
-        document: true,
-        documentFormat: "openai_file",
-        visionTokenCost: {
-          calculationMethod: "openai_tile",
-          parameters: {
-            baseCost: 85,
-            tileCost: 170,
-            tileSize: 512,
-          },
-        },
-        documentTokenCost: {
-          calculationMethod: "dynamic",
-        },
-      },
-      description:
-        "GPT-5.4 系列模型（最先进的智能模型，支持视觉、工具调用和文档处理）",
+      capabilities: openaiFlagshipCapabilities,
+      description: "GPT-5.4 系列模型（支持推理、视觉、工具调用和文档处理）",
     },
     priority: 26, // 优先级高于 gpt-5
     enabled: true,
@@ -81,25 +149,11 @@ export const openaiModelRules: ModelMetadataRule[] = [
       group: "OpenAI",
       tokenizer: "gpt4o", // GPT-5 使用 o200k_base 编码
       capabilities: {
-        vision: true,
-        toolUse: true,
-        jsonOutput: true,
-        document: true,
-        documentFormat: "openai_file",
-        visionTokenCost: {
-          calculationMethod: "openai_tile",
-          parameters: {
-            baseCost: 85,
-            tileCost: 170,
-            tileSize: 512,
-          },
-        },
-        documentTokenCost: {
-          calculationMethod: "dynamic",
-        },
+        ...openaiFlagshipCapabilities,
+        reasoningEffortOptions: ["none", "low", "medium", "high"], // 不支持 xhigh
       },
       description:
-        "GPT-5 系列模型（包括 mini/nano 等变体，支持视觉、工具调用和文档处理）",
+        "GPT-5 系列模型（包括 mini/nano 等变体，支持推理、视觉、工具调用 and 文档处理）",
     },
     priority: 25,
     enabled: true,
@@ -113,7 +167,12 @@ export const openaiModelRules: ModelMetadataRule[] = [
       icon: `/model-icons/openai.svg`,
       group: "OpenAI",
       tokenizer: "gpt4o", // 图像生成模型使用 o200k_base 编码
-      description: "GPT Image 系列图像生成模型",
+      capabilities: {
+        imageGeneration: true,
+        vision: true,
+        iterativeRefinement: true,
+      },
+      description: "GPT Image 系列图像生成模型（包括 2、1.5、1 和 1-mini）",
     },
     priority: 25,
     enabled: true,
@@ -127,6 +186,11 @@ export const openaiModelRules: ModelMetadataRule[] = [
       icon: `/model-icons/openai.svg`,
       group: "OpenAI",
       tokenizer: "gpt4o", // GPT-OSS 使用 gpt4o 分词器
+      capabilities: {
+        toolUse: true,
+        thinking: true,
+        thinkingConfigType: "effort" as const,
+      },
       description: "GPT OSS 开源权重模型系列",
     },
     priority: 25,
@@ -143,6 +207,7 @@ export const openaiModelRules: ModelMetadataRule[] = [
       tokenizer: "gpt4o", // 音频模型使用 o200k_base 编码
       capabilities: {
         audio: true,
+        toolUse: true,
       },
       description: "GPT Audio 音频处理模型系列（包括 1.5 系列）",
     },
@@ -160,12 +225,33 @@ export const openaiModelRules: ModelMetadataRule[] = [
       tokenizer: "gpt4o", // 实时模型使用 o200k_base 编码
       capabilities: {
         audio: true,
+        toolUse: true,
       },
-      description: "GPT Realtime 实时模型系列（包括 1.5 系列）",
+      description:
+        "GPT Realtime 实时音频模型系列（包括 2、1.5、转写和翻译变体）",
     },
     priority: 25,
     enabled: true,
     description: "模型前缀 gpt-realtime 元数据规则",
+  },
+  {
+    id: "model-prefix-computer-use-preview",
+    matchType: "modelPrefix",
+    matchValue: "computer-use-preview",
+    properties: {
+      icon: `/model-icons/openai.svg`,
+      group: "OpenAI",
+      tokenizer: "gpt4o",
+      capabilities: {
+        computerUse: true,
+        vision: true,
+        toolUse: true,
+      },
+      description: "OpenAI Computer Use 预览模型",
+    },
+    priority: 25,
+    enabled: true,
+    description: "模型前缀 computer-use-preview 元数据规则",
   },
   {
     id: "model-prefix-gpt-4.1",
@@ -175,24 +261,7 @@ export const openaiModelRules: ModelMetadataRule[] = [
       icon: `/model-icons/openai.svg`,
       group: "OpenAI",
       tokenizer: "gpt4o", // GPT-4.1 使用 o200k_base 编码
-      capabilities: {
-        vision: true,
-        toolUse: true,
-        jsonOutput: true,
-        document: true, // 支持文档（通过 OpenAI Responses API）
-        documentFormat: "openai_file", // 使用 OpenAI 的文件格式
-        visionTokenCost: {
-          calculationMethod: "openai_tile",
-          parameters: {
-            baseCost: 85,
-            tileCost: 170,
-            tileSize: 512,
-          },
-        },
-        documentTokenCost: {
-          calculationMethod: "dynamic", // OpenAI 根据页数和内容动态计算
-        },
-      },
+      capabilities: openaiBaseCapabilities,
       description:
         "GPT-4.1 系列模型（最智能的非推理模型，支持视觉、工具调用和文档处理）",
     },
@@ -212,14 +281,7 @@ export const openaiModelRules: ModelMetadataRule[] = [
         vision: true, // GPT-4 Turbo 等支持视觉
         toolUse: true,
         jsonOutput: true,
-        visionTokenCost: {
-          calculationMethod: "openai_tile",
-          parameters: {
-            baseCost: 85,
-            tileCost: 170,
-            tileSize: 512,
-          },
-        },
+        visionTokenCost: openaiVisionTokenCost,
       },
       description: "GPT-4 系列模型（使用 cl100k_base 编码）",
     },
@@ -254,13 +316,9 @@ export const openaiModelRules: ModelMetadataRule[] = [
       group: "OpenAI",
       tokenizer: "gpt4o", // o1 系列使用 o200k_base 编码
       capabilities: {
-        thinking: true,
+        ...openaiReasoningCapabilities,
         vision: true, // o1 支持视觉输入
-        document: true, // 支持文档（通过 OpenAI Responses API）
-        documentFormat: "openai_file", // 使用 OpenAI 的文件格式
-        documentTokenCost: {
-          calculationMethod: "dynamic", // OpenAI 根据页数和内容动态计算
-        },
+        ...openaiDocumentCapabilities,
       },
       description:
         "o1 系列推理模型（使用 o200k_base 编码，支持推理、视觉和文档处理）",
@@ -277,10 +335,8 @@ export const openaiModelRules: ModelMetadataRule[] = [
       icon: `/model-icons/openai.svg`,
       group: "OpenAI",
       tokenizer: "gpt4o", // o4-mini 使用 o200k_base 编码
-      capabilities: {
-        thinking: true,
-      },
-      description: "o4-mini 快速经济推理模型",
+      capabilities: openaiReasoningFullCapabilities,
+      description: "o4-mini 快速经济推理模型（支持视觉和工具调用）",
     },
     priority: 26, // 最高优先级以优先匹配 o4-mini
     enabled: true,
@@ -295,8 +351,9 @@ export const openaiModelRules: ModelMetadataRule[] = [
       icon: `/model-icons/openai.svg`,
       group: "OpenAI Deep Research",
       capabilities: {
-        thinking: true,
+        ...openaiReasoningCapabilities,
         webSearch: true,
+        fileSearch: true,
       },
       description: "OpenAI Deep Research 系列模型（o3/o4-mini 等深度研究变体）",
     },
@@ -313,7 +370,9 @@ export const openaiModelRules: ModelMetadataRule[] = [
       group: "OpenAI",
       tokenizer: "gpt4o",
       capabilities: {
-        thinking: true,
+        ...openaiReasoningCapabilities,
+        toolUse: true,
+        ...openaiDocumentCapabilities,
       },
       description: "o3-pro 带有更多计算的 o3 版本",
     },
@@ -330,7 +389,8 @@ export const openaiModelRules: ModelMetadataRule[] = [
       group: "OpenAI",
       tokenizer: "gpt4o",
       capabilities: {
-        thinking: true,
+        ...openaiReasoningCapabilities,
+        toolUse: true,
       },
       description: "o3-mini 小型推理模型",
     },
@@ -346,10 +406,9 @@ export const openaiModelRules: ModelMetadataRule[] = [
       icon: `/model-icons/openai.svg`,
       group: "OpenAI",
       tokenizer: "gpt4o", // o3 系列使用 o200k_base 编码
-      capabilities: {
-        thinking: true,
-      },
-      description: "o3 系列推理模型（使用 o200k_base 编码）",
+      capabilities: openaiReasoningFullCapabilities,
+      description:
+        "o3 系列推理模型（使用 o200k_base 编码，支持视觉和工具调用）",
     },
     priority: 25,
     enabled: true,
@@ -374,7 +433,8 @@ export const openaiModelRules: ModelMetadataRule[] = [
     id: "model-openai-deprecated-specific",
     matchType: "model",
     matchValue:
-      "o1-mini|o1-preview|sora-2|sora-2-pro|gpt-4.5-preview|chatgpt-4o-latest|babbage-002|davinci-002|text-moderation-latest|text-moderation-stable",
+      "^(?:o1-mini|o1-preview|gpt-4.5-preview|gpt-4-turbo-preview|codex-mini-latest|dall-e-2|dall-e-3|chatgpt-4o-latest|babbage-002|davinci-002|text-moderation-latest|text-moderation-stable)$",
+    useRegex: true,
     properties: {
       deprecated: true,
     },

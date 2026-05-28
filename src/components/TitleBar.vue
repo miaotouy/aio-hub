@@ -21,7 +21,7 @@ import { useAppSettingsStore } from "@/stores/appSettingsStore";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { platform } from "@tauri-apps/plugin-os";
-import { CornerDownLeft, Download } from "lucide-vue-next";
+import { CornerDownLeft, Download, Puzzle } from "lucide-vue-next";
 import { useTheme } from "../composables/useTheme";
 import { useThemeAppearance } from "@/composables/useThemeAppearance";
 import { useDetachedManager } from "@/composables/useDetachedManager";
@@ -74,6 +74,11 @@ const showProfileManagerDialog = ref(false);
 const drawerVisible = ref(false);
 const dropdownRef = ref<any>(null);
 const downloadButtonAnimating = ref(false);
+const routesWithPageIcon = new Set([
+  "/extensions",
+  "/regex-manage",
+  "/settings",
+]);
 
 // 用于区分手动和自动的最大化状态变更
 const isManualMaximizeChange = ref(false);
@@ -98,10 +103,10 @@ const currentTool = computed(() => {
       name: "AIO Hub",
       icon: House,
     };
-  } else if (route.path === "/regex-manage") {
+  } else if (route.path === "/extensions") {
     return {
-      name: "正则预设管理",
-      icon: Setting,
+      name: "插件管理",
+      icon: Puzzle,
     };
   } else if (route.path === "/settings") {
     return {
@@ -127,6 +132,7 @@ const currentIcon = computed(() => props.icon || currentTool.value.icon);
 // 如果传入了 icon prop，则不使用默认图标
 const useDefaultIcon = computed(() => {
   if (props.icon) return false;
+  if (routesWithPageIcon.has(route.path)) return false;
   return (
     route.path === "/" ||
     !toolsStore.tools.find((tool) => tool.path === route.path)

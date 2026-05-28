@@ -27,6 +27,10 @@ fn make_libreoffice_profile_dir() -> Result<PathBuf, String> {
     Ok(dir)
 }
 
+fn libreoffice_user_installation_arg(profile_dir: &Path) -> String {
+    format!("-env:UserInstallation={}", path_to_file_url(profile_dir))
+}
+
 /// 运行 LibreOffice --version 获取版本信息
 pub async fn run_libreoffice_version(path: &str) -> Result<String, String> {
     let mut command = Command::new(path);
@@ -68,10 +72,7 @@ pub async fn convert_legacy_doc_to_docx(
 
     let profile_dir = if config.isolated_profile {
         let profile_dir = make_libreoffice_profile_dir()?;
-        args.push(format!(
-            "--env:UserInstallation={}",
-            path_to_file_url(&profile_dir)
-        ));
+        args.push(libreoffice_user_installation_arg(&profile_dir));
         Some(profile_dir)
     } else {
         None
@@ -219,4 +220,17 @@ pub async fn check_converter(path: &str) -> Result<String, String> {
         return Err("未配置 LibreOffice 可执行文件路径".to_string());
     }
     run_libreoffice_version(trimmed).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn libreoffice_user_installation_arg_uses_bootstrap_prefix() {
+        let arg = libreoffice_user_installation_arg(Path::new("/tmp/aiohub-lo-profile"));
+
+        assert!(arg.starts_with("-env:UserInstallation=file://"));
+        assert!(!arg.starts_with("--env:"));
+    }
 }

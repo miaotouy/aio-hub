@@ -12,6 +12,7 @@ import { useAgentStore } from "../../stores/agentStore";
 import { useUserProfileStore } from "../../stores/userProfileStore";
 import { useChatStorageSeparated as useChatStorage } from "../storage/useChatStorageSeparated";
 import { insertLiveGreetings } from "../../services/greetingService";
+import { getEffectiveMessageCount } from "../../utils/sessionMessageCount";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useExportManager } from "../features/useExportManager";
@@ -31,8 +32,7 @@ export function useSessionManager() {
   ): void => {
     const index = sessionIndexMap.get(sessionId);
     if (index) {
-      // 增加 Math.max(0, ...) 保护，防止根节点丢失或其他异常导致负数
-      index.messageCount = Math.max(0, Object.keys(nodes).length - 1); // 排除根节点
+      index.messageCount = getEffectiveMessageCount(nodes);
       logger.debug("更新消息计数", {
         sessionId,
         messageCount: index.messageCount,

@@ -22,7 +22,7 @@ export interface ChatSessionIndex {
   displayAgentId?: string | null;
 
   /**
-   * 缓存的消息总数（排除根节点）
+   * 缓存的有效消息总数（排除根节点和未固化开场白）
    * 用于列表展示性能优化
    */
   messageCount: number;

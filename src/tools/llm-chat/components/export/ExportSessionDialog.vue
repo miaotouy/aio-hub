@@ -81,6 +81,7 @@ import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { getEffectiveMessageCount } from "../../utils/sessionMessageCount";
 import { formatDateTime } from "@/utils/time";
 
 interface Props {
@@ -122,10 +123,13 @@ const formatDate = (timestamp?: string) => {
   return new Date(timestamp).toLocaleString("zh-CN");
 };
 
-// 计算总消息数（排除根节点）
+// 计算有效消息数（排除根节点和未固化开场白）
 const totalMessageCount = computed(() => {
   if (props.sessionDetail?.nodes) {
-    return Object.keys(props.sessionDetail.nodes).length - 1;
+    return getEffectiveMessageCount(
+      props.sessionDetail.nodes,
+      props.sessionDetail.rootNodeId
+    );
   }
   return props.sessionIndex?.messageCount || 0;
 });

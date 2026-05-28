@@ -13,6 +13,7 @@ import { useUserProfileStore } from "../../stores/userProfileStore";
 import { useAgentStore } from "../../stores/agentStore";
 import { createModuleLogger } from "@/utils/logger";
 import { formatDateTime } from "@/utils/time";
+import { getEffectiveMessageCount } from "../../utils/sessionMessageCount";
 
 const logger = createModuleLogger("llm-chat/export-manager");
 
@@ -743,8 +744,11 @@ export function useExportManager() {
       "",
     ];
 
-    // 统计节点数量（排除根节点）
-    const totalNodes = Object.keys(detail.nodes || {}).length - 1;
+    // 统计有效消息数量（排除根节点和未固化开场白）
+    const totalNodes = getEffectiveMessageCount(
+      detail.nodes,
+      detail.rootNodeId
+    );
     lines.push(`**总消息数**: ${totalNodes} 条`);
     lines.push("");
     lines.push("---");

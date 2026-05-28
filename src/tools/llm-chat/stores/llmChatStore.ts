@@ -16,6 +16,8 @@ import { useChatContextStats } from "../composables/features/useChatContextStats
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { getActivePathWithPresets } from "../utils/chatPathUtils";
+import { getEffectiveMessageCount } from "../utils/sessionMessageCount";
+import { refreshLiveGreetingsIfNeeded } from "../services/greetingService";
 import type { ModelMatchContext } from "../utils/modelMatchUtils";
 import {
   recalculateNodeTokens as recalculateNodeTokensService,
@@ -254,14 +256,14 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     if (!index) return 0;
     // 如果详情已加载，使用实时节点数；否则使用索引中缓存的数量
     if (detail && detail.nodes) {
-      return Object.keys(detail.nodes).length;
+      return getEffectiveMessageCount(detail.nodes, detail.rootNodeId);
     }
     // 增加对 -1 的容错：如果 messageCount 是负数，说明索引已损坏，回退到 0
     const cachedCount =
       index.messageCount !== undefined && index.messageCount >= 0
         ? index.messageCount
         : 0;
-    return cachedCount + 1; // +1 是因为 messageCount 排除根节点
+    return cachedCount;
   });
 
   // ==================== 历史记录管理 ====================
@@ -421,6 +423,65 @@ export const useLlmChatStore = defineStore("llmChat", () => {
 
       clearSessionCache(sessionId);
       persistSessions();
+    });
+  }
+
+  /**
+   * 清理没有有效消息的会话。
+   * root 节点和未固化开场白不算有效消息。
+   */
+  async function clearEmptySessions(): Promise<number> {
+    return executeOrProxy("clear-empty-sessions", {}, async () => {
+      const { useChatStorageSeparated } =
+        await import("../composables/storage/useChatStorageSeparated");
+      const storage = useChatStorageSeparated();
+      const emptySessionIds: string[] = [];
+
+      for (const index of sessionIndexMap.value.values()) {
+        let detail = sessionDetailMap.value.get(index.id);
+        if (!detail) {
+          const fullSession = await storage.loadSession(index.id);
+          detail = fullSession?.detail;
+        }
+
+        const messageCount = detail
+          ? getEffectiveMessageCount(detail.nodes, detail.rootNodeId)
+          : Math.max(0, index.messageCount ?? 0);
+
+        if (messageCount === 0) {
+          emptySessionIds.push(index.id);
+        }
+      }
+
+      if (emptySessionIds.length === 0) return 0;
+
+      const emptyIdSet = new Set(emptySessionIds);
+      const remainingSessions = Array.from(
+        sessionIndexMap.value.values()
+      ).filter((session) => !emptyIdSet.has(session.id));
+      let nextCurrentSessionId = currentSessionId.value;
+      if (nextCurrentSessionId && emptyIdSet.has(nextCurrentSessionId)) {
+        nextCurrentSessionId = remainingSessions[0]?.id || null;
+      }
+
+      for (const sessionId of emptySessionIds) {
+        await storage.deleteSession(sessionId);
+        sessionIndexMap.value.delete(sessionId);
+        sessionDetailMap.value.delete(sessionId);
+        clearSessionCache(sessionId);
+      }
+
+      currentSessionId.value = nextCurrentSessionId;
+      if (nextCurrentSessionId) {
+        await switchSession(nextCurrentSessionId);
+      } else {
+        const sessionManager = useSessionManager();
+        await sessionManager.updateCurrentSessionId(null);
+      }
+
+      persistSessions();
+      logger.info("已清理空会话", { count: emptySessionIds.length });
+      return emptySessionIds.length;
     });
   }
 
@@ -588,6 +649,38 @@ export const useLlmChatStore = defineStore("llmChat", () => {
         historyManager.clearHistory();
         currentSessionId.value = originalSessionId;
         logger.info("为会话初始化了历史堆栈", { sessionId });
+      }
+
+      if (detail && index.displayAgentId) {
+        const agentStore = useAgentStore();
+        const userProfileStore = await import("./userProfileStore").then((m) =>
+          m.useUserProfileStore()
+        );
+        const agent = await agentStore.ensureAgentLoaded(index.displayAgentId);
+        if (agent) {
+          const effectiveUserProfile = userProfileStore.getEffectiveProfile(
+            agent.userProfileId
+          );
+          const changed = await refreshLiveGreetingsIfNeeded(
+            index,
+            detail,
+            agent,
+            effectiveUserProfile
+          );
+          if (changed) {
+            const sessionManager = useSessionManager();
+            sessionManager.updateMessageCount(
+              sessionId,
+              detail.nodes,
+              sessionIndexMap.value
+            );
+            sessionManager.persistSession(index, detail, sessionId);
+            logger.info("切换会话时已同步未固化开场白", {
+              sessionId,
+              agentId: agent.id,
+            });
+          }
+        }
       }
 
       currentSessionId.value = sessionId;
@@ -1120,6 +1213,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     createSession,
     switchSession,
     deleteSession,
+    clearEmptySessions,
     updateSession,
     loadSessions,
     persistSessions,

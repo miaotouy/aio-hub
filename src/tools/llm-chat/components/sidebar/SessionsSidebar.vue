@@ -7,6 +7,7 @@ import {
   Operation,
   Loading,
   Position,
+  Delete,
 } from "@element-plus/icons-vue";
 import type { SearchMatchMode } from "../../composables/chat/useLlmSearch";
 import { invoke } from "@tauri-apps/api/core";
@@ -28,6 +29,7 @@ interface Props {
 interface Emits {
   (e: "switch", sessionId: string): void;
   (e: "delete", sessionId: string): void;
+  (e: "clear-empty-sessions"): void;
   (e: "new-session", data: { agentId: string; name?: string }): void;
   (e: "rename", data: { sessionId: string; newName: string }): void;
   (e: "session-updated"): void;
@@ -51,12 +53,14 @@ const {
   newSessionName,
   availableAgents,
   hasActiveFilters,
+  emptySessionsCount,
   searchMatchesMap,
   isGenerating,
   search,
   handleQuickNewSession,
   resetFilters,
   confirmDelete,
+  confirmClearEmptySessions,
   openRenameDialog,
   handleGenerateName,
   getFieldLabel,
@@ -300,6 +304,20 @@ const handleSessionClick = (session: ChatSessionIndex) => {
               @reset="resetFilters"
             />
           </el-popover>
+
+          <el-tooltip
+            :content="`清理空会话${emptySessionsCount > 0 ? ` (${emptySessionsCount})` : ''}`"
+            placement="bottom"
+            :show-after="500"
+          >
+            <el-button
+              :icon="Delete"
+              @click="confirmClearEmptySessions"
+              circle
+              size="small"
+              :disabled="emptySessionsCount === 0"
+            />
+          </el-tooltip>
 
           <el-tooltip
             content="定位当前会话"

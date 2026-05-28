@@ -18,6 +18,7 @@ import type {
 interface SidebarEmits {
   (e: "switch", sessionId: string): void;
   (e: "delete", sessionId: string): void;
+  (e: "clear-empty-sessions"): void;
   (e: "new-session", data: { agentId: string; name?: string }): void;
   (e: "rename", data: { sessionId: string; newName: string }): void;
   (e: "session-updated"): void;
@@ -209,6 +210,11 @@ export function useSessionsSidebarLogic({
     );
   });
 
+  const emptySessionsCount = computed(() => {
+    return props.sessions.filter((session) => (session.messageCount ?? 0) === 0)
+      .length;
+  });
+
   const resetFilters = () => {
     sortBy.value = "updatedAt";
     sortOrder.value = "desc";
@@ -221,9 +227,32 @@ export function useSessionsSidebarLogic({
       confirmButtonText: "删除",
       cancelButtonText: "取消",
       type: "warning",
+      lockScroll: false,
     })
       .then(() => {
         emit("delete", session.id);
+      })
+      .catch(() => {});
+  };
+
+  const confirmClearEmptySessions = () => {
+    if (emptySessionsCount.value === 0) {
+      customMessage.info("没有可清理的空会话");
+      return;
+    }
+
+    ElMessageBox.confirm(
+      `确定要清理 ${emptySessionsCount.value} 个空会话吗？`,
+      "清理空会话",
+      {
+        confirmButtonText: "清理",
+        cancelButtonText: "取消",
+        type: "warning",
+        lockScroll: false,
+      }
+    )
+      .then(() => {
+        emit("clear-empty-sessions");
       })
       .catch(() => {});
   };
@@ -265,12 +294,14 @@ export function useSessionsSidebarLogic({
     newSessionName,
     availableAgents,
     hasActiveFilters,
+    emptySessionsCount,
     searchMatchesMap,
     isGenerating,
     search,
     handleQuickNewSession,
     resetFilters,
     confirmDelete,
+    confirmClearEmptySessions,
     openRenameDialog,
     handleGenerateName,
     getFieldLabel,

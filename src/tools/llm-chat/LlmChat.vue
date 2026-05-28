@@ -35,6 +35,7 @@ import { initAgentAssetCache } from "./utils/agentAssetUtils";
 import { useChatInputManager } from "./composables/input/useChatInputManager";
 import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { customMessage } from "@/utils/customMessage";
 
 const logger = createModuleLogger("LlmChat");
 const errorHandler = createModuleErrorHandler("LlmChat");
@@ -299,6 +300,16 @@ const handleSwitchSession = (sessionId: string) => {
 const handleDeleteSession = (sessionId: string) => {
   store.deleteSession(sessionId);
 };
+
+const handleClearEmptySessions = async () => {
+  const count = await store.clearEmptySessions();
+  if (count > 0) {
+    customMessage.success(`已清理 ${count} 个空会话`);
+  } else {
+    customMessage.info("没有可清理的空会话");
+  }
+};
+
 // 处理重命名会话
 const handleRenameSession = (data: { sessionId: string; newName: string }) => {
   store.updateSession(data.sessionId, { name: data.newName });
@@ -503,6 +514,7 @@ useStateSyncEngine(parametersToSync, {
               :current-session-id="store.currentSessionId"
               @switch="handleSwitchSession"
               @delete="handleDeleteSession"
+              @clear-empty-sessions="handleClearEmptySessions"
               @new-session="handleNewSession"
               @rename="handleRenameSession"
             />

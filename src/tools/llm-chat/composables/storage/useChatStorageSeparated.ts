@@ -14,6 +14,7 @@ import { getAppConfigDir } from "@/utils/appPath";
 import { createConfigManager } from "@/utils/configManager";
 import { useDebounceFn } from "@vueuse/core";
 import type { ChatSessionIndex, ChatSessionDetail } from "../../types";
+import { getEffectiveMessageCount } from "../../utils/sessionMessageCount";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 
@@ -105,7 +106,7 @@ export function useChatStorageSeparated() {
         name: fullData.name,
         displayAgentId: fullData.displayAgentId,
         messageCount: fullData.nodes
-          ? Object.keys(fullData.nodes).length - 1
+          ? getEffectiveMessageCount(fullData.nodes, fullData.rootNodeId)
           : fullData.messageCount || 0,
         createdAt: fullData.createdAt,
         updatedAt: fullData.updatedAt,
@@ -262,10 +263,8 @@ export function useChatStorageSeparated() {
   function createIndexItem(
     session: ChatSessionIndex & Partial<ChatSessionDetail>
   ): ChatSessionIndex {
-    // 核心修复：只有在 nodes 存在时才重新计算计数
-    // 如果 nodes 不存在（详情未加载），必须保留原有的 messageCount，否则会因为 Object.keys({}).length - 1 变成 -1
     const messageCount = session.nodes
-      ? Math.max(0, Object.keys(session.nodes).length - 1)
+      ? getEffectiveMessageCount(session.nodes, session.rootNodeId)
       : session.messageCount || 0;
 
     return {
@@ -601,24 +600,15 @@ export function useChatStorageSeparated() {
   }
 
   /**
-   * 修复索引中损坏的项（如 messageCount 为 -1）
-   * 仅在启动后执行一次，不重试
+   * 修复索引中损坏或过期的项。
+   * 会重算 messageCount，确保未固化开场白不计入有效消息数。
    */
   async function repairIndex(): Promise<{ repairedCount: number }> {
     try {
       const index = await loadIndex();
-      const damagedItems = index.sessions.filter(
-        (item) => item.messageCount < 0
-      );
-
-      if (damagedItems.length === 0) {
-        return { repairedCount: 0 };
-      }
-
-      logger.info("检测到索引损坏，开始自愈", { count: damagedItems.length });
 
       let repairedCount = 0;
-      for (const item of damagedItems) {
+      for (const item of index.sessions) {
         try {
           // 加载完整会话以重新计算计数
           const session = await loadSession(item.id);
@@ -627,8 +617,12 @@ export function useChatStorageSeparated() {
               ...session.index,
               ...session.detail,
             });
-            const idx = index.sessions.findIndex((s) => s.id === item.id);
-            if (idx !== -1) {
+            if (
+              newItem.messageCount !== item.messageCount ||
+              newItem.displayAgentId !== item.displayAgentId
+            ) {
+              const idx = index.sessions.findIndex((s) => s.id === item.id);
+              if (idx === -1) continue;
               index.sessions[idx] = newItem;
               repairedCount++;
             }

@@ -172,6 +172,11 @@ export async function rebuildLiveGreetings(
   const rootNode = detail.nodes?.[detail.rootNodeId];
   if (!rootNode || isGreetingSolidified(detail)) return false;
 
+  const activeNode = detail.nodes[detail.activeLeafId];
+  const activeGreetingId = activeNode?.metadata?.isGreeting
+    ? activeNode.metadata.greetingId
+    : undefined;
+
   const liveGreetingIds = rootNode.childrenIds.filter((childId) => {
     const child = detail.nodes[childId];
     return child?.metadata?.isGreeting && child.metadata.greetingLive;
@@ -199,9 +204,82 @@ export async function rebuildLiveGreetings(
 
   if (!agent.greetings?.some(isUsableGreeting)) {
     detail.activeLeafId = detail.rootNodeId;
+  } else if (activeGreetingId) {
+    const restoredNodeId = rootNode.childrenIds.find(
+      (childId) =>
+        detail.nodes[childId]?.metadata?.greetingId === activeGreetingId
+    );
+    if (restoredNodeId) {
+      detail.activeLeafId = restoredNodeId;
+      rootNode.lastSelectedChildId = restoredNodeId;
+    }
   }
 
   return true;
+}
+
+export async function refreshLiveGreetingsIfNeeded(
+  index: ChatSessionIndex,
+  detail: ChatSessionDetail,
+  agent: ChatAgent,
+  userProfile?: UserProfile | null
+): Promise<boolean> {
+  const rootNode = detail.nodes?.[detail.rootNodeId];
+  if (!rootNode || isGreetingSolidified(detail)) return false;
+
+  const liveGreetingIds = rootNode.childrenIds.filter((childId) => {
+    const child = detail.nodes[childId];
+    return child?.metadata?.isGreeting && child.metadata.greetingLive;
+  });
+
+  if (liveGreetingIds.length === 0) return false;
+
+  const belongsToAgent = liveGreetingIds.some(
+    (id) => detail.nodes[id]?.metadata?.agentId === agent.id
+  );
+  if (!belongsToAgent) return false;
+
+  const desiredGreetings = (agent.greetings || []).filter(isUsableGreeting);
+  if (desiredGreetings.length !== liveGreetingIds.length) {
+    return rebuildLiveGreetings(index, detail, agent, userProfile);
+  }
+
+  for (let i = 0; i < desiredGreetings.length; i++) {
+    const desired = desiredGreetings[i];
+    const node = detail.nodes[liveGreetingIds[i]];
+    if (!node) return rebuildLiveGreetings(index, detail, agent, userProfile);
+
+    const desiredContent = await expandGreetingContent(
+      desired,
+      index,
+      detail,
+      agent,
+      userProfile
+    );
+    const desiredAttachments = desired.attachments
+      ? JSON.stringify(desired.attachments)
+      : "";
+    const nodeAttachments = node.attachments
+      ? JSON.stringify(node.attachments)
+      : "";
+
+    if (
+      node.metadata?.greetingId !== desired.id ||
+      node.role !== desired.role ||
+      node.name !== desired.name ||
+      node.content !== desiredContent ||
+      nodeAttachments !== desiredAttachments ||
+      node.metadata?.agentName !== agent.name ||
+      node.metadata?.agentDisplayName !== (agent.displayName || agent.name) ||
+      node.metadata?.agentIcon !== agent.icon ||
+      node.metadata?.profileId !== agent.profileId ||
+      node.metadata?.modelId !== agent.modelId
+    ) {
+      return rebuildLiveGreetings(index, detail, agent, userProfile);
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -265,4 +343,3 @@ export async function switchAgentGreetings(
 
   return true;
 }
-

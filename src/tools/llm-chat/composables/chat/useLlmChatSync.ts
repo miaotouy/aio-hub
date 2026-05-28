@@ -334,7 +334,9 @@ export function useLlmChatSync() {
       case "delete-session":
         return store.deleteSession(params.sessionId);
       case "clear-empty-sessions":
-        return (store as any).clearEmptySessions();
+        return (store as any).clearEmptySessions(params.options);
+      case "refresh-sessions-index":
+        return (store as any).refreshSessionsIndex();
       case "update-session":
         return store.updateSession(params.sessionId, params.updates);
       case "create-session":

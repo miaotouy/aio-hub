@@ -47,6 +47,8 @@ const chatSettings = useChatSettings();
 const bus = useWindowSyncBus();
 const inputManager = useChatInputManager();
 const { open: openModelSelectDialog } = useModelSelectDialog();
+const isClearingEmptySessions = ref(false);
+const isRefreshingSessionIndex = ref(false);
 
 // 检测当前窗口类型
 const isInDetachedToolWindow = bus.windowType === "detached-tool";
@@ -301,12 +303,45 @@ const handleDeleteSession = (sessionId: string) => {
   store.deleteSession(sessionId);
 };
 
-const handleClearEmptySessions = async () => {
-  const count = await store.clearEmptySessions();
-  if (count > 0) {
-    customMessage.success(`已清理 ${count} 个空会话`);
-  } else {
-    customMessage.info("没有可清理的空会话");
+const handleClearEmptySessions = async (data?: {
+  orderedSessionIds?: string[];
+}) => {
+  if (isClearingEmptySessions.value) return;
+
+  isClearingEmptySessions.value = true;
+  customMessage.info("正在清理空会话...");
+  try {
+    const count = await store.clearEmptySessions({
+      preferredOrderIds: data?.orderedSessionIds,
+    });
+    if (count > 0) {
+      customMessage.success(`已清理 ${count} 个空会话`);
+    } else {
+      customMessage.info("没有可清理的空会话");
+    }
+  } catch (error) {
+    errorHandler.error(error, "清理空会话失败");
+  } finally {
+    isClearingEmptySessions.value = false;
+  }
+};
+
+const handleRefreshSessionIndex = async () => {
+  if (isRefreshingSessionIndex.value) return;
+
+  isRefreshingSessionIndex.value = true;
+  customMessage.info("正在刷新会话列表索引...");
+  try {
+    const repairedCount = await store.refreshSessionsIndex();
+    customMessage.success(
+      repairedCount > 0
+        ? `会话列表索引已刷新，修复 ${repairedCount} 项`
+        : "会话列表索引已刷新"
+    );
+  } catch (error) {
+    errorHandler.error(error, "刷新会话列表索引失败");
+  } finally {
+    isRefreshingSessionIndex.value = false;
   }
 };
 
@@ -512,9 +547,12 @@ useStateSyncEngine(parametersToSync, {
             <SessionsSidebar
               :sessions="store.sessions"
               :current-session-id="store.currentSessionId"
+              :is-clearing-empty-sessions="isClearingEmptySessions"
+              :is-refreshing-session-index="isRefreshingSessionIndex"
               @switch="handleSwitchSession"
               @delete="handleDeleteSession"
               @clear-empty-sessions="handleClearEmptySessions"
+              @refresh-session-index="handleRefreshSessionIndex"
               @new-session="handleNewSession"
               @rename="handleRenameSession"
             />

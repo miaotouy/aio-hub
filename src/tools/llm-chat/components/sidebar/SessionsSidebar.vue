@@ -8,6 +8,7 @@ import {
   Loading,
   Position,
   Delete,
+  Refresh,
 } from "@element-plus/icons-vue";
 import type { SearchMatchMode } from "../../composables/chat/useLlmSearch";
 import { invoke } from "@tauri-apps/api/core";
@@ -24,12 +25,15 @@ import { useSessionsSidebarLogic } from "../../composables/sidebar/useSessionsSi
 interface Props {
   sessions: ChatSessionIndex[];
   currentSessionId: string | null;
+  isClearingEmptySessions?: boolean;
+  isRefreshingSessionIndex?: boolean;
 }
 
 interface Emits {
   (e: "switch", sessionId: string): void;
   (e: "delete", sessionId: string): void;
-  (e: "clear-empty-sessions"): void;
+  (e: "clear-empty-sessions", data: { orderedSessionIds: string[] }): void;
+  (e: "refresh-session-index"): void;
   (e: "new-session", data: { agentId: string; name?: string }): void;
   (e: "rename", data: { sessionId: string; newName: string }): void;
   (e: "session-updated"): void;
@@ -306,7 +310,30 @@ const handleSessionClick = (session: ChatSessionIndex) => {
           </el-popover>
 
           <el-tooltip
-            :content="`清理空会话${emptySessionsCount > 0 ? ` (${emptySessionsCount})` : ''}`"
+            :content="
+              isRefreshingSessionIndex
+                ? '正在刷新会话列表索引...'
+                : '刷新会话列表索引'
+            "
+            placement="bottom"
+            :show-after="500"
+          >
+            <el-button
+              :icon="Refresh"
+              @click="emit('refresh-session-index')"
+              circle
+              size="small"
+              :loading="isRefreshingSessionIndex"
+              :disabled="isRefreshingSessionIndex || isClearingEmptySessions"
+            />
+          </el-tooltip>
+
+          <el-tooltip
+            :content="
+              isClearingEmptySessions
+                ? '正在清理空会话...'
+                : `清理空会话${emptySessionsCount > 0 ? ` (${emptySessionsCount})` : ''}`
+            "
             placement="bottom"
             :show-after="500"
           >
@@ -315,7 +342,12 @@ const handleSessionClick = (session: ChatSessionIndex) => {
               @click="confirmClearEmptySessions"
               circle
               size="small"
-              :disabled="emptySessionsCount === 0"
+              :loading="isClearingEmptySessions"
+              :disabled="
+                emptySessionsCount === 0 ||
+                isClearingEmptySessions ||
+                isRefreshingSessionIndex
+              "
             />
           </el-tooltip>
 

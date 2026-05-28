@@ -430,38 +430,50 @@ export const useLlmChatStore = defineStore("llmChat", () => {
    * 清理没有有效消息的会话。
    * root 节点和未固化开场白不算有效消息。
    */
-  async function clearEmptySessions(): Promise<number> {
-    return executeOrProxy("clear-empty-sessions", {}, async () => {
+  async function clearEmptySessions(options?: {
+    preferredOrderIds?: string[];
+  }): Promise<number> {
+    return executeOrProxy("clear-empty-sessions", { options }, async () => {
       const { useChatStorageSeparated } =
         await import("../composables/storage/useChatStorageSeparated");
       const storage = useChatStorageSeparated();
-      const emptySessionIds: string[] = [];
-
-      for (const index of sessionIndexMap.value.values()) {
-        let detail = sessionDetailMap.value.get(index.id);
-        if (!detail) {
-          const fullSession = await storage.loadSession(index.id);
-          detail = fullSession?.detail;
-        }
-
-        const messageCount = detail
-          ? getEffectiveMessageCount(detail.nodes, detail.rootNodeId)
-          : Math.max(0, index.messageCount ?? 0);
-
-        if (messageCount === 0) {
-          emptySessionIds.push(index.id);
-        }
-      }
+      const sessionIndexes = Array.from(sessionIndexMap.value.values());
+      const emptySessionIds = sessionIndexes
+        .filter((session) => (session.messageCount ?? 0) === 0)
+        .map((session) => session.id);
 
       if (emptySessionIds.length === 0) return 0;
 
       const emptyIdSet = new Set(emptySessionIds);
-      const remainingSessions = Array.from(
-        sessionIndexMap.value.values()
-      ).filter((session) => !emptyIdSet.has(session.id));
+      const remainingSessions = sessionIndexes.filter(
+        (session) => !emptyIdSet.has(session.id)
+      );
+      const pickNeighborSessionId = (): string | null => {
+        const currentId = currentSessionId.value;
+        const orderedIds = options?.preferredOrderIds || [];
+        const currentIndex = currentId ? orderedIds.indexOf(currentId) : -1;
+        if (currentIndex !== -1) {
+          for (let i = currentIndex + 1; i < orderedIds.length; i++) {
+            const id = orderedIds[i];
+            if (!emptyIdSet.has(id) && sessionIndexMap.value.has(id)) return id;
+          }
+          for (let i = currentIndex - 1; i >= 0; i--) {
+            const id = orderedIds[i];
+            if (!emptyIdSet.has(id) && sessionIndexMap.value.has(id)) return id;
+          }
+        }
+
+        return (
+          [...remainingSessions].sort(
+            (a, b) =>
+              new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+          )[0]?.id || null
+        );
+      };
+
       let nextCurrentSessionId = currentSessionId.value;
       if (nextCurrentSessionId && emptyIdSet.has(nextCurrentSessionId)) {
-        nextCurrentSessionId = remainingSessions[0]?.id || null;
+        nextCurrentSessionId = pickNeighborSessionId();
       }
 
       for (const sessionId of emptySessionIds) {
@@ -482,6 +494,40 @@ export const useLlmChatStore = defineStore("llmChat", () => {
       persistSessions();
       logger.info("已清理空会话", { count: emptySessionIds.length });
       return emptySessionIds.length;
+    });
+  }
+
+  async function refreshSessionsIndex(): Promise<number> {
+    return executeOrProxy("refresh-sessions-index", {}, async () => {
+      const { useChatStorageSeparated } =
+        await import("../composables/storage/useChatStorageSeparated");
+      const storage = useChatStorageSeparated();
+      const sessionManager = useSessionManager();
+
+      const { repairedCount } = await storage.repairIndex();
+      const { sessions: refreshedSessions } =
+        await sessionManager.loadSessionsIndex();
+
+      const nextMap = new Map<string, ChatSessionIndex>();
+      refreshedSessions.forEach((session) => {
+        nextMap.set(session.id, session);
+      });
+      sessionIndexMap.value = nextMap;
+
+      if (currentSessionId.value && !nextMap.has(currentSessionId.value)) {
+        currentSessionId.value =
+          [...nextMap.values()].sort(
+            (a, b) =>
+              new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+          )[0]?.id || null;
+      }
+
+      logger.info("会话列表索引已刷新", {
+        sessionCount: refreshedSessions.length,
+        repairedCount,
+      });
+
+      return repairedCount;
     });
   }
 
@@ -1214,6 +1260,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     switchSession,
     deleteSession,
     clearEmptySessions,
+    refreshSessionsIndex,
     updateSession,
     loadSessions,
     persistSessions,

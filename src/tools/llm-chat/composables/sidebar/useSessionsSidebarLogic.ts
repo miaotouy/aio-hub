@@ -18,7 +18,8 @@ import type {
 interface SidebarEmits {
   (e: "switch", sessionId: string): void;
   (e: "delete", sessionId: string): void;
-  (e: "clear-empty-sessions"): void;
+  (e: "clear-empty-sessions", data: { orderedSessionIds: string[] }): void;
+  (e: "refresh-session-index"): void;
   (e: "new-session", data: { agentId: string; name?: string }): void;
   (e: "rename", data: { sessionId: string; newName: string }): void;
   (e: "session-updated"): void;
@@ -252,7 +253,9 @@ export function useSessionsSidebarLogic({
       }
     )
       .then(() => {
-        emit("clear-empty-sessions");
+        emit("clear-empty-sessions", {
+          orderedSessionIds: displaySessions.value.map((session) => session.id),
+        });
       })
       .catch(() => {});
   };

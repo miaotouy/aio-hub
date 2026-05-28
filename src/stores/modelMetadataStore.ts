@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import type {
+  ModelMetadataProperties,
   ModelMetadataRule,
   ModelMetadataStore,
   PresetIconInfo,
@@ -103,16 +104,53 @@ export const useModelMetadataStore = defineStore("modelMetadata", () => {
         }
       }
 
-      // 规范化路径
-      rules.value = data.rules.map((rule) => ({
-        ...rule,
-        properties: {
-          ...rule.properties,
-          icon: rule.properties.icon
+      let needsSave = false;
+      const defaultRulesById = new Map(
+        DEFAULT_METADATA_RULES.map((rule) => [rule.id, rule])
+      );
+
+      // 规范化路径，并迁移旧内置规则中误写到 rule.description 的模型描述。
+      const normalizedRules = data.rules.map((rule) => {
+        const defaultRule = defaultRulesById.get(rule.id);
+        const properties: ModelMetadataProperties = {
+          ...(rule.properties || {}),
+          icon: rule.properties?.icon
             ? normalizeIconPath(rule.properties.icon)
             : undefined,
-        },
-      }));
+        };
+        let description = rule.description;
+
+        if (properties.icon !== rule.properties?.icon) {
+          needsSave = true;
+        }
+
+        if (
+          !properties.description &&
+          defaultRule?.properties.description &&
+          (description === defaultRule.properties.description ||
+            description === defaultRule.description)
+        ) {
+          properties.description = defaultRule.properties.description;
+          description = defaultRule.description;
+          needsSave = true;
+        }
+
+        return {
+          ...rule,
+          description,
+          properties,
+        };
+      });
+
+      if (needsSave) {
+        await configManager.save({
+          ...data,
+          rules: normalizedRules,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+
+      rules.value = normalizedRules;
       isLoaded.value = true;
     } catch (error) {
       errorHandler.error(error, "加载模型元数据规则失败");

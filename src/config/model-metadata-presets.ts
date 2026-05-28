@@ -879,11 +879,12 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
           calculationMethod: "dynamic", // OpenAI 根据页数和内容动态计算
         },
       },
+      description:
+        "GPT-4o 系列模型（使用 o200k_base 编码，支持视觉、工具调用和文档处理）",
     },
     priority: 25, // 更高优先级，优先匹配 gpt-4o
     enabled: true,
-    description:
-      "GPT-4o 系列模型（使用 o200k_base 编码，支持视觉、工具调用和文档处理）",
+    description: "模型前缀 gpt-4o 元数据规则",
   },
   {
     id: "model-prefix-gpt-5.4",
@@ -911,11 +912,12 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
           calculationMethod: "dynamic",
         },
       },
+      description:
+        "GPT-5.4 系列模型（最先进的智能模型，支持视觉、工具调用和文档处理）",
     },
     priority: 26, // 优先级高于 gpt-5
     enabled: true,
-    description:
-      "GPT-5.4 系列模型（最先进的智能模型，支持视觉、工具调用和文档处理）",
+    description: "模型前缀 gpt-5.4 元数据规则",
   },
   {
     id: "model-prefix-gpt-5",
@@ -943,11 +945,12 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
           calculationMethod: "dynamic",
         },
       },
+      description:
+        "GPT-5 系列模型（包括 mini/nano 等变体，支持视觉、工具调用和文档处理）",
     },
     priority: 25,
     enabled: true,
-    description:
-      "GPT-5 系列模型（包括 mini/nano 等变体，支持视觉、工具调用和文档处理）",
+    description: "模型前缀 gpt-5 元数据规则",
   },
   {
     id: "model-prefix-gpt-image",
@@ -957,10 +960,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       icon: `/model-icons/openai.svg`,
       group: "OpenAI",
       tokenizer: "gpt4o", // 图像生成模型使用 o200k_base 编码
+      description: "GPT Image 系列图像生成模型",
     },
     priority: 25,
     enabled: true,
-    description: "GPT Image 系列图像生成模型",
+    description: "模型前缀 gpt-image 元数据规则",
   },
   {
     id: "model-prefix-gpt-oss",
@@ -970,10 +974,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       icon: `/model-icons/openai.svg`,
       group: "OpenAI",
       tokenizer: "gpt4o", // GPT-OSS 使用 gpt4o 分词器
+      description: "GPT OSS 开源权重模型系列",
     },
     priority: 25,
     enabled: true,
-    description: "GPT OSS 开源权重模型系列",
+    description: "模型前缀 gpt-oss 元数据规则",
   },
   {
     id: "model-prefix-gpt-audio",
@@ -986,10 +991,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       capabilities: {
         audio: true,
       },
+      description: "GPT Audio 音频处理模型系列（包括 1.5 系列）",
     },
     priority: 25,
     enabled: true,
-    description: "GPT Audio 音频处理模型系列（包括 1.5 系列）",
+    description: "模型前缀 gpt-audio 元数据规则",
   },
   {
     id: "model-prefix-gpt-realtime",
@@ -1002,10 +1008,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       capabilities: {
         audio: true,
       },
+      description: "GPT Realtime 实时模型系列（包括 1.5 系列）",
     },
     priority: 25,
     enabled: true,
-    description: "GPT Realtime 实时模型系列（包括 1.5 系列）",
+    description: "模型前缀 gpt-realtime 元数据规则",
   },
   {
     id: "model-prefix-gpt-4.1",
@@ -1033,11 +1040,12 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
           calculationMethod: "dynamic", // OpenAI 根据页数和内容动态计算
         },
       },
+      description:
+        "GPT-4.1 系列模型（最智能的非推理模型，支持视觉、工具调用和文档处理）",
     },
     priority: 25, // 更高优先级以优先匹配 gpt-4.1
     enabled: true,
-    description:
-      "GPT-4.1 系列模型（最智能的非推理模型，支持视觉、工具调用和文档处理）",
+    description: "模型前缀 gpt-4.1 元数据规则",
   },
   {
     id: "model-prefix-gpt-4.1",
@@ -1065,11 +1073,12 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
           calculationMethod: "dynamic", // OpenAI 根据页数和内容动态计算
         },
       },
+      description:
+        "GPT-4.1 系列模型（最智能的非推理模型，支持视觉、工具调用和文档处理）",
     },
     priority: 25, // 更高优先级以优先匹配 gpt-4.1
     enabled: true,
-    description:
-      "GPT-4.1 系列模型（最智能的非推理模型，支持视觉、工具调用和文档处理）",
+    description: "模型前缀 gpt-4.1 元数据规则",
   },
   {
     id: "model-prefix-gpt-4",
@@ -1092,10 +1101,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
           },
         },
       },
+      description: "GPT-4 系列模型（使用 cl100k_base 编码）",
     },
     priority: 20,
     enabled: true,
-    description: "GPT-4 系列模型（使用 cl100k_base 编码）",
+    description: "模型前缀 gpt-4 元数据规则",
   },
   {
     id: "model-prefix-gpt-3.5",
@@ -1109,10 +1119,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         toolUse: true,
         jsonOutput: true,
       },
+      description: "GPT-3.5 系列模型（使用 cl100k_base 编码）",
     },
     priority: 20,
     enabled: true,
-    description: "GPT-3.5 系列模型（使用 cl100k_base 编码）",
+    description: "模型前缀 gpt-3.5 元数据规则",
   },
   {
     id: "model-prefix-o1",
@@ -1131,11 +1142,12 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
           calculationMethod: "dynamic", // OpenAI 根据页数和内容动态计算
         },
       },
+      description:
+        "o1 系列推理模型（使用 o200k_base 编码，支持推理、视觉和文档处理）",
     },
     priority: 25,
     enabled: true,
-    description:
-      "o1 系列推理模型（使用 o200k_base 编码，支持推理、视觉和文档处理）",
+    description: "模型前缀 o1 元数据规则",
   },
   {
     id: "model-prefix-o4-mini",
@@ -1148,10 +1160,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       capabilities: {
         thinking: true,
       },
+      description: "o4-mini 快速经济推理模型",
     },
     priority: 26, // 最高优先级以优先匹配 o4-mini
     enabled: true,
-    description: "o4-mini 快速经济推理模型",
+    description: "模型前缀 o4-mini 元数据规则",
   },
   {
     id: "model-prefix-deep-research",
@@ -1165,10 +1178,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         thinking: true,
         webSearch: true,
       },
+      description: "OpenAI Deep Research 系列模型（o3/o4-mini 等深度研究变体）",
     },
     priority: 30,
     enabled: true,
-    description: "OpenAI Deep Research 系列模型（o3/o4-mini 等深度研究变体）",
+    description: "模型正则 .*deep-research 元数据规则",
   },
   {
     id: "model-prefix-o3-pro",
@@ -1181,10 +1195,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       capabilities: {
         thinking: true,
       },
+      description: "o3-pro 带有更多计算的 o3 版本",
     },
     priority: 26,
     enabled: true,
-    description: "o3-pro 带有更多计算的 o3 版本",
+    description: "模型前缀 o3-pro 元数据规则",
   },
   {
     id: "model-prefix-o3-mini",
@@ -1197,10 +1212,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       capabilities: {
         thinking: true,
       },
+      description: "o3-mini 小型推理模型",
     },
     priority: 26,
     enabled: true,
-    description: "o3-mini 小型推理模型",
+    description: "模型前缀 o3-mini 元数据规则",
   },
   {
     id: "model-prefix-o3",
@@ -1213,10 +1229,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       capabilities: {
         thinking: true,
       },
+      description: "o3 系列推理模型（使用 o200k_base 编码）",
     },
     priority: 25,
     enabled: true,
-    description: "o3 系列推理模型（使用 o200k_base 编码）",
+    description: "模型前缀 o3 元数据规则",
   },
   {
     id: "model-prefix-chatgpt",
@@ -1226,10 +1243,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       icon: `/model-icons/openai.svg`,
       group: "OpenAI",
       tokenizer: "gpt4o", // ChatGPT 系列使用 o200k_base 编码
+      description: "ChatGPT 系列模型（使用 o200k_base 编码）",
     },
     priority: 20,
     enabled: true,
-    description: "ChatGPT 系列模型（使用 o200k_base 编码）",
+    description: "模型前缀 chatgpt- 元数据规则",
   },
 
   // Anthropic 系列模型
@@ -1248,11 +1266,12 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         toolUse: true,
         document: true,
       },
+      description:
+        "Claude 4 系列模型（Sonnet 4 / Opus 4，原生支持视觉与深度思考）",
     },
     priority: 25,
     enabled: true,
-    description:
-      "Claude 4 系列模型（Sonnet 4 / Opus 4，原生支持视觉与深度思考）",
+    description: "模型正则 claude-(?:sonnet|opus)-4 元数据规则",
   },
   {
     id: "model-prefix-claude-3-7",
@@ -1270,10 +1289,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       },
       deprecated: true,
       retirementDate: "2026-02-19",
+      description: "Claude 3.7 系列模型（已退役）",
     },
     priority: 25,
     enabled: true,
-    description: "Claude 3.7 系列模型（已退役）",
+    description: "模型前缀 claude-3-7 元数据规则",
   },
   {
     id: "model-openai-deprecated-specific",
@@ -1302,10 +1322,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       },
       deprecated: true,
       retirementDate: "2026-02-19",
+      description: "Claude 3.5 系列模型（已退役）",
     },
     priority: 25,
     enabled: true,
-    description: "Claude 3.5 系列模型（已退役）",
+    description: "模型前缀 claude-3-5 元数据规则",
   },
   {
     id: "model-prefix-claude",
@@ -1330,10 +1351,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
           calculationMethod: "dynamic", // Claude API 会返回实际 token 消耗
         },
       },
+      description: "Claude 系列模型（支持视觉、思考模式、工具调用和文档处理）",
     },
     priority: 20,
     enabled: true,
-    description: "Claude 系列模型（支持视觉、思考模式、工具调用和文档处理）",
+    description: "模型前缀 claude- 元数据规则",
   },
 
   // Google 系列模型
@@ -1458,11 +1480,13 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         fileSearch: true,
         webSearch: true,
       },
+      description:
+        "Gemini 3/3.1/3.5 高级模型（支持思考等级 thinkingLevel、代码执行、联网搜索），覆盖 Gemini 3.x 的 Pro/Flash 变体",
     },
     priority: 25,
     enabled: true,
     description:
-      "Gemini 3/3.1/3.5 高级模型（支持思考等级 thinkingLevel、代码执行、联网搜索），覆盖 Gemini 3.x 的 Pro/Flash 变体",
+      "模型正则 gemini-3(?:\\.\\d+)?-(?:pro|flash)(?!.*(?:image|tts|live)) 元数据规则",
   },
   // Gemini 2.5 高级能力模型 (Thinking via thinkingBudget, Code Execution, Search)
   // 覆盖: Gemini 2.5 Pro/Flash（排除 image / tts / live）
@@ -1479,11 +1503,13 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         fileSearch: true,
         webSearch: true,
       },
+      description:
+        "Gemini 2.5 高级模型（支持思考预算 thinkingBudget、代码执行、联网搜索），覆盖 Gemini 2.5 的 Pro/Flash 变体",
     },
     priority: 25,
     enabled: true,
     description:
-      "Gemini 2.5 高级模型（支持思考预算 thinkingBudget、代码执行、联网搜索），覆盖 Gemini 2.5 的 Pro/Flash 变体",
+      "模型正则 gemini-2\\.5-(?:pro|flash)(?!.*(?:image|tts|live)) 元数据规则",
   },
   // Gemini 2.0 Flash (Code Execution, Search)
   {
@@ -1496,10 +1522,12 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         codeExecution: true,
         webSearch: true,
       },
+      description: "Gemini 2.0 Flash（支持代码执行、联网搜索）",
     },
     priority: 25,
     enabled: true,
-    description: "Gemini 2.0 Flash（支持代码执行、联网搜索）",
+    description:
+      "模型正则 gemini-2\\.0-flash(?!.*(?:image|live|lite)) 元数据规则",
   },
   // Gemini 图像生成模型（包括 Nano Banana 系列）
   {
@@ -1512,10 +1540,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         imageGeneration: true,
         iterativeRefinement: true,
       },
+      description: "Gemini 图像生成模型（支持迭代微调），包括 Nano Banana 系列",
     },
     priority: 25,
     enabled: true,
-    description: "Gemini 图像生成模型（支持迭代微调），包括 Nano Banana 系列",
+    description: "模型正则 gemini-.*image 元数据规则",
   },
   // Gemini Live 实时对话模型（覆盖 2.5 和 3.x 系列）
   {
@@ -1528,11 +1557,12 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         thinking: true,
         webSearch: true,
       },
+      description:
+        "Gemini Live 实时对话模型（覆盖 2.5 Flash Live / 3.1 Flash Live，支持思考与联网搜索）",
     },
     priority: 25,
     enabled: true,
-    description:
-      "Gemini Live 实时对话模型（覆盖 2.5 Flash Live / 3.1 Flash Live，支持思考与联网搜索）",
+    description: "模型正则 gemini-(?:2\\.5|3(?:\\.\\d+)?)-.*live 元数据规则",
   },
   // Gemini TTS 语音生成模型（覆盖 2.5 和 3.x 的 TTS 变体）
   {
@@ -1544,11 +1574,12 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       capabilities: {
         audioGeneration: true,
       },
+      description:
+        "Gemini TTS 语音生成模型（覆盖 2.5 Flash TTS / 2.5 Pro TTS / 3.1 Flash TTS）",
     },
     priority: 26,
     enabled: true,
-    description:
-      "Gemini TTS 语音生成模型（覆盖 2.5 Flash TTS / 2.5 Pro TTS / 3.1 Flash TTS）",
+    description: "模型正则 gemini-.*-tts 元数据规则",
   },
 
   {
@@ -1590,10 +1621,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       icon: `/model-icons/gemma-color.svg`,
       group: "Gemma",
       tokenizer: "gemini", // Gemma3 使用 gemini 分词器
+      description: "Gemma 3 系列模型",
     },
     priority: 25, // 更高优先级以优先匹配 Gemma3
     enabled: true,
-    description: "Gemma 3 系列模型",
+    description: "模型前缀 gemma3 元数据规则",
   },
   {
     id: "model-prefix-gemma",
@@ -1603,10 +1635,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       icon: `/model-icons/gemma-color.svg`,
       group: "Gemma",
       tokenizer: "gemini", // Gemma 使用与 Gemini 相同的分词器
+      description: "Gemma 系列模型",
     },
     priority: 20,
     enabled: true,
-    description: "Gemma 系列模型",
+    description: "模型前缀 gemma- 元数据规则",
   },
 
   // DeepSeek 系列模型
@@ -1622,10 +1655,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         output: 24.0,
         cacheHitInput: 1.0,
       },
+      description: "DeepSeek V4 Pro 模型详情",
     },
     priority: 30,
     enabled: true,
-    description: "DeepSeek V4 Pro 模型详情",
+    description: "模型 deepseek-v4-pro 元数据规则",
   },
   {
     id: "model-deepseek-v4-flash",
@@ -1639,10 +1673,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         output: 2.0,
         cacheHitInput: 0.2,
       },
+      description: "DeepSeek V4 Flash 模型详情",
     },
     priority: 30,
     enabled: true,
-    description: "DeepSeek V4 Flash 模型详情",
+    description: "模型 deepseek-v4-flash 元数据规则",
   },
   {
     id: "model-deepseek-deprecated",
@@ -1672,10 +1707,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         jsonOutput: true, // DeepSeek 支持 JSON 输出模式
         toolUse: true,
       },
+      description: "DeepSeek 系列模型（支持推理、FIM、续写和 JSON 输出）",
     },
     priority: 25, // 提升优先级
     enabled: true,
-    description: "DeepSeek 系列模型（支持推理、FIM、续写和 JSON 输出）",
+    description: "模型前缀 deepseek- 元数据规则",
   },
 
   // 智谱 AI 系列模型
@@ -1743,10 +1779,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       icon: `/model-icons/qwen-color.svg`,
       group: "Qwen",
       tokenizer: "qwen3", // Qwen3 使用最新分词器
+      description: "通义千问 Qwen3 系列模型",
     },
     priority: 25, // 更高优先级以优先匹配 Qwen3
     enabled: true,
-    description: "通义千问 Qwen3 系列模型",
+    description: "模型前缀 qwen3 元数据规则",
   },
   {
     id: "model-prefix-qwen",
@@ -1756,10 +1793,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       icon: `/model-icons/qwen-color.svg`,
       group: "Qwen",
       tokenizer: "qwen3", // Qwen 系列使用 qwen3 分词器
+      description: "通义千问系列模型",
     },
     priority: 20,
     enabled: true,
-    description: "通义千问系列模型",
+    description: "模型前缀 qwen 元数据规则",
   },
   {
     id: "model-prefix-qwq",
@@ -1769,10 +1807,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       icon: `/model-icons/qwen-color.svg`,
       group: "Qwen",
       tokenizer: "qwen3", // QwQ 使用 qwen3 分词器
+      description: "通义千问 QwQ 系列模型",
     },
     priority: 20,
     enabled: true,
-    description: "通义千问 QwQ 系列模型",
+    description: "模型前缀 qwq- 元数据规则",
   },
 
   // Qwen3.6 系列（最新旗舰视觉语言模型，优先级高于 qwen3）
@@ -1788,10 +1827,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         vision: true,
         thinking: true,
       },
+      description: "通义千问 Qwen3.6 系列模型（原生视觉语言 + 深度思考）",
     },
     priority: 27,
     enabled: true,
-    description: "通义千问 Qwen3.6 系列模型（原生视觉语言 + 深度思考）",
+    description: "模型前缀 qwen3.6 元数据规则",
   },
 
   // Qwen3.5 系列（视觉语言模型，优先级高于 qwen3）
@@ -1807,10 +1847,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         vision: true,
         thinking: true,
       },
+      description: "通义千问 Qwen3.5 系列模型（原生视觉语言 + 深度思考）",
     },
     priority: 26,
     enabled: true,
-    description: "通义千问 Qwen3.5 系列模型（原生视觉语言 + 深度思考）",
+    description: "模型前缀 qwen3.5 元数据规则",
   },
 
   // Qwen3-VL 视觉理解系列（在 qwen3 基础上覆盖能力，优先级高于 qwen3）
@@ -1823,10 +1864,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         vision: true,
         thinking: true,
       },
+      description: "Qwen3-VL 视觉理解系列（深度思考 + 视觉）",
     },
     priority: 26,
     enabled: true,
-    description: "Qwen3-VL 视觉理解系列（深度思考 + 视觉）",
+    description: "模型前缀 qwen3-vl 元数据规则",
   },
 
   // QVQ 视觉推理系列（不同于 QwQ 文本推理）
@@ -1842,10 +1884,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         vision: true,
         thinking: true,
       },
+      description: "通义千问 QVQ 视觉推理系列模型",
     },
     priority: 25,
     enabled: true,
-    description: "通义千问 QVQ 视觉推理系列模型",
+    description: "模型前缀 qvq- 元数据规则",
   },
 
   // 字节跳动豆包系列模型
@@ -1991,10 +2034,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         "convert-system-to-user",
         "merge-consecutive-roles",
       ],
+      description: "MiniCPM 系列模型（面壁智能）",
     },
     priority: 20,
     enabled: true,
-    description: "MiniCPM 系列模型（面壁智能）",
+    description: "模型前缀 minicpm 元数据规则",
   },
 
   // Skywork 系列模型
@@ -2065,10 +2109,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       capabilities: {
         imageGeneration: true,
       },
+      description: "Grok 图像生成与编辑模型",
     },
     priority: 30,
     enabled: true,
-    description: "Grok 图像生成与编辑模型",
+    description: "模型正则 grok-.*image 元数据规则",
   },
   // Meta 系列模型
   {
@@ -2084,10 +2129,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         "convert-system-to-user",
         "merge-consecutive-roles",
       ],
+      description: "Llama 3.2 系列模型",
     },
     priority: 25, // 更高优先级以优先匹配 Llama 3.2
     enabled: true,
-    description: "Llama 3.2 系列模型",
+    description: "模型正则 llama-?3[._-]?2 元数据规则",
   },
   {
     id: "model-prefix-llama",
@@ -2102,10 +2148,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         "convert-system-to-user",
         "merge-consecutive-roles",
       ],
+      description: "Llama 系列模型",
     },
     priority: 20,
     enabled: true,
-    description: "Llama 系列模型",
+    description: "模型正则 (?<!o)llama[1-9-] 元数据规则",
   },
 
   // Mistral 系列模型
@@ -2350,11 +2397,12 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         videoGeneration: true,
         vision: true,
       },
+      description:
+        "万象（Wan）视频生成系列（图生视频 / 参考视频 / 文生视频 / 视频编辑）",
     },
     priority: 25,
     enabled: true,
-    description:
-      "万象（Wan）视频生成系列（图生视频 / 参考视频 / 文生视频 / 视频编辑）",
+    description: "模型正则 wan2\\.\\d+-(?:i2v|r2v|t2v|videoedit) 元数据规则",
   },
 
   // 万象图片生成系列（T2I / Image）
@@ -2370,10 +2418,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         imageGeneration: true,
         vision: true,
       },
+      description: "万象（Wan）图片生成系列（文生图 / 图片编辑）",
     },
     priority: 25,
     enabled: true,
-    description: "万象（Wan）图片生成系列（文生图 / 图片编辑）",
+    description: "模型正则 wan2\\.\\d+-(?:image|t2i) 元数据规则",
   },
 
   // StepFun 系列模型
@@ -2399,10 +2448,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       capabilities: {
         videoGeneration: true,
       },
+      description: "阿里 HappyHorse 视频生成模型",
     },
     priority: 30,
     enabled: true,
-    description: "阿里 HappyHorse 视频生成模型",
+    description: "模型前缀 happyhorse 元数据规则",
   },
   {
     id: "model-prefix-skyreels",
@@ -2414,10 +2464,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       capabilities: {
         videoGeneration: true,
       },
+      description: "昆仑万维 SkyReels 视频生成模型",
     },
     priority: 30,
     enabled: true,
-    description: "昆仑万维 SkyReels 视频生成模型",
+    description: "模型前缀 skyreels 元数据规则",
   },
   {
     id: "model-prefix-vidu",
@@ -2429,10 +2480,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       capabilities: {
         videoGeneration: true,
       },
+      description: "生数科技 Vidu 视频生成模型",
     },
     priority: 30,
     enabled: true,
-    description: "生数科技 Vidu 视频生成模型",
+    description: "模型前缀 vidu 元数据规则",
   },
   {
     id: "model-prefix-mimo",
@@ -2441,10 +2493,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `/model-icons/xiaomi.svg`,
       group: "Xiaomi",
+      description: "小米 MiMo 系列模型",
     },
     priority: 25,
     enabled: true,
-    description: "小米 MiMo 系列模型",
+    description: "模型前缀 mimo 元数据规则",
   },
   {
     id: "model-prefix-minimax-m2",
@@ -2453,10 +2506,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `/model-icons/minimax-color.svg`,
       group: "MiniMax",
+      description: "MiniMax M2 系列模型",
     },
     priority: 25,
     enabled: true,
-    description: "MiniMax M2 系列模型",
+    description: "模型前缀 minimax-m2 元数据规则",
   },
   {
     id: "model-prefix-hunter-alpha",
@@ -2465,10 +2519,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `/model-icons/bytedance-color.svg`,
       group: "ByteDance",
+      description: "Hunter Alpha 模型",
     },
     priority: 25,
     enabled: true,
-    description: "Hunter Alpha 模型",
+    description: "模型前缀 hunter-alpha 元数据规则",
   },
 
   // 盘古系列模型
@@ -2570,10 +2625,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         vision: true,
         iterativeRefinement: false, // DALL-E 原生 API 不支持多轮对话上下文
       },
+      description: "DALL·E 图像生成模型",
     },
     priority: 30,
     enabled: true,
-    description: "DALL·E 图像生成模型",
+    description: "模型前缀 dall-e 元数据规则",
   },
   {
     id: "model-whisper",
@@ -2582,10 +2638,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `/model-icons/openai.svg`,
       group: "OpenAI",
+      description: "Whisper 语音识别模型",
     },
     priority: 30,
     enabled: true,
-    description: "Whisper 语音识别模型",
+    description: "模型前缀 whisper 元数据规则",
   },
   {
     id: "model-tts",
@@ -2597,10 +2654,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       capabilities: {
         audioGeneration: true,
       },
+      description: "TTS 文本转语音模型",
     },
     priority: 30,
     enabled: true,
-    description: "TTS 文本转语音模型",
+    description: "模型前缀 tts- 元数据规则",
   },
   {
     id: "model-openai-tts-mini",
@@ -2612,10 +2670,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       capabilities: {
         audioGeneration: true,
       },
+      description: "GPT-4o mini TTS 语音生成模型",
     },
     priority: 35,
     enabled: true,
-    description: "GPT-4o mini TTS 语音生成模型",
+    description: "模型前缀 gpt-4o-mini-tts 元数据规则",
   },
   {
     id: "model-text-moderation",
@@ -2625,10 +2684,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
     properties: {
       icon: `/model-icons/openai.svg`,
       group: "OpenAI",
+      description: "内容审核模型",
     },
     priority: 30,
     enabled: true,
-    description: "内容审核模型",
+    description: "模型正则 text-moderation|omni-moderation 元数据规则",
   },
   {
     id: "model-codex",
@@ -2642,10 +2702,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       capabilities: {
         toolUse: true,
       },
+      description: "Codex 代码模型系列（包括 GPT-5 Codex 变体）",
     },
     priority: 30,
     enabled: true,
-    description: "Codex 代码模型系列（包括 GPT-5 Codex 变体）",
+    description: "模型正则 codex|gpt-5.*codex 元数据规则",
   },
   {
     id: "model-babbage",
@@ -2685,10 +2746,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         imageGeneration: true,
         iterativeRefinement: true,
       },
+      description: "GPT Image 系列图像生成模型（支持编辑与迭代）",
     },
     priority: 35,
     enabled: true,
-    description: "GPT Image 系列图像生成模型（支持编辑与迭代）",
+    description: "模型正则 gpt-image-|chatgpt-image- 元数据规则",
   },
 
   // OpenAI Sora 视频生成
@@ -2703,10 +2765,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         videoGeneration: true,
         iterativeRefinement: false,
       },
+      description: "Sora 视频生成模型",
     },
     priority: 30,
     enabled: true,
-    description: "Sora 视频生成模型",
+    description: "模型前缀 sora 元数据规则",
   },
 
   // 快手可灵视频生成
@@ -2738,10 +2801,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       capabilities: {
         videoGeneration: true,
       },
+      description: "Veo 视频生成模型",
     },
     priority: 30,
     enabled: true,
-    description: "Veo 视频生成模型",
+    description: "模型前缀 veo 元数据规则",
   },
 
   // Google Nano Banana (Gemini 2.5 Flash Image)
@@ -2756,10 +2820,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         imageGeneration: true,
         iterativeRefinement: true,
       },
+      description: "Gemini 2.5 Flash Image (Nano Banana)",
     },
     priority: 35,
     enabled: true,
-    description: "Gemini 2.5 Flash Image (Nano Banana)",
+    description: "模型前缀 gemini-2.5-flash-image 元数据规则",
   },
 
   // Google Gemini 3 Pro Image
@@ -2774,10 +2839,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         imageGeneration: true,
         iterativeRefinement: true,
       },
+      description: "Gemini 3 Pro Image (Professional Asset Production)",
     },
     priority: 35,
     enabled: true,
-    description: "Gemini 3 Pro Image (Professional Asset Production)",
+    description: "模型前缀 gemini-3-pro-image 元数据规则",
   },
 
   // 硅基流动 Qwen Image Edit
@@ -2792,10 +2858,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         imageGeneration: true,
         iterativeRefinement: true,
       },
+      description: "Qwen Image Edit 图像编辑模型（支持迭代修改）",
     },
     priority: 35,
     enabled: true,
-    description: "Qwen Image Edit 图像编辑模型（支持迭代修改）",
+    description: "模型前缀 Qwen/Qwen-Image-Edit 元数据规则",
   },
 
   // Suno 音乐生成
@@ -2829,10 +2896,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         vision: true,
         iterativeRefinement: true,
       },
+      description: "Midjourney 系列模型（支持迭代微调）",
     },
     priority: 30,
     enabled: true,
-    description: "Midjourney 系列模型（支持迭代微调）",
+    description: "模型正则 midjourney|mj 元数据规则",
   },
 
   // FLUX 系列 (Black Forest Labs)
@@ -2847,10 +2915,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         imageGeneration: true,
         iterativeRefinement: false,
       },
+      description: "FLUX 系列图像生成模型",
     },
     priority: 30,
     enabled: true,
-    description: "FLUX 系列图像生成模型",
+    description: "模型前缀 flux 元数据规则",
   },
 
   // Stable Diffusion 系列
@@ -2866,10 +2935,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         imageGeneration: true,
         iterativeRefinement: true,
       },
+      description: "Stable Diffusion 系列图像生成模型（支持迭代修改）",
     },
     priority: 30,
     enabled: true,
-    description: "Stable Diffusion 系列图像生成模型（支持迭代修改）",
+    description: "模型正则 stable-diffusion|sdxl|sd3 元数据规则",
   },
 
   // Luma Dream Machine
@@ -2883,10 +2953,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       capabilities: {
         videoGeneration: true,
       },
+      description: "Luma Dream Machine 视频生成模型",
     },
     priority: 30,
     enabled: true,
-    description: "Luma Dream Machine 视频生成模型",
+    description: "模型前缀 luma-dream-machine 元数据规则",
   },
 
   // 通义千问 Qwen Image Edit 官方图片编辑系列（优先级高于 qwen-image，先匹配 edit）
@@ -2901,11 +2972,12 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
         imageGeneration: true,
         iterativeRefinement: true,
       },
+      description:
+        "Qwen Image Edit 官方图片编辑系列（qwen-image-edit-max / qwen-image-edit-plus，支持迭代修改）",
     },
     priority: 35,
     enabled: true,
-    description:
-      "Qwen Image Edit 官方图片编辑系列（qwen-image-edit-max / qwen-image-edit-plus，支持迭代修改）",
+    description: "模型前缀 qwen-image-edit 元数据规则",
   },
 
   // 通义千问 Qwen Image 官方图片生成系列
@@ -2919,11 +2991,12 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       capabilities: {
         imageGeneration: true,
       },
+      description:
+        "Qwen Image 官方图片生成系列（qwen-image-2.0 / qwen-image-max / qwen-image-plus）",
     },
     priority: 30,
     enabled: true,
-    description:
-      "Qwen Image 官方图片生成系列（qwen-image-2.0 / qwen-image-max / qwen-image-plus）",
+    description: "模型前缀 qwen-image 元数据规则",
   },
 
   // Z AI 图像生成系列（Z-Image-Turbo 等）
@@ -2937,10 +3010,11 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
       capabilities: {
         imageGeneration: true,
       },
+      description: "Z AI 图像生成系列（Z-Image-Turbo，文生图开源模型）",
     },
     priority: 30,
     enabled: true,
-    description: "Z AI 图像生成系列（Z-Image-Turbo，文生图开源模型）",
+    description: "模型前缀 z-image 元数据规则",
   },
 
   // === 媒体生成参数规则 ===

@@ -205,6 +205,7 @@ const handleConfirm = () => {
       name: formatModelName(model.id),
       group: model.group || matchedProps?.group,
       icon: model.icon || matchedProps?.icon,
+      description: model.description || matchedProps?.description,
       capabilities: getModelCapabilities(model),
     };
   });

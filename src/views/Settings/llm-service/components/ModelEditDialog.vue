@@ -199,6 +199,12 @@ const applyPreset = () => {
     appliedCount++;
   }
 
+  // 应用模型描述
+  if (properties.description && !modelEditForm.value.description) {
+    modelEditForm.value.description = properties.description;
+    appliedCount++;
+  }
+
   // 应用能力
   if (properties.capabilities) {
     modelEditForm.value.capabilities = {
@@ -332,7 +338,7 @@ const customParametersJsonString = computed({
               </template>
             </el-input>
             <div class="form-hint">
-              输入模型 ID 后可点击"应用预设"自动填充名称、分组、图标和能力
+              输入模型 ID 后可点击"应用预设"自动填充名称、分组、图标、描述和能力
             </div>
           </el-form-item>
 

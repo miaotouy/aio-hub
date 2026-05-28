@@ -10,15 +10,11 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 use tauri::{AppHandle, Emitter};
-use tokio::process::Command;
-use tokio::time::timeout;
 use uuid::Uuid;
 
-const ASSET_MANAGER_MODULE_NAME: &str = "asset-manager";
-const ASSET_MANAGER_CONFIG_FILE: &str = "config.json";
-const DOCUMENT_CONVERSION_TIMEOUT_SECONDS: u64 = 120;
+use super::document_converter;
 
 // --- 资产目录内存状态管理 ---
 
@@ -356,10 +352,6 @@ fn default_true() -> bool {
     true
 }
 
-fn default_conversion_timeout() -> u64 {
-    DOCUMENT_CONVERSION_TIMEOUT_SECONDS
-}
-
 impl Default for AssetImportOptions {
     fn default() -> Self {
         Self {
@@ -368,51 +360,6 @@ impl Default for AssetImportOptions {
             origin: None,
             subfolder: None,
             source_module: None,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct AssetManagerModuleConfig {
-    #[serde(default)]
-    document_conversion: DocumentConversionConfig,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct DocumentConversionConfig {
-    #[serde(default = "default_true")]
-    auto_convert_legacy_doc: bool,
-    #[serde(default)]
-    libre_office_path: String,
-    #[serde(default = "default_conversion_timeout")]
-    timeout_seconds: u64,
-    #[serde(default = "default_true")]
-    isolated_profile: bool,
-}
-
-impl Default for DocumentConversionConfig {
-    fn default() -> Self {
-        Self {
-            auto_convert_legacy_doc: true,
-            libre_office_path: String::new(),
-            timeout_seconds: DOCUMENT_CONVERSION_TIMEOUT_SECONDS,
-            isolated_profile: true,
-        }
-    }
-}
-
-struct PreparedImportSource {
-    path: PathBuf,
-    cleanup_dir: Option<PathBuf>,
-    warnings: Vec<AssetImportWarning>,
-}
-
-impl Drop for PreparedImportSource {
-    fn drop(&mut self) {
-        if let Some(dir) = &self.cleanup_dir {
-            let _ = fs::remove_dir_all(dir);
         }
     }
 }
@@ -471,323 +418,6 @@ fn determine_asset_type(mime: &str, path: Option<&Path>) -> AssetType {
         AssetType::Other
     } else {
         AssetType::Other
-    }
-}
-
-fn is_legacy_word_document(path: &Path, mime: &str) -> bool {
-    path.extension()
-        .map(|ext| ext.to_string_lossy().eq_ignore_ascii_case("doc"))
-        .unwrap_or(false)
-        || mime.starts_with("application/msword")
-}
-
-fn get_asset_manager_config_path(app: &AppHandle) -> PathBuf {
-    crate::get_app_data_dir(app.config())
-        .join(ASSET_MANAGER_MODULE_NAME)
-        .join(ASSET_MANAGER_CONFIG_FILE)
-}
-
-fn read_document_conversion_config(app: &AppHandle) -> Option<DocumentConversionConfig> {
-    let config_path = get_asset_manager_config_path(app);
-    let content = fs::read_to_string(config_path).ok()?;
-    let config = serde_json::from_str::<AssetManagerModuleConfig>(&content).ok()?;
-    Some(config.document_conversion)
-}
-
-fn active_document_conversion_config(app: &AppHandle) -> Option<DocumentConversionConfig> {
-    let config = read_document_conversion_config(app)?;
-    if !config.auto_convert_legacy_doc || config.libre_office_path.trim().is_empty() {
-        None
-    } else {
-        Some(config)
-    }
-}
-
-fn path_to_file_url(path: &Path) -> String {
-    let value = path.to_string_lossy().replace('\\', "/");
-    if cfg!(target_os = "windows") {
-        format!("file:///{}", value)
-    } else {
-        format!("file://{}", value)
-    }
-}
-
-fn make_libreoffice_profile_dir() -> Result<PathBuf, String> {
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_err(|e| e.to_string())?
-        .as_millis();
-    let dir = std::env::temp_dir().join(format!("aiohub-asset-manager-lo-{}", now));
-    fs::create_dir_all(&dir).map_err(|e| format!("创建 LibreOffice 临时配置目录失败: {}", e))?;
-    Ok(dir)
-}
-
-async fn run_libreoffice_version(path: &str) -> Result<String, String> {
-    let mut command = Command::new(path);
-    #[cfg(target_os = "windows")]
-    {
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        command.creation_flags(CREATE_NO_WINDOW);
-    }
-
-    let output = timeout(Duration::from_secs(5), command.arg("--version").output())
-        .await
-        .map_err(|_| "检测 LibreOffice 超时".to_string())?
-        .map_err(|e| format!("无法执行 LibreOffice: {}", e))?;
-
-    if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
-    }
-
-    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-    Ok(if stdout.is_empty() { stderr } else { stdout })
-}
-
-async fn convert_legacy_doc_to_docx(
-    source_path: &Path,
-    output_dir: &Path,
-    config: &DocumentConversionConfig,
-) -> Result<PathBuf, String> {
-    fs::create_dir_all(output_dir).map_err(|e| format!("创建文档转换目录失败: {}", e))?;
-
-    let mut args = vec![
-        "--headless".to_string(),
-        "--nologo".to_string(),
-        "--nofirststartwizard".to_string(),
-        "--nolockcheck".to_string(),
-        "--nodefault".to_string(),
-    ];
-
-    let profile_dir = if config.isolated_profile {
-        let profile_dir = make_libreoffice_profile_dir()?;
-        args.push(format!(
-            "--env:UserInstallation={}",
-            path_to_file_url(&profile_dir)
-        ));
-        Some(profile_dir)
-    } else {
-        None
-    };
-
-    args.extend([
-        "--convert-to".to_string(),
-        "docx".to_string(),
-        "--outdir".to_string(),
-        output_dir.to_string_lossy().to_string(),
-        source_path.to_string_lossy().to_string(),
-    ]);
-
-    let mut command = Command::new(config.libre_office_path.trim());
-    #[cfg(target_os = "windows")]
-    {
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        command.creation_flags(CREATE_NO_WINDOW);
-    }
-
-    let output = timeout(
-        Duration::from_secs(config.timeout_seconds.max(10)),
-        command.args(&args).output(),
-    )
-    .await
-    .map_err(|_| "旧版 DOC 转换超时".to_string())?
-    .map_err(|e| format!("执行 LibreOffice 失败: {}", e))?;
-
-    if let Some(dir) = profile_dir {
-        let _ = fs::remove_dir_all(dir);
-    }
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        return Err(format!("LibreOffice 转换失败: {}{}", stderr, stdout));
-    }
-
-    let stem = source_path
-        .file_stem()
-        .ok_or_else(|| "无法获取 DOC 文件名".to_string())?
-        .to_string_lossy();
-    let expected_path = output_dir.join(format!("{}.docx", stem));
-    if expected_path.exists() {
-        return Ok(expected_path);
-    }
-
-    fs::read_dir(output_dir)
-        .map_err(|e| format!("读取文档转换目录失败: {}", e))?
-        .flatten()
-        .map(|entry| entry.path())
-        .find(|path| {
-            path.extension()
-                .map(|ext| ext.to_string_lossy().eq_ignore_ascii_case("docx"))
-                .unwrap_or(false)
-        })
-        .ok_or_else(|| "LibreOffice 已结束，但未找到转换后的 DOCX 文件".to_string())
-}
-
-async fn prepare_import_source(
-    app: &AppHandle,
-    original_path: &Path,
-    original_path_str: &str,
-    base_dir: &Path,
-) -> Result<PreparedImportSource, String> {
-    let mime_type = mime::guess_mime_type(original_path);
-    if !is_legacy_word_document(original_path, &mime_type) {
-        return Ok(PreparedImportSource {
-            path: original_path.to_path_buf(),
-            cleanup_dir: None,
-            warnings: Vec::new(),
-        });
-    }
-
-    let Some(config) = active_document_conversion_config(app) else {
-        log::info!(
-            "[AssetManager] 检测到旧版 DOC，但资产管理器未配置文档转换程序，按原文件入库: {}",
-            original_path_str
-        );
-        let file_name = original_path
-            .file_name()
-            .map(|name| name.to_string_lossy().to_string())
-            .unwrap_or_else(|| original_path_str.to_string());
-        return Ok(PreparedImportSource {
-            path: original_path.to_path_buf(),
-            cleanup_dir: None,
-            warnings: vec![AssetImportWarning {
-                code: "legacyDocConverterNotConfigured".to_string(),
-                title: "旧版 DOC 未自动转换".to_string(),
-                message: format!(
-                    "检测到旧版 Word DOC 文件「{}」，但资产管理器没有启用可用的 LibreOffice 转换程序。文件已按原始 .doc 入库，预览、全文解析或后续处理可能受限。请在资产管理器右上角「文件操作」→「文档转换设置」中开启自动转换，并配置 LibreOffice 的 soffice 可执行文件路径；保存后重新导入该文件即可转换为 DOCX。",
-                    file_name
-                ),
-                source_path: Some(original_path_str.to_string()),
-            }],
-        });
-    };
-
-    let output_dir = base_dir
-        .join(".conversion-cache")
-        .join(Uuid::new_v4().to_string());
-    log::info!(
-        "[AssetManager] 检测到旧版 DOC，入库前转换为 DOCX: {}",
-        original_path_str
-    );
-    let converted_path = convert_legacy_doc_to_docx(original_path, &output_dir, &config).await?;
-
-    Ok(PreparedImportSource {
-        path: converted_path,
-        cleanup_dir: Some(output_dir),
-        warnings: Vec::new(),
-    })
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DocumentConverterCheckResult {
-    pub available: bool,
-    pub version: Option<String>,
-    pub message: Option<String>,
-}
-
-/// 在常见安装路径中嗅探 LibreOffice 可执行文件
-#[tauri::command]
-pub async fn detect_libreoffice_path() -> Result<Option<String>, String> {
-    let candidates = get_libreoffice_candidates();
-
-    for candidate in &candidates {
-        let path = Path::new(candidate);
-        if path.exists() {
-            // 验证可执行性
-            if run_libreoffice_version(candidate).await.is_ok() {
-                return Ok(Some(candidate.clone()));
-            }
-        }
-    }
-
-    // 尝试从 PATH 中查找
-    let path_candidates = if cfg!(target_os = "windows") {
-        vec!["soffice.com", "soffice.exe"]
-    } else {
-        vec!["soffice", "libreoffice"]
-    };
-
-    for name in path_candidates {
-        if run_libreoffice_version(name).await.is_ok() {
-            return Ok(Some(name.to_string()));
-        }
-    }
-
-    Ok(None)
-}
-
-fn get_libreoffice_candidates() -> Vec<String> {
-    let mut candidates = Vec::new();
-
-    #[cfg(target_os = "windows")]
-    {
-        let program_files = std::env::var("ProgramFiles").unwrap_or_else(|_| "C:\\Program Files".to_string());
-        let program_files_x86 = std::env::var("ProgramFiles(x86)").unwrap_or_else(|_| "C:\\Program Files (x86)".to_string());
-
-        // 标准安装路径
-        for base in &[&program_files, &program_files_x86] {
-            candidates.push(format!("{}\\LibreOffice\\program\\soffice.com", base));
-            candidates.push(format!("{}\\LibreOffice\\program\\soffice.exe", base));
-        }
-
-        // 带版本号的安装路径 (LibreOffice 5/6/7/24/25)
-        for base in &[&program_files, &program_files_x86] {
-            for ver in &["5", "6", "7", "24", "25"] {
-                candidates.push(format!("{}\\LibreOffice {}\\program\\soffice.com", base, ver));
-                candidates.push(format!("{}\\LibreOffice {}\\program\\soffice.exe", base, ver));
-            }
-        }
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        candidates.push("/Applications/LibreOffice.app/Contents/MacOS/soffice".to_string());
-        // Homebrew
-        candidates.push("/opt/homebrew/bin/soffice".to_string());
-        candidates.push("/usr/local/bin/soffice".to_string());
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        candidates.push("/usr/bin/soffice".to_string());
-        candidates.push("/usr/bin/libreoffice".to_string());
-        candidates.push("/usr/local/bin/soffice".to_string());
-        candidates.push("/usr/local/bin/libreoffice".to_string());
-        // Snap
-        candidates.push("/snap/bin/libreoffice".to_string());
-        // Flatpak
-        candidates.push("/var/lib/flatpak/exports/bin/org.libreoffice.LibreOffice".to_string());
-    }
-
-    candidates
-}
-
-#[tauri::command]
-pub async fn check_asset_manager_document_converter(
-    path: String,
-) -> Result<DocumentConverterCheckResult, String> {
-    let trimmed = path.trim();
-    if trimmed.is_empty() {
-        return Ok(DocumentConverterCheckResult {
-            available: false,
-            version: None,
-            message: Some("未配置 LibreOffice 可执行文件路径".to_string()),
-        });
-    }
-
-    match run_libreoffice_version(trimmed).await {
-        Ok(version) => Ok(DocumentConverterCheckResult {
-            available: true,
-            version: Some(version),
-            message: None,
-        }),
-        Err(message) => Ok(DocumentConverterCheckResult {
-            available: false,
-            version: None,
-            message: Some(message),
-        }),
     }
 }
 
@@ -923,8 +553,18 @@ pub async fn import_asset_from_path(
     let base_path = get_asset_base_path(app.clone())?;
     let base_dir = PathBuf::from(&base_path);
     let prepared_source =
-        prepare_import_source(&app, &source_path, &original_path, &base_dir).await?;
-    let import_warnings = prepared_source.warnings.clone();
+        document_converter::prepare_import_source(&app, &source_path, &original_path, &base_dir)
+            .await?;
+    let import_warnings: Vec<AssetImportWarning> = prepared_source
+        .warnings
+        .iter()
+        .map(|w| AssetImportWarning {
+            code: w.code.clone(),
+            title: w.title.clone(),
+            message: w.message.clone(),
+            source_path: w.source_path.clone(),
+        })
+        .collect();
     let source_path = prepared_source.path.as_path();
 
     let metadata = source_path

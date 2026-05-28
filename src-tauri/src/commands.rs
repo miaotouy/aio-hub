@@ -2,6 +2,7 @@
 pub mod agent_asset_manager;
 pub mod asset_manager;
 pub mod canvas_window;
+pub mod document_converter;
 pub mod clipboard;
 pub mod config_manager;
 pub mod content_deduplicator;
@@ -32,6 +33,7 @@ pub mod window_manager;
 pub use agent_asset_manager::*;
 pub use asset_manager::*;
 pub use canvas_window::*;
+pub use document_converter::{check_asset_manager_document_converter, detect_libreoffice_path};
 pub use clipboard::*;
 pub use config_manager::*;
 pub use content_deduplicator::*;

@@ -1,7 +1,14 @@
 import { ref, watch, computed } from "vue";
+import { invoke } from "@tauri-apps/api/core";
 import { useAssetManager } from "@/composables/useAssetManager";
 import { detectMimeTypeFromBuffer } from "@/utils/fileTypeDetector";
-import { DOCX_MIME, docxToHtml, isDocxMime } from "@/utils/docxParser";
+import {
+  DOC_MIME,
+  DOCX_MIME,
+  docxToHtml,
+  isDocMime,
+  isDocxMime,
+} from "@/utils/docxParser";
 import { smartDecode } from "@/utils/encoding";
 import { mapMimeToLanguage } from "@/utils/mimeToLanguage";
 import { createModuleLogger } from "@/utils/logger";
@@ -9,6 +16,14 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 
 const logger = createModuleLogger("useDocumentViewer");
 const errorHandler = createModuleErrorHandler("useDocumentViewer");
+
+function isAbsolutePath(filePath: string): boolean {
+  return (
+    /^[a-zA-Z]:[\\/]/.test(filePath) ||
+    filePath.startsWith("\\\\") ||
+    filePath.startsWith("/")
+  );
+}
 
 export interface UseDocumentViewerOptions {
   content?: string | Uint8Array;
@@ -102,9 +117,17 @@ export function useDocumentViewer(options: UseDocumentViewerOptions) {
         // 如果内容是二进制数组
         buffer = options.content;
       } else if (options.filePath) {
-        // 如果提供了文件路径
-        const arrayBuffer = await getAssetBinary(options.filePath);
-        buffer = new Uint8Array(arrayBuffer);
+        // 如果提供的是待导入附件的绝对路径，直接读取原始文件；
+        // 已入库资产仍使用资产管理器的相对路径读取。
+        if (isAbsolutePath(options.filePath)) {
+          const bytes = await invoke<number[]>("read_file_binary", {
+            path: options.filePath,
+          });
+          buffer = new Uint8Array(bytes);
+        } else {
+          const arrayBuffer = await getAssetBinary(options.filePath);
+          buffer = new Uint8Array(arrayBuffer);
+        }
       }
 
       if (!buffer) {
@@ -127,8 +150,20 @@ export function useDocumentViewer(options: UseDocumentViewerOptions) {
       }
 
       let detectedMime: string;
-      // 优先基于文件扩展名判断 Markdown，避免内容嗅探误判
+      // 优先基于文件扩展名 / MIME 提示判断特殊文档，避免 OOXML 被嗅探成 zip。
       if (
+        isDocxMime(options.fileTypeHint) ||
+        options.fileName?.toLowerCase().endsWith(".docx")
+      ) {
+        detectedMime = DOCX_MIME;
+        logger.debug("Forced docx mode", { fileName: options.fileName });
+      } else if (
+        isDocMime(options.fileTypeHint) ||
+        options.fileName?.toLowerCase().endsWith(".doc")
+      ) {
+        detectedMime = DOC_MIME;
+        logger.debug("Forced doc mode", { fileName: options.fileName });
+      } else if (
         options.fileName?.toLowerCase().endsWith(".md") ||
         options.fileName?.toLowerCase().endsWith(".markdown")
       ) {

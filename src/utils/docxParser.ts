@@ -3,6 +3,7 @@ import DOMPurify from "dompurify";
 
 export const DOCX_MIME =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+export const DOC_MIME = "application/msword";
 
 export interface DocxImage {
   index: number;
@@ -142,15 +143,31 @@ export function isDocxMime(mimeType?: string | null): boolean {
   return mimeType === DOCX_MIME;
 }
 
+export function isDocMime(mimeType?: string | null): boolean {
+  return mimeType === DOC_MIME;
+}
+
 export function isDocxAssetLike(asset: {
   type?: string;
   mimeType?: string;
   name?: string;
 }): boolean {
   return (
-    asset.type === "document" &&
-    (isDocxMime(asset.mimeType) ||
-      asset.name?.toLowerCase().endsWith(".docx") === true)
+    isDocxMime(asset.mimeType) ||
+    asset.name?.toLowerCase().endsWith(".docx") === true
+  );
+}
+
+export function isWordDocumentAssetLike(asset: {
+  type?: string;
+  mimeType?: string;
+  name?: string;
+}): boolean {
+  const lowerName = asset.name?.toLowerCase();
+  return (
+    isDocxAssetLike(asset) ||
+    isDocMime(asset.mimeType) ||
+    lowerName?.endsWith(".doc") === true
   );
 }
 

@@ -31,6 +31,7 @@ import { generateAssetPlaceholder } from "../core/context-processors/transcripti
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";
+import { isWordDocumentAssetLike } from "@/utils/docxParser";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import DocumentViewer from "@/components/common/DocumentViewer.vue";
 import FileIcon from "@/components/common/FileIcon.vue";
@@ -154,7 +155,9 @@ const isAudio = computed(() => props.asset.type === "audio");
 const isBarLayout = computed(() => !isImage.value);
 
 // 是否为文档类型（可以点击预览）
-const isDocument = computed(() => props.asset.type === "document");
+const isDocument = computed(
+  () => props.asset.type === "document" || isWordDocumentAssetLike(props.asset)
+);
 
 // 获取文件后缀名
 const fileExtension = computed(() => {
@@ -844,6 +847,7 @@ onUnmounted(() => {
           v-if="showDocumentPreview"
           :file-path="previewFilePath"
           :file-name="asset.name"
+          :file-type-hint="asset.mimeType"
           :show-engine-switch="true"
         />
       </BaseDialog>

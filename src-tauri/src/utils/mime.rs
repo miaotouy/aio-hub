@@ -7,6 +7,28 @@ use std::path::Path;
 ///
 /// 优先使用 infer 库通过文件魔数检测，回退到扩展名映射
 pub fn guess_mime_type(path: &Path) -> String {
+    // Word/OOXML 文件容易被魔数检测误分为普通二进制或 zip 容器。
+    // 这里先信任明确扩展名，避免 Office 文档被归类为 other。
+    if let Some(ext) = path.extension() {
+        let ext_str = ext.to_string_lossy().to_lowercase();
+        match ext_str.as_str() {
+            "doc" => return "application/msword".to_string(),
+            "docx" => {
+                return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    .to_string()
+            }
+            "xlsx" => {
+                return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    .to_string()
+            }
+            "pptx" => {
+                return "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                    .to_string()
+            }
+            _ => {}
+        }
+    }
+
     // 尝试读取文件前 8KB 用于魔数检测
     if let Ok(mut file) = fs::File::open(path) {
         use std::io::Read;

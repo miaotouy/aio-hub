@@ -1,6 +1,11 @@
 import { ref, computed, type Ref, type ComputedRef } from "vue";
 import { invoke } from "@tauri-apps/api/core";
-import type { Asset, AssetImportStatus } from "@/types/asset-management";
+import { listen } from "@tauri-apps/api/event";
+import type {
+  Asset,
+  AssetImportStatus,
+  AssetImportPhase,
+} from "@/types/asset-management";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@utils/logger";
@@ -26,6 +31,14 @@ export interface AttachmentManagerOptions {
   allowedTypes?: string[];
   /** 是否自动生成缩略图 */
   generateThumbnail?: boolean;
+}
+
+/** 后端 asset-import-progress 事件的 payload */
+interface AssetImportProgressPayload {
+  originalPath: string;
+  phase: string;
+  detail: string | null;
+  convertedName: string | null;
 }
 
 export interface UseAttachmentManagerReturn {
@@ -62,6 +75,8 @@ export interface UseAttachmentManagerReturn {
   onImportComplete: (
     cb: (oldId: string, newAsset: Asset) => void
   ) => () => void;
+  /** 销毁内部监听器（组件卸载时调用） */
+  dispose: () => void;
 }
 
 /**
@@ -80,6 +95,7 @@ export function useAttachmentManager(
 
   const attachments = ref<Asset[]>([]);
   const importCallbacks = new Set<(oldId: string, newAsset: Asset) => void>();
+  let unlistenProgress: (() => void) | null = null;
 
   // 计算是否正在处理：只要有一个资产处于 pending 或 importing 状态
   const isProcessing = computed(() =>
@@ -349,6 +365,42 @@ export function useAttachmentManager(
   };
 
   /**
+   * 监听后端导入进度事件，实时更新 asset 的 importPhase
+   */
+  const setupProgressListener = async () => {
+    unlistenProgress = await listen<AssetImportProgressPayload>(
+      "asset-import-progress",
+      (event) => {
+        const { originalPath, phase, detail, convertedName } = event.payload;
+
+        // 找到对应的 pending/importing asset
+        const index = attachments.value.findIndex(
+          (a) =>
+            (a.importStatus === "pending" || a.importStatus === "importing") &&
+            a.originalPath === originalPath
+        );
+
+        if (index !== -1) {
+          const asset = attachments.value[index];
+          const updated = { ...asset };
+          updated.importPhase = phase as AssetImportPhase;
+          updated.importPhaseDetail = detail || undefined;
+
+          // 如果后端通知了转换后的文件名，更新显示名称
+          if (convertedName) {
+            updated.name = convertedName;
+          }
+
+          attachments.value.splice(index, 1, updated);
+        }
+      }
+    );
+  };
+
+  // 立即启动监听
+  setupProgressListener();
+
+  /**
    * 异步导入单个资产
    * 将 pending 状态的资产导入到存储系统
    */
@@ -363,8 +415,9 @@ export function useAttachmentManager(
     }
 
     try {
-      // 更新状态为 importing
+      // 更新状态为 importing，设置初始 phase
       pendingAsset.importStatus = "importing";
+      pendingAsset.importPhase = "queued";
 
       // 调用资产管理引擎导入
       const importResult = await assetManagerEngine.importAssetFromPathResult(
@@ -715,6 +768,10 @@ export function useAttachmentManager(
     onImportComplete: (cb) => {
       importCallbacks.add(cb);
       return () => importCallbacks.delete(cb);
+    },
+    dispose: () => {
+      unlistenProgress?.();
+      unlistenProgress = null;
     },
   };
 }

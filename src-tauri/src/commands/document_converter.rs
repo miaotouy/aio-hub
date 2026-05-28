@@ -487,6 +487,16 @@ pub async fn prepare_import_source(
         resolved.provider.label(),
         original_path_str
     );
+
+    // 发出 converting 阶段事件，通知前端正在转换文档格式
+    super::asset_manager::emit_import_progress(
+        app,
+        original_path_str,
+        "converting",
+        Some(format!("使用 {} 转换为 DOCX", resolved.provider.label())),
+        None,
+    );
+
     let converted_path = convert_legacy_doc_to_docx(original_path, &output_dir, &resolved).await?;
 
     Ok(PreparedImportSource {

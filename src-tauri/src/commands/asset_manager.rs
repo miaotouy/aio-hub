@@ -552,6 +552,9 @@ pub async fn import_asset_from_path(
 
     let base_path = get_asset_base_path(app.clone())?;
     let base_dir = PathBuf::from(&base_path);
+
+    // 阶段: preparing — 准备导入源（可能触发文档格式转换）
+    emit_import_progress(&app, &original_path, "preparing", None, None);
     let prepared_source =
         document_converter::prepare_import_source(&app, &source_path, &original_path, &base_dir)
             .await?;
@@ -567,6 +570,15 @@ pub async fn import_asset_from_path(
         .collect();
     let source_path = prepared_source.path.as_path();
 
+    // 如果发生了转换，通知前端新文件名
+    let converted_name = if prepared_source.cleanup_dir.is_some() {
+        source_path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+    } else {
+        None
+    };
+
     let metadata = source_path
         .metadata()
         .map_err(|e| format!("读取文件元数据失败: {}", e))?;
@@ -574,6 +586,9 @@ pub async fn import_asset_from_path(
 
     let mime_type = mime::guess_mime_type(source_path);
     let asset_type = determine_asset_type(&mime_type, Some(source_path));
+
+    // 阶段: hashing — 计算文件哈希（校验/去重）
+    emit_import_progress(&app, &original_path, "hashing", None, converted_name.clone());
 
     // 计算文件哈希（如果启用去重）并检查是否重复
     let file_hash = if opts.enable_deduplication {
@@ -624,6 +639,9 @@ pub async fn import_asset_from_path(
         None
     };
 
+    // 阶段: copying — 复制文件到资产库
+    emit_import_progress(&app, &original_path, "copying", None, converted_name.clone());
+
     let (uuid, relative_path) =
         generate_asset_path(&asset_type, source_path, opts.subfolder.as_ref());
     let target_path = base_dir.join(&relative_path);
@@ -658,6 +676,8 @@ pub async fn import_asset_from_path(
     let thumbnail_path = if opts.generate_thumbnail
         && (matches!(asset_type, AssetType::Image) || matches!(asset_type, AssetType::Audio))
     {
+        // 阶段: thumbnailing — 生成缩略图
+        emit_import_progress(&app, &original_path, "thumbnailing", None, converted_name);
         generate_thumbnail(&target_path, &base_dir, &uuid, &asset_type)?
     } else {
         None
@@ -1312,6 +1332,41 @@ pub fn read_text_file(app: AppHandle, relative_path: String) -> Result<String, S
     }
 
     fs::read_to_string(&file_path).map_err(|e| format!("读取文本文件失败: {}", e))
+}
+
+/// 资产导入进度事件 payload
+///
+/// 在导入过程的各个阶段发出，供前端实时展示当前步骤。
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetImportProgress {
+    /// 原始文件路径（前端用于匹配对应的 pending asset）
+    pub original_path: String,
+    /// 当前阶段标识
+    pub phase: String,
+    /// 可选的阶段详情（如转换器名称）
+    pub detail: Option<String>,
+    /// 转换后的文件名（如果发生了格式转换）
+    pub converted_name: Option<String>,
+}
+
+/// 发出资产导入进度事件
+pub fn emit_import_progress(
+    app: &AppHandle,
+    original_path: &str,
+    phase: &str,
+    detail: Option<String>,
+    converted_name: Option<String>,
+) {
+    let progress = AssetImportProgress {
+        original_path: original_path.to_string(),
+        phase: phase.to_string(),
+        detail,
+        converted_name,
+    };
+    if let Err(e) = app.emit("asset-import-progress", &progress) {
+        log::debug!("[AssetImport] 发出 asset-import-progress 事件失败: {}", e);
+    }
 }
 
 /// 重建索引进度信息

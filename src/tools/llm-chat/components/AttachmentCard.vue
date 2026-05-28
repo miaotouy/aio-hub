@@ -376,6 +376,31 @@ const isImporting = computed(
 // 是否导入失败
 const hasImportError = computed(() => props.asset.importStatus === "error");
 
+// 导入阶段的用户友好文字
+const importPhaseText = computed(() => {
+  if (!isImporting.value) return "";
+
+  const phase = props.asset.importPhase;
+  const detail = props.asset.importPhaseDetail;
+
+  switch (phase) {
+    case "converting":
+      return detail || "正在转换文档格式...";
+    case "hashing":
+      return "正在校验文件...";
+    case "copying":
+      return "正在导入到资产库...";
+    case "thumbnailing":
+      return "正在生成预览...";
+    case "preparing":
+      return "正在准备...";
+    case "queued":
+      return "等待处理...";
+    default:
+      return "处理中...";
+  }
+});
+
 // 处理点击预览
 const handlePreview = async () => {
   // 图片类型：打开图片查看器
@@ -603,82 +628,90 @@ onUnmounted(() => {
             </div>
 
             <div class="bar-meta-row">
-              <span class="bar-file-size">{{ formattedSize }}</span>
-
-              <template v-if="fileExtension">
-                <span class="bar-meta-divider">·</span>
-                <span class="bar-file-ext">{{ fileExtension }}</span>
+              <!-- 导入中：显示阶段提示替代元信息 -->
+              <template v-if="isImporting">
+                <Loader2 class="spinner-micro import-phase-spinner" />
+                <span class="import-phase-text">{{ importPhaseText }}</span>
               </template>
+              <!-- 正常状态：显示文件大小、扩展名等 -->
+              <template v-else>
+                <span class="bar-file-size">{{ formattedSize }}</span>
 
-              <!-- Token 信息 -->
-              <template v-if="tokenError || tokenCount !== undefined">
-                <span class="bar-meta-divider">·</span>
-                <el-tooltip
-                  v-if="tokenError"
-                  :content="tokenError"
-                  placement="top"
-                  :show-after="500"
-                >
+                <template v-if="fileExtension">
+                  <span class="bar-meta-divider">·</span>
+                  <span class="bar-file-ext">{{ fileExtension }}</span>
+                </template>
+
+                <!-- Token 信息 -->
+                <template v-if="tokenError || tokenCount !== undefined">
+                  <span class="bar-meta-divider">·</span>
+                  <el-tooltip
+                    v-if="tokenError"
+                    :content="tokenError"
+                    placement="top"
+                    :show-after="500"
+                  >
+                    <span
+                      class="bar-token-tag"
+                      :class="isHardTokenError ? 'error' : 'warning'"
+                    >
+                      {{ isHardTokenError ? "Token 错误" : "Token 未知" }}
+                    </span>
+                  </el-tooltip>
                   <span
+                    v-else
                     class="bar-token-tag"
-                    :class="isHardTokenError ? 'error' : 'warning'"
+                    :class="{ estimated: tokenEstimated }"
                   >
-                    {{ isHardTokenError ? "Token 错误" : "Token 未知" }}
+                    {{ tokenCount!.toLocaleString() }} tokens
                   </span>
-                </el-tooltip>
-                <span
-                  v-else
-                  class="bar-token-tag"
-                  :class="{ estimated: tokenEstimated }"
-                >
-                  {{ tokenCount!.toLocaleString() }} tokens
-                </span>
-              </template>
+                </template>
 
-              <!-- 转写状态 (长条模式) -->
-              <template v-if="isTranscribable">
-                <span class="bar-meta-divider">·</span>
-                <el-tooltip
-                  :content="transcriptionStatusText"
-                  placement="top"
-                  :show-after="500"
-                >
-                  <div
-                    class="transcription-status-icon bar-mode"
-                    :class="[
-                      transcriptionStatus,
-                      {
-                        'will-use': willUseTranscription,
-                        'wont-use': !willUseTranscription,
-                        'is-loading': isImporting,
-                      },
-                    ]"
-                    @click="handleTranscriptionClick"
+                <!-- 转写状态 (长条模式) -->
+                <template v-if="isTranscribable">
+                  <span class="bar-meta-divider">·</span>
+                  <el-tooltip
+                    :content="transcriptionStatusText"
+                    placement="top"
+                    :show-after="500"
                   >
-                    <Loader2
-                      v-if="
-                        isImporting ||
-                        transcriptionStatus === 'processing' ||
-                        transcriptionStatus === 'pending'
-                      "
-                      class="spinner-micro"
-                    />
-                    <FileText
-                      v-else-if="transcriptionStatus === 'success'"
-                      :size="12"
-                    />
-                    <TriangleAlert
-                      v-else-if="transcriptionStatus === 'warning'"
-                      :size="12"
-                    />
-                    <AlertCircle
-                      v-else-if="transcriptionStatus === 'error'"
-                      :size="12"
-                    />
-                    <!-- None 状态图标 -->
-                    <FilePenLine v-else :size="12" class="icon-none" />
-                  </div>
-                </el-tooltip>
+                    <div
+                      class="transcription-status-icon bar-mode"
+                      :class="[
+                        transcriptionStatus,
+                        {
+                          'will-use': willUseTranscription,
+                          'wont-use': !willUseTranscription,
+                          'is-loading': isImporting,
+                        },
+                      ]"
+                      @click="handleTranscriptionClick"
+                    >
+                      <Loader2
+                        v-if="
+                          isImporting ||
+                          transcriptionStatus === 'processing' ||
+                          transcriptionStatus === 'pending'
+                        "
+                        class="spinner-micro"
+                      />
+                      <FileText
+                        v-else-if="transcriptionStatus === 'success'"
+                        :size="12"
+                      />
+                      <TriangleAlert
+                        v-else-if="transcriptionStatus === 'warning'"
+                        :size="12"
+                      />
+                      <AlertCircle
+                        v-else-if="transcriptionStatus === 'error'"
+                        :size="12"
+                      />
+                      <!-- None 状态图标 -->
+                      <FilePenLine v-else :size="12" class="icon-none" />
+                    </div>
+                  </el-tooltip>
+                </template>
               </template>
             </div>
           </div>
@@ -1661,5 +1694,33 @@ onUnmounted(() => {
   width: 8px;
   height: 8px;
   animation: spin 0.8s linear infinite;
+}
+
+/* 导入阶段文字提示 */
+.import-phase-text {
+  font-size: 11px;
+  color: var(--el-color-warning);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  animation: pulse-opacity 2s ease-in-out infinite;
+}
+
+.import-phase-spinner {
+  color: var(--el-color-warning);
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes pulse-opacity {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 </style>

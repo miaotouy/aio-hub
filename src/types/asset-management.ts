@@ -65,6 +65,20 @@ export interface AssetMetadata {
 export type AssetImportStatus = "pending" | "importing" | "complete" | "error";
 
 /**
+ * 资产导入阶段（细粒度，由后端事件驱动更新）
+ *
+ * 用于在 UI 上展示当前导入步骤的具体进展。
+ * 该字段为纯前端运行时状态，不会持久化到后端。
+ */
+export type AssetImportPhase =
+  | "queued" // 排队等待处理
+  | "preparing" // 准备导入源
+  | "converting" // 转换文档格式 (如 DOC → DOCX)
+  | "hashing" // 计算文件哈希（校验/去重）
+  | "copying" // 复制文件到资产库
+  | "thumbnailing"; // 生成缩略图
+
+/**
  * 代表一个由应用管理的资产文件
  *
  * 这是核心数据结构，可被应用内任何需要引用本地文件的功能模块复用。
@@ -165,6 +179,18 @@ export interface Asset {
    * 用于在导入前进行即时预览
    */
   originalPath?: string;
+
+  /**
+   * 导入阶段（纯前端运行时状态，由后端事件驱动更新，不持久化）
+   * 用于在 AttachmentCard 等组件上展示当前处理步骤
+   */
+  importPhase?: AssetImportPhase;
+
+  /**
+   * 导入阶段详情（如 "使用 LibreOffice 转换为 DOCX"）
+   * 由后端事件携带，用于更精确的用户提示
+   */
+  importPhaseDetail?: string;
 }
 
 /**

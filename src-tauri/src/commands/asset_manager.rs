@@ -288,6 +288,10 @@ pub struct AssetMetadata {
     pub duration: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sha256: Option<String>,
+    /// 入库前原始文件的 SHA-256。用于记录转换类资产（如 DOC -> DOCX）的源文件哈希，
+    /// 让后续导入可以在转换前完成去重。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub original_sha256: Option<String>,
     /// 衍生数据映射表，key 为类型 (e.g., "transcription", "ocr")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub derived: Option<HashMap<String, DerivedDataInfo>>,
@@ -432,6 +436,49 @@ fn calculate_file_hash(path: &Path) -> Result<String, String> {
     Ok(format!("{:x}", result))
 }
 
+fn build_import_origin(
+    opts: &AssetImportOptions,
+    default_type: AssetOriginType,
+    default_source: String,
+    default_module: &str,
+) -> AssetOrigin {
+    opts.origin.clone().unwrap_or_else(|| AssetOrigin {
+        origin_type: default_type,
+        source: default_source,
+        source_module: opts
+            .source_module
+            .clone()
+            .unwrap_or_else(|| default_module.to_string()),
+    })
+}
+
+fn add_origin_to_existing_asset(
+    app: &AppHandle,
+    catalog: &AssetCatalog,
+    base_dir: &Path,
+    mut existing_asset: Asset,
+    new_origin: AssetOrigin,
+) -> Result<Asset, String> {
+    if !existing_asset
+        .origins
+        .iter()
+        .any(|o| o.source_module == new_origin.source_module)
+    {
+        existing_asset.origins.push(new_origin.clone());
+
+        {
+            let mut entries = catalog.entries.write().map_err(|e| e.to_string())?;
+            if let Some(entry) = entries.get_mut(&existing_asset.id) {
+                entry.origins.push(new_origin);
+                existing_asset = convert_entry_to_asset(entry.clone(), base_dir);
+            }
+        }
+        catalog.mark_dirty(app);
+    }
+
+    Ok(existing_asset)
+}
+
 /// 生成资产的存储路径
 /// 格式:
 /// - 如果提供了 subfolder: {subfolder}/{UUID}.{扩展名}
@@ -553,6 +600,54 @@ pub async fn import_asset_from_path(
     let base_path = get_asset_base_path(app.clone())?;
     let base_dir = PathBuf::from(&base_path);
 
+    let original_mime_type = mime::guess_mime_type(&source_path);
+    let original_asset_type = determine_asset_type(&original_mime_type, Some(&source_path));
+
+    // 先对原始文件计算哈希。对于需要转换的文档，这一步可以在启动转换器前命中去重。
+    let pre_conversion_hash = if opts.enable_deduplication {
+        emit_import_progress(
+            &app,
+            &original_path,
+            "hashing",
+            Some("计算原始文件哈希".to_string()),
+            None,
+        );
+        let hash = calculate_file_hash(&source_path)?;
+        let duplicate = {
+            let entries = catalog.entries.read().map_err(|e| e.to_string())?;
+            check_duplicate_in_current_month(&base_dir, &original_asset_type, &hash, &entries)?
+        };
+
+        if let Some(existing_asset) = duplicate {
+            let new_origin = build_import_origin(
+                &opts,
+                AssetOriginType::Local,
+                original_path.clone(),
+                "unknown",
+            );
+            let existing_asset = add_origin_to_existing_asset(
+                &app,
+                &catalog,
+                &base_dir,
+                existing_asset,
+                new_origin,
+            )?;
+
+            if let Err(e) = app.emit("asset-imported", &existing_asset) {
+                log::error!("发出 asset-imported 事件失败 (重复资产): {}", e);
+            }
+
+            return Ok(AssetImportResult {
+                asset: existing_asset,
+                warnings: Vec::new(),
+            });
+        }
+
+        Some(hash)
+    } else {
+        None
+    };
+
     // 阶段: preparing — 准备导入源（可能触发文档格式转换）
     emit_import_progress(&app, &original_path, "preparing", None, None);
     let prepared_source =
@@ -587,42 +682,45 @@ pub async fn import_asset_from_path(
     let mime_type = mime::guess_mime_type(source_path);
     let asset_type = determine_asset_type(&mime_type, Some(source_path));
 
-    // 阶段: hashing — 计算文件哈希（校验/去重）
-    emit_import_progress(&app, &original_path, "hashing", None, converted_name.clone());
-
-    // 计算文件哈希（如果启用去重）并检查是否重复
+    // 计算入库文件哈希（如果启用去重）并检查转换后的重复项。
     let file_hash = if opts.enable_deduplication {
-        let hash = calculate_file_hash(source_path)?;
-
-        // 从内存 Catalog 检查重复
-        let duplicate = {
-            let entries = catalog.entries.read().map_err(|e| e.to_string())?;
-            check_duplicate_in_current_month(&base_dir, &asset_type, &hash, &entries)?
+        let hash = if prepared_source.cleanup_dir.is_some() {
+            emit_import_progress(
+                &app,
+                &original_path,
+                "hashing",
+                Some("计算转换后文件哈希".to_string()),
+                converted_name.clone(),
+            );
+            calculate_file_hash(source_path)?
+        } else {
+            pre_conversion_hash
+                .clone()
+                .ok_or_else(|| "原始文件哈希缺失".to_string())?
         };
 
-        if let Some(mut existing_asset) = duplicate {
-            let new_origin = opts.origin.unwrap_or_else(|| AssetOrigin {
-                origin_type: AssetOriginType::Local,
-                source: original_path.clone(),
-                source_module: opts.source_module.unwrap_or_else(|| "unknown".to_string()),
-            });
+        let duplicate = if prepared_source.cleanup_dir.is_some() {
+            // 如果是转换后的文件，再用转换后哈希兜底检查一次旧数据或同内容转换结果。
+            let entries = catalog.entries.read().map_err(|e| e.to_string())?;
+            check_duplicate_in_current_month(&base_dir, &asset_type, &hash, &entries)?
+        } else {
+            None
+        };
 
-            if !existing_asset
-                .origins
-                .iter()
-                .any(|o| o.source_module == new_origin.source_module)
-            {
-                existing_asset.origins.push(new_origin.clone());
-
-                // 更新内存 Catalog
-                {
-                    let mut entries = catalog.entries.write().map_err(|e| e.to_string())?;
-                    if let Some(entry) = entries.get_mut(&existing_asset.id) {
-                        entry.origins.push(new_origin);
-                    }
-                }
-                catalog.mark_dirty(&app);
-            }
+        if let Some(existing_asset) = duplicate {
+            let new_origin = build_import_origin(
+                &opts,
+                AssetOriginType::Local,
+                original_path.clone(),
+                "unknown",
+            );
+            let existing_asset = add_origin_to_existing_asset(
+                &app,
+                &catalog,
+                &base_dir,
+                existing_asset,
+                new_origin,
+            )?;
 
             if let Err(e) = app.emit("asset-imported", &existing_asset) {
                 log::error!("发出 asset-imported 事件失败 (重复资产): {}", e);
@@ -640,7 +738,13 @@ pub async fn import_asset_from_path(
     };
 
     // 阶段: copying — 复制文件到资产库
-    emit_import_progress(&app, &original_path, "copying", None, converted_name.clone());
+    emit_import_progress(
+        &app,
+        &original_path,
+        "copying",
+        None,
+        converted_name.clone(),
+    );
 
     let (uuid, relative_path) =
         generate_asset_path(&asset_type, source_path, opts.subfolder.as_ref());
@@ -663,6 +767,11 @@ pub async fn import_asset_from_path(
         height: None,
         duration: None,
         sha256: file_hash.clone(),
+        original_sha256: if prepared_source.cleanup_dir.is_some() {
+            pre_conversion_hash.clone()
+        } else {
+            None
+        },
         derived: None,
     };
 
@@ -820,6 +929,7 @@ pub async fn import_asset_from_bytes(
         height: None,
         duration: None,
         sha256: file_hash.clone(),
+        original_sha256: None,
         derived: None,
     };
 
@@ -932,8 +1042,16 @@ impl MonthHashIndex {
     }
 
     fn insert(&mut self, hash: String, filename: String) {
-        self.entries.entry(hash).or_default().push(filename);
+        let filenames = self.entries.entry(hash).or_default();
+        if !filenames.iter().any(|existing| existing == &filename) {
+            filenames.push(filename);
+        }
     }
+}
+
+fn catalog_entry_matches_hash(entry: &CatalogEntry, file_hash: &str) -> bool {
+    entry.sha256.as_deref() == Some(file_hash)
+        || entry.original_sha256.as_deref() == Some(file_hash)
 }
 
 /// 检查当月目录中是否已存在相同哈希的文件（使用索引优化）
@@ -989,6 +1107,15 @@ fn check_duplicate_in_current_month(
             );
             return Ok(Some(build_asset_from_path(&file_path, base_dir)?));
         }
+    }
+
+    let relative_prefix = format!("{}/{}/", type_dir, year_month);
+    if let Some(entry) = catalog_entries.values().find(|entry| {
+        entry.asset_type == *asset_type
+            && entry.path.starts_with(&relative_prefix)
+            && catalog_entry_matches_hash(entry, file_hash)
+    }) {
+        return Ok(Some(convert_entry_to_asset(entry.clone(), base_dir)));
     }
 
     Ok(None)
@@ -1289,6 +1416,7 @@ fn build_asset_from_path(file_path: &Path, base_dir: &Path) -> Result<Asset, Str
         height: None,
         duration: None,
         sha256: file_hash,
+        original_sha256: None,
         derived: None,
     };
 
@@ -1737,6 +1865,8 @@ pub(crate) struct CatalogEntry {
     origins: Vec<AssetOrigin>,
     sha256: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    original_sha256: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     derived: Option<HashMap<String, DerivedDataInfo>>,
 
     // 旧版本字段，仅用于向后兼容
@@ -1796,6 +1926,10 @@ fn convert_asset_to_catalog_entry(asset: &Asset) -> CatalogEntry {
         created_at: asset.created_at.clone(),
         origins: asset.origins.clone(),
         sha256: asset.metadata.as_ref().and_then(|m| m.sha256.clone()),
+        original_sha256: asset
+            .metadata
+            .as_ref()
+            .and_then(|m| m.original_sha256.clone()),
         derived: asset.metadata.as_ref().and_then(|m| m.derived.clone()),
         // 旧字段设为 None，仅用于反序列化兼容
         source_module: None,
@@ -1834,6 +1968,7 @@ fn convert_entry_to_asset(entry: CatalogEntry, base_dir: &Path) -> Asset {
             height: None,
             duration: None,
             sha256: entry.sha256,
+            original_sha256: entry.original_sha256,
             derived: entry.derived,
         }),
     }
@@ -2057,6 +2192,10 @@ pub async fn rebuild_catalog_index(
                 asset.origins = old_entry.origins.clone();
                 if let Some(first_origin) = asset.origins.first() {
                     asset.source_module = first_origin.source_module.clone();
+                }
+                if let Some(metadata) = asset.metadata.as_mut() {
+                    metadata.original_sha256 = old_entry.original_sha256.clone();
+                    metadata.derived = old_entry.derived.clone();
                 }
             }
 

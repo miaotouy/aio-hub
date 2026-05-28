@@ -55,6 +55,8 @@ export interface AssetMetadata {
   duration?: number;
   /** 文件 SHA-256 哈希值，用于去重 */
   sha256?: string;
+  /** 转换前原始文件 SHA-256，用于 DOC 等转换类资产在转换前去重 */
+  originalSha256?: string;
   /** 衍生数据映射表，key 为类型 (e.g., "transcription", "ocr") */
   derived?: Record<string, DerivedDataInfo>;
 }

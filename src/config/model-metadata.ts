@@ -234,6 +234,15 @@ export function normalizeIconPath(iconPath: string): string {
 }
 
 /**
+ * 检查 /model-icons/ 路径是否存在于内置 Lobe 图标或本地图标库中。
+ * @param iconPath 图标路径
+ * @returns 是否存在
+ */
+export function isAvailableModelIconPath(iconPath: string): boolean {
+  return (AVAILABLE_ICONS as readonly string[]).includes(iconPath);
+}
+
+/**
  * 验证图标路径是否有效
  * @param iconPath 图标路径
  * @returns 是否有效
@@ -247,6 +256,10 @@ export function isValidIconPath(iconPath: string): boolean {
   const hasValidExtension = validExtensions.some((ext) =>
     iconPath.toLowerCase().endsWith(ext)
   );
+
+  if (iconPath.startsWith("/model-icons/")) {
+    return isAvailableModelIconPath(iconPath);
+  }
 
   return hasValidExtension;
 }

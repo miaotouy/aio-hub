@@ -29,6 +29,12 @@ export const USER_ADDED_ICONS: PresetIconInfo[] = [
     suggestedFor: ["funaudiollm", "cosyvoice", "sensevoice"],
     category: "国内 AI",
   },
+  {
+    name: "SkyReels",
+    path: "skyreels.svg",
+    suggestedFor: ["skyreels", "kunlun", "kunlunwanwei"],
+    category: "多媒体/创意",
+  },
 ];
 
 /**

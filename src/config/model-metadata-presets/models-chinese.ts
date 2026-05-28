@@ -212,7 +212,6 @@ export const chineseModelRules: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "minicpm",
     properties: {
-      icon: `/model-icons/minicpm-color.svg`,
       group: "MiniCPM",
       tokenizer: "llama3_2",
       defaultPostProcessingRules: [
@@ -340,7 +339,7 @@ export const chineseModelRules: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "mimo",
     properties: {
-      icon: `/model-icons/xiaomi.svg`,
+      icon: `/model-icons/xiaomimimo.svg`,
       group: "Xiaomi",
       description: "小米 MiMo 系列模型",
     },

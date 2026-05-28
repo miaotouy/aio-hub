@@ -988,18 +988,41 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   /**
    * 自动生成会话标题
    */
-  async function generateSessionTopic(sessionId?: string): Promise<void> {
+  async function generateSessionTopic(
+    sessionId?: string,
+    force?: boolean
+  ): Promise<void> {
     const id = sessionId || currentSessionId.value;
-    if (!id) return;
+    if (!id) {
+      logger.warn("generateSessionTopic: 无有效 sessionId，退出");
+      return;
+    }
 
     const index = sessionIndexMap.value.get(id);
     const detail = sessionDetailMap.value.get(id);
-    if (!index || !detail) return;
+    if (!index || !detail) {
+      logger.warn("generateSessionTopic: index 或 detail 不存在，退出", {
+        sessionId: id,
+        hasIndex: !!index,
+        hasDetail: !!detail,
+        detailMapSize: sessionDetailMap.value.size,
+      });
+      return;
+    }
 
     const { useTopicNamer } = await import("../composables/chat/useTopicNamer");
     const { shouldAutoName, generateTopicName } = useTopicNamer();
 
-    if (shouldAutoName(detail, sessionIndexMap.value)) {
+    // force 模式跳过 shouldAutoName 检查（用于手动触发）
+    const shouldName = force || shouldAutoName(detail, sessionIndexMap.value);
+    logger.info("generateSessionTopic: 命名检查", {
+      sessionId: id,
+      shouldName,
+      force: !!force,
+      sessionName: index.name,
+    });
+
+    if (shouldName) {
       try {
         await generateTopicName(
           detail,

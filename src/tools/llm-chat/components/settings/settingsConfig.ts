@@ -628,7 +628,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         props: {
           capabilities: { embedding: false, rerank: false },
         },
-        hint: "用于生成会话标题的 LLM 模型。留空则使用全局默认模型。",
+        hint: "用于生成会话标题的 LLM 模型。留空则使用全局默认模型。<br /><span style='color: var(--el-color-warning)'>不建议使用推理/思考模型（如 DeepSeek V4 等），它们可能将输出消耗在思考过程中而返回空内容。</span>",
         keywords: "topic naming model 话题 命名 模型",
         visible: (settings) => settings.topicNaming.enabled,
         defaultValue: "",

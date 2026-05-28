@@ -235,14 +235,18 @@ export function useSessionsSidebarLogic({
   };
 
   const handleGenerateName = async (session: ChatSessionIndex) => {
+    const originalName = session.name;
     const llmChatStore = (
       await import("../../stores/llmChatStore")
     ).useLlmChatStore();
-    await llmChatStore.generateSessionTopic(session.id);
+    // 手动触发使用 force 模式，跳过 shouldAutoName 检查
+    await llmChatStore.generateSessionTopic(session.id, true);
     const result = llmChatStore.sessionIndexMap.get(session.id)?.name;
-    if (result && result !== session.name) {
+    if (result && result !== originalName) {
       customMessage.success(`标题已生成：${result}`);
       emit("session-updated");
+    } else if (result === originalName) {
+      customMessage.warning("标题生成失败或未产生有效标题");
     }
   };
   return {

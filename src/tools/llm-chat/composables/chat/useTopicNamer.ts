@@ -15,15 +15,14 @@ import { useNodeManager } from "../session/useNodeManager";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import { formatDateTime } from "@/utils/time";
 
 const logger = createModuleLogger("llm-chat/topic-namer");
 const errorHandler = createModuleErrorHandler("llm-chat/topic-namer");
 
-export function useTopicNamer() {
-  // 正在生成标题的会话 ID 集合
-  const generatingSessionIds = ref<Set<string>>(new Set());
+// 模块级共享状态，确保所有 useTopicNamer() 实例共享同一个生成状态
+const generatingSessionIds = ref<Set<string>>(new Set());
 
+export function useTopicNamer() {
   /**
    * 检查会话是否正在生成标题
    */
@@ -137,7 +136,7 @@ export function useTopicNamer() {
         ? namingConfig.prompt.replace("{context}", contextText)
         : `${namingConfig.prompt}\n\n${contextText}`;
 
-      // 发送请求生成标题
+      // 发送请求生成标题（禁用推理/思考以确保内容直接输出）
       const { sendRequest } = useLlmRequest();
       const response = await sendRequest({
         profileId,
@@ -146,10 +145,18 @@ export function useTopicNamer() {
         temperature: namingConfig.temperature,
         maxTokens: namingConfig.maxTokens,
         stream: false,
+        thinkingEnabled: false,
       });
 
       // 清理生成的标题
       let generatedTitle = response.content.trim();
+      if (!generatedTitle) {
+        logger.warn("LLM 返回空 content，推理模型可能不适合用于话题命名", {
+          sessionId: session.id,
+          hasReasoningContent: !!response.reasoningContent,
+        });
+        return null;
+      }
       if (
         (generatedTitle.startsWith('"') && generatedTitle.endsWith('"')) ||
         (generatedTitle.startsWith("'") && generatedTitle.endsWith("'"))
@@ -166,7 +173,8 @@ export function useTopicNamer() {
       }
 
       if (!generatedTitle) {
-        generatedTitle = `会话 ${formatDateTime(new Date(), "yyyy-MM-dd HH:mm:ss")}`;
+        logger.warn("生成标题为空，放弃更新", { sessionId: session.id });
+        return null;
       }
 
       logger.info("会话标题生成成功", {
@@ -204,8 +212,9 @@ export function useTopicNamer() {
   };
 
   /**
-   * 检查会话是否需要自动命名
-   */
+   /**
+    * 检查会话是否需要自动命名
+    */
   const shouldAutoName = (
     session: ChatSessionDetail,
     sessionIndexMap: Map<string, ChatSessionIndex>
@@ -213,15 +222,31 @@ export function useTopicNamer() {
     const { settings } = useChatSettings();
     const namingConfig = settings.value.topicNaming;
 
-    if (!namingConfig.enabled) return false;
+    if (!namingConfig.enabled) {
+      logger.warn("shouldAutoName: 话题命名未启用", {
+        enabled: namingConfig.enabled,
+      });
+      return false;
+    }
 
     const modelIdentifier =
       namingConfig.modelIdentifier ||
       settings.value.modelPreferences.defaultModel;
-    if (!modelIdentifier) return false;
+    if (!modelIdentifier) {
+      logger.warn("shouldAutoName: 无模型标识符", {
+        namingModel: namingConfig.modelIdentifier,
+        defaultModel: settings.value.modelPreferences.defaultModel,
+      });
+      return false;
+    }
 
     const index = sessionIndexMap.get(session.id);
     if (!index || !index.name.startsWith("会话")) {
+      logger.warn("shouldAutoName: 会话名称不符合条件", {
+        sessionId: session.id,
+        hasIndex: !!index,
+        name: index?.name,
+      });
       return false;
     }
 
@@ -235,9 +260,19 @@ export function useTopicNamer() {
         node.role === "user" && node.isEnabled !== false
     ).length;
 
-    return userMessageCount >= namingConfig.autoTriggerThreshold;
-  };
+    if (userMessageCount < namingConfig.autoTriggerThreshold) {
+      logger.warn("shouldAutoName: 用户消息数量不足", {
+        sessionId: session.id,
+        userMessageCount,
+        threshold: namingConfig.autoTriggerThreshold,
+        activeLeafId: session.activeLeafId,
+        pathLength: activePath.length,
+      });
+      return false;
+    }
 
+    return true;
+  };
   return {
     generateTopicName,
     shouldAutoName,

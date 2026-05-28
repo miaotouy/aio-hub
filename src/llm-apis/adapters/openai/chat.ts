@@ -211,11 +211,11 @@ export const callOpenAiChatApi = async (
   // 注入 extra_body (DeepSeek 思考模式等需要)
   // 如果同时存在 options.extraBody 和 thinkingEnabled，进行合并
   if (
-    options.thinkingEnabled &&
-    options.modelId.toLowerCase().includes("deepseek")
+    options.modelId.toLowerCase().includes("deepseek") &&
+    options.thinkingEnabled !== undefined
   ) {
     body.extra_body = {
-      thinking: { type: "enabled" },
+      thinking: { type: options.thinkingEnabled ? "enabled" : "disabled" },
       ...(options.extraBody || {}),
     };
   } else if (options.extraBody) {

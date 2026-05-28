@@ -258,84 +258,15 @@
             'list-view': viewMode === 'list',
           }"
         >
-          <div
+          <ModelMetadataConfigCard
             v-for="config in paginatedConfigs"
             :key="config.id"
-            class="config-item"
-            :class="{ disabled: config.enabled === false }"
-          >
-            <DynamicIcon
-              class="config-icon"
-              :src="getDisplayIconPath(config.properties?.icon || '')"
-              :alt="config.matchValue"
-            />
-
-            <div class="config-info">
-              <div class="config-header">
-                <el-tag
-                  :type="getMatchTypeTagType(config.matchType)"
-                  effect="plain"
-                  >{{ getMatchTypeLabel(config.matchType) }}</el-tag
-                >
-                <el-tag
-                  v-if="config.useRegex"
-                  type="success"
-                  effect="plain"
-                  title="使用正则表达式"
-                  >RegEx</el-tag
-                >
-                <span class="config-value">{{ config.matchValue }}</span>
-              </div>
-              <div v-if="config.properties?.group" class="config-group">
-                分组: {{ config.properties.group }}
-              </div>
-              <div v-if="config.priority" class="config-priority">
-                优先级: {{ config.priority }}
-              </div>
-              <div v-if="config.description" class="config-description">
-                {{ config.description }}
-              </div>
-              <div class="config-path">{{ config.properties?.icon }}</div>
-            </div>
-
-            <div
-              v-if="config.createdAt"
-              class="config-created-date"
-              :title="`创建于 ${formatDateTime(config.createdAt)}`"
-            >
-              {{ formatDate(config.createdAt) }}
-            </div>
-
-            <div class="config-actions">
-              <el-button
-                text
-                circle
-                @click="toggleConfig(config.id)"
-                :title="config.enabled === false ? '启用' : '禁用'"
-              >
-                <el-icon
-                  ><Select v-if="config.enabled !== false" />
-                  <Close v-else />
-                </el-icon>
-              </el-button>
-              <el-button text circle @click="handleEdit(config)" title="编辑">
-                <el-icon>
-                  <Edit />
-                </el-icon>
-              </el-button>
-              <el-button
-                text
-                circle
-                type="danger"
-                @click="handleDelete(config.id)"
-                title="删除"
-              >
-                <el-icon>
-                  <Delete />
-                </el-icon>
-              </el-button>
-            </div>
-          </div>
+            :config="config"
+            :view-mode="viewMode"
+            @toggle="toggleConfig"
+            @edit="handleEdit"
+            @delete="handleDelete"
+          />
         </div>
       </div>
 
@@ -394,22 +325,15 @@ import { ref, computed } from "vue";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import { formatDateTime } from "@/utils/time";
 import { useModelMetadata } from "@composables/useModelMetadata";
 import type {
   ModelMetadataRule,
   MetadataMatchType,
 } from "../../../types/model-metadata";
 import ModelMetadataConfigEditor from "./components/ModelMetadataConfigEditor.vue";
+import ModelMetadataConfigCard from "./components/ModelMetadataConfigCard.vue";
 import IconPresetSelector from "@components/common/IconPresetSelector.vue";
-import {
-  Edit,
-  Delete,
-  Select,
-  Close,
-  Grid,
-  List,
-} from "@element-plus/icons-vue";
+import { Grid, List } from "@element-plus/icons-vue";
 import { RefreshCw } from "lucide-vue-next";
 import DynamicIcon from "@components/common/DynamicIcon.vue";
 
@@ -738,31 +662,6 @@ function handleImport() {
 function dismissBanner() {
   bannerDismissed.value = true;
 }
-
-// 格式化日期（简短格式）
-function formatDate(dateString: string): string {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffInMs = now.getTime() - date.getTime();
-  const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
-
-  if (diffInDays === 0) {
-    return "今天";
-  } else if (diffInDays === 1) {
-    return "昨天";
-  } else if (diffInDays < 7) {
-    return `${diffInDays}天前`;
-  } else if (diffInDays < 30) {
-    const weeks = Math.floor(diffInDays / 7);
-    return `${weeks}周前`;
-  } else if (diffInDays < 365) {
-    const months = Math.floor(diffInDays / 30);
-    return `${months}月前`;
-  } else {
-    const years = Math.floor(diffInDays / 365);
-    return `${years}年前`;
-  }
-}
 </script>
 
 <style scoped>
@@ -1063,181 +962,11 @@ function formatDate(dateString: string): string {
   align-items: start;
 }
 
-.configs-list.grid-view .config-item {
-  display: grid;
-  grid-template-columns: auto 1fr; /* Icon and content */
-  grid-template-rows: 1fr auto; /* Info and actions */
-  grid-template-areas:
-    "icon info"
-    "icon actions";
-  gap: 0.5rem 1rem; /* row-gap column-gap */
-  padding: 1rem;
-  background: var(--container-bg);
-  border: var(--border-width) solid var(--border-color);
-  border-radius: 12px;
-  transition: all 0.2s;
-  align-items: center;
-  backdrop-filter: blur(var(--ui-blur));
-}
-
-.configs-list.grid-view .config-icon {
-  grid-area: icon;
-  width: 64px;
-  height: 64px;
-  margin: 0;
-  flex-shrink: 0;
-}
-
-.configs-list.grid-view .config-info {
-  grid-area: info;
-  min-width: 0;
-  text-align: left;
-}
-
-.configs-list.grid-view .config-header {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-}
-
-.configs-list.grid-view .config-value {
-  word-break: break-all;
-}
-
-.configs-list.grid-view .config-created-date {
-  grid-area: actions;
-  justify-self: start;
-  align-self: center;
-  margin-right: auto;
-}
-
-.configs-list.grid-view .config-actions {
-  grid-area: actions;
-  display: flex;
-  gap: 0.5rem;
-  justify-content: flex-end;
-  flex-shrink: 0;
-  margin-top: 0;
-}
-
 /* 列表视图 */
 .configs-list.list-view {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-}
-
-.configs-list.list-view .config-item {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem;
-  background: var(--container-bg);
-  border: var(--border-width) solid var(--border-color);
-  border-radius: 4px;
-  transition: all 0.2s;
-}
-
-.configs-list.list-view .config-icon {
-  width: 40px;
-  height: 40px;
-  flex-shrink: 0;
-}
-
-.configs-list.list-view .config-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.configs-list.list-view .config-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  margin-bottom: 0.25rem;
-}
-
-.configs-list.list-view .config-actions {
-  display: flex;
-  gap: 0.25rem;
-  flex-shrink: 0;
-}
-
-/* 通用配置项样式 */
-.config-item.disabled {
-  opacity: 0.5;
-}
-
-.config-item:hover {
-  border-color: var(--primary-color);
-}
-
-.configs-list.grid-view .config-icon {
-  border-radius: 4px;
-}
-.configs-list.list-view .config-icon {
-  border-radius: 4px;
-}
-
-.config-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.config-header {
-  margin-bottom: 0.25rem;
-}
-
-.config-value {
-  font-weight: 500;
-  font-family: "Consolas", "Monaco", monospace;
-}
-
-.config-group {
-  font-size: 0.85rem;
-  color: var(--primary-color);
-  font-weight: 500;
-}
-
-.config-priority {
-  font-size: 0.85rem;
-  color: var(--text-color-light);
-}
-
-.config-description {
-  font-size: 0.85rem;
-  color: var(--text-color-light);
-  margin-bottom: 0.25rem;
-}
-
-.config-path {
-  font-size: 0.75rem;
-  color: var(--text-color-light);
-  font-family: "Consolas", "Monaco", monospace;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.config-created-date {
-  font-size: 0.75rem;
-  color: var(--text-color-light);
-  white-space: nowrap;
-  opacity: 0.7;
-}
-
-.config-actions {
-  display: flex;
-  gap: 0.25rem;
-  flex-shrink: 0;
-}
-
-.config-actions .el-button {
-  margin: 0;
 }
 
 /* 分页样式 */

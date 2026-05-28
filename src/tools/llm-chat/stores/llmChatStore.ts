@@ -999,12 +999,50 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     }
 
     const index = sessionIndexMap.value.get(id);
-    const detail = sessionDetailMap.value.get(id);
-    if (!index || !detail) {
-      logger.warn("generateSessionTopic: index 或 detail 不存在，退出", {
+    if (!index) {
+      logger.warn("generateSessionTopic: index 不存在，退出", {
         sessionId: id,
-        hasIndex: !!index,
-        hasDetail: !!detail,
+        detailMapSize: sessionDetailMap.value.size,
+      });
+      return;
+    }
+
+    let detail = sessionDetailMap.value.get(id);
+    if (!detail) {
+      const { useChatStorageSeparated } =
+        await import("../composables/storage/useChatStorageSeparated");
+      const storage = useChatStorageSeparated();
+      const fullSession = await storage.loadSession(id);
+
+      if (fullSession && fullSession.detail) {
+        const {
+          nodes,
+          rootNodeId,
+          activeLeafId,
+          history,
+          historyIndex,
+          updatedAt,
+        } = fullSession.detail;
+
+        detail = {
+          id,
+          nodes: nodes!,
+          rootNodeId: rootNodeId!,
+          activeLeafId: activeLeafId!,
+          updatedAt: updatedAt || fullSession.index.updatedAt,
+          history: history && history.length > 0 ? (history as any) : [],
+          historyIndex: historyIndex !== undefined ? historyIndex : -1,
+        };
+        sessionDetailMap.value.set(id, detail);
+        logger.info("generateSessionTopic: 会话详情按需加载完成", {
+          sessionId: id,
+        });
+      }
+    }
+
+    if (!detail) {
+      logger.warn("generateSessionTopic: detail 不存在，退出", {
+        sessionId: id,
         detailMapSize: sessionDetailMap.value.size,
       });
       return;

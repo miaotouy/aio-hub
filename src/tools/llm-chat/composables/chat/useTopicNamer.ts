@@ -13,14 +13,25 @@ import { useChatSettings } from "../settings/useChatSettings";
 import { useSessionManager } from "../session/useSessionManager";
 import { useNodeManager } from "../session/useNodeManager";
 import { useLlmRequest } from "@/composables/useLlmRequest";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { useRichTextRendererStore } from "@/tools/rich-text-renderer/stores/store";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import {
+  TOPIC_NAMING_SYSTEM_PROMPT,
+  buildTopicNamingRequestOptions,
+  extractTopicTitle,
+  isLikelyResponseFormatError,
+  sanitizeTopicContextContent,
+  shouldUseTopicStructuredOutput,
+} from "../../utils/topicNamingUtils";
 
 const logger = createModuleLogger("llm-chat/topic-namer");
 const errorHandler = createModuleErrorHandler("llm-chat/topic-namer");
 
 // 模块级共享状态，确保所有 useTopicNamer() 实例共享同一个生成状态
 const generatingSessionIds = ref<Set<string>>(new Set());
+const unsupportedStructuredOutputModelKeys = new Set<string>();
 
 export function useTopicNamer() {
   /**
@@ -73,7 +84,7 @@ export function useTopicNamer() {
       }
 
       // 确定使用的模型标识符
-      let modelIdentifier =
+      const modelIdentifier =
         namingConfig.modelIdentifier ||
         settings.value.modelPreferences.defaultModel;
 
@@ -94,6 +105,36 @@ export function useTopicNamer() {
       if (!profileId || !modelId) {
         throw new Error("模型标识符格式错误");
       }
+
+      const {
+        getProfileById,
+        loadProfiles,
+        isLoaded: profilesLoaded,
+      } = useLlmProfiles();
+      if (!profilesLoaded.value) {
+        await loadProfiles();
+      }
+
+      const profile = getProfileById(profileId);
+      const model = profile?.models.find((item) => item.id === modelId);
+      const modelCapabilities = model?.capabilities;
+      const structuredOutputModelKey = `${profileId}:${modelId}`;
+      const canTryStructuredOutput =
+        shouldUseTopicStructuredOutput({
+          profileType: profile?.type,
+          modelId,
+          modelProvider: model?.provider,
+        }) &&
+        !unsupportedStructuredOutputModelKeys.has(structuredOutputModelKey);
+      const isThinkingModel = !!(
+        modelCapabilities?.thinking ||
+        (modelCapabilities?.thinkingConfigType &&
+          modelCapabilities.thinkingConfigType !== "none")
+      );
+      const richTextRendererStore = useRichTextRendererStore();
+      const thinkTagNames = richTextRendererStore.llmThinkRules
+        .map((rule) => rule.tagName)
+        .filter(Boolean);
 
       // 获取会话的最新消息作为上下文
       const nodeManager = useNodeManager();
@@ -127,53 +168,128 @@ export function useTopicNamer() {
       const contextText = contextMessages
         .map((node: ChatMessageNode) => {
           const role = node.role === "user" ? "用户" : "助手";
-          return `${role}: ${node.content}`;
+          const content = sanitizeTopicContextContent(
+            node.content,
+            thinkTagNames
+          );
+          return content ? `${role}: ${content}` : "";
         })
+        .filter(Boolean)
         .join("\n\n");
 
-      // 构建最终的提示词
-      let finalPrompt = namingConfig.prompt.includes("{context}")
-        ? namingConfig.prompt.replace("{context}", contextText)
-        : `${namingConfig.prompt}\n\n${contextText}`;
-
-      // 发送请求生成标题（禁用推理/思考以确保内容直接输出）
-      const { sendRequest } = useLlmRequest();
-      const response = await sendRequest({
-        profileId,
-        modelId,
-        messages: [{ role: "user", content: finalPrompt }],
-        temperature: namingConfig.temperature,
-        maxTokens: namingConfig.maxTokens,
-        stream: false,
-        thinkingEnabled: false,
-      });
-
-      // 清理生成的标题
-      let generatedTitle = response.content.trim();
-      if (!generatedTitle) {
-        logger.warn("LLM 返回空 content，推理模型可能不适合用于话题命名", {
-          sessionId: session.id,
-          hasReasoningContent: !!response.reasoningContent,
-        });
+      if (!contextText) {
+        logger.warn("会话消息清洗后没有可用内容", { sessionId: session.id });
         return null;
       }
-      if (
-        (generatedTitle.startsWith('"') && generatedTitle.endsWith('"')) ||
-        (generatedTitle.startsWith("'") && generatedTitle.endsWith("'"))
-      ) {
-        generatedTitle = generatedTitle.slice(1, -1).trim();
-      }
-      generatedTitle = generatedTitle
-        .replace(/[。！？，、；：""''（）《》【】…—·\.,!?;:\(\)\[\]<>]$/g, "")
-        .trim();
 
-      const maxTitleLength = 50;
-      if (generatedTitle.length > maxTitleLength) {
-        generatedTitle = generatedTitle.substring(0, maxTitleLength) + "...";
+      // 构建最终的提示词
+      const finalPrompt = namingConfig.prompt.includes("{context}")
+        ? namingConfig.prompt.split("{context}").join(contextText)
+        : `${namingConfig.prompt}\n\n${contextText}`;
+
+      // 发送请求生成标题：结构化输出优先，思考模型自动使用低预算兜底
+      const { sendRequest } = useLlmRequest();
+      const attempts: Array<{
+        useStructuredOutput: boolean;
+        isRetry: boolean;
+      }> = [];
+      const attemptedKeys = new Set<string>();
+      const addAttempt = (useStructuredOutput: boolean, isRetry: boolean) => {
+        const key = `${useStructuredOutput}:${isRetry}`;
+        if (attemptedKeys.has(key)) return;
+        attemptedKeys.add(key);
+        attempts.push({ useStructuredOutput, isRetry });
+      };
+
+      addAttempt(canTryStructuredOutput, false);
+      if (isThinkingModel) {
+        addAttempt(canTryStructuredOutput, true);
+      }
+      if (canTryStructuredOutput) {
+        addAttempt(false, isThinkingModel);
+      }
+
+      let generatedTitle: string | null = null;
+      let structuredOutputUnavailable = false;
+      let lastRequestError: unknown = null;
+
+      for (const attempt of attempts) {
+        const useStructuredOutput =
+          attempt.useStructuredOutput && !structuredOutputUnavailable;
+
+        try {
+          const requestOptions = buildTopicNamingRequestOptions({
+            profileId,
+            modelId,
+            temperature: namingConfig.temperature,
+            maxTokens: namingConfig.maxTokens,
+            capabilities: modelCapabilities,
+            useStructuredOutput,
+            isRetry: attempt.isRetry,
+          });
+
+          const response = await sendRequest({
+            ...requestOptions,
+            suppressErrorLog: useStructuredOutput,
+            messages: [
+              { role: "system", content: TOPIC_NAMING_SYSTEM_PROMPT },
+              { role: "user", content: finalPrompt },
+            ],
+          });
+
+          generatedTitle = extractTopicTitle(response, { thinkTagNames });
+          if (generatedTitle) {
+            logger.debug("会话标题解析成功", {
+              sessionId: session.id,
+              useStructuredOutput,
+              isRetry: attempt.isRetry,
+              hasReasoningContent: !!response.reasoningContent,
+              contentLength: response.content.length,
+            });
+            break;
+          }
+
+          logger.warn("话题命名响应未通过解析，准备尝试兜底策略", {
+            sessionId: session.id,
+            useStructuredOutput,
+            isRetry: attempt.isRetry,
+            hasReasoningContent: !!response.reasoningContent,
+            contentLength: response.content.length,
+            finishReason: response.finishReason,
+          });
+        } catch (error) {
+          lastRequestError = error;
+
+          if (useStructuredOutput && isLikelyResponseFormatError(error)) {
+            structuredOutputUnavailable = true;
+            unsupportedStructuredOutputModelKeys.add(structuredOutputModelKey);
+            logger.warn("命名模型不支持结构化输出，降级为文本解析", {
+              sessionId: session.id,
+              profileId,
+              modelId,
+              error: error instanceof Error ? error.message : String(error),
+            });
+            continue;
+          }
+
+          throw error;
+        }
       }
 
       if (!generatedTitle) {
-        logger.warn("生成标题为空，放弃更新", { sessionId: session.id });
+        if (lastRequestError) {
+          logger.warn("话题命名请求已降级但仍未得到可用标题", {
+            sessionId: session.id,
+            error:
+              lastRequestError instanceof Error
+                ? lastRequestError.message
+                : String(lastRequestError),
+          });
+        } else {
+          logger.warn("生成标题为空或包含脏内容，放弃更新", {
+            sessionId: session.id,
+          });
+        }
         return null;
       }
 

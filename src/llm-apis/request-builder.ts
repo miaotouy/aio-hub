@@ -960,6 +960,7 @@ export const KNOWN_NON_MODEL_OPTIONS_KEYS = new Set([
   "onPartialImage",
   "signal",
   "timeout",
+  "suppressErrorLog",
 
   // 通用采样参数 (LlmParameters)
   "temperature",
@@ -1050,6 +1051,7 @@ export const KNOWN_NON_MODEL_OPTIONS_KEYS = new Set([
   "relaxIdCerts",
   "http1Only",
   "apiKey",
+  "suppressErrorLog",
 
   // 其他任务特有参数
   "embeddingInput",

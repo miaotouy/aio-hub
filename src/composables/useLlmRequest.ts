@@ -408,18 +408,28 @@ export function useLlmRequest() {
           }
         }
       } else {
+        const suppressErrorLog = options.suppressErrorLog === true;
+
         // 报告失败，累加错误计数
-        if (selectedApiKey) {
+        if (selectedApiKey && !suppressErrorLog) {
           reportFailure(options.profileId, selectedApiKey, error);
         }
 
-        errorHandler.error(error, "LLM 请求失败", {
-          showToUser: false,
-          context: {
+        if (suppressErrorLog) {
+          logger.debug("LLM 请求失败但已按调用方要求静默", {
             profileId: options.profileId,
             modelId: options.modelId,
-          },
-        });
+            error: error instanceof Error ? error.message : String(error),
+          });
+        } else {
+          errorHandler.error(error, "LLM 请求失败", {
+            showToUser: false,
+            context: {
+              profileId: options.profileId,
+              modelId: options.modelId,
+            },
+          });
+        }
       }
       throw error;
     }

@@ -152,6 +152,8 @@ export interface LlmRequestOptions {
   signal?: AbortSignal;
   /** 用于主动停止请求的唯一标识符 */
   requestId?: string;
+  /** 是否静默记录请求错误（用于有明确降级路径的探测性请求） */
+  suppressErrorLog?: boolean;
 
   // --- 特种模型参数 ---
   /** 嵌入 (Embedding) 输入内容 */

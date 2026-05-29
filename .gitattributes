@@ -1,0 +1,2 @@
+# 确保所有 shell 脚本在检出时都使用 LF 换行符
+*.sh text eol=lf

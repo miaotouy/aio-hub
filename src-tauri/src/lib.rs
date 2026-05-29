@@ -16,6 +16,8 @@ use std::sync::{Arc, Mutex};
 #[cfg(debug_assertions)]
 use tauri::image::Image;
 use tauri::{Emitter, Manager};
+#[cfg(target_os = "linux")]
+use tauri::Listener;
 use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_log::{Target, TargetKind, TimezoneStrategy};
 use tokio_util::sync::CancellationToken;

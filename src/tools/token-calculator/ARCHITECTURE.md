@@ -182,10 +182,34 @@ const result = await tokenCalculatorService.calculateMessageTokens(
 
 所有变更通过 [`useTokenizerRegistryStore.upsertRule`](./stores/tokenizerRegistryStore.ts) / `deleteRule` 触发 `persistAndRestart`，自动重启 Worker 同步注册表。
 
-## 7. 未来展望
+## 7. 本地导入（Phase 3 已实现）
 
-- **Phase 3**：本地导入 UI（文件 / 目录 / URL）
+「分词器库」Tab 顶部的「导入」按钮打开 [`TokenizerImportDialog`](./components/library/TokenizerImportDialog.vue)，覆盖三类入口：
+
+- **本地文件**：单/多个 `tokenizer.json`、`tokenizer_config.json` 等；
+- **本地目录**：Hugging Face fast tokenizer 目录（自动扫描已知文件名）；
+- **远端 URL**：直接粘贴 `tokenizer.json` URL（可选附 `tokenizer_config.json`）。
+
+流程：
+
+1. [`tokenizerAssetScanner`](./services/tokenizerAssetScanner.ts) 探测资产形态，输出 `TokenizerImportScanResult`，包含 `format` / `loadability` / `suggestedConfidence` / 警告信息；
+   - 当前精确支持 `hf-tokenizer-json` / `hf-directory`；
+   - `legacy-bpe` / `wordpiece-vocab` / `tiktoken-bpe` / `sentencepiece-model` / `tekken-json` / `gguf-metadata` 等形态只做识别+提示，不伪装成功导入；
+   - 缺失 `tokenizer_config.json` 时自动生成最小配置（带 `tokenizerConfigGenerated` 标记），同时把置信度降级为 `close`。
+2. 用户在弹窗里填写显示名 / Profile ID（强制 `user.` 前缀）/ 匹配正则 / 置信度等元数据。
+3. [`tokenizerAssetService`](./services/tokenizerAssetService.ts) 执行：
+   - 用 `@lenml/tokenizers` 跑样本计数测试（ASCII / 中文 / emoji / 特殊 token / 换行）；
+   - 把资产落盘到 `AppData/tokenizer-assets/<profileId>/`，远端 URL 通过 `@tauri-apps/plugin-http` 下载缓存；
+   - 写出 `install-manifest.json`（schemaVersion / 来源 / 文件清单 / 警告）。
+4. [`tokenizerRegistryStore.installProfile`](./stores/tokenizerRegistryStore.ts) 写盘 `profiles.json` 并触发 `calculatorProxy.restartWorker()`。
+5. 主线程通过 [`syncProxyReaders`](./stores/tokenizerRegistryStore.ts) 把 [`readProfileFiles`](./services/tokenizerAssetService.ts) 注入到 [`calculatorProxy.setProfileDataReader`](./worker/calculator.proxy.ts)，Worker 在首次使用该 Profile 时按需取数。
+
+「分词器库」面板对用户 Profile 提供卸载按钮，卸载会同时清理引用该 Profile 的匹配规则（[`uninstallProfile`](./stores/tokenizerRegistryStore.ts)）。
+
+## 8. 未来展望
+
 - **Phase 5**：远端下载（GitHub Release Asset Index）
 - **Phase 6**：校准参数可视化
 - **Phase 7**：移动端 profile 展示（按需）
+- **后续加固**：Profile schema 的 Zod 校验、Hugging Face 慢分词器 / SentencePiece / tiktoken / Tekken / GGUF 等形态的转换器或 adapter
 

@@ -35,11 +35,17 @@
         <span class="library-stats">
           共 {{ filteredProfiles.length }} / {{ allProfiles.length }} 个
         </span>
-        <el-tooltip content="导入与下载功能将在后续阶段开放" placement="top">
-          <span class="placeholder-actions">
-            <el-button :icon="Upload" disabled>导入</el-button>
+        <el-button
+          :icon="Upload"
+          type="primary"
+          @click="importDialogVisible = true"
+        >
+          导入
+        </el-button>
+        <el-tooltip content="下载功能将在后续阶段开放" placement="top">
+          <div class="placeholder-actions">
             <el-button :icon="Download" disabled>下载</el-button>
-          </span>
+          </div>
         </el-tooltip>
       </div>
     </div>
@@ -79,6 +85,20 @@
                 :model-value="profile.enabled !== false"
                 @change="(v: boolean) => onToggleEnabled(profile.id, v)"
                 size="small"
+              />
+            </el-tooltip>
+            <el-tooltip
+              v-if="profile.source.type !== 'bundled'"
+              content="卸载分词器"
+              placement="top"
+            >
+              <el-button
+                :icon="Delete"
+                size="small"
+                circle
+                plain
+                type="danger"
+                @click="onUninstall(profile)"
               />
             </el-tooltip>
           </div>
@@ -137,14 +157,20 @@
         <p>没有匹配的分词器</p>
       </div>
     </div>
+
+    <TokenizerImportDialog v-model="importDialogVisible" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import { Search, Upload, Download } from "@element-plus/icons-vue";
+import { Search, Upload, Download, Delete } from "@element-plus/icons-vue";
 import { storeToRefs } from "pinia";
+import { ElMessageBox } from "element-plus";
+import { customMessage } from "@/utils/customMessage";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useTokenizerRegistryStore } from "../../stores/tokenizerRegistryStore";
+import TokenizerImportDialog from "./TokenizerImportDialog.vue";
 import type {
   TokenizerProfile,
   TokenizerConfidence,
@@ -153,10 +179,12 @@ import type {
 
 const registryStore = useTokenizerRegistryStore();
 const { allProfiles } = storeToRefs(registryStore);
+const errorHandler = createModuleErrorHandler("token-calculator/library-panel");
 
 const searchKeyword = ref("");
 const sourceFilter = ref<"" | "bundled" | "local" | "remote">("");
 const confidenceFilter = ref<"" | TokenizerConfidence>("");
+const importDialogVisible = ref(false);
 
 const filteredProfiles = computed<TokenizerProfile[]>(() => {
   const kw = searchKeyword.value.trim().toLowerCase();
@@ -225,6 +253,32 @@ function getSourceTagType(
 
 async function onToggleEnabled(profileId: string, enabled: boolean) {
   await registryStore.setProfileEnabled(profileId, enabled);
+}
+
+async function onUninstall(profile: TokenizerProfile) {
+  try {
+    await ElMessageBox.confirm(
+      `确定要卸载分词器 “${profile.name}” 吗？相关匹配规则也会被一并删除。`,
+      "卸载分词器",
+      {
+        confirmButtonText: "卸载",
+        cancelButtonText: "取消",
+        type: "warning",
+        lockScroll: false,
+      }
+    );
+  } catch {
+    return;
+  }
+  try {
+    await registryStore.uninstallProfile(profile.id);
+    customMessage.success("分词器已卸载");
+  } catch (error) {
+    errorHandler.handle(error as Error, {
+      userMessage: "卸载分词器失败",
+      context: { profileId: profile.id },
+    });
+  }
 }
 </script>
 

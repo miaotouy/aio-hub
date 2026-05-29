@@ -13,6 +13,20 @@
 export type TokenizerConfidence = "exact" | "close" | "estimated";
 
 /**
+ * 用户导入 / 远端下载资产的原始形态
+ */
+export type TokenizerAssetFormat =
+  | "hf-tokenizer-json"
+  | "hf-directory"
+  | "tiktoken-bpe"
+  | "sentencepiece-model"
+  | "tekken-json"
+  | "gguf-metadata"
+  | "legacy-bpe"
+  | "wordpiece-vocab"
+  | "unknown";
+
+/**
  * Profile 来源类型
  */
 export type TokenizerSource =
@@ -27,17 +41,26 @@ export type TokenizerSource =
   | {
       /** 用户从本地导入的 tokenizer 资产 */
       type: "local";
+      /** 导入资产形态 */
+      format?: TokenizerAssetFormat;
       /** tokenizer.json 在 AppData 中的绝对路径 */
       tokenizerJsonPath: string;
       tokenizerConfigPath?: string;
+      /** 其它被识别但当前版本暂不直接消费的资产 */
+      assetFilePaths?: Record<string, string>;
+      /** 原始导入路径（便于 UI 排查来源） */
+      originalPath?: string;
     }
   | {
       /** 远端下载的 tokenizer 资产 */
       type: "remote";
+      format?: TokenizerAssetFormat;
       tokenizerJsonUrl: string;
       tokenizerConfigUrl?: string;
       tokenizerJsonSha256?: string;
       tokenizerConfigSha256?: string;
+      assetFileUrls?: Record<string, string>;
+      assetFileSha256?: Record<string, string>;
       /** 下载到本地后的缓存路径（首次安装后写入） */
       cachedTokenizerJsonPath?: string;
       cachedTokenizerConfigPath?: string;
@@ -124,4 +147,21 @@ export interface BuiltinTokenizerEntry extends TokenizerProfile {
   loader?: () => Promise<{
     fromPreTrained: () => unknown;
   }>;
+}
+
+/**
+ * 导入前的资产探测结果
+ */
+export interface TokenizerImportScanResult {
+  format: TokenizerAssetFormat;
+  files: Record<string, string>;
+  warnings: string[];
+  loadability: "direct" | "convertible" | "unsupported";
+  suggestedConfidence: TokenizerConfidence;
+  detectedTokenizerClass?: string;
+  detectedModelType?: string;
+  detectedSpecialTokens?: string[];
+  sourceKind: "file" | "directory" | "remote";
+  rootPath?: string;
+  tokenizerConfigGenerated?: boolean;
 }

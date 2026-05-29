@@ -19,6 +19,7 @@ import {
 } from "../data/builtin-tokenizer-index";
 import { calculatorProxy } from "../worker/calculator.proxy";
 import { tokenCalculatorEngine } from "../core/tokenCalculatorEngine";
+import { readProfileFiles } from "../services/tokenizerAssetService";
 import type {
   TokenizerProfile,
   TokenizerRule,
@@ -125,12 +126,30 @@ export const useTokenizerRegistryStore = defineStore(
     function syncEngineFromRegistry() {
       const snap = snapshot();
       tokenCalculatorEngine.setRegistry(snap);
+      tokenCalculatorEngine.setProfileDataFetcher(async (profileId) => {
+        const profile = getProfile(profileId);
+        if (!profile) {
+          throw new Error(`Tokenizer profile 不存在: ${profileId}`);
+        }
+        return readProfileFiles(profile);
+      });
       for (const builtin of BUILTIN_TOKENIZERS) {
         if (builtin.loader) {
           tokenCalculatorEngine.setLoader(builtin.id, builtin.loader);
         }
       }
       engineReady.value = true;
+    }
+
+    function syncProxyReaders() {
+      calculatorProxy.setSnapshotProvider(() => snapshot());
+      calculatorProxy.setProfileDataReader(async (profileId) => {
+        const profile = getProfile(profileId);
+        if (!profile) {
+          throw new Error(`Tokenizer profile 不存在: ${profileId}`);
+        }
+        return readProfileFiles(profile);
+      });
     }
 
     // ============ 加载 ============
@@ -151,8 +170,8 @@ export const useTokenizerRegistryStore = defineStore(
         // 同步到主线程 engine
         syncEngineFromRegistry();
 
-        // 通过 proxy 把 snapshot 推给 Worker
-        calculatorProxy.setSnapshotProvider(() => snapshot());
+        // 通过 proxy 把 snapshot / 按需资产读取器推给 Worker 通道
+        syncProxyReaders();
 
         logger.info("Tokenizer 注册表加载完成", {
           builtin: builtinProfiles.value.length,
@@ -166,7 +185,7 @@ export const useTokenizerRegistryStore = defineStore(
         });
         isLoaded.value = true; // 即使失败也标记为已加载，使用内置 profile
         syncEngineFromRegistry();
-        calculatorProxy.setSnapshotProvider(() => snapshot());
+        syncProxyReaders();
       }
     }
 

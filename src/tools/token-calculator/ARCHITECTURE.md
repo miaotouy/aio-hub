@@ -170,10 +170,21 @@ const result = await tokenCalculatorService.calculateMessageTokens(
 
 调用方**只关心 `count`**，新增字段是 optional。
 
-## 6. 未来展望
+## 6. 匹配规则（Phase 4 已实现）
+
+「匹配规则」Tab（[`TokenizerRuleTab.vue`](./components/workspace/TokenizerRuleTab.vue)）提供：
+
+- **规则列表**：按优先级（数字越大越靠前）展示用户自定义规则；
+- **CRUD**：新建 / 编辑 / 删除 / 启用-禁用 / 上移-下移；
+- **正则即时校验**：表单内输入正则后立即提示语法错误；
+- **命中测试器**：输入任意 modelId，实时显示命中的 Profile + 匹配来源（用户规则 / metadata / pattern / fallback）；
+- **快捷创建**：测试未命中时一键以 `^<id>$` 模板创建规则。
+
+所有变更通过 [`useTokenizerRegistryStore.upsertRule`](./stores/tokenizerRegistryStore.ts) / `deleteRule` 触发 `persistAndRestart`，自动重启 Worker 同步注册表。
+
+## 7. 未来展望
 
 - **Phase 3**：本地导入 UI（文件 / 目录 / URL）
-- **Phase 4**：匹配规则可视化编辑 + 测试 UI
 - **Phase 5**：远端下载（GitHub Release Asset Index）
 - **Phase 6**：校准参数可视化
 - **Phase 7**：移动端 profile 展示（按需）

@@ -59,6 +59,10 @@ const tabs = computed<WorkspaceTabDef[]>(() => [
     label: "匹配规则",
     icon: Connection,
     tooltip: "模型 ID 与分词器的映射规则",
+    badge:
+      registryStore.isLoaded && registryStore.userRules.length > 0
+        ? registryStore.userRules.length
+        : undefined,
   },
   {
     id: "calibration",

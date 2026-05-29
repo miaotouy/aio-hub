@@ -246,7 +246,7 @@ const closeWindow = async () => {
 };
 
 const isTitleBarInteractiveTarget = (target: EventTarget | null) => {
-  if (!(target instanceof HTMLElement)) return false;
+  if (!(target instanceof Element)) return false;
 
   return Boolean(
     target.closest(

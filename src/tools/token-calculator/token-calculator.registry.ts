@@ -13,6 +13,7 @@ import type { Asset } from "@/types/asset-management";
 import { getActiveModelProperties } from "@/config/model-metadata";
 import { markRaw } from "vue";
 import TokenCalculatorIcon from "@/components/icons/TokenCalculatorIcon.vue";
+import { useTokenizerRegistryStore } from "./stores/tokenizerRegistryStore";
 
 /**
  * Token 计算器服务类
@@ -32,6 +33,23 @@ class TokenCalculatorRegistry implements ToolRegistry {
   public readonly description = "计算文本的 Token 数量，支持多种 LLM 分词器";
 
   /**
+   * 触发 Tokenizer 注册表 Store 的首次实例化
+   *
+   * Pinia store 是惰性创建的，本服务被任意跨模块调用者（如 LLM Chat）
+   * 第一次访问时，需要在这里 touch 一下 store，避免 calculatorProxy
+   * 因为拿不到 snapshotProvider 而把请求挂在启动队列里。
+   *
+   * try-catch 包裹是为了兼容尚未 install Pinia 的极端调用时序。
+   */
+  private touchStore(): void {
+    try {
+      useTokenizerRegistryStore();
+    } catch {
+      // Pinia 还没准备好，store 在 UI 入口仍会重新触发
+    }
+  }
+
+  /**
    * 计算文本的 Token 数量
    * @param text - 要计算的文本
    * @param modelId - 模型ID
@@ -41,6 +59,7 @@ class TokenCalculatorRegistry implements ToolRegistry {
     text: string,
     modelId: string
   ): Promise<TokenCalculationResult> {
+    this.touchStore();
     return calculatorProxy.calculateTokens(text, modelId);
   }
 
@@ -54,14 +73,32 @@ class TokenCalculatorRegistry implements ToolRegistry {
     text: string,
     tokenizerName: string
   ): Promise<TokenCalculationResult> {
+    this.touchStore();
     return calculatorProxy.calculateTokensByTokenizer(text, tokenizerName);
   }
 
   /**
    * 获取所有可用的分词器列表
+   *
+   * 通过注册表 Store 返回（包含内置 + 用户安装的 profile）。
+   * 若 store 尚未初始化，则退化到 engine 内部的本地视图。
+   *
    * @returns 分词器信息数组
    */
   getAvailableTokenizers(): Array<{ name: string; description: string }> {
+    try {
+      const store = useTokenizerRegistryStore();
+      if (store.isLoaded) {
+        return store.allProfiles
+          .filter((p) => p.enabled !== false)
+          .map((p) => ({
+            name: p.id,
+            description: p.description || p.name,
+          }));
+      }
+    } catch {
+      // store 不可用（如非 Pinia 上下文）时回退
+    }
     return tokenCalculatorEngine.getAvailableTokenizers();
   }
 
@@ -77,6 +114,7 @@ class TokenCalculatorRegistry implements ToolRegistry {
     identifier: string,
     useTokenizerName: boolean = false
   ): Promise<{ tokens: { text: string; id: number }[] } | null> {
+    this.touchStore();
     return calculatorProxy.getTokenizedText(text, identifier, useTokenizerName);
   }
 
@@ -106,6 +144,7 @@ class TokenCalculatorRegistry implements ToolRegistry {
     modelId: string,
     attachments?: Asset[]
   ): Promise<TokenCalculationResult> {
+    this.touchStore();
     // 1. 计算文本 Token (通过 Worker 代理)
     const textResult = await calculatorProxy.calculateTokens(text, modelId);
     let totalTokens = textResult.count;

@@ -140,12 +140,31 @@
         <!-- 辅助信息网格 -->
         <div class="details-grid">
           <div class="detail-card">
-            <div class="detail-label">分词器</div>
+            <div class="detail-label">
+              分词器
+              <el-tag
+                v-if="calculationResult.tokenizerConfidence"
+                :type="confidenceTagType"
+                size="small"
+                effect="light"
+                class="confidence-tag"
+              >
+                {{ confidenceLabel }}
+              </el-tag>
+            </div>
             <div
               class="detail-value tokenizer-name"
               :title="calculationResult.tokenizerName"
             >
               {{ calculationResult.tokenizerName }}
+            </div>
+            <!-- 校准信息 -->
+            <div
+              v-if="calibrationSummary"
+              class="detail-extra"
+              :title="`原始 Token: ${calculationResult.rawCount ?? '—'}`"
+            >
+              {{ calibrationSummary }}
             </div>
           </div>
           <div class="detail-card">
@@ -299,6 +318,51 @@ const getPercentage = (value: number | undefined) => {
   if (!value || props.calculationResult.count === 0) return "0%";
   return `${((value / props.calculationResult.count) * 100).toFixed(1)}%`;
 };
+
+// 置信度标签
+const confidenceLabel = computed(() => {
+  switch (props.calculationResult.tokenizerConfidence) {
+    case "exact":
+      return "精确";
+    case "close":
+      return "近似";
+    case "estimated":
+      return "估算";
+    default:
+      return "";
+  }
+});
+
+const confidenceTagType = computed<"success" | "warning" | "info">(() => {
+  switch (props.calculationResult.tokenizerConfidence) {
+    case "exact":
+      return "success";
+    case "close":
+      return "warning";
+    case "estimated":
+      return "info";
+    default:
+      return "info";
+  }
+});
+
+// 校准信息摘要
+const calibrationSummary = computed(() => {
+  const cal = props.calculationResult.appliedCalibration;
+  if (!cal) return "";
+  const parts: string[] = [];
+  if (cal.multiplier !== undefined && cal.multiplier !== 1) {
+    parts.push(`×${cal.multiplier.toFixed(2)}`);
+  }
+  if (cal.fixedOverhead !== undefined && cal.fixedOverhead !== 0) {
+    parts.push(`+${cal.fixedOverhead}`);
+  }
+  if (parts.length === 0) return "";
+  const raw = props.calculationResult.rawCount;
+  return raw !== undefined
+    ? `校准: ${parts.join(" ")} · 原始 ${raw}`
+    : `校准: ${parts.join(" ")}`;
+});
 
 // 滚动容器（可视区域）
 const tokenBlocksContainer = ref<HTMLElement | null>(null);
@@ -750,6 +814,18 @@ defineExpose({ rootEl });
 
 .detail-value.tokenizer-name {
   font-size: 14px;
+}
+
+.confidence-tag {
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+.detail-extra {
+  font-size: 11px;
+  color: var(--text-color-light);
+  margin-top: 2px;
+  font-family: "Consolas", monospace;
 }
 
 /* 可视化区域 */

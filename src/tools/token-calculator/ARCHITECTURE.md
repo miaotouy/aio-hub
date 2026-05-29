@@ -1,91 +1,180 @@
 # Token Calculator: 架构与开发者指南
 
-本文档旨在解析 Token Calculator 工具的内部架构、设计理念和数据流，为后续开发提供清晰的指引。
+本文档解析 Token Calculator 工具的内部架构、设计理念和数据流。
 
 ## 1. 核心概念
 
-Token Calculator 是一个专为 LLM 应用场景设计的精确 Token 计数工具，旨在提供精确、高效、多模态的 Token 计算能力。
+Token Calculator 既是一个**面向用户**的 Token 计数器，也是 AIO Hub 内部**面向其他模块**（如 LLM Chat、Web Distillery）的统一 token 计算服务。它围绕「**Tokenizer 资产注册表**」组织所有分词器。
 
-### 1.1. Web Worker 离线计算 (Off-main-thread Calculation)
+### 1.1. 资产注册表 (Tokenizer Asset Registry)
 
-为了确保在处理超长文本或复杂分词时 UI 界面不卡顿，工具将所有核心计算逻辑移至 Web Worker 中执行。
+每个分词器抽象为一个 **Profile**，包含：
 
-- **主从架构**: UI 线程仅负责展示和交互，Worker 线程负责 Tokenizer 加载、文本编码/解码及多模态计算。
-- **异步代理**: 通过 `calculator.proxy.ts` 封装复杂的 `postMessage` 通信，为 UI 层提供简洁的 Promise API。
-- **容错机制**: 代理层内置了 Worker 异常捕获与自动重启逻辑，确保计算服务的可用性。
+- 来源：`bundled`（应用打包）、`local`（用户导入）、`remote`（远端下载）
+- 置信度：`exact` / `close` / `estimated`
+- 匹配模式：用于把 `modelId` 自动映射到该 Profile 的正则数组
+- 校准参数：`multiplier`、`fixedOverhead`、`perMessageOverhead` 等
 
-### 1.2. 动态 Tokenizer 加载策略 (Dynamic Tokenizer Loading)
+Profile 由 [`tokenizerRegistryStore`](./stores/tokenizerRegistryStore.ts) 集中管理，分为：
 
-为了平衡功能全面性与初始加载性能，工具采用 **懒加载 + 缓存** 的策略来管理不同模型家族的 Tokenizer。
+- **内置 Profile**：由 [`builtin-tokenizer-index.ts`](./data/builtin-tokenizer-index.ts) 提供，对应 7 个 `@lenml/tokenizer-*` 包，每次启动从源码重建。
+- **用户 Profile**：本地导入或远端下载，持久化在 AppData `tokenizer-registry/profiles.json`。
+- **匹配规则**：用户在「匹配规则」Tab 添加的显式覆盖，存于 `tokenizer-registry/rules.json`。
 
-- **加载器映射**: 内部维护一个从 Tokenizer ID 到动态 `import()` 语句的映射表。
-- **加载流程**:
-  1. 检查缓存中是否存在已实例化的 Tokenizer。
-  2. 若无，则根据模型 ID 查找对应的加载器。
-  3. 动态导入 Tokenizer 库，实例化后存入缓存。
-- **核心优势**:
-  - **性能**: 显著减少应用的初始加载体积，只在需要时加载特定的 Tokenizer 库。
-  - **可扩展性**: 新增 Tokenizer 支持只需在映射表中添加一行代码，无需修改核心逻辑。
+### 1.2. 主线程权威态 + Worker 无状态镜像
 
-### 1.3. 多模态 Token 计算 (Multimodal Token Calculation)
+`tokenizerRegistryStore` 是注册表的唯一**权威态**（Single Source of Truth）。Worker 内部只持有一份由主线程通过 `init` 消息推送的**镜像**：
 
-除了文本，工具还内置了对多种主流视觉模型图片 Token 计算逻辑的支持。
+```
+主线程 Store (权威)        Web Worker (镜像)
+─────────────────         ──────────────────
+profiles, rules    ─init→  engine.setRegistry(...)
+                  ←ready─
+                  →init←─
+                  ←initialized─
+```
 
-- **OpenAI 瓦片法 (Tile-based)**: 模拟 OpenAI 的官方算法，通过缩放和切片计算出等效的 Token 消耗。
-- **固定成本法 (Fixed Cost)**: 对于一些模型，每张图片有固定的 Token 成本。
-- **预估法 (Estimation)**: 对于 Claude 3 等模型，由于实际 Token 数由 API 返回，工具提供一个基于官方文档的预估值。
+任何注册表变更（安装 / 卸载 / 改规则 / 启用禁用）都通过 `calculatorProxy.restartWorker()` 重建 Worker，避免双向同步的复杂度。
 
-### 1.4. Token 可视化 (Token Visualization)
+### 1.3. tokenizer.json 按需推送
 
-为了帮助用户直观理解文本是如何被切分的，工具提供了 Token 可视化功能。
+local / remote 来源的 Profile 包含可达 MB 级的 `tokenizer.json` 文件。这些**不参与 init 阶段的批量传输**，而是由 Worker 在首次调用时按需请求：
 
-- **实现方式**:
-  1. 在 Worker 中使用对应的 Tokenizer 对文本进行编码 (`encode`)。
-  2. 将返回的 `tokenId` 数组逐个解码 (`decode`) 回字符串。
-  3. 将解码后的片段数组传回主线程。
-  4. UI 层为每个 Token 片段应用不同的背景色并渲染。
+```
+Worker → 主线程: { type: "needProfileData", profileId }
+主线程: 读文件 + (可选) sha256 校验
+主线程 → Worker: { type: "profileData", profileId, tokenizerJSON, ... }
+Worker: TokenizerLoader.fromPreTrained({ tokenizerJSON, tokenizerConfig })
+```
+
+Worker 内部对已实例化的 tokenizer 做 LRU 缓存。
+
+### 1.4. Worker 离线计算
+
+为避免长文本计算阻塞主线程，所有分词、编码、解码均在 Web Worker 中执行。
+
+- **代理**：[`calculator.proxy.ts`](./worker/calculator.proxy.ts) 封装 `postMessage` 协议，对外暴露 Promise 接口。
+- **启动队列**：Worker 启动 / 重启期间的所有请求会被压入 `startupQueue`，待 `initialized` 后 flush，对调用方无感。
+- **错误恢复**：Worker 异常 → terminate → 1s 后重启 → 重新走 ready/init 流程。
+
+### 1.5. 计算结果扩展（向后兼容）
+
+`TokenCalculationResult` 在 v1 基础上新增字段，全部为 optional：
+
+- `rawCount`：未经 calibration 的原始 token 数
+- `tokenizerProfileId` / `tokenizerConfidence`：命中的 Profile 信息
+- `appliedCalibration`：实际应用的校准参数
+
+`count` 字段的语义保持不变（始终是最终值），LLM Chat 等下游模块**零改动**继续工作。
+
+### 1.6. 多模态 Token 计算
+
+图片 / 视频 / 音频的 token 估算由 [`tokenCalculatorEngine`](./core/tokenCalculatorEngine.ts) 主线程实例同步执行，不走 Worker（计算量小，无需异步化）：
+
+- **OpenAI 瓦片法**（GPT-4o vision 等）
+- **Gemini 2.0 瓦片法**
+- **固定成本法**（Claude 3）
+- **时长 × 单价**（视频 / 音频）
 
 ## 2. 架构概览
 
-- **View (`TokenCalculator.vue`)**: 负责 UI 渲染和用户交互。
-- **State (`useTokenCalculatorState`)**: 全局 Composable，管理输入内容、计算模式、计算结果等状态。
-- **Proxy (`calculator.proxy.ts`)**: Worker 通信代理，负责将 UI 层的请求转发给 Worker。
-- **Worker (`calculator.worker.ts`)**: 运行在独立线程的计算节点，调用 Engine 执行任务。
-- **Engine (`core/tokenCalculatorEngine.ts`)**: 核心计算引擎，**纯逻辑实现**，不依赖任何 UI 环境，可在主线程/Worker 中通用。
-- **Config (`config.ts`)**: 负责用户偏好（如默认计算模式、面板宽度）的持久化存储。
+| 层级        | 模块                                                                     | 职责                                      |
+| ----------- | ------------------------------------------------------------------------ | ----------------------------------------- |
+| **View**    | [`TokenCalculator.vue`](./TokenCalculator.vue)                           | Workspace 容器（4 个 Tab）                |
+| **Tabs**    | [`workspace/*Tab.vue`](./components/workspace/)                          | 计算 / 分词器库 / 匹配规则 / 校准         |
+| **State**   | [`useTokenCalculatorState.ts`](./composables/useTokenCalculatorState.ts) | UI 响应式状态（输入、模型选择、计算结果） |
+| **Store**   | [`tokenizerRegistryStore.ts`](./stores/tokenizerRegistryStore.ts)        | Profile / Rule 的主线程权威态             |
+| **Proxy**   | [`calculator.proxy.ts`](./worker/calculator.proxy.ts)                    | Worker 通信代理 + 启动握手 + 重启         |
+| **Worker**  | [`calculator.worker.ts`](./worker/calculator.worker.ts)                  | 后台计算节点                              |
+| **Engine**  | [`tokenCalculatorEngine.ts`](./core/tokenCalculatorEngine.ts)            | 纯逻辑计算引擎（无 UI 依赖）              |
+| **Service** | [`token-calculator.registry.ts`](./token-calculator.registry.ts)         | 跨模块服务外壳                            |
 
-## 3. 数据流：计算一段文本的 Token
+## 3. 数据流：计算一段文本
 
 ```mermaid
 sequenceDiagram
     participant User as 用户
-    participant UI as UI 层 (Vue/State)
-    participant Proxy as Proxy (Worker 代理)
-    participant Worker as Worker 线程
-    participant Engine as Engine (核心引擎)
+    participant UI as UI (CalculatorTab)
+    participant State as useTokenCalculatorState
+    participant Store as tokenizerRegistryStore
+    participant Proxy as calculator.proxy
+    participant Worker as Web Worker
+    participant Engine as 引擎实例
 
-    User->>UI: 输入文本或选择模型
-    UI->>Proxy: (异步) calculateTokens(text, modelId)
-    Proxy->>Worker: postMessage({ method, params })
+    User->>UI: 输入文本 / 选择模型
+    UI->>State: handleInputChange
+    State->>Proxy: calculateTokens(text, modelId)
 
-    Worker->>Engine: 调用计算方法
-
-    alt Tokenizer 未加载
-        Engine->>Engine: 动态 import() 并实例化
+    alt Worker 未 ready
+        Proxy->>Proxy: 请求入 startupQueue
     end
 
-    Engine-->>Worker: 返回计算结果
-    Worker-->>Proxy: postMessage({ type: 'response', result })
-    Proxy-->>UI: Resolve Promise
-    UI->>User: 响应式更新界面
+    Note over Store,Proxy: 初始化期间
+    Store-->>Proxy: setSnapshotProvider(getSnap)
+    Worker-->>Proxy: ready
+    Proxy->>Worker: init(profiles, rules)
+    Worker->>Engine: setRegistry / setLoader
+    Worker-->>Proxy: initialized
+    Proxy->>Worker: flush startupQueue
+
+    Worker->>Engine: calculateTokens
+    Engine->>Engine: resolveProfile (rule → metadata → pattern)
+
+    alt profile.source 为 local / remote
+        Engine->>Worker: profileDataFetcher(profileId)
+        Worker->>Proxy: needProfileData
+        Proxy->>Proxy: 读 AppData 文件
+        Proxy->>Worker: profileData(JSON)
+        Engine->>Engine: TokenizerLoader.fromPreTrained
+    else profile.source 为 bundled
+        Engine->>Engine: import("@lenml/tokenizer-...")
+    end
+
+    Engine->>Engine: encode + applyCalibration
+    Engine-->>Worker: TokenCalculationResult
+    Worker-->>Proxy: response(result)
+    Proxy-->>State: resolve Promise
+    State->>UI: 响应式更新 ResultPanel
 ```
 
-## 4. 核心逻辑
+## 4. 解析优先级
 
-- **回退估算**: 当无法找到精确的 Tokenizer 时，启用一个基于字符类型（中文、英文、特殊符号）的经验公式进行估算。
-- **性能优化**: 对 Token 可视化功能设置了最大显示数量限制（默认 5000），避免超大文本输入导致浏览器渲染卡顿。
+引擎为 `modelId` 寻找 Profile 的顺序：
 
-## 5. 未来展望
+1. **用户匹配规则**（store.rules，按优先级排序）
+2. **`metadata.tokenizer`**（来自 [model-metadata 系统](../../config/model-metadata-presets.ts) 的字符串字段，直接作为 profileId 查表）
+3. **Profile.modelPatterns**（注册表里所有 enabled profile 的正则匹配）
+4. **字符级估算**（[`estimateTokens`](./core/tokenCalculatorEngine.ts) 的中英文混合启发式）
 
-- **Tokenizer 更新**: 保持对 `@lenml/tokenizer-*` 等上游依赖的关注，及时更新以支持最新的模型。
-- **特殊 Token 处理**: 增加对不同模型特殊 Token（如 `bos`, `eos`, `tool_code`）的识别和计数。
+匹配命中后，叠加该 Profile 的 `calibration`：
+
+```
+count = round(rawCount * multiplier + fixedOverhead)
+```
+
+## 5. 跨模块调用
+
+LLM Chat 等模块通过 [`tokenCalculatorService`](./token-calculator.registry.ts) 调用：
+
+```ts
+import { tokenCalculatorService } from "@/tools/token-calculator/token-calculator.registry";
+
+const result = await tokenCalculatorService.calculateMessageTokens(
+  text,
+  modelId,
+  attachments
+);
+// result.count: 已应用 calibration 的最终值
+// result.tokenizerConfidence: "exact" | "close" | "estimated"
+```
+
+调用方**只关心 `count`**，新增字段是 optional。
+
+## 6. 未来展望
+
+- **Phase 3**：本地导入 UI（文件 / 目录 / URL）
+- **Phase 4**：匹配规则可视化编辑 + 测试 UI
+- **Phase 5**：远端下载（GitHub Release Asset Index）
+- **Phase 6**：校准参数可视化
+- **Phase 7**：移动端 profile 展示（按需）
+

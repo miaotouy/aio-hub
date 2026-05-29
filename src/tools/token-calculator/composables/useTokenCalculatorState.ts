@@ -14,6 +14,7 @@ import {
 } from "./useTokenCalculator";
 import { calculatorProxy } from "../worker/calculator.proxy";
 import { getActiveModelProperties } from "@/config/model-metadata";
+import { useTokenizerRegistryStore } from "../stores/tokenizerRegistryStore";
 import {
   loadTokenCalculatorConfig,
   debouncedSaveConfig,
@@ -172,15 +173,22 @@ export function useTokenCalculator() {
 
   /** 可用模型列表 */
   const { profiles } = useLlmProfiles();
+  const registryStore = useTokenizerRegistryStore();
   const availableModels = computed(() => {
-    // 如果是分词器模式，返回分词器列表
+    // 如果是分词器模式，返回分词器列表（从注册表读取）
     if (calculationMode.value === "tokenizer") {
-      const tokenizers = tokenCalculatorEngine.getAvailableTokenizers();
-      return tokenizers.map((t: { name: string; description: string }) => ({
-        id: t.name,
-        name: t.description,
-        provider: "分词器",
-      }));
+      return registryStore.allProfiles
+        .filter((p) => p.enabled !== false)
+        .map((p) => ({
+          id: p.id,
+          name: p.description || p.name,
+          provider:
+            p.source.type === "bundled"
+              ? "内置"
+              : p.source.type === "local"
+                ? "本地"
+                : "远端",
+        }));
     }
 
     // 否则返回模型列表
@@ -549,7 +557,12 @@ export function useTokenCalculator() {
    * 初始化默认模型
    */
   const initializeDefaultModel = async (): Promise<void> => {
-    // 首先加载配置
+    // 先确保注册表加载完成（首次会从 AppData 读 profile / rules）
+    if (!registryStore.isLoaded) {
+      await registryStore.load();
+    }
+
+    // 然后加载工具自身的 UI 配置
     await loadConfig();
 
     // 如果配置中有保存的模型ID，先尝试验证它是否仍然可用

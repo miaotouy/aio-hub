@@ -20,7 +20,9 @@ for (const envPath of envPaths) {
 // 2. 获取基础配置
 const idSuffix = process.env.AIO_ID_SUFFIX || "";
 const basePort = parseInt(process.env.AIO_PORT || "1420");
-const baseProxyPort = parseInt(process.env.AIO_PROXY_PORT || "16655");
+// 默认端口选在 21655（远离 Windows Hyper-V/WinNAT 常见的 16xxx-17xxx 动态保留段）。
+// 即便仍踩到排除段，后端 start_llm_proxy_server 会自动 fallback 到可用端口。
+const baseProxyPort = parseInt(process.env.AIO_PROXY_PORT || "21655");
 const productName = process.env.AIO_PRODUCT_NAME || "AIO Hub (Dev)";
 
 // 3. 计算偏移
@@ -63,7 +65,11 @@ process.env.AIO_ID_SUFFIX = idSuffix;
 const tauriArgs = ["tauri", "dev"];
 
 // 动态生成临时配置文件，避免 Shell 转义问题并确保 CLI 正确识别配置
-const devConfPath = path.resolve(process.cwd(), "src-tauri", "tauri.conf.dev.json");
+const devConfPath = path.resolve(
+  process.cwd(),
+  "src-tauri",
+  "tauri.conf.dev.json"
+);
 const devConf = {
   build: {
     devUrl: `http://localhost:${port}`,
@@ -99,3 +105,4 @@ const child = spawn("bun", ["run", ...tauriArgs], {
 child.on("exit", (code) => {
   process.exit(code || 0);
 });
+

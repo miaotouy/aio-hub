@@ -7,10 +7,10 @@ use axum::{
 };
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use futures_util::StreamExt;
-use log::{error, info};
+use log::{error, info, warn};
 use once_cell::sync::Lazy;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -23,6 +23,13 @@ pub static PROXY_STATE: Lazy<Arc<Mutex<ProxyServiceState>>> =
 pub struct ProxyServiceState {
     is_running: bool,
     port: u16,
+}
+
+/// 启动结果：返回真实绑定的端口
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProxyServerInfo {
+    pub port: u16,
 }
 
 #[derive(Debug, Deserialize)]
@@ -114,31 +121,145 @@ async fn process_body_recursive(value: &mut serde_json::Value) -> Result<(), Str
     Ok(())
 }
 
-#[tauri::command]
-pub async fn start_llm_proxy_server(port: u16) -> Result<String, String> {
-    let mut state = PROXY_STATE.lock().await;
-    if state.is_running {
-        if state.port == port {
-            return Ok(format!("LLM Proxy Server already running on port {}", port));
-        } else {
-            return Err(format!(
-                "LLM Proxy Server is already running on port {}. Cannot start on port {}.",
-                state.port, port
-            ));
+/// 解析 Windows `netsh` 输出的排除端口段
+/// 仅在 Windows 上调用；失败时返回空 Vec，调用方自动降级为试错策略
+#[cfg(windows)]
+fn fetch_windows_excluded_ranges() -> Vec<(u16, u16)> {
+    use std::process::Command;
+    let output = match Command::new("netsh")
+        .args([
+            "interface",
+            "ipv4",
+            "show",
+            "excludedportrange",
+            "protocol=tcp",
+        ])
+        .output()
+    {
+        Ok(o) => o,
+        Err(e) => {
+            warn!("netsh excludedportrange query failed: {}", e);
+            return Vec::new();
+        }
+    };
+
+    // netsh 在中文 Windows 上输出 GBK；UTF-8 解析失败时退化为有损解析
+    let text = match std::str::from_utf8(&output.stdout) {
+        Ok(s) => s.to_string(),
+        Err(_) => String::from_utf8_lossy(&output.stdout).into_owned(),
+    };
+
+    let mut ranges = Vec::new();
+    for line in text.lines() {
+        let trimmed = line.trim();
+        // 期望格式: "      16082       16181"
+        let parts: Vec<&str> = trimmed.split_whitespace().collect();
+        if parts.len() < 2 {
+            continue;
+        }
+        if let (Ok(start), Ok(end)) = (parts[0].parse::<u16>(), parts[1].parse::<u16>()) {
+            if start <= end {
+                ranges.push((start, end));
+            }
+        }
+    }
+    ranges
+}
+
+#[cfg(not(windows))]
+fn fetch_windows_excluded_ranges() -> Vec<(u16, u16)> {
+    Vec::new()
+}
+
+/// 判断端口是否落在任意排除段
+fn is_port_excluded(port: u16, excluded: &[(u16, u16)]) -> bool {
+    excluded.iter().any(|(s, e)| port >= *s && port <= *e)
+}
+
+/// 智能寻找一个可用端口
+/// 策略：
+/// 1. 先尝试用户指定的 preferred 端口（若不在排除段）
+/// 2. 在安全候选段中按步长扫描（避免 Hyper-V 动态保留区）
+/// 3. 兜底：让 OS 自动分配（绑定 127.0.0.1:0）
+async fn find_available_port(preferred: u16) -> Result<(tokio::net::TcpListener, u16), String> {
+    let excluded = fetch_windows_excluded_ranges();
+    if !excluded.is_empty() {
+        info!(
+            "Detected {} excluded TCP port range(s) on this system",
+            excluded.len()
+        );
+    }
+
+    // 候选端口列表：preferred 优先；随后是几个常见的"安全区"代表端口
+    // 这些值经过挑选，远离 Windows 16xxx/17xxx 常见的 Hyper-V 动态保留段
+    let mut candidates: Vec<u16> = vec![preferred];
+    candidates.extend_from_slice(&[
+        21655, 21777, 21888, 21999, 23655, 23888, 24655, 25655, 28655, 29655, 31655, 34655,
+    ]);
+
+    for port in &candidates {
+        if *port == 0 {
+            continue;
+        }
+        if is_port_excluded(*port, &excluded) {
+            warn!("Port {} is in Windows excluded range, skipping", port);
+            continue;
+        }
+        match tokio::net::TcpListener::bind(format!("127.0.0.1:{}", port)).await {
+            Ok(listener) => {
+                if *port != preferred {
+                    info!(
+                        "Preferred port {} unavailable, fell back to port {}",
+                        preferred, port
+                    );
+                }
+                return Ok((listener, *port));
+            }
+            Err(e) => {
+                warn!("Failed to bind to port {}: {} (will try next)", port, e);
+                continue;
+            }
         }
     }
 
-    // 在主线程尝试绑定端口，确保及时反馈错误
-    let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{}", port))
-        .await
-        .map_err(|e| {
-            error!("Failed to bind to port {}: {}", port, e);
-            format!("Failed to bind to port {}: {}", port, e)
-        })?;
+    // 最终兜底：让 OS 自动分配一个可用端口
+    match tokio::net::TcpListener::bind("127.0.0.1:0").await {
+        Ok(listener) => {
+            let port = listener
+                .local_addr()
+                .map_err(|e| format!("Failed to get local addr: {}", e))?
+                .port();
+            info!(
+                "All candidate ports failed, OS-assigned port {} is in use",
+                port
+            );
+            Ok((listener, port))
+        }
+        Err(e) => Err(format!(
+            "Failed to bind to any port (including OS-assigned): {}",
+            e
+        )),
+    }
+}
 
-    info!("LLM Proxy Server starting on http://127.0.0.1:{}", port);
+#[tauri::command]
+pub async fn start_llm_proxy_server(port: u16) -> Result<ProxyServerInfo, String> {
+    let mut state = PROXY_STATE.lock().await;
+    if state.is_running {
+        // 服务已运行：忽略调用方指定的 port，直接返回真实端口
+        // 这是关键变更——前端不再要求"指定端口必须可用"，而是"获取实际可用端口"
+        return Ok(ProxyServerInfo { port: state.port });
+    }
+
+    // 智能寻找可用端口
+    let (listener, actual_port) = find_available_port(port).await?;
+
+    info!(
+        "LLM Proxy Server starting on http://127.0.0.1:{}",
+        actual_port
+    );
     state.is_running = true;
-    state.port = port;
+    state.port = actual_port;
 
     // 释放锁，然后再启动异步任务，防止死锁
     drop(state);
@@ -158,7 +279,7 @@ pub async fn start_llm_proxy_server(port: u16) -> Result<String, String> {
         }
     });
 
-    Ok(format!("LLM Proxy Server started on port {}", port))
+    Ok(ProxyServerInfo { port: actual_port })
 }
 
 /// 路由入口：根据 Content-Type 分流

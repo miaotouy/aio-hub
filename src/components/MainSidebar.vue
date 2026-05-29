@@ -65,18 +65,23 @@ const clearOpenedTabs = async () => {
 };
 
 // 滚动遮罩相关
+const menuWrapperRef = ref<HTMLElement | null>(null);
 const menuContainerRef = ref<HTMLElement | null>(null);
 
 const updateScrollMasks = () => {
   if (!menuContainerRef.value) return;
   const el = menuContainerRef.value;
+  const maskHost = menuWrapperRef.value;
   const { scrollTop, scrollHeight, clientHeight } = el;
 
   const showTopMask = scrollTop > 5;
   const showBottomMask = scrollHeight - scrollTop - clientHeight > 5;
 
-  el.style.setProperty("--top-mask-active", showTopMask ? "0" : "1");
-  el.style.setProperty("--bottom-mask-active", showBottomMask ? "0" : "1");
+  maskHost?.style.setProperty("--top-fade-opacity", showTopMask ? "1" : "0");
+  maskHost?.style.setProperty(
+    "--bottom-fade-opacity",
+    showBottomMask ? "1" : "0"
+  );
 };
 
 const setupScrollListener = () => {
@@ -118,7 +123,7 @@ onUnmounted(() => {
   >
     <!-- 上部分：标题和导航 -->
     <div class="sidebar-top">
-      <div class="menu-wrapper">
+      <div class="menu-wrapper" ref="menuWrapperRef">
         <div class="menu-container" ref="menuContainerRef">
           <SidebarMenu
             :collapsed="isCollapsed"
@@ -211,28 +216,39 @@ onUnmounted(() => {
   flex: 1;
   position: relative;
   overflow: hidden;
+  --mask-height: 30px;
+  --top-fade-opacity: 0;
+  --bottom-fade-opacity: 0;
+}
+
+.menu-wrapper::before,
+.menu-wrapper::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: var(--mask-height);
+  pointer-events: none;
+  z-index: 1;
+  transition: opacity 0.2s ease;
+}
+
+.menu-wrapper::before {
+  top: 0;
+  background: linear-gradient(to bottom, var(--sidebar-bg), transparent);
+  opacity: var(--top-fade-opacity);
+}
+
+.menu-wrapper::after {
+  bottom: 0;
+  background: linear-gradient(to top, var(--sidebar-bg), transparent);
+  opacity: var(--bottom-fade-opacity);
 }
 
 .menu-container {
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
-
-  --mask-height: 30px;
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    rgba(0, 0, 0, var(--top-mask-active, 1)) 0%,
-    black var(--mask-height),
-    black calc(100% - var(--mask-height)),
-    rgba(0, 0, 0, var(--bottom-mask-active, 1)) 100%
-  );
-  mask-image: linear-gradient(
-    to bottom,
-    rgba(0, 0, 0, var(--top-mask-active, 1)) 0%,
-    black var(--mask-height),
-    black calc(100% - var(--mask-height)),
-    rgba(0, 0, 0, var(--bottom-mask-active, 1)) 100%
-  );
 }
 
 .menu-container::-webkit-scrollbar {

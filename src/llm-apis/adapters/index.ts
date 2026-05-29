@@ -13,6 +13,7 @@ import { geminiAdapter } from "./gemini";
 import { anthropicAdapter } from "./anthropic";
 import { vertexAiAdapter } from "./vertexai";
 import { cohereAdapter } from "./cohere";
+import { deepSeekAdapter } from "./deepseek";
 import { callSiliconFlowImageApi } from "./siliconflow/image";
 import { xAiAdapter } from "./xai";
 import { sunoNewApiAdapter } from "./suno-newapi";
@@ -70,7 +71,7 @@ export const adapters: Record<string, LlmAdapter> = {
   groq: openAiAdapter,
   mistral: openAiAdapter,
   perplexity: openAiAdapter,
-  deepseek: openAiAdapter,
+  deepseek: deepSeekAdapter,
   together: openAiAdapter,
   openrouter: openAiAdapter,
   ollama: openAiAdapter,

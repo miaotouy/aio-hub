@@ -7,6 +7,7 @@ import {
   extractCommonParameters,
   applyCustomParameters,
   buildBase64DataUrl,
+  isOpenAIModel,
 } from "@/llm-apis/request-builder";
 import { asyncJsonStringify } from "@/utils/serialization";
 import { openAiResponsesUrlHandler } from "./utils";
@@ -226,7 +227,7 @@ export const callOpenAiResponsesApi = async (
   }
 
   const reasoning: any = {};
-  if (options.reasoningEffort) {
+  if (options.reasoningEffort && isOpenAIModel(options.modelId)) {
     reasoning.effort = options.reasoningEffort;
   }
 

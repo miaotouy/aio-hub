@@ -540,6 +540,7 @@ export function getModelFamily(
         lowerProvider === "vertexai"
       )
         return "gemini";
+      if (lowerProvider === "openai") return "openai";
       if (lowerProvider === "cohere") return "cohere";
       if (lowerProvider === "deepseek") return "deepseek";
       if (lowerProvider === "qwen" || lowerProvider === "alibaba")
@@ -757,10 +758,21 @@ export function filterParametersByCapabilities(
     filtered.parallelToolCalls = options.parallelToolCalls;
   }
 
-  // ===== 推理模式（o系列模型） =====
-  // 兼容旧的 reasoningEffort 检查，或者新的 thinking 检查
+  // ===== 推理等级 =====
+  // reasoningEffort 是统一抽象，但只有部分 provider 接受 OpenAI 的
+  // reasoning_effort 字段；Gemini/Vertex 则把它映射为 thinkingLevel。
+  const isOpenAiReasoningEffortProvider =
+    profile.type === "openai" || profile.type === "openai-responses";
+  const supportsProviderReasoningEffort =
+    supported.reasoningEffort &&
+    (!isOpenAiReasoningEffortProvider ||
+      isOpenAIModel(options.modelId, model?.provider));
+  const supportsThinkingLevelAlias =
+    (profile.type === "gemini" || profile.type === "vertexai") &&
+    supported.thinking &&
+    capabilities?.thinkingConfigType === "effort";
   const supportsReasoning =
-    (supported.reasoningEffort || supported.thinking) &&
+    (supportsProviderReasoningEffort || supportsThinkingLevelAlias) &&
     (!capabilities || capabilities.thinking);
 
   if (supportsReasoning && options.reasoningEffort !== undefined) {

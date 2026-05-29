@@ -12,12 +12,23 @@ import {
   buildBase64DataUrl,
   applyCustomParameters,
   cleanPayload,
+  isOpenAIModel,
 } from "@/llm-apis/request-builder";
 import { asyncJsonStringify } from "@/utils/serialization";
 // import { createModuleLogger } from "@/utils/logger";
 import { openAiUrlHandler, buildOpenAiHeaders } from "./utils";
 
 // const logger = createModuleLogger("openai-chat");
+
+function shouldSendOpenAiReasoningEffort(
+  profile: LlmProfile,
+  modelId: string
+): boolean {
+  return (
+    (profile.type === "openai" || profile.type === "openai-compatible") &&
+    isOpenAIModel(modelId)
+  );
+}
 
 /**
  * 调用 OpenAI 兼容格式的 Chat API
@@ -191,7 +202,10 @@ export const callOpenAiChatApi = async (
   if (options.user !== undefined) body.user = options.user;
   if (options.logitBias !== undefined) body.logit_bias = options.logitBias;
   if (options.store !== undefined) body.store = options.store;
-  if (options.reasoningEffort !== undefined)
+  if (
+    options.reasoningEffort !== undefined &&
+    shouldSendOpenAiReasoningEffort(profile, options.modelId)
+  )
     body.reasoning_effort = options.reasoningEffort;
   if (options.metadata !== undefined) body.metadata = options.metadata;
   if (options.modalities !== undefined) body.modalities = options.modalities;

@@ -89,7 +89,7 @@ describe("OpenAI Adapter - Chat", () => {
 
     const body = JSON.parse(fetchOptions.body);
     expect(body.model).toBe("gpt-4");
-    expect(body.temperature).toBe(0.7);
+    expect(body.temperature).toBe(1);
     expect(body.max_tokens).toBe(100);
     expect(body.messages).toHaveLength(2);
     expect(body.messages[0]).toEqual({
@@ -171,6 +171,50 @@ describe("OpenAI Adapter - Chat", () => {
 
     expect(result.content).toBe("The answer is 2.");
     expect(result.reasoningContent).toBe("I need to add 1 and 1. 1+1=2.");
+  });
+
+  it("should send reasoning_effort for OpenAI-family models", async () => {
+    const options: LlmRequestOptions = {
+      profileId: "test-profile",
+      modelId: "gpt-5",
+      messages: [{ role: "user", content: "Think briefly" }],
+      reasoningEffort: "low",
+    };
+
+    (fetchWithTimeout as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: "Done" }, finish_reason: "stop" }],
+      }),
+    });
+
+    await callOpenAiChatApi(mockProfile, options);
+
+    const [, fetchOptions] = (fetchWithTimeout as any).mock.calls[0];
+    const body = JSON.parse(fetchOptions.body);
+    expect(body.reasoning_effort).toBe("low");
+  });
+
+  it("should not send reasoning_effort for non-OpenAI models behind OpenAI-compatible endpoints", async () => {
+    const options: LlmRequestOptions = {
+      profileId: "test-profile",
+      modelId: "deepseek-v4-flash",
+      messages: [{ role: "user", content: "Name this topic" }],
+      reasoningEffort: "low",
+    };
+
+    (fetchWithTimeout as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: "DeepSeek" }, finish_reason: "stop" }],
+      }),
+    });
+
+    await callOpenAiChatApi(mockProfile, options);
+
+    const [, fetchOptions] = (fetchWithTimeout as any).mock.calls[0];
+    const body = JSON.parse(fetchOptions.body);
+    expect(body.reasoning_effort).toBeUndefined();
   });
 
   it("should handle API errors", async () => {

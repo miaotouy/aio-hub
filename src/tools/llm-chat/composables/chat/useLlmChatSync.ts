@@ -388,6 +388,12 @@ export function useLlmChatSync() {
       case "reject-all-tool-calls":
         toolCallingStore.rejectAll(params.sessionId);
         return Promise.resolve();
+      case "approve-tool-calls-by-ids":
+        toolCallingStore.approveByIds(params.ids);
+        return Promise.resolve();
+      case "reject-tool-calls-by-ids":
+        toolCallingStore.rejectByIds(params.ids);
+        return Promise.resolve();
       default:
         logger.warn("未知的操作请求", { action });
         return Promise.reject(new Error(`Unknown action: ${action}`));

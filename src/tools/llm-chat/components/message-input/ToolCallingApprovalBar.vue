@@ -105,24 +105,33 @@ const handleReject = (id: string) => {
   });
 };
 
+/**
+ * 全部允许 / 全部拒绝
+ *
+ * 基于 UI 当前可见的请求列表（currentSessionPendingRequests），
+ * 同时覆盖本地会话请求和 VCP 等外部广播过来的请求。
+ *
+ * 不能用 approveAll(sessionId)：外部请求的 sessionId 是 `vcp-${maid}`，
+ * 跟当前 llm-chat sessionId 不一致，会被精确匹配漏掉。
+ */
 const handleApproveAll = () => {
-  if (llmChatStore.currentSessionId) {
-    execute({
-      service: "tool-calling",
-      method: "approveAll",
-      params: { sessionId: llmChatStore.currentSessionId },
-    });
-  }
+  const ids = currentSessionPendingRequests.value.map((r) => r.id);
+  if (ids.length === 0) return;
+  execute({
+    service: "tool-calling",
+    method: "approveByIds",
+    params: { ids },
+  });
 };
 
 const handleRejectAll = () => {
-  if (llmChatStore.currentSessionId) {
-    execute({
-      service: "tool-calling",
-      method: "rejectAll",
-      params: { sessionId: llmChatStore.currentSessionId },
-    });
-  }
+  const ids = currentSessionPendingRequests.value.map((r) => r.id);
+  if (ids.length === 0) return;
+  execute({
+    service: "tool-calling",
+    method: "rejectByIds",
+    params: { ids },
+  });
 };
 </script>
 

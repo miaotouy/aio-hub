@@ -61,6 +61,10 @@ export const useToolCallingStore = defineStore("toolCalling", () => {
 
   /**
    * 批准所有（针对当前会话）
+   *
+   * 注意：该方法只按 sessionId 精确匹配，不会处理外部（VCP 等）请求。
+   * 如果需要批量处理"UI 当前可见的所有请求"（含外部），请使用
+   * approveByIds / rejectByIds。
    */
   function approveAll(sessionId: string) {
     const requestsToApprove = pendingRequests.value.filter(
@@ -76,6 +80,8 @@ export const useToolCallingStore = defineStore("toolCalling", () => {
 
   /**
    * 拒绝所有（针对当前会话）
+   *
+   * 见 approveAll 的同名说明。
    */
   function rejectAll(sessionId: string) {
     const requestsToReject = pendingRequests.value.filter(
@@ -86,6 +92,41 @@ export const useToolCallingStore = defineStore("toolCalling", () => {
     });
     pendingRequests.value = pendingRequests.value.filter(
       (r) => r.sessionId !== sessionId
+    );
+  }
+
+  /**
+   * 按 ID 列表批准请求
+   *
+   * 用于"UI 当前可见请求"的批量处理，可同时覆盖本地会话与外部（VCP 等）请求。
+   * UI 决定要批量处理哪些 ID，store 不做会话归属过滤。
+   */
+  function approveByIds(ids: string[]) {
+    if (!ids || ids.length === 0) return;
+    const idSet = new Set(ids);
+    const toApprove = pendingRequests.value.filter((r) => idSet.has(r.id));
+    toApprove.forEach((r) => {
+      r.resolve("approved");
+    });
+    pendingRequests.value = pendingRequests.value.filter(
+      (r) => !idSet.has(r.id)
+    );
+  }
+
+  /**
+   * 按 ID 列表拒绝请求
+   *
+   * 见 approveByIds 的同名说明。
+   */
+  function rejectByIds(ids: string[]) {
+    if (!ids || ids.length === 0) return;
+    const idSet = new Set(ids);
+    const toReject = pendingRequests.value.filter((r) => idSet.has(r.id));
+    toReject.forEach((r) => {
+      r.resolve("rejected");
+    });
+    pendingRequests.value = pendingRequests.value.filter(
+      (r) => !idSet.has(r.id)
     );
   }
 
@@ -111,6 +152,8 @@ export const useToolCallingStore = defineStore("toolCalling", () => {
     rejectRequest,
     approveAll,
     rejectAll,
+    approveByIds,
+    rejectByIds,
     handleExternalResponse,
   };
 });

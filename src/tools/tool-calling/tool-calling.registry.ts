@@ -185,6 +185,14 @@ export class ToolCallingRegistry implements ToolRegistry {
     useToolCallingStore().rejectAll(params.sessionId);
   }
 
+  approveByIds(params: { ids: string[] }): void {
+    useToolCallingStore().approveByIds(params.ids);
+  }
+
+  rejectByIds(params: { ids: string[] }): void {
+    useToolCallingStore().rejectByIds(params.ids);
+  }
+
   // ==================== 任务管理（供跨窗口转发使用） ====================
 
   async deleteTasks(params: { taskIds: string[] }): Promise<number> {

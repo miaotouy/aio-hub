@@ -221,7 +221,7 @@
           <span class="range-label">提交范围:</span>
           <div class="tag-actions">
             <el-tooltip
-              content="定位到最近的一个标签（从最新开始）"
+              content="定位到一个标签（连续点击循环切换到更旧的标签）"
               placement="top"
             >
               <el-button
@@ -232,7 +232,10 @@
                 :disabled="commits.length === 0"
               />
             </el-tooltip>
-            <el-tooltip content="定位到最近的两个标签之间" placement="top">
+            <el-tooltip
+              content="定位到相邻两个标签之间（连续点击循环切换到更旧的区间）"
+              placement="top"
+            >
               <el-button
                 size="small"
                 circle
@@ -315,7 +318,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
 import {
   Search,
   Refresh,
@@ -443,50 +446,103 @@ function handleBranchDropdownVisibleChange(visible: boolean) {
   }
 }
 
-// 定位到最近的一个标签（从最新开始）
+// 收集所有带标签的提交索引（从新到旧）
+const tagIndices = computed(() => {
+  const indices: number[] = [];
+  for (let i = 0; i < props.commits.length; i++) {
+    const commit = props.commits[i];
+    if (commit.tags && commit.tags.length > 0) {
+      indices.push(i);
+    }
+  }
+  return indices;
+});
+
+// 滚动游标：分别记录单标签 / 区间标签的当前位置
+const latestTagCursor = ref(0);
+const tagIntervalCursor = ref(0);
+
+// 当提交列表变化时重置游标
+watch(
+  () => props.commits,
+  () => {
+    latestTagCursor.value = 0;
+    tagIntervalCursor.value = 0;
+  }
+);
+
+// 定位到下一个标签（循环滚动）
 function locateLatestTag() {
   if (props.commits.length === 0) return;
 
-  const tagIndex = props.commits.findIndex((c) => c.tags && c.tags.length > 0);
-
-  if (tagIndex === -1) {
+  const indices = tagIndices.value;
+  if (indices.length === 0) {
     customMessage.warning("未找到版本标签");
     return;
   }
 
+  // 取当前游标对应的标签
+  const cursor = latestTagCursor.value % indices.length;
+  const tagIndex = indices[cursor];
+  const isLooped = latestTagCursor.value >= indices.length;
+
   commitRange.value = [0, tagIndex];
   emit("filter-commits");
+
   const tagName = props.commits[tagIndex].tags?.[0];
-  customMessage.success(`已定位范围: 最新 到 ${tagName}`);
+  const positionInfo = `(${cursor + 1}/${indices.length})`;
+  if (isLooped && cursor === 0) {
+    customMessage.success(
+      `已循环到最新标签 ${positionInfo}: 最新 到 ${tagName}`
+    );
+  } else {
+    customMessage.success(`已定位范围 ${positionInfo}: 最新 到 ${tagName}`);
+  }
+
+  // 推进游标
+  latestTagCursor.value = (latestTagCursor.value + 1) % indices.length;
 }
 
-// 定位到最近的两个标签之间
+// 定位到下一对相邻标签之间（循环滚动）
 function locateTagInterval() {
   if (props.commits.length === 0) return;
 
-  const tagIndices: number[] = [];
-  for (let i = 0; i < props.commits.length; i++) {
-    const commit = props.commits[i];
-    if (commit.tags && commit.tags.length > 0) {
-      tagIndices.push(i);
-      if (tagIndices.length >= 2) break;
-    }
-  }
-
-  if (tagIndices.length < 2) {
+  const indices = tagIndices.value;
+  if (indices.length < 2) {
     customMessage.warning(
-      tagIndices.length === 1
+      indices.length === 1
         ? "仅找到一个标签，无法确定区间范围"
         : "未找到版本标签"
     );
     return;
   }
 
-  commitRange.value = [tagIndices[0], tagIndices[1]];
+  // 可用区间数：相邻标签对的数量
+  const intervalCount = indices.length - 1;
+  const cursor = tagIntervalCursor.value % intervalCount;
+  const isLooped = tagIntervalCursor.value >= intervalCount;
+
+  const startIdx = indices[cursor];
+  const endIdx = indices[cursor + 1];
+
+  commitRange.value = [startIdx, endIdx];
   emit("filter-commits");
-  const startTag = props.commits[tagIndices[0]].tags?.[0];
-  const endTag = props.commits[tagIndices[1]].tags?.[0];
-  customMessage.success(`已定位区间: ${startTag} 到 ${endTag}`);
+
+  const startTag = props.commits[startIdx].tags?.[0];
+  const endTag = props.commits[endIdx].tags?.[0];
+  const positionInfo = `(${cursor + 1}/${intervalCount})`;
+  if (isLooped && cursor === 0) {
+    customMessage.success(
+      `已循环到最新区间 ${positionInfo}: ${startTag} 到 ${endTag}`
+    );
+  } else {
+    customMessage.success(
+      `已定位区间 ${positionInfo}: ${startTag} 到 ${endTag}`
+    );
+  }
+
+  // 推进游标
+  tagIntervalCursor.value = (tagIntervalCursor.value + 1) % intervalCount;
 }
 </script>
 

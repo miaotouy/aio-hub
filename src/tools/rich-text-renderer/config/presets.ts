@@ -24,6 +24,7 @@ import { mathjaxTestPreset } from "../presets/mathjax-test";
 import { actionButtonTestPreset } from "../presets/action-button-test";
 import { advancedMixedTestPreset } from "../presets/advanced-mixed-test";
 import { styleIsolationTestPreset } from "../presets/style-isolation-test";
+import { detailsPreset } from "../presets/details";
 
 export const presets: RenderPreset[] = [
   basicPreset,
@@ -51,4 +52,5 @@ export const presets: RenderPreset[] = [
   actionButtonTestPreset,
   advancedMixedTestPreset,
   styleIsolationTestPreset,
+  detailsPreset,
 ];

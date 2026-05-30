@@ -47,9 +47,17 @@ export const DEFAULT_QUICK_ACTION_SETS: QuickActionSet[] = [
         id: "html-details",
         label: "HTML 折叠",
         content:
-          "<details>\n<summary>点击展开内容</summary>\n\n{{input}}\n\n</details>",
+          '<details data-variant="card">\n<summary>点击展开内容</summary>\n\n{{input}}\n\n</details>',
         autoSend: false,
         icon: "ChevronDownSquare",
+      },
+      {
+        id: "html-details-scroll",
+        label: "长内容折叠",
+        content:
+          '<details data-variant="card" data-tone="info" data-max-height="400">\n<summary>点击展开内容</summary>\n\n{{input}}\n\n</details>',
+        autoSend: false,
+        icon: "ScrollText",
       },
       {
         id: "quote-text",
@@ -77,7 +85,7 @@ export const DEFAULT_QUICK_ACTION_SETS: QuickActionSet[] = [
         id: "action-forward-msg",
         label: "转发消息",
         content:
-          "\n<details>\n<summary>转发的消息</summary>\n\n{{input}}\n\n---转发结束---\n</details>\n",
+          '\n<details data-variant="card" data-max-height="400">\n<summary>转发的消息</summary>\n\n{{input}}\n\n---转发结束---\n</details>\n',
         autoSend: false,
         icon: "Zap",
       },

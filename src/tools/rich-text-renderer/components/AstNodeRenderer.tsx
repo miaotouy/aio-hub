@@ -26,6 +26,7 @@ import HardBreakNode from "./nodes/HardBreakNode.vue";
 import HtmlInlineNode from "./nodes/HtmlInlineNode.vue";
 import GenericHtmlNode from "./nodes/GenericHtmlNode.vue";
 import StyleNode from "./nodes/StyleNode.vue";
+import DetailsNode from "./nodes/DetailsNode.vue";
 import ActionButtonNode from "./nodes/ActionButtonNode.vue";
 import SvarNode from "./nodes/SvarNode.vue";
 // 块级节点
@@ -138,9 +139,11 @@ const FallbackNode = defineComponent({
   },
   setup(props) {
     return () =>
-      h("div", { class: "fallback-node", style: { color: "orange", padding: "4px" } }, [
-        h("span", {}, `⚠️ 未知节点类型: ${props.type}`),
-      ]);
+      h(
+        "div",
+        { class: "fallback-node", style: { color: "orange", padding: "4px" } },
+        [h("span", {}, `⚠️ 未知节点类型: ${props.type}`)]
+      );
   },
 });
 
@@ -170,7 +173,7 @@ const AstNodeRenderer = defineComponent({
       // 性能优化：在循环外预先判断当前层级是否包含 StyleNode
       // 避免在 map 内部对 props.nodes 进行重复的 O(n) 扫描
       const hasStyleNode = props.nodes.some(
-        (n) => n.type === "generic_html" && n.props?.tagName === "style",
+        (n) => n.type === "generic_html" && n.props?.tagName === "style"
       );
 
       return props.nodes.map((node: AstNode): VNode => {
@@ -192,13 +195,27 @@ const AstNodeRenderer = defineComponent({
           NodeComponent = AudioNode;
         }
 
+        // 特殊处理：拦截 HTML <details> 标签并转换为 DetailsNode
+        // DetailsNode 会自己消费 sourceNodes（拣出 <summary> 作标题，其余作正文），
+        // 因此跳过下方自动的 children slot 注入。
+        if (node.type === "generic_html" && node.props?.tagName === "details") {
+          NodeComponent = DetailsNode;
+        }
+
         // 尝试获取或生成容器 ID，用于样式隔离
         const containerId =
-          (node.props as any)?.id || (node.type === "generic_html" ? `html-node-${node.id.slice(0, 8)}` : undefined);
+          (node.props as any)?.id ||
+          (node.type === "generic_html"
+            ? `html-node-${node.id.slice(0, 8)}`
+            : undefined);
 
         // 构建子节点 - 通过变量引用实现递归
+        // 注意：StyleNode 和 DetailsNode 通过 sourceNodes 接管 children 渲染，
+        //       这里不再为它们注入默认 slot。
         const children: VNode | undefined =
-          node.children?.length && NodeComponent !== StyleNode
+          node.children?.length &&
+          NodeComponent !== StyleNode &&
+          NodeComponent !== DetailsNode
             ? h(AstNodeRenderer, {
                 nodes: node.children,
                 generationMeta: props.generationMeta,
@@ -208,7 +225,8 @@ const AstNodeRenderer = defineComponent({
             : undefined;
 
         // 根据节点类型决定是否应用动画
-        const shouldAnimate = props.enableEnterAnimation && !NO_ANIMATION_NODE_TYPES.has(node.type);
+        const shouldAnimate =
+          props.enableEnterAnimation && !NO_ANIMATION_NODE_TYPES.has(node.type);
 
         // 识别块级节点以应用性能优化
         const isBlock = BLOCK_NODE_TYPES.has(node.type);
@@ -219,10 +237,14 @@ const AstNodeRenderer = defineComponent({
           nodeId: node.id,
           id: containerId,
           "data-node-status": node.meta.status,
-          class: [shouldAnimate ? "rich-text-node" : undefined, isBlock ? "rich-text-block" : undefined]
+          class: [
+            shouldAnimate ? "rich-text-node" : undefined,
+            isBlock ? "rich-text-block" : undefined,
+          ]
             .filter(Boolean)
             .join(" "),
-          ...(node.type === "generic_html" && (node.props?.tagName === "video" || node.props?.tagName === "audio")
+          ...(node.type === "generic_html" &&
+          (node.props?.tagName === "video" || node.props?.tagName === "audio")
             ? (() => {
                 const attrs = { ...node.props.attributes };
                 // 确保 src 存在，优先使用 attributes.src
@@ -231,9 +253,14 @@ const AstNodeRenderer = defineComponent({
                 // 如果父节点没有 src，尝试从子节点 <source> 提取
                 if (!src && node.children) {
                   const sourceNode = node.children.find(
-                    (c) => c.type === "generic_html" && (c.props as any)?.tagName === "source",
+                    (c) =>
+                      c.type === "generic_html" &&
+                      (c.props as any)?.tagName === "source"
                   );
-                  if (sourceNode && (sourceNode.props as any)?.attributes?.src) {
+                  if (
+                    sourceNode &&
+                    (sourceNode.props as any)?.attributes?.src
+                  ) {
                     src = (sourceNode.props as any).attributes.src;
                   }
                 }
@@ -245,10 +272,15 @@ const AstNodeRenderer = defineComponent({
               })()
             : node.props),
           generationMeta: props.generationMeta,
-          // 如果是 StyleNode，我们需要传递原始子节点以提取文本
-          sourceNodes: NodeComponent === StyleNode ? node.children : undefined,
+          // StyleNode 和 DetailsNode 都通过 sourceNodes 接管子节点的渲染
+          sourceNodes:
+            NodeComponent === StyleNode || NodeComponent === DetailsNode
+              ? node.children
+              : undefined,
           // 传递父级容器 ID 给子节点，方便 StyleNode 进行样式隔离
-          parentContainerId: hasStyleNode ? containerId : props.parentContainerId,
+          parentContainerId: hasStyleNode
+            ? containerId
+            : props.parentContainerId,
         };
 
         // 根据节点类型设置 displayMode
@@ -258,7 +290,11 @@ const AstNodeRenderer = defineComponent({
           componentProps.displayMode = false;
         }
 
-        return h(NodeComponent, componentProps, children ? () => children : undefined);
+        return h(
+          NodeComponent,
+          componentProps,
+          children ? () => children : undefined
+        );
       });
     };
   },

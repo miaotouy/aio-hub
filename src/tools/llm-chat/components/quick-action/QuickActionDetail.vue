@@ -8,7 +8,6 @@ import {
   Copy,
   Settings2,
   ChevronRight,
-  Zap,
   Save,
   Info,
 } from "lucide-vue-next";

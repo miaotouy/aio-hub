@@ -311,7 +311,18 @@ const handleCloseTool = async (event: MouseEvent, toolPath: string) => {
   width: 18px;
   height: 18px;
   font-size: 18px;
+  line-height: 1;
+  color: inherit;
+  flex-shrink: 0;
   vertical-align: middle;
+}
+
+.icon-wrapper :deep(svg),
+.icon-wrapper :deep(img) {
+  display: block;
+  width: 1em;
+  height: 1em;
+  flex-shrink: 0;
 }
 
 /* 拖拽排序样式 */

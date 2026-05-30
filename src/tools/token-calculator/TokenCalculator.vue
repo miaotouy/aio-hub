@@ -33,10 +33,31 @@ import TokenizerLibraryTab from "./components/workspace/TokenizerLibraryTab.vue"
 import TokenizerRuleTab from "./components/workspace/TokenizerRuleTab.vue";
 import TokenizerCalibrationTab from "./components/workspace/TokenizerCalibrationTab.vue";
 import { useTokenizerRegistryStore } from "./stores/tokenizerRegistryStore";
+import type { TokenizerProfile } from "./types/tokenizer-profile";
 
 const activeTab = ref<string>("calculator");
 const state = useTokenCalculator();
 const registryStore = useTokenizerRegistryStore();
+
+/**
+ * Profile 是否携带有效校准（任意一个字段非默认值即视为已校准）
+ */
+function hasCalibration(profile: TokenizerProfile): boolean {
+  const c = profile.calibration;
+  if (!c) return false;
+  return (
+    (c.multiplier !== undefined && c.multiplier !== 1) ||
+    (c.fixedOverhead !== undefined && c.fixedOverhead !== 0) ||
+    (c.perMessageOverhead !== undefined && c.perMessageOverhead !== 0) ||
+    (c.perToolOverhead !== undefined && c.perToolOverhead !== 0) ||
+    (c.reserveRatio !== undefined && c.reserveRatio !== 0)
+  );
+}
+
+const calibratedCount = computed(() => {
+  if (!registryStore.isLoaded) return 0;
+  return registryStore.allProfiles.filter((p) => hasCalibration(p)).length;
+});
 
 const tabs = computed<WorkspaceTabDef[]>(() => [
   {
@@ -69,6 +90,7 @@ const tabs = computed<WorkspaceTabDef[]>(() => [
     label: "校准",
     icon: SetUp,
     tooltip: "保守估算的校准参数",
+    badge: calibratedCount.value > 0 ? calibratedCount.value : undefined,
   },
 ]);
 

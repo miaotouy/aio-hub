@@ -88,6 +88,23 @@
               />
             </el-tooltip>
             <el-tooltip
+              v-if="
+                profile.source.type === 'bundled' &&
+                registryStore.hasBuiltinOverride(profile.id)
+              "
+              content="重置为内置默认（清除启用状态与校准的覆盖）"
+              placement="top"
+            >
+              <el-button
+                :icon="RefreshLeft"
+                size="small"
+                circle
+                plain
+                type="warning"
+                @click="onResetBuiltin(profile)"
+              />
+            </el-tooltip>
+            <el-tooltip
               v-if="profile.source.type !== 'bundled'"
               content="卸载分词器"
               placement="top"
@@ -164,7 +181,13 @@
 
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import { Search, Upload, Download, Delete } from "@element-plus/icons-vue";
+import {
+  Search,
+  Upload,
+  Download,
+  Delete,
+  RefreshLeft,
+} from "@element-plus/icons-vue";
 import { storeToRefs } from "pinia";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
@@ -253,6 +276,32 @@ function getSourceTagType(
 
 async function onToggleEnabled(profileId: string, enabled: boolean) {
   await registryStore.setProfileEnabled(profileId, enabled);
+}
+
+async function onResetBuiltin(profile: TokenizerProfile) {
+  try {
+    await ElMessageBox.confirm(
+      `确定要重置内置分词器 "${profile.name}" 的所有用户覆盖吗？\n（包括启用状态与校准）`,
+      "重置覆盖",
+      {
+        confirmButtonText: "重置",
+        cancelButtonText: "取消",
+        type: "warning",
+        lockScroll: false,
+      }
+    );
+  } catch {
+    return;
+  }
+  try {
+    await registryStore.resetBuiltinOverride(profile.id);
+    customMessage.success("已恢复默认状态");
+  } catch (error) {
+    errorHandler.handle(error as Error, {
+      userMessage: "重置失败",
+      context: { profileId: profile.id },
+    });
+  }
 }
 
 async function onUninstall(profile: TokenizerProfile) {

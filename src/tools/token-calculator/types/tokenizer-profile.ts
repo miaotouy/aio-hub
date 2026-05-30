@@ -150,6 +150,22 @@ export interface BuiltinTokenizerEntry extends TokenizerProfile {
 }
 
 /**
+ * 内置 Profile 的用户覆盖项
+ *
+ * 用户在 UI 上对内置 profile 的所有可调字段都会落到这里，并随 profiles.json
+ * 一起持久化。启动时通过 applyBuiltinOverrides 把这些覆盖应用到从代码重建
+ * 的 builtinProfiles 上。
+ *
+ * 详见 docs/Plan/分词器资产注册表方案.md §5.1 / Phase 4.5
+ */
+export interface BuiltinProfileOverride {
+  /** 是否启用（覆盖代码默认的 enabled=true） */
+  enabled?: boolean;
+  /** 用户自定义的 calibration（完全覆盖，没有就是不应用 calibration） */
+  calibration?: TokenizerCalibration;
+}
+
+/**
  * 导入前的资产探测结果
  */
 export interface TokenizerImportScanResult {

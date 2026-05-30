@@ -23,6 +23,8 @@ import { readProfileFiles } from "../services/tokenizerAssetService";
 import type {
   TokenizerProfile,
   TokenizerRule,
+  TokenizerCalibration,
+  BuiltinProfileOverride,
 } from "../types/tokenizer-profile";
 
 const logger = createModuleLogger("token-calculator/registry");
@@ -35,6 +37,14 @@ const errorHandler = createModuleErrorHandler("token-calculator/registry");
 interface UserProfilesStore {
   version: string;
   profiles: TokenizerProfile[];
+  /**
+   * 用户对内置 Profile 的覆盖（Phase 4.5 + Phase 6 引入）
+   *
+   * Key 为内置 profile ID（与 BUILTIN_TOKENIZERS 中的 id 一致）。
+   * 启动时通过 applyBuiltinOverrides 应用到 builtinProfiles 上。
+   * 升级 / 卸载内置 profile 时，残留的覆盖项是无害的。
+   */
+  builtinOverrides?: Record<string, BuiltinProfileOverride>;
 }
 
 interface UserRulesStore {
@@ -46,10 +56,18 @@ const profilesManager = createConfigManager<UserProfilesStore>({
   moduleName: "tokenizer-registry",
   fileName: "profiles.json",
   version: "1.0.0",
-  createDefault: () => ({ version: "1.0.0", profiles: [] }),
+  createDefault: () => ({
+    version: "1.0.0",
+    profiles: [],
+    builtinOverrides: {},
+  }),
   mergeConfig: (def, loaded) => ({
     version: "1.0.0",
     profiles: Array.isArray(loaded.profiles) ? loaded.profiles : def.profiles,
+    builtinOverrides:
+      loaded.builtinOverrides && typeof loaded.builtinOverrides === "object"
+        ? loaded.builtinOverrides
+        : (def.builtinOverrides ?? {}),
   }),
 });
 
@@ -71,10 +89,24 @@ const rulesManager = createConfigManager<UserRulesStore>({
 export const useTokenizerRegistryStore = defineStore(
   "tokenizerRegistry",
   () => {
-    /** 内置 profile（构造时填入，运行期不变） */
+    /**
+     * 内置 profile 的代码默认值（每次启动从 BUILTIN_TOKENIZERS 重建）
+     *
+     * 这是不变量，所有运行期变化都通过 builtinOverrides 表达。
+     */
+    const builtinDefaults = getSerializableBuiltinProfiles();
+
+    /**
+     * 内置 profile 当前生效快照（默认值 + 用户覆盖）
+     *
+     * 这是 UI / engine / Worker 看到的内容，由 applyBuiltinOverrides 维护。
+     */
     const builtinProfiles = ref<TokenizerProfile[]>(
-      getSerializableBuiltinProfiles()
+      builtinDefaults.map((p) => ({ ...p }))
     );
+
+    /** 用户对内置 profile 的覆盖（持久化） */
+    const builtinOverrides = ref<Record<string, BuiltinProfileOverride>>({});
 
     /** 用户安装的 profile（本地导入 + 远端下载） */
     const userProfiles = ref<TokenizerProfile[]>([]);
@@ -87,6 +119,29 @@ export const useTokenizerRegistryStore = defineStore(
 
     /** 主线程也维护一个 engine 实例，便于同步执行轻量逻辑（媒体 token 估算） */
     const engineReady = ref(false);
+
+    // ============ 内部工具：应用覆盖 ============
+
+    /**
+     * 把 builtinOverrides 应用到 builtinProfiles
+     *
+     * 始终从 builtinDefaults 重建，避免历史状态残留。
+     */
+    function applyBuiltinOverrides() {
+      builtinProfiles.value = builtinDefaults.map((p) => {
+        const override = builtinOverrides.value[p.id];
+        if (!override) return { ...p };
+        const next: TokenizerProfile = { ...p };
+        if (override.enabled !== undefined) {
+          next.enabled = override.enabled;
+        }
+        // calibration 是完全覆盖（不是合并），因为代码层默认就没设 calibration
+        if (override.calibration !== undefined) {
+          next.calibration = { ...override.calibration };
+        }
+        return next;
+      });
+    }
 
     // ============ Computed ============
 
@@ -155,7 +210,7 @@ export const useTokenizerRegistryStore = defineStore(
     // ============ 加载 ============
 
     /**
-     * 从 AppData 加载用户 profile 与规则，然后初始化 engine / proxy
+     * 从 AppData 加载用户 profile / 规则 / 内置覆盖，然后初始化 engine / proxy
      */
     async function load(): Promise<void> {
       try {
@@ -165,6 +220,8 @@ export const useTokenizerRegistryStore = defineStore(
         ]);
         userProfiles.value = profilesStore.profiles ?? [];
         userRules.value = rulesStore.rules ?? [];
+        builtinOverrides.value = { ...(profilesStore.builtinOverrides ?? {}) };
+        applyBuiltinOverrides();
         isLoaded.value = true;
 
         // 同步到主线程 engine
@@ -177,6 +234,7 @@ export const useTokenizerRegistryStore = defineStore(
           builtin: builtinProfiles.value.length,
           user: userProfiles.value.length,
           rules: userRules.value.length,
+          builtinOverrideCount: Object.keys(builtinOverrides.value).length,
         });
       } catch (error) {
         errorHandler.handle(error as Error, {
@@ -184,6 +242,7 @@ export const useTokenizerRegistryStore = defineStore(
           showToUser: false,
         });
         isLoaded.value = true; // 即使失败也标记为已加载，使用内置 profile
+        applyBuiltinOverrides();
         syncEngineFromRegistry();
         syncProxyReaders();
       }
@@ -197,6 +256,7 @@ export const useTokenizerRegistryStore = defineStore(
           profilesManager.save({
             version: "1.0.0",
             profiles: userProfiles.value,
+            builtinOverrides: { ...builtinOverrides.value },
           }),
           rulesManager.save({
             version: "1.0.0",
@@ -247,30 +307,53 @@ export const useTokenizerRegistryStore = defineStore(
     }
 
     /**
+     * 判断是否为内置 profile（按 ID 与 BUILTIN_TOKENIZERS 对比）
+     */
+    function isBuiltinProfile(profileId: string): boolean {
+      return builtinDefaults.some((p) => p.id === profileId);
+    }
+
+    /**
+     * 写入/清除某个内置 profile 的覆盖
+     *
+     * 当覆盖项变成空对象时自动清理键，避免累积无用数据。
+     * patch 中传 undefined 的字段表示"清除该字段的覆盖"。
+     */
+    function updateBuiltinOverride(
+      profileId: string,
+      patch: Partial<BuiltinProfileOverride>
+    ): void {
+      const existing = builtinOverrides.value[profileId] ?? {};
+      const merged: BuiltinProfileOverride = { ...existing, ...patch };
+      // 清理 undefined 字段
+      if (merged.enabled === undefined) delete merged.enabled;
+      if (merged.calibration === undefined) delete merged.calibration;
+
+      if (Object.keys(merged).length === 0) {
+        delete builtinOverrides.value[profileId];
+      } else {
+        builtinOverrides.value[profileId] = merged;
+      }
+      applyBuiltinOverrides();
+    }
+
+    /**
      * 设置 profile 启用/禁用（内置或用户均可）
      *
-     * 内置 profile 不写到磁盘，只是在运行期通过 enabled 字段控制；
-     * 但下次启动会重置为 BUILTIN_TOKENIZERS 中的默认值。
-     * （TODO Phase 4 之后再考虑是否把内置启用状态也持久化）
+     * Phase 4.5 起：内置 profile 的启用状态也会持久化（通过 builtinOverrides）。
+     * 当用户把内置 profile 设回默认值（enabled=true）时，自动清除该字段的覆盖。
      */
     async function setProfileEnabled(
       profileId: string,
       enabled: boolean
     ): Promise<void> {
       // 内置
-      const builtinIdx = builtinProfiles.value.findIndex(
-        (p) => p.id === profileId
-      );
-      if (builtinIdx >= 0) {
-        const current = builtinProfiles.value[builtinIdx];
-        if (current) {
-          builtinProfiles.value.splice(builtinIdx, 1, {
-            ...current,
-            enabled,
-          });
-        }
-        syncEngineFromRegistry();
-        await calculatorProxy.restartWorker();
+      if (isBuiltinProfile(profileId)) {
+        const isCodeDefault = enabled === true; // 代码默认就是 enabled=true
+        updateBuiltinOverride(profileId, {
+          enabled: isCodeDefault ? undefined : enabled,
+        });
+        await persistAndRestart();
         return;
       }
       // 用户
@@ -282,6 +365,59 @@ export const useTokenizerRegistryStore = defineStore(
         }
         await persistAndRestart();
       }
+    }
+
+    /**
+     * 设置 profile 的 calibration（内置或用户均可）— Phase 6
+     *
+     * - 传 null：清除 calibration（内置回到代码默认值；用户则从 profile 对象上移除）
+     * - 传对象：完整覆盖（不与现有 calibration 合并）
+     */
+    async function setProfileCalibration(
+      profileId: string,
+      calibration: TokenizerCalibration | null
+    ): Promise<void> {
+      if (isBuiltinProfile(profileId)) {
+        updateBuiltinOverride(profileId, {
+          calibration: calibration === null ? undefined : { ...calibration },
+        });
+        await persistAndRestart();
+        return;
+      }
+      const userIdx = findUserProfileIndex(profileId);
+      if (userIdx >= 0) {
+        const current = userProfiles.value[userIdx];
+        if (current) {
+          const next: TokenizerProfile = { ...current };
+          if (calibration === null) {
+            delete next.calibration;
+          } else {
+            next.calibration = { ...calibration };
+          }
+          userProfiles.value.splice(userIdx, 1, next);
+        }
+        await persistAndRestart();
+      }
+    }
+
+    /**
+     * 重置某个内置 profile 的所有用户覆盖（enabled + calibration）
+     *
+     * 完全清空 builtinOverrides 中该 profile 的条目，恢复代码默认值。
+     */
+    async function resetBuiltinOverride(profileId: string): Promise<void> {
+      if (!isBuiltinProfile(profileId)) return;
+      if (!(profileId in builtinOverrides.value)) return;
+      delete builtinOverrides.value[profileId];
+      applyBuiltinOverrides();
+      await persistAndRestart();
+    }
+
+    /**
+     * 查询某个内置 profile 是否被用户覆盖过（任何字段）
+     */
+    function hasBuiltinOverride(profileId: string): boolean {
+      return profileId in builtinOverrides.value;
     }
 
     // ============ Rule 操作 ============
@@ -341,6 +477,7 @@ export const useTokenizerRegistryStore = defineStore(
       builtinProfiles,
       userProfiles,
       userRules,
+      builtinOverrides,
       isLoaded,
       engineReady,
       // computed
@@ -350,11 +487,15 @@ export const useTokenizerRegistryStore = defineStore(
       getProfile,
       snapshot,
       previewResolve,
+      isBuiltinProfile,
+      hasBuiltinOverride,
       // actions
       load,
       installProfile,
       uninstallProfile,
       setProfileEnabled,
+      setProfileCalibration,
+      resetBuiltinOverride,
       upsertRule,
       deleteRule,
       syncEngineFromRegistry,

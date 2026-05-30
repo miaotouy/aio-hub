@@ -20,7 +20,6 @@
 <div align="center">
 
 [![License](https://img.shields.io/badge/license-Apache%202.0%20%2F%20Proprietary-blue.svg)](#-许可证)
-[![Documentation](https://img.shields.io/badge/Documentation-docs-brightgreen.svg)](https://docs.aiohub-app.com)
 [![Tauri](https://img.shields.io/badge/Tauri-2.10-blue.svg)](https://tauri.app/)
 [![Vue](https://img.shields.io/badge/Vue-3.5-green.svg)](https://vuejs.org/)
 [![Vite](https://img.shields.io/badge/Vite-8.0-purple.svg)](https://vite.dev/)
@@ -29,6 +28,8 @@
 [![Stars](https://img.shields.io/github/stars/miaotouy/aio-hub?style=social)](https://github.com/miaotouy/aio-hub/stargazers)
 [![Forks](https://img.shields.io/github/forks/miaotouy/aio-hub?style=social)](https://github.com/miaotouy/aio-hub/network/members)
 [![Issues](https://img.shields.io/github/issues/miaotouy/aio-hub)](https://github.com/miaotouy/aio-hub/issues)
+[![官网](https://img.shields.io/badge/官网-aiohub--app.com-success.svg)](https://aiohub-app.com/)
+[![文档站](https://img.shields.io/badge/文档站-docs-brightgreen.svg)](https://docs.aiohub-app.com)
 
 [![爱发电赞助](https://img.shields.io/badge/爱发电-赞助作者-ff69b4.svg)](https://afdian.com/a/miaotouy)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/miaotouy/aio-hub)
@@ -215,6 +216,7 @@ bun run tauri build
 
 ## 📚 文档与支持
 
+- **🌐 官方网站**: [aiohub-app.com](https://aiohub-app.com/) — AIO Hub 项目主页，了解产品特性与最新动态。
 - **📖 用户文档站**: [docs.aiohub-app.com](https://docs.aiohub-app.com) — 全新 VitePress 文档站点，涵盖快速入门、各工具模块详细配置指南，支持全文搜索。
 - **插件开发**: [插件开发指南](docs/guide/plugin-development-guide.md)
 - **常见问题**: [DeepWiki (AI 自动维护)](https://deepwiki.com/miaotouy/aio-hub)
@@ -275,3 +277,4 @@ bun run tauri build
 ## 🔗 合作伙伴与相关项目
 
 - [**VCPToolBox**](https://github.com/lioensky/VCPToolBox) - **VCP (Variable & Command Protocol)** 核心协议与工具箱。AIO Hub 深度适配 VCP 协议，支持作为其分布式网络节点，并提供可视化的实时监控与工具调用联动。
+

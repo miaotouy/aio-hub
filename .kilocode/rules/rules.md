@@ -169,3 +169,28 @@
   - **语言包注册**: 必须在导出前调用 `registerToolLocales`。
   - **配置导出**: 默认导出包含 `id`、`name` (使用 getter)、`icon` 及 `route` 配置的对象。
 - **自动路由**: 系统会自动扫描所有工具目录下的 `*.registry.ts` 文件并注册到路由系统。
+
+### 4.3. 图标必须使用 `markRaw` 包裹 (硬性要求)
+
+无论桌面端还是移动端，所有 `registry` 文件中传入 `icon` 字段的组件（包括 Lucide、Element Plus Icons、自定义 SVG 组件等）**必须**使用 `markRaw()` 包裹。
+
+- **原因**: Vue 默认会把对象转为响应式代理。组件对象（含大量内部属性与函数）被代理后会触发不必要的依赖追踪、产生性能开销，并可能在某些场景下（如 ResourceItem 操作菜单、动态切换等）出现警告或异常。
+- **正确写法**:
+
+  ```typescript
+  import { markRaw } from "vue";
+  import { Activity } from "lucide-vue-next";
+
+  export const toolConfig: ToolConfig = {
+    icon: markRaw(Activity), // ✅ 必须包裹
+    // ...
+  };
+  ```
+
+- **错误写法**:
+  ```typescript
+  icon: Activity, // ❌ 缺少 markRaw
+  ```
+- **覆盖范围**: 不止 `toolConfig.icon`，所有传给系统的"组件常量"（如 Asset 操作菜单 `actions[].icon`、自定义入口 `entries[].icon` 等）都遵循此规则。
+- **检查方式**: 提交前可用正则 `icon:\s+(?!markRaw)\w` 搜索 `*.registry.ts` 排查遗漏。
+

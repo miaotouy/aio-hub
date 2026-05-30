@@ -14,6 +14,8 @@ import {
   DocumentCopy,
   Star,
   Present,
+  HomeFilled,
+  Reading,
 } from "@element-plus/icons-vue";
 
 // 创建模块错误处理器
@@ -84,9 +86,22 @@ const links = [
     icon: markRaw(User),
   },
   {
+    title: "官网",
+    value: "aiohub-app.com",
+    icon: markRaw(HomeFilled),
+    url: "https://aiohub-app.com",
+  },
+  {
+    title: "文档",
+    value: "docs.aiohub-app.com",
+    icon: markRaw(Reading),
+    url: "https://docs.aiohub-app.com",
+  },
+  {
     title: "仓库",
     value: "miaotouy/aio-hub",
     icon: markRaw(Link),
+    url: "https://github.com/miaotouy/aio-hub",
   },
   {
     title: "许可证",
@@ -171,7 +186,15 @@ onMounted(async () => {
             <component :is="link.icon" />
           </el-icon>
           <span class="info-label">{{ link.title }}：</span>
-          <span class="info-value">{{ link.value }}</span>
+          <a
+            v-if="link.url"
+            class="info-value info-link"
+            :href="link.url"
+            @click.prevent="openUrl(link.url)"
+          >
+            {{ link.value }}
+          </a>
+          <span v-else class="info-value">{{ link.value }}</span>
         </div>
       </div>
     </div>
@@ -341,6 +364,18 @@ onMounted(async () => {
 .info-value {
   color: var(--el-text-color-primary);
   font-weight: 500;
+}
+
+.info-link {
+  color: var(--el-color-primary);
+  text-decoration: none;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.info-link:hover {
+  text-decoration: underline;
+  opacity: 0.85;
 }
 
 /* 支持项目 */

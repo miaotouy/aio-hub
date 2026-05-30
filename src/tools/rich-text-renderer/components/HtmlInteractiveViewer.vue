@@ -227,8 +227,15 @@ const props = withDefaults(
     autoHeight?: boolean;
     /**
      * 是否允许加载外部资源。
+     * 注意: 此 prop 不设置默认值，以便正确回退到 RichTextContext 的全局设置。
+     * 仅在需要强制覆盖全局设置时显式传入。
      */
     allowExternalScripts?: boolean;
+    /**
+     * 是否启用 CDN 本地化。
+     * 注意: 此 prop 不设置默认值，以便正确回退到 RichTextContext 的全局设置。
+     */
+    enableCdnLocalizer?: boolean;
     /**
      * 最大高度限制。
      */
@@ -240,7 +247,9 @@ const props = withDefaults(
     seamless: false,
     immediate: false,
     autoHeight: false,
-    allowExternalScripts: false,
+    // 注意: 不要给 allowExternalScripts 和 enableCdnLocalizer 设置默认值,
+    // 否则 ?? 运算符会因为收到 false (非 undefined) 而吞掉 context 的值,
+    // 导致全局开关 (RichTextRenderer 的 props) 永远无法生效。
   }
 );
 
@@ -283,10 +292,17 @@ const throttledUpdateContent = useThrottleFn((newContent: string) => {
 
 const { themedContent } = useIframeTheme(() => renderContent.value);
 
+const allowExternal = computed(
+  () =>
+    props.allowExternalScripts ?? contextAllowExternalScripts?.value ?? false
+);
+
+const cdnLocalizerEnabled = computed(
+  () => props.enableCdnLocalizer ?? enableCdnLocalizer?.value ?? true
+);
+
 const cspContent = computed(() => {
-  const allowExternal =
-    props.allowExternalScripts ?? contextAllowExternalScripts?.value ?? false;
-  if (allowExternal) {
+  if (allowExternal.value) {
     // 允许外部脚本时，放开限制
     return "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; media-src * 'self' asset: agent-asset: http://asset.localhost https://asset.localhost blob: data:; img-src * 'self' asset: agent-asset: http://asset.localhost https://asset.localhost data: blob:; frame-src *; script-src * 'unsafe-inline' 'unsafe-eval' blob: data:;";
   } else {
@@ -426,7 +442,7 @@ const srcDoc = computed(() => {
     String(props.autoHeight)
   );
 
-  if (enableCdnLocalizer?.value !== false) {
+  if (cdnLocalizerEnabled.value) {
     const { html: localizedContent } = localizeCdnLinks(content);
     content = localizedContent;
   }

@@ -44,6 +44,31 @@ export const DEFAULT_VISUAL_GUIDELINE = `
 - Mermaid: \` \`\`\`mermaid \`；公式: \`$$...$$\` (块) / \`$...$\` (行内)
 - **3D / Canvas 场景强制高度声明**：应用模式下使用 Canvas/WebGL 绘制全屏场景（如 Three.js 甜甜圈、粒子系统、3D 可视化等）时，Canvas 通常使用 \`position: fixed\` 脱离文档流，会导致预览窗口高度塌陷。**必须**为 \`<html>\` 或 \`<body>\` 显式设置 \`min-height: 500px\`，并在 Canvas 上使用 \`position: fixed; inset: 0;\` 正确铺满预览视口。
 
+#### 外部库引用规范（重要）
+
+为保证离线可用与稳定性，渲染器内置了 **CDN 本地化机制**：以下 CDN 域名 + 库名会被自动重定向到本地 \`/libs/\` 目录，**优先使用 UMD/IIFE 全局变量形式**（而非 ES Module \`import\`），并通过传统 \`<script src="...">\` 标签引入。
+
+**✅ 推荐 CDN 域名**（会被本地化拦截）：
+- \`cdn.jsdelivr.net\`、\`cdnjs.cloudflare.com\`、\`unpkg.com\`、\`ajax.googleapis.com\`、\`cdn.bootcdn.net\`
+
+**✅ 已本地化的常用库**（任选 CDN 域名 + 文件名形如 \`库名.min.js\` 即可）：
+\`d3\`、\`mermaid\`、\`echarts\`、\`three\`、\`chart.js\`、\`anime.js\`、\`gsap\`、\`p5.js\`
+
+**❌ 严禁使用**：
+- \`esm.sh\`、\`esm.run\`、\`jspm.dev\`、\`skypack.dev\` 等 **ESM-only** CDN（无法被本地化，且严格 CSP 下会被拦截）
+- \`<script type="module">\` + \`import 'https://...'\` 的 ESM 写法（与 UMD 本地库不兼容）
+
+**✅ 正确示例**：
+\`\`\`html
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script>
+  // three 作为全局变量 THREE 使用
+  const scene = new THREE.Scene();
+</script>
+\`\`\`
+
+如果需要使用未本地化的库，通过推荐 CDN 域名 + UMD 形式引用，渲染器会在允许外部资源时正常加载。
+
 #### \`<Button>\` 交互组件
 
 为用户提供可点击选项。按钮标签由 \`value\` 或按钮内的文本定义，数量不限。

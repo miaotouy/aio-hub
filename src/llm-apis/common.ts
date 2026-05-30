@@ -641,6 +641,57 @@ export const ensureResponseOk = async (response: Response): Promise<void> => {
 };
 
 /**
+ * 代理服务器端口缓存
+ * 由 ensureProxyServer() 维护：首次调用启动后端并缓存真实端口；后续直接复用。
+ * Windows 上常因 Hyper-V/WinNAT 动态保留端口段导致默认端口绑定失败 (os error 10013)，
+ * 后端会自动 fallback 到可用端口并通过返回值告知前端实际使用的端口。
+ */
+let cachedProxyPort: number | null = null;
+let proxyServerPromise: Promise<number> | null = null;
+
+/**
+ * 确保 LLM 代理服务已启动，返回实际绑定的端口
+ * 单例模式：并发调用共享同一个启动 Promise，避免重复 invoke
+ */
+async function ensureProxyServer(): Promise<number> {
+  if (cachedProxyPort !== null) {
+    return cachedProxyPort;
+  }
+  if (proxyServerPromise) {
+    return proxyServerPromise;
+  }
+
+  const preferredPort = parseInt(
+    import.meta.env.VITE_AIO_PROXY_PORT || "21655"
+  );
+
+  proxyServerPromise = (async () => {
+    try {
+      const info = await invoke<{ port: number }>("start_llm_proxy_server", {
+        port: preferredPort,
+      });
+      cachedProxyPort = info.port;
+      if (info.port !== preferredPort) {
+        logger.warn("LLM 代理服务端口已自动 fallback", {
+          preferredPort,
+          actualPort: info.port,
+        });
+      } else {
+        logger.info("LLM 代理服务已启动", { port: info.port });
+      }
+      return info.port;
+    } catch (e) {
+      // 启动失败：清理 Promise 以允许下次重试
+      proxyServerPromise = null;
+      logger.error("启动 LLM 代理服务失败", e as Error, { preferredPort });
+      throw e;
+    }
+  })();
+
+  return proxyServerPromise;
+}
+
+/**
  * 带超时控制的请求包装器
  */
 export const fetchWithTimeout = async (
@@ -695,14 +746,7 @@ export const fetchWithTimeout = async (
     if (useProxy) {
       // ── FormData 分支（透明转发）：检测 body 是否为 FormData，直接转发到 /proxy ──
       if (options.body instanceof FormData) {
-        const PROXY_PORT = parseInt(
-          import.meta.env.VITE_AIO_PROXY_PORT || "16655"
-        );
-        try {
-          await invoke("start_llm_proxy_server", { port: PROXY_PORT });
-        } catch {
-          // 已启动
-        }
+        const PROXY_PORT = await ensureProxyServer();
 
         const appSettingsStore = useAppSettingsStore();
         const settings = appSettingsStore.settings;
@@ -801,16 +845,8 @@ export const fetchWithTimeout = async (
           }
         }
       }
-      // 确保代理服务已启动
-      // 优先使用环境变量配置的端口，支持多实例开发
-      const PROXY_PORT = parseInt(
-        import.meta.env.VITE_AIO_PROXY_PORT || "16655"
-      );
-      try {
-        await invoke("start_llm_proxy_server", { port: PROXY_PORT });
-      } catch (e) {
-        console.error("Failed to start LLM proxy server:", e);
-      }
+      // 确保代理服务已启动（端口由后端智能选择，失败会自动 fallback）
+      const PROXY_PORT = await ensureProxyServer();
 
       // 获取当前代理设置
       const appSettingsStore = useAppSettingsStore();

@@ -17,14 +17,12 @@ export const DEFAULT_QUICK_ACTION_SETS: QuickActionSet[] = [
         label: "包入隐藏代码块",
         content: "<!--\n```\n{{input}}\n```\n-->\n\n\n",
         autoSend: false,
-        icon: "Code",
       },
       {
         id: "append-hidden-code",
         label: "追加隐藏代码块",
         content: "{{input}}\n\n<!--\n```\n\n```\n-->\n\n\n",
         autoSend: false,
-        icon: "PlusCircle",
       },
       {
         id: "full-code-update",
@@ -32,7 +30,6 @@ export const DEFAULT_QUICK_ACTION_SETS: QuickActionSet[] = [
         content:
           "{{input}}\n\n合并更新刚才讨论的内容到对应的最新完整版本，让我一键复制。",
         autoSend: true,
-        icon: "FileCode",
       },
     ],
   },
@@ -49,7 +46,6 @@ export const DEFAULT_QUICK_ACTION_SETS: QuickActionSet[] = [
         content:
           '<details data-variant="card">\n<summary>点击展开内容</summary>\n\n{{input}}\n\n</details>',
         autoSend: false,
-        icon: "ChevronDownSquare",
       },
       {
         id: "html-details-scroll",
@@ -57,14 +53,12 @@ export const DEFAULT_QUICK_ACTION_SETS: QuickActionSet[] = [
         content:
           '<details data-variant="card" data-tone="info" data-max-height="400">\n<summary>点击展开内容</summary>\n\n{{input}}\n\n</details>',
         autoSend: false,
-        icon: "ScrollText",
       },
       {
         id: "quote-text",
         label: "引用",
         content: "{{input}}",
         autoSend: false,
-        icon: "Quote",
         lineProcessing: {
           enabled: true,
           prefix: ">",
@@ -79,7 +73,6 @@ export const DEFAULT_QUICK_ACTION_SETS: QuickActionSet[] = [
         label: "代码块",
         content: "```\n{{input}}\n\n```\n",
         autoSend: false,
-        icon: "Zap",
       },
       {
         id: "action-forward-msg",
@@ -87,7 +80,6 @@ export const DEFAULT_QUICK_ACTION_SETS: QuickActionSet[] = [
         content:
           '\n<details data-variant="card" data-max-height="400">\n<summary>转发的消息</summary>\n\n{{input}}\n\n---转发结束---\n</details>\n',
         autoSend: false,
-        icon: "Zap",
       },
     ],
   },

@@ -198,7 +198,6 @@ const handleAddAction = () => {
     label: "新操作",
     content: "{{input}}",
     autoSend: false,
-    icon: "Zap",
     lineProcessing: {
       enabled: false,
       prefix: "",
@@ -284,9 +283,6 @@ const handleManualSave = async () => {
           :class="{ active: selectedActionId === action.id }"
           @click="selectedActionId = action.id"
         >
-          <div class="col-icon">
-            <el-icon><Zap /></el-icon>
-          </div>
           <div class="col-name">
             <span class="label-text">{{ action.label }}</span>
           </div>
@@ -573,12 +569,6 @@ const handleManualSave = async () => {
 .action-item-row.active {
   background-color: rgba(var(--el-color-primary-rgb), 0.1);
   color: var(--el-color-primary);
-}
-
-.col-icon {
-  display: flex;
-  align-items: center;
-  color: var(--el-text-color-secondary);
 }
 
 .active .col-icon {

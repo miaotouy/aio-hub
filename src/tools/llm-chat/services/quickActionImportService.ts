@@ -65,7 +65,6 @@ async function importQuickActionFromText(
         label: qr.label || qr.title || "未命名操作",
         content: qr.message || "",
         autoSend: !qr.preventAutoExecute,
-        icon: "Zap",
         description: qr.title || "",
       }));
 

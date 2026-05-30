@@ -410,12 +410,6 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
             @click="emit('execute-quick-action', action)"
             :title="action.description || action.label"
           >
-            <component
-              :is="action.icon"
-              v-if="action.icon"
-              :size="12"
-              class="qa-btn-icon"
-            />
             <span class="qa-btn-label">{{ action.label }}</span>
           </button>
         </div>

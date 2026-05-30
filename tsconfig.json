@@ -21,20 +21,18 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
 
-    /* 路径别名配置 */
-    "ignoreDeprecations": "6.0",
-    "baseUrl": ".",
+    /* 路径别名配置（使用相对路径以避免 TS 7.0 中 baseUrl 弃用警告） */
     "paths": {
-      "@/*": ["src/*"],
-      "@types/*": ["src/types/*"],
-      "@components/*": ["src/components/*"],
-      "@utils/*": ["src/utils/*"],
-      "@composables/*": ["src/composables/*"],
-      "@config/*": ["src/config/*"],
-      "@tools/*": ["src/tools/*"],
-      "@views/*": ["src/views/*"],
-      "@styles/*": ["src/styles/*"],
-      "@assets/*": ["src/assets/*"]
+      "@/*": ["./src/*"],
+      "@types/*": ["./src/types/*"],
+      "@components/*": ["./src/components/*"],
+      "@utils/*": ["./src/utils/*"],
+      "@composables/*": ["./src/composables/*"],
+      "@config/*": ["./src/config/*"],
+      "@tools/*": ["./src/tools/*"],
+      "@views/*": ["./src/views/*"],
+      "@styles/*": ["./src/styles/*"],
+      "@assets/*": ["./src/assets/*"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.tsx", "src/**/*.vue"],

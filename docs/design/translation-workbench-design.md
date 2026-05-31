@@ -1,4 +1,8 @@
-# 翻译工作台 (Translation Workbench) 设计文档草案
+# ~~翻译工作台 (Translation Workbench) 设计文档草案~~
+
+> ⚠️ **已过时** — 本文档为 2025 年底的初始设计草案，半年后经调查确认未实施。
+> 新的实施计划见 [`translation-workbench-plan-v2.md`](./translation-workbench-plan-v2.md)。
+> 保留本文件仅供历史参考。
 
 ## 1. 概述 (Overview)
 

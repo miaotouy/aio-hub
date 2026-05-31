@@ -266,9 +266,30 @@ fn collect_files(
     builder.follow_links(false); // 不跟随符号链接
 
     // 添加忽略模式
-    for pattern in &config.ignore_patterns {
+    if !config.ignore_patterns.is_empty() {
         let mut override_builder = ignore::overrides::OverrideBuilder::new(root);
-        let _ = override_builder.add(&format!("!{}", pattern));
+        for pattern in &config.ignore_patterns {
+            let trimmed = pattern.trim();
+            if !trimmed.is_empty() {
+                if let Err(e) = override_builder.add(&format!("!{}", trimmed)) {
+                    skipped.lock().unwrap().push(SkippedFile {
+                        path: "<config>".to_string(),
+                        reason: format!("无效的忽略模式 '{}': {}", trimmed, e),
+                    });
+                }
+            }
+        }
+        match override_builder.build() {
+            Ok(overrides) => {
+                builder.overrides(overrides);
+            }
+            Err(e) => {
+                skipped.lock().unwrap().push(SkippedFile {
+                    path: "<config>".to_string(),
+                    reason: format!("构建忽略模式失败: {}", e),
+                });
+            }
+        }
     }
 
     let walker = builder.build();

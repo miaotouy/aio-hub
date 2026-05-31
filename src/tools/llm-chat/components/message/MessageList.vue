@@ -219,6 +219,18 @@ const bubbleLayoutVars = computed(() => {
 const isBubbleMode = computed(() => bubbleLayout.value.mode === "bubble");
 const avatarPlacement = computed(() => bubbleLayout.value.avatarPlacement);
 const headerPlacement = computed(() => bubbleLayout.value.headerPlacement);
+const showAvatar = computed(() => settings.value.uiPreferences.showAvatar);
+
+/**
+ * 判断 MessageHeader 内置头像是否应被隐藏：
+ * - 全局关闭显示头像
+ * - 或者气泡模式下使用外置头像
+ */
+const shouldHideHeaderAvatar = computed(
+  () =>
+    !showAvatar.value ||
+    (isBubbleMode.value && avatarPlacement.value === "outside")
+);
 
 /**
  * 判断某条消息是否应该使用外置 header 布局：
@@ -671,7 +683,8 @@ defineExpose({
         :class="[
           `mode-${bubbleLayout.mode}`,
           {
-            'avatar-outside': isBubbleMode && avatarPlacement === 'outside',
+            'avatar-outside':
+              isBubbleMode && showAvatar && avatarPlacement === 'outside',
             'header-outside': isBubbleMode && headerPlacement === 'outside',
           },
         ]"
@@ -689,10 +702,11 @@ defineExpose({
                 : 'false'
             "
           >
-            <!-- 外置头像：仅 bubble + outside + 非居中 时渲染 -->
+            <!-- 外置头像：仅 bubble + outside + 显示头像 + 非居中 时渲染 -->
             <MessageExternalAvatar
               v-if="
                 isBubbleMode &&
+                showAvatar &&
                 avatarPlacement === 'outside' &&
                 getMessageLayout(index).align !== 'center'
               "
@@ -708,7 +722,7 @@ defineExpose({
               <MessageHeader
                 class="external-header"
                 :message="msg"
-                :hide-avatar="avatarPlacement !== 'inside'"
+                :hide-avatar="shouldHideHeaderAvatar"
               />
               <ChatMessage
                 :session-index="props.sessionIndex"
@@ -856,7 +870,7 @@ defineExpose({
               :siblings="getMessageSiblings(msg.id).siblings"
               :current-sibling-index="getMessageSiblings(msg.id).currentIndex"
               :llm-think-rules="llmThinkRules"
-              :hide-header-avatar="isBubbleMode && avatarPlacement !== 'inside'"
+              :hide-header-avatar="shouldHideHeaderAvatar"
               :rich-text-style-options="
                 msg.role === 'user'
                   ? userRichTextStyleOptions || richTextStyleOptions

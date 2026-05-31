@@ -544,10 +544,10 @@ graph TD
   - **像素上限 (`maxWidthPx`)**: 作为大屏幕下的硬上限，避免气泡过宽影响阅读节奏。
   - 系统消息独立的 `systemMaxWidthPercent` 支持居中场景下的差异化宽度。
 
-- **头像位置灵活配置 (`avatarPlacement`)**:
+- **头像显示与位置 (`uiPreferences.showAvatar` + `avatarPlacement`)**:
+  - **全局开关**: 顶层 `uiPreferences.showAvatar` 控制是否显示头像（卡片模式和气泡模式都生效），关闭后所有消息均隐藏头像。
   - **`inside`**: 头像在气泡内部（沿用 `MessageHeader` 行为）。
   - **`outside`**: 经典 IM 风格，头像独立于气泡渲染在左右两侧，由 `MessageExternalAvatar` 组件承载。该模式下会自动扣除头像列宽度，避免气泡压到头像横坐标。
-  - **`none`**: 完全隐藏头像，最大化内容空间。
   - 外置模式下，`avatarSize` 与 `avatarGap` 提供精细的尺寸与间距控制；粘附消息和居中消息会渲染透明占位以保持气泡对齐基线。
 
 - **头部信息分离 (`headerPlacement`)**:

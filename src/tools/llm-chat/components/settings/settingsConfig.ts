@@ -110,6 +110,15 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         keywords: "ui token usage block code tool 统计 块",
       },
       {
+        id: "showAvatar",
+        label: "显示头像",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "uiPreferences.showAvatar",
+        hint: "在消息中显示用户/智能体头像。关闭后卡片模式和气泡模式都不再显示头像。",
+        keywords: "ui avatar 头像 显示 隐藏",
+      },
+      {
         id: "showModelInfo",
         label: "显示模型信息",
         layout: "inline",
@@ -429,11 +438,12 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         options: [
           { label: "气泡内 (默认)", value: "inside" },
           { label: "气泡外 (IM 经典)", value: "outside" },
-          { label: "不显示", value: "none" },
         ],
-        hint: "外置模式下，头像独立于气泡渲染在左右两侧；粘附消息和居中消息不显示头像",
+        hint: "外置模式下，头像独立于气泡渲染在左右两侧；粘附消息和居中消息不显示头像。<br/>若要完全隐藏头像，请在「界面偏好」中关闭「显示头像」。",
         keywords: "bubble avatar placement 气泡 头像 位置",
-        visible: (s) => s.uiPreferences.bubbleLayout.mode === "bubble",
+        visible: (s) =>
+          s.uiPreferences.bubbleLayout.mode === "bubble" &&
+          s.uiPreferences.showAvatar,
       },
       {
         id: "bubbleAvatarSize",
@@ -451,6 +461,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         keywords: "bubble avatar size 头像 尺寸",
         visible: (s) =>
           s.uiPreferences.bubbleLayout.mode === "bubble" &&
+          s.uiPreferences.showAvatar &&
           s.uiPreferences.bubbleLayout.avatarPlacement === "outside",
       },
       {
@@ -469,6 +480,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         keywords: "bubble avatar gap 头像 间距",
         visible: (s) =>
           s.uiPreferences.bubbleLayout.mode === "bubble" &&
+          s.uiPreferences.showAvatar &&
           s.uiPreferences.bubbleLayout.avatarPlacement === "outside",
       },
       {

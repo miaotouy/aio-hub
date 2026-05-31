@@ -74,12 +74,13 @@ export interface BubbleLayoutConfig {
    */
   toolAttachment: "follow-prev" | "center";
   /**
-   * 头像位置
+   * 头像位置 (仅气泡模式生效，且需要 uiPreferences.showAvatar 为 true)
    * - inside  : 头像在气泡内部 (沿用 MessageHeader 行为)
    * - outside : 头像在气泡外部，独立于气泡左右两侧 (IM 经典)
-   * - none    : 不显示头像
+   *
+   * 是否显示头像由 uiPreferences.showAvatar 全局控制
    */
-  avatarPlacement: "inside" | "outside" | "none";
+  avatarPlacement: "inside" | "outside";
   /** 外置头像尺寸 (px) */
   avatarSize: number;
   /** 外置头像与气泡的水平间距 (px) */
@@ -112,6 +113,8 @@ export interface ChatSettings {
     showTokenCount: boolean;
     /** 是否显示块级元素的 Token 计数（代码块、工具调用） */
     showTokenCountForBlocks: boolean;
+    /** 是否显示头像（卡片模式和气泡模式都生效） */
+    showAvatar: boolean;
     /** 是否显示模型信息 */
     showModelInfo: boolean;
     /** 是否显示性能指标 */
@@ -319,6 +322,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     showTimestamp: false,
     showTokenCount: true,
     showTokenCountForBlocks: true,
+    showAvatar: true,
     showModelInfo: true,
     showPerformanceMetrics: true,
     showModelSelector: true,

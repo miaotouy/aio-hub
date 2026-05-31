@@ -111,6 +111,9 @@ const roleIcon = computed(() => {
 
 .vcp-role-content {
   padding-top: 16px;
+  max-height: 1200px;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 /* 优化嵌套在 RoleNode 中的 ToolNode 间距 */

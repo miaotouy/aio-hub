@@ -11,6 +11,7 @@ export const DEFAULT_TOOLS_ORDER = [
   "/media-generator",
   "/smart-ocr",
   "/transcription",
+  "/translator",
   "/web-distillery",
   "/knowledge-base",
   "/st-worldbook-editor",

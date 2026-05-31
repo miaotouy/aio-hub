@@ -28,6 +28,10 @@ interface Props {
   buttonVisibility?: ButtonVisibility;
   messageDepth?: number;
   isCompressed?: boolean; // 是否因为上下文压缩而视作禁用
+  /** 是否隐藏消息头部内的头像（气泡模式外置头像场景使用） */
+  hideHeaderAvatar?: boolean;
+  /** 是否隐藏整个消息头部（气泡模式外置 header 场景使用） */
+  hideHeader?: boolean;
 }
 
 interface Emits {
@@ -248,7 +252,11 @@ defineExpose({
 
     <!-- 内容层：提高层级 -->
     <div class="message-inner">
-      <MessageHeader :message="message" />
+      <MessageHeader
+        v-if="!hideHeader"
+        :message="message"
+        :hide-avatar="hideHeaderAvatar"
+      />
 
       <MessageContent
         :session-index="props.sessionIndex"
@@ -351,7 +359,11 @@ defineExpose({
 }
 
 .chat-message.is-live-greeting::after {
-  border-color: color-mix(in srgb, var(--primary-color) 45%, var(--border-color));
+  border-color: color-mix(
+    in srgb,
+    var(--primary-color) 45%,
+    var(--border-color)
+  );
   border-style: dashed;
 }
 

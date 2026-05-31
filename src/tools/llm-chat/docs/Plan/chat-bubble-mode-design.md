@@ -1116,4 +1116,160 @@ CSS：
 
 ---
 
-> **下一步**：等姐姐批准方案后切换到 Code 模式按 Phase 1 → Phase 5 推进实施。如需 PoC，可先实现 Phase 1-3 做静态模式骨架预览（不含配色 / 尖角 / 外置头像，先验证布局正确性）。
+## 14. v3 决策（姐姐反馈，最终采纳）
+
+| 决策项                    | v3 处理                 | 说明                                                                                    |
+| ------------------------- | ----------------------- | --------------------------------------------------------------------------------------- |
+| **压缩消息位置**          | **居中**（视同 system） | 不再跟随其 `role` 字段对齐，所有 `compression` 节点一律走 `systemAlign` 路径            |
+| **气泡填充配色**          | **本期不做**            | 消息富文本支持 HTML/MD 自定义颜色，气泡填充易冲突；后期最多做"边框颜色按角色区分"       |
+| **气泡尖角 (bubbleTail)** | **本期不做**            | AI 设计的尖角细节存在不一定合适的加法，按需后补                                         |
+| **实施节奏**              | **分两阶段**            | Phase 1 先做骨架（mode/对齐/宽度/粘附/外置头像），Phase 2 按用户反馈再加配色/尖角等增强 |
+
+### 14.1 Phase 1 实际数据模型（精简版）
+
+```typescript
+interface BubbleLayoutConfig {
+  /** 布局模式 */
+  mode: "card" | "bubble";
+  /** 用户消息对齐 (bubble 模式) */
+  userAlign: "left" | "right";
+  /** 助手消息对齐 (bubble 模式) */
+  assistantAlign: "left" | "right";
+  /** 系统/压缩消息对齐 */
+  systemAlign: "center" | "left";
+  /** 气泡最大宽度百分比 */
+  maxWidthPercent: number;
+  /** 气泡最大绝对宽度 (px) */
+  maxWidthPx: number;
+  /** 系统/压缩消息最大宽度百分比 (居中时使用) */
+  systemMaxWidthPercent: number;
+  /** 工具消息粘附行为 */
+  toolAttachment: "attach" | "inline" | "free";
+  /** 头像位置 */
+  avatarPlacement: "inside" | "outside" | "none";
+  /** 外置头像尺寸 (px) */
+  avatarSize: number;
+  /** 头像与气泡间距 (px) */
+  avatarGap: number;
+  /** 气泡圆角 (px) */
+  borderRadius: number;
+}
+```
+
+### 14.2 Phase 1 文件改动清单
+
+| 文件                                                                                                                          | 改动                                                                                                                                                                                                                                                                                                         |
+| ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`types/settings.ts`](src/tools/llm-chat/types/settings.ts)                                                                   | 新增 `BubbleLayoutConfig` 类型 + `uiPreferences.bubbleLayout` 子对象 + 默认值（`mode: "card"` 零回归）                                                                                                                                                                                                       |
+| [`components/message/MessageExternalAvatar.vue`](src/tools/llm-chat/components/message/MessageExternalAvatar.vue)（**新建**） | 外置头像组件，复用 `useResolvedAvatar`，仅对 user/assistant 渲染，其他角色不渲染                                                                                                                                                                                                                             |
+| [`components/message/MessageList.vue`](src/tools/llm-chat/components/message/MessageList.vue)                                 | 模板加 `mode-${mode}` 类与 `bubbleLayoutVars` 内联样式；每条消息外包 `<div class="message-slot">`；逻辑：`resolveRole` / `resolveAlign`（**compression → systemAlign**） / `shouldAttachToPrev` / `resolveToolAlign`（粘附时跟随 prev，独立时跟随 assistant）；CSS：对齐、宽度、粘附融合、外置头像 flex 容器 |
+| [`components/message/MessageHeader.vue`](src/tools/llm-chat/components/message/MessageHeader.vue)                             | 新增 `hideAvatar` prop（外置模式下隐藏内置头像）                                                                                                                                                                                                                                                             |
+| [`components/message/ChatMessage.vue`](src/tools/llm-chat/components/message/ChatMessage.vue)                                 | 透传 `hideAvatar` 给 `MessageHeader`                                                                                                                                                                                                                                                                         |
+| [`components/message/ToolCallMessage.vue`](src/tools/llm-chat/components/message/ToolCallMessage.vue)                         | 右对齐时装饰条 `flex-direction: row-reverse` 处理                                                                                                                                                                                                                                                            |
+| [`components/message/CompressionMessage.vue`](src/tools/llm-chat/components/message/CompressionMessage.vue)                   | 不动（由 MessageList 控制对齐）                                                                                                                                                                                                                                                                              |
+| [`components/settings/settingsConfig.ts`](src/tools/llm-chat/components/settings/settingsConfig.ts)                           | 新增"气泡布局"分区（12 个配置项，无配色无尖角）                                                                                                                                                                                                                                                              |
+
+### 14.3 Phase 2 待办（按用户反馈再做）
+
+- 角色边框颜色区分（可选，不填充）
+- 气泡尖角（如确有需要）
+- 配色填充（如确有需要，需解决与富文本颜色冲突问题）
+- 实时预览缩略图
+
+---
+
+## 15. Phase 1 落地总结（已完成）
+
+| 模块                                                                                                              | 状态 | 备注                                                                                                                                                        |
+| ----------------------------------------------------------------------------------------------------------------- | ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`types/settings.ts`](src/tools/llm-chat/types/settings.ts)                                                       | ✅   | 新增 [`BubbleLayoutConfig`](src/tools/llm-chat/types/settings.ts:51) + 默认值（mode: card 零回归）                                                          |
+| [`components/settings/settingsConfig.ts`](src/tools/llm-chat/components/settings/settingsConfig.ts)               | ✅   | 新增"气泡布局"分区，12 个配置项，全部带 `visible` 条件                                                                                                      |
+| [`components/message/MessageExternalAvatar.vue`](src/tools/llm-chat/components/message/MessageExternalAvatar.vue) | ✅   | 复用 [`useResolvedAvatar`](src/tools/llm-chat/composables/ui/useResolvedAvatar.ts)；user/assistant 渲染真实头像，tool/system 渲染透明占位以保持气泡缩进对齐 |
+| [`components/message/MessageHeader.vue`](src/tools/llm-chat/components/message/MessageHeader.vue)                 | ✅   | 新增 `hideAvatar` prop，外置模式下隐藏内置头像                                                                                                              |
+| [`components/message/ChatMessage.vue`](src/tools/llm-chat/components/message/ChatMessage.vue)                     | ✅   | 透传 `hideHeaderAvatar` 给 MessageHeader                                                                                                                    |
+| [`components/message/MessageList.vue`](src/tools/llm-chat/components/message/MessageList.vue)                     | ✅   | 完成所有布局逻辑：mode-`x` 类、`bubbleLayoutVars` 变量、`message-slot` wrapper、`messageLayouts` 预计算、外置头像渲染、对齐/宽度/粘附 CSS                   |
+
+### 15.1 头像位置（avatarPlacement）三种模式现状
+
+| 模式      | 行为                                                                                                                                                                                                        |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `inside`  | 头像保留在 MessageHeader 内（默认行为）。右对齐时 header 整体 `row-reverse` 让头像贴气泡右侧，名字 / 时间右对齐                                                                                             |
+| `outside` | 头像独立于气泡渲染在左右两侧。`align-items: flex-start` 头像贴气泡顶；居中消息（system / compression）不渲染头像；tool 等非可识别角色渲染透明占位以保持气泡缩进对齐；占位 `pointer-events: none` 不阻挡交互 |
+| `none`    | 完全不显示头像。MessageHeader 内的头像也被隐藏，只保留名字 / 时间 / 副标题                                                                                                                                  |
+
+### 15.2 右对齐镜像规则（全角色覆盖）
+
+所有 `data-align="right"` 的 message-slot 统一应用以下镜像（覆盖 inside / outside 两种 placement）：
+
+- `.message-header` → `flex-direction: row-reverse`
+- `.message-header .header-left` → `flex-direction: row-reverse`
+- `.message-header .header-right` → `margin-left: 0; margin-right: auto`（抵消原 `margin-left: auto`）
+- `.message-header .message-info` → `align-items: flex-end; text-align: right`
+- `.tool-call-message` → `flex-direction: row-reverse`（让装饰条 `.tool-bar` 贴到气泡右侧）
+- `.tool-call-message .tool-header` & `.header-left` → `flex-direction: row-reverse`
+- `.menubar-wrapper` → `justify-content: flex-end`（右对齐场景）；左对齐时 `padding-right: 0; padding-left: 12px`
+
+### 15.3 验证
+
+- ✅ `bun run check:frontend` 通过，无类型错误
+- ⏸ 实机视觉验证：需要在桌面 Tauri 窗口内切换 `card` / `bubble` + `inside` / `outside` / `none` 组合检查，建议覆盖以下场景：
+  - 普通对话（user/assistant 交替）
+  - 工具调用链（follow-prev 粘附场景）
+  - 压缩节点（确认走 `systemAlign` 居中）
+  - 长气泡（确认头像贴顶不浮底）
+  - 多模态消息（确认 message-info 右对齐时副标题对齐正确）
+
+---
+
+> **下一步**：等姐姐实机验证 §15.3 列出的场景。如有视觉细节调整需求（如头像贴顶/贴底偏好、tool-bar 镜像保留/取消等）再进入 Phase 2。
+
+---
+
+## 16. Phase 1.5 增量：外置 Header (headerPlacement)
+
+姐姐反馈：仅外置头像还不够 IM。真正的 IM 风格需要把整个 [`MessageHeader`](src/tools/llm-chat/components/message/MessageHeader.vue) 也搬到气泡外面，气泡内只保留消息内容本体。
+
+### 16.1 改动清单
+
+| 文件                                                                                                | 改动                                                                                                                                                                                                                 |
+| --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`types/settings.ts`](src/tools/llm-chat/types/settings.ts)                                         | 新增 `headerPlacement: "inside" \| "outside"`（默认 `inside`）+ `headerGap`（默认 4px）                                                                                                                              |
+| [`components/settings/settingsConfig.ts`](src/tools/llm-chat/components/settings/settingsConfig.ts) | 新增"头部信息位置"单选 + "头部与气泡间距"滑块（visible 条件 bubble + outside）                                                                                                                                       |
+| [`components/message/ChatMessage.vue`](src/tools/llm-chat/components/message/ChatMessage.vue)       | 新增 `hideHeader` prop；模板内 `MessageHeader` 加 `v-if="!hideHeader"`                                                                                                                                               |
+| [`components/message/MessageList.vue`](src/tools/llm-chat/components/message/MessageList.vue)       | 引入 `MessageHeader`；新增 `shouldUseOutsideHeader` 判断函数；在 message-slot 内新增 `.message-body` 列容器（仅 user/assistant 普通消息）：`[external-header / ChatMessage(hide-header)]`；新增对应 CSS 与 data 属性 |
+
+### 16.2 适用范围与边界
+
+| 角色 / 节点类型               | 是否外置 header | 备注                                               |
+| ----------------------------- | --------------- | -------------------------------------------------- |
+| `user` / `assistant` 普通消息 | ✅              | 触发 `.message-body` 列容器                        |
+| `tool` 调用消息               | ❌              | 保留 ToolCallMessage 自身的装饰条 `.tool-bar` 风格 |
+| `compression` 压缩节点        | ❌              | CompressionMessage 有独立 header 逻辑              |
+| 居中对齐 (`align === center`) | ❌              | system / 旁白节点保持气泡内排版                    |
+
+### 16.3 与外置头像 (avatarPlacement) 的组合矩阵
+
+| 头像 (avatarPlacement) | 头部 (headerPlacement) | 视觉效果                                                                                                        |
+| ---------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `inside`               | `inside`               | 原始气泡：头像 / 名字 / 时间全在气泡内                                                                          |
+| `inside`               | `outside`              | 名字 + 时间在气泡上方（带头像），气泡内仅内容；适合"减少气泡负担"但保留视觉锚点                                 |
+| `outside`              | `inside`               | 头像在气泡侧边，名字 / 时间仍在气泡内                                                                           |
+| `outside`              | `outside`              | **完全 IM 经典**：头像在左/右，[名字 + 时间] 在气泡上方，气泡内仅消息内容（外置 header 自动隐藏头像，避免重复） |
+| `none`                 | `*`                    | 头像完全隐藏，header 内/外按 placement 决定                                                                     |
+
+### 16.4 关键 CSS 设计
+
+- `.message-body` 是 [外置 Header + 气泡] 的列容器，继承 `max-width` 限宽
+- 气泡在 `.message-body` 内 `width: 100%`，解除自身 max-width 限制（避免双重限宽冲突）
+- 外置 header 复用现有 [`MessageHeader.vue`](src/tools/llm-chat/components/message/MessageHeader.vue)，通过 `hide-avatar` prop 在外置头像同步时避免头像重复
+- 右对齐时通过现有的 `[data-align="right"] .message-header` 镜像规则自然反转 header 方向
+
+### 16.5 验证
+
+- ✅ `bun run check:frontend` 通过
+- ⏸ 实机验证场景：
+  - `bubble` + `avatar: outside` + `header: outside` → 最像 IM 的组合
+  - `bubble` + `avatar: inside` + `header: outside` → 弱化气泡负担
+  - `bubble` + `header: outside` + 左右切换对齐 → 镜像正确
+  - tool / compression 节点保持原状不受影响
+  - 性能指标、工具状态标签等 header 内容（v-if 控制项）在外置时显示正常

@@ -46,6 +46,59 @@ export interface TranslationConfig {
 }
 
 /**
+ * 气泡布局配置（IM 风格 / 卡片风格切换）
+ */
+export interface BubbleLayoutConfig {
+  /**
+   * 布局模式
+   * - card  : 卡片模式（默认，全宽左对齐，保持现有行为）
+   * - bubble: 气泡模式（IM 风格，按角色对齐并限制宽度）
+   */
+  mode: "card" | "bubble";
+  /** 用户消息对齐方向 (仅 bubble 模式) */
+  userAlign: "left" | "right";
+  /** 助手消息对齐方向 (仅 bubble 模式) */
+  assistantAlign: "left" | "right";
+  /** 系统/压缩消息对齐方向 (居中作为旁白，或靠左) */
+  systemAlign: "center" | "left";
+  /** 气泡最大宽度百分比 (40-100)，相对消息列表容器 */
+  maxWidthPercent: number;
+  /** 气泡最大绝对宽度 (px)，作为百分比的上限 */
+  maxWidthPx: number;
+  /** 系统/压缩消息最大宽度百分比 (居中时使用) */
+  systemMaxWidthPercent: number;
+  /**
+   * 工具消息对齐策略
+   * - follow-prev : 跟随上一条消息的对齐方向（独立气泡，与上方消息同侧）
+   * - center      : 独立居中显示（旁白式）
+   */
+  toolAttachment: "follow-prev" | "center";
+  /**
+   * 头像位置
+   * - inside  : 头像在气泡内部 (沿用 MessageHeader 行为)
+   * - outside : 头像在气泡外部，独立于气泡左右两侧 (IM 经典)
+   * - none    : 不显示头像
+   */
+  avatarPlacement: "inside" | "outside" | "none";
+  /** 外置头像尺寸 (px) */
+  avatarSize: number;
+  /** 外置头像与气泡的水平间距 (px) */
+  avatarGap: number;
+  /**
+   * 消息头部 (名字/模型信息/时间戳) 位置
+   * - inside  : 头部在气泡内部 (默认)
+   * - outside : 头部外置到气泡上方 (IM 经典：名字 + 时间在气泡上面，气泡内只有内容)
+   *
+   * 仅对 user / assistant 普通消息生效；tool / compression 保留各自装饰条
+   */
+  headerPlacement: "inside" | "outside";
+  /** 外置 header 与气泡的垂直间距 (px) */
+  headerGap: number;
+  /** 气泡圆角 (px) */
+  borderRadius: number;
+}
+
+/**
  * 聊天设置接口
  */
 export interface ChatSettings {
@@ -131,6 +184,8 @@ export interface ChatSettings {
     codeEditorEngine: "monaco" | "codemirror";
     /** 全局媒体音量 (0-100) */
     globalMediaVolume: number;
+    /** 气泡布局配置 */
+    bubbleLayout: BubbleLayoutConfig;
   };
   /** 模型偏好设置 */
   modelPreferences: {
@@ -300,6 +355,22 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     safetyGuardEnabled: true, // 默认启用渲染安全护栏
     codeEditorEngine: "codemirror", // 默认使用 CodeMirror
     globalMediaVolume: 80, // 默认媒体音量 80%
+    bubbleLayout: {
+      mode: "card", // 默认卡片模式，零回归
+      userAlign: "right",
+      assistantAlign: "left",
+      systemAlign: "center",
+      maxWidthPercent: 75,
+      maxWidthPx: 720,
+      systemMaxWidthPercent: 60,
+      toolAttachment: "follow-prev",
+      avatarPlacement: "inside",
+      avatarSize: 36,
+      avatarGap: 8,
+      headerPlacement: "inside",
+      headerGap: 4,
+      borderRadius: 12,
+    },
   },
   modelPreferences: {
     defaultModel: "",

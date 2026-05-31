@@ -14,9 +14,13 @@ import { formatRelativeTime } from "@/utils/time";
 
 interface Props {
   message: ChatMessageNode;
+  /** 是否隐藏头像 (用于气泡模式的外置头像场景) */
+  hideAvatar?: boolean;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  hideAvatar: false,
+});
 
 const agentStore = useAgentStore();
 const userProfileStore = useUserProfileStore();
@@ -207,17 +211,19 @@ const formatLatency = (ms: number) => {
 <template>
   <div class="message-header">
     <div class="header-left">
-      <div v-if="message.role === 'tool'" class="tool-avatar">
-        <component :is="displayIcon" :size="20" />
-      </div>
-      <Avatar
-        v-else
-        :src="typeof displayIcon === 'string' ? displayIcon : ''"
-        :alt="nameForAlt"
-        :size="40"
-        shape="square"
-        :radius="6"
-      />
+      <template v-if="!hideAvatar">
+        <div v-if="message.role === 'tool'" class="tool-avatar">
+          <component :is="displayIcon" :size="20" />
+        </div>
+        <Avatar
+          v-else
+          :src="typeof displayIcon === 'string' ? displayIcon : ''"
+          :alt="nameForAlt"
+          :size="40"
+          shape="square"
+          :radius="6"
+        />
+      </template>
       <div class="message-info">
         <div class="name-row">
           <span class="message-name">{{ displayName }}</span>
@@ -392,7 +398,8 @@ const formatLatency = (ms: number) => {
   font-size: 11px;
   line-height: 1;
   color: var(--primary-color);
-  border: var(--border-width) solid color-mix(in srgb, var(--primary-color) 50%, transparent);
+  border: var(--border-width) solid
+    color-mix(in srgb, var(--primary-color) 50%, transparent);
   border-radius: 4px;
   padding: 2px 5px;
   background-color: color-mix(in srgb, var(--primary-color) 8%, transparent);
@@ -485,5 +492,26 @@ const formatLatency = (ms: number) => {
   color: var(--text-color-light);
   font-size: 12px;
   flex-shrink: 0;
+}
+
+/* ===========================================================
+ * 外置 Header 模式 (.external-header)
+ * 当 header 渲染在气泡外部（headerPlacement === "outside"）时，
+ * 名字行和 header-right（性能指标 / 时间戳等）并列一行容易拥挤，
+ * 改为上下两行布局：名字行在上，header-right 在下。
+ * =========================================================== */
+.message-header.external-header {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.message-header.external-header .header-right {
+  /* 解除水平模式下用于推到右侧的 margin-left: auto */
+  margin-left: 0;
+  /* 默认（左对齐场景）让 header-right 跟随名字靠左 */
+  align-self: flex-start;
+  /* 内容多时允许换行，避免横向溢出气泡宽度 */
+  flex-wrap: wrap;
 }
 </style>

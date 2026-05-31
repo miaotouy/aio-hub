@@ -15,6 +15,7 @@ import {
   BookMarked,
   Zap,
   Library,
+  LayoutTemplate,
 } from "lucide-vue-next";
 import type { SettingsSection } from "@/types/settings-renderer";
 import type { ChatSettings } from "../../types/settings";
@@ -274,6 +275,224 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "uiPreferences.showWallpaperInDetachedMode",
         hint: "当聊天窗口悬浮化时，在其内部显示全局壁纸",
         keywords: "ui wallpaper background detached 分离 悬浮窗 壁纸 背景",
+      },
+    ],
+  },
+  {
+    title: "气泡布局",
+    icon: LayoutTemplate,
+    items: [
+      {
+        id: "bubbleMode",
+        label: "布局模式",
+        component: "ElRadioGroup",
+        modelPath: "uiPreferences.bubbleLayout.mode",
+        options: [
+          { label: "卡片模式 (默认)", value: "card" },
+          { label: "气泡模式 (IM 风格)", value: "bubble" },
+        ],
+        hint: "卡片模式：所有消息占满宽度（保持现有行为）<br/>气泡模式：按角色对齐并限制宽度",
+        keywords: "bubble layout mode card 气泡 布局 模式 卡片",
+      },
+      {
+        id: "bubbleUserAlign",
+        label: "用户消息对齐",
+        component: "ElRadioGroup",
+        modelPath: "uiPreferences.bubbleLayout.userAlign",
+        options: [
+          { label: "靠左", value: "left" },
+          { label: "靠右", value: "right" },
+        ],
+        hint: "",
+        keywords: "bubble user align 气泡 用户 对齐",
+        visible: (s) => s.uiPreferences.bubbleLayout.mode === "bubble",
+      },
+      {
+        id: "bubbleAssistantAlign",
+        label: "助手消息对齐",
+        component: "ElRadioGroup",
+        modelPath: "uiPreferences.bubbleLayout.assistantAlign",
+        options: [
+          { label: "靠左", value: "left" },
+          { label: "靠右", value: "right" },
+        ],
+        hint: "",
+        keywords: "bubble assistant align 气泡 助手 对齐",
+        visible: (s) => s.uiPreferences.bubbleLayout.mode === "bubble",
+      },
+      {
+        id: "bubbleSystemAlign",
+        label: "系统 / 压缩消息位置",
+        component: "ElRadioGroup",
+        modelPath: "uiPreferences.bubbleLayout.systemAlign",
+        options: [
+          { label: "居中 (旁白)", value: "center" },
+          { label: "靠左", value: "left" },
+        ],
+        hint: "压缩节点也跟随此设置",
+        keywords: "bubble system compression align 系统 压缩 居中 旁白",
+        visible: (s) => s.uiPreferences.bubbleLayout.mode === "bubble",
+      },
+      {
+        id: "bubbleMaxWidthPercent",
+        label:
+          "气泡最大宽度 ({{ localSettings.uiPreferences.bubbleLayout.maxWidthPercent }}%)",
+        component: "ElSlider",
+        props: {
+          min: 40,
+          max: 100,
+          step: 5,
+          "format-tooltip": (val: number) => `${val}%`,
+        },
+        modelPath: "uiPreferences.bubbleLayout.maxWidthPercent",
+        hint: "相对于消息列表容器的最大宽度百分比",
+        keywords: "bubble width percent 气泡 宽度 百分比",
+        visible: (s) => s.uiPreferences.bubbleLayout.mode === "bubble",
+      },
+      {
+        id: "bubbleMaxWidthPx",
+        label:
+          "气泡最大绝对宽度 ({{ localSettings.uiPreferences.bubbleLayout.maxWidthPx }}px)",
+        component: "ElSlider",
+        props: {
+          min: 300,
+          max: 1400,
+          step: 20,
+          "format-tooltip": (val: number) => `${val}px`,
+        },
+        modelPath: "uiPreferences.bubbleLayout.maxWidthPx",
+        hint: "气泡最大宽度的绝对上限（作为百分比的兜底）",
+        keywords: "bubble max width 气泡 最大 宽度 像素",
+        visible: (s) => s.uiPreferences.bubbleLayout.mode === "bubble",
+      },
+      {
+        id: "bubbleSystemMaxWidthPercent",
+        label:
+          "系统消息最大宽度 ({{ localSettings.uiPreferences.bubbleLayout.systemMaxWidthPercent }}%)",
+        component: "ElSlider",
+        props: {
+          min: 30,
+          max: 90,
+          step: 5,
+          "format-tooltip": (val: number) => `${val}%`,
+        },
+        modelPath: "uiPreferences.bubbleLayout.systemMaxWidthPercent",
+        hint: "居中显示的系统/压缩消息的宽度",
+        keywords: "bubble system width 系统 宽度",
+        visible: (s) =>
+          s.uiPreferences.bubbleLayout.mode === "bubble" &&
+          s.uiPreferences.bubbleLayout.systemAlign === "center",
+      },
+      {
+        id: "bubbleToolAttachment",
+        label: "工具消息对齐",
+        component: "ElRadioGroup",
+        modelPath: "uiPreferences.bubbleLayout.toolAttachment",
+        options: [
+          { label: "跟随上方消息方向 (推荐)", value: "follow-prev" },
+          { label: "独立居中", value: "center" },
+        ],
+        hint: "跟随模式下，工具调用会自动与上方消息（助手 / 用户嫁接 / 工具链）同侧对齐；居中模式下作为旁白独立显示",
+        keywords: "bubble tool align follow center 工具 对齐 跟随 居中 嫁接",
+        visible: (s) => s.uiPreferences.bubbleLayout.mode === "bubble",
+      },
+      {
+        id: "bubbleBorderRadius",
+        label:
+          "气泡圆角 ({{ localSettings.uiPreferences.bubbleLayout.borderRadius }}px)",
+        component: "ElSlider",
+        props: {
+          min: 0,
+          max: 24,
+          step: 1,
+          "format-tooltip": (val: number) => `${val}px`,
+        },
+        modelPath: "uiPreferences.bubbleLayout.borderRadius",
+        hint: "",
+        keywords: "bubble border radius 气泡 圆角",
+        visible: (s) => s.uiPreferences.bubbleLayout.mode === "bubble",
+      },
+      {
+        id: "bubbleAvatarPlacement",
+        label: "头像位置",
+        component: "ElRadioGroup",
+        modelPath: "uiPreferences.bubbleLayout.avatarPlacement",
+        options: [
+          { label: "气泡内 (默认)", value: "inside" },
+          { label: "气泡外 (IM 经典)", value: "outside" },
+          { label: "不显示", value: "none" },
+        ],
+        hint: "外置模式下，头像独立于气泡渲染在左右两侧；粘附消息和居中消息不显示头像",
+        keywords: "bubble avatar placement 气泡 头像 位置",
+        visible: (s) => s.uiPreferences.bubbleLayout.mode === "bubble",
+      },
+      {
+        id: "bubbleAvatarSize",
+        label:
+          "外置头像尺寸 ({{ localSettings.uiPreferences.bubbleLayout.avatarSize }}px)",
+        component: "ElSlider",
+        props: {
+          min: 24,
+          max: 56,
+          step: 2,
+          "format-tooltip": (val: number) => `${val}px`,
+        },
+        modelPath: "uiPreferences.bubbleLayout.avatarSize",
+        hint: "",
+        keywords: "bubble avatar size 头像 尺寸",
+        visible: (s) =>
+          s.uiPreferences.bubbleLayout.mode === "bubble" &&
+          s.uiPreferences.bubbleLayout.avatarPlacement === "outside",
+      },
+      {
+        id: "bubbleAvatarGap",
+        label:
+          "头像与气泡间距 ({{ localSettings.uiPreferences.bubbleLayout.avatarGap }}px)",
+        component: "ElSlider",
+        props: {
+          min: 0,
+          max: 20,
+          step: 2,
+          "format-tooltip": (val: number) => `${val}px`,
+        },
+        modelPath: "uiPreferences.bubbleLayout.avatarGap",
+        hint: "",
+        keywords: "bubble avatar gap 头像 间距",
+        visible: (s) =>
+          s.uiPreferences.bubbleLayout.mode === "bubble" &&
+          s.uiPreferences.bubbleLayout.avatarPlacement === "outside",
+      },
+      {
+        id: "bubbleHeaderPlacement",
+        label: "头部信息位置",
+        component: "ElRadioGroup",
+        modelPath: "uiPreferences.bubbleLayout.headerPlacement",
+        options: [
+          { label: "气泡内 (默认)", value: "inside" },
+          { label: "气泡外 (IM 经典)", value: "outside" },
+        ],
+        hint: "外置模式下，名字、模型信息、时间戳会渲染在气泡上方，气泡内只剩消息内容；仅对用户/助手消息生效，工具调用与压缩节点保持原样",
+        keywords:
+          "bubble header placement 头部 名字 时间 外置 IM 标头 标题 信息",
+        visible: (s) => s.uiPreferences.bubbleLayout.mode === "bubble",
+      },
+      {
+        id: "bubbleHeaderGap",
+        label:
+          "头部与气泡间距 ({{ localSettings.uiPreferences.bubbleLayout.headerGap }}px)",
+        component: "ElSlider",
+        props: {
+          min: 0,
+          max: 16,
+          step: 1,
+          "format-tooltip": (val: number) => `${val}px`,
+        },
+        modelPath: "uiPreferences.bubbleLayout.headerGap",
+        hint: "",
+        keywords: "bubble header gap 头部 间距",
+        visible: (s) =>
+          s.uiPreferences.bubbleLayout.mode === "bubble" &&
+          s.uiPreferences.bubbleLayout.headerPlacement === "outside",
       },
     ],
   },

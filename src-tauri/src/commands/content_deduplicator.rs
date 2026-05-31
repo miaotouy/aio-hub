@@ -1,12 +1,13 @@
 use blake3::Hasher as Blake3Hasher;
 use content_inspector::inspect;
-use ignore::WalkBuilder;
+use ignore::{WalkBuilder, WalkState};
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::{Read, Seek, SeekFrom};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 use tauri::{Emitter, State};
@@ -247,8 +248,7 @@ fn skip_bom(data: &[u8]) -> &[u8] {
 }
 
 // ==================== 漏斗各层实现 ====================
-
-/// Step 1: 遍历目录，收集文件元数据
+/// Step 1: 遍历目录，收集文件元数据（并行 walker）
 fn collect_files(
     root: &PathBuf,
     config: &SimilarityConfig,
@@ -257,8 +257,8 @@ fn collect_files(
     window: &tauri::Window,
 ) -> Vec<CollectedFile> {
     let max_size_bytes = config.max_file_size_mb * 1024 * 1024;
-    let mut files = Vec::new();
-    let mut scanned = 0usize;
+    let files: Arc<Mutex<Vec<CollectedFile>>> = Arc::new(Mutex::new(Vec::new()));
+    let scanned = Arc::new(AtomicUsize::new(0));
 
     // 使用 ignore crate 遍历（默认不跟随 symlinks，支持 .gitignore）
     let mut builder = WalkBuilder::new(root);
@@ -292,133 +292,139 @@ fn collect_files(
         }
     }
 
-    let walker = builder.build();
+    // 克隆需要在闭包中使用的数据
+    let extensions = config.extensions.clone();
+    let cancelled_flag = cancellation.cancelled.clone();
 
-    for entry_result in walker {
-        if cancellation.is_cancelled() {
-            break;
-        }
+    // 使用并行 walker
+    let walker = builder.build_parallel();
+    walker.run(|| {
+        let files = files.clone();
+        let scanned = scanned.clone();
+        let extensions = extensions.clone();
+        let cancelled_flag = cancelled_flag.clone();
+        let window = window.clone();
 
-        let entry = match entry_result {
-            Ok(e) => e,
-            Err(e) => {
-                skipped.lock().unwrap().push(SkippedFile {
-                    path: "<unknown>".to_string(),
-                    reason: format!("遍历错误: {}", e),
-                });
-                continue;
+        Box::new(move |entry_result| {
+            if cancelled_flag.load(Ordering::Relaxed) {
+                return WalkState::Quit;
             }
-        };
 
-        // 只处理文件
-        let file_type = match entry.file_type() {
-            Some(ft) => ft,
-            None => continue,
-        };
-        if !file_type.is_file() {
-            continue;
-        }
+            let entry = match entry_result {
+                Ok(e) => e,
+                Err(e) => {
+                    skipped.lock().unwrap().push(SkippedFile {
+                        path: "<unknown>".to_string(),
+                        reason: format!("遍历错误: {}", e),
+                    });
+                    return WalkState::Continue;
+                }
+            };
 
-        let path = entry.path().to_path_buf();
-        let name = entry.file_name().to_string_lossy().to_string();
-        let extension = path
-            .extension()
-            .map(|e| e.to_string_lossy().to_string())
-            .unwrap_or_default();
-
-        // 扩展名过滤
-        if !config.extensions.is_empty() {
-            let ext_lower = extension.to_lowercase();
-            if !config
-                .extensions
-                .iter()
-                .any(|e| e.to_lowercase() == ext_lower)
-            {
-                continue;
+            // 只处理文件
+            if !entry.file_type().is_some_and(|ft| ft.is_file()) {
+                return WalkState::Continue;
             }
-        }
 
-        // 获取元数据
-        let metadata = match fs::metadata(&path) {
-            Ok(m) => m,
-            Err(e) => {
-                skipped.lock().unwrap().push(SkippedFile {
-                    path: path.to_string_lossy().to_string(),
-                    reason: format!("无法读取元数据: {}", e),
-                });
-                continue;
-            }
-        };
+            let path = entry.path().to_path_buf();
+            let name = entry.file_name().to_string_lossy().to_string();
+            let extension = path
+                .extension()
+                .map(|e| e.to_string_lossy().to_string())
+                .unwrap_or_default();
 
-        let size = metadata.len();
-
-        // 跳过空文件
-        if size == 0 {
-            continue;
-        }
-
-        // 大小限制
-        if size > max_size_bytes {
-            continue;
-        }
-
-        // 检测是否为文本文件（读取前 512 字节）
-        let is_text = match File::open(&path) {
-            Ok(mut f) => {
-                let mut buf = vec![0u8; 512.min(size as usize)];
-                match f.read(&mut buf) {
-                    Ok(n) => !inspect(&buf[..n]).is_binary(),
-                    Err(_) => false,
+            // 扩展名过滤
+            if !extensions.is_empty() {
+                let ext_lower = extension.to_lowercase();
+                if !extensions.iter().any(|e| e.to_lowercase() == ext_lower) {
+                    return WalkState::Continue;
                 }
             }
-            Err(e) => {
-                skipped.lock().unwrap().push(SkippedFile {
-                    path: path.to_string_lossy().to_string(),
-                    reason: format!("无法打开文件: {}", e),
-                });
-                continue;
+
+            // 获取元数据
+            let metadata = match fs::metadata(&path) {
+                Ok(m) => m,
+                Err(e) => {
+                    skipped.lock().unwrap().push(SkippedFile {
+                        path: path.to_string_lossy().to_string(),
+                        reason: format!("无法读取元数据: {}", e),
+                    });
+                    return WalkState::Continue;
+                }
+            };
+
+            let size = metadata.len();
+
+            // 跳过空文件
+            if size == 0 {
+                return WalkState::Continue;
             }
-        };
 
-        if !is_text {
-            continue;
-        }
+            // 大小限制
+            if size > max_size_bytes {
+                return WalkState::Continue;
+            }
 
-        let modified = metadata
-            .modified()
-            .ok()
-            .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
-            .map(|d| d.as_secs())
-            .unwrap_or(0);
+            // 检测是否为文本文件（读取前 512 字节）
+            let is_text = match File::open(&path) {
+                Ok(mut f) => {
+                    let mut buf = vec![0u8; 512.min(size as usize)];
+                    match f.read(&mut buf) {
+                        Ok(n) => !inspect(&buf[..n]).is_binary(),
+                        Err(_) => false,
+                    }
+                }
+                Err(e) => {
+                    skipped.lock().unwrap().push(SkippedFile {
+                        path: path.to_string_lossy().to_string(),
+                        reason: format!("无法打开文件: {}", e),
+                    });
+                    return WalkState::Continue;
+                }
+            };
 
-        files.push(CollectedFile {
-            path,
-            name,
-            size,
-            modified,
-            extension,
-        });
+            if !is_text {
+                return WalkState::Continue;
+            }
 
-        scanned += 1;
+            let modified = metadata
+                .modified()
+                .ok()
+                .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
 
-        // 每 50 个文件上报一次进度
-        if scanned.is_multiple_of(50) {
-            let _ = window.emit(
-                "dedup-scan-progress",
-                DedupScanProgress {
-                    stage: "collecting".to_string(),
-                    stage_progress: StageProgress {
-                        current: scanned,
-                        total: 0, // 总数未知
+            files.lock().unwrap().push(CollectedFile {
+                path,
+                name,
+                size,
+                modified,
+                extension,
+            });
+
+            let count = scanned.fetch_add(1, Ordering::Relaxed) + 1;
+
+            // 每 100 个文件上报一次进度
+            if count.is_multiple_of(100) {
+                let _ = window.emit(
+                    "dedup-scan-progress",
+                    DedupScanProgress {
+                        stage: "collecting".to_string(),
+                        stage_progress: StageProgress {
+                            current: count,
+                            total: 0, // 总数未知
+                        },
+                        found_groups: 0,
+                        current_file: Some(entry.path().to_string_lossy().to_string()),
                     },
-                    found_groups: 0,
-                    current_file: Some(entry.path().to_string_lossy().to_string()),
-                },
-            );
-        }
-    }
+                );
+            }
 
-    files
+            WalkState::Continue
+        })
+    });
+
+    Arc::try_unwrap(files).unwrap().into_inner().unwrap()
 }
 
 /// Step 2: 按尺寸分桶（±threshold 容差）
@@ -686,29 +692,38 @@ pub async fn scan_content_duplicates(
             .filter(|g| g.len() >= 2)
             .collect();
 
-        // Step 4: 对每个指纹组计算全文哈希
+        // Step 4: 对每个指纹组并行计算全文哈希
         for fp_group in fp_groups {
             if cancellation.is_cancelled() {
                 return Err("扫描已被用户取消".to_string());
             }
 
-            let mut hash_map: HashMap<String, Vec<(&CollectedFile, String)>> = HashMap::new();
+            // 并行计算全文哈希
+            let hash_results: Vec<_> = fp_group
+                .par_iter()
+                .filter_map(|file| {
+                    if cancellation.is_cancelled() {
+                        return None;
+                    }
+                    match compute_normalized_full_hash(&file.path, &normalize_options) {
+                        Ok((raw_hash, norm_hash)) => Some((*file, raw_hash, norm_hash)),
+                        Err(reason) => {
+                            skipped.lock().unwrap().push(SkippedFile {
+                                path: file.path.to_string_lossy().to_string(),
+                                reason,
+                            });
+                            None
+                        }
+                    }
+                })
+                .collect();
 
-            for file in &fp_group {
-                match compute_normalized_full_hash(&file.path, &normalize_options) {
-                    Ok((raw_hash, norm_hash)) => {
-                        hash_map
-                            .entry(norm_hash)
-                            .or_default()
-                            .push((file, raw_hash));
-                    }
-                    Err(reason) => {
-                        skipped.lock().unwrap().push(SkippedFile {
-                            path: file.path.to_string_lossy().to_string(),
-                            reason,
-                        });
-                    }
-                }
+            let mut hash_map: HashMap<String, Vec<(&CollectedFile, String)>> = HashMap::new();
+            for (file, raw_hash, norm_hash) in &hash_results {
+                hash_map
+                    .entry(norm_hash.clone())
+                    .or_default()
+                    .push((file, raw_hash.clone()));
             }
 
             // 构建重复组
@@ -775,42 +790,53 @@ pub async fn scan_content_duplicates(
             },
         );
 
-        let mut small_hash_map: HashMap<String, Vec<(&CollectedFile, String)>> = HashMap::new();
+        // 并行计算小文件全文哈希
+        let small_progress = Arc::new(AtomicUsize::new(0));
+        let small_total = small_files.len();
+        let groups_found = all_groups.len();
 
-        for (idx, file) in small_files.iter().enumerate() {
-            if cancellation.is_cancelled() {
-                return Err("扫描已被用户取消".to_string());
-            }
+        let small_hash_results: Vec<_> = small_files
+            .par_iter()
+            .filter_map(|file| {
+                if cancellation.is_cancelled() {
+                    return None;
+                }
 
-            if idx % 20 == 0 {
-                let _ = window.emit(
-                    "dedup-scan-progress",
-                    DedupScanProgress {
-                        stage: "hashing".to_string(),
-                        stage_progress: StageProgress {
-                            current: idx,
-                            total: small_files.len(),
+                let idx = small_progress.fetch_add(1, Ordering::Relaxed);
+                if idx.is_multiple_of(50) {
+                    let _ = window.emit(
+                        "dedup-scan-progress",
+                        DedupScanProgress {
+                            stage: "hashing".to_string(),
+                            stage_progress: StageProgress {
+                                current: idx,
+                                total: small_total,
+                            },
+                            found_groups: groups_found,
+                            current_file: Some(file.path.to_string_lossy().to_string()),
                         },
-                        found_groups: all_groups.len(),
-                        current_file: Some(file.path.to_string_lossy().to_string()),
-                    },
-                );
-            }
+                    );
+                }
 
-            match compute_normalized_full_hash(&file.path, &normalize_options) {
-                Ok((raw_hash, norm_hash)) => {
-                    small_hash_map
-                        .entry(norm_hash)
-                        .or_default()
-                        .push((file, raw_hash));
+                match compute_normalized_full_hash(&file.path, &normalize_options) {
+                    Ok((raw_hash, norm_hash)) => Some((file, raw_hash, norm_hash)),
+                    Err(reason) => {
+                        skipped.lock().unwrap().push(SkippedFile {
+                            path: file.path.to_string_lossy().to_string(),
+                            reason,
+                        });
+                        None
+                    }
                 }
-                Err(reason) => {
-                    skipped.lock().unwrap().push(SkippedFile {
-                        path: file.path.to_string_lossy().to_string(),
-                        reason,
-                    });
-                }
-            }
+            })
+            .collect();
+
+        let mut small_hash_map: HashMap<String, Vec<(&CollectedFile, String)>> = HashMap::new();
+        for (file, raw_hash, norm_hash) in &small_hash_results {
+            small_hash_map
+                .entry(norm_hash.clone())
+                .or_default()
+                .push((file, raw_hash.clone()));
         }
 
         // 构建小文件重复组

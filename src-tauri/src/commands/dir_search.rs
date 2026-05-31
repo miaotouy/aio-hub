@@ -1,6 +1,7 @@
 use encoding_rs::GBK;
 use ignore::overrides::OverrideBuilder;
 use ignore::{WalkBuilder, WalkState};
+use memchr::memmem;
 use regex::{Regex, RegexBuilder};
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -190,27 +191,145 @@ pub struct ReplaceError {
     pub file_path: String,
     pub error: String,
 }
+// ===== 快速匹配器（memchr 加速纯文本搜索） =====
+
+/// 多路径匹配器：纯文本走 memchr SIMD 快速路径，正则走 regex 引擎
+#[derive(Clone)]
+enum FastMatcher {
+    /// 纯文本，大小写敏感 → memmem 直接搜索（~8x faster than regex）
+    Literal {
+        finder: memmem::Finder<'static>,
+        needle_len: usize,
+    },
+    /// 纯文本，大小写敏感 + 全词匹配 → memmem + 手动边界检查
+    LiteralWholeWord {
+        finder: memmem::Finder<'static>,
+        needle_len: usize,
+    },
+    /// 正则模式 / 大小写不敏感（走 regex 引擎，保持语义一致性）
+    Regex(Regex),
+}
+
+impl FastMatcher {
+    /// 构建匹配器：根据搜索参数自动选择最优路径
+    fn build(request: &SearchRequest) -> Result<Self, String> {
+        // 纯文本 + 大小写敏感 → memchr 快速路径
+        if !request.is_regex && request.case_sensitive {
+            let needle = request.pattern.as_bytes().to_vec();
+            let needle_len = needle.len();
+            let finder = memmem::Finder::new(&needle).into_owned();
+
+            if request.whole_word {
+                return Ok(FastMatcher::LiteralWholeWord { finder, needle_len });
+            } else {
+                return Ok(FastMatcher::Literal { finder, needle_len });
+            }
+        }
+
+        // 其他情况走 regex 引擎
+        let pattern = if request.is_regex {
+            request.pattern.clone()
+        } else {
+            regex::escape(&request.pattern)
+        };
+
+        let pattern = if request.whole_word {
+            format!(r"\b{}\b", pattern)
+        } else {
+            pattern
+        };
+
+        let regex = RegexBuilder::new(&pattern)
+            .case_insensitive(!request.case_sensitive)
+            .build()
+            .map_err(|e| format!("正则表达式无效: {}", e))?;
+
+        Ok(FastMatcher::Regex(regex))
+    }
+
+    /// 在一行文本中查找所有匹配，返回 (byte_start, byte_end) 列表
+    fn find_all_in_line(&self, line: &str) -> Vec<(usize, usize)> {
+        match self {
+            FastMatcher::Literal { finder, needle_len } => {
+                let mut results = Vec::new();
+                let bytes = line.as_bytes();
+                let mut start = 0;
+                while let Some(pos) = finder.find(&bytes[start..]) {
+                    let abs_start = start + pos;
+                    let abs_end = abs_start + needle_len;
+                    results.push((abs_start, abs_end));
+                    // 前进至少 1 字节避免空匹配死循环
+                    start = abs_end.max(start + 1);
+                }
+                results
+            }
+            FastMatcher::LiteralWholeWord { finder, needle_len } => {
+                let mut results = Vec::new();
+                let bytes = line.as_bytes();
+                let mut start = 0;
+                while let Some(pos) = finder.find(&bytes[start..]) {
+                    let abs_start = start + pos;
+                    let abs_end = abs_start + needle_len;
+                    // 检查 word boundary
+                    if is_word_boundary_at(line, abs_start) && is_word_boundary_at(line, abs_end) {
+                        results.push((abs_start, abs_end));
+                    }
+                    start = abs_end.max(start + 1);
+                }
+                results
+            }
+            FastMatcher::Regex(regex) => regex
+                .find_iter(line)
+                .map(|m| (m.start(), m.end()))
+                .collect(),
+        }
+    }
+}
+
+/// 检查给定字节位置是否为 word boundary
+/// Word boundary: 位置前后的字符"word 属性"不同，或处于字符串边界
+#[inline]
+fn is_word_boundary_at(text: &str, byte_pos: usize) -> bool {
+    if byte_pos == 0 || byte_pos >= text.len() {
+        return true;
+    }
+    let before_is_word = text[..byte_pos]
+        .chars()
+        .next_back()
+        .is_some_and(is_word_char);
+    let after_is_word = text[byte_pos..].chars().next().is_some_and(is_word_char);
+    before_is_word != after_is_word
+}
+
+/// 判断字符是否为 "word" 字符（与 regex \w 语义对齐：字母、数字、下划线）
+#[inline]
+fn is_word_char(c: char) -> bool {
+    c.is_alphanumeric() || c == '_'
+}
 
 // ===== 辅助函数 =====
 
-/// 构建正则匹配器
-fn build_matcher(request: &SearchRequest) -> Result<Regex, String> {
-    let pattern = if request.is_regex {
-        request.pattern.clone()
+/// 构建正则匹配器（仅供替换功能使用，搜索功能使用 FastMatcher）
+fn build_regex_matcher(
+    pattern: &str,
+    is_regex: bool,
+    case_sensitive: bool,
+    whole_word: bool,
+) -> Result<Regex, String> {
+    let pattern = if is_regex {
+        pattern.to_string()
     } else {
-        // 纯文本模式：转义所有正则特殊字符
-        regex::escape(&request.pattern)
+        regex::escape(pattern)
     };
 
-    // 全词匹配：添加 \b 边界
-    let pattern = if request.whole_word {
+    let pattern = if whole_word {
         format!(r"\b{}\b", pattern)
     } else {
         pattern
     };
 
     RegexBuilder::new(&pattern)
-        .case_insensitive(!request.case_sensitive)
+        .case_insensitive(!case_sensitive)
         .build()
         .map_err(|e| format!("正则表达式无效: {}", e))
 }
@@ -218,7 +337,7 @@ fn build_matcher(request: &SearchRequest) -> Result<Regex, String> {
 /// 在文件内容中搜索匹配项
 fn search_in_content(
     content: &str,
-    matcher: &Regex,
+    matcher: &FastMatcher,
     max_matches: Option<usize>,
     context_lines: usize,
 ) -> Vec<SearchMatch> {
@@ -228,67 +347,82 @@ fn search_in_content(
     for (line_idx, line) in lines.iter().enumerate() {
         let line_number = line_idx + 1; // 1-based
 
-        // 查找该行中的所有匹配
+        // 查找该行中的所有匹配（返回字节偏移）
+        let byte_matches = matcher.find_all_in_line(line);
+        if byte_matches.is_empty() {
+            continue;
+        }
+
+        // 字节偏移 → char 索引转换
         let mut line_matches: Vec<(usize, usize)> = Vec::new();
-        for mat in matcher.find_iter(line) {
-            // 字节偏移 → char 索引转换
-            let match_start = line[..mat.start()].chars().count();
-            let match_end = match_start + line[mat.start()..mat.end()].chars().count();
-            line_matches.push((match_start, match_end));
+        if line.is_ascii() {
+            // ASCII 快速路径：字节偏移 == char 索引
+            line_matches = byte_matches;
+        } else {
+            // 非 ASCII 行：增量计算 char 索引
+            let mut last_byte_pos = 0;
+            let mut last_char_pos = 0;
+            for (byte_start, byte_end) in &byte_matches {
+                let chars_between = line[last_byte_pos..*byte_start].chars().count();
+                let match_start = last_char_pos + chars_between;
+                let match_len = line[*byte_start..*byte_end].chars().count();
+                let match_end = match_start + match_len;
+                line_matches.push((match_start, match_end));
+                last_byte_pos = *byte_end;
+                last_char_pos = match_end;
+            }
         }
 
         // 合并重叠区间
-        if !line_matches.is_empty() {
-            line_matches.sort_by_key(|m| m.0);
-            let mut merged: Vec<(usize, usize)> = Vec::new();
-            if let Some(first) = line_matches.first().copied() {
-                let mut current = first;
-                for &next in &line_matches[1..] {
-                    if next.0 <= current.1 {
-                        current.1 = current.1.max(next.1);
-                    } else {
-                        merged.push(current);
-                        current = next;
-                    }
+        line_matches.sort_by_key(|m| m.0);
+        let mut merged: Vec<(usize, usize)> = Vec::new();
+        if let Some(first) = line_matches.first().copied() {
+            let mut current = first;
+            for &next in &line_matches[1..] {
+                if next.0 <= current.1 {
+                    current.1 = current.1.max(next.1);
+                } else {
+                    merged.push(current);
+                    current = next;
                 }
-                merged.push(current);
             }
+            merged.push(current);
+        }
 
-            // 获取上下文行
-            let (ctx_before, ctx_after) = if context_lines > 0 {
-                let before_start = line_idx.saturating_sub(context_lines);
-                let before: Vec<String> = lines[before_start..line_idx]
-                    .iter()
-                    .map(|l| l.to_string())
-                    .collect();
+        // 获取上下文行
+        let (ctx_before, ctx_after) = if context_lines > 0 {
+            let before_start = line_idx.saturating_sub(context_lines);
+            let before: Vec<String> = lines[before_start..line_idx]
+                .iter()
+                .map(|l| l.to_string())
+                .collect();
 
-                let after_end = (line_idx + 1 + context_lines).min(lines.len());
-                let after: Vec<String> = lines[(line_idx + 1)..after_end]
-                    .iter()
-                    .map(|l| l.to_string())
-                    .collect();
+            let after_end = (line_idx + 1 + context_lines).min(lines.len());
+            let after: Vec<String> = lines[(line_idx + 1)..after_end]
+                .iter()
+                .map(|l| l.to_string())
+                .collect();
 
-                (Some(before), Some(after))
-            } else {
-                (None, None)
-            };
+            (Some(before), Some(after))
+        } else {
+            (None, None)
+        };
 
-            // 为每个合并后的匹配区间创建 SearchMatch
-            for (start, end) in merged {
-                matches.push(SearchMatch {
-                    line_number,
-                    line_content: line.to_string(),
-                    match_start: start,
-                    match_end: end,
-                    context_before: ctx_before.clone(),
-                    context_after: ctx_after.clone(),
-                });
+        // 为每个合并后的匹配区间创建 SearchMatch
+        for (start, end) in merged {
+            matches.push(SearchMatch {
+                line_number,
+                line_content: line.to_string(),
+                match_start: start,
+                match_end: end,
+                context_before: ctx_before.clone(),
+                context_after: ctx_after.clone(),
+            });
 
-                // 检查是否达到最大结果数
-                if let Some(max) = max_matches {
-                    if matches.len() >= max {
-                        return matches;
-                    }
+            // 检查是否达到最大结果数
+            if let Some(max) = max_matches {
+                if matches.len() >= max {
+                    return matches;
                 }
             }
         }
@@ -298,26 +432,37 @@ fn search_in_content(
 }
 
 /// 尝试将字节解码为字符串：先 UTF-8，失败则尝试 GBK（Windows 中文环境常见编码）
-fn decode_to_string(bytes: &[u8]) -> Option<String> {
-    // 处理 UTF-8 BOM
-    let bytes = if bytes.starts_with(&[0xEF, 0xBB, 0xBF]) {
-        &bytes[3..]
-    } else {
-        bytes
-    };
-
-    // 尝试 UTF-8
-    if let Ok(s) = std::str::from_utf8(bytes) {
-        return Some(s.to_string());
+/// 接收 Vec<u8> 所有权，对无 BOM 的 UTF-8 文件实现零拷贝转换
+fn decode_to_string_owned(bytes: Vec<u8>) -> Option<String> {
+    // 处理 UTF-8 BOM（罕见情况，接受拷贝）
+    if bytes.starts_with(&[0xEF, 0xBB, 0xBF]) {
+        return match std::str::from_utf8(&bytes[3..]) {
+            Ok(s) => Some(s.to_string()),
+            Err(_) => {
+                let (decoded, _, had_errors) = GBK.decode(&bytes[3..]);
+                if !had_errors {
+                    Some(decoded.into_owned())
+                } else {
+                    None
+                }
+            }
+        };
     }
 
-    // Fallback: 尝试 GBK (GB2312/GB18030 的超集)
-    let (decoded, _, had_errors) = GBK.decode(bytes);
-    if !had_errors {
-        return Some(decoded.into_owned());
+    // 无 BOM：零拷贝路径（99%+ 文件走这里）
+    match String::from_utf8(bytes) {
+        Ok(s) => Some(s),
+        Err(e) => {
+            // UTF-8 失败，取回原始字节尝试 GBK
+            let bytes = e.into_bytes();
+            let (decoded, _, had_errors) = GBK.decode(&bytes);
+            if !had_errors {
+                Some(decoded.into_owned())
+            } else {
+                None
+            }
+        }
     }
-
-    None
 }
 
 /// 单文件大小上限（5MB）
@@ -345,8 +490,8 @@ pub async fn dir_search(
         return Err("搜索模式不能为空".to_string());
     }
 
-    // 构建匹配器
-    let matcher = build_matcher(&request)?;
+    // 构建匹配器（自动选择 memchr 快速路径或 regex）
+    let matcher = FastMatcher::build(&request)?;
 
     // 构建 WalkBuilder
     let mut builder = WalkBuilder::new(root_path);
@@ -485,8 +630,8 @@ pub async fn dir_search(
                         return WalkState::Continue;
                     }
 
-                    // 尝试解码为文本
-                    let text = match decode_to_string(&content) {
+                    // 尝试解码为文本（零拷贝：直接消费 Vec<u8>）
+                    let text = match decode_to_string_owned(content) {
                         Some(s) => s,
                         None => return WalkState::Continue,
                     };
@@ -692,23 +837,13 @@ pub async fn dir_replace(request: ReplaceRequest) -> Result<ReplaceResult, Strin
         return Err("未指定要替换的文件".to_string());
     }
 
-    // 构建匹配器
-    let pattern = if request.is_regex {
-        request.pattern.clone()
-    } else {
-        regex::escape(&request.pattern)
-    };
-
-    let pattern = if request.whole_word {
-        format!(r"\b{}\b", pattern)
-    } else {
-        pattern
-    };
-
-    let regex = RegexBuilder::new(&pattern)
-        .case_insensitive(!request.case_sensitive)
-        .build()
-        .map_err(|e| format!("正则表达式无效: {}", e))?;
+    // 构建匹配器（替换功能始终使用 regex，因为需要 replace_all）
+    let regex = build_regex_matcher(
+        &request.pattern,
+        request.is_regex,
+        request.case_sensitive,
+        request.whole_word,
+    )?;
 
     let mut files_replaced: usize = 0;
     let mut files_failed: usize = 0;
@@ -731,27 +866,34 @@ pub async fn dir_replace(request: ReplaceRequest) -> Result<ReplaceResult, Strin
             }
         };
 
-        // 计算替换次数
-        let match_count = regex.find_iter(&content).count();
-        if match_count == 0 {
-            continue;
-        }
-
-        // 执行替换
-        let new_content = if request.preserve_case {
+        // 执行替换（单次遍历，边替换边计数）
+        let (new_content, match_count) = if request.preserve_case {
             let mut result = String::with_capacity(content.len());
             let mut last_end = 0;
+            let mut count = 0usize;
             for mat in regex.find_iter(&content) {
                 result.push_str(&content[last_end..mat.start()]);
                 let matched_text = &content[mat.start()..mat.end()];
                 let converted = preserve_case_convert(matched_text, &request.replacement);
                 result.push_str(&converted);
                 last_end = mat.end();
+                count += 1;
+            }
+            if count == 0 {
+                continue;
             }
             result.push_str(&content[last_end..]);
-            std::borrow::Cow::Owned(result)
+            (std::borrow::Cow::Owned(result), count)
         } else {
-            regex.replace_all(&content, request.replacement.as_str())
+            // replace_all 内部单次遍历；用 find_iter 计数一次即可
+            let count = regex.find_iter(&content).count();
+            if count == 0 {
+                continue;
+            }
+            (
+                regex.replace_all(&content, request.replacement.as_str()),
+                count,
+            )
         };
 
         // 写回文件
@@ -909,23 +1051,19 @@ pub async fn dir_replace_preview(request: ReplaceRequest) -> Result<Vec<FileSear
         return Err("搜索模式不能为空".to_string());
     }
 
-    // 构建匹配器
-    let pattern = if request.is_regex {
-        request.pattern.clone()
-    } else {
-        regex::escape(&request.pattern)
-    };
-
-    let pattern = if request.whole_word {
-        format!(r"\b{}\b", pattern)
-    } else {
-        pattern
-    };
-
-    let regex = RegexBuilder::new(&pattern)
-        .case_insensitive(!request.case_sensitive)
-        .build()
-        .map_err(|e| format!("正则表达式无效: {}", e))?;
+    // 构建匹配器（预览使用 FastMatcher 以获得最佳性能）
+    let matcher = FastMatcher::build(&SearchRequest {
+        root_path: String::new(),
+        pattern: request.pattern.clone(),
+        is_regex: request.is_regex,
+        case_sensitive: request.case_sensitive,
+        whole_word: request.whole_word,
+        include_globs: Vec::new(),
+        exclude_globs: Vec::new(),
+        use_gitignore: true,
+        context_lines: None,
+        max_results: None,
+    })?;
 
     let mut results: Vec<FileSearchResult> = Vec::new();
 
@@ -937,7 +1075,7 @@ pub async fn dir_replace_preview(request: ReplaceRequest) -> Result<Vec<FileSear
             Err(_) => continue,
         };
 
-        let file_matches = search_in_content(&content, &regex, None, 0);
+        let file_matches = search_in_content(&content, &matcher, None, 0);
 
         if !file_matches.is_empty() {
             results.push(FileSearchResult {

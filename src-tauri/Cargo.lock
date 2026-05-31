@@ -118,6 +118,7 @@ dependencies = [
  "local-ip-address",
  "lofty",
  "log",
+ "memchr",
  "nalgebra",
  "nanoid",
  "nvml-wrapper",

@@ -163,6 +163,11 @@ function buildDefaultPresets(profiles: LlmProfile[]): TranslatorPreset[] {
   ];
 }
 
+function numericOrDefault(value: unknown, fallback: number) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : fallback;
+}
+
 function sanitizeSettings(
   value: Partial<TranslatorSettings>
 ): TranslatorSettings {
@@ -170,18 +175,26 @@ function sanitizeSettings(
     ...DEFAULT_SETTINGS,
     ...value,
     defaultMaxTokens: clampNumber(
-      Number(value.defaultMaxTokens) || DEFAULT_SETTINGS.defaultMaxTokens,
+      numericOrDefault(
+        value.defaultMaxTokens,
+        DEFAULT_SETTINGS.defaultMaxTokens
+      ),
       1024,
       131072
     ),
     outputExpansionFactor: clampNumber(
-      Number(value.outputExpansionFactor) ||
-        DEFAULT_SETTINGS.outputExpansionFactor,
+      numericOrDefault(
+        value.outputExpansionFactor,
+        DEFAULT_SETTINGS.outputExpansionFactor
+      ),
       1.0,
       8.0
     ),
     defaultTemperature: clampNumber(
-      Number(value.defaultTemperature) ?? DEFAULT_SETTINGS.defaultTemperature,
+      numericOrDefault(
+        value.defaultTemperature,
+        DEFAULT_SETTINGS.defaultTemperature
+      ),
       0,
       2
     ),
@@ -212,6 +225,16 @@ export const useTranslatorStore = defineStore("translator", () => {
   const initialized = ref(false);
   const isLoadingPersistence = ref(false);
   const currentSession = ref<TranslationSession | null>(null);
+
+  /**
+   * 上一次激活预设的默认语言快照
+   * 用于"智能语言粘性"判断：如果当前 lang 等于上次预设的 default
+   * 说明用户没手动改过，切预设时跟随新预设；否则保留用户选择。
+   */
+  const previousPresetDefaults = ref<{
+    source: TranslatorLanguageCode;
+    target: TranslatorLanguageCode;
+  } | null>(null);
 
   /** 每个渠道独立的 AbortController */
   const channelControllers = new Map<string, AbortController>();
@@ -304,6 +327,10 @@ export const useTranslatorStore = defineStore("translator", () => {
       if (active) {
         sourceLang.value = active.defaultSourceLang;
         targetLang.value = active.defaultTargetLang;
+        previousPresetDefaults.value = {
+          source: active.defaultSourceLang,
+          target: active.defaultTargetLang,
+        };
       }
 
       logger.info("翻译工作台初始化完成", {
@@ -328,9 +355,27 @@ export const useTranslatorStore = defineStore("translator", () => {
     const preset = presets.value.find((item) => item.id === id);
     if (!preset) return;
     abortAll();
+
+    /**
+     * 智能语言粘性：
+     * - 用户没改过语言（当前 lang === 上次预设默认）→ 跟随新预设
+     * - 用户改过 → 保留用户选择
+     */
+    const prev = previousPresetDefaults.value;
+    const userTouched =
+      prev !== null &&
+      (sourceLang.value !== prev.source || targetLang.value !== prev.target);
+
     activePresetId.value = id;
-    sourceLang.value = preset.defaultSourceLang;
-    targetLang.value = preset.defaultTargetLang;
+    if (!userTouched) {
+      sourceLang.value = preset.defaultSourceLang;
+      targetLang.value = preset.defaultTargetLang;
+    }
+    previousPresetDefaults.value = {
+      source: preset.defaultSourceLang,
+      target: preset.defaultTargetLang,
+    };
+
     results.value = [];
     currentSession.value = null;
   }
@@ -674,6 +719,197 @@ export const useTranslatorStore = defineStore("translator", () => {
     inputText.value = entry.sourceText;
     sourceLang.value = entry.sourceLang;
     targetLang.value = entry.targetLang;
+    // 历史条目记录了它当时使用的预设，如果还存在则切回去
+    if (
+      entry.presetId &&
+      entry.presetId !== activePresetId.value &&
+      presets.value.some((preset) => preset.id === entry.presetId)
+    ) {
+      activePresetId.value = entry.presetId;
+    }
+  }
+
+  /** 删除单条历史 */
+  function deleteHistoryEntry(entryId: string) {
+    history.value = history.value.filter((item) => item.id !== entryId);
+  }
+
+  // ---- 预设 CRUD ----
+
+  function generatePresetId() {
+    return `preset-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  /** 新建预设：从当前激活预设克隆一份作为起点 */
+  function createPreset(
+    template?: Partial<TranslatorPreset>
+  ): TranslatorPreset {
+    const base = activePreset.value;
+    const sourceChannels = template?.channels ?? base?.channels ?? [];
+    const clonedChannels: TranslationChannel[] = sourceChannels.map(
+      (channel) => ({
+        ...channel,
+        id: createChannelId(),
+      })
+    );
+
+    if (clonedChannels.length === 0) {
+      const fallback = firstTextModels(enabledProfiles.value, 1)[0];
+      if (fallback) {
+        clonedChannels.push(toChannel(fallback.profile, fallback.model, 0));
+      }
+    }
+
+    const newPreset: TranslatorPreset = {
+      id: generatePresetId(),
+      name: template?.name?.trim() || "新预设",
+      icon: template?.icon || "Sparkles",
+      channels: clonedChannels,
+      defaultSourceLang: template?.defaultSourceLang || "auto",
+      defaultTargetLang: template?.defaultTargetLang || "Chinese",
+      prompt: template?.prompt || base?.prompt || DEFAULT_PROMPT,
+    };
+    presets.value.push(newPreset);
+    return newPreset;
+  }
+
+  /** 更新预设属性（不含 channels，channels 通过专门方法操作） */
+  function updatePreset(
+    id: string,
+    patch: Partial<
+      Pick<
+        TranslatorPreset,
+        "name" | "icon" | "prompt" | "defaultSourceLang" | "defaultTargetLang"
+      >
+    >
+  ) {
+    const index = presets.value.findIndex((preset) => preset.id === id);
+    if (index === -1) return;
+    const current = presets.value[index];
+    presets.value.splice(index, 1, {
+      ...current,
+      ...patch,
+      name: patch.name?.trim() || current.name,
+    });
+  }
+
+  /** 删除预设：至少保留 1 个；删除当前激活预设时切到第一个 */
+  function deletePreset(id: string) {
+    if (presets.value.length <= 1) return;
+    const target = presets.value.find((preset) => preset.id === id);
+    if (!target) return;
+    abortAll();
+    presets.value = presets.value.filter((preset) => preset.id !== id);
+    if (activePresetId.value === id) {
+      const fallback = presets.value[0];
+      if (fallback) {
+        activePresetId.value = fallback.id;
+        sourceLang.value = fallback.defaultSourceLang;
+        targetLang.value = fallback.defaultTargetLang;
+        previousPresetDefaults.value = {
+          source: fallback.defaultSourceLang,
+          target: fallback.defaultTargetLang,
+        };
+        results.value = [];
+        currentSession.value = null;
+      }
+    }
+  }
+
+  /** 复制预设：克隆一份独立的副本 */
+  function duplicatePreset(id: string): TranslatorPreset | null {
+    const source = presets.value.find((preset) => preset.id === id);
+    if (!source) return null;
+    const cloned: TranslatorPreset = {
+      ...source,
+      id: generatePresetId(),
+      name: `${source.name} 副本`,
+      channels: source.channels.map((channel) => ({
+        ...channel,
+        id: createChannelId(),
+      })),
+    };
+    const index = presets.value.findIndex((preset) => preset.id === id);
+    presets.value.splice(index + 1, 0, cloned);
+    return cloned;
+  }
+
+  /** 预设排序：把 from 位置移动到 to 位置 */
+  function reorderPresets(fromIndex: number, toIndex: number) {
+    if (fromIndex === toIndex) return;
+    if (fromIndex < 0 || fromIndex >= presets.value.length) return;
+    if (toIndex < 0 || toIndex >= presets.value.length) return;
+    const next = [...presets.value];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    presets.value = next;
+  }
+
+  function movePresetUp(id: string) {
+    const index = presets.value.findIndex((preset) => preset.id === id);
+    if (index <= 0) return;
+    reorderPresets(index, index - 1);
+  }
+
+  function movePresetDown(id: string) {
+    const index = presets.value.findIndex((preset) => preset.id === id);
+    if (index === -1 || index >= presets.value.length - 1) return;
+    reorderPresets(index, index + 1);
+  }
+
+  /** 给特定预设添加渠道（不限于当前激活预设） */
+  function addChannelToPreset(presetId: string) {
+    const preset = presets.value.find((item) => item.id === presetId);
+    if (!preset || preset.channels.length >= 6) return;
+
+    const selectedKeys = new Set(
+      preset.channels.map(
+        (channel) => `${channel.profileId}:${channel.modelId}`
+      )
+    );
+    const candidate =
+      firstTextModels(enabledProfiles.value, 12).find(
+        ({ profile, model }) => !selectedKeys.has(`${profile.id}:${model.id}`)
+      ) ?? firstTextModels(enabledProfiles.value, 1)[0];
+
+    if (!candidate) return;
+    preset.channels.push(
+      toChannel(candidate.profile, candidate.model, preset.channels.length)
+    );
+  }
+
+  function removeChannelFromPreset(presetId: string, channelId: string) {
+    const preset = presets.value.find((item) => item.id === presetId);
+    if (!preset || preset.channels.length <= 1) return;
+    if (presetId === activePresetId.value) {
+      abortChannel(channelId);
+    }
+    preset.channels = preset.channels.filter(
+      (channel) => channel.id !== channelId
+    );
+    if (presetId === activePresetId.value) {
+      results.value = results.value.filter(
+        (result) => result.channelId !== channelId
+      );
+    }
+  }
+
+  function updateChannelInPreset(
+    presetId: string,
+    channelId: string,
+    profileId: string,
+    modelId: string
+  ) {
+    const preset = presets.value.find((item) => item.id === presetId);
+    if (!preset) return;
+    const channel = preset.channels.find((item) => item.id === channelId);
+    if (!channel) return;
+    const profile = enabledProfiles.value.find((item) => item.id === profileId);
+    const model = profile?.models.find((item) => item.id === modelId);
+    channel.profileId = profileId;
+    channel.modelId = modelId;
+    channel.displayName = model?.name || modelId;
+    channel.maxTokens = undefined;
   }
 
   function getResultStatus(
@@ -709,6 +945,17 @@ export const useTranslatorStore = defineStore("translator", () => {
     resetSettings,
     clearHistory,
     loadHistoryEntry,
+    deleteHistoryEntry,
+    createPreset,
+    updatePreset,
+    deletePreset,
+    duplicatePreset,
+    reorderPresets,
+    movePresetUp,
+    movePresetDown,
+    addChannelToPreset,
+    removeChannelFromPreset,
+    updateChannelInPreset,
     translate,
     getResultStatus,
   };

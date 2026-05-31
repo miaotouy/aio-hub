@@ -15,6 +15,16 @@
             <component :is="getPresetIcon(preset.icon)" class="preset-icon" />
             <span>{{ preset.name }}</span>
           </button>
+          <el-tooltip content="管理预设" placement="bottom">
+            <button
+              type="button"
+              class="preset-manage-btn"
+              :disabled="store.isTranslating"
+              @click="presetManagerVisible = true"
+            >
+              <SlidersHorizontal class="preset-icon" />
+            </button>
+          </el-tooltip>
         </div>
 
         <div class="preset-meta">
@@ -47,9 +57,19 @@
           <span class="history-text">{{ entry.sourceText }}</span>
           <span class="history-count">{{ entry.results.length }}</span>
         </button>
+        <button
+          type="button"
+          class="history-more"
+          @click="historyDrawerVisible = true"
+        >
+          <Clock class="history-more-icon" />
+          <span>全部 {{ store.history.length }}</span>
+        </button>
       </aside>
 
       <TranslatorSettingsDialog v-model="settingsVisible" />
+      <PresetManagerDialog v-model="presetManagerVisible" />
+      <HistoryDrawer v-model="historyDrawerVisible" />
     </div>
   </div>
 </template>
@@ -57,19 +77,56 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import type { Component } from "vue";
-import { BookOpen, Code2, Languages, Settings } from "lucide-vue-next";
+import {
+  BookOpen,
+  Bot,
+  Briefcase,
+  Clock,
+  Code2,
+  FileText,
+  Globe,
+  GraduationCap,
+  Languages,
+  Mail,
+  MessageSquare,
+  Newspaper,
+  Notebook,
+  Pen,
+  ScrollText,
+  Settings,
+  SlidersHorizontal,
+  Sparkles,
+  Type,
+} from "lucide-vue-next";
 import InputPanel from "./components/InputPanel.vue";
 import ResultsPanel from "./components/ResultsPanel.vue";
 import TranslatorSettingsDialog from "./components/TranslatorSettingsDialog.vue";
+import PresetManagerDialog from "./components/PresetManagerDialog.vue";
+import HistoryDrawer from "./components/HistoryDrawer.vue";
 import { useTranslatorStore } from "./composables/useTranslatorStore";
 
 const store = useTranslatorStore();
 const settingsVisible = ref(false);
+const presetManagerVisible = ref(false);
+const historyDrawerVisible = ref(false);
 
 const presetIconMap: Record<string, Component> = {
   Languages,
   BookOpen,
   Code2,
+  FileText,
+  Globe,
+  MessageSquare,
+  Briefcase,
+  GraduationCap,
+  Newspaper,
+  Mail,
+  Bot,
+  Sparkles,
+  Type,
+  Notebook,
+  Pen,
+  ScrollText,
 };
 
 function getPresetIcon(icon?: string) {
@@ -233,6 +290,70 @@ onMounted(() => {
   flex-shrink: 0;
   color: var(--primary-color);
   font-weight: 700;
+}
+
+.preset-manage-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin-left: 4px;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-color-secondary);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+  flex-shrink: 0;
+}
+
+.preset-manage-btn:hover:not(:disabled) {
+  color: var(--primary-color);
+  background: var(--input-bg);
+  border-color: color-mix(
+    in srgb,
+    var(--primary-color) 36%,
+    var(--border-color)
+  );
+}
+
+.preset-manage-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.history-more {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 7px;
+  background: var(--card-bg);
+  color: var(--text-color);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  white-space: nowrap;
+  transition: border-color 0.15s ease;
+}
+
+.history-more:hover {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.history-more-icon {
+  width: 14px;
+  height: 14px;
 }
 
 @media (max-width: 860px) {

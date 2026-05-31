@@ -526,6 +526,50 @@ graph TD
 - **临时模型切换**: 在发送消息时，允许用户临时指定一个不同于当前会话默认设置的模型。这对于快速对比不同模型在同一上下文中的表现非常有用，而无需修改智能体或全局配置。
 - **从编辑创建分支 (Branch from Edit)**: 当用户编辑一条已发送的消息时，除了保存修改外，还可以选择"从当前内容创建新分支"。系统会自动将编辑后的内容作为一条新的用户消息，并基于此生成新的助手回复，从而创建一条全新的对话路径，便于探索"如果这么问会怎样？"的场景。
 
+### 3.8. 气泡布局模式 (Bubble Layout Mode)
+
+为了同时满足"知识型工作流"和"沉浸式聊天"等多种使用场景，消息列表支持在 **卡片模式 (Card)** 和 **气泡模式 (Bubble)** 之间无缝切换。该能力由 `BubbleLayoutConfig` 配置驱动，并通过 CSS 变量 + `data-*` 属性实现，**完全不影响**默认卡片模式的渲染路径，确保零回归。
+
+- **双布局模式**:
+  - **卡片模式 (Card)**: 默认行为，所有消息（含工具调用、压缩节点）保持全宽展示，适合代码审阅、长文档分析等专业场景。
+  - **气泡模式 (Bubble)**: 经典 IM 风格，按角色对齐并限制宽度，适合角色扮演、自然对话场景。
+
+- **多维度对齐策略**:
+  - **用户 / 助手对齐**: `userAlign` 与 `assistantAlign` 可独立配置 (`left` / `right`)，自由组合出 ChatGPT 经典布局、镜像布局或同侧布局。
+  - **系统 / 压缩消息**: `systemAlign` 支持 `center`（旁白式）或 `left`，作为剧情/系统提示的统一锚点。
+  - **工具消息粘附**: `toolAttachment` 提供 `follow-prev`（智能跟随上一条同链消息对齐）或 `center`（独立旁白）两种策略，让工具链调用既能视觉聚合又能突显。
+
+- **宽度双兜底机制**:
+  - **百分比 (`maxWidthPercent`)**: 相对消息列表容器，适配不同窗口尺寸。
+  - **像素上限 (`maxWidthPx`)**: 作为大屏幕下的硬上限，避免气泡过宽影响阅读节奏。
+  - 系统消息独立的 `systemMaxWidthPercent` 支持居中场景下的差异化宽度。
+
+- **头像位置灵活配置 (`avatarPlacement`)**:
+  - **`inside`**: 头像在气泡内部（沿用 `MessageHeader` 行为）。
+  - **`outside`**: 经典 IM 风格，头像独立于气泡渲染在左右两侧，由 `MessageExternalAvatar` 组件承载。该模式下会自动扣除头像列宽度，避免气泡压到头像横坐标。
+  - **`none`**: 完全隐藏头像，最大化内容空间。
+  - 外置模式下，`avatarSize` 与 `avatarGap` 提供精细的尺寸与间距控制；粘附消息和居中消息会渲染透明占位以保持气泡对齐基线。
+
+- **头部信息分离 (`headerPlacement`)**:
+  - **`inside`**: 名字、模型信息、时间戳在气泡内部（默认）。
+  - **`outside`**: IM 经典布局，头部信息抽离到气泡上方，气泡内只剩纯净的消息内容，通过 `headerGap` 控制垂直间距。
+  - 仅对 user / assistant 普通消息生效，工具调用与压缩节点保留各自装饰条。
+
+- **双侧信息错位布局**: 气泡模式下，**底部 Token 信息** (`message-meta`) 跟随消息方向对齐（信息粘附气泡），而**操作栏** (`menubar-wrapper`) 对齐到对面方向。两者水平错开，避免在窄气泡下相互遮挡，同时实现视觉上的"信息-操作"分离。
+
+- **镜像化适配**: 右对齐场景下，系统自动对消息头部 (header)、工具栏 (tool-bar)、错误提示等内部子元素应用 `row-reverse` 镜像规则，确保所有元素都能正确贴向气泡右侧边界。
+
+- **样式驱动架构**:
+  - `MessageList.vue` 通过 `bubbleLayoutVars` 计算属性将所有配置注入为 CSS 变量（如 `--bubble-max-width-percent`, `--bubble-radius`, `--avatar-outside-size` 等）。
+  - 通过 `mode-card` / `mode-bubble` / `avatar-outside` / `header-outside` 等 class 与 `data-align` / `data-role` / `data-avatar-placement` 等 data 属性组合，纯 CSS 即可驱动所有变体，无需 JS 侵入消息组件内部。
+
+- **信息密度搭配**: 气泡模式可与"界面偏好"中的多个独立信息显示开关组合使用，构建出从 **"工程态"** 到 **"纯净聊天态"** 的连续光谱：
+  - **`showTimestamp`**: 时间戳显示。
+  - **`showTokenCount`** / **`showTokenCountForBlocks`**: 消息级与块级（代码块、工具调用）Token 统计。
+  - **`showModelInfo`**: 助手消息的模型来源标识。
+  - **`showPerformanceMetrics`**: TTFT 与 TPS 等性能指标。
+  - **典型配置**: 关闭上述全部开关 + 启用气泡模式 + 外置头像 + 隐藏头部（`headerPlacement: outside` 或缩小 header）→ 得到接近原生 IM 软件的极简聊天界面，适合沉浸式角色扮演场景。
+
 ## 4. 架构概览
 
 本模块遵循关注点分离的原则，将状态、逻辑和视图清晰地分开。
@@ -771,3 +815,4 @@ graph TD
 - **`ChatRegexConfig`**: 正则配置根对象。
   - `presets`: 预设列表，用于 Global、Agent、User 三层配置。
   - `bindingMode`: 绑定模式 (`'message' | 'session'`)，控制规则配置的归属策略。
+

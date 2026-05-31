@@ -119,6 +119,15 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         keywords: "ui model name 模型",
       },
       {
+        id: "showPerformanceMetrics",
+        label: "显示性能指标",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "uiPreferences.showPerformanceMetrics",
+        hint: "显示生成速度(t/s)和首字延迟(TTFT)",
+        keywords: "ui performance metrics speed latency 性能 速度 延迟",
+      },
+      {
         id: "fontSize",
         label: "字体大小 ({{ localSettings.uiPreferences.fontSize }}px)",
         component: "ElSlider",
@@ -279,7 +288,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
     ],
   },
   {
-    title: "气泡布局",
+    title: "消息布局",
     icon: LayoutTemplate,
     items: [
       {
@@ -601,15 +610,6 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "uiPreferences.enableEnterAnimation",
         hint: "为基础消息节点（如文本、段落）启用淡入动画。",
         keywords: "ui animation effect 动画 特效",
-      },
-      {
-        id: "showPerformanceMetrics",
-        label: "显示性能指标",
-        layout: "inline",
-        component: "ElSwitch",
-        modelPath: "uiPreferences.showPerformanceMetrics",
-        hint: "显示生成速度(t/s)和首字延迟(TTFT)",
-        keywords: "ui performance metrics speed latency 性能 速度 延迟",
       },
       {
         id: "defaultRenderHtml",

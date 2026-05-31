@@ -260,9 +260,12 @@ fn collect_files(
     let files: Arc<Mutex<Vec<CollectedFile>>> = Arc::new(Mutex::new(Vec::new()));
     let scanned = Arc::new(AtomicUsize::new(0));
 
-    // 使用 ignore crate 遍历（默认不跟随 symlinks，支持 .gitignore）
+    // 使用 ignore crate 遍历（默认不跟随 symlinks，支持当前根目录内的 .gitignore）
     let mut builder = WalkBuilder::new(root);
     builder.hidden(false); // 不跳过隐藏文件（由用户决定）
+    builder.parents(false); // 不向上查找父目录的 ignore 文件，避免父级规则误排除扫描目录内容
+    builder.git_global(false); // 不使用全局 gitignore
+    builder.git_exclude(false); // 不使用 .git/info/exclude
     builder.follow_links(false); // 不跟随符号链接
 
     // 添加忽略模式

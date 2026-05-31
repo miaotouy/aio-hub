@@ -290,6 +290,10 @@ export default withMermaid({
           text: "高级功能",
           collapsed: true,
           items: [
+            { text: "多窗口模式", link: "/user-guide/advanced/multi-window" },
+            { text: "插件使用", link: "/user-guide/advanced/plugins" },
+            { text: "Agent 工具调用", link: "/user-guide/advanced/agent-tool-calling" },
+            { text: "CSS 变量宏", link: "/user-guide/advanced/css-variables-guide" },
             // ==== UG_ADVANCED 插入点 ====
           ],
         },
@@ -297,6 +301,10 @@ export default withMermaid({
           text: "📱 移动端",
           collapsed: true,
           items: [
+            { text: "移动端概览", link: "/user-guide/mobile/index" },
+            { text: "LLM 对话（移动端）", link: "/user-guide/mobile/llm-chat" },
+            { text: "API 配置（移动端）", link: "/user-guide/mobile/llm-api" },
+            { text: "日志管理器", link: "/user-guide/mobile/log-manager" },
             // ==== UG_MOBILE 插入点 ====
           ],
         },
@@ -305,6 +313,7 @@ export default withMermaid({
         {
           text: "开始",
           items: [
+            { text: "开发环境搭建", link: "/guide/getting-started" },
             { text: "添加新工具", link: "/guide/adding-new-tool" },
             { text: "注册工具", link: "/guide/tool-registry-guide" },
             { text: "贡献指南", link: "/guide/contribution-guide" },

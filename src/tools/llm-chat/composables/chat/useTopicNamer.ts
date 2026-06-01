@@ -231,6 +231,11 @@ export function useTopicNamer() {
           const response = await sendRequest({
             ...requestOptions,
             suppressErrorLog: useStructuredOutput,
+            inspectorContext: {
+              toolName: "llm-chat",
+              sessionId: session.id,
+              purpose: "regen-title",
+            },
             messages: [
               { role: "system", content: TOPIC_NAMING_SYSTEM_PROMPT },
               { role: "user", content: finalPrompt },

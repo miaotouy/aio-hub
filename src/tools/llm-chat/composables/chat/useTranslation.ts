@@ -94,6 +94,10 @@ export function useTranslation() {
         profileId,
         modelId,
         messages: [{ role: "user", content: prompt }],
+        inspectorContext: {
+          toolName: "llm-chat",
+          purpose: "translate",
+        },
         temperature: config.temperature,
         maxTokens: config.maxTokens,
         stream: !!onStream,

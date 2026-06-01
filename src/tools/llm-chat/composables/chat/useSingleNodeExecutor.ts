@@ -236,6 +236,11 @@ export function useSingleNodeExecutor() {
           modelId: agentConfig.modelId,
           requestId: assistantNode.id,
           messages: messagesForRequest,
+          inspectorContext: {
+            toolName: "llm-chat",
+            sessionId: session.id,
+            purpose: "chat",
+          },
           ...effectiveParams,
           stream: settings.value.uiPreferences.isStreaming,
           signal: abortController.signal,

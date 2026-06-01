@@ -659,6 +659,10 @@ export function useChatHandler() {
       profileId,
       modelId,
       messages,
+      inspectorContext: {
+        toolName: "llm-chat",
+        purpose: "complete-input",
+      },
       temperature: 0.3, // 补全通常需要更确定的结果
       maxTokens: 200,
     });

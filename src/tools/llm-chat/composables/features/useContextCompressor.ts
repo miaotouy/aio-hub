@@ -233,6 +233,10 @@ export function useContextCompressor() {
         profileId,
         modelId,
         messages: [{ role: "user", content: prompt }], // 摘要任务通常作为单次 Prompt
+        inspectorContext: {
+          toolName: "llm-chat",
+          purpose: "context-compress",
+        },
         temperature:
           config.summaryTemperature ??
           DEFAULT_CONTEXT_COMPRESSION_CONFIG.summaryTemperature,

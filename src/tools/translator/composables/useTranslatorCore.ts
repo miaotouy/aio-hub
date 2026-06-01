@@ -37,6 +37,11 @@ export function useTranslatorCore() {
       profileId: channel.profileId,
       modelId: channel.modelId,
       messages: [{ role: "user", content: prompt }],
+      inspectorContext: {
+        toolName: "translator",
+        sessionId: channel.id,
+        purpose: "translate",
+      },
       temperature: options.temperature ?? channel.temperature ?? 0.3,
       maxTokens: options.maxTokens ?? channel.maxTokens ?? 8192,
       stream: !!options.onStream,

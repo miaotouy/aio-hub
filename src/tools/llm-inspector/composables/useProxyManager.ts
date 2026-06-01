@@ -1,4 +1,4 @@
-import { ref, computed, watch, onMounted, onUnmounted } from "vue";
+import { reactive, ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@utils/errorHandler";
 import { customMessage } from "@utils/customMessage";
@@ -15,6 +15,8 @@ import {
 import { useRecordManager } from "../core/recordManager";
 import { useStreamProcessor } from "../core/streamProcessor";
 import { useInternalMonitor } from "./useInternalMonitor";
+import { inspectorHookRegistry } from "../core/hookRegistry";
+import type { InspectorState, ProxyStatus } from "../types/hooks";
 import {
   loadSettings,
   saveSettings,
@@ -30,8 +32,23 @@ const errorHandler = createModuleErrorHandler("LlmInspector/InspectorManager");
  * LLM 检查器管理器组合式函数
  */
 export function useInspectorManager() {
+  // === Inspector 状态机（C3 新增）===
+  // 集中管理总开关 / 内部监控 / 外部代理 三层状态。
+  // - isGlobalEnabled: 总开关，关闭后不再启用任何子监控。
+  // - monitorInternal: 是否启用前端钩子监控（驱动 hookRegistry.enable/disable）。
+  // - monitorExternal: 是否启用外部 HTTP 代理（与现有 isRunning 计算属性绑定）。
+  // - externalProxyStatus: 外部代理状态机，区分 stopped / starting / running / stopping / error。
+  const state = reactive<InspectorState>({
+    isGlobalEnabled: true,
+    monitorInternal: false,
+    monitorExternal: false,
+    externalProxyStatus: "stopped" as ProxyStatus,
+  });
+
+  // 兼容性 computed：旧 UI 仍使用 isRunning 判断按钮状态，保留语义不变。
+  const isRunning = computed(() => state.externalProxyStatus === "running");
+
   // 基础状态
-  const isRunning = ref(false);
   const currentTargetUrl = ref("");
   const config = ref<InspectorConfig>({
     port: 8999,
@@ -97,8 +114,10 @@ export function useInspectorManager() {
         throw new Error(validation.errors.join(", "));
       }
 
+      state.externalProxyStatus = "starting";
       await startInspectorService(config.value);
-      isRunning.value = true;
+      state.externalProxyStatus = "running";
+      state.monitorExternal = true;
       currentTargetUrl.value = config.value.target_url;
 
       // 添加到历史记录
@@ -112,6 +131,7 @@ export function useInspectorManager() {
         targetUrl: config.value.target_url,
       });
     } catch (err) {
+      state.externalProxyStatus = "error";
       error.value = err instanceof Error ? err.message : "启动失败";
       errorHandler.handle(err, {
         userMessage: "启动代理服务失败",
@@ -132,8 +152,10 @@ export function useInspectorManager() {
       isLoading.value = true;
       error.value = null;
 
+      state.externalProxyStatus = "stopping";
       await stopInspectorService();
-      isRunning.value = false;
+      state.externalProxyStatus = "stopped";
+      state.monitorExternal = false;
       currentTargetUrl.value = "";
 
       // 清理事件监听器
@@ -141,6 +163,7 @@ export function useInspectorManager() {
 
       logger.info("代理服务停止成功");
     } catch (err) {
+      state.externalProxyStatus = "error";
       error.value = err instanceof Error ? err.message : "停止失败";
       errorHandler.handle(err, {
         userMessage: "停止代理服务失败",
@@ -187,7 +210,8 @@ export function useInspectorManager() {
   async function checkInspectorStatus() {
     try {
       const status = await getInspectorServiceStatus();
-      isRunning.value = status.is_running;
+      state.externalProxyStatus = status.is_running ? "running" : "stopped";
+      state.monitorExternal = status.is_running;
 
       if (status.is_running) {
         config.value.port = status.port;
@@ -209,7 +233,8 @@ export function useInspectorManager() {
         userMessage: "检查代理状态失败",
         showToUser: false,
       });
-      isRunning.value = false;
+      state.externalProxyStatus = "stopped";
+      state.monitorExternal = false;
     }
   }
 
@@ -368,6 +393,20 @@ export function useInspectorManager() {
     { deep: true }
   );
 
+  // 监听内部监控开关，联动 hookRegistry（C3）
+  // monitorInternal 同时受 isGlobalEnabled 钳制：总开关关闭时强制停用。
+  watch(
+    () => state.isGlobalEnabled && state.monitorInternal,
+    (effectiveOn) => {
+      if (effectiveOn) {
+        inspectorHookRegistry.enable();
+      } else {
+        inspectorHookRegistry.disable();
+      }
+    },
+    { immediate: true }
+  );
+
   // 生命周期
   onMounted(async () => {
     await loadConfig();
@@ -377,10 +416,15 @@ export function useInspectorManager() {
   onUnmounted(() => {
     cleanupEventListeners();
     streamProcessor.clearAllStreamBuffers();
+    // 注意：不在 unmount 时强制 disable hookRegistry，避免分离窗口场景下
+    // 主窗口卸载导致全局钩子失效。开关由用户在 UI 上显式控制。
   });
 
   return {
-    // 状态
+    // 状态机（C3 新增）
+    state,
+
+    // 状态（兼容字段）
     isRunning,
     currentTargetUrl,
     config,

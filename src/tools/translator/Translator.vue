@@ -1,34 +1,106 @@
 <template>
   <div class="translator-page">
     <div class="translator-shell">
-      <header class="preset-bar">
-        <div class="preset-tabs">
-          <button
-            v-for="preset in store.presets"
-            :key="preset.id"
-            type="button"
-            class="preset-tab"
-            :class="{ active: preset.id === store.activePresetId }"
-            :disabled="store.isTranslating"
-            @click="store.setActivePreset(preset.id)"
-          >
-            <component :is="getPresetIcon(preset.icon)" class="preset-icon" />
-            <span>{{ preset.name }}</span>
-          </button>
-          <el-tooltip content="管理预设" placement="bottom">
+      <header class="toolbar">
+        <!-- 左：预设下拉 -->
+        <el-dropdown
+          trigger="click"
+          placement="bottom-start"
+          :disabled="store.isTranslating"
+          @command="handlePresetCommand"
+        >
+          <div>
             <button
               type="button"
-              class="preset-manage-btn"
+              class="preset-trigger"
               :disabled="store.isTranslating"
-              @click="presetManagerVisible = true"
             >
-              <SlidersHorizontal class="preset-icon" />
+              <component
+                :is="getPresetIcon(store.activePreset?.icon)"
+                class="preset-icon"
+              />
+              <span class="preset-name">{{
+                store.activePreset?.name || "未选择"
+              }}</span>
+              <span class="preset-channel-count">
+                · {{ store.activeChannels.length }} 渠道
+              </span>
+              <ChevronDown class="caret" />
             </button>
-          </el-tooltip>
+          </div>
+          <template #dropdown>
+            <el-dropdown-menu class="translator-preset-menu">
+              <el-dropdown-item
+                v-for="preset in store.presets"
+                :key="preset.id"
+                :command="preset.id"
+                :class="{
+                  'preset-item-active': preset.id === store.activePresetId,
+                }"
+              >
+                <component :is="getPresetIcon(preset.icon)" class="dd-icon" />
+                <span class="dd-name">{{ preset.name }}</span>
+                <span class="dd-meta">{{ preset.channels.length }} 渠道</span>
+              </el-dropdown-item>
+              <el-dropdown-item divided command="__manage__">
+                <SlidersHorizontal class="dd-icon" />
+                <span class="dd-name">管理预设…</span>
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+
+        <!-- 中：源语言 ↔ 目标语言 -->
+        <div class="lang-row">
+          <LanguageSelect
+            v-model="store.sourceLang"
+            :custom-languages="store.settings.customLanguages"
+            :disabled="store.isTranslating"
+            :include-auto="true"
+            placeholder="源语言"
+            @add-custom="store.addCustomLanguage"
+          />
+          <el-button
+            class="icon-button swap"
+            :icon="ArrowLeftRight"
+            :disabled="store.sourceLang === 'auto' || store.isTranslating"
+            @click="store.swapLanguages"
+          />
+          <LanguageSelect
+            v-model="store.targetLang"
+            :custom-languages="store.settings.customLanguages"
+            :disabled="store.isTranslating"
+            :include-auto="false"
+            placeholder="目标语言"
+            @add-custom="store.addCustomLanguage"
+          />
         </div>
 
-        <div class="preset-meta">
-          <span>{{ store.activeChannels.length }} 渠道</span>
+        <!-- 右：翻译/停止 + 设置 -->
+        <div class="action-row">
+          <el-tooltip content="Ctrl + Enter" placement="bottom">
+            <div class="translate-action-wrapper">
+              <el-button
+                v-if="store.isTranslating"
+                type="danger"
+                class="translate-action"
+                :icon="Square"
+                @click="store.abortAll"
+              >
+                停止
+              </el-button>
+              <el-button
+                v-else
+                type="primary"
+                class="translate-action"
+                :icon="Languages"
+                :disabled="!canTranslate"
+                @click="store.translate"
+              >
+                翻译
+              </el-button>
+            </div>
+          </el-tooltip>
           <el-tooltip content="翻译设置" placement="bottom">
             <el-button
               class="settings-button"
@@ -84,13 +156,15 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import type { Component } from "vue";
 import {
+  ArrowLeftRight,
   ArrowRight,
   BookOpen,
   Bot,
   Briefcase,
+  ChevronDown,
   Clock,
   Code2,
   FileText,
@@ -106,6 +180,7 @@ import {
   Settings,
   SlidersHorizontal,
   Sparkles,
+  Square,
   Type,
 } from "lucide-vue-next";
 import InputPanel from "./components/InputPanel.vue";
@@ -113,6 +188,7 @@ import ResultsPanel from "./components/ResultsPanel.vue";
 import TranslatorSettingsDialog from "./components/TranslatorSettingsDialog.vue";
 import PresetManagerDialog from "./components/PresetManagerDialog.vue";
 import HistoryDrawer from "./components/HistoryDrawer.vue";
+import LanguageSelect from "./components/LanguageSelect.vue";
 import { useTranslatorStore } from "./composables/useTranslatorStore";
 import { getLanguageLabel } from "./constants";
 import type { TranslatorLanguageCode } from "./types";
@@ -143,6 +219,21 @@ const presetIconMap: Record<string, Component> = {
 
 function getPresetIcon(icon?: string) {
   return presetIconMap[icon || "Languages"] || Languages;
+}
+
+const canTranslate = computed(
+  () =>
+    store.inputText.trim().length > 0 &&
+    store.hasConfiguredChannels &&
+    !store.isTranslating
+);
+
+function handlePresetCommand(command: string) {
+  if (command === "__manage__") {
+    presetManagerVisible.value = true;
+    return;
+  }
+  store.setActivePreset(command);
 }
 
 /**
@@ -184,10 +275,11 @@ onMounted(() => {
   backdrop-filter: blur(var(--ui-blur));
 }
 
-.preset-bar {
-  display: flex;
+/* ===== 顶部一行工具栏：预设 · 语言 · 翻译/设置 ===== */
+.toolbar {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
   min-width: 0;
   padding: 8px 12px;
@@ -195,45 +287,39 @@ onMounted(() => {
   background: var(--sidebar-bg);
 }
 
-.preset-tabs {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  overflow-x: auto;
-}
-
-.preset-tab {
+/* 预设下拉触发器 */
+.preset-trigger {
   appearance: none;
   display: inline-flex;
   align-items: center;
   gap: 7px;
   height: 34px;
-  min-width: 0;
-  border: var(--border-width) solid transparent;
-  border-radius: 7px;
   padding: 0 12px;
-  background: transparent;
-  color: var(--text-color-secondary);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 7px;
+  background: var(--input-bg);
+  color: var(--text-color);
   font: inherit;
   font-size: 13px;
   font-weight: 600;
-  white-space: nowrap;
   cursor: pointer;
+  white-space: nowrap;
+  max-width: 260px;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
 }
 
-.preset-tab:hover:not(:disabled) {
-  color: var(--text-color);
-  background: var(--input-bg);
-}
-
-.preset-tab.active {
+.preset-trigger:hover:not(:disabled) {
   color: var(--primary-color);
-  background: var(--input-bg);
-  border-color: color-mix(in srgb, var(--primary-color) 48%, transparent);
+  border-color: color-mix(
+    in srgb,
+    var(--primary-color) 48%,
+    var(--border-color)
+  );
 }
 
-.preset-tab:disabled {
+.preset-trigger:disabled {
   cursor: not-allowed;
   opacity: 0.7;
 }
@@ -244,18 +330,81 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
-.preset-meta {
+.preset-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preset-channel-count {
+  color: var(--text-color-secondary);
+  font-weight: 500;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.caret {
+  width: 14px;
+  height: 14px;
+  color: var(--text-color-secondary);
+  flex-shrink: 0;
+  margin-left: 2px;
+}
+
+/* 语言行：源语言 ↔ 目标语言 */
+.lang-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) 32px minmax(120px, 1fr);
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.lang-row :deep(.el-select) {
+  width: 100%;
+}
+
+.icon-button {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.icon-button.swap {
+  margin: 0 auto;
+}
+
+/* 右侧操作区 */
+.action-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-shrink: 0;
-  color: var(--text-color-secondary);
-  font-size: 12px;
+}
+
+.translate-action-wrapper {
+  display: inline-flex;
+}
+
+.translate-action {
+  height: 34px;
+  min-width: 92px;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.translate-action :deep(.el-icon) {
+  font-size: 15px;
 }
 
 .settings-button {
-  width: 30px;
-  height: 30px;
+  width: 34px;
+  height: 34px;
   padding: 0;
 }
 
@@ -339,40 +488,6 @@ onMounted(() => {
   font-weight: 700;
 }
 
-.preset-manage-btn {
-  appearance: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  margin-left: 4px;
-  border: var(--border-width) solid var(--border-color);
-  border-radius: 7px;
-  background: transparent;
-  color: var(--text-color-secondary);
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    color 0.15s ease;
-  flex-shrink: 0;
-}
-
-.preset-manage-btn:hover:not(:disabled) {
-  color: var(--primary-color);
-  background: var(--input-bg);
-  border-color: color-mix(
-    in srgb,
-    var(--primary-color) 36%,
-    var(--border-color)
-  );
-}
-
-.preset-manage-btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-
 .history-more {
   appearance: none;
   display: inline-flex;
@@ -403,6 +518,45 @@ onMounted(() => {
   height: 14px;
 }
 
+/* 窄屏 */
+@media (max-width: 720px) {
+  .translator-shell {
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+
+  .toolbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "preset action"
+      "lang   lang";
+    row-gap: 8px;
+  }
+
+  .preset-trigger {
+    grid-area: preset;
+    max-width: 100%;
+  }
+
+  .lang-row {
+    grid-area: lang;
+    max-width: 100%;
+  }
+
+  .action-row {
+    grid-area: action;
+  }
+
+  .translate-action {
+    min-width: 0;
+    width: 36px;
+    padding: 0;
+  }
+
+  .translate-action :deep(span) {
+    display: none;
+  }
+}
+
 @media (max-width: 860px) {
   .translator-page {
     overflow: auto;
@@ -414,15 +568,48 @@ onMounted(() => {
     overflow: visible;
   }
 
-  .preset-bar {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
   .workbench {
     grid-template-columns: 1fr;
     overflow: visible;
   }
+}
+</style>
+
+<style>
+/* 预设下拉菜单：突出激活项 */
+.translator-preset-menu .el-dropdown-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 200px;
+  font-size: 13px;
+}
+
+.translator-preset-menu .dd-icon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+.translator-preset-menu .dd-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.translator-preset-menu .dd-meta {
+  flex-shrink: 0;
+  color: var(--text-color-secondary);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.translator-preset-menu .preset-item-active {
+  color: var(--primary-color);
+  font-weight: 700;
+  background: color-mix(in srgb, var(--primary-color) 10%, transparent);
 }
 </style>
 

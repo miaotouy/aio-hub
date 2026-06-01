@@ -1,6 +1,6 @@
 # 翻译工作台（Translator）：架构与开发者指南
 
-> 最后更新：2026-06
+> 最后更新：2026-06（UI 重构：预设栏下拉化，语言/翻译按钮上提全局顶栏）
 
 翻译工作台是一个面向 **多渠道 LLM 并排对比翻译** 的工具。本文档是其架构概览，覆盖核心概念、子模块职责、数据流与持久化布局。
 
@@ -95,16 +95,18 @@ status: idle | pending | streaming | completed | aborted | failed;
 ## 3. 顶层架构
 
 ```
-┌────────────────────────────────────────────────────────────┐
-│                     Translator.vue                         │
-│  顶层 Shell：预设标签栏 + 工作区 + 历史条 + 三类弹窗        │
-└─────────┬──────────────────────────────────────┬───────────┘
-          │                                      │
-          ▼                                      ▼
-   ┌─────────────┐  ┌──────────────┐  ┌──────────────────────┐
-   │ InputPanel  │  │ ResultsPanel │  │ *Dialog / Drawer     │
-   │ 输入 + 渠道 │  │ 多卡片结果区 │  │ Settings/Preset/Hist │
-   └──────┬──────┘  └──────┬───────┘  └──────────┬───────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                       Translator.vue                             │
+│ 顶层 Shell：单行工具栏（预设下拉 · 语言行 · 翻译/设置）          │
+│              + 工作区 + 历史条 + 三类弹窗                        │
+└─────────┬────────────────────────────────────────────┬───────────┘
+          │                                            │
+          ▼                                            ▼
+   ┌─────────────────┐  ┌──────────────┐  ┌────────────────────────┐
+   │ InputPanel      │  │ ResultsPanel │  │ *Dialog / Drawer       │
+   │ 工具条+编辑器+  │  │ 多卡片结果区 │  │ Settings/Preset/Hist   │
+   │ 渠道区          │  │              │  │                        │
+   └──────┬──────────┘  └──────┬───────┘  └──────────┬─────────────┘
           │                │                     │
           └────────────────┴────────┬────────────┘
                                     ▼
@@ -258,26 +260,30 @@ graph TD
 
 整体三段式网格 `grid-template-rows: 52px minmax(0,1fr) auto`：
 
-- **顶部 PresetBar**：预设标签按钮（点击切换激活预设）+「管理预设」入口 +「{N} 渠道」计数 + 设置入口。
+- **顶部 Toolbar**：单行三列布局 `auto · minmax(0,1fr) · auto`，集中承载所有全局控制：
+  - 左：**预设下拉**（`el-dropdown` 触发器，显示当前预设图标 + 名称 + 渠道数；下拉菜单列出所有预设并附带「管理预设…」分隔项，激活项有 `preset-item-active` 高亮）。
+  - 中：**源语言 ↔ 目标语言**（`grid-template-columns: minmax(120px, 1fr) 32px minmax(120px, 1fr)`，居中且最大宽 560px；互换按钮在源语言 = `auto` 时禁用）。
+  - 右：**翻译/停止按钮 + 设置齿轮**。翻译按钮带 `Ctrl + Enter` tooltip 提示；翻译中变形为 danger 风格「停止」。
+  - 窄屏（≤720px）自动 2 行布局：预设 + 按钮在上、语言行在下，翻译按钮收成 icon-only。
 - **中部 Workbench**：`grid-template-columns: minmax(320px, 36%) minmax(0,1fr)`，左 InputPanel / 右 ResultsPanel。
 - **底部 HistoryStrip**：最近 8 条历史卡片 +「全部 N」按钮。
 - 三类弹窗 `v-model` 绑定本地 ref，与 store 解耦。
 
+> 预设下拉的 `command` 事件统一分发：`__manage__` 命令打开预设管理器，其他值视为预设 ID 切换激活预设。
+> `el-dropdown` 的触发器外层包裹了 `<div>`，避免直接子元素绑定异常（遵循 [components-guide](../../.kilocode/rules/development-standards.md) 规范）。
 > 所有 BaseDialog 都用项目自研属性 `close-on-backdrop-click` / `show-close-button`，符合规范。
 
 ### 6.2. [`InputPanel.vue`](src/tools/translator/components/InputPanel.vue:1)
 
-自上而下布局：
+InputPanel 只负责「输入相关」的功能区，所有全局控件（语言选择、翻译按钮）已上提到 [`Translator.vue`](src/tools/translator/Translator.vue:1) 的全局 Toolbar。自上而下布局：
 
-1. **语言行**（`panel-header`）：源语言 / 互换按钮 / 目标语言。两个下拉用 [`LanguageSelect`](src/tools/translator/components/LanguageSelect.vue:1)，支持分组、搜索、「＋ 添加自定义语言」。互换按钮在源语言 = `auto` 时禁用。
-2. **工具条**（`editor-toolbar`）：左侧 📋 剪贴板粘贴 / 📂 从文件读取 / 🗑️ 清空；右侧实时字符 / 词数（CJK 直接按字符；带空白拉丁文同时显示词数）。
+1. **工具条**（`editor-toolbar`）：左侧 📋 剪贴板粘贴 / 📂 从文件读取 / 🗑️ 清空；右侧实时字符 / 词数（CJK 直接按字符；带空白拉丁文同时显示词数）。
    - 剪贴板用 `@tauri-apps/plugin-clipboard-manager.readText()`；已有内容时弹「追加/覆盖」二选一。
    - 文件读取用 `@tauri-apps/plugin-dialog.open()` + `@tauri-apps/plugin-fs.readTextFile()`；支持 `txt/md/json/srt/vtt/log/csv` 等；大文件（>200K 字符）二次确认。
-3. **编辑器**（`editor-wrapper` 包 [`TranslatorEditor`](src/tools/translator/components/TranslatorEditor.vue:1)）：CodeMirror 6 + `markdown()` + `search({ top: true })` 汉化搜索面板 + 跨平台 `Mod-Enter` 提交。外层 wrapper 用 `:focus-within` 实现主题色聚焦边框，并叠加 [`DropZone`](src/components/common/DropZone.vue:1) 兄弟节点（`overlay + hide-content + show-overlay-on-drag`，平时穿透鼠标，拖拽时捕获并显示提示层），支持拖放文本类文件复用同一段大文件确认 + 覆盖确认逻辑。
-4. **渠道区**（`channel-section`）：可折叠的 section header，状态持久化于 `settings.channelSectionCollapsed`。展开态用完整 `LlmModelSelector` 行，折叠态用紧凑徽章 pills 展示已选模型名。主页面渠道上限 UI 硬编码 4。
-5. **主操作按钮**（`primary-action`）：满宽 48px 的大按钮，翻译中变形为 danger 风格「停止全部」，按钮内附 `Ctrl + Enter` 快捷键提示。
+2. **编辑器**（`editor-wrapper` 包 [`TranslatorEditor`](src/tools/translator/components/TranslatorEditor.vue:1)）：CodeMirror 6 + `markdown()` + `search({ top: true })` 汉化搜索面板 + 跨平台 `Mod-Enter` 提交。外层 wrapper 用 `:focus-within` 实现主题色聚焦边框，并叠加 [`DropZone`](src/components/common/DropZone.vue:1) 兄弟节点（`overlay + hide-content + show-overlay-on-drag`，平时穿透鼠标，拖拽时捕获并显示提示层），支持拖放文本类文件复用同一段大文件确认 + 覆盖确认逻辑。
+3. **渠道区**（`channel-section`）：可折叠的 section header，状态持久化于 `settings.channelSectionCollapsed`。展开态用完整 `LlmModelSelector` 行，折叠态用紧凑徽章 pills 展示已选模型名。主页面渠道上限 UI 硬编码 4。
 
-> 注意：编辑器内的 Ctrl+F 会被 `stopPropagation` 拦下，不会冒泡到外层全局搜索。
+> 编辑器内 `Mod-Enter` 仍然触发翻译（`handleSubmit`），与全局顶栏的按钮共享同一个 `canTranslate` 守卫；编辑器内的 Ctrl+F 会被 `stopPropagation` 拦下，不会冒泡到外层全局搜索。
 
 ### 6.3. [`ResultsPanel.vue`](src/tools/translator/components/ResultsPanel.vue:1)
 

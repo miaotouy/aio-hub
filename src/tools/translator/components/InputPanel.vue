@@ -1,36 +1,6 @@
 <template>
   <section class="input-panel">
-    <!-- 顶部：语言行 -->
-    <div class="panel-header">
-      <div class="language-row">
-        <LanguageSelect
-          v-model="store.sourceLang"
-          :custom-languages="store.settings.customLanguages"
-          :disabled="store.isTranslating"
-          :include-auto="true"
-          placeholder="源语言"
-          @add-custom="store.addCustomLanguage"
-        />
-
-        <el-button
-          class="icon-button swap"
-          :icon="ArrowLeftRight"
-          :disabled="store.sourceLang === 'auto' || store.isTranslating"
-          @click="store.swapLanguages"
-        />
-
-        <LanguageSelect
-          v-model="store.targetLang"
-          :custom-languages="store.settings.customLanguages"
-          :disabled="store.isTranslating"
-          :include-auto="false"
-          placeholder="目标语言"
-          @add-custom="store.addCustomLanguage"
-        />
-      </div>
-    </div>
-
-    <!-- 工具条：粘贴 / 读文件 · · · 字数 -->
+    <!-- 工具条：粘贴 / 读文件 / 清空 · · · 字数 -->
     <div class="editor-toolbar">
       <div class="toolbar-left">
         <el-tooltip content="从剪贴板粘贴" placement="bottom">
@@ -155,46 +125,16 @@
         </div>
       </div>
     </section>
-
-    <!-- 主操作按钮：满宽、显眼 -->
-    <div class="primary-action">
-      <el-button
-        v-if="store.isTranslating"
-        type="danger"
-        class="translate-btn"
-        size="large"
-        :icon="Square"
-        @click="store.abortAll"
-      >
-        <span class="btn-label">停止全部</span>
-        <span class="btn-shortcut">Ctrl + Enter</span>
-      </el-button>
-      <el-button
-        v-else
-        type="primary"
-        class="translate-btn"
-        size="large"
-        :icon="Languages"
-        :disabled="!canTranslate"
-        @click="store.translate"
-      >
-        <span class="btn-label">开始翻译</span>
-        <span class="btn-shortcut">Ctrl + Enter</span>
-      </el-button>
-    </div>
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed } from "vue";
 import {
-  ArrowLeftRight,
   ChevronDown,
   ClipboardPaste,
   FolderOpen,
-  Languages,
   Plus,
-  Square,
   Trash2,
   X,
 } from "lucide-vue-next";
@@ -208,7 +148,6 @@ import { parseModelCombo } from "@/utils/modelIdUtils";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { ModelCapabilities } from "@/types/llm-profiles";
-import LanguageSelect from "./LanguageSelect.vue";
 import TranslatorEditor from "./TranslatorEditor.vue";
 import { useTranslatorStore } from "../composables/useTranslatorStore";
 
@@ -412,29 +351,6 @@ async function handleEditorDrop(paths: string[]) {
   background: var(--card-bg);
 }
 
-.panel-header {
-  padding: 14px 14px 10px;
-  border-bottom: var(--border-width) solid var(--border-color);
-}
-
-.language-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 36px minmax(0, 1fr);
-  gap: 8px;
-  align-items: center;
-}
-
-.icon-button {
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  flex-shrink: 0;
-}
-
-.icon-button.swap {
-  margin: 0 auto;
-}
-
 /* 工具条 */
 .editor-toolbar {
   display: flex;
@@ -561,6 +477,13 @@ async function handleEditorDrop(paths: string[]) {
   flex: 1;
 }
 
+.icon-button {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  flex-shrink: 0;
+}
+
 .add-channel {
   width: 26px;
   height: 26px;
@@ -622,38 +545,6 @@ async function handleEditorDrop(paths: string[]) {
   border: var(--border-width) solid var(--border-color);
 }
 
-/* 主翻译按钮 */
-.primary-action {
-  padding: 12px 14px;
-  border-top: var(--border-width) solid var(--border-color);
-  background: var(--card-bg);
-}
-
-.translate-btn {
-  width: 100%;
-  height: 48px;
-  font-size: 15px;
-  font-weight: 700;
-}
-
-.translate-btn :deep(.el-icon) {
-  font-size: 18px;
-}
-
-.btn-label {
-  margin-right: 12px;
-}
-
-.btn-shortcut {
-  font-size: 11px;
-  font-weight: 500;
-  opacity: 0.78;
-  padding: 2px 8px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.16);
-  font-family: var(--font-family-mono, monospace);
-}
-
 @media (max-width: 860px) {
   .input-panel {
     height: auto;
@@ -666,4 +557,3 @@ async function handleEditorDrop(paths: string[]) {
   }
 }
 </style>
-

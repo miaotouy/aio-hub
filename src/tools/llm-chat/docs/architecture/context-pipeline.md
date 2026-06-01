@@ -152,17 +152,56 @@ graph TD
 
 **职责**：
 
-- 执行 RAG 检索并替换【kb】占位符
-- 支持多种激活模式和结果聚合
-- 管理检索缓存和历史记录
+- 扫描预设/注入消息中的 `【kb::…】` / `【knowledge::…】` 占位符并执行 RAG 检索。
+- 根据 `knowledgeBaseConfig.autoInjectIfMacroMissing` 在缺失占位符时按 binding 粒度自动注入。
+- 将检索结果按模板渲染回原占位符位置。
 
-**关键特性**：
+**占位符语法**：`【kb::kbName::limit::minScore::mode::modeParams::engineId】`，除 `mode` 外所有段均可省略；`kb` 与 `knowledge` 等价。
 
-- **激活模式**：always（总是激活）、gate（关键词门控）、turn（轮次间隔）、static（静态加载）
-- **查询预处理**：自动清洗、分词、停用词过滤、Tag 匹配
-- **向量缓存**：支持文本精确匹配和向量相似度匹配的双重缓存
-- **结果聚合**：支持历史结果的时间衰减加权聚合
-- **上下文感知**：支持滑动窗口查询和向量加权平均
+**扫描范围**：[`scanPlaceholders()`](../../core/context-processors/knowledge-processor.ts:85) 明确**跳过 `sourceType === "session_history"` 的消息**，对话历史不参与被动召回。
+
+**激活模式**：
+
+- `always`：每次都激活。
+- `gate`：在最近 `gateScanDepth` 条消息中扫描 `modeParams` 中的关键词，命中任一即激活。
+- `turn`：按 user 消息总数对 `modeParams[0]` 取模，控制召回频率。
+- `static`：跳过检索流程，直接通过 `kb_get_entries` 后端命令加载指定条目；`static::all` 可加载指定库（或所有库）的全部已启用条目。
+
+**自动注入 (Auto Inject)**：
+
+- 由 Agent 的 `knowledgeBaseConfig.autoInjectIfMacroMissing` 开关控制。
+- **细粒度判定**：已被手动占位符引用的 binding 跳过自动注入；用户写一个无名 `【kb】` 视为"全量接管"，所有 binding 都不再自动注入。
+- 注入位置由 `autoInjectPosition` 决定：
+  - `context_head`（默认）：追加到 System 消息末尾；无 System 时在最前插入一条独立的 user 消息（用 `【RAG信息】… 【RAG信息结束】` 围栏标记）。
+  - `before_last_user`：插入到最后一条用户消息之前；若前一条是 System 则改为追加到该 System。
+
+**检索引擎选择**（优先级 **宏参数 > Agent 默认 > 全局默认**）：
+
+- `vector`：向量检索（需要 Embedding 模型）。
+- `keyword`：纯关键词检索。
+- `hybrid`：向量 + 关键词混合。
+
+**向量空间融合查询**（[`extractContextParts()`](../../core/context-processors/knowledge-processor.ts:480) + [`buildContextQueryVector()`](../../core/context-processors/knowledge-processor.ts:550)）：
+
+- 从过滤后的 `session_history` 消息中按"轮"提取最近 `contextWindow` 轮历史。
+- **分别拼接 user 文本和 AI 文本**（assistant + tool 归入 AI 侧），**不在文本层面混合角色标记**。
+- user 文本经 [`preprocessQuery()`](../../../knowledge-base/utils/queryPreProcessor.ts:216) 处理（Markdown / HTML / KB 占位符清洗 → `Intl.Segmenter` 分词 → 停用词过滤 → Tag 池 n-gram 匹配），AI 文本直接使用原文。
+- user / AI 分别通过 `vectorCacheManager` 取得向量，再在**向量空间按 `0.7 / 0.3` 加权平均**得到查询向量。
+- 关键词检索使用清洗后的 user 文本；额外提取出的 Tag 直接作为 `requiredTags` 过滤条件。
+
+**缓存机制**（已迁移至后端 Rust LRU，详见 [`knowledge-cache-backend-migration.md`](../Plan/knowledge-cache-backend-migration.md)）：
+
+- **检索结果缓存**：[`kb_retrieval_cache_get`](src-tauri/src/knowledge/commands/retrieval_cache.rs:1) / `_set` / `_clear`。缓存键 = `SHA-256(query + kbIds + tags + limit + minScore + engineId + modelId)`，**完全一致才命中**，无相似度匹配。
+- **全局共享**：缓存活在后端 `KnowledgeState` 内，**不再按 session 隔离**——相同查询跨会话也能命中。容量上限由 `chatSettings.knowledgeBase.retrievalCacheMaxItems` 控制。
+- **Embedding 向量缓存**：由知识库模块的 `vectorCacheManager` 独立管理，与检索结果缓存解耦。
+- **缓存开关**：Agent 级 `knowledgeSettings.enableCache`，缺失时回退到旧版 `aggregation.enableCache`（迁移兼容）。
+- **降级策略**：任何后端 invoke 异常都被 `try/catch` 吞掉并降级为不缓存，不阻塞主流程。
+
+**结果约束**：
+
+- 召回后按 `maxRecallChars` 累加截断（超出阈值的条目被丢弃，**不做摘要**）。
+- 按 `resultTemplate`（支持 `{count}` / `{kbName}` / `{key}` / `{content}` / `{score}` / `{tags}` 变量）渲染最终注入文本。
+- 空结果回退到 `emptyText`，未激活的占位符会被静默替换为空字符串。
 
 ### 4.5. Token 限制器 (Token Limiter)
 
@@ -172,12 +211,22 @@ graph TD
 - 优先保留预设消息
 - 支持部分截断保留开头
 
+**位置**: Token 限制器 ([`token-limiter.ts`](../../core/context-processors/token-limiter.ts)) 位于注入组装器之后（`priority: 600`）、消息格式化之前运行。这意味着它能感知到所有将被发送的消息（包括刚刚注入的预设、档案、知识库片段、会话变量替换结果）。
+
+**智能截断算法**（[`token-limiter.ts:64-176`](../../core/context-processors/token-limiter.ts:64)）:
+
+1.  **「必须保留」判定标准**: 按 `message.sourceType` 区分 —— **所有 `sourceType !== 'session_history'` 的消息均视为「预设/必须保留」**，包括 System Prompt、注入的预设、用户档案、世界书条目、知识库结果、压缩节点摘要等；只有 `sourceType === 'session_history'` 的消息才参与截断。代码中**不存在「锚点深度」概念** —— 锚点机制属于注入组装阶段（`injection-assembler`），与截断器解耦。
+2.  **预算分配**: 先累加所有预设消息的 Token 得到 `presetTokens`，然后 `availableForHistory = maxContextTokens - presetTokens`，剩余空间全部分配给历史消息。
+3.  **预算超出的极端处理**: 当 `availableForHistory <= 0`（即预设消息本身就超过总预算）时，**预设消息仍然全部保留**（不会反向截断预设），历史消息被**完全清空**，并记录一条 `warn` 级别日志。这一策略保证了预设/系统提示的完整性优先级最高。
+4.  **历史滑动方向**: **从最新到最旧倒序遍历**（`for (let i = historyMessages.length - 1; i >= 0; i--)`），保留尽量靠近当前轮次的消息，丢弃最早的消息。**不做 user/assistant 成对保留** —— 每条消息独立计算预算，可能出现孤立的 assistant 回复（缺少对应的 user 提问），由模型/上层自行兼容。
+5.  **工具调用消息链（tool 角色）**: 代码层面**不存在 tool 整链保护策略**，`tool` 角色的消息与普通 user/assistant 消息一样按 `sourceType` 区分截断。工具调用上下文若来源于历史节点（`session_history`），同样可能被中段截断；若是当轮工具调用产生（仍在 pathToUserNode 内），通常因位置靠后而自然保留。
+
 **关键特性**：
 
 - **预设优先**：先计算预设消息的 Token 占用，剩余预算分配给历史
 - **从后往前截断**：保留最新的历史消息
-- **部分截断**：支持保留被截断消息的开头 N 个字符
-- **统计信息**：记录截断前后的 Token 和字符数变化
+- **部分截断**: 当一条历史消息整体放不下、但仍有部分预算时，若配置了 `retainedCharacters > 0` 且消息内容为纯文本，会截取其开头 N 个字符并追加 `\n...(已截断)` 后尝试放入，作为对长消息的「摘要式」保留，避免信息完全丢失。
+- **统计输出**: 截断完成后会向 `context.sharedData` 写入 `tokenLimiterStats`（含 `originalHistoryCount` / `finalHistoryCount` / `truncatedCount` / `presetTokens` / `historyTokens` / `savedTokens` / `savedChars` 等字段），供「上下文分析器」预览面板使用。
 
 ### 4.6. 会话变量处理器 (Variable Processor)
 
@@ -237,7 +286,12 @@ interface ProcessableMessage {
   // 附件引用信息（在 asset-resolver 之前保留）
   _attachments?: Asset[];
   // 来源类型标识
-  sourceType?: "session_history" | "agent_preset" | "depth_injection" | "anchor_injection" | "merged";
+  sourceType?:
+    | "session_history"
+    | "agent_preset"
+    | "depth_injection"
+    | "anchor_injection"
+    | "merged";
   // 来源 ID（用于追溯）
   sourceId?: string;
   // 其他元数据...
@@ -371,3 +425,4 @@ export interface ProcessorConfigField {
   options?: { label: string; value: any }[];
 }
 ```
+

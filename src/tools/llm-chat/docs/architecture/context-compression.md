@@ -14,13 +14,20 @@
 
 ### 2.1. 触发机制
 
-支持两种触发方式，逻辑封装在 [`useContextCompressor.ts`](src/tools/llm-chat/composables/features/useContextCompressor.ts) 中：
+由 `triggerMode` 与 `autoTrigger` 两个维度共同决定，**不再是简单的"自动/对话后/手动"三分法**。逻辑封装在 [`useContextCompressor.ts`](../../composables/features/useContextCompressor.ts) 中：
 
-1.  **自动触发**：
-    - 集成在 [`useChatHandler.ts`](src/tools/llm-chat/composables/chat/useChatHandler.ts) 的发送流程中。
-    - 当满足配置的阈值（Token 数量或消息条数）且历史长度超过最小值时，在发送新消息前自动执行。
-2.  **手动触发**：
-    - 用户可通过消息输入框工具栏的“更多工具”菜单点击“压缩上下文”主动执行。
+- **触发维度 ([`triggerMode`](../../types/llm.ts:382))**：决定"用什么指标判断该不该压缩"，取值为 `"token" | "count" | "both"`：
+  - **`token`**（默认）：仅当当前活跃路径的总 Token 数超过 `tokenThreshold`（默认 80000）时判定为需要压缩。
+  - **`count`**：仅当当前路径的有效消息条数超过 `countThreshold`（默认 50）时判定为需要压缩。
+  - **`both`**：Token 或消息条数任一超阈值即判定为需要压缩（**OR 关系**，见 [`shouldCompress()`](../../composables/features/useContextCompressor.ts:66)）。
+  - **公共门槛**：所有模式都还要先满足 `minHistoryCount`（默认 15）这一最小历史条数门槛，否则直接早退（见 [`useContextCompressor.ts:52`](../../composables/features/useContextCompressor.ts:52)）。
+- **自动触发开关 ([`autoTrigger`](../../types/llm.ts:380))**：默认 `true`，决定"满足触发条件后是否自动执行"。设为 `false` 时即便阈值满足也不会自动压缩，仅保留手动入口。`useChatResponseHandler` 在每次助手消息完成后会异步调用 [`checkAndCompress()`](../../composables/features/useContextCompressor.ts:421)，由该函数同时检查 `enabled` 与 `autoTrigger`。
+- **手动触发**: 用户可通过 [`manualCompress()`](../../composables/features/useContextCompressor.ts:450)（工具栏按钮）调用，**忽略 `autoTrigger` 与 `triggerMode` 的阈值判断**，但仍受 `enabled` 与保护区数量限制约束。
+
+### 2.1.1 配置位置与动态开关
+
+- **配置位置**: 压缩配置位于智能体的模型参数 ([`LlmParameters.contextCompression`](../../types/llm.ts:226)) 中，类型为 [`ContextCompressionConfig`](../../types/llm.ts:376)，实现了按 Agent 的精细化控制。
+- **动态开关**: 工具栏中的压缩按钮会根据当前智能体是否启用了压缩功能（`isContextCompressionEnabled`）动态决定其可用性。
 
 ### 2.2. 增量摘要生成
 
@@ -31,8 +38,9 @@
 
 ### 2.3. 压缩范围策略
 
-- **保护区**：始终保留最近的 N 条消息（默认 10 条）不被压缩，以维持 LLM 的短期记忆和对话连贯性。
-- **压缩量**：每次触发时，从最早的可见消息开始，压缩指定数量（默认 20 条）的消息。
+- **保护区**：通过 `protectRecentCount`（默认 10）保留最近 N 条消息不被压缩，以维持 LLM 的短期记忆和对话连贯性。
+- **压缩量**：通过 `compressCount`（默认 20）控制单次压缩的最大消息条数，从最早的可见消息开始执行。
+- **可逆性**：虽然压缩节点在构建 LLM 上下文时会替代原始消息，但原始消息节点并未被删除，用户可以随时展开查看或回滚。
 
 ## 3. 技术实现
 
@@ -65,3 +73,4 @@
 ---
 
 _注：本功能由 `useContextCompressor` 核心模块驱动，确保了在保持长文本会话能力的同时，最大限度降低 Token 消耗。_
+

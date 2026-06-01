@@ -15,6 +15,7 @@ export const toolConfig: ToolConfig = {
   runMode: "any",
   icon: markRaw(Languages),
   component: () => import("./Translator.vue"),
-  description: "多渠道 LLM 并行翻译与结果对比",
+  description: "多预设，多渠道 LLM 并行翻译与结果对比",
   category: ["AI 工具", "文本处理"],
 };
+

@@ -83,6 +83,35 @@
             {{ contextData.statistics.messageCount }}
           </div>
         </div>
+        <div class="stat-item">
+          <div class="stat-label">角色分布</div>
+          <div class="stat-value role-breakdown">
+            <el-tag
+              size="small"
+              effect="plain"
+              class="role-tag role-tag-system"
+              v-if="roleBreakdown.system > 0"
+            >
+              SYS {{ roleBreakdown.system }}
+            </el-tag>
+            <el-tag
+              size="small"
+              effect="plain"
+              class="role-tag role-tag-user"
+              v-if="roleBreakdown.user > 0"
+            >
+              USER {{ roleBreakdown.user }}
+            </el-tag>
+            <el-tag
+              size="small"
+              effect="plain"
+              class="role-tag role-tag-assistant"
+              v-if="roleBreakdown.assistant > 0"
+            >
+              AI {{ roleBreakdown.assistant }}
+            </el-tag>
+          </div>
+        </div>
         <div
           v-if="contextData.statistics.totalTokenCount !== undefined"
           class="stat-item primary"
@@ -99,6 +128,27 @@
           <div class="stat-label">总字符数</div>
           <div class="stat-value">
             {{ contextData.statistics.totalCharCount.toLocaleString() }}
+          </div>
+        </div>
+        <div
+          v-if="contextData.statistics.textTokenCount !== undefined"
+          class="stat-item"
+        >
+          <div class="stat-label">文本 Token</div>
+          <div class="stat-value">
+            {{ contextData.statistics.textTokenCount.toLocaleString() }}
+          </div>
+        </div>
+        <div
+          v-if="
+            contextData.statistics.attachmentTokenCount !== undefined &&
+            contextData.statistics.attachmentTokenCount > 0
+          "
+          class="stat-item attachment"
+        >
+          <div class="stat-label">附件估算 Token</div>
+          <div class="stat-value">
+            {{ contextData.statistics.attachmentTokenCount.toLocaleString() }}
           </div>
         </div>
         <div class="stat-item">
@@ -422,13 +472,92 @@
           </el-tag>
         </div>
       </div>
+
+      <!-- 工具栏：搜索 + 锚点条 (sticky 常驻) -->
+      <div class="messages-toolbar">
+        <div class="search-row">
+          <el-input
+            v-model="searchQuery"
+            placeholder="搜索消息内容..."
+            clearable
+            class="search-input"
+          >
+            <template #prefix>
+              <el-icon><Search /></el-icon>
+            </template>
+          </el-input>
+          <div v-if="searchQuery.trim()" class="search-controls">
+            <span class="match-count">
+              <template v-if="matchedKeys.length > 0">
+                {{ currentMatchIndex + 1 }} / {{ matchedKeys.length }}
+              </template>
+              <template v-else>0 / 0</template>
+              <span class="match-total"
+                >· 共 {{ unifiedMessages.length }} 块</span
+              >
+            </span>
+            <el-button-group>
+              <el-button
+                size="small"
+                :disabled="matchedKeys.length === 0"
+                @click="gotoPrev"
+              >
+                <el-icon><ArrowUp /></el-icon>
+              </el-button>
+              <el-button
+                size="small"
+                :disabled="matchedKeys.length === 0"
+                @click="gotoNext"
+              >
+                <el-icon><ArrowDown /></el-icon>
+              </el-button>
+            </el-button-group>
+          </div>
+        </div>
+        <div class="anchors-row">
+          <button
+            v-for="(msg, index) in unifiedMessages"
+            :key="msg.key"
+            type="button"
+            class="anchor-chip"
+            :class="[
+              `role-${msg.role}`,
+              {
+                'has-match': matchedKeySet.has(msg.key),
+                'is-current':
+                  matchedKeys[currentMatchIndex] === msg.key &&
+                  matchedKeys.length > 0,
+              },
+            ]"
+            :title="`#${index} ${getRoleShortLabel(msg.role)}`"
+            @click="scrollToMessage(msg.key)"
+          >
+            <span class="anchor-index">#{{ index }}</span>
+            <span class="anchor-role">{{ getRoleShortLabel(msg.role) }}</span>
+            <span
+              v-if="matchedKeySet.has(msg.key)"
+              class="anchor-match-dot"
+            ></span>
+          </button>
+        </div>
+      </div>
+
       <div class="messages-list">
         <InfoCard
           v-for="(msg, index) in unifiedMessages"
           :key="msg.key"
+          :ref="(el) => registerMessageRef(msg.key, el)"
           :class="[
             'message-card',
-            { 'pending-message-card': msg.isPendingInput },
+            `role-${msg.role}`,
+            {
+              'pending-message-card': msg.isPendingInput,
+              'search-highlight':
+                matchedKeySet.has(msg.key) && !!searchQuery.trim(),
+              'search-current':
+                matchedKeys[currentMatchIndex] === msg.key &&
+                matchedKeys.length > 0,
+            },
           ]"
         >
           <template #header>
@@ -463,6 +592,19 @@
                   {{ getRoleName(msg) }}
                   #{{ index + 1 }}
                 </span>
+                <!-- 内容类型标签 (text / multimodal) -->
+                <el-tag
+                  size="small"
+                  :type="
+                    getContentType(msg.content) === 'multimodal'
+                      ? 'warning'
+                      : 'info'
+                  "
+                  effect="plain"
+                  class="content-type-tag"
+                >
+                  {{ getContentType(msg.content) }}
+                </el-tag>
                 <!-- 摘要节点标识 -->
                 <el-tag
                   v-if="msg.isCompressionNode"
@@ -581,13 +723,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch, nextTick } from "vue";
 import {
   Setting,
   ChatLineRound,
   MagicStick,
   Key,
   ArrowRight,
+  ArrowUp,
+  ArrowDown,
+  Search,
 } from "@element-plus/icons-vue";
 import InfoCard from "@/components/common/InfoCard.vue";
 import Avatar from "@/components/common/Avatar.vue";
@@ -993,6 +1138,127 @@ const unifiedMessages = computed<UnifiedMessage[]>(() => {
 });
 
 /**
+ * 角色分布统计（用于顶部角色块计数聚合）
+ */
+const roleBreakdown = computed(() => {
+  const counts = { system: 0, user: 0, assistant: 0 };
+  unifiedMessages.value.forEach((msg) => {
+    if (msg.role in counts) {
+      counts[msg.role]++;
+    }
+  });
+  return counts;
+});
+
+/**
+ * 角色短标签 (用于锚点 chip)
+ */
+function getRoleShortLabel(role: string): string {
+  const labelMap: Record<string, string> = {
+    system: "SYS",
+    user: "USER",
+    assistant: "AI",
+  };
+  return labelMap[role] || role.toUpperCase();
+}
+
+/**
+ * 内容类型识别 (text / multimodal)
+ */
+function getContentType(
+  content: string | LlmMessageContent[]
+): "text" | "multimodal" {
+  if (typeof content === "string") return "text";
+  if (Array.isArray(content) && content.some((p) => p.type !== "text")) {
+    return "multimodal";
+  }
+  return "text";
+}
+
+// ============ 消息引用注册 & 锚点跳转 ============
+const messageRefs = ref(new Map<string, HTMLElement>());
+
+function registerMessageRef(key: string, instance: any) {
+  if (!instance) {
+    messageRefs.value.delete(key);
+    return;
+  }
+  // InfoCard 是 Vue 组件，需要取 $el；如果已经是 DOM 节点则直接用
+  const el: HTMLElement | undefined = instance.$el ?? instance;
+  if (el && el.nodeType === 1) {
+    messageRefs.value.set(key, el);
+  }
+}
+
+function scrollToMessage(key: string) {
+  const el = messageRefs.value.get(key);
+  if (el) {
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
+
+// ============ 搜索（高亮跳转模式） ============
+const searchQuery = ref("");
+const currentMatchIndex = ref(0);
+
+const matchedKeys = computed<string[]>(() => {
+  const q = searchQuery.value.trim().toLowerCase();
+  if (!q) return [];
+  return unifiedMessages.value
+    .filter((msg) => {
+      const text = getDisplayContent(msg.content).toLowerCase();
+      return text.includes(q);
+    })
+    .map((msg) => msg.key);
+});
+
+const matchedKeySet = computed(() => new Set(matchedKeys.value));
+
+// 搜索词变化时重置游标
+watch(searchQuery, () => {
+  currentMatchIndex.value = 0;
+});
+
+// 当 matchedKeys 第一次有匹配时自动滚到第一项
+watch(matchedKeys, (newKeys, oldKeys) => {
+  if (newKeys.length > 0 && oldKeys.length === 0) {
+    nextTick(() => {
+      scrollToMessage(newKeys[0]);
+    });
+  }
+  // 边界保护：游标越界则归零
+  if (currentMatchIndex.value >= newKeys.length) {
+    currentMatchIndex.value = 0;
+  }
+});
+
+// 消息列表重算时清理失效的引用
+watch(
+  () => unifiedMessages.value.map((m) => m.key),
+  (newKeys) => {
+    const validKeys = new Set(newKeys);
+    for (const k of messageRefs.value.keys()) {
+      if (!validKeys.has(k)) messageRefs.value.delete(k);
+    }
+  }
+);
+
+function gotoNext() {
+  if (matchedKeys.value.length === 0) return;
+  currentMatchIndex.value =
+    (currentMatchIndex.value + 1) % matchedKeys.value.length;
+  scrollToMessage(matchedKeys.value[currentMatchIndex.value]);
+}
+
+function gotoPrev() {
+  if (matchedKeys.value.length === 0) return;
+  currentMatchIndex.value =
+    (currentMatchIndex.value - 1 + matchedKeys.value.length) %
+    matchedKeys.value.length;
+  scrollToMessage(matchedKeys.value[currentMatchIndex.value]);
+}
+
+/**
  * 获取 assistant 消息的头像路径
  * 处理历史消息中可能是文件名格式的 agentIcon
  */
@@ -1287,6 +1553,10 @@ function getPositionLabel(
   color: var(--el-color-warning);
 }
 
+.stat-item.attachment .stat-value {
+  color: var(--el-color-warning);
+}
+
 .char-count {
   font-size: 12px;
   font-weight: normal;
@@ -1299,6 +1569,56 @@ function getPositionLabel(
   font-weight: normal;
   color: var(--el-color-success);
   margin-top: 2px;
+}
+
+/* 角色分布 stat */
+.role-breakdown {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: normal;
+}
+
+.role-tag {
+  letter-spacing: 0.5px;
+}
+
+.role-tag-system {
+  color: var(--el-color-info);
+  border-color: rgba(
+    var(--el-color-info-rgb),
+    calc(var(--card-opacity, 1) * 0.4)
+  );
+  background-color: rgba(
+    var(--el-color-info-rgb),
+    calc(var(--card-opacity, 1) * 0.1)
+  );
+}
+
+.role-tag-user {
+  color: var(--el-color-success);
+  border-color: rgba(
+    var(--el-color-success-rgb),
+    calc(var(--card-opacity, 1) * 0.4)
+  );
+  background-color: rgba(
+    var(--el-color-success-rgb),
+    calc(var(--card-opacity, 1) * 0.1)
+  );
+}
+
+.role-tag-assistant {
+  color: var(--el-color-primary);
+  border-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity, 1) * 0.4)
+  );
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity, 1) * 0.1)
+  );
 }
 
 .section {
@@ -1318,10 +1638,181 @@ function getPositionLabel(
   border-bottom: 2px solid var(--el-border-color);
 }
 
+/* ============ 工具栏：搜索 + 锚点 ============ */
+.messages-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 0;
+  background-color: var(--card-bg, var(--el-fill-color-blank));
+  backdrop-filter: blur(var(--ui-blur, 0));
+  border-bottom: 1px solid var(--border-color, var(--el-border-color-lighter));
+}
+
+.search-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.search-input {
+  flex: 1;
+  min-width: 240px;
+}
+
+.search-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.match-count {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
+}
+
+.match-total {
+  margin-left: 6px;
+  color: var(--el-text-color-placeholder);
+}
+
+.anchors-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 96px;
+  overflow-y: auto;
+}
+
+.anchor-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  font-family: var(--el-font-family-monospace);
+  border-radius: 12px;
+  border: 1px solid var(--el-border-color-lighter);
+  background-color: rgba(
+    var(--el-color-info-rgb),
+    calc(var(--card-opacity, 1) * 0.08)
+  );
+  color: var(--el-text-color-primary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.anchor-chip:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+}
+
+.anchor-index {
+  color: var(--el-text-color-placeholder);
+  font-size: 11px;
+}
+
+.anchor-role {
+  font-weight: 600;
+  letter-spacing: 0.4px;
+}
+
+.anchor-chip.role-system {
+  background-color: rgba(
+    var(--el-color-info-rgb),
+    calc(var(--card-opacity, 1) * 0.12)
+  );
+  color: var(--el-color-info);
+  border-color: rgba(
+    var(--el-color-info-rgb),
+    calc(var(--card-opacity, 1) * 0.4)
+  );
+}
+
+.anchor-chip.role-user {
+  background-color: rgba(
+    var(--el-color-success-rgb),
+    calc(var(--card-opacity, 1) * 0.12)
+  );
+  color: var(--el-color-success);
+  border-color: rgba(
+    var(--el-color-success-rgb),
+    calc(var(--card-opacity, 1) * 0.4)
+  );
+}
+
+.anchor-chip.role-assistant {
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity, 1) * 0.12)
+  );
+  color: var(--el-color-primary);
+  border-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity, 1) * 0.4)
+  );
+}
+
+.anchor-chip.has-match {
+  box-shadow: 0 0 0 1px var(--el-color-warning) inset;
+}
+
+.anchor-chip.is-current {
+  outline: 2px solid var(--el-color-warning);
+  outline-offset: 1px;
+  transform: translateY(-1px);
+}
+
+.anchor-match-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--el-color-warning);
+  margin-left: 2px;
+}
+
+/* ============ 消息卡片 ============ */
 .messages-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.message-card {
+  /* 角色色条作用在 InfoCard 的根元素上，需要使用 deep 或直接利用 class 透传 */
+  transition:
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.message-card.role-system {
+  border-left: 4px solid var(--el-color-info) !important;
+}
+
+.message-card.role-user {
+  border-left: 4px solid var(--el-color-success) !important;
+}
+
+.message-card.role-assistant {
+  border-left: 4px solid var(--el-color-primary) !important;
+}
+
+.message-card.search-highlight {
+  box-shadow: 0 0 0 2px
+    rgba(var(--el-color-warning-rgb), calc(var(--card-opacity, 1) * 0.6));
+}
+
+.message-card.search-current {
+  box-shadow: 0 0 0 3px var(--el-color-warning);
 }
 
 .message-card-header {
@@ -1330,11 +1821,17 @@ function getPositionLabel(
   align-items: center;
   font-weight: bold;
   color: var(--el-text-color-primary);
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .pending-message-card {
-  border: 2px solid var(--el-color-warning-light-3) !important;
-  background-color: var(--el-color-warning-light-9) !important;
+  border: 2px solid
+    rgba(var(--el-color-warning-rgb), calc(var(--card-opacity, 1) * 0.6)) !important;
+  background-color: rgba(
+    var(--el-color-warning-rgb),
+    calc(var(--card-opacity, 1) * 0.08)
+  ) !important;
 }
 
 .macro-diff-section {
@@ -1376,6 +1873,7 @@ function getPositionLabel(
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .message-role-name {
@@ -1395,6 +1893,12 @@ function getPositionLabel(
 
 .source-tag {
   margin-left: 4px;
+}
+
+.content-type-tag {
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 10px;
 }
 
 .message-content {

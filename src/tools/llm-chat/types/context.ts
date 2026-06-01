@@ -236,6 +236,10 @@ export interface ContextPreviewData {
     presetMessagesTokenCount?: number;
     chatHistoryTokenCount?: number;
     postProcessingTokenCount?: number;
+    /** 文本 Token 数（不含附件） */
+    textTokenCount?: number;
+    /** 附件估算 Token 数（图片/视频/音频/文档等媒体附件） */
+    attachmentTokenCount?: number;
     isEstimated?: boolean;
     tokenizerName?: string;
     /** 历史消息被截断的条数 */

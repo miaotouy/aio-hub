@@ -40,6 +40,10 @@ export async function buildPreviewDataFromContext(
   let totalTokenCount = 0;
   let presetMessagesTokenCount = 0;
   let chatHistoryTokenCount = 0;
+  /** 累计的纯文本 Token（不含媒体附件） */
+  let textTokenCountAccum = 0;
+  /** 累计的附件 Token（图片/视频/音频/文档等） */
+  let attachmentTokenCountAccum = 0;
   let isEstimated = false;
   let tokenizerName: string | undefined = undefined;
 
@@ -159,6 +163,7 @@ export async function buildPreviewDataFromContext(
       presetMessagesTokenCount += tokenCount;
       totalCharCount += charCount;
       totalTokenCount += tokenCount;
+      textTokenCountAccum += tokenCount;
     } else if (msg.sourceType === "session_history") {
       // 会话历史消息：需要处理附件
       const sourceNode = sessionDetail.nodes?.[msg.sourceId as string];
@@ -193,6 +198,7 @@ export async function buildPreviewDataFromContext(
         chatHistoryTokenCount += tokenCount;
         totalCharCount += charCount;
         totalTokenCount += tokenCount;
+        textTokenCountAccum += tokenCount;
         return;
       }
 
@@ -410,6 +416,8 @@ export async function buildPreviewDataFromContext(
       chatHistoryTokenCount += totalNodeTokenCount;
       totalCharCount += combinedText.length;
       totalTokenCount += totalNodeTokenCount;
+      textTokenCountAccum += textTokenCount;
+      attachmentTokenCountAccum += attachmentsTokenCount;
     } else {
       // 其他未知来源的消息，安全处理
       // 1. 计算文本 Token
@@ -418,6 +426,8 @@ export async function buildPreviewDataFromContext(
         agentConfig.modelId
       );
       let tokenCount = tokenResult.count;
+      const textTokenForThisMsg = tokenCount;
+      let attachmentTokenForThisMsg = 0;
 
       // 2. 计算附件 Token (如果有)
       // 优先使用 _attachments 中的元数据进行精确计算
@@ -433,6 +443,7 @@ export async function buildPreviewDataFromContext(
 
         for (const result of resolvedResults) {
           const asset = result.asset;
+          let addedTokens = 0;
           try {
             if (asset.type === "image") {
               if (
@@ -440,35 +451,37 @@ export async function buildPreviewDataFromContext(
                 asset.metadata?.width &&
                 asset.metadata?.height
               ) {
-                tokenCount += tokenCalculatorEngine.calculateImageTokens(
+                addedTokens = tokenCalculatorEngine.calculateImageTokens(
                   asset.metadata.width,
                   asset.metadata.height,
                   visionTokenCost
                 );
               } else {
                 // 如果没有元数据或不支持视觉Token，使用默认值
-                tokenCount += 1000;
+                addedTokens = 1000;
                 isEstimated = true;
               }
             } else if (asset.type === "video" && asset.metadata?.duration) {
-              tokenCount += tokenCalculatorEngine.calculateVideoTokens(
+              addedTokens = tokenCalculatorEngine.calculateVideoTokens(
                 asset.metadata.duration
               );
             } else if (asset.type === "audio" && asset.metadata?.duration) {
-              tokenCount += tokenCalculatorEngine.calculateAudioTokens(
+              addedTokens = tokenCalculatorEngine.calculateAudioTokens(
                 asset.metadata.duration
               );
             } else if (asset.type === "document") {
               // 文档类型通常作为 base64 发送，Token 取决于大小或内容
               // 这里暂时使用固定估算值，直到有更好的计算方法
-              tokenCount += 500;
+              addedTokens = 500;
               isEstimated = true;
             }
           } catch (e) {
             // 计算失败，回退到估算
-            tokenCount += 500;
+            addedTokens = 500;
             isEstimated = true;
           }
+          tokenCount += addedTokens;
+          attachmentTokenForThisMsg += addedTokens;
         }
       }
 
@@ -478,6 +491,8 @@ export async function buildPreviewDataFromContext(
 
       totalCharCount += charCount;
       totalTokenCount += tokenCount;
+      textTokenCountAccum += textTokenForThisMsg;
+      attachmentTokenCountAccum += attachmentTokenForThisMsg;
       // 不加入 presetMessages 或 chatHistory
     }
   };
@@ -540,6 +555,7 @@ export async function buildPreviewDataFromContext(
     // 将世界书消耗计入总计，确保占比分析图表准确
     totalCharCount += worldbookCharCount;
     totalTokenCount += worldbookTokenCount;
+    textTokenCountAccum += worldbookTokenCount;
   }
 
   return {
@@ -559,6 +575,9 @@ export async function buildPreviewDataFromContext(
       totalTokenCount,
       presetMessagesTokenCount,
       chatHistoryTokenCount,
+      textTokenCount: textTokenCountAccum,
+      attachmentTokenCount:
+        attachmentTokenCountAccum > 0 ? attachmentTokenCountAccum : undefined,
       isEstimated,
       tokenizerName,
       truncatedMessageCount: tokenLimiterStats?.truncatedCount,

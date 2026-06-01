@@ -296,8 +296,8 @@ InputPanel 只负责「输入相关」的功能区，所有全局控件（语言
 
 1. **工具条**（`editor-toolbar`）：左侧 📋 剪贴板粘贴 / 📂 从文件读取 / 🗑️ 清空；右侧实时字符 / 词数（CJK 直接按字符；带空白拉丁文同时显示词数）。
    - 剪贴板用 `@tauri-apps/plugin-clipboard-manager.readText()`；已有内容时弹「追加/覆盖」二选一。
-   - 文件读取用 `@tauri-apps/plugin-dialog.open()` + `@tauri-apps/plugin-fs.readTextFile()`；支持 `txt/md/json/srt/vtt/log/csv` 等；大文件（>200K 字符）二次确认。
-2. **编辑器**（`editor-wrapper` 包 [`TranslatorEditor`](src/tools/translator/components/TranslatorEditor.vue:1)）：CodeMirror 6 + `markdown()` + `search({ top: true })` 汉化搜索面板 + 跨平台 `Mod-Enter` 提交。外层 wrapper 用 `:focus-within` 实现主题色聚焦边框，并叠加 [`DropZone`](src/components/common/DropZone.vue:1) 兄弟节点（`overlay + hide-content + show-overlay-on-drag`，平时穿透鼠标，拖拽时捕获并显示提示层），支持拖放文本类文件复用同一段大文件确认 + 覆盖确认逻辑。
+   - 文件读取统一委托给 [`useTranslatorFileLoader`](src/tools/translator/composables/useTranslatorFileLoader.ts:1)：通过项目级 [`detectMimeTypeFromBuffer`](src/utils/fileTypeDetector.ts:399) + [`isTextFile`](src/utils/fileTypeDetector.ts:489) 检测 MIME 与文本性，通过 [`smartDecode`](src/utils/encoding.ts:29) 自动处理 UTF-8 / GBK / UTF-16 等编码；任何文本类文件（含编程语言源码、配置、字幕、Markdown 等）都可载入，**二进制文件会被立即拒绝并提示 MIME 类型**。文件对话框带「常见文本文件 / 所有文件」两组过滤器；大文件（>200K 字符）二次确认。
+2. **编辑器**（`editor-wrapper` 包 [`TranslatorEditor`](src/tools/translator/components/TranslatorEditor.vue:1)）：CodeMirror 6 + `markdown()` + `search({ top: true })` 汉化搜索面板 + 跨平台 `Mod-Enter` 提交。外层 wrapper 用 `:focus-within` 实现主题色聚焦边框，并叠加 [`DropZone`](src/components/common/DropZone.vue:1) 兄弟节点（`overlay + hide-content + show-overlay-on-drag`，平时穿透鼠标，拖拽时捕获并显示提示层）。**DropZone 不再用扩展名预过滤**，所有拖放文件统一交给 fileLoader 检测，复用同一段「是否文本 → 大文件确认 → 覆盖确认」流程。
 3. **渠道区**（`channel-section`）：可折叠的 section header，状态持久化于 `settings.channelSectionCollapsed`。展开态用完整 `LlmModelSelector` 行，折叠态用紧凑徽章 pills 展示已选模型名。主页面渠道上限 UI 硬编码 4。
 
 > 编辑器内 `Mod-Enter` 仍然触发翻译（`handleSubmit`），与全局顶栏的按钮共享同一个 `canTranslate` 守卫；编辑器内的 Ctrl+F 会被 `stopPropagation` 拦下，不会冒泡到外层全局搜索。
@@ -398,18 +398,19 @@ modules/translator/
 
 ## 9. 与外部基础设施的耦合点
 
-| 来源                                                               | 用途                                                                         |
-| ------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
-| [`useLlmProfiles`](src/composables/useLlmProfiles.ts:1)            | 提供 `enabledProfiles`，用于渠道模型选择、默认预设的初始填充、token 限额读取 |
-| [`useLlmRequest`](src/composables/useLlmRequest.ts:1)              | 统一 LLM 请求入口，支持流式与 AbortSignal                                    |
-| [`LlmModelSelector`](src/components/common/LlmModelSelector.vue:1) | 渠道选择 UI，按 capabilities 过滤掉非文本类模型                              |
-| [`parseModelCombo`](src/utils/modelIdUtils.ts:1)                   | 解析 `profileId:modelId` 字符串                                              |
-| [`createConfigManager`](src/utils/configManager.ts:1)              | 三类配置文件持久化                                                           |
-| [`customMessage`](src/utils/customMessage.ts:1)                    | 复制/操作反馈消息                                                            |
-| [`BaseDialog`](src/components/common/BaseDialog.vue:1)             | 设置/预设管理/历史抽屉容器                                                   |
-| [`DropZone`](src/components/common/DropZone.vue:1)                 | 输入编辑器的拖放文件覆盖层                                                   |
-| [`@tauri-apps/plugin-clipboard-manager`](src-tauri/Cargo.toml:1)   | 译文复制 / 剪贴板粘贴                                                        |
-| [`@tauri-apps/plugin-dialog`](src-tauri/Cargo.toml:1)              | 从本地文件读取文本                                                           |
+| 来源                                                                                                                                                            | 用途                                                                                                                                       |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`useLlmProfiles`](src/composables/useLlmProfiles.ts:1)                                                                                                         | 提供 `enabledProfiles`，用于渠道模型选择、默认预设的初始填充、token 限额读取                                                               |
+| [`useLlmRequest`](src/composables/useLlmRequest.ts:1)                                                                                                           | 统一 LLM 请求入口，支持流式与 AbortSignal                                                                                                  |
+| [`LlmModelSelector`](src/components/common/LlmModelSelector.vue:1)                                                                                              | 渠道选择 UI，按 capabilities 过滤掉非文本类模型                                                                                            |
+| [`parseModelCombo`](src/utils/modelIdUtils.ts:1)                                                                                                                | 解析 `profileId:modelId` 字符串                                                                                                            |
+| [`createConfigManager`](src/utils/configManager.ts:1)                                                                                                           | 三类配置文件持久化                                                                                                                         |
+| [`customMessage`](src/utils/customMessage.ts:1)                                                                                                                 | 复制/操作反馈消息                                                                                                                          |
+| [`BaseDialog`](src/components/common/BaseDialog.vue:1)                                                                                                          | 设置/预设管理/历史抽屉容器                                                                                                                 |
+| [`DropZone`](src/components/common/DropZone.vue:1)                                                                                                              | 输入编辑器的拖放文件覆盖层                                                                                                                 |
+| [`@tauri-apps/plugin-clipboard-manager`](src-tauri/Cargo.toml:1)                                                                                                | 译文复制 / 剪贴板粘贴                                                                                                                      |
+| [`@tauri-apps/plugin-dialog`](src-tauri/Cargo.toml:1)                                                                                                           | 从本地文件读取文本                                                                                                                         |
+| [`detectMimeTypeFromBuffer`](src/utils/fileTypeDetector.ts:399) / [`isTextFile`](src/utils/fileTypeDetector.ts:489) / [`smartDecode`](src/utils/encoding.ts:29) | 输入面板文件加载的类型识别与编码解码（被 [`useTranslatorFileLoader`](src/tools/translator/composables/useTranslatorFileLoader.ts:1) 封装） |
 
 ---
 

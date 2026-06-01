@@ -11,10 +11,7 @@
             @click="handlePasteFromClipboard"
           />
         </el-tooltip>
-        <el-tooltip
-          content="从文件读取（txt/md/json/srt/vtt）"
-          placement="bottom"
-        >
+        <el-tooltip content="从文件读取文本内容" placement="bottom">
           <el-button
             class="tool-button"
             :icon="FolderOpen"
@@ -50,14 +47,17 @@
         placeholder="粘贴要翻译的文本，Ctrl/Cmd+Enter 翻译，Ctrl+F 搜索"
         @submit="handleSubmit"
       />
-      <!-- 兄弟节点覆盖层：平时穿透，拖拽时捕获并显示提示层 -->
+      <!--
+        兄弟节点覆盖层：平时穿透，拖拽时捕获并显示提示层。
+        不限制扩展名（不传 :accept），所有文件统一交给后续 fileTypeDetector 检测，
+        非文本会被拒绝并提示。
+      -->
       <DropZone
         overlay
         hide-content
         show-overlay-on-drag
         file-only
         :multiple="false"
-        :accept="DROP_ACCEPT_EXTENSIONS"
         :disabled="store.isTranslating"
         @drop="handleEditorDrop"
       />
@@ -199,8 +199,6 @@ import {
 } from "lucide-vue-next";
 import { ElMessageBox } from "element-plus";
 import { readText as readClipboardText } from "@tauri-apps/plugin-clipboard-manager";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { readTextFile } from "@tauri-apps/plugin-fs";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import DropZone from "@/components/common/DropZone.vue";
 import { parseModelCombo } from "@/utils/modelIdUtils";
@@ -209,23 +207,17 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { ModelCapabilities } from "@/types/llm-profiles";
 import TranslatorEditor from "./TranslatorEditor.vue";
 import { useTranslatorStore } from "../composables/useTranslatorStore";
+import {
+  useTranslatorFileLoader,
+  type LoadedFile,
+} from "../composables/useTranslatorFileLoader";
 import type { ChannelEstimation, TranslationChannel } from "../types";
 
 const store = useTranslatorStore();
 const errorHandler = createModuleErrorHandler("tools/translator/input-panel");
+const fileLoader = useTranslatorFileLoader();
 
 const LARGE_FILE_CHAR_THRESHOLD = 200_000;
-
-/** 拖放/选择文件接受的扩展名（与工具条按钮保持一致） */
-const DROP_ACCEPT_EXTENSIONS = [
-  ".txt",
-  ".md",
-  ".json",
-  ".srt",
-  ".vtt",
-  ".log",
-  ".csv",
-];
 
 const modelCapabilities: Partial<ModelCapabilities> = {
   embedding: false,
@@ -393,33 +385,30 @@ async function handlePasteFromClipboard() {
   customMessage.success("已从剪贴板粘贴");
 }
 
-// ---- 工具条 / 拖放共享：按路径加载文本到输入框 ----
-async function loadTextFromPath(filePath: string) {
-  const content = await errorHandler.wrapAsync(
-    async () => readTextFile(filePath),
-    {
-      userMessage: "读取文件失败，请确认文件编码为 UTF-8",
-    }
-  );
-  if (content === null) return;
-
-  if (content.length > LARGE_FILE_CHAR_THRESHOLD) {
-    try {
-      await ElMessageBox.confirm(
-        `文件较大（${content.length.toLocaleString()} 字符），可能导致翻译耗时与费用增加，是否继续？`,
-        "文件较大",
-        {
-          confirmButtonText: "继续",
-          cancelButtonText: "取消",
-          type: "warning",
-          lockScroll: false,
-        }
-      );
-    } catch {
-      return;
-    }
+// ---- 工具条 / 拖放共享：大文件二次确认 ----
+async function confirmLargeFile(info: {
+  fileName: string;
+  charCount: number;
+}): Promise<boolean> {
+  try {
+    await ElMessageBox.confirm(
+      `「${info.fileName}」较大（${info.charCount.toLocaleString()} 字符），可能导致翻译耗时与费用增加，是否继续？`,
+      "文件较大",
+      {
+        confirmButtonText: "继续",
+        cancelButtonText: "取消",
+        type: "warning",
+        lockScroll: false,
+      }
+    );
+    return true;
+  } catch {
+    return false;
   }
+}
 
+// ---- 工具条 / 拖放共享：把已加载的文件写入输入框（带覆盖确认） ----
+async function applyLoadedFile(loaded: LoadedFile) {
   if (store.inputText.trim()) {
     try {
       await ElMessageBox.confirm("当前输入框已有内容，是否覆盖？", "读取文件", {
@@ -432,43 +421,27 @@ async function loadTextFromPath(filePath: string) {
       return;
     }
   }
-
-  store.inputText = content;
-  customMessage.success("文件内容已载入");
+  store.inputText = loaded.content;
+  customMessage.success(`已载入「${loaded.fileName}」`);
 }
 
 // ---- 工具条：从文件读取 ----
 async function handleReadFromFile() {
-  const filePath = await errorHandler.wrapAsync(
-    async () => {
-      const result = await openDialog({
-        multiple: false,
-        directory: false,
-        filters: [
-          {
-            name: "文本文件",
-            extensions: DROP_ACCEPT_EXTENSIONS.map((ext) => ext.slice(1)),
-          },
-          { name: "所有文件", extensions: ["*"] },
-        ],
-      });
-      // openDialog 返回值在不同版本中可能是 string | string[] | { path } | null
-      if (!result) return null;
-      if (typeof result === "string") return result;
-      if (Array.isArray(result)) return result[0] ?? null;
-      const maybeObj = result as unknown as { path?: string };
-      return maybeObj.path ?? null;
-    },
-    { userMessage: "打开文件失败" }
-  );
-  if (!filePath) return;
-  await loadTextFromPath(filePath as string);
+  const loaded = await fileLoader.pickAndLoad({
+    largeFileCharThreshold: LARGE_FILE_CHAR_THRESHOLD,
+    onLargeFileConfirm: confirmLargeFile,
+  });
+  if (loaded) await applyLoadedFile(loaded);
 }
 
-// ---- 编辑器拖放：复用 loadTextFromPath，DropZone 已过滤扩展名 ----
+// ---- 编辑器拖放：交给 fileLoader 检测；非文本会被它拒绝并提示 ----
 async function handleEditorDrop(paths: string[]) {
   if (!paths.length || store.isTranslating) return;
-  await loadTextFromPath(paths[0]);
+  const loaded = await fileLoader.loadTextFromPath(paths[0], {
+    largeFileCharThreshold: LARGE_FILE_CHAR_THRESHOLD,
+    onLargeFileConfirm: confirmLargeFile,
+  });
+  if (loaded) await applyLoadedFile(loaded);
 }
 </script>
 

@@ -14,6 +14,7 @@ import {
 } from "../core/proxyService";
 import { useRecordManager } from "../core/recordManager";
 import { useStreamProcessor } from "../core/streamProcessor";
+import { useInternalMonitor } from "./useInternalMonitor";
 import {
   loadSettings,
   saveSettings,
@@ -47,6 +48,11 @@ export function useInspectorManager() {
   // 获取各个管理器实例
   const recordManager = useRecordManager();
   const streamProcessor = useStreamProcessor();
+
+  // 接入内部 LLM 调用监控（C2）
+  // 默认开关 OFF（由 inspectorHookRegistry.enable() 控制），开启后会把前端
+  // 内部 fetchWithTimeout 抓到的请求/响应/流写入 recordManager。
+  useInternalMonitor();
 
   // 事件监听器清理函数
   let unlistenRequest: (() => void) | null = null;

@@ -172,7 +172,7 @@ import {
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import { customMessage } from "@/utils/customMessage";
 import { useTranslatorStore } from "../composables/useTranslatorStore";
-import { TRANSLATOR_LANGUAGES } from "../constants";
+import { getLanguageLabel as getLanguageLabelRaw } from "../core/languages";
 import type {
   TranslationHistoryEntry,
   TranslationResult,
@@ -232,9 +232,7 @@ function getPresetById(id: string) {
 }
 
 function getLanguageLabel(code: TranslatorLanguageCode) {
-  return (
-    TRANSLATOR_LANGUAGES.find((lang) => lang.value === code)?.label || code
-  );
+  return getLanguageLabelRaw(code, store.settings.customLanguages);
 }
 
 function firstCompletedResult(

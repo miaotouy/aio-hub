@@ -329,12 +329,12 @@ import { customMessage } from "@/utils/customMessage";
 import { parseModelCombo } from "@/utils/modelIdUtils";
 import type { ModelCapabilities } from "@/types/llm-profiles";
 import { useTranslatorStore } from "../composables/useTranslatorStore";
-import { getLanguageLabel } from "../constants";
+import { getLanguageLabel } from "../core/languages";
 import type { TranslatorLanguageCode } from "../types";
 import {
   BUILTIN_PRESET_TEMPLATES,
   type BuiltinPresetTemplate,
-} from "../builtinPresets";
+} from "../core/builtinPresets";
 import LanguageSelect from "./LanguageSelect.vue";
 import TranslatorEditor from "./TranslatorEditor.vue";
 

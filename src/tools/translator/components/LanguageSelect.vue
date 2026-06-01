@@ -38,7 +38,7 @@ import { customMessage } from "@/utils/customMessage";
 import {
   TRANSLATOR_LANGUAGE_GROUP_LABELS,
   buildLanguageGroups,
-} from "../constants";
+} from "../core/languages";
 import type { TranslatorLanguageCode } from "../types";
 
 const ADD_CUSTOM_SENTINEL = "__translator_add_custom__";

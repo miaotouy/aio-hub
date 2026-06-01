@@ -210,7 +210,7 @@ import { useTranslatorStore } from "../composables/useTranslatorStore";
 import {
   useTranslatorFileLoader,
   type LoadedFile,
-} from "../composables/useTranslatorFileLoader";
+} from "../services/fileLoader";
 import type { ChannelEstimation, TranslationChannel } from "../types";
 
 const store = useTranslatorStore();

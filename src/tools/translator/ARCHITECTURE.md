@@ -58,9 +58,9 @@ TranslatorPreset {
 ```
 
 - 单预设最多 6 个渠道（[`TRANSLATOR_MAX_CHANNELS_PER_PRESET`](src/tools/translator/composables/useTranslatorPresets.ts:1)），主页面 UI 限制为 4。
-- 内置预设模板集中在 [`builtinPresets.ts`](src/tools/translator/builtinPresets.ts:1)（[`BUILTIN_PRESET_TEMPLATES`](src/tools/translator/builtinPresets.ts:1)），当前提供 8 套：`quick` / `academic` / `code-comments` / `code-explain` / `literary` / `business` / `subtitle` / `colloquial`。
-- 首次启动时若磁盘无数据，会取前 4 套模板（[`buildInitialDefaultPresets`](src/tools/translator/builtinPresets.ts:1)）按当前已启用的 LLM Profiles 自动挑选合适模型填充。
-- 在 PresetManagerDialog 中，每个预设的编辑表单顶部都有「从内置预设导入」折叠区，点击模板卡片 → 二次确认 → 仅替换 `name/icon/prompt/defaultSourceLang/defaultTargetLang`，**保留 `id` 和已配置的 `channels`**（[`applyTemplateToPreset`](src/tools/translator/builtinPresets.ts:1)）。
+- 内置预设模板集中在 [`core/builtinPresets.ts`](src/tools/translator/core/builtinPresets.ts:1)（[`BUILTIN_PRESET_TEMPLATES`](src/tools/translator/core/builtinPresets.ts:1)），当前提供 8 套：`quick` / `academic` / `code-comments` / `code-explain` / `literary` / `business` / `subtitle` / `colloquial`。
+- 首次启动时若磁盘无数据，会取前 4 套模板（[`buildInitialDefaultPresets`](src/tools/translator/core/builtinPresets.ts:1)）按当前已启用的 LLM Profiles 自动挑选合适模型填充。
+- 在 PresetManagerDialog 中，每个预设的编辑表单顶部都有「从内置预设导入」折叠区，点击模板卡片 → 二次确认 → 仅替换 `name/icon/prompt/defaultSourceLang/defaultTargetLang`，**保留 `id` 和已配置的 `channels`**（[`applyTemplateToPreset`](src/tools/translator/core/builtinPresets.ts:1)）。
 
 ### 2.3. 翻译结果（TranslationResult）
 
@@ -132,8 +132,9 @@ status: idle | pending | streaming | completed | aborted | failed;
 ### 设计要点
 
 - **门面 + 子模块**：[`useTranslatorStore`](src/tools/translator/composables/useTranslatorStore.ts:27) 自身只持 UI 输入态（`inputText`/`sourceLang`/`targetLang`/`currentSession`），状态实现拆给四个独立 composable，互相通过 `Ref` 注入依赖。组件侧消费扁平接口，看不出内部分层。
-- **执行核心薄包装**：[`useTranslatorCore`](src/tools/translator/composables/useTranslatorCore.ts:47) 只负责 prompt 构建 + 调用 [`useLlmRequest`](src/composables/useLlmRequest.ts:1)，业务级的 abort 控制 / 占位状态 / token 估算全部下沉到 Engine。
-- **配置持久化统一**：三类数据（settings/presets/history）各一份文件，通过 [`createConfigManager`](src/utils/configManager.ts:1) 管理，模块名固定为 `translator`。
+- **执行核心薄包装**：[`useTranslatorCore`](src/tools/translator/composables/useTranslatorCore.ts:1) 只负责调用 [`useLlmRequest`](src/composables/useLlmRequest.ts:1) 并组装结果；prompt 构建等纯函数已下沉到 [`core/prompt.ts`](src/tools/translator/core/prompt.ts:1)。业务级的 abort 控制 / 占位状态 / token 估算全部下沉到 Engine。
+- **配置持久化统一**：三类数据（settings/presets/history）各一份文件，通过 [`createConfigManager`](src/utils/configManager.ts:1) 管理，模块名固定为 `translator`（[`core/config.ts`](src/tools/translator/core/config.ts:1)）。
+- **目录分层**：根目录只放注册入口、主页面、类型与文档；纯无状态逻辑放 [`core/`](src/tools/translator/core)（languages / builtinPresets / prompt / config），Tauri IO 放 [`services/`](src/tools/translator/services)，响应式状态模块放 [`composables/`](src/tools/translator/composables)。
 
 ---
 
@@ -219,15 +220,15 @@ graph TD
 - 单一 `settings: Ref<TranslatorSettings>`。
 - `sanitizeSettings()` 对范围进行 clamp，避免外部 JSON 被手改坏导致 NaN 或越界。
 - 初始化完成后通过 `watch(deep)` + 防抖 400ms 自动落盘。
-- 导出常量 [`TRANSLATOR_MODULE_NAME`](src/tools/translator/composables/useTranslatorSettings.ts:124) / [`TRANSLATOR_CONFIG_VERSION`](src/tools/translator/composables/useTranslatorSettings.ts:123) 给其他子模块复用，**统一配置目录与版本**。
+- 与其他子模块共享的基础设施常量 [`TRANSLATOR_MODULE_NAME`](src/tools/translator/core/config.ts:1) / [`TRANSLATOR_CONFIG_VERSION`](src/tools/translator/core/config.ts:1) 抽到 [`core/config.ts`](src/tools/translator/core/config.ts:1)，**统一配置目录与版本**，避免子模块反向依赖 settings。
 
 ### 5.3. [`useTranslatorPresets`](src/tools/translator/composables/useTranslatorPresets.ts:1)
 
 - 持 `presets` + `activePresetId`，派生 `activePreset` / `activeChannels` / `hasConfiguredChannels`。
-- 首次加载若磁盘无数据，会调用 [`buildInitialDefaultPresets`](src/tools/translator/builtinPresets.ts:1) 配合 [`pickFirstTextModels`](src/tools/translator/builtinPresets.ts:1) **挑非嵌入/非生成类模型** 自动填充默认预设的渠道（默认渠道数由每个模板的 `defaultChannelCount` 控制）。
-- 内置预设的数据与工厂函数全部抽离到 [`builtinPresets.ts`](src/tools/translator/builtinPresets.ts:1)，本 composable 仅引用并组合：
-  - [`applyTemplateToPreset`](src/tools/translator/builtinPresets.ts:1)：把内置模板应用到现有预设（保留 id + channels）；
-  - [`buildPresetFromTemplate`](src/tools/translator/builtinPresets.ts:1)：基于模板新建预设（带自动填充渠道）。
+- 首次加载若磁盘无数据，会调用 [`buildInitialDefaultPresets`](src/tools/translator/core/builtinPresets.ts:1) 配合 [`pickFirstTextModels`](src/tools/translator/core/builtinPresets.ts:1) **挑非嵌入/非生成类模型** 自动填充默认预设的渠道（默认渠道数由每个模板的 `defaultChannelCount` 控制）。
+- 内置预设的数据与工厂函数全部抽离到 [`core/builtinPresets.ts`](src/tools/translator/core/builtinPresets.ts:1)，本 composable 仅引用并组合：
+  - [`applyTemplateToPreset`](src/tools/translator/core/builtinPresets.ts:1)：把内置模板应用到现有预设（保留 id + channels）；
+  - [`createChannelFromModel`](src/tools/translator/core/builtinPresets.ts:1) / [`pickFirstTextModels`](src/tools/translator/core/builtinPresets.ts:1)：渠道挑选与构造。
 - 暴露两套渠道操作 API：
   - **激活预设快捷方法**：`addChannel` / `removeChannel` / `updateChannelModel`（隐式作用于 activePreset）。
   - **跨预设方法**：`addChannelToPreset` / `removeChannelFromPreset` / `updateChannelInPreset`（预设管理器对话框用）。
@@ -261,13 +262,13 @@ graph TD
 - `pushHistory()` 仅在 `settings.saveHistory === true` 时生效；results 用浅拷贝快照避免后续被修改污染。
 - `clearHistory()` 走「立即落盘空数据」而不是依赖 watch 防抖，避免用户清完立刻关应用丢失。
 
-### 5.6. [`useTranslatorCore`](src/tools/translator/composables/useTranslatorCore.ts:47)
+### 5.6. [`useTranslatorCore`](src/tools/translator/composables/useTranslatorCore.ts:1)
 
-执行核心的薄包装：
+执行核心的薄包装（状态/请求粘合层）：
 
-- 负责 prompt 模板构建（`{text}` / `{sourceLang}` / `{targetLang}` 占位符替换）。
 - 调用统一的 [`useLlmRequest`](src/composables/useLlmRequest.ts:1)，透传 `AbortSignal` 与流式回调。
-- 不持有任何状态，仅作纯函数式调度。
+- 选用「core 返回的最终内容 vs 流式累积」的更长版本作为最终 content。
+- prompt 模板构建（`{text}` / `{sourceLang}` / `{targetLang}` 占位符替换）等纯函数下沉到 [`core/prompt.ts`](src/tools/translator/core/prompt.ts:1)。
 
 ---
 
@@ -296,7 +297,7 @@ InputPanel 只负责「输入相关」的功能区，所有全局控件（语言
 
 1. **工具条**（`editor-toolbar`）：左侧 📋 剪贴板粘贴 / 📂 从文件读取 / 🗑️ 清空；右侧实时字符 / 词数（CJK 直接按字符；带空白拉丁文同时显示词数）。
    - 剪贴板用 `@tauri-apps/plugin-clipboard-manager.readText()`；已有内容时弹「追加/覆盖」二选一。
-   - 文件读取统一委托给 [`useTranslatorFileLoader`](src/tools/translator/composables/useTranslatorFileLoader.ts:1)：通过项目级 [`detectMimeTypeFromBuffer`](src/utils/fileTypeDetector.ts:399) + [`isTextFile`](src/utils/fileTypeDetector.ts:489) 检测 MIME 与文本性，通过 [`smartDecode`](src/utils/encoding.ts:29) 自动处理 UTF-8 / GBK / UTF-16 等编码；任何文本类文件（含编程语言源码、配置、字幕、Markdown 等）都可载入，**二进制文件会被立即拒绝并提示 MIME 类型**。文件对话框带「常见文本文件 / 所有文件」两组过滤器；大文件（>200K 字符）二次确认。
+   - 文件读取统一委托给 [`useTranslatorFileLoader`](src/tools/translator/services/fileLoader.ts:1)：通过项目级 [`detectMimeTypeFromBuffer`](src/utils/fileTypeDetector.ts:399) + [`isTextFile`](src/utils/fileTypeDetector.ts:489) 检测 MIME 与文本性，通过 [`smartDecode`](src/utils/encoding.ts:29) 自动处理 UTF-8 / GBK / UTF-16 等编码；任何文本类文件（含编程语言源码、配置、字幕、Markdown 等）都可载入，**二进制文件会被立即拒绝并提示 MIME 类型**。文件对话框带「常见文本文件 / 所有文件」两组过滤器；大文件（>200K 字符）二次确认。
 2. **编辑器**（`editor-wrapper` 包 [`TranslatorEditor`](src/tools/translator/components/TranslatorEditor.vue:1)）：CodeMirror 6 + `markdown()` + `search({ top: true })` 汉化搜索面板 + 跨平台 `Mod-Enter` 提交。外层 wrapper 用 `:focus-within` 实现主题色聚焦边框，并叠加 [`DropZone`](src/components/common/DropZone.vue:1) 兄弟节点（`overlay + hide-content + show-overlay-on-drag`，平时穿透鼠标，拖拽时捕获并显示提示层）。**DropZone 不再用扩展名预过滤**，所有拖放文件统一交给 fileLoader 检测，复用同一段「是否文本 → 大文件确认 → 覆盖确认」流程。
 3. **渠道区**（`channel-section`）：可折叠的 section header，状态持久化于 `settings.channelSectionCollapsed`。展开态用完整 `LlmModelSelector` 行，折叠态用紧凑徽章 pills 展示已选模型名。主页面渠道上限 UI 硬编码 4。
 
@@ -319,7 +320,7 @@ InputPanel 只负责「输入相关」的功能区，所有全局控件（语言
 
 - **左栏**：预设列表 + 上移/下移按钮；点击行选中预设。预设描述行用精简语言徽标（取 label 前 2 字符）。
 - **右栏**：选中预设的详情编辑：
-  - **从内置预设导入**：详情区顶部的折叠面板（默认折叠，避免编辑表单太重）。展开后以 `flex-wrap` 的紧凑 tag 形式展示 [`BUILTIN_PRESET_TEMPLATES`](src/tools/translator/builtinPresets.ts:1) 中的所有内置模板（仅显示图标 + 名称，描述通过 `el-tooltip` 悬停展示完整名称 + 描述）。点击 tag → 弹 `ElMessageBox.confirm` 二次确认 → 调用 `store.applyBuiltinTemplateToPreset`，**仅替换 name/icon/prompt/语言，保留 id 与已配置的渠道**。
+  - **从内置预设导入**：详情区顶部的折叠面板（默认折叠，避免编辑表单太重）。展开后以 `flex-wrap` 的紧凑 tag 形式展示 [`BUILTIN_PRESET_TEMPLATES`](src/tools/translator/core/builtinPresets.ts:1) 中的所有内置模板（仅显示图标 + 名称，描述通过 `el-tooltip` 悬停展示完整名称 + 描述）。点击 tag → 弹 `ElMessageBox.confirm` 二次确认 → 调用 `store.applyBuiltinTemplateToPreset`，**仅替换 name/icon/prompt/语言，保留 id 与已配置的渠道**。
   - 名称内联编辑（blur / Enter 提交）；
   - 图标 picker（16 个 Lucide 图标，与顶层 PresetBar 共享映射表）；
   - 默认源/目标语言：用 [`LanguageSelect`](src/tools/translator/components/LanguageSelect.vue:1)；新增的自定义语言通过 `store.addCustomLanguage` 持久化；
@@ -355,7 +356,7 @@ modules/translator/
   └─ history.json       // { list, version }
 ```
 
-- 三份文件 `version` 当前都是 `1.1.0`（[`TRANSLATOR_CONFIG_VERSION`](src/tools/translator/composables/useTranslatorSettings.ts:9)）。
+- 三份文件 `version` 当前都是 `1.1.0`（[`TRANSLATOR_CONFIG_VERSION`](src/tools/translator/core/config.ts:1)）。
 - 防抖：settings 400ms / presets 400ms / history 600ms。
 - 历史 `clearHistory` 走立即落盘，绕过防抖。
 - v1.0.0 → v1.1.0 迁移：加载阶段把旧的 `"Chinese"` 映射为 `"Chinese (Simplified)"`，保证默认语言与新内置库一致；其他字段无破坏性变更。
@@ -398,19 +399,19 @@ modules/translator/
 
 ## 9. 与外部基础设施的耦合点
 
-| 来源                                                                                                                                                            | 用途                                                                                                                                       |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| [`useLlmProfiles`](src/composables/useLlmProfiles.ts:1)                                                                                                         | 提供 `enabledProfiles`，用于渠道模型选择、默认预设的初始填充、token 限额读取                                                               |
-| [`useLlmRequest`](src/composables/useLlmRequest.ts:1)                                                                                                           | 统一 LLM 请求入口，支持流式与 AbortSignal                                                                                                  |
-| [`LlmModelSelector`](src/components/common/LlmModelSelector.vue:1)                                                                                              | 渠道选择 UI，按 capabilities 过滤掉非文本类模型                                                                                            |
-| [`parseModelCombo`](src/utils/modelIdUtils.ts:1)                                                                                                                | 解析 `profileId:modelId` 字符串                                                                                                            |
-| [`createConfigManager`](src/utils/configManager.ts:1)                                                                                                           | 三类配置文件持久化                                                                                                                         |
-| [`customMessage`](src/utils/customMessage.ts:1)                                                                                                                 | 复制/操作反馈消息                                                                                                                          |
-| [`BaseDialog`](src/components/common/BaseDialog.vue:1)                                                                                                          | 设置/预设管理/历史抽屉容器                                                                                                                 |
-| [`DropZone`](src/components/common/DropZone.vue:1)                                                                                                              | 输入编辑器的拖放文件覆盖层                                                                                                                 |
-| [`@tauri-apps/plugin-clipboard-manager`](src-tauri/Cargo.toml:1)                                                                                                | 译文复制 / 剪贴板粘贴                                                                                                                      |
-| [`@tauri-apps/plugin-dialog`](src-tauri/Cargo.toml:1)                                                                                                           | 从本地文件读取文本                                                                                                                         |
-| [`detectMimeTypeFromBuffer`](src/utils/fileTypeDetector.ts:399) / [`isTextFile`](src/utils/fileTypeDetector.ts:489) / [`smartDecode`](src/utils/encoding.ts:29) | 输入面板文件加载的类型识别与编码解码（被 [`useTranslatorFileLoader`](src/tools/translator/composables/useTranslatorFileLoader.ts:1) 封装） |
+| 来源                                                                                                                                                            | 用途                                                                                                                       |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| [`useLlmProfiles`](src/composables/useLlmProfiles.ts:1)                                                                                                         | 提供 `enabledProfiles`，用于渠道模型选择、默认预设的初始填充、token 限额读取                                               |
+| [`useLlmRequest`](src/composables/useLlmRequest.ts:1)                                                                                                           | 统一 LLM 请求入口，支持流式与 AbortSignal                                                                                  |
+| [`LlmModelSelector`](src/components/common/LlmModelSelector.vue:1)                                                                                              | 渠道选择 UI，按 capabilities 过滤掉非文本类模型                                                                            |
+| [`parseModelCombo`](src/utils/modelIdUtils.ts:1)                                                                                                                | 解析 `profileId:modelId` 字符串                                                                                            |
+| [`createConfigManager`](src/utils/configManager.ts:1)                                                                                                           | 三类配置文件持久化                                                                                                         |
+| [`customMessage`](src/utils/customMessage.ts:1)                                                                                                                 | 复制/操作反馈消息                                                                                                          |
+| [`BaseDialog`](src/components/common/BaseDialog.vue:1)                                                                                                          | 设置/预设管理/历史抽屉容器                                                                                                 |
+| [`DropZone`](src/components/common/DropZone.vue:1)                                                                                                              | 输入编辑器的拖放文件覆盖层                                                                                                 |
+| [`@tauri-apps/plugin-clipboard-manager`](src-tauri/Cargo.toml:1)                                                                                                | 译文复制 / 剪贴板粘贴                                                                                                      |
+| [`@tauri-apps/plugin-dialog`](src-tauri/Cargo.toml:1)                                                                                                           | 从本地文件读取文本                                                                                                         |
+| [`detectMimeTypeFromBuffer`](src/utils/fileTypeDetector.ts:399) / [`isTextFile`](src/utils/fileTypeDetector.ts:489) / [`smartDecode`](src/utils/encoding.ts:29) | 输入面板文件加载的类型识别与编码解码（被 [`useTranslatorFileLoader`](src/tools/translator/services/fileLoader.ts:1) 封装） |
 
 ---
 
@@ -427,7 +428,7 @@ modules/translator/
 ### 扩展提示
 
 - **新增字段到 `TranslatorSettings`**：同时改 [`DEFAULT_TRANSLATOR_SETTINGS`](src/tools/translator/composables/useTranslatorSettings.ts:11) 和 [`sanitizeSettings`](src/tools/translator/composables/useTranslatorSettings.ts:45)，避免反序列化时漏校验。
-- **新增内置预设模板**：在 [`BUILTIN_PRESET_TEMPLATES`](src/tools/translator/builtinPresets.ts:1) 数组末尾追加新模板（保证已有用户的位置感知不被打乱），UI 侧 PresetManagerDialog 的"导入"网格会自动出现新条目。`templateId` 要保证全局唯一；若希望新模板进入初始默认预设列表，需要同步调整 `buildInitialDefaultPresets` 的 `slice(0, 4)`。
+- **新增内置预设模板**：在 [`BUILTIN_PRESET_TEMPLATES`](src/tools/translator/core/builtinPresets.ts:1) 数组末尾追加新模板（保证已有用户的位置感知不被打乱），UI 侧 PresetManagerDialog 的"导入"网格会自动出现新条目。`templateId` 要保证全局唯一；若希望新模板进入初始默认预设列表，需要同步调整 `buildInitialDefaultPresets` 的 `slice(0, 4)`。
 - **新增预设级配置（如 stop sequences）**：先扩 `TranslatorPreset` 类型 → `BuiltinPresetTemplate` 与 `buildInitialDefaultPresets` 中带上默认值 → `useTranslatorEngine` 在 `runChannelRequest` 中读取并透传给 `translateChannel`。
 - **新增结果元数据展示**：扩 `TranslationResult`，在 Engine 完成分支写入，ResultsPanel footer 增加新 tag。
 - **接入新的渠道级控制按钮**（如「重新翻译并继续」）：在 store 侧加新的编排方法，避免组件直接操作 engine 内部状态。

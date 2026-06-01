@@ -88,16 +88,6 @@ export interface TranslationHistoryEntry {
   results: TranslationResult[];
 }
 
-export interface TranslateParallelOptions {
-  targetLang: string;
-  sourceLang?: string;
-  basePrompt: string;
-  maxTokens?: number | ((channel: TranslationChannel) => number);
-  onChannelStream?: (channelId: string, chunk: string) => void;
-  onChannelSettled?: (channelId: string, result: TranslationResult) => void;
-  signal?: AbortSignal;
-}
-
 export interface TranslatorSettings {
   /** 当无法从模型推断时使用的兜底输出上限 */
   defaultMaxTokens: number;

@@ -1,4 +1,7 @@
-import type { TranslatorLanguageCode, TranslatorLanguageOption } from "./types";
+import type {
+  TranslatorLanguageCode,
+  TranslatorLanguageOption,
+} from "../types";
 
 /**
  * 内置语言库（约 30 种 + meta）。
@@ -45,11 +48,6 @@ export const BUILTIN_TRANSLATOR_LANGUAGES: TranslatorLanguageOption[] = [
   { label: "印尼文", value: "Indonesian", group: "south-asia" },
   { label: "马来文", value: "Malay", group: "south-asia" },
 ];
-
-/**
- * @deprecated 旧名称，保留兼容。请用 `BUILTIN_TRANSLATOR_LANGUAGES`。
- */
-export const TRANSLATOR_LANGUAGES = BUILTIN_TRANSLATOR_LANGUAGES;
 
 /** 分组中文名（用于下拉 OptionGroup 的 label） */
 export const TRANSLATOR_LANGUAGE_GROUP_LABELS: Record<string, string> = {
@@ -124,4 +122,3 @@ export function buildLanguageGroups(
 
   return groups;
 }
-

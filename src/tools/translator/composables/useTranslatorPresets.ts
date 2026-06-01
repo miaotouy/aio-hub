@@ -14,11 +14,11 @@ import {
   findBuiltinTemplate,
   pickFirstTextModels,
   BUILTIN_PRESET_TEMPLATES,
-} from "../builtinPresets";
+} from "../core/builtinPresets";
 import {
   TRANSLATOR_CONFIG_VERSION,
   TRANSLATOR_MODULE_NAME,
-} from "./useTranslatorSettings";
+} from "../core/config";
 
 const logger = createModuleLogger("tools/translator/presets");
 

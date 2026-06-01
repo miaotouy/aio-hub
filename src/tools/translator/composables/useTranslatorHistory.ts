@@ -10,7 +10,7 @@ import type {
 import {
   TRANSLATOR_CONFIG_VERSION,
   TRANSLATOR_MODULE_NAME,
-} from "./useTranslatorSettings";
+} from "../core/config";
 
 const logger = createModuleLogger("tools/translator/history");
 

@@ -3,7 +3,7 @@ import type {
   TranslationChannel,
   TranslatorLanguageCode,
   TranslatorPreset,
-} from "./types";
+} from "../types";
 
 /**
  * 内置预设模板。
@@ -156,7 +156,7 @@ export function findBuiltinTemplate(
   );
 }
 
-// ---- 渠道挑选辅助：抽离自原 useTranslatorPresets，便于复用 ----
+// ---- 渠道挑选辅助 ----
 
 /**
  * 在所有已启用的 profiles 中挑选前 N 个 *文本类* 模型。
@@ -201,39 +201,6 @@ export function createChannelFromModel(
 
 // ---- 工厂方法 ----
 
-const generatePresetId = () =>
-  `preset-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
-/**
- * 用一个内置模板 + 当前可用 profiles 构建一个全新的 TranslatorPreset。
- * 渠道按 `defaultChannelCount` 自动填充。
- *
- * 仅在 *新建预设* / *首次初始化默认预设* 场景使用。
- * 把内置模板"应用到已存在预设"的场景请用 `applyTemplateToPreset`。
- */
-export function buildPresetFromTemplate(
-  template: BuiltinPresetTemplate,
-  profiles: LlmProfile[]
-): TranslatorPreset {
-  const candidates = pickFirstTextModels(
-    profiles,
-    template.defaultChannelCount
-  );
-  const channels: TranslationChannel[] = candidates.map(
-    ({ profile, model }, index) => createChannelFromModel(profile, model, index)
-  );
-
-  return {
-    id: generatePresetId(),
-    name: template.name,
-    icon: template.icon,
-    channels,
-    defaultSourceLang: template.defaultSourceLang,
-    defaultTargetLang: template.defaultTargetLang,
-    prompt: template.prompt,
-  };
-}
-
 /**
  * 把内置模板"应用到一个已存在预设"，仅替换文案/语言/图标，**保留 id 和现有渠道**。
  *
@@ -256,23 +223,6 @@ export function applyTemplateToPreset(
     prompt: template.prompt,
     // channels 保留
   };
-}
-
-/**
- * 根据 profiles 自动填充一个预设的默认渠道（仅在 channels 为空时）。
- * 用于：用户清空了所有渠道后又从内置模板导入时的兜底。
- */
-export function fillDefaultChannels(
-  preset: TranslatorPreset,
-  profiles: LlmProfile[],
-  count: number
-): TranslatorPreset {
-  if (preset.channels.length > 0) return preset;
-  const candidates = pickFirstTextModels(profiles, count);
-  const channels = candidates.map(({ profile, model }, index) =>
-    createChannelFromModel(profile, model, index)
-  );
-  return { ...preset, channels };
 }
 
 // ---- 默认预设（用于首次初始化 / 用户清空后重置） ----

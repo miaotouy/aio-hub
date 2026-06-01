@@ -2,11 +2,12 @@ import { ref, watch } from "vue";
 import { createConfigManager } from "@/utils/configManager";
 import { createModuleLogger } from "@/utils/logger";
 import type { TranslatorSettings } from "../types";
+import {
+  TRANSLATOR_CONFIG_VERSION,
+  TRANSLATOR_MODULE_NAME,
+} from "../core/config";
 
 const logger = createModuleLogger("tools/translator/settings");
-
-const MODULE_NAME = "translator";
-const CONFIG_VERSION = "1.1.0";
 
 export const DEFAULT_TRANSLATOR_SETTINGS: TranslatorSettings = {
   defaultMaxTokens: 16384,
@@ -26,13 +27,13 @@ interface TranslatorSettingsFile extends TranslatorSettings {
 }
 
 const settingsManager = createConfigManager<TranslatorSettingsFile>({
-  moduleName: MODULE_NAME,
+  moduleName: TRANSLATOR_MODULE_NAME,
   fileName: "settings.json",
-  version: CONFIG_VERSION,
+  version: TRANSLATOR_CONFIG_VERSION,
   debounceDelay: 400,
   createDefault: () => ({
     ...DEFAULT_TRANSLATOR_SETTINGS,
-    version: CONFIG_VERSION,
+    version: TRANSLATOR_CONFIG_VERSION,
   }),
 });
 
@@ -164,7 +165,10 @@ export function useTranslatorSettings() {
     settings,
     (value) => {
       if (!initialized.value || isLoading.value) return;
-      settingsManager.saveDebounced({ ...value, version: CONFIG_VERSION });
+      settingsManager.saveDebounced({
+        ...value,
+        version: TRANSLATOR_CONFIG_VERSION,
+      });
     },
     { deep: true }
   );
@@ -178,6 +182,3 @@ export function useTranslatorSettings() {
     removeCustomLanguage,
   };
 }
-
-export const TRANSLATOR_CONFIG_VERSION = CONFIG_VERSION;
-export const TRANSLATOR_MODULE_NAME = MODULE_NAME;

@@ -1,38 +1,6 @@
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import type { TranslationChannel, TranslationResult } from "../types";
-
-function replaceAllTemplate(input: string, values: Record<string, string>) {
-  return input.replace(/\{(text|sourceLang|targetLang)\}/g, (_, key) => {
-    return values[key] ?? "";
-  });
-}
-
-export function buildPrompt(
-  text: string,
-  channel: TranslationChannel,
-  options: {
-    targetLang: string;
-    sourceLang?: string;
-    basePrompt: string;
-  }
-) {
-  const template = channel.prompt?.trim() || options.basePrompt;
-  return replaceAllTemplate(template, {
-    text,
-    sourceLang: options.sourceLang || "auto",
-    targetLang: options.targetLang,
-  });
-}
-
-export function toErrorMessage(error: unknown): string {
-  if (error instanceof DOMException && error.name === "AbortError") {
-    return "翻译已停止";
-  }
-  if (error instanceof Error) {
-    return error.message;
-  }
-  return String(error);
-}
+import { buildPrompt } from "../core/prompt";
 
 export interface TranslateChannelOptions {
   targetLang: string;
@@ -44,6 +12,15 @@ export interface TranslateChannelOptions {
   signal?: AbortSignal;
 }
 
+/**
+ * 单渠道翻译执行 composable。
+ *
+ * 负责把"渠道 + 输入文本 + 选项"组装成对 LLM 的一次请求，
+ * 处理流式累积与最终内容的最长保护逻辑，并返回标准化的 `TranslationResult`。
+ *
+ * 注意：本 composable 是状态/请求粘合层（依赖 `useLlmRequest`），
+ * 纯函数 `buildPrompt` / `toErrorMessage` 已下沉到 [`core/prompt.ts`](../core/prompt.ts)。
+ */
 export function useTranslatorCore() {
   const { sendRequest } = useLlmRequest();
 

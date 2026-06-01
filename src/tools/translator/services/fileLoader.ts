@@ -108,8 +108,10 @@ function getFileNameFromPath(path: string): string {
  * - 二进制文件直接拒绝并提示；
  * - 大文件通过回调让 UI 层决定是否继续。
  *
- * 注意：本 composable **不依赖** Pinia store / UI 组件，
- * 覆盖/追加等 UI 副作用应由调用方处理。
+ * 注意：本工厂函数 **不依赖** Pinia store / 响应式状态 / 生命周期，
+ * 是纯 IO 服务（位于 `services/`），调用方负责处理 UI 副作用。
+ * 保留 `useXxx` 命名是为了让组件调用方风格统一；内部实现里没有任何
+ * `ref` / `onXxx` 钩子。
  */
 export function useTranslatorFileLoader() {
   /**

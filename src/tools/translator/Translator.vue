@@ -190,7 +190,7 @@ import PresetManagerDialog from "./components/PresetManagerDialog.vue";
 import HistoryDrawer from "./components/HistoryDrawer.vue";
 import LanguageSelect from "./components/LanguageSelect.vue";
 import { useTranslatorStore } from "./composables/useTranslatorStore";
-import { getLanguageLabel } from "./constants";
+import { getLanguageLabel } from "./core/languages";
 import type { TranslatorLanguageCode } from "./types";
 
 const store = useTranslatorStore();

@@ -85,6 +85,19 @@
             />
           </div>
           <div class="control-row">
+            <span class="control-label">包含内容:</span>
+            <el-input
+              :model-value="secondaryIncludePattern"
+              @update:model-value="
+                $emit('update:secondaryIncludePattern', $event)
+              "
+              placeholder="按文件名/路径筛选，支持 *.md 等通配，逗号分隔多个条件"
+              size="small"
+              clearable
+              class="filter-input"
+            />
+          </div>
+          <div class="control-row">
             <span class="control-label">排除内容:</span>
             <el-input
               :model-value="secondaryExcludePattern"
@@ -187,6 +200,7 @@ interface Props {
   secondaryMaxDepth: number;
   actualMaxDepth: number;
   secondaryIncludePath: string;
+  secondaryIncludePattern: string;
   secondaryExcludePattern: string;
   viewShowFiles: boolean;
   includeMetadata: boolean;
@@ -203,6 +217,7 @@ const emit = defineEmits<{
   "update:showResultFilter": [value: boolean];
   "update:secondaryMaxDepth": [value: number];
   "update:secondaryIncludePath": [value: string];
+  "update:secondaryIncludePattern": [value: string];
   "update:secondaryExcludePattern": [value: string];
   "update:viewShowFiles": [value: boolean];
   "update:includeMetadata": [value: boolean];

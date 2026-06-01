@@ -30,6 +30,7 @@
         v-model:secondary-max-depth="state.secondaryMaxDepth.value"
         :actual-max-depth="renderer.actualMaxDepth.value"
         v-model:secondary-include-path="state.secondaryIncludePath.value"
+        v-model:secondary-include-pattern="state.secondaryIncludePattern.value"
         v-model:secondary-exclude-pattern="state.secondaryExcludePattern.value"
         v-model:view-show-files="state.viewShowFiles.value"
         v-model:include-metadata="state.includeMetadata.value"
@@ -79,6 +80,7 @@ const renderer = useTreeRenderer(
   state.includeFilterInfo,
   state.secondaryMaxDepth,
   state.secondaryIncludePath,
+  state.secondaryIncludePattern,
   state.secondaryExcludePattern,
   state.viewShowFiles,
   state.showSize,

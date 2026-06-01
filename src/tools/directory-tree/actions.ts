@@ -71,6 +71,7 @@ export function buildMetadataHeader(
     includeFilterInfo: boolean;
     secondaryMaxDepth?: number;
     secondaryIncludePath?: string;
+    secondaryIncludePattern?: string;
     secondaryExcludePattern?: string;
     viewShowFiles?: boolean;
   }
@@ -123,6 +124,9 @@ export function buildMetadataHeader(
           filterInfo.secondaryIncludePath
             ? `- 包含路径: ${filterInfo.secondaryIncludePath}`
             : "",
+          filterInfo.secondaryIncludePattern
+            ? `- 包含内容: ${filterInfo.secondaryIncludePattern}`
+            : "",
           filterInfo.secondaryExcludePattern
             ? `- 排除内容: ${filterInfo.secondaryExcludePattern}`
             : "",
@@ -149,6 +153,10 @@ export interface RenderTreeOptions {
   includePath?: string;
   /** 内部使用的路径链 */
   includePathChains?: string[][];
+  /** 仅显示匹配这些模式的节点（保留祖先路径），支持子串与简易 glob（如 *.md） */
+  includePattern?: string;
+  /** 内部使用的允许节点集合（由 includePattern 预计算得出） */
+  includedNodes?: Set<TreeNode> | null;
   /** 排除包含此关键词的节点 */
   excludePattern?: string;
   /** 是否显示文件 */
@@ -159,6 +167,83 @@ export interface RenderTreeOptions {
   showDirSize?: boolean;
   /** 是否显示目录子项数量 */
   showDirItemCount?: boolean;
+}
+
+/**
+ * 判断节点名 / 路径是否匹配单个模式
+ * - 包含 `*` 时按简易 glob 处理（仅 `*` 通配，转换为正则）
+ * - 否则按不区分大小写的子串匹配
+ */
+export function matchNamePattern(target: string, pattern: string): boolean {
+  if (!pattern) return false;
+  if (pattern.includes("*")) {
+    // 转义除 * 之外的正则元字符，再把 * 替换为 .*
+    const escaped = pattern.replace(/[.+^${}()|[\]\\?]/g, "\\$&");
+    const regexStr = "^" + escaped.replace(/\*/g, ".*") + "$";
+    try {
+      return new RegExp(regexStr, "i").test(target);
+    } catch {
+      return false;
+    }
+  }
+  return target.toLowerCase().includes(pattern.toLowerCase());
+}
+
+/**
+ * 收集所有匹配 includePattern 的节点及其全部祖先，构成"应显示节点集合"
+ * - 匹配规则：每个模式独立判断，命中一个即视为该节点匹配
+ * - 路径匹配：如果模式包含 `/`，则同时尝试匹配完整路径（如 `components/Button.vue`）
+ * - 目录匹配：若目录本身命中，其下所有后代都视为应显示
+ */
+export function collectIncludedNodes(
+  root: TreeNode,
+  patterns: string[]
+): Set<TreeNode> {
+  const result = new Set<TreeNode>();
+  if (patterns.length === 0) return result;
+
+  const visit = (
+    node: TreeNode,
+    pathParts: string[],
+    forceInclude: boolean
+  ): boolean => {
+    const currentPath = pathParts.join("/");
+    let selfMatched = forceInclude;
+
+    if (!selfMatched) {
+      for (const p of patterns) {
+        if (p.includes("/")) {
+          // 含路径分隔符：对完整路径做匹配
+          if (matchNamePattern(currentPath, p)) {
+            selfMatched = true;
+            break;
+          }
+        } else if (matchNamePattern(node.name, p)) {
+          selfMatched = true;
+          break;
+        }
+      }
+    }
+
+    // 目录命中后，强制把所有后代也纳入
+    const childForce = selfMatched && node.is_dir;
+    let anyChildMatched = false;
+    for (const child of node.children) {
+      const childPath = [...pathParts, child.name];
+      if (visit(child, childPath, childForce)) {
+        anyChildMatched = true;
+      }
+    }
+
+    if (selfMatched || anyChildMatched) {
+      result.add(node);
+      return true;
+    }
+    return false;
+  };
+
+  visit(root, [root.name], false);
+  return result;
 }
 
 /** 格式化文件大小 */
@@ -441,6 +526,11 @@ export function renderTreeRecursive(
 ): void {
   if (!node.is_dir && !options.showFiles) return;
 
+  // 包含内容过滤：若开启了 includedNodes，且当前节点不在集合内则跳过
+  if (options.includedNodes && !options.includedNodes.has(node)) {
+    return;
+  }
+
   // 支持逗号分隔的多个排除条件（OR 逻辑）
   if (options.excludePattern) {
     const patterns = options.excludePattern
@@ -538,6 +628,8 @@ export function renderTree(
     maxDepth: renderOptions?.maxDepth ?? calculateMaxDepth(structure),
     includePath: renderOptions?.includePath ?? "",
     includePathChains: renderOptions?.includePathChains ?? [],
+    includePattern: renderOptions?.includePattern ?? "",
+    includedNodes: renderOptions?.includedNodes ?? null,
     excludePattern: renderOptions?.excludePattern ?? "",
     showFiles: renderOptions?.showFiles ?? true,
     showSize: renderOptions?.showSize ?? false,

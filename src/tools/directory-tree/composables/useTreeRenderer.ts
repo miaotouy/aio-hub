@@ -10,6 +10,7 @@ import {
   renderTreeRecursive,
   calculateMaxDepth,
   findAllNodesAndPaths,
+  collectIncludedNodes,
 } from "../actions";
 
 export function useTreeRenderer(
@@ -20,6 +21,7 @@ export function useTreeRenderer(
   includeFilterInfo: Ref<boolean>,
   secondaryMaxDepth: Ref<number>,
   secondaryIncludePath: Ref<string>,
+  secondaryIncludePattern: Ref<string>,
   secondaryExcludePattern: Ref<string>,
   viewShowFiles: Ref<boolean>,
   showSize: Ref<boolean>,
@@ -51,6 +53,7 @@ export function useTreeRenderer(
             includeFilterInfo: includeFilterInfo.value,
             secondaryMaxDepth: secondaryMaxDepth.value,
             secondaryIncludePath: secondaryIncludePath.value,
+            secondaryIncludePattern: secondaryIncludePattern.value,
             secondaryExcludePattern: secondaryExcludePattern.value,
             viewShowFiles: viewShowFiles.value,
           }
@@ -62,6 +65,7 @@ export function useTreeRenderer(
       // 解耦面板展开状态与筛选生效逻辑，避免展开/收起时触发重计算
       const maxDepth = secondaryMaxDepth.value;
       const includePath = secondaryIncludePath.value.trim();
+      const includePattern = secondaryIncludePattern.value.trim();
       const excludePattern = secondaryExcludePattern.value.trim();
 
       // 解析包含路径的片段（支持多条路径链，支持逗号分隔多个路径）
@@ -90,12 +94,29 @@ export function useTreeRenderer(
         }
       }
 
+      // 解析"包含内容"模式（支持子串、简易 glob 如 *.md，多个条件逗号分隔）
+      let includedNodes: Set<TreeNode> | null = null;
+      if (includePattern) {
+        const patterns = includePattern
+          .split(",")
+          .map((p) => p.trim())
+          .filter((p) => p.length > 0);
+        if (patterns.length > 0) {
+          includedNodes = collectIncludedNodes(treeData.value, patterns);
+          if (includedNodes.size === 0) {
+            return `[未匹配到内容: ${patterns.join(", ")}]`;
+          }
+        }
+      }
+
       const options: Required<RenderTreeOptions> & {
         excludePattern: string;
         includePathChains?: string[][];
       } = {
         maxDepth,
         includePath,
+        includePattern,
+        includedNodes,
         excludePattern,
         includePathChains,
         showFiles: viewShowFiles.value,

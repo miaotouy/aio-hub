@@ -1,41 +1,98 @@
-# 翻译工作台（Translator）架构文档
+# 翻译工作台（Translator）：架构与开发者指南
 
-> 状态：Implementing · 现状描述（最后更新：与当前代码同步）
-> 版本：v2（2026-06）·配套配置 `TRANSLATOR_CONFIG_VERSION = 1.1.0`
->
-> v2 主要变更（详见 [`docs/Plan/2026-06-ui-rework.md`](docs/Plan/2026-06-ui-rework.md)）：
->
-> - 输入框从原生 `el-input textarea` 换为 [`TranslatorEditor`](src/tools/translator/components/TranslatorEditor.vue) (CodeMirror 6 + markdown + 搜索 + 跨平台 Mod-Enter)
-> - 新增可分组、可搜索、带"添加自定义语言"入口的 [`LanguageSelect`](src/tools/translator/components/LanguageSelect.vue)
-> - 内置语言库扩到 ~30 种 + 分组（cjk/europe/mideast/south-asia），用户可在设置里管理自定义语言（持久化于 `settings.customLanguages`）
-> - 输入面板新增工具条（剪贴板粘贴 / 从文件读取 / 字数指示）
-> - 渠道区可折叠，折叠状态持久化（`settings.channelSectionCollapsed`）
-> - 主翻译按钮重做：满宽 48px、显眼，翻译中变为"停止全部"
-> - 历史条目加语言徽标
-> - 旧 `"Chinese"` 自动迁移到 `"Chinese (Simplified)"`
->
-> 阶段二（已完成）：
->
-> - PresetManagerDialog 内的 prompt 编辑器换 [`TranslatorEditor`](src/tools/translator/components/TranslatorEditor.vue)（mini 模式，无搜索面板）；占位符 chip 调用编辑器 `insertText()` 在光标处插入
-> - 默认语言下拉换为 [`LanguageSelect`](src/tools/translator/components/LanguageSelect.vue)，支持自定义语言与分组搜索
-> - 输入面板编辑器叠加 [`DropZone`](src/components/common/DropZone.vue) 兄弟节点覆盖层，支持拖放 `.txt/.md/.json/.srt/.vtt/.log/.csv` 文件读入；与工具条 📂 按钮共享同一段大文件确认 + 覆盖确认逻辑（`loadTextFromPath`）
-> - [`TranslatorEditor`](src/tools/translator/components/TranslatorEditor.vue) 新增 `focus` / `blur` emit
->
-> v2 至此全部完成。
->
-> v1 → v2 历史信息见 git log。
+> 最后更新：2026-06
+
+翻译工作台是一个面向 **多渠道 LLM 并排对比翻译** 的工具。本文档是其架构概览，覆盖核心概念、子模块职责、数据流与持久化布局。
+
+## 目录
+
+- [1. 工具定位](#1-工具定位)
+- [2. 核心概念](#2-核心概念)
+- [3. 顶层架构](#3-顶层架构)
+- [4. 数据流：发起一次多渠道翻译](#4-数据流发起一次多渠道翻译)
+- [5. 核心逻辑（Composables）](#5-核心逻辑composables)
+- [6. 视图层](#6-视图层)
+- [7. 数据持久化](#7-数据持久化)
+- [8. 关键类型定义](#8-关键类型定义)
+- [9. 与外部基础设施的耦合点](#9-与外部基础设施的耦合点)
+- [10. 已知约束与扩展提示](#10-已知约束与扩展提示)
+
+---
 
 ## 1. 工具定位
 
-翻译工作台是一个面向 **多渠道 LLM 并排对比翻译** 的工具。核心使用场景：
+核心使用场景：
 
-- 同一段文本同时跑多个模型（同/不同 Provider × 同/不同 Model），对比译文质量、速度、token 消耗。
-- 通过 **预设（Preset）** 切换不同业务场景（快速查词 / 学术精翻 / 代码注释 / 自定义……），每个预设携带自己的渠道集合、默认源/目标语言、prompt 模板。
-- 支持流式输出、单渠道中止/重试、自动 max_tokens 估算、历史记录回溯。
+- **横向对比**：同一段文本同时跑多个模型（同/不同 Provider × 同/不同 Model），对比译文质量、速度、token 消耗。
+- **场景化预设**：通过 **预设（Preset）** 切换不同业务场景（快速查词 / 学术精翻 / 代码注释 / 自定义……），每个预设携带自己的渠道集合、默认源/目标语言、prompt 模板。
+- **细粒度控制**：支持流式输出、单渠道中止/重试、自动 max_tokens 估算、历史记录回溯。
 
 注册元信息见 [`translator.registry.ts`](src/tools/translator/translator.registry.ts:12)，类别：`AI 工具 / 文本处理`，路径 `/translator`。
 
-## 2. 顶层架构
+---
+
+## 2. 核心概念
+
+### 2.1. 渠道（TranslationChannel）
+
+单个 LLM Profile × Model 的可执行单元，可携带渠道级 prompt 覆盖、temperature、maxTokens。多个渠道在同一次翻译中**并发执行**，互不阻塞。
+
+```ts
+TranslationChannel {
+  id, displayName, profileId, modelId,
+  prompt?, temperature?, maxTokens?,
+}
+```
+
+### 2.2. 预设（TranslatorPreset）
+
+预设是一组**完整的翻译配置快照**：渠道集合 + 默认源/目标语言 + prompt 模板。
+
+```ts
+TranslatorPreset {
+  id, name, icon,
+  channels: TranslationChannel[],    // 同预设下并发的所有渠道
+  defaultSourceLang, defaultTargetLang,
+  prompt,                            // 预设级 prompt 模板，支持 {text}/{sourceLang}/{targetLang} 占位符
+}
+```
+
+- 单预设最多 6 个渠道（[`TRANSLATOR_MAX_CHANNELS_PER_PRESET`](src/tools/translator/composables/useTranslatorPresets.ts:449)），主页面 UI 限制为 4。
+- 内置三个默认预设：`quick`（快速查词）、`academic`（学术精翻）、`code-comments`（代码注释）。
+- 首次启动时若磁盘无数据，会按当前已启用的 LLM Profiles 自动挑选合适模型填充默认预设。
+
+### 2.3. 翻译结果（TranslationResult）
+
+```ts
+status: idle | pending | streaming | completed | aborted | failed;
+```
+
+- 与当前激活预设的 channels 一一对应（按 `channelId`）。
+- 包含 `appliedMaxTokens`/`modelOutputLimit`/`finishReason`/`tokenUsage`，用于结果卡片显示「max xxK / 输出截断 / ↑in ↓out」等元信息。
+- `isStreaming` 字段保留作历史兼容，新逻辑应只读 `status`。
+
+### 2.4. 翻译历史（TranslationHistoryEntry）
+
+完整快照存原文、双语方向、当时的预设 ID、所有渠道的结果。最多保留 30 条（[`TRANSLATOR_MAX_HISTORY_ENTRIES`](src/tools/translator/composables/useTranslatorHistory.ts:130)），可在 `settings.saveHistory` 关闭时停止落盘。
+
+### 2.5. 自定义语言（Custom Languages）
+
+内置语言库覆盖 ~30 种（分组：cjk / europe / mideast / south-asia），用户可在设置或语言下拉中添加任意自定义语言名（如 `Klingon`、`Toki Pona`、`Old English`）：
+
+- 自定义语言以独立分组 `custom` 出现在所有语言下拉中，作为 `{sourceLang}` / `{targetLang}` 占位符直接替换进 prompt。
+- 持久化于 `settings.customLanguages`。
+- 删除自定义语言时，若当前输入区正在用它：源语言回退到 `auto`，目标语言回退到 `Chinese (Simplified)`；预设里的默认语言**不会自动改动**，需用户手动调整。
+
+### 2.6. 智能语言粘性
+
+切换预设时的语言行为：
+
+- 若当前 `sourceLang/targetLang` 仍然等于上一次激活预设的 default，视为「用户没手动改过」，切预设时跟随新预设的 default。
+- 若已经被用户改过，保留用户选择。
+
+---
+
+## 3. 顶层架构
 
 ```
 ┌────────────────────────────────────────────────────────────┐
@@ -53,8 +110,8 @@
                                     ▼
                       ┌────────────────────────────┐
                       │  useTranslatorStore (门面) │
-                      │  Pinia, 仅持 UI 输入态 +   │
-                      │  跨域编排方法               │
+                      │  Pinia，仅持 UI 输入态 +   │
+                      │  跨域编排方法              │
                       └─────────────┬──────────────┘
                                     │ 组合
         ┌─────────────────┬─────────┴─────────┬──────────────────┐
@@ -73,172 +130,156 @@
 
 - **门面 + 子模块**：[`useTranslatorStore`](src/tools/translator/composables/useTranslatorStore.ts:27) 自身只持 UI 输入态（`inputText`/`sourceLang`/`targetLang`/`currentSession`），状态实现拆给四个独立 composable，互相通过 `Ref` 注入依赖。组件侧消费扁平接口，看不出内部分层。
 - **执行核心薄包装**：[`useTranslatorCore`](src/tools/translator/composables/useTranslatorCore.ts:47) 只负责 prompt 构建 + 调用 [`useLlmRequest`](src/composables/useLlmRequest.ts:1)，业务级的 abort 控制 / 占位状态 / token 估算全部下沉到 Engine。
-- **配置持久化统一走 [`createConfigManager`](src/utils/configManager.ts:1)**：三类数据（settings/presets/history）各一份文件，模块名固定为 `translator`，版本统一 `1.0.0`。
+- **配置持久化统一**：三类数据（settings/presets/history）各一份文件，通过 [`createConfigManager`](src/utils/configManager.ts:1) 管理，模块名固定为 `translator`。
 
-## 3. 数据模型
+---
 
-类型定义集中在 [`types.ts`](src/tools/translator/types.ts:1)。
+## 4. 数据流：发起一次多渠道翻译
 
-### 3.1 渠道（TranslationChannel）
+```mermaid
+graph TD
+    subgraph A [用户交互层]
+        A1(在 InputPanel 输入文本) --> A2(点击翻译 / Ctrl+Enter)
+    end
 
-单个 LLM Profile × Model 的可执行单元，可携带渠道级 prompt 覆盖、temperature、maxTokens。
+    subgraph B [useTranslatorStore - 门面编排]
+        B1(组装 TranslationSession<br/>含 inputText/源目标语言/激活预设)
+        B1 --> B2(写入 currentSession)
+        B2 --> B3(调用 engine.runSession)
+    end
 
-```ts
-TranslationChannel {
-  id, displayName, profileId, modelId,
-  prompt?, temperature?, maxTokens?,
-}
+    subgraph C [useTranslatorEngine - 执行核心]
+        C1(abortAll: 清理上一次的 controllers)
+        C1 --> C2(seedPendingResults: 预占位)
+        C2 --> C3(并发: Promise.allSettled<br/>对每个渠道调用 runChannelRequest)
+        C3 --> C4{流式?}
+        C4 -->|是| C5(onStream 回调更新 result.content<br/>status: streaming)
+        C4 -->|否| C6(等待完整 content)
+        C5 --> C7(完成: 取流式累积 vs core 返回的更长值)
+        C6 --> C7
+        C7 --> C8(写入 tokenUsage/finishReason/elapsedMs)
+    end
+
+    subgraph D [useTranslatorCore]
+        D1(buildPrompt: {text}/{sourceLang}/{targetLang})
+        D1 --> D2(调用 useLlmRequest<br/>传 AbortSignal)
+    end
+
+    subgraph E [历史回写]
+        E1(session settle 后 push 到 history.json)
+    end
+
+    A2 --> B1
+    C3 --> D1
+    D2 -->|流式 chunk| C5
+    D2 -->|完成| C6
+    C8 --> E1
 ```
 
-### 3.2 预设（TranslatorPreset）
+### 单渠道重试
 
-```ts
-TranslatorPreset {
-  id, name, icon,
-  channels: TranslationChannel[],     // 同预设下并发的所有渠道
-  defaultSourceLang, defaultTargetLang,
-  prompt,                              // 预设级 prompt 模板，{text}/{sourceLang}/{targetLang}
-}
-```
+[`store.retryChannel(channelId)`](src/tools/translator/composables/useTranslatorStore.ts:203) 复用 `currentSession`，只跑选中的渠道；engine 内部会先 abort 该渠道上一次的 controller。
 
-- 单预设最多 6 个渠道（[`TRANSLATOR_MAX_CHANNELS_PER_PRESET`](src/tools/translator/composables/useTranslatorPresets.ts:449)）。
-- 内置三个默认预设：`quick`（快速查词）、`academic`（学术精翻）、`code-comments`（代码注释），各自携带不同 prompt 文案。
+### Token 估算
 
-### 3.3 结果（TranslationResult）
+- [`getModelOutputLimit()`](src/tools/translator/composables/useTranslatorEngine.ts:53) 读取模型元数据 `tokenLimits.output`。
+- [`estimateTranslationOutputTokens()`](src/tools/translator/composables/useTranslatorEngine.ts:66)：`字符数 × outputExpansionFactor + 按行数推算的段落预留（512~4096 区间）`，针对「输出比输入长」的语种对。
+- [`getEffectiveMaxTokens()`](src/tools/translator/composables/useTranslatorEngine.ts:75)：在 `channel.maxTokens / 估算 / modelLimit` 三者间取合理上限，最终 clamp 在 `[256, 131072]`。
 
-```ts
-status: idle | pending | streaming | completed | aborted | failed;
-```
+---
 
-- `isStreaming` 字段保留作旧代码兼容，由 `status` 派生。
-- 包含 `appliedMaxTokens`/`modelOutputLimit`/`finishReason`/`tokenUsage`，用于结果卡片的"max xxK / 输出截断 / ↑in ↓out"等显示。
+## 5. 核心逻辑（Composables）
 
-### 3.4 历史（TranslationHistoryEntry）
+### 5.1. [`useTranslatorStore`](src/tools/translator/composables/useTranslatorStore.ts:27)（门面）
 
-完整快照存原文、双语方向、当时的预设 ID、所有渠道的结果。最多保留 30 条（[`TRANSLATOR_MAX_HISTORY_ENTRIES`](src/tools/translator/composables/useTranslatorHistory.ts:130)）。
+只做 **编排** 和 **跨子模块副作用**：
 
-### 3.5 设置（TranslatorSettings）
+- **初始化**：并发 init 三个子模块（presets/settings/history 不互相依赖），完成后用激活预设的默认语言初始化 `sourceLang`/`targetLang`，并记录 `previousPresetDefaults` 快照。
+- **切换预设**（[`setActivePreset`](src/tools/translator/composables/useTranslatorStore.ts:93)）：触发智能语言粘性 + `engine.resetResults()` + `engine.abortAll()` 防止旧预设的结果卡片残留。
+- **删除预设副作用**（[`deletePreset`](src/tools/translator/composables/useTranslatorStore.ts:152)）：删的是当前激活预设时，等子模块返回新激活预设后，门面负责同步语言、清结果、清 currentSession。
+- **删除渠道副作用**：[`removeChannel`](src/tools/translator/composables/useTranslatorStore.ts:134) / [`removeChannelFromPreset`](src/tools/translator/composables/useTranslatorStore.ts:140) 先 abort 对应 controller，再让 presets 模块删配置，最后清除 results 中的对应卡片。
+- **翻译主流程**（[`translate`](src/tools/translator/composables/useTranslatorStore.ts:173)）：组装 `TranslationSession` 写入 `currentSession`，调用 `engine.runSession`；`finally` 阶段若 session 没被新 session 替换，把结果 push 进 history。
+- **历史回填**（[`loadHistoryEntry`](src/tools/translator/composables/useTranslatorStore.ts:215)）：把原文/语言写回 UI，若历史条目的预设仍然存在则切回该预设。
 
-见 [`DEFAULT_TRANSLATOR_SETTINGS`](src/tools/translator/composables/useTranslatorSettings.ts:11)：
-
-| 字段                      | 默认  | 说明                                               |
-| ------------------------- | ----- | -------------------------------------------------- |
-| `defaultMaxTokens`        | 16384 | 渠道未配置且无法估算时的兜底输出上限               |
-| `autoExpandMaxTokens`     | true  | 是否根据输入长度自动放大 max_tokens                |
-| `outputExpansionFactor`   | 3.0   | 输出膨胀系数（中→英/短→长）                        |
-| `streamingEnabled`        | true  | 流式输出开关                                       |
-| `autoScrollResults`       | true  | 流式时自动吸底（用户手动滚走会暂停）               |
-| `saveHistory`             | true  | 是否落盘历史                                       |
-| `defaultTemperature`      | 0.3   | 渠道未单独配置时的采样温度                         |
-| `customLanguages`         | `[]`  | 用户自定义的语言名（LLM 友好的英文/原名），见 §3.6 |
-| `channelSectionCollapsed` | false | 输入面板渠道区折叠状态（用户手动折叠后跨重启保留） |
-
-### 3.6 自定义语言（v2 新增）
-
-- 用户可通过 **语言下拉里的 "＋ 添加自定义语言…"** 或 **设置弹窗的"自定义语言"区** 添加任意名称（如 `Klingon`、`Toki Pona`、`Old English`）。
-- 自定义语言以独立分组 `custom` 出现在所有语言下拉中，作为 `{sourceLang}` / `{targetLang}` 占位符直接替换进 prompt。
-- 删除自定义语言时，若当前输入区正在用它：源语言回退到 `auto`，目标语言回退到 `Chinese (Simplified)`；预设里以它为 `defaultSourceLang/defaultTargetLang` 的字段**不会自动改动**，用户需在预设管理器中手动调整。
-
-## 4. 子模块详解
-
-### 4.1 [`useTranslatorSettings`](src/tools/translator/composables/useTranslatorSettings.ts:82)
+### 5.2. [`useTranslatorSettings`](src/tools/translator/composables/useTranslatorSettings.ts:82)
 
 - 单一 `settings: Ref<TranslatorSettings>`。
 - `sanitizeSettings()` 对范围进行 clamp，避免外部 JSON 被手改坏导致 NaN 或越界。
 - 初始化完成后通过 `watch(deep)` + 防抖 400ms 自动落盘。
 - 导出常量 [`TRANSLATOR_MODULE_NAME`](src/tools/translator/composables/useTranslatorSettings.ts:124) / [`TRANSLATOR_CONFIG_VERSION`](src/tools/translator/composables/useTranslatorSettings.ts:123) 给其他子模块复用，**统一配置目录与版本**。
 
-### 4.2 [`useTranslatorPresets`](src/tools/translator/composables/useTranslatorPresets.ts:131)
+### 5.3. [`useTranslatorPresets`](src/tools/translator/composables/useTranslatorPresets.ts:131)
 
 - 持 `presets` + `activePresetId`，派生 `activePreset` / `activeChannels` / `hasConfiguredChannels`。
-- 首次加载若磁盘无数据，会按当前已启用的 LLM Profiles 通过 [`firstTextModels()`](src/tools/translator/composables/useTranslatorPresets.ts:52) **挑前 3 个非嵌入/非生成类模型** 自动填充默认预设的渠道；找不到合适模型时渠道为空（UI 会提示空状态）。
-- 暴露两套对应的渠道操作 API：
+- 首次加载若磁盘无数据，会按当前已启用的 LLM Profiles 通过 [`firstTextModels()`](src/tools/translator/composables/useTranslatorPresets.ts:52) **挑前 3 个非嵌入/非生成类模型** 自动填充默认预设的渠道。
+- 暴露两套渠道操作 API：
   - **激活预设快捷方法**：`addChannel` / `removeChannel` / `updateChannelModel`（隐式作用于 activePreset）。
-  - **跨预设方法**：`addChannelToPreset` / `removeChannelFromPreset` / `updateChannelInPreset`（预设管理器对话框用，可改任意预设）。
-- 删除预设保护：`presets.length <= 1` 时拒绝删除，返回 `{ deleted: false }`，门面 store 据此决定是否做"切换激活预设 + 清理结果"的副作用。
-- 排序操作 `reorderPresets` / `movePresetUp` / `movePresetDown` 直接重写数组，触发 watch 落盘。
+  - **跨预设方法**：`addChannelToPreset` / `removeChannelFromPreset` / `updateChannelInPreset`（预设管理器对话框用）。
+- 删除预设保护：`presets.length <= 1` 时拒绝删除，返回 `{ deleted: false }`，门面 store 据此决定是否做副作用。
+- 加载阶段执行 [`migrateLegacyPresets()`](src/tools/translator/composables/useTranslatorPresets.ts:1)，把旧的 `"Chinese"` 映射为 `"Chinese (Simplified)"`。
 
-### 4.3 [`useTranslatorEngine`](src/tools/translator/composables/useTranslatorEngine.ts:37)
+### 5.4. [`useTranslatorEngine`](src/tools/translator/composables/useTranslatorEngine.ts:37)
 
 翻译工作台的核心，**唯一持有 results 与 AbortController 的地方**。
 
-#### 状态
-
-- `results: Ref<TranslationResult[]>`：和当前激活预设的 channels 一一对应（按 channelId）。
+- `results: Ref<TranslationResult[]>`：和当前激活预设的 channels 一一对应。
 - `channelControllers: Map<channelId, AbortController>`：每个渠道独立 controller，互不影响。
 - `isTranslating: ComputedRef<boolean>`：任一渠道处于 `pending`/`streaming` 即视为翻译中。
 
-#### Token 估算
-
-- [`getModelOutputLimit()`](src/tools/translator/composables/useTranslatorEngine.ts:53)：读取模型元数据 `tokenLimits.output`。
-- [`estimateTranslationOutputTokens()`](src/tools/translator/composables/useTranslatorEngine.ts:66)：`字符数 × outputExpansionFactor + 按行数推算的段落预留（512~4096 区间）`，针对"输出比输入长"的语种对。
-- [`getEffectiveMaxTokens()`](src/tools/translator/composables/useTranslatorEngine.ts:75)：在 `channel.maxTokens / 估算 / modelLimit` 三者间取合理上限，最终 clamp 在 `[256, 131072]`。
-
-#### 执行流程
-
-[`runChannelRequest(channel, session)`](src/tools/translator/composables/useTranslatorEngine.ts:182) 是单渠道入口：
+执行流程见 [`runChannelRequest()`](src/tools/translator/composables/useTranslatorEngine.ts:182) 与 [`runSession()`](src/tools/translator/composables/useTranslatorEngine.ts:271)：
 
 1. abort 同渠道上一次 controller，新建 controller 入表。
 2. `ensureResultSlot()` 写入 pending 占位，避免卡片闪烁。
 3. 调 `translateChannel()`，按 `streamingEnabled` 决定是否传 `onStream` 回调。
 4. 流式回调内首次见 chunk 时把 status 切到 `streaming`，并累加 content。
-5. 完成时在"core 返回的最终内容"和"流式累积内容"间**选更长的**，避免部分适配器最终 content 比流式累积短。
+5. 完成时在「core 返回的最终内容」和「流式累积内容」间**选更长的**，避免部分适配器最终 content 比流式累积短。
 6. 错误分支区分 `AbortError`：aborted 状态保留已有 partial，failed 状态写 error message。
-7. `finally` 阶段仅在 controller 仍是当前 controller 时才清表，防止"abort → 立即重试"误删新 controller。
+7. `finally` 阶段仅在 controller 仍是当前 controller 时才清表，防止「abort → 立即重试」误删新 controller。
 
-[`runSession(channels, session)`](src/tools/translator/composables/useTranslatorEngine.ts:271) 为多渠道并发入口：先 `abortAll()` + `seedPendingResults()`，再 `Promise.allSettled` 等待所有渠道 settle。
-
-### 4.4 [`useTranslatorHistory`](src/tools/translator/composables/useTranslatorHistory.ts:48)
+### 5.5. [`useTranslatorHistory`](src/tools/translator/composables/useTranslatorHistory.ts:48)
 
 - 最多 30 条，新条目 `unshift` 进数组头部，超长截尾。
 - `pushHistory()` 仅在 `settings.saveHistory === true` 时生效；results 用浅拷贝快照避免后续被修改污染。
-- `clearHistory()` 走"立即落盘空数据"而不是依赖 watch 防抖，避免用户清完立刻关应用丢失。
-- watch 落盘也额外判断 `saveHistory` 开关，关闭后内存仍然累积 session（如有），但不会写盘。
+- `clearHistory()` 走「立即落盘空数据」而不是依赖 watch 防抖，避免用户清完立刻关应用丢失。
 
-### 4.5 [`useTranslatorStore`](src/tools/translator/composables/useTranslatorStore.ts:27)（门面）
+### 5.6. [`useTranslatorCore`](src/tools/translator/composables/useTranslatorCore.ts:47)
 
-只做 **编排** 和 **跨子模块副作用**：
+执行核心的薄包装：
 
-- **初始化**：并发 init 三个子模块（presets/settings/history 不互相依赖），完成后用激活预设的默认语言初始化 `sourceLang`/`targetLang`，并记录 `previousPresetDefaults` 快照。
-- **智能语言粘性**（[`setActivePreset`](src/tools/translator/composables/useTranslatorStore.ts:93)）：
-  - 若当前 `sourceLang/targetLang` 仍然等于上一次激活预设的 default，视为"用户没手动改过"，切预设时跟随新预设的 default。
-  - 若已经被用户改过，保留用户选择。
-  - 同时 `engine.resetResults()` + `engine.abortAll()` 防止旧预设的结果卡片残留。
-- **删除预设副作用**（[`deletePreset`](src/tools/translator/composables/useTranslatorStore.ts:152)）：删的是当前激活预设时，等子模块返回新激活预设后，门面负责同步语言、清结果、清 currentSession。
-- **删除渠道副作用**：[`removeChannel`](src/tools/translator/composables/useTranslatorStore.ts:134) / [`removeChannelFromPreset`](src/tools/translator/composables/useTranslatorStore.ts:140) 先 abort 对应 controller，再让 presets 模块删配置，最后清除 results 中的对应卡片。
-- **翻译主流程**（[`translate`](src/tools/translator/composables/useTranslatorStore.ts:173)）：组装 `TranslationSession` 写入 `currentSession`，调用 `engine.runSession`；`finally` 阶段若 session 没被新 session 替换，把结果 push 进 history。
-- **单渠道重试**（[`retryChannel`](src/tools/translator/composables/useTranslatorStore.ts:203)）：复用 `currentSession`，只跑选中的渠道；engine 内部会先 abort 该渠道上一次的 controller。
-- **历史回填**（[`loadHistoryEntry`](src/tools/translator/composables/useTranslatorStore.ts:215)）：把原文/语言写回 UI，若历史条目的预设仍然存在则切回该预设。
+- 负责 prompt 模板构建（`{text}` / `{sourceLang}` / `{targetLang}` 占位符替换）。
+- 调用统一的 [`useLlmRequest`](src/composables/useLlmRequest.ts:1)，透传 `AbortSignal` 与流式回调。
+- 不持有任何状态，仅作纯函数式调度。
 
-## 5. 视图层
+---
 
-### 5.1 [`Translator.vue`](src/tools/translator/Translator.vue:1)
+## 6. 视图层
+
+### 6.1. [`Translator.vue`](src/tools/translator/Translator.vue:1)
 
 整体三段式网格 `grid-template-rows: 52px minmax(0,1fr) auto`：
 
-- **顶部 PresetBar**：预设标签按钮（点击切换激活预设）+ "管理预设"入口 + "{N} 渠道"计数 + 设置入口。
-- **中部 Workbench**：`grid-template-columns: minmax(320px, 36%) minmax(0,1fr)` 左 InputPanel / 右 ResultsPanel。
-- **底部 HistoryStrip**：最近 8 条历史卡片 + "全部 N"按钮。
+- **顶部 PresetBar**：预设标签按钮（点击切换激活预设）+「管理预设」入口 +「{N} 渠道」计数 + 设置入口。
+- **中部 Workbench**：`grid-template-columns: minmax(320px, 36%) minmax(0,1fr)`，左 InputPanel / 右 ResultsPanel。
+- **底部 HistoryStrip**：最近 8 条历史卡片 +「全部 N」按钮。
 - 三类弹窗 `v-model` 绑定本地 ref，与 store 解耦。
 
-> 注：所有 BaseDialog 都用项目自研属性 `close-on-backdrop-click` / `show-close-button`，符合规范。
+> 所有 BaseDialog 都用项目自研属性 `close-on-backdrop-click` / `show-close-button`，符合规范。
 
-### 5.2 [`InputPanel.vue`](src/tools/translator/components/InputPanel.vue:1)
+### 6.2. [`InputPanel.vue`](src/tools/translator/components/InputPanel.vue:1)
 
-v2 整体布局自上而下：
+自上而下布局：
 
-1. **语言行**（`panel-header`）：源语言 / 互换按钮 / 目标语言。两个下拉用 [`LanguageSelect`](src/tools/translator/components/LanguageSelect.vue:1)，支持分组、搜索、"＋ 添加自定义语言"。互换按钮在源语言 = `auto` 时禁用。
+1. **语言行**（`panel-header`）：源语言 / 互换按钮 / 目标语言。两个下拉用 [`LanguageSelect`](src/tools/translator/components/LanguageSelect.vue:1)，支持分组、搜索、「＋ 添加自定义语言」。互换按钮在源语言 = `auto` 时禁用。
 2. **工具条**（`editor-toolbar`）：左侧 📋 剪贴板粘贴 / 📂 从文件读取 / 🗑️ 清空；右侧实时字符 / 词数（CJK 直接按字符；带空白拉丁文同时显示词数）。
-   - 剪贴板用 `@tauri-apps/plugin-clipboard-manager.readText()`；已有内容时弹"追加/覆盖"二选一。
-   - 文件读取用 `@tauri-apps/plugin-dialog.open()` + `@tauri-apps/plugin-fs.readTextFile()`；支持 `txt/md/json/srt/vtt/log/csv` 等；大文件（>200K 字符）二次确认；已有内容时弹"覆盖"确认。
-3. **编辑器**（`editor-wrapper` 包 [`TranslatorEditor`](src/tools/translator/components/TranslatorEditor.vue:1)）：CodeMirror 6 + `markdown()` + `search({ top: true })` 汉化搜索面板 + 跨平台 `Mod-Enter` 提交。外层 wrapper 用 `:focus-within` 实现主题色聚焦边框，并叠加 [`DropZone`](src/components/common/DropZone.vue:1) 兄弟节点（`overlay + hide-content + show-overlay-on-drag`，平时穿透鼠标，拖拽时捕获并显示提示层），支持拖放 `.txt/.md/.json/.srt/.vtt/.log/.csv` 文件并复用 `loadTextFromPath` 走大文件确认 + 覆盖确认流程。
-4. **渠道区**（`channel-section`）：可折叠的 section header（持久化于 `settings.channelSectionCollapsed`）。展开态用完整 `LlmModelSelector` 行，折叠态用紧凑徽章 pills 展示已选模型名。主页面渠道上限仍是 UI 硬编码 4。
-5. **主操作按钮**（`primary-action`）：满宽 48px 的大按钮，翻译中变形为 danger 风格"停止全部"，按钮内附 `Ctrl + Enter` 快捷键提示。
+   - 剪贴板用 `@tauri-apps/plugin-clipboard-manager.readText()`；已有内容时弹「追加/覆盖」二选一。
+   - 文件读取用 `@tauri-apps/plugin-dialog.open()` + `@tauri-apps/plugin-fs.readTextFile()`；支持 `txt/md/json/srt/vtt/log/csv` 等；大文件（>200K 字符）二次确认。
+3. **编辑器**（`editor-wrapper` 包 [`TranslatorEditor`](src/tools/translator/components/TranslatorEditor.vue:1)）：CodeMirror 6 + `markdown()` + `search({ top: true })` 汉化搜索面板 + 跨平台 `Mod-Enter` 提交。外层 wrapper 用 `:focus-within` 实现主题色聚焦边框，并叠加 [`DropZone`](src/components/common/DropZone.vue:1) 兄弟节点（`overlay + hide-content + show-overlay-on-drag`，平时穿透鼠标，拖拽时捕获并显示提示层），支持拖放文本类文件复用同一段大文件确认 + 覆盖确认逻辑。
+4. **渠道区**（`channel-section`）：可折叠的 section header，状态持久化于 `settings.channelSectionCollapsed`。展开态用完整 `LlmModelSelector` 行，折叠态用紧凑徽章 pills 展示已选模型名。主页面渠道上限 UI 硬编码 4。
+5. **主操作按钮**（`primary-action`）：满宽 48px 的大按钮，翻译中变形为 danger 风格「停止全部」，按钮内附 `Ctrl + Enter` 快捷键提示。
 
-> 注意：主页面的渠道上限是 UI 硬编码 4，预设管理器是 6（见下文），来自不同业务策略，是有意为之。
 > 注意：编辑器内的 Ctrl+F 会被 `stopPropagation` 拦下，不会冒泡到外层全局搜索。
 
-### 5.3 [`ResultsPanel.vue`](src/tools/translator/components/ResultsPanel.vue:1)
+### 6.3. [`ResultsPanel.vue`](src/tools/translator/components/ResultsPanel.vue:1)
 
 - 多卡片网格 `grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr))`；单卡片时切到独占一列并撑满。
 - 卡片头按状态着色（`status-streaming/failed/aborted/completed`），含状态圆点 + 状态徽标。
@@ -246,10 +287,10 @@ v2 整体布局自上而下：
   - **进行中**：停止此渠道（`store.abortChannel`）；
   - **结束态**：重试此渠道（`store.retryChannel`，复用 currentSession）；
   - 复制译文（`@tauri-apps/plugin-clipboard-manager` 的 `writeText`）。
-- **流式自动吸底**：用 `setContentRef` 收集每张卡片的滚动容器，通过 `userScrolledAway` 集合追踪"用户主动向上滚走"的渠道，吸底逻辑只对当前仍在 streaming/pending 且不在该集合中的渠道生效；渠道完成后会把它从集合中移除，下次重新进入流式时恢复吸底。
-- 卡片底部 footer 展示耗时、字数、token 用量、`max xxK` 标签（hover 显示"本次输出上限 / 模型最大"对比）以及"输出截断"警告（`finishReason === 'max_tokens' | 'length'`）。
+- **流式自动吸底**：用 `setContentRef` 收集每张卡片的滚动容器，通过 `userScrolledAway` 集合追踪「用户主动向上滚走」的渠道，吸底逻辑只对当前仍在 streaming/pending 且不在该集合中的渠道生效；渠道完成后会把它从集合中移除，下次重新进入流式时恢复吸底。
+- 卡片底部 footer 展示耗时、字数、token 用量、`max xxK` 标签（hover 显示「本次输出上限 / 模型最大」对比）以及「输出截断」警告（`finishReason === 'max_tokens' | 'length'`）。
 
-### 5.4 [`PresetManagerDialog.vue`](src/tools/translator/components/PresetManagerDialog.vue:1)
+### 6.4. [`PresetManagerDialog.vue`](src/tools/translator/components/PresetManagerDialog.vue:1)
 
 左右两栏的预设管理器：
 
@@ -257,27 +298,29 @@ v2 整体布局自上而下：
 - **右栏**：选中预设的详情编辑：
   - 名称内联编辑（blur / Enter 提交）；
   - 图标 picker（16 个 Lucide 图标，与顶层 PresetBar 共享映射表）；
-  - 默认源/目标语言：用 [`LanguageSelect`](src/tools/translator/components/LanguageSelect.vue:1)（分组 + 搜索 + "＋ 添加自定义语言…"入口；新增的自定义语言通过 `store.addCustomLanguage` 持久化）；
+  - 默认源/目标语言：用 [`LanguageSelect`](src/tools/translator/components/LanguageSelect.vue:1)；新增的自定义语言通过 `store.addCustomLanguage` 持久化；
   - Prompt 模板：用 mini 模式的 [`TranslatorEditor`](src/tools/translator/components/TranslatorEditor.vue:1)（`show-search="false"`），blur 时提交到 store；占位符 chip 点击调用编辑器 `insertText()` 在光标处插入，光标处于编辑器外时回退到字符串拼接；
   - 渠道列表（最多 6 个，调跨预设 API）。
 - 删除时通过 `ElMessageBox.confirm` 二次确认，并显式 `lockScroll: false`（符合 Tauri CSP 下的弹窗规范）。
 
-### 5.5 [`TranslatorSettingsDialog.vue`](src/tools/translator/components/TranslatorSettingsDialog.vue:1)
+### 6.5. [`TranslatorSettingsDialog.vue`](src/tools/translator/components/TranslatorSettingsDialog.vue:1)
 
-直接绑定 `store.settings.*` 双向更新；输出膨胀系数行在 `autoExpandMaxTokens === false` 时整行变灰但不锁死（仍可数值调节，但不参与计算），符合"功能开关不锁死管理类 UI"的规范。
+直接绑定 `store.settings.*` 双向更新；输出膨胀系数行在 `autoExpandMaxTokens === false` 时整行变灰但不锁死（仍可数值调节，但不参与计算），符合「功能开关不锁死管理类 UI」的规范。
 
-v2 新增"自定义语言"区块：用 `el-tag closable` 网格展示 `store.settings.customLanguages`，点 ✕ 弹删除确认（带"会回退当前输入语言、不会改动预设"提示）；底部 ＋ 添加按钮复用同一段 `ElMessageBox.prompt` 校验逻辑（去重 + 长度 ≤64）。
+「自定义语言」区块：用 `el-tag closable` 网格展示 `store.settings.customLanguages`，点 ✕ 弹删除确认（带「会回退当前输入语言、不会改动预设」提示）；底部 ＋ 添加按钮复用同一段 `ElMessageBox.prompt` 校验逻辑（去重 + 长度 ≤64）。
 
-### 5.6 [`HistoryDrawer.vue`](src/tools/translator/components/HistoryDrawer.vue:1)
+### 6.6. [`HistoryDrawer.vue`](src/tools/translator/components/HistoryDrawer.vue:1)
 
 - 工具条：搜索（同时匹配原文与所有渠道译文）+ 预设过滤 + 计数 + 清空全部。
-- 列表按"今天 / 昨天 / 本周 / 本月 / 更早"分组（[`getGroupLabel()`](src/tools/translator/components/HistoryDrawer.vue:284)），组头 sticky。
+- 列表按「今天 / 昨天 / 本周 / 本月 / 更早」分组（[`getGroupLabel()`](src/tools/translator/components/HistoryDrawer.vue:284)），组头 sticky。
 - 条目展示：
   - 时间 / 语言方向 / 预设名 / 渠道数标签；
   - 操作：加载到输入区、重新翻译（关弹窗后等动画跑完再 `store.translate()` 避免抖动）、删除；
-  - 原文 + 第一条"completed 且有内容"的译文双列展示，4 行省略。
+  - 原文 + 第一条「completed 且有内容」的译文双列展示，4 行省略。
 
-## 6. 持久化布局
+---
+
+## 7. 数据持久化
 
 三份文件位于同一目录（由 [`createConfigManager`](src/utils/configManager.ts:1) 解析 AppData 下 `modules/translator/`）：
 
@@ -291,9 +334,40 @@ modules/translator/
 - 三份文件 `version` 当前都是 `1.1.0`（[`TRANSLATOR_CONFIG_VERSION`](src/tools/translator/composables/useTranslatorSettings.ts:9)）。
 - 防抖：settings 400ms / presets 400ms / history 600ms。
 - 历史 `clearHistory` 走立即落盘，绕过防抖。
-- v1.0.0 → v1.1.0 迁移：[`migrateLegacyPresets()`](src/tools/translator/composables/useTranslatorPresets.ts:1) 在加载阶段把旧的 `"Chinese"` 映射为 `"Chinese (Simplified)"`，保证默认语言与新内置库一致；其他字段无破坏性变更。
+- v1.0.0 → v1.1.0 迁移：加载阶段把旧的 `"Chinese"` 映射为 `"Chinese (Simplified)"`，保证默认语言与新内置库一致；其他字段无破坏性变更。
 
-## 7. 与外部基础设施的耦合点
+---
+
+## 8. 关键类型定义
+
+类型定义集中在 [`types.ts`](src/tools/translator/types.ts:1)。最常被引用的核心类型：
+
+- **`TranslationChannel`**：单个 LLM Profile × Model 的可执行单元（详见 [§2.1](#21-渠道translationchannel)）。
+- **`TranslatorPreset`**：完整翻译配置的快照（详见 [§2.2](#22-预设translatorpreset)）。
+- **`TranslationResult`**：单渠道翻译结果，含 `status` / `content` / `tokenUsage` / `finishReason` / `appliedMaxTokens`（详见 [§2.3](#23-翻译结果translationresult)）。
+- **`TranslationSession`**：一次翻译的完整上下文（原文 + 双语方向 + 预设 ID + 渠道快照），用于历史记录与单渠道重试时复用上下文。
+- **`TranslationHistoryEntry`**：历史快照（详见 [§2.4](#24-翻译历史translationhistoryentry)）。
+- **`TranslatorSettings`**：用户偏好设置，关键字段：
+
+| 字段                      | 默认  | 说明                                               |
+| ------------------------- | ----- | -------------------------------------------------- |
+| `defaultMaxTokens`        | 16384 | 渠道未配置且无法估算时的兜底输出上限               |
+| `autoExpandMaxTokens`     | true  | 是否根据输入长度自动放大 max_tokens                |
+| `outputExpansionFactor`   | 3.0   | 输出膨胀系数（中→英/短→长）                        |
+| `streamingEnabled`        | true  | 流式输出开关                                       |
+| `autoScrollResults`       | true  | 流式时自动吸底（用户手动滚走会暂停）               |
+| `saveHistory`             | true  | 是否落盘历史                                       |
+| `defaultTemperature`      | 0.3   | 渠道未单独配置时的采样温度                         |
+| `customLanguages`         | `[]`  | 用户自定义的语言名（LLM 友好的英文/原名）          |
+| `channelSectionCollapsed` | false | 输入面板渠道区折叠状态（用户手动折叠后跨重启保留） |
+
+完整默认值见 [`DEFAULT_TRANSLATOR_SETTINGS`](src/tools/translator/composables/useTranslatorSettings.ts:11)。
+
+- **`TranslatorLanguageCode`**：`"auto" | (string & {})`，保留 IDE 对内置代码的自动补全，又允许任意 string，配合 `customLanguages` 提供完整自定义能力。
+
+---
+
+## 9. 与外部基础设施的耦合点
 
 | 来源                                                               | 用途                                                                         |
 | ------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
@@ -304,21 +378,25 @@ modules/translator/
 | [`createConfigManager`](src/utils/configManager.ts:1)              | 三类配置文件持久化                                                           |
 | [`customMessage`](src/utils/customMessage.ts:1)                    | 复制/操作反馈消息                                                            |
 | [`BaseDialog`](src/components/common/BaseDialog.vue:1)             | 设置/预设管理/历史抽屉容器                                                   |
-| [`@tauri-apps/plugin-clipboard-manager`](src-tauri/Cargo.toml:1)   | 译文复制                                                                     |
+| [`DropZone`](src/components/common/DropZone.vue:1)                 | 输入编辑器的拖放文件覆盖层                                                   |
+| [`@tauri-apps/plugin-clipboard-manager`](src-tauri/Cargo.toml:1)   | 译文复制 / 剪贴板粘贴                                                        |
+| [`@tauri-apps/plugin-dialog`](src-tauri/Cargo.toml:1)              | 从本地文件读取文本                                                           |
 
-## 8. 已知约束与边界
+---
+
+## 10. 已知约束与扩展提示
+
+### 约束
 
 - **渠道上限不一致**：主页面 InputPanel 限 4，预设管理器限 6。这是为快速使用场景下控制并发开销而做的差异化，调用方需要意识到这点。
-- **多 Profile 流式输出格式差异**：Engine 在最终内容上做了"core 返回 vs 流式累积，取更长"的合并保护，但仍依赖适配器层返回的内容是合理的文本，特殊 finishReason 由 UI 层呈现给用户判断。
+- **多 Profile 流式输出格式差异**：Engine 在最终内容上做了「core 返回 vs 流式累积，取更长」的合并保护，但仍依赖适配器层返回的内容是合理的文本，特殊 finishReason 由 UI 层呈现给用户判断。
 - **历史快照不带 settings 信息**：重新翻译会用当时的输入和当前预设，**当前的** max_tokens / temperature 等设置，不会保留历史发起时的参数。
 - **`activePresetId` 默认值兜底为 `quick`**：若磁盘文件中的 ID 在内存列表里找不到（例如预设被外部删除），会 fallback 到列表第一项。
-- **isStreaming 字段被 `status` 覆盖**：仍在类型中保留以兼容历史代码，新逻辑应只读 `status`。
+- **`isStreaming` 字段被 `status` 覆盖**：仍在类型中保留以兼容历史代码，新逻辑应只读 `status`。
 
-## 9. 扩展提示
+### 扩展提示
 
-如需后续迭代：
-
-- **新增字段到 TranslatorSettings**：同时改 [`DEFAULT_TRANSLATOR_SETTINGS`](src/tools/translator/composables/useTranslatorSettings.ts:11) 和 [`sanitizeSettings`](src/tools/translator/composables/useTranslatorSettings.ts:45)，避免反序列化时漏校验。
+- **新增字段到 `TranslatorSettings`**：同时改 [`DEFAULT_TRANSLATOR_SETTINGS`](src/tools/translator/composables/useTranslatorSettings.ts:11) 和 [`sanitizeSettings`](src/tools/translator/composables/useTranslatorSettings.ts:45)，避免反序列化时漏校验。
 - **新增预设级配置（如 stop sequences）**：先扩 `TranslatorPreset` 类型 → `buildDefaultPresets()` 默认值 → `useTranslatorEngine` 在 `runChannelRequest` 中读取并透传给 `translateChannel`。
 - **新增结果元数据展示**：扩 `TranslationResult`，在 Engine 完成分支写入，ResultsPanel footer 增加新 tag。
-- **接入新的渠道级控制按钮**（如"重新翻译并继续"）：在 store 侧加新的编排方法，避免组件直接操作 engine 内部状态。
+- **接入新的渠道级控制按钮**（如「重新翻译并继续」）：在 store 侧加新的编排方法，避免组件直接操作 engine 内部状态。

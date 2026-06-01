@@ -39,10 +39,45 @@ export interface ResponseRecord {
   duration_ms: number;
 }
 
+/**
+ * 记录来源（C1 新增，向后兼容可选字段）
+ *
+ * - `external`: 来自 Rust 外部 HTTP 代理（旧链路），默认值。
+ * - `internal`: 来自前端 `inspectorHookRegistry` 钩子（B/C 组新链路）。
+ */
+export type RecordSource = "internal" | "external";
+
+/**
+ * 记录附带的 Inspector 元数据（C1 新增，向后兼容可选字段）
+ *
+ * 仅 internal 来源会填充；用于在 UI 上展示「这条请求来自哪个工具、哪次会话、用于什么目的」。
+ * 字段对齐 [`InspectorContextMetadata`](src/tools/llm-inspector/types/hooks.ts:82)。
+ */
+export interface RecordInspectorMetadata {
+  profileId?: string;
+  modelId?: string;
+  sessionId?: string;
+  toolName?: string;
+  purpose?: string;
+}
+
 export interface CombinedRecord {
   id: string;
   request: RequestRecord;
   response?: ResponseRecord;
+  /**
+   * 记录来源（C1 新增，向后兼容）
+   *
+   * 未标注的旧记录视为 `external`。`addRequestRecord` 在未显式传入时默认填 `external`，
+   * 因此现有 Rust 外部代理路径无需修改。
+   */
+  source?: RecordSource;
+  /**
+   * Inspector 元数据（C1 新增，向后兼容）
+   *
+   * 仅 internal 来源会填充，用于上下文链路展示。
+   */
+  inspectorMetadata?: RecordInspectorMetadata;
 }
 
 export interface StreamUpdate {

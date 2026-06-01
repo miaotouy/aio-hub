@@ -3,6 +3,8 @@ import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@utils/errorHandler";
 import type {
   CombinedRecord,
+  RecordInspectorMetadata,
+  RecordSource,
   RequestRecord,
   ResponseRecord,
   FilterOptions,
@@ -54,23 +56,34 @@ export function getFilterOptions(): FilterOptions {
 }
 
 /**
- * 添加请求记录
- */
-export function addRequestRecord(request: RequestRecord): void {
+ /**
+  * 添加请求记录
+  *
+  * C1 新增 `source` / `inspectorMetadata` 可选参数：
+  * - 旧的 Rust 外部代理路径无需修改（默认走 `"external"`）。
+  * - 新的内部钩子路径（C2 `useInternalMonitor`）可显式传入 `"internal"` + 元数据。
+  */
+export function addRequestRecord(
+  request: RequestRecord,
+  source: RecordSource = "external",
+  inspectorMetadata?: RecordInspectorMetadata
+): void {
   logger.debug("添加请求记录", {
     requestId: request.id,
     method: request.method,
     url: request.url,
+    source,
   });
 
   const combinedRecord: CombinedRecord = {
     id: request.id,
     request,
     response: undefined,
+    source,
+    inspectorMetadata,
   };
 
   records.value.push(combinedRecord);
-
   // 限制记录数量
   if (records.value.length > MAX_RECORDS) {
     const removed = records.value.shift();

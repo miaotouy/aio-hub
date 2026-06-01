@@ -8,25 +8,26 @@ import type {
   TranslatorPreset,
 } from "../types";
 import {
+  applyTemplateToPreset,
+  buildInitialDefaultPresets,
+  createChannelFromModel,
+  findBuiltinTemplate,
+  pickFirstTextModels,
+  BUILTIN_PRESET_TEMPLATES,
+} from "../builtinPresets";
+import {
   TRANSLATOR_CONFIG_VERSION,
   TRANSLATOR_MODULE_NAME,
 } from "./useTranslatorSettings";
 
 const logger = createModuleLogger("tools/translator/presets");
 
-const DEFAULT_PROMPT =
-  "Translate the following text from {sourceLang} to {targetLang}. Preserve meaning, tone, formatting, code blocks, numbers, and names. Output only the translation.\n\n{text}";
-
-const ACADEMIC_PROMPT =
-  "Translate the following academic or technical text from {sourceLang} to {targetLang}. Use precise terminology, keep citations and formulas unchanged, and output only the polished translation.\n\n{text}";
-
-const CODE_PROMPT =
-  "Translate comments, docstrings, and user-facing text from {sourceLang} to {targetLang}. Preserve code, identifiers, placeholders, markdown, and indentation exactly. Output only the translation.\n\n{text}";
-
-const CODE_EXPLAIN_PROMPT =
-  "Rewrite the following content as a natural-language description in {targetLang}. For any code, snippets, function definitions, configs, or technical syntax, do NOT keep them in their original form — instead, explain their purpose, control flow, key branches, side effects, and behavior step by step in fluent {targetLang} prose. For non-code text, translate it from {sourceLang} to {targetLang} faithfully. Keep identifier names, numbers, and key references inline for clarity. Output only the {targetLang} description.\n\n{text}";
-
 const MAX_CHANNELS_PER_PRESET = 6;
+
+/** 兜底 prompt：当所有内置预设都不可用时（理论不应发生）退化用。 */
+const FALLBACK_PROMPT =
+  BUILTIN_PRESET_TEMPLATES[0]?.prompt ??
+  "Translate the following text from {sourceLang} to {targetLang}.\n\n{text}";
 
 interface TranslatorPresetsFile {
   presets: TranslatorPreset[];
@@ -52,85 +53,9 @@ const createChannelId = () =>
 const generatePresetId = () =>
   `preset-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-function firstTextModels(profiles: LlmProfile[], count: number) {
-  return profiles
-    .flatMap((profile) =>
-      profile.models
-        .filter((model) => {
-          const caps = model.capabilities;
-          return (
-            !caps?.embedding &&
-            !caps?.rerank &&
-            !caps?.imageGeneration &&
-            !caps?.videoGeneration &&
-            !caps?.audioGeneration &&
-            !caps?.musicGeneration
-          );
-        })
-        .map((model) => ({ profile, model }))
-    )
-    .slice(0, count);
-}
-
-function toChannel(
-  profile: LlmProfile,
-  model: LlmProfile["models"][number],
-  index: number
-): TranslationChannel {
-  return {
-    id: createChannelId(),
-    displayName: model.name || model.id || `渠道 ${index + 1}`,
-    profileId: profile.id,
-    modelId: model.id,
-  };
-}
-
-function buildDefaultPresets(profiles: LlmProfile[]): TranslatorPreset[] {
-  const baseChannels = firstTextModels(profiles, 3);
-  const makeChannels = (count: number) =>
-    baseChannels
-      .slice(0, count)
-      .map(({ profile, model }, index) => toChannel(profile, model, index));
-
-  return [
-    {
-      id: "quick",
-      name: "快速查词",
-      icon: "Languages",
-      channels: makeChannels(2),
-      defaultSourceLang: "auto",
-      defaultTargetLang: "Chinese (Simplified)",
-      prompt: DEFAULT_PROMPT,
-    },
-    {
-      id: "academic",
-      name: "学术精翻",
-      icon: "BookOpen",
-      channels: makeChannels(3),
-      defaultSourceLang: "auto",
-      defaultTargetLang: "Chinese (Simplified)",
-      prompt: ACADEMIC_PROMPT,
-    },
-    {
-      id: "code-comments",
-      name: "代码注释",
-      icon: "Code2",
-      channels: makeChannels(2),
-      defaultSourceLang: "auto",
-      defaultTargetLang: "Chinese (Simplified)",
-      prompt: CODE_PROMPT,
-    },
-    {
-      id: "code-explain",
-      name: "代码释义",
-      icon: "ScrollText",
-      channels: makeChannels(2),
-      defaultSourceLang: "auto",
-      defaultTargetLang: "Chinese (Simplified)",
-      prompt: CODE_EXPLAIN_PROMPT,
-    },
-  ];
-}
+/** 内部别名：保留旧名引用，避免大范围改动 */
+const firstTextModels = pickFirstTextModels;
+const toChannel = createChannelFromModel;
 
 /**
  * v1.0.0 → v1.1.0 迁移：把旧的笼统 "Chinese" 映射到 "Chinese (Simplified)"。
@@ -181,7 +106,7 @@ export function useTranslatorPresets(deps: PresetsDeps) {
       const rawRestored =
         Array.isArray(file.presets) && file.presets.length > 0
           ? file.presets
-          : buildDefaultPresets(enabledProfiles.value);
+          : buildInitialDefaultPresets(enabledProfiles.value);
       const restored = migrateLegacyPresets(rawRestored);
       presets.value = restored;
 
@@ -193,7 +118,7 @@ export function useTranslatorPresets(deps: PresetsDeps) {
       activePresetId.value = desiredActiveId;
     } catch (error) {
       logger.warn("预设加载失败，使用默认预设", { error: String(error) });
-      presets.value = buildDefaultPresets(enabledProfiles.value);
+      presets.value = buildInitialDefaultPresets(enabledProfiles.value);
       activePresetId.value = presets.value[0]?.id || "quick";
     } finally {
       isLoading.value = false;
@@ -321,7 +246,71 @@ export function useTranslatorPresets(deps: PresetsDeps) {
       channels: clonedChannels,
       defaultSourceLang: template?.defaultSourceLang || "auto",
       defaultTargetLang: template?.defaultTargetLang || "Chinese (Simplified)",
-      prompt: template?.prompt || base?.prompt || DEFAULT_PROMPT,
+      prompt: template?.prompt || base?.prompt || FALLBACK_PROMPT,
+    };
+    presets.value.push(newPreset);
+    return newPreset;
+  }
+
+  /**
+   * 把内置预设模板应用到一个已存在的预设：
+   * 替换 name/icon/prompt/defaultSourceLang/defaultTargetLang，**保留 id 与 channels**。
+   *
+   * 这是预设管理器中"从内置预设导入"按钮的入口；调用方应已经做过用户二次确认。
+   *
+   * @returns 是否成功应用
+   */
+  function applyBuiltinTemplateToPreset(
+    presetId: string,
+    templateId: string
+  ): boolean {
+    const index = presets.value.findIndex((preset) => preset.id === presetId);
+    if (index === -1) return false;
+    const template = findBuiltinTemplate(templateId);
+    if (!template) {
+      logger.warn("找不到指定内置模板", { templateId });
+      return false;
+    }
+    const current = presets.value[index];
+    const next = applyTemplateToPreset(current, template);
+    presets.value.splice(index, 1, next);
+    return true;
+  }
+
+  /**
+   * 基于内置模板新建一个预设（带自动填充的渠道）。
+   * 用于"新建预设"流程中"直接从内置模板创建"的场景（当前 UI 暂未提供入口，
+   * 但 API 已经准备好，方便后续扩展）。
+   */
+  function createPresetFromTemplate(
+    templateId: string
+  ): TranslatorPreset | null {
+    const template = findBuiltinTemplate(templateId);
+    if (!template) {
+      logger.warn("找不到指定内置模板", { templateId });
+      return null;
+    }
+    const candidates = firstTextModels(
+      enabledProfiles.value,
+      template.defaultChannelCount
+    );
+    const channels: TranslationChannel[] = candidates.map(
+      ({ profile, model }, idx) => toChannel(profile, model, idx)
+    );
+    if (channels.length === 0) {
+      const fallback = firstTextModels(enabledProfiles.value, 1)[0];
+      if (fallback) {
+        channels.push(toChannel(fallback.profile, fallback.model, 0));
+      }
+    }
+    const newPreset: TranslatorPreset = {
+      id: generatePresetId(),
+      name: template.name,
+      icon: template.icon,
+      channels,
+      defaultSourceLang: template.defaultSourceLang,
+      defaultTargetLang: template.defaultTargetLang,
+      prompt: template.prompt,
     };
     presets.value.push(newPreset);
     return newPreset;
@@ -466,7 +455,9 @@ export function useTranslatorPresets(deps: PresetsDeps) {
     updateChannelInPreset,
     // 预设 CRUD
     createPreset,
+    createPresetFromTemplate,
     updatePreset,
+    applyBuiltinTemplateToPreset,
     deletePreset,
     duplicatePreset,
     reorderPresets,

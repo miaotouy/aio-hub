@@ -407,6 +407,8 @@ export const useTranslatorStore = defineStore("translator", () => {
     addChannelToPreset: presetsModule.addChannelToPreset,
     updateChannelInPreset: presetsModule.updateChannelInPreset,
     createPreset: presetsModule.createPreset,
+    createPresetFromTemplate: presetsModule.createPresetFromTemplate,
+    applyBuiltinTemplateToPreset: presetsModule.applyBuiltinTemplateToPreset,
     updatePreset: presetsModule.updatePreset,
     duplicatePreset: presetsModule.duplicatePreset,
     reorderPresets: presetsModule.reorderPresets,

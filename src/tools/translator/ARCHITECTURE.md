@@ -24,7 +24,7 @@
 核心使用场景：
 
 - **横向对比**：同一段文本同时跑多个模型（同/不同 Provider × 同/不同 Model），对比译文质量、速度、token 消耗。
-- **场景化预设**：通过 **预设（Preset）** 切换不同业务场景（快速查词 / 学术精翻 / 代码注释 / 自定义……），每个预设携带自己的渠道集合、默认源/目标语言、prompt 模板。
+- **场景化预设**：通过 **预设（Preset）** 切换不同业务场景（快速查词 / 学术精翻 / 代码注释 / 文学润色 / 商务正式 / 字幕翻译 / 口语化……），每个预设携带自己的渠道集合、默认源/目标语言、prompt 模板。内置模板独立维护，可在预设管理器中一键导入到任意预设。
 - **细粒度控制**：支持流式输出、单渠道中止/重试、自动 max_tokens 估算、历史记录回溯。
 
 注册元信息见 [`translator.registry.ts`](src/tools/translator/translator.registry.ts:12)，类别：`AI 工具 / 文本处理`，路径 `/translator`。
@@ -57,9 +57,10 @@ TranslatorPreset {
 }
 ```
 
-- 单预设最多 6 个渠道（[`TRANSLATOR_MAX_CHANNELS_PER_PRESET`](src/tools/translator/composables/useTranslatorPresets.ts:449)），主页面 UI 限制为 4。
-- 内置三个默认预设：`quick`（快速查词）、`academic`（学术精翻）、`code-comments`（代码注释）。
-- 首次启动时若磁盘无数据，会按当前已启用的 LLM Profiles 自动挑选合适模型填充默认预设。
+- 单预设最多 6 个渠道（[`TRANSLATOR_MAX_CHANNELS_PER_PRESET`](src/tools/translator/composables/useTranslatorPresets.ts:1)），主页面 UI 限制为 4。
+- 内置预设模板集中在 [`builtinPresets.ts`](src/tools/translator/builtinPresets.ts:1)（[`BUILTIN_PRESET_TEMPLATES`](src/tools/translator/builtinPresets.ts:1)），当前提供 8 套：`quick` / `academic` / `code-comments` / `code-explain` / `literary` / `business` / `subtitle` / `colloquial`。
+- 首次启动时若磁盘无数据，会取前 4 套模板（[`buildInitialDefaultPresets`](src/tools/translator/builtinPresets.ts:1)）按当前已启用的 LLM Profiles 自动挑选合适模型填充。
+- 在 PresetManagerDialog 中，每个预设的编辑表单顶部都有「从内置预设导入」折叠区，点击模板卡片 → 二次确认 → 仅替换 `name/icon/prompt/defaultSourceLang/defaultTargetLang`，**保留 `id` 和已配置的 `channels`**（[`applyTemplateToPreset`](src/tools/translator/builtinPresets.ts:1)）。
 
 ### 2.3. 翻译结果（TranslationResult）
 
@@ -220,15 +221,21 @@ graph TD
 - 初始化完成后通过 `watch(deep)` + 防抖 400ms 自动落盘。
 - 导出常量 [`TRANSLATOR_MODULE_NAME`](src/tools/translator/composables/useTranslatorSettings.ts:124) / [`TRANSLATOR_CONFIG_VERSION`](src/tools/translator/composables/useTranslatorSettings.ts:123) 给其他子模块复用，**统一配置目录与版本**。
 
-### 5.3. [`useTranslatorPresets`](src/tools/translator/composables/useTranslatorPresets.ts:131)
+### 5.3. [`useTranslatorPresets`](src/tools/translator/composables/useTranslatorPresets.ts:1)
 
 - 持 `presets` + `activePresetId`，派生 `activePreset` / `activeChannels` / `hasConfiguredChannels`。
-- 首次加载若磁盘无数据，会按当前已启用的 LLM Profiles 通过 [`firstTextModels()`](src/tools/translator/composables/useTranslatorPresets.ts:52) **挑前 3 个非嵌入/非生成类模型** 自动填充默认预设的渠道。
+- 首次加载若磁盘无数据，会调用 [`buildInitialDefaultPresets`](src/tools/translator/builtinPresets.ts:1) 配合 [`pickFirstTextModels`](src/tools/translator/builtinPresets.ts:1) **挑非嵌入/非生成类模型** 自动填充默认预设的渠道（默认渠道数由每个模板的 `defaultChannelCount` 控制）。
+- 内置预设的数据与工厂函数全部抽离到 [`builtinPresets.ts`](src/tools/translator/builtinPresets.ts:1)，本 composable 仅引用并组合：
+  - [`applyTemplateToPreset`](src/tools/translator/builtinPresets.ts:1)：把内置模板应用到现有预设（保留 id + channels）；
+  - [`buildPresetFromTemplate`](src/tools/translator/builtinPresets.ts:1)：基于模板新建预设（带自动填充渠道）。
 - 暴露两套渠道操作 API：
   - **激活预设快捷方法**：`addChannel` / `removeChannel` / `updateChannelModel`（隐式作用于 activePreset）。
   - **跨预设方法**：`addChannelToPreset` / `removeChannelFromPreset` / `updateChannelInPreset`（预设管理器对话框用）。
+- 模板入口 API：
+  - `applyBuiltinTemplateToPreset(presetId, templateId)`：把内置模板应用到指定预设（PresetManagerDialog 的「从内置预设导入」按钮入口）；
+  - `createPresetFromTemplate(templateId)`：基于内置模板直接新建预设（API 已就绪，UI 入口待后续接入）。
 - 删除预设保护：`presets.length <= 1` 时拒绝删除，返回 `{ deleted: false }`，门面 store 据此决定是否做副作用。
-- 加载阶段执行 [`migrateLegacyPresets()`](src/tools/translator/composables/useTranslatorPresets.ts:1)，把旧的 `"Chinese"` 映射为 `"Chinese (Simplified)"`。
+- 加载阶段执行 `migrateLegacyPresets()`，把旧的 `"Chinese"` 映射为 `"Chinese (Simplified)"`。
 
 ### 5.4. [`useTranslatorEngine`](src/tools/translator/composables/useTranslatorEngine.ts:37)
 
@@ -312,6 +319,7 @@ InputPanel 只负责「输入相关」的功能区，所有全局控件（语言
 
 - **左栏**：预设列表 + 上移/下移按钮；点击行选中预设。预设描述行用精简语言徽标（取 label 前 2 字符）。
 - **右栏**：选中预设的详情编辑：
+  - **从内置预设导入**：详情区顶部的折叠面板（默认折叠，避免编辑表单太重）。展开后以 `flex-wrap` 的紧凑 tag 形式展示 [`BUILTIN_PRESET_TEMPLATES`](src/tools/translator/builtinPresets.ts:1) 中的所有内置模板（仅显示图标 + 名称，描述通过 `el-tooltip` 悬停展示完整名称 + 描述）。点击 tag → 弹 `ElMessageBox.confirm` 二次确认 → 调用 `store.applyBuiltinTemplateToPreset`，**仅替换 name/icon/prompt/语言，保留 id 与已配置的渠道**。
   - 名称内联编辑（blur / Enter 提交）；
   - 图标 picker（16 个 Lucide 图标，与顶层 PresetBar 共享映射表）；
   - 默认源/目标语言：用 [`LanguageSelect`](src/tools/translator/components/LanguageSelect.vue:1)；新增的自定义语言通过 `store.addCustomLanguage` 持久化；
@@ -418,6 +426,7 @@ modules/translator/
 ### 扩展提示
 
 - **新增字段到 `TranslatorSettings`**：同时改 [`DEFAULT_TRANSLATOR_SETTINGS`](src/tools/translator/composables/useTranslatorSettings.ts:11) 和 [`sanitizeSettings`](src/tools/translator/composables/useTranslatorSettings.ts:45)，避免反序列化时漏校验。
-- **新增预设级配置（如 stop sequences）**：先扩 `TranslatorPreset` 类型 → `buildDefaultPresets()` 默认值 → `useTranslatorEngine` 在 `runChannelRequest` 中读取并透传给 `translateChannel`。
+- **新增内置预设模板**：在 [`BUILTIN_PRESET_TEMPLATES`](src/tools/translator/builtinPresets.ts:1) 数组末尾追加新模板（保证已有用户的位置感知不被打乱），UI 侧 PresetManagerDialog 的"导入"网格会自动出现新条目。`templateId` 要保证全局唯一；若希望新模板进入初始默认预设列表，需要同步调整 `buildInitialDefaultPresets` 的 `slice(0, 4)`。
+- **新增预设级配置（如 stop sequences）**：先扩 `TranslatorPreset` 类型 → `BuiltinPresetTemplate` 与 `buildInitialDefaultPresets` 中带上默认值 → `useTranslatorEngine` 在 `runChannelRequest` 中读取并透传给 `translateChannel`。
 - **新增结果元数据展示**：扩 `TranslationResult`，在 Engine 完成分支写入，ResultsPanel footer 增加新 tag。
 - **接入新的渠道级控制按钮**（如「重新翻译并继续」）：在 store 侧加新的编排方法，避免组件直接操作 engine 内部状态。

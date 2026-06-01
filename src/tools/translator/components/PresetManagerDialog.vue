@@ -105,6 +105,53 @@
         </header>
 
         <div class="detail-body">
+          <!-- 从内置预设导入：折叠区 -->
+          <section class="detail-section import-section">
+            <button
+              type="button"
+              class="import-header"
+              @click="importPanelOpen = !importPanelOpen"
+            >
+              <Sparkles class="import-icon" />
+              <span class="import-title">从内置预设导入</span>
+              <span class="import-desc">
+                一键替换当前预设的文案 / 语言 / 图标（保留已配置的渠道）
+              </span>
+              <ChevronDown
+                class="import-chev"
+                :class="{ rotated: !importPanelOpen }"
+              />
+            </button>
+            <div v-show="importPanelOpen" class="import-grid">
+              <el-tooltip
+                v-for="template in BUILTIN_PRESET_TEMPLATES"
+                :key="template.templateId"
+                placement="top"
+                :show-after="200"
+              >
+                <template #content>
+                  <div class="import-tooltip">
+                    <div class="import-tooltip-name">{{ template.name }}</div>
+                    <div class="import-tooltip-desc">
+                      {{ template.description }}
+                    </div>
+                  </div>
+                </template>
+                <button
+                  type="button"
+                  class="import-card"
+                  @click="handleImportTemplate(template)"
+                >
+                  <component
+                    :is="getPresetIcon(template.icon)"
+                    class="import-card-icon"
+                  />
+                  <span class="import-card-name">{{ template.name }}</span>
+                </button>
+              </el-tooltip>
+            </div>
+          </section>
+
           <section class="detail-section">
             <div class="section-heading">图标</div>
             <div class="icon-picker">
@@ -284,6 +331,10 @@ import type { ModelCapabilities } from "@/types/llm-profiles";
 import { useTranslatorStore } from "../composables/useTranslatorStore";
 import { getLanguageLabel } from "../constants";
 import type { TranslatorLanguageCode } from "../types";
+import {
+  BUILTIN_PRESET_TEMPLATES,
+  type BuiltinPresetTemplate,
+} from "../builtinPresets";
 import LanguageSelect from "./LanguageSelect.vue";
 import TranslatorEditor from "./TranslatorEditor.vue";
 
@@ -345,6 +396,9 @@ const selectedId = ref<string>(store.activePresetId);
 const nameDraft = ref("");
 const promptDraft = ref("");
 const promptEditorRef = ref<InstanceType<typeof TranslatorEditor> | null>(null);
+
+/** "从内置预设导入"折叠面板的展开状态。默认折叠，避免编辑表单顶部太重 */
+const importPanelOpen = ref(false);
 
 const selectedPreset = computed(() =>
   store.presets.find((preset) => preset.id === selectedId.value)
@@ -485,6 +539,41 @@ async function handleDelete() {
     customMessage.success(`预设 "${name}" 已删除`);
   } catch {
     /* user cancelled */
+  }
+}
+
+/**
+ * 点击内置预设卡片：弹二次确认 → 调用 store 把模板应用到当前选中预设。
+ * 保留 id 与 channels，仅替换 name/icon/prompt/语言。
+ */
+async function handleImportTemplate(template: BuiltinPresetTemplate) {
+  if (!selectedPreset.value) return;
+  const currentName = selectedPreset.value.name;
+  try {
+    await ElMessageBox.confirm(
+      `将用内置预设「${template.name}」覆盖当前预设「${currentName}」的名称、图标、默认语言和翻译指令模板。\n\n已配置的渠道会保留不变。是否继续？`,
+      "替换预设内容",
+      {
+        confirmButtonText: "替换",
+        cancelButtonText: "取消",
+        type: "warning",
+        lockScroll: false,
+      }
+    );
+  } catch {
+    return;
+  }
+
+  const ok = store.applyBuiltinTemplateToPreset(
+    selectedPreset.value.id,
+    template.templateId
+  );
+  if (ok) {
+    // 让编辑器内的草稿与新的预设内容同步
+    syncDraftsFromSelected();
+    customMessage.success(`已应用「${template.name}」`);
+  } else {
+    customMessage.error("应用预设失败");
   }
 }
 
@@ -898,6 +987,134 @@ function handleAddCustomLang(name: string) {
   text-align: left;
 }
 
+/* ---- 从内置预设导入：折叠区 ---- */
+.import-section {
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg);
+  overflow: hidden;
+  gap: 0;
+}
+
+.import-header {
+  appearance: none;
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  background: transparent;
+  color: var(--text-color);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  transition: background 0.15s ease;
+}
+
+.import-header:hover {
+  background: color-mix(in srgb, var(--primary-color) 6%, transparent);
+}
+
+.import-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--primary-color);
+}
+
+.import-title {
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.import-desc {
+  color: var(--text-color-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.import-chev {
+  width: 16px;
+  height: 16px;
+  color: var(--text-color-secondary);
+  transition: transform 0.2s ease;
+}
+
+.import-chev.rotated {
+  transform: rotate(-90deg);
+}
+
+.import-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 14px 14px;
+}
+
+.import-card {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px 5px 8px;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 14px;
+  background: var(--input-bg);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: var(--text-color);
+  line-height: 1;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    transform 0.1s ease;
+}
+
+.import-card:hover {
+  border-color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 10%, var(--input-bg));
+}
+
+.import-card:active {
+  transform: translateY(1px);
+}
+
+.import-card-icon {
+  width: 14px;
+  height: 14px;
+  color: var(--primary-color);
+  flex-shrink: 0;
+}
+
+.import-card-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-color);
+  white-space: nowrap;
+}
+
+.import-tooltip {
+  max-width: 240px;
+}
+
+.import-tooltip-name {
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.import-tooltip-desc {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-color-secondary);
+}
+
 @media (max-width: 960px) {
   .preset-manager {
     grid-template-columns: 1fr;
@@ -906,6 +1123,14 @@ function handleAddCustomLang(name: string) {
 
   .language-row {
     grid-template-columns: 1fr;
+  }
+
+  .import-header {
+    grid-template-columns: auto 1fr auto;
+  }
+
+  .import-desc {
+    display: none;
   }
 }
 </style>

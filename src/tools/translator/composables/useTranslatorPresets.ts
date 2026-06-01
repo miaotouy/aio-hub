@@ -23,6 +23,9 @@ const ACADEMIC_PROMPT =
 const CODE_PROMPT =
   "Translate comments, docstrings, and user-facing text from {sourceLang} to {targetLang}. Preserve code, identifiers, placeholders, markdown, and indentation exactly. Output only the translation.\n\n{text}";
 
+const CODE_EXPLAIN_PROMPT =
+  "Rewrite the following content as a natural-language description in {targetLang}. For any code, snippets, function definitions, configs, or technical syntax, do NOT keep them in their original form — instead, explain their purpose, control flow, key branches, side effects, and behavior step by step in fluent {targetLang} prose. For non-code text, translate it from {sourceLang} to {targetLang} faithfully. Keep identifier names, numbers, and key references inline for clarity. Output only the {targetLang} description.\n\n{text}";
+
 const MAX_CHANNELS_PER_PRESET = 6;
 
 interface TranslatorPresetsFile {
@@ -116,6 +119,15 @@ function buildDefaultPresets(profiles: LlmProfile[]): TranslatorPreset[] {
       defaultSourceLang: "auto",
       defaultTargetLang: "Chinese (Simplified)",
       prompt: CODE_PROMPT,
+    },
+    {
+      id: "code-explain",
+      name: "代码释义",
+      icon: "ScrollText",
+      channels: makeChannels(2),
+      defaultSourceLang: "auto",
+      defaultTargetLang: "Chinese (Simplified)",
+      prompt: CODE_EXPLAIN_PROMPT,
     },
   ];
 }

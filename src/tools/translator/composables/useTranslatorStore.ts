@@ -1,8 +1,13 @@
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { defineStore } from "pinia";
+import { ElMessageBox } from "element-plus";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { createModuleLogger } from "@/utils/logger";
-import type { TranslatorLanguageCode } from "../types";
+import type {
+  ChannelEstimation,
+  ChannelOverflowReason,
+  TranslatorLanguageCode,
+} from "../types";
 import { useTranslatorSettings } from "./useTranslatorSettings";
 import { useTranslatorPresets } from "./useTranslatorPresets";
 import {
@@ -12,6 +17,33 @@ import {
 import { useTranslatorHistory } from "./useTranslatorHistory";
 
 const logger = createModuleLogger("tools/translator/store");
+
+/** 把估算原因翻译为面向用户的简短描述 */
+function describeOverflowReason(
+  reason: ChannelOverflowReason,
+  est: ChannelEstimation
+): string {
+  switch (reason) {
+    case "output-exceeds":
+      return `预估输出 ~${est.estimatedOutputTokens.toLocaleString()} / 上限 ${(
+        est.modelOutputLimit ?? 0
+      ).toLocaleString()}（输出会被截断）`;
+    case "near-output-limit":
+      return `预估输出 ~${est.estimatedOutputTokens.toLocaleString()} / 上限 ${(
+        est.modelOutputLimit ?? 0
+      ).toLocaleString()}（接近上限，可能截断）`;
+    case "input-exceeds-context":
+      return `输入 ~${est.estimatedInputTokens.toLocaleString()} tokens / context ${(
+        est.modelContextLimit ?? 0
+      ).toLocaleString()}（输入超过 context 窗口，请求会被拒绝）`;
+    case "input-near-context":
+      return `输入 ~${est.estimatedInputTokens.toLocaleString()} tokens / context ${(
+        est.modelContextLimit ?? 0
+      ).toLocaleString()}（接近 context 窗口）`;
+    default:
+      return "";
+  }
+}
 
 /**
  * 翻译工作台门面 Store。
@@ -168,12 +200,124 @@ export const useTranslatorStore = defineStore("translator", () => {
     }
   }
 
+  // ---- 渠道超限估算（事前预警）----
+
+  const channelEstimations = computed<ChannelEstimation[]>(() => {
+    const text = inputText.value;
+    const channels = presetsModule.activeChannels.value;
+    if (!text.trim() || channels.length === 0) return [];
+    return channels.map((channel) =>
+      engineModule.getChannelEstimation(text, channel)
+    );
+  });
+
+  const riskSummary = computed(() => {
+    const summary = { safe: 0, warning: 0, danger: 0, unknown: 0 };
+    for (const est of channelEstimations.value) {
+      summary[est.risk] += 1;
+    }
+    return summary;
+  });
+
+  const overallRisk = computed<{
+    shouldWarn: boolean;
+    severity: "warning" | "danger";
+    title: string;
+    description: string;
+  }>(() => {
+    const dangers = channelEstimations.value.filter((e) => e.risk === "danger");
+    const warnings = channelEstimations.value.filter(
+      (e) => e.risk === "warning"
+    );
+    if (dangers.length > 0) {
+      return {
+        shouldWarn: true,
+        severity: "danger",
+        title: `${dangers.length} 个渠道预计输出截断`,
+        description: dangers
+          .map(
+            (est) =>
+              `${est.channelName}：${describeOverflowReason(est.reasons[0], est)}`
+          )
+          .join("；"),
+      };
+    }
+    if (warnings.length > 0) {
+      return {
+        shouldWarn: true,
+        severity: "warning",
+        title: `${warnings.length} 个渠道接近模型上限`,
+        description: warnings
+          .map(
+            (est) =>
+              `${est.channelName}：${describeOverflowReason(est.reasons[0], est)}`
+          )
+          .join("；"),
+      };
+    }
+    return {
+      shouldWarn: false,
+      severity: "warning",
+      title: "",
+      description: "",
+    };
+  });
+
+  /**
+   * 渠道预估输出会截断/超 context 时弹二次确认。
+   * 用户确认或没有 danger 渠道时返回 true；取消时返回 false。
+   */
+  async function confirmOverflow(
+    dangers: ChannelEstimation[]
+  ): Promise<boolean> {
+    const detailLines = dangers
+      .map((est) => {
+        const reasonText = est.reasons
+          .map((reason) => describeOverflowReason(reason, est))
+          .filter(Boolean)
+          .join("；");
+        return `<li><strong>${est.channelName}</strong> · ${reasonText}</li>`;
+      })
+      .join("");
+    try {
+      await ElMessageBox.confirm(
+        `<div style="font-size:13px;line-height:1.6;">
+          <p style="margin:0 0 8px;">检测到以下渠道的预估超过模型上限，继续翻译可能得到不完整的译文。</p>
+          <ul style="margin:0;padding-left:18px;">${detailLines}</ul>
+          <p style="margin:10px 0 0;color:var(--text-color-secondary);">建议缩短输入或更换更大上下文的模型。</p>
+        </div>`,
+        "输出可能不完整",
+        {
+          confirmButtonText: "仍然继续",
+          cancelButtonText: "取消",
+          type: "warning",
+          dangerouslyUseHTMLString: true,
+          lockScroll: false,
+        }
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   // ---- 翻译主流程 ----
 
   async function translate() {
     const text = inputText.value.trim();
     const preset = presetsModule.activePreset.value;
     if (!text || !preset || preset.channels.length === 0) return;
+
+    // 超限二次确认（开关位于设置中）
+    if (settingsModule.settings.value.warnOnOutputOverflow) {
+      const dangers = channelEstimations.value.filter(
+        (est) => est.risk === "danger"
+      );
+      if (dangers.length > 0) {
+        const confirmed = await confirmOverflow(dangers);
+        if (!confirmed) return;
+      }
+    }
 
     const session: TranslationSession = {
       text,
@@ -275,6 +419,11 @@ export const useTranslatorStore = defineStore("translator", () => {
     abortAll: engineModule.abortAll,
     abortChannel: engineModule.abortChannel,
     getResultStatus: engineModule.getResultStatus,
+
+    // ---- 超限估算 ----
+    channelEstimations,
+    riskSummary,
+    overallRisk,
 
     // ---- history ----
     history: historyModule.history,

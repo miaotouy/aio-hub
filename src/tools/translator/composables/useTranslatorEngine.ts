@@ -2,6 +2,9 @@ import { computed, ref, type Ref } from "vue";
 import { createModuleLogger } from "@/utils/logger";
 import type { LlmProfile } from "@/types/llm-profiles";
 import type {
+  ChannelEstimation,
+  ChannelOverflowReason,
+  ChannelOverflowRisk,
   TranslationChannel,
   TranslationResult,
   TranslationResultStatus,
@@ -50,12 +53,28 @@ export function useTranslatorEngine(deps: EngineDeps) {
 
   // ---- token 估算 ----
 
-  function getModelOutputLimit(channel: TranslationChannel) {
+  function getModelInfo(channel: TranslationChannel) {
     const profile = enabledProfiles.value.find(
       (item) => item.id === channel.profileId
     );
-    const model = profile?.models.find((item) => item.id === channel.modelId);
-    return model?.tokenLimits?.output;
+    return profile?.models.find((item) => item.id === channel.modelId);
+  }
+
+  function getModelOutputLimit(channel: TranslationChannel) {
+    return getModelInfo(channel)?.tokenLimits?.output;
+  }
+
+  /**
+   * 读取模型上下文窗口上限。
+   * 优先 `tokenLimits.contextLength`，缺失时回退到 `contextLengthRange[1]`。
+   */
+  function getModelContextLimit(channel: TranslationChannel) {
+    const limits = getModelInfo(channel)?.tokenLimits;
+    if (!limits) return undefined;
+    if (typeof limits.contextLength === "number") return limits.contextLength;
+    const range = limits.contextLengthRange;
+    if (Array.isArray(range) && typeof range[1] === "number") return range[1];
+    return undefined;
   }
 
   /**
@@ -72,6 +91,25 @@ export function useTranslatorEngine(deps: EngineDeps) {
     );
   }
 
+  /**
+   * 估算输入 tokens（仅用于事前预警，不参与请求构造）。
+   * - CJK 字符：1 字 ≈ 1.5 tokens；
+   * - 其他（按空白切分得到的"词"）：1 词 ≈ 1.3 tokens；
+   * - 对于混合文本两部分相加。
+   */
+  function estimateTranslationInputTokens(text: string) {
+    if (!text) return 0;
+    // CJK 统一表意 + 假名 + 谚文 的常用区间
+    const cjkRegex = /[\u3400-\u9fff\uf900-\ufaff\u3040-\u30ff\uac00-\ud7af]/gu;
+    const cjkMatches = text.match(cjkRegex);
+    const cjkCount = cjkMatches ? cjkMatches.length : 0;
+    const nonCjkText = text.replace(cjkRegex, " ");
+    const nonCjkWords = nonCjkText
+      .split(/\s+/)
+      .filter((token) => token.length > 0).length;
+    return Math.ceil(cjkCount * 1.5 + nonCjkWords * 1.3);
+  }
+
   function getEffectiveMaxTokens(text: string, channel: TranslationChannel) {
     const baseLimit = channel.maxTokens || settings.value.defaultMaxTokens;
     const expandedLimit = settings.value.autoExpandMaxTokens
@@ -83,6 +121,76 @@ export function useTranslatorEngine(deps: EngineDeps) {
       256,
       131072
     );
+  }
+
+  /**
+   * 综合"预估输出/输入 vs 模型上限"判定渠道的超限风险等级。
+   * 阈值（详见 docs/Plan/2026-06-output-overflow-warning.md §3.1.2）：
+   * - 输出 >= 100% modelOutput → danger
+   * - 输入 >= 100% modelContext → danger
+   * - 输出 >= 70%  modelOutput → warning
+   * - 输入 >= 80%  modelContext → warning
+   * 模型既无 output 也无 context 上限 → unknown。
+   */
+  function getChannelEstimation(
+    text: string,
+    channel: TranslationChannel
+  ): ChannelEstimation {
+    const estimatedOutputTokens = estimateTranslationOutputTokens(text);
+    const estimatedInputTokens = estimateTranslationInputTokens(text);
+    const modelOutputLimit = getModelOutputLimit(channel);
+    const modelContextLimit = getModelContextLimit(channel);
+
+    const reasons: ChannelOverflowReason[] = [];
+    let risk: ChannelOverflowRisk = "safe";
+
+    if (!modelOutputLimit && !modelContextLimit) {
+      risk = "unknown";
+    } else {
+      // 优先判 danger
+      if (
+        modelContextLimit !== undefined &&
+        estimatedInputTokens >= modelContextLimit
+      ) {
+        reasons.push("input-exceeds-context");
+        risk = "danger";
+      }
+      if (
+        modelOutputLimit !== undefined &&
+        estimatedOutputTokens >= modelOutputLimit
+      ) {
+        reasons.push("output-exceeds");
+        risk = "danger";
+      }
+      // 没 danger 才考虑 warning
+      if (risk !== "danger") {
+        if (
+          modelContextLimit !== undefined &&
+          estimatedInputTokens >= modelContextLimit * 0.8
+        ) {
+          reasons.push("input-near-context");
+          risk = "warning";
+        }
+        if (
+          modelOutputLimit !== undefined &&
+          estimatedOutputTokens >= modelOutputLimit * 0.7
+        ) {
+          reasons.push("near-output-limit");
+          risk = "warning";
+        }
+      }
+    }
+
+    return {
+      channelId: channel.id,
+      channelName: channel.displayName,
+      estimatedOutputTokens,
+      estimatedInputTokens,
+      modelOutputLimit,
+      modelContextLimit,
+      risk,
+      reasons,
+    };
   }
 
   // ---- 结果管理 ----
@@ -295,8 +403,11 @@ export function useTranslatorEngine(deps: EngineDeps) {
     isTranslating,
     // token 估算
     getModelOutputLimit,
+    getModelContextLimit,
     estimateTranslationOutputTokens,
+    estimateTranslationInputTokens,
     getEffectiveMaxTokens,
+    getChannelEstimation,
     // 结果管理
     resetResults,
     removeResultsByChannel,

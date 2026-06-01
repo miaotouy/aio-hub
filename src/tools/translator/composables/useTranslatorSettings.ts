@@ -18,6 +18,7 @@ export const DEFAULT_TRANSLATOR_SETTINGS: TranslatorSettings = {
   defaultTemperature: 0.3,
   customLanguages: [],
   channelSectionCollapsed: false,
+  warnOnOutputOverflow: true,
 };
 
 interface TranslatorSettingsFile extends TranslatorSettings {
@@ -91,6 +92,10 @@ function sanitizeSettings(
     ),
     customLanguages: sanitizeCustomLanguages(value.customLanguages),
     channelSectionCollapsed: value.channelSectionCollapsed === true,
+    warnOnOutputOverflow:
+      value.warnOnOutputOverflow === undefined
+        ? DEFAULT_TRANSLATOR_SETTINGS.warnOnOutputOverflow
+        : value.warnOnOutputOverflow === true,
   };
 }
 

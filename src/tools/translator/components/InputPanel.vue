@@ -35,6 +35,9 @@
         <span class="counter">
           {{ charCount }} 字
           <span v-if="wordCount !== charCount"> · {{ wordCount }} 词</span>
+          <span v-if="estimatedOutputTokens > 0" class="counter-tokens">
+            · ~{{ formatTokens(estimatedOutputTokens) }} tokens 预估
+          </span>
         </span>
       </div>
     </div>
@@ -60,6 +63,29 @@
       />
     </div>
 
+    <!-- 超限预警 Banner：仅在渠道区折叠且有风险时显示，避免与展开态信息重复 -->
+    <div
+      v-if="
+        store.overallRisk.shouldWarn && store.settings.channelSectionCollapsed
+      "
+      class="overflow-banner"
+      :class="`severity-${store.overallRisk.severity}`"
+    >
+      <AlertTriangle class="banner-icon" />
+      <div class="banner-text">
+        <strong>{{ store.overallRisk.title }}</strong>
+        <span>{{ store.overallRisk.description }}</span>
+      </div>
+      <el-button
+        text
+        size="small"
+        class="banner-action"
+        @click="expandChannelSection"
+      >
+        展开渠道
+      </el-button>
+    </div>
+
     <!-- 渠道区：可折叠 -->
     <section class="channel-section">
       <button
@@ -74,6 +100,23 @@
         />
         <span class="section-title">渠道</span>
         <span class="badge">{{ store.activeChannels.length }}</span>
+
+        <!-- 风险统计 chip：仅在统计>0 时显示，danger 优先级高于 warning -->
+        <span
+          v-if="store.riskSummary.danger > 0"
+          class="risk-chip danger"
+          :title="`${store.riskSummary.danger} 个渠道预计输出会被截断`"
+        >
+          {{ store.riskSummary.danger }} 危险
+        </span>
+        <span
+          v-else-if="store.riskSummary.warning > 0"
+          class="risk-chip warning"
+          :title="`${store.riskSummary.warning} 个渠道接近模型上限`"
+        >
+          {{ store.riskSummary.warning }} 警告
+        </span>
+
         <span class="spacer" />
         <el-button
           class="icon-button add-channel"
@@ -89,7 +132,8 @@
           v-for="ch in store.activeChannels"
           :key="ch.id"
           class="pill"
-          :title="ch.displayName"
+          :class="pillRiskClass(ch.id)"
+          :title="pillRiskTooltip(ch)"
         >
           {{ ch.displayName }}
         </span>
@@ -100,29 +144,43 @@
 
       <!-- 展开态：完整渠道列表 -->
       <div v-else class="channel-list">
-        <div
+        <template
           v-for="(channel, index) in store.activeChannels"
           :key="channel.id"
-          class="channel-item"
         >
-          <span class="channel-index">{{ index + 1 }}</span>
-          <LlmModelSelector
-            :model-value="`${channel.profileId}:${channel.modelId}`"
-            :capabilities="modelCapabilities"
-            :disabled="store.isTranslating"
-            placeholder="选择文本模型"
-            popper-class="translator-model-select"
-            @update:model-value="
-              (value) => handleChannelModelChange(channel.id, value)
+          <div class="channel-item">
+            <span class="channel-index">{{ index + 1 }}</span>
+            <LlmModelSelector
+              :model-value="`${channel.profileId}:${channel.modelId}`"
+              :capabilities="modelCapabilities"
+              :disabled="store.isTranslating"
+              placeholder="选择文本模型"
+              popper-class="translator-model-select"
+              @update:model-value="
+                (value) => handleChannelModelChange(channel.id, value)
+              "
+            />
+            <el-button
+              class="icon-button"
+              :icon="X"
+              :disabled="
+                store.activeChannels.length <= 1 || store.isTranslating
+              "
+              @click="store.removeChannel(channel.id)"
+            />
+          </div>
+          <div
+            v-if="
+              estimationOf(channel.id) &&
+              estimationOf(channel.id)!.risk !== 'safe' &&
+              estimationOf(channel.id)!.risk !== 'unknown'
             "
-          />
-          <el-button
-            class="icon-button"
-            :icon="X"
-            :disabled="store.activeChannels.length <= 1 || store.isTranslating"
-            @click="store.removeChannel(channel.id)"
-          />
-        </div>
+            class="channel-estimation"
+            :class="`risk-${estimationOf(channel.id)!.risk}`"
+          >
+            {{ estimationLabel(channel.id) }}
+          </div>
+        </template>
       </div>
     </section>
   </section>
@@ -131,6 +189,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import {
+  AlertTriangle,
   ChevronDown,
   ClipboardPaste,
   FolderOpen,
@@ -150,6 +209,7 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { ModelCapabilities } from "@/types/llm-profiles";
 import TranslatorEditor from "./TranslatorEditor.vue";
 import { useTranslatorStore } from "../composables/useTranslatorStore";
+import type { ChannelEstimation, TranslationChannel } from "../types";
 
 const store = useTranslatorStore();
 const errorHandler = createModuleErrorHandler("tools/translator/input-panel");
@@ -195,9 +255,81 @@ const wordCount = computed(() => {
   return trimmed.split(/\s+/).filter(Boolean).length;
 });
 
+/**
+ * 输入文本的输出 token 预估（与渠道无关，基于全局 outputExpansionFactor）。
+ * 取所有渠道估算项的最大值（同输入下不同渠道结果一致）；空输入时返回 0。
+ */
+const estimatedOutputTokens = computed(() => {
+  const list = store.channelEstimations;
+  if (list.length === 0) return 0;
+  return Math.max(...list.map((est) => est.estimatedOutputTokens));
+});
+
+function formatTokens(value: number) {
+  if (value >= 1000) {
+    return `${(value / 1000).toFixed(value >= 10000 ? 0 : 1)}k`;
+  }
+  return value.toLocaleString();
+}
+
+function estimationOf(channelId: string): ChannelEstimation | undefined {
+  return store.channelEstimations.find((est) => est.channelId === channelId);
+}
+
+function pillRiskClass(channelId: string): string {
+  const est = estimationOf(channelId);
+  if (!est) return "";
+  if (est.risk === "danger") return "risk-danger";
+  if (est.risk === "warning") return "risk-warning";
+  return "";
+}
+
+function pillRiskTooltip(channel: TranslationChannel): string {
+  const est = estimationOf(channel.id);
+  if (!est || est.risk === "safe" || est.risk === "unknown") {
+    return channel.displayName;
+  }
+  const lines: string[] = [channel.displayName];
+  if (est.modelOutputLimit) {
+    lines.push(
+      `预估输出 ${est.estimatedOutputTokens.toLocaleString()} tokens · 模型上限 ${est.modelOutputLimit.toLocaleString()}`
+    );
+  } else if (est.modelContextLimit) {
+    lines.push(
+      `输入 ${est.estimatedInputTokens.toLocaleString()} tokens · context ${est.modelContextLimit.toLocaleString()}`
+    );
+  }
+  lines.push(
+    est.risk === "danger" ? "建议缩短输入或切换大模型" : "接近上限，注意截断"
+  );
+  return lines.join("\n");
+}
+
+function estimationLabel(channelId: string): string {
+  const est = estimationOf(channelId);
+  if (!est) return "";
+  const reason = est.reasons[0];
+  switch (reason) {
+    case "output-exceeds":
+      return `预估输出 ~${est.estimatedOutputTokens.toLocaleString()} / 上限 ${est.modelOutputLimit?.toLocaleString() ?? "?"}（输出会被截断 ⚠）`;
+    case "near-output-limit":
+      return `预估输出 ~${est.estimatedOutputTokens.toLocaleString()} / 上限 ${est.modelOutputLimit?.toLocaleString() ?? "?"}（接近上限，可能截断）`;
+    case "input-exceeds-context":
+      return `输入 ~${est.estimatedInputTokens.toLocaleString()} tokens / context ${est.modelContextLimit?.toLocaleString() ?? "?"}（输入超过 context 窗口 ⚠）`;
+    case "input-near-context":
+      return `输入 ~${est.estimatedInputTokens.toLocaleString()} tokens / context ${est.modelContextLimit?.toLocaleString() ?? "?"}（接近 context 窗口）`;
+    default:
+      return "";
+  }
+}
+
 function toggleCollapsed() {
   store.settings.channelSectionCollapsed =
     !store.settings.channelSectionCollapsed;
+}
+
+function expandChannelSection() {
+  store.settings.channelSectionCollapsed = false;
 }
 
 function handleChannelModelChange(channelId: string, value: string) {
@@ -380,6 +512,84 @@ async function handleEditorDrop(paths: string[]) {
   font-variant-numeric: tabular-nums;
 }
 
+.counter-tokens {
+  color: var(--text-color-light);
+  font-weight: 500;
+}
+
+/* 超限预警 Banner（仅在渠道区折叠态显示） */
+.overflow-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 14px 8px;
+  padding: 8px 12px;
+  border-radius: 7px;
+  border: var(--border-width) solid transparent;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.overflow-banner.severity-warning {
+  background: rgba(
+    var(--el-color-warning-rgb),
+    calc(var(--card-opacity) * 0.12)
+  );
+  border-color: rgba(
+    var(--el-color-warning-rgb),
+    calc(var(--card-opacity) * 0.45)
+  );
+  color: var(--el-color-warning);
+}
+
+.overflow-banner.severity-danger {
+  background: rgba(
+    var(--el-color-danger-rgb),
+    calc(var(--card-opacity) * 0.14)
+  );
+  border-color: rgba(
+    var(--el-color-danger-rgb),
+    calc(var(--card-opacity) * 0.5)
+  );
+  color: var(--el-color-danger);
+}
+
+.banner-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.banner-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.banner-text strong {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.banner-text span {
+  color: var(--text-color-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.banner-action {
+  flex-shrink: 0;
+  color: inherit;
+}
+
 /* 编辑器 */
 .editor-wrapper {
   position: relative;
@@ -473,6 +683,33 @@ async function handleEditorDrop(paths: string[]) {
   font-weight: 700;
 }
 
+/* 渠道折叠头的风险统计 chip */
+.risk-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.risk-chip.warning {
+  background: rgba(
+    var(--el-color-warning-rgb),
+    calc(var(--card-opacity) * 0.15)
+  );
+  color: var(--el-color-warning);
+}
+
+.risk-chip.danger {
+  background: rgba(
+    var(--el-color-danger-rgb),
+    calc(var(--card-opacity) * 0.15)
+  );
+  color: var(--el-color-danger);
+}
+
 .spacer {
   flex: 1;
 }
@@ -515,6 +752,58 @@ async function handleEditorDrop(paths: string[]) {
 .pill.empty {
   color: var(--text-color-light);
   font-style: italic;
+}
+
+/* 折叠态 pill 的风险染色：整个 pill 染色，不塞 icon */
+.pill.risk-warning {
+  background: rgba(
+    var(--el-color-warning-rgb),
+    calc(var(--card-opacity) * 0.12)
+  );
+  border-color: rgba(
+    var(--el-color-warning-rgb),
+    calc(var(--card-opacity) * 0.5)
+  );
+  color: var(--el-color-warning);
+}
+
+.pill.risk-danger {
+  background: rgba(
+    var(--el-color-danger-rgb),
+    calc(var(--card-opacity) * 0.14)
+  );
+  border-color: rgba(
+    var(--el-color-danger-rgb),
+    calc(var(--card-opacity) * 0.55)
+  );
+  color: var(--el-color-danger);
+}
+
+/* 展开态渠道列表下方的估算提示行 */
+.channel-estimation {
+  margin-left: 32px;
+  margin-top: -2px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 1.5;
+  font-weight: 500;
+}
+
+.channel-estimation.risk-warning {
+  background: rgba(
+    var(--el-color-warning-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
+  color: var(--el-color-warning);
+}
+
+.channel-estimation.risk-danger {
+  background: rgba(
+    var(--el-color-danger-rgb),
+    calc(var(--card-opacity) * 0.12)
+  );
+  color: var(--el-color-danger);
 }
 
 .channel-list {

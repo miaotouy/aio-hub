@@ -122,5 +122,40 @@ export interface TranslatorSettings {
    * 输入面板渠道区折叠状态。默认 false（展开），用户主动折叠后跨重启保留。
    */
   channelSectionCollapsed: boolean;
+  /**
+   * 检测到预估输出/输入会超过模型上限时，是否在 UI 提示并弹二次确认。
+   * 默认 true。即使关闭，渠道折叠头的统计/pill 染色等视觉提示仍然显示，
+   * 只是不再阻塞翻译按钮。
+   */
+  warnOnOutputOverflow: boolean;
 }
 
+/** 渠道超限风险等级 */
+export type ChannelOverflowRisk = "safe" | "warning" | "danger" | "unknown";
+
+/** 估算超限原因（用于 tooltip / banner 文案分支） */
+export type ChannelOverflowReason =
+  | "output-exceeds" // 预估输出 >= 模型输出上限
+  | "near-output-limit" // 预估输出在 70%~100% 区间
+  | "input-exceeds-context" // 输入 tokens >= 模型 context 窗口
+  | "input-near-context"; // 输入 tokens 在 80%~100% 区间
+
+export interface ChannelEstimation {
+  channelId: string;
+  channelName: string;
+  /** 估算的输出 tokens（沿用 engine 现有公式） */
+  estimatedOutputTokens: number;
+  /** 估算的输入 tokens（粗估：CJK 1 字 ≈ 1.5 tokens；拉丁文按词数 × 1.3） */
+  estimatedInputTokens: number;
+  /** 模型输出上限（来自 model metadata，可能 undefined） */
+  modelOutputLimit?: number;
+  /**
+   * 模型上下文窗口（input + output 总和上限，可能 undefined）。
+   * 取自 `tokenLimits.contextLength`，缺失时回退到 `contextLengthRange[1]`。
+   */
+  modelContextLimit?: number;
+  /** 综合风险等级 */
+  risk: ChannelOverflowRisk;
+  /** 命中的具体原因（多个时按严重度优先） */
+  reasons: ChannelOverflowReason[];
+}

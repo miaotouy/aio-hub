@@ -124,6 +124,16 @@
 
         <div class="setting-row">
           <div class="setting-label">
+            <span>输出超限预警</span>
+            <span class="setting-desc">
+              估算预计超过模型上限时，弹二次确认；关闭后仍显示视觉提示
+            </span>
+          </div>
+          <el-switch v-model="store.settings.warnOnOutputOverflow" />
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-label">
             <span>结果自动吸底</span>
             <span class="setting-desc">手动向上滚动时会暂停吸底</span>
           </div>

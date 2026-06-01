@@ -184,9 +184,19 @@ graph TD
 
 ### Token 估算
 
-- [`getModelOutputLimit()`](src/tools/translator/composables/useTranslatorEngine.ts:53) 读取模型元数据 `tokenLimits.output`。
-- [`estimateTranslationOutputTokens()`](src/tools/translator/composables/useTranslatorEngine.ts:66)：`字符数 × outputExpansionFactor + 按行数推算的段落预留（512~4096 区间）`，针对「输出比输入长」的语种对。
-- [`getEffectiveMaxTokens()`](src/tools/translator/composables/useTranslatorEngine.ts:75)：在 `channel.maxTokens / 估算 / modelLimit` 三者间取合理上限，最终 clamp 在 `[256, 131072]`。
+- [`getModelOutputLimit()`](src/tools/translator/composables/useTranslatorEngine.ts:63) 读取模型元数据 `tokenLimits.output`。
+- [`getModelContextLimit()`](src/tools/translator/composables/useTranslatorEngine.ts:71) 读取 `tokenLimits.contextLength`，缺失时回退到 `contextLengthRange[1]`，两者皆无返回 `undefined`。
+- [`estimateTranslationOutputTokens()`](src/tools/translator/composables/useTranslatorEngine.ts:85)：`字符数 × outputExpansionFactor + 按行数推算的段落预留（512~4096 区间）`，针对「输出比输入长」的语种对。
+- [`estimateTranslationInputTokens()`](src/tools/translator/composables/useTranslatorEngine.ts:100)：粗估输入 tokens（CJK 1 字 ≈ 1.5 tokens，其他按词数 × 1.3），仅用于事前预警，不参与请求构造。
+- [`getEffectiveMaxTokens()`](src/tools/translator/composables/useTranslatorEngine.ts:113)：在 `channel.maxTokens / 估算 / modelLimit` 三者间取合理上限，最终 clamp 在 `[256, 131072]`。
+
+### 渠道超限风险估算（事前预警）
+
+- [`getChannelEstimation(text, channel)`](src/tools/translator/composables/useTranslatorEngine.ts:135) 综合上述四个数值判定单个渠道的 `ChannelEstimation`：
+  - 阈值规则：输出 ≥ 100% / 输入 ≥ 100% → `danger`；输出 ≥ 70% / 输入 ≥ 80% → `warning`；模型既无 output 也无 context 上限 → `unknown`。
+  - 一个渠道可能命中多条 `reasons`（如同时输出超限 + 输入接近 context），按严重度排序，`danger > warning > safe`。
+- Store 层在 [`channelEstimations`](src/tools/translator/composables/useTranslatorStore.ts:205) 中暴露所有 active 渠道的估算结果；衍生 [`riskSummary`](src/tools/translator/composables/useTranslatorStore.ts:214)（各风险等级计数）与 [`overallRisk`](src/tools/translator/composables/useTranslatorStore.ts:222)（Banner 用的总标题/描述）。
+- [`translate()`](src/tools/translator/composables/useTranslatorStore.ts:306) 在 `warnOnOutputOverflow === true` 且存在 `danger` 渠道时，弹 `ElMessageBox.confirm` 二次确认；用户取消则直接返回，主按钮与编辑器内 Ctrl+Enter 共享此守卫。
 
 ---
 
@@ -355,20 +365,25 @@ modules/translator/
 - **`TranslationHistoryEntry`**：历史快照（详见 [§2.4](#24-翻译历史translationhistoryentry)）。
 - **`TranslatorSettings`**：用户偏好设置，关键字段：
 
-| 字段                      | 默认  | 说明                                               |
-| ------------------------- | ----- | -------------------------------------------------- |
-| `defaultMaxTokens`        | 16384 | 渠道未配置且无法估算时的兜底输出上限               |
-| `autoExpandMaxTokens`     | true  | 是否根据输入长度自动放大 max_tokens                |
-| `outputExpansionFactor`   | 3.0   | 输出膨胀系数（中→英/短→长）                        |
-| `streamingEnabled`        | true  | 流式输出开关                                       |
-| `autoScrollResults`       | true  | 流式时自动吸底（用户手动滚走会暂停）               |
-| `saveHistory`             | true  | 是否落盘历史                                       |
-| `defaultTemperature`      | 0.3   | 渠道未单独配置时的采样温度                         |
-| `customLanguages`         | `[]`  | 用户自定义的语言名（LLM 友好的英文/原名）          |
-| `channelSectionCollapsed` | false | 输入面板渠道区折叠状态（用户手动折叠后跨重启保留） |
+| 字段                      | 默认  | 说明                                                                      |
+| ------------------------- | ----- | ------------------------------------------------------------------------- |
+| `defaultMaxTokens`        | 16384 | 渠道未配置且无法估算时的兜底输出上限                                      |
+| `autoExpandMaxTokens`     | true  | 是否根据输入长度自动放大 max_tokens                                       |
+| `outputExpansionFactor`   | 3.0   | 输出膨胀系数（中→英/短→长）                                               |
+| `streamingEnabled`        | true  | 流式输出开关                                                              |
+| `autoScrollResults`       | true  | 流式时自动吸底（用户手动滚走会暂停）                                      |
+| `saveHistory`             | true  | 是否落盘历史                                                              |
+| `defaultTemperature`      | 0.3   | 渠道未单独配置时的采样温度                                                |
+| `customLanguages`         | `[]`  | 用户自定义的语言名（LLM 友好的英文/原名）                                 |
+| `channelSectionCollapsed` | false | 输入面板渠道区折叠状态（用户手动折叠后跨重启保留）                        |
+| `warnOnOutputOverflow`    | true  | 估算预计超过模型上限时是否弹二次确认；关闭后视觉提示（pill 染色等）仍显示 |
 
 完整默认值见 [`DEFAULT_TRANSLATOR_SETTINGS`](src/tools/translator/composables/useTranslatorSettings.ts:11)。
 
+- **`ChannelEstimation`**：单个渠道的输入/输出 token 预估与超限风险评级。
+  - `risk: "safe" | "warning" | "danger" | "unknown"`；
+  - `reasons: ChannelOverflowReason[]` 命中阈值的具体原因，按严重度排序；
+  - 包含 `estimatedInputTokens` / `estimatedOutputTokens` / `modelOutputLimit` / `modelContextLimit`，供 UI 渲染 tooltip 与估算行。
 - **`TranslatorLanguageCode`**：`"auto" | (string & {})`，保留 IDE 对内置代码的自动补全，又允许任意 string，配合 `customLanguages` 提供完整自定义能力。
 
 ---

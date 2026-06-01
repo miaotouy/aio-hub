@@ -112,22 +112,37 @@ export class KnowledgeProcessor implements ContextProcessor {
     const { agentConfig, messages } = context;
 
     // 1. 扫描占位符
-    let placeholders = scanPlaceholders(messages);
+    const placeholders = scanPlaceholders(messages);
 
-    // 1.5 自动注入逻辑：如果没有找到占位符，但 knowledgeBaseConfig 已启用且开启了保底注入
-    if (placeholders.length === 0) {
-      const kbConfig = agentConfig.knowledgeBaseConfig;
-      if (kbConfig?.enabled && kbConfig.autoInjectIfMacroMissing) {
+    //  - 自动注入逻辑（细粒度版）：按 binding 级别判断
+    //  - 已被手动占位符引用的 binding 跳过自动注入
+    //  - 用户写了无名 `【kb】`（不指定 kbName）视为"全量接管"，所有 binding 都跳过
+    //  - 剩余 binding 才参与自动注入
+    const kbConfig = agentConfig.knowledgeBaseConfig;
+    if (kbConfig?.enabled && kbConfig.autoInjectIfMacroMissing) {
+      const hasUnnamedPlaceholder = placeholders.some((p) => !p.kbName);
+      const referencedKbNames = new Set(
+        placeholders.map((p) => p.kbName).filter((n): n is string => !!n)
+      );
+
+      if (!hasUnnamedPlaceholder) {
         const autoPlaceholders = this.generateAutoPlaceholders(
           kbConfig,
-          messages
+          messages,
+          referencedKbNames
         );
         if (autoPlaceholders.length > 0) {
-          placeholders = autoPlaceholders;
+          placeholders.push(...autoPlaceholders);
           logger.debug("知识库自动注入已触发", {
-            count: autoPlaceholders.length,
+            autoCount: autoPlaceholders.length,
+            manualCount: placeholders.length - autoPlaceholders.length,
+            skippedKbNames: Array.from(referencedKbNames),
           });
         }
+      } else {
+        logger.debug(
+          "存在无名 【kb】 占位符，跳过自动注入（视为用户全量接管）"
+        );
       }
     }
 
@@ -614,12 +629,19 @@ export class KnowledgeProcessor implements ContextProcessor {
    * - 如果有 system 消息：追加到 system 消息末尾（最自然的位置）
    * - 如果没有 system 消息：在目标位置插入一条独立的 user 消息来承载知识库内容，
    *   避免直接污染用户原文（兼容不支持 system 角色的模型）
+   *
+   * 细粒度过滤：
+   * - `excludeKbNames` 集合中的 binding 会被跳过（用户已手动写了 `【kb::xxx】`）
+   * - 这样可以实现"部分手动控制 + 剩余自动注入"的混合模式
    */
   private generateAutoPlaceholders(
     kbConfig: AgentKnowledgeBaseConfig,
-    messages: ProcessableMessage[]
+    messages: ProcessableMessage[],
+    excludeKbNames: Set<string> = new Set()
   ): KBPlaceholder[] {
-    const enabledBindings = kbConfig.bindings.filter((b) => b.enabled);
+    const enabledBindings = kbConfig.bindings.filter(
+      (b) => b.enabled && !excludeKbNames.has(b.kbName)
+    );
     if (enabledBindings.length === 0) return [];
 
     // 构建占位符文本

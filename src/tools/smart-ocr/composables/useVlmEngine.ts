@@ -96,6 +96,10 @@ export function useVlmEngine() {
           ],
         },
       ],
+      inspectorContext: {
+        toolName: "smart-ocr",
+        purpose: "ocr",
+      },
       maxTokens: config.maxTokens ?? 2000,
       temperature: config.temperature ?? 0,
     });

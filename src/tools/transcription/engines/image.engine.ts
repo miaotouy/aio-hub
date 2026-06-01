@@ -169,6 +169,11 @@ export class ImageTranscriptionEngine implements ITranscriptionEngine {
           profileId,
           modelId,
           messages: [{ role: "user", content }],
+          inspectorContext: {
+            toolName: "transcription",
+            sessionId: task.assetId,
+            purpose: "transcribe-image-batch",
+          },
           stream: false,
           temperature,
           maxTokens,
@@ -217,6 +222,11 @@ export class ImageTranscriptionEngine implements ITranscriptionEngine {
         profileId,
         modelId,
         messages: [{ role: "user", content }],
+        inspectorContext: {
+          toolName: "transcription",
+          sessionId: task.assetId,
+          purpose: "transcribe-image",
+        },
         stream: false,
         temperature,
         maxTokens,

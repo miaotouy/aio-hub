@@ -185,6 +185,11 @@ export class VideoTranscriptionEngine implements ITranscriptionEngine {
           ],
         },
       ],
+      inspectorContext: {
+        toolName: "transcription",
+        sessionId: task.assetId,
+        purpose: "transcribe-video",
+      },
       stream: false,
       temperature,
       maxTokens,

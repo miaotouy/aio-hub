@@ -36,6 +36,11 @@ export function useConnectionTest(
       apiKey,
       maxTokens: 10,
       stream: false,
+      // B4.d: 探测性请求标记为 system-probe，便于 Inspector UI 过滤
+      inspectorContext: {
+        toolName: "settings-llm-service",
+        purpose: "system-probe",
+      },
     };
 
     const caps = model.capabilities || {};

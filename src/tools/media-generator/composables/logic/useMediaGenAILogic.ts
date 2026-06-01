@@ -82,6 +82,11 @@ export function useMediaGenAILogic(options: {
         profileId,
         modelId,
         messages: [{ role: "user", content: prompt }],
+        inspectorContext: {
+          toolName: "media-generator",
+          sessionId,
+          purpose: "session-naming",
+        },
         temperature: namingConfig.temperature,
         maxTokens: namingConfig.maxTokens,
       });
@@ -139,6 +144,10 @@ export function useMediaGenAILogic(options: {
         profileId,
         modelId,
         messages: [{ role: "user", content: systemPrompt }],
+        inspectorContext: {
+          toolName: "media-generator",
+          purpose: "prompt-translate",
+        },
         temperature: config.temperature,
         maxTokens: config.maxTokens,
       });

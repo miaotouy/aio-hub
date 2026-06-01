@@ -61,6 +61,10 @@ export async function performGenerateTags(params: {
         profileId,
         modelId,
         messages: [{ role: "user", content: prompt }],
+        inspectorContext: {
+          toolName: "knowledge-base",
+          purpose: "tag-gen",
+        },
         temperature: config.temperature,
         maxTokens: config.maxTokens,
       }),

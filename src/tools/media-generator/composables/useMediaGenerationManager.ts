@@ -302,6 +302,11 @@ export function useMediaGenerationManager() {
 
       const response = await sendRequest({
         ...finalOptions,
+        inspectorContext: {
+          toolName: "media-generator",
+          sessionId: taskId,
+          purpose: "media-gen",
+        },
         signal: controller.signal,
       });
 

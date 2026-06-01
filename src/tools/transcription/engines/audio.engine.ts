@@ -184,6 +184,11 @@ export class AudioTranscriptionEngine implements ITranscriptionEngine {
       profileId,
       modelId,
       messages: [{ role: "user", content }],
+      inspectorContext: {
+        toolName: "transcription",
+        sessionId: task.assetId,
+        purpose: "transcribe-audio",
+      },
       stream: false,
       temperature,
       maxTokens,

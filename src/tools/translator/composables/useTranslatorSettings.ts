@@ -6,7 +6,7 @@ import type { TranslatorSettings } from "../types";
 const logger = createModuleLogger("tools/translator/settings");
 
 const MODULE_NAME = "translator";
-const CONFIG_VERSION = "1.0.0";
+const CONFIG_VERSION = "1.1.0";
 
 export const DEFAULT_TRANSLATOR_SETTINGS: TranslatorSettings = {
   defaultMaxTokens: 16384,
@@ -16,6 +16,8 @@ export const DEFAULT_TRANSLATOR_SETTINGS: TranslatorSettings = {
   autoScrollResults: true,
   saveHistory: true,
   defaultTemperature: 0.3,
+  customLanguages: [],
+  channelSectionCollapsed: false,
 };
 
 interface TranslatorSettingsFile extends TranslatorSettings {
@@ -40,6 +42,21 @@ function clampNumber(value: number, min: number, max: number) {
 function numericOrDefault(value: unknown, fallback: number) {
   const num = Number(value);
   return Number.isFinite(num) ? num : fallback;
+}
+
+function sanitizeCustomLanguages(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const item of value) {
+    if (typeof item !== "string") continue;
+    const trimmed = item.trim();
+    if (!trimmed) continue;
+    if (seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    result.push(trimmed);
+  }
+  return result;
 }
 
 function sanitizeSettings(
@@ -72,6 +89,8 @@ function sanitizeSettings(
       0,
       2
     ),
+    customLanguages: sanitizeCustomLanguages(value.customLanguages),
+    channelSectionCollapsed: value.channelSectionCollapsed === true,
   };
 }
 
@@ -100,7 +119,39 @@ export function useTranslatorSettings() {
   }
 
   function resetSettings() {
-    settings.value = { ...DEFAULT_TRANSLATOR_SETTINGS };
+    settings.value = { ...DEFAULT_TRANSLATOR_SETTINGS, customLanguages: [] };
+  }
+
+  /**
+   * 添加一种自定义语言。
+   * - 自动去除首尾空白；
+   * - 已存在或为空时静默忽略；
+   * - 返回是否实际新增。
+   */
+  function addCustomLanguage(name: string): boolean {
+    const trimmed = name.trim();
+    if (!trimmed) return false;
+    if (settings.value.customLanguages.includes(trimmed)) return false;
+    settings.value = {
+      ...settings.value,
+      customLanguages: [...settings.value.customLanguages, trimmed],
+    };
+    return true;
+  }
+
+  /**
+   * 删除一种自定义语言。
+   * 注意：调用方需要自行处理"该语言正在被预设/输入区引用"的回退逻辑。
+   */
+  function removeCustomLanguage(name: string): boolean {
+    if (!settings.value.customLanguages.includes(name)) return false;
+    settings.value = {
+      ...settings.value,
+      customLanguages: settings.value.customLanguages.filter(
+        (item) => item !== name
+      ),
+    };
+    return true;
   }
 
   // 自动持久化
@@ -118,6 +169,8 @@ export function useTranslatorSettings() {
     initialized,
     initialize,
     resetSettings,
+    addCustomLanguage,
+    removeCustomLanguage,
   };
 }
 

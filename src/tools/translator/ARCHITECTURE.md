@@ -1,6 +1,22 @@
 # 翻译工作台（Translator）架构文档
 
 > 状态：Implementing · 现状描述（最后更新：与当前代码同步）
+> 版本：v2（2026-06）·配套配置 `TRANSLATOR_CONFIG_VERSION = 1.1.0`
+>
+> v2 主要变更（详见 [`docs/Plan/2026-06-ui-rework.md`](docs/Plan/2026-06-ui-rework.md)）：
+>
+> - 输入框从原生 `el-input textarea` 换为 [`TranslatorEditor`](src/tools/translator/components/TranslatorEditor.vue) (CodeMirror 6 + markdown + 搜索 + 跨平台 Mod-Enter)
+> - 新增可分组、可搜索、带"添加自定义语言"入口的 [`LanguageSelect`](src/tools/translator/components/LanguageSelect.vue)
+> - 内置语言库扩到 ~30 种 + 分组（cjk/europe/mideast/south-asia），用户可在设置里管理自定义语言（持久化于 `settings.customLanguages`）
+> - 输入面板新增工具条（剪贴板粘贴 / 从文件读取 / 字数指示）
+> - 渠道区可折叠，折叠状态持久化（`settings.channelSectionCollapsed`）
+> - 主翻译按钮重做：满宽 48px、显眼，翻译中变为"停止全部"
+> - 历史条目加语言徽标
+> - 旧 `"Chinese"` 自动迁移到 `"Chinese (Simplified)"`
+>
+> 阶段二（未完成）：PresetManagerDialog 内的 prompt 编辑器换 TranslatorEditor、文件拖放进编辑器。
+>
+> v1 → v2 历史信息见 git log。
 
 ## 1. 工具定位
 
@@ -98,15 +114,23 @@ status: idle | pending | streaming | completed | aborted | failed;
 
 见 [`DEFAULT_TRANSLATOR_SETTINGS`](src/tools/translator/composables/useTranslatorSettings.ts:11)：
 
-| 字段                    | 默认  | 说明                                 |
-| ----------------------- | ----- | ------------------------------------ |
-| `defaultMaxTokens`      | 16384 | 渠道未配置且无法估算时的兜底输出上限 |
-| `autoExpandMaxTokens`   | true  | 是否根据输入长度自动放大 max_tokens  |
-| `outputExpansionFactor` | 3.0   | 输出膨胀系数（中→英/短→长）          |
-| `streamingEnabled`      | true  | 流式输出开关                         |
-| `autoScrollResults`     | true  | 流式时自动吸底（用户手动滚走会暂停） |
-| `saveHistory`           | true  | 是否落盘历史                         |
-| `defaultTemperature`    | 0.3   | 渠道未单独配置时的采样温度           |
+| 字段                      | 默认  | 说明                                               |
+| ------------------------- | ----- | -------------------------------------------------- |
+| `defaultMaxTokens`        | 16384 | 渠道未配置且无法估算时的兜底输出上限               |
+| `autoExpandMaxTokens`     | true  | 是否根据输入长度自动放大 max_tokens                |
+| `outputExpansionFactor`   | 3.0   | 输出膨胀系数（中→英/短→长）                        |
+| `streamingEnabled`        | true  | 流式输出开关                                       |
+| `autoScrollResults`       | true  | 流式时自动吸底（用户手动滚走会暂停）               |
+| `saveHistory`             | true  | 是否落盘历史                                       |
+| `defaultTemperature`      | 0.3   | 渠道未单独配置时的采样温度                         |
+| `customLanguages`         | `[]`  | 用户自定义的语言名（LLM 友好的英文/原名），见 §3.6 |
+| `channelSectionCollapsed` | false | 输入面板渠道区折叠状态（用户手动折叠后跨重启保留） |
+
+### 3.6 自定义语言（v2 新增）
+
+- 用户可通过 **语言下拉里的 "＋ 添加自定义语言…"** 或 **设置弹窗的"自定义语言"区** 添加任意名称（如 `Klingon`、`Toki Pona`、`Old English`）。
+- 自定义语言以独立分组 `custom` 出现在所有语言下拉中，作为 `{sourceLang}` / `{targetLang}` 占位符直接替换进 prompt。
+- 删除自定义语言时，若当前输入区正在用它：源语言回退到 `auto`，目标语言回退到 `Chinese (Simplified)`；预设里以它为 `defaultSourceLang/defaultTargetLang` 的字段**不会自动改动**，用户需在预设管理器中手动调整。
 
 ## 4. 子模块详解
 
@@ -194,12 +218,18 @@ status: idle | pending | streaming | completed | aborted | failed;
 
 ### 5.2 [`InputPanel.vue`](src/tools/translator/components/InputPanel.vue:1)
 
-- 顶部 `language-row` 是 `select / 互换按钮 / select` 的三列网格，互换按钮在源语言 = `auto` 时禁用（语义上"自动"无法对调）。
-- 文本输入区按 `Ctrl + Enter` 触发翻译（**严格遵守"输入区禁单 Enter 发送"规范**，避免用户换行误发送）。
-- 渠道区域复用主页面的快捷渠道 API（最多 4 个，UI 层硬限制），通过 [`LlmModelSelector`](src/components/common/LlmModelSelector.vue:1) 选模型，并通过 `modelCapabilities` 过滤掉嵌入/重排/图像/视频/音频/音乐类模型。
-- 翻译中显示"停止全部"按钮（调 `store.abortAll`），空闲时显示"翻译"按钮，可用性由 `canTranslate` 派生。
+v2 整体布局自上而下：
+
+1. **语言行**（`panel-header`）：源语言 / 互换按钮 / 目标语言。两个下拉用 [`LanguageSelect`](src/tools/translator/components/LanguageSelect.vue:1)，支持分组、搜索、"＋ 添加自定义语言"。互换按钮在源语言 = `auto` 时禁用。
+2. **工具条**（`editor-toolbar`）：左侧 📋 剪贴板粘贴 / 📂 从文件读取 / 🗑️ 清空；右侧实时字符 / 词数（CJK 直接按字符；带空白拉丁文同时显示词数）。
+   - 剪贴板用 `@tauri-apps/plugin-clipboard-manager.readText()`；已有内容时弹"追加/覆盖"二选一。
+   - 文件读取用 `@tauri-apps/plugin-dialog.open()` + `@tauri-apps/plugin-fs.readTextFile()`；支持 `txt/md/json/srt/vtt/log/csv` 等；大文件（>200K 字符）二次确认；已有内容时弹"覆盖"确认。
+3. **编辑器**（`editor-wrapper` 包 [`TranslatorEditor`](src/tools/translator/components/TranslatorEditor.vue:1)）：CodeMirror 6 + `markdown()` + `search({ top: true })` 汉化搜索面板 + 跨平台 `Mod-Enter` 提交。外层 wrapper 用 `:focus-within` 实现主题色聚焦边框。
+4. **渠道区**（`channel-section`）：可折叠的 section header（持久化于 `settings.channelSectionCollapsed`）。展开态用完整 `LlmModelSelector` 行，折叠态用紧凑徽章 pills 展示已选模型名。主页面渠道上限仍是 UI 硬编码 4。
+5. **主操作按钮**（`primary-action`）：满宽 48px 的大按钮，翻译中变形为 danger 风格"停止全部"，按钮内附 `Ctrl + Enter` 快捷键提示。
 
 > 注意：主页面的渠道上限是 UI 硬编码 4，预设管理器是 6（见下文），来自不同业务策略，是有意为之。
+> 注意：编辑器内的 Ctrl+F 会被 `stopPropagation` 拦下，不会冒泡到外层全局搜索。
 
 ### 5.3 [`ResultsPanel.vue`](src/tools/translator/components/ResultsPanel.vue:1)
 
@@ -229,6 +259,8 @@ status: idle | pending | streaming | completed | aborted | failed;
 
 直接绑定 `store.settings.*` 双向更新；输出膨胀系数行在 `autoExpandMaxTokens === false` 时整行变灰但不锁死（仍可数值调节，但不参与计算），符合"功能开关不锁死管理类 UI"的规范。
 
+v2 新增"自定义语言"区块：用 `el-tag closable` 网格展示 `store.settings.customLanguages`，点 ✕ 弹删除确认（带"会回退当前输入语言、不会改动预设"提示）；底部 ＋ 添加按钮复用同一段 `ElMessageBox.prompt` 校验逻辑（去重 + 长度 ≤64）。
+
 ### 5.6 [`HistoryDrawer.vue`](src/tools/translator/components/HistoryDrawer.vue:1)
 
 - 工具条：搜索（同时匹配原文与所有渠道译文）+ 预设过滤 + 计数 + 清空全部。
@@ -249,9 +281,10 @@ modules/translator/
   └─ history.json       // { list, version }
 ```
 
-- 三份文件 `version` 当前都是 `1.0.0`（[`TRANSLATOR_CONFIG_VERSION`](src/tools/translator/composables/useTranslatorSettings.ts:123)）。
+- 三份文件 `version` 当前都是 `1.1.0`（[`TRANSLATOR_CONFIG_VERSION`](src/tools/translator/composables/useTranslatorSettings.ts:9)）。
 - 防抖：settings 400ms / presets 400ms / history 600ms。
 - 历史 `clearHistory` 走立即落盘，绕过防抖。
+- v1.0.0 → v1.1.0 迁移：[`migrateLegacyPresets()`](src/tools/translator/composables/useTranslatorPresets.ts:1) 在加载阶段把旧的 `"Chinese"` 映射为 `"Chinese (Simplified)"`，保证默认语言与新内置库一致；其他字段无破坏性变更。
 
 ## 7. 与外部基础设施的耦合点
 

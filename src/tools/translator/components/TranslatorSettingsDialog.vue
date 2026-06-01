@@ -85,6 +85,40 @@
 
       <section class="settings-section">
         <div class="section-heading">
+          <span>自定义语言</span>
+          <span class="section-desc"> 这些语言会出现在所有翻译下拉中 </span>
+        </div>
+
+        <div class="custom-langs">
+          <el-tag
+            v-for="name in store.settings.customLanguages"
+            :key="name"
+            class="custom-lang-tag"
+            closable
+            type="info"
+            @close="handleRemoveCustomLang(name)"
+          >
+            {{ name }}
+          </el-tag>
+          <span
+            v-if="store.settings.customLanguages.length === 0"
+            class="empty-langs"
+          >
+            还没有自定义语言。点击右侧 + 添加。
+          </span>
+          <el-button
+            class="add-lang-btn"
+            :icon="Plus"
+            size="small"
+            @click="handleAddCustomLang"
+          >
+            添加
+          </el-button>
+        </div>
+      </section>
+
+      <section class="settings-section">
+        <div class="section-heading">
           <span>界面与记录</span>
         </div>
 
@@ -134,7 +168,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { ElMessageBox } from "element-plus";
-import { RotateCcw, Trash2 } from "lucide-vue-next";
+import { Plus, RotateCcw, Trash2 } from "lucide-vue-next";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import { customMessage } from "@/utils/customMessage";
 import { useTranslatorStore } from "../composables/useTranslatorStore";
@@ -157,6 +191,55 @@ const dialogVisible = computed({
 function handleReset() {
   store.resetSettings();
   customMessage.success("翻译设置已恢复默认");
+}
+
+async function handleAddCustomLang() {
+  try {
+    const { value } = await ElMessageBox.prompt(
+      "填入 LLM 能理解的英文名或原名，例如：Klingon、Toki Pona、Old English。",
+      "添加自定义语言",
+      {
+        confirmButtonText: "添加",
+        cancelButtonText: "取消",
+        inputPlaceholder: "例如：Klingon",
+        inputValidator: (input) => {
+          const v = (input || "").trim();
+          if (!v) return "请输入语言名称";
+          if (v.length > 64) return "名称过长（≤64 字符）";
+          if (store.settings.customLanguages.includes(v))
+            return "该自定义语言已存在";
+          return true;
+        },
+        lockScroll: false,
+      }
+    );
+    const name = (value as string).trim();
+    if (!name) return;
+    if (store.addCustomLanguage(name)) {
+      customMessage.success(`已添加：${name}`);
+    }
+  } catch {
+    /* user cancelled */
+  }
+}
+
+async function handleRemoveCustomLang(name: string) {
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除自定义语言 "${name}" 吗？正在使用它的输入框会回退到默认语言；预设里以它为默认的字段不会自动改动。`,
+      "删除自定义语言",
+      {
+        confirmButtonText: "删除",
+        cancelButtonText: "取消",
+        type: "warning",
+        lockScroll: false,
+      }
+    );
+    store.removeCustomLanguage(name);
+    customMessage.success(`已删除：${name}`);
+  } catch {
+    /* user cancelled */
+  }
 }
 
 async function handleClearHistory() {
@@ -246,6 +329,33 @@ async function handleClearHistory() {
 
 :deep(.el-input-number) {
   width: 156px;
+}
+
+.custom-langs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 8px;
+  background: var(--input-bg);
+  min-height: 52px;
+}
+
+.custom-lang-tag {
+  font-size: 12px;
+}
+
+.empty-langs {
+  flex: 1;
+  color: var(--text-color-light);
+  font-size: 12px;
+  font-style: italic;
+}
+
+.add-lang-btn {
+  margin-left: auto;
 }
 </style>
 

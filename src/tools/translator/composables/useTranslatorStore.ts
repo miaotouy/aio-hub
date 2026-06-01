@@ -228,10 +228,29 @@ export const useTranslatorStore = defineStore("translator", () => {
     }
   }
 
+  /**
+   * 删除自定义语言。
+   * 副作用：如果当前输入区正在使用该语言，回退到内置默认（中文简体）。
+   * 预设里以它为 default 的字段保持不动（避免误改预设；用户可在预设管理器手动改）。
+   */
+  function removeCustomLanguage(name: string) {
+    const removed = settingsModule.removeCustomLanguage(name);
+    if (!removed) return;
+    const FALLBACK: TranslatorLanguageCode = "Chinese (Simplified)";
+    if (sourceLang.value === name) {
+      sourceLang.value = "auto";
+    }
+    if (targetLang.value === name) {
+      targetLang.value = FALLBACK;
+    }
+  }
+
   return {
     // ---- settings ----
     settings: settingsModule.settings,
     resetSettings: settingsModule.resetSettings,
+    addCustomLanguage: settingsModule.addCustomLanguage,
+    removeCustomLanguage,
 
     // ---- presets ----
     presets: presetsModule.presets,

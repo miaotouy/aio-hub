@@ -391,7 +391,7 @@ async function handleRetry(channelId: string) {
   gap: 8px;
   padding: 10px 12px;
   border-bottom: var(--border-width) solid var(--border-color);
-  background: rgba(var(--card-bg-rgb, 255, 255, 255), 0.04);
+  background: color-mix(in srgb, var(--primary-color) 4%, transparent);
 }
 
 .channel-info {

@@ -96,7 +96,7 @@ function buildDefaultPresets(profiles: LlmProfile[]): TranslatorPreset[] {
       icon: "Languages",
       channels: makeChannels(2),
       defaultSourceLang: "auto",
-      defaultTargetLang: "Chinese",
+      defaultTargetLang: "Chinese (Simplified)",
       prompt: DEFAULT_PROMPT,
     },
     {
@@ -105,7 +105,7 @@ function buildDefaultPresets(profiles: LlmProfile[]): TranslatorPreset[] {
       icon: "BookOpen",
       channels: makeChannels(3),
       defaultSourceLang: "auto",
-      defaultTargetLang: "Chinese",
+      defaultTargetLang: "Chinese (Simplified)",
       prompt: ACADEMIC_PROMPT,
     },
     {
@@ -114,10 +114,29 @@ function buildDefaultPresets(profiles: LlmProfile[]): TranslatorPreset[] {
       icon: "Code2",
       channels: makeChannels(2),
       defaultSourceLang: "auto",
-      defaultTargetLang: "Chinese",
+      defaultTargetLang: "Chinese (Simplified)",
       prompt: CODE_PROMPT,
     },
   ];
+}
+
+/**
+ * v1.0.0 → v1.1.0 迁移：把旧的笼统 "Chinese" 映射到 "Chinese (Simplified)"。
+ * 同步修复历史里残留的旧 code，确保和新内置库一致。
+ */
+function migrateLegacyLanguageCode(
+  code: TranslatorLanguageCode
+): TranslatorLanguageCode {
+  if (code === "Chinese") return "Chinese (Simplified)";
+  return code;
+}
+
+function migrateLegacyPresets(presets: TranslatorPreset[]): TranslatorPreset[] {
+  return presets.map((preset) => ({
+    ...preset,
+    defaultSourceLang: migrateLegacyLanguageCode(preset.defaultSourceLang),
+    defaultTargetLang: migrateLegacyLanguageCode(preset.defaultTargetLang),
+  }));
 }
 
 interface PresetsDeps {
@@ -147,10 +166,11 @@ export function useTranslatorPresets(deps: PresetsDeps) {
     isLoading.value = true;
     try {
       const file = await presetsManager.load();
-      const restored =
+      const rawRestored =
         Array.isArray(file.presets) && file.presets.length > 0
           ? file.presets
           : buildDefaultPresets(enabledProfiles.value);
+      const restored = migrateLegacyPresets(rawRestored);
       presets.value = restored;
 
       const desiredActiveId =

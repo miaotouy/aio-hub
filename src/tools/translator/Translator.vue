@@ -54,6 +54,15 @@
           :title="entry.sourceText"
           @click="store.loadHistoryEntry(entry.id)"
         >
+          <span class="history-lang">
+            <span class="lang-code">{{
+              shortLangLabel(entry.sourceLang)
+            }}</span>
+            <ArrowRight class="lang-arrow" />
+            <span class="lang-code">{{
+              shortLangLabel(entry.targetLang)
+            }}</span>
+          </span>
           <span class="history-text">{{ entry.sourceText }}</span>
           <span class="history-count">{{ entry.results.length }}</span>
         </button>
@@ -78,6 +87,7 @@
 import { onMounted, ref } from "vue";
 import type { Component } from "vue";
 import {
+  ArrowRight,
   BookOpen,
   Bot,
   Briefcase,
@@ -104,6 +114,8 @@ import TranslatorSettingsDialog from "./components/TranslatorSettingsDialog.vue"
 import PresetManagerDialog from "./components/PresetManagerDialog.vue";
 import HistoryDrawer from "./components/HistoryDrawer.vue";
 import { useTranslatorStore } from "./composables/useTranslatorStore";
+import { getLanguageLabel } from "./constants";
+import type { TranslatorLanguageCode } from "./types";
 
 const store = useTranslatorStore();
 const settingsVisible = ref(false);
@@ -131,6 +143,17 @@ const presetIconMap: Record<string, Component> = {
 
 function getPresetIcon(icon?: string) {
   return presetIconMap[icon || "Languages"] || Languages;
+}
+
+/**
+ * 历史条目语言徽标用的精简 label：
+ * - auto → "自动"
+ * - 内置/自定义语言 → 取 label 的前 2 个字符
+ */
+function shortLangLabel(code: TranslatorLanguageCode) {
+  if (code === "auto") return "自动";
+  const full = getLanguageLabel(code, store.settings.customLanguages);
+  return full.slice(0, 2);
 }
 
 onMounted(() => {
@@ -258,7 +281,7 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  max-width: 220px;
+  max-width: 260px;
   height: 30px;
   border: var(--border-width) solid var(--border-color);
   border-radius: 7px;
@@ -268,6 +291,30 @@ onMounted(() => {
   font: inherit;
   font-size: 12px;
   cursor: pointer;
+}
+
+.history-lang {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+  color: var(--primary-color);
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.lang-code {
+  font-feature-settings: "tnum";
+}
+
+.lang-arrow {
+  width: 10px;
+  height: 10px;
+  opacity: 0.85;
 }
 
 .history-item:hover {

@@ -1,17 +1,26 @@
-export type TranslatorLanguageCode =
-  | "auto"
-  | "Chinese"
-  | "English"
-  | "Japanese"
-  | "Korean"
-  | "French"
-  | "German"
-  | "Spanish"
-  | "Russian";
+/**
+ * 翻译目标语言代码。
+ * - `"auto"`: 自动检测（仅源语言可选）
+ * - 内置代码：见 BUILTIN_TRANSLATOR_LANGUAGES
+ * - 自定义：任意字符串（直接作为 prompt 占位符替换）
+ *
+ * 使用 `(string & {})` 既保留 IDE 对内置代码的自动补全，又允许任意 string。
+ */
+export type TranslatorLanguageCode = "auto" | (string & {});
+
+/** 语言分组：用于下拉里 el-option-group 分组渲染 */
+export type TranslatorLanguageGroup =
+  | "meta"
+  | "cjk"
+  | "europe"
+  | "mideast"
+  | "south-asia"
+  | "custom";
 
 export interface TranslatorLanguageOption {
   label: string;
   value: TranslatorLanguageCode;
+  group?: TranslatorLanguageGroup;
 }
 
 /** 翻译渠道：一个 LLM Profile + Model 的组合 */
@@ -104,5 +113,14 @@ export interface TranslatorSettings {
   saveHistory: boolean;
   /** 默认采样温度（渠道未单独配置时使用） */
   defaultTemperature: number;
+  /**
+   * 用户自定义的语言名（LLM 友好的英文/原名，如 "Klingon"、"Toki Pona"）。
+   * 会出现在所有翻译下拉中，并作为 prompt 占位符直接替换。
+   */
+  customLanguages: string[];
+  /**
+   * 输入面板渠道区折叠状态。默认 false（展开），用户主动折叠后跨重启保留。
+   */
+  channelSectionCollapsed: boolean;
 }
 

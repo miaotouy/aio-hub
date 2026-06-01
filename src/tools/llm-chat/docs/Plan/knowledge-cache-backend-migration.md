@@ -417,8 +417,9 @@ private extractContextParts(context: PipelineContext): {
 
 **边界确认**：
 
-- 当前正在发送的用户消息需要确认在 pipeline 早期是否已被标记为 `session_history`。如未标记，需顺手在消息组装阶段（`core/context-builder/` 或调用方）补上。
-- 若上游标记不全（如旧数据未带 `sourceType`），可在过滤后做兜底：**若 `historyOnly` 为空但 `messages` 中存在 user 消息，回退为旧逻辑**（仅一次告警日志）。
+- [`session-loader.ts`](../../core/context-processors/session-loader.ts) 在 primary pipeline 阶段就为每一条历史消息节点打上 `sourceType: "session_history"`（包括 pending input 虚拟节点）。该字段远早于知识库出现，是会话消息的通用元数据。
+- 当前正在发送的用户消息以 pending input 形式注入，也带 `session_history` 标记，因此严格过滤是安全的。
+- **不需要做兜底**：若过滤后为空，说明 primary pipeline 上游出了问题，应该暴露而非隐藏（兜底回退到全量消息反而会重新引入预设污染，违背本次改造目标）。
 
 ### 2.3 设置项调整
 
@@ -458,8 +459,8 @@ retrievalCacheMaxItems: number;
 
 ## 4. 验证清单
 
-- [ ] `cargo check` 后端通过
-- [ ] `bun run check:frontend` 前端通过
+- [-] `cargo check` 后端通过
+- [-] `bun run check:frontend` 前端通过
 - [ ] 同一会话连发两条相同的话，第二条命中后端缓存（日志可见）
 - [ ] **跨会话**发相同的话，能命中缓存
 - [ ] 改 agent 的 `kb binding`/`limit`/`minScore` 后，原 cache key 失效（不命中）
@@ -480,11 +481,11 @@ retrievalCacheMaxItems: number;
 
 ## 6. 风险与回滚
 
-| 风险                                     | 影响                              | 缓解                                 |
-| ---------------------------------------- | --------------------------------- | ------------------------------------ |
-| 后端缓存被错误 key 命中（哈希碰撞）      | 返回错误结果                      | SHA-256 概率可忽略                   |
-| `extractContextParts` 修复后查询语义改变 | 旧 cache key 全部失效，需重新积累 | 一次性事件，可接受                   |
-| `sourceType` 未标记的旧消息漏判          | 部分会话查询变空                  | 兜底回退到旧逻辑 + 告警日志          |
-| 后端服务异常导致缓存调用失败             | 降级为不缓存（每次实查）          | 薄壳函数已 `try/catch`，不阻塞主流程 |
+| 风险                                     | 影响                              | 缓解                                  |
+| ---------------------------------------- | --------------------------------- | ------------------------------------- |
+| 后端缓存被错误 key 命中（哈希碰撞）      | 返回错误结果                      | SHA-256 概率可忽略                    |
+| `extractContextParts` 修复后查询语义改变 | 旧 cache key 全部失效，需重新积累 | 一次性事件，可接受                    |
+| `sourceType` 未标记的旧消息漏判          | 部分会话查询变空                  | session-loader 强制标记，不存在此风险 |
+| 后端服务异常导致缓存调用失败             | 降级为不缓存（每次实查）          | 薄壳函数已 `try/catch`，不阻塞主流程  |
 
 **回滚方案**：保留旧 `KBSessionCache` 代码到一个 `legacy/` 子目录，通过设置开关切换前后端缓存（如果担心首次上线风险）。本计划默认不引入开关，直接替换。

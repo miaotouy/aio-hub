@@ -308,7 +308,7 @@ export interface ChatSettings {
     defaultEngineId: string;
     /** Embedding 向量缓存最大条目数 */
     embeddingCacheMaxItems: number;
-    /** 检索结果缓存最大条目数 */
+    /** 检索结果缓存最大条目数（全局共享，不再按 session 隔离） */
     retrievalCacheMaxItems: number;
   };
 }
@@ -467,6 +467,6 @@ export const DEFAULT_SETTINGS: ChatSettings = {
   knowledgeBase: {
     defaultEngineId: "vector",
     embeddingCacheMaxItems: 200,
-    retrievalCacheMaxItems: 30,
+    retrievalCacheMaxItems: 200,
   },
 };

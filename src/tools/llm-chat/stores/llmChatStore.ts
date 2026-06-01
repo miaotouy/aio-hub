@@ -34,10 +34,7 @@ import type { PendingInputData } from "../types/context";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { Asset } from "@/types/asset-management";
 import { createModuleLogger } from "@utils/logger";
-import {
-  clearSessionCache,
-  clearAllCaches,
-} from "../core/context-utils/knowledge-cache";
+import { clearAllRetrievalCache } from "../core/context-utils/knowledge-cache";
 
 const logger = createModuleLogger("llm-chat/store");
 
@@ -421,7 +418,6 @@ export const useLlmChatStore = defineStore("llmChat", () => {
         }
       }
 
-      clearSessionCache(sessionId);
       persistSessions();
     });
   }
@@ -480,7 +476,6 @@ export const useLlmChatStore = defineStore("llmChat", () => {
         await storage.deleteSession(sessionId);
         sessionIndexMap.value.delete(sessionId);
         sessionDetailMap.value.delete(sessionId);
-        clearSessionCache(sessionId);
       }
 
       currentSessionId.value = nextCurrentSessionId;
@@ -774,7 +769,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     sessionDetailMap.value.clear();
     currentSessionId.value = null;
     persistSessions();
-    await clearAllCaches();
+    await clearAllRetrievalCache();
     const sessionManager = useSessionManager();
     sessionManager.clearAllSessions();
     logger.info("清空所有会话");

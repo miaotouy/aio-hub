@@ -15,9 +15,9 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 #[cfg(debug_assertions)]
 use tauri::image::Image;
-use tauri::{Emitter, Manager};
 #[cfg(target_os = "linux")]
 use tauri::Listener;
+use tauri::{Emitter, Manager};
 use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_log::{Target, TargetKind, TimezoneStrategy};
 use tokio_util::sync::CancellationToken;
@@ -727,6 +727,10 @@ pub fn run() {
             knowledge::kb_get_embedding_cache,
             knowledge::kb_set_embedding_cache,
             knowledge::kb_clear_embedding_cache,
+            knowledge::kb_retrieval_cache_get,
+            knowledge::kb_retrieval_cache_set,
+            knowledge::kb_retrieval_cache_clear,
+            knowledge::kb_retrieval_cache_stats,
             knowledge::kb_search,
             knowledge::kb_upsert_entry,
             knowledge::kb_delete_entry,

@@ -5,9 +5,9 @@ import { searchKnowledge } from "../../services/knowledge-service";
 import type { SearchResult } from "../../../knowledge-base/types/search";
 import type { ChatAgent, AgentKnowledgeBaseConfig } from "../../types/agent";
 import {
-  TurnRecord,
-  getSessionRetrievalCache,
-  getSessionHistory,
+  type RetrievalCacheInput,
+  getRetrievalCache,
+  setRetrievalCache,
 } from "../context-utils/knowledge-cache";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
@@ -150,21 +150,14 @@ export class KnowledgeProcessor implements ContextProcessor {
       return;
     }
 
-    // 初始化缓存与历史（模块级持久化，跨请求存活）
     const { settings } = useChatSettings();
-    const sessionId = context.detail.id;
-    const sessionCache = getSessionRetrievalCache(
-      sessionId,
-      settings.value.knowledgeBase.retrievalCacheMaxItems
-    );
-    const history = getSessionHistory(sessionId);
 
     logger.debug("发现知识库占位符", { count: placeholders.length });
 
     // 2. 遍历占位符并处理
     for (const ph of placeholders) {
       // 检查激活模式
-      if (!this.shouldActivate(ph, context, history)) {
+      if (!this.shouldActivate(ph, context)) {
         const msg = messages[ph.messageIndex];
         if (typeof msg.content === "string") {
           msg.content = msg.content.replace(ph.raw, ""); // 未激活则移除占位符
@@ -186,10 +179,6 @@ export class KnowledgeProcessor implements ContextProcessor {
           (agentConfig.knowledgeSettings as any)?.aggregation?.enableCache ??
           false;
 
-        // 缓存 key：基于 user + AI 文本组合
-        const cacheKey = `${userText}|||${aiText}`;
-        let vector: number[] | null = null;
-
         // 确定最终使用的引擎 ID (优先级: 宏参数 > Agent 默认 > 全局默认)
         const engineId =
           ph.engineId ||
@@ -205,16 +194,49 @@ export class KnowledgeProcessor implements ContextProcessor {
         const effectiveComboId = kbStore.config.defaultEmbeddingModel;
         const pureModelId = getPureModelId(effectiveComboId);
 
-        // 1. 精确文本匹配缓存（完全一致才命中）
-        let cached = enableCache ? sessionCache.findByText(cacheKey) : null;
+        // 从 agent 配置中获取已启用的知识库 ID 列表
+        const kbConfig = agentConfig.knowledgeBaseConfig;
+        let kbIds: string[] = [];
+        if (kbConfig?.enabled && kbConfig.bindings) {
+          const enabledBindings = kbConfig.bindings.filter((b) => b.enabled);
+          if (ph.kbName) {
+            // 如果占位符指定了知识库名称，只匹配对应的 kbId
+            const matched = enabledBindings.find((b) => b.kbName === ph.kbName);
+            if (matched) kbIds = [matched.kbId];
+          } else {
+            // 未指定名称时使用所有已启用的知识库
+            kbIds = enabledBindings.map((b) => b.kbId);
+          }
+        }
+
+        const finalLimit = ph.limit || knowledgeSettings?.defaultLimit || 5;
+        const finalMinScore =
+          ph.minScore || knowledgeSettings?.defaultMinScore || 0.3;
+
+        const cacheInput: RetrievalCacheInput = {
+          query: `${userText}|||${aiText}`,
+          kbIds,
+          tags: [],
+          limit: finalLimit,
+          minScore: finalMinScore,
+          engineId,
+          modelId: pureModelId,
+        };
+
+        // 1. 后端全局缓存（完全一致才命中）
+        const cached = enableCache ? await getRetrievalCache(cacheInput) : null;
 
         if (cached) {
-          logger.debug("命中知识库检索缓存 (精确文本匹配)", {
-            cacheKey: cacheKey.slice(0, 80),
+          logger.debug("命中后端 RAG 检索缓存", {
+            query: cacheInput.query.slice(0, 80),
+            kbIds,
+            engineId,
+            modelId: pureModelId,
           });
           results = cached.results;
-          vector = cached.vector || null;
         } else {
+          let vector: number[] | null = null;
+
           // 2. 查询预处理：只对 userText 执行清洗和 Tag 匹配
           //    AI 文本不参与 Tag 匹配（避免 AI 回复中的噪音词误触发标签）
           const { cleanedQuery, matchedTags } = preprocessQuery(userText, {
@@ -240,43 +262,25 @@ export class KnowledgeProcessor implements ContextProcessor {
             );
           }
 
-          // 从 agent 配置中获取已启用的知识库 ID 列表
-          const kbConfig = agentConfig.knowledgeBaseConfig;
-          let kbIds: string[] = [];
-          if (kbConfig?.enabled && kbConfig.bindings) {
-            const enabledBindings = kbConfig.bindings.filter((b) => b.enabled);
-            if (ph.kbName) {
-              // 如果占位符指定了知识库名称，只匹配对应的 kbId
-              const matched = enabledBindings.find(
-                (b) => b.kbName === ph.kbName
-              );
-              if (matched) kbIds = [matched.kbId];
-            } else {
-              // 未指定名称时使用所有已启用的知识库
-              kbIds = enabledBindings.map((b) => b.kbId);
-            }
-          }
-
           // 执行检索（传入预处理提取的标签）
           results = await searchKnowledge({
             query: queryTextForSearch,
             kbIds,
             tags: matchedTags.length > 0 ? matchedTags : undefined,
             vector: vector || undefined,
-            limit: ph.limit || knowledgeSettings?.defaultLimit || 5,
-            minScore: ph.minScore || knowledgeSettings?.defaultMinScore || 0.3,
+            limit: finalLimit,
+            minScore: finalMinScore,
             engineId: engineId,
             modelId: pureModelId,
           });
 
           // 存入缓存
           if (enableCache) {
-            sessionCache.add({
-              query: cacheKey,
-              vector: vector || undefined,
-              results,
-              timestamp: Date.now(),
-            });
+            await setRetrievalCache(
+              cacheInput,
+              { results, vector },
+              settings.value.knowledgeBase.retrievalCacheMaxItems
+            );
           }
         }
 
@@ -300,17 +304,6 @@ export class KnowledgeProcessor implements ContextProcessor {
             }
           }
           results = filtered;
-        }
-
-        // 保存到历史 (用于调试/监控，不再用于聚合)
-        history.push({
-          results,
-          timestamp: Date.now(),
-          query: userText,
-        });
-        // 保留最近 10 轮历史记录用于调试
-        if (history.length > 10) {
-          history.shift();
         }
       }
 
@@ -338,11 +331,7 @@ export class KnowledgeProcessor implements ContextProcessor {
   /**
    * 检查占位符是否应该激活
    */
-  private shouldActivate(
-    ph: KBPlaceholder,
-    context: PipelineContext,
-    _history: TurnRecord[]
-  ): boolean {
+  private shouldActivate(ph: KBPlaceholder, context: PipelineContext): boolean {
     const { agentConfig, messages } = context;
     const settings = agentConfig.knowledgeSettings;
 
@@ -484,11 +473,10 @@ export class KnowledgeProcessor implements ContextProcessor {
   }
 
   /**
-   /**
-    * 从对话上下文中分别提取 User 和 AI 文本（向量空间融合策略）
-    *
-    * 不在文本层面拼接角色标记，而是分别提取 → 分别净化 → 分别 embed → 向量空间加权平均。
-    */
+   * 从对话上下文中分别提取 User 和 AI 文本（向量空间融合策略）
+   *
+   * 不在文本层面拼接角色标记，而是分别提取 → 分别净化 → 分别 embed → 向量空间加权平均。
+   */
   private extractContextParts(context: PipelineContext): {
     userText: string;
     aiText: string;
@@ -500,15 +488,21 @@ export class KnowledgeProcessor implements ContextProcessor {
       (agentConfig.knowledgeSettings as any)?.aggregation?.contextWindow ??
       1;
 
-    // 从消息列表末尾向前，按"轮"提取
+    // session-loader 会为每一条历史消息节点打上 sourceType: "session_history"，
+    // 因此这里严格按此标签过滤即可，不需要兜底——若过滤后为空，说明上游出错，应当暴露
+    const historyOnly = messages.filter(
+      (m) => m.sourceType === "session_history"
+    );
+
+    // 从真实历史消息列表末尾向前，按"轮"提取
     const userParts: string[] = [];
     const aiParts: string[] = [];
-    let i = messages.length - 1;
+    let i = historyOnly.length - 1;
     let roundCount = 0;
 
     while (i >= 0 && roundCount < windowSize) {
       // 向前找到一条 user 消息
-      while (i >= 0 && messages[i].role !== "user") {
+      while (i >= 0 && historyOnly[i].role !== "user") {
         i--;
       }
       if (i < 0) break;
@@ -516,14 +510,14 @@ export class KnowledgeProcessor implements ContextProcessor {
       const userIdx = i;
 
       // 收集 user 消息文本
-      const userContent = messages[userIdx].content;
+      const userContent = historyOnly[userIdx].content;
       if (typeof userContent === "string" && userContent.trim()) {
         userParts.unshift(userContent.trim());
       }
 
       // 收集紧随其后的 assistant/tool 消息文本
-      for (let j = userIdx + 1; j < messages.length; j++) {
-        const msg = messages[j];
+      for (let j = userIdx + 1; j < historyOnly.length; j++) {
+        const msg = historyOnly[j];
         if (msg.role === "user") break;
         if (typeof msg.content !== "string") continue;
 

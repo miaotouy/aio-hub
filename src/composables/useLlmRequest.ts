@@ -16,6 +16,8 @@ import { TimeoutError, isAbortError, isTimeoutError } from "../llm-apis/common";
 import { adapters } from "../llm-apis/adapters";
 import { filterParametersByCapabilities } from "../llm-apis/request-builder";
 import type { LlmProfile } from "../types/llm-profiles";
+import { inspectorHookRegistry } from "@/tools/llm-inspector/core/hookRegistry";
+import type { InspectorContextMetadata } from "@/tools/llm-inspector/types/hooks";
 
 const logger = createModuleLogger("LlmRequest");
 const errorHandler = createModuleErrorHandler("LlmRequest");
@@ -57,6 +59,35 @@ export function useLlmRequest() {
       options.messages = [
         { role: "user", content: (options as MediaGenerationOptions).prompt! },
       ];
+    }
+
+    // ============ LLM Inspector 上下文透传（B3）============
+    // 自动补全 requestId（若调用方未传），并合并 inspectorContext 后写入
+    // hookRegistry 的 contextStore，供 fetchWithTimeout 通过 X-Request-ID
+    // header 反查。开关 OFF 时跳过整个写入流程，零开销。
+    // 注意：requestId 必须在调用 adapter 之前确定，因为 buildOpenAiHeaders
+    // 等会把它放入 X-Request-ID header。
+    const captureInspector = inspectorHookRegistry.shouldCaptureInternal();
+    let inspectorRequestId: string | undefined;
+    if (captureInspector) {
+      // 优先复用调用方已生成的 requestId（可能用于主动停止），否则生成新的
+      if (!options.requestId) {
+        options.requestId =
+          typeof crypto !== "undefined" && "randomUUID" in crypto
+            ? crypto.randomUUID()
+            : `req-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      }
+      inspectorRequestId = options.requestId;
+
+      // 合并：调用方传的 inspectorContext（toolName/sessionId/purpose 等）
+      // + 运行时自动补的 profileId/modelId/requestId
+      const mergedContext: InspectorContextMetadata = {
+        ...(options.inspectorContext || {}),
+        profileId: options.profileId,
+        modelId: options.modelId,
+        requestId: options.requestId,
+      };
+      inspectorHookRegistry.setContext(inspectorRequestId, mergedContext);
     }
 
     try {
@@ -327,6 +358,7 @@ export function useLlmRequest() {
 
       return response;
     } catch (error) {
+      // B3: 此处先继续既有错误处理；inspectorContext 清理在 finally 中统一执行
       // TimeoutError 是请求超时
       if (error instanceof TimeoutError) {
         logger.warn("LLM 请求超时", {
@@ -432,6 +464,13 @@ export function useLlmRequest() {
         }
       }
       throw error;
+    } finally {
+      // B3: 清理 inspector 上下文存储，防止内存泄露。
+      // 即使 setContext 没写入（开关 OFF 时 inspectorRequestId 为 undefined），
+      // deleteContext 内部会判空，安全无副作用。
+      if (inspectorRequestId) {
+        inspectorHookRegistry.deleteContext(inspectorRequestId);
+      }
     }
   };
 

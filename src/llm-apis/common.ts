@@ -754,6 +754,9 @@ export const fetchWithTimeout = async (
   const captureInspector = inspectorHookRegistry.shouldCaptureInternal();
   let inspectorRequestId: string | null = null;
   let inspectorStartTimestamp = 0;
+  // 优先级：options.inspectorContext > contextStore[X-Request-ID]
+  // 后者由 useLlmRequest 通过 X-Request-ID header 关联（B3），避免修改所有 adapter。
+  let resolvedInspectorContext = options.inspectorContext;
   if (captureInspector) {
     // 优先复用调用方已生成的 requestId（来自 headers["X-Request-ID"] 等），
     // 否则生成新的 UUID。
@@ -768,6 +771,12 @@ export const fetchWithTimeout = async (
         ? crypto.randomUUID()
         : `req-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     inspectorStartTimestamp = Date.now();
+
+    // 若 options 未显式传入 inspectorContext，尝试从 contextStore 反查（B3 透传机制）
+    if (!resolvedInspectorContext && headerRequestId) {
+      resolvedInspectorContext =
+        inspectorHookRegistry.getContext(headerRequestId);
+    }
 
     // 收集请求头快照（注册器不做加工，原样广播）
     const headersSnapshot: Record<string, string> = {};
@@ -792,7 +801,7 @@ export const fetchWithTimeout = async (
       url,
       headers: headersSnapshot,
       body: bodySnapshot,
-      metadata: options.inspectorContext,
+      metadata: resolvedInspectorContext,
     });
   }
 
@@ -815,7 +824,7 @@ export const fetchWithTimeout = async (
         headers: headersObj,
         body,
         durationMs: Date.now() - inspectorStartTimestamp,
-        metadata: options.inspectorContext,
+        metadata: resolvedInspectorContext,
       });
     };
 
@@ -1055,7 +1064,7 @@ export const fetchWithTimeout = async (
           timestamp: Date.now(),
           errorName: wrapped.name,
           errorMessage: wrapped.message,
-          metadata: options.inspectorContext,
+          metadata: resolvedInspectorContext,
         });
       }
       throw controller.signal.reason;
@@ -1068,7 +1077,7 @@ export const fetchWithTimeout = async (
         timestamp: Date.now(),
         errorName: err?.name || "Error",
         errorMessage: err?.message || String(error),
-        metadata: options.inspectorContext,
+        metadata: resolvedInspectorContext,
       });
     }
     throw error;

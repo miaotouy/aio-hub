@@ -18,6 +18,7 @@ import { createModuleErrorHandler } from "@utils/errorHandler";
 import { emit } from "@tauri-apps/api/event";
 import {
   INSPECTOR_INTERNAL_EVENT,
+  type InspectorContextMetadata,
   type InspectorErrorEvent,
   type InspectorHooks,
   type InspectorRequestEvent,
@@ -36,6 +37,17 @@ const errorHandler = createModuleErrorHandler("LlmInspector/HookRegistry");
 class InspectorHookRegistry {
   private hooks: Set<InspectorHooks> = new Set();
   private captureInternal = false;
+  /**
+   * 上下文存储：以 requestId 为 key 暂存 inspectorContext。
+   *
+   * 用于 `fetchWithTimeout` 在没有显式收到 `options.inspectorContext` 时，
+   * 通过 X-Request-ID 反查 useLlmRequest 写入的上下文，从而避免修改所有
+   * adapter 的 fetchWithTimeout 调用。
+   *
+   * 生命周期由 useLlmRequest（写入方）管理：sendRequest 进入时 setContext，
+   * try/finally 中 deleteContext。开关 OFF 时 useLlmRequest 不写入，存储常空。
+   */
+  private contextStore: Map<string, InspectorContextMetadata> = new Map();
 
   /**
    * 启用内部监控（钩子触发器在此开关 OFF 时会短路，避免 clone Response 的开销）
@@ -120,11 +132,43 @@ class InspectorHookRegistry {
   }
 
   /**
+   * 写入 requestId 对应的 inspectorContext
+   *
+   * 由 `useLlmRequest` 在调用 adapter 之前写入，供 `fetchWithTimeout`
+   * 通过 X-Request-ID header 反查。开关 OFF 时调用方不应写入（无意义）。
+   */
+  setContext(requestId: string, context: InspectorContextMetadata): void {
+    if (!requestId) return;
+    this.contextStore.set(requestId, context);
+  }
+
+  /**
+   * 查询 requestId 对应的 inspectorContext
+   *
+   * 由 `fetchWithTimeout` 在 `options.inspectorContext` 缺失时调用。
+   */
+  getContext(requestId: string): InspectorContextMetadata | undefined {
+    if (!requestId) return undefined;
+    return this.contextStore.get(requestId);
+  }
+
+  /**
+   * 移除 requestId 对应的 inspectorContext
+   *
+   * 由 `useLlmRequest` 在 finally 中调用，防止内存泄露。
+   */
+  deleteContext(requestId: string): void {
+    if (!requestId) return;
+    this.contextStore.delete(requestId);
+  }
+
+  /**
    * 清空所有已注册的本地钩子（主要用于测试 / 热重载）
    */
   clear(): void {
     this.hooks.clear();
-    logger.debug("已清空所有本地钩子");
+    this.contextStore.clear();
+    logger.debug("已清空所有本地钩子与上下文存储");
   }
 
   /**
@@ -132,6 +176,13 @@ class InspectorHookRegistry {
    */
   getHookCount(): number {
     return this.hooks.size;
+  }
+
+  /**
+   * 获取当前 contextStore 大小（调试 / 测试用）
+   */
+  getContextStoreSize(): number {
+    return this.contextStore.size;
   }
 
   // ============ 内部辅助方法 ============

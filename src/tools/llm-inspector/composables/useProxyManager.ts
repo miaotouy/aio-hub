@@ -86,7 +86,7 @@ export function useInspectorManager() {
   }));
 
   const canStartInspector = computed(() => {
-    return (
+    return Boolean(
       !isRunning.value &&
       config.value.port > 0 &&
       config.value.target_url &&
@@ -405,6 +405,24 @@ export function useInspectorManager() {
       }
     },
     { immediate: true }
+  );
+
+  // 总开关关闭时联动停止外部代理（D3 新增）
+  // 设计语义：总开关是「检查器整体使能」的统一控制点，关闭后内部钩子
+  // 已通过上面的 watch 自动失效；外部代理因仍占用端口转发流量但 inspector
+  // 不再记录会造成困惑，因此一并停服更直观。
+  watch(
+    () => state.isGlobalEnabled,
+    (enabled) => {
+      if (!enabled && state.externalProxyStatus === "running") {
+        stopInspector().catch((err) =>
+          errorHandler.handle(err, {
+            userMessage: "关闭总开关时停止外部代理失败",
+            showToUser: false,
+          })
+        );
+      }
+    }
   );
 
   // 生命周期

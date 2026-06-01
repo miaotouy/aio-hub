@@ -22,8 +22,15 @@
       <button @click="clearError" class="error-close">×</button>
     </div>
 
-    <!-- 主区：左右分栏 -->
-    <div class="main-split">
+    <!-- 主区：左右分栏（D4 可拖拽） -->
+    <div
+      ref="splitContainerRef"
+      class="main-split"
+      :class="{ 'is-dragging': isDragging }"
+      :style="{
+        gridTemplateColumns: `${splitRatio * 100}% 6px 1fr`,
+      }"
+    >
       <div class="pane pane-left">
         <RecordsList
           :records="records"
@@ -32,6 +39,15 @@
           v-model:filterStatus="filterOptions.filterStatus"
           @select="selectRecord"
         />
+      </div>
+
+      <div
+        class="split-divider"
+        @mousedown="onDividerMouseDown"
+        @dblclick="resetSplitRatio"
+        title="拖动调整宽度，双击恢复默认"
+      >
+        <div class="divider-handle"></div>
       </div>
 
       <div class="pane pane-right">
@@ -60,8 +76,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, watch } from "vue";
 import { useInspectorManager } from "./composables/useProxyManager";
+import { useSplitPane } from "./composables/useSplitPane";
 import { createModuleLogger } from "@utils/logger";
 import RecordsList from "./components/RecordsList.vue";
 import RecordDetail from "./components/RecordDetail.vue";
@@ -82,6 +99,7 @@ const {
   isLoading,
   error,
   targetUrlHistory,
+  layout,
 
   // 计算属性
   canStartInspector,
@@ -99,6 +117,34 @@ const {
   selectRecord,
   clearError,
 } = useInspectorManager();
+
+// === Split Pane 拖拽（D4） ===
+const {
+  ratio: splitRatio,
+  containerRef: splitContainerRef,
+  isDragging,
+  onDividerMouseDown,
+  resetRatio: resetSplitRatio,
+} = useSplitPane({
+  initialRatio: layout.value.splitRatio,
+});
+
+// 同步 layout → splitRatio（配置加载后）
+watch(
+  () => layout.value.splitRatio,
+  (next) => {
+    if (Math.abs(splitRatio.value - next) > 1e-4) {
+      splitRatio.value = next;
+    }
+  }
+);
+
+// 同步 splitRatio → layout（拖拽后持久化）
+watch(splitRatio, (next) => {
+  if (Math.abs(layout.value.splitRatio - next) > 1e-4) {
+    layout.value = { ...layout.value, splitRatio: next };
+  }
+});
 
 // UI 局部状态
 const showSettings = ref(false);
@@ -213,15 +259,19 @@ async function handleUpdateTargetUrl() {
   background: rgba(var(--el-color-danger-rgb), calc(var(--card-opacity) * 0.2));
 }
 
-/* 主区：左右分栏 */
+/* 主区：左右分栏（D4 三列：左 / 分割条 / 右） */
 .main-split {
   flex: 1;
   display: grid;
-  grid-template-columns: 1fr 3fr;
-  gap: 12px;
   padding: 12px;
   min-height: 0;
   overflow: hidden;
+  gap: 0;
+}
+
+.main-split.is-dragging {
+  cursor: col-resize;
+  user-select: none;
 }
 
 .pane {
@@ -232,11 +282,68 @@ async function handleUpdateTargetUrl() {
   overflow: hidden;
 }
 
+.pane-left {
+  padding-right: 0;
+}
+
+.pane-right {
+  padding-left: 0;
+}
+
 .pane :deep(.records-panel),
 .pane :deep(.detail-panel) {
   flex: 1;
   min-height: 0;
   width: 100%;
   height: 100%;
+}
+
+/* 分割条 */
+.split-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: col-resize;
+  user-select: none;
+  position: relative;
+  transition: background-color 0.2s ease;
+}
+
+.split-divider::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 1px;
+  background: var(--border-color);
+  transition:
+    background-color 0.2s ease,
+    width 0.2s ease;
+}
+
+.split-divider:hover::before,
+.main-split.is-dragging .split-divider::before {
+  background: var(--primary-color);
+  width: 2px;
+}
+
+.divider-handle {
+  width: 3px;
+  height: 32px;
+  border-radius: 2px;
+  background: var(--border-color);
+  opacity: 0;
+  transition:
+    opacity 0.2s ease,
+    background-color 0.2s ease;
+  z-index: 1;
+}
+
+.split-divider:hover .divider-handle,
+.main-split.is-dragging .divider-handle {
+  opacity: 1;
+  background: var(--primary-color);
 }
 </style>

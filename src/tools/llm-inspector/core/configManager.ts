@@ -6,6 +6,13 @@ import type { LlmInspectorSettings, InspectorConfig } from "../types";
 const logger = createModuleLogger("LlmInspector/ConfigManager");
 const errorHandler = createModuleErrorHandler("LlmInspector/ConfigManager");
 
+/**
+ * 布局默认值（D4 新增）
+ */
+export const DEFAULT_SPLIT_RATIO = 0.25;
+export const MIN_SPLIT_RATIO = 0.1;
+export const MAX_SPLIT_RATIO = 0.9;
+
 // 默认配置创建函数
 function createDefaultSettings(): LlmInspectorSettings {
   return {
@@ -22,6 +29,9 @@ function createDefaultSettings(): LlmInspectorSettings {
       "https://api.anthropic.com",
       "https://generativelanguage.googleapis.com",
     ],
+    layout: {
+      splitRatio: DEFAULT_SPLIT_RATIO,
+    },
     version: "1.0.0",
   };
 }
@@ -40,9 +50,25 @@ const configManager = createConfigManager<LlmInspectorSettings>({
 export async function loadSettings(): Promise<LlmInspectorSettings> {
   try {
     const settings = await configManager.load();
+    // 向后兼容：旧配置可能缺 layout 字段，填默认值（D4）
+    if (!settings.layout) {
+      settings.layout = { splitRatio: DEFAULT_SPLIT_RATIO };
+    } else if (
+      typeof settings.layout.splitRatio !== "number" ||
+      !Number.isFinite(settings.layout.splitRatio)
+    ) {
+      settings.layout.splitRatio = DEFAULT_SPLIT_RATIO;
+    } else {
+      // 钳制到合法范围
+      settings.layout.splitRatio = Math.min(
+        MAX_SPLIT_RATIO,
+        Math.max(MIN_SPLIT_RATIO, settings.layout.splitRatio)
+      );
+    }
     logger.info("配置加载成功", {
       port: settings.config.port,
       targetUrl: settings.config.target_url,
+      splitRatio: settings.layout.splitRatio,
     });
     return settings;
   } catch (error) {

@@ -21,9 +21,14 @@ import {
   loadSettings,
   saveSettings,
   validateInspectorConfig,
+  DEFAULT_SPLIT_RATIO,
 } from "../core/configManager";
 import { maskSensitiveData, copyToClipboard } from "../core/utils";
-import type { InspectorConfig, LlmInspectorSettings } from "../types";
+import type {
+  InspectorConfig,
+  InspectorLayoutSettings,
+  LlmInspectorSettings,
+} from "../types";
 
 const logger = createModuleLogger("LlmInspector/InspectorManager");
 const errorHandler = createModuleErrorHandler("LlmInspector/InspectorManager");
@@ -61,6 +66,11 @@ export function useInspectorManager() {
   const isLoading = ref(false);
   const error = ref<string | null>(null);
   const targetUrlHistory = ref<string[]>([]);
+
+  // 布局状态（D4）
+  const layout = ref<InspectorLayoutSettings>({
+    splitRatio: DEFAULT_SPLIT_RATIO,
+  });
 
   // 获取各个管理器实例
   const recordManager = useRecordManager();
@@ -295,11 +305,13 @@ export function useInspectorManager() {
       });
       maskApiKeys.value = settings.maskApiKeys ?? true;
       targetUrlHistory.value = settings.targetUrlHistory || [];
+      layout.value = settings.layout ?? { splitRatio: DEFAULT_SPLIT_RATIO };
 
       logger.info("配置加载成功", {
         port: settings.config.port,
         targetUrl: settings.config.target_url,
         historyCount: targetUrlHistory.value.length,
+        splitRatio: layout.value.splitRatio,
       });
     } catch (err) {
       errorHandler.handle(err, {
@@ -318,6 +330,7 @@ export function useInspectorManager() {
         filterStatus: recordManager.getFilterOptions().filterStatus,
         maskApiKeys: maskApiKeys.value,
         targetUrlHistory: targetUrlHistory.value,
+        layout: layout.value,
       };
 
       await saveSettings(settings);
@@ -367,7 +380,7 @@ export function useInspectorManager() {
 
   // 监听配置变化并自动保存
   watch(
-    [config, maskApiKeys, targetUrlHistory],
+    [config, maskApiKeys, targetUrlHistory, layout],
     () => {
       saveConfig().catch((err) =>
         errorHandler.handle(err, {
@@ -450,6 +463,7 @@ export function useInspectorManager() {
     isLoading,
     error,
     targetUrlHistory,
+    layout,
 
     // 计算属性
     inspectorStatus,

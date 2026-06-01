@@ -86,12 +86,26 @@ export interface StreamUpdate {
   is_complete: boolean;
 }
 
+/**
+ * UI 布局状态（D4 新增，向后兼容可选字段）
+ */
+export interface InspectorLayoutSettings {
+  /** 左右分栏比例 (0.1 - 0.9)，默认 0.25 */
+  splitRatio: number;
+}
+
 export interface LlmInspectorSettings {
   config: InspectorConfig;
   searchQuery: string;
   filterStatus: string;
   maskApiKeys?: boolean;
   targetUrlHistory?: string[]; // 目标地址历史记录
+  /**
+   * 布局状态（D4 新增，向后兼容）
+   *
+   * 未指定时使用默认值（splitRatio: 0.25）。
+   */
+  layout?: InspectorLayoutSettings;
   version?: string;
 }
 

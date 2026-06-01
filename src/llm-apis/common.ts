@@ -241,6 +241,21 @@ export interface LlmRequestOptions {
   thinkingBudget?: number;
   /** 元数据键值对 */
   metadata?: Record<string, string>;
+  /**
+   * LLM Inspector 内部监控上下文（仅前端使用，绝不会透传到上游 LLM API）
+   *
+   * 注意：**不能复用 `metadata` 字段** — 该字段已被 OpenAI/Anthropic 的
+   * `metadata` API 参数占用，混用会污染 LLM 请求。本字段由 `useLlmRequest`
+   * 自动补全 profileId/modelId/requestId，并由 `fetchWithTimeout` 在
+   * `inspectorHookRegistry.triggerRequest` 时塞入 `InspectorRequestEvent.metadata`。
+   * 同时它已加入 `KNOWN_NON_MODEL_OPTIONS_KEYS` 与 `cleanPayload` 的禁用列表，
+   * 确保不会被透传到 API 请求体。
+   */
+  inspectorContext?: {
+    sessionId?: string;
+    toolName?: string;
+    purpose?: string;
+  };
   /** 额外的请求体参数（透传给 API） */
   extraBody?: Record<string, any>;
   /** 网络请求策略 */

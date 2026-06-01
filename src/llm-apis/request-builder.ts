@@ -1064,6 +1064,7 @@ export const KNOWN_NON_MODEL_OPTIONS_KEYS = new Set([
   "http1Only",
   "apiKey",
   "suppressErrorLog",
+  "inspectorContext", // LLM Inspector 内部监控上下文，前端专用，绝不能透传到 API body
 
   // 其他任务特有参数
   "embeddingInput",
@@ -1151,6 +1152,7 @@ export function cleanPayload(body: any): any {
     "relaxIdCerts",
     "http1Only",
     "apiKey",
+    "inspectorContext", // LLM Inspector 内部监控上下文，前端专用，绝不能透传到 API body
   ];
 
   for (const key of forbiddenKeys) {

@@ -1,6 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { createModuleLogger } from "@/utils/logger";
 import { useAppSettingsStore } from "@/stores/appSettingsStore";
+import { inspectorHookRegistry } from "@/tools/llm-inspector/core/hookRegistry";
+import type { InspectorContextMetadata } from "@/tools/llm-inspector/types/hooks";
 
 const logger = createModuleLogger("llm-apis/common");
 
@@ -718,6 +720,12 @@ export const fetchWithTimeout = async (
     http1Only?: boolean;
     networkStrategy?: "auto" | "proxy" | "native";
     isStreaming?: boolean;
+    /**
+     * LLM Inspector 内部监控上下文。由上游 `useLlmRequest` / adapter 透传。
+     * 当 `inspectorHookRegistry.shouldCaptureInternal()` 为 true 时，
+     * 会作为 `InspectorRequestEvent.metadata` 一并广播。
+     */
+    inspectorContext?: InspectorContextMetadata;
   },
   timeout: number = DEFAULT_TIMEOUT,
   externalSignal?: AbortSignal
@@ -739,6 +747,97 @@ export const fetchWithTimeout = async (
     controller.abort(externalSignal?.reason);
   };
   externalSignal?.addEventListener("abort", externalAbortHandler);
+
+  // ============ LLM Inspector 内部监控埋点（B2）============
+  // 开关 OFF 时整个 inspector 流程零开销（不生成 requestId、不读取 body、不广播）。
+  // 在统一入口生成 requestId，确保流式 chunk 能正确关联。
+  const captureInspector = inspectorHookRegistry.shouldCaptureInternal();
+  let inspectorRequestId: string | null = null;
+  let inspectorStartTimestamp = 0;
+  if (captureInspector) {
+    // 优先复用调用方已生成的 requestId（来自 headers["X-Request-ID"] 等），
+    // 否则生成新的 UUID。
+    const headerRequestId =
+      typeof options.headers === "object" && options.headers !== null
+        ? (options.headers as Record<string, string>)["X-Request-ID"] ||
+          (options.headers as Record<string, string>)["x-request-id"]
+        : undefined;
+    inspectorRequestId =
+      headerRequestId ||
+      (typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `req-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    inspectorStartTimestamp = Date.now();
+
+    // 收集请求头快照（注册器不做加工，原样广播）
+    const headersSnapshot: Record<string, string> = {};
+    if (options.headers && typeof options.headers === "object") {
+      for (const [k, v] of Object.entries(
+        options.headers as Record<string, string>
+      )) {
+        headersSnapshot[k] = String(v);
+      }
+    }
+
+    // 收集请求体（仅当是字符串时；FormData/Uint8Array 不读取以避免开销）
+    let bodySnapshot: string | undefined;
+    if (typeof options.body === "string") {
+      bodySnapshot = options.body;
+    }
+
+    inspectorHookRegistry.triggerRequest({
+      requestId: inspectorRequestId,
+      timestamp: inspectorStartTimestamp,
+      method: options.method || "GET",
+      url,
+      headers: headersSnapshot,
+      body: bodySnapshot,
+      metadata: options.inspectorContext,
+    });
+  }
+
+  /**
+   * 触发 Inspector 响应事件（开关 ON 且 requestId 存在时）
+   * - 流式响应：不读取 body（body 还要给 adapter 消费，且只能消费一次）
+   * - 非流式响应：clone 后异步读取 body，不阻塞主流程
+   */
+  const triggerInspectorResponse = (response: Response): void => {
+    if (!captureInspector || !inspectorRequestId) return;
+    const headersObj: Record<string, string> = {};
+    response.headers.forEach((v, k) => {
+      headersObj[k] = v;
+    });
+    const fireEvent = (body: string | undefined) => {
+      inspectorHookRegistry.triggerResponse({
+        requestId: inspectorRequestId!,
+        timestamp: Date.now(),
+        status: response.status,
+        headers: headersObj,
+        body,
+        durationMs: Date.now() - inspectorStartTimestamp,
+        metadata: options.inspectorContext,
+      });
+    };
+
+    if (options.isStreaming) {
+      // 流式响应：body 是 ReadableStream，只能消费一次。
+      // 这里只广播头部状态信息，stream chunk 由后续 C 组任务接入。
+      fireEvent(undefined);
+      return;
+    }
+
+    // 非流式：clone 后异步读取 body，避免阻塞 adapter 的 .json()
+    try {
+      const cloned = response.clone();
+      cloned
+        .text()
+        .then((body) => fireEvent(body))
+        .catch(() => fireEvent(undefined));
+    } catch {
+      // clone 异常也不阻塞主流程，仅广播头部信息
+      fireEvent(undefined);
+    }
+  };
 
   try {
     // 劫持检测：如果显式指定了 hasLocalFile/forceProxy，或者开启了底层代理行为配置，则使用 Rust 代理发送请求
@@ -778,22 +877,27 @@ export const fetchWithTimeout = async (
           }
         }
 
-        return await window.fetch(`http://127.0.0.1:${PROXY_PORT}/proxy`, {
-          method: "POST",
-          headers: {
-            ...forwardHeaders,
-            "X-Target-URL": url,
-            "X-Request-ID":
-              (options.headers as Record<string, string>)?.["X-Request-ID"] ||
-              "",
-            "X-Proxy-Mode": settings.proxy?.mode || "system",
-            "X-Proxy-URL": settings.proxy?.customUrl || "",
-            "X-Relax-Certs": String(options.relaxIdCerts ?? true),
-            "X-HTTP1-Only": String(options.http1Only ?? true),
-          },
-          body: options.body, // FormData 原样传递
-          signal: controller.signal,
-        });
+        const formDataResponse = await window.fetch(
+          `http://127.0.0.1:${PROXY_PORT}/proxy`,
+          {
+            method: "POST",
+            headers: {
+              ...forwardHeaders,
+              "X-Target-URL": url,
+              "X-Request-ID":
+                (options.headers as Record<string, string>)?.["X-Request-ID"] ||
+                "",
+              "X-Proxy-Mode": settings.proxy?.mode || "system",
+              "X-Proxy-URL": settings.proxy?.customUrl || "",
+              "X-Relax-Certs": String(options.relaxIdCerts ?? true),
+              "X-HTTP1-Only": String(options.http1Only ?? true),
+            },
+            body: options.body, // FormData 原样传递
+            signal: controller.signal,
+          }
+        );
+        triggerInspectorResponse(formDataResponse);
+        return formDataResponse;
       }
 
       logger.debug("触发代理模式", {
@@ -914,20 +1018,26 @@ export const fetchWithTimeout = async (
         });
       }
 
-      return await window.fetch(`http://127.0.0.1:${PROXY_PORT}/proxy`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: proxyBodyStr,
-        signal: controller.signal,
-      });
+      const proxyResponse = await window.fetch(
+        `http://127.0.0.1:${PROXY_PORT}/proxy`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: proxyBodyStr,
+          signal: controller.signal,
+        }
+      );
+      triggerInspectorResponse(proxyResponse);
+      return proxyResponse;
     }
 
     const response = await window.fetch(url, {
       ...options,
       signal: controller.signal,
     });
+    triggerInspectorResponse(response);
     return response;
   } catch (error) {
     // 关键修复：如果底层 fetch 抛出了通用的 "canceled" 错误，
@@ -937,7 +1047,29 @@ export const fetchWithTimeout = async (
       controller.signal.aborted &&
       controller.signal.reason instanceof TimeoutError
     ) {
+      // Inspector 错误事件
+      if (captureInspector && inspectorRequestId) {
+        const wrapped = controller.signal.reason as TimeoutError;
+        inspectorHookRegistry.triggerError({
+          requestId: inspectorRequestId,
+          timestamp: Date.now(),
+          errorName: wrapped.name,
+          errorMessage: wrapped.message,
+          metadata: options.inspectorContext,
+        });
+      }
       throw controller.signal.reason;
+    }
+    // Inspector 错误事件（其他错误）
+    if (captureInspector && inspectorRequestId) {
+      const err = error as Error;
+      inspectorHookRegistry.triggerError({
+        requestId: inspectorRequestId,
+        timestamp: Date.now(),
+        errorName: err?.name || "Error",
+        errorMessage: err?.message || String(error),
+        metadata: options.inspectorContext,
+      });
     }
     throw error;
   } finally {

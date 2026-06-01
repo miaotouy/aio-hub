@@ -69,13 +69,24 @@
       </div>
     </div>
 
-    <!-- 编辑器：CodeMirror 翻译输入框 -->
+    <!-- 编辑器：CodeMirror 翻译输入框（带文件拖放） -->
     <div class="editor-wrapper">
       <TranslatorEditor
         v-model:value="store.inputText"
         :disabled="store.isTranslating"
         placeholder="粘贴要翻译的文本，Ctrl/Cmd+Enter 翻译，Ctrl+F 搜索"
         @submit="handleSubmit"
+      />
+      <!-- 兄弟节点覆盖层：平时穿透，拖拽时捕获并显示提示层 -->
+      <DropZone
+        overlay
+        hide-content
+        show-overlay-on-drag
+        file-only
+        :multiple="false"
+        :accept="DROP_ACCEPT_EXTENSIONS"
+        :disabled="store.isTranslating"
+        @drop="handleEditorDrop"
       />
     </div>
 
@@ -192,6 +203,7 @@ import { readText as readClipboardText } from "@tauri-apps/plugin-clipboard-mana
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { readTextFile } from "@tauri-apps/plugin-fs";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
+import DropZone from "@/components/common/DropZone.vue";
 import { parseModelCombo } from "@/utils/modelIdUtils";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -204,6 +216,17 @@ const store = useTranslatorStore();
 const errorHandler = createModuleErrorHandler("tools/translator/input-panel");
 
 const LARGE_FILE_CHAR_THRESHOLD = 200_000;
+
+/** 拖放/选择文件接受的扩展名（与工具条按钮保持一致） */
+const DROP_ACCEPT_EXTENSIONS = [
+  ".txt",
+  ".md",
+  ".json",
+  ".srt",
+  ".vtt",
+  ".log",
+  ".csv",
+];
 
 const modelCapabilities: Partial<ModelCapabilities> = {
   embedding: false,
@@ -299,34 +322,10 @@ async function handlePasteFromClipboard() {
   customMessage.success("已从剪贴板粘贴");
 }
 
-// ---- 工具条：从文件读取 ----
-async function handleReadFromFile() {
-  const filePath = await errorHandler.wrapAsync(
-    async () => {
-      const result = await openDialog({
-        multiple: false,
-        directory: false,
-        filters: [
-          {
-            name: "文本文件",
-            extensions: ["txt", "md", "json", "srt", "vtt", "log", "csv"],
-          },
-          { name: "所有文件", extensions: ["*"] },
-        ],
-      });
-      // openDialog 返回值在不同版本中可能是 string | string[] | { path } | null
-      if (!result) return null;
-      if (typeof result === "string") return result;
-      if (Array.isArray(result)) return result[0] ?? null;
-      const maybeObj = result as unknown as { path?: string };
-      return maybeObj.path ?? null;
-    },
-    { userMessage: "打开文件失败" }
-  );
-  if (!filePath) return;
-
+// ---- 工具条 / 拖放共享：按路径加载文本到输入框 ----
+async function loadTextFromPath(filePath: string) {
   const content = await errorHandler.wrapAsync(
-    async () => readTextFile(filePath as string),
+    async () => readTextFile(filePath),
     {
       userMessage: "读取文件失败，请确认文件编码为 UTF-8",
     }
@@ -365,6 +364,40 @@ async function handleReadFromFile() {
 
   store.inputText = content;
   customMessage.success("文件内容已载入");
+}
+
+// ---- 工具条：从文件读取 ----
+async function handleReadFromFile() {
+  const filePath = await errorHandler.wrapAsync(
+    async () => {
+      const result = await openDialog({
+        multiple: false,
+        directory: false,
+        filters: [
+          {
+            name: "文本文件",
+            extensions: DROP_ACCEPT_EXTENSIONS.map((ext) => ext.slice(1)),
+          },
+          { name: "所有文件", extensions: ["*"] },
+        ],
+      });
+      // openDialog 返回值在不同版本中可能是 string | string[] | { path } | null
+      if (!result) return null;
+      if (typeof result === "string") return result;
+      if (Array.isArray(result)) return result[0] ?? null;
+      const maybeObj = result as unknown as { path?: string };
+      return maybeObj.path ?? null;
+    },
+    { userMessage: "打开文件失败" }
+  );
+  if (!filePath) return;
+  await loadTextFromPath(filePath as string);
+}
+
+// ---- 编辑器拖放：复用 loadTextFromPath，DropZone 已过滤扩展名 ----
+async function handleEditorDrop(paths: string[]) {
+  if (!paths.length || store.isTranslating) return;
+  await loadTextFromPath(paths[0]);
 }
 </script>
 
@@ -433,6 +466,7 @@ async function handleReadFromFile() {
 
 /* 编辑器 */
 .editor-wrapper {
+  position: relative;
   flex: 1;
   min-height: 200px;
   margin: 8px 14px;

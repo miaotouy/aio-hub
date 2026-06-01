@@ -308,7 +308,7 @@ export function useTranslatorPresets(deps: PresetsDeps) {
       icon: template?.icon || "Sparkles",
       channels: clonedChannels,
       defaultSourceLang: template?.defaultSourceLang || "auto",
-      defaultTargetLang: template?.defaultTargetLang || "Chinese",
+      defaultTargetLang: template?.defaultTargetLang || "Chinese (Simplified)",
       prompt: template?.prompt || base?.prompt || DEFAULT_PROMPT,
     };
     presets.value.push(newPreset);

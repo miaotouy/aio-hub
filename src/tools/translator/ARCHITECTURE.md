@@ -14,7 +14,14 @@
 > - 历史条目加语言徽标
 > - 旧 `"Chinese"` 自动迁移到 `"Chinese (Simplified)"`
 >
-> 阶段二（未完成）：PresetManagerDialog 内的 prompt 编辑器换 TranslatorEditor、文件拖放进编辑器。
+> 阶段二（已完成）：
+>
+> - PresetManagerDialog 内的 prompt 编辑器换 [`TranslatorEditor`](src/tools/translator/components/TranslatorEditor.vue)（mini 模式，无搜索面板）；占位符 chip 调用编辑器 `insertText()` 在光标处插入
+> - 默认语言下拉换为 [`LanguageSelect`](src/tools/translator/components/LanguageSelect.vue)，支持自定义语言与分组搜索
+> - 输入面板编辑器叠加 [`DropZone`](src/components/common/DropZone.vue) 兄弟节点覆盖层，支持拖放 `.txt/.md/.json/.srt/.vtt/.log/.csv` 文件读入；与工具条 📂 按钮共享同一段大文件确认 + 覆盖确认逻辑（`loadTextFromPath`）
+> - [`TranslatorEditor`](src/tools/translator/components/TranslatorEditor.vue) 新增 `focus` / `blur` emit
+>
+> v2 至此全部完成。
 >
 > v1 → v2 历史信息见 git log。
 
@@ -224,7 +231,7 @@ v2 整体布局自上而下：
 2. **工具条**（`editor-toolbar`）：左侧 📋 剪贴板粘贴 / 📂 从文件读取 / 🗑️ 清空；右侧实时字符 / 词数（CJK 直接按字符；带空白拉丁文同时显示词数）。
    - 剪贴板用 `@tauri-apps/plugin-clipboard-manager.readText()`；已有内容时弹"追加/覆盖"二选一。
    - 文件读取用 `@tauri-apps/plugin-dialog.open()` + `@tauri-apps/plugin-fs.readTextFile()`；支持 `txt/md/json/srt/vtt/log/csv` 等；大文件（>200K 字符）二次确认；已有内容时弹"覆盖"确认。
-3. **编辑器**（`editor-wrapper` 包 [`TranslatorEditor`](src/tools/translator/components/TranslatorEditor.vue:1)）：CodeMirror 6 + `markdown()` + `search({ top: true })` 汉化搜索面板 + 跨平台 `Mod-Enter` 提交。外层 wrapper 用 `:focus-within` 实现主题色聚焦边框。
+3. **编辑器**（`editor-wrapper` 包 [`TranslatorEditor`](src/tools/translator/components/TranslatorEditor.vue:1)）：CodeMirror 6 + `markdown()` + `search({ top: true })` 汉化搜索面板 + 跨平台 `Mod-Enter` 提交。外层 wrapper 用 `:focus-within` 实现主题色聚焦边框，并叠加 [`DropZone`](src/components/common/DropZone.vue:1) 兄弟节点（`overlay + hide-content + show-overlay-on-drag`，平时穿透鼠标，拖拽时捕获并显示提示层），支持拖放 `.txt/.md/.json/.srt/.vtt/.log/.csv` 文件并复用 `loadTextFromPath` 走大文件确认 + 覆盖确认流程。
 4. **渠道区**（`channel-section`）：可折叠的 section header（持久化于 `settings.channelSectionCollapsed`）。展开态用完整 `LlmModelSelector` 行，折叠态用紧凑徽章 pills 展示已选模型名。主页面渠道上限仍是 UI 硬编码 4。
 5. **主操作按钮**（`primary-action`）：满宽 48px 的大按钮，翻译中变形为 danger 风格"停止全部"，按钮内附 `Ctrl + Enter` 快捷键提示。
 
@@ -246,12 +253,12 @@ v2 整体布局自上而下：
 
 左右两栏的预设管理器：
 
-- **左栏**：预设列表 + 上移/下移按钮；点击行选中预设。
+- **左栏**：预设列表 + 上移/下移按钮；点击行选中预设。预设描述行用精简语言徽标（取 label 前 2 字符）。
 - **右栏**：选中预设的详情编辑：
   - 名称内联编辑（blur / Enter 提交）；
   - 图标 picker（16 个 Lucide 图标，与顶层 PresetBar 共享映射表）；
-  - 默认源/目标语言下拉；
-  - Prompt 模板 textarea + 占位符 chip（点击追加到末尾）；
+  - 默认源/目标语言：用 [`LanguageSelect`](src/tools/translator/components/LanguageSelect.vue:1)（分组 + 搜索 + "＋ 添加自定义语言…"入口；新增的自定义语言通过 `store.addCustomLanguage` 持久化）；
+  - Prompt 模板：用 mini 模式的 [`TranslatorEditor`](src/tools/translator/components/TranslatorEditor.vue:1)（`show-search="false"`），blur 时提交到 store；占位符 chip 点击调用编辑器 `insertText()` 在光标处插入，光标处于编辑器外时回退到字符串拼接；
   - 渠道列表（最多 6 个，调跨预设 API）。
 - 删除时通过 `ElMessageBox.confirm` 二次确认，并显式 `lockScroll: false`（符合 Tauri CSP 下的弹窗规范）。
 

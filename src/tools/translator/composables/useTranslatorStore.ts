@@ -41,7 +41,7 @@ export const useTranslatorStore = defineStore("translator", () => {
   // ---- UI 输入态 ----
   const inputText = ref("");
   const sourceLang = ref<TranslatorLanguageCode>("auto");
-  const targetLang = ref<TranslatorLanguageCode>("Chinese");
+  const targetLang = ref<TranslatorLanguageCode>("Chinese (Simplified)");
   const currentSession = ref<TranslationSession | null>(null);
   const initialized = ref(false);
 

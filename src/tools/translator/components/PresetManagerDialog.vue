@@ -37,8 +37,8 @@
               <span class="preset-row-name">{{ preset.name }}</span>
               <span class="preset-row-desc">
                 {{ preset.channels.length }} 渠道 ·
-                {{ getLanguageLabel(preset.defaultSourceLang) }}
-                → {{ getLanguageLabel(preset.defaultTargetLang) }}
+                {{ shortLangLabel(preset.defaultSourceLang) }}
+                → {{ shortLangLabel(preset.defaultTargetLang) }}
               </span>
             </div>
             <div class="preset-row-actions" @click.stop>
@@ -129,33 +129,25 @@
             <div class="language-row">
               <div class="lang-field">
                 <span class="field-label">源语言</span>
-                <el-select
+                <LanguageSelect
                   :model-value="selectedPreset.defaultSourceLang"
-                  teleported
+                  :custom-languages="store.settings.customLanguages"
+                  :include-auto="true"
+                  placeholder="源语言"
                   @update:model-value="handleSourceLangChange"
-                >
-                  <el-option
-                    v-for="lang in TRANSLATOR_LANGUAGES"
-                    :key="lang.value"
-                    :label="lang.label"
-                    :value="lang.value"
-                  />
-                </el-select>
+                  @add-custom="handleAddCustomLang"
+                />
               </div>
               <div class="lang-field">
                 <span class="field-label">目标语言</span>
-                <el-select
+                <LanguageSelect
                   :model-value="selectedPreset.defaultTargetLang"
-                  teleported
+                  :custom-languages="store.settings.customLanguages"
+                  :include-auto="false"
+                  placeholder="目标语言"
                   @update:model-value="handleTargetLangChange"
-                >
-                  <el-option
-                    v-for="lang in targetLanguageOptions"
-                    :key="lang.value"
-                    :label="lang.label"
-                    :value="lang.value"
-                  />
-                </el-select>
+                  @add-custom="handleAddCustomLang"
+                />
               </div>
             </div>
           </section>
@@ -170,13 +162,15 @@
                 <Info class="heading-info-icon" />
               </el-tooltip>
             </div>
-            <el-input
-              v-model="promptDraft"
-              type="textarea"
-              :rows="6"
-              placeholder="例如：Translate the following text from {sourceLang} to {targetLang}. ..."
-              @blur="commitPrompt"
-            />
+            <div class="prompt-editor-wrapper">
+              <TranslatorEditor
+                ref="promptEditorRef"
+                v-model:value="promptDraft"
+                :show-search="false"
+                placeholder="例如：Translate the following text from {sourceLang} to {targetLang}. ..."
+                @blur="commitPrompt"
+              />
+            </div>
             <div class="placeholder-hints">
               <span
                 v-for="hint in PROMPT_PLACEHOLDER_HINTS"
@@ -288,8 +282,10 @@ import { customMessage } from "@/utils/customMessage";
 import { parseModelCombo } from "@/utils/modelIdUtils";
 import type { ModelCapabilities } from "@/types/llm-profiles";
 import { useTranslatorStore } from "../composables/useTranslatorStore";
-import { TRANSLATOR_LANGUAGES } from "../constants";
+import { getLanguageLabel } from "../constants";
 import type { TranslatorLanguageCode } from "../types";
+import LanguageSelect from "./LanguageSelect.vue";
+import TranslatorEditor from "./TranslatorEditor.vue";
 
 const props = defineProps<{ modelValue: boolean }>();
 const emit = defineEmits<{
@@ -345,13 +341,10 @@ const modelCapabilities: Partial<ModelCapabilities> = {
   musicGeneration: false,
 };
 
-const targetLanguageOptions = TRANSLATOR_LANGUAGES.filter(
-  (lang) => lang.value !== "auto"
-);
-
 const selectedId = ref<string>(store.activePresetId);
 const nameDraft = ref("");
 const promptDraft = ref("");
+const promptEditorRef = ref<InstanceType<typeof TranslatorEditor> | null>(null);
 
 const selectedPreset = computed(() =>
   store.presets.find((preset) => preset.id === selectedId.value)
@@ -410,10 +403,13 @@ function getPresetIcon(icon?: string) {
   return PRESET_ICON_MAP[icon || "Languages"] || Languages;
 }
 
-function getLanguageLabel(code: TranslatorLanguageCode) {
-  return (
-    TRANSLATOR_LANGUAGES.find((lang) => lang.value === code)?.label || code
-  );
+/**
+ * 预设列表行用的精简语言 label：取完整 label 的前 2 个字符（"auto" → "自动"）。
+ */
+function shortLangLabel(code: TranslatorLanguageCode) {
+  if (code === "auto") return "自动";
+  const full = getLanguageLabel(code, store.settings.customLanguages);
+  return full.slice(0, 2);
 }
 
 function commitName() {
@@ -435,10 +431,21 @@ function commitPrompt() {
   }
 }
 
+/**
+ * 占位符 chip 点击：优先用 editor 的 insertText 在光标处插入，
+ * 失败时回退到字符串拼接（编辑器还没初始化等边缘场景）。
+ */
 function insertPlaceholder(token: string) {
-  promptDraft.value = `${promptDraft.value}${
-    promptDraft.value && !promptDraft.value.endsWith(" ") ? " " : ""
-  }${token}`;
+  const needSpace =
+    promptDraft.value && !/[\s\n]$/.test(promptDraft.value) ? " " : "";
+  const editor = promptEditorRef.value;
+  if (editor && typeof editor.insertText === "function") {
+    editor.insertText(`${needSpace}${token}`);
+    // insertText 内部已经 emit update:value，这里再补一次 commit 确保落盘
+    commitPrompt();
+    return;
+  }
+  promptDraft.value = `${promptDraft.value}${needSpace}${token}`;
   commitPrompt();
 }
 
@@ -493,18 +500,26 @@ function handleChannelModelChange(channelId: string, value: string) {
   );
 }
 
-function handleSourceLangChange(value: unknown) {
+function handleSourceLangChange(value: TranslatorLanguageCode) {
   if (!selectedPreset.value) return;
   store.updatePreset(selectedPreset.value.id, {
-    defaultSourceLang: value as TranslatorLanguageCode,
+    defaultSourceLang: value,
   });
 }
 
-function handleTargetLangChange(value: unknown) {
+function handleTargetLangChange(value: TranslatorLanguageCode) {
   if (!selectedPreset.value) return;
   store.updatePreset(selectedPreset.value.id, {
-    defaultTargetLang: value as TranslatorLanguageCode,
+    defaultTargetLang: value,
   });
+}
+
+/**
+ * 从 LanguageSelect 内的"添加自定义语言"入口添加新自定义语言。
+ * LanguageSelect 自身已弹出 prompt 并校验，这里只负责落盘 + 选中。
+ */
+function handleAddCustomLang(name: string) {
+  store.addCustomLanguage(name);
 }
 </script>
 
@@ -767,6 +782,33 @@ function handleTargetLangChange(value: unknown) {
   color: var(--text-color-secondary);
   font-size: 12px;
   font-weight: 600;
+}
+
+.prompt-editor-wrapper {
+  min-height: 140px;
+  max-height: 260px;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg);
+  overflow: hidden;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.prompt-editor-wrapper:hover {
+  border-color: color-mix(
+    in srgb,
+    var(--primary-color) 40%,
+    var(--border-color)
+  );
+}
+
+.prompt-editor-wrapper:focus-within {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 1px var(--primary-color);
 }
 
 .placeholder-hints {

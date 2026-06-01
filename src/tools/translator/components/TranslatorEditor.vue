@@ -37,6 +37,8 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   (e: "update:value", val: string): void;
   (e: "submit"): void;
+  (e: "blur"): void;
+  (e: "focus"): void;
 }>();
 
 const editorContainer = ref<HTMLElement>();
@@ -164,6 +166,14 @@ onMounted(() => {
         ) {
           event.stopPropagation();
         }
+        return false;
+      },
+      blur: () => {
+        emit("blur");
+        return false;
+      },
+      focus: () => {
+        emit("focus");
         return false;
       },
     }),

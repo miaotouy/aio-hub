@@ -848,6 +848,19 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     messagesManager.saveDebounced({ list: messages.value });
   }
 
+  /**
+   * 把 VCP 日志内容压成单行摘要，避免文件原文等长内容把浮动提示撑成满屏文字墙。
+   * - 去除所有换行/制表符
+   * - 压缩多余空白
+   * - 截断到 maxLen 字符（默认 80），溢出加省略号
+   */
+  function summarizeLogContent(content: string, maxLen = 80): string {
+    if (!content) return "";
+    const flat = content.replace(/\s+/g, " ").trim();
+    if (flat.length <= maxLen) return flat;
+    return flat.slice(0, maxLen) + "…";
+  }
+
   function handleVcpLogNotification(msg: VcpLogMessage) {
     const content = msg.data?.content || "";
     const toolName = msg.data?.tool_name;
@@ -859,14 +872,16 @@ export const useVcpStore = defineStore("vcp-connector", () => {
 
     // 2. 智能路由
     const notify = useNotification();
+    const toolPrefix = toolName ? `[${toolName}] ` : "";
+    const summary = summarizeLogContent(content);
 
     // 优先级 1：后端明确报错 (status === 'error')
     if (status === "error") {
-      notify.error(
-        "VCP 执行错误",
-        `${toolName ? toolName + ": " : ""}${content}`,
-        { source: "VCP" }
-      );
+      // 浮动提示用摘要，完整内容进通知中心
+      customMessage.error(`${toolPrefix}${summary || "执行错误"}`);
+      notify.error("VCP 执行错误", `${toolPrefix}${content}`, {
+        source: "VCP",
+      });
       return;
     }
 
@@ -885,17 +900,26 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     // 优先级 3：内容中包含错误关键字
     const lowerContent = content.toLowerCase();
     if (lowerContent.includes("error") || lowerContent.includes("failed")) {
-      notify.error("VCP 执行错误", content, { source: "VCP" });
+      customMessage.error(`${toolPrefix}${summary}`);
+      notify.error("VCP 执行错误", `${toolPrefix}${content}`, {
+        source: "VCP",
+      });
       return;
     }
 
-    // 优先级 4：成功/完成类关键字 -> 即时浮动提示
+    // 优先级 4：成功/完成类关键字 -> 即时浮动提示（仅摘要，完整内容入通知中心）
     if (
       content.includes("归档") ||
       content.includes("完成") ||
       content.includes("成功")
     ) {
-      customMessage.success(content);
+      customMessage.success(`${toolPrefix}${summary}`);
+      // 只在内容明显超长时才额外推一份到通知中心，避免短消息重复
+      if (content.length > 80) {
+        notify.success("VCP 工具执行完成", `${toolPrefix}${content}`, {
+          source: "VCP",
+        });
+      }
       return;
     }
   }

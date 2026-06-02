@@ -1,36 +1,41 @@
 <template>
   <div class="records-panel">
     <div class="records-header">
-      <h3>捕获记录 ({{ records.length }})</h3>
-      <div class="filter-controls">
-        <input
-          :value="searchQuery"
-          @input="
-            $emit(
-              'update:searchQuery',
-              ($event.target as HTMLInputElement).value
-            )
-          "
-          type="text"
-          placeholder="搜索URL或内容..."
-          class="search-input"
-        />
-        <select
-          :value="filterStatus"
-          @change="
-            $emit(
-              'update:filterStatus',
-              ($event.target as HTMLSelectElement).value
-            )
-          "
-          class="filter-select"
-        >
-          <option value="">全部状态</option>
-          <option value="2xx">成功 (2xx)</option>
-          <option value="4xx">客户端错误 (4xx)</option>
-          <option value="5xx">服务器错误 (5xx)</option>
-        </select>
-      </div>
+      <ListChecks :size="14" class="header-icon" />
+      <h3 class="header-title">捕获记录</h3>
+      <span class="record-count">{{ records.length }}</span>
+      <span v-if="hasActiveFilter" class="filter-badge" title="存在筛选条件">
+        <Filter :size="11" />
+      </span>
+    </div>
+
+    <!-- 搜索与过滤栏 -->
+    <div class="filter-bar">
+      <el-input
+        :model-value="searchQuery"
+        @update:model-value="(val: string) => $emit('update:searchQuery', val)"
+        placeholder="搜索 URL 或内容..."
+        size="small"
+        clearable
+        class="search-input"
+      >
+        <template #prefix>
+          <Search :size="13" />
+        </template>
+      </el-input>
+
+      <el-select
+        :model-value="filterStatus"
+        @update:model-value="(val: string) => $emit('update:filterStatus', val)"
+        class="filter-select"
+        size="small"
+        placeholder="状态过滤"
+      >
+        <el-option label="全部状态" value="" />
+        <el-option label="2xx 成功" value="2xx" />
+        <el-option label="4xx 客户端错误" value="4xx" />
+        <el-option label="5xx 服务器错误" value="5xx" />
+      </el-select>
     </div>
 
     <div class="records-list">
@@ -70,6 +75,7 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
+import { ListChecks, Filter, Search } from "lucide-vue-next";
 
 // 类型定义
 interface RequestRecord {
@@ -108,12 +114,16 @@ const props = defineProps<{
 
 // 事件
 defineEmits<{
+  select: [record: CombinedRecord];
   "update:searchQuery": [value: string];
   "update:filterStatus": [value: string];
-  select: [record: CombinedRecord];
 }>();
 
 // 计算属性
+const hasActiveFilter = computed(
+  () => Boolean(props.searchQuery) || Boolean(props.filterStatus)
+);
+
 const filteredRecords = computed(() => {
   let filtered = props.records;
 
@@ -186,30 +196,113 @@ function getStatusClass(status?: number): string {
 }
 
 .records-header {
-  padding: 15px;
+  padding: 10px 14px;
   border-bottom: var(--border-width) solid var(--border-color);
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: nowrap;
 }
 
-.records-header h3 {
-  margin: 0;
-  color: var(--text-color);
-}
-
-.filter-controls {
+.filter-bar {
   display: flex;
-  gap: 10px;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: var(--border-width) solid var(--border-color);
+  background: rgba(0, 0, 0, 0.02);
 }
 
-.search-input,
-.filter-select {
-  padding: 6px 10px;
+.search-input {
+  flex: 1;
+}
+
+.search-input :deep(.el-input__wrapper) {
   background: var(--input-bg);
+  border-radius: 6px;
+  box-shadow: none !important;
   border: var(--border-width) solid var(--border-color);
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.search-input :deep(.el-input__wrapper:hover) {
+  border-color: var(--primary-color);
+}
+
+.search-input :deep(.el-input__wrapper.is-focus) {
+  border-color: var(--primary-color);
+  box-shadow: none !important;
+}
+
+.filter-select {
+  width: 110px;
+  flex-shrink: 0;
+}
+
+.filter-select :deep(.el-select__wrapper) {
+  background: var(--input-bg);
+  border-radius: 6px;
+  min-height: 24px;
+  box-shadow: none !important;
+  border: var(--border-width) solid var(--border-color);
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.filter-select :deep(.el-select__wrapper:hover) {
+  border-color: var(--primary-color);
+}
+
+.filter-select :deep(.el-select__wrapper.is-focused) {
+  border-color: var(--primary-color);
+  box-shadow: none !important;
+}
+
+.header-icon {
+  color: var(--primary-color);
+  flex-shrink: 0;
+}
+
+.header-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
   color: var(--text-color);
-  border-radius: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
+.record-count {
+  font-size: 12px;
+  color: var(--text-color-light);
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
+  flex-shrink: 0;
+}
+
+.filter-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(
+    var(--el-color-warning-rgb),
+    calc(var(--card-opacity) * 0.2)
+  );
+  color: var(--el-color-warning, #e6a23c);
+  flex-shrink: 0;
 }
 
 .records-list {

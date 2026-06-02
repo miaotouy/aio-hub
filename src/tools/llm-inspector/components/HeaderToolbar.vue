@@ -39,7 +39,7 @@
               : '点击开启内置监控'
         "
       >
-        <span class="mode-icon">🪝</span>
+        <Webhook class="mode-icon" :size="14" />
         <span class="mode-label">内置监控</span>
         <span class="mode-state">{{ effectiveInternal ? "ON" : "OFF" }}</span>
       </div>
@@ -55,8 +55,12 @@
         @click="handleExternalToggle"
         :title="externalTooltip"
       >
-        <span v-if="externalTransitioning" class="mode-icon spinning">⟳</span>
-        <span v-else class="mode-icon">🌐</span>
+        <LoaderCircle
+          v-if="externalTransitioning"
+          class="mode-icon spinning"
+          :size="14"
+        />
+        <Globe v-else class="mode-icon" :size="14" />
         <span class="mode-label">外部代理</span>
         <span class="mode-state">{{ externalStateLabel }}</span>
       </div>
@@ -64,56 +68,13 @@
 
     <!-- 右侧：操作 -->
     <div class="toolbar-section toolbar-right">
-      <div class="search-wrapper" :class="{ expanded: searchExpanded }">
-        <button
-          class="icon-button"
-          @click="toggleSearch"
-          :title="searchExpanded ? '收起搜索' : '展开搜索'"
-        >
-          <span>🔍</span>
-        </button>
-        <input
-          v-if="searchExpanded"
-          ref="searchInputRef"
-          :value="searchQuery"
-          @input="
-            $emit(
-              'update:searchQuery',
-              ($event.target as HTMLInputElement).value
-            )
-          "
-          @blur="handleSearchBlur"
-          @keydown.esc="closeSearch"
-          type="text"
-          placeholder="搜索 URL 或内容..."
-          class="search-input"
-        />
-      </div>
-
-      <select
-        :value="filterStatus"
-        @change="
-          $emit(
-            'update:filterStatus',
-            ($event.target as HTMLSelectElement).value
-          )
-        "
-        class="filter-select"
-        title="按状态过滤"
-      >
-        <option value="">全部</option>
-        <option value="2xx">2xx 成功</option>
-        <option value="4xx">4xx 客户端错误</option>
-        <option value="5xx">5xx 服务器错误</option>
-      </select>
-
       <button
         class="icon-button"
         :disabled="records.length === 0"
         @click="$emit('clear-records')"
         title="清空所有记录"
       >
-        <span>🗑️</span>
+        <Trash2 :size="16" />
       </button>
 
       <button
@@ -121,22 +82,27 @@
         @click="$emit('open-settings')"
         title="设置"
       >
-        <span>⚙️</span>
+        <Settings :size="16" />
       </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, nextTick } from "vue";
+import { computed } from "vue";
+import {
+  Webhook,
+  Globe,
+  LoaderCircle,
+  Trash2,
+  Settings,
+} from "lucide-vue-next";
 import type { CombinedRecord } from "../types";
 import type { InspectorState } from "../types/hooks";
 
 interface Props {
   state: InspectorState;
   records: CombinedRecord[];
-  searchQuery: string;
-  filterStatus: string;
   canStartInspector: boolean;
   isLoading: boolean;
 }
@@ -144,17 +110,12 @@ interface Props {
 const props = defineProps<Props>();
 
 const emit = defineEmits<{
-  "update:searchQuery": [value: string];
-  "update:filterStatus": [value: string];
   "toggle-global": [];
   "toggle-internal": [];
   "toggle-external": [];
   "clear-records": [];
   "open-settings": [];
 }>();
-
-const searchExpanded = ref(false);
-const searchInputRef = ref<HTMLInputElement | null>(null);
 
 // 计算属性
 const effectiveInternal = computed(
@@ -215,25 +176,6 @@ function handleExternalToggle() {
   if (externalTransitioning.value) return;
   emit("toggle-external");
 }
-
-async function toggleSearch() {
-  searchExpanded.value = !searchExpanded.value;
-  if (searchExpanded.value) {
-    await nextTick();
-    searchInputRef.value?.focus();
-  }
-}
-
-function closeSearch() {
-  searchExpanded.value = false;
-}
-
-function handleSearchBlur() {
-  // 失焦后如果搜索为空，自动收起
-  if (!props.searchQuery) {
-    searchExpanded.value = false;
-  }
-}
 </script>
 
 <style scoped>
@@ -243,6 +185,7 @@ function handleSearchBlur() {
   justify-content: space-between;
   height: 48px;
   padding: 0 16px;
+  border-radius: 8px;
   background: var(--container-bg);
   border-bottom: var(--border-width) solid var(--border-color);
   backdrop-filter: blur(var(--ui-blur));
@@ -437,44 +380,6 @@ function handleSearchBlur() {
 }
 
 /* === 右侧：操作 === */
-.search-wrapper {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.search-wrapper.expanded {
-  background: var(--input-bg);
-  border: var(--border-width) solid var(--border-color);
-  border-radius: 6px;
-  padding-right: 8px;
-}
-
-.search-input {
-  background: transparent;
-  border: none;
-  outline: none;
-  color: var(--text-color);
-  font-size: 13px;
-  width: 200px;
-  height: 30px;
-}
-
-.search-input::placeholder {
-  color: var(--text-color-light);
-}
-
-.filter-select {
-  padding: 6px 10px;
-  background: var(--input-bg);
-  border: var(--border-width) solid var(--border-color);
-  color: var(--text-color);
-  border-radius: 6px;
-  font-size: 13px;
-  cursor: pointer;
-  height: 32px;
-}
-
 .icon-button {
   width: 32px;
   height: 32px;

@@ -4,8 +4,6 @@
     <HeaderToolbar
       :state="state"
       :records="records"
-      v-model:searchQuery="filterOptions.searchQuery"
-      v-model:filterStatus="filterOptions.filterStatus"
       :canStartInspector="canStartInspector"
       :isLoading="isLoading"
       @toggle-global="handleToggleGlobal"
@@ -263,7 +261,7 @@ async function handleUpdateTargetUrl() {
 .main-split {
   flex: 1;
   display: grid;
-  padding: 12px;
+  padding-top: 12px;
   min-height: 0;
   overflow: hidden;
   gap: 0;

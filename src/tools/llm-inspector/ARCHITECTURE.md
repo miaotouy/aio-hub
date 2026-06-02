@@ -131,7 +131,6 @@ graph TD
             RS[inspectorRecordsStore<br/>CombinedRecord 仓库<br/>含 source/metadata]
             SS[inspectorStreamStore<br/>shallowRef + 100ms 节流]
             RM[recordManager.ts<br/>兼容薄壳]
-            SP[streamProcessor.ts<br/>兼容薄壳]
         end
     end
 
@@ -153,9 +152,9 @@ graph TD
     IM --> CFG
     IM --> IMon
     EXT_P --> RM
-    EXT_P --> SP
+    EXT_P --> SS
+    IMon --> SS
     RM -.转发.-> RS
-    SP -.转发.-> SS
     RS -- 响应式 --> UI
     SS -- 响应式 --> UI
     TE -- 响应式 --> UI
@@ -227,7 +226,7 @@ sequenceDiagram
     participant HR as hookRegistry
     participant IMon as useInternalMonitor
     participant RM as recordManager
-    participant SP as streamProcessor
+    participant SS as inspectorStreamStore
     participant UI as RecordDetail.vue
 
     Tool->>UR: sendRequest(opts + inspectorContext)
@@ -245,10 +244,10 @@ sequenceDiagram
         FW-->>Adapter: stream chunk
         Adapter->>HR: triggerStream(chunk)
         HR-->>IMon: 本地回调
-        IMon->>SP: processStreamUpdate
-        SP->>SP: pendingUpdates 累积
-        Note over SP: 100ms 后批量 triggerRef
-        SP-->>UI: 实时更新流式视图
+        IMon->>SS: processStreamUpdate
+        SS->>SS: pendingUpdates 累积
+        Note over SS: 100ms 后批量 triggerRef
+        SS-->>UI: 实时更新流式视图
     end
 
     Adapter->>HR: triggerResponse(body, status)
@@ -262,21 +261,20 @@ sequenceDiagram
 
 ### 5.1. 基础设施层
 
-| 模块                                                                                    | 职责                                                                  |
-| --------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| [`hookRegistry.ts`](src/tools/llm-inspector/core/hookRegistry.ts:1)                     | 钩子注册器单例 + contextStore + 本地回调 + Tauri 跨窗口广播           |
-| [`messageParser.ts`](src/tools/llm-inspector/core/messageParser.ts:1)                   | 5 大 LLM 格式 → 统一 ParsedMessage[] 解析                             |
-| [`tokenEstimator.ts`](src/tools/llm-inspector/core/tokenEstimator.ts:1)                 | 客户端 Token 估算（复用 token-calculator）+ 服务端 usage 提取         |
-| [`inspectorStreamStore.ts`](src/tools/llm-inspector/stores/inspectorStreamStore.ts:1)   | Pinia store：shallowRef 流式缓冲 + 100ms 节流 + 多格式智能提取        |
-| [`inspectorRecordsStore.ts`](src/tools/llm-inspector/stores/inspectorRecordsStore.ts:1) | Pinia store：CombinedRecord 数据仓库（含 source/inspectorMetadata）   |
-| [`streamProcessor.ts`](src/tools/llm-inspector/core/streamProcessor.ts:1)               | 兼容薄壳：转发到 `inspectorStreamStore` + `StreamContentProcessor` 类 |
-| [`recordManager.ts`](src/tools/llm-inspector/core/recordManager.ts:1)                   | 兼容薄壳：转发到 `inspectorRecordsStore`                              |
-| [`configManager.ts`](src/tools/llm-inspector/core/configManager.ts:1)                   | 配置持久化（含 layout.splitRatio）                                    |
-| [`proxyService.ts`](src/tools/llm-inspector/core/proxyService.ts:1)                     | Tauri invoke/listen 封装                                              |
-| [`streamMerger.ts`](src/tools/llm-inspector/core/streamMerger.ts:1)                     | SSE 流式合并为厂商原生非流式 JSON（结构化响应「标准化 JSON」子视图）  |
-| [`contentExtractor.ts`](src/tools/llm-inspector/core/contentExtractor.ts:1)             | 多格式流式正文/思维链/JSON 内容提取                                   |
-| [`apiFormat.ts`](src/tools/llm-inspector/core/apiFormat.ts:1)                           | 通过 URL 检测 API 格式                                                |
-| [`lruCache.ts`](src/tools/llm-inspector/core/lruCache.ts:1)                             | 轻量 LRU 容器（去重 / 缓存共用）                                      |
+| 模块                                                                                    | 职责                                                                 |
+| --------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| [`hookRegistry.ts`](src/tools/llm-inspector/core/hookRegistry.ts:1)                     | 钩子注册器单例 + contextStore + 本地回调 + Tauri 跨窗口广播          |
+| [`messageParser.ts`](src/tools/llm-inspector/core/messageParser.ts:1)                   | 5 大 LLM 格式 → 统一 ParsedMessage[] 解析                            |
+| [`tokenEstimator.ts`](src/tools/llm-inspector/core/tokenEstimator.ts:1)                 | 客户端 Token 估算（复用 token-calculator）+ 服务端 usage 提取        |
+| [`inspectorStreamStore.ts`](src/tools/llm-inspector/stores/inspectorStreamStore.ts:1)   | Pinia store：shallowRef 流式缓冲 + 100ms 节流 + 多格式智能提取       |
+| [`inspectorRecordsStore.ts`](src/tools/llm-inspector/stores/inspectorRecordsStore.ts:1) | Pinia store：CombinedRecord 数据仓库（含 source/inspectorMetadata）  |
+| [`recordManager.ts`](src/tools/llm-inspector/core/recordManager.ts:1)                   | 兼容薄壳：转发到 `inspectorRecordsStore`                             |
+| [`configManager.ts`](src/tools/llm-inspector/core/configManager.ts:1)                   | 配置持久化（含 layout.splitRatio）                                   |
+| [`proxyService.ts`](src/tools/llm-inspector/core/proxyService.ts:1)                     | Tauri invoke/listen 封装                                             |
+| [`streamMerger.ts`](src/tools/llm-inspector/core/streamMerger.ts:1)                     | SSE 流式合并为厂商原生非流式 JSON（结构化响应「标准化 JSON」子视图） |
+| [`contentExtractor.ts`](src/tools/llm-inspector/core/contentExtractor.ts:1)             | 多格式流式正文/思维链/JSON 内容提取                                  |
+| [`apiFormat.ts`](src/tools/llm-inspector/core/apiFormat.ts:1)                           | 通过 URL 检测 API 格式                                               |
+| [`lruCache.ts`](src/tools/llm-inspector/core/lruCache.ts:1)                             | 轻量 LRU 容器（去重 / 缓存共用）                                     |
 
 ### 5.2. 钩子注入层（接入但默认 OFF）
 

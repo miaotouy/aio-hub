@@ -31,7 +31,7 @@ import {
   clearAllEventListeners,
 } from "../core/proxyService";
 import { useRecordManager } from "../core/recordManager";
-import { useStreamProcessor } from "../core/streamProcessor";
+import { useInspectorStreamStore } from "../stores/inspectorStreamStore";
 import { validateInspectorConfig } from "../core/configManager";
 import type { InspectorConfig } from "../types";
 import type { InspectorState } from "../types/hooks";
@@ -52,7 +52,7 @@ export function useExternalProxy(options: UseExternalProxyOptions) {
   const { config, state, onTargetUrlChange } = options;
 
   const recordManager = useRecordManager();
-  const streamProcessor = useStreamProcessor();
+  const streamStore = useInspectorStreamStore();
 
   const currentTargetUrl = ref("");
   const isLoading = ref(false);
@@ -87,7 +87,7 @@ export function useExternalProxy(options: UseExternalProxyOptions) {
         recordManager.updateResponseRecord(response);
       });
       unlistenStream = await onStreamUpdateEvent((update) => {
-        streamProcessor.processStreamUpdate(update);
+        streamStore.processStreamUpdate(update);
       });
       logger.debug("事件监听器设置完成");
     } catch (err) {

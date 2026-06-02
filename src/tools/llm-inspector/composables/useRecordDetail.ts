@@ -1,5 +1,5 @@
 import { ref, computed, watch, toRefs } from "vue";
-import { useStreamProcessor } from "../core/streamProcessor";
+import { useInspectorStreamStore } from "../stores/inspectorStreamStore";
 import {
   copyToClipboard,
   maskSensitiveData,
@@ -14,14 +14,14 @@ export function useRecordDetail(props: {
   maskApiKeys?: boolean;
 }) {
   const { record, maskApiKeys } = toRefs(props);
-  const streamProcessor = useStreamProcessor();
+  const streamStore = useInspectorStreamStore();
 
   const viewMode = ref<ViewMode>("raw");
 
   // 计算属性
   const isStreamingActive = computed(() => {
     return record.value
-      ? streamProcessor.isStreamingRecord(record.value.id)
+      ? streamStore.isStreamingRecord(record.value.id)
       : false;
   });
 
@@ -37,7 +37,7 @@ export function useRecordDetail(props: {
 
   const displayResponseBody = computed(() => {
     if (!record.value) return "";
-    return streamProcessor.getDisplayResponseBody(
+    return streamStore.getDisplayResponseBody(
       record.value.id,
       record.value.response?.body,
       isStreamingResponse.value
@@ -46,7 +46,7 @@ export function useRecordDetail(props: {
 
   const canShowTextMode = computed(() => {
     return record.value
-      ? streamProcessor.canShowTextMode(
+      ? streamStore.canShowTextMode(
           record.value.id,
           record.value.response?.body
         )
@@ -55,7 +55,7 @@ export function useRecordDetail(props: {
 
   const extractedContent = computed(() => {
     if (!record.value) return "";
-    return streamProcessor.extractContent(
+    return streamStore.extractContent(
       record.value.id,
       record.value.response?.body,
       isStreamingResponse.value,
@@ -65,7 +65,7 @@ export function useRecordDetail(props: {
 
   const extractedReasoning = computed(() => {
     if (!record.value) return "";
-    return streamProcessor.extractReasoning(
+    return streamStore.extractReasoning(
       record.value.id,
       record.value.response?.body,
       isStreamingResponse.value,
@@ -107,7 +107,7 @@ export function useRecordDetail(props: {
 
   function copyResponseBody() {
     if (!record.value) return;
-    const body = streamProcessor.getDisplayResponseBody(
+    const body = streamStore.getDisplayResponseBody(
       record.value.id,
       record.value.response?.body,
       isStreamingResponse.value
@@ -149,7 +149,7 @@ export function useRecordDetail(props: {
         fullText += "\n\n";
       }
 
-      const responseBody = streamProcessor.getDisplayResponseBody(
+      const responseBody = streamStore.getDisplayResponseBody(
         record.value.id,
         record.value.response?.body,
         isStreamingResponse.value
@@ -191,7 +191,7 @@ export function useRecordDetail(props: {
     getStatusClass,
     isJson: (str: string) =>
       str
-        ? streamProcessor
+        ? streamStore
             .getDisplayResponseBody(record.value?.id || "", str)
             .startsWith("{")
         : false,

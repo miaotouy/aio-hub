@@ -21,11 +21,12 @@
  */
 
 import { reactive, computed, watch, onMounted, onUnmounted } from "vue";
+import { storeToRefs } from "pinia";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@utils/errorHandler";
 import { useRecordManager } from "../core/recordManager";
-import { useStreamProcessor } from "../core/streamProcessor";
+import { useInspectorStreamStore } from "../stores/inspectorStreamStore";
 import { inspectorHookRegistry } from "../core/hookRegistry";
 import { useInspectorConfig } from "./useInspectorConfig";
 import { useExternalProxy } from "./useExternalProxy";
@@ -59,7 +60,8 @@ export function useInspectorManager() {
 
   // === 共享底层管理器 ===
   const recordManager = useRecordManager();
-  const streamProcessor = useStreamProcessor();
+  const streamStore = useInspectorStreamStore();
+  const { isStreamingActive, activeStreamCount } = storeToRefs(streamStore);
 
   // === 子 composable：配置层 ===
   const configMgr = useInspectorConfig({
@@ -86,13 +88,13 @@ export function useInspectorManager() {
     port: configMgr.config.value.port,
     targetUrl: proxyMgr.currentTargetUrl.value,
     recordCount: recordManager.getRecords().length,
-    activeStreams: streamProcessor.activeStreamCount.value,
+    activeStreams: activeStreamCount.value,
   }));
 
   // === 清理 / 复合操作 ===
   function clearRecords() {
     recordManager.clearAllRecords();
-    streamProcessor.clearAllStreamBuffers();
+    streamStore.clearAllStreamBuffers();
   }
 
   // === 自动保存：配置 / UI 偏好变化 ===
@@ -230,7 +232,7 @@ export function useInspectorManager() {
   onUnmounted(() => {
     // 注意：不在 unmount 时强制 disable hookRegistry，避免分离窗口场景下
     // 主窗口卸载导致全局钩子失效。开关由用户在 UI 上显式控制。
-    streamProcessor.clearAllStreamBuffers();
+    streamStore.clearAllStreamBuffers();
 
     // 清理跨窗口同步 listener，避免组件销毁后仍持有引用
     for (const unlisten of syncUnlisteners) {
@@ -270,8 +272,8 @@ export function useInspectorManager() {
     filteredRecords: computed(() => recordManager.getFilteredRecords()),
 
     // 流式处理器
-    isStreamingActive: streamProcessor.isStreamingActive,
-    activeStreamCount: streamProcessor.activeStreamCount,
+    isStreamingActive,
+    activeStreamCount,
 
     // 方法 — 代理
     startInspector: proxyMgr.startInspector,
@@ -291,9 +293,9 @@ export function useInspectorManager() {
     getRecordStats: recordManager.getRecordStats,
 
     // 流式处理方法
-    getDisplayResponseBody: streamProcessor.getDisplayResponseBody,
-    extractContent: streamProcessor.extractContent,
-    canShowTextMode: streamProcessor.canShowTextMode,
+    getDisplayResponseBody: streamStore.getDisplayResponseBody,
+    extractContent: streamStore.extractContent,
+    canShowTextMode: streamStore.canShowTextMode,
 
     // 工具方法
     clearError: proxyMgr.clearError,

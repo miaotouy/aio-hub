@@ -29,7 +29,7 @@ import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@utils/errorHandler";
 import { inspectorHookRegistry } from "../core/hookRegistry";
 import { useRecordManager } from "../core/recordManager";
-import { useStreamProcessor } from "../core/streamProcessor";
+import { useInspectorStreamStore } from "../stores/inspectorStreamStore";
 import { LruSet } from "../core/lruCache";
 import {
   INSPECTOR_INTERNAL_EVENT,
@@ -117,7 +117,7 @@ function pickInspectorMetadata(
  */
 export function useInternalMonitor() {
   const recordManager = useRecordManager();
-  const streamProcessor = useStreamProcessor();
+  const streamStore = useInspectorStreamStore();
 
   // 去重 LRU：以 `${type}:${requestId}:${timestamp}` 为键
   const seen = new LruSet<string>(DEDUP_LRU_LIMIT);
@@ -161,7 +161,7 @@ export function useInternalMonitor() {
     const key = `stream:${event.requestId}:${event.timestamp}`;
     if (!markAndCheck(key)) return;
     try {
-      streamProcessor.processStreamUpdate(toStreamUpdate(event));
+      streamStore.processStreamUpdate(toStreamUpdate(event));
     } catch (error) {
       errorHandler.handle(error, {
         userMessage: "处理内部流式事件失败",

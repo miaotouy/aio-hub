@@ -275,7 +275,7 @@ import { copyToClipboard, formatSize, isJson } from "../../../core/utils";
 import { detectApiFormat } from "../../../core/apiFormat";
 import { mergeStreamToFinalJson } from "../../../core/streamMerger";
 import { useRecordDetail } from "../../../composables/useRecordDetail";
-import { useStreamProcessor } from "../../../core/streamProcessor";
+import { useInspectorStreamStore } from "../../../stores/inspectorStreamStore";
 import { customMessage } from "@/utils/customMessage";
 import type {
   CombinedRecord,
@@ -415,16 +415,20 @@ const parseErrorMessage = computed(() => {
 });
 
 // ===== 标准化 JSON 视图 =====
-const streamProcessor = useStreamProcessor();
+const streamStore = useInspectorStreamStore();
 
 /**
- * 流式累积的原始 SSE 文本（不含美化），优先取 streamProcessor 的缓冲，
- * 流结束后退回到 record.response.body
+ * 流式累积的原始 SSE 文本（不含美化），优先取 streamStore 的缓冲，
+ * 流结束后退回到 record.response.body。
+ *
+ * Pinia setup store 把 `shallowRef` 暴露为自动 unwrap 的属性，因此直接访问
+ * `streamStore.streamBuffer` 即可拿到 `StreamBuffer` 对象（不需要 `.value`），
+ * computed 依然能感知到 triggerRef 触发的更新。
  */
 const streamRawBody = computed(() => {
   if (!props.record) return "";
   return (
-    streamProcessor.streamBuffer.value[props.record.id] ||
+    streamStore.streamBuffer[props.record.id] ||
     props.record.response?.body ||
     ""
   );

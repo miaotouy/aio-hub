@@ -29,11 +29,16 @@
         </div>
       </div>
 
-      <!-- E1: 顶层 Tabs 容器，目前只有「总览」一个 tab -->
+      <!-- E1/E2: 顶层 Tabs 容器 -->
       <el-tabs v-model="activeTab" class="detail-tabs">
         <el-tab-pane label="总览" name="overview">
           <div class="tab-pane-content">
             <RecordOverviewTab :record="record" :maskApiKeys="maskApiKeys" />
+          </div>
+        </el-tab-pane>
+        <el-tab-pane label="结构化" name="structured">
+          <div class="tab-pane-content">
+            <RecordStructuredTab :record="record" />
           </div>
         </el-tab-pane>
       </el-tabs>
@@ -46,6 +51,7 @@ import { ref } from "vue";
 import { ClipboardList, Copy, Lock, X } from "lucide-vue-next";
 import { useRecordDetail } from "../composables/useRecordDetail";
 import RecordOverviewTab from "./detail/RecordOverviewTab.vue";
+import RecordStructuredTab from "./detail/RecordStructuredTab.vue";
 import type { CombinedRecord } from "../types";
 
 const props = defineProps<{
@@ -57,8 +63,8 @@ defineEmits<{
   close: [];
 }>();
 
-// 当前激活的 Tab；E1 阶段仅 overview，E2/E3/E4 会加入 structured/raw/stream
-const activeTab = ref<"overview">("overview");
+// 当前激活的 Tab；E1/E2 含 overview/structured，E4 会加入 raw/stream
+const activeTab = ref<"overview" | "structured">("overview");
 
 // 头部「复制全部」按钮所需逻辑（独立调用，不影响子组件 state）
 const { copyAll } = useRecordDetail(props);

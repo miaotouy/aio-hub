@@ -24,12 +24,13 @@ import { useInspectorRecordsStore } from "../stores/inspectorRecordsStore";
  */
 export function useRecordManager() {
   const store = useInspectorRecordsStore();
-  const { records, selectedRecord } = storeToRefs(store);
+  const { records, selectedRecord, maxRecords } = storeToRefs(store);
 
   return {
     // 状态（保持与原 API 一致）
     records,
     selectedRecord,
+    maxRecords,
     filterOptions: store.filterOptions,
 
     // 方法
@@ -42,6 +43,7 @@ export function useRecordManager() {
     selectRecord: store.selectRecord,
     clearAllRecords: store.clearAllRecords,
     deleteRecord: store.deleteRecord,
+    setMaxRecords: store.setMaxRecords,
     updateFilterOptions: store.updateFilterOptions,
     resetFilterOptions: store.resetFilterOptions,
     findRecordById: store.findRecordById,

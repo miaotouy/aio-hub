@@ -67,5 +67,12 @@ export interface LlmInspectorSettings {
    * 关闭时用户需要在详情面板的 Token 卡片上手动点击触发。
    */
   autoEstimateTokens?: boolean;
+  /**
+   * 最大保留的捕获记录数量（默认 100）。
+   *
+   * 超过此数量后，最旧的记录会被自动移除（FIFO）。
+   * 仅在新记录到达时检查，已有记录不会被立即裁剪。
+   */
+  maxRecords?: number;
   version?: string;
 }

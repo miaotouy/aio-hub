@@ -13,6 +13,13 @@ export const DEFAULT_SPLIT_RATIO = 0.25;
 export const MIN_SPLIT_RATIO = 0.1;
 export const MAX_SPLIT_RATIO = 0.9;
 
+/**
+ * 最大记录数默认值与边界
+ */
+export const DEFAULT_MAX_RECORDS = 100;
+export const MIN_MAX_RECORDS = 10;
+export const MAX_MAX_RECORDS = 1000;
+
 // 默认配置创建函数
 function createDefaultSettings(): LlmInspectorSettings {
   return {
@@ -33,6 +40,7 @@ function createDefaultSettings(): LlmInspectorSettings {
       splitRatio: DEFAULT_SPLIT_RATIO,
     },
     autoEstimateTokens: false,
+    maxRecords: DEFAULT_MAX_RECORDS,
     version: "1.0.0",
   };
 }
@@ -70,11 +78,24 @@ export async function loadSettings(): Promise<LlmInspectorSettings> {
     if (typeof settings.autoEstimateTokens !== "boolean") {
       settings.autoEstimateTokens = false;
     }
+    // 向后兼容：旧配置可能缺 maxRecords 字段，钳制到合法范围
+    if (
+      typeof settings.maxRecords !== "number" ||
+      !Number.isFinite(settings.maxRecords)
+    ) {
+      settings.maxRecords = DEFAULT_MAX_RECORDS;
+    } else {
+      settings.maxRecords = Math.min(
+        MAX_MAX_RECORDS,
+        Math.max(MIN_MAX_RECORDS, Math.floor(settings.maxRecords))
+      );
+    }
     logger.info("配置加载成功", {
       port: settings.config.port,
       targetUrl: settings.config.target_url,
       splitRatio: settings.layout.splitRatio,
       autoEstimateTokens: settings.autoEstimateTokens,
+      maxRecords: settings.maxRecords,
     });
     return settings;
   } catch (error) {

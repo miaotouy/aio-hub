@@ -32,8 +32,12 @@ import { filterRecords } from "../core/utils";
 const logger = createModuleLogger("LlmInspector/RecordsStore");
 const errorHandler = createModuleErrorHandler("LlmInspector/RecordsStore");
 
-/** 最大记录数量限制。超过后从队首移除最旧记录。 */
-const MAX_RECORDS = 1000;
+/** 最大记录数量限制默认值。超过后从队首移除最旧记录。 */
+const DEFAULT_MAX_RECORDS = 100;
+/** 最大记录数上限（硬性安全护栏，防止 UI 直接传入异常值导致内存爆炸） */
+const HARD_LIMIT_MAX_RECORDS = 1000;
+/** 最大记录数下限 */
+const HARD_LIMIT_MIN_RECORDS = 10;
 
 export const useInspectorRecordsStore = defineStore(
   "llmInspectorRecords",
@@ -41,6 +45,38 @@ export const useInspectorRecordsStore = defineStore(
     // === 响应式状态 ===
     const records = ref<CombinedRecord[]>([]);
     const selectedRecord = ref<CombinedRecord | null>(null);
+    /** 当前生效的最大记录数（可由 UI 配置动态调整） */
+    const maxRecords = ref<number>(DEFAULT_MAX_RECORDS);
+
+    /**
+     * 设置最大记录数上限。会立即对现有记录做裁剪（保留最新的 N 条）。
+     */
+    function setMaxRecords(value: number): void {
+      if (!Number.isFinite(value)) return;
+      const clamped = Math.min(
+        HARD_LIMIT_MAX_RECORDS,
+        Math.max(HARD_LIMIT_MIN_RECORDS, Math.floor(value))
+      );
+      if (clamped === maxRecords.value) return;
+      maxRecords.value = clamped;
+      logger.debug("设置最大记录数", { maxRecords: clamped });
+
+      // 立即裁剪：保留最新的 N 条
+      if (records.value.length > clamped) {
+        const removedCount = records.value.length - clamped;
+        const kept = records.value.slice(-clamped);
+        records.value = kept;
+        logger.info("已根据新的最大记录数裁剪历史记录", { removedCount });
+
+        // 若选中记录已被裁掉则清空
+        if (
+          selectedRecord.value &&
+          !records.value.some((r) => r.id === selectedRecord.value!.id)
+        ) {
+          selectedRecord.value = null;
+        }
+      }
+    }
 
     /**
      * 过滤选项。**故意**使用 `reactive` 而非 `ref`，以兼容 LlmInspector.vue 模板里
@@ -102,9 +138,13 @@ export const useInspectorRecordsStore = defineStore(
       };
 
       records.value.push(combinedRecord);
-      if (records.value.length > MAX_RECORDS) {
+      while (records.value.length > maxRecords.value) {
         const removed = records.value.shift();
         logger.debug("移除超出限制的记录", { removedId: removed?.id });
+        // 若选中的记录被裁剪则清空选中
+        if (removed && selectedRecord.value?.id === removed.id) {
+          selectedRecord.value = null;
+        }
       }
 
       // 自动选中第一条
@@ -267,6 +307,7 @@ export const useInspectorRecordsStore = defineStore(
       records,
       selectedRecord,
       filterOptions,
+      maxRecords,
 
       // 查询
       getRecords,
@@ -283,6 +324,7 @@ export const useInspectorRecordsStore = defineStore(
       deleteRecord,
       updateFilterOptions,
       resetFilterOptions,
+      setMaxRecords,
 
       // 统计 / IO
       getRecordStats,

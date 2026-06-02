@@ -105,6 +105,7 @@ export function useInspectorManager() {
       configMgr.targetUrlHistory,
       configMgr.layout,
       configMgr.autoEstimateTokens,
+      configMgr.maxRecords,
     ],
     () => {
       configMgr.saveConfig().catch((err) =>
@@ -129,6 +130,15 @@ export function useInspectorManager() {
       );
     },
     { deep: true }
+  );
+
+  // === 同步 maxRecords 配置到 records store（双向：加载后立即同步、修改后实时同步）===
+  watch(
+    () => configMgr.maxRecords.value,
+    (value) => {
+      recordManager.setMaxRecords(value);
+    },
+    { immediate: true }
   );
 
   // === 状态机联动：内部钩子开关 ===
@@ -261,6 +271,7 @@ export function useInspectorManager() {
     targetUrlHistory: configMgr.targetUrlHistory,
     layout: configMgr.layout,
     autoEstimateTokens: configMgr.autoEstimateTokens,
+    maxRecords: configMgr.maxRecords,
 
     // 计算属性
     inspectorStatus,
@@ -291,6 +302,7 @@ export function useInspectorManager() {
 
     // 记录管理方法
     selectRecord: recordManager.selectRecord,
+    deleteRecord: recordManager.deleteRecord,
     updateFilterOptions: recordManager.updateFilterOptions,
     getRecordStats: recordManager.getRecordStats,
 

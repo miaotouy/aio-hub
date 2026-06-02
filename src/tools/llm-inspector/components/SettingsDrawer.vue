@@ -112,7 +112,6 @@
           </div>
         </div>
       </section>
-
       <!-- Token 估算设置 -->
       <section class="settings-section">
         <h4 class="section-title">Token 估算</h4>
@@ -131,6 +130,33 @@
             开启此项后，每条请求结束后会额外用本地 tokenizer 估算请求/响应的
             Token 数，用于与服务端数据对比偏差。<br />
             默认关闭以节省资源——按需时可在详情面板的 Token 卡片上手动点击触发。
+          </div>
+        </div>
+      </section>
+
+      <!-- 记录容量 -->
+      <section class="settings-section">
+        <h4 class="section-title">记录容量</h4>
+        <div class="form-field">
+          <label class="field-label">最大保留记录数</label>
+          <el-input-number
+            :model-value="maxRecords"
+            @update:model-value="
+              (val: number | undefined) =>
+                emit(
+                  'update:maxRecords',
+                  typeof val === 'number' && Number.isFinite(val) ? val : 1000
+                )
+            "
+            :min="10"
+            :max="1000"
+            :step="10"
+            controls-position="right"
+            style="width: 100%"
+          />
+          <div class="field-hint">
+            超过上限后会自动从最旧的记录开始裁剪（FIFO）。<br />
+            修改后会立即生效并裁剪当前已超出的历史记录。范围 10 - 1000。
           </div>
         </div>
       </section>
@@ -160,6 +186,8 @@ interface Props {
   maskApiKeys: boolean;
   /** 是否在响应结束后自动执行客户端 Token 估算 */
   autoEstimateTokens: boolean;
+  /** 最大保留记录数 */
+  maxRecords: number;
   /** 目标 URL 历史 */
   targetUrlHistory: string[];
   /** 当前正在运行的 target URL（用于判断输入是否需要应用） */
@@ -175,6 +203,7 @@ const emit = defineEmits<{
   "update:config": [config: InspectorConfig];
   "update:maskApiKeys": [value: boolean];
   "update:autoEstimateTokens": [value: boolean];
+  "update:maxRecords": [value: number];
   "save-header-rules": [rules: HeaderOverrideRule[]];
   "update-target-url": [];
 }>();

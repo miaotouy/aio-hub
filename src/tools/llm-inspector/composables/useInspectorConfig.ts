@@ -23,6 +23,7 @@ import {
   loadSettings,
   saveSettings,
   DEFAULT_SPLIT_RATIO,
+  DEFAULT_MAX_RECORDS,
 } from "../core/configManager";
 import { maskSensitiveData, copyToClipboard } from "../core/utils";
 import type {
@@ -60,6 +61,11 @@ export function useInspectorConfig(options: UseInspectorConfigOptions) {
    * 服务端 usage 提取始终自动执行；此开关仅控制较重的客户端 tokenizer 估算。
    */
   const autoEstimateTokens = ref(false);
+  /**
+   * 最大保留的捕获记录数量（默认 1000）。
+   * 超过后从最旧记录开始裁剪。
+   */
+  const maxRecords = ref<number>(DEFAULT_MAX_RECORDS);
 
   /** 从持久化存储加载全部配置 */
   async function loadConfig(): Promise<void> {
@@ -70,6 +76,7 @@ export function useInspectorConfig(options: UseInspectorConfigOptions) {
       targetUrlHistory.value = settings.targetUrlHistory ?? [];
       layout.value = settings.layout ?? { splitRatio: DEFAULT_SPLIT_RATIO };
       autoEstimateTokens.value = settings.autoEstimateTokens ?? false;
+      maxRecords.value = settings.maxRecords ?? DEFAULT_MAX_RECORDS;
 
       logger.info("配置加载成功", {
         port: settings.config.port,
@@ -77,6 +84,7 @@ export function useInspectorConfig(options: UseInspectorConfigOptions) {
         historyCount: targetUrlHistory.value.length,
         splitRatio: layout.value.splitRatio,
         autoEstimateTokens: autoEstimateTokens.value,
+        maxRecords: maxRecords.value,
       });
     } catch (err) {
       errorHandler.handle(err, {
@@ -99,6 +107,7 @@ export function useInspectorConfig(options: UseInspectorConfigOptions) {
         targetUrlHistory: targetUrlHistory.value,
         layout: layout.value,
         autoEstimateTokens: autoEstimateTokens.value,
+        maxRecords: maxRecords.value,
       };
 
       await saveSettings(settings);
@@ -145,6 +154,7 @@ export function useInspectorConfig(options: UseInspectorConfigOptions) {
     targetUrlHistory,
     layout,
     autoEstimateTokens,
+    maxRecords,
 
     // 方法
     loadConfig,

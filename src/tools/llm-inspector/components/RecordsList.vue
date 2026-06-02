@@ -53,6 +53,13 @@
           <span :class="['status', getStatusClass(record.response?.status)]">
             {{ record.response?.status || "Pending" }}
           </span>
+          <button
+            class="delete-btn"
+            title="删除此记录"
+            @click.stop="onDeleteClick(record, $event)"
+          >
+            <Trash2 :size="13" />
+          </button>
         </div>
         <div class="record-meta">
           <span
@@ -101,7 +108,15 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useDebounceFn } from "@vueuse/core";
-import { ListChecks, Filter, Search, Globe, Zap } from "lucide-vue-next";
+import {
+  ListChecks,
+  Filter,
+  Search,
+  Globe,
+  Zap,
+  Trash2,
+} from "lucide-vue-next";
+import { ElMessageBox } from "element-plus";
 import type { CombinedRecord } from "../types";
 
 // 属性
@@ -117,7 +132,28 @@ const emit = defineEmits<{
   select: [record: CombinedRecord];
   "update:searchQuery": [value: string];
   "update:filterStatus": [value: string];
+  delete: [recordId: string];
 }>();
+
+// 删除单条记录（带二次确认）
+async function onDeleteClick(record: CombinedRecord, event: MouseEvent) {
+  event.stopPropagation();
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除这条 ${record.request.method} 请求记录吗？`,
+      "删除记录",
+      {
+        confirmButtonText: "删除",
+        cancelButtonText: "取消",
+        type: "warning",
+        lockScroll: false,
+      }
+    );
+    emit("delete", record.id);
+  } catch {
+    // 用户取消，无操作
+  }
+}
 
 // 搜索输入防抖：输入框即时显示，向父组件 emit 延迟 300ms
 const localSearchQuery = ref(props.searchQuery);
@@ -387,6 +423,43 @@ function getSourceTooltip(record: CombinedRecord): string {
   align-items: center;
   gap: 10px;
   margin-bottom: 5px;
+}
+
+.delete-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-color-light);
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 0.18s ease,
+    background-color 0.18s ease,
+    color 0.18s ease;
+  flex-shrink: 0;
+}
+
+.record-item:hover .delete-btn {
+  opacity: 0.65;
+}
+
+.delete-btn:hover {
+  opacity: 1 !important;
+  background: rgba(
+    var(--el-color-danger-rgb),
+    calc(var(--card-opacity) * 0.15)
+  );
+  color: var(--el-color-danger, #f56c6c);
+}
+
+.record-item.selected .delete-btn {
+  opacity: 0.65;
 }
 
 .method {

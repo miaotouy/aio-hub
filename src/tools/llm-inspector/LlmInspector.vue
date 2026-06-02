@@ -36,6 +36,7 @@
           v-model:searchQuery="filterOptions.searchQuery"
           v-model:filterStatus="filterOptions.filterStatus"
           @select="selectRecord"
+          @delete="handleDeleteRecord"
         />
       </div>
 
@@ -63,12 +64,14 @@
       :config="config"
       :maskApiKeys="maskApiKeys"
       :autoEstimateTokens="autoEstimateTokens"
+      :maxRecords="maxRecords"
       :targetUrlHistory="targetUrlHistory"
       :currentTargetUrl="currentTargetUrl"
       :state="state"
       @update:config="handleUpdateConfig"
       @update:maskApiKeys="handleUpdateMaskApiKeys"
       @update:autoEstimateTokens="handleUpdateAutoEstimateTokens"
+      @update:maxRecords="handleUpdateMaxRecords"
       @save-header-rules="handleSaveHeaderRules"
       @update-target-url="handleUpdateTargetUrl"
     />
@@ -97,6 +100,7 @@ const {
   config,
   maskApiKeys,
   autoEstimateTokens,
+  maxRecords,
   isLoading,
   error,
   targetUrlHistory,
@@ -116,6 +120,7 @@ const {
   updateTargetUrl,
   clearRecords,
   selectRecord,
+  deleteRecord,
   clearError,
 } = useInspectorManager();
 
@@ -183,6 +188,10 @@ function handleClearRecords() {
   clearRecords();
 }
 
+function handleDeleteRecord(recordId: string) {
+  deleteRecord(recordId);
+}
+
 // === SettingsDrawer 事件 ===
 function handleUpdateConfig(next: InspectorConfig) {
   config.value = next;
@@ -194,6 +203,10 @@ function handleUpdateMaskApiKeys(value: boolean) {
 
 function handleUpdateAutoEstimateTokens(value: boolean) {
   autoEstimateTokens.value = value;
+}
+
+function handleUpdateMaxRecords(value: number) {
+  maxRecords.value = value;
 }
 
 function handleSaveHeaderRules(rules: HeaderOverrideRule[]) {

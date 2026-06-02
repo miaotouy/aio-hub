@@ -1,13 +1,15 @@
 # 响应详情视图重构计划 (2026-06)
 
-> **状态**: Draft v2（深度调研后修订）
+> **状态**: ✅ 阶段 1 + 阶段 2 已实施完成（v3 修订）
 > **作者**: kilo咕咕 (Architect)
 > **目标范围**: [`ResponseStructuredView.vue`](src/tools/llm-inspector/components/detail/views/ResponseStructuredView.vue:1) 与 [`ResponseRawView.vue`](src/tools/llm-inspector/components/detail/views/ResponseRawView.vue:1)
 > **核心策略**: 📐 **照抄项目已有优雅实现**，不重复造轮子
 
 ---
 
-## 0. 修订说明（v1 → v2）
+## 0. 修订说明
+
+### v1 → v2
 
 姐姐一句话点醒了咕咕：「项目中已有解析流式并渲染的地方可以照抄」。
 
@@ -19,9 +21,24 @@
 
 **v2 的核心变化**：
 
-- ❌ 不再实现复杂的 `streamMerger.ts`（约 300 行算法）
+- ❌ 阶段 1：不再实现复杂的 `streamMerger.ts`
 - ✅ 直接复用并扩展 [`extractStreamContent`](src/tools/llm-inspector/core/utils.ts:265) 的模式
 - ✅ 在 UI 层完全照抄 [`MessageContent.vue`](src/tools/llm-chat/components/message/MessageContent.vue:793) 的 `LlmThinkNode + RichTextRenderer` 双组件结构
+
+### v2 → v3（阶段 2 实施 + 归属修订）
+
+> 姐姐的关键判断：「重组后的标准化 JSON 更适合放在**结构化页面**里，虽然出现代码块看起来反直觉，但逻辑上是对的」。
+
+**v3 的核心修订**：
+
+- ✅ 阶段 2 已实施，但**实施位置变更**：
+  - ❌ 原计划：在 [`ResponseRawView.vue`](src/tools/llm-inspector/components/detail/views/ResponseRawView.vue:1) 加 segment control 切换「原始 SSE / 合并 JSON」
+  - ✅ 实际实施：在 [`ResponseStructuredView.vue`](src/tools/llm-inspector/components/detail/views/ResponseStructuredView.vue:1) 顶部新增子视图切换「可视化 / 标准化 JSON」
+- **决策依据**：
+  1. 「合并后的标准化 JSON」**本质是结构化解读的产物**（从 SSE 还原成厂商原生完整响应），而不是「原始数据」
+  2. 「原始」一词的语义应当严格属于「未经任何处理的传输层文本」，即 SSE 流本身
+  3. 把两种"结构化呈现方式"（可视化 / JSON）聚合在一起，让结构化视图成为**唯一的「解读层」入口**，原始视图保持纯粹
+- ✅ 阶段 1（[`extractStreamReasoning`](src/tools/llm-inspector/core/utils.ts:295) + LlmThinkNode 重构）保持不变，已稳定运行
 
 ---
 
@@ -545,86 +562,48 @@ const renderData = computed<RenderData | null>(() => {
 </template>
 ```
 
-### 4.5 步骤 5（可选 / 第二阶段）：`ResponseRawView.vue` 增强
+### 4.5 步骤 5（阶段 2 实施版）：在结构化视图中加「标准化 JSON」子 tab
 
-> ⚠️ **重要权衡**：因为结构化视图已经能在流式中实时渲染思维链 + 正文，"合并 JSON" 的查看价值降低，主要剩下两个场景：
->
-> 1. 复制完整 JSON 给外部工具
-> 2. 调试时查看完整结构
->
-> 建议**降级为第二阶段任务**，先把核心结构化视图重构完成。
+> ⚠️ **架构决策修订**：把合并 JSON 视图归属到结构化视图（而非原始视图）作为子 tab。
 
-如果实施，方案如下（基于已有 `extractStreamContent` / `extractStreamReasoning` 模式构造）：
+#### 4.5.1 [`streamMerger.ts`](src/tools/llm-inspector/core/streamMerger.ts:1) 实现要点
 
-```typescript
-// src/tools/llm-inspector/core/streamMerger.ts (轻量版)
+不再复用 `extractStreamContent` 拼凑（那样会丢失 `tool_calls`、`usage`、`finish_reason` 等结构信息），改为**为每个 provider 实现完整的 SSE 合并算法**：
 
-import {
-  extractStreamContent,
-  extractStreamReasoning,
-  type ApiFormat,
-} from "./utils";
+- 解析 SSE 事件序列（按 `\n\n` 切分 + `data:` / `event:` 提取）
+- 按厂商协议累积各字段：
+  - **OpenAI Chat**: 按 `choices[].index` 分桶，累积 `delta.content` / `delta.reasoning_content` / `delta.tool_calls[].function.arguments` 等
+  - **Anthropic**: 解析 `message_start` / `content_block_start` / `content_block_delta` / `message_delta` 事件序列，累积 text / thinking / tool_use
+  - **Gemini**: 按 candidate 累积 parts，相邻同 `thought` 状态的文本 part 自动合并
+  - **OpenAI Responses**: 优先用 `response.completed` 事件中的完整对象；fallback 到 deltas 重建
+  - **Cohere v2**: 解析 `content-start` / `content-delta` / `message-end` 事件
+  - **Ollama**: 累积 `message.content` + 最后一个 chunk 的性能统计
+- 失败兜底：返回 chunks 数组 + 警告，不抛错
 
-/**
- * 把 SSE body 合并为模拟非流式 JSON
- * 复用已有提取能力，不重新实现 SSE 解析
- */
-export function mergeStreamToFinalJson(
-  body: string,
-  format: ApiFormat,
-  requestUrl?: string
-): { merged: any; warnings: string[] } {
-  const content = extractStreamContent(body, requestUrl);
-  const reasoning = extractStreamReasoning(body, requestUrl);
-  const warnings: string[] = [];
+#### 4.5.2 [`ResponseStructuredView.vue`](src/tools/llm-inspector/components/detail/views/ResponseStructuredView.vue:1) UI 集成
 
-  switch (format) {
-    case "openai-chat":
-    case "openai-completions":
-    case "ollama": {
-      // 提取首尾 chunk 的元数据
-      const events = parseSSEEvents(body);
-      const firstEvent = events[0];
-      const lastEvent = events[events.length - 1];
-
-      const merged = {
-        ...firstEvent,
-        choices: [
-          {
-            index: 0,
-            message: {
-              role: "assistant",
-              content,
-              ...(reasoning && { reasoning_content: reasoning }),
-            },
-            finish_reason: lastEvent?.choices?.[0]?.finish_reason ?? "stop",
-          },
-        ],
-        ...(lastEvent?.usage && { usage: lastEvent.usage }),
-      };
-      delete merged.choices[0].delta;
-      return { merged, warnings };
-    }
-    // ... 其他格式
-    default:
-      warnings.push(`格式 ${format} 暂不支持合并，已返回原始 chunks`);
-      return { merged: parseSSEEvents(body), warnings };
-  }
-}
-```
-
-UI 层在 `ResponseRawView.vue` 添加 Segment Control：
+顶部 segment control：
 
 ```vue
-<div v-if="isStreamingResponse" class="raw-mode-switch">
-  <button :class="{ active: rawMode === 'sse' }" @click="rawMode = 'sse'">
-    <FileText :size="12" /> 原始 SSE
+<div class="sub-view-toggle">
+  <button :class="{ active: subView === 'visual' }" @click="subView = 'visual'">
+    <Sparkles /> 可视化
   </button>
-  <button :class="{ active: rawMode === 'merged' }" @click="rawMode = 'merged'">
-    <Layers :size="12" /> 合并 JSON
+  <button :class="{ active: subView === 'json' }" @click="subView = 'json'">
+    <Braces /> 标准化 JSON
   </button>
 </div>
 ```
+
+- **可视化子视图**：保留阶段 1 的 LlmThinkNode + RichTextRenderer + 工具调用 chip
+- **标准化 JSON 子视图**：
+  - 流式中：实时合并 SSE，用 `RichCodeEditor` 展示，配合「已合并 N 个事件 · 实时刷新中」提示条
+  - 非流式：直接美化原始 JSON
+  - 顶部带复制按钮 + 大小提示 + 警告条（若有）
+
+#### 4.5.3 数据源
+
+直接读取 [`streamProcessor.streamBuffer.value[recordId]`](src/tools/llm-inspector/core/streamProcessor.ts:16)（原始未美化的 SSE 字节流），不走 `displayResponseBody`（那个会做 SSE 格式化美化，结构虽未变但会影响合并算法的字符匹配）。
 
 ---
 
@@ -632,20 +611,19 @@ UI 层在 `ResponseRawView.vue` 添加 Segment Control：
 
 ### 5.1 新增
 
-| 文件                                                                      | 用途                                                  | 阶段   |
-| ------------------------------------------------------------------------- | ----------------------------------------------------- | ------ |
-| -                                                                         | （无需新建 `streamMerger.ts`，能力下沉到 `utils.ts`） | -      |
-| [`streamMerger.ts`](src/tools/llm-inspector/core/streamMerger.ts)（可选） | SSE → 合并 JSON（第二阶段）                           | 阶段 2 |
+| 文件                                                              | 用途                                                | 阶段           |
+| ----------------------------------------------------------------- | --------------------------------------------------- | -------------- |
+| [`streamMerger.ts`](src/tools/llm-inspector/core/streamMerger.ts) | SSE → 厂商原生非流式 JSON 合并算法（6 个 provider） | ✅ 阶段 2 完成 |
 
 ### 5.2 修改
 
-| 文件                                                                                                       | 改动                                                                              | 阶段   |
-| ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ------ |
-| [`utils.ts`](src/tools/llm-inspector/core/utils.ts)                                                        | 新增 `extractStreamReasoning` + `extractReasoningDeltaByFormat`                   | 阶段 1 |
-| [`streamProcessor.ts`](src/tools/llm-inspector/core/streamProcessor.ts)                                    | 新增 `extractReasoning` 方法 + 暴露给 composable                                  | 阶段 1 |
-| [`useRecordDetail.ts`](src/tools/llm-inspector/composables/useRecordDetail.ts)                             | 新增 `extractedReasoning` computed                                                | 阶段 1 |
-| [`ResponseStructuredView.vue`](src/tools/llm-inspector/components/detail/views/ResponseStructuredView.vue) | **彻底重构**：照抄 `MessageContent.vue` 的 `LlmThinkNode + RichTextRenderer` 模式 | 阶段 1 |
-| [`ResponseRawView.vue`](src/tools/llm-inspector/components/detail/views/ResponseRawView.vue)               | 新增 Segment Control（可选）                                                      | 阶段 2 |
+| 文件                                                                                                       | 改动                                                                                              | 阶段             |
+| ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ---------------- |
+| [`utils.ts`](src/tools/llm-inspector/core/utils.ts)                                                        | 新增 `extractStreamReasoning` + `extractReasoningDeltaByFormat`                                   | ✅ 阶段 1 完成   |
+| [`streamProcessor.ts`](src/tools/llm-inspector/core/streamProcessor.ts)                                    | 新增 `extractReasoning` 方法 + 暴露给 composable                                                  | ✅ 阶段 1 完成   |
+| [`useRecordDetail.ts`](src/tools/llm-inspector/composables/useRecordDetail.ts)                             | 新增 `extractedReasoning` computed                                                                | ✅ 阶段 1 完成   |
+| [`ResponseStructuredView.vue`](src/tools/llm-inspector/components/detail/views/ResponseStructuredView.vue) | 阶段 1：重构为 `LlmThinkNode + RichTextRenderer` 模式；阶段 2：新增「可视化 / 标准化 JSON」子 tab | ✅ 阶段 1+2 完成 |
+| [`ResponseRawView.vue`](src/tools/llm-inspector/components/detail/views/ResponseRawView.vue)               | 不再改动（保持纯粹的 SSE / JSON 文本展示）                                                        | 🚫 决策修订      |
 
 ### 5.3 保留（不动）
 

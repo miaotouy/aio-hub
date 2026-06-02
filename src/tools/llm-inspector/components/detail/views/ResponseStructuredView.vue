@@ -1,26 +1,64 @@
 <template>
   <div class="response-structured-view">
-    <!-- 顶部信息条 -->
-    <div class="info-bar">
-      <span class="info-chip">
-        <Code2 :size="12" />
-        <span class="info-label">格式：</span>
-        <span class="info-value">{{ apiFormat }}</span>
-      </span>
-      <span v-if="responseParseResult?.model" class="info-chip">
-        <Cpu :size="12" />
-        <span class="info-label">模型：</span>
-        <span class="info-value">{{ responseParseResult.model }}</span>
-      </span>
-      <span v-if="responseParseResult?.stopReason" class="info-chip">
-        <Flag :size="12" />
-        <span class="info-label">停止原因：</span>
-        <span class="info-value">{{ responseParseResult.stopReason }}</span>
-      </span>
+    <!-- 顶部信息条 + 子视图切换 -->
+    <div class="top-bar">
+      <div class="info-bar">
+        <span class="info-chip">
+          <Code2 :size="12" />
+          <span class="info-label">格式：</span>
+          <span class="info-value">{{ apiFormat }}</span>
+        </span>
+        <span v-if="responseParseResult?.model" class="info-chip">
+          <Cpu :size="12" />
+          <span class="info-label">模型：</span>
+          <span class="info-value">{{ responseParseResult.model }}</span>
+        </span>
+        <span v-if="responseParseResult?.stopReason" class="info-chip">
+          <Flag :size="12" />
+          <span class="info-label">停止原因：</span>
+          <span class="info-value">{{ responseParseResult.stopReason }}</span>
+        </span>
+      </div>
+
+      <!-- 子视图切换：可视化 / 标准化 JSON -->
+      <div class="sub-view-toggle">
+        <button
+          class="sub-view-btn"
+          :class="{ active: subView === 'visual' }"
+          @click="subView = 'visual'"
+          title="可视化渲染"
+        >
+          <Sparkles :size="12" />
+          <span>可视化</span>
+        </button>
+        <button
+          class="sub-view-btn"
+          :class="{ active: subView === 'json' }"
+          @click="subView = 'json'"
+          :title="
+            isStreamingActive || isStreamingResponse
+              ? '合并 SSE 为标准化 JSON'
+              : '查看响应 JSON'
+          "
+        >
+          <Braces :size="12" />
+          <span>标准化 JSON</span>
+          <span
+            v-if="isStreamingActive || isStreamingResponse"
+            class="json-stream-hint"
+            title="流式 SSE 已合并"
+          >
+            <Layers :size="10" />
+          </span>
+        </button>
+      </div>
     </div>
 
-    <!-- 流式实时接收提示 -->
-    <div v-if="isStreamingActive" class="streaming-banner">
+    <!-- 流式实时接收提示（仅在可视化子视图下展示） -->
+    <div
+      v-if="isStreamingActive && subView === 'visual'"
+      class="streaming-banner"
+    >
       <Circle :size="8" fill="currentColor" class="live-dot" />
       <span>
         正在实时接收 · 正文 {{ renderData?.mainText.length || 0 }} 字符
@@ -31,7 +69,10 @@
     </div>
 
     <!-- 占位 -->
-    <div v-if="!renderData" class="response-placeholder">
+    <div
+      v-if="subView === 'visual' && !renderData"
+      class="response-placeholder"
+    >
       <Hourglass :size="14" />
       <span>{{
         isStreamingActive ? "等待流式数据到达…" : "响应体尚未到达"
@@ -39,12 +80,16 @@
     </div>
 
     <!-- 解析失败提示（非流式 + 完全解析不出来时） -->
-    <div v-else-if="parseErrorMessage" class="response-note">
+    <div
+      v-else-if="subView === 'visual' && parseErrorMessage"
+      class="response-note"
+    >
       <Info :size="13" />
       <span>{{ parseErrorMessage }}</span>
     </div>
 
-    <template v-else>
+    <!-- ===== 可视化子视图 ===== -->
+    <template v-else-if="subView === 'visual' && renderData">
       <!-- 多 Candidate Tab（仅非流式且 >1 时显示） -->
       <div v-if="renderData.candidates.length > 1" class="candidate-tabs">
         <button
@@ -124,34 +169,126 @@
         show-icon
       />
     </template>
+
+    <!-- ===== 标准化 JSON 子视图 ===== -->
+    <template v-if="subView === 'json'">
+      <!-- 流式合并的提示条 -->
+      <div
+        v-if="
+          (isStreamingActive || isStreamingResponse) &&
+          standardizedJsonResult?.merged
+        "
+        class="json-banner json-banner-merged"
+      >
+        <Layers :size="12" />
+        <span class="banner-main">
+          已将 SSE 合并为厂商原生非流式响应结构 ·
+          <strong>{{ standardizedJsonResult.eventCount }}</strong> 个事件
+        </span>
+        <span v-if="isStreamingActive" class="banner-live">
+          <Circle :size="6" fill="currentColor" class="live-dot" />
+          实时刷新中
+        </span>
+      </div>
+
+      <!-- 合并警告 -->
+      <div
+        v-if="standardizedJsonResult?.warnings.length && standardizedJsonText"
+        class="json-banner json-banner-warning"
+      >
+        <AlertTriangle :size="12" />
+        <span>{{ standardizedJsonResult.warnings.join(" · ") }}</span>
+      </div>
+
+      <!-- JSON 编辑器 -->
+      <div v-if="standardizedJsonText" class="json-editor-section">
+        <div class="json-editor-header">
+          <div class="section-title">
+            <FileJson :size="14" />
+            <span>{{
+              isStreamingActive || isStreamingResponse
+                ? "合并后的非流式 JSON"
+                : "响应 JSON"
+            }}</span>
+            <span class="size-hint">
+              {{ formatSize(standardizedJsonText.length) }}
+            </span>
+          </div>
+          <button
+            @click="copyStandardizedJson"
+            class="btn-copy-small"
+            title="复制 JSON"
+          >
+            <Copy :size="14" />
+          </button>
+        </div>
+        <div class="json-editor-shell">
+          <RichCodeEditor
+            :model-value="standardizedJsonText"
+            language="json"
+            :read-only="true"
+            editor-type="codemirror"
+          />
+        </div>
+      </div>
+
+      <!-- 空状态 / 合并失败 -->
+      <div v-else class="response-placeholder">
+        <Hourglass :size="14" />
+        <span>
+          {{
+            isStreamingActive
+              ? "等待流式数据到达…"
+              : standardizedJsonResult?.warnings.join(" · ") || "响应体尚未到达"
+          }}
+        </span>
+      </div>
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, reactive, watch } from "vue";
 import {
+  AlertTriangle,
+  Braces,
   ChevronDown,
   Circle,
   Code2,
+  Copy,
   Cpu,
+  FileJson,
   Flag,
   Hourglass,
   Info,
+  Layers,
+  Sparkles,
   Wrench,
 } from "lucide-vue-next";
 import { ElAlert } from "element-plus";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import LlmThinkNode from "@/tools/rich-text-renderer/components/nodes/LlmThinkNode.vue";
 import { RendererVersion } from "@/tools/rich-text-renderer/types";
+import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import { parseResponseMessages } from "../../../core/messageParser";
-import { detectApiFormat } from "../../../core/utils";
+import {
+  copyToClipboard,
+  detectApiFormat,
+  formatSize,
+  isJson,
+} from "../../../core/utils";
+import { mergeStreamToFinalJson } from "../../../core/streamMerger";
 import { useRecordDetail } from "../../../composables/useRecordDetail";
+import { useStreamProcessor } from "../../../core/streamProcessor";
+import { customMessage } from "@/utils/customMessage";
 import type {
   CombinedRecord,
   ParsedMessage,
   ParsedMessageBlock,
   ResponseParseResult,
 } from "../../../types";
+
+type SubView = "visual" | "json";
 
 interface RenderData {
   /** 主正文（拼接所有 text 块） */
@@ -178,6 +315,9 @@ const {
 } = useRecordDetail(props);
 
 const apiFormat = computed(() => detectApiFormat(props.record.request.url));
+
+// 子视图切换：可视化 / 标准化 JSON
+const subView = ref<SubView>("visual");
 
 // 非流式解析（仅当响应体存在且不在流式中时才有意义）
 const responseParseResult = computed<ResponseParseResult | null>(() => {
@@ -277,6 +417,91 @@ const parseErrorMessage = computed(() => {
   if (result.errors.length === 0) return null;
   return result.errors.join(" · ");
 });
+
+// ===== 标准化 JSON 视图 =====
+const streamProcessor = useStreamProcessor();
+
+/**
+ * 流式累积的原始 SSE 文本（不含美化），优先取 streamProcessor 的缓冲，
+ * 流结束后退回到 record.response.body
+ */
+const streamRawBody = computed(() => {
+  if (!props.record) return "";
+  return (
+    streamProcessor.streamBuffer.value[props.record.id] ||
+    props.record.response?.body ||
+    ""
+  );
+});
+
+/**
+ * 标准化 JSON 计算结果：
+ * - 流式响应：把 SSE 合并为厂商原生非流式 JSON 结构
+ * - 非流式响应：解析并美化原始 JSON
+ */
+const standardizedJsonResult = computed(() => {
+  const rec = props.record;
+  if (!rec) return null;
+
+  // 流式：合并 SSE
+  if (isStreamingActive.value || isStreamingResponse.value) {
+    const buffer = streamRawBody.value;
+    if (!buffer) {
+      return { merged: null, warnings: ["等待流式数据到达…"], eventCount: 0 };
+    }
+    return mergeStreamToFinalJson(buffer, apiFormat.value);
+  }
+
+  // 非流式：直接解析原始 JSON
+  const body = rec.response?.body;
+  if (!body) return null;
+  if (!isJson(body)) {
+    return {
+      merged: null,
+      warnings: ["响应体不是合法 JSON"],
+      eventCount: 0,
+    };
+  }
+  try {
+    return {
+      merged: JSON.parse(body),
+      warnings: [],
+      eventCount: 0,
+    };
+  } catch (error) {
+    return {
+      merged: null,
+      warnings: [`JSON 解析失败：${(error as Error).message}`],
+      eventCount: 0,
+    };
+  }
+});
+
+/** 美化输出的 JSON 字符串 */
+const standardizedJsonText = computed(() => {
+  const result = standardizedJsonResult.value;
+  if (!result?.merged) return "";
+  try {
+    return JSON.stringify(result.merged, null, 2);
+  } catch {
+    return "";
+  }
+});
+
+// 复制 JSON
+async function copyStandardizedJson() {
+  const text = standardizedJsonText.value;
+  if (!text) {
+    customMessage.warning("尚无可复制的 JSON");
+    return;
+  }
+  try {
+    await copyToClipboard(text);
+    customMessage.success("标准化 JSON 已复制");
+  } catch {
+    customMessage.error("复制失败");
+  }
+}
 </script>
 
 <style scoped>
@@ -284,6 +509,61 @@ const parseErrorMessage = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+/* === 顶栏（信息条 + 子视图切换） === */
+.top-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* === 子视图切换 === */
+.sub-view-toggle {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--card-bg);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.sub-view-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: transparent;
+  color: var(--text-color);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  transition: all 0.15s ease;
+  position: relative;
+}
+
+.sub-view-btn:hover {
+  background: rgba(var(--primary-rgb), calc(var(--card-opacity) * 0.08));
+}
+
+.sub-view-btn.active {
+  background: var(--primary-color);
+  color: #ffffff;
+}
+
+.json-stream-hint {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 2px;
+  color: var(--el-color-danger, #f56c6c);
+}
+
+.sub-view-btn.active .json-stream-hint {
+  color: #ffffff;
 }
 
 /* === 顶部信息条 === */
@@ -487,5 +767,119 @@ const parseErrorMessage = computed(() => {
   overflow: auto;
   white-space: pre-wrap;
   word-wrap: break-word;
+}
+
+/* === 标准化 JSON 视图 === */
+.json-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  align-self: flex-start;
+  max-width: 100%;
+}
+
+.json-banner-merged {
+  background: rgba(var(--primary-rgb), calc(var(--card-opacity) * 0.08));
+  border: var(--border-width) solid
+    rgba(var(--primary-rgb), calc(var(--card-opacity) * 0.25));
+  color: var(--text-color);
+}
+
+.json-banner-merged .banner-main {
+  color: var(--text-color);
+}
+
+.json-banner-merged strong {
+  color: var(--primary-color);
+  font-family: "Courier New", monospace;
+}
+
+.json-banner-merged .banner-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  padding: 2px 8px;
+  background: rgba(
+    var(--el-color-danger-rgb),
+    calc(var(--card-opacity) * 0.12)
+  );
+  border-radius: 8px;
+  color: var(--el-color-danger, #f56c6c);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.json-banner-warning {
+  background: rgba(
+    var(--el-color-warning-rgb),
+    calc(var(--card-opacity) * 0.08)
+  );
+  border: var(--border-width) solid
+    rgba(var(--el-color-warning-rgb), calc(var(--card-opacity) * 0.3));
+  color: var(--el-color-warning, #e6a23c);
+}
+
+.json-editor-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  flex: 1;
+}
+
+.json-editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 4px;
+  border-bottom: var(--border-width) solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.size-hint {
+  font-size: 11px;
+  font-weight: normal;
+  color: var(--text-color-light);
+  font-family: "Courier New", monospace;
+  margin-left: 4px;
+}
+
+.btn-copy-small {
+  padding: 4px 8px;
+  background: transparent;
+  color: var(--text-color);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.7;
+  transition: all 0.2s;
+}
+
+.btn-copy-small:hover {
+  background: var(--card-bg);
+  opacity: 1;
+}
+
+.json-editor-shell {
+  min-height: 320px;
+  max-height: 70vh;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 6px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.json-editor-shell :deep(.rich-code-editor-wrapper) {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
 }
 </style>

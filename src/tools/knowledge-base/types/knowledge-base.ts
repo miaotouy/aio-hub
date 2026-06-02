@@ -193,6 +193,16 @@ export interface ImportSettings {
 }
 
 /**
+ * 知识库缓存配置
+ */
+export interface KnowledgeCacheConfig {
+  /** Embedding 向量缓存最大条目数 (后端 LRU 容量) */
+  embeddingCacheMaxItems: number;
+  /** 检索结果缓存最大条目数 (后端 LRU 容量，全局共享) */
+  retrievalCacheMaxItems: number;
+}
+
+/**
  * 知识库全局工作区配置
  */
 export interface WorkspaceConfig {
@@ -202,12 +212,16 @@ export interface WorkspaceConfig {
   vectorIndex: VectorIndexConfig;
   /** 默认嵌入模型 */
   defaultEmbeddingModel?: string;
+  /** 默认检索引擎 ID (vector | keyword | blender | hybrid | lens) */
+  defaultEngineId: string;
   /** 导入与预处理设置 */
   importSettings: ImportSettings;
   /** 标签生成配置 */
   tagGeneration: TagGenerationConfig;
   /** 向量化请求设置 */
   embeddingRequestSettings: KnowledgeRequestSettings;
+  /** 缓存配置 */
+  cache: KnowledgeCacheConfig;
   /** 实验室 (Playground) 配置 */
   playground?: PlaygroundConfig;
 }

@@ -99,10 +99,8 @@ const settingsManager = createConfigManager<ChatSettings>({
         ...defaultConfig.worldbook,
         ...(loadedConfig.worldbook || {}),
       },
-      knowledgeBase: {
-        ...defaultConfig.knowledgeBase,
-        ...(loadedConfig.knowledgeBase || {}),
-      },
+      // 临时保留旧的知识库配置用于迁移
+      _oldKnowledgeBase: (loadedConfig as any).knowledgeBase,
     };
   },
 });
@@ -123,6 +121,49 @@ async function loadSettings(): Promise<void> {
     settings.value = await settingsManager.load();
     isLoaded.value = true;
     logger.info("聊天设置加载成功", { settings: settings.value });
+
+    // 执行知识库配置迁移
+    const rawSettings = settings.value as any;
+    if (rawSettings._oldKnowledgeBase) {
+      try {
+        const { useKnowledgeBaseStore } =
+          await import("@/tools/knowledge-base/stores/knowledgeBaseStore");
+        const kbStore = useKnowledgeBaseStore();
+
+        // 确保 kbStore 已经加载了 bases 和 config
+        if (!kbStore.workspace) {
+          await kbStore.loadBases();
+        }
+
+        let changed = false;
+        const oldKb = rawSettings._oldKnowledgeBase;
+        if (oldKb.defaultEngineId) {
+          kbStore.config.defaultEngineId = oldKb.defaultEngineId;
+          changed = true;
+        }
+        if (oldKb.embeddingCacheMaxItems !== undefined) {
+          kbStore.config.cache.embeddingCacheMaxItems =
+            oldKb.embeddingCacheMaxItems;
+          changed = true;
+        }
+        if (oldKb.retrievalCacheMaxItems !== undefined) {
+          kbStore.config.cache.retrievalCacheMaxItems =
+            oldKb.retrievalCacheMaxItems;
+          changed = true;
+        }
+
+        if (changed) {
+          await kbStore.saveWorkspace();
+          logger.info("成功将旧的 chat 知识库配置迁移到知识库模块", { oldKb });
+        }
+      } catch (e) {
+        logger.error("迁移知识库配置失败", e);
+      }
+
+      // 清除临时属性并保存，防止重复迁移
+      delete rawSettings._oldKnowledgeBase;
+      await saveSettings();
+    }
   } catch (error) {
     moduleErrorHandler.warn(error, "加载聊天设置失败，使用默认设置", {
       action: "loadSettings",
@@ -218,6 +259,8 @@ async function updateSettings(updates: Partial<ChatSettings>): Promise<void> {
         ...(updates.worldbook || {}),
       },
     };
+    // 确保更新时不会带入临时迁移属性
+    delete (settings.value as any)._oldKnowledgeBase;
     await saveSettings();
     logger.info("聊天设置已更新", { updates });
   } catch (error) {

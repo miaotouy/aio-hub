@@ -1,21 +1,14 @@
 import { ContextProcessor, PipelineContext } from "../../types/pipeline";
 import { ProcessableMessage } from "../../types/context";
 import { createModuleLogger } from "@/utils/logger";
-import { searchKnowledge } from "../../services/knowledge-service";
-import type { SearchResult } from "../../../knowledge-base/types/search";
-import type { ChatAgent, AgentKnowledgeBaseConfig } from "../../types/agent";
 import {
-  type RetrievalCacheInput,
-  getRetrievalCache,
-  setRetrievalCache,
-} from "../context-utils/knowledge-cache";
-import { useLlmProfiles } from "@/composables/useLlmProfiles";
-import { useChatSettings } from "../../composables/settings/useChatSettings";
-import { invoke } from "@tauri-apps/api/core";
-import { preprocessQuery } from "../../../knowledge-base/utils/queryPreProcessor";
-import { useKnowledgeBaseStore } from "../../../knowledge-base/stores/knowledgeBaseStore";
-import { getPureModelId, getProfileId } from "@/utils/modelIdUtils";
-import { vectorCacheManager } from "../../../knowledge-base/utils/vectorCache";
+  searchWithCache,
+  getEntries,
+  loadBaseMeta,
+} from "@/tools/knowledge-base/services/api";
+import type { SearchResult } from "@/tools/knowledge-base/types/search";
+import type { ChatAgent, AgentKnowledgeBaseConfig } from "../../types/agent";
+import { useKnowledgeBaseStore } from "@/tools/knowledge-base/stores/knowledgeBaseStore";
 
 const logger = createModuleLogger("KnowledgeProcessor");
 
@@ -150,8 +143,6 @@ export class KnowledgeProcessor implements ContextProcessor {
       return;
     }
 
-    const { settings } = useChatSettings();
-
     logger.debug("发现知识库占位符", { count: placeholders.length });
 
     // 2. 遍历占位符并处理
@@ -179,26 +170,13 @@ export class KnowledgeProcessor implements ContextProcessor {
           (agentConfig.knowledgeSettings as any)?.aggregation?.enableCache ??
           false;
 
-        // 确定最终使用的引擎 ID (优先级: 宏参数 > Agent 默认 > 全局默认)
-        const engineId =
-          ph.engineId ||
-          knowledgeSettings?.defaultEngineId ||
-          settings.value.knowledgeBase.defaultEngineId ||
-          "vector";
-
-        // 确定是否需要向量化 (vector 和 hybrid 引擎需要)
-        const isVectorNeeded = engineId === "vector" || engineId === "hybrid";
-
-        // 获取 Embedding 模型 ID (统一使用知识库全局配置)
-        const kbStore = useKnowledgeBaseStore();
-        const effectiveComboId = kbStore.config.defaultEmbeddingModel;
-        const pureModelId = getPureModelId(effectiveComboId);
-
         // 从 agent 配置中获取已启用的知识库 ID 列表
-        const kbConfig = agentConfig.knowledgeBaseConfig;
+        const agentKbConfig = agentConfig.knowledgeBaseConfig;
         let kbIds: string[] = [];
-        if (kbConfig?.enabled && kbConfig.bindings) {
-          const enabledBindings = kbConfig.bindings.filter((b) => b.enabled);
+        if (agentKbConfig?.enabled && agentKbConfig.bindings) {
+          const enabledBindings = agentKbConfig.bindings.filter(
+            (b) => b.enabled
+          );
           if (ph.kbName) {
             // 如果占位符指定了知识库名称，只匹配对应的 kbId
             const matched = enabledBindings.find((b) => b.kbName === ph.kbName);
@@ -213,76 +191,20 @@ export class KnowledgeProcessor implements ContextProcessor {
         const finalMinScore =
           ph.minScore || knowledgeSettings?.defaultMinScore || 0.3;
 
-        const cacheInput: RetrievalCacheInput = {
-          query: `${userText}|||${aiText}`,
+        // 引擎 fallback 链：占位符 > Agent 默认 > 知识库默认（service 内部完成）
+        const engineId = ph.engineId || knowledgeSettings?.defaultEngineId;
+
+        // 调用知识库 service 门面，包揽缓存、preprocess、向量融合等所有细节
+        const { results: searchResults } = await searchWithCache({
+          primaryQuery: userText,
+          secondaryQuery: aiText,
           kbIds,
-          tags: [],
           limit: finalLimit,
           minScore: finalMinScore,
           engineId,
-          modelId: pureModelId,
-        };
-
-        // 1. 后端全局缓存（完全一致才命中）
-        const cached = enableCache ? await getRetrievalCache(cacheInput) : null;
-
-        if (cached) {
-          logger.debug("命中后端 RAG 检索缓存", {
-            query: cacheInput.query.slice(0, 80),
-            kbIds,
-            engineId,
-            modelId: pureModelId,
-          });
-          results = cached.results;
-        } else {
-          let vector: number[] | null = null;
-
-          // 2. 查询预处理：只对 userText 执行清洗和 Tag 匹配
-          //    AI 文本不参与 Tag 匹配（避免 AI 回复中的噪音词误触发标签）
-          const { cleanedQuery, matchedTags } = preprocessQuery(userText, {
-            tagPool: kbStore.globalStats.allDiscoveredTags,
-          });
-          const queryTextForSearch = cleanedQuery;
-
-          logger.debug("RAG 查询预处理完成 (向量空间融合)", {
-            userText: userText.slice(0, 100),
-            aiText: aiText.slice(0, 100),
-            cleanedQuery: queryTextForSearch,
-            matchedTags,
-            engineId,
-            isVectorNeeded,
-          });
-
-          // 向量空间融合：分别 embed user/AI 文本，加权平均
-          if (isVectorNeeded) {
-            vector = await this.buildContextQueryVector(
-              queryTextForSearch, // user 侧使用清洗后的文本
-              aiText, // AI 侧直接使用原文
-              effectiveComboId
-            );
-          }
-
-          // 执行检索（传入预处理提取的标签）
-          results = await searchKnowledge({
-            query: queryTextForSearch,
-            kbIds,
-            tags: matchedTags.length > 0 ? matchedTags : undefined,
-            vector: vector || undefined,
-            limit: finalLimit,
-            minScore: finalMinScore,
-            engineId: engineId,
-            modelId: pureModelId,
-          });
-
-          // 存入缓存
-          if (enableCache) {
-            await setRetrievalCache(
-              cacheInput,
-              { results, vector },
-              settings.value.knowledgeBase.retrievalCacheMaxItems
-            );
-          }
-        }
+          enableCache,
+        });
+        results = searchResults;
 
         // 过滤结果 (如果指定了 kbName)
         if (ph.kbName) {
@@ -379,12 +301,12 @@ export class KnowledgeProcessor implements ContextProcessor {
         return await this.handleStaticAll(ph);
       }
 
-      // 调用后端获取指定条目
-      const entries = await invoke<any[]>("kb_get_entries", { ids: entryIds });
-      return entries.map((e) => ({
+      // 通过知识库 service 获取指定条目
+      const entries = await getEntries(entryIds);
+      return entries.map((e: any) => ({
         score: 1.0,
-        kbName: e.kb_name || "未知知识库",
-        kbId: e.kb_id || "",
+        kbName: e.kb_name || e.kbName || "未知知识库",
+        kbId: e.kb_id || e.kbId || "",
         matchType: "key",
         highlight: null,
         caiu: {
@@ -424,9 +346,7 @@ export class KnowledgeProcessor implements ContextProcessor {
 
     for (const base of targetBases) {
       try {
-        const meta = await invoke<any | null>("kb_load_base_meta", {
-          kbId: base.id,
-        });
+        const meta = await loadBaseMeta(base.id);
         if (!meta?.entries) continue;
 
         // 收集所有已启用条目的 ID
@@ -436,10 +356,8 @@ export class KnowledgeProcessor implements ContextProcessor {
 
         if (enabledIds.length === 0) continue;
 
-        const entries = await invoke<any[]>("kb_get_entries", {
-          ids: enabledIds,
-        });
-        for (const e of entries) {
+        const entries = await getEntries(enabledIds);
+        for (const e of entries as any[]) {
           results.push({
             score: 1.0,
             kbName: base.name || "未知知识库",
@@ -454,8 +372,8 @@ export class KnowledgeProcessor implements ContextProcessor {
               assets: [],
               priority: e.priority ?? 100,
               enabled: true,
-              createdAt: e.created_at || Date.now(),
-              updatedAt: e.updated_at || Date.now(),
+              createdAt: e.created_at || e.createdAt || Date.now(),
+              updatedAt: e.updated_at || e.updatedAt || Date.now(),
             },
           } as SearchResult);
         }
@@ -537,84 +455,6 @@ export class KnowledgeProcessor implements ContextProcessor {
       userText: userParts.join("\n"),
       aiText: aiParts.join("\n"),
     };
-  }
-
-  /**
-   * 构建上下文查询向量（向量空间融合策略）
-   *
-   * 策略：分别 embed user 和 AI 文本，然后在向量空间加权平均。
-   * 默认权重：user 0.7, AI 0.3
-   *
-   * @returns 融合后的查询向量，如果无法生成则返回 null
-   */
-  private async buildContextQueryVector(
-    userText: string,
-    aiText: string,
-    effectiveComboId: string | undefined
-  ): Promise<number[] | null> {
-    if (!effectiveComboId) {
-      logger.warn("未配置 Embedding 模型，无法执行向量检索");
-      return null;
-    }
-
-    const profileId = getProfileId(effectiveComboId);
-    const pureModelId = getPureModelId(effectiveComboId);
-
-    if (!profileId || !pureModelId) {
-      logger.warn("无效的 Embedding 模型标识符", { effectiveComboId });
-      return null;
-    }
-
-    const { getProfileById } = useLlmProfiles();
-    const profile = getProfileById(profileId);
-    if (!profile) {
-      logger.warn("找不到指定的 LLM Profile", { profileId });
-      return null;
-    }
-
-    try {
-      // 分别 embed user 和 AI 文本
-      const userVector = userText
-        ? await vectorCacheManager.getVector(userText, profile, pureModelId)
-        : null;
-
-      const aiVector = aiText
-        ? await vectorCacheManager.getVector(aiText, profile, pureModelId)
-        : null;
-
-      // 向量空间加权平均
-      if (userVector && aiVector) {
-        return this.weightedAverageVector([userVector, aiVector], [0.7, 0.3]);
-      }
-
-      // 只有一侧有向量时直接返回
-      return userVector || aiVector;
-    } catch (err) {
-      logger.warn("获取 Embedding 向量失败，降级为文本检索", err);
-      return null;
-    }
-  }
-
-  /**
-   * 向量加权平均
-   */
-  private weightedAverageVector(
-    vectors: number[][],
-    weights: number[]
-  ): number[] {
-    const dim = vectors[0].length;
-    const result = new Array<number>(dim).fill(0);
-    const totalWeight = weights.reduce((sum, w) => sum + w, 0);
-
-    for (let vi = 0; vi < vectors.length; vi++) {
-      const w = weights[vi] / totalWeight;
-      const vec = vectors[vi];
-      for (let d = 0; d < dim; d++) {
-        result[d] += vec[d] * w;
-      }
-    }
-
-    return result;
   }
   /**
    * 根据 knowledgeBaseConfig 自动生成占位符（保底注入）

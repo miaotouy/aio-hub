@@ -39,7 +39,7 @@ ensureConfig();
 // 初始化知识库设置 + 旧版数据迁移
 if (!editForm.knowledgeSettings) {
   editForm.knowledgeSettings = {
-    defaultEngineId: "blender",
+    defaultEngineId: undefined,
     defaultLimit: 5,
     maxRecallChars: 0,
     defaultMinScore: 0.3,
@@ -180,15 +180,21 @@ const knowledgeAdvancedSettings = computed<SettingItem[]>(() => [
     label: "默认检索引擎",
     component: "ElSelect",
     modelPath: "knowledgeSettings.defaultEngineId",
-    hint: "通过占位符引用知识库时使用的默认检索引擎",
+    hint: "通过占位符引用知识库时使用的默认检索引擎，留空则跟随知识库设置",
     keywords: "knowledge engine 知识库 引擎",
-    props: { style: { width: "100%" } },
-    options: () =>
-      kbStore.engines.map((e) => ({
+    props: { style: { width: "100%" }, clearable: true },
+    options: () => [
+      {
+        label: "使用知识库默认",
+        value: "",
+        description: "跟随知识库设置中的默认引擎",
+      },
+      ...kbStore.engines.map((e) => ({
         label: `${e.name} (${e.id})`,
         value: e.id,
         description: e.description,
       })),
+    ],
     groupCollapsible: {
       name: "knowledge-advanced",
       title: "知识库高级设置",

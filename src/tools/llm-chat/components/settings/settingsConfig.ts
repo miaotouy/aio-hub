@@ -1750,36 +1750,6 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         hint: "",
         keywords: "knowledge base embedding model 知识库 向量 模型",
       },
-      {
-        id: "embeddingCacheMaxItems",
-        label:
-          "向量缓存容量 ({{ localSettings.knowledgeBase.embeddingCacheMaxItems }}条)",
-        component: "ElSlider",
-        props: {
-          min: 10,
-          max: 1000,
-          step: 10,
-          "format-tooltip": (val: number) => `${val}条`,
-        },
-        modelPath: "knowledgeBase.embeddingCacheMaxItems",
-        hint: "控制 Embedding 向量缓存的最大数量。较大的缓存可以减少 API 调用次数，但会占用更多内存。",
-        keywords: "knowledge base embedding cache 知识库 向量 缓存",
-      },
-      {
-        id: "retrievalCacheMaxItems",
-        label:
-          "检索结果缓存容量 ({{ localSettings.knowledgeBase.retrievalCacheMaxItems }}条)",
-        component: "ElSlider",
-        props: {
-          min: 5,
-          max: 1000,
-          step: 5,
-          "format-tooltip": (val: number) => `${val}条`,
-        },
-        modelPath: "knowledgeBase.retrievalCacheMaxItems",
-        hint: "全局共享的知识库检索结果缓存最大数量。所有会话共用，按 LRU 策略淘汰。",
-        keywords: "knowledge base retrieval cache 知识库 检索 缓存",
-      },
     ],
   },
   {

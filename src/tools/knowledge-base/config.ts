@@ -1,4 +1,12 @@
-import { Cpu, Database, ShieldCheck, Zap, Tag, FileUp } from "lucide-vue-next";
+import {
+  Cpu,
+  Database,
+  ShieldCheck,
+  Zap,
+  Tag,
+  FileUp,
+  HardDrive,
+} from "lucide-vue-next";
 import { h } from "vue";
 import { ElButton, ElIcon, ElTooltip } from "element-plus";
 import type { SettingsSection } from "@/types/settings-renderer";
@@ -12,6 +20,11 @@ import { cloneDeep } from "lodash-es";
 export const DEFAULT_WORKSPACE_CONFIG: WorkspaceConfig = {
   activeBaseId: null,
   defaultEmbeddingModel: "",
+  defaultEngineId: "vector",
+  cache: {
+    embeddingCacheMaxItems: 500,
+    retrievalCacheMaxItems: 200,
+  },
   importSettings: {
     autoVectorize: false,
     autoExtractTags: true,
@@ -224,7 +237,7 @@ export const knowledgeSettingsConfig: SettingsSection<WorkspaceConfig>[] = [
         component: "SliderWithInput",
         props: { min: 1, max: 100, step: 1 },
         modelPath: "tagGeneration.requestSettings.batchSize",
-        hint: "单次请求包含的内容数量。注意：需要模型支持批量处理（目前主要用于向量化）。",
+        hint: "单次请求包含的内容数量。注意：需要模型支持批量处理。",
         keywords: "tag batch size 批次",
         visible: (settings) => settings.tagGeneration.enabled,
       },
@@ -344,6 +357,32 @@ export const knowledgeSettingsConfig: SettingsSection<WorkspaceConfig>[] = [
         modelPath: "embeddingRequestSettings.retryMode",
         hint: "固定间隔：每次重试等待时间一致；指数退避：重试等待时间随次数增加。",
         keywords: "retry mode 重试模式",
+      },
+    ],
+  },
+  {
+    title: "缓存管理",
+    icon: HardDrive,
+    items: [
+      {
+        id: "embeddingCacheMaxItems",
+        label:
+          "向量缓存容量 ({{ localSettings.cache.embeddingCacheMaxItems }}条)",
+        component: "SliderWithInput",
+        props: { min: 10, max: 5000, step: 10 },
+        modelPath: "cache.embeddingCacheMaxItems",
+        hint: "控制 Embedding 向量缓存的最大数量。较大的缓存可以减少 API 调用次数，但会占用更多内存。",
+        keywords: "embedding cache 向量 缓存 容量",
+      },
+      {
+        id: "retrievalCacheMaxItems",
+        label:
+          "检索结果缓存容量 ({{ localSettings.cache.retrievalCacheMaxItems }}条)",
+        component: "SliderWithInput",
+        props: { min: 5, max: 5000, step: 5 },
+        modelPath: "cache.retrievalCacheMaxItems",
+        hint: "全局共享的检索结果缓存最大数量。所有会话/工具共用，按 LRU 策略淘汰。",
+        keywords: "retrieval cache 检索 缓存 容量",
       },
     ],
   },

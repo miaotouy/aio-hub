@@ -302,15 +302,6 @@ export interface ChatSettings {
     /** 默认扫描深度 */
     defaultScanDepth: number;
   };
-  /** 知识库全局设置 */
-  knowledgeBase: {
-    /** 默认检索引擎 ID (vector | fulltext | hybrid) */
-    defaultEngineId: string;
-    /** Embedding 向量缓存最大条目数 */
-    embeddingCacheMaxItems: number;
-    /** 检索结果缓存最大条目数（全局共享，不再按 session 隔离） */
-    retrievalCacheMaxItems: number;
-  };
 }
 
 /**
@@ -463,10 +454,5 @@ export const DEFAULT_SETTINGS: ChatSettings = {
   worldbook: {
     disableRecursion: false,
     defaultScanDepth: 2,
-  },
-  knowledgeBase: {
-    defaultEngineId: "vector",
-    embeddingCacheMaxItems: 200,
-    retrievalCacheMaxItems: 200,
   },
 };

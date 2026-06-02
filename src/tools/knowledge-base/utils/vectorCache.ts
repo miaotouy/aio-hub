@@ -6,6 +6,31 @@ import { invoke } from "@tauri-apps/api/core";
 const logger = createModuleLogger("knowledge-base/vector-cache");
 
 /**
+ * Embedding 缓存默认容量（仅在 store 尚未初始化时作为兜底使用）
+ */
+const FALLBACK_EMBEDDING_CACHE_MAX = 500;
+
+/**
+ * Lazy 读取后端 Embedding 缓存的最大容量
+ *
+ * vectorCacheManager 是模块级单例，初始化时机早于 pinia store。
+ * 因此每次写入缓存时才动态尝试读取 store 的配置，无法读到时使用兜底值。
+ */
+async function resolveEmbeddingCacheMaxItems(): Promise<number> {
+  try {
+    // 动态 import 避免模块级循环依赖
+    const { useKnowledgeBaseStore } =
+      await import("../stores/knowledgeBaseStore");
+    const store = useKnowledgeBaseStore();
+    const max = store.config?.cache?.embeddingCacheMaxItems;
+    if (typeof max === "number" && max > 0) return max;
+  } catch {
+    // store 未初始化或异常，走兜底
+  }
+  return FALLBACK_EMBEDDING_CACHE_MAX;
+}
+
+/**
  * SHA-256 哈希辅助函数
  */
 async function sha256(message: string): Promise<string> {
@@ -128,11 +153,12 @@ export class VectorCacheManager {
 
     // 同步到后端缓存
     try {
+      const maxItems = await resolveEmbeddingCacheMaxItems();
       await invoke("kb_set_embedding_cache", {
         modelId,
         text: query,
         vector,
-        maxItems: 500, // 默认后端上限
+        maxItems,
       });
     } catch (error) {
       logger.warn("保存 Embedding 缓存到后端失败", error);

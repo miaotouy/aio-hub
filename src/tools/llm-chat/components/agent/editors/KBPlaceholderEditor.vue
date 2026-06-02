@@ -198,8 +198,8 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from "vue";
-import { invoke } from "@tauri-apps/api/core";
 import { useKnowledgeBaseStore } from "@/tools/knowledge-base/stores/knowledgeBaseStore";
+import { loadBaseMeta } from "@/tools/knowledge-base/services/api";
 import {
   parseKBParams,
   type KBPlaceholder,
@@ -278,8 +278,8 @@ const loadKbEntries = async (kbId: string) => {
 
   loadingEntries.value = true;
   try {
-    const meta = await invoke<any | null>("kb_load_base_meta", { kbId });
-    staticKbEntries.value = meta?.entries || [];
+    const meta = await loadBaseMeta(kbId);
+    staticKbEntries.value = (meta?.entries as CaiuIndexItem[]) || [];
     entryFilterText.value = "";
   } catch {
     staticKbEntries.value = [];

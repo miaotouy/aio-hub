@@ -34,7 +34,7 @@ import type { PendingInputData } from "../types/context";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { Asset } from "@/types/asset-management";
 import { createModuleLogger } from "@utils/logger";
-import { clearAllRetrievalCache } from "../core/context-utils/knowledge-cache";
+import { clearRetrievalCache } from "@/tools/knowledge-base/services/api";
 
 const logger = createModuleLogger("llm-chat/store");
 
@@ -769,7 +769,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     sessionDetailMap.value.clear();
     currentSessionId.value = null;
     persistSessions();
-    await clearAllRetrievalCache();
+    await clearRetrievalCache();
     const sessionManager = useSessionManager();
     sessionManager.clearAllSessions();
     logger.info("清空所有会话");

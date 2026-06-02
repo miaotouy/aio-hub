@@ -12,8 +12,8 @@
     <!-- 搜索与过滤栏 -->
     <div class="filter-bar">
       <el-input
-        :model-value="searchQuery"
-        @update:model-value="(val: string) => $emit('update:searchQuery', val)"
+        :model-value="localSearchQuery"
+        @update:model-value="onSearchInput"
         placeholder="搜索 URL 或内容..."
         size="small"
         clearable
@@ -99,7 +99,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
+import { useDebounceFn } from "@vueuse/core";
 import { ListChecks, Filter, Search, Globe, Zap } from "lucide-vue-next";
 import type { CombinedRecord } from "../types";
 
@@ -112,11 +113,33 @@ const props = defineProps<{
 }>();
 
 // 事件
-defineEmits<{
+const emit = defineEmits<{
   select: [record: CombinedRecord];
   "update:searchQuery": [value: string];
   "update:filterStatus": [value: string];
 }>();
+
+// 搜索输入防抖：输入框即时显示，向父组件 emit 延迟 300ms
+const localSearchQuery = ref(props.searchQuery);
+
+// 外部 searchQuery 变化时同步到本地（如清空按钮、外部重置等）
+watch(
+  () => props.searchQuery,
+  (val) => {
+    if (val !== localSearchQuery.value) {
+      localSearchQuery.value = val;
+    }
+  }
+);
+
+const emitSearchDebounced = useDebounceFn((val: string) => {
+  emit("update:searchQuery", val);
+}, 300);
+
+function onSearchInput(val: string) {
+  localSearchQuery.value = val;
+  emitSearchDebounced(val);
+}
 
 // 计算属性
 const hasActiveFilter = computed(

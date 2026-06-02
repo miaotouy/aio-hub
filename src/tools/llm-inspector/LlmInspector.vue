@@ -72,7 +72,6 @@
       @save-header-rules="handleSaveHeaderRules"
       @update-target-url="handleUpdateTargetUrl"
     />
-    />
   </div>
 </template>
 

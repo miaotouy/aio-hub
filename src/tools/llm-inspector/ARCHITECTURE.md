@@ -75,7 +75,7 @@ isGlobalEnabled  ─ 总开关（关闭即全停）
 
 针对 SSE 流式响应的优化处理（detail-panel-rework 强化）：
 
-- **shallowRef + 节流批量刷新**: [`streamBuffer`](src/tools/llm-inspector/core/streamProcessor.ts:15) 改为 `shallowRef`，chunk 累积到非响应式 `pendingUpdates` Map，每 100ms `triggerRef` 一次。SSE 高频流式（>20fps）下显著降低 UI 重绘开销。
+- **shallowRef + 节流批量刷新**: [`streamBuffer`](src/tools/llm-inspector/stores/inspectorStreamStore.ts:38) 是 Pinia store 中的 `shallowRef`，chunk 累积到非响应式 `pendingUpdates` Map，每 100ms `triggerRef` 一次。SSE 高频流式（>20fps）下显著降低 UI 重绘开销。
 - **完成时立即 flush**: `is_complete` 时强制清空 pending 并触发更新，确保数据完整。
 - **多格式智能提取**:
   - **格式检测**: 通过 URL 自动识别 5 大格式（OpenAI Chat/Responses/Completions、Anthropic、Gemini、Cohere、Ollama）。
@@ -204,7 +204,7 @@ graph TD
 
 - **RichCodeEditor 替换裸 `<pre>`**: CodeMirror 内置虚拟滚动，10MB+ JSON 不卡。
 - **格式化缓存**: [`useFormattedBody.ts`](src/tools/llm-inspector/composables/useFormattedBody.ts:1) 按 recordId+rawLen 缓存 formatJson 结果。
-- **流式节流**: [`streamProcessor.ts`](src/tools/llm-inspector/core/streamProcessor.ts:1) `shallowRef` + 100ms 批量刷新。
+- **流式节流**: [`inspectorStreamStore.ts`](src/tools/llm-inspector/stores/inspectorStreamStore.ts:1) `shallowRef` + 100ms 批量刷新（原 streamProcessor 模块级单例已迁入 Pinia store）。
 
 ## 4. 数据流：内部钩子捕获一次流式请求
 
@@ -253,15 +253,17 @@ sequenceDiagram
 
 ### 5.1. 基础设施层
 
-| 模块                                                                      | 职责                                                          |
-| ------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| [`hookRegistry.ts`](src/tools/llm-inspector/core/hookRegistry.ts:1)       | 钩子注册器单例 + contextStore + 本地回调 + Tauri 跨窗口广播   |
-| [`messageParser.ts`](src/tools/llm-inspector/core/messageParser.ts:1)     | 5 大 LLM 格式 → 统一 ParsedMessage[] 解析                     |
-| [`tokenEstimator.ts`](src/tools/llm-inspector/core/tokenEstimator.ts:1)   | 客户端 Token 估算（复用 token-calculator）+ 服务端 usage 提取 |
-| [`streamProcessor.ts`](src/tools/llm-inspector/core/streamProcessor.ts:1) | shallowRef 流式缓冲 + 100ms 节流 + 多格式智能提取             |
-| [`recordManager.ts`](src/tools/llm-inspector/core/recordManager.ts:1)     | CombinedRecord 数据仓库（含 source/inspectorMetadata）        |
-| [`configManager.ts`](src/tools/llm-inspector/core/configManager.ts:1)     | 配置持久化（含 layout.splitRatio）                            |
-| [`proxyService.ts`](src/tools/llm-inspector/core/proxyService.ts:1)       | Tauri invoke/listen 封装                                      |
+| 模块                                                                                    | 职责                                                                  |
+| --------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| [`hookRegistry.ts`](src/tools/llm-inspector/core/hookRegistry.ts:1)                     | 钩子注册器单例 + contextStore + 本地回调 + Tauri 跨窗口广播           |
+| [`messageParser.ts`](src/tools/llm-inspector/core/messageParser.ts:1)                   | 5 大 LLM 格式 → 统一 ParsedMessage[] 解析                             |
+| [`tokenEstimator.ts`](src/tools/llm-inspector/core/tokenEstimator.ts:1)                 | 客户端 Token 估算（复用 token-calculator）+ 服务端 usage 提取         |
+| [`inspectorStreamStore.ts`](src/tools/llm-inspector/stores/inspectorStreamStore.ts:1)   | Pinia store：shallowRef 流式缓冲 + 100ms 节流 + 多格式智能提取        |
+| [`inspectorRecordsStore.ts`](src/tools/llm-inspector/stores/inspectorRecordsStore.ts:1) | Pinia store：CombinedRecord 数据仓库（含 source/inspectorMetadata）   |
+| [`streamProcessor.ts`](src/tools/llm-inspector/core/streamProcessor.ts:1)               | 兼容薄壳：转发到 `inspectorStreamStore` + `StreamContentProcessor` 类 |
+| [`recordManager.ts`](src/tools/llm-inspector/core/recordManager.ts:1)                   | 兼容薄壳：转发到 `inspectorRecordsStore`                              |
+| [`configManager.ts`](src/tools/llm-inspector/core/configManager.ts:1)                   | 配置持久化（含 layout.splitRatio）                                    |
+| [`proxyService.ts`](src/tools/llm-inspector/core/proxyService.ts:1)                     | Tauri invoke/listen 封装                                              |
 
 ### 5.2. 钩子注入层（接入但默认 OFF）
 

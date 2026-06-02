@@ -13,22 +13,25 @@
 | 阶段二 | 3.3 拆分 useInspectorManager | ✅ 完成  | 508 行 → 220 行 facade + [`useInspectorConfig.ts`](src/tools/llm-inspector/composables/useInspectorConfig.ts:1)（138 行配置/历史/复制层）+ [`useExternalProxy.ts`](src/tools/llm-inspector/composables/useExternalProxy.ts:1)（240 行外部代理生命周期层）。状态机仍由 facade 集中持有                                                                                                                                                                                                                               |
 | 阶段二 | 3.5 拆分 utils.ts            | ✅ 完成  | 613 行 → 168 行；抽出 [`core/apiFormat.ts`](src/tools/llm-inspector/core/apiFormat.ts:1)（`ApiFormat` + `detectApiFormat`）与 [`core/contentExtractor.ts`](src/tools/llm-inspector/core/contentExtractor.ts:1)（流式 / JSON 正文与思维链提取）                                                                                                                                                                                                                                                                      |
 | 阶段二 | 3.4 LRU 抽象                 | ✅ 完成  | 新建 [`core/lruCache.ts`](src/tools/llm-inspector/core/lruCache.ts:1) 暴露 `LruCache<K,V>` + `LruSet<T>`；3 处替换：`useTokenEstimate` 用 `LruCache.touch()` 实现真·LRU；`useInternalMonitor` 用 `LruSet`；`useFormattedBody` 用 `LruCache`                                                                                                                                                                                                                                                                         |
-| 阶段三 | 3.2 Pinia 迁移               | ⏸ 待执行 | 模块级响应式单例（recordManager / streamProcessor / contextStore）尚未迁出。改动面较大，暂缓。**注意**: `isGlobalEnabled` / `monitorInternal` 等开关字段已带跨窗口同步语义（见 [2026-06-cross-window-sync.md](src/tools/llm-inspector/docs/Plan/2026-06-cross-window-sync.md:1)），迁入 store 时需保留 ENABLE_CHANGED 广播 + listen 机制                                                                                                                                                                            |
-| 阶段三 | 3.6 / 3.7 状态上提           | ⏸ 待执行 | useRecordDetail 多组件重复 setup + 详情面板嵌套 Tab/Segment/SubView 状态散落，待 Pinia 化后一并解决                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| 阶段三 | 3.2 Pinia 迁移               | ✅ 完成  | `recordManager` 的响应式状态迁入 [`stores/inspectorRecordsStore.ts`](src/tools/llm-inspector/stores/inspectorRecordsStore.ts:1)；`streamProcessor` 的状态 + 100ms 节流缓冲迁入 [`stores/inspectorStreamStore.ts`](src/tools/llm-inspector/stores/inspectorStreamStore.ts:1)。原 `core/recordManager.ts` / `core/streamProcessor.ts` 转为兼容薄壳（通过 `storeToRefs` 暴露与原 hook 完全一致的 API），所有消费方零改动。**contextStore 故意保留在 hookRegistry 单例**（审计 §6 已说明不迁），跨窗口同步语义不变      |
+| 阶段三 | 3.6 / 3.7 状态上提           | ⏸ 待执行 | useRecordDetail 多组件重复 setup + 详情面板嵌套 Tab/Segment/SubView 状态散落，建议下一轮重构时直接读写 store                                                                                                                                                                                                                                                                                                                                                                                                        |
 | 阶段三 | 3.10 messageParser 增量化    | ⏸ 远期   | 大改造，标记 P2，先搁置                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | 阶段四 | 3.11 文档治理                | ⏸ 待执行 | ARCHITECTURE.md 中的开发期叙事剥离到 archive，待下次执行                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
-**全量验证**：`vue-tsc --noEmit` 0 错；`bun test src/tools/llm-inspector` 34/34 pass；`oxlint` 0 warning。
+**全量验证**：`bun run check` 全项通过（oxlint 0 warning · vue-tsc 0 错 · cargo clippy 0 错 · 移动端检查全过）；`bun test src/tools/llm-inspector` 34/34 pass。
 
 **指标对比**：
 
-| 指标                                 | 改前       | 改后                  |
-| ------------------------------------ | ---------- | --------------------- |
-| `core/utils.ts`                      | 613 行     | 168 行                |
-| `composables/useInspectorManager.ts` | 508 行     | 220 行（facade）      |
-| 类型文件双轨                         | 是         | 否（统一 `types/`）   |
-| LRU 实现散落                         | 3 处       | 1 处（`lruCache.ts`） |
-| API 格式检测 / 内容提取              | 混在 utils | 独立模块              |
+| 指标                                 | 改前                     | 改后                                                 |
+| ------------------------------------ | ------------------------ | ---------------------------------------------------- |
+| `core/utils.ts`                      | 613 行                   | 168 行                                               |
+| `composables/useInspectorManager.ts` | 508 行                   | 220 行（facade）                                     |
+| 类型文件双轨                         | 是                       | 否（统一 `types/`）                                  |
+| LRU 实现散落                         | 3 处                     | 1 处（`lruCache.ts`）                                |
+| API 格式检测 / 内容提取              | 混在 utils               | 独立模块                                             |
+| 模块级响应式单例                     | 2 处（records / stream） | 0 处（迁入 `stores/inspectorRecordsStore` 等 Pinia） |
+| `core/recordManager.ts`              | 316 行（持有 ref）       | 54 行（兼容薄壳）                                    |
+| `core/streamProcessor.ts`            | 376 行（持有 ref）       | 116 行（兼容薄壳 + 保留 `StreamContentProcessor`）   |
 
 ---
 

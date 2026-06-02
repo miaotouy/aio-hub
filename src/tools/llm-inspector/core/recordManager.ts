@@ -1,316 +1,54 @@
-import { ref, reactive } from "vue";
-import { createModuleLogger } from "@utils/logger";
-import { createModuleErrorHandler } from "@utils/errorHandler";
-import type {
-  CombinedRecord,
-  RecordInspectorMetadata,
-  RecordSource,
-  RequestRecord,
-  ResponseRecord,
-  FilterOptions,
-} from "../types";
-import { filterRecords } from "./utils";
-
-const logger = createModuleLogger("LlmInspector/RecordManager");
-const errorHandler = createModuleErrorHandler("LlmInspector/RecordManager");
-
-// 记录存储
-const records = ref<CombinedRecord[]>([]);
-const selectedRecord = ref<CombinedRecord | null>(null);
-
-// 过滤选项
-const filterOptions = reactive<FilterOptions>({
-  searchQuery: "",
-  filterStatus: "",
-});
-
-// 最大记录数量限制
-const MAX_RECORDS = 1000;
-
 /**
- * 获取所有记录
+ * recordManager — 兼容层（已迁移至 Pinia store）
+ *
+ * 历史：原本是模块级响应式单例（见 [审计报告 §3.2](src/tools/llm-inspector/docs/Plan/2026-06-code-structure-audit.md:99)）。
+ * 迁移：2026-06，状态与方法已搬入 [`stores/inspectorRecordsStore`](src/tools/llm-inspector/stores/inspectorRecordsStore.ts:1)。
+ *
+ * 本文件保留是为了**消费方零改动**：
+ * - 所有现有 `import { useRecordManager } from "../core/recordManager"` 都继续工作；
+ * - 返回值结构与原 hook 完全一致（state 是 ref / reactive，方法直接调用）。
+ *
+ * 新代码请直接 import [`useInspectorRecordsStore`](src/tools/llm-inspector/stores/inspectorRecordsStore.ts:38)。
  */
-export function getRecords(): CombinedRecord[] {
-  return records.value;
-}
+
+import { storeToRefs } from "pinia";
+import { useInspectorRecordsStore } from "../stores/inspectorRecordsStore";
 
 /**
- * 获取过滤后的记录
+ * 响应式访问器：对外暴露与原 recordManager 完全相同的 API。
+ *
+ * 内部：从 Pinia store 取真值，用 `storeToRefs` 包装出 ref 形式的 `records` / `selectedRecord`，
+ * 保持原 hook 解构后的 `xxx.value` 访问语法。`filterOptions` 故意走原 reactive 对象而不被
+ * `storeToRefs` 转成 ref，以兼容 LlmInspector.vue 的 `v-model:searchQuery="filterOptions.xxx"`
+ * 写法（reactive 对象在 store 上可直接读写并被 Pinia 跟踪）。
  */
-export function getFilteredRecords(): CombinedRecord[] {
-  return filterRecords(records.value, filterOptions);
-}
-
-/**
- * 获取选中的记录
- */
-export function getSelectedRecord(): CombinedRecord | null {
-  return selectedRecord.value;
-}
-
-/**
- * 获取过滤选项
- */
-export function getFilterOptions(): FilterOptions {
-  return { ...filterOptions };
-}
-
-/**
- /**
-  * 添加请求记录
-  *
-  * C1 新增 `source` / `inspectorMetadata` 可选参数：
-  * - 旧的 Rust 外部代理路径无需修改（默认走 `"external"`）。
-  * - 新的内部钩子路径（C2 `useInternalMonitor`）可显式传入 `"internal"` + 元数据。
-  */
-export function addRequestRecord(
-  request: RequestRecord,
-  source: RecordSource = "external",
-  inspectorMetadata?: RecordInspectorMetadata
-): void {
-  logger.debug("添加请求记录", {
-    requestId: request.id,
-    method: request.method,
-    url: request.url,
-    source,
-  });
-
-  const combinedRecord: CombinedRecord = {
-    id: request.id,
-    request,
-    response: undefined,
-    source,
-    inspectorMetadata,
-  };
-
-  records.value.push(combinedRecord);
-  // 限制记录数量
-  if (records.value.length > MAX_RECORDS) {
-    const removed = records.value.shift();
-    logger.debug("移除超出限制的记录", { removedId: removed?.id });
-  }
-
-  // 如果这是第一个请求且没有选中的记录，自动选中它
-  if (records.value.length === 1 && !selectedRecord.value) {
-    selectRecord(combinedRecord);
-  }
-}
-
-/**
- * 更新响应记录
- */
-export function updateResponseRecord(response: ResponseRecord): void {
-  logger.debug("更新响应记录", {
-    requestId: response.id,
-    status: response.status,
-    duration: response.duration_ms,
-  });
-
-  const record = records.value.find((r) => r.id === response.id);
-  if (record) {
-    record.response = response;
-
-    // 如果当前选中的是这个记录，触发更新
-    if (selectedRecord.value?.id === response.id) {
-      selectedRecord.value = { ...record };
-    }
-  } else {
-    logger.warn("未找到对应的请求记录", { requestId: response.id });
-  }
-}
-
-/**
- * 选择记录
- */
-export function selectRecord(record: CombinedRecord | null): void {
-  logger.debug("选择记录", { recordId: record?.id });
-  selectedRecord.value = record;
-}
-
-/**
- * 清空所有记录
- */
-export function clearAllRecords(): void {
-  logger.info("清空所有记录", { count: records.value.length });
-  records.value = [];
-  selectedRecord.value = null;
-}
-
-/**
- * 删除指定记录
- */
-export function deleteRecord(recordId: string): boolean {
-  const index = records.value.findIndex((r) => r.id === recordId);
-  if (index !== -1) {
-    records.value.splice(index, 1);
-
-    // 如果删除的是当前选中的记录，清除选中状态
-    if (selectedRecord.value?.id === recordId) {
-      selectedRecord.value = null;
-    }
-
-    logger.debug("删除记录", { recordId });
-    return true;
-  }
-
-  logger.warn("未找到要删除的记录", { recordId });
-  return false;
-}
-
-/**
- * 更新过滤选项
- */
-export function updateFilterOptions(options: Partial<FilterOptions>): void {
-  Object.assign(filterOptions, options);
-  logger.debug("更新过滤选项", filterOptions);
-}
-
-/**
- * 重置过滤选项
- */
-export function resetFilterOptions(): void {
-  filterOptions.searchQuery = "";
-  filterOptions.filterStatus = "";
-  logger.debug("重置过滤选项");
-}
-
-/**
- * 根据ID查找记录
- */
-export function findRecordById(recordId: string): CombinedRecord | undefined {
-  return records.value.find((r) => r.id === recordId);
-}
-
-/**
- * 获取记录统计信息
- */
-export function getRecordStats() {
-  const total = records.value.length;
-  const completed = records.value.filter(
-    (r) => r.response !== undefined
-  ).length;
-  const pending = total - completed;
-
-  // 状态码统计
-  const statusCounts: Record<string, number> = {};
-  records.value.forEach((record) => {
-    if (record.response) {
-      const status = record.response.status.toString();
-      const category = status[0] + "xx";
-      statusCounts[category] = (statusCounts[category] || 0) + 1;
-    }
-  });
-
-  return {
-    total,
-    completed,
-    pending,
-    statusCounts,
-  };
-}
-
-/**
- * 导出记录为JSON
- */
-export function exportRecordsToJson(): string {
-  const exportData = {
-    exportTime: new Date().toISOString(),
-    stats: getRecordStats(),
-    records: records.value,
-  };
-
-  return JSON.stringify(exportData, null, 2);
-}
-
-/**
- * 从JSON导入记录
- */
-export function importRecordsFromJson(jsonData: string): {
-  success: boolean;
-  imported: number;
-  error?: string;
-} {
-  try {
-    const data = JSON.parse(jsonData);
-
-    if (!Array.isArray(data.records)) {
-      return { success: false, imported: 0, error: "无效的数据格式" };
-    }
-
-    let imported = 0;
-    data.records.forEach((record: CombinedRecord) => {
-      if (record.id && record.request) {
-        // 检查是否已存在相同ID的记录
-        const existing = findRecordById(record.id);
-        if (!existing) {
-          records.value.push(record);
-          imported++;
-        }
-      }
-    });
-
-    logger.info("导入记录", { imported, total: data.records.length });
-    return { success: true, imported };
-  } catch (error) {
-    errorHandler.handle(error, {
-      userMessage: "导入记录失败",
-      showToUser: false,
-    });
-    return { success: false, imported: 0, error: `解析失败: ${error}` };
-  }
-}
-
-/**
- * 获取最近的记录
- */
-export function getRecentRecords(limit: number = 10): CombinedRecord[] {
-  return getFilteredRecords().slice(0, limit);
-}
-
-/**
- * 搜索记录
- */
-export function searchRecords(query: string): CombinedRecord[] {
-  if (!query.trim()) {
-    return getFilteredRecords();
-  }
-
-  const searchQuery = query.toLowerCase();
-  return getFilteredRecords().filter((record) => {
-    return (
-      record.request.url.toLowerCase().includes(searchQuery) ||
-      record.request.method.toLowerCase().includes(searchQuery) ||
-      record.request.body?.toLowerCase().includes(searchQuery) ||
-      record.response?.body?.toLowerCase().includes(searchQuery)
-    );
-  });
-}
-
-// 响应式访问器
 export function useRecordManager() {
+  const store = useInspectorRecordsStore();
+  const { records, selectedRecord } = storeToRefs(store);
+
   return {
-    // 状态
-    records: records,
-    selectedRecord: selectedRecord,
-    filterOptions: filterOptions,
+    // 状态（保持与原 API 一致）
+    records,
+    selectedRecord,
+    filterOptions: store.filterOptions,
 
     // 方法
-    getRecords,
-    getFilteredRecords,
-    getSelectedRecord,
-    getFilterOptions,
-    addRequestRecord,
-    updateResponseRecord,
-    selectRecord,
-    clearAllRecords,
-    deleteRecord,
-    updateFilterOptions,
-    resetFilterOptions,
-    findRecordById,
-    getRecordStats,
-    exportRecordsToJson,
-    importRecordsFromJson,
-    getRecentRecords,
-    searchRecords,
+    getRecords: store.getRecords,
+    getFilteredRecords: store.getFilteredRecords,
+    getSelectedRecord: store.getSelectedRecord,
+    getFilterOptions: store.getFilterOptions,
+    addRequestRecord: store.addRequestRecord,
+    updateResponseRecord: store.updateResponseRecord,
+    selectRecord: store.selectRecord,
+    clearAllRecords: store.clearAllRecords,
+    deleteRecord: store.deleteRecord,
+    updateFilterOptions: store.updateFilterOptions,
+    resetFilterOptions: store.resetFilterOptions,
+    findRecordById: store.findRecordById,
+    getRecordStats: store.getRecordStats,
+    exportRecordsToJson: store.exportRecordsToJson,
+    importRecordsFromJson: store.importRecordsFromJson,
+    getRecentRecords: store.getRecentRecords,
+    searchRecords: store.searchRecords,
   };
 }

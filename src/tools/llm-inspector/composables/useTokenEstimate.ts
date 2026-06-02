@@ -1,16 +1,17 @@
 /**
- * LLM Inspector — Token 估算 Composable（F1）
+ * LLM Inspector — Token 估算 Composable
  *
- * 职责：
- * - 基于 record 自动触发客户端 Token 估算（异步）
- * - 全局缓存（按 recordId）避免切换记录时重复计算
- * - 当请求体或响应体变化时自动失效缓存重算
- * - 暴露 clearCache 供 F4「重新解析」按钮使用
+ * 双层职责（按成本拆分）：
+ * - **服务端 usage 提取**：纯 JSON 解析，成本极低，自动跟随 record 变化执行
+ * - **客户端 tokenizer 估算**：涉及 transformers.js / WASM 初始化，成本较高，
+ *   默认按需触发，仅当 `autoEstimate` 开启 + 响应已完成时才自动跑一次
  *
  * 设计原则：
- * - 请求体在 record 创建时就完整，立即估算
- * - 响应体可能流式增长，仅在响应到达后估算（避免抖动）
- * - 估算结果与服务端 usage 提取分离，各自独立
+ * - 默认行为不主动加载 tokenizer，避免长流式响应反复触发计算
+ * - 切换记录时立即重置客户端估算（避免脏数据），但保留服务端 usage 自动展示
+ * - 用户在 UI 上点击「计算客户端 Token」时调用 `computeClient()`
+ * - 缓存仍按 record id + 内容签名命中，避免重复计算
+ * - 暴露 clearCache 供「重新解析」按钮 / 切换 tokenizer 偏好时使用
  */
 
 import { computed, ref, watch, type Ref } from "vue";
@@ -32,23 +33,23 @@ import type { CombinedRecord } from "../types";
 const logger = createModuleLogger("LlmInspector/useTokenEstimate");
 
 /**
- * 单条记录的 Token 估算与服务端 usage 缓存项
+ * 单条记录的客户端估算缓存项
+ *
+ * 服务端 usage 不进入缓存，每次直接解析（成本极低且无副作用）。
  */
-interface TokenEstimateCacheEntry {
+interface ClientEstimateCacheEntry {
   /** 缓存 key 的签名（请求体长度 + 响应体长度 + modelId），用于精确判断失效 */
   signature: string;
   /** 请求侧客户端估算（含 system + user + assistant 历史） */
   requestEstimate: MessageTokenEstimate | null;
   /** 响应侧客户端估算（仅 assistant 回复） */
   responseEstimate: MessageTokenEstimate | null;
-  /** 服务端 usage 提取结果（仅响应已到达时有效） */
-  serverUsage: ServerUsage | null;
 }
 
 // 缓存上限（防止内存泄漏），命中时使用 LRU 策略
 const CACHE_MAX = 200;
 // 全局缓存（按 recordId）
-const cache = new LruCache<string, TokenEstimateCacheEntry>(CACHE_MAX);
+const cache = new LruCache<string, ClientEstimateCacheEntry>(CACHE_MAX);
 
 function makeSignature(record: CombinedRecord): string {
   const reqLen = record.request.body?.length ?? 0;
@@ -68,18 +69,51 @@ function extractModelFromBody(record: CombinedRecord): string | undefined {
   }
 }
 
-export function useTokenEstimate(recordRef: Ref<CombinedRecord | null>) {
+export interface UseTokenEstimateOptions {
+  /**
+   * 是否在响应到达后自动执行客户端估算（默认 false）。
+   * 服务端 usage 提取始终自动执行，不受此开关影响。
+   */
+  autoEstimate?: Ref<boolean>;
+}
+
+export function useTokenEstimate(
+  recordRef: Ref<CombinedRecord | null>,
+  options: UseTokenEstimateOptions = {}
+) {
+  const autoEstimateRef = options.autoEstimate;
+
   // 当前记录的估算结果（响应式）
   const requestEstimate = ref<MessageTokenEstimate | null>(null);
   const responseEstimate = ref<MessageTokenEstimate | null>(null);
   const serverUsage = ref<ServerUsage | null>(null);
   const isEstimating = ref(false);
   const estimateError = ref<string | null>(null);
+  /** 当前记录的客户端估算是否已完成（命中缓存或主动计算过） */
+  const hasClientEstimate = ref(false);
 
   /**
-   * 计算并缓存当前 record 的 token 估算
+   * 仅刷新服务端 usage（廉价，自动触发）
    */
-  async function compute(record: CombinedRecord): Promise<void> {
+  function refreshServerUsage(record: CombinedRecord): void {
+    if (!record.response?.body) {
+      serverUsage.value = null;
+      return;
+    }
+    const format = detectApiFormat(record.request.url);
+    serverUsage.value = extractServerUsage(record.response.body, format);
+  }
+
+  /**
+   * 执行客户端 Token 估算（重，按需触发）
+   *
+   * @returns 是否成功完成（命中缓存或重算成功）
+   */
+  async function computeClient(): Promise<boolean> {
+    const record = recordRef.value;
+    if (!record) return false;
+    if (isEstimating.value) return false;
+
     const signature = makeSignature(record);
     // touch 命中时刷新插入顺序，让活跃记录留得更久
     const cached = cache.touch(record.id);
@@ -88,8 +122,8 @@ export function useTokenEstimate(recordRef: Ref<CombinedRecord | null>) {
     if (cached && cached.signature === signature) {
       requestEstimate.value = cached.requestEstimate;
       responseEstimate.value = cached.responseEstimate;
-      serverUsage.value = cached.serverUsage;
-      return;
+      hasClientEstimate.value = true;
+      return true;
     }
 
     isEstimating.value = true;
@@ -109,7 +143,6 @@ export function useTokenEstimate(recordRef: Ref<CombinedRecord | null>) {
 
       // === 响应侧估算（仅响应已到达） ===
       let resEst: MessageTokenEstimate | null = null;
-      let usage: ServerUsage | null = null;
       if (record.response?.body) {
         try {
           const parsed = parseResponseMessages(record.response.body, format);
@@ -126,39 +159,39 @@ export function useTokenEstimate(recordRef: Ref<CombinedRecord | null>) {
             error: String(err),
           });
         }
-        // 服务端 usage 提取（独立于消息解析）
-        usage = extractServerUsage(record.response.body, format);
       }
 
       // 写缓存
-      const entry: TokenEstimateCacheEntry = {
+      const entry: ClientEstimateCacheEntry = {
         signature,
         requestEstimate: reqEst,
         responseEstimate: resEst,
-        serverUsage: usage,
       };
       cache.set(record.id, entry);
 
       requestEstimate.value = reqEst;
       responseEstimate.value = resEst;
-      serverUsage.value = usage;
+      hasClientEstimate.value = true;
+      return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       estimateError.value = message;
       logger.warn("Token 估算失败", { recordId: record.id, error: message });
+      return false;
     } finally {
       isEstimating.value = false;
     }
   }
 
   /**
-   * 清除当前 record 的缓存并强制重算
+   * 清除当前 record 的缓存并强制重算客户端估算
    */
   async function recompute(): Promise<void> {
     const record = recordRef.value;
     if (!record) return;
     cache.delete(record.id);
-    await compute(record);
+    hasClientEstimate.value = false;
+    await computeClient();
   }
 
   /**
@@ -168,10 +201,26 @@ export function useTokenEstimate(recordRef: Ref<CombinedRecord | null>) {
     cache.clear();
     requestEstimate.value = null;
     responseEstimate.value = null;
-    serverUsage.value = null;
+    hasClientEstimate.value = false;
   }
 
-  // 监听 record 变化，自动估算
+  /**
+   * 尝试从缓存恢复客户端估算（切换记录时调用，不主动计算）
+   */
+  function tryRestoreClientFromCache(record: CombinedRecord): boolean {
+    const signature = makeSignature(record);
+    const cached = cache.touch(record.id);
+    if (cached && cached.signature === signature) {
+      requestEstimate.value = cached.requestEstimate;
+      responseEstimate.value = cached.responseEstimate;
+      hasClientEstimate.value = true;
+      return true;
+    }
+    return false;
+  }
+
+  // 监听 record 变化（含响应到达），自动刷新服务端 usage，
+  // 并在 autoEstimate 开启时跟随触发客户端估算
   watch(
     () => {
       const r = recordRef.value;
@@ -179,22 +228,44 @@ export function useTokenEstimate(recordRef: Ref<CombinedRecord | null>) {
       // 同时监听响应到达，确保流式结束后能拿到 usage
       return [r.id, r.response?.body?.length ?? 0] as const;
     },
-    (newVal) => {
+    (newVal, oldVal) => {
       if (!newVal) {
         requestEstimate.value = null;
         responseEstimate.value = null;
         serverUsage.value = null;
+        hasClientEstimate.value = false;
+        estimateError.value = null;
         return;
       }
       const record = recordRef.value;
-      if (record) {
-        void compute(record);
+      if (!record) return;
+
+      // 记录切换：重置客户端估算状态，尝试从缓存恢复
+      const isRecordChanged = !oldVal || oldVal[0] !== newVal[0];
+      if (isRecordChanged) {
+        requestEstimate.value = null;
+        responseEstimate.value = null;
+        hasClientEstimate.value = false;
+        estimateError.value = null;
+        tryRestoreClientFromCache(record);
+      }
+
+      // 1. 服务端 usage 始终自动刷新（廉价）
+      refreshServerUsage(record);
+
+      // 2. 客户端估算只在 autoEstimate 开启 + 响应已到达时自动触发
+      const shouldAutoEstimate =
+        autoEstimateRef?.value === true &&
+        Boolean(record.response?.body) &&
+        !hasClientEstimate.value;
+      if (shouldAutoEstimate) {
+        void computeClient();
       }
     },
     { immediate: true }
   );
 
-  // === 偏差对比（F2 准备字段，F1 阶段暂不渲染） ===
+  // === 偏差对比 ===
   const promptDeviation = computed(() => {
     if (!requestEstimate.value || !serverUsage.value) return null;
     const est = requestEstimate.value.total;
@@ -225,8 +296,10 @@ export function useTokenEstimate(recordRef: Ref<CombinedRecord | null>) {
     serverUsage,
     isEstimating,
     estimateError,
+    hasClientEstimate,
     promptDeviation,
     completionDeviation,
+    computeClient,
     recompute,
     clearAllCache,
   };

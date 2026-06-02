@@ -44,7 +44,11 @@
             </span>
           </template>
           <div v-if="activeTab === 'overview'" class="tab-pane-content">
-            <RecordOverviewTab :record="record" :mask-api-keys="maskApiKeys" />
+            <RecordOverviewTab
+              :record="record"
+              :mask-api-keys="maskApiKeys"
+              :auto-estimate-tokens="autoEstimateTokens"
+            />
           </div>
         </el-tab-pane>
 
@@ -106,6 +110,8 @@ type TabName = "overview" | "request" | "response";
 const props = defineProps<{
   record: CombinedRecord | null;
   maskApiKeys?: boolean;
+  /** 是否在响应到达后自动执行客户端 Token 估算（全局设置） */
+  autoEstimateTokens?: boolean;
 }>();
 
 defineEmits<{

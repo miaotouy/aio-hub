@@ -113,11 +113,33 @@
         </div>
       </section>
 
+      <!-- Token 估算设置 -->
+      <section class="settings-section">
+        <h4 class="section-title">Token 估算</h4>
+        <div class="form-field">
+          <el-checkbox
+            :model-value="autoEstimateTokens"
+            @update:model-value="
+              (val: boolean | string | number) =>
+                emit('update:autoEstimateTokens', val === true)
+            "
+          >
+            响应结束后自动运行客户端估算
+          </el-checkbox>
+          <div class="field-hint">
+            服务端返回的 usage 字段始终自动展示（如有）。<br />
+            开启此项后，每条请求结束后会额外用本地 tokenizer 估算请求/响应的
+            Token 数，用于与服务端数据对比偏差。<br />
+            默认关闭以节省资源——按需时可在详情面板的 Token 卡片上手动点击触发。
+          </div>
+        </div>
+      </section>
+
       <!-- 未来扩展占位 -->
       <section class="settings-section placeholder-section">
         <h4 class="section-title">高级设置</h4>
         <div class="placeholder-hint">
-          🚧 默认 tokenizer 算法、Token 偏差告警阈值等设置将在后续版本加入。
+          🚧 默认 tokenizer 算法选择、Token 偏差告警阈值等设置将在后续版本加入。
         </div>
       </section>
     </div>
@@ -144,6 +166,8 @@ interface Props {
   config: InspectorConfig;
   /** 是否启用 API Key 打码 */
   maskApiKeys: boolean;
+  /** 是否在响应结束后自动执行客户端 Token 估算 */
+  autoEstimateTokens: boolean;
   /** 目标 URL 历史 */
   targetUrlHistory: string[];
   /** 当前正在运行的 target URL（用于判断输入是否需要应用） */
@@ -158,6 +182,7 @@ const emit = defineEmits<{
   "update:visible": [value: boolean];
   "update:config": [config: InspectorConfig];
   "update:maskApiKeys": [value: boolean];
+  "update:autoEstimateTokens": [value: boolean];
   "save-header-rules": [rules: HeaderOverrideRule[]];
   "update-target-url": [];
 }>();

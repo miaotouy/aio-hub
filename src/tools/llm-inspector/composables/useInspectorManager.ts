@@ -104,6 +104,7 @@ export function useInspectorManager() {
       configMgr.maskApiKeys,
       configMgr.targetUrlHistory,
       configMgr.layout,
+      configMgr.autoEstimateTokens,
     ],
     () => {
       configMgr.saveConfig().catch((err) =>
@@ -259,6 +260,7 @@ export function useInspectorManager() {
     error: proxyMgr.error,
     targetUrlHistory: configMgr.targetUrlHistory,
     layout: configMgr.layout,
+    autoEstimateTokens: configMgr.autoEstimateTokens,
 
     // 计算属性
     inspectorStatus,

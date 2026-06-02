@@ -59,5 +59,13 @@ export interface LlmInspectorSettings {
    * 未指定时使用默认值（splitRatio: 0.25）。
    */
   layout?: InspectorLayoutSettings;
+  /**
+   * 是否在请求结束后自动执行客户端 Token 估算（默认 false）。
+   *
+   * 服务端 usage 提取始终自动执行（成本极低），此开关仅控制
+   * 较重的客户端 tokenizer 估算是否在响应到达后自动跑一次。
+   * 关闭时用户需要在详情面板的 Token 卡片上手动点击触发。
+   */
+  autoEstimateTokens?: boolean;
   version?: string;
 }

@@ -52,23 +52,26 @@
         <RecordDetail
           :record="selectedRecord"
           :maskApiKeys="maskApiKeys"
+          :autoEstimateTokens="autoEstimateTokens"
           @close="selectRecord(null)"
         />
       </div>
     </div>
-
     <!-- 设置抽屉（D2） -->
     <SettingsDrawer
       v-model:visible="showSettings"
       :config="config"
       :maskApiKeys="maskApiKeys"
+      :autoEstimateTokens="autoEstimateTokens"
       :targetUrlHistory="targetUrlHistory"
       :currentTargetUrl="currentTargetUrl"
       :state="state"
       @update:config="handleUpdateConfig"
       @update:maskApiKeys="handleUpdateMaskApiKeys"
+      @update:autoEstimateTokens="handleUpdateAutoEstimateTokens"
       @save-header-rules="handleSaveHeaderRules"
       @update-target-url="handleUpdateTargetUrl"
+    />
     />
   </div>
 </template>
@@ -94,6 +97,7 @@ const {
   currentTargetUrl,
   config,
   maskApiKeys,
+  autoEstimateTokens,
   isLoading,
   error,
   targetUrlHistory,
@@ -187,6 +191,10 @@ function handleUpdateConfig(next: InspectorConfig) {
 
 function handleUpdateMaskApiKeys(value: boolean) {
   maskApiKeys.value = value;
+}
+
+function handleUpdateAutoEstimateTokens(value: boolean) {
+  autoEstimateTokens.value = value;
 }
 
 function handleSaveHeaderRules(rules: HeaderOverrideRule[]) {

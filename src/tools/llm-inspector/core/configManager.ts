@@ -32,6 +32,7 @@ function createDefaultSettings(): LlmInspectorSettings {
     layout: {
       splitRatio: DEFAULT_SPLIT_RATIO,
     },
+    autoEstimateTokens: false,
     version: "1.0.0",
   };
 }
@@ -65,10 +66,15 @@ export async function loadSettings(): Promise<LlmInspectorSettings> {
         Math.max(MIN_SPLIT_RATIO, settings.layout.splitRatio)
       );
     }
+    // 向后兼容：旧配置可能缺 autoEstimateTokens 字段，默认 false
+    if (typeof settings.autoEstimateTokens !== "boolean") {
+      settings.autoEstimateTokens = false;
+    }
     logger.info("配置加载成功", {
       port: settings.config.port,
       targetUrl: settings.config.target_url,
       splitRatio: settings.layout.splitRatio,
+      autoEstimateTokens: settings.autoEstimateTokens,
     });
     return settings;
   } catch (error) {

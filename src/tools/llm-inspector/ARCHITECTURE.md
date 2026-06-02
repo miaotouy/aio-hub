@@ -78,15 +78,18 @@ isGlobalEnabled  ─ 总开关（关闭即全停）
 - **结构化 Tab 实时渲染流式正文** (能力迁移 ▲)：[`ResponseStructuredView.vue`](src/tools/llm-inspector/components/detail/views/ResponseStructuredView.vue:1) 在检测到流式响应时，直接消费 `streamProcessor.extractContent()` / `extractReasoning()` 提取出的累积文本，通过 `RichTextRenderer` + `LlmThinkNode` 实时渲染（打字机效果）。**不再需要等待 SSE 累积完成再 JSON 解析**，也不再出现「响应体不是合法 JSON」的报错。
 - **原始 Tab 回归纯粹**：[`ResponseRawView.vue`](src/tools/llm-inspector/components/detail/views/ResponseRawView.vue:1) 移除「正文模式」切换，专注展示原始 SSE 缓冲 / JSON 美化。正文的实时呈现完全交给「结构化」Tab 负责。
 
-### 1.5. Token 估算与服务端 usage 对比（2.0 新增）
+### 1.5. Token 估算与服务端 usage 对比
 
-[`useTokenEstimate.ts`](src/tools/llm-inspector/composables/useTokenEstimate.ts:1) composable 提供：
+[`useTokenEstimate.ts`](src/tools/llm-inspector/composables/useTokenEstimate.ts:1) composable 按"成本分层"提供两类能力：
 
-- **客户端估算**: 复用 [`tokenCalculatorEngine`](src/tools/token-calculator/core/tokenCalculatorEngine.ts:1) 单例（transformers.js + huggingface profile），按 record 异步估算请求/响应 Token。
-- **服务端 usage 提取**: [`extractServerUsage`](src/tools/llm-inspector/core/tokenEstimator.ts:193) 归一化 OpenAI/Anthropic/Gemini/Cohere/Ollama 的 usage 字段为统一结构。
-- **偏差对比**: `promptDeviation` / `completionDeviation` computed 自动算出（估算 - 实际）/ 实际 \* 100%。三档高亮：< 5% ok / 5-15% warn / >= 15% danger。
-- **签名缓存**: `${reqLen}|${resLen}|${modelHint}` 作为缓存 key，切换记录秒出（命中缓存）。
-- **重算入口**: `recompute()` 清除当前 record 缓存重算，由 [`RecordOverviewTab.vue`](src/tools/llm-inspector/components/detail/RecordOverviewTab.vue:172) 中 Token 估算卡片头部的 RefreshCw 按钮触发。
+- **服务端 usage 提取（自动）**: [`extractServerUsage`](src/tools/llm-inspector/core/tokenEstimator.ts:193) 归一化 OpenAI/Anthropic/Gemini/Cohere/Ollama 的 usage 字段为统一结构。纯 JSON 解析，成本极低，跟随 record 变化自动刷新。
+- **客户端 tokenizer 估算（按需）**: 复用 [`tokenCalculatorEngine`](src/tools/token-calculator/core/tokenCalculatorEngine.ts:1) 单例（transformers.js + huggingface profile），按 record 异步估算请求/响应 Token。
+  - **默认不自动跑**：避免长流式响应反复触发 tokenizer 加载与计算
+  - **手动触发**：详情面板 Token 卡片上的「运行客户端估算」按钮调用 `computeClient()`
+  - **可选自动**：当全局设置 `autoEstimateTokens` 开启时，响应到达后自动跑一次（设置抽屉「Token 估算」section 控制）
+- **偏差对比**: `promptDeviation` / `completionDeviation` computed 自动算出（估算 - 实际）/ 实际 \* 100%。三档高亮：< 5% ok / 5-15% warn / >= 15% danger。仅在客户端估算 + 服务端 usage 都存在时显示。
+- **签名缓存**: `${reqLen}|${resLen}|${modelHint}` 作为缓存 key，切换记录后自动从缓存恢复客户端估算结果（不触发重算）。
+- **重算入口**: `recompute()` 清除当前 record 缓存重算，由 [`RecordOverviewTab.vue`](src/tools/llm-inspector/components/detail/RecordOverviewTab.vue:172) 中 Token 卡片头部的 RefreshCw 按钮触发（仅在已有估算结果时显示）。
 
 ### 1.6. 消息结构化解析
 
@@ -202,10 +205,11 @@ graph TD
 
 - **请求摘要**: 方法 / 大小 / URL / 时间（ISO 8601 + 相对时间）+ 请求头（折叠）。
 - **响应摘要**: 状态码 / 耗时 / 大小 / **Stream 状态**（区分声明 vs 实际）+ 响应头（折叠）。
-- **Token 估算卡**（F1/F2/F4）:
-  - 客户端估算（请求 + 响应分列）+ 服务端 usage 对照 + 总计。
-  - 偏差 chip：< 5% 绿色 / 5-15% 黄色 / >= 15% 红色，tooltip 解释。
-  - 卡片头部 RefreshCw 按钮可重算。
+- **Token 卡**:
+  - 服务端 usage 自动展示（如响应包含 usage 字段）+ 总计。
+  - 客户端估算按需触发（卡片底部「运行客户端估算」按钮，或全局开启「响应结束后自动估算」）。
+  - 同时存在时显示偏差 chip：< 5% 绿色 / 5-15% 黄色 / >= 15% 红色，tooltip 解释。
+  - 已估算后卡片头部出现 RefreshCw 按钮，可清缓存重算。
 - **Inspector 元数据卡**（F3）: 仅当 `inspectorMetadata` 存在时显示工具/用途/profileId/modelId/sessionId（一般 internal 来源才会填充）。
 
 #### 3.2.2. 性能改造（detail-panel-rework）
@@ -327,7 +331,8 @@ LlmInspector.vue
 - **存储内容**:
   - `config.port` / `config.target_url` / `config.header_override_rules`
   - UI 状态: `searchQuery` / `filterStatus` / `maskApiKeys` / `targetUrlHistory`
-  - 布局: `layout.splitRatio`（D4 新增）
+  - 布局: `layout.splitRatio`
+  - Token 行为: `autoEstimateTokens`（是否在响应结束后自动跑客户端 tokenizer 估算，默认 false）
 - **保存机制**: 通用 `createConfigManager` 防抖（500ms）合并写入。
 
 ## 7. 关键类型定义

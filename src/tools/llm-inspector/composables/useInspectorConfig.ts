@@ -3,7 +3,7 @@
  *
  * 从原 `useInspectorManager` 拆出的纯持久化层：
  * - 配置 (port / target_url / header_override_rules)
- * - UI 偏好 (maskApiKeys)
+ * - UI 偏好 (maskApiKeys / autoEstimateTokens)
  * - 布局 (splitRatio)
  * - 目标地址历史 (targetUrlHistory，最近 10 条)
  *
@@ -55,6 +55,11 @@ export function useInspectorConfig(options: UseInspectorConfigOptions) {
   const layout = ref<InspectorLayoutSettings>({
     splitRatio: DEFAULT_SPLIT_RATIO,
   });
+  /**
+   * 是否在请求结束后自动执行客户端 Token 估算（默认 false）。
+   * 服务端 usage 提取始终自动执行；此开关仅控制较重的客户端 tokenizer 估算。
+   */
+  const autoEstimateTokens = ref(false);
 
   /** 从持久化存储加载全部配置 */
   async function loadConfig(): Promise<void> {
@@ -64,12 +69,14 @@ export function useInspectorConfig(options: UseInspectorConfigOptions) {
       maskApiKeys.value = settings.maskApiKeys ?? true;
       targetUrlHistory.value = settings.targetUrlHistory ?? [];
       layout.value = settings.layout ?? { splitRatio: DEFAULT_SPLIT_RATIO };
+      autoEstimateTokens.value = settings.autoEstimateTokens ?? false;
 
       logger.info("配置加载成功", {
         port: settings.config.port,
         targetUrl: settings.config.target_url,
         historyCount: targetUrlHistory.value.length,
         splitRatio: layout.value.splitRatio,
+        autoEstimateTokens: autoEstimateTokens.value,
       });
     } catch (err) {
       errorHandler.handle(err, {
@@ -91,6 +98,7 @@ export function useInspectorConfig(options: UseInspectorConfigOptions) {
         maskApiKeys: maskApiKeys.value,
         targetUrlHistory: targetUrlHistory.value,
         layout: layout.value,
+        autoEstimateTokens: autoEstimateTokens.value,
       };
 
       await saveSettings(settings);
@@ -136,6 +144,7 @@ export function useInspectorConfig(options: UseInspectorConfigOptions) {
     maskApiKeys,
     targetUrlHistory,
     layout,
+    autoEstimateTokens,
 
     // 方法
     loadConfig,

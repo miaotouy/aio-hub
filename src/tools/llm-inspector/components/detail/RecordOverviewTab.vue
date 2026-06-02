@@ -148,11 +148,11 @@
       </div>
     </section>
 
-    <!-- Token 估算卡（F1） -->
-    <section v-if="hasTokenInfo" class="section">
+    <!-- Token 卡（服务端 usage 自动展示 + 客户端估算按需触发） -->
+    <section v-if="hasTokenInfo || canTriggerClientEstimate" class="section">
       <h4>
         <Calculator :size="14" />
-        <span>Token 估算</span>
+        <span>Token</span>
         <span v-if="isEstimating" class="estimating-tag" title="正在估算中...">
           <LoaderCircle :size="11" class="spin-icon" />
         </span>
@@ -168,14 +168,15 @@
             >~</span
           >
         </span>
-        <!-- F4 重新解析按钮 -->
+        <!-- 重新估算按钮（仅在已估算后显示） -->
         <button
+          v-if="hasClientEstimate"
           class="btn-recompute"
           :disabled="isEstimating"
           :title="
             isEstimating
               ? '正在估算中...'
-              : '清除缓存并重新估算 Token（如刚切换 tokenizer 偏好）'
+              : '清除缓存并重新估算客户端 Token（如刚切换 tokenizer 偏好）'
           "
           @click="handleRecompute"
         >
@@ -190,17 +191,17 @@
             <ArrowUpFromLine :size="11" />
             <span>请求 (Prompt)</span>
           </div>
-          <div class="token-row">
-            <label>客户端估算</label>
-            <span class="token-value">{{
-              formatTokenCount(requestEstimate?.total)
-            }}</span>
-          </div>
           <div class="token-row" v-if="serverUsage">
             <label>服务端 usage</label>
             <span class="token-value mono">
               {{ formatTokenCount(serverUsage.promptTokens) }}
             </span>
+          </div>
+          <div class="token-row" v-if="hasClientEstimate">
+            <label>客户端估算</label>
+            <span class="token-value">{{
+              formatTokenCount(requestEstimate?.total)
+            }}</span>
           </div>
           <div
             v-if="promptDeviation"
@@ -220,22 +221,25 @@
 
         <div
           class="token-col"
-          v-if="responseEstimate || serverUsage?.completionTokens"
+          v-if="
+            (hasClientEstimate && responseEstimate) ||
+            serverUsage?.completionTokens
+          "
         >
           <div class="token-col-title">
             <ArrowDownToLine :size="11" />
             <span>响应 (Completion)</span>
           </div>
-          <div class="token-row">
-            <label>客户端估算</label>
-            <span class="token-value">
-              {{ formatTokenCount(responseEstimate?.total) }}
-            </span>
-          </div>
           <div class="token-row" v-if="serverUsage">
             <label>服务端 usage</label>
             <span class="token-value mono">
               {{ formatTokenCount(serverUsage.completionTokens) }}
+            </span>
+          </div>
+          <div class="token-row" v-if="hasClientEstimate">
+            <label>客户端估算</label>
+            <span class="token-value">
+              {{ formatTokenCount(responseEstimate?.total) }}
             </span>
           </div>
           <div
@@ -267,6 +271,41 @@
             </span>
           </div>
         </div>
+      </div>
+
+      <!-- 手动触发客户端估算入口 -->
+      <div v-if="canTriggerClientEstimate" class="token-trigger-row">
+        <button
+          class="btn-trigger-estimate"
+          :disabled="isEstimating"
+          :title="
+            isEstimating
+              ? '正在估算中...'
+              : '运行本地 tokenizer 估算请求/响应的 Token 数（首次加载 tokenizer 需要数秒）'
+          "
+          @click="handleComputeClient"
+        >
+          <Calculator v-if="!isEstimating" :size="13" />
+          <LoaderCircle v-else :size="13" class="spin-icon" />
+          <span>
+            {{
+              isEstimating
+                ? "估算中..."
+                : serverUsage
+                  ? "运行客户端估算（对比服务端 usage）"
+                  : "运行客户端估算"
+            }}
+          </span>
+        </button>
+        <span class="token-trigger-hint">
+          客户端估算需要加载本地 tokenizer，仅在需要校对偏差时手动触发即可。
+        </span>
+      </div>
+
+      <!-- 错误提示 -->
+      <div v-if="estimateError" class="token-error" :title="estimateError">
+        <AlertTriangle :size="11" />
+        <span>客户端估算失败：{{ estimateError }}</span>
       </div>
 
       <!-- 附件 Token 占位提示（A3 stub） -->
@@ -346,10 +385,11 @@ import { zhCN } from "date-fns/locale";
 import { useRecordDetail } from "../../composables/useRecordDetail";
 import { useTokenEstimate } from "../../composables/useTokenEstimate";
 import type { CombinedRecord } from "../../types";
-
 const props = defineProps<{
   record: CombinedRecord;
   maskApiKeys?: boolean;
+  /** 是否在响应到达后自动执行客户端估算（来自全局设置） */
+  autoEstimateTokens?: boolean;
 }>();
 
 const {
@@ -361,22 +401,38 @@ const {
   getStatusClass,
 } = useRecordDetail(props);
 
-// Token 估算（F1） + 偏差对比（F2） + 重算（F4）
+// Token：服务端 usage 自动 + 客户端估算按需
 const recordRef = toRef(props, "record");
+const autoEstimateRef = computed(() => props.autoEstimateTokens === true);
 const {
   requestEstimate,
   responseEstimate,
   serverUsage,
   isEstimating,
+  estimateError,
+  hasClientEstimate,
   promptDeviation,
   completionDeviation,
+  computeClient,
   recompute,
-} = useTokenEstimate(recordRef);
+} = useTokenEstimate(recordRef, { autoEstimate: autoEstimateRef });
 
 async function handleRecompute() {
   if (isEstimating.value) return;
   await recompute();
 }
+
+async function handleComputeClient() {
+  if (isEstimating.value) return;
+  await computeClient();
+}
+
+/** 是否可以触发客户端估算（请求体存在、未估算、未在估算中） */
+const canTriggerClientEstimate = computed(() => {
+  if (isEstimating.value) return false;
+  if (hasClientEstimate.value) return false;
+  return Boolean(props.record.request.body);
+});
 
 // 折叠状态（默认折叠）
 const requestHeadersExpanded = ref(false);
@@ -768,5 +824,224 @@ const streamMode = computed(() => {
 .header-value {
   color: var(--text-color);
   word-break: break-all;
+}
+
+/* === Token 卡片相关样式 === */
+.estimating-tag {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-color-light);
+}
+
+.tokenizer-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  background: rgba(var(--primary-rgb), calc(var(--card-opacity) * 0.12));
+  color: var(--primary-color);
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+  font-family: "Courier New", monospace;
+}
+
+.estimate-mark {
+  margin-left: 2px;
+  opacity: 0.7;
+}
+
+.btn-recompute {
+  margin-left: auto;
+  padding: 4px 6px;
+  background: transparent;
+  color: var(--text-color-light);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.btn-recompute:hover:not(:disabled) {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.btn-recompute:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.token-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.token-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  background: var(--card-bg);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 6px;
+}
+
+.token-col-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-color-light);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 2px;
+}
+
+.token-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+
+.token-row label {
+  color: var(--text-color-light);
+}
+
+.token-value {
+  color: var(--text-color);
+  font-weight: 600;
+}
+
+.token-value.mono {
+  font-family: "Courier New", monospace;
+}
+
+.total-highlight {
+  color: var(--primary-color);
+  font-size: 14px;
+}
+
+.token-deviation {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  align-self: flex-start;
+}
+
+.token-deviation.deviation-ok {
+  background: rgba(
+    var(--el-color-success-rgb),
+    calc(var(--card-opacity) * 0.12)
+  );
+  color: var(--el-color-success, #67c23a);
+}
+
+.token-deviation.deviation-warn {
+  background: rgba(
+    var(--el-color-warning-rgb),
+    calc(var(--card-opacity) * 0.12)
+  );
+  color: var(--el-color-warning, #e6a23c);
+}
+
+.token-deviation.deviation-danger {
+  background: rgba(
+    var(--el-color-danger-rgb),
+    calc(var(--card-opacity) * 0.12)
+  );
+  color: var(--el-color-danger, #f56c6c);
+}
+
+.token-trigger-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  background: rgba(var(--primary-rgb), calc(var(--card-opacity) * 0.05));
+  border: var(--border-width) dashed
+    rgba(var(--primary-rgb), calc(var(--card-opacity) * 0.4));
+  border-radius: 6px;
+}
+
+.btn-trigger-estimate {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--card-bg);
+  color: var(--primary-color);
+  border: var(--border-width) solid var(--primary-color);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  align-self: flex-start;
+  transition: all 0.2s;
+}
+
+.btn-trigger-estimate:hover:not(:disabled) {
+  background: rgba(var(--primary-rgb), calc(var(--card-opacity) * 0.1));
+}
+
+.btn-trigger-estimate:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.token-trigger-hint {
+  font-size: 11px;
+  color: var(--text-color-light);
+  line-height: 1.5;
+}
+
+.token-error {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: rgba(var(--el-color-danger-rgb), calc(var(--card-opacity) * 0.1));
+  color: var(--el-color-danger, #f56c6c);
+  border-radius: 4px;
+  font-size: 11px;
+  align-self: flex-start;
+}
+
+.token-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: rgba(var(--el-color-info-rgb), calc(var(--card-opacity) * 0.08));
+  color: var(--text-color-light);
+  border-radius: 4px;
+  font-size: 11px;
+  align-self: flex-start;
+}
+
+/* === 时间显示样式 === */
+.time-display {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.time-iso {
+  font-family: "Courier New", monospace;
+  font-size: 12px;
+}
+
+.time-relative {
+  font-size: 11px;
+  color: var(--text-color-light);
 }
 </style>

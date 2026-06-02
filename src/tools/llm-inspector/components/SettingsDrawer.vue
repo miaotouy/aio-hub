@@ -134,14 +134,6 @@
           </div>
         </div>
       </section>
-
-      <!-- 未来扩展占位 -->
-      <section class="settings-section placeholder-section">
-        <h4 class="section-title">高级设置</h4>
-        <div class="placeholder-hint">
-          🚧 默认 tokenizer 算法选择、Token 偏差告警阈值等设置将在后续版本加入。
-        </div>
-      </section>
     </div>
 
     <!-- 请求头覆盖弹窗（由本 Drawer 内按钮触发） -->
@@ -326,17 +318,5 @@ function handleSaveHeaderRules(rules: HeaderOverrideRule[]) {
 
 .button-icon {
   margin-right: 4px;
-}
-
-.placeholder-section {
-  background: rgba(var(--el-color-info-rgb), calc(var(--card-opacity) * 0.05));
-  border-style: dashed;
-}
-
-.placeholder-hint {
-  font-size: 12px;
-  color: var(--text-color-light);
-  line-height: 1.6;
-  padding: 4px 0;
 }
 </style>

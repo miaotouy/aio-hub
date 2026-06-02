@@ -133,7 +133,6 @@ graph TD
         subgraph Pinia Store
             RS[inspectorRecordsStore<br/>CombinedRecord 仓库<br/>含 source/metadata]
             SS[inspectorStreamStore<br/>shallowRef + 100ms 节流]
-            RM[recordManager.ts<br/>兼容薄壳]
         end
     end
 
@@ -150,14 +149,13 @@ graph TD
     HR -- 本地回调 + emit --> IMon
 
     PS --> EXT_P
-    IMon --> RM
+    IMon --> RS
     IM --> EXT_P
     IM --> CFG
     IM --> IMon
-    EXT_P --> RM
+    EXT_P --> RS
     EXT_P --> SS
     IMon --> SS
-    RM -.转发.-> RS
     RS -- 响应式 --> UI
     SS -- 响应式 --> UI
     TE -- 响应式 --> UI
@@ -229,7 +227,7 @@ sequenceDiagram
     participant Adapter as LLM Adapter
     participant HR as hookRegistry
     participant IMon as useInternalMonitor
-    participant RM as recordManager
+    participant RS as inspectorRecordsStore
     participant SS as inspectorStreamStore
     participant UI as RecordDetail.vue
 
@@ -241,8 +239,8 @@ sequenceDiagram
     FW->>HR: triggerRequest({...metadata})
     HR-->>IMon: 本地回调
     HR-->>IMon: emit('inspector:internal:request') 跨窗口
-    IMon->>RM: addRequestRecord(req, "internal", metadata)
-    RM-->>UI: 响应式更新（列表显示 internal 徽章）
+    IMon->>RS: addRequestRecord(req, "internal", metadata)
+    RS-->>UI: 响应式更新（列表显示 internal 徽章）
 
     loop SSE chunk
         FW-->>Adapter: stream chunk
@@ -256,9 +254,9 @@ sequenceDiagram
 
     Adapter->>HR: triggerResponse(body, status)
     HR-->>IMon: 本地回调
-    IMon->>RM: updateResponseRecord
+    IMon->>RS: updateResponseRecord
     UR->>CS: deleteContext(reqId) (finally)
-    RM-->>UI: 完成状态
+    RS-->>UI: 完成状态
 ```
 
 ## 5. 核心模块
@@ -272,7 +270,6 @@ sequenceDiagram
 | [`tokenEstimator.ts`](src/tools/llm-inspector/core/tokenEstimator.ts:1)                 | 客户端 Token 估算（复用 token-calculator）+ 服务端 usage 提取        |
 | [`inspectorStreamStore.ts`](src/tools/llm-inspector/stores/inspectorStreamStore.ts:1)   | Pinia store：shallowRef 流式缓冲 + 100ms 节流 + 多格式智能提取       |
 | [`inspectorRecordsStore.ts`](src/tools/llm-inspector/stores/inspectorRecordsStore.ts:1) | Pinia store：CombinedRecord 数据仓库（含 source/inspectorMetadata）  |
-| [`recordManager.ts`](src/tools/llm-inspector/core/recordManager.ts:1)                   | 兼容薄壳：转发到 `inspectorRecordsStore`                             |
 | [`configManager.ts`](src/tools/llm-inspector/core/configManager.ts:1)                   | 配置持久化（含 layout.splitRatio）                                   |
 | [`proxyService.ts`](src/tools/llm-inspector/core/proxyService.ts:1)                     | Tauri invoke/listen 封装                                             |
 | [`streamMerger.ts`](src/tools/llm-inspector/core/streamMerger.ts:1)                     | SSE 流式合并为厂商原生非流式 JSON（结构化响应「标准化 JSON」子视图） |

@@ -4,7 +4,7 @@
  * 负责把 [`inspectorHookRegistry`](src/tools/llm-inspector/core/hookRegistry.ts:1)
  * 触发的内部 LLM 请求 / 响应 / 流 / 错误事件，转换为 Inspector 现有的
  * [`CombinedRecord`](src/tools/llm-inspector/types.ts:42) / [`StreamUpdate`](src/tools/llm-inspector/types.ts:48)
- * 数据结构，写入 recordManager / streamProcessor。
+ * 数据结构，写入 inspectorRecordsStore / streamProcessor。
  *
  * 双通道接入：
  * 1. **本地钩子**：`inspectorHookRegistry.register(...)` 同窗口零延迟回调；
@@ -28,7 +28,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@utils/errorHandler";
 import { inspectorHookRegistry } from "../core/hookRegistry";
-import { useRecordManager } from "../core/recordManager";
+import { useInspectorRecordsStore } from "../stores/inspectorRecordsStore";
 import { useInspectorStreamStore } from "../stores/inspectorStreamStore";
 import { LruSet } from "../core/lruCache";
 import {
@@ -113,10 +113,10 @@ function pickInspectorMetadata(
  *
  * 默认开关 OFF（由 [`inspectorHookRegistry.enable()`](src/tools/llm-inspector/core/hookRegistry.ts:55)
  * 控制）。即使 enable 状态下，本 composable 也是惰性的——只有真实事件触发才会
- * 写入 recordManager。
+ * 写入 inspectorRecordsStore。
  */
 export function useInternalMonitor() {
-  const recordManager = useRecordManager();
+  const recordsStore = useInspectorRecordsStore();
   const streamStore = useInspectorStreamStore();
 
   // 去重 LRU：以 `${type}:${requestId}:${timestamp}` 为键
@@ -129,7 +129,7 @@ export function useInternalMonitor() {
     const key = `req:${event.requestId}:${event.timestamp}`;
     if (!markAndCheck(key)) return;
     try {
-      recordManager.addRequestRecord(
+      recordsStore.addRequestRecord(
         toRequestRecord(event),
         "internal",
         pickInspectorMetadata(event.metadata)
@@ -147,7 +147,7 @@ export function useInternalMonitor() {
     const key = `res:${event.requestId}:${event.timestamp}`;
     if (!markAndCheck(key)) return;
     try {
-      recordManager.updateResponseRecord(toResponseRecord(event));
+      recordsStore.updateResponseRecord(toResponseRecord(event));
     } catch (error) {
       errorHandler.handle(error, {
         userMessage: "处理内部响应事件失败",
@@ -177,9 +177,9 @@ export function useInternalMonitor() {
     // 错误事件不直接产生新记录；如果对应请求记录已存在，可补充一条状态码 0 的响应
     // 占位以表示请求失败。否则忽略——避免无中生有的孤立错误条目。
     try {
-      const existing = recordManager.findRecordById(event.requestId);
+      const existing = recordsStore.findRecordById(event.requestId);
       if (existing && !existing.response) {
-        recordManager.updateResponseRecord({
+        recordsStore.updateResponseRecord({
           id: event.requestId,
           timestamp: event.timestamp,
           status: 0,

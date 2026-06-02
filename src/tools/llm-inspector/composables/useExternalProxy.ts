@@ -4,7 +4,7 @@
  * 从原 `useInspectorManager` 拆出的「外部代理」职责块：
  * - 通过 [`proxyService`](src/tools/llm-inspector/core/proxyService.ts:1) 启停后端 Axum 服务
  * - 同步状态机字段 `externalProxyStatus` / `monitorExternal`
- * - 注册请求 / 响应 / 流式 三种 Tauri event 监听器，桥接到 recordManager + streamProcessor
+ * - 注册请求 / 响应 / 流式 三种 Tauri event 监听器，桥接到 inspectorRecordsStore + streamProcessor
  * - `checkInspectorStatus` 启动期对账，避免后端已运行而前端不知
  *
  * **不**持有：
@@ -30,7 +30,7 @@ import {
   onStreamUpdateEvent,
   clearAllEventListeners,
 } from "../core/proxyService";
-import { useRecordManager } from "../core/recordManager";
+import { useInspectorRecordsStore } from "../stores/inspectorRecordsStore";
 import { useInspectorStreamStore } from "../stores/inspectorStreamStore";
 import { validateInspectorConfig } from "../core/configManager";
 import type { InspectorConfig } from "../types";
@@ -51,7 +51,7 @@ export interface UseExternalProxyOptions {
 export function useExternalProxy(options: UseExternalProxyOptions) {
   const { config, state, onTargetUrlChange } = options;
 
-  const recordManager = useRecordManager();
+  const recordsStore = useInspectorRecordsStore();
   const streamStore = useInspectorStreamStore();
 
   const currentTargetUrl = ref("");
@@ -81,10 +81,10 @@ export function useExternalProxy(options: UseExternalProxyOptions) {
   async function setupEventListeners(): Promise<void> {
     try {
       unlistenRequest = await onRequestEvent((request) => {
-        recordManager.addRequestRecord(request);
+        recordsStore.addRequestRecord(request);
       });
       unlistenResponse = await onResponseEvent((response) => {
-        recordManager.updateResponseRecord(response);
+        recordsStore.updateResponseRecord(response);
       });
       unlistenStream = await onStreamUpdateEvent((update) => {
         streamStore.processStreamUpdate(update);

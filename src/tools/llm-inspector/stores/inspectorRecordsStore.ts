@@ -1,18 +1,11 @@
 /**
  * inspectorRecordsStore — Pinia store for LLM Inspector 记录仓库
  *
- * 从原 [`core/recordManager.ts`](src/tools/llm-inspector/core/recordManager.ts:1) 模块级响应式单例迁移而来。
- *
- * 迁移动机：
- * - 模块级 `ref/reactive` 单例存在 SSR / 测试隔离 / HMR 风险；
- * - Pinia store 提供 devtools 集成与标准化的实例边界；
- * - 调用方仍通过原 `useRecordManager()` 兼容层访问（见 [`core/recordManager.ts`](src/tools/llm-inspector/core/recordManager.ts:1)），
- *   所以本次迁移对消费方零侵入。
- *
  * 设计要点：
- * - `filterOptions` 保持 `reactive<FilterOptions>`（而非 `ref`），以便 LlmInspector.vue 模板里
- *   `v-model:searchQuery="filterOptions.searchQuery"` 的写法继续生效；
- * - `records` / `selectedRecord` 保持 `ref<...>`，调用方通过兼容层的 `storeToRefs` 解构后得到 ref。
+ * - `filterOptions` 使用 `reactive<FilterOptions>`（而非 `ref`），以便 LlmInspector.vue 模板里
+ *   `v-model:searchQuery="filterOptions.searchQuery"` 的写法直接生效；
+ * - `records` / `selectedRecord` / `maxRecords` 为 `ref<...>`，调用方在 setup 内用
+ *   `storeToRefs(store)` 解构后得到对应 ref 即可保持响应性。
  */
 
 import { defineStore } from "pinia";

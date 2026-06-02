@@ -9,7 +9,7 @@
  * 2. [`useExternalProxy`](src/tools/llm-inspector/composables/useExternalProxy.ts:1)
  *    外部代理生命周期：proxyService 启停 + 事件桥接。
  * 3. [`useInternalMonitor`](src/tools/llm-inspector/composables/useInternalMonitor.ts:1)
- *    内部钩子：双通道（本地 + Tauri event）写入 recordManager。
+ *    内部钩子：双通道（本地 + Tauri event）写入 inspectorRecordsStore。
  *
  * 此外本 facade 集中处理：
  * - 状态机 `state: InspectorState`（总开关 / 内部 / 外部 / proxyStatus）
@@ -25,7 +25,7 @@ import { storeToRefs } from "pinia";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@utils/errorHandler";
-import { useRecordManager } from "../core/recordManager";
+import { useInspectorRecordsStore } from "../stores/inspectorRecordsStore";
 import { useInspectorStreamStore } from "../stores/inspectorStreamStore";
 import { inspectorHookRegistry } from "../core/hookRegistry";
 import { useInspectorConfig } from "./useInspectorConfig";
@@ -59,13 +59,14 @@ export function useInspectorManager() {
   });
 
   // === 共享底层管理器 ===
-  const recordManager = useRecordManager();
+  const recordsStore = useInspectorRecordsStore();
+  const { records, selectedRecord } = storeToRefs(recordsStore);
   const streamStore = useInspectorStreamStore();
   const { isStreamingActive, activeStreamCount } = storeToRefs(streamStore);
 
   // === 子 composable：配置层 ===
   const configMgr = useInspectorConfig({
-    getFilterOptions: () => recordManager.getFilterOptions(),
+    getFilterOptions: () => recordsStore.getFilterOptions(),
   });
 
   // === 子 composable：外部代理层 ===
@@ -77,7 +78,7 @@ export function useInspectorManager() {
 
   // === 子 composable：内部钩子监控 ===
   // 默认开关 OFF（由 inspectorHookRegistry.enable() 控制），开启后会把前端
-  // 内部 fetchWithTimeout 抓到的请求/响应/流写入 recordManager。
+  // 内部 fetchWithTimeout 抓到的请求/响应/流写入 inspectorRecordsStore。
   useInternalMonitor();
 
   // === 兼容性别名 / 计算属性 ===
@@ -87,13 +88,13 @@ export function useInspectorManager() {
     isRunning: isRunning.value,
     port: configMgr.config.value.port,
     targetUrl: proxyMgr.currentTargetUrl.value,
-    recordCount: recordManager.getRecords().length,
+    recordCount: records.value.length,
     activeStreams: activeStreamCount.value,
   }));
 
   // === 清理 / 复合操作 ===
   function clearRecords() {
-    recordManager.clearAllRecords();
+    recordsStore.clearAllRecords();
     streamStore.clearAllStreamBuffers();
   }
 
@@ -120,7 +121,7 @@ export function useInspectorManager() {
 
   // === 自动保存：过滤选项变化 ===
   watch(
-    () => recordManager.getFilterOptions(),
+    () => recordsStore.filterOptions,
     () => {
       configMgr.saveConfig().catch((err) =>
         errorHandler.handle(err, {
@@ -136,7 +137,7 @@ export function useInspectorManager() {
   watch(
     () => configMgr.maxRecords.value,
     (value) => {
-      recordManager.setMaxRecords(value);
+      recordsStore.setMaxRecords(value);
     },
     { immediate: true }
   );
@@ -279,10 +280,10 @@ export function useInspectorManager() {
     canStopInspector: proxyMgr.canStop,
 
     // 记录管理器
-    records: recordManager.records,
-    selectedRecord: recordManager.selectedRecord,
-    filterOptions: recordManager.filterOptions,
-    filteredRecords: computed(() => recordManager.getFilteredRecords()),
+    records,
+    selectedRecord,
+    filterOptions: recordsStore.filterOptions,
+    filteredRecords: computed(() => recordsStore.getFilteredRecords()),
 
     // 流式处理器
     isStreamingActive,
@@ -301,10 +302,10 @@ export function useInspectorManager() {
     clearRecords,
 
     // 记录管理方法
-    selectRecord: recordManager.selectRecord,
-    deleteRecord: recordManager.deleteRecord,
-    updateFilterOptions: recordManager.updateFilterOptions,
-    getRecordStats: recordManager.getRecordStats,
+    selectRecord: recordsStore.selectRecord,
+    deleteRecord: recordsStore.deleteRecord,
+    updateFilterOptions: recordsStore.updateFilterOptions,
+    getRecordStats: recordsStore.getRecordStats,
 
     // 流式处理方法
     getDisplayResponseBody: streamStore.getDisplayResponseBody,

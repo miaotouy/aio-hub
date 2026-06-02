@@ -288,6 +288,94 @@ export function extractStreamContent(
   return contents.join("");
 }
 
+/**
+ * 从流式响应中实时提取思维链内容
+ * 与 extractStreamContent 完全同构，扫描相同的 SSE 流，但只挑出 reasoning/thinking 字段。
+ */
+export function extractStreamReasoning(
+  body: string,
+  requestUrl?: string
+): string {
+  const format = requestUrl ? detectApiFormat(requestUrl) : "unknown";
+  const contents: string[] = [];
+  const lines = body.split("\n");
+
+  for (const line of lines) {
+    if (line.startsWith("data: ")) {
+      const data = line.substring(6).trim();
+      if (data && data !== "[DONE]") {
+        try {
+          const parsed = JSON.parse(data);
+          const text = extractReasoningDeltaByFormat(parsed, format);
+          if (text) contents.push(text);
+        } catch {
+          // 忽略解析错误
+        }
+      }
+    }
+  }
+
+  return contents.join("");
+}
+
+/** 根据格式从流式 delta 中提取思维链文本 */
+function extractReasoningDeltaByFormat(parsed: any, format: ApiFormat): string {
+  switch (format) {
+    case "openai-chat":
+    case "openai-completions":
+    case "ollama":
+      // DeepSeek-R1: reasoning_content；其他模型可能用 reasoning / thinking
+      return (
+        parsed.choices?.[0]?.delta?.reasoning_content ??
+        parsed.choices?.[0]?.delta?.reasoning ??
+        parsed.choices?.[0]?.delta?.thinking ??
+        ""
+      );
+
+    case "openai-responses":
+      // Responses API: response.reasoning_summary_text.delta 事件
+      if (parsed.type === "response.reasoning_summary_text.delta")
+        return parsed.delta ?? "";
+      return "";
+
+    case "anthropic":
+      // Claude: content_block_delta + delta.type === "thinking_delta"
+      if (
+        parsed.type === "content_block_delta" &&
+        parsed.delta?.type === "thinking_delta"
+      )
+        return parsed.delta?.thinking ?? "";
+      return "";
+
+    case "gemini": {
+      // Gemini: parts[].thought === true 时 parts[].text 是思维链
+      const parts = parsed.candidates?.[0]?.content?.parts ?? [];
+      return parts
+        .filter((p: any) => p?.thought === true)
+        .map((p: any) => p?.text ?? "")
+        .join("");
+    }
+
+    case "cohere":
+      // Cohere v2: delta.message.content.type === "thinking"
+      if (
+        parsed.type === "content-delta" &&
+        parsed.delta?.message?.content?.type === "thinking"
+      )
+        return parsed.delta.message.content.thinking ?? "";
+      return "";
+
+    default:
+      // 通用启发式：尝试常见路径
+      return (
+        parsed.choices?.[0]?.delta?.reasoning_content ??
+        parsed.choices?.[0]?.delta?.reasoning ??
+        parsed.choices?.[0]?.delta?.thinking ??
+        ""
+      );
+  }
+}
+
 /** 根据格式从流式 delta 中提取文本 */
 function extractDeltaByFormat(parsed: any, format: ApiFormat): string {
   switch (format) {

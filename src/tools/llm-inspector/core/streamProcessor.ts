@@ -4,6 +4,7 @@ import type { StreamUpdate, StreamBuffer } from "../types";
 import {
   formatStreamingResponse,
   extractStreamContent,
+  extractStreamReasoning,
   extractJsonContent,
   isJson,
   formatJson,
@@ -169,7 +170,6 @@ export function getDisplayResponseBody(
 
   return body;
 }
-
 /**
  * 提取正文内容
  */
@@ -195,6 +195,31 @@ export function extractContent(
 
   return body;
 }
+
+/**
+ * 实时提取思维链内容（仅流式场景有意义）
+ *
+ * 非流式场景应走 `parseResponseMessages` 提取 thinking 块，本函数仅在流式 SSE 累积期间
+ * 用于实时回显思维链。
+ */
+export function extractReasoning(
+  recordId: string,
+  originalBody?: string,
+  isStreamingResponse?: boolean,
+  requestUrl?: string
+): string {
+  const body = streamBuffer.value[recordId] || originalBody || "";
+
+  if (!body) return "";
+
+  if (isStreamingResponse || isStreamingRecord(recordId)) {
+    return extractStreamReasoning(body, requestUrl);
+  }
+
+  // 非流式：返回空，交由 messageParser 处理
+  return "";
+}
+
 /**
  * 检查记录是否可以显示正文模式
  */
@@ -274,6 +299,7 @@ export function useStreamProcessor() {
     isStreamingRecord,
     getDisplayResponseBody,
     extractContent,
+    extractReasoning,
     canShowTextMode,
     getStreamStats,
   };

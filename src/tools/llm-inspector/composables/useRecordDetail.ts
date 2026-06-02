@@ -63,6 +63,16 @@ export function useRecordDetail(props: {
     );
   });
 
+  const extractedReasoning = computed(() => {
+    if (!record.value) return "";
+    return streamProcessor.extractReasoning(
+      record.value.id,
+      record.value.response?.body,
+      isStreamingResponse.value,
+      record.value.request.url
+    );
+  });
+
   // 复制功能
   async function copyWithMask(text: string, message: string = "已复制") {
     try {
@@ -170,6 +180,7 @@ export function useRecordDetail(props: {
     displayResponseBody,
     canShowTextMode,
     extractedContent,
+    extractedReasoning,
     copyRequestHeaders,
     copyRequestBody,
     copyResponseHeaders,

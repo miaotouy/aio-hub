@@ -158,6 +158,19 @@
             >~</span
           >
         </span>
+        <!-- F4 重新解析按钮 -->
+        <button
+          class="btn-recompute"
+          :disabled="isEstimating"
+          :title="
+            isEstimating
+              ? '正在估算中...'
+              : '清除缓存并重新估算 Token（如刚切换 tokenizer 偏好）'
+          "
+          @click="handleRecompute"
+        >
+          <RefreshCw :size="12" :class="{ 'spin-icon': isEstimating }" />
+        </button>
       </h4>
 
       <!-- 估算结果 / 服务端 usage 对照表 -->
@@ -313,6 +326,7 @@ import {
   Copy,
   Info,
   LoaderCircle,
+  RefreshCw,
   Sigma,
   Sparkles,
   TriangleAlert,
@@ -335,7 +349,7 @@ const {
   getStatusClass,
 } = useRecordDetail(props);
 
-// Token 估算（F1） + 偏差对比（F2）
+// Token 估算（F1） + 偏差对比（F2） + 重算（F4）
 const recordRef = toRef(props, "record");
 const {
   requestEstimate,
@@ -344,7 +358,13 @@ const {
   isEstimating,
   promptDeviation,
   completionDeviation,
+  recompute,
 } = useTokenEstimate(recordRef);
+
+async function handleRecompute() {
+  if (isEstimating.value) return;
+  await recompute();
+}
 
 // 折叠状态（默认折叠）
 const requestHeadersExpanded = ref(false);

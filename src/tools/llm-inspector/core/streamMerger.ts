@@ -11,7 +11,7 @@
  */
 
 import { createModuleLogger } from "@utils/logger";
-import type { ApiFormat } from "./utils";
+import type { ApiFormat } from "./apiFormat";
 
 const logger = createModuleLogger("LlmInspector/StreamMerger");
 

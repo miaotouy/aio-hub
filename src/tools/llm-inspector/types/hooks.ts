@@ -7,7 +7,7 @@
  * - 事件体本身尽量结构化，避免把整个 fetch Response 对象塞进来（响应体在外部转字符串后再传递）。
  * - 默认开关 OFF，`InspectorState.captureInternal` 为 false 时所有 trigger 应短路。
  */
-import type { ApiFormat } from "../core/utils";
+import type { ApiFormat } from "../core/apiFormat";
 
 /** 内部监控请求事件 */
 export interface InspectorRequestEvent {
@@ -112,7 +112,7 @@ export type ProxyStatus =
 /**
  * Inspector 全局状态机
  *
- * 由 useProxyManager / useInspectorManager 持有；钩子注册器只关心 `captureInternal`。
+ * 由 [`useInspectorManager`](src/tools/llm-inspector/composables/useInspectorManager.ts:1) 持有；钩子注册器只关心 `captureInternal`。
  * 这里集中定义类型，便于 C3 任务一次性扩展。
  */
 export interface InspectorState {

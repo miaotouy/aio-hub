@@ -271,12 +271,8 @@ import LlmThinkNode from "@/tools/rich-text-renderer/components/nodes/LlmThinkNo
 import { RendererVersion } from "@/tools/rich-text-renderer/types";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import { parseResponseMessages } from "../../../core/messageParser";
-import {
-  copyToClipboard,
-  detectApiFormat,
-  formatSize,
-  isJson,
-} from "../../../core/utils";
+import { copyToClipboard, formatSize, isJson } from "../../../core/utils";
+import { detectApiFormat } from "../../../core/apiFormat";
 import { mergeStreamToFinalJson } from "../../../core/streamMerger";
 import { useRecordDetail } from "../../../composables/useRecordDetail";
 import { useStreamProcessor } from "../../../core/streamProcessor";

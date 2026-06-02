@@ -19,7 +19,7 @@
  * 不会冲突。
  *
  * 生命周期：
- * 在 `useInspectorManager`（[`useProxyManager`](src/tools/llm-inspector/composables/useProxyManager.ts:31)）
+ * 在 [`useInspectorManager`](src/tools/llm-inspector/composables/useInspectorManager.ts:31)
  * 的 setup 阶段调用本 composable，跟随 inspector 页面 mount/unmount。
  */
 
@@ -30,6 +30,7 @@ import { createModuleErrorHandler } from "@utils/errorHandler";
 import { inspectorHookRegistry } from "../core/hookRegistry";
 import { useRecordManager } from "../core/recordManager";
 import { useStreamProcessor } from "../core/streamProcessor";
+import { LruSet } from "../core/lruCache";
 import {
   INSPECTOR_INTERNAL_EVENT,
   type InspectorErrorEvent,
@@ -119,24 +120,10 @@ export function useInternalMonitor() {
   const streamProcessor = useStreamProcessor();
 
   // 去重 LRU：以 `${type}:${requestId}:${timestamp}` 为键
-  const seen = new Set<string>();
+  const seen = new LruSet<string>(DEDUP_LRU_LIMIT);
 
   /** 检查是否已处理过；返回 true 表示首次见到，false 表示重复。 */
-  const markAndCheck = (key: string): boolean => {
-    if (seen.has(key)) return false;
-    seen.add(key);
-    // 简易 LRU：超过上限时清掉前 1/4（Set 迭代序即插入序）
-    if (seen.size > DEDUP_LRU_LIMIT) {
-      const removeCount = Math.floor(DEDUP_LRU_LIMIT / 4);
-      const it = seen.values();
-      for (let i = 0; i < removeCount; i++) {
-        const v = it.next().value;
-        if (v === undefined) break;
-        seen.delete(v);
-      }
-    }
-    return true;
-  };
+  const markAndCheck = (key: string): boolean => seen.add(key);
 
   const handleRequest = (event: InspectorRequestEvent) => {
     const key = `req:${event.requestId}:${event.timestamp}`;

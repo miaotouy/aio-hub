@@ -25,7 +25,8 @@ import {
   parseRequestMessages,
   parseResponseMessages,
 } from "../core/messageParser";
-import { detectApiFormat } from "../core/utils";
+import { detectApiFormat } from "../core/apiFormat";
+import { LruCache } from "../core/lruCache";
 import type { CombinedRecord } from "../types";
 
 const logger = createModuleLogger("LlmInspector/useTokenEstimate");
@@ -44,10 +45,10 @@ interface TokenEstimateCacheEntry {
   serverUsage: ServerUsage | null;
 }
 
-// 全局缓存（按 recordId）
-const cache = new Map<string, TokenEstimateCacheEntry>();
-// 缓存上限（防止内存泄漏），LRU 简单清理
+// 缓存上限（防止内存泄漏），命中时使用 LRU 策略
 const CACHE_MAX = 200;
+// 全局缓存（按 recordId）
+const cache = new LruCache<string, TokenEstimateCacheEntry>(CACHE_MAX);
 
 function makeSignature(record: CombinedRecord): string {
   const reqLen = record.request.body?.length ?? 0;
@@ -67,13 +68,6 @@ function extractModelFromBody(record: CombinedRecord): string | undefined {
   }
 }
 
-function pruneCache() {
-  if (cache.size <= CACHE_MAX) return;
-  const dropCount = Math.floor(CACHE_MAX / 4);
-  const keys = Array.from(cache.keys()).slice(0, dropCount);
-  for (const key of keys) cache.delete(key);
-}
-
 export function useTokenEstimate(recordRef: Ref<CombinedRecord | null>) {
   // 当前记录的估算结果（响应式）
   const requestEstimate = ref<MessageTokenEstimate | null>(null);
@@ -87,7 +81,8 @@ export function useTokenEstimate(recordRef: Ref<CombinedRecord | null>) {
    */
   async function compute(record: CombinedRecord): Promise<void> {
     const signature = makeSignature(record);
-    const cached = cache.get(record.id);
+    // touch 命中时刷新插入顺序，让活跃记录留得更久
+    const cached = cache.touch(record.id);
 
     // 缓存命中且签名一致 → 复用
     if (cached && cached.signature === signature) {
@@ -143,7 +138,6 @@ export function useTokenEstimate(recordRef: Ref<CombinedRecord | null>) {
         serverUsage: usage,
       };
       cache.set(record.id, entry);
-      pruneCache();
 
       requestEstimate.value = reqEst;
       responseEstimate.value = resEst;

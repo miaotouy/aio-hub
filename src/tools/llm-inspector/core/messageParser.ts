@@ -18,7 +18,7 @@ import type {
   RequestParseResult,
   ResponseParseResult,
 } from "../types";
-import { detectApiFormat, type ApiFormat } from "./utils";
+import { detectApiFormat, type ApiFormat } from "./apiFormat";
 
 const logger = createModuleLogger("LlmInspector/MessageParser");
 const errorHandler = createModuleErrorHandler("LlmInspector/MessageParser");

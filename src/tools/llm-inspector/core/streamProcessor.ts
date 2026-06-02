@@ -6,9 +6,8 @@ import {
   extractStreamContent,
   extractStreamReasoning,
   extractJsonContent,
-  isJson,
-  formatJson,
-} from "./utils";
+} from "./contentExtractor";
+import { isJson, formatJson } from "./utils";
 
 const logger = createModuleLogger("LlmInspector/StreamProcessor");
 

@@ -75,7 +75,7 @@
 
 <script setup lang="ts">
 import { ref, watch } from "vue";
-import { useInspectorManager } from "./composables/useProxyManager";
+import { useInspectorManager } from "./composables/useInspectorManager";
 import { useSplitPane } from "./composables/useSplitPane";
 import { createModuleLogger } from "@utils/logger";
 import RecordsList from "./components/RecordsList.vue";

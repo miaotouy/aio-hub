@@ -35,7 +35,7 @@ Rust 原生 HTTP 代理，运行在指定端口（默认 8999）。
 
 ### 1.2. 总开关三层架构
 
-状态在 [`useProxyManager.ts`](src/tools/llm-inspector/composables/useProxyManager.ts:1) 的 `state: InspectorState` 中维护：
+状态在 [`useInspectorManager.ts`](src/tools/llm-inspector/composables/useInspectorManager.ts:1) 的 `state: InspectorState` 中维护：
 
 ```
 isGlobalEnabled  ─ 总开关（关闭即全停）
@@ -260,14 +260,14 @@ sequenceDiagram
 
 ### 5.3. Composables 层
 
-| 模块                                                                                                | 职责                                                 |
-| --------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| [`useInspectorManager / useProxyManager`](src/tools/llm-inspector/composables/useProxyManager.ts:1) | 状态机 + 总开关联动 watch + isRunning 兼容 computed  |
-| [`useInternalMonitor`](src/tools/llm-inspector/composables/useInternalMonitor.ts:1)                 | 双通道接入（本地钩子 + Tauri event）+ LRU 去重       |
-| [`useRecordDetail`](src/tools/llm-inspector/composables/useRecordDetail.ts:1)                       | 详情面板共享数据（流式状态、复制、提取）             |
-| [`useTokenEstimate`](src/tools/llm-inspector/composables/useTokenEstimate.ts:1)                     | Token 估算 + 服务端 usage + 偏差对比 + 缓存          |
-| [`useSplitPane`](src/tools/llm-inspector/composables/useSplitPane.ts:1)                             | 分割条拖拽（@vueuse/core useEventListener 自动清理） |
-| [`useFormattedBody`](src/tools/llm-inspector/composables/useFormattedBody.ts:1)                     | formatJson 缓存（防止大 body 重复格式化）            |
+| 模块                                                                                  | 职责                                                 |
+| ------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| [`useInspectorManager`](src/tools/llm-inspector/composables/useInspectorManager.ts:1) | 状态机 + 总开关联动 watch + isRunning 兼容 computed  |
+| [`useInternalMonitor`](src/tools/llm-inspector/composables/useInternalMonitor.ts:1)   | 双通道接入（本地钩子 + Tauri event）+ LRU 去重       |
+| [`useRecordDetail`](src/tools/llm-inspector/composables/useRecordDetail.ts:1)         | 详情面板共享数据（流式状态、复制、提取）             |
+| [`useTokenEstimate`](src/tools/llm-inspector/composables/useTokenEstimate.ts:1)       | Token 估算 + 服务端 usage + 偏差对比 + 缓存          |
+| [`useSplitPane`](src/tools/llm-inspector/composables/useSplitPane.ts:1)               | 分割条拖拽（@vueuse/core useEventListener 自动清理） |
+| [`useFormattedBody`](src/tools/llm-inspector/composables/useFormattedBody.ts:1)       | formatJson 缓存（防止大 body 重复格式化）            |
 
 ### 5.4. 视图层（detail-panel-rework 后）
 

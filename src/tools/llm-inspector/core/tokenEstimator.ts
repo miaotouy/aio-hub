@@ -21,7 +21,7 @@ import {
   type TokenCalculationResult,
 } from "@/tools/token-calculator/core/tokenCalculatorEngine";
 import type { ParsedMessage } from "../types";
-import type { ApiFormat } from "./utils";
+import type { ApiFormat } from "./apiFormat";
 
 const logger = createModuleLogger("LlmInspector/TokenEstimator");
 const errorHandler = createModuleErrorHandler("LlmInspector/TokenEstimator");

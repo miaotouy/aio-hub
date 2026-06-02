@@ -34,7 +34,7 @@ import { computed } from "vue";
 import { Code2, Cpu, Zap } from "lucide-vue-next";
 import StructuredMessagesView from "../StructuredMessagesView.vue";
 import { parseRequestMessages } from "../../../core/messageParser";
-import { detectApiFormat } from "../../../core/utils";
+import { detectApiFormat } from "../../../core/apiFormat";
 import type { CombinedRecord, RequestParseResult } from "../../../types";
 
 const props = defineProps<{

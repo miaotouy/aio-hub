@@ -1,208 +1,322 @@
 # LLM Inspector: 架构与开发者指南
 
-本文档旨在深入解析 `llm-inspector` 工具的内部架构、设计理念和数据流，为后续的开发和维护提供清晰的指引。
+本文档反映 **LLM Inspector 2.0** 架构（含 detail-panel-rework）。它深入解析工具的内部结构、设计理念和数据流，为后续开发与维护提供清晰指引。
+
+> **版本里程碑**:
+>
+> - **v2.0-α**: 双层监控链路打通（Rust 外部代理 + 前端钩子内部监控）。
+> - **v2.0-β**: 新 UI Layout 重构（Header + Split + Drawer）。
+> - **v2.0 GA**: Token 估算、来源链路、4-Tab 详情面板全部就绪。
 
 ## 1. 核心概念
 
-`llm-inspector` 工具的核心是构建一个本地中间人代理服务器，用于拦截、检查、记录和分析发往远程 LLM API 的 HTTP 请求。其设计围绕以下几个关键概念展开。
+`llm-inspector` 是一站式 LLM 流量观察工具，**双层监控架构**让它既能拦截"宿主未知的外部应用"流量，也能透视"宿主应用内部"自身的 LLM 调用。
 
-### 1.1. Rust 原生代理核心
+### 1.1. 双层监控架构
 
-与纯浏览器或 Node.js 实现不同，本工具的代理服务器是使用 Rust 语言编写的，并借助 Tauri 框架在原生线程中运行。
+#### 1.1.1. 外部代理（External Proxy）
 
-- **高性能**: 基于 Rust 的 `axum` 和 `hyper` 库，提供高性能、低开销的网络处理能力。
-- **系统级网络**: 可以在系统级别监听指定端口，不受浏览器同源策略等限制。
-- **生命周期管理**: 代理服务的启动、停止和状态查询完全由 Rust 后端控制，并通过 Tauri 的 `invoke` 机制暴露给前端。
+Rust 原生 HTTP 代理，运行在指定端口（默认 8999）。
 
-### 1.2. 前后端事件驱动通信
+- **目标场景**: 外部 LLM 客户端（如 IDE 插件、CLI 工具）将请求指向 `http://localhost:8999`，由 Rust 代理转发到真实上游（如 `https://api.openai.com`）。
+- **技术栈**: `axum` + `hyper` + `tokio`，原生线程运行。
+- **能力**: 自定义 Header 覆盖、流式响应直透。
+- **数据通道**: 通过 Tauri `emit` 发送 `inspector-request` / `inspector-response` / `inspector-stream-update` 事件给前端。
 
-前端 UI 与后端 Rust 代理之间的通信是**双向且事件驱动**的。
+#### 1.1.2. 内部钩子（Internal Hook）
 
-- **前端到后端 (命令)**: 前端通过 Tauri 的 `invoke` 函数向 Rust 发送命令，例如 `start_llm_inspector`, `stop_llm_inspector`, `update_inspector_target`。
-- **后端到前端 (事件)**: Rust 检查器在运行过程中，会将关键事件（如收到新请求、响应完成、流式数据块到达）通过 Tauri 的 `emit` 机制广播给前端。前端通过 `listen` 函数订阅这些事件来实时更新 UI。
+前端 JS 层的钩子注册器，零成本观察宿主应用内自身的 LLM 调用。
 
-这种模式将重量级的网络任务放在后端，而前端则专注于状态管理和数据可视化，实现了清晰的关注点分离。
+- **目标场景**: 宿主应用内的 llm-chat、translator、media-generator 等工具，通过 [`useLlmRequest`](src/composables/useLlmRequest.ts:1) 发起的 LLM 请求。
+- **技术核心**: [`hookRegistry.ts`](src/tools/llm-inspector/core/hookRegistry.ts:1) 单例，在 [`fetchWithTimeout`](src/llm-apis/common.ts:697) 的三个分支（FormData 代理 / 普通代理 / 直连）埋点。
+- **零运行时开销**: 通过 `shouldCaptureInternal()` 总开关守护，OFF 时所有埋点都是 no-op。
+- **跨窗口广播**: 通过 Tauri `emit('inspector:internal:*')` 让分离窗口的请求也能被主窗口看到，配合 LRU 去重（`${type}:${requestId}:${timestamp}`）避免主窗口收到双倍记录。
+- **上下文关联**: [`useLlmRequest`](src/composables/useLlmRequest.ts:1) 在调用 adapter 前 `setContext(requestId, inspectorContext)`，[`fetchWithTimeout`](src/llm-apis/common.ts:697) 通过 `X-Request-ID` 反查 `getContext()`，从而获得工具名/会话 ID/用途等元数据，**不修改任何 adapter**。
+
+### 1.2. 总开关三层架构
+
+状态在 [`useProxyManager.ts`](src/tools/llm-inspector/composables/useProxyManager.ts:1) 的 `state: InspectorState` 中维护：
+
+```
+isGlobalEnabled  ─ 总开关（关闭即全停）
+    ├── monitorInternal  ─ 内部钩子（驱动 hookRegistry.enable/disable）
+    └── monitorExternal  ─ 外部代理（驱动 startInspector/stopInspector）
+         └── externalProxyStatus ─ 状态机（stopped/starting/running/stopping/error）
+```
+
+- 总开关 OFF → 内部钩子被 watch 强制 disable + 外部代理自动 stopInspector。
+- 总开关 ON → 子开关保持原值（不自动恢复），用户显式控制。
 
 ### 1.3. 请求/响应生命周期 (`CombinedRecord`)
 
-工具的核心数据单元是 `CombinedRecord`，它完整地记录了一次 HTTP 交互的生命周期。
+工具的核心数据单元是 [`CombinedRecord`](src/tools/llm-inspector/types.ts:64)，完整记录一次 HTTP 交互的生命周期。
 
-- **创建**: 当 Rust 检查器拦截到一个新的 HTTP 请求时，会立即创建一个 `RequestRecord` 并通过 `inspector-request` 事件发送给前端。此时，前端会创建一个 `CombinedRecord`，其中 `request` 字段已填充，但 `response` 字段为空。
-- **更新**: 当该请求的响应从目标服务器返回后，Rust 检查器会创建一个 `ResponseRecord`，并通过 `inspector-response` 事件发送给前端。前端根据 `id` 找到对应的 `CombinedRecord`，并填充其 `response` 字段。
-- **状态**: 通过检查 `response` 字段是否存在，UI 可以清晰地展示请求的状态（进行中或已完成）。
+- **创建**: 拦截到新请求时填充 `request` 字段，`response` 为空。
+- **更新**: 响应到达后填充 `response` 字段。
+- **来源标识**（2.0 新增）:
+  - `source: "external"` — 来自 Rust 外部代理（默认）。
+  - `source: "internal"` — 来自前端钩子（含 [`inspectorMetadata`](src/tools/llm-inspector/types.ts:56)：toolName/purpose/profileId/modelId/sessionId）。
 
-### 1.4. 实时流式处理与多格式提取 (`StreamProcessor`)
+### 1.4. 实时流式处理 (`StreamProcessor`)
 
-现代 LLM API 广泛使用 Server-Sent Events (SSE) 进行流式响应。本工具内置了强大的流式处理和智能内容提取能力。
+针对 SSE 流式响应的优化处理（detail-panel-rework 强化）：
 
-- **事件驱动**: Rust 后端在收到流式数据块 (`chunk`) 时，会通过 `inspector-stream-update` 事件将其发送给前端，而不是等待整个响应结束后再发送。
-- **前端缓冲**: `streamProcessor.ts` 模块负责接收这些数据块，并将它们追加到一个以 `recordId` 为键的缓冲区 (`StreamBuffer`) 中。
-- **智能内容提取**: 针对不同厂商的 API 格式（OpenAI, Anthropic, Gemini, Ollama 等），工具能够自动识别并提取出核心内容。不仅支持普通的文本，还支持 **Thinking (推理过程)** 和 **Tool Calls (工具调用)** 的解析与展示。
-- **实时解析与渲染**: UI 组件可以响应式地监听这个缓冲区。`streamProcessor` 提供了工具函数，能够从原始的 SSE 格式数据中提取出有意义的文本内容，或将原始数据格式化后进行显示，从而实现打字机般的实时渲染效果。
+- **shallowRef + 节流批量刷新**: [`streamBuffer`](src/tools/llm-inspector/core/streamProcessor.ts:15) 改为 `shallowRef`，chunk 累积到非响应式 `pendingUpdates` Map，每 100ms `triggerRef` 一次。SSE 高频流式（>20fps）下显著降低 UI 重绘开销。
+- **完成时立即 flush**: `is_complete` 时强制清空 pending 并触发更新，确保数据完整。
+- **多格式智能提取**:
+  - **格式检测**: 通过 URL 自动识别 5 大格式（OpenAI Chat/Responses/Completions、Anthropic、Gemini、Cohere、Ollama）。
+  - **深度解析**: 识别 `reasoning_content` (o1/o3)、`thinking` (Claude)、tool_calls、refusal 等高级块。
+  - **正文模式 / 原始模式切换**: 同一份响应可看「打字机风格的累积文本」或「原始 SSE 缓冲」。
 
-### 1.5. 模块化管理器 (Managers)
+### 1.5. Token 估算与服务端 usage 对比（2.0 新增）
 
-为了保持代码的组织性和可维护性，核心的前端逻辑被拆分到多个独立的、功能专一的管理器中。
+[`useTokenEstimate.ts`](src/tools/llm-inspector/composables/useTokenEstimate.ts:1) composable 提供：
 
-- **`useInspectorManager`**: **中央协调器**。负责管理检查器的生命周期，协调其他管理器，并向 UI 组件暴露统一的状态和方法。
-- **`recordManager`**: **数据存储与查询**。负责存储所有的 `CombinedRecord`，并提供添加、更新、筛选和检索记录的功能。
-- **`streamProcessor`**: **流式数据专家**。专门处理实时 SSE 数据的缓冲、解析和格式化。
-- **`configManager`**: **持久化层**。负责将用户的配置（如端口、目标地址）和 UI 状态（如过滤条件）加载和保存到本地文件。
+- **客户端估算**: 复用 [`tokenCalculatorEngine`](src/tools/token-calculator/core/tokenCalculatorEngine.ts:1) 单例（transformers.js + huggingface profile），按 record 异步估算请求/响应 Token。
+- **服务端 usage 提取**: [`extractServerUsage`](src/tools/llm-inspector/core/tokenEstimator.ts:193) 归一化 OpenAI/Anthropic/Gemini/Cohere/Ollama 的 usage 字段为统一结构。
+- **偏差对比**: `promptDeviation` / `completionDeviation` computed 自动算出（估算 - 实际）/ 实际 \* 100%。三档高亮：< 5% ok / 5-15% warn / >= 15% danger。
+- **签名缓存**: `${reqLen}|${resLen}|${modelHint}` 作为缓存 key，切换记录秒出（命中缓存）。
+- **重算入口**: `recompute()` 清除当前 record 缓存重算，由 [`RecordOverviewTab.vue`](src/tools/llm-inspector/components/detail/RecordOverviewTab.vue:1) 标题栏的 RefreshCw 按钮触发。
+
+### 1.6. 消息结构化解析
+
+[`messageParser.ts`](src/tools/llm-inspector/core/messageParser.ts:1) 把 5 大 LLM 格式的请求/响应消息归一化为 [`ParsedMessage[]`](src/tools/llm-inspector/types.ts:187)：
+
+- **块类型**: `text` / `thinking` / `tool_call` / `tool_result` / `image` / `refusal` / `unknown`。
+- **覆盖范围**:
+  - OpenAI: Chat/Responses/Completions，含 `reasoning_content` / `tool_calls` / `refusal`。
+  - Anthropic: 含 `thinking` / `tool_use` / `tool_result`。
+  - Gemini: 含 `parts.thought` / `functionCall` / multi-candidate。
+  - Cohere v1/v2 + Ollama 兜底。
+- **被消费方**: [`StructuredMessagesView.vue`](src/tools/llm-inspector/components/detail/StructuredMessagesView.vue:1)（请求/响应共用渲染）+ [`useTokenEstimate.ts`](src/tools/llm-inspector/composables/useTokenEstimate.ts:1)（Token 估算输入）。
 
 ## 2. 架构概览
 
-本模块遵循关注点分离的原则，将状态、逻辑、视图和后端通信清晰地分开。
-
 ```mermaid
 graph TD
-    subgraph Frontend (Vue 3)
-        A[UI Components<br/>LlmInspector.vue, RecordsList.vue]
-        B[useInspectorManager<br/>(中央协调器)]
-        C[recordManager<br/>(记录存储)]
-        D[streamProcessor<br/>(流式处理)]
-        E[configManager<br/>(配置持久化)]
-        F[proxyService.ts<br/>(后端通信 API)]
+    subgraph 外部应用
+        EXT[外部 LLM 客户端<br/>IDE/CLI 等]
     end
 
-    subgraph Backend (Rust / Tauri)
-        G[Tauri Core]
-        H[Rust Inspector Server<br/>(axum/hyper)]
+    subgraph 宿主应用（Vue 3 前端）
+        TOOLS[llm-chat / translator / OCR<br/>media-gen 等内部工具]
+        UR[useLlmRequest<br/>contextStore]
+        FW[fetchWithTimeout<br/>三处埋点]
+        HR[hookRegistry<br/>单例]
+
+        subgraph Inspector 工具页
+            UI[LlmInspector.vue<br/>Header + Split + Drawer]
+            IM[useInspectorManager<br/>state 状态机]
+            IMon[useInternalMonitor<br/>本地+Tauri 双通道]
+            RM[recordManager<br/>source 标识]
+            SP[streamProcessor<br/>shallowRef + 100ms 节流]
+            TE[useTokenEstimate<br/>缓存 + 偏差对比]
+            CM[configManager<br/>持久化]
+            PS[proxyService.ts]
+        end
     end
 
-    A -- Interacts with --> B
-    B -- Uses --> C
-    B -- Uses --> D
-    B -- Uses --> E
-    B -- Calls --> F
+    subgraph 后端 (Rust)
+        RP[Rust Inspector Proxy<br/>axum + hyper]
+    end
 
-    F -- invoke() --> G
-    G -- Forwards Commands --> H
+    EXT -- HTTP --> RP
+    RP -- emit('inspector-*') --> PS
 
-    H -- emit() --> G
-    G -- Forwards Events --> F
+    TOOLS -- 透传 inspectorContext --> UR
+    UR -- setContext + invoke --> FW
+    FW -- 反查 getContext --> HR
+    HR -- 本地回调 + emit --> IMon
 
-    F -- Event Callbacks --> B
+    PS --> IM
+    IMon --> RM
+    IM --> RM
+    IM --> SP
+    RM -- 响应式 --> UI
+    SP -- 响应式 --> UI
+    TE -- 响应式 --> UI
+    CM <--> IM
 ```
 
-- **State & Logic (Composables & Managers)**:
-  - `useInspectorManager`: 整个工具的核心，是连接 UI 和底层服务的桥梁。
-  - `recordManager`, `streamProcessor`, `configManager`: 作为单例模块，分别管理记录、流式数据和配置。
-- **Backend Communication (Service)**:
-  - `proxyService.ts`: 封装了所有与 Rust 后端的 `invoke` 调用和事件监听，为上层逻辑提供了一个清晰、类型安全的 API。
-- **View (Vue Components)**:
-  - 位于 `components/` 目录下，负责 UI 渲染和用户交互。`LlmInspector.vue` 是主入口。
-- **Backend (Rust)**:
-  - 在 `src-tauri/` 中实现，负责实际的网络代理功能。
+## 3. UI Layout 2.0
 
-## 3. 数据流：拦截一次流式请求
+### 3.1. 主布局（Header + Split + Drawer）
+
+[`LlmInspector.vue`](src/tools/llm-inspector/LlmInspector.vue:1) 顶层结构：
+
+```
+┌─ HeaderToolbar (48px) ──────────────────────────────────────────────┐
+│  [● INSPECTOR] 总开关 │ [内置监控] [外部代理] │ [搜索] [清空] [⚙️]  │
+├─────────────────────────────────────────────────────────────────────┤
+│  [全宽错误 banner，仅在错误时出现]                                  │
+├───────────────────┬─────────────────────────────────────────────────┤
+│                   │                                                 │
+│   RecordsList     │            RecordDetail                         │
+│   (左栏，可拖)    │  ┌─ 总览 / 请求 / 响应（3 顶层 Tab）─┐         │
+│                   │                                                 │
+│   含来源徽章      │  请求 / 响应 Tab 内含 segment：                 │
+│   internal:工具名 │    [结构化] [原始]                              │
+│   external:代理   │                                                 │
+│                   │  响应 Tab 的原始视图内置流式状态条 + viewMode  │
+│                   │                                                 │
+└───────────────────┴─────────────────────────────────────────────────┘
+                    ↑ 中间 6px 拖拽分割条 + 比例持久化
+```
+
+### 3.2. 详情面板 4-Tab → 3-Tab Rework
+
+**初版** (E1-E4) 为 4 个 Tab：总览 / 结构化 / 原始 / 流式。
+
+**Rework** (detail-panel-rework) 重构为请求/响应分离的 3 Tab，解决"一次请求往返需在多个 Tab 间反复跳转"的问题：
+
+| 顶层 Tab    | 子结构                 | 包含                                                                |
+| ----------- | ---------------------- | ------------------------------------------------------------------- |
+| **📊 总览** | 单页滚动               | 请求摘要 + 响应摘要 + **Token 估算** + Inspector 元数据             |
+| **📤 请求** | Segment: 结构化 / 原始 | 结构化：解析后的 messages；原始：JSON 美化 (RichCodeEditor)         |
+| **📥 响应** | Segment: 结构化 / 原始 | 结构化：assistant 回复 + stopReason；原始：响应体（**含流式模式**） |
+
+#### 3.2.1. 总览卡片层次
+
+- **请求摘要**: 方法 / 大小 / URL / 时间（ISO 8601 + 相对时间）+ 请求头（折叠）。
+- **响应摘要**: 状态码 / 耗时 / 大小 / **Stream 状态**（区分声明 vs 实际）+ 响应头（折叠）。
+- **Token 估算卡**（F1/F2/F4）:
+  - 客户端估算（请求 + 响应分列）+ 服务端 usage 对照 + 总计。
+  - 偏差 chip：< 5% 绿色 / 5-15% 黄色 / >= 15% 红色，tooltip 解释。
+  - 标题栏 RefreshCw 按钮可重算。
+- **Inspector 元数据卡**（F3）: 仅 internal 来源显示工具/用途/profileId/modelId/sessionId。
+
+#### 3.2.2. 性能改造（detail-panel-rework）
+
+- **RichCodeEditor 替换裸 `<pre>`**: CodeMirror 内置虚拟滚动，10MB+ JSON 不卡。
+- **格式化缓存**: [`useFormattedBody.ts`](src/tools/llm-inspector/composables/useFormattedBody.ts:1) 按 recordId+rawLen 缓存 formatJson 结果。
+- **流式节流**: [`streamProcessor.ts`](src/tools/llm-inspector/core/streamProcessor.ts:1) `shallowRef` + 100ms 批量刷新。
+
+## 4. 数据流：内部钩子捕获一次流式请求
 
 ```mermaid
 sequenceDiagram
-    participant UI (LlmInspector.vue)
-    participant InspectorMgr (useInspectorManager)
-    participant RecordMgr (recordManager)
-    participant StreamProc (streamProcessor)
-    participant ProxySvc (proxyService.ts)
-    participant RustBackend
+    participant Tool as llm-chat (useChatHandler)
+    participant UR as useLlmRequest
+    participant CS as hookRegistry.contextStore
+    participant FW as fetchWithTimeout
+    participant Adapter as LLM Adapter
+    participant HR as hookRegistry
+    participant IMon as useInternalMonitor
+    participant RM as recordManager
+    participant SP as streamProcessor
+    participant UI as RecordDetail.vue
 
-    UI->>InspectorMgr: 用户点击 "启动检查器"
-    InspectorMgr->>ProxySvc: startInspectorService(config)
-    ProxySvc->>RustBackend: invoke('start_llm_inspector', config)
-    InspectorMgr->>ProxySvc: setupEventListeners()
+    Tool->>UR: sendRequest(opts + inspectorContext)
+    UR->>CS: setContext(reqId, ctx)
+    UR->>Adapter: 调用 adapter
+    Adapter->>FW: fetchWithTimeout(req)
+    FW->>CS: getContext(reqId) (反查)
+    FW->>HR: triggerRequest({...metadata})
+    HR-->>IMon: 本地回调
+    HR-->>IMon: emit('inspector:internal:request') 跨窗口
+    IMon->>RM: addRequestRecord(req, "internal", metadata)
+    RM-->>UI: 响应式更新（列表显示 internal 徽章）
 
-    Note over RustBackend: 外部应用向检查器端口发起请求
-
-    RustBackend-->>ProxySvc: emit('inspector-request', requestRecord)
-    ProxySvc-->>InspectorMgr: onRequestEvent callback
-    InspectorMgr->>RecordMgr: addRequestRecord(requestRecord)
-    RecordMgr-->>UI: 响应式更新，显示新请求 (pending)
-
-    Note over RustBackend: 检查器转发请求，收到流式响应
-
-    loop For each data chunk
-        RustBackend-->>ProxySvc: emit('inspector-stream-update', streamUpdate)
-        ProxySvc-->>InspectorMgr: onStreamUpdateEvent callback
-        InspectorMgr->>StreamProc: processStreamUpdate(streamUpdate)
-        StreamProc-->>UI: 响应式更新，实时显示流内容
+    loop SSE chunk
+        FW-->>Adapter: stream chunk
+        Adapter->>HR: triggerStream(chunk)
+        HR-->>IMon: 本地回调
+        IMon->>SP: processStreamUpdate
+        SP->>SP: pendingUpdates 累积
+        Note over SP: 100ms 后批量 triggerRef
+        SP-->>UI: 实时更新流式视图
     end
 
-    Note over RustBackend: 响应结束
-
-    RustBackend-->>ProxySvc: emit('inspector-response', responseRecord)
-    ProxySvc-->>InspectorMgr: onResponseEvent callback
-    InspectorMgr->>RecordMgr: updateResponseRecord(responseRecord)
-    RecordMgr-->>UI: 响应式更新，请求状态变为 "completed"
+    Adapter->>HR: triggerResponse(body, status)
+    HR-->>IMon: 本地回调
+    IMon->>RM: updateResponseRecord
+    UR->>CS: deleteContext(reqId) (finally)
+    RM-->>UI: 完成状态
 ```
 
-## 4. 核心逻辑 (Managers & Services)
+## 5. 核心模块
 
-### 4.1. `proxyService.ts`
+### 5.1. 基础设施层
 
-**职责**: 后端通信的桥梁。
+| 模块                                                                      | 职责                                                          |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| [`hookRegistry.ts`](src/tools/llm-inspector/core/hookRegistry.ts:1)       | 钩子注册器单例 + contextStore + 本地回调 + Tauri 跨窗口广播   |
+| [`messageParser.ts`](src/tools/llm-inspector/core/messageParser.ts:1)     | 5 大 LLM 格式 → 统一 ParsedMessage[] 解析                     |
+| [`tokenEstimator.ts`](src/tools/llm-inspector/core/tokenEstimator.ts:1)   | 客户端 Token 估算（复用 token-calculator）+ 服务端 usage 提取 |
+| [`streamProcessor.ts`](src/tools/llm-inspector/core/streamProcessor.ts:1) | shallowRef 流式缓冲 + 100ms 节流 + 多格式智能提取             |
+| [`recordManager.ts`](src/tools/llm-inspector/core/recordManager.ts:1)     | CombinedRecord 数据仓库（含 source/inspectorMetadata）        |
+| [`configManager.ts`](src/tools/llm-inspector/core/configManager.ts:1)     | 配置持久化（含 layout.splitRatio）                            |
+| [`proxyService.ts`](src/tools/llm-inspector/core/proxyService.ts:1)       | Tauri invoke/listen 封装                                      |
 
-- 封装了所有 `invoke` 调用，将底层的 Tauri API 转换为类型安全的异步函数。
-- 封装了所有 `listen` 调用，提供 `on...Event` 风格的接口，并管理事件监听器的注册与清理。
-- 确保所有与 Rust 核心的交互都通过这个统一的入口，便于调试和维护。
+### 5.2. 钩子注入层（接入但默认 OFF）
 
-### 4.2. `useInspectorManager.ts`
+| 模块                                                         | 关键变更                                                                        |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------- |
+| [`common.ts: LlmRequestOptions`](src/llm-apis/common.ts:132) | 追加 `inspectorContext` 字段，被 `request-builder.ts` 过滤防止污染上游          |
+| [`common.ts: fetchWithTimeout`](src/llm-apis/common.ts:697)  | 三个 fetch 分支埋点 triggerRequest / triggerResponse / triggerError             |
+| [`useLlmRequest.ts`](src/composables/useLlmRequest.ts:1)     | setContext 在调用前 + finally 清理，X-Request-ID 关联机制（不侵入任何 adapter） |
+| 各工具入口                                                   | 在 `sendRequest` 调用处加 `inspectorContext: { toolName, purpose, sessionId }`  |
 
-**职责**: 中央协调器和状态中心。
+### 5.3. Composables 层
 
-- 管理检查器的核心状态，如 `isRunning`, `config` 等。
-- 调用 `proxyService` 来控制检查器的生命周期（启动/停止）。
-- 在检查器启动时，通过 `proxyService` 注册事件监听器，并将收到的事件分发给相应的管理器（`recordManager` 或 `streamProcessor`）。
-- 整合来自其他管理器的状态和功能，向 UI 组件提供一个统一的、包含所有所需数据和方法的接口。
+| 模块                                                                                                | 职责                                                 |
+| --------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| [`useInspectorManager / useProxyManager`](src/tools/llm-inspector/composables/useProxyManager.ts:1) | 状态机 + 总开关联动 watch + isRunning 兼容 computed  |
+| [`useInternalMonitor`](src/tools/llm-inspector/composables/useInternalMonitor.ts:1)                 | 双通道接入（本地钩子 + Tauri event）+ LRU 去重       |
+| [`useRecordDetail`](src/tools/llm-inspector/composables/useRecordDetail.ts:1)                       | 详情面板共享数据（流式状态、复制、提取）             |
+| [`useTokenEstimate`](src/tools/llm-inspector/composables/useTokenEstimate.ts:1)                     | Token 估算 + 服务端 usage + 偏差对比 + 缓存          |
+| [`useSplitPane`](src/tools/llm-inspector/composables/useSplitPane.ts:1)                             | 分割条拖拽（@vueuse/core useEventListener 自动清理） |
+| [`useFormattedBody`](src/tools/llm-inspector/composables/useFormattedBody.ts:1)                     | formatJson 缓存（防止大 body 重复格式化）            |
 
-### 4.3. `recordManager.ts`
+### 5.4. 视图层（detail-panel-rework 后）
 
-**职责**: 请求/响应记录的数据仓库。
+```
+LlmInspector.vue
+├── HeaderToolbar.vue
+├── SettingsDrawer.vue
+│   └── HeaderOverrideDialog.vue (独立弹窗，由 Drawer 按钮触发)
+├── RecordsList.vue (含来源徽章 + purpose 标签 + ISO tooltip)
+└── RecordDetail.vue (3-Tab)
+    ├── detail/RecordOverviewTab.vue (含 Token 卡 + 元数据卡)
+    ├── detail/RequestPanel.vue
+    │   ├── detail/views/RequestStructuredView.vue
+    │   └── detail/views/RequestRawView.vue (RichCodeEditor)
+    └── detail/ResponsePanel.vue
+        ├── detail/views/ResponseStructuredView.vue
+        └── detail/views/ResponseRawView.vue (RichCodeEditor + 流式状态)
+        └── detail/StructuredMessagesView.vue (请求/响应共用)
+```
 
-- 维护一个响应式的 `CombinedRecord` 数组。
-- 提供原子操作：`addRequestRecord`, `updateResponseRecord`。
-- 内置过滤和搜索逻辑 (`getFilteredRecords`)，将原始数据列表转换为 UI 需要展示的数据。
-- 管理当前选中的记录 (`selectedRecord`)。
+## 6. 数据持久化
 
-### 4.4. `streamProcessor.ts` & `utils.ts`
-
-**职责**: 实时流式数据处理器与多格式内容提取引擎。
-
-- 维护一个流式数据缓冲区 `streamBuffer`，以 `recordId` 关联。
-- `processStreamUpdate` 方法是其核心入口，用于接收和累积数据块。
-- **多格式提取引擎 (`utils.ts`)**:
-  - **格式检测**: 通过请求 URL 自动识别 API 格式（如检测 `/v1/chat/completions` 为 OpenAI 格式）。
-  - **专用提取器**: 为 OpenAI (Chat/Responses)、Anthropic、Gemini、Cohere 和 Ollama 提供专用提取逻辑。
-  - **深度解析**: 能够识别并提取 `reasoning_content` (o1/o3)、`thinking` (Claude) 以及各种格式的工具调用参数。
-- 提供一系列工具函数 (`getDisplayResponseBody`, `extractContent`)，用于将原始 SSE 数据或 JSON 响应转换为用户友好的显示格式。
-- 跟踪哪些记录当前正处于流式传输状态 (`activeStreamIds`)。
-
-### 4.5. `configManager.ts`
-
-**职责**: 配置的持久化层。
-
-- 使用通用的 `createConfigManager` 工具，负责将 `LlmInspectorSettings` 对象序列化为 JSON 文件并保存到磁盘。
-- 在应用启动时加载配置，在配置变更时（通过 `watch` 监听）自动防抖保存，确保用户设置不丢失。
-- 包含配置验证逻辑 (`validateInspectorConfig`)，确保检查器启动前配置的有效性。
-
-## 5. 数据持久化
-
-- **配置文件**: `settings.json`
-- **存储位置**: 应用的配置目录 (`appConfigDir/llm-inspector/settings.json`)。
-- **管理模块**: `configManager.ts`
+- **配置文件**: `appConfigDir/llm-inspector/settings.json`
 - **存储内容**:
-  - **`config`**: 检查器服务器的核心配置，包括 `port` 和 `target_url`。
-  - **UI 状态**: 如 `searchQuery`, `filterStatus`, `maskApiKeys` 等，用于在重启应用后恢复用户的界面设置。
-- **保存机制**: 配置的保存操作是**防抖**的，这意味着在用户快速修改设置时，不会频繁写入文件，而是在停止操作后的一小段时间（500ms）内合并为一次写入，以提升性能。
+  - `config.port` / `config.target_url` / `config.header_override_rules`
+  - UI 状态: `searchQuery` / `filterStatus` / `maskApiKeys` / `targetUrlHistory`
+  - 布局: `layout.splitRatio`（D4 新增）
+- **保存机制**: 通用 `createConfigManager` 防抖（500ms）合并写入。
 
-## 6. 关键类型定义 (`types.ts`)
+## 7. 关键类型定义
 
-- **`InspectorConfig`**: 定义了启动检查器所需的核心参数：`port` 和 `target_url`。
+详见 [`types.ts`](src/tools/llm-inspector/types.ts:1):
 
-- **`RequestRecord`**: 捕获的 HTTP 请求的完整信息，包括 `id`, `timestamp`, `method`, `url`, `headers`, `body` 等。
+- `CombinedRecord` — 含 `source` + `inspectorMetadata`（向后兼容可选）
+- `RecordSource` — `"internal" | "external"`
+- `RecordInspectorMetadata` — 工具/会话/Profile/Model 元数据
+- `InspectorLayoutSettings` — `splitRatio`
+- `ParsedMessage` / `ParsedMessageBlock` — 结构化消息解析
+- `RequestParseResult` / `ResponseParseResult` — 解析结果（含 format / model / stopReason / errors）
 
-- **`ResponseRecord`**: 捕获的 HTTP 响应的完整信息，包括 `id`, `status`, `headers`, `body`, `duration_ms` 等。
+钩子事件契约见 [`types/hooks.ts`](src/tools/llm-inspector/types/hooks.ts:1):
 
-- **`CombinedRecord`**: 将 `RequestRecord` 和 `ResponseRecord` 关联在一起的核心数据结构，是列表中每一行的基础。
+- `InspectorRequestEvent` / `InspectorResponseEvent` / `InspectorStreamEvent` / `InspectorErrorEvent`
+- `InspectorContextMetadata` — toolName/purpose/profileId/modelId/sessionId
+- `InspectorHooks` 接口与 `INSPECTOR_INTERNAL_EVENT` 常量
 
-- **`StreamUpdate`**: 从 Rust 后端发来的流式数据块的结构，包含 `id`, `chunk` (数据块内容) 和 `is_complete` (流是否结束) 标志。
+## 8. 未来扩展点（P2，本期未实施）
 
-- **`LlmInspectorSettings`**: 持久化到 `settings.json` 的顶层对象，包含了检查器配置和所有 UI 状态。
+- **TTFB / 首 token 延迟统计**: 需 Rust `StreamUpdate` 加 `chunk_timestamp` 字段。
+- **Token 趋势 mini-chart**: echarts 折线图展示最近 N 条 token 消耗。
+- **请求重放 / 对比**: 选中记录后重发或与另一条对比。
+- **多模态附件 Token 估算**: 当前 [`tokenEstimator.ts`](src/tools/llm-inspector/core/tokenEstimator.ts:104) 的 `estimateAttachmentTokens` 是 stub，待接入真实 VisionTokenCost 配置。
+

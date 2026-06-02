@@ -17,10 +17,6 @@
           <Hash :size="11" />
           缓冲: <strong>{{ rawContent.length }}</strong> 字符
         </span>
-        <span v-if="canShowTextMode" class="stat">
-          <FileText :size="11" />
-          正文: <strong>{{ extractedContent.length }}</strong> 字符
-        </span>
       </span>
     </div>
 
@@ -33,28 +29,6 @@
           <span class="size-hint">{{ formatSize(rawContent.length) }}</span>
         </div>
         <div class="header-controls">
-          <!-- 显示模式切换 -->
-          <div v-if="canShowTextMode" class="view-mode-toggle">
-            <button
-              @click="viewMode = 'raw'"
-              class="mode-btn"
-              :class="{ active: viewMode === 'raw' }"
-              title="原始格式"
-            >
-              <Braces :size="12" />
-              原始
-            </button>
-            <button
-              @click="viewMode = 'text'"
-              class="mode-btn"
-              :class="{ active: viewMode === 'text' }"
-              title="正文模式"
-            >
-              <Type :size="12" />
-              正文
-            </button>
-          </div>
-
           <button
             @click="copyResponseBody"
             class="btn-copy-small"
@@ -66,7 +40,7 @@
       </header>
       <div class="editor-shell">
         <RichCodeEditor
-          :model-value="displayContent"
+          :model-value="rawContent"
           :language="bodyLanguage"
           :read-only="true"
           editor-type="codemirror"
@@ -101,23 +75,20 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed } from "vue";
 import {
-  Braces,
   Circle,
   CircleCheck,
   Copy,
   FileCode,
-  FileText,
   Hash,
   Info,
   LoaderCircle,
-  Type,
 } from "lucide-vue-next";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import { useRecordDetail } from "../../../composables/useRecordDetail";
 import { formatSize, isJson } from "../../../core/utils";
-import type { CombinedRecord, ViewMode } from "../../../types";
+import type { CombinedRecord } from "../../../types";
 
 const props = defineProps<{
   record: CombinedRecord;
@@ -128,32 +99,11 @@ const {
   isStreamingActive,
   isStreamingResponse,
   displayResponseBody,
-  canShowTextMode,
-  extractedContent,
   copyResponseBody,
 } = useRecordDetail(props);
 
-// 本地 viewMode（独立于全局 useRecordDetail）
-const viewMode = ref<ViewMode>("raw");
-
-// 切换记录时重置 viewMode
-watch(
-  () => props.record.id,
-  () => {
-    viewMode.value = "raw";
-  }
-);
-
 // 原始内容（含 SSE 格式化或 JSON 美化）
 const rawContent = computed(() => displayResponseBody.value);
-
-// 显示内容（正文/原始切换）
-const displayContent = computed(() => {
-  if (viewMode.value === "text" && canShowTextMode.value) {
-    return extractedContent.value || "(无法提取正文)";
-  }
-  return rawContent.value;
-});
 
 const hasContent = computed(() => {
   return Boolean(rawContent.value) || isStreamingActive.value;
@@ -161,7 +111,6 @@ const hasContent = computed(() => {
 
 // 自动检测语言
 const bodyLanguage = computed(() => {
-  if (viewMode.value === "text") return "text";
   const raw = props.record.response?.body || rawContent.value;
   if (!raw) return "text";
   if (isStreamingResponse.value) return "text"; // SSE 当作普通文本，避免误判
@@ -276,39 +225,6 @@ const bodyLanguage = computed(() => {
   display: flex;
   align-items: center;
   gap: 10px;
-}
-
-/* === 视图模式切换 === */
-.view-mode-toggle {
-  display: flex;
-  gap: 2px;
-  background: var(--card-bg);
-  border: var(--border-width) solid var(--border-color);
-  border-radius: 4px;
-  padding: 2px;
-}
-
-.mode-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 8px;
-  background: transparent;
-  color: var(--text-color);
-  border: none;
-  border-radius: 3px;
-  cursor: pointer;
-  font-size: 11px;
-  transition: all 0.2s;
-}
-
-.mode-btn:hover {
-  background: var(--container-bg);
-}
-
-.mode-btn.active {
-  background: var(--primary-color);
-  color: #ffffff;
 }
 
 /* === 复制按钮 === */

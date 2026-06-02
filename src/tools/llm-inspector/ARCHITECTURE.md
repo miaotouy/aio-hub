@@ -66,7 +66,8 @@ isGlobalEnabled  ─ 总开关（关闭即全停）
 - **多格式智能提取**:
   - **格式检测**: 通过 URL 自动识别 5 大格式（OpenAI Chat/Responses/Completions、Anthropic、Gemini、Cohere、Ollama）。
   - **深度解析**: 识别 `reasoning_content` (o1/o3)、`thinking` (Claude)、tool_calls、refusal 等高级块。
-  - **正文模式 / 原始模式切换**: 同一份响应可看「打字机风格的累积文本」或「原始 SSE 缓冲」。
+- **结构化 Tab 实时渲染流式正文** (能力迁移 ▲)：[`ResponseStructuredView.vue`](src/tools/llm-inspector/components/detail/views/ResponseStructuredView.vue:1) 在检测到流式响应时，直接消费 `streamProcessor.extractContent()` 提取出的累积文本，将其包装为 `assistant` `ParsedMessage` 实时渲染（打字机效果）。**不再需要等待 SSE 累积完成再 JSON 解析**，也不再出现「响应体不是合法 JSON」的报错。
+- **原始 Tab 回归纯粹**：[`ResponseRawView.vue`](src/tools/llm-inspector/components/detail/views/ResponseRawView.vue:1) 移除「正文模式」切换，专注展示原始 SSE 缓冲 / JSON 美化。正文的实时呈现完全交给「结构化」Tab 负责。
 
 ### 1.5. Token 估算与服务端 usage 对比（2.0 新增）
 
@@ -169,11 +170,11 @@ graph TD
 
 **Rework** (detail-panel-rework) 重构为请求/响应分离的 3 Tab，解决"一次请求往返需在多个 Tab 间反复跳转"的问题：
 
-| 顶层 Tab    | 子结构                 | 包含                                                                |
-| ----------- | ---------------------- | ------------------------------------------------------------------- |
-| **📊 总览** | 单页滚动               | 请求摘要 + 响应摘要 + **Token 估算** + Inspector 元数据             |
-| **📤 请求** | Segment: 结构化 / 原始 | 结构化：解析后的 messages；原始：JSON 美化 (RichCodeEditor)         |
-| **📥 响应** | Segment: 结构化 / 原始 | 结构化：assistant 回复 + stopReason；原始：响应体（**含流式模式**） |
+| 顶层 Tab    | 子结构                 | 包含                                                                                       |
+| ----------- | ---------------------- | ------------------------------------------------------------------------------------------ |
+| **📊 总览** | 单页滚动               | 请求摘要 + 响应摘要 + **Token 估算** + Inspector 元数据                                    |
+| **📤 请求** | Segment: 结构化 / 原始 | 结构化：解析后的 messages；原始：JSON 美化 (RichCodeEditor)                                |
+| **📥 响应** | Segment: 结构化 / 原始 | 结构化：assistant 回复 + stopReason + **流式 SSE 实时打字机**；原始：响应体（纯 SSE/JSON） |
 
 #### 3.2.1. 总览卡片层次
 

@@ -19,10 +19,27 @@
       </span>
     </div>
 
-    <div v-if="!hasResponseBody" class="response-placeholder">
+    <div v-if="!hasContent" class="response-placeholder">
       <Hourglass :size="14" />
-      <span>响应体尚未到达</span>
+      <span>{{
+        isStreamingActive ? "等待流式数据到达…" : "响应体尚未到达"
+      }}</span>
     </div>
+
+    <!-- 流式响应：实时渲染累积正文 -->
+    <template v-else-if="isStreamingResponse || isStreamingActive">
+      <div v-if="isStreamingActive" class="streaming-banner">
+        <Circle :size="8" fill="currentColor" class="live-dot" />
+        <span>正在实时接收 · {{ extractedContent.length }} 字符</span>
+      </div>
+      <StructuredMessagesView
+        :messages="streamingMessages"
+        :errors="[]"
+        badge-kind="real"
+      />
+    </template>
+
+    <!-- 解析失败提示（非流式场景下才显示） -->
     <div
       v-else-if="
         responseParseResult &&
@@ -32,13 +49,10 @@
       class="response-note"
     >
       <Info :size="13" />
-      <span>
-        {{ responseParseResult.errors.join(" · ") }}
-        <em v-if="isStreamingLike" class="hint">
-          （流式响应建议切到「原始」查看实时累积内容）
-        </em>
-      </span>
+      <span>{{ responseParseResult.errors.join(" · ") }}</span>
     </div>
+
+    <!-- 普通 JSON 响应 -->
     <StructuredMessagesView
       v-else-if="responseParseResult"
       :messages="responseParseResult.messages"
@@ -50,26 +64,51 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
-import { Code2, Cpu, Flag, Hourglass, Info } from "lucide-vue-next";
+import { Circle, Code2, Cpu, Flag, Hourglass, Info } from "lucide-vue-next";
 import StructuredMessagesView from "../StructuredMessagesView.vue";
 import { parseResponseMessages } from "../../../core/messageParser";
 import { detectApiFormat } from "../../../core/utils";
-import type { CombinedRecord, ResponseParseResult } from "../../../types";
+import { useRecordDetail } from "../../../composables/useRecordDetail";
+import type {
+  CombinedRecord,
+  ParsedMessage,
+  ResponseParseResult,
+} from "../../../types";
 
 const props = defineProps<{
   record: CombinedRecord;
 }>();
 
+const { isStreamingActive, isStreamingResponse, extractedContent } =
+  useRecordDetail(props);
+
 const apiFormat = computed(() => detectApiFormat(props.record.request.url));
 
 const hasResponseBody = computed(() => Boolean(props.record.response?.body));
 
-const isStreamingLike = computed(() => {
-  const headers = props.record.response?.headers ?? {};
-  const contentType = headers["content-type"] || headers["Content-Type"] || "";
-  return contentType.includes("text/event-stream");
+// 凡是有响应体 / 正在流式 / 已经提取出累积文本，就允许结构化视图渲染
+const hasContent = computed(() => {
+  return (
+    hasResponseBody.value ||
+    isStreamingActive.value ||
+    Boolean(extractedContent.value)
+  );
 });
 
+// 流式响应：把累积的正文包装为 assistant 消息，让 StructuredMessagesView 实时渲染
+const streamingMessages = computed<ParsedMessage[]>(() => {
+  const text = extractedContent.value;
+  if (!text) return [];
+  return [
+    {
+      role: "assistant",
+      blocks: [{ type: "text", text }],
+      raw: text,
+    },
+  ];
+});
+
+// 普通 JSON 响应解析
 const responseParseResult = computed<ResponseParseResult | null>(() => {
   if (!hasResponseBody.value) return null;
   return parseResponseMessages(props.record.response?.body, apiFormat.value);
@@ -126,10 +165,36 @@ const responseParseResult = computed<ResponseParseResult | null>(() => {
   font-size: 13px;
 }
 
-.response-note .hint {
-  margin-left: 6px;
-  color: var(--text-color-light);
-  font-style: italic;
-  font-size: 12px;
+/* 流式实时接收提示条 */
+.streaming-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(
+    var(--el-color-danger-rgb),
+    calc(var(--card-opacity) * 0.08)
+  );
+  border: var(--border-width) solid
+    rgba(var(--el-color-danger-rgb), calc(var(--card-opacity) * 0.3));
+  border-radius: 10px;
+  color: var(--el-color-danger, #f56c6c);
+  font-size: 11px;
+  font-weight: 600;
+  align-self: flex-start;
+}
+
+.live-dot {
+  animation: blink 1s infinite;
+}
+
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
 }
 </style>

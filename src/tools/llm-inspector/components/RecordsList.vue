@@ -69,9 +69,12 @@
           </span>
         </div>
         <div class="record-meta">
-          <span class="timestamp">{{
-            formatTime(record.request.timestamp)
-          }}</span>
+          <span
+            class="timestamp"
+            :title="formatTimeIso(record.request.timestamp)"
+          >
+            {{ formatTime(record.request.timestamp) }}
+          </span>
           <span class="duration" v-if="record.response">
             {{ record.response.duration_ms }}ms
           </span>
@@ -161,6 +164,10 @@ function formatUrl(url: string): string {
 function formatTime(timestamp: number): string {
   const date = new Date(timestamp);
   return date.toLocaleTimeString();
+}
+
+function formatTimeIso(timestamp: number): string {
+  return new Date(timestamp).toISOString();
 }
 
 function formatSize(bytes: number): string {

@@ -21,7 +21,17 @@
         </div>
         <div class="info-item full-row">
           <label>时间</label>
-          <span>{{ new Date(record.request.timestamp).toLocaleString() }}</span>
+          <span
+            class="time-display"
+            :title="formatFullIso(record.request.timestamp)"
+          >
+            <span class="time-iso">{{
+              formatLocalTime(record.request.timestamp)
+            }}</span>
+            <span class="time-relative">{{
+              formatRelativeTime(record.request.timestamp)
+            }}</span>
+          </span>
         </div>
       </div>
 
@@ -84,11 +94,11 @@
           <label>大小</label>
           <span>{{ formatSize(record.response.response_size) }}</span>
         </div>
-        <div class="info-item" v-if="isStreamingResponse">
+        <div class="info-item" v-if="streamMode">
           <label>流式</label>
-          <span class="stream-flag">
+          <span class="stream-flag" :title="streamMode.tooltip">
             <Activity :size="12" />
-            是
+            <span>{{ streamMode.label }}</span>
           </span>
         </div>
       </div>
@@ -331,6 +341,8 @@ import {
   Sparkles,
   TriangleAlert,
 } from "lucide-vue-next";
+import { formatDistanceToNow, format as formatDate } from "date-fns";
+import { zhCN } from "date-fns/locale";
 import { useRecordDetail } from "../../composables/useRecordDetail";
 import { useTokenEstimate } from "../../composables/useTokenEstimate";
 import type { CombinedRecord } from "../../types";
@@ -450,6 +462,60 @@ function formatDeviation(delta: number): string {
   const sign = delta > 0 ? "+" : "";
   return `${sign}${delta.toFixed(1)}%`;
 }
+
+// === G1：时间显示 ===
+function formatLocalTime(ts: number): string {
+  return formatDate(new Date(ts), "yyyy-MM-dd HH:mm:ss.SSS");
+}
+
+function formatFullIso(ts: number): string {
+  return new Date(ts).toISOString();
+}
+
+function formatRelativeTime(ts: number): string {
+  return formatDistanceToNow(new Date(ts), { addSuffix: true, locale: zhCN });
+}
+
+// === G2：流式状态来源辨析 ===
+// 区分「按配置声明的流式」和「实际是流式」
+const requestBodyStreamFlag = computed<boolean | null>(() => {
+  if (!props.record.request.body) return null;
+  try {
+    const parsed = JSON.parse(props.record.request.body);
+    if (typeof parsed?.stream === "boolean") return parsed.stream;
+    return null;
+  } catch {
+    return null;
+  }
+});
+
+const streamMode = computed(() => {
+  const declared = requestBodyStreamFlag.value;
+  const actual = isStreamingResponse.value;
+  if (!declared && !actual) return null;
+
+  if (actual && declared === true) {
+    return {
+      label: "是（按配置）",
+      tooltip: "请求体声明 stream:true，响应也确实是 SSE 流式",
+    };
+  }
+  if (actual && declared !== true) {
+    return {
+      label: "是（实际）",
+      tooltip:
+        "请求体未声明 stream:true，但响应实际是 SSE 流式（可能服务端默认开启或网关转换）",
+    };
+  }
+  if (!actual && declared === true) {
+    return {
+      label: "声明但未生效",
+      tooltip:
+        "请求体声明 stream:true，但响应不是 SSE 格式（可能服务端不支持或被网关合并）",
+    };
+  }
+  return null;
+});
 </script>
 
 <style scoped>

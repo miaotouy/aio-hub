@@ -22,7 +22,7 @@
 
     <!-- 主区：左右分栏（D4 可拖拽） -->
     <div
-      ref="splitContainerRef"
+      :ref="(el) => (splitContainerRef = el as HTMLElement | null)"
       class="main-split"
       :class="{ 'is-dragging': isDragging }"
       :style="{

@@ -179,6 +179,20 @@
               {{ formatTokenCount(serverUsage.promptTokens) }}
             </span>
           </div>
+          <div
+            v-if="promptDeviation"
+            class="token-deviation"
+            :class="deviationClass(promptDeviation.deltaPercent)"
+            :title="deviationTooltip(promptDeviation.deltaPercent)"
+          >
+            <component
+              :is="deviationIcon(promptDeviation.deltaPercent)"
+              :size="11"
+            />
+            <span
+              >偏差 {{ formatDeviation(promptDeviation.deltaPercent) }}</span
+            >
+          </div>
         </div>
 
         <div
@@ -200,6 +214,21 @@
             <span class="token-value mono">
               {{ formatTokenCount(serverUsage.completionTokens) }}
             </span>
+          </div>
+          <div
+            v-if="completionDeviation"
+            class="token-deviation"
+            :class="deviationClass(completionDeviation.deltaPercent)"
+            :title="deviationTooltip(completionDeviation.deltaPercent)"
+          >
+            <component
+              :is="deviationIcon(completionDeviation.deltaPercent)"
+              :size="11"
+            />
+            <span
+              >偏差
+              {{ formatDeviation(completionDeviation.deltaPercent) }}</span
+            >
           </div>
         </div>
 
@@ -272,18 +301,21 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, toRef } from "vue";
+import { computed, ref, toRef, markRaw } from "vue";
 import {
   Activity,
+  AlertTriangle,
   ArrowDownToLine,
   ArrowUpFromLine,
   Calculator,
+  Check,
   ChevronRight,
   Copy,
   Info,
   LoaderCircle,
   Sigma,
   Sparkles,
+  TriangleAlert,
 } from "lucide-vue-next";
 import { useRecordDetail } from "../../composables/useRecordDetail";
 import { useTokenEstimate } from "../../composables/useTokenEstimate";
@@ -303,10 +335,16 @@ const {
   getStatusClass,
 } = useRecordDetail(props);
 
-// Token 估算（F1）
+// Token 估算（F1） + 偏差对比（F2）
 const recordRef = toRef(props, "record");
-const { requestEstimate, responseEstimate, serverUsage, isEstimating } =
-  useTokenEstimate(recordRef);
+const {
+  requestEstimate,
+  responseEstimate,
+  serverUsage,
+  isEstimating,
+  promptDeviation,
+  completionDeviation,
+} = useTokenEstimate(recordRef);
 
 // 折叠状态（默认折叠）
 const requestHeadersExpanded = ref(false);
@@ -353,6 +391,44 @@ const hasAttachmentBlocks = computed(() => {
 function formatTokenCount(n: number | undefined | null): string {
   if (n === undefined || n === null) return "—";
   return n.toLocaleString("en-US");
+}
+
+// === F2 偏差对比工具 ===
+// 偏差阈值：< 5% 视为正常，5%-15% 警告，> 15% 严重
+const DEV_WARN = 5;
+const DEV_DANGER = 15;
+
+const DeviationOk = markRaw(Check);
+const DeviationWarn = markRaw(TriangleAlert);
+const DeviationDanger = markRaw(AlertTriangle);
+
+function deviationClass(delta: number): string {
+  const abs = Math.abs(delta);
+  if (abs < DEV_WARN) return "deviation-ok";
+  if (abs < DEV_DANGER) return "deviation-warn";
+  return "deviation-danger";
+}
+
+function deviationIcon(delta: number) {
+  const abs = Math.abs(delta);
+  if (abs < DEV_WARN) return DeviationOk;
+  if (abs < DEV_DANGER) return DeviationWarn;
+  return DeviationDanger;
+}
+
+function deviationTooltip(delta: number): string {
+  const abs = Math.abs(delta);
+  const sign = delta > 0 ? "高估" : "低估";
+  if (abs < DEV_WARN) return `估算精度良好（${sign} ${abs.toFixed(1)}%）`;
+  if (abs < DEV_DANGER) {
+    return `估算偏差较大（${sign} ${abs.toFixed(1)}%），tokenizer profile 可能不完全匹配实际模型`;
+  }
+  return `估算严重偏差（${sign} ${abs.toFixed(1)}%），强烈建议检查 tokenizer 选择或模型识别是否正确`;
+}
+
+function formatDeviation(delta: number): string {
+  const sign = delta > 0 ? "+" : "";
+  return `${sign}${delta.toFixed(1)}%`;
 }
 </script>
 

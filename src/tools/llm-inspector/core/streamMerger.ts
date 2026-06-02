@@ -142,6 +142,26 @@ function parseSSEEvents(body: string): SSEEvent[] {
 // OpenAI Chat / Completions 合并
 // ===================================================================
 
+/**
+ * 从事件流中查找最后一个具有指定字段的事件数据。
+ *
+ * OpenAI / Gemini 等格式的 usage / system_fingerprint 通常出现在末尾，
+ * 但部分中转服务（如 VCP）会在真正带 usage 的 chunk 之后再追加一个
+ * 仅含 finish_reason 的 stop chunk，导致直接取 `last` 会丢失 usage。
+ *
+ * 因此统一从后往前找，找到第一个非空字段即返回。
+ */
+function findLastEventField<T = any>(
+  events: SSEEvent[],
+  picker: (data: any) => T | undefined
+): T | undefined {
+  for (let i = events.length - 1; i >= 0; i--) {
+    const value = picker(events[i]?.data ?? {});
+    if (value !== undefined && value !== null) return value;
+  }
+  return undefined;
+}
+
 function mergeOpenAIChat(events: SSEEvent[], warnings: string[]): any {
   if (!events.length) return null;
 
@@ -284,16 +304,22 @@ function mergeOpenAIChat(events: SSEEvent[], warnings: string[]): any {
     choices,
   };
 
-  // 系统指纹
-  if (first.system_fingerprint ?? last.system_fingerprint) {
-    merged.system_fingerprint =
-      last.system_fingerprint ?? first.system_fingerprint;
+  // 系统指纹：从后往前找最后一个非空值
+  const systemFingerprint = findLastEventField(events, (d) =>
+    typeof d.system_fingerprint === "string" && d.system_fingerprint
+      ? d.system_fingerprint
+      : undefined
+  );
+  if (systemFingerprint) {
+    merged.system_fingerprint = systemFingerprint;
   }
-  // usage
-  if (last.usage) {
-    merged.usage = last.usage;
-  } else if (first.usage) {
-    merged.usage = first.usage;
+
+  // usage：从后往前扫描，跳过 VCP 等中转追加的尾部空 chunk
+  const usage = findLastEventField(events, (d) =>
+    d?.usage && typeof d.usage === "object" ? d.usage : undefined
+  );
+  if (usage) {
+    merged.usage = usage;
   } else {
     warnings.push("SSE 中未发现 usage 字段");
   }
@@ -546,6 +572,26 @@ function mergeGemini(events: SSEEvent[], warnings: string[]): any {
 
   const last = events[events.length - 1].data ?? {};
 
+  // Gemini 元数据同样可能被中转尾部空 chunk 覆盖，统一从后往前找
+  const modelVersion = findLastEventField(events, (d) =>
+    typeof d.modelVersion === "string" && d.modelVersion
+      ? d.modelVersion
+      : undefined
+  );
+  const responseId = findLastEventField(events, (d) =>
+    typeof d.responseId === "string" && d.responseId ? d.responseId : undefined
+  );
+  const usageMetadata = findLastEventField(events, (d) =>
+    d?.usageMetadata && typeof d.usageMetadata === "object"
+      ? d.usageMetadata
+      : undefined
+  );
+  const promptFeedback = findLastEventField(events, (d) =>
+    d?.promptFeedback && typeof d.promptFeedback === "object"
+      ? d.promptFeedback
+      : undefined
+  );
+
   // 累积所有 candidates 的 parts
   // Gemini 流式每个 chunk 都是完整结构，但 parts 是增量
   const candidatesMap = new Map<
@@ -631,10 +677,12 @@ function mergeGemini(events: SSEEvent[], warnings: string[]): any {
     candidates,
   };
 
-  if (last.modelVersion) merged.modelVersion = last.modelVersion;
-  if (last.responseId) merged.responseId = last.responseId;
-  if (last.usageMetadata) merged.usageMetadata = last.usageMetadata;
-  if (last.promptFeedback) merged.promptFeedback = last.promptFeedback;
+  if (modelVersion) merged.modelVersion = modelVersion;
+  else if (last.modelVersion) merged.modelVersion = last.modelVersion;
+  if (responseId) merged.responseId = responseId;
+  else if (last.responseId) merged.responseId = last.responseId;
+  if (usageMetadata) merged.usageMetadata = usageMetadata;
+  if (promptFeedback) merged.promptFeedback = promptFeedback;
 
   return merged;
 }

@@ -1,10 +1,24 @@
 # LLM Inspector：LLM 语义化详情视图升级 (承接 VCP 视图借鉴)
 
-> **状态**: Draft (RFC) v1
-> **创建时间**: 2026-06-01
-> **作者**: 咕咕 (Kilo / Architect Mode)
-> **触发事件**: 在编写 [`context-analyzer-vcp-comparison.md`](../../llm-chat/docs/Plan/context-analyzer-vcp-comparison.md:1) 时识别出，VCP "最终上下文处理"视图的若干特性（捕获时间 / Stream 状态 / 刷新 / 实际算法标识 / 结构化消息块 / 文本-附件 token 拆分）因定位错位无法在 `context-analyzer` 落地，但在 `llm-inspector` 上**完美匹配**。本报告论证这一反向借鉴路径，并给出可落地增量方案。
-> **关联文档**: [`llm-inspector-internal-monitoring.md`](./llm-inspector-internal-monitoring.md:1) (架构层 2.0 方案，本报告为其**详情视图层**的补充)
+> **🗂️ 状态: Archived (已归档)**
+>
+> 本文档为 2.0 改造的**详情视图层 RFC 草稿**，已被 [`llm-inspector-2.0-master-plan.md`](./llm-inspector-2.0-master-plan.md:1) 完全吸收并实施（Group E + Group F）。
+>
+> - **施工已完成**: 结构化消息块、Token 估算与服务端对比、来源链路等全部 commit 到 main 分支（v2.0 GA）。
+> - **详情面板**: 进一步被 [`2026-06-detail-panel-rework.md`](./2026-06-detail-panel-rework.md:1) 重构为 3-Tab 结构（总览 / 请求 / 响应）。
+> - **当前架构**: 见 [`ARCHITECTURE.md`](../ARCHITECTURE.md:1)（已更新到 2.0 GA 状态）。
+>
+> 本文档保留作为**反向借鉴 VCP 视图的设计推演记录**，便于追溯当初的思考过程；不再作为施工指引使用。
+
+---
+
+> **原文档元数据（保留）**
+>
+> - **状态**: Draft (RFC) v1
+> - **创建时间**: 2026-06-01
+> - **作者**: 咕咕 (Kilo / Architect Mode)
+> - **触发事件**: 在编写 [`context-analyzer-vcp-comparison.md`](../../llm-chat/docs/Plan/context-analyzer-vcp-comparison.md:1) 时识别出，VCP "最终上下文处理"视图的若干特性（捕获时间 / Stream 状态 / 刷新 / 实际算法标识 / 结构化消息块 / 文本-附件 token 拆分）因定位错位无法在 `context-analyzer` 落地，但在 `llm-inspector` 上**完美匹配**。本报告论证这一反向借鉴路径，并给出可落地增量方案。
+> - **关联文档**: [`llm-inspector-internal-monitoring.md`](./llm-inspector-internal-monitoring.md:1) (架构层 2.0 方案，本报告为其**详情视图层**的补充)
 
 ---
 

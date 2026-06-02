@@ -1,5 +1,15 @@
 # LLM Inspector 2.0：内部监控增强与 UI 全面重构方案
 
+> **🗂️ 状态: Archived (已归档)**
+>
+> 本文档为 2.0 改造的**架构层 RFC 草稿**，已被 [`llm-inspector-2.0-master-plan.md`](./llm-inspector-2.0-master-plan.md:1) 完全吸收并实施。
+>
+> - **施工已完成**: Group A-G 全部 commit 到 main 分支（v2.0 GA）。
+> - **详情面板**: 进一步被 [`2026-06-detail-panel-rework.md`](./2026-06-detail-panel-rework.md:1) 重构为 3-Tab 结构。
+> - **当前架构**: 见 [`ARCHITECTURE.md`](../ARCHITECTURE.md:1)（已更新到 2.0 GA 状态）。
+>
+> 本文档保留作为**设计推演的历史记录**，便于追溯当初的思考过程；不再作为施工指引使用。
+
 ## 1. 问题分析
 
 ### 1.1 当前架构的痛点
@@ -392,7 +402,9 @@ export const fetchWithTimeout = async (
 // src/composables/useLlmRequest.ts (修改部分)
 
 export function useLlmRequest() {
-  const sendRequest = async (options: LlmRequestOptions): Promise<LlmResponse> => {
+  const sendRequest = async (
+    options: LlmRequestOptions
+  ): Promise<LlmResponse> => {
     // ... 现有逻辑 ...
 
     const response = await fetchWithTimeout(
@@ -431,7 +443,11 @@ import { ref, onUnmounted } from "vue";
 import { listen } from "@tauri-apps/api/event";
 import { inspectorHookRegistry } from "../core/hookRegistry";
 import type { CombinedRecord } from "../types";
-import type { InspectorRequestEvent, InspectorResponseEvent, InspectorStreamEvent } from "../types/hooks";
+import type {
+  InspectorRequestEvent,
+  InspectorResponseEvent,
+  InspectorStreamEvent,
+} from "../types/hooks";
 
 export function useUnifiedRecordManager() {
   const records = ref<CombinedRecord[]>([]);
@@ -478,7 +494,12 @@ export function useUnifiedRecordManager() {
   };
 
   // 处理错误的通用逻辑
-  const handleError = (payload: { id: string; message: string; stack?: string; name?: string }) => {
+  const handleError = (payload: {
+    id: string;
+    message: string;
+    stack?: string;
+    name?: string;
+  }) => {
     const record = records.value.find((r) => r.id === payload.id);
     if (record) {
       record.error = payload.message;
@@ -497,28 +518,42 @@ export function useUnifiedRecordManager() {
   // 这确保了分离窗口也能接收到监控数据
   const initTauriListeners = async () => {
     try {
-      const unlisten1 = await listen<InspectorRequestEvent>("inspector:request", (event) => {
-        handleRequest(event.payload);
-      });
-
-      const unlisten2 = await listen<InspectorResponseEvent>("inspector:response", (event) => {
-        handleResponse(event.payload);
-      });
-
-      const unlisten3 = await listen<InspectorStreamEvent>("inspector:stream", (event) => {
-        handleStream(event.payload);
-      });
-
-      const unlisten4 = await listen<{ id: string; message: string; stack?: string; name?: string }>(
-        "inspector:error",
+      const unlisten1 = await listen<InspectorRequestEvent>(
+        "inspector:request",
         (event) => {
-          handleError(event.payload);
+          handleRequest(event.payload);
         }
       );
 
+      const unlisten2 = await listen<InspectorResponseEvent>(
+        "inspector:response",
+        (event) => {
+          handleResponse(event.payload);
+        }
+      );
+
+      const unlisten3 = await listen<InspectorStreamEvent>(
+        "inspector:stream",
+        (event) => {
+          handleStream(event.payload);
+        }
+      );
+
+      const unlisten4 = await listen<{
+        id: string;
+        message: string;
+        stack?: string;
+        name?: string;
+      }>("inspector:error", (event) => {
+        handleError(event.payload);
+      });
+
       unlisteners.push(unlisten1, unlisten2, unlisten3, unlisten4);
     } catch (error) {
-      console.error("Failed to initialize Tauri event listeners for Inspector", error);
+      console.error(
+        "Failed to initialize Tauri event listeners for Inspector",
+        error
+      );
     }
   };
 
@@ -691,3 +726,4 @@ await startInspector();
 ✅ **向后兼容**：不影响现有功能
 
 这是一个**架构级别的优化**，将监控能力从网络层提升到了逻辑层，真正实现了"究极的测试方式"。
+

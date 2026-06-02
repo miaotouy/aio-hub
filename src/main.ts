@@ -27,7 +27,7 @@ import "@/utils/monaco-i18n/nls";
 // 导入 Inspector 钩子注册器，以便在应用启动时初始化跨窗口状态同步。
 // 这能确保即使用户从未打开 Inspector 工具页，主窗口也能响应分离窗口
 // 切换开关的事件，从而正确启用 fetchWithTimeout 中的内部钩子。
-// 见 src/tools/llm-inspector/docs/Plan/2026-06-cross-window-sync.md
+// 详见 src/tools/llm-inspector/ARCHITECTURE.md §1.1.3
 import { inspectorHookRegistry } from "@/tools/llm-inspector/core/hookRegistry";
 import { Buffer } from "buffer";
 

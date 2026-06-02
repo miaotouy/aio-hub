@@ -4,7 +4,7 @@
  * 从原 [`core/streamProcessor.ts`](src/tools/llm-inspector/core/streamProcessor.ts:1) 模块级响应式单例迁移而来。
  *
  * 迁移动机：与 [`inspectorRecordsStore`](src/tools/llm-inspector/stores/inspectorRecordsStore.ts:1) 同源
- * （见 [审计报告 §3.2](src/tools/llm-inspector/docs/Plan/2026-06-code-structure-audit.md:99)）。
+ * （模块级响应式单例存在 SSR / 测试隔离 / HMR 风险，统一迁入 Pinia store）。
  *
  * 性能要点（沿用原实现，**不要动**）：
  * - `streamBuffer` 用 `shallowRef` + 手动 `triggerRef`，避免深度响应式开销；

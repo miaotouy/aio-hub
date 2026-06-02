@@ -3,7 +3,7 @@
  *
  * 从原 [`core/recordManager.ts`](src/tools/llm-inspector/core/recordManager.ts:1) 模块级响应式单例迁移而来。
  *
- * 迁移动机（见 [审计报告 §3.2](src/tools/llm-inspector/docs/Plan/2026-06-code-structure-audit.md:99)）：
+ * 迁移动机：
  * - 模块级 `ref/reactive` 单例存在 SSR / 测试隔离 / HMR 风险；
  * - Pinia store 提供 devtools 集成与标准化的实例边界；
  * - 调用方仍通过原 `useRecordManager()` 兼容层访问（见 [`core/recordManager.ts`](src/tools/llm-inspector/core/recordManager.ts:1)），

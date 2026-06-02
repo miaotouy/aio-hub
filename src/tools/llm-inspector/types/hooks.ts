@@ -167,7 +167,7 @@ export type InspectorInternalEventName =
  * - `STATE_REQUEST`: 新窗口（如分离窗口）启动时广播，询问现有窗口的当前状态。
  * - `STATE_RESPONSE`: 已启用窗口收到 STATE_REQUEST 后回应，让新窗口对齐。
  *
- * 见 [`2026-06-cross-window-sync.md`](src/tools/llm-inspector/docs/Plan/2026-06-cross-window-sync.md:1)。
+ * 详见 [`ARCHITECTURE.md` §1.1.3](src/tools/llm-inspector/ARCHITECTURE.md:33)。
  */
 export const INSPECTOR_SYNC_EVENT = {
   /** 内部监控启用状态变更广播 */

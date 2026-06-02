@@ -1,7 +1,7 @@
 /**
  * recordManager — 兼容层（已迁移至 Pinia store）
  *
- * 历史：原本是模块级响应式单例（见 [审计报告 §3.2](src/tools/llm-inspector/docs/Plan/2026-06-code-structure-audit.md:99)）。
+ * 历史：原本是模块级响应式单例（存在 SSR / 测试隔离 / HMR 风险）。
  * 迁移：2026-06，状态与方法已搬入 [`stores/inspectorRecordsStore`](src/tools/llm-inspector/stores/inspectorRecordsStore.ts:1)。
  *
  * 本文件保留是为了**消费方零改动**：

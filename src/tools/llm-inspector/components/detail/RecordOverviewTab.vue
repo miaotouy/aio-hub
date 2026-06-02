@@ -6,15 +6,19 @@
       <div class="info-grid">
         <div class="info-item">
           <label>方法：</label>
-          <span>{{ record.request.method }}</span>
+          <span class="method-badge">{{ record.request.method }}</span>
         </div>
-        <div class="info-item">
+        <div class="info-item full-row">
           <label>URL：</label>
           <span class="url-full">{{ record.request.url }}</span>
         </div>
         <div class="info-item">
           <label>时间：</label>
           <span>{{ new Date(record.request.timestamp).toLocaleString() }}</span>
+        </div>
+        <div class="info-item">
+          <label>大小：</label>
+          <span>{{ formatSize(record.request.request_size) }}</span>
         </div>
       </div>
 
@@ -40,25 +44,6 @@
           </div>
         </div>
       </div>
-
-      <div v-if="record.request.body" class="subsection">
-        <div class="subsection-header">
-          <h5>请求体</h5>
-          <button
-            @click="copyRequestBody"
-            class="btn-copy-small"
-            title="复制请求体"
-          >
-            <Copy :size="14" />
-          </button>
-        </div>
-        <div class="body-content">
-          <pre v-if="isJson(record.request.body)">{{
-            formatJson(record.request.body)
-          }}</pre>
-          <pre v-else>{{ record.request.body }}</pre>
-        </div>
-      </div>
     </div>
 
     <!-- 响应信息 -->
@@ -80,6 +65,13 @@
         <div class="info-item">
           <label>大小：</label>
           <span>{{ formatSize(record.response.response_size) }}</span>
+        </div>
+        <div class="info-item" v-if="isStreamingResponse">
+          <label>流式：</label>
+          <span class="stream-flag">
+            <Activity :size="12" />
+            是
+          </span>
         </div>
       </div>
       <div v-else-if="isStreamingActive" class="info-grid">
@@ -114,78 +106,21 @@
           </div>
         </div>
       </div>
+    </div>
 
-      <div
-        v-if="(record.response && record.response.body) || isStreamingActive"
-        class="subsection"
-      >
-        <div class="subsection-header">
-          <h5>响应体</h5>
-          <div class="response-controls">
-            <span
-              v-if="isStreamingResponse"
-              class="stream-badge"
-              :class="{ active: isStreamingActive }"
-            >
-              <Circle
-                v-if="isStreamingActive"
-                :size="8"
-                fill="currentColor"
-                class="live-dot"
-              />
-              <Activity v-else :size="12" />
-              {{ isStreamingActive ? "实时接收中" : "流式响应" }}
-            </span>
-
-            <!-- 显示模式切换 -->
-            <div class="view-mode-toggle">
-              <button
-                @click="viewMode = 'raw'"
-                class="mode-btn"
-                :class="{ active: viewMode === 'raw' }"
-                title="原始格式"
-              >
-                原始
-              </button>
-              <button
-                @click="viewMode = 'text'"
-                class="mode-btn"
-                :class="{ active: viewMode === 'text' }"
-                title="正文模式"
-                v-if="canShowTextMode"
-              >
-                正文
-              </button>
-            </div>
-
-            <button
-              @click="copyResponseBody"
-              class="btn-copy-small"
-              title="复制响应体"
-            >
-              <Copy :size="14" />
-            </button>
-          </div>
-        </div>
-        <div class="body-content" :class="{ 'text-mode': viewMode === 'text' }">
-          <!-- 原始模式 -->
-          <pre v-if="viewMode === 'raw'">{{ displayResponseBody }}</pre>
-
-          <!-- 正文模式 -->
-          <div v-else-if="viewMode === 'text'" class="text-content">
-            <div v-if="extractedContent" class="extracted-text">
-              {{ extractedContent }}
-            </div>
-            <div v-else class="no-content">无法提取正文内容</div>
-          </div>
-        </div>
-      </div>
+    <!-- 跳转提示 -->
+    <div class="tab-hint">
+      <Info :size="13" />
+      <span>
+        请求体 / 响应体 完整内容请查看「<strong>原始</strong>」Tab； LLM
+        语义化视图请查看「<strong>结构化</strong>」Tab。
+      </span>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { Copy, LoaderCircle, Circle, Activity } from "lucide-vue-next";
+import { Activity, Copy, Info, LoaderCircle } from "lucide-vue-next";
 import { useRecordDetail } from "../../composables/useRecordDetail";
 import type { CombinedRecord } from "../../types";
 
@@ -195,62 +130,79 @@ const props = defineProps<{
 }>();
 
 const {
-  viewMode,
   isStreamingActive,
   isStreamingResponse,
-  displayResponseBody,
-  canShowTextMode,
-  extractedContent,
   copyRequestHeaders,
-  copyRequestBody,
   copyResponseHeaders,
-  copyResponseBody,
   formatSize,
   getStatusClass,
-  isJson,
-  formatJson,
 } = useRecordDetail(props);
 </script>
 
 <style scoped>
 .overview-tab {
-  /* 让子内容继承上层的 padding 与滚动行为 */
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
 .section {
-  margin-bottom: 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .section h4 {
-  margin: 0 0 15px 0;
+  margin: 0;
   color: var(--text-color);
+  font-size: 14px;
+  font-weight: 600;
   border-bottom: var(--border-width) solid var(--border-color);
-  padding-bottom: 5px;
+  padding-bottom: 6px;
 }
 
 .info-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 10px;
-  margin-bottom: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px 16px;
 }
 
 .info-item {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
+  font-size: 13px;
+}
+
+.info-item.full-row {
+  grid-column: 1 / -1;
+  align-items: flex-start;
 }
 
 .info-item label {
   color: var(--text-color-light);
+  flex-shrink: 0;
 }
 
 .info-item span {
   color: var(--text-color);
 }
 
+.method-badge {
+  font-family: "Courier New", monospace;
+  font-weight: 600;
+  color: var(--primary-color);
+  padding: 1px 8px;
+  background: rgba(var(--primary-rgb), calc(var(--card-opacity) * 0.12));
+  border-radius: 3px;
+  font-size: 12px;
+}
+
 .url-full {
   word-break: break-all;
+  font-family: "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .status-badge {
@@ -275,54 +227,20 @@ const {
   color: white;
 }
 
-.subsection {
-  margin-top: 20px;
-}
-
-.subsection-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-  gap: 8px;
-}
-
-.response-controls {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-left: auto;
-}
-
-.stream-badge {
+.stream-flag {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  background: var(--primary-color);
-  color: #ffffff;
-  padding: 2px 10px;
-  border-radius: 10px;
-  font-size: 11px;
+  gap: 3px;
+  color: var(--el-color-success, #67c23a);
+  font-weight: 600;
+}
+
+.streaming-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--el-color-warning, #e6a23c);
   font-weight: bold;
-  white-space: nowrap;
-}
-
-.stream-badge.active {
-  background: var(--el-color-danger, #f56c6c);
-}
-
-.live-dot {
-  animation: blink 1s infinite;
-}
-
-@keyframes blink {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.3;
-  }
 }
 
 .spin-icon {
@@ -335,38 +253,25 @@ const {
   }
 }
 
-.view-mode-toggle {
+/* === Subsection (headers) === */
+.subsection {
   display: flex;
-  gap: 2px;
-  background: var(--card-bg);
-  border-radius: 4px;
-  padding: 2px;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.mode-btn {
-  padding: 4px 10px;
-  background: transparent;
-  color: var(--text-color);
-  border: none;
-  border-radius: 3px;
-  cursor: pointer;
-  font-size: 12px;
-  transition: all 0.2s;
-}
-
-.mode-btn:hover {
-  background: var(--container-bg);
-}
-
-.mode-btn.active {
-  background: var(--primary-color);
-  color: #ffffff;
+.subsection-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
 }
 
 .subsection h5 {
   margin: 0;
   color: var(--text-color);
-  font-size: 14px;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .btn-copy-small {
@@ -393,7 +298,7 @@ const {
   border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   padding: 10px;
-  max-height: 200px;
+  max-height: 240px;
   overflow-y: auto;
 }
 
@@ -403,6 +308,10 @@ const {
   margin-bottom: 5px;
   font-family: "Courier New", monospace;
   font-size: 12px;
+}
+
+.header-item:last-child {
+  margin-bottom: 0;
 }
 
 .header-key {
@@ -415,54 +324,22 @@ const {
   word-break: break-all;
 }
 
-.streaming-status {
-  display: inline-flex;
+/* === 跳转提示 === */
+.tab-hint {
+  display: flex;
   align-items: center;
   gap: 6px;
-  color: var(--el-color-warning, #e6a23c);
-  font-weight: bold;
-}
-
-.body-content {
-  background: var(--bg-color);
-  border: var(--border-width) solid var(--border-color);
+  padding: 10px 12px;
+  background: rgba(var(--el-color-info-rgb), calc(var(--card-opacity) * 0.08));
+  border: var(--border-width) dashed
+    rgba(var(--el-color-info-rgb), calc(var(--card-opacity) * 0.25));
   border-radius: 4px;
-  padding: 15px;
-  max-height: 400px;
-  overflow: auto;
-}
-
-.body-content pre {
-  margin: 0;
-  color: var(--text-color);
-  font-family: "Courier New", monospace;
-  font-size: 12px;
-  white-space: pre-wrap;
-  word-wrap: break-word;
-}
-
-.body-content.text-mode {
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
-    Arial, sans-serif;
-}
-
-.text-content {
-  padding: 5px;
-}
-
-.extracted-text {
-  color: var(--text-color);
-  font-size: 14px;
-  line-height: 1.6;
-  white-space: pre-wrap;
-  word-wrap: break-word;
-}
-
-.no-content {
   color: var(--text-color-light);
-  font-style: italic;
-  text-align: center;
-  padding: 20px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.tab-hint strong {
+  color: var(--primary-color);
 }
 </style>

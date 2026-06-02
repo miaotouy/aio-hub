@@ -29,7 +29,7 @@
         </div>
       </div>
 
-      <!-- E1/E2: 顶层 Tabs 容器 -->
+      <!-- E1/E2/E4: 顶层 Tabs 容器（流式 Tab 仅在流式响应时显示） -->
       <el-tabs v-model="activeTab" class="detail-tabs">
         <el-tab-pane label="总览" name="overview">
           <div class="tab-pane-content">
@@ -41,18 +41,32 @@
             <RecordStructuredTab :record="record" />
           </div>
         </el-tab-pane>
+        <el-tab-pane label="原始" name="raw">
+          <div class="tab-pane-content">
+            <RecordRawTab :record="record" :maskApiKeys="maskApiKeys" />
+          </div>
+        </el-tab-pane>
+        <el-tab-pane v-if="isStreamingResponse" label="流式" name="stream">
+          <div class="tab-pane-content">
+            <RecordStreamTab :record="record" :maskApiKeys="maskApiKeys" />
+          </div>
+        </el-tab-pane>
       </el-tabs>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, watch } from "vue";
 import { ClipboardList, Copy, Lock, X } from "lucide-vue-next";
 import { useRecordDetail } from "../composables/useRecordDetail";
 import RecordOverviewTab from "./detail/RecordOverviewTab.vue";
 import RecordStructuredTab from "./detail/RecordStructuredTab.vue";
+import RecordRawTab from "./detail/RecordRawTab.vue";
+import RecordStreamTab from "./detail/RecordStreamTab.vue";
 import type { CombinedRecord } from "../types";
+
+type TabName = "overview" | "structured" | "raw" | "stream";
 
 const props = defineProps<{
   record: CombinedRecord | null;
@@ -63,11 +77,18 @@ defineEmits<{
   close: [];
 }>();
 
-// 当前激活的 Tab；E1/E2 含 overview/structured，E4 会加入 raw/stream
-const activeTab = ref<"overview" | "structured">("overview");
+// 当前激活的 Tab
+const activeTab = ref<TabName>("overview");
 
-// 头部「复制全部」按钮所需逻辑（独立调用，不影响子组件 state）
-const { copyAll } = useRecordDetail(props);
+// 头部「复制全部」按钮所需逻辑 + 流式标识（独立调用，不影响子组件 state）
+const { copyAll, isStreamingResponse } = useRecordDetail(props);
+
+// 切换记录时若当前 tab 为「流式」但新记录不是流式响应，则回退到「总览」
+watch([() => props.record?.id, isStreamingResponse], ([, streaming]) => {
+  if (activeTab.value === "stream" && !streaming) {
+    activeTab.value = "overview";
+  }
+});
 </script>
 
 <style scoped>

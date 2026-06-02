@@ -29,26 +29,48 @@
         </div>
       </div>
 
-      <!-- E1/E2/E4: 顶层 Tabs 容器（流式 Tab 仅在流式响应时显示） -->
+      <!-- 顶层 Tabs：总览 / 请求 / 响应 -->
       <el-tabs v-model="activeTab" class="detail-tabs">
-        <el-tab-pane label="总览" name="overview">
+        <el-tab-pane name="overview">
+          <template #label>
+            <span class="tab-label">
+              <LayoutDashboard :size="14" />
+              <span>总览</span>
+            </span>
+          </template>
           <div class="tab-pane-content">
-            <RecordOverviewTab :record="record" :maskApiKeys="maskApiKeys" />
+            <RecordOverviewTab :record="record" :mask-api-keys="maskApiKeys" />
           </div>
         </el-tab-pane>
-        <el-tab-pane label="结构化" name="structured">
+
+        <el-tab-pane name="request">
+          <template #label>
+            <span class="tab-label">
+              <ArrowUpFromLine :size="14" />
+              <span>请求</span>
+            </span>
+          </template>
           <div class="tab-pane-content">
-            <RecordStructuredTab :record="record" />
+            <RequestPanel :record="record" :mask-api-keys="maskApiKeys" />
           </div>
         </el-tab-pane>
-        <el-tab-pane label="原始" name="raw">
+
+        <el-tab-pane name="response">
+          <template #label>
+            <span class="tab-label">
+              <ArrowDownToLine :size="14" />
+              <span>响应</span>
+              <span
+                v-if="isStreamingActive"
+                class="response-live-dot"
+                title="流式接收中"
+              >
+                <Circle :size="6" fill="currentColor" />
+              </span>
+            </span>
+          </template>
           <div class="tab-pane-content">
-            <RecordRawTab :record="record" :maskApiKeys="maskApiKeys" />
-          </div>
-        </el-tab-pane>
-        <el-tab-pane v-if="isStreamingResponse" label="流式" name="stream">
-          <div class="tab-pane-content">
-            <RecordStreamTab :record="record" :maskApiKeys="maskApiKeys" />
+            <ResponsePanel :record="record" :mask-api-keys="maskApiKeys" />
           </div>
         </el-tab-pane>
       </el-tabs>
@@ -57,16 +79,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from "vue";
-import { ClipboardList, Copy, Lock, X } from "lucide-vue-next";
+import { ref } from "vue";
+import {
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  Circle,
+  ClipboardList,
+  Copy,
+  LayoutDashboard,
+  Lock,
+  X,
+} from "lucide-vue-next";
 import { useRecordDetail } from "../composables/useRecordDetail";
 import RecordOverviewTab from "./detail/RecordOverviewTab.vue";
-import RecordStructuredTab from "./detail/RecordStructuredTab.vue";
-import RecordRawTab from "./detail/RecordRawTab.vue";
-import RecordStreamTab from "./detail/RecordStreamTab.vue";
+import RequestPanel from "./detail/RequestPanel.vue";
+import ResponsePanel from "./detail/ResponsePanel.vue";
 import type { CombinedRecord } from "../types";
 
-type TabName = "overview" | "structured" | "raw" | "stream";
+type TabName = "overview" | "request" | "response";
 
 const props = defineProps<{
   record: CombinedRecord | null;
@@ -80,15 +110,8 @@ defineEmits<{
 // 当前激活的 Tab
 const activeTab = ref<TabName>("overview");
 
-// 头部「复制全部」按钮所需逻辑 + 流式标识（独立调用，不影响子组件 state）
-const { copyAll, isStreamingResponse } = useRecordDetail(props);
-
-// 切换记录时若当前 tab 为「流式」但新记录不是流式响应，则回退到「总览」
-watch([() => props.record?.id, isStreamingResponse], ([, streaming]) => {
-  if (activeTab.value === "stream" && !streaming) {
-    activeTab.value = "overview";
-  }
-});
+// 头部「复制全部」按钮所需逻辑 + 流式标识
+const { copyAll, isStreamingActive } = useRecordDetail(props);
 </script>
 
 <style scoped>
@@ -202,6 +225,30 @@ watch([() => props.record?.id, isStreamingResponse], ([, streaming]) => {
   overflow-y: auto;
   padding: 20px;
   box-sizing: border-box;
+}
+
+/* Tab 标签样式 */
+.tab-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.response-live-dot {
+  display: inline-flex;
+  align-items: center;
+  color: var(--el-color-danger, #f56c6c);
+  animation: blink 1s infinite;
+}
+
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
 }
 
 /* 空状态样式 */

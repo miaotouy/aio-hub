@@ -1,4 +1,4 @@
-import { ref, computed, watch } from "vue";
+import { ref, shallowRef, triggerRef, computed, watch } from "vue";
 import { createModuleLogger } from "@utils/logger";
 import type { StreamUpdate, StreamBuffer } from "../types";
 import {
@@ -11,12 +11,29 @@ import {
 
 const logger = createModuleLogger("LlmInspector/StreamProcessor");
 
-// 流式缓冲区
-const streamBuffer = ref<StreamBuffer>({});
+// 流式缓冲区：使用 shallowRef 避免深度响应式开销
+const streamBuffer = shallowRef<StreamBuffer>({});
 const activeStreamIds = ref<Set<string>>(new Set());
 
 // 当前活动的流式ID
 const currentStreamId = ref<string | null>(null);
+
+// 节流更新队列
+const pendingUpdates = new Map<string, string>();
+let throttleTimer: NodeJS.Timeout | null = null;
+
+function flushUpdates() {
+  if (pendingUpdates.size === 0) return;
+
+  const nextBuffer = { ...streamBuffer.value };
+  for (const [id, chunk] of pendingUpdates.entries()) {
+    nextBuffer[id] = (nextBuffer[id] || "") + chunk;
+  }
+  pendingUpdates.clear();
+  streamBuffer.value = nextBuffer;
+  triggerRef(streamBuffer); // 手动触发更新
+  throttleTimer = null;
+}
 
 /**
  * 获取流式缓冲区
@@ -49,10 +66,14 @@ export function processStreamUpdate(update: StreamUpdate): void {
     chunkLength: update.chunk?.length,
   });
 
-  // 更新缓冲区
+  // 节流更新缓冲区
   if (update.chunk) {
-    const currentContent = streamBuffer.value[update.id] || "";
-    streamBuffer.value[update.id] = currentContent + update.chunk;
+    const currentPending = pendingUpdates.get(update.id) || "";
+    pendingUpdates.set(update.id, currentPending + update.chunk);
+
+    if (!throttleTimer) {
+      throttleTimer = setTimeout(flushUpdates, 100); // 100ms 节流
+    }
   }
 
   // 管理活动流状态
@@ -61,6 +82,16 @@ export function processStreamUpdate(update: StreamUpdate): void {
     currentStreamId.value = update.id;
     logger.debug("流式传输开始", { streamId: update.id });
   } else {
+    // 传输结束时，立即刷入所有 pending 更新，确保数据完整
+    if (pendingUpdates.has(update.id)) {
+      const nextBuffer = { ...streamBuffer.value };
+      nextBuffer[update.id] =
+        (nextBuffer[update.id] || "") + (pendingUpdates.get(update.id) || "");
+      pendingUpdates.delete(update.id);
+      streamBuffer.value = nextBuffer;
+      triggerRef(streamBuffer);
+    }
+
     activeStreamIds.value.delete(update.id);
     if (currentStreamId.value === update.id) {
       currentStreamId.value = null;
@@ -80,7 +111,12 @@ export function getStreamContent(recordId: string): string {
  * 清理指定记录的流式缓冲
  */
 export function clearStreamBuffer(recordId: string): void {
-  delete streamBuffer.value[recordId];
+  pendingUpdates.delete(recordId);
+  const nextBuffer = { ...streamBuffer.value };
+  delete nextBuffer[recordId];
+  streamBuffer.value = nextBuffer;
+  triggerRef(streamBuffer);
+
   activeStreamIds.value.delete(recordId);
   if (currentStreamId.value === recordId) {
     currentStreamId.value = null;
@@ -92,7 +128,9 @@ export function clearStreamBuffer(recordId: string): void {
  * 清理所有流式缓冲
  */
 export function clearAllStreamBuffers(): void {
+  pendingUpdates.clear();
   streamBuffer.value = {};
+  triggerRef(streamBuffer);
   activeStreamIds.value.clear();
   currentStreamId.value = null;
   logger.debug("清理所有流式缓冲");

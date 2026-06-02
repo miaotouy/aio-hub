@@ -1,39 +1,54 @@
 <template>
   <div class="overview-tab">
-    <!-- 请求信息 -->
-    <div class="section">
-      <h4>请求信息</h4>
+    <!-- 请求摘要 -->
+    <section class="section">
+      <h4>
+        <ArrowUpFromLine :size="14" />
+        <span>请求摘要</span>
+      </h4>
       <div class="info-grid">
         <div class="info-item">
-          <label>方法：</label>
+          <label>方法</label>
           <span class="method-badge">{{ record.request.method }}</span>
         </div>
+        <div class="info-item">
+          <label>大小</label>
+          <span>{{ formatSize(record.request.request_size) }}</span>
+        </div>
         <div class="info-item full-row">
-          <label>URL：</label>
+          <label>URL</label>
           <span class="url-full">{{ record.request.url }}</span>
         </div>
-        <div class="info-item">
-          <label>时间：</label>
+        <div class="info-item full-row">
+          <label>时间</label>
           <span>{{ new Date(record.request.timestamp).toLocaleString() }}</span>
-        </div>
-        <div class="info-item">
-          <label>大小：</label>
-          <span>{{ formatSize(record.request.request_size) }}</span>
         </div>
       </div>
 
       <div class="subsection">
-        <div class="subsection-header">
-          <h5>请求头</h5>
+        <button
+          class="collapse-header"
+          @click="requestHeadersExpanded = !requestHeadersExpanded"
+        >
+          <ChevronRight
+            :size="14"
+            class="collapse-icon"
+            :class="{ expanded: requestHeadersExpanded }"
+          />
+          <span class="collapse-title">
+            请求头
+            <span class="count-badge">{{ requestHeaderCount }}</span>
+          </span>
           <button
-            @click="copyRequestHeaders"
+            v-if="requestHeadersExpanded"
+            @click.stop="copyRequestHeaders"
             class="btn-copy-small"
             title="复制请求头"
           >
-            <Copy :size="14" />
+            <Copy :size="13" />
           </button>
-        </div>
-        <div class="headers-list">
+        </button>
+        <div v-if="requestHeadersExpanded" class="headers-list">
           <div
             v-for="(value, key) in record.request.headers"
             :key="key"
@@ -44,14 +59,17 @@
           </div>
         </div>
       </div>
-    </div>
+    </section>
 
-    <!-- 响应信息 -->
-    <div v-if="record.response || isStreamingActive" class="section">
-      <h4>响应信息</h4>
-      <div class="info-grid" v-if="record.response">
+    <!-- 响应摘要 -->
+    <section v-if="record.response || isStreamingActive" class="section">
+      <h4>
+        <ArrowDownToLine :size="14" />
+        <span>响应摘要</span>
+      </h4>
+      <div v-if="record.response" class="info-grid">
         <div class="info-item">
-          <label>状态码：</label>
+          <label>状态码</label>
           <span
             :class="['status-badge', getStatusClass(record.response.status)]"
           >
@@ -59,15 +77,15 @@
           </span>
         </div>
         <div class="info-item">
-          <label>耗时：</label>
+          <label>耗时</label>
           <span>{{ record.response.duration_ms }}ms</span>
         </div>
         <div class="info-item">
-          <label>大小：</label>
+          <label>大小</label>
           <span>{{ formatSize(record.response.response_size) }}</span>
         </div>
         <div class="info-item" v-if="isStreamingResponse">
-          <label>流式：</label>
+          <label>流式</label>
           <span class="stream-flag">
             <Activity :size="12" />
             是
@@ -76,7 +94,7 @@
       </div>
       <div v-else-if="isStreamingActive" class="info-grid">
         <div class="info-item">
-          <label>状态：</label>
+          <label>状态</label>
           <span class="streaming-status">
             <LoaderCircle :size="13" class="spin-icon" />
             接收中...
@@ -85,17 +103,29 @@
       </div>
 
       <div class="subsection" v-if="record.response">
-        <div class="subsection-header">
-          <h5>响应头</h5>
+        <button
+          class="collapse-header"
+          @click="responseHeadersExpanded = !responseHeadersExpanded"
+        >
+          <ChevronRight
+            :size="14"
+            class="collapse-icon"
+            :class="{ expanded: responseHeadersExpanded }"
+          />
+          <span class="collapse-title">
+            响应头
+            <span class="count-badge">{{ responseHeaderCount }}</span>
+          </span>
           <button
-            @click="copyResponseHeaders"
+            v-if="responseHeadersExpanded"
+            @click.stop="copyResponseHeaders"
             class="btn-copy-small"
             title="复制响应头"
           >
-            <Copy :size="14" />
+            <Copy :size="13" />
           </button>
-        </div>
-        <div class="headers-list">
+        </button>
+        <div v-if="responseHeadersExpanded" class="headers-list">
           <div
             v-for="(value, key) in record.response.headers"
             :key="key"
@@ -106,21 +136,62 @@
           </div>
         </div>
       </div>
-    </div>
+    </section>
 
-    <!-- 跳转提示 -->
-    <div class="tab-hint">
-      <Info :size="13" />
-      <span>
-        请求体 / 响应体 完整内容请查看「<strong>原始</strong>」Tab； LLM
-        语义化视图请查看「<strong>结构化</strong>」Tab。
-      </span>
-    </div>
+    <!-- Inspector 元数据（仅 internal 来源） -->
+    <section v-if="hasInspectorMetadata" class="section">
+      <h4>
+        <Sparkles :size="14" />
+        <span>Inspector 元数据</span>
+        <span class="source-badge" :class="record.source">
+          {{ record.source === "internal" ? "内部" : "外部" }}
+        </span>
+      </h4>
+      <div class="info-grid">
+        <div v-if="record.inspectorMetadata?.toolName" class="info-item">
+          <label>工具</label>
+          <span class="meta-value">{{
+            record.inspectorMetadata.toolName
+          }}</span>
+        </div>
+        <div v-if="record.inspectorMetadata?.purpose" class="info-item">
+          <label>用途</label>
+          <span class="meta-value">{{ record.inspectorMetadata.purpose }}</span>
+        </div>
+        <div v-if="record.inspectorMetadata?.profileId" class="info-item">
+          <label>Profile ID</label>
+          <span class="meta-value mono">{{
+            record.inspectorMetadata.profileId
+          }}</span>
+        </div>
+        <div v-if="record.inspectorMetadata?.modelId" class="info-item">
+          <label>Model ID</label>
+          <span class="meta-value mono">{{
+            record.inspectorMetadata.modelId
+          }}</span>
+        </div>
+        <div v-if="record.inspectorMetadata?.sessionId" class="info-item">
+          <label>Session ID</label>
+          <span class="meta-value mono">{{
+            record.inspectorMetadata.sessionId
+          }}</span>
+        </div>
+      </div>
+    </section>
   </div>
 </template>
 
 <script setup lang="ts">
-import { Activity, Copy, Info, LoaderCircle } from "lucide-vue-next";
+import { computed, ref } from "vue";
+import {
+  Activity,
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  ChevronRight,
+  Copy,
+  LoaderCircle,
+  Sparkles,
+} from "lucide-vue-next";
 import { useRecordDetail } from "../../composables/useRecordDetail";
 import type { CombinedRecord } from "../../types";
 
@@ -137,6 +208,31 @@ const {
   formatSize,
   getStatusClass,
 } = useRecordDetail(props);
+
+// 折叠状态（默认折叠）
+const requestHeadersExpanded = ref(false);
+const responseHeadersExpanded = ref(false);
+
+// Header 数量
+const requestHeaderCount = computed(
+  () => Object.keys(props.record.request.headers || {}).length
+);
+const responseHeaderCount = computed(
+  () => Object.keys(props.record.response?.headers || {}).length
+);
+
+// 是否有 Inspector 元数据
+const hasInspectorMetadata = computed(() => {
+  const meta = props.record.inspectorMetadata;
+  if (!meta) return false;
+  return Boolean(
+    meta.toolName ||
+    meta.purpose ||
+    meta.profileId ||
+    meta.modelId ||
+    meta.sessionId
+  );
+});
 </script>
 
 <style scoped>
@@ -154,11 +250,34 @@ const {
 
 .section h4 {
   margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   color: var(--text-color);
   font-size: 14px;
   font-weight: 600;
   border-bottom: var(--border-width) solid var(--border-color);
   padding-bottom: 6px;
+}
+
+.source-badge {
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.source-badge.internal {
+  background: rgba(var(--primary-rgb), calc(var(--card-opacity) * 0.15));
+  color: var(--primary-color);
+  border: var(--border-width) solid
+    rgba(var(--primary-rgb), calc(var(--card-opacity) * 0.3));
+}
+
+.source-badge.external {
+  background: rgba(var(--el-color-info-rgb), calc(var(--card-opacity) * 0.15));
+  color: var(--el-color-info, #909399);
 }
 
 .info-grid {
@@ -182,6 +301,7 @@ const {
 .info-item label {
   color: var(--text-color-light);
   flex-shrink: 0;
+  min-width: 60px;
 }
 
 .info-item span {
@@ -253,25 +373,68 @@ const {
   }
 }
 
-/* === Subsection (headers) === */
+.meta-value {
+  color: var(--text-color);
+}
+
+.meta-value.mono {
+  font-family: "Courier New", monospace;
+  font-size: 12px;
+  word-break: break-all;
+}
+
+/* === 折叠头部 === */
 .subsection {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.subsection-header {
+.collapse-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--card-bg);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-color);
+  text-align: left;
+  transition: all 0.2s;
 }
 
-.subsection h5 {
-  margin: 0;
-  color: var(--text-color);
+.collapse-header:hover {
+  border-color: var(--primary-color);
+}
+
+.collapse-icon {
+  color: var(--text-color-light);
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+.collapse-icon.expanded {
+  transform: rotate(90deg);
+}
+
+.collapse-title {
+  flex: 1;
   font-size: 13px;
   font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.count-badge {
+  padding: 0 6px;
+  background: rgba(var(--primary-rgb), calc(var(--card-opacity) * 0.15));
+  color: var(--primary-color);
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: "Courier New", monospace;
 }
 
 .btn-copy-small {
@@ -289,7 +452,7 @@ const {
 }
 
 .btn-copy-small:hover {
-  background: var(--card-bg);
+  background: var(--container-bg);
   opacity: 1;
 }
 
@@ -322,24 +485,5 @@ const {
 .header-value {
   color: var(--text-color);
   word-break: break-all;
-}
-
-/* === 跳转提示 === */
-.tab-hint {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 12px;
-  background: rgba(var(--el-color-info-rgb), calc(var(--card-opacity) * 0.08));
-  border: var(--border-width) dashed
-    rgba(var(--el-color-info-rgb), calc(var(--card-opacity) * 0.25));
-  border-radius: 4px;
-  color: var(--text-color-light);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.tab-hint strong {
-  color: var(--primary-color);
 }
 </style>

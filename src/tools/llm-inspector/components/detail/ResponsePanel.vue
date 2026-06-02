@@ -38,7 +38,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref } from "vue";
 import { Braces, Circle, Sparkles, Zap } from "lucide-vue-next";
 import ResponseStructuredView from "./views/ResponseStructuredView.vue";
 import ResponseRawView from "./views/ResponseRawView.vue";
@@ -53,13 +53,8 @@ const props = defineProps<{
 type Mode = "structured" | "raw";
 const mode = ref<Mode>("structured");
 
-// 借用 useRecordDetail 拿流式状态用于角标
-const recordRef = computed(() => props.record);
-const { isStreamingActive, isStreamingResponse } = useRecordDetail({
-  get record() {
-    return recordRef.value;
-  },
-} as any);
+// 借用 useRecordDetail 拿流式状态用于角标（props 已满足签名，无需 as any）
+const { isStreamingActive, isStreamingResponse } = useRecordDetail(props);
 </script>
 
 <style scoped>

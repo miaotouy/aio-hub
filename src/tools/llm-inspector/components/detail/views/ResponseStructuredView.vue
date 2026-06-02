@@ -64,7 +64,7 @@
         raw-tag-name="reasoning"
         rule-id="inspector-reasoning"
         display-name="深度思考"
-        :is-thinking="isStreamingActive"
+        :is-thinking="isReasoningActive"
         :collapsed-by-default="false"
         :raw-content="renderData.reasoningText"
       >
@@ -258,6 +258,13 @@ const renderData = computed<RenderData | null>(() => {
     refusals,
     candidates,
   };
+});
+
+// 思维链"思考中"状态：仅在流式中且主正文尚未开始产出时为 true
+// 一旦 mainText 出现，说明 reasoning 已经收尾，思考块应当停止思考动画
+const isReasoningActive = computed(() => {
+  if (!isStreamingActive.value) return false;
+  return !renderData.value?.mainText;
 });
 
 // 解析失败提示（非流式 + 有响应体但消息为空 + 有错误描述时）

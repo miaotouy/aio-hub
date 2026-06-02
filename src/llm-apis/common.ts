@@ -788,10 +788,22 @@ export const fetchWithTimeout = async (
       }
     }
 
-    // 收集请求体（仅当是字符串时；FormData/Uint8Array 不读取以避免开销）
+    // 收集请求体快照
+    // - string：直接采集
+    // - Uint8Array：解码为字符串（OpenAI/Gemini adapter 在大 body 时会用此类型，
+    //   见 src/llm-apis/adapters/openai/chat.ts 的 asyncJsonStringify 路径）
+    // - FormData / 其他：跳过避免性能开销，仅记录占位说明
     let bodySnapshot: string | undefined;
     if (typeof options.body === "string") {
       bodySnapshot = options.body;
+    } else if (options.body instanceof Uint8Array) {
+      try {
+        bodySnapshot = new TextDecoder().decode(options.body);
+      } catch {
+        bodySnapshot = `[Uint8Array, ${options.body.byteLength} bytes]`;
+      }
+    } else if (options.body instanceof FormData) {
+      bodySnapshot = "[FormData body, 跳过采集]";
     }
 
     inspectorHookRegistry.triggerRequest({
@@ -828,14 +840,12 @@ export const fetchWithTimeout = async (
       });
     };
 
-    if (options.isStreaming) {
-      // 流式响应：body 是 ReadableStream，只能消费一次。
-      // 这里只广播头部状态信息，stream chunk 由后续 C 组任务接入。
-      fireEvent(undefined);
-      return;
-    }
-
-    // 非流式：clone 后异步读取 body，避免阻塞 adapter 的 .json()
+    // 无论流式还是非流式：都尝试 clone 后异步读取 body。
+    // - clone() 是 O(1) 操作，不阻塞主流程；
+    // - 后台 .text() 会独立消费 cloned body，与 adapter 主消费链互不干扰；
+    // - 流式响应：cloned reader 会在主 reader 推进时同步收到 chunk，
+    //   最终 .text() resolve 时即拿到累积的完整流内容（注意是流结束后才一次性
+    //   trigger，实时分片显示由后续 RecordStreamTab 任务接入）。
     try {
       const cloned = response.clone();
       cloned

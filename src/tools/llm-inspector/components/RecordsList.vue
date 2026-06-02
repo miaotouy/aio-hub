@@ -46,20 +46,6 @@
         @click="$emit('select', record)"
       >
         <div class="record-header">
-          <!-- 来源徽章（F3）：internal 显示工具名，external 显示「代理」 -->
-          <span
-            class="source-badge"
-            :class="getSourceClass(record)"
-            :title="getSourceTooltip(record)"
-          >
-            <Zap
-              v-if="record.source === 'internal'"
-              :size="9"
-              fill="currentColor"
-            />
-            <Globe v-else :size="9" />
-            <span class="source-text">{{ getSourceLabel(record) }}</span>
-          </span>
           <span :class="['method', record.request.method.toLowerCase()]">
             {{ record.request.method }}
           </span>
@@ -83,6 +69,20 @@
             <template v-if="record.response">
               ↓ {{ formatSize(record.response.response_size) }}
             </template>
+          </span>
+          <!-- 来源徽章（F3）：放到 meta 行，避免挤压 header -->
+          <span
+            class="source-badge"
+            :class="getSourceClass(record)"
+            :title="getSourceTooltip(record)"
+          >
+            <Zap
+              v-if="record.source === 'internal'"
+              :size="9"
+              fill="currentColor"
+            />
+            <Globe v-else :size="9" />
+            <span class="source-text">{{ getSourceLabel(record) }}</span>
           </span>
           <!-- 用途标签（仅 internal 有 purpose 时显示） -->
           <span

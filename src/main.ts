@@ -24,6 +24,11 @@ import { createModuleLogger } from "./utils/logger";
 import packageJson from "../package.json";
 // 导入 Monaco 汉化模块，确保 globalThis._VSCODE_NLS_MESSAGES 被初始化
 import "@/utils/monaco-i18n/nls";
+// 导入 Inspector 钩子注册器，以便在应用启动时初始化跨窗口状态同步。
+// 这能确保即使用户从未打开 Inspector 工具页，主窗口也能响应分离窗口
+// 切换开关的事件，从而正确启用 fetchWithTimeout 中的内部钩子。
+// 见 src/tools/llm-inspector/docs/Plan/2026-06-cross-window-sync.md
+import { inspectorHookRegistry } from "@/tools/llm-inspector/core/hookRegistry";
 import { Buffer } from "buffer";
 
 // 解决 music-metadata-browser 在浏览器环境下缺少 Buffer 的问题
@@ -199,6 +204,12 @@ const mountApp = async () => {
 };
 
 logger.info("应用启动", { version: packageJson.version });
+
+// 初始化 Inspector 跨窗口状态同步（幂等，每个 webview 各调一次）
+inspectorHookRegistry.initGlobalSync().catch((err) => {
+  logger.debug("Inspector 跨窗口同步初始化失败", { error: String(err) });
+});
+
 mountApp();
 
 // 在 Vue 应用挂载后执行

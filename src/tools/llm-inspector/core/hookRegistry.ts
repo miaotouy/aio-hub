@@ -15,15 +15,17 @@
 
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@utils/errorHandler";
-import { emit } from "@tauri-apps/api/event";
+import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import {
   INSPECTOR_INTERNAL_EVENT,
+  INSPECTOR_SYNC_EVENT,
   type InspectorContextMetadata,
   type InspectorErrorEvent,
   type InspectorHooks,
   type InspectorRequestEvent,
   type InspectorResponseEvent,
   type InspectorStreamEvent,
+  type InspectorSyncEnablePayload,
 } from "../types/hooks";
 
 const logger = createModuleLogger("LlmInspector/HookRegistry");
@@ -50,21 +52,47 @@ class InspectorHookRegistry {
   private contextStore: Map<string, InspectorContextMetadata> = new Map();
 
   /**
-   * 启用内部监控（钩子触发器在此开关 OFF 时会短路，避免 clone Response 的开销）
+   * 跨窗口同步监听器是否已初始化（防止重复 listen）
    */
-  enable(): void {
+  private syncInitialized = false;
+
+  /**
+   * 已注册的 Tauri 同步事件 unlisten 函数（保留以便测试场景手动清理）
+   */
+  private syncUnlisteners: UnlistenFn[] = [];
+
+  /**
+   * 启用内部监控（钩子触发器在此开关 OFF 时会短路，避免 clone Response 的开销）
+   *
+   * @param broadcast 是否广播跨窗口同步事件。
+   *   - true（默认）：用户主动切换，需要通知其他窗口。
+   *   - false：响应其他窗口的同步事件，避免事件回环。
+   */
+  enable(broadcast = true): void {
     if (this.captureInternal) return;
     this.captureInternal = true;
-    logger.info("内部监控已启用");
+    logger.info("内部监控已启用", { broadcast });
+    if (broadcast) {
+      this.emitTauri(INSPECTOR_SYNC_EVENT.ENABLE_CHANGED, {
+        enabled: true,
+      } satisfies InspectorSyncEnablePayload);
+    }
   }
 
   /**
    * 禁用内部监控
+   *
+   * @param broadcast 是否广播跨窗口同步事件，语义同 `enable`。
    */
-  disable(): void {
+  disable(broadcast = true): void {
     if (!this.captureInternal) return;
     this.captureInternal = false;
-    logger.info("内部监控已禁用");
+    logger.info("内部监控已禁用", { broadcast });
+    if (broadcast) {
+      this.emitTauri(INSPECTOR_SYNC_EVENT.ENABLE_CHANGED, {
+        enabled: false,
+      } satisfies InspectorSyncEnablePayload);
+    }
   }
 
   /**
@@ -183,6 +211,89 @@ class InspectorHookRegistry {
    */
   getContextStoreSize(): number {
     return this.contextStore.size;
+  }
+
+  /**
+   * 初始化跨窗口状态同步监听器
+   *
+   * 应在应用启动时（每个 webview 实例各自调用一次）触发，幂等。
+   * 完成后：
+   * 1. 监听其他窗口的 `ENABLE_CHANGED` 广播，同步本窗口的 captureInternal。
+   * 2. 监听其他窗口的 `STATE_REQUEST`，若本窗口已启用则广播 `STATE_RESPONSE`。
+   * 3. 监听其他窗口的 `STATE_RESPONSE`，对齐本窗口的 captureInternal。
+   * 4. 主动广播一次 `STATE_REQUEST`，向已存在的窗口询问当前真值。
+   *
+   * 关键点：所有响应分支调用 enable/disable 时都传 `broadcast=false`，
+   * 避免事件回环；ENABLE_CHANGED 也会被发送方自己收到，但因状态已变
+   * 不会触发任何 trigger（enable/disable 内部有幂等短路）。
+   */
+  async initGlobalSync(): Promise<void> {
+    if (this.syncInitialized) return;
+    this.syncInitialized = true;
+
+    try {
+      // 1. 监听 ENABLE_CHANGED
+      this.syncUnlisteners.push(
+        await listen<InspectorSyncEnablePayload>(
+          INSPECTOR_SYNC_EVENT.ENABLE_CHANGED,
+          (event) => {
+            const enabled = event.payload?.enabled === true;
+            if (enabled) this.enable(false);
+            else this.disable(false);
+          }
+        )
+      );
+
+      // 2. 监听 STATE_REQUEST（作为应答方）
+      this.syncUnlisteners.push(
+        await listen(INSPECTOR_SYNC_EVENT.STATE_REQUEST, () => {
+          if (this.captureInternal) {
+            this.emitTauri(INSPECTOR_SYNC_EVENT.STATE_RESPONSE, {
+              enabled: true,
+            } satisfies InspectorSyncEnablePayload);
+          }
+        })
+      );
+
+      // 3. 监听 STATE_RESPONSE（作为请求方）
+      this.syncUnlisteners.push(
+        await listen<InspectorSyncEnablePayload>(
+          INSPECTOR_SYNC_EVENT.STATE_RESPONSE,
+          (event) => {
+            const enabled = event.payload?.enabled === true;
+            if (enabled) this.enable(false);
+          }
+        )
+      );
+
+      // 4. 主动询问现有窗口的状态。
+      // 注意：emitTauri 自身是 fire-and-forget 异步，确保 listen 已注册完才广播
+      this.emitTauri(INSPECTOR_SYNC_EVENT.STATE_REQUEST, {});
+
+      logger.info("跨窗口状态同步已初始化", {
+        listenerCount: this.syncUnlisteners.length,
+      });
+    } catch (error) {
+      // 非 Tauri 环境（测试 / 单元 webpack）下 listen 会抛错，安静失败即可
+      logger.debug("跨窗口同步初始化失败（可能在非 Tauri 环境）", {
+        error: String(error),
+      });
+    }
+  }
+
+  /**
+   * 拆除跨窗口同步监听器（主要用于测试场景）
+   */
+  teardownGlobalSync(): void {
+    for (const unlisten of this.syncUnlisteners) {
+      try {
+        unlisten();
+      } catch {
+        // ignore
+      }
+    }
+    this.syncUnlisteners.length = 0;
+    this.syncInitialized = false;
   }
 
   // ============ 内部辅助方法 ============

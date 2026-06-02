@@ -21,6 +21,8 @@
  */
 
 import { reactive, computed, watch, onMounted, onUnmounted } from "vue";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@utils/errorHandler";
 import { useRecordManager } from "../core/recordManager";
 import { useStreamProcessor } from "../core/streamProcessor";
@@ -28,8 +30,14 @@ import { inspectorHookRegistry } from "../core/hookRegistry";
 import { useInspectorConfig } from "./useInspectorConfig";
 import { useExternalProxy } from "./useExternalProxy";
 import { useInternalMonitor } from "./useInternalMonitor";
-import type { InspectorState, ProxyStatus } from "../types/hooks";
+import {
+  INSPECTOR_SYNC_EVENT,
+  type InspectorState,
+  type InspectorSyncEnablePayload,
+  type ProxyStatus,
+} from "../types/hooks";
 
+const logger = createModuleLogger("LlmInspector/InspectorManager");
 const errorHandler = createModuleErrorHandler("LlmInspector/InspectorManager");
 
 /**
@@ -122,13 +130,22 @@ export function useInspectorManager() {
 
   // === 状态机联动：内部钩子开关 ===
   // monitorInternal 同时受 isGlobalEnabled 钳制：总开关关闭时强制停用。
+  //
+  // 跨窗口同步：
+  // - watch 调用 enable/disable 时默认会广播 ENABLE_CHANGED，通知其他窗口。
+  // - 当本窗口收到其他窗口的 ENABLE_CHANGED（见下方 onMounted），会更新
+  //   state.monitorInternal，从而再次触发本 watch；但因 registry 已经处于
+  //   目标状态，enable/disable 内部会幂等短路，不会形成回环。
   watch(
     () => state.isGlobalEnabled && state.monitorInternal,
     (effectiveOn) => {
+      const currentRegistryState =
+        inspectorHookRegistry.shouldCaptureInternal();
+      if (effectiveOn === currentRegistryState) return;
       if (effectiveOn) {
-        inspectorHookRegistry.enable();
+        inspectorHookRegistry.enable(true);
       } else {
-        inspectorHookRegistry.disable();
+        inspectorHookRegistry.disable(true);
       }
     },
     { immediate: true }
@@ -152,16 +169,78 @@ export function useInspectorManager() {
     }
   );
 
+  // === 跨窗口同步监听 ===
+  // 当其他窗口（如分离窗口）切换内部监控开关时，本窗口需同步 UI 状态，
+  // 以及当其他窗口主动询问/回应状态时，对齐本地 monitorInternal。
+  // 注意：hookRegistry 本身已经在全局 initGlobalSync 中处理了 captureInternal
+  // 状态同步，这里的 listen 只负责把同步结果反映到 reactive state 上。
+  let syncUnlisteners: UnlistenFn[] = [];
+
+  async function setupSyncListeners() {
+    try {
+      // ENABLE_CHANGED：其他窗口切换开关 → 同步 UI
+      const unlistenEnable = await listen<InspectorSyncEnablePayload>(
+        INSPECTOR_SYNC_EVENT.ENABLE_CHANGED,
+        (event) => {
+          const enabled = event.payload?.enabled === true;
+          if (state.monitorInternal !== enabled) {
+            state.monitorInternal = enabled;
+            logger.debug("跨窗口同步：monitorInternal 已更新", { enabled });
+          }
+        }
+      );
+      syncUnlisteners.push(unlistenEnable);
+
+      // STATE_RESPONSE：新窗口启动时收到现有窗口回应 → 同步 UI
+      const unlistenResponse = await listen<InspectorSyncEnablePayload>(
+        INSPECTOR_SYNC_EVENT.STATE_RESPONSE,
+        (event) => {
+          const enabled = event.payload?.enabled === true;
+          if (enabled && !state.monitorInternal) {
+            state.monitorInternal = true;
+            logger.debug("跨窗口同步：从现有窗口对齐 monitorInternal=true");
+          }
+        }
+      );
+      syncUnlisteners.push(unlistenResponse);
+    } catch (error) {
+      logger.debug("跨窗口同步 listener 注册失败（可能在非 Tauri 环境）", {
+        error: String(error),
+      });
+    }
+  }
+
   // === 生命周期 ===
   onMounted(async () => {
     await configMgr.loadConfig();
     await proxyMgr.checkInspectorStatus();
+
+    // 保险性触发：main.ts 已在应用启动时调用过 initGlobalSync，此处再调用
+    // 一次是幂等的（syncInitialized 标志位会短路）。
+    // 这能覆盖 hookRegistry 在 main.ts 之后才被首次导入的边缘场景。
+    inspectorHookRegistry
+      .initGlobalSync()
+      .catch((err) =>
+        logger.debug("initGlobalSync 失败", { error: String(err) })
+      );
+
+    await setupSyncListeners();
   });
 
   onUnmounted(() => {
     // 注意：不在 unmount 时强制 disable hookRegistry，避免分离窗口场景下
     // 主窗口卸载导致全局钩子失效。开关由用户在 UI 上显式控制。
     streamProcessor.clearAllStreamBuffers();
+
+    // 清理跨窗口同步 listener，避免组件销毁后仍持有引用
+    for (const unlisten of syncUnlisteners) {
+      try {
+        unlisten();
+      } catch {
+        // ignore
+      }
+    }
+    syncUnlisteners = [];
   });
 
   // === 对外 API（保持向后兼容） ===

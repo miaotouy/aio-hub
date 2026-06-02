@@ -154,3 +154,34 @@ export const INSPECTOR_INTERNAL_EVENT = {
 
 export type InspectorInternalEventName =
   (typeof INSPECTOR_INTERNAL_EVENT)[keyof typeof INSPECTOR_INTERNAL_EVENT];
+
+/**
+ * Inspector 跨窗口状态同步事件
+ *
+ * 解决「Inspector 分离到独立窗口后，无法启用主窗口内部钩子」的核心问题：
+ * - hookRegistry 是模块级单例，每个 webview 各持一份，状态隔离。
+ * - 通过 Tauri 全局事件总线广播开关状态，让所有窗口的单例同步。
+ *
+ * 协议设计：
+ * - `SYNC_ENABLE`: 任意窗口切换开关时广播，其他窗口收到后同步本地单例 + UI 开关状态。
+ * - `STATE_REQUEST`: 新窗口（如分离窗口）启动时广播，询问现有窗口的当前状态。
+ * - `STATE_RESPONSE`: 已启用窗口收到 STATE_REQUEST 后回应，让新窗口对齐。
+ *
+ * 见 [`2026-06-cross-window-sync.md`](src/tools/llm-inspector/docs/Plan/2026-06-cross-window-sync.md:1)。
+ */
+export const INSPECTOR_SYNC_EVENT = {
+  /** 内部监控启用状态变更广播 */
+  ENABLE_CHANGED: "inspector:sync:enable-changed",
+  /** 新窗口启动时主动询问现有窗口的状态 */
+  STATE_REQUEST: "inspector:sync:state-request",
+  /** 已启用窗口对 STATE_REQUEST 的回应 */
+  STATE_RESPONSE: "inspector:sync:state-response",
+} as const;
+
+export type InspectorSyncEventName =
+  (typeof INSPECTOR_SYNC_EVENT)[keyof typeof INSPECTOR_SYNC_EVENT];
+
+/** SYNC_ENABLE / STATE_RESPONSE 事件 payload */
+export interface InspectorSyncEnablePayload {
+  enabled: boolean;
+}

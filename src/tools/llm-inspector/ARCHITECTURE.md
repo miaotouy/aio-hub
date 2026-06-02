@@ -33,6 +33,20 @@ Rust 原生 HTTP 代理，运行在指定端口（默认 8999）。
 - **跨窗口广播**: 通过 Tauri `emit('inspector:internal:*')` 让分离窗口的请求也能被主窗口看到，配合 LRU 去重（`${type}:${requestId}:${timestamp}`）避免主窗口收到双倍记录。
 - **上下文关联**: [`useLlmRequest`](src/composables/useLlmRequest.ts:1) 在调用 adapter 前 `setContext(requestId, inspectorContext)`，[`fetchWithTimeout`](src/llm-apis/common.ts:697) 通过 `X-Request-ID` 反查 `getContext()`，从而获得工具名/会话 ID/用途等元数据，**不修改任何 adapter**。
 
+#### 1.1.3. 跨窗口启用状态同步
+
+由于 `hookRegistry` 是模块级单例、每个 webview 各持一份，且 `fetchWithTimeout` 短路逻辑读取的是**发起请求所在窗口**的 `captureInternal` 状态，所以仅靠 §1.1.2 的事件广播不足以让分离窗口接管主窗口的监控。为此引入**跨窗口启用状态同步协议**：
+
+- **三事件协议**（定义在 [`types/hooks.ts`](src/tools/llm-inspector/types/hooks.ts:155) 的 `INSPECTOR_SYNC_EVENT`）：
+  - `ENABLE_CHANGED` — 任意窗口切换开关时广播，其他窗口收到后同步本地单例 + UI 开关。
+  - `STATE_REQUEST` — 新窗口启动时主动询问现有窗口的当前状态。
+  - `STATE_RESPONSE` — 已启用窗口收到 `STATE_REQUEST` 后回应，让新窗口对齐。
+- **入口**: [`src/main.ts`](src/main.ts:1) 在每个 webview 启动时显式调用 `inspectorHookRegistry.initGlobalSync()`，注册三个全局监听器并广播一次 `STATE_REQUEST`。`initGlobalSync` 幂等，[`useInspectorManager`](src/tools/llm-inspector/composables/useInspectorManager.ts:1) 在 onMounted 时再保险调一次也无副作用。
+- **防回环**: `enable/disable` 增加 `broadcast` 参数，响应同步事件时传 `false` 静默切换；watch 在调用前比对 `shouldCaptureInternal()`，状态相同直接 return。
+- **UI 同步**: [`useInspectorManager`](src/tools/llm-inspector/composables/useInspectorManager.ts:1) 额外监听 `ENABLE_CHANGED` / `STATE_RESPONSE`，把 `state.monitorInternal` 同步反映出来，确保所有窗口的开关 UI 状态一致。
+- **典型场景**: 用户分离 Inspector → 分离窗口开启监控 → 主窗口的 hookRegistry 同步启用 → 主窗口里 llm-chat 发请求 → 内部钩子触发 → emit 跨窗口事件 → 分离窗口收到记录。
+- 详细设计与施工记录见 [`docs/Plan/2026-06-cross-window-sync.md`](src/tools/llm-inspector/docs/Plan/2026-06-cross-window-sync.md:1)。
+
 ### 1.2. 总开关三层架构
 
 状态在 [`useInspectorManager.ts`](src/tools/llm-inspector/composables/useInspectorManager.ts:1) 的 `state: InspectorState` 中维护：

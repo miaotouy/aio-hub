@@ -46,6 +46,20 @@
         @click="$emit('select', record)"
       >
         <div class="record-header">
+          <!-- 来源徽章（F3）：internal 显示工具名，external 显示「代理」 -->
+          <span
+            class="source-badge"
+            :class="getSourceClass(record)"
+            :title="getSourceTooltip(record)"
+          >
+            <Zap
+              v-if="record.source === 'internal'"
+              :size="9"
+              fill="currentColor"
+            />
+            <Globe v-else :size="9" />
+            <span class="source-text">{{ getSourceLabel(record) }}</span>
+          </span>
           <span :class="['method', record.request.method.toLowerCase()]">
             {{ record.request.method }}
           </span>
@@ -67,6 +81,14 @@
               ↓ {{ formatSize(record.response.response_size) }}
             </template>
           </span>
+          <!-- 用途标签（仅 internal 有 purpose 时显示） -->
+          <span
+            v-if="record.inspectorMetadata?.purpose"
+            class="purpose-tag"
+            :title="`用途: ${record.inspectorMetadata.purpose}`"
+          >
+            {{ record.inspectorMetadata.purpose }}
+          </span>
         </div>
       </div>
     </div>
@@ -75,34 +97,8 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
-import { ListChecks, Filter, Search } from "lucide-vue-next";
-
-// 类型定义
-interface RequestRecord {
-  id: string;
-  timestamp: number;
-  method: string;
-  url: string;
-  headers: Record<string, string>;
-  body?: string;
-  request_size: number;
-}
-
-interface ResponseRecord {
-  id: string;
-  timestamp: number;
-  status: number;
-  headers: Record<string, string>;
-  body?: string;
-  response_size: number;
-  duration_ms: number;
-}
-
-interface CombinedRecord {
-  id: string;
-  request: RequestRecord;
-  response?: ResponseRecord;
-}
+import { ListChecks, Filter, Search, Globe, Zap } from "lucide-vue-next";
+import type { CombinedRecord } from "../types";
 
 // 属性
 const props = defineProps<{
@@ -181,6 +177,30 @@ function getStatusClass(status?: number): string {
   if (status >= 400 && status < 500) return "client-error";
   if (status >= 500) return "server-error";
   return "";
+}
+
+// === 来源徽章（F3） ===
+function getSourceClass(record: CombinedRecord): string {
+  return record.source === "internal" ? "source-internal" : "source-external";
+}
+
+function getSourceLabel(record: CombinedRecord): string {
+  if (record.source === "internal") {
+    return record.inspectorMetadata?.toolName ?? "内部";
+  }
+  return "代理";
+}
+
+function getSourceTooltip(record: CombinedRecord): string {
+  if (record.source === "internal") {
+    const meta = record.inspectorMetadata;
+    const parts: string[] = ["来自前端钩子（内部监控）"];
+    if (meta?.toolName) parts.push(`工具: ${meta.toolName}`);
+    if (meta?.purpose) parts.push(`用途: ${meta.purpose}`);
+    if (meta?.modelId) parts.push(`模型: ${meta.modelId}`);
+    return parts.join("\n");
+  }
+  return "来自外部 HTTP 代理";
 }
 </script>
 
@@ -405,7 +425,57 @@ function getStatusClass(status?: number): string {
 .record-meta {
   display: flex;
   gap: 15px;
+  align-items: center;
   font-size: 12px;
   color: var(--text-color-light);
+  flex-wrap: wrap;
+}
+
+/* === 来源徽章（F3） === */
+.source-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+  cursor: help;
+}
+
+.source-internal {
+  background: rgba(var(--primary-rgb), calc(var(--card-opacity) * 0.15));
+  color: var(--primary-color);
+  border: 1px solid rgba(var(--primary-rgb), calc(var(--card-opacity) * 0.3));
+}
+
+.source-external {
+  background: rgba(var(--el-color-info-rgb), calc(var(--card-opacity) * 0.15));
+  color: var(--el-color-info, #909399);
+  border: 1px solid
+    rgba(var(--el-color-info-rgb), calc(var(--card-opacity) * 0.25));
+}
+
+.source-text {
+  font-family: "Courier New", monospace;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* === 用途标签 === */
+.purpose-tag {
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-family: "Courier New", monospace;
+  background: rgba(
+    var(--el-color-warning-rgb),
+    calc(var(--card-opacity) * 0.12)
+  );
+  color: var(--el-color-warning, #e6a23c);
+  cursor: help;
 }
 </style>

@@ -6,6 +6,7 @@
       :records="records"
       :canStartInspector="canStartInspector"
       :isLoading="isLoading"
+      :listenUrl="listenUrl"
       @toggle-global="handleToggleGlobal"
       @toggle-internal="handleToggleInternal"
       @toggle-external="handleToggleExternal"
@@ -79,7 +80,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref, computed, watch } from "vue";
 import { useInspectorManager } from "./composables/useInspectorManager";
 import { useSplitPane } from "./composables/useSplitPane";
 import { createModuleLogger } from "@utils/logger";
@@ -150,6 +151,12 @@ watch(splitRatio, (next) => {
   if (Math.abs(layout.value.splitRatio - next) > 1e-4) {
     layout.value = { ...layout.value, splitRatio: next };
   }
+});
+
+// 监听地址：http://localhost:{port}
+const listenUrl = computed(() => {
+  if (state.externalProxyStatus !== "running") return "";
+  return `http://localhost:${config.value.port}`;
 });
 
 // UI 局部状态

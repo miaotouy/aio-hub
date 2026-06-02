@@ -64,6 +64,20 @@
         <span class="mode-label">外部代理</span>
         <span class="mode-state">{{ externalStateLabel }}</span>
       </div>
+
+      <!-- 监听地址展示（仅在运行时） -->
+      <div v-if="externalRunning && listenUrl" class="listen-address">
+        <span class="listen-address-label">监听</span>
+        <span class="listen-address-value">{{ listenUrl }}</span>
+        <button
+          class="copy-button"
+          @click="handleCopyListenUrl"
+          :title="'复制监听地址'"
+        >
+          <Copy v-if="!copied" :size="13" />
+          <Check v-else :size="13" class="copy-check" />
+        </button>
+      </div>
     </div>
 
     <!-- 右侧：操作 -->
@@ -90,12 +104,15 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
+import { useClipboard } from "@vueuse/core";
 import {
   Webhook,
   Globe,
   LoaderCircle,
   Trash2,
   Settings,
+  Copy,
+  Check,
 } from "lucide-vue-next";
 import type { CombinedRecord } from "../types";
 import type { InspectorState } from "../types/hooks";
@@ -105,6 +122,7 @@ interface Props {
   records: CombinedRecord[];
   canStartInspector: boolean;
   isLoading: boolean;
+  listenUrl: string;
 }
 
 const props = defineProps<Props>();
@@ -116,6 +134,8 @@ const emit = defineEmits<{
   "clear-records": [];
   "open-settings": [];
 }>();
+
+const { copy, copied } = useClipboard();
 
 // 计算属性
 const effectiveInternal = computed(
@@ -175,6 +195,10 @@ function handleExternalToggle() {
   if (!props.state.isGlobalEnabled) return;
   if (externalTransitioning.value) return;
   emit("toggle-external");
+}
+
+function handleCopyListenUrl() {
+  copy(props.listenUrl);
 }
 </script>
 
@@ -411,5 +435,64 @@ function handleExternalToggle() {
 
 .settings-button:hover:not(:disabled) {
   color: var(--primary-color);
+}
+
+/* === 监听地址展示 === */
+.listen-address {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: rgba(
+    var(--el-color-success-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
+  border: var(--border-width) solid rgba(var(--el-color-success-rgb), 0.3);
+  font-size: 12px;
+  color: var(--el-color-success, #67c23a);
+  white-space: nowrap;
+}
+
+.listen-address-label {
+  font-weight: 500;
+  opacity: 0.7;
+}
+
+.listen-address-value {
+  font-family: var(--font-mono, "SF Mono", "Fira Code", monospace);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.copy-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  color: var(--el-color-success, #67c23a);
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 0;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.copy-button:hover {
+  background: rgba(
+    var(--el-color-success-rgb),
+    calc(var(--card-opacity) * 0.2)
+  );
+}
+
+.copy-button:active {
+  transform: scale(0.9);
+}
+
+.copy-check {
+  color: var(--el-color-success, #67c23a);
 }
 </style>

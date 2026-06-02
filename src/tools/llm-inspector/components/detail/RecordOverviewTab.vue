@@ -138,6 +138,96 @@
       </div>
     </section>
 
+    <!-- Token 估算卡（F1） -->
+    <section v-if="hasTokenInfo" class="section">
+      <h4>
+        <Calculator :size="14" />
+        <span>Token 估算</span>
+        <span v-if="isEstimating" class="estimating-tag" title="正在估算中...">
+          <LoaderCircle :size="11" class="spin-icon" />
+        </span>
+        <span
+          v-if="
+            requestEstimate?.algorithm && requestEstimate.algorithm !== 'none'
+          "
+          class="tokenizer-tag"
+          :title="`使用的 tokenizer: ${requestEstimate.algorithm}${requestEstimate.isEstimated ? ' (粗略估算)' : ''}`"
+        >
+          {{ requestEstimate.algorithm }}
+          <span v-if="requestEstimate.isEstimated" class="estimate-mark"
+            >~</span
+          >
+        </span>
+      </h4>
+
+      <!-- 估算结果 / 服务端 usage 对照表 -->
+      <div class="token-grid">
+        <div class="token-col">
+          <div class="token-col-title">
+            <ArrowUpFromLine :size="11" />
+            <span>请求 (Prompt)</span>
+          </div>
+          <div class="token-row">
+            <label>客户端估算</label>
+            <span class="token-value">{{
+              formatTokenCount(requestEstimate?.total)
+            }}</span>
+          </div>
+          <div class="token-row" v-if="serverUsage">
+            <label>服务端 usage</label>
+            <span class="token-value mono">
+              {{ formatTokenCount(serverUsage.promptTokens) }}
+            </span>
+          </div>
+        </div>
+
+        <div
+          class="token-col"
+          v-if="responseEstimate || serverUsage?.completionTokens"
+        >
+          <div class="token-col-title">
+            <ArrowDownToLine :size="11" />
+            <span>响应 (Completion)</span>
+          </div>
+          <div class="token-row">
+            <label>客户端估算</label>
+            <span class="token-value">
+              {{ formatTokenCount(responseEstimate?.total) }}
+            </span>
+          </div>
+          <div class="token-row" v-if="serverUsage">
+            <label>服务端 usage</label>
+            <span class="token-value mono">
+              {{ formatTokenCount(serverUsage.completionTokens) }}
+            </span>
+          </div>
+        </div>
+
+        <div class="token-col token-col-total" v-if="serverUsage">
+          <div class="token-col-title">
+            <Sigma :size="11" />
+            <span>总计</span>
+          </div>
+          <div class="token-row">
+            <label>服务端 total</label>
+            <span class="token-value mono total-highlight">
+              {{ formatTokenCount(serverUsage.totalTokens) }}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 附件 Token 占位提示（A3 stub） -->
+      <div
+        v-if="hasAttachmentBlocks"
+        class="token-hint"
+        title="多模态附件 Token 估算待 F3 实装"
+      >
+        <Info :size="11" />
+        <span>检测到附件，附件 Token 暂未计入估算</span>
+      </div>
+    </section>
+
     <!-- Inspector 元数据（仅 internal 来源） -->
     <section v-if="hasInspectorMetadata" class="section">
       <h4>
@@ -182,17 +272,21 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, toRef } from "vue";
 import {
   Activity,
   ArrowDownToLine,
   ArrowUpFromLine,
+  Calculator,
   ChevronRight,
   Copy,
+  Info,
   LoaderCircle,
+  Sigma,
   Sparkles,
 } from "lucide-vue-next";
 import { useRecordDetail } from "../../composables/useRecordDetail";
+import { useTokenEstimate } from "../../composables/useTokenEstimate";
 import type { CombinedRecord } from "../../types";
 
 const props = defineProps<{
@@ -208,6 +302,11 @@ const {
   formatSize,
   getStatusClass,
 } = useRecordDetail(props);
+
+// Token 估算（F1）
+const recordRef = toRef(props, "record");
+const { requestEstimate, responseEstimate, serverUsage, isEstimating } =
+  useTokenEstimate(recordRef);
 
 // 折叠状态（默认折叠）
 const requestHeadersExpanded = ref(false);
@@ -233,6 +332,28 @@ const hasInspectorMetadata = computed(() => {
     meta.sessionId
   );
 });
+
+// Token 卡片是否显示（任意数据源有内容就显示）
+const hasTokenInfo = computed(() => {
+  return Boolean(
+    requestEstimate.value?.total ||
+    responseEstimate.value?.total ||
+    serverUsage.value
+  );
+});
+
+// 是否检测到附件（当前 stub 始终 0，未来 F3 接入真实图像计数后自动生效）
+const hasAttachmentBlocks = computed(() => {
+  const reqAttach = requestEstimate.value?.attachment ?? 0;
+  const resAttach = responseEstimate.value?.attachment ?? 0;
+  return reqAttach > 0 || resAttach > 0;
+});
+
+// Token 数字格式化（千分位）
+function formatTokenCount(n: number | undefined | null): string {
+  if (n === undefined || n === null) return "—";
+  return n.toLocaleString("en-US");
+}
 </script>
 
 <style scoped>

@@ -29,7 +29,12 @@
         </div>
       </div>
 
-      <!-- 顶层 Tabs：总览 / 请求 / 响应 -->
+      <!--
+        顶层 Tabs：总览 / 请求 / 响应
+        性能关键：el-tab-pane 默认通过 display:none 隐藏，组件不会销毁，
+        会导致隐藏的 Response Tab 在后台高频响应流式更新（编辑器重绘 / 解析等）。
+        因此为每个面板内容加 v-if，物理销毁未激活的子树，彻底释放后台资源。
+      -->
       <el-tabs v-model="activeTab" class="detail-tabs">
         <el-tab-pane name="overview">
           <template #label>
@@ -38,7 +43,7 @@
               <span>总览</span>
             </span>
           </template>
-          <div class="tab-pane-content">
+          <div v-if="activeTab === 'overview'" class="tab-pane-content">
             <RecordOverviewTab :record="record" :mask-api-keys="maskApiKeys" />
           </div>
         </el-tab-pane>
@@ -50,7 +55,7 @@
               <span>请求</span>
             </span>
           </template>
-          <div class="tab-pane-content">
+          <div v-if="activeTab === 'request'" class="tab-pane-content">
             <RequestPanel :record="record" :mask-api-keys="maskApiKeys" />
           </div>
         </el-tab-pane>
@@ -69,7 +74,7 @@
               </span>
             </span>
           </template>
-          <div class="tab-pane-content">
+          <div v-if="activeTab === 'response'" class="tab-pane-content">
             <ResponsePanel :record="record" :mask-api-keys="maskApiKeys" />
           </div>
         </el-tab-pane>

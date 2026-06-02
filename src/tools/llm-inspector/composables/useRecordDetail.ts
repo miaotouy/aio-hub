@@ -35,41 +35,103 @@ export function useRecordDetail(props: {
     return contentType.includes("text/event-stream");
   });
 
+  /**
+   * 性能关键：避免对全局 streamBuffer 的"无辜订阅"。
+   *
+   * 背景：streamStore.streamBuffer 是 shallowRef，任何一个请求的流式更新
+   * 都会改变它的引用。如果一个静态的、已结束的记录的 computed 也依赖了
+   * streamBuffer，那么后台其他请求的流式更新会强制它重新计算，造成大量
+   * 不必要的 CPU 消耗（尤其是大文本的格式化 / 解析）。
+   *
+   * 解决：通过分支隔离——当记录不在活跃流中时，直接走静态分支并只读
+   * record.response.body，**完全不访问** streamStore.streamBuffer，
+   * Vue 的惰性依赖收集会自动让它从 streamBuffer 的订阅中"脱离"。
+   */
+
   const displayResponseBody = computed(() => {
     if (!record.value) return "";
+    const recordId = record.value.id;
+    const responseBody = record.value.response?.body;
+
+    // 静态记录分支：不订阅 streamBuffer，避免被其他流式请求的更新连带触发
+    if (!streamStore.isStreamingRecord(recordId)) {
+      if (!responseBody) return "";
+      return streamStore.getDisplayResponseBody(
+        recordId,
+        responseBody,
+        isStreamingResponse.value
+      );
+    }
+
+    // 活跃流分支：正常订阅 streamBuffer
     return streamStore.getDisplayResponseBody(
-      record.value.id,
-      record.value.response?.body,
+      recordId,
+      responseBody,
       isStreamingResponse.value
     );
   });
 
   const canShowTextMode = computed(() => {
-    return record.value
-      ? streamStore.canShowTextMode(
-          record.value.id,
-          record.value.response?.body
-        )
-      : false;
+    if (!record.value) return false;
+    const recordId = record.value.id;
+    const responseBody = record.value.response?.body;
+
+    // 静态记录分支
+    if (!streamStore.isStreamingRecord(recordId)) {
+      if (!responseBody) return false;
+      return streamStore.canShowTextMode(recordId, responseBody);
+    }
+
+    return streamStore.canShowTextMode(recordId, responseBody);
   });
 
   const extractedContent = computed(() => {
     if (!record.value) return "";
+    const recordId = record.value.id;
+    const responseBody = record.value.response?.body;
+    const requestUrl = record.value.request.url;
+
+    // 静态记录分支：不订阅 streamBuffer
+    if (!streamStore.isStreamingRecord(recordId)) {
+      if (!responseBody) return "";
+      return streamStore.extractContent(
+        recordId,
+        responseBody,
+        isStreamingResponse.value,
+        requestUrl
+      );
+    }
+
     return streamStore.extractContent(
-      record.value.id,
-      record.value.response?.body,
+      recordId,
+      responseBody,
       isStreamingResponse.value,
-      record.value.request.url
+      requestUrl
     );
   });
 
   const extractedReasoning = computed(() => {
     if (!record.value) return "";
+    const recordId = record.value.id;
+    const responseBody = record.value.response?.body;
+    const requestUrl = record.value.request.url;
+
+    // 静态记录分支：不订阅 streamBuffer
+    if (!streamStore.isStreamingRecord(recordId)) {
+      if (!responseBody) return "";
+      return streamStore.extractReasoning(
+        recordId,
+        responseBody,
+        isStreamingResponse.value,
+        requestUrl
+      );
+    }
+
     return streamStore.extractReasoning(
-      record.value.id,
-      record.value.response?.body,
+      recordId,
+      responseBody,
       isStreamingResponse.value,
-      record.value.request.url
+      requestUrl
     );
   });
 

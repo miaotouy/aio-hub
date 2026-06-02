@@ -819,8 +819,17 @@ export const fetchWithTimeout = async (
 
   /**
    * 触发 Inspector 响应事件（开关 ON 且 requestId 存在时）
-   * - 流式响应：不读取 body（body 还要给 adapter 消费，且只能消费一次）
-   * - 非流式响应：clone 后异步读取 body，不阻塞主流程
+   *
+   * 处理策略：
+   * - **流式响应**（SSE / `text/event-stream` / `options.isStreaming === true`）：
+   *   clone 响应后启动独立 reader 循环，每读到 chunk 立即通过
+   *   `triggerStream({ isComplete: false })` 实时推送给 Inspector，
+   *   reader done 后再触发一次 `triggerStream({ isComplete: true })` +
+   *   带累积完整 body 的 `triggerResponse`。
+   * - **非流式响应**：clone 后异步 `.text()` 一次性 fire `triggerResponse`。
+   *
+   * 关键点：`clone()` 是 O(1)，独立 reader 与 adapter 主消费链互不干扰，
+   * 背压由浏览器/Tauri 自动协调。
    */
   const triggerInspectorResponse = (response: Response): void => {
     if (!captureInspector || !inspectorRequestId) return;
@@ -828,34 +837,132 @@ export const fetchWithTimeout = async (
     response.headers.forEach((v, k) => {
       headersObj[k] = v;
     });
-    const fireEvent = (body: string | undefined) => {
+    const requestId = inspectorRequestId;
+    const startTs = inspectorStartTimestamp;
+    const metadata = resolvedInspectorContext;
+
+    const fireResponseEvent = (body: string | undefined) => {
       inspectorHookRegistry.triggerResponse({
-        requestId: inspectorRequestId!,
+        requestId,
         timestamp: Date.now(),
         status: response.status,
         headers: headersObj,
         body,
-        durationMs: Date.now() - inspectorStartTimestamp,
-        metadata: resolvedInspectorContext,
+        durationMs: Date.now() - startTs,
+        metadata,
       });
     };
 
-    // 无论流式还是非流式：都尝试 clone 后异步读取 body。
-    // - clone() 是 O(1) 操作，不阻塞主流程；
-    // - 后台 .text() 会独立消费 cloned body，与 adapter 主消费链互不干扰；
-    // - 流式响应：cloned reader 会在主 reader 推进时同步收到 chunk，
-    //   最终 .text() resolve 时即拿到累积的完整流内容（注意是流结束后才一次性
-    //   trigger，实时分片显示由后续 RecordStreamTab 任务接入）。
+    // 判断是否流式响应：优先看 content-type，其次看 options.isStreaming
+    const contentType = (
+      response.headers.get("content-type") || ""
+    ).toLowerCase();
+    const isStreamResponse =
+      contentType.includes("text/event-stream") ||
+      contentType.includes("application/stream+json") ||
+      options.isStreaming === true;
+
+    let cloned: Response;
     try {
-      const cloned = response.clone();
+      cloned = response.clone();
+    } catch {
+      // clone 异常时仅广播头部信息，确保不阻塞主流程
+      fireResponseEvent(undefined);
+      return;
+    }
+
+    if (!isStreamResponse) {
+      // 非流式：一次性读取完整 body
       cloned
         .text()
-        .then((body) => fireEvent(body))
-        .catch(() => fireEvent(undefined));
-    } catch {
-      // clone 异常也不阻塞主流程，仅广播头部信息
-      fireEvent(undefined);
+        .then((body) => fireResponseEvent(body))
+        .catch(() => fireResponseEvent(undefined));
+      return;
     }
+
+    // 流式：启动独立 reader 循环逐 chunk 推送
+    const body = cloned.body;
+    if (!body) {
+      // 没有 body 流：直接结束
+      inspectorHookRegistry.triggerStream({
+        requestId,
+        timestamp: Date.now(),
+        chunk: "",
+        isComplete: true,
+        metadata,
+      });
+      fireResponseEvent(undefined);
+      return;
+    }
+
+    void (async () => {
+      const reader = body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let accumulated = "";
+      try {
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          // stream: true 用于跨多块的字符边界拼接（UTF-8 多字节安全）
+          const chunkStr = decoder.decode(value, { stream: true });
+          if (chunkStr) {
+            accumulated += chunkStr;
+            inspectorHookRegistry.triggerStream({
+              requestId,
+              timestamp: Date.now(),
+              chunk: chunkStr,
+              isComplete: false,
+              metadata,
+            });
+          }
+        }
+        // 冲刷 decoder 残留字节
+        const tail = decoder.decode();
+        if (tail) {
+          accumulated += tail;
+          inspectorHookRegistry.triggerStream({
+            requestId,
+            timestamp: Date.now(),
+            chunk: tail,
+            isComplete: false,
+            metadata,
+          });
+        }
+        // 终结流式标记
+        inspectorHookRegistry.triggerStream({
+          requestId,
+          timestamp: Date.now(),
+          chunk: "",
+          isComplete: true,
+          metadata,
+        });
+        // 触发一次完整 response，带累积 body（供非流式 raw 视图使用）
+        fireResponseEvent(accumulated);
+      } catch (err) {
+        // 读流异常：发一个 complete 标记 + 错误事件
+        inspectorHookRegistry.triggerStream({
+          requestId,
+          timestamp: Date.now(),
+          chunk: "",
+          isComplete: true,
+          metadata,
+        });
+        inspectorHookRegistry.triggerError({
+          requestId,
+          timestamp: Date.now(),
+          errorName: (err as Error)?.name || "StreamReadError",
+          errorMessage: (err as Error)?.message || String(err),
+          metadata,
+        });
+        fireResponseEvent(accumulated || undefined);
+      } finally {
+        try {
+          reader.releaseLock();
+        } catch {
+          // 释放锁失败可忽略
+        }
+      }
+    })();
   };
 
   try {

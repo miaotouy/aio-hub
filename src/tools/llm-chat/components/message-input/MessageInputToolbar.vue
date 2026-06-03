@@ -1,10 +1,6 @@
 <script lang="ts">
-export interface InputToolbarSettings {
-  showTokenUsage: boolean;
-  enableMacroParsing: boolean;
-  extractBase64FromPaste: boolean;
-  groupQuickActionsBySet: boolean;
-}
+// Re-export for backward compatibility
+export type { InputToolbarSettings } from "../../stores/messageInputStore";
 </script>
 
 <script setup lang="ts">
@@ -37,9 +33,11 @@ import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { customMessage } from "@/utils/customMessage";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
 import { useIsVcpChannel } from "../../composables/useIsVcpChannel";
+import { useMessageInputStore } from "../../stores/messageInputStore";
 
 import type { QuickAction, QuickActionSet } from "../../types/quick-action";
 import { computed, ref, onMounted, defineAsyncComponent, watch } from "vue";
+import { storeToRefs } from "pinia";
 import { useChatContext } from "../../composables/chat/useChatContext";
 
 const QuickActionManagerDialog = defineAsyncComponent(
@@ -52,7 +50,6 @@ interface Props {
   isDetached?: boolean;
   isExpanded: boolean;
   isStreamingEnabled: boolean;
-  macroSelectorVisible: boolean;
   contextStats: ContextPreviewData["statistics"] | null;
   tokenCount: number;
   isCalculatingTokens: boolean;
@@ -61,13 +58,11 @@ interface Props {
   isProcessingAttachments: boolean;
   temporaryModel: ModelIdentifier | null;
   hasAttachments: boolean;
-  settings: InputToolbarSettings;
   isTranslating?: boolean;
   translationEnabled?: boolean;
   isCompressing?: boolean;
   continuationModel?: ModelIdentifier | null;
   isCompleting?: boolean;
-  anyMenuOpen?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -80,9 +75,6 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   (e: "toggle-streaming"): void;
-  (e: "update:macroSelectorVisible", value: boolean): void;
-  (e: "update:anyMenuOpen", value: boolean): void;
-  (e: "update:settings", value: InputToolbarSettings): void;
   (e: "insert", macro: MacroDefinition): void;
   (e: "toggle-expand"): void;
   (e: "select-temporary-model"): void;
@@ -104,6 +96,17 @@ const emit = defineEmits<{
 const context = useChatContext();
 const { isSending, disabled } = context.state;
 const { send, abort, triggerAttachment } = context.actions;
+
+const inputStore = useMessageInputStore();
+const {
+  macroSelectorVisible,
+  sessionListVisible,
+  toolSettingsVisible,
+  moreMenuVisible,
+  settingsVisible,
+  canvasMenuOpen,
+  settings: inputSettings,
+} = storeToRefs(inputStore);
 
 const { getProfileById } = useLlmProfiles();
 const quickActionStore = useQuickActionStore();
@@ -189,15 +192,6 @@ const temporaryModelInfo = computed(() => {
   return { profileName: profile.name, modelName: model.name || model.id };
 });
 
-const onMacroSelectorUpdate = (visible: boolean) => {
-  emit("update:macroSelectorVisible", visible);
-};
-
-const sessionListVisible = ref(false);
-const toolSettingsVisible = ref(false);
-const moreMenuVisible = ref(false);
-const settingsVisible = ref(false);
-const canvasMenuOpen = ref(false);
 const miniSessionListRef = ref<any>(null);
 
 const isCanvasEnabled = computed(() => {
@@ -249,24 +243,6 @@ const canvasBindingInfo = computed(() => {
   }
 });
 
-// 汇总所有菜单状态并向上同步
-watch(
-  [
-    () => props.macroSelectorVisible,
-    sessionListVisible,
-    toolSettingsVisible,
-    moreMenuVisible,
-    settingsVisible,
-    canvasMenuOpen,
-  ],
-  ([macro, session, tool, more, settings, canvas]) => {
-    emit(
-      "update:anyMenuOpen",
-      !!(macro || session || tool || more || settings || canvas)
-    );
-  }
-);
-
 const handleSessionListShow = () => {
   setTimeout(() => miniSessionListRef.value?.scrollToCurrent(), 100);
 };
@@ -307,7 +283,7 @@ const handleOpenQuickActionManager = () => {
     <QuickActionsBar
       v-if="activeActionSets.length > 0"
       :active-action-sets="activeActionSets"
-      :group-quick-actions-by-set="props.settings.groupQuickActionsBySet"
+      :group-quick-actions-by-set="inputSettings.groupQuickActionsBySet"
       @execute-quick-action="emit('execute-quick-action', $event)"
     />
 
@@ -336,8 +312,7 @@ const handleOpenQuickActionManager = () => {
         <el-tooltip content="添加宏变量" placement="top" :show-after="1500">
           <div>
             <el-popover
-              :visible="props.macroSelectorVisible"
-              @update:visible="onMacroSelectorUpdate"
+              v-model:visible="macroSelectorVisible"
               placement="bottom-start"
               :width="300"
               trigger="click"
@@ -349,7 +324,7 @@ const handleOpenQuickActionManager = () => {
               <template #reference>
                 <button
                   class="macro-icon-button"
-                  :class="{ active: props.macroSelectorVisible }"
+                  :class="{ active: macroSelectorVisible }"
                 >
                   <el-icon><MagicStick /></el-icon>
                 </button>
@@ -479,12 +454,7 @@ const handleOpenQuickActionManager = () => {
         </el-tooltip>
 
         <!-- 工具栏设置 -->
-        <ToolbarSettingsPopover
-          :is-detached="props.isDetached"
-          :settings="props.settings"
-          @update:settings="emit('update:settings', $event)"
-          @visible-change="settingsVisible = $event"
-        >
+        <ToolbarSettingsPopover :is-detached="props.isDetached">
           <button
             class="tool-btn settings-btn"
             :class="{ active: settingsVisible }"
@@ -573,7 +543,7 @@ const handleOpenQuickActionManager = () => {
           :is-canvas-enabled="isCanvasEnabled"
           :canvas-binding-info="canvasBindingInfo"
           :has-canvas-pending-changes="hasCanvasPendingChanges"
-          :show-token-usage="props.settings.showTokenUsage"
+          :show-token-usage="inputSettings.showTokenUsage"
           :context-stats="props.contextStats"
           :token-count="props.tokenCount"
           :is-calculating-tokens="props.isCalculatingTokens"

@@ -1,19 +1,15 @@
 <script setup lang="ts">
 import { ElPopover, ElSwitch } from "element-plus";
 import { Settings } from "lucide-vue-next";
-import type { InputToolbarSettings } from "../MessageInputToolbar.vue";
+import { useMessageInputStore } from "../../../stores/messageInputStore";
+import type { InputToolbarSettings } from "../../../stores/messageInputStore";
 import { useChatSettings } from "../../../composables/settings/useChatSettings";
 
 const props = defineProps<{
   isDetached?: boolean;
-  settings: InputToolbarSettings;
 }>();
 
-const emit = defineEmits<{
-  (e: "update:settings", value: InputToolbarSettings): void;
-  (e: "visible-change", visible: boolean): void;
-}>();
-
+const inputStore = useMessageInputStore();
 const { settings: chatSettings, updateSettings: updateChatSettings } =
   useChatSettings();
 
@@ -21,7 +17,7 @@ function updateSetting(
   key: keyof InputToolbarSettings,
   val: boolean | string | number
 ) {
-  emit("update:settings", { ...props.settings, [key]: val });
+  inputStore.settings[key] = val as boolean;
 }
 </script>
 
@@ -36,8 +32,8 @@ function updateSetting(
           'toolbar-settings-popover',
           { 'detached-popover': props.isDetached },
         ]"
-        @show="emit('visible-change', true)"
-        @hide="emit('visible-change', false)"
+        @show="inputStore.settingsVisible = true"
+        @hide="inputStore.settingsVisible = false"
       >
         <template #reference>
           <slot>
@@ -50,7 +46,7 @@ function updateSetting(
           <div class="setting-item">
             <span class="setting-label">显示 Token 统计</span>
             <el-switch
-              :model-value="props.settings.showTokenUsage"
+              :model-value="inputStore.settings.showTokenUsage"
               @update:model-value="
                 (v: boolean | string | number) =>
                   updateSetting('showTokenUsage', v)
@@ -61,7 +57,7 @@ function updateSetting(
           <div class="setting-item">
             <span class="setting-label">启用输入宏解析</span>
             <el-switch
-              :model-value="props.settings.enableMacroParsing"
+              :model-value="inputStore.settings.enableMacroParsing"
               @update:model-value="
                 (v: boolean | string | number) =>
                   updateSetting('enableMacroParsing', v)
@@ -72,7 +68,7 @@ function updateSetting(
           <div class="setting-item">
             <span class="setting-label">粘贴时提取 Base64 图像</span>
             <el-switch
-              :model-value="props.settings.extractBase64FromPaste"
+              :model-value="inputStore.settings.extractBase64FromPaste"
               @update:model-value="
                 (v: boolean | string | number) =>
                   updateSetting('extractBase64FromPaste', v)
@@ -83,7 +79,7 @@ function updateSetting(
           <div class="setting-item">
             <span class="setting-label">快捷按钮按组分行</span>
             <el-switch
-              :model-value="props.settings.groupQuickActionsBySet"
+              :model-value="inputStore.settings.groupQuickActionsBySet"
               @update:model-value="
                 (v: boolean | string | number) =>
                   updateSetting('groupQuickActionsBySet', v)

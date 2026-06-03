@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, toRef, computed, onMounted, watch } from "vue";
-import { useStorage, useElementSize } from "@vueuse/core";
+import { useElementSize } from "@vueuse/core";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useDetachable } from "@/composables/useDetachable";
@@ -11,6 +11,7 @@ import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useChatSettings } from "@/tools/llm-chat/composables/settings/useChatSettings";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { useChatInputTokenPreview } from "@/tools/llm-chat/composables/input/useChatInputTokenPreview";
+import { useMessageInputStore } from "../../stores/messageInputStore";
 import type { Asset } from "@/types/asset-management";
 import type { ModelIdentifier } from "@/tools/llm-chat/types";
 import { customMessage } from "@/utils/customMessage";
@@ -18,9 +19,7 @@ import { useTranscriptionManager } from "@/tools/llm-chat/composables/features/u
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import ComponentHeader from "@/components/ComponentHeader.vue";
-import MessageInputToolbar, {
-  type InputToolbarSettings,
-} from "./MessageInputToolbar.vue";
+import MessageInputToolbar from "./MessageInputToolbar.vue";
 import ChatCodeMirrorEditor from "./ChatCodeMirrorEditor.vue";
 import MessageInputAttachments from "./MessageInputAttachments.vue";
 
@@ -28,6 +27,7 @@ import MessageInputAttachments from "./MessageInputAttachments.vue";
 import { useMessageInputResize } from "../../composables/input/useMessageInputResize";
 import { useMessageInputActions } from "../../composables/input/useMessageInputActions";
 import { provideChatContext } from "../../composables/chat/useChatContext";
+import { storeToRefs } from "pinia";
 
 const logger = createModuleLogger("MessageInput");
 const errorHandler = createModuleErrorHandler("MessageInput");
@@ -50,18 +50,8 @@ const isStreamingEnabled = computed(() => {
     : false;
 });
 
-// UI 设置状态 (持久化)
-const inputSettings = useStorage<InputToolbarSettings>(
-  "chat-input-settings",
-  {
-    showTokenUsage: true,
-    enableMacroParsing: true,
-    extractBase64FromPaste: true,
-    groupQuickActionsBySet: false,
-  },
-  localStorage,
-  { mergeDefaults: true }
-);
+const inputStore = useMessageInputStore();
+const { settings: inputSettings } = storeToRefs(inputStore);
 
 // 计算当前分支是否正在生成
 const isCurrentBranchGenerating = computed(() => {
@@ -120,9 +110,7 @@ const { height: attachmentsHeight } = useElementSize(attachmentsContainerRef);
 const { height: containerHeight } = useElementSize(containerRef);
 
 // 状态
-const macroSelectorVisible = ref(false);
 const isExpanded = ref(false);
-const isAnyMenuOpen = ref(false); // 追踪是否有任何气泡菜单打开
 const isUpdatingSize = ref(false); // 锁，防止并发调整大小导致抖动
 
 // 使用全局输入管理器
@@ -288,7 +276,7 @@ watch(inputManager.focusRequest, () => {
  * @param expanding 是否强制展开高度（用于菜单显示）
  */
 const updateDetachedWindowSize = async (
-  expanding: boolean = isAnyMenuOpen.value
+  expanding: boolean = inputStore.anyMenuOpen
 ) => {
   if (!props.isDetached || isUpdatingSize.value) return;
   isUpdatingSize.value = true;
@@ -324,21 +312,18 @@ const updateDetachedWindowSize = async (
   }
 };
 // 监听菜单状态变化
-watch(isAnyMenuOpen, (val) => {
-  updateDetachedWindowSize(val);
-});
+watch(
+  () => inputStore.anyMenuOpen,
+  (val) => {
+    updateDetachedWindowSize(val);
+  }
+);
 
 // 监听容器内容高度变化 (如输入多行、添加附件、手动拖拽高度)
 watch(containerHeight, () => {
   if (props.isDetached) {
     updateDetachedWindowSize();
   }
-});
-
-// 监听宏选择器状态
-watch(macroSelectorVisible, (val) => {
-  if (val) isAnyMenuOpen.value = true;
-  // 关闭逻辑由 MessageInputToolbar 的汇总状态处理
 });
 
 // Provide context for child components (MessageInputToolbar)
@@ -590,9 +575,6 @@ const handleDragStart = (e: MouseEvent) => {
             :is-detached="props.isDetached"
             :is-expanded="isExpanded"
             :is-streaming-enabled="isStreamingEnabled"
-            v-model:macro-selector-visible="macroSelectorVisible"
-            v-model:any-menu-open="isAnyMenuOpen"
-            v-model:settings="inputSettings"
             :context-stats="chatStore.contextStats"
             :token-count="tokenCount"
             :is-calculating-tokens="isCalculatingTokens"

@@ -83,7 +83,7 @@ dependencies = [
 
 [[package]]
 name = "aiohub"
-version = "0.6.2-alpha.3"
+version = "0.6.3-alpha.1"
 dependencies = [
  "aes-gcm",
  "anyhow",

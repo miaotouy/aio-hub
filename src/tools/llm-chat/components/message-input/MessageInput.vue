@@ -151,14 +151,10 @@ const {
 
 // 2. 交互动作逻辑
 const {
-  isTranslatingInput,
-  isCompressing,
   handleSend,
   handleAbort,
   handleQuickAction,
   handleInsertMacro,
-  handleTranslateInput,
-  handleCompressContext,
   handleTriggerAttachment,
   handleKeydown,
   handlePaste,
@@ -166,7 +162,6 @@ const {
   handleSwitchSession,
   handleNewSession,
   handleAnalyzeContextWithInput,
-  handleCleanupPlaceholders,
   getWillUseTranscription,
   handleTranscribeAll,
   handleSmartTranscribeAll,
@@ -333,6 +328,8 @@ onMounted(async () => {
   if (textareaRef.value) {
     inputManager.registerEditor(textareaRef.value);
   }
+  // 注册 textareaRef 到 Store，供翻译 action 使用
+  inputStore.registerTextareaRef(textareaRef);
 
   if (inputManager.attachments.value.length > 0) {
     inputManager.attachments.value.forEach((asset) => {
@@ -401,30 +398,6 @@ const handleDetach = async () => {
     }
   } catch (error) {
     errorHandler.error(error, "通过菜单分离窗口失败");
-  }
-};
-
-// ===== 路径转附件 =====
-const handleConvertPaths = async () => {
-  try {
-    const result = await inputManager.convertPathsToAttachments();
-    if (result.totalCount === 0) {
-      customMessage.info("未在输入内容中检测到本地文件路径");
-      return;
-    }
-    if (result.successCount > 0) {
-      const msg =
-        result.failedCount > 0
-          ? `已转换 ${result.successCount} 个路径，${result.failedCount} 个失败`
-          : `已转换 ${result.successCount} 个路径为附件`;
-      customMessage.success(msg);
-    } else {
-      customMessage.warning(
-        `${result.failedCount} 个路径转换失败，请检查文件是否存在`
-      );
-    }
-  } catch (error) {
-    errorHandler.error(error, "路径转换失败");
   }
 };
 
@@ -564,20 +537,15 @@ const handleDragStart = (e: MouseEvent) => {
             :input-text="inputText"
             :is-processing-attachments="attachmentManager.isProcessing.value"
             :has-attachments="attachmentManager.hasAttachments.value"
-            :is-translating="isTranslatingInput"
             :translation-enabled="settings.translation.enabled"
-            :is-compressing="isCompressing"
+            :is-compressing="inputStore.isCompressing"
             @toggle-streaming="toggleStreaming"
             @insert="handleInsertMacro"
             @toggle-expand="toggleExpand"
             @execute-quick-action="handleQuickAction"
-            @translate-input="handleTranslateInput"
             @switch-session="handleSwitchSession"
             @new-session="handleNewSession"
-            @compress-context="handleCompressContext"
             @complete-input="handleCompleteInput"
-            @convert-paths="handleConvertPaths"
-            @cleanup-placeholders="handleCleanupPlaceholders"
             @open-agent-settings="handleOpenAgentSettings"
             @analyze-context-with-input="handleAnalyzeContextWithInput"
           />

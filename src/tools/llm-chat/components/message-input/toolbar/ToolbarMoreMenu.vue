@@ -15,6 +15,9 @@ import {
   ScanSearch,
   Grip,
 } from "lucide-vue-next";
+import { useMessageInputStore } from "../../../stores/messageInputStore";
+
+const inputStore = useMessageInputStore();
 
 const props = defineProps<{
   isDetached?: boolean;
@@ -23,8 +26,6 @@ const props = defineProps<{
   isCompleting: boolean;
   disabled: boolean;
   translationEnabled?: boolean;
-  isTranslating?: boolean;
-  isCompressing?: boolean;
   isContextCompressionEnabled: boolean;
   continuationModelInfo: { profileName: string; modelName: string } | null;
 }>();
@@ -32,10 +33,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: "complete-input", text: string): void;
   (e: "select-continuation-model"): void;
-  (e: "translate-input"): void;
-  (e: "compress-context"): void;
-  (e: "convert-paths"): void;
-  (e: "cleanup-placeholders"): void;
   (e: "analyze-context-with-input"): void;
   (e: "open-quick-action-manager"): void;
   (e: "visible-change", visible: boolean): void;
@@ -92,29 +89,33 @@ const emit = defineEmits<{
         <!-- 翻译 -->
         <el-dropdown-item
           v-if="props.translationEnabled"
-          :disabled="props.isTranslating || !props.inputText.trim()"
-          @click="emit('translate-input')"
+          :disabled="inputStore.isTranslating || !props.inputText.trim()"
+          @click="inputStore.handleTranslateInput()"
         >
           <div class="dropdown-item-content">
             <Languages :size="16" />
             <span>翻译输入</span>
-            <span v-if="props.isTranslating" class="loading-dots">...</span>
+            <span v-if="inputStore.isTranslating" class="loading-dots"
+              >...</span
+            >
           </div>
         </el-dropdown-item>
 
         <!-- 压缩 -->
         <el-dropdown-item
           :disabled="
-            props.isCompressing ||
+            inputStore.isCompressing ||
             props.disabled ||
             !props.isContextCompressionEnabled
           "
-          @click="emit('compress-context')"
+          @click="inputStore.handleCompressContext()"
         >
           <div class="dropdown-item-content">
             <Package :size="16" />
             <span>压缩上下文</span>
-            <span v-if="props.isCompressing" class="loading-dots">...</span>
+            <span v-if="inputStore.isCompressing" class="loading-dots"
+              >...</span
+            >
           </div>
         </el-dropdown-item>
 
@@ -123,7 +124,7 @@ const emit = defineEmits<{
         <!-- 路径转附件 -->
         <el-dropdown-item
           :disabled="props.disabled || !props.inputText.trim()"
-          @click="emit('convert-paths')"
+          @click="inputStore.handleConvertPaths()"
         >
           <div class="dropdown-item-content">
             <FileUp :size="16" />
@@ -134,7 +135,7 @@ const emit = defineEmits<{
         <!-- 清理无效占位符 -->
         <el-dropdown-item
           :disabled="props.disabled || !props.inputText.trim()"
-          @click="emit('cleanup-placeholders')"
+          @click="inputStore.handleCleanupPlaceholders()"
         >
           <div class="dropdown-item-content">
             <el-icon><X /></el-icon>

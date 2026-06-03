@@ -70,11 +70,7 @@ const emit = defineEmits<{
   (e: "insert", macro: MacroDefinition): void;
   (e: "toggle-expand"): void;
   (e: "execute-quick-action", action: QuickAction): void;
-  (e: "translate-input"): void;
-  (e: "compress-context"): void;
   (e: "complete-input", content: string): void;
-  (e: "convert-paths"): void;
-  (e: "cleanup-placeholders"): void;
   (e: "analyze-context-with-input"): void;
   (e: "switch-session", sessionId: string): void;
   (e: "new-session"): void;
@@ -343,7 +339,7 @@ const handleOpenQuickActionManager = () => {
         <el-tooltip content="临时指定模型" placement="top" :show-after="500">
           <button
             class="tool-btn"
-            @click="emit('select-temporary-model' as any)"
+            @click="inputStore.handleSelectTemporaryModel()"
           >
             <AtSign :size="16" />
           </button>
@@ -357,16 +353,10 @@ const handleOpenQuickActionManager = () => {
           :is-completing="props.isCompleting"
           :disabled="disabled"
           :translation-enabled="props.translationEnabled"
-          :is-translating="props.isTranslating"
-          :is-compressing="props.isCompressing"
           :is-context-compression-enabled="isContextCompressionEnabled"
           :continuation-model-info="inputStore.continuationModelInfo"
           @complete-input="emit('complete-input', $event)"
           @select-continuation-model="() => {}"
-          @translate-input="emit('translate-input')"
-          @compress-context="emit('compress-context')"
-          @convert-paths="emit('convert-paths')"
-          @cleanup-placeholders="emit('cleanup-placeholders')"
           @analyze-context-with-input="emit('analyze-context-with-input')"
           @open-quick-action-manager="handleOpenQuickActionManager"
           @visible-change="moreMenuVisible = $event"

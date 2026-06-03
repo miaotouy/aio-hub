@@ -208,8 +208,8 @@ const continuationModelInfo = computed(() => {
 #### 3. 验证点
 
 - [x] 运行 `bun run check:frontend` 无类型错误。（2026-06-03 exit code 0）
-- [ ] 输入框输入文本、拖入附件时，Token 数量能实时计算并正确显示。
-- [ ] 临时模型和续写模型选中后，状态胶囊能正确显示模型名称。
+- [x] 输入框输入文本、拖入附件时，Token 数量能实时计算并正确显示。
+- [-] 临时模型和续写模型选中后，状态胶囊能正确显示模型名称。
 
 #### 4. 完工记录（实际施工差异）
 
@@ -336,8 +336,15 @@ const handleCleanupPlaceholders = () => {
 
 #### 3. 验证点
 
-- [ ] 运行 `bun run check:frontend` 无类型错误。
+- [x] 运行 `bun run check:frontend` 无类型错误。（2026-06-03 exit code 0）
 - [ ] 在"更多菜单"中点击"翻译输入"、"压缩上下文"、"转换路径"、"清理占位符"功能均能正常执行并给出提示。
+
+#### 4. 完工记录（实际施工差异）
+
+- `messageInputStore.ts` 新增：`useTranslation`、`useContextCompressor`、`useLlmChatStore` 依赖；`isTranslating`、`isCompressing` 状态；`registerTextareaRef`（由 `MessageInput.vue` 在 `onMounted` 时注册 textareaRef 供翻译使用）；`handleTranslateInput`、`handleCompressContext`、`handleConvertPaths`、`handleCleanupPlaceholders` actions。
+- `ToolbarMoreMenu.vue` 移除 Props：`isTranslating`、`isCompressing`；移除 Emits：`translate-input`、`compress-context`、`convert-paths`、`cleanup-placeholders`；改为直接调用 `inputStore.handleTranslateInput()`、`inputStore.handleCompressContext()`、`inputStore.handleConvertPaths()`、`inputStore.handleCleanupPlaceholders()`。
+- `MessageInputToolbar.vue` 移除 Emits：`translate-input`、`compress-context`、`convert-paths`、`cleanup-placeholders`；移除传递给 `ToolbarMoreMenu` 的 `is-translating`、`is-compressing` props 及对应 emit 转发。
+- `MessageInput.vue` 移除解构：`isTranslatingInput`、`isCompressing`、`handleTranslateInput`、`handleCompressContext`、`handleCleanupPlaceholders`（均已迁移至 Store）；移除本地 `handleConvertPaths` 函数；`onMounted` 新增 `inputStore.registerTextareaRef(textareaRef)` 注册；移除传递给 `MessageInputToolbar` 的 `@translate-input`、`@compress-context`、`@convert-paths`、`@cleanup-placeholders` 事件绑定及 `:is-translating` prop；`:is-compressing` 改为读取 `inputStore.isCompressing`。
 
 ---
 

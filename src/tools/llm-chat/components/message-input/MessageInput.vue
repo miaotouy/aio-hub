@@ -8,8 +8,8 @@ import { useWindowResize } from "@/composables/useWindowResize";
 import { useChatFileInteraction } from "@/composables/useFileInteraction";
 import { useChatInputManager } from "@/tools/llm-chat/composables/input/useChatInputManager";
 import { useLlmChatStore } from "../../stores/llmChatStore";
+import { useAgentStore } from "../../stores/agentStore";
 import { useChatSettings } from "@/tools/llm-chat/composables/settings/useChatSettings";
-import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { useMessageInputStore } from "../../stores/messageInputStore";
 import type { Asset } from "@/types/asset-management";
 import type { ModelIdentifier } from "@/tools/llm-chat/types";
@@ -24,14 +24,10 @@ import MessageInputAttachments from "./MessageInputAttachments.vue";
 
 // Composables
 import { useMessageInputResize } from "../../composables/input/useMessageInputResize";
-import { useMessageInputActions } from "../../composables/input/useMessageInputActions";
 import { provideChatContext } from "../../composables/chat/useChatContext";
-import { storeToRefs } from "pinia";
 
 const logger = createModuleLogger("MessageInput");
 const errorHandler = createModuleErrorHandler("MessageInput");
-const bus = useWindowSyncBus();
-
 // 获取聊天 store 以访问流式输出开关
 const chatStore = useLlmChatStore();
 const {
@@ -50,8 +46,6 @@ const isStreamingEnabled = computed(() => {
 });
 
 const inputStore = useMessageInputStore();
-const { settings: inputSettings } = storeToRefs(inputStore);
-
 // 计算当前分支是否正在生成
 const isCurrentBranchGenerating = computed(() => {
   const detail = chatStore.currentSessionDetail;
@@ -150,36 +144,47 @@ const {
 });
 
 // 2. 交互动作逻辑
-const {
-  handleSend,
-  handleAbort,
-  handleQuickAction,
-  handleInsertMacro,
-  handleTriggerAttachment,
-  handleKeydown,
-  handlePaste,
-  handleCompleteInput,
-  handleAnalyzeContextWithInput,
-  getWillUseTranscription,
-  handleTranscribeAll,
-  handleSmartTranscribeAll,
-  handleStopAllTranscriptions,
-} = useMessageInputActions({
-  props,
-  emit,
-  inputManager,
-  inputText,
-  inputSettings,
-  settings,
-  bus,
-  textareaRef,
-  isCurrentBranchGenerating,
-  debouncedCalculateTokens: inputStore.triggerCalculation,
-  onBeforeSend: () => {
-    isExpanded.value = false;
-  },
-});
+// 处理键盘事件
+const handleKeydown = (e: KeyboardEvent) => {
+  const sendKey = settings.value.shortcuts.send;
+  if (sendKey === "ctrl+enter") {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+      e.preventDefault();
+      inputStore.handleSend();
+    }
+  } else if (sendKey === "enter") {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      inputStore.handleSend();
+    }
+  }
+};
 
+/**
+ * 检查附件是否会使用转写
+ */
+const agentStore = useAgentStore();
+const getWillUseTranscription = (asset: Asset): boolean => {
+  let modelId = "";
+  let profileId = "";
+  const temporaryModel = inputStore.temporaryModel;
+  if (temporaryModel) {
+    modelId = temporaryModel.modelId;
+    profileId = temporaryModel.profileId;
+  } else if (agentStore.currentAgentId) {
+    const agent = agentStore.getAgentById(agentStore.currentAgentId);
+    if (agent) {
+      modelId = agent.modelId;
+      profileId = agent.profileId;
+    }
+  }
+  return transcriptionManager.computeWillUseTranscription(
+    asset,
+    modelId,
+    profileId,
+    undefined
+  );
+};
 // 统一的文件交互处理
 const { isDraggingOver } = useChatFileInteraction({
   element: containerRef,
@@ -311,23 +316,45 @@ provideChatContext({
     disabled: toRef(props, "disabled"),
   },
   actions: {
-    // handleSend 内部会从 inputManager 获取所有需要的数据
     send: async () => {
-      await handleSend();
+      await inputStore.handleSend();
     },
-    abort: handleAbort,
-    triggerAttachment: handleTriggerAttachment,
+    abort: inputStore.handleAbort,
+    triggerAttachment: async () => {
+      const newAssets = await inputStore.handleTriggerAttachment(
+        props.disabled
+      );
+      if (newAssets && newAssets.length > 0) {
+        inputManager.handleAssetsAddition(
+          newAssets,
+          textareaRef.value,
+          settings.value.transcription.autoInsertPlaceholder
+        );
+      }
+    },
   },
 });
 
 // 初始加载
 onMounted(async () => {
+  inputStore.isDetached = props.isDetached ?? false;
+
   // 注册编辑器到 inputManager，以便执行精准的文本替换
   if (textareaRef.value) {
     inputManager.registerEditor(textareaRef.value);
   }
-  // 注册 textareaRef 到 Store，供翻译 action 使用
+  // 注册回调到 Store
   inputStore.registerTextareaRef(textareaRef);
+  inputStore.registerSendCallback((payload) => {
+    isExpanded.value = false;
+    emit("send", payload);
+  });
+  inputStore.registerAbortCallback(() => {
+    emit("abort");
+  });
+  inputStore.registerCompleteInputCallback((content, options) => {
+    emit("complete-input", content, options);
+  });
 
   if (inputManager.attachments.value.length > 0) {
     inputManager.attachments.value.forEach((asset) => {
@@ -508,9 +535,11 @@ const handleDragStart = (e: MouseEvent) => {
             :get-will-use-transcription="getWillUseTranscription"
             @remove="attachmentManager.removeAttachment"
             @clear="attachmentManager.clearAttachments"
-            @transcribe-all="handleTranscribeAll"
-            @smart-transcribe-all="handleSmartTranscribeAll"
-            @stop-all="handleStopAllTranscriptions"
+            @transcribe-all="inputStore.handleTranscribeAll"
+            @smart-transcribe-all="
+              inputStore.handleSmartTranscribeAll(getWillUseTranscription)
+            "
+            @stop-all="inputStore.handleStopAllTranscriptions"
           />
         </div>
 
@@ -524,8 +553,8 @@ const handleDragStart = (e: MouseEvent) => {
             :max-height="editorMaxHeight"
             :send-key="settings.shortcuts.send"
             @keydown="handleKeydown"
-            @submit="handleSend"
-            @paste="handlePaste"
+            @submit="inputStore.handleSend()"
+            @paste="inputStore.handlePaste"
           />
           <MessageInputToolbar
             :is-detached="props.isDetached"
@@ -538,12 +567,8 @@ const handleDragStart = (e: MouseEvent) => {
             :translation-enabled="settings.translation.enabled"
             :is-compressing="inputStore.isCompressing"
             @toggle-streaming="toggleStreaming"
-            @insert="handleInsertMacro"
             @toggle-expand="toggleExpand"
-            @execute-quick-action="handleQuickAction"
-            @complete-input="handleCompleteInput"
             @open-agent-settings="handleOpenAgentSettings"
-            @analyze-context-with-input="handleAnalyzeContextWithInput"
           />
         </div>
       </div>

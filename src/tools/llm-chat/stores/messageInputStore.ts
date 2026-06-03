@@ -12,6 +12,14 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
 import { useAgentStore } from "./agentStore";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
+import { useUserProfileStore } from "./userProfileStore";
+import { MacroProcessor, createMacroContext } from "../macro-engine";
+import type { MacroDefinition } from "../macro-engine";
+import type { QuickAction } from "../types/quick-action";
+import { open } from "@tauri-apps/plugin-dialog";
+import { processInlineData } from "@/composables/useAttachmentProcessor";
+import { useTranscriptionManager } from "../composables/features/useTranscriptionManager";
+import type { PendingInputData } from "../types/context";
 
 export interface InputToolbarSettings {
   showTokenUsage: boolean;
@@ -196,10 +204,342 @@ export const useMessageInputStore = defineStore(
       }
     };
 
-    // 注册 textareaRef（由 MessageInput.vue 在 onMounted 时调用）
+    // === 7. 核心交互回调注册 ===
     let _textareaRef: any = null;
+    let _sendCallback: ((payload?: any) => void) | null = null;
+    let _abortCallback: (() => void) | null = null;
+    let _completeInputCallback:
+      | ((content: string, options?: any) => void)
+      | null = null;
+
     const registerTextareaRef = (ref: any) => {
       _textareaRef = ref;
+    };
+
+    const registerSendCallback = (fn: typeof _sendCallback) => {
+      _sendCallback = fn;
+    };
+
+    const registerAbortCallback = (fn: typeof _abortCallback) => {
+      _abortCallback = fn;
+    };
+
+    const registerCompleteInputCallback = (
+      fn: typeof _completeInputCallback
+    ) => {
+      _completeInputCallback = fn;
+    };
+
+    // === 8. 核心 Actions ===
+    const profileStore = useUserProfileStore();
+    const transcriptionManager = useTranscriptionManager();
+
+    // 处理发送
+    const handleSend = async (payloadOverride?: any) => {
+      const content = inputText.value.trim();
+      const hasAttachmentsVal = hasAttachments.value;
+
+      // 如果没有内容且没有附件，则不发送
+      if (!content && !hasAttachmentsVal) {
+        return;
+      }
+
+      // 发送前兜底：修复可能因竞态遗漏的 uploading 占位符
+      inputManager.scanAndFixPlaceholders();
+
+      const attachmentsVal =
+        inputManager.attachmentCount.value > 0
+          ? [...attachments.value]
+          : undefined;
+      const temporaryModelVal = temporaryModel.value;
+      const disableMacroParsing = !settings.value.enableMacroParsing;
+
+      const payload = payloadOverride || {
+        content,
+        attachments: attachmentsVal,
+        temporaryModel: temporaryModelVal,
+        disableMacroParsing,
+      };
+
+      if (isDetached.value) {
+        bus.requestAction("llm-chat:send-message", payload);
+        // 发送后清空输入（模拟主窗口行为）
+        inputText.value = "";
+      } else {
+        _sendCallback?.(payload);
+      }
+    };
+
+    // 处理中止
+    const handleAbort = () => {
+      if (isDetached.value) {
+        bus.requestAction("llm-chat:abort-sending", {});
+        return;
+      }
+
+      const detail = chatStore.currentSessionDetail;
+      if (
+        detail &&
+        detail.activeLeafId &&
+        chatStore.isNodeGenerating(detail.activeLeafId)
+      ) {
+        chatStore.abortNodeGeneration(detail.activeLeafId);
+      } else {
+        _abortCallback?.();
+      }
+    };
+
+    // 执行快捷操作
+    const handleQuickAction = async (action: QuickAction) => {
+      const textarea = _textareaRef?.value ?? _textareaRef;
+      if (!textarea) return;
+
+      const { start, end } = textarea.getSelectionRange();
+      const fullText = inputText.value;
+      const hasSelection = start !== end;
+
+      // 准备宏上下文中的 input 内容
+      const macroInputText = hasSelection
+        ? fullText.substring(start, end)
+        : fullText;
+
+      try {
+        // 准备完整的宏上下文
+        const session = chatStore.currentFullSession;
+        const agent = agentStore.currentAgentId
+          ? agentStore.getAgentById(agentStore.currentAgentId)
+          : null;
+        const userProfile = profileStore.getEffectiveProfile(
+          agent?.userProfileId
+        );
+
+        const context = createMacroContext({
+          userName: userProfile?.name,
+          charName: agent?.name,
+          index: session?.index,
+          detail: session?.detail,
+          agent: agent || undefined,
+          userProfile: userProfile || undefined,
+        });
+        // 注入 input 宏内容
+        context.input = macroInputText;
+
+        // 使用宏引擎处理模板
+        const processor = new MacroProcessor();
+        const result = await processor.process(action.content, context, {
+          silent: true,
+        });
+        let outputText = result.output;
+
+        // 文本后处理 (每一行)
+        if (action.lineProcessing?.enabled) {
+          const {
+            prefix = "",
+            suffix = "",
+            regexPattern,
+            regexReplace = "",
+            regexFlags = "g",
+          } = action.lineProcessing;
+
+          const lines = outputText.split("\n");
+          const processedLines = lines.map((line) => {
+            let processedLine = line;
+            if (regexPattern) {
+              try {
+                const re = new RegExp(regexPattern, regexFlags);
+                processedLine = processedLine.replace(re, regexReplace);
+              } catch (e) {
+                errorHandler.handle(e, {
+                  userMessage: "正则替换失败",
+                  showToUser: false,
+                });
+              }
+            }
+            return prefix + processedLine + suffix;
+          });
+          outputText = processedLines.join("\n");
+        }
+
+        // 写回编辑器
+        if (hasSelection) {
+          textarea.insertText(outputText, start, end);
+        } else {
+          inputText.value = outputText;
+        }
+
+        // 自动发送
+        if (action.autoSend) {
+          // 等待编辑器更新
+          setTimeout(() => {
+            handleSend();
+          }, 50);
+        } else {
+          setTimeout(() => {
+            textarea.focus();
+          }, 0);
+        }
+      } catch (error) {
+        errorHandler.error(error, "执行快捷操作失败");
+      }
+    };
+
+    // 插入宏
+    const handleInsertMacro = (macro: MacroDefinition) => {
+      const textarea = _textareaRef?.value ?? _textareaRef;
+      if (!textarea) return;
+
+      const { start, end } = textarea.getSelectionRange();
+      const insertText = macro.example || `{{${macro.name}}}`;
+      textarea.insertText(insertText, start, end);
+
+      setTimeout(() => {
+        textarea.focus();
+      }, 0);
+
+      macroSelectorVisible.value = false;
+    };
+
+    // 处理分析当前上下文
+    const handleAnalyzeContextWithInput = () => {
+      const detail = chatStore.currentSessionDetail;
+
+      const pendingInput: PendingInputData = {
+        text: inputText.value,
+        attachments: hasAttachments.value ? [...attachments.value] : undefined,
+        temporaryModel: temporaryModel.value,
+        enableMacroParsing: settings.value.enableMacroParsing,
+      };
+
+      chatStore.contextAnalyzerNodeId = detail?.activeLeafId ?? null;
+      chatStore.contextAnalyzerPendingInput = pendingInput;
+      chatStore.contextAnalyzerVisible = true;
+    };
+
+    // 触发附件选择
+    const handleTriggerAttachment = async (disabled?: boolean) => {
+      if (disabled) return;
+      try {
+        const selected = await open({
+          multiple: true,
+          title: "选择附件",
+        });
+        if (selected) {
+          const paths = Array.isArray(selected) ? selected : [selected];
+          const beforeIds = new Set(attachments.value.map((a) => a.id));
+
+          await inputManager.addAttachments(paths);
+
+          const newAssets = attachments.value.filter(
+            (a) => !beforeIds.has(a.id)
+          );
+
+          // 注意：这里需要外部传入 autoInsertPlaceholder 设置，或者直接从 chatSettings 读取
+          // 为了简化，我们假设外部会处理，或者在 store 内部注入 chatSettings
+          // 这里我们先保留 logic，具体 autoInsertPlaceholder 在 MessageInput.vue 中调用时处理可能更合适
+          // 但为了重构彻底，我们在这里处理
+          return newAssets;
+        }
+      } catch (error) {
+        errorHandler.error(error, "打开文件选择对话框失败");
+        customMessage.error("选择文件失败");
+      }
+      return [];
+    };
+
+    // 处理输入补全
+    const handleCompleteInput = (content: string) => {
+      const options = continuationModel.value
+        ? {
+            modelId: continuationModel.value.modelId,
+            profileId: continuationModel.value.profileId,
+          }
+        : undefined;
+
+      if (isDetached.value) {
+        bus.requestAction("llm-chat:complete-input", {
+          content,
+          options,
+        });
+        customMessage.info("正在主窗口中执行智能补全...");
+      } else {
+        _completeInputCallback?.(content, options);
+      }
+    };
+
+    // 处理粘贴事件，智能提取 Base64 图像
+    const handlePaste = async (event: ClipboardEvent) => {
+      if (!settings.value.extractBase64FromPaste) return;
+
+      const text = event.clipboardData?.getData("text/plain");
+      if (!text || !text.includes("data:image") || !text.includes(";base64,"))
+        return;
+
+      const textarea = _textareaRef?.value ?? _textareaRef;
+      const selection = textarea?.getSelectionRange() || {
+        start: inputText.value.length,
+        end: inputText.value.length,
+      };
+
+      try {
+        event.preventDefault();
+        const { processedText, newAssets } = await processInlineData(text, {
+          sizeThresholdKB: 100,
+          assetImportOptions: { sourceModule: "llm-chat-paste" },
+        });
+        if (newAssets.length > 0) {
+          inputManager.addAssets(newAssets);
+          customMessage.success(
+            `已自动转换 ${newAssets.length} 个粘贴的图像为附件`
+          );
+        }
+        if (textarea) {
+          textarea.insertText(processedText, selection.start, selection.end);
+          setTimeout(() => textarea.focus(), 0);
+        }
+      } catch (error) {
+        errorHandler.handle(error, {
+          userMessage: "Base64 粘贴提取处理失败",
+          showToUser: false,
+        });
+        if (textarea) {
+          textarea.insertText(text, selection.start, selection.end);
+          setTimeout(() => textarea.focus(), 0);
+        } else {
+          inputText.value += text;
+        }
+      }
+    };
+
+    // 转写相关
+    const handleTranscribeAll = () => {
+      attachments.value.forEach((asset) => {
+        const status = transcriptionManager.getTranscriptionStatus(asset);
+        if (status === "none" || status === "error") {
+          transcriptionManager.addTask(asset);
+        }
+      });
+    };
+
+    const handleSmartTranscribeAll = (
+      getWillUseTranscription: (asset: any) => boolean
+    ) => {
+      attachments.value.forEach((asset) => {
+        if (getWillUseTranscription(asset)) {
+          const status = transcriptionManager.getTranscriptionStatus(asset);
+          if (status === "none" || status === "error") {
+            transcriptionManager.addTask(asset);
+          }
+        }
+      });
+    };
+
+    const handleStopAllTranscriptions = () => {
+      attachments.value.forEach((asset) => {
+        const status = transcriptionManager.getTranscriptionStatus(asset);
+        if (status === "pending" || status === "processing") {
+          transcriptionManager.cancelTranscription(asset.id);
+        }
+      });
     };
 
     // 翻译输入
@@ -326,6 +666,20 @@ export const useMessageInputStore = defineStore(
       clearTemporaryModel,
       clearContinuationModel,
       registerTextareaRef,
+      registerSendCallback,
+      registerAbortCallback,
+      registerCompleteInputCallback,
+      handleSend,
+      handleAbort,
+      handleQuickAction,
+      handleInsertMacro,
+      handleAnalyzeContextWithInput,
+      handleTriggerAttachment,
+      handleCompleteInput,
+      handlePaste,
+      handleTranscribeAll,
+      handleSmartTranscribeAll,
+      handleStopAllTranscriptions,
       handleTranslateInput,
       handleCompressContext,
       handleConvertPaths,

@@ -33,7 +33,7 @@ import { useChatSettings } from "../../composables/settings/useChatSettings";
 import { useIsVcpChannel } from "../../composables/useIsVcpChannel";
 import { useMessageInputStore } from "../../stores/messageInputStore";
 
-import type { QuickAction, QuickActionSet } from "../../types/quick-action";
+import type { QuickActionSet } from "../../types/quick-action";
 import { computed, ref, onMounted, defineAsyncComponent, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { useChatContext } from "../../composables/chat/useChatContext";
@@ -67,11 +67,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   (e: "toggle-streaming"): void;
-  (e: "insert", macro: MacroDefinition): void;
   (e: "toggle-expand"): void;
-  (e: "execute-quick-action", action: QuickAction): void;
-  (e: "complete-input", content: string): void;
-  (e: "analyze-context-with-input"): void;
   (e: "open-agent-settings", tab?: string): void;
 }>();
 
@@ -233,7 +229,7 @@ const handleOpenQuickActionManager = () => {
       v-if="activeActionSets.length > 0"
       :active-action-sets="activeActionSets"
       :group-quick-actions-by-set="inputSettings.groupQuickActionsBySet"
-      @execute-quick-action="emit('execute-quick-action', $event)"
+      @execute-quick-action="inputStore.handleQuickAction($event)"
     />
 
     <div class="input-bottom-bar">
@@ -279,7 +275,10 @@ const handleOpenQuickActionManager = () => {
                 </button>
               </template>
               <MacroSelector
-                @insert="(macro: MacroDefinition) => emit('insert', macro)"
+                @insert="
+                  (macro: MacroDefinition) =>
+                    inputStore.handleInsertMacro(macro)
+                "
               />
             </el-popover>
           </div>
@@ -339,9 +338,11 @@ const handleOpenQuickActionManager = () => {
           :translation-enabled="props.translationEnabled"
           :is-context-compression-enabled="isContextCompressionEnabled"
           :continuation-model-info="inputStore.continuationModelInfo"
-          @complete-input="emit('complete-input', $event)"
+          @complete-input="inputStore.handleCompleteInput($event)"
           @select-continuation-model="inputStore.handleSelectContinuationModel"
-          @analyze-context-with-input="emit('analyze-context-with-input')"
+          @analyze-context-with-input="
+            inputStore.handleAnalyzeContextWithInput()
+          "
           @open-quick-action-manager="handleOpenQuickActionManager"
           @visible-change="moreMenuVisible = $event"
         >

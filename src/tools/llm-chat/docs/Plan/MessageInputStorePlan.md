@@ -573,10 +573,17 @@ if (action.autoSend) {
 
 #### 4. 验证点
 
-- [ ] 运行 `bun run check:frontend` 无类型错误。
+- [x] 运行 `bun run check:frontend` 无类型错误。（2026-06-03 exit code 0）
 - [ ] 快捷操作平铺栏点击可正常执行，且配置了"自动发送"的快捷操作能安全触发发送。
 - [ ] 宏变量点击可正常插入到光标所在位置。
 - [ ] 智能补全功能正常。
+
+#### 5. 完工记录（实际施工差异）
+
+- `messageInputStore.ts` 新增：回调注册机制（`registerSendCallback`、`registerAbortCallback`、`registerCompleteInputCallback`）；核心 Actions（`handleSend`、`handleAbort`、`handleQuickAction`、`handleInsertMacro`、`handleAnalyzeContextWithInput`、`handleTriggerAttachment`、`handleCompleteInput`、`handlePaste`）；转写操作（`handleTranscribeAll`、`handleSmartTranscribeAll`、`handleStopAllTranscriptions`）；引入 `useUserProfileStore`、`MacroProcessor`、`createMacroContext`、`useTranscriptionManager`、`processInlineData`、`open` 等依赖。
+- `MessageInput.vue` 彻底移除 `useMessageInputActions` 依赖；在 `onMounted` 中注册三个回调；`provideChatContext` 的 `send`/`abort`/`triggerAttachment` 均改为调用 Store；模板中 `@submit`/`@paste`/`@transcribe-all`/`@smart-transcribe-all`/`@stop-all` 均改为直接调用 Store Actions；`getWillUseTranscription` 本地保留（需要 `transcriptionManager.computeWillUseTranscription`）；移除未使用的 `useWindowSyncBus`、`storeToRefs` 导入。
+- `MessageInputToolbar.vue` 移除 `execute-quick-action`、`insert`、`complete-input`、`analyze-context-with-input` 等 Emits；`QuickActionsBar` 的 `@execute-quick-action` 改为直接调用 `inputStore.handleQuickAction`；`MacroSelector` 的 `@insert` 改为调用 `inputStore.handleInsertMacro`；`ToolbarMoreMenu` 的 `@complete-input` 和 `@analyze-context-with-input` 改为调用 Store Actions；移除未使用的 `QuickAction` type import。
+- `useMessageInputActions.ts` 已彻底删除。
 
 ---
 

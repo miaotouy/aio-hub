@@ -964,6 +964,10 @@ const ThumbnailPreview = {
               size="small"
             />
           </div>
+          <span v-if="!isSelectionMode" class="drag-upload-tip">
+            <el-icon><FolderAdd /></el-icon>
+            <span>可拖拽文件上传</span>
+          </span>
         </div>
 
         <div class="actions">
@@ -1201,6 +1205,7 @@ const ThumbnailPreview = {
         <!-- 覆盖层模式的 DropZone -->
         <DropZone
           overlay
+          hide-content
           show-overlay-on-drag
           placeholder="上传到当前分组"
           :hint="`支持图片、音频、视频等多种格式${selectedGroup !== 'all' && selectedGroup !== 'default' ? ' (将自动添加到 ' + getGroupDisplayName(selectedGroup) + ' 分组)' : ''}`"
@@ -1541,7 +1546,22 @@ const ThumbnailPreview = {
 
 .search-box {
   flex: 1;
-  max-width: 240px;
+  min-width: 120px;
+  max-width: 260px;
+}
+
+.drag-upload-tip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--el-text-color-placeholder);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.drag-upload-tip .el-icon {
+  font-size: 14px;
 }
 
 /* overlay 模式由组件内部处理 */

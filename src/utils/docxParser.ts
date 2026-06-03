@@ -1,5 +1,7 @@
 import mammoth from "mammoth";
 import DOMPurify from "dompurify";
+import TurndownService from "turndown";
+import { gfm } from "turndown-plugin-gfm";
 
 export const DOCX_MIME =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -42,84 +44,38 @@ function normalizeDocxText(text: string): string {
   return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
 }
 
-function htmlToTextWithImagePlaceholders(
-  html: string,
-  images: DocxImage[]
-): string {
-  if (images.length === 0 || typeof DOMParser === "undefined") {
-    return "";
-  }
+/**
+ * 将 mammoth 生成的 HTML 转换为 Markdown，图片节点通过 data-img-index 精准替换为占位符。
+ * 在转换前剔除内联 base64 数据以避免性能问题。
+ */
+function htmlToMarkdown(html: string): string {
+  // 剔除内联 base64 图片数据，将数 MB 的 HTML 缩减至几 KB
+  const cleanHtml = html.replace(/src="data:[^"]*"/g, 'src=""');
 
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, "text/html");
-  const lines: string[] = [];
-  let inlineText = "";
-  let imageIndex = 0;
+  const turndownService = new TurndownService({
+    headingStyle: "atx",
+    hr: "---",
+    bulletListMarker: "-",
+    codeBlockStyle: "fenced",
+  });
 
-  const flushInline = () => {
-    const text = inlineText.replace(/[ \t]+/g, " ").trim();
-    if (text) lines.push(text);
-    inlineText = "";
-  };
+  // 使用 GFM 插件支持表格、删除线、任务列表
+  turndownService.use(gfm);
 
-  const visit = (node: Node) => {
-    if (node.nodeType === Node.TEXT_NODE) {
-      inlineText += node.textContent || "";
-      return;
-    }
+  // 禁用转义：DOCX 内容不需要防止 Markdown 误解析，转义只会引入多余的反斜杠
+  turndownService.escape = (str: string) => str;
 
-    if (!(node instanceof Element)) return;
+  // 自定义规则——精准将 <img> 转换为图片占位符
+  turndownService.addRule("docx-image", {
+    filter: "img",
+    replacement: (_content, node) => {
+      const element = node as HTMLElement;
+      const index = element.getAttribute("data-img-index");
+      return index ? `[图片 ${index}]` : "";
+    },
+  });
 
-    const tagName = node.tagName.toLowerCase();
-    if (tagName === "img") {
-      flushInline();
-      const image = images[imageIndex++];
-      lines.push(image?.placeholder || `[图片 ${imageIndex}]`);
-      return;
-    }
-
-    if (tagName === "br") {
-      flushInline();
-      return;
-    }
-
-    for (const child of Array.from(node.childNodes)) {
-      visit(child);
-    }
-
-    if (
-      [
-        "address",
-        "article",
-        "aside",
-        "blockquote",
-        "div",
-        "figcaption",
-        "figure",
-        "footer",
-        "h1",
-        "h2",
-        "h3",
-        "h4",
-        "h5",
-        "h6",
-        "header",
-        "li",
-        "p",
-        "pre",
-        "section",
-        "table",
-        "tr",
-      ].includes(tagName)
-    ) {
-      flushInline();
-    }
-  };
-
-  visit(doc.body);
-  flushInline();
-
-  return lines.join("\n\n").trim();
+  return turndownService.turndown(cleanHtml).trim();
 }
 
 function appendMessages(html: string, messages: MammothMessage[]): string {
@@ -177,6 +133,7 @@ export async function parseDocx(
   const arrayBuffer = toStandaloneArrayBuffer(buffer);
   const images: DocxImage[] = [];
 
+  // mammoth 解析 HTML，为 <img> 注入 data-img-index 属性以建立精准绑定
   const htmlResult = await mammoth.convertToHtml(
     { arrayBuffer },
     {
@@ -196,25 +153,22 @@ export async function parseDocx(
 
         return {
           src: `data:${mimeType};base64,${base64}`,
+          "data-img-index": String(index),
         };
       }),
     }
   );
 
-  const rawTextResult = await mammoth.extractRawText({ arrayBuffer });
-  let text = normalizeDocxText(rawTextResult.value);
-
-  if (images.length > 0) {
-    const positionedText = htmlToTextWithImagePlaceholders(
-      htmlResult.value,
-      images
-    );
-    if (positionedText) {
-      text = positionedText;
-    } else {
-      const placeholders = images
-        .map((image) => image.placeholder)
-        .join("\n\n");
+  // 使用 turndown 将 HTML 转为 Markdown，保留富文本格式并精准插入图片占位符
+  let text: string;
+  try {
+    text = htmlToMarkdown(htmlResult.value);
+  } catch {
+    // 回退：turndown 异常时使用 mammoth 纯文本 + 尾部追加占位符
+    const rawTextResult = await mammoth.extractRawText({ arrayBuffer });
+    text = normalizeDocxText(rawTextResult.value);
+    if (images.length > 0) {
+      const placeholders = images.map((img) => img.placeholder).join("\n\n");
       text = text ? `${text}\n\n${placeholders}` : placeholders;
     }
   }

@@ -46,19 +46,12 @@ if (!editForm.knowledgeSettings) {
     resultTemplate: "---\n### 相关内容 (共 {count} 条)\n\n{items}\n---",
     emptyText: "（未检索到相关内容）",
     gateScanDepth: 3,
-    contextWindow: 1,
     enableCache: true,
   };
 } else {
   // 数据迁移：从旧版 aggregation 子对象提升字段到顶层
   const legacy = (editForm.knowledgeSettings as any).aggregation;
   if (legacy) {
-    if (
-      editForm.knowledgeSettings.contextWindow === undefined &&
-      legacy.contextWindow !== undefined
-    ) {
-      editForm.knowledgeSettings.contextWindow = legacy.contextWindow;
-    }
     if (
       editForm.knowledgeSettings.enableCache === undefined &&
       legacy.enableCache !== undefined
@@ -72,12 +65,13 @@ if (!editForm.knowledgeSettings) {
   if ((editForm.knowledgeSettings as any).embeddingModelId !== undefined) {
     delete (editForm.knowledgeSettings as any).embeddingModelId;
   }
+  // 清理已废弃的 contextWindow（检索已固定为最近一对消息）
+  if ((editForm.knowledgeSettings as any).contextWindow !== undefined) {
+    delete (editForm.knowledgeSettings as any).contextWindow;
+  }
   // 确保默认值
   if (editForm.knowledgeSettings.gateScanDepth === undefined) {
     editForm.knowledgeSettings.gateScanDepth = 3;
-  }
-  if (editForm.knowledgeSettings.contextWindow === undefined) {
-    editForm.knowledgeSettings.contextWindow = 1;
   }
   if (editForm.knowledgeSettings.enableCache === undefined) {
     editForm.knowledgeSettings.enableCache = true;
@@ -247,19 +241,6 @@ const knowledgeAdvancedSettings = computed<SettingItem[]>(() => [
     hint: "标签门控 (gate) 模式下，扫描最近多少条消息以匹配关键词",
     keywords: "knowledge gate depth 深度",
     props: { min: 1, max: 20, step: 1, controlsPosition: "right" },
-    groupCollapsible: {
-      name: "knowledge-advanced",
-      title: "知识库高级设置",
-    },
-  },
-  {
-    id: "kbContextWindow",
-    label: "上下文窗口（轮数）",
-    component: "SliderWithInput",
-    modelPath: "knowledgeSettings.contextWindow",
-    hint: "取最近 N 轮完整对话（User + AI）组合为检索查询。",
-    keywords: "knowledge context window 窗口 轮次",
-    props: { min: 1, max: 10, step: 1, controlsPosition: "right" },
     groupCollapsible: {
       name: "knowledge-advanced",
       title: "知识库高级设置",

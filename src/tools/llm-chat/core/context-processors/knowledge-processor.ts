@@ -391,20 +391,21 @@ export class KnowledgeProcessor implements ContextProcessor {
   }
 
   /**
-   * 从对话上下文中分别提取 User 和 AI 文本（向量空间融合策略）
+   * 从对话上下文中提取最近一对 User 和 AI 文本（向量空间融合策略）
+   *
+   * 重构后固定仅提取最近一轮交互，避免多轮历史引入噪声；
+   * 且严格只提取 assistant 消息，排除 tool 消息（工具调用的原始 JSON/数据会污染检索向量）。
    *
    * 不在文本层面拼接角色标记，而是分别提取 → 分别净化 → 分别 embed → 向量空间加权平均。
+   *
+   * 注意：本方法服务于"被动召回线"。智能体的"主动查询线"（工具调用）由 LLM 实时决策，
+   * 不受此处单轮上下文限制，双线并行。
    */
   private extractContextParts(context: PipelineContext): {
     userText: string;
     aiText: string;
   } {
-    const { messages, agentConfig } = context;
-    // 数据迁移兼容：优先读取顶层 contextWindow，回退到旧版 aggregation.contextWindow
-    const windowSize =
-      agentConfig.knowledgeSettings?.contextWindow ??
-      (agentConfig.knowledgeSettings as any)?.aggregation?.contextWindow ??
-      1;
+    const { messages } = context;
 
     // session-loader 会为每一条历史消息节点打上 sourceType: "session_history"，
     // 因此这里严格按此标签过滤即可，不需要兜底——若过滤后为空，说明上游出错，应当暴露
@@ -412,49 +413,44 @@ export class KnowledgeProcessor implements ContextProcessor {
       (m) => m.sourceType === "session_history"
     );
 
-    // 从真实历史消息列表末尾向前，按"轮"提取
-    const userParts: string[] = [];
-    const aiParts: string[] = [];
-    let i = historyOnly.length - 1;
-    let roundCount = 0;
+    if (historyOnly.length === 0) {
+      return { userText: "", aiText: "" };
+    }
 
-    while (i >= 0 && roundCount < windowSize) {
-      // 向前找到一条 user 消息
-      while (i >= 0 && historyOnly[i].role !== "user") {
-        i--;
+    let userText = "";
+    let aiText = "";
+
+    // 1. 从后往前找到最后一条 user 消息
+    let lastUserIdx = -1;
+    for (let i = historyOnly.length - 1; i >= 0; i--) {
+      if (historyOnly[i].role === "user") {
+        lastUserIdx = i;
+        break;
       }
-      if (i < 0) break;
+    }
 
-      const userIdx = i;
-
-      // 收集 user 消息文本
-      const userContent = historyOnly[userIdx].content;
-      if (typeof userContent === "string" && userContent.trim()) {
-        userParts.unshift(userContent.trim());
+    if (lastUserIdx !== -1) {
+      const userContent = historyOnly[lastUserIdx].content;
+      if (typeof userContent === "string") {
+        userText = userContent.trim();
       }
 
-      // 收集紧随其后的 assistant/tool 消息文本
-      for (let j = userIdx + 1; j < historyOnly.length; j++) {
+      // 2. 收集该 user 消息之后的 assistant 消息作为 AI 侧上下文
+      //    严格排除 tool 消息：工具调用的原始数据会污染检索向量
+      const aiParts: string[] = [];
+      for (let j = lastUserIdx + 1; j < historyOnly.length; j++) {
         const msg = historyOnly[j];
         if (msg.role === "user") break;
         if (typeof msg.content !== "string") continue;
 
         if (msg.role === "assistant" && msg.content.trim()) {
-          aiParts.unshift(msg.content.trim());
-        } else if (msg.role === "tool" && msg.content.trim()) {
-          // Tool 结果归入 AI 侧（提供额外元数据线索）
-          aiParts.unshift(msg.content.trim());
+          aiParts.push(msg.content.trim());
         }
       }
-
-      roundCount++;
-      i = userIdx - 1;
+      aiText = aiParts.join("\n");
     }
 
-    return {
-      userText: userParts.join("\n"),
-      aiText: aiParts.join("\n"),
-    };
+    return { userText, aiText };
   }
   /**
    * 根据 knowledgeBaseConfig 自动生成占位符（保底注入）

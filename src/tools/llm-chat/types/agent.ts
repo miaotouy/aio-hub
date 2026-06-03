@@ -290,8 +290,8 @@ export interface AgentKnowledgeSettings {
 
   /**
    * 查询上下文窗口（轮数）
-   * 取最近 N 轮完整对话（User + AI + Tool）组合为检索查询。
-   * 不是仅取用户消息，而是取完整一轮交互。
+   * @deprecated 已废弃。检索机制已重构，被动召回现在固定以最近一对 AI/User 消息作为检索查询
+   * （且严格排除 tool 消息），不再支持多轮窗口配置。保留此字段仅用于旧数据加载兼容。
    */
   contextWindow?: number;
 

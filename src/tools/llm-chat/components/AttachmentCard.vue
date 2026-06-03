@@ -31,7 +31,7 @@ import { generateAssetPlaceholder } from "../core/context-processors/transcripti
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";
-import { isWordDocumentAssetLike } from "@/utils/docxParser";
+import { isWordDocumentAssetLike, isDocxAssetLike } from "@/utils/docxParser";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import DocumentViewer from "@/components/common/DocumentViewer.vue";
 import FileIcon from "@/components/common/FileIcon.vue";
@@ -177,7 +177,8 @@ const isTranscribable = computed(
   () =>
     props.asset.type === "image" ||
     props.asset.type === "audio" ||
-    props.asset.type === "video"
+    props.asset.type === "video" ||
+    isDocxAssetLike(props.asset)
 );
 
 // 判断当前模型是否需要使用转写（模型不支持该媒体类型时需要转写）

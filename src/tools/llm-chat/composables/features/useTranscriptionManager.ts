@@ -428,7 +428,7 @@ export function useTranscriptionManager() {
     if (asset.type === "video") return !cap.video;
     if (asset.type === "document" && asset.mimeType === "application/pdf")
       return !cap.document;
-    if (isDocxAssetLike(asset)) return true;
+    if (isDocxAssetLike(asset)) return !cap.vision;
 
     return false;
   };

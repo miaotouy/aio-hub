@@ -3,6 +3,8 @@ import { computed } from "vue";
 import type { ContextPreviewData } from "../../composables/chat/useChatHandler";
 import { InfoFilled } from "@element-plus/icons-vue";
 
+const svarTag = "这些变量是通过解析消息中的 <svar/> 标签动态计算得出的。";
+
 const props = defineProps<{
   contextData: ContextPreviewData;
 }>();
@@ -85,7 +87,7 @@ const variables = computed(() => {
 
       <div class="info-tip">
         <el-icon><InfoFilled /></el-icon>
-        <span>这些变量是通过解析消息中的 <svar /> 标签动态计算得出的。</span>
+        <span>{{ svarTag }}</span>
       </div>
     </div>
   </div>

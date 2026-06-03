@@ -8,6 +8,8 @@ import { createModuleLogger } from "@/utils/logger";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import type { Asset } from "@/types/asset-management";
 import { resolveAttachmentsBatch } from "../core/context-utils/attachment-resolver";
+import { isDocxAssetLike } from "@/utils/docxParser";
+import { splitDocxIntoImageAssets } from "../core/context-utils/docx-image-splitter";
 
 const logger = createModuleLogger("llm-chat/token-utils");
 
@@ -30,8 +32,37 @@ export async function prepareMessageForTokenCalc(
   );
   const profileId = profile?.id || "";
 
+  // 检查模型是否支持视觉（与 transcription-processor 保持一致）
+  const model = profile?.models.find((m) => m.id === modelId);
+  const hasVision = model?.capabilities?.vision === true;
+
+  // 分离 DOCX 附件（模型支持视觉时需要特殊处理）
+  let assetsForBatch = attachments;
+  if (hasVision) {
+    const nonDocxAssets: Asset[] = [];
+    for (const asset of attachments) {
+      if (isDocxAssetLike(asset)) {
+        const splitResult = await splitDocxIntoImageAssets(asset);
+        if (splitResult.success) {
+          // 对齐 transcription-processor 的文本格式
+          combinedText += `\n[文件: ${asset.name}]\n${splitResult.text}\n`;
+          mediaAttachments.push(...splitResult.imageAssets);
+        } else if (splitResult.text) {
+          // DOCX 无内嵌图片，只有文本
+          combinedText += `\n[文件: ${asset.name}]\n${splitResult.text}\n`;
+        } else {
+          // 拆分失败，回退到普通附件解析
+          nonDocxAssets.push(asset);
+        }
+      } else {
+        nonDocxAssets.push(asset);
+      }
+    }
+    assetsForBatch = nonDocxAssets;
+  }
+
   const resolvedResults = await resolveAttachmentsBatch(
-    attachments,
+    assetsForBatch,
     modelId,
     profileId,
     {

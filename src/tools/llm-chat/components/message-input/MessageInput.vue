@@ -10,7 +10,6 @@ import { useChatInputManager } from "@/tools/llm-chat/composables/input/useChatI
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useChatSettings } from "@/tools/llm-chat/composables/settings/useChatSettings";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
-import { useChatInputTokenPreview } from "@/tools/llm-chat/composables/input/useChatInputTokenPreview";
 import { useMessageInputStore } from "../../stores/messageInputStore";
 import type { Asset } from "@/types/asset-management";
 import type { ModelIdentifier } from "@/tools/llm-chat/types";
@@ -117,18 +116,6 @@ const isUpdatingSize = ref(false); // 锁，防止并发调整大小导致抖动
 const inputManager = useChatInputManager();
 const inputText = inputManager.inputText;
 
-// Token 预览逻辑
-const {
-  tokenCount,
-  isCalculatingTokens,
-  tokenEstimated,
-  triggerCalculation: debouncedCalculateTokens,
-} = useChatInputTokenPreview({
-  inputText,
-  attachments: inputManager.attachments,
-  temporaryModel: inputManager.temporaryModel,
-});
-
 // 附件管理
 const attachmentManager = {
   attachments: inputManager.attachments,
@@ -172,8 +159,6 @@ const {
   handleInsertMacro,
   handleTranslateInput,
   handleCompressContext,
-  handleSelectTemporaryModel,
-  handleSelectContinuationModel,
   handleTriggerAttachment,
   handleKeydown,
   handlePaste,
@@ -196,7 +181,7 @@ const {
   bus,
   textareaRef,
   isCurrentBranchGenerating,
-  debouncedCalculateTokens,
+  debouncedCalculateTokens: inputStore.triggerCalculation,
   onBeforeSend: () => {
     isExpanded.value = false;
   },
@@ -576,30 +561,21 @@ const handleDragStart = (e: MouseEvent) => {
             :is-expanded="isExpanded"
             :is-streaming-enabled="isStreamingEnabled"
             :context-stats="chatStore.contextStats"
-            :token-count="tokenCount"
-            :is-calculating-tokens="isCalculatingTokens"
-            :token-estimated="tokenEstimated"
             :input-text="inputText"
             :is-processing-attachments="attachmentManager.isProcessing.value"
-            :temporary-model="inputManager.temporaryModel.value"
             :has-attachments="attachmentManager.hasAttachments.value"
             :is-translating="isTranslatingInput"
             :translation-enabled="settings.translation.enabled"
             :is-compressing="isCompressing"
-            :continuation-model="inputManager.continuationModel.value"
             @toggle-streaming="toggleStreaming"
             @insert="handleInsertMacro"
             @toggle-expand="toggleExpand"
             @execute-quick-action="handleQuickAction"
-            @select-temporary-model="handleSelectTemporaryModel"
-            @clear-temporary-model="inputManager.clearTemporaryModel"
             @translate-input="handleTranslateInput"
             @switch-session="handleSwitchSession"
             @new-session="handleNewSession"
             @compress-context="handleCompressContext"
             @complete-input="handleCompleteInput"
-            @select-continuation-model="handleSelectContinuationModel"
-            @clear-continuation-model="inputManager.clearContinuationModel"
             @convert-paths="handleConvertPaths"
             @cleanup-placeholders="handleCleanupPlaceholders"
             @open-agent-settings="handleOpenAgentSettings"

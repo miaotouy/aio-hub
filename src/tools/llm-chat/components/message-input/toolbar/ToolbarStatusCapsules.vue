@@ -5,20 +5,15 @@ import { ref } from "vue";
 import MiniCanvasControl from "../MiniCanvasControl.vue";
 import type { ContextPreviewData } from "../../../types/context";
 import { useAgentStore } from "../../../stores/agentStore";
+import { useMessageInputStore } from "../../../stores/messageInputStore";
 import { DEFAULT_TOOL_CALL_CONFIG } from "../../../types/agent";
 
 const props = defineProps<{
   isDetached?: boolean;
-  continuationModelInfo: { profileName: string; modelName: string } | null;
-  temporaryModelInfo: { profileName: string; modelName: string } | null;
   isCanvasEnabled: boolean;
   canvasBindingInfo: { id: string; name: string } | null;
   hasCanvasPendingChanges: boolean;
-  showTokenUsage: boolean;
   contextStats: ContextPreviewData["statistics"] | null;
-  tokenCount: number;
-  isCalculatingTokens: boolean;
-  tokenEstimated: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -29,6 +24,7 @@ const emit = defineEmits<{
 
 const canvasControlVisible = ref(false);
 const agentStore = useAgentStore();
+const inputStore = useMessageInputStore();
 
 const unbindCanvas = () => {
   const agent = agentStore.currentAgentId
@@ -54,15 +50,15 @@ const onCanvasVisibleChange = (val: boolean) => {
 <template>
   <!-- 续写模型 -->
   <el-tooltip
-    v-if="props.continuationModelInfo"
-    :content="`续写模型: ${props.continuationModelInfo.profileName} - ${props.continuationModelInfo.modelName}`"
+    v-if="inputStore.continuationModelInfo"
+    :content="`续写模型: ${inputStore.continuationModelInfo.profileName} - ${inputStore.continuationModelInfo.modelName}`"
     placement="top"
     :show-after="500"
   >
     <div class="temporary-model-indicator continuation-model">
       <Sparkles :size="14" />
       <span class="model-name">{{
-        props.continuationModelInfo.modelName
+        inputStore.continuationModelInfo.modelName
       }}</span>
       <button class="clear-btn" @click="emit('clear-continuation-model')">
         <X :size="14" />
@@ -72,14 +68,16 @@ const onCanvasVisibleChange = (val: boolean) => {
 
   <!-- 临时模型 -->
   <el-tooltip
-    v-if="props.temporaryModelInfo"
-    :content="`临时模型: ${props.temporaryModelInfo.profileName} - ${props.temporaryModelInfo.modelName}`"
+    v-if="inputStore.temporaryModelInfo"
+    :content="`临时模型: ${inputStore.temporaryModelInfo.profileName} - ${inputStore.temporaryModelInfo.modelName}`"
     placement="top"
     :show-after="500"
   >
     <div class="temporary-model-indicator">
       <AtSign :size="14" />
-      <span class="model-name">{{ props.temporaryModelInfo.modelName }}</span>
+      <span class="model-name">{{
+        inputStore.temporaryModelInfo.modelName
+      }}</span>
       <button class="clear-btn" @click="emit('clear-temporary-model')">
         <X :size="14" />
       </button>
@@ -148,7 +146,7 @@ const onCanvasVisibleChange = (val: boolean) => {
   <!-- 历史上下文统计 -->
   <el-tooltip
     v-if="
-      props.showTokenUsage &&
+      inputStore.settings.showTokenUsage &&
       props.contextStats &&
       props.contextStats.totalTokenCount !== undefined
     "
@@ -165,9 +163,7 @@ const onCanvasVisibleChange = (val: boolean) => {
           </div>
           <div v-if="props.contextStats.presetMessagesTokenCount">
             预设消息:
-            {{
-              props.contextStats.presetMessagesTokenCount.toLocaleString()
-            }}
+            {{ props.contextStats.presetMessagesTokenCount.toLocaleString() }}
             tokens
           </div>
           <div v-if="props.contextStats.worldbookTokenCount">
@@ -176,16 +172,12 @@ const onCanvasVisibleChange = (val: boolean) => {
           </div>
           <div v-if="props.contextStats.chatHistoryTokenCount">
             会话历史:
-            {{
-              props.contextStats.chatHistoryTokenCount.toLocaleString()
-            }}
+            {{ props.contextStats.chatHistoryTokenCount.toLocaleString() }}
             tokens
           </div>
           <div v-if="props.contextStats.postProcessingTokenCount">
             后处理:
-            {{
-              props.contextStats.postProcessingTokenCount.toLocaleString()
-            }}
+            {{ props.contextStats.postProcessingTokenCount.toLocaleString() }}
             tokens
           </div>
           <div
@@ -235,11 +227,11 @@ const onCanvasVisibleChange = (val: boolean) => {
   <!-- 当前输入 Token 计数 -->
   <el-tooltip
     v-if="
-      props.showTokenUsage &&
-      (props.tokenCount > 0 || props.isCalculatingTokens)
+      inputStore.settings.showTokenUsage &&
+      (inputStore.tokenCount > 0 || inputStore.isCalculatingTokens)
     "
     :content="
-      props.tokenEstimated
+      inputStore.tokenEstimated
         ? '当前输入 Token 数量（估算值）'
         : '当前输入 Token 数量'
     "
@@ -263,8 +255,8 @@ const onCanvasVisibleChange = (val: boolean) => {
         <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
       </svg>
       <span
-        >{{ props.tokenCount.toLocaleString()
-        }}{{ props.tokenEstimated ? "~" : "" }}</span
+        >{{ inputStore.tokenCount.toLocaleString()
+        }}{{ inputStore.tokenEstimated ? "~" : "" }}</span
       >
     </span>
   </el-tooltip>

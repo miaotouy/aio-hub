@@ -23,8 +23,6 @@ import ToolbarSettingsPopover from "./toolbar/ToolbarSettingsPopover.vue";
 import ToolbarStatusCapsules from "./toolbar/ToolbarStatusCapsules.vue";
 import type { ContextPreviewData } from "../../types/context";
 import type { MacroDefinition } from "../../macro-engine";
-import type { ModelIdentifier } from "../../types";
-import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useQuickActionStore } from "../../stores/quickActionStore";
 import { useAgentStore } from "../../stores/agentStore";
 import { useUserProfileStore } from "../../stores/userProfileStore";
@@ -51,17 +49,12 @@ interface Props {
   isExpanded: boolean;
   isStreamingEnabled: boolean;
   contextStats: ContextPreviewData["statistics"] | null;
-  tokenCount: number;
-  isCalculatingTokens: boolean;
-  tokenEstimated: boolean;
   inputText: string;
   isProcessingAttachments: boolean;
-  temporaryModel: ModelIdentifier | null;
   hasAttachments: boolean;
   isTranslating?: boolean;
   translationEnabled?: boolean;
   isCompressing?: boolean;
-  continuationModel?: ModelIdentifier | null;
   isCompleting?: boolean;
 }
 
@@ -69,7 +62,6 @@ const props = withDefaults(defineProps<Props>(), {
   isTranslating: false,
   translationEnabled: false,
   isCompressing: false,
-  continuationModel: null,
   isCompleting: false,
 });
 
@@ -77,10 +69,6 @@ const emit = defineEmits<{
   (e: "toggle-streaming"): void;
   (e: "insert", macro: MacroDefinition): void;
   (e: "toggle-expand"): void;
-  (e: "select-temporary-model"): void;
-  (e: "clear-temporary-model"): void;
-  (e: "select-continuation-model"): void;
-  (e: "clear-continuation-model"): void;
   (e: "execute-quick-action", action: QuickAction): void;
   (e: "translate-input"): void;
   (e: "compress-context"): void;
@@ -108,7 +96,6 @@ const {
   settings: inputSettings,
 } = storeToRefs(inputStore);
 
-const { getProfileById } = useLlmProfiles();
 const quickActionStore = useQuickActionStore();
 const agentStore = useAgentStore();
 const profileStore = useUserProfileStore();
@@ -129,7 +116,7 @@ const isContextCompressionEnabled = computed(() => {
   return agent?.parameters?.contextCompression?.enabled ?? false;
 });
 
-const effectiveProfileId = computed(() => props.temporaryModel?.profileId);
+const effectiveProfileId = computed(() => inputStore.temporaryModel?.profileId);
 const { isVcpChannel } = useIsVcpChannel(effectiveProfileId);
 
 onMounted(() => {
@@ -169,28 +156,6 @@ watch(
   },
   { immediate: true }
 );
-
-const continuationModelInfo = computed(() => {
-  if (!props.continuationModel) return null;
-  const profile = getProfileById(props.continuationModel.profileId);
-  if (!profile) return null;
-  const model = profile.models.find(
-    (m) => m.id === props.continuationModel?.modelId
-  );
-  if (!model) return null;
-  return { profileName: profile.name, modelName: model.name || model.id };
-});
-
-const temporaryModelInfo = computed(() => {
-  if (!props.temporaryModel) return null;
-  const profile = getProfileById(props.temporaryModel.profileId);
-  if (!profile) return null;
-  const model = profile.models.find(
-    (m) => m.id === props.temporaryModel?.modelId
-  );
-  if (!model) return null;
-  return { profileName: profile.name, modelName: model.name || model.id };
-});
 
 const miniSessionListRef = ref<any>(null);
 
@@ -376,7 +341,10 @@ const handleOpenQuickActionManager = () => {
 
         <!-- 临时模型选择器 -->
         <el-tooltip content="临时指定模型" placement="top" :show-after="500">
-          <button class="tool-btn" @click="emit('select-temporary-model')">
+          <button
+            class="tool-btn"
+            @click="emit('select-temporary-model' as any)"
+          >
             <AtSign :size="16" />
           </button>
         </el-tooltip>
@@ -392,9 +360,9 @@ const handleOpenQuickActionManager = () => {
           :is-translating="props.isTranslating"
           :is-compressing="props.isCompressing"
           :is-context-compression-enabled="isContextCompressionEnabled"
-          :continuation-model-info="continuationModelInfo"
+          :continuation-model-info="inputStore.continuationModelInfo"
           @complete-input="emit('complete-input', $event)"
-          @select-continuation-model="emit('select-continuation-model')"
+          @select-continuation-model="() => {}"
           @translate-input="emit('translate-input')"
           @compress-context="emit('compress-context')"
           @convert-paths="emit('convert-paths')"
@@ -538,18 +506,12 @@ const handleOpenQuickActionManager = () => {
         <!-- 状态胶囊区域 -->
         <ToolbarStatusCapsules
           :is-detached="props.isDetached"
-          :continuation-model-info="continuationModelInfo"
-          :temporary-model-info="temporaryModelInfo"
           :is-canvas-enabled="isCanvasEnabled"
           :canvas-binding-info="canvasBindingInfo"
           :has-canvas-pending-changes="hasCanvasPendingChanges"
-          :show-token-usage="inputSettings.showTokenUsage"
           :context-stats="props.contextStats"
-          :token-count="props.tokenCount"
-          :is-calculating-tokens="props.isCalculatingTokens"
-          :token-estimated="props.tokenEstimated"
-          @clear-continuation-model="emit('clear-continuation-model')"
-          @clear-temporary-model="emit('clear-temporary-model')"
+          @clear-continuation-model="() => {}"
+          @clear-temporary-model="() => {}"
           @canvas-visible-change="canvasMenuOpen = $event"
         />
 

@@ -207,9 +207,16 @@ const continuationModelInfo = computed(() => {
 
 #### 3. 验证点
 
-- [ ] 运行 `bun run check:frontend` 无类型错误。
+- [x] 运行 `bun run check:frontend` 无类型错误。（2026-06-03 exit code 0）
 - [ ] 输入框输入文本、拖入附件时，Token 数量能实时计算并正确显示。
 - [ ] 临时模型和续写模型选中后，状态胶囊能正确显示模型名称。
+
+#### 4. 完工记录（实际施工差异）
+
+- `messageInputStore.ts` 新增：`useChatInputManager` 代理（inputText、attachments、isProcessingAttachments、hasAttachments、temporaryModel、continuationModel）、`useChatInputTokenPreview` 实例（tokenCount、isCalculatingTokens、tokenEstimated、triggerCalculation）、`useLlmProfiles` 计算属性（temporaryModelInfo、continuationModelInfo）。
+- `ToolbarStatusCapsules.vue` 移除 6 个 Props（continuationModelInfo、temporaryModelInfo、showTokenUsage、tokenCount、isCalculatingTokens、tokenEstimated），改直接读 `inputStore`；保留 isCanvasEnabled、canvasBindingInfo、hasCanvasPendingChanges、contextStats。
+- `MessageInputToolbar.vue` 移除 Props：tokenCount、isCalculatingTokens、tokenEstimated、temporaryModel、continuationModel；移除本地 continuationModelInfo/temporaryModelInfo 计算属性；effectiveProfileId 改从 `inputStore.temporaryModel` 读取；传给 ToolbarMoreMenu 的 continuationModelInfo 改为 `inputStore.continuationModelInfo`；传给 ToolbarStatusCapsules 的已迁移 props 全部移除。
+- `MessageInput.vue` 移除 `useChatInputTokenPreview` import 及实例化；`debouncedCalculateTokens` 参数改为 `inputStore.triggerCalculation`；传给 `MessageInputToolbar` 的 5 个 token/model 相关 props 全部移除。
 
 ---
 

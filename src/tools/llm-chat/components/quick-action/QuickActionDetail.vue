@@ -383,6 +383,18 @@ const handleManualSave = async () => {
 
           <div class="advanced-grid">
             <div class="control-item">
+              <span class="label">在组内显示</span>
+              <el-switch
+                :model-value="currentAction.isEnabled !== false"
+                @update:model-value="
+                  (val: boolean) => {
+                    if (currentAction) currentAction.isEnabled = val;
+                  }
+                "
+                active-text="操作区可见"
+              />
+            </div>
+            <div class="control-item">
               <span class="label">自动发送</span>
               <el-switch
                 v-model="currentAction.autoSend"
@@ -490,13 +502,6 @@ const handleManualSave = async () => {
             <span>组设置</span>
           </div>
           <div class="advanced-grid">
-            <div class="control-item">
-              <span class="label">组启用状态</span>
-              <el-switch
-                v-model="currentSet.isEnabled"
-                active-text="在输入框显示"
-              />
-            </div>
             <div class="control-item full-width">
               <span class="label">组描述</span>
               <el-input

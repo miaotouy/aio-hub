@@ -23,7 +23,7 @@ const emit = defineEmits<{
       ></div>
       <div class="qa-set-group">
         <button
-          v-for="action in set.actions"
+          v-for="action in set.actions.filter((a) => a.isEnabled !== false)"
           :key="action.id"
           class="qa-action-btn"
           @click="emit('execute-quick-action', action)"

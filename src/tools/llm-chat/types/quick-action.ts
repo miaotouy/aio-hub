@@ -11,6 +11,8 @@ export interface QuickAction {
   content: string;
   /** 点击后是否自动发送 */
   autoSend: boolean;
+  /** 是否在操作区的组内显示（默认 true） */
+  isEnabled?: boolean;
   /** 详细描述 */
   description?: string;
   /** 绑定的快捷键 (可选) */

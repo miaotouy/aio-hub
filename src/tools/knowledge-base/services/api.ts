@@ -19,9 +19,14 @@ import { SearchOrchestrator } from "../logic/orchestrator";
 import { useKnowledgeBaseStore } from "../stores/knowledgeBaseStore";
 import { vectorCacheManager } from "../utils/vectorCache";
 import { preprocessQuery } from "../utils/queryPreProcessor";
+import { resolvePlaceholderRetrieval as resolvePlaceholderRetrievalInternal } from "../logic/placeholderRetrieval";
 import type { SearchResult } from "../types/search";
 import type { Caiu } from "../types/caiu";
 import type { KnowledgeBaseMeta } from "../types/knowledge-base";
+import type {
+  KbRetrievalRequest,
+  KbRetrievalResponse,
+} from "../types/retrieval";
 
 const logger = createModuleLogger("knowledge-base/api");
 const errorHandler = createModuleErrorHandler("knowledge-base/api");
@@ -405,8 +410,9 @@ export async function clearRetrievalCache(): Promise<void> {
 }
 
 /**
- * 获取检索缓存条目数
- */
+ /**
+  * 获取检索缓存条目数
+  */
 export async function getRetrievalCacheStats(): Promise<number> {
   try {
     return await invoke<number>("kb_retrieval_cache_stats");
@@ -414,4 +420,13 @@ export async function getRetrievalCacheStats(): Promise<number> {
     logger.warn("读取后端检索缓存统计失败", { err });
     return 0;
   }
+}
+
+/**
+ * 门面：执行知识库占位符检索（供 llm-chat 调用）
+ */
+export async function resolvePlaceholderRetrieval(
+  req: KbRetrievalRequest
+): Promise<KbRetrievalResponse> {
+  return await resolvePlaceholderRetrievalInternal(req);
 }

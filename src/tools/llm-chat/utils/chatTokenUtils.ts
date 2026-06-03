@@ -10,6 +10,7 @@ import type { Asset } from "@/types/asset-management";
 import { resolveAttachmentsBatch } from "../core/context-utils/attachment-resolver";
 import { isDocxAssetLike } from "@/utils/docxParser";
 import { splitDocxIntoImageAssets } from "../core/context-utils/docx-image-splitter";
+import { useTranscriptionManager } from "../composables/features/useTranscriptionManager";
 
 const logger = createModuleLogger("llm-chat/token-utils");
 
@@ -40,8 +41,20 @@ export async function prepareMessageForTokenCalc(
   let assetsForBatch = attachments;
   if (hasVision) {
     const nonDocxAssets: Asset[] = [];
+    const transcriptionManager = useTranscriptionManager();
     for (const asset of attachments) {
       if (isDocxAssetLike(asset)) {
+        // 已有转写结果且应优先使用时，回退到正常路径（不走虚拟图片附件）
+        if (
+          transcriptionManager.computeWillUseTranscription(
+            asset,
+            modelId,
+            profileId
+          )
+        ) {
+          nonDocxAssets.push(asset);
+          continue;
+        }
         const splitResult = await splitDocxIntoImageAssets(asset);
         if (splitResult.success) {
           // 对齐 transcription-processor 的文本格式

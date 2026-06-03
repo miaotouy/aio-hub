@@ -4,6 +4,7 @@ import type { ContextProcessor, PipelineContext } from "../../types/pipeline";
 import { resolveAttachmentsBatch } from "../../core/context-utils/attachment-resolver";
 import { splitDocxIntoImageAssets } from "../../core/context-utils/docx-image-splitter";
 import { isDocxAssetLike } from "@/utils/docxParser";
+import { useTranscriptionManager } from "../../composables/features/useTranscriptionManager";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { Asset } from "@/types/asset-management";
 import type { ChatTranscriptionConfig } from "../../types/settings";
@@ -200,9 +201,21 @@ export const transcriptionProcessor: ContextProcessor = {
       const hasVision = context.capabilities?.vision === true;
       if (hasVision) {
         const nonDocxAssets: Asset[] = [];
+        const transcriptionManager = useTranscriptionManager();
 
         for (const asset of assetsToProcess) {
           if (isDocxAssetLike(asset)) {
+            // 已有转写结果且应优先使用转写文本时，回退到正常路径（不走虚拟图片附件）
+            if (
+              transcriptionManager.computeWillUseTranscription(
+                asset,
+                modelId,
+                profileId
+              )
+            ) {
+              nonDocxAssets.push(asset);
+              continue;
+            }
             const splitResult = await splitDocxIntoImageAssets(asset);
             if (splitResult.success) {
               // 文本（含 [图片 N] 占位符）注入转写结果

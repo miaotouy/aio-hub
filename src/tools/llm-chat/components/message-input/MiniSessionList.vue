@@ -13,14 +13,9 @@ import Avatar from "@/components/common/Avatar.vue";
 import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
 import { formatRelativeTime } from "@/utils/time";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
+import { useMessageInputStore } from "../../stores/messageInputStore";
 
-interface Emits {
-  (e: "switch", sessionId: string): void;
-  (e: "new-session"): void;
-}
-
-const emit = defineEmits<Emits>();
-
+const inputStore = useMessageInputStore();
 const agentStore = useAgentStore();
 const chatStore = useLlmChatStore();
 const searchQuery = ref("");
@@ -184,11 +179,11 @@ const handleSessionClick = (session: ChatSessionIndex) => {
       });
     }
   }
-  emit("switch", session.id);
+  inputStore.handleSwitchSession(session.id);
 };
 
 const handleNewSession = () => {
-  emit("new-session");
+  inputStore.handleNewSession();
 };
 
 // 获取消息数量（排除系统根节点）

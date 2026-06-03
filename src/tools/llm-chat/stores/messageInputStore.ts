@@ -11,6 +11,7 @@ import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
 import { useAgentStore } from "./agentStore";
+import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 
 export interface InputToolbarSettings {
   showTokenUsage: boolean;
@@ -102,11 +103,38 @@ export const useMessageInputStore = defineStore(
 
     const isTranslating = ref(false);
     const isCompressing = ref(false);
+    const isDetached = ref(false);
 
-    // === 6b. 模型选择 Actions ===
+    // === 6b. 跨窗口同步与模型选择 ===
+    const bus = useWindowSyncBus();
     const { open: openModelSelectDialog } = useModelSelectDialog();
     const agentStore = useAgentStore();
 
+    // 1. 会话管理
+    const handleSwitchSession = (sessionId: string) => {
+      if (isDetached.value) {
+        bus.requestAction("llm-chat:switch-session", { sessionId });
+      } else {
+        chatStore.switchSession(sessionId);
+      }
+      sessionListVisible.value = false;
+    };
+
+    const handleNewSession = () => {
+      const agentId = agentStore.currentAgentId || agentStore.defaultAgent?.id;
+      if (!agentId) {
+        customMessage.warning("没有可用的智能体来创建新会话");
+        return;
+      }
+      if (isDetached.value) {
+        bus.requestAction("llm-chat:create-session", { agentId });
+      } else {
+        chatStore.createSession(agentId);
+      }
+      sessionListVisible.value = false;
+    };
+
+    // 2. 模型选择
     const getCurrentModelSelection = (modelRef: {
       value: { profileId: string; modelId: string } | null | undefined;
     }) => {
@@ -148,6 +176,26 @@ export const useMessageInputStore = defineStore(
       }
     };
 
+    const handleSelectContinuationModel = async () => {
+      if (isDetached.value) {
+        bus.requestAction("llm-chat:select-continuation-model", {});
+        customMessage.info("正在主窗口中打开模型选择弹窗...");
+        return;
+      }
+
+      const currentSelection = getCurrentModelSelection(continuationModel);
+      const result = await openModelSelectDialog({
+        current: currentSelection,
+        initialCapabilities: { embedding: false, rerank: false },
+      });
+      if (result) {
+        inputManager.setContinuationModel({
+          profileId: result.profile.id,
+          modelId: result.model.id,
+        });
+      }
+    };
+
     // 注册 textareaRef（由 MessageInput.vue 在 onMounted 时调用）
     let _textareaRef: any = null;
     const registerTextareaRef = (ref: any) => {
@@ -169,7 +217,7 @@ export const useMessageInputStore = defineStore(
       const textToTranslate = hasSelection
         ? inputText.value.substring(start, end)
         : text;
-      const targetLang = "English"; // 可从设置中读取
+      const targetLang = "English";
 
       try {
         const translatedText = await translateText(
@@ -237,6 +285,10 @@ export const useMessageInputStore = defineStore(
       }
     };
 
+    const clearTemporaryModel = () => inputManager.setTemporaryModel(null);
+    const clearContinuationModel = () =>
+      inputManager.setContinuationModel(null);
+
     return {
       // 菜单可见性
       macroSelectorVisible,
@@ -266,7 +318,13 @@ export const useMessageInputStore = defineStore(
       // 业务 Actions
       isTranslating,
       isCompressing,
+      isDetached,
+      handleSwitchSession,
+      handleNewSession,
       handleSelectTemporaryModel,
+      handleSelectContinuationModel,
+      clearTemporaryModel,
+      clearContinuationModel,
       registerTextareaRef,
       handleTranslateInput,
       handleCompressContext,

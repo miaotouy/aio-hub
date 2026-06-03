@@ -72,8 +72,6 @@ const emit = defineEmits<{
   (e: "execute-quick-action", action: QuickAction): void;
   (e: "complete-input", content: string): void;
   (e: "analyze-context-with-input"): void;
-  (e: "switch-session", sessionId: string): void;
-  (e: "new-session"): void;
   (e: "open-agent-settings", tab?: string): void;
 }>();
 
@@ -208,16 +206,6 @@ const handleSessionListShow = () => {
   setTimeout(() => miniSessionListRef.value?.scrollToCurrent(), 100);
 };
 
-const handleSwitchSession = (sessionId: string) => {
-  emit("switch-session", sessionId);
-  sessionListVisible.value = false;
-};
-
-const handleNewSession = () => {
-  emit("new-session");
-  sessionListVisible.value = false;
-};
-
 const handleOpenAdvanced = (tab: string | undefined) => {
   toolSettingsVisible.value = false;
   if (props.isDetached) {
@@ -326,11 +314,7 @@ const handleOpenQuickActionManager = () => {
                   <MessageSquare :size="16" />
                 </button>
               </template>
-              <MiniSessionList
-                ref="miniSessionListRef"
-                @switch="handleSwitchSession"
-                @new-session="handleNewSession"
-              />
+              <MiniSessionList ref="miniSessionListRef" />
             </el-popover>
           </div>
         </el-tooltip>
@@ -356,7 +340,7 @@ const handleOpenQuickActionManager = () => {
           :is-context-compression-enabled="isContextCompressionEnabled"
           :continuation-model-info="inputStore.continuationModelInfo"
           @complete-input="emit('complete-input', $event)"
-          @select-continuation-model="() => {}"
+          @select-continuation-model="inputStore.handleSelectContinuationModel"
           @analyze-context-with-input="emit('analyze-context-with-input')"
           @open-quick-action-manager="handleOpenQuickActionManager"
           @visible-change="moreMenuVisible = $event"
@@ -500,8 +484,6 @@ const handleOpenQuickActionManager = () => {
           :canvas-binding-info="canvasBindingInfo"
           :has-canvas-pending-changes="hasCanvasPendingChanges"
           :context-stats="props.contextStats"
-          @clear-continuation-model="() => {}"
-          @clear-temporary-model="() => {}"
           @canvas-visible-change="canvasMenuOpen = $event"
         />
 

@@ -17,8 +17,6 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: "clear-continuation-model"): void;
-  (e: "clear-temporary-model"): void;
   (e: "canvas-visible-change", visible: boolean): void;
 }>();
 
@@ -60,7 +58,7 @@ const onCanvasVisibleChange = (val: boolean) => {
       <span class="model-name">{{
         inputStore.continuationModelInfo.modelName
       }}</span>
-      <button class="clear-btn" @click="emit('clear-continuation-model')">
+      <button class="clear-btn" @click="inputStore.clearContinuationModel()">
         <X :size="14" />
       </button>
     </div>
@@ -78,7 +76,7 @@ const onCanvasVisibleChange = (val: boolean) => {
       <span class="model-name">{{
         inputStore.temporaryModelInfo.modelName
       }}</span>
-      <button class="clear-btn" @click="emit('clear-temporary-model')">
+      <button class="clear-btn" @click="inputStore.clearTemporaryModel()">
         <X :size="14" />
       </button>
     </div>

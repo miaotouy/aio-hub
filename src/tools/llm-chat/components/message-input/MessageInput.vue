@@ -159,8 +159,6 @@ const {
   handleKeydown,
   handlePaste,
   handleCompleteInput,
-  handleSwitchSession,
-  handleNewSession,
   handleAnalyzeContextWithInput,
   getWillUseTranscription,
   handleTranscribeAll,
@@ -543,8 +541,6 @@ const handleDragStart = (e: MouseEvent) => {
             @insert="handleInsertMacro"
             @toggle-expand="toggleExpand"
             @execute-quick-action="handleQuickAction"
-            @switch-session="handleSwitchSession"
-            @new-session="handleNewSession"
             @complete-input="handleCompleteInput"
             @open-agent-settings="handleOpenAgentSettings"
             @analyze-context-with-input="handleAnalyzeContextWithInput"

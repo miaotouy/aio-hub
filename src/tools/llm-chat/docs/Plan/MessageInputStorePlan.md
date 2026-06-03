@@ -439,9 +439,16 @@ const handleSelectContinuationModel = async () => {
 
 #### 3. 验证点
 
-- [ ] 运行 `bun run check:frontend` 无类型错误。
+- [x] 运行 `bun run check:frontend` 无类型错误。（2026-06-03 exit code 0）
 - [ ] 点击会话列表中的会话能正常切换，点击新建会话能正常创建。
 - [ ] 点击临时模型、续写模型按钮能正常弹出模型选择器，选中后能正确更新。
+
+#### 4. 完工记录（实际施工差异）
+
+- `messageInputStore.ts` 新增：`useWindowSyncBus` 依赖；`isDetached` 状态；`handleSwitchSession`（分离模式走 bus、否则直接调 `chatStore.switchSession`，完成后关闭 popover）；`handleNewSession`（同上逻辑，调 `chatStore.createSession`）；`handleSelectContinuationModel`（分离模式提示并通知主窗口，否则弹出模型选择器并调 `inputManager.setContinuationModel`）；以上均加入 return 暴露。
+- `MiniSessionList.vue` 移除 `Emits` interface 和 `defineEmits`；改为 `import { useMessageInputStore }` 直接调用 `inputStore.handleSwitchSession` / `inputStore.handleNewSession`。
+- `MessageInputToolbar.vue` 移除 `switch-session`、`new-session` emits；删除本地 `handleSwitchSession`/`handleNewSession` 函数；`MiniSessionList` 组件移除 `@switch` 和 `@new-session` 绑定；`@select-continuation-model` 改为直接调 `inputStore.handleSelectContinuationModel`。
+- `MessageInput.vue` `onMounted` 中新增 `inputStore.isDetached = props.isDetached ?? false`；从 `useMessageInputActions` 解构中移除 `handleSwitchSession`/`handleNewSession`；模板中移除 `@switch-session` 和 `@new-session` 绑定。
 
 ---
 

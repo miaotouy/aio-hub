@@ -14,6 +14,7 @@ import {
   XCircle,
   Info,
   Settings,
+  Search,
 } from "lucide-vue-next";
 import NotificationItem from "./NotificationItem.vue";
 import { ElMessageBox } from "element-plus";
@@ -31,7 +32,19 @@ const visible = computed({
   set: (val) => store.toggleCenter(val),
 });
 
-const notifications = computed(() => store.sortedNotifications);
+const searchQuery = ref("");
+
+const notifications = computed(() => {
+  const all = store.sortedNotifications;
+  const query = searchQuery.value.trim().toLowerCase();
+  if (!query) return all;
+  return all.filter(
+    (n) =>
+      n.title.toLowerCase().includes(query) ||
+      n.content.toLowerCase().includes(query) ||
+      (n.source && n.source.toLowerCase().includes(query))
+  );
+});
 const unreadCount = computed(() => store.unreadCount);
 
 // 详情弹窗
@@ -145,6 +158,24 @@ const getTypeText = (type: string) => {
         </div>
       </div>
 
+      <!-- 搜索栏 -->
+      <div class="search-bar">
+        <Search :size="16" class="search-icon" />
+        <input
+          v-model="searchQuery"
+          class="search-input"
+          placeholder="搜索通知标题、内容或来源..."
+          @keydown.enter.prevent
+        />
+        <button
+          v-if="searchQuery"
+          class="search-clear-btn"
+          @click="searchQuery = ''"
+        >
+          <X :size="14" />
+        </button>
+      </div>
+
       <!-- 列表区域 -->
       <div class="center-content">
         <template v-if="notifications.length > 0">
@@ -161,7 +192,7 @@ const getTypeText = (type: string) => {
         </template>
         <div v-else class="empty-state">
           <BellOff :size="48" class="empty-icon" />
-          <p>暂无消息通知</p>
+          <p>{{ searchQuery ? "没有匹配的通知" : "暂无消息通知" }}</p>
         </div>
       </div>
 
@@ -289,6 +320,60 @@ const getTypeText = (type: string) => {
 
 .close-btn:hover {
   color: var(--el-color-danger) !important;
+}
+
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 16px 0;
+  padding: 8px 12px;
+  background-color: var(--input-bg);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 8px;
+  transition: border-color 0.2s;
+}
+
+.search-bar:focus-within {
+  border-color: var(--el-color-primary);
+}
+
+.search-icon {
+  color: var(--text-color-placeholder);
+  flex-shrink: 0;
+}
+
+.search-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 13px;
+  color: var(--text-color);
+  min-width: 0;
+}
+
+.search-input::placeholder {
+  color: var(--text-color-placeholder);
+}
+
+.search-clear-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-color-placeholder);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.search-clear-btn:hover {
+  color: var(--el-color-danger);
+  background-color: rgba(var(--el-color-danger-rgb, 245, 108, 108), 0.1);
 }
 
 .center-content {

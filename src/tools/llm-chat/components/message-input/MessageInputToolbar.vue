@@ -8,43 +8,29 @@ export interface InputToolbarSettings {
 </script>
 
 <script setup lang="ts">
-import {
-  ElTooltip,
-  ElPopover,
-  ElDropdown,
-  ElDropdownMenu,
-  ElDropdownItem,
-  ElSwitch,
-  ElIcon,
-} from "element-plus";
+import { ElTooltip, ElPopover, ElIcon } from "element-plus";
 import {
   Paperclip,
   AtSign,
-  X,
   Settings,
-  Languages,
   MessageSquare,
-  Package,
   MoreHorizontal,
-  Sparkles,
   Wrench,
-  Brush,
-  Grip,
-  FileUp,
-  ScanSearch,
 } from "lucide-vue-next";
 import { MagicStick } from "@element-plus/icons-vue";
 import MacroSelector from "../agent/selectors/MacroSelector.vue";
 import MiniSessionList from "./MiniSessionList.vue";
 import MiniToolCallingSettings from "./MiniToolCallingSettings.vue";
-import MiniCanvasControl from "./MiniCanvasControl.vue";
+import QuickActionsBar from "./toolbar/QuickActionsBar.vue";
+import ToolbarMoreMenu from "./toolbar/ToolbarMoreMenu.vue";
+import ToolbarSettingsPopover from "./toolbar/ToolbarSettingsPopover.vue";
+import ToolbarStatusCapsules from "./toolbar/ToolbarStatusCapsules.vue";
 import type { ContextPreviewData } from "../../types/context";
 import type { MacroDefinition } from "../../macro-engine";
 import type { ModelIdentifier } from "../../types";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useQuickActionStore } from "../../stores/quickActionStore";
 import { useAgentStore } from "../../stores/agentStore";
-import { DEFAULT_TOOL_CALL_CONFIG } from "../../types/agent";
 import { useUserProfileStore } from "../../stores/userProfileStore";
 import { useCanvasStore } from "@/tools/web-canvas/stores/canvasStore";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
@@ -81,7 +67,7 @@ interface Props {
   isCompressing?: boolean;
   continuationModel?: ModelIdentifier | null;
   isCompleting?: boolean;
-  anyMenuOpen?: boolean; // 新增：用于向父组件同步菜单状态
+  anyMenuOpen?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -124,27 +110,15 @@ const quickActionStore = useQuickActionStore();
 const agentStore = useAgentStore();
 const profileStore = useUserProfileStore();
 const bus = useWindowSyncBus();
-const { settings: chatSettings, updateSettings: updateChatSettings } =
-  useChatSettings();
+const { settings: chatSettings } = useChatSettings();
 
-/**
- * 计算工具调用是否开启
- */
 const isToolCallingEnabled = computed(() => {
-  // 优先从当前 Agent 获取配置
   const agent = agentStore.currentAgentId
     ? agentStore.getAgentById(agentStore.currentAgentId)
     : null;
-  if (agent?.toolCallConfig) {
-    return agent.toolCallConfig.enabled;
-  }
-  // 回退到默认配置
-  return false;
+  return agent?.toolCallConfig?.enabled ?? false;
 });
 
-/**
- * 计算上下文压缩是否启用
- */
 const isContextCompressionEnabled = computed(() => {
   const agent = agentStore.currentAgentId
     ? agentStore.getAgentById(agentStore.currentAgentId)
@@ -152,7 +126,6 @@ const isContextCompressionEnabled = computed(() => {
   return agent?.parameters?.contextCompression?.enabled ?? false;
 });
 
-// 联动临时模型：如果指定了临时模型，则检查该模型所属渠道是否为 VCP
 const effectiveProfileId = computed(() => props.temporaryModel?.profileId);
 const { isVcpChannel } = useIsVcpChannel(effectiveProfileId);
 
@@ -160,42 +133,25 @@ onMounted(() => {
   quickActionStore.loadQuickActions();
 });
 
-/**
- * 计算当前上下文激活的快捷操作组
- */
 const activeActionSets = computed(() => {
   const globalIds = chatSettings.value.quickActionSetIds || [];
   const agent = agentStore.currentAgentId
     ? agentStore.getAgentById(agentStore.currentAgentId)
     : null;
   const agentIds = agent?.quickActionSetIds || [];
-
-  // 计算生效的用户档案
   const effectiveProfile = profileStore.getEffectiveProfile(
     agent?.userProfileId
   );
   const profileIds = effectiveProfile?.quickActionSetIds || [];
-
-  // 合并并去重
   const allIds = Array.from(
     new Set([...globalIds, ...agentIds, ...profileIds])
   );
-
-  // 触发异步加载
-  if (allIds.length > 0) {
-    quickActionStore.ensureSetsLoaded(allIds);
-  }
-
-  // 从 store 中获取已加载的组内容
+  if (allIds.length > 0) quickActionStore.ensureSetsLoaded(allIds);
   return allIds
     .map((id) => quickActionStore.loadedSets.get(id))
     .filter(Boolean) as QuickActionSet[];
 });
 
-/**
- * 核心逻辑：确保生效的用户档案详情已加载
- * 解决 Agent 绑定的档案在未手动点开前不加载详情，导致快捷操作不显示的问题
- */
 const effectiveUserProfileId = computed(() => {
   const agent = agentStore.currentAgentId
     ? agentStore.getAgentById(agentStore.currentAgentId)
@@ -206,9 +162,7 @@ const effectiveUserProfileId = computed(() => {
 watch(
   effectiveUserProfileId,
   (id) => {
-    if (id) {
-      profileStore.ensureProfileLoaded(id);
-    }
+    if (id) profileStore.ensureProfileLoaded(id);
   },
   { immediate: true }
 );
@@ -221,10 +175,7 @@ const continuationModelInfo = computed(() => {
     (m) => m.id === props.continuationModel?.modelId
   );
   if (!model) return null;
-  return {
-    profileName: profile.name,
-    modelName: model.name || model.id,
-  };
+  return { profileName: profile.name, modelName: model.name || model.id };
 });
 
 const temporaryModelInfo = computed(() => {
@@ -235,10 +186,7 @@ const temporaryModelInfo = computed(() => {
     (m) => m.id === props.temporaryModel?.modelId
   );
   if (!model) return null;
-  return {
-    profileName: profile.name,
-    modelName: model.name || model.id,
-  };
+  return { profileName: profile.name, modelName: model.name || model.id };
 });
 
 const onMacroSelectorUpdate = (visible: boolean) => {
@@ -246,14 +194,13 @@ const onMacroSelectorUpdate = (visible: boolean) => {
 };
 
 const sessionListVisible = ref(false);
-const canvasControlVisible = ref(false);
 const toolSettingsVisible = ref(false);
 const moreMenuVisible = ref(false);
 const settingsVisible = ref(false);
+const canvasMenuOpen = ref(false);
 const miniSessionListRef = ref<any>(null);
 
 const isCanvasEnabled = computed(() => {
-  // 必须同时满足：1. 工具调用总开关开启 2. 画布工具开关开启
   if (!isToolCallingEnabled.value) return false;
   const agent = agentStore.currentAgentId
     ? agentStore.getAgentById(agentStore.currentAgentId)
@@ -268,14 +215,10 @@ const boundCanvasId = computed(() => {
   return agent?.toolCallConfig?.toolSettings?.["web-canvas"]?.canvasId || null;
 });
 
-// 监听画布状态和绑定 ID，变化时自动加载列表以同步胶囊显示
 watch(
   [isCanvasEnabled, boundCanvasId],
   ([enabled, canvasId]) => {
-    if (enabled && canvasId) {
-      const canvasStore = useCanvasStore();
-      canvasStore.loadCanvasList();
-    }
+    if (enabled && canvasId) useCanvasStore().loadCanvasList();
   },
   { immediate: true }
 );
@@ -283,8 +226,7 @@ watch(
 const hasCanvasPendingChanges = computed(() => {
   if (!boundCanvasId.value) return false;
   try {
-    const canvasStore = useCanvasStore();
-    const canvas = canvasStore.canvasList.find(
+    const canvas = useCanvasStore().canvasList.find(
       (c: any) => c.metadata.id === boundCanvasId.value
     );
     return (canvas?.dirtyFileCount || 0) > 0;
@@ -296,8 +238,7 @@ const hasCanvasPendingChanges = computed(() => {
 const canvasBindingInfo = computed(() => {
   if (!boundCanvasId.value) return null;
   try {
-    const canvasStore = useCanvasStore();
-    const canvas = canvasStore.canvasList.find(
+    const canvas = useCanvasStore().canvasList.find(
       (c: any) => c.metadata.id === boundCanvasId.value
     );
     return canvas
@@ -308,21 +249,6 @@ const canvasBindingInfo = computed(() => {
   }
 });
 
-const unbindCanvas = () => {
-  const agent = agentStore.currentAgentId
-    ? agentStore.getAgentById(agentStore.currentAgentId)
-    : null;
-  if (!agent) return;
-  if (!agent.toolCallConfig) {
-    agent.toolCallConfig = JSON.parse(JSON.stringify(DEFAULT_TOOL_CALL_CONFIG));
-  }
-  if (!agent.toolCallConfig!.toolSettings) {
-    agent.toolCallConfig!.toolSettings = {};
-  }
-  agent.toolCallConfig!.toolSettings!["web-canvas"] = { canvasId: null };
-  agentStore.persistAgent(agent);
-};
-
 // 汇总所有菜单状态并向上同步
 watch(
   [
@@ -331,7 +257,7 @@ watch(
     toolSettingsVisible,
     moreMenuVisible,
     settingsVisible,
-    canvasControlVisible,
+    canvasMenuOpen,
   ],
   ([macro, session, tool, more, settings, canvas]) => {
     emit(
@@ -342,10 +268,7 @@ watch(
 );
 
 const handleSessionListShow = () => {
-  // 气泡显示后，延迟一点点触发滚动，确保容器高度已计算
-  setTimeout(() => {
-    miniSessionListRef.value?.scrollToCurrent();
-  }, 100);
+  setTimeout(() => miniSessionListRef.value?.scrollToCurrent(), 100);
 };
 
 const handleSwitchSession = (sessionId: string) => {
@@ -357,10 +280,10 @@ const handleNewSession = () => {
   emit("new-session");
   sessionListVisible.value = false;
 };
+
 const handleOpenAdvanced = (tab: string | undefined) => {
   toolSettingsVisible.value = false;
   if (props.isDetached) {
-    // 分离模式下，请求主窗口打开设置
     bus.requestAction("llm-chat:open-agent-settings", { tab });
     customMessage.info("正在主窗口中打开智能体设置...");
   } else {
@@ -376,48 +299,21 @@ const handleOpenQuickActionManager = () => {
     quickActionManagerVisible.value = true;
   }
 };
-
-const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
-  updateChatSettings({
-    transcription: {
-      ...chatSettings.value.transcription,
-      autoStartOnImport: val as boolean,
-    },
-  });
-};
 </script>
 
 <template>
   <div class="input-toolbar-container">
-    <!-- 快捷操作平铺栏 (参考酒馆设计) -->
-    <div
+    <!-- 快捷操作平铺栏 -->
+    <QuickActionsBar
       v-if="activeActionSets.length > 0"
-      class="quick-actions-bar"
-      :class="{ 'is-grouped': props.settings.groupQuickActionsBySet }"
-    >
-      <template v-for="(set, index) in activeActionSets" :key="set.id">
-        <!-- 非分组模式下的组间分割线 -->
-        <div
-          v-if="!props.settings.groupQuickActionsBySet && index > 0"
-          class="qa-set-divider"
-        ></div>
-
-        <div class="qa-set-group">
-          <button
-            v-for="action in set.actions"
-            :key="action.id"
-            class="qa-action-btn"
-            @click="emit('execute-quick-action', action)"
-            :title="action.description || action.label"
-          >
-            <span class="qa-btn-label">{{ action.label }}</span>
-          </button>
-        </div>
-      </template>
-    </div>
+      :active-action-sets="activeActionSets"
+      :group-quick-actions-by-set="props.settings.groupQuickActionsBySet"
+      @execute-quick-action="emit('execute-quick-action', $event)"
+    />
 
     <div class="input-bottom-bar">
       <div class="tool-actions">
+        <!-- 流式输出 -->
         <el-tooltip
           :content="
             props.isStreamingEnabled
@@ -436,13 +332,13 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
           </button>
         </el-tooltip>
 
-        <!-- 宏选择器按钮 -->
+        <!-- 宏选择器 -->
         <el-tooltip content="添加宏变量" placement="top" :show-after="1500">
           <div>
             <el-popover
               :visible="props.macroSelectorVisible"
               @update:visible="onMacroSelectorUpdate"
-              :placement="props.isDetached ? 'bottom-start' : 'bottom-start'"
+              placement="bottom-start"
               :width="300"
               trigger="click"
               :popper-class="[
@@ -465,19 +361,19 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
           </div>
         </el-tooltip>
 
-        <!-- 添加附件按钮 -->
+        <!-- 添加附件 -->
         <el-tooltip content="添加附件" placement="top" :show-after="500">
           <button class="attachment-button" @click="triggerAttachment?.()">
             <el-icon><Paperclip /></el-icon>
           </button>
         </el-tooltip>
 
-        <!-- 会话列表按钮 -->
+        <!-- 会话列表 -->
         <el-tooltip content="切换会话" placement="top" :show-after="2500">
           <div>
             <el-popover
               v-model:visible="sessionListVisible"
-              :placement="props.isDetached ? 'bottom-start' : 'bottom-start'"
+              placement="bottom-start"
               :width="300"
               trigger="click"
               :popper-class="[
@@ -502,6 +398,7 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
             </el-popover>
           </div>
         </el-tooltip>
+
         <!-- 临时模型选择器 -->
         <el-tooltip content="临时指定模型" placement="top" :show-after="500">
           <button class="tool-btn" @click="emit('select-temporary-model')">
@@ -510,137 +407,31 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
         </el-tooltip>
 
         <!-- 更多工具菜单 -->
-        <el-dropdown
-          trigger="click"
-          :placement="props.isDetached ? 'bottom' : 'top'"
-          :popper-class="props.isDetached ? 'detached-dropdown-menu' : ''"
-          @visible-change="(val: boolean) => (moreMenuVisible = val)"
+        <ToolbarMoreMenu
+          :is-detached="props.isDetached"
+          :input-text="props.inputText"
+          :is-sending="isSending"
+          :is-completing="props.isCompleting"
+          :disabled="disabled"
+          :translation-enabled="props.translationEnabled"
+          :is-translating="props.isTranslating"
+          :is-compressing="props.isCompressing"
+          :is-context-compression-enabled="isContextCompressionEnabled"
+          :continuation-model-info="continuationModelInfo"
+          @complete-input="emit('complete-input', $event)"
+          @select-continuation-model="emit('select-continuation-model')"
+          @translate-input="emit('translate-input')"
+          @compress-context="emit('compress-context')"
+          @convert-paths="emit('convert-paths')"
+          @cleanup-placeholders="emit('cleanup-placeholders')"
+          @analyze-context-with-input="emit('analyze-context-with-input')"
+          @open-quick-action-manager="handleOpenQuickActionManager"
+          @visible-change="moreMenuVisible = $event"
         >
           <button class="tool-btn" :class="{ active: moreMenuVisible }">
             <MoreHorizontal :size="16" />
           </button>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <!-- 智能补全 -->
-              <el-dropdown-item
-                :disabled="
-                  isSending ||
-                  props.isCompleting ||
-                  disabled ||
-                  !props.inputText.trim()
-                "
-                @click="emit('complete-input', props.inputText)"
-              >
-                <div class="dropdown-item-content">
-                  <Sparkles :size="16" class="sparkles-icon" />
-                  <span>智能补全</span>
-                  <span v-if="props.isCompleting" class="loading-dots"
-                    >...</span
-                  >
-                </div>
-              </el-dropdown-item>
-
-              <!-- 补全模型设置 -->
-              <el-dropdown-item
-                :disabled="
-                  isSending ||
-                  props.isCompleting ||
-                  disabled ||
-                  !props.inputText.trim()
-                "
-                @click="emit('select-continuation-model')"
-              >
-                <div class="dropdown-item-content">
-                  <AtSign :size="16" />
-                  <span>指定补全模型</span>
-                  <span v-if="continuationModelInfo" class="model-badge">
-                    {{ continuationModelInfo.modelName }}
-                  </span>
-                </div>
-              </el-dropdown-item>
-
-              <div class="dropdown-divider"></div>
-
-              <!-- 翻译 -->
-              <el-dropdown-item
-                v-if="props.translationEnabled"
-                :disabled="props.isTranslating || !props.inputText.trim()"
-                @click="emit('translate-input')"
-              >
-                <div class="dropdown-item-content">
-                  <Languages :size="16" />
-                  <span>翻译输入</span>
-                  <span v-if="props.isTranslating" class="loading-dots"
-                    >...</span
-                  >
-                </div>
-              </el-dropdown-item>
-
-              <!-- 压缩 -->
-              <el-dropdown-item
-                :disabled="
-                  props.isCompressing ||
-                  disabled ||
-                  !isContextCompressionEnabled
-                "
-                @click="emit('compress-context')"
-              >
-                <div class="dropdown-item-content">
-                  <Package :size="16" />
-                  <span>压缩上下文</span>
-                  <span v-if="props.isCompressing" class="loading-dots"
-                    >...</span
-                  >
-                </div>
-              </el-dropdown-item>
-
-              <div class="dropdown-divider"></div>
-
-              <!-- 路径转附件 -->
-              <el-dropdown-item
-                :disabled="disabled || !props.inputText.trim()"
-                @click="emit('convert-paths')"
-              >
-                <div class="dropdown-item-content">
-                  <FileUp :size="16" />
-                  <span>路径转附件</span>
-                </div>
-              </el-dropdown-item>
-
-              <!-- 清理无效占位符 -->
-              <el-dropdown-item
-                :disabled="disabled || !props.inputText.trim()"
-                @click="emit('cleanup-placeholders')"
-              >
-                <div class="dropdown-item-content">
-                  <el-icon><X /></el-icon>
-                  <span>清理无效占位符</span>
-                </div>
-              </el-dropdown-item>
-
-              <!-- 分析当前上下文 -->
-              <el-dropdown-item
-                :disabled="disabled"
-                @click="emit('analyze-context-with-input')"
-              >
-                <div class="dropdown-item-content">
-                  <ScanSearch :size="16" />
-                  <span>分析当前上下文</span>
-                </div>
-              </el-dropdown-item>
-
-              <div class="dropdown-divider"></div>
-
-              <!-- 管理快捷操作 -->
-              <el-dropdown-item @click="handleOpenQuickActionManager">
-                <div class="dropdown-item-content">
-                  <Grip :size="16" />
-                  <span>管理快捷操作</span>
-                </div>
-              </el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
+        </ToolbarMoreMenu>
 
         <!-- 工具调用设置 -->
         <el-tooltip
@@ -687,137 +478,22 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
           </div>
         </el-tooltip>
 
-        <!-- 设置菜单 -->
-        <el-tooltip content="工具栏设置" placement="top" :show-after="500">
-          <div>
-            <el-popover
-              v-model:visible="settingsVisible"
-              :placement="props.isDetached ? 'bottom' : 'top'"
-              :width="240"
-              trigger="click"
-              :popper-class="[
-                'toolbar-settings-popover',
-                { 'detached-popover': props.isDetached },
-              ]"
-            >
-              <template #reference>
-                <button
-                  class="tool-btn settings-btn"
-                  :class="{ active: settingsVisible }"
-                >
-                  <Settings :size="16" />
-                </button>
-              </template>
-              <div class="toolbar-settings-content">
-                <div class="setting-item">
-                  <span class="setting-label">显示 Token 统计</span>
-                  <el-switch
-                    :model-value="props.settings.showTokenUsage"
-                    @update:model-value="
-                      (val: boolean | string | number) =>
-                        emit('update:settings', {
-                          ...props.settings,
-                          showTokenUsage: val as boolean,
-                        })
-                    "
-                    size="small"
-                  />
-                </div>
-                <div class="setting-item">
-                  <span class="setting-label">启用输入宏解析</span>
-                  <el-switch
-                    :model-value="props.settings.enableMacroParsing"
-                    @update:model-value="
-                      (val: boolean | string | number) =>
-                        emit('update:settings', {
-                          ...props.settings,
-                          enableMacroParsing: val as boolean,
-                        })
-                    "
-                    size="small"
-                  />
-                </div>
-                <div class="setting-item">
-                  <span class="setting-label">粘贴时提取 Base64 图像</span>
-                  <el-switch
-                    :model-value="props.settings.extractBase64FromPaste"
-                    @update:model-value="
-                      (val: boolean | string | number) =>
-                        emit('update:settings', {
-                          ...props.settings,
-                          extractBase64FromPaste: val as boolean,
-                        })
-                    "
-                    size="small"
-                  />
-                </div>
-                <div class="setting-item">
-                  <span class="setting-label">快捷按钮按组分行</span>
-                  <el-switch
-                    :model-value="props.settings.groupQuickActionsBySet"
-                    @update:model-value="
-                      (val: boolean | string | number) =>
-                        emit('update:settings', {
-                          ...props.settings,
-                          groupQuickActionsBySet: val as boolean,
-                        })
-                    "
-                    size="small"
-                  />
-                </div>
-                <div class="setting-item">
-                  <span class="setting-label">导入时自动转写</span>
-                  <el-switch
-                    :model-value="chatSettings.transcription.autoStartOnImport"
-                    @update:model-value="handleToggleAutoStartOnImport"
-                    size="small"
-                  />
-                </div>
-                <div class="setting-item">
-                  <span class="setting-label">队列消息自动生成</span>
-                  <el-switch
-                    :model-value="
-                      chatSettings.uiPreferences.autoTriggerGenerationAfterQueue
-                    "
-                    @update:model-value="
-                      (val: boolean | string | number) =>
-                        updateChatSettings({
-                          uiPreferences: {
-                            ...chatSettings.uiPreferences,
-                            autoTriggerGenerationAfterQueue: val as boolean,
-                          },
-                        })
-                    "
-                    size="small"
-                  />
-                </div>
-                <div class="setting-item">
-                  <span class="setting-label">队列模式</span>
-                  <el-switch
-                    :model-value="
-                      chatSettings.uiPreferences.queueReplyMode === 'chained'
-                    "
-                    @update:model-value="
-                      (val: boolean | string | number) =>
-                        updateChatSettings({
-                          uiPreferences: {
-                            ...chatSettings.uiPreferences,
-                            queueReplyMode: (val as boolean)
-                              ? 'chained'
-                              : 'combined',
-                          },
-                        })
-                    "
-                    active-text="链式"
-                    inactive-text="合并"
-                    size="small"
-                  />
-                </div>
-              </div>
-            </el-popover>
-          </div>
-        </el-tooltip>
+        <!-- 工具栏设置 -->
+        <ToolbarSettingsPopover
+          :is-detached="props.isDetached"
+          :settings="props.settings"
+          @update:settings="emit('update:settings', $event)"
+          @visible-change="settingsVisible = $event"
+        >
+          <button
+            class="tool-btn settings-btn"
+            :class="{ active: settingsVisible }"
+          >
+            <Settings :size="16" />
+          </button>
+        </ToolbarSettingsPopover>
 
+        <!-- 展开/收起 -->
         <el-tooltip
           v-if="!props.isDetached"
           :content="props.isExpanded ? '收起输入框' : '展开输入框'"
@@ -862,240 +538,52 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
           </button>
         </el-tooltip>
 
-        <!-- 正在处理提示：移至图标后方，保持图标位置稳定 -->
+        <!-- 处理中提示 -->
         <span v-if="props.isProcessingAttachments" class="processing-hint">
           正在处理文件...
         </span>
         <span v-if="props.isCompressing" class="processing-hint compressing">
-          <el-icon class="is-loading"><Package /></el-icon>
+          <el-icon class="is-loading"
+            ><svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="1em"
+              height="1em"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
+              ></path>
+            </svg>
+          </el-icon>
           正在压缩上下文...
         </span>
       </div>
+
       <div class="input-actions">
-        <!-- 续写模型显示 -->
-        <el-tooltip
-          v-if="continuationModelInfo"
-          :content="`续写模型: ${continuationModelInfo.profileName} - ${continuationModelInfo.modelName}`"
-          placement="top"
-          :show-after="500"
-        >
-          <div class="temporary-model-indicator continuation-model">
-            <Sparkles :size="14" />
-            <span class="model-name">
-              {{ continuationModelInfo.modelName }}
-            </span>
-            <button class="clear-btn" @click="emit('clear-continuation-model')">
-              <X :size="14" />
-            </button>
-          </div>
-        </el-tooltip>
+        <!-- 状态胶囊区域 -->
+        <ToolbarStatusCapsules
+          :is-detached="props.isDetached"
+          :continuation-model-info="continuationModelInfo"
+          :temporary-model-info="temporaryModelInfo"
+          :is-canvas-enabled="isCanvasEnabled"
+          :canvas-binding-info="canvasBindingInfo"
+          :has-canvas-pending-changes="hasCanvasPendingChanges"
+          :show-token-usage="props.settings.showTokenUsage"
+          :context-stats="props.contextStats"
+          :token-count="props.tokenCount"
+          :is-calculating-tokens="props.isCalculatingTokens"
+          :token-estimated="props.tokenEstimated"
+          @clear-continuation-model="emit('clear-continuation-model')"
+          @clear-temporary-model="emit('clear-temporary-model')"
+          @canvas-visible-change="canvasMenuOpen = $event"
+        />
 
-        <!-- 临时模型显示 -->
-        <el-tooltip
-          v-if="temporaryModelInfo"
-          :content="`临时模型: ${temporaryModelInfo.profileName} - ${temporaryModelInfo.modelName}`"
-          placement="top"
-          :show-after="500"
-        >
-          <div class="temporary-model-indicator">
-            <AtSign :size="14" />
-            <span class="model-name">
-              {{ temporaryModelInfo.modelName }}
-            </span>
-            <button class="clear-btn" @click="emit('clear-temporary-model')">
-              <X :size="14" />
-            </button>
-          </div>
-        </el-tooltip>
-
-        <!-- 画布状态标签 (展示+控制合一) -->
-        <el-tooltip
-          v-if="isCanvasEnabled"
-          :content="
-            canvasBindingInfo
-              ? `当前绑定画布: ${canvasBindingInfo.name} (点击管理)`
-              : '画布未绑定 (点击管理)'
-          "
-          placement="top"
-          :show-after="500"
-        >
-          <div>
-            <el-popover
-              v-model:visible="canvasControlVisible"
-              :placement="props.isDetached ? 'bottom-end' : 'top-end'"
-              :width="320"
-              trigger="click"
-              :popper-class="[
-                'canvas-control-popover',
-                { 'detached-popover': props.isDetached },
-              ]"
-            >
-              <template #reference>
-                <div
-                  class="temporary-model-indicator canvas-indicator"
-                  :class="{
-                    'has-pending': hasCanvasPendingChanges,
-                    'is-unbound': !canvasBindingInfo,
-                    'is-active': canvasControlVisible,
-                  }"
-                >
-                  <Brush :size="14" />
-                  <span class="model-name">
-                    {{ canvasBindingInfo ? canvasBindingInfo.name : "未绑定" }}
-                  </span>
-                  <div
-                    v-if="hasCanvasPendingChanges"
-                    class="pending-pulse"
-                  ></div>
-                  <button
-                    v-if="canvasBindingInfo"
-                    class="clear-btn"
-                    @click.stop="unbindCanvas"
-                  >
-                    <X :size="14" />
-                  </button>
-                </div>
-              </template>
-              <div v-if="canvasControlVisible">
-                <MiniCanvasControl />
-              </div>
-            </el-popover>
-          </div>
-        </el-tooltip>
-
-        <!-- 历史上下文统计 -->
-        <el-tooltip
-          v-if="
-            props.settings.showTokenUsage &&
-            props.contextStats &&
-            props.contextStats.totalTokenCount !== undefined
-          "
-          placement="top"
-          :show-after="500"
-        >
-          <template #content>
-            <div style="text-align: left; line-height: 1.6">
-              <div style="font-weight: 600; margin-bottom: 4px">
-                历史上下文统计
-              </div>
-              <div style="font-size: 12px">
-                <div>
-                  总计:
-                  {{ props.contextStats.totalTokenCount.toLocaleString() }}
-                  tokens
-                </div>
-                <div v-if="props.contextStats.presetMessagesTokenCount">
-                  预设消息:
-                  {{
-                    props.contextStats.presetMessagesTokenCount.toLocaleString()
-                  }}
-                  tokens
-                </div>
-                <div v-if="props.contextStats.worldbookTokenCount">
-                  世界书:
-                  {{ props.contextStats.worldbookTokenCount.toLocaleString() }}
-                  tokens
-                </div>
-                <div v-if="props.contextStats.chatHistoryTokenCount">
-                  会话历史:
-                  {{
-                    props.contextStats.chatHistoryTokenCount.toLocaleString()
-                  }}
-                  tokens
-                </div>
-                <div v-if="props.contextStats.postProcessingTokenCount">
-                  后处理:
-                  {{
-                    props.contextStats.postProcessingTokenCount.toLocaleString()
-                  }}
-                  tokens
-                </div>
-                <div
-                  v-if="props.contextStats.truncatedMessageCount"
-                  style="color: var(--el-color-warning); margin-top: 2px"
-                >
-                  已截断: {{ props.contextStats.truncatedMessageCount }} 条消息
-                  <span v-if="props.contextStats.savedTokenCount">
-                    (省
-                    {{ props.contextStats.savedTokenCount.toLocaleString() }}
-                    tokens)
-                  </span>
-                </div>
-                <div
-                  v-if="props.contextStats.tokenizerName"
-                  style="margin-top: 4px; opacity: 0.8"
-                >
-                  {{
-                    props.contextStats.isEstimated ? "字符估算" : "Token 计算"
-                  }}
-                  -
-                  {{ props.contextStats.tokenizerName }}
-                </div>
-              </div>
-            </div>
-          </template>
-          <span class="token-count context-total">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              style="margin-right: 4px"
-            >
-              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
-              <path
-                d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"
-              ></path>
-            </svg>
-            <span
-              >{{ props.contextStats.totalTokenCount.toLocaleString()
-              }}{{ props.contextStats.isEstimated ? "~" : "" }}</span
-            >
-          </span>
-        </el-tooltip>
-        <!-- 当前输入 Token 计数显示 -->
-        <el-tooltip
-          v-if="
-            props.settings.showTokenUsage &&
-            (props.tokenCount > 0 || props.isCalculatingTokens)
-          "
-          :content="
-            props.tokenEstimated
-              ? '当前输入 Token 数量（估算值）'
-              : '当前输入 Token 数量'
-          "
-          placement="top"
-          :show-after="500"
-        >
-          <span class="token-count input-tokens">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              style="margin-right: 4px"
-            >
-              <path d="M12 20h9"></path>
-              <path
-                d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"
-              ></path>
-            </svg>
-            <span>
-              {{ props.tokenCount.toLocaleString()
-              }}{{ props.tokenEstimated ? "~" : "" }}
-            </span>
-          </span>
-        </el-tooltip>
+        <!-- 停止 & 发送 -->
         <button
           v-show="isSending"
           @click="abort?.()"
@@ -1114,8 +602,9 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
             stroke-linejoin="round"
           >
             <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-          </svg></button
-        ><button
+          </svg>
+        </button>
+        <button
           @click="send?.()"
           :disabled="
             disabled || (!props.inputText.trim() && !props.hasAttachments)
@@ -1157,129 +646,10 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
   white-space: nowrap;
 }
 
-.token-count {
-  font-size: 12px;
-  color: var(--text-color-secondary);
-  display: flex;
-  align-items: center;
-  padding: 2px 8px;
-  border-radius: 4px;
-  background: var(--el-fill-color-light);
-  font-variant-numeric: tabular-nums;
-  user-select: none;
-  cursor: help;
-}
-
-.token-count svg {
-  flex-shrink: 0;
-}
-
-/* 历史上下文统计样式 */
-.token-count.context-total {
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--el-color-primary) 10%, transparent),
-    color-mix(in srgb, var(--el-color-primary) 5%, transparent)
-  );
-  border: 1px solid color-mix(in srgb, var(--el-color-primary) 30%, transparent);
-  color: var(--el-color-primary);
-  font-weight: 500;
-}
-
-/* 当前输入 token 样式 */
-.token-count.input-tokens {
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--el-color-success) 10%, transparent),
-    color-mix(in srgb, var(--el-color-success) 5%, transparent)
-  );
-  border: 1px solid color-mix(in srgb, var(--el-color-success) 30%, transparent);
-  color: var(--el-color-success);
-  font-weight: 500;
-}
-
 .input-toolbar-container {
   display: flex;
   flex-direction: column;
   width: 100%;
-}
-
-/* 快捷操作平铺栏样式 */
-.quick-actions-bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 4px 8px;
-  border-bottom: var(--border-width) solid var(--border-color);
-  background: rgba(var(--el-fill-color-light-rgb), 0.3);
-  min-height: 32px;
-  align-items: center;
-}
-
-.quick-actions-bar.is-grouped {
-  flex-direction: column;
-  align-items: stretch;
-  gap: 4px;
-  padding: 6px 8px;
-}
-
-.qa-set-group {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.qa-set-divider {
-  width: 1px;
-  height: 14px;
-  background-color: var(--border-color);
-  margin: 0 4px;
-  opacity: 0.6;
-}
-
-.quick-actions-bar.is-grouped .qa-set-group {
-  padding-bottom: 4px;
-  border-bottom: 1px dashed var(--border-color);
-}
-
-.quick-actions-bar.is-grouped .qa-set-group:last-of-type {
-  border-bottom: none;
-  padding-bottom: 0;
-}
-
-.qa-action-btn {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  height: 22px;
-  border: var(--border-width) solid var(--border-color);
-  border-radius: 4px;
-  background: var(--card-bg);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  color: var(--text-color-secondary);
-  font-size: 11px;
-}
-
-.qa-action-btn:hover {
-  background: var(--el-fill-color-light);
-  border-color: var(--primary-color);
-  color: var(--primary-color);
-  transform: translateY(-1px);
-}
-
-.qa-action-btn.manage-btn {
-  padding: 2px 4px;
-  opacity: 0.6;
-}
-
-.qa-action-btn.manage-btn:hover {
-  opacity: 1;
-}
-
-.qa-btn-icon {
-  opacity: 0.8;
 }
 
 .input-bottom-bar {
@@ -1301,7 +671,6 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
   flex: 1 1 auto;
 }
 
-/* 流式输出图标按钮 */
 .streaming-icon-button {
   display: flex;
   align-items: center;
@@ -1321,7 +690,6 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
   cursor: not-allowed;
 }
 
-/* 打字机图标 "A_" */
 .typewriter-icon {
   font-family:
     -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
@@ -1332,11 +700,10 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
   color: var(--text-color-secondary);
   transition: all 0.3s ease;
   position: relative;
-  top: -1.5px; /* 微调垂直对齐 */
+  top: -1.5px;
   display: inline-block;
 }
 
-/* 非激活状态：暗淡灰色 */
 .streaming-icon-button:not(.active) .typewriter-icon {
   color: var(--text-color-secondary);
   opacity: 0.5;
@@ -1350,20 +717,14 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
   opacity: 0.8;
 }
 
-/* 激活状态：主题色 + 辉光效果 */
 .streaming-icon-button.active .typewriter-icon {
   color: var(--primary-color);
   opacity: 1;
-}
-
-/* 辉光效果 */
-.streaming-icon-button.active .typewriter-icon {
   text-shadow:
     0 0 4px rgba(var(--primary-color-rgb, 64, 158, 255), 0.5),
     0 0 6px rgba(var(--primary-color-rgb, 64, 158, 255), 0.3);
 }
 
-/* 光标闪烁动画（仅在激活时） - 半透明轻微闪烁 */
 @keyframes cursor-blink {
   0%,
   49% {
@@ -1436,7 +797,6 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
   transform: translateY(-1px);
 }
 
-/* 统一工具栏图标按钮样式 */
 .tool-btn,
 .macro-icon-button,
 .attachment-button,
@@ -1476,7 +836,6 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
   opacity: 0.7;
 }
 
-/* VCP 渠道激活时 Wrench 按钮样式 */
 .tool-btn.vcp-active {
   color: #8b5cf6;
 }
@@ -1484,24 +843,6 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
 .tool-btn.vcp-active:hover {
   color: #7c3aed;
   background-color: color-mix(in srgb, #8b5cf6 10%, transparent);
-}
-
-.loading-dots {
-  font-size: 12px;
-  font-weight: bold;
-  animation: pulse 1.5s infinite;
-}
-
-@keyframes pulse {
-  0% {
-    opacity: 0.3;
-  }
-  50% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0.3;
-  }
 }
 
 .macro-icon-button.active,
@@ -1512,143 +853,9 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
 .tool-btn.active {
   color: var(--primary-color);
 }
-
-.temporary-model-indicator {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  border-radius: 12px;
-  background: rgba(var(--el-color-primary-rgb), 0.1);
-  color: var(--el-color-primary);
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.temporary-model-indicator .model-name {
-  max-width: 120px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.temporary-model-indicator .clear-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  background-color: transparent;
-  color: var(--el-color-primary);
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.temporary-model-indicator .clear-btn:hover {
-  background-color: rgba(0, 0, 0, 0.1);
-}
-
-.dropdown-item-content {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 160px;
-}
-
-.dropdown-divider {
-  height: 1px;
-  background-color: var(--el-border-color-lighter);
-  margin: 4px 0;
-}
-
-.model-badge {
-  margin-left: auto;
-  font-size: 11px;
-  padding: 1px 6px;
-  border-radius: 10px;
-  background-color: var(--el-fill-color-darker);
-  color: var(--text-color-secondary);
-  max-width: 80px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.sparkles-icon {
-  color: var(--el-color-warning);
-}
-
-.continuation-model {
-  background: var(--el-color-warning-light-9) !important;
-  color: var(--el-color-warning) !important;
-}
-
-.continuation-model .clear-btn {
-  color: var(--el-color-warning) !important;
-}
-.canvas-indicator {
-  cursor: pointer;
-  transition: all 0.2s;
-  border: 1px solid color-mix(in srgb, var(--el-color-primary) 30%, transparent);
-}
-
-.canvas-indicator:hover {
-  background: rgba(var(--el-color-primary-rgb), 0.2);
-  transform: translateY(-1px);
-}
-
-.canvas-indicator.has-pending {
-  border-color: var(--el-color-warning);
-  color: var(--el-color-warning);
-  background: rgba(var(--el-color-warning-rgb), 0.1);
-}
-
-.canvas-indicator.has-pending .clear-btn {
-  color: var(--el-color-warning) !important;
-}
-
-.canvas-indicator.is-unbound {
-  opacity: 0.6;
-  border-style: dashed;
-  background: transparent;
-}
-
-.canvas-indicator.is-active {
-  border-color: var(--primary-color);
-  background: rgba(var(--el-color-primary-rgb), 0.2);
-}
-
-.pending-pulse {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background-color: var(--el-color-warning);
-  box-shadow: 0 0 0 rgba(var(--el-color-warning-rgb), 0.4);
-  animation: pulse-dot 2s infinite;
-  margin: 0 2px;
-}
-
-@keyframes pulse-dot {
-  0% {
-    transform: scale(0.95);
-    box-shadow: 0 0 0 0 rgba(var(--el-color-warning-rgb), 0.7);
-  }
-  70% {
-    transform: scale(1);
-    box-shadow: 0 0 0 6px rgba(var(--el-color-warning-rgb), 0);
-  }
-  100% {
-    transform: scale(0.95);
-    box-shadow: 0 0 0 0 rgba(var(--el-color-warning-rgb), 0);
-  }
-}
 </style>
 
 <style>
-/* 宏选择器弹窗样式 - 全局样式以影响 teleported 的 popover */
 .macro-selector-popover {
   max-height: 70vh !important;
   overflow: hidden !important;
@@ -1672,7 +879,6 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
   overflow-y: auto;
 }
 
-/* 宏选择器 Tooltip 样式优化 - 允许换行并限制宽度 */
 .macro-tooltip-popper.el-popper {
   max-width: min(320px, 60vw) !important;
   line-height: 1.5 !important;
@@ -1681,7 +887,6 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
   padding: 8px 12px !important;
 }
 
-/* 分离模式下宏选择器高度调小，确保在扩充后的 600px 窗口内有良好表现 */
 .detached-popover.macro-selector-popover {
   max-height: 320px !important;
 }
@@ -1700,63 +905,6 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
   gap: 8px;
 }
 
-.quick-actions-menu {
-  display: flex;
-  flex-direction: column;
-}
-
-.action-group {
-  margin-bottom: 8px;
-}
-
-.group-title {
-  padding: 4px 8px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--el-text-color-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.action-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-size: 13px;
-}
-
-.action-item:hover {
-  background-color: var(--el-fill-color-light);
-}
-
-.action-icon {
-  color: var(--el-text-color-secondary);
-}
-
-.action-label {
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.arrow-icon {
-  opacity: 0.5;
-}
-
-.manage-item {
-  color: var(--el-color-primary);
-  margin-top: 4px;
-}
-
-.manage-item:hover {
-  background-color: rgba(var(--el-color-primary-rgb), 0.1);
-}
-
 .setting-item {
   display: flex;
   justify-content: space-between;
@@ -1772,7 +920,7 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
 .session-list-popover .el-popover__body {
   padding: 0;
 }
-/* 分离模式下气泡/下拉菜单背景增强 */
+
 .detached-popover,
 .detached-dropdown-menu {
   background-color: var(--card-bg-solid) !important;
@@ -1780,7 +928,6 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3) !important;
 }
 
-/* 处理 Tooltip 的背景色，适配分离模式下的通透感 */
 .macro-tooltip-popper.is-light {
   background-color: var(--card-bg-solid) !important;
   border: 1px solid var(--border-color) !important;
@@ -1797,7 +944,6 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
   color: var(--text-color-primary) !important;
 }
 
-/* 适配 dropdown-menu 内部样式 */
 .detached-dropdown-menu :deep(.el-dropdown-menu) {
   background-color: transparent !important;
   background: none !important;

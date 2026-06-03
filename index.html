@@ -367,7 +367,8 @@
         }
 
         if (failedFeatures.length > 0) {
-          // 检测失败：显示错误界面，不加载主应用
+          // 检测失败：阻止主应用加载，显示错误界面
+          window.__AIO_COMPAT_FAILED__ = true;
           window.addEventListener("DOMContentLoaded", function () {
             var loadingContainer = document.querySelector(".loading-container");
             var errorContainer = document.getElementById("error-container");
@@ -390,22 +391,13 @@
               ignoreBtn.addEventListener("click", function () {
                 if (errorContainer) errorContainer.style.display = "none";
                 if (loadingContainer) loadingContainer.style.display = "flex";
-                // 用户选择忽略，动态加载主应用
-                var s = document.createElement("script");
-                s.type = "module";
-                s.src = "/src/main.ts";
-                document.body.appendChild(s);
+                window.__AIO_COMPAT_FAILED__ = false;
               });
             }
           });
-        } else {
-          // 检测通过：动态加载主应用
-          var s = document.createElement("script");
-          s.type = "module";
-          s.src = "/src/main.ts";
-          document.currentScript.parentNode.appendChild(s);
         }
       })();
     </script>
+    <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

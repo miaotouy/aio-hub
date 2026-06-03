@@ -203,6 +203,11 @@ const mountApp = async () => {
   }
 };
 
+// 兼容性检测失败时阻止应用挂载
+if ((window as any).__AIO_COMPAT_FAILED__) {
+  throw new Error("Compatibility check failed, app mount aborted.");
+}
+
 logger.info("应用启动", { version: packageJson.version });
 
 // 初始化 Inspector 跨窗口状态同步（幂等，每个 webview 各调一次）

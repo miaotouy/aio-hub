@@ -333,9 +333,8 @@ export function useTopicNamer() {
   };
 
   /**
-   /**
-    * 检查会话是否需要自动命名
-    */
+   * 检查会话是否需要自动命名
+   */
   const shouldAutoName = (
     session: ChatSessionDetail,
     sessionIndexMap: Map<string, ChatSessionIndex>
@@ -344,7 +343,7 @@ export function useTopicNamer() {
     const namingConfig = settings.value.topicNaming;
 
     if (!namingConfig.enabled) {
-      logger.warn("shouldAutoName: 话题命名未启用", {
+      logger.debug("shouldAutoName: 话题命名未启用", {
         enabled: namingConfig.enabled,
       });
       return false;
@@ -363,7 +362,7 @@ export function useTopicNamer() {
 
     const index = sessionIndexMap.get(session.id);
     if (!index || !index.name.startsWith("会话")) {
-      logger.warn("shouldAutoName: 会话名称不符合条件", {
+      logger.debug("shouldAutoName: 会话名称不符合条件", {
         sessionId: session.id,
         hasIndex: !!index,
         name: index?.name,
@@ -382,7 +381,7 @@ export function useTopicNamer() {
     ).length;
 
     if (userMessageCount < namingConfig.autoTriggerThreshold) {
-      logger.warn("shouldAutoName: 用户消息数量不足", {
+      logger.debug("shouldAutoName: 用户消息数量不足", {
         sessionId: session.id,
         userMessageCount,
         threshold: namingConfig.autoTriggerThreshold,

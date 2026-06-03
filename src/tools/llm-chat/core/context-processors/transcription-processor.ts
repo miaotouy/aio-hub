@@ -2,6 +2,8 @@ import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { ContextProcessor, PipelineContext } from "../../types/pipeline";
 import { resolveAttachmentsBatch } from "../../core/context-utils/attachment-resolver";
+import { splitDocxIntoImageAssets } from "../../core/context-utils/docx-image-splitter";
+import { isDocxAssetLike } from "@/utils/docxParser";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { Asset } from "@/types/asset-management";
 import type { ChatTranscriptionConfig } from "../../types/settings";
@@ -190,9 +192,42 @@ export const transcriptionProcessor: ContextProcessor = {
 
       // 预先处理所有附件，获取转写结果
       // 使用预处理阶段获取的最新 Asset，避免重复异步调用
-      const assetsToProcess = msg._attachments.map(
+      let assetsToProcess = msg._attachments.map(
         (asset) => updatedAssetsMap.get(asset.id) || asset
       );
+
+      // ─── DOCX 插图拆分：主模型支持视觉时，将内嵌图片直接作为多模态发送 ───
+      const hasVision = context.capabilities?.vision === true;
+      if (hasVision) {
+        const nonDocxAssets: Asset[] = [];
+
+        for (const asset of assetsToProcess) {
+          if (isDocxAssetLike(asset)) {
+            const splitResult = await splitDocxIntoImageAssets(asset);
+            if (splitResult.success) {
+              // 文本（含 [图片 N] 占位符）注入转写结果
+              const formattedText = `\n[文件: ${asset.name}]\n${splitResult.text}\n`;
+              transcriptionResults.set(asset.id, formattedText);
+              processedCount++;
+              // 临时图片 Asset 加入 remainingAttachments，下游 asset-resolver 会处理
+              remainingAttachments.push(...splitResult.imageAssets);
+            } else if (splitResult.text) {
+              // 无图片但有文本（DOCX 无插图），仍作为文本注入
+              const formattedText = `\n[文件: ${asset.name}]\n${splitResult.text}\n`;
+              transcriptionResults.set(asset.id, formattedText);
+              processedCount++;
+            } else {
+              // 拆分失败，回退到正常解析流程
+              nonDocxAssets.push(asset);
+            }
+          } else {
+            nonDocxAssets.push(asset);
+          }
+        }
+
+        // 只保留非 DOCX（或拆分失败的 DOCX）继续走 resolveAttachmentsBatch
+        assetsToProcess = nonDocxAssets;
+      }
 
       // 检查是否需要强制转写
       let forceTranscription = false;

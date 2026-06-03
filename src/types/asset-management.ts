@@ -193,6 +193,22 @@ export interface Asset {
    * 由后端事件携带，用于更精确的用户提示
    */
   importPhaseDetail?: string;
+
+  /**
+   * 内联二进制数据（纯内存使用，不持久化到资产库）
+   *
+   * 用于 DOCX 插图拆分等场景：将文档内嵌图片提取为临时 Asset，
+   * 无需写入磁盘即可参与 Token 计算和发送管道。
+   *
+   * - Token 计算侧读取 metadata.width/height
+   * - 发送侧（asset-resolver）读取 inlineData.base64 生成 ImageContent
+   */
+  inlineData?: {
+    /** base64 编码的二进制数据 */
+    base64: string;
+    /** MIME 类型，如 'image/png' */
+    mimeType: string;
+  };
 }
 
 /**

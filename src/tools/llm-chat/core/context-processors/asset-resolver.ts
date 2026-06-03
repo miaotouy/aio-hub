@@ -180,7 +180,19 @@ export const assetResolver: ContextProcessor = {
             continue;
           }
 
-          const buffer = await assetManagerEngine.getAssetBinary(asset.path);
+          // 优先使用内联数据（如 DOCX 拆分出的临时图片），跳过磁盘读取
+          let buffer: ArrayBuffer;
+          if (asset.inlineData) {
+            const binaryStr = atob(asset.inlineData.base64);
+            const bytes = new Uint8Array(binaryStr.length);
+            for (let i = 0; i < binaryStr.length; i++) {
+              bytes[i] = binaryStr.charCodeAt(i);
+            }
+            buffer = bytes.buffer;
+          } else {
+            buffer = await assetManagerEngine.getAssetBinary(asset.path);
+          }
+
           let parts: LlmMessageContent[] = [];
 
           switch (asset.type) {

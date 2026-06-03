@@ -65,22 +65,13 @@ export function useMessageInputActions(options: UseMessageInputActionsOptions) {
     const content = options.inputText.value.trim();
     const hasAttachments = options.inputManager.hasAttachments.value;
 
-    if (
-      (!content && !hasAttachments) ||
-      options.props.disabled ||
-      options.isCurrentBranchGenerating.value
-    ) {
+    if ((!content && !hasAttachments) || options.props.disabled) {
       logger.info("发送被阻止", {
         hasContent: !!content,
         hasAttachments,
         disabled: options.props.disabled,
-        isGenerating: options.isCurrentBranchGenerating.value,
         isDetached: options.props.isDetached,
       });
-
-      if (options.isCurrentBranchGenerating.value) {
-        customMessage.warning("请等待当前回复完成后再发送新消息");
-      }
       return;
     }
 

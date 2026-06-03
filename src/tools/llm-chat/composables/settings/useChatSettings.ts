@@ -28,6 +28,10 @@ const settingsManager = createConfigManager<ChatSettings>({
       uiPreferences: {
         ...defaultConfig.uiPreferences,
         ...(loadedConfig.uiPreferences || {}),
+        bubbleLayout: {
+          ...defaultConfig.uiPreferences.bubbleLayout,
+          ...((loadedConfig.uiPreferences || {}).bubbleLayout || {}),
+        },
       },
       modelPreferences: {
         ...defaultConfig.modelPreferences,

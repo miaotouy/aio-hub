@@ -69,6 +69,7 @@ export function useChatHandler() {
       temporaryModel?: ModelIdentifier | null;
       parentId?: string;
       disableMacroParsing?: boolean;
+      skipGeneration?: boolean;
     },
     currentSessionId?: string | null
   ): Promise<void> => {
@@ -257,6 +258,7 @@ export function useChatHandler() {
 
     // 附件转写等待逻辑（在消息上屏并保存后执行）
     if (
+      !options?.skipGeneration &&
       options?.attachments &&
       options.attachments.length > 0 &&
       settings.value.transcription.enabled
@@ -330,6 +332,30 @@ export function useChatHandler() {
         session,
         currentSessionId ?? null
       );
+    }
+
+    // 排队跳过生成：根据队列策略处理节点后提前返回
+    if (options?.skipGeneration) {
+      generatingNodes.delete(assistantNode.id);
+      const queueMode =
+        settings.value.uiPreferences.queueReplyMode ?? "combined";
+      if (queueMode === "combined") {
+        nodeManager.hardDeleteNode(session, assistantNode.id);
+        nodeManager.updateActiveLeaf(session, userNode.id);
+      } else {
+        // Chained: 保留 assistant 占位节点，标记为 pending
+        if (session.nodes?.[assistantNode.id]) {
+          (session.nodes[assistantNode.id] as any).status = "pending";
+        }
+      }
+      if (sessionIndex) {
+        sessionManager.persistSession(
+          sessionIndex,
+          session,
+          currentSessionId ?? null
+        );
+      }
+      return;
     }
 
     logger.debug("已设置助手节点元数据", {

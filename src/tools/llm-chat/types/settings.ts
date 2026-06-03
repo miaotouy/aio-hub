@@ -189,6 +189,10 @@ export interface ChatSettings {
     globalMediaVolume: number;
     /** 气泡布局配置 */
     bubbleLayout: BubbleLayoutConfig;
+    /** 是否在队列完成后自动触发生成，默认 true */
+    autoTriggerGenerationAfterQueue: boolean;
+    /** 队列回复模式：'combined' 合并回复，'chained' 链式独立回复，默认 'combined' */
+    queueReplyMode: "combined" | "chained";
   };
   /** 模型偏好设置 */
   modelPreferences: {
@@ -350,6 +354,8 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     safetyGuardEnabled: true, // 默认启用渲染安全护栏
     codeEditorEngine: "codemirror", // 默认使用 CodeMirror
     globalMediaVolume: 80, // 默认媒体音量 80%
+    autoTriggerGenerationAfterQueue: true,
+    queueReplyMode: "combined" as const,
     bubbleLayout: {
       mode: "card", // 默认卡片模式，零回归
       userAlign: "right",

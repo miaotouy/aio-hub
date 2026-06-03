@@ -430,7 +430,6 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
           <button
             class="streaming-icon-button"
             :class="{ active: props.isStreamingEnabled }"
-            :disabled="isSending"
             @click="emit('toggle-streaming')"
           >
             <span class="typewriter-icon">A_</span>
@@ -774,6 +773,46 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
                     size="small"
                   />
                 </div>
+                <div class="setting-item">
+                  <span class="setting-label">队列消息自动生成</span>
+                  <el-switch
+                    :model-value="
+                      chatSettings.uiPreferences.autoTriggerGenerationAfterQueue
+                    "
+                    @update:model-value="
+                      (val: boolean | string | number) =>
+                        updateChatSettings({
+                          uiPreferences: {
+                            ...chatSettings.uiPreferences,
+                            autoTriggerGenerationAfterQueue: val as boolean,
+                          },
+                        })
+                    "
+                    size="small"
+                  />
+                </div>
+                <div class="setting-item">
+                  <span class="setting-label">队列模式</span>
+                  <el-switch
+                    :model-value="
+                      chatSettings.uiPreferences.queueReplyMode === 'chained'
+                    "
+                    @update:model-value="
+                      (val: boolean | string | number) =>
+                        updateChatSettings({
+                          uiPreferences: {
+                            ...chatSettings.uiPreferences,
+                            queueReplyMode: (val as boolean)
+                              ? 'chained'
+                              : 'combined',
+                          },
+                        })
+                    "
+                    active-text="链式"
+                    inactive-text="合并"
+                    size="small"
+                  />
+                </div>
               </div>
             </el-popover>
           </div>
@@ -1058,7 +1097,25 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
           </span>
         </el-tooltip>
         <button
-          v-if="!isSending"
+          v-show="isSending"
+          @click="abort?.()"
+          class="btn-abort"
+          title="停止生成"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+          </svg></button
+        ><button
           @click="send?.()"
           :disabled="
             disabled || (!props.inputText.trim() && !props.hasAttachments)
@@ -1079,21 +1136,6 @@ const handleToggleAutoStartOnImport = (val: boolean | string | number) => {
           >
             <line x1="12" y1="19" x2="12" y2="5"></line>
             <polyline points="5 12 12 5 19 12"></polyline>
-          </svg>
-        </button>
-        <button v-else @click="abort?.()" class="btn-abort" title="停止生成">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
           </svg>
         </button>
       </div>

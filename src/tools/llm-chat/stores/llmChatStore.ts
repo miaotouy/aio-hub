@@ -48,6 +48,8 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     maxTokens: 4096,
   });
   const isSending = ref(false);
+  // 用户主动中止的节点集合，用于区分"用户中止"与"自然结束"，防止错误触发排队
+  const userAbortedNodeIds = ref(new Set<string>());
 
   // 上下文分析器状态
   const contextAnalyzerVisible = ref(false);
@@ -65,7 +67,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
    */
   watch(
     () => generatingNodes.value.size,
-    (newSize, oldSize) => {
+    async (newSize, oldSize) => {
       // 只有在生成节点减少时（任务结束或中止）才进行检查
       if (newSize < (oldSize || 0)) {
         const detail = currentSessionDetail.value;
@@ -107,6 +109,52 @@ export const useLlmChatStore = defineStore("llmChat", () => {
               detail,
               currentSessionId.value
             );
+          }
+        }
+
+        // 排队自动触发：仅在 generatingNodes 降为 0 时检查
+        if (newSize === 0) {
+          if (userAbortedNodeIds.value.size > 0) {
+            userAbortedNodeIds.value.clear();
+            return;
+          }
+          const { useChatSettings } =
+            await import("../composables/settings/useChatSettings");
+          const { settings } = useChatSettings();
+          if (!settings.value.uiPreferences.autoTriggerGenerationAfterQueue) {
+            return;
+          }
+          const queueMode =
+            settings.value.uiPreferences.queueReplyMode ?? "combined";
+          if (queueMode === "combined") {
+            const activeLeaf = detail.activeLeafId
+              ? detail.nodes?.[detail.activeLeafId]
+              : null;
+            if (
+              activeLeaf &&
+              activeLeaf.role === "user" &&
+              (!activeLeaf.childrenIds || activeLeaf.childrenIds.length === 0)
+            ) {
+              isSending.value = true;
+              logger.info("检测到排队中的 User 消息，自动触发合并回复", {
+                nodeId: activeLeaf.id,
+              });
+              regenerateFromNode(activeLeaf.id);
+            }
+          } else {
+            const pendingAssistant = currentActivePath.value.find(
+              (node) =>
+                node.role === "assistant" &&
+                (node.status as string) === "pending"
+            );
+            if (pendingAssistant) {
+              isSending.value = true;
+              logger.info(
+                "检测到排队中的 Assistant 占位节点，自动触发链式生成",
+                { nodeId: pendingAssistant.id }
+              );
+              continueGeneration(pendingAssistant.id);
+            }
           }
         }
       }
@@ -832,17 +880,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
       const detail = currentSessionDetail.value;
       if (!index || !detail) throw new Error("请先创建或选择一个会话");
 
-      if (
-        detail.activeLeafId &&
-        generatingNodes.value.has(detail.activeLeafId)
-      ) {
-        logger.warn("发送消息失败：当前分支正在生成中", {
-          sessionId: index.id,
-          nodeId: detail.activeLeafId,
-        });
-        return;
-      }
-
+      const skipGeneration = generatingNodes.value.size > 0;
       isSending.value = true;
 
       try {
@@ -854,7 +892,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
           currentActivePath.value,
           abortControllers.value,
           generatingNodes.value,
-          options,
+          skipGeneration ? { ...options, skipGeneration: true } : options,
           currentSessionId.value
         );
 
@@ -1051,6 +1089,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
       const detail = currentSessionDetail.value;
 
       abortControllers.value.forEach((controller, nodeId) => {
+        userAbortedNodeIds.value.add(nodeId);
         controller.abort();
 
         if (detail && detail.nodes && detail.nodes[nodeId]) {
@@ -1098,6 +1137,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
         });
       }
 
+      userAbortedNodeIds.value.add(nodeId);
       abortControllers.value.delete(nodeId);
       generatingNodes.value.delete(nodeId);
 

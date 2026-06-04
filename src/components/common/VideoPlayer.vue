@@ -968,14 +968,7 @@ defineExpose({
   width: 100%;
   height: 100%;
   object-fit: contain;
-  /* 强制 GPU 合成层，减轻 H.265 解码时的合成开销 */
-  will-change: transform;
-  transform: translateZ(0);
-  /*
-   * 注意：此处不使用 contain: strict
-   * 浏览器对 <video> 有特殊的合成优化路径（硬件 overlay / zero-copy texture），
-   * strict containment 会阻止这些优化，反而降低 4K 解码性能
-   */
+  /* 去除无用的强制 GPU 合成层，因为不能减轻 H.265 解码时的合成开销 */
 }
 
 /* 覆盖层样式 */

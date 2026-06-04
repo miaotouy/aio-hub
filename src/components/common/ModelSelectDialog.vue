@@ -83,8 +83,12 @@ const allModels = computed(() => {
 
   const lowerCaseQuery = searchQuery.value.toLowerCase();
   const caps = selectedCapabilities.value;
+  const hasInitialCaps =
+    initialCapabilities.value &&
+    Object.keys(initialCapabilities.value).length > 0;
 
-  if (!lowerCaseQuery && caps.length === 0) {
+  // 只有没有 initialCapabilities 约束时才允许早返回全部模型
+  if (!lowerCaseQuery && caps.length === 0 && !hasInitialCaps) {
     return models;
   }
 
@@ -106,10 +110,7 @@ const allModels = computed(() => {
     }
 
     // 3. 初始强制能力匹配 (支持排除逻辑)
-    if (
-      initialCapabilities.value &&
-      Object.keys(initialCapabilities.value).length > 0
-    ) {
+    if (hasInitialCaps) {
       const requiredCaps = Object.keys(initialCapabilities.value) as Array<
         keyof typeof model.capabilities
       >;
@@ -117,8 +118,8 @@ const allModels = computed(() => {
         const requiredValue = initialCapabilities.value![key as string];
         if (requiredValue === undefined) return true;
 
-        const modelHasCap =
-          !!model.capabilities?.[key as keyof typeof model.capabilities];
+        const modelCaps = getModelCapabilities(model);
+        const modelHasCap = !!modelCaps[key as keyof typeof modelCaps];
         if (requiredValue === true) return modelHasCap;
         return !modelHasCap; // requiredValue === false
       });

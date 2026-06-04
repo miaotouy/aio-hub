@@ -1069,7 +1069,7 @@ export class StreamProcessorV2 {
       node.meta.status = status;
       // 只有在 pending 区的未闭合节点才显示执行/思考中动画
       if (node.type === "llm_think") {
-        node.props.isThinking = status === "pending";
+        node.props.isThinking = status === "pending" && node.props.isThinking;
       }
       if (node.type === "vcp_tool") {
         node.props.isPending = status === "pending" && !node.props.closed;

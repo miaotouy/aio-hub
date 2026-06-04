@@ -371,6 +371,19 @@ export const providerRules: ModelMetadataRule[] = [
     description: "蚂蚁集团旗下 Inclusion AI 提供商图标",
   },
   {
+    id: "provider-agnes-ai",
+    matchType: "provider",
+    matchValue: "agnes|agnes-ai|sapiens|sapiens-ai",
+    useRegex: true,
+    properties: {
+      icon: `/model-icons/agnes.png`,
+      group: "Agnes AI",
+    },
+    priority: 10,
+    enabled: true,
+    description: "Agnes AI / Sapiens AI 提供商图标",
+  },
+  {
     id: "provider-wan-ai",
     matchType: "provider",
     matchValue: "wan-ai",

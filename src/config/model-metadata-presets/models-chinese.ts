@@ -462,4 +462,161 @@ export const chineseModelRules: ModelMetadataRule[] = [
     enabled: true,
     description: "Inclusion AI (灵) 系列模型图标",
   },
+
+  // === Agnes AI (Sapiens AI) 系列模型 ===
+  {
+    id: "model-agnes-2.0-flash",
+    matchType: "model",
+    matchValue: "agnes-2.0-flash",
+    properties: {
+      icon: `/model-icons/agnes.png`,
+      group: "Agnes AI",
+      tokenizer: "gpt4",
+      contextLength: 256000,
+      maxOutputTokens: 65500,
+      pricing: {
+        input: 0.1,
+        output: 0.2,
+        unit: "USD",
+        note: "每百万 token",
+      },
+      capabilities: {
+        thinking: true,
+        thinkingConfigType: "budget",
+        toolUse: true,
+      },
+      features: {
+        streaming: true,
+        functionCalling: true,
+      },
+      description:
+        "Agnes-2.0-Flash 是 Sapiens AI 开发的快速语言模型，面向 Agent 工作流、工具调用、编码、推理和多轮对话。",
+      recommendedFor: ["Agent 工作流", "代码生成", "工具调用", "多轮对话"],
+    },
+    priority: 30,
+    enabled: true,
+    description: "Agnes-2.0-Flash 官方模型元数据",
+  },
+  {
+    id: "model-agnes-1.5-flash",
+    matchType: "model",
+    matchValue: "agnes-1.5-flash",
+    properties: {
+      icon: `/model-icons/agnes.png`,
+      group: "Agnes AI",
+      tokenizer: "gpt4",
+      contextLength: 256000,
+      maxOutputTokens: 65500,
+      pricing: {
+        input: 0.07,
+        output: 0.15,
+        unit: "USD",
+        note: "每百万 token；最大输出 65.5K token",
+      },
+      capabilities: {
+        vision: true,
+      },
+      features: {
+        streaming: true,
+        vision: true,
+      },
+      description:
+        "Agnes-1.5-Flash 是低延迟、高并发、低成本部署优化的轻量大语言模型，支持文本和图片多模态输入。",
+      recommendedFor: ["实时对话", "高并发服务", "多模态输入"],
+    },
+    priority: 30,
+    enabled: true,
+    description: "Agnes-1.5-Flash 官方模型元数据",
+  },
+  {
+    id: "model-agnes-1.5-pro",
+    matchType: "model",
+    matchValue: "agnes-1.5-pro",
+    properties: {
+      icon: `/model-icons/agnes.png`,
+      group: "Agnes AI",
+      tokenizer: "gpt4",
+      contextLength: 256000,
+      maxOutputTokens: 256000,
+      pricing: {
+        input: 0.16,
+        output: 0.8,
+        unit: "USD",
+        note: "每百万 token；官方已标记 Deprecated",
+      },
+      capabilities: {
+        toolUse: true,
+      },
+      features: {
+        streaming: true,
+        functionCalling: true,
+      },
+      description:
+        "Agnes-1.5-Pro 是面向高级自然语言理解、生成和推理的文本模型，官方文档已标记为 Deprecated。",
+      recommendedFor: ["复杂推理", "文本生成"],
+    },
+    priority: 30,
+    enabled: true,
+    description: "Agnes-1.5-Pro 官方模型元数据（Deprecated）",
+  },
+  {
+    id: "model-prefix-agnes-image",
+    matchType: "modelPrefix",
+    matchValue: "agnes-image-",
+    properties: {
+      icon: `/model-icons/agnes.png`,
+      group: "Agnes AI",
+      capabilities: {
+        imageGeneration: true,
+        iterativeRefinement: true,
+      },
+      pricing: {
+        unit: "USD",
+        note: "官方定价 $0.003 / image",
+      },
+      description:
+        "Agnes Image 系列图像生成与编辑模型，支持文生图、图生图、多图输入和 OpenAI Images API 兼容请求结构。",
+      recommendedFor: ["图像生成", "图像编辑", "多图合成"],
+    },
+    priority: 25,
+    enabled: true,
+    description: "Agnes Image 系列模型元数据",
+  },
+  {
+    id: "model-prefix-agnes-video",
+    matchType: "modelPrefix",
+    matchValue: "agnes-video-",
+    properties: {
+      icon: `/model-icons/agnes.png`,
+      group: "Agnes AI",
+      capabilities: {
+        videoGeneration: true,
+        vision: true,
+      },
+      pricing: {
+        unit: "USD",
+        note: "官方定价 $0.005 / second",
+      },
+      description:
+        "Agnes Video 系列异步视频生成模型，支持文生视频、图生视频、多图参考视频和关键帧动画。",
+      recommendedFor: ["文生视频", "图生视频", "关键帧动画"],
+    },
+    priority: 25,
+    enabled: true,
+    description: "Agnes Video 系列模型元数据",
+  },
+  {
+    id: "model-prefix-agnes",
+    matchType: "modelPrefix",
+    matchValue: "agnes-",
+    properties: {
+      icon: `/model-icons/agnes.png`,
+      group: "Agnes AI",
+      tokenizer: "gpt4",
+      description: "Agnes AI / Sapiens AI 系列模型",
+    },
+    priority: 20,
+    enabled: true,
+    description: "Agnes 系列模型图标",
+  },
 ];

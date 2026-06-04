@@ -321,6 +321,7 @@ async function registerPluginUi(plugin: PluginProxy): Promise<void> {
     component: createPluginComponentLoader(installPath, manifest.ui.component),
     description: manifest.description,
     category: "插件工具",
+    version: manifest.version,
   };
 
   toolsStore.addTool(toolConfig);

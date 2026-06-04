@@ -16,6 +16,7 @@ export const toolConfig: ToolConfig = {
   component: () => import("./CanvasWorkbench.vue"),
   description: "Agent 协作画布，支持多文件编辑与实时预览",
   category: ["AI 工具"],
+  version: "2.3.0",
 };
 
 export class CanvasRegistry implements ToolRegistry {

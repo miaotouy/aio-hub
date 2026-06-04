@@ -47,6 +47,7 @@ export const toolConfig: ToolConfig = {
   description:
     "树状分支对话工具，支持智能体管理、附件上传、多会话系统和上下文分析",
   category: ["AI 工具"],
+  version: "5.6.0",
 };
 
 // ==================== 主服务实例：输入管理 + 分离组件 ====================

@@ -36,6 +36,7 @@ export const toolConfig: ToolConfig = {
   component: () => import("./MyTool.vue"), // 动态导入，不要直接 import
   description: "工具的简短描述", // 可选，用于工具列表展示
   category: ["开发工具", "AI 工具"], // 可选，支持单一字符串或字符串数组（多分类）
+  version: "1.0.0", // 语义化版本号，会在工具设置页面上显示
 };
 ```
 
@@ -424,6 +425,7 @@ export const toolConfig: ToolConfig = {
   component: () => import("./FileReader.vue"),
   description: "读取本地文件内容，支持多种编码格式",
   category: ["文件管理", "开发工具"],
+  version: "1.0.0",
 };
 ```
 

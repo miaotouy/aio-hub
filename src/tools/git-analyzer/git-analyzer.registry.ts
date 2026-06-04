@@ -507,4 +507,5 @@ export const toolConfig: ToolConfig = {
   component: () => import("./GitAnalyzer.vue"),
   description: "Git提交记录分析和可视化处理工具",
   category: ["开发工具"],
+  version: "2.3.0",
 };

@@ -14,4 +14,5 @@ export const toolConfig: ToolConfig = {
   description:
     "支持 JSON, YAML, TOML, INI, XML, .env 格式的语法级互转与批量处理",
   category: ["文本处理"],
+  version: "1.0.0",
 };

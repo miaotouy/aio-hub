@@ -11,6 +11,7 @@ export const toolConfig: ToolConfig = {
   component: () => import("./SkillManager.vue"),
   description: "Skill 技能管理 - 浏览、启用/禁用、安装 Agent Skill",
   category: ["系统工具", "AI 工具"],
+  version: "1.5.0",
 };
 
 // 默认导出：SkillBridgeFactory 会由 toolRegistryManager 在启动时注册

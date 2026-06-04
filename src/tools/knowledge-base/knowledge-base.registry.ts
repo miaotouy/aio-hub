@@ -450,4 +450,5 @@ export const toolConfig: ToolConfig = {
   component: () => import("./KnowledgeBase.vue"),
   description: "管理和检索结构化知识，支持 RAG 向量化",
   category: ["AI 工具"],
+  version: "1.2.0",
 };

@@ -13,4 +13,5 @@ export const toolConfig: ToolConfig = {
   component: () => import("./CodeFormatter.vue"),
   description: "格式化各种编程语言代码",
   category: ["文本处理"],
+  version: "1.0.1",
 };

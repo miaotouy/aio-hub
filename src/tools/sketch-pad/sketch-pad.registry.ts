@@ -34,4 +34,5 @@ export const toolConfig: ToolConfig = {
   component: () => import("./SketchPad.vue"),
   description: "混合架构画板，支持像素画笔与矢量形状，可编辑文本与图层管理",
   category: ["媒体工具"],
+  version: "1.3.0",
 };

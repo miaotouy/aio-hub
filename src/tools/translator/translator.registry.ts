@@ -17,5 +17,6 @@ export const toolConfig: ToolConfig = {
   component: () => import("./Translator.vue"),
   description: "多预设，多渠道 LLM 并行翻译与结果对比",
   category: ["AI 工具", "文本处理"],
+  version: "1.2.0",
 };
 

@@ -24,6 +24,7 @@ export const toolConfig: ToolConfig = {
   component: () => import("./ToolCallingTester.vue"),
   description: "内部工具调用系统的调试与验证矩阵",
   category: ["开发工具"],
+  version: "1.2.0",
 };
 
 export class ToolCallingRegistry implements ToolRegistry {

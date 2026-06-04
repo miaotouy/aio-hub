@@ -12,4 +12,5 @@ export const toolConfig: ToolConfig = {
   component: () => import("./StWorldbookEditor.vue"),
   description: "SillyTavern 格式世界书编辑器",
   category: ["AI 工具"],
+  version: "1.0.0",
 };

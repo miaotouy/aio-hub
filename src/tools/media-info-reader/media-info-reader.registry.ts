@@ -142,4 +142,5 @@ export const toolConfig: ToolConfig = {
   description:
     "深度解析 AI 图片元数据、SillyTavern 角色卡及 AioBundle (AIO 角色包) 信息",
   category: ["媒体工具", "AI 工具"],
+  version: "3.1.0",
 };

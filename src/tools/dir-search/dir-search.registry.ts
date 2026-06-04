@@ -247,4 +247,5 @@ export const toolConfig: ToolConfig = {
   description: "在指定目录中搜索文件内容，支持正则、全词匹配和批量替换",
   category: ["文件管理"],
   component: () => import("./DirSearch.vue"),
+  version: "1.3.0",
 };

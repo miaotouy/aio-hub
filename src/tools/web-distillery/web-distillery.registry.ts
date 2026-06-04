@@ -130,4 +130,5 @@ export const toolConfig: ToolConfig = {
   component: () => import("./WebDistillery.vue"),
   category: ["AI 工具"],
   description: "网页内容的高纯度提炼工具",
+  version: "3.1.0",
 };

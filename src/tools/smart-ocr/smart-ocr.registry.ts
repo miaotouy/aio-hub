@@ -61,4 +61,5 @@ export const toolConfig: ToolConfig = {
   component: () => import("./SmartOcr.vue"),
   description: "智能OCR文字识别工具，支持多引擎和智能切图",
   category: ["AI 工具"],
+  version: "1.6.0",
 };

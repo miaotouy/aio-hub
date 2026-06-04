@@ -69,4 +69,5 @@ export const toolConfig: ToolConfig = {
   description:
     "VCP 分布式连接中心 - 支持跨节点工具共享、RAG 监控及 Agent 消息广播",
   category: ["开发工具", "VCP", "AI 工具"],
+  version: "2.2.0",
 };

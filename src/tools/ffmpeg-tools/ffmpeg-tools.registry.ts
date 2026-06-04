@@ -206,4 +206,5 @@ export const toolConfig: ToolConfig = {
   component: () => import("./FFmpegTool.vue"),
   description: "音视频压缩、提取音频、格式转换",
   category: ["媒体工具"],
+  version: "1.0.6",
 };

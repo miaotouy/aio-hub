@@ -123,4 +123,5 @@ export const toolConfig: ToolConfig = {
   component: () => import("./JsonFormatter.vue"),
   description: "格式化和美化JSON数据",
   category: ["文本处理"],
+  version: "1.0.2",
 };

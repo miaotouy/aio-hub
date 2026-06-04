@@ -82,6 +82,12 @@ export interface ToolConfig {
   description?: string;
   category?: string | string[];
   /**
+   * 工具版本号（语义化版本）
+   * 用于标识工具的当前版本，便于追踪重大变更和架构迭代。
+   * @example '2.0.0'
+   */
+  version: string;
+  /**
    * 工具运行模式
    * - 'main-only': 仅在主窗口运行（默认，保守策略）
    * - 'any': 可以在任何窗口（包括分离窗口）运行

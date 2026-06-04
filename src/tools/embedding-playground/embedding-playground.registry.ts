@@ -12,4 +12,5 @@ export const toolConfig: ToolConfig = {
   component: () => import("./EmbeddingPlayground.vue"),
   description: "Embedding API 调试工具，支持相似度对比和语义检索模拟",
   category: ["开发工具", "AI 工具"],
+  version: "1.0.2",
 };

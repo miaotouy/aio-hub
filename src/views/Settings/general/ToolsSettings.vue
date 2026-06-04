@@ -194,7 +194,12 @@ const enabledToolsCount = computed(() => {
               </el-icon>
             </div>
             <div class="tool-info">
-              <span class="tool-name">{{ tool.name }}</span>
+              <div class="tool-title-row">
+                <span class="tool-name">{{ tool.name }}</span>
+                <span v-if="tool.version" class="tool-version"
+                  >v{{ tool.version }}</span
+                >
+              </div>
               <span v-if="tool.description" class="tool-description">{{
                 tool.description
               }}</span>
@@ -371,6 +376,13 @@ const enabledToolsCount = computed(() => {
   overflow: hidden;
 }
 
+.tool-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
 .tool-name {
   font-size: 14px;
   color: var(--text-color);
@@ -378,6 +390,17 @@ const enabledToolsCount = computed(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.tool-version {
+  font-size: 10px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background-color: rgba(var(--el-color-info-rgb), 0.1);
+  color: var(--text-color-secondary);
+  font-family: var(--el-font-family-mono, monospace);
+  font-weight: 600;
+  flex-shrink: 0;
 }
 
 .tool-description {

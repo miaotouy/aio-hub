@@ -56,4 +56,5 @@ export const toolConfig: ToolConfig = {
   component: () => import("./SymlinkMover.vue"),
   description: "支持拖拽的文件批量移动和符号链接创建工具",
   category: ["文件管理"],
+  version: "1.2.0",
 };

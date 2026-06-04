@@ -9,4 +9,5 @@ export const toolConfig: ToolConfig = {
   icon: markRaw(Activity),
   description: "实时硬件监控仪表盘：CPU、内存、磁盘、网络、GPU",
   component: () => import("./SystemPulse.vue"),
+  version: "1.0.1",
 };

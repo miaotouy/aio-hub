@@ -410,4 +410,5 @@ export const toolConfig: ToolConfig = {
   component: () => import("./DirectoryJanitor.vue"),
   description: "智能清理过时的缓存和存档，支持按规则、日期和大小过滤",
   category: ["文件管理"],
+  version: "1.0.1",
 };

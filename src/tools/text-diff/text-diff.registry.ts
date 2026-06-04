@@ -137,4 +137,5 @@ export const toolConfig: ToolConfig = {
   component: () => import("./TextDiff.vue"),
   description: "对比文本文件的差异",
   category: ["文本处理"],
+  version: "1.0.3",
 };

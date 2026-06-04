@@ -12,4 +12,5 @@ export const toolConfig: ToolConfig = {
   component: () => import("./LlmInspector.vue"),
   description: "监听和分析 LLM API 请求，捕获客户端与服务器之间的通信",
   category: ["开发工具", "AI 工具"],
+  version: "2.0.1",
 };

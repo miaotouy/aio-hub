@@ -83,21 +83,21 @@
             <div class="tool-name-wrapper">
               <div class="method-name">
                 {{ tool.displayName || tool.toolId }}
-                <el-tag
-                  v-if="tool.version"
-                  size="small"
-                  type="info"
-                  effect="plain"
-                  class="version-tag"
-                >
-                  v{{ tool.version }}
-                </el-tag>
               </div>
               <div class="tool-id-tag">
                 {{ tool.toolId }}
               </div>
             </div>
             <div class="tool-tags">
+              <el-tag
+                v-if="tool.version"
+                size="small"
+                type="info"
+                effect="plain"
+                class="version-tag"
+              >
+                v{{ tool.version }}
+              </el-tag>
               <el-tag
                 v-if="tool.isBuiltin"
                 size="small"
@@ -626,17 +626,6 @@ function addTool() {
   overflow: hidden;
   text-overflow: ellipsis;
   font-family: var(--el-font-family-mono);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.version-tag {
-  flex-shrink: 0;
-  font-size: 10px;
-  height: 16px;
-  line-height: 14px;
-  padding: 0 4px;
 }
 
 .tool-id-tag {
@@ -650,7 +639,18 @@ function addTool() {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 0 8px;
+  flex-shrink: 0;
+  margin-left: auto;
+  padding-left: 12px;
+}
+
+.version-tag {
+  flex-shrink: 0;
+  font-size: 10px;
+  height: 18px;
+  line-height: 16px;
+  padding: 0 4px;
+  font-family: var(--el-font-family-mono);
 }
 
 .mini-tag {

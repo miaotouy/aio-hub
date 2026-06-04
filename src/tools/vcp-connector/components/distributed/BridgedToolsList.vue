@@ -67,6 +67,15 @@
             </div>
             <div class="tool-tags">
               <el-tag
+                v-if="tool.version"
+                size="small"
+                type="info"
+                effect="plain"
+                class="version-tag"
+              >
+                v{{ tool.version }}
+              </el-tag>
+              <el-tag
                 size="small"
                 type="primary"
                 effect="plain"
@@ -354,7 +363,18 @@ const toggleCommand = async (
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 0 8px;
+  flex-shrink: 0;
+  margin-left: auto;
+  padding-left: 12px;
+}
+
+.version-tag {
+  flex-shrink: 0;
+  font-size: 10px;
+  height: 18px;
+  line-height: 16px;
+  padding: 0 4px;
+  font-family: var(--el-font-family-mono);
 }
 
 .mini-tag {

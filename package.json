@@ -145,6 +145,7 @@
     "file-type": "^21.0.0",
     "ini": "^7.0.0",
     "isomorphic-git": "^1.37.5",
+    "jassub": "^2.5.5",
     "js-yaml": "^4.1.1",
     "jsondiffpatch": "^0.7.3",
     "jszip": "^3.10.1",
@@ -238,4 +239,3 @@
     "@lezer/highlight": "^1.2.1"
   }
 }
-

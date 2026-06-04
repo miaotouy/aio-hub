@@ -13,10 +13,19 @@
       <!-- 弹幕层：无弹幕时彻底卸载 canvas，减少一个 GPU 合成层 -->
       <template #overlay>
         <DanmakuCanvas v-if="hasDanmakus" ref="canvasComponentRef" />
+        <!-- ASS/SSA 使用 JASSUB 高保真渲染，其他格式使用 DOM 渲染 -->
         <SubtitleOverlay
-          v-if="hasSubtitles"
+          v-if="hasSubtitles && !useJassub"
           :track="subtitleTrack"
           :current-time="subtitleCurrentTime"
+        />
+        <!-- JASSUB canvas 模式：放在 overlay slot 内，与弹幕 canvas 同层，不影响 video 合成 -->
+        <JassubRenderer
+          v-if="useJassub && videoElement"
+          :video="videoElement"
+          :raw-content="subtitleTrack!.rawContent!"
+          :enabled="subtitleTrack!.enabled"
+          @error="useJassubFallback = true"
         />
       </template>
 
@@ -75,6 +84,7 @@ import { Captions, Tv, Settings2, Check } from "lucide-vue-next";
 import VideoPlayer from "@/components/common/VideoPlayer.vue";
 import DanmakuCanvas from "./DanmakuCanvas.vue";
 import SubtitleOverlay from "./SubtitleOverlay.vue";
+import JassubRenderer from "./JassubRenderer.vue";
 import DanmakuSettingsPanel from "./DanmakuSettingsPanel.vue";
 import { useDanmakuRenderer } from "../composables/useDanmakuRenderer";
 import type {
@@ -98,11 +108,27 @@ const playerRef = ref<any>(null);
 const canvasComponentRef = ref<any>(null);
 const subtitleCurrentTime = ref(0);
 const isPlaying = ref(false);
+const useJassubFallback = ref(false);
 let subtitleAnimationId: number | null = null;
 
 const hasDanmakus = computed(() => props.danmakus.length > 0);
 const hasSubtitles = computed(
   () => (props.subtitleTrack?.cues.length ?? 0) > 0
+);
+
+/** 是否使用 JASSUB 渲染（ASS/SSA 且有原始内容，且未降级） */
+const useJassub = computed(() => {
+  if (useJassubFallback.value) return false;
+  const track = props.subtitleTrack;
+  if (!track) return false;
+  return (
+    (track.format === "ass" || track.format === "ssa") && !!track.rawContent
+  );
+});
+
+/** 获取底层 video 元素 */
+const videoElement = computed<HTMLVideoElement | null>(
+  () => playerRef.value?.videoRef ?? null
 );
 
 const {

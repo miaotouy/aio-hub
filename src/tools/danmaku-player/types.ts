@@ -60,6 +60,7 @@ export interface SubtitleTrack {
   format: SubtitleFormat;
   cues: SubtitleCue[];
   enabled: boolean;
+  rawContent?: string; // 保存原始字幕文本，供 JASSUB 渲染 ASS/SSA
 }
 
 export interface DanmakuConfig {

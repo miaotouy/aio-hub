@@ -758,6 +758,9 @@ export function parseSubtitle(
     throw new Error("不支持该字幕时间轴格式，或文件中没有可用字幕。");
   }
 
+  // 对于 ASS/SSA 格式，保存原始内容供 JASSUB 高保真渲染
+  const isAssFormat = context.format === "ass" || context.format === "ssa";
+
   return {
     track: {
       id: `subtitle-track-${Date.now().toString(36)}`,
@@ -765,6 +768,7 @@ export function parseSubtitle(
       format: context.format,
       cues,
       enabled: true,
+      rawContent: isAssFormat ? normalized : undefined,
     },
     warnings: context.warnings,
   };

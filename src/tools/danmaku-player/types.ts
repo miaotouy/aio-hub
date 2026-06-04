@@ -24,6 +24,44 @@ export interface AssScriptInfo {
   playResY: number;
 }
 
+export type SubtitleFormat =
+  | "srt"
+  | "vtt"
+  | "ass"
+  | "ssa"
+  | "lrc"
+  | "sbv"
+  | "subviewer"
+  | "microdvd"
+  | "sami"
+  | "ttml"
+  | "unknown";
+
+export interface SubtitleStyle {
+  color?: string;
+  fontSize?: number;
+  isBold?: boolean;
+  isItalic?: boolean;
+  align?: "top" | "middle" | "bottom";
+}
+
+export interface SubtitleCue {
+  id: string;
+  startTime: number;
+  endTime: number;
+  text: string;
+  lines: string[];
+  style?: SubtitleStyle;
+}
+
+export interface SubtitleTrack {
+  id: string;
+  fileName: string;
+  format: SubtitleFormat;
+  cues: SubtitleCue[];
+  enabled: boolean;
+}
+
 export interface DanmakuConfig {
   version: string;
   enabled: boolean;

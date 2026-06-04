@@ -7,6 +7,7 @@ const logger = createModuleLogger("utils/encoding");
  * 涵盖了中文(GBK/Big5)、日韩(Shift-JIS/EUC)、以及西欧常用编码
  */
 const FALLBACK_ENCODINGS = [
+  "gb18030", // 简体中文，GBK 超集
   "gbk", // 简体中文 Windows
   "big5", // 繁体中文
   "shift-jis", // 日语
@@ -31,6 +32,38 @@ export function smartDecode(buffer: Uint8Array | ArrayBuffer): string {
     buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
 
   if (uint8Array.length === 0) return "";
+
+  // BOM 优先：外挂字幕里 UTF-16 很常见，不能先按 GBK 误解码。
+  if (uint8Array.length >= 2) {
+    const first = uint8Array[0];
+    const second = uint8Array[1];
+    if (first === 0xff && second === 0xfe) {
+      return new TextDecoder("utf-16le").decode(uint8Array.subarray(2));
+    }
+    if (first === 0xfe && second === 0xff) {
+      return new TextDecoder("utf-16be").decode(uint8Array.subarray(2));
+    }
+  }
+
+  // 无 BOM 的 UTF-16 文本通常每隔一个字节出现 NULL。
+  const sample = uint8Array.subarray(0, Math.min(uint8Array.length, 4096));
+  let evenNulls = 0;
+  let oddNulls = 0;
+  for (let i = 0; i < sample.length; i++) {
+    if (sample[i] !== 0) continue;
+    if (i % 2 === 0) {
+      evenNulls++;
+    } else {
+      oddNulls++;
+    }
+  }
+  const nullThreshold = Math.max(4, sample.length / 12);
+  if (oddNulls > nullThreshold && oddNulls > evenNulls * 2) {
+    return new TextDecoder("utf-16le").decode(uint8Array);
+  }
+  if (evenNulls > nullThreshold && evenNulls > oddNulls * 2) {
+    return new TextDecoder("utf-16be").decode(uint8Array);
+  }
 
   // 1. 优先尝试标准的 UTF-8 解码
   try {

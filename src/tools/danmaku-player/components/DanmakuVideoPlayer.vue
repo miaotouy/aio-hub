@@ -7,11 +7,17 @@
       :autoplay="autoplay"
       @play="handlePlay"
       @pause="handlePause"
+      @timeupdate="handleTimeUpdate"
       @seeked="handleSeeked"
     >
       <!-- 弹幕层：无弹幕时彻底卸载 canvas，减少一个 GPU 合成层 -->
       <template #overlay>
         <DanmakuCanvas v-if="hasDanmakus" ref="canvasComponentRef" />
+        <SubtitleOverlay
+          v-if="hasSubtitles"
+          :track="subtitleTrack"
+          :current-time="subtitleCurrentTime"
+        />
       </template>
 
       <!-- 控制栏扩展：弹幕开关与设置 -->
@@ -30,6 +36,17 @@
                 <Check :size="10" stroke-width="4" />
               </div>
             </div>
+          </button>
+
+          <!-- 字幕开关 -->
+          <button
+            v-if="subtitleTrack"
+            class="control-btn subtitle-toggle"
+            :class="{ 'is-active': subtitleTrack.enabled }"
+            :title="subtitleTrack.enabled ? '关闭字幕' : '开启字幕'"
+            @click="subtitleTrack.enabled = !subtitleTrack.enabled"
+          >
+            <Captions :size="20" />
           </button>
 
           <!-- 弹幕设置 -->
@@ -54,12 +71,18 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
-import { Tv, Settings2, Check } from "lucide-vue-next";
+import { Captions, Tv, Settings2, Check } from "lucide-vue-next";
 import VideoPlayer from "@/components/common/VideoPlayer.vue";
 import DanmakuCanvas from "./DanmakuCanvas.vue";
+import SubtitleOverlay from "./SubtitleOverlay.vue";
 import DanmakuSettingsPanel from "./DanmakuSettingsPanel.vue";
 import { useDanmakuRenderer } from "../composables/useDanmakuRenderer";
-import type { ParsedDanmaku, DanmakuConfig, AssScriptInfo } from "../types";
+import type {
+  ParsedDanmaku,
+  DanmakuConfig,
+  AssScriptInfo,
+  SubtitleTrack,
+} from "../types";
 
 const props = defineProps<{
   src: string;
@@ -68,11 +91,19 @@ const props = defineProps<{
   danmakus: ParsedDanmaku[];
   scriptInfo: AssScriptInfo;
   config: DanmakuConfig;
+  subtitleTrack: SubtitleTrack | null;
 }>();
 
 const playerRef = ref<any>(null);
 const canvasComponentRef = ref<any>(null);
+const subtitleCurrentTime = ref(0);
+const isPlaying = ref(false);
+let subtitleAnimationId: number | null = null;
+
 const hasDanmakus = computed(() => props.danmakus.length > 0);
+const hasSubtitles = computed(
+  () => (props.subtitleTrack?.cues.length ?? 0) > 0
+);
 
 const {
   initEngine,
@@ -91,6 +122,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener("keydown", handleGlobalKeydown);
+  stopSubtitleClock();
 });
 
 /**
@@ -160,17 +192,56 @@ watch(
 
 // 同步播放状态
 function handlePlay() {
+  isPlaying.value = true;
+  syncSubtitleTime();
+  startSubtitleClock();
   startRender(() => playerRef.value?.currentTime || 0);
 }
 
 function handlePause() {
+  isPlaying.value = false;
+  syncSubtitleTime();
+  stopSubtitleClock();
   stopRender();
 }
 
+function handleTimeUpdate() {
+  syncSubtitleTime();
+}
+
 function handleSeeked() {
+  syncSubtitleTime();
   // seek 后清除画布，防止残影，下一帧会自动渲染新位置的弹幕
   clearCanvas();
 }
+
+function syncSubtitleTime() {
+  subtitleCurrentTime.value = playerRef.value?.currentTime || 0;
+}
+
+function startSubtitleClock() {
+  if (subtitleAnimationId !== null || !hasSubtitles.value) return;
+
+  const loop = () => {
+    syncSubtitleTime();
+    subtitleAnimationId = requestAnimationFrame(loop);
+  };
+  subtitleAnimationId = requestAnimationFrame(loop);
+}
+
+function stopSubtitleClock() {
+  if (subtitleAnimationId === null) return;
+  cancelAnimationFrame(subtitleAnimationId);
+  subtitleAnimationId = null;
+}
+
+watch(hasSubtitles, (value) => {
+  if (value && isPlaying.value) {
+    startSubtitleClock();
+  } else if (!value) {
+    stopSubtitleClock();
+  }
+});
 </script>
 
 <style scoped>
@@ -210,6 +281,10 @@ function handleSeeked() {
 }
 
 .danmaku-toggle.is-active {
+  color: var(--el-color-primary);
+}
+
+.subtitle-toggle.is-active {
   color: var(--el-color-primary);
 }
 

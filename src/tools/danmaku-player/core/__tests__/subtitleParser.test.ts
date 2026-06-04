@@ -1,0 +1,179 @@
+import { describe, expect, it } from "vitest";
+import { smartDecode } from "@/utils/encoding";
+import { parseSubtitle } from "../subtitleParser";
+
+function utf16leWithBom(text: string): Uint8Array {
+  const bytes = new Uint8Array(2 + text.length * 2);
+  bytes[0] = 0xff;
+  bytes[1] = 0xfe;
+  for (let index = 0; index < text.length; index++) {
+    const code = text.charCodeAt(index);
+    bytes[2 + index * 2] = code & 0xff;
+    bytes[3 + index * 2] = code >> 8;
+  }
+  return bytes;
+}
+
+describe("subtitleParser", () => {
+  it("parses SRT cues and cleans HTML tags", () => {
+    const result = parseSubtitle(
+      `1
+00:00:01,000 --> 00:00:03,500
+<i>Hello &amp; welcome</i>
+
+2
+00:00:04,000 --> 00:00:05,000
+Second line`,
+      "movie.srt"
+    );
+
+    expect(result.track.format).toBe("srt");
+    expect(result.track.cues).toHaveLength(2);
+    expect(result.track.cues[0].text).toBe("Hello & welcome");
+    expect(result.track.cues[0].endTime).toBe(3.5);
+  });
+
+  it("parses WebVTT cues with cue identifiers", () => {
+    const result = parseSubtitle(
+      `WEBVTT
+
+intro
+00:00:01.000 --> 00:00:02.000 align:center
+Hello
+
+00:00:03.000 --> 00:00:04.000
+World`,
+      "movie.vtt"
+    );
+
+    expect(result.track.format).toBe("vtt");
+    expect(result.track.cues.map((cue) => cue.text)).toEqual([
+      "Hello",
+      "World",
+    ]);
+  });
+
+  it("parses ASS/SSA dialogue as readable subtitle cues", () => {
+    const result = parseSubtitle(
+      `[Script Info]
+Title: demo
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic
+Style: Default,Arial,28,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,-1,0
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:01.00,0:00:03.20,Default,,0,0,0,,{\\an2}第一行\\N第二行`,
+      "movie.ass"
+    );
+
+    expect(result.track.format).toBe("ass");
+    expect(result.track.cues[0].lines).toEqual(["第一行", "第二行"]);
+    expect(result.track.cues[0].style?.isBold).toBe(true);
+    expect(result.track.cues[0].style?.fontSize).toBe(28);
+  });
+
+  it("parses LRC lyrics using the next timestamp as end time", () => {
+    const result = parseSubtitle(
+      `[00:01.00]第一句
+[00:03.50]第二句`,
+      "song.lrc"
+    );
+
+    expect(result.track.format).toBe("lrc");
+    expect(result.track.cues[0].endTime).toBe(3.5);
+    expect(result.track.cues[1].text).toBe("第二句");
+  });
+
+  it("parses SBV blocks", () => {
+    const result = parseSubtitle(
+      `0:00:01.000,0:00:03.000
+hello
+
+0:00:04.000,0:00:05.000
+world`,
+      "video.sbv"
+    );
+
+    expect(result.track.format).toBe("sbv");
+    expect(result.track.cues).toHaveLength(2);
+  });
+
+  it("parses text .sub files in SubViewer format", () => {
+    const result = parseSubtitle(
+      `00:00:01.00,00:00:03.00
+hello|world`,
+      "video.sub"
+    );
+
+    expect(result.track.format).toBe("subviewer");
+    expect(result.track.cues[0].lines).toEqual(["hello", "world"]);
+  });
+
+  it("parses text .sub files in MicroDVD format with a warning", () => {
+    const result = parseSubtitle("{25}{75}hello|world", "video.sub");
+
+    expect(result.track.format).toBe("microdvd");
+    expect(result.track.cues[0].startTime).toBe(1);
+    expect(result.track.cues[0].endTime).toBe(3);
+    expect(result.warnings[0]).toContain("25fps");
+  });
+
+  it("parses SAMI sync tags", () => {
+    const result = parseSubtitle(
+      `<SAMI><BODY>
+<SYNC Start=1000><P Class=EN>Hello&nbsp;world
+<SYNC Start=3000><P Class=EN>Next
+</BODY></SAMI>`,
+      "video.smi"
+    );
+
+    expect(result.track.format).toBe("sami");
+    expect(result.track.cues[0].text).toBe("Hello world");
+    expect(result.track.cues[0].endTime).toBe(3);
+  });
+
+  it("parses TTML paragraphs", () => {
+    const result = parseSubtitle(
+      `<tt><body><div>
+<p begin="00:00:01.000" end="00:00:02.500">Hello<br/>world</p>
+</div></body></tt>`,
+      "video.ttml"
+    );
+
+    expect(result.track.format).toBe("ttml");
+    expect(result.track.cues[0].lines).toEqual(["Hello", "world"]);
+  });
+
+  it("autodetects time based subtitles from .txt files", () => {
+    const result = parseSubtitle(
+      `00:00:01,000 --> 00:00:02,000
+hello`,
+      "subtitle.txt"
+    );
+
+    expect(result.track.format).toBe("srt");
+    expect(result.track.cues[0].text).toBe("hello");
+  });
+
+  it("rejects known graphic subtitle containers", () => {
+    expect(() => parseSubtitle("anything", "movie.idx")).toThrow(
+      "图形字幕暂不支持"
+    );
+  });
+});
+
+describe("subtitle file decoding", () => {
+  it("decodes UTF-8 BOM subtitles", () => {
+    const content = smartDecode(new Uint8Array([0xef, 0xbb, 0xbf, 72, 105]));
+
+    expect(content).toBe("Hi");
+  });
+
+  it("decodes UTF-16LE BOM subtitles", () => {
+    const content = smartDecode(utf16leWithBom("字幕"));
+
+    expect(content).toBe("字幕");
+  });
+});

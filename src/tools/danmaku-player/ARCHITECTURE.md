@@ -2,11 +2,12 @@
 
 ## 1. 设计概述
 
-弹幕播放器是一个非侵入式的增强工具，旨在为第三方本地播放器提供弹幕显示能力。其核心挑战在于：
+弹幕播放器是一个非侵入式的增强工具，旨在为第三方本地播放器提供弹幕显示能力，同时在内置播放器模式下提供常见外挂字幕加载能力。其核心挑战在于：
 
 1. **窗口同步**：弹幕层必须精准覆盖在播放器视频区域上方，并随播放器移动/缩放而同步。
 2. **时间同步**：弹幕流动必须与播放器的播放进度保持毫秒级一致。
 3. **性能表现**：在大规模弹幕（数千条）场景下保持平滑渲染，且不干扰播放器运行。
+4. **语义隔离**：字幕是阅读型时间轴，不应混入弹幕密度、滚动轨道、屏蔽词等弹幕专属逻辑。
 
 ## 2. 核心架构模型
 
@@ -26,6 +27,8 @@
 
 - **DanmakuVideoPlayer**：包装了通用 `VideoPlayer` 组件，通过插槽注入弹幕层。
 - **DanmakuCanvas**：作为视频播放器的 Overlay 层，直接在当前窗口渲染。
+- **SubtitleOverlay**：作为独立 DOM 字幕层，按 HTML5 Video 当前时间筛选字幕 cue，位于弹幕层之上、控制栏之下。
+- **subtitleParser**：将 SRT、VTT、ASS/SSA、LRC、SBV、文本 SUB、SAMI、TTML 等文本外挂字幕解析为统一 `SubtitleTrack`。
 - **useDanmakuRenderer**：将渲染引擎与 HTML5 Video 的 `currentTime` 和播放状态绑定。
 
 ### 2.3 系统组件图
@@ -61,13 +64,15 @@ graph TD
 
 ## 3. 关键技术实现
 
-### 3.1 内置模式：GPU 加速与层级管理
+### 3.1 内置模式：GPU 加速、字幕层与层级管理
 
 在内置模式下，为了保证视频播放与弹幕渲染的流畅度：
 
 - **GPU 合成层**：[`DanmakuCanvas.vue`](components/DanmakuCanvas.vue) 使用 `will-change: transform` 和 `translateZ(0)` 强制开启独立合成层，避免 Canvas 频繁重绘导致视频掉帧。
 - **按需卸载**：通过 `v-if` 在无弹幕时彻底卸载 Canvas，减少不必要的 GPU 内存占用。
 - **渲染限帧**：[`useDanmakuRenderer.ts`](composables/useDanmakuRenderer.ts) 将弹幕渲染限制在 ~30fps。对于弹幕而言，30fps 已足够丝滑，这能节省约 50% 的帧预算给视频解码。
+- **独立字幕层**：外挂字幕由 [`SubtitleOverlay.vue`](components/SubtitleOverlay.vue) 渲染，不进入 `ParsedDanmaku[]`，因此不会受到弹幕开关、密度过滤、滚动速度、屏蔽词和防挡策略影响。
+- **文本解码**：字幕文件读取使用二进制读取 + `smartDecode`，兼容 UTF-8、UTF-8 BOM、GBK/GB18030、Big5、UTF-16 等常见字幕编码。
 
 ### 3.2 外部模式：窗口吸附与 Z-Order 管理
 
@@ -102,12 +107,13 @@ graph TD
 
 ## 4. 数据流向
 
-1. **初始化**：主窗口加载 ASS 文件 -> [`assParser.ts`](core/assParser.ts) 解析为标准弹幕格式 -> 通过 `danmaku-overlay:init` 事件发送至 Overlay。
-2. **同步循环**：
+1. **弹幕初始化**：主窗口加载 ASS 文件 -> [`assParser.ts`](core/assParser.ts) 解析为标准弹幕格式 -> 内置模式传给 `DanmakuCanvas`，外部模式通过 `danmaku-overlay:init` 事件发送至 Overlay。
+2. **字幕初始化（仅内置模式）**：主窗口加载外挂字幕文件 -> [`subtitleParser.ts`](core/subtitleParser.ts) 解析为 `SubtitleTrack` -> `DanmakuVideoPlayer` 按视频 `currentTime` 传给 `SubtitleOverlay` 显示。
+3. **同步循环**：
    - `Main` 轮询播放器位置 -> `Invoke` Rust -> `SetPosition/Size` Overlay。
    - `Main` 轮询播放器进度 -> `MpcBeClient` -> 更新 UI 状态预览。
    - `Overlay` 轮询播放器进度 -> `Invoke` Rust -> `MpcBeClient` -> 更新 `VirtualClock`。
-3. **渲染循环**：`Overlay` 每帧调用 `DanmakuEngine.render(virtualTime)`。
+4. **渲染循环**：`Overlay` 每帧调用 `DanmakuEngine.render(virtualTime)`；内置字幕层由 HTML5 Video 时间驱动更新 active cues。
 
 ## 5. 性能考量
 

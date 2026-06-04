@@ -107,6 +107,48 @@
             </div>
           </template>
         </DropZone>
+
+        <!-- 外挂字幕文件选择：仅内置播放器模式需要 -->
+        <DropZone
+          v-if="activeMode === 'builtin'"
+          variant="input"
+          :accept="subtitleAcceptExtensions"
+          :clickable="true"
+          :click-zone="true"
+          :multiple="false"
+          hide-content
+          @drop="handleSubtitleDrop"
+          class="path-drop-zone"
+        >
+          <template #default="{ dragging }">
+            <div
+              class="path-selector"
+              :class="{ 'path-selector--dragging': dragging }"
+            >
+              <div class="path-selector__icon path-selector__icon--subtitle">
+                <Captions :size="16" />
+              </div>
+              <span class="path-selector__label">字幕</span>
+              <span
+                class="path-selector__path"
+                :class="{ 'path-selector__path--empty': !subtitleTrack }"
+              >
+                {{ subtitleTrack?.fileName || "拖入或点击选择外挂字幕文件" }}
+              </span>
+              <span v-if="subtitleTrack" class="path-selector__badge">
+                {{ subtitleTrack.cues.length }} 条
+              </span>
+              <button
+                v-if="subtitleTrack"
+                class="path-selector__clear"
+                title="清除字幕"
+                @click.stop="resetSubtitle"
+              >
+                <X :size="14" />
+              </button>
+            </div>
+          </template>
+        </DropZone>
       </div>
     </div>
 
@@ -123,6 +165,7 @@
             :danmakus="danmakus"
             :script-info="scriptInfo"
             :config="config"
+            :subtitle-track="subtitleTrack"
             :autoplay="false"
           />
         </template>
@@ -130,9 +173,7 @@
           <div class="player-placeholder">
             <Tv :size="64" class="placeholder-icon" />
             <p class="placeholder-text">拖入视频文件到上方开始播放</p>
-            <p class="placeholder-hint">
-              支持 ASS 格式弹幕 · 专为 Bilibili Evolved 优化
-            </p>
+            <p class="placeholder-hint">支持 ASS 弹幕与常见外挂字幕</p>
           </div>
         </template>
       </template>
@@ -148,18 +189,47 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
-import { Film, MessageSquareText, Monitor, X, Tv } from "lucide-vue-next";
+import {
+  Captions,
+  Film,
+  MessageSquareText,
+  Monitor,
+  X,
+  Tv,
+} from "lucide-vue-next";
 import DropZone from "@/components/common/DropZone.vue";
 import DanmakuVideoPlayer from "./components/DanmakuVideoPlayer.vue";
 import ExternalPlayerPanel from "./components/ExternalPlayerPanel.vue";
 import { parseAss } from "./core/assParser";
+import { parseSubtitle } from "./core/subtitleParser";
 import { useDanmakuConfig } from "./composables/useDanmakuConfig";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
-import { convertFileSrc, invoke } from "@tauri-apps/api/core";
-import type { ParsedDanmaku, AssScriptInfo } from "./types";
+import { smartDecode } from "@/utils/encoding";
+import { convertFileSrc } from "@tauri-apps/api/core";
+import { readFile } from "@tauri-apps/plugin-fs";
+import type { ParsedDanmaku, AssScriptInfo, SubtitleTrack } from "./types";
 
 const logger = createModuleLogger("danmaku-player");
+
+const subtitleAcceptExtensions = [
+  ".srt",
+  ".vtt",
+  ".ass",
+  ".ssa",
+  ".lrc",
+  ".sbv",
+  ".sub",
+  ".smi",
+  ".sami",
+  ".ttml",
+  ".dfxp",
+  ".xml",
+  ".txt",
+  ".idx",
+  ".sup",
+];
+const graphicSubtitleExtensions = new Set(["idx", "sup"]);
 
 const activeMode = ref<"builtin" | "external">("builtin");
 const videoUrl = ref("");
@@ -167,8 +237,23 @@ const videoName = ref("");
 const assFileName = ref("");
 const danmakus = ref<ParsedDanmaku[]>([]);
 const scriptInfo = ref<AssScriptInfo>({ playResX: 1836, playResY: 1032 });
+const subtitleTrack = ref<SubtitleTrack | null>(null);
 
 const { config } = useDanmakuConfig();
+
+function getFileNameFromPath(path: string, fallback: string): string {
+  const nameMatch = path.match(/[/\\]([^/\\]+)$/);
+  return nameMatch ? nameMatch[1] : fallback;
+}
+
+function getFileExtension(fileName: string): string {
+  return fileName.toLowerCase().match(/\.([^.]+)$/)?.[1] ?? "";
+}
+
+async function loadTextFile(path: string): Promise<string> {
+  const bytes = await readFile(path);
+  return smartDecode(bytes);
+}
 
 async function handleVideoDrop(paths: string[]) {
   logger.info("handleVideoDrop", { count: paths.length });
@@ -177,8 +262,7 @@ async function handleVideoDrop(paths: string[]) {
   logger.info("选择视频文件", { path });
 
   // 提取文件名
-  const nameMatch = path.match(/[/\\]([^/\\]+)$/);
-  videoName.value = nameMatch ? nameMatch[1] : "video";
+  videoName.value = getFileNameFromPath(path, "video");
 
   videoUrl.value = convertFileSrc(path);
   logger.info("视频 URL 已生成", { url: videoUrl.value });
@@ -190,11 +274,10 @@ async function handleAssDrop(paths: string[]) {
   const path = paths[0];
   logger.info("选择弹幕文件", { path });
 
-  const nameMatch = path.match(/[/\\]([^/\\]+)$/);
-  assFileName.value = nameMatch ? nameMatch[1] : "danmaku.ass";
+  assFileName.value = getFileNameFromPath(path, "danmaku.ass");
 
   try {
-    const content = await invoke<string>("read_text_file_force", { path });
+    const content = await loadTextFile(path);
     logger.info("弹幕文件内容已读取", { length: content.length });
     const result = parseAss(content);
     danmakus.value = result.danmakus;
@@ -207,6 +290,44 @@ async function handleAssDrop(paths: string[]) {
   } catch (err) {
     logger.error("弹幕解析失败", err as Error);
     customMessage.error("弹幕解析失败，请检查文件格式");
+  }
+}
+
+async function handleSubtitleDrop(paths: string[]) {
+  logger.info("handleSubtitleDrop", { count: paths.length });
+  if (paths.length === 0) return;
+  const path = paths[0];
+  const fileName = getFileNameFromPath(path, "subtitle");
+  logger.info("选择字幕文件", { path, fileName });
+
+  try {
+    if (graphicSubtitleExtensions.has(getFileExtension(fileName))) {
+      customMessage.warning("图形字幕暂不支持，请加载文本外挂字幕文件");
+      return;
+    }
+
+    const content = await loadTextFile(path);
+    logger.info("字幕文件内容已读取", {
+      fileName,
+      length: content.length,
+    });
+    const result = parseSubtitle(content, fileName);
+    subtitleTrack.value = result.track;
+    logger.info("字幕解析成功", {
+      fileName,
+      format: result.track.format,
+      count: result.track.cues.length,
+      warnings: result.warnings,
+    });
+
+    if (result.warnings.length > 0) {
+      customMessage.warning(result.warnings[0]);
+    }
+    customMessage.success(`成功解析 ${result.track.cues.length} 条字幕`);
+  } catch (err) {
+    logger.error("字幕解析失败", err as Error);
+    const message = err instanceof Error ? err.message : "请检查文件格式";
+    customMessage.error(`字幕解析失败：${message}`);
   }
 }
 
@@ -223,12 +344,17 @@ function resetAss() {
   danmakus.value = [];
   scriptInfo.value = { playResX: 1836, playResY: 1032 };
 }
+
+function resetSubtitle() {
+  subtitleTrack.value = null;
+}
 </script>
 
 <style scoped>
 .danmaku-player-container {
   width: 100%;
   height: 100%;
+  border-radius: 12px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -347,6 +473,14 @@ function resetAss() {
   background: rgba(
     var(--el-color-success-rgb),
     calc(var(--card-opacity) * 0.1)
+  );
+}
+
+.path-selector__icon--subtitle {
+  color: var(--el-color-warning);
+  background: rgba(
+    var(--el-color-warning-rgb),
+    calc(var(--card-opacity) * 0.12)
   );
 }
 

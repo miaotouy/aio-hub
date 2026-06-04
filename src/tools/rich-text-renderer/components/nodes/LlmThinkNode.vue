@@ -73,6 +73,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, computed, watch } from "vue";
+import { useThrottleFn } from "@vueuse/core";
 import { Copy, Check, Code2, ChevronRight } from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
 import { tokenCalculatorService } from "@/tools/token-calculator/token-calculator.registry";
@@ -189,19 +190,35 @@ const calculateEstimatedTime = async () => {
 };
 
 // 获取预览内容（最后一行非空文本）
-const previewContent = computed(() => {
-  if (!props.rawContent) return "";
+const previewContent = ref("");
 
+const computePreview = () => {
+  if (!props.rawContent) return "";
   const lines = props.rawContent.split("\n");
-  // 从后往前找第一个非空行
   for (let i = lines.length - 1; i >= 0; i--) {
     const line = lines[i].trim();
-    if (line) {
-      return line;
-    }
+    if (line) return line;
   }
   return "";
-});
+};
+
+// 流式时节流更新预览，避免频繁变化撑宽气泡
+const updatePreviewThrottled = useThrottleFn(() => {
+  previewContent.value = computePreview();
+}, 800);
+
+watch(
+  [() => props.rawContent, () => props.isThinking],
+  ([, thinking]) => {
+    if (thinking) {
+      updatePreviewThrottled();
+    } else {
+      // 思考结束立即更新一次最终预览
+      previewContent.value = computePreview();
+    }
+  },
+  { immediate: true }
+);
 
 const toggleCollapse = () => {
   isCollapsed.value = !isCollapsed.value;

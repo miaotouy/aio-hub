@@ -1067,6 +1067,12 @@ defineExpose({
   max-width: var(--system-max-width-percent, 60%);
 }
 
+/* 气泡模式：代码块的 intrinsic size 不参与气泡宽度计算，防止长代码行撑宽气泡 */
+.messages-container.mode-bubble :deep(.markdown-code-block) {
+  contain: inline-size;
+  width: 100%;
+}
+
 /* 圆角同步：覆写消息组件内部的 8px 圆角为可配置值 */
 .messages-container.mode-bubble :deep(.chat-message),
 .messages-container.mode-bubble :deep(.tool-call-message),

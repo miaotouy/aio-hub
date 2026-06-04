@@ -35,6 +35,12 @@ export const USER_ADDED_ICONS: PresetIconInfo[] = [
     suggestedFor: ["skyreels", "kunlun", "kunlunwanwei"],
     category: "多媒体/创意",
   },
+  {
+    name: "Agnes AI",
+    path: "agnes.png",
+    suggestedFor: ["agnes", "Sapiens"],
+    category: "国内 AI",
+  },
 ];
 
 /**

@@ -83,6 +83,15 @@
             <div class="tool-name-wrapper">
               <div class="method-name">
                 {{ tool.displayName || tool.toolId }}
+                <el-tag
+                  v-if="tool.version"
+                  size="small"
+                  type="info"
+                  effect="plain"
+                  class="version-tag"
+                >
+                  v{{ tool.version }}
+                </el-tag>
               </div>
               <div class="tool-id-tag">
                 {{ tool.toolId }}
@@ -343,6 +352,17 @@ const displayTools = computed(() => {
     }
   }
 
+  // 从各来源提取工具版本号
+  const toolVersionMap = new Map<string, string>();
+  for (const tool of BUILTIN_VCP_TOOLS) {
+    if (tool.version) toolVersionMap.set(tool.name, tool.version);
+  }
+  for (const manifest of distStore.exposedTools) {
+    if (manifest.version) {
+      toolVersionMap.set(manifest.name, manifest.version);
+    }
+  }
+
   const results = Array.from(toolMap.values());
 
   // 计算工具整体是否启用和来源标签
@@ -372,6 +392,8 @@ const displayTools = computed(() => {
         tool.displayName = tool.toolId;
       }
     }
+    // 注入工具版本号
+    tool.version = toolVersionMap.get(tool.toolId) || "";
   });
 
   return results.sort((a, b) => {
@@ -604,6 +626,17 @@ function addTool() {
   overflow: hidden;
   text-overflow: ellipsis;
   font-family: var(--el-font-family-mono);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.version-tag {
+  flex-shrink: 0;
+  font-size: 10px;
+  height: 16px;
+  line-height: 14px;
+  padding: 0 4px;
 }
 
 .tool-id-tag {

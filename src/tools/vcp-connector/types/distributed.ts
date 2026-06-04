@@ -17,6 +17,8 @@ export interface VcpToolManifest {
   name: string; // 对应 AIO 的 toolId:methodName
   displayName: string; // 用于 UI 显示的友好名称
   description: string;
+  /** 工具版本号，用于在 VCP 插件列表中进行版本标识 */
+  version?: string;
   parameters: any; // JSON Schema
   pluginType: "tool" | "static" | "service" | "hybridservice";
   entryPoint: {

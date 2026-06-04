@@ -6,6 +6,7 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { toolRegistryManager } from "@/services/registry";
 import { invoke } from "@tauri-apps/api/core";
 import { createToolDiscoveryService } from "../../tool-calling/core/discovery";
+import { useToolsStore } from "@/stores/tools";
 import {
   buildMethodDescription,
   TOOL_DEFINITION_START,
@@ -31,6 +32,7 @@ export const BUILTIN_VCP_TOOLS: VcpToolManifest[] = [
     name: "internal_request_file",
     displayName: "内置文件请求器",
     isInternal: true,
+    version: "1.0.0",
     description: "请求 AIO 节点上的文件内容 (Base64)",
     pluginType: "hybridservice",
     entryPoint: {
@@ -150,6 +152,11 @@ export function useVcpDistributedNode() {
    * 将一个工具的多个方法转换为单个 VcpToolManifest
    */
   function convertToManifest(toolId: string, methods: any[]): VcpToolManifest {
+    // 从 toolsStore 获取工具的真实版本号
+    const toolsStore = useToolsStore();
+    const toolConfig = toolsStore.tools.find((t) => t.path.includes(toolId));
+    const version = toolConfig?.version || "1.0.0";
+
     // 构建所有命令的 invocationCommands
     const invocationCommands = methods.map((method) => {
       const commandName =
@@ -222,6 +229,7 @@ export function useVcpDistributedNode() {
       name: toolId, // 使用 toolId 作为工具名称
       displayName: `[AIO] ${toolId}`,
       description: primaryMethod.description || `AIO 工具: ${toolId}`,
+      version,
       pluginType: "hybridservice",
       entryPoint: {
         script: `${toolId}.js`,

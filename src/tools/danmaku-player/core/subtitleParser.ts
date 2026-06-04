@@ -396,6 +396,45 @@ function splitAssFields(value: string, fieldCount: number): string[] {
   return fields;
 }
 
+/** Effect 字段值中表示特效生成行的关键字 */
+const ASS_EFFECT_SKIP_KEYWORDS = [
+  "fx",
+  "karaoke",
+  "banner",
+  "scroll up",
+  "scroll down",
+  "template",
+  "code",
+];
+
+/**
+ * 检测 ASS 文本是否包含绘图模式 (\p1 及以上)。
+ * 绘图模式下文本内容是矢量指令而非可读字符。
+ */
+function isAssDrawingMode(text: string): boolean {
+  return /\\p([1-9]\d*)\b/.test(text);
+}
+
+/**
+ * 检测 ASS 行的首标签块是否将主体文本设为完全透明。
+ * 这类行通常是叠加描边/阴影的辅助层，降级后无意义。
+ */
+function isFullyTransparentPrimary(text: string): boolean {
+  // 检查行首覆盖标签块中是否存在 \1a&HFF& 或 \alpha&HFF&
+  const leadingTag = text.match(/^\{([^}]*)\}/);
+  if (!leadingTag) return false;
+  const block = leadingTag[1];
+  // \1a&HFF& 主体完全透明
+  if (/\\1a&HFF&/i.test(block)) return true;
+  // \alpha&HFF& 所有图层完全透明（且没有后续覆盖）
+  if (
+    /\\alpha&HFF&/i.test(block) &&
+    !/\\[1234]a&H(?!FF)[0-9A-Fa-f]{2}&/i.test(block)
+  )
+    return true;
+  return false;
+}
+
 function parseAss(content: string): CueDraft[] {
   const drafts: CueDraft[] = [];
   const styles: Record<string, SubtitleStyle> = {};
@@ -480,10 +519,28 @@ function parseAss(content: string): CueDraft[] {
           );
           return index === -1 ? undefined : fields[index];
         };
+
+        // --- 特效字幕降级过滤 ---
+
+        // 1. 跳过 Effect 字段包含特效关键字的行（卡拉OK模板生成行等）
+        const effect = (getEventField("Effect") ?? "").toLowerCase().trim();
+        if (
+          effect &&
+          ASS_EFFECT_SKIP_KEYWORDS.some((kw) => effect.includes(kw))
+        ) {
+          continue;
+        }
+
         const startTime = parseAssTime(getEventField("Start") ?? "");
         const endTime = parseAssTime(getEventField("End") ?? "");
         const text = getEventField("Text");
         if (startTime === null || endTime === null || !text) continue;
+
+        // 2. 跳过绘图模式行（矢量绘图指令，不是可读文本）
+        if (isAssDrawingMode(text)) continue;
+
+        // 3. 跳过主体完全透明的辅助层（仅做描边/阴影叠加用）
+        if (isFullyTransparentPrimary(text)) continue;
 
         const styleName = getEventField("Style") ?? "Default";
         const tagColor = text.match(/\\c&H[0-9A-Fa-f]{6}&/);
@@ -503,7 +560,33 @@ function parseAss(content: string): CueDraft[] {
     }
   }
 
-  return drafts;
+  // 4. 去重：同一时间段、清除标签后文本相同的多层行只保留一条
+  return deduplicateAssDrafts(drafts);
+}
+
+/**
+ * 对 ASS 解析结果做去重：同一时间区间内文本相同的多层行合并为一条。
+ * 典型场景：标题用多层 Dialogue 叠加描边/阴影/正文，降级后文字重复。
+ */
+function deduplicateAssDrafts(drafts: CueDraft[]): CueDraft[] {
+  const seen = new Set<string>();
+  const result: CueDraft[] = [];
+
+  for (const draft of drafts) {
+    // 用清除标签后的纯文本 + 时间区间作为去重 key
+    const cleanText = draft.lines
+      .map((l) => cleanSubtitleLine(l))
+      .join("\n")
+      .trim();
+    if (!cleanText) continue;
+
+    const key = `${draft.startTime.toFixed(3)}|${draft.endTime.toFixed(3)}|${cleanText}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(draft);
+  }
+
+  return result;
 }
 
 function parseSami(content: string): CueDraft[] {

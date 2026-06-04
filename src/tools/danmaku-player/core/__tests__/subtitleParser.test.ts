@@ -162,6 +162,88 @@ hello`,
       "图形字幕暂不支持"
     );
   });
+
+  it("filters ASS karaoke fx lines (Effect=fx)", () => {
+    const result = parseSubtitle(
+      `[Script Info]
+Title: demo
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic
+Style: Default,Arial,28,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:01.00,0:00:03.00,Default,,0,0,0,,普通对话
+Dialogue: 2,0:00:01.00,0:00:03.00,Default,,0,0,0,fx,{\\an5\\pos(27,39)\\fad(500,0)}D
+Dialogue: 2,0:00:01.00,0:00:03.00,Default,,0,0,0,fx,{\\an5\\pos(55,39)\\fad(500,0)}I`,
+      "movie.ass"
+    );
+
+    expect(result.track.cues).toHaveLength(1);
+    expect(result.track.cues[0].text).toBe("普通对话");
+  });
+
+  it("filters ASS drawing mode lines (\\p1)", () => {
+    const result = parseSubtitle(
+      `[Script Info]
+Title: demo
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic
+Style: Default,Arial,28,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:01.00,0:00:03.00,Default,,0,0,0,,正常字幕
+Dialogue: 1,0:00:01.00,0:00:03.00,Default,,0,0,0,,{\\p1\\c&HCBD2D7&}m 0 0 l 0 30 l 36 30 l 36 0`,
+      "movie.ass"
+    );
+
+    expect(result.track.cues).toHaveLength(1);
+    expect(result.track.cues[0].text).toBe("正常字幕");
+  });
+
+  it("filters fully transparent ASS layers (\\1a&HFF&)", () => {
+    const result = parseSubtitle(
+      `[Script Info]
+Title: demo
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic
+Style: Default,Arial,28,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:01.00,0:00:03.00,Default,,0,0,0,,{\\an5}可见文字
+Dialogue: 1,0:00:01.00,0:00:03.00,Default,,0,0,0,,{\\an5\\1a&HFF&\\bord3}可见文字`,
+      "movie.ass"
+    );
+
+    expect(result.track.cues).toHaveLength(1);
+    expect(result.track.cues[0].text).toBe("可见文字");
+  });
+
+  it("deduplicates ASS multi-layer lines with same text and timing", () => {
+    const result = parseSubtitle(
+      `[Script Info]
+Title: demo
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic
+Style: Default,Arial,28,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 1,0:00:01.00,0:00:03.00,Default,,0,0,0,,{\\an5\\bord0\\blur5}标题文字
+Dialogue: 2,0:00:01.00,0:00:03.00,Default,,0,0,0,,{\\an5\\bord3\\3c&H000000&}标题文字
+Dialogue: 3,0:00:01.00,0:00:03.00,Default,,0,0,0,,{\\an5\\shad2}标题文字`,
+      "movie.ass"
+    );
+
+    expect(result.track.cues).toHaveLength(1);
+    expect(result.track.cues[0].text).toBe("标题文字");
+  });
 });
 
 describe("subtitle file decoding", () => {

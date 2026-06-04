@@ -22,6 +22,7 @@ type DiscoveredToolMethods = {
   toolId: string;
   toolName: string;
   toolDescription?: string;
+  version?: string;
   icon?: any;
   factoryId?: string;
   methods: MethodMetadata[];
@@ -241,6 +242,7 @@ export function createToolDiscoveryService(): {
         toolId: tool.id,
         toolName: tool.name || tool.id,
         toolDescription: tool.description,
+        version: toolConfig?.version,
         icon: toolConfig?.icon,
         factoryId,
         methods: callableMethods.map((m) => ({

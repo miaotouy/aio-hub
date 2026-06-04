@@ -297,7 +297,12 @@ const toggleSort = () => {
                     <Factory :size="12" class="factory-badge" />
                   </el-tooltip>
                 </div>
-                <div class="tool-id">{{ group.toolId }}</div>
+                <div class="tool-id-row">
+                  <span class="tool-id">{{ group.toolId }}</span>
+                  <span v-if="group.version" class="tool-version-badge"
+                    >v{{ group.version }}</span
+                  >
+                </div>
               </div>
               <div class="method-count">
                 <el-tag size="small" effect="plain" round>{{
@@ -323,6 +328,9 @@ const toggleSort = () => {
                 <Box v-else :size="18" />
               </span>
               <span>{{ selectedGroup.toolName }}</span>
+              <span v-if="selectedGroup.version" class="tool-version-badge"
+                >v{{ selectedGroup.version }}</span
+              >
             </div>
             <div class="sidebar-id">{{ selectedGroup.toolId }}</div>
           </div>
@@ -570,6 +578,12 @@ const toggleSort = () => {
   opacity: 0.6;
 }
 
+.tool-id-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
 .tool-id {
   font-size: 11px;
   color: var(--text-color-secondary);
@@ -577,6 +591,18 @@ const toggleSort = () => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.tool-version-badge {
+  font-size: 10px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background-color: rgba(var(--el-color-info-rgb), 0.1);
+  color: var(--text-color-secondary);
+  font-family: var(--el-font-family-mono, monospace);
+  font-weight: 600;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 /* 详情侧栏 */

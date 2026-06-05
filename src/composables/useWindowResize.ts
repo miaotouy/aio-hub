@@ -109,6 +109,10 @@ export function useWindowResize() {
     try {
       const window = getCurrentWindow();
 
+      // 确保窗口可缩放（分离窗口可能被设置为 resizable: false 以禁用原生边缘拖拽）
+      // 临时启用 resizable 以允许 startResizeDragging 工作
+      await window.setResizable(true);
+
       // 定义扩展的 Window 接口以支持 Tauri v2 API
       interface TauriWindowExtended {
         startResizeDragging: (direction: string) => Promise<void>;
@@ -119,6 +123,9 @@ export function useWindowResize() {
         direction
       );
       logger.info("窗口调整完成", { direction });
+
+      // 调整完成后恢复为不可缩放，防止原生边缘拖拽干扰自定义 UI
+      await window.setResizable(false);
     } catch (error: any) {
       errorHandler.error(error, "窗口调整失败", { context: { direction } });
     }

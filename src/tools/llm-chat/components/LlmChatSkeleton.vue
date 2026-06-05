@@ -32,7 +32,7 @@ defineProps<{
     <div class="chat-area-skeleton">
       <el-skeleton animated :loading="true" :throttle="0">
         <template #template>
-          <!-- 头部：模拟真实 ChatArea header -->
+          <!-- 头部：模拟真实 ChatAreaHeader -->
           <div class="skeleton-header">
             <div class="skeleton-header-left">
               <!-- 智能体头像 + 名称 -->
@@ -417,7 +417,7 @@ defineProps<{
   flex-direction: column;
 }
 
-/* 头部 - 模拟真实 .chat-header */
+/* 头部 - 模拟真实 ChatAreaHeader .chat-header */
 .skeleton-header {
   display: flex;
   align-items: center;

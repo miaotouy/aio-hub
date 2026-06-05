@@ -4,49 +4,49 @@
 
 ## 1. 布局概览 (Layout Overview)
 
-`ChatArea` 采用 **Flex Column** 布局（[`ChatArea.vue:1014`](../../components/ChatArea.vue:1014) `.chat-area-container { display: flex; flex-direction: column; height: 100% }`），**不使用 CSS Grid**。容器内有三个并列子结构：
+`ChatArea` 采用 **Flex Column** 布局（[`ChatArea.vue:584`](../../components/ChatArea.vue:584) `.chat-area-container { display: flex; flex-direction: column; height: 100% }`），**不使用 CSS Grid**。容器内有三个并列子结构：
 
 - **CSS 实现**: 容器 `.chat-area-container` 是垂直 Flex 容器，并附加 `contain: size layout style` + `overscroll-behavior: none` 实现渲染隔离与滚动链阻断。`tabindex="0"` 用于接收键盘导航事件（如 `ArrowUp` / `ArrowDown` 触发消息滚动）。
-- **头部 (`.chat-header`)**: **使用 `position: absolute; top: 0; z-index: 10`**——头部是悬浮在容器最顶部的层，**不参与 Flex 文档流的高度分配**。`min-height: 64px`，并通过 `mask-image: linear-gradient(to bottom, black 60%, transparent 100%)` 让底部 40% 高度向下虚化淡出（[`ChatArea.vue:1069`](../../components/ChatArea.vue:1069)），与下方消息列表形成"消息从头部下方淡入"的视觉效果。
+- **头部 (`.chat-header`)**: 由 [`ChatAreaHeader.vue`](../../components/ChatAreaHeader.vue) 渲染，**使用 `position: absolute; top: 0; z-index: 10`**——头部是悬浮在容器最顶部的层，**不参与 Flex 文档流的高度分配**。`min-height: 64px`，并通过 `mask-image: linear-gradient(to bottom, black 60%, transparent 100%)` 让底部 40% 高度向下虚化淡出（[`ChatAreaHeader.vue:268`](../../components/ChatAreaHeader.vue:268)），与下方消息列表形成"消息从头部下方淡入"的视觉效果。
 - **主内容区 (`.main-content` → `.chat-content`)**: 占据剩余空间（`flex: 1; min-height: 0`），内部又是 `flex-direction: column`，按顺序排列三个子元素：
-  - **消息列表容器 (`.message-list-wrapper`)**: `flex: 1 1 0%; height: 0; overflow: hidden`，关键是同时使用 `flex-basis: 0%` 和 `height: 0` 强制让浏览器把剩余空间分配给它，同时不会因内容增长撑大父容器（这是 Flex 滚动容器的标准做法）。内部根据 `viewMode` 渲染 `MessageList` 或 `FlowTreeGraph`。顶部还通过 `::before` 伪元素叠加一道 60px 高度的渐变遮罩（避免 mask 与 backdrop-filter 冲突，[`ChatArea.vue:1280`](../../components/ChatArea.vue:1280)）。
+  - **消息列表容器 (`.message-list-wrapper`)**: `flex: 1 1 0%; height: 0; overflow: hidden`，关键是同时使用 `flex-basis: 0%` 和 `height: 0` 强制让浏览器把剩余空间分配给它，同时不会因内容增长撑大父容器（这是 Flex 滚动容器的标准做法）。内部根据 `viewMode` 渲染 `MessageList` 或 `FlowTreeGraph`。顶部还通过 `::before` 伪元素叠加一道 60px 高度的渐变遮罩（避免 mask 与 backdrop-filter 冲突，[`ChatArea.vue:656`](../../components/ChatArea.vue:656)）。
   - **工具调用确认栏 (`ToolCallingApprovalBar`)**: `flex-shrink: 0` 自然占位。
-  - **输入框 (`.chat-message-input`)**: 显式 `flex-shrink: 0`（[`ChatArea.vue:1392`](../../components/ChatArea.vue:1392)），**关键防止被消息列表挤压消失**——这是处理"输入框区域不能被压缩"这一硬约束的核心方式。
+  - **输入框 (`.chat-message-input`)**: 显式 `flex-shrink: 0`（[`ChatArea.vue:676`](../../components/ChatArea.vue:676)），**关键防止被消息列表挤压消失**——这是处理"输入框区域不能被压缩"这一硬约束的核心方式。
 - **分离层 (Detached Layer)**: 通过 `.chat-area-container.detached-mode` class 注入（容器根元素的条件 class），样式调整集中在三处：
-  1. 容器本身（[`ChatArea.vue:1027-1036`](../../components/ChatArea.vue:1027)）增加 `margin: 32px` / `height: calc(100% - 64px)` / `border-radius: 16px` / 双层 box-shadow / `--detached-base-bg` 背景；
-  2. 可选壁纸层 `.detached-wallpaper`（[`ChatArea.vue:1039-1053`](../../components/ChatArea.vue:1039)），由 `settings.uiPreferences.showWallpaperInDetachedMode` 控制 v-if 显示，`position: absolute` 铺满容器，`z-index: 0` 垫在所有内容下面，背景图与透明度由 CSS 变量 `--wallpaper-url` / `--wallpaper-opacity` 驱动；
-  3. 头部 `chat-header` 整体启用 `-webkit-app-region: drag` 让用户可拖动 OS 窗口（[`ChatArea.vue:1078`](../../components/ChatArea.vue:1078)），头部内的可交互子元素（`.detachable-handle` / `.agent-model-info`）再用 `no-drag` 抠出可点击区。
-  4. 右下角浮动一个 `.window-resize-indicator` 调整窗口大小手柄（仅 detached 模式下 v-if 渲染）。
+  1. 容器本身（[`ChatArea.vue:597`](../../components/ChatArea.vue:597)）增加 `margin: 32px` / `height: calc(100% - 64px)` / `border-radius: 16px` / 双层 box-shadow / `--detached-base-bg` 背景；
+  2. 可选壁纸层 `.detached-wallpaper`（[`ChatArea.vue:609`](../../components/ChatArea.vue:609)），由 `settings.uiPreferences.showWallpaperInDetachedMode` 控制 v-if 显示，`position: absolute` 铺满容器，`z-index: 0` 垫在所有内容下面，背景图与透明度由 CSS 变量 `--wallpaper-url` / `--wallpaper-opacity` 驱动；
+  3. 头部 `chat-header` 整体启用 `-webkit-app-region: drag` 让用户可拖动 OS 窗口（[`ChatAreaHeader.vue:283`](../../components/ChatAreaHeader.vue:283)），头部内的可交互子元素（`.detachable-handle` / `.agent-model-info`）再用 `no-drag` 抠出可点击区。
+  4. 右下角浮动一个 `.window-resize-indicator` 调整窗口大小手柄，由 [`ChatAreaHeader.vue:258`](../../components/ChatAreaHeader.vue:258) 在 detached 模式下渲染。
 
 ## 2. 头部区域 (Header)
 
-头部是信息展示与交互的混合入口，**实现见 [`ChatArea.vue:758-894`](../../components/ChatArea.vue:758)**：
+头部是信息展示与交互的混合入口，**实现见 [`ChatAreaHeader.vue`](../../components/ChatAreaHeader.vue)**；与弹窗/实体解析共享的状态由 [`useChatAreaContext.ts`](../../composables/useChatAreaContext.ts) 通过 `provide` / `inject` 提供：
 
 ### 2.1 `ComponentHeader` 在分离/内嵌模式的差异
 
-- **内嵌模式 (`!isDetached`)**: 仅在 `settings.uiPreferences.enableDetachableHandle === true` 时渲染（[`ChatArea.vue:762`](../../components/ChatArea.vue:762)）；传入 `drag-mode="detach"`，鼠标按下触发 `handleDragStart` 调用 [`useDetachable.startDetaching(config)`](../../../../composables/useDetachable.ts) 启动"拖拽分离会话"，把 ChatArea 拖出成独立 Tauri 悬浮窗。`config` 中的窗口尺寸与手柄偏移会基于整个 `.chat-area-container` 而非 ComponentHeader 自身重新计算（[`ChatArea.vue:181-191`](../../components/ChatArea.vue:181)），以确保拖出窗口的初始位置与视觉一致。
-- **分离模式 (`isDetached`)**: 始终渲染；传入 `drag-mode="window"`，此时 ComponentHeader 自身不再处理分离逻辑，而是配合容器级 `-webkit-app-region: drag` 让整个头部区域作为 OS 原生窗口拖动条；右上角"右键菜单 → 分离"功能通过 `@detach="handleDetach"` 事件触发 [`begin_detach_session` + `finalize_detach_session`](../../components/ChatArea.vue:484) 走 Tauri 命令式分离。
+- **内嵌模式 (`!isDetached`)**: 仅在 `settings.uiPreferences.enableDetachableHandle === true` 时渲染（[`ChatAreaHeader.vue:131`](../../components/ChatAreaHeader.vue:131)）；传入 `drag-mode="detach"`，鼠标按下由 `ChatAreaHeader` emit `drag-start`，父级 `ChatArea.vue` 的 `handleDragStart` 调用 [`useDetachable.startDetaching(config)`](../../../../composables/useDetachable.ts) 启动"拖拽分离会话"，把 ChatArea 拖出成独立 Tauri 悬浮窗。`config` 中的窗口尺寸与手柄偏移会基于整个 `.chat-area-container` 而非 ComponentHeader 自身重新计算（[`ChatArea.vue:145`](../../components/ChatArea.vue:145)），以确保拖出窗口的初始位置与视觉一致。
+- **分离模式 (`isDetached`)**: 始终渲染；传入 `drag-mode="window"`，此时 ComponentHeader 自身不再处理分离逻辑，而是配合头部 `-webkit-app-region: drag` 让整个头部区域作为 OS 原生窗口拖动条；右上角"右键菜单 → 分离"功能通过 `@detach` 上抛给父级 `handleDetach`，再触发 [`begin_detach_session` + `finalize_detach_session`](../../components/ChatArea.vue:229) 走 Tauri 命令式分离。
 
 ### 2.2 左侧 `.agent-model-info`（智能体 + 模型）
 
-- **智能体点击 / 长按**: 点击触发 [`handleAgentInfoClick`](../../components/ChatArea.vue:372) → `handleEditAgent(tab?, section?)` → 打开 [`EditAgentDialog`](../../components/agent/management/EditAgentDialog.vue)（[`ChatArea.vue:974`](../../components/ChatArea.vue:974)）；长按 500ms 触发 [`onLongPress`](../../components/ChatArea.vue:344) → 弹出 [`QuickAgentSwitch`](../../components/agent/selectors/QuickAgentSwitch.vue) 列出所有智能体快捷切换。两个手势用 `isLongPressConsumed` 标记互斥（长按后松手的 click 事件被 `e.preventDefault() + e.stopImmediatePropagation()` 拦截，[`ChatArea.vue:372-382`](../../components/ChatArea.vue:372)）。
-- **模型点击**: 触发 [`handleSelectModel`](../../components/ChatArea.vue:238) → `useModelSelectDialog().open()` 弹出**全局模型选择器**（不是 EditAgentDialog 的"模型"标签页，是 `@/composables/useModelSelectDialog` 提供的独立 Dialog），选择后直接 `agentStore.updateAgent(agentId, { profileId, modelId })` 写回当前智能体；分离窗口下走 `bus.requestAction("llm-chat:update-agent")` 上行到主窗口执行。
-- **模型失效降级**: 当 `currentModel` 找不到时（profile 被删 / model id 改了），显示 `AlertCircle` 警告图标 + "未选择模型"占位文案 + 黄色虚线边框（`.model-info.model-invalid` 样式 [`ChatArea.vue:1156-1165`](../../components/ChatArea.vue:1156)），点击同样进入模型选择器但提示"模型未选择或已失效，点击重新选择"。
+- **智能体点击 / 长按**: 点击触发 [`handleAgentInfoClick`](../../components/ChatAreaHeader.vue:87) → context 中的 `handleEditAgent(tab?, section?)` → 打开 [`EditAgentDialog`](../../components/agent/management/EditAgentDialog.vue)（[`ChatArea.vue:545`](../../components/ChatArea.vue:545)）；长按 500ms 触发 [`onLongPress`](../../components/ChatAreaHeader.vue:62) → 弹出 [`QuickAgentSwitch`](../../components/agent/selectors/QuickAgentSwitch.vue) 列出所有智能体快捷切换。两个手势用 `isLongPressConsumed` 标记互斥（长按后松手的 click 事件被 `e.preventDefault() + e.stopImmediatePropagation()` 拦截）。
+- **模型点击**: 触发 context 中的 [`handleSelectModel`](../../composables/useChatAreaContext.ts:121) → `useModelSelectDialog().open()` 弹出**全局模型选择器**（不是 EditAgentDialog 的"模型"标签页，是 `@/composables/useModelSelectDialog` 提供的独立 Dialog），选择后直接 `agentStore.updateAgent(agentId, { profileId, modelId })` 写回当前智能体；分离窗口下走 `bus.requestAction("llm-chat:update-agent")` 上行到主窗口执行。
+- **模型失效降级**: 当 `currentModel` 找不到时（profile 被删 / model id 改了），显示 `AlertCircle` 警告图标 + "未选择模型"占位文案 + 黄色虚线边框（`.model-info.model-invalid` 样式 [`ChatAreaHeader.vue:353`](../../components/ChatAreaHeader.vue:353)），点击同样进入模型选择器但提示"模型未选择或已失效，点击重新选择"。
 
 ### 2.3 右侧 `.header-actions`（用户档案 + 视图切换 + 搜索 + 设置）
 
-- **用户档案点击**: 触发 [`handleEditUserProfile`](../../components/ChatArea.vue:327) → 打开 [`EditUserProfileDialog`](../../components/user-profile/EditUserProfileDialog.vue)（[`ChatArea.vue:987`](../../components/ChatArea.vue:987)），显示的是 `getEffectiveProfile(agent.userProfileId)` 计算出的"智能体绑定优先于全局默认"的生效档案。
+- **用户档案点击**: 触发 context 中的 [`handleEditUserProfile`](../../composables/useChatAreaContext.ts:204) → 打开 [`EditUserProfileDialog`](../../components/user-profile/EditUserProfileDialog.vue)（[`ChatArea.vue:557`](../../components/ChatArea.vue:557)），显示的是 `getEffectiveProfile(agent.userProfileId)` 计算出的"智能体绑定优先于全局默认"的生效档案。
 - **视图切换器 (`ViewModeSwitcher`) 的持久化字段**: 状态字段为 [`LlmChatUiState.viewMode: "linear" | "force-graph"`](../../composables/ui/useLlmChatUiState.ts:45)，持久化到 `{appConfigDir}/llm-chat/ui-state.json`，由 [`createConfigManager`](../../../../utils/configManager.ts) 管理，**防抖 300ms** 自动保存（[`useLlmChatUiState.ts:79`](../../composables/ui/useLlmChatUiState.ts:79)），与侧边栏宽度、参数面板折叠态等 17 项 UI 偏好共用同一份 JSON。`viewMode === "linear"` 时渲染 `MessageList`，`"force-graph"` 时渲染 `FlowTreeGraph`。
-- **搜索按钮**: 切换 `showSearchPanel` 显示/隐藏 [`ChatSearchPanel`](../../components/search/ChatSearchPanel.vue)（**纯前端搜索**当前会话消息，与跨会话搜索不同），快捷键 `Ctrl+F` 全局触发（[`handleKeyDown:643`](../../components/ChatArea.vue:643)），CodeMirror 编辑器内的 `Ctrl+F` 不被拦截（让编辑器自己的搜索面板处理）。
-- **设置按钮**: 打开 [`ChatSettingsDialog`](../../components/settings/ChatSettingsDialog.vue) 全局聊天设置弹窗（[`ChatArea.vue:995`](../../components/ChatArea.vue:995)）。
+- **搜索按钮**: 切换 `showSearchPanel` 显示/隐藏 [`ChatSearchPanel`](../../components/search/ChatSearchPanel.vue)（**纯前端搜索**当前会话消息，与跨会话搜索不同），快捷键 `Ctrl+F` 全局触发（[`handleKeyDown`](../../components/ChatArea.vue:352)），CodeMirror 编辑器内的 `Ctrl+F` 不被拦截（让编辑器自己的搜索面板处理）。
+- **设置按钮**: 打开 [`ChatSettingsDialog`](../../components/settings/ChatSettingsDialog.vue) 全局聊天设置弹窗（[`ChatArea.vue:565`](../../components/ChatArea.vue:565)）。
 
 ### 2.4 响应式收缩策略
 
-通过 [`useElementSize(containerRef)`](../../components/ChatArea.vue:80) 持续监测容器宽度，配合四个 computed 阈值控制文本显隐（[`ChatArea.vue:554-557`](../../components/ChatArea.vue:554)）：`showViewModeText > 700px` / `showModelName > 560px` / `showProfileName > 300px` / `showAgentName > 200px`，依次让视图切换器文字、模型名、档案名、智能体名在窄屏下逐级隐藏，保住头像/图标/关键操作。视图切换器额外用 `flex-shrink: 10` 拿到极高收缩优先级，最先被压缩。
+通过 [`useElementSize(containerRef)`](../../components/ChatArea.vue:74) 持续监测容器宽度，并将 `containerWidth` 传入 `ChatAreaHeader`。头部内四个 computed 阈值控制文本显隐（[`ChatAreaHeader.vue:104`](../../components/ChatAreaHeader.vue:104)）：`showViewModeText > 700px` / `showModelName > 560px` / `showProfileName > 300px` / `showAgentName > 200px`，依次让视图切换器文字、模型名、档案名、智能体名在窄屏下逐级隐藏，保住头像/图标/关键操作。视图切换器额外用 `flex-shrink: 10` 拿到极高收缩优先级，最先被压缩。
 
 ### 2.5 动态毛玻璃样式
 
-头部 `:style="chatHeaderStyle"` 由 [`chatHeaderStyle` computed](../../components/ChatArea.vue:562) 实时生成，**独立于全局 `--card-bg` 与 `--ui-blur`**——根据 `settings.uiPreferences.headerBackgroundOpacity`（默认 0.7）与 `headerBlurIntensity`（默认 12px）调用 [`getBlendedBackgroundColor("--card-bg-rgb", opacity)`](../../../../composables/useThemeAppearance.ts) 合成包含颜色叠加效果的背景色，再叠加 `backdrop-filter: blur(...)` 形成毛玻璃。这套独立配置允许用户为头部单独调透明度，与主题面板的整体毛玻璃强度解耦。
+头部 `:style="chatHeaderStyle"` 由 [`chatHeaderStyle` computed](../../components/ChatAreaHeader.vue:109) 实时生成，**独立于全局 `--card-bg` 与 `--ui-blur`**——根据 `settings.uiPreferences.headerBackgroundOpacity`（默认 0.7）与 `headerBlurIntensity`（默认 12px）调用 [`getBlendedBackgroundColor("--card-bg-rgb", opacity)`](../../../../composables/useThemeAppearance.ts) 合成包含颜色叠加效果的背景色，再叠加 `backdrop-filter: blur(...)` 形成毛玻璃。这套独立配置允许用户为头部单独调透明度，与主题面板的整体毛玻璃强度解耦。
 
 ## 3. 消息列表与渲染 (Message List & Rendering)
 

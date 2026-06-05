@@ -21,6 +21,7 @@ import {
   Operation,
   FolderAdd,
   MoreFilled,
+  Sort,
 } from "@element-plus/icons-vue";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -64,6 +65,7 @@ const isUploading = ref(false);
 const searchQuery = ref("");
 const fileInput = ref<HTMLInputElement | null>(null);
 const selectedGroup = ref("all");
+const sortBy = ref("default");
 
 // 批量操作状态
 const isSelectionMode = ref(false);
@@ -153,9 +155,9 @@ watch(
   { immediate: true, deep: true }
 );
 
-// 过滤后的资产列表
+// 过滤并排序后的资产列表
 const filteredAssets = computed(() => {
-  let result = assets.value;
+  let result = [...assets.value];
 
   // 1. 分组过滤
   if (selectedGroup.value === "default") {
@@ -176,6 +178,26 @@ const filteredAssets = computed(() => {
         asset.filename.toLowerCase().includes(query) ||
         asset.description?.toLowerCase().includes(query)
     );
+  }
+
+  // 3. 排序
+  if (sortBy.value !== "default") {
+    result.sort((a, b) => {
+      if (sortBy.value === "name-asc") {
+        return a.filename.localeCompare(b.filename, "zh-CN");
+      } else if (sortBy.value === "name-desc") {
+        return b.filename.localeCompare(a.filename, "zh-CN");
+      } else if (sortBy.value === "id-asc") {
+        return a.id.localeCompare(b.id, "zh-CN");
+      } else if (sortBy.value === "id-desc") {
+        return b.id.localeCompare(a.id, "zh-CN");
+      } else if (sortBy.value === "size-asc") {
+        return (a.size ?? 0) - (b.size ?? 0);
+      } else if (sortBy.value === "size-desc") {
+        return (b.size ?? 0) - (a.size ?? 0);
+      }
+      return 0;
+    });
   }
 
   return result;
@@ -964,6 +986,22 @@ const ThumbnailPreview = {
               size="small"
             />
           </div>
+          <div class="sort-box">
+            <el-select
+              v-model="sortBy"
+              size="small"
+              style="width: 120px"
+              :prefix-icon="Sort"
+            >
+              <el-option label="默认顺序" value="default" />
+              <el-option label="名称 A-Z" value="name-asc" />
+              <el-option label="名称 Z-A" value="name-desc" />
+              <el-option label="ID A-Z" value="id-asc" />
+              <el-option label="ID Z-A" value="id-desc" />
+              <el-option label="大小 递增" value="size-asc" />
+              <el-option label="大小 递减" value="size-desc" />
+            </el-select>
+          </div>
           <span v-if="!isSelectionMode" class="drag-upload-tip">
             <el-icon><FolderAdd /></el-icon>
             <span>可拖拽文件上传</span>
@@ -1548,6 +1586,10 @@ const ThumbnailPreview = {
   flex: 1;
   min-width: 120px;
   max-width: 260px;
+}
+
+.sort-box {
+  flex-shrink: 0;
 }
 
 .drag-upload-tip {

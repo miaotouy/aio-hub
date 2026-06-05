@@ -10,7 +10,7 @@
             :disabled="!hasResults"
             @click="$emit('refresh')"
           >
-            <RefreshCw :size="16" />
+            <RefreshCw :size="18" />
           </button>
         </el-tooltip>
         <el-tooltip
@@ -22,17 +22,17 @@
             :disabled="!hasResults"
             @click="toggleExpandCollapse"
           >
-            <ChevronsDown v-if="allCollapsed" :size="16" />
-            <ChevronsUp v-else :size="16" />
+            <ChevronsDown v-if="allCollapsed" :size="18" />
+            <ChevronsUp v-else :size="18" />
           </button>
         </el-tooltip>
-        <el-tooltip content="清除结果" :show-after="500">
+        <el-tooltip content="清除搜索内容" :show-after="500">
           <button
             class="search-panel__action-btn"
-            :disabled="!hasResults"
-            @click="$emit('clearResults')"
+            :disabled="!pattern"
+            @click="pattern = ''"
           >
-            <X :size="16" />
+            <X :size="18" />
           </button>
         </el-tooltip>
         <el-tooltip
@@ -40,8 +40,8 @@
           :show-after="500"
         >
           <button class="search-panel__action-btn" @click="toggleViewMode">
-            <FolderTree v-if="viewMode === 'list'" :size="16" />
-            <List v-else :size="16" />
+            <FolderTree v-if="viewMode === 'list'" :size="18" />
+            <List v-else :size="18" />
           </button>
         </el-tooltip>
       </div>
@@ -200,7 +200,7 @@ defineExpose({ expandDirs });
 }
 
 .search-panel__title {
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -217,8 +217,8 @@ defineExpose({ expandDirs });
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 32px;
+  height: 32px;
   border: 1px solid transparent;
   border-radius: 4px;
   background: transparent;

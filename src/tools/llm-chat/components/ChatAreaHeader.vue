@@ -6,7 +6,6 @@ import { Settings2, Search, AlertCircle } from "lucide-vue-next";
 import ComponentHeader from "@/components/ComponentHeader.vue";
 import Avatar from "@/components/common/Avatar.vue";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
-import { useWindowResize } from "@/composables/useWindowResize";
 import {
   useThemeAppearance,
   getBlendedBackgroundColor,
@@ -115,9 +114,6 @@ const chatHeaderStyle = computed(() => {
     backdropFilter: `blur(${blur}px)`,
   };
 });
-
-const { createResizeHandler } = useWindowResize();
-const handleResizeStart = createResizeHandler("SouthEast");
 
 defineExpose({ headerRef });
 </script>
@@ -251,16 +247,6 @@ defineExpose({ headerRef });
         </div>
       </el-tooltip>
     </div>
-  </div>
-
-  <div
-    v-if="props.isDetached"
-    class="window-resize-indicator"
-    title="拖拽调整窗口大小"
-    @mousedown="handleResizeStart"
-  >
-    <div class="indicator-border"></div>
-    <div class="indicator-handle"></div>
   </div>
 </template>
 
@@ -446,72 +432,5 @@ defineExpose({ headerRef });
   background: transparent;
   cursor: move;
   border-radius: 0;
-}
-
-.window-resize-indicator {
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  top: 0;
-  left: 0;
-  pointer-events: none;
-  z-index: 10;
-}
-
-.indicator-border {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  bottom: 6px;
-  left: 6px;
-  border: 1px solid var(--primary-color);
-  border-radius: 10px;
-  opacity: 0;
-  transition: opacity 0.2s;
-  pointer-events: none;
-}
-
-.indicator-handle {
-  position: absolute;
-  bottom: 6px;
-  right: 6px;
-  width: 16px;
-  height: 16px;
-  pointer-events: auto;
-  cursor: se-resize;
-  border-radius: 0 0 10px 0;
-  overflow: hidden;
-}
-
-.indicator-handle::before {
-  content: "";
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  width: 100%;
-  height: 100%;
-  border: 2px solid var(--primary-color);
-  border-radius: 0 0 10px 0;
-  border-top: none;
-  border-left: none;
-  opacity: 0.4;
-  transition: opacity 0.2s;
-}
-
-.indicator-handle:hover::before {
-  opacity: 0.8;
-  border-color: var(--primary-hover-color, var(--primary-color));
-}
-
-.indicator-handle:hover ~ .indicator-border {
-  opacity: 0.3;
-}
-
-.indicator-handle:active::before {
-  opacity: 1;
-}
-
-.indicator-handle:active ~ .indicator-border {
-  opacity: 0.5;
 }
 </style>

@@ -14,6 +14,7 @@ import type { ChatMessageNode } from "../types";
 import type { Asset } from "@/types/asset-management";
 import { useDetachable } from "@/composables/useDetachable";
 import { useDetachedManager } from "@/composables/useDetachedManager";
+import { useWindowResize } from "@/composables/useWindowResize";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import ChatAreaHeader from "./ChatAreaHeader.vue";
@@ -142,6 +143,9 @@ const finalMessageStyleOptions = computed(() => {
 // ===== 拖拽与分离功能 =====
 const { detachedComponents } = useDetachedManager();
 const { startDetaching } = useDetachable();
+const { createResizeHandler } = useWindowResize();
+const handleResizeStart = createResizeHandler("SouthEast");
+
 const handleDragStart = (e: MouseEvent) => {
   if (props.isDetached) return;
 
@@ -577,6 +581,17 @@ onMounted(async () => {
 
     <!-- 快捷操作管理弹窗 -->
     <QuickActionManagerDialog v-model:visible="showQuickActionManager" />
+
+    <!-- 右下角调整大小手柄，仅在分离模式下显示 -->
+    <div
+      v-if="props.isDetached"
+      class="window-resize-indicator"
+      title="拖拽调整窗口大小"
+      @mousedown="handleResizeStart"
+    >
+      <div class="indicator-border"></div>
+      <div class="indicator-handle"></div>
+    </div>
   </div>
 </template>
 
@@ -595,8 +610,9 @@ onMounted(async () => {
 
 /* 分离模式下添加更强的阴影和圆角 */
 .chat-area-container.detached-mode {
-  margin: 32px;
-  height: calc(100% - 64px);
+  position: absolute;
+  inset: 32px;
+  height: auto;
   border-radius: 16px;
   box-shadow:
     0 8px 16px rgba(0, 0, 0, 0.25),
@@ -689,5 +705,73 @@ onMounted(async () => {
 .force-graph-container {
   height: 100%;
   width: 100%;
+}
+
+/* 右下角调整大小手柄 - 仅在分离模式下显示 */
+.window-resize-indicator {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 100;
+}
+
+.indicator-border {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  bottom: 6px;
+  left: 6px;
+  border: 1px solid var(--primary-color);
+  border-radius: 10px;
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+}
+
+.indicator-handle {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  width: 16px;
+  height: 16px;
+  pointer-events: auto;
+  cursor: se-resize;
+  border-radius: 0 0 10px 0;
+  overflow: hidden;
+}
+
+.indicator-handle::before {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 100%;
+  height: 100%;
+  border: 2px solid var(--primary-color);
+  border-radius: 0 0 10px 0;
+  border-top: none;
+  border-left: none;
+  opacity: 0.4;
+  transition: opacity 0.2s;
+}
+
+.indicator-handle:hover::before {
+  opacity: 0.8;
+  border-color: var(--primary-hover-color, var(--primary-color));
+}
+
+.indicator-handle:hover ~ .indicator-border {
+  opacity: 0.3;
+}
+
+.indicator-handle:active::before {
+  opacity: 1;
+}
+
+.indicator-handle:active ~ .indicator-border {
+  opacity: 0.5;
 }
 </style>

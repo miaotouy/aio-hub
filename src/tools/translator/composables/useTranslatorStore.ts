@@ -15,6 +15,7 @@ import {
   type TranslationSession,
 } from "./useTranslatorEngine";
 import { useTranslatorHistory } from "./useTranslatorHistory";
+import { estimateSplitChunkCount } from "../core/textSplitter";
 
 const logger = createModuleLogger("tools/translator/store");
 
@@ -75,6 +76,7 @@ export const useTranslatorStore = defineStore("translator", () => {
   const sourceLang = ref<TranslatorLanguageCode>("auto");
   const targetLang = ref<TranslatorLanguageCode>("Chinese (Simplified)");
   const currentSession = ref<TranslationSession | null>(null);
+  const splitTranslationActive = ref(false);
   const initialized = ref(false);
 
   /**
@@ -157,8 +159,18 @@ export const useTranslatorStore = defineStore("translator", () => {
   function clearInput() {
     engineModule.abortAll();
     inputText.value = "";
+    splitTranslationActive.value = false;
     engineModule.resetResults();
     currentSession.value = null;
+  }
+
+  function enableSplitTranslation() {
+    if (!settingsModule.settings.value.splitTranslationEnabled) return;
+    splitTranslationActive.value = true;
+  }
+
+  function disableSplitTranslation() {
+    splitTranslationActive.value = false;
   }
 
   // ---- 激活预设的快捷渠道操作（带结果清理副作用）----
@@ -263,6 +275,30 @@ export const useTranslatorStore = defineStore("translator", () => {
     };
   });
 
+  const inputCharCount = computed(() => Array.from(inputText.value).length);
+
+  const shouldSuggestSplitTranslation = computed(
+    () =>
+      settingsModule.settings.value.splitTranslationEnabled &&
+      !splitTranslationActive.value &&
+      inputCharCount.value >= settingsModule.settings.value.splitThreshold
+  );
+
+  const splitEstimatedChunkCount = computed(() => {
+    if (!inputText.value.trim()) return 0;
+    return estimateSplitChunkCount(inputText.value, {
+      chunkSize: settingsModule.settings.value.splitChunkSize,
+    });
+  });
+
+  const splitConfigSummary = computed(() => {
+    const mode =
+      settingsModule.settings.value.splitMode === "sequential"
+        ? "质量优先"
+        : "速度优先";
+    return `分片 ${settingsModule.settings.value.splitChunkSize.toLocaleString()} 字 · ${mode} · 约 ${splitEstimatedChunkCount.value} 片`;
+  });
+
   /**
    * 渠道预估输出会截断/超 context 时弹二次确认。
    * 用户确认或没有 danger 渠道时返回 true；取消时返回 false。
@@ -308,8 +344,16 @@ export const useTranslatorStore = defineStore("translator", () => {
     const preset = presetsModule.activePreset.value;
     if (!text || !preset || preset.channels.length === 0) return;
 
-    // 超限二次确认（开关位于设置中）
-    if (settingsModule.settings.value.warnOnOutputOverflow) {
+    const useSplitTranslation =
+      settingsModule.settings.value.splitTranslationEnabled &&
+      splitTranslationActive.value &&
+      text.length >= settingsModule.settings.value.splitThreshold;
+
+    // 超限二次确认（分片翻译会按 chunk 规避整段输出上限，因此不再用整段估算阻塞）
+    if (
+      !useSplitTranslation &&
+      settingsModule.settings.value.warnOnOutputOverflow
+    ) {
       const dangers = channelEstimations.value.filter(
         (est) => est.risk === "danger"
       );
@@ -329,7 +373,11 @@ export const useTranslatorStore = defineStore("translator", () => {
     currentSession.value = session;
 
     try {
-      await engineModule.runSession(preset.channels, session);
+      if (useSplitTranslation) {
+        await engineModule.runLongTextSession(preset.channels, session);
+      } else {
+        await engineModule.runSession(preset.channels, session);
+      }
     } finally {
       if (currentSession.value === session) {
         historyModule.pushHistory({
@@ -350,7 +398,15 @@ export const useTranslatorStore = defineStore("translator", () => {
       (item) => item.id === channelId
     );
     if (!session || !channel) return;
-    await engineModule.runChannelRequest(channel, session);
+    const useSplitTranslation =
+      settingsModule.settings.value.splitTranslationEnabled &&
+      splitTranslationActive.value &&
+      session.text.length >= settingsModule.settings.value.splitThreshold;
+    if (useSplitTranslation) {
+      await engineModule.retryLongTextChannelRequest(channel, session);
+    } else {
+      await engineModule.runChannelRequest(channel, session);
+    }
   }
 
   // ---- 历史交互 ----
@@ -426,6 +482,10 @@ export const useTranslatorStore = defineStore("translator", () => {
     channelEstimations,
     riskSummary,
     overallRisk,
+    splitTranslationActive,
+    shouldSuggestSplitTranslation,
+    splitEstimatedChunkCount,
+    splitConfigSummary,
 
     // ---- history ----
     history: historyModule.history,
@@ -443,6 +503,8 @@ export const useTranslatorStore = defineStore("translator", () => {
     setActivePreset,
     swapLanguages,
     clearInput,
+    enableSplitTranslation,
+    disableSplitTranslation,
     removeChannel,
     removeChannelFromPreset,
     deletePreset,
@@ -451,4 +513,3 @@ export const useTranslatorStore = defineStore("translator", () => {
     loadHistoryEntry,
   };
 });
-

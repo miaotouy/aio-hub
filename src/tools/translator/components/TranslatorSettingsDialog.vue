@@ -119,6 +119,99 @@
 
       <section class="settings-section">
         <div class="section-heading">
+          <span>长文本分片翻译</span>
+          <span class="section-desc">将超长输入拆成多片逐步翻译</span>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-label">
+            <span>启用分片翻译</span>
+            <span class="setting-desc">超过阈值时在输入区显示启用提示</span>
+          </div>
+          <el-switch v-model="store.settings.splitTranslationEnabled" />
+        </div>
+
+        <div
+          class="setting-row"
+          :class="{ disabled: !store.settings.splitTranslationEnabled }"
+        >
+          <div class="setting-label">
+            <span>触发字数阈值</span>
+            <span class="setting-desc">输入达到该字符数时提示分片翻译</span>
+          </div>
+          <el-input-number
+            v-model="store.settings.splitThreshold"
+            :min="1000"
+            :max="1000000"
+            :step="500"
+            :disabled="!store.settings.splitTranslationEnabled"
+            controls-position="right"
+          />
+        </div>
+
+        <div
+          class="setting-row"
+          :class="{ disabled: !store.settings.splitTranslationEnabled }"
+        >
+          <div class="setting-label">
+            <span>单分片目标大小</span>
+            <span class="setting-desc">算法会优先在段落和句子边界切分</span>
+          </div>
+          <el-input-number
+            v-model="store.settings.splitChunkSize"
+            :min="500"
+            :max="50000"
+            :step="500"
+            :disabled="!store.settings.splitTranslationEnabled"
+            controls-position="right"
+          />
+        </div>
+
+        <div
+          class="setting-row"
+          :class="{ disabled: !store.settings.splitTranslationEnabled }"
+        >
+          <div class="setting-label">
+            <span>默认翻译模式</span>
+            <span class="setting-desc">串行会把上一片原文和译文作为上下文</span>
+          </div>
+          <el-radio-group
+            v-model="store.settings.splitMode"
+            :disabled="!store.settings.splitTranslationEnabled"
+          >
+            <el-radio-button label="sequential">质量优先</el-radio-button>
+            <el-radio-button label="concurrent">速度优先</el-radio-button>
+          </el-radio-group>
+        </div>
+
+        <div
+          class="setting-row"
+          :class="{
+            disabled:
+              !store.settings.splitTranslationEnabled ||
+              store.settings.splitMode !== 'concurrent',
+          }"
+        >
+          <div class="setting-label">
+            <span>最大并发分片数</span>
+            <span class="setting-desc">仅速度优先模式生效，默认 2</span>
+          </div>
+          <el-input-number
+            v-model="store.settings.splitMaxConcurrent"
+            :min="1"
+            :max="4"
+            :step="1"
+            :disabled="
+              !store.settings.splitTranslationEnabled ||
+              store.settings.splitMode !== 'concurrent'
+            "
+            controls-position="right"
+          />
+        </div>
+      </section>
+
+      <section class="settings-section">
+        <div class="section-heading">
           <span>界面与记录</span>
         </div>
 
@@ -368,4 +461,3 @@ async function handleClearHistory() {
   margin-left: auto;
 }
 </style>
-

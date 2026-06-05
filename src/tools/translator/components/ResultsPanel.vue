@@ -24,6 +24,27 @@
             <span class="status-label">{{ statusLabel(result.status) }}</span>
           </div>
 
+          <button
+            v-if="result.longTextTask"
+            type="button"
+            class="split-progress"
+            @click="openSplitDetails(result.longTextTask)"
+          >
+            <ListTree class="split-progress-icon" />
+            <span>
+              {{ splitCompletedCount(result.longTextTask) }}/{{
+                result.longTextTask.chunks.length
+              }}
+              分片
+            </span>
+            <el-progress
+              class="split-progress-bar"
+              :percentage="result.longTextTask.progress"
+              :show-text="false"
+              :stroke-width="5"
+            />
+          </button>
+
           <div class="header-actions">
             <el-tooltip
               v-if="
@@ -151,16 +172,28 @@
         </footer>
       </article>
     </div>
+    <SplitDetailDrawer
+      v-model="splitDrawerVisible"
+      :task="activeSplitTask"
+    />
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, watch } from "vue";
-import { Copy, Languages, Loader2, RotateCw, Square } from "lucide-vue-next";
+import { computed, nextTick, ref, watch } from "vue";
+import {
+  Copy,
+  Languages,
+  ListTree,
+  Loader2,
+  RotateCw,
+  Square,
+} from "lucide-vue-next";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { customMessage } from "@/utils/customMessage";
 import { useTranslatorStore } from "../composables/useTranslatorStore";
-import type { TranslationResultStatus } from "../types";
+import SplitDetailDrawer from "./SplitDetailDrawer.vue";
+import type { LongTextTask, TranslationResultStatus } from "../types";
 
 const store = useTranslatorStore();
 
@@ -173,6 +206,13 @@ const canRetry = computed(
 const contentRefs = new Map<string, HTMLElement>();
 /** 用户手动滚走的渠道，会暂停自动吸底，直到再次回到底部 */
 const userScrolledAway = new Set<string>();
+const splitDrawerVisible = ref(false);
+const activeSplitChannelId = ref<string | undefined>();
+const activeSplitTask = computed(() =>
+  visibleResults.value.find(
+    (result) => result.channelId === activeSplitChannelId.value
+  )?.longTextTask
+);
 
 function setContentRef(channelId: string, el: unknown) {
   if (el instanceof HTMLElement) {
@@ -260,6 +300,15 @@ function formatMaxTokens(value: number) {
     return `${Math.round(value / 100) / 10}k`;
   }
   return String(value);
+}
+
+function splitCompletedCount(task: LongTextTask) {
+  return task.chunks.filter((chunk) => chunk.status === "completed").length;
+}
+
+function openSplitDetails(task: LongTextTask) {
+  activeSplitChannelId.value = task.id;
+  splitDrawerVisible.value = true;
 }
 
 async function copyResult(content: string) {
@@ -487,6 +536,44 @@ async function handleRetry(channelId: string) {
   flex-shrink: 0;
 }
 
+.split-progress {
+  appearance: none;
+  display: grid;
+  grid-template-columns: 14px auto 64px;
+  align-items: center;
+  gap: 6px;
+  min-width: 150px;
+  max-width: 220px;
+  padding: 4px 8px;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 7px;
+  background: var(--input-bg);
+  color: var(--text-color-secondary);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.split-progress:hover {
+  color: var(--primary-color);
+  border-color: color-mix(
+    in srgb,
+    var(--primary-color) 44%,
+    var(--border-color)
+  );
+}
+
+.split-progress-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.split-progress-bar {
+  width: 64px;
+}
+
 .icon-button {
   width: 28px;
   height: 28px;
@@ -615,4 +702,3 @@ async function handleRetry(channelId: string) {
   }
 }
 </style>
-

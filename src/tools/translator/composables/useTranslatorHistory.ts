@@ -71,7 +71,11 @@ export function useTranslatorHistory(deps: HistoryDeps) {
 
   function pushHistory(payload: HistoryPushPayload) {
     if (!settings.value.saveHistory) return;
-    const snapshot = payload.results.map((item) => ({ ...item }));
+    const snapshot = payload.results.map((item) => {
+      const copy: TranslationResult = { ...item };
+      delete copy.longTextTask;
+      return copy;
+    });
     history.value.unshift({
       id: `translator-history-${Date.now()}`,
       timestamp: Date.now(),

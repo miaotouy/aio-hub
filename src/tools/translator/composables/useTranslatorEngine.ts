@@ -6,12 +6,17 @@ import type {
   ChannelOverflowReason,
   ChannelOverflowRisk,
   TranslationChannel,
+  LongTextTask,
   TranslationResult,
   TranslationResultStatus,
   TranslatorLanguageCode,
   TranslatorSettings,
 } from "../types";
 import { useTranslatorCore } from "./useTranslatorCore";
+import {
+  joinTranslatedChunks,
+  useLongTextTranslator,
+} from "./useLongTextTranslator";
 
 const logger = createModuleLogger("tools/translator/engine");
 
@@ -40,6 +45,7 @@ function clampNumber(value: number, min: number, max: number) {
 export function useTranslatorEngine(deps: EngineDeps) {
   const { settings, enabledProfiles } = deps;
   const { translateChannel } = useTranslatorCore();
+  const { translateLongText } = useLongTextTranslator();
 
   const results = ref<TranslationResult[]>([]);
   /** 每个渠道独立的 AbortController */
@@ -254,6 +260,26 @@ export function useTranslatorEngine(deps: EngineDeps) {
     }));
   }
 
+  /** 给定一组渠道，把 results 初始化为长文本 pending 占位 */
+  function seedLongTextPendingResults(
+    channels: TranslationChannel[],
+    text: string
+  ) {
+    results.value = channels.map<TranslationResult>((channel) => ({
+      channelId: channel.id,
+      channelName: channel.displayName,
+      content: "",
+      status: "pending",
+      isStreaming: true,
+      startedAt: Date.now(),
+      appliedMaxTokens: getEffectiveMaxTokens(
+        text.slice(0, settings.value.splitChunkSize),
+        channel
+      ),
+      modelOutputLimit: getModelOutputLimit(channel),
+    }));
+  }
+
   function removeResultsByChannel(channelIds: Iterable<string>) {
     const targets = new Set(channelIds);
     if (targets.size === 0) return;
@@ -375,6 +401,109 @@ export function useTranslatorEngine(deps: EngineDeps) {
     }
   }
 
+  async function runLongTextChannelRequest(
+    channel: TranslationChannel,
+    session: TranslationSession,
+    existingTask?: LongTextTask
+  ) {
+    abortChannel(channel.id);
+    const controller = new AbortController();
+    channelControllers.set(channel.id, controller);
+
+    updateResult(channel.id, {
+      status: "pending",
+      isStreaming: true,
+      content: existingTask ? joinTranslatedChunks(existingTask.chunks).trim() : "",
+      error: undefined,
+      startedAt: Date.now(),
+      longTextTask: existingTask,
+    });
+
+    const startedAt = Date.now();
+
+    try {
+      const task = await translateLongText({
+        text: session.text,
+        channel,
+        sourceLang: session.sourceLang,
+        targetLang: session.targetLang,
+        basePrompt: session.basePrompt,
+        chunkSize: settings.value.splitChunkSize,
+        mode: settings.value.splitMode,
+        maxConcurrentChunks: settings.value.splitMaxConcurrent,
+        temperature: channel.temperature ?? settings.value.defaultTemperature,
+        streaming: settings.value.streamingEnabled,
+        signal: controller.signal,
+        existingTask,
+        getMaxTokens: (chunkText) => getEffectiveMaxTokens(chunkText, channel),
+        translateChannel,
+        onTaskUpdate: (taskSnapshot) => {
+          const content = joinTranslatedChunks(taskSnapshot.chunks).trim();
+          const status: TranslationResultStatus =
+            taskSnapshot.status === "completed"
+              ? "completed"
+              : taskSnapshot.status === "failed"
+                ? "failed"
+                : taskSnapshot.status === "aborted"
+                  ? "aborted"
+                  : "streaming";
+          updateResult(channel.id, {
+            content,
+            status,
+            error: taskSnapshot.error,
+            longTextTask: taskSnapshot,
+          });
+        },
+      });
+
+      if (controller.signal.aborted) return;
+
+      const content = joinTranslatedChunks(task.chunks).trim();
+      const status: TranslationResultStatus =
+        task.status === "completed"
+          ? "completed"
+          : task.status === "aborted"
+            ? "aborted"
+            : "failed";
+      const totals = task.chunks.reduce(
+        (acc, chunk) => {
+          acc.promptTokens += chunk.tokenUsage?.promptTokens || 0;
+          acc.completionTokens += chunk.tokenUsage?.completionTokens || 0;
+          acc.totalTokens += chunk.tokenUsage?.totalTokens || 0;
+          return acc;
+        },
+        { promptTokens: 0, completionTokens: 0, totalTokens: 0 }
+      );
+
+      updateResult(channel.id, {
+        content,
+        status,
+        error: task.error,
+        duration: Date.now() - startedAt,
+        tokenUsage:
+          totals.promptTokens > 0 || totals.completionTokens > 0
+            ? totals
+            : undefined,
+        longTextTask: task,
+      });
+    } catch (error) {
+      const isAborted =
+        controller.signal.aborted ||
+        (error instanceof DOMException && error.name === "AbortError");
+      const message = error instanceof Error ? error.message : String(error);
+      updateResult(channel.id, {
+        status: isAborted ? "aborted" : "failed",
+        error: isAborted ? undefined : message,
+        duration: Date.now() - startedAt,
+      });
+    } finally {
+      const stored = channelControllers.get(channel.id);
+      if (stored === controller) {
+        channelControllers.delete(channel.id);
+      }
+    }
+  }
+
   /** 多渠道并发翻译。返回的 Promise 在所有渠道 settle 后 resolve。 */
   async function runSession(
     channels: TranslationChannel[],
@@ -395,6 +524,38 @@ export function useTranslatorEngine(deps: EngineDeps) {
       runChannelRequest(channel, session)
     );
     await Promise.allSettled(tasks);
+  }
+
+  /** 多渠道长文本分片翻译。渠道间仍并发，单渠道内按设置串行/并发。 */
+  async function runLongTextSession(
+    channels: TranslationChannel[],
+    session: TranslationSession
+  ) {
+    abortAll();
+    seedLongTextPendingResults(channels, session.text);
+
+    logger.info("开始多渠道长文本分片翻译", {
+      presetId: session.presetId,
+      channelCount: channels.length,
+      sourceLang: session.sourceLang,
+      targetLang: session.targetLang,
+      textLength: session.text.length,
+      chunkSize: settings.value.splitChunkSize,
+      mode: settings.value.splitMode,
+    });
+
+    const tasks = channels.map((channel) =>
+      runLongTextChannelRequest(channel, session)
+    );
+    await Promise.allSettled(tasks);
+  }
+
+  async function retryLongTextChannelRequest(
+    channel: TranslationChannel,
+    session: TranslationSession
+  ) {
+    const existingTask = findResult(channel.id)?.longTextTask;
+    await runLongTextChannelRequest(channel, session, existingTask);
   }
 
   return {
@@ -418,5 +579,7 @@ export function useTranslatorEngine(deps: EngineDeps) {
     // 执行
     runChannelRequest,
     runSession,
+    runLongTextSession,
+    retryLongTextChannelRequest,
   };
 }

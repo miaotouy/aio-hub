@@ -292,3 +292,34 @@ src/tools/translator/
 3. **上下文漂移（Context Drift）**：
    - _风险_：在串行模式下，如果上一个分片的翻译质量较差，错误可能会在后续分片中累积放大。
    - _应对_：在 Prompt 中明确强调“仅参考上文的术语和风格，严格基于当前文本进行翻译”，并在 UI 上允许用户手动修改已完成分片的译文，修改后的译文将作为后续分片的新上下文。
+
+---
+
+## 6. 施工进度记录
+
+### 2026-06-05
+
+已完成：
+
+- `core/textSplitter.ts`：实现保留分隔符的递归字符切分，覆盖段落、换行、中英文句子、英文空格和字符级兜底。
+- `core/__tests__/textSplitter.test.ts`：补充切分单测，验证中英文混合、无分隔符硬切、英文缩写附近不误切等边界。
+- `types.ts` / `useTranslatorSettings.ts`：新增长文本分片任务、分片状态、配置字段及默认值、sanitize 范围限制。
+- `composables/useLongTextTranslator.ts`：实现长文本调度器，支持串行上下文、并发限流、流式追加、429/临时错误指数退避重试、100 万字符上限和失败分片断点重试。
+- `useTranslatorEngine.ts` / `useTranslatorStore.ts`：接入分片翻译编排。渠道之间仍保持并发；单渠道内部按设置选择串行或并发。重试长文本渠道时会复用当前任务，跳过已完成分片。
+- `TranslatorSettingsDialog.vue`：新增“长文本分片翻译”设置专区。
+- `InputPanel.vue` / `Translator.vue`：新增长文本提示 Banner、一键启用、分片微调条和“分片翻译”按钮文案。
+- `ResultsPanel.vue` / `SplitDetailDrawer.vue`：新增结果卡分片进度入口和分片详情抽屉，展示原文、译文、状态、耗时及 token 用量。
+- `useTranslatorHistory.ts`：历史记录写入时剔除 `longTextTask`，避免超长分片明细撑大本地历史文件。
+
+与原计划的灵活调整：
+
+- 原计划倾向把 `useLongTextTranslator` 做成完整独立状态模块；实际施工中保留其为调度器，由现有 `useTranslatorEngine` 负责结果态、AbortController、token 估算和渠道编排，以复用当前成熟链路。
+- 原计划提到“主界面单文本输入超长时自动走分片翻译流程”；实际实现为“超过阈值自动提示，用户一键启用后走分片流程”。这样保留用户对费用、耗时和上下文模式的明确控制。
+- 原计划要求已完成分片及时释放原文以降低内存；当前版本为了分片详情抽屉调试能力，当前会话中保留原文，但历史持久化时剔除分片任务。若后续发现超长文本运行态内存压力明显，再加“完成后压缩/按需展开原文”的二阶段优化。
+- 原计划提到可手动修改已完成分片译文并影响后续上下文；本次先完成详情查看与断点重试，尚未提供分片译文编辑入口。
+
+验证记录：
+
+- `bun run vitest --run src/tools/translator/core/__tests__/textSplitter.test.ts`：通过。
+- `bun run build:tsc`：通过。
+- `bun run lint`：通过。

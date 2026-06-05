@@ -20,6 +20,11 @@ export const DEFAULT_TRANSLATOR_SETTINGS: TranslatorSettings = {
   customLanguages: [],
   channelSectionCollapsed: false,
   warnOnOutputOverflow: true,
+  splitTranslationEnabled: true,
+  splitThreshold: 4000,
+  splitChunkSize: 3000,
+  splitMode: "sequential",
+  splitMaxConcurrent: 2,
 };
 
 interface TranslatorSettingsFile extends TranslatorSettings {
@@ -61,6 +66,12 @@ function sanitizeCustomLanguages(value: unknown): string[] {
   return result;
 }
 
+function sanitizeSplitMode(value: unknown) {
+  return value === "concurrent" || value === "sequential"
+    ? value
+    : DEFAULT_TRANSLATOR_SETTINGS.splitMode;
+}
+
 function sanitizeSettings(
   value: Partial<TranslatorSettings>
 ): TranslatorSettings {
@@ -97,6 +108,35 @@ function sanitizeSettings(
       value.warnOnOutputOverflow === undefined
         ? DEFAULT_TRANSLATOR_SETTINGS.warnOnOutputOverflow
         : value.warnOnOutputOverflow === true,
+    splitTranslationEnabled:
+      value.splitTranslationEnabled === undefined
+        ? DEFAULT_TRANSLATOR_SETTINGS.splitTranslationEnabled
+        : value.splitTranslationEnabled === true,
+    splitThreshold: clampNumber(
+      numericOrDefault(
+        value.splitThreshold,
+        DEFAULT_TRANSLATOR_SETTINGS.splitThreshold
+      ),
+      1000,
+      1_000_000
+    ),
+    splitChunkSize: clampNumber(
+      numericOrDefault(
+        value.splitChunkSize,
+        DEFAULT_TRANSLATOR_SETTINGS.splitChunkSize
+      ),
+      500,
+      50_000
+    ),
+    splitMode: sanitizeSplitMode(value.splitMode),
+    splitMaxConcurrent: clampNumber(
+      numericOrDefault(
+        value.splitMaxConcurrent,
+        DEFAULT_TRANSLATOR_SETTINGS.splitMaxConcurrent
+      ),
+      1,
+      4
+    ),
   };
 }
 

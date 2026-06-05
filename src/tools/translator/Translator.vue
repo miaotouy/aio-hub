@@ -97,7 +97,7 @@
                 :disabled="!canTranslate"
                 @click="store.translate"
               >
-                翻译
+                {{ store.splitTranslationActive ? "分片翻译" : "翻译" }}
               </el-button>
             </div>
           </el-tooltip>
@@ -612,4 +612,3 @@ onMounted(() => {
   background: color-mix(in srgb, var(--primary-color) 10%, transparent);
 }
 </style>
-

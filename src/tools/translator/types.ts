@@ -75,6 +75,8 @@ export interface TranslationResult {
     completionTokens: number;
     totalTokens?: number;
   };
+  /** 长文本分片翻译任务状态，仅当前会话展示使用 */
+  longTextTask?: LongTextTask;
 }
 
 /** 翻译历史条目 */
@@ -118,6 +120,70 @@ export interface TranslatorSettings {
    * 只是不再阻塞翻译按钮。
    */
   warnOnOutputOverflow: boolean;
+  /** 是否启用长文本分片翻译功能 */
+  splitTranslationEnabled: boolean;
+  /** 触发分片翻译提示的字符数阈值 */
+  splitThreshold: number;
+  /** 默认分片大小 */
+  splitChunkSize: number;
+  /** 默认分片翻译模式 */
+  splitMode: LongTextMode;
+  /** 并发模式下的最大并发分片数 */
+  splitMaxConcurrent: number;
+}
+
+export type LongTextChunkStatus =
+  | "waiting"
+  | "translating"
+  | "completed"
+  | "failed";
+
+export interface LongTextChunk {
+  index: number;
+  sourceText: string;
+  translatedText?: string;
+  status: LongTextChunkStatus;
+  error?: string;
+  duration?: number;
+  tokenUsage?: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens?: number;
+  };
+}
+
+export type LongTextTaskStatus =
+  | "idle"
+  | "splitting"
+  | "translating"
+  | "completed"
+  | "failed"
+  | "aborted";
+
+export interface LongTextTask {
+  id: string;
+  channelName: string;
+  status: LongTextTaskStatus;
+  progress: number;
+  chunks: LongTextChunk[];
+  error?: string;
+  startedAt?: number;
+  duration?: number;
+}
+
+export type LongTextMode = "concurrent" | "sequential";
+
+export interface LongTextConfig {
+  sourceLang: TranslatorLanguageCode;
+  targetLang: TranslatorLanguageCode;
+  profileId: string;
+  modelId: string;
+  chunkSize: number;
+  mode: LongTextMode;
+  maxConcurrentChunks: number;
+  temperature?: number;
+  promptTemplate?: string;
+  streaming: boolean;
 }
 
 /** 渠道超限风险等级 */

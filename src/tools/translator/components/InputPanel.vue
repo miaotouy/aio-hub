@@ -86,6 +86,66 @@
       </el-button>
     </div>
 
+    <div v-if="store.shouldSuggestSplitTranslation" class="split-banner">
+      <FileText class="banner-icon" />
+      <div class="banner-text">
+        <strong>检测到长文本（共 {{ charCount.toLocaleString() }} 字）</strong>
+        <span>直接翻译可能受模型输出上限影响，建议启用分片翻译。</span>
+      </div>
+      <el-button
+        type="primary"
+        size="small"
+        class="banner-action"
+        @click="store.enableSplitTranslation"
+      >
+        立即启用
+      </el-button>
+    </div>
+
+    <div v-if="store.splitTranslationActive" class="split-controls">
+      <div class="split-summary">
+        <FileText class="split-icon" />
+        <span>{{ store.splitConfigSummary }}</span>
+      </div>
+      <div class="split-fields">
+        <el-input-number
+          v-model="store.settings.splitChunkSize"
+          :min="500"
+          :max="50000"
+          :step="500"
+          size="small"
+          controls-position="right"
+          :disabled="store.isTranslating"
+        />
+        <el-radio-group
+          v-model="store.settings.splitMode"
+          size="small"
+          :disabled="store.isTranslating"
+        >
+          <el-radio-button label="sequential">质量</el-radio-button>
+          <el-radio-button label="concurrent">速度</el-radio-button>
+        </el-radio-group>
+        <el-input-number
+          v-if="store.settings.splitMode === 'concurrent'"
+          v-model="store.settings.splitMaxConcurrent"
+          :min="1"
+          :max="4"
+          :step="1"
+          size="small"
+          controls-position="right"
+          :disabled="store.isTranslating"
+        />
+        <el-button
+          size="small"
+          text
+          :disabled="store.isTranslating"
+          @click="store.disableSplitTranslation"
+        >
+          关闭
+        </el-button>
+      </div>
+    </div>
+
     <!-- 渠道区：可折叠 -->
     <section class="channel-section">
       <button
@@ -192,6 +252,7 @@ import {
   AlertTriangle,
   ChevronDown,
   ClipboardPaste,
+  FileText,
   FolderOpen,
   Plus,
   Trash2,
@@ -501,6 +562,60 @@ async function handleEditorDrop(paths: string[]) {
   border: var(--border-width) solid transparent;
   font-size: 12px;
   line-height: 1.5;
+}
+
+.split-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 14px 8px;
+  padding: 8px 12px;
+  border-radius: 7px;
+  border: var(--border-width) solid
+    color-mix(in srgb, var(--primary-color) 42%, var(--border-color));
+  background: color-mix(in srgb, var(--primary-color) 9%, var(--input-bg));
+  color: var(--primary-color);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.split-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 14px 8px;
+  padding: 8px 10px;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 7px;
+  background: var(--sidebar-bg);
+}
+
+.split-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text-color-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.split-icon {
+  width: 15px;
+  height: 15px;
+  color: var(--primary-color);
+  flex-shrink: 0;
+}
+
+.split-fields {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.split-fields :deep(.el-input-number) {
+  width: 118px;
 }
 
 .overflow-banner.severity-warning {

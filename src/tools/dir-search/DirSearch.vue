@@ -30,40 +30,7 @@
         class="dir-search__left"
         :style="{ width: panelWidth + 'px' }"
       >
-        <SearchPanel
-          ref="searchPanelRef"
-          v-model:pattern="search.pattern.value"
-          v-model:replacement="search.replacement.value"
-          v-model:is-regex="search.isRegex.value"
-          v-model:case-sensitive="search.caseSensitive.value"
-          v-model:whole-word="search.wholeWord.value"
-          v-model:include-globs="search.includeGlobs.value"
-          v-model:exclude-globs="search.excludeGlobs.value"
-          v-model:use-gitignore="search.useGitignore.value"
-          v-model:show-replace="search.showReplace.value"
-          v-model:preserve-case="search.preserveCase.value"
-          v-model:view-mode="viewMode"
-          :results="search.resultsList.value"
-          :expanded-files="search.expandedFiles.value"
-          :is-searching="search.isSearching.value"
-          :summary="search.summary.value"
-          :progress="search.progress.value"
-          :selected-file-path="search.selectedFilePath.value"
-          @search="search.executeSearch"
-          @replace-all="handleReplaceAll"
-          @refresh="search.executeSearch"
-          @toggle-file="search.toggleFileExpand"
-          @expand-all="search.expandAll"
-          @collapse-all="search.collapseAll"
-          @clear-results="search.clearResults"
-          @cancel="search.cancelSearch"
-          @select-match="handleSelectMatch"
-          @dismiss-file="search.dismissFile"
-          @dismiss-match="search.dismissMatch"
-          @replace-file="handleReplaceFile"
-          @replace-match="handleReplaceMatch"
-          @context-menu="handleContextMenu"
-        />
+        <SearchPanel ref="searchPanelRef" />
       </div>
 
       <!-- 拖拽分隔条 -->
@@ -94,7 +61,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onUnmounted, watch } from "vue";
+import { ref, computed, onUnmounted, provide } from "vue";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-vue-next";
 import { ElMessageBox } from "element-plus";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
@@ -110,6 +77,7 @@ import {
 } from "./composables/useContextMenu";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { DIR_SEARCH_CONTEXT_KEY } from "./types";
 import type { SearchMatch, TargetMatch } from "./types";
 
 const errorHandler = createModuleErrorHandler("tools/dir-search/DirSearch");
@@ -119,27 +87,14 @@ const uiState = useDirSearchUiState();
 const contextMenu = useContextMenu();
 const searchPanelRef = ref<InstanceType<typeof SearchPanel> | null>(null);
 
+// 提供搜索上下文给所有子组件
+provide(DIR_SEARCH_CONTEXT_KEY, search);
+
 // UI 状态（从持久化 composable 获取）
 const panelWidth = uiState.panelWidth;
 const isPanelCollapsed = uiState.isPanelCollapsed;
-const viewMode = uiState.viewMode;
 const targetMatch = ref<TargetMatch | null>(null);
 let matchSeq = 0;
-
-// 恢复上次的搜索目录
-if (uiState.lastRootPath.value && !search.rootPath.value) {
-  search.rootPath.value = uiState.lastRootPath.value;
-}
-
-// 同步目录变更到持久化状态
-watch(
-  () => search.rootPath.value,
-  (newPath) => {
-    if (newPath) {
-      uiState.lastRootPath.value = newPath;
-    }
-  }
-);
 
 // 计算属性
 const selectedRelativePath = computed(() => {
@@ -155,8 +110,7 @@ const selectedFileMatches = computed(() => {
 });
 
 // 事件处理
-function handleSelectMatch(filePath: string, match: SearchMatch) {
-  search.selectFile(filePath);
+function handleSelectMatch(_filePath: string, match: SearchMatch) {
   targetMatch.value = {
     lineNumber: match.lineNumber,
     matchStart: match.matchStart,
@@ -296,19 +250,19 @@ async function handleContextMenuSelect(
       const results = search.resultsList.value;
       if (results.length > 0) {
         const sections: string[] = [];
-        let totalMatches = 0;
+        let totalMatchesCount = 0;
         for (const fileResult of results) {
           if (fileResult.matches.length > 0) {
             const lines = fileResult.matches.map(
               (m) => `  ${m.lineNumber},${m.matchStart + 1}: ${m.lineContent}`
             );
             sections.push(`${fileResult.filePath}\n${lines.join("\n")}`);
-            totalMatches += fileResult.matches.length;
+            totalMatchesCount += fileResult.matches.length;
           }
         }
         await navigator.clipboard.writeText(sections.join("\n\n"));
         customMessage.success(
-          `已复制全部 ${results.length} 个文件的 ${totalMatches} 个结果`
+          `已复制全部 ${results.length} 个文件的 ${totalMatchesCount} 个结果`
         );
       }
       break;
@@ -483,6 +437,16 @@ onUnmounted(() => {
   search.dispose();
   document.removeEventListener("mousemove", onResize);
   document.removeEventListener("mouseup", stopResize);
+});
+
+// 暴露给子组件通过 inject 使用的事件处理器
+// 这些方法需要在 DirSearch 层面协调（因为涉及 targetMatch、contextMenu 等本地状态）
+provide("dirSearchActions", {
+  handleSelectMatch,
+  handleReplaceAll,
+  handleReplaceFile,
+  handleReplaceMatch,
+  handleContextMenu,
 });
 </script>
 

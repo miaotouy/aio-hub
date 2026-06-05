@@ -8,7 +8,7 @@
           <button
             class="search-panel__action-btn"
             :disabled="!hasResults"
-            @click="$emit('refresh')"
+            @click="search.executeSearch"
           >
             <RefreshCw :size="18" />
           </button>
@@ -29,18 +29,22 @@
         <el-tooltip content="清除搜索内容" :show-after="500">
           <button
             class="search-panel__action-btn"
-            :disabled="!pattern"
-            @click="pattern = ''"
+            :disabled="!search.pattern.value"
+            @click="search.pattern.value = ''"
           >
             <X :size="18" />
           </button>
         </el-tooltip>
         <el-tooltip
-          :content="viewMode === 'list' ? '切换为树形视图' : '切换为列表视图'"
+          :content="
+            uiState.viewMode.value === 'list'
+              ? '切换为树形视图'
+              : '切换为列表视图'
+          "
           :show-after="500"
         >
           <button class="search-panel__action-btn" @click="toggleViewMode">
-            <FolderTree v-if="viewMode === 'list'" :size="18" />
+            <FolderTree v-if="uiState.viewMode.value === 'list'" :size="18" />
             <List v-else :size="18" />
           </button>
         </el-tooltip>
@@ -48,43 +52,10 @@
     </div>
 
     <!-- 搜索输入区 -->
-    <SearchInput
-      v-model:pattern="pattern"
-      v-model:replacement="replacement"
-      v-model:is-regex="isRegex"
-      v-model:case-sensitive="caseSensitive"
-      v-model:whole-word="wholeWord"
-      v-model:include-globs="includeGlobs"
-      v-model:exclude-globs="excludeGlobs"
-      v-model:use-gitignore="useGitignore"
-      v-model:show-replace="showReplace"
-      v-model:preserve-case="preserveCase"
-      @search="$emit('search')"
-      @replace-all="$emit('replaceAll')"
-    />
+    <SearchInput />
 
     <!-- 结果区 -->
-    <ResultsTree
-      ref="resultsTreeRef"
-      :results="results"
-      :expanded-files="expandedFiles"
-      :is-searching="isSearching"
-      :summary="summary"
-      :progress="progress"
-      :selected-file-path="selectedFilePath"
-      :show-replace="showReplace"
-      :view-mode="viewMode"
-      @toggle-file="$emit('toggleFile', $event)"
-      @expand-all="$emit('expandAll')"
-      @collapse-all="$emit('collapseAll')"
-      @cancel="$emit('cancel')"
-      @select-match="(fp, m) => $emit('selectMatch', fp, m)"
-      @dismiss-file="(fp) => $emit('dismissFile', fp)"
-      @dismiss-match="(fp, idx) => $emit('dismissMatch', fp, idx)"
-      @replace-file="(fp) => $emit('replaceFile', fp)"
-      @replace-match="(fp, idx) => $emit('replaceMatch', fp, idx)"
-      @context-menu="(ev, items, ctx) => $emit('contextMenu', ev, items, ctx)"
-    />
+    <ResultsTree ref="resultsTreeRef" />
   </div>
 </template>
 
@@ -100,76 +71,28 @@ import {
 } from "lucide-vue-next";
 import SearchInput from "./SearchInput.vue";
 import ResultsTree from "./ResultsTree.vue";
-import type {
-  FileSearchResult,
-  SearchMatch,
-  SearchProgress,
-  SearchSummary,
-  ViewMode,
-} from "../types";
-import type { ContextMenuItem } from "../composables/useContextMenu";
+import { useDirSearchContext } from "../composables/useDirSearchContext";
+import { useDirSearchUiState } from "../composables/useDirSearchUiState";
 
+const search = useDirSearchContext();
+const uiState = useDirSearchUiState();
 const resultsTreeRef = ref<InstanceType<typeof ResultsTree> | null>(null);
 
-const props = defineProps<{
-  results: FileSearchResult[];
-  expandedFiles: Set<string>;
-  isSearching: boolean;
-  summary: SearchSummary | null;
-  progress: SearchProgress | null;
-  selectedFilePath: string | null;
-  viewMode: ViewMode;
-}>();
-
-const pattern = defineModel<string>("pattern", { required: true });
-const replacement = defineModel<string>("replacement", { required: true });
-const isRegex = defineModel<boolean>("isRegex", { required: true });
-const caseSensitive = defineModel<boolean>("caseSensitive", { required: true });
-const wholeWord = defineModel<boolean>("wholeWord", { required: true });
-const includeGlobs = defineModel<string>("includeGlobs", { required: true });
-const excludeGlobs = defineModel<string>("excludeGlobs", { required: true });
-const useGitignore = defineModel<boolean>("useGitignore", { required: true });
-const showReplace = defineModel<boolean>("showReplace", { required: true });
-const preserveCase = defineModel<boolean>("preserveCase", { required: true });
-const viewMode = defineModel<ViewMode>("viewMode", { required: true });
-
-const hasResults = computed(() => props.results.length > 0);
+const hasResults = computed(() => search.resultsList.value.length > 0);
 const allCollapsed = computed(
-  () => hasResults.value && props.expandedFiles.size === 0
+  () => hasResults.value && search.expandedFiles.value.size === 0
 );
 
 function toggleViewMode() {
-  viewMode.value = viewMode.value === "list" ? "tree" : "list";
+  uiState.viewMode.value = uiState.viewMode.value === "list" ? "tree" : "list";
 }
 
-const emit = defineEmits<{
-  search: [];
-  replaceAll: [];
-  refresh: [];
-  toggleFile: [filePath: string];
-  expandAll: [];
-  collapseAll: [];
-  clearResults: [];
-  cancel: [];
-  selectMatch: [filePath: string, match: SearchMatch];
-  dismissFile: [filePath: string];
-  dismissMatch: [filePath: string, matchIndex: number];
-  replaceFile: [filePath: string];
-  replaceMatch: [filePath: string, matchIndex: number];
-  contextMenu: [
-    event: MouseEvent,
-    items: ContextMenuItem[],
-    context: Record<string, unknown>,
-  ];
-}>();
 function toggleExpandCollapse() {
   if (allCollapsed.value) {
-    emit("expandAll");
-    // 树形模式下同时展开目录节点
+    search.expandAll();
     resultsTreeRef.value?.expandAllTree();
   } else {
-    emit("collapseAll");
-    // 树形模式下同时折叠目录节点
+    search.collapseAll();
     resultsTreeRef.value?.collapseAllTree();
   }
 }

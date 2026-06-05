@@ -1,3 +1,11 @@
+import type { InjectionKey } from "vue";
+
+/** Provide/Inject 注入键，用于在组件树中共享 dir-search 上下文 */
+// 类型在这里使用 any 避免循环引用，实际类型由 useDirSearch 的返回值推断
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const DIR_SEARCH_CONTEXT_KEY: InjectionKey<any> =
+  Symbol("DirSearchContext");
+
 /** 单个匹配项 */
 export interface SearchMatch {
   /** 匹配所在行号（1-based） */

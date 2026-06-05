@@ -5,29 +5,6 @@
       :key="node.path"
       :node="node"
       :expanded-dirs="expandedDirs"
-      :expanded-files="expandedFiles"
-      :selected-file-path="selectedFilePath"
-      :show-replace="showReplace"
-      @toggle-dir="toggleDir"
-      @toggle-file="(p: string) => $emit('toggleFile', p)"
-      @select-match="
-        (fp: string, m: SearchMatch) => $emit('selectMatch', fp, m)
-      "
-      @dismiss-file="(fp: string) => $emit('dismissFile', fp)"
-      @dismiss-match="
-        (fp: string, idx: number) => $emit('dismissMatch', fp, idx)
-      "
-      @replace-file="(fp: string) => $emit('replaceFile', fp)"
-      @replace-match="
-        (fp: string, idx: number) => $emit('replaceMatch', fp, idx)
-      "
-      @context-menu="
-        (
-          ev: MouseEvent,
-          items: ContextMenuItem[],
-          ctx: Record<string, unknown>
-        ) => $emit('contextMenu', ev, items, ctx)
-      "
     />
   </div>
 </template>
@@ -35,36 +12,17 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import DirectoryTreeNode from "./DirectoryTreeNode.vue";
-import type { FileSearchResult, DirectoryNode, SearchMatch } from "../types";
-import { type ContextMenuItem } from "../composables/useContextMenu";
+import type { DirectoryNode } from "../types";
+import { useDirSearchContext } from "../composables/useDirSearchContext";
 
-const props = defineProps<{
-  results: FileSearchResult[];
-  expandedFiles: Set<string>;
-  selectedFilePath: string | null;
-  showReplace?: boolean;
-}>();
-
-defineEmits<{
-  toggleFile: [filePath: string];
-  selectMatch: [filePath: string, match: SearchMatch];
-  dismissFile: [filePath: string];
-  dismissMatch: [filePath: string, matchIndex: number];
-  replaceFile: [filePath: string];
-  replaceMatch: [filePath: string, matchIndex: number];
-  contextMenu: [
-    event: MouseEvent,
-    items: ContextMenuItem[],
-    context: Record<string, unknown>,
-  ];
-}>();
+const search = useDirSearchContext();
 
 // 目录展开状态（独立于文件展开状态）
 const expandedDirs = ref<Set<string>>(new Set());
 
 // 当结果变化时，增量展开新出现的目录（不重建整个 Set）
 watch(
-  () => props.results,
+  () => search.resultsList.value,
   (newResults, oldResults) => {
     // 如果从空变为非空（新搜索），重建整个 Set
     if (!oldResults || oldResults.length === 0) {
@@ -94,30 +52,24 @@ watch(
   { immediate: true }
 );
 
-function toggleDir(dirPath: string) {
-  if (expandedDirs.value.has(dirPath)) {
-    expandedDirs.value.delete(dirPath);
-  } else {
-    expandedDirs.value.add(dirPath);
-  }
-}
-
 /** 构建目录树 */
 const tree = computed<DirectoryNode[]>(() => {
-  return buildDirectoryTree(props.results);
+  return buildDirectoryTree(search.resultsList.value);
 });
 
 /**
  * 将扁平的 FileSearchResult[] 按 relativePath 构建为嵌套目录树
  * 空目录层级自动折叠合并
  */
-function buildDirectoryTree(results: FileSearchResult[]): DirectoryNode[] {
+function buildDirectoryTree(
+  results: { relativePath: string; filePath: string; matches: unknown[] }[]
+): DirectoryNode[] {
   // 中间结构：原始树节点
   interface RawNode {
     name: string;
     path: string;
     children: Map<string, RawNode>;
-    files: FileSearchResult[];
+    files: typeof results;
   }
 
   const root: RawNode = { name: "", path: "", children: new Map(), files: [] };
@@ -171,7 +123,7 @@ function buildDirectoryTree(results: FileSearchResult[]): DirectoryNode[] {
       const aName = a.relativePath.split("/").pop() || "";
       const bName = b.relativePath.split("/").pop() || "";
       return aName.localeCompare(bName);
-    });
+    }) as DirectoryNode["files"];
 
     // 计算总匹配数
     const fileTotalMatches = files.reduce(
@@ -204,7 +156,6 @@ function buildDirectoryTree(results: FileSearchResult[]): DirectoryNode[] {
   // 处理 root 下直接的文件（无目录前缀）
   if (root.files.length > 0) {
     // 创建一个虚拟的根节点来容纳这些文件
-    // 或者直接作为顶层文件展示 — 这里我们创建一个 "." 节点
     topLevelNodes.unshift({
       name: ".",
       path: "",
@@ -213,12 +164,24 @@ function buildDirectoryTree(results: FileSearchResult[]): DirectoryNode[] {
         const aName = a.relativePath.split("/").pop() || "";
         const bName = b.relativePath.split("/").pop() || "";
         return aName.localeCompare(bName);
-      }),
-      totalMatches: root.files.reduce((sum, f) => sum + f.matches.length, 0),
+      }) as DirectoryNode["files"],
+      totalMatches: root.files.reduce(
+        (sum, f) => sum + (f.matches as unknown[]).length,
+        0
+      ),
     });
   }
 
   return topLevelNodes.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** 切换目录展开/折叠 */
+function toggleDir(dirPath: string) {
+  if (expandedDirs.value.has(dirPath)) {
+    expandedDirs.value.delete(dirPath);
+  } else {
+    expandedDirs.value.add(dirPath);
+  }
 }
 
 /** 全部展开目录 */
@@ -245,6 +208,10 @@ function expandDirs(paths: string[]) {
     expandedDirs.value.add(p);
   }
 }
+
+// 通过 provide 暴露 toggleDir 给子组件（DirectoryTreeNode 递归使用）
+import { provide } from "vue";
+provide("dirTreeActions", { toggleDir });
 
 defineExpose({ expandAllDirs, collapseAllDirs, expandDirs });
 </script>

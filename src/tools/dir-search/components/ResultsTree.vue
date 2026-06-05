@@ -1,26 +1,36 @@
 <template>
   <div class="results-tree">
     <!-- 状态栏 -->
-    <div v-if="summary || isSearching" class="results-tree__status">
-      <template v-if="isSearching">
+    <div
+      v-if="search.summary.value || search.isSearching.value"
+      class="results-tree__status"
+    >
+      <template v-if="search.isSearching.value">
         <el-icon class="is-loading"><Loading /></el-icon>
         <span>
-          搜索中... {{ progress?.filesScanned ?? 0 }} 文件已扫描
-          <template v-if="progress && progress.totalMatches > 0">
-            · {{ progress.totalMatches }} 个结果 ·
-            {{ progress.filesMatched }} 文件
+          搜索中... {{ search.progress.value?.filesScanned ?? 0 }} 文件已扫描
+          <template
+            v-if="
+              search.progress.value && search.progress.value.totalMatches > 0
+            "
+          >
+            · {{ search.progress.value.totalMatches }} 个结果 ·
+            {{ search.progress.value.filesMatched }} 文件
           </template>
         </span>
-        <button class="results-tree__cancel-btn" @click="$emit('cancel')">
+        <button class="results-tree__cancel-btn" @click="search.cancelSearch">
           取消
         </button>
       </template>
-      <template v-else-if="summary">
+      <template v-else-if="search.summary.value">
         <span class="results-tree__summary">
-          {{ summary.totalMatches }} 个结果 · {{ summary.filesMatched }} 文件 ·
-          {{ summary.durationMs.toFixed(0) }}ms
+          {{ search.summary.value.totalMatches }} 个结果 ·
+          {{ search.summary.value.filesMatched }} 文件 ·
+          {{ search.summary.value.durationMs.toFixed(0) }}ms
         </span>
-        <span v-if="summary.cancelled" class="results-tree__cancelled"
+        <span
+          v-if="search.summary.value.cancelled"
+          class="results-tree__cancelled"
           >(已取消)</span
         >
       </template>
@@ -28,7 +38,13 @@
 
     <!-- 结果区域 -->
     <div class="results-tree__list">
-      <template v-if="results.length === 0 && !isSearching && summary">
+      <template
+        v-if="
+          search.resultsList.value.length === 0 &&
+          !search.isSearching.value &&
+          search.summary.value
+        "
+      >
         <div class="results-tree__empty">
           <SearchX :size="32" />
           <span>未找到匹配结果</span>
@@ -37,38 +53,32 @@
 
       <!-- 树形目录视图 -->
       <DirectoryTreeView
-        v-if="viewMode === 'tree' && results.length > 0"
+        v-if="
+          uiState.viewMode.value === 'tree' &&
+          search.resultsList.value.length > 0
+        "
         ref="treeViewRef"
-        :results="results"
-        :expanded-files="expandedFiles"
-        :selected-file-path="selectedFilePath"
-        :show-replace="showReplace"
-        @toggle-file="$emit('toggleFile', $event)"
-        @select-match="(fp, m) => $emit('selectMatch', fp, m)"
-        @dismiss-file="(fp) => $emit('dismissFile', fp)"
-        @dismiss-match="(fp, idx) => $emit('dismissMatch', fp, idx)"
-        @replace-file="(fp) => $emit('replaceFile', fp)"
-        @replace-match="(fp, idx) => $emit('replaceMatch', fp, idx)"
-        @context-menu="(ev, items, ctx) => $emit('contextMenu', ev, items, ctx)"
       />
 
       <!-- 列表视图 -->
-      <template v-else-if="viewMode === 'list'">
+      <template v-else-if="uiState.viewMode.value === 'list'">
         <div
-          v-for="fileResult in results"
+          v-for="fileResult in search.resultsList.value"
           :key="fileResult.filePath"
           class="results-tree__file"
         >
           <!-- 文件头 -->
           <div
             class="results-tree__file-header"
-            @click="$emit('toggleFile', fileResult.filePath)"
+            @click="search.toggleFileExpand(fileResult.filePath)"
             @contextmenu="onFileContextMenu($event, fileResult)"
           >
             <ChevronRight
               :size="14"
               class="results-tree__chevron"
-              :class="{ expanded: expandedFiles.has(fileResult.filePath) }"
+              :class="{
+                expanded: search.expandedFiles.value.has(fileResult.filePath),
+              }"
             />
             <FileIcon :size="14" class="results-tree__file-icon" />
             <span
@@ -78,15 +88,14 @@
               {{ getFileName(fileResult.relativePath) }}
             </span>
             <span class="results-tree__file-dir">
-              {{ getFileDir(fileResult.relativePath) }}
-            </span>
-            <span class="results-tree__match-count">{{
+              {{ getFileDir(fileResult.relativePath) }} </span
+            ><span class="results-tree__match-count">{{
               fileResult.matches.length
             }}</span>
             <!-- 文件级悬停操作图标 -->
             <span class="results-tree__file-actions">
               <el-tooltip
-                v-if="showReplace"
+                v-if="search.showReplace.value"
                 content="替换该文件所有匹配"
                 placement="top"
                 :show-after="500"
@@ -94,7 +103,7 @@
                 <Replace
                   :size="16"
                   class="results-tree__file-action-icon"
-                  @click.stop="$emit('replaceFile', fileResult.filePath)"
+                  @click.stop="actions.handleReplaceFile(fileResult.filePath)"
                 />
               </el-tooltip>
               <el-tooltip
@@ -105,7 +114,7 @@
                 <X
                   :size="16"
                   class="results-tree__file-action-icon results-tree__file-action-icon--dismiss"
-                  @click.stop="$emit('dismissFile', fileResult.filePath)"
+                  @click.stop="search.dismissFile(fileResult.filePath)"
                 />
               </el-tooltip>
             </span>
@@ -113,7 +122,7 @@
 
           <!-- 匹配项列表 -->
           <div
-            v-if="expandedFiles.has(fileResult.filePath)"
+            v-if="search.expandedFiles.value.has(fileResult.filePath)"
             class="results-tree__matches"
           >
             <!-- 上下文块模式 -->
@@ -134,14 +143,16 @@
                 v-for="(match, idx) in fileResult.matches"
                 :key="`${fileResult.filePath}-${idx}`"
                 :match="match"
-                :show-replace="showReplace"
+                :show-replace="search.showReplace.value"
                 :is-selected="
-                  selectedFilePath === fileResult.filePath &&
+                  search.selectedFilePath.value === fileResult.filePath &&
                   selectedLine === match.lineNumber
                 "
                 @select="onMatchSelect(fileResult.filePath, match)"
-                @dismiss="$emit('dismissMatch', fileResult.filePath, idx)"
-                @replace-match="$emit('replaceMatch', fileResult.filePath, idx)"
+                @dismiss="search.dismissMatch(fileResult.filePath, idx)"
+                @replace-match="
+                  actions.handleReplaceMatch(fileResult.filePath, idx)
+                "
                 @contextmenu="onMatchContextMenu($event, fileResult, idx)"
               />
             </template>
@@ -153,59 +164,36 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, inject } from "vue";
 import { ChevronRight, SearchX, X, Replace } from "lucide-vue-next";
 import { Loading } from "@element-plus/icons-vue";
 import { FileIcon } from "lucide-vue-next";
 import ResultItem from "./ResultItem.vue";
 import ContextBlockView from "./ContextBlockView.vue";
 import DirectoryTreeView from "./DirectoryTreeView.vue";
-import type {
-  FileSearchResult,
-  SearchMatch,
-  SearchProgress,
-  SearchSummary,
-  ViewMode,
-  ContextBlock,
-} from "../types";
+import type { FileSearchResult, SearchMatch, ContextBlock } from "../types";
 import type { ContextMenuItem } from "../composables/useContextMenu";
 import { buildContextBlocks } from "../composables/useContextBlocks";
+import { useDirSearchContext } from "../composables/useDirSearchContext";
 import { useDirSearchUiState } from "../composables/useDirSearchUiState";
 
-const props = defineProps<{
-  results: FileSearchResult[];
-  expandedFiles: Set<string>;
-  isSearching: boolean;
-  summary: SearchSummary | null;
-  progress: SearchProgress | null;
-  selectedFilePath: string | null;
-  showReplace?: boolean;
-  viewMode: ViewMode;
-}>();
-
+const search = useDirSearchContext();
 const uiState = useDirSearchUiState();
-const contextEnabled = computed(() => uiState.contextLinesEnabled.value);
-const contextLinesCount = computed(() => uiState.contextLinesCount.value);
 
-const treeViewRef = ref<InstanceType<typeof DirectoryTreeView> | null>(null);
-
-const emit = defineEmits<{
-  toggleFile: [filePath: string];
-  expandAll: [];
-  collapseAll: [];
-  cancel: [];
-  selectMatch: [filePath: string, match: SearchMatch];
-  dismissFile: [filePath: string];
-  dismissMatch: [filePath: string, matchIndex: number];
-  replaceFile: [filePath: string];
-  replaceMatch: [filePath: string, matchIndex: number];
-  contextMenu: [
+const actions = inject("dirSearchActions") as {
+  handleSelectMatch: (filePath: string, match: SearchMatch) => void;
+  handleReplaceFile: (filePath: string) => void;
+  handleReplaceMatch: (filePath: string, matchIndex: number) => void;
+  handleContextMenu: (
     event: MouseEvent,
     items: ContextMenuItem[],
-    context: Record<string, unknown>,
-  ];
-}>();
+    context: Record<string, unknown>
+  ) => void;
+};
 
+const treeViewRef = ref<InstanceType<typeof DirectoryTreeView> | null>(null);
+const contextEnabled = computed(() => uiState.contextLinesEnabled.value);
+const contextLinesCount = computed(() => uiState.contextLinesCount.value);
 const selectedLine = ref<number | null>(null);
 
 function getFileName(relativePath: string): string {
@@ -243,7 +231,8 @@ function getContextBlocks(fileResult: FileSearchResult): ContextBlock[] {
 
 function onMatchSelect(filePath: string, match: SearchMatch) {
   selectedLine.value = match.lineNumber;
-  emit("selectMatch", filePath, match);
+  search.selectFile(filePath);
+  actions.handleSelectMatch(filePath, match);
 }
 
 /** 上下文块中点击匹配行 */
@@ -254,7 +243,8 @@ function onContextMatchSelect(
   const match = fileResult.matches.find((m) => m.lineNumber === lineNumber);
   if (match) {
     selectedLine.value = lineNumber;
-    emit("selectMatch", fileResult.filePath, match);
+    search.selectFile(fileResult.filePath);
+    actions.handleSelectMatch(fileResult.filePath, match);
   }
 }
 
@@ -276,7 +266,9 @@ function onContextMatchContextMenu(
 function onFileContextMenu(event: MouseEvent, fileResult: FileSearchResult) {
   const ext = getFileExtension(fileResult.relativePath);
   const items: ContextMenuItem[] = [
-    ...(props.showReplace ? [{ id: "replace-all", label: "全部替换" }] : []),
+    ...(search.showReplace.value
+      ? [{ id: "replace-all", label: "全部替换" }]
+      : []),
     { id: "dismiss-file", label: "消除" },
     { id: "sep-1", label: "", separator: true },
     ...(ext
@@ -294,7 +286,7 @@ function onFileContextMenu(event: MouseEvent, fileResult: FileSearchResult) {
     { id: "reveal-in-explorer", label: "在资源管理器中显示" },
   ];
 
-  emit("contextMenu", event, items, {
+  actions.handleContextMenu(event, items, {
     type: "file",
     filePath: fileResult.filePath,
     relativePath: fileResult.relativePath,
@@ -313,7 +305,9 @@ function onMatchContextMenu(
 
   const match = fileResult.matches[matchIndex];
   const items: ContextMenuItem[] = [
-    ...(props.showReplace ? [{ id: "replace-match", label: "替换" }] : []),
+    ...(search.showReplace.value
+      ? [{ id: "replace-match", label: "替换" }]
+      : []),
     { id: "dismiss-match", label: "消除" },
     { id: "sep-1", label: "", separator: true },
     { id: "copy-line", label: "复制匹配行" },
@@ -321,7 +315,7 @@ function onMatchContextMenu(
     { id: "copy-all-results", label: "复制所有搜索结果" },
   ];
 
-  emit("contextMenu", event, items, {
+  actions.handleContextMenu(event, items, {
     type: "match",
     filePath: fileResult.filePath,
     relativePath: fileResult.relativePath,

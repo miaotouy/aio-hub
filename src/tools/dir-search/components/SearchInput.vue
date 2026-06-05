@@ -5,9 +5,12 @@
       <!-- 左侧 chevron 切换按钮 -->
       <button
         class="search-input__replace-toggle"
-        @click="showReplace = !showReplace"
+        @click="search.showReplace.value = !search.showReplace.value"
       >
-        <ChevronRight :size="16" :class="{ rotated: showReplace }" />
+        <ChevronRight
+          :size="16"
+          :class="{ rotated: search.showReplace.value }"
+        />
       </button>
 
       <!-- 右侧输入区 -->
@@ -17,7 +20,7 @@
           <div class="search-input__field">
             <textarea
               ref="searchTextarea"
-              v-model="pattern"
+              v-model="search.pattern.value"
               class="search-input__textarea"
               placeholder="搜索内容..."
               rows="1"
@@ -29,8 +32,10 @@
             <el-tooltip content="大小写敏感 (Aa)" :show-after="500">
               <button
                 class="search-input__toggle"
-                :class="{ active: caseSensitive }"
-                @click="caseSensitive = !caseSensitive"
+                :class="{ active: search.caseSensitive.value }"
+                @click="
+                  search.caseSensitive.value = !search.caseSensitive.value
+                "
               >
                 Aa
               </button>
@@ -38,8 +43,8 @@
             <el-tooltip content="正则表达式 (.*)" :show-after="500">
               <button
                 class="search-input__toggle"
-                :class="{ active: isRegex }"
-                @click="isRegex = !isRegex"
+                :class="{ active: search.isRegex.value }"
+                @click="search.isRegex.value = !search.isRegex.value"
               >
                 .*
               </button>
@@ -47,8 +52,8 @@
             <el-tooltip content="全词匹配 (W)" :show-after="500">
               <button
                 class="search-input__toggle"
-                :class="{ active: wholeWord }"
-                @click="wholeWord = !wholeWord"
+                :class="{ active: search.wholeWord.value }"
+                @click="search.wholeWord.value = !search.wholeWord.value"
               >
                 W
               </button>
@@ -57,10 +62,10 @@
         </div>
 
         <!-- 替换行 -->
-        <div v-if="showReplace" class="search-input__row">
+        <div v-if="search.showReplace.value" class="search-input__row">
           <div class="search-input__field">
             <textarea
-              v-model="replacement"
+              v-model="search.replacement.value"
               class="search-input__textarea"
               placeholder="替换为..."
               rows="1"
@@ -72,8 +77,8 @@
             <el-tooltip content="保留大小写 (AB)" :show-after="500">
               <button
                 class="search-input__toggle"
-                :class="{ active: preserveCase }"
-                @click="preserveCase = !preserveCase"
+                :class="{ active: search.preserveCase.value }"
+                @click="search.preserveCase.value = !search.preserveCase.value"
               >
                 AB
               </button>
@@ -82,7 +87,7 @@
               <button
                 class="search-input__toggle action"
                 :disabled="!canReplace"
-                @click="$emit('replaceAll')"
+                @click="actions.handleReplaceAll"
               >
                 <Replace :size="14" />
               </button>
@@ -97,7 +102,7 @@
       <div class="search-input__filter-row">
         <label class="search-input__filter-label">包含:</label>
         <input
-          v-model="includeGlobs"
+          v-model="search.includeGlobs.value"
           class="search-input__filter-input"
           placeholder="*.md, *.txt"
           @keydown="onIncludeKeydown"
@@ -106,7 +111,7 @@
       <div class="search-input__filter-row">
         <label class="search-input__filter-label">排除:</label>
         <input
-          v-model="excludeGlobs"
+          v-model="search.excludeGlobs.value"
           class="search-input__filter-input"
           placeholder="node_modules, *.lock"
           @keydown="onExcludeKeydown"
@@ -119,11 +124,11 @@
         >
           <label
             class="search-input__filter-toggle"
-            @click="useGitignore = !useGitignore"
+            @click="search.useGitignore.value = !search.useGitignore.value"
           >
             <span
               class="search-input__filter-checkbox"
-              :class="{ active: useGitignore }"
+              :class="{ active: search.useGitignore.value }"
               >✓</span
             >
             <span>使用 .gitignore</span>
@@ -233,64 +238,61 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted } from "vue";
+import { ref, computed, nextTick, onMounted, inject } from "vue";
 import { ChevronRight, Replace } from "lucide-vue-next";
 import {
   useInputHistory,
   useAutoSaveHistory,
 } from "../composables/useInputHistory";
+import { useDirSearchContext } from "../composables/useDirSearchContext";
 import { useDirSearchUiState } from "../composables/useDirSearchUiState";
 
-const pattern = defineModel<string>("pattern", { required: true });
-const replacement = defineModel<string>("replacement", { required: true });
-const isRegex = defineModel<boolean>("isRegex", { required: true });
-const caseSensitive = defineModel<boolean>("caseSensitive", { required: true });
-const wholeWord = defineModel<boolean>("wholeWord", { required: true });
-const includeGlobs = defineModel<string>("includeGlobs", { required: true });
-const excludeGlobs = defineModel<string>("excludeGlobs", { required: true });
-const useGitignore = defineModel<boolean>("useGitignore", { required: true });
-const showReplace = defineModel<boolean>("showReplace", { required: true });
-const preserveCase = defineModel<boolean>("preserveCase", { required: true });
-
-const emit = defineEmits<{
-  search: [];
-  replaceAll: [];
-}>();
-
-const searchTextarea = ref<HTMLTextAreaElement | null>(null);
-const canReplace = computed(() => pattern.value.length > 0);
-
-// 历史记录集成
+const search = useDirSearchContext();
 const uiState = useDirSearchUiState();
 
+// 注入根组件提供的动作处理器
+const actions = inject("dirSearchActions") as {
+  handleReplaceAll: () => void;
+};
+
+const searchTextarea = ref<HTMLTextAreaElement | null>(null);
+const canReplace = computed(() => search.pattern.value.length > 0);
+
+// 历史记录集成
 // 1. 键盘回溯 (ArrowUp/Down)
 const { onKeydown: onSearchHistoryKeydown } = useInputHistory(
   uiState.searchHistory,
-  pattern
+  search.pattern
 );
 const { onKeydown: onReplaceHistoryKeydown } = useInputHistory(
   uiState.replacementHistory,
-  replacement
+  search.replacement
 );
 const { onKeydown: onIncludeHistoryKeydown } = useInputHistory(
   uiState.includeHistory,
-  includeGlobs
+  search.includeGlobs
 );
 const { onKeydown: onExcludeHistoryKeydown } = useInputHistory(
   uiState.excludeHistory,
-  excludeGlobs
+  search.excludeGlobs
 );
 
 // 2. 自动保存 (停止输入 2.5s 后)
-useAutoSaveHistory(uiState.searchHistory, pattern, { maxLength: 20 });
-useAutoSaveHistory(uiState.replacementHistory, replacement, { maxLength: 20 });
-useAutoSaveHistory(uiState.includeHistory, includeGlobs, { maxLength: 10 });
-useAutoSaveHistory(uiState.excludeHistory, excludeGlobs, { maxLength: 10 });
+useAutoSaveHistory(uiState.searchHistory, search.pattern, { maxLength: 20 });
+useAutoSaveHistory(uiState.replacementHistory, search.replacement, {
+  maxLength: 20,
+});
+useAutoSaveHistory(uiState.includeHistory, search.includeGlobs, {
+  maxLength: 10,
+});
+useAutoSaveHistory(uiState.excludeHistory, search.excludeGlobs, {
+  maxLength: 10,
+});
 
 function onSearchKeydown(e: KeyboardEvent) {
   if (e.key === "Enter" && e.ctrlKey) {
     e.preventDefault();
-    emit("search");
+    search.executeSearch();
     return;
   }
   // 历史记录导航
@@ -300,7 +302,7 @@ function onSearchKeydown(e: KeyboardEvent) {
 function onReplaceKeydown(e: KeyboardEvent) {
   if (e.key === "Enter" && e.ctrlKey) {
     e.preventDefault();
-    emit("replaceAll");
+    actions.handleReplaceAll();
     return;
   }
   // 历史记录导航

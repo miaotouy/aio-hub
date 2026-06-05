@@ -59,6 +59,22 @@ export function useTranslatorEngine(deps: EngineDeps) {
 
   // ---- token 估算 ----
 
+  /**
+   * 精确 token 缓存：由 store 在 inputText 防抖后通过 tokenCalculatorService 注入。
+   * 仅对整段 inputText 有效（text 完全匹配才命中）。
+   */
+  const exactInputTokensCache = ref<{ text: string; tokens: number } | null>(
+    null
+  );
+
+  function setExactInputTokens(text: string, tokens: number) {
+    exactInputTokensCache.value = { text, tokens };
+  }
+
+  function clearExactInputTokens() {
+    exactInputTokensCache.value = null;
+  }
+
   function getModelInfo(channel: TranslationChannel) {
     const profile = enabledProfiles.value.find(
       (item) => item.id === channel.profileId
@@ -84,28 +100,17 @@ export function useTranslatorEngine(deps: EngineDeps) {
   }
 
   /**
-   * 估算翻译输出所需 token 上限
-   * - 输入字符数 * 膨胀因子（覆盖中→英、英→俄等"输出更长"的情况）
-   * - + 段落格式预留（按行数推算）
+   * 估算输入 tokens。
+   * 优先使用 store 注入的精确分词缓存（text 完全匹配时命中），
+   * 缓存未命中时回退字符启发式：CJK 1字≈1.5t，其他词≈1.3t/词。
    */
-  function estimateTranslationOutputTokens(text: string) {
-    const charCount = Array.from(text).length;
-    const lineCount = text.split(/\r\n|\r|\n/).length;
-    const formatReserve = clampNumber(lineCount * 16, 512, 4096);
-    return Math.ceil(
-      charCount * settings.value.outputExpansionFactor + formatReserve
-    );
-  }
-
-  /**
-   * 估算输入 tokens（仅用于事前预警，不参与请求构造）。
-   * - CJK 字符：1 字 ≈ 1.5 tokens；
-   * - 其他（按空白切分得到的"词"）：1 词 ≈ 1.3 tokens；
-   * - 对于混合文本两部分相加。
-   */
-  function estimateTranslationInputTokens(text: string) {
+  function estimateTranslationInputTokens(text: string): number {
     if (!text) return 0;
-    // CJK 统一表意 + 假名 + 谚文 的常用区间
+    // 精确缓存命中（整段 inputText）
+    if (exactInputTokensCache.value?.text === text) {
+      return exactInputTokensCache.value.tokens;
+    }
+    // Fallback：字符启发式估算
     const cjkRegex = /[\u3400-\u9fff\uf900-\ufaff\u3040-\u30ff\uac00-\ud7af]/gu;
     const cjkMatches = text.match(cjkRegex);
     const cjkCount = cjkMatches ? cjkMatches.length : 0;
@@ -114,6 +119,23 @@ export function useTranslatorEngine(deps: EngineDeps) {
       .split(/\s+/)
       .filter((token) => token.length > 0).length;
     return Math.ceil(cjkCount * 1.5 + nonCjkWords * 1.3);
+  }
+
+  /**
+   * 估算翻译输出所需 token 上限。
+   * 基于输入 token 数乘以膨胀系数（语义：输出 token / 输入 token），
+   * 加段落格式预留（按行数推算，clamp 在 512~4096）。
+   *
+   * 与旧版"字符数×系数"相比，对高密度语言（CJK）更准确：
+   * 18k中文字≈8.7k tokens，输出预估 8.7k×1.5≈13k，而非旧版的 55k。
+   */
+  function estimateTranslationOutputTokens(text: string): number {
+    const inputTokens = estimateTranslationInputTokens(text);
+    const lineCount = text.split(/\r\n|\r|\n/).length;
+    const formatReserve = clampNumber(lineCount * 16, 512, 4096);
+    return Math.ceil(
+      inputTokens * settings.value.outputExpansionFactor + formatReserve
+    );
   }
 
   function getEffectiveMaxTokens(text: string, channel: TranslationChannel) {
@@ -413,7 +435,9 @@ export function useTranslatorEngine(deps: EngineDeps) {
     updateResult(channel.id, {
       status: "pending",
       isStreaming: true,
-      content: existingTask ? joinTranslatedChunks(existingTask.chunks).trim() : "",
+      content: existingTask
+        ? joinTranslatedChunks(existingTask.chunks).trim()
+        : "",
       error: undefined,
       startedAt: Date.now(),
       longTextTask: existingTask,
@@ -562,6 +586,9 @@ export function useTranslatorEngine(deps: EngineDeps) {
     // state
     results,
     isTranslating,
+    // 精确 token 缓存注入（由 store 层在 inputText 防抖后调用）
+    setExactInputTokens,
+    clearExactInputTokens,
     // token 估算
     getModelOutputLimit,
     getModelContextLimit,

@@ -12,7 +12,7 @@ const logger = createModuleLogger("tools/translator/settings");
 export const DEFAULT_TRANSLATOR_SETTINGS: TranslatorSettings = {
   defaultMaxTokens: 16384,
   autoExpandMaxTokens: true,
-  outputExpansionFactor: 3.0,
+  outputExpansionFactor: 1.5,
   streamingEnabled: true,
   autoScrollResults: true,
   saveHistory: true,
@@ -21,8 +21,9 @@ export const DEFAULT_TRANSLATOR_SETTINGS: TranslatorSettings = {
   channelSectionCollapsed: false,
   warnOnOutputOverflow: true,
   splitTranslationEnabled: true,
+  splitSuggestSmartFilter: true,
   splitThreshold: 4000,
-  splitChunkSize: 3000,
+  splitChunkSize: 2000,
   splitMode: "sequential",
   splitMaxConcurrent: 2,
 };
@@ -91,8 +92,8 @@ function sanitizeSettings(
         value.outputExpansionFactor,
         DEFAULT_TRANSLATOR_SETTINGS.outputExpansionFactor
       ),
-      1.0,
-      8.0
+      0.5,
+      5.0
     ),
     defaultTemperature: clampNumber(
       numericOrDefault(
@@ -112,6 +113,10 @@ function sanitizeSettings(
       value.splitTranslationEnabled === undefined
         ? DEFAULT_TRANSLATOR_SETTINGS.splitTranslationEnabled
         : value.splitTranslationEnabled === true,
+    splitSuggestSmartFilter:
+      value.splitSuggestSmartFilter === undefined
+        ? DEFAULT_TRANSLATOR_SETTINGS.splitSuggestSmartFilter
+        : value.splitSuggestSmartFilter === true,
     splitThreshold: clampNumber(
       numericOrDefault(
         value.splitThreshold,

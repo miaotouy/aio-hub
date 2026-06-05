@@ -45,7 +45,7 @@
           <div class="setting-label">
             <span>输出膨胀系数</span>
             <span class="setting-desc">
-              估算 = 字符数 × 系数 + 格式预留。中→英 / 短→长建议 2~4
+              估算 = 字符数 × 系数 + 格式预留。中→英 / 短→长建议 0.8 ~ 1.5 区间
             </span>
           </div>
           <el-input-number
@@ -129,6 +129,22 @@
             <span class="setting-desc">超过阈值时在输入区显示启用提示</span>
           </div>
           <el-switch v-model="store.settings.splitTranslationEnabled" />
+        </div>
+
+        <div
+          class="setting-row"
+          :class="{ disabled: !store.settings.splitTranslationEnabled }"
+        >
+          <div class="setting-label">
+            <span>智能过滤分片提示</span>
+            <span class="setting-desc">
+              当所有渠道都配置了输出上限且预估输出宽裕时，不显示分片提示
+            </span>
+          </div>
+          <el-switch
+            v-model="store.settings.splitSuggestSmartFilter"
+            :disabled="!store.settings.splitTranslationEnabled"
+          />
         </div>
 
         <div
@@ -461,3 +477,4 @@ async function handleClearHistory() {
   margin-left: auto;
 }
 </style>
+

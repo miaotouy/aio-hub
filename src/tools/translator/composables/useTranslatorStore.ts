@@ -1,8 +1,9 @@
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { defineStore } from "pinia";
 import { ElMessageBox } from "element-plus";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { createModuleLogger } from "@/utils/logger";
+import { tokenCalculatorService } from "@/tools/token-calculator/token-calculator.registry";
 import type {
   ChannelEstimation,
   ChannelOverflowReason,
@@ -78,6 +79,33 @@ export const useTranslatorStore = defineStore("translator", () => {
   const currentSession = ref<TranslationSession | null>(null);
   const splitTranslationActive = ref(false);
   const initialized = ref(false);
+
+  // ---- 精确 token 计算（防抖 500ms，接入 token-calculator Worker）----
+  let _exactTokenTimer: ReturnType<typeof setTimeout> | null = null;
+
+  watch(inputText, (text) => {
+    if (_exactTokenTimer) clearTimeout(_exactTokenTimer);
+    if (!text.trim()) {
+      engineModule.clearExactInputTokens();
+      return;
+    }
+    _exactTokenTimer = setTimeout(async () => {
+      const firstChannel = presetsModule.activeChannels.value[0];
+      if (!firstChannel) return;
+      try {
+        const result = await tokenCalculatorService.calculateTokens(
+          text,
+          firstChannel.modelId
+        );
+        // 仅在文本未变时更新（避免快速输入时缓存旧值）
+        if (inputText.value === text) {
+          engineModule.setExactInputTokens(text, result.count);
+        }
+      } catch {
+        // 精确计算失败，engine 保持字符启发式 fallback
+      }
+    }, 500);
+  });
 
   /**
    * 上一次激活预设的默认语言快照。
@@ -277,12 +305,22 @@ export const useTranslatorStore = defineStore("translator", () => {
 
   const inputCharCount = computed(() => Array.from(inputText.value).length);
 
-  const shouldSuggestSplitTranslation = computed(
-    () =>
-      settingsModule.settings.value.splitTranslationEnabled &&
-      !splitTranslationActive.value &&
-      inputCharCount.value >= settingsModule.settings.value.splitThreshold
-  );
+  const shouldSuggestSplitTranslation = computed(() => {
+    if (!settingsModule.settings.value.splitTranslationEnabled) return false;
+    if (splitTranslationActive.value) return false;
+    if (inputCharCount.value < settingsModule.settings.value.splitThreshold)
+      return false;
+    // 开启了智能过滤，且所有渠道都配置了输出上限且预估宽裕（safe）→ 模型能处理，无需提醒
+    if (settingsModule.settings.value.splitSuggestSmartFilter) {
+      const ests = channelEstimations.value;
+      if (
+        ests.length > 0 &&
+        ests.every((e) => e.modelOutputLimit && e.risk === "safe")
+      )
+        return false;
+    }
+    return true;
+  });
 
   const splitEstimatedChunkCount = computed(() => {
     if (!inputText.value.trim()) return 0;
@@ -319,8 +357,7 @@ export const useTranslatorStore = defineStore("translator", () => {
       await ElMessageBox.confirm(
         `<div style="font-size:13px;line-height:1.6;">
           <p style="margin:0 0 8px;">检测到以下渠道的预估超过模型上限，继续翻译可能得到不完整的译文。</p>
-          <ul style="margin:0;padding-left:18px;">${detailLines}</ul>
-          <p style="margin:10px 0 0;color:var(--text-color-secondary);">建议缩短输入或更换更大上下文的模型。</p>
+          <ul style="margin:0;padding-left:18px;">${detailLines}</ul><p style="margin:10px 0 0;color:var(--text-color-secondary);">建议缩短输入或更换更大上下文的模型。</p>
         </div>`,
         "输出可能不完整",
         {

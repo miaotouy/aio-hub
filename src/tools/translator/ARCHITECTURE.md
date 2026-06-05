@@ -1,6 +1,6 @@
 # 翻译工作台（Translator）：架构与开发者指南
 
-> 最后更新：2026-06-2
+> 最后更新：2026-06-05
 
 翻译工作台是一个面向 **多渠道 LLM 并排对比翻译** 的工具。本文档是其架构概览，覆盖核心概念、子模块职责、数据流与持久化布局。
 
@@ -188,8 +188,8 @@ graph TD
 
 - [`getModelOutputLimit()`](src/tools/translator/composables/useTranslatorEngine.ts:63) 读取模型元数据 `tokenLimits.output`。
 - [`getModelContextLimit()`](src/tools/translator/composables/useTranslatorEngine.ts:71) 读取 `tokenLimits.contextLength`，缺失时回退到 `contextLengthRange[1]`，两者皆无返回 `undefined`。
-- [`estimateTranslationOutputTokens()`](src/tools/translator/composables/useTranslatorEngine.ts:85)：`字符数 × outputExpansionFactor + 按行数推算的段落预留（512~4096 区间）`，针对「输出比输入长」的语种对。
-- [`estimateTranslationInputTokens()`](src/tools/translator/composables/useTranslatorEngine.ts:100)：粗估输入 tokens（CJK 1 字 ≈ 1.5 tokens，其他按词数 × 1.3），仅用于事前预警，不参与请求构造。
+- [`estimateTranslationInputTokens()`](src/tools/translator/composables/useTranslatorEngine.ts:100)：估算输入 tokens。优先使用 store 注入的精确分词缓存（由 `tokenCalculatorService` 异步计算并注入，整段文本完全匹配时命中），未命中时回退字符启发式（CJK 1 字 ≈ 1.5 tokens，其他按词数 × 1.3）。
+- [`estimateTranslationOutputTokens()`](src/tools/translator/composables/useTranslatorEngine.ts:85)：基于输入 token 数乘以膨胀系数（语义：输出 token / 输入 token），加段落格式预留（按行数推算，clamp 在 512~4096 区间）。对高密度语言（如 CJK）比旧版“字符数 × 系数”更准确。
 - [`getEffectiveMaxTokens()`](src/tools/translator/composables/useTranslatorEngine.ts:113)：在 `channel.maxTokens / 估算 / modelLimit` 三者间取合理上限，最终 clamp 在 `[256, 131072]`。
 
 ### 渠道超限风险估算（事前预警）
@@ -378,7 +378,7 @@ modules/translator/
 | ------------------------- | ----- | ------------------------------------------------------------------------- |
 | `defaultMaxTokens`        | 16384 | 渠道未配置且无法估算时的兜底输出上限                                      |
 | `autoExpandMaxTokens`     | true  | 是否根据输入长度自动放大 max_tokens                                       |
-| `outputExpansionFactor`   | 3.0   | 输出膨胀系数（中→英/短→长）                                               |
+| `outputExpansionFactor`   | 1.5   | 输出膨胀系数（输出 token / 输入 token，中→英/短→长建议 0.8 ~ 1.5 区间）   |
 | `streamingEnabled`        | true  | 流式输出开关                                                              |
 | `autoScrollResults`       | true  | 流式时自动吸底（用户手动滚走会暂停）                                      |
 | `saveHistory`             | true  | 是否落盘历史                                                              |
@@ -412,6 +412,7 @@ modules/translator/
 | [`@tauri-apps/plugin-clipboard-manager`](src-tauri/Cargo.toml:1)                                                                                                | 译文复制 / 剪贴板粘贴                                                                                                      |
 | [`@tauri-apps/plugin-dialog`](src-tauri/Cargo.toml:1)                                                                                                           | 从本地文件读取文本                                                                                                         |
 | [`detectMimeTypeFromBuffer`](src/utils/fileTypeDetector.ts:399) / [`isTextFile`](src/utils/fileTypeDetector.ts:489) / [`smartDecode`](src/utils/encoding.ts:29) | 输入面板文件加载的类型识别与编码解码（被 [`useTranslatorFileLoader`](src/tools/translator/services/fileLoader.ts:1) 封装） |
+| [`tokenCalculatorService`](src/tools/token-calculator/token-calculator.registry.ts:1)                                                                           | 提供精确的输入 token 计算服务，用于在输入文本改变防抖 500ms 后计算精确 token 并注入 Engine 缓存                            |
 
 ---
 

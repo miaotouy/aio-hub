@@ -122,6 +122,8 @@ export interface TranslatorSettings {
   warnOnOutputOverflow: boolean;
   /** 是否启用长文本分片翻译功能 */
   splitTranslationEnabled: boolean;
+  /** 是否根据模型输出上限智能过滤分片提示 */
+  splitSuggestSmartFilter: boolean;
   /** 触发分片翻译提示的字符数阈值 */
   splitThreshold: number;
   /** 默认分片大小 */

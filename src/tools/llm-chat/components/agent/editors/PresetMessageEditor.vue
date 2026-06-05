@@ -1027,6 +1027,7 @@ watch(
   (newVisible) => {
     if (newVisible) {
       viewMode.value = "edit"; // 默认进入编辑模式
+      previewContent.value = ""; // 重置预览缓存，避免显示上次的旧内容
       if (props.initialForm) {
         form.value = { ...props.initialForm };
         restoreInjectionStrategy(props.initialForm.injectionStrategy);

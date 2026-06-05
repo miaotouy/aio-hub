@@ -18,6 +18,7 @@
 | `{{lastMessage}}`        | 会话中的最后一条消息内容   | -                |
 | `{{lastUserMessage}}`    | 最后一条用户消息内容       | -                |
 | `{{lastCharMessage}}`    | 最后一条助手消息内容       | -                |
+| `{{profileId}}`          | 当前使用的 LLM 配置文件 ID | -                |
 
 ## 2. 时间与日期宏
 
@@ -31,12 +32,17 @@
 - `{{date_ymd}}`: ISO 日期 (如 `2026-05-08`)
 - `{{datetime}}`: 完整日期时间 (如 `2026-05-08 22:30:00`)
 - `{{weekday}}`: 英文星期 (如 `Friday`)
+- `{{isotime}}`: ISO 8601 格式时间戳 (如 `2026-05-08T14:30:00.000Z`)
+- `{{timestamp}}`: Unix 时间戳（毫秒）
 
 ### 中文与本地化格式
 
 - `{{date_cn}}`: `2026年5月8日`
 - `{{datetime_cn}}`: `2026年5月8日 星期五 晚上10点30分`
 - `{{weekday_cn}}`: `星期五`
+- `{{date_jp}}`: `2025年11月7日（金）`
+- `{{datetime_jp}}`: `2025年11月7日（金） 午後10時30分`
+- `{{date_ko}}`: `2025년 11월 7일 (금)`
 - `{{datetime_format::pattern}}`: 自定义格式 (如 `{{datetime_format::YYYY/MM/DD}}`)
 - `{{datetime_locale::ja-JP}}`: 日本语本地化格式
 
@@ -44,7 +50,16 @@
 
 - `{{date_cn_ancient}}`: 农历/干支 (如 `乙巳年（蛇年）十月十八`)
 - `{{time_cn_ancient}}`: 时辰刻数 (如 `亥时一刻`)
+- `{{datetime_cn_ancient}}`: 完整古风中文日期时间
 - `{{shichen}}`: 仅时辰名称 (如 `亥时`)
+- `{{date_en_ancient}}`: 古风英文日期 (如 `the 8th day of May, in the year of our Lord 2026`)
+- `{{datetime_en_ancient}}`: 完整古风英文日期时间
+
+### 大写汉字格式
+
+- `{{date_cn_uppercase}}`: 大写汉字日期 (如 `贰零贰伍年拾贰月肆日`)
+- `{{time_cn_uppercase}}`: 大写汉字时间 (如 `贰拾时叁拾分`)
+- `{{datetime_cn_uppercase}}`: 完整大写汉字日期时间
 
 ## 3. 模型元数据宏
 
@@ -54,6 +69,7 @@
 | :---------------- | :----------- | :-------------------- |
 | `{{modelId}}`     | 完整模型 ID  | `openai:gpt-4o`       |
 | `{{modelName}}`   | 模型显示名称 | `GPT-4o`              |
+| `{{profileId}}`   | 服务配置 ID  | `my-openai`           |
 | `{{profileName}}` | 服务渠道名称 | `My OpenAI`           |
 | `{{provider}}`    | 提供商类型   | `openai`, `anthropic` |
 
@@ -81,13 +97,15 @@
 | `{{decvar::name}}`       | 变量自减 1                 | PRE_PROCESS |
 | `{{setglobalvar::k::v}}` | 设置全局变量（进程内有效） | PRE_PROCESS |
 | `{{getglobalvar::k}}`    | 读取全局变量值             | SUBSTITUTE  |
+| `{{incglobalvar::name}}` | 全局变量自增 1             | PRE_PROCESS |
+| `{{decglobalvar::name}}` | 全局变量自减 1             | PRE_PROCESS |
 
 ## 6. 资产与工具宏
 
 - `{{assets::groupId}}`: 列出 Agent 的可用资产。可选参数为分组 ID。
 - `{{tools::id1::id2}}`: 注入工具定义。支持手动指定工具 ID 列表。
 - `{{tool_usage}}`: 注入当前工具调用协议的使用说明（如 VCP 协议）。
-- `{{tool_context}}`: 注入已启用工具/插件的实时运行时上下文。
+- `{{tool_context}}`: 注入已启用工具/插件的实时运行时上下文。支持通过参数指定工具 ID 列表（如 `{{tool_context::toolId1::toolId2}}`），此时将无视开关状态强制注入。
 - `{{visual_guideline}}`: 注入 Agent 配置的视觉化输出指南。
 - `{{cssvar::--name}}`: 获取当前主题下 CSS 变量的实际值（如颜色代码）。
 
@@ -96,8 +114,17 @@
 获取运行环境信息。
 
 - `{{os}}`: 操作系统名称 (如 `Windows_NT`)
+- `{{osVersion}}`: 操作系统版本号 (如 `10.0.19045`)
 - `{{platform}}`: 运行平台 (如 `win32`)
 - `{{arch}}`: CPU 架构 (如 `x86_64`)
+- `{{hostname}}`: 计算机主机名
 - `{{locale}}`: 系统语言环境 (如 `zh-CN`)
+
+## 8. 知识库宏
+
+提供知识库检索注入能力。详见[知识库集成](../knowledge-base-integration)。
+
+- `{{kb}}`: 触发知识库检索并注入结果。无参数时检索所有已启用的关联知识库；可指定知识库名称和召回上限（如 `{{kb::我的知识库::5}}`）。
+- `{{kb_list}}`: 列出当前 Agent 关联的知识库信息（供 LLM 感知可用知识源）。
 
 </div>

@@ -106,6 +106,14 @@
       </div>
     </div>
 
+    <PresetGroupPanel
+      v-if="!props.compact"
+      :preset-groups="presetGroups"
+      :local-messages="localMessages"
+      @update:preset-groups="presetGroups = $event"
+      @update:local-messages="localMessages = $event"
+      @sync="syncToParent"
+    />
     <Transition name="collapse">
       <div
         v-show="!isCollapsed || props.compact"
@@ -137,6 +145,8 @@
                 element.injectionStrategy,
                 element.modelMatch,
                 messageTokens.get(element.id),
+                element.groupId,
+                presetGroups,
               ]"
               class="message-card-wrapper"
             >
@@ -149,11 +159,14 @@
                     ? messageTokens.get(element.id)
                     : undefined
                 "
+                :preset-groups="presetGroups"
+                :on-radio-change="handleRadioChange"
                 @edit="handleEditMessage"
                 @copy="handleCopyMessage"
                 @paste="handlePasteMessage"
                 @delete="handleDeleteMessage"
                 @toggle-enabled="handleToggleEnabled"
+                @group-command="handleGroupCommand"
               />
             </div>
           </VueDraggableNext>
@@ -192,6 +205,7 @@
       :agent="props.agent"
       :llm-think-rules="props.agent?.llmThinkRules"
       :rich-text-style-options="props.agent?.richTextStyleOptions"
+      :preset-groups="presetGroups"
       @save="handleSaveMessage"
     />
 
@@ -221,6 +235,11 @@
       :messages="localMessages"
       @save="handleBatchSave"
     />
+
+    <PresetGroupEditDialog
+      v-model:visible="createGroupDialogVisible"
+      @save="handleGroupDialogSave"
+    />
   </div>
 </template>
 
@@ -237,6 +256,7 @@ import type {
   UserProfile,
   InjectionStrategy,
 } from "../../../types";
+import type { PresetMessageGroup } from "../../../types/agent";
 import { convertMacros } from "../../../services/sillyTavernParser";
 import {
   QuestionFilled,
@@ -249,6 +269,8 @@ import {
   Operation,
 } from "@element-plus/icons-vue";
 import { customMessage } from "@/utils/customMessage";
+import PresetGroupPanel from "./PresetGroupPanel.vue";
+import PresetGroupEditDialog from "./PresetGroupEditDialog.vue";
 import PresetMessageEditor from "../editors/PresetMessageEditor.vue";
 import EditUserProfileDialog from "../../user-profile/EditUserProfileDialog.vue";
 import STPresetImportDialog from "./STPresetImportDialog.vue";
@@ -291,6 +313,18 @@ const emit = defineEmits<Emits>();
 const userProfileStore = useUserProfileStore();
 const anchorRegistry = useAnchorRegistry();
 const showUserProfileDialog = ref(false);
+// 预设消息组 computed（双向绑定到 agent.presetGroups）
+const presetGroups = computed<PresetMessageGroup[]>({
+  get: () => props.agent?.presetGroups || [],
+  set: (val) => {
+    if (props.agent) props.agent.presetGroups = val;
+  },
+});
+
+function getMessageGroup(groupId?: string): PresetMessageGroup | undefined {
+  if (!groupId) return undefined;
+  return presetGroups.value.find((g) => g.id === groupId);
+}
 
 const headerRef = ref<HTMLElement | null>(null);
 const { width: headerWidth } = useElementSize(headerRef);
@@ -335,15 +369,19 @@ const editForm = ref<{
   role: MessageRole;
   content: string;
   name?: string;
+  groupId?: string;
   injectionStrategy?: InjectionStrategy;
   modelMatch?: { enabled: boolean; patterns: string[] };
 }>({
   role: "system",
   content: "",
   name: "",
+  groupId: undefined,
   injectionStrategy: undefined,
   modelMatch: undefined,
 });
+const createGroupDialogVisible = ref(false);
+const pendingGroupJoinMsg = ref<ChatMessageNode | null>(null);
 
 const showBatchManager = ref(false);
 
@@ -374,6 +412,7 @@ const {
   handleConfirmSTImport,
 } = usePresetImportExport({
   localMessages,
+  presetGroups,
   agentName: computed(() => props.agentName ?? ""),
   onSyncToParent: syncToParent,
   importFileInput,
@@ -431,6 +470,7 @@ function handleAddMessage() {
     role: "system",
     content: "",
     name: "",
+    groupId: undefined,
     injectionStrategy: undefined,
     modelMatch: undefined,
   };
@@ -444,6 +484,7 @@ function handleEditMessage(message: ChatMessageNode) {
     role: message.role,
     content: message.content,
     name: message.name,
+    groupId: message.groupId,
     injectionStrategy: message.injectionStrategy,
     modelMatch: message.modelMatch,
   };
@@ -544,6 +585,61 @@ function handleDeleteMessage(message: ChatMessageNode) {
 
 function handleToggleEnabled() {
   syncToParent();
+}
+
+// === 预设组联动逻辑 ===
+
+function handleRadioChange(targetMsg: ChatMessageNode) {
+  const group = getMessageGroup(targetMsg.groupId);
+  if (!group || group.selectionMode !== "radio") return;
+  localMessages.value.forEach((msg) => {
+    if (msg.groupId === targetMsg.groupId) {
+      msg.isEnabled = msg.id === targetMsg.id;
+      if (msg.metadata) delete msg.metadata.lastEnabledState;
+    }
+  });
+  syncToParent();
+}
+
+function handleGroupCommand(msg: ChatMessageNode, cmd: string) {
+  if (cmd === "leave") {
+    msg.groupId = undefined;
+    if (msg.metadata) delete msg.metadata.lastEnabledState;
+    syncToParent();
+  } else if (cmd.startsWith("move:")) {
+    const targetGroupId = cmd.slice(5);
+    msg.groupId = targetGroupId;
+    const targetGroup = getMessageGroup(targetGroupId);
+    if (targetGroup && !targetGroup.enabled && msg.isEnabled !== false) {
+      msg.isEnabled = false;
+      if (!msg.metadata) msg.metadata = {} as any;
+      msg.metadata!.lastEnabledState = true;
+    }
+    if (targetGroup?.selectionMode === "radio") {
+      handleRadioChange(msg);
+    } else {
+      syncToParent();
+    }
+  } else if (cmd === "new") {
+    pendingGroupJoinMsg.value = msg;
+    createGroupDialogVisible.value = true;
+  }
+}
+
+function handleGroupDialogSave(
+  groupData: Omit<PresetMessageGroup, "id"> & { id?: string }
+) {
+  const newGroup: PresetMessageGroup = {
+    ...groupData,
+    id: `group-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+  };
+  presetGroups.value = [...presetGroups.value, newGroup];
+  if (pendingGroupJoinMsg.value) {
+    pendingGroupJoinMsg.value.groupId = newGroup.id;
+    pendingGroupJoinMsg.value = null;
+  }
+  syncToParent();
+  customMessage.success(`已创建组"${newGroup.name}"`);
 }
 
 function handleOpenBatchManager() {

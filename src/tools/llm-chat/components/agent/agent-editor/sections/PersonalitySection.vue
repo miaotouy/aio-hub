@@ -36,6 +36,9 @@ if (!editForm.worldbookSettings) {
     defaultScanDepth: 3,
   };
 }
+if (!editForm.presetGroups) {
+  editForm.presetGroups = [];
+}
 
 // 通过 inject 获取父组件的状态控制
 const userProfileDialogVisible = inject<any>("user-profile-dialog-visible");

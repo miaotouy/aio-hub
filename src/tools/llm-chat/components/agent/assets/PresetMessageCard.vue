@@ -108,11 +108,21 @@
           <el-icon><Edit /></el-icon>
         </el-button>
       </el-tooltip>
+      <el-radio
+        v-if="getMessageGroup(element.groupId)?.selectionMode === 'radio'"
+        :value="true"
+        :model-value="element.isEnabled"
+        size="small"
+        :disabled="getMessageGroup(element.groupId)?.enabled === false"
+        @change="props.onRadioChange ? props.onRadioChange(element) : null"
+      />
       <el-switch
+        v-else
         v-model="element.isEnabled"
         :active-value="true"
         :inactive-value="false"
         size="small"
+        :disabled="getMessageGroup(element.groupId)?.enabled === false"
         @change="$emit('toggle-enabled')"
       />
     </div>
@@ -199,6 +209,57 @@
           >
             {{ tokenCount }} tokens
           </el-tag>
+          <!-- 组标签 - 有组 -->
+          <el-dropdown
+            v-if="element.groupId"
+            trigger="click"
+            @command="(cmd: string) => emit('group-command', element, cmd)"
+          >
+            <el-tag size="small" style="cursor: pointer"
+              >🏷️
+              {{ getMessageGroup(element.groupId)?.name || "未知组" }}</el-tag
+            >
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item
+                  v-for="g in presetGroups"
+                  :key="g.id"
+                  :command="`move:${g.id}`"
+                  :disabled="g.id === element.groupId"
+                  >移动到: {{ g.name }}</el-dropdown-item
+                >
+                <el-dropdown-item divided command="leave"
+                  >脱离当前组</el-dropdown-item
+                >
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+          <!-- 组标签 - 无组且有可用组 -->
+          <el-dropdown
+            v-else-if="presetGroups && presetGroups.length > 0"
+            trigger="click"
+            @command="(cmd: string) => emit('group-command', element, cmd)"
+          >
+            <el-tag
+              size="small"
+              type="info"
+              style="cursor: pointer; opacity: 0.6"
+              >+ 加入组</el-tag
+            >
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item
+                  v-for="g in presetGroups"
+                  :key="g.id"
+                  :command="`move:${g.id}`"
+                  >加入: {{ g.name }}</el-dropdown-item
+                >
+                <el-dropdown-item divided command="new"
+                  >新建组并加入</el-dropdown-item
+                >
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
         <div class="message-actions">
           <el-tooltip content="编辑消息" placement="top" :show-after="500">
@@ -246,11 +307,21 @@
               </el-popconfirm>
             </span>
           </el-tooltip>
+          <el-radio
+            v-if="getMessageGroup(element.groupId)?.selectionMode === 'radio'"
+            :value="true"
+            :model-value="element.isEnabled"
+            size="small"
+            :disabled="getMessageGroup(element.groupId)?.enabled === false"
+            @change="props.onRadioChange ? props.onRadioChange(element) : null"
+          />
           <el-switch
+            v-else
             v-model="element.isEnabled"
             :active-value="true"
             :inactive-value="false"
             size="small"
+            :disabled="getMessageGroup(element.groupId)?.enabled === false"
             @change="$emit('toggle-enabled')"
           />
         </div>
@@ -275,6 +346,7 @@ import {
   Link,
 } from "@element-plus/icons-vue";
 import type { ChatMessageNode, MessageRole } from "../../../types";
+import type { PresetMessageGroup } from "../../../types/agent";
 import {
   useAnchorRegistry,
   type AnchorDefinition,
@@ -285,6 +357,8 @@ interface Props {
   compact: boolean;
   modelId?: string;
   tokenCount?: number;
+  presetGroups?: PresetMessageGroup[];
+  onRadioChange?: (msg: ChatMessageNode) => void;
 }
 
 interface Emits {
@@ -293,10 +367,16 @@ interface Emits {
   (e: "paste", message: ChatMessageNode): void;
   (e: "delete", message: ChatMessageNode): void;
   (e: "toggle-enabled"): void;
+  (e: "group-command", msg: ChatMessageNode, cmd: string): void;
 }
 
 const props = defineProps<Props>();
-defineEmits<Emits>();
+const emit = defineEmits<Emits>();
+
+function getMessageGroup(groupId?: string) {
+  if (!groupId || !props.presetGroups) return undefined;
+  return props.presetGroups.find((g) => g.id === groupId);
+}
 
 const anchorRegistry = useAnchorRegistry();
 

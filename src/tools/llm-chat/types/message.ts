@@ -133,6 +133,9 @@ export interface ChatMessageNode {
    */
   isEnabled?: boolean;
 
+  /** 所属预设消息组 ID，可选。无此字段则为独立消息 */
+  groupId?: string;
+
   /**
    * 消息类型（可选，默认为 "message"）
    * - message: 普通预设消息
@@ -359,6 +362,7 @@ export interface ChatMessageNode {
       summaryRole: string;
     };
     /** 会话变量快照 */
-    sessionVariableSnapshot?: SessionVariableSnapshot;
+    sessionVariableSnapshot?: SessionVariableSnapshot; /** 组禁用前，消息原本的启用状态（用于恢复） */
+    lastEnabledState?: boolean;
   };
 }

@@ -7,6 +7,7 @@ import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import { useAnchorRegistry } from "../../../composables/ui/useAnchorRegistry";
 import type { ChatMessageNode } from "../../../types";
+import type { PresetMessageGroup } from "../../../types/agent";
 import {
   isPromptFile,
   parsePromptFile,
@@ -16,11 +17,18 @@ import {
 
 export function usePresetImportExport(options: {
   localMessages: Ref<ChatMessageNode[]>;
+  presetGroups: Ref<PresetMessageGroup[]>;
   agentName: Ref<string>;
   onSyncToParent: () => void;
   importFileInput: Ref<HTMLInputElement | null>;
 }) {
-  const { localMessages, agentName, onSyncToParent, importFileInput } = options;
+  const {
+    localMessages,
+    presetGroups,
+    agentName,
+    onSyncToParent,
+    importFileInput,
+  } = options;
   const anchorRegistry = useAnchorRegistry();
 
   const showSTImportDialog = ref(false);
@@ -35,8 +43,8 @@ export function usePresetImportExport(options: {
     return !!type && type !== "message" && anchorRegistry.hasAnchor(type);
   }
 
-  function cleanMessagesForExport(messages: ChatMessageNode[]): any[] {
-    return messages
+  function cleanMessagesForExport(messages: ChatMessageNode[]): object {
+    const cleanedMessages = messages
       .filter((m) => !isAnchorType(m.type))
       .map((m) => {
         const cloned = JSON.parse(JSON.stringify(toRaw(m)));
@@ -47,6 +55,51 @@ export function usePresetImportExport(options: {
         }
         return cloned;
       });
+
+    return {
+      version: 2,
+      groups: toRaw(presetGroups.value),
+      messages: cleanedMessages,
+    };
+  }
+
+  function applyImportedData(importedData: any) {
+    if (
+      importedData &&
+      typeof importedData === "object" &&
+      !Array.isArray(importedData) &&
+      "messages" in importedData
+    ) {
+      // v2+ 格式：含 messages 字段的对象
+      presetGroups.value = importedData.groups || [];
+      const processed = (importedData.messages || []).map((m: any) => ({
+        ...m,
+        content:
+          typeof m.content === "string" ? convertMacros(m.content) : m.content,
+      }));
+      localMessages.value = [
+        ...localMessages.value.filter((m) => isAnchorType(m.type)),
+        ...processed,
+      ];
+      onSyncToParent();
+      customMessage.success("导入成功");
+    } else if (Array.isArray(importedData)) {
+      // v1 格式（纯数组）
+      const processed = importedData.map((m: any) => ({
+        ...m,
+        content:
+          typeof m.content === "string" ? convertMacros(m.content) : m.content,
+      }));
+      localMessages.value = [
+        ...localMessages.value.filter((m) => isAnchorType(m.type)),
+        ...processed,
+      ];
+      presetGroups.value = [];
+      onSyncToParent();
+      customMessage.success("导入成功");
+    } else {
+      customMessage.error("数据格式不正确");
+    }
   }
 
   async function handleExport(format: "json" | "yaml" = "json") {
@@ -98,14 +151,6 @@ export function usePresetImportExport(options: {
           return customMessage.error("剪贴板内容不是有效的 JSON 或 YAML");
         }
       }
-      if (!Array.isArray(imported))
-        return customMessage.error("数据格式不正确（应为消息数组）");
-
-      const processed = imported.map((m: any) => ({
-        ...m,
-        content:
-          typeof m.content === "string" ? convertMacros(m.content) : m.content,
-      }));
 
       const hasRealMessages = localMessages.value.some(
         (m) => !isAnchorType(m.type)
@@ -125,12 +170,7 @@ export function usePresetImportExport(options: {
         });
       }
 
-      localMessages.value = [
-        ...localMessages.value.filter((m) => isAnchorType(m.type)),
-        ...processed,
-      ];
-      onSyncToParent();
-      customMessage.success("粘贴成功");
+      applyImportedData(imported);
     } catch (error: any) {
       if (error.message !== "User cancelled") customMessage.error("粘贴失败");
     }
@@ -155,22 +195,8 @@ export function usePresetImportExport(options: {
       if (isPromptFile(parsed)) {
         stImportData.value = parsePromptFile(parsed);
         showSTImportDialog.value = true;
-      } else if (Array.isArray(parsed)) {
-        const processed = parsed.map((m: any) => ({
-          ...m,
-          content:
-            typeof m.content === "string"
-              ? convertMacros(m.content)
-              : m.content,
-        }));
-        localMessages.value = [
-          ...localMessages.value.filter((m) => isAnchorType(m.type)),
-          ...processed,
-        ];
-        onSyncToParent();
-        customMessage.success("导入成功");
       } else {
-        throw new Error("文件格式不正确");
+        applyImportedData(parsed);
       }
     } catch {
       customMessage.error("导入失败");

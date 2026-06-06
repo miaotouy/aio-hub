@@ -65,6 +65,25 @@
           </div>
         </div>
 
+        <!-- 所属预设组（非 greeting 模式且有可用组时显示） -->
+        <div v-if="!isGreetingMode && presetGroups?.length" class="editor-row">
+          <span class="field-label">所属组</span>
+          <el-select
+            v-model="form.groupId"
+            placeholder="独立消息（不归属任何组）"
+            clearable
+            size="small"
+            style="width: 240px"
+          >
+            <el-option
+              v-for="g in presetGroups"
+              :key="g.id"
+              :label="g.name"
+              :value="g.id"
+            />
+          </el-select>
+        </div>
+
         <!-- 模型匹配配置行 (greeting 模式隐藏) -->
         <ModelMatchConfig v-if="!isGreetingMode" v-model="modelMatchValue" />
         <!-- 注入策略配置行 (greeting 模式隐藏) -->
@@ -266,6 +285,7 @@ import type {
   UserProfile,
   InjectionStrategy,
 } from "../../../types";
+import type { PresetMessageGroup } from "../../../types/agent";
 import {
   ChatDotRound,
   User,
@@ -315,6 +335,7 @@ interface MessageForm {
   role: MessageRole;
   name?: string;
   content: string;
+  groupId?: string;
   injectionStrategy?: InjectionStrategy;
   modelMatch?: {
     enabled: boolean;
@@ -344,6 +365,7 @@ interface Props {
    * - 'greeting': 精简模式，仅显示角色、名称、内容编辑区域
    */
   editorMode?: PresetEditorMode;
+  presetGroups?: PresetMessageGroup[];
 }
 
 interface Emits {
@@ -359,6 +381,7 @@ const props = withDefaults(defineProps<Props>(), {
   llmThinkRules: () => [],
   richTextStyleOptions: () => ({}),
   editorMode: "preset",
+  presetGroups: () => [],
 });
 
 /** 是否为精简模式（greeting 模式隐藏过滤和注入策略） */

@@ -316,6 +316,29 @@ export interface _LegacyAggregationConfig {
   maxHistoryTurns?: number;
 }
 
+export type PresetGroupSelectionMode = "checkbox" | "radio";
+
+export interface PresetMessageGroup {
+  /** 组的唯一标识符 */
+  id: string;
+  /** 组显示名称，如 "说话风格"、"当前场景" */
+  name: string;
+  /** 组描述（可选） */
+  description?: string;
+  /**
+   * 选择模式
+   * - checkbox: 多选，组内消息独立启用/禁用（默认）
+   * - radio: 单选，组内同时最多只能有一条消息启用
+   */
+  selectionMode: PresetGroupSelectionMode;
+  /**
+   * 组整体开关
+   * - true（默认）: 组启用
+   * - false: 组禁用，组内所有消息不参与上下文构建
+   */
+  enabled: boolean;
+}
+
 /**
  * 智能体共有配置基础接口
  * 包含模板和实例都会使用的核心字段
@@ -500,6 +523,9 @@ export interface AgentBaseConfig {
 
   /** 会话变量配置 */
   variableConfig?: VariableConfig;
+
+  /** 预设消息组定义 */
+  presetGroups?: PresetMessageGroup[];
 }
 
 /**

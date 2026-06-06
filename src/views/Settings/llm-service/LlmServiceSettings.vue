@@ -710,6 +710,7 @@ const networkSettingSummary = computed(() => {
     <CustomEndpointsEditor
       v-model:visible="showCustomEndpointsDialog"
       v-model="editForm.customEndpoints"
+      :provider-type="editForm.type"
     />
 
     <!-- 多密钥管理弹窗 -->

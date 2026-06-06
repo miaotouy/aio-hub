@@ -1,15 +1,17 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref, watch, computed } from "vue";
 import { InfoFilled } from "@element-plus/icons-vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import { customMessage } from "@/utils/customMessage";
-import type { LlmProfile } from "@/types/llm-profiles";
+import type { LlmProfile, ProviderType } from "@/types/llm-profiles";
+import { getProviderTypeInfo } from "@/config/llm-providers";
 
 type CustomEndpoints = NonNullable<LlmProfile["customEndpoints"]>;
 
 interface Props {
   visible: boolean;
   modelValue?: CustomEndpoints;
+  providerType?: ProviderType;
 }
 
 interface Emits {
@@ -20,6 +22,7 @@ interface Emits {
 const props = withDefaults(defineProps<Props>(), {
   visible: false,
   modelValue: () => ({}),
+  providerType: "openai",
 });
 
 const emit = defineEmits<Emits>();
@@ -70,6 +73,30 @@ function handleCancel() {
 function handleReset() {
   tempEndpoints.value = {};
 }
+
+// OpenAI 兼容格式默认占位符
+const DEFAULT_PLACEHOLDERS: Record<string, string> = {
+  chatCompletions: "/v1/chat/completions",
+  completions: "/v1/completions",
+  models: "/v1/models",
+  embeddings: "/v1/embeddings",
+  imagesGenerations: "/v1/images/generations",
+  imagesEdits: "/v1/images/edits",
+  imagesVariations: "/v1/images/variations",
+  audioSpeech: "/v1/audio/speech",
+  audioTranscriptions: "/v1/audio/transcriptions",
+  audioTranslations: "/v1/audio/translations",
+  videos: "/v1/videos",
+  videoStatus: "/v1/videos/{video_id}",
+  rerank: "/v1/rerank",
+  moderations: "/v1/moderations",
+};
+
+// 根据渠道类型动态计算占位符
+const placeholders = computed((): Record<string, string> => {
+  const providerInfo = getProviderTypeInfo(props.providerType ?? "openai");
+  return { ...DEFAULT_PLACEHOLDERS, ...providerInfo?.endpointPlaceholders };
+});
 </script>
 
 <template>
@@ -110,28 +137,28 @@ function handleReset() {
           <el-form-item label="聊天补全 (Chat)">
             <el-input
               v-model="tempEndpoints.chatCompletions"
-              placeholder="/v1/chat/completions"
+              :placeholder="placeholders.chatCompletions"
               clearable
             />
           </el-form-item>
           <el-form-item label="文本补全 (Completions)">
             <el-input
               v-model="tempEndpoints.completions"
-              placeholder="/v1/completions"
+              :placeholder="placeholders.completions"
               clearable
             />
           </el-form-item>
           <el-form-item label="模型列表 (Models)">
             <el-input
               v-model="tempEndpoints.models"
-              placeholder="/v1/models"
+              :placeholder="placeholders.models"
               clearable
             />
           </el-form-item>
           <el-form-item label="嵌入 (Embeddings)">
             <el-input
               v-model="tempEndpoints.embeddings"
-              placeholder="/v1/embeddings"
+              :placeholder="placeholders.embeddings"
               clearable
             />
           </el-form-item>
@@ -140,21 +167,21 @@ function handleReset() {
           <el-form-item label="图像生成">
             <el-input
               v-model="tempEndpoints.imagesGenerations"
-              placeholder="/v1/images/generations"
+              :placeholder="placeholders.imagesGenerations"
               clearable
             />
           </el-form-item>
           <el-form-item label="图像编辑">
             <el-input
               v-model="tempEndpoints.imagesEdits"
-              placeholder="/v1/images/edits"
+              :placeholder="placeholders.imagesEdits"
               clearable
             />
           </el-form-item>
           <el-form-item label="图像变体">
             <el-input
               v-model="tempEndpoints.imagesVariations"
-              placeholder="/v1/images/variations"
+              :placeholder="placeholders.imagesVariations"
               clearable
             />
           </el-form-item>
@@ -163,21 +190,21 @@ function handleReset() {
           <el-form-item label="语音合成 (TTS)">
             <el-input
               v-model="tempEndpoints.audioSpeech"
-              placeholder="/v1/audio/speech"
+              :placeholder="placeholders.audioSpeech"
               clearable
             />
           </el-form-item>
           <el-form-item label="语音转文字 (STT)">
             <el-input
               v-model="tempEndpoints.audioTranscriptions"
-              placeholder="/v1/audio/transcriptions"
+              :placeholder="placeholders.audioTranscriptions"
               clearable
             />
           </el-form-item>
           <el-form-item label="语音翻译">
             <el-input
               v-model="tempEndpoints.audioTranslations"
-              placeholder="/v1/audio/translations"
+              :placeholder="placeholders.audioTranslations"
               clearable
             />
           </el-form-item>
@@ -186,14 +213,14 @@ function handleReset() {
           <el-form-item label="视频生成 (Videos)">
             <el-input
               v-model="tempEndpoints.videos"
-              placeholder="/v1/videos"
+              :placeholder="placeholders.videos"
               clearable
             />
           </el-form-item>
           <el-form-item label="视频状态查询">
             <el-input
               v-model="tempEndpoints.videoStatus"
-              placeholder="/v1/videos/{video_id}"
+              :placeholder="placeholders.videoStatus"
               clearable
             />
             <div class="field-hint">
@@ -203,7 +230,7 @@ function handleReset() {
           <el-form-item label="重排 (Rerank)">
             <el-input
               v-model="tempEndpoints.rerank"
-              placeholder="/v1/rerank"
+              :placeholder="placeholders.rerank"
               clearable
             />
           </el-form-item>
@@ -212,7 +239,7 @@ function handleReset() {
           <el-form-item label="内容审查">
             <el-input
               v-model="tempEndpoints.moderations"
-              placeholder="/v1/moderations"
+              :placeholder="placeholders.moderations"
               clearable
             />
           </el-form-item>

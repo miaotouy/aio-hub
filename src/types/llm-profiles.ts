@@ -94,6 +94,11 @@ export interface ProviderTypeInfo {
    * 配置值存储在 LlmProfile.options 中
    */
   configFields?: SettingItem[];
+  /**
+   * 自定义端点编辑器的占位符覆盖（可选）
+   * 只需填写与 OpenAI 兼容默认值不同的字段，会自动与默认值合并
+   */
+  endpointPlaceholders?: Record<string, string>;
 }
 
 /**

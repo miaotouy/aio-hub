@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import VueDraggable from "vuedraggable";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import BaseDialog from "@/components/common/BaseDialog.vue";
 import type { AgentIntegrationConfig, MediaTaskType } from "../types";
 import type { LlmModelInfo, LlmProfile } from "@/types/llm-profiles";
 import {
@@ -13,6 +14,8 @@ import {
   Video,
   Zap,
   Sliders,
+  Settings,
+  ChevronRight,
 } from "lucide-vue-next";
 
 const props = defineProps<{
@@ -24,7 +27,13 @@ const emit = defineEmits<{
 }>();
 
 const { enabledProfiles } = useLlmProfiles();
-const expandedNoteModelIds = ref<Set<string>>(new Set());
+const activeEditingModel = ref<UniqueModel | null>(null);
+const isDetailDialogVisible = ref(false);
+
+function openDetailDialog(model: UniqueModel) {
+  activeEditingModel.value = model;
+  isDetailDialogVisible.value = true;
+}
 
 interface UniqueModel {
   id: string;
@@ -171,13 +180,6 @@ function setFastModel(modelId: string, enabled: boolean) {
   updateConfig({ fastModelIds: Array.from(next) });
 }
 
-function toggleNote(modelId: string) {
-  const next = new Set(expandedNoteModelIds.value);
-  if (next.has(modelId)) next.delete(modelId);
-  else next.add(modelId);
-  expandedNoteModelIds.value = next;
-}
-
 function updateNote(modelId: string, value: string) {
   const modelParamNotes = { ...props.config.modelParamNotes };
   if (value.trim()) modelParamNotes[modelId] = value;
@@ -301,7 +303,7 @@ function typeIcon(type: MediaTaskType) {
 
             <div class="model-controls">
               <el-tooltip
-                content="同步等待结果，适合几秒内完成的模型"
+                content="启用同步等待结果，适合几秒内完成的模型"
                 placement="top"
               >
                 <div class="fast-toggle">
@@ -317,52 +319,93 @@ function typeIcon(type: MediaTaskType) {
                 </div>
               </el-tooltip>
 
-              <el-tooltip content="参数说明" placement="top">
+              <el-tooltip
+                v-if="config.modelParamNotes[model.id]"
+                content="已配置参数说明"
+                placement="top"
+              >
+                <div class="note-badge">
+                  <FileText :size="14" class="note-icon" />
+                </div>
+              </el-tooltip>
+
+              <el-tooltip content="配置渠道与参数" placement="top">
                 <el-button
-                  :icon="FileText"
+                  :icon="Settings"
                   circle
                   text
                   size="small"
-                  :type="config.modelParamNotes[model.id] ? 'primary' : ''"
-                  @click="toggleNote(model.id)"
+                  @click="openDetailDialog(model)"
                 />
               </el-tooltip>
             </div>
           </div>
 
-          <!-- 参数说明编辑区 -->
-          <div v-if="expandedNoteModelIds.has(model.id)" class="note-editor">
-            <el-input
-              :model-value="config.modelParamNotes[model.id] || ''"
-              type="textarea"
-              :rows="3"
-              resize="vertical"
-              placeholder="写给 Agent 的模型参数补充说明，支持 Markdown"
-              @update:model-value="
-                (value: string) => updateNote(model.id, value)
-              "
-            />
-          </div>
-
-          <!-- 卡片内容：渠道列表（可拖拽排序） -->
+          <!-- 卡片内容：渠道面包屑预览 -->
           <div class="card-body">
-            <div class="channel-list-title">可用渠道优先级：</div>
+            <div class="breadcrumb-container">
+              <div class="breadcrumb-title">渠道优先级：</div>
+              <div class="channel-breadcrumb">
+                <template
+                  v-for="(item, index) in getSortedProfilesForModel(model)"
+                  :key="item.profile.id"
+                >
+                  <div
+                    class="breadcrumb-item"
+                    :class="{ 'is-first': index === 0 }"
+                  >
+                    <span class="item-name" :title="item.profile.name">{{
+                      item.profile.name
+                    }}</span>
+                  </div>
+                  <div
+                    v-if="index < getSortedProfilesForModel(model).length - 1"
+                    class="breadcrumb-separator"
+                  >
+                    <ChevronRight :size="12" />
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 详情配置弹窗 -->
+    <BaseDialog
+      v-model="isDetailDialogVisible"
+      :title="`模型配置 - ${activeEditingModel?.name || ''}`"
+      width="600px"
+    >
+      <template #content>
+        <div v-if="activeEditingModel" class="dialog-layout">
+          <!-- 渠道优先级 -->
+          <div class="dialog-section">
+            <div class="section-title">
+              <el-icon><Sliders /></el-icon>
+              <span>渠道路由优先级</span>
+              <span class="section-hint"
+                >拖拽渠道行可调整同名模型的路由优先级</span
+              >
+            </div>
             <VueDraggable
-              :model-value="getSortedProfilesForModel(model)"
+              :model-value="getSortedProfilesForModel(activeEditingModel)"
               item-key="profile.id"
               handle=".drag-handle"
               ghost-class="drag-ghost"
               :animation="200"
               :force-fallback="true"
               :fallback-tolerance="3"
-              class="channel-list"
-              @update:model-value="
-                (newProfiles: any) => handleProfilesReorder(newProfiles)
-              "
+              class="dialog-channel-list"
+              @update:model-value="handleProfilesReorder"
             >
               <template #item="{ element, index }">
                 <div class="channel-row">
-                  <div class="drag-handle" v-if="model.profiles.length > 1">
+                  <div
+                    class="drag-handle"
+                    v-if="activeEditingModel.profiles.length > 1"
+                  >
                     <GripVertical :size="14" />
                   </div>
                   <div class="channel-info">
@@ -382,9 +425,35 @@ function typeIcon(type: MediaTaskType) {
               </template>
             </VueDraggable>
           </div>
+
+          <!-- 参数说明 -->
+          <div class="dialog-section">
+            <div class="section-title">
+              <el-icon><FileText /></el-icon>
+              <span>参数与提示词说明</span>
+              <span class="section-hint"
+                >写给 Agent 的模型参数补充说明，支持 Markdown</span
+              >
+            </div>
+            <el-input
+              :model-value="config.modelParamNotes[activeEditingModel.id] || ''"
+              type="textarea"
+              :rows="5"
+              resize="vertical"
+              placeholder="写给 Agent 的模型参数补充说明，支持 Markdown"
+              @update:model-value="
+                (value: string) => updateNote(activeEditingModel!.id, value)
+              "
+            />
+          </div>
         </div>
-      </div>
-    </div>
+      </template>
+      <template #footer>
+        <el-button type="primary" @click="isDetailDialogVisible = false"
+          >确定</el-button
+        >
+      </template>
+    </BaseDialog>
   </div>
 </template>
 
@@ -485,8 +554,8 @@ function typeIcon(type: MediaTaskType) {
 
 .model-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
 }
 
 .model-card {
@@ -497,26 +566,29 @@ function typeIcon(type: MediaTaskType) {
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
   overflow: hidden;
-  transition: border-color 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .model-card:hover {
   border-color: var(--el-color-primary-light-5);
+  box-shadow: var(--el-box-shadow-lighter);
 }
 
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  padding: 12px;
+  padding: 10px 12px;
   border-bottom: var(--border-width) solid var(--border-color);
-  background-color: rgba(var(--el-text-color-primary-rgb), 0.02);
+  background-color: rgba(var(--el-text-color-primary-rgb), 0.01);
 }
 
 .model-info {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
   flex: 1;
 }
@@ -528,7 +600,7 @@ function typeIcon(type: MediaTaskType) {
 }
 
 .model-name {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--el-text-color-primary);
   overflow: hidden;
@@ -537,7 +609,7 @@ function typeIcon(type: MediaTaskType) {
 }
 
 .model-id {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--el-text-color-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -553,13 +625,13 @@ function typeIcon(type: MediaTaskType) {
 .type-tags :deep(.el-tag__content) {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
 }
 
 .model-controls {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   margin-left: 8px;
 }
 
@@ -570,30 +642,127 @@ function typeIcon(type: MediaTaskType) {
   color: var(--el-text-color-secondary);
 }
 
-.note-editor {
-  padding: 10px 12px;
-  border-bottom: var(--border-width) solid var(--border-color);
-  background-color: rgba(var(--el-color-primary-rgb), 0.01);
+.note-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: rgba(var(--el-color-primary-rgb), 0.1);
+  color: var(--el-color-primary);
+}
+
+.note-icon {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.6;
+  }
 }
 
 .card-body {
-  padding: 12px;
+  padding: 10px 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  flex: 1;
+  gap: 6px;
 }
 
-.channel-list-title {
-  font-size: 12px;
+.breadcrumb-container {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.breadcrumb-title {
+  font-size: 11px;
   font-weight: 600;
   color: var(--el-text-color-secondary);
 }
 
-.channel-list {
+.channel-breadcrumb {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-height: 24px;
+}
+
+.breadcrumb-item {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background-color: rgba(var(--el-text-color-primary-rgb), 0.03);
+  border: var(--border-width) solid var(--border-color);
+  font-size: 11px;
+  color: var(--el-text-color-regular);
+  max-width: 120px;
+}
+
+.breadcrumb-item.is-first {
+  background-color: rgba(var(--el-color-success-rgb), 0.08);
+  border-color: rgba(var(--el-color-success-rgb), 0.2);
+  color: var(--el-color-success);
+  font-weight: 500;
+}
+
+.item-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.breadcrumb-separator {
+  display: flex;
+  align-items: center;
+  color: var(--el-text-color-placeholder);
+}
+
+/* 弹窗布局样式 */
+.dialog-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.dialog-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.section-hint {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--el-text-color-secondary);
+  margin-left: 4px;
+}
+
+.dialog-channel-list {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .channel-row {

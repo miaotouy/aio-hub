@@ -553,6 +553,48 @@ export const mediaGenParamsRules: ModelMetadataRule[] = [
     description: "Tencent Hunyuan Image 参数规则",
   },
 
+  // === Tongyi-MAI Z-Image / 造相 ===
+  {
+    id: "media-params-z-image",
+    matchType: "modelPrefix",
+    matchValue: "z[-_\\s]?image|造相\\s*Z",
+    useRegex: true,
+    properties: {
+      mediaGenParams: {
+        size: {
+          mode: "preset",
+          presets: [
+            { label: "1:1 (1024×1024)", value: "1024x1024" },
+            { label: "16:9 (1344×768)", value: "1344x768" },
+            { label: "9:16 (768×1344)", value: "768x1344" },
+            { label: "4:3 (1152×896)", value: "1152x896" },
+            { label: "3:4 (896×1152)", value: "896x1152" },
+            { label: "3:2 (1216×832)", value: "1216x832" },
+            { label: "2:3 (832×1216)", value: "832x1216" },
+          ],
+          default: "1024x1024",
+        },
+        negativePrompt: { supported: true },
+        seed: { supported: true, min: -1 },
+        steps: { supported: true, min: 1, max: 50, default: 8 },
+        guidanceScale: {
+          supported: true,
+          min: 0,
+          max: 20,
+          step: 0.5,
+          default: 0,
+        },
+        quality: { supported: false },
+        style: { supported: false },
+        background: { supported: false },
+        batchSize: { supported: true, min: 1, max: 4, default: 1 },
+      },
+    },
+    priority: 15,
+    enabled: true,
+    description: "造相 Z-Image / Z-Image-Turbo 生成参数规则",
+  },
+
   // === Z.AI GLM-Image ===
   {
     id: "media-params-glm-image",

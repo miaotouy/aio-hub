@@ -635,22 +635,25 @@ export const specificModelRules: ModelMetadataRule[] = [
     description: "模型前缀 qwen-image 元数据规则",
   },
 
-  // === Z AI 图像生成系列 ===
+  // === 造相 Z-Image 图像生成系列 ===
   {
     id: "model-z-image",
     matchType: "modelPrefix",
-    matchValue: "z-image",
+    matchValue: "z[-_\\s]?image|造相\\s*Z",
+    useRegex: true,
     properties: {
-      icon: `/model-icons/zai.svg`,
-      group: "Z AI",
+      icon: `/model-icons/qwen-color.svg`,
+      group: "Z-Image",
       capabilities: {
         imageGeneration: true,
+        iterativeRefinement: false,
       },
-      description: "Z AI 图像生成系列（Z-Image-Turbo，文生图开源模型）",
+      description:
+        "造相 Z-Image 图像生成系列（Tongyi-MAI 开源文生图模型家族，含 Z-Image-Turbo）",
     },
     priority: 30,
     enabled: true,
-    description: "模型前缀 z-image 元数据规则",
+    description: "模型正则 z[-_\\s]?image|造相\\s*Z 元数据规则",
   },
   {
     id: "model-glm-image-zai",
@@ -662,7 +665,7 @@ export const specificModelRules: ModelMetadataRule[] = [
       capabilities: {
         imageGeneration: true,
       },
-      description: "Z AI GLM-Image 图像生成模型",
+      description: "Z.AI GLM-Image 图像生成模型",
     },
     priority: 35,
     enabled: true,

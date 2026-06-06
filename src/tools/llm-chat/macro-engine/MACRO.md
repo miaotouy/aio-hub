@@ -50,12 +50,13 @@
 
 获取当前正在使用的模型信息。
 
-| 宏名称        | 说明                                      | 示例              |
-| :------------ | :---------------------------------------- | :---------------- |
-| `modelId`     | 完整模型 ID (如 `openai:gpt-4o`)          | `{{modelId}}`     |
-| `modelName`   | 模型显示名称 (如 `GPT-4o`)                | `{{modelName}}`   |
-| `profileName` | LLM 配置文件名称                          | `{{profileName}}` |
-| `provider`    | 模型提供商类型 (如 `openai`, `anthropic`) | `{{provider}}`    |
+| 宏名称         | 说明                                      | 示例               |
+| :------------- | :---------------------------------------- | :----------------- |
+| `modelId`      | 完整模型 ID (如 `openai:gpt-4o`)          | `{{modelId}}`      |
+| `modelName`    | 模型显示名称 (如 `GPT-4o`)                | `{{modelName}}`    |
+| `profileName`  | LLM 配置文件名称                          | `{{profileName}}`  |
+| `provider`     | 模型提供商类型 (如 `openai`, `anthropic`) | `{{provider}}`     |
+| `agentVersion` | 智能体的版本号 (`agentVersion` 字段)      | `{{agentVersion}}` |
 
 ### 3.3. 时间与日期宏
 
@@ -214,3 +215,4 @@
 1.  **配合正则替换**: 在正则替换规则中使用 `{{user}}` 或 `{{char}}` 可以编写更通用的清洗规则。
 2.  **动态角色设定**: 在智能体的 `scenario` 或 `description` 中使用时间宏，让角色感知当前的时间环境。
 3.  **跨预设消息传递**: 在排序靠前的预设消息中设置 `setvar`，在后续消息中根据该变量动态调整 Prompt 内容。利用物理排序控制变量流向。
+

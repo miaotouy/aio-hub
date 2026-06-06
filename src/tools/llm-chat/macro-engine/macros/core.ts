@@ -253,6 +253,20 @@ export function registerCoreMacros(registry: MacroRegistry): void {
       execute: (context) => context.providerType || "",
     },
 
+    // 智能体版本号
+    {
+      name: "agentVersion",
+      type: MacroType.VALUE,
+      phase: MacroPhase.SUBSTITUTE,
+      description: "当前智能体的版本号（agentVersion 字段）",
+      example: "{{agentVersion}}",
+      acceptsArgs: false,
+      priority: 150,
+      supported: true,
+      contextFree: false,
+      execute: (context) => context.agent?.agentVersion || "",
+    },
+
     // 视觉化输出指南
     {
       name: "visual_guideline",

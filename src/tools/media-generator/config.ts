@@ -86,6 +86,14 @@ export const DEFAULT_MEDIA_GENERATOR_SETTINGS: MediaGeneratorSettings = {
     timeout: 600000, // 默认 10 分钟
     maxRetries: 0, // 媒体生成通常不建议自动重试，因为很贵且慢
   },
+  agentConfig: {
+    visibilityMode: "blacklist",
+    blacklistModelIds: [],
+    whitelistModelIds: [],
+    fastModelIds: [],
+    profilePriority: [],
+    modelParamNotes: {},
+  },
 };
 
 /**

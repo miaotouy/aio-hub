@@ -64,6 +64,26 @@ export function useMediaGenPersistence(options: {
       settings.value = {
         ...DEFAULT_MEDIA_GENERATOR_SETTINGS,
         ...loadedSettings,
+        agentConfig: {
+          ...DEFAULT_MEDIA_GENERATOR_SETTINGS.agentConfig,
+          ...(loadedSettings as Partial<MediaGeneratorSettings> | null)
+            ?.agentConfig,
+          modelParamNotes: {
+            ...DEFAULT_MEDIA_GENERATOR_SETTINGS.agentConfig.modelParamNotes,
+            ...(loadedSettings as Partial<MediaGeneratorSettings> | null)
+              ?.agentConfig?.modelParamNotes,
+          },
+        },
+        requestSettings: {
+          ...DEFAULT_MEDIA_GENERATOR_SETTINGS.requestSettings,
+          ...(loadedSettings as Partial<MediaGeneratorSettings> | null)
+            ?.requestSettings,
+        },
+        translation: {
+          ...DEFAULT_MEDIA_GENERATOR_SETTINGS.translation,
+          ...(loadedSettings as Partial<MediaGeneratorSettings> | null)
+            ?.translation,
+        },
       };
 
       const { sessions: loadedIndexItems, currentSessionId: savedSessionId } =

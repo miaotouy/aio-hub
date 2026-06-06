@@ -6,17 +6,29 @@ import {
   DEFAULT_MEDIA_GENERATOR_SETTINGS,
 } from "../config";
 import SettingListRenderer from "@/components/common/SettingListRenderer.vue";
-import { RotateCcw } from "lucide-vue-next";
+import AgentIntegrationSettings from "./AgentIntegrationSettings.vue";
+import type { AgentIntegrationConfig } from "../types";
+import { Bot, RotateCcw } from "lucide-vue-next";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
 
 const store = useMediaGenStore();
 const logger = createModuleLogger("media-generator/settings");
-const activeCollapse = ref(mediaGeneratorSettingsConfig.map((s) => s.title));
+const activeCollapse = ref([
+  ...mediaGeneratorSettingsConfig.map((s) => s.title),
+  "Agent 集成",
+]);
 
 const handleUpdate = (newSettings: any) => {
   store.settings = newSettings;
+};
+
+const handleAgentConfigUpdate = (agentConfig: AgentIntegrationConfig) => {
+  store.settings = {
+    ...store.settings,
+    agentConfig,
+  };
 };
 
 const handleReset = async () => {
@@ -28,9 +40,10 @@ const handleReset = async () => {
         confirmButtonText: "确定重置",
         cancelButtonText: "取消",
         type: "warning",
+        lockScroll: false,
       }
     );
-    store.settings = { ...DEFAULT_MEDIA_GENERATOR_SETTINGS };
+    store.settings = JSON.parse(JSON.stringify(DEFAULT_MEDIA_GENERATOR_SETTINGS));
     customMessage.success("设置已重置为默认值");
     logger.info("用户重置了全局设置");
   } catch {
@@ -77,6 +90,21 @@ const handleReset = async () => {
               :items="section.items"
               :settings="store.settings"
               @update:settings="handleUpdate"
+            />
+          </div>
+        </el-collapse-item>
+
+        <el-collapse-item name="Agent 集成">
+          <template #title>
+            <div class="collapse-title">
+              <el-icon><Bot /></el-icon>
+              <span>Agent 集成</span>
+            </div>
+          </template>
+          <div class="section-content">
+            <AgentIntegrationSettings
+              :config="store.settings.agentConfig"
+              @update="handleAgentConfigUpdate"
             />
           </div>
         </el-collapse-item>

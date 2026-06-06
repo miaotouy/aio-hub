@@ -163,6 +163,24 @@ export interface LlmTaskConfig {
 }
 
 /**
+ * Agent 调用媒体生成时的可见性与路由配置
+ */
+export interface AgentIntegrationConfig {
+  /** 可见性模式：blacklist = 自动发现并排除指定模型；whitelist = 仅暴露指定模型 */
+  visibilityMode: "blacklist" | "whitelist";
+  /** 黑名单模式下，对 Agent 隐藏的 modelId 列表 */
+  blacklistModelIds: string[];
+  /** 白名单模式下，对 Agent 可见的 modelId 列表 */
+  whitelistModelIds: string[];
+  /** 标记为快速同步调用的 modelId 列表 */
+  fastModelIds: string[];
+  /** 同 modelId 多渠道可用时的 profileId 路由优先级 */
+  profilePriority: string[];
+  /** 追加到 Agent 方法描述末尾的模型参数说明，key 为 modelId */
+  modelParamNotes: Record<string, string>;
+}
+
+/**
  * 媒体生成器全局设置
  */
 export interface MediaGeneratorSettings {
@@ -195,6 +213,8 @@ export interface MediaGeneratorSettings {
     /** 最大重试次数 */
     maxRetries: number;
   };
+  /** Agent 集成配置 */
+  agentConfig: AgentIntegrationConfig;
 }
 
 /**

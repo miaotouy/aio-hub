@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_METADATA_RULES,
   getMatchedModelProperties,
   getMatchedRuleChain,
 } from "../model-metadata";
@@ -67,6 +68,47 @@ describe("model-metadata rule chain", () => {
     expect(finalProperties).toEqual({
       icon: "/model-icons/gpt.svg",
       group: "High",
+    });
+  });
+});
+
+describe("model-metadata presets", () => {
+  it("applies Gemma 4 family metadata across common model id forms", () => {
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "gemma-4")
+    ).toMatchObject({
+      icon: "/model-icons/gemma-color.svg",
+      group: "Gemma 4",
+      tokenizer: "gemini",
+      contextLength: 131072,
+      capabilities: {
+        vision: true,
+        video: true,
+        toolUse: true,
+        thinking: true,
+        thinkingConfigType: "switch",
+        jsonOutput: true,
+      },
+    });
+
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "google/gemma-4-12b")
+    ).toMatchObject({
+      group: "Gemma 4",
+      contextLength: 262144,
+      capabilities: {
+        audio: true,
+      },
+    });
+
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "gemma4:e4b")
+    ).toMatchObject({
+      group: "Gemma 4",
+      contextLength: 131072,
+      capabilities: {
+        audio: true,
+      },
     });
   });
 });

@@ -555,6 +555,60 @@ export const googleModelRules: ModelMetadataRule[] = [
 
   // === Gemma 系列 ===
   {
+    id: "model-prefix-gemma4",
+    matchType: "modelPrefix",
+    matchValue: "gemma[-_]?4",
+    useRegex: true,
+    properties: {
+      icon: `/model-icons/gemma-color.svg`,
+      group: "Gemma 4",
+      tokenizer: "gemini",
+      contextLength: 131072,
+      capabilities: {
+        vision: true,
+        video: true,
+        toolUse: true,
+        thinking: true,
+        thinkingConfigType: "switch",
+        jsonOutput: true,
+      },
+      releaseDate: "2026-04",
+      description:
+        "Gemma 4 系列开放权重多模态模型，面向端侧和本地 agentic 应用，支持视觉、视频理解、工具调用和可选思考模式",
+    },
+    priority: 25,
+    enabled: true,
+    description: "模型正则 gemma[-_]?4 元数据规则",
+  },
+  {
+    id: "model-gemma4-large-context",
+    matchType: "modelPrefix",
+    matchValue: "gemma[-_]?4.*(?:12b|26b|31b)",
+    useRegex: true,
+    properties: {
+      contextLength: 262144,
+      description:
+        "Gemma 4 大上下文模型，支持最高 256K token 上下文，适合长文档、代码库和多步 agentic 任务",
+    },
+    priority: 26,
+    enabled: true,
+    description: "模型正则 gemma[-_]?4.*(?:12b|26b|31b) 元数据规则",
+  },
+  {
+    id: "model-gemma4-audio",
+    matchType: "modelPrefix",
+    matchValue: "gemma[-_]?4.*(?:e2b|e4b|12b)",
+    useRegex: true,
+    properties: {
+      capabilities: {
+        audio: true,
+      },
+    },
+    priority: 26,
+    enabled: true,
+    description: "模型正则 gemma[-_]?4.*(?:e2b|e4b|12b) 音频能力规则",
+  },
+  {
     id: "model-prefix-gemma3",
     matchType: "modelPrefix",
     matchValue: "gemma3",

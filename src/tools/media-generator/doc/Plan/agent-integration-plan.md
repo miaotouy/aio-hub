@@ -1,155 +1,204 @@
 # 媒体生成中心 Agent 调用与双轨任务设计方案
 
-> 状态: Draft | 2026-06-06（修订 2026-06-06：新增 Agent 集成配置设计）
-
-## 1. 设计目标与原则
-
-1. **双轨任务同步（异步模式）**：媒体生成通常是长耗时任务（尤其是视频和音频，或高质量图像），必须设计为**异步任务模式 (`executionMode: 'async'`)**。任务启动后，既要登记在 `tool-calling` 的全局异步任务池中，也要登记在 `media-generator` 自身的任务池中，确保用户在媒体生成中心 UI 界面和聊天界面都能实时看到进度。
-2. **快速同步响应（同步模式）**：对于支持快速出图的模型（如 `z-image-turbo`、`sdxl-turbo` 等几秒内即可完成的快速模型），提供**同步任务模式 (`executionMode: 'sync'`)**。Agent 调用后直接等待其生成完毕并返回资产路径，无需创建后台异步任务，极大提升交互流畅度。
-3. **参数自适应与发现**：Agent 必须能够动态查询当前系统中有哪些可用的媒体生成模型（如 DALL-E 3, Midjourney, Kling, Suno, z-image-turbo 等）以及它们支持的参数（尺寸、质量、步数等），避免瞎猜参数。
-4. **资产闭环展示**：生成完成后，系统将媒体文件导入资产管理器，返回带有 `appdata://` 协议的资产路径。Agent 将基于全局视觉指南（`visualGuidelinePresets`）自主决定包装与展示方式，从而在聊天气泡中直接渲染出生成的图片、视频或音频。
+> 状态: Draft（修订版） | 原稿 2026-06-06 | 修订 2026-06-06：采用"动态独立方法"新架构取代原三方法方案
 
 ---
 
-## 2. Agent 方法设计 (API Specification)
+## 0. 架构决策：为什么改用"动态独立方法"
 
-在 [`media-generator.registry.ts`](../../media-generator.registry.ts) 中实现 `getMetadata()`，向 Agent 暴露以下三个核心方法：
+### 原方案的问题
 
-### 方法一：`getAvailableModels`
+原计划暴露三个固定方法：`getAvailableModels` + `generateMedia` + `generateMediaAsync`。
 
-| 字段              | 内容                                                            |
-| ----------------- | --------------------------------------------------------------- |
-| **用途**          | 让 Agent 查询当前系统启用的、支持媒体生成的模型列表及其参数规则 |
-| **执行模式**      | `sync`                                                          |
-| **agentCallable** | `true`                                                          |
+这要求 Agent 必须：
 
-**参数：**
+1. **先调用 `getAvailableModels`** 查询当前可用的模型列表
+2. **解析返回结果**，从中找到合适的 `modelId` 和 `profileId`
+3. **再调用 `generateMedia` 或 `generateMediaAsync`**，将 `modelId`/`profileId` 作为 string 参数传入
 
-| 参数名 | 类型   | 必填 | 说明                                                                 |
-| ------ | ------ | ---- | -------------------------------------------------------------------- |
-| `type` | string | 否   | 媒体类型过滤，可选值 `"image" \| "video" \| "audio"`。不传则返回全部 |
+问题在于：
 
-**返回值：** JSON 字符串，包含可用模型列表及每个模型支持的参数 Schema 和/或文字说明。
+- **两步调用**：增加 token 消耗和推理延迟
+- **参数易出错**：`modelId` 是 string，Agent 很容易将其记错或瞎猜，特别是同名模型存在于多个 profile 时
+- **上下文割裂**：模型的参数 Schema（如 `size` 预设值）在第一步查到，但到第二步调用时可能已脱离上下文
 
-- `params`：从模型元数据 `mediaGenParams` 自动生成的结构化参数约束（有则包含，用于参数合法性过滤）。
-- `paramNotes`：用户在 Agent 集成设置中手写的 Markdown 参数说明文本（有则包含，供 Agent 直接阅读理解）。
+### 新方案：动态独立方法
 
-两者独立，可以并存：前者管机器校验，后者管 Agent 理解。
+**核心思想**：把每个启用的模型直接映射为 `registry` 上的一个独立可调用方法。
+
+`getMetadata()` 不再返回固定的三个方法，而是根据当前 Agent 集成设置，**动态生成**对应的方法列表：
+
+```
+启用了 dall-e-3  → 方法 generate_image_dall_e_3(prompt, size?, quality?, style?)
+启用了 z-image-turbo → 方法 generate_image_z_image_turbo(prompt, size?)
+启用了 kling-v1.6 → 方法 generate_video_kling_v1_6(prompt, duration?, aspect_ratio?)
+```
+
+Agent 获取工具定义时直接看到这些方法，**一步即可调用，无需查列表**。每个方法的参数已经是该模型真正支持的参数，无需 `modelId`/`profileId`。
+
+### 技术可行性验证
+
+查阅 [`src/services/types.ts`](../../../../../services/types.ts)：
+
+- `ToolRegistry` 有 `[key: string]: any` 索引签名 → 允许在实例上动态挂载方法
+- `getMetadata()` 是运行时调用（非静态）→ 每次均可返回不同的方法列表
+- 执行器双重校验：`toolInstance[methodName]` 存在 **且** `getMetadata()` 中 `agentCallable: true` → 完全支持动态方法
+
+---
+
+## 1. 设计目标与原则（修订）
+
+1. **Agent 零查询直调**：Agent 获取工具定义时已知所有可用模型及其参数，调用一次即可生成媒体。
+2. **参数精准无歧义**：每个方法的参数直接来自对应模型的 `mediaGenParams`，不存在"传错 modelId"的可能。
+3. **同步/异步自适应**：快速模型（`isFast`）映射为 `executionMode: 'sync'`，慢速模型映射为 `executionMode: 'async'`，无需 Agent 手动区分两个不同的方法。
+4. **双轨任务同步**：异步方法在内部同时向 `media-generator` 任务池和 `tool-calling` 任务池登记，UI 和聊天界面均可实时查看进度。
+5. **资产闭环展示**：生成完成后导入资产管理器，返回 `appdata://` 协议路径，Agent 自主决定展示方式。
+
+---
+
+## 2. 动态方法设计规范
+
+### 2.1 方法命名规则
+
+```
+generate_{type}_{sanitizedModelId}
+```
+
+- `type`：`image` | `video` | `audio`
+- `sanitizedModelId`：将 modelId 中的 `-`、`.`、空格等非字母数字字符全部替换为 `_`，并转为小写
+
+若同一 `modelId` 存在于多个 profile，追加 profile 标识以避免冲突：
+
+```
+generate_image_dall_e_3           // 只有一个 openai profile 使用 dall-e-3 时
+generate_image_dall_e_3_openai2   // 有多个 profile 都配置了 dall-e-3 时
+```
+
+### 2.2 动态参数生成
+
+每个方法的 `parameters` 包含：
+
+| 参数         | 来源                                   | 说明                                                   |
+| ------------ | -------------------------------------- | ------------------------------------------------------ |
+| `prompt`     | 固定                                   | 必填，提示词                                           |
+| 模型特有参数 | `mediaGenParams` → `MethodParameter[]` | 自动转换（如 `size` 的 preset 列表写入 `description`） |
+
+`paramNotes`（用户手写的 Markdown 说明）合并写入方法的 `description` 尾部，供 Agent 阅读。
+
+### 2.3 示例：生成的方法元数据
 
 ```json
 {
-  "models": [
+  "name": "generate_image_dall_e_3",
+  "displayName": "生成图片 (DALL-E 3 · OpenAI)",
+  "description": "使用 DALL-E 3 生成图片。\n\n**参数说明**\n- quality: 图像质量，可选 `standard`（默认）或 `hd`\n- style: 风格，可选 `vivid` 或 `natural`",
+  "parameters": [
     {
-      "profileId": "profile-openai-01",
-      "profileName": "OpenAI",
-      "modelId": "dall-e-3",
-      "modelName": "DALL-E 3",
-      "type": "image",
-      "params": {
-        "size": {
-          "mode": "preset",
-          "default": "1024x1024",
-          "presets": [
-            { "label": "正方形 1024×1024", "value": "1024x1024" },
-            { "label": "横版 1792×1024", "value": "1792x1024" },
-            { "label": "竖版 1024×1792", "value": "1024x1792" }
-          ]
-        }
-      },
-      "paramNotes": "- **quality**: 图像质量，可选 `standard`（默认）或 `hd`\n- **style**: 风格，可选 `vivid` 或 `natural`"
+      "name": "prompt",
+      "type": "string",
+      "required": true,
+      "description": "提示词"
     },
     {
-      "profileId": "profile-siliconflow-01",
-      "profileName": "SiliconFlow",
-      "modelId": "z-image-turbo",
-      "modelName": "Z-Image Turbo",
-      "type": "image",
-      "isFast": true,
-      "params": {
-        "size": {
-          "mode": "preset",
-          "default": "1024x1024",
-          "presets": [{ "label": "正方形 1024×1024", "value": "1024x1024" }]
-        }
-      }
+      "name": "size",
+      "type": "string",
+      "required": false,
+      "description": "尺寸。可选值: 1024x1024（默认, 正方形）| 1792x1024（横版）| 1024x1792（竖版）",
+      "defaultValue": "1024x1024"
+    },
+    {
+      "name": "quality",
+      "type": "string",
+      "required": false,
+      "description": "质量: standard | hd",
+      "defaultValue": "standard"
+    },
+    {
+      "name": "style",
+      "type": "string",
+      "required": false,
+      "description": "风格: vivid | natural",
+      "defaultValue": "vivid"
     }
-  ]
+  ],
+  "returnType": "Promise<string>",
+  "agentCallable": true,
+  "executionMode": "async",
+  "asyncConfig": {
+    "hasProgress": true,
+    "cancellable": true,
+    "estimatedDuration": 30
+  }
+}
+```
+
+快速模型（`isFast: true`）：
+
+```json
+{
+  "name": "generate_image_z_image_turbo",
+  "displayName": "生成图片 (Z-Image Turbo · SiliconFlow)",
+  "description": "使用 Z-Image Turbo 快速生成图片（通常 5 秒内完成）。",
+  "parameters": [
+    {
+      "name": "prompt",
+      "type": "string",
+      "required": true,
+      "description": "提示词"
+    },
+    {
+      "name": "size",
+      "type": "string",
+      "required": false,
+      "description": "尺寸。可选值: 1024x1024",
+      "defaultValue": "1024x1024"
+    }
+  ],
+  "returnType": "string",
+  "agentCallable": true,
+  "executionMode": "sync"
 }
 ```
 
 ---
 
-### 方法二：`generateMedia` (同步快速生成)
+## 3. 核心数据流
 
-| 字段              | 内容                                                                |
-| ----------------- | ------------------------------------------------------------------- |
-| **用途**          | 触发图片、视频或音频的快速同步生成（适用于几秒内出图的 Turbo 模型） |
-| **执行模式**      | `sync`（直接等待接口返回，适合快速响应）                            |
-| **agentCallable** | `true`                                                              |
+### 3.1 getMetadata() 动态构建流程
 
-**参数：**
+```mermaid
+flowchart TD
+    GM[getMetadata 被调用] --> RS[读取 agentIntegrationConfig]
+    RS --> BL{visibilityMode?}
+    BL -- blacklist --> SCAN[遍历所有 profile 的模型\n过滤具有生成能力的\n排除黑名单]
+    BL -- whitelist --> WL[直接使用白名单列表\n补充 profileName 等信息]
+    SCAN & WL --> BUILD[for each 可见模型:\n1. 生成方法名\n2. 从 mediaGenParams 构建 parameters\n3. 追加 paramNotes 到 description\n4. 根据 isFast 决定 executionMode\n5. 在实例上绑定动态方法\n6. 加入 methods 数组]
+    BUILD --> RET[返回 ServiceMetadata\n methods = 所有动态方法]
+```
 
-| 参数名      | 类型   | 必填 | 说明                                                |
-| ----------- | ------ | ---- | --------------------------------------------------- |
-| `prompt`    | string | 是   | 提示词。支持中文，系统会按设置决定是否在发送前翻译  |
-| `type`      | string | 是   | 媒体类型，可选值 `"image" \| "video" \| "audio"`    |
-| `modelId`   | string | 否   | 目标模型 ID。不传则使用当前会话或系统默认配置的模型 |
-| `profileId` | string | 否   | 渠道配置 ID。不传则使用当前会话或系统默认配置的渠道 |
-| `params`    | string | 否   | JSON 格式的额外参数，如 `{"size":"1024x1024"}`      |
-
-**返回值：** 生成完成后的资产 JSON 字符串（包含 `appdata://` 路径）。
-
----
-
-### 方法三：`generateMediaAsync` (异步长耗时生成)
-
-| 字段              | 内容                                                              |
-| ----------------- | ----------------------------------------------------------------- |
-| **用途**          | 触发图片、视频或音频的长耗时异步生成                              |
-| **执行模式**      | `async`（长耗时，支持进度上报、取消、重启自愈）                   |
-| **agentCallable** | `true`                                                            |
-| **asyncConfig**   | `{ hasProgress: true, cancellable: true, estimatedDuration: 60 }` |
-
-**参数：**
-
-| 参数名      | 类型   | 必填 | 说明                                                          |
-| ----------- | ------ | ---- | ------------------------------------------------------------- |
-| `prompt`    | string | 是   | 提示词。支持中文，系统会按设置决定是否在发送前翻译            |
-| `type`      | string | 是   | 媒体类型，可选值 `"image" \| "video" \| "audio"`              |
-| `modelId`   | string | 否   | 目标模型 ID。不传则使用当前会话或系统默认配置的模型           |
-| `profileId` | string | 否   | 渠道配置 ID。不传则使用当前会话或系统默认配置的渠道           |
-| `params`    | string | 否   | JSON 格式的额外参数，如 `{"size":"1024x1024","quality":"hd"}` |
-
-**返回值：** 立即返回任务 ID 信息的 JSON 字符串。
-
----
-
-## 3. 核心数据流与双轨同步机制
-
-### 3.1 同步快速生成数据流 (`generateMedia`)
+### 3.2 同步快速生成数据流（以 `generate_image_z_image_turbo` 为例）
 
 ```mermaid
 sequenceDiagram
     participant Agent as AI Agent (llm-chat)
-    participant TC as tool-calling (TaskManager)
+    participant TC as tool-calling (Executor)
     participant Reg as MediaGeneratorRegistry
     participant Mgr as useMediaGenerationManager
     participant API as 媒体生成 API
 
-    Agent->>TC: 调用 generateMedia(prompt, type, ...)
-    TC->>Reg: 执行 generateMedia(args, toolContext)
-    Note over Reg: 1. 解析参数，合并默认值
+    Agent->>TC: 调用 media-generator.generate_image_z_image_turbo
+    TC->>Reg: Reg["generate_image_z_image_turbo"](args, toolContext)
+    Note over Reg: 从闭包中已绑定 profileId + modelId\n无需 Agent 传入
     Reg->>Mgr: executeDirectGeneration(options)
-    Mgr->>API: 发起同步请求
-    API-->>Mgr: 返回生成媒体的 Bytes 数据
+    Mgr->>API: 同步请求
+    API-->>Mgr: Bytes 数据
     Mgr->>Mgr: importAssetFromBytes → Asset
-    Mgr-->>Reg: 返回生成的 Asset[]
-    Note over Reg: 2. 构造精简的资产路径 JSON
-    Reg-->>TC: 返回最终资产 JSON（仅含资产路径）
-    TC-->>Agent: 返回最终资产 JSON
+    Mgr-->>Reg: Asset[]
+    Reg-->>TC: 资产 JSON 字符串
+    TC-->>Agent: 返回资产路径
 ```
 
-### 3.2 异步长耗时生成数据流 (`generateMediaAsync`)
+### 3.3 异步长耗时生成数据流（以 `generate_image_dall_e_3` 为例）
 
 ```mermaid
 sequenceDiagram
@@ -160,227 +209,204 @@ sequenceDiagram
     participant Mgr as useMediaGenerationManager
     participant API as 媒体生成 API
 
-    Agent->>TC: 调用 generateMediaAsync(prompt, type, ...)
+    Agent->>TC: 调用 media-generator.generate_image_dall_e_3
     TC->>TC: 创建异步任务 (taskId: task_xxx)
-    TC-->>Agent: 立即返回 {taskId: "task_xxx", status: "pending"}
+    TC-->>Agent: 立即返回 {taskId, status: "pending"}
 
-    TC->>Reg: 执行 generateMediaAsync(args, toolContext)
-    Note over Reg: 1. 解析参数，合并默认值
-    Note over Reg: 2. buildTask，强制 task.id = toolContext.taskId
-    Reg->>Store: addTask(task)（双轨登记）
-
+    TC->>Reg: Reg["generate_image_dall_e_3"](args, toolContext)
+    Note over Reg: profileId/modelId 已绑定在闭包中
+    Reg->>Store: addTask(task)（双轨登记，task.id = toolContext.taskId）
     Reg->>Mgr: executeGeneration(task)
 
-    loop 生成中 (30s ~ 5min)
-        API-->>Mgr: 进度/预览图更新
-        Mgr->>Store: updateTaskStatus(progress, statusText)
-        Store-->>Reg: watch 触发进度同步
+    loop 生成中
+        API-->>Mgr: 进度更新
+        Mgr->>Store: updateTaskStatus(progress)
+        Store-->>Reg: watch 触发
         Reg->>TC: toolContext.reportStatus(statusText, progress)
     end
 
-    Mgr->>Mgr: importAssetFromBytes → Asset
-    Mgr-->>Reg: 生成完成，返回 Asset[]
-
-    Note over Reg: 3. 设置 task.resultAssetIds 绑定资产
-    Note over Reg: 4. 构造精简的资产路径 JSON
-    Reg-->>TC: 任务完成
-    TC-->>Agent: 返回最终资产 JSON（仅含资产路径）
+    Mgr-->>Reg: 完成，返回 Asset[]
+    Note over Reg: task.resultAssetIds = assets.map(a => a.id)
+    Reg-->>TC: 资产 JSON 字符串
+    TC-->>Agent: 返回资产路径
 ```
-
-### 双轨同步关键点：
-
-1. **ID 绑定**：`generateMediaAsync` 内部，新构建的 `MediaTask.id` 强制设为 `toolContext.taskId`，使两端任务池 ID 完全一致。
-2. **进度桥接**：通过 `watch` 监听 `useMediaTaskManager` 中该任务的 `progress` 和 `statusText` 变化，实时调用 `toolContext.reportStatus`。
-3. **资产绑定**：异步任务完成时，必须将生成的资产 ID 写入 `task.resultAssetIds`，以便 `async-task-processor` 自动通过 `sharedData` 传递给 `asset-resolver` 进行会话附件绑定。
-4. **生命周期一致**：任务完成（completed/error）时，停止监听，向 `tool-calling` 返回最终结果；任务取消时，将 `AbortError` 向上抛出，由 `tool-calling` 框架处理。
 
 ---
 
-## 4. 资产展示与回调提示设计
+## 4. Agent 集成配置设计
 
-### 任务完成时的返回格式：
+**文件**：`media-generator/types/` 或 `media-generator/composables/useMediaGenSettings.ts`（扩展现有设置类型）
+
+```typescript
+interface AgentIntegrationConfig {
+  /** 可见性模式：blacklist（默认，自动发现 + 排除指定项）或 whitelist（仅显示指定项） */
+  visibilityMode: "blacklist" | "whitelist";
+  /** 黑名单（modelCombo 格式：profileId:modelId） */
+  blacklistModelList: string[];
+  /** 白名单（modelCombo 格式：profileId:modelId） */
+  whitelistModelList: string[];
+  /** 参数说明覆盖，key=modelCombo，value=Markdown 文本（追加到方法 description 末尾）*/
+  modelParamNotes: Record<string, string>; /**
+   * 快速模型列表（modelCombo 格式：profileId:modelId）
+   * 标记为快速的模型将生成 executionMode: 'sync' 的方法（几秒内完成，直接等待结果）。
+   * 注意：系统无法自动判断模型速度，需用户手动标注。
+   */
+  fastModelList: string[];
+}
+```
+
+**modelCombo 格式**：`profileId:modelId`，与其他配置保持一致。例如 `llm-profile-1717643600-abc123:dall-e-3`。
+
+此配置控制哪些模型会在 `getMetadata()` 中生成对应的独立方法。
+
+**UI 位置**：媒体生成中心设置页（`MediaSettings.vue`）新增"Agent 集成"折叠分区，包含：
+
+- 可见性模式切换（blacklist / whitelist）
+- 模型多选列表（编辑黑/白名单）
+- 快速模型标注列表（编辑 fastModelList）
+- 参数说明编辑区（选模型后写 Markdown）
+
+---
+
+## 5. 任务完成时的返回格式
+
+与原计划一致：
 
 ```json
 {
   "success": true,
-  "taskId": "task_1717643600_abc123", // 同步版本可不含 taskId 或为空
+  "taskId": "task_1717643600_abc123",
   "type": "image",
   "prompt": "一个在霓虹灯下的赛博朋克城市",
   "assets": ["appdata://assets/generated-task_xxx-0.png"]
 }
 ```
 
-### 设计依据：
-
-- **职责分离**：Tool 只负责返回最核心的资产路径（`appdata://` 协议路径）。
-- **Agent 自主渲染**：Agent 已经拥有全局视觉指南（`visualGuidelinePresets`）的知识，知道如何使用 Markdown 渲染图片、使用 `<audio>` 组件渲染音频，或使用 HTML/CSS 包装视频。Agent 会根据返回的资产路径自主发挥，包装成最优雅的卡片或原生组件。
-- **资产解析闭环**：通过在任务完成时设置 `task.resultAssetIds`（异步）或直接在同步返回中由 Agent 识别，`async-task-processor` 或 `tool-calling` 框架会自动将资产注入会话上下文，确保资产管理器和聊天附件系统完美联动。
+同步版本 `taskId` 可省略或为空。
 
 ---
 
-## 5. 实施计划
+## 6. 实施计划
 
 ### 步骤零：Agent 集成配置扩展
 
-**背景**：`getAvailableModels` 的数据源不能依赖"元数据是否有 `mediaGenParams`"来隐式决定——元数据的填充质量参差不齐，用户无法感知哪些模型对 Agent 可见，也无法阻止 Agent 调用不希望暴露的模型。需要在媒体生成中心设置里提供显式的可见性配置。
+- 在 `MediaGeneratorSettings`（或对应 Store 类型）中合并 `AgentIntegrationConfig`
+- 在 `MediaSettings.vue` 新增"Agent 集成"折叠分区（可见性模式切换 + 模型多选列表 + 参数说明编辑区）
 
-**文件**：`media-generator/types/` 或 `media-generator/composables/useMediaGenSettings.ts`（扩展现有设置类型）
+### 步骤一：核心工具函数——构建动态方法
 
-```typescript
-// 新增配置结构（合并进 MediaGeneratorSettings）
-interface AgentIntegrationConfig {
-  /** 可见性模式：blacklist（默认，自动发现 + 排除指定项）或 whitelist（仅显示指定项） */
-  visibilityMode: "blacklist" | "whitelist";
-  /** 黑名单模型列表（modelCombo 格式：profileId:modelId） */
-  blacklistModelList: string[];
-  /** 白名单模型列表（modelCombo 格式：profileId:modelId） */
-  whitelistModelList: string[];
-  /** 参数说明覆盖，key=modelCombo，value=Markdown 文本（叠加到 params Schema 上层）*/
-  modelParamNotes: Record<string, string>;
-}
+**文件**：新建 `media-generator/services/buildAgentMethods.ts`
+
+```
+输入: 可见模型列表（经 agentIntegrationConfig 过滤后的 VisibleModel[]）
+输出: { methods: MethodMetadata[], handlers: Record<string, Function> }
+
+VisibleModel 结构（内部中间类型）：
+  profile: LlmProfile        // 来自 useLlmProfiles().profiles
+  model: LlmModelInfo        // profile.models[i]
+  mediaType: 'image' | 'video' | 'audio'  // 由 capabilities 决定（见步骤二）
+  isFast: boolean            // 来自 agentConfig.fastModelList
+  paramNotes?: string        // 来自 agentConfig.modelParamNotes[modelCombo]
+
+1. sanitizeId(id): string
+   - 将非字母数字字符替换为 _，转小写，合并连续 _
+
+2. buildMethodName(type, modelId, profileSuffix?): string
+   - generate_{type}_{sanitizeId(modelId)}[_{sanitizeId(profileSuffix)}]
+   - 冲突检测：同 modelId 跨多 profile 时追加 profile 标识
+
+3. buildParameters(model, mediaGenParams): MethodParameter[]
+   - 固定 prompt（必填）
+   - 从 getMatchedProperties(model.id, profile.type)?.mediaGenParams 获取规则
+     （profile.type 为 ProviderType，如 'openai'、'siliconflow' 等）
+   - size.mode='preset' → description 列举 presets；size.mode='free' → description 描述约束
+   - aspectRatioMode → 参数名 aspect_ratio，description 列举 ratios
+   - quality/style/negativePrompt/seed/steps/guidanceScale/background 等：
+     supported: true → 生成对应 MethodParameter；supported: false → 跳过
+
+4. buildDescription(profile, model, mediaType, isFast, paramNotes?): string
+   - 基础描述：`使用 {model.name} 生成{mediaType中文}（来自 {profile.name}）{isFast ? '，快速模式，通常几秒完成' : ''}`
+   - 若有 paramNotes：追加 `\n\n**额外说明**\n{paramNotes}`
+
+5. buildHandler(profile, model, isFast): Function
+   - 闭包捕获 profile.id 和 model.id
+   - isFast → 返回同步 handler（调用 executeDirectGeneration）
+   - 否则 → 返回异步 handler（调用双轨异步生成流程，见 §3.3）
 ```
 
-**UI 位置**：媒体生成中心设置页（`MediaSettings.vue`）新增"Agent 集成"折叠分区。
-
-**UI 内容**：
-
-| 控件           | 功能                                                                                                     |
-| -------------- | -------------------------------------------------------------------------------------------------------- |
-| Radio/Toggle   | 切换黑名单/白名单模式（仅切换模式状态，两个名单数据各自独立保留，确保内容完好、随意切换）                |
-| 模型多选列表   | 根据当前模式，从已配置渠道中选择要排除/包含的模型（编辑对应的 blacklistModelList 或 whitelistModelList） |
-| 参数说明编辑区 | 选择一个模型后，展示 Markdown textarea 供用户填写参数覆盖说明                                            |
-
-**黑名单模式语义（默认推荐）**：自动发现所有具有图像/视频/音频生成能力（`capabilities.imageGeneration/videoGeneration/audioGeneration` 为 true，或有 `mediaGenParams`）的模型，排除 `blacklistModelList` 中指定的项。新增模型自动对 Agent 可见，零维护。
-
-**白名单模式语义**：仅向 Agent 暴露 `whitelistModelList` 中的模型。适合需要严格控制调用权限（如防止 Agent 意外使用高成本模型）的场景。
-
----
-
-### 步骤一：`getAvailableModels` 实现
+### 步骤二：`getMetadata()` 动态实现
 
 **文件**：[`media-generator.registry.ts`](../../media-generator.registry.ts)
 
 ```
-1. 读取 useMediaGenStore().settings.agentConfig（visibilityMode / blacklistModelList / whitelistModelList / modelParamNotes）
-2. 根据模式构建候选模型列表：
-   - blacklist 模式：遍历 useLlmProfiles().profiles 的所有模型
-       过滤条件：capabilities.imageGeneration/videoGeneration/audioGeneration 为 true，或有 mediaGenParams
-       排除 blacklistModelList 中的 modelCombo
-   - whitelist 模式：
-       直接以 whitelistModelList 的 modelCombo 作为候选
-       从 useLlmProfiles 补充 profileName 等信息
-3. 若传入 type 参数，根据模型能力类型进行二次过滤
-4. 对每个候选模型：
-   - 从 useModelMetadata().getMatchedProperties(modelId) 读取 mediaGenParams → params（有则包含）
-   - 从 modelParamNotes[modelCombo] 读取覆盖文本 → paramNotes（有则包含）
-5. 格式化并返回 JSON
+1. 读取 agentConfig = useMediaGenStore().settings.agentConfig
+2. 构建候选模型列表：
+   a. blacklist 模式：遍历 useLlmProfiles().enabledProfiles.value
+        遍历 profile.models
+        过滤条件（满足其一）：
+          - model.capabilities?.imageGeneration === true → mediaType = 'image'
+          - model.capabilities?.videoGeneration === true → mediaType = 'video'
+          - model.capabilities?.audioGeneration === true或 model.capabilities?.musicGeneration === true → mediaType = 'audio'
+        排除 modelCombo（`${profile.id}:${model.id}`）在 blacklistModelList 中的项
+   b. whitelist 模式：
+      遍历 agentConfig.whitelistModelList（modelCombo 格式）
+      通过 getProfileById(profileId) 补充 profile 信息
+      通过 profile.models.find(m => m.id === modelId) 获取 model 信息
+      根据 model.capabilities 确定 mediaType
+3. 对每个候选，查 agentConfig.fastModelList 确定 isFast
+4. 调用 buildAgentMethods(candidates) 获取 { methods, handlers }
+5. 将 handlers 绑定到 this（覆盖旧绑定）
+6. 返回 { methods }
 ```
 
-### 步骤二：`generateMedia` (同步快速生成) 实现
+**注意**：`getMetadata()` 被调用时需同步更新实例上的动态方法绑定，确保执行器能找到对应的处理函数。
+
+### 步骤三：缓存失效联动
 
 **文件**：[`media-generator.registry.ts`](../../media-generator.registry.ts)
 
-```
-1. 解析 params JSON 字符串（容错：解析失败则使用空对象）
-2. 读取 modelId / profileId：
-   - 若未传入，从 useMediaGenStore().currentConfig.types[type].modelCombo 解析
-3. 调用 genManager.executeDirectGeneration(options) 发起同步生成请求
-4. 生成完成后，将生成的媒体文件导入资产管理器，获取 Asset[]
-5. 构造仅包含 `appdata://` 路径的精简结果 JSON
-6. 返回结果字符串
-7. 异常处理：捕获错误并返回失败 JSON
-```
+- 监听 `agentIntegrationConfig` 的变更（在 registry 初始化时 watch）
+- 配置变更时调用 `useToolCalling().invalidateDiscoveryCache()`，触发 `tool-calling` 重新拉取工具定义 Prompt
 
-### 步骤三：`generateMediaAsync` (异步长耗时生成) 实现
+### 步骤四：异步生成内核实现
 
-**文件**：[`media-generator.registry.ts`](../../media-generator.registry.ts)
+**文件**：[`media-generator.registry.ts`](../../media-generator.registry.ts) 或 `buildAgentMethods.ts`
 
 ```
-1. 检查 toolContext.isAsync，非异步模式下提前返回错误
-2. 解析 params JSON 字符串（容错：解析失败则使用空对象）
-3. 读取 modelId / profileId：
-   - 若未传入，从 useMediaGenStore().currentConfig.types[type].modelCombo 解析
-4. 调用 genManager.buildTask(options, type) 构建 MediaTask
-5. 强制 task.id = toolContext.taskId（双轨 ID 绑定）
-6. 调用 useMediaTaskManager().addTask(task) 在媒体生成中心任务池登记
-7. 启动 watchEffect，监听任务进度变化：
-   - 进度变化 → toolContext.reportStatus(statusText, progress)
-   - 完成/失败 → 停止监听
-8. 调用 genManager.executeGeneration(task)（await 等待完成）
-9. 生成完成后：
-   - 从任务池读取 resultAssets
-   - 将生成的资产 ID 写入 `task.resultAssetIds`，实现会话附件绑定
-   - 构造仅包含 `appdata://` 路径的精简结果 JSON
-   - 返回结果字符串
-10. 异常处理：AbortError（取消）直接 rethrow；其他错误返回失败 JSON
-```
-
-### 步骤四：`getMetadata()` 注册
-
-```typescript
-getMetadata(): ServiceMetadata {
-  return {
-    methods: [
-      {
-        name: "getAvailableModels",
-        displayName: "获取可用媒体生成模型",
-        description: "查询当前系统中启用的媒体生成模型列表及其支持的参数规则（尺寸、质量、风格等）。调用生成方法前建议先调用此方法以确认可用参数。",
-        parameters: [
-          {
-            name: "type",
-            type: "string",
-            description: "媒体类型过滤，可选值: 'image' | 'video' | 'audio'。不传则返回全部",
-            required: false,
-          },
-        ],
-        returnType: "string",
-        agentCallable: true,
-      },
-      {
-        name: "generateMedia",
-        displayName: "快速生成媒体",
-        description: "触发图片、视频或音频的快速同步生成。此方法适用于几秒内即可出图的快速模型（如 z-image-turbo 等）。调用后会直接等待生成完毕并返回结果资产路径。",
-        parameters: [
-          { name: "prompt",    type: "string", description: "提示词。",required: true  },
-          { name: "type",      type: "string", description: "媒体类型: 'image' | 'video' | 'audio'",                  required: true  },
-          { name: "modelId",   type: "string", description: "模型 ID，不传则使用当前默认配置",                         required: false },
-          { name: "profileId", type: "string", description: "渠道配置 ID，不传则使用当前默认配置",                     required: false },
-          { name: "params",    type: "string", description: "JSON 格式的额外参数，如 {\"size\":\"1024x1024\"}",        required: false },
-        ],
-        returnType: "Promise<string>",
-        agentCallable: true,
-      },
-      {
-        name: "generateMediaAsync",
-        displayName: "异步生成媒体",
-        description: "触发图片、视频或音频的长耗时异步生成。这是一个后台异步任务，提交后立即返回任务 ID，生成可能需要 30 秒到数分钟不等。生成完成后的结果将包含资产路径。",
-        parameters: [
-          { name: "prompt",    type: "string", description: "提示词。",required: true  },
-          { name: "type",      type: "string", description: "媒体类型: 'image' | 'video' | 'audio'",                  required: true  },
-          { name: "modelId",   type: "string", description: "模型 ID，不传则使用当前默认配置",                         required: false },
-          { name: "profileId", type: "string", description: "渠道配置 ID，不传则使用当前默认配置",                     required: false },
-          { name: "params",    type: "string", description: "JSON 格式的额外参数，如 {\"size\":\"1024x1024\"}",        required: false },
-        ],
-        returnType: "Promise<string>",
-        agentCallable: true,
-        executionMode: "async",
-        asyncConfig: {
-          hasProgress: true,
-          cancellable: true,
-          estimatedDuration: 60,
-        },
-      },
-    ],
-  };
-}
+异步 handler 内部流程（同原计划 步骤三，逻辑不变）：
+1. 检查 toolContext.isAsync
+2. 解析 params JSON 字符串（容错）
+3. 读取闭包中的 profileId / modelId（无需从 args 解析）
+4. buildTask → task.id = toolContext.taskId（双轨绑定）
+5. useMediaTaskManager().addTask(task)
+6. watchEffect 监听进度 → toolContext.reportStatus
+7. await executeGeneration(task)
+8. task.resultAssetIds = assets.map(a => a.id)
+9. 返回资产 JSON
+10. AbortError → rethrow；其他错误 → 返回失败 JSON
 ```
 
 ---
 
-## 6. 已知约束与注意事项
+## 7. 方案对比总结
 
-1. **Composable 调用位置**：`MediaGeneratorRegistry` 是一个普通 Class，不在 Vue 组件上下文中。需要确保在方法执行时（而非在 constructor 中）调用 Composable，避免响应式系统报错。已有代码（`addContentToInput` 等）使用了惰性初始化模式，`generateMedia` 和 `generateMediaAsync` 应遵循相同模式。
-2. **tool-calling 默认超时**：`ToolCallConfig.timeout` 默认为 30000ms。由于 `generateMediaAsync` 为异步任务模式（`executionMode: 'async'`），任务提交后立即返回，不受此超时限制。而同步版本 `generateMedia` 需注意如果模型生成时间过长（如超过 30 秒），可能会触发 tool-calling 的超时限制，因此仅推荐用于 Turbo 等快速模型。
-3. **媒体生成中心 UI 可能未初始化**：如果用户未打开媒体生成中心，`useMediaGenStore` 的 `init()` 可能未被调用。`generateMediaAsync` 应检查 `useMediaTaskManager` 是否已初始化，必要时调用 `init()`。
-4. **结果资产路径**：`importAssetFromBytes` 返回的 Asset 的 `path` 字段格式为相对路径（如 `assets/xxx.png`）。需要通过 `getAssetBasePath()` 或按照项目约定拼接成 `appdata://` 协议的完整路径。
-5. **多图场景**：`executeGeneration` 或 `executeDirectGeneration` 可能返回多个资产（如批量生成 4 张图）。`instructions` 应为每个资产生成一行 Markdown，并在最后以 Agent 友好的方式汇总展示。
+| 维度             | 原方案（三方法）                 | 新方案（动态独立方法）         |
+| ---------------- | -------------------------------- | ------------------------------ |
+| Agent 调用步骤   | 先查询列表 → 再调用（至少 2 步） | 直接调用（1 步）               |
+| 参数错误风险     | 高（modelId 为任意 string）      | 极低（参数已硬编在方法定义中） |
+| Token 消耗       | 高（需先查询）                   | 低                             |
+| 新增模型自动感知 | 需先调用 `getAvailableModels`    | 自动出现新方法                 |
+| 同步/异步区分    | 需 Agent 手动选择两个方法        | 自动（由 `isFast` 决定）       |
+| 实现复杂度       | 低（3 个固定方法）               | 中（动态方法生成与绑定）       |
+
+---
+
+## 8. 已知约束与注意事项
+
+1. **Composable 惰性初始化**：动态 handler 中调用 Composable 时，须在函数执行时（非 `getMetadata` 调用时）访问，避免 Vue 响应式上下文问题。与现有 `inputManager` 的惰性初始化模式一致。
+2. **方法命名冲突**：命名冲突仅发生于同 modelId 跨多个 profile，通过追加 profile 标识解决。`sanitizeModelId` 需保证唯一性并做冲突检测。
+3. **tool-calling 默认超时（30s）**：异步方法（`executionMode: 'async'`）提交即返回，不受此限制。同步方法仅用于 `isFast` 模型，正常几秒内完成，风险极低。
+4. **媒体生成中心 UI 未初始化**：异步 handler 执行前应检查 `useMediaTaskManager` 是否已 init，必要时主动调用。
+5. **结果资产路径**：`importAssetFromBytes` 返回相对路径，需通过约定方式拼接 `appdata://` 协议前缀。
+6. **多图场景**：`assets` 数组可能包含多项，返回 JSON 中全部列出；Agent 根据视觉指南自行渲染。
+7. **`getMetadata()` 副作用**：此方法在绑定动态方法时有副作用，需确保幂等（重复调用不产生问题）。

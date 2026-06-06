@@ -96,6 +96,39 @@ export function testRuleMatch(
 }
 
 /**
+ * 获取模型的规则合并链（参与最终属性合并的所有规则，含 exclusive 截断）
+ * 返回结果按优先级从低到高排列（index 0 = 最低优先级，最后一条 = 最高优先级）
+ */
+export function getMatchedRuleChain(
+  rules: ModelMetadataRule[],
+  modelId: string,
+  provider?: string
+): ModelMetadataRule[] {
+  const sortedEnabledRules = rules
+    .filter((r) => r.enabled !== false)
+    .sort((a, b) => (b.priority || 0) - (a.priority || 0));
+
+  let matchedRules = sortedEnabledRules.filter((rule) =>
+    testRuleMatch(rule, modelId, provider)
+  );
+
+  if (matchedRules.length === 0) {
+    return [];
+  }
+
+  const highestExclusiveRule = matchedRules.find((r) => r.exclusive === true);
+
+  if (highestExclusiveRule) {
+    const exclusivePriority = highestExclusiveRule.priority || 0;
+    matchedRules = matchedRules.filter(
+      (r) => (r.priority || 0) >= exclusivePriority
+    );
+  }
+
+  return matchedRules.reverse();
+}
+
+/**
  * 获取匹配模型的元数据属性
  * @param rules 元数据规则列表
  * @param modelId 模型 ID
@@ -107,38 +140,17 @@ export function getMatchedModelProperties(
   modelId: string,
   provider?: string
 ): ModelMetadataProperties | undefined {
-  // 1. 过滤启用的规则并按优先级排序
-  const sortedEnabledRules = rules
-    .filter((r) => r.enabled !== false)
-    .sort((a, b) => (b.priority || 0) - (a.priority || 0));
-
-  // 2. 找出所有匹配的规则
-  let matchedRules = sortedEnabledRules.filter((rule) =>
-    testRuleMatch(rule, modelId, provider)
-  );
+  const matchedRules = getMatchedRuleChain(rules, modelId, provider);
 
   // 如果没有匹配的规则，直接返回
   if (matchedRules.length === 0) {
     return undefined;
   }
 
-  // 3. 处理独占规则 (exclusive)
-  const highestExclusiveRule = matchedRules.find((r) => r.exclusive === true);
-
-  if (highestExclusiveRule) {
-    const exclusivePriority = highestExclusiveRule.priority || 0;
-    matchedRules = matchedRules.filter(
-      (r) => (r.priority || 0) >= exclusivePriority
-    );
-  }
-
-  // 4. 按优先级从低到高合并属性
-  const finalProperties = matchedRules
-    .reverse()
-    .reduce(
-      (acc, rule) => merge(acc, rule.properties),
-      {} as ModelMetadataProperties
-    );
+  const finalProperties = matchedRules.reduce(
+    (acc, rule) => merge(acc, rule.properties),
+    {} as ModelMetadataProperties
+  );
 
   return finalProperties;
 }

@@ -1,7 +1,9 @@
 # 📝 模型元数据覆盖分析与规则合并链功能设计方案
 
-> **状态**: Draft — 已根据架构审查修订（v2）
+> **状态**: Implemented — 2026-06-06 已完成桌面端覆盖分析入口与规则合并链 UI
 > 核心变更：将"规则面包屑链"的展示语义从"单一决定性规则"修正为**"规则合并链"**，与现有 `getMatchedModelProperties()` 的 lodash.merge 合并逻辑对齐。
+>
+> 实施记录：落地时将 `effectiveFields` / `overriddenFields` 细化为点路径（例如 `capabilities.vision`），以贴合嵌套属性的实际 merge 语义；`buildCoverageItems()` 在单次计算内按 `${modelId}|${provider ?? ''}` 缓存规则链和最终属性，降低重复模型匹配成本。
 
 本方案旨在为 AIO Hub 的模型元数据管理系统（`ModelMetadataSettings.vue`）引入**"覆盖分析"**功能。通过交叉比对用户已添加的渠道模型与现有的元数据规则，帮助用户直观地掌握模型元数据的覆盖情况，并提供优雅的"规则合并链"交互，实现快速补全与调试。
 

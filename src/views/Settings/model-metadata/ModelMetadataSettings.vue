@@ -10,6 +10,7 @@
       </div>
       <div class="header-actions">
         <el-button @click="showPresets = true">查看预设</el-button>
+        <el-button @click="coverageDialogVisible = true">覆盖分析</el-button>
         <el-button @click="handleImport">导入配置</el-button>
         <el-button @click="handleExport">导出配置</el-button>
         <el-badge
@@ -309,6 +310,16 @@
       </template>
     </BaseDialog>
 
+    <!-- 覆盖分析对话框 -->
+    <CoverageAnalysisDialog
+      v-model="coverageDialogVisible"
+      :profiles="profiles"
+      :rules="configs"
+      :get-display-icon-path="getDisplayIconPath"
+      @edit-rule="(rule: ModelMetadataRule) => handleEdit(rule)"
+      @create-rule="handleCoverageCreateRule"
+    />
+
     <!-- 编辑对话框 -->
     <ModelMetadataConfigEditor
       v-model="editingConfig"
@@ -326,16 +337,17 @@ import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useModelMetadata } from "@composables/useModelMetadata";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import type {
   ModelMetadataRule,
   MetadataMatchType,
 } from "../../../types/model-metadata";
 import ModelMetadataConfigEditor from "./components/ModelMetadataConfigEditor.vue";
 import ModelMetadataConfigCard from "./components/ModelMetadataConfigCard.vue";
+import CoverageAnalysisDialog from "./components/CoverageAnalysisDialog.vue";
 import IconPresetSelector from "@components/common/IconPresetSelector.vue";
 import { Grid, List } from "@element-plus/icons-vue";
 import { RefreshCw } from "lucide-vue-next";
-import DynamicIcon from "@components/common/DynamicIcon.vue";
 
 const {
   rules: configs,
@@ -353,6 +365,8 @@ const {
   getMatchedRule,
   getDisplayIconPath,
 } = useModelMetadata();
+
+const { profiles } = useLlmProfiles();
 
 const showPresets = ref(false);
 const editingConfig = ref<Partial<ModelMetadataRule> | null>(null);
@@ -374,6 +388,9 @@ const bannerDismissed = ref(false);
 const testMode = ref(false);
 const testModelId = ref("");
 const testProvider = ref("");
+
+// 覆盖分析
+const coverageDialogVisible = ref(false);
 
 // 测试匹配结果
 const testMatchedRule = computed(() => {
@@ -523,6 +540,11 @@ function handleAdd() {
 function handleEdit(config: ModelMetadataRule) {
   isNewConfig.value = false;
   editingConfig.value = { ...config };
+}
+
+function handleCoverageCreateRule(config: Partial<ModelMetadataRule>) {
+  isNewConfig.value = true;
+  editingConfig.value = config;
 }
 
 // 处理保存

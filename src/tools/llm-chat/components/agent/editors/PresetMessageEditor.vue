@@ -66,212 +66,12 @@
         </div>
 
         <!-- 模型匹配配置行 (greeting 模式隐藏) -->
-        <div v-if="!isGreetingMode" class="editor-row model-match-row">
-          <span class="field-label">过滤</span>
-          <div class="model-match-config">
-            <div class="match-switches">
-              <el-switch
-                v-model="modelMatchEnabled"
-                size="small"
-                active-text="启用过滤"
-              />
-              <template v-if="modelMatchEnabled">
-                <el-divider direction="vertical" />
-                <el-radio-group v-model="modelMatchMode" size="small">
-                  <el-radio-button value="any">满足其一 (OR)</el-radio-button>
-                  <el-radio-button value="all">同时满足 (AND)</el-radio-button>
-                </el-radio-group>
-
-                <el-divider direction="vertical" />
-                <el-switch
-                  v-model="modelMatchExclude"
-                  size="small"
-                  active-text="排除模式"
-                  :active-action-icon="
-                    modelMatchExclude ? undefined : undefined
-                  "
-                  style="--el-switch-on-color: var(--el-color-warning)"
-                />
-
-                <el-tooltip placement="top">
-                  <template #content>
-                    <div style="max-width: 300px">
-                      <p>输入匹配规则，支持正则表达式。</p>
-                      <p>
-                        <strong>满足其一 (OR)：</strong>
-                        只要模型或渠道满足任意一条规则即生效。
-                      </p>
-                      <p>
-                        <strong>同时满足 (AND)：</strong>
-                        必须模型满足规则且渠道满足规则才生效。
-                      </p>
-                      <p>
-                        <strong>排除模式：</strong>
-                        开启后逻辑反转——匹配到的模型/渠道将<em>不</em>注入此消息。
-                      </p>
-                      <p><i>注：如果某项规则为空，则视为该项已通过匹配。</i></p>
-                    </div>
-                  </template>
-                  <el-icon class="info-icon" style="margin-left: 4px"
-                    ><InfoFilled
-                  /></el-icon>
-                </el-tooltip>
-              </template>
-            </div>
-
-            <!-- 匹配规则输入框 (换行显示) -->
-            <div v-if="modelMatchEnabled" class="model-match-patterns-area">
-              <div class="match-pattern-group">
-                <span class="pattern-label">模型规则:</span>
-                <el-input
-                  v-model="modelMatchPatternsText"
-                  type="textarea"
-                  :rows="2"
-                  placeholder="每行一个模型 ID 或名称的匹配规则（支持正则）"
-                  style="width: 100%; max-width: 600px"
-                />
-              </div>
-              <div class="match-pattern-group">
-                <span class="pattern-label">渠道规则:</span>
-                <el-input
-                  v-model="profileMatchPatternsText"
-                  type="textarea"
-                  :rows="2"
-                  placeholder="每行一个渠道名称的匹配规则（支持正则）"
-                  style="width: 100%; max-width: 600px"
-                />
-              </div>
-              <div
-                v-if="matchProfileName && !profileMatchPatternsText"
-                class="legacy-hint"
-              >
-                <el-checkbox v-model="matchProfileName" size="small">
-                  兼容旧版：在模型规则中同时匹配渠道名
-                </el-checkbox>
-              </div>
-            </div>
-          </div>
-        </div>
+        <ModelMatchConfig v-if="!isGreetingMode" v-model="modelMatchValue" />
         <!-- 注入策略配置行 (greeting 模式隐藏) -->
-        <div v-if="!isGreetingMode" class="editor-row injection-row">
-          <span class="field-label">注入</span>
-          <div class="injection-config">
-            <!-- 模式选择 -->
-            <el-radio-group v-model="injectionMode" size="small">
-              <el-radio-button value="default">
-                <el-tooltip content="按预设列表顺序排列" placement="top">
-                  <span>跟随列表</span>
-                </el-tooltip>
-              </el-radio-button>
-              <el-radio-button value="depth">
-                <el-tooltip content="插入到会话历史的特定深度" placement="top">
-                  <span>📍 深度</span>
-                </el-tooltip>
-              </el-radio-button>
-              <el-radio-button value="advanced_depth">
-                <el-tooltip content="高级深度注入 (循环/条件)" placement="top">
-                  <span>🔩 高级</span>
-                </el-tooltip>
-              </el-radio-button>
-              <el-radio-button value="anchor">
-                <el-tooltip content="吸附到特定锚点位置" placement="top">
-                  <span>⚓ 锚点</span>
-                </el-tooltip>
-              </el-radio-button>
-            </el-radio-group>
-
-            <!-- 深度参数 -->
-            <div v-if="injectionMode === 'depth'" class="injection-params">
-              <el-input-number
-                v-model="depthValue"
-                :min="0"
-                :max="99"
-                size="small"
-                controls-position="right"
-              />
-              <span class="param-hint">0 = 紧跟最新消息</span>
-            </div>
-
-            <!-- 高级深度参数 -->
-            <div
-              v-if="injectionMode === 'advanced_depth'"
-              class="injection-params"
-            >
-              <el-input
-                v-model="depthConfigValue"
-                placeholder="如 3, 10~5"
-                size="small"
-                style="width: 160px"
-              />
-              <el-tooltip placement="top">
-                <template #content>
-                  <div style="max-width: 280px; line-height: 1.5">
-                    <p style="margin: 0 0 8px 0">
-                      <strong>混合深度语法</strong>
-                    </p>
-                    <ul style="padding-left: 16px; margin: 0">
-                      <li><strong>5</strong> → 仅在深度 5 注入</li>
-                      <li><strong>3, 10, 15</strong> → 在多个深度各注入一次</li>
-                      <li>
-                        <strong>10~5</strong> → 从深度 10 开始，每 5 条注入
-                      </li>
-                      <li>
-                        <strong>3, 10~5</strong> → 混合：深度 3 一次 + 从 10
-                        起每 5 条注入一次
-                      </li>
-                    </ul>
-                    <p
-                      style="margin: 8px 0 0 0; font-size: 12px; color: #909399"
-                    >
-                      注意：历史消息数不足时，对应深度点会被跳过
-                    </p>
-                  </div>
-                </template>
-                <el-icon class="info-icon"><InfoFilled /></el-icon>
-              </el-tooltip>
-            </div>
-
-            <!-- 锚点参数 -->
-            <div v-if="injectionMode === 'anchor'" class="injection-params">
-              <el-select
-                v-model="anchorTarget"
-                size="small"
-                style="width: 120px"
-              >
-                <el-option
-                  v-for="anchor in availableAnchors"
-                  :key="anchor.id"
-                  :label="anchor.name"
-                  :value="anchor.id"
-                />
-              </el-select>
-              <el-radio-group v-model="anchorPosition" size="small">
-                <el-radio-button value="before">之前</el-radio-button>
-                <el-radio-button value="after">之后</el-radio-button>
-              </el-radio-group>
-            </div>
-
-            <!-- 优先级 (深度/锚点模式显示) -->
-            <div v-if="injectionMode !== 'default'" class="order-input">
-              <span class="order-label">优先级:</span>
-              <el-input-number
-                v-model="orderValue"
-                :min="0"
-                :max="1000"
-                :step="10"
-                size="small"
-                controls-position="right"
-                style="width: 100px"
-              />
-              <el-tooltip
-                content="值越大越靠近新消息（对话末尾）"
-                placement="top"
-              >
-                <el-icon class="info-icon"><InfoFilled /></el-icon>
-              </el-tooltip>
-            </div>
-          </div>
-        </div>
+        <InjectionConfig
+          v-if="!isGreetingMode"
+          v-model="injectionStrategyValue"
+        />
 
         <!-- 第二行：内容标签 + 工具栏 -->
         <div class="editor-row toolbar-row">
@@ -473,7 +273,6 @@ import {
   CopyDocument,
   DocumentAdd,
   Document,
-  InfoFilled,
 } from "@element-plus/icons-vue";
 import { Bot, Book, Variable } from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
@@ -481,6 +280,8 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import MacroSelector from "../selectors/MacroSelector.vue";
 import VariableSelector from "../selectors/VariableSelector.vue";
 import KBPlaceholderEditor from "./KBPlaceholderEditor.vue";
+import ModelMatchConfig from "./ModelMatchConfig.vue";
+import InjectionConfig from "./InjectionConfig.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import type {
@@ -489,7 +290,6 @@ import type {
 } from "@/tools/rich-text-renderer/types";
 import { useChatSettings } from "../../../composables/settings/useChatSettings";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
-import { useAnchorRegistry } from "../../../composables/ui/useAnchorRegistry";
 import { useLlmChatStore } from "../../../stores/llmChatStore";
 import { useKnowledgeBaseStore } from "@/tools/knowledge-base/stores/knowledgeBaseStore";
 import * as monaco from "monaco-editor";
@@ -525,9 +325,6 @@ interface MessageForm {
     matchProfileName?: boolean;
   };
 }
-
-/** 注入模式 */
-type InjectionMode = "default" | "depth" | "advanced_depth" | "anchor";
 
 /** 编辑器模式，控制显示哪些配置区域 */
 export type PresetEditorMode = "preset" | "greeting";
@@ -572,7 +369,6 @@ const emit = defineEmits<Emits>();
 const errorHandler = createModuleErrorHandler("llm-chat/PresetMessageEditor");
 const { settings } = useChatSettings();
 const { getProfileById } = useLlmProfiles();
-const { getAvailableAnchors } = useAnchorRegistry();
 const chatStore = useLlmChatStore();
 const kbStore = useKnowledgeBaseStore();
 
@@ -583,24 +379,9 @@ const form = ref<MessageForm>({
   content: "",
 });
 
-// 注入策略表单
-const injectionMode = ref<InjectionMode>("default");
-const depthValue = ref(0);
-const depthConfigValue = ref("");
-const anchorTarget = ref("chat_history");
-const anchorPosition = ref<"before" | "after">("after");
-const orderValue = ref(100);
-
-// 模型匹配配置
-const modelMatchEnabled = ref(false);
-const modelMatchMode = ref<"any" | "all">("any");
-const modelMatchExclude = ref(false);
-const matchProfileName = ref(false);
-const modelMatchPatternsText = ref("");
-const profileMatchPatternsText = ref("");
-
-// 可用锚点列表
-const availableAnchors = computed(() => getAvailableAnchors());
+// 模型匹配和注入策略（由子组件管理内部 UI 状态）
+const modelMatchValue = ref<MessageForm["modelMatch"]>(undefined);
+const injectionStrategyValue = ref<InjectionStrategy | undefined>(undefined);
 
 // 视图模式：编辑/文本预览/渲染预览
 const viewMode = ref<"edit" | "text" | "preview">("edit");
@@ -872,150 +653,14 @@ watch(viewMode, (newMode) => {
   }
 });
 
-/**
- * 从 injectionStrategy 恢复 UI 状态
- */
-const restoreInjectionStrategy = (strategy?: InjectionStrategy) => {
-  // 1. 恢复所有数据字段 (如果存在)
-  if (strategy) {
-    if (strategy.depth !== undefined) depthValue.value = strategy.depth;
-    if (strategy.depthConfig !== undefined)
-      depthConfigValue.value = strategy.depthConfig;
-    if (strategy.anchorTarget !== undefined)
-      anchorTarget.value = strategy.anchorTarget;
-    if (strategy.anchorPosition !== undefined)
-      anchorPosition.value = strategy.anchorPosition;
-    if (strategy.order !== undefined) orderValue.value = strategy.order;
-  } else {
-    // 如果没有策略对象，重置为默认值
-    depthValue.value = 0;
-    depthConfigValue.value = "";
-    anchorTarget.value = "chat_history";
-    anchorPosition.value = "after";
-    orderValue.value = 100;
-  }
-
-  // 2. 确定激活模式
-  if (!strategy) {
-    injectionMode.value = "default";
-    return;
-  }
-
-  // 优先使用显式的 type 字段
-  if (strategy.type) {
-    injectionMode.value = strategy.type;
-    return;
-  }
-
-  // 兼容旧数据：根据字段存在性推断
-  if (strategy.depthConfig) {
-    injectionMode.value = "advanced_depth";
-  } else if (strategy.depth !== undefined) {
-    injectionMode.value = "depth";
-  } else if (strategy.anchorTarget) {
-    injectionMode.value = "anchor";
-  } else {
-    injectionMode.value = "default";
-  }
-};
-
-/**
- * 构建 injectionStrategy 对象
- */
-const buildInjectionStrategy = (): InjectionStrategy | undefined => {
-  // 始终保存所有已配置的参数，以便在切换模式后数据不丢失
-  // 并显式设置 type 字段
-  const strategy: InjectionStrategy = {
-    type: injectionMode.value,
-    depth: depthValue.value,
-    depthConfig: depthConfigValue.value,
-    anchorTarget: anchorTarget.value,
-    anchorPosition: anchorPosition.value,
-    order: orderValue.value,
-  };
-
-  return strategy;
-};
-
-/**
- /**
-  * 从 modelMatch 恢复 UI 状态
-  */
-const restoreModelMatch = (modelMatch?: {
-  enabled: boolean;
-  mode?: "any" | "all";
-  exclude?: boolean;
-  patterns: string[];
-  profilePatterns?: string[];
-  matchProfileName?: boolean;
-}) => {
-  if (!modelMatch) {
-    modelMatchEnabled.value = false;
-    modelMatchMode.value = "any";
-    modelMatchExclude.value = false;
-    matchProfileName.value = false;
-    modelMatchPatternsText.value = "";
-    profileMatchPatternsText.value = "";
-    return;
-  }
-  modelMatchEnabled.value = modelMatch.enabled;
-  modelMatchMode.value = modelMatch.mode || "any";
-  modelMatchExclude.value = modelMatch.exclude || false;
-  matchProfileName.value = modelMatch.matchProfileName || false;
-  modelMatchPatternsText.value = (modelMatch.patterns || []).join("\n");
-  profileMatchPatternsText.value = (modelMatch.profilePatterns || []).join(
-    "\n"
-  );
-};
-
-/**
- * 构建 modelMatch 对象
- */
-const buildModelMatch = ():
-  | {
-      enabled: boolean;
-      mode: "any" | "all";
-      exclude?: boolean;
-      patterns: string[];
-      profilePatterns: string[];
-      matchProfileName?: boolean;
-    }
-  | undefined => {
-  if (!modelMatchEnabled.value) {
-    return undefined;
-  }
-  const patterns = modelMatchPatternsText.value
-    .split("\n")
-    .map((p) => p.trim())
-    .filter((p) => p.length > 0);
-
-  const profilePatterns = profileMatchPatternsText.value
-    .split("\n")
-    .map((p) => p.trim())
-    .filter((p) => p.length > 0);
-
-  if (patterns.length === 0 && profilePatterns.length === 0) {
-    return undefined;
-  }
-
-  return {
-    enabled: true,
-    mode: modelMatchMode.value,
-    exclude: modelMatchExclude.value || undefined,
-    patterns,
-    profilePatterns,
-    matchProfileName: matchProfileName.value,
-  };
-};
-
 // 监听 initialForm 的变化，更新本地表单
 watch(
   () => props.initialForm,
   (newForm) => {
     if (newForm) {
       form.value = { ...newForm };
-      restoreInjectionStrategy(newForm.injectionStrategy);
-      restoreModelMatch(newForm.modelMatch);
+      injectionStrategyValue.value = newForm.injectionStrategy;
+      modelMatchValue.value = newForm.modelMatch;
     }
   },
   { immediate: true, deep: true }
@@ -1030,8 +675,8 @@ watch(
       previewContent.value = ""; // 重置预览缓存，避免显示上次的旧内容
       if (props.initialForm) {
         form.value = { ...props.initialForm };
-        restoreInjectionStrategy(props.initialForm.injectionStrategy);
-        restoreModelMatch(props.initialForm.modelMatch);
+        injectionStrategyValue.value = props.initialForm.injectionStrategy;
+        modelMatchValue.value = props.initialForm.modelMatch;
       }
     }
   }
@@ -1204,12 +849,10 @@ function handleSave() {
     return;
   }
 
-  const injectionStrategy = buildInjectionStrategy();
-  const modelMatch = buildModelMatch();
   emit("save", {
     ...form.value,
-    injectionStrategy,
-    modelMatch,
+    injectionStrategy: injectionStrategyValue.value,
+    modelMatch: modelMatchValue.value,
   });
 }
 </script>
@@ -1328,92 +971,5 @@ function handleSave() {
   color: var(--el-text-color-primary);
   white-space: pre-wrap;
   word-break: break-word;
-}
-
-/* 模型匹配配置样式 */
-.model-match-row {
-  align-items: flex-start; /* 顶部对齐，因为有换行内容 */
-}
-
-.model-match-row .field-label {
-  margin-top: 4px; /* 标签向下偏移，与其他行垂直居中对齐 */
-}
-
-.model-match-config {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.match-switches {
-  display: flex;
-  align-items: center;
-  height: 32px;
-}
-
-.model-match-patterns-area {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.match-pattern-group {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.pattern-label {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-  font-weight: 500;
-}
-
-.legacy-hint {
-  opacity: 0.6;
-}
-
-/* 注入策略配置样式 */
-.injection-row {
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.injection-config {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.injection-params {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.param-hint {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-
-.order-input {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: auto;
-}
-
-.order-label {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-
-.info-icon {
-  color: var(--el-text-color-secondary);
-  cursor: help;
 }
 </style>

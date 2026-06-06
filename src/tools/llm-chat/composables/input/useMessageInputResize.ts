@@ -14,6 +14,7 @@ export function useMessageInputResize(options: UseMessageInputResizeOptions) {
   const startHeight = ref(0);
   const customHeight = ref<string | number>("auto");
   const customMaxHeight = ref<string | number | null>(null); // null 表示使用自动模式
+  const isCustomHeightLocked = computed(() => customMaxHeight.value !== null);
 
   // 计算最终传给编辑器的实际高度
   const editorHeight = computed(() => {
@@ -90,10 +91,14 @@ export function useMessageInputResize(options: UseMessageInputResizeOptions) {
     document.addEventListener("mouseup", handleMouseUp);
   };
 
-  // 双击手柄重置高度
-  const handleResizeDoubleClick = () => {
+  const resetCustomHeight = () => {
     customHeight.value = "auto";
     customMaxHeight.value = null;
+  };
+
+  // 双击手柄重置高度
+  const handleResizeDoubleClick = () => {
+    resetCustomHeight();
   };
 
   // 组件卸载时清理事件监听
@@ -107,9 +112,11 @@ export function useMessageInputResize(options: UseMessageInputResizeOptions) {
     isResizing,
     customHeight,
     customMaxHeight,
+    isCustomHeightLocked,
     editorHeight,
     editorMaxHeight,
     handleInputResizeStart,
     handleResizeDoubleClick,
+    resetCustomHeight,
   };
 }

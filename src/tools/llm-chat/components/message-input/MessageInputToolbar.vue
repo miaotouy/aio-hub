@@ -56,6 +56,7 @@ interface Props {
   translationEnabled?: boolean;
   isCompressing?: boolean;
   isCompleting?: boolean;
+  isInputHeightLocked?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -63,11 +64,13 @@ const props = withDefaults(defineProps<Props>(), {
   translationEnabled: false,
   isCompressing: false,
   isCompleting: false,
+  isInputHeightLocked: false,
 });
 
 const emit = defineEmits<{
   (e: "toggle-streaming"): void;
   (e: "toggle-expand"): void;
+  (e: "unlock-input-height"): void;
   (e: "open-agent-settings", tab?: string): void;
 }>();
 
@@ -337,6 +340,7 @@ const handleOpenQuickActionManager = () => {
           :disabled="disabled"
           :translation-enabled="props.translationEnabled"
           :is-context-compression-enabled="isContextCompressionEnabled"
+          :is-input-height-locked="props.isInputHeightLocked"
           :continuation-model-info="inputStore.continuationModelInfo"
           @complete-input="inputStore.handleCompleteInput($event)"
           @select-continuation-model="inputStore.handleSelectContinuationModel"
@@ -344,6 +348,7 @@ const handleOpenQuickActionManager = () => {
             inputStore.handleAnalyzeContextWithInput()
           "
           @open-quick-action-manager="handleOpenQuickActionManager"
+          @unlock-input-height="emit('unlock-input-height')"
           @visible-change="moreMenuVisible = $event"
         >
           <button class="tool-btn" :class="{ active: moreMenuVisible }">

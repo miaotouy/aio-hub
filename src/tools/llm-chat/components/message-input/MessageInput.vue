@@ -131,8 +131,10 @@ const attachmentManager = {
 const {
   editorHeight,
   editorMaxHeight,
+  isCustomHeightLocked,
   handleInputResizeStart,
   handleResizeDoubleClick,
+  resetCustomHeight,
 } = useMessageInputResize({
   isDetached: props.isDetached || false,
   textareaRef,
@@ -566,8 +568,10 @@ const handleDragStart = (e: MouseEvent) => {
             :has-attachments="attachmentManager.hasAttachments.value"
             :translation-enabled="settings.translation.enabled"
             :is-compressing="inputStore.isCompressing"
+            :is-input-height-locked="isCustomHeightLocked"
             @toggle-streaming="toggleStreaming"
             @toggle-expand="toggleExpand"
+            @unlock-input-height="resetCustomHeight"
             @open-agent-settings="handleOpenAgentSettings"
           />
         </div>

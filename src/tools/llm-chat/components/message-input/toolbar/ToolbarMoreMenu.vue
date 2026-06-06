@@ -14,6 +14,7 @@ import {
   FileUp,
   ScanSearch,
   Grip,
+  Unlock,
 } from "lucide-vue-next";
 import { useMessageInputStore } from "../../../stores/messageInputStore";
 
@@ -27,6 +28,7 @@ const props = defineProps<{
   disabled: boolean;
   translationEnabled?: boolean;
   isContextCompressionEnabled: boolean;
+  isInputHeightLocked?: boolean;
   continuationModelInfo: { profileName: string; modelName: string } | null;
 }>();
 
@@ -35,6 +37,7 @@ const emit = defineEmits<{
   (e: "select-continuation-model"): void;
   (e: "analyze-context-with-input"): void;
   (e: "open-quick-action-manager"): void;
+  (e: "unlock-input-height"): void;
   (e: "visible-change", visible: boolean): void;
 }>();
 </script>
@@ -156,6 +159,24 @@ const emit = defineEmits<{
 
         <div class="dropdown-divider"></div>
 
+        <!-- 解除输入框高度锁定 -->
+        <el-dropdown-item
+          :disabled="!props.isInputHeightLocked"
+          @click="emit('unlock-input-height')"
+        >
+          <div class="dropdown-item-content">
+            <Unlock :size="16" />
+            <span>{{
+              props.isInputHeightLocked ? "解除高度锁定" : "高度自动调整"
+            }}</span>
+            <span v-if="props.isInputHeightLocked" class="state-badge">
+              已锁定
+            </span>
+          </div>
+        </el-dropdown-item>
+
+        <div class="dropdown-divider"></div>
+
         <!-- 管理快捷操作 -->
         <el-dropdown-item @click="emit('open-quick-action-manager')">
           <div class="dropdown-item-content">
@@ -192,6 +213,16 @@ const emit = defineEmits<{
   max-width: 80px;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.state-badge {
+  margin-left: auto;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background-color: color-mix(in srgb, var(--primary-color) 12%, transparent);
+  color: var(--primary-color);
   white-space: nowrap;
 }
 

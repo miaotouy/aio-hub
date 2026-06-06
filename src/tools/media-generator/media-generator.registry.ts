@@ -1,10 +1,6 @@
 import { markRaw } from "vue";
 import { Sparkles } from "lucide-vue-next";
-import type {
-  ToolRegistry,
-  ServiceMetadata,
-  ToolConfig,
-} from "@/services/types";
+import type { ToolRegistry, ToolConfig } from "@/services/types";
 import type { AssetSidecarAction, Asset } from "@/types/asset-management";
 import { createModuleLogger } from "@/utils/logger";
 import { extractMetadata } from "@/utils/mediaMetadataManager";

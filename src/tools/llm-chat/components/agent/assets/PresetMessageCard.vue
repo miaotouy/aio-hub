@@ -1,0 +1,596 @@
+<template>
+  <!-- 纯占位符锚点 -->
+  <div
+    v-if="isPurePlaceholder"
+    class="message-card"
+    :class="[
+      compact
+        ? 'message-card-compact placeholder-card-compact'
+        : 'placeholder-card',
+      { disabled: element.isEnabled === false },
+      `placeholder-${element.type}`,
+    ]"
+  >
+    <div class="drag-handle">
+      <el-icon><Rank /></el-icon>
+    </div>
+    <template v-if="compact">
+      <div class="role-icon">
+        <el-icon :color="anchorColor"><component :is="anchorIcon" /></el-icon>
+      </div>
+      <div class="message-text-compact placeholder-text">
+        {{ anchorDef?.name }}
+      </div>
+      <div class="message-actions-compact">
+        <el-switch
+          v-model="element.isEnabled"
+          :active-value="true"
+          :inactive-value="false"
+          size="small"
+          @change="$emit('toggle-enabled')"
+        />
+      </div>
+    </template>
+    <template v-else>
+      <div class="message-content">
+        <div class="message-role">
+          <el-tag :type="anchorTagType" size="small" effect="plain">
+            <el-icon style="margin-right: 4px"
+              ><component :is="anchorIcon"
+            /></el-icon>
+            {{ anchorDef?.name }}
+          </el-tag>
+        </div>
+        <div class="message-text placeholder-text">
+          {{ anchorDef?.description }}
+        </div>
+      </div>
+      <div class="message-actions">
+        <el-switch
+          v-model="element.isEnabled"
+          :active-value="true"
+          :inactive-value="false"
+          size="small"
+          @change="$emit('toggle-enabled')"
+        />
+      </div>
+    </template>
+  </div>
+
+  <!-- 模板锚点 & 普通消息 - 紧凑模式 -->
+  <div
+    v-else-if="compact"
+    class="message-card message-card-compact"
+    :class="{
+      disabled: element.isEnabled === false,
+      'template-anchor-card-compact': isTemplateAnchor,
+    }"
+    @click="$emit('edit', element)"
+  >
+    <div class="drag-handle">
+      <el-icon><Rank /></el-icon>
+    </div>
+    <div class="role-icon">
+      <el-icon :color="roleColor"><component :is="roleIcon" /></el-icon>
+    </div>
+    <span
+      v-if="isTemplateAnchor"
+      class="injection-badge-compact"
+      :title="anchorDef?.name"
+      >⚓</span
+    >
+    <span
+      v-if="injectionBadge"
+      class="injection-badge-compact"
+      :title="injectionBadge.title"
+    >
+      {{ injectionBadge.emoji }}{{ injectionBadge.label }}
+    </span>
+    <span
+      v-if="element.modelMatch?.enabled"
+      class="model-match-badge-compact"
+      title="仅特定模型生效"
+      >🎯</span
+    >
+    <div class="message-text-compact">
+      {{
+        element.name
+          ? truncateText(element.name, 60)
+          : truncateText(element.content, 60)
+      }}
+    </div>
+    <div v-if="tokenCount !== undefined" class="token-compact">
+      {{ tokenCount }}
+    </div>
+    <div class="message-actions-compact" @click.stop>
+      <el-tooltip content="编辑消息" placement="top" :show-after="500">
+        <el-button link size="small" @click="$emit('edit', element)">
+          <el-icon><Edit /></el-icon>
+        </el-button>
+      </el-tooltip>
+      <el-switch
+        v-model="element.isEnabled"
+        :active-value="true"
+        :inactive-value="false"
+        size="small"
+        @change="$emit('toggle-enabled')"
+      />
+    </div>
+  </div>
+
+  <!-- 模板锚点 & 普通消息 - 正常模式 -->
+  <div
+    v-else
+    class="message-card"
+    :class="{
+      disabled: element.isEnabled === false,
+      'template-anchor-card': isTemplateAnchor,
+    }"
+  >
+    <div class="drag-handle">
+      <el-icon><Rank /></el-icon>
+    </div>
+    <div class="message-content">
+      <div class="message-role">
+        <div class="role-tags">
+          <el-tag :type="roleTagType" size="small" effect="plain">
+            <el-icon style="margin-right: 4px"
+              ><component :is="roleIcon"
+            /></el-icon>
+            {{ roleLabel }} </el-tag
+          ><el-tag
+            v-if="isTemplateAnchor"
+            :type="anchorTagType"
+            size="small"
+            effect="plain"
+            class="injection-tag"
+          >
+            <el-icon style="margin-right: 4px"
+              ><component :is="anchorIcon"
+            /></el-icon>
+            {{ anchorDef?.name }} </el-tag
+          ><el-tag
+            v-if="injectionBadge?.type === 'advanced_depth'"
+            size="small"
+            type="warning"
+            effect="plain"
+            class="injection-tag"
+          >
+            🔩 深度 {{ element.injectionStrategy?.depthConfig }}
+          </el-tag>
+          <el-tag
+            v-else-if="injectionBadge?.type === 'depth'"
+            size="small"
+            type="warning"
+            effect="plain"
+            class="injection-tag"
+          >
+            📍 深度 {{ element.injectionStrategy?.depth }}
+          </el-tag>
+          <el-tag
+            v-else-if="injectionBadge?.type === 'anchor'"
+            size="small"
+            type="success"
+            effect="plain"
+            class="injection-tag"
+          >
+            ⚓ {{ element.injectionStrategy?.anchorTarget }}
+            {{
+              element.injectionStrategy?.anchorPosition === "before"
+                ? "前"
+                : "后"
+            }}
+          </el-tag>
+          <el-tag
+            v-if="element.modelMatch?.enabled"
+            size="small"
+            type="warning"
+            effect="plain"
+            class="model-match-tag"
+          >
+            🎯 模型限定
+          </el-tag>
+          <el-tag
+            v-if="tokenCount !== undefined"
+            size="small"
+            type="info"
+            effect="plain"
+            class="token-tag"
+          >
+            {{ tokenCount }} tokens
+          </el-tag>
+        </div>
+        <div class="message-actions">
+          <el-tooltip content="编辑消息" placement="top" :show-after="500">
+            <el-button link size="small" @click="$emit('edit', element)">
+              <el-icon><Edit /></el-icon>
+            </el-button>
+          </el-tooltip>
+          <el-tooltip content="复制消息配置" placement="top" :show-after="500">
+            <el-button link size="small" @click="$emit('copy', element)">
+              <el-icon><CopyDocument /></el-icon>
+            </el-button>
+          </el-tooltip>
+          <el-tooltip content="粘贴并覆盖" placement="top" :show-after="500">
+            <span>
+              <el-popconfirm
+                title="确定要用剪贴板内容覆盖这条消息吗？"
+                @confirm="$emit('paste', element)"
+                width="220"
+              >
+                <template #reference>
+                  <el-button link size="small"
+                    ><el-icon><DocumentCopy /></el-icon
+                  ></el-button>
+                </template>
+              </el-popconfirm>
+            </span>
+          </el-tooltip>
+          <el-tooltip
+            v-if="!isTemplateAnchor"
+            content="删除消息"
+            placement="top"
+            :show-after="500"
+          >
+            <span>
+              <el-popconfirm
+                title="确定要删除这条预设消息吗？"
+                @confirm="$emit('delete', element)"
+                width="240"
+              >
+                <template #reference>
+                  <el-button link size="small" type="danger"
+                    ><el-icon><Delete /></el-icon
+                  ></el-button>
+                </template>
+              </el-popconfirm>
+            </span>
+          </el-tooltip>
+          <el-switch
+            v-model="element.isEnabled"
+            :active-value="true"
+            :inactive-value="false"
+            size="small"
+            @change="$emit('toggle-enabled')"
+          />
+        </div>
+      </div>
+      <div v-if="element.name" class="message-name">{{ element.name }}</div>
+      <div class="message-text">{{ truncateText(element.content, 120) }}</div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { computed, markRaw } from "vue";
+import {
+  Rank,
+  Edit,
+  Delete,
+  CopyDocument,
+  DocumentCopy,
+  ChatDotRound,
+  User,
+  Service,
+  Link,
+} from "@element-plus/icons-vue";
+import type { ChatMessageNode, MessageRole } from "../../../types";
+import {
+  useAnchorRegistry,
+  type AnchorDefinition,
+} from "../../../composables/ui/useAnchorRegistry";
+
+interface Props {
+  element: ChatMessageNode;
+  compact: boolean;
+  modelId?: string;
+  tokenCount?: number;
+}
+
+interface Emits {
+  (e: "edit", message: ChatMessageNode): void;
+  (e: "copy", message: ChatMessageNode): void;
+  (e: "paste", message: ChatMessageNode): void;
+  (e: "delete", message: ChatMessageNode): void;
+  (e: "toggle-enabled"): void;
+}
+
+const props = defineProps<Props>();
+defineEmits<Emits>();
+
+const anchorRegistry = useAnchorRegistry();
+
+function getAnchorDef(type?: string): AnchorDefinition | undefined {
+  return type ? anchorRegistry.getAnchorById(type) : undefined;
+}
+
+const isPurePlaceholder = computed(() => {
+  const t = props.element.type;
+  if (!t || t === "message") return false;
+  const anchor = anchorRegistry.getAnchorById(t);
+  return !!anchor && !anchor.hasTemplate;
+});
+
+const isTemplateAnchor = computed(() => {
+  return getAnchorDef(props.element.type)?.hasTemplate === true;
+});
+
+const anchorDef = computed(() => getAnchorDef(props.element.type));
+const anchorTagType = computed(() => anchorDef.value?.tagType || "success");
+const anchorIcon = computed(() => anchorDef.value?.icon || Link);
+const anchorColor = computed(
+  () => anchorDef.value?.color || "var(--el-color-success)"
+);
+
+const roleTagTypeMap: Record<MessageRole, "success" | "primary" | "info"> = {
+  system: "info",
+  user: "primary",
+  assistant: "success",
+  tool: "info",
+};
+const roleIconMap: Record<MessageRole, any> = {
+  system: markRaw(ChatDotRound),
+  user: markRaw(User),
+  assistant: markRaw(Service),
+  tool: markRaw(Service),
+};
+const roleLabelMap: Record<MessageRole, string> = {
+  system: "System",
+  user: "User",
+  assistant: "Assistant",
+  tool: "Tool",
+};
+const roleColorMap: Record<MessageRole, string> = {
+  system: "var(--el-color-info)",
+  user: "var(--el-color-primary)",
+  assistant: "var(--el-color-success)",
+  tool: "var(--el-color-info)",
+};
+
+const roleTagType = computed(() => roleTagTypeMap[props.element.role]);
+const roleIcon = computed(() => roleIconMap[props.element.role]);
+const roleLabel = computed(() => roleLabelMap[props.element.role]);
+const roleColor = computed(() => roleColorMap[props.element.role]);
+
+const injectionBadge = computed(() => {
+  const s = props.element.injectionStrategy;
+  if (!s) return null;
+  if (s.type === "advanced_depth" || (!s.type && s.depthConfig))
+    return {
+      type: "advanced_depth",
+      emoji: "🔩",
+      label: String(s.depthConfig),
+      title: `高级深度: ${s.depthConfig}`,
+    };
+  if (s.type === "depth" || (!s.type && s.depth !== undefined))
+    return {
+      type: "depth",
+      emoji: "📍",
+      label: String(s.depth),
+      title: "深度注入",
+    };
+  if (s.type === "anchor" || (!s.type && s.anchorTarget))
+    return { type: "anchor", emoji: "⚓", label: null, title: "锚点注入" };
+  return null;
+});
+
+function truncateText(text: string, maxLength: number): string {
+  if (!text) return "(空内容)";
+  const cleaned = text.replace(/\s+/g, " ").trim();
+  return cleaned.length <= maxLength
+    ? cleaned
+    : cleaned.substring(0, maxLength) + "...";
+}
+</script>
+
+<style scoped>
+.message-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  background-color: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.message-card:hover {
+  border-color: var(--el-color-primary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.message-card.disabled {
+  opacity: 0.5;
+}
+
+.placeholder-card,
+.template-anchor-card {
+  border-style: dashed;
+}
+
+.placeholder-card.placeholder-chat_history,
+.template-anchor-card.template-anchor-chat_history {
+  background: color-mix(in srgb, var(--el-color-warning) 10%, transparent);
+  border-color: var(--el-color-warning-light-5);
+}
+.placeholder-card.placeholder-chat_history:hover,
+.template-anchor-card.template-anchor-chat_history:hover {
+  border-color: var(--el-color-warning);
+  background: color-mix(in srgb, var(--el-color-warning) 20%, transparent);
+}
+
+.template-anchor-card {
+  background: color-mix(in srgb, var(--el-color-primary) 10%, transparent);
+  border-color: var(--el-color-primary-light-5);
+}
+.template-anchor-card:hover {
+  border-color: var(--el-color-primary);
+  background: color-mix(in srgb, var(--el-color-primary) 20%, transparent);
+}
+
+.placeholder-text {
+  color: var(--el-text-color-secondary);
+  font-style: italic;
+}
+
+.drag-handle {
+  display: flex;
+  align-items: center;
+  cursor: grab;
+  color: var(--el-text-color-secondary);
+  padding: 4px;
+  user-select: none;
+}
+.drag-handle:active {
+  cursor: grabbing;
+}
+.drag-handle:hover {
+  color: var(--el-color-primary);
+}
+
+.message-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.message-role {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.role-tags {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.token-tag {
+  font-variant-numeric: tabular-nums;
+}
+.injection-tag {
+  font-size: 12px;
+}
+
+.message-name {
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+  margin-bottom: 4px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.message-text {
+  color: var(--el-text-color-regular);
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+.message-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 紧凑模式 */
+.message-card-compact {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background-color: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 6px;
+  transition: all 0.2s;
+  cursor: pointer;
+  min-height: 36px;
+}
+
+.message-card-compact:hover {
+  border-color: var(--el-color-primary);
+  background: var(--el-fill-color-light);
+}
+
+.message-card-compact.disabled {
+  opacity: 0.5;
+}
+
+.placeholder-card-compact,
+.template-anchor-card-compact {
+  border-style: dashed;
+}
+
+.placeholder-card-compact.placeholder-chat_history {
+  background: color-mix(in srgb, var(--el-color-warning) 10%, transparent);
+  border-color: var(--el-color-warning-light-5);
+}
+.placeholder-card-compact.placeholder-user_profile,
+.template-anchor-card-compact {
+  background: color-mix(in srgb, var(--el-color-primary) 10%, transparent);
+  border-color: var(--el-color-primary-light-5);
+}
+
+.message-card-compact .drag-handle {
+  padding: 2px;
+  font-size: 14px;
+}
+
+.role-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.message-text-compact {
+  flex: 1;
+  font-size: 13px;
+  color: var(--el-text-color-regular);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+
+.token-compact {
+  font-size: 11px;
+  color: var(--el-color-info);
+  font-variant-numeric: tabular-nums;
+  padding: 2px 6px;
+  background: var(--el-fill-color-light);
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.message-actions-compact {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.injection-badge-compact {
+  font-size: 11px;
+  color: var(--el-color-warning);
+  flex-shrink: 0;
+}
+
+.model-match-badge-compact {
+  font-size: 11px;
+  color: var(--el-color-danger);
+  flex-shrink: 0;
+}
+
+.el-button {
+  margin: 0;
+}
+</style>

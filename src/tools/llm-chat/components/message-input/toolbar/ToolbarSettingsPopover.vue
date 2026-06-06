@@ -104,6 +104,22 @@ function updateSetting(
             />
           </div>
           <div class="setting-item">
+            <span class="setting-label">自动插入资产占位符</span>
+            <el-switch
+              :model-value="chatSettings.transcription.autoInsertPlaceholder"
+              @update:model-value="
+                (v: boolean | string | number) =>
+                  updateChatSettings({
+                    transcription: {
+                      ...chatSettings.transcription,
+                      autoInsertPlaceholder: v as boolean,
+                    },
+                  })
+              "
+              size="small"
+            />
+          </div>
+          <div class="setting-item">
             <span class="setting-label">队列消息自动生成</span>
             <el-switch
               :model-value="

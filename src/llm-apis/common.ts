@@ -1132,7 +1132,9 @@ export const fetchWithTimeout = async (
       });
 
       // 仅对非模型列表端点检查 model 字段（/v1/models 等 GET 请求本身不需要 model）
-      const isModelListEndpoint = /\/models\/?$/.test(proxyPayload.url);
+      const isModelListEndpoint = /\/(?:models|api\/tags)\/?$/.test(
+        proxyPayload.url
+      );
       if (
         proxyPayload.body &&
         !proxyPayload.body.model &&

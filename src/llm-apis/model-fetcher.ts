@@ -49,7 +49,12 @@ export async function fetchModelsFromApi(
     endpoint: providerInfo.modelListEndpoint,
   });
 
-  const url = buildLlmApiUrl(profile.baseUrl, profile.type, "models", profile);
+  const url = buildLlmApiUrl(
+    profile.baseUrl,
+    profile.type,
+    providerInfo.modelListEndpoint,
+    profile
+  );
   const apiKey =
     profile.apiKeys && profile.apiKeys.length > 0 ? profile.apiKeys[0] : "";
 

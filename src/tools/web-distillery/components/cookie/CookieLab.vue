@@ -907,7 +907,6 @@ onMounted(async () => {
       :show-close-button="true"
       :close-on-backdrop-click="true"
       :destroy-on-close="true"
-      :z-index="2100"
       :show-footer="true"
     >
       <template #content>

@@ -4,7 +4,6 @@
     :title="isNew ? '添加规则' : '编辑规则'"
     width="min(90%, 1000px)"
     height="85vh"
-    :z-index="2110"
     @close="$emit('close')"
   >
     <div v-if="localConfig" class="config-editor-container">

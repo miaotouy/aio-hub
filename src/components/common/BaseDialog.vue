@@ -97,6 +97,7 @@ import {
   nextTick,
 } from "vue";
 import { useThemeAppearance } from "@/composables/useThemeAppearance";
+import { acquireZIndex, releaseZIndex } from "@/composables/useDialogZIndex";
 
 const props = withDefaults(
   defineProps<{
@@ -126,7 +127,7 @@ const props = withDefaults(
     bare: false,
     dialogClass: "",
     contentClass: "",
-    zIndex: 1999,
+    zIndex: 0,
     destroyOnClose: true,
     showFooter: true, // Default to true if slot exists
     enableTransition: true,
@@ -226,9 +227,7 @@ watch(
     if (newValue) {
       hasOpened.value = true;
       emit("open");
-      // 对话框打开时，可能需要递增 z-index（如果有多个对话框）
-      // 这里简化处理，直接使用传入的 zIndex
-      dynamicZIndex.value = props.zIndex;
+      dynamicZIndex.value = Math.max(acquireZIndex(), props.zIndex);
 
       // DOM 更新后启动入场动画
       // 使用双重 requestAnimationFrame 确保在浏览器重绘后应用类名
@@ -242,6 +241,7 @@ watch(
       });
     } else {
       showContentTransition.value = false;
+      releaseZIndex(dynamicZIndex.value);
     }
   },
   { immediate: true }
@@ -269,6 +269,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   document.removeEventListener("keydown", handleKeyDown);
+  if (props.modelValue) releaseZIndex(dynamicZIndex.value);
 });
 </script>
 

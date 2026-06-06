@@ -115,7 +115,6 @@
     title="重新生成转写"
     width="500px"
     height="auto"
-    :z-index="2100"
   >
     <template #content>
       <div class="regenerate-form">

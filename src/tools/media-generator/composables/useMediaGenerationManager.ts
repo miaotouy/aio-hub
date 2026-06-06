@@ -242,7 +242,7 @@ export function useMediaGenerationManager() {
           const ext = finalOptions as any;
           const xaiParams = buildXaiSizeParams(
             ext.aspectRatio || rules.aspectRatioMode?.defaultRatio || "1:1",
-            ext.resolution || rules.aspectRatioMode?.defaultResolution || "1k"
+            ext.resolution || rules.aspectRatioMode?.defaultResolution
           );
           finalOptions = { ...finalOptions, ...xaiParams };
           delete (finalOptions as any).size;

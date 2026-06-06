@@ -768,6 +768,18 @@ export const MANUAL_PRESET_ICONS: PresetIconInfo[] = [
     category: "多媒体/创意",
   },
   {
+    name: "Reve",
+    path: "reve.svg",
+    suggestedFor: ["reve"],
+    category: "多媒体/创意",
+  },
+  {
+    name: "Krea",
+    path: "krea.svg",
+    suggestedFor: ["krea"],
+    category: "多媒体/创意",
+  },
+  {
     name: "Clipdrop",
     path: "clipdrop.svg",
     suggestedFor: ["clipdrop"],
@@ -807,6 +819,12 @@ export const MANUAL_PRESET_ICONS: PresetIconInfo[] = [
     name: "Recraft",
     path: "recraft.svg",
     suggestedFor: ["recraft"],
+    category: "多媒体/创意",
+  },
+  {
+    name: "Pruna AI (彩色)",
+    path: "prunaai-color.svg",
+    suggestedFor: ["pruna", "prunaai", "p-image"],
     category: "多媒体/创意",
   },
   {

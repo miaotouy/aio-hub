@@ -240,6 +240,39 @@ export const specificModelRules: ModelMetadataRule[] = [
     enabled: true,
     description: "模型前缀 gemini-3-pro-image 元数据规则",
   },
+  {
+    id: "model-imagen",
+    matchType: "modelPrefix",
+    matchValue: "imagen-",
+    properties: {
+      icon: `/model-icons/google-color.svg`,
+      group: "Google Imagen",
+      capabilities: {
+        imageGeneration: true,
+      },
+      description: "Google Imagen 系列图像生成模型",
+    },
+    priority: 35,
+    enabled: true,
+    description: "模型前缀 imagen- 元数据规则",
+  },
+  {
+    id: "model-mai-image",
+    matchType: "modelPrefix",
+    matchValue: "mai-image",
+    properties: {
+      icon: `/model-icons/microsoft-color.svg`,
+      group: "Microsoft AI",
+      capabilities: {
+        imageGeneration: true,
+        vision: true,
+      },
+      description: "Microsoft AI MAI Image 系列图像生成模型",
+    },
+    priority: 35,
+    enabled: true,
+    description: "模型前缀 mai-image 元数据规则",
+  },
 
   // === 硅基流动 Qwen Image Edit ===
   {
@@ -354,6 +387,214 @@ export const specificModelRules: ModelMetadataRule[] = [
     enabled: true,
     description: "模型前缀 luma-dream-machine 元数据规则",
   },
+  {
+    id: "model-luma-image",
+    matchType: "modelPrefix",
+    matchValue: "uni-|photon",
+    useRegex: true,
+    properties: {
+      icon: `/model-icons/luma-color.svg`,
+      group: "Luma AI",
+      capabilities: {
+        imageGeneration: true,
+        vision: true,
+      },
+      description: "Luma AI 图像生成模型（Uni / Photon 系列）",
+    },
+    priority: 35,
+    enabled: true,
+    description: "模型正则 uni-|photon 元数据规则",
+  },
+
+  // === 其他图像生成榜单模型 ===
+  {
+    id: "model-reve-image",
+    matchType: "modelPrefix",
+    matchValue: "reve-",
+    properties: {
+      icon: `/model-icons/reve.svg`,
+      group: "Reve",
+      capabilities: {
+        imageGeneration: true,
+        vision: true,
+        iterativeRefinement: true,
+      },
+      description: "Reve 图像生成模型系列",
+    },
+    priority: 35,
+    enabled: true,
+    description: "模型前缀 reve- 元数据规则",
+  },
+  {
+    id: "model-ideogram",
+    matchType: "modelPrefix",
+    matchValue: "ideogram-",
+    properties: {
+      icon: `/model-icons/ideogram.svg`,
+      group: "Ideogram",
+      capabilities: {
+        imageGeneration: true,
+        vision: true,
+      },
+      description: "Ideogram 图像生成模型系列",
+    },
+    priority: 35,
+    enabled: true,
+    description: "模型前缀 ideogram- 元数据规则",
+  },
+  {
+    id: "model-recraft",
+    matchType: "modelPrefix",
+    matchValue: "recraft-",
+    properties: {
+      icon: `/model-icons/recraft.svg`,
+      group: "Recraft",
+      capabilities: {
+        imageGeneration: true,
+        vision: true,
+      },
+      description: "Recraft 图像生成模型系列",
+    },
+    priority: 35,
+    enabled: true,
+    description: "模型前缀 recraft- 元数据规则",
+  },
+  {
+    id: "model-krea",
+    matchType: "modelPrefix",
+    matchValue: "krea-",
+    properties: {
+      icon: `/model-icons/krea.svg`,
+      group: "Krea",
+      capabilities: {
+        imageGeneration: true,
+        vision: true,
+      },
+      description: "Krea 图像生成模型系列",
+    },
+    priority: 35,
+    enabled: true,
+    description: "模型前缀 krea- 元数据规则",
+  },
+  {
+    id: "model-bytedance-image",
+    matchType: "modelPrefix",
+    matchValue: "seedream-|bagel",
+    useRegex: true,
+    properties: {
+      icon: `/model-icons/bytedance-color.svg`,
+      group: "ByteDance",
+      capabilities: {
+        imageGeneration: true,
+        vision: true,
+      },
+      description: "字节跳动 Seedream / BAGEL 图像生成模型",
+    },
+    priority: 35,
+    enabled: true,
+    description: "模型正则 seedream-|bagel 元数据规则",
+  },
+  {
+    id: "model-runway-image",
+    matchType: "modelPrefix",
+    matchValue: "runway-gen",
+    properties: {
+      icon: `/model-icons/runway.svg`,
+      group: "Runway",
+      capabilities: {
+        imageGeneration: true,
+        videoGeneration: true,
+        vision: true,
+      },
+      description: "Runway Gen 系列媒体生成模型",
+    },
+    priority: 35,
+    enabled: true,
+    description: "模型前缀 runway-gen 元数据规则",
+  },
+  {
+    id: "model-pruna-image",
+    matchType: "modelPrefix",
+    matchValue: "p-image",
+    properties: {
+      icon: `/model-icons/prunaai-color.svg`,
+      group: "Pruna",
+      capabilities: {
+        imageGeneration: true,
+      },
+      description: "Pruna P-Image 图像生成模型",
+    },
+    priority: 35,
+    enabled: true,
+    description: "模型前缀 p-image 元数据规则",
+  },
+  {
+    id: "model-hidream-image",
+    matchType: "modelPrefix",
+    matchValue: "hidream",
+    properties: {
+      group: "HiDream",
+      capabilities: {
+        imageGeneration: true,
+        vision: true,
+      },
+      description: "HiDream 图像生成模型系列",
+    },
+    priority: 36,
+    enabled: true,
+    exclusive: true,
+    description: "模型前缀 hidream 元数据规则",
+  },
+  {
+    id: "model-leonardo-lucid",
+    matchType: "modelPrefix",
+    matchValue: "lucid-",
+    properties: {
+      group: "Leonardo AI",
+      capabilities: {
+        imageGeneration: true,
+        vision: true,
+      },
+      description: "Leonardo AI Lucid 图像生成模型",
+    },
+    priority: 35,
+    enabled: true,
+    description: "模型前缀 lucid- 元数据规则",
+  },
+  {
+    id: "model-nvidia-cosmos-image",
+    matchType: "modelPrefix",
+    matchValue: "cosmos\\d.*text2image",
+    useRegex: true,
+    properties: {
+      icon: `/model-icons/nvidia-color.svg`,
+      group: "NVIDIA",
+      capabilities: {
+        imageGeneration: true,
+      },
+      description: "NVIDIA Cosmos Text-to-Image 系列模型",
+    },
+    priority: 35,
+    enabled: true,
+    description: "模型正则 cosmos\\d.*text2image 元数据规则",
+  },
+  {
+    id: "model-hunyuan-image",
+    matchType: "modelPrefix",
+    matchValue: "hunyuan-image",
+    properties: {
+      icon: `/model-icons/hunyuan-color.svg`,
+      group: "Tencent",
+      capabilities: {
+        imageGeneration: true,
+        vision: true,
+      },
+      description: "腾讯混元图像生成模型系列",
+    },
+    priority: 35,
+    enabled: true,
+    description: "模型前缀 hunyuan-image 元数据规则",
+  },
 
   // === 通义千问 Qwen Image Edit 官方图片编辑系列 ===
   {
@@ -410,5 +651,21 @@ export const specificModelRules: ModelMetadataRule[] = [
     priority: 30,
     enabled: true,
     description: "模型前缀 z-image 元数据规则",
+  },
+  {
+    id: "model-glm-image-zai",
+    matchType: "modelPrefix",
+    matchValue: "glm-image",
+    properties: {
+      icon: `/model-icons/zai.svg`,
+      group: "Z AI",
+      capabilities: {
+        imageGeneration: true,
+      },
+      description: "Z AI GLM-Image 图像生成模型",
+    },
+    priority: 35,
+    enabled: true,
+    description: "模型前缀 glm-image 元数据规则",
   },
 ];

@@ -26,7 +26,7 @@ export function useMediaGenParamRules() {
    * 判断模型是否使用 aspectRatioMode（xAI 等）而非标准 size 参数
    */
   function usesAspectRatioMode(rules: MediaGenParamRules): boolean {
-    return !!rules.aspectRatioMode && !rules.size;
+    return !!rules.aspectRatioMode;
   }
 
   /**
@@ -195,12 +195,21 @@ export function useMediaGenParamRules() {
    */
   function buildXaiSizeParams(
     aspectRatio: string,
-    resolution: string
-  ): { aspect_ratio: string; resolution: string } {
-    return {
+    resolution?: string
+  ): { aspectRatio: string; aspect_ratio: string; resolution?: string } {
+    const params: {
+      aspectRatio: string;
+      aspect_ratio: string;
+      resolution?: string;
+    } = {
+      aspectRatio,
       aspect_ratio: aspectRatio,
-      resolution: resolution.toLowerCase(), // xAI 要求小写 k
     };
+    if (resolution) {
+      // xAI 要求小写 k；其他 provider 通常忽略或自行处理。
+      params.resolution = resolution.toLowerCase();
+    }
+    return params;
   }
 
   return {

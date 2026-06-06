@@ -22,7 +22,11 @@ export const callOpenAiResponsesApi = async (
   profile: LlmProfile,
   options: LlmRequestOptions
 ): Promise<LlmResponse> => {
-  const url = openAiResponsesUrlHandler.buildUrl(profile.baseUrl, "responses");
+  const url = openAiResponsesUrlHandler.buildUrl(
+    profile.baseUrl,
+    "responses",
+    profile
+  );
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",

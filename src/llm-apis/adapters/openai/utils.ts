@@ -90,7 +90,26 @@ export const openAiUrlHandler = {
  * OpenAI Responses 适配器的 URL 处理逻辑
  */
 export const openAiResponsesUrlHandler = {
-  buildUrl: (baseUrl: string, endpoint?: string): string => {
+  buildUrl: (
+    baseUrl: string,
+    endpoint?: string,
+    profile?: LlmProfile
+  ): string => {
+    const customEndpoint = profile?.customEndpoints?.chatCompletions;
+    if (customEndpoint) {
+      if (customEndpoint.startsWith("http")) return customEndpoint;
+
+      const host = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+      const cleanEndpoint = customEndpoint.startsWith("/")
+        ? customEndpoint.substring(1)
+        : customEndpoint;
+      return `${host}${cleanEndpoint}`;
+    }
+
+    if (endpoint?.startsWith("http")) {
+      return endpoint;
+    }
+
     const host = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
     // 智能添加 v1 版本路径（如果没加的话），同时兼容 v2, v3 等
     const versionedHost =

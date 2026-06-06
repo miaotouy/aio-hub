@@ -276,6 +276,13 @@ export const providerTypes: ProviderTypeInfo[] = [
       thinking: true,
       modalities: true,
     },
+    endpointPlaceholders: {
+      chatCompletions: "/v1/responses",
+      completions: "暂不支持",
+      imagesGenerations: "/v1/responses",
+      imagesEdits: "/v1/responses",
+      imagesVariations: "暂不支持",
+    },
   },
   {
     type: "cohere",

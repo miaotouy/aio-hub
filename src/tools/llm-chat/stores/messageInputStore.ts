@@ -244,6 +244,12 @@ export const useMessageInputStore = defineStore(
         return;
       }
 
+      // 附件正在上传中，禁止发送
+      if (isProcessingAttachments.value) {
+        customMessage.warning("附件正在上传中，请稍候再发送");
+        return;
+      }
+
       // 发送前兜底：修复可能因竞态遗漏的 uploading 占位符
       inputManager.scanAndFixPlaceholders();
 

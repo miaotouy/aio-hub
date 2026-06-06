@@ -99,6 +99,19 @@
                   </div>
                 </div>
 
+                <el-tooltip
+                  content="编辑消息"
+                  placement="top"
+                  :show-after="400"
+                >
+                  <el-button
+                    link
+                    size="small"
+                    @click.stop="emit('edit-message', msg)"
+                  >
+                    <el-icon><Edit /></el-icon>
+                  </el-button>
+                </el-tooltip>
                 <el-tooltip content="移出组" placement="top" :show-after="400">
                   <el-button
                     link
@@ -176,6 +189,7 @@ interface Emits {
   (e: "update:presetGroups", groups: PresetMessageGroup[]): void;
   (e: "update:localMessages", messages: ChatMessageNode[]): void;
   (e: "sync"): void;
+  (e: "edit-message", msg: ChatMessageNode): void;
 }
 
 const props = defineProps<Props>();
@@ -380,8 +394,6 @@ function handleAddMessage(group: PresetMessageGroup, msgId: string) {
 <style scoped>
 .preset-group-panel {
   border-bottom: var(--border-width) solid var(--border-color);
-  background-color: var(--card-bg);
-  backdrop-filter: blur(var(--ui-blur));
 }
 
 .panel-header {

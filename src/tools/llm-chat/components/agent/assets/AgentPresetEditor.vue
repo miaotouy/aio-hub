@@ -1,119 +1,123 @@
 <template>
   <div class="agent-preset-editor" :class="{ compact: props.compact }">
-    <!-- 头部操作栏 -->
-    <div
-      v-if="!props.compact"
-      ref="headerRef"
-      class="editor-header"
-      :class="{ 'is-narrow': isNarrow }"
-    >
-      <div class="header-title" @click="isCollapsed = !isCollapsed">
-        <el-button link size="small" class="collapse-btn">
-          <el-icon :class="{ 'is-collapsed': isCollapsed }"
-            ><ArrowDown
-          /></el-icon>
-        </el-button>
-        <span class="title-text">预设消息配置</span>
-        <el-tooltip
-          content="预设消息将作为所有对话的上下文基础"
-          placement="top"
-        >
-          <el-icon><QuestionFilled /></el-icon>
-        </el-tooltip>
-        <div v-if="props.modelId && totalTokens > 0" class="token-info">
-          <el-tag size="small" type="info" effect="plain">
-            <template v-if="isCalculatingTokens">计算中...</template>
-            <template v-else>总计: {{ totalTokens }} tokens</template>
-          </el-tag>
+    <!-- 头部操作栏 + 预设组面板 共用容器 -->
+    <div v-if="!props.compact" class="header-group">
+      <PresetGroupPanel
+        :preset-groups="presetGroups"
+        :local-messages="localMessages"
+        @update:preset-groups="presetGroups = $event"
+        @update:local-messages="localMessages = $event"
+        @sync="syncToParent"
+        @edit-message="handleEditMessage"
+      />
+      <div
+        ref="headerRef"
+        class="editor-header"
+        :class="{ 'is-narrow': isNarrow }"
+      >
+        <div class="header-title" @click="isCollapsed = !isCollapsed">
+          <el-button link size="small" class="collapse-btn">
+            <el-icon :class="{ 'is-collapsed': isCollapsed }"
+              ><ArrowDown
+            /></el-icon>
+          </el-button>
+          <span class="title-text">预设消息配置</span>
+          <el-tooltip
+            content="预设消息将作为所有对话的上下文基础"
+            placement="top"
+          >
+            <el-icon><QuestionFilled /></el-icon>
+          </el-tooltip>
+          <div v-if="props.modelId && totalTokens > 0" class="token-info">
+            <el-tag size="small" type="info" effect="plain">
+              <template v-if="isCalculatingTokens">计算中...</template>
+              <template v-else>总计: {{ totalTokens }} tokens</template>
+            </el-tag>
+          </div>
+        </div>
+        <div class="header-actions">
+          <el-dropdown trigger="click" @command="handleExport">
+            <div>
+              <el-tooltip
+                content="将当前预设导出为文件"
+                placement="top"
+                :show-after="300"
+              >
+                <el-button size="small">
+                  <el-icon><Download /></el-icon>
+                  导出
+                  <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+                </el-button>
+              </el-tooltip>
+            </div>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="json">JSON 格式</el-dropdown-item>
+                <el-dropdown-item command="yaml">YAML 格式</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+
+          <el-dropdown trigger="click" @command="handleCopy">
+            <div>
+              <el-tooltip
+                content="将当前预设复制到剪贴板"
+                placement="top"
+                :show-after="300"
+              >
+                <el-button size="small">
+                  <el-icon><CopyDocument /></el-icon>
+                  复制
+                  <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+                </el-button>
+              </el-tooltip>
+            </div>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="json">复制为 JSON</el-dropdown-item>
+                <el-dropdown-item command="yaml">复制为 YAML</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+
+          <el-tooltip
+            content="从剪贴板粘贴并覆盖整个预设"
+            placement="top"
+            :show-after="300"
+          >
+            <el-button size="small" @click="handlePaste">
+              <el-icon><DocumentCopy /></el-icon>粘贴
+            </el-button>
+          </el-tooltip>
+          <el-tooltip
+            content="从文件导入预设"
+            placement="top"
+            :show-after="300"
+          >
+            <el-button size="small" @click="handleImport">
+              <el-icon><Upload /></el-icon>导入
+            </el-button>
+          </el-tooltip>
+          <el-tooltip
+            content="批量管理消息（移动/删除/启用）"
+            placement="top"
+            :show-after="300"
+          >
+            <el-button size="small" @click="handleOpenBatchManager">
+              <el-icon><Operation /></el-icon>批量管理
+            </el-button> </el-tooltip
+          ><el-tooltip
+            content="添加一条新的预设消息"
+            placement="top"
+            :show-after="300"
+          >
+            <el-button type="primary" size="small" @click="handleAddMessage">
+              <el-icon><Plus /></el-icon>添加消息
+            </el-button>
+          </el-tooltip>
         </div>
       </div>
-      <div class="header-actions">
-        <el-dropdown trigger="click" @command="handleExport">
-          <div>
-            <el-tooltip
-              content="将当前预设导出为文件"
-              placement="top"
-              :show-after="300"
-            >
-              <el-button size="small">
-                <el-icon><Download /></el-icon>
-                导出
-                <el-icon class="el-icon--right"><ArrowDown /></el-icon>
-              </el-button>
-            </el-tooltip>
-          </div>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item command="json">JSON 格式</el-dropdown-item>
-              <el-dropdown-item command="yaml">YAML 格式</el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
-
-        <el-dropdown trigger="click" @command="handleCopy">
-          <div>
-            <el-tooltip
-              content="将当前预设复制到剪贴板"
-              placement="top"
-              :show-after="300"
-            >
-              <el-button size="small">
-                <el-icon><CopyDocument /></el-icon>
-                复制
-                <el-icon class="el-icon--right"><ArrowDown /></el-icon>
-              </el-button>
-            </el-tooltip>
-          </div>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item command="json">复制为 JSON</el-dropdown-item>
-              <el-dropdown-item command="yaml">复制为 YAML</el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
-
-        <el-tooltip
-          content="从剪贴板粘贴并覆盖整个预设"
-          placement="top"
-          :show-after="300"
-        >
-          <el-button size="small" @click="handlePaste">
-            <el-icon><DocumentCopy /></el-icon>粘贴
-          </el-button>
-        </el-tooltip>
-        <el-tooltip content="从文件导入预设" placement="top" :show-after="300">
-          <el-button size="small" @click="handleImport">
-            <el-icon><Upload /></el-icon>导入
-          </el-button>
-        </el-tooltip>
-        <el-tooltip
-          content="批量管理消息（移动/删除/启用）"
-          placement="top"
-          :show-after="300"
-        >
-          <el-button size="small" @click="handleOpenBatchManager">
-            <el-icon><Operation /></el-icon>批量管理
-          </el-button> </el-tooltip
-        ><el-tooltip
-          content="添加一条新的预设消息"
-          placement="top"
-          :show-after="300"
-        >
-          <el-button type="primary" size="small" @click="handleAddMessage">
-            <el-icon><Plus /></el-icon>添加消息
-          </el-button>
-        </el-tooltip>
-      </div>
     </div>
-
-    <PresetGroupPanel
-      v-if="!props.compact"
-      :preset-groups="presetGroups"
-      :local-messages="localMessages"
-      @update:preset-groups="presetGroups = $event"
-      @update:local-messages="localMessages = $event"
-      @sync="syncToParent"
-    />
     <Transition name="collapse">
       <div
         v-show="!isCollapsed || props.compact"
@@ -674,14 +678,18 @@ function handleSaveUserProfile(
   width: 100%;
 }
 
+.header-group {
+  border-radius: 8px;
+  background-color: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
+  overflow: hidden;
+}
+
 .editor-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 12px 16px;
-  border-radius: 8px;
-  background-color: var(--card-bg);
-  backdrop-filter: blur(var(--ui-blur));
   border-bottom: var(--border-width) solid var(--border-color);
   flex-wrap: wrap;
   gap: 12px;

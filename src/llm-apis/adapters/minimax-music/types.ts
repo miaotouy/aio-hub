@@ -58,6 +58,21 @@ export interface MinimaxMusicRequest {
   cover_feature_id?: string;
 }
 
+export interface CoverPreprocessRequest {
+  model: Extract<MinimaxMusicModel, "music-cover" | "music-cover-free">;
+  audio_url?: string;
+  audio_base64?: string;
+}
+
+export interface CoverPreprocessResponse {
+  cover_feature_id?: string;
+  formatted_lyrics?: string;
+  structure_result?: string;
+  audio_duration?: number;
+  trace_id?: string;
+  base_resp?: MinimaxBaseResp;
+}
+
 export interface MinimaxMusicData {
   status?: number;
   audio?: string;

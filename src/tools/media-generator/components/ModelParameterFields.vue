@@ -57,6 +57,16 @@ const {
   speechSpeed,
   speechInstructions,
 } = useMediaGenParameterState();
+
+const handleCoverWorkflowChange = (value: string | number | boolean) => {
+  if (value === "two_step") {
+    if (params.value.cover_feature_id) {
+      params.value.cover_reference_mode = "feature";
+    }
+    return;
+  }
+  params.value.cover_reference_mode = "audio";
+};
 </script>
 
 <template>
@@ -564,6 +574,18 @@ const {
             placeholder="留空则使用主输入框描述"
             size="small"
           />
+        </div>
+
+        <div v-if="params.minimax_music_mode === 'cover'" class="section">
+          <div class="section-title">翻唱流程</div>
+          <el-radio-group
+            v-model="params.cover_workflow"
+            size="small"
+            @change="handleCoverWorkflowChange"
+          >
+            <el-radio-button value="one_step">一步</el-radio-button>
+            <el-radio-button value="two_step">两步</el-radio-button>
+          </el-radio-group>
         </div>
 
         <div v-if="params.minimax_music_mode === 'cover'" class="section">

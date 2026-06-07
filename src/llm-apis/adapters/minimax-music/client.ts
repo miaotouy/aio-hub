@@ -1,4 +1,6 @@
 import type {
+  CoverPreprocessRequest,
+  CoverPreprocessResponse,
   MinimaxClientConfig,
   MinimaxLyricsRequest,
   MinimaxLyricsResponse,
@@ -39,6 +41,18 @@ export class MinimaxMusicClient {
       request
     );
     ensureMinimaxSuccess(response, "音乐生成失败");
+    return response;
+  }
+
+  async coverPreprocess(
+    request: CoverPreprocessRequest
+  ): Promise<CoverPreprocessResponse> {
+    const response = await minimaxMusicFetch<CoverPreprocessResponse>(
+      this.config,
+      MINIMAX_MUSIC_PATHS.coverPreprocess,
+      request
+    );
+    ensureMinimaxSuccess(response, "翻唱前处理失败");
     return response;
   }
 }

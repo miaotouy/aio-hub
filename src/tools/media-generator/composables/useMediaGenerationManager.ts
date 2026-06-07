@@ -14,6 +14,10 @@ import { DEFAULT_MEDIA_TIMEOUT } from "@/llm-apis/common";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { embedMetadata } from "@/utils/mediaMetadataManager";
+import {
+  inferMediaAttachmentType,
+  stripAudioDataUrl,
+} from "./mediaAttachmentUtils";
 import type { MediaTask, MediaTaskType, MediaMessage } from "../types";
 import type {
   MediaGenerationOptions,
@@ -385,6 +389,7 @@ export function useMediaGenerationManager() {
       const maxRetries = config?.maxRetries ?? 0;
       const { profile: selectedProfile, model: selectedModel } =
         resolveModelSelection(task.input.profileId, task.input.modelId);
+      validateMiniMaxTwoStepCover(selectedProfile, task.input.params);
       const canUseConversationContext = supportsConversationalGeneration(
         selectedProfile,
         selectedModel
@@ -434,7 +439,7 @@ export function useMediaGenerationManager() {
             if (att.path && !att.b64) {
               try {
                 let buffer = await getAssetBinary(att.path);
-                const attachmentType = inferAttachmentType(att);
+                const attachmentType = inferMediaAttachmentType(att);
 
                 if (attachmentType === "audio") {
                   const base64 = await convertArrayBufferToBase64(buffer);
@@ -485,6 +490,7 @@ export function useMediaGenerationManager() {
       const minimaxAudioBase64 = extractMinimaxCoverAudioBase64(
         selectedProfile,
         finalMusicMode(task.input.params),
+        task.input.params,
         processedAttachments
       );
 
@@ -916,19 +922,6 @@ export function useMediaGenerationManager() {
     return map[format] || "audio/mpeg";
   }
 
-  function inferAttachmentType(att: any): "image" | "video" | "audio" | "mask" {
-    if (att.type === "audio" || att.mimeType?.startsWith?.("audio/")) {
-      return "audio";
-    }
-    if (att.type === "video" || att.mimeType?.startsWith?.("video/")) {
-      return "video";
-    }
-    if (att.type === "mask" || att.role === "mask") {
-      return "mask";
-    }
-    return "image";
-  }
-
   function finalMusicMode(params: Record<string, any>): string {
     if (String(params.modelId || "").startsWith("music-cover")) return "cover";
     if (params.minimax_music_mode) return params.minimax_music_mode;
@@ -939,14 +932,18 @@ export function useMediaGenerationManager() {
   function extractMinimaxCoverAudioBase64(
     profile: LlmProfile | undefined,
     musicMode: string,
+    params: Record<string, any>,
     attachments: any[] | undefined
   ): string | undefined {
     if (profile?.type !== "minimax-music" || musicMode !== "cover") {
       return undefined;
     }
+    if (params.cover_reference_mode === "feature") {
+      return undefined;
+    }
 
     const audioAttachments = (attachments || []).filter(
-      (att) => inferAttachmentType(att) === "audio"
+      (att) => inferMediaAttachmentType(att) === "audio"
     );
     if (audioAttachments.length > 1) {
       throw new Error("MiniMax 翻唱一次只支持一个参考音频附件");
@@ -954,8 +951,36 @@ export function useMediaGenerationManager() {
 
     const audio = audioAttachments[0];
     if (!audio?.b64) return undefined;
-    const match = String(audio.b64).match(/^data:[^;]+;base64,(.+)$/s);
-    return match ? match[1] : String(audio.b64);
+    return stripAudioDataUrl(String(audio.b64));
+  }
+
+  function validateMiniMaxTwoStepCover(
+    profile: LlmProfile | undefined,
+    params: Record<string, any>
+  ): void {
+    if (
+      profile?.type !== "minimax-music" ||
+      finalMusicMode(params) !== "cover" ||
+      params.cover_workflow !== "two_step"
+    ) {
+      return;
+    }
+
+    if (!params.cover_feature_id) {
+      throw new Error("两步翻唱需要先预处理参考音频");
+    }
+    if (!String(params.lyrics || "").trim()) {
+      throw new Error("两步翻唱需要保留或填写歌词");
+    }
+    if (isMinimaxCoverPreprocessExpired(params.cover_preprocess_result)) {
+      throw new Error("预处理结果已过期，请重新预处理参考音频");
+    }
+    params.cover_reference_mode = "feature";
+  }
+
+  function isMinimaxCoverPreprocessExpired(result: any): boolean {
+    if (!result?.expiresAt) return true;
+    return Date.now() > new Date(result.expiresAt).getTime();
   }
 
   /**

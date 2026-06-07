@@ -8,6 +8,7 @@ import { useFileInteraction } from "@/composables/useFileInteraction";
 import { useAssetManager } from "@/composables/useAssetManager";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useInputResize } from "../composables/useInputResize";
+import { useMiniMaxCoverWorkflow } from "../composables/useMiniMaxCoverWorkflow";
 import AttachmentCard from "@/tools/llm-chat/components/AttachmentCard.vue";
 import MediaGenerationInputToolbar from "./MediaGenerationInputToolbar.vue";
 import { parseModelCombo } from "@/utils/modelIdUtils";
@@ -37,6 +38,7 @@ const logger = createModuleLogger("media-generator/MediaGenerationInput");
 const store = useMediaGenStore();
 const inputManager = useMediaGenInputManager();
 const { isGenerating, abort } = useMediaGenerationManager();
+const { ensureTwoStepReady } = useMiniMaxCoverWorkflow();
 const assetManager = useAssetManager();
 const { getProfileById, saveProfile } = useLlmProfiles();
 
@@ -366,6 +368,15 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
 
   if (!modelCombo) {
     customMessage.warning("请先选择生成模型");
+    return;
+  }
+
+  try {
+    ensureTwoStepReady();
+  } catch (error) {
+    customMessage.warning(
+      error instanceof Error ? error.message : String(error)
+    );
     return;
   }
 

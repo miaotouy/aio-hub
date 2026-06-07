@@ -16,6 +16,7 @@ import {
 
 type MinimaxMusicMode = "song" | "instrumental" | "cover";
 type LyricsSource = "optimizer" | "manual" | "generate";
+type CoverReferenceMode = "audio" | "feature";
 
 export const minimaxMusicAdapter: LlmAdapter = {
   async chat() {
@@ -134,7 +135,7 @@ function normalizeString(value: unknown): string | undefined {
   return trimmed ? trimmed : undefined;
 }
 
-function buildMusicRequest(input: {
+export function buildMusicRequest(input: {
   model: MinimaxMusicModel;
   mode: MinimaxMusicMode;
   prompt: string;
@@ -187,9 +188,24 @@ function applyCoverReference(
   request: MinimaxMusicRequest,
   params: Record<string, any>
 ): void {
+  const coverReferenceMode = normalizeCoverReferenceMode(
+    params.cover_reference_mode
+  );
   const audioUrl = normalizeString(params.audio_url);
   const audioBase64 = normalizeString(params.audio_base64);
   const coverFeatureId = normalizeString(params.cover_feature_id);
+
+  if (coverReferenceMode === "feature") {
+    if (!coverFeatureId) {
+      throw new Error("两步翻唱模式下，必须先预处理参考音频以获取特征 ID");
+    }
+    if (!request.lyrics) {
+      throw new Error("使用 cover_feature_id 翻唱时必须提供歌词");
+    }
+    request.cover_feature_id = coverFeatureId;
+    return;
+  }
+
   const provided = [audioUrl, audioBase64, coverFeatureId].filter(Boolean);
 
   if (provided.length > 1) {
@@ -210,4 +226,8 @@ function applyCoverReference(
   } else {
     throw new Error("MiniMax 翻唱需要填写参考音频 URL 或添加一个音频附件");
   }
+}
+
+function normalizeCoverReferenceMode(value: unknown): CoverReferenceMode {
+  return value === "feature" ? "feature" : "audio";
 }

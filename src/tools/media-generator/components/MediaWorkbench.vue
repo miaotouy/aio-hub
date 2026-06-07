@@ -6,6 +6,7 @@ import GenerationStream from "./GenerationStream.vue";
 import QuickTaskView from "./QuickTaskView.vue";
 import AssetGallery from "./AssetGallery.vue";
 import MediaGenerationInput from "./MediaGenerationInput.vue";
+import MiniMaxCoverWorkflowPanel from "./MiniMaxCoverWorkflowPanel.vue";
 import {
   ChevronLeft,
   ChevronRight,
@@ -385,6 +386,7 @@ watch(
       </div>
 
       <div class="workbench-footer">
+        <MiniMaxCoverWorkflowPanel />
         <MediaGenerationInput :mode="workbenchMode" @send="handleSendQuick" />
       </div>
     </div>

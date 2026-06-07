@@ -94,6 +94,10 @@ export function useSessionManager() {
             is_instrumental: false,
             output_format: "url",
             audio_url: "",
+            cover_workflow: "one_step",
+            cover_reference_mode: "audio",
+            cover_feature_id: "",
+            cover_preprocess_result: null,
             audio_setting: {
               sample_rate: 44100,
               bitrate: 256000,

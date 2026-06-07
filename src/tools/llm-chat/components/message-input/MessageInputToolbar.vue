@@ -135,21 +135,6 @@ const activeActionSets = computed(() => {
     .filter(Boolean) as QuickActionSet[];
 });
 
-const effectiveUserProfileId = computed(() => {
-  const agent = agentStore.currentAgentId
-    ? agentStore.getAgentById(agentStore.currentAgentId)
-    : null;
-  return agent?.userProfileId || profileStore.globalProfileId;
-});
-
-watch(
-  effectiveUserProfileId,
-  (id) => {
-    if (id) profileStore.ensureProfileLoaded(id);
-  },
-  { immediate: true }
-);
-
 const miniSessionListRef = ref<any>(null);
 
 const isCanvasEnabled = computed(() => {

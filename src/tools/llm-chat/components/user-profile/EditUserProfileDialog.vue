@@ -7,29 +7,21 @@
     maxWidth="1200px"
   >
     <template #content>
-      <div v-loading="isLoading" element-loading-text="正在加载档案详情...">
-        <UserProfileForm
-          v-if="!isLoading"
-          v-model="form as any"
-          :profile-id="profile?.id"
-          :required="true"
-          :description-rows="8"
-          :show-metadata="true"
-          :showUpload="true"
-          icon-placeholder="输入 emoji、路径或选择图像（可选）"
-          icon-hint="可以输入 emoji、从预设选择、上传头像或输入绝对路径"
-        />
-        <div v-else class="loading-placeholder"></div>
-      </div>
+      <UserProfileForm
+        v-model="form as any"
+        :profile-id="profile?.id"
+        :required="true"
+        :description-rows="8"
+        :show-metadata="true"
+        :showUpload="true"
+        icon-placeholder="输入 emoji、路径或选择图像（可选）"
+        icon-hint="可以输入 emoji、从预设选择、上传头像或输入绝对路径"
+      />
     </template>
 
     <template #footer>
       <el-button @click="handleVisibleChange(false)">取消</el-button>
-      <el-button
-        type="primary"
-        @click="handleSave"
-        :disabled="!isValid || isLoading"
-      >
+      <el-button type="primary" @click="handleSave" :disabled="!isValid">
         保存
       </el-button>
     </template>
@@ -41,7 +33,6 @@ import { ref, computed, watch } from "vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import UserProfileForm from "@/views/Settings/user-profile/components/UserProfileForm.vue";
 import { customMessage } from "@/utils/customMessage";
-import { useUserProfileStore } from "../../stores/userProfileStore";
 import {
   type UserProfile,
   type UserProfileUpdateData,
@@ -61,9 +52,6 @@ interface Emits {
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
-const userProfileStore = useUserProfileStore();
-const isLoading = ref(false);
-
 // 表单数据类型 - 排除 id，其他字段都应该在表单中维护
 type FormState = Omit<UserProfile, "id">;
 
@@ -75,41 +63,11 @@ const form = ref<FormState>({
   lastUsedAt: "",
 });
 
-// 核心逻辑：确保档案详情已加载
-const ensureDataLoaded = async () => {
-  if (!props.visible || !props.profile) return;
-
-  // 如果 content 是 undefined，说明只有索引，需要按需加载详情
-  if (props.profile.content === undefined) {
-    isLoading.value = true;
-    try {
-      await userProfileStore.ensureProfileLoaded(props.profile.id);
-    } finally {
-      isLoading.value = false;
-    }
-  }
-};
-
-// 监听可见性变化，打开时触发加载
-watch(
-  () => props.visible,
-  (visible) => {
-    if (visible) {
-      ensureDataLoaded();
-    }
-  }
-);
-
 // 监听传入的档案数据变化
 watch(
   () => props.profile,
   (profile) => {
     if (profile) {
-      // 如果详情还没加载（content 是 undefined），我们先不填充表单，等待 ensureDataLoaded 完成
-      if (profile.content === undefined) {
-        return;
-      }
-
       const defaults = createDefaultUserProfileConfig();
       // 使用解构赋值，自动包含所有字段
       form.value = {
@@ -134,9 +92,7 @@ watch(
 
 // 验证表单是否有效
 const isValid = computed(() => {
-  return (
-    form.value.name.trim() !== "" && (form.value.content?.trim() ?? "") !== ""
-  );
+  return form.value.name.trim() !== "" && form.value.content.trim() !== "";
 });
 
 // 处理对话框显示状态变化

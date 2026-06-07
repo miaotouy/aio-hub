@@ -10,7 +10,7 @@ import { join, extname } from "@tauri-apps/api/path";
 import { getAppConfigDir } from "@/utils/appPath";
 import { invoke } from "@tauri-apps/api/core";
 import { createConfigManager } from "@/utils/configManager";
-import type { UserProfile } from "../../types";
+import { createDefaultUserProfileConfig, type UserProfile } from "../../types";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 
@@ -63,6 +63,26 @@ const indexManager = createConfigManager<ProfilesIndex>({
   createDefault: createDefaultIndex,
 });
 
+let indexMutationQueue: Promise<void> = Promise.resolve();
+
+async function updateIndex<T>(
+  updater: (index: ProfilesIndex) => T | Promise<T>
+): Promise<T> {
+  const task = indexMutationQueue.then(async () => {
+    const index = await indexManager.load();
+    const result = await updater(index);
+    await indexManager.save(index);
+    return result;
+  });
+
+  indexMutationQueue = task.then(
+    () => undefined,
+    () => undefined
+  );
+
+  return task;
+}
+
 /**
  * 用户档案设置（已整合到索引中）
  */
@@ -106,6 +126,33 @@ export function useUserProfileStorage() {
     await indexManager.save(index);
   }
 
+  function normalizeProfile(
+    profile: Partial<UserProfile>,
+    fallbackId: string
+  ): UserProfile {
+    const defaults = createDefaultUserProfileConfig();
+    return {
+      ...defaults,
+      ...profile,
+      id: profile.id || fallbackId,
+      name: profile.name || defaults.name,
+      createdAt: profile.createdAt || new Date().toISOString(),
+      content: profile.content ?? "",
+      displayName: profile.displayName ?? defaults.displayName,
+      icon: profile.icon ?? defaults.icon,
+      avatarHistory: profile.avatarHistory ?? defaults.avatarHistory,
+      enabled: profile.enabled ?? defaults.enabled,
+      richTextStyleOptions:
+        profile.richTextStyleOptions ?? defaults.richTextStyleOptions,
+      richTextStyleBehavior:
+        profile.richTextStyleBehavior ?? defaults.richTextStyleBehavior,
+      regexConfig: profile.regexConfig ?? defaults.regexConfig,
+      worldbookIds: profile.worldbookIds ?? defaults.worldbookIds,
+      quickActionSetIds:
+        profile.quickActionSetIds ?? defaults.quickActionSetIds,
+    };
+  }
+
   /**
    * 加载单个用户档案
    */
@@ -120,7 +167,7 @@ export function useUserProfileStorage() {
       }
 
       const content = await readTextFile(profilePath);
-      const profile: UserProfile = JSON.parse(content);
+      const profile = normalizeProfile(JSON.parse(content), profileId);
 
       // 迁移逻辑：处理绝对路径
       let isDirty = false;
@@ -238,9 +285,8 @@ export function useUserProfileStorage() {
     if (!profile.name) return { valid: false, reason: "缺少 name (档案名称)" };
     if (!profile.createdAt) return { valid: false, reason: "缺少 createdAt" };
 
-    // 核心检查：如果 content 是 undefined，说明这只是一个索引项（元数据），绝不能作为完整档案保存
-    if (profile.content === undefined) {
-      return { valid: false, reason: "content 为 undefined (详情未加载)" };
+    if (typeof profile.content !== "string") {
+      return { valid: false, reason: "content 不是字符串" };
     }
 
     // 结构检查：检查关键配置项是否存在（即使是空的）
@@ -584,7 +630,6 @@ export function useUserProfileStorage() {
 
   /**
    * 加载所有用户档案（全量加载，已标记为重型操作）
-   * @deprecated 请优先使用 loadProfilesIndex + loadProfile 组合
    */
   const loadProfilesAll = async (): Promise<UserProfile[]> => {
     try {
@@ -601,6 +646,29 @@ export function useUserProfileStorage() {
       const profiles = profileResults.filter(
         (p): p is UserProfile => p !== null
       );
+
+      const loadedIds = new Set(profiles.map((profile) => profile.id));
+      const nextIndexItems = profiles.map((profile) =>
+        createIndexItem(profile)
+      );
+      const indexNeedsUpdate =
+        nextIndexItems.length !== indexItems.length ||
+        !indexItems.every(
+          (item, index) =>
+            JSON.stringify(item) === JSON.stringify(nextIndexItems[index])
+        );
+
+      if (
+        indexNeedsUpdate ||
+        (profiles.length > 0 && indexItems.length === 0)
+      ) {
+        await updateIndex((index) => {
+          index.profiles = nextIndexItems;
+          if (index.globalProfileId && !loadedIds.has(index.globalProfileId)) {
+            index.globalProfileId = null;
+          }
+        });
+      }
 
       logger.info(`全量加载了 ${profiles.length} 个用户档案`);
       return profiles;
@@ -631,19 +699,19 @@ export function useUserProfileStorage() {
       await saveProfile(profile, true); // 强制写入
 
       // 2. 更新索引
-      const index = await loadIndex();
+      await updateIndex((index) => {
+        // 更新或添加当前档案的索引项
+        const profileIndex = index.profiles.findIndex(
+          (p) => p.id === profile.id
+        );
+        const newIndexItem = createIndexItem(profile);
 
-      // 更新或添加当前档案的索引项
-      const profileIndex = index.profiles.findIndex((p) => p.id === profile.id);
-      const newIndexItem = createIndexItem(profile);
-
-      if (profileIndex >= 0) {
-        index.profiles[profileIndex] = newIndexItem;
-      } else {
-        index.profiles.push(newIndexItem);
-      }
-
-      await saveIndex(index);
+        if (profileIndex >= 0) {
+          index.profiles[profileIndex] = newIndexItem;
+        } else {
+          index.profiles.push(newIndexItem);
+        }
+      });
 
       logger.debug("单个用户档案保存成功", { profileId: profile.id });
     } catch (error) {
@@ -661,25 +729,21 @@ export function useUserProfileStorage() {
    */
   const saveProfiles = async (profiles: UserProfile[]): Promise<void> => {
     try {
-      // 过滤掉详情未加载的用户档案，防止空数据覆盖磁盘文件
-      const profilesWithDetails = profiles.filter(
-        (p) => p.content !== undefined
-      );
-
       logger.debug("开始批量保存用户档案", {
         total: profiles.length,
-        toSave: profilesWithDetails.length,
       });
 
-      // 1. 并行保存已加载详情的档案文件
-      await Promise.all(
-        profilesWithDetails.map((profile) => saveProfile(profile, true))
-      );
+      // 1. 并行保存完整档案文件
+      await Promise.all(profiles.map((profile) => saveProfile(profile, true)));
 
       // 2. 更新索引
-      const index = await loadIndex();
-      index.profiles = profiles.map((p) => createIndexItem(p));
-      await saveIndex(index);
+      await updateIndex((index) => {
+        const profileIds = new Set(profiles.map((profile) => profile.id));
+        index.profiles = profiles.map((p) => createIndexItem(p));
+        if (index.globalProfileId && !profileIds.has(index.globalProfileId)) {
+          index.globalProfileId = null;
+        }
+      });
 
       logger.info("所有用户档案批量保存成功", {
         profileCount: profiles.length,
@@ -703,15 +767,14 @@ export function useUserProfileStorage() {
       await deleteProfileDirectory(profileId);
 
       // 2. 从索引中移除
-      const index = await loadIndex();
-      index.profiles = index.profiles.filter((item) => item.id !== profileId);
+      await updateIndex((index) => {
+        index.profiles = index.profiles.filter((item) => item.id !== profileId);
 
-      // 3. 如果删除的是全局档案，清除选择
-      if (index.globalProfileId === profileId) {
-        index.globalProfileId = null;
-      }
-
-      await saveIndex(index);
+        // 3. 如果删除的是全局档案，清除选择
+        if (index.globalProfileId === profileId) {
+          index.globalProfileId = null;
+        }
+      });
 
       logger.info("用户档案已删除", { profileId });
     } catch (error) {
@@ -749,11 +812,11 @@ export function useUserProfileStorage() {
     settings: Partial<UserProfileSettings>
   ): Promise<void> => {
     try {
-      const index = await loadIndex();
-      if (settings.globalProfileId !== undefined) {
-        index.globalProfileId = settings.globalProfileId;
-      }
-      await saveIndex(index);
+      await updateIndex((index) => {
+        if (settings.globalProfileId !== undefined) {
+          index.globalProfileId = settings.globalProfileId;
+        }
+      });
       logger.debug("保存用户档案设置成功", settings);
     } catch (error) {
       errorHandler.handle(error as Error, {

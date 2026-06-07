@@ -10,6 +10,7 @@ import { createModuleErrorHandler } from "@utils/errorHandler";
 
 const logger = createModuleLogger("llm-chat/userProfileStore");
 const errorHandler = createModuleErrorHandler("llm-chat/userProfileStore");
+let loadProfilesPromise: Promise<void> | null = null;
 
 interface UserProfileStoreState {
   /** 所有用户档案列表 */
@@ -134,19 +135,14 @@ export const useUserProfileStore = defineStore("llmChatUserProfile", {
     /**
      * 更新用户档案
      */
-    async updateProfile(
+    updateProfile(
       profileId: string,
       updates: Partial<Omit<UserProfile, "id" | "createdAt">>
-    ): Promise<void> {
+    ): void {
       const profile = this.profiles.find((p) => p.id === profileId);
       if (!profile) {
         logger.warn("更新用户档案失败：档案不存在", { profileId });
         return;
-      }
-
-      // 核心保护：确保详情已加载，否则 Object.assign 可能会丢失原本在磁盘上但未加载到内存的字段
-      if (profile.content === undefined) {
-        await this.ensureProfileLoaded(profileId);
       }
 
       Object.assign(profile, updates);
@@ -189,41 +185,18 @@ export const useUserProfileStore = defineStore("llmChatUserProfile", {
     },
 
     /**
-     * 确保用户档案详情已加载（按需加载核心逻辑）
+     * 兼容旧调用：用户档案现在启动时全量加载，这里只返回内存中的完整档案。
      */
-    async ensureProfileLoaded(profileId: string): Promise<UserProfile | null> {
-      const profile = this.profiles.find((p) => p.id === profileId);
-      if (!profile) return null;
-
-      // 如果详情已加载（以 content 是否为 undefined 为判断标准），直接返回
-      if (profile.content !== undefined) {
-        return profile;
-      }
-
-      try {
-        const { loadProfile } = useUserProfileStorage();
-        const fullProfile = await loadProfile(profileId);
-        if (fullProfile) {
-          const index = this.profiles.findIndex((p) => p.id === profileId);
-          if (index !== -1) {
-            this.profiles[index] = fullProfile;
-            logger.info("用户档案详情按需加载完成", { profileId });
-            return fullProfile;
-          }
-        }
-      } catch (error) {
-        logger.error("按需加载用户档案详情失败", error as Error, { profileId });
-      }
-
-      return profile;
+    ensureProfileLoaded(profileId: string): UserProfile | null {
+      return this.profiles.find((p) => p.id === profileId) || null;
     },
 
     /**
-     * 设置全局默认档案（支持按需加载）
+     * 设置全局默认档案
      */
-    async selectGlobalProfile(profileId: string | null): Promise<void> {
+    selectGlobalProfile(profileId: string | null): void {
       if (profileId) {
-        const profile = await this.ensureProfileLoaded(profileId);
+        const profile = this.ensureProfileLoaded(profileId);
         if (!profile) {
           logger.warn("设置全局档案失败：档案不存在", { profileId });
           return;
@@ -315,59 +288,45 @@ export const useUserProfileStore = defineStore("llmChatUserProfile", {
     },
 
     /**
-     * 从文件加载用户档案（优化后的按需加载）
+     * 从文件全量加载用户档案
      */
     async loadProfiles(): Promise<void> {
-      try {
-        const { loadProfilesIndex, loadProfile, loadSettings } =
-          useUserProfileStorage();
-
-        // 1. 加载档案索引（轻量级）
-        const { profiles: indexItems } = await loadProfilesIndex();
-
-        if (indexItems.length > 0) {
-          // 2. 将元数据转换为轻量档案对象放入 store
-          this.profiles = indexItems.map(
-            (item) =>
-              ({
-                ...item,
-                // 详情字段设为 undefined，待按需加载
-                content: undefined,
-              }) as any
-          );
-
-          logger.info("加载用户档案索引成功", {
-            profileCount: this.profiles.length,
-          });
-
-          // 3. 加载设置（获取当前选中的档案 ID）
-          const settings = await loadSettings();
-          if (settings.globalProfileId) {
-            this.globalProfileId = settings.globalProfileId;
-
-            // 4. 核心优化：只针对当前活跃档案加载完整详情
-            const fullProfile = await loadProfile(settings.globalProfileId);
-            if (fullProfile) {
-              const index = this.profiles.findIndex(
-                (p) => p.id === settings.globalProfileId
-              );
-              if (index !== -1) {
-                this.profiles[index] = fullProfile;
-                logger.info("当前活跃用户档案详情加载完成", {
-                  profileId: settings.globalProfileId,
-                });
-              }
-            }
-          }
-        }
-      } catch (error) {
-        errorHandler.handle(error as Error, {
-          userMessage: "加载用户档案失败",
-          showToUser: false,
-        });
-        this.profiles = [];
-        this.globalProfileId = null;
+      if (loadProfilesPromise) {
+        return loadProfilesPromise;
       }
+
+      loadProfilesPromise = (async () => {
+        try {
+          const { loadProfiles, loadSettings } = useUserProfileStorage();
+          const [profiles, settings] = await Promise.all([
+            loadProfiles(),
+            loadSettings(),
+          ]);
+          const profileIds = new Set(profiles.map((profile) => profile.id));
+
+          this.profiles = profiles;
+          this.globalProfileId =
+            settings.globalProfileId && profileIds.has(settings.globalProfileId)
+              ? settings.globalProfileId
+              : null;
+
+          logger.info("用户档案全量加载完成", {
+            profileCount: this.profiles.length,
+            globalProfileId: this.globalProfileId,
+          });
+        } catch (error) {
+          errorHandler.handle(error as Error, {
+            userMessage: "加载用户档案失败",
+            showToUser: false,
+          });
+          this.profiles = [];
+          this.globalProfileId = null;
+        } finally {
+          loadProfilesPromise = null;
+        }
+      })();
+
+      return loadProfilesPromise;
     },
   },
 });

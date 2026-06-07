@@ -160,12 +160,8 @@ const selectedProfile = computed(() => {
 });
 
 // 选择档案
-const selectProfile = async (profileId: string) => {
+const selectProfile = (profileId: string) => {
   selectedProfileId.value = profileId;
-
-  // 触发按需加载详情，但不应强制修改全局选中的档案（除非用户明确操作）
-  // 之前的逻辑调用 selectGlobalProfile 会导致用户只是点击查看列表就切换了全局档案
-  await userProfileStore.ensureProfileLoaded(profileId);
 
   const profile = userProfileStore.profiles.find((p) => p.id === profileId);
   if (profile) {

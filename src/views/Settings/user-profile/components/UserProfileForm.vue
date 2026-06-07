@@ -4,8 +4,9 @@
     label-width="80px"
     label-position="left"
     require-asterisk-position="right"
+    :rules="formRules"
   >
-    <el-form-item label="ID/名称" :required="required">
+    <el-form-item label="ID/名称" prop="name" :required="required">
       <el-input
         v-model="formData.name"
         placeholder="例如: user1"
@@ -49,7 +50,7 @@
       </div>
     </el-form-item>
 
-    <el-form-item label="描述" :required="required">
+    <el-form-item label="描述" prop="content" :required="required">
       <el-input
         v-model="formData.content"
         type="textarea"
@@ -179,7 +180,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, defineAsyncComponent } from "vue";
+import { ref, watch, computed, defineAsyncComponent } from "vue";
 import AvatarSelector from "@/components/common/AvatarSelector.vue";
 import WorldbookSelector from "@/tools/llm-chat/components/worldbook/WorldbookSelector.vue";
 import QuickActionSelector from "@/tools/llm-chat/components/quick-action/QuickActionSelector.vue";
@@ -246,7 +247,7 @@ const props = withDefaults(defineProps<Props>(), {
   showUpload: true,
   showClear: false,
   showMetadata: false,
-  required: false,
+  required: true,
   descriptionRows: 12,
   iconPlaceholder: "输入 emoji、路径或选择图像（可选）",
   iconHint: "可以输入 emoji、从预设选择、上传图像或输入绝对路径",
@@ -256,6 +257,14 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   "update:modelValue": [value: UserProfileFormData];
 }>();
+
+const formRules = computed(() => {
+  if (!props.required) return {};
+  return {
+    name: [{ required: true, message: "请输入 ID/名称", trigger: "blur" }],
+    content: [{ required: true, message: "请输入描述内容", trigger: "blur" }],
+  };
+});
 
 // 内部表单数据
 const formData = ref<UserProfileFormData>({

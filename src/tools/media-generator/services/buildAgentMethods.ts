@@ -11,7 +11,6 @@ import type { MediaTaskType } from "../types";
 import { useMediaGenerationManager } from "../composables/useMediaGenerationManager";
 import { useMediaTaskManager } from "../composables/useMediaTaskManager";
 import { useMediaGenStore } from "../stores/mediaGenStore";
-import { useModelMetadata } from "@/composables/useModelMetadata";
 import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("media-generator/agent-methods");
@@ -538,17 +537,13 @@ function createHandler(visibleModel: VisibleAgentModel) {
 export function buildAgentMethods(
   visibleModels: VisibleAgentModel[]
 ): BuiltAgentMethods {
-  const { getMatchedProperties } = useModelMetadata();
   const usedNames = new Set<string>();
   const methods: MethodMetadata[] = [];
   const handlers: BuiltAgentMethods["handlers"] = {};
 
   for (const visibleModel of visibleModels) {
     const methodName = buildMethodName(visibleModel.model.id, usedNames);
-    const mediaGenParams =
-      getModelSpecificParamRules(visibleModel.model) ||
-      (getMatchedProperties(visibleModel.model.id, visibleModel.profile.type)
-        ?.mediaGenParams as MediaGenParamRules | undefined);
+    const mediaGenParams = getModelSpecificParamRules(visibleModel.model);
 
     methods.push({
       name: methodName,

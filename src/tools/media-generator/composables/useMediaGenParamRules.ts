@@ -1,17 +1,18 @@
-import { useModelMetadata } from "@/composables/useModelMetadata";
 import type { LlmModelInfo } from "@/types/llm-profiles";
 import type { MediaGenParamRules } from "@/types/model-metadata";
 
 /**
  * 媒体生成参数规则 Composable
  *
- * 从模型元数据中读取 mediaGenParams 规则，提供给：
+ * 从模型信息中读取 mediaGenParams 规则，提供给：
  * - ParameterPanel：动态渲染/隐藏控件
  * - useMediaGenerationManager：请求前清洁参数
+ *
+ * 元数据规则只用于添加/导入模型时写入初始模型信息。运行态如果已经
+ * 有具体模型对象，必须以模型对象上的配置为准，避免用户修改模型后
+ * 又被全局元数据规则覆盖。
  */
 export function useMediaGenParamRules() {
-  const { getMatchedProperties } = useModelMetadata();
-
   function hasParamRules(
     rules: MediaGenParamRules | undefined
   ): rules is MediaGenParamRules {
@@ -19,29 +20,14 @@ export function useMediaGenParamRules() {
   }
 
   /**
-   * 获取指定模型的生成参数规则
-   */
-  function getParamRules(
-    modelId: string,
-    provider?: string
-  ): MediaGenParamRules | undefined {
-    const props = getMatchedProperties(modelId, provider);
-    return props?.mediaGenParams as MediaGenParamRules | undefined;
-  }
-
-  /**
    * 获取模型实例的生成参数规则
-   * 优先使用用户在模型配置中写入的专属规则，再回退到全局元数据规则。
    */
   function getModelParamRules(
-    model: LlmModelInfo | undefined,
-    provider?: string
+    model: LlmModelInfo | undefined
   ): MediaGenParamRules | undefined {
-    if (hasParamRules(model?.mediaGenParams)) {
-      return model.mediaGenParams;
-    }
-    if (!model?.id) return undefined;
-    return getParamRules(model.id, provider || model.provider);
+    return hasParamRules(model?.mediaGenParams)
+      ? model.mediaGenParams
+      : undefined;
   }
 
   /**
@@ -235,7 +221,6 @@ export function useMediaGenParamRules() {
   }
 
   return {
-    getParamRules,
     getModelParamRules,
     sanitizeParams,
     usesAspectRatioMode,

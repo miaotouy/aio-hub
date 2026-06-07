@@ -3,7 +3,6 @@ import { computed, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useMediaGenStore } from "../stores/mediaGenStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
-import { useModelMetadata } from "@/composables/useModelMetadata";
 import { useMediaGenParamRules } from "../composables/useMediaGenParamRules";
 import { parseModelCombo } from "@/utils/modelIdUtils";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
@@ -19,9 +18,7 @@ import {
 const store = useMediaGenStore();
 const router = useRouter();
 const { getProfileById, saveProfile } = useLlmProfiles();
-const { getMatchedProperties } = useModelMetadata();
 const {
-  getParamRules,
   getModelParamRules,
   usesAspectRatioMode,
   sanitizeParams,
@@ -110,16 +107,7 @@ const includeContext = computed({
 // 从当前选中模型获取规则
 const paramRules = computed(() => {
   if (!selectedModelInfo.value) return undefined;
-  if (!selectedModelInfo.value.model) {
-    return getParamRules(
-      selectedModelInfo.value.modelId,
-      selectedModelInfo.value.provider
-    );
-  }
-  return getModelParamRules(
-    selectedModelInfo.value.model,
-    selectedModelInfo.value.provider
-  );
+  return getModelParamRules(selectedModelInfo.value.model);
 });
 
 // 尺寸模式判断
@@ -251,8 +239,8 @@ const isSuno = computed(() => {
   return selectedModelInfo.value?.provider === "suno-newapi";
 });
 
-const goToMetadataSettings = () => {
-  router.push({ path: "/settings", query: { section: "model-metadata" } });
+const goToModelSettings = () => {
+  router.push({ path: "/settings", query: { section: "llm-service" } });
 };
 
 // 根据媒体类型筛选模型能力
@@ -287,14 +275,6 @@ watch(
     ) {
       store.currentConfig.includeContext =
         selectedModelInfo.value.model.capabilities.iterativeRefinement;
-    } else {
-      // 降级从元数据预设中读取
-      const [_, modelId] = parseModelCombo(newCombo);
-      const props = getMatchedProperties(modelId);
-      if (props?.capabilities?.iterativeRefinement !== undefined) {
-        store.currentConfig.includeContext =
-          props.capabilities.iterativeRefinement;
-      }
     }
 
     // 2. 根据新模型的规则重置/清洁参数
@@ -349,9 +329,9 @@ watch(
           :capabilities="modelCapabilities"
           placeholder="选择生成引擎"
         />
-        <div class="metadata-hint" @click="goToMetadataSettings">
+        <div class="metadata-hint" @click="goToModelSettings">
           <el-icon><Info /></el-icon>
-          <span>界面参数由模型元数据驱动，点击前往配置</span>
+          <span>界面参数由模型配置驱动，点击前往模型设置</span>
         </div>
       </div>
 

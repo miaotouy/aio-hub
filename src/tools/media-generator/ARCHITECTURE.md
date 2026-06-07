@@ -139,7 +139,7 @@ sequenceDiagram
 
 #### 2.2.1. 参数清洁 (Param Sanitization)
 
-`useMediaGenParamRules.sanitizeParams` 根据模型元数据中的 `mediaGenParams` 规则：
+`useMediaGenParamRules.sanitizeParams` 根据模型信息中的 `mediaGenParams` 规则：
 
 - 剔除模型不支持的参数（如 `negative_prompt`、`quality`、`style`）
 - 校验参数值是否在有效范围内（如 `n` 在 1~10 之间）
@@ -150,7 +150,7 @@ sequenceDiagram
 `applyContextRules` 决定哪些历史消息作为多轮上下文的输入：
 
 - **无上下文模式**: 只保留最后一条 User 消息
-- **自动上下文模式**: 决定是否包含上一轮的生成结果作为参考图（仅当模型支持 `visualInput` 时）
+- **自动上下文模式**: 决定是否包含上一轮的生成结果作为参考图（仅当模型能力支持视觉输入或迭代微调时）
 - **手动选择模式**: 使用 `contextMessageIds` 精确指定上下文消息
 
 #### 2.2.3. 资产处理 (Asset Handling)

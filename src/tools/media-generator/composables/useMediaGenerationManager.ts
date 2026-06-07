@@ -6,7 +6,6 @@ import { writeTextFile, mkdir } from "@tauri-apps/plugin-fs";
 import { useMediaTaskManager } from "./useMediaTaskManager";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { useAssetManager } from "@/composables/useAssetManager";
-import { useModelMetadata } from "@/composables/useModelMetadata";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useMediaGenParamRules } from "./useMediaGenParamRules";
 import { convertArrayBufferToBase64 } from "@/utils/base64";
@@ -17,6 +16,7 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { embedMetadata } from "@/utils/mediaMetadataManager";
 import type { MediaTask, MediaTaskType, MediaMessage } from "../types";
 import type { MediaGenerationOptions, LlmResponse } from "@/llm-apis/common";
+import type { LlmModelInfo, LlmProfile } from "@/types/llm-profiles";
 
 const logger = createModuleLogger("media-generator/manager");
 const errorHandler = createModuleErrorHandler("media-generator/manager");
@@ -30,10 +30,8 @@ export function useMediaGenerationManager() {
     getAssetBasePath,
     getAssetBinary,
   } = useAssetManager();
-  const { getMatchedProperties } = useModelMetadata();
   const { profiles: allProfiles } = useLlmProfiles();
   const {
-    getParamRules,
     getModelParamRules,
     sanitizeParams,
     usesAspectRatioMode,
@@ -42,6 +40,15 @@ export function useMediaGenerationManager() {
   const isGenerating = ref(false);
   // 使用 Map 管理多个任务的 AbortController
   const abortControllers = ref<Map<string, AbortController>>(new Map());
+
+  const resolveModelSelection = (
+    profileId: string | undefined,
+    modelId: string | undefined
+  ): { profile?: LlmProfile; model?: LlmModelInfo } => {
+    const profile = allProfiles.value.find((p) => p.id === profileId);
+    const model = profile?.models.find((m) => m.id === modelId);
+    return { profile, model };
+  };
 
   /**
    * 中止特定任务
@@ -105,8 +112,13 @@ export function useMediaGenerationManager() {
       );
       if (lastUserIndex !== -1) {
         const lastUser = finalContext[lastUserIndex];
-        const modelProps = getMatchedProperties(task.input.modelId);
-        const hasVisualInput = modelProps?.visualInput === true;
+        const { model } = resolveModelSelection(
+          task.input.profileId,
+          task.input.modelId
+        );
+        const hasVisualInput =
+          model?.capabilities?.vision === true ||
+          model?.capabilities?.iterativeRefinement === true;
 
         if (autoIncludeLastResult && hasVisualInput && lastUserIndex > 0) {
           const prevAssistant = finalContext[lastUserIndex - 1];
@@ -177,10 +189,10 @@ export function useMediaGenerationManager() {
       // 处理参考图：将本地 Asset (含 path) 转换为 Base64
       let processedAttachments = task.input.params.inputAttachments;
       if (processedAttachments && (processedAttachments as any[]).length > 0) {
-        const profile = allProfiles.value.find(
-          (p) => p.id === task.input.profileId
+        const { model } = resolveModelSelection(
+          task.input.profileId,
+          task.input.modelId
         );
-        const model = profile?.models.find((m) => m.id === task.input.modelId);
         const maxDim = model?.capabilities?.maxImageDimension;
 
         processedAttachments = await Promise.all(
@@ -234,15 +246,9 @@ export function useMediaGenerationManager() {
       };
 
       // 应用参数规则清洁
-      const selectedProfile = allProfiles.value.find(
-        (p) => p.id === task.input.profileId
-      );
-      const selectedModel = selectedProfile?.models.find(
-        (m) => m.id === task.input.modelId
-      );
-      const rules = selectedModel
-        ? getModelParamRules(selectedModel, selectedProfile?.type)
-        : getParamRules(task.input.modelId, selectedProfile?.type);
+      const { profile: selectedProfile, model: selectedModel } =
+        resolveModelSelection(task.input.profileId, task.input.modelId);
+      const rules = getModelParamRules(selectedModel);
       if (rules) {
         if (usesAspectRatioMode(rules)) {
           const ext = finalOptions as any;
@@ -363,8 +369,9 @@ export function useMediaGenerationManager() {
     translatedPrompt?: string
   ): MediaTask => {
     const taskId = uuidv4();
-    const modelProps = getMatchedProperties(options.modelId);
-    const supportsIterative = modelProps?.iterativeRefinement === true;
+    const { model } = resolveModelSelection(options.profileId, options.modelId);
+    const supportsIterative =
+      model?.capabilities?.iterativeRefinement === true;
     const shouldIncludeContext = options.includeContext ?? supportsIterative;
 
     const finalPrompt = translatedPrompt || options.prompt || "";

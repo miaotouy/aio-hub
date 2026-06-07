@@ -6,7 +6,7 @@ import { useMediaGenInputManager } from "../composables/useMediaGenInputManager"
 import { useMediaGenerationManager } from "../composables/useMediaGenerationManager";
 import { useFileInteraction } from "@/composables/useFileInteraction";
 import { useAssetManager } from "@/composables/useAssetManager";
-import { useModelMetadata } from "@/composables/useModelMetadata";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useInputResize } from "../composables/useInputResize";
 import AttachmentCard from "@/tools/llm-chat/components/AttachmentCard.vue";
 import MediaGenerationInputToolbar from "./MediaGenerationInputToolbar.vue";
@@ -35,7 +35,7 @@ const store = useMediaGenStore();
 const inputManager = useMediaGenInputManager();
 const { isGenerating, abort } = useMediaGenerationManager();
 const assetManager = useAssetManager();
-const { getMatchedProperties } = useModelMetadata();
+const { getProfileById } = useLlmProfiles();
 
 const containerRef = ref<HTMLElement>();
 const textareaRef = ref<HTMLTextAreaElement>();
@@ -61,10 +61,11 @@ watch(
   },
   (modelCombo) => {
     if (modelCombo) {
-      const [_, modelId] = parseModelCombo(modelCombo);
-      const matchedProps = getMatchedProperties(modelId);
+      const [profileId, modelId] = parseModelCombo(modelCombo);
+      const profile = getProfileById(profileId);
+      const model = profile?.models.find((item) => item.id === modelId);
       // 如果模型支持迭代微调，默认开启上下文
-      if (matchedProps?.iterativeRefinement) {
+      if (model?.capabilities?.iterativeRefinement) {
         store.currentConfig.includeContext = true;
       }
     }

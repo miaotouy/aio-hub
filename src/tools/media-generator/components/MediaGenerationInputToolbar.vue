@@ -1,14 +1,16 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { useMediaGenStore } from "../stores/mediaGenStore";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { parseModelCombo } from "@/utils/modelIdUtils";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
+import { isAudioOutputTaskType } from "../types";
 import {
   Image as ImageIcon,
   Info,
+  Music,
   Sparkles,
   MessageSquare,
   Target,
@@ -34,6 +36,21 @@ const emit = defineEmits<{
 
 const store = useMediaGenStore();
 const { sendRequest } = useLlmRequest();
+
+const attachmentButton = computed(() => {
+  const activeType = store.currentConfig.activeType;
+  const isAudioMode = isAudioOutputTaskType(activeType);
+  const isVideoMode = activeType === "video";
+  return {
+    label: isVideoMode ? "参考素材" : isAudioMode ? "参考音频" : "参考图",
+    title: isVideoMode
+      ? "添加参考图或参考音频"
+      : isAudioMode
+        ? "添加参考音频"
+        : "添加参考图",
+    isAudioMode,
+  };
+});
 
 // 提示词优化逻辑
 const isOptimizing = ref(false);
@@ -147,10 +164,13 @@ const cancelOptimize = () => {
         class="tool-btn"
         :disabled="props.disabled"
         @click="emit('trigger-attachment')"
-        title="添加参考图"
+        :title="attachmentButton.title"
       >
-        <el-icon><ImageIcon /></el-icon>
-        <span>参考图</span>
+        <el-icon>
+          <Music v-if="attachmentButton.isAudioMode" />
+          <ImageIcon v-else />
+        </el-icon>
+        <span>{{ attachmentButton.label }}</span>
       </button>
       <div class="v-divider" />
       <el-popover

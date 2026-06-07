@@ -15,7 +15,8 @@ import { customMessage } from "@/utils/customMessage";
 import { open } from "@tauri-apps/plugin-dialog";
 import { createModuleLogger } from "@/utils/logger";
 import type { LlmModelInfo, LlmProfile } from "@/types/llm-profiles";
-import type { MediaTaskType } from "../types";
+import type { Asset } from "@/types/asset-management";
+import { isAudioOutputTaskType, type MediaTaskType } from "../types";
 
 const props = withDefaults(
   defineProps<{
@@ -149,6 +150,85 @@ const isMiniMaxMusic = computed(
     selectedProviderType.value === "minimax-music"
 );
 
+type ReferenceAttachmentKind = "image" | "audio" | "media";
+
+const referenceAttachmentConfig = computed(() => {
+  const activeType = store.currentConfig.activeType;
+  const isAudioMode = isAudioOutputTaskType(activeType);
+  const isVideoMode = activeType === "video";
+
+  if (isVideoMode) {
+    return {
+      kind: "media" as ReferenceAttachmentKind,
+      label: "参考素材",
+      supportedLabel: "参考图或参考音频",
+      pickerTitle: "选择参考图或参考音频",
+      dragText: "释放以添加参考素材",
+      filters: [
+        {
+          name: "Images",
+          extensions: ["png", "jpg", "jpeg", "webp"],
+        },
+        {
+          name: "Audio",
+          extensions: ["mp3", "wav", "m4a", "aac", "flac", "ogg", "opus"],
+        },
+      ],
+    };
+  }
+
+  return {
+    kind: (isAudioMode ? "audio" : "image") as ReferenceAttachmentKind,
+    label: isAudioMode ? "参考音频" : "参考图",
+    supportedLabel: isAudioMode ? "参考音频" : "参考图",
+    pickerTitle: isAudioMode ? "选择参考音频" : "选择参考图",
+    dragText: isAudioMode ? "释放以添加参考音频" : "释放以添加参考图",
+    filters: [
+      isAudioMode
+        ? {
+            name: "Audio",
+            extensions: ["mp3", "wav", "m4a", "aac", "flac", "ogg", "opus"],
+          }
+        : {
+            name: "Images",
+            extensions: ["png", "jpg", "jpeg", "webp"],
+          },
+    ],
+  };
+});
+
+const isAllowedReferenceAsset = (asset: Asset) => {
+  if (referenceAttachmentConfig.value.kind === "media") {
+    return (
+      asset.type === "image" ||
+      asset.type === "audio" ||
+      asset.mimeType?.startsWith("image/") ||
+      asset.mimeType?.startsWith("audio/")
+    );
+  }
+  if (referenceAttachmentConfig.value.kind === "audio") {
+    return asset.type === "audio" || asset.mimeType?.startsWith("audio/");
+  }
+  return asset.type === "image" || asset.mimeType?.startsWith("image/");
+};
+
+const addReferenceAsset = (asset: Asset) => {
+  if (!isAllowedReferenceAsset(asset)) return "unsupported";
+  return inputManager.addAsset(asset) ? "added" : "ignored";
+};
+
+const showReferenceImportResult = (successCount: number, skippedCount = 0) => {
+  const { label, supportedLabel } = referenceAttachmentConfig.value;
+  if (successCount > 0) {
+    customMessage.success(`已添加 ${successCount} 个${label}`);
+  }
+  if (skippedCount > 0) {
+    customMessage.warning(
+      `已跳过 ${skippedCount} 个不支持的文件，当前模式仅支持${supportedLabel}`
+    );
+  }
+};
+
 const promptPlaceholder = computed(() => {
   const mediaType = store.currentConfig.activeType;
   const params = store.currentConfig.types[mediaType]?.params || {};
@@ -183,6 +263,7 @@ const { isDraggingOver } = useFileInteraction({
   onPaths: async (paths) => {
     logger.info("文件拖拽触发", { paths });
     let successCount = 0;
+    let skippedCount = 0;
     for (const path of paths) {
       try {
         const asset = await assetManager.importAssetFromPath(path, {
@@ -193,61 +274,44 @@ const { isDraggingOver } = useFileInteraction({
             sourceModule: "media-generator",
           },
         });
-        if (asset && inputManager.addAsset(asset)) {
-          successCount++;
+        if (asset) {
+          const result = addReferenceAsset(asset);
+          if (result === "added") successCount++;
+          if (result === "unsupported") skippedCount++;
         }
       } catch (err) {
         logger.error("导入文件失败", err, { path });
       }
     }
-    if (successCount > 0) {
-      customMessage.success(`已添加 ${successCount} 个参考文件`);
-    }
+    showReferenceImportResult(successCount, skippedCount);
   },
   onAssets: async (assets) => {
     logger.info("文件粘贴触发", { count: assets.length });
-    const successCount = inputManager.addAssets(assets);
-    if (successCount > 0) {
-      customMessage.success(`已添加 ${successCount} 个参考文件`);
+    let successCount = 0;
+    let skippedCount = 0;
+    for (const asset of assets) {
+      const result = addReferenceAsset(asset);
+      if (result === "added") successCount++;
+      if (result === "unsupported") skippedCount++;
     }
+    showReferenceImportResult(successCount, skippedCount);
   },
   disabled: isDisabled,
 });
 
 const handleTriggerAttachment = async () => {
   try {
+    const { pickerTitle, filters } = referenceAttachmentConfig.value;
     const selected = await open({
       multiple: true,
-      title: isMiniMaxMusic.value ? "选择参考文件" : "选择参考图",
-      filters: isMiniMaxMusic.value
-        ? [
-            {
-              name: "Media",
-              extensions: [
-                "png",
-                "jpg",
-                "jpeg",
-                "webp",
-                "mp3",
-                "wav",
-                "m4a",
-                "aac",
-                "flac",
-                "ogg",
-              ],
-            },
-          ]
-        : [
-            {
-              name: "Images",
-              extensions: ["png", "jpg", "jpeg", "webp"],
-            },
-          ],
+      title: pickerTitle,
+      filters: [...filters],
     });
 
     if (selected) {
       const paths = Array.isArray(selected) ? selected : [selected];
       let successCount = 0;
+      let skippedCount = 0;
       for (const path of paths) {
         try {
           const asset = await assetManager.importAssetFromPath(path, {
@@ -258,16 +322,16 @@ const handleTriggerAttachment = async () => {
               sourceModule: "media-generator",
             },
           });
-          if (asset && inputManager.addAsset(asset)) {
-            successCount++;
+          if (asset) {
+            const result = addReferenceAsset(asset);
+            if (result === "added") successCount++;
+            if (result === "unsupported") skippedCount++;
           }
         } catch (err) {
           logger.error("导入文件失败", err, { path });
         }
       }
-      if (successCount > 0) {
-        customMessage.success(`已添加 ${successCount} 个参考文件`);
-      }
+      showReferenceImportResult(successCount, skippedCount);
     }
   } catch (error) {
     customMessage.error("选择文件失败");
@@ -335,6 +399,7 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
   <div
     ref="containerRef"
     :class="['input-container', { 'dragging-over': isDraggingOver }]"
+    :data-drag-text="referenceAttachmentConfig.dragText"
   >
     <!-- 调整高度手柄 - 在顶部 -->
     <div
@@ -441,7 +506,7 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
 }
 
 .input-container.dragging-over::after {
-  content: "释放以添加参考文件";
+  content: attr(data-drag-text);
   position: absolute;
   top: 0;
   left: 0;

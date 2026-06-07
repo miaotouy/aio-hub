@@ -204,6 +204,14 @@ export interface LlmTaskConfig {
 }
 
 /**
+ * 提示词优化配置
+ */
+export interface PromptOptimizationConfig extends LlmTaskConfig {
+  /** 按媒体类型区分的优化提示词模板 */
+  promptsByType: Record<MediaTaskType, string>;
+}
+
+/**
  * Agent 调用媒体生成时的可见性与路由配置
  */
 export interface AgentIntegrationConfig {
@@ -240,7 +248,7 @@ export interface MediaGeneratorSettings {
   /** 单轮模式下是否自动带入上一轮生成结果作为参考图 (VLM 增强) */
   autoIncludeLastResult: boolean;
   /** 提示词优化配置 */
-  promptOptimization: LlmTaskConfig;
+  promptOptimization: PromptOptimizationConfig;
   /** 左侧面板折叠状态 */
   leftCollapsed: boolean;
   /** 右侧面板折叠状态 */

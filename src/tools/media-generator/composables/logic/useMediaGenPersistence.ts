@@ -9,7 +9,10 @@ import type {
   MediaTask,
   MediaTaskType,
 } from "../../types";
-import { DEFAULT_MEDIA_GENERATOR_SETTINGS } from "../../config";
+import {
+  DEFAULT_MEDIA_GENERATOR_SETTINGS,
+  normalizePromptOptimizationConfig,
+} from "../../config";
 import { createModuleLogger } from "@/utils/logger";
 import { useMediaStorage } from "../useMediaStorage";
 import { useSessionManager } from "../useSessionManager";
@@ -84,6 +87,10 @@ export function useMediaGenPersistence(options: {
           ...(loadedSettings as Partial<MediaGeneratorSettings> | null)
             ?.translation,
         },
+        promptOptimization: normalizePromptOptimizationConfig(
+          (loadedSettings as Partial<MediaGeneratorSettings> | null)
+            ?.promptOptimization
+        ),
       };
 
       const { sessions: loadedIndexItems, currentSessionId: savedSessionId } =

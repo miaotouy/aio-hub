@@ -496,7 +496,7 @@ interface GenerationSession {
 | ---------- | ---------------------------------------------------- |
 | 界面与交互 | 自动打开资产、左侧/右侧面板折叠                      |
 | 话题命名   | 自动命名模型、提示词、温度、触发阈值                 |
-| 提示词优化 | 优化模型、提示词、温度、输出上限                     |
+| 提示词优化 | 优化模型、按媒体类型区分的提示词、温度、输出上限     |
 | 任务与并发 | 最大并发数、自动清理、超时、重试、自动关联上一轮结果 |
 | 发送前翻译 | 翻译开关、目标语言、翻译提示词                       |
 | 通知设置   | 任务完成通知                                         |
@@ -542,7 +542,7 @@ interface GenerationSession {
 
 - **`MediaTask`**: 媒体生成任务
   - `id`, `sessionId?`: 标识
-  - `type`: `"image" | "video" | "audio"`: 媒体类型
+  - `type`: `"image" | "video" | "speech" | "music"`: 媒体类型
   - `status`: `"pending" | "processing" | "completed" | "error" | "cancelled"`
   - `input`: 输入参数（prompt, negativePrompt, modelId, profileId, params, referenceAssetIds, inputAttachments, contextMessageIds, includeContext 等）
   - `progress`, `statusText`, `error`: 进度追踪
@@ -559,8 +559,12 @@ interface GenerationSession {
   - `modelCombo`: 模型组合（`profileId:modelId`）
   - `params`: 模型参数（size, quality, style, seed, steps 等）
 
-- **`LlmTaskConfig`**: LLM 辅助任务配置（命名/翻译/优化）
+- **`LlmTaskConfig`**: LLM 辅助任务基础配置（命名/翻译/优化）
   - `modelCombo`, `prompt`, `temperature`, `maxTokens`
+
+- **`PromptOptimizationConfig`**: 提示词优化配置
+  - 继承 `LlmTaskConfig`
+  - `promptsByType`: 按 `image` / `video` / `speech` / `music` 区分的优化模板
 
 ### 6.5. 生成信息
 

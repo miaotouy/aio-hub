@@ -6,7 +6,7 @@ import { parseModelCombo } from "@/utils/modelIdUtils";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
-import { isAudioOutputTaskType } from "../types";
+import { isAudioOutputTaskType, type MediaTaskType } from "../types";
 import {
   Image as ImageIcon,
   Info,
@@ -42,6 +42,13 @@ const emit = defineEmits<{
 const store = useMediaGenStore();
 const { sendRequest } = useLlmRequest();
 
+const MEDIA_TYPE_LABELS: Record<MediaTaskType, string> = {
+  image: "图片",
+  video: "视频",
+  speech: "语音",
+  music: "音乐",
+};
+
 const attachmentButton = computed(() => {
   const activeType = store.currentConfig.activeType;
   const isAudioMode = isAudioOutputTaskType(activeType);
@@ -74,17 +81,53 @@ const optimizedResult = ref("");
 const optimizeModelId = ref("");
 const optimizePrompt = ref("");
 
+const activeTypeLabel = computed(
+  () => MEDIA_TYPE_LABELS[store.currentConfig.activeType] || "媒体"
+);
+
+const currentOptimizationConfig = computed(() => {
+  const config = store.settings.promptOptimization;
+  const activeType = store.currentConfig.activeType;
+
+  return {
+    ...config,
+    prompt:
+      config.promptsByType?.[activeType] ||
+      config.prompt ||
+      config.promptsByType?.image ||
+      "",
+  };
+});
+
 // 初始化优化配置
 watch(
-  () => store.settings.promptOptimization,
-  (config) => {
+  () => [
+    store.settings.promptOptimization?.modelCombo,
+    store.currentConfig.activeType,
+  ],
+  () => {
+    const config = store.settings.promptOptimization;
     if (config) {
       optimizeModelId.value = config.modelCombo || "";
       optimizePrompt.value = "";
+      optimizedResult.value = "";
     }
   },
   { immediate: true }
 );
+
+const buildOptimizationPrompt = (template: string, text: string) => {
+  const type = store.currentConfig.activeType;
+  const typeLabel = activeTypeLabel.value;
+  const hasTextPlaceholder = template.includes("{text}");
+  const rendered = template
+    .replace(/\{text\}/g, text)
+    .replace(/\{type\}/g, type)
+    .replace(/\{typeLabel\}/g, typeLabel);
+
+  if (hasTextPlaceholder) return rendered;
+  return `${rendered}\n\n## 用户输入\n${text}`;
+};
 
 const handleOptimizePrompt = async () => {
   if (!props.promptText.trim()) {
@@ -92,7 +135,7 @@ const handleOptimizePrompt = async () => {
     return;
   }
 
-  const config = store.settings.promptOptimization;
+  const config = currentOptimizationConfig.value;
   const modelCombo = optimizeModelId.value || config.modelCombo;
 
   if (!modelCombo) {
@@ -109,7 +152,7 @@ const handleOptimizePrompt = async () => {
   isOptimizing.value = true;
   optimizedResult.value = "";
   try {
-    let finalPrompt = config.prompt.replace("{text}", props.promptText);
+    let finalPrompt = buildOptimizationPrompt(config.prompt, props.promptText);
     if (optimizePrompt.value.trim()) {
       finalPrompt += `\n\n附加要求：${optimizePrompt.value.trim()}`;
     }
@@ -125,6 +168,10 @@ const handleOptimizePrompt = async () => {
       ],
       temperature: config.temperature,
       maxTokens: config.maxTokens,
+      inspectorContext: {
+        toolName: "media-generator",
+        purpose: `prompt-optimization:${store.currentConfig.activeType}`,
+      },
     });
 
     if (response && response.content) {
@@ -214,7 +261,7 @@ const cancelOptimize = () => {
         <div class="optimize-form">
           <div class="form-header">
             <el-icon><Sparkles /></el-icon>
-            <span>提示词优化助手</span>
+            <span>{{ activeTypeLabel }}提示词优化助手</span>
           </div>
 
           <div class="form-item">

@@ -8,7 +8,11 @@ import {
 } from "lucide-vue-next";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import type { SettingsSection } from "@/types/settings-renderer";
-import type { MediaGeneratorSettings, MediaTaskType } from "./types";
+import type {
+  MediaGeneratorSettings,
+  MediaTaskType,
+  PromptOptimizationConfig,
+} from "./types";
 
 /**
  * 预设提示词库（按任务类型分类）
@@ -69,6 +73,97 @@ export const SUGGESTED_PROMPTS_BY_TYPE: Record<MediaTaskType, string[]> = {
 };
 
 /**
+ * 提示词优化模板（按任务类型分类）
+ */
+export const PROMPT_OPTIMIZATION_PROMPTS_BY_TYPE: Record<
+  MediaTaskType,
+  string
+> = {
+  image: `
+## 任务
+将用户输入的简单描述扩展并优化为高质量的 AI 绘画提示词。
+
+## 要求
+1. 保持用户原意，增加主体、场景、艺术风格、光效、构图、镜头、材质与细节描述。
+2. 使用英文输出提示词。
+3. 仅输出优化后的提示词，禁止有任何解释。
+
+## 用户输入
+{text}`,
+  video: `
+## 任务
+将用户输入的简单描述扩展并优化为高质量的 AI 视频生成提示词。
+
+## 要求
+1. 保持用户原意，补充主体、场景、动作变化、镜头运动、景别、节奏、光效、氛围与画面风格。
+2. 强调连续运动、时间推进和镜头调度，避免只写静态图片描述。
+3. 使用英文输出提示词。
+4. 仅输出优化后的提示词，禁止有任何解释。
+
+## 用户输入
+{text}`,
+  speech: `
+## 任务
+将用户输入优化为适合语音合成的朗读文本或语音指令。
+
+## 要求
+1. 保持原文核心含义，不杜撰新的事实信息。
+2. 如果用户输入是待朗读文本，优化表达、语气、节奏、停顿和情绪提示，让朗读更自然。
+3. 如果用户输入是风格要求，将其整理成清晰的语音合成指令。
+4. 优先保持用户原本的语言。
+5. 仅输出优化后的内容，禁止有任何解释。
+
+## 用户输入
+{text}`,
+  music: `
+## 任务
+将用户输入扩展并优化为高质量的 AI 音乐生成提示词。
+
+## 要求
+1. 保持用户原意，补充曲风、情绪、速度/BPM、乐器编制、人声类型、歌曲结构、制作质感与适用场景。
+2. 如果用户要求歌词，保留歌词主题和语言；如果用户要求纯音乐，明确 instrumental。
+3. 使用英文输出音乐描述，必要的歌词片段可保留用户指定语言。
+4. 仅输出优化后的提示词，禁止有任何解释。
+
+## 用户输入
+{text}`,
+};
+
+function createDefaultPromptOptimization(): PromptOptimizationConfig {
+  return {
+    modelCombo: "",
+    prompt: PROMPT_OPTIMIZATION_PROMPTS_BY_TYPE.image,
+    promptsByType: { ...PROMPT_OPTIMIZATION_PROMPTS_BY_TYPE },
+    temperature: 0.8,
+    maxTokens: 800,
+  };
+}
+
+export function normalizePromptOptimizationConfig(
+  config?: Partial<PromptOptimizationConfig> | null
+): PromptOptimizationConfig {
+  const defaults = createDefaultPromptOptimization();
+  const legacyPrompt =
+    typeof config?.prompt === "string" && config.prompt.trim()
+      ? config.prompt
+      : defaults.prompt;
+  const rawPrompts: Partial<Record<MediaTaskType, string>> =
+    config?.promptsByType || {};
+
+  return {
+    ...defaults,
+    ...config,
+    prompt: legacyPrompt,
+    promptsByType: {
+      image: rawPrompts.image || legacyPrompt,
+      video: rawPrompts.video || defaults.promptsByType.video,
+      speech: rawPrompts.speech || defaults.promptsByType.speech,
+      music: rawPrompts.music || defaults.promptsByType.music,
+    },
+  };
+}
+
+/**
  * 默认媒体生成器全局设置
  */
 export const DEFAULT_MEDIA_GENERATOR_SETTINGS: MediaGeneratorSettings = {
@@ -79,21 +174,19 @@ export const DEFAULT_MEDIA_GENERATOR_SETTINGS: MediaGeneratorSettings = {
   autoIncludeLastResult: true,
   topicNaming: {
     modelCombo: "",
-    prompt:
-      "## 任务\n根据媒体生成任务内容生成简短标题（不超过10个字）。\n\n## 内容\n{context}",
+    prompt: `
+## 任务
+根据媒体生成任务内容生成简短标题（不超过10个字）。
+
+## 内容
+{context}`,
     temperature: 0.4,
     maxTokens: 20,
     autoTriggerThreshold: 1,
     contextMessageCount: 5,
   },
   enableAutoNaming: true,
-  promptOptimization: {
-    modelCombo: "",
-    prompt:
-      "## 任务\n将用户输入的简单描述扩展并优化为高质量的 AI 绘画提示词。\n\n## 要求\n1. 保持用户原意，增加细节、艺术风格、光效、构图等描述。\n2. 使用英文输出提示词。\n3. 仅输出优化后的提示词，禁止有任何解释。\n\n## 用户输入\n{text}",
-    temperature: 0.8,
-    maxTokens: 800,
-  },
+  promptOptimization: createDefaultPromptOptimization(),
   leftCollapsed: false,
   rightCollapsed: false,
   translation: {
@@ -109,8 +202,17 @@ export const DEFAULT_MEDIA_GENERATOR_SETTINGS: MediaGeneratorSettings = {
       "French",
       "German",
     ],
-    prompt:
-      "## 任务\n将用户提示翻译为目标语言 {targetLang}。\n\n## 要求\n1. 保持原文含义和艺术风格。\n2. 保护特殊标签如 {thinkTags}，不翻译它们。\n3. 仅输出翻译后的文本，禁止有任何解释。\n\n## 用户提示\n{text}",
+    prompt: `
+## 任务
+将用户提示翻译为目标语言 {targetLang}。
+
+## 要求
+1. 保持原文含义和艺术风格。
+2. 保护特殊标签如 {thinkTags}，不翻译它们。
+3. 仅输出翻译后的文本，禁止有任何解释。
+
+## 用户提示
+{text}`,
     temperature: 0.3,
     maxTokens: 2000,
   },
@@ -244,17 +346,79 @@ export const mediaGeneratorSettingsConfig: SettingsSection<MediaGeneratorSetting
         },
         {
           id: "optPrompt",
-          label: "优化提示词",
+          label: "图片优化提示词",
           component: "PromptEditor",
           props: {
             rows: 6,
-            placeholder: "输入用于优化提示词的系统提示词",
+            placeholder: "输入用于优化图片提示词的系统提示词",
             defaultValue:
-              DEFAULT_MEDIA_GENERATOR_SETTINGS.promptOptimization.prompt,
+              DEFAULT_MEDIA_GENERATOR_SETTINGS.promptOptimization.promptsByType
+                .image,
           },
-          modelPath: "promptOptimization.prompt",
+          modelPath: "promptOptimization.promptsByType.image",
           hint: "使用 {text} 占位符代表用户输入的原始提示词",
-          keywords: "prompt optimization prompt 提示词 优化",
+          keywords: "prompt optimization image prompt 图片 提示词 优化",
+          groupCollapsible: {
+            name: "promptOptimizationPrompts",
+            title: "按媒体类型区分的优化提示词",
+          },
+        },
+        {
+          id: "optVideoPrompt",
+          label: "视频优化提示词",
+          component: "PromptEditor",
+          props: {
+            rows: 6,
+            placeholder: "输入用于优化视频提示词的系统提示词",
+            defaultValue:
+              DEFAULT_MEDIA_GENERATOR_SETTINGS.promptOptimization.promptsByType
+                .video,
+          },
+          modelPath: "promptOptimization.promptsByType.video",
+          hint: "使用 {text} 占位符代表用户输入的原始提示词",
+          keywords: "prompt optimization video prompt 视频 提示词 优化",
+          groupCollapsible: {
+            name: "promptOptimizationPrompts",
+            title: "按媒体类型区分的优化提示词",
+          },
+        },
+        {
+          id: "optSpeechPrompt",
+          label: "语音优化提示词",
+          component: "PromptEditor",
+          props: {
+            rows: 6,
+            placeholder: "输入用于优化语音提示词的系统提示词",
+            defaultValue:
+              DEFAULT_MEDIA_GENERATOR_SETTINGS.promptOptimization.promptsByType
+                .speech,
+          },
+          modelPath: "promptOptimization.promptsByType.speech",
+          hint: "使用 {text} 占位符代表用户输入的原始提示词",
+          keywords: "prompt optimization speech prompt 语音 提示词 优化",
+          groupCollapsible: {
+            name: "promptOptimizationPrompts",
+            title: "按媒体类型区分的优化提示词",
+          },
+        },
+        {
+          id: "optMusicPrompt",
+          label: "音乐优化提示词",
+          component: "PromptEditor",
+          props: {
+            rows: 6,
+            placeholder: "输入用于优化音乐提示词的系统提示词",
+            defaultValue:
+              DEFAULT_MEDIA_GENERATOR_SETTINGS.promptOptimization.promptsByType
+                .music,
+          },
+          modelPath: "promptOptimization.promptsByType.music",
+          hint: "使用 {text} 占位符代表用户输入的原始提示词",
+          keywords: "prompt optimization music prompt 音乐 提示词 优化",
+          groupCollapsible: {
+            name: "promptOptimizationPrompts",
+            title: "按媒体类型区分的优化提示词",
+          },
         },
         {
           id: "optTemperature",

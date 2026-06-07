@@ -1,6 +1,0 @@
-{
-  "$schema": "https://app.kilo.ai/config.json",
-  "commit_message": {
-    "prompt": ""
-  }
-}

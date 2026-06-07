@@ -24,7 +24,39 @@ export async function callOpenAiVideoApi(
     signal,
   } = options;
 
+  const extraBody: Record<string, any> = {
+    ...(options.params || {}),
+    ...(options.extraBody || {}),
+  };
+
+  const maybeSet = (key: string, value: unknown) => {
+    if (value !== undefined && value !== null && value !== "") {
+      extraBody[key] = value;
+    }
+  };
+
+  maybeSet("negative_prompt", options.negativePrompt);
+  maybeSet("seed", options.seed);
+  maybeSet("aspect_ratio", options.aspectRatio);
+  maybeSet("resolution", options.resolution);
+  maybeSet("guidance_scale", options.guidanceScale);
+  maybeSet("prompt_enhancement", options.promptEnhancement);
+  maybeSet("safety_setting", options.safetySetting);
+  maybeSet("generate_audio", options.generateAudio);
+  maybeSet("watermark", options.watermark);
+  maybeSet("camera_fixed", options.cameraFixed);
+  maybeSet("movement_amplitude", options.movementAmplitude);
+  maybeSet("quality", options.quality);
+  maybeSet("style", options.style);
+
   const baseUrl = profile.baseUrl || "https://api.openai.com/v1";
+  const isOfficialOpenAi = baseUrl.includes("api.openai.com");
+  if (!isOfficialOpenAi) {
+    maybeSet("duration", durationSeconds);
+    maybeSet("ratio", options.aspectRatio);
+    maybeSet("prompt_optimizer", options.promptEnhancement);
+  }
+
   const headers = buildOpenAiHeaders(profile, options.requestId);
 
   // 1. 发起生成请求
@@ -39,6 +71,7 @@ export async function callOpenAiVideoApi(
         prompt: prompt || "",
         size,
         seconds: durationSeconds.toString(),
+        ...extraBody,
       }),
       forceProxy: options.forceProxy,
       relaxIdCerts: options.relaxIdCerts,

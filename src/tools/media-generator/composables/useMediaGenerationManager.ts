@@ -245,6 +245,31 @@ export function useMediaGenerationManager() {
         prompt: task.input.params.prompt, // 使用 task 中的 prompt
       };
 
+      if (
+        (finalOptions as any).duration !== undefined &&
+        (finalOptions as any).durationSeconds === undefined
+      ) {
+        (finalOptions as any).durationSeconds = Number(
+          (finalOptions as any).duration
+        );
+      }
+      if (
+        (finalOptions as any).cfgScale !== undefined &&
+        (finalOptions as any).guidanceScale === undefined
+      ) {
+        (finalOptions as any).guidanceScale = Number(
+          (finalOptions as any).cfgScale
+        );
+      }
+      if (
+        (finalOptions as any).steps !== undefined &&
+        (finalOptions as any).numInferenceSteps === undefined
+      ) {
+        (finalOptions as any).numInferenceSteps = Number(
+          (finalOptions as any).steps
+        );
+      }
+
       // 应用参数规则清洁
       const { profile: selectedProfile, model: selectedModel } =
         resolveModelSelection(task.input.profileId, task.input.modelId);
@@ -370,8 +395,7 @@ export function useMediaGenerationManager() {
   ): MediaTask => {
     const taskId = uuidv4();
     const { model } = resolveModelSelection(options.profileId, options.modelId);
-    const supportsIterative =
-      model?.capabilities?.iterativeRefinement === true;
+    const supportsIterative = model?.capabilities?.iterativeRefinement === true;
     const shouldIncludeContext = options.includeContext ?? supportsIterative;
 
     const finalPrompt = translatedPrompt || options.prompt || "";

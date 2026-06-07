@@ -361,6 +361,14 @@ export interface MediaGenerationOptions extends Omit<
   promptEnhancement?: boolean;
   /** 安全过滤等级 (Safety Setting: block_none, block_few, etc.) */
   safetySetting?: string;
+  /** 是否生成视频音频轨或背景音乐 */
+  generateAudio?: boolean;
+  /** 是否添加水印 */
+  watermark?: boolean;
+  /** 是否固定镜头 */
+  cameraFixed?: boolean;
+  /** 运动幅度 / 动态强度 */
+  movementAmplitude?: string;
   /** 输入忠实度 (OpenAI input_fidelity: low | high) */
   inputFidelity?: "low" | "high";
   /** 视频时长 (秒) */

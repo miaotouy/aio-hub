@@ -25,6 +25,24 @@ export async function callGeminiVideoApi(
     signal,
   } = options;
 
+  const parameters: Record<string, any> = {
+    ...(options.params || {}),
+    ...(options.extraBody || {}),
+    aspectRatio,
+    resolution,
+    durationSeconds,
+  };
+
+  if (options.negativePrompt)
+    parameters.negativePrompt = options.negativePrompt;
+  if (options.seed !== undefined && options.seed !== -1) {
+    parameters.seed = options.seed;
+  }
+  if (options.promptEnhancement !== undefined) {
+    parameters.promptEnhancement = options.promptEnhancement;
+  }
+  if (options.safetySetting) parameters.safetySetting = options.safetySetting;
+
   const baseUrl =
     profile.baseUrl || "https://generativelanguage.googleapis.com";
   const apiVersion = "v1beta";
@@ -45,11 +63,7 @@ export async function callGeminiVideoApi(
             prompt: prompt || "",
           },
         ],
-        parameters: {
-          aspectRatio,
-          resolution,
-          durationSeconds,
-        },
+        parameters,
       }),
       forceProxy: options.forceProxy,
       relaxIdCerts: options.relaxIdCerts,

@@ -15,6 +15,7 @@
  * - models-international: 国际其他模型
  * - models-specific: 特定模型匹配 (优先级 30+)
  * - image-gen-params: 图片生成参数预设规则
+ * - video-gen-params: 视频生成参数预设规则
  * - image-input-limits: 图片输入尺寸限制预设
  */
 import type { ModelMetadataRule } from "../../types/model-metadata";
@@ -30,6 +31,7 @@ import { chineseModelRules } from "./models-chinese";
 import { internationalModelRules } from "./models-international";
 import { specificModelRules } from "./models-specific";
 import { imageGenParamsRules } from "./image-gen-params";
+import { videoGenParamsRules } from "./video-gen-params";
 import { imageInputLimitRules } from "./image-input-limits";
 
 export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
@@ -44,6 +46,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
   ...internationalModelRules,
   ...specificModelRules,
   ...imageGenParamsRules,
+  ...videoGenParamsRules,
   ...imageInputLimitRules,
 ];
 
@@ -60,5 +63,6 @@ export {
   internationalModelRules,
   specificModelRules,
   imageGenParamsRules,
+  videoGenParamsRules,
   imageInputLimitRules,
 };

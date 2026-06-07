@@ -120,6 +120,23 @@ function addNumericParameter(
   });
 }
 
+function addBooleanParameter(
+  params: AgentMethodParameter[],
+  name: string,
+  label: string,
+  rule: { supported: boolean; default?: boolean } | undefined,
+  appliesTo: string
+) {
+  if (!rule || rule.supported === false) return;
+  params.push({
+    name,
+    type: "boolean",
+    required: false,
+    description: `${label}。仅在 ${appliesTo} 时有效。`,
+    defaultValue: rule.default,
+  });
+}
+
 function buildParameters(
   model: LlmModelInfo,
   supportedMediaTypes: MediaTaskType[],
@@ -236,7 +253,7 @@ function buildParameters(
     "style",
     "风格",
     mediaGenParams.style,
-    "media_type 为 image"
+    "media_type 为 image 或 video"
   );
   addOptionParameter(
     parameters,
@@ -316,13 +333,60 @@ function buildParameters(
     supportedMediaTypes.includes("video") ||
     supportedMediaTypes.includes("audio")
   ) {
-    parameters.push({
-      name: "duration",
-      type: "number",
-      required: false,
-      description: "生成时长（秒）。仅在 media_type 为 video 或 audio 时有效。",
-    });
+    const duration = mediaGenParams.duration;
+    if (!duration || duration.supported !== false) {
+      const values = duration?.options?.map((item) => item.value).join(" | ");
+      const range = [
+        duration?.min !== undefined ? `最小 ${duration.min}` : "",
+        duration?.max !== undefined ? `最大 ${duration.max}` : "",
+      ]
+        .filter(Boolean)
+        .join("，");
+      parameters.push({
+        name: "duration",
+        type: "number",
+        required: false,
+        description: `生成时长（秒）${values ? `。可选值: ${values}` : ""}${range ? `（${range}）` : ""}。仅在 media_type 为 video 或 audio 时有效。`,
+        defaultValue: duration?.default,
+      });
+    }
   }
+
+  addBooleanParameter(
+    parameters,
+    "prompt_enhancement",
+    "提示词增强",
+    mediaGenParams.promptEnhancement,
+    "media_type 为 video"
+  );
+  addBooleanParameter(
+    parameters,
+    "generate_audio",
+    "生成音频",
+    mediaGenParams.generateAudio,
+    "media_type 为 video"
+  );
+  addBooleanParameter(
+    parameters,
+    "watermark",
+    "水印",
+    mediaGenParams.watermark,
+    "media_type 为 video"
+  );
+  addBooleanParameter(
+    parameters,
+    "camera_fixed",
+    "固定镜头",
+    mediaGenParams.cameraFixed,
+    "media_type 为 video"
+  );
+  addOptionParameter(
+    parameters,
+    "movement_amplitude",
+    "运动幅度",
+    mediaGenParams.movementAmplitude,
+    "media_type 为 video"
+  );
 
   logger.debug("已构建媒体生成 Agent 参数", {
     modelId: model.id,
@@ -375,6 +439,10 @@ function normalizeGenerationArgs(args: Record<string, any>) {
     output_compression: "outputCompression",
     partial_images: "partialImages",
     duration: "durationSeconds",
+    prompt_enhancement: "promptEnhancement",
+    generate_audio: "generateAudio",
+    camera_fixed: "cameraFixed",
+    movement_amplitude: "movementAmplitude",
   };
 
   for (const [from, to] of Object.entries(mappings)) {

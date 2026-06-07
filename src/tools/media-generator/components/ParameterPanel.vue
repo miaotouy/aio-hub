@@ -18,11 +18,8 @@ import {
 const store = useMediaGenStore();
 const router = useRouter();
 const { getProfileById, saveProfile } = useLlmProfiles();
-const {
-  getModelParamRules,
-  usesAspectRatioMode,
-  sanitizeParams,
-} = useMediaGenParamRules();
+const { getModelParamRules, usesAspectRatioMode, sanitizeParams } =
+  useMediaGenParamRules();
 
 // 选中的模型组合值 (profileId:modelId) - 绑定到当前选中的媒体类型配置
 const selectedModelCombo = computed({
@@ -121,11 +118,17 @@ const sizeMode = computed(() => {
 // 动态生成分辨率选项
 const sizeOptions = computed(() => {
   return (
-    paramRules.value?.size?.presets || [
-      { label: "1:1 (1024x1024)", value: "1024x1024" },
-      { label: "16:9 (1792x1024)", value: "1792x1024" },
-      { label: "9:16 (1024x1792)", value: "1024x1792" },
-    ]
+    paramRules.value?.size?.presets ||
+    (mediaType.value === "video"
+      ? [
+          { label: "720p (1280x720)", value: "1280x720" },
+          { label: "1080p (1920x1080)", value: "1920x1080" },
+        ]
+      : [
+          { label: "1:1 (1024x1024)", value: "1024x1024" },
+          { label: "16:9 (1792x1024)", value: "1792x1024" },
+          { label: "9:16 (1024x1792)", value: "1024x1792" },
+        ])
   );
 });
 
@@ -234,6 +237,43 @@ const supportsBatch = computed(
   () => paramRules.value?.batchSize?.supported !== false
 );
 const maxBatchSize = computed(() => paramRules.value?.batchSize?.max || 4);
+
+const durationSeconds = computed({
+  get: () => params.value.durationSeconds ?? params.value.duration ?? 5,
+  set: (val) => {
+    params.value.durationSeconds = val;
+    params.value.duration = val;
+  },
+});
+
+const supportsDuration = computed(
+  () => paramRules.value?.duration?.supported !== false
+);
+const durationOptions = computed(
+  () => paramRules.value?.duration?.options || []
+);
+const durationMin = computed(() => paramRules.value?.duration?.min ?? 1);
+const durationMax = computed(() => paramRules.value?.duration?.max ?? 15);
+const durationStep = computed(() => paramRules.value?.duration?.step ?? 1);
+
+const supportsPromptEnhancement = computed(
+  () => paramRules.value?.promptEnhancement?.supported === true
+);
+const supportsGenerateAudio = computed(
+  () => paramRules.value?.generateAudio?.supported === true
+);
+const supportsWatermark = computed(
+  () => paramRules.value?.watermark?.supported === true
+);
+const supportsCameraFixed = computed(
+  () => paramRules.value?.cameraFixed?.supported === true
+);
+const supportsMovementAmplitude = computed(
+  () => paramRules.value?.movementAmplitude?.supported === true
+);
+const movementAmplitudeOptions = computed(
+  () => (paramRules.value?.movementAmplitude as any)?.options || []
+);
 
 const isSuno = computed(() => {
   return selectedModelInfo.value?.provider === "suno-newapi";
@@ -577,58 +617,173 @@ watch(
 
       <!-- 视频特定参数 -->
       <template v-else-if="mediaType === 'video'">
-        <div class="section">
-          <div class="section-title">
-            <span>分辨率</span>
-            <el-dropdown
-              trigger="click"
-              @command="(val: string) => (params.size = val)"
+        <template v-if="sizeMode === 'aspectRatio'">
+          <div class="section">
+            <div class="section-title">宽高比 (Aspect Ratio)</div>
+            <el-select
+              v-model="params.aspectRatio"
+              size="small"
+              style="width: 100%"
             >
-              <span class="preset-link">
-                预设 <el-icon><Sparkles /></el-icon>
-              </span>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item command="1280x720"
-                    >720p (1280x720)</el-dropdown-item
-                  >
-                  <el-dropdown-item command="1920x1080"
-                    >1080p (1920x1080)</el-dropdown-item
-                  >
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
+              <el-option
+                v-for="opt in aspectRatioOptions"
+                :key="opt.value"
+                :label="opt.label"
+                :value="opt.value"
+              />
+            </el-select>
           </div>
-          <div class="size-control-row">
-            <el-input-number
-              v-model="sizeWidth"
-              :min="64"
-              :max="4096"
-              :step="64"
+          <div v-if="resolutionOptions.length > 0" class="section">
+            <div class="section-title">分辨率 (Resolution)</div>
+            <el-radio-group v-model="params.resolution" size="small">
+              <el-radio-button
+                v-for="opt in resolutionOptions"
+                :key="opt.value"
+                :value="opt.value"
+              >
+                {{ opt.label }}
+              </el-radio-button>
+            </el-radio-group>
+          </div>
+        </template>
+
+        <template v-else>
+          <div class="section">
+            <div class="section-title">
+              <span>分辨率</span>
+              <el-dropdown
+                trigger="click"
+                @command="(val: string) => (params.size = val)"
+              >
+                <span class="preset-link">
+                  预设 <el-icon><Sparkles /></el-icon>
+                </span>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item
+                      v-for="opt in sizeOptions"
+                      :key="opt.value"
+                      :command="opt.value"
+                    >
+                      {{ opt.label }}
+                    </el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+            </div>
+            <div class="size-control-row">
+              <el-input-number
+                v-model="sizeWidth"
+                :min="64"
+                :max="4096"
+                :step="64"
+                size="small"
+                controls-position="right"
+                class="size-input"
+              />
+              <el-button size="small" circle class="swap-btn" @click="swapSize">
+                <el-icon><ArrowLeftRight /></el-icon>
+              </el-button>
+              <el-input-number
+                v-model="sizeHeight"
+                :min="64"
+                :max="4096"
+                :step="64"
+                size="small"
+                controls-position="right"
+                class="size-input"
+              />
+            </div>
+            <div v-if="sizeValidationError" class="validation-error">
+              {{ sizeValidationError }}
+            </div>
+          </div>
+        </template>
+
+        <div v-if="supportsDuration" class="section">
+          <div class="section-title">时长 (秒)</div>
+          <el-radio-group
+            v-if="durationOptions.length > 0"
+            v-model="durationSeconds"
+            size="small"
+          >
+            <el-radio-button
+              v-for="opt in durationOptions"
+              :key="opt.value"
+              :value="opt.value"
+            >
+              {{ opt.label }}
+            </el-radio-button>
+          </el-radio-group>
+          <div v-else class="slider-wrapper">
+            <el-slider
+              v-model="durationSeconds"
+              :min="durationMin"
+              :max="durationMax"
+              :step="durationStep"
+              show-input
               size="small"
-              controls-position="right"
-              class="size-input"
-            />
-            <el-button size="small" circle class="swap-btn" @click="swapSize">
-              <el-icon><ArrowLeftRight /></el-icon>
-            </el-button>
-            <el-input-number
-              v-model="sizeHeight"
-              :min="64"
-              :max="4096"
-              :step="64"
-              size="small"
-              controls-position="right"
-              class="size-input"
             />
           </div>
         </div>
-        <div class="section">
-          <div class="section-title">时长 (秒)</div>
-          <el-radio-group v-model="params.duration" size="small">
-            <el-radio-button :value="5">5s</el-radio-button>
-            <el-radio-button :value="10">10s</el-radio-button>
-          </el-radio-group>
+
+        <div v-if="supportsStyle" class="section">
+          <div class="section-title">生成风格</div>
+          <el-select v-model="params.style" size="small" style="width: 100%">
+            <el-option
+              v-for="opt in styleOptions"
+              :key="opt.value"
+              :label="opt.label"
+              :value="opt.value"
+            />
+          </el-select>
+        </div>
+
+        <div v-if="supportsNegativePrompt" class="section">
+          <div class="section-title">负向提示词 (Negative Prompt)</div>
+          <el-input
+            v-model="params.negativePrompt"
+            type="textarea"
+            :rows="3"
+            placeholder="不希望在视频中出现的内容..."
+            size="small"
+          />
+        </div>
+
+        <div v-if="supportsMovementAmplitude" class="section">
+          <div class="section-title">运动幅度</div>
+          <el-select
+            v-model="params.movementAmplitude"
+            size="small"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="opt in movementAmplitudeOptions"
+              :key="opt.value"
+              :label="opt.label"
+              :value="opt.value"
+            />
+          </el-select>
+        </div>
+
+        <div v-if="supportsPromptEnhancement" class="section switch-section">
+          <span>提示词增强</span>
+          <el-switch v-model="params.promptEnhancement" size="small" />
+        </div>
+
+        <div v-if="supportsGenerateAudio" class="section switch-section">
+          <span>生成音频</span>
+          <el-switch v-model="params.generateAudio" size="small" />
+        </div>
+
+        <div v-if="supportsCameraFixed" class="section switch-section">
+          <span>固定镜头</span>
+          <el-switch v-model="params.cameraFixed" size="small" />
+        </div>
+
+        <div v-if="supportsWatermark" class="section switch-section">
+          <span>水印</span>
+          <el-switch v-model="params.watermark" size="small" />
         </div>
       </template>
 
@@ -791,6 +946,17 @@ watch(
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+.switch-section {
+  min-height: 28px;
+  padding: 6px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 
 .context-toggle-section {

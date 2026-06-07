@@ -55,9 +55,14 @@ describe("model-metadata rule chain", () => {
   it("keeps only rules at or above the highest exclusive priority", () => {
     const rules = [
       makeRule("low", 10, { group: "Low" }),
-      makeRule("exclusive", 50, { icon: "/model-icons/gpt.svg" }, {
-        exclusive: true,
-      }),
+      makeRule(
+        "exclusive",
+        50,
+        { icon: "/model-icons/gpt.svg" },
+        {
+          exclusive: true,
+        }
+      ),
       makeRule("high", 80, { group: "High" }),
     ];
 
@@ -278,7 +283,10 @@ describe("model-metadata presets", () => {
     });
 
     expect(
-      getMatchedModelProperties(DEFAULT_METADATA_RULES, "command-r-plus-08-2024")
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "command-r-plus-08-2024"
+      )
     ).toMatchObject({
       icon: "/model-icons/cohere-color.svg",
       group: "Cohere",
@@ -303,7 +311,10 @@ describe("model-metadata presets", () => {
     });
 
     expect(
-      getMatchedModelProperties(DEFAULT_METADATA_RULES, "MiniMaxAI/MiniMax-M2.7")
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "MiniMaxAI/MiniMax-M2.7"
+      )
     ).toMatchObject({
       icon: "/model-icons/minimax-color.svg",
       group: "MiniMax",
@@ -385,6 +396,56 @@ describe("model-metadata presets", () => {
       capabilities: {
         videoGeneration: true,
         vision: true,
+      },
+      mediaGenParams: {
+        aspectRatioMode: {
+          defaultRatio: "16:9",
+          defaultResolution: "1080p",
+        },
+        duration: {
+          default: 6,
+        },
+        promptEnhancement: {
+          supported: true,
+        },
+      },
+    });
+
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "sora-2")
+    ).toMatchObject({
+      capabilities: {
+        videoGeneration: true,
+      },
+      mediaGenParams: {
+        size: {
+          default: "1280x720",
+        },
+        duration: {
+          options: [
+            { label: "4s", value: 4 },
+            { label: "8s", value: 8 },
+            { label: "12s", value: 12 },
+          ],
+          default: 8,
+        },
+      },
+    });
+
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "veo-3.1-generate")
+    ).toMatchObject({
+      capabilities: {
+        videoGeneration: true,
+      },
+      mediaGenParams: {
+        aspectRatioMode: {
+          defaultRatio: "16:9",
+          defaultResolution: "720p",
+        },
+        duration: {
+          default: 8,
+        },
       },
     });
 

@@ -13,6 +13,82 @@ import type { MediaGenParamRules } from "@/types/model-metadata";
  * 又被全局元数据规则覆盖。
  */
 export function useMediaGenParamRules() {
+  const deleteKeys = (target: Record<string, any>, keys: string[]) => {
+    keys.forEach((key) => delete target[key]);
+  };
+
+  const sanitizeOptionValue = <T extends string | number>(
+    clean: Record<string, any>,
+    keys: string[],
+    options: Array<{ value: T }> | undefined,
+    defaultValue: T | undefined,
+    fillDefaults: boolean
+  ) => {
+    if (!options?.length) return;
+    const validValues = options.map((o) => o.value);
+    const currentKey = keys.find((key) => clean[key] !== undefined) || keys[0];
+    const currentValue = clean[currentKey];
+    if (fillDefaults && defaultValue !== undefined) {
+      clean[keys[0]] = defaultValue;
+    } else if (
+      currentValue !== undefined &&
+      !validValues.includes(currentValue)
+    ) {
+      clean[keys[0]] = defaultValue ?? validValues[0];
+    }
+  };
+
+  const sanitizeNumericValue = (
+    clean: Record<string, any>,
+    keys: string[],
+    rule:
+      | {
+          supported: boolean;
+          min?: number;
+          max?: number;
+          step?: number;
+          default?: number;
+        }
+      | undefined,
+    fillDefaults: boolean
+  ) => {
+    if (!rule) return;
+    if (rule.supported === false) {
+      deleteKeys(clean, keys);
+      return;
+    }
+    if (fillDefaults && rule.default !== undefined) {
+      clean[keys[0]] = rule.default;
+      return;
+    }
+    const currentKey = keys.find((key) => clean[key] !== undefined);
+    if (!currentKey) return;
+    const numeric = Number(clean[currentKey]);
+    if (!Number.isFinite(numeric)) {
+      delete clean[currentKey];
+      return;
+    }
+    const min = rule.min ?? numeric;
+    const max = rule.max ?? numeric;
+    clean[keys[0]] = Math.min(Math.max(numeric, min), max);
+  };
+
+  const sanitizeBooleanValue = (
+    clean: Record<string, any>,
+    keys: string[],
+    rule: { supported: boolean; default?: boolean } | undefined,
+    fillDefaults: boolean
+  ) => {
+    if (!rule) return;
+    if (rule.supported === false) {
+      deleteKeys(clean, keys);
+      return;
+    }
+    if (fillDefaults && rule.default !== undefined) {
+      clean[keys[0]] = rule.default;
+    }
+  };
+
   function hasParamRules(
     rules: MediaGenParamRules | undefined
   ): rules is MediaGenParamRules {
@@ -103,16 +179,22 @@ export function useMediaGenParamRules() {
     if (rules.steps?.supported === false) {
       delete clean.num_inference_steps;
       delete clean.numInferenceSteps;
+      delete clean.steps;
     } else if (fillDefaults && rules.steps?.default !== undefined) {
       clean.num_inference_steps = rules.steps.default;
+      clean.numInferenceSteps = rules.steps.default;
+      clean.steps = rules.steps.default;
     }
 
     // guidanceScale / guidance_scale
     if (rules.guidanceScale?.supported === false) {
       delete clean.guidance_scale;
       delete clean.guidanceScale;
+      delete clean.cfgScale;
     } else if (fillDefaults && rules.guidanceScale?.default !== undefined) {
       clean.guidance_scale = rules.guidanceScale.default;
+      clean.guidanceScale = rules.guidanceScale.default;
+      clean.cfgScale = rules.guidanceScale.default;
     }
 
     // background
@@ -189,6 +271,97 @@ export function useMediaGenParamRules() {
         clean.size = rules.size.default;
       } else if (clean.size && !validSizes.includes(clean.size)) {
         clean.size = rules.size.default || validSizes[0];
+      }
+    }
+
+    if (rules.aspectRatioMode) {
+      sanitizeOptionValue(
+        clean,
+        ["aspectRatio", "aspect_ratio"],
+        rules.aspectRatioMode.ratios,
+        rules.aspectRatioMode.defaultRatio,
+        fillDefaults
+      );
+      if (rules.aspectRatioMode.resolutions?.length) {
+        sanitizeOptionValue(
+          clean,
+          ["resolution"],
+          rules.aspectRatioMode.resolutions,
+          rules.aspectRatioMode.defaultResolution,
+          fillDefaults
+        );
+      }
+    }
+
+    // duration / durationSeconds
+    if (rules.duration) {
+      if (rules.duration.supported === false) {
+        deleteKeys(clean, ["duration", "durationSeconds", "seconds"]);
+      } else {
+        if (rules.duration.options?.length) {
+          sanitizeOptionValue(
+            clean,
+            ["durationSeconds", "duration", "seconds"],
+            rules.duration.options,
+            rules.duration.default,
+            fillDefaults
+          );
+        } else {
+          sanitizeNumericValue(
+            clean,
+            ["durationSeconds", "duration", "seconds"],
+            rules.duration,
+            fillDefaults
+          );
+        }
+        sanitizeNumericValue(
+          clean,
+          ["durationSeconds", "duration", "seconds"],
+          rules.duration,
+          false
+        );
+        if (clean.durationSeconds !== undefined) {
+          clean.duration = clean.durationSeconds;
+        }
+      }
+    } else if (
+      clean.duration !== undefined &&
+      clean.durationSeconds === undefined
+    ) {
+      clean.durationSeconds = Number(clean.duration);
+    }
+
+    sanitizeBooleanValue(
+      clean,
+      ["promptEnhancement", "prompt_enhancement", "promptOptimizer"],
+      rules.promptEnhancement,
+      fillDefaults
+    );
+    sanitizeBooleanValue(
+      clean,
+      ["generateAudio", "generate_audio", "bgm"],
+      rules.generateAudio,
+      fillDefaults
+    );
+    sanitizeBooleanValue(clean, ["watermark"], rules.watermark, fillDefaults);
+    sanitizeBooleanValue(
+      clean,
+      ["cameraFixed", "camera_fixed"],
+      rules.cameraFixed,
+      fillDefaults
+    );
+
+    if (rules.movementAmplitude !== undefined) {
+      if (!rules.movementAmplitude.supported) {
+        deleteKeys(clean, ["movementAmplitude", "movement_amplitude"]);
+      } else {
+        sanitizeOptionValue(
+          clean,
+          ["movementAmplitude", "movement_amplitude"],
+          rules.movementAmplitude.options,
+          rules.movementAmplitude.default,
+          fillDefaults
+        );
       }
     }
 

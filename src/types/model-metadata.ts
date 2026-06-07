@@ -262,6 +262,52 @@ export interface MediaGenParamRules {
     max?: number;
     default?: number;
   };
+
+  // ========== 视频生成参数 ==========
+
+  /** 视频时长（秒），对应请求参数 durationSeconds / seconds / duration */
+  duration?: {
+    supported: boolean;
+    /** 固定枚举值（如 Sora: 4 / 8 / 12，Veo: 4 / 6 / 8） */
+    options?: Array<{ label: string; value: number }>;
+    min?: number;
+    max?: number;
+    step?: number;
+    default?: number;
+  };
+
+  /** 是否启用提示词增强 / 优化 */
+  promptEnhancement?: {
+    supported: boolean;
+    default?: boolean;
+  };
+
+  /** 是否生成音频轨或背景音乐 */
+  generateAudio?: {
+    supported: boolean;
+    default?: boolean;
+  };
+
+  /** 是否添加水印 */
+  watermark?: {
+    supported: boolean;
+    default?: boolean;
+  };
+
+  /** 是否固定镜头 */
+  cameraFixed?: {
+    supported: boolean;
+    default?: boolean;
+  };
+
+  /** 运动幅度等视频运动控制 */
+  movementAmplitude?:
+    | {
+        supported: true;
+        options: Array<{ label: string; value: string }>;
+        default?: string;
+      }
+    | { supported: false };
 }
 
 /**

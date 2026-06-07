@@ -652,6 +652,8 @@ export function filterParametersByCapabilities(
     (filtered as MediaGenerationOptions).size = mediaOptions.size;
   if (mediaOptions.aspectRatio)
     (filtered as MediaGenerationOptions).aspectRatio = mediaOptions.aspectRatio;
+  if (mediaOptions.resolution)
+    (filtered as MediaGenerationOptions).resolution = mediaOptions.resolution;
   if (mediaOptions.guidanceScale)
     (filtered as MediaGenerationOptions).guidanceScale =
       mediaOptions.guidanceScale;
@@ -661,6 +663,21 @@ export function filterParametersByCapabilities(
   if (mediaOptions.promptEnhancement !== undefined)
     (filtered as MediaGenerationOptions).promptEnhancement =
       mediaOptions.promptEnhancement;
+  if (mediaOptions.safetySetting)
+    (filtered as MediaGenerationOptions).safetySetting =
+      mediaOptions.safetySetting;
+  if (mediaOptions.generateAudio !== undefined)
+    (filtered as MediaGenerationOptions).generateAudio =
+      mediaOptions.generateAudio;
+  if (mediaOptions.watermark !== undefined)
+    (filtered as MediaGenerationOptions).watermark = mediaOptions.watermark;
+  if (mediaOptions.cameraFixed !== undefined)
+    (filtered as MediaGenerationOptions).cameraFixed = mediaOptions.cameraFixed;
+  if (mediaOptions.movementAmplitude)
+    (filtered as MediaGenerationOptions).movementAmplitude =
+      mediaOptions.movementAmplitude;
+  if (mediaOptions.params)
+    (filtered as MediaGenerationOptions).params = mediaOptions.params;
   if (mediaOptions.audioConfig)
     (filtered as MediaGenerationOptions).audioConfig = mediaOptions.audioConfig;
   if (mediaOptions.mask)
@@ -1021,13 +1038,22 @@ export const KNOWN_NON_MODEL_OPTIONS_KEYS = new Set([
   "prompt",
   "negativePrompt",
   "aspectRatio",
+  "resolution",
   "guidanceScale",
   "numInferenceSteps",
   "promptEnhancement",
+  "safetySetting",
+  "generateAudio",
+  "watermark",
+  "cameraFixed",
+  "movementAmplitude",
   "audioConfig",
   "mask",
   "inputAttachments",
+  "duration",
   "durationSeconds",
+  "cfgScale",
+  "steps",
   "inputFidelity",
   "background",
   "partialImages",

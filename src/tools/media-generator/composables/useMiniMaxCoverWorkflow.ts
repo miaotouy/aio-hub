@@ -55,7 +55,7 @@ export function useMiniMaxCoverWorkflow() {
     return (
       store.currentConfig.activeType === "music" &&
       selectedModel.value.profile?.type === "minimax-music" &&
-      params.value.minimax_music_mode === "cover"
+      selectedModel.value.modelId.startsWith("music-cover")
     );
   });
 

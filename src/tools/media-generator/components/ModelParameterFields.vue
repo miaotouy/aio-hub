@@ -47,6 +47,8 @@ const {
   movementAmplitudeOptions,
   isSuno,
   isMiniMaxMusic,
+  isMiniMaxCoverModel,
+  isMiniMaxTextMusicModel,
   minimaxSampleRate,
   minimaxBitrate,
   minimaxAudioFormat,
@@ -516,12 +518,11 @@ const handleCoverWorkflowChange = (value: string | number | boolean) => {
     <!-- 音乐特定参数 -->
     <template v-else-if="mediaType === 'music'">
       <template v-if="isMiniMaxMusic">
-        <div class="section">
+        <div v-if="isMiniMaxTextMusicModel" class="section">
           <div class="section-title">生成模式</div>
           <el-radio-group v-model="params.minimax_music_mode" size="small">
             <el-radio-button value="song">歌曲</el-radio-button>
             <el-radio-button value="instrumental">纯音乐</el-radio-button>
-            <el-radio-button value="cover">翻唱</el-radio-button>
           </el-radio-group>
         </div>
 
@@ -531,11 +532,8 @@ const handleCoverWorkflowChange = (value: string | number | boolean) => {
         >
           <div class="section-title">歌词来源</div>
           <el-radio-group v-model="params.lyrics_source" size="small">
-            <el-radio-button
-              v-if="params.minimax_music_mode !== 'cover'"
-              value="optimizer"
-            >
-              自动
+            <el-radio-button value="optimizer">
+              {{ isMiniMaxCoverModel ? "提取" : "自动" }}
             </el-radio-button>
             <el-radio-button value="manual">手填</el-radio-button>
             <el-radio-button value="generate">先生成</el-radio-button>
@@ -554,7 +552,11 @@ const handleCoverWorkflowChange = (value: string | number | boolean) => {
             v-model="params.lyrics"
             type="textarea"
             :rows="5"
-            placeholder="[Verse]\n..."
+            :placeholder="
+              isMiniMaxCoverModel
+                ? '可选；留空则从参考音频提取歌词'
+                : '[Verse]\n...'
+            "
             size="small"
           />
         </div>
@@ -571,12 +573,16 @@ const handleCoverWorkflowChange = (value: string | number | boolean) => {
             v-model="params.lyrics_generation_prompt"
             type="textarea"
             :rows="2"
-            placeholder="留空则使用主输入框描述"
+            :placeholder="
+              isMiniMaxCoverModel
+                ? '描述要生成或改写的翻唱歌词'
+                : '留空则使用主输入框描述'
+            "
             size="small"
           />
         </div>
 
-        <div v-if="params.minimax_music_mode === 'cover'" class="section">
+        <div v-if="isMiniMaxCoverModel" class="section">
           <div class="section-title">翻唱流程</div>
           <el-radio-group
             v-model="params.cover_workflow"
@@ -588,7 +594,7 @@ const handleCoverWorkflowChange = (value: string | number | boolean) => {
           </el-radio-group>
         </div>
 
-        <div v-if="params.minimax_music_mode === 'cover'" class="section">
+        <div v-if="isMiniMaxCoverModel" class="section">
           <div class="section-title">参考音频 URL</div>
           <el-input
             v-model="params.audio_url"

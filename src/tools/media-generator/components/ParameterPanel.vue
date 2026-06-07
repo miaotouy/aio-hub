@@ -16,6 +16,7 @@ const {
   contextToggleTitle,
   contextToggleTooltip,
   syncActiveTypeIncludeContext,
+  syncMiniMaxMusicMode,
 } = useMediaGenParameterState();
 
 const goToModelSettings = () => {
@@ -26,6 +27,7 @@ watch(
   () => [mediaType.value, selectedModelCombo.value] as const,
   () => {
     syncActiveTypeIncludeContext(false);
+    syncMiniMaxMusicMode();
   },
   { immediate: true }
 );

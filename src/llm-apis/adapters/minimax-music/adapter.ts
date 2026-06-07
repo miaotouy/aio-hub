@@ -102,14 +102,13 @@ function normalizeModel(
   return "music-2.6";
 }
 
-function resolveMode(
+export function resolveMode(
   model: MinimaxMusicModel,
   params: Record<string, any>
 ): MinimaxMusicMode {
-  if (params.minimax_music_mode) {
-    return params.minimax_music_mode as MinimaxMusicMode;
-  }
   if (model.startsWith("music-cover")) return "cover";
+  if (params.minimax_music_mode === "instrumental") return "instrumental";
+  if (params.minimax_music_mode === "song") return "song";
   if (params.is_instrumental) return "instrumental";
   return "song";
 }

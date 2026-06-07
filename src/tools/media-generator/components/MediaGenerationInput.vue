@@ -166,6 +166,15 @@ const isMiniMaxMusic = computed(
     selectedProviderType.value === "minimax-music"
 );
 
+const selectedMiniMaxModelId = computed(() => {
+  if (!isMiniMaxMusic.value) return "";
+  return resolveSelectedModelInfo("music")?.model?.id || "";
+});
+
+const isMiniMaxCoverModel = computed(() =>
+  selectedMiniMaxModelId.value.startsWith("music-cover")
+);
+
 const supportsConversationalContext = computed(() => {
   const info = resolveSelectedModelInfo();
   return (
@@ -275,7 +284,7 @@ const promptPlaceholder = computed(() => {
 
   if (mediaType === "music") {
     if (isMiniMaxMusic.value) {
-      if (params.minimax_music_mode === "cover")
+      if (isMiniMaxCoverModel.value)
         return "描述翻唱风格，并添加参考音频...";
       if (params.minimax_music_mode === "instrumental")
         return "描述纯音乐风格、情绪和场景...";

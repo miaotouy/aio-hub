@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMusicRequest } from "../adapter";
+import { buildMusicRequest, resolveMode } from "../adapter";
 
 describe("minimax music adapter", () => {
   it("sends only cover_feature_id and lyrics in feature cover mode", () => {
@@ -56,5 +56,17 @@ describe("minimax music adapter", () => {
         },
       })
     ).toThrow("只能提供一个");
+  });
+
+  it("uses the selected model family to resolve MiniMax music mode", () => {
+    expect(resolveMode("music-cover", { minimax_music_mode: "song" })).toBe(
+      "cover"
+    );
+    expect(resolveMode("music-2.6", { minimax_music_mode: "cover" })).toBe(
+      "song"
+    );
+    expect(
+      resolveMode("music-2.6-free", { minimax_music_mode: "instrumental" })
+    ).toBe("instrumental");
   });
 });

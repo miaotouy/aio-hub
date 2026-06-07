@@ -322,6 +322,20 @@ export function useMediaGenParameterState() {
     return selectedModelInfo.value?.provider === "minimax-music";
   });
 
+  const isMiniMaxCoverModel = computed(() => {
+    return (
+      isMiniMaxMusic.value &&
+      selectedModelInfo.value?.modelId.startsWith("music-cover") === true
+    );
+  });
+
+  const isMiniMaxTextMusicModel = computed(() => {
+    return (
+      isMiniMaxMusic.value &&
+      selectedModelInfo.value?.modelId.startsWith("music-cover") !== true
+    );
+  });
+
   const ensureMiniMaxAudioSetting = () => {
     params.value.audio_setting ||= {
       sample_rate: 44100,
@@ -416,6 +430,26 @@ export function useMediaGenParameterState() {
     return baseCaps;
   });
 
+  function syncMiniMaxMusicMode() {
+    if (selectedModelInfo.value?.provider !== "minimax-music") return;
+
+    const nextMode = selectedModelInfo.value.modelId.startsWith("music-cover")
+      ? "cover"
+      : currentTypeConfig.value.params.minimax_music_mode === "instrumental"
+        ? "instrumental"
+        : "song";
+    currentTypeConfig.value.params.minimax_music_mode = nextMode;
+
+    if (
+      nextMode === "cover" &&
+      !["optimizer", "manual", "generate"].includes(
+        currentTypeConfig.value.params.lyrics_source
+      )
+    ) {
+      currentTypeConfig.value.params.lyrics_source = "optimizer";
+    }
+  }
+
   function applyActiveModelDefaults() {
     if (!selectedModelCombo.value) {
       currentTypeConfig.value.includeContext = false;
@@ -436,12 +470,7 @@ export function useMediaGenParameterState() {
       Object.assign(currentTypeConfig.value.params, cleaned);
     }
 
-    if (
-      selectedModelInfo.value?.provider === "minimax-music" &&
-      selectedModelInfo.value.modelId.startsWith("music-cover")
-    ) {
-      currentTypeConfig.value.params.minimax_music_mode = "cover";
-    }
+    syncMiniMaxMusicMode();
   }
 
   return {
@@ -500,6 +529,8 @@ export function useMediaGenParameterState() {
     movementAmplitudeOptions,
     isSuno,
     isMiniMaxMusic,
+    isMiniMaxCoverModel,
+    isMiniMaxTextMusicModel,
     minimaxSampleRate,
     minimaxBitrate,
     minimaxAudioFormat,
@@ -510,5 +541,6 @@ export function useMediaGenParameterState() {
     speechSpeed,
     speechInstructions,
     modelCapabilities,
+    syncMiniMaxMusicMode,
   };
 }

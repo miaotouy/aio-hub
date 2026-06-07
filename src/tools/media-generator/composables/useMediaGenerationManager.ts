@@ -923,8 +923,10 @@ export function useMediaGenerationManager() {
   }
 
   function finalMusicMode(params: Record<string, any>): string {
-    if (String(params.modelId || "").startsWith("music-cover")) return "cover";
-    if (params.minimax_music_mode) return params.minimax_music_mode;
+    const modelId = String(params.modelId || "");
+    if (modelId.startsWith("music-cover")) return "cover";
+    if (params.minimax_music_mode === "instrumental") return "instrumental";
+    if (params.minimax_music_mode === "song") return "song";
     if (params.is_instrumental) return "instrumental";
     return "song";
   }

@@ -168,7 +168,7 @@ export const llmPresets: LlmPreset[] = [
         group: "GPT Image",
         provider: "openai",
         capabilities: { vision: true },
-        description: "新一代图像生成，支持DALL-E 3集成",
+        description: "新一代图像生成，支持高分辨率生成、编辑与参考图",
       },
       {
         id: "gpt-image-1-mini",

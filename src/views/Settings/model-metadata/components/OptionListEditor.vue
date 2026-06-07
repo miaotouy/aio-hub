@@ -147,6 +147,8 @@ const presetGroups: PresetGroup[] = [
       { label: "9:16 (竖屏)", value: "9:16" },
       { label: "4:3", value: "4:3" },
       { label: "3:4", value: "3:4" },
+      { label: "5:4", value: "5:4" },
+      { label: "4:5", value: "4:5" },
       { label: "3:2", value: "3:2" },
       { label: "2:3", value: "2:3" },
       { label: "21:9 (超宽)", value: "21:9" },
@@ -154,39 +156,43 @@ const presetGroups: PresetGroup[] = [
     ],
   },
   {
-    key: "dalleSizes",
-    label: "DALL-E 3 尺寸",
+    key: "openAiGptImageSizes",
+    label: "OpenAI GPT Image 常用尺寸",
     types: ["size"],
     options: [
       { label: "1:1 (1024x1024)", value: "1024x1024" },
-      { label: "横屏 (1792x1024)", value: "1792x1024" },
-      { label: "竖屏 (1024x1792)", value: "1024x1792" },
+      { label: "横屏 (1536x1024)", value: "1536x1024" },
+      { label: "竖屏 (1024x1536)", value: "1024x1536" },
+      { label: "2K 方形 (2048x2048)", value: "2048x2048" },
+      { label: "2K 横屏 (2048x1152)", value: "2048x1152" },
+      { label: "4K 横屏 (3840x2160)", value: "3840x2160" },
+      { label: "4K 竖屏 (2160x3840)", value: "2160x3840" },
+      { label: "自动 (Auto)", value: "auto" },
     ],
   },
   {
-    key: "fluxSdxlSizes",
-    label: "FLUX / SDXL 常用尺寸",
+    key: "flux2Sizes",
+    label: "FLUX.2 常用尺寸",
     types: ["size"],
     options: [
       { label: "1:1 (1024x1024)", value: "1024x1024" },
-      { label: "16:9 (1344x768)", value: "1344x768" },
-      { label: "9:16 (768x1344)", value: "768x1344" },
       { label: "3:2 (1536x1024)", value: "1536x1024" },
       { label: "2:3 (1024x1536)", value: "1024x1536" },
+      { label: "2K 方形 (2048x2048)", value: "2048x2048" },
+      { label: "16:9 (2560x1440)", value: "2560x1440" },
+      { label: "9:16 (1440x2560)", value: "1440x2560" },
     ],
   },
   {
-    key: "qwenSizes",
-    label: "Qwen / Z-Image 常用尺寸",
+    key: "qwenImageSizes",
+    label: "Qwen Image 官方尺寸",
     types: ["size"],
     options: [
-      { label: "1:1 (1024x1024)", value: "1024x1024" },
-      { label: "16:9 (1344x768)", value: "1344x768" },
-      { label: "9:16 (768x1344)", value: "768x1344" },
-      { label: "4:3 (1152x864)", value: "1152x864" },
-      { label: "3:4 (864x1152)", value: "864x1152" },
-      { label: "3:2 (1280x854)", value: "1280x854" },
-      { label: "2:3 (854x1280)", value: "854x1280" },
+      { label: "1:1 (1328x1328)", value: "1328x1328" },
+      { label: "16:9 (1664x928)", value: "1664x928" },
+      { label: "9:16 (928x1664)", value: "928x1664" },
+      { label: "4:3 (1472x1104)", value: "1472x1104" },
+      { label: "3:4 (1104x1472)", value: "1104x1472" },
     ],
   },
   {
@@ -209,10 +215,9 @@ const presetGroups: PresetGroup[] = [
   },
   {
     key: "geminiImageSizes",
-    label: "Gemini 尺寸等级",
+    label: "Gemini 3 Pro Image 尺寸等级",
     types: ["imageSize", "resolution"],
     options: [
-      { label: "512（0.5K）", value: "512" },
       { label: "1K（默认）", value: "1K" },
       { label: "2K", value: "2K" },
       { label: "4K", value: "4K" },
@@ -285,9 +290,13 @@ const availablePresetGroups = computed(() => {
   const type = props.presetType || "generic";
   if (type === "generic") {
     return presetGroups.filter((group) =>
-      ["commonRatios", "fluxSdxlSizes", "quality", "outputFormat"].includes(
-        group.key
-      )
+      [
+        "commonRatios",
+        "openAiGptImageSizes",
+        "flux2Sizes",
+        "quality",
+        "outputFormat",
+      ].includes(group.key)
     );
   }
   return presetGroups.filter((group) => group.types.includes(type));

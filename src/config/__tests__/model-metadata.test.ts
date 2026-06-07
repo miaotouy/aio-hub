@@ -238,6 +238,30 @@ describe("model-metadata presets", () => {
     });
 
     expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "GLM-4.6V-FlashX")
+    ).toMatchObject({
+      icon: "/model-icons/zhipu-color.svg",
+      group: "Zhipu",
+      contextLength: 128000,
+      capabilities: {
+        vision: true,
+        toolUse: true,
+      },
+    });
+
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "GLM-4.6V-Flash")
+    ).toMatchObject({
+      icon: "/model-icons/zhipu-color.svg",
+      group: "Zhipu",
+      contextLength: 128000,
+      capabilities: {
+        vision: true,
+        toolUse: true,
+      },
+    });
+
+    expect(
       getMatchedModelProperties(DEFAULT_METADATA_RULES, "command-a-translate")
     ).toMatchObject({
       icon: "/model-icons/cohere-color.svg",
@@ -285,6 +309,43 @@ describe("model-metadata presets", () => {
       group: "MiniMax",
       contextLength: 204800,
       capabilities: {
+        toolUse: true,
+      },
+    });
+
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "MiniMax-M2.7-highspeed"
+      )
+    ).toMatchObject({
+      icon: "/model-icons/minimax-color.svg",
+      group: "MiniMax",
+      contextLength: 204800,
+      capabilities: {
+        toolUse: true,
+      },
+    });
+
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "MiniMax-M2.5")
+    ).toMatchObject({
+      icon: "/model-icons/minimax-color.svg",
+      group: "MiniMax",
+      contextLength: 204800,
+      capabilities: {
+        toolUse: true,
+      },
+    });
+
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "MiniMax-M3")
+    ).toMatchObject({
+      icon: "/model-icons/minimax-color.svg",
+      group: "MiniMax",
+      contextLength: 1000000,
+      capabilities: {
+        vision: true,
         toolUse: true,
       },
     });

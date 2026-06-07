@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick, watch } from "vue";
+import { computed, ref, onMounted, onUnmounted, nextTick, watch } from "vue";
+import type { Component } from "vue";
 import { useMediaGenStore } from "../stores/mediaGenStore";
 import { useMediaGenInputManager } from "../composables/useMediaGenInputManager";
 import { useAssetManager } from "@/composables/useAssetManager";
 import MessageList from "./message/MessageList.vue";
-import { Sparkles, RefreshCw } from "lucide-vue-next";
-import { SUGGESTED_PROMPTS } from "../config";
+import { Image, Mic, Music, RefreshCw, Video } from "lucide-vue-next";
+import { SUGGESTED_PROMPTS_BY_TYPE } from "../config";
 import { sampleSize } from "lodash-es";
+import type { MediaTaskType } from "../types";
 
 const store = useMediaGenStore();
 const inputManager = useMediaGenInputManager();
@@ -33,10 +35,49 @@ watch(
 const displayPrompts = ref<string[]>([]);
 const isRefreshing = ref(false);
 
+const emptyStateByType: Record<
+  MediaTaskType,
+  {
+    icon: Component;
+    title: string;
+    description: string;
+    prompts: string[];
+  }
+> = {
+  image: {
+    icon: Image,
+    title: "开始图片创作",
+    description: "在下方输入画面描述，让 AI 为你生成图片",
+    prompts: SUGGESTED_PROMPTS_BY_TYPE.image,
+  },
+  video: {
+    icon: Video,
+    title: "开始视频创作",
+    description: "描述镜头、动作和氛围，让 AI 为你生成视频",
+    prompts: SUGGESTED_PROMPTS_BY_TYPE.video,
+  },
+  speech: {
+    icon: Mic,
+    title: "开始语音合成",
+    description: "输入要朗读的文本，并设置声音、语速和语气",
+    prompts: SUGGESTED_PROMPTS_BY_TYPE.speech,
+  },
+  music: {
+    icon: Music,
+    title: "开始音乐创作",
+    description: "描述风格、情绪、歌词或参考音频，让 AI 为你生成音乐",
+    prompts: SUGGESTED_PROMPTS_BY_TYPE.music,
+  },
+};
+
+const currentEmptyState = computed(
+  () => emptyStateByType[store.currentConfig.activeType]
+);
+
 const refreshPrompts = () => {
   isRefreshing.value = true;
   // 随机抽取 3 个
-  displayPrompts.value = sampleSize(SUGGESTED_PROMPTS, 3);
+  displayPrompts.value = sampleSize(currentEmptyState.value.prompts, 3);
   setTimeout(() => {
     isRefreshing.value = false;
   }, 500);
@@ -57,6 +98,13 @@ onUnmounted(() => {
     clearInterval(refreshTimer);
   }
 });
+
+watch(
+  () => store.currentConfig.activeType,
+  () => {
+    refreshPrompts();
+  }
+);
 
 // 处理重试
 const handleRetry = async (messageId: string) => {
@@ -87,9 +135,11 @@ watch(
     <div class="stream-body" ref="scrollContainer">
       <div v-if="store.messages.length <= 1" class="empty-placeholder">
         <div class="welcome-content">
-          <el-icon :size="64" class="welcome-icon"><Sparkles /></el-icon>
-          <h2>开始你的创意之旅</h2>
-          <p>在下方输入提示词，让 AI 为你生成精美的媒体内容</p>
+          <el-icon :size="64" class="welcome-icon">
+            <component :is="currentEmptyState.icon" />
+          </el-icon>
+          <h2>{{ currentEmptyState.title }}</h2>
+          <p>{{ currentEmptyState.description }}</p>
           <div class="quick-tips-container">
             <transition name="fade-slide" mode="out-in">
               <div class="quick-tips" :key="displayPrompts.join('|')">

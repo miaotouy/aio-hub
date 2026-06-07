@@ -78,6 +78,23 @@ const prompt = toRef(store, "inputPrompt");
 
 const isDisabled = computed(() => isGenerating.value || props.disabled);
 
+const promptPlaceholder = computed(() => {
+  const mediaType = store.currentConfig.activeType;
+  const params = store.currentConfig.types[mediaType]?.params || {};
+
+  if (mediaType === "image") return "描述你想要生成的画面...";
+  if (mediaType === "video") return "描述你想要生成的视频...";
+
+  if (mediaType === "music") {
+    return params.suno_mode === "custom"
+      ? "输入歌词..."
+      : "描述你想要生成的歌曲...";
+  }
+  if (mediaType === "speech") return "输入要合成语音的文本...";
+
+  return "输入生成提示词...";
+});
+
 // 统一的文件交互处理（拖放 + 粘贴）
 const { isDraggingOver } = useFileInteraction({
   element: containerRef,
@@ -249,7 +266,7 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
           ref="textareaRef"
           v-model="prompt"
           class="native-textarea"
-          placeholder="描述你想要生成的画面..."
+          :placeholder="promptPlaceholder"
           :style="{
             height: editorHeight === 'auto' ? 'auto' : editorHeight + 'px',
             maxHeight: editorMaxHeight,

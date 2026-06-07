@@ -2,10 +2,13 @@ import { v4 as uuidv4 } from "uuid";
 import type {
   GenerationSession,
   GenerationSessionDetail,
+  MediaGenerationConfig,
   MediaMessage,
   MediaSessionIndexItem,
+  MediaTaskType,
   MediaTypeConfig,
 } from "../types";
+import { normalizeMediaTaskType } from "../types";
 import { useMediaStorage } from "./useMediaStorage";
 import { useNodeManager } from "./useNodeManager";
 import { createModuleLogger } from "@/utils/logger";
@@ -42,7 +45,9 @@ export function useSessionManager() {
   /**
    * 创建默认的媒体类型配置模板
    */
-  const createDefaultTypeConfig = (): MediaTypeConfig => ({
+  const createDefaultTypeConfig = (
+    type: MediaTaskType = "image"
+  ): MediaTypeConfig => ({
     modelCombo: "",
     params: {
       size: "1024x1024",
@@ -69,8 +74,84 @@ export function useSessionManager() {
       tags: "",
       title: "",
       make_instrumental: false,
+      audioConfig: {
+        voice: "alloy",
+        responseFormat: "mp3",
+        speed: 1,
+      },
+      instructions: "",
+      ...(type === "music"
+        ? {
+            quality: "standard",
+          }
+        : {}),
+      ...(type === "speech"
+        ? {
+            quality: "standard",
+          }
+        : {}),
     },
   });
+
+  const inferLegacyAudioType = (config?: MediaTypeConfig): MediaTaskType => {
+    const combo = (config?.modelCombo || "").toLowerCase();
+    return combo.includes("suno") ? "music" : "speech";
+  };
+
+  const normalizeGenerationConfig = (
+    config?: Partial<MediaGenerationConfig> | null
+  ): MediaGenerationConfig => {
+    const legacyTypes = (config?.types || {}) as Record<string, MediaTypeConfig>;
+    const legacyAudioConfig = legacyTypes.audio;
+    const rawActiveType = config?.activeType as string | undefined;
+    const activeType =
+      rawActiveType === "audio"
+        ? inferLegacyAudioType(legacyAudioConfig)
+        : normalizeMediaTaskType(rawActiveType, "image");
+
+    return {
+      activeType,
+      includeContext: config?.includeContext ?? false,
+      types: {
+        image: {
+          ...createDefaultTypeConfig("image"),
+          ...(legacyTypes.image || {}),
+          params: {
+            ...createDefaultTypeConfig("image").params,
+            ...(legacyTypes.image?.params || {}),
+          },
+        },
+        video: {
+          ...createDefaultTypeConfig("video"),
+          ...(legacyTypes.video || {}),
+          params: {
+            ...createDefaultTypeConfig("video").params,
+            ...(legacyTypes.video?.params || {}),
+          },
+        },
+        speech: {
+          ...createDefaultTypeConfig("speech"),
+          ...(legacyAudioConfig || {}),
+          ...(legacyTypes.speech || {}),
+          params: {
+            ...createDefaultTypeConfig("speech").params,
+            ...(legacyAudioConfig?.params || {}),
+            ...(legacyTypes.speech?.params || {}),
+          },
+        },
+        music: {
+          ...createDefaultTypeConfig("music"),
+          ...(legacyAudioConfig || {}),
+          ...(legacyTypes.music || {}),
+          params: {
+            ...createDefaultTypeConfig("music").params,
+            ...(legacyAudioConfig?.params || {}),
+            ...(legacyTypes.music?.params || {}),
+          },
+        },
+      },
+    };
+  };
 
   /**
    * 创建一个全新的会话对象（拆分为 index 和 detail）
@@ -105,9 +186,10 @@ export function useSessionManager() {
         activeType: "image",
         includeContext: false,
         types: {
-          image: createDefaultTypeConfig(),
-          video: createDefaultTypeConfig(),
-          audio: createDefaultTypeConfig(),
+          image: createDefaultTypeConfig("image"),
+          video: createDefaultTypeConfig("video"),
+          speech: createDefaultTypeConfig("speech"),
+          music: createDefaultTypeConfig("music"),
         },
       },
       nodes: {
@@ -186,6 +268,7 @@ export function useSessionManager() {
   return {
     createSessionObject,
     createDefaultTypeConfig,
+    normalizeGenerationConfig,
     loadSessionsIndex,
     loadSessions,
     persistSession,

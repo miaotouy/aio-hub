@@ -10,6 +10,7 @@ import type {
   MediaSessionIndexItem,
   MediaGeneratorSettings,
 } from "../types";
+import { normalizeMediaTaskType } from "../types";
 import { DEFAULT_MEDIA_GENERATOR_SETTINGS } from "../config";
 import { createModuleLogger } from "@/utils/logger";
 import type { Asset } from "@/types/asset-management";
@@ -52,9 +53,10 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     activeType: "image" as MediaTaskType,
     includeContext: false,
     types: {
-      image: sessionManager.createDefaultTypeConfig(),
-      video: sessionManager.createDefaultTypeConfig(),
-      audio: sessionManager.createDefaultTypeConfig(),
+      image: sessionManager.createDefaultTypeConfig("image"),
+      video: sessionManager.createDefaultTypeConfig("video"),
+      speech: sessionManager.createDefaultTypeConfig("speech"),
+      music: sessionManager.createDefaultTypeConfig("music"),
     },
   });
 
@@ -346,14 +348,8 @@ export const useMediaGenStore = defineStore("media-generator", () => {
       activeLeafId.value = detail.activeLeafId || "";
       inputPrompt.value = detail.inputPrompt || "";
       if (detail.generationConfig) {
-        currentConfig.value.activeType =
-          detail.generationConfig.activeType || "image";
-        if (detail.generationConfig.types) {
-          currentConfig.value.types = {
-            ...currentConfig.value.types,
-            ...detail.generationConfig.types,
-          };
-        }
+        currentConfig.value =
+          sessionManager.normalizeGenerationConfig(detail.generationConfig);
       }
 
       // 仅更新当前活跃 ID，不触发全量持久化，也不更新时间戳
@@ -379,7 +375,9 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     rootNodeId.value = detail.rootNodeId || "";
     activeLeafId.value = detail.activeLeafId || "";
     inputPrompt.value = "";
-    currentConfig.value.activeType = "image";
+    currentConfig.value = sessionManager.normalizeGenerationConfig(
+      detail.generationConfig
+    );
     await sessionManager.persistSession({ ...index, ...detail });
   };
 
@@ -485,10 +483,12 @@ export const useMediaGenStore = defineStore("media-generator", () => {
       generationOptions.modelId = temporaryModel.modelId;
     }
 
-    const type =
+    const type = normalizeMediaTaskType(
       params.type ||
-      assistantNode.metadata?.taskSnapshot?.type ||
-      currentConfig.value.activeType;
+        assistantNode.metadata?.taskSnapshot?.type ||
+        currentConfig.value.activeType,
+      currentConfig.value.activeType
+    );
 
     const { useMediaGenerationManager } =
       await import("../composables/useMediaGenerationManager");

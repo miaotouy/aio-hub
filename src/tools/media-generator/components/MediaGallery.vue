@@ -15,7 +15,7 @@ import { useImageViewer } from "@/composables/useImageViewer";
 import { useVideoViewer } from "@/composables/useVideoViewer";
 import { useAudioViewer } from "@/composables/useAudioViewer";
 import { useGenerationInfoViewer } from "../composables/useGenerationInfoViewer";
-import type { MediaTaskType } from "../types";
+import type { AssetType } from "@/types/asset-management";
 import { useInfiniteScroll } from "@vueuse/core";
 
 const {
@@ -32,7 +32,7 @@ const { previewAudio } = useAudioViewer();
 const { show: showInfoViewer } = useGenerationInfoViewer();
 
 const searchQuery = ref("");
-const filterType = ref<MediaTaskType | "all">("all");
+const filterType = ref<AssetType | "all">("all");
 const currentPage = ref(1);
 const pageSize = ref(20);
 

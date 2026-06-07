@@ -10,6 +10,7 @@ import {
   FileText,
   GripVertical,
   Image,
+  Mic,
   Music,
   Video,
   Zap,
@@ -50,7 +51,8 @@ function getSupportedTypes(model: LlmModelInfo): MediaTaskType[] {
   const types: MediaTaskType[] = [];
   if (caps?.imageGeneration) types.push("image");
   if (caps?.videoGeneration) types.push("video");
-  if (caps?.audioGeneration || caps?.musicGeneration) types.push("audio");
+  if (caps?.audioGeneration) types.push("speech");
+  if (caps?.musicGeneration) types.push("music");
   return types;
 }
 
@@ -190,12 +192,14 @@ function updateNote(modelId: string, value: string) {
 function typeLabel(type: MediaTaskType): string {
   if (type === "image") return "图片";
   if (type === "video") return "视频";
-  return "音频";
+  if (type === "speech") return "语音";
+  return "音乐";
 }
 
 function typeIcon(type: MediaTaskType) {
   if (type === "image") return Image;
   if (type === "video") return Video;
+  if (type === "speech") return Mic;
   return Music;
 }
 </script>
@@ -834,4 +838,3 @@ function typeIcon(type: MediaTaskType) {
   }
 }
 </style>
-

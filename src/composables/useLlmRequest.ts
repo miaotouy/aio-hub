@@ -189,7 +189,8 @@ export function useLlmRequest() {
       const isMediaGeneration =
         model.capabilities?.imageGeneration ||
         model.capabilities?.videoGeneration ||
-        model.capabilities?.audioGeneration;
+        model.capabilities?.audioGeneration ||
+        model.capabilities?.musicGeneration;
 
       if (!options.messages && !isMediaGeneration) {
         throw new Error("聊天请求缺少 messages 参数");
@@ -330,7 +331,8 @@ export function useLlmRequest() {
         );
       } else if (
         !forceChatMode &&
-        model.capabilities?.audioGeneration &&
+        (model.capabilities?.audioGeneration ||
+          model.capabilities?.musicGeneration) &&
         adapter.audio
       ) {
         response = await adapter.audio(

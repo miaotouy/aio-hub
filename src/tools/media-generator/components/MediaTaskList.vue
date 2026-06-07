@@ -11,6 +11,7 @@ import { copyFile } from "@tauri-apps/plugin-fs";
 import { join } from "@tauri-apps/api/path";
 import { Search, Trash2 as TrashIcon } from "lucide-vue-next";
 import type { MediaTask, MediaTaskStatus, MediaTaskType } from "../types";
+import { isAudioOutputTaskType, normalizeMediaTaskType } from "../types";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { useVideoViewer } from "@/composables/useVideoViewer";
 import { useAudioViewer } from "@/composables/useAudioViewer";
@@ -145,10 +146,11 @@ const clearFinishedTasks = () => {
 };
 
 const handleRetryTask = (task: MediaTask) => {
+  const mediaType = normalizeMediaTaskType(task.type, "image");
   store.inputPrompt = task.input.prompt;
-  store.currentConfig.activeType = task.type;
+  store.currentConfig.activeType = mediaType;
 
-  const typeConfig = store.currentConfig.types[task.type];
+  const typeConfig = store.currentConfig.types[mediaType];
   if (typeConfig) {
     typeConfig.modelCombo = `${task.input.profileId}:${task.input.modelId}`;
     if (task.input.params) {
@@ -269,7 +271,7 @@ const handleOpenAsset = async (task: MediaTask) => {
     }
   } else if (task.type === "video") {
     videoViewer.previewVideo(assets[0]);
-  } else if (task.type === "audio") {
+  } else if (isAudioOutputTaskType(task.type)) {
     audioViewer.previewAudio(assets[0]);
   }
 };
@@ -319,7 +321,8 @@ const handleOpenAsset = async (task: MediaTask) => {
           <el-option label="全部类型" value="all" />
           <el-option label="图片" value="image" />
           <el-option label="视频" value="video" />
-          <el-option label="音频" value="audio" />
+          <el-option label="语音" value="speech" />
+          <el-option label="音乐" value="music" />
         </el-select>
         <el-select
           v-model="filterStatus"

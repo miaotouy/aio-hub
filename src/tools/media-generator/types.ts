@@ -5,7 +5,39 @@ import type { Asset } from "@/types/asset-management";
 /**
  * 媒体生成任务类型
  */
-export type MediaTaskType = "image" | "video" | "audio";
+export type MediaTaskType = "image" | "video" | "speech" | "music";
+export type LegacyMediaTaskType = MediaTaskType | "audio";
+
+export const MEDIA_TASK_TYPES: MediaTaskType[] = [
+  "image",
+  "video",
+  "speech",
+  "music",
+];
+
+export function normalizeMediaTaskType(
+  type: LegacyMediaTaskType | string | undefined,
+  fallback: MediaTaskType = "image"
+): MediaTaskType {
+  if (type === "audio") return "speech";
+  return MEDIA_TASK_TYPES.includes(type as MediaTaskType)
+    ? (type as MediaTaskType)
+    : fallback;
+}
+
+export function isAudioOutputTaskType(
+  type: LegacyMediaTaskType | string | undefined
+): boolean {
+  return type === "audio" || type === "speech" || type === "music";
+}
+
+export function mediaTaskTypeToAssetType(
+  type: LegacyMediaTaskType | string | undefined
+): "image" | "video" | "audio" {
+  if (type === "image") return "image";
+  if (type === "video") return "video";
+  return "audio";
+}
 
 /**
  * 媒体生成任务状态
@@ -128,6 +160,13 @@ export interface MediaTypeConfig {
     tags?: string;
     title?: string;
     make_instrumental?: boolean;
+    // TTS / Speech 专属
+    audioConfig?: {
+      voice?: string;
+      responseFormat?: "mp3" | "wav" | "opus" | "aac";
+      speed?: number;
+    };
+    instructions?: string;
     [key: string]: any;
   };
 }
@@ -139,7 +178,7 @@ export interface MediaGenerationConfig {
   /** 当前选中的媒体类型 */
   activeType: MediaTaskType;
   /** 是否包含上下文 (多轮对话) */
-  includeContext?: boolean;
+  includeContext: boolean;
   /** 各类型的独立配置 */
   types: Record<MediaTaskType, MediaTypeConfig>;
 }

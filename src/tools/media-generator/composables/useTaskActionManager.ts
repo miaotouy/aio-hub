@@ -1,5 +1,6 @@
 import type { Ref } from "vue";
 import type { MediaTask, MediaMessage, MediaTaskType } from "../types";
+import { normalizeMediaTaskType } from "../types";
 import type { Asset } from "@/types/asset-management";
 import { useNodeManager } from "./useNodeManager";
 import { createModuleLogger } from "@/utils/logger";
@@ -45,12 +46,26 @@ export function useTaskActionManager(context: {
     context.activeLeafId.value = session.activeLeafId;
   };
 
+  const resolveTaskType = (task: MediaTask): MediaTaskType => {
+    const rawType = task.type as string;
+    if (rawType !== "audio") return normalizeMediaTaskType(rawType, "image");
+
+    const params = task.input?.params || {};
+    const modelText =
+      `${task.input?.modelId || ""} ${task.input?.profileId || ""}`.toLowerCase();
+    return modelText.includes("suno") ||
+      params.suno_mode !== undefined ||
+      params.tags ||
+      params.make_instrumental !== undefined
+      ? "music"
+      : "speech";
+  };
+
   /**
-   /**
-    * 添加新任务（同时生成消息流节点）
-    * 对齐 Chat 逻辑：新消息永远挂在当前活跃节点下。
-    * 如果当前活跃节点是同内容的 User 节点，则合并。
-    */
+   * 添加新任务（同时生成消息流节点）
+   * 对齐 Chat 逻辑：新消息永远挂在当前活跃节点下。
+   * 如果当前活跃节点是同内容的 User 节点，则合并。
+   */
   const addTaskNode = (task: MediaTask, attachments: Asset[]) => {
     const { nodes, tasks, activeLeafId, rootNodeId } = context;
     const sessionContext = getSessionContext();
@@ -140,7 +155,7 @@ export function useTaskActionManager(context: {
     }
 
     if (task) {
-      const mediaType = task.type;
+      const mediaType = resolveTaskType(task);
       const configForType = currentConfig.value.types[mediaType];
       const { modelCombo, params: currentParams } = configForType;
       const [profileId, modelId] = parseModelCombo(modelCombo);

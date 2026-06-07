@@ -2,6 +2,7 @@
 import { computed, ref, onMounted, onBeforeUpdate, nextTick } from "vue";
 import { ElScrollbar } from "element-plus";
 import type { MediaMessage } from "../../types";
+import { isAudioOutputTaskType } from "../../types";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
 import {
@@ -18,6 +19,7 @@ import {
   Music,
   Play,
   Volume2,
+  Mic,
 } from "lucide-vue-next";
 
 interface Props {
@@ -192,6 +194,13 @@ const siblingsWithDisplayInfo = computed(() => {
 const handleSwitchToBranch = (nodeId: string) => {
   emit("switch-branch", nodeId);
 };
+
+const branchMediaIcon = (mediaType: string | null | undefined) => {
+  if (mediaType === "image") return ImageIcon;
+  if (mediaType === "video") return Film;
+  if (mediaType === "speech") return Mic;
+  return Music;
+};
 </script>
 
 <template>
@@ -292,13 +301,20 @@ const handleSwitchToBranch = (nodeId: string) => {
                   >
                     <Volume2 :size="16" />
                   </div>
+                  <div
+                    v-else-if="isAudioOutputTaskType(item.mediaType || undefined)"
+                    class="media-type-overlay"
+                  >
+                    <Volume2 :size="16" />
+                  </div>
                 </div>
               </template>
               <div v-else class="media-preview-box is-placeholder">
                 <div class="preview-placeholder">
-                  <ImageIcon v-if="item.mediaType === 'image'" :size="20" />
-                  <Film v-else-if="item.mediaType === 'video'" :size="20" />
-                  <Music v-else-if="item.mediaType === 'audio'" :size="20" />
+                  <component
+                    :is="branchMediaIcon(item.mediaType || undefined)"
+                    :size="20"
+                  />
                 </div>
               </div>
             </div>

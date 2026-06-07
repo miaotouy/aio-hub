@@ -8,6 +8,7 @@ import { customMessage } from "@/utils/customMessage";
 import { useAssetManager, type Asset } from "@/composables/useAssetManager";
 import { readTextFile } from "@tauri-apps/plugin-fs";
 import { join } from "@tauri-apps/api/path";
+import { normalizeMediaTaskType, type MediaTaskType } from "../types";
 
 const props = defineProps<{
   asset: Asset | null;
@@ -93,14 +94,25 @@ const handleRemix = async () => {
   visible.value = false;
 
   // 1. 准备参数还原逻辑
-  const type =
-    (data.genType as any) ||
-    (props.asset?.type === "image" ? "image" : "video");
+  const inferGenType = (): MediaTaskType => {
+    const rawType = data.genType as string | undefined;
+    if (rawType && rawType !== "audio") {
+      return normalizeMediaTaskType(rawType, "image");
+    }
+    if (props.asset?.type === "image") return "image";
+    if (props.asset?.type === "video") return "video";
+    const params = data.params || {};
+    const modelId = String(data.modelId || "").toLowerCase();
+    return params.suno_mode !== undefined || modelId.includes("suno")
+      ? "music"
+      : "speech";
+  };
+
+  const type = inferGenType();
 
   const applyConfig = () => {
     mediaStore.currentConfig.activeType = type;
-    const config =
-      mediaStore.currentConfig.types[type as "image" | "video" | "audio"];
+    const config = mediaStore.currentConfig.types[type];
 
     if (config) {
       // 还原基础参数

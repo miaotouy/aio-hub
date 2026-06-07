@@ -2,6 +2,7 @@
 import { ref, computed, watch } from "vue";
 import { Loader2, AlertCircle, XCircle, GitBranch } from "lucide-vue-next";
 import type { MediaMessage } from "../../types";
+import { isAudioOutputTaskType } from "../../types";
 import type { Asset } from "@/types/asset-management";
 import { useMediaGenStore } from "../../stores/mediaGenStore";
 import { useAssetManager } from "@/composables/useAssetManager";
@@ -401,7 +402,7 @@ const generationMetaForRenderer = computed(() => {
         </template>
 
         <!-- 音频 -->
-        <template v-else-if="task.type === 'audio'">
+        <template v-else-if="isAudioOutputTaskType(task.type)">
           <div v-if="resultUrls.length > 0" class="audio-list">
             <div v-for="url in resultUrls" :key="url" class="media-item">
               <AudioPlayer :src="url" class="media-preview" />

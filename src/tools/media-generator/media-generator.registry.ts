@@ -124,9 +124,8 @@ export default class MediaGeneratorRegistry implements ToolRegistry {
     const types: MediaTaskType[] = [];
     if (model.capabilities?.imageGeneration) types.push("image");
     if (model.capabilities?.videoGeneration) types.push("video");
-    if (model.capabilities?.audioGeneration || model.capabilities?.musicGeneration) {
-      types.push("audio");
-    }
+    if (model.capabilities?.audioGeneration) types.push("speech");
+    if (model.capabilities?.musicGeneration) types.push("music");
     return types;
   }
 

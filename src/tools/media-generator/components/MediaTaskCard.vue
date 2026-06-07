@@ -3,6 +3,7 @@ import { ref, computed, onMounted, watch } from "vue";
 import { format } from "date-fns";
 import {
   Film,
+  Mic,
   Music,
   Image as ImageIcon,
   Clock,
@@ -123,6 +124,9 @@ const getTaskIcon = (type: string) => {
   switch (type) {
     case "video":
       return Film;
+    case "speech":
+      return Mic;
+    case "music":
     case "audio":
       return Music;
     default:
@@ -242,8 +246,8 @@ const getTaskResolution = (task: MediaTask) => {
                 <span>点击查看视频</span>
               </div>
               <div v-else class="audio-placeholder">
-                <el-icon><Music /></el-icon>
-                <span>点击播放音频</span>
+                <el-icon><component :is="getTaskIcon(task.type)" /></el-icon>
+                <span>{{ task.type === "speech" ? "点击播放语音" : "点击播放音乐" }}</span>
               </div>
               <div class="overlay">
                 <el-icon><ExternalLink /></el-icon>

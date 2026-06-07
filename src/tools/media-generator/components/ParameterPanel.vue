@@ -10,6 +10,7 @@ import {
   Image,
   Video,
   Music,
+  Mic,
   Sparkles,
   Info,
   ArrowLeftRight,
@@ -187,7 +188,9 @@ const supportsNegativePrompt = computed(
   () => paramRules.value?.negativePrompt?.supported !== false
 );
 const supportsSeed = computed(
-  () => paramRules.value?.seed?.supported !== false
+  () =>
+    !["speech", "music"].includes(mediaType.value) &&
+    paramRules.value?.seed?.supported !== false
 );
 
 const supportsTransparency = computed(
@@ -279,6 +282,57 @@ const isSuno = computed(() => {
   return selectedModelInfo.value?.provider === "suno-newapi";
 });
 
+const speechVoiceOptions = [
+  "alloy",
+  "ash",
+  "ballad",
+  "coral",
+  "echo",
+  "fable",
+  "nova",
+  "onyx",
+  "sage",
+  "shimmer",
+];
+const speechFormatOptions = ["mp3", "wav", "opus", "aac"];
+
+const ensureAudioConfig = () => {
+  params.value.audioConfig ||= {
+    voice: "alloy",
+    responseFormat: "mp3",
+    speed: 1,
+  };
+  return params.value.audioConfig;
+};
+
+const speechVoice = computed({
+  get: () => ensureAudioConfig().voice || "alloy",
+  set: (val) => {
+    ensureAudioConfig().voice = val;
+  },
+});
+
+const speechFormat = computed({
+  get: () => ensureAudioConfig().responseFormat || "mp3",
+  set: (val) => {
+    ensureAudioConfig().responseFormat = val;
+  },
+});
+
+const speechSpeed = computed({
+  get: () => ensureAudioConfig().speed ?? 1,
+  set: (val) => {
+    ensureAudioConfig().speed = val;
+  },
+});
+
+const speechInstructions = computed({
+  get: () => params.value.instructions || "",
+  set: (val) => {
+    params.value.instructions = val;
+  },
+});
+
 const goToModelSettings = () => {
   router.push({ path: "/settings", query: { section: "llm-service" } });
 };
@@ -290,8 +344,10 @@ const modelCapabilities = computed(() => {
     return { ...baseCaps, imageGeneration: true };
   if (mediaType.value === "video")
     return { ...baseCaps, videoGeneration: true };
-  if (mediaType.value === "audio")
+  if (mediaType.value === "speech")
     return { ...baseCaps, audioGeneration: true };
+  if (mediaType.value === "music")
+    return { ...baseCaps, musicGeneration: true };
   return baseCaps;
 });
 
@@ -353,10 +409,16 @@ watch(
               <span>视频</span>
             </div>
           </el-radio-button>
-          <el-radio-button value="audio">
+          <el-radio-button value="speech">
+            <div class="type-btn">
+              <el-icon><Mic /></el-icon>
+              <span>语音</span>
+            </div>
+          </el-radio-button>
+          <el-radio-button value="music">
             <div class="type-btn">
               <el-icon><Music /></el-icon>
-              <span>音频</span>
+              <span>音乐</span>
             </div>
           </el-radio-button>
         </el-radio-group>
@@ -787,8 +849,61 @@ watch(
         </div>
       </template>
 
-      <!-- 音频特定参数 -->
-      <template v-else-if="mediaType === 'audio'">
+      <!-- 语音特定参数 -->
+      <template v-else-if="mediaType === 'speech'">
+        <div class="section">
+          <div class="section-title">声音 (Voice)</div>
+          <el-select v-model="speechVoice" size="small" style="width: 100%">
+            <el-option
+              v-for="voice in speechVoiceOptions"
+              :key="voice"
+              :label="voice"
+              :value="voice"
+            />
+          </el-select>
+        </div>
+
+        <div class="section">
+          <div class="section-title">输出格式</div>
+          <el-radio-group v-model="speechFormat" size="small">
+            <el-radio-button
+              v-for="format in speechFormatOptions"
+              :key="format"
+              :value="format"
+            >
+              {{ format }}
+            </el-radio-button>
+          </el-radio-group>
+        </div>
+
+        <div class="section">
+          <div class="section-title">语速 ({{ speechSpeed }})</div>
+          <div class="slider-wrapper">
+            <el-slider
+              v-model="speechSpeed"
+              :min="0.25"
+              :max="4"
+              :step="0.05"
+              show-input
+              size="small"
+            />
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">朗读指令 (Instructions)</div>
+          <el-input
+            v-model="speechInstructions"
+            type="textarea"
+            :rows="3"
+            placeholder="例如：温柔、清晰、带一点兴奋感..."
+            size="small"
+          />
+        </div>
+      </template>
+
+      <!-- 音乐特定参数 -->
+      <template v-else-if="mediaType === 'music'">
         <template v-if="isSuno">
           <div class="section">
             <div class="section-title">生成模式</div>

@@ -1,5 +1,5 @@
 import { ref, computed, watch } from "vue";
-import type { MediaTask, MediaTaskStatus } from "../types";
+import type { MediaTask, MediaTaskStatus, MediaTaskType } from "../types";
 import { createModuleLogger } from "@/utils/logger";
 import { useMediaStorage } from "./useMediaStorage";
 
@@ -8,6 +8,28 @@ const logger = createModuleLogger("media-generator/task-manager");
 // 这是一个全局单例，确保任务在不同组件间共享
 const globalTasks = ref<MediaTask[]>([]);
 const isInitialized = ref(false);
+
+const normalizeTaskType = (task: MediaTask): MediaTaskType => {
+  const type = task.type as string;
+  if (type !== "audio") return task.type;
+
+  const params = task.input?.params || {};
+  const modelText = `${task.input?.modelId || ""} ${task.input?.profileId || ""}`.toLowerCase();
+  if (
+    modelText.includes("suno") ||
+    params.suno_mode !== undefined ||
+    params.tags ||
+    params.make_instrumental !== undefined
+  ) {
+    return "music";
+  }
+  return "speech";
+};
+
+const normalizeTask = (task: MediaTask): MediaTask => ({
+  ...task,
+  type: normalizeTaskType(task),
+});
 
 export function useMediaTaskManager() {
   const storage = useMediaStorage();
@@ -19,7 +41,7 @@ export function useMediaTaskManager() {
     if (isInitialized.value) return;
     try {
       const tasks = await storage.loadTasks();
-      globalTasks.value = Array.isArray(tasks) ? tasks : [];
+      globalTasks.value = Array.isArray(tasks) ? tasks.map(normalizeTask) : [];
       isInitialized.value = true;
       logger.info("全局任务池初始化完成", { count: globalTasks.value.length });
     } catch (error) {
@@ -55,7 +77,9 @@ export function useMediaTaskManager() {
   const syncTasks = (tasks: MediaTask[]) => {
     // 合并新任务，避免重复
     const existingIds = new Set(globalTasks.value.map((t) => t.id));
-    const newTasks = tasks.filter((t) => !existingIds.has(t.id));
+    const newTasks = tasks
+      .filter((t) => !existingIds.has(t.id))
+      .map(normalizeTask);
     if (newTasks.length > 0) {
       globalTasks.value = [...globalTasks.value, ...newTasks];
     }
@@ -67,10 +91,11 @@ export function useMediaTaskManager() {
    * 它会处理树形结构的关联。这里的全局任务池仅负责存储和状态同步。
    */
   const addTask = (task: MediaTask) => {
+    const normalizedTask = normalizeTask(task);
     // 检查是否已经存在
-    if (!globalTasks.value.find((t) => t.id === task.id)) {
-      globalTasks.value.unshift(task);
-      logger.debug("已添加全局任务到任务池", { taskId: task.id });
+    if (!globalTasks.value.find((t) => t.id === normalizedTask.id)) {
+      globalTasks.value.unshift(normalizedTask);
+      logger.debug("已添加全局任务到任务池", { taskId: normalizedTask.id });
     }
   };
 

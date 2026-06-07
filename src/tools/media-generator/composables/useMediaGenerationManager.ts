@@ -445,18 +445,19 @@ export function useMediaGenerationManager() {
 
     // 1. 提取所有资产数据
     const resultAssets: any[] = [];
-    const responseItems = [
+    type ResponseAssetType = "image" | "video" | "audio";
+    const responseItems: Array<{ item: any; type: ResponseAssetType }> = [
       ...(response.images || []).map((item) => ({
         item,
-        type: "image" as MediaTaskType,
+        type: "image" as const,
       })),
       ...(response.videos || []).map((item) => ({
         item,
-        type: "video" as MediaTaskType,
+        type: "video" as const,
       })),
       ...(response.audios || []).map((item) => ({
         item,
-        type: "audio" as MediaTaskType,
+        type: "audio" as const,
       })),
     ];
 
@@ -509,10 +510,20 @@ export function useMediaGenerationManager() {
             bytes = await fetchAsArrayBuffer(item.url);
           }
         } else if (itemType === "audio") {
-          mimeType = "audio/mpeg";
-          extension = "mp3";
-          if (mediaItem.url) {
-            bytes = await fetchAsArrayBuffer(mediaItem.url);
+          const audioFormat = String(mediaItem.format || "mp3").toLowerCase();
+          mimeType = audioFormatToMimeType(audioFormat);
+          extension = mimeTypeToExtension(mimeType, audioFormat || "mp3");
+          if (mediaItem.b64_json) {
+            bytes = decodeBase64ToArrayBuffer(mediaItem.b64_json);
+          } else if (mediaItem.url) {
+            const dataUrlMatch = parseDataUrl(mediaItem.url);
+            if (dataUrlMatch) {
+              if (dataUrlMatch.mimeType) mimeType = dataUrlMatch.mimeType;
+              extension = mimeTypeToExtension(mimeType, extension);
+              bytes = decodeBase64ToArrayBuffer(dataUrlMatch.base64);
+            } else {
+              bytes = await fetchAsArrayBuffer(mediaItem.url);
+            }
           }
         }
 
@@ -616,7 +627,9 @@ export function useMediaGenerationManager() {
    */
   function decodeBase64ToArrayBuffer(input: string | ArrayBuffer): ArrayBuffer {
     if (typeof input !== "string") return input;
-    const binaryString = atob(input);
+    const dataUrlResult = parseDataUrl(input);
+    const base64 = dataUrlResult ? dataUrlResult.base64 : input;
+    const binaryString = atob(base64);
     const uint8Array = new Uint8Array(binaryString.length);
     for (let i = 0; i < binaryString.length; i++) {
       uint8Array[i] = binaryString.charCodeAt(i);
@@ -648,9 +661,25 @@ export function useMediaGenerationManager() {
       "image/svg+xml": "svg",
       "video/mp4": "mp4",
       "audio/mpeg": "mp3",
+      "audio/mp3": "mp3",
       "audio/wav": "wav",
+      "audio/x-wav": "wav",
+      "audio/opus": "opus",
+      "audio/aac": "aac",
     };
     return map[mime] || fallback;
+  }
+
+  function audioFormatToMimeType(format: string): string {
+    const map: Record<string, string> = {
+      mp3: "audio/mpeg",
+      mpeg: "audio/mpeg",
+      wav: "audio/wav",
+      opus: "audio/opus",
+      aac: "audio/aac",
+      pcm16: "audio/wav",
+    };
+    return map[format] || "audio/mpeg";
   }
 
   /**

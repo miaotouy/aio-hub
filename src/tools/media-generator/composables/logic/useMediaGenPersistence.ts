@@ -125,10 +125,13 @@ export function useMediaGenPersistence(options: {
       currentSessionId.value = session.id;
 
       // 存入详情 Map
+      const generationConfig = sessionManager.normalizeGenerationConfig(
+        session.generationConfig
+      );
       sessionDetailMap.value.set(session.id, {
         id: session.id,
         type: session.type,
-        generationConfig: session.generationConfig,
+        generationConfig,
         nodes: session.nodes,
         rootNodeId: session.rootNodeId,
         activeLeafId: session.activeLeafId,
@@ -201,14 +204,7 @@ export function useMediaGenPersistence(options: {
 
       inputPrompt.value = session.inputPrompt || "";
       if (session.generationConfig) {
-        currentConfig.value.activeType =
-          session.generationConfig.activeType || "image";
-        if (session.generationConfig.types) {
-          currentConfig.value.types = {
-            ...currentConfig.value.types,
-            ...session.generationConfig.types,
-          };
-        }
+        currentConfig.value = generationConfig;
       }
 
       isInitialized.value = true;

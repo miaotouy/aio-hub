@@ -57,7 +57,8 @@ function buildMethodName(modelId: string, usedNames: Set<string>): string {
 function mediaTypeLabel(type: MediaTaskType): string {
   if (type === "image") return "图片";
   if (type === "video") return "视频";
-  return "音频";
+  if (type === "speech") return "语音";
+  return "音乐";
 }
 
 function mediaTypeListLabel(types: MediaTaskType[]): string {
@@ -137,6 +138,109 @@ function addBooleanParameter(
   });
 }
 
+function addSpeechParameters(
+  params: AgentMethodParameter[],
+  supportedMediaTypes: MediaTaskType[]
+) {
+  if (!supportedMediaTypes.includes("speech")) return;
+
+  params.push(
+    {
+      name: "voice",
+      type: "string",
+      required: false,
+      description:
+        "TTS 声音。仅在 media_type 为 speech 时有效。可选值: alloy | ash | ballad | coral | echo | fable | nova | onyx | sage | shimmer。",
+      defaultValue: "alloy",
+      enum: [
+        "alloy",
+        "ash",
+        "ballad",
+        "coral",
+        "echo",
+        "fable",
+        "nova",
+        "onyx",
+        "sage",
+        "shimmer",
+      ],
+    },
+    {
+      name: "audio_format",
+      type: "string",
+      required: false,
+      description:
+        "TTS 输出音频格式。仅在 media_type 为 speech 时有效。可选值: mp3 | wav | opus | aac。",
+      defaultValue: "mp3",
+      enum: ["mp3", "wav", "opus", "aac"],
+    },
+    {
+      name: "speed",
+      type: "number",
+      required: false,
+      description:
+        "TTS 语速。仅在 media_type 为 speech 时有效，通常范围为 0.25 到 4。",
+      defaultValue: 1,
+    },
+    {
+      name: "instructions",
+      type: "string",
+      required: false,
+      description:
+        "TTS 朗读指令，例如情绪、语气、节奏。仅在 media_type 为 speech 时有效。",
+      uiHint: "textarea",
+    }
+  );
+}
+
+function addMusicParameters(
+  params: AgentMethodParameter[],
+  supportedMediaTypes: MediaTaskType[]
+) {
+  if (!supportedMediaTypes.includes("music")) return;
+
+  params.push(
+    {
+      name: "suno_mode",
+      type: "string",
+      required: false,
+      description:
+        "Suno 生成模式。simple 表示歌曲描述，custom 表示自定义歌词。仅在 media_type 为 music 时有效。",
+      defaultValue: "simple",
+      enum: ["simple", "custom"],
+    },
+    {
+      name: "mv",
+      type: "string",
+      required: false,
+      description:
+        "Suno 模型版本。仅在 media_type 为 music 时有效，例如 chirp-v4。",
+      defaultValue: "chirp-v4",
+    },
+    {
+      name: "tags",
+      type: "string",
+      required: false,
+      description:
+        "Suno 风格标签。仅在 media_type 为 music 且 suno_mode 为 custom 时有效。",
+    },
+    {
+      name: "title",
+      type: "string",
+      required: false,
+      description:
+        "Suno 歌曲标题。仅在 media_type 为 music 且 suno_mode 为 custom 时有效。",
+    },
+    {
+      name: "make_instrumental",
+      type: "boolean",
+      required: false,
+      description: "生成纯音乐。仅在 media_type 为 music 时有效。",
+      defaultValue: false,
+    }
+  );
+}
+
 function buildParameters(
   model: LlmModelInfo,
   supportedMediaTypes: MediaTaskType[],
@@ -174,6 +278,8 @@ function buildParameters(
       description:
         "生成尺寸。适用于图片或视频模型，格式通常为 1024x1024、16:9、720p 等。",
     });
+    addSpeechParameters(parameters, supportedMediaTypes);
+    addMusicParameters(parameters, supportedMediaTypes);
     return parameters;
   }
 
@@ -246,7 +352,7 @@ function buildParameters(
     "quality",
     "质量",
     mediaGenParams.quality,
-    "media_type 为 image 或 audio"
+    "media_type 为 image 或 music"
   );
   addOptionParameter(
     parameters,
@@ -331,7 +437,7 @@ function buildParameters(
 
   if (
     supportedMediaTypes.includes("video") ||
-    supportedMediaTypes.includes("audio")
+    supportedMediaTypes.includes("music")
   ) {
     const duration = mediaGenParams.duration;
     if (!duration || duration.supported !== false) {
@@ -346,7 +452,7 @@ function buildParameters(
         name: "duration",
         type: "number",
         required: false,
-        description: `生成时长（秒）${values ? `。可选值: ${values}` : ""}${range ? `（${range}）` : ""}。仅在 media_type 为 video 或 audio 时有效。`,
+        description: `生成时长（秒）${values ? `。可选值: ${values}` : ""}${range ? `（${range}）` : ""}。仅在 media_type 为 video 或 music 时有效。`,
         defaultValue: duration?.default,
       });
     }
@@ -387,6 +493,8 @@ function buildParameters(
     mediaGenParams.movementAmplitude,
     "media_type 为 video"
   );
+  addSpeechParameters(parameters, supportedMediaTypes);
+  addMusicParameters(parameters, supportedMediaTypes);
 
   logger.debug("已构建媒体生成 Agent 参数", {
     modelId: model.id,
@@ -449,6 +557,23 @@ function normalizeGenerationArgs(args: Record<string, any>) {
     if (normalized[from] !== undefined && normalized[to] === undefined) {
       normalized[to] = normalized[from];
     }
+  }
+  const audioFormat = normalized.audio_format ?? normalized.response_format;
+  if (
+    normalized.voice !== undefined ||
+    normalized.speed !== undefined ||
+    audioFormat !== undefined
+  ) {
+    normalized.audioConfig = {
+      ...(normalized.audioConfig || {}),
+      ...(normalized.voice !== undefined ? { voice: normalized.voice } : {}),
+      ...(normalized.speed !== undefined
+        ? { speed: Number(normalized.speed) }
+        : {}),
+      ...(audioFormat !== undefined
+        ? { responseFormat: String(audioFormat) }
+        : {}),
+    };
   }
   return normalized;
 }
@@ -528,6 +653,10 @@ function createHandler(visibleModel: VisibleAgentModel) {
     const {
       media_type: _mediaType,
       mediaType: _normalizedMediaType,
+      response_format: _responseFormat,
+      audio_format: _audioFormat,
+      voice: _voice,
+      speed: _speed,
       ...generationParams
     } = args;
 

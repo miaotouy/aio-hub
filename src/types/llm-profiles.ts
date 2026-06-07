@@ -37,7 +37,8 @@ export type ProviderType =
   | "xai"
   | "cohere"
   | "vertexai"
-  | "suno-newapi";
+  | "suno-newapi"
+  | "minimax-music";
 
 /**
  * LLM 参数支持定义

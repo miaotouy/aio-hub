@@ -83,6 +83,21 @@ export function useSessionManager() {
       ...(type === "music"
         ? {
             quality: "standard",
+            // MiniMax Music 专属
+            minimax_music_mode: "song",
+            lyrics_source: "optimizer",
+            lyrics: "",
+            lyrics_generation_enabled: false,
+            lyrics_generation_prompt: "",
+            lyrics_optimizer: true,
+            is_instrumental: false,
+            output_format: "url",
+            audio_url: "",
+            audio_setting: {
+              sample_rate: 44100,
+              bitrate: 256000,
+              format: "mp3",
+            },
           }
         : {}),
       ...(type === "speech"
@@ -101,7 +116,10 @@ export function useSessionManager() {
   const normalizeGenerationConfig = (
     config?: Partial<MediaGenerationConfig> | null
   ): MediaGenerationConfig => {
-    const legacyTypes = (config?.types || {}) as Record<string, MediaTypeConfig>;
+    const legacyTypes = (config?.types || {}) as Record<
+      string,
+      MediaTypeConfig
+    >;
     const legacyAudioConfig = legacyTypes.audio;
     const rawActiveType = config?.activeType as string | undefined;
     const activeType =

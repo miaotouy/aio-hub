@@ -456,6 +456,14 @@ export const providerTypes: ProviderTypeInfo[] = [
     supportsModelList: false,
     supportedParameters: {},
   },
+  {
+    type: "minimax-music",
+    name: "MiniMax Music",
+    description: "MiniMax 官方音乐生成服务，支持歌曲、纯音乐、歌词生成和翻唱",
+    defaultBaseUrl: "https://api.minimaxi.com",
+    supportsModelList: false,
+    supportedParameters: {},
+  },
 ];
 
 /**

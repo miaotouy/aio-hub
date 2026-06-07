@@ -13,6 +13,7 @@ import { geminiUrlHandler } from "@/llm-apis/adapters/gemini/utils";
 import { cohereUrlHandler } from "@/llm-apis/adapters/cohere/utils";
 import { vertexAiUrlHandler } from "@/llm-apis/adapters/vertexai/utils";
 import { sunoNewApiUrlHandler } from "@/llm-apis/adapters/suno-newapi/utils";
+import { minimaxMusicUrlHandler } from "@/llm-apis/adapters/minimax-music/utils";
 
 /**
  * 适配器 URL 处理接口
@@ -74,6 +75,7 @@ const adapterUrlHandlers: Record<ProviderType, AdapterUrlHandler> = {
   vertexai: vertexAiUrlHandler,
   ollama: ollamaUrlHandler,
   "suno-newapi": sunoNewApiUrlHandler,
+  "minimax-music": minimaxMusicUrlHandler,
 };
 
 /**

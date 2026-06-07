@@ -78,6 +78,20 @@ const prompt = toRef(store, "inputPrompt");
 
 const isDisabled = computed(() => isGenerating.value || props.disabled);
 
+const selectedProviderType = computed(() => {
+  const mediaType = store.currentConfig.activeType;
+  const modelCombo = store.currentConfig.types[mediaType]?.modelCombo;
+  if (!modelCombo) return "";
+  const [profileId] = parseModelCombo(modelCombo);
+  return getProfileById(profileId)?.type || "";
+});
+
+const isMiniMaxMusic = computed(
+  () =>
+    store.currentConfig.activeType === "music" &&
+    selectedProviderType.value === "minimax-music"
+);
+
 const promptPlaceholder = computed(() => {
   const mediaType = store.currentConfig.activeType;
   const params = store.currentConfig.types[mediaType]?.params || {};
@@ -86,6 +100,15 @@ const promptPlaceholder = computed(() => {
   if (mediaType === "video") return "描述你想要生成的视频...";
 
   if (mediaType === "music") {
+    if (isMiniMaxMusic.value) {
+      if (params.minimax_music_mode === "cover")
+        return "描述翻唱风格，并添加参考音频...";
+      if (params.minimax_music_mode === "instrumental")
+        return "描述纯音乐风格、情绪和场景...";
+      if (params.lyrics_source === "manual")
+        return "描述编曲、演唱风格和情绪...";
+      return "描述歌曲风格、情绪和场景...";
+    }
     return params.suno_mode === "custom"
       ? "输入歌词..."
       : "描述你想要生成的歌曲...";
@@ -121,14 +144,14 @@ const { isDraggingOver } = useFileInteraction({
       }
     }
     if (successCount > 0) {
-      customMessage.success(`已添加 ${successCount} 个参考图`);
+      customMessage.success(`已添加 ${successCount} 个参考文件`);
     }
   },
   onAssets: async (assets) => {
     logger.info("文件粘贴触发", { count: assets.length });
     const successCount = inputManager.addAssets(assets);
     if (successCount > 0) {
-      customMessage.success(`已添加 ${successCount} 个参考图`);
+      customMessage.success(`已添加 ${successCount} 个参考文件`);
     }
   },
   disabled: isDisabled,
@@ -138,8 +161,31 @@ const handleTriggerAttachment = async () => {
   try {
     const selected = await open({
       multiple: true,
-      title: "选择参考图",
-      filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg", "webp"] }],
+      title: isMiniMaxMusic.value ? "选择参考文件" : "选择参考图",
+      filters: isMiniMaxMusic.value
+        ? [
+            {
+              name: "Media",
+              extensions: [
+                "png",
+                "jpg",
+                "jpeg",
+                "webp",
+                "mp3",
+                "wav",
+                "m4a",
+                "aac",
+                "flac",
+                "ogg",
+              ],
+            },
+          ]
+        : [
+            {
+              name: "Images",
+              extensions: ["png", "jpg", "jpeg", "webp"],
+            },
+          ],
     });
 
     if (selected) {
@@ -163,7 +209,7 @@ const handleTriggerAttachment = async () => {
         }
       }
       if (successCount > 0) {
-        customMessage.success(`已添加 ${successCount} 个参考图`);
+        customMessage.success(`已添加 ${successCount} 个参考文件`);
       }
     }
   } catch (error) {
@@ -338,7 +384,7 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
 }
 
 .input-container.dragging-over::after {
-  content: "释放以添加参考图";
+  content: "释放以添加参考文件";
   position: absolute;
   top: 0;
   left: 0;

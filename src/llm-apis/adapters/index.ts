@@ -17,6 +17,7 @@ import { deepSeekAdapter } from "./deepseek";
 import { callSiliconFlowImageApi } from "./siliconflow/image";
 import { xAiAdapter } from "./xai";
 import { sunoNewApiAdapter } from "./suno-newapi";
+import { minimaxMusicAdapter } from "./minimax-music";
 
 /**
  * 统一适配器接口
@@ -91,6 +92,7 @@ export const adapters: Record<string, LlmAdapter> = {
   vertexai: vertexAiAdapter,
   cohere: cohereAdapter,
   "suno-newapi": sunoNewApiAdapter,
+  "minimax-music": minimaxMusicAdapter,
 };
 
 export type ProviderType = keyof typeof adapters;

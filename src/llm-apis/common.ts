@@ -381,8 +381,13 @@ export interface MediaGenerationOptions extends Omit<
     url?: string;
     /** Base64 Data URL (由前端预处理) */
     b64?: string;
-    type: "image" | "video" | "mask";
+    type: "image" | "video" | "audio" | "mask";
     role?: "reference" | "first_frame" | "last_frame";
+    path?: string;
+    mimeType?: string;
+    id?: string;
+    name?: string;
+    size?: number;
   }>;
   /** 音频控制 */
   audioConfig?: {

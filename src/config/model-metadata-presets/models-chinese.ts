@@ -221,7 +221,12 @@ export const chineseModelRules: ModelMetadataRule[] = [
       ],
       description:
         "MiniMax-M3：MiniMax 最新 M 系列语言模型，原生多模态、1M 上下文，面向 Agent 推理、工具调用、代码和长上下文任务。",
-      recommendedFor: ["Agent 工作流", "代码生成", "长上下文分析", "多模态任务"],
+      recommendedFor: [
+        "Agent 工作流",
+        "代码生成",
+        "长上下文分析",
+        "多模态任务",
+      ],
     },
     priority: 37,
     enabled: true,
@@ -282,14 +287,12 @@ export const chineseModelRules: ModelMetadataRule[] = [
     },
     priority: 35,
     enabled: true,
-    description:
-      "模型正则 MiniMax-M2.1 / M2.1-highspeed / M2 元数据规则",
+    description: "模型正则 MiniMax-M2.1 / M2.1-highspeed / M2 元数据规则",
   },
   {
     id: "model-minimax-hailuo-2-family",
     matchType: "model",
-    matchValue:
-      "(?:^|/)MiniMax[-_ ]Hailuo[-_ ](?:2\\.3(?:[-_ ]Fast)?|02)$",
+    matchValue: "(?:^|/)MiniMax[-_ ]Hailuo[-_ ](?:2\\.3(?:[-_ ]Fast)?|02)$",
     useRegex: true,
     properties: {
       icon: `/model-icons/hailuo-color.svg`,
@@ -357,7 +360,7 @@ export const chineseModelRules: ModelMetadataRule[] = [
   {
     id: "model-minimax-music-family",
     matchType: "model",
-    matchValue: "(?:^|/)music-(?:2\\.6|cover)$",
+    matchValue: "(?:^|/)music-(?:2\\.6|cover)(?:-free)?$",
     useRegex: true,
     properties: {
       icon: `/model-icons/minimax-color.svg`,
@@ -370,12 +373,13 @@ export const chineseModelRules: ModelMetadataRule[] = [
         audio: true,
       },
       description:
-        "MiniMax music 系列音乐生成模型，覆盖 music-2.6 和 music-cover。",
+        "MiniMax music 系列音乐生成模型，覆盖 music-2.6、music-cover 及其 free 变体。",
       recommendedFor: ["音乐生成", "翻唱生成", "歌词创作", "风格迁移"],
     },
     priority: 35,
     enabled: true,
-    description: "模型正则 MiniMax music-2.6 / music-cover 元数据规则",
+    description:
+      "模型正则 MiniMax music-2.6 / music-cover / free 变体元数据规则",
   },
   {
     id: "model-prefix-minimax-m-family",

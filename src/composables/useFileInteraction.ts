@@ -12,6 +12,20 @@ import type { Asset } from "@/types/asset-management";
 const logger = createModuleLogger("useFileInteraction");
 const errorHandler = createModuleErrorHandler("useFileInteraction");
 
+const inferAssetTypeFromMime = (mimeType: string): Asset["type"] => {
+  if (mimeType.startsWith("image/")) return "image";
+  if (mimeType.startsWith("audio/")) return "audio";
+  if (mimeType.startsWith("video/")) return "video";
+  if (
+    mimeType.startsWith("text/") ||
+    mimeType === "application/pdf" ||
+    mimeType.includes("document")
+  ) {
+    return "document";
+  }
+  return "other";
+};
+
 // 文件交互选项接口
 export interface FileInteractionOptions extends Omit<
   FileDropOptions,
@@ -138,7 +152,7 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
         const tempAsset = reactive<Asset>({
           id: tempId,
           uploadingId: tempId, // 记录原始临时 ID，作为占位符替换的契约凭证
-          type: file.type.startsWith("image/") ? "image" : "other", // 简单判断类型
+          type: inferAssetTypeFromMime(file.type),
           mimeType: file.type,
           name: filename,
           path: blobUrl, // 使用 blob URL 作为临时路径用于预览

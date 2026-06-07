@@ -282,6 +282,40 @@ const isSuno = computed(() => {
   return selectedModelInfo.value?.provider === "suno-newapi";
 });
 
+const isMiniMaxMusic = computed(() => {
+  return selectedModelInfo.value?.provider === "minimax-music";
+});
+
+const ensureMiniMaxAudioSetting = () => {
+  params.value.audio_setting ||= {
+    sample_rate: 44100,
+    bitrate: 256000,
+    format: "mp3",
+  };
+  return params.value.audio_setting;
+};
+
+const minimaxSampleRate = computed({
+  get: () => ensureMiniMaxAudioSetting().sample_rate || 44100,
+  set: (val) => {
+    ensureMiniMaxAudioSetting().sample_rate = val;
+  },
+});
+
+const minimaxBitrate = computed({
+  get: () => ensureMiniMaxAudioSetting().bitrate || 256000,
+  set: (val) => {
+    ensureMiniMaxAudioSetting().bitrate = val;
+  },
+});
+
+const minimaxAudioFormat = computed({
+  get: () => ensureMiniMaxAudioSetting().format || "mp3",
+  set: (val) => {
+    ensureMiniMaxAudioSetting().format = val;
+  },
+});
+
 const speechVoiceOptions = [
   "alloy",
   "ash",
@@ -385,6 +419,15 @@ watch(
         store.currentConfig.types[store.currentConfig.activeType].params,
         cleaned
       );
+    }
+
+    if (
+      selectedModelInfo.value?.provider === "minimax-music" &&
+      selectedModelInfo.value.modelId.startsWith("music-cover")
+    ) {
+      store.currentConfig.types[
+        store.currentConfig.activeType
+      ].params.minimax_music_mode = "cover";
     }
   },
   { immediate: true }
@@ -904,7 +947,108 @@ watch(
 
       <!-- 音乐特定参数 -->
       <template v-else-if="mediaType === 'music'">
-        <template v-if="isSuno">
+        <template v-if="isMiniMaxMusic">
+          <div class="section">
+            <div class="section-title">生成模式</div>
+            <el-radio-group v-model="params.minimax_music_mode" size="small">
+              <el-radio-button value="song">歌曲</el-radio-button>
+              <el-radio-button value="instrumental">纯音乐</el-radio-button>
+              <el-radio-button value="cover">翻唱</el-radio-button>
+            </el-radio-group>
+          </div>
+
+          <div
+            v-if="params.minimax_music_mode !== 'instrumental'"
+            class="section"
+          >
+            <div class="section-title">歌词来源</div>
+            <el-radio-group v-model="params.lyrics_source" size="small">
+              <el-radio-button
+                v-if="params.minimax_music_mode !== 'cover'"
+                value="optimizer"
+              >
+                自动
+              </el-radio-button>
+              <el-radio-button value="manual">手填</el-radio-button>
+              <el-radio-button value="generate">先生成</el-radio-button>
+            </el-radio-group>
+          </div>
+
+          <div
+            v-if="
+              params.minimax_music_mode !== 'instrumental' &&
+              params.lyrics_source !== 'optimizer'
+            "
+            class="section"
+          >
+            <div class="section-title">歌词</div>
+            <el-input
+              v-model="params.lyrics"
+              type="textarea"
+              :rows="5"
+              placeholder="[Verse]\n..."
+              size="small"
+            />
+          </div>
+
+          <div
+            v-if="
+              params.minimax_music_mode !== 'instrumental' &&
+              params.lyrics_source === 'generate'
+            "
+            class="section"
+          >
+            <div class="section-title">歌词生成指令</div>
+            <el-input
+              v-model="params.lyrics_generation_prompt"
+              type="textarea"
+              :rows="2"
+              placeholder="留空则使用主输入框描述"
+              size="small"
+            />
+          </div>
+
+          <div v-if="params.minimax_music_mode === 'cover'" class="section">
+            <div class="section-title">参考音频 URL</div>
+            <el-input
+              v-model="params.audio_url"
+              placeholder="或在输入框添加一个音频附件"
+              size="small"
+            />
+          </div>
+
+          <div class="section">
+            <div class="section-title">输出格式</div>
+            <el-radio-group v-model="params.output_format" size="small">
+              <el-radio-button value="url">URL</el-radio-button>
+              <el-radio-button value="hex">HEX</el-radio-button>
+            </el-radio-group>
+          </div>
+
+          <div class="section">
+            <div class="section-title">音频设置</div>
+            <div class="mini-field-grid">
+              <el-select v-model="minimaxAudioFormat" size="small">
+                <el-option label="MP3" value="mp3" />
+                <el-option label="WAV" value="wav" />
+                <el-option label="PCM" value="pcm" />
+              </el-select>
+              <el-select v-model="minimaxSampleRate" size="small">
+                <el-option label="44.1 kHz" :value="44100" />
+                <el-option label="32 kHz" :value="32000" />
+                <el-option label="24 kHz" :value="24000" />
+                <el-option label="16 kHz" :value="16000" />
+              </el-select>
+              <el-select v-model="minimaxBitrate" size="small">
+                <el-option label="256 kbps" :value="256000" />
+                <el-option label="128 kbps" :value="128000" />
+                <el-option label="64 kbps" :value="64000" />
+                <el-option label="32 kbps" :value="32000" />
+              </el-select>
+            </div>
+          </div>
+        </template>
+        <template v-else-if="isSuno">
           <div class="section">
             <div class="section-title">生成模式</div>
             <el-radio-group v-model="params.suno_mode" size="small">
@@ -1238,5 +1382,11 @@ watch(
   /* 确保滑块不会撑开容器导致横向滚动条 */
   width: 100%;
   overflow: hidden;
+}
+
+.mini-field-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
 }
 </style>

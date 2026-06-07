@@ -185,21 +185,29 @@ export function useMediaGenerationManager() {
       // 构造多轮会话上下文
       const requestTimeout = config?.timeout ?? DEFAULT_MEDIA_TIMEOUT;
       const maxRetries = config?.maxRetries ?? 0;
+      const { profile: selectedProfile, model: selectedModel } =
+        resolveModelSelection(task.input.profileId, task.input.modelId);
 
       // 处理参考图：将本地 Asset (含 path) 转换为 Base64
       let processedAttachments = task.input.params.inputAttachments;
       if (processedAttachments && (processedAttachments as any[]).length > 0) {
-        const { model } = resolveModelSelection(
-          task.input.profileId,
-          task.input.modelId
-        );
-        const maxDim = model?.capabilities?.maxImageDimension;
+        const maxDim = selectedModel?.capabilities?.maxImageDimension;
 
         processedAttachments = await Promise.all(
           (processedAttachments as any[]).map(async (att: any) => {
             if (att.path && !att.b64) {
               try {
                 let buffer = await getAssetBinary(att.path);
+                const attachmentType = inferAttachmentType(att);
+
+                if (attachmentType === "audio") {
+                  const base64 = await convertArrayBufferToBase64(buffer);
+                  return {
+                    ...att,
+                    path: undefined,
+                    b64: base64,
+                  };
+                }
 
                 // 模型安全约束缩放
                 if (maxDim && maxDim > 0) {
@@ -225,10 +233,11 @@ export function useMediaGenerationManager() {
                 return {
                   ...att,
                   path: undefined,
+                  type: attachmentType,
                   b64: `data:${mimeType};base64,${base64}`,
                 };
               } catch (e) {
-                logger.error("读取参考图失败", e, { path: att.path });
+                logger.error("读取参考附件失败", e, { path: att.path });
                 return att;
               }
             }
@@ -237,11 +246,18 @@ export function useMediaGenerationManager() {
         );
       }
 
+      const minimaxAudioBase64 = extractMinimaxCoverAudioBase64(
+        selectedProfile,
+        finalMusicMode(task.input.params),
+        processedAttachments
+      );
+
       let finalOptions = {
         timeout: requestTimeout,
         maxRetries: maxRetries,
         ...options,
         inputAttachments: processedAttachments,
+        ...(minimaxAudioBase64 ? { audio_base64: minimaxAudioBase64 } : {}),
         prompt: task.input.params.prompt, // 使用 task 中的 prompt
       };
 
@@ -271,8 +287,6 @@ export function useMediaGenerationManager() {
       }
 
       // 应用参数规则清洁
-      const { profile: selectedProfile, model: selectedModel } =
-        resolveModelSelection(task.input.profileId, task.input.modelId);
       const rules = getModelParamRules(selectedModel);
       if (rules) {
         if (usesAspectRatioMode(rules)) {
@@ -680,6 +694,48 @@ export function useMediaGenerationManager() {
       pcm16: "audio/wav",
     };
     return map[format] || "audio/mpeg";
+  }
+
+  function inferAttachmentType(att: any): "image" | "video" | "audio" | "mask" {
+    if (att.type === "audio" || att.mimeType?.startsWith?.("audio/")) {
+      return "audio";
+    }
+    if (att.type === "video" || att.mimeType?.startsWith?.("video/")) {
+      return "video";
+    }
+    if (att.type === "mask" || att.role === "mask") {
+      return "mask";
+    }
+    return "image";
+  }
+
+  function finalMusicMode(params: Record<string, any>): string {
+    if (String(params.modelId || "").startsWith("music-cover")) return "cover";
+    if (params.minimax_music_mode) return params.minimax_music_mode;
+    if (params.is_instrumental) return "instrumental";
+    return "song";
+  }
+
+  function extractMinimaxCoverAudioBase64(
+    profile: LlmProfile | undefined,
+    musicMode: string,
+    attachments: any[] | undefined
+  ): string | undefined {
+    if (profile?.type !== "minimax-music" || musicMode !== "cover") {
+      return undefined;
+    }
+
+    const audioAttachments = (attachments || []).filter(
+      (att) => inferAttachmentType(att) === "audio"
+    );
+    if (audioAttachments.length > 1) {
+      throw new Error("MiniMax 翻唱一次只支持一个参考音频附件");
+    }
+
+    const audio = audioAttachments[0];
+    if (!audio?.b64) return undefined;
+    const match = String(audio.b64).match(/^data:[^;]+;base64,(.+)$/s);
+    return match ? match[1] : String(audio.b64);
   }
 
   /**

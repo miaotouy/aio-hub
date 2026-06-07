@@ -122,6 +122,11 @@ const isGenerating = computed(() => store.isNodeGenerating(props.message.id));
 const isPresetDisplay = computed(
   () => props.message.metadata?.isPresetDisplay === true
 );
+const isLiveGreeting = computed(
+  () =>
+    props.message.metadata?.isGreeting === true &&
+    props.message.metadata?.greetingLive === true
+);
 
 // 变量快照
 const sessionVariableSnapshot = computed(
@@ -724,12 +729,13 @@ const handleTranslateClick = (e: MouseEvent) => {
       </button>
     </el-tooltip>
 
-    <!-- 创建分支（用户、助手和工具消息都可以，生成中不可创建，预设消息不可创建分支） -->
+    <!-- 创建分支（用户、助手和工具消息都可以，生成中不可创建，预设消息和未固化开局不可创建分支） -->
     <el-tooltip
       v-if="
         (isUserMessage || isAssistantMessage || isToolMessage) &&
         !isGenerating &&
         !isPresetDisplay &&
+        !isLiveGreeting &&
         props.buttonVisibility.createBranch
       "
       content="创建分支"
@@ -737,6 +743,20 @@ const handleTranslateClick = (e: MouseEvent) => {
       :show-after="500"
     >
       <button class="menu-btn" @click="handleCreateBranch">
+        <GitFork :size="16" />
+      </button>
+    </el-tooltip>
+
+    <!-- 开局消息的提示（开局分支来自智能体配置，避免误创建会话内副本） -->
+    <el-tooltip
+      v-if="
+        (isUserMessage || isAssistantMessage) && !isGenerating && isLiveGreeting
+      "
+      content="开局消息分支来自智能体设置，开始对话后会固化为会话分支"
+      placement="top"
+      :show-after="500"
+    >
+      <button class="menu-btn menu-btn-disabled" disabled>
         <GitFork :size="16" />
       </button>
     </el-tooltip>

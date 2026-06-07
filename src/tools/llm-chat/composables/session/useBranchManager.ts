@@ -156,6 +156,18 @@ export function useBranchManager() {
       return null;
     }
 
+    if (
+      sourceNode.metadata?.isGreeting === true &&
+      sourceNode.metadata.greetingLive === true
+    ) {
+      logger.warn("创建分支失败：未固化开局消息不支持创建会话分支", {
+        sessionId: session.id,
+        sourceNodeId,
+        greetingId: sourceNode.metadata.greetingId,
+      });
+      return null;
+    }
+
     // 只允许为用户消息和助手消息创建分支
     if (sourceNode.role !== "user" && sourceNode.role !== "assistant") {
       logger.warn("创建分支失败：只能为用户或助手消息创建分支", {

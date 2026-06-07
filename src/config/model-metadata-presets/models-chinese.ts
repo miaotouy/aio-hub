@@ -9,6 +9,83 @@ import type { ModelMetadataRule } from "../../types/model-metadata";
 export const chineseModelRules: ModelMetadataRule[] = [
   // === 智谱 AI 系列模型 ===
   {
+    id: "model-glm-4.6-family",
+    matchType: "model",
+    matchValue: "(?:^|/)GLM-4\\.6(?:-(?:Air|air)|[vV])?$",
+    useRegex: true,
+    properties: {
+      icon: `/model-icons/zhipu-color.svg`,
+      group: "Zhipu",
+      tokenizer: "gpt4",
+      contextLength: 200000,
+      maxOutputTokens: 128000,
+      pricing: {
+        unit: "CNY",
+        note: "不同渠道和 GLM-4.6 / Air / V 变体价格不同，以实际渠道为准",
+      },
+      capabilities: {
+        toolUse: true,
+        thinking: true,
+        thinkingConfigType: "switch",
+        jsonOutput: true,
+      },
+      features: {
+        streaming: true,
+        functionCalling: true,
+      },
+      releaseDate: "2025-10",
+      description:
+        "GLM-4.6 系列：智谱 GLM-4 家族旗舰/轻量/视觉变体，200K 上下文，面向编码、推理和 Agent 工具调用。",
+      recommendedFor: ["代码生成", "Agent 工作流", "长上下文分析", "中文对话"],
+    },
+    priority: 36,
+    enabled: true,
+    description: "模型正则 GLM-4.6 / GLM-4.6-Air / GLM-4.6V 元数据规则",
+  },
+  {
+    id: "model-glm-4.6-vision",
+    matchType: "model",
+    matchValue: "(?:^|/)GLM-4\\.6[vV]$",
+    useRegex: true,
+    properties: {
+      capabilities: {
+        vision: true,
+        document: true,
+      },
+      description:
+        "GLM-4.6V：GLM-4.6 系列视觉模型，适合图像理解、文档解析和多模态问答。",
+      recommendedFor: ["图像理解", "文档解析", "多模态问答"],
+    },
+    priority: 37,
+    enabled: true,
+    description: "模型正则 GLM-4.6V 视觉能力规则",
+  },
+  {
+    id: "model-glm-ocr",
+    matchType: "model",
+    matchValue: "(?:^|/)glm-ocr(?::bf16)?$",
+    useRegex: true,
+    properties: {
+      icon: `/model-icons/zai.svg`,
+      group: "Z AI",
+      tokenizer: "gpt4",
+      capabilities: {
+        vision: true,
+        document: true,
+        jsonOutput: true,
+      },
+      features: {
+        vision: true,
+      },
+      description:
+        "GLM-OCR：Z.AI / 智谱面向文档和图像文字识别的视觉语言模型；:bf16 为常见精度/量化后缀。",
+      recommendedFor: ["OCR", "文档解析", "表格识别", "票据识别"],
+    },
+    priority: 38,
+    enabled: true,
+    description: "模型正则 glm-ocr(:bf16) 元数据规则",
+  },
+  {
     id: "model-prefix-glm",
     matchType: "modelPrefix",
     matchValue: "glm-",
@@ -109,6 +186,54 @@ export const chineseModelRules: ModelMetadataRule[] = [
   },
 
   // === MiniMax 系列模型 ===
+  {
+    id: "model-minimax-m2.7",
+    matchType: "model",
+    matchValue: "(?:^|/)MiniMax-M2\\.7$",
+    useRegex: true,
+    properties: {
+      icon: `/model-icons/minimax-color.svg`,
+      group: "MiniMax",
+      tokenizer: "gpt4",
+      contextLength: 204800,
+      capabilities: {
+        thinking: true,
+        thinkingConfigType: "switch",
+        toolUse: true,
+        jsonOutput: true,
+      },
+      defaultPostProcessingRules: [
+        "convert-system-to-user",
+        "merge-consecutive-roles",
+      ],
+      description:
+        "MiniMax-M2.7：MiniMax M2 家族 MoE 长上下文模型，常见开放权重配置为 204.8K 上下文，适合 Agent、代码和长文档任务。",
+      recommendedFor: ["Agent 工作流", "代码生成", "长文档分析", "开源部署"],
+    },
+    priority: 37,
+    enabled: true,
+    description: "模型正则 MiniMax-M2.7 元数据规则",
+  },
+  {
+    id: "model-prefix-minimax-m-family",
+    matchType: "modelPrefix",
+    matchValue: "MiniMax[-/]?M(?:1|2(?:\\.\\d+)?)",
+    useRegex: true,
+    properties: {
+      icon: `/model-icons/minimax-color.svg`,
+      group: "MiniMax",
+      tokenizer: "gpt4",
+      capabilities: {
+        thinking: true,
+        toolUse: true,
+      },
+      description:
+        "MiniMax M 系列长上下文推理模型，覆盖 MiniMax-M1、MiniMax-M2 和 M2.x 变体。",
+    },
+    priority: 30,
+    enabled: true,
+    description: "模型正则 MiniMax M 系列元数据规则",
+  },
   {
     id: "model-prefix-abab",
     matchType: "modelPrefix",

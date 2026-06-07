@@ -135,4 +135,158 @@ describe("model-metadata presets", () => {
       },
     });
   });
+
+  it("covers recently added model aliases and related families", () => {
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "glm-ocr:bf16")
+    ).toMatchObject({
+      icon: "/model-icons/zai.svg",
+      group: "Z AI",
+      capabilities: {
+        vision: true,
+        document: true,
+      },
+    });
+
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "nano-banana-pro-preview"
+      )
+    ).toMatchObject({
+      icon: "/model-icons/gemini-color.svg",
+      group: "Gemini",
+      capabilities: {
+        imageGeneration: true,
+        iterativeRefinement: true,
+      },
+      mediaGenParams: {
+        geminiImageConfig: {
+          defaultImageSize: "1K",
+        },
+      },
+    });
+
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "x-ai/grok-4.1-fast:free"
+      )
+    ).toMatchObject({
+      icon: "/model-icons/grok.svg",
+      group: "xAI",
+      contextLength: 2000000,
+      capabilities: {
+        vision: true,
+        toolUse: true,
+      },
+    });
+
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "meta-llama/Llama-3.3-70B-Instruct"
+      )
+    ).toMatchObject({
+      icon: "/model-icons/meta-color.svg",
+      group: "Meta",
+      contextLength: 128000,
+    });
+
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "meta-llama/Llama-3.1-8B-Instruct"
+      )
+    ).toMatchObject({
+      icon: "/model-icons/meta-color.svg",
+      group: "Meta",
+      contextLength: 128000,
+    });
+
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "mistralai/Mixtral-8x7B-Instruct-v0.1"
+      )
+    ).toMatchObject({
+      icon: "/model-icons/mistral-color.svg",
+      group: "Mistral",
+      contextLength: 32768,
+    });
+
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "microsoft/Phi-3-mini-4k-instruct"
+      )
+    ).toMatchObject({
+      icon: "/model-icons/microsoft-color.svg",
+      group: "Microsoft",
+      contextLength: 4096,
+    });
+
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "ZhipuAI/GLM-4.6")
+    ).toMatchObject({
+      icon: "/model-icons/zhipu-color.svg",
+      group: "Zhipu",
+      contextLength: 200000,
+      capabilities: {
+        toolUse: true,
+      },
+    });
+
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "command-a-translate")
+    ).toMatchObject({
+      icon: "/model-icons/cohere-color.svg",
+      group: "Cohere",
+      contextLength: 8000,
+    });
+
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "command-a-code")
+    ).toMatchObject({
+      icon: "/model-icons/cohere-color.svg",
+      group: "Cohere",
+      contextLength: 256000,
+    });
+
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "command-r-plus-08-2024")
+    ).toMatchObject({
+      icon: "/model-icons/cohere-color.svg",
+      group: "Cohere",
+      contextLength: 128000,
+    });
+
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "command-r-plus")
+    ).toMatchObject({
+      icon: "/model-icons/cohere-color.svg",
+      group: "Cohere",
+      contextLength: 128000,
+    });
+
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "command-light")
+    ).toMatchObject({
+      icon: "/model-icons/cohere-color.svg",
+      group: "Cohere",
+      contextLength: 4000,
+      deprecated: true,
+    });
+
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "MiniMaxAI/MiniMax-M2.7")
+    ).toMatchObject({
+      icon: "/model-icons/minimax-color.svg",
+      group: "MiniMax",
+      contextLength: 204800,
+      capabilities: {
+        toolUse: true,
+      },
+    });
+  });
 });

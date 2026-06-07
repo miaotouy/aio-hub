@@ -1135,7 +1135,8 @@ export const imageGenParamsRules: ModelMetadataRule[] = [
   {
     id: "media-params-gemini-3-pro-image",
     matchType: "modelPrefix",
-    matchValue: "gemini-3-pro-image",
+    matchValue: "gemini-3-pro-image|nano-banana-pro",
+    useRegex: true,
     properties: {
       capabilities: { imageGeneration: true },
       mediaGenParams: {

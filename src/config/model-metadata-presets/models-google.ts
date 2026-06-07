@@ -103,15 +103,31 @@ export const googleModelRules: ModelMetadataRule[] = [
   {
     id: "model-gemini-3-pro-image",
     matchType: "model",
-    matchValue: "gemini-3-pro-image",
+    matchValue:
+      "^(?:gemini-3-pro-image(?:-preview)?|nano-banana-pro(?:-preview)?)$",
+    useRegex: true,
     properties: {
+      icon: `/model-icons/gemini-color.svg`,
+      group: "Gemini",
+      tokenizer: "gemini",
+      contextLength: 65536,
+      maxOutputTokens: 32768,
+      capabilities: {
+        imageGeneration: true,
+        iterativeRefinement: true,
+        thinking: true,
+        thinkingConfigType: "switch",
+        vision: true,
+      },
       releaseDate: "2026-05",
       description:
-        "Gemini 3.1 Pro Image (Nano Banana Pro)：面向专业资产生产的图像生成模型，使用 Thinking 跟随复杂指令并生成高保真文本",
+        "Gemini 3 Pro Image / Nano Banana Pro：面向专业资产生产的图像生成模型，使用 Thinking 跟随复杂指令，支持高保真文字与 1K/2K/4K 输出",
+      recommendedFor: ["专业图像生成", "图像编辑", "高保真文字渲染", "品牌资产"],
     },
     priority: 36,
     enabled: true,
-    description: "模型 gemini-3-pro-image 元数据规则",
+    description:
+      "模型正则 gemini-3-pro-image|nano-banana-pro 元数据规则",
   },
   {
     id: "model-gemini-3.1-flash-live-preview",

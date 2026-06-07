@@ -660,6 +660,7 @@ const networkSettingSummary = computed(() => {
                   :expand-state="editForm.modelGroupsExpandState || {}"
                   :loading="isFetchingModels"
                   :test-loading="modelTestLoading"
+                  :provider-type="editForm.type"
                   @add="addModel"
                   @edit="editModel"
                   @test="handleTestModel"
@@ -667,6 +668,7 @@ const networkSettingSummary = computed(() => {
                   @delete-group="deleteModelGroup"
                   @clear="clearAllModels"
                   @fetch="fetchModels"
+                  @batch-apply-presets="(models) => (editForm.models = models)"
                   @update:expand-state="
                     (state: any) => (editForm.modelGroupsExpandState = state)
                   "

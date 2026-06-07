@@ -7,6 +7,7 @@ import {
   ArrowRight,
   MoreFilled,
   VideoPlay,
+  MagicStick,
 } from "@element-plus/icons-vue";
 import type { LlmModelInfo } from "@/types/llm-profiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
@@ -15,6 +16,8 @@ import {
   type CapabilityConfig,
 } from "@/config/model-capabilities";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
+import { getActiveModelProperties } from "@/config/model-metadata";
+import { customMessage } from "@/utils/customMessage";
 
 const MAX_VISIBLE_CAPS = 4;
 
@@ -24,6 +27,7 @@ interface Props {
   expandState?: Record<string, boolean>;
   loading?: boolean;
   testLoading?: Record<string, boolean>;
+  providerType?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -42,6 +46,7 @@ interface Emits {
   (e: "fetch"): void;
   (e: "test", model: LlmModelInfo): void;
   (e: "update:expandState", state: Record<string, boolean>): void;
+  (e: "batch-apply-presets", models: LlmModelInfo[]): void;
 }
 
 const emit = defineEmits<Emits>();
@@ -100,6 +105,70 @@ const isGroupExpanded = (groupName: string): boolean => {
 // 使用统一的图标获取方法和分组方法
 const { getModelIcon, getModelGroup } = useModelMetadata();
 
+const formatModelName = (modelId: string): string => {
+  const lastSlashIndex = modelId.lastIndexOf("/");
+  let name =
+    lastSlashIndex !== -1 ? modelId.substring(lastSlashIndex + 1) : modelId;
+  name = name.replace(/-/g, " ").replace(/\bgpt\b/gi, "GPT");
+  return name.length > 0 ? name.charAt(0).toUpperCase() + name.slice(1) : name;
+};
+
+const applyAllPresets = () => {
+  let appliedCount = 0;
+  const newModels = props.models.map((model) => {
+    const properties = getActiveModelProperties(
+      model.id,
+      model.provider || props.providerType
+    );
+    if (!properties) {
+      if (!model.name) {
+        appliedCount++;
+        return { ...model, name: formatModelName(model.id) };
+      }
+      return model;
+    }
+    const updated = { ...model };
+    let changed = false;
+    if (properties.group && !model.group) {
+      updated.group = properties.group;
+      changed = true;
+    }
+    if (properties.icon && !model.icon) {
+      updated.icon = properties.icon;
+      changed = true;
+    }
+    if (properties.description && !model.description) {
+      updated.description = properties.description;
+      changed = true;
+    }
+    if (properties.capabilities) {
+      updated.capabilities = {
+        ...properties.capabilities,
+        ...(model.capabilities || {}),
+      };
+      changed = true;
+    }
+    if (properties.mediaGenParams && !model.mediaGenParams) {
+      updated.mediaGenParams = JSON.parse(
+        JSON.stringify(properties.mediaGenParams)
+      );
+      changed = true;
+    }
+    if (!model.name) {
+      updated.name = formatModelName(model.id);
+      changed = true;
+    }
+    if (changed) appliedCount++;
+    return updated;
+  });
+  emit("batch-apply-presets", newModels);
+  if (appliedCount > 0) {
+    customMessage.success(`已为 ${appliedCount} 个模型应用预设`);
+  } else {
+    customMessage.info("所有模型已有完整配置，未做修改");
+  }
+};
+
 // 获取模型启用的所有能力配置
 const getEnabledCapabilities = (model: LlmModelInfo): CapabilityConfig[] => {
   return MODEL_CAPABILITIES.filter((cap) => model.capabilities?.[cap.key]);
@@ -121,6 +190,16 @@ const getVisibleCapabilities = (model: LlmModelInfo): CapabilityConfig[] => {
     <div class="list-header">
       <span class="model-count">已添加 {{ models.length }} 个模型</span>
       <div class="list-actions">
+        <el-popconfirm
+          v-if="editable && models.length > 0"
+          title="将为所有模型填充缺失的分组、图标、能力等预设元数据，不覆盖已有配置，确定继续？"
+          width="260"
+          @confirm="applyAllPresets"
+        >
+          <template #reference>
+            <el-button size="small" :icon="MagicStick">批量应用预设</el-button>
+          </template>
+        </el-popconfirm>
         <el-button
           v-if="editable"
           size="small"
@@ -167,8 +246,7 @@ const getVisibleCapabilities = (model: LlmModelInfo): CapabilityConfig[] => {
               <el-icon
                 class="expand-icon"
                 :class="{ expanded: isGroupExpanded(group.name) }"
-              >
-                <ArrowRight />
+                ><ArrowRight />
               </el-icon>
               <span class="group-name">{{ group.name }}</span>
               <span class="group-count">{{ group.models.length }}</span>
@@ -500,8 +578,7 @@ const getVisibleCapabilities = (model: LlmModelInfo): CapabilityConfig[] => {
 .capability-icon {
   font-size: 18px;
   cursor: help;
-  flex-shrink: 0;
-  /* 颜色通过配置文件的 color 属性动态设置 */
+  flex-shrink: 0; /* 颜色通过配置文件的 color 属性动态设置 */
 }
 
 .more-capabilities {

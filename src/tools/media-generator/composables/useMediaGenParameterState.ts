@@ -3,6 +3,7 @@ import { useMediaGenStore } from "../stores/mediaGenStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useMediaGenParamRules } from "./useMediaGenParamRules";
 import { parseModelCombo } from "@/utils/modelIdUtils";
+import { getMediaContextToggleUi } from "../utils/contextToggleUi";
 import type { MediaTaskType } from "../types";
 
 export function useMediaGenParameterState() {
@@ -84,7 +85,15 @@ export function useMediaGenParameterState() {
     );
   });
 
+  const isContextToggleAvailable = () =>
+    getMediaContextToggleUi(
+      mediaType.value,
+      supportsConversationalContext.value
+    ).visible;
+
   const getIncludeContextDefault = () => {
+    if (!isContextToggleAvailable()) return false;
+
     const iterativeRefinement =
       selectedModelInfo.value?.model?.capabilities?.iterativeRefinement;
     return iterativeRefinement !== undefined
@@ -93,6 +102,12 @@ export function useMediaGenParameterState() {
   };
 
   const syncActiveTypeIncludeContext = (forceDefault = false) => {
+    if (!isContextToggleAvailable()) {
+      currentTypeConfig.value.includeContext = false;
+      store.currentConfig.includeContext = false;
+      return;
+    }
+
     if (forceDefault || currentTypeConfig.value.includeContext === undefined) {
       currentTypeConfig.value.includeContext = getIncludeContextDefault();
     }
@@ -119,15 +134,13 @@ export function useMediaGenParameterState() {
     },
   });
 
-  const contextToggleTitle = computed(() =>
-    supportsConversationalContext.value ? "多轮上下文" : "参考上一轮"
+  const contextToggleUi = computed(() =>
+    getMediaContextToggleUi(mediaType.value, supportsConversationalContext.value)
   );
 
-  const contextToggleTooltip = computed(() =>
-    supportsConversationalContext.value
-      ? "Chat / Responses 类端点会携带历史消息，实现真正的多轮上下文生成"
-      : "开启后仅在支持参考图时把上一轮结果作为参考输入"
-  );
+  const showContextToggle = computed(() => contextToggleUi.value.visible);
+  const contextToggleTitle = computed(() => contextToggleUi.value.title);
+  const contextToggleTooltip = computed(() => contextToggleUi.value.tooltip);
 
   const paramRules = computed(() => {
     if (!selectedModelInfo.value) return undefined;
@@ -443,6 +456,8 @@ export function useMediaGenParameterState() {
     supportsConversationalContext,
     syncActiveTypeIncludeContext,
     includeContext,
+    contextToggleUi,
+    showContextToggle,
     contextToggleTitle,
     contextToggleTooltip,
     paramRules,

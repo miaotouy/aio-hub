@@ -16,6 +16,7 @@ import {
   Target,
   Video,
 } from "lucide-vue-next";
+import type { ContextToggleMode } from "../utils/contextToggleUi";
 
 const logger = createModuleLogger("media-generator/InputToolbar");
 
@@ -26,6 +27,9 @@ const props = defineProps<{
   promptText: string;
   includeContext: boolean;
   showContextToggle?: boolean;
+  contextToggleLabel?: string;
+  contextToggleTooltip?: string;
+  contextToggleMode?: ContextToggleMode;
 }>();
 
 const emit = defineEmits<{
@@ -53,6 +57,15 @@ const attachmentButton = computed(() => {
     isVideoMode,
   };
 });
+
+const contextToggleLabel = computed(
+  () => props.contextToggleLabel || "上下文"
+);
+const contextToggleTooltip = computed(
+  () =>
+    props.contextToggleTooltip ||
+    "Chat / Responses 路由会携带历史消息；普通生成端点仅可把会话中上一轮结果作为参考输入"
+);
 
 // 提示词优化逻辑
 const isOptimizing = ref(false);
@@ -147,7 +160,7 @@ const cancelOptimize = () => {
     <div class="toolbar-left">
       <template v-if="props.showContextToggle !== false">
         <el-tooltip
-          content="Chat / Responses 路由会携带历史消息；普通生成端点仅可把会话中上一轮结果作为参考输入"
+          :content="contextToggleTooltip"
           placement="top"
         >
           <button
@@ -155,9 +168,11 @@ const cancelOptimize = () => {
             :class="{ 'is-active': props.includeContext }"
             @click="emit('update:includeContext', !props.includeContext)"
           >
-            <el-icon v-if="props.includeContext"><MessageSquare /></el-icon>
+            <el-icon v-if="props.contextToggleMode === 'conversation'">
+              <MessageSquare />
+            </el-icon>
             <el-icon v-else><Target /></el-icon>
-            <span>上下文</span>
+            <span>{{ contextToggleLabel }}</span>
           </button>
         </el-tooltip>
         <div class="v-divider" />

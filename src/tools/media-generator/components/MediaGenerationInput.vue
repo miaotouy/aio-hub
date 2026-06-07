@@ -15,6 +15,7 @@ import { parseModelCombo } from "@/utils/modelIdUtils";
 import { customMessage } from "@/utils/customMessage";
 import { open } from "@tauri-apps/plugin-dialog";
 import { createModuleLogger } from "@/utils/logger";
+import { getMediaContextToggleUi } from "../utils/contextToggleUi";
 import type { LlmModelInfo, LlmProfile } from "@/types/llm-profiles";
 import type { Asset } from "@/types/asset-management";
 import { isAudioOutputTaskType, type MediaTaskType } from "../types";
@@ -77,13 +78,20 @@ const resolveSelectedModelInfo = (
 
 const getIncludeContextDefault = (
   profile: LlmProfile | undefined,
-  model: LlmModelInfo | undefined
+  model: LlmModelInfo | undefined,
+  mediaType: MediaTaskType
 ) => {
+  const supportsConversation =
+    profile?.type === "openai-responses" ||
+    model?.capabilities?.preferChat === true;
+  if (!getMediaContextToggleUi(mediaType, supportsConversation).visible) {
+    return false;
+  }
+
   const iterativeRefinement = model?.capabilities?.iterativeRefinement;
   return iterativeRefinement !== undefined
     ? iterativeRefinement
-    : profile?.type === "openai-responses" ||
-        model?.capabilities?.preferChat === true;
+    : supportsConversation;
 };
 
 const updateIncludeContext = async (value: boolean) => {
@@ -106,12 +114,19 @@ const updateIncludeContext = async (value: boolean) => {
 
 const getIncludeContextForType = (mediaType: MediaTaskType) => {
   const typeConfig = store.currentConfig.types[mediaType];
+  const info = resolveSelectedModelInfo(mediaType);
+  const supportsConversation =
+    info?.profile?.type === "openai-responses" ||
+    info?.model?.capabilities?.preferChat === true;
+  if (!getMediaContextToggleUi(mediaType, supportsConversation).visible) {
+    return false;
+  }
+
   if (typeConfig.includeContext !== undefined) {
     return typeConfig.includeContext;
   }
 
-  const info = resolveSelectedModelInfo(mediaType);
-  return getIncludeContextDefault(info?.profile, info?.model);
+  return getIncludeContextDefault(info?.profile, info?.model, mediaType);
 };
 
 // 切换媒体类型时恢复该类型保存的上下文开关；不把类型切换当成模型切换。
@@ -125,9 +140,8 @@ watch(
   },
   ([mediaType]) => {
     const typeConfig = store.currentConfig.types[mediaType];
-    if (typeConfig.includeContext === undefined) {
-      typeConfig.includeContext = getIncludeContextForType(mediaType);
-    }
+    const includeContext = getIncludeContextForType(mediaType);
+    typeConfig.includeContext = includeContext;
     store.currentConfig.includeContext = typeConfig.includeContext ?? false;
   },
   { immediate: true }
@@ -150,6 +164,21 @@ const isMiniMaxMusic = computed(
   () =>
     store.currentConfig.activeType === "music" &&
     selectedProviderType.value === "minimax-music"
+);
+
+const supportsConversationalContext = computed(() => {
+  const info = resolveSelectedModelInfo();
+  return (
+    info?.profile?.type === "openai-responses" ||
+    info?.model?.capabilities?.preferChat === true
+  );
+});
+
+const contextToggleUi = computed(() =>
+  getMediaContextToggleUi(
+    store.currentConfig.activeType,
+    supportsConversationalContext.value
+  )
 );
 
 type ReferenceAttachmentKind = "image" | "audio" | "media";
@@ -477,7 +506,12 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
         :include-context="
           props.mode === 'session' ? store.currentConfig.includeContext : false
         "
-        :show-context-toggle="props.mode === 'session'"
+        :show-context-toggle="
+          props.mode === 'session' && contextToggleUi.visible
+        "
+        :context-toggle-label="contextToggleUi.toolbarLabel"
+        :context-toggle-tooltip="contextToggleUi.tooltip"
+        :context-toggle-mode="contextToggleUi.mode"
         @update:include-context="updateIncludeContext"
         @send="handleSend"
         @abort="handleAbort"

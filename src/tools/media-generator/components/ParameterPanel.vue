@@ -12,6 +12,7 @@ const {
   selectedModelCombo,
   modelCapabilities,
   includeContext,
+  showContextToggle,
   contextToggleTitle,
   contextToggleTooltip,
   syncActiveTypeIncludeContext,
@@ -76,7 +77,7 @@ watch(
         </div>
       </div>
 
-      <div class="section context-toggle-section">
+      <div v-if="showContextToggle" class="section context-toggle-section">
         <div class="section-title">
           <span>{{ contextToggleTitle }}</span>
           <el-tooltip :content="contextToggleTooltip">

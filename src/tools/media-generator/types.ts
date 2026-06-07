@@ -140,6 +140,8 @@ export interface MediaTask {
 export interface MediaTypeConfig {
   /** 最近使用的模型组合 (profileId:modelId) */
   modelCombo: string;
+  /** 当前媒体类型的上下文开关状态 */
+  includeContext?: boolean;
   /** 最近使用的参数快照 */
   params: {
     size: string;

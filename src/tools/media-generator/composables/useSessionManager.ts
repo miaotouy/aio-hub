@@ -49,6 +49,7 @@ export function useSessionManager() {
     type: MediaTaskType = "image"
   ): MediaTypeConfig => ({
     modelCombo: "",
+    includeContext: false,
     params: {
       size: "1024x1024",
       quality: "standard",
@@ -126,14 +127,18 @@ export function useSessionManager() {
       rawActiveType === "audio"
         ? inferLegacyAudioType(legacyAudioConfig)
         : normalizeMediaTaskType(rawActiveType, "image");
+    const legacyIncludeContext = config?.includeContext ?? false;
 
     return {
       activeType,
-      includeContext: config?.includeContext ?? false,
+      includeContext: legacyIncludeContext,
       types: {
         image: {
           ...createDefaultTypeConfig("image"),
           ...(legacyTypes.image || {}),
+          includeContext:
+            legacyTypes.image?.includeContext ??
+            (activeType === "image" ? legacyIncludeContext : false),
           params: {
             ...createDefaultTypeConfig("image").params,
             ...(legacyTypes.image?.params || {}),
@@ -142,6 +147,9 @@ export function useSessionManager() {
         video: {
           ...createDefaultTypeConfig("video"),
           ...(legacyTypes.video || {}),
+          includeContext:
+            legacyTypes.video?.includeContext ??
+            (activeType === "video" ? legacyIncludeContext : false),
           params: {
             ...createDefaultTypeConfig("video").params,
             ...(legacyTypes.video?.params || {}),
@@ -151,6 +159,10 @@ export function useSessionManager() {
           ...createDefaultTypeConfig("speech"),
           ...(legacyAudioConfig || {}),
           ...(legacyTypes.speech || {}),
+          includeContext:
+            legacyTypes.speech?.includeContext ??
+            legacyAudioConfig?.includeContext ??
+            (activeType === "speech" ? legacyIncludeContext : false),
           params: {
             ...createDefaultTypeConfig("speech").params,
             ...(legacyAudioConfig?.params || {}),
@@ -161,6 +173,10 @@ export function useSessionManager() {
           ...createDefaultTypeConfig("music"),
           ...(legacyAudioConfig || {}),
           ...(legacyTypes.music || {}),
+          includeContext:
+            legacyTypes.music?.includeContext ??
+            legacyAudioConfig?.includeContext ??
+            (activeType === "music" ? legacyIncludeContext : false),
           params: {
             ...createDefaultTypeConfig("music").params,
             ...(legacyAudioConfig?.params || {}),

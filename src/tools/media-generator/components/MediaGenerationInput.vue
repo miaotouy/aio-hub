@@ -15,6 +15,7 @@ import { customMessage } from "@/utils/customMessage";
 import { open } from "@tauri-apps/plugin-dialog";
 import { createModuleLogger } from "@/utils/logger";
 import type { LlmModelInfo, LlmProfile } from "@/types/llm-profiles";
+import type { MediaTaskType } from "../types";
 
 const props = withDefaults(
   defineProps<{
@@ -38,6 +39,10 @@ const { isGenerating, abort } = useMediaGenerationManager();
 const assetManager = useAssetManager();
 const { getProfileById, saveProfile } = useLlmProfiles();
 
+const currentTypeConfig = computed(
+  () => store.currentConfig.types[store.currentConfig.activeType]
+);
+
 const containerRef = ref<HTMLElement>();
 const textareaRef = ref<HTMLTextAreaElement>();
 const attachmentsContainerRef = ref<HTMLDivElement>();
@@ -54,8 +59,9 @@ const {
   extraHeight: attachmentsHeight,
 });
 
-const resolveSelectedModelInfo = () => {
-  const mediaType = store.currentConfig.activeType;
+const resolveSelectedModelInfo = (
+  mediaType: MediaTaskType = store.currentConfig.activeType
+) => {
   const modelCombo = store.currentConfig.types[mediaType].modelCombo;
   if (!modelCombo) return null;
 
@@ -78,6 +84,7 @@ const getIncludeContextDefault = (
 };
 
 const updateIncludeContext = async (value: boolean) => {
+  currentTypeConfig.value.includeContext = value;
   store.currentConfig.includeContext = value;
 
   const info = resolveSelectedModelInfo();
@@ -94,20 +101,31 @@ const updateIncludeContext = async (value: boolean) => {
   }
 };
 
-// 监听模型切换，自动更新上下文开关
+const getIncludeContextForType = (mediaType: MediaTaskType) => {
+  const typeConfig = store.currentConfig.types[mediaType];
+  if (typeConfig.includeContext !== undefined) {
+    return typeConfig.includeContext;
+  }
+
+  const info = resolveSelectedModelInfo(mediaType);
+  return getIncludeContextDefault(info?.profile, info?.model);
+};
+
+// 切换媒体类型时恢复该类型保存的上下文开关；不把类型切换当成模型切换。
 watch(
   () => {
     const mediaType = store.currentConfig.activeType;
-    return store.currentConfig.types[mediaType].modelCombo;
+    return [
+      mediaType,
+      store.currentConfig.types[mediaType].modelCombo,
+    ] as const;
   },
-  (modelCombo) => {
-    if (modelCombo) {
-      const info = resolveSelectedModelInfo();
-      store.currentConfig.includeContext = getIncludeContextDefault(
-        info?.profile,
-        info?.model
-      );
+  ([mediaType]) => {
+    const typeConfig = store.currentConfig.types[mediaType];
+    if (typeConfig.includeContext === undefined) {
+      typeConfig.includeContext = getIncludeContextForType(mediaType);
     }
+    store.currentConfig.includeContext = typeConfig.includeContext ?? false;
   },
   { immediate: true }
 );

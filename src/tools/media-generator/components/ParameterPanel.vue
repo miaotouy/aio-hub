@@ -5,6 +5,7 @@ import { useMediaGenStore } from "../stores/mediaGenStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useMediaGenParamRules } from "../composables/useMediaGenParamRules";
 import { parseModelCombo } from "@/utils/modelIdUtils";
+import type { MediaTaskType } from "../types";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import {
   Image,
@@ -22,13 +23,18 @@ const { getProfileById, saveProfile } = useLlmProfiles();
 const { getModelParamRules, usesAspectRatioMode, sanitizeParams } =
   useMediaGenParamRules();
 
+const currentTypeConfig = computed(
+  () => store.currentConfig.types[store.currentConfig.activeType]
+);
+
 // 选中的模型组合值 (profileId:modelId) - 绑定到当前选中的媒体类型配置
 const selectedModelCombo = computed({
-  get: () =>
-    store.currentConfig.types[store.currentConfig.activeType].modelCombo,
-  set: (val) =>
-    (store.currentConfig.types[store.currentConfig.activeType].modelCombo =
-      val),
+  get: () => currentTypeConfig.value.modelCombo,
+  set: (val) => {
+    if (currentTypeConfig.value.modelCombo === val) return;
+    currentTypeConfig.value.modelCombo = val;
+    applyActiveModelDefaults();
+  },
 });
 
 // 解析当前选中的模型信息
@@ -49,13 +55,14 @@ const selectedModelInfo = computed(() => {
 // 媒体类型
 const mediaType = computed({
   get: () => store.currentConfig.activeType,
-  set: (val) => (store.currentConfig.activeType = val),
+  set: (val: MediaTaskType) => {
+    currentTypeConfig.value.includeContext = store.currentConfig.includeContext;
+    store.currentConfig.activeType = val;
+  },
 });
 
 // 基础参数 - 绑定到当前选中的媒体类型参数
-const params = computed(
-  () => store.currentConfig.types[store.currentConfig.activeType].params
-);
+const params = computed(() => currentTypeConfig.value.params);
 
 // 分辨率拆分逻辑
 const sizeWidth = computed({
@@ -85,10 +92,37 @@ const swapSize = () => {
   params.value.size = `${h || 1024}x${w || 1024}`;
 };
 
+const supportsConversationalContext = computed(() => {
+  const info = selectedModelInfo.value;
+  return (
+    info?.profile.type === "openai-responses" ||
+    info?.model?.capabilities?.preferChat === true
+  );
+});
+
+const getIncludeContextDefault = () => {
+  const iterativeRefinement =
+    selectedModelInfo.value?.model?.capabilities?.iterativeRefinement;
+  return iterativeRefinement !== undefined
+    ? iterativeRefinement
+    : supportsConversationalContext.value;
+};
+
+const syncActiveTypeIncludeContext = (forceDefault = false) => {
+  if (forceDefault || currentTypeConfig.value.includeContext === undefined) {
+    currentTypeConfig.value.includeContext = getIncludeContextDefault();
+  }
+  store.currentConfig.includeContext =
+    currentTypeConfig.value.includeContext ?? false;
+};
+
 // 连续对话设置
 const includeContext = computed({
-  get: () => store.currentConfig.includeContext,
+  get: () =>
+    currentTypeConfig.value.includeContext ??
+    store.currentConfig.includeContext,
   set: async (val) => {
+    currentTypeConfig.value.includeContext = val;
     store.currentConfig.includeContext = val;
 
     // 同步回模型配置，作为该开关的持久化来源。
@@ -101,14 +135,6 @@ const includeContext = computed({
       }
     }
   },
-});
-
-const supportsConversationalContext = computed(() => {
-  const info = selectedModelInfo.value;
-  return (
-    info?.profile.type === "openai-responses" ||
-    info?.model?.capabilities?.preferChat === true
-  );
 });
 
 const contextToggleTitle = computed(() =>
@@ -403,48 +429,41 @@ const modelCapabilities = computed(() => {
   return baseCaps;
 });
 
-// 监听媒体类型变化，不再清空模型，因为状态已经独立管理了
-watch(mediaType, () => {
-  // 仅在日志中记录
-  console.log("切换媒体类型", mediaType.value);
-});
+function applyActiveModelDefaults() {
+  if (!selectedModelCombo.value) {
+    currentTypeConfig.value.includeContext = false;
+    store.currentConfig.includeContext = false;
+    return;
+  }
 
-// 监听模型变化，自动适配连续对话开关并重置参数默认值
-watch(
-  selectedModelCombo,
-  (newCombo) => {
-    if (!newCombo) return;
+  // 1. 只有真正选择新模型时，才按模型能力重置上下文开关。
+  syncActiveTypeIncludeContext(true);
 
-    // 1. 自动适配上下文开关：优先读取模型配置中的迭代微调开关。
-    const iterativeRefinement =
-      selectedModelInfo.value?.model?.capabilities?.iterativeRefinement;
-    store.currentConfig.includeContext =
-      iterativeRefinement !== undefined
-        ? iterativeRefinement
-        : supportsConversationalContext.value;
-
-    // 2. 根据新模型的规则重置/清洁参数
-    if (paramRules.value) {
-      const currentParams =
-        store.currentConfig.types[store.currentConfig.activeType].params;
-      const cleaned = sanitizeParams(currentParams || {}, paramRules.value, {
+  // 2. 只有真正选择新模型时，才填充模型默认参数；切换媒体类型不会覆盖已保存配置。
+  if (paramRules.value) {
+    const cleaned = sanitizeParams(
+      currentTypeConfig.value.params || {},
+      paramRules.value,
+      {
         fillDefaults: true,
-      });
-      // 使用 Object.assign 避免破坏原有的类型结构，同时应用清洁后的参数
-      Object.assign(
-        store.currentConfig.types[store.currentConfig.activeType].params,
-        cleaned
-      );
-    }
+      }
+    );
+    Object.assign(currentTypeConfig.value.params, cleaned);
+  }
 
-    if (
-      selectedModelInfo.value?.provider === "minimax-music" &&
-      selectedModelInfo.value.modelId.startsWith("music-cover")
-    ) {
-      store.currentConfig.types[
-        store.currentConfig.activeType
-      ].params.minimax_music_mode = "cover";
-    }
+  if (
+    selectedModelInfo.value?.provider === "minimax-music" &&
+    selectedModelInfo.value.modelId.startsWith("music-cover")
+  ) {
+    currentTypeConfig.value.params.minimax_music_mode = "cover";
+  }
+}
+
+// 切换媒体类型或加载会话时，只恢复当前类型保存的上下文开关，不重置模型参数。
+watch(
+  () => [mediaType.value, selectedModelCombo.value] as const,
+  () => {
+    syncActiveTypeIncludeContext(false);
   },
   { immediate: true }
 );

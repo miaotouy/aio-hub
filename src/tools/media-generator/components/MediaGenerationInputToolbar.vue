@@ -65,9 +65,7 @@ const attachmentButton = computed(() => {
   };
 });
 
-const contextToggleLabel = computed(
-  () => props.contextToggleLabel || "上下文"
-);
+const contextToggleLabel = computed(() => props.contextToggleLabel || "上下文");
 const contextToggleTooltip = computed(
   () =>
     props.contextToggleTooltip ||
@@ -206,10 +204,7 @@ const cancelOptimize = () => {
   <div class="input-toolbar">
     <div class="toolbar-left">
       <template v-if="props.showContextToggle !== false">
-        <el-tooltip
-          :content="contextToggleTooltip"
-          placement="top"
-        >
+        <el-tooltip :content="contextToggleTooltip" placement="top">
           <button
             class="tool-btn"
             :class="{ 'is-active': props.includeContext }"
@@ -558,7 +553,6 @@ const cancelOptimize = () => {
   display: flex;
   gap: 8px;
   padding: 10px;
-  background-color: var(--el-color-info-light-9);
   border-radius: 8px;
   color: var(--el-text-color-secondary);
 }

@@ -201,6 +201,13 @@ export const DEFAULT_MEDIA_GENERATOR_SETTINGS: MediaGeneratorSettings = {
       "Korean",
       "French",
       "German",
+      "Spanish",
+      "Russian",
+      "Italian",
+      "Portuguese",
+      "Vietnamese",
+      "Thai",
+      "Arabic",
     ],
     prompt: `
 ## 任务
@@ -504,7 +511,7 @@ export const mediaGeneratorSettingsConfig: SettingsSection<MediaGeneratorSetting
       ],
     },
     {
-      title: "发送前翻译 (实验性)",
+      title: "发送前翻译",
       icon: Languages,
       items: [
         {
@@ -533,11 +540,19 @@ export const mediaGeneratorSettingsConfig: SettingsSection<MediaGeneratorSetting
           component: "ElSelect",
           props: {
             options: [
+              { label: "中文 (Chinese)", value: "Chinese" },
               { label: "英语 (English)", value: "English" },
               { label: "日语 (Japanese)", value: "Japanese" },
               { label: "韩语 (Korean)", value: "Korean" },
               { label: "法语 (French)", value: "French" },
               { label: "德语 (German)", value: "German" },
+              { label: "西班牙语 (Spanish)", value: "Spanish" },
+              { label: "俄语 (Russian)", value: "Russian" },
+              { label: "意大利语 (Italian)", value: "Italian" },
+              { label: "葡萄牙语 (Portuguese)", value: "Portuguese" },
+              { label: "越南语 (Vietnamese)", value: "Vietnamese" },
+              { label: "泰语 (Thai)", value: "Thai" },
+              { label: "阿拉伯语 (Arabic)", value: "Arabic" },
             ],
           },
           modelPath: "translation.inputTargetLang",

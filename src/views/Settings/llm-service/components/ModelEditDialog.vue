@@ -277,6 +277,28 @@ const applyOutputPreset = (value: number) => {
   modelEditForm.value.tokenLimits.output = value;
 };
 
+const ensureModelCapabilities = () => {
+  if (!modelEditForm.value.capabilities) {
+    modelEditForm.value.capabilities = {
+      ...createDefaultCapabilities(),
+      reasoningEffortOptions: [],
+    };
+  }
+  return modelEditForm.value.capabilities;
+};
+
+const maxImageDimension = computed<number | null>({
+  get: () => modelEditForm.value.capabilities?.maxImageDimension ?? null,
+  set: (value) => {
+    const capabilities = ensureModelCapabilities();
+    if (value === null || value === undefined) {
+      delete capabilities.maxImageDimension;
+      return;
+    }
+    capabilities.maxImageDimension = value;
+  },
+});
+
 // 自定义参数的 JSON 字符串计算属性
 const customParametersJsonString = computed({
   get: () => {
@@ -476,15 +498,7 @@ const customParametersJsonString = computed({
           <el-form-item label="最大输入尺寸">
             <div class="token-input-group">
               <el-select
-                :model-value="
-                  (modelEditForm.capabilities as any)?.maxImageDimension
-                "
-                @update:model-value="
-                  (val: number) => {
-                    const c = modelEditForm.capabilities as any;
-                    if (!c.maxImageDimension && val) c.maxImageDimension = val;
-                  }
-                "
+                v-model="maxImageDimension"
                 placeholder="选择预设"
                 clearable
                 class="preset-selector"
@@ -496,14 +510,7 @@ const customParametersJsonString = computed({
                 <el-option label="不限制" :value="0" />
               </el-select>
               <el-input-number
-                :model-value="
-                  (modelEditForm.capabilities as any)?.maxImageDimension
-                "
-                @update:model-value="
-                  (val: number) => {
-                    (modelEditForm.capabilities as any).maxImageDimension = val;
-                  }
-                "
+                v-model="maxImageDimension"
                 :min="0"
                 :max="32768"
                 :step="128"

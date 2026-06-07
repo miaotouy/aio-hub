@@ -4,6 +4,7 @@ import type { MediaMessage } from "../../types";
 import { useModelMetadata } from "@/composables/useModelMetadata";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useUserProfileStore } from "@/tools/llm-chat/stores/userProfileStore";
+import { useMediaGenStore } from "../../stores/mediaGenStore";
 import Avatar from "@/components/common/Avatar.vue";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
 import { Bot, Clock } from "lucide-vue-next";
@@ -18,9 +19,16 @@ const props = defineProps<Props>();
 const { getIconPath, getDisplayIconPath } = useModelMetadata();
 const { getProfileById } = useLlmProfiles();
 const userProfileStore = useUserProfileStore();
+const store = useMediaGenStore();
 
-// 获取当前任务快照
-const task = computed(() => props.message.metadata?.taskSnapshot);
+// 获取当前任务，优先使用全局任务池中的实时状态
+const task = computed(() => {
+  const taskId =
+    props.message.metadata?.taskId ||
+    props.message.metadata?.taskSnapshot?.id ||
+    props.message.id;
+  return store.getTask(taskId) || props.message.metadata?.taskSnapshot;
+});
 
 // 获取模型和渠道信息
 const agentProfileInfo = computed(() => {

@@ -19,6 +19,7 @@ import {
   Share,
 } from "lucide-vue-next";
 import type { MediaMessage, MediaTask } from "../../types";
+import { useMediaGenStore } from "../../stores/mediaGenStore";
 
 interface Props {
   message: MediaMessage;
@@ -44,11 +45,18 @@ const emit = defineEmits<{
 
 // 复制状态
 const copied = ref(false);
+const store = useMediaGenStore();
 
 // 分支快速切换相关
 const showBranchPopover = ref(false);
 
-const task = computed(() => props.message.metadata?.taskSnapshot);
+const task = computed(() => {
+  const taskId =
+    props.message.metadata?.taskId ||
+    props.message.metadata?.taskSnapshot?.id ||
+    props.message.id;
+  return store.getTask(taskId) || props.message.metadata?.taskSnapshot;
+});
 
 // 复制消息
 const copyMessage = async () => {

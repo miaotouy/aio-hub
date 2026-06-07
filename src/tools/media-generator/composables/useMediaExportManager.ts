@@ -2,6 +2,7 @@ import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import type { GenerationSession } from "../types";
 import { useNodeManager } from "./useNodeManager";
+import { useMediaTaskManager } from "./useMediaTaskManager";
 import { createModuleLogger } from "@/utils/logger";
 import { customMessage } from "@/utils/customMessage";
 
@@ -15,6 +16,7 @@ export interface ExportOptions {
 
 export function useMediaExportManager() {
   const nodeManager = useNodeManager();
+  const taskManager = useMediaTaskManager();
 
   /**
    * 将分支导出为 Markdown
@@ -44,7 +46,10 @@ export function useMediaExportManager() {
           node.metadata?.isMediaTask &&
           node.metadata.taskSnapshot
         ) {
-          const task = node.metadata.taskSnapshot;
+          const task =
+            taskManager.getTask(
+              node.metadata.taskId || node.metadata.taskSnapshot.id
+            ) || node.metadata.taskSnapshot;
           markdown += `#### Generation Parameters\n\n`;
           markdown += `- **Type**: ${task.type}\n`;
           markdown += `- **Model**: ${task.input.modelId}\n`;
@@ -55,12 +60,17 @@ export function useMediaExportManager() {
 
           markdown += `\n\`\`\`json\n${JSON.stringify(task.input.params, null, 2)}\n\`\`\`\n\n`;
 
+          const resultAssetIds = task.resultAssetIds?.length
+            ? task.resultAssetIds
+            : task.resultAssetId
+              ? [task.resultAssetId]
+              : [];
           if (
             options.includeAssets &&
             task.status === "completed" &&
-            task.resultAssetIds?.length
+            resultAssetIds.length
           ) {
-            markdown += `> Result Assets: ${task.resultAssetIds.join(", ")}\n\n`;
+            markdown += `> Result Assets: ${resultAssetIds.join(", ")}\n\n`;
           }
         }
 

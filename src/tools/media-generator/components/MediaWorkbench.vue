@@ -58,6 +58,9 @@ const handleSendQuick = async (options: any, mediaType: any) => {
     };
 
     await executeGeneration(task, undefined, config);
+    if (store.settings.autoOpenAsset) {
+      await store.openTaskResult(task.id);
+    }
   } catch (error) {
     customMessage.error("生成失败");
   }

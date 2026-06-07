@@ -4,15 +4,19 @@ import type { Component } from "vue";
 import { useMediaGenStore } from "../stores/mediaGenStore";
 import { useMediaGenInputManager } from "../composables/useMediaGenInputManager";
 import { useAssetManager } from "@/composables/useAssetManager";
+import { customMessage } from "@/utils/customMessage";
+import { save } from "@tauri-apps/plugin-dialog";
+import { copyFile } from "@tauri-apps/plugin-fs";
+import { join } from "@tauri-apps/api/path";
 import MessageList from "./message/MessageList.vue";
 import { Image, Mic, Music, RefreshCw, Video } from "lucide-vue-next";
 import { SUGGESTED_PROMPTS_BY_TYPE } from "../config";
 import { sampleSize } from "lodash-es";
-import type { MediaTaskType } from "../types";
+import type { MediaTask, MediaTaskType } from "../types";
 
 const store = useMediaGenStore();
 const inputManager = useMediaGenInputManager();
-const { getAssetUrl } = useAssetManager();
+const { getAssetUrl, getAssetBasePath } = useAssetManager();
 
 const scrollContainer = ref<HTMLElement | null>(null);
 
@@ -111,6 +115,42 @@ const handleRetry = async (messageId: string) => {
   await store.regenerateFromNode(messageId);
 };
 
+const handleDownloadTask = async (task: MediaTask) => {
+  const liveTask = store.getTask(task.id) || task;
+  const asset = liveTask.resultAssets?.[0] || liveTask.resultAsset;
+  if (!asset) {
+    customMessage.warning("没有可下载的媒体文件");
+    return;
+  }
+
+  try {
+    const basePath = await getAssetBasePath();
+    const sourcePath = await join(basePath, asset.path);
+    const targetPath = await save({
+      title: "下载媒体文件",
+      defaultPath: asset.name,
+      filters: [
+        {
+          name:
+            liveTask.type === "image"
+              ? "图片"
+              : liveTask.type === "video"
+                ? "视频"
+                : "音频",
+          extensions: [asset.path.split(".").pop() || "*"],
+        },
+      ],
+    });
+
+    if (targetPath) {
+      await copyFile(sourcePath, targetPath);
+      customMessage.success("文件已下载成功");
+    }
+  } catch {
+    customMessage.error("下载失败，请重试");
+  }
+};
+
 // 资产 URL 映射缓存
 const assetUrls = ref<Record<string, string>>({});
 
@@ -170,6 +210,7 @@ watch(
           :messages="store.messages.filter((m: any) => m.role !== 'system')"
           :is-batch-mode="store.isBatchMode"
           @remove-task="(taskId) => store.removeTask(taskId)"
+          @download-task="handleDownloadTask"
           @retry="handleRetry"
         />
       </div>

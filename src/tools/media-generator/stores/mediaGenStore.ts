@@ -10,10 +10,14 @@ import type {
   MediaSessionIndexItem,
   MediaGeneratorSettings,
 } from "../types";
-import { normalizeMediaTaskType } from "../types";
+import { isAudioOutputTaskType, normalizeMediaTaskType } from "../types";
 import { DEFAULT_MEDIA_GENERATOR_SETTINGS } from "../config";
 import { createModuleLogger } from "@/utils/logger";
 import type { Asset } from "@/types/asset-management";
+import { useAssetManager } from "@/composables/useAssetManager";
+import { useImageViewer } from "@/composables/useImageViewer";
+import { useVideoViewer } from "@/composables/useVideoViewer";
+import { useAudioViewer } from "@/composables/useAudioViewer";
 import { useNodeManager } from "../composables/useNodeManager";
 import { useBranchManager } from "../composables/useBranchManager";
 import { useSessionManager } from "../composables/useSessionManager";
@@ -34,6 +38,10 @@ export const useMediaGenStore = defineStore("media-generator", () => {
   const sessionManager = useSessionManager();
   const attachmentManager = useAttachmentManager();
   const taskManager = useMediaTaskManager();
+  const { getAssetUrl } = useAssetManager();
+  const imageViewer = useImageViewer();
+  const videoViewer = useVideoViewer();
+  const audioViewer = useAudioViewer();
 
   // --- 核心状态 ---
   const sessionIndexMap = ref<Map<string, MediaSessionIndexItem>>(new Map());
@@ -145,6 +153,33 @@ export const useMediaGenStore = defineStore("media-generator", () => {
 
   // --- Actions ---
 
+  const openTaskResult = async (taskId: string) => {
+    const task = taskManager.getTask(taskId);
+    const assets = task?.resultAssets?.length
+      ? task.resultAssets
+      : task?.resultAsset
+        ? [task.resultAsset]
+        : [];
+    if (!task || assets.length === 0) return;
+
+    if (task.type === "image") {
+      const urls = (
+        await Promise.all(assets.map((asset) => getAssetUrl(asset)))
+      ).filter(Boolean) as string[];
+      if (urls.length > 0) imageViewer.show(urls, 0);
+      return;
+    }
+
+    if (task.type === "video") {
+      videoViewer.previewVideo(assets[0]);
+      return;
+    }
+
+    if (isAudioOutputTaskType(task.type)) {
+      audioViewer.previewAudio(assets[0]);
+    }
+  };
+
   /**
    * 会话模式下提交任务
    * 职责：编排任务构造、翻译、节点创建、执行启动
@@ -218,6 +253,9 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     };
 
     await genManager.executeGeneration(task, messages.value, config);
+    if (settings.value.autoOpenAsset) {
+      await openTaskResult(task.id);
+    }
   };
 
   /**
@@ -348,8 +386,9 @@ export const useMediaGenStore = defineStore("media-generator", () => {
       activeLeafId.value = detail.activeLeafId || "";
       inputPrompt.value = detail.inputPrompt || "";
       if (detail.generationConfig) {
-        currentConfig.value =
-          sessionManager.normalizeGenerationConfig(detail.generationConfig);
+        currentConfig.value = sessionManager.normalizeGenerationConfig(
+          detail.generationConfig
+        );
       }
 
       // 仅更新当前活跃 ID，不触发全量持久化，也不更新时间戳
@@ -547,6 +586,7 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     init: persistence.init,
     persist: persistence.persist,
     submitTaskInSession,
+    openTaskResult,
     addTask,
     updateTaskStatus,
     getTask: taskManager.getTask,

@@ -49,8 +49,12 @@ const hasReferenceImages = computed(() => referenceAssetUrls.value.length > 0);
 const hasMultipleResults = computed(() => resultAssetUrls.value.length > 1);
 
 const loadResultUrls = async () => {
-  const assets = props.task.resultAssets;
-  if (!assets || assets.length === 0) {
+  const assets = props.task.resultAssets?.length
+    ? props.task.resultAssets
+    : props.task.resultAsset
+      ? [props.task.resultAsset]
+      : [];
+  if (assets.length === 0) {
     resultAssetUrls.value = [];
     return;
   }
@@ -167,7 +171,7 @@ const getStatusLabel = (status: string) => {
 };
 
 const getTaskResolution = (task: MediaTask) => {
-  const asset = task.resultAssets?.[0];
+  const asset = task.resultAssets?.[0] || task.resultAsset;
   if (asset?.metadata?.width && asset?.metadata?.height) {
     return `${asset.metadata.width}x${asset.metadata.height}`;
   }
@@ -247,7 +251,9 @@ const getTaskResolution = (task: MediaTask) => {
               </div>
               <div v-else class="audio-placeholder">
                 <el-icon><component :is="getTaskIcon(task.type)" /></el-icon>
-                <span>{{ task.type === "speech" ? "点击播放语音" : "点击播放音乐" }}</span>
+                <span>{{
+                  task.type === "speech" ? "点击播放语音" : "点击播放音乐"
+                }}</span>
               </div>
               <div class="overlay">
                 <el-icon><ExternalLink /></el-icon>

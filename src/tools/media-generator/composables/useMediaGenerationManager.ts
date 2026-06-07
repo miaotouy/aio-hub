@@ -87,12 +87,15 @@ export function useMediaGenerationManager() {
     const liveTask = taskId ? taskManager.getTask(taskId) : undefined;
     const snapshot = message.metadata?.taskSnapshot;
 
-    const assets =
-      liveTask?.resultAssets ||
-      (liveTask?.resultAsset ? [liveTask.resultAsset] : undefined) ||
-      snapshot?.resultAssets ||
-      (snapshot?.resultAsset ? [snapshot.resultAsset] : undefined) ||
-      [];
+    const assets = liveTask?.resultAssets?.length
+      ? liveTask.resultAssets
+      : liveTask?.resultAsset
+        ? [liveTask.resultAsset]
+        : snapshot?.resultAssets?.length
+          ? snapshot.resultAssets
+          : snapshot?.resultAsset
+            ? [snapshot.resultAsset]
+            : [];
 
     return dedupeAssets(assets);
   };

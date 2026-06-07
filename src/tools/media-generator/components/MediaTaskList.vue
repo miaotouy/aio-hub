@@ -176,7 +176,7 @@ const handleRetryTask = (task: MediaTask) => {
 
 const getOrUpdateAssetUrl = async (task: MediaTask) => {
   if (assetUrls.value[task.id]) return assetUrls.value[task.id];
-  const asset = task.resultAssets?.[0];
+  const asset = task.resultAssets?.[0] || task.resultAsset;
   if (asset) {
     const url = await getAssetUrl(asset);
     assetUrls.value[task.id] = url;
@@ -186,7 +186,7 @@ const getOrUpdateAssetUrl = async (task: MediaTask) => {
 };
 
 const handleDownloadTask = async (task: MediaTask) => {
-  const asset = task.resultAssets?.[0];
+  const asset = task.resultAssets?.[0] || task.resultAsset;
   if (!asset) return;
 
   try {
@@ -226,7 +226,7 @@ const handleCopyPrompt = (prompt: string) => {
 };
 
 const handleCopyResult = async (task: MediaTask) => {
-  const asset = task.resultAssets?.[0];
+  const asset = task.resultAssets?.[0] || task.resultAsset;
   if (!asset) return;
 
   const url = await getOrUpdateAssetUrl(task);
@@ -256,8 +256,12 @@ const handleCopyResult = async (task: MediaTask) => {
 };
 
 const handleOpenAsset = async (task: MediaTask) => {
-  const assets = task.resultAssets;
-  if (!assets || assets.length === 0) return;
+  const assets = task.resultAssets?.length
+    ? task.resultAssets
+    : task.resultAsset
+      ? [task.resultAsset]
+      : [];
+  if (assets.length === 0) return;
 
   if (task.type === "image") {
     // 多图预览：加载所有结果图 URL

@@ -3,6 +3,7 @@ import { computed, ref, onMounted, onBeforeUpdate, nextTick } from "vue";
 import { ElScrollbar } from "element-plus";
 import type { MediaMessage } from "../../types";
 import { isAudioOutputTaskType } from "../../types";
+import { useMediaGenStore } from "../../stores/mediaGenStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
 import {
@@ -39,11 +40,20 @@ const { getIconPath, getDisplayIconPath } = useModelMetadata();
 const { getProfileById } = useLlmProfiles();
 const { getAssetUrl } = useAssetManager();
 const userProfileStore = useUserProfileStore();
+const store = useMediaGenStore();
 
 const assetBasePath = ref("");
 const scrollbarRef = ref<InstanceType<typeof ElScrollbar> | null>(null);
 const branchItemsRef = ref<HTMLDivElement[]>([]);
 const thumbnailMap = ref<Record<string, string>>({});
+
+const getMessageTask = (message: MediaMessage) => {
+  const taskId =
+    message.metadata?.taskId ||
+    message.metadata?.taskSnapshot?.id ||
+    message.id;
+  return store.getTask(taskId) || message.metadata?.taskSnapshot;
+};
 
 onBeforeUpdate(() => {
   branchItemsRef.value = [];
@@ -54,9 +64,14 @@ onBeforeUpdate(() => {
  */
 const loadThumbnails = async () => {
   for (const sibling of props.siblings) {
-    const task = sibling.metadata?.taskSnapshot;
-    if (task?.status === "completed" && task.resultAssets) {
-      for (const asset of task.resultAssets) {
+    const task = getMessageTask(sibling);
+    const assets = task?.resultAssets?.length
+      ? task.resultAssets
+      : task?.resultAsset
+        ? [task.resultAsset]
+        : [];
+    if (task?.status === "completed" && assets.length > 0) {
+      for (const asset of assets) {
         if (asset.id && !thumbnailMap.value[asset.id]) {
           const url = await getAssetUrl(asset, true);
           if (url) thumbnailMap.value[asset.id] = url;
@@ -93,7 +108,7 @@ const getMessagePreview = (content: string): string => {
 const siblingsWithDisplayInfo = computed(() => {
   return props.siblings.map((sibling) => {
     const metadata = sibling.metadata;
-    const task = metadata?.taskSnapshot;
+    const task = getMessageTask(sibling);
 
     let displayName = "";
     let avatarSrc: string | null = null;
@@ -134,8 +149,11 @@ const siblingsWithDisplayInfo = computed(() => {
         mediaType = task.type;
         if (task.status === "completed") {
           // 统一获取资产列表 (多资产范式)
-          const assets =
-            task.resultAssets || (task.resultAsset ? [task.resultAsset] : []);
+          const assets = task.resultAssets?.length
+            ? task.resultAssets
+            : task.resultAsset
+              ? [task.resultAsset]
+              : [];
 
           if (assets.length > 0) {
             previewUrls = assets.slice(0, 3).map((asset) => {
@@ -199,7 +217,19 @@ const branchMediaIcon = (mediaType: string | null | undefined) => {
   if (mediaType === "image") return ImageIcon;
   if (mediaType === "video") return Film;
   if (mediaType === "speech") return Mic;
+  if (mediaType === "music" || mediaType === "audio") return Music;
   return Music;
+};
+
+const shouldRenderPreviewImage = (
+  mediaType: string | null | undefined,
+  url: string
+) => {
+  return (
+    !!url &&
+    mediaType !== "audio" &&
+    !isAudioOutputTaskType(mediaType ?? undefined)
+  );
 };
 </script>
 
@@ -285,10 +315,16 @@ const branchMediaIcon = (mediaType: string | null | undefined) => {
                   :class="[`is-${item.mediaType}`]"
                 >
                   <img
-                    v-if="preview.url"
+                    v-if="shouldRenderPreviewImage(item.mediaType, preview.url)"
                     :src="preview.url"
                     class="preview-img"
                   />
+                  <div v-else class="preview-placeholder">
+                    <component
+                      :is="branchMediaIcon(item.mediaType || undefined)"
+                      :size="20"
+                    />
+                  </div>
                   <div
                     v-if="item.mediaType === 'video'"
                     class="media-type-overlay"
@@ -296,13 +332,9 @@ const branchMediaIcon = (mediaType: string | null | undefined) => {
                     <Play :size="16" fill="currentColor" />
                   </div>
                   <div
-                    v-else-if="item.mediaType === 'audio'"
-                    class="media-type-overlay"
-                  >
-                    <Volume2 :size="16" />
-                  </div>
-                  <div
-                    v-else-if="isAudioOutputTaskType(item.mediaType || undefined)"
+                    v-else-if="
+                      isAudioOutputTaskType(item.mediaType || undefined)
+                    "
                     class="media-type-overlay"
                   >
                     <Volume2 :size="16" />
@@ -553,6 +585,7 @@ const branchMediaIcon = (mediaType: string | null | undefined) => {
   border: var(--border-width) solid var(--border-color);
   flex-shrink: 0;
   transition: transform 0.2s;
+  position: relative;
 }
 
 .media-preview-box:hover {

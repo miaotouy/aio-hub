@@ -161,13 +161,17 @@ const referenceAttachmentConfig = computed(() => {
     return {
       kind: "media" as ReferenceAttachmentKind,
       label: "参考素材",
-      supportedLabel: "参考图或参考音频",
-      pickerTitle: "选择参考图或参考音频",
+      supportedLabel: "参考图、参考视频或参考音频",
+      pickerTitle: "选择参考图、参考视频或参考音频",
       dragText: "释放以添加参考素材",
       filters: [
         {
           name: "Images",
           extensions: ["png", "jpg", "jpeg", "webp"],
+        },
+        {
+          name: "Videos",
+          extensions: ["mp4", "mov", "webm", "mkv", "avi"],
         },
         {
           name: "Audio",
@@ -201,8 +205,10 @@ const isAllowedReferenceAsset = (asset: Asset) => {
   if (referenceAttachmentConfig.value.kind === "media") {
     return (
       asset.type === "image" ||
+      asset.type === "video" ||
       asset.type === "audio" ||
       asset.mimeType?.startsWith("image/") ||
+      asset.mimeType?.startsWith("video/") ||
       asset.mimeType?.startsWith("audio/")
     );
   }

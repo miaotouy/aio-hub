@@ -70,8 +70,10 @@ export function useTaskActionManager(context: {
     const { nodes, tasks, activeLeafId, rootNodeId } = context;
     const sessionContext = getSessionContext();
 
-    // 1. 记录任务
-    tasks.value.unshift(task);
+    // 1. 记录任务。会话提交路径会先写入全局任务池，这里只补漏，避免任务列表重复。
+    if (!tasks.value.some((item) => item.id === task.id)) {
+      tasks.value.unshift(task);
+    }
 
     let parentUserNodeId: string;
     const currentNode = nodes.value[activeLeafId.value];

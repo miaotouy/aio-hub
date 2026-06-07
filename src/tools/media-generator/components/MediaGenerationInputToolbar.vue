@@ -14,6 +14,7 @@ import {
   Sparkles,
   MessageSquare,
   Target,
+  Video,
 } from "lucide-vue-next";
 
 const logger = createModuleLogger("media-generator/InputToolbar");
@@ -44,11 +45,12 @@ const attachmentButton = computed(() => {
   return {
     label: isVideoMode ? "参考素材" : isAudioMode ? "参考音频" : "参考图",
     title: isVideoMode
-      ? "添加参考图或参考音频"
+      ? "添加参考图、参考视频或参考音频"
       : isAudioMode
         ? "添加参考音频"
         : "添加参考图",
     isAudioMode,
+    isVideoMode,
   };
 });
 
@@ -168,6 +170,7 @@ const cancelOptimize = () => {
       >
         <el-icon>
           <Music v-if="attachmentButton.isAudioMode" />
+          <Video v-else-if="attachmentButton.isVideoMode" />
           <ImageIcon v-else />
         </el-icon>
         <span>{{ attachmentButton.label }}</span>

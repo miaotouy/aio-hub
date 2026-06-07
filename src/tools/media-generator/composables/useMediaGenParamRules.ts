@@ -1,4 +1,5 @@
 import { useModelMetadata } from "@/composables/useModelMetadata";
+import type { LlmModelInfo } from "@/types/llm-profiles";
 import type { MediaGenParamRules } from "@/types/model-metadata";
 
 /**
@@ -11,6 +12,12 @@ import type { MediaGenParamRules } from "@/types/model-metadata";
 export function useMediaGenParamRules() {
   const { getMatchedProperties } = useModelMetadata();
 
+  function hasParamRules(
+    rules: MediaGenParamRules | undefined
+  ): rules is MediaGenParamRules {
+    return !!rules && Object.keys(rules).length > 0;
+  }
+
   /**
    * 获取指定模型的生成参数规则
    */
@@ -20,6 +27,21 @@ export function useMediaGenParamRules() {
   ): MediaGenParamRules | undefined {
     const props = getMatchedProperties(modelId, provider);
     return props?.mediaGenParams as MediaGenParamRules | undefined;
+  }
+
+  /**
+   * 获取模型实例的生成参数规则
+   * 优先使用用户在模型配置中写入的专属规则，再回退到全局元数据规则。
+   */
+  function getModelParamRules(
+    model: LlmModelInfo | undefined,
+    provider?: string
+  ): MediaGenParamRules | undefined {
+    if (hasParamRules(model?.mediaGenParams)) {
+      return model.mediaGenParams;
+    }
+    if (!model?.id) return undefined;
+    return getParamRules(model.id, provider || model.provider);
   }
 
   /**
@@ -214,6 +236,7 @@ export function useMediaGenParamRules() {
 
   return {
     getParamRules,
+    getModelParamRules,
     sanitizeParams,
     usesAspectRatioMode,
     usesGeminiImageConfig,

@@ -10,7 +10,9 @@ import IconPresetSelector from "@/components/common/IconPresetSelector.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import { createModuleLogger } from "@/utils/logger";
 import PostProcessingPanel from "@/tools/llm-chat/components/agent/parameters/PostProcessingPanel.vue";
+import MediaGenParamsEditor from "@/views/Settings/model-metadata/components/MediaGenParamsEditor.vue";
 import type { ContextPostProcessRule } from "@/tools/llm-chat/types/llm";
+import type { MediaGenParamRules } from "@/types/model-metadata";
 
 const logger = createModuleLogger("ModelEditDialog");
 
@@ -18,6 +20,7 @@ const props = defineProps<{
   visible: boolean;
   model: LlmModelInfo | null;
   isEditing: boolean; // true 表示编辑现有模型，false 表示新增
+  providerType?: string;
 }>();
 
 const emit = defineEmits<{
@@ -115,7 +118,15 @@ const handleSave = () => {
     return;
   }
 
-  emit("save", { ...modelEditForm.value });
+  const modelToSave = JSON.parse(JSON.stringify(modelEditForm.value));
+  if (!modelToSave.provider && props.providerType) {
+    modelToSave.provider = props.providerType;
+  }
+  if (!hasMediaGenParams(modelToSave.mediaGenParams)) {
+    delete modelToSave.mediaGenParams;
+  }
+
+  emit("save", modelToSave);
   handleClose();
 };
 
@@ -171,7 +182,7 @@ const applyPreset = () => {
   // 从预设中获取匹配的元数据
   const properties = getActiveModelProperties(
     modelId,
-    modelEditForm.value.provider
+    modelEditForm.value.provider || props.providerType
   );
 
   if (!properties) {
@@ -211,6 +222,16 @@ const applyPreset = () => {
       ...modelEditForm.value.capabilities,
       ...properties.capabilities,
     };
+    appliedCount++;
+  }
+
+  if (
+    properties.mediaGenParams &&
+    !hasMediaGenParams(modelEditForm.value.mediaGenParams)
+  ) {
+    modelEditForm.value.mediaGenParams = cloneMediaGenParams(
+      properties.mediaGenParams
+    );
     appliedCount++;
   }
 
@@ -298,6 +319,26 @@ const maxImageDimension = computed<number | null>({
     capabilities.maxImageDimension = value;
   },
 });
+
+const showMediaGenParamsEditor = computed(() => {
+  const capabilities = modelEditForm.value.capabilities;
+  return (
+    capabilities?.imageGeneration === true ||
+    capabilities?.videoGeneration === true ||
+    capabilities?.audioGeneration === true ||
+    capabilities?.musicGeneration === true
+  );
+});
+
+function hasMediaGenParams(
+  params: MediaGenParamRules | undefined
+): params is MediaGenParamRules {
+  return !!params && Object.keys(params).length > 0;
+}
+
+function cloneMediaGenParams(params: MediaGenParamRules): MediaGenParamRules {
+  return JSON.parse(JSON.stringify(params));
+}
 
 // 自定义参数的 JSON 字符串计算属性
 const customParametersJsonString = computed({
@@ -596,6 +637,18 @@ const customParametersJsonString = computed({
           </el-form-item>
 
           <!-- 自定义参数 -->
+          <template v-if="showMediaGenParamsEditor">
+            <el-divider content-position="left">媒体生成参数规则</el-divider>
+            <el-form-item label="参数规则">
+              <div class="media-params-editor-wrapper">
+                <MediaGenParamsEditor v-model="modelEditForm.mediaGenParams" />
+              </div>
+              <div class="form-hint">
+                此规则只影响媒体生成工具的参数面板与请求清洁。留空时使用全局模型元数据规则。
+              </div>
+            </el-form-item>
+          </template>
+
           <el-divider content-position="left">自定义参数</el-divider>
           <el-form-item label="模型专属参数" :error="jsonError">
             <div class="code-editor-wrapper">
@@ -774,6 +827,14 @@ const customParametersJsonString = computed({
   border: 1px solid var(--el-border-color);
   border-radius: 4px;
   overflow: hidden;
+}
+
+.media-params-editor-wrapper {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 6px;
+  background: var(--card-bg);
 }
 
 pre {

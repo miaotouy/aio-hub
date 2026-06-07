@@ -80,7 +80,8 @@ const {
 } = useConnectionTest(editForm, selectedProfile);
 
 // ─── 图标 ───
-const { getDisplayIconPath, getIconPath } = useModelMetadata();
+const { getDisplayIconPath, getIconPath, getMatchedProperties } =
+  useModelMetadata();
 
 const getProviderIcon = (profile: LlmProfile) => {
   if (profile.icon) {
@@ -192,10 +193,13 @@ const applyCurlResult = (result: ParsedCurlResult) => {
     if (!existingModel) {
       const presetModel = findPresetModel(result.model, result.providerType);
       editForm.value.models.push(
-        presetModel || {
-          id: result.model,
-          name: result.model,
-        }
+        applyMatchedModelMetadata(
+          presetModel || {
+            id: result.model,
+            name: result.model,
+          },
+          result.providerType
+        )
       );
     }
   }
@@ -242,6 +246,30 @@ const findPresetModel = (
   }
 
   return null;
+};
+
+const applyMatchedModelMetadata = (
+  model: LlmModelInfo,
+  providerType: string
+): LlmModelInfo => {
+  const provider = model.provider || providerType;
+  const matchedProps = getMatchedProperties(model.id, provider);
+  return {
+    ...model,
+    provider,
+    group: model.group || matchedProps?.group,
+    icon: model.icon || matchedProps?.icon,
+    description: model.description || matchedProps?.description,
+    capabilities: {
+      ...(matchedProps?.capabilities || {}),
+      ...(model.capabilities || {}),
+    },
+    mediaGenParams:
+      model.mediaGenParams ||
+      (matchedProps?.mediaGenParams
+        ? JSON.parse(JSON.stringify(matchedProps.mediaGenParams))
+        : undefined),
+  };
 };
 
 const openDeepLinkInfo = () => {
@@ -674,6 +702,7 @@ const networkSettingSummary = computed(() => {
       v-model:visible="showModelDialog"
       :model="editingModel"
       :is-editing="isEditingModel"
+      :provider-type="editForm.type"
       @save="handleSaveModel"
     />
 
@@ -697,6 +726,7 @@ const networkSettingSummary = computed(() => {
       :models="fetchedModels"
       :raw-response="fetchedRawResponse"
       :existing-models="editForm.models"
+      :provider-type="editForm.type"
       @add-models="handleAddModels"
     />
 

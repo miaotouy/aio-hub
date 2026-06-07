@@ -76,7 +76,11 @@ function addOptionParameter(
   name: string,
   label: string,
   rule:
-    | { supported: true; options?: Array<{ label: string; value: string }>; default?: string }
+    | {
+        supported: true;
+        options?: Array<{ label: string; value: string }>;
+        default?: string;
+      }
     | { supported: boolean; options?: Array<{ label: string; value: string }> }
     | undefined,
   appliesTo: string
@@ -96,7 +100,9 @@ function addNumericParameter(
   params: AgentMethodParameter[],
   name: string,
   label: string,
-  rule: { supported: boolean; min?: number; max?: number; default?: number } | undefined,
+  rule:
+    | { supported: boolean; min?: number; max?: number; default?: number }
+    | undefined,
   appliesTo: string
 ) {
   if (!rule || rule.supported === false) return;
@@ -149,16 +155,21 @@ function buildParameters(
       name: "size",
       type: "string",
       required: false,
-      description: "生成尺寸。适用于图片或视频模型，格式通常为 1024x1024、16:9、720p 等。",
+      description:
+        "生成尺寸。适用于图片或视频模型，格式通常为 1024x1024、16:9、720p 等。",
     });
     return parameters;
   }
 
   if (mediaGenParams.size) {
     const size = mediaGenParams.size;
-    const parts: string[] = ["尺寸。仅在 media_type 为 image 或 video 时有效。"];
+    const parts: string[] = [
+      "尺寸。仅在 media_type 为 image 或 video 时有效。",
+    ];
     if (size.presets?.length) {
-      parts.push(`预设值: ${size.presets.map((item) => item.value).join(" | ")}`);
+      parts.push(
+        `预设值: ${size.presets.map((item) => item.value).join(" | ")}`
+      );
     }
     if (size.mode === "free" && size.constraints) {
       const c = size.constraints;
@@ -302,7 +313,10 @@ function buildParameters(
     "media_type 为 image"
   );
 
-  if (supportedMediaTypes.includes("video") || supportedMediaTypes.includes("audio")) {
+  if (
+    supportedMediaTypes.includes("video") ||
+    supportedMediaTypes.includes("audio")
+  ) {
     parameters.push({
       name: "duration",
       type: "number",
@@ -316,6 +330,15 @@ function buildParameters(
     count: parameters.length,
   });
   return parameters;
+}
+
+function getModelSpecificParamRules(
+  model: LlmModelInfo
+): MediaGenParamRules | undefined {
+  if (model.mediaGenParams && Object.keys(model.mediaGenParams).length > 0) {
+    return model.mediaGenParams;
+  }
+  return undefined;
 }
 
 function buildDescription(
@@ -334,7 +357,9 @@ function buildDescription(
 
 function parseArgs(args: Record<string, unknown>): Record<string, any> {
   const parsed =
-    typeof args === "string" ? JSON.parse(args) : { ...(args as Record<string, any>) };
+    typeof args === "string"
+      ? JSON.parse(args)
+      : { ...(args as Record<string, any>) };
   return parsed || {};
 }
 
@@ -366,7 +391,9 @@ function toAssetPath(asset: Asset): string {
   return `appdata://${asset.path.replace(/^\/+/, "")}`;
 }
 
-function buildResult(task: ReturnType<ReturnType<typeof useMediaTaskManager>["getTask"]>) {
+function buildResult(
+  task: ReturnType<ReturnType<typeof useMediaTaskManager>["getTask"]>
+) {
   if (!task) {
     return JSON.stringify({
       success: false,
@@ -508,7 +535,9 @@ function createHandler(visibleModel: VisibleAgentModel) {
   };
 }
 
-export function buildAgentMethods(visibleModels: VisibleAgentModel[]): BuiltAgentMethods {
+export function buildAgentMethods(
+  visibleModels: VisibleAgentModel[]
+): BuiltAgentMethods {
   const { getMatchedProperties } = useModelMetadata();
   const usedNames = new Set<string>();
   const methods: MethodMetadata[] = [];
@@ -516,10 +545,10 @@ export function buildAgentMethods(visibleModels: VisibleAgentModel[]): BuiltAgen
 
   for (const visibleModel of visibleModels) {
     const methodName = buildMethodName(visibleModel.model.id, usedNames);
-    const mediaGenParams = getMatchedProperties(
-      visibleModel.model.id,
-      visibleModel.profile.type
-    )?.mediaGenParams as MediaGenParamRules | undefined;
+    const mediaGenParams =
+      getModelSpecificParamRules(visibleModel.model) ||
+      (getMatchedProperties(visibleModel.model.id, visibleModel.profile.type)
+        ?.mediaGenParams as MediaGenParamRules | undefined);
 
     methods.push({
       name: methodName,

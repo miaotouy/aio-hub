@@ -20,8 +20,12 @@ const store = useMediaGenStore();
 const router = useRouter();
 const { getProfileById, saveProfile } = useLlmProfiles();
 const { getMatchedProperties } = useModelMetadata();
-const { getParamRules, usesAspectRatioMode, sanitizeParams } =
-  useMediaGenParamRules();
+const {
+  getParamRules,
+  getModelParamRules,
+  usesAspectRatioMode,
+  sanitizeParams,
+} = useMediaGenParamRules();
 
 // 选中的模型组合值 (profileId:modelId) - 绑定到当前选中的媒体类型配置
 const selectedModelCombo = computed({
@@ -106,8 +110,14 @@ const includeContext = computed({
 // 从当前选中模型获取规则
 const paramRules = computed(() => {
   if (!selectedModelInfo.value) return undefined;
-  return getParamRules(
-    selectedModelInfo.value.modelId,
+  if (!selectedModelInfo.value.model) {
+    return getParamRules(
+      selectedModelInfo.value.modelId,
+      selectedModelInfo.value.provider
+    );
+  }
+  return getModelParamRules(
+    selectedModelInfo.value.model,
     selectedModelInfo.value.provider
   );
 });

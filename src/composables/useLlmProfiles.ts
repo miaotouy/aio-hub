@@ -5,6 +5,7 @@
 import { ref, computed } from "vue";
 import type {
   LlmProfile,
+  LlmModelInfo,
   LlmParameterSupport,
   ProviderType,
 } from "../types/llm-profiles";
@@ -14,7 +15,10 @@ import { providerTypes } from "../config/llm-providers";
 import { createConfigManager } from "@utils/configManager";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import { normalizeIconPath } from "../config/model-metadata";
+import {
+  getActiveModelProperties,
+  normalizeIconPath,
+} from "../config/model-metadata";
 
 const logger = createModuleLogger("LlmProfiles");
 const errorHandler = createModuleErrorHandler("LlmProfiles");
@@ -286,7 +290,11 @@ export function useLlmProfiles() {
       baseUrl: preset.defaultBaseUrl,
       apiKeys: [],
       enabled: true,
-      models: preset.defaultModels ? [...preset.defaultModels] : [],
+      models: preset.defaultModels
+        ? preset.defaultModels.map((model) =>
+            attachMatchedModelMetadata(model, preset.type)
+          )
+        : [],
       networkStrategy: "auto",
       logoUrl: preset.logoUrl,
       icon: preset.logoUrl, // 同时设置 icon 字段，确保供应商图标正确显示
@@ -294,6 +302,32 @@ export function useLlmProfiles() {
       customEndpoints: preset.customEndpoints
         ? { ...preset.customEndpoints }
         : undefined,
+    };
+  };
+
+  const attachMatchedModelMetadata = (
+    model: LlmModelInfo,
+    providerType: ProviderType
+  ): LlmModelInfo => {
+    const provider = model.provider || providerType;
+    const matchedProps = getActiveModelProperties(model.id, provider);
+    const mediaGenParams =
+      model.mediaGenParams ||
+      (matchedProps?.mediaGenParams
+        ? JSON.parse(JSON.stringify(matchedProps.mediaGenParams))
+        : undefined);
+
+    return {
+      ...model,
+      provider,
+      group: model.group || matchedProps?.group,
+      icon: model.icon || matchedProps?.icon,
+      description: model.description || matchedProps?.description,
+      capabilities: {
+        ...(matchedProps?.capabilities || {}),
+        ...(model.capabilities || {}),
+      },
+      ...(mediaGenParams ? { mediaGenParams } : {}),
     };
   };
 

@@ -2,6 +2,7 @@
  * LLM 服务配置相关的类型定义
  */
 import type { SettingItem } from "./settings-renderer";
+import type { MediaGenParamRules } from "./model-metadata";
 
 /**
  * 上下文后处理规则 (简易定义，避免循环依赖和跨端导入问题)
@@ -386,6 +387,12 @@ export interface LlmModelInfo {
    * 会在请求时与标准参数合并
    */
   customParameters?: Record<string, any>;
+
+  /**
+   * 模型专属的媒体生成参数规则（可选）
+   * 优先级高于全局模型元数据规则，用于驱动媒体生成工具的参数 UI 与请求清洁。
+   */
+  mediaGenParams?: MediaGenParamRules;
 }
 
 /**

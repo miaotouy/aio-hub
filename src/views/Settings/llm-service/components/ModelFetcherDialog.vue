@@ -12,6 +12,7 @@ const props = defineProps<{
   rawResponse?: any;
   existingModels: LlmModelInfo[];
   visible: boolean;
+  providerType?: string;
 }>();
 
 const emit = defineEmits(["update:visible", "add-models"]);
@@ -199,14 +200,20 @@ const copyRawResponse = async () => {
 const handleConfirm = () => {
   // 对选中的模型进行处理，使用格式化后的名称，并同步计算出的能力、分组和图标
   const modelsToAdd = selectedModels.value.map((model: LlmModelInfo) => {
-    const matchedProps = getMatchedProperties(model.id, model.provider);
+    const provider = model.provider || props.providerType;
+    const matchedProps = getMatchedProperties(model.id, provider);
+    const matchedMediaGenParams = cloneMediaGenParams(
+      matchedProps?.mediaGenParams
+    );
     return {
       ...model,
+      provider,
       name: formatModelName(model.id),
       group: model.group || matchedProps?.group,
       icon: model.icon || matchedProps?.icon,
       description: model.description || matchedProps?.description,
       capabilities: getModelCapabilities(model),
+      mediaGenParams: model.mediaGenParams || matchedMediaGenParams,
     };
   });
   emit("add-models", modelsToAdd);
@@ -222,7 +229,7 @@ const getModelIcon = (model: LlmModelInfo) => {
   if (model.icon) {
     return getDisplayIconPath(model.icon);
   }
-  const iconPath = getIconPath(model.id, model.provider);
+  const iconPath = getIconPath(model.id, model.provider || props.providerType);
   return iconPath ? getDisplayIconPath(iconPath) : null;
 };
 
@@ -252,7 +259,10 @@ const formatModelName = (modelId: string): string => {
 // 获取模型能力
 const getModelCapabilities = (model: LlmModelInfo) => {
   // 获取元数据规则匹配的能力
-  const matchedProps = getMatchedProperties(model.id, model.provider);
+  const matchedProps = getMatchedProperties(
+    model.id,
+    model.provider || props.providerType
+  );
   const matchedCapabilities = matchedProps?.capabilities || {};
 
   // 获取模型自身的能力配置
@@ -262,6 +272,12 @@ const getModelCapabilities = (model: LlmModelInfo) => {
   // 注意：merge 会修改第一个参数，所以需要创建一个新对象作为目标
   return merge({}, matchedCapabilities, modelCapabilities);
 };
+
+function cloneMediaGenParams(
+  params: LlmModelInfo["mediaGenParams"] | undefined
+): LlmModelInfo["mediaGenParams"] | undefined {
+  return params ? JSON.parse(JSON.stringify(params)) : undefined;
+}
 
 // 获取激活的能力列表
 const getActiveCapabilities = (model: LlmModelInfo) => {

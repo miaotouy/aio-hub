@@ -333,7 +333,13 @@ const matchValuePlaceholder = computed(() => {
 });
 
 const showMediaGenParams = computed(() => {
-  return localConfig.value.properties?.capabilities?.imageGeneration === true;
+  const capabilities = localConfig.value.properties?.capabilities;
+  return (
+    capabilities?.imageGeneration === true ||
+    capabilities?.videoGeneration === true ||
+    capabilities?.audioGeneration === true ||
+    capabilities?.musicGeneration === true
+  );
 });
 
 // JSON 字符串的双向绑定

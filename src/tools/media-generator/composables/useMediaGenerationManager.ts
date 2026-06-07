@@ -34,6 +34,7 @@ export function useMediaGenerationManager() {
   const { profiles: allProfiles } = useLlmProfiles();
   const {
     getParamRules,
+    getModelParamRules,
     sanitizeParams,
     usesAspectRatioMode,
     buildXaiSizeParams,
@@ -236,7 +237,12 @@ export function useMediaGenerationManager() {
       const selectedProfile = allProfiles.value.find(
         (p) => p.id === task.input.profileId
       );
-      const rules = getParamRules(task.input.modelId, selectedProfile?.type);
+      const selectedModel = selectedProfile?.models.find(
+        (m) => m.id === task.input.modelId
+      );
+      const rules = selectedModel
+        ? getModelParamRules(selectedModel, selectedProfile?.type)
+        : getParamRules(task.input.modelId, selectedProfile?.type);
       if (rules) {
         if (usesAspectRatioMode(rules)) {
           const ext = finalOptions as any;

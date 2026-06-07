@@ -14,7 +14,7 @@
  * - models-chinese: 国内其他模型
  * - models-international: 国际其他模型
  * - models-specific: 特定模型匹配 (优先级 30+)
- * - media-gen-params: 媒体生成参数规则
+ * - image-gen-params: 图片生成参数预设规则
  * - image-input-limits: 图片输入尺寸限制预设
  */
 import type { ModelMetadataRule } from "../../types/model-metadata";
@@ -29,7 +29,7 @@ import { qwenModelRules } from "./models-qwen";
 import { chineseModelRules } from "./models-chinese";
 import { internationalModelRules } from "./models-international";
 import { specificModelRules } from "./models-specific";
-import { mediaGenParamsRules } from "./media-gen-params";
+import { imageGenParamsRules } from "./image-gen-params";
 import { imageInputLimitRules } from "./image-input-limits";
 
 export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
@@ -43,7 +43,7 @@ export const DEFAULT_METADATA_RULES: ModelMetadataRule[] = [
   ...chineseModelRules,
   ...internationalModelRules,
   ...specificModelRules,
-  ...mediaGenParamsRules,
+  ...imageGenParamsRules,
   ...imageInputLimitRules,
 ];
 
@@ -59,6 +59,6 @@ export {
   chineseModelRules,
   internationalModelRules,
   specificModelRules,
-  mediaGenParamsRules,
+  imageGenParamsRules,
   imageInputLimitRules,
 };

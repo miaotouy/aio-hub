@@ -1,17 +1,18 @@
 /**
- * 媒体生成参数规则
+ * 图片生成参数预设规则
  *
- * 定义各图像/视频生成模型的尺寸、质量、风格等参数预设。
+ * 定义各图像生成模型的尺寸、质量、风格等参数预设。
  */
 import type { ModelMetadataRule } from "../../types/model-metadata";
 
-export const mediaGenParamsRules: ModelMetadataRule[] = [
-  // === OpenAI DALL-E 3 ===
+export const imageGenParamsRules: ModelMetadataRule[] = [
+  // === OpenAI DALL-E 3 ===  已过时
   {
     id: "media-params-dall-e-3",
     matchType: "modelPrefix",
     matchValue: "dall-e-3",
     properties: {
+      capabilities: { imageGeneration: true },
       mediaGenParams: {
         size: {
           mode: "preset",
@@ -58,6 +59,7 @@ export const mediaGenParamsRules: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "gpt-image-1",
     properties: {
+      capabilities: { imageGeneration: true },
       mediaGenParams: {
         size: {
           mode: "preset",
@@ -128,6 +130,7 @@ export const mediaGenParamsRules: ModelMetadataRule[] = [
     matchValue: "gpt-image-2",
     properties: {
       capabilities: {
+        imageGeneration: true,
         vision: true,
       },
       mediaGenParams: {
@@ -212,6 +215,7 @@ export const mediaGenParamsRules: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "mai-image",
     properties: {
+      capabilities: { imageGeneration: true },
       mediaGenParams: {
         size: {
           mode: "free",
@@ -249,6 +253,7 @@ export const mediaGenParamsRules: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "imagen-",
     properties: {
+      capabilities: { imageGeneration: true },
       mediaGenParams: {
         aspectRatioMode: {
           ratios: [
@@ -286,6 +291,7 @@ export const mediaGenParamsRules: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "ideogram-",
     properties: {
+      capabilities: { imageGeneration: true },
       mediaGenParams: {
         aspectRatioMode: {
           ratios: [
@@ -328,6 +334,7 @@ export const mediaGenParamsRules: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "recraft-",
     properties: {
+      capabilities: { imageGeneration: true },
       mediaGenParams: {
         size: {
           mode: "preset",
@@ -372,6 +379,7 @@ export const mediaGenParamsRules: ModelMetadataRule[] = [
     matchValue: "photon|uni-",
     useRegex: true,
     properties: {
+      capabilities: { imageGeneration: true },
       mediaGenParams: {
         aspectRatioMode: {
           ratios: [
@@ -425,6 +433,7 @@ export const mediaGenParamsRules: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "p-image",
     properties: {
+      capabilities: { imageGeneration: true },
       mediaGenParams: {
         aspectRatioMode: {
           ratios: [
@@ -468,6 +477,7 @@ export const mediaGenParamsRules: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "seedream-",
     properties: {
+      capabilities: { imageGeneration: true },
       mediaGenParams: {
         size: {
           mode: "preset",
@@ -520,6 +530,7 @@ export const mediaGenParamsRules: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "hunyuan-image",
     properties: {
+      capabilities: { imageGeneration: true },
       mediaGenParams: {
         size: {
           mode: "preset",
@@ -560,6 +571,7 @@ export const mediaGenParamsRules: ModelMetadataRule[] = [
     matchValue: "z[-_\\s]?image|造相\\s*Z",
     useRegex: true,
     properties: {
+      capabilities: { imageGeneration: true },
       mediaGenParams: {
         size: {
           mode: "preset",
@@ -601,6 +613,7 @@ export const mediaGenParamsRules: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "glm-image",
     properties: {
+      capabilities: { imageGeneration: true },
       mediaGenParams: {
         size: {
           mode: "free",
@@ -649,6 +662,7 @@ export const mediaGenParamsRules: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "reve-",
     properties: {
+      capabilities: { imageGeneration: true },
       mediaGenParams: {
         aspectRatioMode: {
           ratios: [
@@ -692,6 +706,7 @@ export const mediaGenParamsRules: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "krea-",
     properties: {
+      capabilities: { imageGeneration: true },
       mediaGenParams: {
         aspectRatioMode: {
           ratios: [
@@ -726,6 +741,7 @@ export const mediaGenParamsRules: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "hidream",
     properties: {
+      capabilities: { imageGeneration: true },
       mediaGenParams: {
         size: {
           mode: "preset",
@@ -765,6 +781,7 @@ export const mediaGenParamsRules: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "lucid-",
     properties: {
+      capabilities: { imageGeneration: true },
       mediaGenParams: {
         size: {
           mode: "free",
@@ -809,6 +826,7 @@ export const mediaGenParamsRules: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "runway-gen",
     properties: {
+      capabilities: { imageGeneration: true },
       mediaGenParams: {
         aspectRatioMode: {
           ratios: [
@@ -842,6 +860,7 @@ export const mediaGenParamsRules: ModelMetadataRule[] = [
     matchValue: "cosmos\\d.*text2image",
     useRegex: true,
     properties: {
+      capabilities: { imageGeneration: true },
       mediaGenParams: {
         size: {
           mode: "preset",
@@ -873,6 +892,7 @@ export const mediaGenParamsRules: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "flux",
     properties: {
+      capabilities: { imageGeneration: true },
       mediaGenParams: {
         size: {
           mode: "preset",
@@ -913,6 +933,7 @@ export const mediaGenParamsRules: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "kolors",
     properties: {
+      capabilities: { imageGeneration: true },
       mediaGenParams: {
         size: {
           mode: "preset",
@@ -955,6 +976,7 @@ export const mediaGenParamsRules: ModelMetadataRule[] = [
     matchValue: "sd3|stable-diffusion-3|stabilityai/stable-diffusion-3",
     useRegex: true,
     properties: {
+      capabilities: { imageGeneration: true },
       mediaGenParams: {
         size: {
           mode: "preset",
@@ -995,6 +1017,7 @@ export const mediaGenParamsRules: ModelMetadataRule[] = [
     matchValue: "qwen-image|Qwen/Qwen",
     useRegex: true,
     properties: {
+      capabilities: { imageGeneration: true },
       mediaGenParams: {
         size: {
           mode: "preset",
@@ -1031,6 +1054,7 @@ export const mediaGenParamsRules: ModelMetadataRule[] = [
     matchValue: "grok-.*image|grok-imagine",
     useRegex: true,
     properties: {
+      capabilities: { imageGeneration: true },
       mediaGenParams: {
         // xAI 使用 aspect_ratio + resolution，不使用 size（widthxheight 格式）
         aspectRatioMode: {
@@ -1077,6 +1101,7 @@ export const mediaGenParamsRules: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "gemini-2.5-flash-image",
     properties: {
+      capabilities: { imageGeneration: true },
       mediaGenParams: {
         geminiImageConfig: {
           aspectRatios: [
@@ -1112,6 +1137,7 @@ export const mediaGenParamsRules: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "gemini-3-pro-image",
     properties: {
+      capabilities: { imageGeneration: true },
       mediaGenParams: {
         geminiImageConfig: {
           aspectRatios: [
@@ -1152,6 +1178,7 @@ export const mediaGenParamsRules: ModelMetadataRule[] = [
     matchType: "modelPrefix",
     matchValue: "gemini-3.1-flash-image",
     properties: {
+      capabilities: { imageGeneration: true },
       mediaGenParams: {
         geminiImageConfig: {
           aspectRatios: [

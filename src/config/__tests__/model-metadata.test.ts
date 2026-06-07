@@ -73,6 +73,30 @@ describe("model-metadata rule chain", () => {
 });
 
 describe("model-metadata presets", () => {
+  it("marks image generation parameter presets as image generation models", () => {
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "dall-e-3")
+    ).toMatchObject({
+      capabilities: {
+        imageGeneration: true,
+      },
+      mediaGenParams: {
+        size: {
+          default: "1024x1024",
+        },
+      },
+    });
+
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "gpt-image-2")
+    ).toMatchObject({
+      capabilities: {
+        imageGeneration: true,
+        vision: true,
+      },
+    });
+  });
+
   it("applies Gemma 4 family metadata across common model id forms", () => {
     expect(
       getMatchedModelProperties(DEFAULT_METADATA_RULES, "gemma-4")

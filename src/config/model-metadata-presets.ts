@@ -16,6 +16,6 @@ export {
   chineseModelRules,
   internationalModelRules,
   specificModelRules,
-  mediaGenParamsRules,
+  imageGenParamsRules,
   imageInputLimitRules,
 } from "./model-metadata-presets/index";

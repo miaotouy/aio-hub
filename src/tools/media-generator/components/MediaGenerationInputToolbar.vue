@@ -128,7 +128,7 @@ const cancelOptimize = () => {
     <div class="toolbar-left">
       <template v-if="props.showContextToggle !== false">
         <el-tooltip
-          content="开启后将携带历史对话上下文，支持多轮迭代生成"
+          content="Chat / Responses 路由会携带历史消息；普通生成端点仅可把会话中上一轮结果作为参考输入"
           placement="top"
         >
           <button
@@ -138,7 +138,7 @@ const cancelOptimize = () => {
           >
             <el-icon v-if="props.includeContext"><MessageSquare /></el-icon>
             <el-icon v-else><Target /></el-icon>
-            <span>多轮消息</span>
+            <span>上下文</span>
           </button>
         </el-tooltip>
         <div class="v-divider" />

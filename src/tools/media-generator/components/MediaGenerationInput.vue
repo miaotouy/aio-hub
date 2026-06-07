@@ -14,6 +14,7 @@ import { parseModelCombo } from "@/utils/modelIdUtils";
 import { customMessage } from "@/utils/customMessage";
 import { open } from "@tauri-apps/plugin-dialog";
 import { createModuleLogger } from "@/utils/logger";
+import type { LlmModelInfo, LlmProfile } from "@/types/llm-profiles";
 
 const props = withDefaults(
   defineProps<{
@@ -35,7 +36,7 @@ const store = useMediaGenStore();
 const inputManager = useMediaGenInputManager();
 const { isGenerating, abort } = useMediaGenerationManager();
 const assetManager = useAssetManager();
-const { getProfileById } = useLlmProfiles();
+const { getProfileById, saveProfile } = useLlmProfiles();
 
 const containerRef = ref<HTMLElement>();
 const textareaRef = ref<HTMLTextAreaElement>();
@@ -53,6 +54,46 @@ const {
   extraHeight: attachmentsHeight,
 });
 
+const resolveSelectedModelInfo = () => {
+  const mediaType = store.currentConfig.activeType;
+  const modelCombo = store.currentConfig.types[mediaType].modelCombo;
+  if (!modelCombo) return null;
+
+  const [profileId, modelId] = parseModelCombo(modelCombo);
+  const profile = getProfileById(profileId);
+  const model = profile?.models.find((item) => item.id === modelId);
+
+  return { profile, model };
+};
+
+const getIncludeContextDefault = (
+  profile: LlmProfile | undefined,
+  model: LlmModelInfo | undefined
+) => {
+  const iterativeRefinement = model?.capabilities?.iterativeRefinement;
+  return iterativeRefinement !== undefined
+    ? iterativeRefinement
+    : profile?.type === "openai-responses" ||
+        model?.capabilities?.preferChat === true;
+};
+
+const updateIncludeContext = async (value: boolean) => {
+  store.currentConfig.includeContext = value;
+
+  const info = resolveSelectedModelInfo();
+  if (!info?.profile || !info.model) return;
+
+  if (!info.model.capabilities) info.model.capabilities = {};
+  info.model.capabilities.iterativeRefinement = value;
+
+  try {
+    await saveProfile(JSON.parse(JSON.stringify(info.profile)));
+  } catch (error) {
+    logger.error("保存上下文开关到模型配置失败", error);
+    customMessage.error("保存上下文开关失败");
+  }
+};
+
 // 监听模型切换，自动更新上下文开关
 watch(
   () => {
@@ -61,13 +102,11 @@ watch(
   },
   (modelCombo) => {
     if (modelCombo) {
-      const [profileId, modelId] = parseModelCombo(modelCombo);
-      const profile = getProfileById(profileId);
-      const model = profile?.models.find((item) => item.id === modelId);
-      // 如果模型支持迭代微调，默认开启上下文
-      if (model?.capabilities?.iterativeRefinement) {
-        store.currentConfig.includeContext = true;
-      }
+      const info = resolveSelectedModelInfo();
+      store.currentConfig.includeContext = getIncludeContextDefault(
+        info?.profile,
+        info?.model
+      );
     }
   },
   { immediate: true }
@@ -339,7 +378,7 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
           props.mode === 'session' ? store.currentConfig.includeContext : false
         "
         :show-context-toggle="props.mode === 'session'"
-        @update:include-context="store.currentConfig.includeContext = $event"
+        @update:include-context="updateIncludeContext"
         @send="handleSend"
         @abort="handleAbort"
         @trigger-attachment="handleTriggerAttachment"

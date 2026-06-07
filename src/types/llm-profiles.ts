@@ -170,7 +170,11 @@ export interface ModelCapabilities {
   fileSearch?: boolean;
   /** 是否支持图像生成 */
   imageGeneration?: boolean;
-  /** 是否支持迭代微调 (基于上下文的多轮对话式生成) */
+  /**
+   * 是否支持迭代微调工作流。
+   * 表示模型/端点可通过参考图、编辑或上一轮结果继续优化生成结果；
+   * 真正携带历史 messages 的多轮生成由 preferChat 或 openai-responses 渠道决定。
+   */
   iterativeRefinement?: boolean;
   /** 是否支持音频输入/输出 */
   audio?: boolean;
@@ -190,8 +194,9 @@ export interface ModelCapabilities {
   computerUse?: boolean;
 
   /**
-   * 是否偏好使用对话接口 (Chat) 来实现其他功能 (如生图、语音)
-   * 适用于原生多模态模型 (如 Gemini 3 Pro, GPT-4o-audio) 或某些特定渠道的补丁
+   * 是否偏好使用对话接口 (Chat / Responses) 来实现其他功能 (如生图、语音)
+   * 媒体生成器会把该能力视为可携带历史 messages 的多轮上下文路由。
+   * 适用于原生多模态模型或某些特定渠道的补丁。
    */
   preferChat?: boolean;
 

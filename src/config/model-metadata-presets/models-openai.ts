@@ -172,7 +172,8 @@ export const openaiModelRules: ModelMetadataRule[] = [
         vision: true,
         iterativeRefinement: true,
       },
-      description: "GPT Image 系列图像生成模型（包括 2、1.5、1 和 1-mini）",
+      description:
+        "GPT Image 系列图像生成模型（支持生成、编辑与参考图；多轮上下文需走 Responses/Chat 类路由）",
     },
     priority: 25,
     enabled: true,

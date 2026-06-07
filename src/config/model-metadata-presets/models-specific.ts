@@ -141,7 +141,8 @@ export const specificModelRules: ModelMetadataRule[] = [
         imageGeneration: true,
         iterativeRefinement: true,
       },
-      description: "GPT Image 系列图像生成模型（支持编辑与迭代）",
+      description:
+        "GPT Image 系列图像生成模型（支持编辑与参考图迭代；多轮上下文需走 Responses/Chat 类路由）",
     },
     priority: 35,
     enabled: true,

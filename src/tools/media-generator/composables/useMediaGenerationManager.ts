@@ -15,8 +15,14 @@ import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { embedMetadata } from "@/utils/mediaMetadataManager";
 import type { MediaTask, MediaTaskType, MediaMessage } from "../types";
-import type { MediaGenerationOptions, LlmResponse } from "@/llm-apis/common";
+import type {
+  MediaGenerationOptions,
+  LlmMessage,
+  LlmMessageContent,
+  LlmResponse,
+} from "@/llm-apis/common";
 import type { LlmModelInfo, LlmProfile } from "@/types/llm-profiles";
+import type { Asset } from "@/types/asset-management";
 
 const logger = createModuleLogger("media-generator/manager");
 const errorHandler = createModuleErrorHandler("media-generator/manager");
@@ -48,6 +54,198 @@ export function useMediaGenerationManager() {
     const profile = allProfiles.value.find((p) => p.id === profileId);
     const model = profile?.models.find((m) => m.id === modelId);
     return { profile, model };
+  };
+
+  const supportsConversationalGeneration = (
+    profile: LlmProfile | undefined,
+    model: LlmModelInfo | undefined
+  ): boolean => {
+    return (
+      profile?.type === "openai-responses" ||
+      model?.capabilities?.preferChat === true
+    );
+  };
+
+  const supportsReferenceInput = (
+    task: MediaTask,
+    model: LlmModelInfo | undefined
+  ): boolean => {
+    if (task.type !== "image" && task.type !== "video") return false;
+    return (
+      model?.capabilities?.vision === true ||
+      model?.capabilities?.imageGeneration === true ||
+      model?.capabilities?.videoGeneration === true ||
+      model?.capabilities?.iterativeRefinement === true
+    );
+  };
+
+  const getMessageResultAssets = (message: MediaMessage): Asset[] => {
+    const taskId =
+      message.metadata?.taskId ||
+      message.metadata?.taskSnapshot?.id ||
+      message.id;
+    const liveTask = taskId ? taskManager.getTask(taskId) : undefined;
+    const snapshot = message.metadata?.taskSnapshot;
+
+    const assets =
+      liveTask?.resultAssets ||
+      (liveTask?.resultAsset ? [liveTask.resultAsset] : undefined) ||
+      snapshot?.resultAssets ||
+      (snapshot?.resultAsset ? [snapshot.resultAsset] : undefined) ||
+      [];
+
+    return dedupeAssets(assets);
+  };
+
+  const dedupeAssets = <T extends { id?: string; path?: string; url?: string }>(
+    assets: T[]
+  ): T[] => {
+    const seen = new Set<string>();
+    return assets.filter((asset) => {
+      const key =
+        asset.id ||
+        asset.path ||
+        asset.url ||
+        JSON.stringify(asset).slice(0, 80);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+
+  const getMessageVisualAssets = (message: MediaMessage): Asset[] => {
+    const assets = [...(message.attachments || [])];
+    if (message.role === "assistant") {
+      assets.push(...getMessageResultAssets(message));
+    }
+    return dedupeAssets(assets).filter((asset) =>
+      asset.mimeType?.startsWith("image/")
+    );
+  };
+
+  const collectSingleTurnReferenceAssets = (
+    contextMessages: MediaMessage[],
+    task: MediaTask,
+    autoIncludeLastResult: boolean
+  ): Asset[] => {
+    const { model } = resolveModelSelection(
+      task.input.profileId,
+      task.input.modelId
+    );
+    if (!supportsReferenceInput(task, model)) return [];
+
+    const isManualContext =
+      task.input.contextMessageIds && task.input.contextMessageIds.length > 0;
+
+    if (isManualContext) {
+      return dedupeAssets(
+        contextMessages
+          .filter((m) => task.input.contextMessageIds?.includes(m.id))
+          .flatMap((m) => getMessageVisualAssets(m))
+      );
+    }
+
+    if (!autoIncludeLastResult) return [];
+
+    const lastUserIndex = findLastIndex(
+      contextMessages,
+      (m: MediaMessage) => m.role === "user"
+    );
+    if (lastUserIndex <= 0) return [];
+
+    const prevAssistant = contextMessages[lastUserIndex - 1];
+    if (prevAssistant?.role !== "assistant") return [];
+    return getMessageResultAssets(prevAssistant).filter((asset) =>
+      asset.mimeType?.startsWith("image/")
+    );
+  };
+
+  const assetToInputAttachment = (
+    asset: Asset
+  ): NonNullable<MediaGenerationOptions["inputAttachments"]>[number] | null => {
+    if (
+      asset.type !== "image" &&
+      asset.type !== "video" &&
+      asset.type !== "audio"
+    ) {
+      return null;
+    }
+    return {
+      id: asset.id,
+      name: asset.name,
+      path: asset.path,
+      mimeType: asset.mimeType,
+      size: asset.size,
+      type: asset.type,
+      role: "reference",
+    };
+  };
+
+  const mergeInputAttachments = (
+    base: MediaGenerationOptions["inputAttachments"] | undefined,
+    additions: MediaGenerationOptions["inputAttachments"] | undefined
+  ): MediaGenerationOptions["inputAttachments"] | undefined => {
+    const merged = [...(base || []), ...(additions || [])];
+    if (merged.length === 0) return undefined;
+    return dedupeAssets(merged);
+  };
+
+  const assetToImageContent = async (
+    asset: Asset
+  ): Promise<LlmMessageContent | null> => {
+    if (!asset.mimeType?.startsWith("image/")) return null;
+    if (asset.inlineData?.base64) {
+      return {
+        type: "image",
+        imageBase64: `data:${asset.inlineData.mimeType || asset.mimeType};base64,${
+          asset.inlineData.base64
+        }`,
+      };
+    }
+    if (!asset.path) return null;
+
+    try {
+      const buffer = await getAssetBinary(asset.path);
+      const base64 = await convertArrayBufferToBase64(buffer);
+      return {
+        type: "image",
+        imageBase64: `data:${asset.mimeType || "image/png"};base64,${base64}`,
+      };
+    } catch (error) {
+      logger.warn("构造多轮上下文图片失败", {
+        assetId: asset.id,
+        error: String(error),
+      });
+      return null;
+    }
+  };
+
+  const buildLlmMessagesFromContext = async (
+    context: MediaMessage[]
+  ): Promise<LlmMessage[]> => {
+    return Promise.all(
+      context.map(async (m) => {
+        const contentParts: LlmMessageContent[] = [];
+        if (m.content) {
+          contentParts.push({ type: "text", text: m.content });
+        }
+
+        const imageParts = await Promise.all(
+          getMessageVisualAssets(m).map((asset) => assetToImageContent(asset))
+        );
+        contentParts.push(
+          ...(imageParts.filter(Boolean) as LlmMessageContent[])
+        );
+
+        return {
+          role: m.role === "assistant" ? "assistant" : "user",
+          content:
+            contentParts.length === 1 && contentParts[0].type === "text"
+              ? contentParts[0].text
+              : contentParts,
+        };
+      })
+    );
   };
 
   /**
@@ -116,19 +314,16 @@ export function useMediaGenerationManager() {
           task.input.profileId,
           task.input.modelId
         );
-        const hasVisualInput =
-          model?.capabilities?.vision === true ||
-          model?.capabilities?.iterativeRefinement === true;
+        const hasVisualInput = supportsReferenceInput(task, model);
 
         if (autoIncludeLastResult && hasVisualInput && lastUserIndex > 0) {
           const prevAssistant = finalContext[lastUserIndex - 1];
           if (prevAssistant.role === "assistant") {
-            const resultAsset =
-              prevAssistant.metadata?.taskSnapshot?.resultAsset;
-            if (resultAsset) {
+            const resultAssets = getMessageResultAssets(prevAssistant);
+            if (resultAssets.length > 0) {
               const augmentedUser = {
                 ...lastUser,
-                attachments: [...(lastUser.attachments || []), resultAsset],
+                attachments: [...(lastUser.attachments || []), ...resultAssets],
               };
               finalContext = [augmentedUser];
             } else {
@@ -187,9 +382,47 @@ export function useMediaGenerationManager() {
       const maxRetries = config?.maxRetries ?? 0;
       const { profile: selectedProfile, model: selectedModel } =
         resolveModelSelection(task.input.profileId, task.input.modelId);
+      const canUseConversationContext = supportsConversationalGeneration(
+        selectedProfile,
+        selectedModel
+      );
+
+      let filteredContext: MediaMessage[] = [];
+      let finalContext: MediaMessage[] = [];
+      if (contextMessages && contextMessages.length > 0) {
+        filteredContext = contextMessages.filter(
+          (m: MediaMessage) => m.id !== taskId && m.role !== "system"
+        );
+
+        if (canUseConversationContext) {
+          finalContext = applyContextRules(
+            filteredContext,
+            task,
+            config?.autoIncludeLastResult
+          );
+        } else if (task.input.includeContext) {
+          logger.debug("当前生成端点不支持多轮上下文，已降级为单轮请求", {
+            profileType: selectedProfile?.type,
+            modelId: selectedModel?.id,
+          });
+        }
+      }
+
+      const singleTurnReferenceAttachments = canUseConversationContext
+        ? undefined
+        : (collectSingleTurnReferenceAssets(
+            filteredContext,
+            task,
+            config?.autoIncludeLastResult === true
+          )
+            .map((asset) => assetToInputAttachment(asset))
+            .filter(Boolean) as MediaGenerationOptions["inputAttachments"]);
 
       // 处理参考图：将本地 Asset (含 path) 转换为 Base64
-      let processedAttachments = task.input.params.inputAttachments;
+      let processedAttachments = mergeInputAttachments(
+        task.input.params.inputAttachments,
+        singleTurnReferenceAttachments
+      );
       if (processedAttachments && (processedAttachments as any[]).length > 0) {
         const maxDim = selectedModel?.capabilities?.maxImageDimension;
 
@@ -301,29 +534,8 @@ export function useMediaGenerationManager() {
         finalOptions = sanitizeParams(finalOptions, rules) as any;
       }
 
-      // 构造多轮会话上下文
-      let finalContext: MediaMessage[] = [];
-      if (contextMessages && contextMessages.length > 0) {
-        const filteredContext = contextMessages.filter(
-          (m: MediaMessage) => m.id !== taskId && m.role !== "system"
-        );
-        finalContext = applyContextRules(
-          filteredContext,
-          task,
-          config?.autoIncludeLastResult
-        );
-      }
-
-      if (finalContext.length > 0) {
-        const messages = finalContext.map((m) => ({
-          role: m.role,
-          content: m.content,
-          attachments:
-            m.attachments ||
-            (m.metadata?.taskSnapshot?.resultAsset
-              ? [m.metadata.taskSnapshot.resultAsset]
-              : undefined),
-        }));
+      if (canUseConversationContext && finalContext.length > 0) {
+        const messages = await buildLlmMessagesFromContext(finalContext);
 
         finalOptions = {
           ...finalOptions,
@@ -408,9 +620,14 @@ export function useMediaGenerationManager() {
     translatedPrompt?: string
   ): MediaTask => {
     const taskId = uuidv4();
-    const { model } = resolveModelSelection(options.profileId, options.modelId);
-    const supportsIterative = model?.capabilities?.iterativeRefinement === true;
-    const shouldIncludeContext = options.includeContext ?? supportsIterative;
+    const { profile, model } = resolveModelSelection(
+      options.profileId,
+      options.modelId
+    );
+    const shouldIncludeContext =
+      options.includeContext ??
+      model?.capabilities?.iterativeRefinement ??
+      supportsConversationalGeneration(profile, model);
 
     const finalPrompt = translatedPrompt || options.prompt || "";
 

@@ -141,7 +141,7 @@ export const MODEL_CAPABILITIES: readonly CapabilityConfig[] = [
     key: "iterativeRefinement",
     label: "迭代微调",
     description:
-      "支持通过多轮对话持续优化生成结果 (Conversational Generation)，该选项不影响请求端点",
+      "支持通过参考图、编辑或上一轮结果继续优化生成结果；不等同于端点原生多轮对话",
     icon: markRaw(RefreshCw),
     color: "#22c55e", // Green 500
     className: "iterative-refinement",
@@ -150,7 +150,7 @@ export const MODEL_CAPABILITIES: readonly CapabilityConfig[] = [
     key: "preferChat",
     label: "对话接口",
     description:
-      "是否使用对话接口 (Chat) 来实现生成功能 (如生图)。适用于原生多模态模型或特定渠道补丁",
+      "偏好使用 Chat / Responses 类接口实现生成；媒体生成器会在该功能开启时携带多轮消息上下文",
     icon: markRaw(MessageSquare),
     color: "#8b5cf6", // Violet 500
     className: "prefer-chat",

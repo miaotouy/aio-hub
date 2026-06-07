@@ -91,7 +91,7 @@ const includeContext = computed({
   set: async (val) => {
     store.currentConfig.includeContext = val;
 
-    // 同步回模型设置
+    // 同步回模型配置，作为该开关的持久化来源。
     if (selectedModelInfo.value) {
       const { profile, model } = selectedModelInfo.value;
       if (profile && model) {
@@ -102,6 +102,24 @@ const includeContext = computed({
     }
   },
 });
+
+const supportsConversationalContext = computed(() => {
+  const info = selectedModelInfo.value;
+  return (
+    info?.profile.type === "openai-responses" ||
+    info?.model?.capabilities?.preferChat === true
+  );
+});
+
+const contextToggleTitle = computed(() =>
+  supportsConversationalContext.value ? "多轮上下文" : "参考上一轮"
+);
+
+const contextToggleTooltip = computed(() =>
+  supportsConversationalContext.value
+    ? "Chat / Responses 类端点会携带历史消息，实现真正的多轮上下文生成"
+    : "开启后仅在支持参考图时把上一轮结果作为参考输入"
+);
 // 从当前选中模型获取规则
 const paramRules = computed(() => {
   if (!selectedModelInfo.value) return undefined;
@@ -397,15 +415,13 @@ watch(
   (newCombo) => {
     if (!newCombo) return;
 
-    // 1. 自动适配连续对话开关
-    // 优先从模型本身的配置中读取设置
-    if (
-      selectedModelInfo.value?.model?.capabilities?.iterativeRefinement !==
-      undefined
-    ) {
-      store.currentConfig.includeContext =
-        selectedModelInfo.value.model.capabilities.iterativeRefinement;
-    }
+    // 1. 自动适配上下文开关：优先读取模型配置中的迭代微调开关。
+    const iterativeRefinement =
+      selectedModelInfo.value?.model?.capabilities?.iterativeRefinement;
+    store.currentConfig.includeContext =
+      iterativeRefinement !== undefined
+        ? iterativeRefinement
+        : supportsConversationalContext.value;
 
     // 2. 根据新模型的规则重置/清洁参数
     if (paramRules.value) {
@@ -482,10 +498,8 @@ watch(
 
       <div class="section context-toggle-section">
         <div class="section-title">
-          <span>连续对话 (Iterative)</span>
-          <el-tooltip
-            content="开启后将包含历史消息作为上下文，支持对生成结果进行迭代修改（需模型支持）"
-          >
+          <span>{{ contextToggleTitle }}</span>
+          <el-tooltip :content="contextToggleTooltip">
             <el-icon class="info-icon"><Info /></el-icon>
           </el-tooltip>
         </div>

@@ -29,9 +29,7 @@
                 </div>
                 <div v-if="contribution.overriddenFields.length">
                   ✗
-                  {{
-                    contribution.overriddenFields.join("、")
-                  }}
+                  {{ contribution.overriddenFields.join("、") }}
                   被更高优规则覆盖
                 </div>
                 <div v-if="contribution.rule.exclusive">
@@ -169,6 +167,7 @@ function formatProperties(properties: ModelMetadataRule["properties"]): string {
   gap: 4px;
   flex-wrap: wrap;
   min-width: 0;
+  padding: 4px;
 }
 
 .chain-separator {

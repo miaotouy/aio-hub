@@ -258,6 +258,126 @@ export const chineseModelRules: ModelMetadataRule[] = [
       "模型正则 MiniMax-M2.7 / M2.7-highspeed / M2.5 / M2.5-highspeed 元数据规则",
   },
   {
+    id: "model-minimax-m2-legacy-family",
+    matchType: "model",
+    matchValue: "(?:^|/)MiniMax-M(?:2\\.1(?:-highspeed)?|2)$",
+    useRegex: true,
+    properties: {
+      icon: `/model-icons/minimax-color.svg`,
+      group: "MiniMax",
+      tokenizer: "gpt4",
+      capabilities: {
+        thinking: true,
+        thinkingConfigType: "switch",
+        toolUse: true,
+        jsonOutput: true,
+      },
+      defaultPostProcessingRules: [
+        "convert-system-to-user",
+        "merge-consecutive-roles",
+      ],
+      description:
+        "MiniMax-M2.1 / M2 历史语言模型，覆盖 highspeed 极速版，适合代码、Agent 和多轮对话任务。",
+      recommendedFor: ["代码生成", "Agent 工作流", "中文对话", "历史模型兼容"],
+    },
+    priority: 35,
+    enabled: true,
+    description:
+      "模型正则 MiniMax-M2.1 / M2.1-highspeed / M2 元数据规则",
+  },
+  {
+    id: "model-minimax-hailuo-2-family",
+    matchType: "model",
+    matchValue:
+      "(?:^|/)MiniMax[-_ ]Hailuo[-_ ](?:2\\.3(?:[-_ ]Fast)?|02)$",
+    useRegex: true,
+    properties: {
+      icon: `/model-icons/hailuo-color.svg`,
+      group: "MiniMax",
+      capabilities: {
+        videoGeneration: true,
+        vision: true,
+      },
+      features: {
+        vision: true,
+      },
+      description:
+        "MiniMax Hailuo 2 系列视频生成模型，覆盖 Hailuo 2.3、2.3 Fast 和 Hailuo 02 历史模型。",
+      recommendedFor: ["文生视频", "图生视频", "短片生成", "创意视频"],
+    },
+    priority: 35,
+    enabled: true,
+    description: "模型正则 MiniMax Hailuo 2.3 / 2.3 Fast / 02 元数据规则",
+  },
+  {
+    id: "model-minimax-speech-family",
+    matchType: "model",
+    matchValue: "(?:^|/)Speech-(?:2\\.8|2\\.6|02)-(?:HD|Turbo)$",
+    useRegex: true,
+    properties: {
+      icon: `/model-icons/minimax-color.svg`,
+      group: "MiniMax",
+      capabilities: {
+        audioGeneration: true,
+      },
+      features: {
+        audio: true,
+      },
+      description:
+        "MiniMax Speech 系列语音生成模型，覆盖 2.8、2.6 和 02 的 HD / Turbo 变体。",
+      recommendedFor: ["语音合成", "配音", "情绪语音", "低延迟 TTS"],
+    },
+    priority: 35,
+    enabled: true,
+    description: "模型正则 MiniMax Speech HD / Turbo 元数据规则",
+  },
+  {
+    id: "model-minimax-image-01-family",
+    matchType: "model",
+    matchValue: "(?:^|/)image-01(?:-live)?$",
+    useRegex: true,
+    properties: {
+      icon: `/model-icons/minimax-color.svg`,
+      group: "MiniMax",
+      capabilities: {
+        imageGeneration: true,
+        vision: true,
+      },
+      features: {
+        vision: true,
+      },
+      description:
+        "MiniMax image-01 系列图像生成模型，覆盖 image-01 和 image-01-live，支持文生图和图生图场景。",
+      recommendedFor: ["图像生成", "图生图", "卡通风格", "插画创作"],
+    },
+    priority: 35,
+    enabled: true,
+    description: "模型正则 MiniMax image-01 / image-01-live 元数据规则",
+  },
+  {
+    id: "model-minimax-music-family",
+    matchType: "model",
+    matchValue: "(?:^|/)music-(?:2\\.6|cover)$",
+    useRegex: true,
+    properties: {
+      icon: `/model-icons/minimax-color.svg`,
+      group: "MiniMax",
+      capabilities: {
+        musicGeneration: true,
+        audio: true,
+      },
+      features: {
+        audio: true,
+      },
+      description:
+        "MiniMax music 系列音乐生成模型，覆盖 music-2.6 和 music-cover。",
+      recommendedFor: ["音乐生成", "翻唱生成", "歌词创作", "风格迁移"],
+    },
+    priority: 35,
+    enabled: true,
+    description: "模型正则 MiniMax music-2.6 / music-cover 元数据规则",
+  },
+  {
     id: "model-prefix-minimax-m-family",
     matchType: "modelPrefix",
     matchValue: "MiniMax[-/]?M(?:1|2(?:\\.\\d+)?|3)(?:-[\\w.-]+)?",

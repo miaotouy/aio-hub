@@ -349,5 +349,75 @@ describe("model-metadata presets", () => {
         toolUse: true,
       },
     });
+
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "MiniMax-M2.1-highspeed"
+      )
+    ).toMatchObject({
+      icon: "/model-icons/minimax-color.svg",
+      group: "MiniMax",
+      capabilities: {
+        toolUse: true,
+        thinking: true,
+      },
+    });
+
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "MiniMax-M2")
+    ).toMatchObject({
+      icon: "/model-icons/minimax-color.svg",
+      group: "MiniMax",
+      capabilities: {
+        toolUse: true,
+      },
+    });
+
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "MiniMax Hailuo 2.3 Fast"
+      )
+    ).toMatchObject({
+      icon: "/model-icons/hailuo-color.svg",
+      group: "MiniMax",
+      capabilities: {
+        videoGeneration: true,
+        vision: true,
+      },
+    });
+
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "Speech-2.8-HD")
+    ).toMatchObject({
+      icon: "/model-icons/minimax-color.svg",
+      group: "MiniMax",
+      capabilities: {
+        audioGeneration: true,
+      },
+    });
+
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "image-01-live")
+    ).toMatchObject({
+      icon: "/model-icons/minimax-color.svg",
+      group: "MiniMax",
+      capabilities: {
+        imageGeneration: true,
+        vision: true,
+      },
+    });
+
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "music-cover")
+    ).toMatchObject({
+      icon: "/model-icons/minimax-color.svg",
+      group: "MiniMax",
+      capabilities: {
+        musicGeneration: true,
+        audio: true,
+      },
+    });
   });
 });

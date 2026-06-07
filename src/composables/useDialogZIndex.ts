@@ -1,4 +1,4 @@
-let _counter = 2100;
+let _counter = 1800; // 避让element-ui等库的默认z-index范围（1000-2000），留出足够空间
 
 export function acquireZIndex(): number {
   return ++_counter;

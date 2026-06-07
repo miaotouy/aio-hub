@@ -90,6 +90,9 @@
             <el-option label="有能力标签" value="has-capabilities" />
             <el-option label="无能力（已匹配）" value="no-capabilities" />
           </el-select>
+          <el-button :icon="CopyIcon" @click="copyVisibleItems">
+            复制列表
+          </el-button>
         </div>
 
         <div class="coverage-table-wrapper">
@@ -196,6 +199,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
+import { Copy as CopyIcon } from "lucide-vue-next";
 import { merge } from "lodash-es";
 import { customMessage } from "@/utils/customMessage";
 import type { LlmProfile } from "@/types/llm-profiles";
@@ -490,6 +494,20 @@ function createCoverageRule(row: CoverageItem) {
     enabled: true,
     description: `为模型 ${row.modelName}（${row.profileName}）自动生成的匹配规则`,
   });
+}
+
+async function copyVisibleItems() {
+  const text = filteredCoverageItems.value
+    .map((item) => item.modelId)
+    .join("\n");
+  try {
+    await navigator.clipboard.writeText(text);
+    customMessage.success(
+      `已复制 ${filteredCoverageItems.value.length} 个模型 ID`
+    );
+  } catch {
+    customMessage.error("复制失败，请手动复制");
+  }
 }
 
 async function copyModelId(modelId: string) {

@@ -79,6 +79,17 @@
               :value="profile.id"
             />
           </el-select>
+          <el-select
+            v-model="coverageMatchTypeFilter"
+            placeholder="属性覆盖"
+            class="coverage-filter"
+          >
+            <el-option label="全部属性" value="all" />
+            <el-option label="有图标" value="has-icon" />
+            <el-option label="无图标（已匹配）" value="no-icon" />
+            <el-option label="有能力标签" value="has-capabilities" />
+            <el-option label="无能力（已匹配）" value="no-capabilities" />
+          </el-select>
         </div>
 
         <div class="coverage-table-wrapper">
@@ -89,15 +100,26 @@
             :row-key="getCoverageRowKey"
             header-cell-class-name="table-header"
             :row-class-name="getCoverageRowClassName"
+            @sort-change="handleSortChange"
           >
-            <el-table-column label="渠道信息" min-width="120">
+            <el-table-column
+              label="渠道信息"
+              min-width="120"
+              prop="profileName"
+              sortable="custom"
+            >
               <template #default="{ row }">
                 <div class="coverage-main-text">{{ row.profileName }}</div>
                 <div class="coverage-sub-text">{{ row.profileType }}</div>
               </template>
             </el-table-column>
 
-            <el-table-column label="模型信息" min-width="220">
+            <el-table-column
+              label="模型信息"
+              min-width="220"
+              prop="modelName"
+              sortable="custom"
+            >
               <template #default="{ row }">
                 <div class="coverage-main-text">{{ row.modelName }}</div>
                 <div class="model-id-line">
@@ -114,7 +136,12 @@
               </template>
             </el-table-column>
 
-            <el-table-column label="规则合并链" min-width="300">
+            <el-table-column
+              label="规则合并链"
+              min-width="300"
+              prop="ruleChain"
+              sortable="custom"
+            >
               <template #default="{ row }">
                 <RuleMergeChain
                   v-if="row.isMatched"
@@ -201,6 +228,11 @@ const emit = defineEmits<{
 const coverageSearchText = ref("");
 const coverageStatusFilter = ref<"all" | "matched" | "unmatched">("all");
 const coverageProfileFilter = ref("all");
+const coverageMatchTypeFilter = ref<
+  "all" | "has-icon" | "no-icon" | "has-capabilities" | "no-capabilities"
+>("all");
+const sortField = ref<string | null>(null);
+const sortOrder = ref<"ascending" | "descending" | null>(null);
 const isLoading = ref(false);
 const progressPercent = ref(0);
 const progressText = ref("");
@@ -329,9 +361,17 @@ watch(
 );
 
 // 搜索或过滤改变时，重置页码
-watch([coverageSearchText, coverageStatusFilter, coverageProfileFilter], () => {
-  currentPage.value = 1;
-});
+watch(
+  [
+    coverageSearchText,
+    coverageStatusFilter,
+    coverageProfileFilter,
+    coverageMatchTypeFilter,
+  ],
+  () => {
+    currentPage.value = 1;
+  }
+);
 
 const coverageStats = computed(() => {
   const total = coverageItems.value.length;
@@ -375,6 +415,56 @@ const filteredCoverageItems = computed(() => {
     );
   }
 
+  // 匹配类型（属性覆盖）筛选
+  const mtf = coverageMatchTypeFilter.value;
+  if (mtf === "has-icon") {
+    result = result.filter((item) => !!item.finalProperties?.icon);
+  } else if (mtf === "no-icon") {
+    result = result.filter(
+      (item) => item.isMatched && !item.finalProperties?.icon
+    );
+  } else if (mtf === "has-capabilities") {
+    result = result.filter((item) => {
+      const caps = item.finalProperties?.capabilities as
+        | Record<string, unknown>
+        | undefined;
+      return !!caps && Object.values(caps).some(Boolean);
+    });
+  } else if (mtf === "no-capabilities") {
+    result = result.filter((item) => {
+      if (!item.isMatched) return false;
+      const caps = item.finalProperties?.capabilities as
+        | Record<string, unknown>
+        | undefined;
+      return !caps || !Object.values(caps).some(Boolean);
+    });
+  }
+
+  // 排序
+  if (sortField.value && sortOrder.value) {
+    const field = sortField.value;
+    const asc = sortOrder.value === "ascending";
+    result = [...result].sort((a, b) => {
+      let av: string | number;
+      let bv: string | number;
+      if (field === "profileName") {
+        av = a.profileName;
+        bv = b.profileName;
+      } else if (field === "modelName") {
+        av = a.modelName;
+        bv = b.modelName;
+      } else if (field === "ruleChain") {
+        av = a.ruleChain.length;
+        bv = b.ruleChain.length;
+      } else {
+        return 0;
+      }
+      if (av < bv) return asc ? -1 : 1;
+      if (av > bv) return asc ? 1 : -1;
+      return 0;
+    });
+  }
+
   return result;
 });
 
@@ -409,6 +499,18 @@ async function copyModelId(modelId: string) {
   } catch (error) {
     customMessage.error("复制失败，请手动复制");
   }
+}
+
+function handleSortChange({
+  prop,
+  order,
+}: {
+  prop: string;
+  order: "ascending" | "descending" | null;
+}) {
+  sortField.value = prop;
+  sortOrder.value = order;
+  currentPage.value = 1;
 }
 
 function getCoverageRowClassName({ row }: { row: CoverageItem }) {

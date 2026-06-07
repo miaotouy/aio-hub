@@ -114,6 +114,7 @@ type PresetType =
   | "inputFidelity"
   | "moderation"
   | "outputFormat"
+  | "movementAmplitude"
   | "generic";
 
 type PresetGroup = {
@@ -224,6 +225,16 @@ const presetGroups: PresetGroup[] = [
     ],
   },
   {
+    key: "videoResolutionLevels",
+    label: "视频分辨率等级",
+    types: ["resolution"],
+    options: [
+      { label: "720p", value: "720p" },
+      { label: "1080p", value: "1080p" },
+      { label: "4K", value: "4k" },
+    ],
+  },
+  {
     key: "quality",
     label: "质量选项",
     types: ["quality"],
@@ -282,6 +293,17 @@ const presetGroups: PresetGroup[] = [
       { label: "WebP", value: "webp" },
       { label: "URL", value: "url" },
       { label: "Base64", value: "b64_json" },
+    ],
+  },
+  {
+    key: "movementAmplitude",
+    label: "运动幅度选项",
+    types: ["movementAmplitude"],
+    options: [
+      { label: "自动", value: "auto" },
+      { label: "小", value: "small" },
+      { label: "中", value: "medium" },
+      { label: "大", value: "large" },
     ],
   },
 ];

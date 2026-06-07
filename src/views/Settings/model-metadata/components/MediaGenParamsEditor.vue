@@ -304,6 +304,116 @@
                   </el-form-item>
                 </template>
 
+                <template v-else-if="param.type === 'duration'">
+                  <el-form-item
+                    label="模式"
+                    label-width="60px"
+                    style="margin-bottom: 10px"
+                  >
+                    <el-radio-group
+                      :model-value="durationMode"
+                      size="small"
+                      @update:model-value="setDurationMode"
+                    >
+                      <el-radio-button value="options"
+                        >固定选项</el-radio-button
+                      >
+                      <el-radio-button value="range">范围</el-radio-button>
+                    </el-radio-group>
+                  </el-form-item>
+
+                  <template v-if="durationMode === 'options'">
+                    <div class="duration-options">
+                      <div
+                        v-for="(item, index) in durationOptions"
+                        :key="index"
+                        class="duration-option-row"
+                      >
+                        <el-input
+                          v-model="item.label"
+                          placeholder="显示标签，如 8s"
+                        />
+                        <el-input-number
+                          v-model="item.value"
+                          :min="-1"
+                          :step="1"
+                          controls-position="right"
+                        />
+                        <el-button
+                          type="danger"
+                          :icon="Delete"
+                          circle
+                          @click="removeDurationOption(index)"
+                        />
+                      </div>
+                      <el-button plain :icon="Plus" @click="addDurationOption">
+                        添加时长
+                      </el-button>
+                    </div>
+                    <el-form-item
+                      label="默认值"
+                      label-width="60px"
+                      style="margin-top: 10px; margin-bottom: 0"
+                    >
+                      <el-select
+                        v-model="(localParams.duration as any).default"
+                        placeholder="选择默认值"
+                        clearable
+                        size="small"
+                      >
+                        <el-option
+                          v-for="o in durationOptions"
+                          :key="o.value"
+                          :label="o.label"
+                          :value="o.value"
+                        />
+                      </el-select>
+                    </el-form-item>
+                  </template>
+
+                  <template v-else>
+                    <div class="number-range">
+                      <el-input-number
+                        v-model="(localParams.duration as any).min"
+                        placeholder="最小"
+                        size="small"
+                      />
+                      <span>-</span>
+                      <el-input-number
+                        v-model="(localParams.duration as any).max"
+                        placeholder="最大"
+                        size="small"
+                      />
+                    </div>
+                    <el-row :gutter="10" style="margin-top: 10px">
+                      <el-col :span="12">
+                        <el-form-item
+                          label="步长"
+                          label-width="60px"
+                          style="margin-bottom: 0"
+                        >
+                          <el-input-number
+                            v-model="(localParams.duration as any).step"
+                            size="small"
+                          />
+                        </el-form-item>
+                      </el-col>
+                      <el-col :span="12">
+                        <el-form-item
+                          label="默认值"
+                          label-width="60px"
+                          style="margin-bottom: 0"
+                        >
+                          <el-input-number
+                            v-model="(localParams.duration as any).default"
+                            size="small"
+                          />
+                        </el-form-item>
+                      </el-col>
+                    </el-row>
+                  </template>
+                </template>
+
                 <template v-else-if="param.type === 'number'">
                   <div class="number-range">
                     <el-input-number
@@ -345,6 +455,17 @@
                   <div class="boolean-hint">
                     启用后，用户可在 UI 中输入此参数
                   </div>
+                  <el-form-item
+                    v-if="param.allowDefault"
+                    label="默认值"
+                    label-width="60px"
+                    style="margin-top: 10px; margin-bottom: 0"
+                  >
+                    <el-switch
+                      v-model="(localParams[param.key] as any).default"
+                      size="small"
+                    />
+                  </el-form-item>
                 </template>
               </div>
             </div>
@@ -357,6 +478,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
+import { Delete, Plus } from "@element-plus/icons-vue";
 import type { MediaGenParamRules } from "@/types/model-metadata";
 import OptionListEditor from "./OptionListEditor.vue";
 
@@ -391,7 +513,13 @@ type SupportableParamKey =
   | "outputFormat"
   | "outputCompression"
   | "batchSize"
-  | "partialImages";
+  | "partialImages"
+  | "duration"
+  | "promptEnhancement"
+  | "generateAudio"
+  | "watermark"
+  | "cameraFixed"
+  | "movementAmplitude";
 
 type OptionPresetType =
   | "size"
@@ -404,13 +532,15 @@ type OptionPresetType =
   | "inputFidelity"
   | "moderation"
   | "outputFormat"
+  | "movementAmplitude"
   | "generic";
 
 type SupportableParam = {
   key: SupportableParamKey;
   label: string;
-  type: "options" | "number" | "boolean";
+  type: "options" | "number" | "boolean" | "duration";
   allowStep?: boolean;
+  allowDefault?: boolean;
 };
 
 const supportableParams: SupportableParam[] = [
@@ -432,6 +562,31 @@ const supportableParams: SupportableParam[] = [
   { key: "outputCompression", label: "输出压缩", type: "number" },
   { key: "batchSize", label: "批量生成 (n)", type: "number" },
   { key: "partialImages", label: "流式预览图", type: "number" },
+  { key: "duration", label: "视频时长", type: "duration" },
+  {
+    key: "promptEnhancement",
+    label: "提示词增强",
+    type: "boolean",
+    allowDefault: true,
+  },
+  {
+    key: "generateAudio",
+    label: "生成音频",
+    type: "boolean",
+    allowDefault: true,
+  },
+  { key: "watermark", label: "水印", type: "boolean", allowDefault: true },
+  {
+    key: "cameraFixed",
+    label: "固定镜头",
+    type: "boolean",
+    allowDefault: true,
+  },
+  {
+    key: "movementAmplitude",
+    label: "运动幅度",
+    type: "options",
+  },
 ] as const;
 
 const coreParamKeys = new Set<SupportableParamKey>([
@@ -451,10 +606,40 @@ const advancedParams = computed(() =>
   supportableParams.filter((param) => !coreParamKeys.has(param.key))
 );
 
+const videoParamKeys = new Set<SupportableParamKey>([
+  "duration",
+  "promptEnhancement",
+  "generateAudio",
+  "watermark",
+  "cameraFixed",
+  "movementAmplitude",
+]);
+
+const nonVideoAdvancedParams = computed(() =>
+  advancedParams.value.filter((param) => !videoParamKeys.has(param.key))
+);
+
+const videoParams = computed(() =>
+  supportableParams.filter((param) => videoParamKeys.has(param.key))
+);
+
 const paramGroups = computed(() => [
   { key: "core", label: "核心生成参数", params: coreParams.value },
-  { key: "advanced", label: "高级与输出参数", params: advancedParams.value },
+  {
+    key: "advanced",
+    label: "高级与输出参数",
+    params: nonVideoAdvancedParams.value,
+  },
+  { key: "video", label: "视频生成参数", params: videoParams.value },
 ]);
+
+const durationMode = computed(() =>
+  localParams.value.duration?.options ? "options" : "range"
+);
+
+const durationOptions = computed(
+  () => localParams.value.duration?.options || []
+);
 
 const sizeModeLabel = computed(() => {
   const labels = {
@@ -485,6 +670,8 @@ function ensureEditorShape(params: MediaGenParamRules) {
     const param = (params as any)[p.key];
     if (p.type === "options" && param?.supported === true) {
       param.options ||= [];
+    } else if (p.type === "duration" && param?.supported === true) {
+      if (param.options) param.options ||= [];
     }
   });
 }
@@ -619,9 +806,54 @@ function handleParamStateChange(key: string) {
     (localParams.value as any)[key] = { supported: false };
   } else if (paramDef?.type === "options") {
     (localParams.value as any)[key] = { supported: true, options: [] };
+  } else if (paramDef?.type === "duration") {
+    (localParams.value as any)[key] = {
+      supported: true,
+      options: [
+        { label: "5s", value: 5 },
+        { label: "10s", value: 10 },
+      ],
+      default: 5,
+    };
   } else {
     (localParams.value as any)[key] = { supported: true };
   }
+}
+
+function ensureDurationRule() {
+  localParams.value.duration ||= { supported: true };
+  return localParams.value.duration;
+}
+
+function setDurationMode(mode: string | number | boolean) {
+  const rule = ensureDurationRule();
+  if (mode === "options") {
+    rule.options ||= [
+      { label: "5s", value: 5 },
+      { label: "10s", value: 10 },
+    ];
+    delete rule.min;
+    delete rule.max;
+    delete rule.step;
+    if (rule.default === undefined) rule.default = rule.options[0]?.value;
+    return;
+  }
+  delete rule.options;
+  rule.min ??= 2;
+  rule.max ??= 12;
+  rule.step ??= 1;
+  rule.default ??= 5;
+}
+
+function addDurationOption() {
+  const rule = ensureDurationRule();
+  rule.options ||= [];
+  rule.options.push({ label: "5s", value: 5 });
+}
+
+function removeDurationOption(index: number) {
+  const rule = ensureDurationRule();
+  rule.options?.splice(index, 1);
 }
 
 function getSupportedCount(params: SupportableParam[]) {
@@ -637,6 +869,7 @@ function getParamPresetType(key: SupportableParamKey): OptionPresetType {
     inputFidelity: "inputFidelity",
     moderation: "moderation",
     outputFormat: "outputFormat",
+    movementAmplitude: "movementAmplitude",
   };
   return presetMap[key] || "generic";
 }
@@ -713,6 +946,19 @@ function getParamPresetType(key: SupportableParamKey): OptionPresetType {
   gap: 8px;
 }
 
+.duration-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.duration-option-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px auto;
+  gap: 8px;
+  align-items: center;
+}
+
 .boolean-hint {
   font-size: 12px;
   color: var(--text-color-light);
@@ -745,6 +991,10 @@ function getParamPresetType(key: SupportableParamKey): OptionPresetType {
 
   .number-range {
     grid-template-columns: 1fr;
+  }
+
+  .duration-option-row {
+    grid-template-columns: 1fr auto;
   }
 }
 </style>

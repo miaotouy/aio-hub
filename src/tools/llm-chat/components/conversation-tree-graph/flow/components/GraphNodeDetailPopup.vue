@@ -46,6 +46,12 @@ const handleEdit = (newContent: string, attachments?: Asset[]) => {
   }
 };
 
+const handleSaveToBranch = (newContent: string, attachments?: Asset[]) => {
+  if (props.message) {
+    store.createBranchFromEdit(props.message.id, newContent, attachments);
+  }
+};
+
 const handleRegenerate = () => {
   if (props.message) {
     store.regenerateFromNode(props.message.id);
@@ -226,6 +232,7 @@ const chatMessageProps = computed(() => {
             v-if="chatMessageProps"
             v-bind="chatMessageProps"
             @edit="handleEdit"
+            @save-to-branch="handleSaveToBranch"
             @regenerate="handleRegenerate"
           />
         </template>

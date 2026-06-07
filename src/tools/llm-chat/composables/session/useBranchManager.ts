@@ -156,18 +156,6 @@ export function useBranchManager() {
       return null;
     }
 
-    if (
-      sourceNode.metadata?.isGreeting === true &&
-      sourceNode.metadata.greetingLive === true
-    ) {
-      logger.warn("创建分支失败：未固化开局消息不支持创建会话分支", {
-        sessionId: session.id,
-        sourceNodeId,
-        greetingId: sourceNode.metadata.greetingId,
-      });
-      return null;
-    }
-
     // 只允许为用户消息和助手消息创建分支
     if (sourceNode.role !== "user" && sourceNode.role !== "assistant") {
       logger.warn("创建分支失败：只能为用户或助手消息创建分支", {
@@ -199,7 +187,10 @@ export function useBranchManager() {
 
     // 如果是用户消息，处理元数据（身份快照）
     if (sourceNode.role === "user") {
-      if (sourceNode.metadata?.userProfileId) {
+      if (sourceNode.metadata?.isGreeting) {
+        // 用户角色的开局消息固化后创建分支时，也应保留开局快照身份。
+        newNode.metadata = { ...sourceNode.metadata };
+      } else if (sourceNode.metadata?.userProfileId) {
         // 1. 如果源节点有用户档案信息（历史快照），直接复制，保持历史一致性
         newNode.metadata = { ...sourceNode.metadata };
       } else {

@@ -18,6 +18,7 @@ import { recalculateNodeTokens } from "../../utils/chatTokenUtils";
 import type { useSessionNodeHistory } from "../session/useSessionNodeHistory";
 import { createModuleLogger } from "@/utils/logger";
 import type { ChatMessageNode } from "../../types";
+import { solidifyGreetings } from "../../services/greetingService";
 
 const logger = createModuleLogger("llm-chat/graph-actions");
 
@@ -37,6 +38,89 @@ export function useGraphActions(
 ) {
   const branchManager = useBranchManager();
   const sessionManager = useSessionManager();
+
+  function cloneNodeForHistory(node: ChatMessageNode): ChatMessageNode {
+    return JSON.parse(JSON.stringify(toRaw(node)));
+  }
+
+  function solidifyLiveGreetingsForMutation(
+    session: ChatSessionDetail
+  ): HistoryDelta[] {
+    if (!session.nodes) return [];
+
+    const rootNode = session.nodes[session.rootNodeId];
+    if (!rootNode) return [];
+
+    const previousStates = rootNode.childrenIds
+      .map((childId) => session.nodes?.[childId])
+      .filter(
+        (node): node is ChatMessageNode =>
+          node?.metadata?.isGreeting === true &&
+          node.metadata.greetingLive === true
+      )
+      .map((node) => ({
+        nodeId: node.id,
+        previousNodeState: cloneNodeForHistory(node),
+      }));
+
+    if (previousStates.length === 0) return [];
+
+    solidifyGreetings(session);
+
+    const deltas: HistoryDelta[] = [];
+    for (const { nodeId, previousNodeState } of previousStates) {
+      const finalNode = session.nodes?.[nodeId];
+      if (!finalNode) continue;
+
+      deltas.push({
+        type: "update",
+        payload: {
+          nodeId,
+          previousNodeState,
+          finalNodeState: cloneNodeForHistory(finalNode),
+        },
+      });
+    }
+
+    return deltas;
+  }
+
+  function captureParentChildren(
+    session: ChatSessionDetail,
+    parentId: string | null | undefined
+  ): { parentId: string; childrenIds: string[] } | null {
+    if (!parentId || !session.nodes?.[parentId]) return null;
+
+    return {
+      parentId,
+      childrenIds: [...session.nodes[parentId].childrenIds],
+    };
+  }
+
+  function createNodeCreateDelta(
+    session: ChatSessionDetail,
+    node: ChatMessageNode,
+    parentBeforeCreate: { parentId: string; childrenIds: string[] } | null
+  ): HistoryDelta {
+    const relationChange = extractRelationChange(session, node, "create");
+
+    if (parentBeforeCreate && relationChange.affectedParents) {
+      relationChange.affectedParents[parentBeforeCreate.parentId] = {
+        oldChildren: parentBeforeCreate.childrenIds,
+        newChildren: [
+          ...(session.nodes?.[parentBeforeCreate.parentId]?.childrenIds ?? []),
+        ],
+      };
+    }
+
+    return {
+      type: "create",
+      payload: {
+        node: cloneNodeForHistory(node),
+        relationChange,
+      },
+    };
+  }
 
   /**
    * 全量更新消息节点数据（高级功能）
@@ -128,10 +212,19 @@ export function useGraphActions(
       return;
     }
 
+    const targetNode = session.nodes?.[nodeId];
+    if (
+      !targetNode ||
+      (targetNode.role !== "user" && targetNode.role !== "assistant")
+    ) {
+      branchManager.editMessage(session, nodeId, newContent, attachments);
+      return;
+    }
+
+    const solidifyDeltas = solidifyLiveGreetingsForMutation(session);
+
     // 使用 JSON 序列化来创建快照，避免 structuredClone 处理 Vue Proxy 或特殊对象时出错
-    const previousNodeState = JSON.parse(
-      JSON.stringify(toRaw(session.nodes![nodeId]))
-    );
+    const previousNodeState = cloneNodeForHistory(session.nodes![nodeId]);
     const success = branchManager.editMessage(
       session,
       nodeId,
@@ -142,14 +235,12 @@ export function useGraphActions(
     if (success) {
       // 手动更新时间戳
       session.nodes![nodeId].updatedAt = new Date().toISOString();
-      const finalNodeState = JSON.parse(
-        JSON.stringify(toRaw(session.nodes![nodeId]))
-      );
+      const finalNodeState = cloneNodeForHistory(session.nodes![nodeId]);
       const delta: HistoryDelta = {
         type: "update",
         payload: { nodeId, previousNodeState, finalNodeState },
       };
-      historyManager.recordHistory("NODE_EDIT", [delta], {
+      historyManager.recordHistory("NODE_EDIT", [...solidifyDeltas, delta], {
         targetNodeId: nodeId,
       });
 
@@ -307,23 +398,37 @@ export function useGraphActions(
     const session = currentSession.value;
     if (!session) return;
 
+    const sourceNode = session.nodes?.[sourceNodeId];
+    if (
+      !sourceNode ||
+      (sourceNode.role !== "user" && sourceNode.role !== "assistant")
+    ) {
+      branchManager.createBranch(session, sourceNodeId);
+      return;
+    }
+
+    const solidifyDeltas = solidifyLiveGreetingsForMutation(session);
+    const parentBeforeCreate = captureParentChildren(
+      session,
+      sourceNode.parentId
+    );
     const newNodeId = branchManager.createBranch(session, sourceNodeId);
 
     if (newNodeId) {
       const newNode = session.nodes ? session.nodes[newNodeId] : undefined;
       if (newNode) {
-        const relationChange = extractRelationChange(
+        const delta = createNodeCreateDelta(
           session,
           newNode,
-          "create"
+          parentBeforeCreate
         );
-        const delta: HistoryDelta = {
-          type: "create",
-          payload: { node: newNode, relationChange },
-        };
-        historyManager.recordHistory("BRANCH_CREATE", [delta], {
-          targetNodeId: newNodeId,
-        });
+        historyManager.recordHistory(
+          "BRANCH_CREATE",
+          [...solidifyDeltas, delta],
+          {
+            targetNodeId: newNodeId,
+          }
+        );
       }
 
       if (sessionIndexMap?.value) {
@@ -522,6 +627,15 @@ export function useGraphActions(
 
     const nodeManager = useNodeManager();
 
+    const sourceNode = session.nodes?.[sourceNodeId];
+    if (!sourceNode) return;
+
+    const solidifyDeltas = solidifyLiveGreetingsForMutation(session);
+    const parentBeforeCreate = captureParentChildren(
+      session,
+      sourceNode.parentId
+    );
+
     // 使用 nodeManager 创建新分支节点（保留源节点角色，附件已包含在内）
     const newNode = nodeManager.createBranchFromEdit(
       session,
@@ -535,15 +649,15 @@ export function useGraphActions(
     }
 
     // 记录历史
-    const relationChange = extractRelationChange(session, newNode, "create");
-    const delta: HistoryDelta = {
-      type: "create",
-      payload: { node: newNode, relationChange },
-    };
-    historyManager.recordHistory("BRANCH_CREATE_FROM_EDIT", [delta], {
-      sourceNodeId,
-      targetNodeId: newNode.id,
-    });
+    const delta = createNodeCreateDelta(session, newNode, parentBeforeCreate);
+    historyManager.recordHistory(
+      "BRANCH_CREATE_FROM_EDIT",
+      [...solidifyDeltas, delta],
+      {
+        sourceNodeId,
+        targetNodeId: newNode.id,
+      }
+    );
 
     // 更新活跃叶节点
     nodeManager.updateActiveLeaf(session, newNode.id);

@@ -66,14 +66,6 @@ const isUserOrAssistant = computed(
     props.role === "user" || props.role === "assistant" || props.role === "tool"
 );
 const isAssistantMessage = computed(() => props.role === "assistant");
-const currentNode = computed(
-  () => store.currentSessionDetail?.nodes?.[props.messageId]
-);
-const isLiveGreeting = computed(
-  () =>
-    currentNode.value?.metadata?.isGreeting === true &&
-    currentNode.value.metadata.greetingLive === true
-);
 
 // 导出对话框
 const showExportDialog = ref(false);
@@ -313,23 +305,12 @@ const handleSelectModelAndRegenerate = async () => {
 
     <!-- 创建分支 -->
     <el-tooltip
-      v-if="isUserOrAssistant && !isLiveGreeting"
+      v-if="isUserOrAssistant"
       content="创建分支"
       placement="bottom"
       :show-after="300"
     >
       <button class="menu-btn" @click="handleCreateBranch">
-        <GitFork :size="16" />
-      </button>
-    </el-tooltip>
-
-    <el-tooltip
-      v-if="isLiveGreeting"
-      content="开局消息分支来自智能体设置，开始对话后会固化为会话分支"
-      placement="bottom"
-      :show-after="300"
-    >
-      <button class="menu-btn" disabled>
         <GitFork :size="16" />
       </button>
     </el-tooltip>

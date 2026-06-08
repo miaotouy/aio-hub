@@ -272,6 +272,16 @@
               <el-icon><CopyDocument /></el-icon>
             </el-button>
           </el-tooltip>
+          <el-tooltip
+            v-if="!isTemplateAnchor"
+            content="复制到下方"
+            placement="top"
+            :show-after="500"
+          >
+            <el-button link size="small" @click="$emit('duplicate', element)">
+              <el-icon><DocumentAdd /></el-icon>
+            </el-button>
+          </el-tooltip>
           <el-tooltip content="粘贴并覆盖" placement="top" :show-after="500">
             <span>
               <el-popconfirm
@@ -340,6 +350,7 @@ import {
   Delete,
   CopyDocument,
   DocumentCopy,
+  DocumentAdd,
   ChatDotRound,
   User,
   Service,
@@ -364,6 +375,7 @@ interface Props {
 interface Emits {
   (e: "edit", message: ChatMessageNode): void;
   (e: "copy", message: ChatMessageNode): void;
+  (e: "duplicate", message: ChatMessageNode): void;
   (e: "paste", message: ChatMessageNode): void;
   (e: "delete", message: ChatMessageNode): void;
   (e: "toggle-enabled"): void;

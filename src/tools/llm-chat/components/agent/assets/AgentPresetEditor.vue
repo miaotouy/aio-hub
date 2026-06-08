@@ -167,6 +167,7 @@
                 :on-radio-change="handleRadioChange"
                 @edit="handleEditMessage"
                 @copy="handleCopyMessage"
+                @duplicate="handleDuplicateMessage"
                 @paste="handlePasteMessage"
                 @delete="handleDeleteMessage"
                 @toggle-enabled="handleToggleEnabled"
@@ -393,6 +394,10 @@ function syncToParent() {
   emit("update:modelValue", toRaw(localMessages.value));
 }
 
+function createPresetMessageId(): string {
+  return `preset-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
+
 // Token 计算
 const { messageTokens, isCalculatingTokens, totalTokens } =
   usePresetTokenCalculator({
@@ -501,7 +506,7 @@ function handleSaveMessage(form: typeof editForm.value) {
     if (msg) Object.assign(msg, form);
   } else {
     const newMsg: ChatMessageNode = {
-      id: `preset-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: createPresetMessageId(),
       parentId: null,
       childrenIds: [],
       ...form,
@@ -542,6 +547,34 @@ async function handleCopyMessage(message: ChatMessageNode) {
   } catch {
     customMessage.error("复制失败");
   }
+}
+
+function handleDuplicateMessage(message: ChatMessageNode) {
+  if (isAnchorType(message.type)) {
+    customMessage.warning("锚点消息不可复制");
+    return;
+  }
+
+  const index = localMessages.value.findIndex((m) => m.id === message.id);
+  if (index === -1) {
+    customMessage.error("未找到要复制的消息");
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const duplicate: ChatMessageNode = {
+    ...JSON.parse(JSON.stringify(toRaw(message))),
+    id: createPresetMessageId(),
+    parentId: null,
+    childrenIds: [],
+    lastSelectedChildId: undefined,
+    timestamp: now,
+    updatedAt: now,
+  };
+
+  localMessages.value.splice(index + 1, 0, duplicate);
+  syncToParent();
+  customMessage.success("已复制到下方");
 }
 
 async function handlePasteMessage(message: ChatMessageNode) {

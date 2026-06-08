@@ -165,7 +165,7 @@ function extractTitleFromJson(text: string): string | null {
 function removeTitlePrefix(text: string): string {
   return text
     .replace(
-      /^\s*(?:#{1,6}\s*)?(?:标题|最终标题|会话标题|topic|title)\s*[:：]\s*/i,
+      /^\s*(?:#{1,6}\s*)?(?:标题|最终标题|会话标题|名称|topic|title|name)\s*[:：]\s*/i,
       ""
     )
     .trim();

@@ -33,6 +33,14 @@ describe("topicNamingUtils", () => {
       expect(title).toBe("话题命名适配");
     });
 
+    it("accepts name-style prefixes used by sibling tools", () => {
+      const title = extractTopicTitle({
+        content: "名称：媒体提示词生成",
+      });
+
+      expect(title).toBe("媒体提示词生成");
+    });
+
     it("uses the last useful line for leaked reasoning prose", () => {
       const title = extractTopicTitle({
         content: "我需要先理解用户想法。\n最终标题：推理模型标题生成",

@@ -14,11 +14,18 @@ import { DEFAULT_MEDIA_TIMEOUT } from "@/llm-apis/common";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { embedMetadata } from "@/utils/mediaMetadataManager";
+import { writeStandardMediaMetadata } from "@/utils/standardMediaMetadataWriter";
+import { useUserProfileStore } from "@/tools/llm-chat/stores/userProfileStore";
 import {
   inferMediaAttachmentType,
   stripAudioDataUrl,
 } from "./mediaAttachmentUtils";
-import type { MediaTask, MediaTaskType, MediaMessage } from "../types";
+import type {
+  MediaMetadataWriteSettings,
+  MediaTask,
+  MediaTaskType,
+  MediaMessage,
+} from "../types";
 import type {
   MediaGenerationOptions,
   LlmMessage,
@@ -33,6 +40,7 @@ const errorHandler = createModuleErrorHandler("media-generator/manager");
 
 export function useMediaGenerationManager() {
   const taskManager = useMediaTaskManager();
+  const userProfileStore = useUserProfileStore();
   const { sendRequest } = useLlmRequest();
   const {
     importAssetFromBytes,
@@ -360,6 +368,7 @@ export function useMediaGenerationManager() {
       timeout?: number;
       maxRetries?: number;
       autoIncludeLastResult?: boolean;
+      metadataWrite?: MediaMetadataWriteSettings;
     }
   ) => {
     const taskId = task.id;
@@ -587,7 +596,7 @@ export function useMediaGenerationManager() {
         progress: 90,
       });
 
-      await handleResponseAssets(taskId, response, type);
+      await handleResponseAssets(taskId, response, type, config?.metadataWrite);
 
       taskManager.updateTaskStatus(taskId, "completed", {
         statusText: "生成完成",
@@ -667,8 +676,16 @@ export function useMediaGenerationManager() {
   /**
    * 直接通过 Task 启动生成 (重试/外部调用专用)
    */
-  const startGenerationWithTask = async (task: MediaTask) => {
-    await executeGeneration(task);
+  const startGenerationWithTask = async (
+    task: MediaTask,
+    config?: {
+      timeout?: number;
+      maxRetries?: number;
+      autoIncludeLastResult?: boolean;
+      metadataWrite?: MediaMetadataWriteSettings;
+    }
+  ) => {
+    await executeGeneration(task, undefined, config);
   };
 
   /**
@@ -677,7 +694,8 @@ export function useMediaGenerationManager() {
   const handleResponseAssets = async (
     taskId: string,
     response: LlmResponse,
-    type: MediaTaskType
+    type: MediaTaskType,
+    metadataWrite?: MediaMetadataWriteSettings
   ) => {
     const task = taskManager.getTask(taskId);
     if (!task) return;
@@ -768,7 +786,24 @@ export function useMediaGenerationManager() {
 
         let asset;
         if (bytes) {
-          // 嵌入元数据
+          if (itemType === "audio" && metadataWrite?.enabled) {
+            try {
+              bytes = await writeStandardMediaMetadata(
+                bytes,
+                mimeType,
+                buildStandardAudioMetadata({
+                  task,
+                  response,
+                  itemIndex: i,
+                  settings: metadataWrite,
+                })
+              );
+            } catch (e) {
+              logger.warn("写入标准音频元数据失败，已继续入库", e);
+            }
+          }
+
+          // 嵌入 AIO 生成参数元数据
           try {
             bytes = await embedMetadata(bytes, mimeType, {
               ...baseMetadata,
@@ -928,6 +963,61 @@ export function useMediaGenerationManager() {
     if (params.minimax_music_mode === "song") return "song";
     if (params.is_instrumental) return "instrumental";
     return "song";
+  }
+
+  function buildStandardAudioMetadata(options: {
+    task: MediaTask;
+    response: LlmResponse;
+    itemIndex: number;
+    settings: MediaMetadataWriteSettings;
+  }) {
+    const { task, response, itemIndex, settings } = options;
+    const userProfile = userProfileStore.globalProfile;
+    const authorName =
+      settings.includeUserAsAuthor === true
+        ? userProfile?.displayName?.trim() || userProfile?.name?.trim()
+        : undefined;
+    const title =
+      String(task.input.params.title || "").trim() ||
+      createPromptTitle(task.input.prompt) ||
+      `AIO Hub 生成音频 ${itemIndex + 1}`;
+    const commentParts: string[] = [];
+
+    if (settings.includePromptComment && task.input.prompt.trim()) {
+      commentParts.push(`Prompt: ${truncateText(task.input.prompt, 800)}`);
+    }
+    if (settings.includeModelInfo) {
+      commentParts.push(`Model: ${task.input.modelId}`);
+      commentParts.push(`Profile: ${task.input.profileId}`);
+      commentParts.push(`Task: ${task.id}`);
+      if (response.seed !== undefined) {
+        commentParts.push(`Seed: ${String(response.seed)}`);
+      }
+      if (response.revisedPrompt) {
+        commentParts.push(
+          `Revised prompt: ${truncateText(response.revisedPrompt, 500)}`
+        );
+      }
+    }
+
+    return {
+      title,
+      artist: authorName,
+      album: "AIO Hub Media Generator",
+      genre: task.type === "music" ? "AI Music" : "AI Speech",
+      comment: commentParts.join("\n"),
+      software: "AIO Hub",
+      date: new Date().toISOString().slice(0, 10),
+    };
+  }
+
+  function createPromptTitle(prompt: string): string {
+    return truncateText(prompt.replace(/\s+/g, " ").trim(), 80);
+  }
+
+  function truncateText(text: string, maxLength: number): string {
+    if (text.length <= maxLength) return text;
+    return `${text.slice(0, maxLength - 3)}...`;
   }
 
   function extractMinimaxCoverAudioBase64(

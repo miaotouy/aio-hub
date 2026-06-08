@@ -82,6 +82,11 @@ export function useMediaGenPersistence(options: {
           ...(loadedSettings as Partial<MediaGeneratorSettings> | null)
             ?.requestSettings,
         },
+        metadataWrite: {
+          ...DEFAULT_MEDIA_GENERATOR_SETTINGS.metadataWrite,
+          ...(loadedSettings as Partial<MediaGeneratorSettings> | null)
+            ?.metadataWrite,
+        },
         translation: {
           ...DEFAULT_MEDIA_GENERATOR_SETTINGS.translation,
           ...(loadedSettings as Partial<MediaGeneratorSettings> | null)

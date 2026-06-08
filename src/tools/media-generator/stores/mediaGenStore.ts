@@ -236,6 +236,7 @@ export const useMediaGenStore = defineStore("media-generator", () => {
       timeout: settings.value.requestSettings?.timeout,
       maxRetries: settings.value.requestSettings?.maxRetries,
       autoIncludeLastResult: settings.value.autoIncludeLastResult,
+      metadataWrite: settings.value.metadataWrite,
     };
 
     await genManager.executeGeneration(task, messages.value, config);
@@ -540,7 +541,12 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     persistence.persist(true);
 
     // 6. 启动生成
-    await mediaGenManager.startGenerationWithTask(task);
+    await mediaGenManager.startGenerationWithTask(task, {
+      timeout: settings.value.requestSettings?.timeout,
+      maxRetries: settings.value.requestSettings?.maxRetries,
+      autoIncludeLastResult: settings.value.autoIncludeLastResult,
+      metadataWrite: settings.value.metadataWrite,
+    });
   };
 
   return {

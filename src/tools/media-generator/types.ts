@@ -236,6 +236,20 @@ export interface AgentIntegrationConfig {
 }
 
 /**
+ * 生成结果入库前的标准媒体元数据写入配置
+ */
+export interface MediaMetadataWriteSettings {
+  /** 是否写入标准媒体标签（如 MP3 ID3、WAV INFO） */
+  enabled: boolean;
+  /** 是否把当前全局用户档案名写入作者/艺术家字段 */
+  includeUserAsAuthor: boolean;
+  /** 是否把提示词写入备注字段 */
+  includePromptComment: boolean;
+  /** 是否在备注中包含模型与任务信息 */
+  includeModelInfo: boolean;
+}
+
+/**
  * 媒体生成器全局设置
  */
 export interface MediaGeneratorSettings {
@@ -268,6 +282,8 @@ export interface MediaGeneratorSettings {
     /** 最大重试次数 */
     maxRetries: number;
   };
+  /** 标准媒体元数据写入设置 */
+  metadataWrite: MediaMetadataWriteSettings;
   /** Agent 集成配置 */
   agentConfig: AgentIntegrationConfig;
 }

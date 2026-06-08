@@ -1,4 +1,11 @@
-import { Zap, Bell, LayoutDashboard, Wand2, PenTool } from "lucide-vue-next";
+import {
+  Zap,
+  Bell,
+  LayoutDashboard,
+  Wand2,
+  PenTool,
+  Tags,
+} from "lucide-vue-next";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import type { SettingsSection } from "@/types/settings-renderer";
 import type {
@@ -206,7 +213,7 @@ export function normalizePromptOptimizationConfig(
  */
 export const DEFAULT_MEDIA_GENERATOR_SETTINGS: MediaGeneratorSettings = {
   autoCleanCompleted: false,
-  autoOpenAsset: true,
+  autoOpenAsset: false,
   maxConcurrentTasks: 3,
   enableNotifications: true,
   autoIncludeLastResult: true,
@@ -263,6 +270,12 @@ export const DEFAULT_MEDIA_GENERATOR_SETTINGS: MediaGeneratorSettings = {
   requestSettings: {
     timeout: 600000, // 默认 10 分钟
     maxRetries: 0, // 媒体生成通常不建议自动重试，因为很贵且慢
+  },
+  metadataWrite: {
+    enabled: false,
+    includeUserAsAuthor: true,
+    includePromptComment: true,
+    includeModelInfo: true,
   },
   agentConfig: {
     visibilityMode: "blacklist",
@@ -571,6 +584,52 @@ export const mediaGeneratorSettingsConfig: SettingsSection<MediaGeneratorSetting
           modelPath: "requestSettings.maxRetries",
           hint: "请求失败（超时或网络错误）时的最大重试次数。注意：媒体生成通常成本较高，请谨慎设置重试。",
           keywords: "request retry 请求 重试",
+        },
+      ],
+    },
+    {
+      title: "元数据写入",
+      icon: Tags,
+      items: [
+        {
+          id: "metadataWriteEnabled",
+          label: "写入标准媒体标签",
+          layout: "inline",
+          component: "ElSwitch",
+          modelPath: "metadataWrite.enabled",
+          hint: "开启后，在生成结果入库前写入播放器可识别的标准标签。当前支持 MP3 的 ID3 标签与 WAV 的 INFO 标签。",
+          keywords:
+            "metadata write tag id3 wav author artist 元数据 标签 作者 艺术家 音频",
+        },
+        {
+          id: "metadataWriteAuthor",
+          label: "写入当前用户为作者",
+          layout: "inline",
+          component: "ElSwitch",
+          modelPath: "metadataWrite.includeUserAsAuthor",
+          hint: "使用当前全局用户档案的显示名或名称写入作者/艺术家字段。",
+          keywords: "metadata author artist user profile 作者 艺术家 用户档案",
+          visible: (settings) => settings.metadataWrite?.enabled === true,
+        },
+        {
+          id: "metadataWritePrompt",
+          label: "写入提示词备注",
+          layout: "inline",
+          component: "ElSwitch",
+          modelPath: "metadataWrite.includePromptComment",
+          hint: "把生成提示词写入备注字段，便于在外部工具中追溯生成来源。",
+          keywords: "metadata prompt comment 提示词 备注",
+          visible: (settings) => settings.metadataWrite?.enabled === true,
+        },
+        {
+          id: "metadataWriteModel",
+          label: "写入模型信息",
+          layout: "inline",
+          component: "ElSwitch",
+          modelPath: "metadataWrite.includeModelInfo",
+          hint: "在备注中包含模型、渠道、任务 ID 等生成来源信息。",
+          keywords: "metadata model profile task 模型 渠道 任务",
+          visible: (settings) => settings.metadataWrite?.enabled === true,
         },
       ],
     },

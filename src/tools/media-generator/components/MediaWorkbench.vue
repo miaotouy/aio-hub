@@ -50,6 +50,7 @@ const handleSendQuick = async (options: any, mediaType: any) => {
     const config = {
       timeout: store.settings.requestSettings?.timeout,
       maxRetries: store.settings.requestSettings?.maxRetries,
+      metadataWrite: store.settings.metadataWrite,
     };
 
     await executeGeneration(task, undefined, config);

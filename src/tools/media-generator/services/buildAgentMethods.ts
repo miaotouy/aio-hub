@@ -702,6 +702,7 @@ function createHandler(visibleModel: VisibleAgentModel) {
       await generationManager.executeGeneration(task, undefined, {
         timeout: store.settings.requestSettings?.timeout,
         maxRetries: store.settings.requestSettings?.maxRetries,
+        metadataWrite: store.settings.metadataWrite,
       });
 
       if (context?.signal?.aborted) {

@@ -215,7 +215,7 @@ const generateNewUuid = () => {
 };
 
 const goBack = () => {
-  router.back();
+  router.push("/");
 };
 
 onMounted(() => {

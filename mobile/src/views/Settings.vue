@@ -12,6 +12,7 @@ import {
   Zap,
   Info,
   ChevronRight,
+  ChevronLeft,
   Moon,
   Sun,
   Monitor,
@@ -76,6 +77,10 @@ const openThemeSettings = () => {
   router.push("/settings/theme");
 };
 
+const goHome = () => {
+  router.push("/");
+};
+
 const handleLanguageChange = async (value: any) => {
   await settingsStore.updateSettings({ language: value });
   locale.value = value;
@@ -138,6 +143,15 @@ const handleRefresh = async () => {
 <template>
   <div class="app-view settings-container">
     <div class="header">
+      <var-button
+        round
+        text
+        color="transparent"
+        class="back-button"
+        @click="goHome"
+      >
+        <ChevronLeft :size="24" />
+      </var-button>
       <h1 class="title">{{ t("settings.标题") }}</h1>
     </div>
 
@@ -335,7 +349,15 @@ const handleRefresh = async () => {
 }
 
 .header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 24px 20px;
+}
+
+.back-button {
+  flex-shrink: 0;
+  color: var(--text-color);
 }
 
 .title {

@@ -16,7 +16,7 @@ onMounted(async () => {
 });
 
 const handleBack = () => {
-  router.back();
+  router.push("/tools/llm-chat/home");
 };
 
 const handleReset = async () => {

@@ -161,16 +161,6 @@ export function generateMd3Theme(sourceColorHex: string, isDark: boolean) {
     themeConfig["--color-surface-container-highest"]
   );
 
-  // 修复 BottomNavigation 等组件的紫色高亮问题
-  const primaryContainer = hexFromArgb(scheme.primaryContainer);
-  const onPrimaryContainer = hexFromArgb(scheme.onPrimaryContainer);
-  themeConfig["--bottom-navigation-item-active-background-color"] =
-    primaryContainer;
-  themeConfig["--bottom-navigation-item-variant-active-background-color"] =
-    primaryContainer;
-  themeConfig["--bottom-navigation-item-variant-active-color"] =
-    onPrimaryContainer;
-
   // AppBar 颜色适配
   themeConfig["--app-bar-color"] = hexFromArgb(scheme.surface);
   themeConfig["--app-bar-text-color"] = hexFromArgb(scheme.onSurface);

@@ -89,8 +89,6 @@
   --popup-content-background-color: var(--overlay-bg);
   --button-default-color: var(--input-bg);
   --button-default-text-color: var(--text-color);
-  --bottom-navigation-background-color: var(--sidebar-bg);
-  --bottom-navigation-item-active-color: var(--primary-color);
   --cell-background: transparent;
   --cell-color: var(--text-color);
   --field-decorator-text-color: var(--text-color);
@@ -255,21 +253,6 @@ body {
     transparent
   );
   --button-primary-text-color: var(--primary-color);
-}
-
-.var-bottom-navigation {
-  background-color: var(--sidebar-bg) !important;
-  color: var(--text-color-light);
-  backdrop-filter: blur(var(--ui-blur));
-  border-top: var(--border-width) solid var(--border-color);
-}
-
-.var-bottom-navigation-item {
-  color: var(--text-color-light);
-}
-
-.var-bottom-navigation-item--active {
-  color: var(--primary-color);
 }
 
 .has-fixed-app-bar {

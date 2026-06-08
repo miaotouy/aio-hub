@@ -74,7 +74,7 @@ const currentThemeLabel = computed(() => {
 const formatPercent = (value: number) => `${Math.round(value * 100)}%`;
 
 const handleBack = () => {
-  router.back();
+  router.push("/settings");
 };
 
 const handleReset = async () => {

@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { onMounted } from "vue";
-import AppBottomNav from "./components/AppBottomNav.vue";
 import { useAppInit } from "@/composables/useAppInit";
 import { useThemeStore } from "@/stores/theme";
 import { useKeyboardAvoidance } from "@/composables/useKeyboardAvoidance";
@@ -48,8 +47,6 @@ onMounted(() => {
           </keep-alive>
         </router-view>
       </main>
-
-      <AppBottomNav />
     </var-style-provider>
   </div>
 </template>
@@ -63,10 +60,6 @@ body,
   margin: 0;
   padding: 0;
   overflow: hidden;
-}
-
-:root {
-  --var-bottom-navigation-height: 66px;
 }
 
 .app-init-overlay {
@@ -152,18 +145,8 @@ body,
   min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  /* 只有当内容超出时才需要 padding 给 fixed 的导航栏留位置 */
-  padding-bottom: calc(
-    var(--var-bottom-navigation-height) +
-      var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))
-  );
   box-sizing: border-box;
   /* 移除 transition，键盘避让需要即时反馈 */
-}
-
-/* 键盘弹出时，容器高度已经缩小了，不需要再保留底部导航栏和安全区的 padding */
-.keyboard-visible .main-content {
-  padding-bottom: 0;
 }
 
 /* 全局键盘避让样式 */
@@ -177,10 +160,5 @@ body,
 .keyboard-visible .var-input:focus-within {
   /* 视口已经能正确压缩，这里保留一个基础留白即可 */
   scroll-margin-bottom: 20px;
-}
-
-/* 键盘弹出时强制隐藏底部导航栏，防止被顶起 */
-.keyboard-visible .var-bottom-navigation {
-  display: none !important;
 }
 </style>

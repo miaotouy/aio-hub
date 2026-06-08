@@ -7,6 +7,7 @@ import {
   UserCircle,
   Plus,
   Settings,
+  ChevronLeft,
 } from "lucide-vue-next";
 import { useI18n } from "@/i18n";
 import SafeTop from "@/components/SafeTop.vue";
@@ -48,6 +49,10 @@ const goToSessions = () => {
 const goToSettings = () => {
   router.push("/tools/llm-chat/settings");
 };
+
+const goHome = () => {
+  router.push("/");
+};
 </script>
 
 <template>
@@ -55,7 +60,12 @@ const goToSettings = () => {
     <safe-top />
     <div class="header">
       <div class="header-main">
-        <h1>{{ tRaw("tools.llm-chat.common.AI 对话") }}</h1>
+        <div class="header-title">
+          <var-button round text color="transparent" @click="goHome">
+            <ChevronLeft :size="24" />
+          </var-button>
+          <h1>{{ tRaw("tools.llm-chat.common.AI 对话") }}</h1>
+        </div>
         <var-button round text color="transparent" @click="goToSettings">
           <Settings :size="24" />
         </var-button>
@@ -128,6 +138,14 @@ const goToSettings = () => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 8px;
+  gap: 12px;
+}
+
+.header-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
 }
 
 .header p {

@@ -74,6 +74,10 @@ const handleDelete = async (message: ChatMessageNode) => {
     await chatStore.persistCurrentSession();
   }
 };
+
+const goToChatHome = () => {
+  router.push("/tools/llm-chat/home");
+};
 </script>
 
 <template>
@@ -92,7 +96,7 @@ const handleDelete = async (message: ChatMessageNode) => {
           text
           color="transparent"
           text-color="var(--text-color)"
-          @click="router.back()"
+          @click="goToChatHome"
         >
           <ChevronLeft :size="24" />
         </var-button>
@@ -121,7 +125,7 @@ const handleDelete = async (message: ChatMessageNode) => {
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 1001; /* 确保盖住底部导航栏 (AppBottomNav z-index 通常较低) */
+  z-index: 1001;
   display: flex;
   flex-direction: column;
   overflow: hidden;

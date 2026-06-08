@@ -25,12 +25,24 @@ const MODULE_NAME = "llm-chat";
 const SESSIONS_SUBDIR = "sessions";
 
 /**
+ * 收藏夹实体
+ */
+export interface FavoriteFolder {
+  id: string;
+  name: string;
+  icon?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
  * 会话索引配置（包含元数据以优化列表显示）
  */
 interface SessionsIndex {
   version: string;
   currentSessionId: string | null;
   sessions: ChatSessionIndex[]; // 会话元数据列表（用于排序和快速显示）
+  favoriteFolders?: FavoriteFolder[];
 }
 
 /**
@@ -41,7 +53,15 @@ function createDefaultIndex(): SessionsIndex {
     version: "1.1.2",
     currentSessionId: null,
     sessions: [],
+    favoriteFolders: [],
   };
+}
+
+function normalizeIndex(index: SessionsIndex): SessionsIndex {
+  index.favoriteFolders = Array.isArray(index.favoriteFolders)
+    ? index.favoriteFolders
+    : [];
+  return index;
 }
 
 /**
@@ -72,7 +92,7 @@ export function useChatStorageSeparated() {
    * 加载会话索引（使用 ConfigManager）
    */
   async function loadIndex(): Promise<SessionsIndex> {
-    return await indexManager.load();
+    return normalizeIndex(await indexManager.load());
   }
 
   /**
@@ -165,6 +185,8 @@ export function useChatStorageSeparated() {
       // 创建要保存的数据副本，移除运行时专用的 history 字段
       // 避免将撤销/重做栈持久化到磁盘
       const { history, historyIndex, ...sessionToSave } = session;
+      delete (sessionToSave as Partial<ChatSessionIndex>).isFavorite;
+      delete (sessionToSave as Partial<ChatSessionIndex>).favoriteFolderId;
       const newContent = JSON.stringify(sessionToSave, null, 2);
 
       // 如果不是强制写入，先检查内容是否真的改变了
@@ -274,6 +296,8 @@ export function useChatStorageSeparated() {
       createdAt: session.createdAt,
       messageCount: Math.max(0, messageCount), // 最终防御，确保不为负数
       displayAgentId: session.displayAgentId,
+      isFavorite: session.isFavorite,
+      favoriteFolderId: session.favoriteFolderId ?? null,
     };
   }
 
@@ -323,6 +347,7 @@ export function useChatStorageSeparated() {
   async function loadSessionsIndex(): Promise<{
     sessions: ChatSessionIndex[];
     currentSessionId: string | null;
+    favoriteFolders: FavoriteFolder[];
   }> {
     try {
       logger.debug("开始加载会话索引");
@@ -346,9 +371,15 @@ export function useChatStorageSeparated() {
           )
           .map((s) => createIndexItem({ ...s.index, ...s.detail }));
         index.version = "1.1.2";
+        index.favoriteFolders = index.favoriteFolders || [];
         await saveIndex(index);
         logger.info("索引迁移完成", { count: index.sessions.length });
       }
+
+      index.sessions = Array.isArray(index.sessions) ? index.sessions : [];
+      index.favoriteFolders = Array.isArray(index.favoriteFolders)
+        ? index.favoriteFolders
+        : [];
 
       // 3. 同步索引（自动发现新文件并加载其元数据）
       const syncedItems = await syncIndex(index);
@@ -365,13 +396,14 @@ export function useChatStorageSeparated() {
       return {
         sessions: syncedItems,
         currentSessionId: index.currentSessionId,
+        favoriteFolders: index.favoriteFolders || [],
       };
     } catch (error) {
       errorHandler.handle(error as Error, {
         userMessage: "加载会话索引失败",
         showToUser: false,
       });
-      return { sessions: [], currentSessionId: null };
+      return { sessions: [], currentSessionId: null, favoriteFolders: [] };
     }
   }
 
@@ -382,23 +414,33 @@ export function useChatStorageSeparated() {
   async function loadSessionsAll(): Promise<{
     sessions: Array<{ index: ChatSessionIndex; detail: ChatSessionDetail }>;
     currentSessionId: string | null;
+    favoriteFolders: FavoriteFolder[];
   }> {
     try {
       logger.debug("开始全量加载所有会话");
 
       // 1. 先加载索引元数据
-      const { sessions: indexItems, currentSessionId } =
-        await loadSessionsIndex();
+      const {
+        sessions: indexItems,
+        currentSessionId,
+        favoriteFolders,
+      } = await loadSessionsIndex();
 
       // 2. 并行加载所有会话的完整数据
       const sessionPromises = indexItems.map((item) => loadSession(item.id));
       const sessionResults = await Promise.all(sessionPromises);
+      const indexItemMap = new Map(indexItems.map((item) => [item.id, item]));
 
       // 3. 过滤掉加载失败的会话
-      const sessions = sessionResults.filter(
-        (s): s is { index: ChatSessionIndex; detail: ChatSessionDetail } =>
-          s !== null
-      );
+      const sessions = sessionResults
+        .filter(
+          (s): s is { index: ChatSessionIndex; detail: ChatSessionDetail } =>
+            s !== null
+        )
+        .map((session) => ({
+          ...session,
+          index: indexItemMap.get(session.index.id) || session.index,
+        }));
 
       // 4. 验证数据格式：检查是否是树形结构
       const validSessions = sessions.filter(
@@ -413,13 +455,14 @@ export function useChatStorageSeparated() {
       return {
         sessions: validSessions,
         currentSessionId,
+        favoriteFolders,
       };
     } catch (error) {
       errorHandler.handle(error as Error, {
         userMessage: "全量加载会话失败",
         showToUser: false,
       });
-      return { sessions: [], currentSessionId: null };
+      return { sessions: [], currentSessionId: null, favoriteFolders: [] };
     }
   }
 
@@ -429,6 +472,7 @@ export function useChatStorageSeparated() {
   async function loadSessions(): Promise<{
     sessions: Array<{ index: ChatSessionIndex; detail: ChatSessionDetail }>;
     currentSessionId: string | null;
+    favoriteFolders: FavoriteFolder[];
   }> {
     return await loadSessionsAll();
   }
@@ -482,7 +526,8 @@ export function useChatStorageSeparated() {
    */
   async function saveSessions(
     sessions: Array<{ index: ChatSessionIndex; detail?: ChatSessionDetail }>,
-    currentSessionId: string | null
+    currentSessionId: string | null,
+    favoriteFolders: FavoriteFolder[] = []
   ): Promise<void> {
     try {
       // 过滤掉详情未加载的会话，防止空数据覆盖磁盘文件
@@ -507,6 +552,7 @@ export function useChatStorageSeparated() {
         sessions: sessions.map((s) =>
           createIndexItem({ ...s.index, ...s.detail })
         ),
+        favoriteFolders,
       };
 
       await saveIndex(index);
@@ -616,6 +662,8 @@ export function useChatStorageSeparated() {
             const newItem = createIndexItem({
               ...session.index,
               ...session.detail,
+              isFavorite: item.isFavorite,
+              favoriteFolderId: item.favoriteFolderId,
             });
             if (
               newItem.messageCount !== item.messageCount ||

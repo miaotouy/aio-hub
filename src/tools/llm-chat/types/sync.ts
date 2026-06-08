@@ -23,6 +23,7 @@ export type LlmChatStateKey =
   | "chat-agents" // 智能体列表（完整）
   | "chat-current-agent-id" // 当前选中的智能体ID（全局）
   | "chat-sessions" // 会话列表（完整，包含所有消息树）
+  | "chat-favorite-folders" // 收藏夹列表
   | "chat-current-session-id" // 当前会话ID
   | "chat-parameters" // 参数配置
   | "chat-is-sending" // 是否正在发送消息
@@ -45,6 +46,7 @@ export const CHAT_STATE_KEYS = {
   AGENTS: "chat-agents" as const,
   CURRENT_AGENT_ID: "chat-current-agent-id" as const,
   SESSIONS: "chat-sessions" as const,
+  FAVORITE_FOLDERS: "chat-favorite-folders" as const,
   CURRENT_SESSION_ID: "chat-current-session-id" as const,
   PARAMETERS: "chat-parameters" as const,
   IS_SENDING: "chat-is-sending" as const,
@@ -75,7 +77,12 @@ export type LlmChatAction =
   | "create-branch"
   | "abort-node"
   | "switch-session"
-  | "create-session";
+  | "create-session"
+  | "toggle-favorite"
+  | "create-favorite-folder"
+  | "rename-favorite-folder"
+  | "delete-favorite-folder"
+  | "move-session-to-folder";
 
 /**
  * LLM Chat 操作常量
@@ -94,6 +101,11 @@ export const CHAT_ACTIONS = {
   ABORT_NODE: "abort-node" as const,
   SWITCH_SESSION: "switch-session" as const,
   CREATE_SESSION: "create-session" as const,
+  TOGGLE_FAVORITE: "toggle-favorite" as const,
+  CREATE_FAVORITE_FOLDER: "create-favorite-folder" as const,
+  RENAME_FAVORITE_FOLDER: "rename-favorite-folder" as const,
+  DELETE_FAVORITE_FOLDER: "delete-favorite-folder" as const,
+  MOVE_SESSION_TO_FOLDER: "move-session-to-folder" as const,
 } as const;
 
 /**

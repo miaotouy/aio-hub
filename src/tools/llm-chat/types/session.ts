@@ -32,6 +32,16 @@ export interface ChatSessionIndex {
    */
   createdAt: string;
   updatedAt: string;
+
+  /**
+   * 是否标记为收藏（星标）
+   */
+  isFavorite?: boolean;
+
+  /**
+   * 所属收藏夹 ID；为空时表示未分类收藏
+   */
+  favoriteFolderId?: string | null;
 }
 
 /**

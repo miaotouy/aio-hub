@@ -5,8 +5,11 @@ import {
   MoreFilled,
   Edit,
   MagicStick,
+  FolderAdd,
   FolderOpened,
   Operation,
+  Star,
+  StarFilled,
 } from "@element-plus/icons-vue";
 import type { ChatSessionIndex } from "../../types";
 import type { MatchDetail } from "../../composables/chat/useLlmSearch";
@@ -29,6 +32,7 @@ const props = defineProps<Props>();
 const emit = defineEmits<{
   (e: "click", session: ChatSessionIndex): void;
   (e: "command", command: string, session: ChatSessionIndex): void;
+  (e: "toggle-favorite", session: ChatSessionIndex): void;
 }>();
 
 const agentStore = useAgentStore();
@@ -56,6 +60,10 @@ const filteredMatches = computed(() => {
 
 const handleCommand = (command: string) => {
   emit("command", command, props.session);
+};
+
+const handleToggleFavorite = () => {
+  emit("toggle-favorite", props.session);
 };
 </script>
 
@@ -145,6 +153,9 @@ const handleCommand = (command: string) => {
               <el-dropdown-item command="rename" :icon="Edit">
                 重命名
               </el-dropdown-item>
+              <el-dropdown-item command="move-to-folder" :icon="FolderAdd">
+                移动到收藏夹
+              </el-dropdown-item>
               <el-dropdown-item command="export" :icon="Operation">
                 导出会话
               </el-dropdown-item>
@@ -157,6 +168,25 @@ const handleCommand = (command: string) => {
             </el-dropdown-menu>
           </template>
         </el-dropdown>
+        <div @click.stop>
+          <el-tooltip
+            :content="session.isFavorite ? '取消收藏' : '收藏会话'"
+            placement="top"
+            :show-after="500"
+          >
+            <el-button
+              text
+              size="small"
+              :class="['favorite-star', { 'is-favorite': session.isFavorite }]"
+              @click="handleToggleFavorite"
+            >
+              <el-icon>
+                <StarFilled v-if="session.isFavorite" />
+                <Star v-else />
+              </el-icon>
+            </el-button>
+          </el-tooltip>
+        </div>
       </div>
     </div>
   </div>
@@ -211,6 +241,38 @@ const handleCommand = (command: string) => {
   flex: 1;
   min-width: 0;
   position: relative;
+}
+
+.favorite-star {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  color: var(--text-color-light);
+  opacity: 0;
+  transform: scale(0.96);
+  transition:
+    opacity 0.2s,
+    color 0.2s,
+    transform 0.2s;
+}
+
+.session-item:hover .favorite-star,
+.favorite-star.is-favorite {
+  opacity: 0.72;
+}
+
+.favorite-star:hover,
+.favorite-star.is-favorite {
+  color: #f7ba2a;
+}
+
+.favorite-star:active {
+  transform: scale(0.9);
+}
+
+.favorite-star.is-favorite {
+  opacity: 1;
+  transform: scale(1);
 }
 
 .match-details {

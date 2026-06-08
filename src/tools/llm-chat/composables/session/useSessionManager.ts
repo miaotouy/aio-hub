@@ -11,6 +11,7 @@ import type {
 import { useAgentStore } from "../../stores/agentStore";
 import { useUserProfileStore } from "../../stores/userProfileStore";
 import { useChatStorageSeparated as useChatStorage } from "../storage/useChatStorageSeparated";
+import type { FavoriteFolder } from "../storage/useChatStorageSeparated";
 import { insertLiveGreetings } from "../../services/greetingService";
 import { getEffectiveMessageCount } from "../../utils/sessionMessageCount";
 import { createModuleLogger } from "@/utils/logger";
@@ -235,6 +236,10 @@ export function useSessionManager() {
         indexUpdates.displayAgentId = updates.displayAgentId;
       if (updates.messageCount !== undefined)
         indexUpdates.messageCount = updates.messageCount;
+      if (updates.isFavorite !== undefined)
+        indexUpdates.isFavorite = updates.isFavorite;
+      if (updates.favoriteFolderId !== undefined)
+        indexUpdates.favoriteFolderId = updates.favoriteFolderId;
 
       Object.assign(index, indexUpdates, { updatedAt: now });
     }
@@ -267,17 +272,23 @@ export function useSessionManager() {
   const loadSessionsIndex = async (): Promise<{
     sessions: ChatSessionIndex[];
     currentSessionId: string | null;
+    favoriteFolders: FavoriteFolder[];
   }> => {
     try {
       const { loadSessionsIndex: loadIndexFromStorage } = useChatStorage();
-      const { sessions, currentSessionId } = await loadIndexFromStorage();
-      return { sessions: sessions as ChatSessionIndex[], currentSessionId };
+      const { sessions, currentSessionId, favoriteFolders } =
+        await loadIndexFromStorage();
+      return {
+        sessions: sessions as ChatSessionIndex[],
+        currentSessionId,
+        favoriteFolders,
+      };
     } catch (error) {
       errorHandler.handle(error as Error, {
         userMessage: "加载会话索引失败",
         showToUser: false,
       });
-      return { sessions: [], currentSessionId: null };
+      return { sessions: [], currentSessionId: null, favoriteFolders: [] };
     }
   };
 
@@ -310,17 +321,20 @@ export function useSessionManager() {
    */
   const persistSessions = (
     sessions: Array<{ index: ChatSessionIndex; detail?: ChatSessionDetail }>,
-    currentSessionId: string | null
+    currentSessionId: string | null,
+    favoriteFolders: FavoriteFolder[] = []
   ): void => {
     const { saveSessions } = useChatStorage();
 
-    saveSessions(sessions as any, currentSessionId).catch((error) => {
-      errorHandler.handle(error as Error, {
-        userMessage: "持久化所有会话失败",
-        showToUser: false,
-        context: { sessionCount: sessions.length },
-      });
-    });
+    saveSessions(sessions as any, currentSessionId, favoriteFolders).catch(
+      (error) => {
+        errorHandler.handle(error as Error, {
+          userMessage: "持久化所有会话失败",
+          showToUser: false,
+          context: { sessionCount: sessions.length },
+        });
+      }
+    );
   };
 
   // 使用 useExportManager 提供导出功能

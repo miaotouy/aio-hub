@@ -10,6 +10,7 @@ import { useChatSettings } from "../../composables/settings/useChatSettings";
 import { customMessage } from "@/utils/customMessage";
 import { ElMessageBox } from "element-plus";
 import type {
+  FavoriteFilter,
   SortBy,
   SortOrder,
   TimeFilter,
@@ -79,6 +80,7 @@ export function useSessionsSidebarLogic({
   const sortOrder = ref<SortOrder>("desc");
   const filterAgent = ref<string>("all");
   const filterTime = ref<TimeFilter>("all");
+  const filterFavorite = ref<FavoriteFilter>("all");
 
   // 重命名相关状态
   const renameDialogVisible = ref(false);
@@ -137,6 +139,21 @@ export function useSessionsSidebarLogic({
     );
   };
 
+  const filterByFavorite = (sessions: ChatSessionIndex[]) => {
+    if (filterFavorite.value === "all") return sessions;
+    if (filterFavorite.value === "favorite") {
+      return sessions.filter((session) => session.isFavorite);
+    }
+    return sessions.filter((session) => !session.isFavorite);
+  };
+
+  const applyStateFilters = (sessions: ChatSessionIndex[]) => {
+    sessions = filterByAgent(sessions);
+    sessions = filterByTime(sessions);
+    sessions = filterByFavorite(sessions);
+    return sessions;
+  };
+
   const sortSessions = (sessions: ChatSessionIndex[]) => {
     return [...sessions].sort((a, b) => {
       let comparison = 0;
@@ -168,8 +185,7 @@ export function useSessionsSidebarLogic({
         session.name.toLowerCase().includes(query)
       );
     }
-    sessions = filterByAgent(sessions);
-    sessions = filterByTime(sessions);
+    sessions = applyStateFilters(sessions);
     sessions = sortSessions(sessions);
     return sessions;
   });
@@ -181,15 +197,10 @@ export function useSessionsSidebarLogic({
     for (const result of sessionResults.value) {
       const session = sessionMap.get(result.id);
       if (session) {
-        if (
-          filterAgent.value === "all" ||
-          session.displayAgentId === filterAgent.value
-        ) {
-          sessions.push(session);
-        }
+        sessions.push(session);
       }
     }
-    return sessions;
+    return sortSessions(applyStateFilters(sessions));
   });
 
   const displaySessions = computed(() => {
@@ -207,7 +218,8 @@ export function useSessionsSidebarLogic({
       sortBy.value !== "updatedAt" ||
       sortOrder.value !== "desc" ||
       filterAgent.value !== "all" ||
-      filterTime.value !== "all"
+      filterTime.value !== "all" ||
+      filterFavorite.value !== "all"
     );
   });
 
@@ -221,6 +233,7 @@ export function useSessionsSidebarLogic({
     sortOrder.value = "desc";
     filterAgent.value = "all";
     filterTime.value = "all";
+    filterFavorite.value = "all";
   };
 
   const confirmDelete = (session: ChatSessionIndex) => {
@@ -292,6 +305,7 @@ export function useSessionsSidebarLogic({
     sortOrder,
     filterAgent,
     filterTime,
+    filterFavorite,
     renameDialogVisible,
     renamingSession,
     newSessionName,

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
+import { ElMessageBox } from "element-plus";
 import { useVirtualizer } from "@tanstack/vue-virtual";
 import {
   Plus,
@@ -9,6 +10,7 @@ import {
   Position,
   Delete,
   Refresh,
+  Star,
 } from "@element-plus/icons-vue";
 import type { SearchMatchMode } from "../../composables/chat/useLlmSearch";
 import { invoke } from "@tauri-apps/api/core";
@@ -20,7 +22,10 @@ import SessionItem from "./SessionItem.vue";
 import FilterPanel from "./FilterPanel.vue";
 import RenameDialog from "./RenameDialog.vue";
 import ExportSessionDialog from "../export/ExportSessionDialog.vue";
+import BaseDialog from "@/components/common/BaseDialog.vue";
+import FavoriteManagerDialog from "./FavoriteManagerDialog.vue";
 import { useSessionsSidebarLogic } from "../../composables/sidebar/useSessionsSidebarLogic";
+import { useLlmChatStore } from "../../stores/llmChatStore";
 
 interface Props {
   sessions: ChatSessionIndex[];
@@ -41,6 +46,7 @@ interface Emits {
 
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
+const llmChatStore = useLlmChatStore();
 
 const {
   searchQuery,
@@ -52,6 +58,7 @@ const {
   sortOrder,
   filterAgent,
   filterTime,
+  filterFavorite,
   renameDialogVisible,
   renamingSession,
   newSessionName,
@@ -100,6 +107,12 @@ const handleMatchModeChange = (mode: SearchMatchMode) => {
 const exportSessionDialogVisible = ref(false);
 const sessionToExport = ref<ChatSessionIndex | null>(null);
 const sessionToExportDetail = ref<ChatSessionDetail | null>(null);
+const favoriteManagerVisible = ref(false);
+const moveFavoriteDialogVisible = ref(false);
+const movingSession = ref<ChatSessionIndex | null>(null);
+const moveTargetFolderId = ref("__uncategorized");
+
+const favoriteFolderOptions = computed(() => llmChatStore.favoriteFolders);
 
 // 虚拟滚动列表
 const parentRef = ref<HTMLElement | null>(null);
@@ -164,6 +177,51 @@ const handleOpenDirectory = async (session: ChatSessionIndex) => {
   }
 };
 
+const handleToggleFavorite = async (session: ChatSessionIndex) => {
+  await llmChatStore.toggleFavorite(session.id);
+};
+
+const openMoveFavoriteDialog = (session: ChatSessionIndex) => {
+  movingSession.value = session;
+  moveTargetFolderId.value = session.favoriteFolderId || "__uncategorized";
+  moveFavoriteDialogVisible.value = true;
+};
+
+const createFavoriteFolderFromMove = async () => {
+  try {
+    const { value } = await ElMessageBox.prompt("收藏夹名称", "新建收藏夹", {
+      inputPlaceholder: "例如：报错排查",
+      confirmButtonText: "确定",
+      cancelButtonText: "取消",
+      lockScroll: false,
+      inputValidator: (value: string) =>
+        value.trim().length > 0 || "名称不能为空",
+    });
+    const folderId = await llmChatStore.createFavoriteFolder(value.trim());
+    moveTargetFolderId.value = folderId;
+    customMessage.success("收藏夹已创建");
+  } catch {}
+};
+
+const confirmMoveFavorite = async () => {
+  if (!movingSession.value) return;
+  await llmChatStore.moveSessionToFolder(
+    movingSession.value.id,
+    moveTargetFolderId.value === "__uncategorized"
+      ? null
+      : moveTargetFolderId.value
+  );
+  moveFavoriteDialogVisible.value = false;
+  customMessage.success("会话已移动到收藏夹");
+};
+
+const removeMovingFavorite = async () => {
+  if (!movingSession.value?.isFavorite) return;
+  await llmChatStore.toggleFavorite(movingSession.value.id);
+  moveFavoriteDialogVisible.value = false;
+  customMessage.success("已取消收藏");
+};
+
 // 处理菜单命令
 const handleMenuCommand = (command: string, session: ChatSessionIndex) => {
   switch (command) {
@@ -178,6 +236,9 @@ const handleMenuCommand = (command: string, session: ChatSessionIndex) => {
       break;
     case "export":
       openExportDialog(session);
+      break;
+    case "move-to-folder":
+      openMoveFavoriteDialog(session);
       break;
     case "open-directory":
       handleOpenDirectory(session);
@@ -303,11 +364,21 @@ const handleSessionClick = (session: ChatSessionIndex) => {
               v-model:sortOrder="sortOrder"
               v-model:filterTime="filterTime"
               v-model:filterAgent="filterAgent"
+              v-model:filterFavorite="filterFavorite"
               :available-agents="availableAgents"
               :has-active-filters="hasActiveFilters"
               @reset="resetFilters"
             />
           </el-popover>
+
+          <el-tooltip content="我的收藏夹" placement="bottom" :show-after="500">
+            <el-button
+              :icon="Star"
+              @click="favoriteManagerVisible = true"
+              circle
+              size="small"
+            />
+          </el-tooltip>
 
           <el-tooltip
             :content="
@@ -415,6 +486,7 @@ const handleSessionClick = (session: ChatSessionIndex) => {
             :get-role-label="getRoleLabel"
             @click="handleSessionClick"
             @command="handleMenuCommand"
+            @toggle-favorite="handleToggleFavorite"
           />
         </div>
       </div>
@@ -431,6 +503,43 @@ const handleSessionClick = (session: ChatSessionIndex) => {
       :session-index="sessionToExport"
       :session-detail="sessionToExportDetail"
     />
+
+    <FavoriteManagerDialog v-model="favoriteManagerVisible" />
+
+    <BaseDialog
+      v-model="moveFavoriteDialogVisible"
+      title="移动到收藏夹"
+      width="420px"
+      max-width="92vw"
+    >
+      <div class="move-favorite-dialog">
+        <div class="move-session-name">{{ movingSession?.name }}</div>
+        <el-select v-model="moveTargetFolderId" class="move-folder-select">
+          <el-option label="未分类收藏" value="__uncategorized" />
+          <el-option
+            v-for="folder in favoriteFolderOptions"
+            :key="folder.id"
+            :label="folder.name"
+            :value="folder.id"
+          />
+        </el-select>
+        <el-button :icon="Plus" @click="createFavoriteFolderFromMove">
+          新建收藏夹
+        </el-button>
+      </div>
+
+      <template #footer>
+        <el-button
+          v-if="movingSession?.isFavorite"
+          text
+          @click="removeMovingFavorite"
+        >
+          取消收藏
+        </el-button>
+        <el-button @click="moveFavoriteDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="confirmMoveFavorite">确定</el-button>
+      </template>
+    </BaseDialog>
   </div>
 </template>
 
@@ -508,6 +617,24 @@ const handleSessionClick = (session: ChatSessionIndex) => {
   font-size: 12px;
   margin-top: 8px;
   opacity: 0.7;
+}
+
+.move-favorite-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.move-session-name {
+  color: var(--text-color);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.move-folder-select {
+  width: 100%;
 }
 
 /* 滚动条样式 */

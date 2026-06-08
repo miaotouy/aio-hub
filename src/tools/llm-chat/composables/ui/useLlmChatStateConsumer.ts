@@ -55,6 +55,7 @@ export function useLlmChatStateConsumer(options: ConsumerOptions = {}) {
   const syncedAgents = ref<ChatAgent[]>([]);
   const syncedCurrentAgentId = ref<string | null>(null);
   const syncedSessions = ref<ChatSessionIndex[]>([]);
+  const syncedFavoriteFolders = ref<any[]>([]);
   const syncedCurrentSessionData = ref<ChatSessionDetail | null>(null);
   const syncedCurrentSessionId = ref<string | null>(null);
   const syncedUserProfiles = ref<UserProfile[]>([]);
@@ -70,6 +71,7 @@ export function useLlmChatStateConsumer(options: ConsumerOptions = {}) {
     { state: syncedCurrentAgentId, key: CHAT_STATE_KEYS.CURRENT_AGENT_ID },
     // 无论是否同步所有会话，都必须订阅当前会话数据，否则分离窗口无法显示消息
     { state: syncedSessions, key: CHAT_STATE_KEYS.SESSIONS },
+    { state: syncedFavoriteFolders, key: CHAT_STATE_KEYS.FAVORITE_FOLDERS },
     {
       state: syncedCurrentSessionData,
       key: CHAT_STATE_KEYS.CURRENT_SESSION_DATA,
@@ -124,6 +126,19 @@ export function useLlmChatStateConsumer(options: ConsumerOptions = {}) {
       store.setSessions(newSessions as any);
     }
   });
+
+  watch(
+    syncedFavoriteFolders,
+    (newFolders) => {
+      if (Array.isArray(newFolders)) {
+        logger.info("接收到 favoriteFolders 同步数据", {
+          count: newFolders.length,
+        });
+        store.favoriteFolders = newFolders as any;
+      }
+    },
+    { deep: true }
+  );
 
   // 会话详情数据同步（关键：包含消息树）
   watch(syncedCurrentSessionData, (newSessionData) => {

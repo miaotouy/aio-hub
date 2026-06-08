@@ -157,6 +157,10 @@ export function useLlmChatSync() {
       allSessionsIndex as Ref<ChatSessionIndex[]>,
       CHAT_STATE_KEYS.SESSIONS
     );
+    createStateEngine(
+      toRef(store, "favoriteFolders"),
+      CHAT_STATE_KEYS.FAVORITE_FOLDERS
+    );
 
     // 同步当前会话的完整数据
     sessionDataEngine = createStateEngine(
@@ -339,6 +343,16 @@ export function useLlmChatSync() {
         return (store as any).refreshSessionsIndex();
       case "update-session":
         return store.updateSession(params.sessionId, params.updates);
+      case "toggle-favorite":
+        return store.toggleFavorite(params.sessionId);
+      case "create-favorite-folder":
+        return store.createFavoriteFolder(params.name, params.icon);
+      case "rename-favorite-folder":
+        return store.renameFavoriteFolder(params.folderId, params.name);
+      case "delete-favorite-folder":
+        return store.deleteFavoriteFolder(params.folderId);
+      case "move-session-to-folder":
+        return store.moveSessionToFolder(params.sessionId, params.folderId);
       case "create-session":
         return store
           .createSession(params.agentId, params.name)

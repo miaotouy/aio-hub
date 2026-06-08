@@ -30,6 +30,7 @@ import type {
   LlmParameters,
   ModelIdentifier,
 } from "../types";
+import type { FavoriteFolder } from "../composables/storage/useChatStorageSeparated";
 import type { PendingInputData } from "../types/context";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { Asset } from "@/types/asset-management";
@@ -42,6 +43,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   // ==================== 状态 ====================
   const sessionIndexMap = ref<Map<string, ChatSessionIndex>>(new Map());
   const sessionDetailMap = ref<Map<string, ChatSessionDetail>>(new Map());
+  const favoriteFolders = ref<FavoriteFolder[]>([]);
   const currentSessionId = ref<string | null>(null);
   const parameters = ref<LlmParameters>({
     temperature: 1,
@@ -163,6 +165,18 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   );
 
   const sessions = computed(() => Array.from(sessionIndexMap.value.values()));
+
+  const favoriteSessions = computed(() =>
+    sessions.value.filter((session) => session.isFavorite)
+  );
+
+  const getSessionsByFolderId = computed(() => {
+    return (folderId: string | null) =>
+      sessions.value.filter(
+        (session) =>
+          session.isFavorite && (session.favoriteFolderId ?? null) === folderId
+      );
+  });
 
   const currentSession = computed((): ChatSessionIndex | null => {
     if (!currentSessionId.value) return null;
@@ -548,14 +562,17 @@ export const useLlmChatStore = defineStore("llmChat", () => {
       const sessionManager = useSessionManager();
 
       const { repairedCount } = await storage.repairIndex();
-      const { sessions: refreshedSessions } =
-        await sessionManager.loadSessionsIndex();
+      const {
+        sessions: refreshedSessions,
+        favoriteFolders: refreshedFavoriteFolders,
+      } = await sessionManager.loadSessionsIndex();
 
       const nextMap = new Map<string, ChatSessionIndex>();
       refreshedSessions.forEach((session) => {
         nextMap.set(session.id, session);
       });
       sessionIndexMap.value = nextMap;
+      favoriteFolders.value = refreshedFavoriteFolders;
 
       if (currentSessionId.value && !nextMap.has(currentSessionId.value)) {
         currentSessionId.value =
@@ -608,8 +625,11 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     const storage = useChatStorageSeparated();
 
     // 1. 先加载索引（轻量级）
-    const { sessions: indexItems, currentSessionId: loadedId } =
-      await sessionManager.loadSessionsIndex();
+    const {
+      sessions: indexItems,
+      currentSessionId: loadedId,
+      favoriteFolders: loadedFavoriteFolders,
+    } = await sessionManager.loadSessionsIndex();
 
     // 2. 填充索引 Map
     sessionIndexMap.value.clear();
@@ -618,6 +638,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     });
 
     currentSessionId.value = loadedId;
+    favoriteFolders.value = loadedFavoriteFolders;
 
     // 3. 核心优化：只针对当前活跃会话加载完整详情
     if (loadedId) {
@@ -790,7 +811,106 @@ export const useLlmChatStore = defineStore("llmChat", () => {
         return { index: idx, detail: detail || undefined };
       }
     );
-    sessionManager.persistSessions(allSessions, currentSessionId.value);
+    sessionManager.persistSessions(
+      allSessions,
+      currentSessionId.value,
+      favoriteFolders.value
+    );
+  }
+
+  function createFavoriteFolderId(): string {
+    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+      return `folder-${crypto.randomUUID()}`;
+    }
+    return `folder-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  }
+
+  async function toggleFavorite(sessionId: string): Promise<void> {
+    return executeOrProxy("toggle-favorite", { sessionId }, () => {
+      const index = sessionIndexMap.value.get(sessionId);
+      if (!index) return;
+
+      index.isFavorite = !index.isFavorite;
+      if (!index.isFavorite) {
+        index.favoriteFolderId = null;
+      }
+      index.updatedAt = new Date().toISOString();
+      persistSessions();
+    });
+  }
+
+  async function createFavoriteFolder(
+    name: string,
+    icon?: string
+  ): Promise<string> {
+    return executeOrProxy("create-favorite-folder", { name, icon }, () => {
+      const now = new Date().toISOString();
+      const folder: FavoriteFolder = {
+        id: createFavoriteFolderId(),
+        name: name.trim(),
+        icon: icon || "📁",
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      favoriteFolders.value = [...favoriteFolders.value, folder];
+      persistSessions();
+      return folder.id;
+    });
+  }
+
+  async function renameFavoriteFolder(
+    folderId: string,
+    name: string
+  ): Promise<void> {
+    return executeOrProxy("rename-favorite-folder", { folderId, name }, () => {
+      const folder = favoriteFolders.value.find((item) => item.id === folderId);
+      if (!folder) return;
+
+      folder.name = name.trim();
+      folder.updatedAt = new Date().toISOString();
+      persistSessions();
+    });
+  }
+
+  async function deleteFavoriteFolder(folderId: string): Promise<void> {
+    return executeOrProxy("delete-favorite-folder", { folderId }, () => {
+      favoriteFolders.value = favoriteFolders.value.filter(
+        (folder) => folder.id !== folderId
+      );
+      for (const session of sessionIndexMap.value.values()) {
+        if (session.favoriteFolderId === folderId) {
+          session.favoriteFolderId = null;
+        }
+      }
+      persistSessions();
+    });
+  }
+
+  async function moveSessionToFolder(
+    sessionId: string,
+    folderId: string | null
+  ): Promise<void> {
+    return executeOrProxy(
+      "move-session-to-folder",
+      { sessionId, folderId },
+      () => {
+        if (
+          folderId !== null &&
+          !favoriteFolders.value.some((folder) => folder.id === folderId)
+        ) {
+          return;
+        }
+
+        const index = sessionIndexMap.value.get(sessionId);
+        if (!index) return;
+
+        index.isFavorite = true;
+        index.favoriteFolderId = folderId;
+        index.updatedAt = new Date().toISOString();
+        persistSessions();
+      }
+    );
   }
 
   /**
@@ -1257,6 +1377,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     sessions,
     sessionIndexMap,
     sessionDetailMap,
+    favoriteFolders,
     currentSessionId,
     parameters,
     isSending,
@@ -1266,6 +1387,8 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     // Getters
     currentSession,
     currentSessionDetail,
+    favoriteSessions,
+    getSessionsByFolderId,
     setSessions: (sessions: ChatSessionIndex[]) => {
       // 性能优化：创建一个新的 Map 并一次性替换，避免逐个 set 触发响应式风暴
       const newMap = new Map<string, ChatSessionIndex>();
@@ -1299,6 +1422,11 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     updateSession,
     loadSessions,
     persistSessions,
+    toggleFavorite,
+    createFavoriteFolder,
+    renameFavoriteFolder,
+    deleteFavoriteFolder,
+    moveSessionToFolder,
     generateSessionTopic,
     exportSessionAsMarkdown,
     clearAllSessions,

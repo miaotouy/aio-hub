@@ -5,12 +5,14 @@ import Avatar from "@/components/common/Avatar.vue";
 export type SortBy = "updatedAt" | "createdAt" | "messageCount" | "name";
 export type SortOrder = "desc" | "asc";
 export type TimeFilter = "all" | "today" | "week" | "month" | "older";
+export type FavoriteFilter = "all" | "favorite" | "not_favorite";
 
 interface Props {
   sortBy: SortBy;
   sortOrder: SortOrder;
   filterTime: TimeFilter;
   filterAgent: string;
+  filterFavorite: FavoriteFilter;
   availableAgents: any[];
   hasActiveFilters: boolean;
 }
@@ -21,6 +23,7 @@ const emit = defineEmits<{
   (e: "update:sortOrder", value: SortOrder): void;
   (e: "update:filterTime", value: TimeFilter): void;
   (e: "update:filterAgent", value: string): void;
+  (e: "update:filterFavorite", value: FavoriteFilter): void;
   (e: "reset"): void;
 }>();
 </script>
@@ -89,6 +92,21 @@ const emit = defineEmits<{
           <span class="agent-name">{{ agent.displayName || agent.name }}</span>
         </div>
       </div>
+    </div>
+
+    <div class="filter-section">
+      <div class="section-header">
+        <span class="section-title">收藏状态</span>
+      </div>
+      <el-radio-group
+        :model-value="filterFavorite"
+        @update:model-value="emit('update:filterFavorite', $event)"
+        size="small"
+      >
+        <el-radio-button value="all">全部</el-radio-button>
+        <el-radio-button value="favorite">仅收藏</el-radio-button>
+        <el-radio-button value="not_favorite">未收藏</el-radio-button>
+      </el-radio-group>
     </div>
 
     <div class="filter-footer" v-if="hasActiveFilters">

@@ -295,9 +295,12 @@ const cancelOptimize = () => {
             :disabled="props.disabled"
             title="提示词优化"
           >
-            <el-icon :class="{ 'is-loading': isOptimizing }"
-              ><Sparkles
-            /></el-icon>
+            <el-icon
+              class="optimize-trigger-icon"
+              :class="{ 'is-spinning': isOptimizing }"
+            >
+              <Sparkles />
+            </el-icon>
             <span>提示词优化</span>
           </button>
         </template>
@@ -551,7 +554,7 @@ const cancelOptimize = () => {
   transform: translateY(-1px);
 }
 
-.is-loading {
+.tool-btn :deep(.optimize-trigger-icon.is-spinning) {
   animation: spin 1s linear infinite;
 }
 

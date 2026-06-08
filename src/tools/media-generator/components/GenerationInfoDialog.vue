@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { Sparkles, Loader2 } from "lucide-vue-next";
+import { Sparkles, Loader2, Copy } from "lucide-vue-next";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import { useMediaGenStore } from "../stores/mediaGenStore";
 import { useRouter } from "vue-router";
@@ -88,6 +88,16 @@ watch(visible, (val) => {
   }
 });
 
+const handleCopy = async (text: string) => {
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    customMessage.success("已复制到剪贴板");
+  } catch (err) {
+    customMessage.error("复制失败");
+  }
+};
+
 const handleRemix = async () => {
   if (!displayData.value) return;
   const data = displayData.value;
@@ -172,12 +182,28 @@ const handleRemix = async () => {
 
       <template v-else-if="displayData && Object.keys(displayData).length > 0">
         <div class="info-section">
-          <div class="section-title">提示词 (Prompt)</div>
+          <div class="section-header">
+            <div class="section-title">提示词 (Prompt)</div>
+            <el-button
+              link
+              :icon="Copy"
+              class="copy-btn"
+              @click="handleCopy(displayData.prompt)"
+            />
+          </div>
           <div class="content-box prompt-box">{{ displayData.prompt }}</div>
         </div>
 
         <div class="info-section" v-if="displayData.negativePrompt">
-          <div class="section-title">负面提示词 (Negative Prompt)</div>
+          <div class="section-header">
+            <div class="section-title">负面提示词 (Negative Prompt)</div>
+            <el-button
+              link
+              :icon="Copy"
+              class="copy-btn"
+              @click="handleCopy(displayData.negativePrompt)"
+            />
+          </div>
           <div class="content-box prompt-box negative">
             {{ displayData.negativePrompt }}
           </div>
@@ -190,7 +216,15 @@ const handleRemix = async () => {
             displayData.revisedPrompt !== displayData.prompt
           "
         >
-          <div class="section-title">优化后提示词 (Revised Prompt)</div>
+          <div class="section-header">
+            <div class="section-title">优化后提示词 (Revised Prompt)</div>
+            <el-button
+              link
+              :icon="Copy"
+              class="copy-btn"
+              @click="handleCopy(displayData.revisedPrompt)"
+            />
+          </div>
           <div class="content-box prompt-box revised">
             {{ displayData.revisedPrompt }}
           </div>
@@ -208,7 +242,16 @@ const handleRemix = async () => {
         </div>
 
         <div class="info-section" v-if="hasParams">
-          <div class="section-title">其他参数</div>
+          <div class="section-header">
+            <div class="section-title">其他参数</div>
+            <el-button
+              link
+              :icon="Copy"
+              class="copy-btn"
+              @click="handleCopy(JSON.stringify(filteredParams, null, 2))"
+              title="复制全部参数"
+            />
+          </div>
           <div class="params-list">
             <div
               v-for="(val, key) in filteredParams"
@@ -270,11 +313,28 @@ const handleRemix = async () => {
   gap: 8px;
 }
 
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .section-title {
   font-size: 14px;
   font-weight: 600;
   color: var(--el-text-color-primary);
   opacity: 0.8;
+}
+
+.copy-btn {
+  padding: 4px;
+  height: auto;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.copy-btn:hover {
+  opacity: 1;
 }
 
 .content-box {

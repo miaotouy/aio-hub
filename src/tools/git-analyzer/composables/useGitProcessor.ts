@@ -16,7 +16,7 @@ export function formatDate(date: string, format: string): string {
 
   switch (format) {
     case "iso":
-      return d.toISOString();
+      return date;
     case "local":
       return formatDateTime(d, "yyyy-MM-dd HH:mm:ss");
     case "relative":

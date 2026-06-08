@@ -16,7 +16,7 @@
 //! - `git_revert`: Revert 同样涉及工作区修改和冲突处理
 //! - `git_format_log`: 支持用户自定义格式模板，git2 难以灵活实现
 
-use chrono::TimeZone;
+use chrono::{FixedOffset, TimeZone};
 use git2::{BranchType, Delta, Oid, Repository};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
@@ -1050,13 +1050,19 @@ fn parse_commit_optimized(
     let author_name = author.name().unwrap_or("Unknown").to_string();
     let author_email = author.email().unwrap_or("").to_string();
 
-    // 获取时间（统一转换为 UTC 时间的 ISO 8601 格式）
+    // 获取时间（保留 commit 作者时间的原始时区偏移，避免 Agent 审计时和 git log 本地时间错位）
     let time = commit.time();
-    let datetime_utc = chrono::Utc
-        .timestamp_opt(time.seconds(), 0)
-        .single()
+    let offset_seconds = time.offset_minutes().saturating_mul(60);
+    let date_str = FixedOffset::east_opt(offset_seconds)
+        .and_then(|offset| offset.timestamp_opt(time.seconds(), 0).single())
+        .map(|datetime| datetime.to_rfc3339())
+        .or_else(|| {
+            chrono::Utc
+                .timestamp_opt(time.seconds(), 0)
+                .single()
+                .map(|datetime| datetime.to_rfc3339())
+        })
         .ok_or_else(|| "Invalid timestamp".to_string())?;
-    let date_str = datetime_utc.to_rfc3339();
 
     // 获取提交消息
     let message = commit.message().unwrap_or("").to_string();

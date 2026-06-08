@@ -1,41 +1,59 @@
 /* AIO Hub Mobile Theme Base */
-/* 
- * 核心颜色系统已对接 MD3 (Material Design 3)
- * 由 src/stores/theme.ts 通过 StyleProvider 动态派生并注入
+/*
+ * AIO token 是移动端主题的语义层，Varlet 只作为原子组件适配层。
+ * 运行时变量由 src/stores/theme.ts 注入；这里提供启动 fallback 和全局覆盖。
  */
 
 :root {
-  /* --- 桌面端兼容变量映射 --- */
-  /* 将桌面端常用的变量名映射到 Varlet/MD3 派生变量上 */
-  --primary-color: var(--color-primary);
-  --success-color: var(--color-success);
-  --warning-color: var(--color-warning);
-  --danger-color: var(--color-danger);
-  --info-color: var(--color-info);
-  --error-color: var(--color-error);
+  /* AIO 语义颜色 */
+  --primary-color: #409eff;
+  --primary-color-rgb: 64, 158, 255;
+  --success-color: #67c23a;
+  --success-color-rgb: 103, 194, 58;
+  --warning-color: #e6a23c;
+  --warning-color-rgb: 230, 162, 60;
+  --danger-color: #f56c6c;
+  --danger-color-rgb: 245, 108, 108;
+  --info-color: #909399;
+  --info-color-rgb: 144, 147, 153;
+  --error-color: var(--danger-color);
+  --error-color-rgb: var(--danger-color-rgb);
 
-  --bg-color: var(--color-body);
-  --text-color: var(--color-text);
-  --border-color: var(--color-outline);
-  --card-bg: var(--color-surface-container-low);
-  --container-bg: var(--color-surface-container);
-  --input-bg: var(--color-surface-container-high);
-  --sidebar-bg: var(--color-surface-container-low);
+  --bg-color: #ffffff;
+  --bg-color-rgb: 255, 255, 255;
+  --text-color: #1f1f1f;
+  --text-color-rgb: 31, 31, 31;
+  --text-color-light: #666666;
+  --text-color-light-rgb: 102, 102, 102;
+  --border-color-rgb: 221, 221, 221;
+  --border-opacity: 0.72;
+  --border-color: rgba(var(--border-color-rgb), var(--border-opacity));
+  --container-bg: rgba(243, 243, 243, 1);
+  --container-bg-rgb: 243, 243, 243;
+  --card-bg: rgba(255, 255, 255, 1);
+  --card-bg-rgb: 255, 255, 255;
+  --input-bg: rgba(247, 247, 247, 1);
+  --input-bg-rgb: 247, 247, 247;
+  --sidebar-bg: rgba(255, 255, 255, 1);
+  --sidebar-bg-rgb: 255, 255, 255;
+  --overlay-bg: rgba(247, 247, 247, 1);
+  --overlay-bg-rgb: 247, 247, 247;
 
-  /* 字体变量 */
+  /* 字体与质感 */
   --app-font-size: 14px;
   --app-font-scale: 1;
+  --ui-blur: 0px;
+  --ui-effects-enabled: 0;
+  --card-opacity: 1;
+  --input-opacity: 1;
+  --toolbar-opacity: 1;
+  --overlay-opacity: 1;
 
-  /* 质感变量 */
-  --ui-blur: 10px;
-  --card-opacity: 0.85;
-
-  /* 圆角规范 */
+  /* 圆角与边框 */
+  --app-radius-xl: 16px;
   --app-radius-lg: 12px;
   --app-radius-md: 8px;
   --app-radius-sm: 4px;
-
-  /* 边框规范 (与桌面端变量名对齐) */
   --border-width: 1px;
 
   /* 导航栏与安全区域变量 */
@@ -47,6 +65,38 @@
   );
   /* 顶部总占用高度 */
   --app-top-offset: calc(var(--app-bar-height) + var(--app-safe-area-top));
+
+  /* Varlet 原子组件适配 */
+  --color-primary: var(--primary-color);
+  --color-success: var(--success-color);
+  --color-warning: var(--warning-color);
+  --color-danger: var(--danger-color);
+  --color-error: var(--error-color);
+  --color-info: var(--info-color);
+  --color-body: var(--bg-color);
+  --color-text: var(--text-color);
+  --color-on-surface: var(--text-color);
+  --color-on-surface-variant: var(--text-color-light);
+  --color-outline: var(--border-color);
+  --color-surface: var(--bg-color);
+  --color-surface-container: var(--container-bg);
+  --color-surface-container-low: var(--card-bg);
+  --color-surface-container-high: var(--input-bg);
+  --color-surface-container-highest: var(--overlay-bg);
+  --paper-background: var(--card-bg);
+  --card-background: var(--card-bg);
+  --dialog-background: var(--overlay-bg);
+  --popup-content-background-color: var(--overlay-bg);
+  --button-default-color: var(--input-bg);
+  --button-default-text-color: var(--text-color);
+  --bottom-navigation-background-color: var(--sidebar-bg);
+  --bottom-navigation-item-active-color: var(--primary-color);
+  --cell-background: transparent;
+  --cell-color: var(--text-color);
+  --field-decorator-text-color: var(--text-color);
+  --field-decorator-placeholder-color: var(--text-color-light);
+  --field-decorator-blur-color: var(--border-color);
+  --field-decorator-focus-color: var(--primary-color);
 }
 
 /* 
@@ -70,13 +120,41 @@ body {
   line-height: 1.5;
 }
 
-/* IDE 风格卡片适配 */
-.app-card {
+/* AIO 原子类 */
+.app-card,
+.aio-card {
   background-color: var(--card-bg) !important;
   backdrop-filter: blur(var(--ui-blur));
   border: var(--border-width) solid var(--border-color) !important;
   border-radius: var(--app-radius-lg) !important;
   overflow: hidden;
+}
+
+.aio-sheet,
+.aio-dialog-panel {
+  background-color: var(--overlay-bg);
+  backdrop-filter: blur(var(--ui-blur));
+  border: var(--border-width) solid var(--border-color);
+  border-radius: var(--app-radius-xl) var(--app-radius-xl) 0 0;
+  color: var(--text-color);
+}
+
+.aio-dialog-panel {
+  border-radius: var(--app-radius-lg);
+}
+
+.aio-field {
+  background-color: var(--input-bg);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: var(--app-radius-md);
+  color: var(--text-color);
+}
+
+.aio-action-button {
+  background-color: color-mix(in srgb, var(--primary-color) 12%, transparent);
+  border: var(--border-width) solid color-mix(in srgb, var(--primary-color) 36%, transparent);
+  border-radius: var(--app-radius-md);
+  color: var(--primary-color);
 }
 
 /* 安全区域与键盘避让辅助类 */
@@ -102,6 +180,96 @@ body {
 /* Varlet 组件覆盖适配 */
 .var-app-bar--fixed {
   padding-top: var(--app-safe-area-top) !important;
+}
+
+.var-app-bar {
+  background-color: var(--sidebar-bg) !important;
+  color: var(--text-color) !important;
+  backdrop-filter: blur(var(--ui-blur));
+  border-bottom: var(--border-width) solid var(--border-color);
+}
+
+.var-paper,
+.var-card {
+  background-color: var(--card-bg) !important;
+  color: var(--text-color);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: var(--app-radius-lg) !important;
+  backdrop-filter: blur(var(--ui-blur));
+}
+
+.var-cell {
+  background-color: transparent !important;
+  color: var(--text-color);
+}
+
+.var-cell::after {
+  border-color: var(--border-color) !important;
+}
+
+.var-popup,
+.var-dialog,
+.var-menu,
+.var-select__scroller,
+.var-action-sheet,
+.var-picker {
+  background-color: var(--overlay-bg) !important;
+  color: var(--text-color);
+  backdrop-filter: blur(var(--ui-blur));
+}
+
+.var-popup--bottom {
+  border-radius: var(--app-radius-xl) var(--app-radius-xl) 0 0;
+  overflow: hidden;
+}
+
+.var-dialog {
+  border: var(--border-width) solid var(--border-color);
+  border-radius: var(--app-radius-lg) !important;
+}
+
+.var-input,
+.var-select {
+  color: var(--text-color);
+}
+
+.var-field-decorator--outlined,
+.var-field-decorator--standard {
+  color: var(--text-color);
+}
+
+.var-button {
+  border-radius: var(--app-radius-md) !important;
+}
+
+.var-button--default {
+  background-color: var(--input-bg) !important;
+  color: var(--text-color) !important;
+  border-color: var(--border-color) !important;
+}
+
+.var-button--primary {
+  --button-primary-color: color-mix(
+    in srgb,
+    var(--primary-color) 14%,
+    transparent
+  );
+  --button-primary-text-color: var(--primary-color);
+}
+
+.var-bottom-navigation {
+  background-color: var(--sidebar-bg) !important;
+  color: var(--text-color-light);
+  backdrop-filter: blur(var(--ui-blur));
+  border-top: var(--border-width) solid var(--border-color);
+}
+
+.var-bottom-navigation-item {
+  color: var(--text-color-light);
+}
+
+.var-bottom-navigation-item--active {
+  color: var(--primary-color);
 }
 
 .has-fixed-app-bar {

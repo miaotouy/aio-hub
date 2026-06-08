@@ -2,8 +2,8 @@
 
 ## 状态概览
 
-- 当前阶段：阶段 3 已完成，准备进入阶段 4。
-- 自动检查：阶段 1、阶段 2、阶段 3 完成后均已运行 `cd mobile ; bun run check:frontend`。
+- 当前阶段：阶段 4 已完成，准备进入阶段 5。
+- 自动检查：阶段 1、阶段 2、阶段 3、阶段 4 完成后均已运行 `cd mobile ; bun run check:frontend`。
 - 人工验证：移动端真实运行态由模拟器统一验证；本计划不使用普通浏览器替代 Tauri mobile。
 
 ## 首版范围
@@ -48,13 +48,14 @@
 
 ### 阶段 4：Varlet 原子组件适配
 
-- 状态：待完成。
+- 状态：已完成。
 - 提交：`mobile: adapt varlet atoms to aio theme`
 - 内容：
   - 调整 `mobile/src/assets/styles/theme.css`。
   - 建立 AIO token 基础层和 Varlet 覆盖层。
   - 覆盖常用原子组件：popup、dialog、paper、cell、input、select、button、bottom-navigation。
   - 新增通用 class：`aio-sheet`、`aio-dialog-panel`、`aio-field`、`aio-action-button`。
+  - 保留启动 fallback token，运行时由主题 store 注入变量覆盖。
 
 ### 阶段 5：外观设置 UI 解耦
 

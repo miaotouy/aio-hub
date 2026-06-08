@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, computed, toRef } from "vue";
+import { ref, watch, computed, toRef, nextTick } from "vue";
 import { useElementSize } from "@vueuse/core";
 import { useMediaGenStore } from "../stores/mediaGenStore";
 import { useMediaGenInputManager } from "../composables/useMediaGenInputManager";
@@ -149,6 +149,10 @@ watch(
 
 // 使用 store 中的状态，确保刷新保持
 const prompt = toRef(store, "inputPrompt");
+
+watch(prompt, () => {
+  nextTick(adjustHeight);
+});
 
 const isDisabled = computed(() => isGenerating.value || props.disabled);
 

@@ -257,8 +257,7 @@ export const DEFAULT_MEDIA_GENERATOR_SETTINGS: MediaGeneratorSettings = {
 
 ## 要求
 1. 保持原文含义和艺术风格。
-2. 保护特殊标签如 {thinkTags}，不翻译它们。
-3. 仅输出翻译后的文本，禁止有任何解释。
+2. 仅输出翻译后的文本，禁止有任何解释。
 
 ## 用户提示
 {text}`,

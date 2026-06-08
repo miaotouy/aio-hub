@@ -1,4 +1,5 @@
 import { createConfigManager } from "../../../utils/configManager";
+import type { CommitFrequencyGranularity } from "../types";
 
 /**
  * Git 分析器配置接口
@@ -21,6 +22,7 @@ export interface GitAnalyzerConfig {
   commitRange: [number, number];
   reverseOrder: boolean;
   commitTypeFilter: string[];
+  frequencyGranularity: CommitFrequencyGranularity;
 
   // 导出配置
   exportConfig: {
@@ -67,6 +69,7 @@ function createDefaultConfig(): GitAnalyzerConfig {
     commitRange: [0, 0],
     reverseOrder: false,
     commitTypeFilter: [],
+    frequencyGranularity: "day",
 
     // 导出配置
     exportConfig: {

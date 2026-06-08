@@ -35,6 +35,8 @@ export interface GitCommit {
   files?: FileChange[];
 }
 
+export type CommitFrequencyGranularity = "day" | "week" | "month" | "year";
+
 export interface ExportConfig {
   format: "markdown" | "json" | "csv" | "html" | "text";
   includeStatistics: boolean;

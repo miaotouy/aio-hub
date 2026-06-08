@@ -3,6 +3,14 @@
     <el-row :gutter="12">
       <el-col :span="12">
         <InfoCard title="提交频率">
+          <template #headerExtra>
+            <el-segmented
+              v-model="frequencyGranularity"
+              :options="frequencyGranularityOptions"
+              size="small"
+              class="frequency-granularity"
+            />
+          </template>
           <div ref="frequencyChart" class="chart"></div>
         </InfoCard>
       </el-col>
@@ -25,6 +33,24 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import InfoCard from "@/components/common/InfoCard.vue";
+import type { CommitFrequencyGranularity } from "../types";
+
+const frequencyGranularity = defineModel<CommitFrequencyGranularity>(
+  "frequencyGranularity",
+  {
+    default: "day",
+  }
+);
+
+const frequencyGranularityOptions: Array<{
+  label: string;
+  value: CommitFrequencyGranularity;
+}> = [
+  { label: "日", value: "day" },
+  { label: "周", value: "week" },
+  { label: "月", value: "month" },
+  { label: "年", value: "year" },
+];
 
 // DOM 引用
 const frequencyChart = ref<HTMLElement>();
@@ -60,5 +86,15 @@ defineExpose({
 :deep(.el-card__header) {
   background: var(--card-bg);
   border-bottom-color: var(--border-color-light);
+}
+
+.frequency-granularity {
+  min-width: 152px;
+}
+
+@media (max-width: 768px) {
+  .frequency-granularity {
+    min-width: 136px;
+  }
 }
 </style>

@@ -1,7 +1,7 @@
 import { onUnmounted, watch, type Ref } from "vue";
 import { useDark } from "@vueuse/core";
 import * as echarts from "echarts";
-import type { GitCommit } from "../types";
+import type { GitCommit, CommitFrequencyGranularity } from "../types";
 import {
   getContributorStats,
   generateTimelineData,
@@ -20,6 +20,7 @@ interface ChartRefs {
 
 export function useCharts(
   filteredCommits: Ref<GitCommit[]>,
+  frequencyGranularity: Ref<CommitFrequencyGranularity>,
   getChartRefs: () => ChartRefs | undefined,
   isChartVisible: Ref<boolean>
 ) {
@@ -28,6 +29,14 @@ export function useCharts(
 
   // 主题检测
   const isDark = useDark();
+
+  const frequencyGranularityLabels: Record<CommitFrequencyGranularity, string> =
+    {
+      day: "每日提交",
+      week: "每周提交",
+      month: "每月提交",
+      year: "每年提交",
+    };
 
   /**
    * 获取当前主题的颜色配置
@@ -91,7 +100,10 @@ export function useCharts(
       chart = echarts.init(frequencyChartEl);
     }
     // 使用统一的数据处理函数
-    const timelineData = generateTimelineData(filteredCommits.value);
+    const timelineData = generateTimelineData(
+      filteredCommits.value,
+      frequencyGranularity.value
+    );
     const dates = timelineData.map((item) => item.date);
     const counts = timelineData.map((item) => item.count);
 
@@ -130,6 +142,7 @@ export function useCharts(
       },
       series: [
         {
+          name: frequencyGranularityLabels[frequencyGranularity.value],
           data: counts,
           type: "line",
           smooth: true,
@@ -447,6 +460,11 @@ export function useCharts(
     setTimeout(() => {
       updateCharts();
     }, 50);
+  });
+
+  // 监听提交频率粒度变化，重新绘制图表
+  watch(frequencyGranularity, () => {
+    updateCharts();
   });
 
   // 组件卸载时清理

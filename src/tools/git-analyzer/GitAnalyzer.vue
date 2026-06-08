@@ -73,7 +73,10 @@
 
             <!-- 图表视图 -->
             <el-tab-pane label="统计图表" name="chart">
-              <ChartsView ref="chartsViewRef" />
+              <ChartsView
+                ref="chartsViewRef"
+                v-model:frequency-granularity="frequencyGranularity"
+              />
             </el-tab-pane>
           </el-tabs>
         </div>
@@ -133,6 +136,7 @@ import { useGitAnalyzerRunner } from "./composables/useGitAnalyzerRunner";
 import { useCharts } from "./composables/useCharts";
 import { useCommitDetail } from "./composables/useCommitDetail";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import type { CommitFrequencyGranularity } from "./types";
 
 // 创建模块日志记录器
 const errorHandler = createModuleErrorHandler("GitAnalyzer");
@@ -191,12 +195,14 @@ const chartsViewRef = ref<InstanceType<typeof ChartsView>>();
 const activeTab = ref("list");
 const showExport = ref(false);
 const showLoadConfig = ref(false);
+const frequencyGranularity = ref<CommitFrequencyGranularity>("day");
 
 // 计算图表视图是否可见
 const isChartTabActive = computed(() => activeTab.value === "chart");
 
 const { updateCharts, setupResizeObserver } = useCharts(
   filteredCommits,
+  frequencyGranularity,
   () => {
     return chartsViewRef.value
       ? {
@@ -272,6 +278,7 @@ async function loadConfig() {
     authorFilter.value = loadedConfig.authorFilter;
     reverseOrder.value = loadedConfig.reverseOrder;
     commitTypeFilter.value = loadedConfig.commitTypeFilter;
+    frequencyGranularity.value = loadedConfig.frequencyGranularity || "day";
 
     // 恢复导出配置
     if (loadedConfig.exportConfig) {
@@ -329,6 +336,7 @@ function saveCurrentConfig() {
     commitRange: commitRange.value,
     reverseOrder: reverseOrder.value,
     commitTypeFilter: commitTypeFilter.value,
+    frequencyGranularity: frequencyGranularity.value,
     exportConfig: exportConfig.value,
   };
 
@@ -355,6 +363,7 @@ watch(
     commitRange,
     reverseOrder,
     commitTypeFilter,
+    frequencyGranularity,
     exportConfig,
   ],
   () => {

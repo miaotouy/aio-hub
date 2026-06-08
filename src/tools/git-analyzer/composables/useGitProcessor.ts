@@ -1,4 +1,4 @@
-import type { GitCommit } from "../types";
+import type { GitCommit, CommitFrequencyGranularity } from "../types";
 import { formatDateTime } from "@/utils/time";
 
 /**
@@ -84,12 +84,57 @@ export function getContributorStats(
 /**
  * 生成时间线数据（按日期统计提交数）
  */
+function getDatePart(date: string): string {
+  const datePart = date.split("T")[0];
+  if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+    return datePart;
+  }
+
+  return formatDateTime(new Date(date), "yyyy-MM-dd");
+}
+
+function getIsoWeekKey(datePart: string): string {
+  const [year, month, day] = datePart.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  const dayOfWeek = date.getUTCDay() || 7;
+
+  date.setUTCDate(date.getUTCDate() + 4 - dayOfWeek);
+
+  const weekYear = date.getUTCFullYear();
+  const yearStart = new Date(Date.UTC(weekYear, 0, 1));
+  const weekNumber = Math.ceil(
+    ((date.getTime() - yearStart.getTime()) / 86400000 + 1) / 7
+  );
+
+  return `${weekYear}-W${String(weekNumber).padStart(2, "0")}`;
+}
+
+function getTimelineKey(
+  date: string,
+  granularity: CommitFrequencyGranularity
+): string {
+  const datePart = getDatePart(date);
+
+  switch (granularity) {
+    case "week":
+      return getIsoWeekKey(datePart);
+    case "month":
+      return datePart.slice(0, 7);
+    case "year":
+      return datePart.slice(0, 4);
+    case "day":
+    default:
+      return datePart;
+  }
+}
+
 export function generateTimelineData(
-  commits: GitCommit[]
+  commits: GitCommit[],
+  granularity: CommitFrequencyGranularity = "day"
 ): Array<{ date: string; count: number }> {
   const dateCounts = commits.reduce(
     (acc, c) => {
-      const date = c.date.split("T")[0];
+      const date = getTimelineKey(c.date, granularity);
       acc[date] = (acc[date] || 0) + 1;
       return acc;
     },

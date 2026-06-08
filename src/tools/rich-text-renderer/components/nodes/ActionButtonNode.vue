@@ -109,33 +109,47 @@ const titleMap = {
   input: "点击插入到输入框",
   copy: "点击复制内容",
 };
+
+// tooltip 内容：操作提示 + 实际值前16字预览
+const tooltipContent = computed(() => {
+  const preview = props.content
+    ? props.content.slice(0, 16) + (props.content.length > 16 ? "…" : "")
+    : "";
+  return `${titleMap[props.action]}\n值: ${preview}`;
+});
 </script>
 
 <template>
-  <button
-    :class="[
-      'hover-effect',
-      {
-        'action-button': !props.style,
-        [`action-${props.action}`]: !props.style,
-      },
-    ]"
-    :style="safeStyle"
-    :title="titleMap[props.action]"
-    @click="handleClick"
+  <el-tooltip
+    :content="tooltipContent"
+    placement="top"
+    :show-after="300"
+    :hide-after="100"
   >
-    <!-- 如果没有内联样式，使用带图标的默认布局 -->
-    <template v-if="!props.style">
-      <span class="action-icon" v-if="props.action === 'copy' && copied"
-        >✅</span
-      >
-      <span class="action-label">{{ props.label }}</span>
-    </template>
-    <!-- 如果有内联样式，只显示文本内容，完全由 style 控制外观 -->
-    <template v-else>
-      {{ props.label }}
-    </template>
-  </button>
+    <button
+      :class="[
+        'hover-effect',
+        {
+          'action-button': !props.style,
+          [`action-${props.action}`]: !props.style,
+        },
+      ]"
+      :style="safeStyle"
+      @click="handleClick"
+    >
+      <!-- 如果没有内联样式，使用带图标的默认布局 -->
+      <template v-if="!props.style">
+        <span class="action-icon" v-if="props.action === 'copy' && copied"
+          >✅</span
+        >
+        <span class="action-label">{{ props.label }}</span>
+      </template>
+      <!-- 如果有内联样式，只显示文本内容，完全由 style 控制外观 -->
+      <template v-else>
+        {{ props.label }}
+      </template>
+    </button>
+  </el-tooltip>
 </template>
 
 <style scoped>

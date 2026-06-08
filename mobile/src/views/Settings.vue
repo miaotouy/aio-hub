@@ -4,6 +4,7 @@ import { useSettingsStore } from "@/stores/settings";
 import { Snackbar, Dialog } from "@varlet/ui";
 import { useI18n } from "@/i18n";
 import { useDebugPanel } from "@/composables/useDebugPanel";
+import { useAppearanceSettingsDraft } from "@/composables/useAppearanceSettingsDraft";
 import ThemeColorSettings from "@/components/settings/ThemeColorSettings.vue";
 import {
   Palette,
@@ -21,6 +22,8 @@ import {
 } from "lucide-vue-next";
 const settingsStore = useSettingsStore();
 const { t, locale } = useI18n();
+const { appearanceDraft, updateAppearanceDraft } =
+  useAppearanceSettingsDraft();
 
 // 主题选项
 const themeOptions = computed(() => [
@@ -43,17 +46,23 @@ const proxyOptions = computed(() => [
 ]);
 
 const currentThemeIcon = computed(() => {
-  const mode = settingsStore.settings.appearance.theme;
+  const mode = appearanceDraft.value.theme;
   return themeOptions.value.find((opt) => opt.value === mode)?.icon || Monitor;
 });
 
+const formatPercent = (value: number) => `${Math.round(value * 100)}%`;
+
 const handleThemeChange = async (value: any) => {
-  await settingsStore.updateAppearance({ theme: value });
+  await updateAppearanceDraft({ theme: value });
   Snackbar.success(
     t("settings.已切换至", {
       theme: themeOptions.value.find((opt) => opt.value === value)?.label,
     })
   );
+};
+
+const handleThemeColorChange = async (color: string) => {
+  await updateAppearanceDraft({ themeColor: color });
 };
 
 const handleLanguageChange = async (value: any) => {
@@ -67,11 +76,39 @@ const handleLanguageChange = async (value: any) => {
 };
 
 const handleHapticChange = async (value: any) => {
-  await settingsStore.updateAppearance({ hapticFeedback: value });
+  await updateAppearanceDraft({ hapticFeedback: value });
 };
 
 const handleFontSizeScaleChange = async (value: any) => {
-  await settingsStore.updateAppearance({ fontSizeScale: value });
+  await updateAppearanceDraft({ fontSizeScale: value });
+};
+
+const handleUiEffectsChange = async (value: any) => {
+  await updateAppearanceDraft({ enableUiEffects: value });
+};
+
+const handleUiBlurChange = async (value: any) => {
+  await updateAppearanceDraft({ enableUiBlur: value });
+};
+
+const handleUiBlurIntensityChange = async (value: any) => {
+  await updateAppearanceDraft({ uiBlurIntensity: value });
+};
+
+const handleUiBaseOpacityChange = async (value: any) => {
+  await updateAppearanceDraft({ uiBaseOpacity: value });
+};
+
+const handleBorderOpacityChange = async (value: any) => {
+  await updateAppearanceDraft({ borderOpacity: value });
+};
+
+const handleBorderWidthChange = async (value: any) => {
+  await updateAppearanceDraft({ borderWidth: value });
+};
+
+const handleRadiusScaleChange = async (value: any) => {
+  await updateAppearanceDraft({ radiusScale: value });
 };
 
 const handleProxyModeChange = async (value: any) => {
@@ -143,7 +180,7 @@ const handleRefresh = async () => {
           </div>
           <template #extra>
             <var-select
-              v-model="settingsStore.settings.appearance.theme"
+              v-model="appearanceDraft.theme"
               variant="standard"
               :hint="false"
               :line="false"
@@ -160,7 +197,7 @@ const handleRefresh = async () => {
                   <component :is="currentThemeIcon" :size="16" class="mr-1" />
                   {{
                     themeOptions.find(
-                      (o) => o.value === settingsStore.settings.appearance.theme
+                      (o) => o.value === appearanceDraft.theme
                     )?.label
                   }}
                 </div>
@@ -170,7 +207,10 @@ const handleRefresh = async () => {
         </var-cell>
 
         <!-- 主题色板 -->
-        <ThemeColorSettings />
+        <ThemeColorSettings
+          :theme-color="appearanceDraft.themeColor"
+          @change="handleThemeColorChange"
+        />
 
         <!-- 字体缩放 -->
         <var-cell :hint="false">
@@ -183,18 +223,194 @@ const handleRefresh = async () => {
             <div class="flex justify-between items-center mb-2">
               <div class="cell-label">{{ t("settings.字体大小") }}</div>
               <div class="text-primary font-bold">
-                {{ settingsStore.settings.appearance.fontSizeScale.toFixed(1) }}
+                {{ appearanceDraft.fontSizeScale.toFixed(1) }}
               </div>
             </div>
             <div class="px-2 pb-2">
               <var-slider
-                v-model="settingsStore.settings.appearance.fontSizeScale"
+                v-model="appearanceDraft.fontSizeScale"
                 :min="0.8"
                 :max="1.5"
                 :step="0.1"
                 track-height="4"
                 thumb-size="18"
                 @change="handleFontSizeScaleChange"
+              />
+            </div>
+          </div>
+        </var-cell>
+
+        <var-cell :hint="false">
+          <template #icon>
+            <div class="group-icon">
+              <Zap :size="20" />
+            </div>
+          </template>
+          <div class="cell-content">
+            <div class="cell-label">{{ t("settings.界面质感") }}</div>
+            <div class="cell-desc">{{ t("settings.界面质感描述") }}</div>
+          </div>
+          <template #extra>
+            <var-switch
+              v-model="appearanceDraft.enableUiEffects"
+              @change="handleUiEffectsChange"
+            />
+          </template>
+        </var-cell>
+
+        <var-cell :hint="false">
+          <template #icon>
+            <div class="group-icon">
+              <Palette :size="20" />
+            </div>
+          </template>
+          <div class="cell-content w-full">
+            <div class="flex justify-between items-center mb-2">
+              <div class="cell-label">{{ t("settings.基础透明度") }}</div>
+              <div class="text-primary font-bold">
+                {{ formatPercent(appearanceDraft.uiBaseOpacity) }}
+              </div>
+            </div>
+            <div class="px-2 pb-2">
+              <var-slider
+                v-model="appearanceDraft.uiBaseOpacity"
+                :min="0.55"
+                :max="1"
+                :step="0.01"
+                track-height="4"
+                thumb-size="18"
+                @change="handleUiBaseOpacityChange"
+              />
+            </div>
+          </div>
+        </var-cell>
+
+        <var-cell :hint="false">
+          <template #icon>
+            <div class="group-icon">
+              <Monitor :size="20" />
+            </div>
+          </template>
+          <div class="cell-content">
+            <div class="cell-label">{{ t("settings.背景模糊") }}</div>
+            <div class="cell-desc">{{ t("settings.背景模糊描述") }}</div>
+          </div>
+          <template #extra>
+            <var-switch
+              v-model="appearanceDraft.enableUiBlur"
+              :disabled="!appearanceDraft.enableUiEffects"
+              @change="handleUiBlurChange"
+            />
+          </template>
+        </var-cell>
+
+        <var-cell :hint="false">
+          <template #icon>
+            <div class="group-icon">
+              <Monitor :size="20" />
+            </div>
+          </template>
+          <div class="cell-content w-full">
+            <div class="flex justify-between items-center mb-2">
+              <div class="cell-label">{{ t("settings.模糊强度") }}</div>
+              <div class="text-primary font-bold">
+                {{ appearanceDraft.uiBlurIntensity }}px
+              </div>
+            </div>
+            <div class="px-2 pb-2">
+              <var-slider
+                v-model="appearanceDraft.uiBlurIntensity"
+                :min="0"
+                :max="24"
+                :step="1"
+                :disabled="
+                  !appearanceDraft.enableUiEffects ||
+                  !appearanceDraft.enableUiBlur
+                "
+                track-height="4"
+                thumb-size="18"
+                @change="handleUiBlurIntensityChange"
+              />
+            </div>
+          </div>
+        </var-cell>
+
+        <var-cell :hint="false">
+          <template #icon>
+            <div class="group-icon">
+              <Palette :size="20" />
+            </div>
+          </template>
+          <div class="cell-content w-full">
+            <div class="flex justify-between items-center mb-2">
+              <div class="cell-label">{{ t("settings.边框透明度") }}</div>
+              <div class="text-primary font-bold">
+                {{ formatPercent(appearanceDraft.borderOpacity) }}
+              </div>
+            </div>
+            <div class="px-2 pb-2">
+              <var-slider
+                v-model="appearanceDraft.borderOpacity"
+                :min="0"
+                :max="1"
+                :step="0.01"
+                track-height="4"
+                thumb-size="18"
+                @change="handleBorderOpacityChange"
+              />
+            </div>
+          </div>
+        </var-cell>
+
+        <var-cell :hint="false">
+          <template #icon>
+            <div class="group-icon">
+              <Palette :size="20" />
+            </div>
+          </template>
+          <div class="cell-content w-full">
+            <div class="flex justify-between items-center mb-2">
+              <div class="cell-label">{{ t("settings.边框宽度") }}</div>
+              <div class="text-primary font-bold">
+                {{ appearanceDraft.borderWidth }}px
+              </div>
+            </div>
+            <div class="px-2 pb-2">
+              <var-slider
+                v-model="appearanceDraft.borderWidth"
+                :min="0"
+                :max="3"
+                :step="1"
+                track-height="4"
+                thumb-size="18"
+                @change="handleBorderWidthChange"
+              />
+            </div>
+          </div>
+        </var-cell>
+
+        <var-cell :hint="false">
+          <template #icon>
+            <div class="group-icon">
+              <Palette :size="20" />
+            </div>
+          </template>
+          <div class="cell-content w-full">
+            <div class="flex justify-between items-center mb-2">
+              <div class="cell-label">{{ t("settings.圆角比例") }}</div>
+              <div class="text-primary font-bold">
+                {{ appearanceDraft.radiusScale.toFixed(1) }}
+              </div>
+            </div>
+            <div class="px-2 pb-2">
+              <var-slider
+                v-model="appearanceDraft.radiusScale"
+                :min="0.6"
+                :max="1.6"
+                :step="0.1"
+                track-height="4"
+                thumb-size="18"
+                @change="handleRadiusScaleChange"
               />
             </div>
           </div>
@@ -220,7 +436,7 @@ const handleRefresh = async () => {
           </div>
           <template #extra>
             <var-switch
-              v-model="settingsStore.settings.appearance.hapticFeedback"
+              v-model="appearanceDraft.hapticFeedback"
               disabled
               @change="handleHapticChange"
             />

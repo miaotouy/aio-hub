@@ -2,8 +2,8 @@
 
 ## 状态概览
 
-- 当前阶段：阶段 4 已完成，准备进入阶段 5。
-- 自动检查：阶段 1、阶段 2、阶段 3、阶段 4 完成后均已运行 `cd mobile ; bun run check:frontend`。
+- 当前阶段：阶段 5 已完成，准备进入阶段 6。
+- 自动检查：阶段 1、阶段 2、阶段 3、阶段 4、阶段 5 完成后均已运行 `cd mobile ; bun run check:frontend`。
 - 人工验证：移动端真实运行态由模拟器统一验证；本计划不使用普通浏览器替代 Tauri mobile。
 
 ## 首版范围
@@ -59,13 +59,14 @@
 
 ### 阶段 5：外观设置 UI 解耦
 
-- 状态：待完成。
+- 状态：已完成。
 - 提交：`mobile: decouple appearance settings ui`
 - 内容：
   - 新增外观设置 draft composable。
   - 重构 `Settings.vue` 外观区，不再直接深层 `v-model` store。
   - 重构 `ThemeColorSettings.vue`，通过 props/action 或 composable 操作主题色。
   - 确保 popup 取消、关闭、切换不会产生半提交状态。
+  - 外观区新增质感、透明度、模糊、边框、圆角控制项。
 
 ### 阶段 6：最终状态更新
 

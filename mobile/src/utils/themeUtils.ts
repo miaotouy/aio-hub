@@ -43,7 +43,7 @@ function hexToVarletHsl(hex: string): string {
 }
 
 /**
- * 将 MD3 主题转换为 Varlet 兼容的 CSS 变量对象
+ * 将动态色派生结果转换为 AIO Hub token，并附带 Varlet 兼容变量
  */
 export function generateMd3Theme(sourceColorHex: string, isDark: boolean) {
   const theme = themeFromSourceColor(argbFromHex(sourceColorHex));
@@ -57,7 +57,7 @@ export function generateMd3Theme(sourceColorHex: string, isDark: boolean) {
     themeConfig[`--hsl-${key}`] = hexToVarletHsl(hex);
   };
 
-  // 核心主色处理：MD3 默认生成的 primary 往往比种子色暗
+  // 核心主色处理：动态色算法生成的 primary 往往比种子色暗
   // 在浅色模式下，我们优先使用用户选择的原始色以保证视觉一致性
   const primaryHex = isDark ? hexFromArgb(scheme.primary) : sourceColorHex;
   themeConfig[`--color-primary`] = primaryHex;
@@ -101,8 +101,8 @@ export function generateMd3Theme(sourceColorHex: string, isDark: boolean) {
   themeConfig["--color-text"] = hexFromArgb(scheme.onSurface);
   themeConfig["--hsl-text"] = hexToVarletHsl(themeConfig["--color-text"]);
 
-  // 映射语义颜色 (MD3 默认没有 info, success, warning)
-  // 我们根据 MD3 的 secondary 和 tertiary 来自动模拟
+  // 映射语义颜色：动态色算法没有 info, success, warning
+  // 暂时根据 secondary 和 tertiary 自动模拟
 
   // Info (使用 Secondary)
   const infoHex = hexFromArgb(scheme.secondary);
@@ -129,14 +129,14 @@ export function generateMd3Theme(sourceColorHex: string, isDark: boolean) {
   themeConfig["--color-warning"] = warningHex;
   themeConfig["--hsl-warning"] = hexToVarletHsl(warningHex);
 
-  // Danger/Error (MD3 默认有 error)
+  // Danger/Error
   const errorHex = hexFromArgb(scheme.error);
   themeConfig["--color-danger"] = errorHex;
   themeConfig["--hsl-danger"] = hexToVarletHsl(errorHex);
   themeConfig["--color-error"] = errorHex;
   themeConfig["--hsl-error"] = hexToVarletHsl(errorHex);
 
-  // 容器类颜色映射 (MD3 规范)
+  // 容器类颜色映射
   themeConfig["--color-surface-container"] = hexFromArgb(scheme.surfaceVariant);
   themeConfig["--hsl-surface-container"] = hexToVarletHsl(
     themeConfig["--color-surface-container"]

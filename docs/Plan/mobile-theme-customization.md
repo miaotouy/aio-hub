@@ -2,8 +2,8 @@
 
 ## 状态概览
 
-- 当前阶段：阶段 1 已完成，准备进入阶段 2。
-- 自动检查：阶段 1 完成后运行 `cd mobile ; bun run check:frontend`。
+- 当前阶段：阶段 2 已完成，准备进入阶段 3。
+- 自动检查：阶段 1、阶段 2 完成后均已运行 `cd mobile ; bun run check:frontend`。
 - 人工验证：移动端真实运行态由模拟器统一验证；本计划不使用普通浏览器替代 Tauri mobile。
 
 ## 首版范围
@@ -26,13 +26,14 @@
 
 ### 阶段 2：外观设置与主题 token
 
-- 状态：待完成。
+- 状态：已完成。
 - 提交：`mobile: add appearance theme tokens`
 - 内容：
   - 扩展 `mobile/src/types/settings.ts` 的 `AppearanceSettings` 与默认值。
   - 新增移动端主题 token 生成模块。
   - 输出 AIO 语义变量、RGB 变量、Varlet 适配变量。
   - 保留旧配置兼容，依靠现有 `defaultsDeep` 补齐新增字段。
+  - 新增字段覆盖 UI 特效、模糊、基础透明度、边框、圆角和分层透明度偏移。
 
 ### 阶段 3：主题应用集中化
 

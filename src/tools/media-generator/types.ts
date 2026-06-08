@@ -209,6 +209,12 @@ export interface LlmTaskConfig {
 export interface PromptOptimizationConfig extends LlmTaskConfig {
   /** 按媒体类型区分的优化提示词模板 */
   promptsByType: Record<MediaTaskType, string>;
+  /** 纯翻译模式的提示词模板 */
+  translationPrompt: string;
+  /** 提示词优化弹窗中“输出为目标语言”的默认目标语言 */
+  defaultTargetLang: string;
+  /** 提示词优化弹窗中的常用目标语言列表 */
+  targetLangList: string[];
 }
 
 /**

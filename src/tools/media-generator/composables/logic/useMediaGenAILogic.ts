@@ -22,7 +22,6 @@ export function useMediaGenAILogic(options: {
   const nodeManager = useNodeManager();
 
   const isNaming = ref(false);
-  const isTranslating = ref(false);
   const generatingSessionIds = ref<Set<string>>(new Set());
 
   /**
@@ -121,52 +120,8 @@ export function useMediaGenAILogic(options: {
     }
   };
 
-  /**
-   * 翻译提示词
-   */
-  const translatePrompt = async (text: string, targetLang?: string) => {
-    const config = settings.value.translation;
-    if (!config.enabled || !config.modelIdentifier || !text) return text;
-
-    const [profileId, modelId] = parseModelCombo(config.modelIdentifier);
-
-    try {
-      isTranslating.value = true;
-      const target = targetLang || config.inputTargetLang;
-
-      // 构造翻译提示词
-      const systemPrompt = config.prompt
-        .replace("{targetLang}", target)
-        .replace("{thinkTags}", "<thought>, <style>")
-        .replace("{text}", text);
-
-      const response = await sendRequest({
-        profileId,
-        modelId,
-        messages: [{ role: "user", content: systemPrompt }],
-        inspectorContext: {
-          toolName: "media-generator",
-          purpose: "prompt-translate",
-        },
-        temperature: config.temperature,
-        maxTokens: config.maxTokens,
-      });
-
-      const translated = response.content.trim();
-      logger.info("提示词翻译成功", { original: text, translated, target });
-      return translated;
-    } catch (error) {
-      logger.error("提示词翻译失败", error);
-      return text; // 失败时返回原文，不中断流程
-    } finally {
-      isTranslating.value = false;
-    }
-  };
-
   return {
     isNaming,
-    isTranslating,
     generateSessionName,
-    translatePrompt,
   };
 }

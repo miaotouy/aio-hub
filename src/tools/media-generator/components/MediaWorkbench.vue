@@ -40,19 +40,13 @@ const workbenchMode = useLocalStorage<"session" | "quick">(
 
 const handleSendQuick = async (options: any, mediaType: any) => {
   try {
-    // 1. 翻译
-    let translatedPrompt: string | undefined;
-    if (store.settings.translation.enabled && options.prompt) {
-      translatedPrompt = await store.translatePrompt(options.prompt);
-    }
+    // 1. 构造任务
+    const task = buildTask(options, mediaType);
 
-    // 2. 构造任务
-    const task = buildTask(options, mediaType, translatedPrompt);
-
-    // 3. 注册到任务池
+    // 2. 注册到任务池
     taskManager.addTask(task);
 
-    // 4. 执行生成 (不传 contextMessages)
+    // 3. 执行生成 (不传 contextMessages)
     const config = {
       timeout: store.settings.requestSettings?.timeout,
       maxRetries: store.settings.requestSettings?.maxRetries,

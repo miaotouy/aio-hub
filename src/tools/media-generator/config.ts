@@ -1,11 +1,4 @@
-import {
-  Zap,
-  Bell,
-  LayoutDashboard,
-  Wand2,
-  PenTool,
-  Languages,
-} from "lucide-vue-next";
+import { Zap, Bell, LayoutDashboard, Wand2, PenTool } from "lucide-vue-next";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import type { SettingsSection } from "@/types/settings-renderer";
 import type {
@@ -129,18 +122,51 @@ export const PROMPT_OPTIMIZATION_PROMPTS_BY_TYPE: Record<
 {text}`,
 };
 
+export const MEDIA_GENERATOR_TARGET_LANG_OPTIONS = [
+  { label: "中文 (Chinese)", value: "Chinese" },
+  { label: "英语 (English)", value: "English" },
+  { label: "日语 (Japanese)", value: "Japanese" },
+  { label: "韩语 (Korean)", value: "Korean" },
+  { label: "法语 (French)", value: "French" },
+  { label: "德语 (German)", value: "German" },
+  { label: "西班牙语 (Spanish)", value: "Spanish" },
+  { label: "俄语 (Russian)", value: "Russian" },
+  { label: "意大利语 (Italian)", value: "Italian" },
+  { label: "葡萄牙语 (Portuguese)", value: "Portuguese" },
+  { label: "越南语 (Vietnamese)", value: "Vietnamese" },
+  { label: "泰语 (Thai)", value: "Thai" },
+  { label: "阿拉伯语 (Arabic)", value: "Arabic" },
+];
+
+const DEFAULT_TARGET_LANG_LIST = MEDIA_GENERATOR_TARGET_LANG_OPTIONS.map(
+  (option) => option.value
+);
+
 function createDefaultPromptOptimization(): PromptOptimizationConfig {
   return {
     modelCombo: "",
     prompt: PROMPT_OPTIMIZATION_PROMPTS_BY_TYPE.image,
     promptsByType: { ...PROMPT_OPTIMIZATION_PROMPTS_BY_TYPE },
+    translationPrompt: `## 任务
+将用户输入的提示词翻译为目标语言 {targetLang}。
+
+## 要求
+1. 尽量不变化原文含义，准确翻译。
+2. 保持原本的艺术风格、修饰词和专业术语。
+3. 仅输出翻译后的提示词，禁止有任何解释。
+
+## 用户输入
+{text}`,
+    defaultTargetLang: "English",
+    targetLangList: [...DEFAULT_TARGET_LANG_LIST],
     temperature: 0.8,
     maxTokens: 800,
   };
 }
 
 export function normalizePromptOptimizationConfig(
-  config?: Partial<PromptOptimizationConfig> | null
+  config?: Partial<PromptOptimizationConfig> | null,
+  legacyTranslation?: Partial<MediaGeneratorSettings["translation"]> | null
 ): PromptOptimizationConfig {
   const defaults = createDefaultPromptOptimization();
   const legacyPrompt =
@@ -149,11 +175,27 @@ export function normalizePromptOptimizationConfig(
       : defaults.prompt;
   const rawPrompts: Partial<Record<MediaTaskType, string>> =
     config?.promptsByType || {};
+  const targetLangList = config?.targetLangList?.length
+    ? config.targetLangList
+    : legacyTranslation?.targetLangList?.length
+      ? legacyTranslation.targetLangList
+      : defaults.targetLangList;
+  const defaultTargetLang =
+    config?.defaultTargetLang ||
+    legacyTranslation?.inputTargetLang ||
+    defaults.defaultTargetLang;
+  const translationPrompt =
+    config?.translationPrompt ||
+    legacyTranslation?.prompt ||
+    defaults.translationPrompt;
 
   return {
     ...defaults,
     ...config,
     prompt: legacyPrompt,
+    translationPrompt,
+    defaultTargetLang,
+    targetLangList: [...targetLangList],
     promptsByType: {
       image: rawPrompts.image || legacyPrompt,
       video: rawPrompts.video || defaults.promptsByType.video,
@@ -445,6 +487,33 @@ export const mediaGeneratorSettingsConfig: SettingsSection<MediaGeneratorSetting
           hint: "优化后提示词的最大 token 数",
           keywords: "prompt optimization max tokens 提示词 优化 上限",
         },
+        {
+          id: "optTranslationPrompt",
+          label: "翻译提示词",
+          component: "PromptEditor",
+          props: {
+            rows: 6,
+            placeholder: "输入用于翻译提示词的系统提示词",
+            defaultValue:
+              DEFAULT_MEDIA_GENERATOR_SETTINGS.promptOptimization
+                .translationPrompt,
+          },
+          modelPath: "promptOptimization.translationPrompt",
+          hint: "使用 {text} 和 {targetLang} 占位符代表用户输入的原始提示词和目标语言",
+          keywords: "prompt optimization translation prompt 翻译 提示词 优化",
+        },
+        {
+          id: "optDefaultTargetLang",
+          label: "默认翻译目标语言",
+          component: "ElSelect",
+          props: {
+            options: MEDIA_GENERATOR_TARGET_LANG_OPTIONS,
+          },
+          modelPath: "promptOptimization.defaultTargetLang",
+          hint: "提示词优化弹窗勾选“输出为目标语言”时使用的默认语言",
+          keywords:
+            "prompt optimization translation language 提示词 优化 翻译 语言",
+        },
       ],
     },
     {
@@ -507,70 +576,6 @@ export const mediaGeneratorSettingsConfig: SettingsSection<MediaGeneratorSetting
           modelPath: "requestSettings.maxRetries",
           hint: "请求失败（超时或网络错误）时的最大重试次数。注意：媒体生成通常成本较高，请谨慎设置重试。",
           keywords: "request retry 请求 重试",
-        },
-      ],
-    },
-    {
-      title: "发送前翻译",
-      icon: Languages,
-      items: [
-        {
-          id: "enableTranslation",
-          label: "启用自动翻译提示词",
-          layout: "inline",
-          component: "ElSwitch",
-          modelPath: "translation.enabled",
-          hint: "发送前自动将中文提示词翻译为目标语言，UI 保留原文",
-          keywords: "translation 翻译 translate",
-        },
-        {
-          id: "transModelCombo",
-          label: "翻译模型",
-          component: LlmModelSelector,
-          props: {
-            capabilities: { embedding: false, rerank: false },
-          },
-          modelPath: "translation.modelIdentifier",
-          hint: "用于执行翻译任务的语言模型",
-          keywords: "translation model 翻译 模型",
-        },
-        {
-          id: "transTargetLang",
-          label: "目标语言",
-          component: "ElSelect",
-          props: {
-            options: [
-              { label: "中文 (Chinese)", value: "Chinese" },
-              { label: "英语 (English)", value: "English" },
-              { label: "日语 (Japanese)", value: "Japanese" },
-              { label: "韩语 (Korean)", value: "Korean" },
-              { label: "法语 (French)", value: "French" },
-              { label: "德语 (German)", value: "German" },
-              { label: "西班牙语 (Spanish)", value: "Spanish" },
-              { label: "俄语 (Russian)", value: "Russian" },
-              { label: "意大利语 (Italian)", value: "Italian" },
-              { label: "葡萄牙语 (Portuguese)", value: "Portuguese" },
-              { label: "越南语 (Vietnamese)", value: "Vietnamese" },
-              { label: "泰语 (Thai)", value: "Thai" },
-              { label: "阿拉伯语 (Arabic)", value: "Arabic" },
-            ],
-          },
-          modelPath: "translation.inputTargetLang",
-          hint: "提示词将被翻译成的语言",
-          keywords: "translation language 翻译 语言",
-        },
-        {
-          id: "transPrompt",
-          label: "翻译提示词",
-          component: "PromptEditor",
-          props: {
-            rows: 6,
-            placeholder: "输入用于翻译的系统提示词",
-            defaultValue: DEFAULT_MEDIA_GENERATOR_SETTINGS.translation.prompt,
-          },
-          modelPath: "translation.prompt",
-          hint: "使用 {text} 和 {targetLanguage} 占位符",
-          keywords: "translation prompt 翻译 提示词",
         },
       ],
     },

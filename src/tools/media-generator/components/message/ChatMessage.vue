@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from "vue";
 import { useResizeObserver } from "@vueuse/core";
-import { Languages } from "lucide-vue-next";
 import type { MediaMessage, MediaTask } from "../../types";
 import type { Asset } from "@/types/asset-management";
 import { useMediaGenStore } from "../../stores/mediaGenStore";
@@ -159,19 +158,6 @@ defineExpose({
     <div class="message-inner">
       <MessageHeader :message="message" />
 
-      <!-- 翻译提示 (如果启用翻译且有译文) -->
-      <div v-if="message.metadata?.translatedContent" class="translation-hint">
-        <el-tooltip
-          :content="message.metadata.translatedContent"
-          placement="top"
-        >
-          <div class="translation-badge">
-            <Languages :size="12" class="mr-1" />
-            <span>已自动翻译提示词</span>
-          </div>
-        </el-tooltip>
-      </div>
-
       <MessageContent
         :message="message"
         :is-editing="isEditing"
@@ -218,30 +204,6 @@ defineExpose({
 .chat-message.is-disabled {
   opacity: 0.6;
   filter: grayscale(0.5);
-}
-
-.translation-hint {
-  margin-top: 4px;
-  margin-bottom: 8px;
-}
-
-.translation-badge {
-  display: inline-flex;
-  align-items: center;
-  font-size: 11px;
-  color: var(--el-color-primary);
-  background-color: color-mix(
-    in srgb,
-    var(--el-color-primary),
-    transparent 90%
-  );
-  padding: 2px 8px;
-  border-radius: 10px;
-  cursor: help;
-}
-
-.mr-1 {
-  margin-right: 4px;
 }
 
 .chat-message.batch-mode {

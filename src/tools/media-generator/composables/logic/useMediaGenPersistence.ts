@@ -89,7 +89,9 @@ export function useMediaGenPersistence(options: {
         },
         promptOptimization: normalizePromptOptimizationConfig(
           (loadedSettings as Partial<MediaGeneratorSettings> | null)
-            ?.promptOptimization
+            ?.promptOptimization,
+          (loadedSettings as Partial<MediaGeneratorSettings> | null)
+            ?.translation
         ),
       };
 

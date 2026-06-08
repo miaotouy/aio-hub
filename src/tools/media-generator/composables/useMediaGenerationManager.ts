@@ -625,8 +625,7 @@ export function useMediaGenerationManager() {
       contextMessageIds?: string[];
       includeContext?: boolean;
     },
-    type: MediaTaskType,
-    translatedPrompt?: string
+    type: MediaTaskType
   ): MediaTask => {
     const taskId = uuidv4();
     const { profile, model } = resolveModelSelection(
@@ -638,7 +637,7 @@ export function useMediaGenerationManager() {
       model?.capabilities?.iterativeRefinement ??
       supportsConversationalGeneration(profile, model);
 
-    const finalPrompt = translatedPrompt || options.prompt || "";
+    const finalPrompt = options.prompt || "";
 
     return {
       id: taskId,

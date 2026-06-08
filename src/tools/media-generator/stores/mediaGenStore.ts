@@ -182,40 +182,26 @@ export const useMediaGenStore = defineStore("media-generator", () => {
 
   /**
    * 会话模式下提交任务
-   * 职责：编排任务构造、翻译、节点创建、执行启动
+   * 职责：编排任务构造、节点创建、执行启动
    */
   const submitTaskInSession = async (options: any, type: MediaTaskType) => {
     const { useMediaGenerationManager } =
       await import("../composables/useMediaGenerationManager");
     const genManager = useMediaGenerationManager();
 
-    // 1. 翻译逻辑
-    let translatedPrompt: string | undefined;
-    if (settings.value.translation.enabled && options.prompt) {
-      translatedPrompt = await aiLogic.translatePrompt(options.prompt);
-    }
+    // 1. 构造任务
+    const task = genManager.buildTask(options, type);
 
-    // 2. 构造任务
-    const task = genManager.buildTask(options, type, translatedPrompt);
-
-    // 3. 注册到任务池
+    // 2. 注册到任务池
     taskManager.addTask(task);
 
-    // 4. 追踪生成状态
+    // 3. 追踪生成状态
     generatingNodes.value.add(task.id);
 
-    // 5. 在会话树中创建节点
+    // 4. 在会话树中创建节点
     taskActionManager.addTaskNode(task, attachmentManager.attachments.value);
 
-    // 6. 如果有译文，更新节点元数据
-    if (translatedPrompt) {
-      const node = nodes.value[task.id];
-      if (node && node.metadata) {
-        node.metadata.translatedContent = translatedPrompt;
-      }
-    }
-
-    // 7. 自动命名逻辑
+    // 5. 自动命名逻辑
     const namingConfig = settings.value.topicNaming;
     const userMessageCount = messages.value.filter(
       (m) => m.role === "user"
@@ -241,11 +227,11 @@ export const useMediaGenStore = defineStore("media-generator", () => {
       }, 1500);
     }
 
-    // 8. 清理输入状态
+    // 6. 清理输入状态
     attachmentManager.clearAttachments();
     persistence.persist(true);
 
-    // 9. 启动执行
+    // 7. 启动执行
     const config = {
       timeout: settings.value.requestSettings?.timeout,
       maxRetries: settings.value.requestSettings?.maxRetries,
@@ -636,9 +622,7 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     deleteSession,
     updateSessionName,
     generateSessionName: aiLogic.generateSessionName,
-    translatePrompt: aiLogic.translatePrompt,
     isNaming: aiLogic.isNaming,
-    isTranslating: aiLogic.isTranslating,
 
     // 分支管理 Actions
     switchToBranch,

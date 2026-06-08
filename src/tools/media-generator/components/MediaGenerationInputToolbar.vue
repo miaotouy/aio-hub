@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useMediaGenStore } from "../stores/mediaGenStore";
+import { MEDIA_GENERATOR_TARGET_LANG_OPTIONS } from "../config";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { parseModelCombo } from "@/utils/modelIdUtils";
 import { customMessage } from "@/utils/customMessage";
@@ -78,6 +79,10 @@ const showOptimizePopover = ref(false);
 const optimizedResult = ref("");
 const optimizeModelId = ref("");
 const optimizePrompt = ref("");
+const optimizeMode = ref<"optimize" | "translate" | "optimize_translate">(
+  "optimize"
+);
+const optimizeTargetLang = ref("");
 
 const activeTypeLabel = computed(
   () => MEDIA_TYPE_LABELS[store.currentConfig.activeType] || "媒体"
@@ -97,18 +102,49 @@ const currentOptimizationConfig = computed(() => {
   };
 });
 
+const targetLangOptions = computed(() => {
+  const configuredList = currentOptimizationConfig.value.targetLangList?.length
+    ? currentOptimizationConfig.value.targetLangList
+    : MEDIA_GENERATOR_TARGET_LANG_OPTIONS.map((option) => option.value);
+
+  return configuredList.map((value) => {
+    const preset = MEDIA_GENERATOR_TARGET_LANG_OPTIONS.find(
+      (option) => option.value === value
+    );
+    return preset || { label: value, value };
+  });
+});
+
+const resolveDefaultTargetLang = () => {
+  const config = currentOptimizationConfig.value;
+  const fallback = "English";
+  const values = targetLangOptions.value.map((option) => option.value);
+  if (config.defaultTargetLang && values.includes(config.defaultTargetLang)) {
+    return config.defaultTargetLang;
+  }
+  return values.includes(fallback) ? fallback : values[0] || fallback;
+};
+
+const resetOptimizeDraft = () => {
+  optimizePrompt.value = "";
+  optimizedResult.value = "";
+  optimizeMode.value = "optimize";
+  optimizeTargetLang.value = resolveDefaultTargetLang();
+};
+
 // 初始化优化配置
 watch(
   () => [
     store.settings.promptOptimization?.modelCombo,
+    store.settings.promptOptimization?.defaultTargetLang,
+    store.settings.promptOptimization?.targetLangList?.join(","),
     store.currentConfig.activeType,
   ],
   () => {
     const config = store.settings.promptOptimization;
     if (config) {
       optimizeModelId.value = config.modelCombo || "";
-      optimizePrompt.value = "";
-      optimizedResult.value = "";
+      resetOptimizeDraft();
     }
   },
   { immediate: true }
@@ -129,7 +165,7 @@ const buildOptimizationPrompt = (template: string, text: string) => {
 
 const handleOptimizePrompt = async () => {
   if (!props.promptText.trim()) {
-    customMessage.warning("请先输入需要优化的提示词");
+    customMessage.warning("请先输入需要处理的提示词");
     return;
   }
 
@@ -150,7 +186,22 @@ const handleOptimizePrompt = async () => {
   isOptimizing.value = true;
   optimizedResult.value = "";
   try {
-    let finalPrompt = buildOptimizationPrompt(config.prompt, props.promptText);
+    let finalPrompt = "";
+    const targetLang = optimizeTargetLang.value || resolveDefaultTargetLang();
+
+    if (optimizeMode.value === "translate") {
+      // 仅翻译模式
+      finalPrompt = (config.translationPrompt || "")
+        .replace(/\{text\}/g, props.promptText)
+        .replace(/\{targetLang\}/g, targetLang);
+    } else {
+      // 优化模式或优化并翻译模式
+      finalPrompt = buildOptimizationPrompt(config.prompt, props.promptText);
+      if (optimizeMode.value === "optimize_translate") {
+        finalPrompt += `\n\n## 输出语言\n请将最终优化后的提示词输出为 ${targetLang}。如果上方模板中的输出语言要求与本要求冲突，以本要求为准。仅输出最终提示词，禁止解释。`;
+      }
+    }
+
     if (optimizePrompt.value.trim()) {
       finalPrompt += `\n\n附加要求：${optimizePrompt.value.trim()}`;
     }
@@ -187,16 +238,14 @@ const applyOptimizedPrompt = () => {
   if (optimizedResult.value) {
     store.inputPrompt = optimizedResult.value;
     showOptimizePopover.value = false;
-    optimizedResult.value = "";
-    optimizePrompt.value = "";
+    resetOptimizeDraft();
     customMessage.success("已应用优化后的提示词");
   }
 };
 
 const cancelOptimize = () => {
   showOptimizePopover.value = false;
-  optimizedResult.value = "";
-  optimizePrompt.value = "";
+  resetOptimizeDraft();
 };
 </script>
 
@@ -270,6 +319,23 @@ const cancelOptimize = () => {
             />
           </div>
 
+          <div v-if="optimizeMode !== 'optimize'" class="form-item">
+            <label>目标语言</label>
+            <el-select
+              v-model="optimizeTargetLang"
+              class="translation-select"
+              size="small"
+              placeholder="选择目标语言"
+            >
+              <el-option
+                v-for="option in targetLangOptions"
+                :key="option.value"
+                :label="option.label"
+                :value="option.value"
+              />
+            </el-select>
+          </div>
+
           <div class="form-item">
             <label>附加要求 (可选)</label>
             <el-input
@@ -287,10 +353,25 @@ const cancelOptimize = () => {
             </div>
           </div>
 
+          <div class="form-item">
+            <label>处理模式</label>
+            <el-radio-group
+              v-model="optimizeMode"
+              size="small"
+              class="mode-radio-group"
+            >
+              <el-radio-button value="optimize">仅优化</el-radio-button>
+              <el-radio-button value="translate">仅翻译</el-radio-button>
+              <el-radio-button value="optimize_translate"
+                >优化并翻译</el-radio-button
+              >
+            </el-radio-group>
+          </div>
+
           <div class="form-tip">
             <el-icon><Info /></el-icon>
             <div class="tip-content">
-              <p>优化将基于当前输入框中的内容进行扩展。</p>
+              <p>优化将基于当前输入框中的内容进行扩展</p>
             </div>
           </div>
 
@@ -523,6 +604,11 @@ const cancelOptimize = () => {
   color: var(--el-text-color-regular);
 }
 
+.el-radio-group {
+  background-color: none !important;
+  backdrop-filter: none !important;
+}
+
 .optimize-result {
   display: flex;
   flex-direction: column;
@@ -552,7 +638,7 @@ const cancelOptimize = () => {
 .form-tip {
   display: flex;
   gap: 8px;
-  padding: 10px;
+  padding: 4px;
   border-radius: 8px;
   color: var(--el-text-color-secondary);
 }
@@ -564,7 +650,7 @@ const cancelOptimize = () => {
 
 .tip-content p {
   margin: 0;
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.5;
 }
 

@@ -1,15 +1,13 @@
 <script setup lang="ts">
-import { onMounted, watchEffect } from "vue";
+import { onMounted } from "vue";
 import AppBottomNav from "./components/AppBottomNav.vue";
 import { useAppInit } from "@/composables/useAppInit";
 import { useThemeStore } from "@/stores/theme";
-import { useSettingsStore } from "@/stores/settings";
 import { useKeyboardAvoidance } from "@/composables/useKeyboardAvoidance";
 import { useDebugPanel } from "@/composables/useDebugPanel";
 
 const { isReady, progress, statusMessage, bootstrap } = useAppInit();
 const themeStore = useThemeStore();
-const settingsStore = useSettingsStore();
 const { syncWithSettings } = useDebugPanel();
 
 // 全局键盘避让
@@ -17,42 +15,6 @@ useKeyboardAvoidance();
 
 // 同步调试面板状态
 syncWithSettings();
-
-// 同步外观设置到 CSS 变量和根元素
-watchEffect(() => {
-  const { fontSizeScale } = settingsStore.settings.appearance;
-
-  // 1. 字体缩放
-  // 我们将 fontSizeScale 应用于根元素的 font-size (影响 rem)
-  // 默认基础 14px * scale
-  const baseSize = 14 * fontSizeScale;
-  document.documentElement.style.fontSize = `${baseSize}px`;
-
-  // 同时提供变量供全局使用
-  document.documentElement.style.setProperty(
-    "--app-font-size",
-    `${baseSize}px`
-  );
-  document.documentElement.style.setProperty(
-    "--app-font-scale",
-    fontSizeScale.toString()
-  );
-
-  // 同步更新 Varlet 的基础字体大小变量
-  document.documentElement.style.setProperty("--font-size-md", `${baseSize}px`);
-  document.documentElement.style.setProperty(
-    "--font-size-sm",
-    `${baseSize - 2}px`
-  );
-  document.documentElement.style.setProperty(
-    "--font-size-lg",
-    `${baseSize + 2}px`
-  );
-  document.documentElement.style.setProperty(
-    "--font-size-xs",
-    `${baseSize - 4}px`
-  );
-});
 
 onMounted(() => {
   bootstrap();

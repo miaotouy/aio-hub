@@ -2,8 +2,8 @@
 
 ## 状态概览
 
-- 当前阶段：阶段 2 已完成，准备进入阶段 3。
-- 自动检查：阶段 1、阶段 2 完成后均已运行 `cd mobile ; bun run check:frontend`。
+- 当前阶段：阶段 3 已完成，准备进入阶段 4。
+- 自动检查：阶段 1、阶段 2、阶段 3 完成后均已运行 `cd mobile ; bun run check:frontend`。
 - 人工验证：移动端真实运行态由模拟器统一验证；本计划不使用普通浏览器替代 Tauri mobile。
 
 ## 首版范围
@@ -37,13 +37,14 @@
 
 ### 阶段 3：主题应用集中化
 
-- 状态：待完成。
+- 状态：已完成。
 - 提交：`mobile: centralize theme application`
 - 内容：
   - 重构 `mobile/src/stores/theme.ts`。
   - 集中处理明暗模式、系统主题监听、根 CSS 变量注入、`StyleProvider` 调用。
   - 将 `App.vue` 中字体缩放同步迁入主题系统。
   - 保持 `isDark`、`themeVars`、`initTheme`、`toggleTheme` 对外兼容。
+  - 继续派发 `theme-changed` 事件，供主题感知类逻辑后续复用。
 
 ### 阶段 4：Varlet 原子组件适配
 

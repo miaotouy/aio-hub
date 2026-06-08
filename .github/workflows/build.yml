@@ -9,6 +9,9 @@ on:
 permissions:
   contents: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     strategy:
@@ -67,6 +70,9 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: "./src-tauri -> target"
+
+      - name: 准备 Tauri 打包工具缓存
+        uses: ./.github/actions/prepare-tauri-bundler-tools
 
       - name: 安装前端依赖
         run: bun install
@@ -166,8 +172,8 @@ jobs:
                   sed -i '2i\# Wayland compatibility\nexport WEBKIT_DISABLE_DMABUF_RENDERER=1' app-content/AppRun
                 fi
                 
-                # 下载并解包 appimagetool (避免 FUSE 依赖)
-                wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+                # 解包 appimagetool (避免 FUSE 依赖)
+                cp "${XDG_CACHE_HOME:-$HOME/.cache}/tauri/appimagetool-x86_64.AppImage" appimagetool-x86_64.AppImage
                 chmod +x appimagetool-x86_64.AppImage
                 ./appimagetool-x86_64.AppImage --appimage-extract >/dev/null 2>&1
                 
@@ -238,6 +244,9 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: "./src-tauri -> target"
+
+      - name: 准备 Tauri 打包工具缓存
+        uses: ./.github/actions/prepare-tauri-bundler-tools
 
       - name: 安装前端依赖
         run: bun install

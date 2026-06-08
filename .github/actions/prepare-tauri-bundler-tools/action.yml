@@ -1,0 +1,163 @@
+name: Prepare Tauri bundler tools
+description: Cache and pre-download external binaries used by the Tauri bundler.
+
+runs:
+  using: composite
+  steps:
+    - name: Cache Tauri bundler tools (Windows)
+      if: runner.os == 'Windows'
+      uses: actions/cache@v4
+      with:
+        path: ~\AppData\Local\tauri
+        key: tauri-bundler-tools-${{ runner.os }}-nsis-3.11-utils-0.5.3
+
+    - name: Cache Tauri bundler tools (Linux)
+      if: runner.os == 'Linux'
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/tauri
+        key: tauri-bundler-tools-${{ runner.os }}-appimage-20260720
+
+    - name: Prepare NSIS toolchain (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = "Stop"
+
+        function Invoke-RetryDownload {
+          param(
+            [Parameter(Mandatory = $true)][string]$Uri,
+            [Parameter(Mandatory = $true)][string]$OutFile
+          )
+
+          for ($attempt = 1; $attempt -le 5; $attempt++) {
+            & curl.exe -fL --retry 5 --retry-all-errors --connect-timeout 20 --max-time 300 -o $OutFile $Uri
+            if ($LASTEXITCODE -eq 0) {
+              return
+            }
+
+            if ($attempt -lt 5) {
+              Start-Sleep -Seconds (10 * $attempt)
+            }
+          }
+
+          throw "Failed to download $Uri"
+        }
+
+        function Assert-Sha1 {
+          param(
+            [Parameter(Mandatory = $true)][string]$Path,
+            [Parameter(Mandatory = $true)][string]$Expected
+          )
+
+          $actual = (Get-FileHash $Path -Algorithm SHA1).Hash.ToUpperInvariant()
+          if ($actual -ne $Expected.ToUpperInvariant()) {
+            throw "SHA1 mismatch for $Path. Expected $Expected, got $actual"
+          }
+        }
+
+        $toolsDir = Join-Path $env:LOCALAPPDATA "tauri"
+        $nsisDir = Join-Path $toolsDir "NSIS"
+        New-Item -ItemType Directory -Force -Path $toolsDir | Out-Null
+
+        $requiredFiles = @(
+          "makensis.exe",
+          "Bin/makensis.exe",
+          "Stubs/lzma-x86-unicode",
+          "Stubs/lzma_solid-x86-unicode",
+          "Plugins/x86-unicode/additional/nsis_tauri_utils.dll",
+          "Include/MUI2.nsh",
+          "Include/FileFunc.nsh",
+          "Include/x64.nsh",
+          "Include/nsDialogs.nsh",
+          "Include/WinMessages.nsh",
+          "Include/Win/COM.nsh",
+          "Include/Win/Propkey.nsh",
+          "Include/Win/RestartManager.nsh"
+        )
+
+        $needsNsis = -not (Test-Path $nsisDir)
+        if (-not $needsNsis) {
+          foreach ($file in $requiredFiles) {
+            if (-not (Test-Path (Join-Path $nsisDir $file))) {
+              $needsNsis = $true
+              break
+            }
+          }
+        }
+
+        if ($needsNsis) {
+          Remove-Item -Recurse -Force $nsisDir -ErrorAction SilentlyContinue
+          Remove-Item -Recurse -Force (Join-Path $toolsDir "nsis-3.11") -ErrorAction SilentlyContinue
+
+          $zipPath = Join-Path $env:RUNNER_TEMP "nsis-3.11.zip"
+          Invoke-RetryDownload `
+            "https://github.com/tauri-apps/binary-releases/releases/download/nsis-3.11/nsis-3.11.zip" `
+            $zipPath
+          Assert-Sha1 $zipPath "EF7FF767E5CBD9EDD22ADD3A32C9B8F4500BB10D"
+
+          Expand-Archive -Path $zipPath -DestinationPath $toolsDir -Force
+          Move-Item -Path (Join-Path $toolsDir "nsis-3.11") -Destination $nsisDir -Force
+        }
+
+        $pluginPath = Join-Path $nsisDir "Plugins/x86-unicode/additional/nsis_tauri_utils.dll"
+        $needsPlugin = -not (Test-Path $pluginPath)
+        if (-not $needsPlugin) {
+          try {
+            Assert-Sha1 $pluginPath "75197FEE3C6A814FE035788D1C34EAD39349B860"
+          } catch {
+            $needsPlugin = $true
+          }
+        }
+
+        if ($needsPlugin) {
+          $pluginDownload = Join-Path $env:RUNNER_TEMP "nsis_tauri_utils.dll"
+          Invoke-RetryDownload `
+            "https://github.com/tauri-apps/nsis-tauri-utils/releases/download/nsis_tauri_utils-v0.5.3/nsis_tauri_utils.dll" `
+            $pluginDownload
+          Assert-Sha1 $pluginDownload "75197FEE3C6A814FE035788D1C34EAD39349B860"
+
+          New-Item -ItemType Directory -Force -Path (Split-Path $pluginPath) | Out-Null
+          Move-Item -Force -Path $pluginDownload -Destination $pluginPath
+        }
+
+    - name: Prepare AppImage toolchain (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        tools_dir="${XDG_CACHE_HOME:-$HOME/.cache}/tauri"
+        mkdir -p "$tools_dir"
+
+        download_if_missing() {
+          local url="$1"
+          local path="$2"
+
+          if [ -s "$path" ]; then
+            chmod +x "$path"
+            return
+          fi
+
+          local tmp="${path}.tmp"
+          rm -f "$tmp"
+          curl -fL --retry 5 --retry-all-errors --connect-timeout 20 --max-time 300 -o "$tmp" "$url"
+          mv "$tmp" "$path"
+          chmod +x "$path"
+        }
+
+        download_if_missing \
+          "https://github.com/tauri-apps/binary-releases/releases/download/apprun-old/AppRun-x86_64" \
+          "$tools_dir/AppRun-x86_64"
+        download_if_missing \
+          "https://github.com/tauri-apps/binary-releases/releases/download/linuxdeploy/linuxdeploy-x86_64.AppImage" \
+          "$tools_dir/linuxdeploy-x86_64.AppImage"
+        download_if_missing \
+          "https://raw.githubusercontent.com/tauri-apps/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh" \
+          "$tools_dir/linuxdeploy-plugin-gtk.sh"
+        download_if_missing \
+          "https://raw.githubusercontent.com/tauri-apps/linuxdeploy-plugin-gstreamer/master/linuxdeploy-plugin-gstreamer.sh" \
+          "$tools_dir/linuxdeploy-plugin-gstreamer.sh"
+        download_if_missing \
+          "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage" \
+          "$tools_dir/appimagetool-x86_64.AppImage"

@@ -6,6 +6,9 @@ on:
 permissions:
   contents: read
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build-flatpak:
     runs-on: ubuntu-22.04
@@ -41,6 +44,9 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: './src-tauri -> target'
+
+      - name: 准备 Tauri 打包工具缓存
+        uses: ./.github/actions/prepare-tauri-bundler-tools
 
       - name: 安装前端依赖
         run: bun install

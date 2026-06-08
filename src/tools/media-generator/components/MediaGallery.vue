@@ -17,6 +17,8 @@ import { useAudioViewer } from "@/composables/useAudioViewer";
 import { useGenerationInfoViewer } from "../composables/useGenerationInfoViewer";
 import type { AssetType } from "@/types/asset-management";
 import { useInfiniteScroll } from "@vueuse/core";
+import { readTextFile } from "@tauri-apps/plugin-fs";
+import { join } from "@tauri-apps/api/path";
 
 const {
   assets,
@@ -24,6 +26,7 @@ const {
   hasMore,
   loadAssetsPaginated,
   getAssetUrl,
+  getAssetBasePath,
   removeSourceFromAsset,
 } = useAssetManager();
 const { show: showImageViewer } = useImageViewer();
@@ -40,6 +43,64 @@ const galleryContainer = ref<HTMLElement | null>(null);
 
 // 资产 URL 缓存
 const assetUrls = ref<Record<string, string>>({});
+const generationInfoCache = ref<Record<string, any>>({});
+
+const getInlineGenerationInfo = (asset: Asset) => {
+  const metadata = asset.metadata as any;
+  if (metadata?.generation) return metadata.generation;
+  if (metadata?.prompt || metadata?.revisedPrompt) return metadata;
+  return null;
+};
+
+const loadGenerationInfo = async (asset: Asset) => {
+  if (
+    Object.prototype.hasOwnProperty.call(generationInfoCache.value, asset.id)
+  ) {
+    return;
+  }
+
+  const inlineInfo = getInlineGenerationInfo(asset);
+  if (inlineInfo?.prompt || inlineInfo?.revisedPrompt) {
+    generationInfoCache.value[asset.id] = inlineInfo;
+    return;
+  }
+
+  const derivedPath = (asset.metadata as any)?.derived?.generation?.path;
+  if (!derivedPath) {
+    generationInfoCache.value[asset.id] = null;
+    return;
+  }
+
+  try {
+    const basePath = await getAssetBasePath();
+    const fullPath = await join(basePath, derivedPath);
+    generationInfoCache.value[asset.id] = JSON.parse(
+      await readTextFile(fullPath)
+    );
+  } catch {
+    generationInfoCache.value[asset.id] = null;
+  }
+};
+
+const getGenerationInfo = (asset: Asset) => {
+  return generationInfoCache.value[asset.id] || getInlineGenerationInfo(asset);
+};
+
+const getAssetPrompt = (asset: Asset) => {
+  const genInfo = getGenerationInfo(asset);
+  return genInfo?.prompt || genInfo?.revisedPrompt || asset.name;
+};
+
+const hydrateVisibleAssets = async () => {
+  await Promise.all(
+    assets.value.map(async (asset) => {
+      if (!assetUrls.value[asset.id]) {
+        assetUrls.value[asset.id] = await getAssetUrl(asset);
+      }
+      await loadGenerationInfo(asset);
+    })
+  );
+};
 
 // 加载数据
 const loadData = async (append = false) => {
@@ -91,14 +152,7 @@ const loadData = async (append = false) => {
         assets.value = matchedAssets;
         hasMore.value = false; // 搜索模式暂不支持分页
 
-        // 并行加载可见资产的 URL
-        await Promise.all(
-          assets.value.map(async (asset) => {
-            if (!assetUrls.value[asset.id]) {
-              assetUrls.value[asset.id] = await getAssetUrl(asset);
-            }
-          })
-        );
+        await hydrateVisibleAssets();
         return;
       }
     } catch (e) {
@@ -122,14 +176,7 @@ const loadData = async (append = false) => {
     append
   );
 
-  // 并行加载可见资产的 URL
-  await Promise.all(
-    assets.value.map(async (asset) => {
-      if (!assetUrls.value[asset.id]) {
-        assetUrls.value[asset.id] = await getAssetUrl(asset);
-      }
-    })
-  );
+  await hydrateVisibleAssets();
 };
 
 // 初始加载
@@ -169,8 +216,7 @@ const handlePreview = (asset: Asset) => {
 
 const handleViewInfo = (asset: Asset) => {
   // 从资产元数据中提取生成信息
-  const metadata = asset.metadata as any;
-  const genInfo = metadata?.generation || metadata;
+  const genInfo = getGenerationInfo(asset);
   showInfoViewer(asset, {
     prompt: genInfo?.prompt || asset.name,
     negativePrompt: genInfo?.negativePrompt,
@@ -263,8 +309,13 @@ const handleRefresh = () => {
           </template>
           <template v-else-if="asset.type === 'audio'">
             <div class="audio-placeholder">
-              <AudioIcon :size="48" />
-              <span>音频结果</span>
+              <AudioIcon class="audio-placeholder-icon" :size="38" />
+              <div class="audio-copy">
+                <span class="audio-label">音频结果</span>
+                <p class="audio-prompt" :title="getAssetPrompt(asset)">
+                  {{ getAssetPrompt(asset) }}
+                </p>
+              </div>
             </div>
             <div class="media-badge">
               <AudioIcon :size="14" />
@@ -275,11 +326,7 @@ const handleRefresh = () => {
           <div class="item-overlay">
             <div class="overlay-top">
               <p class="prompt-hint">
-                {{
-                  (asset.metadata as any)?.generation?.prompt ||
-                  (asset.metadata as any)?.prompt ||
-                  asset.name
-                }}
+                {{ getAssetPrompt(asset) }}
               </p>
             </div>
             <div class="overlay-bottom">
@@ -410,11 +457,52 @@ const handleRefresh = () => {
 }
 
 .audio-placeholder {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 24px 18px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  gap: 12px;
   color: var(--el-text-color-secondary);
+  text-align: center;
+  background-color: var(--input-bg);
+}
+
+.audio-placeholder-icon {
+  flex-shrink: 0;
+  color: var(--el-color-primary);
+  opacity: 0.85;
+}
+
+.audio-copy {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+}
+
+.audio-label {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.audio-prompt {
+  max-width: 100%;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--el-text-color-primary);
+  display: -webkit-box;
+  line-clamp: 3;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
 }
 
 .media-badge {

@@ -3,6 +3,12 @@
     <InfoCard title="Git 仓库分析" class="analyzer-card">
       <template #headerExtra>
         <el-button-group>
+          <el-button
+            :icon="filterControlsCollapsed ? Expand : Fold"
+            @click="filterControlsCollapsed = !filterControlsCollapsed"
+          >
+            {{ filterControlsCollapsed ? "展开筛选" : "收起筛选" }}
+          </el-button>
           <el-button :icon="Setting" @click="showLoadConfig = true">
             设置
           </el-button>
@@ -44,6 +50,7 @@
           :commits="commits"
           :progress="progress"
           :statistics="statistics"
+          :controls-collapsed="filterControlsCollapsed"
           @select-directory="selectDirectory"
           @load-branches="loadBranches"
           @load-repository="loadRepository"
@@ -118,7 +125,7 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, onMounted, computed } from "vue";
 import { customMessage } from "@/utils/customMessage";
-import { Refresh, Setting, Upload } from "@element-plus/icons-vue";
+import { Expand, Fold, Refresh, Setting, Upload } from "@element-plus/icons-vue";
 import InfoCard from "@components/common/InfoCard.vue";
 import ExportModule from "./components/ExportModule.vue";
 import ControlPanel from "./components/ControlPanel.vue";
@@ -195,6 +202,7 @@ const chartsViewRef = ref<InstanceType<typeof ChartsView>>();
 const activeTab = ref("list");
 const showExport = ref(false);
 const showLoadConfig = ref(false);
+const filterControlsCollapsed = ref(false);
 const frequencyGranularity = ref<CommitFrequencyGranularity>("day");
 
 // 计算图表视图是否可见

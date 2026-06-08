@@ -1,7 +1,10 @@
 <template>
   <div class="control-panel">
     <!-- 加载进度条 -->
-    <div v-if="progress.loading" class="progress-container">
+    <div
+      v-if="progress.loading && !controlsCollapsed"
+      class="progress-container"
+    >
       <div class="progress-wrapper">
         <el-progress
           :percentage="
@@ -32,7 +35,7 @@
     </div>
 
     <!-- 工具栏 -->
-    <div class="toolbar">
+    <div v-if="!controlsCollapsed" class="toolbar">
       <div class="toolbar-row">
         <DropZone
           variant="input"
@@ -122,7 +125,7 @@
     </div>
 
     <!-- 筛选器 -->
-    <div class="filters">
+    <div v-if="!controlsCollapsed" class="filters">
       <div class="filters-row">
         <el-input
           v-model="searchQuery"
@@ -209,13 +212,19 @@
     </div>
 
     <!-- 筛选信息提示 -->
-    <div v-if="hasActiveFilters" class="filter-summary">
+    <div
+      v-if="hasActiveFilters && !controlsCollapsed"
+      class="filter-summary"
+    >
       <el-icon><InfoFilled /></el-icon>
       <span>{{ filterSummary }}</span>
     </div>
 
     <!-- 范围选择器 -->
-    <div class="range-selector" v-if="commits.length > 0">
+    <div
+      v-if="commits.length > 0 && !controlsCollapsed"
+      class="range-selector"
+    >
       <div class="range-row">
         <div class="range-header">
           <span class="range-label">提交范围:</span>
@@ -354,6 +363,7 @@ interface Props {
     loaded: number;
     total: number;
   };
+  controlsCollapsed?: boolean;
   statistics: {
     totalCommits: number;
     contributors: number;

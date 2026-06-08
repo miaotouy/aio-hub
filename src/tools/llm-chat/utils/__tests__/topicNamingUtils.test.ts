@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildTopicNamingRequestOptions,
   extractTopicTitle,
+  getTopicStructuredOutputMode,
   sanitizeTopicContextContent,
   shouldUseTopicStructuredOutput,
   stripConfiguredThinkingBlocks,
@@ -113,7 +114,7 @@ describe("topicNamingUtils", () => {
       });
 
       expect(request.reasoningEffort).toBe("low");
-      expect(request.maxTokens).toBe(256);
+      expect(request.maxTokens).toBe(1024);
       expect(request.responseFormat?.type).toBe("json_schema");
     });
 
@@ -133,8 +134,45 @@ describe("topicNamingUtils", () => {
 
       expect(request.thinkingEnabled).toBe(true);
       expect(request.thinkingBudget).toBe(256);
-      expect(request.maxTokens).toBeGreaterThan(request.thinkingBudget!);
+      expect(request.maxTokens).toBeGreaterThanOrEqual(1280);
       expect(request.responseFormat).toBeUndefined();
+    });
+
+    it("keeps enough output room when disabling budget thinking on first attempt", () => {
+      const request = buildTopicNamingRequestOptions({
+        profileId: "p1",
+        modelId: "m1",
+        temperature: 0.5,
+        maxTokens: 128,
+        useStructuredOutput: false,
+        isRetry: false,
+        capabilities: {
+          thinking: true,
+          thinkingConfigType: "budget",
+        },
+      });
+
+      expect(request.thinkingEnabled).toBe(false);
+      expect(request.thinkingBudget).toBeUndefined();
+      expect(request.maxTokens).toBe(1024);
+    });
+
+    it("uses json_object response format for json-output-only models", () => {
+      const request = buildTopicNamingRequestOptions({
+        profileId: "p1",
+        modelId: "m1",
+        temperature: 0.5,
+        maxTokens: 128,
+        useStructuredOutput: true,
+        structuredOutputMode: "json_object",
+        isRetry: false,
+        capabilities: {
+          jsonOutput: true,
+        },
+      });
+
+      expect(request.responseFormat?.type).toBe("json_object");
+      expect((request.responseFormat as any).json_schema).toBeUndefined();
     });
   });
 
@@ -157,6 +195,28 @@ describe("topicNamingUtils", () => {
           modelProvider: "deepseek",
         })
       ).toBe(false);
+    });
+
+    it("uses model jsonOutput capability for OpenAI-compatible models", () => {
+      const options = {
+        profileType: "openai-compatible",
+        modelId: "custom-json-model",
+        modelProvider: "custom",
+        capabilities: { jsonOutput: true },
+      };
+
+      expect(shouldUseTopicStructuredOutput(options)).toBe(true);
+      expect(getTopicStructuredOutputMode(options)).toBe("json_object");
+    });
+
+    it("keeps schema mode for providers with native schema support", () => {
+      expect(
+        getTopicStructuredOutputMode({
+          profileType: "gemini",
+          modelId: "gemini-2.5-pro",
+          capabilities: { jsonOutput: true },
+        })
+      ).toBe("json_schema");
     });
   });
 });

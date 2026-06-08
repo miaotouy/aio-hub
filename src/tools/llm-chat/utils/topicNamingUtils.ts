@@ -23,16 +23,24 @@ export const TOPIC_TITLE_RESPONSE_FORMAT: LlmRequestOptions["responseFormat"] =
     },
   };
 
+export const TOPIC_TITLE_JSON_OBJECT_RESPONSE_FORMAT: LlmRequestOptions["responseFormat"] =
+  {
+    type: "json_object",
+  };
+
 export const TOPIC_NAMING_SYSTEM_PROMPT = [
   "你正在为聊天会话生成侧边栏标题。",
   '只输出 JSON 对象: {"title":"..."}',
   "title 必须是最终标题，不要包含思考、解释、引号外文本、标点符号或换行。",
+  "如果模型启用了推理或思考，思考必须尽量短，并且最终正文必须输出 JSON；不要只输出思考内容。",
   "如果对话是中文，标题使用中文；否则跟随对话主要语言。",
 ].join("\n");
 
 const TITLE_OUTPUT_MAX_LENGTH = 50;
 const CONTEXT_MESSAGE_MAX_CHARS = 1200;
 const RETRY_THINKING_BUDGET = 256;
+const THINKING_MODEL_MIN_MAX_TOKENS = 1024;
+const THINKING_MODEL_RETRY_MIN_MAX_TOKENS = 1536;
 
 export interface ExtractTopicTitleOptions {
   maxTitleLength?: number;
@@ -46,6 +54,7 @@ export interface TopicNamingRequestBuildOptions {
   maxTokens: number;
   capabilities?: ModelCapabilities;
   useStructuredOutput: boolean;
+  structuredOutputMode?: TopicStructuredOutputMode;
   isRetry: boolean;
 }
 
@@ -53,7 +62,10 @@ export interface ShouldUseStructuredOutputOptions {
   profileType?: string;
   modelId: string;
   modelProvider?: string;
+  capabilities?: ModelCapabilities;
 }
+
+export type TopicStructuredOutputMode = "json_schema" | "json_object";
 
 type TopicNamingRequestOptionsResult = Pick<
   LlmRequestOptions,
@@ -289,7 +301,10 @@ export function buildTopicNamingRequestOptions(
   };
 
   if (options.useStructuredOutput) {
-    request.responseFormat = TOPIC_TITLE_RESPONSE_FORMAT;
+    request.responseFormat =
+      options.structuredOutputMode === "json_object"
+        ? TOPIC_TITLE_JSON_OBJECT_RESPONSE_FORMAT
+        : TOPIC_TITLE_RESPONSE_FORMAT;
   }
 
   if (!isThinkingModel) {
@@ -299,7 +314,12 @@ export function buildTopicNamingRequestOptions(
 
   if (thinkingConfigType === "effort") {
     request.reasoningEffort = "low";
-    request.maxTokens = Math.max(maxTokens, options.isRetry ? 512 : 256);
+    request.maxTokens = Math.max(
+      maxTokens,
+      options.isRetry
+        ? THINKING_MODEL_RETRY_MIN_MAX_TOKENS
+        : THINKING_MODEL_MIN_MAX_TOKENS
+    );
     return request;
   }
 
@@ -307,44 +327,68 @@ export function buildTopicNamingRequestOptions(
     if (options.isRetry) {
       request.thinkingEnabled = true;
       request.thinkingBudget = RETRY_THINKING_BUDGET;
-      request.maxTokens = Math.max(maxTokens, RETRY_THINKING_BUDGET + 128);
+      request.maxTokens = Math.max(
+        maxTokens,
+        RETRY_THINKING_BUDGET + THINKING_MODEL_MIN_MAX_TOKENS
+      );
     } else {
       request.thinkingEnabled = false;
-      request.maxTokens = Math.max(maxTokens, 128);
+      request.maxTokens = Math.max(maxTokens, THINKING_MODEL_MIN_MAX_TOKENS);
     }
     return request;
   }
 
   if (thinkingConfigType === "switch") {
     request.thinkingEnabled = options.isRetry;
-    request.maxTokens = Math.max(maxTokens, options.isRetry ? 512 : 128);
+    request.maxTokens = Math.max(
+      maxTokens,
+      options.isRetry
+        ? THINKING_MODEL_RETRY_MIN_MAX_TOKENS
+        : THINKING_MODEL_MIN_MAX_TOKENS
+    );
     return request;
   }
 
-  request.maxTokens = Math.max(maxTokens, options.isRetry ? 512 : 128);
+  request.maxTokens = Math.max(
+    maxTokens,
+    options.isRetry
+      ? THINKING_MODEL_RETRY_MIN_MAX_TOKENS
+      : THINKING_MODEL_MIN_MAX_TOKENS
+  );
   return request;
 }
 
 export function shouldUseTopicStructuredOutput(
   options: ShouldUseStructuredOutputOptions
 ): boolean {
+  return getTopicStructuredOutputMode(options) !== null;
+}
+
+export function getTopicStructuredOutputMode(
+  options: ShouldUseStructuredOutputOptions
+): TopicStructuredOutputMode | null {
   const profileType = options.profileType?.toLowerCase();
   const modelProvider = options.modelProvider?.toLowerCase();
   const modelId = options.modelId.toLowerCase();
 
-  if (profileType === "gemini" || profileType === "vertexai") return true;
-  if (profileType === "openai-responses") return true;
-  if (profileType === "azure") return true;
+  if (profileType === "gemini" || profileType === "vertexai")
+    return "json_schema";
+  if (profileType === "openai-responses") return "json_schema";
+  if (profileType === "azure") return "json_schema";
 
   if (profileType === "openai") {
-    return (
+    if (
       modelProvider === "openai" ||
       modelId.startsWith("gpt-") ||
       modelId.startsWith("o")
-    );
+    ) {
+      return "json_schema";
+    }
   }
 
-  return false;
+  if (options.capabilities?.jsonOutput) return "json_object";
+
+  return null;
 }
 
 export function isLikelyResponseFormatError(error: unknown): boolean {

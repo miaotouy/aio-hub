@@ -21,9 +21,9 @@ import {
   TOPIC_NAMING_SYSTEM_PROMPT,
   buildTopicNamingRequestOptions,
   extractTopicTitle,
+  getTopicStructuredOutputMode,
   isLikelyResponseFormatError,
   sanitizeTopicContextContent,
-  shouldUseTopicStructuredOutput,
 } from "../../utils/topicNamingUtils";
 
 const logger = createModuleLogger("llm-chat/topic-namer");
@@ -119,12 +119,14 @@ export function useTopicNamer() {
       const model = profile?.models.find((item) => item.id === modelId);
       const modelCapabilities = model?.capabilities;
       const structuredOutputModelKey = `${profileId}:${modelId}`;
+      const structuredOutputMode = getTopicStructuredOutputMode({
+        profileType: profile?.type,
+        modelId,
+        modelProvider: model?.provider,
+        capabilities: modelCapabilities,
+      });
       const canTryStructuredOutput =
-        shouldUseTopicStructuredOutput({
-          profileType: profile?.type,
-          modelId,
-          modelProvider: model?.provider,
-        }) &&
+        !!structuredOutputMode &&
         !unsupportedStructuredOutputModelKeys.has(structuredOutputModelKey);
       const isThinkingModel = !!(
         modelCapabilities?.thinking ||
@@ -225,6 +227,9 @@ export function useTopicNamer() {
             maxTokens: namingConfig.maxTokens,
             capabilities: modelCapabilities,
             useStructuredOutput,
+            structuredOutputMode: useStructuredOutput
+              ? structuredOutputMode || undefined
+              : undefined,
             isRetry: attempt.isRetry,
           });
 

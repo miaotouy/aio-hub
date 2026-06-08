@@ -242,7 +242,7 @@ const handleOpenQuickActionManager = () => {
         </el-tooltip>
 
         <!-- 宏选择器 -->
-        <el-tooltip content="添加宏变量" placement="top" :show-after="1500">
+        <el-tooltip content="添加宏变量" placement="top" :show-after="1200">
           <div>
             <el-popover
               v-model:visible="macroSelectorVisible"
@@ -336,9 +336,13 @@ const handleOpenQuickActionManager = () => {
           @unlock-input-height="emit('unlock-input-height')"
           @visible-change="moreMenuVisible = $event"
         >
-          <button class="tool-btn" :class="{ active: moreMenuVisible }">
-            <MoreHorizontal :size="16" />
-          </button>
+          <div>
+            <el-tooltip content="更多工具" placement="top" :show-after="800">
+              <button class="tool-btn" :class="{ active: moreMenuVisible }">
+                <MoreHorizontal :size="16" />
+              </button>
+            </el-tooltip>
+          </div>
         </ToolbarMoreMenu>
 
         <!-- 工具调用设置 -->

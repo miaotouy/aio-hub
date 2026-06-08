@@ -22,7 +22,7 @@ function updateSetting(
 </script>
 
 <template>
-  <el-tooltip content="工具栏设置" placement="top" :show-after="500">
+  <el-tooltip content="工具栏设置" placement="top" :show-after="800">
     <div>
       <el-popover
         :placement="props.isDetached ? 'bottom' : 'top'"

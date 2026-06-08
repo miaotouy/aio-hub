@@ -1,6 +1,6 @@
 # AIO Hub Mobile
 
-一站式桌面AI工具枢纽的移动端实现。基于 Tauri v2 + Vue 3 + Varlet UI 构建。
+一站式桌面 AI 工具枢纽的移动端实现。基于 Tauri v2 + Vue 3 构建，UI 骨架由项目自研 Vue 组件与主题 token 主导，Varlet 仅作为底层组件库按需使用。
 
 ## ⚠️ 开源协议声明 (License Notice)
 
@@ -23,7 +23,7 @@
 
 - **框架**: [Tauri v2](https://v2.tauri.app/)
 - **前端**: [Vue 3](https://vuejs.org/) + [Vite](https://vitejs.dev/)
-- **UI 组件库**: [Varlet UI](https://varletjs.org/varlet-ui/)
+- **UI 分层**: Vue 原生组件 + AIO Hub 移动端 `base/common` 组件；[Varlet UI](https://varletjs.org/varlet-ui/) 仅作为原子组件库
 - **状态管理**: [Pinia](https://pinia.vuejs.org/)
 - **语言**: TypeScript / Rust
 

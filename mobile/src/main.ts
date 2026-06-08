@@ -4,7 +4,7 @@ import App from "./App.vue";
 import router from "./router";
 import i18n from "./i18n";
 
-// Varlet 样式
+// Varlet 底层组件样式，项目主题由 assets/styles/theme.css 主导
 import "@varlet/ui/es/style";
 
 // 应用自身主题

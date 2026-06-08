@@ -1,6 +1,6 @@
 /**
  * 移动端全局错误处理工具
- * 对接 Varlet UI
+ * 底层暂用 Varlet 命令式组件，业务侧后续应收敛到 customMessage/customDialog
  */
 
 import { Snackbar, Dialog } from "@varlet/ui";

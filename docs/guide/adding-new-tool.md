@@ -96,6 +96,8 @@ export default MyNewToolRegistry;
 
 移动端工具位于 `mobile/src/tools/` 目录下，遵循**独立重构、全量对齐**原则。
 
+移动端 UI 不是 Varlet 应用框架。新增工具时，页面骨架、导航容器、弹层结构、列表信息架构和业务卡片优先使用 Vue 原生组件、工具内业务组件，以及 `mobile/src/components/base/` / `mobile/src/components/common/` 中沉淀的项目组件。Varlet 的定位类似桌面端 Element Plus：可以用于按钮、输入、选择器、开关、加载态等叶子节点原子件，但不要用 `var-app-bar`、`var-popup`、`var-cell`、`var-card`、`var-paper`、`var-bottom-navigation` 直接搭新页面主结构。
+
 ### 3.1 创建目录结构
 
 ```
@@ -190,7 +192,7 @@ export default {
 2. **日志记录**: 必须使用 `createModuleLogger` 创建独立的日志记录器。
 3. **样式适配**:
    - 桌面端：优先使用 `var(--card-bg)` 等主题变量。
-   - 移动端：字体类必须使用 `rem` 单位以适配字体缩放。
+   - 移动端：字体类必须使用 `rem` 单位以适配字体缩放；主题以 AIO Hub 项目 token 为主，Varlet 变量只作为兼容输出。
 4. **测试**:
    - 运行 `bun run t:d` (桌面端) 或 `bun run mtad` (Android) 进行实时预览。
    - 验证图标显示、多语言切换及核心逻辑是否正常。

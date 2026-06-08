@@ -1,12 +1,12 @@
 /* AIO Hub Mobile Theme Base */
 /* 
- * 核心颜色系统已对接 MD3 (Material Design 3)
- * 由 src/stores/theme.ts 通过 StyleProvider 动态派生并注入
+ * 核心颜色系统以 AIO Hub 项目 token 为主。
+ * Varlet / MD3 变量只作为底层组件兼容输出。
  */
 
 :root {
   /* --- 桌面端兼容变量映射 --- */
-  /* 将桌面端常用的变量名映射到 Varlet/MD3 派生变量上 */
+  /* 桌面端常用变量名，移动端组件应优先消费这些项目 token */
   --primary-color: var(--color-primary);
   --success-color: var(--color-success);
   --warning-color: var(--color-warning);

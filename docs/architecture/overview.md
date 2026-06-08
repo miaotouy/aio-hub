@@ -33,8 +33,8 @@ AIO Hub 不仅仅是一个工具集合，它是一个以开发者为中心、高
 
 ### 2.3 前端架构 (移动端)
 
-- **UI 框架**: [@varlet/ui](https://varlet.gitee.io/varlet-ui/) (Material Design 3 风格)。
-- **设计原则**: 逻辑函数化 (Functional Core)，减少对 Vue 生命周期钩子的重度依赖，便于逻辑在多端间复用。
+- **UI 架构**: Vue 3 原生组件 + AIO Hub 移动端 `base/common` 组件承担页面骨架；[@varlet/ui](https://varlet.gitee.io/varlet-ui/) 仅作为类似桌面端 Element Plus 的底层原子组件库。
+- **设计原则**: 逻辑函数化 (Functional Core)，减少对 Vue 生命周期钩子的重度依赖，便于逻辑在多端间复用；移动端主题由 AIO Hub 项目 token 主导，Varlet 变量只作为兼容输出。
 
 ---
 
@@ -106,7 +106,7 @@ aio-hub/
 │   ├── views/              # 顶层视图容器：主窗口及各类分离窗口容器
 │   ├── components/         # 通用 UI 组件库 (common/icons)
 │   └── stores/             # 全局状态管理 (Pinia)
-├── mobile/                 # 移动端项目 (Vue 3 + Varlet + Tauri)
+├── mobile/                 # 移动端项目 (Vue 3 + Tauri，Varlet 仅作底层组件库)
 │   ├── src/tools/          # 移动端适配工具 (llm-api, llm-chat 等)
 │   └── src/utils/          # 移动端基础设施 (与 PC 端接口对齐)
 ├── src-tauri/              # Rust 核心：命令定义 (commands/)、系统集成、插件载体

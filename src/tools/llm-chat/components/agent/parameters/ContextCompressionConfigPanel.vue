@@ -4,7 +4,8 @@ import { useElementSize } from "@vueuse/core";
 import { Maximize2 } from "lucide-vue-next";
 import {
   type ContextCompressionConfig,
-  DEFAULT_CONTEXT_COMPRESSION_CONFIG,
+  DEFAULT_CONTEXT_COMPRESSION_PROMPT,
+  CONTINUE_CONTEXT_COMPRESSION_PROMPT,
 } from "../../../types/llm";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import { parseModelCombo } from "@/utils/modelIdUtils";
@@ -74,31 +75,33 @@ const summaryModelValue = computed({
   },
 });
 
-// 重置提示词
-const resetPrompt = (key?: "summaryPrompt" | "continueSummaryPrompt") => {
+type PromptKey = "summaryPrompt" | "continueSummaryPrompt";
+
+const getBuiltInPrompt = (key: PromptKey) =>
+  key === "summaryPrompt"
+    ? DEFAULT_CONTEXT_COMPRESSION_PROMPT
+    : CONTINUE_CONTEXT_COMPRESSION_PROMPT;
+
+// 填充内置默认提示词，便于基于默认模板继续修改
+const fillBuiltInPrompt = (key?: PromptKey) => {
   if (key) {
-    config.value[key] = DEFAULT_CONTEXT_COMPRESSION_CONFIG[key];
+    config.value[key] = getBuiltInPrompt(key);
     // 如果弹窗开启且正在编辑该 key，同步更新临时值
     if (promptEditorVisible.value && editingPromptKey.value === key) {
-      tempPromptValue.value = DEFAULT_CONTEXT_COMPRESSION_CONFIG[key] || "";
+      tempPromptValue.value = getBuiltInPrompt(key);
     }
   } else {
-    config.value.summaryPrompt =
-      DEFAULT_CONTEXT_COMPRESSION_CONFIG.summaryPrompt;
-    config.value.continueSummaryPrompt =
-      DEFAULT_CONTEXT_COMPRESSION_CONFIG.continueSummaryPrompt;
+    config.value.summaryPrompt = DEFAULT_CONTEXT_COMPRESSION_PROMPT;
+    config.value.continueSummaryPrompt = CONTINUE_CONTEXT_COMPRESSION_PROMPT;
     if (promptEditorVisible.value) {
-      tempPromptValue.value =
-        DEFAULT_CONTEXT_COMPRESSION_CONFIG[editingPromptKey.value] || "";
+      tempPromptValue.value = getBuiltInPrompt(editingPromptKey.value);
     }
   }
 };
 
 // 弹窗编辑器相关
 const promptEditorVisible = ref(false);
-const editingPromptKey = ref<"summaryPrompt" | "continueSummaryPrompt">(
-  "summaryPrompt"
-);
+const editingPromptKey = ref<PromptKey>("summaryPrompt");
 const tempPromptValue = ref("");
 
 const editorTitle = computed(() => {
@@ -107,10 +110,14 @@ const editorTitle = computed(() => {
     : "编辑摘要提示词 (续写)";
 });
 
-const openPromptEditor = (key: "summaryPrompt" | "continueSummaryPrompt") => {
+const openPromptEditor = (key: PromptKey) => {
   editingPromptKey.value = key;
   tempPromptValue.value = config.value[key] || "";
   promptEditorVisible.value = true;
+};
+
+const fillBuiltInPromptInEditor = () => {
+  tempPromptValue.value = getBuiltInPrompt(editingPromptKey.value);
 };
 
 const handleSavePrompt = () => {
@@ -320,10 +327,10 @@ const handleSavePrompt = () => {
                     link
                     type="primary"
                     size="small"
-                    @click="resetPrompt('summaryPrompt')"
+                    @click="fillBuiltInPrompt('summaryPrompt')"
                     style="margin-left: 8px; font-weight: normal"
                   >
-                    重置
+                    填充默认
                   </el-button>
                 </div>
                 <el-tooltip content="全屏编辑" placement="top">
@@ -357,10 +364,10 @@ const handleSavePrompt = () => {
                     link
                     type="primary"
                     size="small"
-                    @click="resetPrompt('continueSummaryPrompt')"
+                    @click="fillBuiltInPrompt('continueSummaryPrompt')"
                     style="margin-left: 8px; font-weight: normal"
                   >
-                    重置
+                    填充默认
                   </el-button>
                 </div>
                 <el-tooltip content="全屏编辑" placement="top">
@@ -387,8 +394,13 @@ const handleSavePrompt = () => {
           </el-form-item>
 
           <div class="prompt-actions">
-            <el-button link type="primary" size="small" @click="resetPrompt">
-              重置所有提示词为默认值
+            <el-button
+              link
+              type="primary"
+              size="small"
+              @click="fillBuiltInPrompt"
+            >
+              填充所有内置默认提示词
             </el-button>
           </div>
         </div>
@@ -425,11 +437,11 @@ const handleSavePrompt = () => {
         <div class="dialog-footer">
           <el-button
             link
-            type="danger"
-            @click="resetPrompt(editingPromptKey)"
+            type="primary"
+            @click="fillBuiltInPromptInEditor"
             style="margin-right: auto"
           >
-            恢复默认
+            填充内置默认值
           </el-button>
           <el-button @click="promptEditorVisible = false">取消</el-button>
           <el-button type="primary" @click="handleSavePrompt"

@@ -588,7 +588,41 @@ function truncateText(text: string, maxLength: number): string {
 .message-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.message-actions > * {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.message-actions .el-button {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 4px;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.message-actions .el-button:hover {
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
+  color: var(--el-color-primary);
+}
+
+.message-actions .el-button.el-button--danger:hover {
+  background-color: rgba(
+    var(--el-color-danger-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
+  color: var(--el-color-danger);
 }
 
 /* 紧凑模式 */

@@ -1,4 +1,4 @@
-import { ref, computed, onUnmounted, nextTick, type Ref } from "vue";
+import { ref, computed, onMounted, onUnmounted, nextTick, type Ref } from "vue";
 
 interface UseInputResizeOptions {
   textareaRef: Ref<any>;
@@ -11,8 +11,12 @@ export function useInputResize(options: UseInputResizeOptions) {
   const startHeight = ref(0);
   const customHeight = ref<string | number>("auto");
   const customMaxHeight = ref<string | number | null>(null);
+  const autoHeight = ref<number | null>(null);
 
-  const editorHeight = computed(() => customHeight.value);
+  const editorHeight = computed(() => {
+    if (customHeight.value !== "auto") return customHeight.value;
+    return autoHeight.value ?? "auto";
+  });
 
   const editorMaxHeight = computed(() => {
     const extra = options.extraHeight?.value || 0;
@@ -81,8 +85,15 @@ export function useInputResize(options: UseInputResizeOptions) {
     if (!el) return;
 
     el.style.height = "auto";
-    el.style.height = el.scrollHeight + "px";
+    autoHeight.value = el.scrollHeight;
+    el.style.height = `${autoHeight.value}px`;
   };
+
+  onMounted(() => {
+    nextTick(() => {
+      adjustHeight();
+    });
+  });
 
   onUnmounted(() => {
     if (isResizing.value) {

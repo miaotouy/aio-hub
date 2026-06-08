@@ -67,15 +67,15 @@
           </template>
         </DropZone>
 
-        <!-- ASS 弹幕文件选择：两种模式共用 -->
+        <!-- 弹幕文件选择：两种模式共用 -->
         <DropZone
           variant="input"
-          :accept="['.ass']"
+          :accept="danmakuAcceptExtensions"
           :clickable="true"
           :click-zone="true"
           :multiple="false"
           hide-content
-          @drop="handleAssDrop"
+          @drop="handleDanmakuDrop"
           class="path-drop-zone"
         >
           <template #default="{ dragging }">
@@ -89,18 +89,18 @@
               <span class="path-selector__label">弹幕</span>
               <span
                 class="path-selector__path"
-                :class="{ 'path-selector__path--empty': !assFileName }"
+                :class="{ 'path-selector__path--empty': !danmakuFileName }"
               >
-                {{ assFileName || "拖入或点击选择 ASS 弹幕文件" }}
+                {{ danmakuFileName || "拖入或点击选择弹幕文件" }}
               </span>
               <span v-if="danmakus.length > 0" class="path-selector__badge">
                 {{ danmakus.length }} 条
               </span>
               <button
-                v-if="assFileName"
+                v-if="danmakuFileName"
                 class="path-selector__clear"
                 title="清除弹幕"
-                @click.stop="resetAss"
+                @click.stop="resetDanmaku"
               >
                 <X :size="14" />
               </button>
@@ -200,7 +200,7 @@ import {
 import DropZone from "@/components/common/DropZone.vue";
 import DanmakuVideoPlayer from "./components/DanmakuVideoPlayer.vue";
 import ExternalPlayerPanel from "./components/ExternalPlayerPanel.vue";
-import { parseAss } from "./core/assParser";
+import { parseDanmaku } from "./core/danmakuParser";
 import { parseSubtitle } from "./core/subtitleParser";
 import { useDanmakuConfig } from "./composables/useDanmakuConfig";
 import { customMessage } from "@/utils/customMessage";
@@ -212,6 +212,7 @@ import type { ParsedDanmaku, AssScriptInfo, SubtitleTrack } from "./types";
 
 const logger = createModuleLogger("danmaku-player");
 
+const danmakuAcceptExtensions = [".ass", ".json", ".xml"];
 const subtitleAcceptExtensions = [
   ".srt",
   ".vtt",
@@ -234,7 +235,7 @@ const graphicSubtitleExtensions = new Set(["idx", "sup"]);
 const activeMode = ref<"builtin" | "external">("builtin");
 const videoUrl = ref("");
 const videoName = ref("");
-const assFileName = ref("");
+const danmakuFileName = ref("");
 const danmakus = ref<ParsedDanmaku[]>([]);
 const scriptInfo = ref<AssScriptInfo>({ playResX: 1836, playResY: 1032 });
 const subtitleTrack = ref<SubtitleTrack | null>(null);
@@ -268,28 +269,32 @@ async function handleVideoDrop(paths: string[]) {
   logger.info("视频 URL 已生成", { url: videoUrl.value });
 }
 
-async function handleAssDrop(paths: string[]) {
-  logger.info("handleAssDrop", { count: paths.length });
+async function handleDanmakuDrop(paths: string[]) {
+  logger.info("handleDanmakuDrop", { count: paths.length });
   if (paths.length === 0) return;
   const path = paths[0];
   logger.info("选择弹幕文件", { path });
 
-  assFileName.value = getFileNameFromPath(path, "danmaku.ass");
+  const fileName = getFileNameFromPath(path, "danmaku");
+  danmakuFileName.value = fileName;
 
   try {
     const content = await loadTextFile(path);
     logger.info("弹幕文件内容已读取", { length: content.length });
-    const result = parseAss(content);
+    const result = parseDanmaku(content, fileName);
     danmakus.value = result.danmakus;
     scriptInfo.value = result.info;
     logger.info("弹幕解析成功", {
+      fileName,
+      format: result.format,
       count: result.danmakus.length,
       info: result.info,
     });
     customMessage.success(`成功解析 ${result.danmakus.length} 条弹幕`);
   } catch (err) {
     logger.error("弹幕解析失败", err as Error);
-    customMessage.error("弹幕解析失败，请检查文件格式");
+    const message = err instanceof Error ? err.message : "请检查文件格式";
+    customMessage.error(`弹幕解析失败：${message}`);
   }
 }
 
@@ -339,8 +344,8 @@ function resetVideo() {
   videoName.value = "";
 }
 
-function resetAss() {
-  assFileName.value = "";
+function resetDanmaku() {
+  danmakuFileName.value = "";
   danmakus.value = [];
   scriptInfo.value = { playResX: 1836, playResY: 1032 };
 }

@@ -28,6 +28,7 @@
 - **DanmakuVideoPlayer**：包装了通用 `VideoPlayer` 组件，通过插槽注入弹幕层。
 - **DanmakuCanvas**：作为视频播放器的 Overlay 层，直接在当前窗口渲染。
 - **SubtitleOverlay**：作为独立 DOM 字幕层，按 HTML5 Video 当前时间筛选字幕 cue，位于弹幕层之上、控制栏之下。
+- **danmakuParser**：将 ASS、B 站 JSON `DanmakuElem[]`、B 站经典 XML `<d p="...">` 解析为统一 `ParsedDanmaku[]`。
 - **subtitleParser**：将 SRT、VTT、ASS/SSA、LRC、SBV、文本 SUB、SAMI、TTML 等文本外挂字幕解析为统一 `SubtitleTrack`。
 - **useDanmakuRenderer**：将渲染引擎与 HTML5 Video 的 `currentTime` 和播放状态绑定。
 
@@ -107,7 +108,7 @@ graph TD
 
 ## 4. 数据流向
 
-1. **弹幕初始化**：主窗口加载 ASS 文件 -> [`assParser.ts`](core/assParser.ts) 解析为标准弹幕格式 -> 内置模式传给 `DanmakuCanvas`，外部模式通过 `danmaku-overlay:init` 事件发送至 Overlay。
+1. **弹幕初始化**：主窗口加载 ASS / B 站 JSON / B 站 XML 文件 -> [`danmakuParser.ts`](core/danmakuParser.ts) 解析为标准弹幕格式 -> 内置模式传给 `DanmakuCanvas`，外部模式通过 `danmaku-overlay:init` 事件发送至 Overlay。
 2. **字幕初始化（仅内置模式）**：主窗口加载外挂字幕文件 -> [`subtitleParser.ts`](core/subtitleParser.ts) 解析为 `SubtitleTrack` -> `DanmakuVideoPlayer` 按视频 `currentTime` 传给 `SubtitleOverlay` 显示。
 3. **同步循环**：
    - `Main` 轮询播放器位置 -> `Invoke` Rust -> `SetPosition/Size` Overlay。

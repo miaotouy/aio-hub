@@ -215,7 +215,7 @@
             v-if="!canStartOverlay && !overlayState.overlayCreated"
             class="start-requirements"
           >
-            需要先加载 ASS 弹幕、选择播放器窗口，并通过 Web 端口连接测试。
+            需要先加载弹幕文件、选择播放器窗口，并通过 Web 端口连接测试。
           </p>
         </section>
       </div>
@@ -417,7 +417,7 @@ async function handleStartOverlay(): Promise<void> {
   }
 
   if (props.danmakus.length === 0) {
-    customMessage.warning("请先加载 ASS 弹幕文件");
+    customMessage.warning("请先加载弹幕文件");
     return;
   }
 

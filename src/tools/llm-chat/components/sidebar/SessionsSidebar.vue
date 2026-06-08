@@ -637,21 +637,7 @@ const handleSessionClick = (session: ChatSessionIndex) => {
   width: 100%;
 }
 
-/* 滚动条样式 */
-.sessions-list::-webkit-scrollbar {
-  width: 6px;
-}
-
-.sessions-list::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.sessions-list::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb-color);
-  border-radius: 3px;
-}
-
-.sessions-list::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-thumb-hover-color);
+.el-button + .el-button {
+  margin-left: 0px;
 }
 </style>

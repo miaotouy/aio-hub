@@ -36,6 +36,7 @@ onMounted(() => {
   </div>
 
   <div v-else class="app-container">
+    <div class="app-wallpaper" aria-hidden="true"></div>
     <var-style-provider
       :style="themeStore.themeVars"
       class="app-style-provider"
@@ -117,6 +118,24 @@ body,
   position: relative;
 }
 
+.app-wallpaper {
+  display: var(--app-wallpaper-display, none);
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--app-wallpaper-bg);
+  filter: blur(var(--app-wallpaper-blur, 0px));
+  transform: scale(1.04);
+}
+
+.app-wallpaper::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-color: rgba(var(--bg-color-rgb), var(--app-wallpaper-dim, 0));
+}
+
 .app-style-provider {
   flex: 1;
   display: flex;
@@ -124,6 +143,8 @@ body,
   height: 100%;
   min-height: 0; /* 关键：允许 flex 项目缩小 */
   overflow: hidden;
+  position: relative;
+  z-index: 1;
 }
 
 .main-content {

@@ -26,7 +26,7 @@ watch(
   (path) => {
     if (path === "/") {
       active.value = "home";
-    } else if (path === "/settings") {
+    } else if (path.startsWith("/settings")) {
       active.value = "settings";
     } else {
       active.value = "tools";

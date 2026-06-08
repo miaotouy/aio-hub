@@ -13,6 +13,10 @@ function cloneAppearance(
   return {
     ...defaults,
     ...appearance,
+    wallpaper: {
+      ...defaults.wallpaper,
+      ...appearance.wallpaper,
+    },
     layerOpacityOffsets: {
       ...defaults.layerOpacityOffsets,
       ...appearance.layerOpacityOffsets,
@@ -40,6 +44,10 @@ export function useAppearanceSettingsDraft() {
     const nextAppearance = cloneAppearance({
       ...appearanceDraft.value,
       ...updates,
+      wallpaper: {
+        ...appearanceDraft.value.wallpaper,
+        ...updates.wallpaper,
+      },
       layerOpacityOffsets: {
         ...appearanceDraft.value.layerOpacityOffsets,
         ...updates.layerOpacityOffsets,
@@ -47,7 +55,7 @@ export function useAppearanceSettingsDraft() {
     });
 
     appearanceDraft.value = nextAppearance;
-    await settingsStore.updateAppearance(updates);
+    await settingsStore.updateAppearance(nextAppearance);
   };
 
   const resetAppearanceDraft = async () => {

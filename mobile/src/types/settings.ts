@@ -15,11 +15,31 @@ export interface AppearanceLayerOpacityOffsets {
   overlay: number;
 }
 
+export type AppearanceWallpaperPreset =
+  | "none"
+  | "aurora"
+  | "morning"
+  | "canyon"
+  | "ink";
+
+export interface AppearanceWallpaperSettings {
+  /** 是否启用壁纸背景 */
+  enabled: boolean;
+  /** 内置壁纸预设 */
+  preset: AppearanceWallpaperPreset;
+  /** 壁纸遮罩强度 (0.0 - 1.0) */
+  dimOpacity: number;
+  /** 壁纸自身模糊强度 (px) */
+  blurIntensity: number;
+}
+
 export interface AppearanceSettings {
   /** 主题模式 */
   theme: ThemeMode;
   /** 主题种子颜色 */
   themeColor?: string;
+  /** 壁纸背景 */
+  wallpaper: AppearanceWallpaperSettings;
   /** 是否启用触感反馈 */
   hapticFeedback: boolean;
   /** 字体大小缩放 (1.0 为正常) */
@@ -69,6 +89,12 @@ export const DEFAULT_APP_SETTINGS: MobileAppSettings = {
   appearance: {
     theme: "auto",
     themeColor: "#409EFF",
+    wallpaper: {
+      enabled: false,
+      preset: "aurora",
+      dimOpacity: 0.34,
+      blurIntensity: 0,
+    },
     hapticFeedback: true,
     fontSizeScale: 1.0,
     enableUiEffects: false,

@@ -56,6 +56,28 @@ function radius(value: number, scale: number) {
   return `${Math.round(value * clamp(scale, 0.5, 1.8))}px`;
 }
 
+function wallpaperBackground(preset: string | undefined, isDark: boolean) {
+  switch (preset) {
+    case "morning":
+      return isDark
+        ? "radial-gradient(circle at 18% 18%, rgba(255, 214, 165, 0.24), transparent 30%), radial-gradient(circle at 82% 24%, rgba(125, 211, 252, 0.2), transparent 34%), linear-gradient(145deg, #171923 0%, #25313f 48%, #102a43 100%)"
+        : "radial-gradient(circle at 18% 18%, rgba(255, 214, 165, 0.7), transparent 30%), radial-gradient(circle at 82% 24%, rgba(125, 211, 252, 0.48), transparent 34%), linear-gradient(145deg, #fff7ed 0%, #dff6ff 46%, #dbeafe 100%)";
+    case "canyon":
+      return isDark
+        ? "radial-gradient(circle at 18% 20%, rgba(244, 114, 86, 0.24), transparent 30%), radial-gradient(circle at 76% 28%, rgba(251, 191, 36, 0.18), transparent 32%), linear-gradient(150deg, #211915 0%, #3a1f1b 46%, #14213d 100%)"
+        : "radial-gradient(circle at 18% 20%, rgba(244, 114, 86, 0.42), transparent 30%), radial-gradient(circle at 76% 28%, rgba(251, 191, 36, 0.36), transparent 32%), linear-gradient(150deg, #fff1e6 0%, #fed7aa 46%, #dbeafe 100%)";
+    case "ink":
+      return isDark
+        ? "radial-gradient(circle at 24% 20%, rgba(148, 163, 184, 0.2), transparent 32%), radial-gradient(circle at 72% 72%, rgba(45, 212, 191, 0.14), transparent 34%), linear-gradient(150deg, #0f172a 0%, #1f2937 48%, #111827 100%)"
+        : "radial-gradient(circle at 24% 20%, rgba(148, 163, 184, 0.34), transparent 32%), radial-gradient(circle at 72% 72%, rgba(45, 212, 191, 0.24), transparent 34%), linear-gradient(150deg, #f8fafc 0%, #e2e8f0 48%, #ecfeff 100%)";
+    case "aurora":
+    default:
+      return isDark
+        ? "radial-gradient(circle at 18% 18%, rgba(52, 211, 153, 0.22), transparent 30%), radial-gradient(circle at 78% 24%, rgba(96, 165, 250, 0.24), transparent 34%), radial-gradient(circle at 50% 88%, rgba(244, 114, 182, 0.16), transparent 36%), linear-gradient(145deg, #101827 0%, #172033 45%, #111827 100%)"
+        : "radial-gradient(circle at 18% 18%, rgba(52, 211, 153, 0.36), transparent 30%), radial-gradient(circle at 78% 24%, rgba(96, 165, 250, 0.32), transparent 34%), radial-gradient(circle at 50% 88%, rgba(244, 114, 182, 0.22), transparent 36%), linear-gradient(145deg, #eff6ff 0%, #ecfdf5 45%, #fdf2f8 100%)";
+  }
+}
+
 function pickColor(
   vars: Record<string, string>,
   key: string,
@@ -79,13 +101,23 @@ export function generateMobileTheme(
   const fontScale = clamp(appearance.fontSizeScale, 0.8, 1.5);
   const baseFontSize = 14 * fontScale;
   const layerOffsets = appearance.layerOpacityOffsets;
+  const wallpaper = appearance.wallpaper;
+  const wallpaperEnabled = Boolean(
+    wallpaper?.enabled && wallpaper.preset !== "none"
+  );
+  const wallpaperDim = clamp(wallpaper?.dimOpacity ?? 0.34, 0, 0.8);
+  const wallpaperBlur = clamp(wallpaper?.blurIntensity ?? 0, 0, 40);
 
   const primary = pickColor(varletVars, "--color-primary", sourceColor);
   const success = pickColor(varletVars, "--color-success", "#67C23A");
   const warning = pickColor(varletVars, "--color-warning", "#E6A23C");
   const danger = pickColor(varletVars, "--color-danger", "#F56C6C");
   const info = pickColor(varletVars, "--color-info", "#909399");
-  const body = pickColor(varletVars, "--color-body", isDark ? "#121212" : "#FFFFFF");
+  const body = pickColor(
+    varletVars,
+    "--color-body",
+    isDark ? "#121212" : "#FFFFFF"
+  );
   const surface = pickColor(
     varletVars,
     "--color-surface",
@@ -159,6 +191,10 @@ export function generateMobileTheme(
 
     "--bg-color": body,
     "--bg-color-rgb": rgbString(body),
+    "--app-wallpaper-display": wallpaperEnabled ? "block" : "none",
+    "--app-wallpaper-bg": wallpaperBackground(wallpaper?.preset, isDark),
+    "--app-wallpaper-dim": String(wallpaperDim),
+    "--app-wallpaper-blur": `${wallpaperBlur}px`,
     "--text-color": text,
     "--text-color-rgb": rgbString(text),
     "--text-color-light": textLight,

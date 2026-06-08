@@ -405,7 +405,11 @@ const generationMetaForRenderer = computed(() => {
         <template v-else-if="isAudioOutputTaskType(task.type)">
           <div v-if="resultUrls.length > 0" class="audio-list">
             <div v-for="url in resultUrls" :key="url" class="media-item">
-              <AudioPlayer :src="url" class="media-preview" />
+              <AudioPlayer
+                :src="url"
+                layout="compact"
+                class="audio-preview"
+              />
             </div>
           </div>
         </template>
@@ -646,6 +650,12 @@ const generationMetaForRenderer = computed(() => {
   box-shadow: var(--el-box-shadow-light);
   display: block;
   box-sizing: border-box;
+}
+
+.audio-preview {
+  width: 100%;
+  border-radius: 8px;
+  box-shadow: var(--el-box-shadow-light);
 }
 
 .media-preview.clickable {

@@ -11,7 +11,11 @@ import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useAgentStore } from "../stores/agentStore";
 import { getLocalISOString } from "@/utils/time";
-import type { ChatAgent, ChatMessageNode } from "../types";
+import {
+  stripDefaultContextCompressionPromptsFromParameters,
+  type ChatAgent,
+  type ChatMessageNode,
+} from "../types";
 
 const logger = createModuleLogger("llm-chat/agentManagementService");
 const errorHandler = createModuleErrorHandler(
@@ -279,6 +283,19 @@ function extractSection(
   return result;
 }
 
+function stripDefaultPromptsFromAgentOutput<T extends Record<string, any>>(
+  data: T
+): T {
+  if (!data.parameters) return data;
+
+  return {
+    ...data,
+    parameters: stripDefaultContextCompressionPromptsFromParameters(
+      data.parameters
+    ),
+  };
+}
+
 /**
  * 格式化值用于显示（截断过长的内容）
  */
@@ -394,9 +411,11 @@ export async function read_agent_config(params: {
         profileId: _pid,
         ...rest
       } = agent;
-      data = rest;
+      data = stripDefaultPromptsFromAgentOutput(rest);
     } else {
-      data = extractSection(agent, params.section);
+      data = stripDefaultPromptsFromAgentOutput(
+        extractSection(agent, params.section)
+      );
     }
 
     return yaml.dump(data, {
@@ -433,14 +452,15 @@ export async function export_agent_as_text(params: {
       avatarHistory: _ah,
       ...exportData
     } = agent;
+    const cleanedExportData = stripDefaultPromptsFromAgentOutput(exportData);
 
     const format = params.format || "yaml";
 
     if (format === "json") {
-      return JSON.stringify(exportData, null, 2);
+      return JSON.stringify(cleanedExportData, null, 2);
     }
 
-    return yaml.dump(exportData, {
+    return yaml.dump(cleanedExportData, {
       lineWidth: -1,
       noRefs: true,
       sortKeys: false,

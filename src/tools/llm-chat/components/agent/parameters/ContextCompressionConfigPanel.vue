@@ -340,10 +340,11 @@ const handleSavePrompt = () => {
               v-model="config.summaryPrompt"
               type="textarea"
               :rows="4"
-              placeholder="输入提示词模板..."
+              placeholder="留空使用内置默认提示词，可输入自定义模板..."
             />
             <div class="form-helper">
-              用于首次压缩。使用 <code>{context}</code> 代表对话内容。
+              用于首次压缩。留空则使用内置默认提示词。使用
+              <code>{context}</code> 代表对话内容。
             </div>
           </el-form-item>
 
@@ -376,10 +377,10 @@ const handleSavePrompt = () => {
               v-model="config.continueSummaryPrompt"
               type="textarea"
               :rows="4"
-              placeholder="输入续写提示词模板..."
+              placeholder="留空使用内置默认提示词，可输入自定义模板..."
             />
             <div class="form-helper">
-              用于在已有摘要基础上追加。使用
+              用于在已有摘要基础上追加。留空则使用内置默认提示词。使用
               <code>{previous_summary}</code> 代表旧摘要，<code>{context}</code>
               代表新内容。
             </div>

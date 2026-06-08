@@ -12,6 +12,7 @@ import {
   type ChatAgent,
   AgentCategory,
   AgentCategoryLabels,
+  stripDefaultContextCompressionPromptsFromParameters,
 } from "../../types";
 import { migrateAgent } from "../../services/agentMigrationService";
 import { createModuleLogger } from "@/utils/logger";
@@ -329,6 +330,10 @@ export function useAgentStorageSeparated() {
 
       // 在序列化之前，处理 icon 路径
       const agentToSave = JSON.parse(JSON.stringify(agent)); // 深拷贝以避免修改内存状态
+      agentToSave.parameters =
+        stripDefaultContextCompressionPromptsFromParameters(
+          agentToSave.parameters
+        );
 
       // 如果 icon 是完整的 appdata 路径（指向自己的目录），转换为相对文件名
       const icon = agentToSave.icon?.trim();

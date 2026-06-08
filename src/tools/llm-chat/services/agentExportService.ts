@@ -14,7 +14,11 @@ import { join } from "@tauri-apps/api/path";
 import { getAppConfigDir } from "@/utils/appPath";
 import { invoke } from "@tauri-apps/api/core";
 import { formatDateTime } from "@/utils/time";
-import type { ChatAgent, ChatMessageNode } from "../types";
+import {
+  stripDefaultContextCompressionPromptsFromParameters,
+  type ChatAgent,
+  type ChatMessageNode,
+} from "../types";
 import type {
   ExportableAgent,
   AgentExportFile,
@@ -139,6 +143,10 @@ export async function exportAgents(
             exportableAgent.presetMessages
           );
         }
+        exportableAgent.parameters =
+          stripDefaultContextCompressionPromptsFromParameters(
+            exportableAgent.parameters
+          );
 
         const exportData: AgentExportFile = {
           version: 1,
@@ -258,6 +266,13 @@ export async function exportAgents(
           maxTokens: 4096,
         },
       };
+      exportableAgent.parameters =
+        stripDefaultContextCompressionPromptsFromParameters(
+          exportableAgent.parameters
+        ) || {
+          temperature: 1,
+          maxTokens: 4096,
+        };
 
       // 清理预设消息中的运行时元数据
       if (exportableAgent.presetMessages) {

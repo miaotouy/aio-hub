@@ -7,6 +7,7 @@ import {
   DEFAULT_CONTEXT_COMPRESSION_CONFIG,
   DEFAULT_CONTEXT_COMPRESSION_PROMPT,
   CONTINUE_CONTEXT_COMPRESSION_PROMPT,
+  resolveContextCompressionPromptTemplate,
   type ChatSessionIndex,
   type ChatSessionDetail,
   type ChatMessageNode,
@@ -165,15 +166,19 @@ export function useContextCompressor() {
     let prompt = "";
     if (previousSummary) {
       // 如果有前情提要，使用续写提示词
-      const promptTemplate =
-        config.continueSummaryPrompt || CONTINUE_CONTEXT_COMPRESSION_PROMPT;
+      const promptTemplate = resolveContextCompressionPromptTemplate(
+        config.continueSummaryPrompt,
+        CONTINUE_CONTEXT_COMPRESSION_PROMPT
+      );
       prompt = promptTemplate
         .replace("{previous_summary}", previousSummary)
         .replace("{context}", contentText);
     } else {
       // 否则使用默认提示词
-      const promptTemplate =
-        config.summaryPrompt || DEFAULT_CONTEXT_COMPRESSION_PROMPT;
+      const promptTemplate = resolveContextCompressionPromptTemplate(
+        config.summaryPrompt,
+        DEFAULT_CONTEXT_COMPRESSION_PROMPT
+      );
       prompt = promptTemplate.replace("{context}", contentText);
     }
 

@@ -369,8 +369,8 @@ export const DEFAULT_CONTEXT_COMPRESSION_CONFIG: ContextCompressionConfig = {
   summaryRole: "system",
   summaryTemperature: 0.3,
   summaryMaxTokens: 4096,
-  summaryPrompt: DEFAULT_CONTEXT_COMPRESSION_PROMPT,
-  continueSummaryPrompt: CONTINUE_CONTEXT_COMPRESSION_PROMPT,
+  summaryPrompt: "",
+  continueSummaryPrompt: "",
 };
 
 export interface ContextCompressionConfig {
@@ -398,8 +398,52 @@ export interface ContextCompressionConfig {
   summaryTemperature?: number;
   /** 摘要生成最大 Token 数 */
   summaryMaxTokens?: number;
-  /** 摘要提示词模板 */
+  /** 摘要提示词模板，留空则使用内置默认提示词 */
   summaryPrompt?: string;
-  /** 续写摘要提示词模板 */
+  /** 续写摘要提示词模板，留空则使用内置默认提示词 */
   continueSummaryPrompt?: string;
+}
+
+export function resolveContextCompressionPromptTemplate(
+  prompt: string | undefined,
+  builtInPrompt: string
+): string {
+  return prompt?.trim() ? prompt : builtInPrompt;
+}
+
+export function stripDefaultContextCompressionPrompts(
+  config?: ContextCompressionConfig
+): ContextCompressionConfig | undefined {
+  if (!config) return config;
+
+  const normalized = { ...config };
+
+  if (
+    !normalized.summaryPrompt?.trim() ||
+    normalized.summaryPrompt === DEFAULT_CONTEXT_COMPRESSION_PROMPT
+  ) {
+    delete normalized.summaryPrompt;
+  }
+
+  if (
+    !normalized.continueSummaryPrompt?.trim() ||
+    normalized.continueSummaryPrompt === CONTINUE_CONTEXT_COMPRESSION_PROMPT
+  ) {
+    delete normalized.continueSummaryPrompt;
+  }
+
+  return normalized;
+}
+
+export function stripDefaultContextCompressionPromptsFromParameters(
+  parameters?: LlmParameters
+): LlmParameters | undefined {
+  if (!parameters?.contextCompression) return parameters;
+
+  return {
+    ...parameters,
+    contextCompression: stripDefaultContextCompressionPrompts(
+      parameters.contextCompression
+    ),
+  };
 }

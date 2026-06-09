@@ -351,11 +351,11 @@ import {
   CopyDocument,
   DocumentCopy,
   DocumentAdd,
-  ChatDotRound,
+  Setting,
   User,
-  Service,
   Link,
 } from "@element-plus/icons-vue";
+import { Bot } from "lucide-vue-next";
 import type { ChatMessageNode, MessageRole } from "../../../types";
 import type { PresetMessageGroup } from "../../../types/agent";
 import {
@@ -421,10 +421,10 @@ const roleTagTypeMap: Record<MessageRole, "success" | "primary" | "info"> = {
   tool: "info",
 };
 const roleIconMap: Record<MessageRole, any> = {
-  system: markRaw(ChatDotRound),
+  system: markRaw(Setting),
   user: markRaw(User),
-  assistant: markRaw(Service),
-  tool: markRaw(Service),
+  assistant: markRaw(Bot),
+  tool: markRaw(Bot),
 };
 const roleLabelMap: Record<MessageRole, string> = {
   system: "System",

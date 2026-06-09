@@ -179,6 +179,7 @@ import type { ChatMessageNode } from "../../../types";
 import type { PresetMessageGroup } from "../../../types/agent";
 import { customMessage } from "@/utils/customMessage";
 import PresetGroupEditDialog from "./PresetGroupEditDialog.vue";
+import { applyPresetGroupEnabledState } from "./presetGroupState";
 
 interface Props {
   presetGroups: PresetMessageGroup[];
@@ -260,21 +261,7 @@ function handleSaveGroup(
 }
 
 function handleToggleEnabled(group: PresetMessageGroup) {
-  props.localMessages.forEach((msg) => {
-    if (msg.groupId !== group.id) return;
-    if (!group.enabled) {
-      if (msg.isEnabled !== false) {
-        msg.isEnabled = false;
-        if (!msg.metadata) msg.metadata = {} as any;
-        msg.metadata!.lastEnabledState = true;
-      }
-    } else {
-      if (msg.metadata?.lastEnabledState === true) {
-        msg.isEnabled = true;
-        delete msg.metadata!.lastEnabledState;
-      }
-    }
-  });
+  applyPresetGroupEnabledState(group, props.localMessages);
   emit("sync");
 }
 

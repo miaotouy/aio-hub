@@ -125,6 +125,54 @@
         :style="{ height: containerHeight }"
       >
         <div class="messages-scroll-wrapper">
+          <div
+            v-if="props.compact && presetGroups.length > 0"
+            class="compact-group-switches"
+          >
+            <div class="compact-group-switches-header">
+              <span>消息组</span>
+              <el-tag size="small" type="info" effect="plain">
+                {{ presetGroups.length }}
+              </el-tag>
+            </div>
+
+            <div class="compact-group-switch-list">
+              <div
+                v-for="group in presetGroups"
+                :key="group.id"
+                class="compact-group-switch-row"
+                :class="{ 'is-disabled': group.enabled === false }"
+              >
+                <div class="compact-group-main">
+                  <span class="compact-group-name" :title="group.name">
+                    {{ group.name }}
+                  </span>
+                  <div class="compact-group-meta">
+                    <el-tag
+                      size="small"
+                      :type="
+                        group.selectionMode === 'radio' ? 'warning' : 'info'
+                      "
+                      effect="plain"
+                    >
+                      {{ group.selectionMode === "radio" ? "单选" : "多选" }}
+                    </el-tag>
+                    <span class="compact-group-count">
+                      {{ getPresetGroupStats(group.id).enabled }}/{{
+                        getPresetGroupStats(group.id).total
+                      }}
+                    </span>
+                  </div>
+                </div>
+                <el-switch
+                  v-model="group.enabled"
+                  size="small"
+                  @change="handlePresetGroupToggle(group)"
+                />
+              </div>
+            </div>
+          </div>
+
           <VueDraggableNext
             v-model="currentPageMessages"
             item-key="id"
@@ -283,6 +331,10 @@ import AgentPresetBatchDialog from "./AgentPresetBatchDialog.vue";
 import PresetMessageCard from "./PresetMessageCard.vue";
 import { usePresetTokenCalculator } from "./usePresetTokenCalculator";
 import { usePresetImportExport } from "./usePresetImportExport";
+import {
+  applyPresetGroupEnabledState,
+  getPresetGroupMessageStats,
+} from "./presetGroupState";
 import type {
   LlmThinkRule,
   RichTextRendererStyleOptions,
@@ -626,6 +678,15 @@ function handleToggleEnabled() {
 
 // === 预设组联动逻辑 ===
 
+function getPresetGroupStats(groupId: string) {
+  return getPresetGroupMessageStats(groupId, localMessages.value);
+}
+
+function handlePresetGroupToggle(group: PresetMessageGroup) {
+  applyPresetGroupEnabledState(group, localMessages.value);
+  syncToParent();
+}
+
 function handleRadioChange(targetMsg: ChatMessageNode) {
   const group = getMessageGroup(targetMsg.groupId);
   if (!group || group.selectionMode !== "radio") return;
@@ -858,6 +919,78 @@ function handleSaveUserProfile(
 .agent-preset-editor.compact .messages-scroll-wrapper {
   padding: 8px;
 }
+.compact-group-switches {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 8px;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 6px;
+  background: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
+}
+
+.compact-group-switches-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.compact-group-switch-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.compact-group-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 34px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: var(--input-bg);
+}
+
+.compact-group-switch-row.is-disabled {
+  opacity: 0.65;
+}
+
+.compact-group-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.compact-group-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compact-group-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.compact-group-count {
+  font-size: 12px;
+  color: var(--text-color-light);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .agent-preset-editor.compact .messages-list {
   gap: 8px;
 }

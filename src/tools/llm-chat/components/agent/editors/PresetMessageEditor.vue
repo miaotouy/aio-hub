@@ -92,6 +92,98 @@
           v-model="injectionStrategyValue"
         />
 
+        <!-- 附件区域（非 greeting 模式且 Agent 有资产时显示） -->
+        <div
+          v-if="!isGreetingMode && availableAssets.length > 0"
+          class="editor-row attachments-row"
+        >
+          <span class="field-label">附件</span>
+          <div class="attachments-area">
+            <div v-if="form.presetAttachments?.length" class="attachment-list">
+              <div
+                v-for="(ref, idx) in form.presetAttachments"
+                :key="ref.assetId"
+                class="attachment-item"
+              >
+                <span class="attachment-icon">{{
+                  getAssetTypeEmoji(ref.assetId)
+                }}</span>
+                <span
+                  class="attachment-name"
+                  :title="getAssetFilename(ref.assetId)"
+                >
+                  {{ getAssetFilename(ref.assetId) }}
+                </span>
+                <el-button
+                  link
+                  size="small"
+                  type="danger"
+                  @click="removeAttachment(idx)"
+                  title="移除"
+                >
+                  <el-icon><Close /></el-icon>
+                </el-button>
+              </div>
+            </div>
+            <el-popover
+              v-model:visible="assetSelectorVisible"
+              placement="bottom-start"
+              :width="360"
+              trigger="click"
+            >
+              <template #reference>
+                <el-button size="small" plain>
+                  <el-icon style="margin-right: 4px"
+                    ><Paperclip :size="14"
+                  /></el-icon>
+                  从 Agent 资产选择
+                </el-button>
+              </template>
+              <div class="asset-selector-popover">
+                <el-input
+                  v-model="assetSearchQuery"
+                  placeholder="搜索资产..."
+                  size="small"
+                  clearable
+                  style="margin-bottom: 8px"
+                />
+                <div class="asset-selector-list">
+                  <div
+                    v-for="asset in filteredAssets"
+                    :key="asset.id"
+                    class="asset-selector-item"
+                    :class="{ 'is-selected': isAssetSelected(asset.id) }"
+                    @click="toggleAsset(asset)"
+                  >
+                    <span class="asset-type-icon">{{
+                      assetTypeEmoji(asset.type)
+                    }}</span>
+                    <div class="asset-info">
+                      <span class="asset-handle">{{ asset.id }}</span>
+                      <span class="asset-filename">{{ asset.filename }}</span>
+                    </div>
+                    <el-icon
+                      v-if="isAssetSelected(asset.id)"
+                      class="asset-check"
+                    >
+                      <Check />
+                    </el-icon>
+                  </div>
+                  <div v-if="filteredAssets.length === 0" class="asset-empty">
+                    无匹配资产
+                  </div>
+                </div>
+              </div>
+            </el-popover>
+            <span
+              v-if="form.presetAttachments?.length"
+              class="attachment-count"
+            >
+              {{ form.presetAttachments.length }} 个附件
+            </span>
+          </div>
+        </div>
+
         <!-- 第二行：内容标签 + 工具栏 -->
         <div class="editor-row toolbar-row">
           <span class="field-label">内容</span>
@@ -284,8 +376,9 @@ import type {
   MessageRole,
   UserProfile,
   InjectionStrategy,
+  PresetAttachmentRef,
 } from "../../../types";
-import type { PresetMessageGroup } from "../../../types/agent";
+import type { PresetMessageGroup, AgentAsset } from "../../../types/agent";
 import {
   ChatDotRound,
   User,
@@ -293,8 +386,10 @@ import {
   CopyDocument,
   DocumentAdd,
   Document,
+  Close,
+  Check,
 } from "@element-plus/icons-vue";
-import { Bot, Book, Variable } from "lucide-vue-next";
+import { Bot, Book, Variable, Paperclip } from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import MacroSelector from "../selectors/MacroSelector.vue";
@@ -337,6 +432,7 @@ interface MessageForm {
   content: string;
   groupId?: string;
   injectionStrategy?: InjectionStrategy;
+  presetAttachments?: PresetAttachmentRef[];
   modelMatch?: {
     enabled: boolean;
     mode?: "any" | "all";
@@ -400,7 +496,74 @@ const form = ref<MessageForm>({
   role: "system",
   name: "",
   content: "",
+  presetAttachments: [],
 });
+
+// 附件选择相关
+const assetSelectorVisible = ref(false);
+const assetSearchQuery = ref("");
+
+/** Agent 可用资产列表 */
+const availableAssets = computed<AgentAsset[]>(() => {
+  return props.agent?.assets || [];
+});
+
+/** 按搜索词过滤的资产 */
+const filteredAssets = computed(() => {
+  const q = assetSearchQuery.value.toLowerCase();
+  if (!q) return availableAssets.value;
+  return availableAssets.value.filter(
+    (a) =>
+      a.id.toLowerCase().includes(q) ||
+      a.filename.toLowerCase().includes(q) ||
+      a.description?.toLowerCase().includes(q)
+  );
+});
+
+function assetTypeEmoji(type: string): string {
+  switch (type) {
+    case "image":
+      return "🖼️";
+    case "audio":
+      return "🔊";
+    case "video":
+      return "🎬";
+    case "file":
+      return "📄";
+    default:
+      return "📎";
+  }
+}
+
+function getAssetTypeEmoji(assetId: string): string {
+  const asset = availableAssets.value.find((a) => a.id === assetId);
+  return asset ? assetTypeEmoji(asset.type) : "📎";
+}
+
+function getAssetFilename(assetId: string): string {
+  const asset = availableAssets.value.find((a) => a.id === assetId);
+  return asset?.filename || assetId;
+}
+
+function isAssetSelected(assetId: string): boolean {
+  return !!form.value.presetAttachments?.some((r) => r.assetId === assetId);
+}
+
+function toggleAsset(asset: AgentAsset) {
+  if (!form.value.presetAttachments) form.value.presetAttachments = [];
+  const idx = form.value.presetAttachments.findIndex(
+    (r) => r.assetId === asset.id
+  );
+  if (idx >= 0) {
+    form.value.presetAttachments.splice(idx, 1);
+  } else {
+    form.value.presetAttachments.push({ assetId: asset.id });
+  }
+}
+
+function removeAttachment(index: number) {
+  form.value.presetAttachments?.splice(index, 1);
+}
 
 // 模型匹配和注入策略（由子组件管理内部 UI 状态）
 const modelMatchValue = ref<MessageForm["modelMatch"]>(undefined);
@@ -681,7 +844,12 @@ watch(
   () => props.initialForm,
   (newForm) => {
     if (newForm) {
-      form.value = { ...newForm };
+      form.value = {
+        ...newForm,
+        presetAttachments: newForm.presetAttachments
+          ? [...newForm.presetAttachments]
+          : [],
+      };
       injectionStrategyValue.value = newForm.injectionStrategy;
       modelMatchValue.value = newForm.modelMatch;
     }
@@ -696,8 +864,14 @@ watch(
     if (newVisible) {
       viewMode.value = "edit"; // 默认进入编辑模式
       previewContent.value = ""; // 重置预览缓存，避免显示上次的旧内容
+      assetSearchQuery.value = ""; // 重置搜索
       if (props.initialForm) {
-        form.value = { ...props.initialForm };
+        form.value = {
+          ...props.initialForm,
+          presetAttachments: props.initialForm.presetAttachments
+            ? [...props.initialForm.presetAttachments]
+            : [],
+        };
         injectionStrategyValue.value = props.initialForm.injectionStrategy;
         modelMatchValue.value = props.initialForm.modelMatch;
       }
@@ -872,8 +1046,12 @@ function handleSave() {
     return;
   }
 
+  const attachments = form.value.presetAttachments?.length
+    ? form.value.presetAttachments
+    : undefined;
   emit("save", {
     ...form.value,
+    presetAttachments: attachments,
     injectionStrategy: injectionStrategyValue.value,
     modelMatch: modelMatchValue.value,
   });
@@ -994,6 +1172,127 @@ function handleSave() {
   color: var(--el-text-color-primary);
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* 附件区域 */
+.attachments-row {
+  align-items: flex-start;
+}
+
+.attachments-area {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.attachment-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.attachment-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: var(--input-bg);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.attachment-icon {
+  font-size: 14px;
+}
+
+.attachment-name {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--el-text-color-regular);
+}
+
+.attachment-count {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+/* 资产选择器弹出层 */
+.asset-selector-popover {
+  display: flex;
+  flex-direction: column;
+}
+
+.asset-selector-list {
+  max-height: 280px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.asset-selector-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.asset-selector-item:hover {
+  background-color: var(--el-fill-color-light);
+}
+
+.asset-selector-item.is-selected {
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
+}
+
+.asset-type-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.asset-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.asset-handle {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+}
+
+.asset-filename {
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.asset-check {
+  color: var(--el-color-primary);
+  flex-shrink: 0;
+}
+
+.asset-empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
 }
 </style>
 

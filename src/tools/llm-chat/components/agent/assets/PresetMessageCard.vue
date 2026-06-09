@@ -92,6 +92,12 @@
       title="仅特定模型生效"
       >🎯</span
     >
+    <span
+      v-if="element.presetAttachments?.length"
+      class="attachment-badge-compact"
+      :title="`${element.presetAttachments.length} 个附件`"
+      >📎{{ element.presetAttachments.length }}</span
+    >
     <div class="message-text-compact">
       {{
         element.name
@@ -199,6 +205,15 @@
             class="model-match-tag"
           >
             🎯 模型限定
+          </el-tag>
+          <el-tag
+            v-if="element.presetAttachments?.length"
+            size="small"
+            type="info"
+            effect="plain"
+            class="attachment-tag"
+          >
+            📎 {{ element.presetAttachments.length }} 个附件
           </el-tag>
           <el-tag
             v-if="tokenCount !== undefined"
@@ -713,6 +728,12 @@ function truncateText(text: string, maxLength: number): string {
 .model-match-badge-compact {
   font-size: 11px;
   color: var(--el-color-danger);
+  flex-shrink: 0;
+}
+
+.attachment-badge-compact {
+  font-size: 11px;
+  color: var(--el-color-info);
   flex-shrink: 0;
 }
 

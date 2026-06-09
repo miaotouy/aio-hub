@@ -1,6 +1,6 @@
 # 预设消息多模态附件设计方案
 
-> **状态**: RFC (Request for Comments)
+> **状态**: Implementing (Phase 1-2 完工，Phase 3-4 待施工)
 > **作者**: 咕咕
 > **日期**: 2025-06-09
 
@@ -333,6 +333,8 @@ graph TD
 5. 修改预设消息编辑弹窗，新增附件选择区域
 6. 修改 `PresetMessageCard.vue`，显示附件徽标
 7. 实现"从 Agent 资产选择"的选择器组件
+
+> 发送测试通过
 
 ### Phase 3：导入导出适配
 

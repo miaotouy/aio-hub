@@ -196,6 +196,7 @@
                 element.name,
                 element.injectionStrategy,
                 element.modelMatch,
+                element.presetAttachments,
                 messageTokens.get(element.id),
                 element.groupId,
                 presetGroups,
@@ -308,6 +309,7 @@ import type {
   MessageRole,
   UserProfile,
   InjectionStrategy,
+  PresetAttachmentRef,
 } from "../../../types";
 import type { PresetMessageGroup } from "../../../types/agent";
 import { convertMacros } from "../../../services/sillyTavernParser";
@@ -430,6 +432,7 @@ const editForm = ref<{
   name?: string;
   groupId?: string;
   injectionStrategy?: InjectionStrategy;
+  presetAttachments?: PresetAttachmentRef[];
   modelMatch?: { enabled: boolean; patterns: string[] };
 }>({
   role: "system",
@@ -437,6 +440,7 @@ const editForm = ref<{
   name: "",
   groupId: undefined,
   injectionStrategy: undefined,
+  presetAttachments: undefined,
   modelMatch: undefined,
 });
 const createGroupDialogVisible = ref(false);
@@ -540,6 +544,7 @@ function handleAddMessage() {
     name: "",
     groupId: undefined,
     injectionStrategy: undefined,
+    presetAttachments: undefined,
     modelMatch: undefined,
   };
   editDialogVisible.value = true;
@@ -554,6 +559,9 @@ function handleEditMessage(message: ChatMessageNode) {
     name: message.name,
     groupId: resolvePresetMessageGroupId(message.groupId, presetGroups.value),
     injectionStrategy: message.injectionStrategy,
+    presetAttachments: message.presetAttachments
+      ? [...message.presetAttachments]
+      : undefined,
     modelMatch: message.modelMatch,
   };
   editDialogVisible.value = true;

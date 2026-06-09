@@ -3,6 +3,20 @@ import type { MessageRole, MessageStatus, MessageType } from "./common";
 import type { SessionVariableSnapshot } from "./sessionVariable";
 
 /**
+ * 预设消息附件引用
+ *
+ * 通过 AgentAsset 的 ID (handle) 引用智能体资产，
+ * 在发送管道中被解析为实际的二进制内容。
+ * 随 Agent 导入导出时自动跟随。
+ */
+export interface PresetAttachmentRef {
+  /** 引用的 AgentAsset ID (handle) */
+  assetId: string;
+  /** 附件用途描述（可选，供 UI 展示和调试） */
+  description?: string;
+}
+
+/**
  * 注入策略 - 控制消息在上下文中的位置
  *
  * 用于预设消息的高级位置控制，支持深度注入和锚点注入两种模式。
@@ -120,6 +134,15 @@ export interface ChatMessageNode {
    * 附加到此消息的文件资产列表
    */
   attachments?: Asset[];
+
+  /**
+   * 预设消息附件引用列表
+   *
+   * 引用 Agent 资产 (AgentAsset) 作为多模态附件。
+   * 仅在预设消息场景下使用，发送时由 injection-assembler 解析为实际 PipelineAttachment。
+   * 随 Agent 导入导出自动跟随（因为引用的是 AgentAsset.id）。
+   */
+  presetAttachments?: PresetAttachmentRef[];
 
   /**
    * 消息的生成生命周期状态

@@ -9,6 +9,7 @@ import { ANCHOR_IDS } from "@/tools/llm-chat/types/context";
 import type { ChatMessageNode } from "../../types/message";
 import type { InjectionMessage } from "../../types/context";
 import { type AnchorDefinition } from "@/tools/llm-chat/composables/ui/useAnchorRegistry";
+import { resolvePresetAttachments } from "../context-utils/preset-attachment-resolver";
 
 const logger = createModuleLogger("primary:injection-assembler");
 
@@ -108,7 +109,9 @@ const applyDepthInjections = <T extends { role: string; content: any }>(
   history: T[],
   depthInjections: InjectionMessage[],
   processedContents: Map<string, string>,
-  presetMessages: ChatMessageNode[]
+  presetMessages: ChatMessageNode[],
+  agentId: string,
+  agentAssets: import("../../types/agent").AgentAsset[] | undefined
 ): (
   | T
   | {
@@ -231,25 +234,34 @@ const applyDepthInjections = <T extends { role: string; content: any }>(
     const group = depthGroups.get(depth)!;
     const insertIndex = Math.max(0, result.length - depth);
 
-    const injectedMessages = group.map((inj) => ({
-      role: inj.message.role,
-      content: processedContents.get(inj.message.id) ?? inj.message.content,
-      sourceType: "depth_injection",
-      sourceId: inj.message.id,
-      sourceIndex: presetMessages.indexOf(inj.message),
-      _originalContent: processedContents.has(inj.message.id)
-        ? inj.message.content
-        : undefined,
-      _timestamp: inj.message.timestamp
-        ? new Date(inj.message.timestamp).getTime()
-        : undefined,
-      _userName: inj.message.metadata?.userProfileName,
-      _userDisplayName:
-        inj.message.metadata?.userProfileDisplayName ||
-        inj.message.metadata?.userProfileName,
-      _userIcon: inj.message.metadata?.userProfileIcon,
-      _name: inj.message.name,
-    }));
+    const injectedMessages = group.map((inj) => {
+      // 解析预设附件引用
+      const resolved = resolvePresetAttachments(
+        inj.message.presetAttachments,
+        agentId,
+        agentAssets
+      );
+      return {
+        role: inj.message.role,
+        content: processedContents.get(inj.message.id) ?? inj.message.content,
+        sourceType: "depth_injection",
+        sourceId: inj.message.id,
+        sourceIndex: presetMessages.indexOf(inj.message),
+        _attachments: resolved.length > 0 ? resolved : undefined,
+        _originalContent: processedContents.has(inj.message.id)
+          ? inj.message.content
+          : undefined,
+        _timestamp: inj.message.timestamp
+          ? new Date(inj.message.timestamp).getTime()
+          : undefined,
+        _userName: inj.message.metadata?.userProfileName,
+        _userDisplayName:
+          inj.message.metadata?.userProfileDisplayName ||
+          inj.message.metadata?.userProfileName,
+        _userIcon: inj.message.metadata?.userProfileIcon,
+        _name: inj.message.name,
+      };
+    });
 
     result.splice(insertIndex, 0, ...injectedMessages);
   }
@@ -429,11 +441,17 @@ export const injectionAssembler: ContextProcessor = {
     const activeDepthInjections = depthInjections.filter(
       (inj) => inj.message.isEnabled !== false
     );
+    // 提取 agent 信息，用于预设附件解析
+    const agentId = agentConfig.id;
+    const agentAssets = agentConfig.assets;
+
     const historyWithDepthInjections = applyDepthInjections(
       history,
       activeDepthInjections,
       processedContents,
-      presetMessages // 传入完整列表以正确查找 sourceIndex
+      presetMessages, // 传入完整列表以正确查找 sourceIndex
+      agentId,
+      agentAssets
     ) as ProcessableMessage[];
 
     // 4. 组装最终消息列表
@@ -467,25 +485,34 @@ export const injectionAssembler: ContextProcessor = {
         injections = group.after;
       }
 
-      return injections.map((inj) => ({
-        role: inj.message.role,
-        content: processedContents.get(inj.message.id) ?? inj.message.content,
-        sourceType: "anchor_injection",
-        sourceId: inj.message.id,
-        sourceIndex: presetMessages.indexOf(inj.message),
-        _originalContent: processedContents.has(inj.message.id)
-          ? inj.message.content
-          : undefined,
-        _timestamp: inj.message.timestamp
-          ? new Date(inj.message.timestamp).getTime()
-          : undefined,
-        _userName: inj.message.metadata?.userProfileName,
-        _userDisplayName:
-          inj.message.metadata?.userProfileDisplayName ||
-          inj.message.metadata?.userProfileName,
-        _userIcon: inj.message.metadata?.userProfileIcon,
-        _name: inj.message.name,
-      }));
+      return injections.map((inj) => {
+        // 解析预设附件引用
+        const resolved = resolvePresetAttachments(
+          inj.message.presetAttachments,
+          agentId,
+          agentAssets
+        );
+        return {
+          role: inj.message.role,
+          content: processedContents.get(inj.message.id) ?? inj.message.content,
+          sourceType: "anchor_injection",
+          sourceId: inj.message.id,
+          sourceIndex: presetMessages.indexOf(inj.message),
+          _attachments: resolved.length > 0 ? resolved : undefined,
+          _originalContent: processedContents.has(inj.message.id)
+            ? inj.message.content
+            : undefined,
+          _timestamp: inj.message.timestamp
+            ? new Date(inj.message.timestamp).getTime()
+            : undefined,
+          _userName: inj.message.metadata?.userProfileName,
+          _userDisplayName:
+            inj.message.metadata?.userProfileDisplayName ||
+            inj.message.metadata?.userProfileName,
+          _userIcon: inj.message.metadata?.userProfileIcon,
+          _name: inj.message.name,
+        };
+      });
     };
 
     const skeletonBefore =
@@ -497,12 +524,19 @@ export const injectionAssembler: ContextProcessor = {
 
     // 辅助函数：构建并添加普通消息
     const pushSkeletonMessage = (msg: ChatMessageNode) => {
+      // 解析预设附件引用
+      const resolved = resolvePresetAttachments(
+        msg.presetAttachments,
+        agentId,
+        agentAssets
+      );
       finalMessages.push({
         role: msg.role,
         content: processedContents.get(msg.id) ?? msg.content,
         sourceType: "agent_preset",
         sourceId: msg.id,
         sourceIndex: presetMessages.indexOf(msg),
+        _attachments: resolved.length > 0 ? resolved : undefined,
         _originalContent: processedContents.has(msg.id)
           ? msg.content
           : undefined,

@@ -1,15 +1,12 @@
 <script setup lang="ts">
-import { onMounted, watchEffect } from "vue";
-import AppBottomNav from "./components/AppBottomNav.vue";
+import { onMounted } from "vue";
 import { useAppInit } from "@/composables/useAppInit";
 import { useThemeStore } from "@/stores/theme";
-import { useSettingsStore } from "@/stores/settings";
 import { useKeyboardAvoidance } from "@/composables/useKeyboardAvoidance";
 import { useDebugPanel } from "@/composables/useDebugPanel";
 
 const { isReady, progress, statusMessage, bootstrap } = useAppInit();
 const themeStore = useThemeStore();
-const settingsStore = useSettingsStore();
 const { syncWithSettings } = useDebugPanel();
 
 // 全局键盘避让
@@ -17,42 +14,6 @@ useKeyboardAvoidance();
 
 // 同步调试面板状态
 syncWithSettings();
-
-// 同步外观设置到 CSS 变量和根元素
-watchEffect(() => {
-  const { fontSizeScale } = settingsStore.settings.appearance;
-
-  // 1. 字体缩放
-  // 我们将 fontSizeScale 应用于根元素的 font-size (影响 rem)
-  // 默认基础 14px * scale
-  const baseSize = 14 * fontSizeScale;
-  document.documentElement.style.fontSize = `${baseSize}px`;
-
-  // 同时提供变量供全局使用
-  document.documentElement.style.setProperty(
-    "--app-font-size",
-    `${baseSize}px`
-  );
-  document.documentElement.style.setProperty(
-    "--app-font-scale",
-    fontSizeScale.toString()
-  );
-
-  // 同步更新 Varlet 的基础字体大小变量
-  document.documentElement.style.setProperty("--font-size-md", `${baseSize}px`);
-  document.documentElement.style.setProperty(
-    "--font-size-sm",
-    `${baseSize - 2}px`
-  );
-  document.documentElement.style.setProperty(
-    "--font-size-lg",
-    `${baseSize + 2}px`
-  );
-  document.documentElement.style.setProperty(
-    "--font-size-xs",
-    `${baseSize - 4}px`
-  );
-});
 
 onMounted(() => {
   bootstrap();
@@ -74,6 +35,7 @@ onMounted(() => {
   </div>
 
   <div v-else class="app-container">
+    <div class="app-wallpaper" aria-hidden="true"></div>
     <var-style-provider
       :style="themeStore.themeVars"
       class="app-style-provider"
@@ -85,8 +47,6 @@ onMounted(() => {
           </keep-alive>
         </router-view>
       </main>
-
-      <AppBottomNav />
     </var-style-provider>
   </div>
 </template>
@@ -100,10 +60,6 @@ body,
   margin: 0;
   padding: 0;
   overflow: hidden;
-}
-
-:root {
-  --var-bottom-navigation-height: 66px;
 }
 
 .app-init-overlay {
@@ -155,6 +111,24 @@ body,
   position: relative;
 }
 
+.app-wallpaper {
+  display: var(--app-wallpaper-display, none);
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--app-wallpaper-bg);
+  filter: blur(var(--app-wallpaper-blur, 0px));
+  transform: scale(1.04);
+}
+
+.app-wallpaper::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-color: rgba(var(--bg-color-rgb), var(--app-wallpaper-dim, 0));
+}
+
 .app-style-provider {
   flex: 1;
   display: flex;
@@ -162,6 +136,8 @@ body,
   height: 100%;
   min-height: 0; /* 关键：允许 flex 项目缩小 */
   overflow: hidden;
+  position: relative;
+  z-index: 1;
 }
 
 .main-content {
@@ -169,18 +145,8 @@ body,
   min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  /* 只有当内容超出时才需要 padding 给 fixed 的导航栏留位置 */
-  padding-bottom: calc(
-    var(--var-bottom-navigation-height) +
-      var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))
-  );
   box-sizing: border-box;
   /* 移除 transition，键盘避让需要即时反馈 */
-}
-
-/* 键盘弹出时，容器高度已经缩小了，不需要再保留底部导航栏和安全区的 padding */
-.keyboard-visible .main-content {
-  padding-bottom: 0;
 }
 
 /* 全局键盘避让样式 */
@@ -194,10 +160,5 @@ body,
 .keyboard-visible .var-input:focus-within {
   /* 视口已经能正确压缩，这里保留一个基础留白即可 */
   scroll-margin-bottom: 20px;
-}
-
-/* 键盘弹出时强制隐藏底部导航栏，防止被顶起 */
-.keyboard-visible .var-bottom-navigation {
-  display: none !important;
 }
 </style>

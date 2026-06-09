@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@material/material-color-utilities": "^0.3.0",
+    "@popperjs/core": "^2.11.8",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-fs": "~2",
     "@tauri-apps/plugin-http": "^2.5.4",
@@ -46,4 +47,3 @@
     "vue-tsc": "^2.1.10"
   }
 }
-

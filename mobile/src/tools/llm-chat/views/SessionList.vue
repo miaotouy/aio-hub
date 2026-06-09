@@ -27,6 +27,10 @@ const deleteSession = async (event: Event, id: string) => {
   event.stopPropagation();
   await chatStore.deleteSession(id);
 };
+
+const goToChatHome = () => {
+  router.push("/tools/llm-chat/home");
+};
 </script>
 
 <template>
@@ -45,7 +49,7 @@ const deleteSession = async (event: Event, id: string) => {
           text
           color="transparent"
           text-color="var(--text-color)"
-          @click="router.back()"
+          @click="goToChatHome"
         >
           <ChevronLeft :size="24" />
         </var-button>

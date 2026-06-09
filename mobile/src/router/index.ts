@@ -14,6 +14,12 @@ const routes: RouteRecordRaw[] = [
     component: () => import("../views/Settings.vue"),
     meta: { title: "设置" },
   },
+  {
+    path: "/settings/theme",
+    name: "ThemeSettings",
+    component: () => import("../views/ThemeSettings.vue"),
+    meta: { title: "主题与壁纸" },
+  },
   ...toolManager.getToolRoutes(),
 ];
 

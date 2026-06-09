@@ -9,12 +9,15 @@ import {
   Copy,
   Search,
   ArrowDownCircle,
+  ChevronLeft,
 } from "lucide-vue-next";
 import LogEntryItem from "../components/LogEntryItem.vue";
 import { Snackbar, Dialog } from "@varlet/ui";
+import { useRouter } from "vue-router";
 
 const { tRaw } = useI18n();
 const t = (key: string) => tRaw(`tools.log-manager.LogManagerView.${key}`);
+const router = useRouter();
 
 // 状态
 const logs = ref<LogEntry[]>([]);
@@ -113,6 +116,10 @@ const handleCopyAll = async () => {
   }
 };
 
+const goHome = () => {
+  router.push("/");
+};
+
 // 监听过滤条件变化，如果开启了自动滚动则滚动到底部
 watch([searchQuery, selectedLevel], () => {
   if (autoScroll.value) {
@@ -125,17 +132,30 @@ watch([searchQuery, selectedLevel], () => {
   <div class="log-manager-view">
     <!-- 顶部工具栏 -->
     <div class="toolbar">
-      <var-input
-        v-model="searchQuery"
-        :placeholder="t('搜索日志')"
-        variant="standard"
-        clearable
-        size="small"
-      >
-        <template #prepend-icon>
-          <Search :size="18" />
-        </template>
-      </var-input>
+      <div class="toolbar-main">
+        <var-button
+          round
+          text
+          color="transparent"
+          text-color="var(--text-color)"
+          class="back-button"
+          @click="goHome"
+        >
+          <ChevronLeft :size="24" />
+        </var-button>
+
+        <var-input
+          v-model="searchQuery"
+          :placeholder="t('搜索日志')"
+          variant="standard"
+          clearable
+          size="small"
+        >
+          <template #prepend-icon>
+            <Search :size="18" />
+          </template>
+        </var-input>
+      </div>
 
       <div class="filter-row">
         <var-select
@@ -240,6 +260,21 @@ watch([searchQuery, selectedLevel], () => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.toolbar-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toolbar-main .var-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.back-button {
+  flex-shrink: 0;
 }
 
 .filter-row {

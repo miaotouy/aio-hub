@@ -8,6 +8,15 @@ import Components from "unplugin-vue-components/vite";
 import { VarletImportResolver } from "@varlet/import-resolver";
 
 const host = process.env.TAURI_DEV_HOST;
+const popperDeepImports = [
+  "@popperjs/core/lib/modifiers/computeStyles.js",
+  "@popperjs/core/lib/modifiers/flip.js",
+  "@popperjs/core/lib/modifiers/offset.js",
+  "@popperjs/core/lib/popper-lite.js",
+] as const;
+const popperAliases = Object.fromEntries(
+  popperDeepImports.map((id) => [id, path.resolve(__dirname, "node_modules", id)])
+);
 
 // https://vite.dev/config/
 export default defineConfig(async () => ({
@@ -36,6 +45,7 @@ export default defineConfig(async () => ({
     alias: {
       "@": path.resolve(__dirname, "./src"),
       "@shared": path.resolve(__dirname, "../src"),
+      ...popperAliases,
     },
   },
 

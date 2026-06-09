@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
+import { Settings } from "lucide-vue-next";
 import { useI18n } from "@/i18n";
 import { getRegisteredTools } from "../router";
 import ToolIcon from "@/components/ToolIcon.vue";
@@ -19,14 +20,32 @@ const handleToolClick = (tool: ToolRegistry) => {
     router.push(tool.route.path);
   }
 };
+
+const goToSettings = () => {
+  router.push("/settings");
+};
 </script>
 
 <template>
   <div class="app-view app-view--safe-top home-container">
     <div class="content">
       <div class="header">
-        <h2 class="greeting">{{ t("home.欢迎使用") }}</h2>
-        <p class="subtitle">{{ t("home.副标题") }}</p>
+        <div class="header-main">
+          <div class="header-copy">
+            <h2 class="greeting">{{ t("home.欢迎使用") }}</h2>
+            <p class="subtitle">{{ t("home.副标题") }}</p>
+          </div>
+          <var-button
+            round
+            text
+            color="transparent"
+            class="settings-button"
+            :aria-label="t('nav.设置')"
+            @click="goToSettings"
+          >
+            <Settings :size="24" />
+          </var-button>
+        </div>
       </div>
 
       <div class="tools-grid">
@@ -62,6 +81,17 @@ const handleToolClick = (tool: ToolRegistry) => {
   padding-top: 8px;
 }
 
+.header-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.header-copy {
+  min-width: 0;
+}
+
 .greeting {
   font-size: 2rem;
   font-weight: 600;
@@ -73,6 +103,11 @@ const handleToolClick = (tool: ToolRegistry) => {
   font-size: 1rem;
   color: var(--text-color-light);
   margin: 0;
+}
+
+.settings-button {
+  flex-shrink: 0;
+  color: var(--text-color);
 }
 
 .tools-grid {

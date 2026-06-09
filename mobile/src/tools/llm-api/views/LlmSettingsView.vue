@@ -103,6 +103,10 @@ const handleToggleMultiSelect = (id: string) => {
     multiSelectedIds.value.add(id);
   }
 };
+
+const goHome = () => {
+  router.push("/");
+};
 </script>
 
 <template>
@@ -113,7 +117,7 @@ const handleToggleMultiSelect = (id: string) => {
       safe-area
     >
       <template #left>
-        <var-button round text @click="router.back()">
+        <var-button round text @click="goHome">
           <ChevronLeft :size="24" />
         </var-button>
       </template>

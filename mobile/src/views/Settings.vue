@@ -1,26 +1,30 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { useRouter } from "vue-router";
 import { useSettingsStore } from "@/stores/settings";
 import { Snackbar, Dialog } from "@varlet/ui";
 import { useI18n } from "@/i18n";
 import { useDebugPanel } from "@/composables/useDebugPanel";
-import ThemeColorSettings from "@/components/settings/ThemeColorSettings.vue";
+import { useAppearanceSettingsDraft } from "@/composables/useAppearanceSettingsDraft";
 import {
   Palette,
   Languages,
   Zap,
   Info,
   ChevronRight,
+  ChevronLeft,
   Moon,
   Sun,
   Monitor,
   RefreshCw,
-  Type,
   Globe,
   Bug,
 } from "lucide-vue-next";
 const settingsStore = useSettingsStore();
+const router = useRouter();
 const { t, locale } = useI18n();
+const { appearanceDraft, updateAppearanceDraft } =
+  useAppearanceSettingsDraft();
 
 // 主题选项
 const themeOptions = computed(() => [
@@ -43,17 +47,38 @@ const proxyOptions = computed(() => [
 ]);
 
 const currentThemeIcon = computed(() => {
-  const mode = settingsStore.settings.appearance.theme;
+  const mode = appearanceDraft.value.theme;
   return themeOptions.value.find((opt) => opt.value === mode)?.icon || Monitor;
 });
 
-const handleThemeChange = async (value: any) => {
-  await settingsStore.updateAppearance({ theme: value });
-  Snackbar.success(
-    t("settings.已切换至", {
-      theme: themeOptions.value.find((opt) => opt.value === value)?.label,
-    })
+const currentThemeLabel = computed(() => {
+  return (
+    themeOptions.value.find((opt) => opt.value === appearanceDraft.value.theme)
+      ?.label || t("settings.跟随系统")
   );
+});
+
+const themeSummary = computed(() => {
+  const effectsState = appearanceDraft.value.enableUiEffects
+    ? t("common.已启用")
+    : t("common.已禁用");
+  const wallpaperState = appearanceDraft.value.wallpaper.enabled
+    ? t("common.已启用")
+    : t("common.已禁用");
+
+  return t("settings.主题详情摘要", {
+    theme: currentThemeLabel.value,
+    effects: effectsState,
+    wallpaper: wallpaperState,
+  });
+});
+
+const openThemeSettings = () => {
+  router.push("/settings/theme");
+};
+
+const goHome = () => {
+  router.push("/");
 };
 
 const handleLanguageChange = async (value: any) => {
@@ -67,11 +92,7 @@ const handleLanguageChange = async (value: any) => {
 };
 
 const handleHapticChange = async (value: any) => {
-  await settingsStore.updateAppearance({ hapticFeedback: value });
-};
-
-const handleFontSizeScaleChange = async (value: any) => {
-  await settingsStore.updateAppearance({ fontSizeScale: value });
+  await updateAppearanceDraft({ hapticFeedback: value });
 };
 
 const handleProxyModeChange = async (value: any) => {
@@ -122,6 +143,15 @@ const handleRefresh = async () => {
 <template>
   <div class="app-view settings-container">
     <div class="header">
+      <var-button
+        round
+        text
+        color="transparent"
+        class="back-button"
+        @click="goHome"
+      >
+        <ChevronLeft :size="24" />
+      </var-button>
       <h1 class="title">{{ t("settings.标题") }}</h1>
     </div>
 
@@ -130,74 +160,26 @@ const handleRefresh = async () => {
       <var-paper :elevation="1" class="settings-group">
         <div class="group-title">{{ t("settings.外观") }}</div>
 
-        <!-- 主题模式 -->
-        <var-cell ripple>
+        <var-cell ripple @click="openThemeSettings">
           <template #icon>
             <div class="group-icon">
               <Palette :size="20" />
             </div>
           </template>
           <div class="cell-content">
-            <div class="cell-label">{{ t("settings.主题模式") }}</div>
-            <div class="cell-desc">{{ t("settings.主题模式描述") }}</div>
+            <div class="cell-label">{{ t("settings.主题与壁纸") }}</div>
+            <div class="cell-desc">{{ themeSummary }}</div>
           </div>
           <template #extra>
-            <var-select
-              v-model="settingsStore.settings.appearance.theme"
-              variant="standard"
-              :hint="false"
-              :line="false"
-              @change="handleThemeChange"
-            >
-              <var-option
-                v-for="opt in themeOptions"
-                :key="opt.value"
-                :label="opt.label"
-                :value="opt.value"
-              />
-              <template #selected>
-                <div class="selected-value">
-                  <component :is="currentThemeIcon" :size="16" class="mr-1" />
-                  {{
-                    themeOptions.find(
-                      (o) => o.value === settingsStore.settings.appearance.theme
-                    )?.label
-                  }}
-                </div>
-              </template>
-            </var-select>
-          </template>
-        </var-cell>
-
-        <!-- 主题色板 -->
-        <ThemeColorSettings />
-
-        <!-- 字体缩放 -->
-        <var-cell :hint="false">
-          <template #icon>
-            <div class="group-icon">
-              <Type :size="20" />
+            <div class="theme-entry-extra">
+              <span
+                class="theme-color-dot"
+                :style="{ backgroundColor: appearanceDraft.themeColor }"
+              ></span>
+              <component :is="currentThemeIcon" :size="18" class="text-hint" />
+              <ChevronRight :size="20" class="text-hint" />
             </div>
           </template>
-          <div class="cell-content w-full">
-            <div class="flex justify-between items-center mb-2">
-              <div class="cell-label">{{ t("settings.字体大小") }}</div>
-              <div class="text-primary font-bold">
-                {{ settingsStore.settings.appearance.fontSizeScale.toFixed(1) }}
-              </div>
-            </div>
-            <div class="px-2 pb-2">
-              <var-slider
-                v-model="settingsStore.settings.appearance.fontSizeScale"
-                :min="0.8"
-                :max="1.5"
-                :step="0.1"
-                track-height="4"
-                thumb-size="18"
-                @change="handleFontSizeScaleChange"
-              />
-            </div>
-          </div>
         </var-cell>
       </var-paper>
 
@@ -220,7 +202,7 @@ const handleRefresh = async () => {
           </div>
           <template #extra>
             <var-switch
-              v-model="settingsStore.settings.appearance.hapticFeedback"
+              v-model="appearanceDraft.hapticFeedback"
               disabled
               @change="handleHapticChange"
             />
@@ -367,7 +349,15 @@ const handleRefresh = async () => {
 }
 
 .header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 24px 20px;
+}
+
+.back-button {
+  flex-shrink: 0;
+  color: var(--text-color);
 }
 
 .title {
@@ -410,41 +400,18 @@ const handleRefresh = async () => {
   gap: 2px;
 }
 
-.w-full {
-  width: 100%;
-}
-
-.flex {
+.theme-entry-extra {
   display: flex;
-}
-
-.justify-between {
-  justify-content: space-between;
-}
-
-.items-center {
   align-items: center;
+  gap: 8px;
 }
 
-.mb-2 {
-  margin-bottom: 8px;
-}
-
-.px-2 {
-  padding-left: 8px;
-  padding-right: 8px;
-}
-
-.pb-2 {
-  padding-bottom: 8px;
-}
-
-.text-primary {
-  color: var(--primary-color);
-}
-
-.font-bold {
-  font-weight: 700;
+.theme-color-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: var(--border-width) solid var(--border-color);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
 }
 
 .cell-label {
@@ -456,17 +423,6 @@ const handleRefresh = async () => {
   font-size: 0.85rem;
   color: var(--text-color);
   opacity: 0.6;
-}
-
-.selected-value {
-  display: flex;
-  align-items: center;
-  font-size: 1rem;
-  color: var(--primary-color);
-}
-
-.mr-1 {
-  margin-right: 4px;
 }
 
 .text-hint {

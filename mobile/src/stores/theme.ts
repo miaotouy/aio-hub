@@ -2,18 +2,19 @@ import { defineStore } from "pinia";
 import { ref, watch, computed } from "vue";
 import { useSettingsStore } from "./settings";
 import { createModuleLogger } from "@/utils/logger";
+import { generateMobileTheme } from "@/utils/themeTokens";
 
 const logger = createModuleLogger("ThemeStore");
 import { StyleProvider, Themes } from "@varlet/ui";
-import { generateMd3Theme } from "@/utils/themeUtils";
 
 export const useThemeStore = defineStore("theme", () => {
   const settingsStore = useSettingsStore();
   const isDark = ref(false);
+  const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
 
   const themeMode = computed(() => settingsStore.settings.appearance.theme);
-  const themeColor = computed(
-    () => settingsStore.settings.appearance.themeColor || "#409EFF"
+  const mobileTheme = computed(() =>
+    generateMobileTheme(settingsStore.settings.appearance, isDark.value)
   );
 
   const initTheme = () => {
@@ -35,13 +36,24 @@ export const useThemeStore = defineStore("theme", () => {
   };
 
   const themeVars = computed(() => {
-    const md3Theme = generateMd3Theme(themeColor.value, isDark.value);
-
     return {
       ...(isDark.value ? Themes.md3Dark : Themes.md3Light),
-      ...md3Theme,
+      ...mobileTheme.value.varletVars,
+      ...mobileTheme.value.aioVars,
     };
   });
+
+  const aioVars = computed(() => mobileTheme.value.aioVars);
+
+  const applyCssVariables = (vars: Record<string, string>) => {
+    const root = document.documentElement;
+
+    Object.entries(vars).forEach(([key, value]) => {
+      root.style.setProperty(key, value);
+    });
+
+    root.style.fontSize = vars["--app-font-size"] || "";
+  };
 
   const applyTheme = () => {
     if (isDark.value) {
@@ -50,8 +62,16 @@ export const useThemeStore = defineStore("theme", () => {
       document.documentElement.classList.remove("dark");
     }
 
+    applyCssVariables(themeVars.value);
+
     // 同时也保留函数式调用，以防万一有组件没在 StyleProvider 下
     StyleProvider(themeVars.value);
+
+    window.dispatchEvent(
+      new CustomEvent("theme-changed", {
+        detail: { isDark: isDark.value, theme: themeMode.value },
+      })
+    );
   };
 
   // 深度监听 settingsStore.settings.appearance 的变化
@@ -70,17 +90,16 @@ export const useThemeStore = defineStore("theme", () => {
   });
 
   // 监听系统主题变化 (当模式为 auto 时)
-  window
-    .matchMedia("(prefers-color-scheme: dark)")
-    .addEventListener("change", () => {
-      if (themeMode.value === "auto") {
-        updateIsDark();
-      }
-    });
+  mediaQuery.addEventListener("change", () => {
+    if (themeMode.value === "auto") {
+      updateIsDark();
+    }
+  });
 
   return {
     isDark,
     themeVars,
+    aioVars,
     initTheme,
     toggleTheme,
   };

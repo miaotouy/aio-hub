@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import { useSettingsStore } from "@/stores/settings";
 import {
   Check,
   RotateCcw,
@@ -12,7 +11,19 @@ import { Snackbar } from "@varlet/ui";
 import { useI18n } from "vue-i18n";
 
 const { t } = useI18n();
-const settingsStore = useSettingsStore();
+
+const props = withDefaults(
+  defineProps<{
+    themeColor?: string;
+  }>(),
+  {
+    themeColor: "#409eff",
+  }
+);
+
+const emit = defineEmits<{
+  change: [color: string];
+}>();
 
 interface PresetColor {
   name: string;
@@ -131,9 +142,7 @@ const colorGroups: ColorGroup[] = [
   },
 ];
 
-const currentThemeColor = computed(
-  () => settingsStore.settings.appearance.themeColor || "#409eff"
-);
+const currentThemeColor = computed(() => props.themeColor || "#409eff");
 
 // 获取当前颜色名称
 const currentThemeColorName = computed(() => {
@@ -147,7 +156,7 @@ const currentThemeColorName = computed(() => {
 });
 
 const selectColor = async (color: string, name?: string) => {
-  await settingsStore.updateAppearance({ themeColor: color });
+  emit("change", color);
   if (name) {
     Snackbar.success(
       t("settings.主题色板.切换成功", { name, color: color.toUpperCase() })
@@ -156,7 +165,7 @@ const selectColor = async (color: string, name?: string) => {
 };
 
 const resetColor = async () => {
-  await settingsStore.updateAppearance({ themeColor: "#409eff" });
+  emit("change", "#409eff");
   Snackbar.success(t("settings.主题色板.重置成功"));
 };
 
@@ -208,7 +217,7 @@ const showDrawer = ref(false);
 
     <!-- 颜色选择抽屉 -->
     <var-popup position="bottom" v-model:show="showDrawer" round>
-      <div class="drawer-content">
+      <div class="drawer-content aio-sheet">
         <div class="drawer-header">
           <div class="drawer-title">{{ t("settings.主题色板.标题") }}</div>
           <var-button type="primary" text @click="showDrawer = false">{{

@@ -104,13 +104,37 @@
                 v-for="(ref, idx) in form.presetAttachments"
                 :key="ref.assetId"
                 class="attachment-item"
+                :class="{
+                  'has-thumbnail': getAssetFileType(ref.assetId) === 'image',
+                }"
               >
-                <FileIcon
-                  :fileName="getAssetFilename(ref.assetId)"
-                  :fileType="getAssetFileType(ref.assetId)"
-                  :size="16"
-                  class="attachment-file-icon"
-                />
+                <!-- 图片类型：显示缩略图 -->
+                <template v-if="getAssetFileType(ref.assetId) === 'image'">
+                  <div
+                    class="attachment-thumbnail"
+                    @click="handlePreviewImage(ref.assetId)"
+                    :title="'点击预览: ' + getAssetDisplayName(ref.assetId)"
+                  >
+                    <img
+                      :src="getAssetResolvedUrl(ref.assetId)"
+                      :alt="getAssetDisplayName(ref.assetId)"
+                      class="thumbnail-img"
+                      loading="lazy"
+                    />
+                    <div class="thumbnail-overlay">
+                      <Eye :size="14" />
+                    </div>
+                  </div>
+                </template>
+                <!-- 非图片类型：显示文件图标 -->
+                <template v-else>
+                  <FileIcon
+                    :fileName="getAssetFilename(ref.assetId)"
+                    :fileType="getAssetFileType(ref.assetId)"
+                    :size="16"
+                    class="attachment-file-icon"
+                  />
+                </template>
                 <span
                   class="attachment-name"
                   :title="getAssetTooltip(ref.assetId)"
@@ -127,6 +151,30 @@
                 >
                   {{ getAssetFilename(ref.assetId) }}
                 </span>
+                <!-- 视频/音频预览按钮 -->
+                <el-button
+                  v-if="getAssetFileType(ref.assetId) === 'video'"
+                  link
+                  size="small"
+                  type="primary"
+                  @click="handlePreviewVideo(ref.assetId)"
+                  title="预览视频"
+                >
+                  <el-icon><Play :size="14" /></el-icon>
+                </el-button>
+                <el-button
+                  v-if="getAssetFileType(ref.assetId) === 'audio'"
+                  link
+                  size="small"
+                  type="primary"
+                  @click="handlePreviewAudio(ref.assetId)"
+                  :title="playingAudioId === ref.assetId ? '停止播放' : '试听'"
+                >
+                  <el-icon>
+                    <Square v-if="playingAudioId === ref.assetId" :size="14" />
+                    <Play v-else :size="14" />
+                  </el-icon>
+                </el-button>
                 <el-button
                   link
                   size="small"
@@ -199,6 +247,13 @@
             </span>
           </div>
         </div>
+
+        <!-- 视频预览器 -->
+        <VideoViewer
+          v-model:visible="videoPreviewVisible"
+          :src="videoPreviewSrc"
+          :title="videoPreviewTitle"
+        />
 
         <!-- 第二行：内容标签 + 工具栏 -->
         <div class="editor-row toolbar-row">
@@ -387,7 +442,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed, onMounted, provide } from "vue";
+import { ref, watch, computed, onMounted, onBeforeUnmount, provide } from "vue";
 import type {
   MessageRole,
   UserProfile,
@@ -405,7 +460,15 @@ import {
   Close,
   Check,
 } from "@element-plus/icons-vue";
-import { Bot, Book, Variable, Paperclip } from "lucide-vue-next";
+import {
+  Bot,
+  Book,
+  Variable,
+  Paperclip,
+  Eye,
+  Play,
+  Square,
+} from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import MacroSelector from "../selectors/MacroSelector.vue";
@@ -415,6 +478,7 @@ import ModelMatchConfig from "./ModelMatchConfig.vue";
 import InjectionConfig from "./InjectionConfig.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import FileIcon from "@/components/common/FileIcon.vue";
+import VideoViewer from "@/components/common/VideoViewer.vue";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import type {
   LlmThinkRule,
@@ -441,7 +505,9 @@ import type {
 import {
   processMessageAssetsSync,
   resolveAgentAssetUrlSync,
+  convertAgentAssetToUrl,
 } from "../../../utils/agentAssetUtils";
+import { useImageViewer } from "@/composables/useImageViewer";
 
 interface MessageForm {
   role: MessageRole;
@@ -507,6 +573,7 @@ const { settings } = useChatSettings();
 const { getProfileById } = useLlmProfiles();
 const chatStore = useLlmChatStore();
 const kbStore = useKnowledgeBaseStore();
+const imageViewer = useImageViewer();
 
 // 表单数据
 const form = ref<MessageForm>({
@@ -601,6 +668,98 @@ function toggleAsset(asset: AgentAsset) {
 function removeAttachment(index: number) {
   form.value.presetAttachments?.splice(index, 1);
 }
+
+// ============================================================================
+// 附件预览相关
+// ============================================================================
+
+/** 获取资产的实际可访问 URL */
+function getAssetResolvedUrl(assetId: string): string {
+  const asset = availableAssets.value.find((a) => a.id === assetId);
+  if (!asset) return "";
+  const agentId = currentAgent.value?.id;
+  if (!agentId) return "";
+  return convertAgentAssetToUrl(agentId, asset.path) || "";
+}
+
+/** 获取所有图片附件的 URL 列表（用于 ImageViewer 列表浏览） */
+const imageAttachmentUrls = computed(() => {
+  if (!form.value.presetAttachments?.length) return [];
+  return form.value.presetAttachments
+    .filter((ref) => getAssetFileType(ref.assetId) === "image")
+    .map((ref) => getAssetResolvedUrl(ref.assetId))
+    .filter(Boolean);
+});
+
+/** 获取所有图片附件的 assetId 列表（与 URL 列表一一对应） */
+const imageAttachmentIds = computed(() => {
+  if (!form.value.presetAttachments?.length) return [];
+  return form.value.presetAttachments
+    .filter((ref) => getAssetFileType(ref.assetId) === "image")
+    .map((ref) => ref.assetId);
+});
+
+/** 点击图片缩略图：打开 ImageViewer */
+function handlePreviewImage(assetId: string) {
+  const urls = imageAttachmentUrls.value;
+  if (urls.length === 0) return;
+  const idx = imageAttachmentIds.value.indexOf(assetId);
+  imageViewer.show(urls, Math.max(0, idx));
+}
+
+// 视频预览状态
+const videoPreviewVisible = ref(false);
+const videoPreviewSrc = ref("");
+const videoPreviewTitle = ref("");
+
+/** 点击视频预览按钮 */
+function handlePreviewVideo(assetId: string) {
+  const url = getAssetResolvedUrl(assetId);
+  if (!url) return;
+  videoPreviewSrc.value = url;
+  videoPreviewTitle.value = getAssetDisplayName(assetId);
+  videoPreviewVisible.value = true;
+}
+
+// 音频预览状态
+const playingAudioId = ref<string | null>(null);
+let currentAudioEl: HTMLAudioElement | null = null;
+
+/** 点击音频试听按钮 */
+function handlePreviewAudio(assetId: string) {
+  // 如果正在播放同一个，停止
+  if (playingAudioId.value === assetId) {
+    stopAudio();
+    return;
+  }
+  // 停止之前的
+  stopAudio();
+
+  const url = getAssetResolvedUrl(assetId);
+  if (!url) return;
+
+  currentAudioEl = new Audio(url);
+  currentAudioEl.volume = 0.5;
+  currentAudioEl.addEventListener("ended", stopAudio);
+  currentAudioEl.addEventListener("error", stopAudio);
+  currentAudioEl.play();
+  playingAudioId.value = assetId;
+}
+
+function stopAudio() {
+  if (currentAudioEl) {
+    currentAudioEl.pause();
+    currentAudioEl.removeEventListener("ended", stopAudio);
+    currentAudioEl.removeEventListener("error", stopAudio);
+    currentAudioEl = null;
+  }
+  playingAudioId.value = null;
+}
+
+// 组件卸载时清理音频
+onBeforeUnmount(() => {
+  stopAudio();
+});
 
 // 模型匹配和注入策略（由子组件管理内部 UI 状态）
 const modelMatchValue = ref<MessageForm["modelMatch"]>(undefined);
@@ -1241,8 +1400,52 @@ function handleSave() {
   font-size: 13px;
 }
 
+.attachment-item.has-thumbnail {
+  padding: 3px 8px 3px 3px;
+}
+
 .attachment-file-icon {
   flex-shrink: 0;
+}
+
+/* 缩略图预览 */
+.attachment-thumbnail {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  border-radius: 3px;
+  overflow: hidden;
+  cursor: pointer;
+  flex-shrink: 0;
+  background: var(--el-fill-color-lighter);
+}
+
+.attachment-thumbnail .thumbnail-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: filter 0.15s;
+}
+
+.attachment-thumbnail .thumbnail-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+  color: white;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.attachment-thumbnail:hover .thumbnail-img {
+  filter: brightness(0.7);
+}
+
+.attachment-thumbnail:hover .thumbnail-overlay {
+  opacity: 1;
 }
 
 .attachment-name {

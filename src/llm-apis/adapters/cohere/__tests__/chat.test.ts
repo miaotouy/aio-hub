@@ -140,4 +140,29 @@ describe("Cohere Adapter - Chat", () => {
 
     expect(body.thinking).toEqual({ type: "enabled", budget_tokens: 500 });
   });
+
+  it("should send requestId only as a header, not in the Cohere body", async () => {
+    const options: LlmRequestOptions = {
+      profileId: "test-profile-cohere",
+      modelId: "command-r-plus",
+      messages: [{ role: "user", content: "Hello" }],
+      requestId: "req-test-123",
+    };
+
+    const mockResponse = {
+      ok: true,
+      json: async () => ({
+        message: { content: [{ type: "text", text: "Hi!" }] },
+      }),
+    };
+    (fetchWithTimeout as any).mockResolvedValue(mockResponse);
+
+    await callCohereChatApi(mockProfile, options);
+
+    const [, fetchOptions] = (fetchWithTimeout as any).mock.calls[0];
+    const body = JSON.parse(fetchOptions.body);
+
+    expect(body.requestId).toBeUndefined();
+    expect(fetchOptions.headers["X-Request-ID"]).toBe("req-test-123");
+  });
 });

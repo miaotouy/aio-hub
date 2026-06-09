@@ -12,6 +12,7 @@ import {
   extractCommonParameters,
   buildBase64DataUrl,
   applyCustomParameters,
+  cleanPayload,
 } from "../request-builder";
 
 /**
@@ -174,6 +175,9 @@ export const callCohereApi = async (
 
   // 应用自定义参数
   applyCustomParameters(body, options);
+  cleanPayload(body);
+  // Cohere API 不接受 requestId 字段，单独清理（通用 cleanPayload 不清理它，因为 VCP 等渠道需要）
+  delete body.requestId;
 
   // 构建请求头
   const headers: Record<string, string> = {

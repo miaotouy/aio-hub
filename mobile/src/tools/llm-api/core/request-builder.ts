@@ -354,6 +354,7 @@ export const KNOWN_NON_MODEL_OPTIONS_KEYS = new Set([
   "messages",
   "modelId",
   "profileId",
+  "requestId",
   "stream",
   "onStream",
   "onReasoningStream",
@@ -439,6 +440,8 @@ export function cleanPayload(body: any): any {
 
   const forbiddenKeys = [
     "profileId",
+    // 注意: requestId 不在此列表中，因为基于 OAI 格式的 VCP 等渠道需要它做调用追踪。
+    // 不需要它的适配器（如 Cohere）应在自己的代码中单独清理。
     "onStream",
     "onReasoningStream",
     "signal",

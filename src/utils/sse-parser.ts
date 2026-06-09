@@ -138,12 +138,8 @@ export function extractTextFromSSE(
         // Cohere V1 格式: text
         if (json.text) return json.text;
         // Cohere V2 格式: delta.message.content.text
-        if (
-          json.type === "content-delta" &&
-          json.delta?.message?.content?.type === "text"
-        ) {
-          return json.delta.message.content.text;
-        }
+        if (json.type === "content-delta")
+          return json.delta?.message?.content?.text || null;
         return null;
 
       case "huggingface":
@@ -189,12 +185,8 @@ export function extractReasoningFromSSE(
 
       case "cohere":
         // Cohere V2 格式: delta.message.content.thinking
-        if (
-          json.type === "content-delta" &&
-          json.delta?.message?.content?.type === "thinking"
-        ) {
-          return json.delta.message.content.thinking;
-        }
+        if (json.type === "content-delta")
+          return json.delta?.message?.content?.thinking || null;
         return null;
 
       default:

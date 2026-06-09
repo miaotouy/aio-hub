@@ -94,6 +94,12 @@ export function extractTextFromSSE(
         }
         return null;
 
+      case "cohere":
+        if (json.text) return json.text;
+        if (json.type === "content-delta")
+          return json.delta?.message?.content?.text || null;
+        return null;
+
       default:
         return null;
     }
@@ -122,6 +128,11 @@ export function extractReasoningFromSSE(
           json.choices?.[0]?.delta?.thought ||
           null
         );
+
+      case "cohere":
+        if (json.type === "content-delta")
+          return json.delta?.message?.content?.thinking || null;
+        return null;
 
       default:
         return null;

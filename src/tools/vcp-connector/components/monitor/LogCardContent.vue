@@ -20,9 +20,12 @@
       </div>
       <div
         class="content-text"
-        :class="{ 'is-error': message.data.status === 'error' }"
+        :class="{
+          'is-error': message.data.status === 'error',
+          'is-structured': !!structured,
+        }"
       >
-        {{ message.data.content }}
+        {{ displayContent }}
       </div>
     </div>
     <div class="log-actions">
@@ -36,6 +39,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { VcpLogMessage } from "../../types/protocol";
+import { tryParseStructuredContent } from "../../utils/contentFormatter";
 
 const props = defineProps<{
   message: VcpLogMessage;
@@ -45,8 +49,19 @@ defineEmits<{
   "show-json": [message: VcpLogMessage];
 }>();
 
+/** 尝试解析 [模块名] JSON 结构化内容 */
+const structured = computed(() =>
+  tryParseStructuredContent(props.message.data.content)
+);
+
+/** 展示用文本：结构化解析成功则用格式化文本，否则原样展示 */
+const displayContent = computed(
+  () => structured.value?.formatted ?? props.message.data.content
+);
+
 const statusTagType = computed(() => {
-  switch (props.message.data.status) {
+  const status = props.message.data.status ?? structured.value?.status;
+  switch (status) {
     case "success":
       return "success";
     case "error":

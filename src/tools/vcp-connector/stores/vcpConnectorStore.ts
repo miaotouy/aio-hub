@@ -29,6 +29,7 @@ import {
   refresh as refreshEmoticonLibrary,
   clearLibrary as clearEmoticonLibrary,
 } from "../services/vcpEmoticonService";
+import { tryParseStructuredContent } from "../utils/contentFormatter";
 
 const logger = createModuleLogger("vcp-connector/store");
 
@@ -866,20 +867,32 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     const toolName = msg.data?.tool_name;
     const status = msg.data?.status;
 
+    // 0. 尝试解析 [模块名] JSON 格式，格式化为可读文本
+    const structured = tryParseStructuredContent(content);
+    // 用于通知中心的详情文本：优先使用格式化后的文本
+    const displayContent = structured?.formatted ?? content;
+    // 用于浮动提示的摘要：优先使用提取的文本内容，否则回退到原始 content
+    const summarySource = structured?.textContent ?? content;
+    // 状态：结构化解析的 status 可以补充后端未提供的状态
+    const effectiveStatus = status ?? structured?.status;
+    // 工具前缀：优先使用 toolName，其次使用解析出的模块名
+    const effectiveToolName = toolName ?? structured?.moduleName;
+
     // 1. 提取任务 ID (兼容 "task_id: 123" 和 "任务 123")
-    const taskIdMatch = content.match(/(?:task_id|任务)\s*[:：]?\s*(\d+)/i);
+    const searchText = structured?.textContent ?? content;
+    const taskIdMatch = searchText.match(/(?:task_id|任务)\s*[:：]?\s*(\d+)/i);
     const taskId = taskIdMatch ? taskIdMatch[1] : null;
 
     // 2. 智能路由
     const notify = useNotification();
-    const toolPrefix = toolName ? `[${toolName}] ` : "";
-    const summary = summarizeLogContent(content);
+    const toolPrefix = effectiveToolName ? `[${effectiveToolName}] ` : "";
+    const summary = summarizeLogContent(summarySource);
 
     // 优先级 1：后端明确报错 (status === 'error')
-    if (status === "error") {
+    if (effectiveStatus === "error") {
       // 浮动提示用摘要，完整内容进通知中心
       customMessage.error(`${toolPrefix}${summary || "执行错误"}`);
-      notify.error("VCP 执行错误", `${toolPrefix}${content}`, {
+      notify.error("VCP 执行错误", `${toolPrefix}${displayContent}`, {
         source: "VCP",
       });
       return;
@@ -889,7 +902,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     if (taskId) {
       notify.info(
         `VCP 任务通知`,
-        `任务已启动 (ID: ${taskId})${toolName ? ` - ${toolName}` : ""}`,
+        `任务已启动 (ID: ${taskId})${effectiveToolName ? ` - ${effectiveToolName}` : ""}`,
         {
           source: "VCP",
         }
@@ -898,10 +911,13 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     }
 
     // 优先级 3：内容中包含错误关键字
-    const lowerContent = content.toLowerCase();
-    if (lowerContent.includes("error") || lowerContent.includes("failed")) {
+    const lowerSearchText = searchText.toLowerCase();
+    if (
+      lowerSearchText.includes("error") ||
+      lowerSearchText.includes("failed")
+    ) {
       customMessage.error(`${toolPrefix}${summary}`);
-      notify.error("VCP 执行错误", `${toolPrefix}${content}`, {
+      notify.error("VCP 执行错误", `${toolPrefix}${displayContent}`, {
         source: "VCP",
       });
       return;
@@ -909,14 +925,14 @@ export const useVcpStore = defineStore("vcp-connector", () => {
 
     // 优先级 4：成功/完成类关键字 -> 即时浮动提示（仅摘要，完整内容入通知中心）
     if (
-      content.includes("归档") ||
-      content.includes("完成") ||
-      content.includes("成功")
+      searchText.includes("归档") ||
+      searchText.includes("完成") ||
+      searchText.includes("成功")
     ) {
       customMessage.success(`${toolPrefix}${summary}`);
       // 只在内容明显超长时才额外推一份到通知中心，避免短消息重复
-      if (content.length > 80) {
-        notify.success("VCP 工具执行完成", `${toolPrefix}${content}`, {
+      if (displayContent.length > 80) {
+        notify.success("VCP 工具执行完成", `${toolPrefix}${displayContent}`, {
           source: "VCP",
         });
       }

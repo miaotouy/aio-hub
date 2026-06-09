@@ -105,11 +105,24 @@
                 :key="ref.assetId"
                 class="attachment-item"
               >
-                <span class="attachment-icon">{{
-                  getAssetTypeEmoji(ref.assetId)
-                }}</span>
+                <FileIcon
+                  :fileName="getAssetFilename(ref.assetId)"
+                  :fileType="getAssetFileType(ref.assetId)"
+                  :size="16"
+                  class="attachment-file-icon"
+                />
                 <span
                   class="attachment-name"
+                  :title="getAssetTooltip(ref.assetId)"
+                >
+                  {{ getAssetDisplayName(ref.assetId) }}
+                </span>
+                <span
+                  v-if="
+                    getAssetFilename(ref.assetId) !==
+                    getAssetDisplayName(ref.assetId)
+                  "
+                  class="attachment-filename-hint"
                   :title="getAssetFilename(ref.assetId)"
                 >
                   {{ getAssetFilename(ref.assetId) }}
@@ -155,9 +168,12 @@
                     :class="{ 'is-selected': isAssetSelected(asset.id) }"
                     @click="toggleAsset(asset)"
                   >
-                    <span class="asset-type-icon">{{
-                      assetTypeEmoji(asset.type)
-                    }}</span>
+                    <FileIcon
+                      :fileName="asset.filename"
+                      :fileType="mapAgentAssetFileType(asset.type)"
+                      :size="20"
+                      class="asset-type-file-icon"
+                    />
                     <div class="asset-info">
                       <span class="asset-handle">{{ asset.id }}</span>
                       <span class="asset-filename">{{ asset.filename }}</span>
@@ -398,6 +414,7 @@ import KBPlaceholderEditor from "./KBPlaceholderEditor.vue";
 import ModelMatchConfig from "./ModelMatchConfig.vue";
 import InjectionConfig from "./InjectionConfig.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
+import FileIcon from "@/components/common/FileIcon.vue";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import type {
   LlmThinkRule,
@@ -520,29 +537,49 @@ const filteredAssets = computed(() => {
   );
 });
 
-function assetTypeEmoji(type: string): string {
+/** 将 AgentAsset.type 映射为 FileIcon 可识别的 fileType */
+function mapAgentAssetFileType(
+  type: string
+): "image" | "video" | "audio" | "document" {
   switch (type) {
     case "image":
-      return "🖼️";
+      return "image";
     case "audio":
-      return "🔊";
+      return "audio";
     case "video":
-      return "🎬";
-    case "file":
-      return "📄";
+      return "video";
     default:
-      return "📎";
+      return "document";
   }
-}
-
-function getAssetTypeEmoji(assetId: string): string {
-  const asset = availableAssets.value.find((a) => a.id === assetId);
-  return asset ? assetTypeEmoji(asset.type) : "📎";
 }
 
 function getAssetFilename(assetId: string): string {
   const asset = availableAssets.value.find((a) => a.id === assetId);
   return asset?.filename || assetId;
+}
+
+function getAssetFileType(
+  assetId: string
+): "image" | "video" | "audio" | "document" {
+  const asset = availableAssets.value.find((a) => a.id === assetId);
+  return asset ? mapAgentAssetFileType(asset.type) : "document";
+}
+
+/** 附件标签主显示名：优先 description，其次 handle (id) */
+function getAssetDisplayName(assetId: string): string {
+  const asset = availableAssets.value.find((a) => a.id === assetId);
+  if (!asset) return assetId;
+  return asset.description || asset.id;
+}
+
+/** 附件 tooltip：显示完整信息 */
+function getAssetTooltip(assetId: string): string {
+  const asset = availableAssets.value.find((a) => a.id === assetId);
+  if (!asset) return assetId;
+  const parts = [`Handle: ${asset.id}`, `文件: ${asset.filename}`];
+  if (asset.description) parts.push(`描述: ${asset.description}`);
+  if (asset.mimeType) parts.push(`类型: ${asset.mimeType}`);
+  return parts.join("\n");
 }
 
 function isAssetSelected(assetId: string): boolean {
@@ -1204,16 +1241,26 @@ function handleSave() {
   font-size: 13px;
 }
 
-.attachment-icon {
-  font-size: 14px;
+.attachment-file-icon {
+  flex-shrink: 0;
 }
 
 .attachment-name {
-  max-width: 150px;
+  max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--el-text-color-regular);
+  color: var(--el-text-color-primary);
+  font-weight: 500;
+}
+
+.attachment-filename-hint {
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--el-text-color-placeholder);
 }
 
 .attachment-count {
@@ -1256,8 +1303,7 @@ function handleSave() {
   );
 }
 
-.asset-type-icon {
-  font-size: 18px;
+.asset-type-file-icon {
   flex-shrink: 0;
 }
 

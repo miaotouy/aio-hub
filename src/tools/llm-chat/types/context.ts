@@ -162,6 +162,17 @@ export interface ContextPreviewData {
     timestamp?: number;
     /** 消息名称（用于 UI 展示） */
     name?: string;
+    /** 预设附件的详细分析（引用 Agent 资产） */
+    attachments?: Array<{
+      id: string;
+      name: string;
+      type: string;
+      mimeType: string;
+      size?: number;
+      tokenCount?: number;
+      isEstimated: boolean;
+      error?: string;
+    }>;
   }>;
   /** 会话历史部分 */
   chatHistory: Array<{

@@ -1,6 +1,6 @@
 # 预设消息多模态附件设计方案
 
-> **状态**: Implementing (Phase 1-2 完工，Phase 3-4 待施工)
+> **状态**: Implementing (Phase 1-4 完工)
 > **作者**: 咕咕
 > **日期**: 2025-06-09
 
@@ -338,14 +338,14 @@ graph TD
 
 ### Phase 3：导入导出适配
 
-8. 确认 Agent 整体导出/导入无需改动（验证）
-9. 适配预设消息独立导出（`usePresetImportExport.ts`），保留 `presetAttachments`
-10. 预设消息独立导入时，检测悬空引用并提示
+8. ✅ 确认 Agent 整体导出/导入无需改动（验证通过：`processAssetsRecursively` 只处理文件路径字符串，`presetAttachments` 中的 `assetId` handle 不会被误处理）
+9. ✅ 适配预设消息独立导出（`usePresetImportExport.ts`）— `cleanMessagesForExport` 使用深拷贝，`presetAttachments` 字段自动保留
+10. ✅ 预设消息独立导入时，检测悬空引用并提示（`detectDanglingAttachmentRefs` 函数，通过 `agentAssets` 参数校验引用有效性）
 
 ### Phase 4：Token 计算 + 预览
 
-11. 适配 `usePresetTokenCalculator.ts`，计算附件 Token
-12. 适配上下文预览（`preview-builder.ts`），显示预设附件
+11. ✅ 适配 `usePresetTokenCalculator.ts`，计算附件 Token（根据附件类型估算：图片使用 visionTokenCost，音频/视频按默认时长估算）
+12. ✅ 适配上下文预览（`preview-builder.ts`），显示预设附件（在 `ContextPreviewData.presetMessages` 中新增 `attachments` 字段，预设消息分支现在处理 `_attachments` 并计算附件 Token）
 
 ## 6. 风险与注意事项
 

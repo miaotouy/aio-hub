@@ -22,6 +22,8 @@ export function usePresetImportExport(options: {
   agentName: Ref<string>;
   onSyncToParent: () => void;
   importFileInput: Ref<HTMLInputElement | null>;
+  /** 当前 Agent 的资产列表（用于检测悬空引用） */
+  agentAssets?: Ref<import("../../../types/agent").AgentAsset[] | undefined>;
 }) {
   const {
     localMessages,
@@ -29,6 +31,7 @@ export function usePresetImportExport(options: {
     agentName,
     onSyncToParent,
     importFileInput,
+    agentAssets,
   } = options;
   const anchorRegistry = useAnchorRegistry();
 
@@ -64,6 +67,37 @@ export function usePresetImportExport(options: {
     };
   }
 
+  /**
+   * 检测导入消息中的悬空预设附件引用
+   * 返回悬空引用的数量
+   */
+  function detectDanglingAttachmentRefs(messages: ChatMessageNode[]): {
+    total: number;
+    dangling: number;
+    details: string[];
+  } {
+    const assets = agentAssets?.value;
+    let total = 0;
+    let dangling = 0;
+    const details: string[] = [];
+
+    for (const msg of messages) {
+      if (!msg.presetAttachments || msg.presetAttachments.length === 0)
+        continue;
+      for (const ref of msg.presetAttachments) {
+        total++;
+        if (!assets || !assets.find((a) => a.id === ref.assetId)) {
+          dangling++;
+          details.push(
+            `消息 "${msg.name || msg.role}" 引用了不存在的资产 "${ref.assetId}"`
+          );
+        }
+      }
+    }
+
+    return { total, dangling, details };
+  }
+
   function applyImportedData(importedData: any) {
     if (
       importedData &&
@@ -84,7 +118,16 @@ export function usePresetImportExport(options: {
       ];
       cleanupPresetMessageGroupRefs(localMessages.value, presetGroups.value);
       onSyncToParent();
-      customMessage.success("导入成功");
+
+      // 检测悬空附件引用
+      const refCheck = detectDanglingAttachmentRefs(processed);
+      if (refCheck.dangling > 0) {
+        customMessage.warning(
+          `导入成功，但有 ${refCheck.dangling} 个附件引用指向不存在的资产（共 ${refCheck.total} 个引用）。这些附件在发送时将被跳过。`
+        );
+      } else {
+        customMessage.success("导入成功");
+      }
     } else if (Array.isArray(importedData)) {
       // v1 格式（纯数组）
       const processed = importedData.map((m: any) => ({
@@ -99,7 +142,16 @@ export function usePresetImportExport(options: {
       presetGroups.value = [];
       cleanupPresetMessageGroupRefs(localMessages.value, presetGroups.value);
       onSyncToParent();
-      customMessage.success("导入成功");
+
+      // 检测悬空附件引用
+      const refCheck = detectDanglingAttachmentRefs(processed);
+      if (refCheck.dangling > 0) {
+        customMessage.warning(
+          `导入成功，但有 ${refCheck.dangling} 个附件引用指向不存在的资产（共 ${refCheck.total} 个引用）。这些附件在发送时将被跳过。`
+        );
+      } else {
+        customMessage.success("导入成功");
+      }
     } else {
       customMessage.error("数据格式不正确");
     }

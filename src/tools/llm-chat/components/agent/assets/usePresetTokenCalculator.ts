@@ -3,6 +3,7 @@ import { createModuleLogger } from "@/utils/logger";
 import { useDebounceFn } from "@vueuse/core";
 import { useLlmChatStore } from "../../../stores/llmChatStore";
 import type { ChatMessageNode, UserProfile } from "../../../types";
+import type { AgentAsset } from "../../../types/agent";
 import {
   MacroProcessor,
   createMacroContext,
@@ -11,6 +12,7 @@ import {
 import { useAnchorRegistry } from "../../../composables/ui/useAnchorRegistry";
 import { calculateShortHash } from "@/utils/hash";
 import { tokenCalculatorEngine } from "@/tools/token-calculator/composables/useTokenCalculator";
+import { getActiveModelProperties } from "@/config/model-metadata";
 
 const logger = createModuleLogger("llm-chat/usePresetTokenCalculator");
 
@@ -105,6 +107,13 @@ export function usePresetTokenCalculator(options: {
     );
     const tokenizerName = tokenizerResult.tokenizerName;
 
+    // 获取模型元数据，用于估算附件 token
+    const modelMetadata = modelId.value
+      ? getActiveModelProperties(modelId.value)
+      : undefined;
+    const visionTokenCost = modelMetadata?.capabilities?.visionTokenCost;
+    const agentAssets: AgentAsset[] = agent.value?.assets || [];
+
     const tasks = localMessages.value.map((message) => async () => {
       if (isPurePlaceholderAnchorType(message.type) || !message.isEnabled)
         return;
@@ -113,11 +122,20 @@ export function usePresetTokenCalculator(options: {
         if (isTemplateAnchorType(message.type) && !template) {
           template = getAnchorDef(message.type)?.defaultTemplate || "";
         }
-        if (!template) return;
+        if (
+          !template &&
+          (!message.presetAttachments || message.presetAttachments.length === 0)
+        )
+          return;
 
+        // 构建包含附件信息的 hash key
+        const attachmentIds = (message.presetAttachments || [])
+          .map((ref) => ref.assetId)
+          .sort()
+          .join(",");
         const contextKey = `${effectiveUserProfile.value?.id || "default"}:${agentName.value}`;
-        const rawHashKey = `v3:${tokenizerName}:${template}:${contextKey}`;
-        const contentHash = `v3:${tokenizerName}:${await calculateShortHash(rawHashKey)}`;
+        const rawHashKey = `v4:${tokenizerName}:${template || ""}:${contextKey}:${attachmentIds}`;
+        const contentHash = `v4:${tokenizerName}:${await calculateShortHash(rawHashKey)}`;
 
         if (
           message.metadata?.lastCalcHash === contentHash &&
@@ -127,19 +145,60 @@ export function usePresetTokenCalculator(options: {
           return;
         }
 
-        const processed = await macroProcessor.process(template, baseContext);
-        const result = await tokenCalculatorEngine.calculateTokens(
-          processed.output,
-          modelId.value
-        );
-        newTokens.set(message.id, result.count);
+        // 计算文本 token
+        let textTokenCount = 0;
+        if (template) {
+          const processed = await macroProcessor.process(template, baseContext);
+          const result = await tokenCalculatorEngine.calculateTokens(
+            processed.output,
+            modelId.value
+          );
+          textTokenCount = result.count;
+        }
+
+        // 估算预设附件 token
+        let attachmentTokenCount = 0;
+        if (message.presetAttachments && message.presetAttachments.length > 0) {
+          for (const ref of message.presetAttachments) {
+            const agentAsset = agentAssets.find((a) => a.id === ref.assetId);
+            if (!agentAsset) continue;
+
+            if (agentAsset.type === "image") {
+              if (visionTokenCost) {
+                // 图片没有精确尺寸信息，使用默认估算
+                attachmentTokenCount +=
+                  tokenCalculatorEngine.calculateImageTokens(
+                    1024,
+                    1024,
+                    visionTokenCost
+                  );
+              } else {
+                attachmentTokenCount += 1000; // 无视觉能力时的粗略估算
+              }
+            } else if (agentAsset.type === "audio") {
+              // 音频默认按 30 秒估算
+              attachmentTokenCount +=
+                tokenCalculatorEngine.calculateAudioTokens(30);
+            } else if (agentAsset.type === "video") {
+              // 视频默认按 30 秒估算
+              attachmentTokenCount +=
+                tokenCalculatorEngine.calculateVideoTokens(30);
+            } else {
+              // 文档等其他类型
+              attachmentTokenCount += 500;
+            }
+          }
+        }
+
+        const totalTokenCount = textTokenCount + attachmentTokenCount;
+        newTokens.set(message.id, totalTokenCount);
 
         if (!message.metadata) message.metadata = {};
         if (
-          message.metadata.contentTokens !== result.count ||
+          message.metadata.contentTokens !== totalTokenCount ||
           message.metadata.lastCalcHash !== contentHash
         ) {
-          message.metadata.contentTokens = result.count;
+          message.metadata.contentTokens = totalTokenCount;
           message.metadata.lastCalcHash = contentHash;
           hasChanges = true;
         }

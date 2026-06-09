@@ -127,7 +127,7 @@ export async function buildPreviewDataFromContext(
     }
     const charCount = contentText.length;
 
-    // 预设消息和注入消息的 token 计算（简单文本）
+    // 预设消息和注入消息的 token 计算（文本 + 预设附件）
     if (
       msg.sourceType === "agent_preset" ||
       msg.sourceType === "depth_injection" ||
@@ -137,7 +137,7 @@ export async function buildPreviewDataFromContext(
         contentText,
         agentConfig.modelId
       );
-      const tokenCount = tokenResult.count;
+      const textTokenCount = tokenResult.count;
 
       if (tokenResult.isEstimated) {
         isEstimated = true;
@@ -146,24 +146,123 @@ export async function buildPreviewDataFromContext(
         tokenizerName = tokenResult.tokenizerName;
       }
 
+      // 处理预设附件的 token 估算
+      let presetAttachmentTokenCount = 0;
+      let presetAttachmentsData:
+        | ContextPreviewData["presetMessages"][0]["attachments"]
+        | undefined;
+
+      if (msg._attachments && msg._attachments.length > 0) {
+        presetAttachmentsData = [];
+        for (const attachment of msg._attachments) {
+          let attachTokenCount: number | undefined;
+          let isAttachmentEstimated = false;
+          let error: string | undefined;
+
+          if (attachment.type === "image") {
+            if (visionTokenCost) {
+              if (attachment.metadata?.width && attachment.metadata?.height) {
+                try {
+                  attachTokenCount = tokenCalculatorEngine.calculateImageTokens(
+                    attachment.metadata.width,
+                    attachment.metadata.height,
+                    visionTokenCost
+                  );
+                } catch (e) {
+                  error =
+                    e instanceof Error ? e.message : "图片 Token 计算异常";
+                  isAttachmentEstimated = true;
+                }
+              } else {
+                error = "缺少图片尺寸信息，使用默认值估算";
+                attachTokenCount = tokenCalculatorEngine.calculateImageTokens(
+                  1024,
+                  1024,
+                  visionTokenCost
+                );
+                isAttachmentEstimated = true;
+              }
+            } else {
+              error = "模型不支持视觉能力或计费规则未知";
+              attachTokenCount = 1000;
+              isAttachmentEstimated = true;
+            }
+          } else if (attachment.type === "video") {
+            if (attachment.metadata?.duration) {
+              try {
+                attachTokenCount = tokenCalculatorEngine.calculateVideoTokens(
+                  attachment.metadata.duration
+                );
+              } catch (e) {
+                error = e instanceof Error ? e.message : "视频 Token 计算异常";
+                isAttachmentEstimated = true;
+              }
+            } else {
+              error = "缺少视频时长信息，无法精确计算";
+              attachTokenCount = 500;
+              isAttachmentEstimated = true;
+            }
+          } else if (attachment.type === "audio") {
+            if (attachment.metadata?.duration) {
+              try {
+                attachTokenCount = tokenCalculatorEngine.calculateAudioTokens(
+                  attachment.metadata.duration
+                );
+              } catch (e) {
+                error = e instanceof Error ? e.message : "音频 Token 计算异常";
+                isAttachmentEstimated = true;
+              }
+            } else {
+              error = "缺少音频时长信息，无法精确计算";
+              attachTokenCount = 500;
+              isAttachmentEstimated = true;
+            }
+          } else {
+            error = "暂不支持此类型附件的 Token 计算";
+            attachTokenCount = 500;
+            isAttachmentEstimated = true;
+          }
+
+          if (attachTokenCount !== undefined) {
+            presetAttachmentTokenCount += attachTokenCount;
+          }
+          if (isAttachmentEstimated) isEstimated = true;
+
+          presetAttachmentsData.push({
+            id: attachment.id,
+            name: attachment.name,
+            type: attachment.type,
+            mimeType: attachment.mimeType,
+            size: attachment.size,
+            tokenCount: attachTokenCount,
+            isEstimated: isAttachmentEstimated,
+            error,
+          });
+        }
+      }
+
+      const totalPresetMsgTokens = textTokenCount + presetAttachmentTokenCount;
+
       presetMessages.push({
         role: msg.role === "tool" ? "assistant" : msg.role,
         content: contentText,
         originalContent: msg._originalContent,
         charCount: charCount,
-        tokenCount: tokenCount,
+        tokenCount: totalPresetMsgTokens,
         source: "agent_preset", // 简化来源
         index: typeof msg.sourceIndex === "number" ? msg.sourceIndex : -1,
         timestamp: msg._timestamp,
         userName: msg._userName,
         userIcon: msg._userIcon,
         name: msg._name,
+        attachments: presetAttachmentsData,
       });
       presetMessagesCharCount += charCount;
-      presetMessagesTokenCount += tokenCount;
+      presetMessagesTokenCount += totalPresetMsgTokens;
       totalCharCount += charCount;
-      totalTokenCount += tokenCount;
-      textTokenCountAccum += tokenCount;
+      totalTokenCount += totalPresetMsgTokens;
+      textTokenCountAccum += textTokenCount;
+      attachmentTokenCountAccum += presetAttachmentTokenCount;
     } else if (msg.sourceType === "session_history") {
       // 会话历史消息：需要处理附件
       const sourceNode = sessionDetail.nodes?.[msg.sourceId as string];

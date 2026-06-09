@@ -484,6 +484,7 @@ const {
   agentName: computed(() => props.agentName ?? ""),
   onSyncToParent: syncToParent,
   importFileInput,
+  agentAssets: computed(() => props.agent?.assets),
 });
 
 // 锚点辅助

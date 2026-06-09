@@ -53,6 +53,7 @@ const shouldStickToBottom = ref(true);
 onDeactivated(() => {
   wasNearBottomBeforeDeactivate.value = isNearBottom.value;
   disconnectResizeObserver();
+  disconnectMessageVisibilityObserver();
 });
 
 onActivated(() => {
@@ -61,6 +62,7 @@ onActivated(() => {
 
   // 重新连接 ResizeObserver
   setupResizeObserver();
+  setupMessageVisibilityObserver();
 
   // keep-alive 切换会导致浏览器重置 scrollTop 为 0，需要恢复
   if (container.scrollTop === 0 && lastKnownScrollTop.value > 0) {
@@ -256,6 +258,74 @@ const messagesInnerContainer = ref<HTMLElement | null>(null);
 // 暴露滚动容器供外部使用
 const getScrollElement = () => messagesContainer.value;
 
+// 【修复】在运行时注入消息虚拟渲染样式，避免生产构建 CSS 优化器影响 content-visibility。
+const MESSAGE_VISIBILITY_SELECTOR =
+  ".chat-message, .tool-call-message, .compression-message";
+const MESSAGE_INTRINSIC_SIZE = "auto 500px";
+let messageVisibilityObserver: MutationObserver | null = null;
+let pendingVisibilityFrame: number | null = null;
+
+const applyMessageVisibilityOptimization = () => {
+  pendingVisibilityFrame = null;
+
+  const inner = messagesInnerContainer.value;
+  if (!inner) return;
+
+  const messageEls = Array.from(
+    inner.querySelectorAll<HTMLElement>(MESSAGE_VISIBILITY_SELECTOR)
+  );
+
+  for (const el of messageEls) {
+    el.style.setProperty("content-visibility", "auto", "important");
+    el.style.setProperty(
+      "contain-intrinsic-size",
+      MESSAGE_INTRINSIC_SIZE,
+      "important"
+    );
+  }
+
+  const lastMessage = messageEls[messageEls.length - 1];
+  if (lastMessage) {
+    lastMessage.style.setProperty("content-visibility", "visible", "important");
+  }
+};
+
+const scheduleMessageVisibilityOptimization = () => {
+  if (pendingVisibilityFrame !== null) return;
+
+  pendingVisibilityFrame = requestAnimationFrame(
+    applyMessageVisibilityOptimization
+  );
+};
+
+const setupMessageVisibilityObserver = () => {
+  disconnectMessageVisibilityObserver();
+
+  const inner = messagesInnerContainer.value;
+  if (!inner) return;
+
+  messageVisibilityObserver = new MutationObserver(() => {
+    scheduleMessageVisibilityOptimization();
+  });
+  messageVisibilityObserver.observe(inner, {
+    childList: true,
+    subtree: true,
+  });
+  scheduleMessageVisibilityOptimization();
+};
+
+const disconnectMessageVisibilityObserver = () => {
+  if (pendingVisibilityFrame !== null) {
+    cancelAnimationFrame(pendingVisibilityFrame);
+    pendingVisibilityFrame = null;
+  }
+
+  if (messageVisibilityObserver) {
+    messageVisibilityObserver.disconnect();
+    messageVisibilityObserver = null;
+  }
+};
+
 // 记录用户是否接近底部
 const isNearBottom = ref(true);
 // 当前可见的消息索引 (1-based)
@@ -311,6 +381,7 @@ const disconnectResizeObserver = () => {
 
 onMounted(() => {
   setupResizeObserver();
+  setupMessageVisibilityObserver();
   // 初始加载时如果已有消息，滚动到底部
   if (messagesContainer.value && props.messages.length > 0) {
     shouldStickToBottom.value = true;
@@ -320,6 +391,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   disconnectResizeObserver();
+  disconnectMessageVisibilityObserver();
 });
 
 // 滚动到底部
@@ -525,6 +597,8 @@ watch(
     () => props.messages[props.messages.length - 1]?.content,
   ],
   ([newLength, newLastContent], [oldLength, oldLastContent]) => {
+    scheduleMessageVisibilityOptimization();
+
     if (!settings.value.uiPreferences.autoScroll) return;
 
     const isNewMessage = newLength !== oldLength;

@@ -102,7 +102,7 @@
               placement="bottom-start"
               :width="400"
               trigger="click"
-              popper-class="macro-selector-popover"
+              popper-class="preset-editor-macro-popover"
             >
               <template #reference>
                 <el-button
@@ -126,7 +126,7 @@
               placement="bottom-start"
               :width="400"
               trigger="click"
-              popper-class="variable-selector-popover"
+              popper-class="preset-editor-variable-popover"
             >
               <template #reference>
                 <el-button
@@ -994,5 +994,35 @@ function handleSave() {
   color: var(--el-text-color-primary);
   white-space: pre-wrap;
   word-break: break-word;
+}
+</style>
+
+<!-- 全局样式：预设消息编辑器专用 popover，独立于 MessageInputToolbar 的同名样式 -->
+<style>
+.preset-editor-macro-popover,
+.preset-editor-variable-popover {
+  max-height: min(600px, 60vh) !important;
+  overflow: hidden !important;
+}
+
+.preset-editor-macro-popover .el-popover__body,
+.preset-editor-variable-popover .el-popover__body {
+  padding: 12px;
+  max-height: calc(min(500px, 50vh) - 24px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.preset-editor-macro-popover .macro-selector,
+.preset-editor-variable-popover .variable-selector {
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.preset-editor-macro-popover .macro-selector-body,
+.preset-editor-variable-popover .variable-selector-body {
+  max-height: calc(min(500px, 50vh) - 100px);
+  overflow-y: auto;
 }
 </style>

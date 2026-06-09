@@ -81,7 +81,7 @@ watch(
 .katex-block-container {
   margin: 1em 0;
   text-align: center;
-  /* 不设置 overflow，让内容自然显示 */
+  overflow-x: auto;
 }
 
 .katex-inline-container {

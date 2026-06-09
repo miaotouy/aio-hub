@@ -93,166 +93,12 @@
         />
 
         <!-- 附件区域（非 greeting 模式且 Agent 有资产时显示） -->
-        <div
+        <PresetAttachmentPicker
           v-if="!isGreetingMode && availableAssets.length > 0"
-          class="editor-row attachments-row"
-        >
-          <span class="field-label">附件</span>
-          <div class="attachments-area">
-            <div v-if="form.presetAttachments?.length" class="attachment-list">
-              <div
-                v-for="(ref, idx) in form.presetAttachments"
-                :key="ref.assetId"
-                class="attachment-item"
-                :class="{
-                  'has-thumbnail': getAssetFileType(ref.assetId) === 'image',
-                }"
-              >
-                <!-- 图片类型：显示缩略图 -->
-                <template v-if="getAssetFileType(ref.assetId) === 'image'">
-                  <div
-                    class="attachment-thumbnail"
-                    @click="handlePreviewImage(ref.assetId)"
-                    :title="'点击预览: ' + getAssetDisplayName(ref.assetId)"
-                  >
-                    <img
-                      :src="getAssetResolvedUrl(ref.assetId)"
-                      :alt="getAssetDisplayName(ref.assetId)"
-                      class="thumbnail-img"
-                      loading="lazy"
-                    />
-                    <div class="thumbnail-overlay">
-                      <Eye :size="14" />
-                    </div>
-                  </div>
-                </template>
-                <!-- 非图片类型：显示文件图标 -->
-                <template v-else>
-                  <FileIcon
-                    :fileName="getAssetFilename(ref.assetId)"
-                    :fileType="getAssetFileType(ref.assetId)"
-                    :size="16"
-                    class="attachment-file-icon"
-                  />
-                </template>
-                <span
-                  class="attachment-name"
-                  :title="getAssetTooltip(ref.assetId)"
-                >
-                  {{ getAssetDisplayName(ref.assetId) }}
-                </span>
-                <span
-                  v-if="
-                    getAssetFilename(ref.assetId) !==
-                    getAssetDisplayName(ref.assetId)
-                  "
-                  class="attachment-filename-hint"
-                  :title="getAssetFilename(ref.assetId)"
-                >
-                  {{ getAssetFilename(ref.assetId) }}
-                </span>
-                <!-- 视频/音频预览按钮 -->
-                <el-button
-                  v-if="getAssetFileType(ref.assetId) === 'video'"
-                  link
-                  size="small"
-                  type="primary"
-                  @click="handlePreviewVideo(ref.assetId)"
-                  title="预览视频"
-                >
-                  <el-icon><Play :size="14" /></el-icon>
-                </el-button>
-                <el-button
-                  v-if="getAssetFileType(ref.assetId) === 'audio'"
-                  link
-                  size="small"
-                  type="primary"
-                  @click="handlePreviewAudio(ref.assetId)"
-                  :title="playingAudioId === ref.assetId ? '停止播放' : '试听'"
-                >
-                  <el-icon>
-                    <Square v-if="playingAudioId === ref.assetId" :size="14" />
-                    <Play v-else :size="14" />
-                  </el-icon>
-                </el-button>
-                <el-button
-                  link
-                  size="small"
-                  type="danger"
-                  @click="removeAttachment(idx)"
-                  title="移除"
-                >
-                  <el-icon><Close /></el-icon>
-                </el-button>
-              </div>
-            </div>
-            <el-popover
-              v-model:visible="assetSelectorVisible"
-              placement="bottom-start"
-              :width="360"
-              trigger="click"
-            >
-              <template #reference>
-                <el-button size="small" plain>
-                  <el-icon style="margin-right: 4px"
-                    ><Paperclip :size="14"
-                  /></el-icon>
-                  从 Agent 资产选择
-                </el-button>
-              </template>
-              <div class="asset-selector-popover">
-                <el-input
-                  v-model="assetSearchQuery"
-                  placeholder="搜索资产..."
-                  size="small"
-                  clearable
-                  style="margin-bottom: 8px"
-                />
-                <div class="asset-selector-list">
-                  <div
-                    v-for="asset in filteredAssets"
-                    :key="asset.id"
-                    class="asset-selector-item"
-                    :class="{ 'is-selected': isAssetSelected(asset.id) }"
-                    @click="toggleAsset(asset)"
-                  >
-                    <FileIcon
-                      :fileName="asset.filename"
-                      :fileType="mapAgentAssetFileType(asset.type)"
-                      :size="20"
-                      class="asset-type-file-icon"
-                    />
-                    <div class="asset-info">
-                      <span class="asset-handle">{{ asset.id }}</span>
-                      <span class="asset-filename">{{ asset.filename }}</span>
-                    </div>
-                    <el-icon
-                      v-if="isAssetSelected(asset.id)"
-                      class="asset-check"
-                    >
-                      <Check />
-                    </el-icon>
-                  </div>
-                  <div v-if="filteredAssets.length === 0" class="asset-empty">
-                    无匹配资产
-                  </div>
-                </div>
-              </div>
-            </el-popover>
-            <span
-              v-if="form.presetAttachments?.length"
-              class="attachment-count"
-            >
-              {{ form.presetAttachments.length }} 个附件
-            </span>
-          </div>
-        </div>
-
-        <!-- 视频预览器 -->
-        <VideoViewer
-          v-model:visible="videoPreviewVisible"
-          :src="videoPreviewSrc"
-          :title="videoPreviewTitle"
+          ref="attachmentPickerRef"
+          v-model="form.presetAttachments"
+          :available-assets="availableAssets"
+          :agent-id="currentAgent?.id"
         />
 
         <!-- 第二行：内容标签 + 工具栏 -->
@@ -442,7 +288,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed, onMounted, onBeforeUnmount, provide } from "vue";
+import { ref, watch, computed, onMounted, provide } from "vue";
 import type {
   MessageRole,
   UserProfile,
@@ -457,18 +303,8 @@ import {
   CopyDocument,
   DocumentAdd,
   Document,
-  Close,
-  Check,
 } from "@element-plus/icons-vue";
-import {
-  Bot,
-  Book,
-  Variable,
-  Paperclip,
-  Eye,
-  Play,
-  Square,
-} from "lucide-vue-next";
+import { Bot, Book, Variable } from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import MacroSelector from "../selectors/MacroSelector.vue";
@@ -476,9 +312,8 @@ import VariableSelector from "../selectors/VariableSelector.vue";
 import KBPlaceholderEditor from "./KBPlaceholderEditor.vue";
 import ModelMatchConfig from "./ModelMatchConfig.vue";
 import InjectionConfig from "./InjectionConfig.vue";
+import PresetAttachmentPicker from "./PresetAttachmentPicker.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
-import FileIcon from "@/components/common/FileIcon.vue";
-import VideoViewer from "@/components/common/VideoViewer.vue";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import type {
   LlmThinkRule,
@@ -505,9 +340,7 @@ import type {
 import {
   processMessageAssetsSync,
   resolveAgentAssetUrlSync,
-  convertAgentAssetToUrl,
 } from "../../../utils/agentAssetUtils";
-import { useImageViewer } from "@/composables/useImageViewer";
 
 interface MessageForm {
   role: MessageRole;
@@ -573,7 +406,6 @@ const { settings } = useChatSettings();
 const { getProfileById } = useLlmProfiles();
 const chatStore = useLlmChatStore();
 const kbStore = useKnowledgeBaseStore();
-const imageViewer = useImageViewer();
 
 // 表单数据
 const form = ref<MessageForm>({
@@ -583,182 +415,14 @@ const form = ref<MessageForm>({
   presetAttachments: [],
 });
 
-// 附件选择相关
-const assetSelectorVisible = ref(false);
-const assetSearchQuery = ref("");
+// 附件选择器 ref
+const attachmentPickerRef = ref<InstanceType<
+  typeof PresetAttachmentPicker
+> | null>(null);
 
 /** Agent 可用资产列表 */
 const availableAssets = computed<AgentAsset[]>(() => {
   return props.agent?.assets || [];
-});
-
-/** 按搜索词过滤的资产 */
-const filteredAssets = computed(() => {
-  const q = assetSearchQuery.value.toLowerCase();
-  if (!q) return availableAssets.value;
-  return availableAssets.value.filter(
-    (a) =>
-      a.id.toLowerCase().includes(q) ||
-      a.filename.toLowerCase().includes(q) ||
-      a.description?.toLowerCase().includes(q)
-  );
-});
-
-/** 将 AgentAsset.type 映射为 FileIcon 可识别的 fileType */
-function mapAgentAssetFileType(
-  type: string
-): "image" | "video" | "audio" | "document" {
-  switch (type) {
-    case "image":
-      return "image";
-    case "audio":
-      return "audio";
-    case "video":
-      return "video";
-    default:
-      return "document";
-  }
-}
-
-function getAssetFilename(assetId: string): string {
-  const asset = availableAssets.value.find((a) => a.id === assetId);
-  return asset?.filename || assetId;
-}
-
-function getAssetFileType(
-  assetId: string
-): "image" | "video" | "audio" | "document" {
-  const asset = availableAssets.value.find((a) => a.id === assetId);
-  return asset ? mapAgentAssetFileType(asset.type) : "document";
-}
-
-/** 附件标签主显示名：优先 description，其次 handle (id) */
-function getAssetDisplayName(assetId: string): string {
-  const asset = availableAssets.value.find((a) => a.id === assetId);
-  if (!asset) return assetId;
-  return asset.description || asset.id;
-}
-
-/** 附件 tooltip：显示完整信息 */
-function getAssetTooltip(assetId: string): string {
-  const asset = availableAssets.value.find((a) => a.id === assetId);
-  if (!asset) return assetId;
-  const parts = [`Handle: ${asset.id}`, `文件: ${asset.filename}`];
-  if (asset.description) parts.push(`描述: ${asset.description}`);
-  if (asset.mimeType) parts.push(`类型: ${asset.mimeType}`);
-  return parts.join("\n");
-}
-
-function isAssetSelected(assetId: string): boolean {
-  return !!form.value.presetAttachments?.some((r) => r.assetId === assetId);
-}
-
-function toggleAsset(asset: AgentAsset) {
-  if (!form.value.presetAttachments) form.value.presetAttachments = [];
-  const idx = form.value.presetAttachments.findIndex(
-    (r) => r.assetId === asset.id
-  );
-  if (idx >= 0) {
-    form.value.presetAttachments.splice(idx, 1);
-  } else {
-    form.value.presetAttachments.push({ assetId: asset.id });
-  }
-}
-
-function removeAttachment(index: number) {
-  form.value.presetAttachments?.splice(index, 1);
-}
-
-// ============================================================================
-// 附件预览相关
-// ============================================================================
-
-/** 获取资产的实际可访问 URL */
-function getAssetResolvedUrl(assetId: string): string {
-  const asset = availableAssets.value.find((a) => a.id === assetId);
-  if (!asset) return "";
-  const agentId = currentAgent.value?.id;
-  if (!agentId) return "";
-  return convertAgentAssetToUrl(agentId, asset.path) || "";
-}
-
-/** 获取所有图片附件的 URL 列表（用于 ImageViewer 列表浏览） */
-const imageAttachmentUrls = computed(() => {
-  if (!form.value.presetAttachments?.length) return [];
-  return form.value.presetAttachments
-    .filter((ref) => getAssetFileType(ref.assetId) === "image")
-    .map((ref) => getAssetResolvedUrl(ref.assetId))
-    .filter(Boolean);
-});
-
-/** 获取所有图片附件的 assetId 列表（与 URL 列表一一对应） */
-const imageAttachmentIds = computed(() => {
-  if (!form.value.presetAttachments?.length) return [];
-  return form.value.presetAttachments
-    .filter((ref) => getAssetFileType(ref.assetId) === "image")
-    .map((ref) => ref.assetId);
-});
-
-/** 点击图片缩略图：打开 ImageViewer */
-function handlePreviewImage(assetId: string) {
-  const urls = imageAttachmentUrls.value;
-  if (urls.length === 0) return;
-  const idx = imageAttachmentIds.value.indexOf(assetId);
-  imageViewer.show(urls, Math.max(0, idx));
-}
-
-// 视频预览状态
-const videoPreviewVisible = ref(false);
-const videoPreviewSrc = ref("");
-const videoPreviewTitle = ref("");
-
-/** 点击视频预览按钮 */
-function handlePreviewVideo(assetId: string) {
-  const url = getAssetResolvedUrl(assetId);
-  if (!url) return;
-  videoPreviewSrc.value = url;
-  videoPreviewTitle.value = getAssetDisplayName(assetId);
-  videoPreviewVisible.value = true;
-}
-
-// 音频预览状态
-const playingAudioId = ref<string | null>(null);
-let currentAudioEl: HTMLAudioElement | null = null;
-
-/** 点击音频试听按钮 */
-function handlePreviewAudio(assetId: string) {
-  // 如果正在播放同一个，停止
-  if (playingAudioId.value === assetId) {
-    stopAudio();
-    return;
-  }
-  // 停止之前的
-  stopAudio();
-
-  const url = getAssetResolvedUrl(assetId);
-  if (!url) return;
-
-  currentAudioEl = new Audio(url);
-  currentAudioEl.volume = 0.5;
-  currentAudioEl.addEventListener("ended", stopAudio);
-  currentAudioEl.addEventListener("error", stopAudio);
-  currentAudioEl.play();
-  playingAudioId.value = assetId;
-}
-
-function stopAudio() {
-  if (currentAudioEl) {
-    currentAudioEl.pause();
-    currentAudioEl.removeEventListener("ended", stopAudio);
-    currentAudioEl.removeEventListener("error", stopAudio);
-    currentAudioEl = null;
-  }
-  playingAudioId.value = null;
-}
-
-// 组件卸载时清理音频
-onBeforeUnmount(() => {
-  stopAudio();
 });
 
 // 模型匹配和注入策略（由子组件管理内部 UI 状态）
@@ -1060,7 +724,7 @@ watch(
     if (newVisible) {
       viewMode.value = "edit"; // 默认进入编辑模式
       previewContent.value = ""; // 重置预览缓存，避免显示上次的旧内容
-      assetSearchQuery.value = ""; // 重置搜索
+      attachmentPickerRef.value?.resetSearch(); // 重置附件搜索
       if (props.initialForm) {
         form.value = {
           ...props.initialForm,
@@ -1368,180 +1032,6 @@ function handleSave() {
   color: var(--el-text-color-primary);
   white-space: pre-wrap;
   word-break: break-word;
-}
-
-/* 附件区域 */
-.attachments-row {
-  align-items: flex-start;
-}
-
-.attachments-area {
-  flex: 1;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-
-.attachment-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.attachment-item {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  background: var(--input-bg);
-  border: var(--border-width) solid var(--border-color);
-  border-radius: 4px;
-  font-size: 13px;
-}
-
-.attachment-item.has-thumbnail {
-  padding: 3px 8px 3px 3px;
-}
-
-.attachment-file-icon {
-  flex-shrink: 0;
-}
-
-/* 缩略图预览 */
-.attachment-thumbnail {
-  position: relative;
-  width: 32px;
-  height: 32px;
-  border-radius: 3px;
-  overflow: hidden;
-  cursor: pointer;
-  flex-shrink: 0;
-  background: var(--el-fill-color-lighter);
-}
-
-.attachment-thumbnail .thumbnail-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-  transition: filter 0.15s;
-}
-
-.attachment-thumbnail .thumbnail-overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.4);
-  color: white;
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-
-.attachment-thumbnail:hover .thumbnail-img {
-  filter: brightness(0.7);
-}
-
-.attachment-thumbnail:hover .thumbnail-overlay {
-  opacity: 1;
-}
-
-.attachment-name {
-  max-width: 120px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--el-text-color-primary);
-  font-weight: 500;
-}
-
-.attachment-filename-hint {
-  max-width: 100px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 11px;
-  color: var(--el-text-color-placeholder);
-}
-
-.attachment-count {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-
-/* 资产选择器弹出层 */
-.asset-selector-popover {
-  display: flex;
-  flex-direction: column;
-}
-
-.asset-selector-list {
-  max-height: 280px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.asset-selector-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background-color 0.15s;
-}
-
-.asset-selector-item:hover {
-  background-color: var(--el-fill-color-light);
-}
-
-.asset-selector-item.is-selected {
-  background-color: rgba(
-    var(--el-color-primary-rgb),
-    calc(var(--card-opacity) * 0.1)
-  );
-}
-
-.asset-type-file-icon {
-  flex-shrink: 0;
-}
-
-.asset-info {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.asset-handle {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--el-text-color-primary);
-}
-
-.asset-filename {
-  font-size: 11px;
-  color: var(--el-text-color-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.asset-check {
-  color: var(--el-color-primary);
-  flex-shrink: 0;
-}
-
-.asset-empty {
-  padding: 16px;
-  text-align: center;
-  color: var(--el-text-color-secondary);
-  font-size: 13px;
 }
 </style>
 

@@ -1,17 +1,20 @@
 <script setup lang="ts">
-import { inject } from "vue";
+import { inject, watchEffect } from "vue";
 import { InfoFilled } from "@element-plus/icons-vue";
 import VariableTreeEditor from "./VariableTreeEditor.vue";
 
 const editForm = inject<any>("agent-edit-form");
 
-if (!editForm.variableConfig) {
-  editForm.variableConfig = {
-    enabled: false,
-    definitions: [],
-    customStyles: "",
-  };
-}
+// 使用 watchEffect 而非一次性初始化，确保 editForm 被异步重置后仍能补全默认值
+watchEffect(() => {
+  if (editForm && !editForm.variableConfig) {
+    editForm.variableConfig = {
+      enabled: false,
+      definitions: [],
+      customStyles: "",
+    };
+  }
+});
 </script>
 
 <template>

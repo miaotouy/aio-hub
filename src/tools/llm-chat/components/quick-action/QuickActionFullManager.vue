@@ -118,6 +118,7 @@ const handleCreate = async () => {
         cancelButtonText: "取消",
         inputPattern: /\S+/,
         inputErrorMessage: "名称不能为空",
+        lockScroll: false,
       }
     );
     if (name) {
@@ -147,6 +148,7 @@ const handleRename = async () => {
         inputValue: set.name,
         inputPattern: /\S+/,
         inputErrorMessage: "名称不能为空",
+        lockScroll: false,
       }
     );
     if (newName && newName !== set.name) {
@@ -233,6 +235,7 @@ const handleBatchDelete = async () => {
         confirmButtonText: "删除",
         cancelButtonText: "取消",
         type: "warning",
+        lockScroll: false,
       }
     );
 
@@ -300,6 +303,12 @@ const handleBatchExport = async () => {
             >
             <el-button :icon="Plus" @click="handleCreate">新建组</el-button>
             <el-button :icon="Upload" @click="handleImport">导入</el-button>
+            <el-button
+              :icon="Download"
+              :disabled="!selectedSetId"
+              @click="handleExport"
+              >导出</el-button
+            >
           </el-button-group>
         </div>
       </template>

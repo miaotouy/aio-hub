@@ -7,6 +7,7 @@ import type {
   AgentEditData,
   GreetingMessage,
 } from "../../../types";
+import type { PresetMessageGroup } from "../../../types/agent";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import Avatar from "@/components/common/Avatar.vue";
 import { Users } from "lucide-vue-next";
@@ -80,6 +81,7 @@ const defaultFormState = {
   modelCombo: "", // 用于 LlmModelSelector 的组合值 (profileId:modelId)
   userProfileId: null as string | null, // 绑定的用户档案 ID
   presetMessages: [] as ChatMessageNode[],
+  presetGroups: [] as PresetMessageGroup[],
   greetings: [] as GreetingMessage[],
   displayPresetCount: 0, // 显示的预设消息数量
   llmThinkRules: [] as LlmThinkRule[], // LLM 思考块规则配置
@@ -122,12 +124,37 @@ const currentEditingAgent = computed(() => {
 
 // 编辑表单
 const editForm = reactive(JSON.parse(JSON.stringify(defaultFormState)));
+let loadFormRequestId = 0;
 
 // 加载表单数据
-const loadFormData = () => {
+const loadFormData = async () => {
+  const requestId = ++loadFormRequestId;
+
   // 0. 初始化本地 ID (仅在编辑模式且 localAgentId 为空时，从 props 同步一次)
   if (props.mode === "edit" && !localAgentId.value && props.agent) {
     localAgentId.value = props.agent.id;
+  }
+
+  const editingAgentId =
+    props.mode === "edit" ? localAgentId.value || props.agent?.id : null;
+
+  // 确定数据源：编辑模式优先按需加载完整详情，创建模式用 initialData
+  let sourceData: Partial<AgentEditData> | ChatAgent =
+    props.initialData || {};
+
+  if (props.mode === "edit" && editingAgentId) {
+    const loadedAgent = await agentStore.ensureAgentLoaded(editingAgentId);
+    if (
+      requestId !== loadFormRequestId ||
+      localAgentId.value !== editingAgentId
+    ) {
+      return;
+    }
+    sourceData =
+      loadedAgent ||
+      agentStore.getAgentById(editingAgentId) ||
+      props.agent ||
+      {};
   }
 
   // 1. 彻底重置为默认值（使用 JSON 深拷贝确保引用断开）
@@ -135,12 +162,6 @@ const loadFormData = () => {
   for (const key of Object.keys(editForm)) {
     (editForm as any)[key] = defaults[key as keyof typeof defaults];
   }
-
-  // 确定数据源：编辑模式用当前编辑的对象，创建模式用 initialData
-  const sourceData =
-    props.mode === "edit" && currentEditingAgent.value
-      ? currentEditingAgent.value
-      : props.initialData || {};
 
   // 2. 动态合并数据
   for (const key of Object.keys(editForm)) {
@@ -187,7 +208,7 @@ const isSwitching = ref(false);
 const activeTab = ref("basic");
 
 // 切换编辑的智能体
-const switchToAgent = (targetAgent: ChatAgent) => {
+const switchToAgent = async (targetAgent: ChatAgent) => {
   if (localAgentId.value === targetAgent.id) {
     agentListVisible.value = false;
     return;
@@ -208,13 +229,18 @@ const switchToAgent = (targetAgent: ChatAgent) => {
   isSwitching.value = true;
 
   // 切换逻辑
-  if (props.syncToChat) {
-    // 同步模式：直接切换全局选中的智能体
-    agentStore.selectAgent(targetAgent.id);
-  } else {
-    // 解耦模式：仅更新内部追踪的 ID 并重新加载数据
-    localAgentId.value = targetAgent.id;
-    loadFormData();
+  try {
+    if (props.syncToChat) {
+      // 同步模式：切换全局选中的智能体，并立即加载完整详情
+      await agentStore.selectAgent(targetAgent.id);
+      localAgentId.value = targetAgent.id;
+      await loadFormData();
+    } else {
+      // 解耦模式：仅更新内部追踪的 ID 并重新加载数据
+      localAgentId.value = targetAgent.id;
+      await loadFormData();
+    }
+  } finally {
     isSwitching.value = false;
   }
 
@@ -230,9 +256,10 @@ watch(
       if (props.mode === "edit" && props.agent) {
         localAgentId.value = props.agent.id;
       }
-      loadFormData();
+      void loadFormData();
     } else {
       // 关闭时重置本地 ID，确保下次打开时能重新同步
+      loadFormRequestId++;
       localAgentId.value = null;
     }
   },
@@ -246,9 +273,10 @@ watch(
   (newId) => {
     if (props.visible && props.syncToChat && newId) {
       localAgentId.value = newId;
-      loadFormData();
-      // 加载完成后重置切换标志
-      isSwitching.value = false;
+      void loadFormData().finally(() => {
+        // 加载完成后重置切换标志
+        isSwitching.value = false;
+      });
     }
   }
 );
@@ -296,6 +324,7 @@ const handleSave = (
       modelId: editForm.modelId,
       userProfileId: editForm.userProfileId,
       presetMessages: editForm.presetMessages,
+      presetGroups: editForm.presetGroups,
       greetings: editForm.greetings,
       displayPresetCount: editForm.displayPresetCount,
       parameters,

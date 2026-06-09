@@ -5,6 +5,7 @@ import type {
   AgentAsset,
   AssetGroup,
   GreetingMessage,
+  PresetMessageGroup,
 } from "../types";
 import type {
   LlmThinkRule,
@@ -37,6 +38,7 @@ export interface ExportableAgent {
   modelId: string;
   userProfileId?: string | null;
   presetMessages?: ChatMessageNode[];
+  presetGroups?: PresetMessageGroup[];
   greetings?: GreetingMessage[];
   displayPresetCount?: number;
   parameters: LlmParameters;

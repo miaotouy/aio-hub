@@ -719,4 +719,30 @@ function truncateText(text: string, maxLength: number): string {
 .el-button {
   margin: 0;
 }
+
+/* 增强 el-radio 在半透明主题下的可见性 */
+:deep(.el-radio__inner) {
+  border-width: 2px;
+  border-color: var(--el-text-color-secondary);
+  background-color: transparent;
+}
+
+:deep(.el-radio__inner:hover) {
+  border-color: var(--el-color-primary);
+}
+
+:deep(.el-radio.is-checked .el-radio__inner) {
+  border-color: var(--el-color-primary);
+  background-color: var(--el-color-primary);
+}
+
+:deep(.el-radio.is-disabled .el-radio__inner) {
+  border-color: var(--el-text-color-placeholder);
+  background-color: transparent;
+}
+
+:deep(.el-radio.is-disabled.is-checked .el-radio__inner) {
+  border-color: var(--el-text-color-placeholder);
+  background-color: var(--el-text-color-placeholder);
+}
 </style>

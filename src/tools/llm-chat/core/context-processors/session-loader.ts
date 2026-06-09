@@ -7,6 +7,7 @@ import type {
   ChatSessionDetail,
 } from "@/tools/llm-chat/types";
 import type { LlmThinkRule } from "@/tools/rich-text-renderer/types";
+import { fromAsset } from "../../types/pipeline-attachment";
 
 const logger = createModuleLogger("primary:session-loader");
 
@@ -251,7 +252,7 @@ export const sessionLoader: ContextProcessor = {
         reasoningContent,
         sourceType: "session_history",
         sourceId: node.id,
-        _attachments: node.attachments,
+        _attachments: node.attachments?.map(fromAsset),
         metadata: node.metadata,
       };
       messages.push(processableMessage);
@@ -266,7 +267,7 @@ export const sessionLoader: ContextProcessor = {
         content: pendingInput.text,
         sourceType: "session_history",
         sourceId: `${VIRTUAL_NODE_PREFIX}${Date.now()}`,
-        _attachments: pendingInput.attachments,
+        _attachments: pendingInput.attachments?.map(fromAsset),
         _originalContent: pendingInput.originalText, // 用于预览 diff
       });
     }

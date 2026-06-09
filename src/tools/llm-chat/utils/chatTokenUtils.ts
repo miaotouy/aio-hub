@@ -11,6 +11,10 @@ import { resolveAttachmentsBatch } from "../core/context-utils/attachment-resolv
 import { isDocxAssetLike } from "@/utils/docxParser";
 import { splitDocxIntoImageAssets } from "../core/context-utils/docx-image-splitter";
 import { useTranscriptionManager } from "../composables/features/useTranscriptionManager";
+import {
+  fromAsset,
+  type PipelineAttachment,
+} from "../types/pipeline-attachment";
 
 const logger = createModuleLogger("llm-chat/token-utils");
 
@@ -22,9 +26,12 @@ export async function prepareMessageForTokenCalc(
   content: string,
   attachments: Asset[],
   modelId: string
-): Promise<{ combinedText: string; mediaAttachments: Asset[] }> {
+): Promise<{
+  combinedText: string;
+  mediaAttachments: PipelineAttachment[];
+}> {
   let combinedText = content;
-  const mediaAttachments: Asset[] = [];
+  const mediaAttachments: PipelineAttachment[] = [];
   const { profiles } = useLlmProfiles();
 
   // 尝试查找 profileId
@@ -87,7 +94,7 @@ export async function prepareMessageForTokenCalc(
     if (result.type === "text" && result.content) {
       combinedText += result.content;
     } else {
-      mediaAttachments.push(result.asset);
+      mediaAttachments.push(fromAsset(result.asset));
     }
   }
 
@@ -141,7 +148,9 @@ export async function recalculateNodeTokens(
 
   try {
     let fullContent = node.content;
-    let mediaAttachments = node.attachments;
+    let mediaAttachments:
+      | Array<Asset | PipelineAttachment>
+      | undefined = node.attachments;
 
     if (
       node.role === "user" &&
@@ -233,7 +242,9 @@ export async function fillMissingTokenMetadata(
         (async () => {
           try {
             let fullContent = node.content;
-            let mediaAttachments = node.attachments;
+            let mediaAttachments:
+              | Array<Asset | PipelineAttachment>
+              | undefined = node.attachments;
 
             if (
               node.role === "user" &&

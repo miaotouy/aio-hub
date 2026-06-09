@@ -2,7 +2,7 @@
  * DOCX 插图临时拆分工具
  *
  * 当主对话模型支持视觉能力时，将 .docx 文件中的内嵌图片提取为
- * 临时 Asset（带 inlineData），直接作为多模态内容发送给模型。
+ * 临时 PipelineAttachment（inline source），直接作为多模态内容发送给模型。
  *
  * 设计约束：
  * - 不注册到 AssetManager（不污染资产库）
@@ -14,9 +14,13 @@ import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { parseDocx, isDocxAssetLike } from "@/utils/docxParser";
 import { getImageDimensions } from "@/utils/imageProcessor";
-import { assetManagerEngine } from "@/composables/useAssetManager";
-import type { Asset } from "@/types/asset-management";
 import type { DocxImage } from "@/utils/docxParser";
+import { getAttachmentBuffer } from "./attachment-binary";
+import {
+  toPipelineAttachment,
+  type AttachmentLike,
+  type PipelineAttachment,
+} from "../../types/pipeline-attachment";
 
 const logger = createModuleLogger("llm-chat/docx-image-splitter");
 const errorHandler = createModuleErrorHandler("llm-chat/docx-image-splitter");
@@ -24,8 +28,8 @@ const errorHandler = createModuleErrorHandler("llm-chat/docx-image-splitter");
 export interface DocxSplitResult {
   /** 含 [图片 N] 占位符的纯文本 */
   text: string;
-  /** 拆分出的临时图片 Asset 列表 */
-  imageAssets: Asset[];
+  /** 拆分出的临时图片附件列表 */
+  imageAssets: PipelineAttachment[];
   /** 是否成功拆分（false 表示回退到原始路径） */
   success: boolean;
 }
@@ -47,8 +51,8 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
  */
 async function buildImageAsset(
   img: DocxImage,
-  docxAsset: Asset
-): Promise<Asset | null> {
+  docxAsset: PipelineAttachment
+): Promise<PipelineAttachment | null> {
   try {
     const buffer = base64ToArrayBuffer(img.base64);
     const dims = await getImageDimensions(buffer);
@@ -57,18 +61,14 @@ async function buildImageAsset(
       id: `docx-img-${docxAsset.id}-${img.index}`,
       type: "image",
       name: `${docxAsset.name} - 图片 ${img.index}`,
-      path: "", // 无磁盘路径
-      size: img.estimatedBytes,
       mimeType: img.mimeType,
-      sourceModule: "llm-chat-docx-split",
-      createdAt: new Date().toISOString(),
-      origins: [],
-      importStatus: "complete",
+      size: img.estimatedBytes,
       metadata: {
         width: dims.width,
         height: dims.height,
       },
-      inlineData: {
+      source: {
+        kind: "inline",
         base64: img.base64,
         mimeType: img.mimeType,
       },
@@ -90,8 +90,10 @@ async function buildImageAsset(
  * @returns 拆分结果；如果 DOCX 无图片或解析失败，返回 success: false
  */
 export async function splitDocxIntoImageAssets(
-  docxAsset: Asset
+  docxAssetLike: AttachmentLike
 ): Promise<DocxSplitResult> {
+  const docxAsset = toPipelineAttachment(docxAssetLike);
+
   // 安全检查
   if (!isDocxAssetLike(docxAsset)) {
     return { text: "", imageAssets: [], success: false };
@@ -99,7 +101,7 @@ export async function splitDocxIntoImageAssets(
 
   try {
     // 1. 读取 DOCX 二进制
-    const buffer = await assetManagerEngine.getAssetBinary(docxAsset.path);
+    const buffer = await getAttachmentBuffer(docxAsset);
 
     // 2. 解析 DOCX
     const parseResult = await parseDocx(buffer);
@@ -110,7 +112,7 @@ export async function splitDocxIntoImageAssets(
     }
 
     // 3. 为每张图片构建临时 Asset
-    const imageAssets: Asset[] = [];
+    const imageAssets: PipelineAttachment[] = [];
     for (const img of parseResult.images) {
       const asset = await buildImageAsset(img, docxAsset);
       if (asset) {

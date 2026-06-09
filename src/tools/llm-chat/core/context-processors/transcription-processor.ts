@@ -1,13 +1,20 @@
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { ContextProcessor, PipelineContext } from "../../types/pipeline";
-import { resolveAttachmentsBatch } from "../../core/context-utils/attachment-resolver";
+import {
+  getTranscriptionAsset,
+  resolveAttachmentsBatch,
+} from "../../core/context-utils/attachment-resolver";
 import { splitDocxIntoImageAssets } from "../../core/context-utils/docx-image-splitter";
 import { isDocxAssetLike } from "@/utils/docxParser";
 import { useTranscriptionManager } from "../../composables/features/useTranscriptionManager";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { Asset } from "@/types/asset-management";
 import type { ChatTranscriptionConfig } from "../../types/settings";
+import {
+  fromAsset,
+  type PipelineAttachment,
+} from "../../types/pipeline-attachment";
 
 const logger = createModuleLogger("llm-chat/transcription-processor");
 const errorHandler = createModuleErrorHandler(
@@ -24,9 +31,9 @@ const PLACEHOLDER_REGEX = /【file::([^\s】]+)】/g;
  * 根据 assetId 查找附件
  */
 function findAttachmentById(
-  attachments: Asset[],
+  attachments: PipelineAttachment[],
   assetId: string
-): Asset | undefined {
+): PipelineAttachment | undefined {
   return attachments.find((a) => a.id === assetId);
 }
 
@@ -46,7 +53,7 @@ function generateAttachmentLabel(index: number, name: string): string {
  */
 function replacePlaceholders(
   text: string,
-  assets: Asset[],
+  assets: PipelineAttachment[],
   transcriptionResults: Map<string, string>
 ): {
   content: string;
@@ -126,7 +133,7 @@ function replacePlaceholders(
  * 构建附件内容文本（追加到消息末尾）
  */
 function buildAttachmentContent(
-  unclaimedAssets: Asset[],
+  unclaimedAssets: PipelineAttachment[],
   transcriptionResults: Map<string, string>
 ): LlmMessageContent[] {
   const contents: LlmMessageContent[] = [];
@@ -185,7 +192,7 @@ export const transcriptionProcessor: ContextProcessor = {
         continue;
       }
 
-      const remainingAttachments: Asset[] = [];
+      const remainingAttachments: PipelineAttachment[] = [];
       let contentModified = false;
 
       // 用于存储转写结果
@@ -193,22 +200,24 @@ export const transcriptionProcessor: ContextProcessor = {
 
       // 预先处理所有附件，获取转写结果
       // 使用预处理阶段获取的最新 Asset，避免重复异步调用
-      let assetsToProcess = msg._attachments.map(
-        (asset) => updatedAssetsMap.get(asset.id) || asset
-      );
+      let assetsToProcess = msg._attachments.map((asset) => {
+        const updatedAsset = updatedAssetsMap.get(asset.id);
+        return updatedAsset ? fromAsset(updatedAsset) : asset;
+      });
 
       // ─── DOCX 插图拆分：主模型支持视觉时，将内嵌图片直接作为多模态发送 ───
       const hasVision = context.capabilities?.vision === true;
       if (hasVision) {
-        const nonDocxAssets: Asset[] = [];
+        const nonDocxAssets: PipelineAttachment[] = [];
         const transcriptionManager = useTranscriptionManager();
 
         for (const asset of assetsToProcess) {
           if (isDocxAssetLike(asset)) {
+            const transcriptionAsset = await getTranscriptionAsset(asset);
             // 已有转写结果且应优先使用转写文本时，回退到正常路径（不走虚拟图片附件）
             if (
               transcriptionManager.computeWillUseTranscription(
-                asset,
+                transcriptionAsset,
                 modelId,
                 profileId
               )
@@ -279,7 +288,7 @@ export const transcriptionProcessor: ContextProcessor = {
       } catch (error) {
         // 批量处理出错时，降级处理
         errorCount++;
-        assetsToProcess.forEach((asset) => remainingAttachments.push(asset));
+        remainingAttachments.push(...assetsToProcess);
 
         errorHandler.handle(error as Error, {
           userMessage: "批量处理附件转写失败",

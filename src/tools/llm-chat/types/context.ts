@@ -5,6 +5,7 @@ import type { Asset, AssetMetadata } from "@/types/asset-management";
 import type { ChatMessageNode, InjectionStrategy } from "./message";
 import type { ChatSessionIndex, ChatSessionDetail } from "./session";
 import type { STWorldbookPosition } from "./worldbook";
+import type { PipelineAttachment } from "./pipeline-attachment";
 
 /**
  * 虚拟节点 ID 前缀
@@ -56,7 +57,7 @@ export interface ProcessableMessage {
    * [中间格式] 暂存的附件列表
    * 在 asset-resolver 阶段会被处理并合并入 content
    */
-  _attachments?: Asset[];
+  _attachments?: PipelineAttachment[];
   /**
    * [元数据] 原始消息内容
    * 用于宏调试和差异对比，仅在宏处理发生时设置
@@ -219,7 +220,7 @@ export interface ContextPreviewData {
     /** 用于存储被合并的原始消息 */
     _mergedSources?: any[];
     /** [中间格式] 暂存的附件列表 */
-    _attachments?: Asset[];
+    _attachments?: PipelineAttachment[];
     /** 来源标识（预设消息的 index 或会话历史的 nodeId） */
     sourceId?: string | number;
     /** 在来源数组中的索引（用于精确匹配） */

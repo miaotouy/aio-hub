@@ -5,17 +5,58 @@ import { isDocxAssetLike } from "@/utils/docxParser";
 import { createModuleLogger } from "@/utils/logger";
 import type { Asset } from "@/types/asset-management";
 import { assetManagerEngine } from "@/composables/useAssetManager";
+import { getAttachmentBuffer } from "./attachment-binary";
+import {
+  isPipelineAttachment,
+  toPipelineAttachment,
+  type AttachmentLike,
+} from "../../types/pipeline-attachment";
 
 const logger = createModuleLogger("llm-chat/attachment-resolver");
 
-export interface ResolvedAttachment {
+export interface ResolvedAttachment<TAttachment extends AttachmentLike> {
   type: "text" | "media";
   /** 格式化后的文本内容 (包含 [文件: xxx] 或 [转写: xxx] 包装) */
   content?: string;
   /** 纯文本内容 (不包含包装) */
   rawText?: string;
-  asset: Asset;
+  asset: TAttachment;
   source?: "file" | "transcription";
+}
+
+export async function getTranscriptionAsset(
+  attachment: AttachmentLike
+): Promise<Asset> {
+  if (!isPipelineAttachment(attachment)) {
+    return attachment;
+  }
+
+  if (attachment.source.kind === "asset-library") {
+    const latestAsset = await assetManagerEngine.getAssetById(attachment.id);
+    if (latestAsset) return latestAsset;
+  }
+
+  return {
+    id: attachment.id,
+    type: attachment.type,
+    name: attachment.name,
+    mimeType: attachment.mimeType,
+    path:
+      attachment.source.kind === "asset-library" ? attachment.source.path : "",
+    size: attachment.size ?? 0,
+    sourceModule: "llm-chat-pipeline",
+    createdAt: "",
+    origins: [],
+    importStatus: "complete",
+    metadata: attachment.metadata,
+    inlineData:
+      attachment.source.kind === "inline"
+        ? {
+            base64: attachment.source.base64,
+            mimeType: attachment.source.mimeType,
+          }
+        : undefined,
+  };
 }
 
 /**
@@ -30,20 +71,24 @@ export interface ResolvedAttachment {
  * @param options.silent 静默模式，不输出警告日志（用于 Token 计算等频繁触发场景）
  * @param options.messageDepth 消息深度（用于判断是否触发强制转写）
  */
-export async function resolveAttachmentContent(
-  asset: Asset,
+export async function resolveAttachmentContent<TAttachment extends AttachmentLike>(
+  asset: TAttachment,
   modelId: string,
   profileId: string,
   options: { force?: boolean; silent?: boolean; messageDepth?: number } = {}
-): Promise<ResolvedAttachment> {
+): Promise<ResolvedAttachment<TAttachment>> {
   const transcriptionManager = useTranscriptionManager();
+  const attachment = toPipelineAttachment(asset);
+  const transcriptionAsset = await getTranscriptionAsset(asset);
 
   try {
     // 1. 优先处理纯文本文件
-    if (asset.type === "document" && isTextFile(asset.name, asset.mimeType)) {
+    if (
+      attachment.type === "document" &&
+      isTextFile(attachment.name, attachment.mimeType)
+    ) {
       try {
-        // 使用资产管理器获取二进制数据，然后在前端解码
-        const buffer = await assetManagerEngine.getAssetBinary(asset.path);
+        const buffer = await getAttachmentBuffer(attachment);
         const textContent = smartDecode(buffer);
 
         // 记录日志：读取成功
@@ -51,14 +96,14 @@ export async function resolveAttachmentContent(
 
         return {
           type: "text",
-          content: `\n[文件: ${asset.name}]\n\`\`\`\n${textContent}\n\`\`\`\n`,
+          content: `\n[文件: ${attachment.name}]\n\`\`\`\n${textContent}\n\`\`\`\n`,
           rawText: textContent,
           asset,
           source: "file",
         };
       } catch (err) {
         logger.warn("读取文本附件失败，将尝试作为媒体附件处理", {
-          assetId: asset.id,
+          assetId: attachment.id,
           error: err,
         });
         // 读取失败，继续走下面的流程（虽然下面可能也处理不了，最终会留给 asset-resolver 报错或作为媒体处理）
@@ -68,7 +113,7 @@ export async function resolveAttachmentContent(
     // 2. 检查是否需要转写 (针对 Image/Audio/Video)
     // 使用 computeWillUseTranscription，它同时考虑模型能力和消息深度
     let shouldTranscribe = transcriptionManager.computeWillUseTranscription(
-      asset,
+      transcriptionAsset,
       modelId,
       profileId,
       options.messageDepth
@@ -81,7 +126,7 @@ export async function resolveAttachmentContent(
 
     // 3. 尝试获取转写内容
     const transcriptionText =
-      await transcriptionManager.getTranscriptionText(asset);
+      await transcriptionManager.getTranscriptionText(transcriptionAsset);
 
     // 决策逻辑：
     // 只有在有转写内容且确实需要转写时，才使用转写内容
@@ -91,7 +136,7 @@ export async function resolveAttachmentContent(
 
       return {
         type: "text",
-        content: `\n[转写: ${asset.name}]\n${transcriptionText}\n`,
+        content: `\n[转写: ${attachment.name}]\n${transcriptionText}\n`,
         rawText: transcriptionText,
         asset,
         source: "transcription",
@@ -100,8 +145,8 @@ export async function resolveAttachmentContent(
 
     if (shouldTranscribe && !options.silent) {
       logger.warn("需要转写但未找到转写结果 (可能失败或超时)，保留原始附件", {
-        assetId: asset.id,
-        assetName: asset.name,
+        assetId: attachment.id,
+        assetName: attachment.name,
       });
     }
 
@@ -111,7 +156,7 @@ export async function resolveAttachmentContent(
       asset,
     };
   } catch (error) {
-    logger.error("解析附件内容出错", error, { assetId: asset.id });
+    logger.error("解析附件内容出错", error, { assetId: attachment.id });
     // 出错时降级为媒体附件，避免阻断流程
     return {
       type: "media",
@@ -124,16 +169,18 @@ export async function resolveAttachmentContent(
  * 批量解析附件内容
  * 自动合并警告消息，避免重复输出
  */
-export async function resolveAttachmentsBatch(
-  assets: Asset[],
+export async function resolveAttachmentsBatch<TAttachment extends AttachmentLike>(
+  assets: TAttachment[],
   modelId: string,
   profileId: string,
   options: { force?: boolean; silent?: boolean; messageDepth?: number } = {}
-): Promise<ResolvedAttachment[]> {
-  const results: ResolvedAttachment[] = [];
-  const missingTranscriptions: Asset[] = [];
+): Promise<ResolvedAttachment<TAttachment>[]> {
+  const results: ResolvedAttachment<TAttachment>[] = [];
+  const missingTranscriptions: TAttachment[] = [];
 
   for (const asset of assets) {
+    const attachment = toPipelineAttachment(asset);
+    const transcriptionAsset = await getTranscriptionAsset(asset);
     // 调用单个解析函数时开启静默，由批量函数统一处理警告
     const result = await resolveAttachmentContent(asset, modelId, profileId, {
       ...options,
@@ -151,7 +198,7 @@ export async function resolveAttachmentsBatch(
       const shouldTranscribe =
         options.force ||
         transcriptionManager.computeWillUseTranscription(
-          asset,
+          transcriptionAsset,
           modelId,
           profileId,
           options.messageDepth
@@ -160,7 +207,7 @@ export async function resolveAttachmentsBatch(
       // 文本文档读取失败不重复警告；DOCX 这类二进制文档需要转写提示。
       if (
         shouldTranscribe &&
-        (asset.type !== "document" || isDocxAssetLike(asset))
+        (attachment.type !== "document" || isDocxAssetLike(attachment))
       ) {
         missingTranscriptions.push(asset);
       }
@@ -172,7 +219,10 @@ export async function resolveAttachmentsBatch(
     logger.warn(
       `有 ${missingTranscriptions.length} 个附件需要转写但未找到结果，将保留原始附件`,
       {
-        assets: missingTranscriptions.map((a) => ({ id: a.id, name: a.name })),
+        assets: missingTranscriptions.map((a) => ({
+          id: a.id,
+          name: a.name,
+        })),
       }
     );
   }

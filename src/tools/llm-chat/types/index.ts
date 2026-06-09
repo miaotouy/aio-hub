@@ -10,3 +10,4 @@ export * from "./agentImportExport";
 export * from "./sync";
 export * from "./chatRegex";
 export * from "./settings";
+export * from "./pipeline-attachment";

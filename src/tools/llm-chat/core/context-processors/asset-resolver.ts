@@ -2,11 +2,12 @@ import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { ContextProcessor, PipelineContext } from "../../types/pipeline";
 import type { LlmMessageContent } from "@/llm-apis/common";
-import { assetManagerEngine } from "@/composables/useAssetManager";
 import { convertArrayBufferToBase64 } from "@/utils/base64";
 import { convertPdfToImages } from "@/utils/pdfUtils";
 import { getImageDimensions, resizeImage } from "@/utils/imageProcessor";
 import type { ResizeOptions } from "@/utils/imageProcessor";
+import { getAttachmentBuffer } from "../context-utils/attachment-binary";
+import type { PipelineAttachment } from "../../types/pipeline-attachment";
 
 const logger = createModuleLogger("llm-chat/asset-resolver");
 const errorHandler = createModuleErrorHandler("llm-chat/asset-resolver");
@@ -15,7 +16,7 @@ const errorHandler = createModuleErrorHandler("llm-chat/asset-resolver");
  * 处理图片附件：包括模型安全缩放、用户压缩策略及 Base64 转换
  */
 async function processImageAsset(
-  asset: any,
+  asset: PipelineAttachment,
   buffer: ArrayBuffer,
   context: PipelineContext
 ): Promise<LlmMessageContent[]> {
@@ -75,7 +76,7 @@ async function processImageAsset(
  * 处理文档附件：支持 PDF 转图片序列或直接 Base64
  */
 async function processDocumentAsset(
-  asset: any,
+  asset: PipelineAttachment,
   buffer: ArrayBuffer,
   context: PipelineContext
 ): Promise<LlmMessageContent[]> {
@@ -129,7 +130,7 @@ async function processDocumentAsset(
  * 处理音视频附件
  */
 async function processMediaAsset(
-  asset: any,
+  asset: PipelineAttachment,
   buffer: ArrayBuffer,
   type: "audio" | "video"
 ): Promise<LlmMessageContent[]> {
@@ -180,18 +181,7 @@ export const assetResolver: ContextProcessor = {
             continue;
           }
 
-          // 优先使用内联数据（如 DOCX 拆分出的临时图片），跳过磁盘读取
-          let buffer: ArrayBuffer;
-          if (asset.inlineData) {
-            const binaryStr = atob(asset.inlineData.base64);
-            const bytes = new Uint8Array(binaryStr.length);
-            for (let i = 0; i < binaryStr.length; i++) {
-              bytes[i] = binaryStr.charCodeAt(i);
-            }
-            buffer = bytes.buffer;
-          } else {
-            buffer = await assetManagerEngine.getAssetBinary(asset.path);
-          }
+          const buffer = await getAttachmentBuffer(asset);
 
           let parts: LlmMessageContent[] = [];
 
@@ -204,7 +194,7 @@ export const assetResolver: ContextProcessor = {
               break;
             case "audio":
             case "video":
-              parts = await processMediaAsset(asset, buffer, asset.type as any);
+              parts = await processMediaAsset(asset, buffer, asset.type);
               break;
           }
 

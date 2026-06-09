@@ -9,7 +9,7 @@ import {
   type TokenCalculationResult,
 } from "./composables/useTokenCalculator";
 import { calculatorProxy } from "./worker/calculator.proxy";
-import type { Asset } from "@/types/asset-management";
+import type { AssetMetadata, AssetType } from "@/types/asset-management";
 import { getActiveModelProperties } from "@/config/model-metadata";
 import { markRaw } from "vue";
 import TokenCalculatorIcon from "@/components/icons/TokenCalculatorIcon.vue";
@@ -142,7 +142,7 @@ class TokenCalculatorRegistry implements ToolRegistry {
   async calculateMessageTokens(
     text: string,
     modelId: string,
-    attachments?: Asset[]
+    attachments?: Array<{ type: AssetType; metadata?: AssetMetadata }>
   ): Promise<TokenCalculationResult> {
     this.touchStore();
     // 1. 计算文本 Token (通过 Worker 代理)

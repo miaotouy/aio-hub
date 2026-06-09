@@ -1,6 +1,6 @@
 # 管道附件抽象层重构计划
 
-> **状态**: RFC (Request for Comments)
+> **状态**: 完工
 > **作者**: 咕咕
 > **日期**: 2025-06-09
 > **关联**: [预设消息多模态附件设计方案](../design/preset-message-multimodal-attachments.md)

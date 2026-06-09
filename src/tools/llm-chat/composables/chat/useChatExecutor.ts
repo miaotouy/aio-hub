@@ -449,7 +449,7 @@ export function useChatExecutor() {
       const tokenResult = await tokenCalculatorService.calculateMessageTokens(
         contentText,
         effectiveModelId,
-        (msg as any)._attachments || []
+        msg._attachments || []
       );
       return tokenResult.count;
     });

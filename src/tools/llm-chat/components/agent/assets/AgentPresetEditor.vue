@@ -5,7 +5,7 @@
       <PresetGroupPanel
         :preset-groups="presetGroups"
         :local-messages="localMessages"
-        @update:preset-groups="presetGroups = $event"
+        @update:preset-groups="handlePresetGroupsUpdate"
         @update:local-messages="localMessages = $event"
         @sync="syncToParent"
         @edit-message="handleEditMessage"
@@ -333,7 +333,9 @@ import { usePresetTokenCalculator } from "./usePresetTokenCalculator";
 import { usePresetImportExport } from "./usePresetImportExport";
 import {
   applyPresetGroupEnabledState,
+  cleanupPresetMessageGroupRefs,
   getPresetGroupMessageStats,
+  resolvePresetMessageGroupId,
 } from "./presetGroupState";
 import type {
   LlmThinkRule,
@@ -443,6 +445,7 @@ const pendingGroupJoinMsg = ref<ChatMessageNode | null>(null);
 const showBatchManager = ref(false);
 
 function syncToParent() {
+  cleanupPresetMessageGroupRefs(localMessages.value, presetGroups.value);
   emit("update:modelValue", toRaw(localMessages.value));
 }
 
@@ -513,6 +516,10 @@ watch(
       }
     }
 
+    if (cleanupPresetMessageGroupRefs(msgs, presetGroups.value)) {
+      needsSync = true;
+    }
+
     localMessages.value = msgs;
     if (needsSync) emit("update:modelValue", msgs);
   },
@@ -545,7 +552,7 @@ function handleEditMessage(message: ChatMessageNode) {
     role: message.role,
     content: message.content,
     name: message.name,
-    groupId: message.groupId,
+    groupId: resolvePresetMessageGroupId(message.groupId, presetGroups.value),
     injectionStrategy: message.injectionStrategy,
     modelMatch: message.modelMatch,
   };
@@ -553,15 +560,20 @@ function handleEditMessage(message: ChatMessageNode) {
 }
 
 function handleSaveMessage(form: typeof editForm.value) {
+  const normalizedForm = {
+    ...form,
+    groupId: resolvePresetMessageGroupId(form.groupId, presetGroups.value),
+  };
+
   if (isEditMode.value && editingId.value) {
     const msg = localMessages.value.find((m) => m.id === editingId.value);
-    if (msg) Object.assign(msg, form);
+    if (msg) Object.assign(msg, normalizedForm);
   } else {
     const newMsg: ChatMessageNode = {
       id: createPresetMessageId(),
       parentId: null,
       childrenIds: [],
-      ...form,
+      ...normalizedForm,
       status: "complete",
       type: "message",
       isEnabled: true,
@@ -687,6 +699,11 @@ function handlePresetGroupToggle(group: PresetMessageGroup) {
   syncToParent();
 }
 
+function handlePresetGroupsUpdate(groups: PresetMessageGroup[]) {
+  presetGroups.value = groups;
+  cleanupPresetMessageGroupRefs(localMessages.value, presetGroups.value);
+}
+
 function handleRadioChange(targetMsg: ChatMessageNode) {
   const group = getMessageGroup(targetMsg.groupId);
   if (!group || group.selectionMode !== "radio") return;
@@ -706,8 +723,15 @@ function handleGroupCommand(msg: ChatMessageNode, cmd: string) {
     syncToParent();
   } else if (cmd.startsWith("move:")) {
     const targetGroupId = cmd.slice(5);
-    msg.groupId = targetGroupId;
     const targetGroup = getMessageGroup(targetGroupId);
+    if (!targetGroup) {
+      msg.groupId = undefined;
+      if (msg.metadata) delete msg.metadata.lastEnabledState;
+      syncToParent();
+      return;
+    }
+
+    msg.groupId = targetGroupId;
     if (targetGroup && !targetGroup.enabled && msg.isEnabled !== false) {
       msg.isEnabled = false;
       if (!msg.metadata) msg.metadata = {} as any;

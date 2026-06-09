@@ -14,6 +14,7 @@ import {
   convertMacros,
   type ParsedPromptFile,
 } from "../../../services/sillyTavernParser";
+import { cleanupPresetMessageGroupRefs } from "./presetGroupState";
 
 export function usePresetImportExport(options: {
   localMessages: Ref<ChatMessageNode[]>;
@@ -81,6 +82,7 @@ export function usePresetImportExport(options: {
         ...localMessages.value.filter((m) => isAnchorType(m.type)),
         ...processed,
       ];
+      cleanupPresetMessageGroupRefs(localMessages.value, presetGroups.value);
       onSyncToParent();
       customMessage.success("导入成功");
     } else if (Array.isArray(importedData)) {
@@ -95,6 +97,7 @@ export function usePresetImportExport(options: {
         ...processed,
       ];
       presetGroups.value = [];
+      cleanupPresetMessageGroupRefs(localMessages.value, presetGroups.value);
       onSyncToParent();
       customMessage.success("导入成功");
     } else {

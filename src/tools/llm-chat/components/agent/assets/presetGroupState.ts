@@ -44,3 +44,34 @@ export function applyPresetGroupEnabledState(
     }
   });
 }
+
+export function cleanupPresetMessageGroupRefs(
+  messages: ChatMessageNode[],
+  groups: PresetMessageGroup[]
+): boolean {
+  const groupIds = new Set(groups.map((group) => group.id));
+  let changed = false;
+
+  messages.forEach((msg) => {
+    const hasGhostGroup = !!msg.groupId && !groupIds.has(msg.groupId);
+    if (hasGhostGroup) {
+      msg.groupId = undefined;
+      changed = true;
+    }
+
+    if ((!msg.groupId || hasGhostGroup) && msg.metadata?.lastEnabledState) {
+      delete msg.metadata.lastEnabledState;
+      changed = true;
+    }
+  });
+
+  return changed;
+}
+
+export function resolvePresetMessageGroupId(
+  groupId: string | undefined,
+  groups: PresetMessageGroup[]
+): string | undefined {
+  if (!groupId) return undefined;
+  return groups.some((group) => group.id === groupId) ? groupId : undefined;
+}

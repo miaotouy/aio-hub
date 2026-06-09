@@ -1008,7 +1008,7 @@ function handleSave() {
 .preset-editor-macro-popover .el-popover__body,
 .preset-editor-variable-popover .el-popover__body {
   padding: 12px;
-  max-height: calc(min(500px, 50vh) - 24px);
+  max-height: calc(min(600px, 60vh) - 24px);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -1022,7 +1022,7 @@ function handleSave() {
 
 .preset-editor-macro-popover .macro-selector-body,
 .preset-editor-variable-popover .variable-selector-body {
-  max-height: calc(min(500px, 50vh) - 100px);
+  max-height: calc(min(600px, 60vh) - 100px);
   overflow-y: auto;
 }
 </style>

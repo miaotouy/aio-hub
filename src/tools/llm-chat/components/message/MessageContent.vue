@@ -758,9 +758,13 @@ const containerClasses = computed(() => ({
 const messageMetadata = computed(() => props.message.metadata);
 const showMeta = computed(() => {
   const metadata = messageMetadata.value;
-  if (!metadata) return false;
-
   const showToken = settings.value.uiPreferences.showTokenCount;
+  const showChar = settings.value.uiPreferences.showCharCount;
+
+  // 字数统计不依赖 metadata，只要消息有内容就能显示
+  if (showChar && props.message.content.length > 0) return true;
+
+  if (!metadata) return false;
   return (
     (showToken && (!!metadata.usage || metadata.contentTokens !== undefined)) ||
     !!metadata.error
@@ -769,6 +773,7 @@ const showMeta = computed(() => {
 const usageInfo = computed(() => messageMetadata.value?.usage);
 const contentTokensValue = computed(() => messageMetadata.value?.contentTokens);
 const errorMessage = computed(() => messageMetadata.value?.error);
+const charCount = computed(() => props.message.content.length);
 </script>
 
 <template>
@@ -1106,6 +1111,13 @@ const errorMessage = computed(() => messageMetadata.value?.error);
           >本条消息:
           {{ contentTokensValue.toLocaleString("en-US") }} tokens</span
         >
+      </div>
+      <!-- 字数统计 -->
+      <div
+        v-if="settings.uiPreferences.showCharCount && charCount > 0"
+        class="usage-info"
+      >
+        <span>字数: {{ charCount.toLocaleString("zh-CN") }}</span>
       </div>
       <div v-if="errorMessage" class="error-info">
         <el-button

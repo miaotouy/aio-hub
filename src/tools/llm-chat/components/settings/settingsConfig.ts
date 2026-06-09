@@ -110,6 +110,15 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         keywords: "ui token usage block code tool 统计 块",
       },
       {
+        id: "showCharCount",
+        label: "显示消息字数",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "uiPreferences.showCharCount",
+        hint: "在消息底部显示内容字数统计",
+        keywords: "ui char count word 字数 字符 统计",
+      },
+      {
         id: "showAvatar",
         label: "显示头像",
         layout: "inline",

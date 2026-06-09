@@ -113,6 +113,8 @@ export interface ChatSettings {
     showTokenCount: boolean;
     /** 是否显示块级元素的 Token 计数（代码块、工具调用） */
     showTokenCountForBlocks: boolean;
+    /** 是否显示消息字数统计 */
+    showCharCount: boolean;
     /** 是否显示头像（卡片模式和气泡模式都生效） */
     showAvatar: boolean;
     /** 是否显示模型信息 */
@@ -317,6 +319,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     showTimestamp: false,
     showTokenCount: true,
     showTokenCountForBlocks: true,
+    showCharCount: true,
     showAvatar: true,
     showModelInfo: true,
     showPerformanceMetrics: true,

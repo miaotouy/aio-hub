@@ -93,6 +93,26 @@ function collectImagesFromUnknown(value: any): Array<{
 
     if (typeof item !== "object") return;
 
+    if (
+      typeof item.function?.name === "string" &&
+      item.function.name.toLowerCase().includes("image") &&
+      typeof item.function.arguments === "string"
+    ) {
+      try {
+        const parsedArgs = JSON.parse(item.function.arguments);
+        if (typeof parsedArgs.result === "string") {
+          pushImage(
+            undefined,
+            parsedArgs.result,
+            parsedArgs.revised_prompt || parsedArgs.revisedPrompt
+          );
+        }
+        visit(parsedArgs);
+      } catch {
+        visit(item.function.arguments);
+      }
+    }
+
     const imageUrl =
       typeof item.image_url === "string"
         ? item.image_url
@@ -499,8 +519,10 @@ export const callOpenAiChatApi = async (
   const images = [
     ...collectImagesFromUnknown(data.images),
     ...collectImagesFromUnknown(data.data),
+    ...collectImagesFromUnknown(data.output),
     ...collectImagesFromUnknown(message?.images),
     ...collectImagesFromUnknown(message?.content),
+    ...collectImagesFromUnknown(message?.tool_calls),
   ];
   const annotations = message?.annotations?.map((ann: any) => ({
     type: "url_citation" as const,

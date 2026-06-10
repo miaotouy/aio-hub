@@ -211,6 +211,92 @@ describe("OpenAI Adapter - Chat", () => {
     expect(result.revisedPrompt).toBe("A refined image prompt");
   });
 
+  it("should extract generated images from Responses-style output on chat-compatible responses", async () => {
+    const options: LlmRequestOptions = {
+      profileId: "test-profile",
+      modelId: "gpt-5.5-image-2-hq",
+      messages: [{ role: "user", content: "Generate an image" }],
+    };
+
+    (fetchWithTimeout as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: "Done",
+            },
+            finish_reason: "stop",
+          },
+        ],
+        output: [
+          {
+            id: "ig_123",
+            type: "image_generation_call",
+            status: "completed",
+            result: "cmVzcG9uc2VzLWltYWdl",
+            revised_prompt: "A responses-style refined prompt",
+          },
+        ],
+      }),
+    });
+
+    const result = await callOpenAiChatApi(mockProfile, options);
+
+    expect(result.images).toEqual([
+      {
+        b64_json: "cmVzcG9uc2VzLWltYWdl",
+        revisedPrompt: "A responses-style refined prompt",
+      },
+    ]);
+    expect(result.revisedPrompt).toBe("A responses-style refined prompt");
+  });
+
+  it("should extract generated images from image tool call arguments", async () => {
+    const options: LlmRequestOptions = {
+      profileId: "test-profile",
+      modelId: "gpt-5.5-image-2-hq",
+      messages: [{ role: "user", content: "Generate an image" }],
+    };
+
+    (fetchWithTimeout as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: null,
+              tool_calls: [
+                {
+                  id: "call_123",
+                  type: "function",
+                  function: {
+                    name: "image_generation",
+                    arguments: JSON.stringify({
+                      result: "dG9vbC1pbWFnZQ==",
+                      revised_prompt: "A tool-call refined prompt",
+                    }),
+                  },
+                },
+              ],
+            },
+            finish_reason: "tool_calls",
+          },
+        ],
+      }),
+    });
+
+    const result = await callOpenAiChatApi(mockProfile, options);
+
+    expect(result.images).toEqual([
+      {
+        b64_json: "dG9vbC1pbWFnZQ==",
+        revisedPrompt: "A tool-call refined prompt",
+      },
+    ]);
+    expect(result.revisedPrompt).toBe("A tool-call refined prompt");
+  });
+
   it("should extract generated images from markdown content", async () => {
     const options: LlmRequestOptions = {
       profileId: "test-profile",

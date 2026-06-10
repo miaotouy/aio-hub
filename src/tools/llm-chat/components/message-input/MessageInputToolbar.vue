@@ -778,14 +778,6 @@ const handleOpenQuickActionManager = () => {
   overflow-y: auto;
 }
 
-.macro-tooltip-popper.el-popper {
-  max-width: min(320px, 60vw) !important;
-  line-height: 1.5 !important;
-  white-space: normal !important;
-  word-break: break-word !important;
-  padding: 8px 12px !important;
-}
-
 .detached-popover.macro-selector-popover {
   max-height: 320px !important;
 }
@@ -825,18 +817,6 @@ const handleOpenQuickActionManager = () => {
   background-color: var(--card-bg-solid) !important;
   border: 1px solid var(--border-color) !important;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3) !important;
-}
-
-.macro-tooltip-popper.is-light {
-  background-color: var(--card-bg-solid) !important;
-  border: 1px solid var(--border-color) !important;
-  color: var(--text-color-primary) !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
-}
-
-.macro-tooltip-popper.is-light .el-popper__arrow::before {
-  background-color: var(--card-bg-solid) !important;
-  border: 1px solid var(--border-color) !important;
 }
 
 .detached-popover :deep(.el-popover__title) {

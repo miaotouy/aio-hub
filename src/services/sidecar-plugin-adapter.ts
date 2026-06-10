@@ -32,6 +32,7 @@ interface SidecarOutputEvent {
  */
 interface SidecarExecuteRequest {
   plugin_id: string;
+  install_path: string;
   executable_path: string;
   args: string[];
   input?: string;
@@ -227,6 +228,7 @@ export class SidecarPluginAdapter implements PluginProxy {
     // 构建执行请求
     const request: SidecarExecuteRequest = {
       plugin_id: this.manifest.id,
+      install_path: this.installPath,
       executable_path: executablePath,
       args,
       input: JSON.stringify(inputData),

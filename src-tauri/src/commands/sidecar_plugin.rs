@@ -3,6 +3,7 @@
 //! 负责启动和管理 Sidecar 插件进程，通过 stdin/stdout 进行通信
 
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use std::process::Stdio;
 use tauri::{AppHandle, Emitter};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -13,6 +14,8 @@ use tokio::process::Command;
 pub struct SidecarExecuteRequest {
     /// 插件 ID
     pub plugin_id: String,
+    /// 插件安装路径或开发态源码路径
+    pub install_path: Option<String>,
     /// 可执行文件路径（相对于插件目录）
     pub executable_path: String,
     /// 命令行参数
@@ -50,8 +53,26 @@ pub async fn execute_sidecar(
         request.dev_mode
     );
 
-    // 获取插件目录
-    let plugin_dir = if request.dev_mode {
+    // 获取插件目录。优先使用前端加载器传入的真实安装/源码路径，
+    // 这样开发态插件目录不必强制等于 manifest.id。
+    let plugin_dir = if let Some(install_path) = request.install_path.as_deref() {
+        let install_path = install_path.replace('\\', "/");
+        let path = PathBuf::from(&install_path);
+
+        if path.is_absolute() {
+            path
+        } else if request.dev_mode {
+            let current_dir =
+                std::env::current_dir().map_err(|e| format!("获取当前目录失败: {}", e))?;
+            let workspace_dir = current_dir
+                .parent()
+                .ok_or_else(|| "无法获取项目根目录".to_string())?;
+            workspace_dir.join(path)
+        } else {
+            let app_data_dir = crate::get_app_data_dir(app.config());
+            app_data_dir.join(path)
+        }
+    } else if request.dev_mode {
         // 开发模式：从项目源码目录查找
         // 去掉插件 ID 的 -dev 后缀
         let original_id = request.plugin_id.trim_end_matches("-dev");

@@ -20,7 +20,7 @@ import type {
   AgentEditData,
 } from "../../types";
 import type { LlmModelInfo } from "@/types/llm-profiles";
-import { Edit, Setting, ChatLineRound } from "@element-plus/icons-vue";
+import { Edit, Setting, ChatLineRound, Refresh } from "@element-plus/icons-vue";
 
 const agentStore = useAgentStore();
 const chatStore = useLlmChatStore();
@@ -124,6 +124,7 @@ const presetMessages = computed<ChatMessageNode[]>({
 
 // 编辑智能体弹窗
 const showEditDialog = ref(false);
+const isRefreshingAgent = ref(false);
 
 // 模型编辑弹窗
 const showModelEditDialog = ref(false);
@@ -131,6 +132,32 @@ const showModelEditDialog = ref(false);
 // 打开编辑弹窗
 const openEditDialog = () => {
   showEditDialog.value = true;
+};
+
+const refreshCurrentAgentFromFile = async () => {
+  const agent = currentAgent.value;
+  if (!agent || isRefreshingAgent.value) return;
+
+  const name = agent.displayName || agent.name;
+  isRefreshingAgent.value = true;
+
+  try {
+    const result = await agentStore.refreshAgentFromFile(agent.id);
+
+    if (result.agent) {
+      customMessage.success(`智能体 "${name}" 已从配置文件刷新`);
+    } else if (result.missing) {
+      customMessage.warning(`智能体 "${name}" 的配置文件不存在，未刷新`);
+    } else if (result.removed) {
+      customMessage.warning(`智能体 "${name}" 的配置文件不存在，已从列表移除`);
+    } else {
+      customMessage.error(`刷新智能体 "${name}" 失败`);
+    }
+  } catch (error) {
+    customMessage.error(`刷新智能体 "${name}" 失败`);
+  } finally {
+    isRefreshingAgent.value = false;
+  }
 };
 
 // 保存编辑的智能体
@@ -212,15 +239,35 @@ const handleSaveModelEdit = async (updatedModel: LlmModelInfo) => {
             {{ currentAgent.description }}
           </p>
         </div>
-        <el-button
-          type="primary"
-          size="small"
-          :icon="Edit"
-          circle
-          @click="openEditDialog"
-          title="编辑智能体"
-          class="edit-button"
-        />
+        <div class="agent-header-actions">
+          <el-tooltip
+            :content="
+              isRefreshingAgent
+                ? '正在从配置文件刷新...'
+                : '从配置文件刷新智能体'
+            "
+            placement="bottom"
+            :show-after="500"
+          >
+            <el-button
+              size="small"
+              :icon="Refresh"
+              circle
+              :loading="isRefreshingAgent"
+              :disabled="isRefreshingAgent"
+              @click="refreshCurrentAgentFromFile"
+            />
+          </el-tooltip>
+          <el-tooltip content="编辑智能体" placement="bottom" :show-after="500">
+            <el-button
+              type="primary"
+              size="small"
+              :icon="Edit"
+              circle
+              @click="openEditDialog"
+            />
+          </el-tooltip>
+        </div>
       </div>
       <h4 v-else>⚙️ 参数配置</h4>
     </div>
@@ -370,7 +417,10 @@ const handleSaveModelEdit = async (updatedModel: LlmModelInfo) => {
   text-overflow: ellipsis;
 }
 
-.edit-button {
+.agent-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   flex-shrink: 0;
 }
 

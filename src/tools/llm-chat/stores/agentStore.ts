@@ -671,6 +671,48 @@ export const useAgentStore = defineStore("llmChatAgent", {
     },
 
     /**
+     * 从磁盘上的 agent.json 刷新单个智能体，并同步内存列表与索引。
+     */
+    async refreshAgentFromFile(agentId: string): Promise<{
+      agent: ChatAgent | null;
+      removed: boolean;
+      missing: boolean;
+    }> {
+      const { refreshAgentFromFile } = useAgentStorage();
+      const result = await refreshAgentFromFile(agentId);
+      const index = this.agents.findIndex((agent) => agent.id === agentId);
+
+      if (result.agent) {
+        if (index >= 0) {
+          this.agents.splice(index, 1, result.agent);
+        } else {
+          this.agents.push(result.agent);
+        }
+
+        logger.info("智能体内存状态已刷新", { agentId });
+        return result;
+      }
+
+      if (result.missing) {
+        logger.warn("智能体配置文件不存在，内存状态保持不变", { agentId });
+        return result;
+      }
+
+      if (result.removed && index >= 0) {
+        this.agents.splice(index, 1);
+
+        const { currentAgentId } = useLlmChatUiState();
+        if (currentAgentId.value === agentId) {
+          currentAgentId.value = this.agents[0]?.id || null;
+        }
+
+        logger.info("智能体已从内存列表移除", { agentId });
+      }
+
+      return result;
+    },
+
+    /**
      * 创建默认智能体
      */
     createDefaultAgents(): void {

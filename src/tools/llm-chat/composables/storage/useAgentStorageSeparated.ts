@@ -659,6 +659,57 @@ export function useAgentStorageSeparated() {
   }
 
   /**
+   * 从磁盘上的 agent.json 重新读取单个智能体，并同步更新索引元数据。
+   */
+  async function refreshAgentFromFile(agentId: string): Promise<{
+    agent: ChatAgent | null;
+    removed: boolean;
+    missing: boolean;
+  }> {
+    try {
+      const agentPath = await getAgentConfigPath(agentId);
+      const agentExists = await exists(agentPath);
+
+      if (!agentExists) {
+        logger.warn("智能体配置文件不存在，跳过刷新", {
+          agentId,
+          path: agentPath,
+        });
+
+        return { agent: null, removed: false, missing: true };
+      }
+
+      const agent = await loadAgent(agentId);
+      if (!agent) {
+        return { agent: null, removed: false, missing: false };
+      }
+
+      const index = await loadIndex();
+      const newIndexItem = createIndexItem(agent);
+      const agentIndex = index.agents.findIndex((item) => item.id === agentId);
+
+      if (agentIndex >= 0) {
+        index.agents[agentIndex] = newIndexItem;
+      } else {
+        index.agents.push(newIndexItem);
+      }
+
+      await saveIndex(index);
+
+      logger.info("智能体已从配置文件刷新", { agentId });
+
+      return { agent, removed: false, missing: false };
+    } catch (error) {
+      errorHandler.handle(error as Error, {
+        userMessage: "刷新智能体配置失败",
+        context: { agentId },
+        showToUser: false,
+      });
+      return { agent: null, removed: false, missing: false };
+    }
+  }
+
+  /**
    * 保存单个智能体并更新索引
    */
   async function persistAgent(agent: ChatAgent): Promise<void> {
@@ -827,6 +878,7 @@ export function useAgentStorageSeparated() {
     loadAgentsIndex,
     loadAgentsAll,
     saveAgents,
+    refreshAgentFromFile,
     persistAgent,
     deleteAgent,
     loadAgent,

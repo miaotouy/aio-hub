@@ -14,6 +14,7 @@ import { invoke } from "@tauri-apps/api/core";
 import Avatar from "@/components/common/Avatar.vue";
 import { resolveAvatarPath } from "../../composables/ui/useResolvedAvatar";
 import { useAgentStorageSeparated } from "../../composables/storage/useAgentStorageSeparated";
+import { useAgentStore } from "../../stores/agentStore";
 import { customMessage } from "@/utils/customMessage";
 import type { ChatAgent } from "../../types";
 import {
@@ -39,9 +40,11 @@ defineEmits<{
 
 const isHovered = ref(false);
 const isMenuOpen = ref(false);
+const isRefreshing = ref(false);
 const upgradeDialogVisible = ref(false);
 const contextMenuRef = ref<any>(null);
 const clickMenuRef = ref<any>(null);
+const agentStore = useAgentStore();
 
 const avatarSrc = computed(() => {
   return resolveAvatarPath(props.agent, "agent");
@@ -84,6 +87,31 @@ const handleOpenDirectory = async () => {
     await invoke("open_file_directory", { filePath: configPath });
   } catch (error) {
     customMessage.error("打开目录失败");
+  }
+};
+
+const handleRefreshFromFile = async () => {
+  if (isRefreshing.value) return;
+
+  const name = props.agent.displayName || props.agent.name;
+  isRefreshing.value = true;
+
+  try {
+    const result = await agentStore.refreshAgentFromFile(props.agent.id);
+
+    if (result.agent) {
+      customMessage.success(`智能体 "${name}" 已从配置文件刷新`);
+    } else if (result.missing) {
+      customMessage.warning(`智能体 "${name}" 的配置文件不存在，未刷新`);
+    } else if (result.removed) {
+      customMessage.warning(`智能体 "${name}" 的配置文件不存在，已从列表移除`);
+    } else {
+      customMessage.error(`刷新智能体 "${name}" 失败`);
+    }
+  } catch (error) {
+    customMessage.error(`刷新智能体 "${name}" 失败`);
+  } finally {
+    isRefreshing.value = false;
   }
 };
 </script>
@@ -160,6 +188,13 @@ const handleOpenDirectory = async () => {
             覆盖配置升级...
           </el-dropdown-item>
           <el-dropdown-item
+            @click="handleRefreshFromFile"
+            :disabled="isRefreshing"
+          >
+            <el-icon><Refresh /></el-icon>
+            从配置文件刷新
+          </el-dropdown-item>
+          <el-dropdown-item
             @click="$emit('copy-config', agent, 'json')"
             divided
           >
@@ -208,6 +243,13 @@ const handleOpenDirectory = async () => {
             <el-dropdown-item @click="upgradeDialogVisible = true">
               <el-icon><Refresh /></el-icon>
               覆盖配置升级...
+            </el-dropdown-item>
+            <el-dropdown-item
+              @click="handleRefreshFromFile"
+              :disabled="isRefreshing"
+            >
+              <el-icon><Refresh /></el-icon>
+              从配置文件刷新
             </el-dropdown-item>
             <el-dropdown-item
               @click="$emit('copy-config', agent, 'json')"

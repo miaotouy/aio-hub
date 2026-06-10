@@ -85,6 +85,19 @@ const getImageName = (imageId: string) => {
   return image?.name || "未知图片";
 };
 
+// 拆分为基础名与扩展名，扩展名前的名字可省略尾部以避免横向滚动
+const getFileParts = (imageId: string) => {
+  const fullName = getImageName(imageId);
+  const lastDotIndex = fullName.lastIndexOf(".");
+  if (lastDotIndex === -1 || lastDotIndex === 0) {
+    return { name: fullName, ext: "" };
+  }
+  return {
+    name: fullName.slice(0, lastDotIndex),
+    ext: fullName.slice(lastDotIndex),
+  };
+};
+
 // 获取块在图片中的索引
 const getBlockIndex = (imageId: string, blockId: string) => {
   const blocks = props.imageBlocksMap.get(imageId) || [];
@@ -244,8 +257,8 @@ const isEditing = (blockId: string) => {
 <template>
   <div class="result-panel">
     <div class="panel-header">
-      <h3>识别结果</h3>
       <div class="header-actions">
+        <h3>识别结果</h3>
         <el-tag v-if="ocrResults.length > 0" size="small">
           {{ completedCount }} / {{ ocrResults.length }}
         </el-tag>
@@ -300,9 +313,16 @@ const isEditing = (blockId: string) => {
                     :is="isGroupCollapsed(imageId) ? ArrowRight : ArrowDown"
                   />
                 </el-icon>
-                <el-text class="group-title" type="primary" size="large">
-                  {{ getImageName(imageId) }}
-                </el-text>
+                <div class="group-title">
+                  <span class="group-title-name">{{
+                    getFileParts(imageId).name
+                  }}</span>
+                  <span
+                    class="group-title-ext"
+                    v-if="getFileParts(imageId).ext"
+                    >{{ getFileParts(imageId).ext }}</span
+                  >
+                </div>
               </div>
               <el-tag size="small">
                 {{ results.filter((r) => r.status === "success").length }} /
@@ -505,6 +525,8 @@ const isEditing = (blockId: string) => {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
+  padding-right: 8px;
+  min-width: 50px;
   color: var(--text-color);
 }
 
@@ -551,11 +573,13 @@ const isEditing = (blockId: string) => {
   transition: background-color 0.2s;
   user-select: none;
 }
-
 .group-header-left {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+  flex: 1;
+  margin-right: 12px;
 }
 
 .collapse-icon {
@@ -566,7 +590,25 @@ const isEditing = (blockId: string) => {
 .group-title {
   font-weight: 600;
   font-size: 15px;
+  color: var(--el-color-primary);
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
 }
+
+.group-title-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 0 1 auto;
+}
+
+.group-title-ext {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 .group-content {
   display: flex;
   flex-direction: column;

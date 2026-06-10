@@ -3,6 +3,7 @@ import { useTesseractEngine } from "./useTesseractEngine";
 import { useNativeEngine } from "./useNativeEngine";
 import { useVlmEngine } from "./useVlmEngine";
 import { useCloudOcrRunner } from "./useCloudOcrRunner";
+import { usePluginOcrEngine } from "./usePluginOcrEngine";
 import { useOcrProfiles } from "@/composables/useOcrProfiles";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -55,6 +56,9 @@ export function useOcrRunner() {
           break;
         case "cloud":
           finalResults = await runCloudEngine(blocks, config, onProgress);
+          break;
+        case "plugin":
+          finalResults = await runPluginEngine(blocks, config, onProgress);
           break;
         default:
           throw new Error(
@@ -201,6 +205,18 @@ export function useOcrRunner() {
     });
 
     return results;
+  };
+
+  /**
+   * 使用插件引擎
+   */
+  const runPluginEngine = async (
+    blocks: ImageBlock[],
+    config: Extract<OcrEngineConfig, { type: "plugin" }>,
+    onProgress?: (results: OcrResult[]) => void
+  ): Promise<OcrResult[]> => {
+    const { recognizeBatch } = usePluginOcrEngine();
+    return await recognizeBatch(blocks, config, onProgress);
   };
 
   /**

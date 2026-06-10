@@ -9,6 +9,7 @@ import type { PluginProxy, PluginManifest, PlatformKey } from "./plugin-types";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { pluginConfigService } from "./plugin-config.service";
+import { pluginManager } from "./plugin-manager";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
@@ -108,6 +109,7 @@ export class SidecarPluginAdapter implements PluginProxy {
     );
 
     this.enabled = true;
+    await pluginManager.updateRuntimeState(this.id, true);
   }
 
   /**
@@ -131,6 +133,7 @@ export class SidecarPluginAdapter implements PluginProxy {
     this.eventHandlers.clear();
 
     this.enabled = false;
+    await pluginManager.updateRuntimeState(this.id, false);
   }
 
   /**
@@ -215,7 +218,7 @@ export class SidecarPluginAdapter implements PluginProxy {
     const inputData = {
       method: methodName,
       params,
-      settings: settings.getAll(),
+      settings: await settings.getAll(),
     };
 
     // 准备命令行参数

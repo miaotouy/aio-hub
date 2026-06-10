@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { useRouter } from "vue-router";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { pluginManager } from "@/services/plugin-manager";
 import { Setting } from "@element-plus/icons-vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import { useSettingsNavigator } from "@/composables/useSettingsNavigator";
@@ -14,6 +16,8 @@ import { History } from "lucide-vue-next";
 
 // 创建模块错误处理器
 const errorHandler = createModuleErrorHandler("SmartOCR.ControlPanel");
+
+const router = useRouter();
 
 // 设置页导航
 const { navigateToSettings } = useSettingsNavigator();
@@ -40,12 +44,73 @@ const { enabledProfiles: ocrProfiles } = useOcrProfiles();
 
 // 动态获取 Tesseract 语言选项
 const tesseractLanguageOptions = computed(() => getTesseractLanguageOptions());
+const pluginModelProfileOptions = [
+  {
+    id: "ppocr-v5-mobile",
+    name: "PP-OCRv5 Mobile",
+  },
+];
+const pluginLanguageOptions = [
+  {
+    id: "ch",
+    name: "中文 + 英文",
+  },
+  {
+    id: "en",
+    name: "英文",
+  },
+];
 
 // 从 props 获取响应式状态
 const uploadedImages = computed(() => props.uploadedImages);
 const isProcessing = computed(() => props.isProcessing);
 const engineConfig = computed(() => props.engineConfig);
 const slicerConfig = computed(() => props.slicerConfig);
+
+const pluginEngineConfig = computed(() =>
+  engineConfig.value?.type === "plugin" ? engineConfig.value : null
+);
+
+const pluginStatus = computed(() => {
+  const pluginId = pluginEngineConfig.value?.pluginId ?? "paddle-ocr";
+  const devPluginId = `${pluginId}-dev`;
+  const states = pluginManager.pluginStates;
+  const plugin =
+    pluginManager.getPlugin(pluginId) ?? pluginManager.getPlugin(devPluginId);
+  const state = plugin
+    ? states[plugin.id]
+    : states[pluginId] || states[devPluginId];
+
+  if (!plugin) {
+    return {
+      installed: false,
+      enabled: false,
+      broken: false,
+      name: "Paddle OCR",
+    };
+  }
+
+  return {
+    installed: true,
+    enabled: state?.enabled ?? plugin.enabled,
+    broken: state?.isBroken ?? false,
+    name: plugin.name,
+  };
+});
+
+const pluginStatusHint = computed(() => {
+  if (!pluginEngineConfig.value) return "";
+  if (!pluginStatus.value.installed) {
+    return "未安装 Paddle OCR 插件，请先在插件管理中导入插件 ZIP";
+  }
+  if (pluginStatus.value.broken) {
+    return `${pluginStatus.value.name} 插件已损坏，请重新安装`;
+  }
+  if (!pluginStatus.value.enabled) {
+    return `${pluginStatus.value.name} 插件未启用，请先在插件管理中启用`;
+  }
+  return `${pluginStatus.value.name} 已启用`;
+});
 
 // 引擎类型
 // 引擎类型
@@ -135,6 +200,28 @@ const cloudActiveProfileId = computed({
       : "",
   set: (value) => {
     emit("updateEngineConfig", { activeProfileId: value });
+  },
+});
+
+// 插件 OCR 模型配置
+const pluginModelProfile = computed({
+  get: () =>
+    engineConfig.value?.type === "plugin"
+      ? (engineConfig.value.modelProfile ?? "ppocr-v5-mobile")
+      : "ppocr-v5-mobile",
+  set: (value) => {
+    emit("updateEngineConfig", { modelProfile: value });
+  },
+});
+
+// 插件 OCR 识别语言
+const pluginLanguage = computed({
+  get: () =>
+    engineConfig.value?.type === "plugin"
+      ? (engineConfig.value.language ?? "ch")
+      : "ch",
+  set: (value) => {
+    emit("updateEngineConfig", { language: value });
   },
 });
 
@@ -266,6 +353,8 @@ const handleNavigateToSettings = () => {
     navigateToSettings("llm-service");
   } else if (type === "cloud") {
     navigateToSettings("ocr-service");
+  } else if (type === "plugin") {
+    router.push("/extensions");
   } else {
     // tesseract 和 native 默认跳转到 VLM 配置（更常用）
     navigateToSettings("llm-service");
@@ -301,7 +390,9 @@ const handleNavigateToSettings = () => {
                 ? '前往 LLM 服务设置配置视觉模型'
                 : engineType === 'cloud'
                   ? '前往 OCR 服务设置配置云端服务'
-                  : '前往 LLM 服务设置（推荐配置 VLM）'
+                  : engineType === 'plugin'
+                    ? '前往插件管理导入或启用 OCR 插件'
+                    : '前往 LLM 服务设置（推荐配置 VLM）'
             "
             placement="left"
           >
@@ -321,6 +412,7 @@ const handleNavigateToSettings = () => {
             <el-select v-model="engineType" style="width: 100%">
               <el-option label="Native OCR (系统原生)" value="native" />
               <el-option label="Tesseract.js (本地)" value="tesseract" />
+              <el-option label="Paddle OCR (插件)" value="plugin" />
               <el-option label="云端OCR" value="cloud" />
               <el-option label="视觉语言模型 (VLM)" value="vlm" />
             </el-select>
@@ -356,7 +448,60 @@ const handleNavigateToSettings = () => {
                 前往配置
               </el-button>
             </div>
+            <div
+              v-if="engineType === 'plugin'"
+              class="warning-hint"
+              :class="{
+                'is-success': pluginStatus.enabled && !pluginStatus.broken,
+              }"
+            >
+              <el-text
+                size="small"
+                :type="
+                  pluginStatus.enabled && !pluginStatus.broken
+                    ? 'success'
+                    : 'warning'
+                "
+              >
+                {{ pluginStatusHint }}
+              </el-text>
+              <el-button
+                type="warning"
+                text
+                size="small"
+                @click="router.push('/extensions')"
+              >
+                插件管理
+              </el-button>
+            </div>
           </el-form-item>
+
+          <template v-if="engineType === 'plugin' && pluginEngineConfig">
+            <el-form-item label="模型 Profile">
+              <el-select v-model="pluginModelProfile" style="width: 100%">
+                <el-option
+                  v-for="option in pluginModelProfileOptions"
+                  :key="option.id"
+                  :label="option.name"
+                  :value="option.id"
+                />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="识别语言">
+              <el-select v-model="pluginLanguage" style="width: 100%">
+                <el-option
+                  v-for="option in pluginLanguageOptions"
+                  :key="option.id"
+                  :label="option.name"
+                  :value="option.id"
+                />
+              </el-select>
+              <el-text size="small" type="info">
+                通过插件契约调用
+                {{ pluginEngineConfig.pluginId }}.{{ pluginEngineConfig.method }}
+              </el-text>
+            </el-form-item>
+          </template>
 
           <el-form-item v-if="engineType === 'tesseract'" label="识别语言">
             <el-select v-model="engineLanguage" style="width: 100%">

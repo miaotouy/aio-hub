@@ -9,6 +9,7 @@ import type { PluginProxy, PluginManifest, PlatformKey } from "./plugin-types";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { pluginConfigService } from "./plugin-config.service";
+import { pluginManager } from "./plugin-manager";
 import { invoke } from "@tauri-apps/api/core";
 import { path } from "@tauri-apps/api";
 
@@ -69,6 +70,7 @@ export class NativePluginAdapter implements PluginProxy {
       });
 
       this.enabled = true;
+      await pluginManager.updateRuntimeState(this.id, true);
       logger.info(`原生插件 ${this.id} 启用成功`);
     } catch (error) {
       errorHandler.error(error, "启用原生插件失败", {
@@ -91,8 +93,9 @@ export class NativePluginAdapter implements PluginProxy {
 
     try {
       // 调用后端卸载动态库
-      invoke("unload_native_plugin", { pluginId: this.manifest.id });
+      await invoke("unload_native_plugin", { pluginId: this.manifest.id });
       this.enabled = false;
+      await pluginManager.updateRuntimeState(this.id, false);
       logger.info(`原生插件 ${this.id} 禁用成功`);
     } catch (error) {
       errorHandler.error(error, "禁用原生插件失败", {
@@ -100,6 +103,7 @@ export class NativePluginAdapter implements PluginProxy {
       });
       // 即使卸载失败，也标记为禁用
       this.enabled = false;
+      await pluginManager.updateRuntimeState(this.id, false);
     }
   }
 
@@ -185,7 +189,7 @@ export class NativePluginAdapter implements PluginProxy {
       const inputData = {
         method: methodName,
         params,
-        settings: settings.getAll(),
+        settings: await settings.getAll(),
       };
 
       // 调用后端命令

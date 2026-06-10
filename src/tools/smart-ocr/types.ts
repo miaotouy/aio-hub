@@ -1,7 +1,12 @@
 /**
  * OCR引擎类型
  */
-export type OcrEngineType = "tesseract" | "native" | "vlm" | "cloud";
+export type OcrEngineType =
+  | "tesseract"
+  | "native"
+  | "vlm"
+  | "cloud"
+  | "plugin";
 
 /**
  * OCR引擎配置
@@ -32,6 +37,14 @@ export type OcrEngineConfig =
       type: "cloud";
       name: string;
       activeProfileId: string; // 当前选中的云端 OCR 服务配置 ID
+    }
+  | {
+      type: "plugin";
+      name: string;
+      pluginId: string;
+      method: string;
+      modelProfile?: string;
+      language?: string;
     };
 
 /**
@@ -73,6 +86,17 @@ export interface CloudEngineConfig {
 }
 
 /**
+ * 插件 OCR 引擎配置
+ */
+export interface PluginOcrEngineConfig {
+  name: string;
+  pluginId: string;
+  method: string;
+  modelProfile?: string;
+  language?: string;
+}
+
+/**
  * 所有引擎的配置集合
  */
 export interface EngineConfigs {
@@ -80,6 +104,7 @@ export interface EngineConfigs {
   native: NativeEngineConfig;
   vlm: VlmEngineConfig;
   cloud: CloudEngineConfig;
+  plugin: PluginOcrEngineConfig;
 }
 
 /**

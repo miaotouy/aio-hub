@@ -53,6 +53,13 @@ export const defaultSmartOcrConfig: SmartOcrConfig = {
       name: "Cloud OCR",
       activeProfileId: "", // 默认未选中任何云端服务
     },
+    plugin: {
+      name: "Paddle OCR Plugin",
+      pluginId: "paddle-ocr",
+      method: "recognizeBatch",
+      modelProfile: "ppocr-v5-mobile",
+      language: "ch",
+    },
   },
   slicerConfig: {
     enabled: true,
@@ -94,6 +101,10 @@ const smartOcrConfigManager = createConfigManager<SmartOcrConfig>({
       cloud: {
         ...defaultConfig.engineConfigs.cloud,
         ...(loadedConfig.engineConfigs?.cloud || {}),
+      },
+      plugin: {
+        ...defaultConfig.engineConfigs.plugin,
+        ...(loadedConfig.engineConfigs?.plugin || {}),
       },
     };
 
@@ -195,6 +206,11 @@ export const getCurrentEngineConfig = (
         type: "cloud",
         ...engineConfigs.cloud,
       };
+    case "plugin":
+      return {
+        type: "plugin",
+        ...engineConfigs.plugin,
+      };
   }
 };
 
@@ -231,6 +247,12 @@ export const updateEngineConfig = (
       newEngineConfigs.cloud = {
         ...newEngineConfigs.cloud,
         ...(engineConfig as Partial<typeof newEngineConfigs.cloud>),
+      };
+      break;
+    case "plugin":
+      newEngineConfigs.plugin = {
+        ...newEngineConfigs.plugin,
+        ...(engineConfig as Partial<typeof newEngineConfigs.plugin>),
       };
       break;
   }

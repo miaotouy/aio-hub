@@ -11,6 +11,7 @@
 import MarkdownIt from "markdown-it";
 import texmath from "markdown-it-texmath";
 import katex from "katex";
+import { isFuzzyMatchCloseTag } from "../parser/utils/text-utils";
 import type {
   AstNode,
   Patch,
@@ -119,10 +120,14 @@ class MarkdownBoundaryDetector {
       if (fullTag.endsWith("/>")) continue;
 
       if (fullTag.startsWith("</")) {
-        // 闭合标签
+        // 闭合标签：使用模糊匹配判定
         if (
           thinkTagStack.length > 0 &&
-          thinkTagStack[thinkTagStack.length - 1] === tagName
+          isFuzzyMatchCloseTag(
+            thinkTagStack[thinkTagStack.length - 1],
+            tagName,
+            this.llmThinkTagNames
+          )
         ) {
           thinkTagStack.pop();
         }
@@ -547,6 +552,16 @@ export class StreamProcessor {
       return [{ op: "replace-node", id: oldNode.id, newNode }];
     }
 
+    // 对 llm_think 节点，额外检测 isThinking 变化，避免模糊匹配闭合后计时状态不更新
+    const thinkStatusChanged =
+      oldNode.type === "llm_think" &&
+      newNode.type === "llm_think" &&
+      oldNode.props.isThinking !== newNode.props.isThinking;
+
+    if (thinkStatusChanged) {
+      return [{ op: "replace-node", id: oldNode.id, newNode }];
+    }
+
     // 类型、内容和状态都相同，递归比较子节点
     if (oldNode.children || newNode.children) {
       return this.diffAst(oldNode.children || [], newNode.children || []);
@@ -917,15 +932,26 @@ export class StreamProcessor {
     const displayName = rule?.displayName || tagName;
     const collapsedByDefault = rule?.collapsedByDefault ?? true;
 
-    // 提取内容（去除开始和结束标签）
-    const closeTagRegex = new RegExp(`</${tagName}\\s*>`, "i");
-    let content = htmlContent
-      .replace(openTagRegex, "")
-      .replace(closeTagRegex, "")
-      .trim();
+    // 动态构建模糊匹配闭合标签的正则
+    const anyCloseTagRegex = /<\/([a-zA-Z0-9\u4e00-\u9fa5_-]+)\s*>/gi;
+    let match;
+    let isThinking = true;
+    let matchedCloseTag: string | null = null;
 
-    // 检查标签是否闭合
-    const isThinking = !closeTagRegex.test(htmlContent);
+    while ((match = anyCloseTagRegex.exec(htmlContent)) !== null) {
+      const closeTagName = match[1];
+      if (isFuzzyMatchCloseTag(tagName, closeTagName, this.llmThinkTagNames)) {
+        isThinking = false;
+        matchedCloseTag = match[0];
+        break;
+      }
+    }
+
+    let content = htmlContent.replace(openTagRegex, "");
+    if (matchedCloseTag) {
+      content = content.replace(matchedCloseTag, "");
+    }
+    content = content.trim();
 
     // 解析内容为 AST
     const contentTokens = this.md.parse(content, {});

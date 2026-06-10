@@ -2,6 +2,114 @@ import { Token } from "../types";
 import { AstNode } from "../../types";
 
 /**
+ * 计算两个字符串的编辑距离 (Levenshtein Distance)
+ */
+export function getEditDistance(a: string, b: string): number {
+  const matrix: number[][] = [];
+
+  for (let i = 0; i <= b.length; i++) {
+    matrix[i] = [i];
+  }
+  for (let j = 0; j <= a.length; j++) {
+    matrix[0][j] = j;
+  }
+
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1, // 替换
+          matrix[i][j - 1] + 1, // 插入
+          matrix[i - 1][j] + 1 // 删除
+        );
+      }
+    }
+  }
+
+  return matrix[b.length][a.length];
+}
+
+// 定义同义词/词根平替集合
+const THINK_STEM_GROUPS = [
+  ["think", "thinking", "thought", "thoughtprocess", "thought-process"],
+  ["思考", "心路历程", "推理", "想", "思索"],
+];
+
+/**
+ * 将字符串中的同义词/词根归一化为标准词根
+ */
+function normalizeStems(s: string): string {
+  let result = s;
+  for (const group of THINK_STEM_GROUPS) {
+    const standard = group[0]; // 以第一个作为标准词根
+    for (const stem of group) {
+      if (stem !== standard && result.includes(stem)) {
+        result = result.replace(new RegExp(stem, "g"), standard);
+      }
+    }
+  }
+  return result;
+}
+
+/**
+ * 判断遇到的闭合标签是否是当前开启标签的模糊匹配体（完全通用算法，无硬编码）
+ *
+ * @param openTag 开启标签名（如 'guguthink' 或 '张三的思考'）
+ * @param closeTag 闭合标签名（如 'gugugu-think' 或 '张三-思考'）
+ * @param registeredTags 系统注册的所有思考标签名集合（用于动态平替判定）
+ */
+export function isFuzzyMatchCloseTag(
+  openTag: string,
+  closeTag: string,
+  registeredTags?: Set<string>
+): boolean {
+  const open = openTag.toLowerCase();
+  const close = closeTag.toLowerCase();
+
+  // 1. 精确匹配
+  if (open === close) return true;
+
+  // 2. 动态平替：如果两个标签都是系统注册的思考标签，允许它们互相闭合
+  if (registeredTags && registeredTags.has(open) && registeredTags.has(close)) {
+    return true;
+  }
+
+  // 3. 归一化处理：移除非字母数字和非中文字符（如 -, _, 标点等）
+  const normalize = (s: string) => s.replace(/[^a-z0-9\u4e00-\u9fa5]/g, "");
+  const normOpen = normalize(open);
+  const normClose = normalize(close);
+
+  if (normOpen === normClose) return true;
+
+  // 4. 同义词/词根平替判定
+  const stemOpen = normalizeStems(normOpen);
+  const stemClose = normalizeStems(normClose);
+  if (stemOpen === stemClose) return true;
+
+  // 5. 子串包含关系（如 'guguthink' 和 'think'，或者 '张三的思考' 和 '张三'）
+  const minLen = /[\u4e00-\u9fa5]/.test(stemOpen) ? 2 : 3;
+  if (stemOpen.length >= minLen && stemClose.length >= minLen) {
+    if (stemOpen.includes(stemClose) || stemClose.includes(stemOpen)) {
+      return true;
+    }
+  }
+
+  // 6. 编辑距离容错（针对手抖拼错）
+  const maxLen = Math.max(stemOpen.length, stemClose.length);
+  if (maxLen > 3) {
+    const distance = getEditDistance(stemOpen, stemClose);
+    const threshold = Math.max(1, Math.ceil(maxLen * 0.3));
+    if (distance <= threshold) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
  * 将令牌序列转换回原始文本
  */
 export function tokensToRawText(tokens: Token[]): string {

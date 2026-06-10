@@ -14,6 +14,7 @@ import type {
   LlmThinkRule,
 } from "../types";
 import { CustomParser } from "./CustomParser";
+import { isFuzzyMatchCloseTag } from "../parser/utils/text-utils";
 
 /**
  * Markdown 语义边界检测器（增强版）
@@ -172,10 +173,14 @@ class MarkdownBoundaryDetector {
         if (fullTag.endsWith("/>")) continue;
 
         if (fullTag.startsWith("</")) {
-          // 闭合标签
+          // 闭合标签：使用模糊匹配判定
           if (
             thinkTagStack.length > 0 &&
-            thinkTagStack[thinkTagStack.length - 1] === tagName
+            isFuzzyMatchCloseTag(
+              thinkTagStack[thinkTagStack.length - 1],
+              tagName,
+              this.llmThinkTagNames
+            )
           ) {
             thinkTagStack.pop();
           }
@@ -982,6 +987,16 @@ export class StreamProcessorV2 {
           // 递归处理子节点的 ID 保留
           this.syncChildrenIds(oldNode.children, newNode.children);
         }
+        return [{ op: "replace-node", id: oldNode.id, newNode }];
+      }
+
+      // 对 llm_think 节点，额外检测 isThinking 变化，避免模糊匹配闭合后计时状态不更新
+      const thinkStatusChanged =
+        oldNode.type === "llm_think" &&
+        newNode.type === "llm_think" &&
+        oldNode.props.isThinking !== newNode.props.isThinking;
+
+      if (thinkStatusChanged) {
         return [{ op: "replace-node", id: oldNode.id, newNode }];
       }
 

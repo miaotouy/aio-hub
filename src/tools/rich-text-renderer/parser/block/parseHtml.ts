@@ -1,6 +1,6 @@
 import { Token, ParserContext } from "../types";
 import { AstNode, GenericHtmlNode, LlmThinkNode } from "../../types";
-import { decodeHtmlEntities } from "../utils/text-utils";
+import { decodeHtmlEntities, isFuzzyMatchCloseTag } from "../utils/text-utils";
 import { BLOCK_LEVEL_TAGS, hasBlockLevelStructure } from "../utils/block-utils";
 import { parseInlineHtmlTag } from "../inline/parseHtmlInline";
 import { tokensToRawText } from "../utils/text-utils";
@@ -349,6 +349,7 @@ export function parseLlmThinkBlock(
 
   const tagName = openToken.tagName;
   const options = ctx.getOptions();
+  const thinkTagNames = options.llmThinkTagNames;
 
   // 查找对应的规则
   const rule = options.llmThinkRules.find((r) => r.tagName === tagName);
@@ -369,13 +370,26 @@ export function parseLlmThinkBlock(
     if (t.type === "html_open" && t.tagName === tagName && !t.selfClosing) {
       depth++;
       contentTokens.push(t);
-    } else if (t.type === "html_close" && t.tagName === tagName) {
-      depth--;
-      if (depth === 0) {
-        i++; // 跳过闭合标签
+    } else if (t.type === "html_close") {
+      // 关键改动：在最外层（depth === 1）时，进行模糊匹配判定
+      if (
+        depth === 1 &&
+        isFuzzyMatchCloseTag(tagName, t.tagName, thinkTagNames)
+      ) {
+        depth--;
+        i++; // 跳过这个模糊匹配成功的闭合标签
         break;
+      } else if (t.tagName === tagName) {
+        // 内层的精确匹配
+        depth--;
+        if (depth === 0) {
+          i++;
+          break;
+        }
+        contentTokens.push(t);
+      } else {
+        contentTokens.push(t);
       }
-      contentTokens.push(t);
     } else {
       contentTokens.push(t);
     }

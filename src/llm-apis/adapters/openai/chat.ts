@@ -30,6 +30,121 @@ function shouldSendOpenAiReasoningEffort(
   );
 }
 
+function collectImagesFromUnknown(value: any): Array<{
+  url?: string;
+  b64_json?: string;
+  revisedPrompt?: string;
+}> {
+  const images: Array<{
+    url?: string;
+    b64_json?: string;
+    revisedPrompt?: string;
+  }> = [];
+
+  const pushImage = (rawUrl?: string, b64?: string, revisedPrompt?: string) => {
+    if (b64) {
+      images.push({
+        b64_json: b64.startsWith("data:") ? b64.split(",")[1] : b64,
+        revisedPrompt,
+      });
+      return;
+    }
+    if (rawUrl) {
+      images.push({ url: rawUrl, revisedPrompt });
+    }
+  };
+
+  const visit = (item: any) => {
+    if (!item) return;
+
+    if (typeof item === "string") {
+      const trimmed = item.trim();
+      if (!trimmed) return;
+
+      try {
+        const parsed = JSON.parse(trimmed);
+        visit(parsed);
+      } catch {
+        // Plain text content can still contain markdown/data-url image links.
+      }
+
+      for (const match of trimmed.matchAll(
+        /data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=_-]+/g
+      )) {
+        pushImage(undefined, match[0]);
+      }
+
+      for (const match of trimmed.matchAll(/!\[[^\]]*]\(([^)]+)\)/g)) {
+        pushImage(match[1]);
+      }
+
+      for (const match of trimmed.matchAll(
+        /https?:\/\/[^\s"'<>)]*\.(?:png|jpe?g|webp|gif)(?:\?[^\s"'<>)]*)?/gi
+      )) {
+        pushImage(match[0]);
+      }
+      return;
+    }
+
+    if (Array.isArray(item)) {
+      item.forEach(visit);
+      return;
+    }
+
+    if (typeof item !== "object") return;
+
+    const imageUrl =
+      typeof item.image_url === "string"
+        ? item.image_url
+        : item.image_url?.url;
+    const url =
+      imageUrl ||
+      item.url ||
+      item.imageUrl ||
+      item.output_url ||
+      item.outputUrl;
+    const b64 =
+      item.b64_json ||
+      item.b64 ||
+      item.base64 ||
+      item.image_base64 ||
+      item.imageBase64 ||
+      item.result;
+
+    if (
+      item.type?.includes?.("image") ||
+      imageUrl ||
+      item.b64_json ||
+      item.image_base64 ||
+      item.imageBase64
+    ) {
+      pushImage(url, b64, item.revised_prompt || item.revisedPrompt);
+    }
+
+    for (const key of [
+      "content",
+      "data",
+      "images",
+      "image",
+      "output",
+      "result",
+      "results",
+    ]) {
+      visit(item[key]);
+    }
+  };
+
+  visit(value);
+
+  const seen = new Set<string>();
+  return images.filter((image) => {
+    const key = image.b64_json || image.url;
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 /**
  * 调用 OpenAI 兼容格式的 Chat API
  */
@@ -381,6 +496,12 @@ export const callOpenAiChatApi = async (
     throw new Error(`OpenAI API 响应格式异常: ${JSON.stringify(data)}`);
 
   const message = choice.message;
+  const images = [
+    ...collectImagesFromUnknown(data.images),
+    ...collectImagesFromUnknown(data.data),
+    ...collectImagesFromUnknown(message?.images),
+    ...collectImagesFromUnknown(message?.content),
+  ];
   const annotations = message?.annotations?.map((ann: any) => ({
     type: "url_citation" as const,
     urlCitation: {
@@ -447,6 +568,8 @@ export const callOpenAiChatApi = async (
     refusal: message?.refusal || null,
     finishReason: choice.finish_reason,
     toolCalls: message?.tool_calls,
+    images: images.length > 0 ? images : undefined,
+    revisedPrompt: images[0]?.revisedPrompt,
     logprobs: choice.logprobs
       ? { content: choice.logprobs.content, refusal: choice.logprobs.refusal }
       : undefined,

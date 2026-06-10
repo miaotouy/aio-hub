@@ -77,3 +77,16 @@
 - 重生成启动任务时传入当前消息路径。
 - 对支持对话式生成的媒体任务，即使没有上下文消息，也兜底构造一条当前 prompt 的 user message。
 - 参数规则默认填充同时写入 camelCase 与 snake_case 字段，避免 UI 读 `outputFormat/outputCompression/partialImages` 时拿不到由规则填充的默认值。
+
+## 2026-06-10 后续样本结论
+
+样本 `media-generator-diagnostics-2026-06-10T13-01-03-538Z.json` 显示：
+
+- `field messages is required` 已不再出现，说明 chat/preferChat 路径的 `messages` 兜底生效。
+- 新的失败点变为 `响应中没有媒体资产`，说明上游请求完成，但 OpenAI 兼容 Chat adapter 没能把返回体里的图片抽取成 `response.images`。
+- 任务状态出现 `completed` 但节点仍是 `generating` 的不一致，原因是“没有媒体资产”只写 warn 后继续把任务标记完成。
+
+对应修复：
+
+- OpenAI 兼容 Chat adapter 从 `data/images/message.content/message.images` 等常见聊天响应形态中提取图片 URL 或 base64。
+- 媒体生成响应没有任何图片/视频/音频时抛错，不再将任务标记为完成。

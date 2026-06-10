@@ -751,8 +751,18 @@ export function useMediaGenerationManager() {
     ];
 
     if (responseItems.length === 0) {
-      logger.warn("响应中没有媒体资产", { taskId });
-      return;
+      logger.warn("响应中没有媒体资产", {
+        taskId,
+        contentPreview: response.content?.slice(0, 300),
+        hasImages: !!response.images?.length,
+        hasVideos: !!response.videos?.length,
+        hasAudios: !!response.audios?.length,
+      });
+      throw new Error(
+        response.content
+          ? `响应中没有媒体资产：${response.content.slice(0, 120)}`
+          : "响应中没有媒体资产"
+      );
     }
 
     // 确定元数据

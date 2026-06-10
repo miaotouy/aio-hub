@@ -173,6 +173,75 @@ describe("OpenAI Adapter - Chat", () => {
     expect(result.reasoningContent).toBe("I need to add 1 and 1. 1+1=2.");
   });
 
+  it("should extract generated images from OpenAI-compatible data responses", async () => {
+    const options: LlmRequestOptions = {
+      profileId: "test-profile",
+      modelId: "gpt-image-2-hq",
+      messages: [{ role: "user", content: "Generate an image" }],
+    };
+
+    (fetchWithTimeout as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: "Done",
+            },
+            finish_reason: "stop",
+          },
+        ],
+        data: [
+          {
+            b64_json: "aW1hZ2UtYnl0ZXM=",
+            revised_prompt: "A refined image prompt",
+          },
+        ],
+      }),
+    });
+
+    const result = await callOpenAiChatApi(mockProfile, options);
+
+    expect(result.images).toEqual([
+      {
+        b64_json: "aW1hZ2UtYnl0ZXM=",
+        revisedPrompt: "A refined image prompt",
+      },
+    ]);
+    expect(result.revisedPrompt).toBe("A refined image prompt");
+  });
+
+  it("should extract generated images from markdown content", async () => {
+    const options: LlmRequestOptions = {
+      profileId: "test-profile",
+      modelId: "gpt-image-2-hq",
+      messages: [{ role: "user", content: "Generate an image" }],
+    };
+
+    (fetchWithTimeout as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: "![result](https://example.com/image.png)",
+            },
+            finish_reason: "stop",
+          },
+        ],
+      }),
+    });
+
+    const result = await callOpenAiChatApi(mockProfile, options);
+
+    expect(result.images).toEqual([
+      {
+        url: "https://example.com/image.png",
+        revisedPrompt: undefined,
+      },
+    ]);
+  });
+
   it("should send reasoning_effort for OpenAI-family models", async () => {
     const options: LlmRequestOptions = {
       profileId: "test-profile",

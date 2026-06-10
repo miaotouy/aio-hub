@@ -105,7 +105,7 @@ const links = [
   },
   {
     title: "许可证",
-    value: "MIT License",
+    value: "Apache License 2.0",
     icon: markRaw(DocumentCopy),
   },
 ];

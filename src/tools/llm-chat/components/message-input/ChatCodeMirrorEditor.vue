@@ -69,6 +69,9 @@ const inputManager = useChatInputManager();
 // 标记是否正在执行从外部 props 到内部 doc 的同步
 // 用于防止“回音”效应：外部修改 -> watch 触发 -> dispatch -> updateListener 触发 -> emit -> 覆盖外部修改
 let isSyncingFromProps = false;
+let isComposing = false;
+let pendingPropsValueDuringComposition: string | null = null;
+let docAtCompositionStart = "";
 
 const editableConf = new Compartment();
 const themeConf = new Compartment();
@@ -228,6 +231,31 @@ const baseTheme = EditorView.theme({
     color: "var(--primary-color)",
   },
 });
+
+const syncDocFromProps = (newVal: string) => {
+  if (!view.value) return;
+
+  const currentDoc = view.value.state.doc.toString();
+  if (newVal === currentDoc) return;
+
+  logger.debug("外部值变化，执行 dispatch 同步", {
+    newValLength: newVal.length,
+    currentDocLength: currentDoc.length,
+  });
+  isSyncingFromProps = true;
+  try {
+    view.value.dispatch({
+      changes: { from: 0, to: currentDoc.length, insert: newVal },
+    });
+  } finally {
+    // 使用 nextTick 确保在当前事件循环结束后再重置，
+    // 因为 dispatch 可能会同步触发 updateListener
+    nextTick(() => {
+      isSyncingFromProps = false;
+    });
+  }
+};
+
 onMounted(() => {
   if (!editorContainer.value) return;
 
@@ -303,6 +331,31 @@ onMounted(() => {
       }),
       // 监听原始键盘事件
       EditorView.domEventHandlers({
+        compositionstart: () => {
+          isComposing = true;
+          pendingPropsValueDuringComposition = null;
+          docAtCompositionStart = view.value?.state.doc.toString() || "";
+          return false;
+        },
+        compositionend: () => {
+          isComposing = false;
+          const pendingValue = pendingPropsValueDuringComposition;
+          pendingPropsValueDuringComposition = null;
+
+          // IME 组合期间收到的外部同步可能会取消首轮输入。
+          // 只在用户没有实际改动文档时才补应用，避免把刚提交的中文覆盖回旧草稿。
+          nextTick(() => {
+            if (!view.value || pendingValue === null) return;
+            const currentDoc = view.value.state.doc.toString();
+            if (
+              currentDoc === docAtCompositionStart &&
+              props.value === pendingValue
+            ) {
+              syncDocFromProps(pendingValue);
+            }
+          });
+          return false;
+        },
         keydown: (event) => {
           // 阻止搜索快捷键冒泡到外层 chat 搜索
           if (
@@ -332,27 +385,17 @@ onMounted(() => {
 watch(
   () => props.value,
   (newVal) => {
-    if (view.value) {
-      const currentDoc = view.value.state.doc.toString();
-      if (newVal !== currentDoc) {
-        logger.debug("外部值变化，执行 dispatch 同步", {
-          newValLength: newVal.length,
-          currentDocLength: currentDoc.length,
-        });
-        isSyncingFromProps = true;
-        try {
-          view.value.dispatch({
-            changes: { from: 0, to: currentDoc.length, insert: newVal },
-          });
-        } finally {
-          // 使用 nextTick 确保在当前事件循环结束后再重置，
-          // 因为 dispatch 可能会同步触发 updateListener
-          nextTick(() => {
-            isSyncingFromProps = false;
-          });
-        }
-      }
+    if (!view.value) return;
+
+    if (isComposing) {
+      pendingPropsValueDuringComposition = newVal;
+      logger.debug("IME 组合输入中，延后外部值同步", {
+        newValLength: newVal.length,
+      });
+      return;
     }
+
+    syncDocFromProps(newVal);
   }
 );
 

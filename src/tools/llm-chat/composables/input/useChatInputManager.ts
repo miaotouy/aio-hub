@@ -33,7 +33,12 @@ import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { deepEqual } from "@/utils/sync-helpers";
 import type { Asset } from "@/types/asset-management";
-import type { StateSyncPayload, JsonPatchOperation } from "@/types/window-sync";
+import type {
+  BaseMessage,
+  StateSyncBatchPayload,
+  StateSyncPayload,
+  JsonPatchOperation,
+} from "@/types/window-sync";
 import type { ModelIdentifier } from "../../types";
 import {
   generateAssetPlaceholder,
@@ -94,6 +99,9 @@ class ChatInputManager {
 
   // 标记是否正在应用同步状态（避免循环更新）
   private isApplyingSyncState = false;
+
+  // 记录最近一次本地编辑时间，用于拒绝迟到的初始同步覆盖首轮输入
+  private lastLocalChangeAt = 0;
 
   // 窗口同步总线
   private bus = useWindowSyncBus();
@@ -208,6 +216,7 @@ class ChatInputManager {
     // 监听输入框文本变化，同步到 syncState（用于跨窗口同步）
     watch(this.inputText, (newText) => {
       if (!this.isApplyingSyncState) {
+        this.markLocalChange();
         this.syncState.value = {
           ...this.syncState.value,
           text: newText,
@@ -277,6 +286,7 @@ class ChatInputManager {
         });
 
         if (!this.isApplyingSyncState) {
+          this.markLocalChange();
           this.syncState.value = {
             ...this.syncState.value,
             attachments: [...newAttachments],
@@ -293,6 +303,7 @@ class ChatInputManager {
     // 监听临时模型变化
     watch(this.temporaryModel, (newModel) => {
       if (!this.isApplyingSyncState) {
+        this.markLocalChange();
         this.syncState.value = {
           ...this.syncState.value,
           temporaryModel: newModel,
@@ -305,6 +316,7 @@ class ChatInputManager {
     // 监听续写模型变化
     watch(this.continuationModel, (newModel) => {
       if (!this.isApplyingSyncState) {
+        this.markLocalChange();
         this.syncState.value = {
           ...this.syncState.value,
           continuationModel: newModel,
@@ -398,52 +410,27 @@ class ChatInputManager {
     });
 
     // 监听来自其他窗口的状态同步
-    this.unlistenStateSync = this.bus.onMessage<StateSyncPayload>(
+    const unlistenSingleStateSync = this.bus.onMessage<StateSyncPayload>(
       "state-sync",
-      (payload) => {
-        if (payload.stateType !== CHAT_STATE_KEYS.INPUT_STATE) return;
-        if (payload.version <= this.stateVersion) {
-          logger.warn("收到旧版本状态，已忽略", {
-            currentVersion: this.stateVersion,
-            receivedVersion: payload.version,
-          });
-          return;
-        }
-
-        this.isApplyingSyncState = true;
-        try {
-          if (payload.isFull) {
-            this.syncState.value = payload.data as typeof this.syncState.value;
-            logger.info("已应用全量输入状态", {
-              version: payload.version,
-              textLength: this.syncState.value.text.length,
-              attachmentCount: this.syncState.value.attachments.length,
-            });
-          } else {
-            this.syncState.value = applyPatches(
-              this.syncState.value,
-              payload.patches as JsonPatchOperation[]
-            );
-            logger.info("已应用增量输入状态", {
-              version: payload.version,
-              textLength: this.syncState.value.text.length,
-              attachmentCount: this.syncState.value.attachments.length,
-            });
-          }
-          this.stateVersion = payload.version;
-          this.lastSyncedValue = JSON.parse(
-            JSON.stringify(this.syncState.value)
-          );
-        } catch (error) {
-          errorHandler.handle(error as Error, {
-            userMessage: "应用输入状态更新失败",
-            showToUser: false,
-          });
-        } finally {
-          this.isApplyingSyncState = false;
+      (payload, message) => {
+        this.applyIncomingSyncPayload(payload, message);
+      }
+    );
+    const unlistenBatchStateSync = this.bus.onMessage<StateSyncBatchPayload>(
+      "state-sync-batch",
+      (payload, message) => {
+        const inputPayload = payload.states.find(
+          (state) => state.stateType === CHAT_STATE_KEYS.INPUT_STATE
+        );
+        if (inputPayload) {
+          this.applyIncomingSyncPayload(inputPayload, message);
         }
       }
     );
+    this.unlistenStateSync = () => {
+      unlistenSingleStateSync();
+      unlistenBatchStateSync();
+    };
 
     // 注册到全局同步源（仅主窗口和工具窗口）
     // 这样当有新窗口请求初始状态时，InputManager 也能自动响应
@@ -470,6 +457,86 @@ class ChatInputManager {
     }
 
     logger.info("ChatInputManager 初始化完成，包含跨窗口同步");
+  }
+
+  private markLocalChange(): void {
+    this.lastLocalChangeAt = Date.now();
+  }
+
+  private applyIncomingSyncPayload(
+    payload: StateSyncPayload,
+    message?: BaseMessage<StateSyncPayload | StateSyncBatchPayload>
+  ): void {
+    if (payload.stateType !== CHAT_STATE_KEYS.INPUT_STATE) return;
+    if (payload.version <= this.stateVersion) {
+      logger.warn("收到旧版本状态，已忽略", {
+        currentVersion: this.stateVersion,
+        receivedVersion: payload.version,
+      });
+      return;
+    }
+
+    if (message && message.timestamp < this.lastLocalChangeAt) {
+      logger.warn("收到早于本地输入的迟到输入状态，已忽略", {
+        messageTimestamp: message.timestamp,
+        lastLocalChangeAt: this.lastLocalChangeAt,
+        version: payload.version,
+      });
+      return;
+    }
+
+    let incomingState: typeof this.syncState.value;
+    try {
+      incomingState = payload.isFull
+        ? (payload.data as typeof this.syncState.value)
+        : (applyPatches(
+            this.syncState.value,
+            payload.patches as JsonPatchOperation[]
+          ) as typeof this.syncState.value);
+    } catch (error) {
+      errorHandler.handle(error as Error, {
+        userMessage: "解析输入状态更新失败",
+        showToUser: false,
+      });
+      return;
+    }
+
+    const hasLocalUnsyncedChanges = !deepEqual(
+      this.syncState.value,
+      this.lastSyncedValue
+    );
+    if (
+      hasLocalUnsyncedChanges &&
+      deepEqual(incomingState, this.lastSyncedValue)
+    ) {
+      logger.warn("收到会覆盖本地输入的旧输入快照，已忽略", {
+        version: payload.version,
+        localTextLength: this.syncState.value.text.length,
+        incomingTextLength: incomingState.text.length,
+      });
+      return;
+    }
+
+    this.isApplyingSyncState = true;
+    try {
+      this.syncState.value = incomingState;
+      logger.info(`已应用${payload.isFull ? "全量" : "增量"}输入状态`, {
+        version: payload.version,
+        textLength: this.syncState.value.text.length,
+        attachmentCount: this.syncState.value.attachments.length,
+      });
+      this.stateVersion = payload.version;
+      this.lastSyncedValue = JSON.parse(JSON.stringify(this.syncState.value));
+    } catch (error) {
+      errorHandler.handle(error as Error, {
+        userMessage: "应用输入状态更新失败",
+        showToUser: false,
+      });
+    } finally {
+      nextTick(() => {
+        this.isApplyingSyncState = false;
+      });
+    }
   }
 
   /**

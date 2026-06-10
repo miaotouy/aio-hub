@@ -31,6 +31,7 @@ use commands::{
     apply_window_effect,
     batch_delete_agent_assets,
     begin_detach_session,
+    cancel_llm_chat_search,
     cancel_move_operation,
     check_asset_manager_document_converter,
     check_ffmpeg_availability,
@@ -164,6 +165,7 @@ use commands::{
     save_window_config,
     scan_content_duplicates,
     search_llm_data,
+    search_llm_data_stream,
     search_media_generator_data,
     set_window_position,
     set_window_shadow,
@@ -489,6 +491,7 @@ pub fn run() {
         .manage(commands::directory_janitor::CleanupCancellation::new())
         .manage(commands::dir_search::DirSearchCancellation::new())
         .manage(commands::content_deduplicator::DedupScanCancellation::new())
+        .manage(commands::llmchat_search::LlmChatSearchCancellation::new())
         .manage(AppState::default())
         .manage(commands::ffmpeg_processor::FFmpegState::default())
         .manage(AssetCatalog::new())
@@ -709,6 +712,8 @@ pub fn run() {
             dir_replace_preview,
             // LLM 搜索命令
             search_llm_data,
+            search_llm_data_stream,
+            cancel_llm_chat_search,
             search_media_generator_data,
             // 基于 rdev 的拖拽会话命令 (仅在非 macOS 上注册)
             #[cfg(not(target_os = "macos"))]

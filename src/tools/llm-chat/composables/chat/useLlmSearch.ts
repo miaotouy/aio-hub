@@ -1,10 +1,11 @@
 /**
  * useLlmSearch - LLM 聊天数据搜索组合式函数
- * 封装对后端 search_llm_data 命令的调用，提供智能体和会话的全文搜索功能。
+ * 封装对后端 search_llm_data_stream 命令的调用，提供智能体和会话的全文搜索功能。
+ * 采用流式返回（Channel）机制，边搜边展示结果。
  */
 
 import { ref, computed, unref } from "vue";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, Channel } from "@tauri-apps/api/core";
 import { useDebounceFn } from "@vueuse/core";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -14,6 +15,12 @@ const logger = createModuleLogger("llm-chat/useLlmSearch");
 const errorHandler = createModuleErrorHandler("llm-chat/useLlmSearch");
 
 // --- 类型定义 ---
+
+/** 流式 Payload 类型 */
+type SearchStreamPayload =
+  | { type: "progress"; data: { filesScanned: number; filesMatched: number } }
+  | { type: "resultBatch"; data: SearchResult[] }
+  | { type: "done"; data: { durationMs: number } };
 
 /** 匹配详情 */
 export interface MatchDetail {
@@ -105,6 +112,10 @@ export function useLlmSearch(options: SearchOptions = {}) {
   const searchError = ref<string | null>(null);
   const lastQuery = ref("");
 
+  // 搜索进度
+  const filesScanned = ref(0);
+  const filesMatched = ref(0);
+
   // loading 延迟计时器
   let loadingDelayTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -115,35 +126,6 @@ export function useLlmSearch(options: SearchOptions = {}) {
   const sessionResults = computed(() =>
     searchResults.value.filter((r) => r.kind === "session")
   );
-
-  /**
-   * 执行搜索（内部方法）
-   */
-  const executeSearch = async (query: string): Promise<SearchResult[]> => {
-    const trimmedQuery = query.trim();
-    if (!trimmedQuery) {
-      return [];
-    }
-
-    try {
-      const results = await invoke<SearchResult[]>("search_llm_data", {
-        query: trimmedQuery,
-        limit: resolvedLimit.value,
-        scope,
-        matchMode: matchMode.value,
-      });
-
-      logger.debug("搜索完成", {
-        query: trimmedQuery,
-        scope,
-        resultCount: results.length,
-      });
-      return results;
-    } catch (error) {
-      errorHandler.error(error, "搜索失败");
-      throw error;
-    }
-  };
 
   /**
    * 清除 loading 延迟计时器
@@ -169,6 +151,77 @@ export function useLlmSearch(options: SearchOptions = {}) {
   };
 
   /**
+   * 取消当前搜索
+   */
+  const cancelSearch = async () => {
+    try {
+      await invoke("cancel_llm_chat_search");
+    } catch (e) {
+      // 取消命令失败通常无需处理
+      logger.debug("取消搜索命令失败", { error: e });
+    }
+  };
+
+  /**
+   * 执行流式搜索（内部方法）
+   */
+  const executeSearchStream = async (query: string): Promise<void> => {
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery) {
+      return;
+    }
+
+    // 清空旧结果
+    searchResults.value = [];
+    filesScanned.value = 0;
+    filesMatched.value = 0;
+
+    const channel = new Channel<SearchStreamPayload>();
+
+    channel.onmessage = (payload) => {
+      if (payload.type === "progress") {
+        filesScanned.value = payload.data.filesScanned;
+        filesMatched.value = payload.data.filesMatched;
+      } else if (payload.type === "resultBatch") {
+        // 合并并动态排序
+        const merged = [...searchResults.value, ...payload.data];
+        merged.sort((a, b) => {
+          const countDiff = b.matches.length - a.matches.length;
+          if (countDiff !== 0) return countDiff;
+          return (b.updatedAt || "").localeCompare(a.updatedAt || "");
+        });
+        searchResults.value = merged;
+      } else if (payload.type === "done") {
+        isSearching.value = false;
+        showLoadingIndicator.value = false;
+        clearLoadingTimer();
+        logger.debug("流式搜索完成", {
+          query: trimmedQuery,
+          scope,
+          durationMs: payload.data.durationMs,
+          resultCount: searchResults.value.length,
+        });
+      }
+    };
+
+    try {
+      await invoke("search_llm_data_stream", {
+        query: trimmedQuery,
+        limit: resolvedLimit.value,
+        scope,
+        matchMode: matchMode.value,
+        onEvent: channel,
+      });
+    } catch (error) {
+      isSearching.value = false;
+      showLoadingIndicator.value = false;
+      clearLoadingTimer();
+      searchError.value = error instanceof Error ? error.message : "搜索失败";
+      errorHandler.error(error, "流式搜索失败");
+    }
+  };
+
+  /**
    * 搜索（带防抖）
    */
   const debouncedSearch = useDebounceFn(async (query: string) => {
@@ -190,14 +243,9 @@ export function useLlmSearch(options: SearchOptions = {}) {
     startLoadingTimer();
 
     try {
-      searchResults.value = await executeSearch(trimmedQuery);
+      await executeSearchStream(trimmedQuery);
     } catch (error) {
       searchError.value = error instanceof Error ? error.message : "搜索失败";
-      searchResults.value = [];
-    } finally {
-      isSearching.value = false;
-      showLoadingIndicator.value = false;
-      clearLoadingTimer();
     }
   }, debounceMs);
 
@@ -214,6 +262,11 @@ export function useLlmSearch(options: SearchOptions = {}) {
       lastQuery.value = "";
       clearLoadingTimer();
       return;
+    }
+
+    // 取消上一次未完成的搜索
+    if (isSearching.value) {
+      cancelSearch();
     }
 
     // 标记内部搜索状态，但不立即显示 loading（由延迟计时器控制）
@@ -234,23 +287,22 @@ export function useLlmSearch(options: SearchOptions = {}) {
       return [];
     }
 
+    // 取消上一次未完成的搜索
+    if (isSearching.value) {
+      cancelSearch();
+    }
+
     isSearching.value = true;
     searchError.value = null;
     // 立即搜索也使用延迟显示 loading
     startLoadingTimer();
 
     try {
-      const results = await executeSearch(trimmedQuery);
-      searchResults.value = results;
-      return results;
+      await executeSearchStream(trimmedQuery);
+      return searchResults.value;
     } catch (error) {
       searchError.value = error instanceof Error ? error.message : "搜索失败";
-      searchResults.value = [];
       return [];
-    } finally {
-      isSearching.value = false;
-      showLoadingIndicator.value = false;
-      clearLoadingTimer();
     }
   };
 
@@ -263,6 +315,8 @@ export function useLlmSearch(options: SearchOptions = {}) {
     lastQuery.value = "";
     isSearching.value = false;
     showLoadingIndicator.value = false;
+    filesScanned.value = 0;
+    filesMatched.value = 0;
     clearLoadingTimer();
   };
 
@@ -309,7 +363,7 @@ export function useLlmSearch(options: SearchOptions = {}) {
       return [{ text: context, isMatch: false }];
     }
 
-    // 1. 确定“窗口”。以第一个匹配项为准
+    // 1. 确定"窗口"。以第一个匹配项为准
     const firstMatch = match_offsets[0];
     const matchStart = firstMatch[0];
     const matchEnd = firstMatch[1];
@@ -383,11 +437,14 @@ export function useLlmSearch(options: SearchOptions = {}) {
     matchMode, // 搜索匹配模式（可读写）
     agentResults,
     sessionResults,
+    filesScanned, // 已扫描文件数
+    filesMatched, // 已匹配文件数
 
     // 方法
     search,
     searchImmediate,
     clearSearch,
+    cancelSearch,
 
     // 辅助方法
     getFieldLabel,

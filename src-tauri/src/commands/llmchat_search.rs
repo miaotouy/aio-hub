@@ -4,9 +4,14 @@ use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::time::Instant;
-use tauri::AppHandle;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+use tauri::ipc::Channel;
+use tauri::{AppHandle, State};
 use tokio::fs;
+use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 use unicode_segmentation::UnicodeSegmentation;
 use walkdir::WalkDir;
 
@@ -28,6 +33,56 @@ pub struct SearchResult {
     pub matches: Vec<MatchDetail>,
     pub updated_at: Option<String>,
     pub path: String, // 文件相对路径，方便前端引用
+}
+
+// --- 流式搜索相关数据结构 ---
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(tag = "type", content = "data", rename_all = "camelCase")]
+pub enum SearchStreamPayload {
+    Progress {
+        files_scanned: usize,
+        files_matched: usize,
+    },
+    ResultBatch(Vec<SearchResult>),
+    Done {
+        duration_ms: f64,
+    },
+}
+
+// --- 取消机制 ---
+
+pub struct LlmChatSearchCancellation {
+    pub(crate) token: CancellationToken,
+}
+
+impl LlmChatSearchCancellation {
+    pub fn new() -> Self {
+        Self {
+            token: CancellationToken::new(),
+        }
+    }
+
+    pub fn cancel(&self) {
+        self.token.cancel();
+    }
+
+    #[allow(dead_code)]
+    pub fn reset(&self) {
+        // CancellationToken 不能真正重置，只能创建新的
+        // 但在管理状态中可以直接替换
+    }
+
+    #[allow(dead_code)]
+    pub fn is_cancelled(&self) -> bool {
+        self.token.is_cancelled()
+    }
+}
+
+impl Default for LlmChatSearchCancellation {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // --- Agent 相关数据结构 ---
@@ -91,6 +146,7 @@ struct PartialMetadata<'a> {
 // --- 搜索匹配器 ---
 
 /// 搜索匹配器，封装三种匹配模式的逻辑
+#[derive(Clone)]
 enum SearchMatcher {
     /// 单正则匹配（exact 整体匹配 / or 任一关键词匹配）
     Single(Regex),
@@ -599,4 +655,438 @@ pub async fn search_llm_data(
     );
 
     Ok(results)
+}
+
+#[tauri::command]
+pub async fn search_llm_data_stream(
+    app: AppHandle,
+    query: String,
+    limit: Option<usize>,
+    scope: Option<String>,
+    match_mode: Option<String>,
+    cancellation: State<'_, LlmChatSearchCancellation>,
+    on_event: Channel<SearchStreamPayload>,
+) -> Result<(), String> {
+    let start_time = Instant::now();
+    let query = query.trim().to_string();
+
+    if query.is_empty() {
+        let _ = on_event.send(SearchStreamPayload::Done { duration_ms: 0.0 });
+        return Ok(());
+    }
+
+    let scope_str = scope.unwrap_or_else(|| "all".to_string());
+    let match_mode_str = match_mode.unwrap_or_else(|| "exact".to_string());
+    let max_results = limit.unwrap_or(500);
+
+    let app_data_dir = crate::get_app_data_dir(app.config());
+    let llm_chat_dir = app_data_dir.join("llm-chat");
+
+    let files_scanned = Arc::new(AtomicUsize::new(0));
+    let files_matched = Arc::new(AtomicUsize::new(0));
+    let total_results = Arc::new(AtomicUsize::new(0));
+
+    let cancel_token = cancellation.token.clone();
+
+    // 创建 mpsc channel 收集单个结果
+    let (tx, mut rx) = mpsc::channel::<SearchResult>(500);
+
+    let files_scanned_agent = files_scanned.clone();
+    let files_scanned_session = files_scanned.clone();
+    let files_matched_agent = files_matched.clone();
+    let files_matched_session = files_matched.clone();
+    let total_results_agent = total_results.clone();
+    let total_results_session = total_results.clone();
+    let cancel_agent = cancel_token.clone();
+    let cancel_session = cancel_token.clone();
+
+    let tx_agent = tx.clone();
+    let tx_session = tx.clone();
+
+    let agent_dir = llm_chat_dir.clone();
+    let session_dir = llm_chat_dir.clone();
+    let query_agent = query.clone();
+    let query_session = query.clone();
+    let match_mode_agent = match_mode_str.clone();
+    let match_mode_session = match_mode_str.clone();
+    let scope_agent = scope_str.clone();
+    let scope_session = scope_str;
+
+    // 启动搜索任务
+    let agent_handle = tokio::spawn(async move {
+        if scope_agent == "session" {
+            return;
+        }
+        let agents_dir = agent_dir.join("agents");
+        if !agents_dir.exists() {
+            return;
+        }
+
+        let paths: Vec<PathBuf> = WalkDir::new(&agents_dir)
+            .min_depth(1)
+            .max_depth(2)
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_type().is_file() && e.file_name() == "agent.json")
+            .map(|e| e.path().to_owned())
+            .collect();
+
+        let matcher = match SearchMatcher::build(&query_agent, &match_mode_agent) {
+            Ok(m) => m,
+            Err(_) => return,
+        };
+
+        let scanned = Arc::new(AtomicUsize::new(0));
+        let matched = Arc::new(AtomicUsize::new(0));
+        let results_count = Arc::new(AtomicUsize::new(0));
+
+        stream::iter(paths)
+            .map(|path| {
+                let cancel = cancel_agent.clone();
+                let scanned = scanned.clone();
+                let matched = matched.clone();
+                let results_count = results_count.clone();
+                let matcher = matcher.clone();
+                let tx = tx_agent.clone();
+                async move {
+                    if cancel.is_cancelled() {
+                        return None;
+                    }
+
+                    let content = fs::read_to_string(&path).await.ok()?;
+                    scanned.fetch_add(1, Ordering::Relaxed);
+
+                    if !matcher.is_match(&content) {
+                        return None;
+                    }
+
+                    let agent = serde_json::from_str::<PartialAgent>(&content).ok()?;
+                    let mut matches = Vec::new();
+
+                    if let Some((ctx, offsets)) = matcher.extract_context(&agent.name, 100) {
+                        matches.push(MatchDetail {
+                            field: "name".to_string(),
+                            context: ctx,
+                            role: None,
+                            match_offsets: offsets,
+                        });
+                    }
+
+                    if let Some(display_name) = &agent.display_name {
+                        if let Some((ctx, offsets)) = matcher.extract_context(display_name, 100) {
+                            matches.push(MatchDetail {
+                                field: "displayName".to_string(),
+                                context: ctx,
+                                role: None,
+                                match_offsets: offsets,
+                            });
+                        }
+                    }
+
+                    if let Some(desc) = &agent.description {
+                        if let Some((ctx, offsets)) = matcher.extract_context(desc, 60) {
+                            matches.push(MatchDetail {
+                                field: "description".to_string(),
+                                context: ctx,
+                                role: None,
+                                match_offsets: offsets,
+                            });
+                        }
+                    }
+
+                    if let Some(preset_messages) = &agent.preset_messages {
+                        let mut matched_count = 0;
+                        for msg in preset_messages {
+                            if matched_count >= 3 {
+                                break;
+                            }
+
+                            if let Some(name) = &msg.name {
+                                if let Some((ctx, offsets)) = matcher.extract_context(name, 100) {
+                                    matches.push(MatchDetail {
+                                        field: "presetMessageName".to_string(),
+                                        context: ctx,
+                                        role: msg.role.as_ref().map(|r| r.to_string()),
+                                        match_offsets: offsets,
+                                    });
+                                    matched_count += 1;
+                                    continue;
+                                }
+                            }
+
+                            if let Some(content) = &msg.content {
+                                if let Some((ctx, offsets)) = matcher.extract_context(content, 60) {
+                                    matches.push(MatchDetail {
+                                        field: "presetMessage".to_string(),
+                                        context: ctx,
+                                        role: msg.role.as_ref().map(|r| r.to_string()),
+                                        match_offsets: offsets,
+                                    });
+                                    matched_count += 1;
+                                }
+                            }
+                        }
+                    }
+
+                    if matches.is_empty() {
+                        return None;
+                    }
+
+                    matched.fetch_add(1, Ordering::Relaxed);
+                    results_count.fetch_add(1, Ordering::Relaxed);
+
+                    let title = agent
+                        .display_name
+                        .as_ref()
+                        .unwrap_or(&agent.name)
+                        .to_string();
+
+                    let result = SearchResult {
+                        id: agent.id.to_string(),
+                        kind: "agent".to_string(),
+                        title,
+                        matches,
+                        updated_at: agent
+                            .last_used_at
+                            .or(agent.created_at)
+                            .map(|s| s.to_string()),
+                        path: format!("llm-chat/agents/{}/agent.json", agent.id),
+                    };
+
+                    let _ = tx.send(result).await;
+                    Some(())
+                }
+            })
+            .buffer_unordered(50)
+            .collect::<Vec<_>>()
+            .await;
+
+        files_scanned_agent.fetch_add(scanned.load(Ordering::Relaxed), Ordering::Relaxed);
+        files_matched_agent.fetch_add(matched.load(Ordering::Relaxed), Ordering::Relaxed);
+        total_results_agent.fetch_add(results_count.load(Ordering::Relaxed), Ordering::Relaxed);
+    });
+
+    let session_handle = tokio::spawn(async move {
+        if scope_session == "agent" {
+            return;
+        }
+        let sessions_dir = session_dir.join("sessions");
+        if !sessions_dir.exists() {
+            return;
+        }
+
+        let paths: Vec<PathBuf> = WalkDir::new(&sessions_dir)
+            .min_depth(1)
+            .max_depth(1)
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .filter(|e| {
+                e.file_type().is_file() && e.path().extension().is_some_and(|ext| ext == "json")
+            })
+            .map(|e| e.path().to_owned())
+            .collect();
+
+        let matcher = match SearchMatcher::build(&query_session, &match_mode_session) {
+            Ok(m) => m,
+            Err(_) => return,
+        };
+
+        let scanned = Arc::new(AtomicUsize::new(0));
+        let matched = Arc::new(AtomicUsize::new(0));
+        let results_count = Arc::new(AtomicUsize::new(0));
+
+        stream::iter(paths)
+            .map(|path| {
+                let cancel = cancel_session.clone();
+                let scanned = scanned.clone();
+                let matched = matched.clone();
+                let results_count = results_count.clone();
+                let matcher = matcher.clone();
+                let tx = tx_session.clone();
+                async move {
+                    if cancel.is_cancelled() {
+                        return None;
+                    }
+
+                    let content = fs::read_to_string(&path).await.ok()?;
+                    scanned.fetch_add(1, Ordering::Relaxed);
+
+                    if !matcher.is_match(&content) {
+                        return None;
+                    }
+
+                    let session = serde_json::from_str::<PartialSession>(&content).ok()?;
+                    let mut matches = Vec::new();
+
+                    if let Some((ctx, offsets)) = matcher.extract_context(&session.name, 100) {
+                        matches.push(MatchDetail {
+                            field: "name".to_string(),
+                            context: ctx,
+                            role: None,
+                            match_offsets: offsets,
+                        });
+                    }
+
+                    let mut matched_nodes_count = 0;
+                    for node in session.nodes.values() {
+                        if matched_nodes_count >= 5 {
+                            break;
+                        }
+
+                        if let Some(content) = &node.content {
+                            if let Some((ctx, offsets)) = matcher.extract_context(content, 60) {
+                                matches.push(MatchDetail {
+                                    field: "content".to_string(),
+                                    context: ctx,
+                                    role: node.role.as_ref().map(|r| r.to_string()),
+                                    match_offsets: offsets,
+                                });
+                                matched_nodes_count += 1;
+                            }
+                        }
+
+                        if let Some(metadata) = &node.metadata {
+                            if let Some(reasoning) = &metadata.reasoning_content {
+                                if let Some((ctx, offsets)) = matcher.extract_context(reasoning, 60)
+                                {
+                                    matches.push(MatchDetail {
+                                        field: "reasoningContent".to_string(),
+                                        context: ctx,
+                                        role: node.role.as_ref().map(|r| r.to_string()),
+                                        match_offsets: offsets,
+                                    });
+                                    matched_nodes_count += 1;
+                                }
+                            }
+                        }
+                    }
+
+                    if matches.is_empty() {
+                        return None;
+                    }
+
+                    matched.fetch_add(1, Ordering::Relaxed);
+                    results_count.fetch_add(1, Ordering::Relaxed);
+
+                    let filename = path.file_name()?.to_string_lossy().to_string();
+
+                    let result = SearchResult {
+                        id: session.id.to_string(),
+                        kind: "session".to_string(),
+                        title: session.name.to_string(),
+                        matches,
+                        updated_at: session.updated_at.map(|s| s.to_string()),
+                        path: format!("llm-chat/sessions/{}", filename),
+                    };
+
+                    let _ = tx.send(result).await;
+                    Some(())
+                }
+            })
+            .buffer_unordered(50)
+            .collect::<Vec<_>>()
+            .await;
+
+        files_scanned_session.fetch_add(scanned.load(Ordering::Relaxed), Ordering::Relaxed);
+        files_matched_session.fetch_add(matched.load(Ordering::Relaxed), Ordering::Relaxed);
+        total_results_session.fetch_add(results_count.load(Ordering::Relaxed), Ordering::Relaxed);
+    });
+
+    // 主消费循环：从 rx 读取结果并批量发送
+    let mut batch: Vec<SearchResult> = Vec::with_capacity(10);
+    let mut last_emit = Instant::now();
+    let batch_interval = Duration::from_millis(100);
+    let batch_size = 10;
+
+    let mut agent_done = false;
+    let mut session_done = false;
+
+    loop {
+        if cancel_token.is_cancelled() {
+            break;
+        }
+
+        let total = total_results.load(Ordering::Relaxed);
+        if total >= max_results {
+            // 达到上限，flush batch 后退出
+            if !batch.is_empty() {
+                let _ = on_event.send(SearchStreamPayload::ResultBatch(std::mem::take(&mut batch)));
+            }
+            break;
+        }
+
+        match tokio::time::timeout(Duration::from_millis(50), rx.recv()).await {
+            Ok(Some(result)) => {
+                batch.push(result);
+
+                if batch.len() >= batch_size || last_emit.elapsed() >= batch_interval {
+                    let _ =
+                        on_event.send(SearchStreamPayload::ResultBatch(std::mem::take(&mut batch)));
+                    last_emit = Instant::now();
+                }
+
+                // 发送进度
+                let _ = on_event.send(SearchStreamPayload::Progress {
+                    files_scanned: files_scanned.load(Ordering::Relaxed),
+                    files_matched: files_matched.load(Ordering::Relaxed),
+                });
+            }
+            Ok(None) => {
+                // channel 关闭
+                if !agent_done && agent_handle.is_finished() {
+                    agent_done = true;
+                }
+                if !session_done && session_handle.is_finished() {
+                    session_done = true;
+                }
+                if agent_done && session_done {
+                    break;
+                }
+                // 继续等待另一个任务完成
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+            Err(_) => {
+                // 超时
+                if !batch.is_empty() {
+                    let _ =
+                        on_event.send(SearchStreamPayload::ResultBatch(std::mem::take(&mut batch)));
+                }
+
+                if !agent_done && agent_handle.is_finished() {
+                    agent_done = true;
+                }
+                if !session_done && session_handle.is_finished() {
+                    session_done = true;
+                }
+                if agent_done && session_done {
+                    break;
+                }
+            }
+        }
+    }
+
+    // 发送剩余的 batch
+    if !batch.is_empty() {
+        let _ = on_event.send(SearchStreamPayload::ResultBatch(std::mem::take(&mut batch)));
+    }
+
+    // 等待任务结束
+    let _ = tokio::join!(agent_handle, session_handle);
+
+    // 发送 Done
+    let duration = start_time.elapsed();
+    let _ = on_event.send(SearchStreamPayload::Done {
+        duration_ms: duration.as_secs_f64() * 1000.0,
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn cancel_llm_chat_search(
+    cancellation: State<'_, LlmChatSearchCancellation>,
+) -> Result<(), String> {
+    cancellation.cancel();
+    log::info!("[LLM_CHAT_SEARCH] 搜索已取消");
+    Ok(())
 }

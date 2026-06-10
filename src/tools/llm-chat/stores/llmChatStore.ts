@@ -913,6 +913,22 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     );
   }
 
+  async function reorderFavoriteFolders(folderIds: string[]): Promise<void> {
+    return executeOrProxy("reorder-favorite-folders", { folderIds }, () => {
+      const newFolders: FavoriteFolder[] = [];
+      for (const id of folderIds) {
+        const folder = favoriteFolders.value.find((f) => f.id === id);
+        if (folder) newFolders.push(folder);
+      }
+      // 保留未在 folderIds 中提到的文件夹（兜底）
+      const remaining = favoriteFolders.value.filter(
+        (f) => !folderIds.includes(f.id)
+      );
+      favoriteFolders.value = [...newFolders, ...remaining];
+      persistSessions();
+    });
+  }
+
   /**
    * 导出当前会话为 Markdown
    */
@@ -1427,6 +1443,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     renameFavoriteFolder,
     deleteFavoriteFolder,
     moveSessionToFolder,
+    reorderFavoriteFolders,
     generateSessionTopic,
     exportSessionAsMarkdown,
     clearAllSessions,

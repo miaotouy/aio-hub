@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { ElMessageBox } from "element-plus";
+import { VueDraggableNext } from "vue-draggable-next";
 import {
   Delete,
   Edit,
   Folder,
   Plus,
+  Rank,
   Search,
   Star,
 } from "@element-plus/icons-vue";
@@ -166,6 +168,35 @@ async function openSession(session: ChatSessionIndex) {
   await store.switchSession(session.id);
   visible.value = false;
 }
+
+// 拖拽排序
+const draggableFolders = ref<FavoriteFolder[]>([]);
+
+watch(
+  () => favoriteFolders.value,
+  (folders) => {
+    draggableFolders.value = [...folders];
+  },
+  { immediate: true, deep: true }
+);
+
+const orderBeforeDrag = ref<string[]>([]);
+
+const onDragStart = () => {
+  orderBeforeDrag.value = draggableFolders.value.map((f) => f.id);
+  document.body.style.userSelect = "none";
+};
+
+const onDragEnd = () => {
+  document.body.style.userSelect = "";
+  const newOrder = draggableFolders.value.map((f) => f.id);
+  const hasChanged = !orderBeforeDrag.value.every(
+    (id, index) => id === newOrder[index]
+  );
+  if (hasChanged) {
+    store.reorderFavoriteFolders(newOrder);
+  }
+};
 </script>
 
 <template>
@@ -196,9 +227,13 @@ async function openSession(session: ChatSessionIndex) {
             :class="['folder-row', { active: selectedFolderKey === 'all' }]"
             @click="selectedFolderKey = 'all'"
           >
-            <el-icon><Star /></el-icon>
-            <span>全部收藏</span>
-            <em>{{ favoriteSessions.length }}</em>
+            <div class="folder-icon-container">
+              <el-icon class="folder-icon"><Star /></el-icon>
+            </div>
+            <span class="folder-name">全部收藏</span>
+            <div class="folder-meta-container">
+              <em class="folder-count">{{ favoriteSessions.length }}</em>
+            </div>
           </button>
 
           <button
@@ -208,40 +243,71 @@ async function openSession(session: ChatSessionIndex) {
             ]"
             @click="selectedFolderKey = 'uncategorized'"
           >
-            <el-icon><Folder /></el-icon>
-            <span>未分类收藏</span>
-            <em>{{ folderSessionCount(null) }}</em>
+            <div class="folder-icon-container">
+              <el-icon class="folder-icon"><Folder /></el-icon>
+            </div>
+            <span class="folder-name">未分类收藏</span>
+            <div class="folder-meta-container">
+              <em class="folder-count">{{ folderSessionCount(null) }}</em>
+            </div>
           </button>
-
           <div class="folder-divider" />
 
-          <div
-            v-for="folder in favoriteFolders"
-            :key="folder.id"
-            :class="['folder-row', { active: selectedFolderKey === folder.id }]"
-            role="button"
-            tabindex="0"
-            @click="selectedFolderKey = folder.id"
-            @keydown.enter="selectedFolderKey = folder.id"
+          <VueDraggableNext
+            v-model="draggableFolders"
+            item-key="id"
+            handle=".folder-drag-handle"
+            ghost-class="drag-ghost"
+            drag-class="drag-active"
+            chosen-class="drag-chosen"
+            :force-fallback="true"
+            :fallback-tolerance="3"
+            :animation="200"
+            @start="onDragStart"
+            @end="onDragEnd"
+            class="draggable-folder-list"
           >
-            <span class="folder-icon">{{ folder.icon || "📁" }}</span>
-            <span>{{ folder.name }}</span>
-            <em>{{ folderSessionCount(folder.id) }}</em>
-            <span class="folder-actions" @click.stop>
-              <el-button
-                text
-                size="small"
-                :icon="Edit"
-                @click="renameFolder(folder)"
-              />
-              <el-button
-                text
-                size="small"
-                :icon="Delete"
-                @click="deleteFolder(folder)"
-              />
-            </span>
-          </div>
+            <div
+              v-for="folder in draggableFolders"
+              :key="folder.id"
+              :class="[
+                'folder-row',
+                'draggable',
+                { active: selectedFolderKey === folder.id },
+              ]"
+              role="button"
+              tabindex="0"
+              @click="selectedFolderKey = folder.id"
+              @keydown.enter="selectedFolderKey = folder.id"
+            >
+              <div class="folder-icon-container">
+                <span class="folder-drag-handle" @click.stop>
+                  <el-icon><Rank /></el-icon>
+                </span>
+                <span class="folder-icon">{{ folder.icon || "📁" }}</span>
+              </div>
+              <span class="folder-name">{{ folder.name }}</span>
+              <div class="folder-meta-container">
+                <em class="folder-count">{{
+                  folderSessionCount(folder.id)
+                }}</em>
+                <span class="folder-actions" @click.stop>
+                  <el-button
+                    text
+                    size="small"
+                    :icon="Edit"
+                    @click="renameFolder(folder)"
+                  />
+                  <el-button
+                    text
+                    size="small"
+                    :icon="Delete"
+                    @click="deleteFolder(folder)"
+                  />
+                </span>
+              </div>
+            </div>
+          </VueDraggableNext>
         </aside>
 
         <section class="session-pane">
@@ -327,15 +393,15 @@ async function openSession(session: ChatSessionIndex) {
   overflow-y: auto;
   background-color: var(--sidebar-bg);
   border-right: var(--border-width) solid var(--border-color);
+  box-sizing: border-box;
 }
 
 .folder-row {
   width: 100%;
   height: 36px;
-  display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) auto auto;
-  gap: 8px;
+  display: flex;
   align-items: center;
+  gap: 8px;
   padding: 0 8px;
   border: none;
   border-radius: 6px;
@@ -343,6 +409,8 @@ async function openSession(session: ChatSessionIndex) {
   color: var(--text-color);
   text-align: left;
   cursor: pointer;
+  user-select: none;
+  box-sizing: border-box;
   transition:
     background-color 0.2s,
     color 0.2s;
@@ -357,38 +425,132 @@ async function openSession(session: ChatSessionIndex) {
   color: var(--primary-color);
 }
 
-.folder-row span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.folder-row em {
-  font-style: normal;
-  font-size: 11px;
-  color: var(--text-color-light);
+.folder-icon-container {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .folder-icon {
   font-size: 15px;
   line-height: 1;
+  transition: opacity 0.15s ease;
+}
+
+.folder-drag-handle {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  color: var(--text-color-light);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+  font-size: 14px;
+  background-color: transparent;
+}
+
+.folder-drag-handle:active {
+  cursor: grabbing;
+}
+
+.folder-row.draggable:hover .folder-drag-handle {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.folder-row.draggable:hover .folder-icon {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.folder-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.folder-meta-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 24px;
+  height: 100%;
+  flex-shrink: 0;
+}
+
+.folder-count {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--text-color-light);
+  transition: opacity 0.15s ease;
 }
 
 .folder-actions {
+  position: absolute;
+  right: 0;
   display: flex;
+  align-items: center;
+  gap: 2px;
   opacity: 0;
-  transition: opacity 0.2s;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
 }
 
 .folder-row:hover .folder-actions {
   opacity: 1;
+  pointer-events: auto;
+}
+
+.folder-row:hover .folder-count {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .folder-divider {
   height: 1px;
   margin: 8px 2px;
   background-color: var(--border-color);
+}
+
+.draggable-folder-list {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.drag-ghost {
+  opacity: 0.5;
+  background-color: var(--primary-color-light);
+  border-radius: 6px;
+}
+
+.drag-ghost > * {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.drag-chosen {
+  background-color: rgba(var(--primary-color-rgb), 0.08);
+}
+
+.drag-active {
+  opacity: 0.95;
+  cursor: grabbing;
+  background-color: var(--card-bg);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition: none;
 }
 
 .session-pane {

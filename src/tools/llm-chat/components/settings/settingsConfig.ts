@@ -67,6 +67,21 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         keywords: "model default 默认 模型",
         defaultValue: "",
       },
+      {
+        id: "searchResultLimit",
+        label:
+          "会话搜索最大结果 ({{ localSettings.uiPreferences.searchResultLimit }}条)",
+        component: "ElSlider",
+        props: {
+          min: 50,
+          max: 1000,
+          step: 50,
+          "format-tooltip": (val: number) => `${val}条`,
+        },
+        modelPath: "uiPreferences.searchResultLimit",
+        hint: "搜索会话时返回的最大结果数量，超过此数量的结果将被截断",
+        keywords: "search limit result 搜索 最大 结果 数量",
+      },
     ],
   },
   {

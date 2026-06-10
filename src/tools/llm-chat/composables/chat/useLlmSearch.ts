@@ -3,11 +3,12 @@
  * 封装对后端 search_llm_data 命令的调用，提供智能体和会话的全文搜索功能。
  */
 
-import { ref, computed } from "vue";
+import { ref, computed, unref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { useDebounceFn } from "@vueuse/core";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { useChatSettings } from "../../composables/settings/useChatSettings";
 
 const logger = createModuleLogger("llm-chat/useLlmSearch");
 const errorHandler = createModuleErrorHandler("llm-chat/useLlmSearch");
@@ -60,7 +61,7 @@ export type SearchMatchMode = "exact" | "and" | "or";
 
 /** 搜索选项 */
 export interface SearchOptions {
-  /** 最大结果数量，默认 50 */
+  /** 最大结果数量，默认 500 */
   limit?: number;
   /** 搜索范围：'agent' | 'session' | 'all' (默认) */
   scope?: "agent" | "session" | "all";
@@ -81,13 +82,18 @@ export interface SearchOptions {
  * @returns 搜索状态和方法
  */
 export function useLlmSearch(options: SearchOptions = {}) {
+  const { settings } = useChatSettings();
   const {
-    limit = 50,
+    limit,
     scope = "all",
     matchMode: initialMatchMode = "exact",
     debounceMs = 300,
     loadingDelayMs = 300,
   } = options;
+
+  const resolvedLimit = computed(
+    () => limit ?? unref(settings).uiPreferences.searchResultLimit
+  );
 
   // 搜索匹配模式（响应式，可由 UI 动态切换）
   const matchMode = ref<SearchMatchMode>(initialMatchMode);
@@ -122,7 +128,7 @@ export function useLlmSearch(options: SearchOptions = {}) {
     try {
       const results = await invoke<SearchResult[]>("search_llm_data", {
         query: trimmedQuery,
-        limit,
+        limit: resolvedLimit.value,
         scope,
         matchMode: matchMode.value,
       });

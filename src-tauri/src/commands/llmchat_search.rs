@@ -539,7 +539,7 @@ pub async fn search_llm_data(
         match_mode
     );
 
-    let max_results = limit.unwrap_or(50);
+    let max_results = limit.unwrap_or(500);
 
     // 构建搜索匹配器
     let matcher = SearchMatcher::build(query, &match_mode)?;

@@ -105,6 +105,14 @@ export const settingsModules: SettingsModule[] = [
     minHeight: "600px",
   },
   {
+    id: "language",
+    title: "语言设置",
+    component: defineAsyncComponent(
+      () => import("../views/Settings/general/LanguageSettings.vue")
+    ),
+    minHeight: "auto",
+  },
+  {
     id: "about",
     title: "关于",
     component: defineAsyncComponent(

@@ -5,11 +5,15 @@ import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import { Image, Video, Music, Mic, Info } from "lucide-vue-next";
 import { useMediaGenParameterState } from "../composables/useMediaGenParameterState";
 import ModelParameterFields from "./ModelParameterFields.vue";
+import { createModuleLogger } from "@/utils/logger";
 
 const router = useRouter();
+const logger = createModuleLogger("media-generator/parameter-panel");
 const {
   mediaType,
   selectedModelCombo,
+  selectedModelInfo,
+  paramRules,
   modelCapabilities,
   includeContext,
   showContextToggle,
@@ -28,6 +32,28 @@ watch(
   () => {
     syncActiveTypeIncludeContext(false);
     syncMiniMaxMusicMode();
+
+    if (!selectedModelCombo.value) return;
+
+    const ruleKeys = paramRules.value ? Object.keys(paramRules.value) : [];
+    const modelInfo = selectedModelInfo.value;
+    const payload = {
+      mediaType: mediaType.value,
+      modelCombo: selectedModelCombo.value,
+      profileId: modelInfo?.profile?.id,
+      profileName: modelInfo?.profile?.name,
+      profileType: modelInfo?.profile?.type,
+      modelId: modelInfo?.modelId,
+      modelFound: !!modelInfo?.model,
+      hasMediaGenParams: ruleKeys.length > 0,
+      mediaGenParamKeys: ruleKeys,
+    };
+
+    if (modelInfo?.model && ruleKeys.length === 0) {
+      logger.warn("当前生成模型没有媒体生成参数规则", payload);
+    } else {
+      logger.info("媒体生成参数面板模型状态", payload);
+    }
   },
   { immediate: true }
 );

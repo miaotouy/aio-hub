@@ -509,6 +509,16 @@ export const useMediaGenStore = defineStore("media-generator", () => {
       generationOptions.modelId = temporaryModel.modelId;
     }
 
+    logger.info("准备重生成媒体任务", {
+      sourceMessageId: messageId,
+      newAssistantNodeId: assistantNode.id,
+      requestedType: params.type,
+      temporaryModel,
+      generationProfileId: generationOptions.profileId,
+      generationModelId: generationOptions.modelId,
+      optionKeys: Object.keys(generationOptions),
+    });
+
     const type = normalizeMediaTaskType(
       params.type ||
         assistantNode.metadata?.taskSnapshot?.type ||
@@ -541,7 +551,7 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     persistence.persist(true);
 
     // 6. 启动生成
-    await mediaGenManager.startGenerationWithTask(task, {
+    await mediaGenManager.startGenerationWithTask(task, messages.value, {
       timeout: settings.value.requestSettings?.timeout,
       maxRetries: settings.value.requestSettings?.maxRetries,
       autoIncludeLastResult: settings.value.autoIncludeLastResult,

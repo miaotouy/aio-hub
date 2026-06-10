@@ -1,6 +1,9 @@
 <script setup lang="ts">
-import { Sparkles, Info, ArrowLeftRight } from "lucide-vue-next";
+import { ref } from "vue";
+import { Sparkles, Info, ArrowLeftRight, FileDown } from "lucide-vue-next";
 import { useMediaGenParameterState } from "../composables/useMediaGenParameterState";
+import { useMediaGenDiagnostics } from "../composables/useMediaGenDiagnostics";
+import { customMessage } from "@/utils/customMessage";
 
 const {
   mediaType,
@@ -59,6 +62,8 @@ const {
   speechSpeed,
   speechInstructions,
 } = useMediaGenParameterState();
+const { exportDiagnostics } = useMediaGenDiagnostics();
+const isExportingDiagnostics = ref(false);
 
 const handleCoverWorkflowChange = (value: string | number | boolean) => {
   if (value === "two_step") {
@@ -68,6 +73,18 @@ const handleCoverWorkflowChange = (value: string | number | boolean) => {
     return;
   }
   params.value.cover_reference_mode = "audio";
+};
+
+const handleExportDiagnostics = async () => {
+  if (isExportingDiagnostics.value) return;
+  isExportingDiagnostics.value = true;
+  try {
+    await exportDiagnostics();
+  } catch (error) {
+    customMessage.error("导出诊断信息失败");
+  } finally {
+    isExportingDiagnostics.value = false;
+  }
 };
 </script>
 
@@ -698,6 +715,24 @@ const handleCoverWorkflowChange = (value: string | number | boolean) => {
           </div>
         </template>
 
+        <div class="section diagnostic-section">
+          <div class="section-title">
+            <span>诊断信息</span>
+            <el-tooltip content="导出当前会话、模型组合、参数规则与最近日志，用于排查参数面板异常">
+              <el-icon class="info-icon"><Info /></el-icon>
+            </el-tooltip>
+          </div>
+          <el-button
+            size="small"
+            class="diagnostic-export-btn"
+            :icon="FileDown"
+            :loading="isExportingDiagnostics"
+            @click="handleExportDiagnostics"
+          >
+            导出诊断日志
+          </el-button>
+        </div>
+
         <div v-if="supportsSeed" class="section">
           <div class="section-title">
             <span>种子 (Seed)</span>
@@ -858,5 +893,16 @@ const handleCoverWorkflowChange = (value: string | number | boolean) => {
   display: grid;
   grid-template-columns: 1fr;
   gap: 8px;
+}
+
+.diagnostic-section {
+  padding: 8px;
+  border: var(--border-width) dashed var(--border-color);
+  border-radius: 8px;
+  background: var(--input-bg);
+}
+
+.diagnostic-export-btn {
+  width: 100%;
 }
 </style>

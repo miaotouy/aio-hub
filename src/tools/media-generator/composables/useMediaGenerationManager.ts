@@ -263,6 +263,34 @@ export function useMediaGenerationManager() {
     );
   };
 
+  const buildPromptMessage = (
+    prompt: string,
+    attachments?: MediaGenerationOptions["inputAttachments"]
+  ): LlmMessage => {
+    const contentParts: LlmMessageContent[] = [];
+    if (prompt) {
+      contentParts.push({ type: "text", text: prompt });
+    }
+
+    attachments?.forEach((attachment) => {
+      if (attachment.type !== "image" || !attachment.b64) return;
+      contentParts.push({
+        type: "image",
+        imageBase64: attachment.b64,
+      });
+    });
+
+    return {
+      role: "user",
+      content:
+        contentParts.length === 1 && contentParts[0].type === "text"
+          ? contentParts[0].text
+          : contentParts.length > 0
+            ? contentParts
+            : prompt,
+    };
+  };
+
   /**
    * 中止特定任务
    */
@@ -552,8 +580,11 @@ export function useMediaGenerationManager() {
         finalOptions = sanitizeParams(finalOptions, rules) as any;
       }
 
-      if (canUseConversationContext && finalContext.length > 0) {
-        const messages = await buildLlmMessagesFromContext(finalContext);
+      if (canUseConversationContext) {
+        const messages =
+          finalContext.length > 0
+            ? await buildLlmMessagesFromContext(finalContext)
+            : [buildPromptMessage(task.input.params.prompt, processedAttachments)];
 
         finalOptions = {
           ...finalOptions,
@@ -678,6 +709,7 @@ export function useMediaGenerationManager() {
    */
   const startGenerationWithTask = async (
     task: MediaTask,
+    contextMessages?: MediaMessage[],
     config?: {
       timeout?: number;
       maxRetries?: number;
@@ -685,7 +717,7 @@ export function useMediaGenerationManager() {
       metadataWrite?: MediaMetadataWriteSettings;
     }
   ) => {
-    await executeGeneration(task, undefined, config);
+    await executeGeneration(task, contextMessages, config);
   };
 
   /**

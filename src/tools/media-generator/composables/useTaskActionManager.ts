@@ -161,11 +161,37 @@ export function useTaskActionManager(context: {
       const configForType = currentConfig.value.types[mediaType];
       const { modelCombo, params: currentParams } = configForType;
       const [profileId, modelId] = parseModelCombo(modelCombo);
+      const snapshotProfileId = task.input?.profileId;
+      const snapshotModelId = task.input?.modelId;
+      const snapshotParamKeys = task.input?.params
+        ? Object.keys(task.input.params)
+        : [];
+      const currentParamKeys = currentParams ? Object.keys(currentParams) : [];
 
       if (!profileId || !modelId) {
-        logger.warn("获取参数失败：当前未选择有效的生成模型");
+        logger.warn("获取参数失败：当前未选择有效的生成模型", {
+          messageId,
+          mediaType,
+          currentModelCombo: modelCombo,
+          snapshotProfileId,
+          snapshotModelId,
+        });
         return null;
       }
+
+      logger.info("重生成参数解析完成", {
+        messageId,
+        mediaType,
+        currentModelCombo: modelCombo,
+        currentProfileId: profileId,
+        currentModelId: modelId,
+        snapshotProfileId,
+        snapshotModelId,
+        isUsingDifferentModel:
+          snapshotProfileId !== profileId || snapshotModelId !== modelId,
+        currentParamKeys,
+        snapshotParamKeys,
+      });
 
       return {
         isMediaTask: true,

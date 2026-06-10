@@ -234,6 +234,7 @@ export function useMediaGenParamRules() {
       delete clean.outputFormat;
     } else if (fillDefaults && rules.outputFormat?.default) {
       clean.output_format = rules.outputFormat.default;
+      clean.outputFormat = rules.outputFormat.default;
     }
 
     // outputCompression
@@ -242,6 +243,7 @@ export function useMediaGenParamRules() {
       delete clean.outputCompression;
     } else if (fillDefaults && rules.outputCompression?.default !== undefined) {
       clean.output_compression = rules.outputCompression.default;
+      clean.outputCompression = rules.outputCompression.default;
     }
 
     // batchSize / n
@@ -262,6 +264,7 @@ export function useMediaGenParamRules() {
       delete clean.partialImages;
     } else if (fillDefaults && rules.partialImages?.default !== undefined) {
       clean.partial_images = rules.partialImages.default;
+      clean.partialImages = rules.partialImages.default;
     }
 
     // size（preset 模式校验）

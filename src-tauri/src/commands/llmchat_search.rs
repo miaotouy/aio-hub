@@ -5,7 +5,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 use tauri::ipc::Channel;
 use tauri::{AppHandle, State};
@@ -50,32 +50,71 @@ pub enum SearchStreamPayload {
     },
 }
 
+fn send_search_stream_event(
+    on_event: &Channel<SearchStreamPayload>,
+    payload: SearchStreamPayload,
+    cancel_token: &CancellationToken,
+) -> bool {
+    if on_event.send(payload).is_err() {
+        cancel_token.cancel();
+        false
+    } else {
+        true
+    }
+}
+
+fn reserve_result_slot(total_results: &AtomicUsize, max_results: usize) -> bool {
+    loop {
+        let current = total_results.load(Ordering::Relaxed);
+        if current >= max_results {
+            return false;
+        }
+
+        if total_results
+            .compare_exchange(current, current + 1, Ordering::AcqRel, Ordering::Relaxed)
+            .is_ok()
+        {
+            return true;
+        }
+    }
+}
+
 // --- 取消机制 ---
 
 pub struct LlmChatSearchCancellation {
-    pub(crate) token: CancellationToken,
+    token: Mutex<CancellationToken>,
 }
 
 impl LlmChatSearchCancellation {
     pub fn new() -> Self {
         Self {
-            token: CancellationToken::new(),
+            token: Mutex::new(CancellationToken::new()),
         }
     }
 
+    fn lock_token(&self) -> MutexGuard<'_, CancellationToken> {
+        self.token.lock().unwrap_or_else(|err| err.into_inner())
+    }
+
+    pub fn begin_search(&self) -> CancellationToken {
+        let mut token = self.lock_token();
+        token.cancel();
+        *token = CancellationToken::new();
+        token.clone()
+    }
+
     pub fn cancel(&self) {
-        self.token.cancel();
+        self.lock_token().cancel();
     }
 
     #[allow(dead_code)]
-    pub fn reset(&self) {
-        // CancellationToken 不能真正重置，只能创建新的
-        // 但在管理状态中可以直接替换
+    pub fn reset(&self) -> CancellationToken {
+        self.begin_search()
     }
 
     #[allow(dead_code)]
     pub fn is_cancelled(&self) -> bool {
-        self.token.is_cancelled()
+        self.lock_token().is_cancelled()
     }
 }
 
@@ -671,6 +710,7 @@ pub async fn search_llm_data_stream(
     let query = query.trim().to_string();
 
     if query.is_empty() {
+        cancellation.cancel();
         let _ = on_event.send(SearchStreamPayload::Done { duration_ms: 0.0 });
         return Ok(());
     }
@@ -686,7 +726,7 @@ pub async fn search_llm_data_stream(
     let files_matched = Arc::new(AtomicUsize::new(0));
     let total_results = Arc::new(AtomicUsize::new(0));
 
-    let cancel_token = cancellation.token.clone();
+    let cancel_token = cancellation.begin_search();
 
     // 创建 mpsc channel 收集单个结果
     let (tx, mut rx) = mpsc::channel::<SearchResult>(500);
@@ -711,6 +751,8 @@ pub async fn search_llm_data_stream(
     let match_mode_session = match_mode_str.clone();
     let scope_agent = scope_str.clone();
     let scope_session = scope_str;
+    let max_results_agent = max_results;
+    let max_results_session = max_results;
 
     // 启动搜索任务
     let agent_handle = tokio::spawn(async move {
@@ -736,16 +778,12 @@ pub async fn search_llm_data_stream(
             Err(_) => return,
         };
 
-        let scanned = Arc::new(AtomicUsize::new(0));
-        let matched = Arc::new(AtomicUsize::new(0));
-        let results_count = Arc::new(AtomicUsize::new(0));
-
         stream::iter(paths)
             .map(|path| {
                 let cancel = cancel_agent.clone();
-                let scanned = scanned.clone();
-                let matched = matched.clone();
-                let results_count = results_count.clone();
+                let files_scanned = files_scanned_agent.clone();
+                let files_matched = files_matched_agent.clone();
+                let total_results = total_results_agent.clone();
                 let matcher = matcher.clone();
                 let tx = tx_agent.clone();
                 async move {
@@ -754,7 +792,11 @@ pub async fn search_llm_data_stream(
                     }
 
                     let content = fs::read_to_string(&path).await.ok()?;
-                    scanned.fetch_add(1, Ordering::Relaxed);
+                    files_scanned.fetch_add(1, Ordering::Relaxed);
+
+                    if cancel.is_cancelled() {
+                        return None;
+                    }
 
                     if !matcher.is_match(&content) {
                         return None;
@@ -797,7 +839,7 @@ pub async fn search_llm_data_stream(
                     if let Some(preset_messages) = &agent.preset_messages {
                         let mut matched_count = 0;
                         for msg in preset_messages {
-                            if matched_count >= 3 {
+                            if cancel.is_cancelled() || matched_count >= 3 {
                                 break;
                             }
 
@@ -832,8 +874,12 @@ pub async fn search_llm_data_stream(
                         return None;
                     }
 
-                    matched.fetch_add(1, Ordering::Relaxed);
-                    results_count.fetch_add(1, Ordering::Relaxed);
+                    if !reserve_result_slot(&total_results, max_results_agent) {
+                        cancel.cancel();
+                        return None;
+                    }
+
+                    files_matched.fetch_add(1, Ordering::Relaxed);
 
                     let title = agent
                         .display_name
@@ -853,17 +899,22 @@ pub async fn search_llm_data_stream(
                         path: format!("llm-chat/agents/{}/agent.json", agent.id),
                     };
 
-                    let _ = tx.send(result).await;
+                    let sent = tokio::select! {
+                        _ = cancel.cancelled() => false,
+                        send_result = tx.send(result) => send_result.is_ok(),
+                    };
+
+                    if !sent {
+                        cancel.cancel();
+                        return None;
+                    }
+
                     Some(())
                 }
             })
             .buffer_unordered(50)
             .collect::<Vec<_>>()
             .await;
-
-        files_scanned_agent.fetch_add(scanned.load(Ordering::Relaxed), Ordering::Relaxed);
-        files_matched_agent.fetch_add(matched.load(Ordering::Relaxed), Ordering::Relaxed);
-        total_results_agent.fetch_add(results_count.load(Ordering::Relaxed), Ordering::Relaxed);
     });
 
     let session_handle = tokio::spawn(async move {
@@ -891,16 +942,12 @@ pub async fn search_llm_data_stream(
             Err(_) => return,
         };
 
-        let scanned = Arc::new(AtomicUsize::new(0));
-        let matched = Arc::new(AtomicUsize::new(0));
-        let results_count = Arc::new(AtomicUsize::new(0));
-
         stream::iter(paths)
             .map(|path| {
                 let cancel = cancel_session.clone();
-                let scanned = scanned.clone();
-                let matched = matched.clone();
-                let results_count = results_count.clone();
+                let files_scanned = files_scanned_session.clone();
+                let files_matched = files_matched_session.clone();
+                let total_results = total_results_session.clone();
                 let matcher = matcher.clone();
                 let tx = tx_session.clone();
                 async move {
@@ -909,7 +956,11 @@ pub async fn search_llm_data_stream(
                     }
 
                     let content = fs::read_to_string(&path).await.ok()?;
-                    scanned.fetch_add(1, Ordering::Relaxed);
+                    files_scanned.fetch_add(1, Ordering::Relaxed);
+
+                    if cancel.is_cancelled() {
+                        return None;
+                    }
 
                     if !matcher.is_match(&content) {
                         return None;
@@ -929,7 +980,7 @@ pub async fn search_llm_data_stream(
 
                     let mut matched_nodes_count = 0;
                     for node in session.nodes.values() {
-                        if matched_nodes_count >= 5 {
+                        if cancel.is_cancelled() || matched_nodes_count >= 5 {
                             break;
                         }
 
@@ -965,8 +1016,12 @@ pub async fn search_llm_data_stream(
                         return None;
                     }
 
-                    matched.fetch_add(1, Ordering::Relaxed);
-                    results_count.fetch_add(1, Ordering::Relaxed);
+                    if !reserve_result_slot(&total_results, max_results_session) {
+                        cancel.cancel();
+                        return None;
+                    }
+
+                    files_matched.fetch_add(1, Ordering::Relaxed);
 
                     let filename = path.file_name()?.to_string_lossy().to_string();
 
@@ -979,18 +1034,24 @@ pub async fn search_llm_data_stream(
                         path: format!("llm-chat/sessions/{}", filename),
                     };
 
-                    let _ = tx.send(result).await;
+                    let sent = tokio::select! {
+                        _ = cancel.cancelled() => false,
+                        send_result = tx.send(result) => send_result.is_ok(),
+                    };
+
+                    if !sent {
+                        cancel.cancel();
+                        return None;
+                    }
+
                     Some(())
                 }
             })
             .buffer_unordered(50)
             .collect::<Vec<_>>()
             .await;
-
-        files_scanned_session.fetch_add(scanned.load(Ordering::Relaxed), Ordering::Relaxed);
-        files_matched_session.fetch_add(matched.load(Ordering::Relaxed), Ordering::Relaxed);
-        total_results_session.fetch_add(results_count.load(Ordering::Relaxed), Ordering::Relaxed);
     });
+    drop(tx);
 
     // 主消费循环：从 rx 读取结果并批量发送
     let mut batch: Vec<SearchResult> = Vec::with_capacity(10);
@@ -1000,6 +1061,7 @@ pub async fn search_llm_data_stream(
 
     let mut agent_done = false;
     let mut session_done = false;
+    let mut events_open = true;
 
     loop {
         if cancel_token.is_cancelled() {
@@ -1010,8 +1072,13 @@ pub async fn search_llm_data_stream(
         if total >= max_results {
             // 达到上限，flush batch 后退出
             if !batch.is_empty() {
-                let _ = on_event.send(SearchStreamPayload::ResultBatch(std::mem::take(&mut batch)));
+                events_open = send_search_stream_event(
+                    &on_event,
+                    SearchStreamPayload::ResultBatch(std::mem::take(&mut batch)),
+                    &cancel_token,
+                );
             }
+            cancel_token.cancel();
             break;
         }
 
@@ -1020,16 +1087,29 @@ pub async fn search_llm_data_stream(
                 batch.push(result);
 
                 if batch.len() >= batch_size || last_emit.elapsed() >= batch_interval {
-                    let _ =
-                        on_event.send(SearchStreamPayload::ResultBatch(std::mem::take(&mut batch)));
+                    events_open = send_search_stream_event(
+                        &on_event,
+                        SearchStreamPayload::ResultBatch(std::mem::take(&mut batch)),
+                        &cancel_token,
+                    );
                     last_emit = Instant::now();
+                    if !events_open {
+                        break;
+                    }
                 }
 
                 // 发送进度
-                let _ = on_event.send(SearchStreamPayload::Progress {
-                    files_scanned: files_scanned.load(Ordering::Relaxed),
-                    files_matched: files_matched.load(Ordering::Relaxed),
-                });
+                events_open = send_search_stream_event(
+                    &on_event,
+                    SearchStreamPayload::Progress {
+                        files_scanned: files_scanned.load(Ordering::Relaxed),
+                        files_matched: files_matched.load(Ordering::Relaxed),
+                    },
+                    &cancel_token,
+                );
+                if !events_open {
+                    break;
+                }
             }
             Ok(None) => {
                 // channel 关闭
@@ -1048,8 +1128,14 @@ pub async fn search_llm_data_stream(
             Err(_) => {
                 // 超时
                 if !batch.is_empty() {
-                    let _ =
-                        on_event.send(SearchStreamPayload::ResultBatch(std::mem::take(&mut batch)));
+                    events_open = send_search_stream_event(
+                        &on_event,
+                        SearchStreamPayload::ResultBatch(std::mem::take(&mut batch)),
+                        &cancel_token,
+                    );
+                    if !events_open {
+                        break;
+                    }
                 }
 
                 if !agent_done && agent_handle.is_finished() {
@@ -1065,9 +1151,16 @@ pub async fn search_llm_data_stream(
         }
     }
 
+    rx.close();
+    while rx.try_recv().is_ok() {}
+
     // 发送剩余的 batch
-    if !batch.is_empty() {
-        let _ = on_event.send(SearchStreamPayload::ResultBatch(std::mem::take(&mut batch)));
+    if events_open && !cancel_token.is_cancelled() && !batch.is_empty() {
+        events_open = send_search_stream_event(
+            &on_event,
+            SearchStreamPayload::ResultBatch(std::mem::take(&mut batch)),
+            &cancel_token,
+        );
     }
 
     // 等待任务结束
@@ -1075,9 +1168,15 @@ pub async fn search_llm_data_stream(
 
     // 发送 Done
     let duration = start_time.elapsed();
-    let _ = on_event.send(SearchStreamPayload::Done {
-        duration_ms: duration.as_secs_f64() * 1000.0,
-    });
+    if events_open {
+        let _ = send_search_stream_event(
+            &on_event,
+            SearchStreamPayload::Done {
+                duration_ms: duration.as_secs_f64() * 1000.0,
+            },
+            &cancel_token,
+        );
+    }
 
     Ok(())
 }

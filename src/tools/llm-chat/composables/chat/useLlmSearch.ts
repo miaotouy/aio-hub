@@ -118,6 +118,8 @@ export function useLlmSearch(options: SearchOptions = {}) {
 
   // loading 延迟计时器
   let loadingDelayTimer: ReturnType<typeof setTimeout> | null = null;
+  let activeSearchRunId = 0;
+  let pendingCancelSearch: Promise<void> | null = null;
 
   // 按类型分组的结果
   const agentResults = computed(() =>
@@ -163,6 +165,18 @@ export function useLlmSearch(options: SearchOptions = {}) {
   };
 
   /**
+   * 请求取消当前搜索，并复用尚未完成的取消请求，避免旧取消命令晚于新搜索抵达后端。
+   */
+  const requestCancelSearch = () => {
+    if (!pendingCancelSearch) {
+      pendingCancelSearch = cancelSearch().finally(() => {
+        pendingCancelSearch = null;
+      });
+    }
+    return pendingCancelSearch;
+  };
+
+  /**
    * 执行流式搜索（内部方法）
    */
   const executeSearchStream = async (query: string): Promise<void> => {
@@ -170,6 +184,8 @@ export function useLlmSearch(options: SearchOptions = {}) {
     if (!trimmedQuery) {
       return;
     }
+
+    const searchRunId = ++activeSearchRunId;
 
     // 清空旧结果
     searchResults.value = [];
@@ -179,6 +195,10 @@ export function useLlmSearch(options: SearchOptions = {}) {
     const channel = new Channel<SearchStreamPayload>();
 
     channel.onmessage = (payload) => {
+      if (searchRunId !== activeSearchRunId) {
+        return;
+      }
+
       if (payload.type === "progress") {
         filesScanned.value = payload.data.filesScanned;
         filesMatched.value = payload.data.filesMatched;
@@ -205,6 +225,14 @@ export function useLlmSearch(options: SearchOptions = {}) {
     };
 
     try {
+      if (pendingCancelSearch) {
+        await pendingCancelSearch;
+      }
+
+      if (searchRunId !== activeSearchRunId) {
+        return;
+      }
+
       await invoke("search_llm_data_stream", {
         query: trimmedQuery,
         limit: resolvedLimit.value,
@@ -213,6 +241,9 @@ export function useLlmSearch(options: SearchOptions = {}) {
         onEvent: channel,
       });
     } catch (error) {
+      if (searchRunId !== activeSearchRunId) {
+        return;
+      }
       isSearching.value = false;
       showLoadingIndicator.value = false;
       clearLoadingTimer();
@@ -229,12 +260,18 @@ export function useLlmSearch(options: SearchOptions = {}) {
     lastQuery.value = trimmedQuery;
 
     if (!trimmedQuery) {
+      activeSearchRunId++;
+      requestCancelSearch();
       searchResults.value = [];
       searchError.value = null;
       isSearching.value = false;
       showLoadingIndicator.value = false;
       clearLoadingTimer();
       return;
+    }
+
+    if (isSearching.value) {
+      await requestCancelSearch();
     }
 
     isSearching.value = true;
@@ -255,6 +292,8 @@ export function useLlmSearch(options: SearchOptions = {}) {
   const search = (query: string) => {
     // 如果查询为空，立即清空结果
     if (!query.trim()) {
+      activeSearchRunId++;
+      requestCancelSearch();
       searchResults.value = [];
       searchError.value = null;
       isSearching.value = false;
@@ -264,9 +303,11 @@ export function useLlmSearch(options: SearchOptions = {}) {
       return;
     }
 
+    activeSearchRunId++;
+
     // 取消上一次未完成的搜索
     if (isSearching.value) {
-      cancelSearch();
+      requestCancelSearch();
     }
 
     // 标记内部搜索状态，但不立即显示 loading（由延迟计时器控制）
@@ -282,6 +323,8 @@ export function useLlmSearch(options: SearchOptions = {}) {
     lastQuery.value = trimmedQuery;
 
     if (!trimmedQuery) {
+      activeSearchRunId++;
+      requestCancelSearch();
       searchResults.value = [];
       searchError.value = null;
       return [];
@@ -289,7 +332,7 @@ export function useLlmSearch(options: SearchOptions = {}) {
 
     // 取消上一次未完成的搜索
     if (isSearching.value) {
-      cancelSearch();
+      await requestCancelSearch();
     }
 
     isSearching.value = true;
@@ -310,6 +353,8 @@ export function useLlmSearch(options: SearchOptions = {}) {
    * 清空搜索结果
    */
   const clearSearch = () => {
+    activeSearchRunId++;
+    requestCancelSearch();
     searchResults.value = [];
     searchError.value = null;
     lastQuery.value = "";

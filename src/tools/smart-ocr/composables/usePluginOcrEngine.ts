@@ -33,11 +33,15 @@ function findPlugin(pluginId: string) {
 }
 
 function assertPluginReady(pluginId: string, method: string): string {
+  if (!pluginId || !method) {
+    throw new Error("未选择可用的 OCR 插件引擎，请先安装并选择 OCR 扩展插件");
+  }
+
   const plugin = findPlugin(pluginId);
 
   if (!plugin) {
     throw new Error(
-      `未安装 OCR 插件 "${pluginId}"，请先在插件管理中导入并启用 Paddle OCR 插件`
+      `未安装 OCR 插件 "${pluginId}"，请先在插件管理中导入并启用 OCR 扩展插件`
     );
   }
 
@@ -46,7 +50,7 @@ function assertPluginReady(pluginId: string, method: string): string {
     throw new Error(`OCR 插件 "${plugin.name}" 已损坏，请重新安装插件`);
   }
 
-  if (!plugin.enabled) {
+  if (!(state?.enabled ?? plugin.enabled)) {
     throw new Error(`OCR 插件 "${plugin.name}" 未启用，请先在插件管理中启用`);
   }
 
@@ -77,7 +81,10 @@ export function usePluginOcrEngine() {
     onProgress?.(results);
 
     try {
-      const resolvedPluginId = assertPluginReady(config.pluginId, config.method);
+      const resolvedPluginId = assertPluginReady(
+        config.pluginId,
+        config.method
+      );
 
       logger.info(`使用插件 OCR 引擎识别 (${blocks.length} 块)`, {
         pluginId: resolvedPluginId,
@@ -185,3 +192,4 @@ export function usePluginOcrEngine() {
     recognizeBatch,
   };
 }
+

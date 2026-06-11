@@ -95,6 +95,7 @@ pub struct PluginManifest {
     pub methods: Option<Vec<MethodMetadata>>,
     pub settings_schema: Option<SettingsSchema>,
     pub ui: Option<PluginUiConfig>,
+    pub contributions: Option<Vec<Value>>,
     pub permissions: Option<Vec<String>>,
 }
 

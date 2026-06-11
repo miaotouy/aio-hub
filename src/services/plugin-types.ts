@@ -107,6 +107,48 @@ export interface NativeConfig {
   reloadable?: boolean;
 }
 
+export interface PluginOcrSelectOption {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+/**
+ * 插件对主应用能力点的贡献声明。
+ *
+ * `type` 决定贡献会被哪个宿主模块消费，例如 Smart OCR 消费 `ocr-engine`。
+ */
+export type PluginContribution =
+  | PluginOcrEngineContribution
+  | {
+      type: string;
+      id?: string;
+      name?: string;
+      description?: string;
+      [key: string]: unknown;
+    };
+
+export interface PluginOcrEngineContribution {
+  type: "ocr-engine";
+  /**
+   * 插件内的 OCR 引擎 ID；同一插件暴露多个 OCR 引擎时用于区分。
+   */
+  id?: string;
+  /** Smart OCR 引擎列表中显示的名称 */
+  name?: string;
+  description?: string;
+  /** 插件方法名，方法需在 manifest.methods 或动态 metadata 中存在 */
+  method: string;
+  /** 可选模型 Profile 列表，由插件定义 */
+  modelProfiles?: PluginOcrSelectOption[];
+  /** 默认模型 Profile ID */
+  defaultModelProfile?: string;
+  /** 可选识别语言列表，由插件定义 */
+  languages?: PluginOcrSelectOption[];
+  /** 默认识别语言 ID */
+  defaultLanguage?: string;
+}
+
 /**
  * 插件清单 (manifest.json)
  */
@@ -158,6 +200,9 @@ export interface PluginManifest {
 
   /** UI 配置 (可选) */
   ui?: PluginUiConfig;
+
+  /** 插件向宿主贡献的能力点 (可选) */
+  contributions?: PluginContribution[];
 
   /** 权限声明 (未来功能) */
   permissions?: string[];

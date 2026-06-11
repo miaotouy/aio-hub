@@ -3,14 +3,19 @@ import { computed } from "vue";
 import { useRouter } from "vue-router";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import { pluginManager } from "@/services/plugin-manager";
 import { Setting } from "@element-plus/icons-vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import { useSettingsNavigator } from "@/composables/useSettingsNavigator";
-import type { UploadedImage, OcrEngineConfig, SlicerConfig } from "../types";
+import type {
+  UploadedImage,
+  OcrEngineConfig,
+  OcrEngineType,
+  SlicerConfig,
+} from "../types";
 import type { SmartOcrConfig } from "../config/config";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useOcrProfiles } from "@/composables/useOcrProfiles";
+import { usePluginOcrExtensions } from "../composables/usePluginOcrExtensions";
 import { getTesseractLanguageOptions } from "../config/language-packs";
 import { History } from "lucide-vue-next";
 
@@ -41,24 +46,19 @@ const emit = defineEmits<{
 // 使用 composables
 const { visionProfiles } = useLlmProfiles();
 const { enabledProfiles: ocrProfiles } = useOcrProfiles();
+const { ocrExtensions, getOcrExtensionByConfig, getOcrExtensionById } =
+  usePluginOcrExtensions();
 
 // 动态获取 Tesseract 语言选项
 const tesseractLanguageOptions = computed(() => getTesseractLanguageOptions());
-const pluginModelProfileOptions = [
-  {
-    id: "ppocr-v5-mobile",
-    name: "PP-OCRv5 Mobile",
-  },
-];
-const pluginLanguageOptions = [
-  {
-    id: "ch",
-    name: "中文 + 英文",
-  },
-  {
-    id: "en",
-    name: "英文",
-  },
+const builtInEngineOptions: Array<{
+  label: string;
+  value: Exclude<OcrEngineType, "plugin">;
+}> = [
+  { label: "Native OCR (系统原生)", value: "native" },
+  { label: "Tesseract.js (本地)", value: "tesseract" },
+  { label: "云端OCR", value: "cloud" },
+  { label: "视觉语言模型 (VLM)", value: "vlm" },
 ];
 
 // 从 props 获取响应式状态
@@ -71,37 +71,47 @@ const pluginEngineConfig = computed(() =>
   engineConfig.value?.type === "plugin" ? engineConfig.value : null
 );
 
-const pluginStatus = computed(() => {
-  const pluginId = pluginEngineConfig.value?.pluginId ?? "paddle-ocr";
-  const devPluginId = `${pluginId}-dev`;
-  const states = pluginManager.pluginStates;
-  const plugin =
-    pluginManager.getPlugin(pluginId) ?? pluginManager.getPlugin(devPluginId);
-  const state = plugin
-    ? states[plugin.id]
-    : states[pluginId] || states[devPluginId];
+const currentPluginOcrExtension = computed(() => {
+  const config = pluginEngineConfig.value;
+  if (!config) return null;
 
-  if (!plugin) {
+  return getOcrExtensionByConfig(config.pluginId, config.method) ?? null;
+});
+
+const pluginEngineOptions = computed(() =>
+  ocrExtensions.value.map((extension) => ({
+    label: extension.name,
+    value: `plugin:${extension.id}`,
+  }))
+);
+
+const pluginStatus = computed(() => {
+  const extension = currentPluginOcrExtension.value;
+
+  if (!extension) {
     return {
       installed: false,
       enabled: false,
       broken: false,
-      name: "Paddle OCR",
+      name: pluginEngineConfig.value?.name || "插件 OCR",
     };
   }
 
   return {
     installed: true,
-    enabled: state?.enabled ?? plugin.enabled,
-    broken: state?.isBroken ?? false,
-    name: plugin.name,
+    enabled: extension.enabled,
+    broken: extension.broken,
+    name: extension.name,
   };
 });
 
 const pluginStatusHint = computed(() => {
   if (!pluginEngineConfig.value) return "";
+  if (ocrExtensions.value.length === 0) {
+    return "未安装提供 OCR 引擎的插件，请先在插件管理中导入插件 ZIP";
+  }
   if (!pluginStatus.value.installed) {
-    return "未安装 Paddle OCR 插件，请先在插件管理中导入插件 ZIP";
+    return "当前 OCR 插件引擎不可用，请重新选择已安装的 OCR 扩展";
   }
   if (pluginStatus.value.broken) {
     return `${pluginStatus.value.name} 插件已损坏，请重新安装`;
@@ -113,12 +123,37 @@ const pluginStatusHint = computed(() => {
 });
 
 // 引擎类型
-// 引擎类型
-const engineType = computed({
-  get: () => engineConfig.value?.type ?? "native",
-  set: (value) => {
-    // 切换类型时，发送一个仅包含类型的新对象
-    emit("updateEngineConfig", { type: value });
+const engineType = computed(() => engineConfig.value?.type ?? "native");
+
+const selectedEngineValue = computed({
+  get: () => {
+    if (engineConfig.value?.type !== "plugin") {
+      return engineConfig.value?.type ?? "native";
+    }
+
+    const extension = currentPluginOcrExtension.value;
+    return extension ? `plugin:${extension.id}` : "plugin-missing";
+  },
+  set: (value: string) => {
+    if (value.startsWith("plugin:")) {
+      const extension = getOcrExtensionById(value.replace(/^plugin:/, ""));
+      if (!extension) return;
+
+      emit("updateEngineConfig", {
+        type: "plugin",
+        name: extension.name,
+        pluginId: extension.pluginId,
+        method: extension.method,
+        modelProfile:
+          extension.defaultModelProfile ?? extension.modelProfiles[0]?.id,
+        language: extension.defaultLanguage ?? extension.languages[0]?.id,
+      });
+      return;
+    }
+
+    if (value !== "plugin-missing") {
+      emit("updateEngineConfig", { type: value as OcrEngineType });
+    }
   },
 });
 // Tesseract 语言
@@ -204,22 +239,44 @@ const cloudActiveProfileId = computed({
 });
 
 // 插件 OCR 模型配置
+const pluginModelProfileOptions = computed(
+  () => currentPluginOcrExtension.value?.modelProfiles ?? []
+);
+
 const pluginModelProfile = computed({
-  get: () =>
-    engineConfig.value?.type === "plugin"
-      ? (engineConfig.value.modelProfile ?? "ppocr-v5-mobile")
-      : "ppocr-v5-mobile",
+  get: () => {
+    const extension = currentPluginOcrExtension.value;
+    if (engineConfig.value?.type !== "plugin" || !extension) return "";
+
+    return (
+      engineConfig.value.modelProfile ??
+      extension.defaultModelProfile ??
+      extension.modelProfiles[0]?.id ??
+      ""
+    );
+  },
   set: (value) => {
     emit("updateEngineConfig", { modelProfile: value });
   },
 });
 
 // 插件 OCR 识别语言
+const pluginLanguageOptions = computed(
+  () => currentPluginOcrExtension.value?.languages ?? []
+);
+
 const pluginLanguage = computed({
-  get: () =>
-    engineConfig.value?.type === "plugin"
-      ? (engineConfig.value.language ?? "ch")
-      : "ch",
+  get: () => {
+    const extension = currentPluginOcrExtension.value;
+    if (engineConfig.value?.type !== "plugin" || !extension) return "";
+
+    return (
+      engineConfig.value.language ??
+      extension.defaultLanguage ??
+      extension.languages[0]?.id ??
+      ""
+    );
+  },
   set: (value) => {
     emit("updateEngineConfig", { language: value });
   },
@@ -391,7 +448,7 @@ const handleNavigateToSettings = () => {
                 : engineType === 'cloud'
                   ? '前往 OCR 服务设置配置云端服务'
                   : engineType === 'plugin'
-                    ? '前往插件管理导入或启用 OCR 插件'
+                    ? '前往插件管理导入或启用 OCR 扩展插件'
                     : '前往 LLM 服务设置（推荐配置 VLM）'
             "
             placement="left"
@@ -409,12 +466,25 @@ const handleNavigateToSettings = () => {
 
         <el-form label-position="top" size="small" class="section-form">
           <el-form-item label="引擎类型">
-            <el-select v-model="engineType" style="width: 100%">
-              <el-option label="Native OCR (系统原生)" value="native" />
-              <el-option label="Tesseract.js (本地)" value="tesseract" />
-              <el-option label="Paddle OCR (插件)" value="plugin" />
-              <el-option label="云端OCR" value="cloud" />
-              <el-option label="视觉语言模型 (VLM)" value="vlm" />
+            <el-select v-model="selectedEngineValue" style="width: 100%">
+              <el-option
+                v-for="option in builtInEngineOptions"
+                :key="option.value"
+                :label="option.label"
+                :value="option.value"
+              />
+              <el-option
+                v-for="option in pluginEngineOptions"
+                :key="option.value"
+                :label="option.label"
+                :value="option.value"
+              />
+              <el-option
+                v-if="engineType === 'plugin' && !currentPluginOcrExtension"
+                label="插件 OCR (未安装)"
+                value="plugin-missing"
+                disabled
+              />
             </el-select>
             <div
               v-if="engineType === 'vlm' && visionProfiles.length === 0"
@@ -476,8 +546,17 @@ const handleNavigateToSettings = () => {
             </div>
           </el-form-item>
 
-          <template v-if="engineType === 'plugin' && pluginEngineConfig">
-            <el-form-item label="模型 Profile">
+          <template
+            v-if="
+              engineType === 'plugin' &&
+              pluginEngineConfig &&
+              currentPluginOcrExtension
+            "
+          >
+            <el-form-item
+              v-if="pluginModelProfileOptions.length > 0"
+              label="模型 Profile"
+            >
               <el-select v-model="pluginModelProfile" style="width: 100%">
                 <el-option
                   v-for="option in pluginModelProfileOptions"
@@ -487,7 +566,10 @@ const handleNavigateToSettings = () => {
                 />
               </el-select>
             </el-form-item>
-            <el-form-item label="识别语言">
+            <el-form-item
+              v-if="pluginLanguageOptions.length > 0"
+              label="识别语言"
+            >
               <el-select v-model="pluginLanguage" style="width: 100%">
                 <el-option
                   v-for="option in pluginLanguageOptions"
@@ -496,9 +578,13 @@ const handleNavigateToSettings = () => {
                   :value="option.id"
                 />
               </el-select>
+            </el-form-item>
+            <el-form-item>
               <el-text size="small" type="info">
                 通过插件契约调用
-                {{ pluginEngineConfig.pluginId }}.{{ pluginEngineConfig.method }}
+                {{ pluginEngineConfig.pluginId }}.{{
+                  pluginEngineConfig.method
+                }}
               </el-text>
             </el-form-item>
           </template>

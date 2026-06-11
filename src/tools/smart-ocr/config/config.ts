@@ -54,11 +54,9 @@ export const defaultSmartOcrConfig: SmartOcrConfig = {
       activeProfileId: "", // 默认未选中任何云端服务
     },
     plugin: {
-      name: "Paddle OCR Plugin",
-      pluginId: "paddle-ocr",
-      method: "recognizeBatch",
-      modelProfile: "ppocr-v5-mobile",
-      language: "ch",
+      name: "Plugin OCR",
+      pluginId: "",
+      method: "",
     },
   },
   slicerConfig: {

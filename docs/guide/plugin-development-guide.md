@@ -50,7 +50,33 @@ plugins/
 - **tags**: 标签数组，用于插件的分类和搜索（如 `["工具", "文本处理"]`）
 - **settingsSchema**: 插件配置项的定义（详见配置系统文档）
 - **ui**: UI 组件配置（详见 UI 开发指南）
+- **contributions**: 插件向宿主应用声明的扩展能力数组。每一项通过 `type` 标识扩展点，宿主模块按需消费对应类型。
 - **permissions**: 权限声明（未来功能）
+
+#### contributions 示例：注册 Smart OCR 引擎
+
+`contributions` 是通用字段，不绑定某个具体模块。Smart OCR 只会消费其中 `type` 为 `ocr-engine` 的条目；插件未安装时，对应 OCR 引擎不会出现在主应用引擎列表中。
+
+```json
+{
+  "contributions": [
+    {
+      "type": "ocr-engine",
+      "id": "paddle-ocr",
+      "name": "Paddle OCR",
+      "description": "通过插件 sidecar 提供本地 OCR 识别",
+      "method": "recognizeBatch",
+      "modelProfiles": [{ "id": "ppocr-v5-mobile", "name": "PP-OCRv5 Mobile" }],
+      "defaultModelProfile": "ppocr-v5-mobile"
+      // "languages": [
+      //   { "id": "ch", "name": "中文 + 英文" },
+      //   { "id": "en", "name": "英文" }
+      // ],
+      // "defaultLanguage": "ch"
+    }
+  ]
+}
+```
 
 #### 示例
 

@@ -762,13 +762,20 @@ class PluginManager {
                 plugin.manifest.icon
               );
 
+              const isBroken = (plugin as any).isBroken || false;
+
               // 激活插件
               const shouldEnable = await pluginStateService.isEnabled(
                 plugin.id
               );
-              if (shouldEnable) {
+              if (shouldEnable && !isBroken) {
                 await plugin.enable(this.createPluginContext(plugin.id));
               }
+
+              this.pluginStates[plugin.id] = {
+                enabled: plugin.enabled,
+                isBroken,
+              };
 
               // 只为启用的插件注册 UI
               if (plugin.enabled) {

@@ -603,6 +603,7 @@ export type Patch =
 export interface NodeIndex {
   node: AstNode;
   parentId?: string;
+  path: number[];
 }
 
 /**

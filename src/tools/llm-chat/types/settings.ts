@@ -349,7 +349,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     contentMaxWidth: 800, // 默认最大宽度 800px
     rendererThrottleMs: 80, // AST 节流值
     smoothingEnabled: true, // 流式平滑化
-    throttleEnabled: false, //  AST 节流开关
+    throttleEnabled: true, // AST 节流开关
     enableEnterAnimation: true, // 默认开启
     showWallpaperInDetachedMode: true, // 默认开启分离模式壁纸
     enableDetachableHandle: true, // 默认允许组件分离

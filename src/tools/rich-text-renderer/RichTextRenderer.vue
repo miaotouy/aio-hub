@@ -77,6 +77,35 @@ function wrapBareHtmlPage(text: string): string {
   return text;
 }
 
+/**
+ * 流式渲染时隐藏末尾尚未闭合的 HTML 标签片段。
+ *
+ * 这不会修改原始 buffer，只影响本帧交给 parser 的可见文本，避免 `<` / `<div`
+ * 先按普通文本渲染、下一帧又变成 HTML 节点导致闪烁。
+ */
+function hideTrailingIncompleteHtmlTag(text: string): string {
+  if (!text) return text;
+
+  const lastOpenBracket = text.lastIndexOf("<");
+  if (lastOpenBracket === -1) return text;
+
+  const suffix = text.slice(lastOpenBracket);
+  if (suffix.includes(">")) return text;
+
+  if (suffix === "<" || suffix === "</") {
+    return text.slice(0, lastOpenBracket);
+  }
+
+  const looksLikeHtmlTag =
+    /^<\/?[a-zA-Z][a-zA-Z0-9:_-]*(?:[\s"'=:/.[\]#;,%+*(){}|?-].*)?$/.test(
+      suffix
+    ) ||
+    /^<![a-zA-Z-][^<>]*$/.test(suffix) ||
+    /^<\?[a-zA-Z][^<>]*$/.test(suffix);
+
+  return looksLikeHtmlTag ? text.slice(0, lastOpenBracket) : text;
+}
+
 const props = withDefaults(
   defineProps<{
     content?: string;
@@ -391,6 +420,27 @@ const processedContent = computed(() => {
   return text;
 });
 
+const prepareStreamBufferForRender = (rawText: string): string => {
+  let text = rawText.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+
+  if (props.regexRules && props.regexRules.length > 0) {
+    text = applyRegexRules(text, props.regexRules, true);
+  }
+
+  text = hideTrailingIncompleteHtmlTag(text);
+  text = wrapBareHtmlPage(text);
+
+  if (props.resolveAsset && !useAstRenderer.value) {
+    text = props.resolveAsset(text);
+  }
+
+  if (text && !text.endsWith("\n")) {
+    text += "\n";
+  }
+
+  return text;
+};
+
 /**
  * 静态内容模式：监听处理后的 content 变化
  */
@@ -535,28 +585,7 @@ onMounted(() => {
         // 接收平滑化后的增量内容，累积到 buffer
         buffer.value += smoothedContent;
 
-        // 应用正则规则（需要在完整文本上执行）
-        let bufferToProcess = buffer.value;
-        if (props.regexRules && props.regexRules.length > 0) {
-          bufferToProcess = applyRegexRules(
-            bufferToProcess,
-            props.regexRules,
-            true
-          );
-        }
-
-        // 2. 自动包裹裸 HTML 页面
-        bufferToProcess = wrapBareHtmlPage(bufferToProcess);
-
-        // 解析资产路径 (仅在纯渲染模式下全局应用)
-        if (props.resolveAsset && !useAstRenderer.value) {
-          bufferToProcess = props.resolveAsset(bufferToProcess);
-        }
-
-        // 补全末尾换行
-        if (bufferToProcess && !bufferToProcess.endsWith("\n")) {
-          bufferToProcess += "\n";
-        }
+        const bufferToProcess = prepareStreamBufferForRender(buffer.value);
 
         if (useAstRenderer.value) {
           if (props.verboseLogging) {
@@ -594,31 +623,7 @@ onMounted(() => {
     unsubscribe = props.streamSource.subscribe((chunk) => {
       buffer.value += chunk;
 
-      // 在流式模式下，我们必须手动应用正则规则和资产解析到 buffer
-      // 因为 props.content 通常是空的或静态的，而 buffer 才是包含最新内容的数据源
-      let bufferToProcess = buffer.value;
-
-      // 1. 应用正则规则
-      if (props.regexRules && props.regexRules.length > 0) {
-        bufferToProcess = applyRegexRules(
-          bufferToProcess,
-          props.regexRules,
-          true
-        );
-      }
-
-      // 2. 自动包裹裸 HTML 页面
-      bufferToProcess = wrapBareHtmlPage(bufferToProcess);
-
-      // 3. 解析资产路径 (仅在纯渲染模式下全局应用)
-      if (props.resolveAsset && !useAstRenderer.value) {
-        bufferToProcess = props.resolveAsset(bufferToProcess);
-      }
-
-      // 4. 补全末尾换行：辅助解析器闭合末尾的块节点
-      if (bufferToProcess && !bufferToProcess.endsWith("\n")) {
-        bufferToProcess += "\n";
-      }
+      const bufferToProcess = prepareStreamBufferForRender(buffer.value);
 
       if (useAstRenderer.value) {
         // 对于流式数据，每次都处理整个应用了正则的缓冲区

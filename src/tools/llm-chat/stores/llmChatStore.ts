@@ -23,6 +23,7 @@ import {
   recalculateNodeTokens as recalculateNodeTokensService,
   fillMissingTokenMetadata as fillMissingTokenMetadataService,
 } from "../utils/chatTokenUtils";
+import { completeAndDisposeStreamingMessageSource } from "../composables/chat/useStreamingMessageSources";
 import type {
   ChatSessionIndex,
   ChatSessionDetail,
@@ -1240,6 +1241,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
         }
 
         logger.info("已中止节点生成", { nodeId });
+        completeAndDisposeStreamingMessageSource(nodeId);
       });
       abortControllers.value.clear();
       generatingNodes.value.clear();
@@ -1282,6 +1284,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
       }
 
       logger.info("已中止节点生成", { nodeId });
+      completeAndDisposeStreamingMessageSource(nodeId);
     }
   }
 

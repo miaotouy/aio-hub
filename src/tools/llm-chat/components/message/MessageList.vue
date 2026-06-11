@@ -102,25 +102,44 @@ const compressedNodeIds = computed(() => {
   return ids;
 });
 
-// 为每条消息计算兄弟节点信息
-const getMessageSiblings = (messageId: string) => {
-  const message = props.messages.find((m) => m.id === messageId);
+interface MessageSiblingInfo {
+  siblings: ChatMessageNode[];
+  currentIndex: number;
+}
 
-  if (message?.metadata?.isPresetDisplay) {
-    return {
-      siblings: [message],
-      currentIndex: 0,
-    };
+// 为每条消息预计算兄弟节点信息，避免模板中重复触发树查询。
+const messageSiblingInfoMap = computed(() => {
+  const map = new Map<string, MessageSiblingInfo>();
+
+  for (const message of props.messages) {
+    if (message.metadata?.isPresetDisplay) {
+      map.set(message.id, {
+        siblings: [message],
+        currentIndex: 0,
+      });
+      continue;
+    }
+
+    const siblings = store.getSiblings(message.id);
+    const currentIndex = siblings.findIndex((s: ChatMessageNode) =>
+      store.isNodeInActivePath(s.id)
+    );
+    map.set(message.id, {
+      siblings,
+      currentIndex,
+    });
   }
 
-  const siblings = store.getSiblings(messageId);
-  const currentIndex = siblings.findIndex((s: ChatMessageNode) =>
-    store.isNodeInActivePath(s.id)
+  return map;
+});
+
+const getMessageSiblings = (messageId: string): MessageSiblingInfo => {
+  return (
+    messageSiblingInfoMap.value.get(messageId) ?? {
+      siblings: [],
+      currentIndex: -1,
+    }
   );
-  return {
-    siblings,
-    currentIndex,
-  };
 };
 
 // ===== 气泡布局：预计算每条消息的角色 / 对齐信息 =====
@@ -309,7 +328,7 @@ const setupMessageVisibilityObserver = () => {
   });
   messageVisibilityObserver.observe(inner, {
     childList: true,
-    subtree: true,
+    subtree: false,
   });
   scheduleMessageVisibilityOptimization();
 };
@@ -592,17 +611,13 @@ watch(
 
 // 监听消息变化，自动滚动
 watch(
-  [
-    () => props.messages.length,
-    () => props.messages[props.messages.length - 1]?.content,
-  ],
-  ([newLength, newLastContent], [oldLength, oldLastContent]) => {
+  () => props.messages.length,
+  (newLength, oldLength) => {
     scheduleMessageVisibilityOptimization();
 
     if (!settings.value.uiPreferences.autoScroll) return;
 
     const isNewMessage = newLength !== oldLength;
-    const isContentChanged = newLastContent !== oldLastContent;
 
     if (isNewMessage) {
       // 消息从空变为非空：首次加载场景（刷新页面/打开应用恢复会话）
@@ -616,10 +631,6 @@ watch(
         // 新消息加入时，如果原本就在底部，激活底部锁定
         shouldStickToBottom.value = true;
         scrollToBottom(true);
-      }
-    } else if (isContentChanged) {
-      if (isNearBottom.value) {
-        scrollToBottom();
       }
     }
   }

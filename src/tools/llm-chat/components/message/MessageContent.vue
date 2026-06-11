@@ -42,6 +42,7 @@ import {
   filterRulesByDepth,
   processRulesWithMacros,
 } from "../../utils/chatRegexUtils";
+import { getOrCreateStreamingMessageSource } from "../../composables/chat/useStreamingMessageSources";
 import { createMacroContext } from "../../macro-engine/MacroContext";
 import type { ChatRegexRule } from "../../types/chatRegex";
 import { processMessageAssetsSync } from "../../utils/agentAssetUtils";
@@ -222,6 +223,46 @@ const isGenerating = computed(() => {
     llmChatStore.isNodeGenerating(props.message.id) // 增加 store 校验
   );
 });
+
+const streamingSource = computed(() => {
+  if (!isGenerating.value) return undefined;
+  return getOrCreateStreamingMessageSource(
+    props.message.id,
+    displayedContent.value || props.message.content || ""
+  );
+});
+
+const originalRendererKey = ref(`${props.message.id}:static`);
+
+watch(
+  () => [props.message.id, isGenerating.value] as const,
+  ([messageId, generating], oldState) => {
+    const oldMessageId = oldState?.[0];
+    const wasGenerating = oldState?.[1];
+
+    if (messageId !== oldMessageId) {
+      originalRendererKey.value = generating
+        ? `${messageId}:stream:${props.message.metadata?.requestStartTime || Date.now()}`
+        : `${messageId}:static`;
+      return;
+    }
+
+    // 只在进入生成态时 remount，让已有静态渲染器切换为 streamSource。
+    // 生成结束时保持同一个实例，避免 HTML 预览整块卸载重建导致闪烁跳跃。
+    if (generating && !wasGenerating) {
+      originalRendererKey.value = `${messageId}:stream:${props.message.metadata?.requestStartTime || Date.now()}`;
+    }
+  },
+  { immediate: true }
+);
+
+const originalRendererContent = computed(() =>
+  isGenerating.value ? "" : displayedContent.value || ""
+);
+
+const originalRendererEnterAnimation = computed(
+  () => settings.value.uiPreferences.enableEnterAnimation && !isGenerating.value
+);
 
 // 提取生成元数据用于渲染器计时
 const generationMetaForRenderer = computed(() => {
@@ -1010,7 +1051,9 @@ watch(
         </div>
         <RichTextRenderer
           v-if="displayedContent || isGenerating"
-          :content="displayedContent || ''"
+          :key="originalRendererKey"
+          :content="originalRendererContent"
+          :stream-source="streamingSource"
           :regex-rules="processedRules"
           :resolve-asset="resolveAsset"
           :version="settings.uiPreferences.rendererVersion"
@@ -1034,7 +1077,7 @@ watch(
           :smoothing-enabled="settings.uiPreferences.smoothingEnabled"
           :throttle-enabled="settings.uiPreferences.throttleEnabled"
           :safety-guard-enabled="settings.uiPreferences.safetyGuardEnabled"
-          :enable-enter-animation="settings.uiPreferences.enableEnterAnimation"
+          :enable-enter-animation="originalRendererEnterAnimation"
           :should-freeze="shouldFreezeHtml"
           :show-token-count="settings.uiPreferences.showTokenCountForBlocks"
           :code-editor-engine="settings.uiPreferences.codeEditorEngine"

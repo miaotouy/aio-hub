@@ -14,6 +14,10 @@ import { processInlineData } from "@/composables/useAttachmentProcessor";
 import { useSessionManager } from "../session/useSessionManager";
 import { useChatSettings } from "../settings/useChatSettings";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
+import {
+  appendStreamingMessageChunk,
+  completeAndDisposeStreamingMessageSource,
+} from "./useStreamingMessageSources";
 
 const logger = createModuleLogger("llm-chat/response-handler");
 const errorHandler = createModuleErrorHandler("llm-chat/response-handler");
@@ -24,10 +28,15 @@ export function useChatResponseHandler() {
     string,
     { buffer: string; isScheduled: boolean }
   >();
-  const contentUpdateBuffer = new Map<
-    string,
-    { buffer: string; isScheduled: boolean }
-  >();
+
+  interface ContentUpdateState {
+    persistBuffer: string;
+    syncBuffer: string;
+    isSyncScheduled: boolean;
+    persistTimer: number | null;
+  }
+
+  const contentUpdateBuffer = new Map<string, ContentUpdateState>();
 
   // 用于控制增量保存的频率
   const lastPersistTimeMap = new Map<string, number>();
@@ -36,6 +45,91 @@ export function useChatResponseHandler() {
    * 触发增量保存
    */
   const bus = useWindowSyncBus();
+
+  const getContentState = (nodeId: string): ContentUpdateState => {
+    let state = contentUpdateBuffer.get(nodeId);
+    if (!state) {
+      state = {
+        persistBuffer: "",
+        syncBuffer: "",
+        isSyncScheduled: false,
+        persistTimer: null,
+      };
+      contentUpdateBuffer.set(nodeId, state);
+    }
+    return state;
+  };
+
+  const getContentPersistDelay = (): number => {
+    const { settings } = useChatSettings();
+    const config = settings.value.requestSettings;
+    return config.enableIncrementalSave
+      ? Math.max(250, config.incrementalSaveInterval)
+      : 2000;
+  };
+
+  const flushContentToNode = (
+    session: ChatSessionDetail,
+    nodeId: string
+  ): void => {
+    const state = contentUpdateBuffer.get(nodeId);
+    if (!state) return;
+
+    if (state.persistTimer !== null) {
+      clearTimeout(state.persistTimer);
+      state.persistTimer = null;
+    }
+
+    if (!state.persistBuffer || !session.nodes) return;
+    const nodeToUpdate = session.nodes[nodeId];
+    if (!nodeToUpdate) return;
+
+    nodeToUpdate.content = (nodeToUpdate.content || "") + state.persistBuffer;
+    state.persistBuffer = "";
+
+    // 尝试增量保存
+    triggerIncrementalSave(session);
+  };
+
+  const scheduleContentFlush = (
+    session: ChatSessionDetail,
+    nodeId: string
+  ): void => {
+    const state = getContentState(nodeId);
+    if (state.persistTimer !== null) return;
+
+    state.persistTimer = window.setTimeout(() => {
+      flushContentToNode(session, nodeId);
+    }, getContentPersistDelay());
+  };
+
+  const scheduleStreamSync = (
+    session: ChatSessionDetail,
+    nodeId: string
+  ): void => {
+    const state = getContentState(nodeId);
+    if (state.isSyncScheduled) return;
+
+    state.isSyncScheduled = true;
+    requestAnimationFrame(() => {
+      const delta = state.syncBuffer;
+      state.syncBuffer = "";
+      state.isSyncScheduled = false;
+
+      if (!delta) return;
+      bus.syncState(
+        "chat:streaming-delta" as any,
+        {
+          sessionId: session.id,
+          nodeId,
+          delta,
+          isReasoning: false,
+        },
+        0,
+        false
+      );
+    });
+  };
 
   const triggerIncrementalSave = (session: ChatSessionDetail) => {
     const { settings } = useChatSettings();
@@ -130,64 +224,36 @@ export function useChatResponseHandler() {
         });
       }
     } else {
-      // 正文内容流式更新（节流）
-      if (!contentUpdateBuffer.has(nodeId)) {
-        contentUpdateBuffer.set(nodeId, { buffer: "", isScheduled: false });
-      }
-      const contentState = contentUpdateBuffer.get(nodeId)!;
-      contentState.buffer += chunk;
+      // 正文内容流式更新：渲染走 StreamSource，节点内容降频写入用于持久化。
+      appendStreamingMessageChunk(nodeId, chunk);
 
-      if (!contentState.isScheduled) {
-        contentState.isScheduled = true;
-        requestAnimationFrame(() => {
-          if (!session.nodes) return;
-          const nodeToUpdate = session.nodes[nodeId];
-          if (nodeToUpdate) {
-            // 在更新前检查是否需要结束 reasoning
-            if (
-              nodeToUpdate.content === "" &&
-              nodeToUpdate.metadata?.reasoningContent &&
-              nodeToUpdate.metadata?.reasoningStartTime &&
-              !nodeToUpdate.metadata?.reasoningEndTime
-            ) {
-              // 强制刷新一次 reasoning 缓冲区
-              const reasoningState = reasoningUpdateBuffer.get(nodeId);
-              if (reasoningState && reasoningState.buffer) {
-                nodeToUpdate.metadata.reasoningContent += reasoningState.buffer;
-                reasoningState.buffer = "";
-              }
-              nodeToUpdate.metadata.reasoningEndTime = Date.now();
-              logger.info("🕐 推理结束时间已记录（正文开始）", {
-                nodeId,
-                startTime: nodeToUpdate.metadata.reasoningStartTime,
-                endTime: nodeToUpdate.metadata.reasoningEndTime,
-                duration:
-                  nodeToUpdate.metadata.reasoningEndTime -
-                  nodeToUpdate.metadata.reasoningStartTime,
-              });
-            }
-            nodeToUpdate.content += contentState.buffer;
-
-            // 跨窗口同步增量
-            bus.syncState(
-              "chat:streaming-delta" as any,
-              {
-                sessionId: session.id,
-                nodeId,
-                delta: contentState.buffer,
-                isReasoning: false,
-              },
-              0,
-              false
-            );
-          }
-          contentState.buffer = "";
-          contentState.isScheduled = false;
-
-          // 尝试增量保存
-          triggerIncrementalSave(session);
+      if (
+        node.content === "" &&
+        node.metadata?.reasoningContent &&
+        node.metadata?.reasoningStartTime &&
+        !node.metadata?.reasoningEndTime
+      ) {
+        // 强制刷新一次 reasoning 缓冲区
+        const reasoningState = reasoningUpdateBuffer.get(nodeId);
+        if (reasoningState && reasoningState.buffer) {
+          node.metadata.reasoningContent += reasoningState.buffer;
+          reasoningState.buffer = "";
+        }
+        node.metadata.reasoningEndTime = Date.now();
+        logger.info("🕐 推理结束时间已记录（正文开始）", {
+          nodeId,
+          startTime: node.metadata.reasoningStartTime,
+          endTime: node.metadata.reasoningEndTime,
+          duration:
+            node.metadata.reasoningEndTime - node.metadata.reasoningStartTime,
         });
       }
+
+      const contentState = getContentState(nodeId);
+      contentState.persistBuffer += chunk;
+      contentState.syncBuffer += chunk;
+      scheduleStreamSync(session, nodeId);
+      scheduleContentFlush(session, nodeId);
     }
   };
 
@@ -296,9 +362,13 @@ export function useChatResponseHandler() {
       }
 
       const cState = contentUpdateBuffer.get(nodeId);
-      if (cState && cState.buffer) {
-        node.content = (node.content || "") + cState.buffer;
-        cState.buffer = "";
+      if (cState && cState.persistBuffer) {
+        if (cState.persistTimer !== null) {
+          clearTimeout(cState.persistTimer);
+          cState.persistTimer = null;
+        }
+        node.content = (node.content || "") + cState.persistBuffer;
+        cState.persistBuffer = "";
       }
     };
     flushAllBuffers();
@@ -410,6 +480,8 @@ export function useChatResponseHandler() {
       finalNode.content = processedContent;
     }
 
+    completeAndDisposeStreamingMessageSource(nodeId);
+
     finalNode.status = "complete";
 
     // 保留流式更新时设置的推理内容和时间戳
@@ -460,7 +532,8 @@ export function useChatResponseHandler() {
       });
     }
 
-    // 在 finalize 阶段，确保所有缓冲的内容都已写入
+    // 在 finalize 阶段，确保所有缓冲的推理内容都已写入。
+    // 正文最终以 API 完整响应 processedContent 为准，避免在最终落盘后重复拼接流式缓冲。
     const reasoningState = reasoningUpdateBuffer.get(nodeId);
     if (reasoningState && reasoningState.buffer) {
       finalNode.metadata.reasoningContent =
@@ -471,10 +544,12 @@ export function useChatResponseHandler() {
       });
     }
     const contentState = contentUpdateBuffer.get(nodeId);
-    if (contentState && contentState.buffer) {
-      finalNode.content += contentState.buffer;
-      contentState.buffer = "";
-      logger.debug("Flushed remaining content buffer on finalize", { nodeId });
+    if (contentState) {
+      if (contentState.persistTimer !== null) {
+        clearTimeout(contentState.persistTimer);
+        contentState.persistTimer = null;
+      }
+      contentState.persistBuffer = "";
     }
 
     // 如果有推理内容和开始时间，恢复时间戳
@@ -497,6 +572,10 @@ export function useChatResponseHandler() {
 
     // 清理缓冲和保存状态
     reasoningUpdateBuffer.delete(nodeId);
+    const finalContentState = contentUpdateBuffer.get(nodeId);
+    if (finalContentState?.persistTimer != null) {
+      clearTimeout(finalContentState.persistTimer);
+    }
     contentUpdateBuffer.delete(nodeId);
     lastPersistTimeMap.delete(session.id);
 
@@ -551,8 +630,13 @@ export function useChatResponseHandler() {
 
     // 清理缓冲和保存状态
     reasoningUpdateBuffer.delete(nodeId);
+    const contentState = contentUpdateBuffer.get(nodeId);
+    if (contentState?.persistTimer != null) {
+      clearTimeout(contentState.persistTimer);
+    }
     contentUpdateBuffer.delete(nodeId);
     lastPersistTimeMap.delete(session.id);
+    completeAndDisposeStreamingMessageSource(nodeId);
   };
 
   return {

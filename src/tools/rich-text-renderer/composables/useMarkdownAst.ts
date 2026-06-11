@@ -45,11 +45,17 @@ export function useMarkdownAst(
   /**
    * 构建 nodeMap 索引
    */
-  function buildNodeMap(nodes: AstNode[], parentId?: string) {
-    for (const node of nodes) {
-      nodeMap.set(node.id, { node, parentId });
+  function buildNodeMap(
+    nodes: AstNode[],
+    parentId?: string,
+    path: number[] = []
+  ) {
+    for (let index = 0; index < nodes.length; index++) {
+      const node = nodes[index];
+      const nodePath = [...path, index];
+      nodeMap.set(node.id, { node, parentId, path: nodePath });
       if (node.children) {
-        buildNodeMap(node.children, node.id);
+        buildNodeMap(node.children, node.id, nodePath);
       }
     }
   }
@@ -98,6 +104,70 @@ export function useMarkdownAst(
   /**
    * 应用单个 Patch（不可变更新）
    */
+  function updateNodeAtPath(
+    nodes: AstNode[],
+    path: number[],
+    updater: (node: AstNode) => AstNode
+  ): AstNode[] {
+    if (path.length === 0) return nodes;
+
+    const [index, ...rest] = path;
+    const node = nodes[index];
+    if (!node) return nodes;
+
+    const nextNodes = [...nodes];
+    if (rest.length === 0) {
+      nextNodes[index] = updater(node);
+      return nextNodes;
+    }
+
+    if (!node.children) return nodes;
+    const nextChildren = updateNodeAtPath(node.children, rest, updater);
+    if (nextChildren === node.children) return nodes;
+
+    nextNodes[index] = { ...node, children: nextChildren } as AstNode;
+    return nextNodes;
+  }
+
+  function spliceAtPath(
+    nodes: AstNode[],
+    path: number[],
+    deleteCount: number,
+    insertNodes: AstNode[] = []
+  ): AstNode[] {
+    if (path.length === 0) return nodes;
+
+    if (path.length === 1) {
+      const nextNodes = [...nodes];
+      nextNodes.splice(path[0], deleteCount, ...insertNodes);
+      return nextNodes;
+    }
+
+    const parentPath = path.slice(0, -1);
+    const childIndex = path[path.length - 1];
+    return updateNodeAtPath(nodes, parentPath, (parent) => {
+      if (!parent.children) return parent;
+      const nextChildren = [...parent.children];
+      nextChildren.splice(childIndex, deleteCount, ...insertNodes);
+      return { ...parent, children: nextChildren } as AstNode;
+    });
+  }
+
+  function replaceChildrenRange(
+    nodes: AstNode[],
+    parentPath: number[],
+    start: number,
+    deleteCount: number,
+    newChildren: AstNode[]
+  ): AstNode[] {
+    return updateNodeAtPath(nodes, parentPath, (parent) => {
+      if (!parent.children) return parent;
+      const nextChildren = [...parent.children];
+      nextChildren.splice(start, deleteCount, ...newChildren);
+      return { ...parent, children: nextChildren } as AstNode;
+    });
+  }
+
   function applySinglePatch(nodes: AstNode[], patch: Patch): AstNode[] {
     switch (patch.op) {
       case "replace-root":
@@ -105,177 +175,83 @@ export function useMarkdownAst(
         return patch.newRoot;
 
       case "text-append": {
-        // 找到目标节点并追加文本
-        return nodes.map((node) => {
-          if (node.id === patch.id) {
-            // 创建新节点，修改 props.content
-            // 只对有 content 属性的节点类型进行操作
-            if ("content" in node.props) {
-              return {
-                ...node,
-                props: {
-                  ...node.props,
-                  content: (node.props.content || "") + patch.text,
-                },
-              } as AstNode;
-            }
-            return node;
-          }
+        const index = nodeMap.get(patch.id);
+        if (!index) return nodes;
 
-          // 递归处理子节点
-          if (node.children) {
-            const newChildren = applySinglePatch(node.children, patch);
-            if (newChildren !== node.children) {
-              return { ...node, children: newChildren };
-            }
-          }
-
-          return node;
+        return updateNodeAtPath(nodes, index.path, (node) => {
+          if (!("content" in node.props)) return node;
+          return {
+            ...node,
+            props: {
+              ...node.props,
+              content: (node.props.content || "") + patch.text,
+            },
+          } as AstNode;
         });
       }
 
       case "set-prop": {
-        // 设置节点属性
-        return nodes.map((node) => {
-          if (node.id === patch.id) {
-            return {
-              ...node,
-              props: {
-                ...node.props,
-                [patch.key]: patch.value,
-              },
-            } as AstNode;
-          }
+        const index = nodeMap.get(patch.id);
+        if (!index) return nodes;
 
-          if (node.children) {
-            const newChildren = applySinglePatch(node.children, patch);
-            if (newChildren !== node.children) {
-              return { ...node, children: newChildren };
-            }
-          }
-
-          return node;
+        return updateNodeAtPath(nodes, index.path, (node) => {
+          return {
+            ...node,
+            props: {
+              ...node.props,
+              [patch.key]: patch.value,
+            },
+          } as AstNode;
         });
       }
 
       case "replace-node": {
-        // 替换节点
-        return nodes.map((node) => {
-          if (node.id === patch.id) {
-            return patch.newNode;
-          }
+        const index = nodeMap.get(patch.id);
+        if (!index) return nodes;
 
-          if (node.children) {
-            const newChildren = applySinglePatch(node.children, patch);
-            if (newChildren !== node.children) {
-              return { ...node, children: newChildren };
-            }
-          }
-
-          return node;
-        });
+        return updateNodeAtPath(nodes, index.path, () => patch.newNode);
       }
 
       case "insert-after": {
-        // 在指定节点之后插入（支持嵌套）
-        let found = false;
-        const result: AstNode[] = [];
+        const index = nodeMap.get(patch.id);
+        if (!index) return nodes;
 
-        for (const node of nodes) {
-          result.push(node);
-          if (node.id === patch.id) {
-            result.push(patch.newNode);
-            found = true;
-          } else if (!found && node.children) {
-            // 递归查找子节点
-            const newChildren = applySinglePatch(node.children, patch);
-            if (newChildren !== node.children) {
-              // 子节点中找到了，更新节点
-              result[result.length - 1] = { ...node, children: newChildren };
-              found = true;
-            }
-          }
-        }
-
-        return result;
+        return spliceAtPath(
+          nodes,
+          [
+            ...index.path.slice(0, -1),
+            index.path[index.path.length - 1] + 1,
+          ],
+          0,
+          [patch.newNode]
+        );
       }
 
       case "insert-before": {
-        // 在指定节点之前插入（支持嵌套）
-        let found = false;
-        const result: AstNode[] = [];
+        const index = nodeMap.get(patch.id);
+        if (!index) return nodes;
 
-        for (const node of nodes) {
-          if (node.id === patch.id) {
-            result.push(patch.newNode);
-            found = true;
-          }
-          result.push(node);
-
-          if (!found && node.children) {
-            // 递归查找子节点
-            const newChildren = applySinglePatch(node.children, patch);
-            if (newChildren !== node.children) {
-              // 子节点中找到了，更新节点
-              result[result.length - 1] = { ...node, children: newChildren };
-              found = true;
-            }
-          }
-        }
-
-        return result;
+        return spliceAtPath(nodes, index.path, 0, [patch.newNode]);
       }
 
       case "remove-node": {
-        // 删除节点
-        return nodes
-          .filter((node) => {
-            if (node.id === patch.id) {
-              return false;
-            }
+        const index = nodeMap.get(patch.id);
+        if (!index) return nodes;
 
-            if (node.children) {
-              const newChildren = applySinglePatch(node.children, patch);
-              if (newChildren !== node.children) {
-                return true; // 节点本身保留，但子节点已更新
-              }
-            }
-
-            return true;
-          })
-          .map((node) => {
-            if (node.children) {
-              const newChildren = applySinglePatch(node.children, patch);
-              if (newChildren !== node.children) {
-                return { ...node, children: newChildren };
-              }
-            }
-            return node;
-          });
+        return spliceAtPath(nodes, index.path, 1);
       }
 
       case "replace-children-range": {
-        // 替换子节点范围
-        return nodes.map((node) => {
-          if (node.id === patch.parentId && node.children) {
-            const newChildren = [...node.children];
-            newChildren.splice(
-              patch.start,
-              patch.deleteCount,
-              ...patch.newChildren
-            );
-            return { ...node, children: newChildren };
-          }
+        const index = nodeMap.get(patch.parentId);
+        if (!index) return nodes;
 
-          if (node.children) {
-            const newChildren = applySinglePatch(node.children, patch);
-            if (newChildren !== node.children) {
-              return { ...node, children: newChildren };
-            }
-          }
-
-          return node;
-        });
+        return replaceChildrenRange(
+          nodes,
+          index.path,
+          patch.start,
+          patch.deleteCount,
+          patch.newChildren
+        );
       }
 
       default:
@@ -294,6 +270,17 @@ export function useMarkdownAst(
     let newRoot = ast.value;
     for (const patch of coalesced) {
       newRoot = applySinglePatch(newRoot, patch);
+      if (
+        patch.op === "replace-root" ||
+        patch.op === "replace-node" ||
+        patch.op === "insert-after" ||
+        patch.op === "insert-before" ||
+        patch.op === "remove-node" ||
+        patch.op === "replace-children-range"
+      ) {
+        nodeMap.clear();
+        buildNodeMap(newRoot);
+      }
     }
 
     // 3. 替换引用以触发更新

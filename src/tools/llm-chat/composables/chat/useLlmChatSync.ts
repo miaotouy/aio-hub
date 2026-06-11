@@ -15,6 +15,7 @@ import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { useStateSyncEngine } from "@/composables/useStateSyncEngine";
 import { useToolCallingStore } from "../../stores/toolCallingStore";
 import { createModuleLogger } from "@/utils/logger";
+import { appendStreamingMessageChunk } from "./useStreamingMessageSources";
 import type { LlmChatStateKey } from "../../types/sync";
 import { CHAT_STATE_KEYS, createChatSyncConfig } from "../../types/sync";
 import type { ChatSessionIndex } from "../../types";
@@ -232,7 +233,7 @@ export function useLlmChatSync() {
               node.metadata.reasoningContent =
                 (node.metadata.reasoningContent || "") + delta;
             } else {
-              node.content = (node.content || "") + delta;
+              appendStreamingMessageChunk(nodeId, delta);
             }
           }
         }

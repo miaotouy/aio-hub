@@ -773,7 +773,60 @@ const showMeta = computed(() => {
 const usageInfo = computed(() => messageMetadata.value?.usage);
 const contentTokensValue = computed(() => messageMetadata.value?.contentTokens);
 const errorMessage = computed(() => messageMetadata.value?.error);
-const charCount = computed(() => props.message.content.length);
+
+const charCount = ref(0);
+
+watch(
+  [
+    () => props.message.content,
+    () => props.message.attachments,
+    () => props.message.metadata,
+  ],
+  async ([content, attachments, metadata]) => {
+    let totalChar = (content || "").length;
+    if (attachments && attachments.length > 0) {
+      const { modelId, profileId } = metadata || {};
+      let finalModelId = modelId;
+      let finalProfileId = profileId;
+
+      if (!finalModelId || !finalProfileId) {
+        const currentAgentId = agentStore.currentAgentId;
+        if (currentAgentId) {
+          const agentConfig = agentStore.getAgentConfig(currentAgentId);
+          if (agentConfig) {
+            finalModelId = agentConfig.modelId;
+            finalProfileId = agentConfig.profileId;
+          }
+        }
+      }
+
+      if (finalModelId && finalProfileId) {
+        try {
+          const { resolveAttachmentsBatch } =
+            await import("../../core/context-utils/attachment-resolver");
+          const resolved = await resolveAttachmentsBatch(
+            attachments,
+            finalModelId,
+            finalProfileId,
+            {
+              silent: true,
+              messageDepth: props.messageDepth,
+            }
+          );
+          for (const item of resolved) {
+            if (item.type === "text" && item.content) {
+              totalChar += item.content.length;
+            }
+          }
+        } catch (err) {
+          logger.warn("计算字数时解析附件失败", err);
+        }
+      }
+    }
+    charCount.value = totalChar;
+  },
+  { immediate: true, deep: true }
+);
 </script>
 
 <template>

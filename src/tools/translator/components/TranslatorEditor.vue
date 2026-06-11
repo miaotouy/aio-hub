@@ -46,6 +46,8 @@ const view = shallowRef<EditorView>();
 
 // 防止外部 props 同步触发的 docChanged 回流，导致用户正在打字的内容被回写
 let isSyncingFromProps = false;
+let isComposing = false;
+let lastEmittedValue = props.value;
 
 const editableConf = new Compartment();
 const themeConf = new Compartment();
@@ -152,12 +154,29 @@ onMounted(() => {
     EditorView.lineWrapping,
     EditorView.updateListener.of((update) => {
       if (update.docChanged) {
-        if (isSyncingFromProps) return;
+        if (isSyncingFromProps || isComposing) return;
         const newDoc = update.state.doc.toString();
+        lastEmittedValue = newDoc;
         emit("update:value", newDoc);
       }
     }),
     EditorView.domEventHandlers({
+      compositionstart: () => {
+        isComposing = true;
+        return false;
+      },
+      compositionend: () => {
+        isComposing = false;
+        nextTick(() => {
+          if (!view.value) return;
+          const currentDoc = view.value.state.doc.toString();
+          if (currentDoc !== lastEmittedValue) {
+            lastEmittedValue = currentDoc;
+            emit("update:value", currentDoc);
+          }
+        });
+        return false;
+      },
       keydown: (event) => {
         // 阻止编辑器内的 Ctrl+F 冒泡到外层全局搜索
         if (
@@ -199,6 +218,7 @@ watch(
   () => props.value,
   (newVal) => {
     if (!view.value) return;
+    if (isComposing || newVal === lastEmittedValue) return;
     const currentDoc = view.value.state.doc.toString();
     if (newVal === currentDoc) return;
     isSyncingFromProps = true;
@@ -206,12 +226,14 @@ watch(
       view.value.dispatch({
         changes: { from: 0, to: currentDoc.length, insert: newVal },
       });
+      lastEmittedValue = newVal;
     } finally {
       nextTick(() => {
         isSyncingFromProps = false;
       });
     }
-  }
+  },
+  { flush: "sync" }
 );
 
 watch(

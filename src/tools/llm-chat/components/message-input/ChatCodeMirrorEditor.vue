@@ -71,7 +71,7 @@ const inputManager = useChatInputManager();
 let isSyncingFromProps = false;
 let isComposing = false;
 let pendingPropsValueDuringComposition: string | null = null;
-let docAtCompositionStart = "";
+let lastEmittedValue = props.value;
 
 const editableConf = new Compartment();
 const themeConf = new Compartment();
@@ -234,6 +234,7 @@ const baseTheme = EditorView.theme({
 
 const syncDocFromProps = (newVal: string) => {
   if (!view.value) return;
+  if (isComposing) return; // composition 期间绝不回写
 
   const currentDoc = view.value.state.doc.toString();
   if (newVal === currentDoc) return;
@@ -247,6 +248,7 @@ const syncDocFromProps = (newVal: string) => {
     view.value.dispatch({
       changes: { from: 0, to: currentDoc.length, insert: newVal },
     });
+    lastEmittedValue = newVal;
   } finally {
     // 使用 nextTick 确保在当前事件循环结束后再重置，
     // 因为 dispatch 可能会同步触发 updateListener
@@ -311,11 +313,14 @@ onMounted(() => {
       EditorView.updateListener.of((update) => {
         // 监听文档变化
         if (update.docChanged) {
-          if (isSyncingFromProps) {
-            logger.debug("正在从 props 同步，忽略本次 docChanged emit");
+          if (isSyncingFromProps || isComposing) {
+            logger.debug(
+              "正在从 props 同步或 IME 组合中，忽略本次 docChanged emit"
+            );
             return;
           }
           const newDoc = update.state.doc.toString();
+          lastEmittedValue = newDoc;
           logger.debug("updateListener docChanged, emit update:value", {
             docLength: newDoc.length,
             hasUploading: newDoc.includes("uploading:"),
@@ -334,7 +339,6 @@ onMounted(() => {
         compositionstart: () => {
           isComposing = true;
           pendingPropsValueDuringComposition = null;
-          docAtCompositionStart = view.value?.state.doc.toString() || "";
           return false;
         },
         compositionend: () => {
@@ -342,16 +346,23 @@ onMounted(() => {
           const pendingValue = pendingPropsValueDuringComposition;
           pendingPropsValueDuringComposition = null;
 
-          // IME 组合期间收到的外部同步可能会取消首轮输入。
-          // 只在用户没有实际改动文档时才补应用，避免把刚提交的中文覆盖回旧草稿。
+          // compositionend 后 CM6 可能还需要一个 tick 来完成 DOM → doc 同步
+          // 必须在此补 emit，否则 composition 期间被拦截的输入会"丢失"
           nextTick(() => {
-            if (!view.value || pendingValue === null) return;
+            if (!view.value) return;
             const currentDoc = view.value.state.doc.toString();
-            if (
-              currentDoc === docAtCompositionStart &&
-              props.value === pendingValue
-            ) {
-              syncDocFromProps(pendingValue);
+
+            // 补 emit：如果最终文档和上次 emit 的不同，同步出去
+            if (currentDoc !== lastEmittedValue) {
+              lastEmittedValue = currentDoc;
+              emit("update:value", currentDoc);
+            }
+
+            // 如果 composition 期间有 pending 的外部值，且用户没改动，补应用
+            if (pendingValue !== null && currentDoc === lastEmittedValue) {
+              if (props.value === pendingValue && pendingValue !== currentDoc) {
+                syncDocFromProps(pendingValue);
+              }
             }
           });
           return false;
@@ -386,6 +397,8 @@ watch(
   () => props.value,
   (newVal) => {
     if (!view.value) return;
+    // 如果这个值就是我们自己 emit 出去的，不必回写
+    if (newVal === lastEmittedValue) return;
 
     if (isComposing) {
       pendingPropsValueDuringComposition = newVal;
@@ -396,7 +409,8 @@ watch(
     }
 
     syncDocFromProps(newVal);
-  }
+  },
+  { flush: "sync" }
 );
 
 // 监听禁用状态

@@ -157,6 +157,31 @@ function updateSetting(
               size="small"
             />
           </div>
+          <div class="setting-item">
+            <span class="setting-label native-hint">
+              使用原生输入框
+              <el-tooltip
+                content="规避 Chromium 中文输入首次丢失 Bug，纯文本输入，无语法高亮"
+                placement="top"
+                :show-after="800"
+              >
+                <span class="info-icon">ⓘ</span>
+              </el-tooltip>
+            </span>
+            <el-switch
+              :model-value="chatSettings.uiPreferences.useNativeTextarea"
+              @update:model-value="
+                (v: boolean | string | number) =>
+                  updateChatSettings({
+                    uiPreferences: {
+                      ...chatSettings.uiPreferences,
+                      useNativeTextarea: v as boolean,
+                    },
+                  })
+              "
+              size="small"
+            />
+          </div>
         </div>
       </el-popover>
     </div>

@@ -133,6 +133,9 @@ const emit = defineEmits<{
 const editorContainerRef = ref<HTMLDivElement | null>(null);
 const editorView = shallowRef<EditorView | null>(null);
 const editableCompartment = new Compartment();
+
+let isComposing = false;
+let lastEmittedValue = props.modelValue;
 const lineNumbersCompartment = new Compartment();
 const foldGutterCompartment = new Compartment();
 const historyCompartment = new Compartment();
@@ -427,11 +430,29 @@ const initCodeMirror = async () => {
     languageCompartment.of([]),
     EditorView.updateListener.of((update) => {
       if (update.docChanged) {
+        if (isComposing) return;
         const newContent = update.state.doc.toString();
+        lastEmittedValue = newContent;
         emit("update:modelValue", newContent);
       }
     }),
     EditorView.domEventHandlers({
+      compositionstart: () => {
+        isComposing = true;
+        return false;
+      },
+      compositionend: () => {
+        isComposing = false;
+        nextTick(() => {
+          if (!editorView.value) return;
+          const currentDoc = editorView.value.state.doc.toString();
+          if (currentDoc !== lastEmittedValue) {
+            lastEmittedValue = currentDoc;
+            emit("update:modelValue", currentDoc);
+          }
+        });
+        return false;
+      },
       focus(_event, _view) {
         wrapperRef.value?.classList.add("is-focused");
       },
@@ -440,7 +461,7 @@ const initCodeMirror = async () => {
       },
       contextmenu(_event, _view) {
         // 如果有选中文本，可以在这里处理
-        // 目前为了解决“搜索出不来”的问题，我们允许默认右键，
+        // 目前为了解决"搜索出不来"的问题，我们允许默认右键，
         // 如果需要右键搜索，可以取消注释下面代码
         // _event.preventDefault();
         // openSearchPanel(_view);
@@ -506,6 +527,7 @@ watch(
   (newVal) => {
     if (props.diff) return;
     if (props.editorType === "codemirror") {
+      if (isComposing || newVal === lastEmittedValue) return;
       if (
         editorView.value &&
         newVal !== editorView.value.state.doc.toString()
@@ -517,6 +539,7 @@ watch(
             insert: newVal,
           },
         });
+        lastEmittedValue = newVal;
       }
     } else if (props.editorType === "monaco") {
       if (newVal !== monacoValue.value) {

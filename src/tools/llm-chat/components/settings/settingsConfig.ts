@@ -318,6 +318,16 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         hint: "当聊天窗口悬浮化时，在其内部显示全局壁纸",
         keywords: "ui wallpaper background detached 分离 悬浮窗 壁纸 背景",
       },
+      {
+        id: "useNativeTextarea",
+        label: "使用原生输入框",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "uiPreferences.useNativeTextarea",
+        hint: "规避 Chromium 149+ 中文输入首次丢失 Bug。纯文本输入框，无语法高亮和宏补全。",
+        keywords:
+          "ui native textarea ime bug chromium 149 输入 中文 textarea 原生 输入框",
+      },
     ],
   },
   {

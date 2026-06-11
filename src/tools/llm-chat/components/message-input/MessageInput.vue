@@ -20,6 +20,7 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import ComponentHeader from "@/components/ComponentHeader.vue";
 import MessageInputToolbar from "./MessageInputToolbar.vue";
 import ChatCodeMirrorEditor from "./ChatCodeMirrorEditor.vue";
+import ChatTextareaEditor from "./ChatTextareaEditor.vue";
 import MessageInputAttachments from "./MessageInputAttachments.vue";
 
 // Composables
@@ -95,7 +96,10 @@ interface Emits {
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
-const textareaRef = ref<InstanceType<typeof ChatCodeMirrorEditor>>();
+const textareaRef = ref<
+  | InstanceType<typeof ChatCodeMirrorEditor>
+  | InstanceType<typeof ChatTextareaEditor>
+>();
 const containerRef = ref<HTMLDivElement>();
 const headerRef = ref<InstanceType<typeof ComponentHeader>>();
 const attachmentsContainerRef = ref<HTMLDivElement>();
@@ -544,9 +548,22 @@ const handleDragStart = (e: MouseEvent) => {
             @stop-all="inputStore.handleStopAllTranscriptions"
           />
         </div>
-
         <div class="input-wrapper">
           <ChatCodeMirrorEditor
+            v-if="!settings.uiPreferences.useNativeTextarea"
+            ref="textareaRef"
+            v-model:value="inputText"
+            :disabled="disabled"
+            :placeholder="placeholderText"
+            :height="editorHeight"
+            :max-height="editorMaxHeight"
+            :send-key="settings.shortcuts.send"
+            @keydown="handleKeydown"
+            @submit="inputStore.handleSend()"
+            @paste="inputStore.handlePaste"
+          />
+          <ChatTextareaEditor
+            v-else
             ref="textareaRef"
             v-model:value="inputText"
             :disabled="disabled"

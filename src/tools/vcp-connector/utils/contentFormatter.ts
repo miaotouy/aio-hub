@@ -1,21 +1,26 @@
 /**
  * VCP 日志内容格式化器
  *
- * 尝试解析 `[模块名] JSON` 格式的消息内容，
- * 将其格式化为可读的 Markdown / YAML 风格文本。
+ * 接收原始 vcp_log 消息中的 content 字段（纯 JSON 字符串或普通文本），
+ * 进行智能解析和定制化 Markdown 渲染。
+ *
+ * 支持场景：
+ * - DailyNote：日记归档通知，提取 message + folder/fileName/MaidName
+ * - AgentDream：梦境记录，提取主消息 + dreamLog 中的 insightContent 和参考日记
+ * - 通用 JSON：使用通用的 YAML 风格转换，或提取 result/content/message 字段
  */
 
 /** 解析结果 */
 export interface ParsedStructuredContent {
-  /** 方括号中的模块名 */
+  /** 模块名（优先使用外部传入的 toolName） */
   moduleName: string;
-  /** JSON 中的 status 字段 */
+  /** JSON 中的 status 字段，或外部传入的 status */
   status?: string;
-  /** 从 result.content[].text 提取并拼合的纯文本 */
+  /** 提取出的纯文本概要（用于浮动提示等简短场景） */
   textContent?: string;
   /** 完整的格式化文本（用于通知详情 / LogCard 展示） */
   formatted: string;
-  /** 格式化的标题行（模块名 + 状态） */
+  /** 格式化的标题行（模块名 + 状态图标） */
   headline: string;
   /** 原始解析出的 JSON 对象 */
   raw: Record<string, unknown>;
@@ -30,57 +35,76 @@ const STATUS_ICONS: Record<string, string> = {
 };
 
 /**
- * 尝试从 content 字符串中解析 `[ModuleName] { json }` 格式。
+ * 尝试从 content 字符串中智能解析结构化数据。
+ * 能够从任何包含前缀（如 "[ServerFileOperator] 执行错误: "）的文本中，
+ * 自动提取出 JSON 部分并进行解析。
  * 解析失败返回 `null`。
+ *
+ * @param content 原始 content 字符串
+ * @param defaultModuleName 当 JSON 中没有模块标识时的默认模块名（如外部 toolName）
  */
 export function tryParseStructuredContent(
-  content: string
+  content: string,
+  defaultModuleName?: string
 ): ParsedStructuredContent | null {
   if (!content) return null;
 
-  // 匹配 [模块名] 后面跟 JSON 对象
-  // 模块名允许字母、数字、中文、下划线、连字符、空格
-  const match = content.match(/^\s*\[([^\]]+)\]\s*(\{[\s\S]*\})\s*$/);
-  if (!match) return null;
+  let moduleName = defaultModuleName || "VCP";
+  const trimmed = content.trim();
 
-  const moduleName = match[1].trim();
-  const jsonStr = match[2];
+  // 1. 尝试提取中括号中的模块名，例如 "[ServerFileOperator] 执行错误: { ... }"
+  const moduleMatch = trimmed.match(/^\s*\[([^\]]+)\]/);
+  if (moduleMatch) {
+    moduleName = moduleMatch[1].trim();
+  }
+
+  // 2. 寻找第一个 '{' 和最后一个 '}'，提取出 JSON 字符串
+  const firstBrace = trimmed.indexOf("{");
+  const lastBrace = trimmed.lastIndexOf("}");
+
+  if (firstBrace === -1 || lastBrace === -1 || lastBrace < firstBrace) {
+    return null; // 没有 JSON 结构，是纯文本
+  }
+
+  const jsonStr = trimmed.slice(firstBrace, lastBrace + 1);
 
   let parsed: Record<string, unknown>;
   try {
     parsed = JSON.parse(jsonStr);
   } catch {
-    return null;
+    return null; // 提取出的部分不是合法的 JSON
+  }
+
+  // 3. 提取前缀文本（如果有的话，比如 "执行错误: "）
+  let prefixText = trimmed.slice(0, firstBrace).trim();
+  // 去掉中括号模块名，例如从 "[ServerFileOperator] 执行错误: " 变成 "执行错误: "
+  if (moduleMatch) {
+    prefixText = prefixText.slice(moduleMatch[0].length).trim();
+  }
+  // 去掉末尾的冒号
+  if (prefixText.endsWith(":")) {
+    prefixText = prefixText.slice(0, -1).trim();
+  }
+  if (prefixText.endsWith("：")) {
+    prefixText = prefixText.slice(0, -1).trim();
   }
 
   const status = typeof parsed.status === "string" ? parsed.status : undefined;
-
-  // 尝试提取 result.content[].text（MCP / OpenAI 风格）
-  const textContent = extractTextContent(parsed);
-
-  // 构建标题行
   const statusIcon = status ? STATUS_ICONS[status] || `[${status}]` : "";
   const headline = statusIcon
     ? `${moduleName} · ${statusIcon} ${status}`
     : moduleName;
 
-  // 构建格式化正文
-  const bodyParts: string[] = [];
+  // 4. 针对不同工具进行定制化 Markdown 渲染
+  const { textContent, formattedBody } = renderStructuredJson(
+    moduleName,
+    parsed,
+    prefixText
+  );
 
-  if (textContent) {
-    bodyParts.push(textContent);
-  } else {
-    // 没有可提取的文本内容，将 JSON 格式化成 YAML 风格
-    const yamlBody = jsonToYamlLike(parsed, ["status"]);
-    if (yamlBody) {
-      bodyParts.push(yamlBody);
-    }
-  }
-
-  const formatted =
-    bodyParts.length > 0
-      ? `${headline}\n───\n${bodyParts.join("\n")}`
-      : headline;
+  const formatted = formattedBody
+    ? `${headline}\n${"─".repeat(40)}\n${formattedBody}`
+    : headline;
 
   return {
     moduleName,
@@ -89,6 +113,119 @@ export function tryParseStructuredContent(
     formatted,
     headline,
     raw: parsed,
+  };
+}
+
+/**
+ * 根据模块名和 JSON 内容，渲染为定制化的 Markdown 文本。
+ * 返回提取的纯文本概要和格式化后的正文。
+ */
+function renderStructuredJson(
+  moduleName: string,
+  obj: Record<string, any>,
+  prefixText?: string
+): { textContent: string; formattedBody: string } {
+  let textContent = "";
+  const bodyParts: string[] = [];
+
+  // 如果有前缀文本（如 "执行错误"），先加进去
+  if (prefixText) {
+    bodyParts.push(`**提示**: ${prefixText}`);
+    bodyParts.push("");
+  }
+
+  const lowerModule = moduleName.toLowerCase();
+
+  // ── 场景 A：DailyNote 日记归档 ──
+  if (
+    (lowerModule === "dailynote" || lowerModule === "daily_note") &&
+    obj.message
+  ) {
+    textContent = obj.message;
+    bodyParts.push(`> ${obj.message}`);
+    bodyParts.push("");
+    if (obj.folder) bodyParts.push(`- **归档文件夹**: \`${obj.folder}\``);
+    if (obj.fileName) bodyParts.push(`- **归档文件名**: \`${obj.fileName}\``);
+    if (obj.MaidName) bodyParts.push(`- **记录人**: ${obj.MaidName}`);
+  }
+  // ── 场景 B：AgentDream 梦境记录 ──
+  else if (
+    lowerModule === "agentdream" ||
+    lowerModule === "agent_dream" ||
+    obj.dreamLog
+  ) {
+    // 提取主要通知消息
+    const mainMsg = extractTextContent(obj) || "";
+    textContent = mainMsg;
+
+    if (mainMsg) {
+      bodyParts.push(`> ${mainMsg.replace(/\n/g, "\n> ")}`);
+      bodyParts.push("");
+    }
+
+    // 提取 dreamLog 中的精华内容
+    const dreamLog = obj.dreamLog;
+    if (dreamLog && typeof dreamLog === "object") {
+      if (dreamLog.dreamId)
+        bodyParts.push(`**梦境 ID**: \`${dreamLog.dreamId}\``);
+      if (dreamLog.agentName)
+        bodyParts.push(`**记录者**: ${dreamLog.agentName}`);
+      bodyParts.push("");
+
+      if (Array.isArray(dreamLog.operations)) {
+        for (const op of dreamLog.operations) {
+          if (op.type === "insight" && op.insightContent) {
+            // 直接还原 Markdown 格式的梦感悟正文
+            bodyParts.push(op.insightContent);
+            bodyParts.push("");
+          }
+
+          // 提取参考日记
+          if (
+            Array.isArray(op.referenceDiaries) &&
+            op.referenceDiaries.length > 0
+          ) {
+            bodyParts.push("**📚 参考日记**");
+            op.referenceDiaries.forEach((diary: string) => {
+              const fileName = decodeURIComponent(
+                diary.split(/[/\\]/).pop() || diary
+              );
+              bodyParts.push(`- 📄 ${fileName}`);
+            });
+            bodyParts.push("");
+          }
+
+          if (op.suggestedMaid)
+            bodyParts.push(`**建议记录人**: ${op.suggestedMaid}`);
+        }
+      }
+    }
+  }
+  // ── 场景 C：通用 JSON 降级处理 ──
+  else {
+    textContent = extractTextContent(obj) || "";
+
+    // 如果 JSON 里有 message 字段，且 extractTextContent 没拿到（可能是纯 object 无 result）
+    if (!textContent && typeof obj.message === "string") {
+      textContent = obj.message;
+    }
+
+    if (textContent) {
+      bodyParts.push(textContent);
+    }
+
+    // 把其余尚未展示的顶层字段转成 YAML 风格
+    const skipKeys = ["status", "message", "text", "result", "content"];
+    const yamlBody = jsonToYamlLike(obj, skipKeys);
+    if (yamlBody) {
+      if (bodyParts.length > 0) bodyParts.push("");
+      bodyParts.push(yamlBody);
+    }
+  }
+
+  return {
+    textContent: textContent.trim(),
+    formattedBody: bodyParts.join("\n").trim(),
   };
 }
 
@@ -136,7 +273,7 @@ function extractTextContent(obj: Record<string, unknown>): string | null {
 /**
  * 将 JSON 对象转为 YAML 风格的可读文本（浅层，不递归太深）。
  * @param obj 要格式化的对象
- * @param skipKeys 要跳过的顶层键（如已在标题行展示的 status）
+ * @param skipKeys 要跳过的顶层键（如已在别处展示的）
  * @param indent 当前缩进层级
  * @param maxDepth 最大递归深度
  */
@@ -174,10 +311,8 @@ function jsonToYamlLike(
       } else if (
         value.every((v) => typeof v === "string" || typeof v === "number")
       ) {
-        // 简单数组：一行展示
         lines.push(`${pad}${key}: ${value.join(", ")}`);
       } else {
-        // 复杂数组：每项一行
         lines.push(`${pad}${key}:`);
         for (const item of value) {
           if (typeof item === "object" && item !== null) {

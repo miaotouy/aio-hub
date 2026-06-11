@@ -888,56 +888,76 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     const toolPrefix = effectiveToolName ? `[${effectiveToolName}] ` : "";
     const summary = summarizeLogContent(summarySource);
 
-    // 优先级 1：后端明确报错 (status === 'error')
+    // 3. 决定通知类型
+    let notifyType: "success" | "error" | "warning" | "info" = "info";
     if (effectiveStatus === "error") {
-      // 浮动提示用摘要，完整内容进通知中心
-      customMessage.error(`${toolPrefix}${summary || "执行错误"}`);
-      notify.error("VCP 执行错误", `${toolPrefix}${displayContent}`, {
-        source: "VCP",
-      });
-      return;
+      notifyType = "error";
+    } else if (effectiveStatus === "success") {
+      notifyType = "success";
+    } else if (effectiveStatus === "warning") {
+      notifyType = "warning";
+    } else {
+      // 根据内容关键字兜底判断类型
+      const lowerSearchText = searchText.toLowerCase();
+      if (
+        lowerSearchText.includes("error") ||
+        lowerSearchText.includes("failed") ||
+        lowerSearchText.includes("错误") ||
+        lowerSearchText.includes("失败")
+      ) {
+        notifyType = "error";
+      } else if (
+        lowerSearchText.includes("warning") ||
+        lowerSearchText.includes("警告")
+      ) {
+        notifyType = "warning";
+      } else if (
+        lowerSearchText.includes("success") ||
+        lowerSearchText.includes("成功") ||
+        lowerSearchText.includes("完成") ||
+        lowerSearchText.includes("归档")
+      ) {
+        notifyType = "success";
+      }
     }
 
-    // 优先级 2：包含任务 ID
-    if (taskId) {
-      notify.info(
-        `VCP 任务通知`,
-        `任务已启动 (ID: ${taskId})${effectiveToolName ? ` - ${effectiveToolName}` : ""}`,
-        {
-          source: "VCP",
-        }
-      );
-      return;
-    }
-
-    // 优先级 3：内容中包含错误关键字
-    const lowerSearchText = searchText.toLowerCase();
-    if (
-      lowerSearchText.includes("error") ||
-      lowerSearchText.includes("failed")
-    ) {
-      customMessage.error(`${toolPrefix}${summary}`);
-      notify.error("VCP 执行错误", `${toolPrefix}${displayContent}`, {
-        source: "VCP",
-      });
-      return;
-    }
-
-    // 优先级 4：成功/完成类关键字 -> 即时浮动提示（仅摘要，完整内容入通知中心）
-    if (
+    // 4. 弹出即时浮动提示 (ElMessage / customMessage)
+    // 只有在有明确状态，或者包含重要关键字时才弹出浮动提示，避免刷屏
+    const hasStatus = !!effectiveStatus;
+    const isImportant =
       searchText.includes("归档") ||
       searchText.includes("完成") ||
-      searchText.includes("成功")
-    ) {
-      customMessage.success(`${toolPrefix}${summary}`);
-      // 只在内容明显超长时才额外推一份到通知中心，避免短消息重复
-      if (displayContent.length > 80) {
-        notify.success("VCP 工具执行完成", `${toolPrefix}${displayContent}`, {
-          source: "VCP",
-        });
+      searchText.includes("成功") ||
+      searchText.includes("错误") ||
+      searchText.includes("失败") ||
+      taskId;
+
+    if (hasStatus || isImportant) {
+      if (notifyType === "error") {
+        customMessage.error(`${toolPrefix}${summary || "执行错误"}`);
+      } else if (notifyType === "warning") {
+        customMessage.warning(`${toolPrefix}${summary}`);
+      } else if (notifyType === "success") {
+        customMessage.success(`${toolPrefix}${summary}`);
+      } else {
+        customMessage.info(`${toolPrefix}${summary}`);
       }
-      return;
     }
+
+    // 5. 全量推送到通知中心
+    // 只要有工具名称，或者有内容，就应该推送到通知中心，不能漏掉任何工具消息！
+    const title = taskId
+      ? `VCP 任务通知 (ID: ${taskId})`
+      : notifyType === "error"
+        ? "VCP 执行错误"
+        : notifyType === "success"
+          ? "VCP 工具执行完成"
+          : "VCP 运行日志";
+
+    // 调用通知系统
+    notify[notifyType](title, `${toolPrefix}${displayContent}`, {
+      source: "VCP",
+    });
   }
 
   function clearMessages() {

@@ -65,6 +65,25 @@ const handleViewDetail = (e: Event) => {
   e.stopPropagation();
   emit("view-detail", props.notification);
 };
+
+// 格式化内容摘要，去除 Markdown 标记
+const displaySummary = computed(() => {
+  const content = props.notification.content || "";
+  // 如果包含 ───，说明是格式化后的内容
+  if (content.includes("───")) {
+    const parts = content.split("───\n");
+    const mainBody = parts.length > 1 ? parts[1] : content;
+    // 简单去除 Markdown 标题、粗体、列表符号、代码块
+    return mainBody
+      .replace(/#{1,6}\s+/g, "")
+      .replace(/\*\*/g, "")
+      .replace(/-\s+/g, "")
+      .replace(/`{1,3}/g, "")
+      .replace(/\n+/g, " ") // 换行转空格，保持单行/多行摘要的连贯性
+      .trim();
+  }
+  return content;
+});
 </script>
 
 <template>
@@ -84,7 +103,7 @@ const handleViewDetail = (e: Event) => {
     </div>
 
     <div class="item-content">
-      {{ notification.content }}
+      {{ displaySummary }}
     </div>
 
     <div class="item-footer">

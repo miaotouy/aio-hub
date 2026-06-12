@@ -79,4 +79,6 @@ export interface OcrExtension {
   };
   enabled: boolean;
   broken: boolean;
+  devMode?: boolean;
 }
+

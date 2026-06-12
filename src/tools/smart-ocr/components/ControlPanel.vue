@@ -94,6 +94,7 @@ const pluginStatus = computed(() => {
       enabled: false,
       broken: false,
       name: pluginEngineConfig.value?.name || "插件 OCR",
+      devMode: false,
     };
   }
 
@@ -102,6 +103,7 @@ const pluginStatus = computed(() => {
     enabled: extension.enabled,
     broken: extension.broken,
     name: extension.name,
+    devMode: extension.devMode,
   };
 });
 
@@ -113,13 +115,14 @@ const pluginStatusHint = computed(() => {
   if (!pluginStatus.value.installed) {
     return "当前 OCR 插件引擎不可用，请重新选择已安装的 OCR 扩展";
   }
+  const devSuffix = pluginStatus.value.devMode ? " [开发版]" : "";
   if (pluginStatus.value.broken) {
-    return `${pluginStatus.value.name} 插件已损坏，请重新安装`;
+    return `${pluginStatus.value.name}${devSuffix} 插件已损坏，请重新安装`;
   }
   if (!pluginStatus.value.enabled) {
-    return `${pluginStatus.value.name} 插件未启用，请先在插件管理中启用`;
+    return `${pluginStatus.value.name}${devSuffix} 插件未启用，请先在插件管理中启用`;
   }
-  return `${pluginStatus.value.name} 已启用`;
+  return `${pluginStatus.value.name}${devSuffix} 已启用`;
 });
 
 // 引擎类型

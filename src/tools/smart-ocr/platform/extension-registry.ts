@@ -39,7 +39,7 @@ function mapPluginContribution(
     contributionId,
     pluginId: plugin.id,
     pluginName: plugin.name ?? plugin.manifest.name,
-    name: `${contribution.name || plugin.name || plugin.manifest.name} (插件)`,
+    name: `${contribution.name || plugin.name || plugin.manifest.name} (插件)${plugin.devMode ? " [Dev]" : ""}`,
     description: contribution.description,
     method: contribution.method,
     modelProfiles: contribution.modelProfiles ?? [],
@@ -49,6 +49,7 @@ function mapPluginContribution(
     capabilities: contribution.capabilities,
     enabled: state?.enabled ?? plugin.enabled,
     broken: state?.isBroken ?? false,
+    devMode: plugin.devMode,
   };
 }
 

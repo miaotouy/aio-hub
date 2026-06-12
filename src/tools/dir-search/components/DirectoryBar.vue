@@ -14,6 +14,47 @@
         @keydown="onDirKeydown"
       />
     </div>
+    <el-dropdown
+      trigger="click"
+      popper-class="directory-bar__popper"
+      @command="handleHistoryCommand"
+    >
+      <div>
+        <el-tooltip content="历史目录" :show-after="500">
+          <button class="directory-bar__btn">
+            <History :size="16" />
+          </button>
+        </el-tooltip>
+      </div>
+      <template #dropdown>
+        <el-dropdown-menu class="directory-bar__history-menu">
+          <div class="directory-bar__history-title">历史目录</div>
+          <el-dropdown-item
+            v-for="(path, index) in directoryHistory"
+            :key="index"
+            :command="path"
+            class="directory-bar__history-item"
+          >
+            <span class="directory-bar__history-text" :title="path">{{
+              path
+            }}</span>
+          </el-dropdown-item>
+          <el-dropdown-item v-if="directoryHistory.length === 0" disabled>
+            <span class="directory-bar__history-empty">暂无历史记录</span>
+          </el-dropdown-item>
+          <el-dropdown-item
+            v-if="directoryHistory.length > 0"
+            divided
+            command="clear"
+            class="directory-bar__history-clear"
+          >
+            <Trash2 :size="14" class="directory-bar__clear-icon" />
+            <span>清空历史</span>
+          </el-dropdown-item>
+        </el-dropdown-menu>
+      </template>
+    </el-dropdown>
+
     <el-tooltip content="选择目录" :show-after="500">
       <button class="directory-bar__btn" @click="selectDirectory">
         <FolderSearch :size="16" />
@@ -25,7 +66,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { open } from "@tauri-apps/plugin-dialog";
-import { FolderOpen, FolderSearch } from "lucide-vue-next";
+import { FolderOpen, FolderSearch, History, Trash2 } from "lucide-vue-next";
 import { useFileDrop } from "@/composables/useFileDrop";
 import {
   useInputHistory,
@@ -43,15 +84,24 @@ const barRef = ref<HTMLElement>();
 
 // 历史记录集成
 const uiState = useDirSearchUiState();
+const { directoryHistory } = uiState;
 
 // 1. 键盘回溯
 const { onKeydown: onDirHistoryKeydown } = useInputHistory(
-  uiState.directoryHistory,
+  directoryHistory,
   modelValue
 );
 
 // 2. 自动保存
-useAutoSaveHistory(uiState.directoryHistory, modelValue, { maxLength: 10 });
+useAutoSaveHistory(directoryHistory, modelValue, { maxLength: 10 });
+
+function handleHistoryCommand(command: string) {
+  if (command === "clear") {
+    directoryHistory.value = [];
+  } else {
+    modelValue.value = command;
+  }
+}
 
 function onDirKeydown(e: KeyboardEvent) {
   if (e.key === "Enter" && e.ctrlKey) {
@@ -163,5 +213,73 @@ async function selectDirectory() {
     var(--el-color-primary-rgb),
     calc(var(--card-opacity) * 0.1)
   );
+}
+</style>
+
+<style>
+.directory-bar__popper.el-popper {
+  background-color: var(--card-bg) !important;
+  backdrop-filter: blur(var(--ui-blur)) !important;
+  border: var(--border-width) solid var(--border-color) !important;
+  box-shadow: var(--el-box-shadow-light) !important;
+}
+
+.directory-bar__popper .el-dropdown-menu {
+  background-color: transparent !important;
+  padding: 0 !important;
+}
+
+.directory-bar__popper .directory-bar__history-menu {
+  max-width: 400px;
+  min-width: 200px;
+}
+
+.directory-bar__popper .directory-bar__history-title {
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--el-text-color-secondary);
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 4px;
+}
+
+.directory-bar__popper .directory-bar__history-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 16px !important;
+}
+
+.directory-bar__popper .directory-bar__history-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--el-text-color-regular);
+}
+
+.directory-bar__popper .directory-bar__history-empty {
+  color: var(--el-text-color-placeholder);
+  font-size: 13px;
+  padding: 12px 16px;
+  display: block;
+  text-align: center;
+}
+
+.directory-bar__popper .directory-bar__history-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--el-color-danger) !important;
+  padding: 8px 16px !important;
+}
+
+.directory-bar__popper .directory-bar__history-clear:hover {
+  background-color: rgba(var(--el-color-danger-rgb), 0.1) !important;
+}
+
+.directory-bar__popper .directory-bar__clear-icon {
+  flex-shrink: 0;
 }
 </style>

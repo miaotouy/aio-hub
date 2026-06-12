@@ -72,4 +72,7 @@ export * from "./types";
 // 导出 UI 组件
 export * as ui from "./plugin-ui";
 
+// 导出 OCR 平台服务
+export * from "@/tools/smart-ocr/platform";
+
 // 你可以在这里添加更多想要暴露给插件的内部服务

@@ -11,7 +11,7 @@ import type {
 import type { SmartOcrConfig } from "../config/config";
 import { loadSmartOcrConfig, saveSmartOcrConfig } from "../config/config";
 import { useImageSlicer } from "./useImageSlicer";
-import { useOcrRunner } from "./useOcrRunner";
+import { useOcrRunner } from "../platform";
 import { useOcrHistory } from "./useOcrHistory";
 import { useAssetManager } from "@/composables/useAssetManager";
 

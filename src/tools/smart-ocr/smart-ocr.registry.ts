@@ -1,9 +1,20 @@
 import type { ToolRegistry, ToolConfig } from "@/services/types";
 import { markRaw } from "vue";
 import OcrIcon from "@/components/icons/OcrIcon.vue";
-import type { SlicerConfig, ImageBlock } from "./types";
+import type {
+  SlicerConfig,
+  ImageBlock,
+  OcrEngineConfig,
+  OcrResult,
+} from "./types";
 import { loadSmartOcrConfig } from "./config/config";
 import { useImageSlicer } from "./composables/useImageSlicer";
+import {
+  useOcrRunner,
+  useOcrExtensions,
+  type OcrRunOptions,
+  type OcrExtension,
+} from "./platform";
 
 /**
  * SmartOcr 服务
@@ -36,6 +47,26 @@ export default class SmartOcrRegistry implements ToolRegistry {
     };
 
     return await sliceImage(image, mergedSlicerConfig, imageId);
+  }
+
+  /**
+   * 运行 OCR 识别
+   */
+  public async runOcr(
+    blocks: ImageBlock[],
+    config: OcrEngineConfig,
+    options?: OcrRunOptions
+  ): Promise<OcrResult[]> {
+    const { runOcr } = useOcrRunner();
+    return await runOcr(blocks, config, options?.onProgress);
+  }
+
+  /**
+   * 获取所有 OCR 扩展插件
+   */
+  public listOcrExtensions(): OcrExtension[] {
+    const { ocrExtensions } = useOcrExtensions();
+    return ocrExtensions.value;
   }
 
   // ==================== 元数据 ====================

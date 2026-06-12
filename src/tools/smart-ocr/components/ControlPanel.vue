@@ -15,7 +15,7 @@ import type {
 import type { SmartOcrConfig } from "../config/config";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useOcrProfiles } from "@/composables/useOcrProfiles";
-import { usePluginOcrExtensions } from "../composables/usePluginOcrExtensions";
+import { useOcrExtensions } from "../platform";
 import { getTesseractLanguageOptions } from "../config/language-packs";
 import { History } from "lucide-vue-next";
 
@@ -47,7 +47,7 @@ const emit = defineEmits<{
 const { visionProfiles } = useLlmProfiles();
 const { enabledProfiles: ocrProfiles } = useOcrProfiles();
 const { ocrExtensions, getOcrExtensionByConfig, getOcrExtensionById } =
-  usePluginOcrExtensions();
+  useOcrExtensions();
 
 // 动态获取 Tesseract 语言选项
 const tesseractLanguageOptions = computed(() => getTesseractLanguageOptions());

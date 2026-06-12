@@ -147,6 +147,15 @@ export interface PluginOcrEngineContribution {
   languages?: PluginOcrSelectOption[];
   /** 默认识别语言 ID */
   defaultLanguage?: string;
+  /** 可选能力声明 */
+  capabilities?: {
+    batch?: boolean;
+    detectionBoxes?: boolean;
+    confidence?: boolean;
+    preferredImageMimeTypes?: string[];
+    maxBatchSize?: number;
+    maxImagePixels?: number;
+  };
 }
 
 /**

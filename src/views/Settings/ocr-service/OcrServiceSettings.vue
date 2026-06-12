@@ -6,13 +6,16 @@ import ProfileSidebar from "../shared/ProfileSidebar.vue";
 import ProfileEditor from "../shared/ProfileEditor.vue";
 import CustomOcrRequestEditor from "./components/CustomOcrRequestEditor.vue";
 import { useOcrProfiles } from "@composables/useOcrProfiles";
-import { ocrProviderTypes, ocrPresets } from "@config/ocr-providers";
+import {
+  ocrProviderTypes,
+  ocrPresets,
+} from "@/tools/smart-ocr/platform/cloud/providers";
 import type {
   OcrProfile,
   OcrProviderType,
   OcrApiRequest,
-} from "../../../types/ocr-profiles";
-import type { OcrPreset } from "@config/ocr-providers";
+} from "@/tools/smart-ocr/platform/cloud/types";
+import type { OcrPreset } from "@/tools/smart-ocr/platform/cloud/providers";
 
 const {
   profiles,
@@ -51,13 +54,16 @@ const editForm = ref<OcrProfile>({
 // 计算当前选中的配置
 const selectedProfile = computed(() => {
   if (!selectedProfileId.value) return null;
-  return profiles.value.find((p) => p.id === selectedProfileId.value) || null;
+  return (
+    profiles.value.find((p: OcrProfile) => p.id === selectedProfileId.value) ||
+    null
+  );
 });
 
 // 选择配置
 const selectProfile = (profileId: string) => {
   selectedProfileId.value = profileId;
-  const profile = profiles.value.find((p) => p.id === profileId);
+  const profile = profiles.value.find((p: OcrProfile) => p.id === profileId);
   if (profile) {
     editForm.value = JSON.parse(JSON.stringify(profile));
   }
@@ -179,7 +185,11 @@ const handleDelete = async () => {
 };
 
 // 切换启用状态
-const handleToggle = (profile: OcrProfile) => {
+const handleToggle = (profile: {
+  id: string;
+  name: string;
+  enabled: boolean;
+}) => {
   toggleProfileEnabled(profile.id);
 };
 

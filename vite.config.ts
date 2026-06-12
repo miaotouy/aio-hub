@@ -117,6 +117,16 @@ const viteConfig = defineConfig({
       // 替换旧的 monacoEditorPlugin，直接用 local: true 强制本地打包，避免 CDN
       local: true,
     }),
+    {
+      name: "monaco-remove-missing-nls-script",
+      enforce: "post",
+      transformIndexHtml(html) {
+        return html.replace(
+          /\n<script src="\/npm\/monaco-editor@[^"]+\/min\/vs\/editor\/editor\.main\.nls\.js"><\/script>/,
+          "",
+        );
+      },
+    },
     Components({
       resolvers: [
         IconsResolver({

@@ -6,44 +6,56 @@
 
 import { defineAsyncComponent, type Component } from "vue";
 
+type ComponentModule = { default: Component };
+type ToolRegistryModule = {
+  toolConfig?: {
+    component?: () => Promise<ComponentModule | Component>;
+  };
+};
+
+const unwrapComponent = (moduleOrComponent: ComponentModule | Component) =>
+  "default" in moduleOrComponent
+    ? moduleOrComponent.default
+    : moduleOrComponent;
+
 // --- 1. 自动扫描通用组件 (src/components/common/*.vue) ---
-const commonModules = import.meta.glob<Record<string, any>>(
-  "../components/common/*.vue",
-  { eager: true }
+const commonModules = import.meta.glob<ComponentModule>(
+  "../components/common/*.vue"
 );
 const commonComponents: Record<string, Component> = {};
 
 for (const path in commonModules) {
   const fileName = path.split("/").pop()?.replace(".vue", "");
   if (fileName) {
-    commonComponents[fileName] = commonModules[path].default;
+    commonComponents[fileName] = defineAsyncComponent(async () =>
+      unwrapComponent(await commonModules[path]())
+    );
   }
 }
 
 // --- 2. 自动扫描工具组件 (通过 registry.ts 注册的组件) ---
-const toolRegistryModules = import.meta.glob<Record<string, any>>(
-  "../tools/**/*.registry.ts",
-  { eager: true }
+const toolRegistryModules = import.meta.glob<ToolRegistryModule>(
+  "../tools/**/*.registry.ts"
 );
 const toolComponents: Record<string, Component> = {};
 
 for (const path in toolRegistryModules) {
-  const module = toolRegistryModules[path];
-  if (module.toolConfig && module.toolConfig.component) {
-    const componentLoader = module.toolConfig.component;
+  // 从目录名推断组件名称 (例如 rich-text-renderer -> RichTextRenderer)
+  const dirName = path.split("/").slice(-2, -1)[0];
+  const componentName = dirName
+    .split("-")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join("");
 
-    // 从目录名推断组件名称 (例如 rich-text-renderer -> RichTextRenderer)
-    const dirName = path.split("/").slice(-2, -1)[0];
-    const componentName = dirName
-      .split("-")
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join("");
+  toolComponents[componentName] = defineAsyncComponent(async () => {
+    const module = await toolRegistryModules[path]();
+    const componentLoader = module.toolConfig?.component;
+    if (!componentLoader) {
+      throw new Error(`Tool registry has no component export: ${path}`);
+    }
 
-    toolComponents[componentName] =
-      typeof componentLoader === "function"
-        ? defineAsyncComponent(componentLoader)
-        : componentLoader;
-  }
+    return unwrapComponent(await componentLoader());
+  });
 }
 
 // --- 3. 手动补充或重写 ---

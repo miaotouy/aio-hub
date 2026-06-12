@@ -29,6 +29,28 @@
 - 直连资源 Top 中已不再出现 `editor.api2-*.js`;旧 `vendor-vue` 的 3.95 MiB 误并问题回落到约 **112 KiB**。
 - 当前最大残留为 `main` 约 **4.0 MiB**、`vendor-editor` 约 **1.38 MiB**、`docxParser` 约 **802 KiB**、`AudioPlayer` 约 **302 KiB**。构建日志继续报告 `src/services/plugin-ui.ts` 对工具 registry 的静态导入导致 `auto-register.ts` 动态导入无效,说明阶段二 P0-1 仍是下一步最大收益点。
 
+### 2026-06-12 第二轮实施
+
+继续落地阶段二 P0-1 和阶段一 P2-8 的低风险部分,当前实际改动如下:
+
+- `plugin-ui.ts` 去除通用组件和工具 registry 的 `{ eager: true }`;`components` map 仍同步导出,但值改为 `defineAsyncComponent` 包装的异步组件。
+- 通用组件名继续从 `src/components/common/*.vue` 文件名推导;工具组件名继续从 `src/tools/{toolId}/{toolId}.registry.ts` 的目录名推导,首次渲染对应插件组件时再动态导入 registry 并读取 `toolConfig.component`。
+- `vite.config.ts` 新增 `monaco-remove-missing-nls-script` post HTML transform,移除 `@tomjs/vite-plugin-monaco-editor` 注入的 `editor.main.nls.js` 脚本行,消除产物中的固定 404。
+
+与原计划/后续计划的差异:
+
+- P0-1 原设想是"异步读取 registry 后按 `toolConfig.component` 包装";实际实现为了保持 `window.AiohubUI.components` 的同步可枚举契约,组件名仍必须从路径推导,只把 registry 模块内容延迟到组件首次渲染时读取。
+- P2-8 本轮只移除了缺失的 nls 脚本。`@tomjs/vite-plugin-monaco-editor` 本地文档未提供 `defer`/脚本属性配置项;直接改 defer 会改变 AMD Monaco 与入口 module 的执行时序,暂不纳入本轮。
+- 构建产物仍会将大量动态 import 写入 `index.html` 的 `modulepreload`;因此 P0-1 的首轮收益主要体现为入口 chunk 执行体积下降和 registry 不再由 `plugin-ui` 同步求值,并未把 HTML 直连资源总量继续压到阶段二目标。后续若要继续压直连请求,需要单独评估 Vite/Rolldown 的 modulepreload 策略或拆出更晚才可达的插件 UI 目录入口。
+
+验证结果:
+
+- `bun run build:tsc` 通过。
+- `bun run build:vite` 通过。
+- 构建后 `dist/index.html` 不再包含 `editor.main.nls.js`;仍保留 `loader.js` 与 `editor.main.js`。
+- 构建后 `main` chunk 约 **606 KiB**,较第一轮记录的约 **4.0 MiB** 明显下降;`dist/index.html` 直连资源约 **10.5 MiB / 215 个文件**。
+- 构建日志中已不再出现 `src/services/plugin-ui.ts` 对工具 registry 的静态导入导致 `auto-register.ts` 动态导入无效的提示;仍有若干 `INEFFECTIVE_DYNAMIC_IMPORT` 提示来自其他组件/工具的真实静态引用,属于后续拆分范围。
+
 ## 结论先行
 
 当前启动耗时由两段构成,**两段的主导因素都已定位**:

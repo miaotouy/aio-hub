@@ -53,3 +53,5 @@ plugins/*
 .agents
 
 cache
+
+.snow

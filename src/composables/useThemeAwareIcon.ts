@@ -169,20 +169,15 @@ export function useThemeAwareIcon(iconSrcRef: Ref<string>) {
 
     const src = iconSrcRef.value;
 
-    // 1. 优先从内存 Map 中获取 Lobe SVG 源码（已通过 Vite glob 加载）
-    if (LOBE_ICONS_MAP[src]) {
-      svgContent.value = processSvgContent(LOBE_ICONS_MAP[src]);
-      return;
-    }
-
-    // 2. 本地图标 Map 存储的是 public URL，需要按 URL 拉取 SVG 内容。
+    // Lobe 和本地图标 Map 都存储 URL，需要按 URL 拉取 SVG 内容。
     // 如果不在 Map 中（可能是外部路径或动态生成的路径），也尝试 fetch。
     isLoading.value = true;
     error.value = null;
 
     try {
       // 确保使用规范化的路径进行 fetch
-      const finalUrl = LOCAL_ICONS_MAP[src] || normalizeIconPath(src);
+      const finalUrl =
+        LOBE_ICONS_MAP[src] || LOCAL_ICONS_MAP[src] || normalizeIconPath(src);
       svgContent.value = await fetchAndProcessSvg(finalUrl);
     } catch (err) {
       error.value = err as Error;

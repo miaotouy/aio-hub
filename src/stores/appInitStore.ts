@@ -16,6 +16,29 @@ import { useModelMetadataStore } from "./modelMetadataStore";
 const logger = createModuleLogger("stores/appInitStore");
 const errorHandler = createModuleErrorHandler("stores/appInitStore");
 
+function schedulePostReadyTask(name: string, task: () => Promise<void> | void) {
+  const run = () => {
+    Promise.resolve()
+      .then(task)
+      .then(() => {
+        logger.debug("后台启动任务完成", { task: name });
+      })
+      .catch((err) => {
+        errorHandler.handle(err, {
+          userMessage: `${name}失败`,
+          showToUser: false,
+          context: { task: name },
+        });
+      });
+  };
+
+  if ("requestIdleCallback" in window) {
+    window.requestIdleCallback(run, { timeout: 3000 });
+  } else {
+    globalThis.setTimeout(run, 0);
+  }
+}
+
 export interface AppInitState {
   progress: number;
   statusText: string;
@@ -56,52 +79,41 @@ export const useAppInitStore = defineStore("appInit", () => {
       setProgress(15, "配置日志系统...");
       applyLogConfig(settings);
 
-      // 加载模型元数据
-      setProgress(20, "加载模型元数据...");
-      const modelMetadataStore = useModelMetadataStore();
-      await modelMetadataStore.loadRules();
-
-      // 3. 初始化主题
-      setProgress(25, "配置界面主题...");
-      await initTheme();
-
-      // 初始化 Monaco Shiki 主题
-      setProgress(30, "初始化编辑器主题...");
-      await initMonacoShikiThemes();
-
-      // 4. 自动注册工具服务
-      setProgress(40, "正在扫描插件和工具...");
+      // 3. 初始化首帧必需能力
+      setProgress(30, "配置界面并扫描工具...");
       // 主窗口不传 priorityToolId，内部会完成全量注册
-      await autoRegisterServices();
+      await Promise.all([initTheme(), autoRegisterServices()]);
 
       // 插件加载后，立即刷新当前路由匹配状态，确保初始进入插件页面能正确加载
       refreshCurrentRoute();
 
-      setProgress(60, "插件加载完成");
-
-      // 5. 加载用户档案
-      setProgress(70, "加载用户配置...");
-      const userProfileStore = useUserProfileStore();
-      await userProfileStore.loadProfiles();
-
-      // 6. 执行启动项任务
-      setProgress(80, "执行启动任务...");
-      await startupManager.run();
-
-      // 7. 初始化分离窗口管理器
-      setProgress(90, "准备窗口管理系统...");
-      const detachedManager = useDetachedManager();
-      await detachedManager.initialize();
-
-      // 8. 初始化通信总线
-      setProgress(95, "建立窗口通信总线...");
-      const { initializeSyncBus } = useWindowSyncBus();
-      await initializeSyncBus();
-
-      // 9. 完成
       setProgress(100, "启动完成");
       isReady.value = true;
       logger.info("主应用初始化成功");
+
+      schedulePostReadyTask("加载模型元数据", async () => {
+        const modelMetadataStore = useModelMetadataStore();
+        await modelMetadataStore.loadRules();
+      });
+
+      schedulePostReadyTask("加载用户配置", async () => {
+        const userProfileStore = useUserProfileStore();
+        await userProfileStore.loadProfiles();
+      });
+
+      schedulePostReadyTask("执行启动任务", () => startupManager.run());
+
+      schedulePostReadyTask("初始化分离窗口管理器", async () => {
+        const detachedManager = useDetachedManager();
+        await detachedManager.initialize();
+      });
+
+      schedulePostReadyTask("初始化窗口通信总线", async () => {
+        const { initializeSyncBus } = useWindowSyncBus();
+        await initializeSyncBus();
+      });
+
+      schedulePostReadyTask("初始化编辑器主题", () => initMonacoShikiThemes());
     } catch (err: any) {
       error.value = err;
       statusText.value = `初始化失败: ${err.message || "未知错误"}`;
@@ -127,18 +139,9 @@ export const useAppInitStore = defineStore("appInit", () => {
       setProgress(15, "配置日志...");
       applyLogConfig(settings);
 
-      // 加载模型元数据
-      setProgress(20, "同步模型配置...");
-      const modelMetadataStore = useModelMetadataStore();
-      await modelMetadataStore.loadRules();
-
       // 3. 初始化主题
       setProgress(25, "初始化主题...");
       await initTheme();
-
-      // 4. 初始化编辑器主题
-      setProgress(35, "初始化编辑器主题...");
-      await initMonacoShikiThemes();
 
       // 4. 自动注册工具服务（第一阶段）
       setProgress(50, "加载工具服务...");
@@ -161,6 +164,13 @@ export const useAppInitStore = defineStore("appInit", () => {
       setProgress(100, "就绪");
       isReady.value = true;
       logger.info("分离窗口第一阶段初始化完成", { priorityToolId });
+
+      schedulePostReadyTask("同步模型配置", async () => {
+        const modelMetadataStore = useModelMetadataStore();
+        await modelMetadataStore.loadRules();
+      });
+
+      schedulePostReadyTask("初始化编辑器主题", () => initMonacoShikiThemes());
 
       // 8. 异步加载剩余服务
       if (priorityToolId) {

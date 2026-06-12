@@ -11,7 +11,6 @@
  * Monaco 的 vs-dark / vs 几乎一致），确保所有 Monaco 实例都使用 Shiki 已知的主题名。
  */
 
-import { registerMonacoThemes } from "stream-monaco";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 
@@ -70,6 +69,7 @@ export async function initMonacoShikiThemes(): Promise<void> {
         import("shiki/themes/github-dark.mjs"),
         import("shiki/themes/github-light.mjs"),
       ]);
+      const { registerMonacoThemes } = await import("stream-monaco");
 
       // 关键：将 Shiki 主题重命名为 Monaco 原生主题名，以欺骗拦截器并保持兼容性
       const vsDark = { ...darkTheme.default, name: "vs-dark" };

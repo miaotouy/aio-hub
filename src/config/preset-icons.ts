@@ -12,7 +12,7 @@ import { MANUAL_PRESET_ICONS, USER_ADDED_ICONS } from "./preset-icons-data";
 // 使用 alias @lobe-icons 替代相对路径，更健壮
 const lobeIcons = import.meta.glob("@lobe-icons/*.svg", {
   eager: true,
-  query: "?raw",
+  query: "?url",
 });
 
 // 获取本地自定义图标名
@@ -28,9 +28,9 @@ const localIcons = import.meta.glob(
 export const LOBE_ICONS_MAP = Object.entries(lobeIcons).reduce(
   (acc, [path, content]) => {
     const name = path.split("/").pop()!;
-    const svgContent = (content as any).default;
+    const iconUrl = (content as any).default;
     // 统一使用带路径的完整名作为 Key
-    acc[`/model-icons/${name}`] = svgContent;
+    acc[`/model-icons/${name}`] = iconUrl;
     return acc;
   },
   {} as Record<string, string>

@@ -161,14 +161,26 @@ export async function autoRegisterServices(
       logger.info("开始加载剩余工具和插件...");
       const startTime = Date.now();
 
-      // 1. 加载剩余工具
-      for (const path of remainingPaths) {
-        try {
-          await loadAndRegisterModule(path, true);
-        } catch (error) {
-          errorHandler.error(error, "加载工具模块失败", { context: { path } });
-          failedModules.push({ path, error });
-        }
+      // 1. 并行加载剩余工具
+      const registerResults = await Promise.allSettled(
+        remainingPaths.map(async (path) => {
+          try {
+            await loadAndRegisterModule(path, true);
+          } catch (error) {
+            errorHandler.error(error, "加载工具模块失败", {
+              context: { path },
+            });
+            failedModules.push({ path, error });
+            throw error;
+          }
+        })
+      );
+
+      const rejectedCount = registerResults.filter(
+        (result) => result.status === "rejected"
+      ).length;
+      if (rejectedCount > 0) {
+        logger.warn("部分工具模块加载失败", { count: rejectedCount });
       }
 
       // 2. 加载插件

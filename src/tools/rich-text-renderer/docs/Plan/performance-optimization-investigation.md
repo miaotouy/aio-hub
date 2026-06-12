@@ -93,7 +93,7 @@
 
 #### 代码块
 
-代码块已懒初始化，但流式大代码块仍会频繁向 CodeMirror/Monaco 同步内容。Monaco 路径依赖 `stream-monaco` 做增量更新，CodeMirror 当前是全 doc replace。
+代码块已懒初始化，且消息代码块已固定为 CodeMirror。旧 Monaco/`stream-monaco` 路径已移除；流式大代码块仍会频繁向 CodeMirror 同步内容，当前是全 doc replace。
 
 建议：
 

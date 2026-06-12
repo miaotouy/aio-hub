@@ -355,7 +355,6 @@ defineExpose({
             :enable-enter-animation="
               settings.uiPreferences.enableEnterAnimation
             "
-            :code-editor-engine="settings.uiPreferences.codeEditorEngine"
           />
         </template>
       </div>

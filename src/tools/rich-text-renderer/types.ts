@@ -783,8 +783,6 @@ export interface TesterConfig {
   profileType?: "agent" | "user";
   /** 选中的档案 ID */
   selectedProfileId?: string;
-  /** 代码编辑器引擎 */
-  codeEditorEngine?: "monaco" | "codemirror";
 }
 
 /**
@@ -883,6 +881,4 @@ export interface RichTextContext {
   isStreaming?: Ref<boolean>;
   /** 是否显示 Token 计数 */
   showTokenCount?: Ref<boolean>;
-  /** 代码编辑器引擎：'monaco' | 'codemirror' */
-  codeEditorEngine?: Ref<"monaco" | "codemirror">;
 }

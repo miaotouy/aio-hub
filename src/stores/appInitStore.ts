@@ -10,7 +10,6 @@ import { useDetachedManager } from "@/composables/useDetachedManager";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import { initMonacoShikiThemes } from "@/utils/monacoShikiSetup";
 import { useModelMetadataStore } from "./modelMetadataStore";
 
 const logger = createModuleLogger("stores/appInitStore");
@@ -113,7 +112,6 @@ export const useAppInitStore = defineStore("appInit", () => {
         await initializeSyncBus();
       });
 
-      schedulePostReadyTask("初始化编辑器主题", () => initMonacoShikiThemes());
     } catch (err: any) {
       error.value = err;
       statusText.value = `初始化失败: ${err.message || "未知错误"}`;
@@ -169,8 +167,6 @@ export const useAppInitStore = defineStore("appInit", () => {
         const modelMetadataStore = useModelMetadataStore();
         await modelMetadataStore.loadRules();
       });
-
-      schedulePostReadyTask("初始化编辑器主题", () => initMonacoShikiThemes());
 
       // 8. 异步加载剩余服务
       if (priorityToolId) {

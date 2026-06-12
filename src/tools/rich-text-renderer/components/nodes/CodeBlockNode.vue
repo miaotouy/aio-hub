@@ -42,18 +42,7 @@
     <!-- 代码查看器组件 -->
     <template v-if="viewMode === 'code'">
       <div class="code-preview-block">
-        <MonacoSourceViewer
-          v-if="context?.codeEditorEngine?.value !== 'codemirror'"
-          :content="content"
-          :language="language"
-          :is-expanded="isExpanded"
-          :word-wrap-enabled="wordWrapEnabled"
-          :code-font-size="codeFontSize"
-          :closed="closed"
-          @ready="handleEditorReady"
-        />
         <CodeMirrorSourceViewer
-          v-else
           :content="content"
           :language="language"
           :is-expanded="isExpanded"
@@ -117,7 +106,6 @@ import { calculatorProxy } from "@/tools/token-calculator/worker/calculator.prox
 
 // 导入拆分出的组件
 import CodeBlockHeader from "./code-block/CodeBlockHeader.vue";
-import MonacoSourceViewer from "./code-block/MonacoSourceViewer.vue";
 import CodeMirrorSourceViewer from "./code-block/CodeMirrorSourceViewer.vue";
 
 defineOptions({

@@ -1,12 +1,33 @@
 # 移除 stream-monaco 方案
 
 > 日期:2026-06-12
-> 性质:修改方案(待实施),是 [app-startup-optimization-investigation.md](./app-startup-optimization-investigation.md) 中 P0-2 的升级形态——从"懒加载化"升级为"整体移除"
+> 性质:修改方案(已实施),是 [app-startup-optimization-investigation.md](./app-startup-optimization-investigation.md) 中 P0-2 的升级形态——从"懒加载化"升级为"整体移除"
 > 动机:实测 CodeMirror 作为消息代码块显示引擎的本底性能大幅优于 Monaco;且 stream-monaco 是启动关键路径上单笔最大的静态负债(3.63 MB ESM Monaco + Shiki 全家桶)
 
 ## 结论先行
 
 **移除可行,改动面小,无数据迁移。** 全仓库审计结果:
+
+## 实施记录
+
+### 2026-06-12 落地实施
+
+已按本方案完成 `stream-monaco` 消息代码块路径移除:
+
+- 删除 `src/utils/monacoShikiSetup.ts` 与 `src/tools/rich-text-renderer/components/nodes/code-block/MonacoSourceViewer.vue`;
+- `CodeBlockNode.vue` 固定渲染 `CodeMirrorSourceViewer`;
+- 移除 `codeEditorEngine` 设置项、类型字段、默认值、`RichTextRenderer` prop/context、llm-chat 透传绑定和测试器引擎选择器;
+- `appInitStore.ts` 不再调度 Monaco/Shiki 主题初始化;
+- `package.json` 删除 `stream-monaco`、`shiki` 两个直接依赖,并通过 `bun install` 刷新 `bun.lock`;
+- `codeLanguages.ts` 补齐 `c`、`toml`、`lua`、`powershell` 映射,并额外补了聊天代码块常见的 `diff` 与 `ini/properties`;
+- 同步更新 rich-text-renderer 架构文档、llm-chat 架构文档、用户渲染设置文档和相关性能调查文档。
+
+与原计划的差异:
+
+- `appInitStore.ts` 在前序启动优化中已经改成首帧后后台任务,本次实际删除的是后台 `initMonacoShikiThemes()` 调度,不是计划中旧版的首帧前 `await` 步骤;
+- 额外清理了 `rich-text-renderer` 测试 store 中的 `codeEditorEngine` 持久化字段,避免测试器配置继续保存一个永远不生效的选项;
+- 语言映射除计划内 4 个外,同步加入 `diff` 与 `ini/properties`;
+- `bun.lock` 中仍保留 VitePress 间接依赖的 `shiki` 子树,但项目直接依赖和 `stream-monaco` 子树已移除。
 
 - stream-monaco 只有 **2 个消费方**:`src/utils/monacoShikiSetup.ts:14`(静态导入,启动链元凶)和 `src/tools/rich-text-renderer/components/nodes/code-block/MonacoSourceViewer.vue:347`(已是动态导入);
 - 消息代码块的**默认引擎已经是 CodeMirror**(`llm-chat/types/settings.ts:363`、`RichTextRenderer.vue:153`),Monaco viewer 只是遗留可选路径,`CodeMirrorSourceViewer.vue` 功能完备(懒初始化、主题、流式更新、折叠/行号/换行/字号);
@@ -170,4 +191,3 @@ bun run build              # 产物验证(下一步)
 - 分离窗口打开 llm-chat,代码块渲染正常(`initDetachedApp` 路径)。
 
 回滚:无数据迁移、无格式变更,`git revert` 单 PR 即可完整回退。
-

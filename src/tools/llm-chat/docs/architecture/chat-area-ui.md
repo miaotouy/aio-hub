@@ -87,7 +87,7 @@
     - `vcp_tool` 节点：`isPending = (status === "pending" && !closed)`，控制工具执行中状态条。
   - 从 pending → stable 时由 `finalizePendingNodes` 自动清除 `isThinking` / `isPending`，让节点呈现「已完成」形态。
 - **更新节流**: 由 `useMarkdownAst` 的混合 `setTimeout` + `requestAnimationFrame` 批处理策略实现，默认 `throttleMs = 80`，可与 `StreamController` 的流式平滑化协同降低 CPU 负载。
-- **特色功能**: 代码块沙箱（Monaco / CodeMirror 双引擎 + IntersectionObserver 延迟初始化）、Mermaid 图表渲染、动态 CSS 样式与作用域隔离（`StyleNode` + `cssUtils`）、CDN 资源本地化、可交互按钮等。
+- **特色功能**: 代码块沙箱（CodeMirror + IntersectionObserver 延迟初始化）、Mermaid 图表渲染、动态 CSS 样式与作用域隔离（`StyleNode` + `cssUtils`）、CDN 资源本地化、可交互按钮等。
 - **可交互按钮安全策略 (`<button>` 白名单)**: 由 [`ActionButtonNode.vue`](../../../rich-text-renderer/components/nodes/ActionButtonNode.vue) 实现，对 LLM 输出的 `<button>` 标签做严格收敛：
   - **操作白名单**: 仅允许 `action="send" | "input" | "copy"` 三种，其它取值不会触发任何行为（类型层面已收窄为这三种）。
   - **内容长度限制**: 单次操作内容硬上限 5000 字符，超出自动截断并弹出 `customMessage.warning` 提示。

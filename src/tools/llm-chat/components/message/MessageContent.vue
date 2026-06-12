@@ -921,7 +921,6 @@ watch(
         :safety-guard-enabled="settings.uiPreferences.safetyGuardEnabled"
         :enable-enter-animation="settings.uiPreferences.enableEnterAnimation"
         :show-token-count="settings.uiPreferences.showTokenCountForBlocks"
-        :code-editor-engine="settings.uiPreferences.codeEditorEngine"
       />
     </LlmThinkNode>
 
@@ -1080,7 +1079,6 @@ watch(
           :enable-enter-animation="originalRendererEnterAnimation"
           :should-freeze="shouldFreezeHtml"
           :show-token-count="settings.uiPreferences.showTokenCountForBlocks"
-          :code-editor-engine="settings.uiPreferences.codeEditorEngine"
         />
         <div v-if="isGenerating" class="streaming-indicator">
           <span class="dot"></span>
@@ -1161,7 +1159,6 @@ watch(
             :resolve-asset="resolveAsset"
             :should-freeze="shouldFreezeHtml"
             :show-token-count="settings.uiPreferences.showTokenCountForBlocks"
-            :code-editor-engine="settings.uiPreferences.codeEditorEngine"
           />
           <div
             v-if="isTranslating"

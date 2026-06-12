@@ -120,6 +120,15 @@ const languages: LanguageDefinition[] = [
     },
   },
   {
+    id: "c",
+    aliases: ["c"],
+    monaco: "c",
+    codemirror: async () => {
+      const { c } = await import("@codemirror/legacy-modes/mode/clike");
+      return new LanguageSupport(StreamLanguage.define(c));
+    },
+  },
+  {
     id: "csharp",
     aliases: ["csharp", "cs"],
     monaco: "csharp",
@@ -153,6 +162,53 @@ const languages: LanguageDefinition[] = [
     codemirror: async () => {
       const { ruby } = await import("@codemirror/legacy-modes/mode/ruby");
       return new LanguageSupport(StreamLanguage.define(ruby));
+    },
+  },
+  {
+    id: "toml",
+    aliases: ["toml"],
+    monaco: "toml",
+    codemirror: async () => {
+      const { toml } = await import("@codemirror/legacy-modes/mode/toml");
+      return new LanguageSupport(StreamLanguage.define(toml));
+    },
+  },
+  {
+    id: "lua",
+    aliases: ["lua"],
+    monaco: "lua",
+    codemirror: async () => {
+      const { lua } = await import("@codemirror/legacy-modes/mode/lua");
+      return new LanguageSupport(StreamLanguage.define(lua));
+    },
+  },
+  {
+    id: "powershell",
+    aliases: ["ps1", "pwsh", "powershell"],
+    monaco: "powershell",
+    codemirror: async () => {
+      const { powerShell } =
+        await import("@codemirror/legacy-modes/mode/powershell");
+      return new LanguageSupport(StreamLanguage.define(powerShell));
+    },
+  },
+  {
+    id: "diff",
+    aliases: ["diff", "patch"],
+    monaco: "diff",
+    codemirror: async () => {
+      const { diff } = await import("@codemirror/legacy-modes/mode/diff");
+      return new LanguageSupport(StreamLanguage.define(diff));
+    },
+  },
+  {
+    id: "ini",
+    aliases: ["ini", "properties", "conf"],
+    monaco: "ini",
+    codemirror: async () => {
+      const { properties } =
+        await import("@codemirror/legacy-modes/mode/properties");
+      return new LanguageSupport(StreamLanguage.define(properties));
     },
   },
   {

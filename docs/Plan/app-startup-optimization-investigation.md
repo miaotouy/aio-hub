@@ -51,6 +51,23 @@
 - 构建后 `main` chunk 约 **606 KiB**,较第一轮记录的约 **4.0 MiB** 明显下降;`dist/index.html` 直连资源约 **10.5 MiB / 215 个文件**。
 - 构建日志中已不再出现 `src/services/plugin-ui.ts` 对工具 registry 的静态导入导致 `auto-register.ts` 动态导入无效的提示;仍有若干 `INEFFECTIVE_DYNAMIC_IMPORT` 提示来自其他组件/工具的真实静态引用,属于后续拆分范围。
 
+### 2026-06-12 第三轮实施
+
+继续落地 P0-2 的升级形态,执行 [stream-monaco-removal-plan.md](./stream-monaco-removal-plan.md),当前实际改动如下:
+
+- 删除 `monacoShikiSetup.ts` 与消息代码块的 `MonacoSourceViewer.vue`;
+- `CodeBlockNode.vue` 固定使用 CodeMirror,移除 `codeEditorEngine` 设置、类型、默认值、prop/context、llm-chat 透传和测试器引擎选择器;
+- `appInitStore.ts` 删除首帧后后台 Monaco/Shiki 主题初始化任务;
+- `package.json` 删除 `stream-monaco`、`shiki` 两个直接依赖,`bun install` 已刷新 `bun.lock`;
+- CodeMirror 语言映射补齐 `c`、`toml`、`lua`、`powershell`,并额外加入 `diff`、`ini/properties`;
+- 同步更新 rich-text-renderer/llm-chat 架构文档、用户渲染设置文档和 rich-text-renderer 性能调查文档。
+
+与原计划/后续计划的差异:
+
+- P0-2 在第一轮已先改为动态 import + 后台任务,所以本轮实际从 `appInitStore.ts` 删除的是后台 `initMonacoShikiThemes()` 调度,而不是旧调查正文中描述的首帧前 await。
+- `bun.lock` 仍包含 VitePress 间接依赖的 `shiki`,这不代表应用路径仍直接依赖 Shiki;项目直接依赖和 `stream-monaco` 子树已移除。
+- 额外清理了 rich-text-renderer 测试器 store 的 `codeEditorEngine` 存量配置字段,避免新配置继续写入死字段。
+
 ## 结论先行
 
 当前启动耗时由两段构成,**两段的主导因素都已定位**:

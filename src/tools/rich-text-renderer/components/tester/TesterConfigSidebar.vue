@@ -116,16 +116,10 @@
         </el-select>
       </div>
 
-      <!-- 代码编辑器引擎选择 -->
+      <!-- 代码块调试 -->
       <div class="control-section">
-        <label class="control-label">代码编辑器引擎</label>
-        <el-select v-model="codeEditorEngine" style="width: 100%">
-          <el-option label="Monaco (专业/重)" value="monaco" />
-          <el-option label="CodeMirror (轻量/快)" value="codemirror" />
-        </el-select>
-
         <!-- 调试：强制预览模式 -->
-        <div class="control-item" style="margin-top: 4px">
+        <div class="control-item">
           <div class="control-header">
             <el-tooltip
               content="开启后将强制保持在 PreCodeNode 预览状态，不初始化正式编辑器，方便调试样式"
@@ -553,7 +547,6 @@ const {
   seamlessMode,
   profileType,
   selectedProfileId,
-  codeEditorEngine,
   debugPreFallback,
 } = storeToRefs(store);
 

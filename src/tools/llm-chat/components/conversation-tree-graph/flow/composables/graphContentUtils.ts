@@ -5,14 +5,24 @@ import type { ChatMessageNode } from "../../../../types";
  */
 export const THINK_TAG_NAMES = ["think", "guguthink", "thinking"];
 
+const THINK_BLOCK_REGEXES = THINK_TAG_NAMES.map(
+  (tag) => new RegExp(`<${tag}>[\\s\\S]*?<\\/${tag}>`, "gi")
+);
+
+const THINK_BLOCK_CAPTURE_REGEXES = THINK_TAG_NAMES.map(
+  (tag) => new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`, "i")
+);
+
+const THINK_OPEN_TAG_REGEXES = THINK_TAG_NAMES.map(
+  (tag) => new RegExp(`<${tag}>`, "i")
+);
+
 /**
  * 从文本中剥离思考块标签及其内容，返回纯正文
  */
 export function stripThinkingBlocks(text: string): string {
   let result = text;
-  for (const tag of THINK_TAG_NAMES) {
-    // 匹配 <tag>...</tag>（包括跨行内容）
-    const regex = new RegExp(`<${tag}>[\\s\\S]*?<\\/${tag}>`, "gi");
+  for (const regex of THINK_BLOCK_REGEXES) {
     result = result.replace(regex, "");
   }
   // 清理剥离后可能产生的多余空行
@@ -33,8 +43,7 @@ export function extractThinkingPreview(
   }
 
   // 从内容中提取思考块
-  for (const tag of THINK_TAG_NAMES) {
-    const regex = new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`, "i");
+  for (const regex of THINK_BLOCK_CAPTURE_REGEXES) {
     const match = text.match(regex);
     if (match && match[1]) {
       const content = match[1].trim();
@@ -54,8 +63,7 @@ export function hasThinkingContent(
   reasoningContent?: string
 ): boolean {
   if (reasoningContent) return true;
-  for (const tag of THINK_TAG_NAMES) {
-    const regex = new RegExp(`<${tag}>`, "i");
+  for (const regex of THINK_OPEN_TAG_REGEXES) {
     if (regex.test(text)) return true;
   }
   return false;

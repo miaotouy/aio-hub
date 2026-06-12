@@ -881,19 +881,108 @@ const copyDebugInfo = () => {
   }
 };
 
+const getAttachmentWatchSignature = (attachments: any[] | undefined): string => {
+  if (!attachments?.length) return "";
+
+  return attachments
+    .map((asset) => {
+      const derived = asset.metadata?.derived
+        ? Object.entries(asset.metadata.derived)
+            .map(([key, value]: [string, any]) =>
+              [
+                key,
+                value?.path,
+                value?.updatedAt,
+                value?.provider,
+                value?.error,
+                value?.warning,
+              ].join(":")
+            )
+            .join(",")
+        : "";
+
+      return [
+        asset.id,
+        asset.uploadingId,
+        asset.type,
+        asset.mimeType,
+        asset.name,
+        asset.path,
+        asset.thumbnailPath,
+        asset.size,
+        asset.importStatus,
+        asset.importError,
+        asset.importPhase,
+        asset.importPhaseDetail,
+        asset.metadata?.width,
+        asset.metadata?.height,
+        asset.metadata?.duration,
+        asset.metadata?.sha256,
+        asset.metadata?.originalSha256,
+        derived,
+      ].join(":");
+    })
+    .join("|");
+};
+
+const getGraphSessionWatchSource = () => {
+  const session = props.session;
+  if (!session) return [null];
+
+  const parts: unknown[] = [
+    session.id,
+    session.rootNodeId,
+    session.activeLeafId,
+  ];
+
+  const nodeEntries = session.nodes
+    ? Object.values(session.nodes).sort((a, b) => a.id.localeCompare(b.id))
+    : [];
+
+  parts.push(nodeEntries.length);
+
+  for (const node of nodeEntries) {
+    const metadata = node.metadata;
+    parts.push(
+      node.id,
+      node.parentId,
+      node.role,
+      node.status,
+      node.isEnabled,
+      node.timestamp,
+      node.content,
+      getAttachmentWatchSignature(node.attachments),
+      metadata?.reasoningContent,
+      metadata?.error,
+      metadata?.agentId,
+      metadata?.agentName,
+      metadata?.agentIcon,
+      metadata?.profileId,
+      metadata?.modelId,
+      metadata?.modelName,
+      metadata?.userProfileId,
+      metadata?.userProfileName,
+      metadata?.userProfileIcon,
+      metadata?.contentTokens,
+      metadata?.usage?.totalTokens,
+      metadata?.usage?.promptTokens,
+      metadata?.usage?.completionTokens,
+      metadata?.isCompressionNode,
+      metadata?.originalMessageCount,
+      metadata?.originalTokenCount,
+      metadata?.compressedNodeIds?.join(",")
+    );
+  }
+
+  return parts;
+};
+
 // 监听 session 变化
 watch(
-  () => props.session,
-  (newSession) => {
-    // 会话内容（节点/边）发生变化时重新计算布局
-    if (newSession) {
-      updateChart();
-    } else {
-      // 会话被清空时也同步清空图数据
-      updateChart();
-    }
-  },
-  { deep: true }
+  getGraphSessionWatchSource,
+  () => {
+    updateChart();
+  }
 );
 
 // 监听会话 ID 变化（切换会话时自动聚焦到当前对话末端）
@@ -962,6 +1051,11 @@ let lastTime = performance.now();
 let animationFrameId: number | null = null;
 
 const updateStats = () => {
+  if (!viewSettings.value.showHud) {
+    animationFrameId = null;
+    return;
+  }
+
   const now = performance.now();
   frameCount++;
 
@@ -980,28 +1074,58 @@ const updateStats = () => {
   animationFrameId = requestAnimationFrame(updateStats);
 };
 
-onMounted(() => {
+const startStatsLoop = () => {
+  if (animationFrameId !== null) return;
+  frameCount = 0;
+  lastTime = performance.now();
   updateStats();
+};
+
+const stopStatsLoop = () => {
+  if (animationFrameId !== null) {
+    cancelAnimationFrame(animationFrameId);
+    animationFrameId = null;
+  }
+};
+
+watch(
+  () => viewSettings.value.showHud,
+  (showHud) => {
+    if (showHud) {
+      startStatsLoop();
+    } else {
+      stopStatsLoop();
+    }
+  }
+);
+
+onMounted(() => {
+  if (viewSettings.value.showHud) {
+    startStatsLoop();
+  }
 });
 
 onUnmounted(() => {
-  if (animationFrameId !== null) {
-    cancelAnimationFrame(animationFrameId);
-  }
+  stopStatsLoop();
 });
 
 // 监听节点尺寸变化并同步到 D3
 const dimensionsWatchStop = watch(
-  () => getNodes.value,
+  () =>
+    getNodes.value.map((node) => ({
+      id: node.id,
+      width: node.dimensions?.width ?? 0,
+      height: node.dimensions?.height ?? 0,
+    })),
   (vueFlowNodes) => {
     const dimensionsMap = new Map<string, { width: number; height: number }>();
 
     vueFlowNodes.forEach((node) => {
       // Vue Flow 的 node.dimensions 包含渲染后的实际尺寸
-      if (node.dimensions?.width && node.dimensions?.height) {
+      if (node.width && node.height) {
         dimensionsMap.set(node.id, {
-          width: node.dimensions.width,
-          height: node.dimensions.height,
+          width: node.width,
+          height: node.height,
         });
       }
     });
@@ -1010,7 +1134,7 @@ const dimensionsWatchStop = watch(
       updateNodeDimensions(dimensionsMap);
     }
   },
-  { deep: true, flush: "post" } // flush: 'post' 确保在 DOM 更新后执行
+  { flush: "post" } // flush: 'post' 确保在 DOM 更新后执行
 );
 
 onUnmounted(() => {
@@ -1115,33 +1239,6 @@ const debugLinkPaths = computed(() => {
     .filter(Boolean);
 });
 
-// 监听视口变化以实时更新调试层
-// Vue Flow 的 viewport 变化会自动触发依赖它的 computed 重新计算
-// 这里添加一个定时器确保调试层在模拟运行时持续更新
-let debugUpdateTimer: number | null = null;
-watch(
-  debugMode,
-  (enabled) => {
-    if (enabled) {
-      debugUpdateTimer = window.setInterval(() => {
-        // 强制触发 computed 更新
-        getViewport();
-      }, 50); // 每 50ms 更新一次
-    } else {
-      if (debugUpdateTimer !== null) {
-        clearInterval(debugUpdateTimer);
-        debugUpdateTimer = null;
-      }
-    }
-  },
-  { immediate: true }
-);
-
-onUnmounted(() => {
-  if (debugUpdateTimer !== null) {
-    clearInterval(debugUpdateTimer);
-  }
-});
 </script>
 
 <style scoped>

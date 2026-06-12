@@ -101,13 +101,13 @@ export function useGraphSubtreeDrag(
         y: node.position.y - dragPositionState.lastPosition.y,
       };
 
-      const allNodeIds = [
+      const allNodeIds = new Set([
         subtreeDragState.rootNodeId,
         ...subtreeDragState.descendantIds,
-      ];
+      ]);
 
       simulation.nodes().forEach((d3Node: any) => {
-        if (allNodeIds.includes(d3Node.id)) {
+        if (allNodeIds.has(d3Node.id)) {
           if (d3Node.id === nodeId) {
             d3Node.fx = node.position.x + d3Node.width / 2;
             d3Node.fy = node.position.y + d3Node.height / 2;
@@ -147,13 +147,13 @@ export function useGraphSubtreeDrag(
 
     if (subtreeDragState.isDragging) {
       if (shouldRebound) {
-        const allNodeIds = [
+        const allNodeIds = new Set([
           subtreeDragState.rootNodeId,
           ...subtreeDragState.descendantIds,
-        ];
+        ]);
         simulation.nodes().forEach((d3Node: any) => {
           if (
-            allNodeIds.includes(d3Node.id) &&
+            allNodeIds.has(d3Node.id) &&
             (!session.rootNodeId || d3Node.id !== session.rootNodeId)
           ) {
             d3Node.fx = null;

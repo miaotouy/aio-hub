@@ -1,7 +1,6 @@
 import { ref, watch, onUnmounted, type Ref } from "vue";
 import { useChatSettings } from "../../../../composables/settings/useChatSettings";
 import type { ChatSessionDetail, ChatMessageNode } from "../../../../types";
-import { BranchNavigator } from "../../../../utils/BranchNavigator";
 import { useLlmChatStore } from "../../../../stores/llmChatStore";
 import { useAgentStore } from "../../../../stores/agentStore";
 import { useUserProfileStore } from "../../../../stores/userProfileStore";
@@ -23,6 +22,14 @@ const logger = createModuleLogger("llm-chat/composables/useFlowTreeGraph");
 const errorHandler = createModuleErrorHandler(
   "llm-chat/composables/useFlowTreeGraph"
 );
+
+interface DerivedContentCacheEntry {
+  content: string;
+  reasoningContent?: string;
+  contentPreview: string;
+  hasThinking: boolean;
+  thinkingPreview: string | null;
+}
 
 /**
  * Vue Flow 树图主 Composable
@@ -46,6 +53,7 @@ export function useFlowTreeGraph(
   const layoutMode = ref<LayoutMode>("tree");
   const debugMode = ref(false);
   const expandedCompressionIds = ref(new Set<string>());
+  const derivedContentCache = new Map<string, DerivedContentCacheEntry>();
   let lastStructureFingerprint = "";
 
   // 2. 初始化子模块
@@ -109,25 +117,105 @@ export function useFlowTreeGraph(
       .join("|");
   }
 
-  /**
-   * 计算节点的层级深度
-   */
-  function calculateNodeDepth(
-    session: ChatSessionDetail,
-    nodeId: string
-  ): number {
-    let depth = 0;
-    if (!session.nodes || !session.rootNodeId) return depth;
-    let currentId: string | null = nodeId;
+  function buildActivePathSet(session: ChatSessionDetail): Set<string> {
+    const activePath = new Set<string>();
+    if (!session.nodes || !session.activeLeafId) return activePath;
 
-    while (currentId && currentId !== session.rootNodeId) {
+    let currentId: string | null = session.activeLeafId;
+    while (currentId) {
+      activePath.add(currentId);
       const node: ChatMessageNode | undefined = session.nodes[currentId];
-      if (!node || !node.parentId) break;
-      depth++;
+      if (!node) break;
       currentId = node.parentId;
     }
 
-    return depth;
+    return activePath;
+  }
+
+  function buildNodeDepthMap(session: ChatSessionDetail): Map<string, number> {
+    const depthMap = new Map<string, number>();
+    if (!session.nodes) return depthMap;
+
+    const childrenByParent = new Map<string, string[]>();
+    for (const node of Object.values(session.nodes)) {
+      if (!node.parentId) continue;
+      const children = childrenByParent.get(node.parentId) || [];
+      children.push(node.id);
+      childrenByParent.set(node.parentId, children);
+    }
+
+    const roots =
+      session.rootNodeId && session.nodes[session.rootNodeId]
+        ? [session.rootNodeId]
+        : Object.values(session.nodes)
+            .filter((node) => !node.parentId)
+            .map((node) => node.id);
+
+    const stack = roots.map((id) => ({ id, depth: 0 }));
+    while (stack.length > 0) {
+      const current = stack.pop()!;
+      if (depthMap.has(current.id)) continue;
+      depthMap.set(current.id, current.depth);
+
+      const children = childrenByParent.get(current.id) || [];
+      for (const childId of children) {
+        stack.push({ id: childId, depth: current.depth + 1 });
+      }
+    }
+
+    for (const node of Object.values(session.nodes)) {
+      if (depthMap.has(node.id)) continue;
+
+      let depth = 0;
+      let currentId: string | null = node.id;
+      const seen = new Set<string>();
+      while (currentId && !seen.has(currentId)) {
+        seen.add(currentId);
+        const parentId: string | null =
+          session.nodes[currentId]?.parentId ?? null;
+        if (!parentId) break;
+        const parentDepth = depthMap.get(parentId);
+        if (parentDepth !== undefined) {
+          depth += parentDepth + 1;
+          break;
+        }
+        depth++;
+        currentId = parentId;
+      }
+      depthMap.set(node.id, depth);
+    }
+
+    return depthMap;
+  }
+
+  function getDerivedContent(node: ChatMessageNode): DerivedContentCacheEntry {
+    const content = node.content || "";
+    const reasoningContent = node.metadata?.reasoningContent;
+    const cached = derivedContentCache.get(node.id);
+    if (
+      cached &&
+      cached.content === content &&
+      cached.reasoningContent === reasoningContent
+    ) {
+      return cached;
+    }
+
+    const strippedContent = contentUtils.stripThinkingBlocks(content);
+    const hasThinking = contentUtils.hasThinkingContent(
+      content,
+      reasoningContent
+    );
+    const entry: DerivedContentCacheEntry = {
+      content,
+      reasoningContent,
+      contentPreview: contentUtils.truncateText(strippedContent, 150),
+      hasThinking,
+      thinkingPreview: hasThinking
+        ? contentUtils.extractThinkingPreview(content, reasoningContent)
+        : null,
+    };
+    derivedContentCache.set(node.id, entry);
+    return entry;
   }
 
   /**
@@ -136,9 +224,10 @@ export function useFlowTreeGraph(
   function getNodeColor(
     session: ChatSessionDetail,
     node: ChatMessageNode,
+    activePathSet: Set<string>,
     isCompressed: boolean = false
   ): { background: string; border: string } {
-    const isOnActivePath = BranchNavigator.isNodeInActivePath(session, node.id);
+    const isOnActivePath = activePathSet.has(node.id);
     const isActiveLeaf =
       !!session.activeLeafId && node.id === session.activeLeafId;
     const isEnabled = node.isEnabled !== false && !isCompressed;
@@ -196,6 +285,9 @@ export function useFlowTreeGraph(
       }
     }
 
+    const activePathSet = buildActivePathSet(session);
+    const nodeDepthMap = buildNodeDepthMap(session);
+
     // --- 预处理压缩节点逻辑 ---
     const compressedNodeIds = new Set<string>();
     const nodeRepMap = new Map<string, string>();
@@ -238,26 +330,14 @@ export function useFlowTreeGraph(
         const isCompressed = compressedNodeIds.has(node.id);
         const isActiveLeaf = node.id === session.activeLeafId;
         const isEnabled = node.isEnabled !== false && !isCompressed;
-        const colors = getNodeColor(session, node, isCompressed);
+        const colors = getNodeColor(session, node, activePathSet, isCompressed);
         const roleDisplay = contentUtils.getRoleDisplay(
           node,
           userProfileStore,
           agentStore
         );
 
-        const strippedContent = contentUtils.stripThinkingBlocks(node.content);
-        const contentPreview = contentUtils.truncateText(strippedContent, 150);
-
-        const nodeHasThinking = contentUtils.hasThinkingContent(
-          node.content,
-          node.metadata?.reasoningContent
-        );
-        const thinkingPreview = nodeHasThinking
-          ? contentUtils.extractThinkingPreview(
-              node.content,
-              node.metadata?.reasoningContent
-            )
-          : null;
+        const derivedContent = getDerivedContent(node);
 
         const subtitleInfo = contentUtils.getSubtitleInfo(
           node,
@@ -321,7 +401,7 @@ export function useFlowTreeGraph(
           data: {
             name: roleDisplay.name,
             avatar: roleDisplay.icon,
-            contentPreview,
+            contentPreview: derivedContent.contentPreview,
             isActiveLeaf,
             isEnabled,
             timestamp: node.timestamp || "",
@@ -332,10 +412,9 @@ export function useFlowTreeGraph(
             colors,
             tokens,
             attachments,
-            _node: node,
-            _nodeDepth: calculateNodeDepth(session, node.id),
-            hasThinking: nodeHasThinking,
-            thinkingPreview,
+            _nodeDepth: nodeDepthMap.get(node.id) || 0,
+            hasThinking: derivedContent.hasThinking,
+            thinkingPreview: derivedContent.thinkingPreview,
             isCompressionNode,
             isExpanded,
             originalMessageCount: node.metadata?.originalMessageCount,
@@ -349,6 +428,14 @@ export function useFlowTreeGraph(
 
     // 转换边
     const flowEdges: any[] = [];
+    const flowNodeIds = new Set(flowNodes.map((node) => node.id));
+    const seenNodeIds = new Set(flowNodeIds);
+    for (const cachedNodeId of derivedContentCache.keys()) {
+      if (!seenNodeIds.has(cachedNodeId)) {
+        derivedContentCache.delete(cachedNodeId);
+      }
+    }
+
     flowNodes.forEach((targetNode) => {
       if (!session.nodes) return;
       const node = session.nodes[targetNode.id];
@@ -365,10 +452,9 @@ export function useFlowTreeGraph(
 
       if (rawParentId) {
         const sourceId = getVisibleParentId(rawParentId);
-        if (sourceId && flowNodes.some((n) => n.id === sourceId)) {
+        if (sourceId && flowNodeIds.has(sourceId)) {
           const isOnActivePath =
-            BranchNavigator.isNodeInActivePath(session, sourceId) &&
-            BranchNavigator.isNodeInActivePath(session, targetNode.id);
+            activePathSet.has(sourceId) && activePathSet.has(targetNode.id);
 
           flowEdges.push({
             id: `${sourceId}-${targetNode.id}`,

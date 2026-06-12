@@ -72,6 +72,27 @@ function createThemePalette() {
   };
 }
 
+function isPaletteEqual(
+  current: Record<string, any>,
+  next: Record<string, any>
+): boolean {
+  for (const key of Object.keys(next)) {
+    const nextValue = next[key];
+    const currentValue = current[key];
+    if (
+      nextValue &&
+      typeof nextValue === "object" &&
+      !Array.isArray(nextValue)
+    ) {
+      if (!isPaletteEqual(currentValue || {}, nextValue)) return false;
+    } else if (currentValue !== nextValue) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 /**
  * 树图主题调色板 Composable
  */
@@ -84,7 +105,10 @@ export function useGraphThemePalette() {
 
   onMounted(() => {
     observer = new MutationObserver(() => {
-      Object.assign(palette, createThemePalette());
+      const nextPalette = createThemePalette();
+      if (isPaletteEqual(palette, nextPalette)) return;
+
+      Object.assign(palette, nextPalette);
       paletteVersion.value++;
     });
     observer.observe(document.documentElement, {

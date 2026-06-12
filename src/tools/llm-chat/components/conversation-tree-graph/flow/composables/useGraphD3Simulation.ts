@@ -109,6 +109,16 @@ export function useGraphD3Simulation(
   const pendingNodeIds = ref(new Set<string>());
   // 布局超时定时器
   let layoutTimeoutId: any = null;
+  let lastVueNodesArray: any[] | null = null;
+  let vueNodeById = new Map<string, any>();
+
+  function getVueNodeById(): Map<string, any> {
+    if (lastVueNodesArray !== nodes.value) {
+      lastVueNodesArray = nodes.value;
+      vueNodeById = new Map(nodes.value.map((node) => [node.id, node]));
+    }
+    return vueNodeById;
+  }
 
   /**
    * 初始化 D3 力导向模拟
@@ -118,12 +128,13 @@ export function useGraphD3Simulation(
     if (!session || nodes.value.length === 0) return;
 
     const levelGap = 280;
+    const existingD3NodeMap = new Map(
+      simulation.value?.nodes().map((node) => [node.id, node]) ?? []
+    );
 
     // 准备 D3 数据
     d3Nodes.value = nodes.value.map((n) => {
-      const existingD3Node = simulation.value
-        ?.nodes()
-        .find((d) => d.id === n.id);
+      const existingD3Node = existingD3NodeMap.get(n.id);
       const measured = measuredDimensions.get(n.id);
 
       const baseHeight = 140;
@@ -258,8 +269,9 @@ export function useGraphD3Simulation(
       }
 
       // 4. 应用位置：x 来自 tree() 计算，y 来自层级累加
+      const nodeById = getVueNodeById();
       for (const d3Node of d3Nodes.value) {
-        const vueNode = nodes.value.find((n) => n.id === d3Node.id);
+        const vueNode = nodeById.get(d3Node.id);
         const treePos = calculatedPositions.get(d3Node.id);
         const centerY = layerCenterY.get(d3Node.depth) ?? 0;
         if (vueNode && treePos) {
@@ -315,7 +327,10 @@ export function useGraphD3Simulation(
           n.fy = null;
         }
       });
-      const rootNode = sim.nodes().find((n) => n.id === session.rootNodeId);
+      const d3NodeById = new Map(sim.nodes().map((node) => [node.id, node]));
+      const rootNode = session.rootNodeId
+        ? d3NodeById.get(session.rootNodeId)
+        : null;
       const rootPos = session.rootNodeId
         ? calculatedPositions.get(session.rootNodeId)
         : null;
@@ -329,8 +344,9 @@ export function useGraphD3Simulation(
       if (debugMode.value) {
         d3Nodes.value = [...sim.nodes()];
       }
+      const nodeById = getVueNodeById();
       for (const d3Node of sim.nodes()) {
-        const vueNode = nodes.value.find((n) => n.id === d3Node.id);
+        const vueNode = nodeById.get(d3Node.id);
         if (vueNode) {
           vueNode.position.x = (d3Node.x || 0) - d3Node.width / 2;
           vueNode.position.y = (d3Node.y || 0) - d3Node.height / 2;
@@ -393,12 +409,24 @@ export function useGraphD3Simulation(
   }
 
   function startWaitingForDimensions(flowNodes: any[]) {
-    isWaitingForDimensions.value = true;
-    pendingNodeIds.value = new Set(flowNodes.map((n) => n.id));
-
     if (layoutTimeoutId) {
       clearTimeout(layoutTimeoutId);
+      layoutTimeoutId = null;
     }
+
+    const pendingIds = flowNodes
+      .map((n) => n.id)
+      .filter((id) => !measuredDimensions.has(id));
+
+    if (pendingIds.length === 0) {
+      isWaitingForDimensions.value = false;
+      pendingNodeIds.value.clear();
+      initD3Simulation();
+      return;
+    }
+
+    isWaitingForDimensions.value = true;
+    pendingNodeIds.value = new Set(pendingIds);
 
     layoutTimeoutId = setTimeout(() => {
       if (isWaitingForDimensions.value) {

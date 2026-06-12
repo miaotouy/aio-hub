@@ -1,5 +1,11 @@
 <template>
-  <div class="node-wrapper">
+  <div
+    class="node-wrapper"
+    @mouseenter="showMenubar"
+    @mouseleave="scheduleHideMenubar"
+    @focusin="showMenubar"
+    @focusout="handleFocusOut"
+  >
     <div
       :class="[
         'graph-node',
@@ -25,10 +31,10 @@
 
     <!-- 悬浮操作栏 -->
     <GraphNodeMenubar
+      v-if="isMenubarMounted"
       :message-id="id"
       :is-enabled="data.isEnabled"
       :is-active-leaf="data.isActiveLeaf"
-      :zoom="viewport.zoom"
       :role="data.role"
       :model-id="data.modelId"
       :profile-id="data.profileId"
@@ -38,19 +44,17 @@
       @view-detail="(event: MouseEvent) => handleViewDetail(event)"
       @regenerate="handleRegenerate"
       @create-branch="handleCreateBranch"
+      @interaction-active-change="handleMenubarInteractionActiveChange"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
-import { Handle, Position, useVueFlow } from "@vue-flow/core";
+import { computed, onUnmounted, ref } from "vue";
+import { Handle, Position } from "@vue-flow/core";
 import type { Asset } from "@/types/asset-management";
 import GraphNodeContent from "./GraphNodeContent.vue";
 import GraphNodeMenubar from "./GraphNodeMenubar.vue";
-
-// 获取当前画布的缩放级别
-const { viewport } = useVueFlow();
 
 interface NodeData {
   name: string;
@@ -111,6 +115,61 @@ interface Emits {
 
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
+const isMenubarMounted = ref(false);
+const isMenubarInteractionActive = ref(false);
+let hideMenubarTimer: ReturnType<typeof setTimeout> | null = null;
+
+const clearMenubarHideTimer = () => {
+  if (hideMenubarTimer) {
+    clearTimeout(hideMenubarTimer);
+    hideMenubarTimer = null;
+  }
+};
+
+const showMenubar = () => {
+  clearMenubarHideTimer();
+  isMenubarMounted.value = true;
+};
+
+const scheduleHideMenubar = () => {
+  if (isMenubarInteractionActive.value) return;
+
+  clearMenubarHideTimer();
+  hideMenubarTimer = setTimeout(() => {
+    if (isMenubarInteractionActive.value) return;
+
+    isMenubarMounted.value = false;
+    hideMenubarTimer = null;
+  }, 160);
+};
+
+const handleMenubarInteractionActiveChange = (active: boolean) => {
+  isMenubarInteractionActive.value = active;
+  if (active) {
+    showMenubar();
+  } else {
+    scheduleHideMenubar();
+  }
+};
+
+const handleFocusOut = (event: FocusEvent) => {
+  const currentTarget = event.currentTarget;
+  const relatedTarget = event.relatedTarget;
+
+  if (
+    currentTarget instanceof HTMLElement &&
+    relatedTarget instanceof Node &&
+    currentTarget.contains(relatedTarget)
+  ) {
+    return;
+  }
+
+  scheduleHideMenubar();
+};
+
+onUnmounted(() => {
+  clearMenubarHideTimer();
+});
 
 const nodeStyle = computed(() => {
   const style: { backgroundColor: string; borderColor?: string } = {
@@ -148,12 +207,6 @@ const handleCreateBranch = () => emit("create-branch");
   top: -8px;
   bottom: -56px; /* 覆盖到 menubar 区域 */
   pointer-events: none;
-}
-
-/* 悬停时显示操作栏 - 扩大触发区域 */
-.node-wrapper:hover .graph-node-menubar,
-.graph-node-menubar:hover {
-  opacity: 1;
 }
 
 .graph-node {

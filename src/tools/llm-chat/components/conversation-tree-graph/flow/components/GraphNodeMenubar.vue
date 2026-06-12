@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 import {
   Copy,
   Eye,
@@ -40,7 +40,6 @@ const logger = createModuleLogger("GraphNodeMenubar");
 interface Props {
   isEnabled: boolean;
   isActiveLeaf: boolean;
-  zoom: number;
   role: "user" | "assistant" | "system" | "tool";
   modelId?: string;
   profileId?: string;
@@ -54,6 +53,7 @@ interface Emits {
   (e: "view-detail", event: MouseEvent): void;
   (e: "regenerate", options?: { modelId?: string; profileId?: string }): void;
   (e: "create-branch"): void;
+  (e: "interaction-active-change", active: boolean): void;
 }
 
 const props = defineProps<Props>();
@@ -73,20 +73,18 @@ const showExportDialog = ref(false);
 // 数据编辑对话框
 const showDataEditor = ref(false);
 
-// 计算反向缩放以保持固定大小,限定在合理范围内
-const menubarStyle = computed(() => {
-  // 计算反向缩放值
-  const inverseScale = 1 / props.zoom;
-  // 将缩放值限制在 0.5 到 2 之间，确保在极端缩放下菜单栏不会过大或过小
-  // zoom ∈ [0.5, 2] 时，菜单栏能正常保持固定大小
-  // zoom < 0.5 或 zoom > 2 时，使用边界值避免菜单栏过大或过小
-  const clampedScale = Math.max(0.5, Math.min(2, inverseScale));
+const isMoreMenuOpen = ref(false);
+const isDeleteConfirmOpen = ref(false);
 
-  return {
-    transform: `translateX(-50%) scale(${clampedScale})`,
-    transformOrigin: "center top",
-  };
-});
+watch(
+  [showExportDialog, showDataEditor, isMoreMenuOpen, isDeleteConfirmOpen],
+  ([exportVisible, editorVisible, moreMenuOpen, deleteConfirmOpen]) => {
+    emit(
+      "interaction-active-change",
+      exportVisible || editorVisible || moreMenuOpen || deleteConfirmOpen
+    );
+  }
+);
 
 const handleCopy = () => emit("copy");
 const handleToggleEnabled = () => emit("toggle-enabled");
@@ -233,7 +231,7 @@ const handleSelectModelAndRegenerate = async () => {
 </script>
 
 <template>
-  <div class="graph-node-menubar" :style="menubarStyle">
+  <div class="graph-node-menubar">
     <!-- 查看详情 -->
     <el-tooltip content="查看详情" placement="bottom" :show-after="300">
       <button class="menu-btn" @click="handleViewDetail">
@@ -243,57 +241,66 @@ const handleSelectModelAndRegenerate = async () => {
 
     <!-- 更多菜单 -->
     <el-tooltip content="更多操作" placement="bottom" :show-after="300">
-      <el-dropdown trigger="click" placement="bottom">
-        <button class="menu-btn">
-          <Menu :size="16" />
-        </button>
-        <template #dropdown>
-          <el-dropdown-menu>
-            <el-dropdown-item v-if="isUserOrAssistant" @click="handleContinue">
-              <div class="dropdown-item-content">
-                <StepForward :size="16" />
-                <span>续写消息</span>
-              </div>
-            </el-dropdown-item>
-            <el-dropdown-item @click="handleAnalyzeContext">
-              <div class="dropdown-item-content">
-                <BarChart3 :size="16" />
-                <span>上下文分析</span>
-              </div>
-            </el-dropdown-item>
-            <el-dropdown-item @click="showExportDialog = true">
-              <div class="dropdown-item-content">
-                <Download :size="16" />
-                <span>导出分支</span>
-              </div>
-            </el-dropdown-item>
-            <el-dropdown-item
-              v-if="isUserOrAssistant"
-              @click="handleRecalculateTokens"
-            >
-              <div class="dropdown-item-content">
-                <Hash :size="16" />
-                <span>重新计算 Token</span>
-              </div>
-            </el-dropdown-item>
-            <el-dropdown-item
-              v-if="isAssistantMessage"
-              @click="handleReparseTools"
-            >
-              <div class="dropdown-item-content">
-                <Wand2 :size="16" />
-                <span>重新解析工具</span>
-              </div>
-            </el-dropdown-item>
-            <el-dropdown-item @click="showDataEditor = true">
-              <div class="dropdown-item-content">
-                <Database :size="16" />
-                <span>数据编辑 (高级)</span>
-              </div>
-            </el-dropdown-item>
-          </el-dropdown-menu>
-        </template>
-      </el-dropdown>
+      <div>
+        <el-dropdown
+          trigger="click"
+          placement="bottom"
+          @visible-change="(visible: boolean) => (isMoreMenuOpen = visible)"
+        >
+          <button class="menu-btn">
+            <Menu :size="16" />
+          </button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item
+                v-if="isUserOrAssistant"
+                @click="handleContinue"
+              >
+                <div class="dropdown-item-content">
+                  <StepForward :size="16" />
+                  <span>续写消息</span>
+                </div>
+              </el-dropdown-item>
+              <el-dropdown-item @click="handleAnalyzeContext">
+                <div class="dropdown-item-content">
+                  <BarChart3 :size="16" />
+                  <span>上下文分析</span>
+                </div>
+              </el-dropdown-item>
+              <el-dropdown-item @click="showExportDialog = true">
+                <div class="dropdown-item-content">
+                  <Download :size="16" />
+                  <span>导出分支</span>
+                </div>
+              </el-dropdown-item>
+              <el-dropdown-item
+                v-if="isUserOrAssistant"
+                @click="handleRecalculateTokens"
+              >
+                <div class="dropdown-item-content">
+                  <Hash :size="16" />
+                  <span>重新计算 Token</span>
+                </div>
+              </el-dropdown-item>
+              <el-dropdown-item
+                v-if="isAssistantMessage"
+                @click="handleReparseTools"
+              >
+                <div class="dropdown-item-content">
+                  <Wand2 :size="16" />
+                  <span>重新解析工具</span>
+                </div>
+              </el-dropdown-item>
+              <el-dropdown-item @click="showDataEditor = true">
+                <div class="dropdown-item-content">
+                  <Database :size="16" />
+                  <span>数据编辑 (高级)</span>
+                </div>
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+      </div>
     </el-tooltip>
 
     <!-- 复制内容 -->
@@ -357,6 +364,7 @@ const handleSelectModelAndRegenerate = async () => {
 
     <!-- 删除 -->
     <el-popconfirm
+      v-model:visible="isDeleteConfirmOpen"
       title="确定要删除此节点吗？"
       confirm-button-text="删除"
       cancel-button-text="取消"
@@ -377,6 +385,7 @@ const handleSelectModelAndRegenerate = async () => {
 
     <!-- 导出对话框 -->
     <ExportBranchDialog
+      v-if="showExportDialog"
       v-model:visible="showExportDialog"
       :preset-count="presetCount"
       :session="store.currentSessionDetail"
@@ -386,7 +395,11 @@ const handleSelectModelAndRegenerate = async () => {
     />
 
     <!-- 数据编辑对话框 -->
-    <MessageDataEditor v-model="showDataEditor" :message-id="props.messageId" />
+    <MessageDataEditor
+      v-if="showDataEditor"
+      v-model="showDataEditor"
+      :message-id="props.messageId"
+    />
   </div>
 </template>
 
@@ -395,11 +408,12 @@ const handleSelectModelAndRegenerate = async () => {
   position: absolute;
   bottom: -48px;
   left: 50%;
-  /* transform 由 inline style 动态控制 */
+  transform: translateX(-50%) scale(var(--graph-menubar-scale, 1));
+  transform-origin: center top;
   display: flex;
   align-items: center;
   gap: 4px;
-  opacity: 0;
+  opacity: 1;
   transition: opacity 0.2s ease;
   padding: 4px;
   border-radius: 8px;

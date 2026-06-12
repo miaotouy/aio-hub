@@ -132,11 +132,16 @@ tree 模式 alphaDecay 0.04 约 170 tick/轮，physics 模式约 300 tick/轮；
 6. **删除调试 50ms 无效 interval；HUD 隐藏时停掉 RAF**。
 7. **主题 palette 变更前做等值比较**，并评估去掉对 html `style` 属性的监听。
 
-### 阶段二：重渲染规模治理
+### 阶段二：重渲染规模治理【施工中】
 
-8. **Menubar 懒挂载**：仅当前 hover 的节点 `v-if` 渲染 Menubar（或图级共享单实例，定位到 hover 节点）；`ExportBranchDialog` / `MessageDataEditor` 提升为图级单例，由"当前操作节点 id"驱动。预期把每节点常驻组件数从 ~15 降到 ~3，初次挂载与内存改善最明显。
-9. **Menubar 反缩放改 CSS 变量**：容器上维护一个 `--graph-inv-zoom`（每帧 1 次更新），Menubar 样式用 `calc()` 引用，消除缩放时 N 份 inline style 更新。
+8. **Menubar 懒挂载**【已施工】：仅当前 hover/focus 的节点 `v-if` 渲染 Menubar；同时增加 dropdown / popconfirm / dialog 操作中的挂载锁，避免鼠标进入 Teleport 弹层后工具栏被提前卸载。`ExportBranchDialog` / `MessageDataEditor` 暂未提升为图级共享单例，但已在 Menubar 内改为打开时才 `v-if` 挂载，避免 hover 后就常驻两个重对话框。共享单例仍可作为后续更彻底的结构治理，但需要重新梳理当前操作节点与弹层生命周期，风险高于本轮局部优化。
+9. **Menubar 反缩放改 CSS 变量**【已施工】：由 `FlowTreeGraph.vue` 在图容器上维护 `--graph-menubar-scale`，Menubar CSS 直接引用变量；`GraphNode` 不再逐节点订阅 `viewport.zoom` 或向 Menubar 传 `zoom` prop，缩放期间只更新图级样式变量。
 10. **data 对象引用复用**：updateChart 时若某节点派生数据未变（可用 content/metadata 修订号或字段级比较），沿用上一轮的 `data` 引用，让未变节点的组件更新被 props 引用比较短路。配合 2 的缓存自然达成。
+
+本轮验证：
+
+- `bun run build:tsc`
+- `bunx oxlint src\tools\llm-chat\components\conversation-tree-graph\flow\FlowTreeGraph.vue src\tools\llm-chat\components\conversation-tree-graph\flow\components\GraphNode.vue src\tools\llm-chat\components\conversation-tree-graph\flow\components\GraphNodeMenubar.vue`
 
 ### 阶段三：触发源与大图扩展（需要小设计）
 
@@ -154,4 +159,3 @@ tree 模式 alphaDecay 0.04 约 170 tick/轮，physics 模式约 300 tick/轮；
 
 - 用 HUD 的 FPS 面板 + Performance 录制对比：固定一个 100+ 节点、含长消息的会话，分别在 ①静置 ②流式生成 ③拖拽/缩放 三个场景录制火焰图，确认 `updateChart`、`traverse`（Vue reactivity）、`find` 的占比变化。
 - `chatSettings.developer.debugModeEnabled` 的调试叠加层可用于确认布局行为未回归（节点速度、固定点、连线参数）。
-

@@ -2,8 +2,8 @@
   <div
     ref="wrapperRef"
     class="flow-tree-graph-wrapper"
+    :style="wrapperStyle"
     tabindex="0"
-    style="outline: none"
   >
     <VueFlow
       :nodes="nodes"
@@ -485,7 +485,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted, computed, reactive } from "vue";
+import {
+  ref,
+  watch,
+  onMounted,
+  onUnmounted,
+  computed,
+  reactive,
+  type CSSProperties,
+} from "vue";
 import { useResizeObserver } from "@vueuse/core";
 import { storeToRefs } from "pinia";
 import { VueFlow, useVueFlow } from "@vue-flow/core";
@@ -1016,7 +1024,15 @@ onMounted(() => {
 });
 
 // 获取 Vue Flow 内部节点状态，用于读取渲染后的节点尺寸和视口信息
-const { getNodes, getViewport, fitView } = useVueFlow();
+const { getNodes, getViewport, fitView, viewport } = useVueFlow();
+const menubarScale = computed(() => {
+  const inverseScale = 1 / viewport.value.zoom;
+  return Math.max(0.5, Math.min(2, inverseScale));
+});
+const wrapperStyle = computed<CSSProperties>(() => ({
+  outline: "none",
+  "--graph-menubar-scale": String(menubarScale.value),
+}));
 
 /**
  * 定位到当前激活节点

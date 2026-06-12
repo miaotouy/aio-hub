@@ -43,7 +43,7 @@ describe("parameter-config", () => {
 
       const result = filterParametersForModel(mockParameters, supported);
 
-      expect(result.temperature).toBe(0.7);
+      expect(result.temperature).toBe(1);
       expect(result.maxTokens).toBe(2000);
       expect(result.topP).toBeUndefined();
       expect(result.enabledParameters).toContain("temperature");

@@ -86,6 +86,14 @@
       <div class="dialog-footer-content">
         <div class="left-actions">
           <button
+            v-if="hasDerivedTranscription"
+            class="btn btn-secondary btn-delete-hover"
+            @click.stop="handleDelete"
+          >
+            <Trash2 :size="16" class="btn-icon" />
+            删除转写
+          </button>
+          <button
             v-if="showRegenerate"
             class="btn btn-secondary btn-danger-hover"
             @click.stop="openRegenerateConfirm"
@@ -188,7 +196,8 @@ import { createModuleLogger } from "@/utils/logger";
 import { customMessage } from "@/utils/customMessage";
 import { isDocxAssetLike } from "@/utils/docxParser";
 import { getPureModelId } from "@/utils/modelIdUtils";
-import { Copy, RefreshCw, Info } from "lucide-vue-next";
+import { Copy, RefreshCw, Info, Trash2 } from "lucide-vue-next";
+import { ElMessageBox } from "element-plus";
 import type { Asset } from "@/types/asset-management";
 
 const logger = createModuleLogger("TranscriptionDialog");
@@ -218,6 +227,7 @@ const emit = defineEmits<{
       overrideConfig?: any;
     }
   ): void;
+  (e: "delete"): void;
 }>();
 
 const { show: showImage } = useImageViewer();
@@ -237,6 +247,10 @@ const isVideo = computed(() => props.asset.type === "video");
 const isAudio = computed(() => props.asset.type === "audio");
 const isDocument = computed(() => props.asset.type === "document");
 const isDocx = computed(() => isDocxAssetLike(props.asset));
+
+const hasDerivedTranscription = computed(
+  () => !!props.asset.metadata?.derived?.transcription
+);
 
 const requiredCapabilities = computed(() => {
   if (isImage.value) {
@@ -347,6 +361,24 @@ const handleSave = async () => {
     logger.error("保存失败", error);
   } finally {
     isSaving.value = false;
+  }
+};
+
+const handleDelete = async () => {
+  try {
+    await ElMessageBox.confirm(
+      "确定要删除该资产的转写内容吗？此操作不可撤销，且会物理删除转写文件。",
+      "提示",
+      {
+        confirmButtonText: "确定删除",
+        cancelButtonText: "取消",
+        type: "warning",
+        lockScroll: false,
+      }
+    );
+    emit("delete");
+  } catch {
+    // 用户取消删除，静默处理
   }
 };
 
@@ -547,6 +579,12 @@ const handleImagePreview = () => {
 }
 
 .btn-danger-hover:hover {
+  color: var(--error-color);
+  border-color: var(--error-color);
+  background: var(--error-bg-light);
+}
+
+.btn-delete-hover:hover {
   color: var(--error-color);
   border-color: var(--error-color);
   background: var(--error-bg-light);

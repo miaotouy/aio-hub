@@ -2462,6 +2462,60 @@ pub async fn update_asset_derived_data(
     drop(entries);
     catalog.mark_dirty(&app);
 
+    // 广播资产更新事件，让所有模块（如 LLM Chat）同步状态
+    if let Err(e) = app.emit("asset-updated", &updated) {
+        log::error!("发出 asset-updated 事件失败: {}", e);
+    }
+
+    Ok(updated)
+}
+
+/// 删除资产的特定衍生数据信息并物理删除对应的衍生数据文件
+#[tauri::command]
+pub async fn remove_asset_derived_data(
+    app: AppHandle,
+    catalog: tauri::State<'_, AssetCatalog>,
+    asset_id: String,
+    key: String,
+) -> Result<Asset, String> {
+    let base_path = get_asset_base_path(app.clone())?;
+    let base_dir = PathBuf::from(&base_path);
+
+    let mut file_to_delete: Option<String> = None;
+
+    let mut entries = catalog.entries.write().map_err(|e| e.to_string())?;
+    let entry = entries
+        .get_mut(&asset_id)
+        .ok_or_else(|| format!("找不到 ID 为 '{}' 的资产", asset_id))?;
+
+    if let Some(derived_map) = &mut entry.derived {
+        if let Some(info) = derived_map.remove(&key) {
+            file_to_delete = info.path;
+        }
+        if derived_map.is_empty() {
+            entry.derived = None;
+        }
+    }
+
+    let updated = convert_entry_to_asset(entry.clone(), &base_dir);
+    drop(entries);
+    catalog.mark_dirty(&app);
+
+    // 物理删除衍生数据文件
+    if let Some(rel_path) = file_to_delete {
+        let file_path = base_dir.join(&rel_path);
+        if file_path.starts_with(&base_dir) && file_path.exists() {
+            if let Err(e) = fs::remove_file(&file_path) {
+                log::error!("删除衍生数据文件失败: {}", e);
+            }
+        }
+    }
+
+    // 广播资产更新事件，让所有模块（如 LLM Chat）同步状态
+    if let Err(e) = app.emit("asset-updated", &updated) {
+        log::error!("发出 asset-updated 事件失败: {}", e);
+    }
+
     Ok(updated)
 }
 

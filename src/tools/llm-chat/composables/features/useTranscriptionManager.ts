@@ -12,6 +12,7 @@ import { useTranscriptionStore } from "@/tools/transcription/stores/transcriptio
 import { saveTranscriptionResult } from "@/tools/transcription/engines/base";
 import { parseModelCombo } from "@/utils/modelIdUtils";
 import { isDocxAssetLike } from "@/utils/docxParser";
+import { invoke } from "@tauri-apps/api/core";
 import type { Asset } from "@/types/asset-management";
 
 const logger = createModuleLogger("useTranscriptionManager");
@@ -312,8 +313,9 @@ export function useTranscriptionManager() {
   };
 
   /**
-   * 获取转写状态
-   */
+   /**
+    * 获取转写状态
+    */
   const getTranscriptionStatus = (asset: Asset) => {
     // 1. 优先检查正在运行的任务（内存状态最实时）
     const task = transcriptionStore.getTaskByAssetId(asset.id);
@@ -322,14 +324,18 @@ export function useTranscriptionManager() {
       if (task.status === "pending") return "pending";
       if (task.status === "cancelled") return "none";
       if (task.status === "completed" && task.resultPath) {
-        // 任务完成后，需要检查是否有警告（内容为空）
+        // 关键：如果任务已完成，但资产元数据中没有转写信息，说明转写已被删除
         const derived = asset.metadata?.derived?.transcription;
-        if (derived?.warning) return "warning";
+        if (!derived || !derived.path) {
+          // 顺便从 store 中移除这个失效的任务，防止脏数据残留
+          transcriptionStore.removeTask(task.id);
+          return "none";
+        }
+        if (derived.warning) return "warning";
         return "success";
       }
       return "processing";
     }
-
     // 2. 检查传入资产对象的元数据
     const derived = asset.metadata?.derived?.transcription;
     if (derived) {
@@ -360,6 +366,22 @@ export function useTranscriptionManager() {
    */
   const cancelTranscription = (assetId: string) => {
     transcriptionRegistry.cancelTask(assetId);
+  };
+
+  /**
+   * 删除转写（物理删除衍生数据文件和 Catalog 中的记录）
+   */
+  const deleteTranscription = async (assetId: string) => {
+    await invoke("remove_asset_derived_data", {
+      assetId,
+      key: "transcription",
+    });
+    // 显式从 store 中移除任务，防止 completed 状态的任务残留导致 UI 误判
+    const task = transcriptionStore.getTaskByAssetId(assetId);
+    if (task) {
+      transcriptionStore.removeTask(task.id);
+    }
+    cancelTranscription(assetId);
   };
 
   /**
@@ -579,6 +601,7 @@ export function useTranscriptionManager() {
     addTask,
     retryTranscription,
     cancelTranscription,
+    deleteTranscription,
     updateTranscriptionContent,
     getTranscriptionStatus,
     getTranscriptionText,

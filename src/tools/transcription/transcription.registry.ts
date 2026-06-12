@@ -182,6 +182,24 @@ export default class TranscriptionRegistry implements ToolRegistry {
           customMessage.success("转写内容已保存");
           transcriptionViewer.close();
         },
+        onDelete: async () => {
+          await invoke("remove_asset_derived_data", {
+            assetId: asset.id,
+            key: "transcription",
+          });
+          // 从本地 store 移除任务，防止 completed 状态的任务残留导致 UI 误判
+          const store = useTranscriptionStore();
+          const task = store.tasks.find((t) => t.assetId === asset.id);
+          if (task) {
+            store.removeTask(task.id);
+          }
+          // 同步更新本地 asset 元数据，使右键菜单的 isVisible 条件重新计算
+          if (asset.metadata?.derived) {
+            delete asset.metadata.derived.transcription;
+          }
+          customMessage.success("转写内容已删除");
+          transcriptionViewer.close();
+        },
       });
     } catch (error) {
       errorHandler.error(error, "读取转写内容失败");

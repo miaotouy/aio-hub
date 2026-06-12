@@ -14,6 +14,7 @@ export interface TranscriptionViewerState {
     enableRepetitionDetection: boolean;
     overrideConfig?: any;
   }) => void;
+  onDelete?: () => void | Promise<void>;
 }
 
 const globalState = ref<TranscriptionViewerState>({
@@ -40,6 +41,7 @@ export function useTranscriptionViewer() {
       enableRepetitionDetection: boolean;
       overrideConfig?: any;
     }) => void;
+    onDelete?: () => void | Promise<void>;
   }) => {
     globalState.value = {
       visible: true,
@@ -49,6 +51,7 @@ export function useTranscriptionViewer() {
       previousConfig: options.previousConfig,
       onSave: options.onSave,
       onRegenerate: options.onRegenerate,
+      onDelete: options.onDelete,
     };
   };
 
@@ -62,6 +65,7 @@ export function useTranscriptionViewer() {
         globalState.value.previousConfig = undefined;
         globalState.value.onSave = undefined;
         globalState.value.onRegenerate = undefined;
+        globalState.value.onDelete = undefined;
       }
     }, 300);
   };

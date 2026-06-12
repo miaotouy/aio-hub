@@ -86,6 +86,7 @@ onMounted(() => {
     @update:model-value="transcriptionViewer.close()"
     @save="transcriptionViewer.state.value.onSave"
     @regenerate="transcriptionViewer.state.value.onRegenerate"
+    @delete="transcriptionViewer.state.value.onDelete"
   />
 
   <!-- 全局媒体生成参数查看器 -->

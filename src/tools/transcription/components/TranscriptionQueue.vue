@@ -12,6 +12,7 @@ import BaseDialog from "@/components/common/BaseDialog.vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import DocumentViewer from "@/components/common/DocumentViewer.vue";
 import { customMessage } from "@/utils/customMessage";
+import { invoke } from "@tauri-apps/api/core";
 import {
   CheckCircle2,
   Loader2,
@@ -262,6 +263,19 @@ const handleViewResult = async (task: TranscriptionTask) => {
           enableRepetitionDetection,
         };
         addTask(asset, finalConfig);
+        transcriptionViewer.close();
+      },
+      onDelete: async () => {
+        await invoke("remove_asset_derived_data", {
+          assetId: asset.id,
+          key: "transcription",
+        });
+        // 从本地 store 移除任务
+        const t = store.tasks.find((it) => it.assetId === asset.id);
+        if (t) {
+          store.removeTask(t.id);
+        }
+        customMessage.success("转写内容已删除");
         transcriptionViewer.close();
       },
     });

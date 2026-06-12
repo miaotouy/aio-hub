@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, ref, watch, onMounted, onUnmounted } from "vue";
 import { convertFileSrc } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import {
   ElTooltip,
   ElDropdown,
@@ -81,6 +82,7 @@ const {
   getTranscriptionText,
   retryTranscription,
   cancelTranscription,
+  deleteTranscription,
   updateTranscriptionContent,
   addTask,
 } = useTranscriptionManager();
@@ -88,6 +90,20 @@ const {
 const chatInputManager = useChatInputManager();
 
 const internalAsset = ref<Asset>(props.asset);
+
+let unlistenAssetUpdated: (() => void) | null = null;
+
+onMounted(async () => {
+  unlistenAssetUpdated = await listen<Asset>("asset-updated", (event) => {
+    const updatedAsset = event.payload;
+    if (updatedAsset.id === internalAsset.value.id) {
+      logger.debug("收到全局资产更新事件，同步本地状态", {
+        assetId: updatedAsset.id,
+      });
+      internalAsset.value = updatedAsset;
+    }
+  });
+});
 
 watch(
   () => props.asset,
@@ -278,6 +294,15 @@ const handleTranscriptionClick = async (e: Event) => {
           additionalPrompt: payload.prompt,
           enableRepetitionDetection: payload.enableRepetitionDetection,
         });
+        transcriptionViewer.close();
+      },
+      onDelete: async () => {
+        await deleteTranscription(internalAsset.value.id);
+        // 关键：手动移除本地响应式对象的转写元数据，让 UI 状态立刻变回"未转写"
+        if (internalAsset.value.metadata?.derived) {
+          delete internalAsset.value.metadata.derived.transcription;
+        }
+        customMessage.success("转写内容已删除");
         transcriptionViewer.close();
       },
     });
@@ -549,11 +574,13 @@ watch(
   { immediate: true }
 );
 
-// 组件卸载时释放 Blob URL（只有 pending 状态的才是 Blob URL）
-import { onUnmounted } from "vue";
+// 组件卸载时释放资源
 onUnmounted(() => {
   if (assetUrl.value && assetUrl.value.startsWith("blob:")) {
     URL.revokeObjectURL(assetUrl.value);
+  }
+  if (unlistenAssetUpdated) {
+    unlistenAssetUpdated();
   }
 });
 </script>

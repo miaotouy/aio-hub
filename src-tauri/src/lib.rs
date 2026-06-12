@@ -154,6 +154,7 @@ use commands::{
     rebuild_catalog_index,
     rebuild_hash_index,
     remove_asset_completely,
+    remove_asset_derived_data,
     remove_asset_source,
     remove_assets_completely,
     rename_skill,
@@ -672,6 +673,7 @@ pub fn run() {
             remove_asset_completely,
             remove_assets_completely,
             find_asset_by_hash,
+            remove_asset_derived_data,
             update_asset_derived_data,
             get_asset_by_id,
             // Agent 资产管理命令

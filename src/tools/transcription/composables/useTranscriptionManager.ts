@@ -12,6 +12,7 @@ import { assetManagerEngine } from "@/composables/useAssetManager";
 import { smartDecode } from "@/utils/encoding";
 import { getPureModelId } from "@/utils/modelIdUtils";
 import { remove } from "@tauri-apps/plugin-fs";
+import { invoke } from "@tauri-apps/api/core";
 import type { Asset } from "@/types/asset-management";
 import type {
   TranscriptionTask,
@@ -290,11 +291,27 @@ export function useTranscriptionManager() {
     }
   };
 
+  /**
+   * 删除转写（物理删除衍生数据文件和 Catalog 中的记录）
+   */
+  const deleteTranscription = async (assetId: string) => {
+    await invoke("remove_asset_derived_data", {
+      assetId,
+      key: "transcription",
+    });
+    // 如果队列里有该资产的任务，直接移除
+    const task = store.tasks.find((t) => t.assetId === assetId);
+    if (task) {
+      store.removeTask(task.id);
+    }
+  };
+
   return {
     addTask,
     cancelTask,
     getTranscriptionText,
     retryTask: addTask,
     processQueue,
+    deleteTranscription,
   };
 }

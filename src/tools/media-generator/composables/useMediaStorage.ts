@@ -220,9 +220,8 @@ export function useMediaStorage() {
   }
 
   /**
-   /**
-    * 从会话创建索引项
-    */
+   * 从会话创建索引项
+   */
   function createIndexItem(session: GenerationSession): MediaSessionIndexItem {
     // 统计媒体任务数
     const taskCount = Object.values(session.nodes || {}).filter(

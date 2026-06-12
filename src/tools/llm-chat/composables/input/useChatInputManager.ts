@@ -776,11 +776,10 @@ class ChatInputManager {
   }
 
   /**
-   /**
-    * 准备要插入的占位符文本（含前缀后缀换行逻辑）
-    * @param assets 附件列表
-    * @param cursorPosition 当前光标位置
-    */
+   * 准备要插入的占位符文本（含前缀后缀换行逻辑）
+   * @param assets 附件列表
+   * @param cursorPosition 当前光标位置
+   */
   preparePlaceholderInsert(
     assets: Asset[],
     cursorPosition: number

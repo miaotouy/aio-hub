@@ -150,9 +150,8 @@ export function useCanvasStorage() {
   }
 
   /**
-   /**
-    * 列出所有画布 (基于索引加载)
-    */
+   * 列出所有画布 (基于索引加载)
+   */
   async function listAllCanvases(): Promise<CanvasMetadata[]> {
     const result = await errorHandler.wrapAsync(
       async () => {

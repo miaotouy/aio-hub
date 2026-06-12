@@ -313,9 +313,8 @@ export function useTranscriptionManager() {
   };
 
   /**
-   /**
-    * 获取转写状态
-    */
+   * 获取转写状态
+   */
   const getTranscriptionStatus = (asset: Asset) => {
     // 1. 优先检查正在运行的任务（内存状态最实时）
     const task = transcriptionStore.getTaskByAssetId(asset.id);

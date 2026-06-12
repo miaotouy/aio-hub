@@ -43,6 +43,8 @@ const RE_VCP_RESULT_FIELD =
   /-\s*(工具名称|执行状态|返回内容):\s*([\s\S]*?)(?=\n-\s*(?:工具名称|执行状态|返回内容):|\nVCP调用结果结束\]\]|$)/g;
 const RE_VCP_ROLE_OPEN = /<<<\[ROLE_DIVIDE_(USER|ASSISTANT|SYSTEM)\]>>>/y;
 const RE_VCP_DAILY_NOTE_OPEN = /<<<DailyNoteStart>>>/y;
+const VCP_TOOL_SUMMARY_START = "[本轮工具调用摘要:]";
+const VCP_TOOL_SUMMARY_END = "[本轮工具调用摘要结束]";
 
 export class Tokenizer {
   // HTML void elements (不需要闭合标签的元素)
@@ -705,6 +707,39 @@ export class Tokenizer {
               content,
               closed,
               raw: startMarker + content + (closed ? endMarker : ""),
+            });
+            i = currentPos;
+            atLineStart = true;
+            continue;
+          }
+
+          // VCP 本轮工具调用摘要 [本轮工具调用摘要:] ... [本轮工具调用摘要结束]
+          if (text.startsWith(VCP_TOOL_SUMMARY_START, posAfterIndent)) {
+            let currentPos = posAfterIndent + VCP_TOOL_SUMMARY_START.length;
+            const endIdx = text.indexOf(VCP_TOOL_SUMMARY_END, currentPos);
+            let content = "";
+            let closed = false;
+
+            if (endIdx !== -1) {
+              content = text.slice(currentPos, endIdx);
+              currentPos = endIdx + VCP_TOOL_SUMMARY_END.length;
+              closed = true;
+            } else {
+              content = text.slice(currentPos);
+              currentPos = len;
+              closed = false;
+            }
+
+            tokens.push({
+              type: "vcp_role",
+              role: "user",
+              variant: "tool_summary",
+              content,
+              closed,
+              raw:
+                VCP_TOOL_SUMMARY_START +
+                content +
+                (closed ? VCP_TOOL_SUMMARY_END : ""),
             });
             i = currentPos;
             atLineStart = true;

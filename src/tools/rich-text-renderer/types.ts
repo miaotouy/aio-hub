@@ -451,6 +451,13 @@ export interface VcpRoleNode extends BaseAstNode {
   type: "vcp_role";
   props: {
     role: "user" | "assistant" | "system";
+    variant?: "tool_summary";
+    summaryItems?: Array<{
+      label: string;
+      toolName: string;
+      status: "success" | "error" | "info";
+      statusLabel: string;
+    }>;
     closed: boolean;
   };
   children: AstNode[];

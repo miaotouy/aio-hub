@@ -1,16 +1,33 @@
 <template>
   <div
     class="vcp-role-fence"
-    :class="[`role-${role}`, { 'is-pending': !closed }]"
+    :class="[roleClass, { 'is-pending': !closed }]"
   >
     <div class="vcp-role-badge">
       <component :is="roleIcon" class="role-icon" :size="10" />
-      <span class="role-name">VCP {{ roleLabel }}</span>
+      <span class="role-name">{{ badgeLabel }}</span>
       <div v-if="!closed" class="pending-indicator">
         <Loader2 class="spinning" :size="10" />
       </div>
     </div>
-    <div class="vcp-role-content">
+    <div
+      v-if="isToolSummary && summaryItems?.length"
+      class="vcp-role-content tool-summary-content"
+    >
+      <div class="summary-chip-list" aria-label="本轮工具调用摘要">
+        <div
+          v-for="(item, index) in summaryItems"
+          :key="`${item.label}-${index}`"
+          class="summary-chip"
+          :class="`summary-chip-${item.status}`"
+          :title="item.label"
+        >
+          <span class="summary-chip-name">{{ item.toolName }}</span>
+          <span class="summary-chip-status">{{ item.statusLabel }}</span>
+        </div>
+      </div>
+    </div>
+    <div v-else class="vcp-role-content">
       <slot />
     </div>
   </div>
@@ -18,15 +35,26 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
-import { User, Bot, ShieldCheck, Loader2 } from "lucide-vue-next";
+import { User, Bot, ShieldCheck, Loader2, ClipboardList } from "lucide-vue-next";
 
 const props = defineProps<{
   nodeId: string;
   role: "user" | "assistant" | "system";
+  variant?: "tool_summary";
+  summaryItems?: Array<{
+    label: string;
+    toolName: string;
+    status: "success" | "error" | "info";
+    statusLabel: string;
+  }>;
   closed: boolean;
 }>();
 
+const isToolSummary = computed(() => props.variant === "tool_summary");
+
 const roleLabel = computed(() => {
+  if (isToolSummary.value) return "本轮工具调用摘要";
+
   switch (props.role) {
     case "user":
       return "User";
@@ -39,7 +67,17 @@ const roleLabel = computed(() => {
   }
 });
 
+const badgeLabel = computed(() =>
+  isToolSummary.value ? roleLabel.value : `VCP ${roleLabel.value}`
+);
+
+const roleClass = computed(() =>
+  isToolSummary.value ? "role-tool-summary" : `role-${props.role}`
+);
+
 const roleIcon = computed(() => {
+  if (isToolSummary.value) return ClipboardList;
+
   switch (props.role) {
     case "user":
       return User;
@@ -153,6 +191,90 @@ const roleIcon = computed(() => {
 .role-system .vcp-role-badge {
   color: var(--el-color-info);
   border-color: rgba(var(--el-color-info-rgb), 0.2);
+}
+
+.role-tool-summary {
+  border-left-color: rgba(var(--el-color-warning-rgb), 0.35);
+}
+.role-tool-summary .vcp-role-badge {
+  color: var(--el-color-warning);
+  border-color: rgba(var(--el-color-warning-rgb), 0.25);
+}
+.role-tool-summary .vcp-role-content {
+  color: var(--el-text-color-secondary);
+}
+
+.tool-summary-content {
+  padding-top: 22px;
+}
+
+.summary-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 0 2px;
+}
+
+.summary-chip {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  border: 1px solid rgba(var(--el-border-color-rgb, 128, 128, 128), 0.18);
+  border-radius: 999px;
+  background: rgba(var(--el-fill-color-rgb, 255, 255, 255), 0.05);
+  color: var(--el-text-color-primary);
+  overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.summary-chip-name {
+  padding: 5px 10px 5px 12px;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.summary-chip-status {
+  align-self: stretch;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  border-left: 1px solid currentColor;
+}
+
+.summary-chip-success {
+  border-color: rgba(var(--el-color-success-rgb), 0.35);
+  background: rgba(var(--el-color-success-rgb), 0.08);
+}
+.summary-chip-success .summary-chip-status {
+  color: var(--el-color-success);
+  background: rgba(var(--el-color-success-rgb), 0.12);
+}
+
+.summary-chip-error {
+  border-color: rgba(var(--el-color-danger-rgb), 0.4);
+  background: rgba(var(--el-color-danger-rgb), 0.08);
+}
+.summary-chip-error .summary-chip-status {
+  color: var(--el-color-danger);
+  background: rgba(var(--el-color-danger-rgb), 0.12);
+}
+
+.summary-chip-info {
+  border-color: rgba(var(--el-color-info-rgb), 0.35);
+  background: rgba(var(--el-color-info-rgb), 0.08);
+}
+.summary-chip-info .summary-chip-status {
+  color: var(--el-color-info);
+  background: rgba(var(--el-color-info-rgb), 0.12);
 }
 
 .is-pending {

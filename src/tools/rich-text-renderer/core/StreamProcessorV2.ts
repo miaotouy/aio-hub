@@ -256,6 +256,7 @@ class MarkdownBoundaryDetector {
    * 2. 块级转义工具请求块: <<<[TOOL_REQUEST_ESCAPE]>>> ... <<<[END_TOOL_REQUEST_ESCAPE]>>>
    *    （用于嵌套工具调用，内容中可包含标准 TOOL_REQUEST 块）
    * 3. 调用结果块: [[VCP调用结果信息汇总: ... VCP调用结果结束]]
+   * 4. 工具调用摘要块: [本轮工具调用摘要:] ... [本轮工具调用摘要结束]
    */
   private hasUnclosedVcpBlock(text: string): boolean {
     // 检查标准工具请求块
@@ -282,6 +283,15 @@ class MarkdownBoundaryDetector {
       .length;
     const resultCloseCount = (text.match(/VCP调用结果结束\]\]/g) || []).length;
     if (resultOpenCount !== resultCloseCount) {
+      return true;
+    }
+
+    // 检查新版工具调用摘要块
+    const summaryOpenCount = (text.match(/\[本轮工具调用摘要:\]/g) || [])
+      .length;
+    const summaryCloseCount = (text.match(/\[本轮工具调用摘要结束\]/g) || [])
+      .length;
+    if (summaryOpenCount !== summaryCloseCount) {
       return true;
     }
 
@@ -410,6 +420,8 @@ class MarkdownBoundaryDetector {
       "<<<[END_TOOL_REQUEST",
       "[[VCP调用结果信息汇总",
       "VCP调用结果结束]",
+      "[本轮工具调用摘要:",
+      "[本轮工具调用摘要结束",
       "<<<[ROLE_DIVIDE_",
       "<<<[END_ROLE_DIVIDE_",
       "<<<DailyNoteStart",
@@ -425,6 +437,13 @@ class MarkdownBoundaryDetector {
           return lastIndex;
         }
         if (marker.includes("[[") && !suffix.includes("]]")) {
+          return lastIndex;
+        }
+        if (
+          marker.startsWith("[") &&
+          !marker.startsWith("[[") &&
+          !suffix.includes("]")
+        ) {
           return lastIndex;
         }
       }

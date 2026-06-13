@@ -149,23 +149,6 @@ const {
   },
 });
 
-// 2. 交互动作逻辑
-// 处理键盘事件
-const handleKeydown = (e: KeyboardEvent) => {
-  const sendKey = settings.value.shortcuts.send;
-  if (sendKey === "ctrl+enter") {
-    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-      e.preventDefault();
-      inputStore.handleSend();
-    }
-  } else if (sendKey === "enter") {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      inputStore.handleSend();
-    }
-  }
-};
-
 /**
  * 检查附件是否会使用转写
  */
@@ -558,7 +541,6 @@ const handleDragStart = (e: MouseEvent) => {
             :height="editorHeight"
             :max-height="editorMaxHeight"
             :send-key="settings.shortcuts.send"
-            @keydown="handleKeydown"
             @submit="inputStore.handleSend()"
             @paste="inputStore.handlePaste"
           />
@@ -571,7 +553,6 @@ const handleDragStart = (e: MouseEvent) => {
             :height="editorHeight"
             :max-height="editorMaxHeight"
             :send-key="settings.shortcuts.send"
-            @keydown="handleKeydown"
             @submit="inputStore.handleSend()"
             @paste="inputStore.handlePaste"
           />

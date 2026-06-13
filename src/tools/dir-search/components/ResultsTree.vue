@@ -283,6 +283,9 @@ function onFileContextMenu(event: MouseEvent, fileResult: FileSearchResult) {
     { id: "copy-all-matches", label: "复制当前文件所有匹配" },
     { id: "copy-all-results", label: "复制所有搜索结果" },
     { id: "sep-3", label: "", separator: true },
+    { id: "copy-to", label: "复制到..." },
+    { id: "move-to", label: "移动到..." },
+    { id: "sep-4", label: "", separator: true },
     { id: "reveal-in-explorer", label: "在资源管理器中显示" },
   ];
 

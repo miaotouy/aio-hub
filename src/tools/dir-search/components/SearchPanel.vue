@@ -35,6 +35,30 @@
             <X :size="18" />
           </button>
         </el-tooltip>
+        <el-tooltip v-if="hasResults" content="整理结果" :show-after="500">
+          <el-dropdown trigger="click" @command="handleOrganizeAll">
+            <div>
+              <button class="search-panel__action-btn">
+                <FolderOutput :size="18" />
+              </button>
+            </div>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="copy-all-to">
+                  <Copy :size="14" class="search-panel__dropdown-icon" />
+                  <span>复制所有结果文件到...</span>
+                </el-dropdown-item>
+                <el-dropdown-item command="move-all-to">
+                  <ArrowRightLeft
+                    :size="14"
+                    class="search-panel__dropdown-icon"
+                  />
+                  <span>移动所有结果文件到...</span>
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </el-tooltip>
         <el-tooltip
           :content="
             uiState.viewMode.value === 'list'
@@ -60,7 +84,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, inject } from "vue";
 import {
   RefreshCw,
   ChevronsUp,
@@ -68,6 +92,9 @@ import {
   X,
   FolderTree,
   List,
+  FolderOutput,
+  Copy,
+  ArrowRightLeft,
 } from "lucide-vue-next";
 import SearchInput from "./SearchInput.vue";
 import ResultsTree from "./ResultsTree.vue";
@@ -77,6 +104,11 @@ import { useDirSearchUiState } from "../composables/useDirSearchUiState";
 const search = useDirSearchContext();
 const uiState = useDirSearchUiState();
 const resultsTreeRef = ref<InstanceType<typeof ResultsTree> | null>(null);
+
+// 注入整理文件方法
+const actions = inject("dirSearchActions") as {
+  handleOrganizeFiles: (files: string[], action: "copy" | "move") => void;
+} | null;
 
 const hasResults = computed(() => search.resultsList.value.length > 0);
 const allCollapsed = computed(
@@ -94,6 +126,18 @@ function toggleExpandCollapse() {
   } else {
     search.collapseAll();
     resultsTreeRef.value?.collapseAllTree();
+  }
+}
+
+function handleOrganizeAll(command: string) {
+  const allFiles = search.resultsList.value.map((r) => r.filePath);
+  if (allFiles.length === 0) return;
+  if (!actions?.handleOrganizeFiles) return;
+
+  if (command === "copy-all-to") {
+    actions.handleOrganizeFiles(allFiles, "copy");
+  } else if (command === "move-all-to") {
+    actions.handleOrganizeFiles(allFiles, "move");
   }
 }
 

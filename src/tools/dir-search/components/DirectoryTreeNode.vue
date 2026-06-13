@@ -292,6 +292,9 @@ function onDirContextMenu(event: MouseEvent) {
     { id: "copy-dir-path", label: "复制路径" },
     { id: "copy-all-dir-matches", label: "复制当前目录所有匹配" },
     { id: "copy-all-results", label: "复制所有搜索结果" },
+    { id: "sep-2", label: "", separator: true },
+    { id: "copy-dir-to", label: "复制该目录下文件到..." },
+    { id: "move-dir-to", label: "移动该目录下文件到..." },
   ];
 
   actions.handleContextMenu(event, items, {
@@ -324,6 +327,9 @@ function onFileContextMenu(event: MouseEvent, fileResult: FileSearchResult) {
     { id: "copy-all-matches", label: "复制当前文件所有匹配" },
     { id: "copy-all-results", label: "复制所有搜索结果" },
     { id: "sep-3", label: "", separator: true },
+    { id: "copy-to", label: "复制到..." },
+    { id: "move-to", label: "移动到..." },
+    { id: "sep-4", label: "", separator: true },
     { id: "reveal-in-explorer", label: "在资源管理器中显示" },
   ];
 

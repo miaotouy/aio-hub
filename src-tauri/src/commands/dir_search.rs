@@ -5,7 +5,7 @@ use memchr::memmem;
 use regex::{Regex, RegexBuilder};
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{mpsc, Arc};
 use std::time::{Duration, Instant};
@@ -1157,4 +1157,266 @@ fn preserve_case_convert(original: &str, replacement: &str) -> String {
 
         result
     }
+}
+
+// ===== 文件整理（复制/移动） =====
+
+/// 文件整理请求
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OrganizeFilesRequest {
+    /// 要复制的源文件绝对路径列表
+    pub files: Vec<String>,
+    /// 目标目录绝对路径
+    pub target_dir: String,
+    /// 冲突解决策略: "overwrite" | "rename" | "skip"
+    pub conflict_resolution: String,
+}
+
+/// 文件整理结果
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OrganizeFilesResult {
+    /// 成功处理的文件数
+    pub succeeded: usize,
+    /// 跳过的文件数（仅 skip 策略下）
+    pub skipped: usize,
+    /// 失败的文件数
+    pub failed: usize,
+    /// 成功处理的文件路径列表
+    pub succeeded_paths: Vec<String>,
+    /// 错误详情
+    pub errors: Vec<OrganizeFileError>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OrganizeFileError {
+    pub file_path: String,
+    pub error: String,
+}
+
+/// 生成不冲突的目标路径（自动重命名策略）
+/// 例如: file.txt -> file (1).txt -> file (2).txt
+fn get_non_conflicting_path(target_dir: &Path, file_name: &str) -> PathBuf {
+    let path = target_dir.join(file_name);
+    if !path.exists() {
+        return path;
+    }
+
+    let stem = Path::new(file_name)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("");
+    let ext = Path::new(file_name)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("");
+
+    let mut counter = 1;
+    loop {
+        let new_name = if ext.is_empty() {
+            format!("{} ({})", stem, counter)
+        } else {
+            format!("{} ({}).{}", stem, counter, ext)
+        };
+        let new_path = target_dir.join(&new_name);
+        if !new_path.exists() {
+            return new_path;
+        }
+        counter += 1;
+    }
+}
+
+/// 解析冲突策略枚举
+fn parse_conflict_resolution(strategy: &str) -> Result<ConflictResolution, String> {
+    match strategy {
+        "overwrite" => Ok(ConflictResolution::Overwrite),
+        "rename" => Ok(ConflictResolution::Rename),
+        "skip" => Ok(ConflictResolution::Skip),
+        other => Err(format!(
+            "无效的冲突解决策略: '{}'，有效值为 overwrite, rename, skip",
+            other
+        )),
+    }
+}
+
+enum ConflictResolution {
+    Overwrite,
+    Rename,
+    Skip,
+}
+
+/// 核心文件整理逻辑：复制或移动文件到目标目录
+fn organize_files(
+    files: &[String],
+    target_dir: &Path,
+    conflict: &ConflictResolution,
+    is_move: bool,
+) -> OrganizeFilesResult {
+    let mut succeeded = 0usize;
+    let mut skipped = 0usize;
+    let mut failed = 0usize;
+    let mut succeeded_paths: Vec<String> = Vec::new();
+    let mut errors: Vec<OrganizeFileError> = Vec::new();
+
+    for src_path_str in files {
+        let src = Path::new(src_path_str);
+
+        // 获取文件名
+        let file_name = match src.file_name().and_then(|n| n.to_str()) {
+            Some(name) => name,
+            None => {
+                failed += 1;
+                errors.push(OrganizeFileError {
+                    file_path: src_path_str.clone(),
+                    error: format!("无法获取文件名: {}", src_path_str),
+                });
+                continue;
+            }
+        };
+
+        // 计算目标路径
+        let dest = match conflict {
+            ConflictResolution::Overwrite => target_dir.join(file_name),
+            ConflictResolution::Rename => get_non_conflicting_path(target_dir, file_name),
+            ConflictResolution::Skip => {
+                let dest_path = target_dir.join(file_name);
+                if dest_path.exists() {
+                    skipped += 1;
+                    continue;
+                }
+                dest_path
+            }
+        };
+
+        if is_move {
+            // 移动：先尝试 rename，失败则回退到 copy + remove
+            match fs::rename(src, &dest) {
+                Ok(_) => {
+                    succeeded += 1;
+                    succeeded_paths.push(src_path_str.clone());
+                    continue;
+                }
+                Err(_e) => {
+                    // rename 失败（可能是跨分区），尝试 copy + remove
+                    if let Err(copy_err) = fs::copy(src, &dest) {
+                        failed += 1;
+                        errors.push(OrganizeFileError {
+                            file_path: src_path_str.clone(),
+                            error: format!("移动失败（复制阶段）: {}", copy_err),
+                        });
+                        continue;
+                    }
+                    if let Err(remove_err) = fs::remove_file(src) {
+                        // 复制成功但删除源文件失败——仍然算成功（数据已到位）
+                        log::warn!(
+                            "[dir-search] 移动文件后删除源文件失败: {} -> {}",
+                            src_path_str,
+                            remove_err
+                        );
+                    }
+                    succeeded += 1;
+                    succeeded_paths.push(src_path_str.clone());
+                }
+            }
+        } else {
+            // 复制
+            match fs::copy(src, &dest) {
+                Ok(_) => {
+                    succeeded += 1;
+                    succeeded_paths.push(src_path_str.clone());
+                }
+                Err(e) => {
+                    failed += 1;
+                    errors.push(OrganizeFileError {
+                        file_path: src_path_str.clone(),
+                        error: format!("复制失败: {}", e),
+                    });
+                }
+            }
+        }
+    }
+
+    OrganizeFilesResult {
+        succeeded,
+        skipped,
+        failed,
+        succeeded_paths,
+        errors,
+    }
+}
+
+#[tauri::command]
+pub async fn dir_search_copy_files(
+    request: OrganizeFilesRequest,
+) -> Result<OrganizeFilesResult, String> {
+    if request.files.is_empty() {
+        return Err("文件列表不能为空".to_string());
+    }
+    let target_dir = Path::new(&request.target_dir);
+    if !target_dir.exists() {
+        fs::create_dir_all(target_dir)
+            .map_err(|e| format!("无法创建目标目录 '{}': {}", request.target_dir, e))?;
+    }
+    if !target_dir.is_dir() {
+        return Err(format!("目标路径不是目录: {}", request.target_dir));
+    }
+
+    let conflict = parse_conflict_resolution(&request.conflict_resolution)?;
+
+    log::info!(
+        "[dir-search] 开始复制 {} 个文件到 {} (策略: {:?})",
+        request.files.len(),
+        request.target_dir,
+        request.conflict_resolution
+    );
+
+    let result = organize_files(&request.files, target_dir, &conflict, false);
+
+    log::info!(
+        "[dir-search] 复制完成: 成功 {}, 跳过 {}, 失败 {}",
+        result.succeeded,
+        result.skipped,
+        result.failed
+    );
+
+    Ok(result)
+}
+
+#[tauri::command]
+pub async fn dir_search_move_files(
+    request: OrganizeFilesRequest,
+) -> Result<OrganizeFilesResult, String> {
+    if request.files.is_empty() {
+        return Err("文件列表不能为空".to_string());
+    }
+    let target_dir = Path::new(&request.target_dir);
+    if !target_dir.exists() {
+        fs::create_dir_all(target_dir)
+            .map_err(|e| format!("无法创建目标目录 '{}': {}", request.target_dir, e))?;
+    }
+    if !target_dir.is_dir() {
+        return Err(format!("目标路径不是目录: {}", request.target_dir));
+    }
+
+    let conflict = parse_conflict_resolution(&request.conflict_resolution)?;
+
+    log::info!(
+        "[dir-search] 开始移动 {} 个文件到 {} (策略: {:?})",
+        request.files.len(),
+        request.target_dir,
+        request.conflict_resolution
+    );
+
+    let result = organize_files(&request.files, target_dir, &conflict, true);
+
+    log::info!(
+        "[dir-search] 移动完成: 成功 {}, 跳过 {}, 失败 {}",
+        result.succeeded,
+        result.skipped,
+        result.failed
+    );
+
+    Ok(result)
 }

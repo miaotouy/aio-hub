@@ -61,10 +61,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onUnmounted, provide } from "vue";
+import { ref, computed, onUnmounted, provide, h } from "vue";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-vue-next";
 import { ElMessageBox } from "element-plus";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { invoke } from "@tauri-apps/api/core";
 import DirectoryBar from "./components/DirectoryBar.vue";
 import SearchPanel from "./components/SearchPanel.vue";
 import FilePreview from "./components/FilePreview.vue";
@@ -79,6 +81,15 @@ import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { DIR_SEARCH_CONTEXT_KEY } from "./types";
 import type { SearchMatch, TargetMatch } from "./types";
+
+/** 文件整理操作结果（与 Rust OrganizeFilesResult 对齐） */
+interface OrganizeFilesResult {
+  succeeded: number;
+  skipped: number;
+  failed: number;
+  succeededPaths: string[];
+  errors: Array<{ filePath: string; error: string }>;
+}
 
 const errorHandler = createModuleErrorHandler("tools/dir-search/DirSearch");
 
@@ -401,6 +412,161 @@ async function handleContextMenuSelect(
       }
       break;
     }
+
+    // === 文件整理操作（复制/移动） ===
+    case "copy-to":
+      if (filePath) handleOrganizeFiles([filePath], "copy");
+      break;
+
+    case "move-to":
+      if (filePath) handleOrganizeFiles([filePath], "move");
+      break;
+
+    case "copy-dir-to": {
+      const dirFiles = context.filePaths as string[];
+      if (dirFiles && dirFiles.length > 0)
+        handleOrganizeFiles(dirFiles, "copy");
+      break;
+    }
+
+    case "move-dir-to": {
+      const dirFiles = context.filePaths as string[];
+      if (dirFiles && dirFiles.length > 0)
+        handleOrganizeFiles(dirFiles, "move");
+      break;
+    }
+
+    case "copy-all-to": {
+      const allFiles = search.resultsList.value.map((r) => r.filePath);
+      if (allFiles.length > 0) handleOrganizeFiles(allFiles, "copy");
+      break;
+    }
+
+    case "move-all-to": {
+      const allFiles = search.resultsList.value.map((r) => r.filePath);
+      if (allFiles.length > 0) handleOrganizeFiles(allFiles, "move");
+      break;
+    }
+  }
+}
+
+/** 文件整理：复制或移动到指定目录 */
+async function handleOrganizeFiles(files: string[], action: "copy" | "move") {
+  if (files.length === 0) return;
+
+  // 选择目标目录
+  const targetDir = await openDialog({
+    directory: true,
+    multiple: false,
+    title: action === "copy" ? "选择复制目标目录" : "选择移动目标目录",
+  });
+
+  if (!targetDir || typeof targetDir !== "string") return;
+
+  // 询问冲突处理策略（三选一弹窗：覆盖 / 跳过 / 自动重命名）
+  let conflictResolution: string | null = null;
+  const actionLabel = action === "copy" ? "复制" : "移动";
+
+  const makeBtn = (label: string, value: string, bg: string, color: string) =>
+    h(
+      "button",
+      {
+        class: "el-button",
+        style: {
+          margin: "0 4px",
+          background: bg,
+          color,
+          border: "none",
+          padding: "8px 16px",
+          borderRadius: "4px",
+          cursor: "pointer",
+          fontSize: "13px",
+        },
+        onClick() {
+          conflictResolution = value;
+          ElMessageBox.close();
+        },
+      },
+      label
+    );
+
+  try {
+    await ElMessageBox({
+      title: `${actionLabel} ${files.length} 个文件`,
+      message: h("div", { style: "text-align:center;padding:12px 0" }, [
+        h(
+          "p",
+          {
+            style:
+              "margin:0 0 12px;font-size:13px;color:var(--el-text-color-regular)",
+          },
+          "检测到同名文件时如何处理？"
+        ),
+        h("div", {}, [
+          makeBtn("覆盖", "overwrite", "var(--el-color-danger)", "#fff"),
+          makeBtn(
+            "跳过",
+            "skip",
+            "var(--el-fill-color-light)",
+            "var(--el-text-color-regular)"
+          ),
+          makeBtn("自动重命名", "rename", "var(--el-color-primary)", "#fff"),
+        ]),
+      ]),
+      showCancelButton: false,
+      showConfirmButton: false,
+      lockScroll: false,
+      closeOnClickModal: false,
+      closeOnPressEscape: true,
+    });
+  } catch {
+    // 按 ESC 关闭 → 取消操作
+  }
+
+  if (!conflictResolution) return;
+
+  const commandName =
+    action === "copy" ? "dir_search_copy_files" : "dir_search_move_files";
+
+  try {
+    const result = await invoke<OrganizeFilesResult>(commandName, {
+      request: {
+        files,
+        targetDir,
+        conflictResolution,
+      },
+    });
+
+    // 构造结果提示
+    const parts: string[] = [];
+    if (result.succeeded > 0) {
+      parts.push(
+        `${action === "copy" ? "复制" : "移动"}成功 ${result.succeeded} 个文件`
+      );
+    }
+    if (result.skipped > 0) {
+      parts.push(`跳过 ${result.skipped} 个文件（目标已存在）`);
+    }
+    if (result.failed > 0) {
+      parts.push(`失败 ${result.failed} 个文件`);
+    }
+
+    if (result.succeeded > 0) {
+      customMessage.success(parts.join("，"));
+    } else if (result.skipped > 0) {
+      customMessage.warning(parts.join("，"));
+    } else {
+      customMessage.error(parts.join("，"));
+    }
+
+    // 移动操作：成功后从搜索结果中移除已移动的文件
+    if (action === "move" && result.succeededPaths.length > 0) {
+      for (const movedPath of result.succeededPaths) {
+        search.dismissFile(movedPath);
+      }
+    }
+  } catch (e) {
+    errorHandler.error(e, `文件${action === "copy" ? "复制" : "移动"}失败`);
   }
 }
 
@@ -447,6 +613,7 @@ provide("dirSearchActions", {
   handleReplaceFile,
   handleReplaceMatch,
   handleContextMenu,
+  handleOrganizeFiles,
 });
 </script>
 

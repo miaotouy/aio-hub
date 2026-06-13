@@ -62,6 +62,8 @@ use commands::{
     dir_replace_single,
     dir_search,
     dir_search_cancel,
+    dir_search_copy_files,
+    dir_search_move_files,
     end_drag_session,
     ensure_window_visible,
     execute_sidecar,
@@ -712,6 +714,8 @@ pub fn run() {
             dir_replace,
             dir_replace_single,
             dir_replace_preview,
+            dir_search_copy_files,
+            dir_search_move_files,
             // LLM 搜索命令
             search_llm_data,
             search_llm_data_stream,

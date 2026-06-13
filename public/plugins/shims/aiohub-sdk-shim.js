@@ -28,6 +28,12 @@ export const {
   useModelMetadata,
   useLlmProfiles,
   useLlmRequest,
+  useOcrRunner,
+  useOcrExtensions,
+  useOcrProfiles,
+  createOcrImageFromDataUrl,
+  imageBlockToOcrImage,
+  ocrImageToPluginImage,
   useAppSettingsStore,
   ui,
   // 如果未来有更多导出，可以在这里添加

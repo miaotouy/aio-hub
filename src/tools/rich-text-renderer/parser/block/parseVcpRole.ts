@@ -1,5 +1,5 @@
-import { Token, ParserContext } from "../types";
-import { VcpRoleNode } from "../../types";
+import type { Token, ParserContext } from "../types";
+import type { AstNode, VcpRoleNode, VcpToolNode } from "../../types";
 import { Tokenizer } from "../Tokenizer";
 
 type ToolSummaryItem = {
@@ -9,21 +9,48 @@ type ToolSummaryItem = {
   statusLabel: string;
 };
 
+type NormalizedToolStatus = "success" | "error" | "info";
+
+type ToolResultSignature = {
+  toolName: string;
+  status: NormalizedToolStatus;
+};
+
+const SUMMARY_STATUS_PATTERN =
+  /(成功|完成|失败|错误|异常|超时|拒绝|取消|中止|跳过)$/;
+
+function normalizeToolName(toolName: string): string {
+  return toolName.trim().toLowerCase();
+}
+
+function normalizeToolStatus(statusText: string): NormalizedToolStatus {
+  if (/成功|完成|success|succeeded|ok/i.test(statusText)) {
+    return "success";
+  }
+
+  if (
+    /失败|错误|异常|超时|拒绝|取消|中止|error|fail|failed|timeout|rejected|cancel/i.test(
+      statusText
+    )
+  ) {
+    return "error";
+  }
+
+  return "info";
+}
+
 function parseToolSummaryItems(content: string): ToolSummaryItem[] {
   return content
     .split(/[；;]/)
     .map((item) => item.trim().replace(/[。.\s]+$/g, ""))
     .filter(Boolean)
     .map((label) => {
-      const match = /^(.*?)\s*调用\s*(成功|失败|错误|异常)$/.exec(label);
+      const match = new RegExp(
+        `^(.*?)\\s*调用\\s*${SUMMARY_STATUS_PATTERN.source}`
+      ).exec(label);
       const toolName = match?.[1]?.trim() || label;
       const statusLabel = match?.[2] || "摘要";
-      const status: ToolSummaryItem["status"] =
-        statusLabel === "成功"
-          ? "success"
-          : ["失败", "错误", "异常"].includes(statusLabel)
-            ? "error"
-            : "info";
+      const status = normalizeToolStatus(statusLabel);
 
       return {
         label,
@@ -32,6 +59,68 @@ function parseToolSummaryItems(content: string): ToolSummaryItem[] {
         statusLabel,
       };
     });
+}
+
+function collectToolResultSignatures(children: AstNode[]): ToolResultSignature[] {
+  const signatures: ToolResultSignature[] = [];
+
+  for (const child of children) {
+    if (child.type === "vcp_tool" && child.props.isResult) {
+      const toolNode = child as VcpToolNode;
+      signatures.push({
+        toolName: normalizeToolName(toolNode.props.tool_name),
+        status: normalizeToolStatus(toolNode.props.status || ""),
+      });
+      continue;
+    }
+
+    if ("children" in child && Array.isArray(child.children)) {
+      signatures.push(...collectToolResultSignatures(child.children));
+    }
+  }
+
+  return signatures;
+}
+
+function isSummaryCoveredByResult(
+  item: ToolSummaryItem,
+  resultSignatures: ToolResultSignature[]
+): boolean {
+  const toolName = normalizeToolName(item.toolName);
+
+  return resultSignatures.some(
+    (result) => result.toolName === toolName && result.status === item.status
+  );
+}
+
+function removeCoveredToolSummaries(children: AstNode[]): AstNode[] {
+  const resultSignatures = collectToolResultSignatures(children);
+  if (resultSignatures.length === 0) return children;
+
+  return children
+    .map((child) => {
+      if (child.type !== "vcp_role" || child.props.variant !== "tool_summary") {
+        return child;
+      }
+
+      const summaryItems = child.props.summaryItems || [];
+      const visibleSummaryItems = summaryItems.filter(
+        (item) => !isSummaryCoveredByResult(item, resultSignatures)
+      );
+
+      if (visibleSummaryItems.length === 0) {
+        return null;
+      }
+
+      return {
+        ...child,
+        props: {
+          ...child.props,
+          summaryItems: visibleSummaryItems,
+        },
+      };
+    })
+    .filter((child): child is AstNode => child !== null);
 }
 
 /**
@@ -54,7 +143,7 @@ export function parseVcpRole(
   const innerTokens = tokenizer.tokenize(content);
 
   // 递归解析内部块
-  const children = ctx.parseBlocks(innerTokens);
+  const children = removeCoveredToolSummaries(ctx.parseBlocks(innerTokens));
 
   return {
     node: {

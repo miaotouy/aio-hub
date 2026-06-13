@@ -28,6 +28,7 @@ import {
 } from "@/composables/useAssetManager";
 import { useTranscriptionManager } from "../composables/features/useTranscriptionManager";
 import { useChatInputManager } from "../composables/input/useChatInputManager";
+import { useChatSettings } from "../composables/settings/useChatSettings";
 import { generateAssetPlaceholder } from "../core/context-processors/transcription-processor";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -88,6 +89,7 @@ const {
 } = useTranscriptionManager();
 
 const chatInputManager = useChatInputManager();
+const { settings } = useChatSettings();
 
 const internalAsset = ref<Asset>(props.asset);
 
@@ -198,8 +200,28 @@ const isTranscribable = computed(
 );
 
 // 判断当前模型是否需要使用转写（模型不支持该媒体类型时需要转写）
-// 优先使用 prop，如果未提供则为 undefined
-const willUseTranscription = computed(() => props.willUseTranscription);
+// 父组件可能用旧 asset 计算 prop；这里用卡片内最新转写状态补齐“已有转写且优先使用转写”的场景。
+const willUseTranscription = computed(() => {
+  const status = transcriptionStatus.value;
+  const config = settings.value.transcription;
+
+  if (
+    status === "success" &&
+    config.enabled &&
+    (config.strategy === "always" ||
+      (config.strategy === "smart" && config.smartPrioritizeTranscription))
+  ) {
+    return true;
+  }
+
+  return props.willUseTranscription;
+});
+
+const transcriptionUsageClass = computed(() => {
+  if (willUseTranscription.value === true) return "will-use";
+  if (willUseTranscription.value === false) return "wont-use";
+  return "usage-unknown";
+});
 
 // 判断是否为硬错误（真正的错误 vs 有转写可用的提示）
 const isHardTokenError = computed(() => {
@@ -707,11 +729,8 @@ onUnmounted(() => {
                       class="transcription-status-icon bar-mode"
                       :class="[
                         transcriptionStatus,
-                        {
-                          'will-use': willUseTranscription,
-                          'wont-use': !willUseTranscription,
-                          'is-loading': isImporting,
-                        },
+                        transcriptionUsageClass,
+                        { 'is-loading': isImporting },
                       ]"
                       @click="handleTranscriptionClick"
                     >
@@ -842,10 +861,7 @@ onUnmounted(() => {
               class="transcription-action-btn"
               :class="[
                 transcriptionStatus,
-                {
-                  'will-use': willUseTranscription,
-                  'wont-use': !willUseTranscription,
-                },
+                transcriptionUsageClass,
               ]"
               @click="handleTranscriptionClick"
             >
@@ -1567,6 +1583,21 @@ onUnmounted(() => {
 }
 
 /* 转写状态颜色 - 根据是否会使用转写来区分 */
+.transcription-status-icon.will-use {
+  color: var(--el-color-warning);
+  opacity: 1;
+}
+
+.transcription-status-icon.wont-use {
+  color: var(--el-color-info);
+  opacity: 0.45;
+}
+
+.transcription-status-icon.usage-unknown {
+  color: var(--text-color-secondary);
+  opacity: 0.65;
+}
+
 .transcription-status-icon.success.will-use {
   color: var(--el-color-success);
 }
@@ -1591,7 +1622,7 @@ onUnmounted(() => {
 
 /* None 状态 - 根据是否需要转写区分 */
 .transcription-status-icon.none.will-use .icon-none {
-  opacity: 0.7;
+  opacity: 1;
   color: var(--el-color-warning);
 }
 
@@ -1663,6 +1694,21 @@ onUnmounted(() => {
 }
 
 /* 状态颜色 - 根据是否会使用转写来区分 */
+.transcription-action-btn.will-use {
+  color: var(--el-color-warning);
+  opacity: 1;
+  transform: scale(1);
+}
+
+.transcription-action-btn.wont-use {
+  color: var(--el-color-info);
+  opacity: 0.5;
+}
+
+.transcription-action-btn.usage-unknown {
+  color: var(--text-color-secondary);
+}
+
 .transcription-action-btn.success.will-use {
   color: #67c23a;
   opacity: 1; /* 完成状态常驻显示 */

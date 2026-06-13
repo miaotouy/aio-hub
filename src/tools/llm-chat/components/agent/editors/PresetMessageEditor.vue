@@ -246,8 +246,8 @@
               v-model="form.content"
               language="markdown"
               :line-numbers="true"
-              editor-type="codemirror"
-              :completion-source="macroCompletionSource"
+              editor-type="monaco"
+              :options="presetEditorOptions"
             />
           </div>
 
@@ -321,7 +321,6 @@ import type {
 import { useChatSettings } from "../../../composables/settings/useChatSettings";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useLlmChatStore } from "../../../stores/llmChatStore";
-import { useKnowledgeBaseStore } from "@/tools/knowledge-base/stores/knowledgeBaseStore";
 import * as monaco from "monaco-editor";
 import {
   MacroProcessor,
@@ -332,10 +331,6 @@ import {
   type MacroContext,
   extractContextFromSession,
 } from "../../../macro-engine";
-import type {
-  CompletionContext,
-  CompletionResult,
-} from "@codemirror/autocomplete";
 import {
   processMessageAssetsSync,
   resolveAgentAssetUrlSync,
@@ -404,7 +399,6 @@ const errorHandler = createModuleErrorHandler("llm-chat/PresetMessageEditor");
 const { settings } = useChatSettings();
 const { getProfileById } = useLlmProfiles();
 const chatStore = useLlmChatStore();
-const kbStore = useKnowledgeBaseStore();
 
 // 表单数据
 const form = ref<MessageForm>({
@@ -430,6 +424,17 @@ const injectionStrategyValue = ref<InjectionStrategy | undefined>(undefined);
 
 // 视图模式：编辑/文本预览/渲染预览
 const viewMode = ref<"edit" | "text" | "preview">("edit");
+
+const presetEditorOptions =
+  computed<monaco.editor.IStandaloneEditorConstructionOptions>(() => ({
+    wordWrap: "on",
+    wrappingIndent: "same",
+    lineNumbersMinChars: 3,
+    scrollBeyondLastLine: false,
+    padding: { top: 12, bottom: 12 },
+    suggestOnTriggerCharacters: false,
+    quickSuggestions: false,
+  }));
 
 // 预览内容
 const previewContent = ref("");
@@ -484,124 +489,6 @@ onMounted(() => {
     initializeMacroEngine();
   }
 });
-
-/**
- * 宏自动补全源
- * 当用户输入 { { 时触发宏候选   //} }vscode双花括号高亮显示防溢出补丁
- */
-const macroCompletionSource = (
-  context: CompletionContext
-): CompletionResult | null => {
-  // 获取光标前的文本
-  const line = context.state.doc.lineAt(context.pos);
-  const textBefore = line.text.slice(0, context.pos - line.from);
-
-  // 检查是否在 { { 之后   //} }vscode双花括号高亮显示防溢出补丁
-  const macroMatch = textBefore.match(/\{\{([a-zA-Z0-9_:]*)$/);
-  const kbMatch = textBefore.match(/【kb(?:::)?([a-zA-Z0-9_:]*)$/);
-
-  if (!macroMatch && !kbMatch) {
-    return null;
-  }
-
-  // 1. 处理知识库补全
-  if (kbMatch) {
-    const prefix = kbMatch[1].toLowerCase();
-    const startPos = context.pos - kbMatch[1].length;
-
-    // 如果还没有加载知识库，尝试初始化
-    if (kbStore.bases.length === 0) {
-      kbStore.init();
-    }
-
-    const matchedBases = kbStore.bases.filter((b) =>
-      b.name.toLowerCase().includes(prefix)
-    );
-
-    if (matchedBases.length === 0) return null;
-
-    return {
-      from: startPos,
-      options: matchedBases.map((base) => ({
-        label: base.name,
-        detail: "知识库",
-        apply: (kbMatch[0].includes("::") ? "" : "::") + base.name + "】",
-        type: "keyword",
-      })),
-      filter: false,
-    };
-  }
-
-  // 2. 处理宏补全
-  const prefix = macroMatch![1].toLowerCase();
-  const startPos = context.pos - macroMatch![1].length;
-
-  // 获取所有支持的宏
-  const registry = MacroRegistry.getInstance();
-  const allMacros = registry
-    .getAllMacros()
-    .filter((m) => m.supported !== false);
-
-  // 过滤匹配的宏
-  const matchedMacros = allMacros.filter(
-    (macro) =>
-      macro.name.toLowerCase().includes(prefix) ||
-      macro.description.toLowerCase().includes(prefix)
-  );
-
-  if (matchedMacros.length === 0) {
-    return null;
-  }
-
-  // 智能排序：优先按 priority 降序，然后按类型，最后按名称
-  const typeOrder: Record<string, number> = {
-    value: 0,
-    variable: 1,
-    function: 2,
-  };
-  matchedMacros.sort((a, b) => {
-    // 1. 优先级高的在前 (priority 越大越靠前)
-    const priorityA = a.priority ?? 0;
-    const priorityB = b.priority ?? 0;
-    if (priorityA !== priorityB) return priorityB - priorityA;
-
-    // 2. 按类型排序
-    const orderA = typeOrder[a.type] ?? 99;
-    const orderB = typeOrder[b.type] ?? 99;
-    if (orderA !== orderB) return orderA - orderB;
-
-    // 3. 按名称字母顺序排序
-    return a.name.localeCompare(b.name);
-  });
-
-  return {
-    from: startPos,
-    options: matchedMacros.map((macro) => ({
-      label: macro.name,
-      detail: getTypeLabel(macro.type),
-      info: macro.description,
-      apply: (macro.example || macro.name) + "}}",
-      type: "variable",
-    })),
-    filter: false, // 禁用 CodeMirror 的过滤和排序，完全采用我提供的数据
-  };
-};
-
-/**
- * 获取宏类型的显示标签
- */
-function getTypeLabel(type: string): string {
-  switch (type) {
-    case "value":
-      return "值替换";
-    case "variable":
-      return "变量操作";
-    case "function":
-      return "动态函数";
-    default:
-      return type;
-  }
-}
 
 // 处理宏预览
 const processPreviewMacros = async () => {
@@ -758,20 +645,28 @@ const insertTextToEditor = (text: string) => {
     editorView.focus();
   } else if (monacoInstance) {
     // Monaco 处理
+    const selection = monacoInstance.getSelection();
     const position = monacoInstance.getPosition();
-    if (position) {
-      monacoInstance.executeEdits("", [
-        {
-          range: new monaco.Range(
+    const range =
+      selection ||
+      (position
+        ? new monaco.Range(
             position.lineNumber,
             position.column,
             position.lineNumber,
             position.column
-          ),
+          )
+        : null);
+
+    if (range) {
+      monacoInstance.executeEdits("", [
+        {
+          range,
           text: text,
           forceMoveMarkers: true,
         },
       ]);
+      form.value.content = monacoInstance.getValue();
       monacoInstance.focus();
     }
   } else {
@@ -802,10 +697,10 @@ function handleKBButtonClick() {
     const { from, to } = editorView.state.selection.main;
     selectedText = editorView.state.sliceDoc(from, to);
   } else if (monacoInstance) {
-    selectedText =
-      monacoInstance
-        .getModel()
-        ?.getValueInRange(monacoInstance.getSelection()!) || "";
+    const selection = monacoInstance.getSelection();
+    selectedText = selection
+      ? monacoInstance.getModel()?.getValueInRange(selection) || ""
+      : "";
   }
 
   // 检查是否匹配 KB 正则

@@ -51,6 +51,7 @@ import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import MessageMenubar from "./MessageMenubar.vue";
 import ChatCodeMirrorEditor from "../message-input/ChatCodeMirrorEditor.vue";
+import ChatTextareaEditor from "../message-input/ChatTextareaEditor.vue";
 import { useAsyncTaskStore } from "@/tools/tool-calling/stores/asyncTaskStore";
 import { extractTaskId } from "@/tools/tool-calling/core/utils/task-id-extractor";
 import type { AsyncTaskMetadata } from "@/tools/tool-calling/core/async-task/types";
@@ -744,6 +745,18 @@ defineExpose({
       <!-- 编辑模式 -->
       <div v-if="isEditing" class="edit-mode">
         <ChatCodeMirrorEditor
+          v-if="!settings.uiPreferences.useNativeTextarea"
+          ref="editorRef"
+          :value="editingContent"
+          placeholder="编辑工具执行结果..."
+          height="auto"
+          max-height="600px"
+          send-key="ctrl+enter"
+          @update:value="editingContent = $event"
+          @submit="saveEdit"
+        />
+        <ChatTextareaEditor
+          v-else
           ref="editorRef"
           :value="editingContent"
           placeholder="编辑工具执行结果..."

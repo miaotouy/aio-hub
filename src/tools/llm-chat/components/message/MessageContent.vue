@@ -53,6 +53,7 @@ import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import LlmThinkNode from "@/tools/rich-text-renderer/components/nodes/LlmThinkNode.vue";
 import AttachmentCard from "../AttachmentCard.vue";
 import ChatCodeMirrorEditor from "../message-input/ChatCodeMirrorEditor.vue";
+import ChatTextareaEditor from "../message-input/ChatTextareaEditor.vue";
 import { useAttachmentManager } from "../../composables/features/useAttachmentManager";
 import { useChatFileInteraction } from "@/composables/useFileInteraction";
 import { generateAssetPlaceholder } from "../../core/context-processors/transcription-processor";
@@ -999,6 +1000,23 @@ watch(
 
       <!-- 文本编辑区域 -->
       <ChatCodeMirrorEditor
+        v-if="!settings.uiPreferences.useNativeTextarea"
+        ref="editorRef"
+        :value="editingContent"
+        placeholder="编辑消息内容、拖入或粘贴文件..."
+        height="auto"
+        max-height="600px"
+        send-key="ctrl+enter"
+        @update:value="editingContent = $event"
+        @submit="saveEdit"
+        @keydown="
+          (e: KeyboardEvent) => {
+            if (e.key === 'Escape') cancelEdit();
+          }
+        "
+      />
+      <ChatTextareaEditor
+        v-else
         ref="editorRef"
         :value="editingContent"
         placeholder="编辑消息内容、拖入或粘贴文件..."
@@ -1420,14 +1438,16 @@ watch(
   border-color: var(--primary-color);
 }
 
-.edit-mode :deep(.chat-cm-editor) {
+.edit-mode :deep(.chat-cm-editor),
+.edit-mode :deep(.textarea-wrapper) {
   min-height: 200px;
   border: 1px solid var(--primary-color);
   border-radius: 4px;
   background-color: var(--container-bg);
 }
 
-.edit-mode :deep(.chat-cm-editor:focus-within) {
+.edit-mode :deep(.chat-cm-editor:focus-within),
+.edit-mode :deep(.textarea-wrapper:focus-within) {
   box-shadow: 0 0 0 2px
     color-mix(in srgb, var(--primary-color) 20%, transparent);
 }

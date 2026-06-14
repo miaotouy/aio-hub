@@ -199,6 +199,23 @@ const isTranscribable = computed(
     isDocxAssetLike(props.asset)
 );
 
+const isAssetTranscribable = (asset: Asset) => {
+  return (
+    asset.type === "image" ||
+    asset.type === "audio" ||
+    asset.type === "video" ||
+    (asset.type === "document" &&
+      (asset.mimeType === "application/pdf" || isDocxAssetLike(asset)))
+  );
+};
+
+const hasMultipleTranscribableAssets = computed(() => {
+  if (!props.allAssets || props.allAssets.length <= 1) return false;
+  const transcribableCount =
+    props.allAssets.filter(isAssetTranscribable).length;
+  return transcribableCount > 1;
+});
+
 // 判断当前模型是否需要使用转写（模型不支持该媒体类型时需要转写）
 // 父组件可能用旧 asset 计算 prop；这里用卡片内最新转写状态补齐“已有转写且优先使用转写”的场景。
 const willUseTranscription = computed(() => {
@@ -556,6 +573,28 @@ const handleRemove = (e?: Event) => {
   emit("remove", props.asset);
 };
 
+// 转写所有附件
+const handleTranscribeAll = async () => {
+  if (!props.allAssets) return;
+
+  let count = 0;
+  for (const asset of props.allAssets) {
+    if (isAssetTranscribable(asset)) {
+      const status = getTranscriptionStatus(asset);
+      if (status === "none" || status === "error") {
+        addTask(asset);
+        count++;
+      }
+    }
+  }
+
+  if (count > 0) {
+    customMessage.success(`已开始转写 ${count} 个附件`);
+  } else {
+    customMessage.info("没有需要转写的附件");
+  }
+};
+
 const handleCancelTranscription = (e?: Event) => {
   e?.stopPropagation();
   cancelTranscription(props.asset.id);
@@ -859,10 +898,7 @@ onUnmounted(() => {
           >
             <div
               class="transcription-action-btn"
-              :class="[
-                transcriptionStatus,
-                transcriptionUsageClass,
-              ]"
+              :class="[transcriptionStatus, transcriptionUsageClass]"
               @click="handleTranscriptionClick"
             >
               <!-- Importing or Processing: 加载图标 -->
@@ -975,6 +1011,13 @@ onUnmounted(() => {
             取消转写
           </el-dropdown-item>
         </template>
+
+        <el-dropdown-item
+          v-if="hasMultipleTranscribableAssets"
+          @click="handleTranscribeAll"
+        >
+          转写所有附件
+        </el-dropdown-item>
 
         <el-dropdown-item divided @click="handleInsertPlaceholder">
           {{

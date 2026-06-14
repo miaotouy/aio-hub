@@ -21,7 +21,6 @@ src/components.d.ts
 
 # Rust build artifacts
 target/
-Cargo.lock
 
 # Editor directories and files
 .vscode/*

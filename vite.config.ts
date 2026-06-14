@@ -203,7 +203,7 @@ const viteConfig = defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes("node_modules")) {
-            if (/[\\/]node_modules[\\/](?:@vue|vue|vue-router|pinia|vue-demi)[\\/]/.test(id)) {
+            if (/[\\/]node_modules[\\/](?:@vue|@vueuse|vue|vue-router|pinia|vue-demi)[\\/]/.test(id)) {
               return "vendor-vue";
             }
             if (id.includes("element-plus")) {

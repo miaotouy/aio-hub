@@ -14,10 +14,10 @@
         >
           <el-input
             :model-value="store.config.vcpPath"
+            @update:model-value="store.updateConfig({ vcpPath: $event })"
             placeholder="选择或拖放 VCP 根目录"
             size="small"
-            readonly
-            @click="selectVcpPath"
+            clearable
           >
             <template #append>
               <el-button size="small" @click="selectVcpPath">浏览</el-button>

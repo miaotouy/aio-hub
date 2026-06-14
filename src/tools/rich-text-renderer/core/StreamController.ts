@@ -361,10 +361,51 @@ export class StreamController {
       return;
     }
 
+    // 检测是否包含 VCP 协议特征，若有则直接绕过平滑
+    if (this.shouldBypassSmoothing(chunk)) {
+      this.skipSmoothingAndEmit(chunk);
+      return;
+    }
+
     // 更新上游投喂节奏估算，并将 chunk 拆分为语义块后入队
     this.updateChunkTiming();
     const chunks = this.splitIntoSemanticChunks(chunk);
     this.semanticQueue.push(...chunks);
+  }
+
+  /**
+   * 检测是否需要跳过平滑
+   */
+  private shouldBypassSmoothing(chunk: string): boolean {
+    // 匹配 VCP 协议相关的特征标记（角色围栏、工具请求、调用结果汇总等）
+    const RE_BYPASS_SMOOTHING =
+      /(<<<\[?ROLE_DIVIDE_|<<<\[?END_ROLE_DIVIDE_|<<<\[?TOOL_REQUEST|<<<\[?END_TOOL_REQUEST|\[\[VCP调用结果信息汇总:|VCP调用结果结束\]\]|\[本轮工具调用摘要:|\[本轮工具调用摘要结束\])/;
+    return RE_BYPASS_SMOOTHING.test(chunk);
+  }
+
+  /**
+   * 绕过平滑，立即同步输出
+   */
+  private skipSmoothingAndEmit(chunk: string): void {
+    if (this.verboseLogging) {
+      console.debug(
+        `[StreamController] Bypassing smoothing for VCP chunk: "${chunk.replace(/\n/g, "\\n")}"`
+      );
+    }
+
+    // 1. 先冲刷当前所有积压，保证顺序
+    this.flushAll();
+
+    // 2. 更新代码块状态（防止 chunk 中包含 ``` 影响后续的平滑）
+    for (const char of chunk) {
+      this.updateCodeBlockState(char);
+    }
+
+    // 3. 直接输出
+    this.onContent(chunk);
+
+    // 4. 重置上游投喂节奏估算，因为这次是一次性输出，会打乱原本的节奏
+    this.lastEmitTime = performance.now();
   }
 
   /**

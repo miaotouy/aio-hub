@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 
 interface Props {
   value: string;
@@ -28,6 +28,13 @@ const emit = defineEmits<{
 
 const textareaEl = ref<HTMLTextAreaElement | null>(null);
 const localValue = ref(props.value);
+const shadowValue = computed(() => {
+  if (localValue.value === "" || localValue.value.endsWith("\n")) {
+    return `${localValue.value} `;
+  }
+
+  return localValue.value;
+});
 
 // 从外部同步
 watch(
@@ -119,12 +126,7 @@ defineExpose({
     }"
   >
     <!-- 隐藏的影子层：与 textarea 完全相同的排版参数，用于撑开容器高度 -->
-    <div class="shadow-renderer" aria-hidden="true">
-      {{
-        localValue +
-        (localValue.endsWith("\n") || localValue === "" ? "\n " : "")
-      }}
-    </div>
+    <div class="shadow-renderer" aria-hidden="true">{{ shadowValue }}</div>
     <!-- 实际输入框 -->
     <textarea
       ref="textareaEl"

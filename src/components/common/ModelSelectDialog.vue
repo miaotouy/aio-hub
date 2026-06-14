@@ -26,6 +26,7 @@ const modelListWrapperRef = ref<HTMLDivElement>();
 const isNarrow = ref(false);
 
 let resizeObserver: ResizeObserver | null = null;
+let scrollTimer: ReturnType<typeof setTimeout> | null = null;
 
 onMounted(() => {
   resizeObserver = new ResizeObserver((entries) => {
@@ -39,6 +40,7 @@ onMounted(() => {
 onUnmounted(() => {
   resizeObserver?.disconnect();
   resizeObserver = null;
+  clearPendingScroll();
 });
 
 watch(modelListWrapperRef, (el) => {
@@ -187,49 +189,80 @@ function handleClose() {
   selectedCapabilities.value = [];
 }
 
-// 滚动到当前选中的模型，并设置初始筛选
-watch(isDialogVisible, async (visible) => {
-  if (visible) {
-    // 自动应用初始能力筛选 (仅同步值为 true 的能力到 UI 选择器)
-    if (initialCapabilities.value) {
-      selectedCapabilities.value = Object.entries(initialCapabilities.value)
-        .filter(([_, value]) => value === true)
-        .map(([key, _]) => key);
-    } else {
-      selectedCapabilities.value = [];
-    }
-
-    // 滚动到当前选中的模型
-    if (currentSelection.value) {
-      // 等待 DOM 渲染完成
-      await nextTick();
-      // 等待对话框动画完成和布局稳定后再计算滚动位置
-      await new Promise((resolve) => setTimeout(resolve, 150));
-
-      const currentKey = getModelKey(
-        currentSelection.value.profile,
-        currentSelection.value.model
-      );
-      const currentElement = document.querySelector(
-        `[data-model-key="${currentKey}"]`
-      ) as HTMLElement;
-      const container = modelListWrapperRef.value;
-
-      if (currentElement && container) {
-        // 直接使用 offsetTop，因为 container 设置了 position: relative 作为 offsetParent
-        const targetScrollTop =
-          currentElement.offsetTop -
-          container.clientHeight / 2 +
-          currentElement.offsetHeight / 2;
-
-        container.scrollTo({
-          top: Math.max(0, targetScrollTop),
-          behavior: "smooth",
-        });
-      }
-    }
+function clearPendingScroll() {
+  if (scrollTimer) {
+    clearTimeout(scrollTimer);
+    scrollTimer = null;
   }
-});
+}
+
+function applyInitialCapabilityFilters() {
+  selectedCapabilities.value = Object.entries(initialCapabilities.value || {})
+    .filter(([_, value]) => value === true)
+    .map(([key, _]) => key);
+}
+
+// 滚动到当前选中的模型
+async function scrollToCurrentModel() {
+  if (!isDialogVisible.value || !currentSelection.value) return;
+
+  await nextTick();
+
+  const container = modelListWrapperRef.value;
+  if (!container) return;
+
+  const currentKey = getModelKey(
+    currentSelection.value.profile,
+    currentSelection.value.model
+  );
+  const currentElement = Array.from(
+    container.querySelectorAll<HTMLElement>("[data-model-key]")
+  ).find((element) => element.dataset.modelKey === currentKey);
+
+  if (!currentElement) return;
+
+  // 直接使用 offsetTop，因为 container 设置了 position: relative 作为 offsetParent
+  const targetScrollTop =
+    currentElement.offsetTop -
+    container.clientHeight / 2 +
+    currentElement.offsetHeight / 2;
+
+  container.scrollTo({
+    top: Math.max(0, targetScrollTop),
+    behavior: "smooth",
+  });
+}
+
+function queueScrollToCurrentModel() {
+  clearPendingScroll();
+  // 等待 BaseDialog 入场动画和异步组件布局稳定后再计算滚动位置。
+  scrollTimer = setTimeout(() => {
+    scrollTimer = null;
+    void scrollToCurrentModel();
+  }, 150);
+}
+
+// 弹窗现在按需异步挂载；挂载时 visible 已经可能为 true，因此需要 immediate。
+watch(
+  isDialogVisible,
+  (visible) => {
+    if (!visible) {
+      clearPendingScroll();
+      return;
+    }
+
+    applyInitialCapabilityFilters();
+    queueScrollToCurrentModel();
+  },
+  { immediate: true }
+);
+
+watch(
+  () => allModels.value.length,
+  () => {
+    if (isDialogVisible.value) queueScrollToCurrentModel();
+  }
+);
 </script>
 
 <template>

@@ -13,6 +13,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, watch } from "vue";
 import Viewer from "viewerjs";
+import "viewerjs/dist/viewer.css";
 
 export interface ImageViewerProps {
   /** 图片列表 */

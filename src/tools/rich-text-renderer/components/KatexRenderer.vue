@@ -9,6 +9,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from "vue";
 import katex from "katex";
+import "katex/dist/katex.min.css";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 

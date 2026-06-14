@@ -1,19 +1,33 @@
 <script setup lang="ts">
-import { onMounted } from "vue";
+import { defineAsyncComponent, onMounted } from "vue";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { useVideoViewer } from "@/composables/useVideoViewer";
 import { useAudioViewer } from "@/composables/useAudioViewer";
 import { useTranscriptionViewer } from "@/composables/useTranscriptionViewer";
+import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
 import { useGenerationInfoViewer } from "@/tools/media-generator/composables/useGenerationInfoViewer";
-import ImageViewer from "@/components/common/ImageViewer.vue";
-import VideoViewer from "@/components/common/VideoViewer.vue";
-import AudioViewer from "@/components/common/AudioViewer.vue";
-import TranscriptionDialog from "@/components/common/TranscriptionDialog.vue";
-import GenerationInfoDialog from "@/tools/media-generator/components/GenerationInfoDialog.vue";
-import ModelSelectDialog from "@/components/common/ModelSelectDialog.vue";
 import SyncServiceProvider from "@/components/SyncServiceProvider.vue";
 import NotificationCenter from "@/components/notification/NotificationCenter.vue";
+
+const ImageViewer = defineAsyncComponent(
+  () => import("@/components/common/ImageViewer.vue")
+);
+const VideoViewer = defineAsyncComponent(
+  () => import("@/components/common/VideoViewer.vue")
+);
+const AudioViewer = defineAsyncComponent(
+  () => import("@/components/common/AudioViewer.vue")
+);
+const TranscriptionDialog = defineAsyncComponent(
+  () => import("@/components/common/TranscriptionDialog.vue")
+);
+const GenerationInfoDialog = defineAsyncComponent(
+  () => import("@/tools/media-generator/components/GenerationInfoDialog.vue")
+);
+const ModelSelectDialog = defineAsyncComponent(
+  () => import("@/components/common/ModelSelectDialog.vue")
+);
 
 // 全局图片查看器状态
 const imageViewer = useImageViewer();
@@ -23,6 +37,8 @@ const videoViewer = useVideoViewer();
 const audioViewer = useAudioViewer();
 // 全局转写查看器状态
 const transcriptionViewer = useTranscriptionViewer();
+// 全局模型选择弹窗状态
+const modelSelectDialog = useModelSelectDialog();
 // 全局媒体生成参数查看器
 const generationInfoViewer = useGenerationInfoViewer();
 
@@ -49,10 +65,11 @@ onMounted(() => {
   />
 
   <!-- 全局模型选择弹窗 -->
-  <ModelSelectDialog />
+  <ModelSelectDialog v-if="modelSelectDialog.isDialogVisible.value" />
 
   <!-- 全局视频预览器 -->
   <VideoViewer
+    v-if="videoViewer.visible.value"
     v-model:visible="videoViewer.visible.value"
     :src="videoViewer.src.value"
     :title="videoViewer.title.value"
@@ -62,6 +79,7 @@ onMounted(() => {
 
   <!-- 全局音频预览器 -->
   <AudioViewer
+    v-if="audioViewer.visible.value"
     v-model:visible="audioViewer.visible.value"
     :src="audioViewer.src.value"
     :title="audioViewer.title.value"

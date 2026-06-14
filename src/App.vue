@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { onMounted } from "vue";
+import { defineAsyncComponent, onMounted } from "vue";
 import { useAppInitStore } from "@/stores/appInitStore";
 import { createModuleLogger } from "@/utils/logger";
 import { useRootInit } from "@/composables/useRootInit";
 import { useDeepLinkHandler } from "@/composables/useDeepLinkHandler";
 import GlobalProviders from "./components/GlobalProviders.vue";
 import LoadingScreen from "./components/LoadingScreen.vue";
-import MainLayout from "./views/MainLayout.vue";
+
+const MainLayout = defineAsyncComponent(() => import("./views/MainLayout.vue"));
 
 defineOptions({
   name: "App",

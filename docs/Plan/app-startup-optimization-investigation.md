@@ -68,6 +68,27 @@
 - `bun.lock` 仍包含 VitePress 间接依赖的 `shiki`,这不代表应用路径仍直接依赖 Shiki;项目直接依赖和 `stream-monaco` 子树已移除。
 - 额外清理了 rich-text-renderer 测试器 store 的 `codeEditorEngine` 存量配置字段,避免新配置继续写入死字段。
 
+### 2026-06-14 第四轮实施
+
+继续落地阶段二 P2-11 中低风险的资源下沉与异步化,当前实际改动如下:
+
+- `App.vue` 将 `MainLayout` 改为 `defineAsyncComponent` 动态导入,让入口只保留根初始化、全局 provider 与 LoadingScreen。
+- `GlobalProviders.vue` 将全局图片/视频/音频预览器、转写弹窗、模型选择弹窗和媒体生成信息弹窗改为异步组件;视频、音频和模型选择弹窗增加 `v-if` 可见性门控,避免全局 provider 挂载时立即加载对应重组件。
+- `main.ts` 移除全局 `viewerjs/dist/viewer.css` 与 `katex/dist/katex.min.css` 导入;`ImageViewer.vue` 与 `KatexRenderer.vue` 改为在各自功能路径内引入样式。
+
+与原计划/后续计划的差异:
+
+- 本轮没有处理 Element Plus 全量导入和插件全局 shim 延后(P1-7),该项仍需结合插件契约单独回归。
+- 本轮没有处理 @tomjs AMD Monaco 的长期 ESM 统一(P2-8),也没有调整 Rust 侧窗口显示时机或 AssetCatalog 后台化。
+- `GlobalProviders` 仍保留 `SyncServiceProvider`、`NotificationCenter` 的静态加载;这些是更贴近全局常驻能力的组件,暂不在本轮拆分。
+
+验证结果:
+
+- `bun run build:tsc` 通过。
+- `bun run build:vite` 通过;构建后 `dist/index.html` 仍不包含 `editor.main.nls.js`。
+- 构建后 `dist/index.html` 直连资源约 **7.67 MiB / 177 个文件**。当前最大残留仍包括 `main` 约 **1.47 MiB**、`vendor-element` 约 **1.04 MiB**、`vendor-editor` 约 **1.41 MiB**、AMD `editor.main` 约 **3.68 MiB** 与大型懒加载工具/worker chunk。
+- 构建日志仍有若干 `INEFFECTIVE_DYNAMIC_IMPORT` 提示,主要来自 `NotificationCenter`/`DocumentViewer` 等真实静态引用与若干工具内部交叉引用,属于后续拆分项。
+
 ## 结论先行
 
 当前启动耗时由两段构成,**两段的主导因素都已定位**:

@@ -1,10 +1,3 @@
-import prettier from "prettier/standalone";
-import parserBabel from "prettier/plugins/babel";
-import parserHtml from "prettier/plugins/html";
-import parserCss from "prettier/plugins/postcss";
-import parserMarkdown from "prettier/plugins/markdown";
-import parserTypeScript from "prettier/plugins/typescript";
-import parserEstree from "prettier/plugins/estree";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { FormatOptions, FormatResult, SupportedLanguage } from "../types";
@@ -13,8 +6,67 @@ const logger = createModuleLogger("tools/code-formatter/logic");
 const errorHandler = createModuleErrorHandler("tools/code-formatter/logic");
 
 // 缓存动态加载的插件
+let prettierCore: typeof import("prettier/standalone") | null = null;
+let parserBabel: any = null;
+let parserHtml: any = null;
+let parserCss: any = null;
+let parserMarkdown: any = null;
+let parserTypeScript: any = null;
+let parserEstree: any = null;
+let parserYaml: any = null;
 let prettierPluginPhp: any = null;
 let prettierPluginXml: any = null;
+
+async function loadDefault<T>(loader: () => Promise<T>): Promise<any> {
+  const module = await loader();
+  return (module as any).default ?? module;
+}
+
+async function loadPrettier() {
+  if (!prettierCore) {
+    prettierCore = await import("prettier/standalone");
+  }
+  return prettierCore;
+}
+
+async function loadBabelParser() {
+  parserBabel ??= await loadDefault(() => import("prettier/plugins/babel"));
+  return parserBabel;
+}
+
+async function loadEstreeParser() {
+  parserEstree ??= await loadDefault(() => import("prettier/plugins/estree"));
+  return parserEstree;
+}
+
+async function loadTypeScriptParser() {
+  parserTypeScript ??= await loadDefault(
+    () => import("prettier/plugins/typescript")
+  );
+  return parserTypeScript;
+}
+
+async function loadHtmlParser() {
+  parserHtml ??= await loadDefault(() => import("prettier/plugins/html"));
+  return parserHtml;
+}
+
+async function loadCssParser() {
+  parserCss ??= await loadDefault(() => import("prettier/plugins/postcss"));
+  return parserCss;
+}
+
+async function loadMarkdownParser() {
+  parserMarkdown ??= await loadDefault(
+    () => import("prettier/plugins/markdown")
+  );
+  return parserMarkdown;
+}
+
+async function loadYamlParser() {
+  parserYaml ??= await loadDefault(() => import("prettier/plugins/yaml"));
+  return parserYaml;
+}
 
 /**
  * 语言配置接口
@@ -73,6 +125,7 @@ export class FormatterCore {
         ...options,
       };
 
+      const prettier = await loadPrettier();
       const formatted = await prettier.format(code, formatOptions);
 
       logger.info("代码格式化成功", {
@@ -107,38 +160,44 @@ export class FormatterCore {
       case "javascript":
       case "typescript":
         return {
-          plugins: [parserBabel, parserEstree, parserTypeScript],
+          plugins: [
+            await loadBabelParser(),
+            await loadEstreeParser(),
+            await loadTypeScriptParser(),
+          ],
           parser: language === "typescript" ? "typescript" : "babel",
         };
 
       case "json":
         return {
-          plugins: [parserBabel, parserEstree],
+          plugins: [await loadBabelParser(), await loadEstreeParser()],
           parser: "json",
         };
 
       case "html":
         return {
-          plugins: [parserHtml],
+          plugins: [await loadHtmlParser()],
           parser: "html",
         };
 
       case "css":
         return {
-          plugins: [parserCss],
+          plugins: [await loadCssParser()],
           parser: "css",
         };
 
       case "markdown":
         return {
-          plugins: [parserMarkdown],
+          plugins: [await loadMarkdownParser()],
           parser: "markdown",
         };
 
       case "php":
         if (!prettierPluginPhp) {
           try {
-            prettierPluginPhp = await import("@prettier/plugin-php/standalone");
+            prettierPluginPhp = await loadDefault(
+              () => import("@prettier/plugin-php/standalone")
+            );
             logger.info("PHP 插件加载成功");
           } catch (e) {
             errorHandler.error(e, "PHP 插件加载失败");
@@ -158,7 +217,9 @@ export class FormatterCore {
       case "xml":
         if (!prettierPluginXml) {
           try {
-            prettierPluginXml = await import("@prettier/plugin-xml");
+            prettierPluginXml = await loadDefault(
+              () => import("@prettier/plugin-xml")
+            );
             logger.info("XML 插件加载成功");
           } catch (e) {
             errorHandler.error(e, "XML 插件加载失败");
@@ -180,7 +241,7 @@ export class FormatterCore {
 
       case "yaml":
         return {
-          plugins: [parserBabel, parserEstree],
+          plugins: [await loadYamlParser()],
           parser: "yaml",
         };
 

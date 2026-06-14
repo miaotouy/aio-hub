@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { ref, computed, watch, watchEffect } from "vue";
+import { defineAsyncComponent, ref, computed, watch, watchEffect } from "vue";
 import { useDocumentViewer } from "@/composables/useDocumentViewer";
 import { createModuleLogger } from "@/utils/logger";
 import RichCodeEditor from "./RichCodeEditor.vue";
-import PdfViewer from "./PdfViewer.vue";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import HtmlInteractiveViewer from "@/tools/rich-text-renderer/components/HtmlInteractiveViewer.vue";
 import { RendererVersion } from "@/tools/rich-text-renderer/types";
@@ -35,6 +34,8 @@ const props = withDefaults(defineProps<DocumentViewerProps>(), {
 });
 
 const logger = createModuleLogger("DocumentViewer");
+const PdfViewer = defineAsyncComponent(() => import("./PdfViewer.vue"));
+
 watchEffect(() => {
   logger.debug("Props received/updated:", {
     fileName: props.fileName,

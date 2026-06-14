@@ -1,11 +1,6 @@
-import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
-import pdfjsWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("utils/pdfUtils");
-
-// 初始化 Worker
-GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 // 分辨率限制常量
 const MAX_DIMENSION = 4096; // 单边最大像素数
@@ -60,6 +55,13 @@ export async function convertPdfToImages(
   maxPages: number = 50
 ): Promise<PdfPageImage[]> {
   try {
+    const [{ getDocument, GlobalWorkerOptions }, pdfjsWorker] =
+      await Promise.all([
+        import("pdfjs-dist"),
+        import("pdfjs-dist/build/pdf.worker.min.mjs?url"),
+      ]);
+
+    GlobalWorkerOptions.workerSrc = pdfjsWorker.default;
     const loadingTask = getDocument({ data: buffer });
     const pdfDoc = await loadingTask.promise;
     const totalPages = pdfDoc.numPages;

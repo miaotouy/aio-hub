@@ -89,6 +89,23 @@
 - 构建后 `dist/index.html` 直连资源约 **7.67 MiB / 177 个文件**。当前最大残留仍包括 `main` 约 **1.47 MiB**、`vendor-element` 约 **1.04 MiB**、`vendor-editor` 约 **1.41 MiB**、AMD `editor.main` 约 **3.68 MiB** 与大型懒加载工具/worker chunk。
 - 构建日志仍有若干 `INEFFECTIVE_DYNAMIC_IMPORT` 提示,主要来自 `NotificationCenter`/`DocumentViewer` 等真实静态引用与若干工具内部交叉引用,属于后续拆分项。
 
+### 2026-06-14 第五轮实施
+
+结合 Vite 大块警告继续落地低风险资源下沉,当前实际改动如下:
+
+- `DocumentViewer.vue` 将 `PdfViewer.vue` 改为 `defineAsyncComponent` 动态导入;普通文本/Markdown/HTML/DOCX 预览不再静态链入 PDF 查看器。
+- `pdfUtils.ts` 去除顶层 `pdfjs-dist` 与 `pdf.worker` 静态导入,改为 `convertPdfToImages()` 实际执行时再并行动态导入并设置 `GlobalWorkerOptions.workerSrc`;PDF 转图片能力仍保持调用方契约不变。
+- `formatter.ts` 去除 Prettier standalone 与各语言 parser 的顶层静态导入,改为按语言缓存式动态加载;顺手把 YAML 使用独立 `prettier/plugins/yaml` parser,避免继续借用 Babel/Estree。
+- `vite.config.ts` 删除 `@lenml/tokenizers` / `@lenml/tokenizer-*` 的 `vendor-tokenizers` 手动合包规则,恢复内置 tokenizer loader 的按需动态 import 设计,避免任一 tokenizer 首次使用时拉取 37 MiB 单包。
+
+验证结果:
+
+- `bun run build:tsc` 通过。
+- `bun run build:vite` 通过。
+- 构建后不再生成 `vendor-tokenizers-*.js`;tokenizer 相关产物拆回多个独立懒加载 chunk。
+- `CodeFormatter` 主 chunk 不再携带 Prettier 全量 parser,构建产物中出现 `babel`、`typescript`、`markdown`、`postcss`、`yaml`、`estree` 等按需 chunk。
+- `PdfViewer` 仍是大型懒加载 chunk,但已从 `DocumentViewer` 的非 PDF 预览路径下沉;`pdfUtils` 的 `pdfjs-dist` 也只在 PDF 转图片时加载。
+
 ## 结论先行
 
 当前启动耗时由两段构成,**两段的主导因素都已定位**:

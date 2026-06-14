@@ -215,9 +215,6 @@ const viteConfig = defineConfig({
             // if (id.includes('prettier')) {
             //   return 'vendor-prettier';
             // }
-            if (id.includes("@lenml/tokenizers") || id.includes("@lenml/tokenizer-")) {
-              return "vendor-tokenizers";
-            }
           }
         },
       },

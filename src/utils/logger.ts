@@ -25,6 +25,161 @@ export interface LogEntry {
   collapsed?: boolean; // 是否在控制台中折叠显示
 }
 
+const MAX_LOG_STRING_LENGTH = 4000;
+const MAX_LOG_ARRAY_ITEMS = 50;
+const MAX_LOG_OBJECT_KEYS = 200;
+const MAX_LOG_DATA_DEPTH = 8;
+const BASE64_FIELD_PATTERN =
+  /^(?:dataUrl|base64|imageBase64|audioBase64|videoBase64|fileData|imageData|audioData|videoData|inlineData)$/i;
+const BASE64ISH_VALUE_PATTERN = /^[A-Za-z0-9+/=_-]+$/;
+const DATA_URL_PATTERN =
+  /data:([\w.+/-]+)?(?:;[\w=.+-]+)*;base64,([A-Za-z0-9+/=_-]{128,})/g;
+
+function estimateBase64Bytes(base64: string): number {
+  const normalized = base64.replace(/[\r\n\s]/g, "");
+  const padding = normalized.endsWith("==")
+    ? 2
+    : normalized.endsWith("=")
+      ? 1
+      : 0;
+  return Math.max(0, Math.floor((normalized.length * 3) / 4) - padding);
+}
+
+function formatPayloadSummary(
+  kind: string,
+  chars: number,
+  estimatedBytes?: number
+): string {
+  const bytesPart =
+    estimatedBytes === undefined ? "" : `, bytes≈${estimatedBytes}`;
+  return `[${kind} omitted, chars=${chars}${bytesPart}]`;
+}
+
+function summarizeDataUrl(match: string, mimeType?: string, base64 = "") {
+  const kind = mimeType ? `DataURL ${mimeType}` : "DataURL";
+  return formatPayloadSummary(kind, match.length, estimateBase64Bytes(base64));
+}
+
+function isProbablyBase64Payload(value: string): boolean {
+  if (value.length < 512 || !BASE64ISH_VALUE_PATTERN.test(value)) {
+    return false;
+  }
+
+  return value.length % 4 === 0;
+}
+
+function sanitizeLogString(value: string, key?: string): string {
+  const replacedDataUrls = value.replace(DATA_URL_PATTERN, summarizeDataUrl);
+  const looksLikePayloadField = key ? BASE64_FIELD_PATTERN.test(key) : false;
+
+  if (
+    replacedDataUrls === value &&
+    looksLikePayloadField &&
+    isProbablyBase64Payload(value)
+  ) {
+    return formatPayloadSummary(
+      "Base64 payload",
+      value.length,
+      estimateBase64Bytes(value)
+    );
+  }
+
+  if (replacedDataUrls.length > MAX_LOG_STRING_LENGTH) {
+    return `${replacedDataUrls.slice(0, MAX_LOG_STRING_LENGTH)}... [truncated, chars=${replacedDataUrls.length}]`;
+  }
+
+  return replacedDataUrls;
+}
+
+function sanitizeLogData(
+  value: any,
+  depth = 0,
+  seen: WeakSet<object> = new WeakSet(),
+  key?: string
+): any {
+  if (typeof value === "string") {
+    return sanitizeLogString(value, key);
+  }
+
+  if (
+    value === null ||
+    typeof value === "number" ||
+    typeof value === "boolean" ||
+    typeof value === "undefined"
+  ) {
+    return value;
+  }
+
+  if (typeof value === "bigint") {
+    return `${value.toString()}n`;
+  }
+
+  if (typeof value === "symbol" || typeof value === "function") {
+    return String(value);
+  }
+
+  if (depth >= MAX_LOG_DATA_DEPTH) {
+    return "[Object Max Depth Reached]";
+  }
+
+  if (seen.has(value)) {
+    return "[Circular]";
+  }
+  seen.add(value);
+
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  if (value instanceof Error) {
+    return {
+      name: value.name,
+      message: sanitizeLogString(value.message),
+      stack: value.stack ? sanitizeLogString(value.stack) : undefined,
+    };
+  }
+
+  if (ArrayBuffer.isView(value)) {
+    return `[${value.constructor.name} omitted, bytes=${value.byteLength}]`;
+  }
+
+  if (value instanceof ArrayBuffer) {
+    return `[ArrayBuffer omitted, bytes=${value.byteLength}]`;
+  }
+
+  if (Array.isArray(value)) {
+    const items = value
+      .slice(0, MAX_LOG_ARRAY_ITEMS)
+      .map((item) => sanitizeLogData(item, depth + 1, seen));
+    if (value.length > MAX_LOG_ARRAY_ITEMS) {
+      items.push(`[... ${value.length - MAX_LOG_ARRAY_ITEMS} more items]`);
+    }
+    return items;
+  }
+
+  const sanitized: Record<string, any> = {};
+  const keys = Object.keys(value);
+
+  for (const objectKey of keys.slice(0, MAX_LOG_OBJECT_KEYS)) {
+    try {
+      sanitized[objectKey] = sanitizeLogData(
+        value[objectKey],
+        depth + 1,
+        seen,
+        objectKey
+      );
+    } catch (error) {
+      sanitized[objectKey] = "[Unreadable Property]";
+    }
+  }
+
+  if (keys.length > MAX_LOG_OBJECT_KEYS) {
+    sanitized._moreKeys = `[... ${keys.length - MAX_LOG_OBJECT_KEYS} more keys]`;
+  }
+
+  return sanitized;
+}
+
 class Logger {
   private currentLevel: LogLevel = LogLevel.DEBUG;
   private logBuffer: LogEntry[] = [];
@@ -357,7 +512,7 @@ class Logger {
       level,
       module,
       message,
-      data,
+      data: data === undefined ? undefined : sanitizeLogData(data),
       stack: error?.stack,
       collapsed,
     };

@@ -136,8 +136,22 @@ import type { PluginContext, ServiceMetadata } from "aiohub-sdk";
   - `readBinary(path)` / `writeBinary(path, data)`: 读写二进制文件。
   - `exists(path)`: 检查文件是否存在。
   - `remove(path)`: 删除文件或目录。
+- **`context.environment`**: 宿主全局运行环境配置 API，只读访问用户在“运行环境”设置页中配置的外部依赖路径。
+  - `get()`: 获取当前环境配置快照。
+  - `getPath("ffmpeg" | "ffprobe" | "git")`: 获取常用可执行文件路径。
+  - `getRuntimeCommand("javascript" | "python" | "shell" | "powershell")`: 获取脚本运行时命令。
+  - `getDocumentConverterPath("libreOffice" | "abiWord")`: 获取文档转换器路径。
 - **`context.chat`**: 聊天扩展 API。
   - `registerProcessor(processor)`: 注册聊天上下文处理器。
+
+也可以在插件 UI 或普通模块中从 `aiohub-sdk` 直接导入同一个只读服务：
+
+```typescript
+import { pluginEnvironmentService } from "aiohub-sdk";
+
+const ffmpegPath = pluginEnvironmentService.getPath("ffmpeg");
+const pythonCommand = pluginEnvironmentService.getRuntimeCommand("python");
+```
 
 #### 暴露方法给 Agent (AI 调用)
 

@@ -6,6 +6,9 @@
 
 import type { ToolRegistry, MethodMetadata, ServiceMetadata } from "./types";
 import type { SettingItem } from "@/types/settings-renderer";
+import type { PluginEnvironmentAPI } from "./plugin-environment.service";
+
+export type { PluginEnvironmentAPI } from "./plugin-environment.service";
 
 // ==================== 插件清单类型 ====================
 
@@ -307,6 +310,12 @@ export interface PluginContext {
    * 插件专属存储 API
    */
   storage: PluginStorageAPI;
+  /**
+   * 宿主全局运行环境配置 API。
+   *
+   * 插件只能读取用户在“运行环境”设置页中配置的路径与运行时命令。
+   */
+  environment: PluginEnvironmentAPI;
   /**
    * 聊天上下文管道 API
    */

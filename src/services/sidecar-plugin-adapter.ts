@@ -10,6 +10,7 @@ import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { pluginConfigService } from "./plugin-config.service";
 import { pluginManager } from "./plugin-manager";
+import { pluginEnvironmentService } from "./plugin-environment.service";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
@@ -220,6 +221,7 @@ export class SidecarPluginAdapter implements PluginProxy {
       method: methodName,
       params,
       settings: await settings.getAll(),
+      environment: pluginEnvironmentService.get(),
     };
 
     // 准备命令行参数

@@ -21,11 +21,13 @@ export type {
   PluginProxy,
   PluginManifest,
   PluginSettingsAPI,
+  PluginEnvironmentAPI,
 } from "./plugin-types";
 
 // 导出配置服务
 export { pluginConfigService } from "./plugin-config.service";
 export { pluginStateService } from "./plugin-state.service";
+export { pluginEnvironmentService } from "./plugin-environment.service";
 export { startupManager } from "./startup-manager";
 export { pluginManager } from "./plugin-manager";
 

@@ -14,6 +14,7 @@ import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { pluginStateService } from "./plugin-state.service";
 import { pluginConfigService } from "./plugin-config.service";
+import { pluginEnvironmentService } from "./plugin-environment.service";
 import type { PluginContext, PluginStorageAPI } from "./plugin-types";
 import { useContextPipelineStore } from "@/tools/llm-chat/stores/contextPipelineStore";
 import { getAppConfigDir } from "@/utils/appPath";
@@ -466,6 +467,7 @@ class PluginManager {
 
     return {
       settings: pluginConfigService.createPluginSettingsAPI(pluginId),
+      environment: pluginEnvironmentService,
       storage: {
         getDataDir: async () => (await storagePromise).getDataDir(),
         readText: async (path) => (await storagePromise).readText(path),

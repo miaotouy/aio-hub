@@ -14,6 +14,7 @@ export const {
   executeMany,
   pluginConfigService,
   pluginStateService,
+  pluginEnvironmentService,
   startupManager,
   pluginManager,
   customMessage,

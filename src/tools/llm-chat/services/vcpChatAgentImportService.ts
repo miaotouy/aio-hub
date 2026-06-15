@@ -2,12 +2,14 @@ import { readDir, readFile, readTextFile } from "@tauri-apps/plugin-fs";
 import { createModuleLogger } from "@/utils/logger";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useVcpStore } from "@/tools/vcp-connector/stores/vcpConnectorStore";
+import { getPureModelId } from "@/utils/modelIdUtils";
 import type {
   AgentImportModelRecommendation,
   AgentImportSourceMeta,
   ExportableAgent,
   ParsedAgentImportBundle,
 } from "../types/agentImportExport";
+import type { LlmProfile } from "@/types/llm-profiles";
 import type { ChatMessageNode } from "../types/message";
 import type { ChatRegexRule } from "../types/chatRegex";
 import type { LlmParameters } from "../types/llm";
@@ -532,28 +534,19 @@ export function recommendVcpChatModel(
       (profile) => profile.baseUrl && isSameHost(profile.baseUrl, wsUrl)
     );
     if (vcpProfile) {
-      const matched = modelId
-        ? vcpProfile.models.find((model) => model.id === modelId)
-        : undefined;
-      return {
-        profileId: vcpProfile.id,
-        modelId: matched?.id || vcpProfile.models[0]?.id || modelId,
-        reason: "vcp-host",
-        note: matched
-          ? "已按 VCP 连接推荐，并匹配原模型。"
-          : "已按 VCP 连接推荐，原模型不在该 profile 中。",
-      };
+      return recommendModelFromVcpProfile(vcpProfile, modelId);
     }
   }
 
   if (modelId) {
+    const targetModelId = getPureModelId(modelId);
     const matchedProfile = enabledProfiles.value.find((profile) =>
-      profile.models.some((model) => model.id === modelId)
+      profile.models.some((model) => model.id === targetModelId)
     );
     if (matchedProfile) {
       return {
         profileId: matchedProfile.id,
-        modelId,
+        modelId: targetModelId,
         reason: "exact-model",
         note: "按模型名精确匹配。",
       };
@@ -566,6 +559,30 @@ export function recommendVcpChatModel(
     modelId: firstProfile?.models[0]?.id || modelId,
     reason: "fallback",
     note: "未找到 VCP 或同名模型，已回退到第一个可用模型。",
+  };
+}
+
+function recommendModelFromVcpProfile(
+  vcpProfile: LlmProfile,
+  modelId?: string
+): AgentImportModelRecommendation {
+  const targetModelId = getPureModelId(modelId);
+  const matched = targetModelId
+    ? vcpProfile.models.find(
+        (model) => model.id === targetModelId || model.name === targetModelId
+      )
+    : undefined;
+  const fallback = vcpProfile.models[0];
+
+  return {
+    profileId: vcpProfile.id,
+    modelId: matched?.id || fallback?.id,
+    reason: "vcp-host",
+    note: matched
+      ? "已按 VCP 连接推荐，并匹配原模型。"
+      : fallback
+        ? "已按 VCP 连接推荐，原模型不在该渠道中，已使用该渠道的其他模型。"
+        : "已按 VCP 连接推荐，但该渠道暂无可用模型。",
   };
 }
 

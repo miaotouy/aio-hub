@@ -69,7 +69,13 @@ const initializeResolvedAgents = (result: AgentImportPreflightResult) => {
       (m) => m.id === recommendation?.modelId
     );
 
-    if (recommendedProfile && recommendedModel) {
+    if (recommendedProfile && recommendation?.reason === "vcp-host") {
+      finalProfileId = recommendedProfile.id;
+      finalModelId =
+        recommendedModel?.id ||
+        recommendedProfile.models[0]?.id ||
+        getPureModelId(agent.modelId);
+    } else if (recommendedProfile && recommendedModel) {
       finalProfileId = recommendedProfile.id;
       finalModelId = recommendedModel.id;
     } else {

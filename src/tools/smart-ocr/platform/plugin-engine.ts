@@ -113,7 +113,8 @@ export function usePluginOcrEngine() {
   const recognizeImages = async (
     images: OcrImageInput[],
     config: PluginOcrConfig,
-    onProgress?: (results: OcrResult[]) => void
+    onProgress?: (results: OcrResult[]) => void,
+    signal?: AbortSignal
   ): Promise<OcrResult[]> => {
     const results = createPendingResults(images);
 
@@ -137,6 +138,15 @@ export function usePluginOcrEngine() {
       }));
       onProgress?.(processingResults);
 
+      if (signal?.aborted) {
+        const cancelledResults = results.map((result) => ({
+          ...result,
+          status: "cancelled" as const,
+        }));
+        onProgress?.(cancelledResults);
+        return cancelledResults;
+      }
+
       const response = await execute<PluginOcrBatchResult>({
         service: resolvedPluginId,
         method: config.method,
@@ -151,6 +161,15 @@ export function usePluginOcrEngine() {
 
       if (!response.success) {
         throw response.error;
+      }
+
+      if (signal?.aborted) {
+        const cancelledResults = results.map((result) => ({
+          ...result,
+          status: "cancelled" as const,
+        }));
+        onProgress?.(cancelledResults);
+        return cancelledResults;
       }
 
       const pluginResults = response.data?.results;
@@ -221,9 +240,15 @@ export function usePluginOcrEngine() {
   const recognizeBatch = async (
     blocks: ImageBlock[],
     config: PluginOcrConfig,
-    onProgress?: (results: OcrResult[]) => void
+    onProgress?: (results: OcrResult[]) => void,
+    signal?: AbortSignal
   ): Promise<OcrResult[]> => {
-    return recognizeImages(blocks.map(blockToOcrImage), config, onProgress);
+    return recognizeImages(
+      blocks.map(blockToOcrImage),
+      config,
+      onProgress,
+      signal
+    );
   };
 
   return {

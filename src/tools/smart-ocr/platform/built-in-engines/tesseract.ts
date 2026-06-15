@@ -127,7 +127,8 @@ export function useTesseractEngine() {
     blocks: ImageBlock[],
     language: string = "chi_sim+eng",
     onProgress?: (results: OcrResult[]) => void,
-    workerCount: number = DEFAULT_WORKER_COUNT
+    workerCount: number = DEFAULT_WORKER_COUNT,
+    signal?: AbortSignal
   ): Promise<OcrResult[]> => {
     const results: OcrResult[] = blocks.map((block) => ({
       blockId: block.id,
@@ -147,54 +148,86 @@ export function useTesseractEngine() {
 
     // 初始化 scheduler
     await initScheduler(language, workerCount);
+    const cancelScheduler = () => {
+      void cleanup();
+    };
+    signal?.addEventListener("abort", cancelScheduler, { once: true });
 
-    // 并发提交所有识别任务
-    const promises = blocks.map(async (block, index) => {
-      try {
-        // 更新状态为处理中
-        results[index].status = "processing";
-        onProgress?.([...results]);
+    try {
+      // 并发提交所有识别任务
+      const promises = blocks.map(async (block, index) => {
+        try {
+          if (signal?.aborted) {
+            results[index].status = "cancelled";
+            return;
+          }
 
-        logger.debug(`提交图片块 ${index + 1}/${blocks.length}`, {
-          blockId: block.id,
-          language,
-        });
+          // 更新状态为处理中
+          results[index].status = "processing";
+          onProgress?.([...results]);
 
-        // 使用 scheduler 并发执行识别
-        const result = await scheduler!.addJob("recognize", block.canvas);
-
-        // 更新结果
-        results[index].text = result.data.text.trim();
-        results[index].confidence = result.data.confidence / 100;
-        results[index].status = "success";
-
-        logger.debug(`图片块识别完成 ${index + 1}/${blocks.length}`, {
-          blockId: block.id,
-          confidence: `${((result.data.confidence / 100) * 100).toFixed(1)}%`,
-          textLength: result.data.text.trim().length,
-        });
-
-        // 通知进度更新
-        onProgress?.([...results]);
-      } catch (error) {
-        errorHandler.handle(error as Error, {
-          userMessage: `图片块识别失败 ${index + 1}/${blocks.length}`,
-          context: {
+          logger.debug(`提交图片块 ${index + 1}/${blocks.length}`, {
             blockId: block.id,
             language,
-          },
-          showToUser: false,
-        });
-        results[index].status = "error";
-        results[index].error = (error as Error).message;
+          });
 
-        // 通知进度更新
-        onProgress?.([...results]);
-      }
-    });
+          // 使用 scheduler 并发执行识别
+          const result = await scheduler!.addJob("recognize", block.canvas);
 
-    // 等待所有任务完成
-    await Promise.all(promises);
+          if (signal?.aborted) {
+            results[index].status = "cancelled";
+            return;
+          }
+
+          // 更新结果
+          results[index].text = result.data.text.trim();
+          results[index].confidence = result.data.confidence / 100;
+          results[index].status = "success";
+
+          logger.debug(`图片块识别完成 ${index + 1}/${blocks.length}`, {
+            blockId: block.id,
+            confidence: `${((result.data.confidence / 100) * 100).toFixed(1)}%`,
+            textLength: result.data.text.trim().length,
+          });
+
+          // 通知进度更新
+          onProgress?.([...results]);
+        } catch (error) {
+          if (signal?.aborted) {
+            results[index].status = "cancelled";
+            return;
+          }
+
+          errorHandler.handle(error as Error, {
+            userMessage: `图片块识别失败 ${index + 1}/${blocks.length}`,
+            context: {
+              blockId: block.id,
+              language,
+            },
+            showToUser: false,
+          });
+          results[index].status = "error";
+          results[index].error = (error as Error).message;
+
+          // 通知进度更新
+          onProgress?.([...results]);
+        }
+      });
+
+      // 等待所有任务完成
+      await Promise.all(promises);
+    } finally {
+      signal?.removeEventListener("abort", cancelScheduler);
+    }
+
+    if (signal?.aborted) {
+      results.forEach((result) => {
+        if (result.status === "pending" || result.status === "processing") {
+          result.status = "cancelled";
+        }
+      });
+      onProgress?.([...results]);
+    }
 
     logger.info(`批量识别完成`, {
       language,

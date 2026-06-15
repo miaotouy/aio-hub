@@ -23,7 +23,8 @@ export function useOcrRunner() {
   const runOcr = async (
     blocks: ImageBlock[],
     config: OcrEngineConfig,
-    onProgress?: (results: OcrResult[]) => void
+    onProgress?: (results: OcrResult[]) => void,
+    signal?: AbortSignal
   ): Promise<OcrResult[]> => {
     const results: OcrResult[] = blocks.map((block) => ({
       blockId: block.id,
@@ -46,19 +47,34 @@ export function useOcrRunner() {
 
       switch (config.type) {
         case "tesseract":
-          finalResults = await runTesseractEngine(blocks, config, onProgress);
+          finalResults = await runTesseractEngine(
+            blocks,
+            config,
+            onProgress,
+            signal
+          );
           break;
         case "native":
-          finalResults = await runNativeEngine(blocks, onProgress);
+          finalResults = await runNativeEngine(blocks, onProgress, signal);
           break;
         case "vlm":
-          finalResults = await runVlmEngine(blocks, config, onProgress);
+          finalResults = await runVlmEngine(blocks, config, onProgress, signal);
           break;
         case "cloud":
-          finalResults = await runCloudEngine(blocks, config, onProgress);
+          finalResults = await runCloudEngine(
+            blocks,
+            config,
+            onProgress,
+            signal
+          );
           break;
         case "plugin":
-          finalResults = await runPluginEngine(blocks, config, onProgress);
+          finalResults = await runPluginEngine(
+            blocks,
+            config,
+            onProgress,
+            signal
+          );
           break;
         default:
           throw new Error(
@@ -99,7 +115,8 @@ export function useOcrRunner() {
   const runTesseractEngine = async (
     blocks: ImageBlock[],
     config: Extract<OcrEngineConfig, { type: "tesseract" }>,
-    onProgress?: (results: OcrResult[]) => void
+    onProgress?: (results: OcrResult[]) => void,
+    signal?: AbortSignal
   ): Promise<OcrResult[]> => {
     const { recognizeBatch } = useTesseractEngine();
     const workerCount = config.concurrency ?? 4; // 默认 4 个并发
@@ -107,7 +124,8 @@ export function useOcrRunner() {
       blocks,
       config.language,
       onProgress,
-      workerCount
+      workerCount,
+      signal
     );
   };
 
@@ -116,10 +134,11 @@ export function useOcrRunner() {
    */
   const runNativeEngine = async (
     blocks: ImageBlock[],
-    onProgress?: (results: OcrResult[]) => void
+    onProgress?: (results: OcrResult[]) => void,
+    signal?: AbortSignal
   ): Promise<OcrResult[]> => {
     const { recognizeBatch } = useNativeEngine();
-    return await recognizeBatch(blocks, onProgress);
+    return await recognizeBatch(blocks, onProgress, signal);
   };
 
   /**
@@ -128,10 +147,11 @@ export function useOcrRunner() {
   const runVlmEngine = async (
     blocks: ImageBlock[],
     config: Extract<OcrEngineConfig, { type: "vlm" }>,
-    onProgress?: (results: OcrResult[]) => void
+    onProgress?: (results: OcrResult[]) => void,
+    signal?: AbortSignal
   ): Promise<OcrResult[]> => {
     const { recognizeBatch } = useVlmEngine();
-    return await recognizeBatch(blocks, config, onProgress);
+    return await recognizeBatch(blocks, config, onProgress, signal);
   };
 
   /**
@@ -140,7 +160,8 @@ export function useOcrRunner() {
   const runCloudEngine = async (
     blocks: ImageBlock[],
     config: Extract<OcrEngineConfig, { type: "cloud" }>,
-    onProgress?: (results: OcrResult[]) => void
+    onProgress?: (results: OcrResult[]) => void,
+    signal?: AbortSignal
   ): Promise<OcrResult[]> => {
     // 获取选中的 OCR Profile
     const { getProfileById } = useOcrProfiles();
@@ -191,12 +212,16 @@ export function useOcrRunner() {
       blocks,
       profile,
       (updatedResults: OcrResult[]) => {
+        if (signal?.aborted) {
+          return;
+        }
         // 更新结果数组
         updatedResults.forEach((result, index) => {
           results[index] = result;
         });
         onProgress?.([...results]);
-      }
+      },
+      signal
     );
 
     // 最终更新
@@ -213,10 +238,11 @@ export function useOcrRunner() {
   const runPluginEngine = async (
     blocks: ImageBlock[],
     config: Extract<OcrEngineConfig, { type: "plugin" }>,
-    onProgress?: (results: OcrResult[]) => void
+    onProgress?: (results: OcrResult[]) => void,
+    signal?: AbortSignal
   ): Promise<OcrResult[]> => {
     const { recognizeBatch } = usePluginOcrEngine();
-    return await recognizeBatch(blocks, config, onProgress);
+    return await recognizeBatch(blocks, config, onProgress, signal);
   };
 
   /**

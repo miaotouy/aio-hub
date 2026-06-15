@@ -18,6 +18,8 @@ import { useAssetManager } from "@/composables/useAssetManager";
 const logger = createModuleLogger("use-smart-ocr-runner");
 const errorHandler = createModuleErrorHandler("use-smart-ocr-runner");
 
+let activeOcrAbortController: AbortController | null = null;
+
 // ==================== 类型定义 ====================
 
 export interface FullOcrProcessOptions {
@@ -102,6 +104,32 @@ export function useSmartOcrRunner() {
           context: { imageId: image.id },
         });
       }
+    }
+  }
+
+  function _markActiveResultsCancelled(): void {
+    const cancellableResults = store.ocrResults
+      .filter((r) => r.status === "pending" || r.status === "processing")
+      .map((r) => ({
+        ...r,
+        status: "cancelled" as const,
+        error: undefined,
+      }));
+
+    if (cancellableResults.length > 0) {
+      store.updateOcrResults(cancellableResults);
+    }
+  }
+
+  function _createActiveAbortController(): AbortController {
+    activeOcrAbortController?.abort();
+    activeOcrAbortController = new AbortController();
+    return activeOcrAbortController;
+  }
+
+  function _clearActiveAbortController(controller: AbortController): void {
+    if (activeOcrAbortController === controller) {
+      activeOcrAbortController = null;
     }
   }
 
@@ -294,6 +322,9 @@ export function useSmartOcrRunner() {
     options: FullOcrProcessOptions = {},
     onProgress?: (results: OcrResult[]) => void
   ): Promise<OcrResult[]> {
+    const abortController = _createActiveAbortController();
+    const { signal } = abortController;
+
     const result = await errorHandler.wrapAsync(
       async () => {
         store.setProcessing(true);
@@ -341,13 +372,22 @@ export function useSmartOcrRunner() {
           allBlocks,
           store.engineConfig,
           (progressResults: OcrResult[]) => {
+            if (signal.aborted) {
+              return;
+            }
             // 合并进度结果到现有结果中
             store.updateOcrResults(progressResults);
 
             // 调用外部传入的进度回调
             onProgress?.(store.ocrResults);
-          }
+          },
+          signal
         );
+
+        if (signal.aborted) {
+          _markActiveResultsCancelled();
+          return [];
+        }
 
         // 最终更新：合并结果
         store.updateOcrResults(results);
@@ -368,6 +408,7 @@ export function useSmartOcrRunner() {
 
     // 确保处理状态被重置
     store.setProcessing(false);
+    _clearActiveAbortController(abortController);
     return result || [];
   }
 
@@ -378,6 +419,9 @@ export function useSmartOcrRunner() {
     options: RetryBlockOptions,
     onProgress?: (result: OcrResult) => void
   ): Promise<OcrResult | null> {
+    const abortController = _createActiveAbortController();
+    const { signal } = abortController;
+
     return await errorHandler.wrapAsync(
       async () => {
         const resultIndex = store.ocrResults.findIndex(
@@ -415,6 +459,9 @@ export function useSmartOcrRunner() {
           [block],
           store.engineConfig,
           (updatedResults: OcrResult[]) => {
+            if (signal.aborted) {
+              return;
+            }
             if (updatedResults.length > 0) {
               const newResult = {
                 ...updatedResults[0],
@@ -423,8 +470,14 @@ export function useSmartOcrRunner() {
               store.updateOcrResults([newResult]);
               onProgress?.(newResult);
             }
-          }
+          },
+          signal
         );
+
+        if (signal.aborted) {
+          _markActiveResultsCancelled();
+          return null;
+        }
 
         // 最终更新
         if (singleBlockResults.length > 0) {
@@ -444,7 +497,7 @@ export function useSmartOcrRunner() {
         userMessage: "重试识别失败",
         context: options,
       }
-    );
+    ).finally(() => _clearActiveAbortController(abortController));
   }
 
   /**
@@ -453,6 +506,9 @@ export function useSmartOcrRunner() {
   async function retryAllFailedBlocks(
     onProgress?: (results: OcrResult[]) => void
   ): Promise<OcrResult[]> {
+    const abortController = _createActiveAbortController();
+    const { signal } = abortController;
+
     return (
       (await errorHandler.wrapAsync(
         async () => {
@@ -495,6 +551,9 @@ export function useSmartOcrRunner() {
             blocksToRetry,
             store.engineConfig,
             (progressResults: OcrResult[]) => {
+              if (signal.aborted) {
+                return;
+              }
               // 需要补全 imageId
               const mappedResults = progressResults.map((r) => ({
                 ...r,
@@ -502,8 +561,14 @@ export function useSmartOcrRunner() {
               }));
               store.updateOcrResults(mappedResults);
               onProgress?.(store.ocrResults);
-            }
+            },
+            signal
           );
+
+          if (signal.aborted) {
+            _markActiveResultsCancelled();
+            return [];
+          }
 
           // 最终更新
           const finalResults = results.map((r) => ({
@@ -518,8 +583,15 @@ export function useSmartOcrRunner() {
           level: ErrorLevel.ERROR,
           userMessage: "批量重试识别失败",
         }
-      )) || []
+      ).finally(() => _clearActiveAbortController(abortController))) || []
     );
+  }
+
+  function cancelActiveOcrProcess(): void {
+    activeOcrAbortController?.abort();
+    _markActiveResultsCancelled();
+    store.setProcessing(false);
+    logger.info("已取消当前 OCR 识别任务");
   }
 
   /**
@@ -597,6 +669,7 @@ export function useSmartOcrRunner() {
     runFullOcrProcess,
     retryBlock,
     retryAllFailedBlocks,
+    cancelActiveOcrProcess,
     toggleBlockIgnore,
     updateBlockText,
     getFormattedOcrSummary,

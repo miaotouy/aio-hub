@@ -43,6 +43,7 @@ const {
   sliceAllImages,
   retryBlock,
   retryAllFailedBlocks,
+  cancelActiveOcrProcess,
   toggleBlockIgnore,
   updateBlockText,
   updateEngineConfig,
@@ -189,6 +190,11 @@ const handleRetryAllFailed = async () => {
   customMessage.info("正在将失败任务重新加入队列...");
   await retryAllFailedBlocks();
   customMessage.success("重试任务已全部处理完成");
+};
+
+const handleCancelActive = () => {
+  cancelActiveOcrProcess();
+  customMessage.info("已取消等待中的识别任务");
 };
 
 // 处理切换忽略状态
@@ -463,6 +469,7 @@ const handleReRecognize = async (recordId: string) => {
             :image-blocks-map="imageBlocksMap"
             @retry-block="handleRetryBlock"
             @retry-all-failed="handleRetryAllFailed"
+            @cancel-active="handleCancelActive"
             @toggle-ignore="handleToggleIgnore"
             @update-text="handleUpdateText"
           />

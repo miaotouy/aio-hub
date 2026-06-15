@@ -101,7 +101,8 @@ export function useVlmEngine() {
   const recognizeBatch = async (
     blocks: ImageBlock[],
     config: Extract<OcrEngineConfig, { type: "vlm" }>,
-    onProgress?: (results: OcrResult[]) => void
+    onProgress?: (results: OcrResult[]) => void,
+    signal?: AbortSignal
   ): Promise<OcrResult[]> => {
     const results: OcrResult[] = blocks.map((block) => ({
       blockId: block.id,
@@ -131,6 +132,11 @@ export function useVlmEngine() {
 
     // 并发处理函数
     const processBlock = async (index: number, skipDelay: boolean = false) => {
+      if (signal?.aborted) {
+        results[index].status = "cancelled";
+        return;
+      }
+
       const block = blocks[index];
 
       // 更新状态为处理中
@@ -146,6 +152,11 @@ export function useVlmEngine() {
           await new Promise((resolve) => setTimeout(resolve, delay));
         }
 
+        if (signal?.aborted) {
+          results[index].status = "cancelled";
+          return;
+        }
+
         logger.debug(`处理图片块 ${index + 1}/${blocks.length}`, {
           blockId: block.id,
           engine: "vlm",
@@ -153,6 +164,11 @@ export function useVlmEngine() {
         });
 
         const text = await recognizeSingle(block.canvas, config);
+
+        if (signal?.aborted) {
+          results[index].status = "cancelled";
+          return;
+        }
 
         // 更新结果
         results[index].text = text;
@@ -192,7 +208,7 @@ export function useVlmEngine() {
       await processBlock(index, isInitial);
 
       // 任务完成后，如果队列还有任务，立即启动下一个
-      if (queue.length > 0) {
+      if (!signal?.aborted && queue.length > 0) {
         const nextIndex = queue.shift()!;
         const nextPromise = processWithQueue(nextIndex, false); // 后续任务需要延迟
         inProgress.add(nextPromise);
@@ -212,6 +228,15 @@ export function useVlmEngine() {
     // 等待所有任务完成
     while (inProgress.size > 0) {
       await Promise.race(inProgress);
+    }
+
+    if (signal?.aborted) {
+      results.forEach((result) => {
+        if (result.status === "pending" || result.status === "processing") {
+          result.status = "cancelled";
+        }
+      });
+      onProgress?.([...results]);
     }
 
     return results;

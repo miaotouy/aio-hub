@@ -43,6 +43,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   retryBlock: [blockId: string];
   retryAllFailed: [];
+  cancelActive: [];
   toggleIgnore: [blockId: string];
   updateText: [blockId: string, text: string];
 }>();
@@ -50,6 +51,12 @@ const emit = defineEmits<{
 // 是否有失败的结果
 const hasFailedResults = computed(() => {
   return props.ocrResults.some((r) => r.status === "error");
+});
+
+const hasCancelableResults = computed(() => {
+  return props.ocrResults.some(
+    (r) => r.status === "pending" || r.status === "processing"
+  );
 });
 
 // 按图片分组结果
@@ -145,6 +152,7 @@ const getStatusIcon = (status: OcrResult["status"]) => {
     case "success":
       return CircleCheck;
     case "error":
+    case "cancelled":
       return CircleClose;
     case "processing":
       return Loading;
@@ -162,6 +170,8 @@ const getStatusType = (
       return "success";
     case "error":
       return "danger";
+    case "cancelled":
+      return "info";
     case "processing":
       return "warning";
     default:
@@ -176,6 +186,8 @@ const getStatusText = (status: OcrResult["status"]) => {
       return "完成";
     case "error":
       return "失败";
+    case "cancelled":
+      return "已取消";
     case "processing":
       return "识别中";
     default:
@@ -270,6 +282,16 @@ const isEditing = (blockId: string) => {
           @click="emit('retryAllFailed')"
         >
           重试失败
+        </el-button>
+        <el-button
+          v-if="hasCancelableResults"
+          size="small"
+          type="danger"
+          plain
+          :icon="Close"
+          @click="emit('cancelActive')"
+        >
+          取消识别
         </el-button>
         <el-button
           v-if="allText"
@@ -431,6 +453,12 @@ const isEditing = (blockId: string) => {
                     <div class="loading-state">
                       <el-icon class="is-loading"><Loading /></el-icon>
                       <el-text type="info">正在识别...</el-text>
+                    </div>
+                  </template>
+
+                  <template v-else-if="result.status === 'cancelled'">
+                    <div class="cancelled-state">
+                      <el-text type="info">已取消识别</el-text>
                     </div>
                   </template>
 
@@ -658,6 +686,7 @@ const isEditing = (blockId: string) => {
 }
 .loading-state,
 .error-state,
+.cancelled-state,
 .pending-state {
   display: flex;
   align-items: center;

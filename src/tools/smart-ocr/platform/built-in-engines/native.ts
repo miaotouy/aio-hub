@@ -47,7 +47,8 @@ export function useNativeEngine() {
    */
   const recognizeBatch = async (
     blocks: ImageBlock[],
-    onProgress?: (results: OcrResult[]) => void
+    onProgress?: (results: OcrResult[]) => void,
+    signal?: AbortSignal
   ): Promise<OcrResult[]> => {
     const results: OcrResult[] = blocks.map((block) => ({
       blockId: block.id,
@@ -65,6 +66,11 @@ export function useNativeEngine() {
 
     // 逐个识别图片块
     for (let i = 0; i < blocks.length; i++) {
+      if (signal?.aborted) {
+        results[i].status = "cancelled";
+        continue;
+      }
+
       const block = blocks[i];
 
       // 更新状态为处理中
@@ -78,6 +84,11 @@ export function useNativeEngine() {
         });
 
         const { text, confidence } = await recognizeSingle(block.canvas);
+
+        if (signal?.aborted) {
+          results[i].status = "cancelled";
+          continue;
+        }
 
         // 更新结果
         results[i].text = text;
@@ -103,6 +114,15 @@ export function useNativeEngine() {
       }
 
       // 通知进度更新
+      onProgress?.([...results]);
+    }
+
+    if (signal?.aborted) {
+      results.forEach((result) => {
+        if (result.status === "pending" || result.status === "processing") {
+          result.status = "cancelled";
+        }
+      });
       onProgress?.([...results]);
     }
 

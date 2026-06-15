@@ -141,7 +141,7 @@ export interface OcrResult {
   imageId: string; // 所属图片ID
   text: string;
   confidence?: number;
-  status: "pending" | "processing" | "success" | "error";
+  status: "pending" | "processing" | "success" | "error" | "cancelled";
   error?: string;
   ignored?: boolean; // 是否被忽略（复制时跳过）
 }

@@ -393,7 +393,9 @@ export function getTopicStructuredOutputMode(
 
 export function isLikelyResponseFormatError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error ?? "");
-  return /response[_\s-]?format|json[_\s-]?schema|schema|json mode/i.test(
-    message
+  return (
+    /response[_\s-]?format|json[_\s-]?schema|schema|json mode/i.test(message) ||
+    /choices\s*:\s*null/i.test(message) ||
+    /响应格式异常/i.test(message)
   );
 }

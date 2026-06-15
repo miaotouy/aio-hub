@@ -165,12 +165,13 @@ export function useChatResponseHandler() {
     chunk: string,
     isReasoning: boolean = false
   ): void => {
+    if (!chunk) return;
     if (!session.nodes) return;
     const node = session.nodes[nodeId];
     if (!node) return;
 
-    // 记录首字时间
-    if (!node.metadata?.firstTokenTime && !isReasoning) {
+    // 记录首字时间：reasoning/thinking 是用户可见输出，也应参与 TTFT 与速度统计。
+    if (!node.metadata?.firstTokenTime) {
       node.metadata = {
         ...node.metadata,
         firstTokenTime: Date.now(),
@@ -270,7 +271,10 @@ export function useChatResponseHandler() {
     }>
   ): Promise<void> => {
     // 检查 usage 是否可靠
-    const hasContent = response.content && response.content.trim() !== "";
+    const completionText = [response.reasoningContent, response.content]
+      .filter((part) => typeof part === "string" && part.trim() !== "")
+      .join("\n");
+    const hasContent = completionText.trim() !== "";
     const usageIsZero =
       !response.usage ||
       response.usage.totalTokens === 0 ||
@@ -282,15 +286,16 @@ export function useChatResponseHandler() {
         "检测到 API 返回的 usage 信息不可靠（全为 0 但有内容），使用本地计算",
         {
           originalUsage: response.usage,
-          contentLength: response.content.length,
+          contentLength: response.content?.length || 0,
+          reasoningLength: response.reasoningContent?.length || 0,
           modelId,
         }
       );
 
       try {
-        // 计算 completionTokens（助手回复）
+        // 计算 completionTokens（助手回复，包含独立 reasoning/thinking 字段）
         const completionResult = await tokenCalculatorService.calculateTokens(
-          response.content,
+          completionText,
           modelId
         );
 
